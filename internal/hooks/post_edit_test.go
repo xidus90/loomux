@@ -706,6 +706,12 @@ func TestPostToolUseRunsTheGoLaneThroughItsOwnRunner(t *testing.T) {
 	if code := PostToolUse(strings.NewReader(payload), &stdout, &stderr, root); code != ExitOK {
 		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, stderr.String())
 	}
+	// A lane whose tool is missing is skipped, and a skipped lane says so on
+	// stdout -- so silence is what tells a lane that ran and passed from one
+	// that never started.
+	if stdout.Len() != 0 {
+		t.Fatalf("the lane did not run: %s", stdout.String())
+	}
 }
 
 // A path that does not start in the area is handed back untouched: an edit

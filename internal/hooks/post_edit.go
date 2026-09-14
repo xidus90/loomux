@@ -61,7 +61,7 @@ func commandRunner(look func(string) (string, error), notice io.Writer) CommandR
 	}
 }
 
-//coverage:exempt the sh arm belongs to a host this project is not built for; runtime.GOOS is windows in every run here
+//coverage:exempt the sh arm runs only where runtime.GOOS is not windows, and this suite is measured on Windows
 func runLane(dir, command string) (string, error) {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {

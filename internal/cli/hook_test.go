@@ -79,9 +79,8 @@ func TestHookRefusesAnUnknownFlag(t *testing.T) {
 }
 
 // Without `--root` the root is the first directory at or above the working one
-// that holds `.loomux/config.toml`, and the hook runs against that. The state
-// file is the evidence that the walk found this project and not the checkout
-// the test binary happens to run in.
+// that holds `.loomux/config.toml`, and the hook runs against that: with no
+// root to find, hosts.FindRoot refuses and the call ends with 1 instead.
 func TestHookWalksUpToTheRootWhenNoneIsGiven(t *testing.T) {
 	root := project(t)
 	inside := filepath.Join(root, "deep", "deeper")
