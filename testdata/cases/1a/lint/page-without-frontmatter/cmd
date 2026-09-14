@@ -1,0 +1,1 @@
+loomux lint --root {{WORLD}} {{WORLD}}/docs/wiki/broken.md

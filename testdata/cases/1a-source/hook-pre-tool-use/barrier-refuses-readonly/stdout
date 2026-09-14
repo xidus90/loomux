@@ -1,0 +1,1 @@
+{"decision": "deny", "reason": "the registry declares no writable wiki path and no workspace, so nothing outside the agents' memory may be written", "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "the registry declares no writable wiki path and no workspace, so nothing outside the agents' memory may be written"}}

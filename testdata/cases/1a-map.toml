@@ -1,0 +1,29 @@
+# The order counts: the longer prefix stands before the shorter one.
+
+[[command]]
+from = "ulguard post-edit --root {{WORLD}}"
+to   = "loomux hook post-tool-use --host claude --root {{WORLD}}"
+
+[[command]]
+from = "ulguard hook session-start"
+to   = "loomux hook session-start"
+
+[[command]]
+from = "ulguard --root {{WORLD}}"
+to   = "loomux hook pre-tool-use --host claude --root {{WORLD}}"
+
+[[command]]
+from = "brain guard"
+to   = "loomux hook pre-tool-use --host claude --root {{WORLD}}"
+
+[[command]]
+from = "brain lint"
+to   = "loomux lint --root {{WORLD}}"
+
+[[command]]
+from = "brain wiki-gate"
+to   = "loomux wiki-gate"
+
+[[command]]
+from = "ulinit check"
+to   = "loomux check"

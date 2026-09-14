@@ -1,0 +1,12 @@
+[area]
+  scope = "project/w"
+
+[layout]
+  wiki = "docs/wiki"
+
+[policy]
+  [policy.paths]
+
+    [[policy.paths.rules]]
+      match = "generated/*"
+      reason = "generated files are rebuilt, not edited"

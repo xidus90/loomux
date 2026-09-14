@@ -1,0 +1,1 @@
+{"toolCall":{"name":"write_to_file","args":{"TargetFile":"{{WORLD}}/../outside.md"}}}

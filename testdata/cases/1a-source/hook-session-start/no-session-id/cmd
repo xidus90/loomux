@@ -1,0 +1,1 @@
+ulguard hook session-start --host claude --root {{WORLD}}
