@@ -1,12 +1,29 @@
 package hooks
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/xidus90/loomux/internal/gitwork"
 	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/sessions"
+)
+
+// The three seams the stale check is tested through. Variables rather than
+// parameters because every one of them answers a question about the running
+// process, not about the project: in a test os.Executable names the test
+// binary in a temp directory outside any project, and the two failure arms of
+// the walk need a directory the filesystem refuses.
+var (
+	executable = os.Executable
+	absPath    = filepath.Abs
+	walkDir    = filepath.WalkDir
 )
 
 // SessionStart writes down the commit the session starts on.
@@ -17,8 +34,6 @@ import (
 //
 // Waiting flow runs are not announced here: internal/journal does not move in
 // stage 1a, so the report comes back with the flow migration.
-//
-//coverage:exempt hosts.WriteContext cannot fail here: its claude arm writes nothing for an empty document, and the other two hosts are already refused by hosts.Read above
 func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName string) int {
 	host, err := hosts.ParseHost(hostName)
 	if err != nil {
@@ -36,7 +51,9 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName stri
 		return ExitInternal
 	}
 
-	if err := hosts.WriteContext(host, stdout, nil); err != nil {
+	lines := staleBinary(root)
+
+	if err := hosts.WriteContext(host, stdout, lines); err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)
 		return ExitInternal
 	}
@@ -78,4 +95,80 @@ func recordBase(sessionID, root string) error {
 	state := sessions.ReadState(root, sessionID)
 	state.Base = commit
 	return sessions.WriteState(root, sessionID, state)
+}
+
+// staleBinary names the running binary when it lives inside the project and a
+// source that decides its behaviour changed after it was built: a pilot hook
+// then judges with yesterday's rules.
+//
+// The comparison is against the sources and deliberately not against HEAD.
+// The pre-commit gate builds bin/loomux.exe before the commit exists, so the
+// commit time would always lie after the binary, and the warning would stand
+// after every commit.
+func staleBinary(root string) []string {
+	path, err := executable()
+	if err != nil {
+		return nil
+	}
+	absRoot, err := absPath(root)
+	if err != nil {
+		return nil
+	}
+	rel, err := filepath.Rel(absRoot, path)
+	if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+		return nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	newest, name, err := newestSource(absRoot)
+	if err != nil || !info.ModTime().Before(newest) {
+		return nil
+	}
+	return []string{fmt.Sprintf(
+		"loomux binary %s is older than %s; rebuild with: go build -o bin/loomux.new.exe ./cmd/loomux, then go run ./cmd/loomux dev swap-binary --dir bin",
+		filepath.ToSlash(rel), name)}
+}
+
+// newestSource is the latest modification among go.mod, go.sum and the .go
+// files under cmd/ and internal/, with that file's slash-separated path.
+func newestSource(root string) (time.Time, string, error) {
+	var newest time.Time
+	var name string
+	consider := func(path string, info fs.FileInfo) {
+		if info.ModTime().After(newest) {
+			newest = info.ModTime()
+			rel, _ := filepath.Rel(root, path)
+			name = filepath.ToSlash(rel)
+		}
+	}
+	for _, file := range []string{"go.mod", "go.sum"} {
+		if info, err := os.Stat(filepath.Join(root, file)); err == nil {
+			consider(filepath.Join(root, file), info)
+		}
+	}
+	for _, dir := range []string{"cmd", "internal"} {
+		err := walkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
+			if errors.Is(err, fs.ErrNotExist) && path == filepath.Join(root, dir) {
+				return filepath.SkipDir
+			}
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || filepath.Ext(path) != ".go" {
+				return nil
+			}
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			consider(path, info)
+			return nil
+		})
+		if err != nil {
+			return time.Time{}, "", err
+		}
+	}
+	return newest, name, nil
 }

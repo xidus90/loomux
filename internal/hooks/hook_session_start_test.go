@@ -2,11 +2,14 @@ package hooks
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/sessions"
@@ -140,6 +143,227 @@ func TestHookSessionStartOnAHostWithoutAnAdapter(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "antigravity") {
 		t.Fatalf("the refusal names the host, got %q", stderr.String())
+	}
+}
+
+// pilot is a project holding a binary and one source, each aged as asked.
+func pilot(t *testing.T, binaryAge, sourceAge time.Duration) (root, binary string) {
+	t.Helper()
+	root = t.TempDir()
+	binary = filepath.Join(root, "bin", "loomux.exe")
+	source := filepath.Join(root, "internal", "cli", "cli.go")
+	for path, age := range map[string]time.Duration{binary: binaryAge, source: sourceAge} {
+		write(t, path, age)
+	}
+	return root, binary
+}
+
+// write puts a file in place and dates it `age` into the past.
+func write(t *testing.T, path string, age time.Duration) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stamp := time.Now().Add(-age)
+	if err := os.Chtimes(path, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// runningAs points the stale check at a binary of the test's choosing: in a
+// test os.Executable names the test binary in a temp directory of its own,
+// which lies outside any project, so nothing would ever be compared.
+func runningAs(t *testing.T, path string) {
+	t.Helper()
+	executable = func() (string, error) { return path, nil }
+	t.Cleanup(func() { executable = os.Executable })
+}
+
+// The comparison is against the sources, deliberately not against HEAD: the
+// pre-commit gate builds the binary before the commit exists, so a HEAD
+// comparison would warn after every single commit.
+func TestSessionStartWarnsWhenASourceIsNewerThanThePilotBinary(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, time.Minute)
+	runningAs(t, binary)
+
+	lines := staleBinary(root)
+
+	if len(lines) != 1 || !strings.Contains(lines[0], "internal/cli/cli.go") {
+		t.Fatalf("expected one line naming the newer source, got %v", lines)
+	}
+	if !strings.Contains(lines[0], "bin/loomux.exe") {
+		t.Fatalf("the warning names the binary it is about, got %v", lines)
+	}
+}
+
+// go.mod and go.sum decide the build as much as the .go files do.
+func TestSessionStartWarnsWhenTheModuleFilesAreNewer(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, 3*time.Hour)
+	write(t, filepath.Join(root, "go.sum"), 3*time.Hour)
+	write(t, filepath.Join(root, "go.mod"), time.Minute)
+	runningAs(t, binary)
+
+	lines := staleBinary(root)
+
+	if len(lines) != 1 || !strings.Contains(lines[0], "go.mod") {
+		t.Fatalf("expected one line naming go.mod, got %v", lines)
+	}
+}
+
+func TestSessionStartIsQuietWhenTheBinaryIsNewest(t *testing.T) {
+	root, binary := pilot(t, time.Minute, 2*time.Hour)
+	runningAs(t, binary)
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+// Only what is compiled into the binary counts: a .go file outside cmd/ and
+// internal/ never reached the build.
+func TestSessionStartIgnoresGoFilesOutsideTheBuiltDirectories(t *testing.T) {
+	root := t.TempDir()
+	binary := filepath.Join(root, "bin", "loomux.exe")
+	write(t, binary, 2*time.Hour)
+	write(t, filepath.Join(root, "internal", "cli", "cli.go"), 3*time.Hour)
+	write(t, filepath.Join(root, "internal", "cli", "notes.md"), 3*time.Hour)
+	write(t, filepath.Join(root, "testdata", "x.go"), time.Minute)
+	runningAs(t, binary)
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+func TestSessionStartSaysNothingAboutABinaryOutsideTheProject(t *testing.T) {
+	root, _ := pilot(t, 2*time.Hour, time.Minute)
+	runningAs(t, filepath.Join(t.TempDir(), "loomux.exe"))
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("a binary outside the project is none of the project's business, got %v", lines)
+	}
+}
+
+func TestSessionStartSaysNothingWhenTheRunningBinaryCannotBeNamed(t *testing.T) {
+	root, _ := pilot(t, 2*time.Hour, time.Minute)
+	executable = func() (string, error) { return "", errors.New("no executable") }
+	t.Cleanup(func() { executable = os.Executable })
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+func TestSessionStartSaysNothingWhenTheRootCannotBeResolved(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, time.Minute)
+	runningAs(t, binary)
+	absPath = func(string) (string, error) { return "", errors.New("no cwd") }
+	t.Cleanup(func() { absPath = filepath.Abs })
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+func TestSessionStartSaysNothingAboutABinaryThatIsNotThere(t *testing.T) {
+	root, _ := pilot(t, 2*time.Hour, time.Minute)
+	runningAs(t, filepath.Join(root, "bin", "gone.exe"))
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+// A directory that will not be read leaves the age of the sources unknown, and
+// an unknown age is no reason to tell the session anything.
+func TestSessionStartSaysNothingWhenASourceDirectoryCannotBeRead(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, time.Minute)
+	runningAs(t, binary)
+	walkDir = func(string, fs.WalkDirFunc) error { return errors.New("permission denied") }
+	t.Cleanup(func() { walkDir = filepath.WalkDir })
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+func TestSessionStartSaysNothingWhenAWalkHandsUpAnError(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, time.Minute)
+	runningAs(t, binary)
+	walkDir = func(dir string, fn fs.WalkDirFunc) error {
+		return fn(dir, nil, errors.New("permission denied"))
+	}
+	t.Cleanup(func() { walkDir = filepath.WalkDir })
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+// A file that disappears between the walk and the question about its age: the
+// walk hands up the entry, and the entry can no longer answer.
+func TestSessionStartSaysNothingWhenASourceLosesItsAgeMidWalk(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, time.Minute)
+	runningAs(t, binary)
+	walkDir = func(dir string, fn fs.WalkDirFunc) error {
+		return fn(filepath.Join(dir, "vanished.go"), vanishing{}, nil)
+	}
+	t.Cleanup(func() { walkDir = filepath.WalkDir })
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+// vanishing is a walk entry for a file that is gone by the time it is asked
+// how old it is.
+type vanishing struct{ fs.DirEntry }
+
+func (vanishing) IsDir() bool                { return false }
+func (vanishing) Info() (fs.FileInfo, error) { return nil, fs.ErrNotExist }
+
+// The warning travels the same way as anything else the hook has to say, so a
+// stdout that will not take it ends the call with exit 1.
+func TestHookSessionStartReportsAWarningItCannotWrite(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, time.Minute)
+	write(t, filepath.Join(root, ".loomux", "config.toml"), 3*time.Hour)
+	runningAs(t, binary)
+
+	var stderr bytes.Buffer
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), refusingWriter{}, &stderr, root, "claude")
+
+	if code != ExitInternal {
+		t.Fatalf("expected exit 1, got %d", code)
+	}
+	if strings.TrimSpace(stderr.String()) == "" {
+		t.Fatal("a refusal says why")
+	}
+}
+
+// refusingWriter is a stdout that takes nothing.
+type refusingWriter struct{}
+
+func (refusingWriter) Write([]byte) (int, error) { return 0, errors.New("closed") }
+
+// The session hears about a stale binary through the hook itself, not only
+// through staleBinary: a pilot hook judges with yesterday's rules until it is
+// rebuilt.
+func TestHookSessionStartAnnouncesAStaleBinary(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, time.Minute)
+	write(t, filepath.Join(root, ".loomux", "config.toml"), 3*time.Hour)
+	runningAs(t, binary)
+
+	var stdout, stderr bytes.Buffer
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude")
+
+	if code != ExitOK {
+		t.Fatalf("a warning does not fail the hook, got %d (%s)", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "internal/cli/cli.go") {
+		t.Fatalf("the session is told which source is newer, got %q", stdout.String())
 	}
 }
 
