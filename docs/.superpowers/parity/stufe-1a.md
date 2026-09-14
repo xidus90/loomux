@@ -33,6 +33,26 @@
 | Format der Lint-Befunde | durch Fälle belegt | durch `report_test.go` belegt | Lint-Fälle vergleichen Exit und leeres stdout; das Format ist kein Fallgegenstand (R14c) | |
 | CRLF in Aufzeichnungen | `tools/cases.py` normalisierte CRLF zu LF | der Rekorder normalisiert nur Pfade | trägt ein aufgezeichnetes stdout CRLF und der Lauf im Prozess nicht, ist das ein Unterschied der Aufzeichnung, nicht des Verhaltens | |
 
+## Pilot
+
+Der Rauchtest in einer frischen Claude-Sitzung im loomux-Repo (Step 4 der
+Aufgabe 16) gehört dem Nutzer: er startet die Sitzung, fährt die acht Schritte
+und hakt sie hier ab. Kein Agent füllt diese Liste.
+
+- [ ] Session-Start: kein Fehler. Nach einer Änderung an einer `.go`-Datei ohne
+      Neubau (`touch internal/cli/cli.go`) erscheint die Warnung beim nächsten
+      Session-Start; nach `sh .githooks/pre-commit` nicht mehr — auch nicht nach
+      dem Commit, der auf das Tor folgt.
+- [ ] Edit an `internal/cli/cli.go` (Kommentarzeile) → erlaubt; post-edit läuft
+      ohne Meldung.
+- [ ] Write an `.env` → verweigert, Grund `secrets`.
+- [ ] Edit an `.loomux/config.toml` → verweigert.
+- [ ] Write an `C:/Users/micro/Documents/#GIT/ultraloom/x.md` → verweigert.
+- [ ] Write in das Scratchpad der Sitzung → erlaubt.
+- [ ] Bash `git push` → verweigert.
+- [ ] Commit mit englischer Nachricht → Tore grün; mit deutscher →
+      commit-msg verweigert.
+
 ## Was die Fälle der Stufe 1a decken
 
 `testdata/cases/1a-source/` hält die Aufzeichnungen der alten Binaries (Beweis,
