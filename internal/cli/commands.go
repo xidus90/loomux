@@ -4,6 +4,11 @@ package cli
 var commands = map[string]command{
 	"check":     checkCommand,
 	"dev":       devCommand,
+	"doctor":    statusCommand,
+	"explain":   statusCommand,
+	"hook":      hookCommand,
 	"lint":      lintCommand,
+	"status":    statusCommand,
 	"wiki-gate": wikiGateCommand,
+	"worktree":  worktreeCommand,
 }
