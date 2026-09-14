@@ -20,7 +20,9 @@ if [ -n "$unformatted" ]; then
 	exit 1
 fi
 go vet ./...
-go test ./... -covermode=set -coverpkg=./... -coverprofile=coverage.out
+# -count=1: a package served from the test cache adds no counts to the
+# -coverpkg profile, and covergate then reports its unchanged functions at 0%.
+go test ./... -count=1 -covermode=set -coverpkg=./... -coverprofile=coverage.out
 go run ./cmd/loomux dev covergate --profile coverage.out
 mkdir -p bin
 go build -o bin/loomux.new.exe ./cmd/loomux
