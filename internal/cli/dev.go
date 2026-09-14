@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -16,9 +17,15 @@ const module = "github.com/xidus90/loomux"
 
 var coverFunc = runCoverFunc
 
-//coverage:exempt starts the go toolchain; the gate's logic is tested through coverFunc
+// runCoverFunc keeps the tool's stderr in the error: exec alone would report
+// only an exit status, never why the profile was unusable.
 func runCoverFunc(profile string) ([]byte, error) {
-	return exec.Command("go", "tool", "cover", "-func="+profile).Output()
+	out, err := exec.Command("go", "tool", "cover", "-func="+profile).Output()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return out, fmt.Errorf("%w: %s", err, bytes.TrimSpace(exit.Stderr))
+	}
+	return out, err
 }
 
 var devCommands = map[string]command{
@@ -54,6 +61,11 @@ func devCovergate(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	lines, err := covergate.Parse(bytes.NewReader(out))
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux dev covergate: %v\n", err)
+		return 1
+	}
+	// A gate that finds nothing to judge must not pass.
+	if len(lines) == 0 {
+		fmt.Fprintf(stderr, "loomux dev covergate: no functions in %s\n", *profile)
 		return 1
 	}
 	return covergate.Gate(lines, module, os.ReadFile, stdout)

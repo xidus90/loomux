@@ -3,6 +3,16 @@
 # per-function coverage, then rebuild the pilot binary the hooks call.
 set -eu
 cd "$(git rev-parse --show-toplevel)"
+# The steps below read the working tree. They only judge what is committed
+# when no Go input differs from the index.
+unstaged=$(git diff --name-only -- '*.go' go.mod go.sum)
+untracked=$(git ls-files --others --exclude-standard -- '*.go' go.mod go.sum)
+if [ -n "$unstaged$untracked" ]; then
+	echo "pre-commit: Go inputs differ from the index; stage or stash them:" >&2
+	[ -z "$unstaged" ] || echo "$unstaged" >&2
+	[ -z "$untracked" ] || echo "$untracked" >&2
+	exit 1
+fi
 unformatted=$(gofmt -l cmd internal)
 if [ -n "$unformatted" ]; then
 	echo "gofmt: these files are not formatted:" >&2

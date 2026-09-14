@@ -64,6 +64,33 @@ func TestDevCovergateFailsWhenTheCoverToolFails(t *testing.T) {
 	}
 }
 
+func TestDevCovergateRefusesAProfileWithoutFunctions(t *testing.T) {
+	coverFunc = func(string) ([]byte, error) { return []byte("total:\t(statements)\t0.0%\n"), nil }
+	defer func() { coverFunc = runCoverFunc }()
+	code, _, errOut := run("dev", "covergate")
+	if code != 1 || !strings.Contains(errOut, "loomux dev covergate: no functions in") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestRunCoverFuncReadsAValidProfile(t *testing.T) {
+	profile := filepath.Join(t.TempDir(), "c.out")
+	if err := os.WriteFile(profile, []byte("mode: set\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCoverFunc(profile); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunCoverFuncReportsTheToolsStderr(t *testing.T) {
+	profile := filepath.Join(t.TempDir(), "missing.out")
+	_, err := runCoverFunc(profile)
+	if err == nil || !strings.Contains(err.Error(), "missing.out") {
+		t.Fatalf("err %v", err)
+	}
+}
+
 func TestDevCovergateFailsOnUnparsableOutput(t *testing.T) {
 	coverFunc = func(string) ([]byte, error) { return []byte("garbage\n"), nil }
 	defer func() { coverFunc = runCoverFunc }()

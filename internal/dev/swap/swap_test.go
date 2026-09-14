@@ -2,7 +2,9 @@ package swap
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -42,6 +44,46 @@ func TestSwapWorksWithoutAPreviousBinary(t *testing.T) {
 	write(t, filepath.Join(dir, "loomux.new.exe"), "new")
 	if err := Swap(dir); err != nil || read(t, filepath.Join(dir, "loomux.exe")) != "new" {
 		t.Fatalf("err %v", err)
+	}
+}
+
+func TestSwapFailsWhenTheOldSlotCannotBeFreed(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "loomux.exe"), "old")
+	write(t, filepath.Join(dir, "loomux.new.exe"), "new")
+	if err := os.MkdirAll(filepath.Join(dir, "loomux.old.exe", "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Swap(dir); err == nil {
+		t.Fatal("want error")
+	}
+	if read(t, filepath.Join(dir, "loomux.exe")) != "old" || read(t, filepath.Join(dir, "loomux.new.exe")) != "new" {
+		t.Fatal("a failed swap must leave both binaries where they were")
+	}
+}
+
+func TestSwapFailsWhenTheTargetIsADanglingJunction(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("junctions are a Windows construct")
+	}
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "loomux.new.exe"), "new")
+	target := filepath.Join(dir, "gone")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("cmd", "/c", "mklink", "/J", filepath.Join(dir, "loomux.exe"), target).CombinedOutput()
+	if err != nil {
+		t.Fatalf("mklink: %v: %s", err, out)
+	}
+	if err := os.Remove(target); err != nil {
+		t.Fatal(err)
+	}
+	if err := Swap(dir); err == nil {
+		t.Fatal("want error")
+	}
+	if read(t, filepath.Join(dir, "loomux.new.exe")) != "new" {
+		t.Fatal("the new binary must stay in place")
 	}
 }
 

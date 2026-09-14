@@ -11,8 +11,6 @@ import (
 
 // Swap moves dir/loomux.new.exe to dir/loomux.exe, keeping the previous one
 // as dir/loomux.old.exe.
-//
-//coverage:exempt both Rename error arms need the file system to refuse a rename in a directory the Stat just read
 func Swap(dir string) error {
 	current := filepath.Join(dir, "loomux.exe")
 	next := filepath.Join(dir, "loomux.new.exe")
