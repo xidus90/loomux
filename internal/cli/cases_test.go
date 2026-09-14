@@ -14,8 +14,10 @@ func TestRecordedCasesOfStage1a(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(all) == 0 {
-		t.Fatal("no cases found")
+	// The number is pinned, not merely non-zero: a partial import must not
+	// pass as parity. Raise it with the corpus when a case is added.
+	if len(all) != 19 {
+		t.Fatalf("expected 19 recorded cases, found %d", len(all))
 	}
 	for _, c := range all {
 		t.Run(c.Verb+"/"+c.Name, func(t *testing.T) {
