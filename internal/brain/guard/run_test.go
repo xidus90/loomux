@@ -127,7 +127,7 @@ func TestRunRefusesBrokenJSON(t *testing.T) {
 		t.Fatalf("got %d", code)
 	}
 	if !strings.Contains(out.String(),
-		"the wiki guard cannot read the hook payload, so it refuses") {
+		"loomux cannot read the hook payload, so it refuses") {
 		t.Fatalf("stdout %q", out)
 	}
 }
@@ -260,7 +260,7 @@ func TestRunRefusesAStdinThatCannotBeRead(t *testing.T) {
 	if code != blockingExit {
 		t.Fatalf("got %d", code)
 	}
-	if !strings.Contains(out.String(), "the wiki guard broke down") {
+	if !strings.Contains(out.String(), "loomux broke down") {
 		t.Fatalf("stdout %q", out)
 	}
 }

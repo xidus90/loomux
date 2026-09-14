@@ -418,7 +418,7 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 			// through, and this is the first thing decided about a
 			// target for that reason.
 			return fmt.Sprintf(
-				"%s: the wiki guard cannot resolve this path, so it "+
+				"%s: loomux cannot resolve this path, so it "+
 					"refuses: %v", target, err), true
 		}
 		resolved[i] = place
@@ -446,17 +446,17 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 	areas, err := readRegistry(stateDir)
 	if err != nil {
 		return fmt.Sprintf(
-			"the wiki guard cannot read the registry, so it refuses: %v",
+			"loomux cannot read the registry, so it refuses: %v",
 			err), true
 	}
 	roots, err := writableRoots(areas)
 	if err != nil {
-		return fmt.Sprintf("the wiki guard cannot resolve a registered "+
+		return fmt.Sprintf("loomux cannot resolve a registered "+
 			"tree, so it refuses: %v", err), true
 	}
 	zones, err := forbiddenRoots(areas)
 	if err != nil {
-		return fmt.Sprintf("the wiki guard cannot resolve a registered "+
+		return fmt.Sprintf("loomux cannot resolve a registered "+
 			"tree, so it refuses: %v", err), true
 	}
 	// Declared roots are collected per target and pooled. Each one is
@@ -466,7 +466,7 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 	for _, path := range resolved {
 		declared, err := declaredWikiRoot(path, areas)
 		if err != nil {
-			return fmt.Sprintf("the wiki guard cannot read the registry,"+
+			return fmt.Sprintf("loomux cannot read the registry,"+
 				" so it refuses: %v", err), true
 		}
 		if declared != "" {

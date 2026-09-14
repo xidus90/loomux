@@ -9,10 +9,6 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-func reasonsFor(root, tool string, input map[string]any, policy config.Policy) []string {
-	return checkTool(root, tool, input, policy)
-}
-
 func TestSafeFileWritesCarryNoReason(t *testing.T) {
 	root := t.TempDir()
 	for _, path := range []string{
@@ -20,7 +16,7 @@ func TestSafeFileWritesCarryNoReason(t *testing.T) {
 		filepath.Join(root, "src", "main.py"),
 		"../outside.py",
 	} {
-		if reasons := reasonsFor(root, "Write", map[string]any{"file_path": path}, config.Policy{}); len(reasons) != 0 {
+		if reasons := checkTool(root, "Write", map[string]any{"file_path": path}, config.Policy{}); len(reasons) != 0 {
 			t.Fatalf("%s: reasons %v, want none", path, reasons)
 		}
 	}
@@ -52,7 +48,7 @@ func TestProtectedBuiltinPathsCarryTheirReason(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			reasons := reasonsFor(root, "Edit", map[string]any{"file_path": tc.path}, config.Policy{})
+			reasons := checkTool(root, "Edit", map[string]any{"file_path": tc.path}, config.Policy{})
 			if len(reasons) != 1 || reasons[0] != tc.reason {
 				t.Fatalf("reasons %v, want %q", reasons, tc.reason)
 			}
@@ -68,27 +64,50 @@ func TestAConfiguredPathRuleCarriesItsReason(t *testing.T) {
 		Match:  []string{"docs/*.md", "migrations/[0-9][0-9][0-9][0-9]_*.py"},
 		Reason: "Django migrations are protected",
 	}}}
-	reasons := reasonsFor(root, "Write", map[string]any{"file_path": "migrations/0001_initial.py"}, policy)
+	reasons := checkTool(root, "Write", map[string]any{"file_path": "migrations/0001_initial.py"}, policy)
 	if len(reasons) != 1 || reasons[0] != "Django migrations are protected" {
 		t.Fatalf("reasons %v", reasons)
 	}
-	if reasons := reasonsFor(root, "Write", map[string]any{"file_path": "src/0001_initial.py"}, policy); len(reasons) != 0 {
+	if reasons := checkTool(root, "Write", map[string]any{"file_path": "src/0001_initial.py"}, policy); len(reasons) != 0 {
 		t.Fatalf("reasons %v, want none: the glob names a directory", reasons)
 	}
 }
 
-// Every target of a call is judged, not the first one found.
+// A notebook names its target under its own key, and every target of a call is
+// judged: the harmless file_path beside it neither hides nor doubles the
+// notebook's reason.
 func TestNotebookEditIsJudgedByItsOwnTargetKey(t *testing.T) {
 	root := t.TempDir()
-	reasons := reasonsFor(root, "NotebookEdit", map[string]any{"notebook_path": ".env"}, config.Policy{})
-	if len(reasons) != 1 {
+	reasons := checkTool(root, "NotebookEdit", map[string]any{
+		"notebook_path": ".env",
+		"file_path":     "src/main.py",
+	}, config.Policy{})
+	if len(reasons) != 1 || reasons[0] != "secrets are not written by an agent" {
 		t.Fatalf("reasons %v", reasons)
+	}
+}
+
+// Both books are read for one target: a built-in rule and a configured one that
+// match the same path each contribute their reason.
+func TestABuiltinAndAConfiguredRuleBothCarryTheirReason(t *testing.T) {
+	root := t.TempDir()
+	policy := config.Policy{Paths: []config.PathRule{{
+		Match:  []string{".env"},
+		Reason: "this project keeps its secrets out of the tree entirely",
+	}}}
+	reasons := checkTool(root, "Write", map[string]any{"file_path": ".env"}, policy)
+	want := []string{
+		"secrets are not written by an agent",
+		"this project keeps its secrets out of the tree entirely",
+	}
+	if len(reasons) != len(want) || reasons[0] != want[0] || reasons[1] != want[1] {
+		t.Fatalf("reasons %v, want %v", reasons, want)
 	}
 }
 
 func TestMultiEditIsJudgedLikeAWrite(t *testing.T) {
 	root := t.TempDir()
-	if reasons := reasonsFor(root, "MultiEdit", map[string]any{"file_path": ".env"}, config.Policy{}); len(reasons) != 1 {
+	if reasons := checkTool(root, "MultiEdit", map[string]any{"file_path": ".env"}, config.Policy{}); len(reasons) != 1 {
 		t.Fatalf("reasons %v", reasons)
 	}
 }
@@ -96,7 +115,7 @@ func TestMultiEditIsJudgedLikeAWrite(t *testing.T) {
 // A tool that writes nothing is judged by no path rule, whatever it carries.
 func TestAReadingToolIsNotJudgedByThePathRules(t *testing.T) {
 	root := t.TempDir()
-	if reasons := reasonsFor(root, "Read", map[string]any{"file_path": ".env"}, config.Policy{}); len(reasons) != 0 {
+	if reasons := checkTool(root, "Read", map[string]any{"file_path": ".env"}, config.Policy{}); len(reasons) != 0 {
 		t.Fatalf("reasons %v, want none", reasons)
 	}
 }
@@ -104,7 +123,7 @@ func TestAReadingToolIsNotJudgedByThePathRules(t *testing.T) {
 func TestGitPushIsRefusedOnBashAndPowerShell(t *testing.T) {
 	root := t.TempDir()
 	for _, tool := range []string{"Bash", "PowerShell"} {
-		reasons := reasonsFor(root, tool, map[string]any{"command": "git push origin main"}, config.Policy{})
+		reasons := checkTool(root, tool, map[string]any{"command": "git push origin main"}, config.Policy{})
 		if len(reasons) != 1 || reasons[0] != "Whether commits reach the remote is a human's decision." {
 			t.Fatalf("[%s] reasons %v", tool, reasons)
 		}
@@ -113,7 +132,7 @@ func TestGitPushIsRefusedOnBashAndPowerShell(t *testing.T) {
 
 func TestASafeCommandCarriesNoReason(t *testing.T) {
 	root := t.TempDir()
-	if reasons := reasonsFor(root, "Bash", map[string]any{"command": "git status"}, config.Policy{}); len(reasons) != 0 {
+	if reasons := checkTool(root, "Bash", map[string]any{"command": "git status"}, config.Policy{}); len(reasons) != 0 {
 		t.Fatalf("reasons %v, want none", reasons)
 	}
 }
@@ -122,7 +141,7 @@ func TestASafeCommandCarriesNoReason(t *testing.T) {
 // match an expression against.
 func TestACommandThatIsNoStringCarriesNoReason(t *testing.T) {
 	root := t.TempDir()
-	if reasons := reasonsFor(root, "Bash", map[string]any{"command": 7}, config.Policy{}); len(reasons) != 0 {
+	if reasons := checkTool(root, "Bash", map[string]any{"command": 7}, config.Policy{}); len(reasons) != 0 {
 		t.Fatalf("reasons %v, want none", reasons)
 	}
 }
@@ -134,7 +153,7 @@ func TestAConfiguredCommandRuleCarriesItsReason(t *testing.T) {
 		Source: `(^|\s)pip\s+install`,
 		Reason: "use uv add instead",
 	}}}
-	reasons := reasonsFor(root, "Bash", map[string]any{"command": "pip install requests"}, policy)
+	reasons := checkTool(root, "Bash", map[string]any{"command": "pip install requests"}, policy)
 	if len(reasons) != 1 || reasons[0] != "use uv add instead" {
 		t.Fatalf("reasons %v", reasons)
 	}

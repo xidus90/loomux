@@ -20,7 +20,7 @@ const blockingExit = 2
 // does. JSON has one number type; Python has two.
 type jsonNumber = json.Number
 
-const unreadable = "the wiki guard cannot read the hook payload, so it refuses"
+const unreadable = "loomux cannot read the hook payload, so it refuses"
 
 // Run reads the hook payload, writes the answer, and leaves with 0 or 2
 // -- never 1.
@@ -76,14 +76,14 @@ func answer(stdin io.Reader, stateDir string) (reason string, refuse bool) {
 	defer func() {
 		if broke := recover(); broke != nil {
 			reason = fmt.Sprintf(
-				"the wiki guard broke down, so it refuses: %v", broke)
+				"loomux broke down, so it refuses: %v", broke)
 			refuse = true
 		}
 	}()
 	data, err := io.ReadAll(stdin)
 	if err != nil {
 		return fmt.Sprintf(
-			"the wiki guard broke down, so it refuses: %v", err), true
+			"loomux broke down, so it refuses: %v", err), true
 	}
 	payload, err := decodeOnly(data)
 	if err != nil {

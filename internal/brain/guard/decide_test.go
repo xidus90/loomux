@@ -596,7 +596,7 @@ func TestAnUnreadableRegistryRefuses(t *testing.T) {
 	state := filepath.Join(tmp, "state")
 	mkdir(t, state)
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestABrokenRegistryRefuses(t *testing.T) {
@@ -604,7 +604,7 @@ func TestABrokenRegistryRefuses(t *testing.T) {
 	state := filepath.Join(tmp, "state")
 	write(t, filepath.Join(state, "registry.toml"), "[[area]\nscope =")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestAreasDeclaredAsATableRefuse(t *testing.T) {
@@ -734,7 +734,7 @@ func TestAWikiThatIsNotAStringRefuses(t *testing.T) {
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"a\"\npath = \"/x\"\nwiki = 1\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestAnEmptyRegistryFileRefuses(t *testing.T) {
@@ -752,7 +752,7 @@ func TestABrokenManifestOfARegisteredAreaRefusesEverything(t *testing.T) {
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"), "scope = [\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestAManifestWithoutAScopeRefusesEverything(t *testing.T) {
@@ -815,7 +815,7 @@ func TestAnInboxThatIsNotAStringRefusesEverything(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[layout]\ninbox = 1\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestABadPrivacyModeRefusesEverything(t *testing.T) {
@@ -902,7 +902,7 @@ func TestALayoutThatIsNotATableRefusesEverything(t *testing.T) {
 		"layout = \"x\"\n\n[area]\nscope = \"project/demo\"\n")
 	// `dict("x")` is the plain ValueError `decide`'s docstring names.
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestAnAreaTableThatIsNotATableRefusesEverything(t *testing.T) {
@@ -910,7 +910,7 @@ func TestAnAreaTableThatIsNotATableRefusesEverything(t *testing.T) {
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"), "area = \"x\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 // --- a project configuration that declares no area ----------------------
@@ -1067,7 +1067,7 @@ func TestAWikiLayoutThatIsNotAStringIsRefused(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[layout]\nwiki = 1\n")
 	deny(t, writeCall(filepath.Join(tmp, "repo", "w", "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestAFalseWikiLayoutDeclaresNothing(t *testing.T) {

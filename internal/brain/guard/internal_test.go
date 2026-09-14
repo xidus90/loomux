@@ -443,7 +443,7 @@ func TestEverySectionThatMustBeATableIsOne(t *testing.T) {
 		write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 			section+" = \"x\"\n\n[area]\nscope = \"project/demo\"\n")
 		deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")),
-			state, "the wiki guard cannot read the registry, so it refuses")
+			state, "loomux cannot read the registry, so it refuses")
 	}
 }
 
@@ -497,7 +497,7 @@ func TestAReadonlyAreaReadsItsManifestFromTheStateDirectory(t *testing.T) {
 		config.Area{Scope: "project/shut", ReadOnly: true}, state)
 	write(t, filepath.Join(moved, ".loomux", "config.toml"), "not = [toml\n")
 	deny(t, target, state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestADeclarationDirectoryIsNoDeclaration(t *testing.T) {
@@ -572,7 +572,7 @@ func TestABrokenPayloadCannotSlipThroughAPanic(t *testing.T) {
 	if code != blockingExit {
 		t.Fatalf("got %d", code)
 	}
-	if !strings.Contains(out.String(), "the wiki guard broke down") {
+	if !strings.Contains(out.String(), "loomux broke down") {
 		t.Fatalf("stdout %q", out)
 	}
 }
@@ -605,7 +605,7 @@ func TestABrokenManifestOnTheWalkRefusesAndNamesItself(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", "sub", ".loomux", "config.toml"),
 		"not = [toml\n")
 	reason := deny(t, writeCall(filepath.Join(tmp, "repo", "sub", "x.md")),
-		state, "the wiki guard cannot read the registry, so it refuses")
+		state, "loomux cannot read the registry, so it refuses")
 	if !strings.Contains(reason, "sub") {
 		t.Fatalf("the file that broke was not named: %q", reason)
 	}
@@ -672,7 +672,7 @@ func TestAManifestThatCannotBeReadRefusesAWriteInItsArea(t *testing.T) {
 	allow(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state)
 	testlock.Lock(t, declaration)
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"the wiki guard cannot read the registry, so it refuses")
+		"loomux cannot read the registry, so it refuses")
 }
 
 func TestGoodGlobListsPass(t *testing.T) {

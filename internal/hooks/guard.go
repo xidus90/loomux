@@ -38,6 +38,8 @@ var builtinPathRules = []config.PathRule{
 	{Match: []string{"credentials.json"}, Reason: "secrets are not written by an agent"},
 	{Match: []string{".aws/**"}, Reason: "secrets are not written by an agent"},
 	{Match: []string{".claude/.no-verify"}, Reason: "the stop gate's own controls are not written by the party it gates"},
+	// The literal below is the second copy of sessions.StateDir; a rule is a
+	// verbatim glob here, so the two are kept in step by hand.
 	{Match: []string{".loomux/state/hooks/**"}, Reason: "the stop gate's own controls are not written by the party it gates"},
 	{Match: []string{"uv.lock"}, Reason: "lock files are written by their package manager, not by hand"},
 	{Match: []string{"poetry.lock"}, Reason: "lock files are written by their package manager, not by hand"},
