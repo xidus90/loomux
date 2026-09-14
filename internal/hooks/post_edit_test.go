@@ -114,20 +114,6 @@ func TestRunPostEdit(t *testing.T) {
 			expectedExit: 0,
 		},
 		{
-			name:         "Wiki markdown file triggers brain lint when wiki stack is active",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "wiki/concept.md"}}`,
-			stacks:       []string{"python", "wiki"},
-			expectedCmds: []string{"brain lint wiki/concept.md"},
-			expectedExit: 0,
-		},
-		{
-			name:         "Wiki markdown file triggers uv run brain lint when uv stack is active",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "wiki/concept.md"}}`,
-			stacks:       []string{"python", "uv", "wiki"},
-			expectedCmds: []string{"uv run brain lint wiki/concept.md"},
-			expectedExit: 0,
-		},
-		{
 			name:         "Markdown file triggers no commands when wiki stack is inactive",
 			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "docs/README.md"}}`,
 			stacks:       []string{"python"},
@@ -278,10 +264,10 @@ func TestRunPostEditPayloadEdgeCases(t *testing.T) {
 }
 
 func TestDefaultCommandRunnerMissingCommand(t *testing.T) {
-	out, err := commandRunner(exec.LookPath, io.Discard)(".", "command_that_definitely_does_not_exist_xyz123")
-	// If it fails with command not recognized, it should return empty string and nil error
-	if out != "" || err != nil {
-		// Depending on OS/locale, if not matched, it returns output and error
+	// A tool the PATH does not answer costs the lane, not the run: no output
+	// and no error.
+	if out, err := commandRunner(exec.LookPath, io.Discard)(".", "command_that_definitely_does_not_exist_xyz123"); out != "" || err != nil {
+		t.Fatalf("out %q, err %v: a missing tool skips its lane", out, err)
 	}
 
 	// Normal failure returning error. `cmd` is the Windows shell, and the lane
@@ -293,44 +279,6 @@ func TestDefaultCommandRunnerMissingCommand(t *testing.T) {
 	_, errFail := commandRunner(exec.LookPath, io.Discard)(".", "cmd /c exit 42")
 	if errFail == nil {
 		t.Fatal("expected error on exit 42")
-	}
-}
-
-func TestResolveWikiDir(t *testing.T) {
-	tmp := t.TempDir()
-
-	// 1. Default when nothing exists
-	if dir := resolveWikiDir(tmp); dir != "wiki/" {
-		t.Fatalf("expected default wiki/, got %q", dir)
-	}
-
-	// 2. answers.toml with bundle
-	ultraloomDir := filepath.Join(tmp, ".ultraloom")
-	if err := os.MkdirAll(ultraloomDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(ultraloomDir, "answers.toml"), []byte("bundle = \"docs/mywiki\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if dir := resolveWikiDir(tmp); dir != "docs/mywiki" {
-		t.Fatalf("expected docs/mywiki, got %q", dir)
-	}
-
-	// 3. answers.toml with empty bundle falls back to detect or wiki/
-	if err := os.WriteFile(filepath.Join(ultraloomDir, "answers.toml"), []byte("bundle = \"\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if dir := resolveWikiDir(tmp); dir != "wiki/" {
-		t.Fatalf("expected fallback wiki/, got %q", dir)
-	}
-
-	// 4. .brain.toml
-	if err := os.WriteFile(filepath.Join(tmp, ".brain.toml"), []byte("[area]\nscope=\"test\"\nwiki=true\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_ = os.Remove(filepath.Join(ultraloomDir, "answers.toml"))
-	if dir := resolveWikiDir(tmp); dir != "docs/wiki" && dir != "docs/wiki/" {
-		// Detect defaults to docs/wiki when .brain.toml is present
 	}
 }
 
@@ -362,117 +310,109 @@ func TestIsWikiPath(t *testing.T) {
 
 func TestGetCommandsForStacksVariants(t *testing.T) {
 	// 1. Rust
-	rustCmds := getCommandsForStacks([]string{"rust"}, "rust", true, "src/main.rs", "")
+	rustCmds := getCommandsForStacks([]string{"rust"}, "rust", true, "src/main.rs", "", ".", "wiki")
 	if len(rustCmds) != 2 || !strings.Contains(rustCmds[0].text, "cargo clippy") {
 		t.Fatalf("expected cargo clippy, got %v", rustCmds)
 	}
 
 	// 2. Go
-	goCmds := getCommandsForStacks([]string{"go"}, "go", true, "main.go", "")
+	goCmds := getCommandsForStacks([]string{"go"}, "go", true, "main.go", "", ".", "wiki")
 	if len(goCmds) != 1 || !strings.Contains(goCmds[0].text, "go vet") {
 		t.Fatalf("expected go vet, got %v", goCmds)
 	}
 
 	// 3. GDScript without target
-	gdCmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", false, "", "")
+	gdCmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", false, "", "", ".", "wiki")
 	if len(gdCmds) != 1 || !strings.Contains(gdCmds[0].text, "gdlint .") {
 		t.Fatalf("expected gdlint ., got %v", gdCmds)
 	}
 
 	// 4. CPP without target
-	cppCmds := getCommandsForStacks([]string{"cpp"}, "cpp", false, "", "")
+	cppCmds := getCommandsForStacks([]string{"cpp"}, "cpp", false, "", "", ".", "wiki")
 	if len(cppCmds) != 2 || !strings.Contains(cppCmds[0].text, "clang-format -i") {
 		t.Fatalf("expected clang-format -i, got %v", cppCmds)
 	}
 
 	// 5. TypeScript with target in nested dir
-	tsNested := getCommandsForStacks([]string{"typescript"}, "typescript", true, "frontend/src/app.ts", "")
+	tsNested := getCommandsForStacks([]string{"typescript"}, "typescript", true, "frontend/src/app.ts", "", ".", "wiki")
 	if len(tsNested) != 2 || !strings.Contains(tsNested[0].text, "npx --prefix frontend eslint") {
 		t.Fatalf("expected npx --prefix frontend eslint, got %v", tsNested)
 	}
 
 	// 6. TypeScript root without target
-	tsRootNoTarget := getCommandsForStacks([]string{"typescript"}, "typescript", false, "", "")
+	tsRootNoTarget := getCommandsForStacks([]string{"typescript"}, "typescript", false, "", "", ".", "wiki")
 	if len(tsRootNoTarget) != 2 || !strings.Contains(tsRootNoTarget[0].text, "npx eslint --cache .") {
 		t.Fatalf("expected npx eslint --cache ., got %v", tsRootNoTarget)
 	}
 
 	// 7. Vue without target in root
-	vueRoot := getCommandsForStacks([]string{"vue"}, "vue", false, "", "")
+	vueRoot := getCommandsForStacks([]string{"vue"}, "vue", false, "", "", ".", "wiki")
 	if len(vueRoot) != 1 || !strings.Contains(vueRoot[0].text, "npx vue-tsc --noEmit") {
 		t.Fatalf("expected npx vue-tsc --noEmit, got %v", vueRoot)
 	}
 
 	// 8. Svelte without target in root
-	svelteRoot := getCommandsForStacks([]string{"svelte"}, "svelte", false, "", "")
+	svelteRoot := getCommandsForStacks([]string{"svelte"}, "svelte", false, "", "", ".", "wiki")
 	if len(svelteRoot) != 1 || !strings.Contains(svelteRoot[0].text, "npx svelte-check") {
 		t.Fatalf("expected npx svelte-check, got %v", svelteRoot)
 	}
 
 	// 9. CSS variants
-	cssNested := getCommandsForStacks([]string{"css"}, "css", true, "frontend/src/styles.css", "")
+	cssNested := getCommandsForStacks([]string{"css"}, "css", true, "frontend/src/styles.css", "", ".", "wiki")
 	if len(cssNested) != 1 || !strings.Contains(cssNested[0].text, "npx --prefix frontend stylelint") {
 		t.Fatalf("expected npx --prefix frontend stylelint, got %v", cssNested)
 	}
-	cssNoTarget := getCommandsForStacks([]string{"css"}, "css", false, "", "")
+	cssNoTarget := getCommandsForStacks([]string{"css"}, "css", false, "", "", ".", "wiki")
 	if len(cssNoTarget) != 1 || !strings.Contains(cssNoTarget[0].text, "npx stylelint \"**/*.{css,scss}\"") {
 		t.Fatalf("expected glob stylelint, got %v", cssNoTarget)
 	}
 
 	// 10. HTML variant without target
-	htmlNoTarget := getCommandsForStacks([]string{"html"}, "html", false, "", "")
+	htmlNoTarget := getCommandsForStacks([]string{"html"}, "html", false, "", "", ".", "wiki")
 	if len(htmlNoTarget) != 1 || !strings.Contains(htmlNoTarget[0].text, "npx htmlhint \"**/*.html\"") {
 		t.Fatalf("expected glob htmlhint, got %v", htmlNoTarget)
 	}
 
 	// 11. Shell variant without target
-	shNoTarget := getCommandsForStacks([]string{"shell"}, "shell", false, "", "")
+	shNoTarget := getCommandsForStacks([]string{"shell"}, "shell", false, "", "", ".", "wiki")
 	if len(shNoTarget) != 1 || !strings.Contains(shNoTarget[0].text, "shellcheck **/*.sh") {
 		t.Fatalf("expected glob shellcheck, got %v", shNoTarget)
 	}
 
 	// 12. SQL variant without target
-	sqlNoTarget := getCommandsForStacks([]string{"sql"}, "sql", false, "", "")
+	sqlNoTarget := getCommandsForStacks([]string{"sql"}, "sql", false, "", "", ".", "wiki")
 	if len(sqlNoTarget) != 1 || !strings.Contains(sqlNoTarget[0].text, "sqlfluff lint .") {
 		t.Fatalf("expected sqlfluff lint ., got %v", sqlNoTarget)
 	}
 
-	// 13. Wiki variants. Both carry a target, because the lane has no other
-	// shape: what the two cases separate is `uv` in the stack, not the
-	// presence of a file. The target-less pair that stood here asserted an
-	// argument-less `brain lint`, a command that cannot run; the caller never
-	// produces that pair either, since `targetStack` is only ever "wiki" when
-	// the extension matched and `hasTarget` is true with it.
-	wikiPlain := getCommandsForStacks([]string{"wiki"}, "wiki", true, "wiki/concept.md", "")
-	if len(wikiPlain) != 1 || wikiPlain[0].text != "brain lint wiki/concept.md" {
-		t.Fatalf("expected brain lint wiki/concept.md, got %v", wikiPlain)
-	}
-	wikiUV := getCommandsForStacks([]string{"wiki", "uv"}, "wiki", true, "wiki/concept.md", "")
-
-	if len(wikiUV) != 1 || wikiUV[0].text != "uv run brain lint wiki/concept.md" {
-		t.Fatalf("expected uv run brain lint wiki/concept.md, got %v", wikiUV)
+	// 13. The wiki lane. It carries a target because it has no other shape,
+	// and its text names loomux itself: the page is linted in this process, so
+	// the text is a label for the report rather than a command line.
+	wikiLane := getCommandsForStacks([]string{"wiki"}, "wiki", true, "wiki/concept.md", "", ".", "wiki")
+	if len(wikiLane) != 1 || wikiLane[0].text != "loomux lint wiki/concept.md" {
+		t.Fatalf("expected loomux lint wiki/concept.md, got %v", wikiLane)
 	}
 
 	// 14. Python with pyright (plain without uv)
-	pyrightPlain := getCommandsForStacks([]string{"python", "pyright"}, "python", true, "src/main.py", "")
+	pyrightPlain := getCommandsForStacks([]string{"python", "pyright"}, "python", true, "src/main.py", "", ".", "wiki")
 
 	if len(pyrightPlain) != 2 || !strings.Contains(pyrightPlain[1].text, "pyright") || strings.Contains(pyrightPlain[1].text, "uv run") {
 		t.Fatalf("expected plain pyright, got %v", pyrightPlain)
 	}
-	pyrightUV := getCommandsForStacks([]string{"python", "pyright", "uv"}, "python", true, "src/main.py", "")
+	pyrightUV := getCommandsForStacks([]string{"python", "pyright", "uv"}, "python", true, "src/main.py", "", ".", "wiki")
 
 	if len(pyrightUV) != 2 || !strings.Contains(pyrightUV[1].text, "uv run pyright") {
 		t.Fatalf("expected uv run pyright, got %v", pyrightUV)
 	}
 
 	// 15. Vue nested
-	vueNested := getCommandsForStacks([]string{"vue"}, "vue", true, "frontend/src/Component.vue", "")
+	vueNested := getCommandsForStacks([]string{"vue"}, "vue", true, "frontend/src/Component.vue", "", ".", "wiki")
 	if len(vueNested) != 1 || !strings.Contains(vueNested[0].text, "npm --prefix frontend run typecheck") {
 		t.Fatalf("expected npm --prefix frontend run typecheck, got %v", vueNested)
 	}
 
 	// 16. Svelte nested
-	svelteNested := getCommandsForStacks([]string{"svelte"}, "svelte", true, "frontend/src/App.svelte", "")
+	svelteNested := getCommandsForStacks([]string{"svelte"}, "svelte", true, "frontend/src/App.svelte", "", ".", "wiki")
 	if len(svelteNested) != 1 || !strings.Contains(svelteNested[0].text, "npm --prefix frontend run check") {
 		t.Fatalf("expected npm --prefix frontend run check, got %v", svelteNested)
 	}
@@ -480,17 +420,17 @@ func TestGetCommandsForStacksVariants(t *testing.T) {
 
 // A file whose extension names no stack draws the full chain -- every lane the
 // project has, because a gate that skips a check unnoticed is worse than none.
-// The wiki lane is the one exception, and this is why: `brain lint` reads one
-// file and has no argument-less form. Where `sqlfluff lint .` and `shellcheck
-// **/*.sh` still say something without a target, `brain lint` alone says
-// "file path required" and fails the whole run -- so the lane that cannot ask
-// its question stays out of the chain instead of poisoning it.
+// The wiki lane is the one exception, and this is why: it lints one page and
+// has no argument-less form. Where `sqlfluff lint .` and `shellcheck **/*.sh`
+// still say something without a target, a wiki lint without a page has
+// nothing to read -- so the lane that cannot ask its question stays out of the
+// chain instead of poisoning it.
 func TestWikiLaneStaysOutWithoutATarget(t *testing.T) {
-	cmds := getCommandsForStacks([]string{"wiki"}, "", false, ".gitignore", "")
+	cmds := getCommandsForStacks([]string{"wiki"}, "", false, ".gitignore", "", ".", "wiki")
 
 	for _, cmd := range cmds {
-		if strings.HasPrefix(cmd.text, "brain lint") || strings.HasPrefix(cmd.text, "uv run brain lint") {
-			t.Fatalf("expected no argument-less brain lint, got %v", cmds)
+		if strings.HasPrefix(cmd.text, "loomux lint") {
+			t.Fatalf("expected no argument-less wiki lint, got %v", cmds)
 		}
 	}
 }
@@ -502,7 +442,7 @@ func TestWikiLaneStaysOutWithoutATarget(t *testing.T) {
 // addons/ is linted on default limits, which is how a single edit turns into
 // thousands of findings.
 func TestGdscriptRunsWhereTheGodotTreeStands(t *testing.T) {
-	cmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", false, "", "godot")
+	cmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", false, "", "godot", ".", "wiki")
 
 	if len(cmds) != 1 {
 		t.Fatalf("expected one command, got %v", cmds)
@@ -519,7 +459,7 @@ func TestGdscriptRunsWhereTheGodotTreeStands(t *testing.T) {
 // directory down -- so the path has to lose that first segment or gdlint looks
 // for godot/godot/ui/system/system_view.gd.
 func TestGdscriptTargetIsRelativeToTheGodotTree(t *testing.T) {
-	cmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", true, "godot/ui/system/system_view.gd", "godot")
+	cmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", true, "godot/ui/system/system_view.gd", "godot", ".", "wiki")
 
 	if len(cmds) != 1 || cmds[0].dir != "godot" {
 		t.Fatalf("expected one command in godot/, got %v", cmds)
@@ -533,7 +473,7 @@ func TestGdscriptTargetIsRelativeToTheGodotTree(t *testing.T) {
 // configuration from a file they are told about or carry their limits in the
 // command line, so moving them would change what they check for no gain.
 func TestOtherLanesStayAtTheRoot(t *testing.T) {
-	cmds := getCommandsForStacks([]string{"go"}, "go", true, "main.go", "godot")
+	cmds := getCommandsForStacks([]string{"go"}, "go", true, "main.go", "godot", ".", "wiki")
 
 	if len(cmds) != 1 || cmds[0].dir != "" {
 		t.Fatalf("expected go vet at the root, got %v", cmds)
@@ -723,30 +663,204 @@ func TestRelativeToAreaLeavesAPathOutsideTheAreaAlone(t *testing.T) {
 	}
 }
 
-// With no answer written down, the detected wiki decides -- and only when
-// detection found none does the "wiki/" default stand.
-func TestResolveWikiDirFallsBackToTheDetectedWiki(t *testing.T) {
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, ".loomux", "config.toml"), []byte("[wiki]\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(root, "docs", "wiki"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	if got := resolveWikiDir(root); got != "docs/wiki/" {
-		t.Fatalf("got %q, want the detected wiki", got)
-	}
-}
-
 // The wiki directory itself, named absolutely: the path carries no separator
 // after the directory's name, so only the form relative to the root answers.
 func TestIsWikiPathMatchesTheWikiDirectoryItself(t *testing.T) {
 	root := t.TempDir()
 	if !isWikiPath(filepath.Join(root, "notes"), root, "notes") {
 		t.Fatal("the wiki directory itself is a wiki path")
+	}
+}
+
+// A wiki page is linted in this process: no shell lane starts for it, and a
+// page the lint refuses still blocks the edit.
+func TestTheWikiLaneRunsInProcess(t *testing.T) {
+	root := t.TempDir()
+	writeWikiPage(t, root, "page.md", "no frontmatter at all\n")
+
+	var stderr bytes.Buffer
+	shell := func(io.Writer) CommandRunner {
+		return func(dir, command string) (string, error) {
+			t.Fatalf("no shell lane may run for a wiki page, got %q", command)
+			return "", nil
+		}
+	}
+	input := `{"tool_name":"Edit","tool_input":{"file_path":"docs/wiki/page.md"}}`
+	code := runPostEditWithContext(strings.NewReader(input), io.Discard, &stderr, root, []string{"wiki"}, "docs/wiki", "", shell)
+	if code != ExitDenied || !strings.Contains(stderr.String(), "page.md") {
+		t.Fatalf("code %d, err %q", code, stderr.String())
+	}
+}
+
+// Claude names the edited file absolutely, so the lane joins the root only
+// under a relative path -- a join on an absolute one would name the root twice.
+func TestTheWikiLaneTakesAnAbsoluteTargetAsItIs(t *testing.T) {
+	root := t.TempDir()
+	page := writeWikiPage(t, root, "page.md", "no frontmatter at all\n")
+
+	var stderr bytes.Buffer
+	input := `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, page) + `}}`
+	code := runPostEditWithContext(strings.NewReader(input), io.Discard, &stderr, root, []string{"wiki"}, "docs/wiki", "", noShell)
+	if code != ExitDenied || !strings.Contains(stderr.String(), "page.md") {
+		t.Fatalf("code %d, err %q", code, stderr.String())
+	}
+}
+
+// A page the lint passes leaves the edit alone and says nothing.
+func TestTheWikiLaneLetsACleanPageThrough(t *testing.T) {
+	root := t.TempDir()
+	writeWikiPage(t, root, "sample.md", "---\ntitle: Sample Concept\ntype: concept\ndescription: A valid OKF test document\n---\n\n# Sample Concept\nThis is a test concept.\n")
+
+	var stderr bytes.Buffer
+	input := `{"tool_name":"Edit","tool_input":{"file_path":"docs/wiki/sample.md"}}`
+	code := runPostEditWithContext(strings.NewReader(input), io.Discard, &stderr, root, []string{"wiki"}, "docs/wiki", "", noShell)
+	if code != ExitOK || stderr.String() != "" {
+		t.Fatalf("code %d, err %q", code, stderr.String())
+	}
+}
+
+// noShell is the runner factory for a run that must not reach a shell.
+func noShell(io.Writer) CommandRunner {
+	return func(dir, command string) (string, error) { return "", nil }
+}
+
+func writeWikiPage(t *testing.T, root, name, body string) string {
+	t.Helper()
+	dir := filepath.Join(root, "docs", "wiki")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	page := filepath.Join(dir, name)
+	if err := os.WriteFile(page, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return page
+}
+
+// asJSON quotes a path the way a hook payload carries it, backslashes and all.
+func asJSON(t *testing.T, value string) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded)
+}
+
+func writeManifest(t *testing.T, root, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".loomux", "config.toml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The manifest is the one place a loomux project names its wiki.
+func TestTheWikiDirectoryComesFromTheManifest(t *testing.T) {
+	root := t.TempDir()
+	writeManifest(t, root, "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"notes\"\n")
+	if err := os.MkdirAll(filepath.Join(root, "notes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := wikiDirFor(root); got != "notes" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// Nothing declared and nothing on disk: the default stands.
+func TestTheWikiDirectoryFallsBackToTheDefault(t *testing.T) {
+	if got := wikiDirFor(t.TempDir()); got != "wiki/" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// A declared wiki with no directory behind it: wiki.Root answers nothing, and
+// detection has the say.
+func TestTheWikiDirectoryFallsBackToTheDetectedWiki(t *testing.T) {
+	root := t.TempDir()
+	writeManifest(t, root, "[wiki]\n")
+
+	if got := wikiDirFor(root); got != "wiki/" {
+		t.Fatalf("got %q, want the detected wiki", got)
+	}
+}
+
+// A neighbour wiki lies beside the project, so the answer leaves the root --
+// which is the place wiki.Root found and the one the lane has to read.
+func TestTheWikiDirectoryCanNameANeighbour(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "iam_backend")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(parent, "iam_wiki"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := wikiDirFor(root); got != "../iam_wiki" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// A loomux project declares its wiki as `[layout] wiki`, and detection does
+// not read that key: it knows `[wiki]`, `wiki = true` and `okf_version` only.
+// Without this the lane never fired in the pilot's own repository.
+func TestTheLayoutWikiAddsTheWikiStack(t *testing.T) {
+	root := t.TempDir()
+	writeManifest(t, root, "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"notes\"\n")
+	if err := os.MkdirAll(filepath.Join(root, "notes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	page := filepath.Join(root, "notes", "page.md")
+	if err := os.WriteFile(page, []byte("no frontmatter at all\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	input := `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, page) + `}}`
+	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root); code != ExitDenied {
+		t.Fatalf("code %d, err %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "page.md") {
+		t.Fatalf("err %q", stderr.String())
+	}
+}
+
+// A manifest without that key, and a directory without a manifest, declare
+// nothing.
+func TestAProjectWithoutALayoutWikiDeclaresNothing(t *testing.T) {
+	root := t.TempDir()
+	writeManifest(t, root, "[area]\nscope = \"project/x\"\n")
+
+	if declaresWikiLayout(root) {
+		t.Fatal("a manifest without [layout] wiki declares no wiki")
+	}
+	if declaresWikiLayout(filepath.Join(root, "nowhere")) {
+		t.Fatal("a directory without a manifest declares no wiki")
+	}
+}
+
+// A declared layout that names no directory is no declaration either: wiki.Root
+// passes it by, and the lane would read a place the manifest does not mean.
+func TestALayoutWikiWithoutADirectoryDeclaresNothing(t *testing.T) {
+	root := t.TempDir()
+	writeManifest(t, root, "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"notes\"\n")
+
+	if declaresWikiLayout(root) {
+		t.Fatal("a layout nobody created declares no wiki")
+	}
+}
+
+// A layout that leaves the repository is refused by WikiLayout, and the
+// refusal arrives here as "nothing declared".
+func TestAnInvalidLayoutWikiDeclaresNothing(t *testing.T) {
+	root := t.TempDir()
+	writeManifest(t, root, "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"../elsewhere\"\n")
+
+	if declaresWikiLayout(root) {
+		t.Fatal("a layout outside the repository declares no wiki")
 	}
 }

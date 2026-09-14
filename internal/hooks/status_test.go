@@ -234,12 +234,12 @@ func TestUnavailableLanes(t *testing.T) {
 	nothing := func(string) (string, error) { return "", errors.New("not found") }
 	everything := func(string) (string, error) { return "/usr/bin/x", nil }
 
-	missing := unavailableLanes([]string{"shell", "go"}, nothing)
+	missing := unavailableLanes([]string{"shell", "go"}, nothing, ".", "wiki")
 	if len(missing) != 2 || missing[0] != "go" || missing[1] != "shellcheck" {
 		t.Fatalf("expected [go shellcheck] sorted, got %v", missing)
 	}
 
-	if got := unavailableLanes([]string{"shell", "go"}, everything); len(got) != 0 {
+	if got := unavailableLanes([]string{"shell", "go"}, everything, ".", "wiki"); len(got) != 0 {
 		t.Fatalf("expected nothing missing, got %v", got)
 	}
 
@@ -251,7 +251,7 @@ func TestUnavailableLanes(t *testing.T) {
 		}
 		return "", errors.New("not found")
 	}
-	if got := unavailableLanes([]string{"typescript", "vue"}, onlyGo); len(got) != 1 || got[0] != "npx" {
+	if got := unavailableLanes([]string{"typescript", "vue"}, onlyGo, ".", "wiki"); len(got) != 1 || got[0] != "npx" {
 		t.Fatalf("expected [npx] once, got %v", got)
 	}
 }

@@ -90,9 +90,10 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 	}
 
 	facts := detect.Detect(os.DirFS(root))
+	facts.Stacks = stacksWithWiki(facts.Stacks, root)
 	wikiDir := facts.WikiPath
 	if wikiDir == "" {
-		wikiDir = resolveWikiDir(root)
+		wikiDir = wikiDirFor(root)
 	}
 
 	fmt.Fprintln(stdout, "================================================================================")
@@ -224,7 +225,7 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 			fmt.Fprintf(stdout, "   • [%s] %s\n     Reason: %s\n", f.Event, f.Command, f.Reason)
 		}
 	}
-	renderLaneTools(stdout, unavailableLanes(facts.Stacks, exec.LookPath))
+	renderLaneTools(stdout, unavailableLanes(facts.Stacks, exec.LookPath, root, wikiDir))
 
 	fmt.Fprintln(stdout, "================================================================================")
 
@@ -235,20 +236,22 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 // machine does not have.
 //
 // Built from getCommandsForStacks -- the same builder the hook runs -- and not
-// from the lane list printed above. A second list drifts, and this answer has
+// from the lane list printed above it. A second list drifts, and this one has
 // to be about the lanes that actually run.
 //
 // This report is the standing answer to the same question the hook answers
 // per edit. `commandRunner` drops a lane whose tool is missing -- the edit is
 // not blocked -- but names it on stderr as it goes; here the whole set is
 // listed at once, before an edit rather than after one.
-func unavailableLanes(stacks []string, look func(string) (string, error)) []string {
+func unavailableLanes(stacks []string, look func(string) (string, error), projectRoot string, wikiDir string) []string {
 	seen := map[string]bool{}
 	var missing []string
 	// The wide form: no target, so every configured lane contributes its tool.
-	for _, cmd := range getCommandsForStacks(stacks, "", false, "", "") {
+	for _, cmd := range getCommandsForStacks(stacks, "", false, "", "", projectRoot, wikiDir) {
 		tool := laneTool(cmd.text)
-		if tool == "" || seen[tool] {
+		// A lane that runs in this process needs nothing on the PATH, so its
+		// text names no tool to install.
+		if cmd.run != nil || tool == "" || seen[tool] {
 			continue
 		}
 		seen[tool] = true

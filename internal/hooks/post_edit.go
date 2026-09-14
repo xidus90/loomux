@@ -8,9 +8,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
+	"github.com/xidus90/loomux/internal/brain/wiki"
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/detect"
 )
 
@@ -22,9 +25,14 @@ type CommandRunner func(dir string, cmd string) (string, error)
 // directory upwards, so a lane started above the project's own tree runs on
 // defaults and applies limits nobody in that project wrote down. An empty dir
 // means the root, which is where every other lane belongs.
+//
+// A lane with a run function is the exception to all of that: it asks its
+// question inside this process and never reaches a shell, so neither the
+// directory nor the PATH concerns it. The wiki lane is the one such lane.
 type command struct {
 	dir  string
 	text string
+	run  func() (string, error)
 }
 
 func at(dir, text string) command { return command{dir: dir, text: text} }
@@ -155,9 +163,9 @@ func PostToolUse(stdin io.Reader, stdout io.Writer, stderr io.Writer, root strin
 	facts := detect.Detect(os.DirFS(root))
 	wikiDir := facts.WikiPath
 	if wikiDir == "" {
-		wikiDir = resolveWikiDir(root)
+		wikiDir = wikiDirFor(root)
 	}
-	return runPostEditWithContext(stdin, stdout, stderr, root, facts.Stacks, wikiDir, facts.GodotDir, defaultRunnerFor)
+	return runPostEditWithContext(stdin, stdout, stderr, root, stacksWithWiki(facts.Stacks, root), wikiDir, facts.GodotDir, defaultRunnerFor)
 }
 
 // defaultRunnerFor is the production factory: the runner has to be built
@@ -194,7 +202,7 @@ func runPostEditWithContext(stdin io.Reader, stdout io.Writer, stderr io.Writer,
 	if targetStack == "wiki" && !isWikiPath(rawPath, root, wikiDir) {
 		return ExitOK
 	}
-	commands := getCommandsForStacks(stacks, targetStack, hasTarget, rawPath, godotDir)
+	commands := getCommandsForStacks(stacks, targetStack, hasTarget, rawPath, godotDir, root, wikiDir)
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -210,7 +218,13 @@ func runPostEditWithContext(stdin io.Reader, stdout io.Writer, stderr io.Writer,
 		wg.Add(1)
 		go func(c command) {
 			defer wg.Done()
-			out, err := runner(filepath.Join(root, c.dir), c.text)
+			var out string
+			var err error
+			if c.run != nil {
+				out, err = c.run()
+			} else {
+				out, err = runner(filepath.Join(root, c.dir), c.text)
+			}
 			if err != nil {
 				mu.Lock()
 				defer mu.Unlock()
@@ -302,7 +316,7 @@ func getWorkspaceDir(targetPath string, hasTarget bool) string {
 }
 
 //coverage:exempt the workspace arms without a target path cannot run: getWorkspaceDir answers "" unless there is one, so targetDir and an absent target exclude each other
-func getCommandsForStacks(stacks []string, targetStack string, hasTarget bool, targetPath string, godotDir string) []command {
+func getCommandsForStacks(stacks []string, targetStack string, hasTarget bool, targetPath string, godotDir string, projectRoot string, wikiDir string) []command {
 	var cmds []command
 	has := func(stack string) bool {
 		for _, s := range stacks {
@@ -424,16 +438,34 @@ func getCommandsForStacks(stacks []string, targetStack string, hasTarget bool, t
 	}
 	// The one lane with no argument-less form, and therefore the one that
 	// stays out when the chain runs wide. `sqlfluff lint .` and `shellcheck
-	// **/*.sh` still name something without a target; `brain lint` reads a
-	// single file, answers "file path required" to anything else, and fails
-	// the run it was appended to. A lane that cannot ask its question is
-	// silent rather than wrong.
+	// **/*.sh` still name something without a target; a wiki lint reads a
+	// single page and has nothing to read without one. A lane that cannot ask
+	// its question is silent rather than wrong.
+	//
+	// It is also the one lane that runs inside this process: the lint lives in
+	// this binary (internal/brain/wiki), so the text below is a label for the
+	// report rather than a command line. What it replaces is `uv run brain
+	// lint <page>` -- a second binary, a Python environment and a process per
+	// edit, for a check this program already carries.
 	if shouldRun("wiki") && hasTarget && targetPath != "" {
-		prefix := "brain lint"
-		if has("uv") {
-			prefix = "uv run brain lint"
-		}
-		cmds = append(cmds, root(fmt.Sprintf("%s %s", prefix, targetPath)))
+		target := targetPath
+		cmds = append(cmds, command{
+			text: "loomux lint " + target,
+			run: func() (string, error) {
+				var report strings.Builder
+				// Claude names the edited file absolutely; a relative target
+				// comes from a caller that speaks from the root.
+				page := target
+				if !filepath.IsAbs(page) {
+					page = filepath.Join(projectRoot, page)
+				}
+				wikiRoot := filepath.Join(projectRoot, filepath.FromSlash(wikiDir))
+				if code := wiki.LintReport(page, wikiRoot, &report); code != 0 {
+					return report.String(), fmt.Errorf("wiki lint found errors in %s", target)
+				}
+				return "", nil
+			},
+		})
 	}
 
 	return cmds
@@ -458,25 +490,63 @@ func relativeToArea(targetPath, area string) string {
 	return targetPath
 }
 
-func resolveWikiDir(root string) string {
-	if data, err := os.ReadFile(filepath.Join(root, ".ultraloom", "answers.toml")); err == nil {
-		lines := strings.Split(string(data), "\n")
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "bundle") && strings.Contains(trimmed, "=") {
-				parts := strings.SplitN(trimmed, "=", 2)
-				val := strings.Trim(strings.TrimSpace(parts[1]), "\"'")
-				if val != "" {
-					return filepath.ToSlash(val)
-				}
-			}
-		}
+// wikiDirFor answers where this project's wiki bundle is, seen from its root.
+//
+// The answer comes from the resolver the lint itself uses, wiki.Root: the
+// manifest's [layout] wiki, then docs/wiki, then wiki, then a neighbour
+// bundle. What stood here read `bundle` out of ultraloom's
+// .ultraloom/answers.toml line by line -- a file loomux does not write, and a
+// second opinion about the wiki beside the manifest's own.
+//
+// Detection still answers where wiki.Root found nothing: a project that
+// declares a wiki it has not created yet keeps the place detection named for
+// it, and "wiki/" is the last word.
+func wikiDirFor(projectRoot string) string {
+	if dir := wiki.Root(projectRoot); dir != "" {
+		return relativeToRoot(projectRoot, dir)
 	}
-	facts := detect.Detect(os.DirFS(root))
-	if facts.WikiPath != "" {
-		return filepath.ToSlash(facts.WikiPath)
+	if detected := detect.Detect(os.DirFS(projectRoot)).WikiPath; detected != "" {
+		return filepath.ToSlash(detected)
 	}
 	return "wiki/"
+}
+
+//coverage:exempt filepath.Rel fails only across volumes, and wiki.Root builds every answer from projectRoot itself
+func relativeToRoot(projectRoot, dir string) string {
+	rel, err := filepath.Rel(projectRoot, dir)
+	if err != nil {
+		return filepath.ToSlash(dir)
+	}
+	return filepath.ToSlash(rel)
+}
+
+// declaresWikiLayout answers whether this project says it has a wiki through
+// the one key loomux has for that, [layout] wiki.
+//
+// detect.Detect does not read that key -- it knows [wiki], `wiki = true` and
+// an okf_version in the bundle -- so without this the wiki lane never started
+// in a loomux project, the pilot's own repository first among them. The
+// manifest's word alone is not enough: wiki.Root has to arrive at the declared
+// place, or the lane would lint against a directory nobody created.
+func declaresWikiLayout(projectRoot string) bool {
+	manifest, err := config.ReadManifest(projectRoot)
+	if err != nil {
+		return false
+	}
+	layout, err := manifest.WikiLayout()
+	if err != nil || layout == "" {
+		return false
+	}
+	return wiki.Root(projectRoot) == filepath.Join(projectRoot, filepath.FromSlash(layout))
+}
+
+// stacksWithWiki adds the wiki lane to what detection found, wherever the
+// manifest declares a wiki that detection cannot see.
+func stacksWithWiki(stacks []string, projectRoot string) []string {
+	if slices.Contains(stacks, "wiki") || !declaresWikiLayout(projectRoot) {
+		return stacks
+	}
+	return append(slices.Clone(stacks), "wiki")
 }
 
 func isWikiPath(rawPath, root, configuredWikiDir string) bool {
