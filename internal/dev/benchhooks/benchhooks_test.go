@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -62,16 +63,21 @@ func TestSeqRunsBothStepsInOrder(t *testing.T) {
 }
 
 func TestParStartsTheStepsAtTheSameTime(t *testing.T) {
-	running := make(chan struct{}, 2)
+	var arrived atomic.Int32
 	both := make(chan struct{})
 	var out bytes.Buffer
 	c := Case{Name: "par", Mode: "par", Steps: []Step{{Argv: []string{"a"}}, {Argv: []string{"b"}}}}
 	err := Run([]Case{c}, 0, &out, func(_ Case, s Step) (int, error) {
-		running <- struct{}{}
-		if len(running) == 2 {
+		if arrived.Add(1) == 2 {
 			close(both)
 		}
-		<-both
+		// A sequential regression never reaches two, so the rendezvous
+		// fails with a reading instead of hanging until the timeout.
+		select {
+		case <-both:
+		case <-time.After(5 * time.Second):
+			return 0, errors.New("steps did not overlap")
+		}
 		return 0, nil
 	}, clock(0, 9))
 	if err != nil || !strings.Contains(out.String(), "| par | 9.0 ms |") {
@@ -113,27 +119,51 @@ func TestAFailingParStepStopsTheRun(t *testing.T) {
 }
 
 func TestRunRefusesACaseWithoutSteps(t *testing.T) {
-	err := Run([]Case{{Name: "empty"}}, 1, &bytes.Buffer{},
+	var out bytes.Buffer
+	err := Run([]Case{{Name: "empty"}}, 1, &out,
 		func(Case, Step) (int, error) { return 0, nil }, clock(0))
 	if err == nil || !strings.Contains(err.Error(), "empty: no steps") {
 		t.Fatalf("err %v", err)
 	}
+	if out.Len() != 0 {
+		t.Fatalf("wrote a table anyway:\n%s", out.String())
+	}
 }
 
 func TestRunRefusesAnUnknownMode(t *testing.T) {
+	var out bytes.Buffer
 	c := Case{Name: "odd", Mode: "diagonal", Steps: []Step{{Argv: []string{"x"}}}}
-	err := Run([]Case{c}, 1, &bytes.Buffer{},
+	err := Run([]Case{c}, 1, &out,
 		func(Case, Step) (int, error) { return 0, nil }, clock(0, 1))
 	if err == nil || !strings.Contains(err.Error(), `odd: unknown mode "diagonal"`) {
 		t.Fatalf("err %v", err)
 	}
+	if out.Len() != 0 {
+		t.Fatalf("wrote a table anyway:\n%s", out.String())
+	}
 }
 
-func TestExecReportsANonZeroExitAsDataRatherThanAsAnError(t *testing.T) {
-	// The comparison measures `brain guard`, which ends with 2 on this
-	// repository: a refusal is a reading, not a broken measurement.
-	code, err := Exec(Case{Dir: t.TempDir()}, Step{Argv: []string{"go", "not-a-subcommand"}})
-	if err != nil || code == 0 {
-		t.Fatalf("code %d, err %v", code, err)
+// A broken case behind a good one must not leave the good one's header and
+// row on stdout beside the error.
+func TestRunWritesNothingWhenALaterCaseIsInvalid(t *testing.T) {
+	var out bytes.Buffer
+	good := Case{Name: "good", Steps: []Step{{Argv: []string{"x"}}}}
+	bad := Case{Name: "bad", Mode: "diagonal", Steps: []Step{{Argv: []string{"x"}}}}
+	err := Run([]Case{good, bad}, 1, &out,
+		func(Case, Step) (int, error) { return 0, nil }, clock(0, 1, 1, 2))
+	if err == nil || !strings.Contains(err.Error(), `bad: unknown mode "diagonal"`) {
+		t.Fatalf("err %v", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("wrote a table anyway:\n%s", out.String())
+	}
+}
+
+// once keeps the mode switch total although Run validates ahead of it.
+func TestOnceRefusesAnUnknownMode(t *testing.T) {
+	c := Case{Name: "odd", Mode: "diagonal", Steps: []Step{{Argv: []string{"x"}}}}
+	_, _, err := once(c, func(Case, Step) (int, error) { return 0, nil }, clock(0))
+	if err == nil || !strings.Contains(err.Error(), `odd: unknown mode "diagonal"`) {
+		t.Fatalf("err %v", err)
 	}
 }

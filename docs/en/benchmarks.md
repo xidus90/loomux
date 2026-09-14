@@ -78,9 +78,12 @@ versions, not whatever sits on the PATH.
    (1,673 allocations — the package resolves the local time zone at start) and
    `net` with 0.5–1.0 ms. The largest loomux line is
    `github.com/xidus90/loomux/internal/config` with 0.49 ms. The start-time rule
-   of the specification therefore holds, and the floor of ~23 ms is almost
-   entirely one dependency's `init` — the same 21 ms appear in the old
-   `brain.exe`.
+   of the specification therefore holds. Measured against it: an empty Go
+   `main` starts on this machine in 4.5 ms warm, so of the ~23.6 ms floor some
+   4.5 ms are process start and the remaining ~19 ms are that one dependency's
+   `init` — it resolves the local time zone (`time.Now().Zone()` in
+   `internal/tz.go`) and loads the operating system's time-zone data for it.
+   The same 21 ms appear in the old `brain.exe`.
 4. **The barrier's own cost, decomposed.** `LOOMUX_BENCH_REGISTRY=<copy>
    LOOMUX_BENCH_TARGET=<file in a registered area> go test
    ./internal/brain/guard/ -run '^$' -bench

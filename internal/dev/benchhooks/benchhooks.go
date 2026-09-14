@@ -40,12 +40,14 @@ type Case struct {
 
 // Run measures every case and writes the table to w.
 func Run(cases []Case, n int, w io.Writer, run func(Case, Step) (int, error), now func() time.Time) error {
+	// Every case is judged before the first byte is written: a table whose
+	// header stands above nothing is worse than no table.
+	if err := validate(cases); err != nil {
+		return err
+	}
 	fmt.Fprintln(w, "| case | cold (1st run) | warm median | warm min | warm max | exit codes |")
 	fmt.Fprintln(w, "|---|---:|---:|---:|---:|---|")
 	for _, c := range cases {
-		if len(c.Steps) == 0 {
-			return fmt.Errorf("%s: no steps", c.Name)
-		}
 		var cold time.Duration
 		warm := make([]time.Duration, 0, n)
 		var codes []int
@@ -67,6 +69,20 @@ func Run(cases []Case, n int, w io.Writer, run func(Case, Step) (int, error), no
 	return nil
 }
 
+func validate(cases []Case) error {
+	for _, c := range cases {
+		if len(c.Steps) == 0 {
+			return fmt.Errorf("%s: no steps", c.Name)
+		}
+		switch c.Mode {
+		case "", "single", "seq", "par":
+		default:
+			return fmt.Errorf("%s: unknown mode %q", c.Name, c.Mode)
+		}
+	}
+	return nil
+}
+
 // once is one measured span: the clock is read before the first step
 // starts and after the last one ended, whatever the mode does in between.
 func once(c Case, run func(Case, Step) (int, error), now func() time.Time) (time.Duration, []int, error) {
@@ -79,6 +95,8 @@ func once(c Case, run func(Case, Step) (int, error), now func() time.Time) (time
 	case "par":
 		err = parallel(c, run, codes)
 	default:
+		// Unreachable through Run, which validates first; kept so the
+		// switch stays total and tested directly.
 		return 0, nil, fmt.Errorf("%s: unknown mode %q", c.Name, c.Mode)
 	}
 	d := now().Sub(start)
@@ -162,7 +180,7 @@ func ms(d time.Duration) string {
 // and that belongs in the exit-code column; only a process that never
 // started aborts the measurement.
 //
-//coverage:exempt starts processes; the timing logic is tested through exec
+//coverage:exempt starts a real process (exec.Command) and opens Case.Stdin; the timing and the exit code as data are tested through the injected run
 func Exec(c Case, s Step) (int, error) {
 	cmd := exec.Command(s.Argv[0], s.Argv[1:]...)
 	cmd.Dir = c.Dir

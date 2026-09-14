@@ -263,6 +263,27 @@ func TestDevBenchHooksRefusesAnUnknownFlagBehindTheFile(t *testing.T) {
 	}
 }
 
+func TestDevBenchHooksRefusesLessThanOneWarmRun(t *testing.T) {
+	code, _, errOut := run("dev", "bench-hooks", "-n", "0", benchCases(t, oneCase))
+	if code != 2 || !strings.Contains(errOut, "-n must be at least 1, got 0") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevBenchHooksRefusesANegativeWarmRunBehindTheFile(t *testing.T) {
+	code, _, errOut := run("dev", "bench-hooks", benchCases(t, oneCase), "-n", "-3")
+	if code != 2 || !strings.Contains(errOut, "-n must be at least 1, got -3") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevBenchHooksRefusesAnExtraArgumentBehindTheFile(t *testing.T) {
+	code, _, errOut := run("dev", "bench-hooks", benchCases(t, oneCase), "leftover")
+	if code != 2 || !strings.Contains(errOut, `unexpected argument "leftover" after the case file`) {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
 func TestDevBenchHooksReportsBrokenJSON(t *testing.T) {
 	code, _, errOut := run("dev", "bench-hooks", benchCases(t, "{"))
 	if code != 1 || !strings.Contains(errOut, "loomux dev bench-hooks:") {

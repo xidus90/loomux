@@ -76,6 +76,16 @@ func devBenchHooks(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := fs.Parse(rest[1:]); err != nil {
 		return 2
 	}
+	if extra := fs.Args(); len(extra) > 0 {
+		fmt.Fprintf(stderr, "loomux dev bench-hooks: unexpected argument %q after the case file\n", extra[0])
+		return 2
+	}
+	// A run of zero warm runs reports a row of noughts; a negative one
+	// would ask for a slice of negative capacity.
+	if *n < 1 {
+		fmt.Fprintf(stderr, "loomux dev bench-hooks: -n must be at least 1, got %d\n", *n)
+		return 2
+	}
 	var cases []benchhooks.Case
 	data, err := os.ReadFile(rest[0])
 	if err == nil {
