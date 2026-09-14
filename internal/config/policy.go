@@ -82,6 +82,9 @@ func ReadPolicy(root string) (Policy, error) {
 		policy.Paths = append(policy.Paths, PathRule{Match: globs, Reason: rule.Reason})
 	}
 	for i, rule := range file.Policy.Commands.Rules {
+		if rule.Regex == "" {
+			return Policy{}, fmt.Errorf("%s: [[policy.commands.rules]] #%d needs a regex", path, i+1)
+		}
 		compiled, err := regexp.Compile(rule.Regex)
 		if err != nil {
 			return Policy{}, fmt.Errorf("%s: [[policy.commands.rules]] #%d regex %s does not compile: %w", path, i+1, rule.Regex, err)
@@ -94,12 +97,15 @@ func ReadPolicy(root string) (Policy, error) {
 	return policy, nil
 }
 
+// globList also refuses what would load and never match: no glob at all, or an
+// empty one.
 func globList(value any) ([]string, error) {
+	var globs []string
 	switch v := value.(type) {
 	case string:
-		return []string{v}, nil
+		globs = []string{v}
 	case []any:
-		globs := make([]string, 0, len(v))
+		globs = make([]string, 0, len(v))
 		for _, element := range v {
 			text, ok := element.(string)
 			if !ok {
@@ -107,7 +113,16 @@ func globList(value any) ([]string, error) {
 			}
 			globs = append(globs, text)
 		}
-		return globs, nil
+	default:
+		return nil, fmt.Errorf("must be a string or a list of strings, found %T", value)
 	}
-	return nil, fmt.Errorf("must be a string or a list of strings, found %T", value)
+	if len(globs) == 0 {
+		return nil, errors.New("needs at least one glob")
+	}
+	for i, glob := range globs {
+		if glob == "" {
+			return nil, fmt.Errorf("glob #%d is empty", i+1)
+		}
+	}
+	return globs, nil
 }

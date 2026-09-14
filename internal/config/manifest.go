@@ -142,18 +142,16 @@ func ReadManifest(repoRoot string) (*Manifest, error) {
 		// the distinction Python draws: `registry.manifest_path` picks this
 		// file by `is_file()` and `read_manifest` then fails on it, so a
 		// regular file that does not read -- denied permissions, a lock another
-		// process holds -- is an error here too, and never the next name's
-		// answer. Falling through was this reader's fourth difference to
-		// Python, and it opened a closed area wherever the caller's next step
-		// was a visibility decision: an area that had replaced an open
-		// `.brain.toml` with a `local_only` `.ultra-brain/config.toml` was
-		// served from the stale file. The strictness is half of that repair;
+		// process holds -- is an error here too, and never ErrNoManifest. Taken
+		// for an absence, it would open a closed area wherever the caller's next
+		// step is a visibility decision: a `local_only` area would fall back to
+		// the defaults it never chose. The strictness is half of that repair;
 		// the other half is privacy.VisibleManifest, because a caller that
 		// discards the error is back where it started.
 		//
-		// Anything but a regular file moves on, and `is_file()` is again the
-		// rule: a directory of that name counts as no manifest, as does a name
-		// that does not exist.
+		// Anything but a regular file counts as no manifest, and `is_file()` is
+		// again the rule: a directory of that name declares nothing, as does a
+		// name that does not exist.
 		data, err := os.ReadFile(path)
 		if err != nil {
 			if info, statErr := os.Stat(path); statErr == nil && info.Mode().IsRegular() {

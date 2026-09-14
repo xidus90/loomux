@@ -158,6 +158,9 @@ func TestAConfigTomlThatCannotBeReadIsAnErrorNotAnAbsence(t *testing.T) {
 	if errors.Is(err, ErrNoManifest) {
 		t.Errorf("error %q is ErrNoManifest; a file that exists is not an absent declaration", err)
 	}
+	if !strings.Contains(err.Error(), "config.toml") {
+		t.Errorf("error %q does not name the file that cannot be read", err)
+	}
 }
 
 // A directory named config.toml is not a file to is_file(), so it declares

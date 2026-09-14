@@ -92,6 +92,42 @@ func TestReadPolicyRefusesACommandRuleWithoutAReason(t *testing.T) {
 	}
 }
 
+// An empty expression matches every command, so a rule whose regex key is
+// missing or misspelled would refuse every shell command.
+func TestReadPolicyRefusesACommandRuleWithoutARegex(t *testing.T) {
+	for name, body := range map[string]string{
+		"missing":    "[[policy.commands.rules]]\nreason = \"x\"\n",
+		"misspelled": "[[policy.commands.rules]]\nregexp = 'pip'\nreason = \"x\"\n",
+		"empty":      "[[policy.commands.rules]]\nregex = ''\nreason = \"x\"\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := writeConfig(t, body)
+			_, err := ReadPolicy(root)
+			if err == nil || !strings.Contains(err.Error(), "config.toml") || !strings.Contains(err.Error(), "[[policy.commands.rules]] #1 needs a regex") {
+				t.Fatalf("err %v", err)
+			}
+		})
+	}
+}
+
+// A path rule without a glob, or with an empty one, never matches: the rule
+// would load and protect nothing.
+func TestReadPolicyRefusesAPathRuleWithAnEmptyGlob(t *testing.T) {
+	for name, tc := range map[string]struct{ body, want string }{
+		"empty list":         {"match = []", "match: needs at least one glob"},
+		"empty string":       {"match = \"\"", "match: glob #1 is empty"},
+		"empty list element": {"match = [\"a\", \"\"]", "match: glob #2 is empty"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := writeConfig(t, "[[policy.paths.rules]]\n"+tc.body+"\nreason = \"x\"\n")
+			_, err := ReadPolicy(root)
+			if err == nil || !strings.Contains(err.Error(), "config.toml") || !strings.Contains(err.Error(), "[[policy.paths.rules]] #1 "+tc.want) {
+				t.Fatalf("err %v", err)
+			}
+		})
+	}
+}
+
 func TestReadPolicyRefusesAListElementThatIsNotAString(t *testing.T) {
 	root := writeConfig(t, "[[policy.paths.rules]]\nmatch = [\"bin/*\", 3]\nreason = \"x\"\n")
 	if _, err := ReadPolicy(root); err == nil || !strings.Contains(err.Error(), "is not a string") {
