@@ -31,6 +31,8 @@ the standard, `X.de.md` sits beside it. Working papers under
 - Performance measurements go chronologically into `docs/benchmarks.md` and
   `docs/benchmarks.de.md`: date and time, what was measured, baseline against
   change, cold and warm.
+- Maintain the project READMEs (`README.md` and `README.de.md`) alongside
+  implementation changes to reflect the actual state, capabilities, and roadmap.
 
 ## Commands
 

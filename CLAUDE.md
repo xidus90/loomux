@@ -7,3 +7,5 @@
   pre-commit gate rebuilds. If session-start warns that the binary is older
   than a Go source under `cmd/` or `internal/` (or `go.mod`/`go.sum`), rebuild
   before trusting a refusal.
+- Maintain the project READMEs (`README.md` and `README.de.md`) alongside
+  implementation changes to reflect the actual state, capabilities, and roadmap.
