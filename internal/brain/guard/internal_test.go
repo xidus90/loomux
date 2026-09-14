@@ -2,6 +2,7 @@ package guard
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/gitenv"
+	"github.com/xidus90/loomux/internal/testlock"
 )
 
 // --- the renderings Python owns -----------------------------------------
@@ -651,11 +653,26 @@ func TestReadManifestAnswersTheErrorOfAFileItCannotRead(t *testing.T) {
 	// `declarationIn` and `manifestPath` both stat before they read, so
 	// no caller reaches this arm on a healthy disk. It is the answer for
 	// the file that vanishes between the two, and it must be an error
-	// rather than an empty manifest.
+	// rather than an empty manifest -- and not errNoArea either, which every
+	// caller reads as "no manifest here" and lets the write through.
 	_, err := readManifest(filepath.Join(t.TempDir(), "gone.toml"))
-	if err == nil {
-		t.Fatal("a missing manifest was read as an empty one")
+	if errors.Is(err, errNoArea) || !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("a missing manifest answered %v", err)
 	}
+}
+
+func TestAManifestThatCannotBeReadRefusesAWriteInItsArea(t *testing.T) {
+	// The stat succeeds and the read fails: the file is held open the way an
+	// editor or a sync tool can. Read as "no manifest", the area would be
+	// judged without its declaration; it has to refuse.
+	tmp := t.TempDir()
+	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
+	declaration := filepath.Join(tmp, "repo", ".loomux", "config.toml")
+	write(t, declaration, "[area]\nscope = \"project/demo\"\n")
+	allow(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state)
+	testlock.Lock(t, declaration)
+	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
+		"the wiki guard cannot read the registry, so it refuses")
 }
 
 func TestGoodGlobListsPass(t *testing.T) {

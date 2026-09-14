@@ -2,6 +2,7 @@ package guard
 
 import (
 	"errors"
+	"io/fs"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -198,11 +199,13 @@ func TestTheLastCharacterOfThePlaneIsNoSurrogatePair(t *testing.T) {
 }
 
 func TestABrokenManifestSaysWhichDefectItFound(t *testing.T) {
-	// Three mutants lived in `readManifest`, and all three left the
-	// refusal standing while renaming the defect: dropping the read
-	// error, the TOML error or the shape of `[area]` all fall through to
-	// "scope is required", which is true of nothing. A reason that names
-	// the wrong line sends the reader to the wrong file.
+	// Each defect `readManifest` knows has its own answer, and a mutant that
+	// drops one of the early arms lets the file fall through to a later one:
+	// dropped TOML or `[area]`-shape errors reach "scope is required", and a
+	// dropped read error parses the empty data into a document without an
+	// area and answers errNoArea -- which every caller reads as "no
+	// manifest", so the barrier would open instead of refusing. A reason
+	// that names the wrong line sends the reader to the wrong file.
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
 	target := writeCall(filepath.Join(tmp, "vault", "demo", "x.md"))
@@ -223,8 +226,8 @@ func TestABrokenManifestSaysWhichDefectItFound(t *testing.T) {
 	}
 	// And the read error, which no caller can reach through a stat that
 	// succeeded -- so it is asked of the function.
-	if _, err := readManifest(filepath.Join(tmp, "gone.toml")); err == nil ||
-		strings.Contains(err.Error(), "scope is required") {
+	_, err := readManifest(filepath.Join(tmp, "gone.toml"))
+	if errors.Is(err, errNoArea) || !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("a missing manifest answered %v", err)
 	}
 }

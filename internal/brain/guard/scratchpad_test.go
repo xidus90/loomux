@@ -13,7 +13,9 @@ func TestScratchpadOfAClaudeSessionIsOpen(t *testing.T) {
 	tempDir = func() string { return temp }
 	defer func() { tempDir = os.TempDir }()
 	file := filepath.Join(temp, "claude", "C--project", "0b1c-session", "scratchpad", "notes.txt")
-	os.MkdirAll(filepath.Dir(file), 0o755)
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	base := scratchpadBase()
 	resolved, err := resolvePath(file)
 	if err != nil {
@@ -36,8 +38,15 @@ func TestOnlyTheScratchpadDirectoryIsOpen(t *testing.T) {
 		filepath.Join("other", "C--project", "0b1c-session", "scratchpad", "x"),
 	} {
 		path := filepath.Join(temp, rel)
-		os.MkdirAll(filepath.Dir(path), 0o755)
-		resolved, _ := resolvePath(path)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// An unresolved path is "", which no base encloses: the test would
+		// pass whatever the path.
+		resolved, err := resolvePath(path)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if isScratchpad(resolved, base) {
 			t.Fatalf("%s must stay closed", rel)
 		}
@@ -144,4 +153,27 @@ func TestARefusalNamesTheScratchpadTree(t *testing.T) {
 	if !strings.Contains(reason, want) {
 		t.Fatalf("the refusal does not name the scratchpad: %q", reason)
 	}
+}
+
+func TestARefusalWithoutWritableTreesNamesTheScratchpadToo(t *testing.T) {
+	tmp := t.TempDir()
+	scratchpadAt(t)
+	state := registryOf(t, tmp, "")
+	reason := deny(t, writeCall(filepath.Join(tmp, "out.md")), state,
+		"the registry declares no writable wiki path and no workspace")
+	want := "nothing outside the agents' memory and the session scratchpad " +
+		"below: " + filepath.Join(scratchpadBase(), "*", "*", "scratchpad") +
+		" may be written"
+	if !strings.Contains(reason, want) {
+		t.Fatalf("the refusal does not name the scratchpad: %q", reason)
+	}
+}
+
+func TestARefusalWithoutWritableTreesOrScratchpadNamesOnlyMemory(t *testing.T) {
+	tmp := t.TempDir()
+	tempDir = func() string { return "relative" }
+	defer func() { tempDir = os.TempDir }()
+	state := registryOf(t, tmp, "")
+	deny(t, writeCall(filepath.Join(tmp, "out.md")), state,
+		"so nothing outside the agents' memory may be written")
 }

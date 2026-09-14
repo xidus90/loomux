@@ -212,8 +212,9 @@ func manifestPath(registered area, stateDir string) string {
 
 // checkInbox is `_inbox_of` (src/brain/registry.py:86-109) kept for its
 // refusals. Registering an area before it declares itself is normal, so a
-// missing manifest is no defect; a manifest that cannot be read, or one
-// whose inbox reaches out of the area, refuses every write.
+// missing file and a configuration without `[area]` (errNoArea) are no
+// defect; a file that exists but cannot be read or parsed, a broken
+// `[area]`, or an inbox that reaches out of the area refuses every write.
 func checkInbox(registered area, stateDir string) error {
 	declaration := manifestPath(registered, stateDir)
 	if !isRegularFile(declaration) {

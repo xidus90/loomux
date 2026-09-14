@@ -385,8 +385,9 @@ func parents(path string) []string {
 // registration a writable area declares the parent directory of three
 // read-only project wikis -- so subtracting them would change nothing.
 //
-// Two exemptions lie outside those trees. The first is the agents' memory,
-// and a Claude Code session's scratchpad is open on the same terms.
+// Three places lie open outside those trees -- the two agents' memory bases
+// and a Claude Code session's scratchpad, all on the same terms -- and one
+// file name is exempted besides.
 // A call that writes only memory is let through right after the manifest
 // and before the registry, because memory is open whatever the registry
 // says and a registry that cannot be read must not close it (spec
@@ -484,9 +485,13 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 			"and that outranks any writable tree around it", true
 	}
 	if len(roots) == 0 {
+		open := "the agents' memory"
+		if scratch != "" {
+			open += " and the session scratchpad below: " +
+				filepath.Join(scratch, "*", "*", "scratchpad")
+		}
 		return "the registry declares no writable wiki path and no " +
-			"workspace, so nothing outside the agents' memory may be " +
-			"written", true
+			"workspace, so nothing outside " + open + " may be written", true
 	}
 	outside := []string{}
 	for _, path := range resolved {

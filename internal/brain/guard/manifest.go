@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
 )
@@ -24,9 +25,10 @@ const (
 var privacyModes = []string{"automatic_cloud", "local_only", "manual_cloud"}
 
 // manifest is the part of an area's declaration this barrier reads. Only
-// two fields survive the reading, and the rest of `read_manifest` is here
-// for its *refusals*: a manifest the Python side rejects has to refuse
-// this call too, or the two barriers answer different registries.
+// two fields survive the reading, and the rest of `read_manifest`'s checks
+// are here for their *refusals*: a declared area whose manifest is broken
+// refuses the call. A configuration without `[area]` is the exception -- it
+// declares no area and answers errNoArea before any other check.
 type manifest struct {
 	scope  string
 	layout map[string]any
@@ -260,15 +262,15 @@ func escapes(value string) bool {
 	if strings.HasPrefix(value, "/") {
 		return true
 	}
-	for offset, r := range value {
-		// The first *rune*: a one-character drive spelt outside ASCII is
-		// two bytes here and one character to pathlib.
-		size := len(string(r))
-		if offset == 0 && len(value) >= size+2 && value[size] == ':' &&
-			value[size+1] == '/' {
-			return true
-		}
-		break
+	// The first *rune*: a one-character drive spelt outside ASCII is two
+	// bytes here and one character to pathlib. `len(string(first))` rather
+	// than DecodeRuneInString's width keeps the answer the range loop gave
+	// before: an invalid byte counts as the three bytes of U+FFFD, and an
+	// empty value is too short for the test.
+	first, _ := utf8.DecodeRuneInString(value)
+	size := len(string(first))
+	if len(value) >= size+2 && value[size] == ':' && value[size+1] == '/' {
+		return true
 	}
 	for _, part := range strings.Split(value, "/") {
 		if part == ".." {
