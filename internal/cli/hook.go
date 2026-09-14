@@ -57,17 +57,12 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	switch event {
 	case "pre-tool-use":
-		return preToolUse(stdin, stdout, stderr, resolved, config.StateDir())
+		return hooks.PreToolUse(stdin, stdout, stderr, resolved, config.StateDir())
 	case "post-tool-use":
 		return hooks.PostToolUse(stdin, stdout, stderr, resolved)
 	default:
 		return hooks.SessionStart(stdin, stdout, stderr, resolved, *host)
 	}
-}
-
-// preToolUse is replaced by hooks.PreToolUse in Task 10.
-var preToolUse = func(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string) int {
-	return hooks.ExitDenied
 }
 
 func statusCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {

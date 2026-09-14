@@ -228,14 +228,16 @@ func TestWorktreeLinkAndUnlinkDispatch(t *testing.T) {
 }
 
 // The barrier is global and needs no project: with a host and no root it is
-// still reached, and until Task 10 puts hooks.PreToolUse behind it, what it
-// answers is the refusal a malformed barrier call gets.
+// still reached, and a write into a directory no area covers is refused there
+// with a reason on both channels. The state directory is a fresh one, so what
+// answers is an empty registry and not the machine's own.
 func TestHookPreToolUseIsReachedWithoutARoot(t *testing.T) {
+	t.Setenv("LOOMUX_STATE_DIR", t.TempDir())
 	t.Chdir(t.TempDir())
 
-	code, _, errOut := runWith(`{"tool_name":"Write","tool_input":{"file_path":"x.txt"}}`,
+	code, out, errOut := runWith(`{"tool_name":"Write","tool_input":{"file_path":"x.txt"}}`,
 		"hook", "pre-tool-use", "--host", "claude")
-	if code != 2 || errOut != "" {
-		t.Fatalf("code %d, err %q", code, errOut)
+	if code != 2 || errOut == "" || !strings.Contains(out, `"permissionDecision": "deny"`) {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
 }

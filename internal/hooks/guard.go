@@ -1,18 +1,17 @@
 // Package hooks holds what loomux runs from a harness lifecycle event: the
-// post-tool-use lanes, the session start, the status report and the worktree
-// mirror. The pre-tool-use barrier joins them in Task 10.
+// pre-tool-use guard that answers with the project's policy and the global
+// write barrier, the post-tool-use lanes, the session start, the status report
+// and the worktree mirror.
 package hooks
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
-	"github.com/BurntSushi/toml"
+	"github.com/xidus90/loomux/internal/brain/guard"
+	"github.com/xidus90/loomux/internal/config"
 )
 
 const (
@@ -21,58 +20,47 @@ const (
 	ExitDenied   = 2
 )
 
-type PolicyFile struct {
-	Policy struct {
-		Paths struct {
-			Rules []PathRule `toml:"rules"`
-		} `toml:"paths"`
-		Commands struct {
-			Rules []CommandRule `toml:"rules"`
-		} `toml:"commands"`
-	} `toml:"policy"`
-}
-
-type PathRule struct {
-	Match  string `toml:"match"`
-	Reason string `toml:"reason"`
-}
-
-type CommandRule struct {
-	Regex  string `toml:"regex"`
-	Reason string `toml:"reason"`
-}
-
 type HookPayload struct {
 	ToolName  string         `json:"tool_name"`
 	ToolInput map[string]any `json:"tool_input"`
 }
 
 // Built-in rules that protect secrets, stop gate controls, and lock files.
-var builtinPathRules = []PathRule{
-	{Match: ".env", Reason: "secrets are not written by an agent"},
-	{Match: ".env.*", Reason: "secrets are not written by an agent"},
-	{Match: "*.pem", Reason: "secrets are not written by an agent"},
-	{Match: "*.key", Reason: "secrets are not written by an agent"},
-	{Match: "id_rsa*", Reason: "secrets are not written by an agent"},
-	{Match: "*.p12", Reason: "secrets are not written by an agent"},
-	{Match: ".npmrc", Reason: "secrets are not written by an agent"},
-	{Match: ".pypirc", Reason: "secrets are not written by an agent"},
-	{Match: "credentials.json", Reason: "secrets are not written by an agent"},
-	{Match: ".aws/**", Reason: "secrets are not written by an agent"},
-	{Match: ".claude/.no-verify", Reason: "the stop gate's own controls are not written by the party it gates"},
-	{Match: ".ultraloom/hooks/**", Reason: "the stop gate's own controls are not written by the party it gates"},
-	{Match: "uv.lock", Reason: "lock files are written by their package manager, not by hand"},
-	{Match: "poetry.lock", Reason: "lock files are written by their package manager, not by hand"},
-	{Match: "package-lock.json", Reason: "lock files are written by their package manager, not by hand"},
-	{Match: "pnpm-lock.yaml", Reason: "lock files are written by their package manager, not by hand"},
-	{Match: "yarn.lock", Reason: "lock files are written by their package manager, not by hand"},
-	{Match: "Cargo.lock", Reason: "lock files are written by their package manager, not by hand"},
-	{Match: "go.sum", Reason: "lock files are written by their package manager, not by hand"},
+var builtinPathRules = []config.PathRule{
+	{Match: []string{".env"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{".env.*"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{"*.pem"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{"*.key"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{"id_rsa*"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{"*.p12"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{".npmrc"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{".pypirc"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{"credentials.json"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{".aws/**"}, Reason: "secrets are not written by an agent"},
+	{Match: []string{".claude/.no-verify"}, Reason: "the stop gate's own controls are not written by the party it gates"},
+	{Match: []string{".loomux/state/hooks/**"}, Reason: "the stop gate's own controls are not written by the party it gates"},
+	{Match: []string{"uv.lock"}, Reason: "lock files are written by their package manager, not by hand"},
+	{Match: []string{"poetry.lock"}, Reason: "lock files are written by their package manager, not by hand"},
+	{Match: []string{"package-lock.json"}, Reason: "lock files are written by their package manager, not by hand"},
+	{Match: []string{"pnpm-lock.yaml"}, Reason: "lock files are written by their package manager, not by hand"},
+	{Match: []string{"yarn.lock"}, Reason: "lock files are written by their package manager, not by hand"},
+	{Match: []string{"Cargo.lock"}, Reason: "lock files are written by their package manager, not by hand"},
+	{Match: []string{"go.sum"}, Reason: "lock files are written by their package manager, not by hand"},
 }
 
-var builtinCommandRules = []CommandRule{
-	{Regex: `(^|\s)git\s+push(\s|$)`, Reason: "Whether commits reach the remote is a human's decision."},
-}
+// builtinCommands compiles on first use rather than at load: this binary hangs
+// on every tool call, and a package variable would pay for the expression in
+// runs that never look at a command line.
+var builtinCommands = sync.OnceValue(func() []config.CommandRule {
+	return []config.CommandRule{{
+		Regex:  regexp.MustCompile(`(^|\s)git\s+push(\s|$)`),
+		Source: `(^|\s)git\s+push(\s|$)`,
+		Reason: "Whether commits reach the remote is a human's decision.",
+	}}
+})
+
+// commandTools are the tools whose "command" argument is a shell line.
+var commandTools = map[string]bool{"Bash": true, "PowerShell": true}
 
 // matchGlob matches a slash-separated path against a glob pattern supporting `**`.
 func matchGlob(pattern, path string) bool {
@@ -97,22 +85,6 @@ func matchGlob(pattern, path string) bool {
 	return matched
 }
 
-func loadPolicy(root string) (PolicyFile, error) {
-	policyPath := filepath.Join(root, ".ultraloom", "policy.toml")
-	var p PolicyFile
-	data, err := os.ReadFile(policyPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return p, nil
-		}
-		return p, err
-	}
-	if err := toml.Unmarshal(data, &p); err != nil {
-		return p, fmt.Errorf("parsing %s: %w", policyPath, err)
-	}
-	return p, nil
-}
-
 func relativePath(raw, root string) string {
 	raw = filepath.Clean(raw)
 	if !filepath.IsAbs(raw) {
@@ -125,94 +97,32 @@ func relativePath(raw, root string) string {
 	return filepath.ToSlash(rel)
 }
 
-func checkTool(root string, payload HookPayload, policy PolicyFile) []string {
+// checkTool judges one tool call against the built-in rules and the project's
+// own, and answers every reason it found: a caller that wants to say why it
+// refuses needs all of them, not the first.
+func checkTool(root, tool string, input map[string]any, policy config.Policy) []string {
 	var reasons []string
-	tool := payload.ToolName
-	input := payload.ToolInput
-
-	// File tools
-	var path string
-	switch tool {
-	case "Write", "Edit", "MultiEdit":
-		if p, ok := input["file_path"].(string); ok {
-			path = p
-		}
-	case "NotebookEdit":
-		if p, ok := input["notebook_path"].(string); ok {
-			path = p
-		}
-	}
-
-	if path != "" {
-		rel := relativePath(path, root)
-		// Check built-in path rules
-		for _, rule := range builtinPathRules {
-			if matchGlob(rule.Match, rel) {
-				reasons = append(reasons, rule.Reason)
-			}
-		}
-		// Check configured path rules
-		for _, rule := range policy.Policy.Paths.Rules {
-			if matchGlob(rule.Match, rel) {
-				reasons = append(reasons, rule.Reason)
-			}
-		}
-	}
-
-	// Command tools
-	if tool == "Bash" || tool == "PowerShell" {
-		if cmd, ok := input["command"].(string); ok {
-			// Check built-in command rules
-			for _, rule := range builtinCommandRules {
-				matched, _ := regexp.MatchString(rule.Regex, cmd)
-				if matched {
-					reasons = append(reasons, rule.Reason)
+	if guard.IsWritingTool(tool) {
+		for _, target := range guard.WriteTargets(input) {
+			rel := relativePath(target, root)
+			for _, rule := range append(builtinPathRules, policy.Paths...) {
+				for _, glob := range rule.Match {
+					if matchGlob(glob, rel) {
+						reasons = append(reasons, rule.Reason)
+						break
+					}
 				}
 			}
-			// Check configured command rules
-			for _, rule := range policy.Policy.Commands.Rules {
-				matched, _ := regexp.MatchString(rule.Regex, cmd)
-				if matched {
+		}
+	}
+	if commandTools[tool] {
+		if line, ok := input["command"].(string); ok {
+			for _, rule := range append(builtinCommands(), policy.Commands...) {
+				if rule.Regex.MatchString(line) {
 					reasons = append(reasons, rule.Reason)
 				}
 			}
 		}
 	}
-
 	return reasons
-}
-
-func runGuard(stdin io.Reader, stderr io.Writer, root string) int {
-	data, err := io.ReadAll(stdin)
-	if err != nil || len(data) == 0 {
-		fmt.Fprintf(stderr, "loomux: failed to read hook payload: %v\n", err)
-		return ExitInternal
-	}
-
-	var payload HookPayload
-	if err := json.Unmarshal(data, &payload); err != nil {
-		fmt.Fprintf(stderr, "loomux: unreadable hook payload: %v\n", err)
-		return ExitInternal
-	}
-	if payload.ToolName == "" {
-		fmt.Fprintf(stderr, "loomux: tool_name is required in payload\n")
-		return ExitInternal
-	}
-
-	policy, err := loadPolicy(root)
-	if err != nil {
-		fmt.Fprintf(stderr, "loomux: %v\n", err)
-		return ExitDenied
-	}
-
-	reasons := checkTool(root, payload, policy)
-	if len(reasons) > 0 {
-		fmt.Fprintf(stderr, "ultraloom policy refused this %s:\n", payload.ToolName)
-		for _, r := range reasons {
-			fmt.Fprintf(stderr, "  - %s\n", r)
-		}
-		return ExitDenied
-	}
-
-	return ExitOK
 }

@@ -1,180 +1,142 @@
 package hooks
 
 import (
-	"bytes"
-	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/config"
 )
 
-func TestGuardAllowsSafeFileWrite(t *testing.T) {
+func reasonsFor(root, tool string, input map[string]any, policy config.Policy) []string {
+	return checkTool(root, tool, input, policy)
+}
+
+func TestSafeFileWritesCarryNoReason(t *testing.T) {
 	root := t.TempDir()
-	payload := `{"tool_name": "Write", "tool_input": {"file_path": "src/main.py", "content": "print(1)"}}`
-	var stderr bytes.Buffer
-
-	code := runGuard(strings.NewReader(payload), &stderr, root)
-	if code != ExitOK {
-		t.Fatalf("code = %d, want ExitOK (0). stderr: %s", code, stderr.String())
-	}
-
-	// Test absolute path
-	absPath := filepath.Join(root, "src", "main.py")
-	payloadAbs := `{"tool_name": "Write", "tool_input": {"file_path": "` + filepath.ToSlash(absPath) + `", "content": "print(1)"}}`
-	stderr.Reset()
-	if code := runGuard(strings.NewReader(payloadAbs), &stderr, root); code != ExitOK {
-		t.Fatalf("abs path code = %d, want ExitOK", code)
-	}
-
-	// Test outside path
-	payloadOutside := `{"tool_name": "Write", "tool_input": {"file_path": "../outside.py", "content": "print(1)"}}`
-	stderr.Reset()
-	if code := runGuard(strings.NewReader(payloadOutside), &stderr, root); code != ExitOK {
-		t.Fatalf("outside path code = %d, want ExitOK", code)
+	for _, path := range []string{
+		"src/main.py",
+		filepath.Join(root, "src", "main.py"),
+		"../outside.py",
+	} {
+		if reasons := reasonsFor(root, "Write", map[string]any{"file_path": path}, config.Policy{}); len(reasons) != 0 {
+			t.Fatalf("%s: reasons %v, want none", path, reasons)
+		}
 	}
 }
 
-func TestGuardBlocksProtectedBuiltinPaths(t *testing.T) {
+func TestProtectedBuiltinPathsCarryTheirReason(t *testing.T) {
 	root := t.TempDir()
-	tests := []struct {
-		name string
-		path string
-	}{
-		{"env file", ".env"},
-		{"env local", ".env.local"},
-		{"ssh key", "id_rsa"},
-		{"pem file", "server.pem"},
-		{"key file", "cert.key"},
-		{"p12 file", "cert.p12"},
-		{"aws secret", ".aws/credentials"},
-		{"lock file", "uv.lock"},
-		{"no-verify", ".claude/.no-verify"},
+	tests := []struct{ name, path, reason string }{
+		{"env file", ".env", "secrets are not written by an agent"},
+		{"env local", ".env.local", "secrets are not written by an agent"},
+		{"ssh key", "id_rsa", "secrets are not written by an agent"},
+		{"pem file", "server.pem", "secrets are not written by an agent"},
+		{"key file", "cert.key", "secrets are not written by an agent"},
+		{"p12 file", "cert.p12", "secrets are not written by an agent"},
+		{"npm token", ".npmrc", "secrets are not written by an agent"},
+		{"pypi token", ".pypirc", "secrets are not written by an agent"},
+		{"service account", "credentials.json", "secrets are not written by an agent"},
+		{"aws secret", ".aws/credentials", "secrets are not written by an agent"},
+		{"no-verify", ".claude/.no-verify", "the stop gate's own controls are not written by the party it gates"},
+		{"hook script", ".loomux/state/hooks/stop.py", "the stop gate's own controls are not written by the party it gates"},
+		{"uv lock", "uv.lock", "lock files are written by their package manager, not by hand"},
+		{"poetry lock", "poetry.lock", "lock files are written by their package manager, not by hand"},
+		{"npm lock", "package-lock.json", "lock files are written by their package manager, not by hand"},
+		{"pnpm lock", "pnpm-lock.yaml", "lock files are written by their package manager, not by hand"},
+		{"yarn lock", "yarn.lock", "lock files are written by their package manager, not by hand"},
+		{"cargo lock", "Cargo.lock", "lock files are written by their package manager, not by hand"},
+		{"go sum", "go.sum", "lock files are written by their package manager, not by hand"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			payload := `{"tool_name": "Edit", "tool_input": {"file_path": "` + tc.path + `", "new_string": "x"}}`
-			var stderr bytes.Buffer
-			code := runGuard(strings.NewReader(payload), &stderr, root)
-			if code != ExitDenied {
-				t.Fatalf("[%s] code = %d, want ExitDenied (2)", tc.name, code)
-			}
-			if !strings.Contains(stderr.String(), "ultraloom policy refused this Edit") {
-				t.Fatalf("stderr missing refusal:\n%s", stderr.String())
+			reasons := reasonsFor(root, "Edit", map[string]any{"file_path": tc.path}, config.Policy{})
+			if len(reasons) != 1 || reasons[0] != tc.reason {
+				t.Fatalf("reasons %v, want %q", reasons, tc.reason)
 			}
 		})
 	}
 }
 
-func TestGuardBlocksConfiguredProtectedPaths(t *testing.T) {
+// A configured glob with a slash in it is matched as a whole path, so the rule
+// reaches a file the same pattern would miss by base name alone.
+func TestAConfiguredPathRuleCarriesItsReason(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, ".ultraloom"), 0o755)
-	policyTOML := `
-[[policy.paths.rules]]
-match  = "migrations/[0-9][0-9][0-9][0-9]_*.py"
-reason = "Django migrations are protected"
-`
-	os.WriteFile(filepath.Join(root, ".ultraloom", "policy.toml"), []byte(policyTOML), 0o644)
-
-	payload := `{"tool_name": "Write", "tool_input": {"file_path": "migrations/0001_initial.py"}}`
-	var stderr bytes.Buffer
-	code := runGuard(strings.NewReader(payload), &stderr, root)
-	if code != ExitDenied {
-		t.Fatalf("code = %d, want ExitDenied (2)", code)
+	policy := config.Policy{Paths: []config.PathRule{{
+		Match:  []string{"docs/*.md", "migrations/[0-9][0-9][0-9][0-9]_*.py"},
+		Reason: "Django migrations are protected",
+	}}}
+	reasons := reasonsFor(root, "Write", map[string]any{"file_path": "migrations/0001_initial.py"}, policy)
+	if len(reasons) != 1 || reasons[0] != "Django migrations are protected" {
+		t.Fatalf("reasons %v", reasons)
 	}
-	if !strings.Contains(stderr.String(), "Django migrations are protected") {
-		t.Fatalf("stderr missing configured reason:\n%s", stderr.String())
+	if reasons := reasonsFor(root, "Write", map[string]any{"file_path": "src/0001_initial.py"}, policy); len(reasons) != 0 {
+		t.Fatalf("reasons %v, want none: the glob names a directory", reasons)
 	}
 }
 
-func TestGuardBlocksNotebookEdit(t *testing.T) {
+// Every target of a call is judged, not the first one found.
+func TestNotebookEditIsJudgedByItsOwnTargetKey(t *testing.T) {
 	root := t.TempDir()
-	payload := `{"tool_name": "NotebookEdit", "tool_input": {"notebook_path": ".env"}}`
-	var stderr bytes.Buffer
-	code := runGuard(strings.NewReader(payload), &stderr, root)
-	if code != ExitDenied {
-		t.Fatalf("code = %d, want ExitDenied", code)
+	reasons := reasonsFor(root, "NotebookEdit", map[string]any{"notebook_path": ".env"}, config.Policy{})
+	if len(reasons) != 1 {
+		t.Fatalf("reasons %v", reasons)
 	}
 }
 
-func TestGuardBlocksGitPushOnBashAndPowerShell(t *testing.T) {
+func TestMultiEditIsJudgedLikeAWrite(t *testing.T) {
+	root := t.TempDir()
+	if reasons := reasonsFor(root, "MultiEdit", map[string]any{"file_path": ".env"}, config.Policy{}); len(reasons) != 1 {
+		t.Fatalf("reasons %v", reasons)
+	}
+}
+
+// A tool that writes nothing is judged by no path rule, whatever it carries.
+func TestAReadingToolIsNotJudgedByThePathRules(t *testing.T) {
+	root := t.TempDir()
+	if reasons := reasonsFor(root, "Read", map[string]any{"file_path": ".env"}, config.Policy{}); len(reasons) != 0 {
+		t.Fatalf("reasons %v, want none", reasons)
+	}
+}
+
+func TestGitPushIsRefusedOnBashAndPowerShell(t *testing.T) {
 	root := t.TempDir()
 	for _, tool := range []string{"Bash", "PowerShell"} {
-		payload := `{"tool_name": "` + tool + `", "tool_input": {"command": "git push origin main"}}`
-		var stderr bytes.Buffer
-		code := runGuard(strings.NewReader(payload), &stderr, root)
-		if code != ExitDenied {
-			t.Fatalf("[%s] code = %d, want ExitDenied", tool, code)
-		}
-		if !strings.Contains(stderr.String(), "Whether commits reach the remote is a human's decision.") {
-			t.Fatalf("[%s] stderr missing reason:\n%s", tool, stderr.String())
+		reasons := reasonsFor(root, tool, map[string]any{"command": "git push origin main"}, config.Policy{})
+		if len(reasons) != 1 || reasons[0] != "Whether commits reach the remote is a human's decision." {
+			t.Fatalf("[%s] reasons %v", tool, reasons)
 		}
 	}
 }
 
-func TestGuardAllowsSafeCommands(t *testing.T) {
+func TestASafeCommandCarriesNoReason(t *testing.T) {
 	root := t.TempDir()
-	payload := `{"tool_name": "Bash", "tool_input": {"command": "git status"}}`
-	var stderr bytes.Buffer
-	code := runGuard(strings.NewReader(payload), &stderr, root)
-	if code != ExitOK {
-		t.Fatalf("code = %d, want ExitOK. stderr: %s", code, stderr.String())
+	if reasons := reasonsFor(root, "Bash", map[string]any{"command": "git status"}, config.Policy{}); len(reasons) != 0 {
+		t.Fatalf("reasons %v, want none", reasons)
 	}
 }
 
-func TestGuardBlocksConfiguredForbiddenCommand(t *testing.T) {
+// A command line that is no string is no command line: there is nothing to
+// match an expression against.
+func TestACommandThatIsNoStringCarriesNoReason(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, ".ultraloom"), 0o755)
-	policyTOML := `
-[[policy.commands.rules]]
-regex  = "(^|\\s)pip\\s+install"
-reason = "use uv add instead"
-`
-	os.WriteFile(filepath.Join(root, ".ultraloom", "policy.toml"), []byte(policyTOML), 0o644)
-
-	payload := `{"tool_name": "Bash", "tool_input": {"command": "pip install requests"}}`
-	var stderr bytes.Buffer
-	code := runGuard(strings.NewReader(payload), &stderr, root)
-	if code != ExitDenied {
-		t.Fatalf("code = %d, want ExitDenied", code)
-	}
-	if !strings.Contains(stderr.String(), "use uv add instead") {
-		t.Fatalf("stderr missing reason:\n%s", stderr.String())
+	if reasons := reasonsFor(root, "Bash", map[string]any{"command": 7}, config.Policy{}); len(reasons) != 0 {
+		t.Fatalf("reasons %v, want none", reasons)
 	}
 }
 
-func TestGuardHandlesMalformedPayloads(t *testing.T) {
+func TestAConfiguredCommandRuleCarriesItsReason(t *testing.T) {
 	root := t.TempDir()
-
-	// Empty input
-	var stderr bytes.Buffer
-	if code := runGuard(strings.NewReader(""), &stderr, root); code != ExitInternal {
-		t.Fatalf("code = %d, want ExitInternal", code)
-	}
-
-	// Invalid JSON
-	stderr.Reset()
-	if code := runGuard(strings.NewReader("not json"), &stderr, root); code != ExitInternal {
-		t.Fatalf("code = %d, want ExitInternal", code)
-	}
-
-	// Missing tool_name
-	stderr.Reset()
-	if code := runGuard(strings.NewReader(`{"tool_input": {}}`), &stderr, root); code != ExitInternal {
-		t.Fatalf("code = %d, want ExitInternal", code)
-	}
-}
-
-func TestGuardHandlesBrokenPolicyTOML(t *testing.T) {
-	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, ".ultraloom"), 0o755)
-	os.WriteFile(filepath.Join(root, ".ultraloom", "policy.toml"), []byte("broken toml === "), 0o644)
-
-	payload := `{"tool_name": "Write", "tool_input": {"file_path": "test.txt"}}`
-	var stderr bytes.Buffer
-	code := runGuard(strings.NewReader(payload), &stderr, root)
-	if code != ExitDenied {
-		t.Fatalf("code = %d, want ExitDenied (2) for broken policy file", code)
+	policy := config.Policy{Commands: []config.CommandRule{{
+		Regex:  regexp.MustCompile(`(^|\s)pip\s+install`),
+		Source: `(^|\s)pip\s+install`,
+		Reason: "use uv add instead",
+	}}}
+	reasons := reasonsFor(root, "Bash", map[string]any{"command": "pip install requests"}, policy)
+	if len(reasons) != 1 || reasons[0] != "use uv add instead" {
+		t.Fatalf("reasons %v", reasons)
 	}
 }
 
@@ -192,25 +154,5 @@ func TestRelativePathHelper(t *testing.T) {
 	absOutside := relativePath(filepath.Join(otherDir, "other.txt"), root)
 	if !strings.Contains(absOutside, "other.txt") {
 		t.Fatalf("absOutside = %q", absOutside)
-	}
-}
-
-func TestGuardBlocksMultiEdit(t *testing.T) {
-	root := t.TempDir()
-	payload := `{"tool_name": "MultiEdit", "tool_input": {"file_path": ".env"}}`
-	var stderr bytes.Buffer
-	code := runGuard(strings.NewReader(payload), &stderr, root)
-	if code != ExitDenied {
-		t.Fatalf("code = %d, want ExitDenied for MultiEdit on .env", code)
-	}
-}
-
-func TestLoadPolicyUnreadable(t *testing.T) {
-	root := t.TempDir()
-	policyDir := filepath.Join(root, ".ultraloom", "policy.toml")
-	_ = os.MkdirAll(policyDir, 0755) // directory instead of file causes read error
-	_, err := loadPolicy(root)
-	if err == nil {
-		t.Fatal("expected error for directory policy.toml, got nil")
 	}
 }
