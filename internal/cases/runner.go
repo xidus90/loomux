@@ -1,0 +1,260 @@
+package cases
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+// WorldToken stands for the staged world directory in a case's files.
+const WorldToken = "{{WORLD}}"
+
+// RunFunc is the entry point under test: the command's arguments without the
+// program name, the staged world, and the three streams.
+type RunFunc func(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int
+
+// The staging directory is the one thing a test cannot take away from the
+// runner, so the call is a seam.
+var defaultMkdirTemp = os.MkdirTemp
+
+var mkdirTemp = defaultMkdirTemp
+
+// Normalize replaces every spelling of dir -- slashed, native and
+// JSON-escaped -- with WorldToken, so a recording matches on any machine.
+func Normalize(data []byte, dir string) []byte {
+	token := []byte(WorldToken)
+	data = bytes.ReplaceAll(data, []byte(strings.ReplaceAll(dir, `\`, `\\`)), token)
+	data = bytes.ReplaceAll(data, []byte(dir), token)
+	return bytes.ReplaceAll(data, []byte(filepath.ToSlash(dir)), token)
+}
+
+// RunOutcome describes the outcome of running a single case.
+type RunOutcome struct {
+	Case         *Case
+	Passed       bool
+	ActualExit   int
+	ActualStdout []byte
+	Mismatches   []string
+}
+
+// StageWorld copies the directory tree from src into dst, putting the staged
+// path in place of WorldToken in every file's content.
+//
+//coverage:exempt the filepath.Rel arm needs a path WalkDir found below src that is not below src, which no filesystem produces
+func StageWorld(src, dst string) error {
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		data = bytes.ReplaceAll(data, []byte(WorldToken), []byte(filepath.ToSlash(dst)))
+		return os.WriteFile(target, data, 0o644)
+	})
+}
+
+// CompareTrees compares regular files between actualDir and expectedDir. The
+// actual contents are normalised first: the expected tree keeps WorldToken.
+func CompareTrees(actualDir, expectedDir string) ([]string, error) {
+	actualFiles, err := collectFiles(actualDir)
+	if err != nil {
+		return nil, err
+	}
+	for rel, data := range actualFiles {
+		actualFiles[rel] = Normalize(data, actualDir)
+	}
+	expectedFiles, err := collectFiles(expectedDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var mismatches []string
+	for rel, expectedContent := range expectedFiles {
+		actualContent, ok := actualFiles[rel]
+		if !ok {
+			mismatches = append(mismatches, "missing file in actual: "+rel)
+		} else if !bytes.Equal(actualContent, expectedContent) {
+			mismatches = append(mismatches, "content mismatch: "+rel)
+		}
+	}
+	for rel := range actualFiles {
+		if _, ok := expectedFiles[rel]; !ok {
+			mismatches = append(mismatches, "unexpected extra file in actual: "+rel)
+		}
+	}
+	sort.Strings(mismatches)
+	return mismatches, nil
+}
+
+//coverage:exempt the filepath.Rel arm needs a path below dir that is not below dir, and the remaining WalkDir err arm a directory the OS refuses to list while its parent reads
+func collectFiles(dir string) (map[string][]byte, error) {
+	files := make(map[string][]byte)
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		files[filepath.ToSlash(rel)] = data
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+// SplitCommand parses a command line string into tokens respecting quotes and escapes.
+func SplitCommand(s string) ([]string, error) {
+	var tokens []string
+	var cur strings.Builder
+	inSingle := false
+	inDouble := false
+	escaped := false
+	hadQuotes := false
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if escaped {
+			cur.WriteByte(c)
+			escaped = false
+			continue
+		}
+		if c == '\\' && !inSingle {
+			escaped = true
+			continue
+		}
+		if inSingle {
+			if c == '\'' {
+				inSingle = false
+				hadQuotes = true
+			} else {
+				cur.WriteByte(c)
+			}
+			continue
+		}
+		if inDouble {
+			if c == '"' {
+				inDouble = false
+				hadQuotes = true
+			} else {
+				cur.WriteByte(c)
+			}
+			continue
+		}
+		switch c {
+		case '\'':
+			inSingle = true
+		case '"':
+			inDouble = true
+		case ' ', '\t', '\n', '\r':
+			if cur.Len() > 0 || hadQuotes {
+				tokens = append(tokens, cur.String())
+				cur.Reset()
+				hadQuotes = false
+			}
+		default:
+			cur.WriteByte(c)
+		}
+	}
+	if inSingle || inDouble || escaped {
+		return nil, fmt.Errorf("unclosed quote or escape in command: %s", s)
+	}
+	if cur.Len() > 0 || hadQuotes {
+		tokens = append(tokens, cur.String())
+	}
+	return tokens, nil
+}
+
+// RunCase runs a single case in process, in an isolated staged world.
+func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
+	tmpDir, err := mkdirTemp("", "case-run-*")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcWorld := filepath.Join(c.Path, "world")
+	if err := StageWorld(srcWorld, tmpDir); err != nil {
+		return nil, err
+	}
+	world := filepath.ToSlash(tmpDir)
+
+	tokens, err := SplitCommand(c.Cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(tokens) == 0 {
+		return nil, fmt.Errorf("empty command in case %s/%s", c.Verb, c.Name)
+	}
+	// The corpus belongs to one binary; anything else is a recording that was
+	// never translated.
+	if tokens[0] != "loomux" {
+		return nil, fmt.Errorf("case %s/%s does not call loomux: %s", c.Verb, c.Name, c.Cmd)
+	}
+	for i := range tokens {
+		tokens[i] = strings.ReplaceAll(tokens[i], WorldToken, world)
+	}
+
+	stdin := bytes.ReplaceAll(c.Stdin, []byte(WorldToken), []byte(world))
+	var stdoutBuf bytes.Buffer
+	actualExit := run(tokens[1:], tmpDir, bytes.NewReader(stdin), &stdoutBuf, io.Discard)
+	actualStdout := Normalize(stdoutBuf.Bytes(), tmpDir)
+
+	var mismatches []string
+	if actualExit != c.ExitCode {
+		mismatches = append(mismatches, fmt.Sprintf("exit code: expected %d, got %d", c.ExitCode, actualExit))
+	}
+	// A message case pins the exit code alone: its wording is loomux's own.
+	if c.Compare != "message" && !bytes.Equal(actualStdout, c.Stdout) {
+		mismatches = append(mismatches, fmt.Sprintf("stdout mismatch: expected %d bytes, got %d bytes", len(c.Stdout), len(actualStdout)))
+	}
+	if c.HasWorldAfter {
+		diffs, err := CompareTrees(tmpDir, filepath.Join(c.Path, "world_after"))
+		if err != nil {
+			return nil, err
+		}
+		mismatches = append(mismatches, diffs...)
+	}
+
+	return &RunOutcome{
+		Case:         c,
+		Passed:       len(mismatches) == 0,
+		ActualExit:   actualExit,
+		ActualStdout: actualStdout,
+		Mismatches:   mismatches,
+	}, nil
+}

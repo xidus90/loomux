@@ -9,7 +9,11 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/BurntSushi/toml"
+
 	"github.com/xidus90/loomux/internal/dev/covergate"
+	"github.com/xidus90/loomux/internal/dev/importcases"
+	"github.com/xidus90/loomux/internal/dev/recordcase"
 	"github.com/xidus90/loomux/internal/dev/swap"
 )
 
@@ -29,8 +33,10 @@ func runCoverFunc(profile string) ([]byte, error) {
 }
 
 var devCommands = map[string]command{
-	"covergate":   devCovergate,
-	"swap-binary": devSwapBinary,
+	"covergate":    devCovergate,
+	"import-cases": devImportCases,
+	"record-case":  devRecordCase,
+	"swap-binary":  devSwapBinary,
 }
 
 func devCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -69,6 +75,56 @@ func devCovergate(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return covergate.Gate(lines, module, os.ReadFile, stdout)
+}
+
+func devRecordCase(args []string, _ io.Reader, _, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev record-case", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var s recordcase.Spec
+	fs.StringVar(&s.Exe, "exe", "", "path of the old binary")
+	fs.StringVar(&s.Cmd, "cmd", "", "command line with {{WORLD}}")
+	fs.StringVar(&s.World, "world", "", "directory to stage")
+	fs.StringVar(&s.Stdin, "stdin", "", "file with the payload")
+	fs.StringVar(&s.Out, "out", "", "case directory to write")
+	fs.StringVar(&s.Notes, "notes", "", "text for notes.md")
+	fs.StringVar(&s.Compare, "compare", "", `"" (data) or "message"`)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if s.Exe == "" || s.Cmd == "" || s.World == "" || s.Out == "" {
+		fmt.Fprintln(stderr, "loomux dev record-case: --exe, --cmd, --world and --out are required")
+		return 2
+	}
+	if err := recordcase.Record(s); err != nil {
+		fmt.Fprintf(stderr, "loomux dev record-case: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func devImportCases(args []string, _ io.Reader, _, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev import-cases", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	mapFile := fs.String("map", "", "TOML file of [[command]] rules")
+	from := fs.String("from", "", "directory of recorded cases")
+	to := fs.String("to", "", "directory to write the translated cases to")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *mapFile == "" || *from == "" || *to == "" {
+		fmt.Fprintln(stderr, "loomux dev import-cases: --map, --from and --to are required")
+		return 2
+	}
+	var m importcases.Mapping
+	if _, err := toml.DecodeFile(*mapFile, &m); err != nil {
+		fmt.Fprintf(stderr, "loomux dev import-cases: %v\n", err)
+		return 1
+	}
+	if err := importcases.Import(*from, *to, m); err != nil {
+		fmt.Fprintf(stderr, "loomux dev import-cases: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func devSwapBinary(args []string, _ io.Reader, _, stderr io.Writer) int {

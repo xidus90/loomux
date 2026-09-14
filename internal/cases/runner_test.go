@@ -1,0 +1,313 @@
+package cases_test
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/xidus90/loomux/internal/cases"
+	"github.com/xidus90/loomux/internal/testlock"
+)
+
+func TestStageWorld(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "src")
+	dst := filepath.Join(t.TempDir(), "dst")
+
+	if err := os.MkdirAll(filepath.Join(src, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeCaseFile(t, src, "root.txt", []byte("root"))
+	writeCaseFile(t, filepath.Join(src, "sub"), "nested.txt", []byte("nested"))
+
+	if err := cases.StageWorld(src, dst); err != nil {
+		t.Fatalf("unexpected error staging world: %v", err)
+	}
+
+	rootBytes, err := os.ReadFile(filepath.Join(dst, "root.txt"))
+	if err != nil || string(rootBytes) != "root" {
+		t.Fatalf("expected root file copied, got %v / %q", err, string(rootBytes))
+	}
+	nestedBytes, err := os.ReadFile(filepath.Join(dst, "sub", "nested.txt"))
+	if err != nil || string(nestedBytes) != "nested" {
+		t.Fatalf("expected nested file copied, got %v / %q", err, string(nestedBytes))
+	}
+}
+
+func TestCompareTrees(t *testing.T) {
+	actual := filepath.Join(t.TempDir(), "actual")
+	expected := filepath.Join(t.TempDir(), "expected")
+	if err := os.MkdirAll(actual, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(expected, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Case 1: Identical
+	writeCaseFile(t, actual, "a.txt", []byte("hello"))
+	writeCaseFile(t, expected, "a.txt", []byte("hello"))
+	diffs, err := cases.CompareTrees(actual, expected)
+	if err != nil || len(diffs) != 0 {
+		t.Fatalf("expected identical trees, got %v (err: %v)", diffs, err)
+	}
+
+	// Case 2: Content mismatch
+	writeCaseFile(t, actual, "a.txt", []byte("changed"))
+	diffs, err = cases.CompareTrees(actual, expected)
+	if err != nil || len(diffs) != 1 || diffs[0] != "content mismatch: a.txt" {
+		t.Fatalf("expected content mismatch, got %v", diffs)
+	}
+
+	// Case 3: Missing in actual
+	writeCaseFile(t, expected, "b.txt", []byte("missing"))
+	writeCaseFile(t, actual, "a.txt", []byte("hello"))
+	diffs, err = cases.CompareTrees(actual, expected)
+	if err != nil || len(diffs) != 1 || diffs[0] != "missing file in actual: b.txt" {
+		t.Fatalf("expected missing file mismatch, got %v", diffs)
+	}
+
+	// Case 4: Extra in actual
+	_ = os.Remove(filepath.Join(expected, "b.txt"))
+	writeCaseFile(t, actual, "extra.txt", []byte("extra"))
+	diffs, err = cases.CompareTrees(actual, expected)
+	if err != nil || len(diffs) != 1 || diffs[0] != "unexpected extra file in actual: extra.txt" {
+		t.Fatalf("expected extra file mismatch, got %v", diffs)
+	}
+}
+
+func TestSplitCommand(t *testing.T) {
+	tokens, err := cases.SplitCommand(`brain guard "path with spaces" 'single quote'`)
+	if err != nil {
+		t.Fatalf("unexpected error splitting command: %v", err)
+	}
+	expected := []string{"brain", "guard", "path with spaces", "single quote"}
+	if len(tokens) != len(expected) {
+		t.Fatalf("expected %d tokens, got %v", len(expected), tokens)
+	}
+	for i, exp := range expected {
+		if tokens[i] != exp {
+			t.Errorf("token %d: expected %q, got %q", i, exp, tokens[i])
+		}
+	}
+
+	tokensEmpty, err := cases.SplitCommand(`brain search "" ''`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedEmpty := []string{"brain", "search", "", ""}
+	if len(tokensEmpty) != len(expectedEmpty) {
+		t.Fatalf("expected %d tokens for empty quotes, got %v", len(expectedEmpty), tokensEmpty)
+	}
+	for i, exp := range expectedEmpty {
+		if tokensEmpty[i] != exp {
+			t.Errorf("empty token %d: expected %q, got %q", i, exp, tokensEmpty[i])
+		}
+	}
+
+	_, err = cases.SplitCommand(`brain "unclosed`)
+	if err == nil {
+		t.Fatal("expected error on unclosed quote, got nil")
+	}
+}
+
+func TestRunCaseSubstitutesTheWorldAndComparesInProcess(t *testing.T) {
+	dir := t.TempDir()
+	caseDir := filepath.Join(dir, "verb", "one")
+	os.MkdirAll(filepath.Join(caseDir, "world"), 0o755)
+	os.WriteFile(filepath.Join(caseDir, "world", "a.txt"), []byte("at {{WORLD}}\n"), 0o644)
+	os.WriteFile(filepath.Join(caseDir, "cmd"), []byte("loomux echo {{WORLD}}/a.txt\n"), 0o644)
+	os.WriteFile(filepath.Join(caseDir, "exit"), []byte("0\n"), 0o644)
+	os.WriteFile(filepath.Join(caseDir, "stdout"), []byte("{{WORLD}}/a.txt\n"), 0o644)
+	c, err := cases.LoadCase(caseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := cases.RunCase(c, func(args []string, world string, _ io.Reader, stdout, _ io.Writer) int {
+		data, _ := os.ReadFile(filepath.Join(world, "a.txt"))
+		if string(data) != "at "+filepath.ToSlash(world)+"\n" {
+			t.Errorf("world not substituted: %q", data)
+		}
+		fmt.Fprintln(stdout, args[1])
+		return 0
+	})
+	if err != nil || !outcome.Passed {
+		t.Fatalf("%v %+v", err, outcome)
+	}
+}
+
+func TestAMessageCaseIgnoresStdout(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", ExitCode: 2, Stdout: []byte("old words"), Compare: "message"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	outcome, err := cases.RunCase(c, func([]string, string, io.Reader, io.Writer, io.Writer) int { return 2 })
+	if err != nil || !outcome.Passed {
+		t.Fatalf("%v %+v", err, outcome)
+	}
+}
+
+func TestACommandThatIsNotLoomuxIsRefused(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "brain guard"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	if _, err := cases.RunCase(c, nil); err == nil {
+		t.Fatal("want error")
+	}
+}
+
+func TestRunCaseReportsExitAndStdoutMismatches(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", ExitCode: 0, Stdout: []byte("want"), Compare: "data"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	outcome, err := cases.RunCase(c, func(_ []string, _ string, _ io.Reader, stdout, _ io.Writer) int {
+		fmt.Fprint(stdout, "got")
+		return 2
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Passed || len(outcome.Mismatches) != 2 {
+		t.Fatalf("%+v", outcome.Mismatches)
+	}
+	if outcome.ActualExit != 2 || string(outcome.ActualStdout) != "got" {
+		t.Fatalf("exit %d stdout %q", outcome.ActualExit, outcome.ActualStdout)
+	}
+}
+
+func TestRunCaseSubstitutesTheWorldInStdinAndComparesTheTreeAfter(t *testing.T) {
+	c := &cases.Case{
+		Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x",
+		Stdin: []byte(`{"path":"{{WORLD}}/made.txt"}`), HasWorldAfter: true, Compare: "data",
+	}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	os.MkdirAll(filepath.Join(c.Path, "world_after"), 0o755)
+	os.WriteFile(filepath.Join(c.Path, "world_after", "made.txt"), []byte("{{WORLD}}\n"), 0o644)
+	outcome, err := cases.RunCase(c, func(_ []string, world string, stdin io.Reader, _, _ io.Writer) int {
+		payload, _ := io.ReadAll(stdin)
+		want := `{"path":"` + filepath.ToSlash(world) + `/made.txt"}`
+		if string(payload) != want {
+			t.Errorf("stdin %q, want %q", payload, want)
+		}
+		os.WriteFile(filepath.Join(world, "made.txt"), []byte(filepath.ToSlash(world)+"\n"), 0o644)
+		return 0
+	})
+	if err != nil || !outcome.Passed {
+		t.Fatalf("%v %+v", err, outcome)
+	}
+}
+
+func TestRunCaseRefusesACommandItCannotSplit(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: `loomux "unclosed`}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	if _, err := cases.RunCase(c, nil); err == nil {
+		t.Fatal("want error")
+	}
+}
+
+func TestRunCaseRefusesAnEmptyCommand(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir()}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	if _, err := cases.RunCase(c, nil); err == nil {
+		t.Fatal("want error")
+	}
+}
+
+func TestRunCaseReportsAnUnstageableWorld(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: filepath.Join(t.TempDir(), "gone"), Cmd: "loomux x"}
+	if _, err := cases.RunCase(c, nil); err == nil {
+		t.Fatal("want error")
+	}
+}
+
+func TestRunCaseReportsAnUnreadableTreeAfter(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", HasWorldAfter: true}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	locked := filepath.Join(c.Path, "world_after", "secret.txt")
+	os.MkdirAll(filepath.Dir(locked), 0o755)
+	os.WriteFile(locked, []byte("x"), 0o644)
+	testlock.Lock(t, locked)
+	if _, err := cases.RunCase(c, func([]string, string, io.Reader, io.Writer, io.Writer) int { return 0 }); err == nil {
+		t.Fatal("want error")
+	}
+}
+
+func TestNormalizeReplacesEverySpellingOfTheWorld(t *testing.T) {
+	dir := `C:\tmp\case-1`
+	data := []byte(`C:/tmp/case-1 and C:\tmp\case-1 and "C:\\tmp\\case-1"`)
+	got := string(cases.Normalize(data, dir))
+	want := `{{WORLD}} and {{WORLD}} and "{{WORLD}}"`
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestStageWorldSubstitutesTheWorldToken(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "src")
+	dst := filepath.Join(t.TempDir(), "dst")
+	os.MkdirAll(src, 0o755)
+	writeCaseFile(t, src, "a.txt", []byte("at {{WORLD}}\n"))
+	if err := cases.StageWorld(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dst, "a.txt"))
+	if err != nil || string(data) != "at "+filepath.ToSlash(dst)+"\n" {
+		t.Fatalf("%v %q", err, data)
+	}
+}
+
+func TestCompareTreesNormalizesTheActualTree(t *testing.T) {
+	actual := filepath.Join(t.TempDir(), "actual")
+	expected := filepath.Join(t.TempDir(), "expected")
+	os.MkdirAll(actual, 0o755)
+	os.MkdirAll(expected, 0o755)
+	writeCaseFile(t, actual, "a.txt", []byte(filepath.ToSlash(actual)+"\n"))
+	writeCaseFile(t, expected, "a.txt", []byte("{{WORLD}}\n"))
+	diffs, err := cases.CompareTrees(actual, expected)
+	if err != nil || len(diffs) != 0 {
+		t.Fatalf("%v %v", err, diffs)
+	}
+}
+
+func TestSplitCommandKeepsAnEscapedCharacter(t *testing.T) {
+	tokens, err := cases.SplitCommand(`loomux a\ b`)
+	if err != nil || len(tokens) != 2 || tokens[1] != "a b" {
+		t.Fatalf("%v %q", err, tokens)
+	}
+	if _, err := cases.SplitCommand(`loomux a\`); err == nil {
+		t.Fatal("want error on a trailing escape")
+	}
+}
+
+func TestStageWorldReportsAWorldItCannotRead(t *testing.T) {
+	if err := cases.StageWorld(filepath.Join(t.TempDir(), "gone"), t.TempDir()); err == nil {
+		t.Fatal("want error for a missing source")
+	}
+
+	blocked := filepath.Join(t.TempDir(), "file")
+	os.WriteFile(blocked, []byte("x"), 0o644)
+	if err := cases.StageWorld(t.TempDir(), filepath.Join(blocked, "dst")); err == nil {
+		t.Fatal("want error for a destination under a file")
+	}
+
+	src := t.TempDir()
+	secret := filepath.Join(src, "secret.txt")
+	os.WriteFile(secret, []byte("x"), 0o644)
+	testlock.Lock(t, secret)
+	if err := cases.StageWorld(src, filepath.Join(t.TempDir(), "dst")); err == nil {
+		t.Fatal("want error for an unreadable source file")
+	}
+}
+
+func TestCompareTreesReportsATreeItCannotRead(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "gone")
+	diffs, err := cases.CompareTrees(missing, missing)
+	if err != nil || len(diffs) != 0 {
+		t.Fatalf("a missing tree has no files: %v %v", err, diffs)
+	}
+
+	actual := t.TempDir()
+	secret := filepath.Join(actual, "secret.txt")
+	os.WriteFile(secret, []byte("x"), 0o644)
+	testlock.Lock(t, secret)
+	if _, err := cases.CompareTrees(actual, t.TempDir()); err == nil {
+		t.Fatal("want error for an unreadable actual tree")
+	}
+}
