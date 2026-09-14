@@ -57,6 +57,17 @@ func TestRunStatus(t *testing.T) {
 	if !strings.Contains(out, "format_on_edit.py") {
 		t.Fatalf("expected legacy finding for format_on_edit.py, got %s", out)
 	}
+	// The reason a legacy hook is obsolete names the command that replaced it,
+	// and that is a loomux subcommand. `ulguard` is itself listed as superseded
+	// two lines above, so naming it as a successor would send the reader to a
+	// binary this very report calls gone. The fixture configures no `ulguard`
+	// command, so the string can only reach stdout through a reason.
+	if !strings.Contains(out, "Reason: superseded by 'loomux hook post-tool-use'") {
+		t.Fatalf("expected the successor to be named in the reason, got %s", out)
+	}
+	if strings.Contains(out, "ulguard") {
+		t.Fatalf("no reason may name ulguard as a successor, got %s", out)
+	}
 }
 
 func TestRunStatusAllStacksAndNoLegacy(t *testing.T) {

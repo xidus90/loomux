@@ -3,10 +3,37 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/gitenv"
+	"github.com/xidus90/loomux/internal/sessions"
 )
+
+// gitInit makes `root` a repository with one commit: the session start files a
+// base commit only where there is one to read.
+func gitInit(t *testing.T, root string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "t@example.invalid"},
+		{"config", "user.name", "Test"},
+		{"add", "a.txt"},
+		{"commit", "-m", "first"},
+	} {
+		command := exec.Command("git", args...)
+		command.Dir = root
+		command.Env = gitenv.Environ()
+		if out, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+}
 
 // runWith is `run` with something on stdin: the hook commands read a payload.
 func runWith(stdin string, args ...string) (int, string, string) {
@@ -71,10 +98,20 @@ func TestHookSessionStartRefusesAnUnknownHost(t *testing.T) {
 	}
 }
 
+// A flag error ends in the exit code of the event that was called, and the two
+// answers differ: a write barrier that cannot read its own call refuses (2),
+// while an announcement never blocks (1). One line per event, so the table in
+// hook.go is pinned by behaviour and not by itself.
 func TestHookRefusesAnUnknownFlag(t *testing.T) {
-	code, _, _ := run("hook", "session-start", "--host", "claude", "--invalid-flag")
-	if code != 1 {
-		t.Fatalf("code %d", code)
+	for event, want := range map[string]int{
+		"session-start": 1,
+		"post-tool-use": 1,
+		"pre-tool-use":  2,
+	} {
+		code, _, _ := run("hook", event, "--host", "claude", "--invalid-flag")
+		if code != want {
+			t.Fatalf("%s: code %d, want %d", event, code, want)
+		}
 	}
 }
 
@@ -83,6 +120,7 @@ func TestHookRefusesAnUnknownFlag(t *testing.T) {
 // root to find, hosts.FindRoot refuses and the call ends with 1 instead.
 func TestHookWalksUpToTheRootWhenNoneIsGiven(t *testing.T) {
 	root := project(t)
+	gitInit(t, root)
 	inside := filepath.Join(root, "deep", "deeper")
 	if err := os.MkdirAll(inside, 0o755); err != nil {
 		t.Fatal(err)
@@ -92,6 +130,12 @@ func TestHookWalksUpToTheRootWhenNoneIsGiven(t *testing.T) {
 	code, _, errOut := runWith(`{"session_id":"s1"}`, "hook", "session-start", "--host", "claude")
 	if code != 0 {
 		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	// The walk decided which project the base was filed under, so the state
+	// file is the evidence that it found this fixture and not the checkout the
+	// test binary happens to run in. Exit 0 alone would say nothing about that.
+	if state := sessions.ReadState(root, "s1"); len(state.Base) != 40 {
+		t.Fatalf("the base was not filed under the root that was walked to: %q", state.Base)
 	}
 }
 

@@ -1,4 +1,5 @@
 // The worktree side of the guard: what a working tree cannot own itself.
+
 package hooks
 
 import (
@@ -279,8 +280,8 @@ func registeredAs(topology topo.Topology, target string) string {
 // at session end by the mechanism that exists to put it there.
 //
 //coverage:exempt junction.Remove fails only when the OS refuses the delete -- an open handle, a virus scanner or an ACL -- and a denied right on the link or its parent still let the removal through when it was measured on 2026-09-14
-func unlink(worktree, main string, mirror []string) error {
-	for _, relative := range mirror {
+func unlink(worktree, main string, mirrored []string) error {
+	for _, relative := range mirrored {
 		if !standsInside(worktree, relative) {
 			continue
 		}
@@ -321,8 +322,8 @@ func unlink(worktree, main string, mirror []string) error {
 // the create side of what standsInside does for the two remove sides. The
 // refusal is loud and not a skip, because a mirror that was needed and could
 // not be made is the one thing this subcommand reports.
-func link(worktree, main string, mirror []string) error {
-	for _, relative := range mirror {
+func link(worktree, main string, mirrored []string) error {
+	for _, relative := range mirrored {
 		target := filepath.Join(main, filepath.FromSlash(relative))
 		if info, err := os.Stat(target); err != nil || !info.IsDir() {
 			continue

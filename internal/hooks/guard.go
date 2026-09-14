@@ -1,4 +1,6 @@
-// Package main implements the ultraloom native policy guard.
+// Package hooks holds what loomux runs from a harness lifecycle event: the
+// post-tool-use lanes, the session start, the status report and the worktree
+// mirror. The pre-tool-use barrier joins them in Task 10.
 package hooks
 
 import (

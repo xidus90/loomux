@@ -19,12 +19,12 @@ var knownLegacyHooks = []struct {
 }{
 	{"ulguard", "superseded by 'loomux hook pre-tool-use' and 'loomux hook post-tool-use'"},
 	{"brain guard", "merged into 'loomux hook pre-tool-use'"},
-	{"guard_paths.py", "superseded by native Go 'ulguard' in PreToolUse (<5ms)"},
-	{"format_on_edit.py", "superseded by native Go 'ulguard post-edit' in PostToolUse"},
-	{"post_edit.py", "superseded by native Go 'ulguard post-edit' in PostToolUse"},
+	{"guard_paths.py", "superseded by 'loomux hook pre-tool-use'"},
+	{"format_on_edit.py", "superseded by 'loomux hook post-tool-use'"},
+	{"post_edit.py", "superseded by 'loomux hook post-tool-use'"},
 	{"wiki_gate.py", "superseded by 'brain wiki-gate' in Stop hook"},
 	{"generate_index.py", "superseded by ultra-brain catalog/reindex and wiki-gate"},
-	{"lint.py", "superseded by 'brain lint' and 'ulguard post-edit'"},
+	{"lint.py", "superseded by 'brain lint' and 'loomux hook post-tool-use'"},
 }
 
 type LegacyFinding struct {
