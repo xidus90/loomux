@@ -80,11 +80,17 @@ getaggten Stände, nicht das, was auf dem PATH liegt.
    mit 18–22 ms clock (1.673 Allokationen — das Paket löst beim Start die lokale
    Zeitzone auf) und `net` mit 0,5–1,0 ms. Die größte loomux-Zeile ist
    `github.com/xidus90/loomux/internal/config` mit 0,49 ms. Die Startzeit-Regel
-   der Spec hält damit, und der Boden von ~23 ms ist fast vollständig das `init`
-   einer einzigen Abhängigkeit — dieselben 21 ms stehen im alten `brain.exe`.
-4. **Die Schranke selbst, zerlegt.** `go test ./internal/brain/guard/
-   -run '^$' -bench BenchmarkDecideAgainstTheRealRegistry -benchtime 50x
-   -cpuprofile …` gegen eine Kopie des echten Zustandsverzeichnisses
+   der Spec hält damit. Dagegen gemessen: ein leeres Go-`main` startet auf
+   dieser Maschine in 4,5 ms warm; von den ~23,6 ms Boden sind also rund
+   4,5 ms Prozessstart und die restlichen ~19 ms das `init` dieser einen
+   Abhängigkeit — sie löst die lokale Zeitzone auf (`time.Now().Zone()` in
+   `internal/tz.go`) und lädt dafür die Zeitzonendaten des Betriebssystems.
+   Dieselben 21 ms stehen im alten `brain.exe`.
+4. **Die Schranke selbst, zerlegt.** `LOOMUX_BENCH_REGISTRY=<Kopie>
+   LOOMUX_BENCH_TARGET=<Datei in einer registrierten Area> go test
+   ./internal/brain/guard/ -run '^$' -bench
+   BenchmarkDecideAgainstTheRealRegistry -benchtime 50x -cpuprofile …`
+   gegen eine Kopie des echten Zustandsverzeichnisses
    (`%LOCALAPPDATA%\brain`, 10 Areas) misst **916.728 ns/op** für ein `Decide`.
    Das Profil (`go tool pprof -top`) legt alles davon in die Windows-Pfad­auf­lösung:
    `guard.writableRoots` → `finalPath` 66,7 % (ein `CreateFile` plus

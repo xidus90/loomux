@@ -81,9 +81,11 @@ versions, not whatever sits on the PATH.
    of the specification therefore holds, and the floor of ~23 ms is almost
    entirely one dependency's `init` — the same 21 ms appear in the old
    `brain.exe`.
-4. **The barrier's own cost, decomposed.** `go test ./internal/brain/guard/
-   -run '^$' -bench BenchmarkDecideAgainstTheRealRegistry -benchtime 50x
-   -cpuprofile …` against a copy of the real state directory
+4. **The barrier's own cost, decomposed.** `LOOMUX_BENCH_REGISTRY=<copy>
+   LOOMUX_BENCH_TARGET=<file in a registered area> go test
+   ./internal/brain/guard/ -run '^$' -bench
+   BenchmarkDecideAgainstTheRealRegistry -benchtime 50x -cpuprofile …`
+   against a copy of the real state directory
    (`%LOCALAPPDATA%\brain`, 10 areas) measures **916,728 ns/op** for one
    `Decide`. The profile (`go tool pprof -top`) puts all of it in Windows path
    canonicalisation: `guard.writableRoots` → `finalPath` 66.7 % (one
