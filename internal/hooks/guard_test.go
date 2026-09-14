@@ -74,16 +74,21 @@ func TestAConfiguredPathRuleCarriesItsReason(t *testing.T) {
 }
 
 // A notebook names its target under its own key, and every target of a call is
-// judged: the harmless file_path beside it neither hides nor doubles the
-// notebook's reason.
+// judged, not the first one found: the forbidden file_path beside the notebook
+// answers as well, each with its own reason.
 func TestNotebookEditIsJudgedByItsOwnTargetKey(t *testing.T) {
 	root := t.TempDir()
 	reasons := checkTool(root, "NotebookEdit", map[string]any{
 		"notebook_path": ".env",
-		"file_path":     "src/main.py",
+		"file_path":     "go.sum",
 	}, config.Policy{})
-	if len(reasons) != 1 || reasons[0] != "secrets are not written by an agent" {
-		t.Fatalf("reasons %v", reasons)
+	// In the order the targets are read: file_path comes before notebook_path.
+	want := []string{
+		"lock files are written by their package manager, not by hand",
+		"secrets are not written by an agent",
+	}
+	if len(reasons) != len(want) || reasons[0] != want[0] || reasons[1] != want[1] {
+		t.Fatalf("reasons %v, want %v", reasons, want)
 	}
 }
 
