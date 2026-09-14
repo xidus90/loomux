@@ -1,0 +1,63 @@
+# ==============================================================================
+# Loomux Example Configuration (.loomux/config.example.toml)
+# Copy this file to .loomux/config.toml to customize your project settings.
+# ==============================================================================
+
+[project]
+name = "my-project"
+version = "0.1.0"
+agents = ["claude", "antigravity", "cursor"]
+
+# --- Path Protection Rules (Exit Code 2 on Violation) -------------------------
+[policy.paths]
+rules = [
+  { match = [".env*", "*.pem", "*.key", "id_rsa*"], reason = "Secrets must not be written by agents" },
+  { match = [".loomux/config.toml"], reason = "Guard policy is human-managed and write-protected" },
+  { match = [".claude/.no-verify"], reason = "Verification controls cannot be bypassed by agents" },
+  { match = ["go.sum", "package-lock.json", "uv.lock"], reason = "Lock files are written by package tools, not by hand" }
+]
+
+# --- Command Execution Rules (Exit Code 2 on Violation) ----------------------
+[policy.commands]
+rules = [
+  { regex = '(^|\s)git\s+push(\s|$)', reason = "Whether commits reach the remote is a human decision" },
+  { regex = '(^|\s)rm\s+-rf\s+/', reason = "Root filesystem removal is prohibited" }
+]
+
+# --- Turn Completion Quality Gates -------------------------------------------
+[verify]
+timeout = 180
+
+lanes = [
+  { name = "lint", command = "golangci-lint run" },
+  { name = "tests", command = "go test -v ./..." },
+  { name = "covergate", command = "loomux dev covergate --profile coverage.out" }
+]
+
+[verify.commit]
+language = "en"
+max_first_line = 72
+
+# --- Worktree Isolation Mirrors ----------------------------------------------
+[worktree]
+mirrors = [
+  "node_modules",
+  ".cache",
+  "vendor"
+]
+
+# --- Code Graph & AST Settings -----------------------------------------------
+[graph]
+extensions = [".go", ".ts", ".py"]
+exclude = ["vendor/**", "dist/**"]
+freshness_check = "hash"
+
+# --- Curated Language Review Skills ------------------------------------------
+[skills]
+suites = ["review-go", "review-security"]
+sync = [".claude/skills", ".agents/skills"]
+
+# --- Privacy Boundaries ------------------------------------------------------
+[privacy]
+mode = "strict"
+never = [".env*", "*.key", "credentials.json"]

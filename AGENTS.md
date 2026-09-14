@@ -14,9 +14,11 @@ that `ultraloom` and `ultra-brain` provided separately. Design:
 
 Everything that instructs an LLM, and everything that is not prose, is
 English: this file, `CLAUDE.md`, `.claude/**`, code, comments, error
-messages, commit messages. Documentation is bilingual: `X.md` is English and
-the standard, `X.de.md` sits beside it. Working papers under
-`docs/.superpowers/` are German and never translated.
+messages, commit messages. Documentation is multilingual: the project root maintains `README.md` (English, standard)
+and `README.de.md` (German). Deep documentation under `docs/` is organized into
+language subdirectories (`docs/en/`, `docs/de/`, etc.) with identical filenames across
+languages to preserve clean link parity. Working papers under `docs/.superpowers/`
+are German and never translated.
 
 ## Rules
 
@@ -28,8 +30,8 @@ the standard, `X.de.md` sits beside it. Working papers under
 - No `init()` and no package-level variable parses embedded data; load on first use.
 - Commits carry the user as author and committer and credit no model or agent.
 - Nobody but a human pushes.
-- Performance measurements go chronologically into `docs/benchmarks.md` and
-  `docs/benchmarks.de.md`: date and time, what was measured, baseline against
+- Performance measurements go chronologically into `docs/en/benchmarks.md` and
+  `docs/de/benchmarks.md`: date and time, what was measured, baseline against
   change, cold and warm.
 - Maintain the project READMEs (`README.md` and `README.de.md`) alongside
   implementation changes to reflect the actual state, capabilities, and roadmap.
