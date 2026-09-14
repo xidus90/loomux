@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/dev/benchhooks"
 )
 
 func TestDevNeedsASubcommand(t *testing.T) {
@@ -189,6 +191,81 @@ func TestDevImportCasesReportsABrokenMapAndAFailedImport(t *testing.T) {
 	}
 	code, _, errOut = run("dev", "import-cases", "--map", good, "--from", filepath.Join(t.TempDir(), "gone"), "--to", t.TempDir())
 	if code != 1 || !strings.Contains(errOut, "loomux dev import-cases:") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// benchCases writes a one-case file and returns its path.
+func benchCases(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "cases.json")
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+const oneCase = `[{"name":"probe","mode":"single","steps":[{"argv":["x"]}]}]`
+
+func TestDevBenchHooksMeasuresTheCases(t *testing.T) {
+	benchExec = func(benchhooks.Case, benchhooks.Step) (int, error) { return 0, nil }
+	defer func() { benchExec = benchhooks.Exec }()
+	code, out, errOut := run("dev", "bench-hooks", benchCases(t, oneCase), "-n", "2")
+	if code != 0 || !strings.Contains(out, "| probe |") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestDevBenchHooksTakesTheFlagBeforeTheFile(t *testing.T) {
+	benchExec = func(benchhooks.Case, benchhooks.Step) (int, error) { return 0, nil }
+	defer func() { benchExec = benchhooks.Exec }()
+	code, out, _ := run("dev", "bench-hooks", "-n", "1", benchCases(t, oneCase))
+	if code != 0 || !strings.Contains(out, "| probe |") {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+}
+
+func TestDevBenchHooksNeedsACaseFile(t *testing.T) {
+	code, _, errOut := run("dev", "bench-hooks")
+	if code != 2 || !strings.Contains(errOut, "loomux dev bench-hooks: a case file is required") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevBenchHooksRefusesAnUnknownFlag(t *testing.T) {
+	if code, _, _ := run("dev", "bench-hooks", "--bogus"); code != 2 {
+		t.Fatalf("code %d", code)
+	}
+}
+
+func TestDevBenchHooksReportsAnUnreadableCaseFile(t *testing.T) {
+	code, _, errOut := run("dev", "bench-hooks", filepath.Join(t.TempDir(), "gone.json"))
+	if code != 1 || !strings.Contains(errOut, "loomux dev bench-hooks:") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevBenchHooksReportsABrokenMeasurement(t *testing.T) {
+	benchExec = func(benchhooks.Case, benchhooks.Step) (int, error) {
+		return 0, errors.New("no such binary")
+	}
+	defer func() { benchExec = benchhooks.Exec }()
+	code, _, errOut := run("dev", "bench-hooks", benchCases(t, oneCase))
+	if code != 1 || !strings.Contains(errOut, "no such binary") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevBenchHooksRefusesAnUnknownFlagBehindTheFile(t *testing.T) {
+	code, _, _ := run("dev", "bench-hooks", benchCases(t, oneCase), "--bogus")
+	if code != 2 {
+		t.Fatalf("code %d", code)
+	}
+}
+
+func TestDevBenchHooksReportsBrokenJSON(t *testing.T) {
+	code, _, errOut := run("dev", "bench-hooks", benchCases(t, "{"))
+	if code != 1 || !strings.Contains(errOut, "loomux dev bench-hooks:") {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }

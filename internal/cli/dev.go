@@ -2,15 +2,18 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/covergate"
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/recordcase"
@@ -32,7 +35,10 @@ func runCoverFunc(profile string) ([]byte, error) {
 	return out, err
 }
 
+var benchExec = benchhooks.Exec
+
 var devCommands = map[string]command{
+	"bench-hooks":  devBenchHooks,
 	"covergate":    devCovergate,
 	"import-cases": devImportCases,
 	"record-case":  devRecordCase,
@@ -50,6 +56,39 @@ func devCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 2
 	}
 	return sub(args[1:], stdin, stdout, stderr)
+}
+
+// devBenchHooks measures the hook commands of a case file. The file may
+// stand before or after the flags: Go's flag package stops at the first
+// argument that is no flag, so the rest is parsed once more behind it.
+func devBenchHooks(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev bench-hooks", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	n := fs.Int("n", 20, "warm runs per case, after one cold run")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	rest := fs.Args()
+	if len(rest) == 0 {
+		fmt.Fprintln(stderr, "loomux dev bench-hooks: a case file is required")
+		return 2
+	}
+	if err := fs.Parse(rest[1:]); err != nil {
+		return 2
+	}
+	var cases []benchhooks.Case
+	data, err := os.ReadFile(rest[0])
+	if err == nil {
+		err = json.Unmarshal(data, &cases)
+	}
+	if err == nil {
+		err = benchhooks.Run(cases, *n, stdout, benchExec, time.Now)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux dev bench-hooks: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func devCovergate(args []string, _ io.Reader, stdout, stderr io.Writer) int {

@@ -1,0 +1,124 @@
+[
+  {
+    "name": "loomux hook pre-tool-use (Edit on README.md)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/testdata/bench/edit-readme.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/bin/loomux.exe",
+          "hook",
+          "pre-tool-use",
+          "--host",
+          "claude",
+          "--root",
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1a"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ulguard --root (old policy guard)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/testdata/bench/edit-readme.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-old/ulguard.exe",
+          "--root",
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1a"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "brain guard (old write barrier)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/testdata/bench/edit-readme.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-old/brain.exe",
+          "guard"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "both old guards in parallel (as an edit meets them)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/testdata/bench/edit-readme.json",
+    "mode": "par",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-old/ulguard.exe",
+          "--root",
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1a"
+        ]
+      },
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-old/brain.exe",
+          "guard"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "both old guards sequentially (CPU time)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/testdata/bench/edit-readme.json",
+    "mode": "seq",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-old/ulguard.exe",
+          "--root",
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1a"
+        ]
+      },
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-old/brain.exe",
+          "guard"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "loomux hook session-start",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/testdata/bench/edit-readme.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/bin/loomux.exe",
+          "hook",
+          "session-start",
+          "--host",
+          "claude",
+          "--root",
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1a"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "loomux version (start floor)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1a",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1a/bin/loomux.exe",
+          "version"
+        ]
+      }
+    ]
+  }
+]
