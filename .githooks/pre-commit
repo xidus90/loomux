@@ -1,0 +1,17 @@
+#!/bin/sh
+# Pre-commit gate of loomux itself (stage 1a): format, vet, tests with
+# per-function coverage, then rebuild the pilot binary the hooks call.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+unformatted=$(gofmt -l cmd internal)
+if [ -n "$unformatted" ]; then
+	echo "gofmt: these files are not formatted:" >&2
+	echo "$unformatted" >&2
+	exit 1
+fi
+go vet ./...
+go test ./... -covermode=set -coverpkg=./... -coverprofile=coverage.out
+go run ./cmd/loomux dev covergate --profile coverage.out
+mkdir -p bin
+go build -o bin/loomux.new.exe ./cmd/loomux
+go run ./cmd/loomux dev swap-binary --dir bin

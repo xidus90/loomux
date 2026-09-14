@@ -36,7 +36,9 @@ func TestHelpListsTheCommandsSorted(t *testing.T) {
 	defer delete(commands, "zeta")
 	defer delete(commands, "alpha")
 	code, out, _ := run("help")
-	if code != 0 || !strings.Contains(out, "\n  alpha\n  zeta\n") {
+	// Real commands sort between the probes, so only their order is fixed.
+	alpha, zeta := strings.Index(out, "\n  alpha\n"), strings.Index(out, "\n  zeta\n")
+	if code != 0 || alpha < 0 || zeta < alpha {
 		t.Fatalf("code %d, out %q", code, out)
 	}
 }
