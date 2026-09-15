@@ -829,6 +829,31 @@ func TestTheLayoutWikiAddsTheWikiStack(t *testing.T) {
 	}
 }
 
+// The precedence wikiDirFor documents has to be the one the caller uses.
+//
+// A manifest carrying both a `[wiki]` table and a `[layout] wiki` elsewhere
+// made detection answer first -- `wiki/`, which nobody created -- and the lane
+// then judged the edited page against a directory the manifest does not mean.
+// The page lies in the declared bundle and is broken, so the lane has to
+// refuse.
+func TestTheDeclaredWikiOutranksTheDetectedOne(t *testing.T) {
+	root := t.TempDir()
+	writeManifest(t, root, "[area]\nscope = \"project/x\"\n[wiki]\n[layout]\nwiki = \"notes\"\n")
+	if err := os.MkdirAll(filepath.Join(root, "notes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	page := filepath.Join(root, "notes", "page.md")
+	if err := os.WriteFile(page, []byte("no frontmatter at all\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	input := `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, page) + `}}`
+	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root); code != ExitDenied {
+		t.Fatalf("code %d, err %q: the lane read the detected wiki, not the declared one", code, stderr.String())
+	}
+}
+
 // A manifest without that key, and a directory without a manifest, declare
 // nothing.
 func TestAProjectWithoutALayoutWikiDeclaresNothing(t *testing.T) {

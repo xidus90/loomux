@@ -161,10 +161,13 @@ var extensionStackMap = map[string]string{
 
 func PostToolUse(stdin io.Reader, stdout io.Writer, stderr io.Writer, root string) int {
 	facts := detect.Detect(os.DirFS(root))
-	wikiDir := facts.WikiPath
-	if wikiDir == "" {
-		wikiDir = wikiDirFor(root)
-	}
+	// wikiDirFor and not detection first: the manifest's [layout] wiki outranks
+	// what detection guesses, and wikiDirFor already falls back to detection and
+	// then to wiki/. Asking detection first inverted that, so a manifest with
+	// both a [wiki] table and a [layout] wiki lost the lane: detection answered
+	// wiki/, a directory nobody created, and the edited page was judged to lie
+	// outside the bundle.
+	wikiDir := wikiDirFor(root)
 	return runPostEditWithContext(stdin, stdout, stderr, root, stacksWithWiki(facts.Stacks, root), wikiDir, facts.GodotDir, defaultRunnerFor)
 }
 

@@ -91,9 +91,18 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 
 	facts := detect.Detect(os.DirFS(root))
 	facts.Stacks = stacksWithWiki(facts.Stacks, root)
-	wikiDir := facts.WikiPath
-	if wikiDir == "" {
-		wikiDir = wikiDirFor(root)
+	// The same precedence the hook uses: the manifest's [layout] wiki first,
+	// then detection, then wiki/. Reading detection first named a directory the
+	// manifest does not mean.
+	wikiDir := wikiDirFor(root)
+
+	hasStack := func(s string) bool {
+		for _, stack := range facts.Stacks {
+			if stack == s {
+				return true
+			}
+		}
+		return false
 	}
 
 	fmt.Fprintln(stdout, "================================================================================")
@@ -102,8 +111,14 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 	fmt.Fprintf(stdout, "Project Root:    %s\n", absRoot)
 	fmt.Fprintf(stdout, "Detected Stacks: %v\n", facts.Stacks)
 
-	if facts.WikiMode != "" && facts.WikiMode != "none" {
-		fmt.Fprintf(stdout, "UltraBrain Wiki: Active (Mode: %s, Bundle Directory: '%s')\n", facts.WikiMode, wikiDir)
+	// From the stacks list, which is what decides the lane below: reading
+	// facts.WikiMode instead let this report list the stack `wiki`, print the
+	// wiki lane, and call the wiki disabled in between -- detection does not
+	// read the one key a loomux project declares its bundle with. The mode is
+	// gone with it; it was "brain" wherever it was set at all and empty for
+	// every wiki the manifest declares, so it distinguished nothing.
+	if hasStack("wiki") {
+		fmt.Fprintf(stdout, "UltraBrain Wiki: Active (Bundle Directory: '%s')\n", wikiDir)
 	} else {
 		fmt.Fprintln(stdout, "UltraBrain Wiki: Inactive / Disabled (default)")
 	}
@@ -117,15 +132,6 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 
 	fmt.Fprintln(stdout, "\n[PostToolUse] (Matcher: Write|Edit|NotebookEdit)")
 	fmt.Fprintln(stdout, "  -> loomux hook post-tool-use (concurrent lanes per file type):")
-
-	hasStack := func(s string) bool {
-		for _, stack := range facts.Stacks {
-			if stack == s {
-				return true
-			}
-		}
-		return false
-	}
 
 	if hasStack("python") {
 		if hasStack("pyright") {

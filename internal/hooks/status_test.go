@@ -136,6 +136,40 @@ func TestRunStatusAllStacksAndNoLegacy(t *testing.T) {
 	}
 }
 
+// The wiki line and the lane list answer from the same place.
+//
+// A loomux project declares its bundle as `[layout] wiki`, which detection
+// does not read: the report listed the stack `wiki`, printed the wiki lane --
+// and called the wiki disabled three lines above. It also read the bundle
+// directory from detection, so the lane line named a directory nobody created.
+func TestStatusReportsTheDeclaredWikiAsActive(t *testing.T) {
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".loomux", "config.toml"),
+		[]byte("[area]\nscope = \"project/x\"\n[layout]\nwiki = \"notes\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmp, "notes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := Status(&stdout, &stderr, tmp); code != ExitOK {
+		t.Fatalf("code %d", code)
+	}
+	out := stdout.String()
+	if strings.Contains(out, "UltraBrain Wiki: Inactive") {
+		t.Fatalf("the report lists the wiki stack and calls the wiki disabled:\n%s", out)
+	}
+	for _, want := range []string{"UltraBrain Wiki: Active", "'notes'", "*.md (in notes)"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in:\n%s", want, out)
+		}
+	}
+}
+
 func TestAuditSettingsEdgeCases(t *testing.T) {
 	tmp := t.TempDir()
 
