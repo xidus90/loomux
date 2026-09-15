@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/cases"
@@ -169,6 +170,45 @@ func TestRunCaseReportsExitAndStdoutMismatches(t *testing.T) {
 	}
 	if outcome.ActualExit != 2 || string(outcome.ActualStdout) != "got" {
 		t.Fatalf("exit %d stdout %q", outcome.ActualExit, outcome.ActualStdout)
+	}
+}
+
+// What loomux said while failing belongs in the report. The run's stderr went
+// to io.Discard, so a failing case named the exit codes and nothing else -- and
+// the one channel carrying the refusal that produced them was thrown away.
+func TestAFailingCaseCarriesWhatLoomuxSaid(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", ExitCode: 0, Compare: "message"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	outcome, err := cases.RunCase(c, func(_ []string, _ string, _ io.Reader, _, stderr io.Writer) int {
+		fmt.Fprintln(stderr, "loomux refuses: the registry is unreadable")
+		return 2
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(outcome.ActualStderr), "the registry is unreadable") {
+		t.Fatalf("stderr %q", outcome.ActualStderr)
+	}
+	report := strings.Join(outcome.Mismatches, "\n")
+	if !strings.Contains(report, "the registry is unreadable") {
+		t.Fatalf("the report does not carry what loomux said: %q", report)
+	}
+}
+
+// A case that passes reports nothing, stderr or not: the channel is evidence
+// about a failure, not a second expectation.
+func TestAPassingCaseReportsNoStderr(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", ExitCode: 0, Compare: "message"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	outcome, err := cases.RunCase(c, func(_ []string, _ string, _ io.Reader, _, stderr io.Writer) int {
+		fmt.Fprintln(stderr, "a warning nobody asked about")
+		return 0
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !outcome.Passed || len(outcome.Mismatches) != 0 {
+		t.Fatalf("%+v", outcome.Mismatches)
 	}
 }
 

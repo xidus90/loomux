@@ -47,6 +47,17 @@ loomux prints. Nothing compares it.
   `docs/.superpowers/parity/stufe-1a.md`. Today there is one: the exit of
   `hook-pre-tool-use/unreadable-payload` is 2 (the guard fails closed) where
   the old tool gave 1.
+- **A re-import throws that deviation away, and it has to be re-applied by
+  hand.** The deviation lives only in `1a/`; `1a-source/` still holds the
+  recorded 1, and `loomux dev import-cases` copies the recording over the
+  translated case. After every re-import, set
+  `1a/hook-pre-tool-use/unreadable-payload/exit` back to `2`. Nothing is silent
+  about it: until it is set, `internal/cli/cases_test.go` fails on that case
+  with `exit code: expected 1, got 2`.
+- **An import removes what no recording backs.** `loomux dev import-cases`
+  prunes every case in `1a/` that `1a-source/` no longer holds (and the verb
+  directory that loses its last case), so a case dropped from the recordings
+  cannot survive behind an unchanged case count.
 - **The case count is pinned.** `internal/cli/cases_test.go` fails when the
   corpus does not hold exactly 19 cases, so a partial import cannot pass as
   parity. Adding a case means raising that number.

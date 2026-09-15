@@ -130,6 +130,21 @@ func TestRunRefusesACaseWithoutSteps(t *testing.T) {
 	}
 }
 
+// A step with no argv names no process. validate let it through, so Run wrote
+// the header and then panicked in Exec on argv[0] -- exactly what validate's
+// own comment says cannot happen.
+func TestRunRefusesAStepWithoutAnArgv(t *testing.T) {
+	var out bytes.Buffer
+	err := Run([]Case{{Name: "silent", Steps: []Step{{Argv: []string{"x"}}, {}}}}, 1, &out,
+		func(Case, Step) (int, error) { return 0, nil }, clock(0))
+	if err == nil || !strings.Contains(err.Error(), "silent: step #2 names no command") {
+		t.Fatalf("err %v", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("wrote a table anyway:\n%s", out.String())
+	}
+}
+
 func TestRunRefusesAnUnknownMode(t *testing.T) {
 	var out bytes.Buffer
 	c := Case{Name: "odd", Mode: "diagonal", Steps: []Step{{Argv: []string{"x"}}}}

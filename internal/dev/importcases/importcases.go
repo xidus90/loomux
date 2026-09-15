@@ -34,9 +34,19 @@ const loomuxConfig = ".loomux/config.toml"
 
 // Import copies every case below from into to, rewriting its command, its
 // payload and its staged worlds on the way.
+//
+// The target is pruned first, so the corpus holds the recordings and nothing
+// else. The import only ever wrote, so a case dropped from the recordings
+// survived in the translated corpus -- and a pinned case count, which counts
+// what is there, cannot tell that from a case that was merely replaced. The
+// recordings are read before anything is removed: a source that cannot be read
+// must not cost the corpus.
 func Import(from, to string, m Mapping) error {
 	found, err := cases.DiscoverCases(from, "")
 	if err != nil {
+		return err
+	}
+	if err := prune(to, found); err != nil {
 		return err
 	}
 	for _, c := range found {
@@ -69,6 +79,36 @@ func Import(from, to string, m Mapping) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// prune removes every case in the target that no recording backs.
+//
+// The target is read with the same discovery the corpus itself is read with,
+// so what counts as a case here is what counts as one everywhere else. Only
+// case directories are touched, never the target as a whole: a `--to` with a
+// typo in it would otherwise take a directory with it, and a stray file beside
+// the corpus is nobody's evidence to delete. A verb directory that loses its
+// last case goes with it; os.Remove says nothing about a directory that still
+// holds something, which is the answer wanted here.
+func prune(to string, found []*cases.Case) error {
+	backed := map[string]bool{}
+	for _, c := range found {
+		backed[filepath.Join(c.Verb, c.Name)] = true
+	}
+	existing, err := cases.DiscoverCases(to, "")
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reading the corpus in %s: %w", to, err)
+	}
+	for _, c := range existing {
+		if backed[filepath.Join(c.Verb, c.Name)] {
+			continue
+		}
+		if err := os.RemoveAll(c.Path); err != nil {
+			return fmt.Errorf("clearing %s: %w", c.Path, err)
+		}
+		_ = os.Remove(filepath.Dir(c.Path))
 	}
 	return nil
 }

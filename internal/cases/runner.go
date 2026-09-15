@@ -39,6 +39,10 @@ type RunOutcome struct {
 	Passed       bool
 	ActualExit   int
 	ActualStdout []byte
+	// What the run said while it was failing. No case compares it -- the
+	// corpus pins exit codes and stdout -- but a failing case that named only
+	// the codes left the one channel carrying the refusal unread.
+	ActualStderr []byte
 	Mismatches   []string
 }
 
@@ -230,9 +234,10 @@ func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
 	}
 
 	stdin := bytes.ReplaceAll(c.Stdin, []byte(WorldToken), []byte(world))
-	var stdoutBuf bytes.Buffer
-	actualExit := run(tokens[1:], tmpDir, bytes.NewReader(stdin), &stdoutBuf, io.Discard)
+	var stdoutBuf, stderrBuf bytes.Buffer
+	actualExit := run(tokens[1:], tmpDir, bytes.NewReader(stdin), &stdoutBuf, &stderrBuf)
 	actualStdout := Normalize(stdoutBuf.Bytes(), tmpDir)
+	actualStderr := Normalize(stderrBuf.Bytes(), tmpDir)
 
 	var mismatches []string
 	if actualExit != c.ExitCode {
@@ -250,11 +255,18 @@ func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
 		mismatches = append(mismatches, diffs...)
 	}
 
+	// Last, and only where something is wrong: a run that matched has nothing
+	// to explain, and a warning on stderr is no mismatch.
+	if len(mismatches) > 0 && len(actualStderr) > 0 {
+		mismatches = append(mismatches, "stderr:\n"+string(actualStderr))
+	}
+
 	return &RunOutcome{
 		Case:         c,
 		Passed:       len(mismatches) == 0,
 		ActualExit:   actualExit,
 		ActualStdout: actualStdout,
+		ActualStderr: actualStderr,
 		Mismatches:   mismatches,
 	}, nil
 }

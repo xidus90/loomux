@@ -59,10 +59,14 @@ func getGitChangedFiles(repoPath string) []string {
 		return nil
 	}
 
+	// The three fixed characters come off first, and only what is left is
+	// trimmed. A porcelain line is two status columns and a blank, and a
+	// worktree-only change leaves the first column blank (" M name"), so
+	// trimming the whole line first moved the name two characters into the cut
+	// and every such path came back without its first two letters.
 	var changed []string
 	lines := strings.Split(string(out), "\n")
 	for _, l := range lines {
-		l = strings.TrimSpace(l)
 		if len(l) > 3 {
 			changed = append(changed, strings.TrimSpace(l[3:]))
 		}

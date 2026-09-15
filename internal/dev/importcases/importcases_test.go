@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/xidus90/loomux/internal/testlock"
 )
 
 // buildOldWorld writes the configuration of both old tools into dir.
@@ -191,6 +193,84 @@ func TestImportRewritesTheCommandAndTranslatesTheWorlds(t *testing.T) {
 	// The recording stays as it was.
 	if _, err := os.Stat(filepath.Join(dir, "world", ".brain.toml")); err != nil {
 		t.Errorf("the source recording was changed: %v", err)
+	}
+}
+
+// A case dropped from the recordings has to disappear from the translated
+// corpus too. It used to survive: the import only ever wrote, so the corpus
+// kept a case no recording backs any more -- and a pinned case count, which
+// counts what is there, does not notice a swap. The verb directory goes with
+// its last case, and a second import leaves a case still backed alone.
+func TestImportDropsACaseNoRecordingBacksAnyMore(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "kept", "ulguard --root {{WORLD}}", "")
+	buildCase(t, to, "guard", "dropped", "loomux hook pre-tool-use", "")
+	buildCase(t, to, "lint", "gone", "loomux lint x.md", "")
+	m := Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}}
+
+	for round := 1; round <= 2; round++ {
+		if err := Import(from, to, m); err != nil {
+			t.Fatalf("round %d: %v", round, err)
+		}
+		if _, err := os.Stat(filepath.Join(to, "guard", "dropped")); !os.IsNotExist(err) {
+			t.Errorf("round %d: the dropped case survived: %v", round, err)
+		}
+		if _, err := os.Stat(filepath.Join(to, "lint")); !os.IsNotExist(err) {
+			t.Errorf("round %d: the emptied verb directory survived: %v", round, err)
+		}
+		if _, err := os.Stat(filepath.Join(to, "guard", "kept", "cmd")); err != nil {
+			t.Errorf("round %d: the recorded case is not there: %v", round, err)
+		}
+	}
+}
+
+// A target that does not exist yet holds nothing to prune, and is no error.
+func TestImportWritesIntoATargetThatIsNotThereYet(t *testing.T) {
+	from := t.TempDir()
+	to := filepath.Join(t.TempDir(), "fresh")
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+
+	if err := Import(from, to, Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(to, "guard", "one", "cmd")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A corpus in the target that cannot be read is an error: what may be removed
+// is not decidable without it.
+func TestImportReportsATargetCorpusItCannotRead(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	broken := filepath.Join(to, "guard", "broken")
+	if err := os.MkdirAll(broken, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A case directory without an exit code is one LoadCase refuses.
+	if err := os.WriteFile(filepath.Join(broken, "cmd"), []byte("loomux x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Import(from, to, Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}})
+	if err == nil || !strings.Contains(err.Error(), "reading the corpus") {
+		t.Fatalf("want an error naming the target corpus, got %v", err)
+	}
+}
+
+// A dropped case it cannot remove is an error, not a corpus half of two
+// imports.
+func TestImportReportsADroppedCaseItCannotRemove(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	dropped := buildCase(t, to, "guard", "dropped", "loomux hook pre-tool-use", "")
+	// notes.md, not cmd: LoadCase has to read the case before the prune can
+	// decide that no recording backs it.
+	testlock.Lock(t, filepath.Join(dropped, "notes.md"))
+
+	err := Import(from, to, Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}})
+	if err == nil || !strings.Contains(err.Error(), "clearing") {
+		t.Fatalf("want an error about the case it could not clear, got %v", err)
 	}
 }
 

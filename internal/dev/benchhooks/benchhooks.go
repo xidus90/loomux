@@ -74,6 +74,15 @@ func validate(cases []Case) error {
 		if len(c.Steps) == 0 {
 			return fmt.Errorf("%s: no steps", c.Name)
 		}
+		for i, step := range c.Steps {
+			// A step with no argv names no process, and Exec reaches for
+			// argv[0]: without this the table's header was written and the run
+			// then panicked, which is the one thing this function exists to
+			// prevent.
+			if len(step.Argv) == 0 {
+				return fmt.Errorf("%s: step #%d names no command", c.Name, i+1)
+			}
+		}
 		switch c.Mode {
 		case "", "single", "seq", "par":
 		default:
