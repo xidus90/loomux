@@ -6,7 +6,8 @@
 // bundle; "house" asks whether it also satisfies the stricter rules of this
 // repository. A bundle can fail the second and still be perfectly consumable,
 // so a run that reported both under one verdict said less than it seemed to.
-// "code" is the third, and it asks about the source rather than the bundle.
+// "code" is the third, and it is not about the bundle at all: the one thing
+// that carries it here is `LaneBrokenFinding`, a lane that could not run.
 package check
 
 import (

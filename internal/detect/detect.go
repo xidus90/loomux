@@ -102,10 +102,14 @@ func (facts *Facts) readWiki(root fs.FS) {
 	}
 }
 
-// manifestNames is the manifest search order of internal/config, which holds
-// one name: loomux has a single manifest. It stays a list because the search
-// is written as one -- the first file that can be read decides -- and a second
-// name would be added here and nowhere else.
+// manifestNames holds one name, because loomux has one manifest. It stays a
+// list because the search below is written as one: the first file that can be
+// read decides.
+//
+// It is a hand copy of internal/config's list of the same name, which
+// `config.ManifestPath` reads as `manifestNames[0]`. Detection takes an fs.FS
+// and config takes a root path, so neither can be the other's caller here; a
+// second manifest name would have to be added in both places.
 var manifestNames = []string{".loomux/config.toml"}
 
 // firstManifest returns the text of the first manifest loomux would read.
