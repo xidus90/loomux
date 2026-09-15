@@ -10,8 +10,6 @@ import (
 )
 
 // CheckGoFormat walks given root paths and returns all unformatted .go files.
-//
-//coverage:exempt the WalkDir callback's err arm needs a directory below a readable root that WalkDir cannot read, which only an OS permission denial produces
 func CheckGoFormat(roots []string) ([]string, error) {
 	var unformatted []string
 

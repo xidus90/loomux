@@ -54,7 +54,7 @@ func Create(link, target string) error {
 	return nil
 }
 
-//coverage:exempt CreateFile on the directory Create has just made fails only if the OS takes it away in between; the second UTF16FromString sees the same target the first one already accepted
+//coverage:exempt the second UTF16FromString sees the same target the first one already accepted, so nothing can make it the one that fails
 func setMountPoint(link, target string) error {
 	// The NT form, which is what a reparse point stores -- with the trailing
 	// separator, so `\??\C:\dir\`. Windows itself does not insist: measured on
@@ -138,7 +138,7 @@ func setMountPoint(link, target string) error {
 // would have been: tag, length and reserved make 8, the four name fields
 // another 8, and `PathBuffer` follows -- the 16 of `mountPointHeaderSize`.
 //
-//coverage:exempt GetFileAttributes and CreateFile fail only if the OS removes or locks the path after Target's os.Lstat, and DeviceIoControl(FSCTL_GET_REPARSE_POINT) only on a reparse point the filesystem cannot read back
+//coverage:exempt CreateFile fails only if the OS removes or locks the path between the attribute query and the open, and DeviceIoControl(FSCTL_GET_REPARSE_POINT) only on a reparse point the filesystem cannot read back
 func reparseTarget(link string) (string, error) {
 	path, err := windows.UTF16PtrFromString(link)
 	if err != nil {

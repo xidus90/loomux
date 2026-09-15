@@ -75,6 +75,26 @@ func TestReparseTargetRefusesANulByte(t *testing.T) {
 	}
 }
 
+// A link that is not there. Create cannot produce the call -- it makes the
+// directory first -- but the helper can be asked directly, and an exemption
+// must not claim an arm a test reaches.
+func TestSetMountPointReportsALinkThatIsNotThere(t *testing.T) {
+	root := t.TempDir()
+	err := setMountPoint(filepath.Join(root, "absent"), root)
+	if err == nil || !strings.Contains(err.Error(), "opening") {
+		t.Fatalf("err %v, want the open to be reported", err)
+	}
+}
+
+// The same for the read side: Target stats the path before it asks, so only a
+// direct call reaches the attribute query's own failure.
+func TestReparseTargetReportsAPathThatIsNotThere(t *testing.T) {
+	got, err := reparseTarget(filepath.Join(t.TempDir(), "absent"))
+	if err == nil || !strings.Contains(err.Error(), "inspecting") {
+		t.Fatalf("got %q, err %v, want the inspection to be reported", got, err)
+	}
+}
+
 // The claim in Create's docstring, tested rather than asserted: a failed ioctl
 // must take the empty directory back out, because `Target` would read one as
 // "not a link" and the next run would try again.

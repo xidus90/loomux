@@ -3,7 +3,10 @@ package verify
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/testlock"
 )
 
 func TestCheckGoFormat(t *testing.T) {
@@ -100,5 +103,26 @@ func TestCheckGoFormat(t *testing.T) {
 	// Test isFileUnformatted on directory (read error)
 	if _, err := isFileUnformatted(tmpDir); err == nil {
 		t.Fatal("expected read error on directory, got nil")
+	}
+}
+
+// The walk's own error arm, reached rather than exempted: a directory held open
+// without a share mode cannot be read back, and WalkDir hands that error to the
+// callback. What stood here was an exemption saying only an OS permission
+// denial produces the state; internal/testlock produces it on this machine.
+func TestCheckGoFormatReportsADirectoryItCannotWalk(t *testing.T) {
+	root := t.TempDir()
+	closed := filepath.Join(root, "closed")
+	if err := os.Mkdir(closed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(closed, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testlock.LockDir(t, closed)
+
+	_, err := CheckGoFormat([]string{root})
+	if err == nil || !strings.Contains(err.Error(), "walk root") {
+		t.Fatalf("err %v, want the walk to be reported", err)
 	}
 }

@@ -22,3 +22,20 @@ func Lock(t testing.TB, path string) {
 		t.Skip("this process reads a file without permissions; the world cannot be built")
 	}
 }
+
+// LockDir takes every permission off a directory until the test ends, so
+// reading it back fails. A process that reads regardless -- root does -- cannot
+// build the world the test needs, so the test is skipped rather than passed on
+// a readable directory.
+//
+//coverage:exempt built only off Windows; the gate runs on Windows
+func LockDir(t testing.TB, path string) {
+	t.Helper()
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatalf("chmod %s: %v", path, err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o755) })
+	if _, err := os.ReadDir(path); err == nil {
+		t.Skip("this process reads a directory without permissions; the world cannot be built")
+	}
+}
