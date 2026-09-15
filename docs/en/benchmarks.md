@@ -217,3 +217,46 @@ The last two rows come from measurements 2 and 3 and are not part of the
 off the start path is a Go change in this repository, measurable with the tool
 already here, and it is worth more than the adapter it would make less
 attractive.
+
+## 2026-09-15 15:39 — The Write Barrier in a Linked Worktree
+
+Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1`, branch
+`barrier-worktrees`, commit `d8bfad2`.
+
+**Goal.** Show what opening linked worktrees costs: a write in a worktree with no
+registry entry of its own, before the change (refused) and after it (allowed), and
+a write in the main checkout before and after, which the change must leave untouched.
+
+**Method.** `loomux dev bench-hooks testdata/bench/barrier-worktrees.json -n 20`:
+one cold run per case, then 20 warm ones. `LOOMUX_STATE_DIR` points at a copy of the
+registry that registers only the main checkout (`workspace = true`). Binaries:
+`before.exe` built from `b55ae6d`, `after.exe` built from the commit
+above, both with Go `go1.27.0 windows/amd64`.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: Write in linked worktree, no registry entry | 180.4 ms | 66.8 ms | 62.0 ms | 84.6 ms | [2] |
+| after: Write in linked worktree, no registry entry | 177.3 ms | 65.3 ms | 62.4 ms | 69.8 ms | [0] |
+| before: Edit on README.md in main checkout | 33.2 ms | 31.9 ms | 29.0 ms | 40.4 ms | [0] |
+| after: Edit on README.md in main checkout | 34.0 ms | 31.0 ms | 27.1 ms | 32.5 ms | [0] |
+
+### Reading
+
+1. **Worktree: opening it costs nothing measurable.** After against before is
+   65.3 ms against 66.8 ms warm (1.5 ms lower) and 177.3 ms against 180.4 ms cold
+   (3.1 ms lower). The warm range after (62.4–69.8) lies inside the one before
+   (62.0–84.6). The two runs do different work: before, the refusal goes all the
+   way to the message and looks up the review centre on the way; after, the
+   barrier tries one `.git` read per parent directory and reads the three pointer
+   files (`.git`, `gitdir`, `commondir`) only at the worktree root.
+2. **Main checkout: untouched, as it has to be.** After against before is 31.0 ms
+   against 31.9 ms warm (0.9 ms lower) and 34.0 ms against 33.2 ms cold (0.8 ms
+   higher), with warm ranges that overlap (27.1–32.5 against 29.0–40.4). That
+   difference is noise: `Decide` returns before the worktree lookup, because the
+   target lies inside a registered tree.
+3. **Against the target of 72 ms.** The worktree write stays under it warm, at
+   65.3 ms (6.7 ms under); cold, at 177.3 ms, it is 105.3 ms over. The
+   main-checkout write stays under at 31.0 ms warm (41.0 ms under) and 34.0 ms
+   cold. The worktree rows sit about 34 ms above the main-checkout rows in both
+   binaries (66.8 against 31.9 before, 65.3 against 31.0 after). That gap was
+   there before the change, and this pass does not measure where it comes from.

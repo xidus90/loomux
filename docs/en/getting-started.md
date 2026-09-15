@@ -100,6 +100,13 @@ Write barrier:    Enforced (global registry + project policy)
 Overall status:   READY (Green)
 ```
 
+> [!NOTE]
+> The write barrier opens only the trees listed in the global registry
+> (`%LOCALAPPDATA%\loomux\registry.toml`). A linked git worktree of a repository
+> registered with `workspace = true` counts as part of that repository and needs no
+> entry of its own; the barrier reads git's worktree files and starts no `git`
+> process. A worktree moved without `git worktree repair` stays shut.
+
 ---
 
 ## 4. Agent Harness Integrations

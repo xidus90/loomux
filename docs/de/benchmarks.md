@@ -223,3 +223,49 @@ Die letzten beiden Zeilen stammen aus Messung 2 und 3 und gehören nicht zum
 Zeitzone vom Startpfad fernzuhalten ist eine Go-Änderung in diesem Repository,
 messbar mit dem Werkzeug, das schon hier liegt, und sie ist mehr wert als der
 Adapter, den sie unattraktiver machen würde.
+
+## 2026-09-15 15:39 — Die Schreibschranke im verknüpften Worktree
+
+Repository `loomux`, Worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1`, Branch
+`barrier-worktrees`, Commit `d8bfad2`.
+
+**Ziel.** Zeigen, was das Öffnen verknüpfter Worktrees kostet: ein Write in einem
+Worktree ohne eigenen Registry-Eintrag, vor der Änderung (verweigert) und danach
+(erlaubt), und ein Write im Hauptcheckout vorher und nachher, den die Änderung
+unberührt lassen muss.
+
+**Methode.** `loomux dev bench-hooks testdata/bench/barrier-worktrees.json -n 20`:
+je Fall ein kalter Lauf, dann 20 warme. `LOOMUX_STATE_DIR` zeigt auf eine Kopie der
+Registry, die nur den Hauptcheckout registriert (`workspace = true`). Binaries:
+`before.exe` gebaut aus `b55ae6d`, `after.exe` gebaut aus dem Commit oben, beide
+mit Go `go1.27.0 windows/amd64`.
+
+| Fall | kalt (1. Lauf) | warmer Median | warmes Min | warmes Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| before: Write in linked worktree, no registry entry | 180,4 ms | 66,8 ms | 62,0 ms | 84,6 ms | [2] |
+| after: Write in linked worktree, no registry entry | 177,3 ms | 65,3 ms | 62,4 ms | 69,8 ms | [0] |
+| before: Edit on README.md in main checkout | 33,2 ms | 31,9 ms | 29,0 ms | 40,4 ms | [0] |
+| after: Edit on README.md in main checkout | 34,0 ms | 31,0 ms | 27,1 ms | 32,5 ms | [0] |
+
+### Lesart
+
+1. **Worktree: das Öffnen kostet nichts Messbares.** Nachher gegen vorher sind
+   warm 65,3 ms gegen 66,8 ms (1,5 ms weniger) und kalt 177,3 ms gegen 180,4 ms
+   (3,1 ms weniger). Die warme Spanne nachher (62,4–69,8) liegt innerhalb der
+   Spanne vorher (62,0–84,6). Die beiden Läufe tun verschiedene Arbeit: vorher
+   geht die Ablehnung den ganzen Weg bis zur Meldung und sucht dabei das
+   Review-Zentrum; nachher versucht die Schranke je Elternverzeichnis einen
+   `.git`-Lesezugriff und liest die drei Zeigerdateien (`.git`, `gitdir`,
+   `commondir`) nur an der Worktree-Wurzel.
+2. **Hauptcheckout: unberührt, wie er sein muss.** Nachher gegen vorher sind warm
+   31,0 ms gegen 31,9 ms (0,9 ms weniger) und kalt 34,0 ms gegen 33,2 ms (0,8 ms
+   mehr), bei warmen Spannen, die einander überlappen (27,1–32,5 gegen 29,0–40,4).
+   Dieser Unterschied ist Rauschen: `Decide` kehrt vor der Worktree-Suche zurück,
+   weil das Ziel in einem registrierten Baum liegt.
+3. **Gegen den Zielwert von 72 ms.** Der Worktree-Write bleibt warm mit 65,3 ms
+   darunter (6,7 ms), kalt liegt er mit 177,3 ms 105,3 ms darüber. Der Write im
+   Hauptcheckout bleibt mit 31,0 ms warm (41,0 ms darunter) und 34,0 ms kalt
+   darunter. Die Worktree-Zeilen liegen in beiden Binaries rund 34 ms über den
+   Hauptcheckout-Zeilen (vorher 66,8 gegen 31,9, nachher 65,3 gegen 31,0). Diesen
+   Abstand gab es schon vor der Änderung, und woher er kommt, misst dieser
+   Durchgang nicht.

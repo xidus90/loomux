@@ -1,0 +1,62 @@
+[
+  {
+    "name": "before: Write in linked worktree, no registry entry",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/testdata/bench/write-in-worktree.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-barrier/before.exe",
+          "hook", "pre-tool-use", "--host", "claude",
+          "--root", "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "after: Write in linked worktree, no registry entry",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/testdata/bench/write-in-worktree.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-barrier/after.exe",
+          "hook", "pre-tool-use", "--host", "claude",
+          "--root", "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "before: Edit on README.md in main checkout",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/testdata/bench/edit-readme-main.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-barrier/before.exe",
+          "hook", "pre-tool-use", "--host", "claude",
+          "--root", "C:/Users/micro/Documents/#GIT/loomux"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "after: Edit on README.md in main checkout",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/testdata/bench/edit-readme-main.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/AppData/Local/Temp/loomux-barrier/after.exe",
+          "hook", "pre-tool-use", "--host", "claude",
+          "--root", "C:/Users/micro/Documents/#GIT/loomux"
+        ]
+      }
+    ]
+  }
+]
