@@ -32,8 +32,17 @@
 | Git-Umgebung säubern | guard und wiki trugen je eine eigene Liste | eine Liste, 28 Namen aus beiden Repos | ein Ort für eine Frage (`internal/gitenv`) | |
 | Format der Lint-Befunde | durch Fälle belegt | durch `report_test.go` belegt | Lint-Fälle vergleichen Exit und leeres stdout; das Format ist kein Fallgegenstand (R14c) | |
 | CRLF in Aufzeichnungen | `tools/cases.py` normalisierte CRLF zu LF | der Rekorder normalisiert nur Pfade | trägt ein aufgezeichnetes stdout CRLF und der Lauf im Prozess nicht, ist das ein Unterschied der Aufzeichnung, nicht des Verhaltens | |
+| Antigravitys Hook-Vertrag nachmessen (offene Frage der Spec) | — | in Stufe 1b | braucht den Antigravity-Wirt, den 1a nicht hat; kein Task der Stufe 1a deckt sie ab (Controller-Ruling) | |
 
 ## Pilot
+
+**Reihenfolge, vor Schritt 1:** `.loomux/config.toml` (Schritt 1 der Aufgabe 16)
+und `%LOCALAPPDATA%\loomux\registry.toml` (Schritt 2) müssen **vor** der ersten
+Sitzung mit den eingetragenen Hooks stehen. Eine fehlende `.loomux/config.toml`
+ist harmlos — fehlende Datei heißt leere Policy. Eine fehlende Registry ist es
+nicht: die Schreibschranke behandelt „keine Registry" wie „kaputte Registry" und
+**verweigert jeden Write** (`internal/brain/guard/registry.go`, Fall
+`no registry` in `run_test.go`). Wer die Sitzung vorher startet, steht still.
 
 Der Rauchtest in einer frischen Claude-Sitzung im loomux-Repo (Step 4 der
 Aufgabe 16) gehört dem Nutzer: er startet die Sitzung, fährt die acht Schritte
