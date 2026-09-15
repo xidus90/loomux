@@ -117,6 +117,8 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot complete; s
 | Session & Remote Drift | Session-start freshness checks, subagent drift detection, and stop-gate execution counter. | 🚧 **In Migration** (Stage 1b) |
 | Check Chain (`[verify]`) | Unified verification table: multi-lane test runners, commit-msg calibration, coverage gates. | ✅ **Implemented** (Stage 1a) |
 | Worktree Mirroring | Isolated subagent git worktrees with symlink/junction mirroring and session tracking. | ✅ **Implemented** (Stage 1a) |
+| Zone-Free Start Path | Keep Go's local time zone off the hook path: `time.Now().Zone()` alone costs 18.7 ms of the guard's ~28 ms on Windows (measured 2026-09-15). | 💡 **Optional** (no stage) |
+| Claude Mods Adapter | Seat the write barrier in a `tool.check` function hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)) talking to a long-lived loomux over `$.mcp.call` — removes the spawn, adds an `ask` verdict and a rendered reason. Claude-Code-only; the exec hook stays the portable path. | 💡 **Optional** (no stage) |
 | **2. Skills & Best Practices** | | |
 | Curated Language Suites | Embedded best-practice rules for Go (zero-alloc, err-handling, no-init), Python, TypeScript, and Rust. | 📋 **Specified** (Stage W4) |
 | Graph-Aware Code Review | Review skills that leverage `graph_blast` to inspect caller impact and enforce ADR conformance. | 📋 **Specified** (Stage W4) |

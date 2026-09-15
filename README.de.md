@@ -117,6 +117,8 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe 1a Pilot abgeschl
 | Sitzungs- & Drift-Überwachung | `session-start`-Frischeprüfung, Subagent-Drifterkennung und Block-Zähler im Stop-Tor. | 🚧 **In Migration** (Stufe 1b) |
 | Prüfkette (`[verify]`) | Konfigurierbare Prüftabelle: Parallele Test-Lanes, commit-msg-Kalibrierung, Coverage-Tor. | ✅ **Implementiert** (Stufe 1a) |
 | Worktree-Spiegelung | Isolierte Subagent-Git-Worktrees mit NTFS-Junctions und Sitzungsverfolgung. | ✅ **Implementiert** (Stufe 1a) |
+| Zonenfreier Startpfad | Gos lokale Zeitzone vom Hook-Pfad fernhalten: `time.Now().Zone()` allein kostet unter Windows 18,7 ms der ~28 ms des Wächters (gemessen 2026-09-15). | 💡 **Optional** (ohne Stufe) |
+| Claude-Mods-Adapter | Die Schreibschranke in einen `tool.check`-Function-Hook setzen ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)), der über `$.mcp.call` mit einem langlebigen loomux spricht — entfernt den Spawn, bringt ein `ask`-Urteil und eine gerenderte Begründung. Nur für Claude Code; der Exec-Hook bleibt der portable Pfad. | 💡 **Optional** (ohne Stufe) |
 | **2. Skills & Best Practices** | | |
 | Kuratierte Sprach-Suiten | Eingebettete Best-Practice-Regeln für Go (Zero-Alloc, Error-Handling, no-init), Python, TS, Rust. | 📋 **Spezifiziert** (Stufe W4) |
 | Graph-gestützter Code-Review | Review-Skills, die via `graph_blast` Aufrufer-Auswirkungen prüfen und ADRs abgleichen. | 📋 **Spezifiziert** (Stufe W4) |

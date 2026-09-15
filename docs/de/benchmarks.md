@@ -106,3 +106,120 @@ getaggten Stände, nicht das, was auf dem PATH liegt.
 Ein Zielwert für Stufe 2 wird hier über die drei benannten Posten hinaus nicht
 gesetzt; der Hebel, auf den sie zeigen, ist die Auflösung je Wurzel in
 `writableRoots`.
+
+## 2026-09-15 12:00 — Der Exec-Hook gegen einen Function Hook (Claude Mods)
+
+Repo `loomux`, Haupt-Worktree, Commit `311d5b2`, sauberer Baum — diese Messung
+ändert keinen Code im Repository; der Probe-Mod, die Probe-Binaries und der
+Ersatz-Daemon liegen in einem Scratch-Verzeichnis.
+
+**Ziel.** Entscheiden, ob die in
+[anthropics/claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)
+vorgeschlagenen Function Hooks („Claude Mods") einen Adapter wert sind. Sie
+laufen im Prozess von Claude Code selbst und zahlen deshalb keinen Prozessstart.
+Die Frage ist nicht, ob das schneller ist — das ist es bauartbedingt —, sondern
+wie viel der heutigen 28 ms der Spawn ist, den wir entfernen würden, was der
+Adapter zu einem langlebigen `loomux` stattdessen kostet, und ob dieser Spawn
+nicht in Go billig zu machen ist.
+
+**Was das Merkmal ist, am Binary und an den veröffentlichten Deklarationen
+nachgerechnet, nicht am Issue.** Claude Code 2.1.272 trägt es hinter
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` (Rollout-Flag
+`tengu_plugin_hooks_modules`). Ein Mod ist ein gewöhnliches Plugin, dessen
+`hooks/hooks.json` ein Modul mit `register(on)` nennt; Hooks sind `($, e, next)`
+und verschachteln in Registrierungsreihenfolge. Zwei Tatsachen prägen jeden
+Adapter, beide aus `anthropics/claude-code:mods/types/claude-code.d.ts`:
+
+- `tool.check` ist genau der Sitz der Schreibschranke: es nimmt `{ tool, input,
+  tool_use_id }` und gibt `{ decision: 'allow' | 'ask' | 'deny', reason?,
+  rule? }` zurück — dasselbe Urteil, das `hook pre-tool-use` heute schreibt,
+  plus `ask`, das der Exec-Hook nicht ausdrücken kann.
+- Ein Hook erreicht einen langlebigen Prozess auf zwei Wegen: `$.http.fetch`
+  (ein Loopback-Server, den wir betreiben würden) oder `$.mcp.call(server, tool,
+  args)` (ein stdio-MCP-Server, den Claude Code startet und besitzt, ohne Port).
+  `$.process.run` ist wieder ein Spawn. Gemessen ist unten nur `$.http.fetch`.
+
+**Methode.** Drei Messungen, je ein Glied der Kette.
+
+1. Spawn, wie der Hook ihn heute zahlt, und woraus er besteht:
+   `loomux dev bench-hooks -n 20` in einem Durchgang über fünf Fälle — der Hook,
+   der Startboden, ein leeres Go-`main`, ein `main`, dessen einziger Import
+   `github.com/BurntSushi/toml` v1.6.0 ist, und ein `main`, dessen einzige
+   Anweisung `time.Now().Zone()` ist. Alle fünf mit Go 1.27 gebaut, der Hook im
+   Haupt-Worktree mit der Pilot-`.loomux/config.toml` an Ort und Stelle und ohne
+   `LOOMUX_STATE_DIR`-Überschreibung, Nutzlast ein `Edit` auf die `README.md`
+   dieses Repos. Je Fall ein kalter Lauf, dann 20 warme.
+2. Dispatch durch die Faltung, in situ: ein Probe-Mod (`register` hängt sich an
+   `tool.check`, fragt über `$.http.fetch` und fällt mit `next(e)` durch), unter
+   `claude plugin test` gelaufen, 500 Dispatches von `$.tool.check`, der Fetch
+   aus dem Speicher beantwortet von einem Hook, den der Test darunter setzt. Der
+   Test zählt die Fetches und fordert 501, damit ein still übersprungener Hook
+   nicht als schneller durchgeht — der erste Anlauf dieser Messung tat genau
+   das, und der Testkasten meldete `no implementation for http.fetch` erst, als
+   die Zahl eingefordert wurde.
+3. Transport: 200 POSTs von einem Client an einen Go-`net/http`-Server auf
+   `127.0.0.1:47613`, der das Urteil so beantwortet wie die Schranke. Gemessen
+   von Node 24.14.1 außerhalb von Claude Code, weil der eigene Transportweg
+   eines Hooks im Testkasten nicht messbar war (darunter liegt kein echtes
+   `http.fetch`). Zwei ungemessene Faktoren liegen zwischen dieser Zahl und der
+   echten: Claude Code läuft auf Bun, und `$.http.fetch` geht durch das Noun der
+   Engine, nicht durch nacktes `fetch`.
+
+| Fall | kalt (1. Lauf) | warmer Median | warmes Min | warmes Max |
+|---|---:|---:|---:|---:|
+| `loomux hook pre-tool-use` (Edit auf README.md) | 36,1 ms | 28,0 ms | 27,1 ms | 30,0 ms |
+| `loomux version` (Startboden) | 27,5 ms | 27,5 ms | 26,0 ms | 30,0 ms |
+| leeres Go-`main` (Spawn-Boden) | 10,6 ms | 8,0 ms | 7,7 ms | 10,0 ms |
+| Go-`main`, das nur `BurntSushi/toml` importiert | 93,0 ms | 27,5 ms | 26,0 ms | 32,5 ms |
+| Go-`main`, das nur die lokale Zeitzone auflöst | 78,1 ms | 26,7 ms | 25,6 ms | 29,4 ms |
+| Mod-`tool.check` durch die Faltung, Fetch aus dem Speicher | — | 0,26 ms | 0,20 ms | 2,14 ms |
+| Loopback-Umlauf zu einem Go-Daemon (Node-Client) | 22,4 ms | 0,34 ms | 0,22 ms | 1,53 ms |
+
+Die letzten beiden Zeilen stammen aus Messung 2 und 3 und gehören nicht zum
+`bench-hooks`-Durchgang; die ersten fünf sind ein Durchgang, ein Maschinenstand.
+
+### Lesart
+
+1. **Der Function Hook samt Adapter liegt in der Größenordnung 0,6 ms gegen
+   28,0 ms.** Das ist die Summe zweier getrennt gemessener Hälften — Dispatch
+   0,26 ms in situ, Transport 0,34 ms außerhalb —, also eine Schätzung, keine
+   Messung eines Pfades. Je bewachtem Tool-Aufruf sind das ~27 ms. Bevor man das
+   dem Mod gutschreibt, Punkt 2 lesen.
+2. **19 dieser 28 ms sind Go beim Auflösen der lokalen Zeitzone, und dafür
+   braucht es keinen Mod.** Ein `main`, dessen einzige Anweisung
+   `time.Now().Zone()` ist, kostet **26,7 ms** gegen **8,0 ms** für ein leeres:
+   18,7 ms, auf dem Windows-Weg, der die Zone aus der Registry liest. Der Import
+   von `BurntSushi/toml` kostet dieselben 27,5 ms und nichts darüber hinaus, und
+   `GODEBUG=inittrace=1 bin/loomux.exe version` nennt
+   `github.com/BurntSushi/toml/internal` mit 22 ms Uhrzeit und 1.673 Allocs —
+   dieses Paket löst die Zone in seinem `init` auf. **Der Hebel heißt also nicht
+   „den TOML-Parser austauschen", sondern „keine lokale Zeit auf dem Hook-Pfad".**
+   Jedes Paket und jede Logzeile, die einen lokalen Zeitstempel formatiert, holt
+   dieselben 19 ms zurück, einmal je Prozess. Ein Exec-Hook, der die lokale Zone
+   nie anfasst, läge bei etwa 9 ms — ~19 der ~27 ms Abstand, in Go geschlossen,
+   ohne eine Zeile TypeScript und ohne den portablen Pfad aufzugeben. Nur die
+   verbleibenden ~8 ms Windows-Prozessstart brauchen einen In-Process-Hook.
+3. **Die Entscheidung selbst liegt weiterhin unter dem Rauschen des Bodens.**
+   `hook pre-tool-use` mit 28,0 ms gegen `version` mit 27,5 ms sind 0,5 ms
+   auseinander, bei warmen Spannen, die einander fast vollständig überdecken
+   (27,1–30,0 gegen 26,0–30,0); in einem zweiten Durchgang lag der Hook
+   *unter* dem Boden. Die 24,5 ms vom 2026-09-15 01:20 sind dagegen kein
+   Rückschritt: jener Lauf war ein anderer Worktree ohne `.loomux/config.toml`
+   (ein TOML-Parse weniger) auf einer ruhigeren Maschine, und `version` wanderte
+   mit (23,6 → 27,5 ms). Der Boden ist die ganze Geschichte, in beiden Läufen.
+4. **Kalt ist ein Daemon am schlechtesten, und das einmalig.** Der erste
+   Loopback-Aufruf kostet 22,4 ms — Client-Aufwärmen und Verbindung. Eine
+   Sitzung zahlt ihn einmal; der Exec-Hook zahlt seinen Kaltpreis beim ersten
+   Edit und ~28 ms bei jedem weiteren.
+5. **Was der Mod kauft, das keine Millisekunden sind.** `ask` als Urteil, eine
+   Begründung im Transkript statt einer zurückgegebenen Fehlerzeichenkette, und
+   `ui.*`, um den Zustand der Schranke zu zeigen. Dagegen: es gilt nur für
+   Claude Code (das Tor `.githooks/pre-commit` und jeder andere Host brauchen
+   weiter den Exec-Pfad), die API darf sich zwischen Releases ohne Ankündigung
+   ändern, und eine zweite Sprache zieht in einen Baum ein, dessen Entwurf ein
+   Go-Binary ist.
+
+**Der Hebel, auf den das zeigt, ist Punkt 2, nicht der Mod.** Die lokale
+Zeitzone vom Startpfad fernzuhalten ist eine Go-Änderung in diesem Repository,
+messbar mit dem Werkzeug, das schon hier liegt, und sie ist mehr wert als der
+Adapter, den sie unattraktiver machen würde.
