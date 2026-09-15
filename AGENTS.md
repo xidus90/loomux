@@ -38,5 +38,14 @@ are German and never translated.
 
 ## Commands
 
+A fresh clone arms itself with two commands. Until the second one has run,
+every hook in `.claude/settings.json` calls a binary that is not there and
+does nothing:
+
+```sh
+git config core.hooksPath .githooks
+go build -o bin/loomux.exe ./cmd/loomux
+```
+
 - Gate: `.githooks/pre-commit` (gofmt, go vet, tests with coverage, pilot binary).
 - `go run ./cmd/loomux dev covergate --profile coverage.out`

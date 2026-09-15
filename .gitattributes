@@ -1,1 +1,5 @@
 * text=auto eol=lf
+
+# The recordings of the old tools are evidence, not text this repository owns:
+# no line-ending normalisation, so a case stays byte for byte what was recorded.
+testdata/cases/1a-source/** -text
