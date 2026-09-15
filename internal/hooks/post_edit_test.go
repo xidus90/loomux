@@ -593,20 +593,30 @@ func TestPostEditNamesASkippedLaneWhereItIsRead(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("a missing optional tool blocks no edit, got exit %d", code)
 	}
-	var said struct {
-		HookSpecificOutput struct {
-			HookEventName string `json:"hookEventName"`
-			SystemMessage string `json:"systemMessage"`
-		} `json:"hookSpecificOutput"`
-	}
+	// Decoded into a generic map and walked by key, not into the struct the
+	// code wrote: a decode into that struct passes whatever field the code
+	// chose and says nothing about where the harness looks.
+	var said map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &said); err != nil {
 		t.Fatalf("stdout has to be one JSON document, got %q: %v", stdout.String(), err)
 	}
-	if said.HookSpecificOutput.HookEventName != "PostToolUse" {
-		t.Errorf("the document names its event, got %q", said.HookSpecificOutput.HookEventName)
+	specific, ok := said["hookSpecificOutput"].(map[string]any)
+	if !ok {
+		t.Fatalf("the document carries no hookSpecificOutput: %q", stdout.String())
 	}
-	if !strings.Contains(said.HookSpecificOutput.SystemMessage, "shellcheck") {
-		t.Errorf("the message names the missing tool, got %q", said.HookSpecificOutput.SystemMessage)
+	if specific["hookEventName"] != "PostToolUse" {
+		t.Errorf("the document names its event, got %v", specific["hookEventName"])
+	}
+	// The field this repository's own Claude adapter writes for the model.
+	context, ok := specific["additionalContext"].(string)
+	if !ok {
+		t.Fatalf("the notice is not at hookSpecificOutput.additionalContext: %q", stdout.String())
+	}
+	if !strings.Contains(context, "shellcheck") {
+		t.Errorf("the message names the missing tool, got %q", context)
+	}
+	if _, stray := specific["systemMessage"]; stray {
+		t.Errorf("systemMessage is no field of the PostToolUse envelope: %q", stdout.String())
 	}
 }
 

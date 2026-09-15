@@ -267,12 +267,18 @@ func (b *lockedBuilder) String() string {
 }
 
 // reportSkipped puts the dropped lanes where a PostToolUse hook exiting 0 is
-// actually read.
+// read.
 //
-// Neither stdout nor stderr is shown to anybody at exit 0 -- both end in the
-// debug log. A JSON document on stdout is the exception: its `systemMessage`
-// reaches the model. Nothing is written when nothing was skipped, because
-// stdout that is not valid JSON turns a passed hook into a hook-error notice.
+// Plain stdout and stderr at exit 0 could not be traced to a reader from
+// inside this repository, so nothing is claimed about them. A JSON document
+// with `hookSpecificOutput.additionalContext` is the one field this repository
+// can point at: it is what `writeClaudeContext` in internal/hosts/claude.go
+// writes for the model, from the harness table of the superpowers port
+// document. What stood here was `systemMessage`, a field no envelope in this
+// repository defines and no adapter reads.
+//
+// Nothing is written when nothing was skipped, because stdout that is not
+// valid JSON turns a passed hook into a hook-error notice.
 //
 //coverage:exempt json.Marshal cannot fail on a map of strings
 func reportSkipped(stdout io.Writer, notices string) {
@@ -281,8 +287,8 @@ func reportSkipped(stdout io.Writer, notices string) {
 	}
 	document := map[string]any{
 		"hookSpecificOutput": map[string]any{
-			"hookEventName": "PostToolUse",
-			"systemMessage": strings.TrimRight(notices, "\n"),
+			"hookEventName":     "PostToolUse",
+			"additionalContext": strings.TrimRight(notices, "\n"),
 		},
 	}
 	encoded, err := json.Marshal(document)
