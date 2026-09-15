@@ -58,14 +58,16 @@ Schranke den nächsten verknüpften Worktree darüber. Gehört er zum selben Rep
 ### Einbau in `Decide`
 
 - Neue Funktion `linkedWorktreeRoot(target string, areas []area) string`.
-- Sie läuft **nach** der Schleife, die heute `declaredWikiRoot` je Ziel sammelt, über die
-  aufgelösten Ziele und **nur** für die, die danach noch unter keiner Wurzel liegen (`inside`) und
-  nicht in Memory oder Scratchpad. Ein Write im Hauptcheckout liest damit keine Datei mehr als heute.
-- Ein Fund kommt in `roots`. Die Ablehnungsmeldung listet ihn dadurch unter „writing is allowed only
-  below“ mit.
+- Sie läuft dort, wo `Decide` heute die Ziele `outside` sammelt: **nach** dessen früher Rückkehr
+  bei leerem `outside` und **vor** `reviewCentre`, einmal für alle noch offenen Ziele. `outside`
+  enthält nur Ziele unter keiner Wurzel und nicht in Memory oder Scratchpad; ein Write im
+  Hauptcheckout kehrt vorher zurück und liest keine Datei mehr als heute.
+- Ein Fund kommt in `roots`, die von ihm gedeckten Ziele fallen aus `outside`. Die Ablehnungsmeldung
+  eines gemischten Aufrufs listet ihn dadurch unter „writing is allowed only below“ mit.
 - Die Reihenfolge von `Decide` bleibt: Manifest, Memory, Registry, Read-only-Zonen, Allow-List. Eine
-  Read-only-Zone schlägt eine Worktree-Wurzel, weil die Zonenprüfung gegen die Ziele läuft, nicht
-  gegen die Wurzeln.
+  Read-only-Zone schlägt eine Worktree-Wurzel, weil die Zonenprüfung vorher und gegen die Ziele
+  läuft. Die Prüfung „keine Wurzel überhaupt“ davor ändert sich nicht: Eine Worktree-Wurzel setzt
+  einen `workspace`-Bereich voraus, und der ist schon selbst eine Wurzel.
 
 ### Erkennung
 
@@ -110,6 +112,9 @@ bei Unklarheit öffnet, ist keine.
 
 - **Verschobener Worktree** ohne `git worktree repair`: Der Rückverweis stimmt nicht, der Baum bleibt
   gesperrt. Gewollt; `git worktree repair` behebt es.
+- **Registrierter Pfad ist selbst ein verknüpfter Worktree:** Seine Geschwister-Worktrees öffnen
+  sich, der Hauptcheckout nicht — er hat keine `.git`-Datei, sondern ein Verzeichnis. Wer den
+  Hauptcheckout will, registriert ihn.
 - **Kein `git`-Prozess:** Die geerbte `GIT_DIR`-Umgebung, gegen die `askGit` sich schützt, spielt
   hier keine Rolle.
 - **Verwaltungsverzeichnis ohne Worktree** (gelöscht, nicht gepruned): Das Verzeichnis existiert
