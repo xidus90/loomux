@@ -79,8 +79,9 @@ func repositoryCommon(root string) string {
 // The back pointer is what makes a planted `.git` file worthless: a copy of a
 // real worktree's pointer names an administration directory whose `gitdir`
 // leads to the real worktree, not to the copy. A submodule and a
-// `--separate-git-dir` checkout carry a `.git` file as well, but no
-// `commondir`, and fall out on that.
+// `--separate-git-dir` checkout carry a `.git` file as well, but their git
+// directory holds neither `gitdir` nor `commondir` (Git 2.54), so they fall
+// out at the back pointer already.
 func linkedCommon(directory string) string {
 	dotGit := filepath.Join(directory, ".git")
 	admin := pointer(dotGit, "gitdir: ", directory)

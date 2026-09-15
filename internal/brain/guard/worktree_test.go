@@ -140,8 +140,8 @@ func TestWithoutCommondirTheGitFileIsNoLinkedWorktree(t *testing.T) {
 	base := t.TempDir()
 	main := fakeRepository(t, base, "main")
 	linked := fakeLinked(t, main, "linked", false)
-	// The shape a submodule has: a `.git` file and an administration
-	// directory, but no `commondir` in it.
+	// An administration directory that lost its `commondir`: the back
+	// pointer still agrees, so this is the one check left to refuse it.
 	if err := os.Remove(filepath.Join(adminOf(main, "linked"), "commondir")); err != nil {
 		t.Fatal(err)
 	}
