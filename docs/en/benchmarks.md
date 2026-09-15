@@ -263,8 +263,8 @@ above, both with Go `go1.27.0 windows/amd64`.
    figure therefore says nothing about the worktree write alone. The warm gap of
    about 34–35 ms between the worktree and main-checkout rows (66.8 against 31.9
    before, 65.3 against 31.0 after) is present in both binaries, so this change
-   does not cause it. By the code path it matches the two `git rev-parse` calls
-   that `declaredWikiRoot` → `sameRepository` makes for a worktree whose
+   does not cause it. By the code path it is consistent with the two `git rev-parse`
+   calls that `declaredWikiRoot` → `sameRepository` makes for a worktree whose
    `.loomux/config.toml` names a registered scope; the main checkout skips them
    because its path equals the registered one (`path.go:468`). This pass did not
    measure that attribution.

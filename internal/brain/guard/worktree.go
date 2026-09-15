@@ -76,14 +76,23 @@ func repositoryCommon(root string) string {
 // linkedCommon is the common git directory of the linked worktree rooted at
 // `directory`, or "" where it is none.
 //
-// The back pointer is what makes a planted `.git` file worthless: a copy of a
-// real worktree's pointer names an administration directory whose `gitdir`
-// leads to the real worktree, not to the copy. A submodule and a
+// Three guards, each against a different forgery. The `.git` has to be a
+// regular file: a symlink to a real worktree's `.git` would resolve to it and
+// borrow its back pointer. The back pointer makes a copied `.git` file
+// worthless: the administration directory it names leads back to the real
+// worktree, not to the copy. And the administration directory has to sit
+// directly below `<common>/worktrees`, where git always puts it: anywhere
+// else -- a nested repository's inside the workspace, whose `commondir` a
+// writing tool may rewrite -- it could name the workspace's repository and
+// open a tree outside every registered one. A submodule and a
 // `--separate-git-dir` checkout carry a `.git` file as well, but their git
 // directory holds neither `gitdir` nor `commondir` (Git 2.54), so they fall
 // out at the back pointer already.
 func linkedCommon(directory string) string {
 	dotGit := filepath.Join(directory, ".git")
+	if info, err := os.Lstat(dotGit); err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
 	admin := pointer(dotGit, "gitdir: ", directory)
 	if admin == "" {
 		return ""
@@ -92,7 +101,12 @@ func linkedCommon(directory string) string {
 	if back == "" || !pathsEqual(back, resolvedOrEmpty(dotGit)) {
 		return ""
 	}
-	return pointer(filepath.Join(admin, "commondir"), "", admin)
+	common := pointer(filepath.Join(admin, "commondir"), "", admin)
+	if common == "" ||
+		!pathsEqual(filepath.Dir(admin), filepath.Join(common, "worktrees")) {
+		return ""
+	}
+	return common
 }
 
 // pointer is the resolved path a git pointer file names, counted from `base`

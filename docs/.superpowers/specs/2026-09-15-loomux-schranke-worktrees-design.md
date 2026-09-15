@@ -72,22 +72,28 @@ Schranke den nächsten verknüpften Worktree darüber. Gehört er zum selben Rep
 ### Erkennung
 
 `linkedWorktreeRoot` geht `parents(target)` durch, nächstes Verzeichnis zuerst, und gibt das erste
-Verzeichnis `dir` zurück, für das alle vier Bedingungen gelten:
+Verzeichnis `dir` zurück, für das alle fünf Bedingungen gelten:
 
-1. `dir/.git` ist eine **reguläre Datei**, ihr Inhalt beginnt mit `gitdir: `. Der Rest, um
-   nachgestellten Leerraum gekürzt, ist das Verwaltungsverzeichnis `admin`; ein relativer Pfad gilt
-   ab `dir`.
+1. `dir/.git` ist eine **reguläre Datei** (per `Lstat`, kein Symlink: ein Symlink auf die `.git`
+   eines echten Worktrees würde dessen Rückverweis borgen), ihr Inhalt beginnt mit `gitdir: `. Der
+   Rest, um nachgestellten Leerraum gekürzt, ist das Verwaltungsverzeichnis `admin`; ein relativer
+   Pfad gilt ab `dir`.
 2. `admin/commondir` ist eine reguläre Datei. Ihr Inhalt, gekürzt und relativ ab `admin`, aufgelöst
    mit `resolvePath`, ist das gemeinsame Git-Verzeichnis `common`. Submodule und
    `--separate-git-dir` haben keine `commondir` und scheiden hier aus.
 3. **Rückverweis:** `admin/gitdir` ist eine reguläre Datei. Ihr Inhalt, gekürzt und relativ ab
    `admin`, aufgelöst mit `resolvePath`, ist nach `pathsEqual` gleich `resolvePath(dir/.git)`.
 4. `common` ist nach `pathsEqual` gleich dem gemeinsamen Verzeichnis eines `workspace`-Bereichs.
+5. **Lage:** `admin` liegt direkt unter `<common>/worktrees`, d. h. `filepath.Dir(admin)` ist nach
+   `pathsEqual` gleich `common/worktrees`. Git legt es immer dort an. Ohne diese Bedingung könnte ein
+   Verwaltungsverzeichnis an anderer Stelle — etwa das eines verschachtelten fremden Repos im
+   Workspace, dessen `commondir` ein Schreibwerkzeug umschreiben darf — auf das Repo des Workspace
+   zeigen und einen Baum außerhalb öffnen (Befund des Abschluss-Reviews, per Probe bestätigt).
 
 Das gemeinsame Verzeichnis eines Bereichs mit Pfad `p`:
 
 - `p/.git` ist ein Verzeichnis: `resolvePath(p/.git)`.
-- `p/.git` ist eine Datei: Bedingungen 1–3 mit `dir = p`, das Ergebnis ist `common`.
+- `p/.git` ist eine Datei: Bedingungen 1–3 und 5 mit `dir = p`, das Ergebnis ist `common`.
 - sonst: keins, der Bereich nimmt am Vergleich nicht teil.
 
 Die gemeinsamen Verzeichnisse der Bereiche werden beim ersten Bedarf berechnet, höchstens einmal je
@@ -119,10 +125,11 @@ bei Unklarheit öffnet, ist keine.
   hier keine Rolle.
 - **Verwaltungsverzeichnis ohne Worktree** (gelöscht, nicht gepruned): Das Verzeichnis existiert
   nicht, es gibt nichts zu beschreiben.
-- **Restrisiko:** Wer `.git/worktrees/<name>/gitdir` im Workspace umschreibt *und* außerhalb eine
-  passende `.git`-Datei anlegt, öffnet sich jenes Verzeichnis. Den zweiten Schritt verweigert die
-  Schranke jedem Schreibwerkzeug; er gelingt nur über ein Werkzeug, das sie nicht prüft (etwa
-  Bash). Das ist dieselbe Klasse wie heute.
+- **Restrisiko:** Wer außerhalb aller Wurzeln eine `.git`-Datei anlegt, die auf ein selbst
+  angelegtes Verwaltungsverzeichnis unter `.git/worktrees/` des Workspace zeigt, öffnet sich jenes
+  Verzeichnis. Die Verwaltungsdateien darf ein Schreibwerkzeug im Workspace anlegen, die
+  `.git`-Datei außerhalb aber verweigert die Schranke jedem Schreibwerkzeug; sie gelingt nur über
+  ein Werkzeug, das sie nicht prüft (etwa Bash). Das ist dieselbe Klasse wie heute.
 
 ## Nicht im Umfang
 
@@ -148,6 +155,11 @@ TDD, 100 % je Funktion.
 - Worktree eines nicht registrierten Repos bleibt gesperrt
 - Read-only-Zone im Worktree schlägt die Worktree-Wurzel
 - Write im Hauptcheckout: `linkedWorktreeRoot` wird nicht gerufen
+- Verwaltungsverzeichnis eines verschachtelten Repos im Workspace, `commondir` auf den Workspace
+  umgeschrieben: bleibt gesperrt
+- selbst angelegtes Verwaltungsverzeichnis (`gitdir: .`) außerhalb: bleibt gesperrt
+- `.git` als Symlink auf die `.git`-Datei eines echten Worktrees: bleibt gesperrt (übersprungen
+  ohne Symlink-Recht)
 
 **Integration mit echtem Git:** Temp-Repo, `git worktree add`, Registry kennt nur das Haupt-Repo als
 `workspace`. `Decide` erlaubt einen Write im Worktree und verweigert einen Write in einem fremden

@@ -101,8 +101,9 @@ Overall status:   READY (Green)
 ```
 
 > [!NOTE]
-> The write barrier opens only the trees listed in the global registry
-> (`%LOCALAPPDATA%\loomux\registry.toml`). A linked git worktree of a repository
+> The write barrier opens the trees listed in the global registry
+> (`%LOCALAPPDATA%\loomux\registry.toml`), plus a few other places such as the
+> agents' memory and the session scratchpad. A linked git worktree of a repository
 > registered with `workspace = true` counts as part of that repository and needs no
 > entry of its own; the barrier recognises the worktree from git's own worktree
 > files, without starting a `git` process for that. A worktree moved without

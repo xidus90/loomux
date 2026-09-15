@@ -261,3 +261,50 @@ func TestARealLinkedWorktreeOfAWorkspaceMayBeWritten(t *testing.T) {
 	deny(t, writeCall(filepath.Join(other, "a.go")), state,
 		"lies outside every writable tree")
 }
+
+func TestANestedRepositorysWorktreeCannotBeRetargetedAtTheWorkspace(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	nested := fakeRepository(t, main, filepath.Join("vendor", "other"))
+	outside := filepath.Join(base, "outside")
+	admin := filepath.Join(nested, ".git", "worktrees", "outside")
+	write(t, filepath.Join(outside, ".git"), "gitdir: "+posix(admin)+"\n")
+	write(t, filepath.Join(admin, "gitdir"),
+		posix(filepath.Join(outside, ".git"))+"\n")
+	// The administration directory lies inside the workspace, so a writing
+	// tool may point its `commondir` at the workspace's own repository.
+	write(t, filepath.Join(admin, "commondir"),
+		posix(filepath.Join(main, ".git"))+"\n")
+	state := workspaceRegistry(t, base, main)
+	deny(t, writeCall(filepath.Join(outside, "a.go")), state,
+		"lies outside every writable tree")
+}
+
+func TestASelfMadeAdministrationDirectoryOpensNothing(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	planted := filepath.Join(base, "planted")
+	write(t, filepath.Join(planted, ".git"), "gitdir: .\n")
+	write(t, filepath.Join(planted, "gitdir"),
+		posix(filepath.Join(planted, ".git"))+"\n")
+	write(t, filepath.Join(planted, "commondir"),
+		posix(filepath.Join(main, ".git"))+"\n")
+	state := workspaceRegistry(t, base, main)
+	deny(t, writeCall(filepath.Join(planted, "a.go")), state,
+		"lies outside every writable tree")
+}
+
+func TestASymlinkedGitFileIsNoPointer(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	other := filepath.Join(base, "other")
+	mkdir(t, other)
+	if err := os.Symlink(filepath.Join(linked, ".git"),
+		filepath.Join(other, ".git")); err != nil {
+		t.Skip("this machine does not let the test make a file symlink")
+	}
+	state := workspaceRegistry(t, base, main)
+	deny(t, writeCall(filepath.Join(other, "a.go")), state,
+		"lies outside every writable tree")
+}

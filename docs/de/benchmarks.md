@@ -272,8 +272,8 @@ mit Go `go1.27.0 windows/amd64`.
    Binaries. Der Kaltwert sagt deshalb nichts über den Worktree-Write allein. Der
    warme Abstand von rund 34–35 ms zwischen Worktree- und Hauptcheckout-Zeilen
    (vorher 66,8 gegen 31,9, nachher 65,3 gegen 31,0) besteht in beiden Binaries,
-   diese Änderung verursacht ihn also nicht. Nach dem Codepfad passt er zu den
-   zwei `git rev-parse`-Aufrufen, die `declaredWikiRoot` → `sameRepository` für
+   diese Änderung verursacht ihn also nicht. Nach dem Codepfad ist er vereinbar mit
+   den zwei `git rev-parse`-Aufrufen, die `declaredWikiRoot` → `sameRepository` für
    einen Worktree macht, dessen `.loomux/config.toml` einen registrierten Scope
    nennt; der Hauptcheckout überspringt sie, weil sein Pfad dem registrierten
    gleicht (`path.go:468`). Diese Zuordnung hat dieser Durchgang nicht gemessen.
