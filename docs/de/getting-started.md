@@ -104,8 +104,9 @@ Gesamtstatus:     BEREIT (Grün)
 > Die Schreibschranke öffnet nur die Bäume, die in der globalen Registry stehen
 > (`%LOCALAPPDATA%\loomux\registry.toml`). Ein verknüpfter Git-Worktree eines Repos,
 > das mit `workspace = true` registriert ist, zählt zu diesem Repo und braucht keinen
-> eigenen Eintrag; die Schranke liest dafür Gits Worktree-Dateien und startet keinen
-> `git`-Prozess. Ein ohne `git worktree repair` verschobener Worktree bleibt gesperrt.
+> eigenen Eintrag; die Schranke erkennt den Worktree an Gits eigenen Worktree-Dateien,
+> ohne dafür einen `git`-Prozess zu starten. Ein ohne `git worktree repair`
+> verschobener Worktree bleibt gesperrt.
 
 ---
 

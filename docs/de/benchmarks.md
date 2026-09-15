@@ -262,10 +262,18 @@ mit Go `go1.27.0 windows/amd64`.
    mehr), bei warmen Spannen, die einander überlappen (27,1–32,5 gegen 29,0–40,4).
    Dieser Unterschied ist Rauschen: `Decide` kehrt vor der Worktree-Suche zurück,
    weil das Ziel in einem registrierten Baum liegt.
-3. **Gegen den Zielwert von 72 ms.** Der Worktree-Write bleibt warm mit 65,3 ms
-   darunter (6,7 ms), kalt liegt er mit 177,3 ms 105,3 ms darüber. Der Write im
-   Hauptcheckout bleibt mit 31,0 ms warm (41,0 ms darunter) und 34,0 ms kalt
-   darunter. Die Worktree-Zeilen liegen in beiden Binaries rund 34 ms über den
-   Hauptcheckout-Zeilen (vorher 66,8 gegen 31,9, nachher 65,3 gegen 31,0). Diesen
-   Abstand gab es schon vor der Änderung, und woher er kommt, misst dieser
-   Durchgang nicht.
+3. **Gegen den Zielwert von 72 ms, und was die Abstände zwischen den Zeilen
+   bedeuten.** Warm bleiben beide Writes unter dem Zielwert: der Worktree-Write mit
+   65,3 ms (6,7 ms darunter), der Write im Hauptcheckout mit 31,0 ms (41,0 ms
+   darunter). Die Kaltwerte der beiden Gruppen sind nicht vergleichbar. Die
+   Worktree-Fälle liefen zuerst, ihr kalter Lauf (180,4 und 177,3 ms) ist also
+   zugleich der erste Start des jeweils frisch gebauten Binarys; die kalten Läufe
+   im Hauptcheckout (33,2 und 34,0 ms) nutzten die bereits zwischengespeicherten
+   Binaries. Der Kaltwert sagt deshalb nichts über den Worktree-Write allein. Der
+   warme Abstand von rund 34–35 ms zwischen Worktree- und Hauptcheckout-Zeilen
+   (vorher 66,8 gegen 31,9, nachher 65,3 gegen 31,0) besteht in beiden Binaries,
+   diese Änderung verursacht ihn also nicht. Nach dem Codepfad passt er zu den
+   zwei `git rev-parse`-Aufrufen, die `declaredWikiRoot` → `sameRepository` für
+   einen Worktree macht, dessen `.loomux/config.toml` einen registrierten Scope
+   nennt; der Hauptcheckout überspringt sie, weil sein Pfad dem registrierten
+   gleicht (`path.go:468`). Diese Zuordnung hat dieser Durchgang nicht gemessen.

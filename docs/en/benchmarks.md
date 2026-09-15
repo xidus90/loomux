@@ -254,9 +254,17 @@ above, both with Go `go1.27.0 windows/amd64`.
    higher), with warm ranges that overlap (27.1–32.5 against 29.0–40.4). That
    difference is noise: `Decide` returns before the worktree lookup, because the
    target lies inside a registered tree.
-3. **Against the target of 72 ms.** The worktree write stays under it warm, at
-   65.3 ms (6.7 ms under); cold, at 177.3 ms, it is 105.3 ms over. The
-   main-checkout write stays under at 31.0 ms warm (41.0 ms under) and 34.0 ms
-   cold. The worktree rows sit about 34 ms above the main-checkout rows in both
-   binaries (66.8 against 31.9 before, 65.3 against 31.0 after). That gap was
-   there before the change, and this pass does not measure where it comes from.
+3. **Against the target of 72 ms, and what the gaps between the rows mean.** Warm,
+   both writes stay under the target: the worktree write at 65.3 ms (6.7 ms under),
+   the main-checkout write at 31.0 ms (41.0 ms under). The cold values of the two
+   groups are not comparable. The worktree cases ran first, so their cold run
+   (180.4 and 177.3 ms) is also the first start of each freshly built binary; the
+   main-checkout cold runs (33.2 and 34.0 ms) reused the cached binaries. The cold
+   figure therefore says nothing about the worktree write alone. The warm gap of
+   about 34–35 ms between the worktree and main-checkout rows (66.8 against 31.9
+   before, 65.3 against 31.0 after) is present in both binaries, so this change
+   does not cause it. By the code path it matches the two `git rev-parse` calls
+   that `declaredWikiRoot` → `sameRepository` makes for a worktree whose
+   `.loomux/config.toml` names a registered scope; the main checkout skips them
+   because its path equals the registered one (`path.go:468`). This pass did not
+   measure that attribution.
