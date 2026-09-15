@@ -19,7 +19,6 @@ type GateViolation struct {
 // neighbour is the last fallback of Root: a wiki next to the project, of the
 // same family (e.g. iam_backend -> iam_wiki) or of the same name.
 func neighbour(projectRoot string) string {
-	// 3. Neighbour wiki (e.g. iam_backend -> iam_wiki)
 	parent := filepath.Dir(projectRoot)
 	projectName := filepath.Base(projectRoot)
 

@@ -31,9 +31,10 @@ type file struct {
 // its user to ignore it.
 //
 // Damage is the opposite case and *is* an error. Read as "nothing to mirror",
-// a broken file would switch the mechanism off silently -- and the thing being
-// switched off is what puts `.ultraloom/vendor` in place, so the next symptom
-// would be every other hook failing for an unrelated-looking reason.
+// a broken file would switch the mechanism off silently -- and what is switched
+// off is every junction a worktree needs into the main checkout, so the next
+// symptom would be a directory that is simply missing from the worktree, with
+// nothing anywhere saying why.
 func Mirror(root string) ([]string, error) {
 	path := filepath.Join(root, ".loomux", "config.toml")
 	data, err := os.ReadFile(path)

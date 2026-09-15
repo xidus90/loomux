@@ -108,7 +108,7 @@ func TestReadClaudeAcceptsAMistypedEventName(t *testing.T) {
 	}
 }
 
-// A payload without a session id still reads: `recordBase` in cmd/guard files
+// A payload without a session id still reads: `recordBase` in internal/hooks files
 // no base then and says nothing, because there is nowhere to file it. That
 // decision lives in the hook, so the adapter must not refuse here. Checked
 // against _record_base in session_start.py (fa3dd38):43-59.

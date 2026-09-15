@@ -37,7 +37,9 @@ func TestCleanDropsGitsRepositoryPointers(t *testing.T) {
 	}
 }
 
-// Only what redirects git at a repository goes; the rest is the user's.
+// What goes is what redirects git at a repository, how it is configured and
+// whom it writes as -- the test above pins GIT_AUTHOR_NAME and the
+// GIT_CONFIG pairs among them. What stays is the user's own settings.
 func TestCleanKeepsGitsOtherVariables(t *testing.T) {
 	parent := []string{"GIT_EDITOR=vi", "GIT_TERMINAL_PROMPT=0"}
 	if got := Clean(parent); !slices.Equal(got, parent) {

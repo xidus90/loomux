@@ -1,12 +1,12 @@
-// Package check carries the result model of a check run: one finding, the two
-// axes it can belong to, and the three degrees of severity.
+// Package check carries the result model of a check run: one finding, the
+// three axes it can belong to, and the three degrees of severity.
 //
-// The two axes answer two different questions that used to share one name.
-// "okf" asks whether a foreign reader of the Open Knowledge Format may consume
-// this bundle; "house" asks whether it also satisfies the stricter rules of
-// this repository. A bundle can fail the second and still be perfectly
-// consumable, so a run that reported both under one verdict said less than it
-// seemed to.
+// The axes answer different questions that used to share one name. "okf" asks
+// whether a foreign reader of the Open Knowledge Format may consume this
+// bundle; "house" asks whether it also satisfies the stricter rules of this
+// repository. A bundle can fail the second and still be perfectly consumable,
+// so a run that reported both under one verdict said less than it seemed to.
+// "code" is the third, and it asks about the source rather than the bundle.
 package check
 
 import (

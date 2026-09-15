@@ -149,8 +149,8 @@ func run(t *testing.T, root string, args ...string) {
 	command.Dir = root
 	// The same strip the package under test uses, and for a measured reason
 	// rather than a hypothetical one: this project's `.githooks/pre-commit`
-	// runs `go test ./...` through `ultraloom check all`, and git exports
-	// GIT_DIR and GIT_INDEX_FILE to that hook. Both outrank command.Dir, so
+	// runs `go test ./...` itself, and git exports GIT_DIR and GIT_INDEX_FILE
+	// to that hook. Both outrank command.Dir, so
 	// unstripped these fixture calls would build their repository in, add to
 	// and commit into the repository being committed -- see the comment on
 	// gitenv.Location, where exactly that was measured on 2026-09-07.

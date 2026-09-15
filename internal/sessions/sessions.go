@@ -1,7 +1,7 @@
 // Package sessions counts the agent sessions standing on one working tree.
 //
 // One file per session under `.loomux/state/hooks/`, in the shape the Python hooks
-// write: `ulguard hook session-start` puts one down at session start -- it took
+// write: `loomux hook session-start` puts one down at session start -- it took
 // that over from `session_start.py` (fa3dd38), deleted in 6a7037a -- `stop.py`
 // rewrites it on every block and every pass, and `subagent_start.py` on every
 // subagent dispatch. Read here rather than through the Python side, because the reader is

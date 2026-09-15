@@ -32,7 +32,7 @@ type claudeAnswer struct {
 // a value of the wrong type reads as absent instead of as damage. That is not
 // laxity, it is where the decision belongs: payload.py's whole job is "is this
 // an object", and what counts as a usable session id is decided one layer up,
-// by `recordBase` in cmd/guard, which files nothing when there is no usable id
+// by `recordBase` in internal/hooks, which files nothing when there is no usable id
 // -- as `_record_base` in session_start.py (fa3dd38):52 did, returning without
 // a word when the id was not a string. A struct decode would refuse
 // `{"session_id": 5}` and exit 1 where the Python hook exited 0.

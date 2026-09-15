@@ -22,9 +22,9 @@ var knownLegacyHooks = []struct {
 	{"guard_paths.py", "superseded by 'loomux hook pre-tool-use'"},
 	{"format_on_edit.py", "superseded by 'loomux hook post-tool-use'"},
 	{"post_edit.py", "superseded by 'loomux hook post-tool-use'"},
-	{"wiki_gate.py", "superseded by 'brain wiki-gate' in Stop hook"},
+	{"wiki_gate.py", "superseded by 'loomux wiki-gate' in Stop hook"},
 	{"generate_index.py", "superseded by ultra-brain catalog/reindex and wiki-gate"},
-	{"lint.py", "superseded by 'brain lint' and 'loomux hook post-tool-use'"},
+	{"lint.py", "superseded by 'loomux lint' and 'loomux hook post-tool-use'"},
 }
 
 type LegacyFinding struct {
@@ -192,7 +192,7 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 		}
 	}
 	if hasStack("wiki") {
-		fmt.Fprintf(stdout, "     * *.md (in %s): brain lint <target-file>\n", wikiDir)
+		fmt.Fprintf(stdout, "     * *.md (in %s): loomux lint <target-file>\n", wikiDir)
 		fmt.Fprintln(stdout, "     * *.md (outside): [SKIPPED] Instant 0ms exit")
 	} else {
 		fmt.Fprintln(stdout, "     * *.md:           [SKIPPED] Instant 0ms exit (Wiki disabled)")
@@ -201,7 +201,7 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 
 	fmt.Fprintln(stdout, "\n[Stop] (Session End Gate)")
 	if hasStack("wiki") {
-		fmt.Fprintln(stdout, "  -> brain wiki-gate --root \"${CLAUDE_PROJECT_DIR}\" (Git-Drift & OKF Bundle Validation)")
+		fmt.Fprintln(stdout, "  -> loomux wiki-gate --root \"${CLAUDE_PROJECT_DIR}\" (Git-Drift & OKF Bundle Validation)")
 	} else {
 		fmt.Fprintln(stdout, "  -> No Stop-Hook configured (Wiki disabled)")
 	}

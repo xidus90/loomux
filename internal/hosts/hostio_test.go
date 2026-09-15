@@ -73,20 +73,11 @@ func TestFindRootResolvesARelativeStart(t *testing.T) {
 	if err := os.MkdirAll(deep, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// os.Chdir and not t.Chdir: the latter arrived in Go 1.24 and this module
-	// is on 1.22. Restored by defer, and no test here runs in parallel.
-	previous, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := os.Chdir(previous); err != nil {
-			t.Fatal(err)
-		}
-	}()
-	if err := os.Chdir(deep); err != nil {
-		t.Fatal(err)
-	}
+	// t.Chdir: it restores the directory itself and refuses a parallel test,
+	// which is the whole of what the hand-written save and defer here did. The
+	// reason for the hand-written form -- that the call arrived in Go 1.24 and
+	// this module was on 1.22 -- has not been true since go.mod says 1.25.0.
+	t.Chdir(deep)
 
 	got, err := hosts.FindRoot(".")
 	if err != nil {

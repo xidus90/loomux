@@ -51,8 +51,15 @@ func TestRunStatus(t *testing.T) {
 	if !strings.Contains(out, "ruff check") {
 		t.Fatalf("expected ruff check in output, got %s", out)
 	}
-	if !strings.Contains(out, "brain lint") {
-		t.Fatalf("expected brain lint in output, got %s", out)
+	// The lane is named by the command this binary carries. `brain lint` was a
+	// second binary and a Python environment, and this very report calls the
+	// old guard obsolete two sections down -- naming it as what loomux runs
+	// sent the reader to a tool that is gone.
+	if !strings.Contains(out, "loomux lint") {
+		t.Fatalf("expected the wiki lane to name 'loomux lint', got %s", out)
+	}
+	if strings.Contains(out, "brain lint") || strings.Contains(out, "brain wiki-gate") {
+		t.Fatalf("no line may name a retired binary as what loomux runs, got %s", out)
 	}
 	if !strings.Contains(out, "format_on_edit.py") {
 		t.Fatalf("expected legacy finding for format_on_edit.py, got %s", out)

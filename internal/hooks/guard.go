@@ -93,6 +93,19 @@ func matchGlob(pattern, path string) (bool, error) {
 	return filepath.Match(pattern, filepath.Base(path))
 }
 
+// relativePath names a target the way a rule spells one: relative to the
+// project root, with forward slashes.
+//
+// A target that will not relativise -- another volume, or a path outside the
+// root -- is matched as the absolute path it is, and that is a deliberate
+// half-answer rather than a fallback that works. Every rule carrying a slash
+// (`.aws/**`, `.claude/.no-verify`) stops matching such a target, because the
+// absolute path does not begin where the rule does; only the rules without a
+// slash, which are matched against the base name, still reach it. Those
+// targets are the write barrier's to decide, and it does: it resolves the path
+// and compares it with the registered trees, which is the question "is this
+// file even in this project" asked properly. The policy is about paths in the
+// project, so it answers about those and leaves the rest where the answer is.
 func relativePath(raw, root string) string {
 	raw = filepath.Clean(raw)
 	if !filepath.IsAbs(raw) {

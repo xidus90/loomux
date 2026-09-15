@@ -394,11 +394,10 @@ func parents(path string) []string {
 // 2026-09-13-schranke-memory-offen). In a mixed call the memory targets
 // are exempted only where the targets are compared with the writable
 // trees; a memory target inside a read-only zone is still refused by the
-// zone check. The other is a case's `proposal.md`: the review skill has to
-// put its suggestion
-// somewhere, and the review centre lives in the vault rather than in a
-// bundle. It is granted by file name, not by depth, because a scope may
-// carry slashes.
+// zone check. The exempted file name is a case's `proposal.md`: the review
+// skill has to put its suggestion somewhere, and the review centre lives in
+// the vault rather than in a bundle. It is granted by file name, not by depth,
+// because a scope may carry slashes.
 func Decide(payload map[string]any, stateDir string) (string, bool) {
 	toolName, args := Call(payload)
 	if !IsWritingTool(toolName) {

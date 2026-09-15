@@ -45,8 +45,9 @@ var ErrUnsupported = errors.New("junctions exist only on windows")
 // instead: ModeIrregular, no ModeSymlink. Both settings carry `Changed: 23` in
 // the toolchain's own `internal/godebugs/table.go`, so that is the default for
 // every `go` directive from 1.23 on -- and that path would answer "" for a
-// real junction, which is not an error a caller could notice. Bumping this
-// module's `go 1.22` line would silently turn the sweep blind. Widening the
+// real junction, which is not an error a caller could notice. This module's
+// `go 1.25.0` is past that line already, so the ioctl is not a precaution here
+// but the only thing keeping the sweep from being blind. Widening the
 // test to ModeIrregular is no answer either: the bit covers every other
 // reparse tag as well, and what Readlink makes of those was not measured here
 // -- which is reason enough not to route the sweep through it.

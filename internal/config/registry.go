@@ -160,7 +160,9 @@ func StateDir() string {
 // One measured difference to `_platform_default`: an empty XDG_STATE_HOME
 // yields the relative path 'brain' there, because `os.environ.get(key,
 // default)` returns the empty string it finds. os.Getenv cannot tell empty
-// from unset, so this function answers home/.local/state/brain for both.
+// from unset, so this function answers home/.local/state/loomux for both --
+// loomux, not brain: the directory is named after this binary everywhere
+// below, and only the Python side ever wrote 'brain'.
 func defaultStateDir(goos string, getenv func(string) string, home string) string {
 	if goos == "windows" {
 		if base := getenv("LOCALAPPDATA"); base != "" {

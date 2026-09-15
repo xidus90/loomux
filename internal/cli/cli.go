@@ -9,7 +9,11 @@ import (
 	"sort"
 )
 
-// Version is overwritten at build time with -ldflags "-X".
+// Version is what `loomux --version` answers. Nothing in this branch sets it:
+// the gate and the bootstrap both build with a plain `go build`, so every
+// binary of stage 1a says 0.0.0-dev. A release build would overwrite it with
+// -ldflags "-X github.com/xidus90/loomux/internal/cli.Version=…"; until such a
+// build exists, the literal below is the whole answer.
 var Version = "0.0.0-dev"
 
 type command func(args []string, stdin io.Reader, stdout, stderr io.Writer) int

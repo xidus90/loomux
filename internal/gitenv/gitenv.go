@@ -88,14 +88,17 @@ var numbered = []string{"GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"}
 // os.Environ spells them; anything without a separator is passed through
 // untouched, because a name we cannot read is not a name we can match.
 //
-// The match is case-sensitive, and the Python mirror image in
-// `src/ultraloom/gitenv.py` is not -- os.environ upper-cases its keys on
-// Windows, measured on 2026-09-08: after `os.environ["git_dir"] = "x"` the
-// only key that reads back is GIT_DIR, so a lowercase spelling is stripped
-// there and passed through here. Git writes the uppercase spelling, so
-// nothing has ever produced the difference; it stands written down because
-// the two modules describe each other as mirror images and this is the one
-// place they are not.
+// The match is case-sensitive, and `src/ultraloom/gitenv.py` is not --
+// os.environ upper-cases its keys on Windows, measured on 2026-09-08: after
+// `os.environ["git_dir"] = "x"` the only key that reads back is GIT_DIR, so a
+// lowercase spelling is stripped there and passed through here. Git writes the
+// uppercase spelling, so nothing has ever produced the difference.
+//
+// It is written down because the case was the *only* difference for as long as
+// the two lists were the same list. They are not: Location is ultra-brain's
+// wider one, which cuts identity and configuration as well as the repository
+// pointers, so the Python module is no mirror image of this one any more and
+// nothing here may be read off it.
 func Clean(parent []string) []string {
 	cleaned := make([]string, 0, len(parent))
 	for _, entry := range parent {

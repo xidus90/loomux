@@ -102,12 +102,13 @@ func (facts *Facts) readWiki(root fs.FS) {
 	}
 }
 
-// manifestNames is the manifest search order of internal/config.
-// The first file that can be read decides, and a later one is then never
-// consulted -- a repository carrying several is answered from the first alone.
+// manifestNames is the manifest search order of internal/config, which holds
+// one name: loomux has a single manifest. It stays a list because the search
+// is written as one -- the first file that can be read decides -- and a second
+// name would be added here and nowhere else.
 var manifestNames = []string{".loomux/config.toml"}
 
-// firstManifest returns the text of the first manifest brain would read.
+// firstManifest returns the text of the first manifest loomux would read.
 func firstManifest(root fs.FS) (string, bool) {
 	for _, name := range manifestNames {
 		if data, err := fs.ReadFile(root, name); err == nil {

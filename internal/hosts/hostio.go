@@ -69,7 +69,7 @@ type Payload struct {
 	// One string for two cases, and every adapter owes the caller this: a
 	// missing id and an id of the wrong type both arrive as "". Deciding
 	// between them is not the adapter's business -- what counts as a usable
-	// id is the hook's question, and `recordBase` in cmd/guard answers it by
+	// id is the hook's question, and `recordBase` in internal/hooks answers it by
 	// filing nothing. An adapter that refused a mistyped id instead would
 	// exit 1 where the Python hook exited 0.
 	SessionID string
