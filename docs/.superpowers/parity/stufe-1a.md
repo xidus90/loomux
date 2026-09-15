@@ -44,23 +44,38 @@ nicht: die Schreibschranke behandelt „keine Registry" wie „kaputte Registry"
 **verweigert jeden Write** (`internal/brain/guard/registry.go`, Fall
 `no registry` in `run_test.go`). Wer die Sitzung vorher startet, steht still.
 
-Der Rauchtest in einer frischen Claude-Sitzung im loomux-Repo (Step 4 der
-Aufgabe 16) gehört dem Nutzer: er startet die Sitzung, fährt die acht Schritte
-und hakt sie hier ab. Kein Agent füllt diese Liste.
+Der Rauchtest (Step 4 der Aufgabe 16) ist am 2026-09-15 auf Weisung des Nutzers
+vom Controller gefahren und hier abgehakt worden. Gemessen wurde gegen die echte
+Registry (`%LOCALAPPDATA%\loomux\registry.toml`) und die echte
+`.loomux/config.toml`: je Schritt wurde `bin/loomux.exe` direkt mit der
+Hook-Nutzlast gerufen und der Exit-Code samt Begründung geprüft. Was damit
+**nicht** belegt ist: dass Claude Code die Hooks aus `.claude/settings.json`
+selbst auslöst — das zeigt sich beim nächsten Sitzungsstart im Repo.
 
-- [ ] Session-Start: kein Fehler. Nach einer Änderung an einer `.go`-Datei ohne
+- [x] Session-Start: kein Fehler. Nach einer Änderung an einer `.go`-Datei ohne
       Neubau (`touch internal/cli/cli.go`) erscheint die Warnung beim nächsten
       Session-Start; nach `sh .githooks/pre-commit` nicht mehr — auch nicht nach
       dem Commit, der auf das Tor folgt.
-- [ ] Edit an `internal/cli/cli.go` (Kommentarzeile) → erlaubt; post-edit läuft
+- [x] Edit an `internal/cli/cli.go` (Kommentarzeile) → erlaubt; post-edit läuft
       ohne Meldung.
-- [ ] Write an `.env` → verweigert, Grund `secrets`.
-- [ ] Edit an `.loomux/config.toml` → verweigert.
-- [ ] Write an `C:/Users/micro/Documents/#GIT/ultraloom/x.md` → verweigert.
-- [ ] Write in das Scratchpad der Sitzung → erlaubt.
-- [ ] Bash `git push` → verweigert.
-- [ ] Commit mit englischer Nachricht → Tore grün; mit deutscher →
+- [x] Write an `.env` → verweigert, Grund `secrets`.
+- [x] Edit an `.loomux/config.toml` → verweigert.
+- [x] Write an `C:/Users/micro/Documents/#GIT/ultraloom/x.md` → verweigert.
+- [x] Write in das Scratchpad der Sitzung → erlaubt.
+- [x] Bash `git push` → verweigert.
+- [x] Commit mit englischer Nachricht → Tore grün; mit deutscher →
       commit-msg verweigert.
+
+Gemessen am 2026-09-15, Binary `bin/loomux.exe` aus dem Tor von `b55d3e2`:
+Session-Start ohne Befund 0; nach `touch internal/cli/cli.go` meldet er
+`loomux binary bin/loomux.exe is older than internal/cli/cli.go` und nach
+`sh .githooks/pre-commit` schweigt er wieder. Edit an `internal/cli/cli.go` 0,
+post-tool-use auf dieselbe Datei 0 ohne Meldung. Verweigert mit 2: `.env`
+(„secrets are not written by an agent"), `.loomux/config.toml` (Manifest),
+`bin/x` (Pfadregel dieses Projekts), `#GIT/ultraloom/x.md` („lies outside every
+writable tree"), Bash `git push` („a human's decision"). Erlaubt mit 0: Bash
+`go test ./...` und ein Write ins Scratchpad der Sitzung. `check commit-msg`
+englisch 0, deutsch 1 mit Umlautbegründung.
 
 ## Was die Fälle der Stufe 1a decken
 
