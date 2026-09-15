@@ -1,0 +1,125 @@
+package guard
+
+import (
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+)
+
+// readGitFile reads one of git's pointer files. A variable so that a test
+// can hold that a write the registry already opens reads none of them;
+// nothing outside a test writes it.
+var readGitFile = os.ReadFile
+
+// linkedWorktreeRoots is the root of every linked git worktree that holds
+// one of `targets` and belongs to the repository of a workspace area.
+//
+// Not in the Python barrier, where a worktree needed a registry entry of its
+// own (spec 2026-09-15-loomux-schranke-worktrees). A linked worktree is the
+// registered repository checked out a second time, so what `workspace` opens
+// in one it opens in the other. Git is read from its files instead of being
+// asked: `git rev-parse` took a 42 ms median on this machine, against a whole
+// hook of 24.5 ms.
+func linkedWorktreeRoots(targets []string, areas []area) []string {
+	commons := []string{}
+	for _, registered := range areas {
+		if !registered.workspace {
+			continue
+		}
+		if common := repositoryCommon(registered.path); common != "" {
+			commons = append(commons, common)
+		}
+	}
+	found := []string{}
+	for _, target := range targets {
+		if root := linkedWorktreeRoot(target, commons); root != "" {
+			found = append(found, root)
+		}
+	}
+	return found
+}
+
+// linkedWorktreeRoot is the nearest directory above `target` that is a
+// linked worktree sharing one of `commons`, or "".
+//
+// It climbs past a directory that does not match instead of stopping there:
+// a repository nested in a worktree lies below the worktree's root, just as
+// the same path in the main checkout lies below the registered tree.
+func linkedWorktreeRoot(target string, commons []string) string {
+	for _, directory := range parents(target) {
+		common := linkedCommon(directory)
+		if common == "" {
+			continue
+		}
+		if slices.ContainsFunc(commons, func(registered string) bool {
+			return pathsEqual(registered, common)
+		}) {
+			return directory
+		}
+	}
+	return ""
+}
+
+// repositoryCommon is the common git directory of the repository checked out
+// at `root`: its `.git` directory, or the one its `.git` file leads to where
+// the registration names a linked worktree itself. "" where `root` has
+// neither.
+func repositoryCommon(root string) string {
+	dotGit := filepath.Join(root, ".git")
+	if info, err := os.Stat(dotGit); err == nil && info.IsDir() {
+		return resolvedOrEmpty(dotGit)
+	}
+	return linkedCommon(root)
+}
+
+// linkedCommon is the common git directory of the linked worktree rooted at
+// `directory`, or "" where it is none.
+//
+// The back pointer is what makes a planted `.git` file worthless: a copy of a
+// real worktree's pointer names an administration directory whose `gitdir`
+// leads to the real worktree, not to the copy. A submodule and a
+// `--separate-git-dir` checkout carry a `.git` file as well, but no
+// `commondir`, and fall out on that.
+func linkedCommon(directory string) string {
+	dotGit := filepath.Join(directory, ".git")
+	admin := pointer(dotGit, "gitdir: ", directory)
+	if admin == "" {
+		return ""
+	}
+	back := pointer(filepath.Join(admin, "gitdir"), "", admin)
+	if back == "" || !pathsEqual(back, resolvedOrEmpty(dotGit)) {
+		return ""
+	}
+	return pointer(filepath.Join(admin, "commondir"), "", admin)
+}
+
+// pointer is the resolved path a git pointer file names, counted from `base`
+// where it is relative. "" where the file cannot be read, lacks `prefix`, or
+// names a path that does not resolve: each one means "not a worktree", and
+// that answer keeps the tree shut.
+func pointer(file, prefix, base string) string {
+	data, err := readGitFile(file)
+	if err != nil {
+		return ""
+	}
+	named, found := strings.CutPrefix(
+		strings.TrimRight(string(data), " \t\r\n"), prefix)
+	if !found {
+		return ""
+	}
+	if !filepath.IsAbs(named) {
+		named = filepath.Join(base, named)
+	}
+	return resolvedOrEmpty(named)
+}
+
+// resolvedOrEmpty is `resolvePath` where an error and no answer mean the
+// same thing: not this repository.
+func resolvedOrEmpty(path string) string {
+	resolved, err := resolvePath(path)
+	if err != nil {
+		return ""
+	}
+	return resolved
+}

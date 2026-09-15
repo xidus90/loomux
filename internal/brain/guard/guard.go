@@ -506,6 +506,20 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 	if len(outside) == 0 {
 		return "", false
 	}
+	// A linked worktree of a workspace is asked about only here, for the
+	// targets nothing else opened: a write inside a registered tree has
+	// already returned above and reads no git file. The zones were decided
+	// before, so a worktree root cannot reopen one, and "no root at all"
+	// cannot change -- a worktree root needs a workspace area, which is a
+	// root itself.
+	linked := linkedWorktreeRoots(outside, areas)
+	roots = append(roots, linked...)
+	outside = slices.DeleteFunc(outside, func(path string) bool {
+		return inside(path, linked)
+	})
+	if len(outside) == 0 {
+		return "", false
+	}
 	// Only now, for the same reason: finding the review centre reads a
 	// manifest per area and the overwhelmingly common call is a page
 	// inside a bundle.
