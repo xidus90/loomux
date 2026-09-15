@@ -984,3 +984,64 @@ func TestARootedTargetSpeltWithSlashesIsAnchoredAsWell(t *testing.T) {
 	rooted := filepath.ToSlash(zone[len(filepath.VolumeName(zone)):])
 	deny(t, writeCall(rooted), state, "read-only")
 }
+
+// --- the spelling that names a drive but no root -------------------------
+
+// TestADriveRelativeTargetIsRefused holds the barrier to the one Windows
+// spelling it used to answer about a place the write never reaches.
+//
+// `D:evil.txt` carries a volume and no root, so `filepath.IsAbs` says false
+// and `anchor` joins it onto the hook's working directory -- which
+// concatenates: `Join("D:\\work", "C:secrets.txt")` is `D:\\work\\C:secrets.txt`.
+// Windows resolves the spelling against *that drive's* own current directory
+// instead, so the write lands outside every registered tree while the barrier
+// was answering about a path inside one. `spelled` then folds the bogus
+// component to its part before the colon, which is what made the fake path a
+// component prefix of the workspace.
+//
+// No legitimate host sends this spelling, so the answer is a refusal rather
+// than a reimplementation of ntpath's per-drive current directories.
+func TestADriveRelativeTargetIsRefused(t *testing.T) {
+	if filepath.Separator != '\\' {
+		t.Skip("only Windows spells a path relative to a drive")
+	}
+	tmp := t.TempDir()
+	state := nestedOf(t, tmp)
+	// The working directory lies in the writable tree, which is the regular
+	// case and the one that made the defect visible: joining lands inside the
+	// tree that is open, so a barrier that joins allows.
+	work := filepath.Join(tmp, "vault", "91")
+	mkdir(t, work)
+	t.Chdir(work)
+	for _, target := range []string{"D:evil.txt", `C:foo\bar`} {
+		deny(t, writeCall(target), state, "cannot resolve this path")
+	}
+}
+
+func TestResolvePathRefusesAVolumeWithoutARoot(t *testing.T) {
+	if filepath.Separator != '\\' {
+		t.Skip("only Windows spells a path relative to a drive")
+	}
+	// The bare volume is the same spelling with nothing after it: `C:` is
+	// that drive's current directory, not its root.
+	for _, target := range []string{"D:evil.txt", `C:foo\bar`, "C:"} {
+		if _, err := resolvePath(target); err == nil {
+			t.Errorf("resolvePath(%q) answered a place", target)
+		}
+	}
+}
+
+func TestResolvePathKeepsTheRootedSpellingsItAlwaysTook(t *testing.T) {
+	if filepath.Separator != '\\' {
+		t.Skip("only Windows spells a path relative to a drive")
+	}
+	tmp := t.TempDir()
+	// A drive with a root, a rooted path without a drive and a relative one:
+	// the three spellings the refusal above must not touch.
+	rooted := tmp[len(filepath.VolumeName(tmp)):]
+	for _, target := range []string{tmp, rooted, "x.md"} {
+		if _, err := resolvePath(target); err != nil {
+			t.Errorf("resolvePath(%q): %v", target, err)
+		}
+	}
+}

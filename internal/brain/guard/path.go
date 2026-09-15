@@ -53,7 +53,13 @@ var errLinkCycle = errors.New("its links lead in a circle")
 // is the more permissive, and it is the right one: the runtime creates
 // `sub` and the file lands inside the tree the registration opens.
 // `tests/test_guard_parity.py` states both answers.
+//
+// One spelling is refused before any of that happens: a volume without a
+// root. `errDriveRelative` says why.
 func resolvePath(target string) (string, error) {
+	if err := rejectDriveRelative(target); err != nil {
+		return "", err
+	}
 	full := target
 	if !filepath.IsAbs(full) {
 		if cwd, err := os.Getwd(); err == nil {
@@ -179,6 +185,46 @@ func splitPath(path string) (head, name string) {
 		head = head[:len(head)-1]
 	}
 	return volume + head, name
+}
+
+// errDriveRelative says that a target names a volume but no root, so the
+// place it stands for is that volume's own current directory -- a directory
+// this process does not hold and cannot ask for.
+var errDriveRelative = errors.New(
+	"it names a volume without a root, so it points at that volume's own " +
+		"current directory")
+
+// rejectDriveRelative closes the spelling `D:evil.txt`, inherited verbatim
+// from ultra-brain along with `anchor`.
+//
+// `filepath.IsAbs` is false for it, so `anchor` joins it onto the working
+// directory -- and `filepath.Join` concatenates, answering
+// `D:\work\C:secrets.txt` for `Join("D:\\work", "C:secrets.txt")`. Windows
+// resolves the spelling against the current directory *of that drive*, so the
+// write lands somewhere this answer never looked, while `spelled` folds the
+// bogus component to what stands before its colon and lets the fake path pass
+// for a component prefix of a registered tree. Measured with the hook standing
+// inside a workspace: `Decide` answered ALLOW for `D:evil.txt` and the write
+// went to `D:\evil.txt`.
+//
+// Refusing is the fix rather than a reimplementation of ntpath's per-drive
+// current directories: nothing this process can read says where drive D
+// stands, and no legitimate host sends the spelling. `Decide` turns the error
+// into a refusal, which is the whole answer.
+//
+// A bare volume (`C:`, and a UNC share with nothing after it) takes the same
+// arm: it has no byte after the volume at all, and a directory is not a place
+// a write lands either.
+func rejectDriveRelative(target string) error {
+	volume := filepath.VolumeName(target)
+	if volume == "" {
+		return nil
+	}
+	rest := target[len(volume):]
+	if rest == "" || !os.IsPathSeparator(rest[0]) {
+		return errDriveRelative
+	}
+	return nil
 }
 
 // anchor is `join(cwd, path)` as `ntpath` performs it, which is not what
