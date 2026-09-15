@@ -5,6 +5,7 @@
 package hooks
 
 import (
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -64,27 +65,32 @@ var builtinCommands = sync.OnceValue(func() []config.CommandRule {
 // commandTools are the tools whose "command" argument is a shell line.
 var commandTools = map[string]bool{"Bash": true, "PowerShell": true}
 
-// matchGlob matches a slash-separated path against a glob pattern supporting `**`.
-func matchGlob(pattern, path string) bool {
+// matchGlob matches a slash-separated path against a glob pattern supporting
+// `**`, and answers an error for a pattern it cannot read.
+//
+// The error is not dropped, and that is the point. `config.ReadPolicy` refuses
+// a malformed glob at load, but its check -- `filepath.Match(glob, "")` --
+// stops at the first chunk that does not match an empty name, so a bad class in
+// a later chunk (`foo/*[x`) still arrives here. Treating that as "no match"
+// made the rule protect nothing without a word; the caller turns it into a
+// refusal instead.
+func matchGlob(pattern, path string) (bool, error) {
 	if pattern == path {
-		return true
+		return true, nil
 	}
 	// Direct wildcard suffix like .aws/**
 	if strings.HasSuffix(pattern, "/**") {
 		prefix := strings.TrimSuffix(pattern, "/**")
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
-			return true
+			return true, nil
 		}
 	}
 	if strings.Contains(pattern, "/") {
-		matched, _ := filepath.Match(pattern, path)
-		return matched
+		return filepath.Match(pattern, path)
 	}
 	// For patterns without slashes (e.g. *.pem or .env.* or uv.lock)
 	// they match either at the root or base name depending on rule semantics
-	base := filepath.Base(path)
-	matched, _ := filepath.Match(pattern, base)
-	return matched
+	return filepath.Match(pattern, filepath.Base(path))
 }
 
 func relativePath(raw, root string) string {
@@ -109,7 +115,16 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 			rel := relativePath(target, root)
 			for _, rule := range append(builtinPathRules, policy.Paths...) {
 				for _, glob := range rule.Match {
-					if matchGlob(glob, rel) {
+					matched, err := matchGlob(glob, rel)
+					if err != nil {
+						// A rule nobody can evaluate is a rule nobody can trust,
+						// and the call it would have judged goes no further.
+						reasons = append(reasons, fmt.Sprintf(
+							"loomux cannot read the glob %q of the rule %q, so it refuses: %v",
+							glob, rule.Reason, err))
+						break
+					}
+					if matched {
 						reasons = append(reasons, rule.Reason)
 						break
 					}

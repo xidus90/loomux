@@ -73,6 +73,31 @@ func TestAConfiguredPathRuleCarriesItsReason(t *testing.T) {
 	}
 }
 
+// A glob the matcher cannot read is a refusal, not a miss.
+//
+// Load-time validation catches nearly all of them, but not this one:
+// `filepath.Match(glob, "")` stops at the first chunk that does not match an
+// empty name, so a bad class in a later chunk reaches the matcher. Discarding
+// the error there turned the rule into one that protects nothing, without a
+// word -- the very defect the policy refuses at load.
+func TestAGlobTheMatcherCannotReadRefuses(t *testing.T) {
+	root := t.TempDir()
+	if _, err := config.ReadPolicy(root); err != nil {
+		t.Fatalf("an empty root carries no policy: %v", err)
+	}
+	policy := config.Policy{Paths: []config.PathRule{{
+		Match:  []string{`foo/*[x`},
+		Reason: "protects nothing",
+	}}}
+	reasons := checkTool(root, "Write", map[string]any{"file_path": "foo/bar.go"}, policy)
+	if len(reasons) != 1 || !strings.Contains(reasons[0], `foo/*[x`) {
+		t.Fatalf("reasons %v, want one naming the glob", reasons)
+	}
+	if !strings.Contains(reasons[0], "loomux cannot read") {
+		t.Fatalf("reason %q does not say the matcher could not read the glob", reasons[0])
+	}
+}
+
 // A notebook names its target under its own key, and every target of a call is
 // judged, not the first one found: the forbidden file_path beside the notebook
 // answers as well, each with its own reason.

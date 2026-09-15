@@ -128,6 +128,25 @@ func TestReadPolicyRefusesAPathRuleWithAnEmptyGlob(t *testing.T) {
 	}
 }
 
+// A glob that does not compile never matches either, and the rule then names
+// a path it does not protect. The regex half of the same defect is refused two
+// rules above; this is the path half.
+func TestReadPolicyRefusesAPathRuleWithAMalformedGlob(t *testing.T) {
+	for name, tc := range map[string]struct{ body, want string }{
+		"unclosed class":  {"match = \"secrets/[a-z.env\"", "glob #1 \"secrets/[a-z.env\" is malformed"},
+		"in a list":       {"match = [\"bin/*\", \"[\"]", "glob #2 \"[\" is malformed"},
+		"bare class open": {"match = \"a[\"", "glob #1 \"a[\" is malformed"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := writeConfig(t, "[[policy.paths.rules]]\n"+tc.body+"\nreason = \"x\"\n")
+			_, err := ReadPolicy(root)
+			if err == nil || !strings.Contains(err.Error(), "config.toml") || !strings.Contains(err.Error(), "[[policy.paths.rules]] #1 match: "+tc.want) {
+				t.Fatalf("err %v", err)
+			}
+		})
+	}
+}
+
 func TestReadPolicyRefusesAListElementThatIsNotAString(t *testing.T) {
 	root := writeConfig(t, "[[policy.paths.rules]]\nmatch = [\"bin/*\", 3]\nreason = \"x\"\n")
 	if _, err := ReadPolicy(root); err == nil || !strings.Contains(err.Error(), "is not a string") {
