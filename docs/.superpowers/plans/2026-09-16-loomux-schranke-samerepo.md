@@ -64,12 +64,15 @@ git rev-parse --short HEAD
 ```
 Expected: ein Hash; für den Benchmark-Eintrag notieren (Basis ist Code-gleich mit `e4e0dc2`).
 
-- [ ] **Step 3: Verzeichnis anlegen**
+- [ ] **Step 3: Verzeichnisse anlegen**
 
 ```bash
 mkdir -p "/c/Users/micro/AppData/Local/Temp/loomux-barrier/state"
 ```
-Expected: keine Ausgabe.
+```bash
+mkdir -p "/c/Users/micro/Documents/#GIT/loomux/.superpowers/sdd/2026-09-16-loomux-schranke-samerepo"
+```
+Expected: keine Ausgabe. Das zweite Verzeichnis nimmt die Commit-Nachrichtendateien der Tasks 1–3 auf.
 
 - [ ] **Step 4: `before.exe` bauen**
 

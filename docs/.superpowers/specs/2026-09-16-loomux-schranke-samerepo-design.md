@@ -143,8 +143,9 @@ Verwaltungsverzeichnis).
 Pythons `_same_repository` fragt `git rev-parse --git-common-dir` auf beiden Seiten. Die neue Form
 antwortet anders, wo git etwas liest, das nicht in den Zeigerdateien steht:
 
-- **`--separate-git-dir`-Checkout** (`.git`-Datei ohne `gitdir`/`commondir` im Ziel): git findet
-  das Repository, der Dateibefund nicht.
+- **`--separate-git-dir`-Checkout und Submodul** (`.git`-Datei ohne `gitdir`/`commondir` im Ziel):
+  git findet das Repository, der Dateibefund nicht. Beim Submodul gilt das auch für einen
+  registrierten Bereich darin: die Suche hält an dessen `.git` und steigt nicht ins Superprojekt.
 - **`core.worktree`** und andere Konfiguration, die die Lage des Arbeitsbaums verschiebt.
 - **`GIT_COMMON_DIR`, `GIT_DIR` und Verwandte:** `askGit` hat sie schon über `gitenv.Environ()`
   entfernt; der Dateibefund liest sie gar nicht. Keine Verhaltensänderung, aber jetzt ohne Kindprozess
