@@ -21,7 +21,9 @@ func TestIsoFormatLikePython(t *testing.T) {
 		{time.Date(2026, 9, 15, 8, 0, 0, 0, zone(-3630)), "2026-09-15T08:00:00-01:00:30"},
 		{time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC), "0001-01-01T00:00:00+00:00"},
 		{time.Date(9999, 12, 31, 23, 59, 59, 999999000, time.UTC), "9999-12-31T23:59:59.999999+00:00"},
-		// Go only: Python holds no nanoseconds, a datetime would have cut them.
+		// Go only: Python holds no nanoseconds. IsoFormat truncates below the
+		// microsecond; Python's fromtimestamp would round .123456789 to
+		// .123457 (measured), fromisoformat truncates to .123456.
 		{time.Date(2000, 1, 1, 0, 0, 0, 123456789, time.UTC), "2000-01-01T00:00:00.123456+00:00"},
 		{time.Date(2000, 1, 1, 0, 0, 0, 999, time.UTC), "2000-01-01T00:00:00+00:00"},
 	}

@@ -10,7 +10,10 @@ import (
 // `YYYY-MM-DDTHH:MM:SS`, `.ffffff` only when the microseconds are not zero,
 // and the offset as `±HH:MM`, with `:SS` only when it has seconds. Go keeps
 // nanoseconds and Python does not; the digits below the microsecond are
-// cut, as a datetime built from this time would have cut them.
+// truncated here. Python truncates them only in `fromisoformat`; its own
+// conversions, `fromtimestamp` and `now`, round to the nearest microsecond
+// and an exact tie to the even one (measured). No stamp reaches this
+// difference: ParseAwareIsoFormat never yields sub-microsecond digits.
 func IsoFormat(t time.Time) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%04d-%02d-%02dT%02d:%02d:%02d",
