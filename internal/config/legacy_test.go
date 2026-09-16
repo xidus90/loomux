@@ -153,19 +153,17 @@ func TestALegacyManifestCarriesItsPrivacy(t *testing.T) {
 }
 
 func TestALegacyManifestWithoutAScopeIsRefused(t *testing.T) {
-	// Wording and order of `read_manifest` (src/brain/manifest.py:21-24),
-	// measured: a missing table, a missing key and an empty string all give
-	// this one message, and it comes before the complaint about the mode.
-	for name, body := range map[string]string{
-		"no area table":  "[privacy]\nmode = \"local_only\"\n",
-		"no scope key":   "[area]\nname = \"x\"\n",
-		"empty scope":    "[area]\nscope = \"\"\n",
-		"and a bad mode": "[privacy]\nmode = \"bogus\"\n",
+	// An old name has no policy-only form, so a file without a scope is refused, and the scope is asked before the mode.
+	for name, row := range map[string]struct{ body, want string }{
+		"no area table":  {"[privacy]\nmode = \"local_only\"\n", `[area] is missing "scope"`},
+		"no scope key":   {"[area]\nname = \"x\"\n", `[area] is missing "scope"`},
+		"empty scope":    {"[area]\nscope = \"\"\n", `[area] scope must be a non-empty string, found ""`},
+		"and a bad mode": {"[privacy]\nmode = \"bogus\"\n", `[area] is missing "scope"`},
 	} {
 		dir := t.TempDir()
-		legacyWrite(t, dir, ".brain.toml", body)
+		legacyWrite(t, dir, ".brain.toml", row.body)
 		_, err := ReadAreaManifestUntilStage4(dir)
-		want := filepath.Join(dir, ".brain.toml") + ": [area] scope is required and must be a non-empty string"
+		want := filepath.Join(dir, ".brain.toml") + ": " + row.want
 		if err == nil || err.Error() != want {
 			t.Errorf("%s: err = %v, want %q", name, err, want)
 		}
@@ -207,18 +205,28 @@ func TestAnAreaTableWithoutAScopeInTheLoomuxManifestIsRefused(t *testing.T) {
 	// An [area] table is a declaration, so an empty one is a scope error for
 	// the loomux file and does not hand the decision to the .brain.toml
 	// beside it.
-	for name, body := range map[string]string{
-		"empty table": "[area]\n",
-		"empty scope": "[area]\nscope = \"\"\n",
+	for name, row := range map[string]struct{ body, want string }{
+		"empty table": {"[area]\n", `[area] is missing "scope"`},
+		"empty scope": {"[area]\nscope = \"\"\n", `[area] scope must be a non-empty string, found ""`},
 	} {
 		dir := t.TempDir()
-		legacyWrite(t, dir, filepath.Join(".loomux", "config.toml"), body)
+		legacyWrite(t, dir, filepath.Join(".loomux", "config.toml"), row.body)
 		legacyWrite(t, dir, ".brain.toml", "[area]\nscope = \"brain\"\n")
 		_, err := ReadAreaManifestUntilStage4(dir)
-		want := filepath.Join(dir, ".loomux", "config.toml") + ": [area] scope is required and must be a non-empty string"
+		want := filepath.Join(dir, ".loomux", "config.toml") + ": " + row.want
 		if err == nil || err.Error() != want {
 			t.Errorf("%s: err = %v, want %q", name, err, want)
 		}
+	}
+}
+
+func TestALegacyManifestIsCheckedWhole(t *testing.T) {
+	dir := t.TempDir()
+	legacyWrite(t, dir, ".brain.toml", "[area]\nscope = \"k\"\n\n[model]\nenabled = \"yes\"\n")
+	_, err := ReadAreaManifestUntilStage4(dir)
+	want := filepath.Join(dir, ".brain.toml") + ": [model] enabled must be a boolean, found string"
+	if err == nil || err.Error() != want {
+		t.Fatalf("err = %v, want %q", err, want)
 	}
 }
 

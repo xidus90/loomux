@@ -1,9 +1,12 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // legacyBrainDirEnvUntilStage3 points brain/* at another copy of
@@ -47,20 +50,28 @@ func legacyBrainDirUntilStage3For(goos string, getenv func(string) string, home 
 	return filepath.Join(filepath.Dir(defaultStateDir(goos, getenv, home)), "brain")
 }
 
-// ReadAreaManifestUntilStage4 reads an area's manifest under the name loomux writes, or under
-// one of ultra-brain's names until stage 4 moves the hosts: .loomux/config.toml, else
-// .ultra-brain/config.toml, else .brain.toml. Only brain/* calls it.
+// ReadAreaManifestUntilStage4 reads an area's declaration under the name loomux writes, or
+// under one of ultra-brain's names until stage 4 moves the hosts:
+// .loomux/config.toml, else .ultra-brain/config.toml, else .brain.toml. Only brain/* calls it.
 //
-// Expires with stage 4, when the area repositories carry
-// `.loomux/config.toml`. Until then a `local_only` area that still declares
-// itself in `.brain.toml` would be read as having no manifest, and its
-// privacy would go unseen. The write barrier and ReadManifest stay with the
-// one loomux name.
-//
-// Like `read_manifest` (src/brain/manifest.py:19-24) it refuses a manifest
-// without a non-empty `[area] scope`; the other checks Python makes there
-// are not repeated. A `.loomux/config.toml` without an `[area]` table
-// declares nothing, and the next name is asked.
+// The first name that is a regular file decides, and it is checked whole by
+// ReadDeclaration. A .loomux/config.toml without [area] is policy only and
+// the next name is asked; the old names have no such form, so there the
+// missing table is a missing scope.
 func ReadAreaManifestUntilStage4(dir string) (*Manifest, error) {
-	return readManifestAmong(dir, manifestNamesUntilStage4, true)
+	for _, name := range manifestNamesUntilStage4 {
+		path := filepath.Join(dir, name)
+		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		manifest, err := ReadDeclaration(path)
+		if errors.Is(err, ErrNoArea) {
+			if name == manifestNamesUntilStage4[0] {
+				continue
+			}
+			return nil, fmt.Errorf("%s: [area] is missing %q", path, "scope")
+		}
+		return manifest, err
+	}
+	return nil, fmt.Errorf("%s: %w (%s)", dir, ErrNoManifest, strings.Join(manifestNamesUntilStage4, ", "))
 }

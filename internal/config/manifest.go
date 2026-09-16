@@ -1,10 +1,12 @@
-// Package config reads the manifest in which an area declares itself.
+// Package config reads the registry and the manifest in which an area
+// declares itself.
 //
-// The Python side reads the same file through src/brain/manifest.py, and the
-// two readers answer different questions: Python validates the whole
-// declaration for the commands that write, this one supplies the few values
-// the Go checks need. What must not diverge is where the file is looked for
-// and which page types count as known -- both are noted at the places below.
+// There are two manifest readers, and the difference is deliberate.
+// ReadDeclaration checks a declaration whole and refuses it; brain and the
+// write barrier read through it. ReadManifest supplies the few values the
+// lint and the post-edit hook need and checks almost nothing, because both
+// read any error as "no manifest" and a stricter reader would switch their
+// wiki lane off without a word.
 package config
 
 import (
@@ -90,12 +92,15 @@ type LaneConfig struct {
 
 // Manifest holds the part of an area's declaration the Go checks read.
 type Manifest struct {
+	// Path is the file the declaration was read from; refusals name it.
+	Path            string
 	Scope           string
 	DeclaredTypes   []string
 	UntouchedDays   int
 	LayoutWiki      string
 	LayoutHub       string
 	LayoutReview    string
+	LayoutInbox     string
 	Lanes           []LaneConfig
 	PrivacyMode     string
 	NeverGlobs      []string
@@ -136,23 +141,15 @@ type manifestFile struct {
 
 // ReadManifest reads the manifest of the area rooted at repoRoot.
 func ReadManifest(repoRoot string) (*Manifest, error) {
-	return readManifestAmong(repoRoot, manifestNames, false)
+	return readManifestAmong(repoRoot, manifestNames)
 }
 
 // readManifestAmong reads the first of names below dir that is a regular
-// file. ReadManifest asks for the one loomux name and no scope;
-// ReadAreaManifestUntilStage4 asks for three names and a scope, and the
-// scope is asked before the mode because `read_manifest`
-// (src/brain/manifest.py:19-32) asks in that order -- a file wrong in both
-// is reported for its missing scope there.
-//
-// requireScope expires with stage 4, together with
-// ReadAreaManifestUntilStage4, its only caller that sets it. A
-// `.loomux/config.toml` without an `[area]` table is policy only and
-// declares nothing (stage 1a, R7a), so the scope reader asks the next name
-// instead of refusing it; the two old names have no such form, and
-// `read_manifest` refuses them without a scope.
-func readManifestAmong(dir string, names []string, requireScope bool) (*Manifest, error) {
+// file, for ReadManifest. It decodes into the typed wire shape and checks
+// only the privacy mode: the lint and the post-edit hook read a declaration
+// as "none" on any error, and a stricter reader would switch their wiki lane
+// off silently. The write barrier refuses a broken area declaration visibly.
+func readManifestAmong(dir string, names []string) (*Manifest, error) {
 	for _, name := range names {
 		path := filepath.Join(dir, name)
 		// Read first and stat only on failure, which is the order that makes
@@ -185,15 +182,6 @@ func readManifestAmong(dir string, names []string, requireScope bool) (*Manifest
 		if err != nil {
 			return nil, fmt.Errorf("%s: not valid TOML: %w", path, err)
 		}
-		if requireScope {
-			if name == manifestNames[0] && !meta.IsDefined("area") {
-				continue
-			}
-			if file.Area.Scope == "" {
-				return nil, fmt.Errorf("%s: [area] scope is required and must be a non-empty string", path)
-			}
-		}
-
 		if file.Privacy.Mode != "local_only" && file.Privacy.Mode != "manual_cloud" && file.Privacy.Mode != "automatic_cloud" {
 			return nil, fmt.Errorf("%s: [privacy] mode must be one of automatic_cloud, local_only, manual_cloud, found %q", path, file.Privacy.Mode)
 		}
@@ -217,6 +205,7 @@ func readManifestAmong(dir string, names []string, requireScope bool) (*Manifest
 		}
 
 		return &Manifest{
+			Path:            path,
 			Scope:           file.Area.Scope,
 			DeclaredTypes:   file.Wiki.Types,
 			UntouchedDays:   file.Wiki.UntouchedDays,
