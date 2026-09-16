@@ -190,7 +190,8 @@ func TestRankBroadSeedsOnMostlyDanglingGraph(t *testing.T) {
 	// 20k nodes without edges, 100 of them chained, every node seeded: the
 	// shape a common-word query takes on a real 32k-node graph. Pooled it
 	// costs ~9 ms; with the mass redistributed per dangling node it is
-	// O(dangling x seeds) and measured ~4.5 s on 2026-09-16.
+	// O(dangling x seeds) and measured ~4.5 s on 2026-09-16, both on the
+	// reference machine (AMD Ryzen 7 9800X3D).
 	const n = 20000
 	ids := make([]model.NodeID, 0, n)
 	for i := 0; i < n; i++ {
@@ -209,10 +210,18 @@ func TestRankBroadSeedsOnMostlyDanglingGraph(t *testing.T) {
 	got := pagerank.Rank(pagerank.Prepare(graphOf(ids, edges), nil), seeds, pagerank.Options{})
 	elapsed := time.Since(start)
 
-	if len(got) == 0 {
-		t.Fatal("got no scores")
+	if len(got) != n {
+		t.Fatalf("got %d scores, want %d -- every node is seeded, so every node keeps alpha*r and must be reported", len(got), n)
 	}
-	if elapsed > 3*time.Second {
-		t.Errorf("took %s -- dangling redistribution must not be O(dangling x seeds)", elapsed)
+	// The chained nodes gather the walk mass the dangling ones hand back, so a
+	// node inside the chain must outrank one outside it. This is the semantics
+	// the pooled redistribution has to preserve, and it fires even when the
+	// timing margin does not.
+	if scoreOf(got, "n50") <= scoreOf(got, "n19999") {
+		t.Errorf("chained node scores %v, isolated node %v -- the walk must still favour the connected cluster",
+			scoreOf(got, "n50"), scoreOf(got, "n19999"))
+	}
+	if elapsed > time.Second {
+		t.Errorf("took %s, want under 1s -- dangling redistribution must not be O(dangling x seeds)", elapsed)
 	}
 }

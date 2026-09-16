@@ -97,7 +97,8 @@ func Rank(t Topology, seed map[model.NodeID]float64, opts Options) []Scored {
 		// seeds in one pass, weighted like the restart distribution. Doing it
 		// per dangling node is the same arithmetic at O(dangling x seeds):
 		// measured 2026-09-16 on a graph of 20k nodes seeded broadly, that way
-		// costs ~4.5 s against ~9 ms pooled.
+		// costs ~4.5 s against ~9 ms pooled on the reference machine (AMD
+		// Ryzen 7 9800X3D).
 		if dangling > 0 {
 			dm := (1 - alpha) * dangling
 			for i, r := range restart {
