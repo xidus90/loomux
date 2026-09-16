@@ -225,3 +225,45 @@ func TestRankBroadSeedsOnMostlyDanglingGraph(t *testing.T) {
 		t.Errorf("took %s, want under 1s -- dangling redistribution must not be O(dangling x seeds)", elapsed)
 	}
 }
+
+func TestRankAlphaAtOrAboveOneFallsBackToTheDefault(t *testing.T) {
+	// An alpha of 1 teleports every step and leaves the neighbour at zero, so
+	// the clamp is visible in the result and not only in the option.
+	g := graphOf([]model.NodeID{"hub", "a"}, [][3]string{{"hub", "a", ""}})
+	topo := pagerank.Prepare(g, nil)
+	seeds := map[model.NodeID]float64{"hub": 1}
+	want := scoreOf(pagerank.Rank(topo, seeds, pagerank.Options{}), "a")
+
+	for _, alpha := range []float64{1, 1.5} {
+		got := scoreOf(pagerank.Rank(topo, seeds, pagerank.Options{Alpha: alpha}), "a")
+		if got != want {
+			t.Errorf("alpha %v: got a=%v, want %v -- an alpha outside (0,1) falls back to the default", alpha, got, want)
+		}
+	}
+}
+
+func TestRankIterationsLimitHowFarTheWalkSpreads(t *testing.T) {
+	// One power step carries mass from the seed to its direct neighbour and no
+	// further, so the second link of a chain stays unreached.
+	g := graphOf([]model.NodeID{"a", "b", "c"}, [][3]string{{"a", "b", ""}, {"b", "c", ""}})
+	topo := pagerank.Prepare(g, nil)
+	seeds := map[model.NodeID]float64{"a": 1}
+
+	if got := pagerank.Rank(topo, seeds, pagerank.Options{Iterations: 1}); has(got, "c") {
+		t.Errorf("got %v, want c absent -- one step reaches only the direct neighbour", got)
+	}
+	if got := pagerank.Rank(topo, seeds, pagerank.Options{}); !has(got, "c") {
+		t.Errorf("got %v, want c present -- the default iteration count walks the whole chain", got)
+	}
+}
+
+func TestRankNegativeSeedWeightIsIgnoredNotSubtracted(t *testing.T) {
+	// Summing a negative weight in would cancel the positive one, leave a total
+	// of zero and yield no result at all.
+	g := graphOf([]model.NodeID{"hub", "a"}, [][3]string{{"hub", "a", ""}})
+	got := pagerank.Rank(pagerank.Prepare(g, nil), map[model.NodeID]float64{"hub": 1, "a": -1}, pagerank.Options{})
+
+	if scoreOf(got, "hub") != 1 {
+		t.Errorf("got hub=%v, want 1 -- the one positive seed carries the whole restart mass", scoreOf(got, "hub"))
+	}
+}
