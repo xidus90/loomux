@@ -69,9 +69,11 @@ Fake-qmd (Beweis, nie nachbearbeitet), `testdata/cases/1b-1/` die Übersetzung,
 an der loomux gemessen wird. 71 Fälle über 23 Welten, gefahren von
 `internal/cli/cases_1b1_test.go`: `search` 15 (davon 2 nur Exit), `catalog` 14,
 `read` 14, `neighbors` 9, `status` 19 mit einer Welt je Zeilenart L1a–L8b.
-Von den 71 Fällen prüfen 35 nur den Exit-Code und ein leeres stdout -- jede
-Verweigerung, jeder Usage-, Registry- und Manifestfehler --; die übrigen 36
-vergleichen den Text, den loomux schreibt.
+Von den 71 Fällen vergleichen nur 34 den Text, den loomux schreibt: 35 prüfen
+den Exit-Code und ein leeres stdout -- jede Verweigerung, jeder Usage-,
+Registry- und Manifestfehler --, und die zwei `message`-Fälle
+(`brain-search/fast`, `brain-search/keyword`) prüfen den Exit-Code allein, denn
+ihr aufgezeichnetes stdout wird nie verglichen.
 Jeder Befehl hat seinen Erfolg, jede Verweigerung, einen Usage-Fehler und die
 Registry- und Manifestfehler; dazu die kaputte Registry, das Manifest mit
 falschem Typ und die scheiternde Suche.
