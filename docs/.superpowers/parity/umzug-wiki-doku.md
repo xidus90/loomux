@@ -30,10 +30,16 @@ leer, und der erste `reindex` prägt neue `doc_id`s.
 **A — die Quellenkette.** Jede verdichtete Seite trägt in der Frontmatter
 `resource`, `content_hash` und `revision` ihrer Quelle. Zwölf Ziele werden
 zitiert: die alte Architektur-Spec, zehn Pläne und `bench/2c1/entscheidung-46.md`
-(außerhalb von `docs/`, damit außerhalb dieser Liste). Elf der zwölf Prüfsummen
-stimmen heute noch, nur die der Architektur-Spec nicht. Nach dem Vorschlag
-unten liegen elf dieser Ziele im Archiv, die Verweise zeigen also ins Leere —
-und `reconcile`, das so etwas richtet, entsteht erst in Stufe 3.
+(außerhalb von `docs/`, damit außerhalb der Ausgangsliste). Elf der zwölf
+Prüfsummen stimmen heute noch, nur die der Architektur-Spec nicht.
+
+**Entschieden (Nutzer, 2026-09-16):** Die zitierten Quellen ziehen mit, damit
+die Kette prüfbar bleibt — byte-gleich, ohne Linkumschreibung in ihnen selbst;
+umgeschrieben wird nur die `resource`-Zeile der zitierenden Seite. Der
+`content_hash` läuft über den Inhalt, nicht über den Pfad, und überlebt den
+Umzug darum. Vorschlag für den Zielort: `docs/.superpowers/quellen/ub/`, damit
+die Rohquellen der alten Repos nicht mit loomux' eigenen Plänen vermischt
+werden.
 
 **B — die Kataloge.** Entschieden: Kataloge, Register, Audit und Protokoll
 ziehen nicht mit (siehe oben). Damit kollidiert nichts mehr, und vom
@@ -122,18 +128,18 @@ Frontmatter. Die Zeile gehört in der Fusions-Spec richtiggestellt.
 
 | Datei | Zeilen | Stand | Vorschlag | Begründung | Freigabe |
 |---|---:|---|---|---|---|
-| `ub/docs/.superpowers/plans/2026-08-18-scheibe-0-fundament.md` | 672 | 2026-08-19 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-20-scheibe-2a-abnahme.md` | 1058 | 2026-08-20 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-19-scheibe-1-indexer.md` | 1542 | 2026-08-20 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-20-scheibe-2a-suchkette.md` | 2234 | 2026-08-20 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-20-scheibe-2a-entscheidungen.md` | 65 | 2026-08-20 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-20-scheibe-2a-nacharbeit.md` | 713 | 2026-08-20 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-21-scheibe-2c1-daemon.md` | 1385 | 2026-08-21 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-21-scheibe-2b-messwerk.md` | 1693 | 2026-08-21 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
+| `ub/docs/.superpowers/plans/2026-08-18-scheibe-0-fundament.md` | 672 | 2026-08-19 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
+| `ub/docs/.superpowers/plans/2026-08-20-scheibe-2a-abnahme.md` | 1058 | 2026-08-20 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
+| `ub/docs/.superpowers/plans/2026-08-19-scheibe-1-indexer.md` | 1542 | 2026-08-20 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
+| `ub/docs/.superpowers/plans/2026-08-20-scheibe-2a-suchkette.md` | 2234 | 2026-08-20 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
+| `ub/docs/.superpowers/plans/2026-08-20-scheibe-2a-entscheidungen.md` | 65 | 2026-08-20 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
+| `ub/docs/.superpowers/plans/2026-08-20-scheibe-2a-nacharbeit.md` | 713 | 2026-08-20 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
+| `ub/docs/.superpowers/plans/2026-08-21-scheibe-2c1-daemon.md` | 1385 | 2026-08-21 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
+| `ub/docs/.superpowers/plans/2026-08-21-scheibe-2b-messwerk.md` | 1693 | 2026-08-21 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
 | `ub/docs/.superpowers/specs/2026-08-21-pruefkorpus-design.md` | 209 | 2026-08-21 | **behalten** | Methode des Fallkorpus, den 1b-1 benutzt | offen |
 | `ub/docs/.superpowers/specs/2026-08-21-scheibe-2b-messwerk-design.md` | 217 | 2026-08-21 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-21-pruefkorpus-v1.md` | 984 | 2026-08-21 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
-| `ub/docs/.superpowers/plans/2026-08-22-scheibe-2c2-mcp-fronten.md` | 1232 | 2026-08-22 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
+| `ub/docs/.superpowers/plans/2026-08-21-pruefkorpus-v1.md` | 984 | 2026-08-21 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
+| `ub/docs/.superpowers/plans/2026-08-22-scheibe-2c2-mcp-fronten.md` | 1232 | 2026-08-22 | **behalten** | Zitierte Rohquelle einer Wiki-Seite: zieht byte-gleich mit, damit der `content_hash` stimmt; nur die `resource`-Zeile der zitierenden Seite wird umgeschrieben | offen |
 | `ub/docs/.superpowers/specs/2026-08-21-scheibe-2c1-daemon-design.md` | 451 | 2026-08-22 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
 | `ub/docs/.superpowers/plans/2026-08-23-briefing-scheibe-3.md` | 108 | 2026-08-23 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
 | `ub/docs/.superpowers/plans/2026-08-23-pre-commit-kette.md` | 143 | 2026-08-23 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
@@ -194,6 +200,7 @@ Frontmatter. Die Zeile gehört in der Fusions-Spec richtiggestellt.
 | `ub/docs/.superpowers/plans/2026-09-13-schranke-memory-offen.md` | 784 | 2026-09-13 | **Archiv** | Arbeitspapier der alten Repos; loomux hat eigene Specs und Pläne | offen |
 | `ub/docs/.superpowers/specs/2026-09-13-schranke-memory-offen-design.md` | 210 | 2026-09-14 | **behalten** | Schranke, in loomux weiter gültig | offen |
 
+| `ub/bench/2c1/entscheidung-46.md` | 97 | 2026-08-22 | **behalten** | Zitierte Rohquelle von `syntheses/warum-fast-die-vorgabe-bleibt.md`; liegt außerhalb von `docs/` und stand darum nicht im Ausgangsbestand | offen |
 ## 6. Arbeitspapiere ultraloom (58 Dateien)
 
 | Datei | Zeilen | Stand | Vorschlag | Begründung | Freigabe |
