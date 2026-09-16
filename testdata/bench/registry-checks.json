@@ -1,0 +1,28 @@
+[
+  {
+    "name": "before: loomux hook pre-tool-use (Edit on README.md, real registry)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1/testdata/bench/edit-readme-main.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/AppData/Local/Temp/loomux-registry-bench/loomux-before.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux"]}]
+  },
+  {
+    "name": "after: loomux hook pre-tool-use (Edit on README.md, real registry)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1/testdata/bench/edit-readme-main.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1/bin/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux"]}]
+  },
+  {
+    "name": "before: loomux brain catalog (real registry)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/AppData/Local/Temp/loomux-registry-bench/loomux-before.exe", "brain", "catalog"]}]
+  },
+  {
+    "name": "after: loomux brain catalog (real registry)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1/bin/loomux.exe", "brain", "catalog"]}]
+  }
+]

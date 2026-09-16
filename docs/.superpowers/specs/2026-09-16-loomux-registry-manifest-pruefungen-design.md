@@ -1,7 +1,7 @@
 # loomux: Registry- und Manifestprüfungen an einer Stelle
 
 **Datum:** 2026-09-16
-**Stand:** entworfen, nicht umgesetzt
+**Stand:** umgesetzt (Plan 2026-09-16-loomux-registry-manifest-pruefungen.md), Paritätszeilen offen
 **Bezug:** [Stufe 1b-1](2026-09-15-loomux-stufe-1b-1-design.md), Paritätsliste
 `docs/.superpowers/parity/stufe-1b-1.md` Zeilen „Betriebssystemfehler im Wortlaut“, „Registry-Prüfungen“, „`[area] scope` als Nicht-Zeichenkette“, „Weitere Prüfungen von `read_manifest`“ (am 2026-09-16 mit Nachtrag „nachrüsten“ freigegeben); Schreibschranke aus Stufe 1a
 (`internal/brain/guard`). Basis ist `master` ab `e1b4343` (Stufe 1b-1 gemergt).

@@ -445,3 +445,61 @@ Starts aus dem Cache und zeilenübergreifend vergleichbar.
    Verlangsamung passen, die nur den Worktree trifft, bleibt aber eine offene
    Vermutung. Die Zuordnung stützt sich auf den Abstand innerhalb dieses Laufs,
    vorher 41,4 ms und nachher 4,1 ms.
+
+## 2026-09-16 22:13 — Registry- und Deklarationsprüfungen an einer Stelle
+
+Repository `loomux`, Worktree
+`C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1`,
+Branch `claude/recursing-bartik-b2d7a1`, Commit `222465b` (Task 5 des Plans
+`2026-09-16-loomux-registry-manifest-pruefungen`).
+
+**Ziel.** Zeigen, was die strengen Leser der Registry und der Bereichsdeklarationen
+an der Schreibschranke und an `brain catalog` kosten.
+
+**Methode.** `loomux dev bench-hooks testdata/bench/registry-checks.json -n 20`: je
+Fall ein kalter Lauf, dann 20 warme, gegen das echte Zustandsverzeichnis
+(`%LOCALAPPDATA%\loomux` mit 11 Areas, kein `LOOMUX_STATE_DIR`); der Schrankenfall
+editiert `C:/Users/micro/Documents/#GIT/loomux/README.md` mit `--root` auf dem
+Hauptcheckout. Binaries: `loomux-before.exe` gebaut aus `219ccb1` (dem Plan-Commit vor
+Task 2), `bin/loomux.exe` gebaut vom Pre-Commit-Gate auf `222465b`. Go-Benchmarks, je
+fünf Läufe, Median der fünf:
+`go test ./internal/brain/guard/ -run '^$' -bench DecideAgainstTheRealRegistry -benchtime 50x -benchmem -count 5`
+mit `LOOMUX_BENCH_REGISTRY` auf einer Kopie von `%LOCALAPPDATA%\loomux` und
+`LOOMUX_BENCH_TARGET=C:/Users/micro/Documents/#GIT/loomux/README.md`, sowie
+`go test ./internal/brain/search/ -run '^$' -bench VisibleAreasOfTheRealRegistry -benchtime 50x -benchmem -count 5`
+mit `LOOMUX_BENCH_REGISTRY` auf derselben Kopie und `LOOMUX_BENCH_LEGACY` auf
+`%LOCALAPPDATA%\brain`. „Vorher“ lief in Task 1 auf `219ccb1`, „nachher“ auf
+`222465b`, beide auf derselben Zustandskopie. Maschine: AMD Ryzen 7 9800X3D, Go
+`go1.27.0 windows/amd64`, GOMAXPROCS 16.
+
+| Fall | kalt (1. Lauf) | warmer Median | warmes Min | warmes Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| before: loomux hook pre-tool-use (Edit on README.md, real registry) | 73,7 ms | 35,5 ms | 33,1 ms | 47,7 ms | [0] |
+| after: loomux hook pre-tool-use (Edit on README.md, real registry) | 36,0 ms | 35,7 ms | 32,6 ms | 44,4 ms | [0] |
+| before: loomux brain catalog (real registry) | 39,5 ms | 35,6 ms | 33,0 ms | 44,5 ms | [0] |
+| after: loomux brain catalog (real registry) | 35,0 ms | 37,0 ms | 31,9 ms | 42,5 ms | [0] |
+
+| Benchmark | ns/op vorher | ns/op nachher | B/op vorher | B/op nachher | allocs/op vorher | allocs/op nachher |
+|---|---:|---:|---:|---:|---:|---:|
+| DecideAgainstTheRealRegistry | 1.596.244 | 1.384.310 | 137.694 | 140.757 | 1.277 | 1.327 |
+| VisibleAreasOfTheRealRegistry | 1.217.696 | 1.432.590 | 237.694 | 226.964 | 2.213 | 2.079 |
+
+### Lesart
+
+1. **Schranke, Ende zu Ende.** Nachher gegen vorher sind 35,7 ms gegen 35,5 ms warm
+   (0,2 ms mehr), mit überlappenden warmen Spannen (32,6–44,4 gegen 33,1–47,7).
+   Kalt sind es nachher 36,0 ms gegen 73,7 ms (37,7 ms weniger).
+2. **`brain catalog`, Ende zu Ende.** Nachher gegen vorher sind 37,0 ms gegen
+   35,6 ms warm (1,4 ms mehr), mit überlappenden warmen Spannen (31,9–42,5 gegen
+   33,0–44,5). Kalt sind es nachher 35,0 ms gegen 39,5 ms (4,5 ms weniger).
+3. **`DecideAgainstTheRealRegistry`.** 1.384.310 gegen 1.596.244 ns/op (211.934 ns
+   oder 13,3 % weniger); die fünf Läufe überlappen nicht (1.361.546–1.452.418 gegen
+   1.502.812–1.720.166). 140.757 gegen 137.694 B/op (2,2 % mehr), 1.327 gegen
+   1.277 allocs/op (50 oder 3,9 % mehr).
+4. **`VisibleAreasOfTheRealRegistry`.** 1.432.590 gegen 1.217.696 ns/op
+   (214.894 ns oder 17,6 % mehr); die fünf Läufe überlappen nicht
+   (1.395.594–1.503.752 gegen 1.146.422–1.388.878). 226.964 gegen 237.694 B/op
+   (4,5 % weniger), 2.079 gegen 2.213 allocs/op (134 oder 6,1 % weniger).
+5. **Gegen die Grenzen des Plans** (warmer Median der Schranke höchstens 3 ms mehr,
+   Go-Benchmarks höchstens 20 % mehr): Schranke +0,2 ms,
+   `DecideAgainstTheRealRegistry` −13,3 %, `VisibleAreasOfTheRealRegistry` +17,6 %.

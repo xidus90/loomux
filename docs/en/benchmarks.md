@@ -429,3 +429,61 @@ cold values here are cached starts and comparable across rows.
    would fit a slowdown that hits only the worktree, but that remains an open
    guess. The attribution rests on the gap within this run, 41.4 ms before and
    4.1 ms after.
+
+## 2026-09-16 22:13 — Registry and Declaration Checks in One Place
+
+Repository `loomux`, worktree
+`C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1`,
+branch `claude/recursing-bartik-b2d7a1`, commit `222465b` (Task 5 of the plan
+`2026-09-16-loomux-registry-manifest-pruefungen`).
+
+**Goal.** Show what the strict readers of the registry and the area declarations
+cost at the write barrier and at `brain catalog`.
+
+**Method.** `loomux dev bench-hooks testdata/bench/registry-checks.json -n 20`: one
+cold run per case, then 20 warm ones, against the real state directory
+(`%LOCALAPPDATA%\loomux` with 11 areas, no `LOOMUX_STATE_DIR`); the barrier case
+edits `C:/Users/micro/Documents/#GIT/loomux/README.md` with `--root` on the main
+checkout. Binaries: `loomux-before.exe` built from `219ccb1` (the plan commit before
+Task 2), `bin/loomux.exe` built by the pre-commit gate at `222465b`. Go benchmarks,
+five runs each, median of the five:
+`go test ./internal/brain/guard/ -run '^$' -bench DecideAgainstTheRealRegistry -benchtime 50x -benchmem -count 5`
+with `LOOMUX_BENCH_REGISTRY` on a copy of `%LOCALAPPDATA%\loomux` and
+`LOOMUX_BENCH_TARGET=C:/Users/micro/Documents/#GIT/loomux/README.md`, and
+`go test ./internal/brain/search/ -run '^$' -bench VisibleAreasOfTheRealRegistry -benchtime 50x -benchmem -count 5`
+with `LOOMUX_BENCH_REGISTRY` on the same copy and `LOOMUX_BENCH_LEGACY` on
+`%LOCALAPPDATA%\brain`. "Before" was run in Task 1 on `219ccb1`, "after" at
+`222465b`, both on the same state copy. Machine: AMD Ryzen 7 9800X3D, Go
+`go1.27.0 windows/amd64`, GOMAXPROCS 16.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: loomux hook pre-tool-use (Edit on README.md, real registry) | 73.7 ms | 35.5 ms | 33.1 ms | 47.7 ms | [0] |
+| after: loomux hook pre-tool-use (Edit on README.md, real registry) | 36.0 ms | 35.7 ms | 32.6 ms | 44.4 ms | [0] |
+| before: loomux brain catalog (real registry) | 39.5 ms | 35.6 ms | 33.0 ms | 44.5 ms | [0] |
+| after: loomux brain catalog (real registry) | 35.0 ms | 37.0 ms | 31.9 ms | 42.5 ms | [0] |
+
+| benchmark | ns/op before | ns/op after | B/op before | B/op after | allocs/op before | allocs/op after |
+|---|---:|---:|---:|---:|---:|---:|
+| DecideAgainstTheRealRegistry | 1,596,244 | 1,384,310 | 137,694 | 140,757 | 1,277 | 1,327 |
+| VisibleAreasOfTheRealRegistry | 1,217,696 | 1,432,590 | 237,694 | 226,964 | 2,213 | 2,079 |
+
+### Reading
+
+1. **Barrier, end to end.** After against before is 35.7 ms against 35.5 ms warm
+   (0.2 ms higher), with overlapping warm ranges (32.6–44.4 against 33.1–47.7).
+   Cold, after is 36.0 ms against 73.7 ms (37.7 ms lower).
+2. **`brain catalog`, end to end.** After against before is 37.0 ms against 35.6 ms
+   warm (1.4 ms higher), with overlapping warm ranges (31.9–42.5 against
+   33.0–44.5). Cold, after is 35.0 ms against 39.5 ms (4.5 ms lower).
+3. **`DecideAgainstTheRealRegistry`.** 1,384,310 against 1,596,244 ns/op (211,934 ns
+   or 13.3 % lower); the five runs do not overlap (1,361,546–1,452,418 against
+   1,502,812–1,720,166). 140,757 against 137,694 B/op (2.2 % more), 1,327 against
+   1,277 allocs/op (50 or 3.9 % more).
+4. **`VisibleAreasOfTheRealRegistry`.** 1,432,590 against 1,217,696 ns/op
+   (214,894 ns or 17.6 % higher); the five runs do not overlap (1,395,594–1,503,752
+   against 1,146,422–1,388,878). 226,964 against 237,694 B/op (4.5 % less), 2,079
+   against 2,213 allocs/op (134 or 6.1 % fewer).
+5. **Against the plan's limits** (barrier warm median at most 3 ms more, Go
+   benchmarks at most 20 % more): barrier +0.2 ms, `DecideAgainstTheRealRegistry`
+   −13.3 %, `VisibleAreasOfTheRealRegistry` +17.6 %.
