@@ -23,9 +23,10 @@ type VisibleArea struct {
 //
 // The registry comes from registryDir. The manifest of each area comes from
 // config.ManifestDir(area, legacyDir): a read-only area keeps it in
-// ultra-brain's state directory until stage 3. Python reads the manifest of
-// every registered area before it looks at scope, so the first registry or
-// manifest error ends the call, whichever area it belongs to.
+// ultra-brain's state directory until stage 3. Every registered area's
+// declaration is read and its inbox checked before scope and visibility are
+// asked, so the first registry or declaration error ends the call, whichever
+// area it belongs to -- a hidden area included.
 //
 // scope "all" answers every visible area in registry order. Any other scope
 // answers the visible areas of that name, or the UnknownScope error when there
@@ -39,6 +40,9 @@ func VisibleAreas(registryDir, legacyDir, scope string, ch Channel) ([]VisibleAr
 	for _, area := range areas {
 		manifest, seen, err := VisibleManifest(config.ManifestDir(area, legacyDir), ch)
 		if err != nil {
+			return nil, err
+		}
+		if _, err := manifest.InboxLayout(); err != nil {
 			return nil, err
 		}
 		if seen {
@@ -61,7 +65,8 @@ func VisibleAreas(registryDir, legacyDir, scope string, ch Channel) ([]VisibleAr
 }
 
 // Single is `_single` (src/brain/core.py:535-539): the first visible area of
-// that scope, or the UnknownScope error.
+// that scope, or the UnknownScope error. The registry refuses two entries of
+// one scope, so there is at most one.
 func Single(areas []VisibleArea, scope string) (VisibleArea, error) {
 	for _, entry := range areas {
 		if entry.Area.Scope == scope {

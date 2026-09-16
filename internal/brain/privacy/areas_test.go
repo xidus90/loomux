@@ -175,3 +175,31 @@ func TestUnknownScopeQuotesLikePython(t *testing.T) {
 		}
 	}
 }
+
+func TestVisibleAreasRefusesADuplicateScope(t *testing.T) {
+	registryDir, legacyDir := buildWorld(t,
+		registered{scope: "a", mode: "manual_cloud", manifestName: ".brain.toml"},
+		registered{scope: "a", mode: "local_only", manifestName: ".brain.toml"},
+	)
+	got, err := privacy.VisibleAreas(registryDir, legacyDir, "a", privacy.ChannelLocal)
+	if err == nil || got != nil || !strings.HasSuffix(err.Error(), `[[area]] #2: duplicate scope "a" (first at #1)`) {
+		t.Fatalf("got %v, %v; want the duplicate refused", got, err)
+	}
+}
+
+func TestVisibleAreasRefusesAnAbsoluteInboxEvenOfAHiddenArea(t *testing.T) {
+	// The reference checks every area's inbox while reading the registry,
+	// before visibility is asked, so a local_only area cannot hide a broken
+	// declaration from a cloud caller.
+	root := t.TempDir()
+	area := filepath.Join(root, "closed")
+	inbox := filepath.ToSlash(filepath.Join(root, "in"))
+	writeFile(t, filepath.Join(root, "state", "registry.toml"),
+		fmt.Sprintf("[[area]]\nscope = \"closed\"\npath = %q\n", filepath.ToSlash(area)))
+	writeFile(t, filepath.Join(area, ".brain.toml"),
+		fmt.Sprintf("[area]\nscope = \"closed\"\n\n[privacy]\nmode = \"local_only\"\n\n[layout]\ninbox = %q\n", inbox))
+	got, err := privacy.VisibleAreas(filepath.Join(root, "state"), filepath.Join(root, "legacy"), "all", privacy.ChannelCloud)
+	if err == nil || got != nil || !strings.Contains(err.Error(), "[layout] inbox must be relative to the area") {
+		t.Fatalf("got %v, %v; want the inbox refused", got, err)
+	}
+}
