@@ -86,8 +86,8 @@ ausgeschlossen, und Graft begründet das: eine Datei „enthält" jedes Symbol i
 ihr, als Kante machte sie jedes Geschwistersymbol zum Nachbarn und wirkte als
 falscher Hub.
 
-**Es gilt:** Das Modell kennt sechs Relationen. `WalkRelations` sind die fünf.
-`contains` wird dekodiert, weil das Schema es führt und jeder Lauf es
+**Es gilt:** Das Modell kennt sechs Relationen. Laufbar sind die fünf; die
+Frage beantwortet `Relation.IsWalk()`. `contains` wird dekodiert, weil das Schema es führt und jeder Lauf es
 ausschließen muss — nicht, weil ein Lauf darauf liefe.
 
 Der Blast-Radius eines Dateiknotens ist zwar die Vereinigung über die Symbole
@@ -146,7 +146,8 @@ Erzeuger umbenanntes Feld darf nicht stumm bis zum Aufrufer durchrutschen.
 
 `NodeID`, `Node` (ID, Name, Kind, Pfad, Span, Signatur, Owner), `Span`, `Edge`
 (Quelle, Ziel, Relation, Konfidenz), `Relation` mit den sechs Werten,
-`WalkRelations` mit den fünf, `Graph` als Bündel aus Knoten und Kanten.
+`Relation.IsWalk()` für die fünf laufbaren, `Graph` als Bündel aus Knoten und
+Kanten.
 
 Dazu eine Frage, die keinen Lauf braucht und deshalb hier steht:
 `SymbolsInFile(g, path)` gibt die Symbole einer Datei in Graphreihenfolge —
@@ -164,7 +165,7 @@ func Rank(t Topology, seed map[model.NodeID]float64, opts Options) []Scored
 ```
 
 `Prepare` scannt Knoten und Kanten einmal und baut die ungerichtete Adjazenz
-über `WalkRelations`; `Rank` rechnet darauf. Die Trennung ist Grafts
+über die laufbaren Relationen; `Rank` rechnet darauf. Die Trennung ist Grafts
 `preparePageRankTopology` nachgebildet und zahlt sich aus, sobald eine Abfrage
 mehrere Saaten über demselben Graphen fährt. `keep` ist der Teilgraph-Filter:
 eine Kante zählt nur, wenn beide Enden ihn passieren.
