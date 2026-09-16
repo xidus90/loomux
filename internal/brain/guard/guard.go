@@ -51,6 +51,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/config"
 )
 
 // writingTools is `WRITING_TOOLS`.
@@ -206,22 +208,17 @@ func reviewCentre(areas []area, stateDir string) string {
 			// and such an area carries nothing to compare.
 			continue
 		}
-		read, err := readManifest(declaration)
-		if errors.Is(err, errNoArea) {
+		read, err := config.ReadDeclaration(declaration)
+		if errors.Is(err, config.ErrNoArea) {
 			continue
 		}
 		if err != nil {
 			return ""
 		}
-		declared := read.layout["review"]
-		if !truthy(declared) {
+		if read.LayoutReview == "" {
 			continue
 		}
-		value, ok := declared.(string)
-		if !ok {
-			return ""
-		}
-		root := filepath.Join(registered.path, value)
+		root := filepath.Join(registered.path, read.LayoutReview)
 		// `is_relative_to` after `resolve`, not `is_absolute`: on Windows
 		// a rooted path without a drive is not called absolute while
 		// joining one still replaces the area's root, and the same test
@@ -297,21 +294,21 @@ func declaredWikiRoot(target string, areas []area) (string, error) {
 		}
 		// Read once and asked twice: a second read would be a second
 		// chance for the file to have changed between the two questions.
-		read, err := readManifest(declaration)
-		if errors.Is(err, errNoArea) {
+		read, err := config.ReadDeclaration(declaration)
+		if errors.Is(err, config.ErrNoArea) {
 			continue
 		}
 		if err != nil {
 			return "", err
 		}
-		registered, known := byScope[read.scope]
+		registered, known := byScope[read.Scope]
 		if !known || registered.readOnly {
 			continue
 		}
 		if !sameRepository(directory, registered.path) {
 			continue
 		}
-		place, err := wikiLayout(read.layout)
+		place, err := read.WikiLayout()
 		if err != nil {
 			return "", err
 		}

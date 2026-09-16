@@ -1,8 +1,6 @@
 package guard
 
 import (
-	"errors"
-	"io/fs"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -78,28 +76,6 @@ func TestAThresholdOfOneDayIsAcceptedAndZeroIsNot(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[wiki]\nuntouched_days = 0\n")
 	deny(t, target, state, "[wiki] untouched_days must be an integer >= 1")
-}
-
-func TestADriveIsOnlyADriveWithTheSeparatorBehindIt(t *testing.T) {
-	// Measured by running `wiki_layout`, value by value: `C:x` comes
-	// back untouched -- `PureWindowsPath("C:x").is_absolute()` is False,
-	// a drive-relative path is not an absolute one -- while `C:/` is
-	// refused. The pair holds both halves of the drive test: without the
-	// separator check `C:x` would be refused, and without the length
-	// check `C:/` would pass.
-	for value, want := range map[string]bool{
-		"C:x": true, "ab:/c": true, ":/x": true,
-		"C:/": false, "/srv/w": false, "//": false,
-	} {
-		got, err := wikiLayout(map[string]any{"wiki": value})
-		if want && (err != nil || got != value) {
-			t.Errorf("wikiLayout(%q) = %q, %v; wanted it kept", value,
-				got, err)
-		}
-		if !want && err == nil {
-			t.Errorf("wikiLayout(%q) was kept", value)
-		}
-	}
 }
 
 func TestARelativeTargetInsideTheBundleIsAllowed(t *testing.T) {
@@ -199,19 +175,18 @@ func TestTheLastCharacterOfThePlaneIsNoSurrogatePair(t *testing.T) {
 }
 
 func TestABrokenManifestSaysWhichDefectItFound(t *testing.T) {
-	// Each defect `readManifest` knows has its own answer, and a mutant that
+	// Each defect `config.ReadDeclaration` knows has its own answer, and a mutant that
 	// drops one of the early arms lets the file fall through to a later one:
-	// dropped TOML or `[area]`-shape errors reach "scope is required", and a
-	// dropped read error parses the empty data into a document without an
-	// area and answers errNoArea -- which every caller reads as "no
-	// manifest", so the barrier would open instead of refusing. A reason
-	// that names the wrong line sends the reader to the wrong file.
+	// dropped TOML or `[area]`-shape errors reach `is missing "scope"`. A
+	// declaration that cannot be read is config's to refuse; see
+	// TestADeclarationThatCannotBeReadIsNoAbsence there. A reason that names
+	// the wrong line sends the reader to the wrong file.
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
 	target := writeCall(filepath.Join(tmp, "vault", "demo", "x.md"))
 	for body, want := range map[string]string{
 		"not = [toml\n":                        "not valid TOML",
-		"area = \"x\"\n":                       "[area] must be a table",
+		"area = \"x\"\n":                       "[area] must be a table, found string",
 		"[area]\nscope = \"project/demo\"\n\n": "",
 	} {
 		write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"), body)
@@ -220,15 +195,9 @@ func TestABrokenManifestSaysWhichDefectItFound(t *testing.T) {
 			continue
 		}
 		reason := deny(t, target, state, want)
-		if strings.Contains(reason, "scope is required") {
+		if strings.Contains(reason, "is missing \"scope\"") {
 			t.Fatalf("the wrong defect was named: %q", reason)
 		}
-	}
-	// And the read error, which no caller can reach through a stat that
-	// succeeded -- so it is asked of the function.
-	_, err := readManifest(filepath.Join(tmp, "gone.toml"))
-	if errors.Is(err, errNoArea) || !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("a missing manifest answered %v", err)
 	}
 }
 
@@ -260,52 +229,19 @@ func TestAnUnreadableGitFileMakesNoTwoTreesOneRepository(t *testing.T) {
 		"the registry declares no writable wiki path and no workspace")
 }
 
-func TestAValueOfNothingButDotsAndSlashesNamesTheRoot(t *testing.T) {
-	// `PurePosixPath("./").parts` is empty, so `wiki_layout` refuses it
-	// as the repository root -- measured, along with `.`, `./.` and
-	// `.//`. This is the pair `namesAPart` needs both halves for: `"./"`
-	// splits into `"."` and `""`, and a test that only refused the `"."`
-	// would take the empty component for a name and hand the whole
-	// repository over as the declared bundle. Reached, unlike `"//"`,
-	// because nothing about `"./"` looks absolute to `escapes`.
-	for _, value := range []string{".", "./", ".//", "./.", "a/../.."} {
-		if got, err := wikiLayout(
-			map[string]any{"wiki": value}); err == nil {
-			t.Errorf("wikiLayout(%q) = %q, want a refusal", value, got)
-		}
-	}
-}
-
 func TestAMissingKeyIsBlamedOnTheEntryThatCanBeFound(t *testing.T) {
-	// `entry.get("scope", entry)` names the scope where there is one and
-	// falls back to the whole entry where there is not, so the reader can
-	// find the line they wrote. Measured on both shapes:
-	//
-	//   [[area]] entry 'project/demo' is missing the 'path' key
-	//   [[area]] entry {'path': '/x'} is missing the 'scope' key
-	//
-	// A mutant that took the fallback whenever a scope *was* present left
-	// the refusal standing and named a table instead of the name -- the
-	// one piece of information the message exists to carry.
+	// Where the scope is known the entry is named by it; where it is the
+	// missing key, by its position.
 	tmp := t.TempDir()
 	state := filepath.Join(tmp, "state")
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"project/demo\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"[[area]] entry 'project/demo' is missing the 'path' key")
-	// The other way round the scope cannot be named, and the entry has
-	// to stand in for it. Only that it is *not* the empty answer is held
-	// here: Go has no order in a map, so the rendering of a table is a
-	// documented difference to Python's.
-	write(t, filepath.Join(state, "registry.toml"), "[[area]]\npath = \"/x\"\n")
-	reason := deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"is missing the 'scope' key")
-	if strings.Contains(reason, "entry None is missing") {
-		t.Fatalf("the entry was named as nothing: %q", reason)
-	}
-	if !strings.Contains(reason, "/x") {
-		t.Fatalf("the entry itself was not named: %q", reason)
-	}
+		`[[area]] "project/demo" is missing "path"`)
+	write(t, filepath.Join(state, "registry.toml"),
+		"[[area]]\nscope = \"a\"\npath = \"/a\"\n\n[[area]]\npath = \"/x\"\n")
+	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
+		`[[area]] #2 is missing "scope"`)
 }
 
 func TestASubdirectoryOfTheRegisteredRepositoryIsNoWorktreeOfIt(t *testing.T) {
