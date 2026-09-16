@@ -268,3 +268,57 @@ above, both with Go `go1.27.0 windows/amd64`.
    `.loomux/config.toml` names a registered scope; the main checkout skips them
    because its path equals the registered one (`path.go:468`). This pass did not
    measure that attribution.
+   The entry of 2026-09-16 19:32 below measures it.
+
+## 2026-09-16 19:32 — sameRepository Without git rev-parse
+
+Repository `loomux`, branch `claude/cranky-kilby-f5a456`, commit `ee1aadf`;
+measured worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1` at `9ca6364`.
+
+**Goal.** Test the attribution the entry of 2026-09-15 15:39 left open: that the
+warm gap of about 34 ms between a write in a linked worktree and one in the main
+checkout is the two `git rev-parse --git-common-dir` calls `sameRepository` made.
+This change reads git's pointer files instead.
+
+**Method.** `loomux dev bench-hooks testdata/bench/barrier-worktrees.json -n 20`:
+one cold run per case, then 20 warm ones. `LOOMUX_STATE_DIR` points at a copy of the
+registry that registers only the main checkout (`workspace = true`). Binaries:
+`before.exe` built from `3855de4` (code identical to
+`e4e0dc2`), `after.exe` built from the commit above, both with Go `go1.27.0 windows/amd64`.
+Both binaries allow the worktree write; the case names are those of 2026-09-15.
+The table shows the second of two runs. The first (19:31) was started while
+`after.exe` was still being built, so it is not shown; its warm medians lie within
+3 ms of these (worktree 73.8 and 31.3 ms, main checkout 30.3 and 32.0 ms). Because
+both binaries had already started once, all four cold values here are cached
+starts and comparable across rows.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: Write in linked worktree, no registry entry | 79.4 ms | 72.8 ms | 70.6 ms | 94.4 ms | [0] |
+| after: Write in linked worktree, no registry entry | 37.9 ms | 34.6 ms | 31.4 ms | 41.6 ms | [0] |
+| before: Edit on README.md in main checkout | 34.2 ms | 31.4 ms | 28.2 ms | 34.4 ms | [0] |
+| after: Edit on README.md in main checkout | 32.2 ms | 30.5 ms | 28.6 ms | 35.9 ms | [0] |
+
+### Reading
+
+1. **Worktree: the write drops by more than half.** After against before is
+   34.6 ms against 72.8 ms warm (38.2 ms lower) and 37.9 ms against 79.4 ms cold
+   (41.5 ms lower). The warm ranges do not overlap (31.4–41.6 against 70.6–94.4).
+   The gap to the main checkout was 41.4 ms before (72.8 against 31.4) and is
+   4.1 ms after (34.6 against 30.5), with overlapping warm ranges (31.4–41.6
+   against 28.6–35.9). Those 4.1 ms are within run-to-run variation: in the first
+   run the worktree write after (31.3 ms) was below the main-checkout write after
+   (32.0 ms).
+2. **Main checkout: noise.** After against before is 30.5 ms against 31.4 ms warm
+   (0.9 ms lower) and 32.2 ms against 34.2 ms cold (2.0 ms lower), with warm ranges
+   that overlap (28.6–35.9 against 28.2–34.4). `sameRepository` returns there
+   before it reads any of git's files, because the checkout's path equals the
+   registered one.
+3. **The attribution: confirmed.** The worktree write falls by 38.2 ms warm, about
+   the gap it had to the main checkout (41.4 ms in this run, about 34 ms on
+   2026-09-15), and what remains of the gap is within noise. The gap was the two
+   `git rev-parse` calls. Against the target of 72 ms: the worktree write after is
+   37.4 ms under it. `before.exe` in this run is 0.8 ms over it (72.8 ms) and
+   6.0 ms above the 66.8 ms the entry of 2026-09-15 measured for the refusing
+   binary of then; its warm maximum of 94.4 ms (93.9 ms in the first run) suggests
+   load on the machine, possibly from another session in the measured worktree.

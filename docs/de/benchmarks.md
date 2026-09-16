@@ -277,3 +277,59 @@ mit Go `go1.27.0 windows/amd64`.
    einen Worktree macht, dessen `.loomux/config.toml` einen registrierten Scope
    nennt; der Hauptcheckout überspringt sie, weil sein Pfad dem registrierten
    gleicht (`path.go:468`). Diese Zuordnung hat dieser Durchgang nicht gemessen.
+   Der Eintrag vom 2026-09-16 19:32 unten misst sie.
+
+## 2026-09-16 19:32 — sameRepository ohne git rev-parse
+
+Repository `loomux`, Branch `claude/cranky-kilby-f5a456`, Commit `ee1aadf`;
+gemessener Worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1` auf `9ca6364`.
+
+**Ziel.** Die Zuordnung prüfen, die der Eintrag vom 2026-09-15 15:39 offen ließ:
+dass der warme Abstand von rund 34 ms zwischen einem Write in einem verknüpften
+Worktree und einem im Hauptcheckout die zwei `git rev-parse --git-common-dir`-Aufrufe
+sind, die `sameRepository` machte. Diese Änderung liest stattdessen gits
+Zeigerdateien.
+
+**Methode.** `loomux dev bench-hooks testdata/bench/barrier-worktrees.json -n 20`:
+je Fall ein kalter Lauf, dann 20 warme. `LOOMUX_STATE_DIR` zeigt auf eine Kopie der
+Registry, die nur den Hauptcheckout registriert (`workspace = true`). Binaries:
+`before.exe` gebaut aus `3855de4` (Code identisch mit `e4e0dc2`), `after.exe`
+gebaut aus dem Commit oben, beide mit Go `go1.27.0 windows/amd64`. Beide Binaries
+erlauben den Worktree-Write; die Fallnamen sind die vom 2026-09-15. Die Tabelle
+zeigt den zweiten von zwei Läufen. Der erste (19:31) wurde gestartet, während
+`after.exe` noch gebaut wurde, und ist deshalb nicht gezeigt; seine warmen Mediane
+liegen höchstens 3 ms neben diesen (Worktree 73,8 und 31,3 ms, Hauptcheckout 30,3
+und 32,0 ms). Weil beide Binaries schon einmal gestartet waren, sind alle vier
+Kaltwerte hier Starts aus dem Cache und zeilenübergreifend vergleichbar.
+
+| Fall | kalt (1. Lauf) | warmer Median | warmes Min | warmes Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| before: Write in linked worktree, no registry entry | 79,4 ms | 72,8 ms | 70,6 ms | 94,4 ms | [0] |
+| after: Write in linked worktree, no registry entry | 37,9 ms | 34,6 ms | 31,4 ms | 41,6 ms | [0] |
+| before: Edit on README.md in main checkout | 34,2 ms | 31,4 ms | 28,2 ms | 34,4 ms | [0] |
+| after: Edit on README.md in main checkout | 32,2 ms | 30,5 ms | 28,6 ms | 35,9 ms | [0] |
+
+### Lesart
+
+1. **Worktree: der Write fällt auf weniger als die Hälfte.** Nachher gegen vorher
+   sind warm 34,6 ms gegen 72,8 ms (38,2 ms weniger) und kalt 37,9 ms gegen
+   79,4 ms (41,5 ms weniger). Die warmen Spannen überlappen nicht (31,4–41,6 gegen
+   70,6–94,4). Der Abstand zum Hauptcheckout war vorher 41,4 ms (72,8 gegen 31,4)
+   und ist nachher 4,1 ms (34,6 gegen 30,5), bei überlappenden warmen Spannen
+   (31,4–41,6 gegen 28,6–35,9). Diese 4,1 ms liegen in der Schwankung zwischen
+   Läufen: im ersten Lauf lag der Worktree-Write nachher (31,3 ms) unter dem Write
+   im Hauptcheckout nachher (32,0 ms).
+2. **Hauptcheckout: Rauschen.** Nachher gegen vorher sind warm 30,5 ms gegen
+   31,4 ms (0,9 ms weniger) und kalt 32,2 ms gegen 34,2 ms (2,0 ms weniger), bei
+   warmen Spannen, die einander überlappen (28,6–35,9 gegen 28,2–34,4).
+   `sameRepository` kehrt dort zurück, bevor es eine von gits Dateien liest, weil
+   der Pfad des Checkouts dem registrierten gleicht.
+3. **Die Zuordnung: bestätigt.** Der Worktree-Write fällt warm um 38,2 ms, etwa um
+   den Abstand, den er zum Hauptcheckout hatte (41,4 ms in diesem Lauf, rund 34 ms
+   am 2026-09-15), und was vom Abstand bleibt, liegt im Rauschen. Der Abstand waren
+   die zwei `git rev-parse`-Aufrufe. Gegen den Zielwert von 72 ms: der Worktree-Write
+   nachher liegt 37,4 ms darunter. `before.exe` liegt in diesem Lauf 0,8 ms darüber
+   (72,8 ms) und 6,0 ms über den 66,8 ms, die der Eintrag vom 2026-09-15 für das
+   damals verweigernde Binary maß; sein warmes Maximum von 94,4 ms (93,9 ms im
+   ersten Lauf) deutet auf Last auf dem Rechner, womöglich durch eine andere
+   Sitzung im gemessenen Worktree.

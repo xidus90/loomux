@@ -112,7 +112,7 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe 1a Pilot abgeschl
 | Säule / Funktion | Beschreibung | Status |
 |---|---|---|
 | **1. Hooks & Wächter** | | |
-| Einheitlicher Pre-Tool Wächter | Prüfung von Schreibschranken, Pfadregeln und verbotenen Befehlen (< 35 ms Zielbudget; 32–34 ms gemessen am Vorgänger). Verknüpfte Git-Worktrees eines registrierten Workspace sind ohne eigenen Registry-Eintrag beschreibbar. | ✅ **Implementiert** (Stufe 1a) |
+| Einheitlicher Pre-Tool Wächter | Prüfung von Schreibschranken, Pfadregeln und verbotenen Befehlen (< 35 ms Zielbudget; 32–34 ms gemessen am Vorgänger; ein Write in einem verknüpften Worktree gemessen 34,6 ms warm (2026-09-16)). Verknüpfte Git-Worktrees eines registrierten Workspace sind ohne eigenen Registry-Eintrag beschreibbar. | ✅ **Implementiert** (Stufe 1a) |
 | Post-Tool Blast Monitor | Blitzschnelles Hashing geänderter Dateien und Warnung bei berührten Aufrufern. | 🚧 **In Migration** (Stufe 1b) |
 | Sitzungs- & Drift-Überwachung | `session-start`-Frischeprüfung, Subagent-Drifterkennung und Block-Zähler im Stop-Tor. | 🚧 **In Migration** (Stufe 1b) |
 | Prüfkette (`[verify]`) | Konfigurierbare Prüftabelle: Parallele Test-Lanes, commit-msg-Kalibrierung, Coverage-Tor. | ✅ **Implementiert** (Stufe 1a) |
