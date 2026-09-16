@@ -13,10 +13,17 @@ alten Repo liegen, wird nicht kopiert).
 und in der Registry (`wiki = ".../loomux/docs/wiki"`). Das Verzeichnis gibt es
 noch nicht; sobald es entsteht, laufen `lint` und `wiki gate` darüber.
 
-Nach der Freigabe wird kopiert: Seiten samt `_identities.tsv`, Bereich
-`project/loomux`, Links `brain://project/ultra-brain/…` und
-`brain://project/ultraloom/…` umgeschrieben. Der Suchindex folgt erst mit
-`reindex` — der Befehl entsteht in Stufe 3.
+Nach der Freigabe wird kopiert: die Inhaltsseiten, Bereich `project/loomux`,
+Links `brain://project/ultra-brain/…` und `brain://project/ultraloom/…`
+umgeschrieben. Der Suchindex folgt erst mit `reindex` — der Befehl entsteht in
+Stufe 3.
+
+**Entscheidung des Nutzers (2026-09-16):** Was neu erzeugt werden kann, zieht
+nicht mit, und was nur die alten Systeme beschreibt, ebenso wenig. Das trifft
+die fünf `index.md` und `_identities.tsv` (Artefakte: `render_catalog` und
+`reindex` schreiben sie), `audit.md` (leerer Platzhalter) und `log.md`
+(Protokoll der alten Bundle-Arbeit). Folge: das Protokoll beginnt in loomux
+leer, und der erste `reindex` prägt neue `doc_id`s.
 
 ## Vor den Zeilen: zwei Entscheidungen
 
@@ -28,9 +35,11 @@ stimmen heute noch, nur die der Architektur-Spec nicht. Nach dem Vorschlag
 unten liegen elf dieser Ziele im Archiv, die Verweise zeigen also ins Leere —
 und `reconcile`, das so etwas richtet, entsteht erst in Stufe 3.
 
-**B — die Kataloge.** Beide Bundles bringen `index.md`, `log.md`, `audit.md`,
-`_schema.md` und `_identities.tsv` mit; im Zielbereich kann es jede Datei nur
-einmal geben.
+**B — die Kataloge.** Entschieden: Kataloge, Register, Audit und Protokoll
+ziehen nicht mit (siehe oben). Damit kollidiert nichts mehr, und vom
+ul-Bundle bleibt nichts übrig — es besteht nur aus diesen fünf Dateien.
+Offen bleibt allein `_schema.md`: es ist keine erzeugte Datei, sondern das
+Regelwerk des Bundles, und loomux braucht eines.
 
 **Berichtigung der Spec:** sie nennt „`_identities.tsv` (10 und 1)". Beide
 Register enthalten nur die Kopfzeile; die Identitäten stehen je Seite in der
@@ -43,18 +52,18 @@ Frontmatter. Die Zeile gehört in der Fusions-Spec richtiggestellt.
 | `ub/docs/wiki/topics/wiki-schicht.md` | 113 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
 | `ub/docs/wiki/topics/datenmodell-und-bereiche.md` | 114 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
 | `ub/docs/wiki/topics/suche-und-profile.md` | 140 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
-| `ub/docs/wiki/topics/index.md` | 14 | 2026-08-30 | **aktualisieren** | Katalogseite, Einträge nach dem Umzug neu | offen |
-| `ub/docs/wiki/index.md` | 16 | 2026-08-30 | **aktualisieren** | Katalog der Wurzel, mit dem ul-Bundle zusammenzuführen | offen |
-| `ub/docs/wiki/sources/index.md` | 17 | 2026-08-30 | **aktualisieren** | Katalogseite; Zeile 6 trägt „Architektur-Design ultra-brain" im Linktext | offen |
-| `ub/docs/wiki/_identities.tsv` | 1 | 2026-08-30 | **behalten** | Nur die Kopfzeile, kein Eintrag — die Identitäten stehen je Seite in der Frontmatter (`doc_id`, `content_hash`, `revision`) | offen |
+| `ub/docs/wiki/topics/index.md` | 14 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | offen |
+| `ub/docs/wiki/index.md` | 16 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | offen |
+| `ub/docs/wiki/sources/index.md` | 17 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | offen |
+| `ub/docs/wiki/_identities.tsv` | 1 | 2026-08-30 | **Archiv** | Artefakt: `reindex` erzeugt das Register neu (`walk.py` zählt es zu den BUNDLE_ARTIFACTS); enthält ohnehin nur die Kopfzeile | offen |
 | `ub/docs/wiki/entities/okf.md` | 34 | 2026-08-30 | **behalten** | Begriffsseite ohne Bezug auf die Werkzeugteilung | offen |
 | `ub/docs/wiki/_schema.md` | 42 | 2026-08-30 | **aktualisieren** | Zeile 42 nennt `project/ultra-brain` als Bereich | offen |
-| `ub/docs/wiki/log.md` | 46 | 2026-08-30 | **aktualisieren** | Zeile 7 nennt den Pfad der alten Architektur-Spec | offen |
+| `ub/docs/wiki/log.md` | 46 | 2026-08-30 | **Archiv** | Protokoll der alten Bundle-Arbeit: beschreibt Scheiben und Quellen, die nicht mitziehen | offen |
 | `ub/docs/wiki/sources/plan-scheibe-2b-messwerk.md` | 46 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
 | `ub/docs/wiki/sources/plan-scheibe-2a-nacharbeit.md` | 47 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
 | `ub/docs/wiki/sources/plan-scheibe-2c1-daemon.md` | 48 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
 | `ub/docs/wiki/syntheses/gegenpruefung-vor-jeder-designempfehlung.md` | 48 | 2026-08-30 | **behalten** | Seite zieht um; nur die `brain://`-Zeile wird umgeschrieben | offen |
-| `ub/docs/wiki/audit.md` | 4 | 2026-08-30 | **behalten** | Wartungsprotokoll, vier Zeilen, ohne Namensbezug | offen |
+| `ub/docs/wiki/audit.md` | 4 | 2026-08-30 | **Archiv** | Leerer Platzhalter („gefüllt ab Scheibe 5"); die Wartungsschicht schreibt ihn ab Stufe 3 selbst | offen |
 | `ub/docs/wiki/entities/qmd.md` | 56 | 2026-08-30 | **aktualisieren** | Paritätszeilen 1–2: Profile und Rangfolge sind in loomux andere | offen |
 | `ub/docs/wiki/sources/entscheidungen-scheibe-2a.md` | 58 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
 | `ub/docs/wiki/sources/plan-scheibe-2a-suchkette.md` | 58 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
@@ -69,10 +78,10 @@ Frontmatter. Die Zeile gehört in der Fusions-Spec richtiggestellt.
 | `ub/docs/wiki/topics/scheiben-und-abnahme.md` | 72 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
 | `ub/docs/wiki/sources/plan-scheibe-1-indexer.md` | 74 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
 | `ub/docs/wiki/sources/abnahme-scheibe-2a.md` | 78 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
-| `ub/docs/wiki/syntheses/index.md` | 8 | 2026-08-30 | **aktualisieren** | Katalogseite, Einträge nach dem Umzug neu | offen |
+| `ub/docs/wiki/syntheses/index.md` | 8 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | offen |
 | `ub/docs/wiki/sources/plan-scheibe-0-fundament.md` | 95 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
 | `ub/docs/wiki/topics/brain-maintenance.md` | 95 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
-| `ub/docs/wiki/entities/index.md` | 9 | 2026-08-30 | **aktualisieren** | Katalogseite, Einträge nach dem Umzug neu | offen |
+| `ub/docs/wiki/entities/index.md` | 9 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | offen |
 
 ## 2. Wiki-Bundle ultraloom (5 Dateien)
 
