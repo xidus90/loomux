@@ -148,6 +148,11 @@ Erzeuger umbenanntes Feld darf nicht stumm bis zum Aufrufer durchrutschen.
 (Quelle, Ziel, Relation, Konfidenz), `Relation` mit den sechs Werten,
 `WalkRelations` mit den fünf, `Graph` als Bündel aus Knoten und Kanten.
 
+Dazu eine Frage, die keinen Lauf braucht und deshalb hier steht:
+`SymbolsInFile(g, path)` gibt die Symbole einer Datei in Graphreihenfolge —
+über Pfadgleichheit, nicht über `contains` (§3.3). Sie baut die Startmenge für
+den Blast-Radius eines Dateiknotens.
+
 `FileCard` gehört **nicht** zu G1: die Pro-Datei-Karten entstehen mit dem
 Extraktor, vorher wäre der Typ Vorrat ohne Erzeuger.
 

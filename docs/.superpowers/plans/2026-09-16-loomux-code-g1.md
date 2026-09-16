@@ -893,7 +893,7 @@ func TestRankOptionsOverrideTheDefaults(t *testing.T) {
 	loose := pagerank.Rank(topo, map[model.NodeID]float64{"hub": 1}, pagerank.Options{Alpha: 0.9, Iterations: 1})
 	tight := pagerank.Rank(topo, map[model.NodeID]float64{"hub": 1}, pagerank.Options{})
 	if scoreOf(loose, "a") >= scoreOf(tight, "a") {
-		t.Errorf("a higher restart probability keeps mass at the seed: got a=%v with alpha 0.9, a=%v with the default",
+		t.Errorf("a higher restart probability starves the neighbour: got a=%v with alpha 0.9, a=%v with the default",
 			scoreOf(loose, "a"), scoreOf(tight, "a"))
 	}
 }
@@ -1145,7 +1145,19 @@ func TestRankBroadSeedsOnMostlyDanglingGraph(t *testing.T) {
 }
 ```
 
-Die Importe `fmt` und `time` kommen oben in den Block.
+Der Importblock von `rank_test.go` lautet danach vollständig:
+
+```go
+import (
+	"fmt"
+	"math"
+	"testing"
+	"time"
+
+	"github.com/xidus90/loomux/internal/code/model"
+	"github.com/xidus90/loomux/internal/code/pagerank"
+)
+```
 
 - [ ] **Schritt 2: Lauf**
 
