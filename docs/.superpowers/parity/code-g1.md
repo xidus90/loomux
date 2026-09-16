@@ -16,12 +16,12 @@ Die Mutationsrunde ist
 `go run ./cmd/loomux dev mutants internal/code/pagerank internal/code/blast`.
 Sie lief zweimal. **Runde 1** zählte 97 Mutanten (77 über `pagerank`, 20 über
 `blast`), davon 6 ohne Kompilat, 76 getötet und **15 überlebt**. Vier dieser
-Überlebenden waren fehlende Tests; sie sind unten als Zeilen 1 bis 3 geführt
+Überlebenden waren fehlende Tests; sie sind unten als Zeilen 1 bis 4 geführt
 und mit drei neuen Tests in `internal/code/pagerank/rank_test.go` erledigt.
 **Runde 2** zählt dieselben 97 Mutanten, 6 ohne Kompilat, **80 getötet und 11
 überlebt**. Alle 11 sind äquivalente Mutanten: sie ändern den Code, aber nicht
 sein beobachtbares Ergebnis, und kein Test kann sie töten. Sie stehen unten als
-Zeilen 4 bis 14 mit der Rechnung, die das zeigt.
+Zeilen 5 bis 15 mit der Rechnung, die das zeigt.
 
 Keine Zeile ist bisher freigegeben.
 
@@ -63,7 +63,7 @@ tragen und nicht aus einer Mutante folgen:
 | `rank.go:105` (a3) | `if r > 0 {` → `if r >= 0 {` | überlebt | Äquivalent, dieselbe Rechnung wie die Zeile darüber | offen |
 | `rank.go:115` (a3) | `if v > max {` → `if v >= max {` | überlebt | Äquivalent: Bei Gleichstand weist der Mutant `max` denselben Wert erneut zu. Das Maximum einer Folge hängt nicht davon ab, welcher der gleichen Werte es setzt | offen |
 | `rank.go:131` (a3) | `return out[i].Score > out[j].Score` → `return out[i].Score >= out[j].Score` | überlebt | Äquivalent: Die Zeile wird nur erreicht, wenn die Wache in Zeile 130 (`out[i].Score != out[j].Score`) schon festgestellt hat, dass die beiden Werte verschieden sind. Für ungleiche Werte sind `>` und `>=` dasselbe | offen |
-| `rank.go:133` (a3) | `return out[i].ID < out[j].ID` → `return out[i].ID <= out[j].ID` | überlebt | Äquivalent: Die Zeile wird nur bei gleichem Score erreicht, und `Prepare` vergibt jede ID genau einmal — gleich sind zwei IDs also nur, wenn es dasselbe Element ist. `sort.Slice` vergleicht kein Element mit sich selbst | offen |
+| `rank.go:133` (a3) | `return out[i].ID < out[j].ID` → `return out[i].ID <= out[j].ID` | überlebt | Äquivalent: Die Zeile wird nur bei gleichem Score erreicht, und `Prepare` vergibt jede ID genau einmal — gleich sind zwei IDs also nur, wenn `i` und `j` dasselbe Element meinen, und wie ein Element zu sich selbst steht, ist für die Reihenfolge ohne Belang | offen |
 | `reach.go:20` (a1) | `if visited[id] {` → `if false {` | überlebt | Äquivalent: Eine doppelt genannte Start-ID landet zweimal in der Front, aber `visited[id]` steht vorher schon. Beim zweiten Durchgang über denselben Knoten ist jeder Nachbar bereits besucht, es entsteht kein Treffer. Gleiche Treffer, gleiche Reihenfolge — die Wache spart nur den Doppelgang | offen |
 
 ## Was G1 offen lässt
