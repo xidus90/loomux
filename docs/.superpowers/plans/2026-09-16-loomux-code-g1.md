@@ -1011,6 +1011,12 @@ func Rank(t Topology, seed map[model.NodeID]float64, opts Options) []Scored {
 			continue
 		}
 		restart[i] = w
+	}
+	// The map loop only places the weights. Summing them here, in index order,
+	// keeps the total off the map's iteration order: float addition is not
+	// associative, and a total that differs in its last bit divides every
+	// score differently.
+	for _, w := range restart {
 		total += w
 	}
 	if total <= 0 {
