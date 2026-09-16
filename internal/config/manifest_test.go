@@ -620,3 +620,22 @@ unsearched = ["secret/**"]
 		t.Errorf("expected IndexUnsearched [secret/**], got %v", m.IndexUnsearched)
 	}
 }
+
+func TestTheWikiValuesTheBarrierHeldAreStillJudgedSo(t *testing.T) {
+	// Moved from the barrier when it began to read through this package:
+	// a drive is one character followed by ":/", and a value of nothing but
+	// dots and slashes names the repository root.
+	for value, kept := range map[string]bool{
+		"C:x": true, "ab:/c": true, ":/x": true, "1:/w": false, "\u00c4:/w": false,
+		"C:/": false, "C:/w": false, "/srv/w": false, "//": false,
+		".": false, "./": false, ".//": false, "./.": false, "a/../..": false,
+	} {
+		got, err := (&Manifest{LayoutWiki: value}).WikiLayout()
+		if kept && (err != nil || got != value) {
+			t.Errorf("WikiLayout(%q) = %q, %v; wanted it kept", value, got, err)
+		}
+		if !kept && err == nil {
+			t.Errorf("WikiLayout(%q) = %q; wanted a refusal", value, got)
+		}
+	}
+}

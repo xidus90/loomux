@@ -1,8 +1,6 @@
 package guard
 
 import (
-	"errors"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,84 +40,6 @@ func TestPythonJSONStringRendersWhatJSONDumpsRenders(t *testing.T) {
 		if got := pythonJSONString(row.value); got != row.want {
 			t.Errorf("pythonJSONString(%q) = %s, want %s",
 				row.value, got, row.want)
-		}
-	}
-}
-
-func TestPyReprRendersWhatReprRenders(t *testing.T) {
-	// Measured with `python -c "print(repr(...))"`, value by value.
-	for _, row := range []struct {
-		value any
-		want  string
-	}{
-		{nil, "None"},
-		{true, "True"},
-		{false, "False"},
-		{"x", "'x'"},
-		{"it's", `"it's"`},
-		{`it's "so"`, `'it\'s "so"'`},
-		{"a\\b", `'a\\b'`},
-		{"a\nb\tc\rd", `'a\nb\tc\rd'`},
-		{"\x01\x7f", `'\x01\x7f'`},
-		{int64(3), "3"},
-		{int64(-3), "-3"},
-		{3.5, "3.5"},
-		{1.0, "1.0"},
-		{[]any{int64(1), "a"}, "[1, 'a']"},
-		{[]any{}, "[]"},
-	} {
-		if got := pyRepr(row.value); got != row.want {
-			t.Errorf("pyRepr(%#v) = %s, want %s", row.value, got, row.want)
-		}
-	}
-	// A table has no order in Go and one in Python, so it is rendered by
-	// Go's own `%v` and named as the limit it is. Nothing reachable from
-	// this barrier interpolates one; this only holds the fallback awake.
-	if got := pyRepr(map[string]any{}); got == "" {
-		t.Error("the fallback rendering answered nothing")
-	}
-}
-
-func TestPyReprFloatKeepsTheDecimalPointPythonKeeps(t *testing.T) {
-	// Go's 'g' answers "1" where `repr(1.0)` answers "1.0", and answers
-	// "+Inf" where Python answers "inf" -- the second is left alone
-	// because TOML has no infinity to decode into a manifest.
-	for _, row := range []struct {
-		value float64
-		want  string
-	}{{2, "2.0"}, {2.5, "2.5"}, {1e21, "1e+21"}} {
-		if got := pyReprFloat(row.value); got != row.want {
-			t.Errorf("pyReprFloat(%v) = %q, want %q", row.value, got,
-				row.want)
-		}
-	}
-}
-
-func TestTruthyIsPythonsBool(t *testing.T) {
-	for _, row := range []struct {
-		value any
-		want  bool
-	}{
-		{nil, false},
-		{true, true},
-		{false, false},
-		{"", false},
-		{"no", true},
-		{int64(0), false},
-		{int64(1), true},
-		{0.0, false},
-		{1.5, true},
-		{[]any{}, false},
-		{[]any{int64(1)}, true},
-		{map[string]any{}, false},
-		{map[string]any{"a": int64(1)}, true},
-		// A datetime has no `__bool__`, so Python calls it true without
-		// asking; this is the arm that answers for everything else the
-		// decoder can hand back.
-		{struct{}{}, true},
-	} {
-		if got := truthy(row.value); got != row.want {
-			t.Errorf("truthy(%#v) = %v, want %v", row.value, got, row.want)
 		}
 	}
 }
@@ -425,7 +345,7 @@ func TestATypesListOfNonStringsIsRefused(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[wiki]\ntypes = [1]\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"[wiki] types must be a list of strings")
+		"[wiki] types #1 must be a string, found integer")
 }
 
 func TestATypesListOfStringsIsFine(t *testing.T) {
@@ -499,24 +419,6 @@ func TestAWikiLayoutSpeltWithADriveIsRefused(t *testing.T) {
 	}
 }
 
-func TestAColonThatNamesNoDriveIsAnOrdinaryName(t *testing.T) {
-	// Measured against `wiki_layout` running: `ab:/c` and `:/x` come
-	// back untouched, because a drive is exactly one character before
-	// `:/`. A letter test in place of the length test would be the
-	// narrower answer and would let a rooted value through.
-	//
-	// Asked of the function and not through a write, because a colon is
-	// not a name a Windows path can carry: it opens an alternate data
-	// stream, which is why `spelling` cuts there. The value is still
-	// reachable input -- it comes out of a manifest, not off the disk.
-	for _, value := range []string{"ab:/c", ":/x"} {
-		got, err := wikiLayout(map[string]any{"wiki": value})
-		if err != nil || got != value {
-			t.Errorf("wikiLayout(%q) = %q, %v", value, got, err)
-		}
-	}
-}
-
 func TestABrokenPayloadCannotSlipThroughAPanic(t *testing.T) {
 	old := readGitFile
 	t.Cleanup(func() { readGitFile = old })
@@ -546,24 +448,6 @@ func TestABrokenPayloadCannotSlipThroughAPanic(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "loomux broke down") {
 		t.Fatalf("stdout %q", out)
-	}
-}
-
-func TestTheGoWikiLayoutAndTheBarriersAnswerTheSame(t *testing.T) {
-	// `pkg/config` carries the same four tests over the same value, and
-	// the two are held together here rather than shared: that one reads
-	// a typed string field, so it cannot be asked about `wiki = 1`, and
-	// it quotes with `%q` where a refusal has to quote with `repr`.
-	for _, value := range []string{
-		"", "90 Wiki", "a/b", ".", "./.", "..", "a/../b", "/srv/w",
-		"C:/w", "a\\b", "a..b", "...", "a//b", "a/./b", " ",
-	} {
-		_, mine := wikiLayout(map[string]any{"wiki": value})
-		manifest := config.Manifest{LayoutWiki: value}
-		_, theirs := manifest.WikiLayout()
-		if (mine == nil) != (theirs == nil) {
-			t.Errorf("%q: guard %v, config %v", value, mine, theirs)
-		}
 	}
 }
 
@@ -618,18 +502,6 @@ func TestAReviewCentreIsDroppedWhenItsManifestBreaksUnderIt(t *testing.T) {
 	got := reviewCentre([]area{{scope: "project/demo", path: repo}}, tmp)
 	if got != "" {
 		t.Errorf("reviewCentre = %q, want none", got)
-	}
-}
-
-func TestReadManifestAnswersTheErrorOfAFileItCannotRead(t *testing.T) {
-	// `declarationIn` and `manifestPath` both stat before they read, so
-	// no caller reaches this arm on a healthy disk. It is the answer for
-	// the file that vanishes between the two, and it must be an error
-	// rather than an empty manifest -- and not errNoArea either, which every
-	// caller reads as "no manifest here" and lets the write through.
-	_, err := readManifest(filepath.Join(t.TempDir(), "gone.toml"))
-	if errors.Is(err, errNoArea) || !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("a missing manifest answered %v", err)
 	}
 }
 

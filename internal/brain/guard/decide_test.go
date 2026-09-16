@@ -613,7 +613,7 @@ func TestAreasDeclaredAsATableRefuse(t *testing.T) {
 	write(t, filepath.Join(state, "registry.toml"),
 		"[area]\nscope = \"a\"\npath = \"/x\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"areas must be declared as [[area]] tables, not [area]")
+		"area must be an array of [[area]] tables, found table")
 }
 
 func TestAnEntryWithoutAPathRefuses(t *testing.T) {
@@ -622,7 +622,7 @@ func TestAnEntryWithoutAPathRefuses(t *testing.T) {
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"project/demo\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"is missing the 'path' key")
+		`[[area]] "project/demo" is missing "path"`)
 }
 
 func TestAnEntryWithoutAScopeRefuses(t *testing.T) {
@@ -631,7 +631,7 @@ func TestAnEntryWithoutAScopeRefuses(t *testing.T) {
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\npath = \"/x\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"is missing the 'scope' key")
+		`[[area]] #1 is missing "scope"`)
 }
 
 func TestAScopeThatIsNotAStringRefuses(t *testing.T) {
@@ -640,7 +640,7 @@ func TestAScopeThatIsNotAStringRefuses(t *testing.T) {
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = 1\npath = \"/x\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"[[area]] scope must be a non-empty string, found 1")
+		"[[area]] #1: scope must be a non-empty string, found integer")
 }
 
 func TestADuplicateScopeRefuses(t *testing.T) {
@@ -650,7 +650,7 @@ func TestADuplicateScopeRefuses(t *testing.T) {
 		"[[area]]\nscope = \"a\"\npath = \"/x\"\n\n"+
 			"[[area]]\nscope = \"a\"\npath = \"/y\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"duplicate scope 'a'")
+		`[[area]] #2: duplicate scope "a" (first at #1)`)
 }
 
 func TestTwoScopesSharingAStateDirectoryRefuse(t *testing.T) {
@@ -660,7 +660,7 @@ func TestTwoScopesSharingAStateDirectoryRefuse(t *testing.T) {
 		"[[area]]\nscope = \"a/b\"\npath = \"/x\"\n\n"+
 			"[[area]]\nscope = \"a-b\"\npath = \"/y\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"share the state directory")
+		`scopes "a/b" and "a-b" share the state directory "a-b"`)
 }
 
 func TestAScopeWithoutUsableCharactersRefuses(t *testing.T) {
@@ -669,7 +669,7 @@ func TestAScopeWithoutUsableCharactersRefuses(t *testing.T) {
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"///\"\npath = \"/x\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"has no usable characters")
+		`[[area]] "///": scope has no letter, digit`)
 }
 
 func TestTwoSignpostsRefuse(t *testing.T) {
@@ -679,7 +679,7 @@ func TestTwoSignpostsRefuse(t *testing.T) {
 		"[[area]]\nscope = \"a\"\npath = \"/x\"\nsignpost = true\n\n"+
 			"[[area]]\nscope = \"b\"\npath = \"/y\"\nsignpost = true\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"both declare signpost; two starting points are none")
+		`scopes "a" and "b" both declare signpost; only one area may`)
 }
 
 func TestOneSignpostIsFine(t *testing.T) {
@@ -694,47 +694,41 @@ func TestAnEntryThatIsNotATableRefuses(t *testing.T) {
 	state := filepath.Join(tmp, "state")
 	write(t, filepath.Join(state, "registry.toml"), "area = [1]\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"expected an [[area]] table")
+		"[[area]] #1 must be a table, found integer")
 }
 
-func TestAReadonlyStringIsReadAsTrue(t *testing.T) {
+func TestAReadonlyStringRefuses(t *testing.T) {
 	tmp := t.TempDir()
-	// `bool(entry.get("readonly", False))` (src/brain/registry.py:76) is
-	// truthiness, not a type test: `readonly = "yes"` is a read-only area
-	// on the Python side, and a reader that failed the whole file here
-	// would answer a different registry.
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"),
 		"readonly = \"yes\"")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"the registration calls this area read-only")
+		`[[area]] "project/demo": readonly must be a boolean, found string`)
 }
 
-func TestAZeroWorkspaceIsFalse(t *testing.T) {
+func TestAZeroWorkspaceRefuses(t *testing.T) {
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"),
 		"workspace = 0")
 	deny(t, writeCall(filepath.Join(tmp, "repo", "a.py")), state,
-		"lies outside every writable tree")
+		`[[area]] "project/demo": workspace must be a boolean, found integer`)
 }
 
-func TestAnEmptyWikiStringIsNoWiki(t *testing.T) {
+func TestAnEmptyWikiStringRefuses(t *testing.T) {
 	tmp := t.TempDir()
 	state := filepath.Join(tmp, "state")
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"a\"\npath = \"/x\"\nwiki = \"\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"the registry declares no writable wiki path and no workspace")
+		`[[area]] "a": wiki must be a non-empty string, found ""`)
 }
 
 func TestAWikiThatIsNotAStringRefuses(t *testing.T) {
 	tmp := t.TempDir()
 	state := filepath.Join(tmp, "state")
-	// `Path(wiki)` on a number raises TypeError, which `decide`'s catch
-	// turns into a refusal (src/brain/registry.py:75).
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"a\"\npath = \"/x\"\nwiki = 1\n")
 	deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-		"loomux cannot read the registry, so it refuses")
+		`[[area]] "a": wiki must be a non-empty string, found integer`)
 }
 
 func TestAnEmptyRegistryFileRefuses(t *testing.T) {
@@ -763,7 +757,7 @@ func TestAManifestWithoutAScopeRefusesEverything(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\n\n[layout]\nx = 1\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"[area] scope is required and must be a non-empty string")
+		`[area] is missing "scope"`)
 }
 
 func TestAnAbsoluteInboxRefusesEverything(t *testing.T) {
@@ -815,7 +809,7 @@ func TestAnInboxThatIsNotAStringRefusesEverything(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[layout]\ninbox = 1\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"loomux cannot read the registry, so it refuses")
+		"[layout] inbox must be a string, found integer")
 }
 
 func TestABadPrivacyModeRefusesEverything(t *testing.T) {
@@ -824,8 +818,7 @@ func TestABadPrivacyModeRefusesEverything(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[privacy]\nmode = \"x\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"[privacy] mode must be one of automatic_cloud, local_only, "+
-			"manual_cloud, found 'x'")
+		`[privacy] mode must be one of automatic_cloud, local_only, manual_cloud, found "x"`)
 }
 
 func TestABadUntouchedDaysRefusesEverything(t *testing.T) {
@@ -856,7 +849,7 @@ func TestABadTypesListRefusesEverything(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[wiki]\ntypes = \"a\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"[wiki] types must be a list of strings")
+		"[wiki] types must be an array of strings, found string")
 }
 
 func TestABadOnMergeRefusesEverything(t *testing.T) {
@@ -865,7 +858,7 @@ func TestABadOnMergeRefusesEverything(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[maintenance]\non_merge = 1\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"[maintenance] on_merge must be a boolean, found 1")
+		"[maintenance] on_merge must be a boolean, found integer")
 }
 
 func TestABadBranchRefusesEverything(t *testing.T) {
@@ -883,7 +876,27 @@ func TestABadGlobListRefusesEverything(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[index]\ninclude = [1]\n")
 	deny(t, writeCall(filepath.Join(tmp, "vault", "demo", "x.md")), state,
-		"[index] include contains a non-string: 1")
+		"[index] include #1 must be a string, found integer")
+}
+
+func TestABrokenModelSectionRefusesEverything(t *testing.T) {
+	tmp := t.TempDir()
+	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
+	target := writeCall(filepath.Join(tmp, "vault", "demo", "x.md"))
+	area := "[area]\nscope = \"project/demo\"\n\n"
+	for body, want := range map[string]string{
+		"model = 5\n\n" + area:                    "[model] must be a table, found integer",
+		area + "[model]\nenabled = \"yes\"\n":     "[model] enabled must be a boolean, found string",
+		area + "[model]\nroles = 5\n":             "[model] roles must be a table, found integer",
+		area + "[model.roles]\nguess = true\n":    `[model] roles has unknown "guess"; known are describe, place, propose`,
+		area + "[model.roles]\nplace = \"yes\"\n": "[model] roles.place must be a boolean, found string",
+	} {
+		write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"), body)
+		deny(t, target, state, want)
+	}
+	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
+		area+"[model]\nenabled = true\n\n[model.roles]\nplace = true\n")
+	allow(t, target, state)
 }
 
 func TestAGlobThatIsNoListRefusesEverything(t *testing.T) {
@@ -961,7 +974,7 @@ func TestAnAreaTableWithoutAScopeStillRefuses(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		policyOnly+"\n[area]\nscope = \"\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "repo", "src", "a.py")), state,
-		"[area] scope is required and must be a non-empty string")
+		`[area] scope must be a non-empty string, found ""`)
 }
 
 // --- the tree a manifest declares ---------------------------------------
@@ -1031,7 +1044,7 @@ func TestAWikiLayoutReachingOutIsRefused(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[layout]\nwiki = \"../out\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "repo", "w", "x.md")), state,
-		"[layout] wiki must stay inside the repository, found '../out'")
+		`[layout] wiki must stay inside the repository, found "../out"`)
 }
 
 func TestAnAbsoluteWikiLayoutIsRefused(t *testing.T) {
@@ -1040,7 +1053,7 @@ func TestAnAbsoluteWikiLayoutIsRefused(t *testing.T) {
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[layout]\nwiki = \"/srv/w\"\n")
 	deny(t, writeCall(filepath.Join(tmp, "repo", "w", "x.md")), state,
-		"[layout] wiki must stay inside the repository, found '/srv/w'")
+		`[layout] wiki must stay inside the repository, found "/srv/w"`)
 }
 
 func TestAWikiLayoutWithABackslashIsRefused(t *testing.T) {
@@ -1070,16 +1083,13 @@ func TestAWikiLayoutThatIsNotAStringIsRefused(t *testing.T) {
 		"loomux cannot read the registry, so it refuses")
 }
 
-func TestAFalseWikiLayoutDeclaresNothing(t *testing.T) {
+func TestAFalseWikiLayoutRefuses(t *testing.T) {
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, "")
-	// `if not value: return None` reads truthiness, so a falsy value is
-	// the unsaid key and never reaches the tests below it
-	// (src/brain/manifest.py:68-69).
 	write(t, filepath.Join(tmp, "repo", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n\n[layout]\nwiki = false\n")
 	deny(t, writeCall(filepath.Join(tmp, "repo", "w", "x.md")), state,
-		"the registry declares no writable wiki path and no workspace")
+		"[layout] wiki must be a string, found boolean")
 }
 
 func TestTheWalkClimbsPastADirectoryWithoutADeclaration(t *testing.T) {
@@ -1150,14 +1160,13 @@ func TestTheProposalNameIsComparedLetterForLetter(t *testing.T) {
 		"lies outside every writable tree")
 }
 
-func TestAReviewThatIsNotAStringClosesTheExemption(t *testing.T) {
+func TestAReviewThatIsNotAStringRefusesEverything(t *testing.T) {
+	// Checked while the registry is read, like every other declaration
+	// value: a broken review closes all writes, not only the exemption.
 	tmp := t.TempDir()
 	state := withReview(t, tmp, "1")
-	reason := deny(t, writeCall(caseFile(tmp, "proposal.md")), state,
-		"lies outside every writable tree")
-	if strings.Contains(reason, "plus proposal.md below") {
-		t.Fatalf("the exemption survived a broken review: %q", reason)
-	}
+	deny(t, writeCall(caseFile(tmp, "proposal.md")), state,
+		"[layout] review must be a string, found integer")
 }
 
 func TestAReviewReachingOutOfTheAreaClosesTheExemption(t *testing.T) {
@@ -1248,16 +1257,14 @@ func TestOneSignpostBesideAnOrdinaryAreaIsFine(t *testing.T) {
 func TestAnEmptyScopeOrPathRefuses(t *testing.T) {
 	// `_required` asks two questions of one value -- is it a string, and
 	// is it non-empty -- and the second is the one a type test alone
-	// would drop. Measured: Python answers "must be a non-empty string,
-	// found ''" for both keys.
+	// would drop.
 	tmp := t.TempDir()
 	state := filepath.Join(tmp, "state")
-	for key, body := range map[string]string{
-		"scope": "[[area]]\nscope = \"\"\npath = \"/x\"\n",
-		"path":  "[[area]]\nscope = \"a\"\npath = \"\"\n",
+	for body, want := range map[string]string{
+		"[[area]]\nscope = \"\"\npath = \"/x\"\n": `[[area]] #1: scope must be a non-empty string, found ""`,
+		"[[area]]\nscope = \"a\"\npath = \"\"\n":  `[[area]] "a": path must be a non-empty string, found ""`,
 	} {
 		write(t, filepath.Join(state, "registry.toml"), body)
-		deny(t, writeCall(filepath.Join(tmp, "x.md")), state,
-			"[[area]] "+key+" must be a non-empty string, found ''")
+		deny(t, writeCall(filepath.Join(tmp, "x.md")), state, want)
 	}
 }
