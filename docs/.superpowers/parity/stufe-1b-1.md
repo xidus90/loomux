@@ -116,64 +116,64 @@ und belegen zugleich, dass kein Mutant neu überlebt.
 
 | Datei:Zeile | Familie | war -> jetzt | Erledigung |
 |---|---|---|---|
-| config/manifest.go:214 | a3 | `<` -> `<=` | Kein Unterschied: die Lanes entstehen aus den Schlüsseln der Tabelle `map[string]string` (manifest.go:207-211), und Schlüssel einer Map sind verschieden; bei verschiedenen Namen antworten beide Formen gleich |
-| config/manifest.go:337 | a3 | `size > 0` -> `size >= 0` | Kein Unterschied: `size == 0` liefert `utf8.DecodeRuneInString` nur für den leeren String, und dann ist `len(value) >= size+2` die Aussage `0 >= 2` und falsch -- die Bedingung ist in beiden Formen falsch |
-| cases/case.go:38 | a1 | `err != nil` -> `false` | Test `TestAMissingCmdIsNotAnEmptyOne`, danach `killed` |
-| cases/case.go:47 | a1 | `err != nil` -> `false` | Test `TestAMissingExitIsNotAnUnreadableOne`, danach `killed` |
-| cases/case.go:73 | a2 | beide Wörter -> nur `message` | Test `TestDataIsAComparisonTheCorpusWrites`, danach `killed` |
-| cases/case.go:107 | a1 | `!d.IsDir()` -> `false` | Kein Unterschied unter erreichbaren Eingaben: für einen Pfad, der kein Verzeichnis ist, kann `<pfad>/cmd` nicht existieren, `os.Stat` scheitert, und beide Formen antworten `nil`. Ein Symlink auf ein Fallverzeichnis träfe den Unterschied; ihn anzulegen braucht unter Windows ein Recht, das die Suite nicht hat |
-| cases/case.go:127 | a1, a3, a4 | `Verb != Verb` -> `true`, `false`, `!(...)`, `==` | Test `TestCasesAreOrderedByVerbAndThenByName` (vier Mutanten), danach `killed` |
-| cases/case.go:128 | a3 | `<` -> `<=` | Kein Unterschied: Zeile 127 lässt diese Zeile nur für verschiedene Verben laufen, und für verschiedene Werte sind `<` und `<=` dasselbe |
-| cases/case.go:130 | a3 | `<` -> `<=` | Kein Unterschied, der zu prüfen wäre: gleiche Namen unter gleichem Verb gibt es nur unter verschiedenen Elternpfaden, und für gleiche Schlüssel sagt `sort.Slice` bei keiner der beiden Formen eine Reihenfolge zu |
-| cases/runner.go:62 | a1 | `err != nil` -> `false` | Kein Unterschied unter erreichbaren Eingaben: der Arm trägt seit 1a `//coverage:exempt` (runner.go:52) mit dem Grund, dass `filepath.Rel` einen von `WalkDir` unter `src` gefundenen Pfad braucht, der nicht unter `src` liegt |
-| cases/runner.go:65 | a1 | `rel == "."` -> `false` | Kein Unterschied: für die Wurzel ist `rel` gleich `.`, `filepath.Join(dst, ".")` ist `dst`, und `os.MkdirAll` auf das eben angelegte Verzeichnis antwortet `nil` |
-| cases/runner.go:119 | a1 | `os.IsNotExist(err)` -> `true` | Kein Unterschied unter erreichbaren Eingaben: der verbleibende Fehlerarm trägt `//coverage:exempt` (runner.go:113) mit dem Grund, dass er ein Verzeichnis braucht, das das Betriebssystem zu listen verweigert, während sein Elternverzeichnis liest |
-| cases/runner.go:128 | a1 | `err != nil` -> `false` | Kein Unterschied unter erreichbaren Eingaben: derselbe `//coverage:exempt` (runner.go:113) nennt den `filepath.Rel`-Arm |
-| cases/runner.go:160 | a2 | `c == Backslash && !inSingle` -> `c == Backslash` | Test `TestABackslashInsideSingleQuotesIsACharacter`, danach `killed` |
-| cases/runner.go:188 und :200 | a1, a3 | `cur.Len() > 0 oder hadQuotes` -> `true`, `>= 0` | Test `TestRunsOfSeparatorsOpenNoEmptyTokens` (vier Mutanten), danach `killed` |
-| cases/runner.go:209 | a1 | `err != nil` -> `false` | Test `TestTheTempDirectoryFailureIsTheOneReported`, danach `killed` |
-| cases/runner.go:221 | a1 | `err != nil` -> `false` | Test `TestACommandThatCannotBeSplitIsNotAnEmptyCommand`, danach `killed` |
-| wiki/gate.go:26 | a1 | `HasSuffix(...)` -> `true` | Kein Unterschied: ohne passendes Suffix lässt `strings.TrimSuffix` den Namen stehen, der Kandidat ist damit genau `parent/<name>_wiki` -- der Rückfall aus Zeile 35, den der echte Code sowieso als nächstes prüft |
-| wiki/gate.go:69 | a3 | `len(l) > 3` -> `>= 3` | Kein Unterschied unter erreichbaren Eingaben: eine Zeile von `git status --porcelain` ist zwei Statusspalten, ein Leerzeichen und mindestens ein Zeichen Pfad; eine Zeile von genau drei Zeichen gibt git nicht aus, und die leere letzte Zeile des Splits scheitert an beiden Formen |
-| wiki/gate.go:80 | a1 | `wikiPath == ""` -> `false` | Test `TestAProjectWithoutAWikiIsNotGated`, danach `killed` |
-| wiki/lint.go:79 | a1 | `DeclaredConflicts == nil` -> `true` | Test `TestAPageThatDeclaresTheWrongNumberOfConflictsIsReported`, danach `killed` |
-| wiki/lint.go:108 | a1 und a2 (`d.IsDir()`) | ganze Bedingung -> `false`, bzw. -> `d.IsDir()` | Test `TestABundleThatIsNotThereIsNoBundle` (zwei Mutanten), danach `killed`: `WalkDir` reicht für eine unlesbare Wurzel `nil` als Eintrag herein, und wer den Fehler nicht zuerst liest, fragt diesen nil-Eintrag |
-| wiki/lint.go:108 | a2 (`err != nil`) | ganze Bedingung -> `err != nil` | Kein Unterschied: ein Verzeichnis, das den weggefallenen `d.IsDir()` übersteht, muss auf `.md` enden, und `ReadPage` scheitert an einem Verzeichnis -- der Rückruf antwortet so oder so `nil` |
-| wiki/lint.go:123 | a1 | `err != nil` -> `false` | Kein Unterschied unter erreichbaren Eingaben: `ReadPage` scheitert nur, wenn `os.ReadFile` scheitert, und der Pfad kommt eben von `WalkDir`; Verzeichnisse sind in Zeile 108 schon heraus |
-| wiki/lint.go:144 | a1 | `judged` -> `true` | Kein Unterschied: `LintSingleFile` beginnt selbst mit `if IsScaffoldFile(filePath) { return nil, nil }` (lint.go:36-38), der Aufruf für eine Gerüstseite trägt also nichts bei |
-| wiki/lint.go:158 | a1 | `targetPath == ""` -> `false` | Kein Unterschied: ein leeres Ziel löst sich auf das eigene Verzeichnis der Seite auf, das es gibt und das kein `page.Relative` ist -- weder ein Befund noch die Waisenzählung ändern sich |
-| wiki/lint.go:163 | a1, a4 | `HasPrefix(targetPath, "/")` -> `true`, `false`, `!(...)` | Test `TestAnAbsoluteLinkResolvesFromTheWikiRootNotFromThePage` (drei Mutanten), danach `killed` |
-| wiki/lint.go:201 und :204 | a1 | `IsScaffoldFile(...)` -> `true`, `inbound == 0` -> `false` | Test `TestAPageNobodyLinksIsAnOrphan` (zwei Mutanten), danach `killed` |
-| wiki/parse.go:119 | a1 | `node.Kind != MappingNode` -> `false` | Kein Unterschied: der Knotenbaum wird nur im `else`-Zweig gelesen, in dem das getypte `yaml.Unmarshal` (parse.go:89) gelungen ist -- ein Frontmatter, das keine Abbildung ist, kommt dort nie an |
-| wiki/parse.go:124 | a3 | `i+1 < len` -> `i+1 <= len` | Kein Unterschied: ein Abbildungsknoten hält Schlüssel und Wert paarweise, `len(node.Content)` ist gerade, und für gerades `i` tritt `i+1 == len` nie ein |
-| wiki/parse.go:133 | a1, a2 | vier Klauseln -> `true` und je eine Klausel | Test `TestLinksWithASchemeAreNotWikiLinks` (fünf Mutanten), danach `killed` |
-| wiki/parse.go:173 | a3 | `from < len(body)` -> `<=` | Kein Unterschied: für `from == len(body)` ist `body[from:]` leer, der Ausdruck findet nichts, und die Schleife bricht in beiden Formen ab |
-| wiki/root.go:20 | a2 | `err == nil && layout != ""` -> `err == nil` | Test `TestAnUnsaidLayoutIsNoLayout`, danach `killed` |
-| pytext/isotime.go:62 | a3 | `>= '0'` -> `> '0'` | Test `TestAZeroInsideTheFractionStaysInTheFraction`, danach `killed` |
-| pytext/isotime.go:79 | a3 | `seconds > 59` -> `>= 59` | Test `TestAnOffsetSecondOfFiftyNineIsStillAnOffset`, danach `killed` |
-| pytext/isotime.go:90 | a3 | `year < 1` -> `<= 1` | Test `TestTheFirstYearOfTheCalendarParses`, danach `killed` |
-| pytext/isotime.go:90 | a3 | `month > 12` -> `>= 12` | Test `TestDecemberParses`, danach `killed` |
-| pytext/isotime.go:105 | a1, a2 | Ziffernbereich -> `false` und je eine Klausel | Test `TestANonDigitWhereTheShapeWantsADigitIsRefused` (drei Mutanten), danach `killed`. Das schlechte Zeichen steht im Jahr, dem einzigen Feld ohne eigene Bereichsprüfung: in der Sekunde fängt `second > 59` es ein zweites Mal ab und verdeckt die Form |
-| pytext/isotime.go:110 | a1 | `s[i] != pattern[i]` -> `false` | Test `TestTheFixedCharactersOfTheShapeMustMatch`, danach `killed` |
-| pytext/lines.go:19 | a3 | `i < len(s)` -> `<=` | Test `TestACarriageReturnAtTheVeryEndOpensNoEmptyLine`, danach `killed` |
-| pytext/path.go:44 | a2 | drei Klauseln -> nur die letzte | Kein Unterschied: ist `root` nicht leer, ist er der Backslash, und der Block kann ihn nur auf den Backslash setzen; beginnt `drive` nicht mit einem Backslash, hält er keinen und hat damit nie vier oder sechs Teile |
-| pytext/path.go:48 | a2 | zwei Klauseln -> ohne `len == 6` | Test `TestASixPartUNCDriveGainsARoot`, danach `killed` |
-| pytext/path.go:53 | a2 | drei Klauseln -> `len(tail) > 0` | Test `TestATailThatReadsAsADriveIsPrefixedOnlyWithoutADrive`, danach `killed` |
-| pytext/path.go:70 | a1, a2, a3 | `len(p) >= 8 && EqualFold(...)` -> `false`, `len(p) >= 8`, `len(p) > 8` | Tests `TestASixPartUNCDriveGainsARoot`, `TestAPlainUNCPathIsNotReadAsAnExtendedOne` und `TestAnExtendedUNCPrefixWithNothingBehindItIsAllDrive` (drei Mutanten), danach `killed` |
-| pytext/path.go:74 | a1 (`true`), a3, a4 | `index < 0` -> `true`, `<= 0`, `!(...)` | Tests `TestAPlainUNCPathIsNotReadAsAnExtendedOne` und `TestAThirdSlashBelongsToTheShareNotToTheSearch` (drei Mutanten), danach `killed` |
-| pytext/path.go:74 | a1 (`false`) | `index < 0` -> `false` | Kein Unterschied: ist `index` kleiner null, gibt es hinter dem Anfang keinen weiteren Backslash, die zweite Suche scheitert genauso, und Zeile 79 gibt dasselbe Tripel zurück |
-| pytext/path.go:79 | a1, a3 | `index2 < 0` -> `true`, `<= 0` | Tests `TestAPlainUNCPathIsNotReadAsAnExtendedOne` und `TestAnEmptyShareStillEndsTheDrive` (zwei Mutanten), danach `killed` |
-| pytext/repr.go:56 | a3 | `r < 0x7f` -> `r <= 0x7f` | Kein Unterschied: `r == 0x7f` fängt schon die Zeile darüber ab (`case r < ' ' || r == 0x7f`), der Wert erreicht diesen Zweig nie |
-| pytext/repr.go:58 | a3 | `r <= 0xff` -> `r < 0xff` | Kein Unterschied: der einzige Wert 0xff ist `ÿ`, und `unicode.IsPrint` nimmt ihn, also nimmt ihn schon Zeile 56 |
-| identity/identity.go:140 | a1 | `s == ""` -> `false` | Kein Unterschied: über den leeren String läuft die Schleife nicht, `strconv.Atoi("")` scheitert, und beide Formen antworten `(0, false)` |
-| identity/identity.go:144 | a2 (`r < '0'`) | zwei Klauseln -> `r < '0'` | Kein Unterschied: jede Rune über `'9'`, die die weggefallene Klausel abwiese, weist auch `strconv.Atoi` ab -- es nimmt nur ASCII-Ziffern mit einem Vorzeichen, und die Vorzeichen stehen unter `'0'` |
-| identity/identity.go:144 | a2, a3 | `r > '9'`, `<= '0'`, `>= '9'` | Test `TestTheOuterDigitsAreRevisionsLikeAnyOther` (drei Mutanten), danach `killed` |
-| identity/identity.go:159 | a1 | `!ok` -> `true` | Test `TestAPathThatStayedIsNotAlsoAPathThatWent`, danach `killed` |
-| identity/identity.go:166 | a1 | `!ok` -> `true` | Test `TestAPathThatWasAlreadyThereIsNotFresh`, danach `killed` |
-| identity/identity.go:206 | a3 | `<` -> `<=` | Kein Unterschied, der zu prüfen wäre: bei verschiedenen `DocID` antworten beide Formen gleich, bei gleichen sagt `sort.Slice` für keine der beiden eine Reihenfolge zu |
-| graph/read.go:112 | a1 | `!ok` -> `false` | Kein Unterschied: der Fehlertext von Zeile 113 ist wortgleich der von Zeile 121, und eine nil-Map gibt keine Schlüssel her -- ein `links`, das keine Tabelle ist, fällt durch und meldet denselben Satz |
-| reader/section.go:21 | a1 | `HasPrefix(line, "#")` -> `true` | Test `TestOnlyAHeadingLineCanOpenASection`, danach `killed` |
-| catalog/root.go:23 | a3 | `<` -> `<=` | Kein Unterschied: die gerenderte Zeile trägt nur `Scope`, zwei Bereiche mit gleichem Scope rendern also gleich, und bei verschiedenen Scopes sind `<` und `<=` dasselbe |
+| internal/config/manifest.go:214 | a3 | `<` -> `<=` | Kein Unterschied: die Lanes entstehen aus den Schlüsseln der Tabelle `map[string]string` (manifest.go:207-211), und Schlüssel einer Map sind verschieden; bei verschiedenen Namen antworten beide Formen gleich |
+| internal/config/manifest.go:337 | a3 | `size > 0` -> `size >= 0` | Kein Unterschied: `size == 0` liefert `utf8.DecodeRuneInString` nur für den leeren String, und dann ist `len(value) >= size+2` die Aussage `0 >= 2` und falsch -- die Bedingung ist in beiden Formen falsch |
+| internal/cases/case.go:38 | a1 | `err != nil` -> `false` | Test `TestAMissingCmdIsNotAnEmptyOne`, danach `killed` |
+| internal/cases/case.go:47 | a1 | `err != nil` -> `false` | Test `TestAMissingExitIsNotAnUnreadableOne`, danach `killed` |
+| internal/cases/case.go:73 | a2 | beide Wörter -> nur `message` | Test `TestDataIsAComparisonTheCorpusWrites`, danach `killed` |
+| internal/cases/case.go:107 | a1 | `!d.IsDir()` -> `false` | Kein Unterschied unter erreichbaren Eingaben: für einen Pfad, der kein Verzeichnis ist, kann `<pfad>/cmd` nicht existieren, `os.Stat` scheitert, und beide Formen antworten `nil`. Ein Symlink auf ein Fallverzeichnis träfe den Unterschied; ihn anzulegen braucht unter Windows ein Recht, das die Suite nicht hat |
+| internal/cases/case.go:127 | a1, a3, a4 | `Verb != Verb` -> `true`, `false`, `!(...)`, `==` | Test `TestCasesAreOrderedByVerbAndThenByName` (vier Mutanten), danach `killed` |
+| internal/cases/case.go:128 | a3 | `<` -> `<=` | Kein Unterschied: Zeile 127 lässt diese Zeile nur für verschiedene Verben laufen, und für verschiedene Werte sind `<` und `<=` dasselbe |
+| internal/cases/case.go:130 | a3 | `<` -> `<=` | Kein Unterschied, der zu prüfen wäre: gleiche Namen unter gleichem Verb gibt es nur unter verschiedenen Elternpfaden, und für gleiche Schlüssel sagt `sort.Slice` bei keiner der beiden Formen eine Reihenfolge zu |
+| internal/cases/runner.go:62 | a1 | `err != nil` -> `false` | Kein Unterschied unter erreichbaren Eingaben: der Arm trägt seit 1a `//coverage:exempt` (runner.go:52) mit dem Grund, dass `filepath.Rel` einen von `WalkDir` unter `src` gefundenen Pfad braucht, der nicht unter `src` liegt |
+| internal/cases/runner.go:65 | a1 | `rel == "."` -> `false` | Kein Unterschied: für die Wurzel ist `rel` gleich `.`, `filepath.Join(dst, ".")` ist `dst`, und `os.MkdirAll` auf das eben angelegte Verzeichnis antwortet `nil` |
+| internal/cases/runner.go:119 | a1 | `os.IsNotExist(err)` -> `true` | Kein Unterschied unter erreichbaren Eingaben: der verbleibende Fehlerarm trägt `//coverage:exempt` (runner.go:113) mit dem Grund, dass er ein Verzeichnis braucht, das das Betriebssystem zu listen verweigert, während sein Elternverzeichnis liest |
+| internal/cases/runner.go:128 | a1 | `err != nil` -> `false` | Kein Unterschied unter erreichbaren Eingaben: derselbe `//coverage:exempt` (runner.go:113) nennt den `filepath.Rel`-Arm |
+| internal/cases/runner.go:160 | a2 | `c == Backslash && !inSingle` -> `c == Backslash` | Test `TestABackslashInsideSingleQuotesIsACharacter`, danach `killed` |
+| internal/cases/runner.go:188 und :200 | a1, a3 | `cur.Len() > 0 oder hadQuotes` -> `true`, `>= 0` | Test `TestRunsOfSeparatorsOpenNoEmptyTokens` (vier Mutanten), danach `killed` |
+| internal/cases/runner.go:209 | a1 | `err != nil` -> `false` | Test `TestTheTempDirectoryFailureIsTheOneReported`, danach `killed` |
+| internal/cases/runner.go:221 | a1 | `err != nil` -> `false` | Test `TestACommandThatCannotBeSplitIsNotAnEmptyCommand`, danach `killed` |
+| internal/brain/wiki/gate.go:26 | a1 | `HasSuffix(...)` -> `true` | Kein Unterschied: ohne passendes Suffix lässt `strings.TrimSuffix` den Namen stehen, der Kandidat ist damit genau `parent/<name>_wiki` -- der Rückfall aus Zeile 35, den der echte Code sowieso als nächstes prüft |
+| internal/brain/wiki/gate.go:69 | a3 | `len(l) > 3` -> `>= 3` | Kein Unterschied unter erreichbaren Eingaben: eine Zeile von `git status --porcelain` ist zwei Statusspalten, ein Leerzeichen und mindestens ein Zeichen Pfad; eine Zeile von genau drei Zeichen gibt git nicht aus, und die leere letzte Zeile des Splits scheitert an beiden Formen |
+| internal/brain/wiki/gate.go:80 | a1 | `wikiPath == ""` -> `false` | Test `TestAProjectWithoutAWikiIsNotGated`, danach `killed` |
+| internal/brain/wiki/lint.go:79 | a1 | `DeclaredConflicts == nil` -> `true` | Test `TestAPageThatDeclaresTheWrongNumberOfConflictsIsReported`, danach `killed` |
+| internal/brain/wiki/lint.go:108 | a1 und a2 (`d.IsDir()`) | ganze Bedingung -> `false`, bzw. -> `d.IsDir()` | Test `TestABundleThatIsNotThereIsNoBundle` (zwei Mutanten), danach `killed`: `WalkDir` reicht für eine unlesbare Wurzel `nil` als Eintrag herein, und wer den Fehler nicht zuerst liest, fragt diesen nil-Eintrag |
+| internal/brain/wiki/lint.go:108 | a2 (`err != nil`) | ganze Bedingung -> `err != nil` | Kein Unterschied: ein Verzeichnis, das den weggefallenen `d.IsDir()` übersteht, muss auf `.md` enden, und `ReadPage` scheitert an einem Verzeichnis -- der Rückruf antwortet so oder so `nil` |
+| internal/brain/wiki/lint.go:123 | a1 | `err != nil` -> `false` | Kein Unterschied unter erreichbaren Eingaben: `ReadPage` scheitert nur, wenn `os.ReadFile` scheitert, und der Pfad kommt eben von `WalkDir`; Verzeichnisse sind in Zeile 108 schon heraus |
+| internal/brain/wiki/lint.go:144 | a1 | `judged` -> `true` | Kein Unterschied: `LintSingleFile` beginnt selbst mit `if IsScaffoldFile(filePath) { return nil, nil }` (lint.go:36-38), der Aufruf für eine Gerüstseite trägt also nichts bei |
+| internal/brain/wiki/lint.go:158 | a1 | `targetPath == ""` -> `false` | Kein Unterschied: ein leeres Ziel löst sich auf das eigene Verzeichnis der Seite auf, das es gibt und das kein `page.Relative` ist -- weder ein Befund noch die Waisenzählung ändern sich |
+| internal/brain/wiki/lint.go:163 | a1, a4 | `HasPrefix(targetPath, "/")` -> `true`, `false`, `!(...)` | Test `TestAnAbsoluteLinkResolvesFromTheWikiRootNotFromThePage` (drei Mutanten), danach `killed` |
+| internal/brain/wiki/lint.go:201 und :204 | a1 | `IsScaffoldFile(...)` -> `true`, `inbound == 0` -> `false` | Test `TestAPageNobodyLinksIsAnOrphan` (zwei Mutanten), danach `killed` |
+| internal/brain/wiki/parse.go:119 | a1 | `node.Kind != MappingNode` -> `false` | Kein Unterschied: der Knotenbaum wird nur im `else`-Zweig gelesen, in dem das getypte `yaml.Unmarshal` (parse.go:89) gelungen ist -- ein Frontmatter, das keine Abbildung ist, kommt dort nie an |
+| internal/brain/wiki/parse.go:124 | a3 | `i+1 < len` -> `i+1 <= len` | Kein Unterschied: ein Abbildungsknoten hält Schlüssel und Wert paarweise, `len(node.Content)` ist gerade, und für gerades `i` tritt `i+1 == len` nie ein |
+| internal/brain/wiki/parse.go:133 | a1, a2 | vier Klauseln -> `true` und je eine Klausel | Test `TestLinksWithASchemeAreNotWikiLinks` (fünf Mutanten), danach `killed` |
+| internal/brain/wiki/parse.go:173 | a3 | `from < len(body)` -> `<=` | Kein Unterschied: für `from == len(body)` ist `body[from:]` leer, der Ausdruck findet nichts, und die Schleife bricht in beiden Formen ab |
+| internal/brain/wiki/root.go:20 | a2 | `err == nil && layout != ""` -> `err == nil` | Test `TestAnUnsaidLayoutIsNoLayout`, danach `killed` |
+| internal/brain/pytext/isotime.go:62 | a3 | `>= '0'` -> `> '0'` | Test `TestAZeroInsideTheFractionStaysInTheFraction`, danach `killed` |
+| internal/brain/pytext/isotime.go:79 | a3 | `seconds > 59` -> `>= 59` | Test `TestAnOffsetSecondOfFiftyNineIsStillAnOffset`, danach `killed` |
+| internal/brain/pytext/isotime.go:90 | a3 | `year < 1` -> `<= 1` | Test `TestTheFirstYearOfTheCalendarParses`, danach `killed` |
+| internal/brain/pytext/isotime.go:90 | a3 | `month > 12` -> `>= 12` | Test `TestDecemberParses`, danach `killed` |
+| internal/brain/pytext/isotime.go:105 | a1, a2 | Ziffernbereich -> `false` und je eine Klausel | Test `TestANonDigitWhereTheShapeWantsADigitIsRefused` (drei Mutanten), danach `killed`. Das schlechte Zeichen steht im Jahr, dem einzigen Feld ohne eigene Bereichsprüfung: in der Sekunde fängt `second > 59` es ein zweites Mal ab und verdeckt die Form |
+| internal/brain/pytext/isotime.go:110 | a1 | `s[i] != pattern[i]` -> `false` | Test `TestTheFixedCharactersOfTheShapeMustMatch`, danach `killed` |
+| internal/brain/pytext/lines.go:19 | a3 | `i < len(s)` -> `<=` | Test `TestACarriageReturnAtTheVeryEndOpensNoEmptyLine`, danach `killed` |
+| internal/brain/pytext/path.go:44 | a2 | drei Klauseln -> nur die letzte | Kein Unterschied: ist `root` nicht leer, ist er der Backslash, und der Block kann ihn nur auf den Backslash setzen; beginnt `drive` nicht mit einem Backslash, hält er keinen und hat damit nie vier oder sechs Teile |
+| internal/brain/pytext/path.go:48 | a2 | zwei Klauseln -> ohne `len == 6` | Test `TestASixPartUNCDriveGainsARoot`, danach `killed` |
+| internal/brain/pytext/path.go:53 | a2 | drei Klauseln -> `len(tail) > 0` | Test `TestATailThatReadsAsADriveIsPrefixedOnlyWithoutADrive`, danach `killed` |
+| internal/brain/pytext/path.go:70 | a1, a2, a3 | `len(p) >= 8 && EqualFold(...)` -> `false`, `len(p) >= 8`, `len(p) > 8` | Tests `TestASixPartUNCDriveGainsARoot`, `TestAPlainUNCPathIsNotReadAsAnExtendedOne` und `TestAnExtendedUNCPrefixWithNothingBehindItIsAllDrive` (drei Mutanten), danach `killed` |
+| internal/brain/pytext/path.go:74 | a1 (`true`), a3, a4 | `index < 0` -> `true`, `<= 0`, `!(...)` | Tests `TestAPlainUNCPathIsNotReadAsAnExtendedOne` und `TestAThirdSlashBelongsToTheShareNotToTheSearch` (drei Mutanten), danach `killed` |
+| internal/brain/pytext/path.go:74 | a1 (`false`) | `index < 0` -> `false` | Kein Unterschied: ist `index` kleiner null, gibt es hinter dem Anfang keinen weiteren Backslash, die zweite Suche scheitert genauso, und Zeile 79 gibt dasselbe Tripel zurück |
+| internal/brain/pytext/path.go:79 | a1, a3 | `index2 < 0` -> `true`, `<= 0` | Tests `TestAPlainUNCPathIsNotReadAsAnExtendedOne` und `TestAnEmptyShareStillEndsTheDrive` (zwei Mutanten), danach `killed` |
+| internal/brain/pytext/repr.go:56 | a3 | `r < 0x7f` -> `r <= 0x7f` | Kein Unterschied: `r == 0x7f` fängt schon die Zeile darüber ab (`case r < ' ' || r == 0x7f`), der Wert erreicht diesen Zweig nie |
+| internal/brain/pytext/repr.go:58 | a3 | `r <= 0xff` -> `r < 0xff` | Kein Unterschied: der einzige Wert 0xff ist `ÿ`, und `unicode.IsPrint` nimmt ihn, also nimmt ihn schon Zeile 56 |
+| internal/brain/identity/identity.go:140 | a1 | `s == ""` -> `false` | Kein Unterschied: über den leeren String läuft die Schleife nicht, `strconv.Atoi("")` scheitert, und beide Formen antworten `(0, false)` |
+| internal/brain/identity/identity.go:144 | a2 (`r < '0'`) | zwei Klauseln -> `r < '0'` | Kein Unterschied: jede Rune über `'9'`, die die weggefallene Klausel abwiese, weist auch `strconv.Atoi` ab -- es nimmt nur ASCII-Ziffern mit einem Vorzeichen, und die Vorzeichen stehen unter `'0'` |
+| internal/brain/identity/identity.go:144 | a3 | `<= '0'`, `>= '9'` | Test `TestTheOuterDigitsAreRevisionsLikeAnyOther` (zwei Mutanten), danach `killed` |
+| internal/brain/identity/identity.go:159 | a1 | `!ok` -> `true` | Test `TestAPathThatStayedIsNotAlsoAPathThatWent`, danach `killed` |
+| internal/brain/identity/identity.go:166 | a1 | `!ok` -> `true` | Test `TestAPathThatWasAlreadyThereIsNotFresh`, danach `killed` |
+| internal/brain/identity/identity.go:206 | a3 | `<` -> `<=` | Kein Unterschied, der zu prüfen wäre: bei verschiedenen `DocID` antworten beide Formen gleich, bei gleichen sagt `sort.Slice` für keine der beiden eine Reihenfolge zu |
+| internal/brain/graph/read.go:112 | a1 | `!ok` -> `false` | Kein Unterschied: der Fehlertext von Zeile 113 ist wortgleich der von Zeile 121, und eine nil-Map gibt keine Schlüssel her -- ein `links`, das keine Tabelle ist, fällt durch und meldet denselben Satz |
+| internal/brain/reader/section.go:21 | a1 | `HasPrefix(line, "#")` -> `true` | Test `TestOnlyAHeadingLineCanOpenASection`, danach `killed` |
+| internal/brain/catalog/root.go:23 | a3 | `<` -> `<=` | Kein Unterschied: die gerenderte Zeile trägt nur `Scope`, zwei Bereiche mit gleichem Scope rendern also gleich, und bei verschiedenen Scopes sind `<` und `<=` dasselbe |
 
 ### Offen
 
