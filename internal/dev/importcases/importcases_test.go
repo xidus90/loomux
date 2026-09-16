@@ -435,3 +435,97 @@ func TestImportReportsTheFilesItRewritesAndCannotWrite(t *testing.T) {
 		}
 	}
 }
+
+// writeFile writes content to path, making its directory first.
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+const worldRegistry = `[[area]]
+scope = "project/a"
+path = "{{WORLD}}/repo-a"
+
+[[area]]
+scope = "notes"
+path = "{{WORLD}}/areas/notes"
+readonly = true
+
+[[area]]
+scope = "project/away"
+path = "{{WORLD}}/../escape"
+
+[[area]]
+scope = "project/elsewhere"
+path = "C:/elsewhere/repo-b"
+
+[[area]]
+scope = "project/gone"
+path = "{{WORLD}}/repo-gone"
+`
+
+// A writable area of a 1b-1 world lives where the registry's path puts it,
+// not under areas/. Its old manifest has to become loomux's configuration
+// where it lives, or loomux reads a manifest the reference never saw.
+func TestTranslateWorldFoldsEveryAreaTheRegistryPlacesInTheWorld(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "world")
+	writeFile(t, filepath.Join(dir, "registry.toml"), worldRegistry)
+	writeFile(t, filepath.Join(dir, "repo-a", ".ultra-brain", "config.toml"),
+		"[area]\nscope = \"project/a\"\n\n[privacy]\nmode = \"local_only\"\nnever = [\"secret/**\"]\n")
+	writeFile(t, filepath.Join(dir, "areas", "notes", ".brain.toml"), "[area]\nscope = \"notes\"\n")
+	writeFile(t, filepath.Join(parent, "escape", ".brain.toml"), "[area]\nscope = \"project/away\"\n")
+
+	if err := TranslateWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	privacy, _ := decodeConfig(t, filepath.Join(dir, "repo-a"))["privacy"].(map[string]any)
+	never, _ := privacy["never"].([]any)
+	if privacy["mode"] != "local_only" || len(never) != 1 || never[0] != "secret/**" {
+		t.Errorf("privacy of repo-a %v", privacy)
+	}
+	for _, area := range []string{"repo-a", filepath.Join("areas", "notes")} {
+		if got := entries(t, filepath.Join(dir, area)); strings.Join(got, " ") != ".loomux" {
+			t.Errorf("%s: leftovers %v", area, got)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(parent, "escape", ".brain.toml")); err != nil {
+		t.Errorf("a path outside the world was translated: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "repo-gone")); !os.IsNotExist(err) {
+		t.Errorf("a registered directory that is not there was made: %v", err)
+	}
+}
+
+// A registry that does not read is a case of its own: the replay has to meet
+// it as the reference did. The import folds the rest of the world and leaves
+// the registry as it was recorded.
+func TestTranslateWorldLeavesAnUnreadableRegistryToTheReplay(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "registry.toml"), "[[area\n")
+	writeFile(t, filepath.Join(dir, "areas", "notes", ".brain.toml"), "[area]\nscope = \"notes\"\n")
+	if err := TranslateWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, "registry.toml")); err != nil || string(got) != "[[area\n" {
+		t.Errorf("registry %q, err %v", got, err)
+	}
+	if got := entries(t, filepath.Join(dir, "areas", "notes")); strings.Join(got, " ") != ".loomux" {
+		t.Errorf("the area beside the registry was not folded: %v", got)
+	}
+}
+
+func TestTranslateWorldReportsARegisteredAreaItCannotTranslate(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "registry.toml"), "[[area]]\nscope = \"project/a\"\npath = \"{{WORLD}}/repo-a\"\n")
+	writeFile(t, filepath.Join(dir, "repo-a", ".brain.toml"), "[area\n")
+	if err := TranslateWorld(dir); err == nil || !strings.Contains(err.Error(), "repo-a") {
+		t.Fatalf("want an error naming the area's manifest, got %v", err)
+	}
+}

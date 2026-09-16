@@ -108,7 +108,7 @@ func TestDevRecordCaseNeedsItsFlags(t *testing.T) {
 		t.Fatalf("code %d", code)
 	}
 	code, _, errOut := run("dev", "record-case", "--cmd", "ulguard {{WORLD}}")
-	if code != 2 || !strings.Contains(errOut, "loomux dev record-case: --exe, --cmd, --world and --out are required") {
+	if code != 2 || !strings.Contains(errOut, "loomux dev record-case: --exe or --argv, --cmd, --world and --out are required") {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
@@ -136,6 +136,48 @@ func TestDevRecordCaseReportsAFailedRecording(t *testing.T) {
 		"--world", t.TempDir(), "--out", filepath.Join(t.TempDir(), "v", "n"))
 	if code != 1 || !strings.Contains(errOut, "loomux dev record-case:") {
 		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevRecordCaseRefusesExeAndArgvTogether(t *testing.T) {
+	code, _, errOut := run("dev", "record-case", "--exe", "brain.exe", "--argv", "uv run brain-mcp",
+		"--cmd", "brain-mcp status", "--world", t.TempDir(), "--out", t.TempDir())
+	if code != 2 || !strings.Contains(errOut, "loomux dev record-case: --exe and --argv exclude each other") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevRecordCaseRefusesAnArgvItCannotSplit(t *testing.T) {
+	code, _, errOut := run("dev", "record-case", "--argv", "'unclosed",
+		"--cmd", "brain-mcp status", "--world", t.TempDir(), "--out", t.TempDir())
+	if code != 2 || !strings.Contains(errOut, "loomux dev record-case: --argv: unclosed quote") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevRecordCaseRefusesAnEnvWithoutAValue(t *testing.T) {
+	code, _, errOut := run("dev", "record-case", "--env", "NOVALUE")
+	if code != 2 || !strings.Contains(errOut, `"NOVALUE" is not KEY=VALUE`) {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// The argv form with a real program: go stands in for uv, "env" for the
+// leading arguments, GOWORK for what the command asks after.
+func TestDevRecordCaseRecordsAProgramWithLeadingArguments(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("no go binary on PATH")
+	}
+	out := filepath.Join(t.TempDir(), "demo", "gowork")
+	code, _, errOut := run("dev", "record-case",
+		"--argv", "go env", "--env", "GOWORK=off", "--env", "LOOMUX_UNUSED={{WORLD}}",
+		"--path-prepend", t.TempDir(), "--cmd", "old GOWORK", "--world", t.TempDir(),
+		"--out", out, "--notes", "the go workspace setting")
+	if code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	if got, err := os.ReadFile(filepath.Join(out, "stdout")); err != nil || string(got) != "off\n" {
+		t.Fatalf("%v %q", err, got)
 	}
 }
 

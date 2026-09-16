@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -31,6 +32,18 @@ func TestHelperProcess(t *testing.T) {
 	case "write":
 		os.WriteFile(args[0], []byte("made at "+args[0]+"\n"), 0o644)
 		os.Exit(0)
+	case "env":
+		for _, name := range args {
+			value := os.Getenv(name)
+			if name == "PATH" {
+				value, _, _ = strings.Cut(value, string(os.PathListSeparator))
+			}
+			os.Stdout.WriteString(name + "=" + value + "\n")
+		}
+		os.Exit(0)
+	case "crlf":
+		os.Stdout.WriteString("one\r\ntwo\r\n")
+		os.Exit(0)
 	default:
 		os.Stdout.WriteString("refused\n")
 		os.Exit(2)
@@ -48,6 +61,18 @@ func helperSpec(t *testing.T, mode, cmd string) Spec {
 		Out:   filepath.Join(t.TempDir(), "guard", "one"),
 		Notes: "tag loomux-1a-source, ulguard, what the case shows",
 	}
+}
+
+// helperArgvSpec runs the test binary as a program with leading arguments:
+// the program, -test.run and "--" stand before the command's own arguments,
+// as "uv run --project <ub> brain-mcp" stands before "status".
+func helperArgvSpec(t *testing.T, mode, cmd string) Spec {
+	t.Helper()
+	s := helperSpec(t, mode, cmd)
+	s.Exe = ""
+	s.Argv = []string{os.Args[0], "-test.run=TestHelperProcess", "--"}
+	s.Cmd = "brain-mcp " + cmd
+	return s
 }
 
 func read(t *testing.T, parts ...string) string {
@@ -209,5 +234,114 @@ func TestRecordCopiesNestedDirectoriesAndReportsAWorldAfterItCannotWrite(t *test
 	}
 	if got := read(t, s.Out, "world", "sub", "kept.txt"); got != "kept\n" {
 		t.Errorf("nested world file %q", got)
+	}
+}
+
+// A command of blanks splits into no token at all, so there is no old name
+// for the program to replace.
+func TestRecordRefusesACommandWithoutTokens(t *testing.T) {
+	s := helperSpec(t, "echo", "")
+	s.Cmd = "   "
+	if err := Record(s); err == nil || err.Error() != "empty command" {
+		t.Fatalf("err %v", err)
+	}
+}
+
+// The Python reference runs as "uv run --project <ub> brain-mcp", reads its
+// state directory and a fake qmd from the environment, and finds that qmd
+// through PATH. All three have to reach the recorded process.
+func TestRecordRunsAProgramWithLeadingArgumentsInItsEnvironment(t *testing.T) {
+	prepend := t.TempDir()
+	s := helperArgvSpec(t, "env", "BRAIN_STATE_DIR PYTHONUTF8 LOOMUX_FAKE_QMD_FIXTURE PATH")
+	s.Env = []string{"LOOMUX_FAKE_QMD_FIXTURE={{WORLD}}/qmd-fixture.json"}
+	s.PathPrepend = prepend
+	if err := Record(s); err != nil {
+		t.Fatal(err)
+	}
+	want := "BRAIN_STATE_DIR={{WORLD}}\nPYTHONUTF8=1\nLOOMUX_FAKE_QMD_FIXTURE={{WORLD}}/qmd-fixture.json\nPATH=" + prepend + "\n"
+	if got := read(t, s.Out, "stdout"); got != want {
+		t.Errorf("stdout %q, want %q", got, want)
+	}
+	if got := read(t, s.Out, "cmd"); got != "brain-mcp BRAIN_STATE_DIR PYTHONUTF8 LOOMUX_FAKE_QMD_FIXTURE PATH\n" {
+		t.Errorf("cmd %q", got)
+	}
+}
+
+// Python on Windows ends every printed line with \r\n in a pipe.
+func TestRecordFoldsCRLFInStdout(t *testing.T) {
+	s := helperSpec(t, "crlf", "")
+	if err := Record(s); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, s.Out, "stdout"); got != "one\ntwo\n" {
+		t.Errorf("stdout %q", got)
+	}
+}
+
+func TestRecordRefusesAProgramNamedTwiceOrNotAtAll(t *testing.T) {
+	s := helperArgvSpec(t, "echo", "x")
+	s.Exe = os.Args[0]
+	if err := Record(s); err == nil {
+		t.Error("Exe and Argv: want error")
+	}
+	s.Exe, s.Argv = "", nil
+	if err := Record(s); err == nil {
+		t.Error("neither Exe nor Argv: want error")
+	}
+}
+
+func TestRecordRefusesAnEnvironmentEntryWithoutAValue(t *testing.T) {
+	s := helperSpec(t, "echo", "x")
+	s.Env = []string{"NOVALUE"}
+	if err := Record(s); err == nil || !strings.Contains(err.Error(), `"NOVALUE"`) {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestRecordNamesTheArgvProgramItCannotRun(t *testing.T) {
+	s := helperArgvSpec(t, "echo", "x")
+	s.Argv = []string{filepath.Join(t.TempDir(), "no-such-program.exe"), "run"}
+	if err := Record(s); err == nil || !strings.Contains(err.Error(), "no-such-program.exe") {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestMergeEnvReplacesAKeyAsThePlatformSpellsIt(t *testing.T) {
+	base := []string{`Path=C:\a`, "X=1"}
+	for _, c := range []struct {
+		goos string
+		env  []string
+		set  []string
+		want []string
+	}{
+		{"windows", base, []string{`PATH=C:\b`}, []string{"X=1", `PATH=C:\b`}},
+		{"linux", []string{"Path=/a", "X=1"}, []string{"PATH=/b"}, []string{"Path=/a", "X=1", "PATH=/b"}},
+		{"linux", []string{"X=1", "Y=2"}, []string{"X=3", "Z=4"}, []string{"Y=2", "X=3", "Z=4"}},
+	} {
+		if got := mergeEnv(c.goos, c.env, c.set...); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s %v + %v: got %v, want %v", c.goos, c.env, c.set, got, c.want)
+		}
+	}
+	if !reflect.DeepEqual(base, []string{`Path=C:\a`, "X=1"}) {
+		t.Errorf("the environment it was given changed: %v", base)
+	}
+}
+
+func TestPrependPathPutsTheDirectoryFirst(t *testing.T) {
+	for _, c := range []struct {
+		goos string
+		env  []string
+		dir  string
+		want []string
+	}{
+		{"windows", []string{`Path=C:\a;C:\b`, "X=1"}, `D:\fake`, []string{"X=1", `PATH=D:\fake;C:\a;C:\b`}},
+		{"linux", []string{"PATH=/a:/b"}, "/fake", []string{"PATH=/fake:/a:/b"}},
+		{"linux", []string{"Path=/a"}, "/fake", []string{"Path=/a", "PATH=/fake"}},
+		{"linux", []string{"PATH="}, "/fake", []string{"PATH=/fake"}},
+		{"windows", []string{"X=1"}, `D:\fake`, []string{"X=1", `PATH=D:\fake`}},
+	} {
+		if got := prependPath(c.goos, c.env, c.dir); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s %v: got %v, want %v", c.goos, c.env, got, c.want)
+		}
 	}
 }

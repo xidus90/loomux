@@ -9,10 +9,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/xidus90/loomux/internal/cases"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/covergate"
 	"github.com/xidus90/loomux/internal/dev/importcases"
@@ -126,11 +128,29 @@ func devCovergate(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return covergate.Gate(lines, module, os.ReadFile, stdout)
 }
 
+// envFlags collects a KEY=VALUE flag that may be given more than once.
+type envFlags []string
+
+func (e *envFlags) String() string { return strings.Join(*e, " ") }
+
+func (e *envFlags) Set(value string) error {
+	if !strings.Contains(value, "=") {
+		return fmt.Errorf("%q is not KEY=VALUE", value)
+	}
+	*e = append(*e, value)
+	return nil
+}
+
 func devRecordCase(args []string, _ io.Reader, _, stderr io.Writer) int {
 	fs := flag.NewFlagSet("dev record-case", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var s recordcase.Spec
+	var argv string
+	var env envFlags
 	fs.StringVar(&s.Exe, "exe", "", "path of the old binary")
+	fs.StringVar(&argv, "argv", "", "program and leading arguments in place of the command's first token")
+	fs.Var(&env, "env", "KEY=VALUE for the recorded process, {{WORLD}} allowed; repeatable")
+	fs.StringVar(&s.PathPrepend, "path-prepend", "", "directory put in front of the recorded process's PATH")
 	fs.StringVar(&s.Cmd, "cmd", "", "command line with {{WORLD}}")
 	fs.StringVar(&s.World, "world", "", "directory to stage")
 	fs.StringVar(&s.Stdin, "stdin", "", "file with the payload")
@@ -140,8 +160,18 @@ func devRecordCase(args []string, _ io.Reader, _, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if s.Exe == "" || s.Cmd == "" || s.World == "" || s.Out == "" {
-		fmt.Fprintln(stderr, "loomux dev record-case: --exe, --cmd, --world and --out are required")
+	if s.Exe != "" && argv != "" {
+		fmt.Fprintln(stderr, "loomux dev record-case: --exe and --argv exclude each other")
+		return 2
+	}
+	tokens, err := cases.SplitCommand(argv)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux dev record-case: --argv: %v\n", err)
+		return 2
+	}
+	s.Argv, s.Env = tokens, env
+	if (s.Exe == "" && len(s.Argv) == 0) || s.Cmd == "" || s.World == "" || s.Out == "" {
+		fmt.Fprintln(stderr, "loomux dev record-case: --exe or --argv, --cmd, --world and --out are required")
 		return 2
 	}
 	if err := recordcase.Record(s); err != nil {

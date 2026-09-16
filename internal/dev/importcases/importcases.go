@@ -14,6 +14,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/xidus90/loomux/internal/cases"
+	"github.com/xidus90/loomux/internal/config"
 )
 
 // Rule rewrites the head of a recorded command line.
@@ -131,16 +132,15 @@ func rewritePaths(s string) string {
 	return s
 }
 
-// TranslateWorld rewrites the configuration files of the old tools in dir
-// (and in every dir/areas/<name>) into one .loomux/config.toml.
+// TranslateWorld rewrites the configuration files of the old tools in dir, in
+// every dir/areas/<name> and in every directory dir/registry.toml names as
+// {{WORLD}}/<path>, into one .loomux/config.toml each.
 func TranslateWorld(dir string) error {
 	if err := translateDir(dir); err != nil {
 		return err
 	}
-	areas, err := os.ReadDir(filepath.Join(dir, "areas"))
-	if err != nil {
-		return nil
-	}
+	// A world without areas/ has no read-only area to fold.
+	areas, _ := os.ReadDir(filepath.Join(dir, "areas"))
 	for _, area := range areas {
 		if !area.IsDir() {
 			continue
@@ -149,7 +149,36 @@ func TranslateWorld(dir string) error {
 			return err
 		}
 	}
+	// A registered directory that is also the root or an areas/ entry was
+	// folded above; translateDir finds no old file there and writes nothing.
+	for _, area := range registeredDirs(dir) {
+		if err := translateDir(area); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// registeredDirs names the directories the world's registry places inside the
+// world. A writable area lives where its path says, not only under areas/, and
+// its manifest is read where it lives. A path outside the world is no part of
+// the recording.
+func registeredDirs(dir string) []string {
+	areas, err := config.ReadRegistry(dir)
+	if err != nil {
+		// A missing or unreadable registry names nothing to fold. The replay
+		// reads the same file and reports it, as the recording did.
+		return nil
+	}
+	var dirs []string
+	for _, area := range areas {
+		rest, ok := strings.CutPrefix(area.Path, cases.WorldToken+"/")
+		if !ok || !filepath.IsLocal(filepath.FromSlash(rest)) {
+			continue
+		}
+		dirs = append(dirs, filepath.Join(dir, filepath.FromSlash(rest)))
+	}
+	return dirs
 }
 
 // translateDir folds the old files of one directory into one config.
