@@ -232,17 +232,13 @@ func TestABrokenManifestSaysWhichDefectItFound(t *testing.T) {
 	}
 }
 
-func TestAGitThatCannotAnswerMakesNoTwoTreesOneRepository(t *testing.T) {
-	old := askGit
-	t.Cleanup(func() { askGit = old })
-	// git missing, slow or confused: `gitCommonDir` answers "" for every
-	// directory it is asked about. Without the emptiness test the two
-	// empty answers would compare equal, and any directory carrying a
-	// `.git` would pass for a worktree of the registered tree -- on a
-	// machine without git, every one of them at once.
-	askGit = func(string) (string, error) {
-		return "", errors.New("git is not here")
-	}
+func TestAnUnreadableGitFileMakesNoTwoTreesOneRepository(t *testing.T) {
+	// Neither side is a repository this reading understands: the planted
+	// `.git` names an administration directory that is not there, and the
+	// registered tree has no `.git` above it. Both answers are "", and
+	// without the emptiness test in `sameRepository` two empty answers
+	// would compare equal -- so any directory carrying a `.git` would pass
+	// for a worktree of a tree outside every repository.
 	tmp := t.TempDir()
 	state := filepath.Join(tmp, "state")
 	repo := filepath.Join(tmp, "repo")
