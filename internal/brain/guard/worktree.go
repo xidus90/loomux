@@ -73,6 +73,31 @@ func repositoryCommon(root string) string {
 	return linkedCommon(root)
 }
 
+// registeredCommon is the common git directory of the repository a
+// registered area lies in, or "" where there is none this reading
+// understands.
+//
+// It climbs where the candidate side does not, because the question it
+// replaces -- `git rev-parse --git-common-dir` -- answers from any directory
+// inside a checkout, and a registered area need not be a checkout root. Two
+// limits keep the climb from answering more than git did. It does not start
+// from a path that is not there, which git refuses and a climb would pass
+// over to whatever ancestor still stands. And it stops at the first `.git`
+// of any kind, understood or not: past a submodule's `.git` file lies the
+// superproject, whose worktrees git keeps apart from the submodule.
+func registeredCommon(registered string) string {
+	if _, err := os.Stat(registered); err != nil {
+		return ""
+	}
+	for _, directory := range append([]string{registered},
+		parents(registered)...) {
+		if _, err := os.Lstat(filepath.Join(directory, ".git")); err == nil {
+			return repositoryCommon(directory)
+		}
+	}
+	return ""
+}
+
 // linkedCommon is the common git directory of the linked worktree rooted at
 // `directory`, or "" where it is none.
 //

@@ -308,3 +308,74 @@ func TestASymlinkedGitFileIsNoPointer(t *testing.T) {
 	deny(t, writeCall(filepath.Join(other, "a.go")), state,
 		"lies outside every writable tree")
 }
+
+func TestARegisteredRootIsItsOwnRepository(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	want := mustResolve(t, filepath.Join(main, ".git"))
+	if got := registeredCommon(main); got != want {
+		t.Fatalf("registeredCommon(root) = %q, want %q", got, want)
+	}
+}
+
+func TestARegisteredSubdirectoryClimbsToItsRepository(t *testing.T) {
+	// `git rev-parse --git-common-dir` answers from any directory inside a
+	// checkout, and a registered area is not always a checkout root.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	area := filepath.Join(main, "vault", "demo")
+	mkdir(t, area)
+	want := mustResolve(t, filepath.Join(main, ".git"))
+	if got := registeredCommon(area); got != want {
+		t.Fatalf("registeredCommon(subdirectory) = %q, want %q", got, want)
+	}
+}
+
+func TestAMissingRegisteredPathHasNoRepository(t *testing.T) {
+	// git cannot start in a directory that is not there; a climb from one
+	// would borrow the repository of whatever ancestor still stands.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	if got := registeredCommon(filepath.Join(main, "gone")); got != "" {
+		t.Fatalf("registeredCommon(missing) = %q, want the empty answer", got)
+	}
+}
+
+func TestARegisteredPathOutsideEveryRepositoryHasNone(t *testing.T) {
+	// Assumes no directory above the test's temporary directory carries a
+	// `.git`; on 2026-09-16 none from C:\ to %TEMP% did.
+	base := t.TempDir()
+	plain := filepath.Join(base, "plain")
+	mkdir(t, plain)
+	if got := registeredCommon(plain); got != "" {
+		t.Fatalf("registeredCommon(plain) = %q, want the empty answer", got)
+	}
+}
+
+func TestARegisteredLinkedWorktreeNamesItsCommonDirectory(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	want := mustResolve(t, filepath.Join(main, ".git"))
+	if got := registeredCommon(linked); got != want {
+		t.Fatalf("registeredCommon(linked) = %q, want %q", got, want)
+	}
+}
+
+func TestAnAreaInASubmoduleDoesNotClimbIntoTheSuperproject(t *testing.T) {
+	// A submodule's `.git` file points at `<super>/.git/modules/<name>`,
+	// which holds neither `gitdir` nor `commondir`. The climb has to stop
+	// there: git names the submodule's own directory, and borrowing the
+	// superproject's would make its worktrees one repository with an area
+	// git keeps apart.
+	base := t.TempDir()
+	super := fakeRepository(t, base, "super")
+	module := filepath.Join(super, "mod")
+	mkdir(t, filepath.Join(super, ".git", "modules", "mod"))
+	write(t, filepath.Join(module, ".git"), "gitdir: ../.git/modules/mod\n")
+	area := filepath.Join(module, "vault")
+	mkdir(t, area)
+	if got := registeredCommon(area); got != "" {
+		t.Fatalf("registeredCommon(in submodule) = %q, want the empty answer", got)
+	}
+}
