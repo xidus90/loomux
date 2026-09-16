@@ -13033,7 +13033,7 @@ Erwartet: jede Funktion des Pakets 100.0% — `Load`, `RunCLI`, `list`, `status`
 - [ ] **Step 5: Kette gegen die Python-Referenz prüfen** (von Hand, nicht im Tor; startet den Fake, nicht qmd)
 
 ```bash
-go build -o "$TEMP/loomux-fakeqmd/qmd.exe" ./internal/dev/fakeqmd/qmd
+go build -o "$TEMP/loomux-fakeqmd/qmd.exe" ./internal/dev/fakeqmd/_qmd
 ```
 Erwartet: keine Ausgabe, Exit 0; das Verzeichnis `$TEMP/loomux-fakeqmd` entsteht dabei.
 ```bash
@@ -13914,7 +13914,7 @@ go build -o bin/loomux.exe ./cmd/loomux
 ```
 Expected: Exit 0, keine Ausgabe.
 ```bash
-go build -o "$TEMP/loomux-fakeqmd/qmd.exe" ./internal/dev/fakeqmd/qmd
+go build -o "$TEMP/loomux-fakeqmd/qmd.exe" ./internal/dev/fakeqmd/_qmd
 ```
 Expected: Exit 0, keine Ausgabe.
 ```bash

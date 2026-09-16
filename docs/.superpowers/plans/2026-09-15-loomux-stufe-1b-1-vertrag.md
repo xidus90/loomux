@@ -366,7 +366,7 @@ func Main(args []string, getenv func(string) string, stdout, stderr io.Writer) i
 **Consumes:** Task 10 (`brainSearchPort`, `brainStatusPort`), Task 11 (`fakeqmd.Load`, `FixtureName`, `RunCLI`, `MCPHandler`, record-case-Flags, `TranslateWorld`), Task 8 (`NewQmdMcpPort`, `WithConnect`, `WithCLI`, `NewHTTPSession`, `QmdPort`).
 
 **Regeln:**
-- Fake-qmd bauen: `go build -o "$TEMP/loomux-fakeqmd/qmd.exe" ./internal/dev/fakeqmd/qmd`.
+- Fake-qmd bauen: `go build -o "$TEMP/loomux-fakeqmd/qmd.exe" ./internal/dev/fakeqmd/_qmd`.
 - Aufzeichnen je Fall: `bin/loomux.exe dev record-case --argv "uv run --project C:/Users/micro/Documents/#GIT/loomux-src/ub brain-mcp" --env "LOOMUX_FAKE_QMD_FIXTURE={{WORLD}}/qmd-fixture.json" --path-prepend "$TEMP/loomux-fakeqmd" --cmd "brain-mcp <befehl> …" --world testdata/cases/1b-1-worlds/<welt> --out testdata/cases/1b-1-source/<verb>/<fall> --notes "…" [--compare message]`.
 - Welten: Registry `registry.toml` mit Pfaden `{{WORLD}}/…`; schreibbare Bereiche als `{{WORLD}}/repo-*` mit `.ultra-brain/config.toml` oder `.brain.toml`, `_identities.tsv`, `graph.json`, `index.md` und Dokumenten; schreibgeschützte unter `areas/<flat>/`; Stempel `maintenance/last-run.txt` weit in der Vergangenheit (`2000-01-01T00:00:00+00:00`) oder Zukunft (`2999-01-01T00:00:00+00:00`); `qmd-fixture.json` in der Wurzel.
 - Fälle: je Befehl Erfolg, jede Verweigerung und jeder Fehlerweg aus der Spec („Fehlerverhalten"); `status` je Zeilenart L1a/b/c … L8a/b; `search --profile full` als Daten (Treffer mit mehrzeiligem Snippet, ein `never`-Treffer, einer nicht im Register, veralteter Stempel; zweimal leer → `no matches`), `fast` und `keyword` als Meldung; `cloud`-Kanal mit `local_only`-Bereich.

@@ -77,7 +77,7 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
   never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
   for 1a with the old binaries (build them from the tag worktrees, put them
   first on `PATH`, run `loomux dev record-case`); for 1b-1 with the fake qmd
-  rebuilt from `internal/dev/fakeqmd/qmd` and the recording command of the
+  rebuilt from `internal/dev/fakeqmd/_qmd` and the recording command of the
   stage plan.
 - **A translated case may deviate from its recording only where the parity
   list says so.** Every such deviation has a line in
