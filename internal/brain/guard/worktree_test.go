@@ -341,6 +341,18 @@ func TestAMissingRegisteredPathHasNoRepository(t *testing.T) {
 	}
 }
 
+func TestARegisteredFileHasNoRepository(t *testing.T) {
+	// git cannot start in a file either; a climb from one would borrow the
+	// repository of the directory that holds it.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	file := filepath.Join(main, "notes.md")
+	write(t, file, "not a directory\n")
+	if got := registeredCommon(file); got != "" {
+		t.Fatalf("registeredCommon(file) = %q, want the empty answer", got)
+	}
+}
+
 func TestARegisteredPathOutsideEveryRepositoryHasNone(t *testing.T) {
 	// Assumes no directory above the test's temporary directory carries a
 	// `.git`; on 2026-09-16 none from C:\ to %TEMP% did.
@@ -420,10 +432,13 @@ func TestAWorktreeIsNoRepositoryOfAnAreaOutsideEveryRepository(t *testing.T) {
 	}
 }
 
-func TestAWriteInTheMainCheckoutUnderAManifestReadsNoGitFile(t *testing.T) {
+func TestAWriteInTheRegisteredCheckoutUnderAManifestReadsNoGitFile(t *testing.T) {
 	// The manifest makes `declaredWikiRoot` ask `sameRepository` about the
-	// registered directory itself, which has to answer before any file is
-	// read.
+	// registered directory itself, which has to answer before any pointer
+	// file is read. The registered checkout is a linked worktree, whose
+	// `.git` is a file: past the equal-path answer, `repositoryCommon` would
+	// read it. The target lies inside the registered tree, so the worktree
+	// lookup for targets outside every tree reads nothing either.
 	old := readGitFile
 	t.Cleanup(func() { readGitFile = old })
 	readGitFile = func(name string) ([]byte, error) {
@@ -432,10 +447,11 @@ func TestAWriteInTheMainCheckoutUnderAManifestReadsNoGitFile(t *testing.T) {
 	}
 	base := t.TempDir()
 	main := fakeRepository(t, base, "main")
-	state := workspaceRegistry(t, base, main)
-	write(t, filepath.Join(main, ".loomux", "config.toml"),
+	linked := fakeLinked(t, main, "linked", false)
+	state := workspaceRegistry(t, base, linked)
+	write(t, filepath.Join(linked, ".loomux", "config.toml"),
 		"[area]\nscope = \"project/demo\"\n")
-	allow(t, writeCall(filepath.Join(main, "src", "a.go")), state)
+	allow(t, writeCall(filepath.Join(linked, "src", "a.go")), state)
 }
 
 func TestACommondirThatLeadsInACircleIsNoCommonDirectory(t *testing.T) {

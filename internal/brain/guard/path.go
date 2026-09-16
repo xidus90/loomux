@@ -387,10 +387,11 @@ func isRelativeTo(path, base string) bool {
 //
 // Read from git's files instead of asking git, unlike Python (spec
 // 2026-09-16-loomux-schranke-samerepo): the two `git rev-parse` calls
-// this replaced ran on every write in a linked worktree below a manifest.
-// Where git would find a repository these files do not describe -- a
-// `--separate-git-dir` checkout, `core.worktree` -- the answer is false,
-// which closes the tree rather than opening it.
+// this replaced ran on every write in a linked worktree below a manifest
+// that names a registered scope that is not read-only. Where git would
+// find a repository these files do not describe -- a `--separate-git-dir`
+// checkout, `core.worktree` -- the answer is false, which closes the tree
+// rather than opening it.
 func sameRepository(candidate, registered string) bool {
 	here, hereErr := resolvePath(candidate)
 	there, thereErr := resolvePath(registered)
@@ -403,6 +404,6 @@ func sameRepository(candidate, registered string) bool {
 	if pathsEqual(here, there) {
 		return true
 	}
-	common := repositoryCommon(candidate)
+	common := repositoryCommon(here)
 	return common != "" && pathsEqual(common, registeredCommon(there))
 }

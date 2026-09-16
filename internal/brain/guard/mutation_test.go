@@ -243,6 +243,13 @@ func TestAnUnreadableGitFileMakesNoTwoTreesOneRepository(t *testing.T) {
 	state := filepath.Join(tmp, "state")
 	repo := filepath.Join(tmp, "repo")
 	mkdir(t, repo)
+	// Where the temporary directory lies inside a checkout, the registered
+	// side names that checkout's repository, and the test would pass even
+	// with the emptiness test in `sameRepository` removed.
+	if got := registeredCommon(repo); got != "" {
+		t.Fatalf("the fixture lies inside a repository (%q); this test "+
+			"needs a temporary directory outside every checkout", got)
+	}
 	write(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"project/demo\"\npath = \""+posix(repo)+"\"\n")
 	planted := filepath.Join(tmp, "planted")

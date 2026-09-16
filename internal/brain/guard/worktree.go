@@ -80,13 +80,14 @@ func repositoryCommon(root string) string {
 // It climbs where the candidate side does not, because the question it
 // replaces -- `git rev-parse --git-common-dir` -- answers from any directory
 // inside a checkout, and a registered area need not be a checkout root. Two
-// limits keep the climb from answering more than git did. It does not start
-// from a path that is not there, which git refuses and a climb would pass
-// over to whatever ancestor still stands. And it stops at the first `.git`
-// of any kind, understood or not: past a submodule's `.git` file lies the
-// superproject, whose worktrees git keeps apart from the submodule.
+// limits keep the climb from answering more than git did. It starts only
+// from a directory that is there: git refuses a missing path and a file
+// alike, and a climb would pass over either to whatever ancestor still
+// stands. And it stops at the first `.git` of any kind, understood or not:
+// past a submodule's `.git` file lies the superproject, whose worktrees git
+// keeps apart from the submodule.
 func registeredCommon(registered string) string {
-	if _, err := os.Stat(registered); err != nil {
+	if info, err := os.Stat(registered); err != nil || !info.IsDir() {
 		return ""
 	}
 	for _, directory := range append([]string{registered},
