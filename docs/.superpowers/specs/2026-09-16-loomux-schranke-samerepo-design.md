@@ -35,7 +35,7 @@ Ein Write im Worktree kostet danach ungefähr so viel wie im Hauptcheckout.
 |---|---|
 | Erkennung | `repositoryCommon` aus `worktree.go`, kein `git`-Prozess und kein Rückfall darauf |
 | Kandidatenseite | Streng: der Kandidat muss selbst Checkout-Wurzel sein (`.git`-Verzeichnis oder geprüfte `.git`-Datei) |
-| Registrierte Seite | Steigend: `registered` selbst, dann `parents(registered)`, bis `repositoryCommon` antwortet — aber nur, wenn `registered` existiert |
+| Registrierte Seite | Steigend: `registered` selbst, dann `parents(registered)`, bis zum ersten `.git`-Eintrag gleich welcher Art; dessen `repositoryCommon` ist die Antwort. Nur, wenn `registered` existiert |
 | Vergleich | `pathsEqual`, nicht `==` |
 | Reihenfolge in `Decide` | Unverändert. Getauscht wird nur das Innere von `sameRepository` |
 | Toter Code | `askGit`, `gitCommonDir`, `gitCommonDirTimeout` und der `gitenv`-Import in `path.go` entfallen |
@@ -97,12 +97,13 @@ Unterverzeichnis trägt kein `.git`, `repositoryCommon` antwortet `""`.
 Neue Funktion in `worktree.go`:
 
 1. Existiert `registered` nicht, `""`.
-2. `repositoryCommon(registered)`; nicht leer ⇒ Antwort.
-3. Sonst für jedes Verzeichnis aus `parents(registered)` dasselbe; das erste nicht-leere gewinnt.
-4. Nichts gefunden ⇒ `""`.
+2. Für `registered` selbst und dann jedes Verzeichnis aus `parents(registered)`: trägt es einen
+   `.git`-Eintrag (`os.Lstat`, gleich ob Verzeichnis, Datei oder Link), ist
+   `repositoryCommon(verzeichnis)` die Antwort — auch wenn sie `""` ist.
+3. Kein `.git` bis zur Wurzel ⇒ `""`.
 
-`parents` beginnt bei `filepath.Dir(path)` und lässt den Pfad selbst aus, daher Schritt 2 vor der
-Schleife.
+`parents` beginnt bei `filepath.Dir(path)` und lässt den Pfad selbst aus, daher steht `registered`
+vor der Schleife.
 
 **Warum Schritt 1.** `git -C <pfad> rev-parse` scheitert an einem Pfad, den es nicht gibt, und
 `gitCommonDir` antwortet dann `""`. Ein reines Steigen fände dagegen das Repository eines noch
@@ -110,6 +111,14 @@ vorhandenen Vorfahren und wäre an dieser Stelle weiter als heute. Ein `os.Stat`
 
 **Warum steigend.** `git rev-parse --git-common-dir` antwortet aus jedem Unterverzeichnis eines
 Checkouts. Die registrierte Seite war nie eine Wurzelprüfung, und sie wird keine.
+
+**Warum am ersten `.git` halten, nicht am ersten erkannten Repository.** git hält bei seiner Suche
+ebenfalls am nächsten `.git`. Liegt der registrierte Bereich in einem Submodul oder einem
+`--separate-git-dir`-Checkout, versteht `repositoryCommon` dessen `.git`-Datei nicht und antwortet
+`""`. Stiege die Schleife dann weiter, fände sie das Superprojekt, und dessen Worktrees gälten als
+dasselbe Repository wie ein Bereich, für den git ein anderes gemeinsames Verzeichnis nennt: die
+Änderung würde öffnen statt verengen. `os.Lstat` statt `os.Stat`, damit auch ein verwaister
+`.git`-Link die Suche beendet, statt sie nach oben durchzulassen.
 
 ### Auflösung und Vergleich
 
@@ -165,7 +174,7 @@ Neu:
 
 - `registeredCommon`: registrierte Wurzel; Unterverzeichnis einer Wurzel (steigt); nicht vorhandener
   Pfad unter einem Repository (`""`); kein Repository darüber (`""`); registrierter Pfad selbst
-  verknüpfter Worktree.
+  verknüpfter Worktree; Bereich in einem Submodul eines Superprojekts (`""`, steigt nicht weiter).
 - Zähltest über `readGitFile`: ein Write im Hauptcheckout liest keine Zeigerdatei.
 - Ein Kandidat mit gültigem `.git`, dessen registrierte Seite in keinem Repository liegt, ist nicht
   dasselbe Repository (die leere Antwort von `registeredCommon` gegen ein nicht-leeres `common`).
@@ -181,8 +190,9 @@ Abdeckung 100 % je Funktion, ohne neuen `//coverage:exempt`.
 `loomux dev bench-hooks testdata/bench/barrier-worktrees.json -n 20`, Fallsdatei unverändert:
 
 - `before.exe` aus `e4e0dc2`, `after.exe` aus dem Änderungscommit, beide nach
-  `%TEMP%/loomux-barrier/`, gebaut mit derselben Go-Version. `before.exe` entsteht in einem
-  temporären `git worktree add` unter dem Scratchpad, der danach entfernt wird; kein `git stash`.
+  `%TEMP%/loomux-barrier/`, gebaut mit derselben Go-Version. `before.exe` wird vor der ersten Codeänderung aus dem
+  Arbeitsbaum gebaut, nachdem `git diff e4e0dc2 --stat -- cmd internal go.mod go.sum` leer
+  geantwortet hat; kein temporärer Worktree, kein `git stash`.
 - Der Worktree `loomux-sdd-1b1` steht auf `e4e0dc2`; die stdin-Dateien zeigen dorthin. Steht er bei
   der Messung woanders, wird das im Eintrag vermerkt.
 - `LOOMUX_STATE_DIR` wie am 2026-09-15: eine Registry-Kopie, die nur den Hauptcheckout mit
