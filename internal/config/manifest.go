@@ -136,8 +136,25 @@ type manifestFile struct {
 
 // ReadManifest reads the manifest of the area rooted at repoRoot.
 func ReadManifest(repoRoot string) (*Manifest, error) {
-	for _, name := range manifestNames {
-		path := filepath.Join(repoRoot, name)
+	return readManifestAmong(repoRoot, manifestNames, false)
+}
+
+// readManifestAmong reads the first of names below dir that is a regular
+// file. ReadManifest asks for the one loomux name and no scope;
+// ReadAreaManifestUntilStage4 asks for three names and a scope, and the
+// scope is asked before the mode because `read_manifest`
+// (src/brain/manifest.py:19-32) asks in that order -- a file wrong in both
+// is reported for its missing scope there.
+//
+// requireScope expires with stage 4, together with
+// ReadAreaManifestUntilStage4, its only caller that sets it. A
+// `.loomux/config.toml` without an `[area]` table is policy only and
+// declares nothing (stage 1a, R7a), so the scope reader asks the next name
+// instead of refusing it; the two old names have no such form, and
+// `read_manifest` refuses them without a scope.
+func readManifestAmong(dir string, names []string, requireScope bool) (*Manifest, error) {
+	for _, name := range names {
+		path := filepath.Join(dir, name)
 		// Read first and stat only on failure, which is the order that makes
 		// the distinction Python draws: `registry.manifest_path` picks this
 		// file by `is_file()` and `read_manifest` then fails on it, so a
@@ -167,6 +184,14 @@ func ReadManifest(repoRoot string) (*Manifest, error) {
 		meta, err := toml.Decode(string(data), &file)
 		if err != nil {
 			return nil, fmt.Errorf("%s: not valid TOML: %w", path, err)
+		}
+		if requireScope {
+			if name == manifestNames[0] && !meta.IsDefined("area") {
+				continue
+			}
+			if file.Area.Scope == "" {
+				return nil, fmt.Errorf("%s: [area] scope is required and must be a non-empty string", path)
+			}
 		}
 
 		if file.Privacy.Mode != "local_only" && file.Privacy.Mode != "manual_cloud" && file.Privacy.Mode != "automatic_cloud" {
@@ -206,8 +231,8 @@ func ReadManifest(repoRoot string) (*Manifest, error) {
 			IndexUnsearched: file.Index.Unsearched,
 		}, nil
 	}
-	return nil, fmt.Errorf("%s: %w (%s)", repoRoot, ErrNoManifest,
-		strings.Join(manifestNames, ", "))
+	return nil, fmt.Errorf("%s: %w (%s)", dir, ErrNoManifest,
+		strings.Join(names, ", "))
 }
 
 // KnowsType reports whether this area accepts t as a page type.
