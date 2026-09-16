@@ -286,9 +286,9 @@ registry that registers only the main checkout (`workspace = true`). Binaries:
 `before.exe` built from `3855de4` (code identical to
 `e4e0dc2`), `after.exe` built from the commit above, both with Go `go1.27.0 windows/amd64`.
 Both binaries allow the worktree write; the case names are those of 2026-09-15.
-The table shows the second of two runs. The first (19:31) was started while
-`after.exe` was still being built, so it is not shown; its warm medians lie within
-3 ms of these (worktree 73.8 and 31.3 ms, main checkout 30.3 and 32.0 ms). Because
+The table shows the second of two runs. The first (19:31) was started together
+with the build of `after.exe` and may have overlapped it, so it is not shown; its warm medians lie within
+3.3 ms of these (worktree 73.8 and 31.3 ms, main checkout 30.3 and 32.0 ms). Because
 both binaries had already started once, all four cold values here are cached
 starts and comparable across rows.
 
