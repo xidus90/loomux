@@ -1,7 +1,7 @@
 # loomux-Schreibschranke: `sameRepository` ohne `git rev-parse`
 
 **Datum:** 2026-09-16
-**Stand:** entworfen, nicht umgesetzt
+**Stand:** umgesetzt, gemessen 2026-09-16
 **Bezug:** [Worktree-Spec](2026-09-15-loomux-schranke-worktrees-design.md), deren Dateibefund
 (`internal/brain/guard/worktree.go`) hier wiederverwendet wird.
 **Paritätsliste:** [schranke-worktrees.md](../parity/schranke-worktrees.md), Zeile
