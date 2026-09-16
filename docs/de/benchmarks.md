@@ -298,7 +298,7 @@ Anfrage `latenz`, nach einem Aufwärmaufruf je Profil: Die Kalt-Spalte ist ein k
 Prozess gegen einen warmen qmd-Daemon. Der kalte Daemon ist getrennt gemessen: Daemon
 gestoppt, dann ein zeitgemessenes `brain search` je Profil, dreimal; jeder der neun
 Läufe druckte den Aufwärm-Hinweis, hat den Daemon also selbst gestartet. Der
-Registeranteil: `go test ./internal/brain/search/ -bench 'OfTheRealRegistry|WithoutTheEngine' -benchtime 50x -benchmem`
+Registeranteil: `go test ./internal/brain/search/ -run '^$' -bench 'OfTheRealRegistry|WithoutTheEngine' -benchtime 50x -benchmem`
 mit `LOOMUX_BENCH_REGISTRY`/`LOOMUX_BENCH_LEGACY` auf denselben Verzeichnissen.
 Startzeit: `GODEBUG=inittrace=1 loomux --version`, je drei Läufe, am Binary des Commits
 vor Task 3 (`aa945cb^`) und an `bin/loomux.exe`. Maschine: AMD Ryzen 7 9800X3D,

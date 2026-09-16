@@ -288,7 +288,7 @@ for read-only artefacts and the reconcile stamp; neither `LOOMUX_STATE_DIR` nor
 the cold column is a cold process against a warm qmd daemon. The cold daemon is
 measured separately: the daemon stopped, then one timed `brain search` per profile,
 three times; each of the nine runs printed the warming note, so each started the daemon
-itself. The register share: `go test ./internal/brain/search/ -bench 'OfTheRealRegistry|WithoutTheEngine' -benchtime 50x -benchmem`
+itself. The register share: `go test ./internal/brain/search/ -run '^$' -bench 'OfTheRealRegistry|WithoutTheEngine' -benchtime 50x -benchmem`
 with `LOOMUX_BENCH_REGISTRY`/`LOOMUX_BENCH_LEGACY` on the same directories. Start
 time: `GODEBUG=inittrace=1 loomux --version`, three runs each, on the binary of the
 commit before Task 3 (`aa945cb^`) and on `bin/loomux.exe`. Machine: AMD Ryzen 7 9800X3D,
