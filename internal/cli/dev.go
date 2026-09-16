@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/covergate"
 	"github.com/xidus90/loomux/internal/dev/importcases"
+	"github.com/xidus90/loomux/internal/dev/mutants"
 	"github.com/xidus90/loomux/internal/dev/recordcase"
 	"github.com/xidus90/loomux/internal/dev/swap"
 )
@@ -39,10 +42,17 @@ func runCoverFunc(profile string) ([]byte, error) {
 
 var benchExec = benchhooks.Exec
 
+var mutantsTest = mutants.GoTest
+
+var mutantsRoot = os.Getwd
+
+var mutantsNotify = signal.NotifyContext
+
 var devCommands = map[string]command{
 	"bench-hooks":  devBenchHooks,
 	"covergate":    devCovergate,
 	"import-cases": devImportCases,
+	"mutants":      devMutants,
 	"record-case":  devRecordCase,
 	"swap-binary":  devSwapBinary,
 }
@@ -58,6 +68,80 @@ func devCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 2
 	}
 	return sub(args[1:], stdin, stdout, stderr)
+}
+
+// devMutants runs a mutation round over packages named relative to the
+// working directory. Packages and flags may be mixed: Go's flag package stops
+// at the first argument that is no flag, so parsing resumes behind each
+// package.
+func devMutants(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev mutants", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var opts mutants.Options
+	fs.StringVar(&opts.Only, "only", "", "restrict to files whose name contains this")
+	fs.StringVar(&opts.Family, "family", "", "restrict to one of a1, a2, a3, a4")
+	fs.IntVar(&opts.Workers, "workers", mutants.DefaultWorkers(), "go test runs at the same time")
+	for rest := args; ; rest = rest[1:] {
+		if err := fs.Parse(rest); err != nil {
+			return 2
+		}
+		rest = fs.Args()
+		if len(rest) == 0 {
+			break
+		}
+		opts.Packages = append(opts.Packages, rest[0])
+	}
+	if len(opts.Packages) == 0 {
+		fmt.Fprintln(stderr, "loomux dev mutants: at least one package is required")
+		return 2
+	}
+	switch opts.Family {
+	case "", "a1", "a2", "a3", "a4":
+	default:
+		fmt.Fprintf(stderr, "loomux dev mutants: --family must be one of a1, a2, a3, a4, got %q\n", opts.Family)
+		return 2
+	}
+	if opts.Workers < 1 {
+		fmt.Fprintf(stderr, "loomux dev mutants: --workers must be at least 1, got %d\n", opts.Workers)
+		return 2
+	}
+	root, err := mutantsRoot()
+	if err == nil {
+		// Ctrl+C would end the process before any deferred removal of an
+		// overlay directory; caught, it ends the round through its error path.
+		ctx, stop := mutantsNotify(context.Background(), os.Interrupt)
+		defer stop()
+		opts.Root = root
+		_, err = mutants.Round(opts, untilInterrupted(ctx, mutantsTest(root)), stdout)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux dev mutants: %v\n", err)
+		// A red suite or a package without sources is a wrong question, as
+		// the script answers it with 2; anything else broke on the way.
+		if errors.Is(err, mutants.ErrBaselineRed) || errors.Is(err, mutants.ErrNoSources) {
+			return 2
+		}
+		return 1
+	}
+	return 0
+}
+
+// untilInterrupted turns an interrupt into the error of a run. A run asked
+// for afterwards does not start; a run under way when it came reports the
+// interrupt instead of its verdict. Round stops at the first error and waits
+// for every run it started, so each overlay directory is gone before the
+// command returns.
+func untilInterrupted(ctx context.Context, test mutants.TestFunc) mutants.TestFunc {
+	return func(pkg, overlay string) (mutants.Outcome, error) {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		outcome, err := test(pkg, overlay)
+		if interrupted := ctx.Err(); interrupted != nil {
+			return 0, interrupted
+		}
+		return outcome, err
+	}
 }
 
 // devBenchHooks measures the hook commands of a case file. The file may

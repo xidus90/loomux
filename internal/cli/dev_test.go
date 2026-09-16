@@ -1,14 +1,17 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
+	"github.com/xidus90/loomux/internal/dev/mutants"
 )
 
 func TestDevNeedsASubcommand(t *testing.T) {
@@ -330,5 +333,149 @@ func TestDevBenchHooksReportsBrokenJSON(t *testing.T) {
 	code, _, errOut := run("dev", "bench-hooks", benchCases(t, "{"))
 	if code != 1 || !strings.Contains(errOut, "loomux dev bench-hooks:") {
 		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// mutantsWorld lays out a root with one package p, points the dev mutants
+// seams at it and at test, and restores both when the test ends.
+func mutantsWorld(t *testing.T, test mutants.TestFunc) {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "p"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source := "package p\n\nfunc Sign(a int) int {\n\tif a > 0 {\n\t\treturn 1\n\t}\n\treturn 0\n}\n"
+	if err := os.WriteFile(filepath.Join(root, "p", "p.go"), []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mutantsRoot = func() (string, error) { return root, nil }
+	mutantsTest = func(dir string) mutants.TestFunc {
+		if dir != root {
+			t.Errorf("go test runs in %q, want %q", dir, root)
+		}
+		return test
+	}
+	t.Cleanup(func() {
+		mutantsRoot = os.Getwd
+		mutantsTest = mutants.GoTest
+	})
+}
+
+// killEveryMutant is a suite that is green alone and red under any overlay.
+func killEveryMutant(_, overlay string) (mutants.Outcome, error) {
+	if overlay == "" {
+		return mutants.Passed, nil
+	}
+	return mutants.Failed, nil
+}
+
+func TestDevMutantsRunsARound(t *testing.T) {
+	mutantsWorld(t, killEveryMutant)
+	code, out, errOut := run("dev", "mutants", "p", "--workers", "2")
+	if code != 0 || !strings.Contains(out, "[1/4] killed    (a1) p.go:4  if a > 0 {  ->  if true {\n") ||
+		!strings.Contains(out, "\n4 mutants over p, oracle go\n0 do not compile and are no mutants\n0 survived:\n") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestDevMutantsTakesFlagsBetweenPackages(t *testing.T) {
+	mutantsWorld(t, killEveryMutant)
+	code, out, errOut := run("dev", "mutants", "--family", "a3", "p", "--only", "p.go", "p")
+	if code != 0 || strings.Count(out, "\n1 mutants over p, oracle go\n") != 2 {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestDevMutantsRefusesBadArguments(t *testing.T) {
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"dev", "mutants"}, "loomux dev mutants: at least one package is required\n"},
+		{[]string{"dev", "mutants", "p", "--family", "a5"}, "loomux dev mutants: --family must be one of a1, a2, a3, a4, got \"a5\"\n"},
+		{[]string{"dev", "mutants", "--workers", "0", "p"}, "loomux dev mutants: --workers must be at least 1, got 0\n"},
+	} {
+		if code, _, errOut := run(c.args...); code != 2 || errOut != c.want {
+			t.Errorf("%v: code %d, err %q", c.args, code, errOut)
+		}
+	}
+	for _, args := range [][]string{{"dev", "mutants", "--bogus"}, {"dev", "mutants", "p", "--bogus"}} {
+		if code, _, _ := run(args...); code != 2 {
+			t.Errorf("%v: code %d", args, code)
+		}
+	}
+}
+
+func TestDevMutantsReportsAMissingWorkingDirectory(t *testing.T) {
+	mutantsWorld(t, killEveryMutant)
+	mutantsRoot = func() (string, error) { return "", errors.New("getwd: gone") }
+	code, _, errOut := run("dev", "mutants", "p")
+	if code != 1 || errOut != "loomux dev mutants: getwd: gone\n" {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevMutantsRefusesARedSuiteAndAnEmptyPackage(t *testing.T) {
+	mutantsWorld(t, func(string, string) (mutants.Outcome, error) { return mutants.Failed, nil })
+	code, out, errOut := run("dev", "mutants", "p")
+	if code != 2 || out != "" || errOut != "loomux dev mutants: p: the suite is not green before the round\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	code, _, errOut = run("dev", "mutants", "p", "--only", "nothing")
+	if code != 2 || errOut != "loomux dev mutants: p: no source files\n" {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevMutantsReportsABrokenRun(t *testing.T) {
+	mutantsWorld(t, func(string, string) (mutants.Outcome, error) { return 0, errors.New("go: not found") })
+	code, _, errOut := run("dev", "mutants", "p")
+	if code != 1 || errOut != "loomux dev mutants: go: not found\n" {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// Ctrl+C cannot be sent to a test process on Windows; the seam hands the
+// round a context the test cancels while the first mutant runs.
+func TestDevMutantsCleansUpAnInterruptedRound(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("TMP", tmp)
+	t.Setenv("TEMP", tmp)
+	t.Setenv("TMPDIR", tmp)
+	var interrupt context.CancelFunc
+	mutantsNotify = func(parent context.Context, _ ...os.Signal) (context.Context, context.CancelFunc) {
+		ctx, cancel := context.WithCancel(parent)
+		interrupt = cancel
+		return ctx, cancel
+	}
+	t.Cleanup(func() { mutantsNotify = signal.NotifyContext })
+	mutantsWorld(t, func(_, overlay string) (mutants.Outcome, error) {
+		if overlay != "" {
+			if entries, err := os.ReadDir(tmp); err != nil || len(entries) != 1 {
+				t.Errorf("while the mutant runs: %v, %v", entries, err)
+			}
+			interrupt()
+		}
+		return mutants.Passed, nil
+	})
+	code, out, errOut := run("dev", "mutants", "p", "--workers", "1")
+	if code != 1 || out != "" || errOut != "loomux dev mutants: context canceled\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	if entries, err := os.ReadDir(tmp); err != nil || len(entries) != 0 {
+		t.Fatalf("left behind: %v, %v", entries, err)
+	}
+}
+
+func TestUntilInterruptedStartsNoRunAfterTheInterrupt(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	started := false
+	test := untilInterrupted(ctx, func(string, string) (mutants.Outcome, error) {
+		started = true
+		return mutants.Passed, nil
+	})
+	if _, err := test("p", ""); !errors.Is(err, context.Canceled) || started {
+		t.Fatalf("err %v, started %t", err, started)
 	}
 }
