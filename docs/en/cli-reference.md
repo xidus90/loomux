@@ -191,7 +191,7 @@ Searches the visible areas (`--scope all` by default) through the qmd MCP daemon
 ### `loomux brain catalog [--scope <scope>] [--channel local|cloud]`
 Prints the catalog of the visible areas, or of one area.
 
-- **Output**: with `--scope all` (default) `# brain`, an empty line and `* [<scope>](brain://<scope>/)` per visible area, sorted by scope; with a named scope, that area's `index.md` byte for byte.
+- **Output**: with `--scope all` (default) `# brain`, an empty line and `* [<scope>](brain://<scope>/)` per visible area, sorted by scope; with a named scope, that area's `index.md`, strict UTF-8 with line ends folded to `\n`.
 - **Exit codes**: `0`; `1` for an unknown scope, a missing `index.md` or another runtime error; `2` for a usage error.
 
 ### `loomux brain read <path> --scope <scope> [--section <title>] [--channel local|cloud]`

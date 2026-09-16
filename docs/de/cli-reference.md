@@ -191,7 +191,7 @@ Durchsucht die sichtbaren Bereiche (Standard `--scope all`) über den qmd-MCP-Da
 ### `loomux brain catalog [--scope <scope>] [--channel local|cloud]`
 Gibt den Katalog der sichtbaren Bereiche oder eines Bereichs aus.
 
-- **Ausgabe**: mit `--scope all` (Standard) `# brain`, eine Leerzeile und je sichtbarem Bereich `* [<scope>](brain://<scope>/)`, nach Scope sortiert; mit einem benannten Scope das `index.md` dieses Bereichs byte-gleich.
+- **Ausgabe**: mit `--scope all` (Standard) `# brain`, eine Leerzeile und je sichtbarem Bereich `* [<scope>](brain://<scope>/)`, nach Scope sortiert; mit einem benannten Scope das `index.md` dieses Bereichs, streng UTF-8, Zeilenenden zu `\n` gefaltet.
 - **Exit-Codes**: `0`; `1` bei unbekanntem Scope, fehlendem `index.md` oder einem anderen Laufzeitfehler; `2` bei einem Usage-Fehler.
 
 ### `loomux brain read <pfad> --scope <scope> [--section <titel>] [--channel local|cloud]`
