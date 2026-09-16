@@ -3,9 +3,11 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Die freigegebenen 25 Wiki-Seiten, 11 Rohquellen und 19 Arbeitspapiere
-der beiden alten Repos liegen in loomux, `loomux wiki-gate` ist grün, und
-`brain catalog`, `brain read` und `brain neighbors` beantworten den Bereich
-`project/loomux`.
+der beiden alten Repos liegen in loomux, `loomux wiki-gate` meldet keine
+Lint-Zeile, und `brain read` und `brain neighbors` beantworten den Bereich
+`project/loomux`. (`brain catalog --scope` bleibt außen vor — es liest ein
+Artefakt im Repowurzelverzeichnis, das erst `reindex` in Stufe 3 schreibt;
+Task 6 misst das nach.)
 
 **Architecture:** Der Umzug ist eine Datenbewegung, keine Codeänderung. Drei
 Schichten, in dieser Reihenfolge: erst die Rohquellen (byte-gleich, damit die
@@ -62,6 +64,14 @@ die 54 Zeilen, gegen die der Inhalt in Task 5 geprüft wird.
   `Source`, `Entity`, `Synthesis` (passen nicht) mit.
 - Gerüstdateien (`_schema.md`, `index.md`, `log.md`, `audit.md`,
   `_identities.tsv`) werden nicht bewertet, zählen aber als Linkquelle.
+- **`wiki-drift` greift, sobald `docs/wiki` existiert.** `CheckWikiGate` meldet
+  Drift, wenn Code geändert wurde, das Wiki nicht, und `wikiPath != projectRoot`
+  — ein Unterverzeichnis ist immer ungleich der Wurzel, der Kommentar daneben
+  behauptet das Gegenteil (`gate.go:92-99`). Das bricht heute nichts:
+  `wiki-gate` steht weder in `.githooks/pre-commit` noch in
+  `.claude/settings.json` noch in `[verify]`; nur der post-edit-Hook lintet die
+  gerade bearbeitete Seite. Der Widerspruch zwischen Kommentar und Code gehört
+  gemeldet, nicht in diesem Plan repariert.
 - Nachgerechnet am 2026-09-16: **kein toter Link** entsteht durch den Umzug —
   keine Inhaltsseite verlinkt einen Katalog. **Keine Waise** entsteht —
   jede der 24 Inhaltsseiten wird von mindestens einer anderen Inhaltsseite
@@ -156,19 +166,27 @@ Erwartet: `IDENTISCH`, kein `diff`-Ausgabeblock. Weicht eine Summe ab, hat das
 Kopieren Zeilenenden umgeschrieben — dann mit `cp --preserve` bzw. `Copy-Item`
 ohne Umwandlung wiederholen, nicht von Hand nachbessern.
 
-- [ ] **Step 6: Den Nachweis ablegen**
+- [ ] **Step 6: Die bench-Quelle durchsehen**
+
+`docs/.superpowers/bench-ub/entscheidung-46.md` ist die einzige Datei, die von
+außerhalb eines `docs/`-Baums kommt (97 Zeilen). Vor dem Commit einmal ganz
+lesen: Sie muss eine Entscheidung über die Suche enthalten und nichts
+Persönliches. Ist etwas anderes darin, bleibt sie liegen und der Bericht sagt,
+was drinsteht.
+
+- [ ] **Step 7: Den Nachweis ablegen**
 
 ```bash
 cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && sha256sum docs/.superpowers/plans-ub/*.md docs/.superpowers/specs-ub/*.md docs/.superpowers/specs-ul/*.md docs/.superpowers/bench-ub/*.md > docs/.superpowers/plans-ub/HASHES.txt
 ```
 
-- [ ] **Step 7: Committen**
+- [ ] **Step 8: Committen**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/.superpowers/plans-ub docs/.superpowers/specs-ub docs/.superpowers/specs-ul docs/.superpowers/bench-ub && git commit -F .git/COMMIT_UMZUG_1
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/.superpowers/plans-ub docs/.superpowers/specs-ub docs/.superpowers/specs-ul docs/.superpowers/bench-ub && git commit -F C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/b8f89ec2-7b8e-4b7a-8c72-d868c2b9a843/scratchpad/commit-umzug-1.txt
 ```
 
-Nachrichtendatei `.git/COMMIT_UMZUG_1` vorher schreiben, erste Zeile:
+Nachrichtendatei `C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/b8f89ec2-7b8e-4b7a-8c72-d868c2b9a843/scratchpad/commit-umzug-1.txt` vorher schreiben, erste Zeile:
 `Bring the sources the wiki cites into loomux`.
 
 ---
@@ -198,8 +216,8 @@ cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && mkdir -p docs/wiki && (cd "/c
 cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && find docs/wiki -name "*.md" | wc -l
 ```
 
-Erwartet: `25`. Steht dort 30, sind die Kataloge mitgekommen — löschen, nicht
-behalten.
+Erwartet: `25`. Steht dort 32, sind die fünf Kataloge, `log.md` und `audit.md`
+mitgekommen — löschen, nicht behalten.
 
 - [ ] **Step 3: Byte-Gleichheit nachweisen**
 
@@ -223,7 +241,7 @@ falsch: die Ausgabe wörtlich in den Bericht, dann Task 4 vorziehen.
 - [ ] **Step 5: Committen**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F .git/COMMIT_UMZUG_2
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/b8f89ec2-7b8e-4b7a-8c72-d868c2b9a843/scratchpad/commit-umzug-2.txt
 ```
 
 Erste Zeile: `Move the wiki pages of ultra-brain into loomux`.
@@ -284,92 +302,88 @@ Erwartet: `0`.
 - [ ] **Step 6: Committen**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F .git/COMMIT_UMZUG_3
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/b8f89ec2-7b8e-4b7a-8c72-d868c2b9a843/scratchpad/commit-umzug-3.txt
 ```
 
 Erste Zeile: `Point the cited sources at their new home`.
 
 ---
 
-### Task 4: Die Seitentypen auf loomux' Vokabular abbilden
+### Task 4: Die Seitentypen belassen und den Befund festhalten
 
 **Files:**
-- Modify: 16 Seiten unter `docs/wiki/` (`type: Source` 11×, `type: Entity` 3×,
-  `type: Synthesis` 2×)
+- Modify: `docs/wiki/_schema.md` (nur die Bereichszeile und ein Absatz)
+- Create: nichts
 
 **Interfaces:**
-- Consumes: die erlaubten Typen aus `internal/brain/wiki/lint.go:14-27`.
-- Produces: ein Bündel, über das `loomux lint` keine Zeile
-  `unknown document type` mehr schreibt.
+- Consumes: `internal/brain/wiki/lint.go:14-27` (die zwölf erlaubten Typen) und
+  `docs/.superpowers/specs-ub/2026-08-25-typkatalog-und-migration-design.md`,
+  §3.4 und §3.5, aus Task 1.
+- Produces: nichts, was eine spätere Aufgabe braucht.
 
-Die Abbildung, je Quelle begründet:
+**Warum hier nichts umgeschrieben wird.** Der naheliegende Griff wäre, `Source`,
+`Entity` und `Synthesis` auf loomux' Kernvokabular abzubilden. Der Typkatalog,
+der mit Task 1 umzieht, verbietet das ausdrücklich: §3.5 erklärt die vier zur
+**zweiten Achse** — sie sagen, *wie* eine Seite entstanden ist, nicht worüber
+sie handelt — und erklärt sie für weiter gültig; §3.4 lehnt `Concept` als
+Dopplung zu `Entity` ab. Eine Abbildung würde also eine freigegebene Spec
+brechen, um eine Warnung loszuwerden.
 
-| Alt | Neu | Warum |
-|---|---|---|
-| `Topic` | `topic` | Gleiches Wort, gleicher Sinn; nur Kleinschreibung nötig — der Vergleich schreibt ohnehin klein, die Datei wird darum **nicht** angefasst |
-| `Source` | `reference` | Eine verdichtete Quelle ist ein Nachschlagetext über ein anderes Dokument |
-| `Synthesis` | `concept` | Eine eigene Ableitung über mehrere Seiten hinweg, kein Beschluss und kein Bauteil |
-| `Entity` (`qmd`) | `system` | Fremdes, laufendes Werkzeug |
-| `Entity` (`brain-daemon`) | `component` | Teil des eigenen Systems |
-| `Entity` (`okf`) | `concept` | Ein Begriff, kein Ding |
+Das kostet nichts am Tor: unbekannter Typ ist `Severity == Warning`
+(`lint.go:69-75`), und `wiki-gate` bricht nur bei `Error` ab (`gate.go:105`).
+Die 16 Seiten melden je eine Warnung, bis loomux die Manifestzeile
+`[wiki] types` liest — heute liest es sie nicht (Paritätszeile 22, freigegeben
+mit Nachtrag).
 
-- [ ] **Step 1: Ausgangsbefund messen**
-
-```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && find docs/wiki -name "*.md" ! -name "_schema.md" -print0 | xargs -0 -n1 go run ./cmd/loomux lint 2>&1 | grep -c "unknown document type"
-```
-
-Erwartet: `16`.
-
-- [ ] **Step 2: Die elf `Source`-Seiten umschreiben**
+- [ ] **Step 1: Den Befund messen und wörtlich festhalten**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && grep -rl "^type: Source$" docs/wiki | xargs sed -i 's/^type: Source$/type: reference/'
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && find docs/wiki -name "*.md" ! -name "_schema.md" -print0 | xargs -0 -n1 go run ./cmd/loomux lint 2>&1 | grep "unknown document type" | sort | uniq -c
 ```
 
-- [ ] **Step 3: Die zwei `Synthesis`-Seiten und `okf` umschreiben**
+Erwartet: drei Zeilen — `"source"` 11×, `"entity"` 3×, `"synthesis"` 2×; `topic`
+taucht nicht auf, weil der Vergleich kleinschreibt. Steht dort etwas anderes,
+gehört die Ausgabe wörtlich in den Bericht und die Aufgabe hält an.
+
+- [ ] **Step 2: Das Tor gegenprüfen**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && grep -rl "^type: Synthesis$" docs/wiki | xargs sed -i 's/^type: Synthesis$/type: concept/' && sed -i 's/^type: Entity$/type: concept/' docs/wiki/entities/okf.md
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && go run ./cmd/loomux wiki-gate 2>&1 | grep -c "wiki-lint:missing-type"
 ```
 
-- [ ] **Step 4: `qmd` und `brain-daemon` einzeln umschreiben**
+Erwartet: `0` — die Warnungen erreichen das Tor nicht.
+
+- [ ] **Step 3: Das Regelwerk richten**
+
+In `docs/wiki/_schema.md` Zeile 42 `project/ultra-brain` durch
+`project/loomux` ersetzen. Unter „Die vier Seitentypen" einen Absatz ergänzen,
+der den Stand benennt: die vier Herkunftstypen gelten weiter (Typkatalog §3.5);
+loomux' Lint kennt daneben zwölf Kerntypen und meldet die vier als unbekannt,
+bis es `[wiki] types` liest. Kein Typ wird umgeschrieben.
+
+- [ ] **Step 4: Den Nachtrag notieren**
+
+In `docs/.superpowers/parity/stufe-1b-1.md` bei Zeile 22 (`Weitere Prüfungen
+von read_manifest`) den Nachtrag um den Satz ergänzen, dass `[wiki] types` auch
+den Lint betrifft: ohne diese Zeile meldet jedes umgezogene Bündel mit eigenen
+Typen Warnungen.
+
+- [ ] **Step 5: Committen**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && sed -i 's/^type: Entity$/type: system/' docs/wiki/entities/qmd.md && sed -i 's/^type: Entity$/type: component/' docs/wiki/entities/brain-daemon.md
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki docs/.superpowers/parity/stufe-1b-1.md && git commit -F C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/b8f89ec2-7b8e-4b7a-8c72-d868c2b9a843/scratchpad/commit-umzug-4.txt
 ```
 
-- [ ] **Step 5: Nachmessen**
-
-```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && find docs/wiki -name "*.md" ! -name "_schema.md" -print0 | xargs -0 -n1 go run ./cmd/loomux lint 2>&1 | grep -c "unknown document type"
-```
-
-Erwartet: `0`.
-
-- [ ] **Step 6: Das Regelwerk nachziehen**
-
-`docs/wiki/_schema.md` beschreibt unter „Die vier Seitentypen" noch `Source`,
-`Topic`, `Entity`, `Synthesis`. Den Abschnitt auf die sechs benutzten Typen
-umschreiben (`reference`, `topic`, `concept`, `system`, `component` und, für
-später, `decision`), jeweils mit dem Satz aus der Tabelle oben, und in Zeile 42
-`project/ultra-brain` durch `project/loomux` ersetzen. Die sechs Regeln und der
-Abschnitt über die Form eines Konflikts bleiben unangetastet.
-
-- [ ] **Step 7: Committen**
-
-```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F .git/COMMIT_UMZUG_4
-```
-
-Erste Zeile: `Speak loomux vocabulary in the moved wiki`.
+Erste Zeile: `Keep the bundle's own type axis, and say why`.
 
 ---
 
 ### Task 5: Inhalt gegen die Paritätsliste richten
 
 **Files:**
-- Modify: die zwölf Seiten, die die Prüfliste auf `aktualisieren` gesetzt hat
+- Modify: elf Seiten. Die Prüfliste setzt zwölf auf `aktualisieren`; `_schema.md`
+  ist in Task 4 erledigt, und `topics/abnahmen-und-echte-umgebung.md` steht auf
+  `behalten` und wird nicht angefasst.
 
 **Interfaces:**
 - Consumes: `docs/.superpowers/parity/stufe-1b-1.md`, die 54 freigegebenen
@@ -389,14 +403,14 @@ alte System; die Korrektur ist ein Satz oder Absatz, kein Umschreiben:
 | `topics/datenmodell-und-bereiche.md` | Zeile 3 | Zustand unter `LOOMUX_STATE_DIR`, Artefakte unter `LOOMUX_LEGACY_BRAIN_DIR` bis Stufe 3; Manifest ist `.loomux/config.toml` |
 | `topics/datenschutz-und-kanaele.md` | Zeilen 54, 62 | Kanäle und `never`-Globs gelten weiter; ein Treffer aus einer nicht gefragten Sammlung wird der ersten gefragten zugeschlagen |
 | `topics/brain-maintenance.md` | — | Die Pflegeschicht gibt es in Go noch nicht; Abschnitt als „ab Stufe 3" kennzeichnen |
-| `topics/wiki-schicht.md` | — | Lint und Tor sind Go (`loomux lint`, `loomux wiki-gate`); die Typen sind die aus Task 4 |
+| `topics/wiki-schicht.md` | — | Lint und Tor sind Go (`loomux lint`, `loomux wiki-gate`); die vier Herkunftstypen bleiben, loomux meldet sie als unbekannt (Task 4) |
 | `topics/scheiben-und-abnahme.md` | — | „Scheiben" heißen in loomux Stufen; die Abnahmeregel („eine Stufe ist fertig, wenn …") aus der Fusions-Spec übernehmen |
 | `topics/architektur-grundsaetze.md` | — | Grundsätze gelten weiter; die Arbeitsteilung „zwei Werkzeuge" ist Vergangenheit |
 | `topics/abnahmen-und-echte-umgebung.md` | — | Steht auf `behalten`; **nicht anfassen** |
 | `sources/architektur-spec.md` | — | Die Quelle hat sich seit `revision: 3` geändert (Hash weicht ab). Als Konflikt kennzeichnen, nicht auflösen |
 | `_schema.md` | — | In Task 4 erledigt |
 
-- [ ] **Step 1: Die zwölf Seiten lesen und die Sätze sammeln**
+- [ ] **Step 1: Die elf Seiten lesen und die Sätze sammeln**
 
 Je Seite den Satz oder Absatz notieren, der der genannten Paritätszeile
 widerspricht — wörtlich, mit Zeilennummer. Das Ergebnis ist eine Liste im
@@ -422,7 +436,9 @@ die `_schema.md` vorschreibt, und `open_conflicts` von `0` auf `1` setzen:
 > Die Datei unter `docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md`
 > hat am 2026-09-16 den Hash
 > `sha256:2440a49696a1f61737a94fe79d27093fbe48f043fa75d8097a6a809a42b99df3`.
-> Auflösen kann das erst `reconcile` (Stufe 3).
+> Auflösen kann das erst `reconcile` (Stufe 3). Dieselbe veraltete Summe steht
+> in zwölf Seiten; eine dreizehnte nennt die Spec mit
+> `sha256:8cb1d728fb0b4a32a3063677dac4631a856212e695bca6da02da09cae5f8458c`.
 ```
 
 - [ ] **Step 4: Lint über die geänderten Seiten**
@@ -438,7 +454,7 @@ gemacht.
 - [ ] **Step 5: Committen**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F .git/COMMIT_UMZUG_5
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/b8f89ec2-7b8e-4b7a-8c72-d868c2b9a843/scratchpad/commit-umzug-5.txt
 ```
 
 Erste Zeile: `Say what loomux does on the pages that described the old tools`.
@@ -458,9 +474,10 @@ Erste Zeile: `Say what loomux does on the pages that described the old tools`.
 
 Die Kataloge erzeugt in der Referenz `render_catalog`; in Go gibt es das erst
 mit Stufe 3. Bis dahin werden sie von Hand geschrieben — in genau der Form, die
-`render_catalog` erzeugt, damit ein späterer `reindex` sie nicht umbaut: eine
-Überschrift, die Regelzeile als Blockzitat, dann je Seite eine Zeile
-`* [<title>](<datei>) - <description>`, danach die Unterverzeichnisse.
+`render_catalog` erzeugt, damit ein späterer `reindex` sie nicht umbaut. Diese
+Form steht in `loomux-src/ub/src/brain/catalog.py`, Funktion `render_catalog` —
+vor dem Schreiben **ganz lesen**, nicht nach der Beschreibung hier arbeiten;
+sie nennt auch die Klammer- und Leerzeichenregeln für Linkziele.
 
 - [ ] **Step 1: Die Titel und Beschreibungen einsammeln**
 
@@ -523,14 +540,31 @@ und gehört in den Bericht.
 cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && go run ./cmd/loomux brain catalog --scope project/loomux; echo "exit=$?"
 ```
 
-Erwartet: Exit 0 und der Wurzelkatalog auf stdout. Kommt
-`never indexed; run brain reindex`, ist das erwartet und kein Fehler dieses
-Plans — dann die Meldung wörtlich in den Bericht.
+Erwartet: **Exit 1 mit einem Lesefehler** auf `index.md` im Repowurzelverzeichnis.
+Der Grund ist gemessen, nicht vermutet: `catalog --scope` liest
+`AreaArtifactDir(area, stateDir)/index.md`, und das ist für einen schreibbaren
+Bereich `area.Path` — also die Wurzel von `loomux`, nicht `docs/wiki`
+(`internal/brain/catalog/area.go:18-38`). Weder loomux noch das alte
+ultra-brain-Repo hat dort je eine `index.md` gehabt; der Befehl schlug vor dem
+Umzug genauso fehl. Die Meldung wörtlich in den Bericht.
+
+Ob die Wurzel eine `index.md` bekommen soll, entscheidet der Nutzer: Es ist ein
+Artefakt, das `reindex` ab Stufe 3 selbst schreibt, und die Freigabe vom
+2026-09-16 sagt, Artefakte ziehen nicht mit. Dieser Plan legt darum keine an.
+
+- [ ] **Step 6b: Lesen und Nachbarn prüfen**
+
+```bash
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && go run ./cmd/loomux brain read docs/wiki/entities/qmd.md --scope project/loomux | head -5; echo "exit=$?"
+```
+
+Erwartet: Exit 0 und die ersten Zeilen der Seite — der Weg über `read` und
+`neighbors` braucht kein Artefakt.
 
 - [ ] **Step 7: Committen**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F .git/COMMIT_UMZUG_6
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs/wiki && git commit -F C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/b8f89ec2-7b8e-4b7a-8c72-d868c2b9a843/scratchpad/commit-umzug-6.txt
 ```
 
 Erste Zeile: `Give the moved bundle its catalogs and its log`.
@@ -597,7 +631,7 @@ Erwartet: keine Ausgabe von `gofmt`, `go vet` und `go test`; `wiki-gate` ohne
 - [ ] **Step 7: Committen**
 
 ```bash
-cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs README.md README.de.md && git commit -F .git/COMMIT_UMZUG_7
+cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && git add docs README.md README.de.md && git commit -F C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/b8f89ec2-7b8e-4b7a-8c72-d868c2b9a843/scratchpad/commit-umzug-7.txt
 ```
 
 Erste Zeile: `Fold the old documentation into the loomux pages`.
