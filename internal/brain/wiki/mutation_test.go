@@ -13,7 +13,8 @@ import (
 // were found: each one is the case a surviving mutant proved nobody had
 // asked for. Every expectation below was read from the Python reference or
 // measured against it, never derived from the Go code that has to satisfy
-// it.
+// it -- except where the rule has no counterpart there, and then the comment
+// says so instead of inventing a citation.
 
 // bundle writes the named files below a fresh wiki root and answers the root.
 func bundle(t *testing.T, files map[string]string) string {
@@ -43,10 +44,14 @@ func lintedFor(t *testing.T, root, rule string) []check.Finding {
 }
 
 func TestAProjectWithoutAWikiIsNotGated(t *testing.T) {
-	// A project that keeps no wiki bundle has nothing the gate can hold it
-	// to. The chdir is what makes the difference visible: an empty wiki
-	// path asked about its changes would otherwise ask the directory the
-	// session happens to stand in, and report drift against a stranger.
+	// `check_wiki_gate` (src/brain/wiki/gate.py:114-116) reads
+	// `wiki_path = find_wiki_path(project_root)` and then
+	// `if wiki_path is None: return []` -- a project that keeps no bundle
+	// has nothing the gate can hold it to, and the gate stops before it
+	// asks anything about changes. The chdir is what makes the difference
+	// visible: an empty wiki path asked about its changes would otherwise
+	// ask the directory the session happens to stand in, and report drift
+	// against a stranger.
 	t.Chdir(t.TempDir())
 	root := decoyRepo(t)
 	if got := CheckWikiGate(root); len(got) != 0 {
@@ -55,10 +60,12 @@ func TestAProjectWithoutAWikiIsNotGated(t *testing.T) {
 }
 
 func TestAPageThatDeclaresTheWrongNumberOfConflictsIsReported(t *testing.T) {
-	// OKF §11: `open_conflicts` counts the conflict boxes of the page. A
-	// page that says two and shows none is as wrong as one that shows two
-	// and says nothing, and the rule that reads the declared number is
-	// the only one that can see it.
+	// `conflict_count` (src/brain/wiki/lint.py:429) splits the rule in
+	// two: `if page.declared_conflicts is None` (:439) reports the missing
+	// field, and `elif page.declared_conflicts != page.found_conflicts`
+	// (:452-463) reports the number that disagrees. A page that says two
+	// and shows none is the second arm, and the arm that reads the
+	// declared number is the only one that can see it.
 	root := bundle(t, map[string]string{
 		"index.md": "---\ntype: bogus\n---\n\n# Index\n\n[a](a.md)\n",
 		"a.md":     "---\ntype: concept\nopen_conflicts: 2\n---\n\n# A\n",
@@ -70,9 +77,13 @@ func TestAPageThatDeclaresTheWrongNumberOfConflictsIsReported(t *testing.T) {
 }
 
 func TestAnAbsoluteLinkResolvesFromTheWikiRootNotFromThePage(t *testing.T) {
-	// A link that starts with `/` names the bundle root; one that does not
-	// names the page's own directory. A page in a subdirectory is what
-	// tells the two apart, because only there do the two roots differ.
+	// `_resolve` (src/brain/wiki/lint.py:269-271) reads
+	// `if decoded.startswith("/")` and answers
+	// `posixpath.normpath(decoded).lstrip("/")`; otherwise it joins the
+	// target onto `posixpath.dirname(relative)`. A link that starts with
+	// `/` names the bundle root, one that does not names the page's own
+	// directory. A page in a subdirectory is what tells the two apart,
+	// because only there do the two roots differ.
 	root := bundle(t, map[string]string{
 		"index.md":     "# Index\n\n[s](sub/s.md)\n[t](target.md)\n",
 		"target.md":    "# Target\n",
@@ -85,9 +96,13 @@ func TestAnAbsoluteLinkResolvesFromTheWikiRootNotFromThePage(t *testing.T) {
 }
 
 func TestAPageNobodyLinksIsAnOrphan(t *testing.T) {
-	// The orphan rule is the reason the first pass counts inbound links at
-	// all: a knowledge page no other page names is unreachable, and a
-	// bundle that never said so would let it rot unseen.
+	// `orphan` (src/brain/wiki/lint.py:285-300) gathers every resolved
+	// link of the catalog and of every page and reports the pages that are
+	// in none of them. That is the reason the first pass counts inbound
+	// links at all: a knowledge page no other page names is unreachable,
+	// and a bundle that never said so would let it rot unseen. loomux
+	// files the finding as a warning where the reference files an error;
+	// this test asks only which page the rule names.
 	root := bundle(t, map[string]string{
 		"index.md": "# Index\n",
 		"lost.md":  "---\ntype: concept\n---\n\n# Lost\n",
@@ -99,9 +114,12 @@ func TestAPageNobodyLinksIsAnOrphan(t *testing.T) {
 }
 
 func TestLinksWithASchemeAreNotWikiLinks(t *testing.T) {
-	// A page's `Links` are the targets inside the bundle. The three
-	// schemes the reader names lead out of it, and an empty target leads
-	// nowhere: none of the four is a page this bundle can be held to.
+	// `_resolve` (src/brain/wiki/lint.py:265-267) drops a target with
+	// `if split.scheme or not split.path: return None`: a target that
+	// names a scheme leads out of the bundle, and one with no path leads
+	// nowhere. loomux asks the question earlier and narrower -- it names
+	// the three schemes its pages carry instead of asking `urlsplit` for
+	// any -- but all four targets below are refused by both.
 	root := bundle(t, map[string]string{
 		"p.md": "# P\n\n[h](http://a)\n[s](https://b)\n[m](mailto:c)\n[e]()\n[ok](ok.md)\n",
 	})
@@ -115,10 +133,14 @@ func TestLinksWithASchemeAreNotWikiLinks(t *testing.T) {
 }
 
 func TestAnUnsaidLayoutIsNoLayout(t *testing.T) {
-	// A manifest without a `[layout] wiki` key says nothing about where
-	// the bundle is, and the fallbacks answer. Reading the unsaid value as
-	// a path would join nothing onto the project root and hand back the
-	// project itself as its own wiki.
+	// No reference for the key itself: `find_wiki_path`
+	// (src/brain/wiki/gate.py:21-55) knows no manifest key at all and
+	// starts at `docs/wiki`. The `[layout] wiki` key is loomux's own
+	// (parity list, stage 1a). What the reference does fix is what has to
+	// answer when nothing names a layout -- `docs/wiki` first, `wiki/`
+	// second (gate.py:24-35). Reading the unsaid value as a path would
+	// join nothing onto the project root and hand back the project itself
+	// as its own wiki, which is neither.
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
 		t.Fatal(err)
@@ -135,10 +157,14 @@ func TestAnUnsaidLayoutIsNoLayout(t *testing.T) {
 }
 
 func TestABundleThatIsNotThereIsNoBundle(t *testing.T) {
-	// `filepath.WalkDir` hands its callback a nil entry together with the
-	// error for a root it cannot read. The callback has to see the error
-	// before it asks the entry anything, or a wiki path that names no
-	// directory takes the linter down instead of coming back empty.
+	// Measured: `list(Path(<missing>).rglob("*.md"))` answers `[]`, so
+	// `lint_bundle` (src/brain/wiki/lint.py:582-587) reads no pages from a
+	// path that is not there and raises nothing. The decision the mutant
+	// changes has no counterpart in the reference: `filepath.WalkDir`
+	// hands its callback a nil entry together with the error for a root it
+	// cannot read, and the callback has to see the error before it asks
+	// the entry anything, or the linter goes down where Python comes back
+	// empty.
 	root := filepath.Join(t.TempDir(), "absent")
 	findings, err := LintBundle(root)
 	if err != nil {
