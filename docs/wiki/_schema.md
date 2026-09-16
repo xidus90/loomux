@@ -18,6 +18,17 @@ Vor jeder Wiki-Arbeit gelesen. Sechs Regeln (Architektur §9.1):
 - `Entity` — eine Person, ein Werkzeug, ein Ort, ein Begriff.
 - `Synthesis` — eine eigene Ableitung aus mehreren Seiten.
 
+Diese vier bleiben stehen, auch unter loomux. Sie sind die **zweite Achse**
+(Typkatalog §3.5): sie sagen, *wie* eine Seite entstanden ist, nicht worüber
+sie handelt. Der Lint von loomux kennt daneben zwölf Kerntypen; `Topic` fällt
+mit dem Kerntyp `topic` zusammen und geht durch, `Source`, `Entity` und
+`Synthesis` melden je eine Warnung `missing-type: unknown document type`.
+Das hält nichts auf: `wiki-gate` bricht nur bei `Error` ab. Die Warnungen
+verschwinden, sobald loomux die Manifestzeile `[wiki] types` liest — heute
+liest es sie nicht. Umgeschrieben wird kein Typ; insbesondere ist `Entity`
+nicht auf `Concept` abzubilden, das der Typkatalog in §3.4 ausdrücklich
+ablehnt.
+
 ## Die Form eines Konflikts
 
 Fest und maschinell auffindbar (Architektur §9.3); `open_conflicts: <n>` in
@@ -39,4 +50,4 @@ Nicht hier. `_identities.tsv` neben dieser Datei ist der leere Rahmen, den
 `brain wiki init` anlegt; die `doc_id` jeder Seite dieses Bundles steht im
 Register des **Bereichs**, also in `_identities.tsv` der Repo-Wurzel. Der
 Grund: das Bundle ist kein eigener Bereich, sondern ein Teilbaum von
-`project/ultra-brain`, und der Indexer führt ein Register je Bereich.
+`project/loomux`, und der Indexer führt ein Register je Bereich.
