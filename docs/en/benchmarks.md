@@ -268,3 +268,99 @@ above, both with Go `go1.27.0 windows/amd64`.
    `.loomux/config.toml` names a registered scope; the main checkout skips them
    because its path equals the registered one (`path.go:468`). This pass did not
    measure that attribution.
+
+## 2026-09-16 19:10 — The Brain Data Commands on the Real Registry
+
+Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1`, branch
+`sdd-1b-1`, commit `9ca6364` plus the uncommitted tree of Task 15 — this task adds
+the measurement cases, three benchmarks and this entry; it does not change a command.
+
+**Goal.** Show what `loomux brain search` costs warm and cold per profile against the
+target of ≤ 150 ms for `--profile fast` warm end to end (spec: 63–83 ms qmd, 5–17 ms
+probe and handshake, ~35 ms Go start floor), with the share for reading every identity
+register named on its own; what `loomux brain status` costs; and whether moving the
+brain packages in added start time.
+
+**Method.** `loomux dev bench-hooks testdata/bench/1b-1-brain.json -n 20` against the
+real state directories (`%LOCALAPPDATA%\loomux` with 11 areas, `%LOCALAPPDATA%\brain`
+for read-only artefacts and the reconcile stamp; neither `LOOMUX_STATE_DIR` nor
+`LOOMUX_LEGACY_BRAIN_DIR` set), query `latenz`, after one warming call per profile:
+the cold column is a cold process against a warm qmd daemon. The cold daemon is
+measured separately: the daemon stopped, then one timed `brain search` per profile,
+three times; each of the nine runs printed the warming note, so each started the daemon
+itself. The register share: `go test ./internal/brain/search/ -bench 'OfTheRealRegistry|WithoutTheEngine' -benchtime 50x -benchmem`
+with `LOOMUX_BENCH_REGISTRY`/`LOOMUX_BENCH_LEGACY` on the same directories. Start
+time: `GODEBUG=inittrace=1 loomux --version`, three runs each, on the binary of the
+commit before Task 3 (`aa945cb^`) and on `bin/loomux.exe`. Machine: AMD Ryzen 7 9800X3D,
+Go `windows/amd64`, GOMAXPROCS 16.
+
+**What makes these numbers non-comparable.** Three things. (1) `qmd mcp stop` could not
+stop the daemon: a single `qmd status` deletes `~/.cache/qmd/mcp.pid` while the daemon
+keeps running, so the stop answers `Not running (no PID file).` and the next run measures
+a warm daemon. The nine cold runs therefore stopped the process on port 8765 directly, and
+each was checked for the warming note. (2) Eleven further qmd MCP daemons from earlier
+sessions were resident on other ports throughout; one cold `fast` run died with a CUDA
+error (`ggml-cuda.cu:106`) and exit 1 and was repeated. (3) Case order: `version` ran
+first and was already warm from the three warming calls, `status` last.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| loomux version (start floor) | 45.0 ms | 30.2 ms | 27.7 ms | 44.0 ms | [0] |
+| loomux brain search latenz --profile keyword (warm daemon) | 79.0 ms | 67.9 ms | 63.9 ms | 106.6 ms | [0] |
+| loomux brain search latenz --profile fast (warm daemon) | 284.8 ms | 260.7 ms | 236.0 ms | 373.7 ms | [0] |
+| loomux brain search latenz --profile full (warm daemon) | 805.4 ms | 834.9 ms | 752.8 ms | 940.0 ms | [0] |
+| loomux brain status | 2458.3 ms | 2396.7 ms | 2300.9 ms | 2979.8 ms | [0] |
+
+| cold daemon (stopped before each run) | run 1 | run 2 | run 3 |
+|---|---:|---:|---:|
+| brain search latenz --profile keyword | 1.15 s | 0.90 s | 0.89 s |
+| brain search latenz --profile fast | 11.62 s | 4.34 s | 7.71 s |
+| brain search latenz --profile full | 4.36 s | 4.41 s | 11.92 s |
+
+| benchmark (50 runs) | ns/op | B/op | allocs/op |
+|---|---:|---:|---:|
+| VisibleAreasOfTheRealRegistry | 1,236,552 | 236,531 | 2,213 |
+| RegistersOfTheRealRegistry (11 registers) | 813,614 | 610,488 | 1,121 |
+| ExecuteSearchWithoutTheEngine | 1,971,952 | 868,143 | 3,574 |
+
+### Reading
+
+1. **The target does not hold, and qmd holds it open.** `--profile fast` warm is
+   **260.7 ms** against the target of 150 ms — 110.7 ms over, with a warm range of
+   236.0–373.7 ms that never enters it. The post that breaks it is not Go: the start
+   floor (`loomux version`) is 30.2 ms, everything loomux does besides process start and
+   qmd is 1.97 ms (`ExecuteSearchWithoutTheEngine`), and the same call on the keyword
+   path costs 67.9 ms. The vector query itself is the remaining ~193 ms, against the
+   63–83 ms the spec expected of qmd. No rebuild follows in this task.
+2. **The registers are 0.3 % of a fast answer.** `RegistersOfTheRealRegistry` reads the
+   `_identities.tsv` of all **11** registered areas in **0.81 ms**; against the fast warm
+   median of 260.7 ms that is 0.31 %. `VisibleAreasOfTheRealRegistry` — the registry plus
+   one manifest per area — is 1.24 ms. The two together (2.05 ms) already account, within
+   run-to-run noise, for the whole of `ExecuteSearchWithoutTheEngine` (1.97 ms): reading
+   the registry, the manifests and the registers *is* what loomux spends besides process
+   start and qmd.
+3. **Cold daemon: the model load dominates and it scatters.** Against the spike's
+   23 ms / 5.4 s / 11.9 s for a freshly started daemon, the three runs per profile are
+   0.89–1.15 s (keyword), 4.34–11.62 s (fast) and 4.36–11.92 s (full). The spread inside
+   one profile is wider than the gap between `fast` and `full`, so these nine values order
+   nothing: they time a daemon start plus a model load, and that load varied by a factor
+   of three on a machine carrying eleven other resident daemons. Keyword is the one clear
+   reading: it needs no embedding model, and it still costs ~1 s because the daemon has to
+   come up at all. Every value stays under its planned ceiling (6.3 s / 22.4 s / 41.9 s).
+   The warm `full` median above is not a new query: the bench repeats `latenz` 21 times,
+   which the spike measured at ~250 ms and this pass at 834.9 ms, where a new query on a
+   warm daemon took 4.2–7.9 s.
+4. **`brain status` is 2.4 s, and none of it is Go.** Warm median 2396.7 ms against a
+   start floor of 30.2 ms: the command asks the qmd CLI once per indexed area and once for
+   the backlog, so it is bound by qmd process starts.
+5. **Moving the brain packages in cost no start time.** Only one `init` line reaches 1 ms,
+   before as after: `github.com/BurntSushi/toml/internal` with 21/20/20 ms clock before and
+   18/18/22 ms clock after (71,264 bytes, 1,673 allocs in both). **No line from
+   `github.com/xidus90/loomux/...` reaches 1 ms.** New after the move, none of them above
+   0 ms clock except one run of `internal/brain/search` at 0.50 ms:
+   `internal/brain/catalog` and `internal/brain/search` (the moved `regexp.MustCompile`
+   package variables), `internal/dev/mutants`, and the five `golang.org/x/text` packages
+   `unicode/norm`, `internal/language`, `internal/language/compact`, `language` and
+   `cases`, which the pre-Task-3 binary does not link at all. Step 10 therefore did not
+   trigger; the seven source files holding a package-level `regexp.MustCompile` are exactly
+   the ones the plan names.

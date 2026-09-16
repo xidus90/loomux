@@ -59,6 +59,7 @@ bis 11 ein; die Freigabe trägt der Mensch nach.
 | qmd in den Aufzeichnungen | echtes qmd 2.8.3 | `internal/dev/fakeqmd`: `qmd ls` mit fester Größe und Zeit, `qmd status` nur `Documents` und die `Pending`-Zeile, Treffer synthetisch in Fixture-Reihenfolge; eine scheiternde Suche ist die Störung `search_error` (CLI Exit 1 mit dem Wert auf stderr, MCP JSON-RPC-Fehler `-32603`), kein gemessener qmd-Wortlaut | Task 11 (2); kein Modell und keine GPU in Aufzeichnung und Tor; `search_error` trägt den Fall `brain-search/engine-fails` | offen |
 | Snippets auf beiden Wegen | CLI `--json` liefert den Snippet ohne Zeilennummern | echtes qmd 2.8.3 stellt im MCP-`query` jeder Snippet-Zeile `N: ` voran (`dist/mcp/server.js:301`), bei gleichem Ausschnittfenster (`server.js:293` und `cli/qmd.js:2140`); `translateReply` entfernt genau dieses Präfix, stdout ist darum gleich | Task 11 (3), berichtigt nach F69; Task 8 (Ruling R4). Der Fake nummeriert auf dem MCP-Weg wie qmd; `TestLoomuxsPortsReadTheFake` und die `full`-Fälle des Korpus belegen die Entfernung, der Live-Vergleich von Task 15 bestätigt sie am echten qmd | offen |
 | Befunde von `search` und alle Fehlerwortlaute | auf stderr | auf stderr, eigener Wortlaut, wo die Zeilen oben es sagen | Spec, Vergleichsklassen: der Korpus vergleicht stderr nie; die exakten Zeichenketten stehen in den Unit-Tests der Tasks 3–10 | offen |
+| Live-Vergleich `status` | `brain-mcp` liest `%LOCALAPPDATA%\brain\registry.toml` (10 Bereiche) | `loomux brain` liest `%LOCALAPPDATA%\loomux\registry.toml` (dieselben 10 plus `project/loomux`) und meldet für diesen `` never indexed; run `brain reindex` `` | eine Registry für Schranke und Datenbefehle (Spec, Entscheidungen „Zustand“) | |
 
 ## Was die Fälle der Stufe 1b-1 decken
 
@@ -257,3 +258,52 @@ Schreibschranken-Stufe gewachsen. Eine Stufe, die im Vorbeigehen die Tests von
 
 Damit sind von den 280 Überlebenden der Runde 103 durch einen nachgereichten
 Test getötet, 51 mit einer Begründung abgelegt und 126 geparkt.
+
+## Live-Vergleich
+
+Python (`brain-mcp` im Tag-Worktree `loomux-1a-source`, ohne brain-Daemon) und loomux
+(`bin/loomux.exe` aus dem Tor von `9ca6364`) gegen den echten Bestand, von
+2026-09-16T17:24:29Z bis 2026-09-16T17:25:38Z (UTC), ohne `LOOMUX_STATE_DIR` und
+`LOOMUX_LEGACY_BRAIN_DIR`, der qmd-Daemon vor dem ersten Befehl gestoppt. Die Registry
+hält 11 Bereiche: `project/loomux` und die zehn aus `%LOCALAPPDATA%\brain\registry.toml`;
+egistry.toml`;
+einen eigenen Block für den Worktree gibt es nicht. `qmd mcp stop` konnte den Daemon nicht
+beenden -- die PID-Datei fehlte (Befund in Task 15) --, darum wurde der Prozess auf
+Port 8765 unmittelbar gestoppt.
+
+| Befehl | Exit | Zeilen stdout |
+|---|---:|---:|
+| `brain-mcp status` | 0 | 113 |
+| `brain-mcp search latenz --profile full` | 0 | 34 |
+| `loomux brain search latenz --profile full` | 0 | 34 |
+| `loomux brain status` | 0 | 114 |
+
+### `status`
+
+```text
+1a2
+> project/loomux: never indexed; run `brain reindex`
+```
+
+### `search --profile full`, Trefferzeilen
+
+```text
+keine Ausgabe
+```
+
+### `search --profile full`, stdout
+
+```text
+keine Ausgabe
+```
+
+### `search --profile full`, stderr
+
+```text
+0a1
+> note: starting the search engine; the first call after a start pays a model load (measured 5.7 s). Later calls are warm.
+```
+
+Vorhergesagt waren genau die eingefügte `never indexed`-Zeile in `status` -- eine statt
+zweier, weil die Registry keinen Worktree-Block trägt -- und der Aufwärm-Hinweis als erste
+stderr-Zeile von loomux. Nichts darüber hinaus.

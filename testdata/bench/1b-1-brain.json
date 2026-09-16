@@ -1,0 +1,80 @@
+[
+  {
+    "name": "loomux version (start floor)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/bin/loomux.exe",
+          "version"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "loomux brain search latenz --profile keyword (warm daemon)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/bin/loomux.exe",
+          "brain",
+          "search",
+          "latenz",
+          "--profile",
+          "keyword"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "loomux brain search latenz --profile fast (warm daemon)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/bin/loomux.exe",
+          "brain",
+          "search",
+          "latenz",
+          "--profile",
+          "fast"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "loomux brain search latenz --profile full (warm daemon)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/bin/loomux.exe",
+          "brain",
+          "search",
+          "latenz",
+          "--profile",
+          "full"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "loomux brain status",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": [
+          "C:/Users/micro/Documents/#GIT/loomux-sdd-1b1/bin/loomux.exe",
+          "brain",
+          "status"
+        ]
+      }
+    ]
+  }
+]

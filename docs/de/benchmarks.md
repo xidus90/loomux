@@ -277,3 +277,102 @@ mit Go `go1.27.0 windows/amd64`.
    einen Worktree macht, dessen `.loomux/config.toml` einen registrierten Scope
    nennt; der Hauptcheckout überspringt sie, weil sein Pfad dem registrierten
    gleicht (`path.go:468`). Diese Zuordnung hat dieser Durchgang nicht gemessen.
+
+## 2026-09-16 19:10 — Die Brain-Datenbefehle auf der echten Registry
+
+Repo `loomux`, Worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1`, Zweig
+`sdd-1b-1`, Commit `9ca6364` plus der uncommittete Baum von Task 15 — dieser Task
+fügt die Messfälle, drei Benchmarks und diesen Eintrag hinzu; er ändert keinen Befehl.
+
+**Ziel.** Zeigen, was `loomux brain search` warm und kalt je Profil kostet, gemessen am
+Zielwert ≤ 150 ms für `--profile fast` warm Ende zu Ende (Spec: 63–83 ms qmd, 5–17 ms
+Probe und Handshake, rund 35 ms Go-Startboden), mit dem Anteil fürs Lesen aller
+Identitätsregister eigens ausgewiesen; was `loomux brain status` kostet; und ob der
+Einzug der Brain-Pakete Startzeit hinzugefügt hat.
+
+**Methode.** `loomux dev bench-hooks testdata/bench/1b-1-brain.json -n 20` gegen die
+echten Zustandsverzeichnisse (`%LOCALAPPDATA%\loomux` mit 11 Bereichen,
+`%LOCALAPPDATA%\brain` für die Artefakte schreibgeschützter Bereiche und den
+Reconcile-Stempel; weder `LOOMUX_STATE_DIR` noch `LOOMUX_LEGACY_BRAIN_DIR` gesetzt),
+Anfrage `latenz`, nach einem Aufwärmaufruf je Profil: Die Kalt-Spalte ist ein kalter
+Prozess gegen einen warmen qmd-Daemon. Der kalte Daemon ist getrennt gemessen: Daemon
+gestoppt, dann ein zeitgemessenes `brain search` je Profil, dreimal; jeder der neun
+Läufe druckte den Aufwärm-Hinweis, hat den Daemon also selbst gestartet. Der
+Registeranteil: `go test ./internal/brain/search/ -bench 'OfTheRealRegistry|WithoutTheEngine' -benchtime 50x -benchmem`
+mit `LOOMUX_BENCH_REGISTRY`/`LOOMUX_BENCH_LEGACY` auf denselben Verzeichnissen.
+Startzeit: `GODEBUG=inittrace=1 loomux --version`, je drei Läufe, am Binary des Commits
+vor Task 3 (`aa945cb^`) und an `bin/loomux.exe`. Maschine: AMD Ryzen 7 9800X3D,
+Go `windows/amd64`, GOMAXPROCS 16.
+
+**Was diese Zahlen unvergleichbar macht.** Dreierlei. (1) `qmd mcp stop` konnte den Daemon
+nicht beenden: Ein einziges `qmd status` löscht `~/.cache/qmd/mcp.pid`, während der
+Daemon weiterläuft; der Stopp antwortet dann `Not running (no PID file).`, und der
+nächste Lauf misst einen warmen Daemon. Die neun kalten Läufe haben darum den Prozess
+auf Port 8765 unmittelbar gestoppt, und jeder wurde am Aufwärm-Hinweis geprüft.
+(2) Elf weitere qmd-MCP-Daemons früherer Sitzungen lagen die ganze Zeit auf anderen
+Ports; ein kalter `fast`-Lauf starb mit einem CUDA-Fehler (`ggml-cuda.cu:106`) und Exit 1
+und wurde wiederholt. (3) Die Reihenfolge der Fälle: `version` lief zuerst und war aus
+den drei Aufwärmaufrufen schon warm, `status` zuletzt.
+
+| Fall | kalt (1. Lauf) | warmer Median | warmes Min | warmes Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| loomux version (Startboden) | 45,0 ms | 30,2 ms | 27,7 ms | 44,0 ms | [0] |
+| loomux brain search latenz --profile keyword (warmer Daemon) | 79,0 ms | 67,9 ms | 63,9 ms | 106,6 ms | [0] |
+| loomux brain search latenz --profile fast (warmer Daemon) | 284,8 ms | 260,7 ms | 236,0 ms | 373,7 ms | [0] |
+| loomux brain search latenz --profile full (warmer Daemon) | 805,4 ms | 834,9 ms | 752,8 ms | 940,0 ms | [0] |
+| loomux brain status | 2458,3 ms | 2396,7 ms | 2300,9 ms | 2979,8 ms | [0] |
+
+| kalter Daemon (vor jedem Lauf gestoppt) | Lauf 1 | Lauf 2 | Lauf 3 |
+|---|---:|---:|---:|
+| brain search latenz --profile keyword | 1,15 s | 0,90 s | 0,89 s |
+| brain search latenz --profile fast | 11,62 s | 4,34 s | 7,71 s |
+| brain search latenz --profile full | 4,36 s | 4,41 s | 11,92 s |
+
+| Benchmark (50 Läufe) | ns/op | B/op | allocs/op |
+|---|---:|---:|---:|
+| VisibleAreasOfTheRealRegistry | 1.236.552 | 236.531 | 2.213 |
+| RegistersOfTheRealRegistry (11 Register) | 813.614 | 610.488 | 1.121 |
+| ExecuteSearchWithoutTheEngine | 1.971.952 | 868.143 | 3.574 |
+
+### Lesart
+
+1. **Der Zielwert hält nicht, und qmd hält ihn offen.** `--profile fast` warm liegt bei
+   **260,7 ms** gegen den Zielwert 150 ms — 110,7 ms darüber, mit einer warmen Spanne von
+   236,0–373,7 ms, die ihn nie erreicht. Der Posten, der ihn reißt, ist nicht Go: Der
+   Startboden (`loomux version`) sind 30,2 ms, alles, was loomux außer Prozessstart und
+   qmd tut, sind 1,97 ms (`ExecuteSearchWithoutTheEngine`), und derselbe Aufruf auf dem
+   Keyword-Weg kostet 67,9 ms. Die Vektorsuche selbst sind die verbleibenden rund 193 ms,
+   gegen die 63–83 ms, die die Spec für qmd annahm. Ein Umbau folgt in diesem Task nicht.
+2. **Die Register sind 0,3 % einer fast-Antwort.** `RegistersOfTheRealRegistry` liest die
+   `_identities.tsv` aller **11** registrierten Bereiche in **0,81 ms**; am warmen
+   fast-Median von 260,7 ms sind das 0,31 %. `VisibleAreasOfTheRealRegistry` — die
+   Registry plus je Bereich ein Manifest — sind 1,24 ms. Beide zusammen (2,05 ms) machen
+   im Rahmen der Streuung schon das ganze `ExecuteSearchWithoutTheEngine` (1,97 ms) aus:
+   Registry, Manifeste und Register lesen *ist* das, was loomux außer Prozessstart und
+   qmd verbringt.
+3. **Kalter Daemon: Das Modell-Laden beherrscht die Zahl und streut.** Gegen die
+   23 ms / 5,4 s / 11,9 s des Spikes für einen frisch gestarteten Daemon stehen je Profil
+   0,89–1,15 s (keyword), 4,34–11,62 s (fast) und 4,36–11,92 s (full). Die Streuung
+   innerhalb eines Profils ist größer als der Abstand zwischen `fast` und `full`; diese
+   neun Werte ordnen also nichts: Sie messen einen Daemon-Start samt Modell-Laden, und das
+   schwankte um den Faktor drei auf einer Maschine mit elf weiteren liegenden Daemons.
+   Ablesbar ist keyword: Es braucht kein Einbettungsmodell und kostet trotzdem rund 1 s,
+   weil der Daemon überhaupt hochkommen muss. Jeder Wert bleibt unter seiner geplanten
+   Schranke (6,3 s / 22,4 s / 41,9 s). Der warme `full`-Median oben ist keine neue
+   Anfrage: Die Messung wiederholt `latenz` 21-mal, was der Spike mit rund 250 ms und
+   dieser Lauf mit 834,9 ms gemessen hat, während eine neue Anfrage an einen warmen
+   Daemon 4,2–7,9 s brauchte.
+4. **`brain status` sind 2,4 s, und nichts davon ist Go.** Warmer Median 2396,7 ms gegen
+   einen Startboden von 30,2 ms: Der Befehl fragt die qmd-CLI einmal je indiziertem
+   Bereich und einmal nach dem Rückstand, ist also an qmd-Prozessstarts gebunden.
+5. **Der Einzug der Brain-Pakete hat keine Startzeit gekostet.** Nur eine `init`-Zeile
+   erreicht 1 ms, vor wie nach dem Einzug: `github.com/BurntSushi/toml/internal` mit
+   21/20/20 ms clock davor und 18/18/22 ms clock danach (71.264 bytes, 1.673 allocs in
+   beiden). **Keine Zeile aus `github.com/xidus90/loomux/...` erreicht 1 ms.** Neu nach
+   dem Einzug, keine davon über 0 ms clock außer einem Lauf von `internal/brain/search`
+   mit 0,50 ms: `internal/brain/catalog` und `internal/brain/search` (die umgezogenen
+   `regexp.MustCompile`-Paketvariablen), `internal/dev/mutants` und die fünf
+   `golang.org/x/text`-Pakete `unicode/norm`, `internal/language`,
+   `internal/language/compact`, `language` und `cases`, die das Binary vor Task 3 gar
+   nicht linkt. Step 10 hat darum nicht gegriffen; die sieben Quelldateien mit einer
+   `regexp.MustCompile`-Paketvariablen sind genau die, die der Plan nennt.
