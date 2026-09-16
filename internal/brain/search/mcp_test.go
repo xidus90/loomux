@@ -225,17 +225,18 @@ func TestQmdMcpPort_Serialization(t *testing.T) {
 }
 
 func TestQmdMcpPort_ColdRetry(t *testing.T) {
-	t.Run("succeeds on third attempt", func(t *testing.T) {
-		var attempts int
+	t.Run("succeeds on third call", func(t *testing.T) {
+		var connects, calls int
 		port := search.NewQmdMcpPort(
 			search.WithColdAttempts(3),
 			search.WithConnect(func(env map[string]string) (search.Session, error) {
-				attempts++
-				if attempts < 3 {
-					return nil, errors.New("daemon connection refused")
-				}
+				connects++
 				return &mockSession{
 					callFunc: func(name string, args map[string]any) (map[string]any, error) {
+						calls++
+						if calls < 3 {
+							return nil, errors.New("the daemon hung up")
+						}
 						return map[string]any{
 							"structuredContent": map[string]any{
 								"results": []any{},
@@ -253,12 +254,15 @@ func TestQmdMcpPort_ColdRetry(t *testing.T) {
 		if len(hits) != 0 {
 			t.Errorf("expected 0 hits, got %d", len(hits))
 		}
-		if attempts != 3 {
-			t.Errorf("expected 3 connect attempts, got %d", attempts)
+		if calls != 3 {
+			t.Errorf("expected 3 calls, got %d", calls)
+		}
+		if connects != 3 {
+			t.Errorf("expected a fresh connection per attempt, got %d", connects)
 		}
 	})
 
-	t.Run("fails after max attempts", func(t *testing.T) {
+	t.Run("a connect that fails is not tried again", func(t *testing.T) {
 		var attempts int
 		port := search.NewQmdMcpPort(
 			search.WithColdAttempts(3),
@@ -270,13 +274,42 @@ func TestQmdMcpPort_ColdRetry(t *testing.T) {
 
 		_, err := port.Search("query", []string{"c"}, search.ProfileFast, 1)
 		if err == nil {
-			t.Fatal("expected Search to fail after 3 attempts, got nil")
+			t.Fatal("expected Search to fail on the first connect, got nil")
 		}
-		if !strings.Contains(err.Error(), "the search engine did not answer in 3 attempts") {
-			t.Errorf("expected 3 attempts error message, got: %v", err)
+		if err.Error() != "the search engine did not answer in 1 attempts: daemon connection refused" {
+			t.Errorf("unexpected message: %v", err)
 		}
-		if attempts != 3 {
-			t.Errorf("expected 3 attempts, got %d", attempts)
+		if attempts != 1 {
+			t.Errorf("expected 1 connect attempt, got %d", attempts)
+		}
+	})
+
+	t.Run("a connect that fails after a failed call ends the attempts", func(t *testing.T) {
+		var connects int
+		port := search.NewQmdMcpPort(
+			search.WithColdAttempts(3),
+			search.WithConnect(func(env map[string]string) (search.Session, error) {
+				connects++
+				if connects > 1 {
+					return nil, errors.New("daemon connection refused")
+				}
+				return &mockSession{
+					callFunc: func(name string, args map[string]any) (map[string]any, error) {
+						return nil, errors.New("the daemon hung up")
+					},
+				}, nil
+			}),
+		)
+
+		_, err := port.Search("query", []string{"c"}, search.ProfileFast, 1)
+		if err == nil {
+			t.Fatal("expected Search to fail, got nil")
+		}
+		if err.Error() != "the search engine did not answer in 2 attempts: the daemon hung up; daemon connection refused" {
+			t.Errorf("unexpected message: %v", err)
+		}
+		if connects != 2 {
+			t.Errorf("expected 2 connects, got %d", connects)
 		}
 	})
 }
@@ -575,13 +608,16 @@ func TestDefaultConnectWith_AnnouncesAStartOncePerPort(t *testing.T) {
 		func([]string, []string) error { spawned++; return nil },
 		5*time.Millisecond,
 		func(message string) { heard = append(heard, message) })
-	port := search.NewQmdMcpPort(search.WithConnect(connect), search.WithColdAttempts(3))
-	_, err := port.Search("q", []string{"c"}, search.ProfileFast, 1)
-	if err == nil || !strings.HasPrefix(err.Error(), "the search engine did not answer in 3 attempts: no qmd daemon answered on http://localhost:64997/mcp within 5ms") {
-		t.Fatalf("got %v", err)
+	// The notice belongs to the returned ConnectFunc, so it takes two calls of that one
+	// function to see the guard hold; a failed connect no longer repeats inside a search.
+	for i := 0; i < 2; i++ {
+		if _, err := connect(nil); err == nil ||
+			err.Error() != "no qmd daemon answered on http://localhost:64997/mcp within 5ms" {
+			t.Fatalf("got %v", err)
+		}
 	}
-	if spawned != 3 {
-		t.Errorf("expected three starts, got %d", spawned)
+	if spawned != 2 {
+		t.Errorf("expected two starts, got %d", spawned)
 	}
 	if len(heard) != 1 || heard[0] != search.WarmingNotice {
 		t.Errorf("expected the warming notice exactly once, got %q", heard)

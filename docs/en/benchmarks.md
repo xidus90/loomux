@@ -268,6 +268,7 @@ above, both with Go `go1.27.0 windows/amd64`.
    `.loomux/config.toml` names a registered scope; the main checkout skips them
    because its path equals the registered one (`path.go:468`). This pass did not
    measure that attribution.
+   The entry of 2026-09-16 19:32 below measures it.
 
 ## 2026-09-16 19:10 — The Brain Data Commands on the Real Registry
 
@@ -368,3 +369,63 @@ first and was already warm from the three warming calls, `status` last.
    `cases`, which the pre-Task-3 binary does not link at all. Step 10 therefore did not
    trigger; the seven source files holding a package-level `regexp.MustCompile` are exactly
    the ones the plan names.
+
+## 2026-09-16 19:32 — sameRepository Without git rev-parse
+
+Repository `loomux`, branch `claude/cranky-kilby-f5a456`, commit `ee1aadf`;
+measured worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1` at `9ca6364`.
+
+**Goal.** Test the attribution the entry of 2026-09-15 15:39 left open: that the
+warm gap of about 34 ms between a write in a linked worktree and one in the main
+checkout is the two `git rev-parse --git-common-dir` calls `sameRepository` made.
+This change reads git's pointer files instead.
+
+**Method.** `loomux dev bench-hooks testdata/bench/barrier-worktrees.json -n 20`:
+one cold run per case, then 20 warm ones. `LOOMUX_STATE_DIR` points at a copy of the
+registry that registers only the main checkout (`workspace = true`). Binaries:
+`before.exe` built from `3855de4` (code identical to `e4e0dc2`), `after.exe` built
+from the commit above, both with Go `go1.27.0 windows/amd64`. Both binaries allow
+the worktree write; the case names are those of 2026-09-15. The table shows the
+second of two runs. The first (19:31) was started together with the build of
+`after.exe` and may have overlapped it, so it is not shown; its warm medians lie
+within 3.3 ms of these (worktree 73.8 before / 31.3 after, main checkout 30.3
+before / 32.0 after). Because both binaries had already started once, all four
+cold values here are cached starts and comparable across rows.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: Write in linked worktree, no registry entry | 79.4 ms | 72.8 ms | 70.6 ms | 94.4 ms | [0] |
+| after: Write in linked worktree, no registry entry | 37.9 ms | 34.6 ms | 31.4 ms | 41.6 ms | [0] |
+| before: Edit on README.md in main checkout | 34.2 ms | 31.4 ms | 28.2 ms | 34.4 ms | [0] |
+| after: Edit on README.md in main checkout | 32.2 ms | 30.5 ms | 28.6 ms | 35.9 ms | [0] |
+
+### Reading
+
+1. **Worktree: the write drops by more than half.** After against before is
+   34.6 ms against 72.8 ms warm (38.2 ms lower) and 37.9 ms against 79.4 ms cold
+   (41.5 ms lower). The warm ranges do not overlap (31.4–41.6 against 70.6–94.4).
+   The gap to the main checkout was 41.4 ms before (72.8 against 31.4) and is
+   4.1 ms after (34.6 against 30.5), with overlapping warm ranges (31.4–41.6
+   against 28.6–35.9). Those 4.1 ms are within run-to-run variation: in the first
+   run the worktree write after (31.3 ms) was below the main-checkout write after
+   (32.0 ms).
+2. **Main checkout: noise.** After against before is 30.5 ms against 31.4 ms warm
+   (0.9 ms lower) and 32.2 ms against 34.2 ms cold (2.0 ms lower), with warm ranges
+   that overlap (28.6–35.9 against 28.2–34.4). `sameRepository` returns there
+   before it reads any of git's files, because the checkout's path equals the
+   registered one.
+3. **The attribution: confirmed.** The worktree write falls by 38.2 ms warm, about
+   the gap it had to the main checkout (41.4 ms in this run, about 34–35 ms on
+   2026-09-15), and what remains of the gap is within noise. The gap was the two
+   `git rev-parse` calls. Against the target of 72 ms: the worktree write after is
+   37.4 ms under it. `before.exe` in this run is 0.8 ms over it (72.8 ms) and
+   7.5 ms above the 65.3 ms of the 2026-09-15 `after.exe`, built from `d8bfad2`,
+   which allowed the worktree write as well. That row ran the same verdict and the
+   same two `git rev-parse` calls: between `d8bfad2` and `e4e0dc2` the only code
+   commit is `c2e172d`, which adds an `Lstat` and one path comparison to
+   `linkedCommon`. The 7.5 ms is unexplained. The main-checkout rows show no
+   general slowdown: they are slightly faster than on 2026-09-15 (31.4 against
+   31.9 before, 30.5 against 31.0 after). Another session in the measured worktree
+   would fit a slowdown that hits only the worktree, but that remains an open
+   guess. The attribution rests on the gap within this run, 41.4 ms before and
+   4.1 ms after.

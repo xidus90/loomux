@@ -13,7 +13,10 @@ import (
 
 // Every expected value in this file was measured at the Python reference
 // (Path.read_text and the root lines of brain.core.catalog, Python 3.14.7,
-// ultra-brain tag loomux-1a-source) on 2026-09-15.
+// ultra-brain tag loomux-1a-source) on 2026-09-15 -- except
+// TestAreaArtifactDirIsTheManifestDir, which has no counterpart at the
+// reference: it holds AreaArtifactDir against config.ManifestDir, the one
+// place that decides where an area's artifacts live.
 
 // writableArea writes index.md with the given bytes into a fresh area.
 func writableArea(t *testing.T, index string) config.Area {

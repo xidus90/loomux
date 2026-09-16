@@ -13,7 +13,8 @@ const (
 )
 
 // WarmingNotice is the brain daemon's word for a search that had to start the engine
-// (daemon/server.py). The Python command line never says it; loomux says it once per port.
+// (daemon/server.py). The Python command line never says it; loomux says it at most once
+// for each ConnectFunc DefaultConnectWith returns, which is once per port in a run.
 const WarmingNotice = "starting the search engine; the first call after a start pays a model load (measured 5.7 s). Later calls are warm."
 
 // ConnectFunc connects to the search daemon session.
@@ -152,9 +153,11 @@ func (p *QmdMcpPort) ask(args map[string]any) (map[string]any, error) {
 			var err error
 			session, err = p.connect(p.env)
 			if err != nil {
-				failures = append(failures, err.Error())
-				p.letGo()
-				continue
+				// A connection that never came is not a daemon that stumbled: the
+				// reference connects outside the retried block (qmd_mcp.py `_ask`), so a
+				// failed connect leaves at once. Retrying it would spawn one detached
+				// daemon per attempt and wait out the connect timeout three times over.
+				return nil, unanswered(append(failures, err.Error()))
 			}
 			p.session = session
 		}
@@ -167,7 +170,13 @@ func (p *QmdMcpPort) ask(args map[string]any) (map[string]any, error) {
 		}
 		return reply, nil
 	}
-	return nil, fmt.Errorf("the search engine did not answer in %d attempts: %s", p.attempts, strings.Join(failures, "; "))
+	return nil, unanswered(failures)
+}
+
+// unanswered is what a caller hears when the engine gave no reply: the attempts that were
+// actually spent, and what each of them ran into.
+func unanswered(failures []string) error {
+	return fmt.Errorf("the search engine did not answer in %d attempts: %s", len(failures), strings.Join(failures, "; "))
 }
 
 func (p *QmdMcpPort) letGo() {

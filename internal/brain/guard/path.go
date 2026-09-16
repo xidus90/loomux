@@ -1,17 +1,12 @@
 package guard
 
 import (
-	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
-	"time"
-
-	"github.com/xidus90/loomux/internal/gitenv"
 )
 
 // errLinkCycle says that the links on a path lead in a circle, so there
@@ -381,72 +376,6 @@ func isRelativeTo(path, base string) bool {
 		slices.Equal(target[:len(parts)], parts)
 }
 
-// gitCommonDirTimeout is the wait `_git_common_dir` allows. A hook that
-// waited forever on a hung git would block the session instead of
-// deciding, which is its own kind of failure.
-const gitCommonDirTimeout = 10 * time.Second
-
-// askGit runs `git rev-parse --git-common-dir` in one directory. A
-// variable so that the arms below it -- a failure, an empty answer, a
-// relative answer -- are reachable without a repository per case; nothing
-// outside a test writes it.
-var askGit = func(directory string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(),
-		gitCommonDirTimeout)
-	defer cancel()
-	command := exec.CommandContext(ctx, "git", "-C", directory,
-		"rev-parse", "--git-common-dir")
-	// `GIT_DIR` and its relatives outrank `-C`, and this hook runs wherever
-	// the session runs -- inside a git hook among other places. Inherited,
-	// they make every directory answer with the same common directory, so
-	// two unrelated trees compare equal and a foreign one passes for a
-	// worktree of the registered repository. Observed, not feared.
-	command.Env = gitenv.Environ()
-	out, err := command.Output()
-	return string(out), err
-}
-
-// gitCommonDir is `_git_common_dir`: the
-// directory every worktree of one repository shares, or "" on any
-// failure -- and the caller reads that as "not the same repo". Refusing
-// is the only safe direction: a barrier that opens when git is missing,
-// slow or confused is not a barrier.
-//
-// Both of this function's error arms survive (a1), and for one reason:
-// each failure it catches also leaves the value it would have used
-// empty, so the guard below catches what the guard above would have.
-// A failing `askGit` prints nothing, and the emptiness test answers "";
-// a failing `resolvePath` answers "" beside its error. The arms stand
-// because a caller reading a value the callee said nothing about is a
-// habit that stops being harmless the moment either callee changes.
-func gitCommonDir(path string) string {
-	out, err := askGit(path)
-	if err != nil {
-		return ""
-	}
-	printed := strings.TrimSpace(out)
-	// git answers relative to the directory it was pointed at
-	// (`../../.git` from a subdirectory) and absolutely from a linked
-	// worktree; joining covers both, because an absolute right-hand side
-	// replaces the left. An empty answer is a failure rather than a join:
-	// it would name the directory itself, and two unrelated directories
-	// would then compare equal.
-	if printed == "" {
-		return ""
-	}
-	// A path this side cannot resolve is one more way for the question
-	// "is this the same repository" to have no answer, and "" is what
-	// this function already says in that case.
-	if !filepath.IsAbs(printed) {
-		printed = filepath.Join(path, printed)
-	}
-	common, err := resolvePath(printed)
-	if err != nil {
-		return ""
-	}
-	return common
-}
-
 // sameRepository is `_same_repository`:
 // whether `candidate` is the registered tree itself or a worktree of it.
 //
@@ -454,8 +383,15 @@ func gitCommonDir(path string) string {
 // the common directory only says "somewhere in this repository", which
 // every subdirectory does too -- so a manifest planted in one of them
 // would open its own subtree. A worktree root is the one directory that
-// carries a `.git` of its own (a directory in the main checkout, a file
-// in a linked one), and asking for that costs no further process.
+// carries a `.git` of its own, and `repositoryCommon` answers only there.
+//
+// Read from git's files instead of asking git, unlike Python (spec
+// 2026-09-16-loomux-schranke-samerepo): the two `git rev-parse` calls
+// this replaced ran on every write in a linked worktree below a manifest
+// that names a registered scope that is not read-only. Where git would
+// find a repository these files do not describe -- a `--separate-git-dir`
+// checkout, `core.worktree` -- the answer is false, which closes the tree
+// rather than opening it.
 func sameRepository(candidate, registered string) bool {
 	here, hereErr := resolvePath(candidate)
 	there, thereErr := resolvePath(registered)
@@ -468,9 +404,6 @@ func sameRepository(candidate, registered string) bool {
 	if pathsEqual(here, there) {
 		return true
 	}
-	if _, err := os.Stat(filepath.Join(candidate, ".git")); err != nil {
-		return false
-	}
-	common := gitCommonDir(candidate)
-	return common != "" && common == gitCommonDir(registered)
+	common := repositoryCommon(here)
+	return common != "" && pathsEqual(common, registeredCommon(there))
 }

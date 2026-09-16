@@ -264,46 +264,6 @@ func TestComponentsKeepADriveRelativeAnchorApartFromARootedOne(t *testing.T) {
 
 // --- git, and the answers a failure has to give -------------------------
 
-func TestGitCommonDirRefusesRatherThanGuesses(t *testing.T) {
-	old := askGit
-	t.Cleanup(func() { askGit = old })
-
-	// Every one of these is a way for git to be missing, slow or
-	// confused, and a barrier that opened on any of them would not be
-	// one. The empty answer is the subtle case: joined, it would name
-	// the directory itself, and two unrelated directories would then
-	// compare equal.
-	askGit = func(string) (string, error) { return "", errors.New("no git") }
-	if got := gitCommonDir("anywhere"); got != "" {
-		t.Errorf("a failed git answered %q", got)
-	}
-	askGit = func(string) (string, error) { return "  \n", nil }
-	if got := gitCommonDir("anywhere"); got != "" {
-		t.Errorf("an empty answer was joined into %q", got)
-	}
-}
-
-func TestGitCommonDirJoinsARelativeAnswerAndKeepsAnAbsoluteOne(t *testing.T) {
-	old := askGit
-	t.Cleanup(func() { askGit = old })
-
-	// git answers relative to the directory it was pointed at from a
-	// subdirectory and absolutely from a linked worktree; joining covers
-	// both, because an absolute right-hand side replaces the left.
-	base := t.TempDir()
-	askGit = func(string) (string, error) { return ".git\n", nil }
-	want := mustResolve(t, filepath.Join(base, ".git"))
-	if got := gitCommonDir(base); got != want {
-		t.Errorf("relative: %q, want %q", got, want)
-	}
-	elsewhere := filepath.Join(base, "elsewhere", ".git")
-	askGit = func(string) (string, error) { return elsewhere + "\n", nil }
-	want = mustResolve(t, elsewhere)
-	if got := gitCommonDir(base); got != want {
-		t.Errorf("absolute: %q, want %q", got, want)
-	}
-}
-
 // mustResolve is `resolvePath` where the test's own fixture is the thing
 // being resolved: nothing there leads in a circle, so a failure is a
 // broken fixture rather than a case.
@@ -316,20 +276,32 @@ func mustResolve(t *testing.T, path string) string {
 	return resolved
 }
 
-func TestTheRealGitIsAskedWithTheEnvironmentCleaned(t *testing.T) {
+func TestAnInheritedGitDirMakesNoTwoTreesOneRepository(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("no git on this machine")
 	}
 	base := t.TempDir()
-	run(t, base, "init")
-	// Set on purpose: inherited, GIT_DIR outranks `-C` and makes every
-	// directory answer with the same common directory -- which is how an
-	// unrelated tree passes for a worktree of the registered one. This
-	// asserts the cleaning by making the uncleaned answer wrong.
-	t.Setenv("GIT_DIR", filepath.Join(t.TempDir(), "foreign.git"))
-	got := gitCommonDir(base)
-	if got != mustResolve(t, filepath.Join(base, ".git")) {
-		t.Fatalf("gitCommonDir = %q, want this repository's own", got)
+	main := filepath.Join(base, "main")
+	mkdir(t, main)
+	run(t, main, "init")
+	run(t, main, "-c", "user.email=t@t", "-c", "user.name=t",
+		"commit", "--allow-empty", "-m", "first")
+	linked := filepath.Join(base, "linked")
+	run(t, main, "worktree", "add", "-b", "side", linked)
+	unrelated := filepath.Join(base, "unrelated")
+	mkdir(t, unrelated)
+	run(t, unrelated, "init")
+	// Set after the fixture, and at the registered repository: inherited by
+	// a git child, GIT_DIR outranks the directory it is pointed at, so every
+	// tree would answer with this common directory and the unrelated one
+	// would pass for a worktree. Whoever brings a git call back without
+	// `gitenv` fails here.
+	t.Setenv("GIT_DIR", filepath.Join(main, ".git"))
+	if !sameRepository(linked, main) {
+		t.Error("a real linked worktree is not the same repository")
+	}
+	if sameRepository(unrelated, main) {
+		t.Error("an unrelated repository passed for a worktree")
 	}
 }
 
@@ -546,9 +518,9 @@ func TestAColonThatNamesNoDriveIsAnOrdinaryName(t *testing.T) {
 }
 
 func TestABrokenPayloadCannotSlipThroughAPanic(t *testing.T) {
-	old := askGit
-	t.Cleanup(func() { askGit = old })
-	askGit = func(string) (string, error) { panic("git blew up") }
+	old := readGitFile
+	t.Cleanup(func() { readGitFile = old })
+	readGitFile = func(string) ([]byte, error) { panic("git file blew up") }
 
 	tmp := t.TempDir()
 	base := filepath.Join(tmp, "repo")
@@ -872,20 +844,6 @@ func TestAnAreaWhosePathLeadsInACircleIsNobodysRepository(t *testing.T) {
 	// lying outside the one tree the registration opens.
 	deny(t, writeCall(filepath.Join(here, "w", "x.md")), state,
 		"lies outside every writable tree")
-}
-
-func TestGitAnsweringWithACircleIsNoCommonDirectory(t *testing.T) {
-	old := askGit
-	t.Cleanup(func() { askGit = old })
-	tmp := t.TempDir()
-	circle := filepath.Join(tmp, "circle")
-	cycleOfTwo(t, circle, filepath.Join(tmp, "other"))
-	askGit = func(string) (string, error) { return circle + "\n", nil }
-	// "" is what this function already says for every other way the
-	// question can fail, and the caller reads it as "not the same repo".
-	if got := gitCommonDir(tmp); got != "" {
-		t.Errorf("gitCommonDir = %q, want the empty answer", got)
-	}
 }
 
 func TestAJunctionOntoAMissingDirectoryCarriesTheWriteOut(t *testing.T) {

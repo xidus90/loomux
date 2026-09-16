@@ -308,3 +308,166 @@ func TestASymlinkedGitFileIsNoPointer(t *testing.T) {
 	deny(t, writeCall(filepath.Join(other, "a.go")), state,
 		"lies outside every writable tree")
 }
+
+func TestARegisteredRootIsItsOwnRepository(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	want := mustResolve(t, filepath.Join(main, ".git"))
+	if got := registeredCommon(main); got != want {
+		t.Fatalf("registeredCommon(root) = %q, want %q", got, want)
+	}
+}
+
+func TestARegisteredSubdirectoryClimbsToItsRepository(t *testing.T) {
+	// `git rev-parse --git-common-dir` answers from any directory inside a
+	// checkout, and a registered area is not always a checkout root.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	area := filepath.Join(main, "vault", "demo")
+	mkdir(t, area)
+	want := mustResolve(t, filepath.Join(main, ".git"))
+	if got := registeredCommon(area); got != want {
+		t.Fatalf("registeredCommon(subdirectory) = %q, want %q", got, want)
+	}
+}
+
+func TestAMissingRegisteredPathHasNoRepository(t *testing.T) {
+	// git cannot start in a directory that is not there; a climb from one
+	// would borrow the repository of whatever ancestor still stands.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	if got := registeredCommon(filepath.Join(main, "gone")); got != "" {
+		t.Fatalf("registeredCommon(missing) = %q, want the empty answer", got)
+	}
+}
+
+func TestARegisteredFileHasNoRepository(t *testing.T) {
+	// git cannot start in a file either; a climb from one would borrow the
+	// repository of the directory that holds it.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	file := filepath.Join(main, "notes.md")
+	write(t, file, "not a directory\n")
+	if got := registeredCommon(file); got != "" {
+		t.Fatalf("registeredCommon(file) = %q, want the empty answer", got)
+	}
+}
+
+func TestARegisteredPathOutsideEveryRepositoryHasNone(t *testing.T) {
+	// Assumes no directory above the test's temporary directory carries a
+	// `.git`; on 2026-09-16 none from C:\ to %TEMP% did.
+	base := t.TempDir()
+	plain := filepath.Join(base, "plain")
+	mkdir(t, plain)
+	if got := registeredCommon(plain); got != "" {
+		t.Fatalf("registeredCommon(plain) = %q, want the empty answer", got)
+	}
+}
+
+func TestARegisteredLinkedWorktreeNamesItsCommonDirectory(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	want := mustResolve(t, filepath.Join(main, ".git"))
+	if got := registeredCommon(linked); got != want {
+		t.Fatalf("registeredCommon(linked) = %q, want %q", got, want)
+	}
+}
+
+func TestAnAreaInASubmoduleDoesNotClimbIntoTheSuperproject(t *testing.T) {
+	// A submodule's `.git` file points at `<super>/.git/modules/<name>`,
+	// which holds neither `gitdir` nor `commondir`. The climb has to stop
+	// there: git names the submodule's own directory, and borrowing the
+	// superproject's would make its worktrees one repository with an area
+	// git keeps apart.
+	base := t.TempDir()
+	super := fakeRepository(t, base, "super")
+	module := filepath.Join(super, "mod")
+	mkdir(t, filepath.Join(super, ".git", "modules", "mod"))
+	write(t, filepath.Join(module, ".git"), "gitdir: ../.git/modules/mod\n")
+	area := filepath.Join(module, "vault")
+	mkdir(t, area)
+	if got := registeredCommon(area); got != "" {
+		t.Fatalf("registeredCommon(in submodule) = %q, want the empty answer", got)
+	}
+}
+
+func TestAWorktreeIsTheSameRepositoryAsItsRegisteredTree(t *testing.T) {
+	// Laid out by hand, so git itself would not recognise either side:
+	// only a reading of the files can say yes here.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	area := filepath.Join(main, "vault", "demo")
+	mkdir(t, area)
+	if !sameRepository(linked, main) {
+		t.Error("a linked worktree is not the same repository as its main checkout")
+	}
+	if !sameRepository(linked, area) {
+		t.Error("a linked worktree is not the same repository as an area inside its main checkout")
+	}
+}
+
+func TestAnotherCheckoutIsNotTheSameRepository(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	other := fakeRepository(t, base, "other")
+	if sameRepository(other, main) {
+		t.Fatal("two unrelated checkouts compared as one repository")
+	}
+}
+
+func TestAWorktreeIsNoRepositoryOfAnAreaOutsideEveryRepository(t *testing.T) {
+	// The empty answer of registeredCommon against a real common directory.
+	// Two empty answers compare equal, which the emptiness test in
+	// `sameRepository` catches; here only the registered side is empty,
+	// and `pathsEqual` has to keep the two apart.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	plain := filepath.Join(base, "plain")
+	mkdir(t, plain)
+	if sameRepository(linked, plain) {
+		t.Fatal("a worktree matched an area that lies in no repository")
+	}
+}
+
+func TestAWriteInTheRegisteredCheckoutUnderAManifestReadsNoGitFile(t *testing.T) {
+	// The manifest makes `declaredWikiRoot` ask `sameRepository` about the
+	// registered directory itself, which has to answer before any pointer
+	// file is read. The registered checkout is a linked worktree, whose
+	// `.git` is a file: past the equal-path answer, `repositoryCommon` would
+	// read it. The target lies inside the registered tree, so the worktree
+	// lookup for targets outside every tree reads nothing either.
+	old := readGitFile
+	t.Cleanup(func() { readGitFile = old })
+	readGitFile = func(name string) ([]byte, error) {
+		t.Errorf("read %s for a write in the registered checkout", name)
+		return old(name)
+	}
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	state := workspaceRegistry(t, base, linked)
+	write(t, filepath.Join(linked, ".loomux", "config.toml"),
+		"[area]\nscope = \"project/demo\"\n")
+	allow(t, writeCall(filepath.Join(linked, "src", "a.go")), state)
+}
+
+func TestACommondirThatLeadsInACircleIsNoCommonDirectory(t *testing.T) {
+	tmp := t.TempDir()
+	circle := filepath.Join(tmp, "circle")
+	cycleOfTwo(t, circle, filepath.Join(tmp, "other"))
+	main := fakeRepository(t, tmp, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	write(t, filepath.Join(adminOf(main, "linked"), "commondir"),
+		posix(circle)+"\n")
+	// "" is what every other failed reading says, and the caller reads it
+	// as "not the same repository".
+	if got := repositoryCommon(linked); got != "" {
+		t.Errorf("repositoryCommon = %q, want the empty answer", got)
+	}
+	if sameRepository(linked, main) {
+		t.Error("a worktree whose commondir leads in a circle matched")
+	}
+}

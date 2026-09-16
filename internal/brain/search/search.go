@@ -111,6 +111,12 @@ func askTwice(port SearchPort, query string, collections []string, profile Profi
 // not reach a finding either -- which is why both reasons share the single count and why the
 // check comes before the register is so much as looked at. Every kept hit is checked against
 // its register, and the list is cut to n only at the end.
+//
+// The first of the two reasons waits for a port that reports a collection nobody asked for.
+// The MCP port, which all three profiles use, never delivers one: splitPath relabels a hit
+// whose path begins with no asked collection as the first one asked (as the reference's
+// _split does), so such a hit arrives under a scope this channel does have -- and is then
+// held against that scope's `never` globs. The arm guards the ports that do not relabel.
 func assemble(hits []SearchHit, areas []privacy.VisibleArea, legacyDir string, n int) (*SearchAnswer, error) {
 	type declared struct {
 		scope    string
