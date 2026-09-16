@@ -283,14 +283,14 @@ This change reads git's pointer files instead.
 **Method.** `loomux dev bench-hooks testdata/bench/barrier-worktrees.json -n 20`:
 one cold run per case, then 20 warm ones. `LOOMUX_STATE_DIR` points at a copy of the
 registry that registers only the main checkout (`workspace = true`). Binaries:
-`before.exe` built from `3855de4` (code identical to
-`e4e0dc2`), `after.exe` built from the commit above, both with Go `go1.27.0 windows/amd64`.
-Both binaries allow the worktree write; the case names are those of 2026-09-15.
-The table shows the second of two runs. The first (19:31) was started together
-with the build of `after.exe` and may have overlapped it, so it is not shown; its warm medians lie within
-3.3 ms of these (worktree 73.8 and 31.3 ms, main checkout 30.3 and 32.0 ms). Because
-both binaries had already started once, all four cold values here are cached
-starts and comparable across rows.
+`before.exe` built from `3855de4` (code identical to `e4e0dc2`), `after.exe` built
+from the commit above, both with Go `go1.27.0 windows/amd64`. Both binaries allow
+the worktree write; the case names are those of 2026-09-15. The table shows the
+second of two runs. The first (19:31) was started together with the build of
+`after.exe` and may have overlapped it, so it is not shown; its warm medians lie
+within 3.3 ms of these (worktree 73.8 before / 31.3 after, main checkout 30.3
+before / 32.0 after). Because both binaries had already started once, all four
+cold values here are cached starts and comparable across rows.
 
 | case | cold (1st run) | warm median | warm min | warm max | exit codes |
 |---|---:|---:|---:|---:|---|
@@ -315,16 +315,17 @@ starts and comparable across rows.
    before it reads any of git's files, because the checkout's path equals the
    registered one.
 3. **The attribution: confirmed.** The worktree write falls by 38.2 ms warm, about
-   the gap it had to the main checkout (41.4 ms in this run, about 34 ms on
+   the gap it had to the main checkout (41.4 ms in this run, about 34–35 ms on
    2026-09-15), and what remains of the gap is within noise. The gap was the two
    `git rev-parse` calls. Against the target of 72 ms: the worktree write after is
    37.4 ms under it. `before.exe` in this run is 0.8 ms over it (72.8 ms) and
-   6.0 ms above the 66.8 ms the entry of 2026-09-15 measured. That 6.0 ms is
-   unexplained. The main-checkout rows show no general slowdown: they are slightly
-   faster than on 2026-09-15 (31.4 against 31.9 before, 30.5 against 31.0 after).
-   And the 66.8 ms came from a binary with a different verdict, one that refused
-   the worktree write, so the two ran different code paths. Another session in
-   the measured worktree remains an open guess; it would fit a slowdown that hits
-   only the worktree. The entry of 2026-09-15 cannot tell how much of the drop the
-   calls explain, because its binary ran a different path; the evidence is the gap
-   within this run, 41.4 ms before and 4.1 ms after.
+   7.5 ms above the 65.3 ms of the 2026-09-15 `after.exe`, built from `d8bfad2`,
+   which allowed the worktree write as well. That row ran the same verdict and the
+   same two `git rev-parse` calls: between `d8bfad2` and `e4e0dc2` the only code
+   commit is `c2e172d`, which adds an `Lstat` and one path comparison to
+   `linkedCommon`. The 7.5 ms is unexplained. The main-checkout rows show no
+   general slowdown: they are slightly faster than on 2026-09-15 (31.4 against
+   31.9 before, 30.5 against 31.0 after). Another session in the measured worktree
+   would fit a slowdown that hits only the worktree, but that remains an open
+   guess. The attribution rests on the gap within this run, 41.4 ms before and
+   4.1 ms after.

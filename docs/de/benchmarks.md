@@ -297,10 +297,11 @@ Registry, die nur den Hauptcheckout registriert (`workspace = true`). Binaries:
 gebaut aus dem Commit oben, beide mit Go `go1.27.0 windows/amd64`. Beide Binaries
 erlauben den Worktree-Write; die Fallnamen sind die vom 2026-09-15. Die Tabelle
 zeigt den zweiten von zwei Läufen. Der erste (19:31) wurde zusammen mit dem Bau
-von `after.exe` gestartet und hat sich womöglich mit ihm überschnitten, er ist deshalb nicht gezeigt; seine warmen Mediane
-liegen höchstens 3,3 ms neben diesen (Worktree 73,8 und 31,3 ms, Hauptcheckout 30,3
-und 32,0 ms). Weil beide Binaries schon einmal gestartet waren, sind alle vier
-Kaltwerte hier Starts aus dem Cache und zeilenübergreifend vergleichbar.
+von `after.exe` gestartet und hat sich womöglich mit ihm überschnitten, er ist
+deshalb nicht gezeigt; seine warmen Mediane liegen höchstens 3,3 ms neben diesen
+(Worktree 73,8 vorher / 31,3 nachher, Hauptcheckout 30,3 vorher / 32,0 nachher).
+Weil beide Binaries schon einmal gestartet waren, sind alle vier Kaltwerte hier
+Starts aus dem Cache und zeilenübergreifend vergleichbar.
 
 | Fall | kalt (1. Lauf) | warmer Median | warmes Min | warmes Max | Exit-Codes |
 |---|---:|---:|---:|---:|---|
@@ -325,17 +326,18 @@ Kaltwerte hier Starts aus dem Cache und zeilenübergreifend vergleichbar.
    `sameRepository` kehrt dort zurück, bevor es eine von gits Dateien liest, weil
    der Pfad des Checkouts dem registrierten gleicht.
 3. **Die Zuordnung: bestätigt.** Der Worktree-Write fällt warm um 38,2 ms, etwa um
-   den Abstand, den er zum Hauptcheckout hatte (41,4 ms in diesem Lauf, rund 34 ms
-   am 2026-09-15), und was vom Abstand bleibt, liegt im Rauschen. Der Abstand waren
-   die zwei `git rev-parse`-Aufrufe. Gegen den Zielwert von 72 ms: der Worktree-Write
-   nachher liegt 37,4 ms darunter. `before.exe` liegt in diesem Lauf 0,8 ms darüber
-   (72,8 ms) und 6,0 ms über den 66,8 ms, die der Eintrag vom 2026-09-15 maß. Diese
-   6,0 ms sind ungeklärt. Die Hauptcheckout-Zeilen zeigen keine allgemeine
-   Verlangsamung: sie sind etwas schneller als am 2026-09-15 (vorher 31,4 gegen
-   31,9, nachher 30,5 gegen 31,0). Und die 66,8 ms stammen von einem Binary mit
-   anderem Urteil, das den Worktree-Write verweigerte; die beiden liefen also
-   verschiedene Codepfade. Eine andere Sitzung im gemessenen Worktree bleibt eine
-   offene Vermutung; sie passte zu einer Verlangsamung, die nur den Worktree
-   trifft. Der Eintrag vom 2026-09-15 kann nicht sagen, wie viel des Rückgangs die
-   Aufrufe erklären, weil sein Binary einen anderen Pfad lief; der Beleg ist der
-   Abstand innerhalb dieses Laufs, vorher 41,4 ms und nachher 4,1 ms.
+   den Abstand, den er zum Hauptcheckout hatte (41,4 ms in diesem Lauf, rund
+   34–35 ms am 2026-09-15), und was vom Abstand bleibt, liegt im Rauschen. Der
+   Abstand waren die zwei `git rev-parse`-Aufrufe. Gegen den Zielwert von 72 ms:
+   der Worktree-Write nachher liegt 37,4 ms darunter. `before.exe` liegt in diesem
+   Lauf 0,8 ms darüber (72,8 ms) und 7,5 ms über den 65,3 ms des `after.exe` vom
+   2026-09-15, gebaut aus `d8bfad2`, das den Worktree-Write ebenfalls erlaubte.
+   Diese Zeile lief dasselbe Urteil und dieselben zwei `git rev-parse`-Aufrufe:
+   zwischen `d8bfad2` und `e4e0dc2` ist der einzige Code-Commit `c2e172d`, der
+   `linkedCommon` ein `Lstat` und einen Pfadvergleich hinzufügt. Die 7,5 ms sind
+   ungeklärt. Die Hauptcheckout-Zeilen zeigen keine allgemeine Verlangsamung: sie
+   sind etwas schneller als am 2026-09-15 (vorher 31,4 gegen 31,9, nachher 30,5
+   gegen 31,0). Eine andere Sitzung im gemessenen Worktree würde zu einer
+   Verlangsamung passen, die nur den Worktree trifft, bleibt aber eine offene
+   Vermutung. Die Zuordnung stützt sich auf den Abstand innerhalb dieses Laufs,
+   vorher 41,4 ms und nachher 4,1 ms.

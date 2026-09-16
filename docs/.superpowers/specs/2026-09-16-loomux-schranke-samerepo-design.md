@@ -35,7 +35,7 @@ Ein Write im Worktree kostet danach ungefähr so viel wie im Hauptcheckout.
 |---|---|
 | Erkennung | `repositoryCommon` aus `worktree.go`, kein `git`-Prozess und kein Rückfall darauf |
 | Kandidatenseite | Streng: der Kandidat muss selbst Checkout-Wurzel sein (`.git`-Verzeichnis oder geprüfte `.git`-Datei) |
-| Registrierte Seite | Steigend: `registered` selbst, dann `parents(registered)`, bis zum ersten `.git`-Eintrag gleich welcher Art; dessen `repositoryCommon` ist die Antwort. Nur, wenn `registered` existiert |
+| Registrierte Seite | Steigend: `registered` selbst, dann `parents(registered)`, bis zum ersten `.git`-Eintrag gleich welcher Art; dessen `repositoryCommon` ist die Antwort. Nur, wenn `registered` existiert und ein Verzeichnis ist |
 | Vergleich | `pathsEqual`, nicht `==` |
 | Reihenfolge in `Decide` | Unverändert. Getauscht wird nur das Innere von `sameRepository` |
 | Toter Code | `askGit`, `gitCommonDir`, `gitCommonDirTimeout` und der `gitenv`-Import in `path.go` entfallen |
@@ -64,15 +64,14 @@ func sameRepository(candidate, registered string) bool {
 	if pathsEqual(here, there) {
 		return true
 	}
-	common := repositoryCommon(candidate)
-	if common == "" {
-		return false
-	}
-	return pathsEqual(common, registeredCommon(registered))
+	common := repositoryCommon(here)
+	return common != "" && pathsEqual(common, registeredCommon(there))
 }
 ```
 
-Die Skizze legt die Form fest, nicht den Wortlaut. Eine leere Antwort von `registeredCommon`
+Die Skizze legt die Form fest, nicht den Wortlaut. Beide Seiten lesen die aufgelösten Pfade `here`
+und `there`, nicht die Eingaben des Aufrufers: der Aufstieg über `parents` ist lexikalisch, git
+dagegen sucht vom aufgelösten Verzeichnis aus. Eine leere Antwort von `registeredCommon`
 braucht keinen eigenen Zweig: `components("")` ist leer, `pathsEqual(common, "")` für ein
 nicht-leeres `common` also `false`. Ein Test hält das fest, weil genau diese Stelle der Grund war,
 warum `gitCommonDir` die leere Antwort ausdrücklich abfing.
@@ -96,7 +95,7 @@ Unterverzeichnis trägt kein `.git`, `repositoryCommon` antwortet `""`.
 
 Neue Funktion in `worktree.go`:
 
-1. Existiert `registered` nicht, `""`.
+1. Weiter nur, wenn `registered` existiert und ein Verzeichnis ist; sonst `""`.
 2. Für `registered` selbst und dann jedes Verzeichnis aus `parents(registered)`: trägt es einen
    `.git`-Eintrag (`os.Lstat`, gleich ob Verzeichnis, Datei oder Link), ist
    `repositoryCommon(verzeichnis)` die Antwort — auch wenn sie `""` ist.
@@ -106,8 +105,9 @@ Neue Funktion in `worktree.go`:
 vor der Schleife.
 
 **Warum Schritt 1.** `git -C <pfad> rev-parse` scheitert an einem Pfad, den es nicht gibt, und
-`gitCommonDir` antwortet dann `""`. Ein reines Steigen fände dagegen das Repository eines noch
-vorhandenen Vorfahren und wäre an dieser Stelle weiter als heute. Ein `os.Stat` hält die Grenze.
+ebenso an einer Datei; `gitCommonDir` antwortete dann `""`. Ein reines Steigen fände dagegen das
+Repository eines noch vorhandenen Vorfahren oder des Verzeichnisses, das die Datei enthält, und wäre
+an dieser Stelle weiter als git. Ein `os.Stat` mit Verzeichnisprüfung hält die Grenze.
 
 **Warum steigend.** `git rev-parse --git-common-dir` antwortet aus jedem Unterverzeichnis eines
 Checkouts. Die registrierte Seite war nie eine Wurzelprüfung, und sie wird keine.
@@ -131,7 +131,7 @@ Verwaltungsverzeichnis).
 
 ### Was unverändert bleibt
 
-- Der Hauptcheckout: `pathsEqual(here, there)` kehrt vor jedem Dateizugriff zurück.
+- Der Hauptcheckout: `pathsEqual(here, there)` kehrt zurück, bevor eine Zeigerdatei gelesen wird.
 - Die Reihenfolge in `Decide` und in `declaredWikiRoot`; ein kaputtes Manifest verweigert weiter.
 - Die übrigen Aufrufer von `gitenv` (`wiki/gate.go`, `gitwork`, `hooks/worktree.go`,
   `worktree/topo`).
@@ -152,9 +152,27 @@ antwortet anders, wo git etwas liest, das nicht in den Zeigerdateien steht:
   garantiert.
 
 In jedem dieser Fälle antwortet die neue Form „nicht dasselbe Repository", und der Aufrufer liest das
-als „dieses Manifest erklärt nichts". Die Abweichung verengt also nur; sie öffnet keinen Baum, den
-Python verschlossen hielt. Der Fall „registrierter Pfad existiert nicht" ist über Schritt 1 in
-Parität gehalten.
+als „dieses Manifest erklärt nichts". Die Fälle „registrierter Pfad existiert nicht" und
+„registrierter Pfad ist eine Datei" sind über Schritt 1 in Parität gehalten.
+
+Umgekehrt gibt es Fälle, in denen der Dateibefund „dasselbe Repository" antwortet und git „nicht
+dasselbe" geantwortet hat:
+
+- **Ein Checkout, den git wegen zweifelhaften Eigentums verweigert** (`safe.directory`): git
+  bricht ab und `gitCommonDir` antwortete `""`; die Zeigerdateien lesen sich unabhängig vom
+  Eigentümer.
+- **Ein registrierter Bereich in einem Bare-Repository:** git hält dort an und nennt das
+  Bare-Repository; der Aufstieg kennt nur `.git`-Einträge, steigt daran vorbei und findet den
+  Checkout darüber.
+- **Auf POSIX ein Aufstieg über eine Dateisystemgrenze,** die git ohne
+  `GIT_DISCOVERY_ACROSS_FILESYSTEM` nicht überschreitet; `parents` kennt keine Grenze.
+
+Auch in diesen Fällen muss der Kandidat eine echte Checkout-Wurzel sein: ein `.git`-Verzeichnis, das
+das gemeinsame Verzeichnis des registrierten Repositorys ist, oder ein verknüpfter Worktree, dessen
+Verwaltungsverzeichnis direkt unter `<common>/worktrees` dieses Repositorys liegt und auf ihn
+zurückverweist. Ein fremder Baum öffnet sich also nicht. Die Abweichung wirkt aber in beide
+Richtungen: meist verengt sie; in diesen drei Fällen öffnet sie, was Python verschlossen hielt,
+nämlich einen Checkout des Repositorys, bei dem der Aufstieg vom registrierten Bereich endet.
 
 Die Abweichung braucht eine Freigabe in der Paritätsliste, bevor die Stufe als fertig gilt.
 
