@@ -336,7 +336,6 @@ Kaltwerte hier Starts aus dem Cache und zeilenübergreifend vergleichbar.
    anderem Urteil, das den Worktree-Write verweigerte; die beiden liefen also
    verschiedene Codepfade. Eine andere Sitzung im gemessenen Worktree bleibt eine
    offene Vermutung; sie passte zu einer Verlangsamung, die nur den Worktree
-   trifft. Der Rückgang um 38,2 ms enthält diesen ungeklärten Teil. Ohne ihn wäre
-   er 32,2 ms, 1,8–2,8 ms weniger als der Abstand von 34–35 ms vom 2026-09-15; die
-   zwei `git rev-parse`-Aufrufe erklären damit weiterhin den größten Teil dieses
-   Abstands.
+   trifft. Der Eintrag vom 2026-09-15 kann nicht sagen, wie viel des Rückgangs die
+   Aufrufe erklären, weil sein Binary einen anderen Pfad lief; der Beleg ist der
+   Abstand innerhalb dieses Laufs, vorher 41,4 ms und nachher 4,1 ms.

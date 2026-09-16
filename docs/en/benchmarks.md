@@ -325,7 +325,6 @@ starts and comparable across rows.
    And the 66.8 ms came from a binary with a different verdict, one that refused
    the worktree write, so the two ran different code paths. Another session in
    the measured worktree remains an open guess; it would fit a slowdown that hits
-   only the worktree. The drop of 38.2 ms contains this unexplained part. Without
-   it the drop would be 32.2 ms, 1.8–2.8 ms short of the 34–35 ms gap of
-   2026-09-15, which still makes the two `git rev-parse` calls account for most of
-   that gap.
+   only the worktree. The entry of 2026-09-15 cannot tell how much of the drop the
+   calls explain, because its binary ran a different path; the evidence is the gap
+   within this run, 41.4 ms before and 4.1 ms after.
