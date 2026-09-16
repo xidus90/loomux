@@ -89,15 +89,26 @@ func GoTest(ctx context.Context, root string) TestFunc {
 		if !finishedRun(err, timedOut) {
 			return 0, err
 		}
-		return classify(stdout.String()+stderr.String(), err == nil, timedOut), nil
+		return classify(stdout.String()+stderr.String(), suitePassed(err), timedOut), nil
 	}
+}
+
+// suitePassed says whether the suite itself came back green. os/exec returns
+// ErrWaitDelay only where the command exited with status zero and its output
+// outlived it; a non-zero exit yields an ExitError and drops ErrWaitDelay. A
+// run that ended that way therefore passed, and its mutant survived — reading
+// it as a failure would hide a survivor.
+func suitePassed(err error) bool {
+	return err == nil || errors.Is(err, exec.ErrWaitDelay)
 }
 
 // finishedRun tells a run that came to an end from a go command that never
 // ran. An exit status is a verdict, and so is a child that held the output
 // pipes past WaitDelay: the command itself is over, and what it printed until
-// then is what classify reads. Anything else — no go on the PATH, a working
-// directory that is gone — broke before the suite could answer.
+// then is what classify reads. That case carries a verdict of its own, since
+// ErrWaitDelay means the command exited with status zero: the run counts as
+// passed, which suitePassed says. Anything else — no go on the PATH, a
+// working directory that is gone — broke before the suite could answer.
 func finishedRun(err error, timedOut bool) bool {
 	var exit *exec.ExitError
 	return err == nil || timedOut || errors.As(err, &exit) || errors.Is(err, exec.ErrWaitDelay)

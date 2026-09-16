@@ -128,3 +128,29 @@ func TestFinishedRunReadsWhyTheGoCommandCameBack(t *testing.T) {
 		}
 	}
 }
+
+// os/exec returns ErrWaitDelay only where the command itself exited zero and
+// its output outlived it; a non-zero exit yields an ExitError instead and
+// drops it. The suite was therefore green, and the mutant survived. Counting
+// such a run as killed would hide a survivor, the one mistake a mutation
+// round must not make.
+func TestAnOutputThatOutlivedAGreenCommandIsASurvivor(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"the suite was green", nil, true},
+		{"the output outlived a green command", exec.ErrWaitDelay, true},
+		{"the suite was red", &exec.ExitError{}, false},
+		{"no go command at all", exec.ErrNotFound, false},
+	} {
+		if got := suitePassed(c.err); got != c.want {
+			t.Errorf("%s: got %t, want %t", c.name, got, c.want)
+		}
+	}
+	printed := "ok  \texample.com/probe/p\t0.131s\n"
+	if got := classify(printed, suitePassed(exec.ErrWaitDelay), false); got != Passed {
+		t.Fatalf("the mutant came back as %d, want %d", got, Passed)
+	}
+}
