@@ -108,7 +108,7 @@ Zusammen 3.201 Mutanten, 2.328 getötet, 280 überlebt, 593 keine Mutanten.
 
 ### Erledigte Überlebende
 
-Neun Pakete sind abgearbeitet: 53 Überlebende haben einen nachgereichten Test,
+Neun Pakete sind im ersten Durchgang abgearbeitet: 53 Überlebende haben einen nachgereichten Test,
 der sie tötet, 27 eine Begründung, warum der Code den Unterschied nicht sehen
 kann. Die Nachprüfung ist je Paket eine vollständige zweite Runde statt
 `--only`/`--family`; ihre Protokolle liegen unter `$TEMP/mutants-1b1/recheck/`
@@ -175,11 +175,84 @@ und belegen zugleich, dass kein Mutant neu überlebt.
 | internal/brain/reader/section.go:21 | a1 | `HasPrefix(line, "#")` -> `true` | Test `TestOnlyAHeadingLineCanOpenASection`, danach `killed` |
 | internal/brain/catalog/root.go:23 | a3 | `<` -> `<=` | Kein Unterschied: die gerenderte Zeile trägt nur `Scope`, zwei Bereiche mit gleichem Scope rendern also gleich, und bei verschiedenen Scopes sind `<` und `<=` dasselbe |
 
-### Offen
+### Zweiter Durchgang: privacy und search (Ruling R19)
 
-Vier Pakete sind gelaufen und gezählt, ihre Überlebenden aber noch nicht
-bewertet: `internal/brain/privacy` (14), `internal/brain/search` (60),
-`internal/brain/guard` (17) und `internal/hooks` (109), zusammen 200. Die
-`SURVIVED`-Zeilen stehen vollständig in `$TEMP/mutants-1b1/brain-privacy.log`,
-`brain-search.log`, `brain-guard.log` und `hooks.log`; wer weitermacht, braucht
-die Runde nicht zu wiederholen.
+Dieselbe Runde, ein zweites Mal ausgewertet. `internal/brain/privacy` und
+`internal/brain/search` sind Code dieser Stufe und darum hier bewertet;
+`internal/brain/guard` und `internal/hooks` sind Pakete der Stufe 1a und
+bleiben nach Ruling R19 unangetastet.
+
+| Paket | überlebt (erste Runde) | nach den Tests | durch Test getötet | Begründung 4b |
+|---|---:|---:|---:|---:|
+| internal/brain/privacy | 14 | 8 | 6 | 8 |
+| internal/brain/search | 60 | 16 | 44 | 16 |
+
+24 neue Tests: `internal/brain/privacy/mutation_test.go` (5) und
+`internal/brain/search/mutation_test.go` (19). Kein Produktionscode geändert,
+kein 4c-Befund.
+
+`internal/brain/search` hat zwei Hälften mit zwei Referenzen: `qmd.go` bildet
+`src/brain/search/qmd.py` nach und wird dagegen gemessen; der MCP-Weg in
+`http.go` und `mcp.go` ist loomux' eigener -- die Referenz spricht mit qmd nur
+über die Kommandozeile --, dort sind JSON-RPC 2.0, das SSE-Format und die
+eigenen Konstanten die Quelle.
+
+| Datei:Zeile | Familie | war -> jetzt | Erledigung |
+|---|---|---|---|
+| internal/brain/privacy/containment.go:44 | a3 | `size > 0` -> `size >= 0` | Kein Unterschied: `size == 0` liefert `utf8.DecodeRuneInString` nur für den leeren String, und dann ist `len(p) > size` die Aussage `0 > 0` und falsch |
+| internal/brain/privacy/glob.go:66 | a1 | `idx == last` -> `true` | Test `TestATwoStarPartInTheMiddleStillNeedsASeparator`, danach `killed` |
+| internal/brain/privacy/glob.go:72 | a1 | `part != ""` -> `true` | Kein Unterschied: `translateSegment("")` läuft über null Runen (glob.go:96) und schreibt nichts, beide Formen hängen also denselben leeren String an |
+| internal/brain/privacy/glob.go:109 | a2, a3 | `j < n && pat[j] == '!'` -> ohne die Schranke, `j <= n` | Test `TestAnUnclosedBracketAtTheVeryEndIsALiteral` (zwei Mutanten), danach `killed`: ohne die Schranke liest der Mutant eine Rune hinter das Segment und stürzt ab |
+| internal/brain/privacy/glob.go:112 | a1, a2 | `j < n && pat[j] == ']'` -> `true`, `j < n` | Kein Unterschied: der Schritt, den diese Zeile tut, ist genau der erste Schritt der Schleife in Zeile 115 -- steht dort kein `]`, sucht die Schleife von `j` oder von `j+1` aus dasselbe `]`; steht dort eines, geht auch die echte Form darüber; und ab `j >= n` antwortet Zeile 118 für beide |
+| internal/brain/privacy/glob.go:145 | a1 | `!Contains(pat[i:j], '-')` -> `false` | Kein Unterschied: ohne `-` im Rumpf antwortet `indexHyphen` sofort -1, die Stückliste bekommt den ganzen Rumpf als einziges Stück, die Zusammenlegung läuft nicht, und das Escaping des Stückwegs (glob.go:176) ist ohne Bindestrich dieselbe Verdopplung der Backslashes wie in Zeile 146 |
+| internal/brain/privacy/glob.go:150 | a1 | `pat[i] == '!'` -> `false` | Test `TestTheHyphenRightAfterANegationIsNotARangeSeparator`, danach `killed` |
+| internal/brain/privacy/glob.go:155 | a3 | `k < 0` -> `k <= 0` | Kein Unterschied: `bracketBody` bekommt als `i` den Index hinter einem `[`, also `i >= 1`; die Suche beginnt bei `i+1 >= 2`, und `indexHyphen` antwortet entweder -1 oder einen Index von mindestens 2 |
+| internal/brain/privacy/glob.go:169 | a3 | `>` -> `>=` | Test `TestARangeOfOneCharacterIsNotEmpty`, danach `killed` |
+| internal/brain/privacy/glob.go:184 | a3 | `k < j` -> `k <= j` | Kein Unterschied: `bracketBody` wird nur gerufen, nachdem Zeile 115 an einem `]` stehengeblieben ist und Zeile 118 es durchgelassen hat -- `pat[j]` ist also `]` und nie der Bindestrich, den der zusätzliche Schritt fände |
+| internal/brain/privacy/glob.go:185 | a1 | `pat[k] == '-'` -> `true` | Test `TestARangeIsFoundWhereItStandsNotAtTheFirstCharacter`, danach `killed` |
+| internal/brain/privacy/readable.go:42 | a2 | zwei Klauseln -> `manifest == nil` | Kein Unterschied: `MatchesGlobs` über eine leere Musterliste fällt durch seine Schleife und antwortet `false` (readable.go:27-32), und `!false` ist dasselbe `true` |
+| internal/brain/search/fake.go:92 | a1 | `err != nil` -> `true` | Kein Unterschied: `err` ist der gescriptete Wert, und ein `return err` mit `err == nil` gibt denselben leeren Fehler zurück wie das `return nil` in Zeile 96 |
+| internal/brain/search/http.go:45 | a1, a3 | `port <= 0` -> `false`, `port < 0` | Test `TestASessionAskedForNoPortGetsTheDaemonsOwn` (zwei Mutanten), danach `killed` |
+| internal/brain/search/http.go:57 | a1 | `!s.portOpen(...)` -> `false` | Test `TestAClosedProbeAddressMeansUnreachable`, danach `killed`. Erst als 4b abgelegt (»ein geschlossener Port lässt auch keinen Handshake zu«) -- falsch, sobald `Host:Port` und `URL` verschiedene Orte nennen, und genau so ist der Test gebaut |
+| internal/brain/search/http.go:68 | a1 (`true`), a3, a4 | `host == ""` -> `true`, `host != ""`, `!(...)` | Test `TestAClosedProbeAddressMeansUnreachable` (drei Mutanten), danach `killed` |
+| internal/brain/search/http.go:68 | a1 (`false`) | `host == ""` -> `false` | Kein Unterschied, der zu prüfen wäre: bei gesetztem `Host` läuft der Rumpf ohnehin nicht, und bei leerem `Host` bleibt die Wähladresse `:<port>`, die Go als die des eigenen Rechners liest (`net.Dial`: »If the host is empty ... the local system is assumed«) -- also derselbe Rechner, auf den `DefaultHost` zeigt |
+| internal/brain/search/http.go:72 | a1 | `port == 0` -> `false` | Kein Unterschied, der zu prüfen wäre: trennen ließe sich das nur mit einem Lauscher auf dem festen `DefaultPort` 8765, und `NewHTTPSession` (http.go:45) lässt `Port` nie auf 0 stehen -- die Wache antwortet nur einer von Hand gebauten Sitzung |
+| internal/brain/search/http.go:84 | a1 | `s.URL != ""` -> `true` | Test `TestASessionWithoutAURLBuildsOneFromHostAndPort`, danach `killed` |
+| internal/brain/search/http.go:88 und :92 | a1, a3, a4 | `host == ""` und `port <= 0` -> `true`, `false`, `!(...)`, `port < 0` | Test `TestTheWaitingErrorNamesTheAddressItWaitedOn` (acht Mutanten), danach `killed`: die Fehlerzeile von `WaitUntilReachable` trägt die gebaute Adresse |
+| internal/brain/search/http.go:101 | a1, a3, a4 | `pollInterval <= 0` -> `true`, `false`, `!(...)`, `< 0` | Kein Unterschied, der zu prüfen wäre: der Wert geht einzig an `time.Sleep` zwischen zwei Proben einer schon scheiternden Schleife; alle Formen schlafen eine nicht-negative Zeit, und 0 von 250 ms zu trennen hieße messen, wie lange ein Fehlschlag gedauert hat |
+| internal/brain/search/http.go:109 | a4 | `!now.Before(deadline)` -> `!(!...)` | Test `TestTheWaitingErrorNamesTheAddressItWaitedOn`, danach `killed` -- durch Zeitüberlauf: mit umgedrehter Frist bricht die Schleife nie ab und läuft in die 60-s-Grenze der Runde |
+| internal/brain/search/http.go:159 | a1 (`false`), a4 | `timeout > 0` -> `false`, `!(...)` | Test `TestACallCarriesItsTimeoutOnTheRequest` (zwei Mutanten), danach `killed` |
+| internal/brain/search/http.go:159 | a1 (`true`), a3 | `timeout > 0` -> `true`, `timeout >= 0` | Kein Unterschied: `postWithTimeout` ist unexportiert und hat zwei Rufer, `Handshake` mit `HandshakeTimeout` (http.go:126) und `Call` mit `QueryTimeout` (http.go:135) -- beide positiv, und für einen positiven Wert sind die drei Formen dieselbe |
+| internal/brain/search/http.go:183 | a2 | `< 200 \|\| >= 300` -> `>= 300` | Kein Unterschied: Go's HTTP-Client verzehrt eine 1xx-Antwort als Zwischenmeldung und reicht sie nie als `resp.StatusCode` weiter -- ein Status unter 200 erreicht diese Zeile nicht |
+| internal/brain/search/http.go:183 | a3 | `>= 300` -> `> 300` | Test `TestThreeHundredIsNotASuccessfulStatus`, danach `killed` |
+| internal/brain/search/http.go:194 | a2 | `ok && rpcErr != nil` -> `ok` | Test `TestANullErrorMemberIsNoError`, danach `killed` |
+| internal/brain/search/http.go:207 | a3 | `i >= 0` -> `i > 0` | Test `TestAStreamWhoseOnlyDataLineIsItsFirstOne`, danach `killed` |
+| internal/brain/search/http.go:209 | a1 | `HasPrefix(line, "data:")` -> `true` | Test `TestALineWithoutTheDataFieldIsNotTheReply`, danach `killed` |
+| internal/brain/search/http.go:211 | a1 | `data == ""` -> `false` | Kein Unterschied: ein leeres `data` ist kein gültiges JSON, `json.Unmarshal` scheitert daran, und Zeile 216 macht mit demselben `continue` weiter |
+| internal/brain/search/mcp.go:128 | a1 | `p.cli == nil` -> `false` | Test `TestAPortBuiltWithoutACLIStillHasOne`, danach `killed`. Erst als nicht prüfbar abgelegt (»das hieße qmd starten«) -- falsch: ein leerer PATH lässt den Launcher den Namen nachschlagen und ablehnen, bevor ein Prozess entsteht, wie es `TestNewQmdMcpPort_DefaultConnectRefusesAMissingQmdWithoutANotice` seit 1b-1 tut |
+| internal/brain/search/mcp.go:151 | a1 | `session == nil` -> `true` | Test `TestAnOpenSessionIsNotConnectedTwice`, danach `killed` |
+| internal/brain/search/mcp.go:174 | a1 | `p.session != nil` -> `false` | Test `TestASessionThatFailedIsClosedAndLetGo`, danach `killed` |
+| internal/brain/search/mcp.go:237 | a1 | `!ok` -> `false` | Kein Unterschied: der Index in eine nil-Map ist erlaubt und gibt den Nullwert, `sc["results"]` ist dann nicht `[]any`, und Zeile 241 antwortet für beide Formen dasselbe `nil` |
+| internal/brain/search/mcp.go:241 | a1 | `!ok` -> `false` | Test `TestAReplyWithoutAResultsListIsNotAnEmptyList`, danach `killed`. Der Test hält `nil` gegen die leere Liste fest -- ein Unterschied, den heute kein Rufer liest, aber der einzige, den die Signatur weitergibt |
+| internal/brain/search/mcp.go:256 | a2 | `ok && lineVal != nil` -> `ok` | Kein Unterschied: ein `nil` trifft keinen Zweig der Typprüfung darunter, `line` bleibt 1, und `if line < 1` ändert daran nichts |
+| internal/brain/search/mcp.go:265 | a3 | `line < 1` -> `line <= 1` | Kein Unterschied: der Rumpf setzt `line` auf 1, für `line == 1` also auf den Wert, den es schon hat |
+| internal/brain/search/mcp.go:320 | a1, a3 | `len(collections) > 0` -> `true`, `>= 0` | Test `TestAHitIsSplitEvenWhenNoCollectionWasAsked` (zwei Mutanten), danach `killed`: ohne die Prüfung greift der Mutant in eine leere Liste |
+| internal/brain/search/qmd.go:54 | a1 | `err != nil` -> `true` | Kein Unterschied: ist `err` nil, scheitert die Typzusicherung auf `*exec.ExitError` darunter, und der Rumpf tut nichts |
+| internal/brain/search/qmd.go:113 | a1 | `!isArray` -> `true` | Test `TestAJSONListThatHoldsNoHitsIsAReadingFailure`, danach `killed` |
+| internal/brain/search/qmd.go:136, :140, :144, :148 | a1 | `raw.X != nil` -> `true` | Test `TestAHitMayCarryNothingButItsFileAndItsDocID` (vier Mutanten), danach `killed`: ohne die Prüfung liest der Mutant durch einen nil-Zeiger |
+| internal/brain/search/qmd.go:195 | a3 | `start < 0` -> `start <= 0` | Test `TestAListingLineMayBeginWithTheLocation`, danach `killed` |
+| internal/brain/search/qmd.go:210, :220, :238 | a1, a3, a4 | `exe == ""` -> `true`, `false`, `!(...)`, `exe != ""` | Test `TestEveryCommandFallsBackToTheQmdExecutable` (neun Mutanten), danach `killed` |
+| internal/brain/search/search.go:156 | a3 | `len(ordered) > n` -> `>= n` | Kein Unterschied: bei `len(ordered) == n` schneidet der Mutant `ordered[:n]` ab, was die ganze Liste ist; und für die leere Liste ist `ordered[:0]` wieder dieselbe |
+
+### Geparkt (Ruling R19)
+
+Zwei Pakete bleiben unbewertet: `internal/brain/guard` (17 Überlebende) und
+`internal/hooks` (109), zusammen 126. Beide sind Pakete der Stufe 1a, die diese
+Stufe nicht geschrieben hat -- guard ist nur durch die eingegliederte
+Schreibschranken-Stufe gewachsen. Eine Stufe, die im Vorbeigehen die Tests von
+1a umschreibt, kann niemand mehr prüfen; darum wird hier nichts angefasst. Die
+`SURVIVED`-Zeilen stehen vollständig in `$TEMP/mutants-1b1/brain-guard.log` und
+`hooks.log`; wer weitermacht, braucht die Runde nicht zu wiederholen.
+
+Damit sind von den 280 Überlebenden der Runde 103 durch einen nachgereichten
+Test getötet, 51 mit einer Begründung abgelegt und 126 geparkt.
