@@ -18,6 +18,7 @@
 - Code, Bezeichner, Kommentare, Commit-Nachrichten englisch; Paritätsliste deutsch; Benchmarks in `docs/en/benchmarks.md` und `docs/de/benchmarks.md`.
 - Commits: Autor und Committer ist der Nutzer (`git config user.name`/`user.email` des Repos); kein `Co-Authored-By`, kein Modell im Text. Mehrzeilige Nachrichten über eine Datei und `git commit -F`.
 - Niemand pusht.
+- Subagenten je Task mit `model: "opus"` und `effort: "low"`, beides ausdrücklich gesetzt. Nach jedem Subagenten `git log -1 --format='%an <%ae>'` lesen.
 - Vor jedem Commit: `git branch --show-current` und `git log -1 --oneline` lesen.
 - Das Commit-Gate ist `.githooks/pre-commit` (gofmt, `go vet`, `go test ./... -count=1 -coverpkg=./...`, `loomux dev covergate`, Neubau von `bin/loomux.exe`). Es läuft bei jedem Commit; kein `--no-verify`.
 - `.loomux/config.toml` schreibt kein Agent.
@@ -408,7 +409,14 @@ func stateDirOf(stateDir, scope string) string {
 }
 ```
 
-Den Doc-Kommentar von `Area` prüfen: Der Satz über `WikiPath` („the empty string is this reader's None“) bleibt richtig. Ein leeres `wiki` wird jetzt verweigert, ein fehlendes ergibt `""`. Satz 3 „Of the nine areas … none omits `wiki` today“ bleibt.
+Im Doc-Kommentar von `Area` den Absatz, der mit `// WikiPath is the one optional value.` beginnt, bis zu seiner Leerzeile ersetzen durch:
+
+```go
+// WikiPath is the one optional value: an entry without `wiki` registers an
+// area with WikiPath "", and an entry with an empty `wiki` is refused, so ""
+// always means "names no wiki". A pointer would push that distinction into
+// every caller for the one field that has it.
+```
 
 - [ ] **Step 5: Tests laufen lassen**
 
@@ -693,6 +701,19 @@ In `internal/config/manifest.go`:
 2. `ReadManifest` ruft `readManifestAmong(repoRoot, manifestNames)`.
 3. `readManifestAmong` verliert den Parameter `requireScope` und den ganzen Block `if requireScope { … }`. Im zurückgegebenen `&Manifest{…}` kommt `Path: path,` hinzu. Aus ihrem Doc-Kommentar die Sätze über `ReadAreaManifestUntilStage4`, `requireScope` und `read_manifest` entfernen. Der Kommentar lautet dann: `// readManifestAmong reads the first of names below dir that is a regular file, for ReadManifest. It decodes into the typed wire shape and checks only the privacy mode: the lint and the post-edit hook read a declaration as "none" on any error, and a stricter reader would switch their wiki lane off silently. The write barrier refuses a broken area declaration visibly.`
 4. Prüfen: `grep -n "readManifestAmong" internal/config/*.go` zeigt nur noch die Definition und den Aufruf in `ReadManifest`.
+5. Den Paketkommentar am Kopf von `manifest.go` (`// Package config reads the manifest in which an area declares itself.` bis `package config`) ersetzen durch:
+
+```go
+// Package config reads the registry and the manifest in which an area
+// declares itself.
+//
+// There are two manifest readers, and the difference is deliberate.
+// ReadDeclaration checks a declaration whole and refuses it; brain and the
+// write barrier read through it. ReadManifest supplies the few values the
+// lint and the post-edit hook need and checks almost nothing, because both
+// read any error as "no manifest" and a stricter reader would switch their
+// wiki lane off without a word.
+```
 
 - [ ] **Step 4: `declaration.go` anlegen**
 
@@ -1467,8 +1488,8 @@ Expected: keine Treffer außer Kommentaren, die ausdrücklich Geschichte beschre
 Run: `gofmt -w internal && go vet ./...`
 Expected: keine Ausgabe. Nach den Löschungen sind `errors` und `io/fs` in `internal_test.go` und `mutation_test.go` unbenutzt (so am 2026-09-16 probeweise gemessen); `go vet` nennt sie, und sie werden entfernt. Gegen den Probestand scheiterten 24 alte Tests, und jeder davon steht in Step 1; Step 1 schärft darüber hinaus einige, die mit einem allgemeinen Teilstring weiter bestanden.
 
-Run: `go test ./internal/brain/guard/ ./internal/config/ ./internal/hooks/ ./internal/cli/ -count=1`
-Expected: PASS.
+Run: `go test ./internal/brain/guard/ ./internal/config/ ./internal/hooks/ ./internal/cli/ ./internal/dev/... -count=1`
+Expected: PASS. Am 2026-09-16 probeweise gemessen: Mit dem Nicht-Test-Code dieses Tasks bleiben `internal/cli` (einschließlich der 1a- und 1b-1-Fälle), `internal/hooks` und `internal/dev/...` grün. Kein aufgezeichneter Fall hält einen Registry- oder Manifestwortlaut fest. Scheitert hier ein Fall, ist das keine Testreparatur: anhalten und berichten.
 
 - [ ] **Step 8: Coverage der Schranke prüfen**
 
@@ -1644,7 +1665,7 @@ git branch --show-current
 git log -1 --oneline
 git add testdata/bench/registry-checks.json docs/.superpowers/parity/registry-manifest-pruefungen.md docs/.superpowers/parity/stufe-1b-1.md docs/en/benchmarks.md docs/de/benchmarks.md README.md README.de.md docs/.superpowers/specs/2026-09-16-loomux-registry-manifest-pruefungen-design.md
 git commit -F "$TEMP/loomux-registry-bench/msg-task6.txt"
-git log -6 --format='%h %an <%ae> | %s'
+git log -8 --format='%h %an <%ae> | %s'
 ```
 
-Expected: Gate grün. Sechs Commits (Spec, Plan, Tasks 2–6), alle mit dem Nutzer als Autor, keiner mit Modell im Text. Nicht pushen.
+Expected: Gate grün. Nach Spec und Plan fünf Commits (Tasks 2–6), alle mit dem Nutzer als Autor, keiner mit Modell im Text. Nicht pushen.
