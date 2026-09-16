@@ -16,8 +16,8 @@ type Node struct {
 //
 // Both ends are document-relative paths inside the same area; a link climbing
 // past the area root never becomes an Edge, and its target is kept nowhere
-// (`src/brain/graph.py:130-141`) -- which is why edges-cross.json is slice
-// 7a-2 and not a join over these files.
+// (`src/brain/graph.py:130-141`) -- which is why links between areas cannot be
+// recovered by joining these files: what left an area was never written down.
 type Edge struct {
 	From string `json:"from"`
 	To   string `json:"to"`

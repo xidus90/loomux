@@ -14,9 +14,9 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-// ErrNotIndexed is what a missing graph.json means, and it is named because
-// the overview draws that state rather than reporting a failure: an area
-// registered but never indexed is one of the four states in spec 6.3. The
+// ErrNotIndexed is what a missing graph.json means, and it is named because a
+// caller draws that state rather than reporting a failure: an area that is
+// registered but was never indexed is a state of its own, not an error. The
 // message is the whole suffix of the error ReadGraph builds, so naming the
 // state costs nothing at the reader's end -- the sentence on screen is the
 // one that stood here before the sentinel existed.

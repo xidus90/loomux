@@ -13,7 +13,8 @@ const (
 )
 
 // WarmingNotice is the brain daemon's word for a search that had to start the engine
-// (daemon/server.py). The Python command line never says it; loomux says it once per port.
+// (daemon/server.py). The Python command line never says it; loomux says it at most once
+// for each ConnectFunc DefaultConnectWith returns, which is once per port in a run.
 const WarmingNotice = "starting the search engine; the first call after a start pays a model load (measured 5.7 s). Later calls are warm."
 
 // ConnectFunc connects to the search daemon session.

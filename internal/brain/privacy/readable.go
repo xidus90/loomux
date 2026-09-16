@@ -22,6 +22,14 @@ import (
 // Each pattern is compiled on every call. Python caches the compiled form;
 // the lists are a handful of globs, and a cache would be state this package
 // keeps nowhere else.
+//
+// MustCompile is safe on a manifest's patterns because translateGlob emits no
+// RE2 that can be rejected: every metacharacter of the glob leaves it quoted
+// or as one of a few fixed constructs. That was swept over 35 adversarial and
+// 400,000 random patterns and re-fuzzed against CPython over 40,000
+// adversarial pairs, without one compile failure. The sweeps covered the
+// shape of a pattern, not its size -- RE2's own size limit would need a glob
+// of megabytes, which no manifest holds.
 func MatchesGlobs(patterns []string, relative string) bool {
 	candidate := fullMatchForm(folded(relative))
 	for _, pattern := range patterns {

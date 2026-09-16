@@ -184,7 +184,7 @@ Argumentformen und Vorgaben wie die Referenz (siehe Ausgangslage), mit `loomux b
 | Befehl | stdout |
 |---|---|
 | `search` | je Treffer `brain://{scope}/{pfad}:{zeile}  {score:.0%}  {titel}`, darunter jede Zeile von `snippet.splitlines()` mit vier Leerzeichen, dann eine Leerzeile; ohne Treffer genau `no matches`. Exit 0 |
-| `catalog` | `# brain`, Leerzeile, je sichtbarem Bereich `* [{scope}](brain://{scope}/)`, nach Scope sortiert; ein benannter Bereich gibt sein `index.md` byte-gleich aus |
+| `catalog` | `# brain`, Leerzeile, je sichtbarem Bereich `* [{scope}](brain://{scope}/)`, nach Scope sortiert; ein benannter Bereich gibt sein `index.md` aus, streng UTF-8 gelesen und mit Zeilenenden zu `\n` gefaltet |
 | `read` | die Datei oder ein Abschnitt, wie `core.read` sie liest |
 | `neighbors` | `incoming: a, b` und `outgoing: c`, `-` wenn eine Richtung leer ist |
 | `status` | siehe unten |
