@@ -233,6 +233,9 @@ func TestRankAlphaAtOrAboveOneFallsBackToTheDefault(t *testing.T) {
 	topo := pagerank.Prepare(g, nil)
 	seeds := map[model.NodeID]float64{"hub": 1}
 	want := scoreOf(pagerank.Rank(topo, seeds, pagerank.Options{}), "a")
+	if want <= 0 {
+		t.Fatalf("got a=%v under the default options, want a positive reference -- against a zero the comparison below holds vacuously", want)
+	}
 
 	for _, alpha := range []float64{1, 1.5} {
 		got := scoreOf(pagerank.Rank(topo, seeds, pagerank.Options{Alpha: alpha}), "a")
@@ -244,16 +247,18 @@ func TestRankAlphaAtOrAboveOneFallsBackToTheDefault(t *testing.T) {
 
 func TestRankIterationsLimitHowFarTheWalkSpreads(t *testing.T) {
 	// One power step carries mass from the seed to its direct neighbour and no
-	// further, so the second link of a chain stays unreached.
+	// further, so the second link of a chain stays without mass. The assertion
+	// is on the score and not on the presence of the id: "no mass" is what one
+	// step means, and it holds whether or not a zero is reported.
 	g := graphOf([]model.NodeID{"a", "b", "c"}, [][3]string{{"a", "b", ""}, {"b", "c", ""}})
 	topo := pagerank.Prepare(g, nil)
 	seeds := map[model.NodeID]float64{"a": 1}
 
-	if got := pagerank.Rank(topo, seeds, pagerank.Options{Iterations: 1}); has(got, "c") {
-		t.Errorf("got %v, want c absent -- one step reaches only the direct neighbour", got)
+	if got := pagerank.Rank(topo, seeds, pagerank.Options{Iterations: 1}); scoreOf(got, "c") != 0 {
+		t.Errorf("got c=%v, want 0 -- one step reaches only the direct neighbour", scoreOf(got, "c"))
 	}
-	if got := pagerank.Rank(topo, seeds, pagerank.Options{}); !has(got, "c") {
-		t.Errorf("got %v, want c present -- the default iteration count walks the whole chain", got)
+	if got := pagerank.Rank(topo, seeds, pagerank.Options{}); scoreOf(got, "c") <= 0 {
+		t.Errorf("got c=%v, want a positive score -- the default iteration count walks the whole chain", scoreOf(got, "c"))
 	}
 }
 

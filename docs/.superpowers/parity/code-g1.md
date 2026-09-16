@@ -23,6 +23,18 @@ und mit drei neuen Tests in `internal/code/pagerank/rank_test.go` erledigt.
 sein beobachtbares Ergebnis, und kein Test kann sie töten. Sie stehen unten als
 Zeilen 5 bis 15 mit der Rechnung, die das zeigt.
 
+**Das dritte Paket ist mitgelaufen.** `go run ./cmd/loomux dev mutants
+internal/code/model` zählt 29 Mutanten, davon 6 ohne Kompilat und **23 getötet,
+0 überlebt** — deshalb steht `model` in keiner Zeile der Tabelle. Die Runde
+deckt damit alle drei Pakete der Stufe: zusammen 126 Mutanten, 12 ohne
+Kompilat, 103 getötet, 11 überlebt.
+
+**Runde 3.** Zwei der drei neuen Tests wurden danach noch gehärtet — der
+`Alpha`-Test verlangt jetzt einen positiven Referenzwert, der
+`Iterations`-Test misst den Score statt der Anwesenheit der ID. Die Runde lief
+daraufhin ein drittes Mal, in einem Befehl über alle drei Pakete, und
+reproduziert dieselben Zahlen und dieselben Überlebenden.
+
 Keine Zeile ist bisher freigegeben.
 
 ## Verfügungen dieser Stufe, die keine Mutation betreffen
@@ -48,14 +60,24 @@ tragen und nicht aus einer Mutante folgen:
 
 ## Die Runde
 
+**Zum Wertebereich, gültig für die Zeilen 6 bis 11.** Die Begründungen dort
+rechnen mit endlichen Zahlen, und `w <= 0` lässt zwei nicht-endliche Fälle
+durch: `+Inf` und `NaN`. Der Schluss hält trotzdem. Ist `total` `+Inf` oder
+`NaN`, wird jedes `r` nach der Normierung 0 oder `NaN`; ein `r > 0` gibt es
+dann nicht mehr, und jeder Eintrag, den der Mutant zusätzlich anfassen könnte,
+ist bereits `NaN`. Ob die Wache greift oder nicht, ändert an einem `NaN`
+nichts, und `max` bleibt 0, weil jeder Vergleich gegen `NaN` falsch ist — das
+Ergebnis ist in beiden Fassungen `nil`. Die Zeilen unten führen diesen Zweig
+deshalb nicht einzeln mit.
+
 | Ort | Mutation | Ausgang | Verfügung | Freigabe |
 |---|---|---|---|---|
 | `rank.go:26` (a2) | `if o.Alpha <= 0 \|\| o.Alpha >= 1 {` → `if o.Alpha <= 0 {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: kein Fall reichte ein `Alpha` ≥ 1. Nachgezogen als `TestRankAlphaAtOrAboveOneFallsBackToTheDefault` — `Alpha: 1` und `Alpha: 1.5` müssen dasselbe liefern wie `Options{}` | offen |
 | `rank.go:26` (a3) | `if o.Alpha <= 0 \|\| o.Alpha >= 1 {` → `if o.Alpha <= 0 \|\| o.Alpha > 1 {` | Runde 1 überlebt, Runde 2 getötet | Derselbe fehlende Test: `Alpha: 1` genau auf der Grenze. Derselbe neue Test tötet beide Zeilen | offen |
-| `rank.go:33` (a1) | `if o.Iterations <= 0 {` → `if true {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: kein Fall machte eine gesetzte Schrittzahl am Ergebnis sichtbar. Nachgezogen als `TestRankIterationsLimitHowFarTheWalkSpreads` — auf der Kette `a-b-c` erreicht `Iterations: 1` das `c` nicht, die Vorgabe schon | offen |
+| `rank.go:33` (a1) | `if o.Iterations <= 0 {` → `if true {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: kein Fall machte eine gesetzte Schrittzahl am Ergebnis sichtbar. Nachgezogen als `TestRankIterationsLimitHowFarTheWalkSpreads` — auf der Kette `a-b-c` lässt `Iterations: 1` das `c` bei Score 0, die Vorgabe gibt ihm Masse. Der Test misst den Score und nicht die Anwesenheit der ID, damit er auch dann gilt, wenn `Rank` einmal Nullen mitmelden sollte | offen |
 | `rank.go:56` (a2) | `if !ok \|\| w <= 0 {` → `if !ok {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: ein negatives Gewicht wurde nie neben einem positiven gereicht, wo es die Summe löschte. Nachgezogen als `TestRankNegativeSeedWeightIsIgnoredNotSubtracted` — Saat `{hub: 1, a: -1}` muss `hub` mit 1 liefern, nicht nichts | offen |
 | `rank.go:56` (a3) | `if !ok \|\| w <= 0 {` → `if !ok \|\| w < 0 {` | überlebt | Äquivalent: `restart` ist frisch mit Nullen belegt. Ein Gewicht von genau 0 schreibt der Mutant als 0 an eine Stelle, die schon 0 ist — kein beobachtbarer Unterschied. Kein Test kann das töten | offen |
-| `rank.go:68` (a1) | `if total <= 0 {` → `if false {` | überlebt | Äquivalent: `total` ist die Summe echt positiver Gewichte, also 0 oder größer. Bei 0 teilt der Mutant 0 durch 0, jeder Rang wird `NaN`, `max` bleibt 0 und die Wache `max <= 0` liefert dasselbe `nil`. Die frühe Wache spart nur den Umweg. `TestRankSeedWeightBeyondTheFloatRange` hält diesen zweiten Weg bereits fest | offen |
+| `rank.go:68` (a1) | `if total <= 0 {` → `if false {` | überlebt | Äquivalent: `total` ist die Summe der Gewichte, die `w <= 0` überstanden haben, im endlichen Fall also 0 oder größer. Bei genau 0 — und nur dort ändert der Mutant etwas — teilt er 0 durch 0, jeder Rang wird `NaN`, `max` bleibt 0, und die Wache `max <= 0` liefert dasselbe `nil`. Die frühe Wache spart nur den Umweg. Die Eingabe, die diesen Weg geht, ist die von `TestRankEmptyOrZeroSeeds` (Saat 0, negativ oder ohne Knoten); `TestRankSeedWeightBeyondTheFloatRange` hält den Ausgang `NaN` → `nil` zusätzlich fest | offen |
 | `rank.go:68` (a3) | `if total <= 0 {` → `if total < 0 {` | überlebt | Äquivalent, dieselbe Rechnung: `total` wird nie negativ, also greift die Wache nur bei 0, und der `NaN`-Weg endet ebenso in `nil` | offen |
 | `rank.go:102` (a1) | `if dangling > 0 {` → `if true {` | überlebt | Äquivalent: `dangling` ist eine Summe nichtnegativer Massen. Bei 0 ist `dm` 0, und die Schleife addiert `0 * r` auf jeden Eintrag. Die Wache spart Arbeit, sie ändert nichts | offen |
 | `rank.go:102` (a3) | `if dangling > 0 {` → `if dangling >= 0 {` | überlebt | Äquivalent, dieselbe Rechnung wie die Zeile darüber | offen |
