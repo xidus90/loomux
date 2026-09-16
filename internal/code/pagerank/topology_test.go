@@ -39,11 +39,14 @@ func TestPrepareIsUndirectedOverWalkRelations(t *testing.T) {
 	}
 	// "a" is reachable from "hub" and back; "b" hangs on a contains edge and is
 	// therefore dangling.
-	if got := topo.NeighboursOf("a"); len(got) != 1 || got[0] != "hub" {
-		t.Errorf("got neighbours of a = %v, want [hub]", got)
+	if got := topo.NeighboursOf("hub"); len(got) != 1 || got[0] != "a" {
+		t.Errorf("got neighbours of hub = %v, want [a] -- the source-to-target direction is missing", got)
 	}
-	if got := topo.NeighboursOf("b"); len(got) != 0 {
-		t.Errorf("got neighbours of b = %v, want none -- contains is not walkable", got)
+	if got := topo.NeighboursOf("a"); len(got) != 1 || got[0] != "hub" {
+		t.Errorf("got neighbours of a = %v, want [hub] -- the target-to-source direction is missing", got)
+	}
+	if got := topo.NeighboursOf("b"); got == nil || len(got) != 0 {
+		t.Errorf("got neighbours of b = %v, want an empty non-nil slice -- contains is not walkable, and only an unknown node yields nil", got)
 	}
 }
 
