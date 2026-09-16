@@ -60,6 +60,8 @@ func DefaultSpawner(argv []string, env []string) error {
 }
 
 // StartDaemonWith starts a detached qmd daemon using the provided launcher and spawner.
+// A backbone the user already chose in the environment wins: the port's own backbone
+// variables are then not appended (stage 1b-1 spec; qmd_mcp.py overrides the user).
 func StartDaemonWith(env map[string]string, port int, launcher func(string) ([]string, error), spawner DaemonSpawner) error {
 	if launcher == nil {
 		launcher = Launcher
@@ -76,10 +78,20 @@ func StartDaemonWith(env map[string]string, port int, launcher func(string) ([]s
 	}
 	argv := append(baseCmd, "mcp", "--http", "--daemon", "--port", strconv.Itoa(port))
 	mergedEnv := os.Environ()
-	for k, v := range env {
-		mergedEnv = append(mergedEnv, fmt.Sprintf("%s=%s", k, v))
+	if !backboneChosenByUser() {
+		for k, v := range env {
+			mergedEnv = append(mergedEnv, fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 	return spawner(argv, mergedEnv)
+}
+
+// backboneChosenByUser reports whether QMD_LLAMA_GPU or QMD_FORCE_CPU is set at all, an
+// empty value included: both are the user's say over the backbone.
+func backboneChosenByUser() bool {
+	_, gpu := os.LookupEnv("QMD_LLAMA_GPU")
+	_, cpu := os.LookupEnv("QMD_FORCE_CPU")
+	return gpu || cpu
 }
 
 // StartDaemon starts a detached qmd daemon on port with the given environment.

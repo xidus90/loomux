@@ -103,6 +103,7 @@ func TestLauncher_NodeIsBatchShim(t *testing.T) {
 	if err := os.WriteFile(shimPath, []byte(shimContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("PATH", tmpDir)
 
 	_, err := search.ResolveLauncher(shimPath)
 	if err == nil {
@@ -150,12 +151,21 @@ func TestLauncher_BesideNodeBat(t *testing.T) {
 	if err := os.WriteFile(shimPath, []byte(shimContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("PATH", t.TempDir())
 	_, err := search.ResolveLauncher(shimPath)
 	if err == nil {
-		t.Fatal("expected error when node.bat is beside, got nil")
+		t.Fatal("expected error when only node.bat is beside, got nil")
 	}
-	if !strings.Contains(err.Error(), "is a batch shim") {
-		t.Errorf("expected batch shim refusal error, got: %v", err)
+	if err.Error() != "cannot find 'node' on PATH to run "+shimPath {
+		t.Errorf("a node.bat beside the shim must not count as node, got: %v", err)
+	}
+}
+
+func TestLauncher_NotFoundNamesTheToolLikePython(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	_, err := search.Launcher("nonexistent-tool-xyz")
+	if err == nil || err.Error() != "cannot find 'nonexistent-tool-xyz' on PATH" {
+		t.Fatalf("got %v", err)
 	}
 }
 

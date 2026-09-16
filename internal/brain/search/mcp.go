@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -10,6 +11,10 @@ import (
 const (
 	ColdAttempts = 3
 )
+
+// WarmingNotice is the brain daemon's word for a search that had to start the engine
+// (daemon/server.py). The Python command line never says it; loomux says it once per port.
+const WarmingNotice = "starting the search engine; the first call after a start pays a model load (measured 5.7 s). Later calls are warm."
 
 // ConnectFunc connects to the search daemon session.
 type ConnectFunc func(env map[string]string) (Session, error)
@@ -53,6 +58,14 @@ func WithPort(port int) QmdMcpOption {
 	}
 }
 
+// WithNotice hands the default connect a function that hears WarmingNotice when the port had
+// to start the daemon. It has no effect beside WithConnect.
+func WithNotice(fn func(message string)) QmdMcpOption {
+	return func(p *QmdMcpPort) {
+		p.notice = fn
+	}
+}
+
 // QmdMcpPort implements SearchPort over a warm qmd daemon via MCP.
 type QmdMcpPort struct {
 	backbone Backbone
@@ -61,18 +74,25 @@ type QmdMcpPort struct {
 	connect  ConnectFunc
 	cli      SearchPort
 	attempts int
+	notice   func(message string)
 
 	session Session
 	mu      sync.Mutex
 }
 
 // DefaultConnectWith returns a ConnectFunc using the given launcher, spawner, and timeout.
-func DefaultConnectWith(port int, launcher func(string) ([]string, error), spawner DaemonSpawner, waitTimeout time.Duration) ConnectFunc {
+// notice, when not nil, hears WarmingNotice at most once for the returned ConnectFunc: right
+// after a daemon start succeeded, before the wait for it.
+func DefaultConnectWith(port int, launcher func(string) ([]string, error), spawner DaemonSpawner, waitTimeout time.Duration, notice func(string)) ConnectFunc {
+	var once sync.Once
 	return func(env map[string]string) (Session, error) {
 		session := NewHTTPSession(port)
 		if !session.Reachable() {
 			if err := StartDaemonWith(env, port, launcher, spawner); err != nil {
 				return nil, err
+			}
+			if notice != nil {
+				once.Do(func() { notice(WarmingNotice) })
 			}
 			if err := session.WaitUntilReachable(waitTimeout); err != nil {
 				return nil, err
@@ -83,9 +103,13 @@ func DefaultConnectWith(port int, launcher func(string) ([]string, error), spawn
 }
 
 // DefaultConnect returns a ConnectFunc that connects to a local daemon on port, starting one if needed.
-func DefaultConnect(port int) ConnectFunc {
-	return DefaultConnectWith(port, Launcher, DefaultSpawner, 60*time.Second)
+func DefaultConnect(port int, notice func(string)) ConnectFunc {
+	return DefaultConnectWith(port, Launcher, DefaultSpawner, 60*time.Second, notice)
 }
+
+// connectDefault is the connect NewQmdMcpPort falls back to; a test replaces it to see what
+// the port hands on without starting a daemon.
+var connectDefault = DefaultConnect
 
 // NewQmdMcpPort creates a new QmdMcpPort.
 func NewQmdMcpPort(opts ...QmdMcpOption) *QmdMcpPort {
@@ -99,7 +123,7 @@ func NewQmdMcpPort(opts ...QmdMcpOption) *QmdMcpPort {
 		opt(p)
 	}
 	if p.connect == nil {
-		p.connect = DefaultConnect(p.port)
+		p.connect = connectDefault(p.port, p.notice)
 	}
 	if p.cli == nil {
 		p.cli = &QmdPort{Executable: "qmd"}
@@ -228,12 +252,15 @@ func translateReply(reply map[string]any, collections []string) []SearchHit {
 		collection, relative := splitPath(filePath, collections)
 
 		line := 1
+		rawLine, numbered := 0, false
 		if lineVal, ok := resMap["line"]; ok && lineVal != nil {
 			switch v := lineVal.(type) {
 			case int:
 				line = v
+				rawLine, numbered = v, true
 			case float64:
 				line = int(v)
+				rawLine, numbered = int(v), true
 			}
 			if line < 1 {
 				line = 1
@@ -242,6 +269,9 @@ func translateReply(reply map[string]any, collections []string) []SearchHit {
 
 		title, _ := resMap["title"].(string)
 		snippet, _ := resMap["snippet"].(string)
+		if numbered {
+			snippet = withoutLineNumbers(snippet, rawLine)
+		}
 		score := 0.0
 		if scoreVal, ok := resMap["score"].(float64); ok {
 			score = scoreVal
@@ -259,6 +289,22 @@ func translateReply(reply map[string]any, collections []string) []SearchHit {
 		})
 	}
 	return hits
+}
+
+// withoutLineNumbers takes off the numbers qmd's daemon puts in front of every snippet line of a
+// query answer (addLineNumbers in mcp/server.js: each "\n"-separated part i begins with
+// "<line+i>: "). qmd query --json, the output the Python reference reads, has none. A snippet
+// in which a single part lacks its own number is handed on as it came.
+func withoutLineNumbers(snippet string, line int) string {
+	parts := strings.Split(snippet, "\n")
+	for i, part := range parts {
+		prefix := strconv.Itoa(line+i) + ": "
+		if !strings.HasPrefix(part, prefix) {
+			return snippet
+		}
+		parts[i] = part[len(prefix):]
+	}
+	return strings.Join(parts, "\n")
 }
 
 func splitPath(path string, collections []string) (string, string) {

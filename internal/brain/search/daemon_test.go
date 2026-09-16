@@ -2,6 +2,7 @@ package search_test
 
 import (
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -67,7 +68,50 @@ func TestBackboneEnv(t *testing.T) {
 	}
 }
 
+// clearBackbone removes the two backbone variables for one test; t.Setenv restores them.
+func clearBackbone(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{"QMD_LLAMA_GPU", "QMD_FORCE_CPU"} {
+		t.Setenv(key, "")
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestStartDaemonWith_TheUsersBackboneWins(t *testing.T) {
+	for _, tc := range []struct {
+		key, value string
+		env        map[string]string
+		appended   string
+	}{
+		{"QMD_LLAMA_GPU", "cuda", map[string]string{"QMD_LLAMA_GPU": "vulkan"}, "QMD_LLAMA_GPU=vulkan"},
+		{"QMD_FORCE_CPU", "", map[string]string{"QMD_FORCE_CPU": "1"}, "QMD_FORCE_CPU=1"},
+		{"QMD_LLAMA_GPU", "vulkan", map[string]string{"QMD_FORCE_CPU": "1"}, "QMD_FORCE_CPU=1"},
+	} {
+		t.Run(tc.key+"="+tc.value, func(t *testing.T) {
+			clearBackbone(t)
+			t.Setenv(tc.key, tc.value)
+			var captured []string
+			spawner := func(_ []string, env []string) error {
+				captured = env
+				return nil
+			}
+			launcher := func(string) ([]string, error) { return []string{"qmd"}, nil }
+			if err := search.StartDaemonWith(tc.env, 9000, launcher, spawner); err != nil {
+				t.Fatal(err)
+			}
+			for _, entry := range captured {
+				if entry == tc.appended {
+					t.Fatalf("%s was appended over the user's %s=%q", tc.appended, tc.key, tc.value)
+				}
+			}
+		})
+	}
+}
+
 func TestStartDaemonWith(t *testing.T) {
+	clearBackbone(t)
 	var capturedArgv []string
 	var capturedEnv []string
 

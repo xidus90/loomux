@@ -524,7 +524,8 @@ func TestDefaultConnectWith_AlreadyReachable(t *testing.T) {
 	_, portStr, _ := net.SplitHostPort(u.Host)
 	port, _ := strconv.Atoi(portStr)
 
-	connFn := search.DefaultConnectWith(port, nil, nil, time.Second)
+	var heard []string
+	connFn := search.DefaultConnectWith(port, nil, nil, time.Second, func(m string) { heard = append(heard, m) })
 	sess, err := connFn(nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -532,16 +533,23 @@ func TestDefaultConnectWith_AlreadyReachable(t *testing.T) {
 	if sess == nil {
 		t.Fatal("expected non-nil session")
 	}
+	if len(heard) != 0 {
+		t.Errorf("a daemon that answers must not be announced as starting: %v", heard)
+	}
 }
 
 func TestDefaultConnectWith_DaemonStartFails(t *testing.T) {
 	mockLauncher := func(tool string) ([]string, error) {
 		return nil, errors.New("cannot launch qmd")
 	}
-	connFn := search.DefaultConnectWith(64999, mockLauncher, nil, time.Millisecond)
+	var heard []string
+	connFn := search.DefaultConnectWith(64999, mockLauncher, nil, time.Millisecond, func(m string) { heard = append(heard, m) })
 	_, err := connFn(nil)
 	if err == nil || !strings.Contains(err.Error(), "cannot launch qmd") {
 		t.Errorf("expected launch error, got: %v", err)
+	}
+	if len(heard) != 0 {
+		t.Errorf("a start that failed must not be announced: %v", heard)
 	}
 }
 
@@ -552,10 +560,52 @@ func TestDefaultConnectWith_WaitTimeout(t *testing.T) {
 	mockSpawner := func(argv []string, env []string) error {
 		return nil
 	}
-	connFn := search.DefaultConnectWith(64998, mockLauncher, mockSpawner, 5*time.Millisecond)
+	connFn := search.DefaultConnectWith(64998, mockLauncher, mockSpawner, 5*time.Millisecond, nil)
 	_, err := connFn(nil)
 	if err == nil || !strings.Contains(err.Error(), "no qmd daemon answered") {
 		t.Errorf("expected timeout error, got: %v", err)
+	}
+}
+
+func TestDefaultConnectWith_AnnouncesAStartOncePerPort(t *testing.T) {
+	var heard []string
+	spawned := 0
+	connect := search.DefaultConnectWith(64997,
+		func(string) ([]string, error) { return []string{"qmd"}, nil },
+		func([]string, []string) error { spawned++; return nil },
+		5*time.Millisecond,
+		func(message string) { heard = append(heard, message) })
+	port := search.NewQmdMcpPort(search.WithConnect(connect), search.WithColdAttempts(3))
+	_, err := port.Search("q", []string{"c"}, search.ProfileFast, 1)
+	if err == nil || !strings.HasPrefix(err.Error(), "the search engine did not answer in 3 attempts: no qmd daemon answered on http://localhost:64997/mcp within 5ms") {
+		t.Fatalf("got %v", err)
+	}
+	if spawned != 3 {
+		t.Errorf("expected three starts, got %d", spawned)
+	}
+	if len(heard) != 1 || heard[0] != search.WarmingNotice {
+		t.Errorf("expected the warming notice exactly once, got %q", heard)
+	}
+}
+
+func TestWarmingNoticeIsTheDaemonsWording(t *testing.T) {
+	const want = "starting the search engine; the first call after a start pays a model load (measured 5.7 s). Later calls are warm."
+	if search.WarmingNotice != want {
+		t.Fatalf("got %q", search.WarmingNotice)
+	}
+}
+
+func TestNewQmdMcpPort_DefaultConnectRefusesAMissingQmdWithoutANotice(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	var heard []string
+	port := search.NewQmdMcpPort(search.WithPort(64996), search.WithColdAttempts(1),
+		search.WithNotice(func(m string) { heard = append(heard, m) }))
+	_, err := port.Search("q", []string{"c"}, search.ProfileFast, 1)
+	if err == nil || err.Error() != "the search engine did not answer in 1 attempts: cannot find 'qmd' on PATH" {
+		t.Fatalf("got %v", err)
+	}
+	if len(heard) != 0 {
+		t.Errorf("no daemon was started, yet the notice came: %q", heard)
 	}
 }
 
@@ -564,5 +614,44 @@ func TestNewQmdMcpPort_Defaults(t *testing.T) {
 	if port == nil {
 		t.Fatal("expected non-nil port")
 	}
-	_ = search.DefaultConnect(8765)
+	_ = search.DefaultConnect(8765, nil)
+}
+
+// qmd's daemon numbers every snippet line of a query answer (dist/mcp/server.js:301,
+// addLineNumbers(snippet, line)); `qmd query --json`, which the Python reference reads, does
+// not. The port takes the numbers off again, and only numbers that are exactly the daemon's.
+func TestQmdMcpPort_TakesTheDaemonsLineNumbersOffTheSnippet(t *testing.T) {
+	for _, tc := range []struct {
+		name, fields, want string
+	}{
+		{"numbered from the hit's line", `"line":12,"snippet":"12: @@ -11,4 @@ (10 before, 5 after)\n13: a\n14: b\r\n15: c"`, "@@ -11,4 @@ (10 before, 5 after)\na\nb\r\nc"},
+		{"an empty snippet", `"line":7,"snippet":"7: "`, ""},
+		{"numbers that are not the hit's line", `"line":12,"snippet":"5: a\n6: b"`, "5: a\n6: b"},
+		{"no line in the reply", `"snippet":"1: a"`, "1: a"},
+		{"one part without its number", `"line":12,"snippet":"12: a\nb"`, "12: a\nb"},
+		{"a line below one counts from itself", `"line":0,"snippet":"0: a\n1: b"`, "a\nb"},
+	} {
+		for _, profile := range []search.Profile{search.ProfileKeyword, search.ProfileFast, search.ProfileFull} {
+			t.Run(tc.name+"/"+string(profile), func(t *testing.T) {
+				reply := `{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"results":[{"docid":"#abc123","file":"c/a.md","title":"A","score":0.5,` + tc.fields + `}]}}}`
+				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte(reply))
+				}))
+				defer ts.Close()
+				port := search.NewQmdMcpPort(search.WithConnect(func(map[string]string) (search.Session, error) {
+					return &search.HTTPSession{URL: ts.URL}, nil
+				}))
+				hits, err := port.Search("q", []string{"c"}, profile, 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(hits) != 1 {
+					t.Fatalf("got %d hits", len(hits))
+				}
+				if hits[0].Snippet != tc.want {
+					t.Fatalf("snippet %q, want %q", hits[0].Snippet, tc.want)
+				}
+			})
+		}
+	}
 }

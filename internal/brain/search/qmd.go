@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/brain/pytext"
 )
 
 const uriPrefix = "qmd://"
@@ -24,17 +26,30 @@ type QmdPort struct {
 	Runner     RunnerFunc
 }
 
-// DefaultRunner executes argv using os/exec.
+// launcherFailure carries an error of Launcher out of DefaultRunner. qmd.py's _invoke turns
+// only an OSError into "cannot run ...", so the refusal its launcher raises reaches the caller
+// in its own words; invoke tells the two apart through this type to do the same.
+type launcherFailure struct{ err error }
+
+func (f *launcherFailure) Error() string { return f.err.Error() }
+
+// DefaultRunner starts argv through Launcher, so an npm shim never hands the arguments to
+// cmd.exe, as qmd.py's _default_runner does. The environment is the caller's own: the default
+// backbone CUDA appends nothing, where _default_runner pins QMD_LLAMA_GPU=vulkan.
 func DefaultRunner(argv []string) ([]byte, []byte, int, error) {
 	if len(argv) == 0 {
 		return nil, nil, 1, errors.New("empty command arguments")
 	}
-	cmd := exec.Command(argv[0], argv[1:]...)
+	launched, err := Launcher(argv[0])
+	if err != nil {
+		return nil, nil, 1, &launcherFailure{err: err}
+	}
+	cmd := exec.Command(launched[0], append(launched[1:], argv[1:]...)...)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	err := cmd.Run()
+	err = cmd.Run()
 	exitCode := 0
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -74,15 +89,10 @@ func (q *QmdPort) Search(query string, collections []string, profile Profile, n 
 		argv = append(argv, "-c", col)
 	}
 
-	runner := q.getRunner()
-	stdout, stderr, exitCode, err := runner(argv)
+	stdout, err := q.invoke(argv)
 	if err != nil {
-		return nil, fmt.Errorf("cannot run %s: %w", argv[0], err)
+		return nil, err
 	}
-	if exitCode != 0 {
-		return nil, fmt.Errorf("%s exited with %d: %s", argv[0], exitCode, strings.TrimSpace(string(stderr)))
-	}
-
 	return parseQmdJSON(stdout)
 }
 
@@ -155,16 +165,21 @@ func parseQmdJSON(stdout []byte) ([]SearchHit, error) {
 func (q *QmdPort) invoke(argv []string) ([]byte, error) {
 	runner := q.getRunner()
 	stdout, stderr, exitCode, err := runner(argv)
+	var launch *launcherFailure
+	if errors.As(err, &launch) {
+		return nil, launch.err
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot run %s: %w", argv[0], err)
 	}
 	if exitCode != 0 {
-		return nil, fmt.Errorf("%s exited with %d: %s", argv[0], exitCode, strings.TrimSpace(string(stderr)))
+		return nil, fmt.Errorf("%s exited with %d: %s", argv[0], exitCode, pytext.Strip(string(stderr)))
 	}
 	return stdout, nil
 }
 
-// Indexed returns every relative path the engine holds for collection.
+// Indexed returns every relative path the engine holds for collection. Lines and paths are
+// taken as qmd.py takes them: split like str.splitlines, the path kept as written.
 func (q *QmdPort) Indexed(collection string) ([]string, error) {
 	exe := q.Executable
 	if exe == "" {
@@ -175,8 +190,7 @@ func (q *QmdPort) Indexed(collection string) ([]string, error) {
 		return nil, err
 	}
 	var found []string
-	lines := strings.Split(string(stdout), "\n")
-	for _, line := range lines {
+	for _, line := range pytext.SplitLines(string(stdout)) {
 		start := strings.Index(line, uriPrefix)
 		if start < 0 {
 			continue
@@ -184,7 +198,7 @@ func (q *QmdPort) Indexed(collection string) ([]string, error) {
 		rest := line[start+len(uriPrefix):]
 		col, rel, _ := strings.Cut(rest, "/")
 		if col == collection {
-			found = append(found, strings.TrimSpace(rel))
+			found = append(found, rel)
 		}
 	}
 	return found, nil

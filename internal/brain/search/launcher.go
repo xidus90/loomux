@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/brain/pytext"
 )
 
 var (
@@ -19,7 +21,7 @@ var (
 func Launcher(name string) ([]string, error) {
 	executable, err := exec.LookPath(name)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find %q on PATH", name)
+		return nil, fmt.Errorf("cannot find %s on PATH", pytext.Repr(name))
 	}
 	return ResolveLauncher(executable)
 }
@@ -43,17 +45,11 @@ func ResolveLauncher(executable string) ([]string, error) {
 	scriptRel := string(match[1])
 
 	dir := filepath.Dir(executable)
-	besideExe := filepath.Join(dir, "node.exe")
-	besideCmd := filepath.Join(dir, "node.cmd")
-	besideBat := filepath.Join(dir, "node.bat")
-	var node string
-	if info, err := os.Stat(besideExe); err == nil && !info.IsDir() {
-		node = besideExe
-	} else if info, err := os.Stat(besideCmd); err == nil && !info.IsDir() {
-		node = besideCmd
-	} else if info, err := os.Stat(besideBat); err == nil && !info.IsDir() {
-		node = besideBat
-	} else {
+	// qmd.py's launcher looks beside the shim for node.exe only, as the shim itself does, and
+	// otherwise takes the node on PATH. A node.cmd or node.bat beside the shim is not a node;
+	// one found on PATH is refused below.
+	node := filepath.Join(dir, "node.exe")
+	if _, err := os.Stat(node); err != nil {
 		nodeLooked, err := exec.LookPath("node")
 		if err != nil {
 			return nil, fmt.Errorf("cannot find 'node' on PATH to run %s", executable)
