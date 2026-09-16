@@ -319,6 +319,13 @@ starts and comparable across rows.
    2026-09-15), and what remains of the gap is within noise. The gap was the two
    `git rev-parse` calls. Against the target of 72 ms: the worktree write after is
    37.4 ms under it. `before.exe` in this run is 0.8 ms over it (72.8 ms) and
-   6.0 ms above the 66.8 ms the entry of 2026-09-15 measured for the refusing
-   binary of then; its warm maximum of 94.4 ms (93.9 ms in the first run) suggests
-   load on the machine, possibly from another session in the measured worktree.
+   6.0 ms above the 66.8 ms the entry of 2026-09-15 measured. That 6.0 ms is
+   unexplained. The main-checkout rows show no general slowdown: they are slightly
+   faster than on 2026-09-15 (31.4 against 31.9 before, 30.5 against 31.0 after).
+   And the 66.8 ms came from a binary with a different verdict, one that refused
+   the worktree write, so the two ran different code paths. Another session in
+   the measured worktree remains an open guess; it would fit a slowdown that hits
+   only the worktree. The drop of 38.2 ms contains this unexplained part. Without
+   it the drop would be 32.2 ms, 1.8–2.8 ms short of the 34–35 ms gap of
+   2026-09-15, which still makes the two `git rev-parse` calls account for most of
+   that gap.

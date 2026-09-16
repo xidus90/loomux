@@ -329,7 +329,14 @@ Kaltwerte hier Starts aus dem Cache und zeilenübergreifend vergleichbar.
    am 2026-09-15), und was vom Abstand bleibt, liegt im Rauschen. Der Abstand waren
    die zwei `git rev-parse`-Aufrufe. Gegen den Zielwert von 72 ms: der Worktree-Write
    nachher liegt 37,4 ms darunter. `before.exe` liegt in diesem Lauf 0,8 ms darüber
-   (72,8 ms) und 6,0 ms über den 66,8 ms, die der Eintrag vom 2026-09-15 für das
-   damals verweigernde Binary maß; sein warmes Maximum von 94,4 ms (93,9 ms im
-   ersten Lauf) deutet auf Last auf dem Rechner, womöglich durch eine andere
-   Sitzung im gemessenen Worktree.
+   (72,8 ms) und 6,0 ms über den 66,8 ms, die der Eintrag vom 2026-09-15 maß. Diese
+   6,0 ms sind ungeklärt. Die Hauptcheckout-Zeilen zeigen keine allgemeine
+   Verlangsamung: sie sind etwas schneller als am 2026-09-15 (vorher 31,4 gegen
+   31,9, nachher 30,5 gegen 31,0). Und die 66,8 ms stammen von einem Binary mit
+   anderem Urteil, das den Worktree-Write verweigerte; die beiden liefen also
+   verschiedene Codepfade. Eine andere Sitzung im gemessenen Worktree bleibt eine
+   offene Vermutung; sie passte zu einer Verlangsamung, die nur den Worktree
+   trifft. Der Rückgang um 38,2 ms enthält diesen ungeklärten Teil. Ohne ihn wäre
+   er 32,2 ms, 1,8–2,8 ms weniger als der Abstand von 34–35 ms vom 2026-09-15; die
+   zwei `git rev-parse`-Aufrufe erklären damit weiterhin den größten Teil dieses
+   Abstands.
