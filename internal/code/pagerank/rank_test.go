@@ -1,8 +1,10 @@
 package pagerank_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/pagerank"
@@ -181,5 +183,36 @@ func TestRankSeedsOutsideTheFilterAreIgnored(t *testing.T) {
 	}
 	if scoreOf(got, "hub") <= 0 {
 		t.Error("the seed inside the filter is still ranked")
+	}
+}
+
+func TestRankBroadSeedsOnMostlyDanglingGraph(t *testing.T) {
+	// 20k nodes without edges, 100 of them chained, every node seeded: the
+	// shape a common-word query takes on a real 32k-node graph. Pooled it
+	// costs ~9 ms; with the mass redistributed per dangling node it is
+	// O(dangling x seeds) and measured ~4.5 s on 2026-09-16.
+	const n = 20000
+	ids := make([]model.NodeID, 0, n)
+	for i := 0; i < n; i++ {
+		ids = append(ids, model.NodeID(fmt.Sprintf("n%d", i)))
+	}
+	edges := make([][3]string, 0, 100)
+	for i := 0; i < 100; i++ {
+		edges = append(edges, [3]string{fmt.Sprintf("n%d", i), fmt.Sprintf("n%d", i+1), ""})
+	}
+	seeds := make(map[model.NodeID]float64, n)
+	for _, id := range ids {
+		seeds[id] = 1
+	}
+
+	start := time.Now()
+	got := pagerank.Rank(pagerank.Prepare(graphOf(ids, edges), nil), seeds, pagerank.Options{})
+	elapsed := time.Since(start)
+
+	if len(got) == 0 {
+		t.Fatal("got no scores")
+	}
+	if elapsed > 3*time.Second {
+		t.Errorf("took %s -- dangling redistribution must not be O(dangling x seeds)", elapsed)
 	}
 }
