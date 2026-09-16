@@ -87,8 +87,13 @@ ihr, als Kante machte sie jedes Geschwistersymbol zum Nachbarn und wirkte als
 falscher Hub.
 
 **Es gilt:** Das Modell kennt sechs Relationen. `WalkRelations` sind die fünf.
-`contains` ist nicht entbehrlich — der Blast-Radius eines Dateiknotens ist die
-Vereinigung über die enthaltenen Symbole und braucht genau diese Kante.
+`contains` wird dekodiert, weil das Schema es führt und jeder Lauf es
+ausschließen muss — nicht, weil ein Lauf darauf liefe.
+
+Der Blast-Radius eines Dateiknotens ist zwar die Vereinigung über die Symbole
+der Datei, aber Graft findet sie **über Pfadgleichheit**, nicht über
+`contains`: `symbolsInFile` nimmt jeden Knoten mit `kind != "file"` und
+demselben `path`. So gilt es auch hier.
 
 ### 3.4 Kanten tragen eine Konfidenz, und ihr Ziel ist nicht immer ein Knoten
 
@@ -97,9 +102,17 @@ Das Schema führt auf jeder Kante `confidence`
 bei `imports` darf `target` eine unaufgelöste Modulzeichenkette statt einer
 Knoten-ID sein.
 
-**Es gilt:** Das Lesemodell dekodiert beides. Beide Rechner verwerfen Kanten,
-deren Enden nicht beide Knoten sind. `confidence` wird in G1 gelesen und nicht
-ausgewertet — wer danach rangiert, kommt später.
+**Es gilt:** Das Lesemodell dekodiert beides. Die beiden Rechner gehen damit
+aber **verschieden** um, und das ist kein Versehen der Referenz:
+
+- `pagerank` verwirft eine Kante, deren Enden nicht beide Knoten sind — sonst
+  sammelte eine Modulzeichenkette Rangmasse und erschiene im Ergebnis.
+- `blast` behält sie: ein unaufgelöstes Importziel ist ein Treffer mit `id`,
+  Relation und Tiefe, aber ohne Knoten. Wer fragt „wovon hängt das ab",
+  will `npm:lodash` sehen.
+
+`confidence` wird in G1 gelesen und nicht ausgewertet — wer danach rangiert,
+kommt später.
 
 ### 3.5 Die Ausgabe ist max-normiert
 
@@ -164,7 +177,12 @@ func (x *Index) Reach(start []model.NodeID, dir Direction, depth Depth, prefix s
 
 `New` baut die gerichtete Adjazenz einmal. `Direction` ist `In` (wer hängt von
 mir ab) oder `Out`; `Depth` ist eine Zahl oder „alle"; `prefix` filtert auf ein
-Pfadpräfix. `Hit` trägt ID, Relation und die Tiefe des ersten Erreichens.
+Pfadpräfix. `Hit` trägt ID, Relation und die Tiefe des ersten Erreichens, dazu
+den Knoten — der fehlt, wenn die ID ein unaufgelöstes Importziel ist (§3.4).
+
+Ein Dateiknoten als Startpunkt läuft über sich selbst **und** jedes Symbol
+derselben Datei; das ist Sache des Aufrufers, der die Startmenge bildet, und
+`Reach` nimmt deshalb eine Liste.
 
 Dass PageRank denselben Kanten ungerichtet begegnet und Blast gerichtet, ist
 Absicht und steht in beiden Paketkommentaren.
@@ -193,10 +211,13 @@ Vereinigung über seine Symbole.
 **Draußen bleiben** die vier `ask`-Integrationstests (sie brauchen den
 Extraktor, also G2) und die zwölf `resolveSymbol`-Tests (Abfrageschicht).
 
-**Kreuzprobe:** die PageRank-Zahlen zusätzlich unabhängig nachgerechnet
-(numpy im Sitzungs-Scratchpad, Wegwerf). Sie fängt einen Abschreibfehler beim
-Übersetzen der Vektoren. Das Ergebnis steht im Plan, das Skript kommt nicht ins
-Repo.
+**Kreuzprobe, ausgeführt am 2026-09-16:** die vier Konstanten des
+Dangling-Falls (`a = 0.9577162737326514`, `b = 1`, `c = 0.37462976423958994`,
+`d = 0.29154325474653076`) unabhängig nachgerechnet, im Sitzungs-Scratchpad,
+Wegwerf. Drei Werte stimmen exakt, `c` weicht um 1 ULP ab — Summationsreihenfolge,
+nicht Verfahren. Die Masse vor der Normierung ist exakt 1,0, was §3.2
+bestätigt. Der Go-Test vergleicht deshalb mit Toleranz 1e-9, wie Graft es tut,
+und nicht auf Gleichheit.
 
 **Golden-Files liegen in `internal/code/*/testdata/`**, nicht unter
 `testdata/cases/`. §9.4 der Säule-3-Spec sagt das andere; `testdata/cases/`
