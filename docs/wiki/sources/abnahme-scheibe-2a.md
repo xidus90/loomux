@@ -5,7 +5,7 @@ description: Der erste Lauf außerhalb des Arbeitsbereichs — dreizehn Befunde,
 open_conflicts: 0
 sources:
   - id: abnahme-scheibe-2a
-    resource: brain://project/ultra-brain/docs/.superpowers/plans/2026-08-20-scheibe-2a-abnahme.md
+    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-20-scheibe-2a-abnahme.md
     doc_id: 01M0QGS5931BKD9QS6B8C2TNCT
     content_hash: "sha256:71c8d0e5c0196b026a5b96125297b8f7662829501f8e1f2e8efebc36065a5027"
     revision: 1

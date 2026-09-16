@@ -7,7 +7,7 @@ realization: implemented
 implemented_in: e1b9542
 sources:
   - id: plan-scheibe-1
-    resource: brain://project/ultra-brain/docs/.superpowers/plans/2026-08-19-scheibe-1-indexer.md
+    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-19-scheibe-1-indexer.md
     doc_id: 01M0QGS593D5A8B9E3P0SV6GD9
     content_hash: "sha256:1c38fd1e30390ffb31ab13083d09006e6f6a49996776312c3f781da0eb09d90e"
     revision: 1

@@ -7,12 +7,12 @@ realization: implemented
 implemented_in: f740c8f
 sources:
   - id: architektur-spec
-    resource: brain://project/ultra-brain/docs/.superpowers/specs/2026-08-18-ultra-brain-architektur-design.md
+    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
     doc_id: 01M0QGS594F2KCWTWK9XV07M05
     content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
     revision: 3
   - id: plan-scheibe-0
-    resource: brain://project/ultra-brain/docs/.superpowers/plans/2026-08-18-scheibe-0-fundament.md
+    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-18-scheibe-0-fundament.md
     doc_id: 01M0QGS5938AFTQ36ECK6FQ4VM
     content_hash: "sha256:f927f47a11773eae3c57d9a8416882a735e6dcf1f990ef69c222c77a5bd797eb"
     revision: 1

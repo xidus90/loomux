@@ -7,7 +7,7 @@ realization: implemented
 implemented_in: 370b6c4
 sources:
   - id: plan-scheibe-2a-nacharbeit
-    resource: brain://project/ultra-brain/docs/.superpowers/plans/2026-08-20-scheibe-2a-nacharbeit.md
+    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-20-scheibe-2a-nacharbeit.md
     doc_id: 01M0QGS593MGR37J6BQ1W21ZWY
     content_hash: "sha256:ebcb1159c3da4e93e645839802bc486b279cd57749d0346394a1cc24137d0edf"
     revision: 1

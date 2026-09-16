@@ -5,7 +5,7 @@ description: Das Ledger der Rulings — was während der Ausführung entschieden
 open_conflicts: 0
 sources:
   - id: entscheidungen-scheibe-2a
-    resource: brain://project/ultra-brain/docs/.superpowers/plans/2026-08-20-scheibe-2a-entscheidungen.md
+    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-20-scheibe-2a-entscheidungen.md
     doc_id: 01M0QGS593QJAQMMK5N520KBND
     content_hash: "sha256:0c7bfd21611ad0bb511986c9e98735c0d54fa3f1c259308f856978faa913606c"
     revision: 1

@@ -5,7 +5,7 @@ description: Das Format, dem die Wiki-Bundles folgen — und die Stelle, an der 
 open_conflicts: 0
 sources:
   - id: architektur-spec
-    resource: brain://project/ultra-brain/docs/.superpowers/specs/2026-08-18-ultra-brain-architektur-design.md
+    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
     doc_id: 01M0QGS594F2KCWTWK9XV07M05
     content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
     revision: 3

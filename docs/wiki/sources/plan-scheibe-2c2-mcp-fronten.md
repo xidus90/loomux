@@ -7,7 +7,7 @@ realization: implemented
 implemented_in: cba7c8b
 sources:
   - id: plan-scheibe-2c2
-    resource: brain://project/ultra-brain/docs/.superpowers/plans/2026-08-22-scheibe-2c2-mcp-fronten.md
+    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-22-scheibe-2c2-mcp-fronten.md
     doc_id: 01M0QGS594D9D3M90MV6A1WFX9
     content_hash: "sha256:179c1cc297ff0f27e92be6b41d84f1bed023cb975c6af624d49b5befc3c9c0aa"
     revision: 1
