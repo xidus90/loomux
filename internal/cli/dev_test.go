@@ -349,9 +349,14 @@ func mutantsWorld(t *testing.T, test mutants.TestFunc) {
 		t.Fatal(err)
 	}
 	mutantsRoot = func() (string, error) { return root, nil }
-	mutantsTest = func(_ context.Context, dir string) mutants.TestFunc {
+	mutantsTest = func(ctx context.Context, dir string) mutants.TestFunc {
 		if dir != root {
 			t.Errorf("go test runs in %q, want %q", dir, root)
+		}
+		// Only a cancellable context has a Done channel: handing GoTest the
+		// background one would leave every go test running after an interrupt.
+		if ctx.Done() == nil {
+			t.Error("go test runs under a context no interrupt can end")
 		}
 		return test
 	}
@@ -443,10 +448,11 @@ func TestDevMutantsCleansUpAnInterruptedRound(t *testing.T) {
 	t.Setenv("TEMP", tmp)
 	t.Setenv("TMPDIR", tmp)
 	var interrupt context.CancelFunc
+	stops := 0
 	mutantsNotify = func(parent context.Context, _ ...os.Signal) (context.Context, context.CancelFunc) {
 		ctx, cancel := context.WithCancel(parent)
 		interrupt = cancel
-		return ctx, cancel
+		return ctx, func() { stops++; cancel() }
 	}
 	t.Cleanup(func() { mutantsNotify = signal.NotifyContext })
 	mutantsWorld(t, func(_, overlay string) (mutants.Outcome, error) {
@@ -464,6 +470,11 @@ func TestDevMutantsCleansUpAnInterruptedRound(t *testing.T) {
 	}
 	if entries, err := os.ReadDir(tmp); err != nil || len(entries) != 0 {
 		t.Fatalf("left behind: %v, %v", entries, err)
+	}
+	// Twice: once where the round saw the interrupt, once in the defer. Only
+	// the defer would mean a second Ctrl+C stays swallowed through the drain.
+	if stops != 2 {
+		t.Fatalf("the signal registration was stopped %d times, want 2", stops)
 	}
 }
 
