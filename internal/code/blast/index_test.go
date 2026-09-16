@@ -7,6 +7,9 @@ import (
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
+// The walk vectors of this file are ported from trailhq/Graft @ 1e352a3
+// (MIT), test/graph-traverse.test.ts.
+
 // baseGraph is Graft's traverse fixture: a file containing a method, that
 // method calling another, and an import nobody resolved.
 func baseGraph() *model.Graph {

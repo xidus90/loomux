@@ -2,6 +2,11 @@
 // and what this depends on. It answers the callers, the callees and the blast
 // radius of a refactoring from the same index.
 //
+// This walk meets the edges directed, where the package pagerank meets the very
+// same edges undirected. That is deliberate: "who breaks if this changes" has a
+// direction, and a callee is no answer to it. Rank asks the other question --
+// understand this area -- and there a callee weighs as much as a caller.
+//
 // Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/traverse.ts.
 package blast
 
@@ -27,6 +32,11 @@ const All Depth = -1
 //
 // Node is nil when the id is not a node of the graph: an unresolved import
 // names its module, and a walk reports it rather than hiding the dependency.
+//
+// Node points into the graph New was given, it is not a copy. Two consequences
+// for a caller: writing through it writes into that graph, and a graph changed
+// after New leaves the index and every Node it hands out stale. Treat a hit as
+// read-only and build a new Index after a change.
 type Hit struct {
 	ID       model.NodeID
 	Node     *model.Node

@@ -51,7 +51,8 @@ tragen und nicht aus einer Mutante folgen:
 - **Selbstschleife und Parallelkanten.** Beide werden nicht zusammengefasst,
   sondern wirken als Kantenvielfachheit: eine doppelte Kante zählt in der
   Nachbarliste doppelt und teilt die Masse entsprechend. Das entspricht der
-  Referenz.
+  Referenz: `link()` in `src/ask/graphrank.ts` hängt je Kante an, ohne zu
+  entdoppeln, und kennt keinen Sonderfall für Quelle gleich Ziel.
 - **Nicht normalisierte Eingaben.** Ein negativer `Depth`-Wert, der nicht `All`
   ist, und eine `Direction` außerhalb von `In`/`Out` werden nicht
   zurechtgebogen. Grund: Keine Nutzereingabe erreicht diese Typen bisher; die
@@ -62,13 +63,15 @@ tragen und nicht aus einer Mutante folgen:
 
 **Zum Wertebereich, gültig für die Zeilen 6 bis 11.** Die Begründungen dort
 rechnen mit endlichen Zahlen, und `w <= 0` lässt zwei nicht-endliche Fälle
-durch: `+Inf` und `NaN`. Der Schluss hält trotzdem. Ist `total` `+Inf` oder
-`NaN`, wird jedes `r` nach der Normierung 0 oder `NaN`; ein `r > 0` gibt es
-dann nicht mehr, und jeder Eintrag, den der Mutant zusätzlich anfassen könnte,
-ist bereits `NaN`. Ob die Wache greift oder nicht, ändert an einem `NaN`
-nichts, und `max` bleibt 0, weil jeder Vergleich gegen `NaN` falsch ist — das
-Ergebnis ist in beiden Fassungen `nil`. Die Zeilen unten führen diesen Zweig
-deshalb nicht einzeln mit.
+durch: `+Inf` und `NaN`. Der Schluss hält trotzdem, aber aus einem anderen
+Grund. Ist `total` gleich `NaN`, wird jedes `r` zu `NaN`. Ist `total` gleich
+`+Inf`, wird ein endliches Gewicht zu genau 0 und ein unendliches zu `NaN` —
+also **nicht** jeder Eintrag `NaN`, wie eine frühere Fassung dieser Zeile
+behauptete. Entscheidend ist, was in beiden Fällen fehlt: kein `r` wird
+positiv und endlich. Damit ist `r > 0` nirgends wahr, kein Eintrag wächst über
+0 hinaus, und `max` bleibt 0 — gegen 0 ist `v > max` falsch, gegen `NaN` ist
+jeder Vergleich falsch. Die Wache `max <= 0` greift, und beide Fassungen
+liefern `nil`. Die Zeilen unten führen diesen Zweig deshalb nicht einzeln mit.
 
 | Ort | Mutation | Ausgang | Verfügung | Freigabe |
 |---|---|---|---|---|
@@ -98,3 +101,16 @@ Graphen mit 20k Knoten, gemessen 2026-09-16 auf einem AMD Ryzen 7 9800X3D, nur
 warm; eine kalte Zahl steht noch aus. Diese Dateien ändert Stufe 1b-1 parallel;
 sie werden nachgeholt, sobald 1b-1 nach `master` gegangen ist und `code-g1`
 darauf steht.
+
+Zwei Lücken in `model.Validate` gehören ebenfalls nach G2. Beide sind heute
+harmlos, weil kein Erzeuger außerhalb der Tests einen Graphen schreibt; sobald
+`loomux graph build` einen erzeugt, sind sie zu schließen:
+
+- **Doppelte Knoten-IDs werden nicht abgewiesen**, und die beiden Pakete lesen
+  sie dann verschieden: `pagerank.Prepare` behält den ersten Knoten einer ID,
+  `blast.New` überschreibt, sodass `Hit.Node` auf den letzten zeigt. Zwei
+  Antworten auf dieselbe Frage aus demselben Graphen.
+- **Die Quelle einer Kante wird nicht gegen die Knoten geprüft.** Ein loses
+  Ende ist nur auf der Zielseite einer `imports`-Kante vorgesehen; eine
+  erfundene Quelle taucht in `blast` trotzdem als Treffer mit `Node == nil` auf
+  und ist dort von einem echten unaufgelösten Import nicht zu unterscheiden.

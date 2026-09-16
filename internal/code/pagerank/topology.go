@@ -4,6 +4,12 @@
 // merely shares a word with the query sinks. Lexical proposes, the graph
 // disposes.
 //
+// This walk meets the edges undirected, where the package blast meets the very
+// same edges directed. That is deliberate: to understand an area, what a
+// function calls weighs as much as what calls it, so rank mass has to flow both
+// ways along one call. "Who breaks if this changes" is the other question, and
+// that one has a direction.
+//
 // Ported from trailhq/Graft @ 1e352a3 (MIT), src/ask/graphrank.ts.
 package pagerank
 

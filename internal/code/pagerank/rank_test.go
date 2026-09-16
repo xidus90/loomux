@@ -10,6 +10,9 @@ import (
 	"github.com/xidus90/loomux/internal/code/pagerank"
 )
 
+// The rank vectors of this file are ported from trailhq/Graft @ 1e352a3
+// (MIT), test/graphrank.test.ts.
+
 func scoreOf(got []pagerank.Scored, id model.NodeID) float64 {
 	for _, s := range got {
 		if s.ID == id {
@@ -94,8 +97,8 @@ func TestRankUnresolvedImportTargetNeverRanks(t *testing.T) {
 	}
 }
 
-// The reference values of the dangling fixture, from Graft's own test file and
-// recomputed independently on 2026-09-16.
+// The reference values of the dangling fixture, from trailhq/Graft @ 1e352a3
+// (MIT), test/graphrank.test.ts, and recomputed independently on 2026-09-16.
 func TestRankDanglingMassFixture(t *testing.T) {
 	g := graphOf(
 		[]model.NodeID{"a", "b", "c", "d", "e"},
