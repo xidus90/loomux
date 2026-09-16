@@ -1255,9 +1255,9 @@ func TestOneSignpostBesideAnOrdinaryAreaIsFine(t *testing.T) {
 }
 
 func TestAnEmptyScopeOrPathRefuses(t *testing.T) {
-	// `_required` asks two questions of one value -- is it a string, and
-	// is it non-empty -- and the second is the one a type test alone
-	// would drop.
+	// A required string is refused both when it is not a string and when
+	// it is empty; the empty case is the one a type test alone would let
+	// through.
 	tmp := t.TempDir()
 	state := filepath.Join(tmp, "state")
 	for body, want := range map[string]string{

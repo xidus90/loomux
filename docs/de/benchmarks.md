@@ -458,7 +458,7 @@ an der Schreibschranke und an `brain catalog` kosten.
 
 **Methode.** `loomux dev bench-hooks testdata/bench/registry-checks.json -n 20`: je
 Fall ein kalter Lauf, dann 20 warme, gegen das echte Zustandsverzeichnis
-(`%LOCALAPPDATA%\loomux` mit 11 Areas, kein `LOOMUX_STATE_DIR`); der Schrankenfall
+(`%LOCALAPPDATA%\loomux` mit 11 Bereichen, kein `LOOMUX_STATE_DIR`); der Schrankenfall
 editiert `C:/Users/micro/Documents/#GIT/loomux/README.md` mit `--root` auf dem
 Hauptcheckout. Binaries: `loomux-before.exe` gebaut aus `219ccb1` (dem Plan-Commit vor
 Task 2), `bin/loomux.exe` gebaut vom Pre-Commit-Gate auf `222465b`. Go-Benchmarks, je
@@ -468,8 +468,10 @@ mit `LOOMUX_BENCH_REGISTRY` auf einer Kopie von `%LOCALAPPDATA%\loomux` und
 `LOOMUX_BENCH_TARGET=C:/Users/micro/Documents/#GIT/loomux/README.md`, sowie
 `go test ./internal/brain/search/ -run '^$' -bench VisibleAreasOfTheRealRegistry -benchtime 50x -benchmem -count 5`
 mit `LOOMUX_BENCH_REGISTRY` auf derselben Kopie und `LOOMUX_BENCH_LEGACY` auf
-`%LOCALAPPDATA%\brain`. „Vorher“ lief in Task 1 auf `219ccb1`, „nachher“ auf
-`222465b`, beide auf derselben Zustandskopie. Maschine: AMD Ryzen 7 9800X3D, Go
+`%LOCALAPPDATA%\brain`. Für die Go-Benchmarks lief „vorher“ in Task 1 auf
+`219ccb1` und „nachher“ auf `222465b`, beide auf derselben Zustandskopie; die
+bench-hooks-Zeilen vorher/nachher liefen in einem Lauf gegen das echte
+Zustandsverzeichnis. Maschine: AMD Ryzen 7 9800X3D, Go
 `go1.27.0 windows/amd64`, GOMAXPROCS 16.
 
 | Fall | kalt (1. Lauf) | warmer Median | warmes Min | warmes Max | Exit-Codes |
@@ -503,3 +505,22 @@ mit `LOOMUX_BENCH_REGISTRY` auf derselben Kopie und `LOOMUX_BENCH_LEGACY` auf
 5. **Gegen die Grenzen des Plans** (warmer Median der Schranke höchstens 3 ms mehr,
    Go-Benchmarks höchstens 20 % mehr): Schranke +0,2 ms,
    `DecideAgainstTheRealRegistry` −13,3 %, `VisibleAreasOfTheRealRegistry` +17,6 %.
+
+### Ursache
+
+Untersucht am 2026-09-16 um 22:20 nach dem Branch-Review. Ein Worktree von
+`219ccb1` und der Branch auf `e01977b` (seit `222465b` ohne Codeänderung) liefen
+den obigen `VisibleAreasOfTheRealRegistry`-Befehl abwechselnd, drei Runden mit je
+fünf Läufen pro Seite, mit derselben Umgebung. Vorher: Rundenmediane 1.147.168,
+1.163.598 und 1.421.438 ns/op; Median aller 15 Läufe 1.178.826
+(1.096.538–1.614.158). Nachher: 1.127.922, 1.123.730 und 1.120.828 ns/op; Median
+aller 15 Läufe 1.123.730 (1.076.292–1.323.442). Die +17,6 % lassen sich nicht
+wiederholen: Die dritte Vorher-Runde springt auf unverändertem Code genauso, also
+stammt der Sprung vom Zustand der Maschine während des Laufs, nicht von der
+Änderung. CPU-Profile mit 3.000 Iterationen, je Seite zwei Läufe zusammengeführt,
+vorher gegen nachher: `ReadAreaManifestUntilStage4` kumuliert 6,41 s gegen 6,42 s,
+alle Systemaufrufe 5,13 s gegen 4,99 s, TOML-Dekodierung 1,70 s gegen 1,71 s,
+`ReadRegistry` 0,73 s gegen 0,67 s. Die Reihenfolge Stat vor Lesen verschiebt Zeit
+von fehlschlagenden Öffnungen der fehlenden Namen (`os.Open` 2,50 s → 1,07 s) zu
+Stats (`os.Stat` 1,20 s → 2,55 s) und lässt die Summe gleich. Am Code wurde nichts
+geändert.

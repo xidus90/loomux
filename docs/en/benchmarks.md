@@ -452,8 +452,9 @@ with `LOOMUX_BENCH_REGISTRY` on a copy of `%LOCALAPPDATA%\loomux` and
 `LOOMUX_BENCH_TARGET=C:/Users/micro/Documents/#GIT/loomux/README.md`, and
 `go test ./internal/brain/search/ -run '^$' -bench VisibleAreasOfTheRealRegistry -benchtime 50x -benchmem -count 5`
 with `LOOMUX_BENCH_REGISTRY` on the same copy and `LOOMUX_BENCH_LEGACY` on
-`%LOCALAPPDATA%\brain`. "Before" was run in Task 1 on `219ccb1`, "after" at
-`222465b`, both on the same state copy. Machine: AMD Ryzen 7 9800X3D, Go
+`%LOCALAPPDATA%\brain`. For the Go benchmarks, "before" was run in Task 1 on
+`219ccb1` and "after" at `222465b`, both on the same state copy; the bench-hooks
+before/after rows ran in one run against the real state directory. Machine: AMD Ryzen 7 9800X3D, Go
 `go1.27.0 windows/amd64`, GOMAXPROCS 16.
 
 | case | cold (1st run) | warm median | warm min | warm max | exit codes |
@@ -487,3 +488,20 @@ with `LOOMUX_BENCH_REGISTRY` on the same copy and `LOOMUX_BENCH_LEGACY` on
 5. **Against the plan's limits** (barrier warm median at most 3 ms more, Go
    benchmarks at most 20 % more): barrier +0.2 ms, `DecideAgainstTheRealRegistry`
    −13.3 %, `VisibleAreasOfTheRealRegistry` +17.6 %.
+
+### Cause
+
+Investigated on 2026-09-16 at 22:20 after the branch review. A worktree of
+`219ccb1` and the branch at `e01977b` (no code change since `222465b`) ran the
+`VisibleAreasOfTheRealRegistry` command above in alternation, three rounds of five
+runs per side, with the same environment. Before: round medians 1,147,168,
+1,163,598 and 1,421,438 ns/op; median of all 15 runs 1,178,826 (1,096,538–1,614,158).
+After: 1,127,922, 1,123,730 and 1,120,828 ns/op; median of all 15 runs 1,123,730
+(1,076,292–1,323,442). The +17.6 % does not reproduce: the third before round
+jumps the same way on unchanged code, so the machine's state during the run
+produced it, not the change. CPU profiles at 3,000 iterations, two runs per side
+merged, before against after: `ReadAreaManifestUntilStage4` 6.41 s against 6.42 s
+cumulative, all syscalls 5.13 s against 4.99 s, TOML decoding 1.70 s against 1.71 s,
+`ReadRegistry` 0.73 s against 0.67 s. The stat-before-read order moves time from
+failed opens of the missing names (`os.Open` 2.50 s → 1.07 s) to stats (`os.Stat`
+1.20 s → 2.55 s) and leaves the sum unchanged. No code was changed.

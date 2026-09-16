@@ -32,8 +32,8 @@ func TestAreasCarryTheirProperties(t *testing.T) {
 }
 
 func TestTheThreeStringsComeThroughUnchanged(t *testing.T) {
-	// The two tests above assert only the flags, so a reader that never fills
-	// Scope, Path or WikiPath passes both -- and the later unlisted-area rule
+	// The test above asserts only the flags, so a reader that never fills
+	// Scope, Path or WikiPath passes it -- and the later unlisted-area rule
 	// reads exactly WikiPath and Signpost together. Asserted verbatim because
 	// the registry on this machine writes forward slashes on Windows: a
 	// reader that cleans or converts them would answer a path the file never
@@ -59,9 +59,9 @@ func TestTheThreeStringsComeThroughUnchanged(t *testing.T) {
 }
 
 func TestAnAreaWithoutAWikiKeepsAnEmptyWikiPath(t *testing.T) {
-	// `wiki` is the one optional string: `registry.py` builds `wiki_path` as
-	// `Path(wiki) if wiki else None`, so an area without one is registered
-	// there and must be registered here. No entry of the registry on this
+	// `wiki` is the one optional string: an area that names no wiki is
+	// registered with WikiPath "", while one that names an empty wiki is
+	// refused (TestARegistryRefusesWhatItCannotUse). No entry of the registry on this
 	// machine omits it -- all nine name a wiki -- so nothing but this test
 	// keeps `wiki` from being demanded like `scope` and `path`.
 	dir := t.TempDir()

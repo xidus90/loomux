@@ -177,11 +177,10 @@ func TestTheLastCharacterOfThePlaneIsNoSurrogatePair(t *testing.T) {
 func TestABrokenManifestSaysWhichDefectItFound(t *testing.T) {
 	// Each defect `config.ReadDeclaration` knows has its own answer, and a mutant that
 	// drops one of the early arms lets the file fall through to a later one:
-	// dropped TOML or `[area]`-shape errors reach `is missing "scope"`, and a
-	// dropped read error parses the empty data into a document without an
-	// area and answers config.ErrNoArea -- which every caller reads as "no
-	// manifest", so the barrier would open instead of refusing. A reason
-	// that names the wrong line sends the reader to the wrong file.
+	// dropped TOML or `[area]`-shape errors reach `is missing "scope"`. A
+	// declaration that cannot be read is config's to refuse; see
+	// TestADeclarationThatCannotBeReadIsNoAbsence there. A reason that names
+	// the wrong line sends the reader to the wrong file.
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
 	target := writeCall(filepath.Join(tmp, "vault", "demo", "x.md"))
