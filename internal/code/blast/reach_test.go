@@ -27,6 +27,29 @@ func diamondGraph() *model.Graph {
 	}
 }
 
+// shortcutDiamondGraph is diamondGraph plus the shortcut C -> X: C now calls X
+// directly and again the long way round through A and B. Walking incoming
+// edges from X therefore finds C at two different depths, which is the only
+// way to tell "first reached" apart from "last reached".
+func shortcutDiamondGraph() *model.Graph {
+	return &model.Graph{
+		Meta: model.Meta{Version: 1},
+		Nodes: []model.Node{
+			{ID: "X", Name: "X", Kind: "function", Path: "x.ts"},
+			{ID: "A", Name: "A", Kind: "function", Path: "a.ts"},
+			{ID: "B", Name: "B", Kind: "function", Path: "b.ts"},
+			{ID: "C", Name: "C", Kind: "function", Path: "c.ts"},
+		},
+		Edges: []model.Edge{
+			{Source: "A", Target: "X", Relation: model.RelationCalls},
+			{Source: "B", Target: "X", Relation: model.RelationCalls},
+			{Source: "C", Target: "A", Relation: model.RelationCalls},
+			{Source: "C", Target: "B", Relation: model.RelationCalls},
+			{Source: "C", Target: "X", Relation: model.RelationCalls},
+		},
+	}
+}
+
 func idsAndDepths(hits []blast.Hit) map[model.NodeID]int {
 	got := map[model.NodeID]int{}
 	for _, h := range hits {
@@ -35,7 +58,7 @@ func idsAndDepths(hits []blast.Hit) map[model.NodeID]int {
 	return got
 }
 
-func TestReachDiamondDedupsAtMinimumDepth(t *testing.T) {
+func TestReachDiamondReportsEachNodeOnce(t *testing.T) {
 	got := blast.New(diamondGraph()).Reach([]model.NodeID{"X"}, blast.In, 2)
 
 	if len(got) != 3 {
@@ -44,6 +67,23 @@ func TestReachDiamondDedupsAtMinimumDepth(t *testing.T) {
 	depths := idsAndDepths(got)
 	if depths["A"] != 1 || depths["B"] != 1 || depths["C"] != 2 {
 		t.Errorf("got depths %v, want A=1 B=1 C=2", depths)
+	}
+}
+
+func TestReachReportsTheDepthFirstReached(t *testing.T) {
+	got := blast.New(shortcutDiamondGraph()).Reach([]model.NodeID{"X"}, blast.In, 2)
+
+	if len(got) != 3 {
+		t.Fatalf("got %d hits, want 3: A, B and C once each", len(got))
+	}
+	depths := idsAndDepths(got)
+	if depths["A"] != 1 || depths["B"] != 1 {
+		t.Errorf("got depths %v, want A=1 B=1", depths)
+	}
+	if depths["C"] != 1 {
+		t.Errorf("got C at depth %d, want 1: C reaches X both directly and "+
+			"through A and B, and is reported at the depth it was first "+
+			"reached, not the last", depths["C"])
 	}
 }
 
@@ -81,23 +121,33 @@ func TestReachAllFollowsTheWholeChain(t *testing.T) {
 
 func TestReachExcludesItsOwnStartAndDedupsAcrossThem(t *testing.T) {
 	// C calls into both A and B; reached from two starts at the same depth it
-	// is still reported once, and neither start reports itself.
+	// is still reported once. B also calls A, so the walk runs into the start
+	// B and must not report it. D calls only B, so it is reachable through the
+	// second start alone: a walk that stopped at the first start would miss it.
 	g := &model.Graph{
 		Meta: model.Meta{Version: 1},
 		Nodes: []model.Node{
 			{ID: "A", Kind: "function", Path: "a.ts"},
 			{ID: "B", Kind: "function", Path: "b.ts"},
 			{ID: "C", Kind: "function", Path: "c.ts"},
+			{ID: "D", Kind: "function", Path: "d.ts"},
 		},
 		Edges: []model.Edge{
 			{Source: "C", Target: "A", Relation: model.RelationCalls},
 			{Source: "C", Target: "B", Relation: model.RelationCalls},
+			{Source: "B", Target: "A", Relation: model.RelationCalls},
+			{Source: "D", Target: "B", Relation: model.RelationCalls},
 		},
 	}
 	got := blast.New(g).Reach([]model.NodeID{"A", "B"}, blast.In, 2)
 
-	if len(got) != 1 || got[0].ID != "C" || got[0].Depth != 1 {
-		t.Errorf("got %v, want C once at depth 1", got)
+	depths := idsAndDepths(got)
+	if len(got) != 2 || depths["C"] != 1 || depths["D"] != 1 {
+		t.Fatalf("got %v, want C and D once each at depth 1", got)
+	}
+	if _, ok := hitOf(got, "B"); ok {
+		t.Errorf("got %v, want no hit for B: a start id is never its own hit, "+
+			"not even when another start's walk runs into it", got)
 	}
 }
 
