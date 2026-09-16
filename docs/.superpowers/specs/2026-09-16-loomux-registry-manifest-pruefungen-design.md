@@ -3,8 +3,8 @@
 **Datum:** 2026-09-16
 **Stand:** entworfen, nicht umgesetzt
 **Bezug:** [Stufe 1b-1](2026-09-15-loomux-stufe-1b-1-design.md), Paritätsliste
-`docs/.superpowers/parity/stufe-1b-1.md` Zeilen 24, 27, 29, 31; Schreibschranke aus Stufe 1a
-(`internal/brain/guard`). Basis ist der Zweig `sdd-1b-1` (`d7d0b2b`), nicht `master`.
+`docs/.superpowers/parity/stufe-1b-1.md` Zeilen „Betriebssystemfehler im Wortlaut“, „Registry-Prüfungen“, „`[area] scope` als Nicht-Zeichenkette“, „Weitere Prüfungen von `read_manifest`“ (am 2026-09-16 mit Nachtrag „nachrüsten“ freigegeben); Schreibschranke aus Stufe 1a
+(`internal/brain/guard`). Basis ist `master` ab `e1b4343` (Stufe 1b-1 gemergt).
 **Messgrundlage:** 32 Fehlerfälle vom 2026-09-16 gegen die Python-Referenz
 (`loomux-src/ub`, `3cc72d2`, `brain-mcp catalog`), gegen `loomux brain catalog` und gegen die
 Schranke (`loomux hook pre-tool-use`) am Stand `d7d0b2b`; Tabelle im Anhang.
@@ -121,8 +121,7 @@ G8 und G9 fragen `config.ManifestDir` mit `ReadOnly: true` nach dem Verzeichnis,
 | M16 | Element einer Glob-Liste keine Zeichenkette | `[<abschnitt>] <schlüssel> #N must be a string, found <typ>` |
 | M17 | `[wiki] untouched_days` keine ganze Zahl ≥ 1 | `[wiki] untouched_days must be an integer >= 1, found <typ>` bzw. `found <zahl>` |
 
-`[check] lanes` wird gelesen wie heute (Liste von Namen oder Tabelle Name → Befehl) und bleibt
-ungeprüft. Ein leerer `[layout]`-Wert bedeutet wie heute „nicht gesagt“.
+`[check] lanes` bleibt ungeprüft und wird von `ReadDeclaration` nicht gelesen (siehe Zuschnitt). Ein leerer `[layout]`-Wert bedeutet wie heute „nicht gesagt“.
 
 `Manifest` bekommt zwei Felder: `Path` (die gelesene Datei, für Meldungen) und `LayoutInbox`.
 
@@ -142,7 +141,7 @@ Semantik der Schranke, unter Windows ist `/in` also nicht absolut. Meldung:
 - `registry.go`: `ReadRegistry(stateDir)` dekodiert über `toml.Decode` in `map[string]any` und
   prüft G1–G14. `registryEntry`/`registryFile` entfallen. Der Kommentar über das Überspringen
   entfällt mit dem Verhalten.
-- `manifest.go`: `ReadDeclaration` (M1–M17) baut `*Manifest` aus der geprüften Map, samt Lanes.
+- `manifest.go`: `ReadDeclaration` (M1–M17) baut `*Manifest` aus der geprüften Map in einer neuen Datei `declaration.go`; `Lanes` bleibt leer, weil außerhalb von `internal/config` niemand `Manifest.Lanes` liest (gezählt 2026-09-16).
   `readManifestAmong` bleibt für `ReadManifest` mit dem typisierten Dekodierer; für den
   Bereichsleser übernimmt `ReadDeclaration`. Damit stehen in `manifest.go` zwei Dekodierer — die
   bewusste Grenze aus der Entscheidung zu `ReadManifest`.
@@ -198,7 +197,7 @@ Freigabe:
    Registry-Eintrag liest; loomux prüft erst alle Einträge. Das Urteil ist gleich, der genannte
    Grund kann abweichen.
 5. **Registry nicht lesbar:** `open <pfad>: …` statt bisher `<pfad>: open <pfad>: …`
-   (ersetzt den Registry-Teil von Zeile 24 der Liste 1b-1).
+   (ersetzt den Registry-Teil der Zeile „Betriebssystemfehler im Wortlaut“ der Liste 1b-1).
 6. **Schranke verweigert mehr:** `[model]`-Defekte (M2 für `model`, M10–M13) und `[layout]`
    `review`/`hub`/`wiki` als Nicht-Zeichenkette (M14) in irgendeinem registrierten Bereich. Bisher
    ließ sie `[model]` durch; ein nicht-textuelles `review` machte nur die Vorschlagsausnahme
@@ -206,8 +205,8 @@ Freigabe:
    Weg über `declaredWikiRoot`. Jetzt liest der zweite Registry-Durchlauf jedes Manifest mit
    `ReadDeclaration` und verweigert jeden Write.
 
-In `stufe-1b-1.md` werden die Zeilen 27, 29 und 31 auf „abgelöst durch
-`registry-manifest-pruefungen.md`“ gesetzt und Zeile 24 im Registry-Teil angepasst. Keine
+In `stufe-1b-1.md` werden die drei Prüfzeilen im Freigabefeld um „nachgerüstet durch
+`registry-manifest-pruefungen.md`“ ergänzt und die Betriebssystemfehler-Zeile im Registry-Teil angepasst. Keine
 bestehende Zeile in `stufe-1a.md` oder `schranke-worktrees.md` hält einen Schrankenwortlaut fest;
 dort ändert sich nichts.
 
