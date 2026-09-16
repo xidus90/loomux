@@ -349,7 +349,7 @@ func mutantsWorld(t *testing.T, test mutants.TestFunc) {
 		t.Fatal(err)
 	}
 	mutantsRoot = func() (string, error) { return root, nil }
-	mutantsTest = func(dir string) mutants.TestFunc {
+	mutantsTest = func(_ context.Context, dir string) mutants.TestFunc {
 		if dir != root {
 			t.Errorf("go test runs in %q, want %q", dir, root)
 		}
@@ -470,12 +470,27 @@ func TestDevMutantsCleansUpAnInterruptedRound(t *testing.T) {
 func TestUntilInterruptedStartsNoRunAfterTheInterrupt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	started := false
-	test := untilInterrupted(ctx, func(string, string) (mutants.Outcome, error) {
+	started, stopped := false, false
+	test := untilInterrupted(ctx, func() { stopped = true }, func(string, string) (mutants.Outcome, error) {
 		started = true
 		return mutants.Passed, nil
 	})
-	if _, err := test("p", ""); !errors.Is(err, context.Canceled) || started {
-		t.Fatalf("err %v, started %t", err, started)
+	if _, err := test("p", ""); !errors.Is(err, context.Canceled) || started || !stopped {
+		t.Fatalf("err %v, started %t, stopped %t", err, started, stopped)
+	}
+}
+
+// The signal registration has to end with the first interrupt: while it
+// stands, a second Ctrl+C is swallowed and the user cannot force the drain to
+// end.
+func TestUntilInterruptedStopsTheSignalRegistrationOfARunningSuite(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	stopped := false
+	test := untilInterrupted(ctx, func() { stopped = true }, func(string, string) (mutants.Outcome, error) {
+		cancel()
+		return mutants.Passed, nil
+	})
+	if _, err := test("p", ""); !errors.Is(err, context.Canceled) || !stopped {
+		t.Fatalf("err %v, stopped %t", err, stopped)
 	}
 }

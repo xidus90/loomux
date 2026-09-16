@@ -67,28 +67,40 @@ const patience = 120 * time.Second
 
 // GoTest runs `go test` in root with the script's flags. A go command that
 // does not start is an error; a run that ends, however it ends, is an Outcome.
-func GoTest(root string) TestFunc {
+// Every run hangs under ctx, so cancelling it ends the go test processes a
+// round has started instead of leaving them to run out the patience above
+// them.
+func GoTest(ctx context.Context, root string) TestFunc {
 	return func(pkg, overlay string) (Outcome, error) {
 		args := []string{"test"}
 		if overlay != "" {
 			args = append(args, "-overlay", overlay)
 		}
 		args = append(args, "-count=1", "-failfast", "-timeout", goTimeout, "./"+pkg+"/")
-		ctx, cancel := context.WithTimeout(context.Background(), patience)
+		run, cancel := context.WithTimeout(ctx, patience)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "go", args...)
+		cmd := exec.CommandContext(run, "go", args...)
 		cmd.Dir = root
 		cmd.WaitDelay = 5 * time.Second
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &stdout, &stderr
 		err := cmd.Run()
-		timedOut := ctx.Err() != nil
-		var exit *exec.ExitError
-		if err != nil && !timedOut && !errors.As(err, &exit) {
+		timedOut := run.Err() != nil
+		if !finishedRun(err, timedOut) {
 			return 0, err
 		}
 		return classify(stdout.String()+stderr.String(), err == nil, timedOut), nil
 	}
+}
+
+// finishedRun tells a run that came to an end from a go command that never
+// ran. An exit status is a verdict, and so is a child that held the output
+// pipes past WaitDelay: the command itself is over, and what it printed until
+// then is what classify reads. Anything else — no go on the PATH, a working
+// directory that is gone — broke before the suite could answer.
+func finishedRun(err error, timedOut bool) bool {
+	var exit *exec.ExitError
+	return err == nil || timedOut || errors.As(err, &exit) || errors.Is(err, exec.ErrWaitDelay)
 }
 
 // classify reads a finished run the way the script's _run does: a run cut off

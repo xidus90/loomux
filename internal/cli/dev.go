@@ -112,7 +112,7 @@ func devMutants(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		ctx, stop := mutantsNotify(context.Background(), os.Interrupt)
 		defer stop()
 		opts.Root = root
-		_, err = mutants.Round(opts, untilInterrupted(ctx, mutantsTest(root)), stdout)
+		_, err = mutants.Round(opts, untilInterrupted(ctx, stop, mutantsTest(ctx, root)), stdout)
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux dev mutants: %v\n", err)
@@ -130,14 +130,18 @@ func devMutants(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 // for afterwards does not start; a run under way when it came reports the
 // interrupt instead of its verdict. Round stops at the first error and waits
 // for every run it started, so each overlay directory is gone before the
-// command returns.
-func untilInterrupted(ctx context.Context, test mutants.TestFunc) mutants.TestFunc {
+// command returns. Seeing the interrupt also ends the signal registration
+// through stop: while it stands, a second Ctrl+C is swallowed, and the user
+// has no way out of the drain.
+func untilInterrupted(ctx context.Context, stop func(), test mutants.TestFunc) mutants.TestFunc {
 	return func(pkg, overlay string) (mutants.Outcome, error) {
 		if err := ctx.Err(); err != nil {
+			stop()
 			return 0, err
 		}
 		outcome, err := test(pkg, overlay)
 		if interrupted := ctx.Err(); interrupted != nil {
+			stop()
 			return 0, interrupted
 		}
 		return outcome, err
