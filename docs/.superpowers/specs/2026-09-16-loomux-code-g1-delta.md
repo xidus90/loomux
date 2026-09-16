@@ -172,12 +172,14 @@ ID.
 
 ```go
 func New(g *model.Graph) *Index
-func (x *Index) Reach(start []model.NodeID, dir Direction, depth Depth, prefix string) []Hit
+func (x *Index) Reach(start []model.NodeID, dir Direction, depth Depth) []Hit
 ```
 
 `New` baut die gerichtete Adjazenz einmal. `Direction` ist `In` (wer hängt von
-mir ab) oder `Out`; `Depth` ist eine Zahl oder „alle"; `prefix` filtert auf ein
-Pfadpräfix. `Hit` trägt ID, Relation und die Tiefe des ersten Erreichens, dazu
+mir ab) oder `Out`; `Depth` ist eine Zahl oder „alle". Einen Pfadpräfix-Filter
+gibt es hier **nicht**: in Graft verengt `--in` die Symbolauflösung, nicht die
+Treffer (`traverse-cli.ts` reicht ihn an `resolveSymbol`, `edgeWalk` kennt ihn
+nicht). Er gehört damit zur Abfrageschicht. `Hit` trägt ID, Relation und die Tiefe des ersten Erreichens, dazu
 den Knoten — der fehlt, wenn die ID ein unaufgelöstes Importziel ist (§3.4).
 
 Ein Dateiknoten als Startpunkt läuft über sich selbst **und** jedes Symbol
@@ -198,8 +200,14 @@ ausgeführt; MIT erlaubt das, jede Golden-Datei trägt
 
 | Quelle | Fälle | Ziel |
 |---|---:|---|
-| `test/graphrank.test.ts`, Z. 54–215 | 11 | `internal/code/pagerank/testdata/` |
-| `test/graph-traverse.test.ts`, ab Z. 190 | 12 | `internal/code/blast/testdata/` |
+| `test/graphrank.test.ts`, Z. 54–169 | 9 | `internal/code/pagerank` |
+| `test/graph-traverse.test.ts`, ab Z. 190 | 12 | `internal/code/blast` |
+
+Nicht portiert werden Grafts zwei Partitionstests (Z. 182–265,
+`preparePageRankPartitions`): das ist eine Beschleunigung für Abfragen über
+mehrere Geltungsbereiche desselben Graphen, die G1 nicht hat. `Prepare` mit
+seinem Filter deckt dieselbe Rechnung ab; kommt die Mehrbereichsabfrage, kommt
+der Test mit ihr.
 
 Darunter: Cluster schlägt Isoliertes, Nachbarn ohne eigenes Restart-Gewicht
 sammeln Masse, leere und nicht-positive Saat, Kanten auf Nicht-Knoten,
@@ -219,7 +227,17 @@ nicht Verfahren. Die Masse vor der Normierung ist exakt 1,0, was §3.2
 bestätigt. Der Go-Test vergleicht deshalb mit Toleranz 1e-9, wie Graft es tut,
 und nicht auf Gleichheit.
 
-**Golden-Files liegen in `internal/code/*/testdata/`**, nicht unter
+**Wo die Nachweise liegen.** Die Vektoren sind handgebaute Graphen mit wenigen
+Knoten; sie stehen als Go-Literale im Testquelltext, wie sie in Graft als
+TypeScript-Literale stehen, jeweils mit ihrer Herkunftszeile. Eine JSON-Datei
+daraus zu machen hieße, für `pagerank` und `blast` einen Dekoder in den
+Testpfad zu ziehen, den beide Pakete gar nicht kennen — sie nehmen ein
+`model.Graph`. `testdata/` bekommt deshalb nur `internal/code/model`: dort ist
+der Dekoder der Gegenstand, und die Datei zeigt ein `wiring.json` mit allen
+sechs Relationen, einer Konfidenz je Wert, einem unaufgelösten Importziel und
+einer ID mit Dedup-Ordinal.
+
+Beides liegt jedenfalls unter `internal/code/`, nicht unter
 `testdata/cases/`. §9.4 der Säule-3-Spec sagt das andere; `testdata/cases/`
 ist laut seiner eigenen README ausschließlich die Paritätsakte gegen die
 ersetzten Werkzeuge — Aufzeichnungen alter Programme, über eine
