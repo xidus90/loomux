@@ -107,7 +107,7 @@ flowchart TD
 
 ## Feature & Status Matrix
 
-Loomux is currently executing its staged fusion plan (Stage 1a pilot complete; subsequent stages in active development):
+Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1b-1 data commands complete; subsequent stages in active development):
 
 | Pillar / Capability | Description | Status |
 |---|---|---|
@@ -132,6 +132,7 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot complete; s
 | **4. Second Brain & Wiki** | | |
 | Local Markdown Wiki | Bidirectional markdown knowledge base with identity registers and topic graphs. | 🚧 **In Migration** (Stage 2) |
 | Semantic QMD Index | Embedding and neural search integration with local caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stage 3) |
+| Brain Data Commands | `loomux brain search`, `catalog`, `read`, `neighbors` and `status` over the one registry, held to the Python reference by a recorded case corpus. | ✅ **Implemented** (Stage 1b-1) |
 | Brain-to-Graph Bridge | Code symbols link directly to architectural decisions (ADRs) and design documentation. | 📋 **Specified** (Stage W3) |
 | **5. LLM OS & Web Interface** | | |
 | Embedded Web OS Dashboard | Self-contained React/Vite SPA embedded via `go:embed` on `http://127.0.0.1:<port>` with `embed_stub.go` fallback. | 📋 **Specified** (Stage W1) |
@@ -145,9 +146,9 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot complete; s
 
 ## CLI Reference
 
-Commands currently active in the Stage 1a pilot vs. specified for subsequent fusion and graph stages:
+Commands active after Stages 1a and 1b-1 vs. specified for subsequent fusion and graph stages:
 
-### Active Commands (Stage 1a Pilot)
+### Active Commands (Stages 1a and 1b-1)
 ```bash
 loomux check commit-msg <file>      # validate commit message against language & structure rules
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files
@@ -160,6 +161,11 @@ loomux dev covergate                # enforce 100% test coverage per function
 loomux dev swap                     # atomically swap running binary with new compilation
 loomux lint                         # lint markdown wiki links and frontmatter
 loomux wiki gate                    # gate wiki freshness and structural constraints
+loomux brain search "<query>"       # search the visible areas through the qmd daemon (--profile fast|full|keyword)
+loomux brain catalog [--scope S]    # the root catalog of the visible areas, or one area's index.md
+loomux brain read <path> --scope S  # one file of an area, or one section of it (--section)
+loomux brain neighbors <path> --scope S  # incoming and outgoing links of one page
+loomux brain status                 # what to know before trusting an answer
 ```
 
 ### Specified Commands (Code Graph — Stages G1–G5)
@@ -177,9 +183,6 @@ loomux graph viz                    # launch the interactive graph viewer in you
 
 ### Specified Commands (Second Brain & Services — Stages 2–3 & W1–W5)
 ```bash
-loomux brain search "<query>"       # hybrid semantic & keyword search across wiki and ADRs
-loomux brain catalog               # list all tracked areas, topics, and identity documents
-loomux brain read <path>           # read a wiki page, concept, or identity definition
 loomux brain reconcile             # synchronize state changes, identities, and index collections
 loomux serve                        # start long-running localhost HTTP MCP service and Web OS
 loomux mcp                          # stdio bridge for Claude Code, Cursor, and Antigravity

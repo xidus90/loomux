@@ -307,3 +307,32 @@ keine Ausgabe
 Vorhergesagt waren genau die eingefügte `never indexed`-Zeile in `status` -- eine statt
 zweier, weil die Registry keinen Worktree-Block trägt -- und der Aufwärm-Hinweis als erste
 stderr-Zeile von loomux. Nichts darüber hinaus.
+
+## Pilot
+
+Der Rauchtest (Task 16) ist am 2026-09-16 auf Weisung des Nutzers vom
+Implementierer dieses Tasks gefahren und hier abgehakt worden. Gemessen wurde
+gegen die echte Registry (`%LOCALAPPDATA%\loomux\registry.toml`, nach Task 15
+Schritt 1 mit den zehn Bereichen von ultra-brain neben `project/loomux`, ohne
+Worktree-Block) und ultra-brains Zustandsverzeichnis (`%LOCALAPPDATA%\brain`),
+mit `bin/loomux.exe` aus dem Tor von `74e9d54`, ohne `LOOMUX_STATE_DIR` und
+`LOOMUX_LEGACY_BRAIN_DIR`. Was damit **nicht** belegt ist: der Kanal `cloud` auf
+echten Daten und ein Bereich mit `local_only` — beides deckt der Korpus.
+
+- [x] `brain catalog` → Exit 0, so viele Bereiche wie `[[area]]`-Blöcke in der Registry, byte-sortiert.
+- [x] `brain catalog --scope engineering/python` → Exit 0, byte-gleich zu `index.md`.
+- [x] `brain read index.md --scope engineering/python --section Dateien` → Exit 0, der an der Referenz gemessene Abschnitt.
+- [x] `brain neighbors index.md --scope engineering/python` → Exit 0, `incoming: -`, `outgoing: _schema.md, audit.md, log.md`.
+- [x] `brain read ../x.md --scope engineering/python` → Exit 1, `error: engineering/python/../x.md leaves the area`.
+- [x] `brain read index.md` → Exit 2, `loomux brain read: error: the following arguments are required: --scope` (Unterbefehl).
+- [x] `brain catalog extra` → Exit 2, `loomux brain: error: unrecognized arguments: extra` (oberster Parser).
+- [x] `brain search latenz --profile fast` → Exit 0, Stempelbefund als letzte `note:`-Zeile.
+- [x] `brain status` → Exit 0, erste Zeile der Stempel, zweite `project/loomux: never indexed`.
+
+Gemessen am 2026-09-16, Binary `bin/loomux.exe` aus dem Tor von `74e9d54`:
+`catalog` 0 mit 11 Bereichen; `catalog --scope engineering/python` 0, `cmp` 0;
+`read index.md --section Dateien` 0, `cmp` 0; `neighbors index.md` 0, `cmp` 0.
+Verweigert mit 1: `read ../x.md` („leaves the area"). Usage-Fehler mit 2:
+`read index.md` beim Unterbefehl, `catalog extra` beim obersten Parser, `cmp` je
+0. `search latenz --profile fast` 0 mit 5 Treffern und 1 `note:`-Zeile;
+`status` 0 mit 114 Zeilen.

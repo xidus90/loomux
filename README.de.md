@@ -107,7 +107,7 @@ flowchart TD
 
 ## Funktions- & Status-Matrix
 
-Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe 1a Pilot abgeschlossen; Folgestufen in aktiver Entwicklung):
+Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Datenbefehle der Stufe 1b-1 abgeschlossen; Folgestufen in aktiver Entwicklung):
 
 | Säule / Funktion | Beschreibung | Status |
 |---|---|---|
@@ -132,6 +132,7 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe 1a Pilot abgeschl
 | **4. Second Brain & Wiki** | | |
 | Lokales Markdown-Wiki | Bidirektionale Markdown-Wissensbasis mit Identitätsregistern und Themen-Graphen. | 🚧 **In Migration** (Stufe 2) |
 | Semantischer QMD-Index | Einbettung lokaler Vektoren und neuronaler Suche mit Caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stufe 3) |
+| Brain-Datenbefehle | `loomux brain search`, `catalog`, `read`, `neighbors` und `status` über die eine Registry, an der Python-Referenz durch einen aufgezeichneten Fallkorpus gemessen. | ✅ **Implementiert** (Stufe 1b-1) |
 | Brain-zu-Graph Brücke | Code-Symbole verweisen direkt auf Architekturentscheidungen (ADRs) und Dokumentation. | 📋 **Spezifiziert** (Stufe W3) |
 | **5. LLM OS & Web-Interface** | | |
 | Eingebettetes Web-OS | Autarke React/Vite-SPA, per `go:embed` ausgeliefert über `loomux serve` auf `http://127.0.0.1` mit `embed_stub.go`-Fallback. | 📋 **Spezifiziert** (Stufe W1) |
@@ -145,9 +146,9 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe 1a Pilot abgeschl
 
 ## CLI-Referenz
 
-Aktive Befehle des Stufe-1a-Piloten im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Aktive Befehle nach den Stufen 1a und 1b-1 im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
 
-### Aktive Befehle (Stufe 1a Pilot)
+### Aktive Befehle (Stufen 1a und 1b-1)
 ```bash
 loomux check commit-msg <datei>     # Prüft Commit-Nachricht auf englische Sprache und Formatregeln
 loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
@@ -160,6 +161,11 @@ loomux dev covergate                # Erzwingt striktes 100 % Coverage-Tor pro F
 loomux dev swap                     # Tauscht laufendes Binary atomar gegen Neubau aus
 loomux lint                         # Prüft Markdown-Wiki-Links und Frontmatter
 loomux wiki gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
+loomux brain search "<anfrage>"     # Durchsucht die sichtbaren Bereiche über den qmd-Daemon (--profile fast|full|keyword)
+loomux brain catalog [--scope S]    # Wurzelkatalog der sichtbaren Bereiche oder das index.md eines Bereichs
+loomux brain read <pfad> --scope S  # Eine Datei eines Bereichs oder einen Abschnitt daraus (--section)
+loomux brain neighbors <pfad> --scope S  # Eingehende und ausgehende Links einer Seite
+loomux brain status                 # Was man wissen muss, bevor man einer Antwort traut
 ```
 
 ### Spezifizierte Befehle (Code-Graph — Stufen G1–G5)
@@ -177,14 +183,17 @@ loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im B
 
 ### Spezifizierte Befehle (Second Brain & Dienste — Stufen 2–3 & W1–W5)
 ```bash
-loomux brain search "<anfrage>"     # Hybride semantische & Keyword-Suche über Wiki und ADRs
-loomux brain catalog               # Listet alle verwalteten Bereiche, Themen und Identitäten
-loomux brain read <pfad>           # Liest eine Wiki-Seite, ein Konzept oder eine Identität
 loomux brain reconcile             # Synchronisiert Zustandsänderungen, Identitäten und QMD-Sammlungen
 loomux serve                        # Startet den langlebigen localhost HTTP MCP-Dienst und das Web OS
 loomux mcp                          # stdio-Brücke für Claude Code, Cursor und Antigravity
 loomux init                         # Richtet Hooks, Einstellungen und Skills in erkannten Agenten ein
 ```
+
+### Entwickler- & Worktree-Werkzeuge
+```bash
+loomux worktree mirror              # Synchronisiert NTFS-Junctions und Spiegel für Agenten-Worktrees
+loomux dev covergate --profile <p>  # Prüft das strikte 100-%-Coverage-Tor pro Funktion
+loomux dev bench-hooks              # Misst die Latenz der Hook-Ausführung gegen die Grundlinie von < 35 ms
 loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus
 ```
 
