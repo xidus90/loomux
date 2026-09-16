@@ -31,25 +31,6 @@ func TestAreasCarryTheirProperties(t *testing.T) {
 	}
 }
 
-func TestABrokenAreaDoesNotKillTheRest(t *testing.T) {
-	// index_all skips an area without a manifest and says so; catalog and
-	// status abort on it. One broken area must not take the check run down.
-	// No manifest is involved one level down, where this test sits: the second
-	// entry names no `path`, which `_required` (registry.py:149-151) answers
-	// by raising and losing the whole file, and it must be dropped alone while
-	// the entry beside it is still answered.
-	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "registry.toml"),
-		[]byte("[[area]]\nscope = \"a\"\npath = \"/a\"\n\n[[area]]\nscope = \"b\"\n"), 0o644)
-	areas, err := ReadRegistry(dir)
-	if err != nil {
-		t.Fatalf("a malformed entry must be reported per area, not as a whole-file error: %v", err)
-	}
-	if len(areas) != 1 {
-		t.Fatalf("%d usable areas, want 1", len(areas))
-	}
-}
-
 func TestTheThreeStringsComeThroughUnchanged(t *testing.T) {
 	// The two tests above assert only the flags, so a reader that never fills
 	// Scope, Path or WikiPath passes both -- and the later unlisted-area rule
@@ -97,22 +78,78 @@ func TestAnAreaWithoutAWikiKeepsAnEmptyWikiPath(t *testing.T) {
 	}
 }
 
-func TestAnEntryWithoutAScopeIsDroppedToo(t *testing.T) {
-	// `_required` in registry.py demands scope and path alike: a missing or
-	// empty scope raises there before anything else looks at the entry. An
-	// entry with no scope cannot be addressed by any later rule, so dropping
-	// it is the same judgement, taken per entry instead of per file.
+func TestARegistryRefusesWhatItCannotUse(t *testing.T) {
+	// Every rule of the registry, and every TOML type a refusal can name.
+	for name, row := range map[string]struct{ body, want string }{
+		"area as a table": {"[area]\nscope = \"x\"\npath = \"/a\"\n",
+			"area must be an array of [[area]] tables, found table"},
+		"entry not a table": {"area = [1]\n",
+			"[[area]] #1 must be a table, found integer"},
+		"missing scope": {"[[area]]\npath = \"/a\"\n",
+			`[[area]] #1 is missing "scope"`},
+		"scope an integer": {"[[area]]\nscope = 3\npath = \"/a\"\n",
+			"[[area]] #1: scope must be a non-empty string, found integer"},
+		"scope a boolean": {"[[area]]\nscope = true\npath = \"/a\"\n",
+			"[[area]] #1: scope must be a non-empty string, found boolean"},
+		"empty scope": {"[[area]]\nscope = \"\"\npath = \"/a\"\n",
+			`[[area]] #1: scope must be a non-empty string, found ""`},
+		"duplicate scope": {"[[area]]\nscope = \"x\"\npath = \"/a\"\n\n[[area]]\nscope = \"x\"\npath = \"/b\"\n",
+			`[[area]] #2: duplicate scope "x" (first at #1)`},
+		"unusable scope": {"[[area]]\nscope = \"///\"\npath = \"/a\"\n",
+			`[[area]] "///": scope has no letter, digit, "_", "." or "-" and cannot name a state directory`},
+		"shared state directory": {"[[area]]\nscope = \"a/b\"\npath = \"/a\"\n\n[[area]]\nscope = \"a-b\"\npath = \"/b\"\n",
+			`scopes "a/b" and "a-b" share the state directory "a-b"`},
+		"missing path": {"[[area]]\nscope = \"x\"\n",
+			`[[area]] "x" is missing "path"`},
+		"path a datetime": {"[[area]]\nscope = \"x\"\npath = 1979-05-27\n",
+			`[[area]] "x": path must be a non-empty string, found datetime`},
+		"empty path": {"[[area]]\nscope = \"x\"\npath = \"\"\n",
+			`[[area]] "x": path must be a non-empty string, found ""`},
+		"wiki an array": {"[[area]]\nscope = \"x\"\npath = \"/a\"\nwiki = [\"/a\"]\n",
+			`[[area]] "x": wiki must be a non-empty string, found array`},
+		"empty wiki": {"[[area]]\nscope = \"x\"\npath = \"/a\"\nwiki = \"\"\n",
+			`[[area]] "x": wiki must be a non-empty string, found ""`},
+		"readonly a string": {"[[area]]\nscope = \"x\"\npath = \"/a\"\nreadonly = \"yes\"\n",
+			`[[area]] "x": readonly must be a boolean, found string`},
+		"signpost an integer": {"[[area]]\nscope = \"x\"\npath = \"/a\"\nsignpost = 1\n",
+			`[[area]] "x": signpost must be a boolean, found integer`},
+		"shared a float": {"[[area]]\nscope = \"x\"\npath = \"/a\"\nshared = 1.5\n",
+			`[[area]] "x": shared must be a boolean, found float`},
+		"workspace an integer": {"[[area]]\nscope = \"x\"\npath = \"/a\"\nworkspace = 0\n",
+			`[[area]] "x": workspace must be a boolean, found integer`},
+		"two signposts": {"[[area]]\nscope = \"x\"\npath = \"/a\"\nsignpost = true\n\n[[area]]\nscope = \"y\"\npath = \"/b\"\nsignpost = true\n",
+			`scopes "x" and "y" both declare signpost; only one area may`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeRegistry(t, dir, row.body)
+			areas, err := ReadRegistry(dir)
+			want := filepath.Join(dir, "registry.toml") + ": " + row.want
+			if err == nil || err.Error() != want {
+				t.Fatalf("ReadRegistry = %+v, %v; want %q", areas, err, want)
+			}
+		})
+	}
+}
+
+func TestARegistryWithoutAreasAnswersNone(t *testing.T) {
+	for _, body := range []string{"", "area = []\n"} {
+		dir := t.TempDir()
+		writeRegistry(t, dir, body)
+		areas, err := ReadRegistry(dir)
+		if err != nil || len(areas) != 0 {
+			t.Errorf("%q: ReadRegistry = %+v, %v; want no areas", body, areas, err)
+		}
+	}
+}
+
+func TestFalseFlagsAndOneSignpostAreFine(t *testing.T) {
 	dir := t.TempDir()
-	writeRegistry(t, dir, "[[area]]\npath = \"/a\"\n\n[[area]]\nscope = \"b\"\npath = \"/b\"\n")
+	writeRegistry(t, dir, "[[area]]\nscope = \"x\"\npath = \"/a\"\nreadonly = false\nsignpost = true\n\n"+
+		"[[area]]\nscope = \"y\"\npath = \"/b\"\nsignpost = false\n")
 	areas, err := ReadRegistry(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(areas) != 1 {
-		t.Fatalf("%d usable areas, want 1", len(areas))
-	}
-	if areas[0].Scope != "b" {
-		t.Errorf("Scope = %q; the entry without a scope was kept instead of the one with it", areas[0].Scope)
+	if err != nil || len(areas) != 2 || areas[0].ReadOnly || !areas[0].Signpost || areas[1].Signpost {
+		t.Fatalf("ReadRegistry = %+v, %v", areas, err)
 	}
 }
 
@@ -133,15 +170,15 @@ func TestAMissingRegistryIsAnError(t *testing.T) {
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("error %q does not carry the cause; a caller cannot tell a missing registry from an unreadable one", err)
 	}
+	if n := strings.Count(err.Error(), "registry.toml"); n != 1 {
+		t.Errorf("error %q names the file %d times; the read error already names it once", err, n)
+	}
 }
 
 func TestABrokenRegistryFileIsAnError(t *testing.T) {
 	// A file that does not parse yields zero entries from the decoder, which
 	// is indistinguishable from an empty registry unless the error is passed
-	// on. Measured, the same branch catches `[area]` written as a table
-	// instead of `[[area]]`: BurntSushi answers "TOML value has type
-	// map[string]any; destination has type slice", where registry.py has its
-	// own message for that case.
+	// on.
 	dir := t.TempDir()
 	writeRegistry(t, dir, "[[area]\nscope = \"a\"\n")
 	areas, err := ReadRegistry(dir)

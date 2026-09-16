@@ -21,12 +21,10 @@ const registryName = "registry.toml"
 // so a reader that cleaned or converted them would answer a path the file
 // never contained; whoever joins these onto something else owes the joining.
 //
-// WikiPath is the one optional value. `registry.py` builds it as
-// `Path(wiki) if wiki else None`; the empty string is this reader's None,
-// because Go has no absent string and a pointer would push the distinction
-// into every caller for the one field that has it. Of the nine areas in the
-// real registry, none omits `wiki` today -- but `registry.py` allows it, so
-// this reader does too.
+// WikiPath is the one optional value: an entry without `wiki` registers an
+// area with WikiPath "", and an entry with an empty `wiki` is refused, so ""
+// always means "names no wiki". A pointer would push that distinction into
+// every caller for the one field that has it.
 type Area struct {
 	Scope    string
 	Path     string
@@ -48,80 +46,134 @@ type Area struct {
 	Workspace bool
 }
 
-// registryEntry is the wire shape of one `[[area]]` table. It is separate from
-// Area because the two are not the same thing: the file spells the wiki path
-// `wiki`, and an entry may be unusable while an Area may not.
-type registryEntry struct {
-	Scope    string `toml:"scope"`
-	Path     string `toml:"path"`
-	Wiki     string `toml:"wiki"`
-	ReadOnly bool   `toml:"readonly"`
-	Signpost bool   `toml:"signpost"`
-	Shared   bool   `toml:"shared"`
-
-	Workspace bool `toml:"workspace"`
-}
-
-type registryFile struct {
-	Area []registryEntry `toml:"area"`
-}
-
-// ReadRegistry reads the areas registered in stateDir.
+// ReadRegistry reads the areas registered in stateDir and refuses a registry
+// it cannot use whole. The write barrier reads the same file through this
+// function, so a registry either works for both or for neither.
 //
-// It reads and does not judge. `read_registry` in src/brain/registry.py
-// refuses a duplicate scope, two scopes that sanitise to one state directory,
-// and a second `signpost`; none of that is repeated here, because the checks
-// that need those rules are still to be written and a second place that
-// decides them would be a second source of truth.
-//
-// The one deliberate difference in behaviour, not just in scope: an entry
-// without `scope` or `path` is dropped and the rest of the registry is
-// answered, where `_required` raises and takes the whole file with it. No
-// Python caller softens that -- `index_all` (src/brain/cli.py:236) calls
-// `read_registry` first and dies with it. What `index_all` skips one level
-// further on (cli.py:238-247) is a different class: an entry that parsed, but
-// whose directory or manifest is gone. `read_registry` inspects neither.
-// The skip here is therefore new behaviour, asked for by the brief, and not a
-// tolerance copied from somewhere.
-//
-// What this signature cannot do is say which entry was dropped: it returns
-// areas and one error, and the error is reserved for the whole file. The
-// caller sees a shorter slice and nothing else. Whoever drives this reader
-// from a command owes the `index_all` line.
+// A broken entry refuses the call instead of being skipped: two entries of
+// one scope or one state directory leave nothing that could safely be
+// dropped, and a skipped entry would show brain a different registry than
+// the barrier sees.
 func ReadRegistry(stateDir string) ([]Area, error) {
 	path := filepath.Join(stateDir, registryName)
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		return nil, err
 	}
-	file := registryFile{}
-	if err := toml.Unmarshal(data, &file); err != nil {
-		// Everything the decoder rejects lands here, and that is wider than
-		// `tomllib.TOMLDecodeError` on the Python side. Measured, two inputs
-		// that registry.py handles itself end up here instead: `[area]`
-		// written as a table gives "TOML value has type map[string]any;
-		// destination has type slice" (registry.py has its own message for
-		// it), and `readonly = "yes"` fails the whole file, where
-		// `bool(entry.get("readonly", False))` reads True.
+	document := map[string]any{}
+	if err := toml.Unmarshal(data, &document); err != nil {
 		return nil, fmt.Errorf("%s: not valid TOML: %w", path, err)
 	}
-	areas := make([]Area, 0, len(file.Area))
-	for _, entry := range file.Area {
-		if entry.Scope == "" || entry.Path == "" {
-			continue
+	entries, err := areaEntries(document)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	reading := registryReading{
+		stateDir:    stateDir,
+		positions:   map[string]int{},
+		directories: map[string]string{},
+	}
+	areas := make([]Area, 0, len(entries))
+	for i, entry := range entries {
+		area, err := reading.area(i+1, entry)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		areas = append(areas, Area{
-			Scope:    entry.Scope,
-			Path:     entry.Path,
-			WikiPath: entry.Wiki,
-			ReadOnly: entry.ReadOnly,
-			Signpost: entry.Signpost,
-			Shared:   entry.Shared,
-
-			Workspace: entry.Workspace,
-		})
+		areas = append(areas, area)
 	}
 	return areas, nil
+}
+
+// areaEntries is the `area` array. The decoder answers []map[string]any
+// when every element is a table and []any otherwise.
+func areaEntries(document map[string]any) ([]any, error) {
+	switch value := document["area"].(type) {
+	case nil:
+		return nil, nil
+	case []map[string]any:
+		entries := make([]any, len(value))
+		for i, entry := range value {
+			entries[i] = entry
+		}
+		return entries, nil
+	case []any:
+		return value, nil
+	default:
+		return nil, fmt.Errorf("area must be an array of [[area]] tables, found %s", tomlType(value))
+	}
+}
+
+// registryReading carries what one entry's rules need to know about the
+// entries before it.
+type registryReading struct {
+	stateDir    string
+	positions   map[string]int
+	directories map[string]string
+	signposted  string
+}
+
+// area checks one entry in the order of the spec's rules G4 to G14.
+func (r *registryReading) area(position int, raw any) (Area, error) {
+	entry, ok := raw.(map[string]any)
+	if !ok {
+		return Area{}, fmt.Errorf("[[area]] #%d must be a table, found %s", position, tomlType(raw))
+	}
+	numbered := fmt.Sprintf("[[area]] #%d", position)
+	scope, err := requiredString(entry, "scope", numbered, ": ")
+	if err != nil {
+		return Area{}, err
+	}
+	if first, taken := r.positions[scope]; taken {
+		return Area{}, fmt.Errorf("%s: duplicate scope %q (first at #%d)", numbered, scope, first)
+	}
+	r.positions[scope] = position
+	named := fmt.Sprintf("[[area]] %q", scope)
+	directory := stateDirOf(r.stateDir, scope)
+	if directory == stateDirOf(r.stateDir, "") {
+		return Area{}, fmt.Errorf(`%s: scope has no letter, digit, "_", "." or "-" and cannot name a state directory`, named)
+	}
+	if other, taken := r.directories[directory]; taken {
+		return Area{}, fmt.Errorf("scopes %q and %q share the state directory %q", other, scope, filepath.Base(directory))
+	}
+	r.directories[directory] = scope
+	path, err := requiredString(entry, "path", named, ": ")
+	if err != nil {
+		return Area{}, err
+	}
+	wiki, err := optionalString(entry, "wiki", named, ": ")
+	if err != nil {
+		return Area{}, err
+	}
+	flags := map[string]bool{}
+	for _, key := range []string{"readonly", "signpost", "shared", "workspace"} {
+		flag, err := optionalBool(entry, key, named, ": ")
+		if err != nil {
+			return Area{}, err
+		}
+		flags[key] = flag
+	}
+	if flags["signpost"] {
+		if r.signposted != "" {
+			return Area{}, fmt.Errorf("scopes %q and %q both declare signpost; only one area may", r.signposted, scope)
+		}
+		r.signposted = scope
+	}
+	return Area{
+		Scope:    scope,
+		Path:     path,
+		WikiPath: wiki,
+		ReadOnly: flags["readonly"],
+		Signpost: flags["signpost"],
+		Shared:   flags["shared"],
+
+		Workspace: flags["workspace"],
+	}, nil
+}
+
+// stateDirOf is the directory a read-only area of this scope keeps its
+// artefacts in; ManifestDir holds the rule that names it.
+func stateDirOf(stateDir, scope string) string {
+	return ManifestDir(Area{Scope: scope, ReadOnly: true}, stateDir)
 }
 
 // stateDirEnv is the variable `paths._ENV` names.
