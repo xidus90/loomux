@@ -103,26 +103,26 @@ Frontmatter. Die Zeile gehört in der Fusions-Spec richtiggestellt.
 
 | Datei | Zeilen | Stand | Vorschlag | Begründung | Freigabe |
 |---|---:|---|---|---|---|
-| `ub/docs/produkt-design.md` | 132 | 2026-09-06 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ub/docs/installation.md` | 385 | 2026-09-06 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ub/docs/hooks.md` | 207 | 2026-09-14 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
+| `ub/docs/produkt-design.md` | 132 | 2026-09-06 | **behalten** | Entscheidungen der Selbsteinrichtung; Rohquelle für `loomux init` (Stufe 4), zieht nach `specs-ub/` | offen |
+| `ub/docs/installation.md` | 385 | 2026-09-06 | **aktualisieren** | Einrichtung des alten Werkzeugs (uv, PATH, `brain init`); brauchbar sind „Einen Bereich einrichten", „Wo was liegt" und „Was dabei schiefging" — einarbeiten in `getting-started` und `configuration` | offen |
+| `ub/docs/hooks.md` | 207 | 2026-09-14 | **aktualisieren** | Prüfkette des alten Repos; CRLF-Abschnitt und „Die Schreibschranke und das Memory der Agenten" gehören in loomux' `hooks` bzw. `configuration` | offen |
 
 ## 4. Nutzerdoku ultraloom (12 Dateien)
 
 | Datei | Zeilen | Stand | Vorschlag | Begründung | Freigabe |
 |---|---:|---|---|---|---|
-| `ul/docs/flows/verify-until-green.md` | 1013 | 2026-08-25 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/flows/verify-until-green.de.md` | 1031 | 2026-08-25 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/flows/policy.md` | 79 | 2026-08-31 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/flows/policy.de.md` | 83 | 2026-08-31 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/flows/session-hooks.md` | 227 | 2026-09-10 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/flows/session-hooks.de.md` | 244 | 2026-09-10 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/flows/worktree-mirror.md` | 384 | 2026-09-10 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/flows/worktree-mirror.de.md` | 400 | 2026-09-10 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/hooks.de.md` | 118 | 2026-09-11 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/hooks.md` | 118 | 2026-09-11 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/benchmarks.md` | 198 | 2026-09-11 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
-| `ul/docs/benchmarks.de.md` | 204 | 2026-09-11 | **aktualisieren** | Nutzerdoku: Inhalt in `docs/en` bzw. `docs/de` von loomux einarbeiten, nicht kopieren | offen |
+| `ul/docs/flows/verify-until-green.md` | 1013 | 2026-08-25 | **Archiv** | `verify_until_green` gehört laut Fusions-Spec zum Flow-Folgeprojekt (ulflow M2/M3), nicht zu loomux | offen |
+| `ul/docs/flows/verify-until-green.de.md` | 1031 | 2026-08-25 | **Archiv** | Deutsche Fassung, gleiche Begründung | offen |
+| `ul/docs/flows/policy.md` | 79 | 2026-08-31 | **aktualisieren** | Beschreibt den Entscheidungsweg der Policy, den loomux heute geht — Pfade und Dateinamen sind andere | offen |
+| `ul/docs/flows/policy.de.md` | 83 | 2026-08-31 | **aktualisieren** | Deutsche Fassung, gleiche Behandlung | offen |
+| `ul/docs/flows/session-hooks.md` | 227 | 2026-09-10 | **aktualisieren** | Die fünf Sitzungshooks kommen erst mit Stufe 2; Text beschreibt sie am alten Binary | offen |
+| `ul/docs/flows/session-hooks.de.md` | 244 | 2026-09-10 | **aktualisieren** | Deutsche Fassung, gleiche Behandlung | offen |
+| `ul/docs/flows/worktree-mirror.md` | 384 | 2026-09-10 | **aktualisieren** | Worktree-Spiegelung läuft in loomux (Stufe 1a); Befehlsnamen und Pfade richten | offen |
+| `ul/docs/flows/worktree-mirror.de.md` | 400 | 2026-09-10 | **aktualisieren** | Deutsche Fassung, gleiche Behandlung | offen |
+| `ul/docs/hooks.de.md` | 118 | 2026-09-11 | **aktualisieren** | Deutsche Fassung von `ul/docs/hooks.md`, gleiche Behandlung | offen |
+| `ul/docs/hooks.md` | 118 | 2026-09-11 | **aktualisieren** | Hook-Architektur des alten Binaries; neu ist nur die Tabelle der Sprachstacks und Werkzeugketten — der Rest steht in loomux' `hooks` | offen |
+| `ul/docs/benchmarks.md` | 198 | 2026-09-11 | **Archiv** | Messungen des alten Binaries; loomux führt eine eigene chronologische Reihe und zitiert die alten Werte, wo sie die Grundlinie sind | offen |
+| `ul/docs/benchmarks.de.md` | 204 | 2026-09-11 | **Archiv** | Deutsche Fassung, gleiche Begründung | offen |
 
 ## 5. Arbeitspapiere ultra-brain (71 Dateien)
 
