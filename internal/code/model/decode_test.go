@@ -19,14 +19,32 @@ func TestDecodeSample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(g.Nodes) != 6 || len(g.Edges) != 6 {
-		t.Fatalf("got %d nodes and %d edges, want 6 and 6", len(g.Nodes), len(g.Edges))
+	if len(g.Nodes) != 7 || len(g.Edges) != 6 {
+		t.Fatalf("got %d nodes and %d edges, want 7 and 6", len(g.Nodes), len(g.Edges))
 	}
 	if g.Nodes[0].Signature != "" {
 		t.Errorf("a null signature must decode as empty, got %q", g.Nodes[0].Signature)
 	}
+	if g.Nodes[0].Kind != model.KindFile {
+		t.Errorf("a renamed \"kind\" tag would hide every file node, got %q", g.Nodes[0].Kind)
+	}
+	if g.Nodes[0].Name != "cache.ts" {
+		t.Errorf("a renamed \"name\" tag would leave every node nameless, got %q", g.Nodes[0].Name)
+	}
+	if g.Nodes[0].Span != "L1-L90" {
+		t.Errorf("a renamed \"span\" tag would cost every node its line range, got %q", g.Nodes[0].Span)
+	}
 	if g.Nodes[2].Owner != "Cache" {
 		t.Errorf("got owner %q, want %q", g.Nodes[2].Owner, "Cache")
+	}
+	if !g.Nodes[2].Exported {
+		t.Errorf("a renamed \"exported\" tag would make every symbol private, got %v", g.Nodes[2].Exported)
+	}
+	if g.Nodes[2].Signature != "get(k: string): number" {
+		t.Errorf("a renamed \"signature\" tag would silently empty every signature, got %q", g.Nodes[2].Signature)
+	}
+	if g.Edges[0].Relation != model.RelationContains {
+		t.Errorf("a renamed \"relation\" tag would leave every edge meaningless, got %q", g.Edges[0].Relation)
 	}
 	if g.Edges[2].Target != "npm:lodash" {
 		t.Errorf("an unresolved import target must survive decoding, got %q", g.Edges[2].Target)
