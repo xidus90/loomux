@@ -9,58 +9,80 @@ Abschnitt „Datenumzug", Punkt 1 — Stufe 1b, vor dem Kopieren.
 alten Repo liegen, wird nicht kopiert).
 **Vorschlag** ist mein Vorschlag, nicht die Entscheidung.
 
+**Ziel:** `docs/wiki` im loomux-Repo — so steht es im Manifest (`[layout] wiki`)
+und in der Registry (`wiki = ".../loomux/docs/wiki"`). Das Verzeichnis gibt es
+noch nicht; sobald es entsteht, laufen `lint` und `wiki gate` darüber.
+
 Nach der Freigabe wird kopiert: Seiten samt `_identities.tsv`, Bereich
 `project/loomux`, Links `brain://project/ultra-brain/…` und
 `brain://project/ultraloom/…` umgeschrieben. Der Suchindex folgt erst mit
 `reindex` — der Befehl entsteht in Stufe 3.
 
+## Vor den Zeilen: zwei Entscheidungen
+
+**A — die Quellenkette.** Jede verdichtete Seite trägt in der Frontmatter
+`resource`, `content_hash` und `revision` ihrer Quelle. Zwölf Ziele werden
+zitiert: die alte Architektur-Spec, zehn Pläne und `bench/2c1/entscheidung-46.md`
+(außerhalb von `docs/`, damit außerhalb dieser Liste). Elf der zwölf Prüfsummen
+stimmen heute noch, nur die der Architektur-Spec nicht. Nach dem Vorschlag
+unten liegen elf dieser Ziele im Archiv, die Verweise zeigen also ins Leere —
+und `reconcile`, das so etwas richtet, entsteht erst in Stufe 3.
+
+**B — die Kataloge.** Beide Bundles bringen `index.md`, `log.md`, `audit.md`,
+`_schema.md` und `_identities.tsv` mit; im Zielbereich kann es jede Datei nur
+einmal geben.
+
+**Berichtigung der Spec:** sie nennt „`_identities.tsv` (10 und 1)". Beide
+Register enthalten nur die Kopfzeile; die Identitäten stehen je Seite in der
+Frontmatter. Die Zeile gehört in der Fusions-Spec richtiggestellt.
+
 ## 1. Wiki-Bundle ultra-brain (33 Dateien)
 
 | Datei | Zeilen | Stand | Vorschlag | Begründung | Freigabe |
 |---|---:|---|---|---|---|
-| `ub/docs/wiki/topics/wiki-schicht.md` | 113 | 2026-08-30 | **aktualisieren** | Themenseite nennt die alte Werkzeugteilung | offen |
-| `ub/docs/wiki/topics/datenmodell-und-bereiche.md` | 114 | 2026-08-30 | **aktualisieren** | Themenseite nennt die alte Werkzeugteilung | offen |
-| `ub/docs/wiki/topics/suche-und-profile.md` | 140 | 2026-08-30 | **aktualisieren** | Themenseite nennt die alte Werkzeugteilung | offen |
-| `ub/docs/wiki/topics/index.md` | 14 | 2026-08-30 | **aktualisieren** | Katalogseite: Bereichsname und Links auf `project/loomux` | offen |
-| `ub/docs/wiki/index.md` | 16 | 2026-08-30 | **aktualisieren** | Katalogseite: Bereichsname und Links auf `project/loomux` | offen |
-| `ub/docs/wiki/sources/index.md` | 17 | 2026-08-30 | **aktualisieren** | Katalogseite: Bereichsname und Links auf `project/loomux` | offen |
-| `ub/docs/wiki/_identities.tsv` | 1 | 2026-08-30 | **behalten** | Identitätsregister zieht mit, wird nicht neu erzeugt | offen |
-| `ub/docs/wiki/entities/okf.md` | 34 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/_schema.md` | 42 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/log.md` | 46 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/sources/plan-scheibe-2b-messwerk.md` | 46 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/sources/plan-scheibe-2a-nacharbeit.md` | 47 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/sources/plan-scheibe-2c1-daemon.md` | 48 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/syntheses/gegenpruefung-vor-jeder-designempfehlung.md` | 48 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/audit.md` | 4 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/entities/qmd.md` | 56 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/sources/entscheidungen-scheibe-2a.md` | 58 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/sources/plan-scheibe-2a-suchkette.md` | 58 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/entities/brain-daemon.md` | 61 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/sources/architektur-spec.md` | 62 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/topics/datenschutz-und-kanaele.md` | 62 | 2026-08-30 | **aktualisieren** | Themenseite nennt die alte Werkzeugteilung | offen |
-| `ub/docs/wiki/syntheses/warum-fast-die-vorgabe-bleibt.md` | 65 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/sources/plan-pruefkorpus-v1.md` | 66 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/topics/abnahmen-und-echte-umgebung.md` | 70 | 2026-08-30 | **aktualisieren** | Themenseite nennt die alte Werkzeugteilung | offen |
-| `ub/docs/wiki/topics/architektur-grundsaetze.md` | 70 | 2026-08-30 | **aktualisieren** | Themenseite nennt die alte Werkzeugteilung | offen |
-| `ub/docs/wiki/sources/plan-scheibe-2c2-mcp-fronten.md` | 71 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/topics/scheiben-und-abnahme.md` | 72 | 2026-08-30 | **aktualisieren** | Themenseite nennt die alte Werkzeugteilung | offen |
-| `ub/docs/wiki/sources/plan-scheibe-1-indexer.md` | 74 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/sources/abnahme-scheibe-2a.md` | 78 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/syntheses/index.md` | 8 | 2026-08-30 | **aktualisieren** | Katalogseite: Bereichsname und Links auf `project/loomux` | offen |
-| `ub/docs/wiki/sources/plan-scheibe-0-fundament.md` | 95 | 2026-08-30 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ub/docs/wiki/topics/brain-maintenance.md` | 95 | 2026-08-30 | **aktualisieren** | Themenseite nennt die alte Werkzeugteilung | offen |
-| `ub/docs/wiki/entities/index.md` | 9 | 2026-08-30 | **aktualisieren** | Katalogseite: Bereichsname und Links auf `project/loomux` | offen |
+| `ub/docs/wiki/topics/wiki-schicht.md` | 113 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
+| `ub/docs/wiki/topics/datenmodell-und-bereiche.md` | 114 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
+| `ub/docs/wiki/topics/suche-und-profile.md` | 140 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
+| `ub/docs/wiki/topics/index.md` | 14 | 2026-08-30 | **aktualisieren** | Katalogseite, Einträge nach dem Umzug neu | offen |
+| `ub/docs/wiki/index.md` | 16 | 2026-08-30 | **aktualisieren** | Katalog der Wurzel, mit dem ul-Bundle zusammenzuführen | offen |
+| `ub/docs/wiki/sources/index.md` | 17 | 2026-08-30 | **aktualisieren** | Katalogseite; Zeile 6 trägt „Architektur-Design ultra-brain" im Linktext | offen |
+| `ub/docs/wiki/_identities.tsv` | 1 | 2026-08-30 | **behalten** | Nur die Kopfzeile, kein Eintrag — die Identitäten stehen je Seite in der Frontmatter (`doc_id`, `content_hash`, `revision`) | offen |
+| `ub/docs/wiki/entities/okf.md` | 34 | 2026-08-30 | **behalten** | Begriffsseite ohne Bezug auf die Werkzeugteilung | offen |
+| `ub/docs/wiki/_schema.md` | 42 | 2026-08-30 | **aktualisieren** | Zeile 42 nennt `project/ultra-brain` als Bereich | offen |
+| `ub/docs/wiki/log.md` | 46 | 2026-08-30 | **aktualisieren** | Zeile 7 nennt den Pfad der alten Architektur-Spec | offen |
+| `ub/docs/wiki/sources/plan-scheibe-2b-messwerk.md` | 46 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/sources/plan-scheibe-2a-nacharbeit.md` | 47 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/sources/plan-scheibe-2c1-daemon.md` | 48 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/syntheses/gegenpruefung-vor-jeder-designempfehlung.md` | 48 | 2026-08-30 | **behalten** | Seite zieht um; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/audit.md` | 4 | 2026-08-30 | **behalten** | Wartungsprotokoll, vier Zeilen, ohne Namensbezug | offen |
+| `ub/docs/wiki/entities/qmd.md` | 56 | 2026-08-30 | **aktualisieren** | Paritätszeilen 1–2: Profile und Rangfolge sind in loomux andere | offen |
+| `ub/docs/wiki/sources/entscheidungen-scheibe-2a.md` | 58 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/sources/plan-scheibe-2a-suchkette.md` | 58 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/entities/brain-daemon.md` | 61 | 2026-08-30 | **aktualisieren** | Paritätszeile 49: loomux fragt nie einen brain-Daemon | offen |
+| `ub/docs/wiki/sources/architektur-spec.md` | 62 | 2026-08-30 | **aktualisieren** | Titel lautet „Architektur-Design ultra-brain"; die Quelle selbst ist die einzige, deren `content_hash` heute nicht mehr stimmt | offen |
+| `ub/docs/wiki/topics/datenschutz-und-kanaele.md` | 62 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
+| `ub/docs/wiki/syntheses/warum-fast-die-vorgabe-bleibt.md` | 65 | 2026-08-30 | **aktualisieren** | Zeile 40 nennt `project/ultra-brain` und die Datei `bench/2c1/entscheidung-46.md` außerhalb von `docs/` | offen |
+| `ub/docs/wiki/sources/plan-pruefkorpus-v1.md` | 66 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/topics/abnahmen-und-echte-umgebung.md` | 70 | 2026-08-30 | **behalten** | Keine Prosa-Nennung der alten Namen, nur `brain://`-Quellen | offen |
+| `ub/docs/wiki/topics/architektur-grundsaetze.md` | 70 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
+| `ub/docs/wiki/sources/plan-scheibe-2c2-mcp-fronten.md` | 71 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/topics/scheiben-und-abnahme.md` | 72 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
+| `ub/docs/wiki/sources/plan-scheibe-1-indexer.md` | 74 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/sources/abnahme-scheibe-2a.md` | 78 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/syntheses/index.md` | 8 | 2026-08-30 | **aktualisieren** | Katalogseite, Einträge nach dem Umzug neu | offen |
+| `ub/docs/wiki/sources/plan-scheibe-0-fundament.md` | 95 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | offen |
+| `ub/docs/wiki/topics/brain-maintenance.md` | 95 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | offen |
+| `ub/docs/wiki/entities/index.md` | 9 | 2026-08-30 | **aktualisieren** | Katalogseite, Einträge nach dem Umzug neu | offen |
 
 ## 2. Wiki-Bundle ultraloom (5 Dateien)
 
 | Datei | Zeilen | Stand | Vorschlag | Begründung | Freigabe |
 |---|---:|---|---|---|---|
-| `ul/docs/wiki/_identities.tsv` | 1 | 2026-09-06 | **behalten** | Identitätsregister zieht mit, wird nicht neu erzeugt | offen |
-| `ul/docs/wiki/_schema.md` | 34 | 2026-09-06 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ul/docs/wiki/index.md` | 3 | 2026-09-06 | **aktualisieren** | Katalogseite: Bereichsname und Links auf `project/loomux` | offen |
-| `ul/docs/wiki/audit.md` | 4 | 2026-09-06 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
-| `ul/docs/wiki/log.md` | 4 | 2026-09-06 | **behalten** | Seite zieht wortgleich um, `brain://`-Links umgeschrieben | offen |
+| `ul/docs/wiki/_identities.tsv` | 1 | 2026-09-06 | **Archiv** | Gerüst ohne Seiten (Katalog drei Zeilen, Log und Audit je vier, Register nur Kopfzeile); die Kataloge des ub-Bundles werden übernommen | offen |
+| `ul/docs/wiki/_schema.md` | 34 | 2026-09-06 | **Archiv** | Gerüst ohne Seiten (Katalog drei Zeilen, Log und Audit je vier, Register nur Kopfzeile); die Kataloge des ub-Bundles werden übernommen | offen |
+| `ul/docs/wiki/index.md` | 3 | 2026-09-06 | **Archiv** | Gerüst ohne Seiten (Katalog drei Zeilen, Log und Audit je vier, Register nur Kopfzeile); die Kataloge des ub-Bundles werden übernommen | offen |
+| `ul/docs/wiki/audit.md` | 4 | 2026-09-06 | **Archiv** | Gerüst ohne Seiten (Katalog drei Zeilen, Log und Audit je vier, Register nur Kopfzeile); die Kataloge des ub-Bundles werden übernommen | offen |
+| `ul/docs/wiki/log.md` | 4 | 2026-09-06 | **Archiv** | Gerüst ohne Seiten (Katalog drei Zeilen, Log und Audit je vier, Register nur Kopfzeile); die Kataloge des ub-Bundles werden übernommen | offen |
 
 ## 3. Nutzerdoku ultra-brain (3 Dateien)
 
