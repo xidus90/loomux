@@ -1,0 +1,6 @@
+# Stage 1b-1 translates one command prefix. brain-mcp is the console script
+# of the Python reference; its five read commands live under loomux brain.
+
+[[command]]
+from = "brain-mcp "
+to   = "loomux brain "

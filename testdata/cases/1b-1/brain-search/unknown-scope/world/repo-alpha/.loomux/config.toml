@@ -1,0 +1,8 @@
+[area]
+  scope = "project/alpha"
+
+[layout]
+  review = "review"
+
+[privacy]
+  never = ["secret/**"]

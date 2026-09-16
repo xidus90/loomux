@@ -1,0 +1,3 @@
+last reconcile: 2999-01-01T00:00:00+00:00
+project/a: only 2 of 5 links resolved (external=1, unknown_target=2)
+project/b: only 1 of 3 links resolved ()

@@ -1,0 +1,3 @@
+last reconcile: 2000-01-01T00:00:00+00:00; older than 24 h, run `brain reconcile`
+project/beta: the search engine sees only *.md; also declared: docs/*.md
+project/gamma: never indexed; run `brain reindex`

@@ -1,0 +1,1 @@
+brain-mcp read secret/key.md --scope project/alpha

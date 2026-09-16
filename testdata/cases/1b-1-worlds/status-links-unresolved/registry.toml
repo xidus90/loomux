@@ -1,0 +1,11 @@
+[[area]]
+scope = "project/a"
+path = "{{WORLD}}/repo-a"
+
+[[area]]
+scope = "project/b"
+path = "{{WORLD}}/repo-b"
+
+[[area]]
+scope = "project/c"
+path = "{{WORLD}}/repo-c"
