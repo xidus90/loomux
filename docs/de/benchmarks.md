@@ -302,7 +302,8 @@ Registeranteil: `go test ./internal/brain/search/ -run '^$' -bench 'OfTheRealReg
 mit `LOOMUX_BENCH_REGISTRY`/`LOOMUX_BENCH_LEGACY` auf denselben Verzeichnissen.
 Startzeit: `GODEBUG=inittrace=1 loomux --version`, je drei Läufe, am Binary des Commits
 vor Task 3 (`aa945cb^`) und an `bin/loomux.exe`. Maschine: AMD Ryzen 7 9800X3D,
-Go `windows/amd64`, GOMAXPROCS 16.
+Go `windows/amd64`, GOMAXPROCS 16, qmd 2.8.3 auf CUDA (der Vorgabe-Backbone von
+loomux; weder `QMD_LLAMA_GPU` noch `QMD_FORCE_CPU` gesetzt).
 
 **Was diese Zahlen unvergleichbar macht.** Dreierlei. (1) `qmd mcp stop` konnte den Daemon
 nicht beenden: Ein einziges `qmd status` löscht `~/.cache/qmd/mcp.pid`, während der
@@ -325,7 +326,7 @@ den drei Aufwärmaufrufen schon warm, `status` zuletzt.
 | kalter Daemon (vor jedem Lauf gestoppt) | Lauf 1 | Lauf 2 | Lauf 3 |
 |---|---:|---:|---:|
 | brain search latenz --profile keyword | 1,15 s | 0,90 s | 0,89 s |
-| brain search latenz --profile fast | 11,62 s | 4,34 s | 7,71 s |
+| brain search latenz --profile fast | 11,62 s (Wiederholung) | 4,34 s | 7,71 s |
 | brain search latenz --profile full | 4,36 s | 4,41 s | 11,92 s |
 
 | Benchmark (50 Läufe) | ns/op | B/op | allocs/op |
@@ -341,8 +342,11 @@ den drei Aufwärmaufrufen schon warm, `status` zuletzt.
    236,0–373,7 ms, die ihn nie erreicht. Der Posten, der ihn reißt, ist nicht Go: Der
    Startboden (`loomux version`) sind 30,2 ms, alles, was loomux außer Prozessstart und
    qmd tut, sind 1,97 ms (`ExecuteSearchWithoutTheEngine`), und derselbe Aufruf auf dem
-   Keyword-Weg kostet 67,9 ms. Die Vektorsuche selbst sind die verbleibenden rund 193 ms,
-   gegen die 63–83 ms, die die Spec für qmd annahm. Ein Umbau folgt in diesem Task nicht.
+   Keyword-Weg kostet 67,9 ms. Der Anteil von qmd an der Antwort sind damit rund 228 ms —
+   260,7 abzüglich des Startbodens und der 1,97 ms von oben — gegen die 63–83 ms, die die
+   Spec für den ganzen qmd-Aufruf veranschlagt hat; rund 193 ms dieses Anteils sind das,
+   was die Vektorsuche gegenüber dem Keyword-Weg hinzufügt. Ein Umbau folgt in diesem
+   Task nicht.
 2. **Die Register sind 0,3 % einer fast-Antwort.** `RegistersOfTheRealRegistry` liest die
    `_identities.tsv` aller **11** registrierten Bereiche in **0,81 ms**; am warmen
    fast-Median von 260,7 ms sind das 0,31 %. `VisibleAreasOfTheRealRegistry` — die
@@ -367,8 +371,9 @@ den drei Aufwärmaufrufen schon warm, `status` zuletzt.
    Bereich und einmal nach dem Rückstand, ist also an qmd-Prozessstarts gebunden.
 5. **Der Einzug der Brain-Pakete hat keine Startzeit gekostet.** Nur eine `init`-Zeile
    erreicht 1 ms, vor wie nach dem Einzug: `github.com/BurntSushi/toml/internal` mit
-   21/20/20 ms clock davor und 18/18/22 ms clock danach (71.264 bytes, 1.673 allocs in
-   beiden). **Keine Zeile aus `github.com/xidus90/loomux/...` erreicht 1 ms.** Neu nach
+   21/20/20 ms clock davor und 18/18/22 ms clock danach (71.264 bytes, und 71.280 im
+   letzten Lauf davor; 1.673 allocs durchgehend). **Keine Zeile aus
+   `github.com/xidus90/loomux/...` erreicht 1 ms.** Neu nach
    dem Einzug, keine davon über 0 ms clock außer einem Lauf von `internal/brain/search`
    mit 0,50 ms: `internal/brain/catalog` und `internal/brain/search` (die umgezogenen
    `regexp.MustCompile`-Paketvariablen), `internal/dev/mutants` und die fünf

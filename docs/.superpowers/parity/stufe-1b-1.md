@@ -266,7 +266,6 @@ Python (`brain-mcp` im Tag-Worktree `loomux-1a-source`, ohne brain-Daemon) und l
 2026-09-16T17:24:29Z bis 2026-09-16T17:25:38Z (UTC), ohne `LOOMUX_STATE_DIR` und
 `LOOMUX_LEGACY_BRAIN_DIR`, der qmd-Daemon vor dem ersten Befehl gestoppt. Die Registry
 hält 11 Bereiche: `project/loomux` und die zehn aus `%LOCALAPPDATA%\brain\registry.toml`;
-egistry.toml`;
 einen eigenen Block für den Worktree gibt es nicht. `qmd mcp stop` konnte den Daemon nicht
 beenden -- die PID-Datei fehlte (Befund in Task 15) --, darum wurde der Prozess auf
 Port 8765 unmittelbar gestoppt.
