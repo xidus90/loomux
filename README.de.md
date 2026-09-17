@@ -63,7 +63,7 @@ sequenceDiagram
     Agent->>Agent: Führt Datei-Änderung / Befehl aus
 
     Agent->>Hook: PostToolUse (stdin)
-    Hook->>Graph: Geänderte Datei hashen & Blast Radius berechnen (<5ms)
+    Hook->>Graph: Geänderte Datei hashen & Blast Radius berechnen (Ziel <5ms, G4)
     Hook-->>Agent: Betroffene Aufrufer & Blast-Warnungen inline ausgeben
 
     Agent->>Hook: Stop (Rundenende)
@@ -209,7 +209,7 @@ loomux dev mutants <paket>          # Führt Mutationstests über kritische Ents
 |---|---|---|---|
 | **Einziges Go-Binary** | Grundarchitektur | ✅ **Kernmandat** | 0 Python, 0 Node.js. ~32 ms Kaltstart, autarke Auslieferung, 100 % Testabdeckung. |
 | **AST-Code-Graph & PageRank** | `trailhq/Graft` | ✅ **Nativ übernommen** | $0 deterministischer Code-Graph. Personalized PageRank filtert strukturelle Kern-Hubs statt naiver Keyword-Listen. |
-| **Blast Radius & Crux-Inlining** | `trailhq/Graft` | ✅ **Nativ übernommen** | Blitzschnelle Auswirkungsanalyse bei Edits (<5 ms); liefert 5–10 Zeilen Kernlogik statt ganzer Dateidumps. |
+| **Blast Radius & Crux-Inlining** | `trailhq/Graft` | ✅ **Nativ übernommen** | Auswirkungsanalyse bei Edits (Ziel < 5 ms, ungemessen); liefert 5–10 Zeilen Kernlogik statt ganzer Dateidumps. |
 | **Symbol-gekoppelter Grep** | `trailhq/Graft` | ✅ **Nativ übernommen** | Regex-Treffer gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`). |
 | **Lokales Second Brain & Wiki** | Grundarchitektur | ✅ **Kernmandat** | Markdown-Wiki, ADRs und Identitätsregister direkt im Repo. Code-Symbole verlinken direkt auf Architektur-Entscheidungen. |
 | **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Abgelehnt** | Graft setzt Node.js >=20, `node-gyp` und MSVC voraus. Loomux bleibt 100 % Pure Go ohne C-Compiler-Zwang. |

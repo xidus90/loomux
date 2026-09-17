@@ -57,7 +57,7 @@ flowchart TD
         
         subgraph Loomux_Kernel["Loomux Kernel & Subsysteme"]
             MPU["Loomux Hook-Wächter<br/>[Memory Protection Unit & Schreibschranke]"]
-            L1["AST-Code-Graph & Crux-Inliner<br/>[L1/L2 Cache — <1ms, $0 Tokenkosten]"]
+            L1["AST-Code-Graph & Crux-Inliner<br/>[L1/L2 Cache — Ziel <1ms, $0 Tokenkosten]"]
             Disk["LLM-Wiki / Second Brain<br/>[Persistente SSD — ADRs, Invarianten, Docs]"]
         end
         

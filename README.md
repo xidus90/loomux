@@ -63,7 +63,7 @@ sequenceDiagram
     Agent->>Agent: Executes file edit / command
 
     Agent->>Hook: PostToolUse (stdin)
-    Hook->>Graph: Fingerprint modified file & calculate Blast Radius (<5ms)
+    Hook->>Graph: Fingerprint modified file & calculate Blast Radius (target <5ms, G4)
     Hook-->>Agent: Inline dependent callers & blast warnings
 
     Agent->>Hook: Stop (Turn Completion)
@@ -209,7 +209,7 @@ loomux dev mutants <pkg>            # run mutation test suites across critical d
 |---|---|---|---|
 | **Single Go Binary** | Architecture | ✅ **Core Mandate** | Zero Python, zero Node.js. 32ms cold start, single executable deployment, 100% test coverage. |
 | **AST Code Graph & PageRank** | `trailhq/Graft` | ✅ **Adopted Natively** | $0 deterministic code graph. Personalized PageRank concentrates mass on structural hubs instead of naive keyword dumps. |
-| **Blast Radius & Crux Inlining** | `trailhq/Graft` | ✅ **Adopted Natively** | Instant impact calculation on edit (<5ms); inlines 5–10 critical logic lines instead of full file reads. |
+| **Blast Radius & Crux Inlining** | `trailhq/Graft` | ✅ **Adopted Natively** | Impact calculation on edit (target <5ms, unmeasured); inlines 5–10 critical logic lines instead of full file reads. |
 | **Symbol-Coupled Grep** | `trailhq/Graft` | ✅ **Adopted Natively** | Regex hits grouped by enclosing symbol and ranked by incoming call edges (`inDegree`). |
 | **Local Second Brain & Wiki** | Architecture | ✅ **Core Mandate** | Markdown wiki, ADRs, and identity registers stored in-repo. Code symbols directly link to architectural decisions. |
 | **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Rejected** | Graft requires Node.js >=20, `node-gyp`, and MSVC C++ builds. Loomux remains 100% pure Go with zero external compilers. |

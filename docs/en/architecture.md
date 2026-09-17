@@ -57,7 +57,7 @@ flowchart TD
         
         subgraph Loomux_Kernel["Loomux Kernel & Subsystems"]
             MPU["Loomux Hook Guard<br/>[Memory Protection Unit & Policy Barrier]"]
-            L1["AST Code Graph & Crux Inliner<br/>[L1/L2 Cache — <1ms, $0 token cost]"]
+            L1["AST Code Graph & Crux Inliner<br/>[L1/L2 Cache — target <1ms, $0 token cost]"]
             Disk["LLM Wiki / Second Brain<br/>[Persistent SSD — ADRs, Invariants, Docs]"]
         end
         
