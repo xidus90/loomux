@@ -260,5 +260,5 @@ Mutates the Go decisions of each package and reports which mutants its test suit
 - **Report**: one line per mutant — `killed`, `SURVIVED` or `no mutant` (does not compile, or changes nothing) — then the sums and the survivors. A run that hits the time limit counts as killed.
 - **Exit codes**: `0` after a complete round, survivors included; `2` for a usage error, a package without source files, or a suite that is not green before the first mutant; `1` when a run cannot be started or the round is interrupted with Ctrl+C.
 
-### `loomux dev swap --dir <bin>`
+### `loomux dev swap-binary --dir <bin>`
 Atomically replaces the running `loomux.exe` binary with `loomux.new.exe` (solving Windows file-locking constraints).

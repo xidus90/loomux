@@ -66,8 +66,8 @@ sequenceDiagram
     Hook->>Graph: Fingerprint modified file & calculate Blast Radius (target <5ms, G4)
     Hook-->>Agent: Inline dependent callers & blast warnings
 
-    Agent->>Hook: Stop (Turn Completion)
-    Hook->>Verify: Run Check Chain ([verify] linters, tests, coverage gate)
+    Agent->>Hook: Stop (Turn Completion, stage 1b — no stop event wired yet)
+    Hook->>Verify: Run Check Chain (configured lanes, tests, coverage gate — stage 1b)
     Verify-->>Agent: Pass (Exit 0) or Halt with feedback (Exit 1/2)
 ```
 
@@ -109,15 +109,18 @@ flowchart TD
 
 ## Feature & Status Matrix
 
-Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1b-1 data commands complete; subsequent stages in active development):
+Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1b-1 data commands complete, the wiki bundle moved in, the Stage G1 graph libraries standing without a command on them; subsequent stages in active development):
 
 | Pillar / Capability | Description | Status |
 |---|---|---|
 | **1. Hooks & Guard** | | |
 | Unified Pre-Tool Guard | Single-pass validation of write barriers, path protections, and forbidden commands (<35ms budget; 32–34ms measured on predecessor; a write in a linked worktree measured 34.6 ms warm (2026-09-16)). Linked git worktrees of a registered workspace are writable without a registry entry of their own. Registry and area declarations are read through the same checks as the brain commands; a broken entry refuses every write. | ✅ **Implemented** (Stage 1a) |
-| Post-Tool Blast Monitor | Instant dirty-file hashing and dependent caller warning on edit. | 🚧 **In Migration** (Stage 1b) |
-| Session & Remote Drift | Session-start freshness checks, subagent drift detection, and stop-gate execution counter. | 🚧 **In Migration** (Stage 1b) |
-| Check Chain (`[verify]`) | Unified verification table: multi-lane test runners, commit-msg calibration, coverage gates. | ✅ **Implemented** (Stage 1a) |
+| Post-Tool Check Lanes | Lanes on the file that was just edited run side by side, chosen from the stacks detection finds in the tree — `go vet`, the in-process wiki lint, ruff/mypy, eslint/tsc, stylelint and the rest. A failing lane exits 2; lanes that had to be dropped are named back to the model. | ✅ **Implemented** (Stage 1a) |
+| Post-Tool Blast Monitor | Dirty-file hashing and dependent caller warning on edit. Needs the wiring graph, which nothing writes yet: no hash and no warning today. | 📋 **Specified** (Stage G4) |
+| Session Start | Records the commit a session starts on and warns when the binary in the project is older than `go.mod`, `go.sum` or a `.go` file under `cmd/` or `internal/`. Announces only; never blocks a turn. | ✅ **Implemented** (Stage 1a) |
+| Subagent Drift & Stop Gate | Subagent drift detection and the execution counter of the stop gate. `loomux hook` knows three events — `pre-tool-use`, `post-tool-use`, `session-start`; no `stop` or `subagent-*` event is wired. | 🚧 **In Migration** (Stage 1b) |
+| Check Commands | `loomux check commit-msg` (language and structure of a message), `check gofmt` (formatting, with the exit code `gofmt -l` does not give) and `dev covergate` (100% per function against a profile). | ✅ **Implemented** (Stage 1a) |
+| Check Chain Table | One configured table driving every lane. `[check] lanes` is parsed from the manifest and `loomux status` names the tools a lane would need, but nothing executes the table; `config.example.toml` still calls the section `[verify]`. | 🚧 **In Migration** (Stage 1b) |
 | Worktree Mirroring | Isolated subagent git worktrees with symlink/junction mirroring and session tracking. | ✅ **Implemented** (Stage 1a) |
 | Zone-Free Start Path | Keep Go's local time zone off the hook path: `time.Now().Zone()` alone costs 18.7 ms of the guard's ~28 ms on Windows (measured 2026-09-15). | 💡 **Optional** (no stage) |
 | Claude Mods Adapter | Seat the write barrier in a `tool.check` function hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)) talking to a long-lived loomux over `$.mcp.call` — removes the spawn, adds an `ask` verdict and a rendered reason. Claude-Code-only; the exec hook stays the portable path. | 💡 **Optional** (no stage) |
@@ -132,7 +135,7 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1
 | Symbol-Coupled Grep | Regex search grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). | 📋 **Specified** (Stage G4) |
 | Multi-Language AST | CGo-free Tree-sitter extraction via WebAssembly (`wazero`) with persistent AOT cache. | 💡 **Planned** (Stage G5) |
 | **4. Second Brain & Wiki** | | |
-| Local Markdown Wiki | Bidirectional markdown knowledge base with identity registers and topic graphs. | 🚧 **In Migration** (Stage 2) |
+| Local Markdown Wiki | The bundle itself lives in `docs/wiki/` (area `project/loomux`, moved page by page on 2026-09-16 and released line by line). `loomux lint <file>` checks one page's links and frontmatter, `loomux wiki-gate` checks the bundle's freshness and structure. Identity registers and the topic graph are written by the reindex of stage 3, not by the move. | 🚧 **In Migration** (Stage 2) |
 | Semantic QMD Index | Embedding and neural search integration with local caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stage 3) |
 | Brain Data Commands | `loomux brain search`, `catalog`, `read`, `neighbors` and `status` over the one registry, held to the Python reference by a recorded case corpus. A registry or area declaration loomux cannot use refuses the call and names the file, entry and reason. | ✅ **Implemented** (Stage 1b-1) |
 | Brain-to-Graph Bridge | Code symbols link directly to architectural decisions (ADRs) and design documentation. | 📋 **Specified** (Stage W3) |
@@ -155,13 +158,13 @@ Commands active after Stages 1a and 1b-1 vs. specified for subsequent fusion and
 loomux check commit-msg <file>      # validate commit message against language & structure rules
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files
 loomux hook pre-tool-use            # run policy and global write barrier against stdin payload
-loomux hook post-tool-use           # record tool completion into journal and trigger hooks
-loomux hook session-start           # announce session start and sync harness environment
-loomux status                       # inspect hook setup, verification lanes, and active harnesses
+loomux hook post-tool-use           # run the detected check lanes against the file just edited
+loomux hook session-start           # record the session's base commit and warn about a stale binary
+loomux status|doctor|explain        # inspect hook setup, verification lanes, and active harnesses (three names, one code path)
 loomux worktree link|unlink|remove  # manage isolated worktree mirrors and junction paths
 loomux dev covergate                # enforce 100% test coverage per function
-loomux dev swap                     # atomically swap running binary with new compilation
-loomux lint                         # lint markdown wiki links and frontmatter
+loomux dev swap-binary              # atomically swap running binary with new compilation
+loomux lint <file>                  # lint one markdown wiki page's links and frontmatter
 loomux wiki-gate                    # gate wiki freshness and structural constraints
 loomux brain search "<query>"       # search the visible areas through the qmd daemon (--profile fast|full|keyword)
 loomux brain catalog [--scope S]    # the root catalog of the visible areas, or one area's index.md
@@ -195,10 +198,11 @@ loomux init                         # wire hooks, settings, and skills into dete
 
 ### Developer & Worktree Tools
 ```bash
-loomux worktree mirror              # synchronize NTFS junctions and mirrors for agent worktrees
 loomux dev covergate --profile <p>  # verify strict 100% test coverage threshold
-loomux dev bench-hooks              # benchmark hook execution latency against the <35ms baseline
+loomux dev bench-hooks <case>       # benchmark hook execution latency against the <35ms baseline
 loomux dev mutants <pkg>            # run mutation test suites across critical decision packages
+loomux dev record-case --out <dir>  # record one run of a reference binary as a case
+loomux dev import-cases --map <f>   # translate a directory of recorded cases into loomux cases
 ```
 
 ---

@@ -66,8 +66,8 @@ sequenceDiagram
     Hook->>Graph: Geänderte Datei hashen & Blast Radius berechnen (Ziel <5ms, G4)
     Hook-->>Agent: Betroffene Aufrufer & Blast-Warnungen inline ausgeben
 
-    Agent->>Hook: Stop (Rundenende)
-    Hook->>Verify: Prüfkette fahren ([verify] Linter, Tests, Coverage-Tor)
+    Agent->>Hook: Stop (Rundenende, Stufe 1b — noch kein stop-Ereignis verdrahtet)
+    Hook->>Verify: Prüfkette fahren (konfigurierte Lanes, Tests, Coverage-Tor — Stufe 1b)
     Verify-->>Agent: Grün (Exit 0) oder Stop mit Feedback (Exit 1/2)
 ```
 
@@ -109,15 +109,18 @@ flowchart TD
 
 ## Funktions- & Status-Matrix
 
-Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Datenbefehle der Stufe 1b-1 abgeschlossen; Folgestufen in aktiver Entwicklung):
+Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Datenbefehle der Stufe 1b-1 abgeschlossen, das Wiki-Bündel umgezogen, die Graph-Bibliotheken der Stufe G1 stehen ohne Befehl darauf; Folgestufen in aktiver Entwicklung):
 
 | Säule / Funktion | Beschreibung | Status |
 |---|---|---|
 | **1. Hooks & Wächter** | | |
 | Einheitlicher Pre-Tool Wächter | Prüfung von Schreibschranken, Pfadregeln und verbotenen Befehlen (< 35 ms Zielbudget; 32–34 ms gemessen am Vorgänger; ein Write in einem verknüpften Worktree gemessen 34,6 ms warm (2026-09-16)). Verknüpfte Git-Worktrees eines registrierten Workspace sind ohne eigenen Registry-Eintrag beschreibbar. Registry und Bereichsdeklarationen laufen durch dieselben Prüfungen wie die Brain-Befehle; ein kaputter Eintrag verweigert jeden Write. | ✅ **Implementiert** (Stufe 1a) |
-| Post-Tool Blast Monitor | Blitzschnelles Hashing geänderter Dateien und Warnung bei berührten Aufrufern. | 🚧 **In Migration** (Stufe 1b) |
-| Sitzungs- & Drift-Überwachung | `session-start`-Frischeprüfung, Subagent-Drifterkennung und Block-Zähler im Stop-Tor. | 🚧 **In Migration** (Stufe 1b) |
-| Prüfkette (`[verify]`) | Konfigurierbare Prüftabelle: Parallele Test-Lanes, commit-msg-Kalibrierung, Coverage-Tor. | ✅ **Implementiert** (Stufe 1a) |
+| Post-Tool Prüf-Lanes | Die Lanes auf der eben geänderten Datei laufen nebeneinander, gewählt nach den Stacks, die die Erkennung im Baum findet — `go vet`, der Wiki-Lint im eigenen Prozess, ruff/mypy, eslint/tsc, stylelint und die übrigen. Eine gescheiterte Lane endet mit 2; ausgelassene werden dem Modell namentlich zurückgemeldet. | ✅ **Implementiert** (Stufe 1a) |
+| Post-Tool Blast Monitor | Hashing geänderter Dateien und Warnung bei berührten Aufrufern. Braucht den Wiring-Graphen, den bisher nichts schreibt: heute kein Hash und keine Warnung. | 📋 **Spezifiziert** (Stufe G4) |
+| Sitzungsstart | Hält den Commit fest, auf dem eine Sitzung beginnt, und warnt, wenn das Binary im Projekt älter ist als `go.mod`, `go.sum` oder eine `.go`-Datei unter `cmd/` oder `internal/`. Kündigt nur an; blockiert nie einen Zug. | ✅ **Implementiert** (Stufe 1a) |
+| Subagent-Drift & Stop-Tor | Drifterkennung für Subagenten und der Block-Zähler des Stop-Tors. `loomux hook` kennt drei Ereignisse — `pre-tool-use`, `post-tool-use`, `session-start`; kein `stop` und kein `subagent-*` ist verdrahtet. | 🚧 **In Migration** (Stufe 1b) |
+| Prüfbefehle | `loomux check commit-msg` (Sprache und Form einer Nachricht), `check gofmt` (Formatierung, mit dem Exit-Code, den `gofmt -l` nicht gibt) und `dev covergate` (100 % je Funktion gegen ein Profil). | ✅ **Implementiert** (Stufe 1a) |
+| Prüfketten-Tabelle | Eine konfigurierte Tabelle, die jede Lane fährt. `[check] lanes` wird aus dem Manifest gelesen, und `loomux status` nennt die Werkzeuge, die eine Lane bräuchte — ausgeführt wird die Tabelle von nichts; `config.example.toml` nennt den Abschnitt noch `[verify]`. | 🚧 **In Migration** (Stufe 1b) |
 | Worktree-Spiegelung | Isolierte Subagent-Git-Worktrees mit NTFS-Junctions und Sitzungsverfolgung. | ✅ **Implementiert** (Stufe 1a) |
 | Zonenfreier Startpfad | Gos lokale Zeitzone vom Hook-Pfad fernhalten: `time.Now().Zone()` allein kostet unter Windows 18,7 ms der ~28 ms des Wächters (gemessen 2026-09-15). | 💡 **Optional** (ohne Stufe) |
 | Claude-Mods-Adapter | Die Schreibschranke in einen `tool.check`-Function-Hook setzen ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)), der über `$.mcp.call` mit einem langlebigen loomux spricht — entfernt den Spawn, bringt ein `ask`-Urteil und eine gerenderte Begründung. Nur für Claude Code; der Exec-Hook bleibt der portable Pfad. | 💡 **Optional** (ohne Stufe) |
@@ -132,7 +135,7 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Date
 | Symbol-gekoppelter Grep | Regex-Suche, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Grad (`inDegree`). | 📋 **Spezifiziert** (Stufe G4) |
 | Multi-Language AST | CGo-freier Tree-sitter über WebAssembly (`wazero`) mit persistentem AOT-Kompilierungs-Cache. | 💡 **Geplant** (Stufe G5) |
 | **4. Second Brain & Wiki** | | |
-| Lokales Markdown-Wiki | Bidirektionale Markdown-Wissensbasis mit Identitätsregistern und Themen-Graphen. | 🚧 **In Migration** (Stufe 2) |
+| Lokales Markdown-Wiki | Das Bündel selbst liegt in `docs/wiki/` (Bereich `project/loomux`, am 2026-09-16 Seite für Seite umgezogen und zeilenweise freigegeben). `loomux lint <datei>` prüft Links und Frontmatter einer Seite, `loomux wiki-gate` Frische und Struktur des Bündels. Identitätsregister und Themen-Graph schreibt der Reindex der Stufe 3, nicht der Umzug. | 🚧 **In Migration** (Stufe 2) |
 | Semantischer QMD-Index | Einbettung lokaler Vektoren und neuronaler Suche mit Caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stufe 3) |
 | Brain-Datenbefehle | `loomux brain search`, `catalog`, `read`, `neighbors` und `status` über die eine Registry, an der Python-Referenz durch einen aufgezeichneten Fallkorpus gemessen. Eine Registry oder Bereichsdeklaration, die loomux nicht verwenden kann, verweigert den Aufruf und nennt Datei, Eintrag und Grund. | ✅ **Implementiert** (Stufe 1b-1) |
 | Brain-zu-Graph Brücke | Code-Symbole verweisen direkt auf Architekturentscheidungen (ADRs) und Dokumentation. | 📋 **Spezifiziert** (Stufe W3) |
@@ -155,13 +158,13 @@ Aktive Befehle nach den Stufen 1a und 1b-1 im Vergleich zu spezifizierten Befehl
 loomux check commit-msg <datei>     # Prüft Commit-Nachricht auf englische Sprache und Formatregeln
 loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
 loomux hook pre-tool-use            # Prüft Policy und globale Schreibschranke gegen stdin
-loomux hook post-tool-use           # Protokolliert Werkzeug-Ende im Journal und triggert Hooks
-loomux hook session-start           # Kündigt Sitzungsstart an und synchronisiert Host-Umgebung
-loomux status                       # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses
+loomux hook post-tool-use           # Fährt die erkannten Prüf-Lanes gegen die eben geänderte Datei
+loomux hook session-start           # Hält den Basis-Commit der Sitzung fest und warnt vor veraltetem Binary
+loomux status|doctor|explain        # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses (drei Namen, ein Codeweg)
 loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel und Junction-Pfade
 loomux dev covergate                # Erzwingt striktes 100 % Coverage-Tor pro Funktion
-loomux dev swap                     # Tauscht laufendes Binary atomar gegen Neubau aus
-loomux lint                         # Prüft Markdown-Wiki-Links und Frontmatter
+loomux dev swap-binary              # Tauscht laufendes Binary atomar gegen Neubau aus
+loomux lint <datei>                 # Prüft Links und Frontmatter einer Wiki-Seite
 loomux wiki-gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
 loomux brain search "<anfrage>"     # Durchsucht die sichtbaren Bereiche über den qmd-Daemon (--profile fast|full|keyword)
 loomux brain catalog [--scope S]    # Wurzelkatalog der sichtbaren Bereiche oder das index.md eines Bereichs
@@ -195,10 +198,11 @@ loomux init                         # Richtet Hooks, Einstellungen und Skills in
 
 ### Entwickler- & Worktree-Werkzeuge
 ```bash
-loomux worktree mirror              # Synchronisiert NTFS-Junctions und Spiegel für Agenten-Worktrees
 loomux dev covergate --profile <p>  # Prüft das strikte 100-%-Coverage-Tor pro Funktion
-loomux dev bench-hooks              # Misst die Latenz der Hook-Ausführung gegen die Grundlinie von < 35 ms
+loomux dev bench-hooks <fall>       # Misst die Latenz der Hook-Ausführung gegen die Grundlinie von < 35 ms
 loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus
+loomux dev record-case --out <dir>  # Zeichnet einen Lauf eines Referenz-Binaries als Fall auf
+loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter Fälle in loomux-Fälle
 ```
 
 ---
