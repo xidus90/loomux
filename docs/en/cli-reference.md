@@ -124,6 +124,9 @@ Refuses the main checkout and any directory git holds no worktree at, removes th
 
 ## 6. Code Graph Engine (`loomux graph`)
 
+> [!NOTE]
+> **Specified, not wired.** No `loomux graph` command exists yet; `loomux graph build` today exits as an unknown command. Stage G1 built the packages these commands will call — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — and stage G2 adds the extractor, the wiring writer, the freshness check and the commands below.
+
 ### `loomux graph build [dir]`
 Parses source files into the deterministic AST code graph and writes `.loomux/state/graph/wiring.json`.
 

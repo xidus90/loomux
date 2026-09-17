@@ -44,7 +44,7 @@ Loomux beseitigt diese Explorations-Steuer durch eine einheitliche Laufzeitumgeb
 Ende 2023 definierte der KI-Forscher Andrej Karpathy das LLM nicht als einfachen Chatbot, sondern als die **Central Processing Unit (CPU) eines neuartigen Betriebssystems**:
 - **CPU**: Das LLM (Befehlsausführung, Schlussfolgerung, Synthese).
 - **RAM**: Das Context Window (schnell, hohe Bandbreite, aber flüchtig, teuer und begrenzt).
-- **L1/L2 Cache**: Der **deterministische AST-Code-Graph & Crux-Inliner** (sofortiger Struktur-Zugriff, null Tokenkosten, Sub-Millisekunden-Latenz).
+- **L1/L2 Cache**: Der **deterministische AST-Code-Graph & Crux-Inliner** (sofortiger Struktur-Zugriff, null Tokenkosten, Sub-Millisekunden-Latenz — ein Entwurfsziel, ungemessen, bis Stufe G2 ein echtes Repository ranken kann).
 - **Nichtflüchtiger Speicher (Festplatte / SSD)**: Das **Second Brain / LLM-Wiki** (kuratierte Architectural Decision Records (ADRs), Systemgrenzen, Invarianten, Runbooks).
 - **Kernel & Memory Protection Unit (MPU)**: Die **Loomux Hooks & Schreibschranke** (erzwingt Datei-Grenzen, prüft Werkzeug-Aufrufe vorab, blockiert destruktive Systembefehle).
 - **I/O-Peripherie**: Terminals, Compiler, Git und MCP-Protokoll-Server.
@@ -57,7 +57,7 @@ flowchart TD
         
         subgraph Loomux_Kernel["Loomux Kernel & Subsysteme"]
             MPU["Loomux Hook-Wächter<br/>[Memory Protection Unit & Schreibschranke]"]
-            L1["AST-Code-Graph & Crux-Inliner<br/>[L1/L2 Cache — <1ms, $0 Tokenkosten]"]
+            L1["AST-Code-Graph & Crux-Inliner<br/>[L1/L2 Cache — Ziel <1ms, $0 Tokenkosten]"]
             Disk["LLM-Wiki / Second Brain<br/>[Persistente SSD — ADRs, Invarianten, Docs]"]
         end
         
@@ -132,15 +132,43 @@ flowchart LR
     Crux --> Context["Injektierter Kontext<br/>(Volle Antwort ohne Dateilesen)"]
 ```
 
+> **Stand.** Stufe G1 hat das Lesemodell und die beiden Rechner als Go-Pakete
+> gebaut — `internal/code/model`, `internal/code/pagerank`,
+> `internal/code/blast`. Kein Befehl ruft sie bisher, und nichts schreibt den
+> Wiring-Graphen, den sie lesen: Extraktor, lexikalische Saat, Frischeprüfung
+> und die `loomux graph`-Befehle sind Stufe G2 und später. Die Abschnitte
+> darunter beschreiben die ganze Säule und markieren, was schon Code ist.
+
 ### 1. „Lexik schlägt vor, der Graph entscheidet“
-- **Lexikalischer Schritt**: BM25- und Exakt-Symbol-Indizierung finden rasch Kandidaten-Knoten zu den Begriffen des Prompts.
-- **Graph-Schritt**: Ein **Personalized PageRank**-Random-Walk wird gestartet, besamt mit diesen Kandidaten. Durch die Graph-Kanten konzentriert sich die Wahrscheinlichkeitsmasse auf die echten strukturellen Hubs — isolierter Code, tote Hilfsfunktionen oder Test-Mocks werden automatisch nach unten gereiht.
+- **Lexikalischer Schritt** (G2): BM25- und Exakt-Symbol-Indizierung finden rasch Kandidaten-Knoten zu den Begriffen des Prompts.
+- **Graph-Schritt** (G1, `internal/code/pagerank`): Ein **Personalized PageRank**-Random-Walk wird gestartet, besamt mit diesen Kandidaten. Durch die Graph-Kanten konzentriert sich die Wahrscheinlichkeitsmasse auf die echten strukturellen Hubs — isolierter Code, tote Hilfsfunktionen oder Test-Mocks werden automatisch nach unten gereiht.
+
+Der Rang trifft die Kanten **ungerichtet**, wo der Blast-Radius darunter
+dieselben Kanten gerichtet trifft. Wer einen Bereich verstehen will, dem wiegt
+ein Aufruf nach außen so viel wie einer von außen, also muss die Masse über
+einen Aufruf in beide Richtungen fließen; „wer bricht, wenn sich das ändert“
+ist die andere Frage, und die hat eine Richtung. Eine Parallelkante wird nicht
+zusammengefasst: sie zählt in der Nachbarliste doppelt und teilt die Masse
+entsprechend, wie in der Referenz. Eine Kante, deren Ziel kein Knoten des
+Graphen ist — ein unaufgelöster Import, der sein Modul nennt —, verwirft der
+Rang, weil sie sonst Masse sammelte und als Ergebnis gemeldet würde, das
+niemand öffnen kann.
 
 ### 2. Die Blast-Radius-Engine
-Vor jeder Datei-Änderung oder PR-Zusammenführung berechnet Loomux die **transitive Hülle** aller eingehenden Aufrufkanten:
+Vor jeder Datei-Änderung oder PR-Zusammenführung berechnet Loomux die
+**transitive Hülle** über die eingehenden Kanten (G1, `internal/code/blast`):
 $$\text{BlastRadius}(S) = \{ u \in V \mid u \rightsquigarrow S \}$$
 Dadurch wird der Agent sofort gewarnt:
 > *„Änderung an `guard.go:checkTool` betrifft 8 Aufrufer in `cli`, `hooks` und `serve`.“*
+
+Fünf Relationen tragen den Lauf — `calls`, `references`, `imports`,
+`implements` und `extends`. `contains` bleibt bewusst draußen: eine Datei
+enthält jedes in ihr definierte Symbol, ein Lauf über diese Kante machte also
+jede Datei zum Hub und überschwemmte den Lauf. Wo der Rang ein unaufgelöstes
+Ziel verwirft, behält der Lauf es als Treffer ohne Knoten, statt die
+Abhängigkeit zu verstecken. Ein Knoten wird einmal gemeldet, in der kleinsten
+Tiefe, in der ihn irgendein Startknoten erreicht hat; ein Startknoten ist nie
+sein eigener Treffer.
 
 ### 3. Crux-Extraktion
 Eine Datei mit 1.000 Zeilen komplett einzulesen, nur um eine 20-zeilige Methode zu prüfen, verschwendet Kontext und Tokens. Der Crux-Inliner extrahiert Definition, Signatur und Kernlogik (5–10 Zeilen) und liefert sofortige Antworten bei **$0 Tokenkosten**.

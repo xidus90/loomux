@@ -4,7 +4,7 @@
 
 **The unified autonomous developer runtime in a single Go binary: Hooks, Skills, Code Graph, Second Brain & LLM OS.**
 
-Loomux gives AI coding agents (Claude Code, Antigravity, Cursor, Codex) deep codebase understanding, sub-millisecond graph retrieval, impenetrable write barriers, and automated verification loops — with zero external runtime dependencies.
+Loomux gives AI coding agents (Claude Code, Antigravity, Cursor, Codex) deep codebase understanding, deterministic graph retrieval, impenetrable write barriers, and automated verification loops — with zero external runtime dependencies.
 
 - **Zero Python. Zero Node.js.** A single, self-contained Go binary (`loomux.exe` / `loomux`).
 - **Sub-35ms cold start.** Lightweight execution that fits strictly within agent tool-call budgets.
@@ -63,7 +63,7 @@ sequenceDiagram
     Agent->>Agent: Executes file edit / command
 
     Agent->>Hook: PostToolUse (stdin)
-    Hook->>Graph: Fingerprint modified file & calculate Blast Radius (<5ms)
+    Hook->>Graph: Fingerprint modified file & calculate Blast Radius (target <5ms, G4)
     Hook-->>Agent: Inline dependent callers & blast warnings
 
     Agent->>Hook: Stop (Turn Completion)
@@ -73,7 +73,9 @@ sequenceDiagram
 
 ### 2. Deterministic Code Graph Retrieval ("GraphRank")
 
-Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries in under 1 millisecond using **Personalized PageRank**.
+Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
+
+> **State (stage G1).** The ranking and the blast radius are Go packages — `internal/code/pagerank` and `internal/code/blast` — held to the reference by ported test vectors. Nothing writes the wiring graph yet and no command reads it: extractor, lexical seed, freshness check and the `loomux graph` commands are stage G2. The retrieval time is therefore still unmeasured; the figure lands in `docs/en/benchmarks.md` when G2 can rank a real repository.
 
 ```mermaid
 flowchart LR
@@ -124,9 +126,9 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1
 | Graph-Aware Code Review | Review skills that leverage `graph_blast` to inspect caller impact and enforce ADR conformance. | 📋 **Specified** (Stage W4) |
 | 3-Channel Distribution | Configured via `.loomux/config.toml`, synced to host folders, served via MCP prompts, or run via Web UI. | 📋 **Specified** (Stage W4) |
 | **3. Code Graph & Loop** | | |
-| Go Native AST Extractor | Deterministic symbol & call extraction via `go/parser` and `go/types` ($0, zero dependencies). | 📋 **Specified** (Stage G1) |
-| Personalized PageRank | Power-iteration random-walk ranking over call and dependency graphs in <1ms. | 📋 **Specified** (Stage G2) |
-| Blast Radius Engine | Transitive closure and impact analysis (`DirectionIn`/`DirectionOut`, depth limits). | 📋 **Specified** (Stage G3) |
+| Go Native AST Extractor | Deterministic symbol & call extraction via `go/parser` and `go/types` ($0, zero dependencies). | 📋 **Specified** (Stage G2) |
+| Personalized PageRank | Power-iteration random-walk ranking over call and dependency graphs, undirected over five relations, max-normalized with a deterministic tie order. | 🧩 **Library** (Stage G1) |
+| Blast Radius Engine | Transitive closure and impact analysis (`In`/`Out`, depth limits, smallest depth wins). | 🧩 **Library** (Stage G1) |
 | Symbol-Coupled Grep | Regex search grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). | 📋 **Specified** (Stage G4) |
 | Multi-Language AST | CGo-free Tree-sitter extraction via WebAssembly (`wazero`) with persistent AOT cache. | 💡 **Planned** (Stage G5) |
 | **4. Second Brain & Wiki** | | |
@@ -140,7 +142,7 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1
 | Kanban Board & Loop Tracker | Real-time visual tracking of multi-step agent loops, verification lanes, and subagent state. | 📋 **Specified** (Stage W5) |
 | Graphical Flow Editor | Visual DAG canvas for designing, replaying, and debugging agent verification loops. | 💡 **Future** (Stage W5) |
 
-*Legend: ✅ Implemented & Verified in Binary · 🚧 In Active Migration / Fusion · 📋 Fully Specified & Ready for Build · 💡 Planned Vision*
+*Legend: ✅ Implemented & Verified in Binary · 🧩 Library implemented, no command wired to it yet · 🚧 In Active Migration / Fusion · 📋 Fully Specified & Ready for Build · 💡 Planned Vision*
 
 ---
 
@@ -168,7 +170,9 @@ loomux brain neighbors <path> --scope S  # incoming and outgoing links of one pa
 loomux brain status                 # what to know before trusting an answer
 ```
 
-### Specified Commands (Code Graph — Stages G1–G5)
+### Specified Commands (Code Graph — Stages G2–G5)
+
+Stage G1 wired no command: it built the libraries these commands will call.
 ```bash
 loomux graph build [dir]            # build/rebuild .loomux/state/graph/wiring.json
 loomux graph ask "<query>"          # retrieve code symbols ranked by Personalized PageRank
@@ -205,7 +209,7 @@ loomux dev mutants <pkg>            # run mutation test suites across critical d
 |---|---|---|---|
 | **Single Go Binary** | Architecture | ✅ **Core Mandate** | Zero Python, zero Node.js. 32ms cold start, single executable deployment, 100% test coverage. |
 | **AST Code Graph & PageRank** | `trailhq/Graft` | ✅ **Adopted Natively** | $0 deterministic code graph. Personalized PageRank concentrates mass on structural hubs instead of naive keyword dumps. |
-| **Blast Radius & Crux Inlining** | `trailhq/Graft` | ✅ **Adopted Natively** | Instant impact calculation on edit (<5ms); inlines 5–10 critical logic lines instead of full file reads. |
+| **Blast Radius & Crux Inlining** | `trailhq/Graft` | ✅ **Adopted Natively** | Impact calculation on edit (target <5ms, unmeasured); inlines 5–10 critical logic lines instead of full file reads. |
 | **Symbol-Coupled Grep** | `trailhq/Graft` | ✅ **Adopted Natively** | Regex hits grouped by enclosing symbol and ranked by incoming call edges (`inDegree`). |
 | **Local Second Brain & Wiki** | Architecture | ✅ **Core Mandate** | Markdown wiki, ADRs, and identity registers stored in-repo. Code symbols directly link to architectural decisions. |
 | **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Rejected** | Graft requires Node.js >=20, `node-gyp`, and MSVC C++ builds. Loomux remains 100% pure Go with zero external compilers. |

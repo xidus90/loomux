@@ -130,6 +130,9 @@ mirror = [
 ### `[graph]` (Code-Graph-Einstellungen)
 Konfiguriert AST-Extraktion, Indizierungsgrenzen und Frischeprüfung.
 
+> [!NOTE]
+> **Spezifiziert, nicht gelesen.** Kein Code liest `[graph]` bisher; der Abschnitt kommt mit dem Extraktor in Stufe G2. Die Zahlen darunter sind Entwurfsziele, keine Messwerte.
+
 ```toml
 [graph]
 extensions = [".go", ".ts", ".tsx", ".py", ".rs"]
