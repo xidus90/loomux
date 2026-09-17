@@ -261,8 +261,10 @@ Zwei Pakete bleiben unbewertet: `internal/brain/guard` (17 Überlebende) und
 Stufe nicht geschrieben hat -- guard ist nur durch die eingegliederte
 Schreibschranken-Stufe gewachsen. Eine Stufe, die im Vorbeigehen die Tests von
 1a umschreibt, kann niemand mehr prüfen; darum wird hier nichts angefasst. Die
-`SURVIVED`-Zeilen stehen vollständig in `$TEMP/mutants-1b1/brain-guard.log` und
-`hooks.log`; wer weitermacht, braucht die Runde nicht zu wiederholen.
+`SURVIVED`-Zeilen stehen vollständig in
+[stufe-1b-1-geparkte-mutanten.md](stufe-1b-1-geparkte-mutanten.md), aus
+`$TEMP/mutants-1b1/brain-guard.log` und `hooks.log` gesichert, bevor `%TEMP%`
+sie wegräumt; wer weitermacht, braucht die Runde nicht zu wiederholen.
 
 Damit sind von den 280 Überlebenden der Runde 103 durch einen nachgereichten
 Test getötet, 51 mit einer Begründung abgelegt und 126 geparkt.
