@@ -20,14 +20,15 @@ Vor jeder Wiki-Arbeit gelesen. Sechs Regeln (Architektur §9.1):
 
 Diese vier bleiben stehen, auch unter loomux. Sie sind die **zweite Achse**
 (Typkatalog §3.5): sie sagen, *wie* eine Seite entstanden ist, nicht worüber
-sie handelt. Der Lint von loomux kennt daneben zwölf Kerntypen; `Topic` fällt
-mit dem Kerntyp `topic` zusammen und geht durch, `Source`, `Entity` und
-`Synthesis` melden je eine Warnung `missing-type: unknown document type`.
-Das hält nichts auf: `wiki-gate` bricht nur bei `Error` ab. Die Warnungen
-verschwinden, sobald loomux die Manifestzeile `[wiki] types` liest — heute
-liest es sie nicht. Umgeschrieben wird kein Typ; insbesondere ist `Entity`
-nicht auf `Concept` abzubilden, das der Typkatalog in §3.4 ausdrücklich
-ablehnt.
+sie handelt. Der Wiki-Lint von loomux fragt dafür nicht das Manifest, sondern
+eine eigene Liste von zwölf Typen; `Topic` steht darin als `topic` und geht
+durch, `Source`, `Entity` und `Synthesis` melden je eine Warnung
+`missing-type: unknown document type`. Das hält nichts auf: `wiki-gate` bricht
+nur bei `Error` ab. Die Warnungen verschwinden, sobald der Wiki-Lint das
+Manifest fragt: `config.Manifest.KnowsType` kennt die vier Herkunftstypen
+bereits, eine Zeile `[wiki] types` braucht es für sie nicht. Umgeschrieben wird
+kein Typ; insbesondere ist `Entity` nicht auf `Concept` abzubilden, das der
+Typkatalog in §3.4 ausdrücklich ablehnt.
 
 ## Die Form eines Konflikts
 
