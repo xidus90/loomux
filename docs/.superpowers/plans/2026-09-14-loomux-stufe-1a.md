@@ -1,6 +1,6 @@
 # loomux Stufe 1a — Implementierungsplan
 
-**Stand 2026-09-17: abgeschlossen, bis auf Task 16 Step 7.** Die fünf
+**Stand 2026-09-17: abgeschlossen.** Die fünf
 Fertig-Kriterien der Fusions-Spec sind belegt: die 19 Fälle unter
 `testdata/cases/1a` laufen in `TestRecordedCasesOfStage1a`, alle Zeilen von
 `docs/.superpowers/parity/stufe-1a.md` sind freigegeben (die meisten am
@@ -10,9 +10,10 @@ Fertig-Kriterien der Fusions-Spec sind belegt: die 19 Fälle unter
 der Pilot läuft (`4c5eda8`, `eeda71e`, Rauchtest `5f9c0b9` — das Binary direkt
 gerufen, nicht aus einer neuen Claude-Sitzung). Die Mutationsrunde lief erst in
 Stufe 1b-1; `internal/brain/guard` und `internal/hooks` sind dort geparkt und
-nicht bewertet (`parity/stufe-1b-1-geparkte-mutanten.md`). **Offen ist Task 16
-Step 7:** `loomux-src/ul` und `loomux-src/ub` hängen noch als Worktrees, weil
-1b-1 und der Wiki-Umzug sie brauchten. **Die Kästchen sind nie gepflegt worden
+nicht bewertet (`parity/stufe-1b-1-geparkte-mutanten.md`). Task 16 Step 7 lief
+erst am 2026-09-17, weil 1b-1 und der Wiki-Umzug `loomux-src/ul` und
+`loomux-src/ub` noch brauchten; beide Worktrees sind entfernt, die Tags
+`loomux-1a-source` bleiben. **Die Kästchen sind nie gepflegt worden
 und sagen nichts über den Fortschritt.** Der Messeintrag steht nach R15b in
 `docs/{en,de}/`, nicht in `docs/benchmarks.md`.
 
