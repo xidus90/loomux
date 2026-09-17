@@ -30,8 +30,8 @@ Wiki-Commits in der Code-Historie; und der vermeintliche Versionsvorteil des
 Repos existiert gar nicht, weil der Abgleich ausdrücklich nicht gegen
 Code-Inhalte läuft.
 
-**Es gibt genau eine Betriebsart.** Ein Wiki im Code-Repo ist keine Option, auch
-nicht als Schalter. Daraus folgt eine Eigenschaft, die im Code sichtbar bleiben
+**Es gibt genau eine Betriebsart.** Bis zum Umzug am 2026-09-16 war ein Wiki im
+Code-Repo keine Option, auch nicht als Schalter. Daraus folgt eine Eigenschaft, die im Code sichtbar bleiben
 muss: **Wiki-Ort und Rohquellen-Ort sind zwei unabhängige Eingaben; der eine
 wird nirgends aus dem anderen abgeleitet.**
 

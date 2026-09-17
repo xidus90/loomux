@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Die freigegebenen 25 Wiki-Seiten, 11 Rohquellen und 19 Arbeitspapiere
+**Goal:** Die freigegebenen 25 Wiki-Seiten, 11 Rohquellen und 18 Arbeitspapiere
 der beiden alten Repos liegen in loomux, `loomux wiki-gate` meldet keine
 Lint-Zeile, und `brain read` und `brain neighbors` beantworten den Bereich
 `project/loomux`. (`brain catalog --scope` bleibt außen vor — es liest ein
@@ -482,9 +482,11 @@ Erste Zeile: `Say what loomux does on the pages that described the old tools`.
 - Produces: den Bestand, den `loomux brain catalog --scope project/loomux`
   liest.
 
-Die Kataloge erzeugt in der Referenz `render_catalog`; in Go gibt es das erst
-mit Stufe 3. Bis dahin werden sie von Hand geschrieben — in genau der Form, die
-`render_catalog` erzeugt, damit ein späterer `reindex` sie nicht umbaut. Diese
+Die Kataloge werden einmal von Hand geschrieben — in genau der Form, die
+`render_catalog` erzeugt. `reindex` schreibt sie auch später nicht neu: die
+Referenz überspringt die Kataloge des eigenen Bündels
+(`loomux-src/ub/src/brain/cli.py:203-206`, „A bundle owns its catalog"). Wer
+sie ab Stufe 3 pflegt, ist eine offene Entscheidung des Nutzers. Diese
 Form steht in `loomux-src/ub/src/brain/catalog.py`, Funktion `render_catalog` —
 vor dem Schreiben **ganz lesen**, nicht nach der Beschreibung hier arbeiten;
 sie nennt auch die Klammer- und Leerzeichenregeln für Linkziele.
@@ -532,8 +534,11 @@ Step 1.
 cd "/c/Users/micro/Documents/#GIT/loomux-umzug" && printf 'doc_id\trelative\tcontent_hash\trevision\n' > docs/wiki/_identities.tsv
 ```
 
-Nur die Kopfzeile: Einträge prägt `reindex` in Stufe 3. Die Datei mit
-`\t`-Trennern und `\n`-Zeilenende schreiben, nicht mit CRLF.
+Nur die Kopfzeile, und diese Datei füllt `reindex` nicht: das Register des
+Bereichs schreibt `reindex` ab Stufe 3 in dessen Artefaktverzeichnis, bei
+`project/loomux` die Repo-Wurzel (`docs/wiki/_schema.md`,
+`loomux-src/ub/src/brain/cli.py:142,164`). Die Datei hier ist nur der leere
+Rahmen. Mit `\t`-Trennern und `\n`-Zeilenende schreiben, nicht mit CRLF.
 
 - [ ] **Step 5: Das Bündel prüfen**
 
@@ -619,8 +624,10 @@ Sprachen. Was loomux' Seiten schon sagen, wird nicht wiederholt.
 
 In `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`, Abschnitt
 „Datenumzug", Punkt 1: die Klammer „(10 und 1)" hinter `_identities.tsv`
-streichen. Beide Register trugen nur die Kopfzeile; die Identitäten stehen je
-Seite in der Frontmatter. Ein Satz dazu, warum die Zahl fiel.
+streichen. Beide Register trugen nur die Kopfzeile. Die `doc_id`s in der
+Frontmatter gehören den zitierten Quellen (`sources[]`), nicht den Seiten;
+eigene `doc_id`s der Seiten prägt erst `reindex` in Stufe 3. Ein Satz dazu,
+warum die Zahl fiel.
 
 - [ ] **Step 5: Die Prüfliste schließen**
 
@@ -656,8 +663,10 @@ Erste Zeile: `Fold the old documentation into the loomux pages`.
   Werkzeug; dafür muss der Bereich auch in `%LOCALAPPDATA%\brain\registry.toml`
   stehen.
 - **Keine Änderung an `.loomux/config.toml` und an der Registry.** Beide
-  nennen `docs/wiki` bereits; entsteht das Verzeichnis, greifen Lint und Tor
-  von selbst.
+  nennen `docs/wiki` bereits; entsteht das Verzeichnis, lintet der
+  post-edit-Hook die bearbeitete Seite von selbst. `loomux wiki-gate` greift
+  dagegen nicht von selbst: kein Hook und kein Tor ruft es, es prüft das Bündel
+  nur, wenn man es aufruft.
 - **Keine Änderung in den alten Repos.** Sie bleiben, wie sie sind; das Archiv
   ist der Beleg.
 - **Keine Wiki-Schreibbefehle.** `wiki types`, `retype`, `census` und

@@ -256,7 +256,7 @@ never = [".env*", "*.key", "credentials.json"]
 
 | | Location |
 |---|---|
-| State directory | `%LOCALAPPDATA%\loomux` (Windows), else `$XDG_STATE_HOME/loomux`, else `~/.local/state/loomux` |
+| State directory | on Windows `%LOCALAPPDATA%\loomux`, else `~\AppData\Local\loomux`; elsewhere `$XDG_STATE_HOME/loomux`, else `~/.local/state/loomux` |
 | Area registry | `<state directory>\registry.toml` |
 | Manifest of a writable area | `<area path>\.loomux\config.toml` |
 | Manifest of a read-only area, as the write barrier reads it | `<state directory>\areas\<scope>\.loomux\config.toml` |

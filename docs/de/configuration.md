@@ -256,7 +256,7 @@ never = [".env*", "*.key", "credentials.json"]
 
 | | Ort |
 |---|---|
-| Zustandsverzeichnis | `%LOCALAPPDATA%\loomux` (Windows), sonst `$XDG_STATE_HOME/loomux`, sonst `~/.local/state/loomux` |
+| Zustandsverzeichnis | unter Windows `%LOCALAPPDATA%\loomux`, sonst `~\AppData\Local\loomux`; auf anderen Systemen `$XDG_STATE_HOME/loomux`, sonst `~/.local/state/loomux` |
 | Bereichsregistry | `<Zustandsverzeichnis>\registry.toml` |
 | Manifest eines beschreibbaren Bereichs | `<Bereichspfad>\.loomux\config.toml` |
 | Manifest eines lesenden Bereichs, wie die Schreibschranke es liest | `<Zustandsverzeichnis>\areas\<scope>\.loomux\config.toml` |

@@ -35,6 +35,18 @@ die fünf `index.md` und `_identities.tsv` (Artefakte: `render_catalog` und
 (Protokoll der alten Bundle-Arbeit). Folge: das Protokoll beginnt in loomux
 leer, und der erste `reindex` prägt neue `doc_id`s.
 
+**Berichtigung (2026-09-17), an der Referenz nachgelesen:** Die fünf
+`index.md` unter `docs/wiki` schreibt `reindex` nicht. `_write_catalogs`
+überspringt jedes Verzeichnis im eigenen Bündel („A bundle owns its catalog",
+`loomux-src/ub/src/brain/cli.py:203-206`), und `render_catalog` hat keinen
+anderen Aufrufer. Die fünf Kataloge wurden beim Umzug einmal von Hand in der
+Form von `render_catalog` geschrieben; wer sie ab Stufe 3 pflegt, ist eine
+offene Entscheidung des Nutzers. `_identities.tsv` wiederum schreibt `reindex`
+in das Artefaktverzeichnis des Bereichs (`cli.py:142,164`), und das ist bei
+einem beschreibbaren Bereich dessen `path` (`registry.py:129`), für
+`project/loomux` also die Repo-Wurzel — nicht `docs/wiki`
+(`docs/wiki/_schema.md`, „Wo das Identitätsregister liegt").
+
 ## Vor den Zeilen: zwei Entscheidungen
 
 **A — die Quellenkette.** Jede verdichtete Seite trägt in der Frontmatter
@@ -58,20 +70,22 @@ Offen bleibt allein `_schema.md`: es ist keine erzeugte Datei, sondern das
 Regelwerk des Bundles, und loomux braucht eines.
 
 **Berichtigung der Spec:** sie nennt „`_identities.tsv` (10 und 1)". Beide
-Register enthalten nur die Kopfzeile; die Identitäten stehen je Seite in der
-Frontmatter. Die Zeile gehört in der Fusions-Spec richtiggestellt.
+Register enthalten nur die Kopfzeile. Die `doc_id`s in der Frontmatter der
+Seiten gehören den zitierten Quellen (`sources[]`), nicht den Seiten; eigene
+`doc_id`s der Seiten prägt erst `reindex` in Stufe 3. Die Zeile ist in der
+Fusions-Spec richtiggestellt.
 
 ## 1. Wiki-Bundle ultra-brain (33 Dateien)
 
 | Datei | Zeilen | Stand | Vorschlag | Begründung | Freigabe |
 |---|---:|---|---|---|---|
-| `ub/docs/wiki/topics/wiki-schicht.md` | 113 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | freigegeben 2026-09-16 |
-| `ub/docs/wiki/topics/datenmodell-und-bereiche.md` | 114 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | freigegeben 2026-09-16 |
-| `ub/docs/wiki/topics/suche-und-profile.md` | 140 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | freigegeben 2026-09-16 |
-| `ub/docs/wiki/topics/index.md` | 14 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | freigegeben 2026-09-16 |
-| `ub/docs/wiki/index.md` | 16 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | freigegeben 2026-09-16 |
-| `ub/docs/wiki/sources/index.md` | 17 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | freigegeben 2026-09-16 |
-| `ub/docs/wiki/_identities.tsv` | 1 | 2026-08-30 | **Archiv** | Artefakt: `reindex` erzeugt das Register neu (`walk.py` zählt es zu den BUNDLE_ARTIFACTS); enthält ohnehin nur die Kopfzeile | freigegeben 2026-09-16 |
+| `ub/docs/wiki/topics/wiki-schicht.md` | 113 | 2026-08-30 | **aktualisieren** | Lint-Regeln sind in loomux andere; die Schlusszeile nennt „Architektur-Design ultra-brain" und bleibt, weil sie das Dokument benennt (Task 3) | freigegeben 2026-09-16 |
+| `ub/docs/wiki/topics/datenmodell-und-bereiche.md` | 114 | 2026-08-30 | **aktualisieren** | Manifestnamen, Orte und die Regel `wrong-direction` sind in loomux andere; die Schlusszeile nennt „Architektur-Design ultra-brain" und bleibt, weil sie das Dokument benennt (Task 3) | freigegeben 2026-09-16 |
+| `ub/docs/wiki/topics/suche-und-profile.md` | 140 | 2026-08-30 | **aktualisieren** | Ketten und Messwerte sind in loomux andere; die Schlusszeile nennt „Architektur-Design ultra-brain" und bleibt, weil sie das Dokument benennt (Task 3) | freigegeben 2026-09-16 |
+| `ub/docs/wiki/topics/index.md` | 14 | 2026-08-30 | **Archiv** | Artefakt in der Form von `render_catalog`; `reindex` schreibt die Kataloge des eigenen Bündels nicht (`cli.py:203-206`), sie wurden beim Umzug einmal von Hand neu geschrieben | freigegeben 2026-09-16 |
+| `ub/docs/wiki/index.md` | 16 | 2026-08-30 | **Archiv** | Artefakt in der Form von `render_catalog`; `reindex` schreibt die Kataloge des eigenen Bündels nicht (`cli.py:203-206`), sie wurden beim Umzug einmal von Hand neu geschrieben | freigegeben 2026-09-16 |
+| `ub/docs/wiki/sources/index.md` | 17 | 2026-08-30 | **Archiv** | Artefakt in der Form von `render_catalog`; `reindex` schreibt die Kataloge des eigenen Bündels nicht (`cli.py:203-206`), sie wurden beim Umzug einmal von Hand neu geschrieben | freigegeben 2026-09-16 |
+| `ub/docs/wiki/_identities.tsv` | 1 | 2026-08-30 | **Archiv** | Artefakt: `reindex` führt das Register des Bereichs in dessen Artefaktverzeichnis, bei `project/loomux` die Repo-Wurzel, nicht im Bündel (`cli.py:142,164`, `_schema.md`); enthält ohnehin nur die Kopfzeile | freigegeben 2026-09-16 |
 | `ub/docs/wiki/entities/okf.md` | 34 | 2026-08-30 | **behalten** | Begriffsseite ohne Bezug auf die Werkzeugteilung | freigegeben 2026-09-16 |
 | `ub/docs/wiki/_schema.md` | 42 | 2026-08-30 | **aktualisieren** | Zeile 42 nennt `project/ultra-brain` als Bereich | freigegeben 2026-09-16 |
 | `ub/docs/wiki/log.md` | 46 | 2026-08-30 | **Archiv** | Protokoll der alten Bundle-Arbeit: beschreibt Scheiben und Quellen, die nicht mitziehen | freigegeben 2026-09-16 |
@@ -84,20 +98,20 @@ Frontmatter. Die Zeile gehört in der Fusions-Spec richtiggestellt.
 | `ub/docs/wiki/sources/entscheidungen-scheibe-2a.md` | 58 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | freigegeben 2026-09-16 |
 | `ub/docs/wiki/sources/plan-scheibe-2a-suchkette.md` | 58 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | freigegeben 2026-09-16 |
 | `ub/docs/wiki/entities/brain-daemon.md` | 61 | 2026-08-30 | **aktualisieren** | Paritätszeile 49: loomux fragt nie einen brain-Daemon | freigegeben 2026-09-16 |
-| `ub/docs/wiki/sources/architektur-spec.md` | 62 | 2026-08-30 | **aktualisieren** | Titel lautet „Architektur-Design ultra-brain"; die Quelle selbst ist die einzige, deren `content_hash` heute nicht mehr stimmt | freigegeben 2026-09-16 |
-| `ub/docs/wiki/topics/datenschutz-und-kanaele.md` | 62 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | freigegeben 2026-09-16 |
+| `ub/docs/wiki/sources/architektur-spec.md` | 62 | 2026-08-30 | **aktualisieren** | Die Quelle ist die einzige, deren `content_hash` nicht mehr stimmt — dafür steht ein Konfliktkasten; der Titel „Architektur-Design ultra-brain" bleibt, weil er das Dokument benennt (Task 3) | freigegeben 2026-09-16 |
+| `ub/docs/wiki/topics/datenschutz-und-kanaele.md` | 62 | 2026-08-30 | **aktualisieren** | Nur die `resource`-Zeile wurde gerichtet; die Schlusszeile nennt „Architektur-Design ultra-brain" und bleibt, weil sie das Dokument benennt (Task 3) | freigegeben 2026-09-16 |
 | `ub/docs/wiki/syntheses/warum-fast-die-vorgabe-bleibt.md` | 65 | 2026-08-30 | **aktualisieren** | Zeile 40 nennt `project/ultra-brain` und die Datei `bench/2c1/entscheidung-46.md` außerhalb von `docs/` | freigegeben 2026-09-16 |
 | `ub/docs/wiki/sources/plan-pruefkorpus-v1.md` | 66 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | freigegeben 2026-09-16 |
 | `ub/docs/wiki/topics/abnahmen-und-echte-umgebung.md` | 70 | 2026-08-30 | **behalten** | Keine Prosa-Nennung der alten Namen, nur `brain://`-Quellen | freigegeben 2026-09-16 |
-| `ub/docs/wiki/topics/architektur-grundsaetze.md` | 70 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | freigegeben 2026-09-16 |
+| `ub/docs/wiki/topics/architektur-grundsaetze.md` | 70 | 2026-08-30 | **aktualisieren** | Nur die `resource`-Zeile wurde gerichtet; die Schlusszeile nennt „Architektur-Design ultra-brain" und bleibt, weil sie das Dokument benennt (Task 3) | freigegeben 2026-09-16 |
 | `ub/docs/wiki/sources/plan-scheibe-2c2-mcp-fronten.md` | 71 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | freigegeben 2026-09-16 |
-| `ub/docs/wiki/topics/scheiben-und-abnahme.md` | 72 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | freigegeben 2026-09-16 |
+| `ub/docs/wiki/topics/scheiben-und-abnahme.md` | 72 | 2026-08-30 | **aktualisieren** | Scheiben heißen in loomux Stufen, die Abnahme ist enger; die Schlusszeile nennt „Architektur-Design ultra-brain" und bleibt, weil sie das Dokument benennt (Task 3) | freigegeben 2026-09-16 |
 | `ub/docs/wiki/sources/plan-scheibe-1-indexer.md` | 74 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | freigegeben 2026-09-16 |
 | `ub/docs/wiki/sources/abnahme-scheibe-2a.md` | 78 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | freigegeben 2026-09-16 |
-| `ub/docs/wiki/syntheses/index.md` | 8 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | freigegeben 2026-09-16 |
+| `ub/docs/wiki/syntheses/index.md` | 8 | 2026-08-30 | **Archiv** | Artefakt in der Form von `render_catalog`; `reindex` schreibt die Kataloge des eigenen Bündels nicht (`cli.py:203-206`), sie wurden beim Umzug einmal von Hand neu geschrieben | freigegeben 2026-09-16 |
 | `ub/docs/wiki/sources/plan-scheibe-0-fundament.md` | 95 | 2026-08-30 | **behalten** | Verdichtete Quelle; nur die `brain://`-Zeile wird umgeschrieben | freigegeben 2026-09-16 |
-| `ub/docs/wiki/topics/brain-maintenance.md` | 95 | 2026-08-30 | **aktualisieren** | Schlusszeile nennt „Architektur-Design ultra-brain" als Quelle | freigegeben 2026-09-16 |
-| `ub/docs/wiki/entities/index.md` | 9 | 2026-08-30 | **Archiv** | Artefakt: `render_catalog` erzeugt die Katalogseite aus den Seiten des Verzeichnisses | freigegeben 2026-09-16 |
+| `ub/docs/wiki/topics/brain-maintenance.md` | 95 | 2026-08-30 | **aktualisieren** | Die Pflege ist in loomux Stufe 3 und nicht gebaut; die Schlusszeile nennt „Architektur-Design ultra-brain" und bleibt, weil sie das Dokument benennt (Task 3) | freigegeben 2026-09-16 |
+| `ub/docs/wiki/entities/index.md` | 9 | 2026-08-30 | **Archiv** | Artefakt in der Form von `render_catalog`; `reindex` schreibt die Kataloge des eigenen Bündels nicht (`cli.py:203-206`), sie wurden beim Umzug einmal von Hand neu geschrieben | freigegeben 2026-09-16 |
 
 ## 2. Wiki-Bundle ultraloom (5 Dateien)
 
