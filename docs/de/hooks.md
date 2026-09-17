@@ -40,7 +40,7 @@ sequenceDiagram
     Host->>Post: Ergebnis & geänderte Pfade (stdin)
     Post->>Post: Hash geänderter Dateien & Blast-Radius berechnen
     Post->>Journal: Ereignis anhängen (<0,2ms)
-    Post-->>Host: Exit 0 (Inline Aufrufer-Warnungen)
+    Post-->>Host: Exit 0, oder Exit 2, wenn eine Lane scheitert (Abschnitt 5)
     end
 
     rect rgb(245, 255, 245)
@@ -48,7 +48,7 @@ sequenceDiagram
     Host->>Stop: Runde beendet (stdin)
     Stop->>Stop: Prüfkette [verify] fahren (Linter, Tests, Coverage)
     alt Quality Gate schlägt fehl
-        Stop-->>Host: Exit 1 + Feedback (Runde anhalten)
+        Stop-->>Host: Exit 2 + Feedback (Runde anhalten)
     else Alle Lanes grün
         Stop-->>Host: Exit 0 (Runde erfolgreich)
     end
@@ -510,7 +510,7 @@ echtes Verzeichnis an diesem Pfad sind jemandes Daten und wird nie angefasst;
 eine Junction, die anderswohin zeigt, ist jemandes eigene Einrichtung und
 bleibt stehen. Entfernt wird mit `os.Remove`, nie mit `os.RemoveAll`: auf einem
 Reparse-Point entfernt das erste den Punkt, das zweite liefe ins Ziel
-(`internal/worktree/junction`). Ein Verzeichnis der angelegten Junctions gibt
+(`internal/worktree/junction`). Ein Register der angelegten Junctions gibt
 es nicht — es wäre ein zweiter Zustand, der abdriftet —, darum werden von Hand
 angelegte Junctions an denselben Stellen mit demselben Ziel übernommen.
 

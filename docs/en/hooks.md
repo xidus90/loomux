@@ -40,7 +40,7 @@ sequenceDiagram
     Host->>Post: Tool Output & Modified Paths (stdin)
     Post->>Post: Hash Dirty Files & Calculate Blast Radius
     Post->>Journal: Append Event (<0.2ms)
-    Post-->>Host: Exit 0 (Inline caller warnings)
+    Post-->>Host: Exit 0, or Exit 2 when a lane fails (section 5)
     end
 
     rect rgb(245, 255, 245)
@@ -48,7 +48,7 @@ sequenceDiagram
     Host->>Stop: Turn Finished Payload (stdin)
     Stop->>Stop: Run [verify] Check Chain (Linter, Tests, Coverage)
     alt Quality Gate Fails
-        Stop-->>Host: Exit 1 + Failure Feedback (Halt turn)
+        Stop-->>Host: Exit 2 + Failure Feedback (Halt turn)
     else All Lanes Pass
         Stop-->>Host: Exit 0 (Turn Green)
     end
