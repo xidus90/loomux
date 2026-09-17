@@ -4,7 +4,8 @@
 **Regel:** Jede Zeile braucht eine Freigabe des Nutzers, bevor Stufe 1b-1 als fertig gilt. „Alt" ist die Python-Referenz, „Neu" ist `loomux brain`.
 **Stand:** Alle 54 Zeilen sind am 2026-09-16 im Durchgang mit dem Nutzer
 freigegeben. Drei davon tragen einen Nachtrag: die Prüfungen aus den Zeilen
-18, 20 und 22 werden in einer späteren Stufe nachgerüstet.
+18, 20 und 22 sind am 2026-09-16 nachgerüstet, siehe
+`../specs/2026-09-16-loomux-registry-manifest-pruefungen-design.md`.
 
 | Fall / Bereich | Alt | Neu | Begründung | Freigabe |
 |---|---|---|---|---|

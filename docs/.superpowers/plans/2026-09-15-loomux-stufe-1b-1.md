@@ -1,5 +1,18 @@
 # loomux Stufe 1b-1 — Implementierungsplan
 
+**Stand 2026-09-17: abgeschlossen.** Die Tasks 0–16 sind gelaufen; die fünf
+Fertig-Kriterien der Spec sind belegt: der Fallkorpus und das Tor sind grün, die
+Coverage steht bei 100 % je Funktion, die Mutationsrunde und der Rauchtest sind in
+`docs/.superpowers/parity/stufe-1b-1.md` festgehalten, und die Messung steht im
+Abschnitt `2026-09-16 19:10` von `docs/{en,de}/benchmarks.md` — der Zielwert
+≤ 150 ms für `search --profile fast` warm hält nicht (260,7 ms), der reißende
+Posten ist qmd und benannt. **Die Kästchen der Tasks 0–15 sind nie gepflegt worden
+und sagen nichts über den Fortschritt**; die neun abgehakten in Task 16 sind die
+Rauchtestliste, die aus der Paritätsliste zurückgespiegelt ist. Ruling R37
+streicht Task 0 Step 4 nachträglich, und das Verzeichnis, das Task 11
+`internal/dev/fakeqmd/qmd/` nennt, heißt `_qmd/`, damit `go install ./...` es
+nicht baut; im Text der Tasks steht der alte Name stehen.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `loomux brain search|catalog|read|neighbors|status` mit belegter Parität zur Python-Referenz von ultra-brain, dazu `loomux dev mutants` und die Mutationsrunde der Stufe.
@@ -99,7 +112,7 @@ Neu entstehen:
 | `internal/brain/search/` | MCP- und CLI-Port, Suche, Befunde, Reconcile-Stempel | ub `pkg/search` + neu `stamp.go` | 8 |
 | `internal/brain/status/` | `status`-Zeilen | neu | 9 |
 | `internal/cli/brain.go`, `internal/cli/brainargs.go` | `loomux brain …` mit argparse-gleichen Formen | neu | 10 |
-| `internal/dev/fakeqmd/`, `internal/dev/fakeqmd/qmd/` | Fake-qmd aus einer Fixture: CLI-Antworten und MCP-Handler | neu | 11 |
+| `internal/dev/fakeqmd/`, `internal/dev/fakeqmd/_qmd/` | Fake-qmd aus einer Fixture: CLI-Antworten und MCP-Handler | neu | 11 |
 | `internal/dev/recordcase/`, `internal/dev/importcases/`, `internal/cli/dev.go` | Programmform, Umgebung, CRLF; Faltung in jedem Registry-Pfad | geändert | 11 |
 | `testdata/cases/1b-1-worlds/`, `…/1b-1-source/`, `…/1b-1/`, `…/1b-1-map.toml`, `internal/cli/cases_1b1_test.go` | Fallkorpus | neu | 12 |
 | `docs/.superpowers/parity/stufe-1b-1.md` | Abweichungsliste | neu | 12, 14, 15, 16 |
