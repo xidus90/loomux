@@ -3,3 +3,4 @@
 *.test
 /.loomux/state/
 /handovers/
+/docs/wiki/.obsidian/
