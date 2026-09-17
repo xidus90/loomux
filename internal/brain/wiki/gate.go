@@ -46,7 +46,11 @@ func neighbour(projectRoot string) string {
 }
 
 func getGitChangedFiles(repoPath string) []string {
-	cmd := exec.Command("git", "status", "--porcelain")
+	// Every untracked file by name, not the directory git would fold them
+	// into: a wiki directory git has never seen comes back as its parent
+	// ("?? docs/"), and that parent lies outside the wiki the split below
+	// looks for -- a bundle written from scratch read as untouched.
+	cmd := exec.Command("git", "status", "--porcelain", "--untracked-files=all")
 	cmd.Dir = repoPath
 	// git's location variables outrank cmd.Dir, and this gate runs as a stop
 	// hook -- often inside a git hook that exports them. Inherited, they make
@@ -81,16 +85,11 @@ func CheckWikiGate(projectRoot string) []GateViolation {
 		return nil
 	}
 
-	// 1. Check code modifications in project
-	codeChanges := getGitChangedFiles(projectRoot)
-	codeChanged := len(codeChanges) > 0
+	// 1. and 2. Code modifications and wiki modifications
+	codeChanges, wikiChanges := changesOf(projectRoot, wikiPath)
 
-	// 2. Check wiki modifications
-	wikiChanges := getGitChangedFiles(wikiPath)
-	wikiChanged := len(wikiChanges) > 0
-
-	// If code changed but wiki was untouched (and wiki is not a subfolder of project or vice versa)
-	if codeChanged && !wikiChanged && wikiPath != projectRoot {
+	// If code changed but the wiki was untouched
+	if len(codeChanges) > 0 && len(wikiChanges) == 0 {
 		violations = append(violations, GateViolation{
 			Name: "wiki-drift",
 			Message: fmt.Sprintf("Code in %q was modified (%d changed files), but associated wiki at %q was not updated.",
@@ -112,4 +111,54 @@ func CheckWikiGate(projectRoot string) []GateViolation {
 	}
 
 	return violations
+}
+
+// changesOf answers what the project changed and what its wiki changed. A
+// wiki of the project's own repository is a directory in it, and `git status`
+// answers for the whole repository wherever it is asked -- a second call from
+// the wiki repeats the project's answer, so the two are told apart by path.
+// Asked separately are the two wikis that are no directory of this working
+// tree: one beside the project, and one that carries a repository of its own
+// (a nested checkout, a linked worktree, a submodule -- each a `.git`).
+//
+// projectRoot is the top of its working tree; every caller passes a project
+// root, and porcelain paths are relative to that top.
+func changesOf(projectRoot, wikiPath string) (code, wikiChanges []string) {
+	changes := getGitChangedFiles(projectRoot)
+	relative, err := filepath.Rel(projectRoot, wikiPath)
+	outside := err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
+	if outside || isOwnRepository(wikiPath) {
+		return changes, getGitChangedFiles(wikiPath)
+	}
+	return splitAtWiki(changes, filepath.ToSlash(relative))
+}
+
+// isOwnRepository reads the administrative entry, not its kind: a nested
+// checkout keeps a directory there, a linked worktree and a submodule a file.
+func isOwnRepository(path string) bool {
+	_, err := os.Stat(filepath.Join(path, ".git"))
+	return err == nil
+}
+
+// splitAtWiki sorts repository-relative paths by the wiki's own, which is
+// repository-relative too and carries forward slashes like them. The
+// separator belongs in the comparison: it keeps "docs/wikipedia.md" out of
+// the bundle at "docs/wiki". A wiki declared at the project root holds every
+// path: a project whose wiki is the project cannot drift from itself. Only a
+// project root that carries no repository of its own arrives here that way --
+// a root that does goes the separate way above, which is where the old
+// `wikiPath != projectRoot` guard now lives.
+func splitAtWiki(changes []string, wiki string) (code, wikiChanges []string) {
+	prefix := wiki + "/"
+	if wiki == "." {
+		prefix = ""
+	}
+	for _, path := range changes {
+		if strings.HasPrefix(path, prefix) {
+			wikiChanges = append(wikiChanges, path)
+			continue
+		}
+		code = append(code, path)
+	}
+	return code, wikiChanges
 }
