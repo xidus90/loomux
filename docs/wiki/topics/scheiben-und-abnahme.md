@@ -73,7 +73,9 @@ unverändert. Die Abnahme ist dabei enger gefasst: Eine Stufe ist fertig, wenn
 alle übersetzten Fälle grün sind oder freigegeben in der Abweichungsliste
 stehen, die Coverage 100 % ist und jeder Ausschluss begründet, die
 Mutationsrunde der Stufe gelaufen ist und ihre Überlebenden dokumentiert sind
-(ab Stufe 1b), die Zielwerte der Stufe gemessen und in `docs/en/benchmarks.md`
+(ab Stufe 1b, weil `loomux dev mutants` dort entsteht; die Runde von 1b
+schließt die Entscheidungspakete aus 1a ein), die Zielwerte der Stufe gemessen
+und in `docs/en/benchmarks.md`
 und `docs/de/benchmarks.md` eingetragen sind, und das loomux-Repo die
 Funktionen der Stufe selbst benutzt.
 

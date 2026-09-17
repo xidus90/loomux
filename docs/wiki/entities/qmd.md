@@ -28,8 +28,9 @@ Suchprofil erfunden, das es nicht gibt
 Bis zum Umzug am 2026-09-16 wurden diese Befehle über die Kommandozeile
 gerufen; loomux spricht stattdessen qmds MCP-Daemon an — `fast` als
 `searches:[{type:"vec"}]` mit `rerank:false` und ohne Erweiterung, `keyword`
-ebenso mit `{type:"lex"}`, `full` mit `rerank:true` —, und die Reihenfolge
-trägt der Score der Antwort (1/Rang). Der gehaltene Unterprozess ist damit
+ebenso mit `{type:"lex"}`, `full` mit `rerank:true` —, und auf den beiden
+rerankerfreien Wegen trägt die Reihenfolge der Score der Antwort (1/Rang).
+Der gehaltene Unterprozess ist damit
 dieser Daemon: loomux startet ihn, wenn auf dem Port keiner antwortet, und sagt
 dann einmal je Port an, dass der erste Aufruf den Modellstart zahlt.
 

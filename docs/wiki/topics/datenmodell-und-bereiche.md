@@ -97,9 +97,10 @@ Lücke: Programmierwissen entsteht in einem Projekt, gilt aber für alle.
 **Projekte lesen geteilte Bereiche. Geteilte Bereiche lesen keine Projekte.**
 Der einzige Weg hinein ist die Beförderung durch menschliche Hand, bei der ein
 Modell eine projektfreie Fassung vorschlägt. Dabei wird **nicht kopiert** — die
-geteilte Seite ist die Wahrheit, das Projekt verweist. Der Lint setzt diese
-Richtung inzwischen durch (`wrong-direction`); vorher war die einzige Sicherung,
-dass jemand sich erinnerte.
+geteilte Seite ist die Wahrheit, das Projekt verweist. Bis zum Umzug am
+2026-09-16 setzte der Lint diese Richtung durch (`wrong-direction`); davor wie
+heute wieder ist die einzige Sicherung, dass jemand sich erinnert — der Lint
+von loomux kennt die Regel nicht.
 
 Verweise tragen Pfad **und** `doc_id` und **heilen sich damit selbst**: Läuft
 ein Pfad ins Leere, sucht der Kern die Kennung über alle Bereiche. Ein Umschnitt
