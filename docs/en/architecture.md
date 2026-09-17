@@ -132,15 +132,40 @@ flowchart LR
     Crux --> Context["Injected Agent Context<br/>(Full answer without file reads)"]
 ```
 
+> **State.** Stage G1 built the read model and the two calculators as Go
+> packages — `internal/code/model`, `internal/code/pagerank`,
+> `internal/code/blast`. No command calls them yet, and nothing writes the
+> wiring graph they read: the extractor, the lexical seed, the freshness check
+> and the `loomux graph` commands are stage G2 and later. The sections below
+> describe the whole pillar and mark what is already code.
+
 ### 1. "Lexical Proposes, Graph Disposes"
-- **Lexical Step**: BM25 and exact symbol indexing quickly identify candidate nodes matching the prompt keywords.
-- **Graph Step**: A **Personalized PageRank** random-walk is initiated, seeded by those candidates. Graph connectivity concentrates probability mass onto structural hubs, naturally filtering out dead code, private helpers, or isolated mock functions.
+- **Lexical Step** (G2): BM25 and exact symbol indexing quickly identify candidate nodes matching the prompt keywords.
+- **Graph Step** (G1, `internal/code/pagerank`): A **Personalized PageRank** random-walk is initiated, seeded by those candidates. Graph connectivity concentrates probability mass onto structural hubs, naturally filtering out dead code, private helpers, or isolated mock functions.
+
+The rank meets the edges **undirected**, where the blast radius below meets the
+very same edges directed. To understand an area, what a function calls weighs as
+much as what calls it, so mass has to flow both ways along one call; "who breaks
+if this changes" is the other question, and that one has a direction. A parallel
+edge is not collapsed: it counts twice in the neighbour list and splits the mass
+accordingly, as in the reference. An edge whose target is not a node of the
+graph — an unresolved import naming its module — is dropped from the rank,
+because it would otherwise gather mass and be reported as a result nobody can
+open.
 
 ### 2. The Blast Radius Engine
-Before any file edit or PR merge, Loomux computes the **transitive closure** of all incoming call edges:
+Before any file edit or PR merge, Loomux computes the **transitive closure** over
+the incoming edges (G1, `internal/code/blast`):
 $$\text{BlastRadius}(S) = \{ u \in V \mid u \rightsquigarrow S \}$$
 This immediately warns the agent:
 > *"Modifying `guard.go:checkTool` will affect 8 callers across `cli`, `hooks`, and `serve`."*
+
+Five relations carry the walk — `calls`, `references`, `imports`, `implements`
+and `extends`. `contains` is excluded on purpose: a file contains every symbol
+defined in it, so walking that edge would turn every file into a hub that floods
+the walk. Where the rank drops an unresolved target, the walk keeps it as a hit
+without a node rather than hide the dependency. A node is reported once, at the
+smallest depth any start reached it at, and a start node is never its own hit.
 
 ### 3. Crux Extraction
 Reading an entire 1,000-line file into context just to inspect a 20-line method wastes tokens. The Crux Inliner extracts the core definition, signature, and vital inner logic (5–10 lines), providing immediate answers at **$0 token cost**.
