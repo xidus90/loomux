@@ -35,7 +35,16 @@ Kompilat, 103 getötet, 11 überlebt.
 daraufhin ein drittes Mal, in einem Befehl über alle drei Pakete, und
 reproduziert dieselben Zahlen und dieselben Überlebenden.
 
-Keine Zeile ist bisher freigegeben.
+**Freigegeben 2026-09-17.** Der Nutzer ist die Tabelle blockweise durchgegangen
+und hat alle 15 Zeilen freigegeben: die Zeilen 1 bis 4 als fehlende Tests, die
+mit den nachgezogenen Tests erledigt sind, die Zeilen 5 bis 15 als äquivalente
+Mutanten. Die drei Verfügungen ohne Mutation weiter unten trägt er ebenso mit;
+die Normalisierung von `Depth` und `Direction` bleibt damit ausdrücklich an der
+CLI-Verdrahtung in G2 und nicht an `Reach`.
+
+Vor der Freigabe wurde das Tor auf dem Stand `a957f59` erneut gefahren — Tests
+grün, `dev covergate` ohne Befund, Exit 0 — und die Mutationsrunde nicht
+wiederholt, weil sich `internal/code/**` seit `8cb70e9` nicht geändert hat.
 
 ## Verfügungen dieser Stufe, die keine Mutation betreffen
 
@@ -75,21 +84,21 @@ liefern `nil`. Die Zeilen unten führen diesen Zweig deshalb nicht einzeln mit.
 
 | Ort | Mutation | Ausgang | Verfügung | Freigabe |
 |---|---|---|---|---|
-| `rank.go:26` (a2) | `if o.Alpha <= 0 \|\| o.Alpha >= 1 {` → `if o.Alpha <= 0 {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: kein Fall reichte ein `Alpha` ≥ 1. Nachgezogen als `TestRankAlphaAtOrAboveOneFallsBackToTheDefault` — `Alpha: 1` und `Alpha: 1.5` müssen dasselbe liefern wie `Options{}` | offen |
-| `rank.go:26` (a3) | `if o.Alpha <= 0 \|\| o.Alpha >= 1 {` → `if o.Alpha <= 0 \|\| o.Alpha > 1 {` | Runde 1 überlebt, Runde 2 getötet | Derselbe fehlende Test: `Alpha: 1` genau auf der Grenze. Derselbe neue Test tötet beide Zeilen | offen |
-| `rank.go:33` (a1) | `if o.Iterations <= 0 {` → `if true {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: kein Fall machte eine gesetzte Schrittzahl am Ergebnis sichtbar. Nachgezogen als `TestRankIterationsLimitHowFarTheWalkSpreads` — auf der Kette `a-b-c` lässt `Iterations: 1` das `c` bei Score 0, die Vorgabe gibt ihm Masse. Der Test misst den Score und nicht die Anwesenheit der ID, damit er auch dann gilt, wenn `Rank` einmal Nullen mitmelden sollte | offen |
-| `rank.go:56` (a2) | `if !ok \|\| w <= 0 {` → `if !ok {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: ein negatives Gewicht wurde nie neben einem positiven gereicht, wo es die Summe löschte. Nachgezogen als `TestRankNegativeSeedWeightIsIgnoredNotSubtracted` — Saat `{hub: 1, a: -1}` muss `hub` mit 1 liefern, nicht nichts | offen |
-| `rank.go:56` (a3) | `if !ok \|\| w <= 0 {` → `if !ok \|\| w < 0 {` | überlebt | Äquivalent: `restart` ist frisch mit Nullen belegt. Ein Gewicht von genau 0 schreibt der Mutant als 0 an eine Stelle, die schon 0 ist — kein beobachtbarer Unterschied. Kein Test kann das töten | offen |
-| `rank.go:68` (a1) | `if total <= 0 {` → `if false {` | überlebt | Äquivalent: `total` ist die Summe der Gewichte, die `w <= 0` überstanden haben, im endlichen Fall also 0 oder größer. Bei genau 0 — und nur dort ändert der Mutant etwas — teilt er 0 durch 0, jeder Rang wird `NaN`, `max` bleibt 0, und die Wache `max <= 0` liefert dasselbe `nil`. Die frühe Wache spart nur den Umweg. Die Eingabe, die diesen Weg geht, ist die von `TestRankEmptyOrZeroSeeds` (Saat 0, negativ oder ohne Knoten); `TestRankSeedWeightBeyondTheFloatRange` hält den Ausgang `NaN` → `nil` zusätzlich fest | offen |
-| `rank.go:68` (a3) | `if total <= 0 {` → `if total < 0 {` | überlebt | Äquivalent, dieselbe Rechnung: `total` wird nie negativ, also greift die Wache nur bei 0, und der `NaN`-Weg endet ebenso in `nil` | offen |
-| `rank.go:102` (a1) | `if dangling > 0 {` → `if true {` | überlebt | Äquivalent: `dangling` ist eine Summe nichtnegativer Massen. Bei 0 ist `dm` 0, und die Schleife addiert `0 * r` auf jeden Eintrag. Die Wache spart Arbeit, sie ändert nichts | offen |
-| `rank.go:102` (a3) | `if dangling > 0 {` → `if dangling >= 0 {` | überlebt | Äquivalent, dieselbe Rechnung wie die Zeile darüber | offen |
-| `rank.go:105` (a1) | `if r > 0 {` → `if true {` | überlebt | Äquivalent: `r` ist ein normiertes Restart-Gewicht und nie negativ. Bei `r == 0` addiert der Mutant `dm * 0` — die Wache überspringt nur die Nicht-Saatknoten | offen |
-| `rank.go:105` (a3) | `if r > 0 {` → `if r >= 0 {` | überlebt | Äquivalent, dieselbe Rechnung wie die Zeile darüber | offen |
-| `rank.go:115` (a3) | `if v > max {` → `if v >= max {` | überlebt | Äquivalent: Bei Gleichstand weist der Mutant `max` denselben Wert erneut zu. Das Maximum einer Folge hängt nicht davon ab, welcher der gleichen Werte es setzt | offen |
-| `rank.go:131` (a3) | `return out[i].Score > out[j].Score` → `return out[i].Score >= out[j].Score` | überlebt | Äquivalent: Die Zeile wird nur erreicht, wenn die Wache in Zeile 130 (`out[i].Score != out[j].Score`) schon festgestellt hat, dass die beiden Werte verschieden sind. Für ungleiche Werte sind `>` und `>=` dasselbe | offen |
-| `rank.go:133` (a3) | `return out[i].ID < out[j].ID` → `return out[i].ID <= out[j].ID` | überlebt | Äquivalent: Die Zeile wird nur bei gleichem Score erreicht, und `Prepare` vergibt jede ID genau einmal — gleich sind zwei IDs also nur, wenn `i` und `j` dasselbe Element meinen, und wie ein Element zu sich selbst steht, ist für die Reihenfolge ohne Belang | offen |
-| `reach.go:20` (a1) | `if visited[id] {` → `if false {` | überlebt | Äquivalent: Eine doppelt genannte Start-ID landet zweimal in der Front, aber `visited[id]` steht vorher schon. Beim zweiten Durchgang über denselben Knoten ist jeder Nachbar bereits besucht, es entsteht kein Treffer. Gleiche Treffer, gleiche Reihenfolge — die Wache spart nur den Doppelgang | offen |
+| `rank.go:26` (a2) | `if o.Alpha <= 0 \|\| o.Alpha >= 1 {` → `if o.Alpha <= 0 {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: kein Fall reichte ein `Alpha` ≥ 1. Nachgezogen als `TestRankAlphaAtOrAboveOneFallsBackToTheDefault` — `Alpha: 1` und `Alpha: 1.5` müssen dasselbe liefern wie `Options{}` | freigegeben 2026-09-17 |
+| `rank.go:26` (a3) | `if o.Alpha <= 0 \|\| o.Alpha >= 1 {` → `if o.Alpha <= 0 \|\| o.Alpha > 1 {` | Runde 1 überlebt, Runde 2 getötet | Derselbe fehlende Test: `Alpha: 1` genau auf der Grenze. Derselbe neue Test tötet beide Zeilen | freigegeben 2026-09-17 |
+| `rank.go:33` (a1) | `if o.Iterations <= 0 {` → `if true {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: kein Fall machte eine gesetzte Schrittzahl am Ergebnis sichtbar. Nachgezogen als `TestRankIterationsLimitHowFarTheWalkSpreads` — auf der Kette `a-b-c` lässt `Iterations: 1` das `c` bei Score 0, die Vorgabe gibt ihm Masse. Der Test misst den Score und nicht die Anwesenheit der ID, damit er auch dann gilt, wenn `Rank` einmal Nullen mitmelden sollte | freigegeben 2026-09-17 |
+| `rank.go:56` (a2) | `if !ok \|\| w <= 0 {` → `if !ok {` | Runde 1 überlebt, Runde 2 getötet | Fehlender Test: ein negatives Gewicht wurde nie neben einem positiven gereicht, wo es die Summe löschte. Nachgezogen als `TestRankNegativeSeedWeightIsIgnoredNotSubtracted` — Saat `{hub: 1, a: -1}` muss `hub` mit 1 liefern, nicht nichts | freigegeben 2026-09-17 |
+| `rank.go:56` (a3) | `if !ok \|\| w <= 0 {` → `if !ok \|\| w < 0 {` | überlebt | Äquivalent: `restart` ist frisch mit Nullen belegt. Ein Gewicht von genau 0 schreibt der Mutant als 0 an eine Stelle, die schon 0 ist — kein beobachtbarer Unterschied. Kein Test kann das töten | freigegeben 2026-09-17 |
+| `rank.go:68` (a1) | `if total <= 0 {` → `if false {` | überlebt | Äquivalent: `total` ist die Summe der Gewichte, die `w <= 0` überstanden haben, im endlichen Fall also 0 oder größer. Bei genau 0 — und nur dort ändert der Mutant etwas — teilt er 0 durch 0, jeder Rang wird `NaN`, `max` bleibt 0, und die Wache `max <= 0` liefert dasselbe `nil`. Die frühe Wache spart nur den Umweg. Die Eingabe, die diesen Weg geht, ist die von `TestRankEmptyOrZeroSeeds` (Saat 0, negativ oder ohne Knoten); `TestRankSeedWeightBeyondTheFloatRange` hält den Ausgang `NaN` → `nil` zusätzlich fest | freigegeben 2026-09-17 |
+| `rank.go:68` (a3) | `if total <= 0 {` → `if total < 0 {` | überlebt | Äquivalent, dieselbe Rechnung: `total` wird nie negativ, also greift die Wache nur bei 0, und der `NaN`-Weg endet ebenso in `nil` | freigegeben 2026-09-17 |
+| `rank.go:102` (a1) | `if dangling > 0 {` → `if true {` | überlebt | Äquivalent: `dangling` ist eine Summe nichtnegativer Massen. Bei 0 ist `dm` 0, und die Schleife addiert `0 * r` auf jeden Eintrag. Die Wache spart Arbeit, sie ändert nichts | freigegeben 2026-09-17 |
+| `rank.go:102` (a3) | `if dangling > 0 {` → `if dangling >= 0 {` | überlebt | Äquivalent, dieselbe Rechnung wie die Zeile darüber | freigegeben 2026-09-17 |
+| `rank.go:105` (a1) | `if r > 0 {` → `if true {` | überlebt | Äquivalent: `r` ist ein normiertes Restart-Gewicht und nie negativ. Bei `r == 0` addiert der Mutant `dm * 0` — die Wache überspringt nur die Nicht-Saatknoten | freigegeben 2026-09-17 |
+| `rank.go:105` (a3) | `if r > 0 {` → `if r >= 0 {` | überlebt | Äquivalent, dieselbe Rechnung wie die Zeile darüber | freigegeben 2026-09-17 |
+| `rank.go:115` (a3) | `if v > max {` → `if v >= max {` | überlebt | Äquivalent: Bei Gleichstand weist der Mutant `max` denselben Wert erneut zu. Das Maximum einer Folge hängt nicht davon ab, welcher der gleichen Werte es setzt | freigegeben 2026-09-17 |
+| `rank.go:131` (a3) | `return out[i].Score > out[j].Score` → `return out[i].Score >= out[j].Score` | überlebt | Äquivalent: Die Zeile wird nur erreicht, wenn die Wache in Zeile 130 (`out[i].Score != out[j].Score`) schon festgestellt hat, dass die beiden Werte verschieden sind. Für ungleiche Werte sind `>` und `>=` dasselbe | freigegeben 2026-09-17 |
+| `rank.go:133` (a3) | `return out[i].ID < out[j].ID` → `return out[i].ID <= out[j].ID` | überlebt | Äquivalent: Die Zeile wird nur bei gleichem Score erreicht, und `Prepare` vergibt jede ID genau einmal — gleich sind zwei IDs also nur, wenn `i` und `j` dasselbe Element meinen, und wie ein Element zu sich selbst steht, ist für die Reihenfolge ohne Belang | freigegeben 2026-09-17 |
+| `reach.go:20` (a1) | `if visited[id] {` → `if false {` | überlebt | Äquivalent: Eine doppelt genannte Start-ID landet zweimal in der Front, aber `visited[id]` steht vorher schon. Beim zweiten Durchgang über denselben Knoten ist jeder Nachbar bereits besucht, es entsteht kein Treffer. Gleiche Treffer, gleiche Reihenfolge — die Wache spart nur den Doppelgang | freigegeben 2026-09-17 |
 
 ## Was G1 offen lässt
 
