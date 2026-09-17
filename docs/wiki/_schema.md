@@ -47,8 +47,11 @@ findet denselben Widerspruch im nächsten Durchlauf wieder.
 
 ## Wo das Identitätsregister liegt
 
-Nicht hier. `_identities.tsv` neben dieser Datei ist der leere Rahmen, den
-`brain wiki init` anlegt; die `doc_id` jeder Seite dieses Bundles steht im
-Register des **Bereichs**, also in `_identities.tsv` der Repo-Wurzel. Der
-Grund: das Bundle ist kein eigener Bereich, sondern ein Teilbaum von
-`project/loomux`, und der Indexer führt ein Register je Bereich.
+Nicht hier. `_identities.tsv` neben dieser Datei ist nur der leere Rahmen,
+den in ultra-brain `brain wiki init` anlegte; loomux kennt den Befehl nicht,
+beim Umzug wurde die Kopfzeile von Hand gesetzt. Die `doc_id` jeder Seite
+dieses Bundles gehört in das Register des **Bereichs**, also in
+`_identities.tsv` der Repo-Wurzel. Diese Datei schreibt erst `reindex` ab
+Stufe 3; bis dahin gibt es sie nicht, und keine Seite ist dort eingetragen. Der
+Grund für den Ort: das Bundle ist kein eigener Bereich, sondern ein Teilbaum
+von `project/loomux`, und der Indexer führt ein Register je Bereich.
