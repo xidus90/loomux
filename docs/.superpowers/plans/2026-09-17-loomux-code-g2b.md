@@ -167,7 +167,7 @@ func TestTokenizeIsASCIIOnlyByDesign(t *testing.T) {
 	// would produce different tokens than the golden values on an identifier
 	// with an umlaut.
 	got := lexicon.Tokenize("großeZahl")
-	want := []string{"gro", "eZahl"}
+	want := []string{"gro", "zahl"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -282,29 +282,20 @@ func Counts(tokens []string) map[string]int {
 }
 ```
 
-Der Test `TestTokenizeIsASCIIOnlyByDesign` erwartet `["gro", "eZahl"]`. Das ist
-kein Tippfehler: `ß` ist kein `[a-z0-9]`, also trennt es, und das `Z` in
-`großeZahl` steht nach einem `ß` und nicht nach `[a-z0-9]`, wird also nicht als
-camelCase-Grenze erkannt — das Wort bleibt in einem Stück und behält sein
-Großbuchstaben-Z, weil `strings.ToLower` vor dem Trennen läuft. **Diesen Lauf
-einmal wirklich fahren und die Erwartung gegen die Ausgabe setzen, bevor der
-Test als bestanden gilt:** die Reihenfolge von Lowercasing und Trennung
-entscheidet das Ergebnis, und eine Erwartung aus dem Kopf ist hier nichts wert.
+Der Test `TestTokenizeIsASCIIOnlyByDesign` erwartet `["gro", "zahl"]`, und der
+Weg dahin ist der eigentliche Punkt: das `e` vor dem `Z` **ist** ein `[a-z]`, die
+camelCase-Grenze greift also und macht `große Zahl`; dann senkt `ToLower` das
+`Z`, und `ß` ist kein `[a-z0-9]`, trennt also. Übrig bleiben `gro`, ein
+einbuchstabiges `e`, das die Längengrenze fällt, und `zahl`. Das Wort zerfällt an
+einer Stelle, an der kein Leser eine Grenze sieht — und genau das ist der Preis
+der byteweisen Übernahme, den eine Unicode-Fassung nicht hätte, um den Preis
+jedes Golden-Werts in diesem Repo.
 
-```sh
-cat > /tmp/tok.go <<'EOF'
-package main
-
-import (
-	"fmt"
-
-	"github.com/xidus90/loomux/internal/code/lexicon"
-)
-
-func main() { fmt.Printf("%q\n", lexicon.Tokenize("großeZahl")) }
-EOF
-go run /tmp/tok.go
-```
+Der Wert ist am 2026-09-17 in einem Wegwerfskript nachgefahren und **nicht**
+hergeleitet; eine frühere Fassung dieses Plans behauptete `["gro", "eZahl"]` und
+lag falsch. **Wer die Erwartung ändert, fährt sie erneut nach:** die Reihenfolge
+von Grenzmarkierung, Kleinschreibung und Trennung entscheidet das Ergebnis, und
+eine Erwartung aus dem Kopf ist hier nichts wert.
 
 - [ ] **Schritt 4: Lauf, der grün sein muss**
 
@@ -1062,12 +1053,14 @@ func overlap(query, doc map[string]int, idf map[string]float64) float64 {
 func bm25(query, body map[string]int, idf map[string]float64, bodyLen, avgLen float64) float64 {
 	norm := bm25K1 * (1 - bm25B + bm25B*lengthRatio(bodyLen, avgLen))
 	var s float64
-	for term, qn := range query {
+	// The query's own term frequency does not enter here, and the reference does
+	// not use it either: BM25 weighs how often the DOCUMENT says a word, not how
+	// often the question did.
+	for term := range query {
 		tf, ok := body[term]
 		if !ok {
 			continue
 		}
-		_ = qn
 		s += idf[term] * (float64(tf) * (bm25K1 + 1) / (float64(tf) + norm))
 	}
 	return s
@@ -1105,10 +1098,7 @@ func bagLen(bag map[string]int) float64 {
 go test ./internal/code/ask/ -count=1 -cover
 ```
 
-Der ungenutzte `qn` in `bm25` ist ein Fehler im Entwurf oben und gehört
-entfernt: BM25 gewichtet die Anfrage nicht mit ihrer eigenen Häufigkeit, Grafts
-Fassung tut das auch nicht. `go vet` meldet es nicht, `gofmt` auch nicht — also
-beim Schreiben streichen und die Zeile `_ = qn` mit ihr.
+Erwartet: PASS bei 100 % je Funktion.
 
 - [ ] **Schritt 5: Commit**
 
@@ -1888,7 +1878,7 @@ const maxSpanLines = 80
 func Inline(root string, a *Answer, full bool) {
 	for i := range a.Hits {
 		h := &a.Hits[i]
-		from, to, ok := spanLines(h.Span)
+		from, to, ok := h.Span.Lines()
 		if !ok {
 			continue
 		}
@@ -1926,79 +1916,20 @@ func slice(abs string, from, to int, full bool, rel string, span model.Span) (st
 	return strings.Join(out, "\n"), true
 }
 
-// spanLines reads "L12-L40" back into 12 and 40.
-func spanLines(span model.Span) (int, int, bool) {
-	s := string(span)
-	dash := strings.Index(s, "-L")
-	if !strings.HasPrefix(s, "L") || dash < 0 {
-		return 0, 0, false
-	}
-	from, okA := atoi(s[1:dash])
-	to, okB := atoi(s[dash+2:])
-	return from, to, okA && okB
-}
-
-// atoi is strconv.Atoi reporting failure as a bool, because a malformed span is
-// not an error anybody up the stack would handle differently.
-func atoi(s string) (int, bool) {
-	if s == "" {
-		return 0, false
-	}
-	n := 0
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, false
-		}
-		n = n*10 + int(r-'0')
-	}
-	return n, true
-}
 ```
 
-Der Import-Block braucht `model`. **`spanLines` und `atoi` stehen wortgleich in
-`internal/code/extract/golang/extract.go`** — beim Schreiben prüfen, ob sie
-dort exportiert werden sollten, statt sie zu doppeln. Die Spannenform ist
-Schemagut, also gehört sie nach `model`: `model.Span.Lines() (int, int, bool)`.
-Dann benutzen beide Seiten dieselbe Funktion, und ein Test in `model` deckt sie
-ab. Das ist der Weg; die Doppelung oben ist der Entwurf, nicht das Ziel.
+Der Import-Block braucht `model`. **`Span.Lines` wird hier nicht angelegt** — es
+steht seit G2a, Task 1, Schritt 5 in `internal/code/model/graph.go`, weil der
+Extraktor es dort schon braucht. Ist die Methode nicht da, ist G2a nicht
+vollständig ausgeführt: melden, nicht hier nachbauen.
 
-- [ ] **Schritt 4: `Span.Lines` nach `model` heben**
-
-Die Methode in `internal/code/model/graph.go` anlegen, in beiden Paketen
-benutzen, und in `internal/code/model/graph_test.go` prüfen:
-
-```go
-func TestSpanLines(t *testing.T) {
-	cases := []struct {
-		span     model.Span
-		from, to int
-		ok       bool
-	}{
-		{"L12-L40", 12, 40, true},
-		{"L1-L1", 1, 1, true},
-		{"", 0, 0, false},
-		{"12-40", 0, 0, false},
-		{"L12", 0, 0, false},
-		{"Lx-L4", 0, 0, false},
-		{"L12-L", 0, 0, false},
-	}
-	for _, c := range cases {
-		from, to, ok := c.span.Lines()
-		if from != c.from || to != c.to || ok != c.ok {
-			t.Errorf("Span(%q).Lines() = %d, %d, %v; want %d, %d, %v",
-				c.span, from, to, ok, c.from, c.to, c.ok)
-		}
-	}
-}
-```
-
-- [ ] **Schritt 5: Lauf, der grün sein muss**
+- [ ] **Schritt 4: Lauf, der grün sein muss**
 
 ```sh
 go test ./internal/code/... -count=1 -cover
 ```
 
-- [ ] **Schritt 6: Commit**
+- [ ] **Schritt 5: Commit**
 
 ```sh
 git add internal/code
@@ -2020,9 +1951,9 @@ excerpt stored on the node, and this binary has no LLM in the path. The
 line slice is Graft's own fallback for a node without one, and a crux
 would take precedence in exactly this function with the flags unchanged.
 
-Span parsing moves to model, where the shape belongs: the extractor
-writes it and the answer reads it, and two copies of one parser are one
-too many.
+The span is parsed by model.Span.Lines, which G2a put on the type for
+exactly this reason: the extractor writes the form and the answer reads
+it, and two copies of one parser are one too many.
 ```
 
 ---
@@ -2181,7 +2112,21 @@ func TestEnsureFreshBreaksAStaleLock(t *testing.T) {
 }
 ```
 
-`hashOf` ist ein Testhelfer (sha256 als Hex) und gehört zu dieser Datei.
+Dazu der Testhelfer, in derselben Datei; der Import-Block braucht
+`crypto/sha256`, `encoding/hex` und `time`:
+
+```go
+// hashOf is the hash a build would have recorded for this file.
+func hashOf(t *testing.T, abs string) string {
+	t.Helper()
+	b, err := os.ReadFile(abs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+```
 
 - [ ] **Schritt 2: Lauf, der fehlschlagen muss**
 
@@ -2298,12 +2243,8 @@ func lock(root string) bool {
 // finds it stale.
 func unlock(root string) {
 	_ = os.Remove(LockPath(root))
-	_ = strconv.Itoa(0)
 }
 ```
-
-Die Zeile `_ = strconv.Itoa(0)` ist ein Rest des Entwurfs und gehört mit dem
-Import gestrichen.
 
 - [ ] **Schritt 4: Lauf, der grün sein muss**
 
@@ -2573,7 +2514,7 @@ func graphAsk(args []string, stdout, stderr io.Writer) int {
 	if !*noRefresh {
 		// Notices go to stderr, so a piped answer stays an answer.
 		ask.EnsureFresh(project, golang.Version,
-			func() error { return rebuild(project) },
+			func() error { _, _, err := writeEverything(project); return err },
 			func(s string) { fmt.Fprintf(stderr, "loomux graph ask: %s\n", s) })
 	}
 
@@ -2613,22 +2554,31 @@ func graphAsk(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// rebuild is what EnsureFresh calls: a whole build, graph, sidecar and record.
+// writeEverything is one whole build: the graph, the ask sidecar and the
+// freshness record.
 //
-// It repeats graphBuild's body rather than calling it, because graphBuild owns
-// the flags and the report and this one owns neither.
-func rebuild(root string) error {
+// Both callers use it -- `graph build`, which owns the flags and the report, and
+// the rebuild `graph ask` triggers, which owns neither. Two copies of this
+// sequence would be two places where the sidecar can be forgotten, and a
+// forgotten sidecar is a silently worse answer.
+func writeEverything(root string) (*model.Graph, buildStats, error) {
 	g, stats, err := buildGraph(root)
 	if err != nil {
-		return err
+		return nil, buildStats{}, err
 	}
 	if err := store.Write(root, g); err != nil {
-		return err
+		return nil, buildStats{}, err
 	}
+	// From the graph in memory, which still carries the body text: the written
+	// file has it stripped, and that is what makes the sidecar necessary rather
+	// than redundant.
 	if err := lexicon.Write(root, lexicon.Build(g)); err != nil {
-		return err
+		return nil, buildStats{}, err
 	}
-	return freshness.Write(root, golang.Version, stats.files, stats.hashes)
+	if err := freshness.Write(root, golang.Version, stats.files, stats.hashes); err != nil {
+		return nil, buildStats{}, err
+	}
+	return g, stats, nil
 }
 
 // askReport is the human form: one block per hit, location first.
@@ -2653,10 +2603,12 @@ func askReport(a ask.Answer) string {
 }
 ```
 
-**Der Doppelbau ist beabsichtigt und die Doppelung ist es nicht.** Wenn
-`graphBuild` und `rebuild` denselben Rumpf haben, gehört der gemeinsame Teil in
-eine Funktion `writeEverything(root string) (*model.Graph, error)`, die beide
-rufen — beim Schreiben so machen und `graphBuild` mitziehen.
+`graphBuild` aus G2a wird dabei auf `writeEverything` umgestellt: sein Rumpf
+schrumpft auf Flaggen lesen, `writeEverything` rufen, Bericht schreiben. Die
+beiden Warnzeilen, die G2a für eine fehlgeschlagene Beiakte und eine
+fehlgeschlagene Frischeakte ausgab, entfallen — hier ist beides ein Fehler des
+Baus, weil ein Bau, der die Beiakte nicht schreibt, eine stillschweigend
+schlechtere Antwort hinterlässt.
 
 - [ ] **Schritt 4: Lauf, der grün sein muss**
 
@@ -2919,7 +2871,7 @@ offenlässt** — sie sind mit Begründung im Text und gehören in die Paritäts
    `check`. Fragen und nichts finden ist eine erfolgreiche Frage; ein Skript
    muss das von einem Fehler unterscheiden können.
 
-**Eine Abhängigkeit, die zwischen den Tasks steht und leicht übersehen wird:**
-`Span.Lines` wandert in Task 6 nach `internal/code/model`, und der Extraktor
-aus G2a benutzt danach dieselbe Methode. Wer Task 6 überspringt und Task 8
-zuerst baut, hat zwei Parser für dieselbe Zeichenkette.
+**Eine Voraussetzung aus G2a, die hier leicht übersehen wird:** `Span.Lines`
+steht in `internal/code/model` und wird in Task 6 nur benutzt. Fehlt sie, ist
+G2a nicht vollständig ausgeführt — und wer sie hier nachbaut, hat zwei Parser
+für dieselbe Zeichenkette.

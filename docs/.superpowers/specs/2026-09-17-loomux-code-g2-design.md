@@ -157,6 +157,7 @@ Kommandozeile zu loomux'. Sie ändern kein Verhalten, das jemand beobachtet:
 | `mtime` als `int64` aus `UnixNano()` | 7 | Grafts `mtimeMs` ist ein Double; in Go wäre das stiller Genauigkeitsverlust |
 | Stempel *in* der Frischeakte, nicht in ihrem Dateinamen | 7.2 | Grafts `fingerprint.<stempel>.json` trennt zwei gleichzeitig installierte Grafts (npx gegen lokal); ein einzelnes Binär hat dieses Problem nicht |
 | keine Vorfahrensuche nach der Wurzel | 9 | `--root` ist loomux' Hauskonvention, kein Befehl läuft hier ohne Wurzelbegriff |
+| Dateimenge über den Verzeichnislauf statt über Git | 7.1 | ein Unterprozess je Sondenaufruf kostet mehr als die Sonde; eine Messung kann das umdrehen |
 | kein `--only-dir` | 9 | zieht eine Zustandsregel nach, die die Abnahme nicht braucht |
 
 Was Graft **nicht** hat und diese Spec deshalb selbst entscheidet, steht nicht hier, sondern an
@@ -522,11 +523,18 @@ stiller Genauigkeitsverlust auf einem Feld, dessen Gleichheit über einen Neubau
 
 ### 7.1 Die Dateimenge
 
-Wie Graft (`ingest/fs.ts`, `graph/source-files.ts`):
+Wie Graft (`ingest/fs.ts`, `graph/source-files.ts`), mit einer Ausnahme:
 
-- Git liefert die Menge, wo es verfügbar ist: verfolgt + unverfolgt − ignoriert. Gemessen wird die
-  Drift trotzdem gegen die Bytes im Arbeitsbaum — eine nicht eingecheckte Änderung sieht genauso
-  aus wie eine eingecheckte.
+- **Graft fragt Git** nach der Menge, wo es verfügbar ist: verfolgt + unverfolgt − ignoriert.
+  **G2 läuft stattdessen das Dateisystem ab** und verlässt sich auf die Sperrliste unten. Grund:
+  `git ls-files` ist ein Unterprozess, und die Sonde soll ~3 ms kosten — ein Prozessstart an jedem
+  Aufruf ist ein Vielfaches davon. Die Sperrliste plus „jedes Punktverzeichnis" deckt in einem
+  Go-Repo praktisch dieselbe Menge ab; wo sie es nicht tut — eine ignorierte, aber nicht gesperrte
+  Generatorausgabe —, landet die Datei im Graphen.
+  **Das ist die eine Entscheidung dieser Spec, die eine Messung umdrehen kann**, und die Messung
+  ist fällig (Abschnitt 13): steht die Sonde deutlich über 3 ms, ist Git die Quelle und der
+  Prozessstart das kleinere Übel. Gemessen wird die Drift in beiden Fällen gegen die Bytes im
+  Arbeitsbaum — eine nicht eingecheckte Änderung sieht genauso aus wie eine eingecheckte.
 - Sperrliste: `node_modules`, `dist`, `build`, `_build`, `out`, `target`, `vendor`, `coverage`,
   `__pycache__`, `venv`; dazu **jedes** Punktverzeichnis ganz.
 - Grenze 1 MB je Datei (`MAX_FILE_BYTES`): darüber ist eine Datei in der Praxis generiert oder
@@ -851,7 +859,9 @@ Fällig in G2a, teils als Nachholung aus G1:
 2. `graph build` auf loomux selbst, kalt und warm, gegen die 44–46 ms des reinen Parsens als
    Untergrenze. Kalt heißt: frischer Prozess und keine Beiakte, und das ist beim Eintrag zu
    vermerken.
-3. Die Sondendauer über die Dateimenge dieses Repos, gegen Grafts ~3 ms für 280 Dateien.
+3. Die Sondendauer über die Dateimenge dieses Repos, gegen Grafts ~3 ms für 280 Dateien. **Diese
+   Messung entscheidet Abschnitt 7.1**: liegt sie deutlich über 3 ms, wird die Dateimenge auf
+   `git ls-files` umgestellt und die Abweichung entfällt.
 4. Die Antwortzeit von `graph ask`, warm, mit und ohne Beiakte — das ist die Messung, die den
    Existenzgrund der Beiakte für loomux belegt oder widerlegt.
 

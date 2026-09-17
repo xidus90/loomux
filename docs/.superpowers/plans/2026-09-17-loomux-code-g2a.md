@@ -73,7 +73,7 @@ braucht ihn nicht.**
 
 | Datei | Verantwortung |
 |---|---|
-| `internal/code/model/graph.go` (ändern) | `Node.BodyHash`, `Node.BodyText` (`json:"-"`), `Meta.Extractor` |
+| `internal/code/model/graph.go` (ändern) | `Node.BodyHash`, `Node.BodyText` (`json:"-"`), `Meta.Extractor`, `Span.Lines` |
 | `internal/code/model/decode.go` (ändern) | `schemaVersion = 2`; vier neue Regeln in `Validate` |
 | `internal/code/model/testdata/wiring.json` (ändern) | auf Schema 2, mit `body_hash` je Knoten und `extractor` in `meta` |
 | `internal/code/sourceset/sourceset.go` | `List`, `Stat`, `SourceFile`; Git-Menge, Sperrliste, 1-MB-Grenze |
@@ -333,7 +333,71 @@ func isNode(nodes map[NodeID]struct{}, id NodeID) bool {
 }
 ```
 
-- [ ] **Schritt 5: Das Testdatum auf Schema 2 heben**
+- [ ] **Schritt 5: `Span.Lines` anlegen**
+
+Die Form `L12-L40` ist Schemagut und hat zwei Leser: der Extraktor markiert
+damit die Zeilen eines Symbols, die Abfrage schneidet damit den Quelltext. Sie
+gehört deshalb als Methode an den Typ und nicht als Helfer in beide Pakete.
+
+```go
+// Lines reads "L12-L40" back into 12 and 40, reporting whether the span had
+// that shape at all.
+func (s Span) Lines() (int, int, bool) {
+	str := string(s)
+	dash := strings.Index(str, "-L")
+	if !strings.HasPrefix(str, "L") || dash < 0 {
+		return 0, 0, false
+	}
+	from, okA := atoi(str[1:dash])
+	to, okB := atoi(str[dash+2:])
+	return from, to, okA && okB
+}
+
+// atoi is strconv.Atoi reporting failure as a bool, because a malformed span is
+// not an error any caller would handle differently from an unusable one.
+func atoi(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	n := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n, true
+}
+```
+
+Der Test, in `internal/code/model/graph_test.go`:
+
+```go
+func TestSpanLines(t *testing.T) {
+	cases := []struct {
+		span     model.Span
+		from, to int
+		ok       bool
+	}{
+		{"L12-L40", 12, 40, true},
+		{"L1-L1", 1, 1, true},
+		{"", 0, 0, false},
+		{"12-40", 0, 0, false},
+		{"L12", 0, 0, false},
+		{"Lx-L4", 0, 0, false},
+		{"L12-L", 0, 0, false},
+	}
+	for _, c := range cases {
+		from, to, ok := c.span.Lines()
+		if from != c.from || to != c.to || ok != c.ok {
+			t.Errorf("Span(%q).Lines() = %d, %d, %v; want %d, %d, %v",
+				c.span, from, to, ok, c.from, c.to, c.ok)
+		}
+	}
+}
+```
+
+- [ ] **Schritt 6: Das Testdatum auf Schema 2 heben**
 
 `internal/code/model/testdata/wiring.json`: `"version": 2` und
 `"extractor": "test/1"` in `meta`, je Knoten ein `"body_hash"` (irgendein
@@ -346,7 +410,7 @@ mitziehen:
 grep -rn "testdata/wiring.json\|nodeCount" internal/code/model/
 ```
 
-- [ ] **Schritt 6: Lauf, der grün sein muss**
+- [ ] **Schritt 7: Lauf, der grün sein muss**
 
 ```sh
 go test ./internal/code/... -count=1
@@ -355,7 +419,7 @@ go test ./internal/code/... -count=1
 Erwartet: PASS, auch `pagerank` und `blast` — sie lesen `Node` und bleiben
 unberührt.
 
-- [ ] **Schritt 7: Commit**
+- [ ] **Schritt 8: Commit**
 
 ```sh
 git add internal/code/model
@@ -744,16 +808,24 @@ type RawEdge struct {
 	Source    model.NodeID
 	Relation  model.Relation
 	TargetID  model.NodeID // set for contains: already resolved
-	Name      string       // a bare call target
-	Owner     string       // a receiver type, for a member call
-	Specifier string       // an import path
+	Name      string       // a bare call target, or the selected name
+	Owner     string       // a receiver type, for a member call on a known local
+	Receiver  string       // a selector's receiver identifier, unresolved
+	Specifier string       // an import path, for an imports edge
 	File      string
 }
 
-type Result struct {
+type Import struct {
+	Alias string // as written, or "" when the import has no alias
 	Path  string
-	Nodes []model.Node
-	Edges []RawEdge
+}
+
+type Result struct {
+	Path    string
+	Package string   // the file's package clause
+	Imports []Import // in source order
+	Nodes   []model.Node
+	Edges   []RawEdge
 }
 
 func File(rel, source string) (Result, error)
@@ -1217,21 +1289,44 @@ import (
 const Version = "go/1"
 
 // RawEdge is an edge whose target is not resolved yet.
+//
+// Three shapes of call reach the resolver, and the difference is exactly what
+// the resolver is allowed to assume:
+//
+//   - Name alone      -- a bare call; the same file first, then a unique match
+//   - Name and Owner  -- a member call on a local whose type is known
+//   - Name and Receiver -- a selector whose receiver is declared nowhere in the
+//     file; the resolver decides whether that receiver names a package, because
+//     only it can see the target's package clause
 type RawEdge struct {
 	Source    model.NodeID
 	Relation  model.Relation
 	TargetID  model.NodeID
 	Name      string
 	Owner     string
+	Receiver  string
 	Specifier string
 	File      string
 }
 
+// Import is one import of a file, with the alias exactly as written.
+//
+// The alias is kept raw and not resolved to a name here, because resolving it
+// needs the TARGET package's clause -- `import "gopkg.in/yaml.v3"` binds `yaml`
+// and not `v3` -- and this package parses one file at a time. Guessing the last
+// path segment here would put the guess where nothing can correct it.
+type Import struct {
+	Alias string `json:"alias,omitempty"`
+	Path  string `json:"path"`
+}
+
 // Result is what one file contributes to the graph.
 type Result struct {
-	Path  string
-	Nodes []model.Node
-	Edges []RawEdge
+	Path    string
+	Package string
+	Imports []Import
+	Nodes   []model.Node
+	Edges   []RawEdge
 }
 
 // File extracts one Go file. rel is its repo-relative, slash-separated path;
@@ -1247,13 +1342,21 @@ func File(rel, source string) (Result, error) {
 		return Result{}, fmt.Errorf("parse %s: %w", rel, err)
 	}
 
-	r := Result{Path: rel}
+	r := Result{Path: rel, Package: file.Name.Name, Imports: importsOf(file)}
 	minted := map[string]bool{}
 	fileID := model.NodeID(rel)
 
 	covered := map[int]bool{} // 1-based lines a symbol span covers
+	// owners maps a function declaration to the id its node was MINTED with.
+	// The call walk must not recompute that id: the mint may have appended an
+	// ordinal, and a second computation would produce an id no node has.
+	owners := map[*ast.FuncDecl]model.NodeID{}
 	for _, decl := range file.Decls {
-		for _, n := range declNodes(fset, rel, source, decl, minted) {
+		nodes := declNodes(fset, rel, source, decl, minted)
+		if fn, ok := decl.(*ast.FuncDecl); ok && len(nodes) == 1 {
+			owners[fn] = nodes[0].ID
+		}
+		for _, n := range nodes {
 			r.Nodes = append(r.Nodes, n)
 			r.Edges = append(r.Edges, RawEdge{
 				Source: fileID, Relation: model.RelationContains,
@@ -1265,7 +1368,7 @@ func File(rel, source string) (Result, error) {
 
 	r.Nodes = append([]model.Node{fileNode(fset, rel, source, file, covered)}, r.Nodes...)
 	r.Edges = append(r.Edges, importEdges(rel, file)...)
-	r.Edges = append(r.Edges, callEdges(fset, rel, file)...)
+	r.Edges = append(r.Edges, callEdges(rel, file, owners)...)
 	return r, nil
 }
 
@@ -1306,8 +1409,12 @@ func residual(source string, covered map[int]bool) string {
 }
 
 // markCovered records the lines of a span as belonging to a symbol.
+//
+// The span is parsed by model.Span.Lines and not by a copy here: the extractor
+// writes that form and the query reads it, and two parsers for one string are
+// one too many.
 func markCovered(covered map[int]bool, span model.Span) {
-	from, to, ok := spanLines(span)
+	from, to, ok := span.Lines()
 	if !ok {
 		return
 	}
@@ -1316,33 +1423,6 @@ func markCovered(covered map[int]bool, span model.Span) {
 	}
 }
 
-// spanLines reads "L12-L40" back into 12 and 40.
-func spanLines(span model.Span) (int, int, bool) {
-	s := string(span)
-	dash := strings.Index(s, "-L")
-	if !strings.HasPrefix(s, "L") || dash < 0 {
-		return 0, 0, false
-	}
-	from, okA := atoi(s[1:dash])
-	to, okB := atoi(s[dash+2:])
-	return from, to, okA && okB
-}
-
-// atoi is strconv.Atoi for a span's digits, reporting failure instead of an
-// error value nobody here would wrap.
-func atoi(s string) (int, bool) {
-	if s == "" {
-		return 0, false
-	}
-	n := 0
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, false
-		}
-		n = n*10 + int(r-'0')
-	}
-	return n, true
-}
 ```
 
 Und der Teil, der eine Deklaration in Knoten übersetzt — in derselben Datei:
@@ -1473,7 +1553,9 @@ dieser Task übersetzt, zunächst zwei Rümpfe, die nichts liefern:
 func importEdges(rel string, file *ast.File) []RawEdge { return nil }
 
 // callEdges is Task 4.
-func callEdges(fset *token.FileSet, rel string, file *ast.File) []RawEdge { return nil }
+func callEdges(rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID) []RawEdge {
+	return nil
+}
 ```
 
 - [ ] **Schritt 6: Lauf, der grün sein muss**
@@ -1608,7 +1690,7 @@ func edgesOf(t *testing.T, r golang.Result, rel model.Relation) []golang.RawEdge
 func hasEdge(edges []golang.RawEdge, want golang.RawEdge) bool {
 	for _, e := range edges {
 		if e.Source == want.Source && e.Name == want.Name &&
-			e.Owner == want.Owner && e.Specifier == want.Specifier {
+			e.Owner == want.Owner && e.Receiver == want.Receiver {
 			return true
 		}
 	}
@@ -1690,30 +1772,61 @@ func TestFileEmitsABareCallWithoutAnOwner(t *testing.T) {
 	}
 }
 
-func TestFileReadsAPackageSelectorThroughTheImportBinding(t *testing.T) {
+func TestFileCarriesAnUnshadowedSelectorReceiverUnresolved(t *testing.T) {
 	r, err := golang.File("pkg/edges.go", fixture(t, "edges"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
-	// An alias binds the name: `b.New` is the blast package, not a directory
-	// called "b".
-	if !hasEdge(calls, golang.RawEdge{
-		Source: "pkg/edges.go#caller", Name: "New", Specifier: "example.com/repo/blast",
-	}) {
-		t.Errorf("an aliased package selector must carry the import path; got %+v", calls)
+	// The extractor does NOT decide that `b` is a package: the name a plain
+	// import binds is the TARGET's package clause, and one file cannot see it.
+	// `import "gopkg.in/yaml.v3"` binds `yaml`, not `v3`, and guessing here
+	// would put the guess where nothing can correct it.
+	for _, want := range []golang.RawEdge{
+		{Source: "pkg/edges.go#caller", Name: "New", Receiver: "b"},
+		{Source: "pkg/edges.go#caller", Name: "Open", Receiver: "store"},
+		{Source: "pkg/edges.go#caller", Name: "Println", Receiver: "fmt"},
+	} {
+		if !hasEdge(calls, want) {
+			t.Errorf("selector %s.%s must reach resolve unresolved; got %+v",
+				want.Receiver, want.Name, calls)
+		}
 	}
-	if !hasEdge(calls, golang.RawEdge{
-		Source: "pkg/edges.go#caller", Name: "Open", Specifier: "example.com/repo/store",
-	}) {
-		t.Errorf("a plain package selector must carry the import path; got %+v", calls)
+	for _, e := range calls {
+		if e.Specifier != "" {
+			t.Errorf("a call edge carries no specifier; that is the resolver's job: %+v", e)
+		}
 	}
-	// A call into the standard library keeps its specifier too; resolve will
-	// find no module of the repository for it and emit no edge.
-	if !hasEdge(calls, golang.RawEdge{
-		Source: "pkg/edges.go#caller", Name: "Println", Specifier: "fmt",
-	}) {
-		t.Errorf("a stdlib selector must still carry its specifier; got %+v", calls)
+}
+
+func TestFileRecordsThePackageClauseAndEveryImport(t *testing.T) {
+	r, err := golang.File("pkg/edges.go", fixture(t, "edges"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Package != "edges" {
+		t.Errorf("Package = %q, want the file's clause", r.Package)
+	}
+	want := map[string]string{
+		"fmt":                     "",
+		"example.com/repo/blast":  "b",
+		"example.com/repo/store":  "",
+		"example.com/repo/driver": "_",
+	}
+	if len(r.Imports) != len(want) {
+		t.Fatalf("got %+v, want %d imports", r.Imports, len(want))
+	}
+	for _, imp := range r.Imports {
+		alias, ok := want[imp.Path]
+		if !ok {
+			t.Errorf("unexpected import %+v", imp)
+			continue
+		}
+		// The alias is raw, "_" included: the resolver has to tell "binds
+		// nothing" from "binds its package clause".
+		if imp.Alias != alias {
+			t.Errorf("import %q alias = %q, want %q", imp.Path, imp.Alias, alias)
+		}
 	}
 }
 
@@ -1724,11 +1837,12 @@ func TestFileTreatsAShadowedPackageNameAsAVariable(t *testing.T) {
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
 	// After `store := Cache{}` the name is a local variable. Go code does this
-	// constantly (`model := model.Decode(r)`), and reading the selector as a
-	// package here would wire a call into a package the line never touches.
+	// constantly (`model := model.Decode(r)`), and letting the selector reach
+	// resolve as a receiver-with-no-owner would wire a call into a package the
+	// line never touches.
 	for _, e := range calls {
-		if e.Name == "Get" && e.Specifier != "" {
-			t.Errorf("a shadowed package name must not carry a specifier; got %+v", e)
+		if e.Name == "Get" && e.Receiver != "" {
+			t.Errorf("a shadowed name is a value, not a receiver to resolve; got %+v", e)
 		}
 	}
 	// It is a member call on a known local type instead.
@@ -1745,7 +1859,7 @@ func TestFilePeelsATypeArgumentList(t *testing.T) {
 	calls := edgesOf(t, r, model.RelationCalls)
 	// `b.Of[int](3)` must take the same path as `b.Of(3)`.
 	if !hasEdge(calls, golang.RawEdge{
-		Source: "pkg/edges.go#generic", Name: "Of", Specifier: "example.com/repo/blast",
+		Source: "pkg/edges.go#generic", Name: "Of", Receiver: "b",
 	}) {
 		t.Errorf("a generic call must peel its type arguments; got %+v", calls)
 	}
@@ -1865,8 +1979,14 @@ package golang
 
 import "go/ast"
 
-// scope is the block-structured set of names a position has in view, plus the
-// local type binding of each.
+// scope is the set of names a position has in view, plus the local type binding
+// of each.
+//
+// Function-scoped and deliberately over-shadowing: a frame is pushed per
+// function and not per block, so a name declared inside an `if` shadows for the
+// rest of the function. That direction is the safe one -- it drops call edges
+// rather than inventing them -- and a per-block scope is a later refinement,
+// not a correctness fix.
 //
 // It exists because `ast.File.Unresolved` would answer the one question this
 // package asks of it -- is this name declared in the file? -- and is
@@ -1994,48 +2114,38 @@ func peelIndex(expr ast.Expr) ast.Expr {
 Die Rümpfe aus Task 3 in `extract.go` ersetzen:
 
 ```go
+// importsOf is every import of a file, alias exactly as written.
+//
+// "_" and "." are recorded with their alias as written: they bind no selector,
+// and the resolver has to be able to tell "this import binds nothing" from
+// "this import binds its package clause".
+func importsOf(file *ast.File) []Import {
+	var out []Import
+	for _, spec := range file.Imports {
+		p, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		imp := Import{Path: p}
+		if spec.Name != nil {
+			imp.Alias = spec.Name.Name
+		}
+		out = append(out, imp)
+	}
+	return out
+}
+
 // importEdges is one edge per import specifier, from the file node.
 //
 // A blank import binds no selector and is still a dependency of the file, so it
 // keeps its edge. A dot import binds no selector either; the same holds.
 func importEdges(rel string, file *ast.File) []RawEdge {
 	var out []RawEdge
-	for _, spec := range file.Imports {
-		p, err := strconv.Unquote(spec.Path.Value)
-		if err != nil {
-			continue
-		}
+	for _, imp := range importsOf(file) {
 		out = append(out, RawEdge{
 			Source: model.NodeID(rel), Relation: model.RelationImports,
-			Specifier: p, File: rel,
+			Specifier: imp.Path, File: rel,
 		})
-	}
-	return out
-}
-
-// importBindings maps the name a file binds to each import's path.
-//
-// Without an alias the bound name is the target package's `package` clause,
-// which this package cannot see -- it parses one file at a time. The last path
-// segment is the guess it records, and resolve corrects it: it knows the target
-// directory and reads the clause there. `import "gopkg.in/yaml.v3"` binds
-// `yaml`, not `v3`, and that is a case resolve must answer, not this function.
-func importBindings(file *ast.File) map[string]string {
-	out := map[string]string{}
-	for _, spec := range file.Imports {
-		p, err := strconv.Unquote(spec.Path.Value)
-		if err != nil {
-			continue
-		}
-		name := path.Base(p)
-		if spec.Name != nil {
-			// "_" and "." bind no selector at all.
-			if spec.Name.Name == "_" || spec.Name.Name == "." {
-				continue
-			}
-			name = spec.Name.Name
-		}
-		out[name] = p
 	}
 	return out
 }
@@ -2050,14 +2160,11 @@ func importBindings(file *ast.File) map[string]string {
 //   - a name plus an owner -- a member call on a known local type
 //   - a name plus a specifier -- a package selector; resolve looks in that
 //     package alone
-func callEdges(fset *token.FileSet, rel string, file *ast.File) []RawEdge {
-	imports := importBindings(file)
-	fileID := model.NodeID(rel)
+func callEdges(rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID) []RawEdge {
 	var out []RawEdge
-
 	// A call outside every function -- in a var initialiser -- is owned by the
 	// file, the same node that owns the imports.
-	walkCalls(file, rel, fileID, imports, &out)
+	walkCalls(file, rel, model.NodeID(rel), owners, &out)
 	return out
 }
 ```
@@ -2067,7 +2174,7 @@ Und der Läufer selbst, ebenfalls in `extract.go`:
 ```go
 // walkCalls descends the file, keeping a scope stack and the symbol a call
 // belongs to.
-func walkCalls(file *ast.File, rel string, fileID model.NodeID, imports map[string]string, out *[]RawEdge) {
+func walkCalls(file *ast.File, rel string, fileID model.NodeID, owners map[*ast.FuncDecl]model.NodeID, out *[]RawEdge) {
 	sc := newScope()
 	// The file's own package-level names: a call may target one of them, and a
 	// local of the same name must shadow it.
@@ -2095,14 +2202,14 @@ func walkCalls(file *ast.File, rel string, fileID model.NodeID, imports map[stri
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok {
 			// A package-level initialiser: its calls belong to the file.
-			collect(decl, rel, fileID, sc, imports, out)
+			collect(decl, rel, fileID, sc, out)
 			continue
 		}
-		owner := model.NodeID(rel + "#" + fn.Name.Name)
-		if fn.Recv != nil {
-			if recv := receiverType(fn.Recv); recv != "" {
-				owner = model.NodeID(rel + "#" + recv + "." + fn.Name.Name)
-			}
+		owner, ok := owners[fn]
+		if !ok {
+			// No node was minted for this declaration, so nothing can own its
+			// calls. Attributing them to the file would invent a caller.
+			continue
 		}
 		sc.push()
 		// The receiver variable is bound to its own type: that is how `c.Get()`
@@ -2111,7 +2218,7 @@ func walkCalls(file *ast.File, rel string, fileID model.NodeID, imports map[stri
 			sc.declare(receiverVar(fn.Recv), receiverType(fn.Recv))
 		}
 		declareParams(sc, fn.Type)
-		collect(fn, rel, owner, sc, imports, out)
+		collect(fn, rel, owner, sc, out)
 		sc.pop()
 	}
 }
@@ -2133,7 +2240,7 @@ func declareParams(sc *scope, ft *ast.FuncType) {
 
 // collect walks one declaration's statements, tracking declarations as it goes
 // and emitting a raw edge per call.
-func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, imports map[string]string, out *[]RawEdge) {
+func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]RawEdge) {
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch s := n.(type) {
 		case *ast.AssignStmt:
@@ -2163,7 +2270,7 @@ func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, imports m
 				}
 			}
 		case *ast.CallExpr:
-			if e, ok := callEdge(s, rel, owner, sc, imports); ok {
+			if e, ok := callEdge(s, rel, owner, sc); ok {
 				*out = append(*out, e)
 			}
 		}
@@ -2173,10 +2280,11 @@ func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, imports m
 
 // callEdge reads one call site.
 //
-// The order of the two questions is the whole point: shadowing first, import
-// second. A name that is declared anywhere in view is a value, whatever a file
-// header says about a package of the same name.
-func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope, imports map[string]string) (RawEdge, bool) {
+// Shadowing is decided HERE, because only this package sees the file's scopes;
+// whether an unshadowed receiver names a package is decided in resolve, because
+// only that sees the target's package clause. Splitting the question along that
+// line is what keeps `import "gopkg.in/yaml.v3"` from binding `v3`.
+func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (RawEdge, bool) {
 	switch fn := peelIndex(call.Fun).(type) {
 	case *ast.Ident:
 		return RawEdge{
@@ -2192,13 +2300,12 @@ func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope, imp
 			return RawEdge{}, false
 		}
 		if !sc.declared(recv.Name) {
-			if spec, isPkg := imports[recv.Name]; isPkg {
-				return RawEdge{
-					Source: owner, Relation: model.RelationCalls,
-					Name: fn.Sel.Name, Specifier: spec, File: rel,
-				}, true
-			}
-			return RawEdge{}, false
+			// Declared nowhere in view. It may be a package, and resolve is the
+			// only side that can say so.
+			return RawEdge{
+				Source: owner, Relation: model.RelationCalls,
+				Name: fn.Sel.Name, Receiver: recv.Name, File: rel,
+			}, true
 		}
 		typ := sc.lookup(recv.Name)
 		if typ == "" {
@@ -2462,13 +2569,17 @@ func moduleDirective(body string) (string, bool) {
 	return "", false
 }
 
-// importDir is the repo-relative directory an import path names, or "" when the
-// path points outside every module of the repository -- the standard library
-// and every third-party package.
+// importDir is the repo-relative directory an import path names.
 //
-// The longest module path wins, so a nested module in a monorepo is preferred
-// over its parent.
-func importDir(spec string, mods []Module) string {
+// The bool is not decoration: the root package of a root module legitimately
+// lives at "", and "" is also what a caller would use for "not found". Returning
+// both apart is what keeps `import "example.com/repo"` from reading as the
+// standard library. Graft has the same distinction and spells it with a
+// sentinel; in Go the pair is the honest form.
+//
+// The longest module path wins, so a nested module in a monorepo beats its
+// parent.
+func importDir(spec string, mods []Module) (string, bool) {
 	for _, m := range mods {
 		var sub string
 		switch {
@@ -2479,15 +2590,27 @@ func importDir(spec string, mods []Module) string {
 		default:
 			continue
 		}
-		if m.Dir == "" {
-			return sub
+		switch {
+		case m.Dir == "":
+			return sub, true
+		case sub == "":
+			return m.Dir, true
+		default:
+			return m.Dir + "/" + sub, true
 		}
-		if sub == "" {
-			return m.Dir
-		}
-		return m.Dir + "/" + sub
 	}
-	return ""
+	return "", false
+}
+
+// dirOf is the directory a node's path lies in, with path.Dir's "." for a file
+// at the repository root spelled as "" -- the same form importDir returns, so
+// the two can be compared at all.
+func dirOf(p string) string {
+	dir := path.Dir(p)
+	if dir == "." {
+		return ""
+	}
+	return dir
 }
 ```
 
@@ -2505,9 +2628,18 @@ import (
 )
 
 // result is a hand-built extraction of one file, so these tests exercise
-// resolve alone and never the parser.
+// resolve alone and never the parser. The package clause defaults to the last
+// segment of the directory, which is the ordinary case.
 func result(rel string, nodes []model.Node, edges []golang.RawEdge) golang.Result {
-	return golang.Result{Path: rel, Nodes: nodes, Edges: edges}
+	return golang.Result{Path: rel, Package: path.Base(path.Dir(rel)), Nodes: nodes, Edges: edges}
+}
+
+// importing is result plus the imports the file wrote, which is what a selector
+// resolves through.
+func importing(rel string, imports []golang.Import, nodes []model.Node, edges []golang.RawEdge) golang.Result {
+	r := result(rel, nodes, edges)
+	r.Imports = imports
+	return r
 }
 
 func fileNode(rel string) model.Node {
@@ -2612,11 +2744,12 @@ func TestGraphResolvesAMemberCallThroughTheOwner(t *testing.T) {
 func TestGraphResolvesAPackageSelectorInsideTheTargetPackageOnly(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
 	files := []golang.Result{
-		result("cli/run.go",
+		importing("cli/run.go",
+			[]golang.Import{{Path: "example.com/repo/blast"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
 			[]golang.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
-				Name: "New", Specifier: "example.com/repo/blast", File: "cli/run.go",
+				Name: "New", Receiver: "blast", File: "cli/run.go",
 			}},
 		),
 		result("blast/index.go", []model.Node{fileNode("blast/index.go"), fn("blast/index.go", "New", true)}, nil),
@@ -2644,11 +2777,12 @@ func TestGraphSelectorSkipsMethodsAndTestFiles(t *testing.T) {
 		Path: "blast/index.go", BodyHash: "h", Exported: true,
 	}
 	files := []golang.Result{
-		result("cli/run.go",
+		importing("cli/run.go",
+			[]golang.Import{{Path: "example.com/repo/blast"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
 			[]golang.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
-				Name: "New", Specifier: "example.com/repo/blast", File: "cli/run.go",
+				Name: "New", Receiver: "blast", File: "cli/run.go",
 			}},
 		),
 		// Only a method of that name, plus a function of that name in a test
@@ -2711,7 +2845,7 @@ func TestGraphEmitsNoCallEdgeForAnExternalSelector(t *testing.T) {
 		[]model.Node{fileNode("a.go"), fn("a.go", "f", false)},
 		[]golang.RawEdge{{
 			Source: "a.go#f", Relation: model.RelationCalls,
-			Name: "Println", Specifier: "fmt", File: "a.go",
+			Name: "Println", Receiver: "fmt", File: "a.go",
 		}},
 	)}
 
@@ -2719,6 +2853,87 @@ func TestGraphEmitsNoCallEdgeForAnExternalSelector(t *testing.T) {
 	for _, e := range g.Edges {
 		if e.Relation == model.RelationCalls {
 			t.Errorf("a call into a package outside the repository has no node to point at; got %+v", e)
+		}
+	}
+}
+
+func TestGraphResolvesASelectorIntoTheRootPackage(t *testing.T) {
+	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
+	files := []golang.Result{
+		importing("cli/run.go",
+			[]golang.Import{{Path: "example.com/repo"}},
+			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
+			[]golang.RawEdge{{
+				Source: "cli/run.go#run", Relation: model.RelationCalls,
+				Name: "Root", Receiver: "repo", File: "cli/run.go",
+			}},
+		),
+		// A file at the repository root: its directory is "" and not ".", or it
+		// could never be found by the import path of the root module.
+		golang.Result{
+			Path: "root.go", Package: "repo",
+			Nodes: []model.Node{fileNode("root.go"), fn("root.go", "Root", true)},
+		},
+	}
+
+	g := resolve.Graph(files, mods)
+	if edgeBetween(g, "cli/run.go#run", "root.go#Root", model.RelationCalls) == nil {
+		t.Fatalf("the root package must be reachable; got %+v", g.Edges)
+	}
+}
+
+func TestGraphBindsAPlainImportByThePackageClauseAndNotThePathTail(t *testing.T) {
+	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
+	files := []golang.Result{
+		importing("cli/run.go",
+			[]golang.Import{{Path: "example.com/repo/yaml.v3"}},
+			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
+			[]golang.RawEdge{{
+				Source: "cli/run.go#run", Relation: model.RelationCalls,
+				Name: "Marshal", Receiver: "yaml", File: "cli/run.go",
+			}},
+		),
+		// The directory's last segment is "yaml.v3", the clause is "yaml", and
+		// Go binds the clause. Guessing the path tail would drop this call --
+		// and versioned module paths make the case ordinary, not exotic.
+		golang.Result{
+			Path: "yaml.v3/marshal.go", Package: "yaml",
+			Nodes: []model.Node{fileNode("yaml.v3/marshal.go"), fn("yaml.v3/marshal.go", "Marshal", true)},
+		},
+	}
+
+	g := resolve.Graph(files, mods)
+	if edgeBetween(g, "cli/run.go#run", "yaml.v3/marshal.go#Marshal", model.RelationCalls) == nil {
+		t.Fatalf("a plain import binds the target's package clause; got %+v", g.Edges)
+	}
+}
+
+func TestGraphIgnoresABlankAndADotImportForASelector(t *testing.T) {
+	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
+	files := []golang.Result{
+		importing("cli/run.go",
+			[]golang.Import{
+				{Alias: "_", Path: "example.com/repo/driver"},
+				{Alias: ".", Path: "example.com/repo/dsl"},
+			},
+			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
+			[]golang.RawEdge{{
+				Source: "cli/run.go#run", Relation: model.RelationCalls,
+				Name: "Open", Receiver: "driver", File: "cli/run.go",
+			}},
+		),
+		golang.Result{
+			Path: "driver/driver.go", Package: "driver",
+			Nodes: []model.Node{fileNode("driver/driver.go"), fn("driver/driver.go", "Open", true)},
+		},
+	}
+
+	g := resolve.Graph(files, mods)
+	// Neither binds a selector name. A `driver.Open` in a file that only
+	// blank-imports driver is some other driver entirely.
+	for _, e := range g.Edges {
+		if e.Relation == model.RelationCalls {
+			t.Errorf("a blank import binds no selector; got %+v", e)
 		}
 	}
 }
@@ -2803,12 +3018,14 @@ const schemaVersion = 2
 
 // repoIndex is every lookup the resolver makes, built once.
 type repoIndex struct {
-	nodes     map[model.NodeID]model.Node
-	perFile   map[string]map[string][]model.Node // path -> name -> functions
-	global    map[string][]model.Node            // name -> functions, repo-wide
-	byOwner   map[string][]model.Node            // "Owner.name" -> methods
-	perDir    map[string]map[string][]model.Node // dir -> name -> functions, no tests
-	filesInDir map[string][]string               // dir -> file node paths, no tests
+	nodes      map[model.NodeID]model.Node
+	perFile    map[string]map[string][]model.Node // path -> name -> functions
+	global     map[string][]model.Node            // name -> functions, repo-wide
+	byOwner    map[string][]model.Node            // "Owner.name" -> methods
+	perDir     map[string]map[string][]model.Node // dir -> name -> functions, no tests
+	filesInDir map[string][]string                // dir -> file node paths, no tests
+	clauseOf   map[string]string                  // dir -> package clause, no tests
+	importsOf  map[string][]golang.Import         // file path -> its imports
 }
 
 func index(files []golang.Result) *repoIndex {
@@ -2816,14 +3033,22 @@ func index(files []golang.Result) *repoIndex {
 		nodes: map[model.NodeID]model.Node{}, perFile: map[string]map[string][]model.Node{},
 		global: map[string][]model.Node{}, byOwner: map[string][]model.Node{},
 		perDir: map[string]map[string][]model.Node{}, filesInDir: map[string][]string{},
+		clauseOf: map[string]string{}, importsOf: map[string][]golang.Import{},
 	}
 	for _, f := range files {
+		x.importsOf[f.Path] = f.Imports
+		// The clause of a package is what an importer binds without an alias.
+		// Test files are skipped: `package X_test` is a different clause for the
+		// same directory, and no importer ever sees it.
+		if !isTestFile(f.Path) && f.Package != "" {
+			x.clauseOf[dirOf(f.Path)] = f.Package
+		}
 		for _, n := range f.Nodes {
 			x.nodes[n.ID] = n
 			switch {
 			case n.Kind == model.KindFile:
 				if !isTestFile(n.Path) {
-					dir := path.Dir(n.Path)
+					dir := dirOf(n.Path)
 					x.filesInDir[dir] = append(x.filesInDir[dir], n.Path)
 				}
 			case n.Kind == "method":
@@ -2837,7 +3062,7 @@ func index(files []golang.Result) *repoIndex {
 				// A selector's candidates: functions of the target package,
 				// test files excluded -- an importer never sees them.
 				if !isTestFile(n.Path) {
-					dir := path.Dir(n.Path)
+					dir := dirOf(n.Path)
 					if x.perDir[dir] == nil {
 						x.perDir[dir] = map[string][]model.Node{}
 					}
@@ -2889,12 +3114,14 @@ func (x *repoIndex) resolveEdge(raw golang.RawEdge, mods []Module) (model.Edge, 
 // Graft takes the lowest id outright; in Go that could point an import at
 // `index_test.go`, a file the importer never sees.
 func (x *repoIndex) importTarget(spec string, mods []Module) model.NodeID {
-	dir := importDir(spec, mods)
-	if dir == "" && spec != "" {
+	dir, ok := importDir(spec, mods)
+	if !ok {
 		return model.NodeID(spec)
 	}
 	files := x.filesInDir[dir]
 	if len(files) == 0 {
+		// Inside a module of the repository, but nothing indexed there: an
+		// empty package directory, or one holding only tests.
 		return model.NodeID(spec)
 	}
 	return model.NodeID(files[0])
@@ -2903,7 +3130,7 @@ func (x *repoIndex) importTarget(spec string, mods []Module) model.NodeID {
 // resolveCall applies the three shapes a raw call may have.
 func (x *repoIndex) resolveCall(raw golang.RawEdge, mods []Module) (model.Edge, bool) {
 	switch {
-	case raw.Specifier != "":
+	case raw.Receiver != "":
 		return x.resolveSelector(raw, mods)
 	case raw.Owner != "":
 		// A member call on a known local type: the owner-qualified index is the
@@ -2932,20 +3159,51 @@ func (x *repoIndex) resolveCall(raw golang.RawEdge, mods []Module) (model.Edge, 
 // methods are excluded because a package may hold `func New()` and
 // `func (x *T) New()` at once -- only the first can be what the selector means.
 func (x *repoIndex) resolveSelector(raw golang.RawEdge, mods []Module) (model.Edge, bool) {
-	dir := importDir(raw.Specifier, mods)
-	if dir == "" && !x.hasDir(dir) {
-		// The standard library or a third-party package: nothing in this
-		// repository to point at.
+	dir, ok := x.packageDir(raw.File, raw.Receiver, mods)
+	if !ok {
+		// The receiver names no package of this repository: the standard
+		// library, a third-party package, or something this extractor cannot
+		// see at all. Nothing to point at.
 		return model.Edge{}, false
 	}
 	return one(raw, x.perDir[dir][raw.Name], model.ConfidenceExtracted)
 }
 
-// hasDir reports whether the repository has indexed files in that directory --
-// the root package included, where importDir legitimately returns "".
-func (x *repoIndex) hasDir(dir string) bool {
-	_, ok := x.perDir[dir]
-	return ok
+// packageDir answers which directory of the repository a selector's receiver
+// names, for the file the selector stands in.
+//
+// Two rounds, and the order is Go's own:
+//
+//  1. an ALIAS binds outright -- `import b ".../blast"` makes `b.New` that
+//     package, whatever the target calls itself
+//  2. otherwise the bound name is the TARGET's package clause, which is why
+//     this lives here and not in the extractor: `import "gopkg.in/yaml.v3"`
+//     binds `yaml`, and only a side that has read the target directory knows
+//     that
+//
+// "_" and "." bind no selector and are skipped in both rounds.
+func (x *repoIndex) packageDir(file, receiver string, mods []Module) (string, bool) {
+	var plain []golang.Import
+	for _, imp := range x.importsOf[file] {
+		switch imp.Alias {
+		case "":
+			plain = append(plain, imp)
+		case "_", ".":
+			// Binds nothing.
+		case receiver:
+			return importDir(imp.Path, mods)
+		}
+	}
+	for _, imp := range plain {
+		dir, ok := importDir(imp.Path, mods)
+		if !ok {
+			continue
+		}
+		if x.clauseOf[dir] == receiver {
+			return dir, true
+		}
+	}
+	return "", false
 }
 
 // one keeps an edge when the candidate set names exactly one node.
@@ -2969,10 +3227,8 @@ Der Import-Block von `resolve.go` braucht `path`, `sort`, `strings`, dazu
 go test ./internal/code/resolve/ -count=1 -cover
 ```
 
-Erwartet: PASS bei 100 % je Funktion. Der Fall „Wurzelpaket" in
-`resolveSelector` braucht einen eigenen Test, wenn die Abdeckung ihn nicht
-erreicht — ein Modul, dessen Pfad genau dem Importpfad gleicht, sodass
-`importDir` `""` liefert und das Wurzelverzeichnis gemeint ist.
+Erwartet: PASS bei 100 % je Funktion. Der Import-Block der Testdatei braucht
+`path` für den Helfer `result`.
 
 - [ ] **Schritt 7: Commit**
 
@@ -4799,14 +5055,10 @@ Gegen die Spec gelesen, Abschnitt für Abschnitt:
 G2b; Abschnitt 14 (`--lsp`) ist die optionale Folgestufe; Abschnitt 12.3 (die
 portierten `ask`-Vektoren) gehört zu G2b.
 
-**Eine Lücke, die dieser Plan bewusst anders löst als die Spec sie beschreibt:**
-Abschnitt 7.1 der Spec nennt Git als Quelle der Dateimenge („verfolgt +
-unverfolgt − ignoriert"). Task 2 läuft stattdessen das Dateisystem ab und
-benutzt die Sperrliste. Der Grund: `git ls-files` als Unterprozess kostet an
-jedem Aufruf der Sonde einen Prozessstart, und die Sonde soll ~3 ms kosten.
-Die Sperrliste plus „jedes Punktverzeichnis" deckt in einem Go-Repo praktisch
-dasselbe ab; wo sie es nicht tut — eine ignorierte, aber nicht gesperrte
-Generatorausgabe —, landet sie im Graphen. **Das ist der eine Punkt dieses
-Plans, an dem eine Messung die Entscheidung umdrehen könnte**, und Task 10
-liefert sie: steht die Sonde deutlich über 3 ms, ist Git die Quelle und der
-Prozessstart das kleinere Übel.
+**Eine Entscheidung, die eine Messung umdrehen kann:** Task 2 läuft das
+Dateisystem ab, statt Git nach der Menge zu fragen. Abschnitt 7.1 der Spec trägt
+diese Abweichung samt Begründung — ein Unterprozess je Sondenaufruf kostet mehr
+als die Sonde selbst — und macht sie ausdrücklich von der Messung in Task 10
+abhängig: steht die Sonde deutlich über 3 ms, wird auf `git ls-files`
+umgestellt. Wer diesen Plan ausführt, baut den Verzeichnislauf und trägt die
+Zahl ein; er entscheidet die Frage nicht neu.
