@@ -285,7 +285,10 @@ git. loomux keeps no copy of it.
 ## 5. The Write Barrier and the Agents' Memory
 
 The write barrier (`loomux hook pre-tool-use`) lets tools write where the
-registry declares an area, and beyond that always in three places, for every
+registry declares an area. A linked git worktree of an area registered with
+`workspace = true` belongs to it and needs no entry of its own: it is the same
+repository checked out a second time, and the barrier recognises it from git's
+own worktree files. Beyond that, three places are always open, for every
 user and without a registry entry:
 
 | Where | Open below |
