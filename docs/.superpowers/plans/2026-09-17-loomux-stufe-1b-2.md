@@ -65,6 +65,15 @@ wiederholt.
 - `cmd/loomux/start_test.go` lässt keine Paketinitialisierung über 500
   Allokationen zu. Gemessen mit gelinktem SDK: Höchstwert `encoding/gob` 367.
 
+**Zwei ungeprüfte Annahmen — nicht wegtesten, sondern so behandeln**
+- **Job-Object:** ob ein MCP-Wirt uns in ein Job-Object ohne `BREAKAWAY_OK`
+  steckt, ist **nicht** gemessen; die Probe am 2026-09-17 lief in gar keinem
+  Job. Der Entwurf fängt den Fehlschlag im Verhalten auf (Task 9), er schließt
+  ihn nicht aus. Ein Test, der Breakaway als „geht immer" behauptet, ist falsch.
+- **`encoding/gob` mit 367 Allokationen** ist der Wert **mit** gelinktem SDK;
+  ob der SDK ihn hereinzieht, ist nicht gegengemessen. Steigt der Wert in Task 1
+  über 500, ist das ein Befund für den Menschen, keine Aufgabe des Workers.
+
 **Konfiguration**
 - `.loomux/config.toml` schreibt kein Agent. Änderungsvorschläge gehen an den
   Menschen.
@@ -157,43 +166,7 @@ Zahlen notieren; Task 14 vergleicht gegen sie.
 2026-09-17; `x/sys` v0.47.0 wäre noch 1.25.0). Die Projektregel „immer die
 neueste Fassung" gewinnt gegen das Offenhalten älterer Toolchains.
 
-- [ ] **Step 1: Den Test schreiben, der die Version festnagelt**
-
-`internal/mcptools/version_test.go`:
-
-```go
-package mcptools_test
-
-import (
-	"os"
-	"strings"
-	"testing"
-)
-
-// TestSDKVersionIsPinned keeps the SDK from drifting silently: the stage was
-// designed and measured against v1.8.0, and an unnoticed upgrade would change
-// the negotiated protocol revision under the parity corpus.
-func TestSDKVersionIsPinned(t *testing.T) {
-	data, err := os.ReadFile("../../go.mod")
-	if err != nil {
-		t.Fatalf("read go.mod: %v", err)
-	}
-	const want = "github.com/modelcontextprotocol/go-sdk v1.8.0"
-	if !strings.Contains(string(data), want) {
-		t.Errorf("go.mod does not require %q", want)
-	}
-}
-```
-
-- [ ] **Step 2: Test laufen lassen, Fehlschlag sehen**
-
-```powershell
-go test ./internal/mcptools/ -run TestSDKVersionIsPinned -v
-```
-
-Erwartet: FAIL — das Paket gibt es noch nicht, bzw. `go.mod` nennt den SDK nicht.
-
-- [ ] **Step 3: Abhängigkeiten ziehen**
+- [ ] **Step 1: Abhängigkeiten ziehen**
 
 ```powershell
 go get github.com/modelcontextprotocol/go-sdk@v1.8.0
@@ -205,7 +178,17 @@ go mod tidy
 `go.mod` muss danach `go 1.26.0` tragen. Steht dort mehr als 1.26.0, ist etwas
 anderes eingezogen — nachsehen, nicht hinnehmen.
 
-- [ ] **Step 4: Ein Paketgerüst, damit der SDK wirklich gelinkt wird**
+- [ ] **Step 2: Die Version prüfen**
+
+```powershell
+go list -m -f '{{.Version}}' github.com/modelcontextprotocol/go-sdk
+```
+
+Erwartet: `v1.8.0`. Diese Prüfung gehört in den Schritt, **nicht** in einen Test:
+ein Go-Test, der `go.mod` liest, prüft ein Bauartefakt und bricht, sobald das
+Paket umzieht.
+
+- [ ] **Step 3: Ein Paketgerüst, damit der SDK wirklich gelinkt wird**
 
 `internal/mcptools/tools.go` — vorerst nur so viel, dass der Import steht:
 
@@ -225,10 +208,13 @@ func Names() []string {
 	return []string{"brain_search", "brain_catalog", "brain_read", "brain_neighbors", "brain_status"}
 }
 
-var _ = mcp.LatestProtocolVersion
+// A function reference, not a version constant: no loomux code names a
+// protocol revision -- the SDK negotiates one upward with the host and speaks
+// the one it negotiates downward to serve.
+var _ = mcp.NewServer
 ```
 
-- [ ] **Step 5: Tests und Tor**
+- [ ] **Step 4: Tests und Tor**
 
 ```powershell
 go test ./internal/mcptools/ -v
@@ -239,7 +225,7 @@ sh .githooks/pre-commit
 Erwartet: alles PASS. Der Init-Test ist hier der wichtige: er beweist, dass der
 SDK keine Paketinitialisierung über 500 Allokationen mitbringt.
 
-- [ ] **Step 6: Messen und eintragen**
+- [ ] **Step 5: Messen und eintragen**
 
 ```powershell
 (Get-Item bin/loomux.exe).Length
@@ -249,7 +235,7 @@ Measure-Command { 1..12 | ForEach-Object { ./bin/loomux.exe --version | Out-Null
 Ergebnis gegen Task 0 in `docs/en/benchmarks.md` und `docs/de/benchmarks.md`
 eintragen, mit Datum, Uhrzeit, kalt und warm.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```powershell
 git add go.mod go.sum internal/mcptools/ docs/en/benchmarks.md docs/de/benchmarks.md
@@ -560,6 +546,10 @@ Nachricht: `Add the cross-process lock ported from locking.py`.
 
 ```go
 // In internal/brain/answer:
+// Request is one command and its arguments. Query carries the single
+// positional: the search query for search, the relative path for read and
+// neighbors. They never occur together, so there is no second field for it --
+// do not add a Relative.
 type Request struct {
 	Command   string // "search", "catalog", "read", "neighbors", "status"
 	Query     string // search: the query; read/neighbors: the relative path
@@ -1086,6 +1076,7 @@ package serve_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1179,7 +1170,7 @@ func TestPathsAllSitUnderTheStateDir(t *testing.T) {
 		"qmd lock": serve.QmdLockPath(dir),
 		"log":      serve.LogPath(dir),
 	} {
-		if rel, err := filepath.Rel(dir, got); err != nil || rel == ".." {
+		if rel, err := filepath.Rel(dir, got); err != nil || strings.HasPrefix(rel, "..") {
 			t.Errorf("%s path %q is not under the state dir", name, got)
 		}
 	}
@@ -1730,10 +1721,62 @@ func report(ctx context.Context, req *mcp.CallToolRequest, message string) {
 }
 ```
 
-Dazu die kleinen Helfer `arguments`, `command`, `text`, `str`, `count`:
-`command` schneidet das Präfix `brain_` ab, `text` nimmt `query`, sonst
-`relative`, `count` liest `n` als Zahl und fällt auf 0 zurück, wenn es fehlt —
-`answer.Run` kennt seine Vorgabe selbst.
+Die Helfer, ausgeschrieben — `req.Params.Arguments` ist `json.RawMessage`
+(`protocol.go:250`), weil die Werkzeuge über `(*Server).AddTool` registriert
+werden und nicht über das generische `mcp.AddTool[In, Out]`; das Auspacken ist
+also unsere Sache:
+
+```go
+// arguments unpacks the raw call arguments. A call without arguments and a call
+// with broken ones both end as an empty map: the schema already told the host
+// what is required, and a parse error here would be an outage, which this is
+// not.
+func arguments(req *mcp.CallToolRequest) map[string]any {
+	if len(req.Params.Arguments) == 0 {
+		return map[string]any{}
+	}
+	var args map[string]any
+	if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+		return map[string]any{}
+	}
+	return args
+}
+
+// command turns brain_search into search. The family prefix is for the host's
+// flat tool list; the answer knows the bare names.
+func command(name string) string {
+	return strings.TrimPrefix(name, "brain_")
+}
+
+func str(args map[string]any, key string) string {
+	value, ok := args[key].(string)
+	if !ok {
+		return ""
+	}
+	return value
+}
+
+// text is the one positional the answer takes: the query for search, the
+// relative path for read and neighbors. They never occur together.
+func text(args map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := str(args, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+// count reads n. JSON numbers arrive as float64. Zero means "not given", and
+// answer.Run puts its own default in its place.
+func count(args map[string]any) int {
+	value, ok := args["n"].(float64)
+	if !ok {
+		return 0
+	}
+	return int(value)
+}
+```
 
 - [ ] **Step 4: Tests laufen lassen**
 
@@ -1870,6 +1913,9 @@ func TestASecondServeRefusesToStart(t *testing.T) {
 	dir := t.TempDir()
 	start(t, dir)
 
+	// Run must return at once: TryAcquire refuses and Run gives up. The timeout
+	// is a safety net for a broken implementation, never a wait -- an
+	// implementation that blocks here and passes the test is wrong.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := serve.Run(ctx, serve.Options{StateDir: dir, RegistryDir: dir, LegacyDir: dir})
@@ -1969,7 +2015,57 @@ Die `ServerOptions` jedes Kanals setzen das Zwischenspeichern der Werkzeugliste
 aus `mcptools.CacheTTL` und `mcptools.CacheScope` — fünf statische Werkzeuge,
 das kostet nichts. Ein Test prüft, dass `tools/list` die Werte trägt.
 
-- [ ] **Step 4: Tests laufen lassen**
+- [ ] **Step 4: Der Fortschritts-Test durch den echten Handler**
+
+`InMemoryTransports` aus Task 7 beweist nicht, dass eine Fortschrittsmeldung
+**über HTTP** ankommt. Im zustandslosen Betrieb geht das nur im Kontext einer
+laufenden Anfrage, und genau darauf baut der Warm-Hinweis. Ein Test, der einen
+echten Client gegen den echten Listener fährt, einen Progress-Token mitgibt und
+die Meldung empfängt:
+
+```go
+func TestAProgressNotificationReachesTheClientOverHTTP(t *testing.T) {
+	dir := t.TempDir()
+	state, _ := start(t, dir)
+
+	heard := make(chan string, 4)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, &mcp.ClientOptions{
+		ProgressNotificationHandler: func(_ context.Context, req *mcp.ProgressNotificationClientRequest) {
+			heard <- req.Params.Message
+		},
+	})
+	transport := &mcp.StreamableClientTransport{
+		Endpoint: state.Local.URL,
+		// A stateless server answers GET with 405; a client that opens a
+		// standalone SSE stream would see an error that is none.
+		DisableStandaloneSSE: true,
+		HTTPClient:           tokenClient(state.Local.Token),
+	}
+	session, err := client.Connect(context.Background(), transport, nil)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer session.Close()
+
+	params := &mcp.CallToolParams{Name: "brain_status"}
+	params.SetProgressToken("p1")
+	if _, err := session.CallTool(context.Background(), params); err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	select {
+	case <-heard:
+	case <-time.After(5 * time.Second):
+		t.Error("no progress notification arrived over HTTP")
+	}
+}
+```
+
+`tokenClient` ist ein `*http.Client` mit einem `RoundTripper`, der den
+`Authorization`-Kopf setzt. Damit der Test überhaupt eine Meldung auslöst, gibt
+der `status`-Handler in diesem Test eine feste Notiz zurück — über die
+`Deps.Answer` aus Task 7.
+
+- [ ] **Step 5: Tests laufen lassen**
 
 ```powershell
 go test ./internal/serve/ -v -cover
@@ -1977,7 +2073,7 @@ go test ./internal/serve/ -v -cover
 
 Erwartet: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 Nachricht: `Run two channel listeners under one lock`.
 
@@ -1991,7 +2087,10 @@ Nachricht: `Run two channel listeners under one lock`.
 
 **Interfaces:**
 - Produces:
-  - `func Spawn(stateDir string, spawner func(argv []string, attrs *syscall.SysProcAttr) error) (brokeAway bool, err error)`
+  - `func Spawn(stateDir string, spawner func(cmd *exec.Cmd) error) (brokeAway bool, err error)`
+    — `Spawn` baut den `exec.Cmd` samt Prozessattributen und Logdatei, der
+    Spawner startet ihn. So kann ein Test `cmd.Stdout` und
+    `cmd.SysProcAttr` prüfen, ohne einen Prozess zu erzeugen.
   - `func Status(stateDir string) (string, error)` — fragt die Listener, statt nur die Sperrdatei zu lesen.
   - `func Stop(stateDir string, force bool) error`
 
@@ -2017,26 +2116,30 @@ Kernpunkte, je ein Test:
 
 ```go
 func TestSpawnNeverInheritsStdio(t *testing.T) {
-	var got []string
-	var attrs *syscall.SysProcAttr
-	_, err := serve.Spawn(t.TempDir(), func(argv []string, a *syscall.SysProcAttr) error {
-		got, attrs = argv, a
+	var got *exec.Cmd
+	_, err := serve.Spawn(t.TempDir(), func(cmd *exec.Cmd) error {
+		got = cmd
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	if len(got) < 2 || got[1] != "serve" {
-		t.Errorf("argv is %v, want the serve subcommand", got)
+	// nil means os.DevNull. The caller's stdout may be a host's MCP pipe; an
+	// inherited descriptor would wreck its framing and hold it open.
+	if got.Stdin != nil || got.Stdout != nil {
+		t.Error("the child inherited stdin or stdout")
 	}
-	if attrs == nil {
-		t.Error("the child was started without detach attributes")
+	if len(got.Args) < 2 || got.Args[1] != "serve" {
+		t.Errorf("args are %v, want the serve subcommand", got.Args)
+	}
+	if got.SysProcAttr == nil {
+		t.Error("the child was built without detach attributes")
 	}
 }
 
 func TestSpawnFallsBackWhenBreakawayIsRefused(t *testing.T) {
 	calls := 0
-	brokeAway, err := serve.Spawn(t.TempDir(), func([]string, *syscall.SysProcAttr) error {
+	brokeAway, err := serve.Spawn(t.TempDir(), func(*exec.Cmd) error {
 		calls++
 		if calls == 1 {
 			return errors.New("access is denied")
@@ -2085,6 +2188,11 @@ Nachricht: `Start, stop and inspect the service`.
 
 **Interfaces:**
 - Produces: `func EnsureDaemon(qmdLockPath string, env map[string]string, port int) error` — Probe und Start im kurzen kritischen Abschnitt.
+
+**Was sich ändert:** `search.DefaultConnectWith` (`internal/brain/search/mcp.go:84`)
+probt heute mit `session.Reachable()` und startet bei Bedarf mit
+`StartDaemonWith`. Genau dieses Paar kommt in den kritischen Abschnitt — nicht
+ein zweiter Startweg daneben.
 
 **Warum geteilt:** `brain search` startet qmd, und `serve` tut es beim
 Hochfahren auch. Ohne gemeinsame Sperre erzeugen zwei Starter zwei Daemons auf
@@ -2155,21 +2263,383 @@ aufmachen will, bekommt bei jedem Start einen Fehler zu sehen, der keiner ist.
 **Der Progress-Token reist nach unten.** Ohne ihn stirbt der Warm-Hinweis in der
 Brücke.
 
-- [ ] **Step 1: Die fehlschlagenden Tests schreiben**
+- [ ] **Step 1: Die fehlschlagenden Tests für `connect.go` schreiben**
 
-Je ein Test für: `tools/list` ohne laufendes `serve`; ein Aufruf, der
-weitergereicht wird; genau eine Wiederholung nach abgelehnter Verbindung; kein
-Neustart durch ein älteres Programm; Neustart durch ein neueres, mit Stop vor
-Start; eine Störung, die als MCP-Fehler mit `loomux serve status` ankommt und
-**nicht** als leeres Ergebnis.
+`internal/bridge/connect_test.go`:
 
-- [ ] **Step 2: Tests laufen lassen** — Erwartet: FAIL.
+```go
+package bridge_test
 
-- [ ] **Step 3: Implementieren.**
+import (
+	"errors"
+	"testing"
+	"time"
 
-- [ ] **Step 4: Tests und Tor** — Erwartet: PASS, 100 %.
+	"github.com/xidus90/loomux/internal/bridge"
+	"github.com/xidus90/loomux/internal/serve"
+)
 
-- [ ] **Step 5: Commit**
+func stateWithBuild(modTime time.Time) *serve.State {
+	return &serve.State{
+		Local:      serve.Endpoint{URL: "http://127.0.0.1:1/mcp", Token: "l"},
+		Cloud:      serve.Endpoint{URL: "http://127.0.0.1:2/mcp", Token: "c"},
+		PID:        4711,
+		Executable: `C:\other-checkout\bin\loomux.exe`,
+		Size:       17,
+		ModTime:    modTime,
+	}
+}
+
+func TestAnOlderBridgeNeverRestartsANewerService(t *testing.T) {
+	// serve is machine-wide, bin/loomux.exe sits in one checkout of several.
+	// "Anything different restarts it" would let two hosts out of two clones
+	// kill each other on every call.
+	now := time.Now()
+	decision := bridge.Decide(stateWithBuild(now), now.Add(-time.Hour))
+	if decision != bridge.Keep {
+		t.Errorf("decision is %v, want Keep", decision)
+	}
+}
+
+func TestANewerBridgeRestartsTheService(t *testing.T) {
+	now := time.Now()
+	decision := bridge.Decide(stateWithBuild(now), now.Add(time.Hour))
+	if decision != bridge.Restart {
+		t.Errorf("decision is %v, want Restart", decision)
+	}
+}
+
+func TestTheSameBuildIsKept(t *testing.T) {
+	now := time.Now()
+	if decision := bridge.Decide(stateWithBuild(now), now); decision != bridge.Keep {
+		t.Errorf("decision is %v, want Keep", decision)
+	}
+}
+
+func TestNoStateMeansStart(t *testing.T) {
+	if decision := bridge.Decide(nil, time.Now()); decision != bridge.Start {
+		t.Errorf("decision is %v, want Start", decision)
+	}
+}
+
+func TestRestartStopsTheOldServiceBeforeStarting(t *testing.T) {
+	// A newly spawned serve cannot take serve.lock while the old one holds it.
+	// Stop, wait for the lock, then spawn -- in that order, or the new one dies
+	// on startup and the bridge waits sixty seconds for nothing.
+	var order []string
+	deps := bridge.Deps{
+		Stop:     func(string) error { order = append(order, "stop"); return nil },
+		WaitFree: func(string, time.Duration) error { order = append(order, "wait"); return nil },
+		Spawn:    func(string) (bool, error) { order = append(order, "spawn"); return true, nil },
+	}
+	if err := bridge.Restart(t.TempDir(), deps); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+	want := []string{"stop", "wait", "spawn"}
+	if len(order) != len(want) {
+		t.Fatalf("order is %v, want %v", order, want)
+	}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Fatalf("order is %v, want %v", order, want)
+		}
+	}
+}
+
+func TestRestartStillSpawnsWhenTheOldServiceIsAlreadyGone(t *testing.T) {
+	// A stop against a dead listener is not a failure: the goal is a free lock,
+	// and a service that is already gone has reached it.
+	deps := bridge.Deps{
+		Stop:     func(string) error { return errors.New("connection refused") },
+		WaitFree: func(string, time.Duration) error { return nil },
+		Spawn:    func(string) (bool, error) { return true, nil },
+	}
+	if err := bridge.Restart(t.TempDir(), deps); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+}
+```
+
+- [ ] **Step 2: Tests laufen lassen**
+
+```powershell
+go test ./internal/bridge/ -v
+```
+
+Erwartet: FAIL, das Paket gibt es nicht.
+
+- [ ] **Step 3: `connect.go` schreiben**
+
+```go
+// Package bridge is the stdio front a host starts: one redirector per host.
+//
+// Name to name, arguments to arguments, result back. If this layer ever does
+// more than that, something is wrong.
+package bridge
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/xidus90/loomux/internal/serve"
+)
+
+// Decision is what to do with the service described by serve.json.
+type Decision int
+
+const (
+	// Keep uses the running service as it is.
+	Keep Decision = iota
+	// Start spawns one because none is recorded.
+	Start
+	// Restart replaces an older one with this build.
+	Restart
+)
+
+// Decide reads the recorded build against ours. Newer wins, and only newer.
+func Decide(state *serve.State, ours time.Time) Decision {
+	if state == nil {
+		return Start
+	}
+	if state.OlderThan(ours) {
+		return Restart
+	}
+	return Keep
+}
+
+// Deps are the three moves a restart makes. A test replaces all three.
+type Deps struct {
+	Stop     func(stateDir string) error
+	WaitFree func(lockPath string, timeout time.Duration) error
+	Spawn    func(stateDir string) (brokeAway bool, err error)
+}
+
+// StartTimeout and StartTick are the qmd handshake's figures from stage 1b-1,
+// reused deliberately: one waiting rhythm in this project, not two.
+const (
+	StartTimeout = 60 * time.Second
+	StartTick    = 250 * time.Millisecond
+)
+
+// Restart replaces the running service with this build.
+//
+// The order is forced: a spawned serve cannot take serve.lock while the old one
+// holds it. Stopping first is not politeness, it is the only order that works.
+func Restart(stateDir string, deps Deps) error {
+	// A stop that fails is not an error: a service that is already gone has
+	// reached the goal this call has, which is a free lock.
+	_ = deps.Stop(stateDir)
+	if err := deps.WaitFree(serve.LockPath(stateDir), StartTimeout); err != nil {
+		return fmt.Errorf("the old service did not let go of its lock: %w", err)
+	}
+	if _, err := deps.Spawn(stateDir); err != nil {
+		return fmt.Errorf("start the service: %w", err)
+	}
+	return nil
+}
+```
+
+- [ ] **Step 4: Die Tests für `bridge.go` schreiben**
+
+`internal/bridge/bridge_test.go` — hier sind die drei Verhaltensweisen, an denen
+die Brücke gemessen wird:
+
+```go
+func TestToolsListIsAnsweredWithoutAService(t *testing.T) {
+	// The descriptions are static, and fetching them would put a cold qmd start
+	// inside the host's handshake. No service runs in this test at all.
+	session := connectBridge(t, bridge.Options{StateDir: t.TempDir()})
+	res, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	if len(res.Tools) != 5 {
+		t.Fatalf("got %d tools without a service, want 5", len(res.Tools))
+	}
+	if res.Tools[0].Name != "brain_search" {
+		t.Errorf("first tool is %q", res.Tools[0].Name)
+	}
+}
+
+func TestTheListIsByteIdenticalToTheServices(t *testing.T) {
+	bridged, err := json.Marshal(toolsOf(t, connectBridge(t, bridge.Options{StateDir: t.TempDir()})))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	served, err := json.Marshal(mcptools.Tools())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(bridged) != string(served) {
+		t.Error("the bridge's list and the service's list differ")
+	}
+}
+
+func TestACallIsForwardedUnchanged(t *testing.T) {
+	// Name to name, arguments to arguments. The fake service records what
+	// arrived.
+	var seen *mcp.CallToolParamsRaw
+	service := fakeService(t, func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		seen = req.Params
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}, nil
+	})
+	session := connectBridge(t, bridge.Options{StateDir: service.StateDir})
+	if _, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "brain_read",
+		Arguments: map[string]any{"scope": "wiki", "relative": "index.md"},
+	}); err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if seen.Name != "brain_read" {
+		t.Errorf("the service saw %q", seen.Name)
+	}
+	if !strings.Contains(string(seen.Arguments), `"relative":"index.md"`) {
+		t.Errorf("the service saw arguments %s", seen.Arguments)
+	}
+}
+
+func TestARefusedConnectionIsRetriedExactlyOnce(t *testing.T) {
+	// A commit rebuilds bin/loomux.exe, a newer bridge restarts serve, and every
+	// other bridge's connection dies with it. One retry hides that from a host
+	// that did nothing wrong. Two retries would hide a real outage.
+	attempts := 0
+	service := fakeService(t, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		attempts++
+		if attempts == 1 {
+			return nil, errors.New("connection refused")
+		}
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}, nil
+	})
+	session := connectBridge(t, bridge.Options{StateDir: service.StateDir})
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "brain_status"})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if attempts != 2 {
+		t.Errorf("the service was called %d times, want 2", attempts)
+	}
+	if res.IsError {
+		t.Error("the retried call came back as an error")
+	}
+}
+
+func TestAnOutageIsAnErrorAndNeverAnEmptyResult(t *testing.T) {
+	// Reporting an outage as an empty hit list would teach the model to read a
+	// dead service as "nothing found".
+	service := fakeService(t, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return nil, errors.New("connection refused")
+	})
+	session := connectBridge(t, bridge.Options{StateDir: service.StateDir})
+	_, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "brain_search",
+		Arguments: map[string]any{"query": "anything"}})
+	if err == nil {
+		t.Fatal("an outage came back as a result")
+	}
+	if !strings.Contains(err.Error(), "loomux serve status") {
+		t.Errorf("the error does not say what to do: %v", err)
+	}
+}
+
+func TestTheProgressTokenTravelsDownwards(t *testing.T) {
+	// Without it the warming hint dies in the bridge.
+	var token any
+	service := fakeService(t, func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		token = req.Params.GetProgressToken()
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}, nil
+	})
+	session := connectBridge(t, bridge.Options{StateDir: service.StateDir})
+	params := &mcp.CallToolParams{Name: "brain_status"}
+	params.SetProgressToken("p1")
+	if _, err := session.CallTool(context.Background(), params); err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if token == nil {
+		t.Error("the service saw no progress token")
+	}
+}
+```
+
+`fakeService` startet einen echten `serve`-ähnlichen HTTP-Server mit **einem**
+Werkzeughandler und schreibt eine `serve.json` in ein eigenes
+Zustandsverzeichnis. `connectBridge` startet `bridge.Run` über
+`mcp.NewInMemoryTransports` statt über echtes stdio.
+
+- [ ] **Step 5: Tests laufen lassen** — Erwartet: FAIL.
+
+- [ ] **Step 6: `bridge.go` schreiben**
+
+Der Aufbau, mit den Gründen an den Stellen, an denen sie gelten:
+
+```go
+// Run serves one host until it goes away.
+func Run(ctx context.Context, opts Options) error {
+	server := mcp.NewServer(&mcp.Implementation{Name: "loomux", Version: version.Version}, nil)
+	for _, tool := range mcptools.Tools() {
+		// Answered here rather than fetched: the descriptions are static, and
+		// asking would put a cold start inside the handshake. The same list
+		// object as the service's, so the two cannot drift.
+		server.AddTool(tool, forward(opts))
+	}
+
+	// Nudged in the background: making sure a service exists blocks for the ten
+	// seconds of a cold start, and the host must see a ready server long before
+	// that. A failed start stays a failed start -- it must not take the
+	// answering front down with it, or the host learns of the outage from a
+	// server that vanishes instead of from the call that needed it.
+	go func() { _ = ensure(opts) }()
+
+	return server.Run(ctx, &mcp.StdioTransport{})
+}
+```
+
+`forward` verbindet sich beim ersten Aufruf gegen die Adresse des eigenen
+Kanals, reicht Name, Argumente und den Progress-Token durch und wiederholt genau
+einmal:
+
+```go
+res, err := session.CallTool(ctx, params)
+if err == nil {
+	return res, nil
+}
+// serve.json neu lesen, neu verbinden, genau einmal wiederholen.
+session, connectErr := reconnect(opts)
+if connectErr != nil {
+	return nil, outage(connectErr)
+}
+res, err = session.CallTool(ctx, params)
+if err != nil {
+	return nil, outage(err)
+}
+return res, nil
+```
+
+```go
+// outage says what a human can do about it. It is never an empty result: that
+// would read as "nothing found" to the model.
+func outage(err error) error {
+	return fmt.Errorf("the loomux service did not answer (%w); run `loomux serve status`", err)
+}
+```
+
+Der Client setzt `DisableStandaloneSSE: true`: ein zustandsloser Server
+beantwortet GET mit 405, und ein Client, der dort einen SSE-Strom aufmachen
+will, bekommt bei jedem Start einen Fehler zu sehen, der keiner ist.
+
+`ensure` liest `serve.json`, ruft `Decide` und je nach Entscheidung nichts,
+`Spawn` oder `Restart`. Es liest **beide** Token aus `serve.json`, unabhängig
+vom `--channel` — sonst könnte eine cloud-Brücke nie neu starten. Das Tor bleibt
+die Adresse, die sie anspricht.
+
+- [ ] **Step 7: Tests und Tor**
+
+```powershell
+go test ./internal/bridge/ -v -cover
+sh .githooks/pre-commit
+```
+
+Erwartet: PASS, 100 % je Funktion.
+
+- [ ] **Step 8: Commit**
 
 Nachricht: `Bridge one stdio host to the service`.
 
@@ -2340,4 +2810,5 @@ Nachricht: `Close stage 1b-2 with the parity list and the measurements`.
 3. die Mutationsrunde gelaufen ist und ihre Überlebenden dokumentiert sind,
 4. die vier Messungen in `docs/{en,de}/benchmarks.md` stehen,
 5. das loomux-Repo den Dienst selbst benutzt — ein Wirt dieses Projekts spricht
-   über die Brücke mit `serve`.
+   über die Brücke mit `serve`. **Das ist ein Mensch-Schritt:** den
+   `.mcp.json`-Eintrag schreibt der Mensch, kein Subagent.
