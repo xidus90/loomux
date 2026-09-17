@@ -1,0 +1,20 @@
+{
+  "meta": { "version": 1, "nodeCount": 7, "edgeCount": 6, "languages": ["ts", "go"] },
+  "nodes": [
+    { "id": "src/cache.ts", "name": "cache.ts", "kind": "file", "path": "src/cache.ts", "span": "L1-L90", "signature": null, "exported": false },
+    { "id": "src/cache.ts#Cache", "name": "Cache", "kind": "class", "path": "src/cache.ts", "span": "L10-L40", "signature": "class Cache", "exported": true },
+    { "id": "src/cache.ts#Cache.get", "name": "get", "kind": "method", "owner": "Cache", "path": "src/cache.ts", "span": "L20-L40", "signature": "get(k: string): number", "exported": true },
+    { "id": "src/cache.ts#Cache~2.get", "name": "get", "kind": "method", "owner": "Cache~2", "path": "src/cache.ts", "span": "L50-L70", "signature": "get(k: string): number", "exported": false },
+    { "id": "src/store.ts#Store", "name": "Store", "kind": "interface", "path": "src/store.ts", "span": "L1-L12", "signature": "interface Store", "exported": true },
+    { "id": "pkg/hash.go#Hash", "name": "Hash", "kind": "function", "path": "pkg/hash.go", "span": "L3-L9", "signature": "func Hash(b []byte) uint64", "exported": true },
+    { "id": "src/cache.ts#Cache~2", "name": "Cache", "kind": "class", "path": "src/cache.ts", "span": "L45-L85", "signature": "class Cache", "exported": false }
+  ],
+  "edges": [
+    { "source": "src/cache.ts", "target": "src/cache.ts#Cache", "relation": "contains", "confidence": "extracted" },
+    { "source": "src/cache.ts#Cache.get", "target": "pkg/hash.go#Hash", "relation": "calls", "confidence": "lsp_resolved" },
+    { "source": "src/cache.ts", "target": "npm:lodash", "relation": "imports", "confidence": "inferred" },
+    { "source": "src/cache.ts#Cache", "target": "src/store.ts#Store", "relation": "implements", "confidence": "lsp_dispatch" },
+    { "source": "src/cache.ts#Cache~2.get", "target": "src/cache.ts#Cache.get", "relation": "references", "confidence": "extracted" },
+    { "source": "src/cache.ts#Cache~2", "target": "src/cache.ts#Cache", "relation": "extends", "confidence": "inferred" }
+  ]
+}

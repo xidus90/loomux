@@ -69,18 +69,17 @@ die 54 Zeilen, gegen die der Inhalt in Task 5 geprüft wird.
   keinen Aufrufer.
 - Gerüstdateien (`_schema.md`, `index.md`, `log.md`, `audit.md`,
   `_identities.tsv`) werden nicht bewertet, zählen aber als Linkquelle.
-- **`wiki-drift` kann für ein Wiki im selben Repository nie greifen.**
-  `CheckWikiGate` meldet Drift nur, wenn Code geändert wurde und das Wiki nicht
-  (`gate.go:93`). Beide Fragen stellt `getGitChangedFiles`
-  (`gate.go:48-74`), das nur `cmd.Dir` setzt — und `git status --porcelain`
-  meldet aus jedem Unterverzeichnis den Stand des ganzen Repos. Für
-  `docs/wiki` ist `wikiChanged` also stets gleich `codeChanged`, und die
-  Bedingung `wikiPath != projectRoot` entscheidet nichts mehr. Das Tor liest
-  außerdem den Arbeitsbaum, nicht die Commit-Historie. Heute bricht das nichts:
-  `wiki-gate` steht weder in `.githooks/pre-commit` noch in
+- **`wiki-drift`** — Stand beim Schreiben des Plans: für ein Wiki im selben
+  Repository konnte `CheckWikiGate` nie Drift melden, weil `git status
+  --porcelain` aus jedem Unterverzeichnis den Stand des ganzen Repos meldet und
+  `wikiChanged` darum stets gleich `codeChanged` war. Seit `2d67fad` (auf
+  `master`, vor dem Merge dieses Zweigs) trennt `changesOf` die geänderten
+  Pfade nach Wiki und Code (`internal/brain/wiki/gate.go`), und die Drift-Zeile
+  greift: wird Code geändert und `docs/wiki` nicht, meldet `wiki-gate` sie. Das
+  Tor liest den Arbeitsbaum, nicht die Commit-Historie. Heute bricht das
+  nichts: `wiki-gate` steht weder in `.githooks/pre-commit` noch in
   `.claude/settings.json` noch in `[verify]`; nur der post-edit-Hook lintet die
-  gerade bearbeitete Seite. Den Code repariert ein eigener Vorgang, nicht
-  dieser Plan.
+  gerade bearbeitete Seite.
 - Nachgerechnet am 2026-09-16: **kein toter Link** entsteht durch den Umzug —
   keine Inhaltsseite verlinkt einen Katalog. **Keine Waise** entsteht —
   jede der 24 Inhaltsseiten wird von mindestens einer anderen Inhaltsseite

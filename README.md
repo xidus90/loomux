@@ -112,7 +112,7 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1
 | Pillar / Capability | Description | Status |
 |---|---|---|
 | **1. Hooks & Guard** | | |
-| Unified Pre-Tool Guard | Single-pass validation of write barriers, path protections, and forbidden commands (<35ms budget; 32–34ms measured on predecessor; a write in a linked worktree measured 34.6 ms warm (2026-09-16)). Linked git worktrees of a registered workspace are writable without a registry entry of their own. | ✅ **Implemented** (Stage 1a) |
+| Unified Pre-Tool Guard | Single-pass validation of write barriers, path protections, and forbidden commands (<35ms budget; 32–34ms measured on predecessor; a write in a linked worktree measured 34.6 ms warm (2026-09-16)). Linked git worktrees of a registered workspace are writable without a registry entry of their own. Registry and area declarations are read through the same checks as the brain commands; a broken entry refuses every write. | ✅ **Implemented** (Stage 1a) |
 | Post-Tool Blast Monitor | Instant dirty-file hashing and dependent caller warning on edit. | 🚧 **In Migration** (Stage 1b) |
 | Session & Remote Drift | Session-start freshness checks, subagent drift detection, and stop-gate execution counter. | 🚧 **In Migration** (Stage 1b) |
 | Check Chain (`[verify]`) | Unified verification table: multi-lane test runners, commit-msg calibration, coverage gates. | ✅ **Implemented** (Stage 1a) |
@@ -132,7 +132,7 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1
 | **4. Second Brain & Wiki** | | |
 | Local Markdown Wiki | Bidirectional markdown knowledge base with identity registers and topic graphs. | 🚧 **In Migration** (Stage 2) |
 | Semantic QMD Index | Embedding and neural search integration with local caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stage 3) |
-| Brain Data Commands | `loomux brain search`, `catalog`, `read`, `neighbors` and `status` over the one registry, held to the Python reference by a recorded case corpus. | ✅ **Implemented** (Stage 1b-1) |
+| Brain Data Commands | `loomux brain search`, `catalog`, `read`, `neighbors` and `status` over the one registry, held to the Python reference by a recorded case corpus. A registry or area declaration loomux cannot use refuses the call and names the file, entry and reason. | ✅ **Implemented** (Stage 1b-1) |
 | Brain-to-Graph Bridge | Code symbols link directly to architectural decisions (ADRs) and design documentation. | 📋 **Specified** (Stage W3) |
 | **5. LLM OS & Web Interface** | | |
 | Embedded Web OS Dashboard | Self-contained React/Vite SPA embedded via `go:embed` on `http://127.0.0.1:<port>` with `embed_stub.go` fallback. | 📋 **Specified** (Stage W1) |

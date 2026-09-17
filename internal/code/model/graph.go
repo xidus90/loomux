@@ -1,0 +1,124 @@
+// Package model is the read model of the code graph: the nodes and edges an
+// extractor writes to wiring.json, and the questions about them that need no
+// walk.
+//
+// A model of its own rather than decoding into a map: a field the extractor
+// renames would otherwise reach a caller unnoticed.
+//
+// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/types.ts.
+package model
+
+// NodeID identifies a node. It is path-scoped -- "src/cache.ts#Cache.get" --
+// and opaque: the span is deliberately not part of it, so a definition moving
+// down a file keeps its identity, and a duplicated definition can carry an
+// ordinal ("Cache.get~2").
+type NodeID string
+
+// Kind is what a node represents, in LSP vocabulary.
+type Kind string
+
+// KindFile marks the node that stands for a whole file. It is the only kind
+// this package tells apart.
+const KindFile Kind = "file"
+
+// Span is a line range in the form "L165-L222".
+type Span string
+
+// Relation is what an edge means.
+type Relation string
+
+// The six relations of the schema.
+const (
+	RelationContains   Relation = "contains"   // file -> symbol, class -> method
+	RelationCalls      Relation = "calls"      // function -> function it invokes
+	RelationImports    Relation = "imports"    // file -> module
+	RelationReferences Relation = "references" // symbol -> symbol it names
+	RelationImplements Relation = "implements" // class -> interface
+	RelationExtends    Relation = "extends"    // class -> base class
+)
+
+// Confidence says how sure the extractor is that an edge is true, strongest
+// first. G1 reads it and judges nothing by it.
+type Confidence string
+
+// The four confidences of the schema.
+const (
+	ConfidenceLSPResolved Confidence = "lsp_resolved"
+	ConfidenceLSPDispatch Confidence = "lsp_dispatch"
+	ConfidenceExtracted   Confidence = "extracted"
+	ConfidenceInferred    Confidence = "inferred"
+)
+
+// IsWalk reports whether an edge of this relation carries dependency meaning
+// for a walk or a rank.
+//
+// "contains" is excluded on purpose: a file contains every symbol defined in
+// it, so walking that edge would make every same-file symbol a neighbour and
+// let the file act as a hub that floods the walk.
+func (r Relation) IsWalk() bool {
+	switch r {
+	case RelationCalls, RelationReferences, RelationImports,
+		RelationImplements, RelationExtends:
+		return true
+	default:
+		return false
+	}
+}
+
+// Node is one definition: a file, or a symbol inside one.
+type Node struct {
+	ID        NodeID `json:"id"`
+	Name      string `json:"name"`
+	Kind      Kind   `json:"kind"`
+	Owner     string `json:"owner,omitempty"`
+	Path      string `json:"path"`
+	Span      Span   `json:"span"`
+	Signature string `json:"signature"`
+	Exported  bool   `json:"exported"`
+}
+
+// Edge wires two nodes.
+//
+// Target is not always a node: an unresolved import names the module itself
+// ("npm:lodash"). A rank drops such an edge, a walk keeps it as a hit without
+// a node.
+type Edge struct {
+	Source     NodeID     `json:"source"`
+	Target     NodeID     `json:"target"`
+	Relation   Relation   `json:"relation"`
+	Confidence Confidence `json:"confidence"`
+}
+
+// Meta is what the writer says about the graph it wrote.
+type Meta struct {
+	Version   int      `json:"version"`
+	NodeCount int      `json:"nodeCount"`
+	EdgeCount int      `json:"edgeCount"`
+	Languages []string `json:"languages"`
+}
+
+// Graph is a whole wiring.json.
+type Graph struct {
+	Meta  Meta   `json:"meta"`
+	Nodes []Node `json:"nodes"`
+	Edges []Edge `json:"edges"`
+}
+
+// SymbolsInFile returns the symbols defined in the file at path, in graph
+// order.
+//
+// Membership is path equality, not the "contains" edge: an extractor writes
+// the path on every node it emits, while "contains" is a courtesy the schema
+// allows and no consumer may require.
+func SymbolsInFile(g *Graph, path string) []NodeID {
+	if g == nil {
+		return nil
+	}
+	var symbols []NodeID
+	for _, n := range g.Nodes {
+		if n.Kind != KindFile && n.Path == path {
+			symbols = append(symbols, n.ID)
+		}
+	}
+	return symbols
+}

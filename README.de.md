@@ -112,7 +112,7 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Date
 | Säule / Funktion | Beschreibung | Status |
 |---|---|---|
 | **1. Hooks & Wächter** | | |
-| Einheitlicher Pre-Tool Wächter | Prüfung von Schreibschranken, Pfadregeln und verbotenen Befehlen (< 35 ms Zielbudget; 32–34 ms gemessen am Vorgänger; ein Write in einem verknüpften Worktree gemessen 34,6 ms warm (2026-09-16)). Verknüpfte Git-Worktrees eines registrierten Workspace sind ohne eigenen Registry-Eintrag beschreibbar. | ✅ **Implementiert** (Stufe 1a) |
+| Einheitlicher Pre-Tool Wächter | Prüfung von Schreibschranken, Pfadregeln und verbotenen Befehlen (< 35 ms Zielbudget; 32–34 ms gemessen am Vorgänger; ein Write in einem verknüpften Worktree gemessen 34,6 ms warm (2026-09-16)). Verknüpfte Git-Worktrees eines registrierten Workspace sind ohne eigenen Registry-Eintrag beschreibbar. Registry und Bereichsdeklarationen laufen durch dieselben Prüfungen wie die Brain-Befehle; ein kaputter Eintrag verweigert jeden Write. | ✅ **Implementiert** (Stufe 1a) |
 | Post-Tool Blast Monitor | Blitzschnelles Hashing geänderter Dateien und Warnung bei berührten Aufrufern. | 🚧 **In Migration** (Stufe 1b) |
 | Sitzungs- & Drift-Überwachung | `session-start`-Frischeprüfung, Subagent-Drifterkennung und Block-Zähler im Stop-Tor. | 🚧 **In Migration** (Stufe 1b) |
 | Prüfkette (`[verify]`) | Konfigurierbare Prüftabelle: Parallele Test-Lanes, commit-msg-Kalibrierung, Coverage-Tor. | ✅ **Implementiert** (Stufe 1a) |
@@ -132,7 +132,7 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Date
 | **4. Second Brain & Wiki** | | |
 | Lokales Markdown-Wiki | Bidirektionale Markdown-Wissensbasis mit Identitätsregistern und Themen-Graphen. | 🚧 **In Migration** (Stufe 2) |
 | Semantischer QMD-Index | Einbettung lokaler Vektoren und neuronaler Suche mit Caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stufe 3) |
-| Brain-Datenbefehle | `loomux brain search`, `catalog`, `read`, `neighbors` und `status` über die eine Registry, an der Python-Referenz durch einen aufgezeichneten Fallkorpus gemessen. | ✅ **Implementiert** (Stufe 1b-1) |
+| Brain-Datenbefehle | `loomux brain search`, `catalog`, `read`, `neighbors` und `status` über die eine Registry, an der Python-Referenz durch einen aufgezeichneten Fallkorpus gemessen. Eine Registry oder Bereichsdeklaration, die loomux nicht verwenden kann, verweigert den Aufruf und nennt Datei, Eintrag und Grund. | ✅ **Implementiert** (Stufe 1b-1) |
 | Brain-zu-Graph Brücke | Code-Symbole verweisen direkt auf Architekturentscheidungen (ADRs) und Dokumentation. | 📋 **Spezifiziert** (Stufe W3) |
 | **5. LLM OS & Web-Interface** | | |
 | Eingebettetes Web-OS | Autarke React/Vite-SPA, per `go:embed` ausgeliefert über `loomux serve` auf `http://127.0.0.1` mit `embed_stub.go`-Fallback. | 📋 **Spezifiziert** (Stufe W1) |

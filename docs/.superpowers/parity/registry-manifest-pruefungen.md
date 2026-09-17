@@ -1,0 +1,14 @@
+# Paritätsliste Registry- und Manifestprüfungen
+
+**Quelle:** ultra-brain `loomux-1a-source` (`3cc72d2`), Python-Referenz `src/brain/registry.py` und `src/brain/manifest.py`, gemessen am 2026-09-16 (Anhang der Spec `docs/.superpowers/specs/2026-09-16-loomux-registry-manifest-pruefungen-design.md`).
+**Regel:** Jede Zeile braucht eine Freigabe des Nutzers. „Alt“ ist die Python-Referenz, „Neu“ ist `loomux brain` und die Schreibschranke.
+**Stand:** Alle Zeilen offen.
+
+| Bereich | Alt | Neu | Begründung | Freigabe |
+|---|---|---|---|---|
+| Wortlaut aller Registry- und Manifestmeldungen | `repr`-Form, z. B. `duplicate scope 'x'`, `[[area]] entry {'path': '…'} is missing the 'scope' key`, `[wiki] types must be a list of strings` | loomux-Form nach G1–G14 und M1–M17 der Spec, z. B. `[[area]] #2: duplicate scope "x" (first at #1)`, `[[area]] #1 is missing "scope"`, `[wiki] types must be an array of strings, found string`; gilt für `brain` und Schranke | Entscheidung vom 2026-09-16: Die Referenz bestimmt, was verweigert wird, nicht den Wortlaut; die Meldungen landen bei einem Menschen, der die Datei repariert | offen |
+| Strenge Typen | `readonly`/`signpost`/`shared`/`workspace` über `bool()`, `wiki = ""` als kein Wiki, `[layout]`-Werte falsy als nicht gesagt | verweigert, wenn kein Wahrheitswert, leer oder keine Zeichenkette | ein Tippfehler in einer Flagge wirkt sonst still; echte Registries und Manifeste tragen nur gültige Typen (gemessen 2026-09-16) | offen |
+| Traceback-Fälle | `wiki = 1` in der Registry: `TypeError`; `privacy = 5` oder `wiki = 5` im Manifest: `AttributeError` | Meldung nach G12 bzw. M2, Exit 1 | eine Meldung statt eines Abbruchs | offen |
+| Reihenfolge bei zwei Defekten | `inbox` eines Bereichs wird geprüft, bevor der nächste Registry-Eintrag gelesen wird | erst alle Registry-Einträge, dann je Bereich das Manifest | gleiches Urteil, der genannte Grund kann abweichen | offen |
+| Registry nicht lesbar | `[Errno 2] No such file or directory: '<pfad>'` | `open <pfad>: <Systemtext>` (bisher `<pfad>: open <pfad>: …`) | der Go-Fehler nennt den Pfad schon; ersetzt den Registry-Teil der Zeile „Betriebssystemfehler im Wortlaut“ der Liste 1b-1 | offen |
+| Schranke verweigert mehr | — (die Referenz prüfte `[model]` beim Lesen) | die Schranke verweigert jeden Write bei kaputtem `[model]` und bei `[layout] wiki`/`hub`/`review`/`inbox`, die keine Zeichenkette sind, in irgendeinem registrierten Bereich; dieselben Prüfungen wendet sie auf jede `.loomux/config.toml` mit `[area]` an, die sie beim Aufstieg von einem Schreibziel trifft (`declaredWikiRoot`), ob deren Bereich registriert ist oder nicht, wie schon bei den älteren Prüfungen; bisher ließ sie `[model]` durch, und ein nicht-textuelles `review` hob nur die Vorschlagsausnahme auf | eine Wahrheit für `brain` und Schranke; gemessen trifft es heute keinen Bereich | offen |
