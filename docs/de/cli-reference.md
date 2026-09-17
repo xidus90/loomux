@@ -126,6 +126,9 @@ Löscht einen isolierten Worktree-Pfad vollständig und bereinigt alle Verknüpf
 
 ## 6. Code-Graph-Engine (`loomux graph`)
 
+> [!NOTE]
+> **Spezifiziert, nicht verdrahtet.** Es gibt bisher keinen `loomux graph`-Befehl; `loomux graph build` endet heute als unbekannter Befehl. Stufe G1 hat die Pakete gebaut, die diese Befehle rufen werden — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2 ergänzt Extraktor, Wiring-Schreiber, Frischeprüfung und die Befehle darunter.
+
 ### `loomux graph build [dir]`
 Parst Quellcodedateien in den deterministischen AST-Code-Graphen und schreibt `.loomux/state/graph/wiring.json`.
 

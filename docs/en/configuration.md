@@ -130,6 +130,9 @@ mirrors = [
 ### `[graph]` (Code Graph Engine)
 Configures AST extraction, indexing boundaries, and freshness detection.
 
+> [!NOTE]
+> **Specified, not read.** No code reads `[graph]` yet; the section arrives with the extractor in stage G2. The figures below are design targets, not measurements.
+
 ```toml
 [graph]
 extensions = [".go", ".ts", ".tsx", ".py", ".rs"]
