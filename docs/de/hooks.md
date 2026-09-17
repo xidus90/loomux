@@ -229,9 +229,12 @@ Arbeitsbaum, wie er ist.
 
 Die beiden Fälle trennt `git ls-files --eol <pfad>`: `w/crlf` in der zweiten
 Spalte ist ein Auscheckproblem, kein Formatierungsbefund. Ein `grep` nach einem
-CR am Zeilenende ersetzt das nicht: das `grep` von Git für Windows findet `\r$`
-nur mit `-U` (gemessen am 2026-09-17 mit GNU grep 3.0) und antwortet also gerade
-dort mit „kein CRLF", wo das Problem auftritt.
+CR am Zeilenende ersetzt das nicht: das `grep` von Git für Windows findet einen
+Wagenrücklauf vor dem Zeilenende nur mit `-U` und einem echten CR im Muster,
+`grep -U $'\r$' <pfad>` in Bash (gemessen am 2026-09-17 mit GNU grep 3.0). Ohne
+`-U` antwortet es gerade dort mit „kein CRLF", wo das Problem auftritt, und ein
+in Hochkommas gesetztes `'\r$'` trifft Zeilen, die auf den Buchstaben `r`
+enden.
 
 Die gemeldeten Dateien einzeln heilen:
 

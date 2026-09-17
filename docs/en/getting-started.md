@@ -168,8 +168,13 @@ never = ["private/**"]
 - **`[area] scope`** names the registry entry. A `.loomux/config.toml` without
   an `[area]` table is policy only and declares no area.
 - **`[layout] wiki`** is relative to the repository root, with forward slashes;
-  it may neither leave the repository nor name its root. The post-edit hook
-  lints a page only when this names an existing directory.
+  it may neither leave the repository nor name its root. It is one of several
+  ways to start the post-edit hook's wiki lane: the lane also starts when the
+  manifest has a `[wiki]` table or `wiki = true`, or when `index.md` or
+  `bundle.toml` in `wiki/` (or, where that is missing or empty, in
+  `docs/wiki/`) carries `okf_version`. The hook takes the bundle from this key
+  when it names an existing directory, else `docs/wiki`, else `wiki`, else a
+  wiki beside the repository.
 - **`[index] include`** — the search engine knows one pattern per collection
   and sees only the first glob; `loomux brain status` names the others.
 - **`[index] exclude`** is carried for the indexer, which arrives in stage 3;

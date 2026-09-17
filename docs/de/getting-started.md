@@ -169,9 +169,14 @@ never = ["privat/**"]
 - **`[area] scope`** nennt den Registry-Eintrag. Eine `.loomux/config.toml` ohne
   `[area]`-Tabelle ist nur Policy und erklärt keinen Bereich.
 - **`[layout] wiki`** ist relativ zum Repowurzelverzeichnis, mit
-  Schrägstrichen; es darf das Repo weder verlassen noch seine Wurzel nennen. Der
-  post-edit-Hook lintet eine Seite nur, wenn der Wert ein vorhandenes
-  Verzeichnis benennt.
+  Schrägstrichen; es darf das Repo weder verlassen noch seine Wurzel nennen. Es
+  ist einer von mehreren Wegen, die Wiki-Lane des post-edit-Hooks zu starten:
+  die Lane startet auch, wenn das Manifest eine `[wiki]`-Tabelle oder
+  `wiki = true` trägt oder wenn `index.md` oder `bundle.toml` in `wiki/` (oder,
+  wo das fehlt oder leer ist, in `docs/wiki/`) `okf_version` enthält. Das
+  Bündel nimmt der Hook aus diesem Schlüssel, wenn er ein vorhandenes
+  Verzeichnis nennt, sonst `docs/wiki`, sonst `wiki`, sonst ein Wiki neben dem
+  Repo.
 - **`[index] include`** — die Suchmaschine kennt ein Muster je Sammlung und
   sieht nur den ersten Glob; `loomux brain status` nennt die übrigen.
 - **`[index] exclude`** wird für den Indexer mitgeführt, der mit Stufe 3 kommt;

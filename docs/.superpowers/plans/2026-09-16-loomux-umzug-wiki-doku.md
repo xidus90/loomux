@@ -340,9 +340,10 @@ brechen, um eine Warnung loszuwerden.
 
 Das kostet nichts am Tor: unbekannter Typ ist `Severity == Warning`
 (`lint.go:69-75`), und `wiki-gate` bricht nur bei `Error` ab (`gate.go:105`).
-Die 16 Seiten melden je eine Warnung, bis loomux die Manifestzeile
-`[wiki] types` liest — heute liest es sie nicht (Paritätszeile 22, freigegeben
-mit Nachtrag).
+Die 16 Seiten melden je eine Warnung, bis der Wiki-Lint das Manifest fragt:
+loomux liest `[wiki] types` schon (`internal/config/manifest.go:115`, `:221`),
+aber der Lint prüft gegen seine eigene Liste und ruft `KnowsType` nicht
+(Paritätszeile 22, freigegeben mit Nachtrag).
 
 - [ ] **Step 1: Den Befund messen und wörtlich festhalten**
 

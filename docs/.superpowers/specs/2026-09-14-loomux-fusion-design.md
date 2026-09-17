@@ -425,11 +425,13 @@ Schreibschranke freigegeben.**
    - Der Nutzer gibt die Liste frei.
    - Dann kopieren, Bereich `project/loomux`, Links
      `brain://project/ultra-brain/…` und `brain://project/ultraloom/…`
-     umgeschrieben. Identitäten bleiben erhalten: sie stehen je Seite in der
-     Frontmatter. Hier stand „samt `_identities.tsv` (10 und 1)"; die Zahl fiel,
-     weil beide Register beim Nachzählen am 2026-09-16 nur die Kopfzeile trugen —
-     das Register zog darum nicht mit und wurde in loomux mit nur der Kopfzeile
-     neu angelegt.
+     umgeschrieben. Die Seiten ziehen ohne Identitätsregister um: erhalten
+     bleiben die Identitäten ihrer Quellen (`doc_id`, `content_hash`,
+     `revision` unter `sources[]`); eigene `doc_id`s der Seiten prägt erst
+     `reindex` in Stufe 3. Hier stand „samt `_identities.tsv` (10 und 1)"; die
+     Zahl fiel, weil beide Register beim Nachzählen am 2026-09-16 nur die
+     Kopfzeile trugen — das Register zog darum nicht mit und wurde in loomux mit
+     nur der Kopfzeile neu angelegt.
 2. **Maschinenzustand** (Stufe 4, `loomux migrate`): `registry.toml`,
    `areas/` (Identitätsregister werden umgezogen, nicht neu erzeugt),
    `maintenance/`, `ui.json` nach `%LOCALAPPDATA%\loomux\`, übersetzt. Das alte

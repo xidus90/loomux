@@ -225,9 +225,11 @@ the index, which holds LF already, and leaves the working tree as it is.
 
 Tell the two cases apart with `git ls-files --eol <path>`: `w/crlf` in the
 second column is a checkout problem, not a formatting one. A `grep` for a CR at
-the end of a line is no substitute: the `grep` of Git for Windows does not find
-`\r$` unless it gets `-U` (measured 2026-09-17 with GNU grep 3.0), so it answers
-"no CRLF" exactly where the problem is.
+the end of a line is no substitute: the `grep` of Git for Windows finds a
+carriage return before the line end only with `-U` and a real CR in the
+pattern, `grep -U $'\r$' <path>` in Bash (measured 2026-09-17 with GNU grep
+3.0). Without `-U` it answers "no CRLF" exactly where the problem is, and a
+quoted `'\r$'` matches lines ending in the letter `r`.
 
 Heal the files that were named, one by one:
 
