@@ -96,7 +96,7 @@ Ein Knowledge Item ist kein unstrukturierter Textdump, sondern ein strukturierte
 Code verändert sich. Eine Architekturnotiz von vor drei Monaten darf niemals ungeprüft Vorrang vor aktivem Code haben:
 1. Der Agent liest das Wiki-ADR, um die ursprüngliche Absicht und Schnittstellengrenze zu verstehen.
 2. Der Agent gleicht die Behauptung live mit dem aktiven AST-Code-Graphen ab (`loomux graph ask` / `callers`).
-3. Wird ein Drift festgestellt, aktualisiert der Agent die Dokumentation über `loomux lint` und `loomux wiki gate`.
+3. Wird ein Drift festgestellt, aktualisiert der Agent die Dokumentation über `loomux lint` und `loomux wiki-gate`.
 
 ### 3. Typologie & Taxonomien
 Loomux erzwingt eine klare Wissens-Kategorisierung:

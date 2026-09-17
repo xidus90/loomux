@@ -160,7 +160,7 @@ loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel un
 loomux dev covergate                # Erzwingt striktes 100 % Coverage-Tor pro Funktion
 loomux dev swap                     # Tauscht laufendes Binary atomar gegen Neubau aus
 loomux lint                         # Prüft Markdown-Wiki-Links und Frontmatter
-loomux wiki gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
+loomux wiki-gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
 loomux brain search "<anfrage>"     # Durchsucht die sichtbaren Bereiche über den qmd-Daemon (--profile fast|full|keyword)
 loomux brain catalog [--scope S]    # Wurzelkatalog der sichtbaren Bereiche oder das index.md eines Bereichs
 loomux brain read <pfad> --scope S  # Eine Datei eines Bereichs oder einen Abschnitt daraus (--section)

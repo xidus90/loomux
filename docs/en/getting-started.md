@@ -111,7 +111,101 @@ Overall status:   READY (Green)
 
 ---
 
-## 4. Agent Harness Integrations
+## 4. Registering an Area by Hand
+
+An area is two declarations: an entry in the machine-wide registry that says
+where the tree lies and what may be written in it, and a manifest inside the
+tree that says what it is. The binary has no `init` command yet (stage 4), so a
+human writes both files; no agent writes either, and the write barrier
+refuses `.loomux/config.toml` to every writing tool. Where both files live is
+listed in
+[Where Things Live](configuration.md#4-where-things-live).
+
+### The registry entry
+`%LOCALAPPDATA%\loomux\registry.toml`, one `[[area]]` table per area:
+
+```toml
+[[area]]
+scope     = "project/my-project"
+path      = "C:/Users/me/Documents/GIT/my-project"
+wiki      = "C:/Users/me/Documents/GIT/my-project/docs/wiki"
+workspace = true
+```
+
+- `scope` and `path` are required and must be non-empty strings.
+- `workspace = true` opens the whole `path` to writing tools.
+- `wiki` opens the bundle it names. A writable area whose manifest declares
+  `[layout] wiki` gets that bundle opened without this key, provided the
+  manifest lies in the registered `path` (or a linked worktree of it) and its
+  scope matches.
+- `readonly = true` turns the area's `wiki` into a forbidden zone: the barrier
+  refuses every write there, even where a writable area encloses the
+  directory. It does not close a `workspace` tree, which is a separate
+  question. The manifest of a read-only area is read from the state directory,
+  not from its tree.
+- At most one area may set `signpost = true`.
+
+### The manifest
+`.loomux/config.toml` in the area's root, next to the policy rules:
+
+```toml
+[area]
+scope = "project/my-project"
+
+[layout]
+wiki = "docs/wiki"
+
+[index]
+include    = ["**/*.md"]
+exclude    = [".venv/**", "node_modules/**"]
+unsearched = ["docs/.superpowers/**"]
+
+[privacy]
+mode  = "manual_cloud"
+never = ["private/**"]
+```
+
+- **`[area] scope`** names the registry entry. A `.loomux/config.toml` without
+  an `[area]` table is policy only and declares no area.
+- **`[layout] wiki`** is relative to the repository root, with forward slashes;
+  it may neither leave the repository nor name its root. The post-edit hook
+  lints a page only when this names an existing directory.
+- **`[index] include`** — the search engine knows one pattern per collection
+  and sees only the first glob; `loomux brain status` names the others.
+- **`[index] exclude`** is carried for the indexer, which arrives in stage 3;
+  today loomux only checks that it is a list of strings.
+- **`[index] unsearched`** declares what is readable but never searched. qmd
+  does not enter dot directories, so `docs/.superpowers/**` is reachable
+  through `brain read` and `brain neighbors` but not through `brain search`.
+  Declared, `brain status` stops counting those files as missing.
+- **`[privacy] mode`** is `local_only`, `manual_cloud` (the default) or
+  `automatic_cloud`; any other value is refused. On the cloud channel a
+  `local_only` area does not exist: no hits, no contents, and its scope is
+  answered as unknown.
+- **`[privacy] never`** names paths no channel reaches.
+
+### What goes wrong
+- **Every `loomux brain` command fails with `no manifest found`.** The commands
+  read the manifest of every registered area before they look at `--scope`, so
+  one area without a declaration fails calls about all the others. A
+  `.loomux/config.toml` without `[area]` counts as none; until stage 4 the
+  commands also accept `.ultra-brain/config.toml` and `.brain.toml`. The write
+  barrier does not mind: registering an area before its manifest exists is
+  normal there.
+- **Every write is refused with `loomux cannot read the registry, so it
+  refuses`.** The barrier reads the registry strictly: a missing `scope` or
+  `path`, a duplicate scope, two scopes that flatten to the same state
+  directory name, a second `signpost`, `[area]` written instead of `[[area]]`,
+  or a registered area's manifest that fails its own checks closes every tree.
+  Only the agents' memory and the session scratchpad stay open. The `brain`
+  commands are laxer and skip an entry without `scope` or `path` without a
+  word.
+- **Pages under a dot directory are never found.** That is the limit of the
+  search engine, not an error; declare them in `unsearched`.
+
+---
+
+## 5. Agent Harness Integrations
 
 Loomux works seamlessly alongside your favorite agent harnesses:
 
@@ -165,7 +259,7 @@ Or use the stdio bridge directly in your Cursor MCP configuration:
 
 ---
 
-## 5. Next Steps
+## 6. Next Steps
 
 - **[Configuration Reference](configuration.md)**: Deep dive into all configuration sections (`[policy]`, `[verify]`, `[worktree]`, `[graph]`).
 - **[CLI Reference](cli-reference.md)**: Explore the complete command manual with all flags, options, and exit codes.

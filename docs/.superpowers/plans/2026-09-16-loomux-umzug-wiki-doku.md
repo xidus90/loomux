@@ -61,17 +61,26 @@ die 54 Zeilen, gegen die der Inhalt in Task 5 geprüft wird.
 - Erlaubte Typen: `concept`, `guide`, `decision`, `reference`, `architecture`,
   `log`, `person`, `domain`, `system`, `component`, `spec`, `topic`. Der Wert
   wird kleingeschrieben verglichen. Das Bündel bringt `Topic` (passt),
-  `Source`, `Entity`, `Synthesis` (passen nicht) mit.
+  `Source`, `Entity`, `Synthesis` (passen nicht) mit. Das Manifest ist dabei
+  nicht die Lücke: loomux liest `[wiki] types` (`internal/config/manifest.go:115`,
+  `:221`), und `config.Manifest.KnowsType` kennt die vier Herkunftstypen
+  bereits — aber der Wiki-Lint fragt das Manifest nie, er prüft gegen seine
+  eigene Liste (`lint.go:14`, `:69`), und `KnowsType` hat außerhalb der Tests
+  keinen Aufrufer.
 - Gerüstdateien (`_schema.md`, `index.md`, `log.md`, `audit.md`,
   `_identities.tsv`) werden nicht bewertet, zählen aber als Linkquelle.
-- **`wiki-drift` greift, sobald `docs/wiki` existiert.** `CheckWikiGate` meldet
-  Drift, wenn Code geändert wurde, das Wiki nicht, und `wikiPath != projectRoot`
-  — ein Unterverzeichnis ist immer ungleich der Wurzel, der Kommentar daneben
-  behauptet das Gegenteil (`gate.go:92-99`). Das bricht heute nichts:
+- **`wiki-drift` kann für ein Wiki im selben Repository nie greifen.**
+  `CheckWikiGate` meldet Drift nur, wenn Code geändert wurde und das Wiki nicht
+  (`gate.go:93`). Beide Fragen stellt `getGitChangedFiles`
+  (`gate.go:48-74`), das nur `cmd.Dir` setzt — und `git status --porcelain`
+  meldet aus jedem Unterverzeichnis den Stand des ganzen Repos. Für
+  `docs/wiki` ist `wikiChanged` also stets gleich `codeChanged`, und die
+  Bedingung `wikiPath != projectRoot` entscheidet nichts mehr. Das Tor liest
+  außerdem den Arbeitsbaum, nicht die Commit-Historie. Heute bricht das nichts:
   `wiki-gate` steht weder in `.githooks/pre-commit` noch in
   `.claude/settings.json` noch in `[verify]`; nur der post-edit-Hook lintet die
-  gerade bearbeitete Seite. Der Widerspruch zwischen Kommentar und Code gehört
-  gemeldet, nicht in diesem Plan repariert.
+  gerade bearbeitete Seite. Den Code repariert ein eigener Vorgang, nicht
+  dieser Plan.
 - Nachgerechnet am 2026-09-16: **kein toter Link** entsteht durch den Umzug —
   keine Inhaltsseite verlinkt einen Katalog. **Keine Waise** entsteht —
   jede der 24 Inhaltsseiten wird von mindestens einer anderen Inhaltsseite

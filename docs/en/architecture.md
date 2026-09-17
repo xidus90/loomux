@@ -96,7 +96,7 @@ A Knowledge Item is not a raw file dump. It is a structured markdown document co
 Code evolves. An architectural note written three months ago must never override the active code without verification:
 1. The agent reads the Wiki ADR to understand the original intent and architectural boundary.
 2. The agent verifies the claim against the live AST Code Graph (`loomux graph ask` / `callers`).
-3. If drift is detected, the agent reconciles the documentation via `loomux lint` and `loomux wiki gate`.
+3. If drift is detected, the agent reconciles the documentation via `loomux lint` and `loomux wiki-gate`.
 
 ### 3. Typology & Taxonomies
 Loomux enforces strict knowledge categorization:

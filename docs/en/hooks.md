@@ -165,3 +165,80 @@ loomux policy refused this Write:
 
 ### 3. Exit Code: `2`
 Exit code 2 informs the agent harness that the tool call was explicitly rejected and must not be retried with the same parameters.
+
+---
+
+## 5. The Post-Edit Lanes by Stack
+
+`loomux hook post-tool-use` reads the edited path from the payload
+(`file_path`, else `notebook_path`) and starts only the lanes of the stack its
+extension belongs to — and only when that stack was detected in the project
+from its marker files (`go.mod`, `pyproject.toml`, `Cargo.toml`,
+`project.godot`, `tsconfig.json` beside `package.json`, …). The lanes run in
+parallel; a failing lane ends the hook with exit 2 and its output on stderr.
+
+| Stack | Extensions | Lanes |
+|---|---|---|
+| Python | `.py` | `ruff check --output-format=concise .` and one type checker: `mypy --no-error-summary --no-pretty`; `dmypy run -- --no-error-summary --no-pretty` where `uv.lock` exists; `pyright` (`uv run pyright` with `uv.lock`) where `pyrightconfig.json` or `[tool.pyright]` exists |
+| GDScript | `.gd` | `gdlint <file>`, run in the Godot project's directory |
+| C / C++ | `.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hpp` | `clang-format -i <file>`, `cmake --build build --parallel` |
+| TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx eslint --cache <file>`, `npx tsc --noEmit` |
+| Vue | `.vue` | `npx vue-tsc --noEmit` |
+| Svelte | `.svelte` | `npx svelte-check` |
+| CSS | `.css`, `.scss`, `.sass`, `.less` | `npx stylelint <file>` |
+| HTML | `.html`, `.htm` | `npx htmlhint <file>` |
+| Shell | `.sh`, `.bash`, `.zsh` | `shellcheck <file>` |
+| SQL | `.sql` | `sqlfluff lint <file>` |
+| Rust | `.rs` | `cargo clippy -- -D warnings`, `cargo fmt --check` |
+| Go | `.go` | `go vet ./...` |
+| Wiki | `.md` inside the bundle | the check of `loomux lint <file>`, inside the hook's own process |
+| — | `.md` outside the bundle; `.txt`, `.json`, `.yaml`, `.yml`, `.toml`, `.svg`, `.png`, `.jpg`, `.jpeg`, `.import`, `.lock` | none; the hook exits 0 at once |
+
+- **A package in a subdirectory.** When the edited path's first directory is
+  not one of `src`, `lib`, `pkg`, `cmd`, `tests`, `test`, `dist`, `build`,
+  `public`, the web lanes run through that directory's package:
+  `npx --prefix <dir> eslint --config <dir>/eslint.config.js --cache <file>`
+  and `npm --prefix <dir> run typecheck`; Vue runs
+  `npm --prefix <dir> run typecheck`, Svelte `npm --prefix <dir> run check`,
+  CSS `npx --prefix <dir> stylelint <file>`.
+- **Any other extension** starts every lane of every detected stack, the wide
+  chain. The wiki lane stays out of it, because it has no page to read.
+- **A tool that is not on the `PATH`** skips its lane instead of failing it:
+  the exit code stays 0, and the hook names the skipped lane in
+  `hookSpecificOutput.additionalContext`.
+- **No formatter check for Go.** `gofmt` runs in the pre-commit gate, not after
+  an edit.
+
+---
+
+## 6. CRLF Is Not a Formatting Question
+
+`gofmt` writes LF only and calls every Go file checked out with CRLF
+unformatted. The pre-commit gate (`.githooks/pre-commit`) then lists it under
+`gofmt: these files are not formatted:`, which names the wrong cause.
+
+This repository pins line endings in `.gitattributes` (`* text=auto eol=lf`).
+An attribute **takes effect only on the next checkout**, though; it does not
+touch files already checked out, and on a machine with `core.autocrlf = true`
+those stay CRLF. `git add --renormalize .` does not help either: it rewrites
+the index, which holds LF already, and leaves the working tree as it is.
+
+Tell the two cases apart with `git ls-files --eol <path>`: `w/crlf` in the
+second column is a checkout problem, not a formatting one. A `grep` for a CR at
+the end of a line is no substitute: the `grep` of Git for Windows does not find
+`\r$` unless it gets `-U` (measured 2026-09-17 with GNU grep 3.0), so it answers
+"no CRLF" exactly where the problem is.
+
+Heal the files that were named, one by one:
+
+```sh
+rm -f internal/verify/gofmt.go && git checkout -- internal/verify/gofmt.go
+```
+
+The wide version heals a whole checkout at once — **and discards every
+unstaged change to a `.go` file without a word**. Read `git status` first,
+commit or `git stash`, then:
+
+```sh
+git ls-files -z -- '*.go' | xargs -0 rm -f && git checkout -- '*.go'
+```

@@ -423,9 +423,13 @@ Schreibschranke freigegeben.**
      `ultraloom/docs/wiki` (4) sowie die `docs/`-Bäume (107 und 75 versionierte
      Dateien): **behalten**, **aktualisieren** oder **im Archiv lassen**.
    - Der Nutzer gibt die Liste frei.
-   - Dann kopieren, samt `_identities.tsv` (10 und 1), Bereich
-     `project/loomux`, Links `brain://project/ultra-brain/…` und
-     `brain://project/ultraloom/…` umgeschrieben. Identitäten bleiben erhalten.
+   - Dann kopieren, Bereich `project/loomux`, Links
+     `brain://project/ultra-brain/…` und `brain://project/ultraloom/…`
+     umgeschrieben. Identitäten bleiben erhalten: sie stehen je Seite in der
+     Frontmatter. Hier stand „samt `_identities.tsv` (10 und 1)"; die Zahl fiel,
+     weil beide Register beim Nachzählen am 2026-09-16 nur die Kopfzeile trugen —
+     das Register zog darum nicht mit und wurde in loomux mit nur der Kopfzeile
+     neu angelegt.
 2. **Maschinenzustand** (Stufe 4, `loomux migrate`): `registry.toml`,
    `areas/` (Identitätsregister werden umgezogen, nicht neu erzeugt),
    `maintenance/`, `ui.json` nach `%LOCALAPPDATA%\loomux\`, übersetzt. Das alte
@@ -460,8 +464,8 @@ Plan.
 3. die Mutationsrunde der Stufe gelaufen ist und ihre Überlebenden
    dokumentiert sind — ab Stufe 1b, weil `loomux dev mutants` dort entsteht;
    die Runde von 1b schließt die Entscheidungspakete aus 1a ein,
-4. die Zielwerte der Stufe gemessen und in `docs/benchmarks.md` (und `.de.md`)
-   eingetragen sind,
+4. die Zielwerte der Stufe gemessen und in `docs/en/benchmarks.md` und
+   `docs/de/benchmarks.md` eingetragen sind,
 5. das loomux-Repo die Funktionen der Stufe selbst benutzt.
 
 ### Umstellung der Wirte nach Stufe 4

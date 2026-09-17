@@ -111,7 +111,104 @@ Gesamtstatus:     BEREIT (Grün)
 
 ---
 
-## 4. Anbindung an Agenten-Harnesses
+## 4. Einen Bereich von Hand einrichten
+
+Ein Bereich besteht aus zwei Erklärungen: einem Eintrag in der Registry der
+Maschine, der sagt, wo der Baum liegt und was darin geschrieben werden darf,
+und einem Manifest im Baum, das sagt, was er ist. Das Binary kennt noch keinen
+Befehl `init` (Stufe 4); beide Dateien schreibt also ein Mensch. Kein Agent
+schreibt eine davon, und die Schreibschranke verweigert `.loomux/config.toml`
+jedem schreibenden Werkzeug. Wo beide Dateien liegen, steht unter
+[Wo was liegt](configuration.md#4-wo-was-liegt).
+
+### Der Registry-Eintrag
+`%LOCALAPPDATA%\loomux\registry.toml`, eine `[[area]]`-Tabelle je Bereich:
+
+```toml
+[[area]]
+scope     = "project/mein-projekt"
+path      = "C:/Users/ich/Documents/GIT/mein-projekt"
+wiki      = "C:/Users/ich/Documents/GIT/mein-projekt/docs/wiki"
+workspace = true
+```
+
+- `scope` und `path` sind Pflicht und müssen nicht leere Zeichenketten sein.
+- `workspace = true` öffnet den ganzen `path` für schreibende Werkzeuge.
+- `wiki` öffnet das Bündel, das es nennt. Ein beschreibbarer Bereich, dessen
+  Manifest `[layout] wiki` erklärt, bekommt dieses Bündel auch ohne den
+  Schlüssel geöffnet — sofern das Manifest im registrierten `path` (oder einem
+  verknüpften Worktree davon) liegt und sein Scope passt.
+- `readonly = true` macht das `wiki` des Bereichs zur Verbotszone: dort
+  verweigert die Schranke jeden Schreibaufruf, auch wenn ein beschreibbarer
+  Bereich das Verzeichnis umschließt. Einen `workspace`-Baum schließt das nicht;
+  das ist eine eigene Frage. Das Manifest eines lesenden Bereichs wird aus dem
+  Zustandsverzeichnis gelesen, nicht aus seinem Baum.
+- Höchstens ein Bereich darf `signpost = true` setzen.
+
+### Das Manifest
+`.loomux/config.toml` im Wurzelverzeichnis des Bereichs, neben den
+Policy-Regeln:
+
+```toml
+[area]
+scope = "project/mein-projekt"
+
+[layout]
+wiki = "docs/wiki"
+
+[index]
+include    = ["**/*.md"]
+exclude    = [".venv/**", "node_modules/**"]
+unsearched = ["docs/.superpowers/**"]
+
+[privacy]
+mode  = "manual_cloud"
+never = ["privat/**"]
+```
+
+- **`[area] scope`** nennt den Registry-Eintrag. Eine `.loomux/config.toml` ohne
+  `[area]`-Tabelle ist nur Policy und erklärt keinen Bereich.
+- **`[layout] wiki`** ist relativ zum Repowurzelverzeichnis, mit
+  Schrägstrichen; es darf das Repo weder verlassen noch seine Wurzel nennen. Der
+  post-edit-Hook lintet eine Seite nur, wenn der Wert ein vorhandenes
+  Verzeichnis benennt.
+- **`[index] include`** — die Suchmaschine kennt ein Muster je Sammlung und
+  sieht nur den ersten Glob; `loomux brain status` nennt die übrigen.
+- **`[index] exclude`** wird für den Indexer mitgeführt, der mit Stufe 3 kommt;
+  heute prüft loomux nur, dass es eine Liste von Zeichenketten ist.
+- **`[index] unsearched`** erklärt, was lesbar ist, aber nie gesucht wird. qmd
+  betritt keine Punktverzeichnisse; `docs/.superpowers/**` ist also über
+  `brain read` und `brain neighbors` erreichbar, über `brain search` nicht.
+  Deklariert, zählt `brain status` diese Dateien nicht mehr als fehlend.
+- **`[privacy] mode`** ist `local_only`, `manual_cloud` (Vorgabe) oder
+  `automatic_cloud`; jeder andere Wert wird abgelehnt. Auf dem Cloud-Kanal
+  existiert ein `local_only`-Bereich nicht: keine Treffer, keine Inhalte, und
+  sein Scope gilt als unbekannt.
+- **`[privacy] never`** nennt Pfade, die kein Kanal erreicht.
+
+### Was schiefgeht
+- **Jeder `loomux brain`-Befehl scheitert mit `no manifest found`.** Die Befehle
+  lesen das Manifest jedes registrierten Bereichs, bevor sie `--scope` ansehen;
+  ein Bereich ohne Erklärung lässt also auch Aufrufe über alle anderen
+  scheitern. Eine `.loomux/config.toml` ohne `[area]` zählt als keine; bis
+  Stufe 4 nehmen die Befehle auch `.ultra-brain/config.toml` und `.brain.toml`.
+  Die Schreibschranke stört das nicht: dort ist es normal, einen Bereich vor
+  seinem Manifest zu registrieren.
+- **Jeder Schreibaufruf wird mit `loomux cannot read the registry, so it
+  refuses` abgelehnt.** Die Schranke liest die Registry streng: ein fehlender
+  `scope` oder `path`, ein doppelter Scope, zwei Scopes, die auf denselben
+  Namen im Zustandsverzeichnis fallen, ein zweites `signpost`, `[area]` statt
+  `[[area]]` oder das Manifest eines registrierten Bereichs, das seine eigenen
+  Prüfungen nicht besteht, schließt jeden Baum. Offen bleiben nur das Memory
+  der Agenten und das Scratchpad der Sitzung. Die `brain`-Befehle sind
+  nachsichtiger und überspringen einen Eintrag ohne `scope` oder `path`
+  wortlos.
+- **Seiten unter einem Punktverzeichnis werden nie gefunden.** Das ist eine
+  Grenze der Suchmaschine, kein Fehler; sie gehören in `unsearched`.
+
+---
+
+## 5. Anbindung an Agenten-Harnesses
 
 Loomux integriert sich nahtlos in alle gängigen Agenten-Umgebungen:
 
@@ -165,7 +262,7 @@ Oder binde die stdio-Brücke direkt in deine Cursor MCP-Konfiguration ein:
 
 ---
 
-## 5. Nächste Schritte
+## 6. Nächste Schritte
 
 - **[Konfigurations-Referenz](configuration.md)**: Vollständige Übersicht aller `.loomux/config.toml`-Sektionen (`[policy]`, `[verify]`, `[worktree]`, `[graph]`).
 - **[CLI-Befehlsreferenz](cli-reference.md)**: Das komplette Handbuch aller Befehle, Flags und Exit-Codes.

@@ -10,10 +10,18 @@ alten Repo liegen, wird nicht kopiert).
 **Vorschlag** ist mein Vorschlag, nicht die Entscheidung.
 **Stand:** Alle 183 Zeilen sind am 2026-09-16 freigegeben — 42 behalten,
 22 aktualisieren, 119 Archiv.
+Umgesetzt am 2026-09-17 auf dem Zweig `umzug-wiki`, gezählt mit `git ls-files`:
+`docs/wiki` trägt 33 Dateien — 24 Inhaltsseiten, `_schema.md`, fünf `index.md`,
+`log.md`, `audit.md` und `_identities.tsv` (nur Kopfzeile), die letzten acht neu
+angelegt; `docs/.superpowers/plans-ub` 11 (10 Pläne und `HASHES.txt`),
+`specs-ub` 8, `specs-ul` 10, `bench-ub` 1. Die Nutzerdoku ist in
+`getting-started`, `configuration` und `hooks` beider Sprachen eingearbeitet.
 
 **Ziel:** `docs/wiki` im loomux-Repo — so steht es im Manifest (`[layout] wiki`)
-und in der Registry (`wiki = ".../loomux/docs/wiki"`). Das Verzeichnis gibt es
-noch nicht; sobald es entsteht, laufen `lint` und `wiki gate` darüber.
+und in der Registry (`wiki = ".../loomux/docs/wiki"`). Das Verzeichnis besteht
+seit dem Umzug; der post-edit-Hook lintet die bearbeitete Seite, und
+`loomux wiki-gate` prüft das Bündel, wenn man es aufruft — kein Hook und kein
+Tor ruft es heute.
 
 Nach der Freigabe wird kopiert: die Inhaltsseiten, Bereich `project/loomux`,
 Links `brain://project/ultra-brain/…` und `brain://project/ultraloom/…`

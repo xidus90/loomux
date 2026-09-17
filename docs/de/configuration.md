@@ -166,7 +166,7 @@ Garantiert, dass sensible Daten unter keinen Umständen an externe Modelle oder 
 
 ```toml
 [privacy]
-mode = "strict"
+mode = "manual_cloud"
 never = [
   "**/.env*",
   "**/credentials.json",
@@ -177,8 +177,8 @@ never = [
 
 | Feld | Typ | Beschreibung |
 |---|---|---|
-| `mode` | String | Datenschutz-Modus (`"strict"` oder `"standard"`). |
-| `never` | Array von Strings | Glob-Muster, die garantiert aus allen Graph-Auszügen und Payloads entfernt werden. |
+| `mode` | String | `"local_only"`, `"manual_cloud"` (Vorgabe) oder `"automatic_cloud"`; jeder andere Wert wird abgelehnt. Ein `local_only`-Bereich existiert auf dem Cloud-Kanal nicht. |
+| `never` | Array von Strings | Glob-Muster der Pfade, die kein Kanal erreicht. |
 
 ---
 
@@ -246,6 +246,68 @@ sync = [".claude/skills", ".agents/skills"]
 
 # --- Datenschutz-Schranken ---------------------------------------------------
 [privacy]
-mode = "strict"
+mode = "manual_cloud"
 never = [".env*", "*.key", "credentials.json"]
 ```
+
+---
+
+## 4. Wo was liegt
+
+| | Ort |
+|---|---|
+| Zustandsverzeichnis | `%LOCALAPPDATA%\loomux` (Windows), sonst `$XDG_STATE_HOME/loomux`, sonst `~/.local/state/loomux` |
+| Bereichsregistry | `<Zustandsverzeichnis>\registry.toml` |
+| Manifest eines beschreibbaren Bereichs | `<Bereichspfad>\.loomux\config.toml` |
+| Manifest eines lesenden Bereichs, wie die Schreibschranke es liest | `<Zustandsverzeichnis>\areas\<scope>\.loomux\config.toml` |
+| Artefakte eines lesenden Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und sein Manifest, wie `loomux brain` sie liest | `%LOCALAPPDATA%\brain\areas\<scope>\` bis Stufe 3 |
+| Artefakte eines beschreibbaren Bereichs | sein `path` |
+| Stempel des letzten Reconcile | `%LOCALAPPDATA%\brain\maintenance\last-run.txt` bis Stufe 3 |
+
+`LOOMUX_STATE_DIR` überschreibt das Zustandsverzeichnis,
+`LOOMUX_LEGACY_BRAIN_DIR` das Verzeichnis von ultra-brain; einen
+Kommandozeilenschalter gibt es für keines von beiden. Das Altverzeichnis gibt
+es, weil ultra-brain diese Artefakte noch schreibt: vor Stufe 3 hat loomux
+keinen eigenen Indexer.
+
+`<scope>` ist der Scope, zu einem Verzeichnisnamen geplättet: jede Folge von
+Zeichen außer `A-Z a-z 0-9 _ . -` wird zu einem `-`, und Striche an beiden Enden
+fallen weg; aus `project/loomux` wird `project-loomux`.
+
+**Das Wissen liegt an keinem dieser Orte.** Es liegt dort, wohin `path` und
+`wiki` eines Bereichs zeigen — in einem Repo oder in einem gewöhnlichen
+Obsidian-Vault unter Git. loomux hält keine Kopie davon.
+
+---
+
+## 5. Die Schreibschranke und das Memory der Agenten
+
+Die Schreibschranke (`loomux hook pre-tool-use`) lässt Werkzeuge schreiben, wo
+die Registry einen Bereich erklärt, und darüber hinaus immer an drei Orten —
+für jeden Nutzer, ohne Eintrag in der Registry:
+
+| Wo | offen ist, unterhalb von |
+|---|---|
+| Memory von Claude Code | `$CLAUDE_CONFIG_DIR/projects/<projekt>/memory/`, sonst `~/.claude/projects/<projekt>/memory/` |
+| Scratchpad einer Claude-Code-Sitzung | `<temp>/claude/<projekt>/<sitzung>/scratchpad/` |
+| Memory von Antigravity | `~/.gemini/{antigravity,antigravity-cli,antigravity-ide}/knowledge/` und `…/brain/<gesprächs-id>/` |
+
+- Ein Aufruf, der nur dorthin schreibt, geht auch durch, wenn die Registry
+  nicht lesbar ist.
+- `.loomux/config.toml` bleibt auch dort gesperrt; über das Manifest wird vor
+  allem anderen entschieden.
+- Jeder Pfad wird vor dem Vergleich aufgelöst; ein Link aus dem Memory in einen
+  gesperrten Baum wird also am Ziel beurteilt. In einem Aufruf, der auch
+  anderswohin schreibt, bleibt ein Memory-Ziel in einer Verbotszone gesperrt.
+- Den Rest von `~/.claude` und `~/.gemini` öffnet die Ausnahme nicht,
+  `antigravity-backup` eingeschlossen: `settings.json`, Hooks und Plugins
+  steuern den Agenten selbst, und wer sie umschreibt, schaltet seine eigenen
+  Schranken ab.
+- Claude Code lädt `MEMORY.md` in spätere Sitzungen desselben Projekts — was
+  ein Agent dort schreibt, wirkt also wie eine Anweisung an künftige Sitzungen;
+  ob Antigravity `knowledge/` ebenso lädt, ist nicht gemessen. Das ist mit der
+  Entscheidung vom 2026-09-13 bewusst in Kauf genommen.
+
+Eine Ablehnung mit `lies outside every writable tree` nennt, wo geschrieben
+werden darf: die erlaubten Bäume, danach das Scratchpad der Sitzung und die
+Memory-Bäume, sofern sie sich benennen lassen.

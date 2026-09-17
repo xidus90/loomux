@@ -166,7 +166,7 @@ Guarantees sensitive data never leaks to external models or remote telemetry.
 
 ```toml
 [privacy]
-mode = "strict"
+mode = "manual_cloud"
 never = [
   "**/.env*",
   "**/credentials.json",
@@ -177,8 +177,8 @@ never = [
 
 | Field | Type | Description |
 |---|---|---|
-| `mode` | string | Privacy enforcement mode (`"strict"` or `"standard"`). |
-| `never` | array of strings | Glob patterns guaranteed to be stripped from all graph inlining and external API payloads. |
+| `mode` | string | `"local_only"`, `"manual_cloud"` (default) or `"automatic_cloud"`; any other value is refused. A `local_only` area does not exist on the cloud channel. |
+| `never` | array of strings | Glob patterns of paths that no channel reaches. |
 
 ---
 
@@ -246,6 +246,65 @@ sync = [".claude/skills", ".agents/skills"]
 
 # --- Privacy Boundaries ------------------------------------------------------
 [privacy]
-mode = "strict"
+mode = "manual_cloud"
 never = [".env*", "*.key", "credentials.json"]
 ```
+
+---
+
+## 4. Where Things Live
+
+| | Location |
+|---|---|
+| State directory | `%LOCALAPPDATA%\loomux` (Windows), else `$XDG_STATE_HOME/loomux`, else `~/.local/state/loomux` |
+| Area registry | `<state directory>\registry.toml` |
+| Manifest of a writable area | `<area path>\.loomux\config.toml` |
+| Manifest of a read-only area, as the write barrier reads it | `<state directory>\areas\<scope>\.loomux\config.toml` |
+| Artefacts of a read-only area (`index.md`, `graph.json`, `_identities.tsv`) and its manifest, as `loomux brain` reads them | `%LOCALAPPDATA%\brain\areas\<scope>\` until stage 3 |
+| Artefacts of a writable area | its `path` |
+| Last reconcile stamp | `%LOCALAPPDATA%\brain\maintenance\last-run.txt` until stage 3 |
+
+`LOOMUX_STATE_DIR` overrides the state directory and
+`LOOMUX_LEGACY_BRAIN_DIR` the ultra-brain directory; there is no command-line
+flag for either. The legacy directory exists because ultra-brain still writes
+those artefacts: loomux has no indexer of its own before stage 3.
+
+`<scope>` is the scope flattened into one directory name: every run of
+characters other than `A-Z a-z 0-9 _ . -` becomes one `-`, and dashes at both
+ends come off, so `project/loomux` becomes `project-loomux`.
+
+**The knowledge is in none of these places.** It lies wherever an area's
+`path` and `wiki` point — a repository, or an ordinary Obsidian vault under
+git. loomux keeps no copy of it.
+
+---
+
+## 5. The Write Barrier and the Agents' Memory
+
+The write barrier (`loomux hook pre-tool-use`) lets tools write where the
+registry declares an area, and beyond that always in three places, for every
+user and without a registry entry:
+
+| Where | Open below |
+|---|---|
+| Claude Code memory | `$CLAUDE_CONFIG_DIR/projects/<project>/memory/`, else `~/.claude/projects/<project>/memory/` |
+| Claude Code session scratchpad | `<temp>/claude/<project>/<session>/scratchpad/` |
+| Antigravity memory | `~/.gemini/{antigravity,antigravity-cli,antigravity-ide}/knowledge/` and `…/brain/<conversation-id>/` |
+
+- A call that writes only there passes even when the registry cannot be read.
+- `.loomux/config.toml` stays locked there too; the manifest is decided before
+  anything else.
+- Every path is resolved before it is compared, so a link from memory into a
+  closed tree is judged at its target. In a call that also writes elsewhere, a
+  memory target inside a read-only zone is still refused.
+- The rest of `~/.claude` and `~/.gemini` stays shut, `antigravity-backup`
+  included: `settings.json`, hooks and plugins steer the agent itself, and an
+  agent that rewrites them switches off its own barriers.
+- Claude Code loads `MEMORY.md` into later sessions of the same project, so
+  what an agent writes there acts like an instruction to future sessions;
+  whether Antigravity loads `knowledge/` the same way has not been measured.
+  That was accepted knowingly with the decision of 2026-09-13.
+
+A refusal that reads `lies outside every writable tree` lists where writing is
+allowed: the permitted trees, then the session scratchpad and the memory trees,
+wherever they can be named.

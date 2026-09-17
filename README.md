@@ -160,7 +160,7 @@ loomux worktree link|unlink|remove  # manage isolated worktree mirrors and junct
 loomux dev covergate                # enforce 100% test coverage per function
 loomux dev swap                     # atomically swap running binary with new compilation
 loomux lint                         # lint markdown wiki links and frontmatter
-loomux wiki gate                    # gate wiki freshness and structural constraints
+loomux wiki-gate                    # gate wiki freshness and structural constraints
 loomux brain search "<query>"       # search the visible areas through the qmd daemon (--profile fast|full|keyword)
 loomux brain catalog [--scope S]    # the root catalog of the visible areas, or one area's index.md
 loomux brain read <path> --scope S  # one file of an area, or one section of it (--section)
