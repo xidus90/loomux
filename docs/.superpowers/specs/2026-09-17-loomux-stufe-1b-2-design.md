@@ -273,10 +273,20 @@ mehr, ist etwas falsch (Referenz, Spec 4.1).
 - **`tools/list` beantwortet die Brücke selbst**, aus `internal/mcptools`, das
   sie mit `serve` teilt. Die Beschreibungen sind statisch, und ein Abruf legte
   einen qmd-Kaltstart mitten in den Handschlag. Beide Listen kommen aus
-  demselben Paket und sind in fester Reihenfolge sortiert, damit sie
-  byteidentisch sind — die Spec verlangt eine deterministische Reihenfolge, und
-  eine Liste, die zwischen Brücke und Dienst driftet, wäre der schlimmste
-  Fehler dieser Schicht. `ttlMs` und `cacheScope` werden gesetzt; fünf statische
+  demselben Paket, also können sie nicht driften — der schlimmste Fehler dieser
+  Schicht.
+
+  **Die Reihenfolge auf dem Draht macht der SDK, nicht wir** (am 2026-09-17 in
+  Task 7 gefunden und gegen `go-sdk@v1.8.0/mcp/features.go:76-103` nachgeprüft:
+  `all()` ruft `sortKeys()`, das `slices.Sorted(maps.Keys(…))` macht). `tools/list`
+  liefert also **alphabetisch** — `brain_catalog`, `brain_neighbors`, `brain_read`,
+  `brain_search`, `brain_status` —, unabhängig davon, in welcher Reihenfolge
+  `mcptools.Tools()` sie führt. Die dortige Reihenfolge ist nur noch die der
+  Registrierung und über das Protokoll nicht beobachtbar. Determinismus verlangt
+  die Spec, eine bestimmte Reihenfolge nicht; die Referenz lieferte ihre eigene
+  (`catalog`, `search`, `read`, `neighbors`, `status`), und diese Abweichung
+  gehört in die Paritätsliste. Ein Test, der die Reihenfolge index-für-index
+  prüft, prüft den SDK, nicht uns. `ttlMs` und `cacheScope` werden gesetzt; fünf statische
   Werkzeuge kosten das Zwischenspeichern nichts.
 - **Zwei unabhängige Aushandlungen.** Wirt↔Brücke und Brücke↔`serve` verhandeln
   je ihre Protokollrevision; keine Stelle im loomux-Code nennt eine
