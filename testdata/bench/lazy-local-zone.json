@@ -1,0 +1,40 @@
+[
+  {
+    "name": "before: loomux hook pre-tool-use (Edit on README.md)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1/testdata/bench/edit-readme-main.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/AppData/Local/Temp/loomux-zone-bench/before.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux"]}]
+  },
+  {
+    "name": "after: loomux hook pre-tool-use (Edit on README.md)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1/testdata/bench/edit-readme-main.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/AppData/Local/Temp/loomux-zone-bench/after.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux"]}]
+  },
+  {
+    "name": "before: loomux version (start floor)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/AppData/Local/Temp/loomux-zone-bench/before.exe", "version"]}]
+  },
+  {
+    "name": "after: loomux version (start floor)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/AppData/Local/Temp/loomux-zone-bench/after.exe", "version"]}]
+  },
+  {
+    "name": "empty Go main (spawn floor)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/AppData/Local/Temp/loomux-zone-bench/empty.exe"]}]
+  },
+  {
+    "name": "Go main resolving only the local zone",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/AppData/Local/Temp/loomux-zone-bench/zone.exe"]}]
+  }
+]

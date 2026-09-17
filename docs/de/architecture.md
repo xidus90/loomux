@@ -182,12 +182,12 @@ Agenten-Harnesses rufen Hooks synchron bei jedem einzelnen Werkzeugaufruf auf. B
 Loomux läuft als kompaktes Go-Binary mit einem **Zielbudget von unter 35 ms**:
 
 ```
-Hook-Laufzeitaufteilung (Kaltstart):
-├── Prozess-Start (Kompiliertes Go, keine Laufzeit):  32 ms
+Hook-Laufzeitaufteilung (warm, Startboden gemessen 2026-09-17):
+├── Prozess-Start (Kompiliertes Go, keine Laufzeit):  5,5 ms
 ├── Konfig- & Registry-Parsen (sync.Once):             1 ms
 ├── RE2-Befehls- & Glob-Pfad-Validierung:            0,5 ms
 ├── Entscheidungs-Ausgabe (Exit 0 oder 2):           0,1 ms
-└── Gesamtlaufzeit:                                  ~34 ms
+└── Gesamtlaufzeit:                                  ~7,5 ms
 ```
 
 ### Strikte Entkopplung:

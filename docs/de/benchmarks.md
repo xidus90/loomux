@@ -524,3 +524,54 @@ alle Systemaufrufe 5,13 s gegen 4,99 s, TOML-Dekodierung 1,70 s gegen 1,71 s,
 von fehlschlagenden Öffnungen der fehlenden Namen (`os.Open` 2,50 s → 1,07 s) zu
 Stats (`os.Stat` 1,20 s → 2,55 s) und lässt die Summe gleich. Am Code wurde nichts
 geändert.
+
+## 2026-09-17 14:16 — Der Startpfad ohne lokale Zeitzone
+
+Repository `loomux`, Worktree `.claude/worktrees/recursing-bartik-b2d7a1`, Branch
+`perf-lazy-local-zone` auf `6cafdd8`. Die Änderung: `go.mod` ersetzt
+`github.com/BurntSushi/toml` v1.6.0 durch eine gekürzte Kopie unter
+`third_party/toml`, deren `internal/tz.go` die drei lokalen Zonen beim ersten
+Gebrauch baut statt in einer Paketvariable.
+
+**Ziel.** Die 18,7 ms, die der Eintrag vom 2026-09-15 12:00 dem Auflösen der
+lokalen Zeitzone zuschrieb, vom Hook-Pfad nehmen und prüfen, dass sonst nichts auf
+dem Pfad sie zur Laufzeit auflöst.
+
+**Methode.** `loomux dev bench-hooks testdata/bench/lazy-local-zone.json -n 20`,
+ein Durchgang, je Fall ein kalter Lauf und 20 warme. `before.exe` ist aus `master`
+auf `6cafdd8` gebaut, `after.exe` aus dem Branch, beide mit Go 1.27, kopiert nach
+`%TEMP%\loomux-zone-bench`. Der Hook läuft im Hauptcheckout mit dessen
+Pilot-`.loomux/config.toml` und der echten Registry, Nutzlast
+`testdata/bench/edit-readme-main.json`. Die Böden sind ein leeres `main` und ein
+`main`, dessen einzige Anweisung `time.Now().Zone()` ist. Weder
+`.loomux/config.toml` noch `registry.toml` enthält einen Datums- oder Zeitwert,
+also fragt kein Parse auf diesem Pfad die verzögerten Zonen an.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| vorher: loomux hook pre-tool-use (Edit auf README.md) | 51,9 ms | 26,5 ms | 25,5 ms | 32,5 ms | [0] |
+| nachher: loomux hook pre-tool-use (Edit auf README.md) | 9,5 ms | 7,5 ms | 7,0 ms | 8,0 ms | [0] |
+| vorher: loomux version (Startboden) | 25,5 ms | 24,1 ms | 23,1 ms | 25,0 ms | [0] |
+| nachher: loomux version (Startboden) | 7,0 ms | 5,5 ms | 5,5 ms | 6,0 ms | [0] |
+| leeres Go-`main` (Spawn-Boden) | 48,0 ms | 4,5 ms | 4,5 ms | 5,7 ms | [0] |
+| Go-`main`, das nur die lokale Zone auflöst | 75,6 ms | 23,9 ms | 22,4 ms | 32,1 ms | [0] |
+
+### Lesart
+
+1. **Der Hook, Ende zu Ende.** Nachher gegen vorher sind 7,5 ms gegen 26,5 ms warm
+   (19,0 ms weniger), mit getrennten warmen Spannen (7,0–8,0 gegen 25,5–32,5).
+   Kalt sind es 9,5 ms gegen 51,9 ms.
+2. **Der Startboden hat sich um denselben Betrag bewegt.** `version` braucht
+   5,5 ms gegen 24,1 ms warm (18,6 ms weniger), 1,0 ms über dem leeren `main`.
+   Das `main` nur mit der Zone kostet in diesem Durchgang 19,4 ms mehr als das
+   leere, gegen 18,7 ms am 2026-09-15; die Ersparnis ist genau diese Last.
+3. **Nichts auf dem Pfad löst die Zone später auf.** Der Hook liegt nach der
+   Änderung 2,0 ms über seinem Boden, vorher 2,4 ms; eine Auflösung zur Laufzeit
+   zeigte sich wieder als die 19 ms.
+4. **Der Init-Trace, Allokationen statt Uhrzeit.**
+   `GODEBUG=inittrace=1 loomux version`: `github.com/BurntSushi/toml/internal`
+   fällt von 20 ms Uhrzeit und 1.673 Allokationen auf 0 ms und 2 Allokationen.
+   Der Test `TestStartDoesNoWorkInPackageInit` in `cmd/loomux` baut jetzt das
+   Binary und schlägt fehl, sobald ein Paket-Init mehr als 500 Allokationen
+   macht; eine Abhängigkeit, die die Zone zurückbringt, fängt also das Tor, nicht
+   erst die nächste Messung.

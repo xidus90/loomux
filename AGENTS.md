@@ -9,6 +9,11 @@ that `ultraloom` and `ultra-brain` provided separately. Design:
 - `cmd/loomux` is the entry point and nothing else; every command lives under `internal/`.
 - Specs, plans and parity lists live under `docs/.superpowers/`.
 - Recorded behaviour of the old tools lives under `testdata/cases/`.
+- `third_party/toml` is `github.com/BurntSushi/toml` v1.6.0, pruned to what
+  builds, with the local time zone resolved on first use instead of at start
+  (see `internal/tz.go` there). `go.mod` replaces the module with it; it is
+  not held to the coverage rule. Moving to a newer upstream means redoing that
+  patch.
 
 ## Languages
 
