@@ -26,6 +26,12 @@ sources:
 | `fast` | rein vektoriell: Embedding, **keine** Frageerweiterung, **kein** Reranker |
 | `full` | hybrid: Frageerweiterung + Embedding + Reranking |
 
+Die drei Ketten gelten weiter; bis zum Umzug am 2026-09-16 wurden sie über
+qmds Kommandozeile gefahren, loomux stellt dieselbe Wahl dem MCP-Daemon
+(`searches:[{type:"vec"}]` beziehungsweise `{"type":"lex"}` mit
+`rerank:false`, `full` mit `rerank:true`) und meldet auf stderr einmal je Port
+den Aufwärm-Hinweis, wenn es den Daemon selbst gestartet hat.
+
 **Vorgabe ist `fast`, überall** — und diese Vorgabe wurde zweimal gedreht, beide
 Male auf zu dünner Grundlage, bevor sie gemessen wurde.
 
@@ -108,6 +114,12 @@ deutlich gewachsen ist.
 
 Die verfehlte Zeile steht ausdrücklich **als Verfehlung** da und nicht als
 angepasstes Budget: Ein Budget, das sich der Messung anpasst, ist keines mehr.
+
+Die Zahlen oben sind die der Kommandozeile bis zum Umzug. Am 2026-09-16 hat
+loomux Ende zu Ende nachgemessen (`docs/de/benchmarks.md`): `brain search
+--profile fast` warm 260,7 ms Median gegen einen Zielwert von 150 ms, mit einer
+warmen Spanne von 236,0 bis 373,7 ms, die ihn nie erreicht — die Verfehlung
+bleibt also stehen, nur größer und an einem anderen Maßstab.
 
 Zwei Zahlen haben Konstruktionsentscheidungen getragen:
 

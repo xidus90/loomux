@@ -20,6 +20,12 @@ eine Named Pipe beziehungsweise einen Unix-Socket.
 **Kein Dienst, kein Autostart.** Der erste Klient, der keine Pipe vorfindet,
 startet ihn und wartet auf Bereitschaft.
 
+Das gilt bis zum Umzug am 2026-09-16: loomux fragt keinen brain-Daemon mehr,
+weder über Pipe noch über Socket, sondern beantwortet `search`, `catalog`,
+`read`, `neighbors` und `status` im eigenen Prozess. Der einzige Daemon, den es
+noch kennt, ist der von [qmd](qmd.md) — angesprochen über HTTP, nicht über eine
+Pipe.
+
 ## Der Windows-Umweg
 
 „Startet ihn" trägt unter Windows nicht ohne Weiteres: Ein MCP-Wirt legt für den

@@ -13,7 +13,10 @@ sources:
 ---
 
 Diese Seite beschreibt Scheibe 5 und damit **Absicht, nicht Zustand**; gebaut
-ist davon zum Zeitpunkt der Verdichtung nichts.
+ist davon zum Zeitpunkt der Verdichtung nichts. Seit dem Umzug am 2026-09-16
+heißt diese Scheibe **Stufe 3** — `reconcile`, `apply`/`approve`/`cases`/
+`evidence`, `merge-events` und die `wiki`-Unterbefehle stehen dort im Plan der
+Fusion —, und auch in Go ist davon nichts gebaut.
 
 ## Zwei Arten von Aktualität
 

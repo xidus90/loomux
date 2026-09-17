@@ -67,6 +67,16 @@ Prüfvorschlag wird gegen aufgezeichnete Antworten geprüft, und die Suche steht
 in Tests hinter einer Attrappe. Reproduzierbarkeit ist Pflicht: gleiche Eingabe,
 byteweise gleiche Ausgabe.
 
+Bis zum Umzug am 2026-09-16 hieß diese Zerlegung „Scheiben" und war Python;
+loomux baut in **Stufen** (1a, 1b, 2, 3, 4) und ist Go, sonst gelten die Regeln
+unverändert. Die Abnahme ist dabei enger gefasst: Eine Stufe ist fertig, wenn
+alle übersetzten Fälle grün sind oder freigegeben in der Abweichungsliste
+stehen, die Coverage 100 % ist und jeder Ausschluss begründet, die
+Mutationsrunde der Stufe gelaufen ist und ihre Überlebenden dokumentiert sind
+(ab Stufe 1b), die Zielwerte der Stufe gemessen und in `docs/en/benchmarks.md`
+und `docs/de/benchmarks.md` eingetragen sind, und das loomux-Repo die
+Funktionen der Stufe selbst benutzt.
+
 Siehe auch [Suche, Profile und Messwerte](suche-und-profile.md) und
 [Die Wiki-Schicht](wiki-schicht.md); Quelle ist
 [Architektur-Design ultra-brain](../sources/architektur-spec.md).

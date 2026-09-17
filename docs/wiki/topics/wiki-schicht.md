@@ -81,6 +81,16 @@ unberührte Seite, abgelaufenes `stale_after`, in geteilten Bereichen zusätzlic
 die verletzte Leserichtung. In Projekt-Bundles kommen die beiden
 `realization`-Prüfungen dazu.
 
+Das ist der Stand bis zum Umzug am 2026-09-16. In loomux heißen die beiden Wege
+`loomux lint` (eine Seite) und `loomux wiki-gate` (das Bündel im Tor), und sie
+tragen fünf Regeln: `missing-type`, `conflict-count`, `dead-link`, `orphan` und
+das neue `outside-area` für ein Ziel außerhalb des Bündels; die übrigen
+Prüfungen der Liste oben gibt es in Go noch nicht. Die vier Seitentypen bleiben,
+aber der Lint fragt eine eigene Liste statt das Manifest: `Topic` geht als
+`topic` durch, `Source`, `Entity` und `Synthesis` melden je eine Warnung
+`unknown document type`, die nichts aufhält, weil das Tor nur bei `Error`
+abbricht (`_schema.md`).
+
 **Lint prüft die Struktur, [Brain Maintenance](brain-maintenance.md) die
 fachliche Aktualität.** Eine gestern geschriebene Seite kann überholt sein, eine
 hundert Tage alte weiterhin stimmen; deshalb ist der Inhalts-Hash das starke
