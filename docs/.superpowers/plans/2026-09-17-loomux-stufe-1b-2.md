@@ -33,8 +33,12 @@ wiederholt.
 
 **Arbeitsort**
 - Empfohlen ist ein eigener Worktree auf Branch `sdd-1b-2`; Task 0 legt ihn an.
-  Den Pfad trägt **der Mensch** vorher in die loomux-Registry ein, sonst
-  verweigert die Schreibschranke des Piloten jeden Write.
+- **Kein Registry-Eintrag nötig.** Ein verknüpfter Worktree eines Repos, das die
+  Registry mit `workspace = true` führt, ist seit dem 2026-09-15 ohne eigenen
+  `[[area]]`-Block beschreibbar (`linkedWorktreeRoots`,
+  `internal/brain/guard/guard.go:512`; Spec
+  `2026-09-15-loomux-schranke-worktrees-design.md`). Die Kommentare in der
+  Registry-Vorlage sagen noch das Gegenteil und sind veraltet.
 - Der Hauptcheckout auf `master` kommt nur mit ausdrücklichem Ja des Nutzers in
   Frage. **Achtung:** am 2026-09-17 arbeitete eine zweite Sitzung im
   Hauptcheckout; vor jedem Commit `git branch --show-current` und
@@ -120,15 +124,15 @@ Vor den Tasks der Schnitt, damit die Grenzen feststehen:
 - Consumes: nichts.
 - Produces: einen Arbeitsort, auf den alle folgenden Tasks sich beziehen.
 
-- [ ] **Step 1: Arbeitsort klären**
-
-Der Mensch entscheidet und trägt ggf. den Worktree in die Registry ein:
+- [ ] **Step 1: Worktree anlegen**
 
 ```powershell
-git worktree add ../loomux-sdd-1b-2 -b sdd-1b-2
+git worktree add "C:/Users/micro/Documents/#GIT/loomux-sdd-1b-2" -b sdd-1b-2
 ```
 
-Ohne Registry-Eintrag verweigert die Schreibschranke jeden Write im neuen Baum.
+Ein eigener `[[area]]`-Eintrag ist **nicht** nötig (siehe Global Constraints).
+Prüfen lässt sich das mit einem Write im neuen Baum: verweigert die Schranke
+ihn, ist das ein Befund am Wächter, keine Aufgabe dieses Plans.
 
 - [ ] **Step 2: Ausgangsstand festhalten**
 
