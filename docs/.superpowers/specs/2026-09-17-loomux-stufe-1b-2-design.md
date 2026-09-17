@@ -1,0 +1,353 @@
+# Stufe 1b-2: `serve`, MCP über Streamable HTTP, stdio-Brücke
+
+**Stand:** 2026-09-17. Vorgänger: `2026-09-15-loomux-stufe-1b-1-design.md` (die fünf
+Datenbefehle, abgeschlossen). Nachfolger: 1b-3 (Wiki- und Doku-Umzug).
+Rahmen: `2026-09-14-loomux-fusion-design.md`, Abschnitt `loomux serve`.
+
+1b-1 hat die fünf lesenden Befehle gebaut und mit `brainRun` einen Einstieg
+hinterlassen, der Kanal, Text, Hinweise und Fehler schon trennt. 1b-2 stellt
+einen MCP-Dienst auf genau diesen Einstieg, ohne ihn neu zu erfinden: einen
+langlebigen Prozess `loomux serve` mit zwei HTTP-Listenern und eine stdio-Brücke
+`loomux mcp`, die ein MCP-Wirt startet.
+
+## Entscheidungen
+
+| Frage | Entscheidung |
+|---|---|
+| SDK | `github.com/modelcontextprotocol/go-sdk` **v1.8.0** an beiden Enden — in `serve` als Streamable-HTTP-Handler, in der Brücke als stdio-Server plus Streamable-Client |
+| Kanal | **Adresse, nicht Feld der Anfrage.** Zwei Listener, zwei Token |
+| qmd | `brain search` **und** `serve` starten ihn, über eine geteilte Sperre |
+| Wirtanbindung | **nur über die Brücke**; der HTTP-Endpunkt ist loomux-intern |
+| Binary-Drift | **„neuer gewinnt"** — eine ältere Brücke tötet nie ein neueres `serve` |
+| Werkzeugnamen | **`brain_*`**, flach; die Zeile der Fusions-Spec „Werkzeuge wie heute" wird verworfen |
+| Upkeep | **nicht in 1b-2** — er braucht `reconcile`, und das ist Stufe 3 |
+| Parität | **auf der Ebene der Werkzeugergebnisse**, nicht des MCP-Umschlags |
+
+## Messungen vor dem Bau
+
+Alle am 2026-09-17 auf dieser Maschine, warm, Median aus zwölf Läufen, gegen
+`bin/loomux.exe` im Zustand von `9c10424`.
+
+| Messung | Ergebnis |
+|---|---|
+| `bin/loomux.exe` heute | 13,7 MB, `--version` 33 ms |
+| dasselbe Binary mit gelinktem `go-sdk` v1.8.0 | 16,0 MB, `--version` 32 ms |
+| SDK allein, gegen ein leeres `main` | +1 ms, +6,8 MB — davon fast alles `net/http` und `crypto/tls`, die loomux wegen `brain/search/http.go` längst linkt |
+| alloc-reichste Paketinitialisierung mit SDK | `encoding/gob` 367, `jsonschema-go` 298, `go-sdk/mcp` 183 — alle unter der Grenze 500 aus `cmd/loomux/start_test.go:23` |
+| Job-Object-Probe dieses Prozessbaums | in keinem Job |
+
+**Lesart:** der SDK kostet den Hook-Pfad nichts Messbares. Der Sprung von 6,8 MB
+in der Spielzeugmessung war zum größten Teil Standardbibliothek, die schon drin
+liegt; am echten Binary bleiben 2,3 MB. Das Startzeit-Tor hält ohne Nacharbeit,
+`encoding/gob` ist mit 367 der knappste Fall und bleibt Beobachtungspunkt.
+
+Die Job-Object-Probe sagt über einen von einem MCP-Wirt gestarteten Prozessbaum
+**nichts** — sie ist hier nur der Nachweis, dass die Abfrage funktioniert. Die
+Annahme, dass ein Wirt uns in ein Job-Object stecken kann, bleibt bestehen und
+wird im Verhalten aufgefangen, nicht durch Messung ausgeschlossen.
+
+`x/sys` steigt mit dem SDK ohnehin von v0.18.0 auf v0.48.0. `x/text` (v0.38.0 →
+v0.42.0) zieht in einem eigenen Commit mit. `yaml.v3` und die gepatchte
+TOML-Kopie sind bereits auf dem neuesten Stand. Die `go`-Direktive bleibt bei
+1.25.0: `net/http.CrossOriginProtection` gibt es seit Go 1.25, ein Anheben auf
+1.27 wäre unnötig und schlösse ältere Toolchains aus.
+
+## Prozesse, Adressen, Ein-Instanz-Disziplin
+
+Drei langlebige Prozesse: `loomux serve`, je eine Brücke `loomux mcp` pro Wirt
+(lebt so lange wie der Wirt), und `qmd mcp --http --daemon` aus 1b-1.
+
+### Zwei Listener, zwei Token
+
+`serve` bindet auf `127.0.0.1` zwei Ports, einen für `local` und einen für
+`cloud`, beide über Port 0 vom Betriebssystem gewählt. Je Listener ein Token aus
+32 Zufallsbytes (`crypto/rand`, base64url); jede Anfrage trägt ihn.
+
+**Der Kanal ist die Adresse, kein Argument.** Die Referenz begründet das in
+`ipc.py`: „ein Kanal, den ein Client nennen kann, ist eine Behauptung, also muss
+das Tor die Adresse selbst sein". Ein Aufrufer mit dem cloud-Token kann
+`local_only`-Bereiche nicht benennen, auch wenn die Konfiguration eines Wirts
+falsch steht. Die Fusions-Spec sah den Kanal als Feld der Anfrage vor; diese
+Spec verwirft das.
+
+Die Code-Graph-Spec bestätigt die Form unabhängig (§4.2): zwei Server-Instanzen
+mit geteiltem Datenbestand, eine je Profil. Das ist auch spec-konform — die
+MCP-Revision 2026-07-28 verlangt, dass `tools/list` nicht pro Verbindung
+variiert, erlaubt aber ausdrücklich eine Abhängigkeit von der Autorisierung.
+
+### Zwei Sperren
+
+Ein neues Paket `internal/lock`, Port von `locking.py`: `LockFileEx` unter
+Windows, `flock` sonst.
+
+- **`serve.lock`** hält `serve` über seine gesamte Laufzeit. Die
+  Ein-Instanz-Garantie ist damit die des Betriebssystems; stirbt der Prozess,
+  gibt das Betriebssystem sie frei. Eine PID steht in der Datei, aber nur zur
+  Anzeige — „einen toten PID übernehmen" braucht es als eigenen Mechanismus
+  nicht.
+- **`qmd.lock`** ist ein kurzer kritischer Abschnitt um Probe und Start,
+  geteilt von `brain search` und `serve`. Zwei Starter erzeugen nie zwei
+  Daemons auf 8765.
+
+`serve.json` unter `%LOCALAPPDATA%\loomux` schreibt nur `serve`, das
+`serve.lock` ohnehin hält, atomar über temporäre Datei und Umbenennen. Unter
+POSIX `0600`, das Verzeichnis `0700`. Inhalt: beide Adressen mit ihren Token,
+die PID, und die Bauidentität (Pfad, Größe, mtime) aus `os.Executable()`.
+
+Die Datei ist nie die Wahrheit, nur ein Hinweis: antwortet der Listener nicht
+und ist `serve.lock` frei, gilt sie als verwaist und wird überschrieben.
+
+### Die Brücke
+
+`loomux mcp --channel local|cloud` spricht stdio zum Wirt. Beim Start liest sie
+`serve.json` und vergleicht die Bauidentität mit dem eigenen Programm.
+
+**„Neuer gewinnt."** Sie startet `serve` nur neu, wenn ihr eigenes Programm
+neuer ist als das vermerkte. `serve` ist maschinenweit, `bin/loomux.exe` liegt
+pro Checkout, und es gibt mehrere Klone nebeneinander; eine Regel
+„anders ⇒ neu starten" ließe zwei Wirte aus zwei Klonen einander bei jedem
+Aufruf abschießen. Der Pfad in `serve.json` dient nur der Anzeige.
+
+Der Start läuft **im Hintergrund**, nebenläufig zum `initialize` des Wirts: der
+Wirt sieht sofort einen antwortenden Server, auch wenn `serve` und qmd zehn
+Sekunden brauchen. Ein gescheiterter Start reißt die Brücke nicht mit — der Wirt
+erfährt von der Störung durch den Aufruf, der `serve` braucht, nicht durch einen
+Server, der verschwindet (Referenz, Spec 4.2).
+
+Verlieren zwei Brücken gleichzeitig das Rennen um `serve.lock`, startet der
+Verlierer nicht, sondern wartet im 250-ms-Takt bis 60 s auf ein `serve.json` mit
+antwortendem Listener — derselbe Takt und dieselbe Frist wie der qmd-Handschlag
+aus 1b-1.
+
+**Ein Neustart entwertet die Sitzungen aller anderen Brücken.** Antwortet ein
+weitergeleiteter Aufruf mit „Verbindung abgelehnt" oder „unbekannte Sitzung",
+liest die Brücke `serve.json` neu, handelt gegen das neue `serve` neu aus und
+wiederholt den Aufruf **genau einmal**; erst dann ein MCP-Fehler, der
+`loomux serve status` nennt. Ohne diese Regel bräche jeder Commit jeden anderen
+offenen Wirt, weil das Pre-Commit-Tor `bin/loomux.exe` neu baut.
+
+**`serve` erbt nie die stdio der Brücke.** Der stdout der Brücke ist die
+MCP-Leitung des Wirts; ein geerbter Deskriptor zerstört das Framing und hält die
+Leitung offen, wenn die Brücke endet. stdin, stdout und stderr zeigen auf NUL
+bzw. in `%LOCALAPPDATA%\loomux\logs\serve.log`. `search/daemon.go:57` macht das
+für qmd bereits richtig (`cmd.Stdout = nil` ergibt `os.DevNull`).
+
+Gestartet wird entkoppelt: `DETACHED_PROCESS|CREATE_BREAKAWAY_FROM_JOB` unter
+Windows, `Setsid` sonst. **Scheitert das Breakaway-Flag** — ein Wirt kann uns in
+ein Job-Object ohne `BREAKAWAY_OK` gesteckt haben —, startet die Brücke ohne es,
+merkt sich das in `serve.json`, und `loomux serve status` sagt: dieser Dienst
+stirbt mit seinem Wirt.
+
+### Lebensdauer
+
+`serve` läuft bis `loomux serve stop` oder bis zur Abmeldung; keine
+Leerlauf-Abschaltung. `serve stop` ist ein Endpunkt auf dem local-Listener mit
+dem local-Token, kein Signal: die Listener fahren geordnet herunter, die Sperre
+wird freigegeben. Antwortet der Endpunkt nicht, bricht `loomux serve stop
+--force` den Prozess über die PID aus `serve.json` ab — nur auf dieses Flag hin,
+nie von allein.
+
+**`serve stop` beendet qmd nicht.** qmd gehört niemandem allein — `brain search`
+startet ihn auch —, und sein Kaltstart kostet einen Modellladevorgang (in 1b-1
+mit 5,7 s gemessen). Einem parallel laufenden `brain search` den Daemon unter
+den Füßen wegzuziehen, wäre der teurere Fehler.
+
+`loomux serve status` fragt die Listener, statt nur die Sperrdatei zu lesen.
+`loomux serve --foreground` läuft im Terminal und schreibt nach stderr — der Weg,
+auf dem ein Mensch einen Fehlstart überhaupt sehen kann.
+
+## MCP-Oberfläche, Weiterleitung, Fehlerverhalten
+
+### Die Werkzeuge
+
+Fünf flache Werkzeuge: `brain_search`, `brain_catalog`, `brain_read`,
+`brain_neighbors`, `brain_status`. Argumentformen unverändert aus 1b-1:
+
+| Werkzeug | Argumente |
+|---|---|
+| `brain_search` | `query` (Pflicht), `scope`, `profile` ∈ {fast, balanced, deep}, `n` = 10 |
+| `brain_catalog` | `scope` |
+| `brain_read` | `scope`, `relative` (beide Pflicht), `section` |
+| `brain_neighbors` | `scope`, `relative` (beide Pflicht) |
+| `brain_status` | keine |
+
+Die Schemata baut ein Paket auf ersten Gebrauch, nicht in `init()` und nicht in
+einer Paketvariable.
+
+**Warum `brain_*` und nicht `search`.** Die MCP-Revision 2026-07-28 kennt keine
+geschachtelten Werkzeuge: das `Tool`-Objekt hat `name`, `title`, `description`,
+`icons`, `inputSchema`, `outputSchema`, `annotations` und sonst nichts, und die
+Namen müssen innerhalb eines Servers eindeutig sein. Die Code-Graph-Spec §4
+stellt in denselben Server sechs `graph_*`-Werkzeuge und später
+Upstream-Proxies mit eigenem Präfix. Elf und mehr Werkzeuge in einem Server:
+dort wäre ein blankes `read` neben `graph_file_api` mehrdeutig — lies was? Das
+Präfix ist die einzige Familientrennung, die das Protokoll zulässt.
+
+Die Kollision **zwischen** Servern löst laut Spec der Wirt, und alle drei
+loomux-Wirte tun das nachweislich: Claude Code und Codex bilden
+`mcp__<server>__<werkzeug>` (`codex-rs/codex-mcp/src/mcp/mod.rs:66-87`), das
+Gemini CLI `mcp_<server>_<werkzeug>` mit Kürzung bei 64 Zeichen
+(`generateValidName` im gebündelten Paket). Der längste Fall der elf ist
+`mcp__loomux__graph_check_freshness` mit 34 Zeichen; Kürzung droht nicht.
+
+Damit ist die Zeile der Fusions-Spec „Werkzeuge wie heute: `search`, `catalog`,
+`read`, `neighbors`, `status`" überholt, und die Richtung der 1b-1-Spec
+(`brain_*`) bestätigt.
+
+**Kein Dispatcher-Werkzeug.** Gemessen an den echten Schemata kostet die flache
+Liste aller elf Werkzeuge 2621 Byte (~655 Token) gegen 1478 Byte (~369 Token)
+für zwei Dispatcher `brain`/`graph` — rund 286 Token, einmal je Sitzung und mit
+`ttlMs`/`cacheScope` zusätzlich zwischenspeicherbar. Dagegen stehen drei Dinge,
+die nicht verhandelbar sind: die Rechtevergabe der Wirte greift **pro
+Werkzeugname** (Codex und Gemini schlagen beide mit `policy[toolName]` nach),
+`required` je `op` lässt sich in einem flachen Schema nicht ausdrücken, und
+Annotationen wie `readOnlyHint` gelten pro Werkzeug — spätestens mit `apply` und
+`approve` in Stufe 3 könnte ein gemischter Dispatcher dem Wirt nichts Wahres
+mehr über sich sagen. **Schwelle:** wächst der Gateway über etwa 30 Werkzeuge,
+wird das neu gerechnet; der Umbau bleibt billig, weil die Namen schon
+familienweise geschnitten sind.
+
+**Stufenweises Aufdecken ist ausgeschlossen**, nicht aus Geschmack: die Spec
+verlangt, dass die Werkzeugmenge nicht pro Verbindung und nicht als Nebenwirkung
+anderer Anfragen variiert.
+
+### Die Brücke ist ein Umleiter
+
+Name auf Name, Argumente auf Argumente, Ergebnis zurück. Tut diese Schicht je
+mehr, ist etwas falsch (Referenz, Spec 4.1).
+
+- **`tools/list` beantwortet die Brücke selbst**, aus `internal/mcptools`, das
+  sie mit `serve` teilt. Die Beschreibungen sind statisch, und ein Abruf legte
+  einen qmd-Kaltstart mitten in den Handschlag. Beide Listen kommen aus
+  demselben Paket und sind in fester Reihenfolge sortiert, damit sie
+  byteidentisch sind — die Spec verlangt eine deterministische Reihenfolge, und
+  eine Liste, die zwischen Brücke und Dienst driftet, wäre der schlimmste
+  Fehler dieser Schicht. `ttlMs` und `cacheScope` werden gesetzt; fünf statische
+  Werkzeuge kosten das Zwischenspeichern nichts.
+- **Zwei unabhängige Aushandlungen.** Wirt↔Brücke und Brücke↔`serve` verhandeln
+  je ihre Protokollrevision; keine Stelle im loomux-Code nennt eine
+  Versionsnummer. Genau dafür ist der SDK da.
+- **Der Progress-Token des Wirts wird nach unten weitergereicht**, sonst stirbt
+  der Warm-Hinweis in der Brücke.
+
+### `serve` ruft dieselbe Antwortfunktion wie die CLI
+
+Die Werkzeuge in `serve` rufen `brainRun` mit dem Kanal des Listeners, über den
+die Anfrage kam. Kein Argument `channel`, kein zweiter Pfad zu den Daten,
+dieselbe Funktion wie `loomux brain search`.
+
+**Dafür zieht `brainRun` aus `internal/cli` um** — nach `internal/brain/answer`,
+zusammen mit `brainSearch`, `brainCatalog`, `brainArea`, `brainRead`,
+`brainNeighbors` und `brainStatus` (heute `internal/cli/brain.go:79-201`). Sonst
+gäbe es einen Importzyklus: `internal/cli` braucht `internal/serve` für den
+Einstiegspunkt, und `internal/serve` bräuchte `internal/cli` für die Antwort. In
+`internal/cli/brain.go` bleibt, was dort hingehört: Argumente lesen, Nutzungstext
+verweigern, stdout und die Hinweiszeilen auf stderr schreiben. Ein reiner
+Umzug ohne Verhaltensänderung — die Fälle aus 1b-1 laufen unverändert weiter und
+sind der Nachweis dafür.
+
+Die drei Rückgaben werden getrennt gehalten:
+
+- `text` → `CallToolResult` mit `TextContent`.
+- `notes` — darunter der Warm-Hinweis aus `search/mcp.go:18` — → **Fortschritts-
+  meldung nach oben**, nie nach stderr: kein Wirt liest unseren stderr. Ohne
+  Progress-Token des Wirts verfällt der Hinweis in der Sitzung, und das ist
+  richtig; eine Meldung ohne Empfänger ist keine (Referenz, Spec 4.4).
+- `error` → hier trennt sich, was nicht zusammengehören darf (Referenz, Spec
+  4.5): **was der Kern verweigert**, ist Inhalt fürs Modell — Ergebnis mit
+  `isError: true` und der Begründung; **was der Transport verliert**, ist eine
+  Störung — ein MCP-Fehler, der `loomux serve status` nennt. Eine Störung als
+  leeres Ergebnis zu melden, brächte dem Modell bei, einen toten Dienst als
+  „nichts gefunden" zu lesen. Nie eine leere Trefferliste, wo eine Leitung
+  fehlt.
+
+### Cross-Origin-Schutz
+
+Der `StreamableHTTPHandler` bekommt eine `http.CrossOriginProtection`. Ohne sie
+könnte eine beliebige Webseite im Browser des Nutzers gegen `127.0.0.1`
+schießen; der Token allein hilft nicht, sobald er je in eine URL gerät.
+
+### `serverInfo` ist kein Namensraum
+
+Die Spec sagt ausdrücklich, dass `serverInfo.name` nicht zur Unterscheidung
+taugt. Sichtbar wird der Schlüssel aus der `.mcp.json` des Wirts — `loomux` —,
+und den setzt der Mensch bzw. ab Stufe 4 `loomux init`, nicht dieser Dienst.
+
+## Pakete
+
+| Paket | Inhalt |
+|---|---|
+| `internal/serve` | Listener, Lebenszyklus, `serve.json`, `status`, `stop` |
+| `internal/serve/brain` | die fünf Werkzeuge, ruft `internal/brain/answer` |
+| `internal/brain/answer` | `brainRun` und seine sechs Helfer, aus `internal/cli` umgezogen |
+| `internal/bridge` | der Umleiter |
+| `internal/mcptools` | die geteilte Werkzeugliste |
+| `internal/lock` | Port von `locking.py` |
+| `internal/cli` | `serve.go` und `mcp.go` als reine Einstiegspunkte |
+
+**`hooks` importiert nie `serve` oder `bridge`.** Dafür ein Test, der den
+Importgraphen liest — ein Satz in einer Spec hält diese Grenze nicht.
+
+## Tests und Paritätsnachweis
+
+**Go-Tests.** Brücke↔`serve` über `mcp.NewInMemoryTransports` — kein Socket,
+kein Port, keine Wartezeit. Prozessstart, Uhr und Launcher werden injiziert wie
+in `search/daemon.go`. Coverage 100 % je Funktion, jeder Ausschluss mit
+`//coverage:exempt <grund>`.
+
+Ausschließlich in Go geprüft, weil ein langlebiger Prozess kein `stdout` hat,
+das man vergleicht: zwei Listener und ihre Trennung, Abweisung eines falschen
+Tokens, beide Sperren, „neuer gewinnt", die Ein-Wiederholung nach einem
+Neustart, der Fehlschlag des Breakaway-Flags.
+
+**Fallkorpus.** Eine neue Familie `testdata/cases/1b-2`: `cmd` ist
+`loomux mcp --channel local|cloud`, `stdin` sind JSON-RPC-Zeilen. Verglichen
+wird **der Textinhalt der `CallToolResult` und `isError`**, nicht der Umschlag.
+
+Der Grund: die Python-Front spricht über das Python-MCP-SDK, die Brücke über das
+Go-SDK. `initialize` liefert schon deshalb andere Bytes — Fähigkeiten,
+`serverInfo`, ausgehandelte Revision —, und die Werkzeuge heißen ohnehin anders.
+Ein byteweiser Vergleich der Umschläge erzeugte eine Paritätsliste, die
+überwiegend aus „Unterschied der Bibliothek" bestünde und bei jeder
+SDK-Aktualisierung neu wüchse. Der Umschlag wird gegen die MCP-Spec geprüft,
+nicht gegen Python.
+
+Die Abbildungsdatei `1b-2-map.toml` trägt die Umbenennung `search` →
+`brain_search` und die vier übrigen; sie ist eine Übersetzungsregel, keine
+Abweichung, und steht als solche in der Paritätsliste.
+
+**Mutationsrunde** der Stufe über `loomux dev mutants`, Überlebende dokumentiert
+wie in `parity/stufe-1b-1-geparkte-mutanten.md`.
+
+## Messungen nach dem Bau
+
+Chronologisch in `docs/en/benchmarks.md` und `docs/de/benchmarks.md`, je kalt
+und warm, Grundlinie gegen Änderung:
+
+1. Binärgröße und Startboden vor und nach dem SDK (Vormessung siehe oben).
+2. Der Hook-Pfad, unverändert nachgewiesen — dass `hooks` das SDK nicht
+   anfasst, muss messbar bleiben, nicht nur strukturell stimmen.
+3. Handschlag der Brücke: Zeit vom Start bis zur Antwort auf `initialize`, mit
+   laufendem und mit kaltem `serve`.
+4. Ein `brain_search` über die Brücke gegen dasselbe `loomux brain search`
+   direkt — der Aufpreis der zwei Sprünge.
+
+## Mensch-Schritte
+
+- Die `.mcp.json`-Einträge der Wirte auf `loomux mcp --channel local` zeigen
+  lassen; `loomux init` übernimmt das erst in Stufe 4.
+- Freigabe der Paritätsliste.
+- Rauchtest: ein `brain_search` aus Claude Code über die Brücke, ein zweiter
+  Wirt parallel, ein Commit dazwischen — er zeigt, ob „neuer gewinnt" und die
+  Ein-Wiederholung tragen.
+
+## Nicht in 1b-2
+
+- **Upkeep** und `reconcile` — Stufe 3. Der Haken bleibt in `serve` als benannte
+  Leerstelle; die 1b-1-Spec führte Upkeep hier, die Stufentabelle der
+  Fusions-Spec führt „Upkeep in `serve`" unter Stufe 3, und ohne `reconcile`
+  gibt es nichts nachzuholen.
+- `graph_*` und die Upstream-Kaskade — Code-Graph G3.
+- `/api/…` und die eingebettete Web-App — Folgeprojekt Web-Migration.
+- `loomux init` für die MCP-Einträge und die Umstellung der Wirte — Stufe 4.
+- Wiki- und Doku-Umzug — 1b-3.
