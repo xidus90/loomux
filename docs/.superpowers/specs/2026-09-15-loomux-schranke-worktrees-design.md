@@ -1,7 +1,7 @@
 # loomux-Schreibschranke: verknüpfte Worktrees eines Workspace
 
 **Datum:** 2026-09-15
-**Stand:** entworfen, nicht umgesetzt
+**Stand:** umgesetzt, gemessen und freigegeben 2026-09-15 (Plan `2026-09-15-loomux-schranke-worktrees.md`)
 **Bezug:** [Fusions-Spec](2026-09-14-loomux-fusion-design.md), Schreibschranke aus Stufe 1a
 (`internal/brain/guard`). Eigene kleine Stufe, eingeschoben vor
 [Stufe 1b-1](2026-09-15-loomux-stufe-1b-1-design.md).

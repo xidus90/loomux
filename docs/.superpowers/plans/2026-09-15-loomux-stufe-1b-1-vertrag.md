@@ -1,5 +1,8 @@
 # Vertrag für den Plan der Stufe 1b-1 (Kopf, Regeln, Schnittstellen)
 
+**Stand 2026-09-17:** Begleitdokument ohne eigene Abnahme; der Plan
+`2026-09-15-loomux-stufe-1b-1.md` ist abgeschlossen.
+
 > **Stand vor der Ausarbeitung.** Maßgeblich ist der Plan `2026-09-15-loomux-stufe-1b-1.md`. Wo ein Task davon
 > abweicht, nennt er es („Abweichungen vom Vertrag") oder folgt einer Regel aus
 > `2026-09-15-loomux-stufe-1b-1-rulings.md`. Überholt sind unter anderem:

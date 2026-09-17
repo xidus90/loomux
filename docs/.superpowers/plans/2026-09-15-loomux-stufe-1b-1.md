@@ -11,7 +11,7 @@ und sagen nichts über den Fortschritt**; die neun abgehakten in Task 16 sind di
 Rauchtestliste, die aus der Paritätsliste zurückgespiegelt ist. Ruling R37
 streicht Task 0 Step 4 nachträglich, und das Verzeichnis, das Task 11
 `internal/dev/fakeqmd/qmd/` nennt, heißt `_qmd/`, damit `go install ./...` es
-nicht baut; im Text der Tasks steht der alte Name stehen.
+nicht baut; im Text der Tasks steht an mehreren Stellen noch der alte Name.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

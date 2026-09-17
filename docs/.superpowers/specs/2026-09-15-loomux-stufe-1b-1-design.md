@@ -1,7 +1,7 @@
 # loomux Stufe 1b-1 — die fünf Datenbefehle und `dev mutants`
 
 **Datum:** 2026-09-15 (überarbeitet nach den Faktenblättern desselben Tages)
-**Stand:** entworfen, nicht umgesetzt
+**Stand:** umgesetzt, abgeschlossen 2026-09-17 (Plan `2026-09-15-loomux-stufe-1b-1.md`)
 **Bezug:** [Fusions-Spec](2026-09-14-loomux-fusion-design.md), Zeile „1b" der Stufentabelle. Stufe 1b
 wird dreigeteilt; diese Spec deckt 1b-1. 1b-2 (`serve`, MCP, Brücke, Upkeep) und 1b-3 (Wiki- und
 Doku-Umzug) bekommen je eigene Specs.

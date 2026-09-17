@@ -1,5 +1,15 @@
 # loomux G1 — Implementierungsplan
 
+**Stand 2026-09-17: abgeschlossen.** Das Kriterium aus Task 8 — Tor und
+Mutationsrunde grün — ist in `docs/.superpowers/parity/code-g1.md` belegt (126
+Mutanten, 11 äquivalente Überlebende); alle 15 Zeilen sind am 2026-09-17
+freigegeben (`6cafdd8`). `internal/code/{model,pagerank,blast}` sind mit
+`d768718` gemerged, die Doku mit `aaf250c`. An G2 übergeben, also nicht Teil
+dieses Plans: CLI, `[graph]` in `config.toml`, der Messeintrag zur
+Dangling-Messung in `docs/{en,de}/benchmarks.md` (eine kalte Zahl fehlt) und zwei
+Lücken in `model.Validate` (doppelte IDs, ungeprüfte Kantenquelle). **Die
+Kästchen sind nie gepflegt worden und sagen nichts über den Fortschritt.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `internal/code/{model,pagerank,blast}` — das Lesemodell des

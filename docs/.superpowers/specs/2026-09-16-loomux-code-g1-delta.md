@@ -1,7 +1,7 @@
 # loomux G1 — Delta zur Säule-3-Spec
 
 **Datum:** 2026-09-16
-**Stand:** entworfen, freigegeben zur Planung
+**Stand:** umgesetzt, freigegeben 2026-09-17 (Plan `2026-09-16-loomux-code-g1.md`)
 **Ergänzt:** [`2026-09-14-loomux-code-graph-design.md`](2026-09-14-loomux-code-graph-design.md) — diese Datei
 ersetzt die Säule-3-Spec nicht, sie berichtigt und verengt sie für die Stufe G1.
 **Referenz:** `trailhq/Graft`, Commit `1e352a3` vom 2026-09-16, MIT.

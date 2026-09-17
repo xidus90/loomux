@@ -1,5 +1,18 @@
 # Schreibschranke: verknüpfte Worktrees — Implementation Plan
 
+**Stand 2026-09-17: abgeschlossen, bis auf einen Handgriff außerhalb des Repos.**
+Code `7e2d61b` und `d8bfad2`, Messung und Doku `75b99ba` und `bea23cf` (Abschnitt
+`2026-09-15 15:39` von `docs/{en,de}/benchmarks.md`: 65,3 ms warm gegen 72 ms),
+Freigabe der Paritätszeile `e4e0dc2` am 2026-09-15; die Abnahmeprobe ohne
+Registry-Eintrag belegt Ruling R37 der Stufe 1b-1 (`6e951b1`, 2026-09-17).
+Abweichungen vom Plantext: Bedingung 5 (Verwaltungsverzeichnis unter dem
+gemeinsamen Git-Verzeichnis) kam nach dem Review hinzu (`c2e172d`), gemessen wurde
+davor; die Funktion heißt `linkedWorktreeRoot(target, commons []string)`, und
+`worktree.go` hat sich mit dem Plan `2026-09-16-loomux-schranke-samerepo.md`
+weiter geändert. **Offen:** die Vorlagenzeile „Ein Git-Worktree ist ein eigener
+Pfad …“ in `%LOCALAPPDATA%\loomux\registry.toml` — die Datei schreibt ein Mensch.
+**Die Kästchen sind nie gepflegt worden und sagen nichts über den Fortschritt.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ein verknüpfter Git-Worktree eines als `workspace = true` registrierten Repos ist ohne eigenen Registry-Eintrag beschreibbar.

@@ -1,7 +1,7 @@
 # loomux — Code-Graph & Graph Engineering (Säule 3)
 
 **Datum:** 2026-09-14  
-**Stand:** entworfen, zur Umsetzung nach Abschluss der Fusions-Stufen 1a–4  
+**Stand:** entworfen; G1 umgesetzt 2026-09-17, vorgezogen vor Fusions-Stufe 1b-2 und berichtigt durch [`2026-09-16-loomux-code-g1-delta.md`](2026-09-16-loomux-code-g1-delta.md); G2 ff. offen  
 **Ort:** `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md`  
 **Ergänzt:** `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` (Säule: *Graph + Loop Engineering*)  
 **Referenz-Analyse:** `trailhq/Graft` (TypeScript, Node.js)  

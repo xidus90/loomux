@@ -1,5 +1,21 @@
 # loomux Stufe 1a — Implementierungsplan
 
+**Stand 2026-09-17: abgeschlossen, bis auf Task 16 Step 7.** Die fünf
+Fertig-Kriterien der Fusions-Spec sind belegt: die 19 Fälle unter
+`testdata/cases/1a` laufen in `TestRecordedCasesOfStage1a`, alle Zeilen von
+`docs/.superpowers/parity/stufe-1a.md` sind freigegeben (die meisten am
+2026-09-15 mit `f2d1fbf`, die nachgetragene `wiki-drift`-Zeile am 2026-09-17 mit
+`299249c`), das Tor hält 100 % je Funktion, die Messung steht im Abschnitt
+`2026-09-15 01:20` von `docs/{en,de}/benchmarks.md` (24,5 ms gegen 72 ms), und
+der Pilot läuft (`4c5eda8`, `eeda71e`, Rauchtest `5f9c0b9` — das Binary direkt
+gerufen, nicht aus einer neuen Claude-Sitzung). Die Mutationsrunde lief erst in
+Stufe 1b-1; `internal/brain/guard` und `internal/hooks` sind dort geparkt und
+nicht bewertet (`parity/stufe-1b-1-geparkte-mutanten.md`). **Offen ist Task 16
+Step 7:** `loomux-src/ul` und `loomux-src/ub` hängen noch als Worktrees, weil
+1b-1 und der Wiki-Umzug sie brauchten. **Die Kästchen sind nie gepflegt worden
+und sagen nichts über den Fortschritt.** Der Messeintrag steht nach R15b in
+`docs/{en,de}/`, nicht in `docs/benchmarks.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ein Go-Binary `loomux` im neuen Repo, das den Hook-Pfad beider Altrepos (Policy + Schreibschranke in einem Wächter, post-edit, session-start), `lint`, `wiki-gate` und die Worktree-Befehle trägt, sich selbst als Pilot prüft und seine Parität über aufgezeichnete Fälle belegt.

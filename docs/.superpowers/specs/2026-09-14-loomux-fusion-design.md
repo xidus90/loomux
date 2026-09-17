@@ -1,7 +1,8 @@
 # loomux — ultraloom und ultra-brain in einem Go-Binary
 
 **Datum:** 2026-09-14
-**Stand:** entworfen, nicht umgesetzt
+**Stand:** teilweise umgesetzt (2026-09-17): Stufe 1a, 1b-1 und 1b-3 (Wiki- und Doku-Umzug) sind
+abgeschlossen; 1b-2 (`serve`, MCP, Brücke, Upkeep) und die Stufen 2–4 sind offen
 **Ort:** vorläufig im `ultraloom`-Worktree `claude/ultra-loom-brain-fusion-a5bb17`,
 weil das Zielrepo `xidus90/loomux` noch nicht existiert. Zieht mit Stufe 1a um.
 **Löst ab:** ulflow M4–M6

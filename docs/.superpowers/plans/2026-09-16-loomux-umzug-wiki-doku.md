@@ -1,5 +1,16 @@
 # Umzug von Wiki und Doku nach loomux — Umsetzungsplan
 
+**Stand 2026-09-17: abgeschlossen, bis auf eine Zusage des Ziels.** Die Tasks 1–7
+sind gelaufen (`7f10923` bis `58e42d0`, Nacharbeiten bis `083a3a0`); alle 183
+Zeilen von `docs/.superpowers/parity/umzug-wiki-doku.md` sind freigegeben,
+`docs/wiki` trägt 33 Dateien, `loomux wiki-gate` meldet OK und `brain read`
+beantwortet `project/loomux`. **`brain neighbors` beantwortet den Bereich nicht:**
+`loomux brain neighbors docs/wiki/entities/qmd.md --scope project/loomux` endet
+am 2026-09-17 mit Exit 1 und „never indexed; run `brain reindex`“. Die Annahme in
+Task 6 Step 6b, dass `neighbors` kein Artefakt braucht, ist falsch; der Befehl wartet auf `reindex`
+wie `catalog --scope`. **Die Kästchen sind nie gepflegt worden und sagen nichts
+über den Fortschritt.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Die freigegebenen 25 Wiki-Seiten, 11 Rohquellen und 18 Arbeitspapiere
