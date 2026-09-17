@@ -33,7 +33,7 @@
 | Format der Lint-Befunde | durch Fälle belegt | durch `report_test.go` belegt | Lint-Fälle vergleichen Exit und leeres stdout; das Format ist kein Fallgegenstand (R14c) | freigegeben 2026-09-15 |
 | CRLF in Aufzeichnungen | `tools/cases.py` normalisierte CRLF zu LF | der Rekorder normalisiert nur Pfade | trägt ein aufgezeichnetes stdout CRLF und der Lauf im Prozess nicht, ist das ein Unterschied der Aufzeichnung, nicht des Verhaltens | freigegeben 2026-09-15 |
 | Antigravitys Hook-Vertrag nachmessen (offene Frage der Spec) | — | in Stufe 1b | braucht den Antigravity-Wirt, den 1a nicht hat; kein Task der Stufe 1a deckt sie ab (Controller-Ruling) | freigegeben 2026-09-15 |
-| `wiki-drift` für ein Wiki im Projektrepo | zweites `git status` im Wiki; git antwortet repoweit, also war `wikiChanges == codeChanges` und die Meldung unerreichbar | ein `git status`, die Pfade werden am Wiki-Pfad geteilt | die alte Form ist in der ub-Migrationsspec (2026-09-04, Anhang B) als Defekt vermerkt, „eigener Zug"; der Umzug 1a fror sie nur mit um | vorgeschlagen 2026-09-17 |
+| `wiki-drift` für ein Wiki im Projektrepo | zweites `git status` im Wiki; git antwortet repoweit, also war `wikiChanges == codeChanges` und die Meldung unerreichbar | ein `git status`, die Pfade werden am Wiki-Pfad geteilt | die alte Form ist in der ub-Migrationsspec (2026-09-04, Anhang B) als Defekt vermerkt, „eigener Zug"; der Umzug 1a fror sie nur mit um | freigegeben 2026-09-17 |
 
 ## Pilot
 
