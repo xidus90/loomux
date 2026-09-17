@@ -191,10 +191,18 @@ auf dem ein Mensch einen Fehlstart überhaupt sehen kann.
 Fünf flache Werkzeuge: `brain_search`, `brain_catalog`, `brain_read`,
 `brain_neighbors`, `brain_status`. Argumentformen unverändert aus 1b-1:
 
+**Lesart der Tabelle:** „Pflicht" steht als `required` im Schema. Ein `=` nennt
+den Wert, den `answer.Run` anwendet, wenn das Feld fehlt — **nicht** ein
+`default` im JSON-Schema. Genau ein Feld trägt ein Schema-Default, `n`, und das
+ist Parität zur Referenz: `daemon/tools.py:17` gibt `scope` nur `type` und
+`description`, Zeile 52 gibt `profile` nur `type` und `enum`, Zeile 53 gibt `n`
+sein `"default": 10`. Wer die anderen beiden ins Schema schreibt, bricht die
+Parität.
+
 | Werkzeug | Argumente |
 |---|---|
-| `brain_search` | `query` (Pflicht), `scope` = `all`, `profile` ∈ {`fast`, `full`, `keyword`} = `fast`, `n` = 10 |
-| `brain_catalog` | `scope` = `all` |
+| `brain_search` | `query` (Pflicht), `scope` → `all`, `profile` ∈ {`fast`, `full`, `keyword`} → `fast`, `n` = 10 (Schema-Default) |
+| `brain_catalog` | `scope` → `all` |
 | `brain_read` | `scope` und `relative` (beide Pflicht), `section` |
 | `brain_neighbors` | `scope` und `relative` (beide Pflicht) |
 | `brain_status` | keine |
