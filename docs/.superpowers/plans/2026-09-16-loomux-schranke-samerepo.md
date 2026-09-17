@@ -1,14 +1,15 @@
 # Schreibschranke: `sameRepository` ohne `git rev-parse` — Implementation Plan
 
-**Stand 2026-09-17: umgesetzt am 2026-09-16, Freigabe unvollständig.** Code
+**Stand 2026-09-17: abgeschlossen.** Code
 `120caeb`, `ee1aadf`, Nachbesserung `74f40a3`; Messung `70b3bc4` und `41cfce3` im
 Abschnitt `2026-09-16 19:32` von `docs/{en,de}/benchmarks.md` (Worktree-Write
-72,8 → 34,6 ms warm, Hauptcheckout 30,5 ms); Spec-Stand `8cb33e4`. **Die
+72,8 → 34,6 ms warm, Hauptcheckout 30,5 ms); Spec-Stand `8cb33e4`. Die
 Freigabe der Paritätszeile in `parity/schranke-worktrees.md` (`f44df47`, 19:18)
-liegt vor der Umsetzung** und sagt „Abweichung nur verengend“. Danach kamen
-Submodule (`3855de4`) sowie `safe.directory`, Bare-Repository und die
-POSIX-Dateisystemgrenze (`41cfce3`) als Abweichungen hinzu — die Zeile nennt sie
-nicht, freigegeben sind sie nicht. **Die Kästchen sind nie gepflegt worden und
+lag vor der Umsetzung und sagte „Abweichung nur verengend“; die danach
+hinzugekommenen Abweichungen — Submodule (`3855de4`) sowie `safe.directory`,
+Bare-Repository und die POSIX-Dateisystemgrenze (`41cfce3`), die letzten drei
+öffnend — stehen seit 2026-09-17 in der Zeile und sind freigegeben, das
+Bare-Repository mit eigenem Test. **Die Kästchen sind nie gepflegt worden und
 sagen nichts über den Fortschritt.**
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

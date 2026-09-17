@@ -392,6 +392,31 @@ func TestAnAreaInASubmoduleDoesNotClimbIntoTheSuperproject(t *testing.T) {
 	}
 }
 
+func TestAnAreaInABareRepositoryClimbsToTheCheckoutAboveIt(t *testing.T) {
+	// A deviation that opens, approved in the parity list of the barrier's
+	// worktrees: git stops in a bare repository and names it, so Python
+	// called no checkout the same repository as an area inside one. The
+	// climb looks only for `.git` entries, walks past the bare repository
+	// and lands on the checkout that holds it -- and a worktree of that
+	// checkout becomes the area's repository.
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	bare := filepath.Join(main, "mirror.git")
+	mkdir(t, filepath.Join(bare, "objects"))
+	mkdir(t, filepath.Join(bare, "refs"))
+	write(t, filepath.Join(bare, "HEAD"), "ref: refs/heads/master\n")
+	area := filepath.Join(bare, "vault")
+	mkdir(t, area)
+	want := mustResolve(t, filepath.Join(main, ".git"))
+	if got := registeredCommon(area); got != want {
+		t.Fatalf("registeredCommon(in bare repository) = %q, want %q", got, want)
+	}
+	linked := fakeLinked(t, main, "linked", false)
+	if !sameRepository(linked, area) {
+		t.Fatal("a worktree of the checkout above a bare repository is not the same repository as an area inside it")
+	}
+}
+
 func TestAWorktreeIsTheSameRepositoryAsItsRegisteredTree(t *testing.T) {
 	// Laid out by hand, so git itself would not recognise either side:
 	// only a reading of the files can say yes here.
