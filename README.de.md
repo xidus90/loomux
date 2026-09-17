@@ -4,7 +4,7 @@
 
 **Die vereinte autonome Entwickler-Plattform in einem einzigen Go-Binary: Hooks, Skills, Code-Graph, Second Brain & LLM OS.**
 
-Loomux gibt KI-Coding-Agenten (Claude Code, Antigravity, Cursor, Codex) tiefes Codebase-Verständnis, Sub-Millisekunden-Graph-Retrieval, undurchdringliche Schreibschranken und automatisierte Prüfketten — vollständig autark und ohne externe Laufzeit-Abhängigkeiten.
+Loomux gibt KI-Coding-Agenten (Claude Code, Antigravity, Cursor, Codex) tiefes Codebase-Verständnis, deterministisches Graph-Retrieval, undurchdringliche Schreibschranken und automatisierte Prüfketten — vollständig autark und ohne externe Laufzeit-Abhängigkeiten.
 
 - **Kein Python. Kein Node.js.** Ein einziges, in sich geschlossenes Go-Binary (`loomux.exe` / `loomux`).
 - **Kaltstart unter 35 ms.** Federleichte Ausführung, die sich strikt in die Latenz-Budgets von Agenten-Toolcalls einfügt.
@@ -73,7 +73,9 @@ sequenceDiagram
 
 ### 2. Deterministisches Code-Graph-Retrieval ("GraphRank")
 
-Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen in unter 1 Millisekunde via **Personalized PageRank**.
+Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen daraus via **Personalized PageRank**.
+
+> **Stand (Stufe G1).** Rang und Blast-Radius sind Go-Pakete — `internal/code/pagerank` und `internal/code/blast` —, belegt an portierten Testvektoren der Referenz. Den Wiring-Graphen schreibt bisher nichts, und kein Befehl liest ihn: Extraktor, lexikalische Saat, Frischeprüfung und die `loomux graph`-Befehle sind Stufe G2. Die Antwortzeit ist deshalb noch ungemessen; die Zahl kommt nach `docs/de/benchmarks.md`, sobald G2 ein echtes Repository ranken kann.
 
 ```mermaid
 flowchart LR
@@ -124,9 +126,9 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Date
 | Graph-gestützter Code-Review | Review-Skills, die via `graph_blast` Aufrufer-Auswirkungen prüfen und ADRs abgleichen. | 📋 **Spezifiziert** (Stufe W4) |
 | 3-Kanal-Distribution | Konfiguriert via `.loomux/config.toml`, synchronisiert in Host-Ordner, via MCP-Prompts oder Web OS. | 📋 **Spezifiziert** (Stufe W4) |
 | **3. Code-Graph & Loop** | | |
-| Nativer Go-AST-Extraktor | Deterministische Symbol- & Kantenextraktion via `go/parser` und `go/types` ($0, 0 Deps). | 📋 **Spezifiziert** (Stufe G1) |
-| Personalized PageRank | Power-Iteration Random-Walk-Ranking über Aufruf- und Abhängigkeitsgraphen in < 1 ms. | 📋 **Spezifiziert** (Stufe G2) |
-| Blast-Radius-Engine | Transitive Hülle und Impact-Analyse (`DirectionIn`/`DirectionOut`, Tiefenbegrenzung). | 📋 **Spezifiziert** (Stufe G3) |
+| Nativer Go-AST-Extraktor | Deterministische Symbol- & Kantenextraktion via `go/parser` und `go/types` ($0, 0 Deps). | 📋 **Spezifiziert** (Stufe G2) |
+| Personalized PageRank | Power-Iteration Random-Walk-Ranking über Aufruf- und Abhängigkeitsgraphen, ungerichtet über fünf Relationen, max-normiert mit deterministischer Gleichstandsordnung. | 🧩 **Bibliothek** (Stufe G1) |
+| Blast-Radius-Engine | Transitive Hülle und Impact-Analyse (`In`/`Out`, Tiefenbegrenzung, kleinste Tiefe gewinnt). | 🧩 **Bibliothek** (Stufe G1) |
 | Symbol-gekoppelter Grep | Regex-Suche, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Grad (`inDegree`). | 📋 **Spezifiziert** (Stufe G4) |
 | Multi-Language AST | CGo-freier Tree-sitter über WebAssembly (`wazero`) mit persistentem AOT-Kompilierungs-Cache. | 💡 **Geplant** (Stufe G5) |
 | **4. Second Brain & Wiki** | | |
@@ -140,7 +142,7 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Date
 | Kanban Board & Loop Tracker | Echtzeit-Tracking von mehrstufigen Agenten-Workflows, Subagenten-Loops und Prüfketten. | 📋 **Spezifiziert** (Stufe W5) |
 | Grafischer Flow-Editor | Visueller DAG-Canvas zum Entwerfen, Abspielen und Debuggen von Agenten-Prüfschleifen. | 💡 **Zukunft** (Stufe W5) |
 
-*Legende: ✅ Im Go-Binary implementiert & verifiziert · 🚧 In aktiver Migration / Fusion · 📋 Spezifiziert & Bau-Bereit · 💡 Geplant / Zukunftsvision*
+*Legende: ✅ Im Go-Binary implementiert & verifiziert · 🧩 Bibliothek gebaut, noch an keinen Befehl verdrahtet · 🚧 In aktiver Migration / Fusion · 📋 Spezifiziert & Bau-Bereit · 💡 Geplant / Zukunftsvision*
 
 ---
 
@@ -168,7 +170,9 @@ loomux brain neighbors <pfad> --scope S  # Eingehende und ausgehende Links einer
 loomux brain status                 # Was man wissen muss, bevor man einer Antwort traut
 ```
 
-### Spezifizierte Befehle (Code-Graph — Stufen G1–G5)
+### Spezifizierte Befehle (Code-Graph — Stufen G2–G5)
+
+Stufe G1 hat keinen Befehl verdrahtet: sie hat die Bibliotheken gebaut, die diese Befehle rufen werden.
 ```bash
 loomux graph build [dir]            # Baut/aktualisiert .loomux/state/graph/wiring.json
 loomux graph ask "<anfrage>"        # Sucht Symbole gerankt nach Personalized PageRank

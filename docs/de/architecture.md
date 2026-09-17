@@ -44,7 +44,7 @@ Loomux beseitigt diese Explorations-Steuer durch eine einheitliche Laufzeitumgeb
 Ende 2023 definierte der KI-Forscher Andrej Karpathy das LLM nicht als einfachen Chatbot, sondern als die **Central Processing Unit (CPU) eines neuartigen Betriebssystems**:
 - **CPU**: Das LLM (Befehlsausführung, Schlussfolgerung, Synthese).
 - **RAM**: Das Context Window (schnell, hohe Bandbreite, aber flüchtig, teuer und begrenzt).
-- **L1/L2 Cache**: Der **deterministische AST-Code-Graph & Crux-Inliner** (sofortiger Struktur-Zugriff, null Tokenkosten, Sub-Millisekunden-Latenz).
+- **L1/L2 Cache**: Der **deterministische AST-Code-Graph & Crux-Inliner** (sofortiger Struktur-Zugriff, null Tokenkosten, Sub-Millisekunden-Latenz — ein Entwurfsziel, ungemessen, bis Stufe G2 ein echtes Repository ranken kann).
 - **Nichtflüchtiger Speicher (Festplatte / SSD)**: Das **Second Brain / LLM-Wiki** (kuratierte Architectural Decision Records (ADRs), Systemgrenzen, Invarianten, Runbooks).
 - **Kernel & Memory Protection Unit (MPU)**: Die **Loomux Hooks & Schreibschranke** (erzwingt Datei-Grenzen, prüft Werkzeug-Aufrufe vorab, blockiert destruktive Systembefehle).
 - **I/O-Peripherie**: Terminals, Compiler, Git und MCP-Protokoll-Server.

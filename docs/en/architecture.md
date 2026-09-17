@@ -44,7 +44,7 @@ Loomux eliminates this exploration tax through a unified runtime providing **mem
 In late 2023, AI researcher Andrej Karpathy framed the LLM not merely as a text generator, but as the **Central Processing Unit (CPU) of an emerging Operating System**:
 - **CPU**: The LLM (instruction execution, reasoning, synthesis).
 - **RAM**: The Context Window (fast, high bandwidth, but volatile, expensive, and limited).
-- **L1/L2 Cache**: The **Deterministic AST Code Graph & Crux Inliner** (instant structural retrieval, zero token cost, sub-millisecond lookups).
+- **L1/L2 Cache**: The **Deterministic AST Code Graph & Crux Inliner** (instant structural retrieval, zero token cost, sub-millisecond lookups — a design target, unmeasured until stage G2 can rank a real repository).
 - **Non-Volatile Storage (Disk / SSD)**: The **Second Brain / LLM Wiki** (curated Architectural Decision Records (ADRs), system boundaries, domain invariants, operational runbooks).
 - **Kernel & Memory Protection Unit (MPU)**: The **Loomux Hooks & Write Barrier** (enforcing file boundaries, pre-tool policy, preventing destructive system commands).
 - **I/O Peripherals**: Terminals, compilers, git, and MCP protocol servers.
