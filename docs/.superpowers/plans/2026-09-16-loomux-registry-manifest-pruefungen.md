@@ -1,12 +1,13 @@
 # Registry- und Manifestprüfungen an einer Stelle — Umsetzungsplan
 
-**Stand 2026-09-17: umgesetzt am 2026-09-16, Freigabe offen.** Die Tasks 1–6 sind
+**Stand 2026-09-17: abgeschlossen.** Die Tasks 1–6 sind
 gelaufen (`8d301a8`, `5f9732d`, `a934d37`, `222465b`, `e01977b`, Nachtrag
 `b34d69a`, gemerged mit `9dec361`); die Messung steht im Abschnitt
 `2026-09-16 22:13` von `docs/{en,de}/benchmarks.md`, das Vorher-Binary ist aus
-`219ccb1` statt aus `e1b4343` gebaut. **Nicht fertig im Sinne der Paritätsliste:**
-alle sechs Zeilen von `docs/.superpowers/parity/registry-manifest-pruefungen.md`
-warten auf die Freigabe des Nutzers. **Die Kästchen sind nie gepflegt worden und
+`219ccb1` statt aus `e1b4343` gebaut. Alle sechs Zeilen von
+`docs/.superpowers/parity/registry-manifest-pruefungen.md` sind am 2026-09-17
+freigegeben, nachdem zwei davon gegen den Code präzisiert wurden; die Sperre über
+Bereichsgrenzen hat dafür einen eigenen Test mit zwei Bereichen bekommen. **Die Kästchen sind nie gepflegt worden und
 sagen nichts über den Fortschritt.**
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

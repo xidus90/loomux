@@ -899,6 +899,42 @@ func TestABrokenModelSectionRefusesEverything(t *testing.T) {
 	allow(t, target, state)
 }
 
+// The cases above register one area, so they cannot tell "refuses writes
+// into the broken area" from "refuses every write". Two areas can: the
+// write lands in a healthy one, and only the neighbour's declaration is
+// broken -- a writable neighbour's in its own tree, a read-only one's under
+// the state directory.
+func TestABrokenDeclarationOfAnotherAreaRefusesAWriteIntoAHealthyOne(t *testing.T) {
+	for name, readOnly := range map[string]bool{"writable": false, "read-only": true} {
+		t.Run(name, func(t *testing.T) {
+			tmp := t.TempDir()
+			state := filepath.Join(tmp, "state")
+			demo := filepath.Join(tmp, "repo")
+			other := filepath.Join(tmp, "other")
+			mkdir(t, demo)
+			mkdir(t, other)
+			body := "[[area]]\nscope = \"project/demo\"\npath = \"" + posix(demo) +
+				"\"\nwiki = \"" + posix(filepath.Join(tmp, "vault", "demo")) + "\"\n\n" +
+				"[[area]]\nscope = \"project/other\"\npath = \"" + posix(other) + "\"\n"
+			declaration := filepath.Join(other, ".loomux", "config.toml")
+			if readOnly {
+				body += "readonly = true\n"
+				declaration = filepath.Join(
+					areaStateDir(state, "project/other"), ".loomux", "config.toml")
+			}
+			write(t, filepath.Join(state, "registry.toml"), body)
+			target := writeCall(filepath.Join(tmp, "vault", "demo", "x.md"))
+			area := "[area]\nscope = \"project/other\"\n\n"
+
+			write(t, declaration, area+"[model]\nenabled = \"yes\"\n")
+			deny(t, target, state, "[model] enabled must be a boolean, found string")
+
+			write(t, declaration, area+"[model]\nenabled = true\n")
+			allow(t, target, state)
+		})
+	}
+}
+
 func TestAGlobThatIsNoListRefusesEverything(t *testing.T) {
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
