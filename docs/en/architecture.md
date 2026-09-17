@@ -179,12 +179,12 @@ Agent harnesses invoke hooks synchronously on every single tool call. If a pre-t
 Loomux executes as a single compiled Go binary with a **sub-35ms execution budget**:
 
 ```
-Hook Lifecycle Timing Breakdown:
-├── Process Startup (Go binary, no runtime):     32 ms
+Hook Lifecycle Timing Breakdown (warm, start floor measured 2026-09-17):
+├── Process Startup (Go binary, no runtime):     5.5 ms
 ├── Config & Registry Parse (sync.Once):          1 ms
 ├── RE2 Command & Glob Path Validation:         0.5 ms
 ├── Exit Decision (Exit 0 or Exit 2):           0.1 ms
-└── Total Roundtrip:                            ~34 ms
+└── Total Roundtrip:                            ~7.5 ms
 ```
 
 ### Absolute Isolation:

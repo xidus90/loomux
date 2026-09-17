@@ -122,7 +122,7 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1
 | Check Commands | `loomux check commit-msg` (language and structure of a message), `check gofmt` (formatting, with the exit code `gofmt -l` does not give) and `dev covergate` (100% per function against a profile). | ✅ **Implemented** (Stage 1a) |
 | Check Chain Table | One configured table driving every lane. `[check] lanes` is parsed from the manifest and `loomux status` names the tools a lane would need, but nothing executes the table; `config.example.toml` still calls the section `[verify]`. | 🚧 **In Migration** (Stage 1b) |
 | Worktree Mirroring | Isolated subagent git worktrees with symlink/junction mirroring and session tracking. | ✅ **Implemented** (Stage 1a) |
-| Zone-Free Start Path | Keep Go's local time zone off the hook path: `time.Now().Zone()` alone costs 18.7 ms of the guard's ~28 ms on Windows (measured 2026-09-15). | 💡 **Optional** (no stage) |
+| Zone-Free Start Path | Go's local time zone stays off the hook path: the TOML parser builds its local zones on first use (`third_party/toml`), and a gate test fails any package init over 500 allocations. `hook pre-tool-use` 7.5 ms warm against 26.5 ms before (measured 2026-09-17). | ✅ **Implemented** (no stage) |
 | Claude Mods Adapter | Seat the write barrier in a `tool.check` function hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)) talking to a long-lived loomux over `$.mcp.call` — removes the spawn, adds an `ask` verdict and a rendered reason. Claude-Code-only; the exec hook stays the portable path. | 💡 **Optional** (no stage) |
 | **2. Skills & Best Practices** | | |
 | Curated Language Suites | Embedded best-practice rules for Go (zero-alloc, err-handling, no-init), Python, TypeScript, and Rust. | 📋 **Specified** (Stage W4) |
@@ -211,7 +211,7 @@ loomux dev import-cases --map <f>   # translate a directory of recorded cases in
 
 | Component / Idea | Origin / Inspiration | Decision in Loomux | Rationale |
 |---|---|---|---|
-| **Single Go Binary** | Architecture | ✅ **Core Mandate** | Zero Python, zero Node.js. 32ms cold start, single executable deployment, 100% test coverage. |
+| **Single Go Binary** | Architecture | ✅ **Core Mandate** | Zero Python, zero Node.js. 7.5 ms warm hook, single executable deployment, 100% test coverage. |
 | **AST Code Graph & PageRank** | `trailhq/Graft` | ✅ **Adopted Natively** | $0 deterministic code graph. Personalized PageRank concentrates mass on structural hubs instead of naive keyword dumps. |
 | **Blast Radius & Crux Inlining** | `trailhq/Graft` | ✅ **Adopted Natively** | Impact calculation on edit (target <5ms, unmeasured); inlines 5–10 critical logic lines instead of full file reads. |
 | **Symbol-Coupled Grep** | `trailhq/Graft` | ✅ **Adopted Natively** | Regex hits grouped by enclosing symbol and ranked by incoming call edges (`inDegree`). |
@@ -225,7 +225,7 @@ loomux dev import-cases --map <f>   # translate a directory of recorded cases in
 ## Architecture Principles
 
 1. **Deterministic by Default**: Code graph construction, blast radius traversal, and write barriers never invoke external LLM APIs by default. They run locally, deterministically, and cost $0.
-2. **Start-Time Discipline**: `loomux` measures its cold-start baseline (~32ms) continuously. No package-level variable or `init()` function may parse embedded data or perform network I/O.
+2. **Start-Time Discipline**: `loomux` measures its start floor (5.5 ms warm, 2026-09-17) continuously. No package-level variable or `init()` function may parse embedded data or perform network I/O.
 3. **Strict Isolation**: Hook paths execute in-process and never depend on a running `serve` daemon.
 4. **Agent-Safe Configuration**: `.loomux/config.toml` declares trust barriers and policies; it is human-maintained and write-protected from agent edits. Runtime state lives in `.loomux/state/` (git-ignored).
 

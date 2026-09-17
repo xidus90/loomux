@@ -505,3 +505,53 @@ cumulative, all syscalls 5.13 s against 4.99 s, TOML decoding 1.70 s against 1.7
 `ReadRegistry` 0.73 s against 0.67 s. The stat-before-read order moves time from
 failed opens of the missing names (`os.Open` 2.50 s → 1.07 s) to stats (`os.Stat`
 1.20 s → 2.55 s) and leaves the sum unchanged. No code was changed.
+
+## 2026-09-17 14:16 — The Start Path Without the Local Time Zone
+
+Repository `loomux`, worktree `.claude/worktrees/recursing-bartik-b2d7a1`, branch
+`perf-lazy-local-zone` on `6cafdd8`. The change: `go.mod` replaces
+`github.com/BurntSushi/toml` v1.6.0 with a pruned copy under `third_party/toml`
+whose `internal/tz.go` builds the three local zones on first use instead of in a
+package variable.
+
+**Goal.** Take the 18.7 ms the entry of 2026-09-15 12:00 attributed to resolving
+the local time zone off the hook path, and check that nothing else on the path
+resolves it at run time.
+
+**Method.** `loomux dev bench-hooks testdata/bench/lazy-local-zone.json -n 20`, one
+pass, one cold run per case and 20 warm. `before.exe` is built from `master` at
+`6cafdd8`, `after.exe` from the branch, both with Go 1.27, copied to
+`%TEMP%\loomux-zone-bench`. The hook runs in the main checkout with its pilot
+`.loomux/config.toml` and the real registry, payload
+`testdata/bench/edit-readme-main.json`. The floors are an empty `main` and a
+`main` whose only statement is `time.Now().Zone()`. Neither `.loomux/config.toml`
+nor `registry.toml` holds a date or time value, so no parse on this path asks for
+the lazy zones.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: loomux hook pre-tool-use (Edit on README.md) | 51.9 ms | 26.5 ms | 25.5 ms | 32.5 ms | [0] |
+| after: loomux hook pre-tool-use (Edit on README.md) | 9.5 ms | 7.5 ms | 7.0 ms | 8.0 ms | [0] |
+| before: loomux version (start floor) | 25.5 ms | 24.1 ms | 23.1 ms | 25.0 ms | [0] |
+| after: loomux version (start floor) | 7.0 ms | 5.5 ms | 5.5 ms | 6.0 ms | [0] |
+| empty Go main (spawn floor) | 48.0 ms | 4.5 ms | 4.5 ms | 5.7 ms | [0] |
+| Go main resolving only the local zone | 75.6 ms | 23.9 ms | 22.4 ms | 32.1 ms | [0] |
+
+### Reading
+
+1. **The hook, end to end.** After against before is 7.5 ms against 26.5 ms warm
+   (19.0 ms less), with disjoint warm ranges (7.0–8.0 against 25.5–32.5). Cold it
+   is 9.5 ms against 51.9 ms.
+2. **The start floor moved by the same amount.** `version` is 5.5 ms against
+   24.1 ms warm (18.6 ms less), 1.0 ms above the empty `main`. The zone-only
+   `main` costs 19.4 ms above the empty one in this pass, against 18.7 ms on
+   2026-09-15; the saving is that cost and no more.
+3. **Nothing on the path resolves the zone later.** The hook is 2.0 ms above its
+   floor after the change, where before it was 2.4 ms; a run-time resolution
+   would show up as the 19 ms again.
+4. **The init trace, allocations rather than clock.**
+   `GODEBUG=inittrace=1 loomux version`: `github.com/BurntSushi/toml/internal`
+   drops from 20 ms clock, 1,673 allocs to 0 ms, 2 allocs. The test
+   `TestStartDoesNoWorkInPackageInit` in `cmd/loomux` now builds the binary and
+   fails if any package init makes more than 500 allocations, so a dependency
+   that brings the zone back is caught by the gate, not by the next measurement.

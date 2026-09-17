@@ -9,3 +9,5 @@ require (
 )
 
 require golang.org/x/text v0.38.0
+
+replace github.com/BurntSushi/toml => ./third_party/toml
