@@ -65,3 +65,7 @@ reason = "Whether commits reach the remote is a human's decision."
 # Worktree-Spiegel brauchst.
 # [worktree]
 # mirror = [".venv", "node_modules"]
+
+[[policy.paths.rules]]
+match  = ["testdata/cases/1b-1-source/**"]
+reason = "Recordings of the old tools are evidence; re-record them, never edit them."
