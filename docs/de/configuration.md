@@ -108,12 +108,12 @@ max_first_line = 72   # Maximale Länge der ersten Titelzeile
 
 ---
 
-### `[worktree]` (Subagent-Isolierungsspiegel)
-Konfiguriert Verzeichnisse, die automatisch per NTFS-Junction (Windows) oder Symlink (POSIX) in isolierte Subagent-Worktrees gespiegelt werden.
+### `[worktree]` (Worktree-Spiegel)
+Nennt git-ignorierte Verzeichnisse des Haupt-Checkouts, die `loomux worktree link` in einem verknüpften Git-Worktree über eine Windows-Junction bereitstellt. Gelesen wird immer die `.loomux/config.toml` des Haupt-Checkouts. Junctions gibt es nur unter Windows; Symlinks auf anderen Systemen gibt es nicht. Der Mechanismus steht unter [Hooks](hooks.md#9-worktree-spiegelung).
 
 ```toml
 [worktree]
-mirrors = [
+mirror = [
   "node_modules",
   ".cache",
   "vendor",
@@ -123,7 +123,7 @@ mirrors = [
 
 | Feld | Typ | Beschreibung |
 |---|---|---|
-| `mirrors` | Array von Strings | Pfade aus dem Haupt-Checkout, die gespiegelt werden, um teure Neu-Downloads zu vermeiden. |
+| `mirror` | Array von Strings | Pfade relativ zur Projektwurzel, gespiegelt, damit ein Worktree sie nicht neu bauen oder herunterladen muss. Ein Eintrag, der leer oder absolut ist oder das Projekt mit `..` verlässt, macht die Datei kaputt (Exit 1). Keine Tabelle, kein Schlüssel oder eine leere Liste heißt: nichts zu spiegeln. |
 
 ---
 
@@ -227,7 +227,7 @@ max_first_line = 72
 
 # --- Worktree-Isolierungsspiegel ---------------------------------------------
 [worktree]
-mirrors = [
+mirror = [
   "node_modules",
   ".cache",
   "bin"

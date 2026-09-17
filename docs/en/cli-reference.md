@@ -69,23 +69,21 @@ Evaluates the project policy and global write barrier before an agent executes a
   - `2`: Refused (policy violation or write outside registered workspace).
 
 ### `loomux hook post-tool-use`
-Fires immediately after an agent completes a file edit or shell command.
+Fires after an agent has edited a file.
 
-- **Standard Input**: Tool name and input payload.
-- **Behavior**:
-  - Computes dirty file hash.
-  - Calculates the immediate blast radius of modified symbols.
-  - Emits inline warnings if critical callers were touched.
-- **Exit Codes**: Always `0` (never blocks completion).
+- **Standard Input**: Tool name and input payload; the edited path comes from `file_path`, else `notebook_path`.
+- **Behavior**: Runs the lanes of the edited file's stack in parallel; see [Hooks](hooks.md#5-the-post-edit-lanes-by-stack).
+- **Exit Codes**: `0` (all lanes passed, or nothing to run), `1` (malformed call, such as a missing `--host`), `2` (a lane failed; its output on `stderr`).
 
 ### `loomux hook session-start`
-Announces session initialization and synchronizes the harness environment.
+Records the commit the session starts on.
 
-- **Flags**: `--host <h>` (required), `--root <r>`.
+- **Flags**: `--host <h>` (required; only `claude` has an adapter), `--root <r>`.
 - **Behavior**:
-  - Validates repository cleanliness and working tree freshness.
-  - Sets up isolated worktree junction mirrors if in a subagent session.
-- **Exit Codes**: `0` (Success), `1` (Missing host or invalid flag).
+  - Writes `HEAD` as `base` into `.loomux/state/hooks/<session_id>.json`.
+  - Warns in `hookSpecificOutput.additionalContext` when the binary inside the project is older than its Go sources.
+  - Makes no worktree junctions; that is `loomux worktree link`. See [Hooks](hooks.md#8-session-hooks-what-runs-today-what-comes-with-stage-2).
+- **Exit Codes**: `0` (Success), `1` (missing or unknown host, no adapter for the host, unreadable payload, failed write).
 
 ---
 
@@ -109,18 +107,18 @@ loomux status
 
 ## 5. Worktree Mirroring (`loomux worktree`)
 
-Manages fast subagent git worktrees with junction-mirrored dependencies.
+Puts the directories named in `[worktree] mirror` into linked git worktrees as Windows junctions, and takes them out again. Junctions exist only on Windows. The full decision path is in [Hooks](hooks.md#9-worktree-mirroring).
 
 ### `loomux worktree link [--root <path>]`
-Mirrors configured directories (`node_modules`, `.cache`) from the main checkout into the active worktree via NTFS junctions (Windows) or symlinks (POSIX).
+In a linked worktree, makes a junction into the main checkout for every configured path that is missing there; then, wherever it runs, sweeps our junctions out of directories under `.worktrees/` and `.claude/worktrees/` that git no longer holds.
 
 ### `loomux worktree unlink [--root <path>]`
-Safely removes junction mirrors when a subagent session completes without touching real assets in the main repository.
+Reads `session_id` from the payload on `stdin`, removes this session's file under `.loomux/state/hooks/`, and removes the junctions only when no other session file younger than 24 hours remains.
 
 ### `loomux worktree remove <worktree-path>`
-Atomically sweeps and removes an isolated worktree directory.
+Refuses the main checkout and any directory git holds no worktree at, removes the junctions, runs `git worktree remove --force`, checks that the directory is gone, and prints `removed <path>`.
 
-- **Exit Codes**: `0` (Clean), `1` (Target cannot be inspected or git refused).
+- **Exit Codes**: `0` (in order, or nothing to do), `1` (a fault, named on `stderr`), `2` (no subcommand, or an unknown one).
 
 ---
 

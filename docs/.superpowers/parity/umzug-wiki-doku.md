@@ -15,7 +15,10 @@ Umgesetzt am 2026-09-17 auf dem Zweig `umzug-wiki`, gezählt mit `git ls-files`:
 `log.md`, `audit.md` und `_identities.tsv` (nur Kopfzeile), die letzten acht neu
 angelegt; `docs/.superpowers/plans-ub` 11 (10 Pläne und `HASHES.txt`),
 `specs-ub` 8, `specs-ul` 10, `bench-ub` 1. Die Nutzerdoku ist in
-`getting-started`, `configuration` und `hooks` beider Sprachen eingearbeitet.
+`getting-started`, `configuration`, `hooks` und `cli-reference` beider Sprachen
+eingearbeitet; die drei Flows `policy`, `session-hooks` und `worktree-mirror`
+(je beide Sprachen) kamen am 2026-09-17 nach: in `hooks` Abschnitt 4 und 7–9,
+in `configuration` unter `[worktree]` und in `cli-reference` Abschnitt 3 und 5.
 
 **Ziel:** `docs/wiki` im loomux-Repo — so steht es im Manifest (`[layout] wiki`)
 und in der Registry (`wiki = ".../loomux/docs/wiki"`). Das Verzeichnis besteht

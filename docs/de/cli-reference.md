@@ -69,23 +69,21 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   - `2`: Verweigert (Policy-Verletzung oder Schreibzugriff außerhalb registrierter Bereiche).
 
 ### `loomux hook post-tool-use`
-Wird unmittelbar nach Abschluss einer Dateiänderung oder eines Shell-Befehls ausgeführt.
+Wird ausgeführt, nachdem ein Agent eine Datei bearbeitet hat.
 
-- **Standard-Input (stdin)**: Name des Werkzeugs und Eingabe-Payload.
-- **Verhalten**:
-  - Berechnet Hash geänderter Dateien.
-  - Ermittelt sofort den Blast-Radius betroffener Symbole.
-  - Gibt Warnungen inline aus, falls kritische Aufrufer berührt wurden.
-- **Exit-Codes**: Immer `0` (blockiert niemals das Rundenende).
+- **Standard-Input (stdin)**: Name des Werkzeugs und Eingabe-Payload; der bearbeitete Pfad kommt aus `file_path`, sonst aus `notebook_path`.
+- **Verhalten**: Fährt die Lanes des Stacks der bearbeiteten Datei parallel; siehe [Hooks](hooks.md#5-die-post-edit-lanes-je-sprachstack).
+- **Exit-Codes**: `0` (alle Lanes grün oder nichts zu fahren), `1` (fehlerhafter Aufruf, etwa ein fehlendes `--host`), `2` (eine Lane ist gescheitert; ihre Ausgabe auf `stderr`).
 
 ### `loomux hook session-start`
-Kündigt den Beginn einer Sitzung an und synchronisiert die Host-Umgebung.
+Hält den Commit fest, auf dem die Sitzung beginnt.
 
-- **Flags**: `--host <h>` (Pflichtfeld), `--root <r>`.
+- **Flags**: `--host <h>` (Pflichtfeld; nur `claude` hat einen Adapter), `--root <r>`.
 - **Verhalten**:
-  - Prüft Arbeitsbaum-Sauberkeit und Frische.
-  - Richtet bei Subagenten-Sitzungen isolierte Worktree-Junction-Spiegel ein.
-- **Exit-Codes**: `0` (Erfolg), `1` (Fehlendes Flag oder ungültiger Host).
+  - Schreibt `HEAD` als `base` in `.loomux/state/hooks/<session_id>.json`.
+  - Warnt in `hookSpecificOutput.additionalContext`, wenn das Binary im Projekt älter ist als seine Go-Quellen.
+  - Legt keine Worktree-Junctions an; das tut `loomux worktree link`. Siehe [Hooks](hooks.md#8-sitzungshooks-was-heute-läuft-was-mit-stufe-2-kommt).
+- **Exit-Codes**: `0` (Erfolg), `1` (fehlender oder unbekannter Host, kein Adapter für den Host, unlesbare Nutzlast, gescheitertes Schreiben).
 
 ---
 
@@ -109,18 +107,18 @@ loomux status
 
 ## 5. Worktree-Spiegelung (`loomux worktree`)
 
-Verwaltet isolierte Git-Worktrees für Subagenten mit gespiegelten Abhängigkeiten.
+Stellt die in `[worktree] mirror` genannten Verzeichnisse als Windows-Junctions in verknüpfte Git-Worktrees und nimmt sie wieder heraus. Junctions gibt es nur unter Windows. Der vollständige Entscheidungsweg steht unter [Hooks](hooks.md#9-worktree-spiegelung).
 
 ### `loomux worktree link [--root <pfad>]`
-Spiegelt konfigurierte Verzeichnisse (`node_modules`, `.cache`) per NTFS-Junction (Windows) oder Symlink (POSIX) in den aktiven Worktree.
+Legt in einem verknüpften Worktree für jeden konfigurierten Pfad, der dort fehlt, eine Junction in den Haupt-Checkout an; räumt danach, wo immer es läuft, unsere Junctions aus Verzeichnissen unter `.worktrees/` und `.claude/worktrees/`, die Git nicht mehr hält.
 
 ### `loomux worktree unlink [--root <pfad>]`
-Entfernt Junction-Spiegel nach Beendigung der Subagenten-Sitzung sicher, ohne Dateien im Haupt-Repository zu berühren.
+Liest `session_id` aus der Nutzlast auf `stdin`, entfernt die Datei dieser Sitzung unter `.loomux/state/hooks/` und entfernt die Junctions nur, wenn keine andere Sitzungsdatei jünger als 24 Stunden übrig ist.
 
 ### `loomux worktree remove <worktree-pfad>`
-Löscht einen isolierten Worktree-Pfad vollständig und bereinigt alle Verknüpfungen.
+Lehnt den Haupt-Checkout und jedes Verzeichnis ab, an dem Git keinen Worktree hält, entfernt die Junctions, fährt `git worktree remove --force`, prüft, ob das Verzeichnis weg ist, und gibt `removed <pfad>` aus.
 
-- **Exit-Codes**: `0` (Sauber entfernt), `1` (Pfad kann nicht geprüft werden oder Git verweigert Löschung).
+- **Exit-Codes**: `0` (in Ordnung oder nichts zu tun), `1` (ein Fehler, auf `stderr` benannt), `2` (kein oder ein unbekannter Unterbefehl).
 
 ---
 

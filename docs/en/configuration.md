@@ -108,12 +108,12 @@ max_first_line = 72   # Maximum subject line length
 
 ---
 
-### `[worktree]` (Subagent Isolation Mirrors)
-Configures paths automatically mirrored into isolated subagent git worktrees via NTFS junctions (Windows) or symlinks (POSIX).
+### `[worktree]` (Worktree Mirrors)
+Names gitignored directories of the main checkout that `loomux worktree link` makes available in a linked git worktree through a Windows junction. Always read from the main checkout's `.loomux/config.toml`. Junctions exist only on Windows; there are no symlinks on other systems. The mechanism is described in [Hooks](hooks.md#9-worktree-mirroring).
 
 ```toml
 [worktree]
-mirrors = [
+mirror = [
   "node_modules",
   ".cache",
   "vendor",
@@ -123,7 +123,7 @@ mirrors = [
 
 | Field | Type | Description |
 |---|---|---|
-| `mirrors` | array of strings | Directory paths from the main checkout to junction-link into worktrees, avoiding expensive re-downloads. |
+| `mirror` | array of strings | Paths relative to the project root, mirrored so that a worktree does not have to rebuild or re-download them. An entry that is empty, absolute or leaves the project with `..` makes the file count as broken (exit 1). No table, no key or an empty list means nothing to mirror. |
 
 ---
 
@@ -227,7 +227,7 @@ max_first_line = 72
 
 # --- Worktree Isolation Mirrors ----------------------------------------------
 [worktree]
-mirrors = [
+mirror = [
   "node_modules",
   ".cache",
   "bin"
