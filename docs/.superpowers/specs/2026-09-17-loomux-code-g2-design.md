@@ -136,13 +136,23 @@ Das G1-Delta (§5) lässt „die vier `ask`-Integrationstests" draußen und weis
 
 ### 3.7 Wo der Port bewusst abweicht
 
-Damit die Liste an einer Stelle steht und nicht über die Abschnitte verstreut:
+Damit die Liste an einer Stelle steht und nicht über die Abschnitte verstreut. Die Trennung ist
+die, auf die es ankommt: ändert die Abweichung, **was im Graphen steht**, oder nur, **wie er
+zustande kommt**?
+
+**Drei Abweichungen ändern den Inhalt des Graphen** — hier ist zu prüfen, ob man sie will:
 
 | Abweichung | Ort | Grund |
 |---|---|---|
 | Signatur eines Typs: `type Cache struct` statt `Cache` | 5.2.1 | Grafts Code widerspricht dort Grafts Kommentar, und kein Test der Referenz steht auf dem Wert |
-| Paketselektor `pkg.Fn()` wird verdrahtet | 6.2 | Grafts eigene Spezifizierer-Regel, auf Gos Importmodell übertragen |
-| Repräsentant eines Importziels ohne Testdateien | 6.3 | ein Importeur sieht die Testdateien des Zielpakets nie |
+| Paketselektor `pkg.Fn()` wird verdrahtet — Graft verwirft ihn für Go | 6.2 | Grafts eigene Spezifizierer-Regel, auf Gos Importmodell übertragen |
+| Repräsentant eines Importziels überspringt Testdateien | 6.3 | ein Importeur sieht die Testdateien des Zielpakets nie; Grafts `sort()[0]` nimmt sie mit |
+
+**Fünf Abweichungen sind der Wechsel des Mediums** — TypeScript zu Go, Node zu einem Binär, Grafts
+Kommandozeile zu loomux'. Sie ändern kein Verhalten, das jemand beobachtet:
+
+| Abweichung | Ort | Grund |
+|---|---|---|
 | Byte-Ordnung statt `localeCompare` | 7 | eine Kollation sortiert je Plattform anders, die Golden-Files wanderten |
 | `mtime` als `int64` aus `UnixNano()` | 7 | Grafts `mtimeMs` ist ein Double; in Go wäre das stiller Genauigkeitsverlust |
 | Stempel *in* der Frischeakte, nicht in ihrem Dateinamen | 7.2 | Grafts `fingerprint.<stempel>.json` trennt zwei gleichzeitig installierte Grafts (npx gegen lokal); ein einzelnes Binär hat dieses Problem nicht |
@@ -290,8 +300,8 @@ Nachgerechnet, nicht gelesen: `test/graph-go.test.ts` prüft für Go `kind`, `ex
 Kanten, aber **keine** Signatur — der Wert ist in Graft nirgends festgenagelt. Es ist also kein
 Verhalten, auf das sich etwas stützt, sondern ein unbemerkter Randfall.
 
-**Der Port weicht hier ab**, und zwar als einzige Abweichung in dem, was der Graph *enthält*
-(die übrigen stehen in 3.7 und betreffen alle die Umsetzung, nicht den Inhalt):
+**Der Port weicht hier ab** — eine von drei Abweichungen, die den Inhalt des Graphen ändern
+(die vollständige Liste steht in 3.7):
 
 | Konstrukt | Signatur in loomux |
 |---|---|
@@ -360,6 +370,21 @@ Die vierte und fünfte Zeile sind Grafts `resolveRecvType` (`bindings.ts:200–2
 genau zwei Empfänger — die Empfängervariable der umgebenden Methode und eine lokale
 Variablenbindung.
 
+**Und „lokale Variablenbindung" ist enger, als es klingt.** `handleGo` (`bindings.ts:692–727`)
+erkennt genau vier Formen:
+
+| Form | gebundener Typ |
+|---|---|
+| `var x T` (auch `*T`) | `T` |
+| `x := T{…}` | `T` |
+| `x := &T{…}` | `T` |
+| `x := NewT(…)` | `T` — der Name nach `New`, eine Konvention, keine Auflösung |
+
+Alles andere bindet nichts: `x := pkg.New(…)` nicht (die aufgerufene Funktion ist ein Selektor und
+kein Identifikator), ein Rückgabewert einer gewöhnlichen Funktion nicht, ein Feldzugriff nicht, eine
+`range`-Variable nicht. Der Port bildet diese vier Formen ab und nicht mehr — wer sie erweitert,
+erweitert damit die Menge der Aufrufkanten und schuldet dafür eine eigene Begründung.
+
 **Baubedingungen werden nicht ausgewertet.** `lock_windows.go` und `lock_other.go` definieren
 denselben Namen für verschiedene Plattformen; für den Extraktor sind das zwei Definitionen, der
 Aufruf ist mehrdeutig, und die Kante fällt. Das ist nach der Regel richtig und trotzdem
@@ -391,18 +416,55 @@ Also: `pkg.Fn()` wird gegen **das Zielpaket allein** aufgelöst, und nur bei Ein
 Konfidenz `extracted`. Kein Namensraten, dieselbe Soundness-Regel, ein anderes Importmodell. Zeigt
 der Import nach außen (`"fmt"`), entsteht keine Aufrufkante.
 
-Die Kandidatenmenge ist dabei enger, als „alles im Zielpaket" klingt, und beides ist Go-eigen:
+Damit die Regel trägt, braucht sie drei Präzisierungen, die alle Go-eigen sind und die Graft nie
+stellen musste, weil es den Fall verwirft.
 
-- **Methoden fallen heraus.** Ein Paket kann `func New()` und `func (x *T) New()` gleichzeitig
-  haben; der Selektor `pkg.New` kann nur das erste meinen. Kandidaten sind `function`, `struct`,
-  `interface` und `type`, nie `method`.
-- **`_test.go` fällt heraus.** Ein Importeur sieht die Testdateien des Zielpakets nie — die von
-  `package X` so wenig wie die von `package X_test`. Ein Symbol, das nur dort steht, ist kein
-  Kandidat.
+**Erstens: `x` muss überhaupt ein Paketname sein.** Go-Code beschattet Paketnamen ständig:
 
-Erst danach entscheidet Eindeutigkeit. Innerhalb eines Pakets ist ein doppelter paketweiter Name
-für den Compiler ohnehin ein Fehler; was bleibt, ist der Plattformfall aus 6.1, und der wird
-verworfen.
+```go
+graph := graph.New(g)   // ab hier ist `graph` eine Variable, kein Paket
+model := model.Decode(r)
+```
+
+Ein Selektor `x.Fn` ist deshalb nur dann ein Paketselektor, wenn `x` **in keinem umgebenden Gültig­
+keitsbereich deklariert** ist — nicht als Empfänger, Parameter, Ergebnis, `var`, `const`, `:=`,
+`range`-Variable oder Typschalter-Bindung — **und** einen Importnamen der Datei trifft. Die Prüfung
+ist in dieser Reihenfolge zu machen: erst Beschattung, dann Import. Graft macht es genauso
+(`resolveRecvType` fragt `bindings.lookup` vor allem anderen) und kommt dabei nur davon, weil sein
+Bindungssammler `x := pkg.New(…)` gar nicht kennt und die Kante dann ohnehin fällt.
+
+`go/ast` hätte dafür ein Feld — `File.Unresolved` enthält genau die Identifikatoren, die die Datei
+nicht deklariert. Es ist **abgekündigt**: `go doc go/ast.File` sagt zu `Scope` und `Unresolved`
+„Deprecated: see Object", und `ast.Object` ist seit Go 1.22 abgekündigt. Ein neues Paket baut nicht
+auf einem Feld, das auf dem Weg hinaus ist. Der Extraktor führt deshalb einen eigenen
+Gültigkeitsbereich-Stapel, wie Graft es auch tut.
+
+Gemessen, damit die Entscheidung nicht nur Geschmack ist: Parsen mit Objektauflösung kostet auf
+diesem Repo warm 58–59 ms gegen 44–46 ms mit `SkipObjectResolution` (468 Dateien, 40.514
+unaufgelöste Identifikatoren, 2026-09-17, AMD Ryzen 7 9800X3D). Die ~13 ms wären zu verkraften; die
+Abkündigung ist der Grund, nicht die Zeit.
+
+**Zweitens: der gebundene Name ist die `package`-Klausel, nicht das letzte Pfadsegment.**
+`import "gopkg.in/yaml.v3"` bindet `yaml`, `import "github.com/x/go-foo"` kann `foo` binden. Ohne
+Alias ist der Selektorname aus der `package`-Zeile der Nicht-Testdateien des Zielverzeichnisses zu
+lesen, nie aus dem Pfad. Für Importe nach außen ist die Frage gegenstandslos, weil dort keine
+Aufrufkante entsteht.
+
+**Drittens: Kandidaten sind nur `function`.** Ein Aufruf `pkg.T(x)` auf einem Typ ist eine
+Konvertierung und keine Aufrufkante; Graft löst nackte Go-Aufrufe ebenfalls nur gegen Funktionen auf
+(der Konstruktor-Rückfall in `resolve.ts` gilt Python und Swift, nicht Go). Methoden fallen aus
+demselben Grund heraus wie Typen: ein Paket kann `func New()` und `func (x *T) New()` gleichzeitig
+haben, und der Selektor `pkg.New` kann nur das erste meinen. Und `_test.go` fällt heraus, weil ein
+Importeur die Testdateien des Zielpakets nie sieht — die von `package X` so wenig wie die von
+`package X_test`. Eine Typparameterliste ist vorher abzuschälen, damit `pkg.Fn[int](x)` denselben
+Weg geht wie `pkg.Fn(x)`.
+
+Erst danach entscheidet Eindeutigkeit — und die ist in Go fast eine Tautologie: ein doppelter
+paketweiter Name ist für den Compiler ein Fehler. Was bleibt, ist der Plattformfall aus 6.1, und der
+wird verworfen. Das ist die Antwort auf den Einwand, dies sei die einzige Zusage der Spec, die Graft
+nicht in Produktion bewiesen hat: Graft braucht für TypeScript eine echte Eindeutigkeitsprüfung,
+weil dort zwei Module denselben Namen exportieren können. In Go garantiert der Compiler, was Graft
+prüfen muss.
 
 Der Aliasfall gehört dazu: `import b "…/blast"` bindet `b`, und der Selektor `b.New` wird über diese
 Bindung aufgelöst, nicht über das letzte Pfadsegment. Ein Punkt-Import (`import . "…"`) und ein
@@ -633,6 +695,14 @@ Hilfsfunktion oder die Konfiguration findet, von der eine Aufgabe abhängt, ohne
 Rettungsboden gehobener Nachbar außerhalb des Präfixes erscheinen und den Filter aushebeln. G1 hat
 dafür schon die Schnittstelle: `Prepare(g, keep)`.
 
+**Und es verengt auch die Lexik, nicht nur den Lauf.** Graft filtert die Dokumentmenge **vor** dem
+Bewerten, also werden `df`, `docCount` und `avgBodyLen` über die gefilterte Menge **neu gerechnet**
+— aus den Token-Beuteln der Beiakte, die dafür alles Nötige enthält. Deshalb existiert der Test
+`test/ask.test.ts:928` („per-scope idf differs from global — a term's rank flips relative to another
+between filtered and unfiltered"): ein Wort, das im ganzen Repo häufig und in einem Unterbaum selten
+ist, muss dort diskriminieren. Wer nur den Lauf verengt und die globalen IDF-Werte behält, bekommt
+eine andere Rangfolge als die Referenz.
+
 ### 10.4 Test-De-Rankung
 
 `TEST_RANK_PENALTY = 0,35`, multiplikativ, und `isTestPath` kennt `_test.go` ausdrücklich
@@ -683,8 +753,11 @@ das MCP-SDK einzieht.
 Kein `init()` und keine Paketvariable parst eingebettete Daten — die Projektregel gilt unverändert;
 in G2 gibt es nichts Eingebettetes.
 
-Gemessen ist der Extraktorweg schon: reines Parsen aller 444 Go-Dateien dieses Repos kostet warm
-46–47 ms (kalt 125 ms), auf einem AMD Ryzen 7 9800X3D am 2026-09-17, Wegwerfskript im Scratchpad.
+Gemessen ist der Extraktorweg schon: reines Parsen aller 468 Go-Dateien dieses Repos kostet warm
+**44–46 ms** mit `SkipObjectResolution`, **58–59 ms** mit Objektauflösung, kalt 914 ms beim ersten
+Lauf. AMD Ryzen 7 9800X3D am 2026-09-17, Wegwerfskript im Scratchpad. Der Port nimmt den schnellen
+Weg und führt den Gültigkeitsbereich selbst (6.2); die Zahlen stehen hier, damit die Entscheidung
+nachrechenbar bleibt und nicht als Zeitargument missverstanden wird.
 
 ## 12. Nachweise und Tor
 
@@ -724,10 +797,13 @@ Der Extraktor braucht einen kleinen Go-Baum, der jede Entscheidung dieser Spec g
 - eine Datei über 1 MB und eine in einem gesperrten Verzeichnis, die beide nicht vorkommen dürfen;
 - eine `_test.go`-Datei, die vorkommen **muss**.
 
-Da der Baum echte Go-Dateien braucht, die nicht zum Repo gehören, liegen sie unter
-`internal/code/extract/golang/testdata/` mit einer Endung, die `go build` nicht sieht (`.go.txt`),
-und werden vom Test in ein temporäres Verzeichnis geschrieben. Anders ließe sich ein absichtlich
-mehrdeutiges Paket nicht ins Repo legen, ohne das Tor zu brechen.
+Die Vorlagen liegen unter `internal/code/extract/golang/testdata/` mit der Endung `.go.txt` und
+werden vom Test in ein temporäres Verzeichnis geschrieben. Der Grund ist **nicht** `go build` — das
+ignoriert jedes `testdata/` ohnehin, und `go vet ./...` ebenso, beides am 2026-09-17 nachgeprüft.
+Der Grund ist die erste Bahn des Tors: `gofmt -l cmd internal` steigt in `testdata/` hinein und
+meldet eine Datei dort wie jede andere (nachgeprüft mit einer absichtlich krummen Datei unter
+`internal/testlock/testdata/`). Eine Vorlage, die absichtlich unformatiert oder syntaktisch krumm
+ist, bräche also das Tor. Mit `.go.txt` sieht keine der drei Bahnen sie.
 
 ### 12.3 Portierte Vektoren aus Graft
 
@@ -772,8 +848,9 @@ Fällig in G2a, teils als Nachholung aus G1:
 1. Die offene G1-Messung: gepoolte Dangling-Masse ~9 ms gegen ~4,5 s je Dangling-Knoten auf einem
    Graphen mit 20k Knoten, 2026-09-16, AMD Ryzen 7 9800X3D — **nur warm. Die kalte Zahl fehlt und
    ist zu messen, nicht zu übernehmen.**
-2. `graph build` auf loomux selbst, kalt und warm, gegen die 46–47 ms des reinen Parsens als
-   Untergrenze.
+2. `graph build` auf loomux selbst, kalt und warm, gegen die 44–46 ms des reinen Parsens als
+   Untergrenze. Kalt heißt: frischer Prozess und keine Beiakte, und das ist beim Eintrag zu
+   vermerken.
 3. Die Sondendauer über die Dateimenge dieses Repos, gegen Grafts ~3 ms für 280 Dateien.
 4. Die Antwortzeit von `graph ask`, warm, mit und ohne Beiakte — das ist die Messung, die den
    Existenzgrund der Beiakte für loomux belegt oder widerlegt.
@@ -789,7 +866,7 @@ Das ist Grafts Weg (`graph/lsp/`, Server für Go ist `gopls`), es zieht **keine*
 und es ist best-effort: kein Server, ein Timeout oder ein Fehler lassen den Graphen unverändert.
 
 **Verworfen, mit Zahlen:** `golang.org/x/tools/go/packages` mit `NeedTypes` liefert echte Auflösung,
-kostet aber warm 680–1008 ms auf diesem Repo (gegen 46–47 ms fürs reine Parsen), drei neue Module
+kostet aber warm 680–1008 ms auf diesem Repo (gegen 44–46 ms fürs reine Parsen), drei neue Module
 (`x/tools`, `x/mod`, `x/sync`) und einen Aufruf von `go list` zur Laufzeit. Gemessen am 2026-09-17,
 AMD Ryzen 7 9800X3D, warm, Wegwerfmodul im Scratchpad.
 
