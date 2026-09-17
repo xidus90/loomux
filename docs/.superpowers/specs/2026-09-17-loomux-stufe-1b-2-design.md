@@ -25,23 +25,29 @@ langlebigen Prozess `loomux serve` mit zwei HTTP-Listenern und eine stdio-Brück
 
 ## Messungen vor dem Bau
 
-Alle am 2026-09-17 auf dieser Maschine, warm, Median aus zwölf Läufen, gegen
-`bin/loomux.exe` im Zustand von `9c10424`.
+Alle am 2026-09-17 auf dieser Maschine, warm, gegen `bin/loomux.exe` im Zustand
+von `9c10424`. **Nachkorrigiert am 2026-09-17 20:45:** die erste Fassung dieser
+Tabelle nannte 33 ms für `--version`. Das war ein Messfehler — die Schleife
+maß über zwei `date`-Unterprozesse je Durchlauf und damit überwiegend sich
+selbst. Sauber gemessen (`Measure-Command` über 20 Läufe, geteilt) sind es
+8,1 ms. Die *Aussage* der Tabelle ändert sich dadurch nicht, die Zahlen schon.
 
 | Messung | Ergebnis |
 |---|---|
-| `bin/loomux.exe` heute | 13,7 MB, `--version` 33 ms |
-| dasselbe Binary mit gelinktem `go-sdk` v1.8.0 | 16,0 MB, `--version` 32 ms |
-| SDK allein, gegen ein leeres `main` | +1 ms, +6,8 MB — davon fast alles `net/http` und `crypto/tls`, die loomux wegen `brain/search/http.go` längst linkt |
-| alloc-reichste Paketinitialisierung mit SDK (Grundlinie nicht gegengemessen) | `encoding/gob` 367, `jsonschema-go` 298, `go-sdk/mcp` 183 — alle unter der Grenze 500 aus `cmd/loomux/start_test.go:23` |
+| `bin/loomux.exe` heute | 13,7 MB, `--version` 8,1 ms |
+| dasselbe Binary mit gelinktem `go-sdk` v1.8.0 | 16,0 MB, `--version` 8,2 ms |
+| SDK allein, gegen ein leeres `main` | +6,8 MB — davon fast alles `net/http` und `crypto/tls`, die loomux wegen `brain/search/http.go` längst linkt |
+| alloc-reichste Paketinitialisierung mit SDK | `encoding/gob` 367–369 und `jsonschema-go` 298 **kommen erst mit dem SDK** (am 2026-09-17 gegen einen ungelinkten Bau gegengemessen), `go-sdk/mcp` 183 — alle unter der Grenze 500 aus `cmd/loomux/start_test.go:23` |
 | `go`-Direktive der neuen Abhängigkeiten | `go-sdk` v1.8.0 und `x/time` v0.15.0 verlangen 1.25.0; `x/sys` **v0.48.0** und `x/text` **v0.42.0** verlangen **1.26.0** (`x/sys` v0.47.0 noch 1.25.0) |
 | Job-Object-Probe dieses Prozessbaums | in keinem Job |
 
-**Lesart:** der SDK kostet den Hook-Pfad nichts Messbares. Der Sprung von 6,8 MB
-in der Spielzeugmessung war zum größten Teil Standardbibliothek, die schon drin
-liegt; am echten Binary bleiben 2,3 MB. Das Startzeit-Tor hält ohne Nacharbeit,
-`encoding/gob` ist mit 367 der knappste Fall und bleibt Beobachtungspunkt; ob
-erst der SDK es hereinzieht, ist nicht gegengemessen.
+**Lesart:** der SDK kostet den Hook-Pfad nichts Messbares — 8,1 gegen 8,2 ms
+liegt im Rauschen. Der Sprung von 6,8 MB in der Spielzeugmessung war zum größten
+Teil Standardbibliothek, die schon drin liegt; am echten Binary bleiben 2,3 MB.
+Das Startzeit-Tor hält ohne Nacharbeit, aber **enger als gedacht**: `encoding/gob`
+und `jsonschema-go` zieht erst der SDK herein, und damit stehen zwei fremde
+Pakete mit 369 und 298 unter der Grenze von 500, wo vorher keines stand. Das ist
+ein Beobachtungspunkt für jede weitere Abhängigkeit.
 
 Die Job-Object-Probe sagt über einen von einem MCP-Wirt gestarteten Prozessbaum
 **nichts** — sie ist hier nur der Nachweis, dass die Abfrage funktioniert. Die
