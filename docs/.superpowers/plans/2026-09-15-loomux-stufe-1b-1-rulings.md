@@ -122,3 +122,12 @@ folgt, gilt der Entwurf (Quelle schlägt Vertrag).
   - Task 0: Hash-Vergleich statt Literal; `test -x bin/loomux.exe` vor der Probe.
 - **R36 (F62):** Das erwartete Rot nach dem Umzug in Task 3 bleibt; das Umzugsverfahren im Plankopf lässt es für
   Task 3 zu.
+- **R37 (Abnahme `barrier-worktrees`, gemessen 2026-09-17): Task 0 Step 4 entfällt.** Ein verknüpfter Worktree
+  eines `workspace`-Bereichs ist seit `2026-09-15-loomux-schranke-worktrees` ohne eigenen Registry-Eintrag
+  beschreibbar (`internal/brain/guard/worktree.go`). Die Messzeilen von Task 0 „Schranke heute … Exit 2" und
+  „dieselbe Probe gegen eine Kopie der Registry mit dem Block unten … Exit 0" beschreiben die Schranke davor und
+  sind widerlegt: Dieselbe Probe gegen eine Registry **ohne** den Block antwortete am 2026-09-17 mit Exit 0 und
+  ohne Ausgabe, ein Write nach `#GIT/nicht-registriert/x.go` daneben weiterhin mit `deny`. Step 4 wird damit zur
+  Abnahmeprobe ohne Eintrag, und der Mensch schreibt an der Registry nichts. Die Prüfung, dass
+  `bin/loomux.exe` im Hauptcheckout da und nicht älter als `cmd/`/`internal/` ist, bleibt (R35): Ohne sie ist das
+  Exit 0 der Probe kein Beleg.
