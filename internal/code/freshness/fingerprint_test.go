@@ -251,3 +251,95 @@ func TestProbeTreatsABrokenRecordAsUnknown(t *testing.T) {
 		t.Fatalf("got %+v, want nil for a record that cannot be read", d)
 	}
 }
+
+func TestProbeTreatsARecordOfAnotherVersionAsUnknown(t *testing.T) {
+	root := build(t, map[string]string{"a.go": "package a\n"})
+	// The extractor field matches; only the schema version does not. A reader
+	// that checked the extractor alone would accept this record and diff
+	// against files whose recorded shape it never actually wrote.
+	body := `{"version":99,"extractor":"go/1","files":{"a.go":{"size":1,"mtime":1,"hash":"x"}}}`
+	if err := os.WriteFile(freshness.Path(root), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := freshness.Probe(root, "go/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d != nil {
+		t.Fatalf("got %+v, want nil: the record's version does not match what this code writes", d)
+	}
+}
+
+func TestProbeAlwaysChecksAFileWhoseRecordedSizeDisagrees(t *testing.T) {
+	root := build(t, map[string]string{"a.go": "package a\n"})
+	abs := filepath.Join(root, "a.go")
+	info, err := os.Stat(abs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := info.ModTime()
+	// Longer content, but the mtime is put back exactly where it was: only the
+	// size disagrees with the record.
+	if err := os.WriteFile(abs, []byte("package a\n\nfunc Longer() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(abs, orig, orig); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := freshness.Probe(root, "go/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d == nil || len(d.Changed) != 1 || d.Changed[0] != "a.go" {
+		t.Fatalf("got %+v, want a.go changed even though only its size moved", d)
+	}
+}
+
+func TestProbeAlwaysChecksAFileWhoseRecordedModTimeDisagrees(t *testing.T) {
+	root := build(t, map[string]string{"a.go": "package a\n"})
+	abs := filepath.Join(root, "a.go")
+	// Same length, different bytes -- the size still matches the record --
+	// with the mtime moved: only the mtime disagrees with the record.
+	if err := os.WriteFile(abs, []byte("package b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(abs, later, later); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := freshness.Probe(root, "go/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d == nil || len(d.Changed) != 1 || d.Changed[0] != "a.go" {
+		t.Fatalf("got %+v, want a.go changed even though only its mtime moved and its size stayed put", d)
+	}
+}
+
+func TestProbeAlwaysChecksAFileTheLastBuildNeverHashed(t *testing.T) {
+	root := t.TempDir()
+	abs := filepath.Join(root, "a.go")
+	if err := os.WriteFile(abs, []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stat, err := sourceset.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// hashes carries no entry for a.go, so Write records it with an empty hash
+	// -- exactly what a build does for a file it could not read.
+	if err := freshness.Write(root, "go/1", stat, map[string]string{}); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := freshness.Probe(root, "go/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d == nil || len(d.Changed) != 1 || d.Changed[0] != "a.go" {
+		t.Fatalf("got %+v, want a.go changed: an empty recorded hash is never trusted, size and mtime notwithstanding", d)
+	}
+}

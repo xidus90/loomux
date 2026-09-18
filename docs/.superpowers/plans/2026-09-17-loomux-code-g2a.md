@@ -339,6 +339,13 @@ Die Form `L12-L40` ist Schemagut und hat zwei Leser: der Extraktor markiert
 damit die Zeilen eines Symbols, die Abfrage schneidet damit den Quelltext. Sie
 gehört deshalb als Methode an den Typ und nicht als Helfer in beide Pakete.
 
+Korrigiert in Task 11: Die ursprüngliche Fassung dieses Schnipsels endete auf
+`return from, to, okA && okB`, was `0, 4, false` für `"Lx-L4"` und `12, 0,
+false` für `"L12-L"` geliefert hätte — im Widerspruch zum Test direkt darunter,
+der für beide Zeilen `0, 0, false` verlangt. Der tatsächlich implementierte
+Code zeigt beide Hälften auf 0, wenn eine von beiden nicht parst; die Ruling
+dazu steht im Ledger unter Task 1.
+
 ```go
 // Lines reads "L12-L40" back into 12 and 40, reporting whether the span had
 // that shape at all.
@@ -350,7 +357,10 @@ func (s Span) Lines() (int, int, bool) {
 	}
 	from, okA := atoi(str[1:dash])
 	to, okB := atoi(str[dash+2:])
-	return from, to, okA && okB
+	if !okA || !okB {
+		return 0, 0, false
+	}
+	return from, to, true
 }
 
 // atoi is strconv.Atoi reporting failure as a bool, because a malformed span is

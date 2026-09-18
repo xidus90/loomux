@@ -75,6 +75,21 @@ func TestModulesSkipsNonGoModFiles(t *testing.T) {
 	}
 }
 
+func TestModulesNeverReadsAFileThatIsNotNamedGoMod(t *testing.T) {
+	root := t.TempDir()
+
+	// "main.go" is not on disk at all. If Modules tried to read it rather than
+	// skipping it by name first, this would fail with an error instead of
+	// returning an empty, nil-error result.
+	mods, err := resolve.Modules(root, []string{"main.go"})
+	if err != nil {
+		t.Fatalf("err = %v, want nil: a non-go.mod path must never be read", err)
+	}
+	if len(mods) != 0 {
+		t.Fatalf("got %+v, want none", mods)
+	}
+}
+
 func TestModulesPropagatesAReadError(t *testing.T) {
 	root := t.TempDir()
 

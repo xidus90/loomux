@@ -386,3 +386,100 @@ func TestFileDropsACallOnAComputedReceiver(t *testing.T) {
 		}
 	}
 }
+
+func TestFileDoesNotDeclareAMethodsBareNameInPackageScope(t *testing.T) {
+	// A package-level var named the same as a later method must survive the
+	// method's own declaration walk: only walkCalls' package-scope pass over
+	// non-method FuncDecls may touch that name, and a method (Recv != nil) is
+	// not one of those.
+	const src = "package p\n\ntype Cache struct{}\n\nvar Get *Cache\n\nfunc (c *Cache) Get() {}\n\nfunc caller() { Get.Foo() }\n"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := edgesOf(t, r, model.RelationCalls)
+	if !hasEdge(calls, golang.RawEdge{Source: "p.go#caller", Name: "Foo", Owner: "Cache"}) {
+		t.Errorf("Get must still resolve to the package var's type Cache, not be overwritten by the method's own bare name; got %+v", calls)
+	}
+}
+
+func TestFileDeclaresAPlainFunctionsBareNameSoASelectorOnItIsDropped(t *testing.T) {
+	// Store is a plain function (Recv == nil): the package-scope pass records
+	// it with an unknown ("") type, so a later selector on that exact name is
+	// recognised as "declared, bound to nothing readable" and dropped -- not
+	// kept as an unresolved receiver that might be a package.
+	const src = "package p\n\nfunc Store() {}\n\nfunc caller() { Store.Load() }\n"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := edgesOf(t, r, model.RelationCalls)
+	for _, e := range calls {
+		if e.Name == "Load" {
+			t.Errorf("a selector on a declared package-level function name must be dropped, not kept as an unresolved receiver; got %+v", e)
+		}
+	}
+}
+
+func TestFileRebindsALocalOnlyOnADefiningAssignment(t *testing.T) {
+	// `x = Impl{}` is a plain assignment, not `:=`: it must not re-bind x's
+	// declared type, or `x.Do()` would carry the wrong Owner.
+	const src = "package p\n\ntype I struct{}\n\ntype Impl struct{}\n\nfunc (i Impl) Do() {}\n\nfunc caller() {\n\tvar x I\n\tx = Impl{}\n\tx.Do()\n}\n"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := edgesOf(t, r, model.RelationCalls)
+	if !hasEdge(calls, golang.RawEdge{Source: "p.go#caller", Name: "Do", Owner: "I"}) {
+		t.Errorf("a plain assignment must not rebind x's declared type; got %+v", calls)
+	}
+}
+
+func TestFileDoesNotReadPastTheRightHandSideOfAMultiValueDefine(t *testing.T) {
+	// `a, b := f()` has one Rhs expression for two Lhs names: reading Rhs[1]
+	// for b would run past the slice.
+	const src = "package p\n\nfunc f() (int, int) { return 1, 2 }\n\nfunc caller() {\n\ta, b := f()\n\t_ = a\n\t_ = b\n}\n"
+	if _, err := golang.File("p.go", src); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFileResolvesAPackageLevelReceiverFromTheOutermostScopeFrame(t *testing.T) {
+	// c is declared once, at package level (frame 0). caller pushes its own
+	// frame (frame 1) and declares nothing named c, so the lookup must walk
+	// all the way back down to frame 0.
+	const src = "package p\n\ntype Cache struct{}\n\nfunc (c *Cache) Get() {}\n\nvar c *Cache\n\nfunc caller() { c.Get() }\n"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := edgesOf(t, r, model.RelationCalls)
+	if !hasEdge(calls, golang.RawEdge{Source: "p.go#caller", Name: "Get", Owner: "Cache"}) {
+		t.Errorf("a name declared only at package level must still resolve from inside a function; got %+v", calls)
+	}
+}
+
+func TestFileBindsAConstructorOnlyWhenTheWholeNewPrefixMatches(t *testing.T) {
+	// FooBar does not start with "New": binding "Bar" off a length check alone,
+	// without checking the prefix itself, would be wrong.
+	const src = "package p\n\nfunc FooBar() T { return T{} }\n\ntype T struct{}\n\nfunc (T) Do() {}\n\nfunc caller() {\n\tx := FooBar()\n\tx.Do()\n}\n"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := edgesOf(t, r, model.RelationCalls)
+	for _, e := range calls {
+		if e.Name == "Do" {
+			t.Errorf("FooBar is not a New<Type> constructor; x must stay unbound and the call dropped, got %+v", e)
+		}
+	}
+}
+
+func TestFileDoesNotReadPastAShortConstructorCandidate(t *testing.T) {
+	// "Ne" is shorter than "New": reading its would-be suffix, or slicing it
+	// against "New"'s own length, must not run past the string.
+	const src = "package p\n\nfunc Ne() T { return T{} }\n\ntype T struct{}\n\nfunc caller() {\n\tx := Ne()\n\t_ = x\n}\n"
+	if _, err := golang.File("p.go", src); err != nil {
+		t.Fatal(err)
+	}
+}

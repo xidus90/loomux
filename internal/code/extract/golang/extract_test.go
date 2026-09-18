@@ -256,3 +256,50 @@ func TestFileNodeBodyTextIsTheResidualOutsideEverySymbol(t *testing.T) {
 		t.Errorf("file residual = %q, must not repeat a symbol body", f.BodyText)
 	}
 }
+
+func TestFileLeavesAMethodUnqualifiedWhenItsReceiverTypeCannotBeRead(t *testing.T) {
+	// go/parser accepts a parenthesized receiver type even though the Go spec
+	// does not allow one; receiverType only unwraps *ast.StarExpr and the two
+	// generic index forms, so it reads nothing here and returns "".
+	const src = "package p\n\ntype Cache struct{}\n\nfunc (c (Cache)) Get() {}\n"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nodeByID(r, "p.go#Get") == nil {
+		t.Errorf("a method whose receiver type this extractor cannot read must keep its bare name (owner stays empty); nodes: %+v", r.Nodes)
+	}
+}
+
+func TestFileCutsASignatureAtTheHeaderForABodylessDeclaration(t *testing.T) {
+	// A body-less function declaration is valid Go (an assembly stub, or a
+	// //go:linkname target); its header IS the whole declaration.
+	const src = "package p\n\nfunc Stub(x int)\n"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := nodeByID(r, "p.go#Stub")
+	if n == nil {
+		t.Fatal("node missing")
+	}
+	if n.Signature != "func Stub(x int)" {
+		t.Errorf("Signature = %q, want the whole declaration: a body-less function has no body to cut at", n.Signature)
+	}
+}
+
+func TestFileHandlesASymbolEndingAtTheVeryLastByte(t *testing.T) {
+	// No trailing newline: the last declaration's end offset equals len(source).
+	const src = "package p\n\nfunc Last() {}"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := nodeByID(r, "p.go#Last")
+	if n == nil {
+		t.Fatal("node missing")
+	}
+	if n.BodyText != "func Last() {}" {
+		t.Errorf("BodyText = %q, want the full declaration even though it ends at the file's last byte", n.BodyText)
+	}
+}

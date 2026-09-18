@@ -506,6 +506,107 @@ func TestGraphSortsEdgesBySourceThenRelationThenTarget(t *testing.T) {
 	}
 }
 
+func TestGraphSortsEdgesByRelationBeforeTarget(t *testing.T) {
+	files := []golang.Result{
+		result("a.go",
+			[]model.Node{fileNode("a.go")},
+			[]golang.RawEdge{
+				// Same source, different relation, and the TARGET order runs
+				// the opposite way from the RELATION order ("aaa" < "z.go#Sym"
+				// but "contains" < "imports"): only sorting by relation before
+				// target gets this right.
+				{Source: "a.go", Relation: model.RelationContains, TargetID: "z.go#Sym", File: "a.go"},
+				{Source: "a.go", Relation: model.RelationImports, Specifier: "aaa", File: "a.go"},
+			},
+		),
+	}
+
+	g := resolve.Graph(files, nil)
+	if len(g.Edges) != 2 {
+		t.Fatalf("got %d edges, want 2: %+v", len(g.Edges), g.Edges)
+	}
+	if g.Edges[0].Relation != model.RelationContains || g.Edges[1].Relation != model.RelationImports {
+		t.Fatalf("edges sorted by target ahead of relation; got %+v", g.Edges)
+	}
+}
+
+func TestGraphKeepsThePackageClauseFromTheNonTestFileWhateverOrderTheFilesArriveIn(t *testing.T) {
+	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
+	files := []golang.Result{
+		golang.Result{
+			Path: "pkg/foo.go", Package: "foo",
+			Nodes: []model.Node{fileNode("pkg/foo.go"), fn("pkg/foo.go", "Fn", true)},
+		},
+		// Indexed AFTER the real file: "package foo_test" must never become
+		// the clause an importer binds, whatever order the files arrive in.
+		golang.Result{
+			Path: "pkg/foo_test.go", Package: "foo_test",
+			Nodes: []model.Node{fileNode("pkg/foo_test.go")},
+		},
+		importing("cli/run.go",
+			[]golang.Import{{Path: "example.com/repo/pkg"}},
+			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
+			[]golang.RawEdge{{
+				Source: "cli/run.go#run", Relation: model.RelationCalls,
+				Name: "Fn", Receiver: "foo", File: "cli/run.go",
+			}},
+		),
+	}
+
+	g := resolve.Graph(files, mods)
+	if edgeBetween(g, "cli/run.go#run", "pkg/foo.go#Fn", model.RelationCalls) == nil {
+		t.Fatalf("the package clause must come from the non-test file; got %+v", g.Edges)
+	}
+}
+
+func TestGraphResolvesASameFileCallToAnEarlierFunctionInTheFile(t *testing.T) {
+	files := []golang.Result{result("a.go",
+		[]model.Node{fileNode("a.go"), fn("a.go", "A", false), fn("a.go", "B", false), fn("a.go", "C", false)},
+		[]golang.RawEdge{{Source: "a.go#C", Relation: model.RelationCalls, Name: "A", File: "a.go"}},
+	)}
+
+	g := resolve.Graph(files, nil)
+	e := edgeBetween(g, "a.go#C", "a.go#A", model.RelationCalls)
+	if e == nil {
+		t.Fatalf("edge missing; got %+v", g.Edges)
+	}
+	// A is the FIRST function indexed for this file; a per-file index that
+	// forgets everything but the last function indexed would miss it and fall
+	// back to the (also unique, here) global match, downgrading it to inferred.
+	if e.Confidence != model.ConfidenceExtracted {
+		t.Errorf("confidence = %q, want extracted: A is in the same file as the caller", e.Confidence)
+	}
+}
+
+func TestGraphResolvesASelectorToTheFirstIndexedFunctionOfThePackage(t *testing.T) {
+	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
+	files := []golang.Result{
+		importing("cli/run.go",
+			[]golang.Import{{Path: "example.com/repo/pkg"}},
+			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
+			[]golang.RawEdge{{
+				Source: "cli/run.go#run", Relation: model.RelationCalls,
+				Name: "First", Receiver: "pkg", File: "cli/run.go",
+			}},
+		),
+		golang.Result{
+			Path: "pkg/a.go", Package: "pkg",
+			Nodes: []model.Node{fileNode("pkg/a.go"), fn("pkg/a.go", "First", true)},
+		},
+		golang.Result{
+			Path: "pkg/b.go", Package: "pkg",
+			Nodes: []model.Node{fileNode("pkg/b.go"), fn("pkg/b.go", "Second", true)},
+		},
+	}
+
+	g := resolve.Graph(files, mods)
+	// First is indexed before Second: a per-directory index that forgets
+	// everything but the last function indexed would lose it.
+	if edgeBetween(g, "cli/run.go#run", "pkg/a.go#First", model.RelationCalls) == nil {
+		t.Fatalf("a package selector must still reach the first-indexed function of the package; got %+v", g.Edges)
+	}
+}
+
 func TestGraphSortsNodesAndEdges(t *testing.T) {
 	files := []golang.Result{
 		result("b.go", []model.Node{fileNode("b.go")}, nil),
