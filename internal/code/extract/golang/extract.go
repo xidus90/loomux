@@ -260,8 +260,8 @@ func funcNode(fset *token.FileSet, rel, source string, d *ast.FuncDecl, minted m
 //
 // The signature deviates from Graft's code and follows Graft's comment. Its
 // type_spec starts at the NAME and its header ends at the `struct` keyword, so
-// its signature for `type Cache struct { ... }` is the bare "Cache" -- a value
-// no test of the reference pins. See 5.2.1 of the G2 spec.
+// its signature for `type Cache struct { ... }` is "type Cache struct" -- a
+// value no test of the reference pins. See 5.2.1 of the G2 spec.
 func typeNode(fset *token.FileSet, rel, source string, ts *ast.TypeSpec, minted map[string]bool) model.Node {
 	kind := model.Kind("type")
 	sig := "type " + collapse(slice(fset, source, ts.Pos(), ts.End()))
