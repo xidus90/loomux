@@ -60,6 +60,8 @@ func DefaultSpawner(argv []string, env []string) error {
 }
 
 // StartDaemonWith starts a detached qmd daemon using the provided launcher and spawner.
+// It takes no lock and is nobody's entry point: a starter goes through EnsureDaemon or the
+// connect of a QmdMcpPort, which probe and start under the shared qmd lock.
 // A backbone the user already chose in the environment wins: the port's own backbone
 // variables are then not appended (stage 1b-1 spec; qmd_mcp.py overrides the user).
 func StartDaemonWith(env map[string]string, port int, launcher func(string) ([]string, error), spawner DaemonSpawner) error {
@@ -92,9 +94,4 @@ func backboneChosenByUser() bool {
 	_, gpu := os.LookupEnv("QMD_LLAMA_GPU")
 	_, cpu := os.LookupEnv("QMD_FORCE_CPU")
 	return gpu || cpu
-}
-
-// StartDaemon starts a detached qmd daemon on port with the given environment.
-func StartDaemon(env map[string]string, port int) error {
-	return StartDaemonWith(env, port, Launcher, DefaultSpawner)
 }

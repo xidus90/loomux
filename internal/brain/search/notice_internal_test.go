@@ -5,7 +5,7 @@ import "testing"
 func TestNewQmdMcpPortHandsItsNoticeToTheDefaultConnect(t *testing.T) {
 	gotPort := 0
 	var gotNotice func(string)
-	connectDefault = func(port int, notice func(string)) ConnectFunc {
+	connectDefault = func(qmdLockPath string, port int, notice func(string)) ConnectFunc {
 		gotPort, gotNotice = port, notice
 		return nil
 	}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/brain/search"
+	"github.com/xidus90/loomux/internal/config"
 )
 
 type mockSession struct {
@@ -542,6 +544,12 @@ func TestFakePort(t *testing.T) {
 	}
 }
 
+// lockPath is the shared qmd lock of a test, in a directory of its own.
+func lockPath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), "qmd.lock")
+}
+
 func TestDefaultConnectWith_AlreadyReachable(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]any{
@@ -558,7 +566,7 @@ func TestDefaultConnectWith_AlreadyReachable(t *testing.T) {
 	port, _ := strconv.Atoi(portStr)
 
 	var heard []string
-	connFn := search.DefaultConnectWith(port, nil, nil, time.Second, func(m string) { heard = append(heard, m) })
+	connFn := search.DefaultConnectWith(lockPath(t), port, nil, nil, time.Second, func(m string) { heard = append(heard, m) })
 	sess, err := connFn(nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -576,7 +584,7 @@ func TestDefaultConnectWith_DaemonStartFails(t *testing.T) {
 		return nil, errors.New("cannot launch qmd")
 	}
 	var heard []string
-	connFn := search.DefaultConnectWith(64999, mockLauncher, nil, time.Millisecond, func(m string) { heard = append(heard, m) })
+	connFn := search.DefaultConnectWith(lockPath(t), 64999, mockLauncher, nil, time.Millisecond, func(m string) { heard = append(heard, m) })
 	_, err := connFn(nil)
 	if err == nil || !strings.Contains(err.Error(), "cannot launch qmd") {
 		t.Errorf("expected launch error, got: %v", err)
@@ -593,7 +601,7 @@ func TestDefaultConnectWith_WaitTimeout(t *testing.T) {
 	mockSpawner := func(argv []string, env []string) error {
 		return nil
 	}
-	connFn := search.DefaultConnectWith(64998, mockLauncher, mockSpawner, 5*time.Millisecond, nil)
+	connFn := search.DefaultConnectWith(lockPath(t), 64998, mockLauncher, mockSpawner, 5*time.Millisecond, nil)
 	_, err := connFn(nil)
 	if err == nil || !strings.Contains(err.Error(), "no qmd daemon answered") {
 		t.Errorf("expected timeout error, got: %v", err)
@@ -603,7 +611,7 @@ func TestDefaultConnectWith_WaitTimeout(t *testing.T) {
 func TestDefaultConnectWith_AnnouncesAStartOncePerPort(t *testing.T) {
 	var heard []string
 	spawned := 0
-	connect := search.DefaultConnectWith(64997,
+	connect := search.DefaultConnectWith(lockPath(t), 64997,
 		func(string) ([]string, error) { return []string{"qmd"}, nil },
 		func([]string, []string) error { spawned++; return nil },
 		5*time.Millisecond,
@@ -633,6 +641,9 @@ func TestWarmingNoticeIsTheDaemonsWording(t *testing.T) {
 
 func TestNewQmdMcpPort_DefaultConnectRefusesAMissingQmdWithoutANotice(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
+	// The port takes the lock of the state directory, and this test keeps its
+	// hands off the real one.
+	t.Setenv(config.StateDirEnv, t.TempDir())
 	var heard []string
 	port := search.NewQmdMcpPort(search.WithPort(64996), search.WithColdAttempts(1),
 		search.WithNotice(func(m string) { heard = append(heard, m) }))
@@ -650,7 +661,7 @@ func TestNewQmdMcpPort_Defaults(t *testing.T) {
 	if port == nil {
 		t.Fatal("expected non-nil port")
 	}
-	_ = search.DefaultConnect(8765, nil)
+	_ = search.DefaultConnect(lockPath(t), 8765, nil)
 }
 
 // qmd's daemon numbers every snippet line of a query answer (dist/mcp/server.js:301,
