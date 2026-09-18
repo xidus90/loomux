@@ -349,7 +349,7 @@ skill does the steps below; by hand:
    account". Generate a private key, install the app only on
    `xidus90/loomux`, then:
    ```sh
-   gh secret set RELEASE_APP_ID --body <app-id>
+   gh secret set RELEASE_APP_CLIENT_ID --body <client-id>
    gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
    ```
 4. Rulesets (once the repository is public): one for `master` and one for

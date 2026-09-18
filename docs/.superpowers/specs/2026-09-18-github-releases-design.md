@@ -228,7 +228,7 @@ Umschalten nicht bricht.
 
 - App `loomux-release`, installiert nur in diesem Repo. Rechte:
   `contents: write`, `pull-requests: read`, `metadata: read`. Kein Webhook.
-- Secrets `RELEASE_APP_ID` und `RELEASE_APP_PRIVATE_KEY`. Jeder Lauf holt mit
+- Secrets `RELEASE_APP_CLIENT_ID` (die Client ID der App, nicht die App ID) und `RELEASE_APP_PRIVATE_KEY`. Jeder Lauf holt mit
   `actions/create-github-app-token` ein Token, das nach einer Stunde verfällt.
 - In den Rulesets für `master` und `v*` steht die App als einziger
   Bypass-Akteur. Der Bypass gilt für alles, was die App tut; die Grenze zieht
