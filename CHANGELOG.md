@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-09-18
+
+<https://github.com/xidus90/loomux/pull/4>
+
+### Fixed
+- The `pr-label` check refuses a pull request containing a commit whose header is not a Conventional Commit.
+
 ## [1.0.0] - 2026-09-18
 
 <https://github.com/xidus90/loomux/pull/1>
