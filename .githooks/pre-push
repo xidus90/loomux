@@ -1,0 +1,15 @@
+#!/bin/sh
+# master changes only through a merged pull request, so no push may name it
+# as its target. A local hook can be skipped with --no-verify; the ruleset on
+# GitHub is the barrier that holds regardless.
+set -eu
+refused=
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+	if [ "$remote_ref" = refs/heads/master ]; then
+		refused=1
+	fi
+done
+if [ -n "$refused" ]; then
+	echo "pre-push: no pushes to master; push a branch and open a pull request" >&2
+	exit 1
+fi

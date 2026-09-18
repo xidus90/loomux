@@ -1,0 +1,55 @@
+name: pr-label
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, edited, labeled, unlabeled, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # Built from master, not from the pull request: a fork could otherwise
+      # change the rules so that its own body always passes.
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go build -o "$RUNNER_TEMP/loomux" ./cmd/loomux
+      - name: Check label and changelog
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Bootstrap: the pull request that brings these rules cannot be
+          # judged by a master that does not have them yet. Once merged,
+          # master always has them and this arm never runs again.
+          if [ ! -d internal/release ]; then
+            echo "::notice::master has no release rules yet; nothing to check"
+            exit 0
+          fi
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          # The same bootstrap for the commit check: a master without
+          # --commits judges the body alone. -h exits 2, and the step runs
+          # with pipefail, so the help text is captured before it is searched.
+          usage=$("$RUNNER_TEMP/loomux" dev release parse-body -h 2>&1 || true)
+          case $usage in
+          *-commits*) ;;
+          *)
+            echo "::notice::master cannot check commit levels yet; checking the body only"
+            "$RUNNER_TEMP/loomux" dev release parse-body --labels "$LABELS" --body "$RUNNER_TEMP/body.md"
+            exit 0
+            ;;
+          esac
+          # --paginate yields one array per page; one JSON string per line of
+          # jq output, slurped back into a single array.
+          gh api "repos/$REPO/pulls/$PR/commits" --paginate --jq '.[].commit.message | tojson' \
+            | jq -s . > "$RUNNER_TEMP/commits.json"
+          "$RUNNER_TEMP/loomux" dev release parse-body --labels "$LABELS" \
+            --body "$RUNNER_TEMP/body.md" --commits "$RUNNER_TEMP/commits.json"
