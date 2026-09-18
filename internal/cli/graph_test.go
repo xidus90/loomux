@@ -409,7 +409,7 @@ func TestGraphBuildFailsWhenTheCacheDirectoryCannotBeCreated(t *testing.T) {
 	}
 }
 
-func TestGraphBuildFailsWhenTheFingerprintCannotBeWritten(t *testing.T) {
+func TestGraphBuildWarnsButSucceedsWhenTheFingerprintCannotBeWritten(t *testing.T) {
 	root := repo(t, sample())
 	// A directory in the fingerprint's place leaves every earlier write alone:
 	// the cache directory exists, and the ask sidecar is a different name
@@ -419,16 +419,25 @@ func TestGraphBuildFailsWhenTheFingerprintCannotBeWritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut bytes.Buffer
-	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 1 {
-		t.Fatalf("exit %d, want 1, stderr %q", code, errOut.String())
+	// Everything a question reads is on disk, so this build succeeded. Only
+	// the next probe pays, and it pays with its fast path, not with a worse
+	// answer.
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, want 0, stderr %q", code, errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "loomux graph build:") {
-		t.Errorf("stderr %q must report the build error", errOut.String())
+	if !strings.Contains(errOut.String(), "freshness record not written") {
+		t.Errorf("stderr %q must warn about the freshness record", errOut.String())
 	}
 	// The named path is what separates this arm from the two before it: their
 	// errors name "cache" or the ask sidecar, never the fingerprint.
 	if !strings.Contains(errOut.String(), "fingerprint.json") {
 		t.Errorf("stderr %q must name the fingerprint it could not write", errOut.String())
+	}
+	if !strings.Contains(out.String(), "nodes") {
+		t.Errorf("stdout %q must still carry the report of what was built", out.String())
+	}
+	if _, err := os.Stat(lexicon.Path(root)); err != nil {
+		t.Errorf("the sidecar must be on disk: %v", err)
 	}
 }
 
