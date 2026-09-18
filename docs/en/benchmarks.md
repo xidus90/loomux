@@ -1020,3 +1020,40 @@ there and the difference is noise.
 2. **The change is recorded as removed redundant work, not as a speed-up.** At
    3,000 nodes there is no time win to claim. Whether the allocation saving
    becomes a time saving at 30,000 nodes is untested and must not be assumed.
+
+## 2026-09-19 00:31 — `loomux dev bench` on loomux and the open-source corpus
+
+Repo `loomux`, branch `open-source-matrix`, `loomux dev bench --dir . --warm 3`
+after the corpus run `--corpus docs/de/open-source-matrix.md --languages 25
+--warm 3`. Each hook receives a Claude Code payload for an edit of
+`cmd/loomux/main.go`, so post-tool-use runs its real lanes. Reference machine
+(AMD Ryzen 7 9800X3D, Windows x86_64).
+
+### loomux
+
+| Component | Cold | Warm median | Warm min | Warm max | Exit codes |
+|---|---:|---:|---:|---:|---|
+| pre-tool-use | 11.1 ms | 9.0 ms | 8.5 ms | 11.0 ms | 0 |
+| post-tool-use | 557.6 ms | 509.4 ms | 507.1 ms | 530.0 ms | 0 |
+| graph build | 259.8 ms | 252.7 ms | 250.1 ms | 293.4 ms | 0 |
+
+### Corpus
+
+243 repositories across 25 languages, one skipped
+(`membraneframework/membrane_core`: a `|` in a path cannot be checked out on
+Windows). post-tool-use exited 0 in 137 repositories and 2 in 95; 11 had no
+sample file. Details per repository: [Open-Source Benchmark
+Matrix](benchmarks/matrix.md).
+
+### Reading
+
+1. **post-tool-use is the edit's cost, and it is the lanes.** About 0.5 s on
+   loomux is `go vet ./...` on a warm build cache; the hook itself stays in
+   the pre-tool-use range. An earlier pilot of this tool reported 11.5 ms for
+   post-tool-use; that run sent no payload, so no lane ran, and its numbers
+   are not kept.
+2. **Exit 2 is loomux blocking, not the benchmark failing.** Sampled by hand:
+   `go vet` finds issues in gorm, `ruff` in celery. Whether ruff applies the
+   repository's own configuration there was not checked.
+3. **The baseline speedup of 1.1x on loomux compares loomux with itself**:
+   this repository's `.claude/settings.json` calls the same binary.
