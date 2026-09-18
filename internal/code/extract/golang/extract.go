@@ -467,7 +467,8 @@ func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (Ra
 			// nothing about what it belongs to.
 			return RawEdge{}, false
 		}
-		if !sc.declared(recv.Name) {
+		typ, ok := sc.lookup(recv.Name)
+		if !ok {
 			// Declared nowhere in view. It may be a package, and resolve is the
 			// only side that can say so.
 			return RawEdge{
@@ -475,7 +476,6 @@ func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (Ra
 				Name: fn.Sel.Name, Receiver: recv.Name, File: rel,
 			}, true
 		}
-		typ := sc.lookup(recv.Name)
 		if typ == "" {
 			// Declared, but bound to nothing this package reads. Dropping beats
 			// guessing: a unique bare method name says nothing about its

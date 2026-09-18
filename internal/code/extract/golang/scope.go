@@ -43,26 +43,24 @@ func (s *scope) declare(name, typ string) {
 	s.frames[len(s.frames)-1][name] = typ
 }
 
-// declared reports whether the name is in view at all -- the shadowing
-// question.
-func (s *scope) declared(name string) bool {
-	for i := len(s.frames) - 1; i >= 0; i-- {
-		if _, ok := s.frames[i][name]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-// lookup returns the type a name is bound to, or "" when the name is unknown or
-// its form was not one of the four below.
-func (s *scope) lookup(name string) string {
+// lookup answers both the shadowing question and the type question in one
+// frame walk: ok reports whether the name is in view at all, and typ is the
+// type it is bound to ("" when the name is unknown, or when its binding form
+// was not one of the four boundType reads).
+//
+// Kept as one method and not two ("declared" plus a separate "lookup"): the
+// only production caller (callEdge) always asks the shadowing question and
+// then, in the same breath, the type question, over the identical frame
+// stack and the identical key. A second walk would find nothing a first
+// walk's ok already didn't decide, so it existed only to be tested, not to
+// be reached.
+func (s *scope) lookup(name string) (typ string, ok bool) {
 	for i := len(s.frames) - 1; i >= 0; i-- {
 		if typ, ok := s.frames[i][name]; ok {
-			return typ
+			return typ, true
 		}
 	}
-	return ""
+	return "", false
 }
 
 // boundType is the type a right-hand side binds, in exactly the four forms

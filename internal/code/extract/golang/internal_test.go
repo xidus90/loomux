@@ -160,9 +160,12 @@ func TestDeclNodesSkipsANonTypeSpecInATypeGenDecl(t *testing.T) {
 }
 
 func TestWalkCallsSkipsAFuncDeclAbsentFromOwners(t *testing.T) {
-	// File's own decl loop mints exactly one node per FuncDecl, so owners
-	// always has an entry for a real one; this arm guards a map the caller
-	// never actually hands it short.
+	// File's own node pass mints exactly one node per FuncDecl today, so
+	// owners always has an entry for a real one when walkCalls runs after it.
+	// That is an invariant BETWEEN the two functions in this package, not a
+	// grammar-level impossibility: a future dedup pass or an ordinal
+	// collision in mintID's caller could leave a FuncDecl unminted, and this
+	// guard is what keeps that case from inventing a caller for its calls.
 	src := "package p\n\nfunc a() { b() }\n\nfunc b() {}\n"
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "p.go", src, 0)
@@ -189,15 +192,6 @@ func TestCollectSkipsANonIdentLhsOfADefineAssign(t *testing.T) {
 	collect(assign, "p.go", model.NodeID("p.go"), sc, &out)
 	if len(out) != 0 {
 		t.Errorf("collect(non-ident define lhs) = %+v, want no edges", out)
-	}
-}
-
-func TestScopeLookupOnAnUnknownName(t *testing.T) {
-	// callEdge only calls lookup after declared has confirmed the name exists,
-	// so an outright miss never happens through that path.
-	sc := newScope()
-	if got := sc.lookup("nope"); got != "" {
-		t.Errorf("lookup(unknown) = %q, want empty", got)
 	}
 }
 
