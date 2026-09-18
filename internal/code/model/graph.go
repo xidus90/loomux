@@ -8,6 +8,8 @@
 // Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/types.ts.
 package model
 
+import "strings"
+
 // NodeID identifies a node. It is path-scoped -- "src/cache.ts#Cache.get" --
 // and opaque: the span is deliberately not part of it, so a definition moving
 // down a file keeps its identity, and a duplicated definition can carry an
@@ -23,6 +25,40 @@ const KindFile Kind = "file"
 
 // Span is a line range in the form "L165-L222".
 type Span string
+
+// Lines reads "L12-L40" back into 12 and 40, reporting whether the span had
+// that shape at all.
+func (s Span) Lines() (int, int, bool) {
+	str := string(s)
+	dash := strings.Index(str, "-L")
+	if !strings.HasPrefix(str, "L") || dash < 0 {
+		return 0, 0, false
+	}
+	from, okA := atoi(str[1:dash])
+	to, okB := atoi(str[dash+2:])
+	// Half a span is no span: a caller that ignores ok must not get a line
+	// number that happens to parse next to one that did not.
+	if !okA || !okB {
+		return 0, 0, false
+	}
+	return from, to, true
+}
+
+// atoi is strconv.Atoi reporting failure as a bool, because a malformed span is
+// not an error any caller would handle differently from an unusable one.
+func atoi(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	n := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n, true
+}
 
 // Relation is what an edge means.
 type Relation string
@@ -75,6 +111,18 @@ type Node struct {
 	Span      Span   `json:"span"`
 	Signature string `json:"signature"`
 	Exported  bool   `json:"exported"`
+
+	// BodyHash is sha256 (full hex) over the text of the whole declaration. It
+	// is what `graph check` diffs on: a body that changed changes the hash,
+	// and a doc comment that changed does not -- go/ast's Pos()..End() leaves
+	// the comment out, matching tree-sitter, where the comment is a sibling.
+	BodyHash string `json:"body_hash"`
+
+	// BodyText is the searchable body: whitespace collapsed, capped. It never
+	// reaches disk -- the ask sidecar holds it tokenized, and in wiring.json it
+	// would be ~65% of the bytes. The tag is the enforcement, not a
+	// convenience.
+	BodyText string `json:"-"`
 }
 
 // Edge wires two nodes.
@@ -95,6 +143,11 @@ type Meta struct {
 	NodeCount int      `json:"nodeCount"`
 	EdgeCount int      `json:"edgeCount"`
 	Languages []string `json:"languages"`
+
+	// Extractor identifies the extractor that produced this graph. `check`
+	// compares it before diffing a single node: a graph from another extractor
+	// is not stale, it is foreign, and its nodes say nothing about this code.
+	Extractor string `json:"extractor"`
 }
 
 // Graph is a whole wiring.json.

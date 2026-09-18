@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -61,13 +62,13 @@ func TestDecodeRejects(t *testing.T) {
 		want string
 	}{
 		{"broken json", `{"meta":`, "read graph:"},
-		{"wrong version", `{"meta":{"version":2},"nodes":[],"edges":[]}`, "graph version 2"},
-		{"node without id", `{"meta":{"version":1},"nodes":[{"name":"x","kind":"function","path":"a.ts"}],"edges":[]}`, "node 0 has no id"},
-		{"node without path", `{"meta":{"version":1},"nodes":[{"id":"a.ts#x","name":"x","kind":"function"}],"edges":[]}`, `node "a.ts#x" has no path`},
-		{"node without kind", `{"meta":{"version":1},"nodes":[{"id":"a.ts#x","name":"x","path":"a.ts"}],"edges":[]}`, `node "a.ts#x" has no kind`},
-		{"edge without source", `{"meta":{"version":1},"nodes":[],"edges":[{"target":"b","relation":"calls"}]}`, "edge 0 has no source"},
-		{"edge without target", `{"meta":{"version":1},"nodes":[],"edges":[{"source":"a","relation":"calls"}]}`, "edge 0 has no target"},
-		{"unknown relation", `{"meta":{"version":1},"nodes":[],"edges":[{"source":"a","target":"b","relation":"summons"}]}`, `edge 0 has relation "summons"`},
+		{"wrong version", `{"meta":{"version":3},"nodes":[],"edges":[]}`, "graph version 3"},
+		{"node without id", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[{"name":"x","kind":"function","path":"a.ts"}],"edges":[]}`, "node 0 has no id"},
+		{"node without path", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[{"id":"a.ts#x","name":"x","kind":"function"}],"edges":[]}`, `node "a.ts#x" has no path`},
+		{"node without kind", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[{"id":"a.ts#x","name":"x","path":"a.ts"}],"edges":[]}`, `node "a.ts#x" has no kind`},
+		{"edge without source", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[],"edges":[{"target":"b","relation":"calls"}]}`, "edge 0 has no source"},
+		{"edge without target", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[],"edges":[{"source":"a","relation":"calls"}]}`, "edge 0 has no target"},
+		{"unknown relation", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[],"edges":[{"source":"a","target":"b","relation":"summons"}]}`, `edge 0 has relation "summons"`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -83,8 +84,89 @@ func TestDecodeRejects(t *testing.T) {
 }
 
 func TestValidateAcceptsEmptyGraph(t *testing.T) {
-	g := &model.Graph{Meta: model.Meta{Version: 1}}
+	g := &model.Graph{Meta: model.Meta{Version: 2, Extractor: "test/1"}}
 	if err := g.Validate(); err != nil {
 		t.Errorf("an empty graph of the right version is valid, got %v", err)
+	}
+}
+
+func TestValidateRejectsDuplicateNodeIDs(t *testing.T) {
+	// pagerank.Prepare keeps the first node of an id, blast.New overwrites --
+	// two answers to the same question out of one graph.
+	g := &model.Graph{
+		Meta: model.Meta{Version: 2, Extractor: "go/1"},
+		Nodes: []model.Node{
+			{ID: "a.go#F", Kind: "function", Path: "a.go", BodyHash: "h1"},
+			{ID: "a.go#F", Kind: "function", Path: "a.go", BodyHash: "h2"},
+		},
+	}
+	err := g.Validate()
+	if err == nil || !strings.Contains(err.Error(), "a.go#F") {
+		t.Fatalf("got %v, want an error naming the duplicated id", err)
+	}
+}
+
+func TestValidateRejectsAnEdgeSourceThatIsNoNode(t *testing.T) {
+	// A loose end is foreseen on the target side of an import only. An invented
+	// source shows up in blast as a hit without a node and is then
+	// indistinguishable from a genuinely unresolved import.
+	g := &model.Graph{
+		Meta:  model.Meta{Version: 2, Extractor: "go/1"},
+		Nodes: []model.Node{{ID: "a.go", Kind: model.KindFile, Path: "a.go", BodyHash: "h"}},
+		Edges: []model.Edge{{
+			Source: "a.go#Ghost", Target: "a.go", Relation: model.RelationCalls,
+			Confidence: model.ConfidenceExtracted,
+		}},
+	}
+	err := g.Validate()
+	if err == nil || !strings.Contains(err.Error(), "a.go#Ghost") {
+		t.Fatalf("got %v, want an error naming the invented source", err)
+	}
+}
+
+func TestValidateRejectsAnEmptyBodyHash(t *testing.T) {
+	// Without it `graph check` cannot judge the node and would have to call it
+	// fresh in silence.
+	g := &model.Graph{
+		Meta:  model.Meta{Version: 2, Extractor: "go/1"},
+		Nodes: []model.Node{{ID: "a.go", Kind: model.KindFile, Path: "a.go"}},
+	}
+	err := g.Validate()
+	if err == nil || !strings.Contains(err.Error(), "body hash") {
+		t.Fatalf("got %v, want an error about the missing body hash", err)
+	}
+}
+
+func TestValidateRejectsAnEmptyExtractorStamp(t *testing.T) {
+	// `check` compares the stamp before it diffs nodes: a graph from another
+	// extractor is not stale, it is foreign.
+	g := &model.Graph{
+		Meta:  model.Meta{Version: 2},
+		Nodes: []model.Node{{ID: "a.go", Kind: model.KindFile, Path: "a.go", BodyHash: "h"}},
+	}
+	err := g.Validate()
+	if err == nil || !strings.Contains(err.Error(), "extractor") {
+		t.Fatalf("got %v, want an error about the missing extractor stamp", err)
+	}
+}
+
+func TestDecodeRefusesSchemaOne(t *testing.T) {
+	// A writer that bumped the version changed something; failing loudly beats
+	// ranking a stale shape.
+	_, err := model.Decode(strings.NewReader(`{"meta":{"version":1},"nodes":[],"edges":[]}`))
+	if err == nil || !strings.Contains(err.Error(), "version 1") {
+		t.Fatalf("got %v, want a refusal naming version 1", err)
+	}
+}
+
+func TestBodyTextNeverReachesTheWire(t *testing.T) {
+	// It is ~65% of wiring.json's bytes and lives tokenized in the ask sidecar
+	// instead. The json:"-" tag is how that decision is enforced.
+	out, err := json.Marshal(model.Node{ID: "a.go#F", BodyText: "secret body"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "secret body") {
+		t.Fatalf("body text reached the wire: %s", out)
 	}
 }

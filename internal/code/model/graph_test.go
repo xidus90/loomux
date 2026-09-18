@@ -51,3 +51,26 @@ func TestSymbolsInFile(t *testing.T) {
 		t.Errorf("got %v, want nil for a nil graph", got)
 	}
 }
+
+func TestSpanLines(t *testing.T) {
+	cases := []struct {
+		span     model.Span
+		from, to int
+		ok       bool
+	}{
+		{"L12-L40", 12, 40, true},
+		{"L1-L1", 1, 1, true},
+		{"", 0, 0, false},
+		{"12-40", 0, 0, false},
+		{"L12", 0, 0, false},
+		{"Lx-L4", 0, 0, false},
+		{"L12-L", 0, 0, false},
+	}
+	for _, c := range cases {
+		from, to, ok := c.span.Lines()
+		if from != c.from || to != c.to || ok != c.ok {
+			t.Errorf("Span(%q).Lines() = %d, %d, %v; want %d, %d, %v",
+				c.span, from, to, ok, c.from, c.to, c.ok)
+		}
+	}
+}
