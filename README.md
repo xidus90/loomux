@@ -75,7 +75,7 @@ sequenceDiagram
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
-> **State (stage G2a).** The extractor, the wiring writer, the freshness probe and `loomux graph build` / `loomux graph check` are in place and measured: `graph build` on this repository takes 190–219 ms cold and warm alike (44–46 ms of that is the parsing floor of the spec's §11; `build` reads and hashes every file every time, so there is no warm path to speed it up), `graph check` re-extracts and costs about the same. The ranking and the blast radius — `internal/code/pagerank` and `internal/code/blast` — are Go packages held to the reference by ported test vectors, but nothing yet asks them a question: the lexical seed and `loomux graph ask` / `callers` are stage G2b. Measured figures are in `docs/en/benchmarks.md`.
+> **State (stage G2a).** The extractor, the wiring writer, the freshness probe and `loomux graph build` / `loomux graph check` are in place and measured: `graph build` on this repository (254 files) takes 152–157 ms self-reported / 176–217 ms wall-clock, cold and warm alike, against a parsing floor of ~27–32 ms warm on the same 254 files (`build` reads and hashes every file every time, so there is no warm path to speed it up), `graph check` re-extracts and costs about the same. The ranking and the blast radius — `internal/code/pagerank` and `internal/code/blast` — are Go packages held to the reference by ported test vectors, but nothing yet asks them a question: the lexical seed and `loomux graph ask` / `callers` are stage G2b. Measured figures are in `docs/en/benchmarks.md`.
 
 ```mermaid
 flowchart LR
@@ -129,7 +129,7 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1
 | Graph-Aware Code Review | Review skills that leverage `graph_blast` to inspect caller impact and enforce ADR conformance. | 📋 **Specified** (Stage W4) |
 | 3-Channel Distribution | Configured via `.loomux/config.toml`, synced to host folders, served via MCP prompts, or run via Web UI. | 📋 **Specified** (Stage W4) |
 | **3. Code Graph & Loop** | | |
-| Go Native AST Extractor | Deterministic symbol & call extraction via `go/parser` and `go/ast` alone — no `go/types`, no build ($0, zero dependencies). Wired behind `loomux graph build`; measured 190–219 ms on this repository (254 files, `docs/en/benchmarks.md`). | ✅ **Implemented** (Stage G2a) |
+| Go Native AST Extractor | Deterministic symbol & call extraction via `go/parser` and `go/ast` alone — no `go/types`, no build ($0, zero dependencies). Wired behind `loomux graph build`; measured 152–157 ms self-reported / 176–217 ms wall-clock on this repository (254 files, `docs/en/benchmarks.md`). | ✅ **Implemented** (Stage G2a) |
 | Personalized PageRank | Power-iteration random-walk ranking over call and dependency graphs, undirected over five relations, max-normalized with a deterministic tie order. No command asks it a question yet. | 🧩 **Library** (Stage G1) |
 | Blast Radius Engine | Transitive closure and impact analysis (`In`/`Out`, depth limits, smallest depth wins). No command asks it a question yet. | 🧩 **Library** (Stage G1) |
 | Symbol-Coupled Grep | Regex search grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). | 📋 **Specified** (Stage G4) |

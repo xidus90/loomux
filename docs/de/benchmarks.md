@@ -586,8 +586,10 @@ und diesen Eintrag; sie ändert keinen Produktionscode.
 Dangling-Masse-Optimierung in `internal/code/pagerank`, die der Eintrag vom
 2026-09-16 offen ließ (nur die warme ~9 ms gepoolt gegen ~4,5 s je Dangling-Knoten
 existierte). Zweitens und drittens `loomux graph build` auf diesem Repository,
-kalt und warm, gegen den 44–46-ms-Parse-Boden aus §11 der Spezifikation.
-Viertens `internal/code/freshness.Probe` allein, gegen die ~3 ms der
+kalt und warm, gegen den ~27–32-ms-Parse-Boden aus §11 der Spezifikation
+(254 Dateien; siehe die Korrektur unter „Lesart", Punkt 2, unten — die Zahl,
+die ich für diesen Boden zuerst hatte, war über einen verdoppelten Baum
+gemessen). Viertens `internal/code/freshness.Probe` allein, gegen die ~3 ms der
 Referenzimplementierung für 280 Dateien — die Zahl, von der §7.1 der
 Design-Spec seine Entscheidung über die Dateimenge abhängig macht.
 
@@ -657,10 +659,22 @@ Timers gelesen und gehasht — und misst dann `Probe` allein, wiederholt, gegen
 diese Akte:
 
 ```
+$ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x -v
+BenchmarkProbe
+    probe_bench_test.go:61: probing 254 files
+    probe_bench_test.go:61: probing 254 files
+BenchmarkProbe-16    	      10	  57477360 ns/op
+PASS
+
 $ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x
 BenchmarkProbe-16    	      10	  59840350 ns/op
-    probe_bench_test.go:61: probing 254 files
 ```
+
+Zwei getrennte Läufe, als zwei getrennte Blöcke gezeigt statt als eine
+zusammengesetzte Zeile: 57,48 ms/op mit `-v` (daher auch die Log-Zeile
+„probing 254 files"), 59,84 ms/op bei einer direkten Wiederholung ohne `-v`.
+Beide werden unten verwendet; die Zahl, die Tabelle und Lesart dieses Eintrags
+tragen, ist 59,84 ms/op — der jüngere der beiden methodisch gleichen Läufe.
 
 Maschine: AMD Ryzen 7 9800X3D, Go `go1.27.0 windows/amd64`, GOMAXPROCS 16 —
 dieselbe Maschine, auf der die gepoolten/je-Knoten-Zahlen vom 2026-09-16 und
@@ -670,7 +684,7 @@ die Graft-Referenzvergleiche entstanden sind.
 |---|---:|---:|---|
 | Pagerank-Dangling-Masse, gepoolt (20k Knoten, 19.900 dangling) | 5,88 ms | — | ~9 ms gepoolt, 2026-09-16 |
 | Pagerank-Dangling-Masse, je Knoten (derselbe Graph) | 3,30 s | — | ~4,5 s je Knoten, 2026-09-16 |
-| `graph build --root .` (dieses Repository) | 219 ms (196 ms gemeldet) | 213–236 ms (190–212 ms gemeldet) | 44–46 ms Parse-Boden, §11 |
+| `graph build --root .` (dieses Repository) | 219 ms Wanduhrzeit / 196 ms selbstgemeldet | 213–236 ms Wanduhrzeit / 190–212 ms selbstgemeldet | ~27–32 ms Parse-Boden, §11 (254 Dateien, korrigiert — siehe Lesart, Punkt 2) |
 | `graph check --root .` (dieses Repository) | — | 213–223 ms | entfällt |
 | `freshness.Probe` allein (254 Dateien, dieses Repository) | — | 59,8 ms/op (10 Wdh.) | ~3 ms für 280 Dateien (Graft) |
 
@@ -687,12 +701,23 @@ die Graft-Referenzvergleiche entstanden sind.
 2. **`graph build` unterscheidet kalt nicht von warm, und der Code erklärt das,
    bevor die Zahl es tut.** Kalt (219 ms) und warm (213–236 ms) überlappen
    vollständig. `buildGraph`s eigener Kommentar sagt es: der Befehl „reads and
-   hashes every file, every time — never the probe's fast path", weil ein Stat
-   entscheiden darf, ob eine *Abfrage* neu baut, aber nie, wonach der Neubau
-   selbst schaut. Für `build` gibt es nichts aufzuwärmen. Gegen den
-   44–46-ms-Parse-Boden aus §11 sind 190–219 ms das 4,3- bis 4,8-fache —
-   Extraktion, Auflösung und das Schreiben von Graph und Frischeakte tragen den
-   Rest, und keine Messung dieses Eintrags schlüsselt das weiter auf.
+   hashes every file, every time — never the probe's stat fast path", weil ein
+   Stat entscheiden darf, ob eine *Abfrage* neu baut, aber nie, wonach der
+   Neubau selbst schaut. Für `build` gibt es nichts aufzuwärmen.
+   **Korrektur (2026-09-18, später am selben Tag).** Dieser Eintrag lautete
+   ursprünglich „gegen den 44–46-ms-Parse-Boden aus §11 sind 190–219 ms das
+   4,3- bis 4,8-fache". Diese 44–46 ms waren falsch: gemessen über einen Baum,
+   der einen eingehängten Checkout unter
+   `.claude/worktrees/recursing-bartik-b2d7a1` doppelt zählte (468 `.go`-Dateien
+   insgesamt, davon 234 dieselben Dateien noch einmal unter diesem Worktree,
+   234 ohne ihn). Neu gemessen gegen diesen Worktree, der keinen eingehängten
+   Checkout hat, liegt der Boden für diese 254 Dateien bei **~27–32 ms warm**
+   (reines Parsen) und **~38–45 ms warm** mit Objektauflösung. Gegen diesen
+   korrigierten Boden und `build`s 190–219 ms selbstgemeldet (254 Dateien auf
+   beiden Seiten) ist das Vielfache **rund das 5- bis 7-Fache**, nicht das
+   4,3- bis 4,8-fache; Extraktion, Auflösung und das Schreiben von Graph und
+   Frischeakte tragen weiterhin den Rest, und keine Messung dieses Eintrags
+   schlüsselt das weiter auf.
 3. **`graph check`, warm, kostet ungefähr, was `build` kostet, und das ist
    Design, kein Mangel.** 213–223 ms gegen `build`s 190–212 ms warm: `check`
    extrahiert den ganzen Baum neu, um Rumpf-Hashes zu vergleichen, seine Kosten
@@ -709,9 +734,10 @@ die Graft-Referenzvergleiche entstanden sind.
    Eine separate Messung von `sourceset.Stat` allein gegen die Wurzel dieses
    Repositories reproduzierte dieselben ~57–70 ms, die Kosten liegen also im
    Verzeichnis-Walk von `internal/code/sourceset`, nicht im Vergleich danach.
-   Der Baum dieses Repositories hat 1.910 Verzeichnisse darunter, 1.827 davon
-   unter `testdata/` (überwiegend aufgezeichnete Testfälle ohne `.go`-Dateien);
-   Grafts Referenzbaum mit 280 Dateien hat diese Form nicht. Das Argument aus
+   Der Baum dieses Repositories hat insgesamt 1.910 Verzeichnisse, davon
+   1.826 unterhalb eines der 3 mit `testdata` benannten Verzeichnisse
+   (überwiegend aufgezeichnete Testfälle ohne `.go`-Dateien); Grafts
+   Referenzbaum mit 280 Dateien hat diese Form nicht. Das Argument aus
    §7.1 — dass ein `git ls-files`-Subprozess je Sondenaufruf mehr kosten würde
    als die Sonde — stimmt weiterhin gegen den Boden eines *Subprozesses*
    (einige zehn Millisekunden), aber der eigene Boden der Sonde auf einem Baum
@@ -748,10 +774,18 @@ aufgenommen wird.
 $ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x
 ```
 
-| Zeitpunkt | ns/op | sondierte Dateien | Verzeichnisse insgesamt | Verzeichnisse unter `testdata/` |
+| Zeitpunkt | ns/op | sondierte Dateien | Verzeichnisse insgesamt | Verzeichnisse unterhalb einer `testdata`-Wurzel |
 |---|---:|---:|---:|---:|
-| vorher (wie in der ersten Runde committet) | 59.840.350 | 254 | 1.910 | 1.827 |
-| nachher (`testdata` zu `skipDirs` ergänzt) | 4.293.460 und 2.719.400 (zwei Läufe) | 254 | 1.910 (unverändert — die Verzeichnisse selbst sind nicht weg, nur nicht mehr durchlaufen) | 1.827 (unverändert) |
+| vorher (wie in der ersten Runde committet) | 59.840.350 | 254 | 1.910 | 1.826 |
+| nachher (`testdata` zu `skipDirs` ergänzt) | 4.293.460 und 2.719.400 (zwei Läufe) | 254 | 1.910 (unverändert — die Verzeichnisse selbst sind nicht weg, nur nicht mehr durchlaufen) | 1.826 (unverändert) |
+
+„Verzeichnisse unterhalb einer `testdata`-Wurzel" ist das Prädikat, das trifft,
+was der Sperreintrag tatsächlich einspart: 3 Verzeichnisse in diesem Baum
+heißen `testdata`, und `filepath.WalkDir` besucht jedes dieser 3 weiterhin
+einmal, um zu entscheiden, es zu überspringen — nur die 1.826 Verzeichnisse
+darunter werden nicht mehr durchlaufen. (Die Zahl „3 `testdata`-Wurzeln plus
+alles darunter" ist 1.829; das ist eine andere, ebenfalls richtige Zahl, aber
+nicht die, die der Fix aus dem Lauf entfernt.)
 
 Rohausgabe der beiden „nachher"-Läufe:
 

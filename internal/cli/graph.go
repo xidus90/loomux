@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/xidus90/loomux/internal/code/extract/golang"
@@ -256,7 +255,11 @@ func buildGraph(root string) (*model.Graph, buildStats, error) {
 }
 
 // goModPaths are the repo-relative go.mod files, found by walking for them --
-// sourceset lists Go sources and a go.mod is not one.
+// sourceset lists Go sources and a go.mod is not one. This walk shares
+// sourceset.SkipDir with sourceset.Stat rather than keeping its own,
+// narrower list: the two used to disagree about testdata, which let a
+// fixture go.mod there reach module resolution after its .go files had
+// already been excluded from the file set.
 func goModPaths(root string) []string {
 	var out []string
 	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
@@ -264,7 +267,7 @@ func goModPaths(root string) []string {
 			return nil
 		}
 		if d.IsDir() {
-			if p != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "vendor") {
+			if p != root && sourceset.SkipDir(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil

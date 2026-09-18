@@ -25,16 +25,24 @@ import (
 // hook's budget could no longer hold them.
 const maxFileBytes = 1_000_000
 
-// skipDirs are dependency output, build output, and fixture input holding no
-// source the extractor would ever read — never a symbol the graph should
-// have a node for. The comparison is against a single path segment.
+// skipDirs are dependency output, build output, and fixture input Go's own
+// toolchain does not build -- not necessarily "never a symbol the graph
+// should have a node for" in general, since go/parser reads a .go file under
+// testdata/ as readily as any other. The comparison is against a single path
+// segment.
 //
-// testdata is the last of those three kinds, not the first two: Go's own
-// toolchain already ignores it for builds, and a probe that still walked it
-// paid for the difference. On this repository testdata/ holds 1,829 of 1,910
-// directories, none of them containing a .go file sourceset would list either
-// way -- the walk cost stayed on the probe until this entry named it. See
-// docs/en/benchmarks.md, 2026-09-18.
+// testdata is the third kind, not the first two: it holds fixtures, not
+// dependency or build output, and go/build ignores it for builds by
+// convention rather than by content. On THIS repository none of its fixtures
+// are .go files (they are .go.txt or recorded case corpora), so skipping it
+// costs nothing here -- but a repository whose testdata/ held real Go it
+// wanted indexed would need this entry removed -- the same argument the
+// design spec (§7.1) makes for keeping _test.go files in the graph rather
+// than excluding them for looking like a test. A probe that still walked
+// testdata/ paid for 1,826 directories
+// below the 3 named testdata roots, out of 1,910 directories in this
+// repository's tree -- the walk cost stayed on the probe until this entry
+// named it. See docs/en/benchmarks.md, 2026-09-18.
 var skipDirs = map[string]bool{
 	"node_modules": true,
 	"dist":         true,
@@ -90,7 +98,7 @@ func Stat(root string) ([]SourceFile, error) {
 			if path == root {
 				return nil
 			}
-			if skipDir(d.Name()) {
+			if SkipDir(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -121,11 +129,19 @@ func Stat(root string) ([]SourceFile, error) {
 	return out, nil
 }
 
-// skipDir reports whether a directory of this name is walked.
+// SkipDir reports whether a directory of this name is walked.
 //
 // Every dot directory is skipped wholesale -- .git, .github, .loomux and the
 // state the graph itself writes into it. That last one matters: a graph that
 // indexed its own output would grow on every build.
-func skipDir(name string) bool {
+//
+// Exported so every directory walk this package's callers run agrees with
+// this one on what counts as source. internal/cli's goModPaths used to keep
+// its own, narrower list (dot-directories and vendor only), which let a
+// fixture go.mod under testdata/ reach module resolution while the .go files
+// beside it were already excluded from the file set -- two walks of the same
+// tree, two different answers about testdata. skipDirs itself stays
+// unexported: only this predicate is anyone else's business.
+func SkipDir(name string) bool {
 	return strings.HasPrefix(name, ".") || skipDirs[name]
 }

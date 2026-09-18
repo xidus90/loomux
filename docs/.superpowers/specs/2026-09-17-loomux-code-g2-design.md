@@ -441,9 +441,11 @@ auf einem Feld, das auf dem Weg hinaus ist. Der Extraktor führt deshalb einen e
 Gültigkeitsbereich-Stapel, wie Graft es auch tut.
 
 Gemessen, damit die Entscheidung nicht nur Geschmack ist: Parsen mit Objektauflösung kostet auf
-diesem Repo warm 58–59 ms gegen 44–46 ms mit `SkipObjectResolution` (468 Dateien, 40.514
-unaufgelöste Identifikatoren, 2026-09-17, AMD Ryzen 7 9800X3D). Die ~13 ms wären zu verkraften; die
-Abkündigung ist der Grund, nicht die Zeit.
+diesem Repo warm ~38–45 ms gegen ~27–32 ms mit `SkipObjectResolution` (254 Dateien,
+2026-09-18, AMD Ryzen 7 9800X3D; die ursprüngliche Messung vom 2026-09-17 nannte 468 Dateien und
+58–59 ms gegen 44–46 ms — sie zählte einen eingehängten Checkout unter
+`.claude/worktrees/recursing-bartik-b2d7a1` mit, siehe die Korrektur und Rohausgabe in Abschnitt 11).
+Die ~13 ms wären so oder so zu verkraften; die Abkündigung ist der Grund, nicht die Zeit.
 
 **Zweitens: der gebundene Name ist die `package`-Klausel, nicht das letzte Pfadsegment.**
 `import "gopkg.in/yaml.v3"` bindet `yaml`, `import "github.com/x/go-foo"` kann `foo` binden. Ohne
@@ -535,9 +537,10 @@ Wie Graft (`ingest/fs.ts`, `graph/source-files.ts`), mit einer Ausnahme:
   sie gemessen — mit einer dritten Antwort, die keine der beiden vorgesehenen war.** Die Sonde
   stand auf diesem Repository bei 57,5–72,5 ms statt ~3 ms, weit über der Schwelle, die Git als
   Quelle nahegelegt hätte. Aber die Ursache war nicht der Verzeichnislauf selbst und nicht das
-  Fehlen von Git: `internal/code/sourceset.Stat` lief unter `testdata/` hindurch, das auf diesem
-  Repository 1.827–1.829 von 1.910 Verzeichnissen stellt und keine `.go`-Datei enthält, die die
-  Dateimenge je aufgenommen hätte. `testdata` fehlte schlicht auf der Sperrliste — Grafts Liste
+  Fehlen von Git: `internal/code/sourceset.Stat` lief unter `testdata/` hindurch — 3 so benannte
+  Verzeichnisse in diesem Repository, unter denen 1.826 weitere von insgesamt 1.910 im ganzen Baum
+  liegen — und keine `.go`-Datei darunter ist Teil der Dateimenge, die die Sonde je aufgenommen
+  hätte. `testdata` fehlte schlicht auf der Sperrliste — Grafts Liste
   kennt es nicht, weil Graft nicht Go-spezifisch ist, und Gos eigene Werkzeugkette ignoriert
   `testdata/` für Bauten ohnehin. Mit dem Eintrag ergänzt, maß dieselbe Sonde 2,7–4,3 ms: die
   Referenzzahl von ~3 ms, getroffen, ohne dass sich die Dateimenge (254 Dateien) geändert hätte.
@@ -548,8 +551,14 @@ Wie Graft (`ingest/fs.ts`, `graph/source-files.ts`), mit einer Ausnahme:
 - Sperrliste: `node_modules`, `dist`, `build`, `_build`, `out`, `target`, `vendor`, `coverage`,
   `__pycache__`, `venv`, `testdata`; dazu **jedes** Punktverzeichnis ganz. `testdata` ist von
   anderer Art als die übrigen neun — kein Abhängigkeits- oder Bauausgabeverzeichnis, sondern
-  Fixturen als Eingabe —, gehört aber aus demselben Grund auf die Liste: keine Datei darunter ist
-  je Quelle, die der Extraktor läse.
+  Fixturen als Eingabe. Der Satz „keine Datei darunter ist je Quelle" wäre zu allgemein — `go/parser`
+  liest eine `.go`-Datei unter `testdata/` genauso wie jede andere, nur `go/build` ignoriert sie
+  konventionsgemäß, nicht inhaltlich. Auf **diesem** Repository ist keine der Fixturen unter
+  `testdata/` eine `.go`-Datei (sie sind `.go.txt` oder aufgezeichnete Testfall-Korpora), also kostet
+  der Eintrag hier nichts. Ein Repository, dessen `testdata/` echten Go-Code enthält, den es indiziert
+  haben will, müsste den Eintrag entfernen — dasselbe Argument, mit dem dieser Abschnitt weiter unten
+  begründet, warum `_test.go`-Dateien im Graphen bleiben: „wo sind die Tests" ist eine legitime Frage,
+  und für eine Fixtur in einem fremden Repository gilt dasselbe für „wo ist das Beispiel".
 - Grenze 1 MB je Datei (`MAX_FILE_BYTES`): darüber ist eine Datei in der Praxis generiert oder
   eingelagert, nicht handgeschrieben.
 - Die Ausgabemenge selbst (`.loomux/state/`) fällt heraus.
@@ -774,11 +783,22 @@ das MCP-SDK einzieht.
 Kein `init()` und keine Paketvariable parst eingebettete Daten — die Projektregel gilt unverändert;
 in G2 gibt es nichts Eingebettetes.
 
-Gemessen ist der Extraktorweg schon: reines Parsen aller 468 Go-Dateien dieses Repos kostet warm
-**44–46 ms** mit `SkipObjectResolution`, **58–59 ms** mit Objektauflösung, kalt 914 ms beim ersten
-Lauf. AMD Ryzen 7 9800X3D am 2026-09-17, Wegwerfskript im Scratchpad. Der Port nimmt den schnellen
-Weg und führt den Gültigkeitsbereich selbst (6.2); die Zahlen stehen hier, damit die Entscheidung
-nachrechenbar bleibt und nicht als Zeitargument missverstanden wird.
+Gemessen ist der Extraktorweg schon — aber die erste Messung war falsch, und die Korrektur gehört
+hierher, nicht nur ins Benchmark-Journal. Am 2026-09-17 maß ich reines Parsen mit **44–46 ms** warm
+mit `SkipObjectResolution`, **58–59 ms** mit Objektauflösung, kalt 914 ms, über „alle 468
+Go-Dateien dieses Repos". Der Zähler war falsch: der Hauptcheckout enthielt zu dem Zeitpunkt einen
+zweiten, vollständigen Checkout desselben Codes unter `.claude/worktrees/recursing-bartik-b2d7a1`,
+und der Lauf zählte ihn mit — 468 `.go`-Dateien insgesamt, davon 234 dieselben Dateien noch einmal
+unter diesem Worktree, 234 ohne ihn. Die Messung parste den Baum also zweimal.
+
+Aufgabe 10 hat das am 2026-09-18 gegen diesen Worktree neu gemessen, der keinen eingehängten
+Checkout enthält: **~27–32 ms warm** reines Parsen, **~38–45 ms warm** mit Objektauflösung, über die
+echten 254 Dateien dieses Baums (Rohausgabe in `docs/de/benchmarks.md`, Eintrag
+2026-09-18 11:10/11:35). Das ist der gültige Boden; die 44–46 ms und 58–59 ms oben sind falsch und
+stehen nur noch als Beleg dafür, woher der Fehler kam. AMD Ryzen 7 9800X3D für beide Messungen. Der
+Port nimmt weiterhin den schnellen Weg und führt den Gültigkeitsbereich selbst (6.2); der Grund war
+immer die Abkündigung von `ast.Object`, nicht die Zeitersparnis — das gilt mit dem korrigierten Boden
+unverändert.
 
 ## 12. Nachweise und Tor
 
@@ -869,9 +889,10 @@ Fällig in G2a, teils als Nachholung aus G1:
 1. Die offene G1-Messung: gepoolte Dangling-Masse ~9 ms gegen ~4,5 s je Dangling-Knoten auf einem
    Graphen mit 20k Knoten, 2026-09-16, AMD Ryzen 7 9800X3D — **nur warm. Die kalte Zahl fehlt und
    ist zu messen, nicht zu übernehmen.**
-2. `graph build` auf loomux selbst, kalt und warm, gegen die 44–46 ms des reinen Parsens als
+2. `graph build` auf loomux selbst, kalt und warm, gegen die ~27–32 ms des reinen Parsens als
    Untergrenze. Kalt heißt: frischer Prozess und keine Beiakte, und das ist beim Eintrag zu
-   vermerken.
+   vermerken. **Die zuerst genannten 44–46 ms waren falsch** — über einen Baum gemessen, der einen
+   eingehängten Checkout doppelt zählte (Abschnitt 11) —, die ~27–32 ms sind die Korrektur.
 3. Die Sondendauer über die Dateimenge dieses Repos, gegen Grafts ~3 ms für 280 Dateien. **Diese
    Messung hat Abschnitt 7.1 entschieden** — mit einer dritten Antwort: nicht „Verzeichnislauf
    taugt" und nicht „auf `git ls-files` umstellen", sondern „der Sperrliste fehlte `testdata`".
@@ -892,9 +913,16 @@ Das ist Grafts Weg (`graph/lsp/`, Server für Go ist `gopls`), es zieht **keine*
 und es ist best-effort: kein Server, ein Timeout oder ein Fehler lassen den Graphen unverändert.
 
 **Verworfen, mit Zahlen:** `golang.org/x/tools/go/packages` mit `NeedTypes` liefert echte Auflösung,
-kostet aber warm 680–1008 ms auf diesem Repo (gegen 44–46 ms fürs reine Parsen), drei neue Module
-(`x/tools`, `x/mod`, `x/sync`) und einen Aufruf von `go list` zur Laufzeit. Gemessen am 2026-09-17,
-AMD Ryzen 7 9800X3D, warm, Wegwerfmodul im Scratchpad.
+kostet aber warm 680–1008 ms gegen 44–46 ms fürs reine Parsen — ein Faktor von rund dem 15- bis
+23-Fachen —, drei neue Module (`x/tools`, `x/mod`, `x/sync`) und einen Aufruf von `go list` zur
+Laufzeit. Gemessen am 2026-09-17, AMD Ryzen 7 9800X3D, warm, Wegwerfmodul im Scratchpad. **Beide
+Seiten dieses Paars liefen auf demselben doppelt gezählten Baum**, dessen falschen Zähler Abschnitt
+11 korrigiert (468 statt 254 Dateien, weil ein eingehängter Checkout mitgezählt wurde) — das
+**Verhältnis** trägt die Entscheidung, nicht die absoluten Millisekunden, und das Verhältnis ändert
+sich durch einen doppelt so großen, aber gleich zusammengesetzten Baum nicht: dieselben Dateien
+doppelt geparst verdoppeln beide Seiten der Division ungefähr gleich. Die absoluten Zahlen hier sind
+für diesen Baum in dieser Größe nicht neu gemessen; wer sie für eine andere Entscheidung braucht,
+misst sie gegen die echten 254 Dateien neu, nicht gegen diese Zeile.
 
 **Ebenfalls verworfen:** `go/types` mit dem Quell-Importer der Standardbibliothek. Warm 7,5–14,4 s,
 und **50 von 76 Paketen scheitern**, weil der Quell-Importer keine Modulauflösung kennt und jede

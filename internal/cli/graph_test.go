@@ -477,3 +477,24 @@ func TestGoModPathsSkipsADirectoryItCannotRead(t *testing.T) {
 		}
 	}
 }
+
+func TestGoModPathsSkipsATestdataDirectory(t *testing.T) {
+	// goModPaths used to keep its own, narrower skip list (dot-directories and
+	// vendor only), so a fixture go.mod under testdata/ reached module
+	// resolution after sourceset had already excluded its .go files from the
+	// build -- two walks of the same tree disagreeing about testdata. Both now
+	// share sourceset.SkipDir.
+	files := sample()
+	files["testdata/fixture/go.mod"] = "module fixture\n"
+	root := repo(t, files)
+
+	got := goModPaths(root)
+	for _, p := range got {
+		if strings.HasPrefix(p, "testdata/") {
+			t.Errorf("goModPaths(%q) must not see into testdata/, got %v", root, got)
+		}
+	}
+	if len(got) != 1 || got[0] != "go.mod" {
+		t.Errorf("goModPaths(%q) = %v, want only the repository's own go.mod", root, got)
+	}
+}

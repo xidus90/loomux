@@ -82,11 +82,11 @@ func TestListSkipsDependencyAndBuildDirectories(t *testing.T) {
 }
 
 func TestListSkipsTestdata(t *testing.T) {
-	// testdata holds fixtures, not source; Go's own toolchain ignores it for
-	// builds. A .go file under it is never indexed, and on this repository
-	// that directory alone accounts for 1,829 of 1,910 directories under the
-	// root -- a probe that still walked it paid for every one of them
-	// (docs/en/benchmarks.md, 2026-09-18).
+	// testdata holds fixtures Go's own toolchain does not build. On this
+	// repository none of its testdata/ fixtures are .go files, and skipping
+	// the 3 testdata directories here also skips the 1,826 directories below
+	// them -- of 1,910 in the whole tree -- which is what a probe that still
+	// walked testdata/ paid for (docs/en/benchmarks.md, 2026-09-18).
 	root := tree(t, map[string]string{
 		"keep.go":                 "package a\n",
 		"testdata/cases/case.go":  "package case1\n",

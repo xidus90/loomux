@@ -566,7 +566,9 @@ this entry; it changes no production code.
 optimisation in `internal/code/pagerank` that the entry of 2026-09-16 left
 open (only the warm ~9 ms pooled against ~4.5 s per-node existed). Second and
 third, `loomux graph build` on this repository, cold and warm, against the
-44–46 ms parsing floor of the spec's §11. Fourth, `internal/code/freshness.Probe`
+~27–32 ms parsing floor of the spec's §11 (254 files; see the correction note
+under "Reading," point 2, below — the figure I first had for this floor was
+measured over a doubled tree). Fourth, `internal/code/freshness.Probe`
 alone, against the reference implementation's ~3 ms for 280 files — the number
 §7.1 of the design spec makes its file-set decision conditional on.
 
@@ -634,10 +636,22 @@ repository's real file set — 254 Go files, read and hashed once, outside the
 timer — then times `Probe` alone, repeatedly, against that record:
 
 ```
+$ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x -v
+BenchmarkProbe
+    probe_bench_test.go:61: probing 254 files
+    probe_bench_test.go:61: probing 254 files
+BenchmarkProbe-16    	      10	  57477360 ns/op
+PASS
+
 $ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x
 BenchmarkProbe-16    	      10	  59840350 ns/op
-    probe_bench_test.go:61: probing 254 files
 ```
+
+Two separate runs, shown as two separate blocks rather than one assembled
+line: 57.48 ms/op with `-v` (which is also where the "probing 254 files" log
+line comes from), 59.84 ms/op on a plain repeat immediately after. Both are
+used below; the "reported" figure this entry's table and Reading carry is
+59.84 ms/op, the more recent of the two identical-method runs.
 
 Machine: AMD Ryzen 7 9800X3D, Go `go1.27.0 windows/amd64`, GOMAXPROCS 16 — the
 same machine the 2026-09-16 pooled/per-node figures and the Graft reference
@@ -647,7 +661,7 @@ comparisons were made on.
 |---|---:|---:|---|
 | pagerank dangling mass, pooled (20k nodes, 19,900 dangling) | 5.88 ms | — | ~9 ms pooled, 2026-09-16 |
 | pagerank dangling mass, per node (same graph) | 3.30 s | — | ~4.5 s per node, 2026-09-16 |
-| `graph build --root .` (this repository) | 219 ms (196 ms reported) | 213–236 ms (190–212 ms reported) | 44–46 ms parsing floor, §11 |
+| `graph build --root .` (this repository) | 219 ms wall / 196 ms self-reported | 213–236 ms wall / 190–212 ms self-reported | ~27–32 ms parsing floor, §11 (254 files, corrected — see Reading, point 2) |
 | `graph check --root .` (this repository) | — | 213–223 ms | n/a |
 | `freshness.Probe` alone (254 files, this repository) | — | 59.8 ms/op (10 reps) | ~3 ms for 280 files (Graft) |
 
@@ -663,12 +677,21 @@ comparisons were made on.
 2. **`graph build` does not distinguish cold from warm, and the code explains
    why before the number does.** Cold (219 ms) and warm (213–236 ms) overlap
    completely. `buildGraph`'s own comment says it: the command "reads and
-   hashes every file, every time — never the probe's fast path", because a
-   stat may decide whether a *query* rebuilds, never what a rebuild looks at.
-   There is no cache for `build` itself to warm. Against the 44–46 ms parsing
-   floor of §11, 190–219 ms is 4.3–4.8x — extraction, resolution and writing
-   the graph and the freshness record account for the rest, and no measurement
-   in this entry decomposes that further.
+   hashes every file, every time — never the probe's stat fast path", because
+   a stat may decide whether a *query* rebuilds, never what a rebuild looks
+   at. There is no cache for `build` itself to warm.
+   **Correction (2026-09-18, later the same day).** This entry originally read
+   "against the 44–46 ms parsing floor of §11, 190–219 ms is 4.3–4.8x". That
+   44–46 ms figure was wrong: it was measured over a tree that counted a
+   nested checkout at `.claude/worktrees/recursing-bartik-b2d7a1` twice (468
+   `.go` files total, 234 of them the same files again under that worktree,
+   234 without it). Re-measured against this worktree, which has no nested
+   checkout, the floor for these 254 files is **~27–32 ms warm** (parsing
+   alone) and **~38–45 ms warm** with object resolution. Against that
+   corrected floor and `build`'s 190–219 ms self-reported (254 files on both
+   sides), the multiple is **roughly 5–7×**, not 4.3–4.8×; extraction,
+   resolution and writing the graph and the freshness record still account for
+   the rest, and no measurement in this entry decomposes that further.
 3. **`graph check`, warm, costs about what `build` costs, which is the design,
    not a defect.** 213–223 ms against `build`'s 190–212 ms warm: `check`
    re-extracts the whole tree to compare body hashes, so its cost is a second
@@ -684,9 +707,10 @@ comparisons were made on.
    construction. A separate timing of `sourceset.Stat` alone against this
    repository's root reproduced the same ~57–70 ms, so the cost is the
    directory walk `internal/code/sourceset` performs, not the comparison
-   after it. This repository's tree has 1,910 directories under it, 1,827 of
-   them under `testdata/` (mostly recorded case fixtures with no `.go` files);
-   Graft's 280-file reference tree is not this shape. §7.1's argument — that a
+   after it. This repository's tree has 1,910 directories in total, of which
+   1,826 sit below one of the 3 directories named `testdata` (mostly recorded
+   case fixtures with no `.go` files); Graft's 280-file reference tree is not
+   this shape. §7.1's argument — that a
    `git ls-files` subprocess per probe call would cost more than the probe —
    is still true against a *subprocess's* floor (tens of milliseconds), but
    the probe's own floor on a tree with this many non-source directories is
@@ -720,10 +744,17 @@ listed.
 $ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x
 ```
 
-| when | ns/op | files probed | directories total | directories under `testdata/` |
+| when | ns/op | files probed | directories total | directories below a `testdata` root |
 |---|---:|---:|---:|---:|
-| before (as committed in the first round) | 59,840,350 | 254 | 1,910 | 1,827 |
-| after (`testdata` added to `skipDirs`) | 4,293,460 and 2,719,400 (two runs) | 254 | 1,910 (unchanged — the entries themselves are not removed, only not walked) | 1,827 (unchanged) |
+| before (as committed in the first round) | 59,840,350 | 254 | 1,910 | 1,826 |
+| after (`testdata` added to `skipDirs`) | 4,293,460 and 2,719,400 (two runs) | 254 | 1,910 (unchanged — the entries themselves are not removed, only not walked) | 1,826 (unchanged) |
+
+"Directories below a `testdata` root" is the predicate that matches what the
+skip buys: 3 directories are named `testdata` in this tree, and
+`filepath.WalkDir` still visits each of those 3 once to decide to skip it —
+only the 1,826 directories beneath them stop being walked. (The count of
+"3 `testdata` roots plus everything below them" is 1,829; that is a different,
+also-true number, but not the one the fix removes from the walk.)
 
 Raw output of the two "after" runs:
 
