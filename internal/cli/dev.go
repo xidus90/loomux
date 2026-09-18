@@ -54,6 +54,7 @@ var devCommands = map[string]command{
 	"import-cases": devImportCases,
 	"mutants":      devMutants,
 	"record-case":  devRecordCase,
+	"release":      devRelease,
 	"swap-binary":  devSwapBinary,
 }
 
