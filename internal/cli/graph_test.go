@@ -2,10 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/testlock"
@@ -159,10 +161,166 @@ func TestGraphIsInTheCommandTable(t *testing.T) {
 	}
 }
 
-func TestGraphCheckIsAStubAwaitingItsOwnTask(t *testing.T) {
+func TestGraphCheckIsCleanRightAfterABuild(t *testing.T) {
+	root := repo(t, sample())
 	var out, errOut bytes.Buffer
-	if code := graphCommand([]string{"check"}, nil, &out, &errOut); code != 2 {
-		t.Fatalf("exit %d, want 2", code)
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+
+	if code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, want 0; stdout %q", code, out.String())
+	}
+}
+
+func TestGraphCheckIsCleanAfterATouch(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	later := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(filepath.Join(root, "lib", "lib.go"), later, later); err != nil {
+		t.Fatal(err)
+	}
+
+	// check re-extracts, so it sees content and not a timestamp.
+	if code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, want 0 after a touch", code)
+	}
+}
+
+func TestGraphCheckReportsAChangedBody(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+	body := "package lib\n\n// Run does the thing.\nfunc Run() { println(\"now it does something\") }\n"
+	if err := os.WriteFile(filepath.Join(root, "lib", "lib.go"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(out.String(), "lib/lib.go#Run") {
+		t.Errorf("report %q must name the changed node", out.String())
+	}
+}
+
+func TestGraphCheckIgnoresARewordedDocComment(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	body := "package lib\n\n// Run is documented differently now.\nfunc Run() {}\n"
+	if err := os.WriteFile(filepath.Join(root, "lib", "lib.go"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// The symbol's hash runs over Pos()..End(), which excludes the comment.
+	// The FILE node hashes the whole file, so the file is reported changed --
+	// but no symbol is, and that is the distinction worth having.
+	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1: the file node's hash covers the comment", code)
+	}
+	if strings.Contains(out.String(), "lib/lib.go#Run") {
+		t.Errorf("no symbol changed; report %q must not name Run", out.String())
+	}
+}
+
+func TestGraphCheckReportsAnAddedAndARemovedSymbol(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+	if err := os.WriteFile(filepath.Join(root, "lib", "lib.go"), []byte("package lib\n\nfunc Other() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	report := out.String()
+	if !strings.Contains(report, "lib/lib.go#Other") || !strings.Contains(report, "lib/lib.go#Run") {
+		t.Errorf("report %q must name both the added and the removed symbol", report)
+	}
+}
+
+func TestGraphCheckReportsAMissingGraphAndPointsAtBuild(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+
+	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
+	// Graft has no separate code for this, and the pillar-3 spec asks only that
+	// it be reported cleanly as not initialised. A third code would be an
+	// invention.
+	if code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(out.String(), "graph build") {
+		t.Errorf("report %q must point at the command that fixes it", out.String())
+	}
+}
+
+func TestGraphCheckRefusesAGraphFromAnotherExtractor(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	g, err := store.Read(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Meta.Extractor = "go/0"
+	if err := store.Write(root, g); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+
+	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
+	// Foreign, not stale: its nodes say nothing about this code, so comparing
+	// them one by one would be noise.
+	if code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(out.String(), "extractor") {
+		t.Errorf("report %q must say the graph is from another extractor", out.String())
+	}
+}
+
+func TestGraphCheckJSONCarriesTheThreeCategories(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+
+	if code := graphCommand([]string{"check", "--root", root, "--json"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, want 0", code)
+	}
+	var got struct {
+		OK      bool     `json:"ok"`
+		Missing bool     `json:"missing"`
+		Added   []string `json:"added"`
+		Removed []string `json:"removed"`
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("output is not JSON: %v\n%s", err, out.String())
+	}
+	if !got.OK || got.Missing {
+		t.Errorf("got %+v, want ok and not missing", got)
 	}
 }
 
@@ -241,6 +399,52 @@ func TestBuildGraphFailsWhenGoModCannotBeRead(t *testing.T) {
 	testlock.Lock(t, filepath.Join(root, "go.mod"))
 	if _, _, err := buildGraph(root); err == nil {
 		t.Fatal("want an error for an unreadable go.mod")
+	}
+}
+
+func TestGraphCheckFailsOnAnUnknownFlag(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"check", "--nope"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+}
+
+func TestGraphCheckFailsWhenProjectRootCannotBeResolved(t *testing.T) {
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	t.Cleanup(func() { getwd = saved })
+
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"check"}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+}
+
+func TestGraphCheckFailsWhenTheWrittenGraphIsUnreadable(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	testlock.Lock(t, store.WiringPath(root))
+
+	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1: an unreadable graph is broken, not absent", code)
+	}
+}
+
+func TestGraphCheckFailsWhenReExtractionFails(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	testlock.Lock(t, filepath.Join(root, "lib", "lib.go"))
+
+	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1: an unreadable source file must fail check, not report it clean", code)
 	}
 }
 

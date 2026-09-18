@@ -3,6 +3,8 @@ package cli
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -78,8 +80,133 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// graphCheck is Task 9.
-func graphCheck(args []string, stdout, stderr io.Writer) int { return 2 }
+// checkResult is what `graph check` found.
+type checkResult struct {
+	OK      bool     `json:"ok"`
+	Missing bool     `json:"missing"`
+	Foreign string   `json:"foreign,omitempty"`
+	Added   []string `json:"added"`
+	Removed []string `json:"removed"`
+	Changed []string `json:"changed"`
+}
+
+// graphCheck re-extracts the tree and diffs it against the written graph.
+//
+// It does NOT read the freshness record. That sidecar answers "should a query
+// bother rebuilding"; this command answers "does the graph still describe the
+// code", and the only honest way to answer it is to extract again. It is also
+// why a bare `touch` leaves this command at 0.
+//
+//coverage:exempt the MarshalIndent arm needs a value json cannot encode, and checkResult is built entirely of bools, strings and string slices -- no checkResult this program can construct makes it fail
+func graphCheck(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("graph check", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", "", "project root; the working directory when empty")
+	asJSON := fs.Bool("json", false, "write the drift as JSON")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	project, err := projectRoot(*root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux graph check: %v\n", err)
+		return 1
+	}
+
+	res, err := check(project)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux graph check: %v\n", err)
+		return 1
+	}
+	if *asJSON {
+		body, err := json.MarshalIndent(res, "", "  ")
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux graph check: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "%s\n", body)
+	} else {
+		fmt.Fprint(stdout, checkReport(res))
+	}
+	if res.OK {
+		return 0
+	}
+	return 1
+}
+
+// check compares a fresh extraction against the graph on disk.
+func check(root string) (checkResult, error) {
+	written, err := store.Read(root)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return checkResult{Missing: true}, nil
+		}
+		return checkResult{}, err
+	}
+	// The stamp decides before a single node is compared: a graph from another
+	// extractor is not stale, it is foreign, and diffing it node by node would
+	// report the whole repository.
+	if written.Meta.Extractor != golang.Version {
+		return checkResult{Foreign: written.Meta.Extractor}, nil
+	}
+
+	fresh, _, err := buildGraph(root)
+	if err != nil {
+		return checkResult{}, err
+	}
+
+	was := map[model.NodeID]string{}
+	for _, n := range written.Nodes {
+		was[n.ID] = n.BodyHash
+	}
+	res := checkResult{}
+	now := map[model.NodeID]bool{}
+	for _, n := range fresh.Nodes {
+		now[n.ID] = true
+		hash, known := was[n.ID]
+		switch {
+		case !known:
+			res.Added = append(res.Added, string(n.ID))
+		case hash != n.BodyHash:
+			res.Changed = append(res.Changed, string(n.ID))
+		}
+	}
+	for id := range was {
+		if !now[id] {
+			res.Removed = append(res.Removed, string(id))
+		}
+	}
+	sort.Strings(res.Added)
+	sort.Strings(res.Removed)
+	sort.Strings(res.Changed)
+	res.OK = len(res.Added)+len(res.Removed)+len(res.Changed) == 0
+	return res, nil
+}
+
+// checkReport is the human form.
+func checkReport(res checkResult) string {
+	switch {
+	case res.Missing:
+		return "loomux graph check: NO GRAPH\n\nNothing built yet. Run `loomux graph build` first.\n"
+	case res.Foreign != "":
+		return fmt.Sprintf(
+			"loomux graph check: FOREIGN GRAPH\n\nThe graph was written by extractor %q, this binary is %q.\nRun `loomux graph build`.\n",
+			res.Foreign, golang.Version)
+	case res.OK:
+		return "loomux graph check: OK\n"
+	}
+	out := "loomux graph check: DRIFT\n\n"
+	for _, group := range []struct {
+		label string
+		ids   []string
+	}{
+		{"added", res.Added}, {"removed", res.Removed}, {"changed", res.Changed},
+	} {
+		for _, id := range group.ids {
+			out += fmt.Sprintf("  %-8s %s\n", group.label, id)
+		}
+	}
+	return out + "\nRun `loomux graph build`.\n"
+}
 
 // buildStats is what a build learned on the way, for the report and for the
 // freshness record.
