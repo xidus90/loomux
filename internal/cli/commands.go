@@ -10,6 +10,8 @@ var commands = map[string]command{
 	"graph":     graphCommand,
 	"hook":      hookCommand,
 	"lint":      lintCommand,
+	"mcp":       mcpCommand,
+	"serve":     serveCommand,
 	"status":    statusCommand,
 	"wiki-gate": wikiGateCommand,
 	"worktree":  worktreeCommand,
