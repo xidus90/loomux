@@ -314,7 +314,9 @@ skill does the steps below; by hand:
    introduced it; only a fix of a bug that was already on `master` keeps its
    own commit. Rewriting a pushed branch needs
    `git push --force-with-lease`. Every message is a Conventional Commit
-   (`feat: …`, `fix: …`, `docs: …`; `!` for a breaking change).
+   (`feat: …`, `fix: …`, `docs: …`; `!` for a breaking change). The
+   `commit-msg` hook checks this locally, and the `pr-label` check refuses
+   a pull request with any commit header outside the form.
 2. Pick one label from the table above; between two levels take the higher.
    It is never lower than the commits: `!` needs major, `feat` minor, `fix`
    patch.
