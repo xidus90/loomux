@@ -3,7 +3,7 @@
 **Datum:** 2026-09-14
 **Stand:** teilweise umgesetzt (2026-09-18).
 **Fusions-Stufen:** 1a, 1b-1 und 1b-3 (Wiki- und Doku-Umzug) sind abgeschlossen;
-1b-2 (`serve`, MCP, Brücke, Upkeep) und die Stufen 2–4 sind offen.
+1b-2 (`serve`, MCP, Brücke, Upkeep) ist in Arbeit, die Stufen 2–4 sind offen.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
 Blast) am 2026-09-17 und G2a (Extraktor, Auflösung, Speicher, Frische, die
 Befehle `graph build` und `graph check`) am 2026-09-18 abgeschlossen; G2b (die
@@ -459,13 +459,46 @@ Schreibschranke freigegeben.**
 Jede Stufe endet grün und wird einzeln übergeben; jede bekommt ihren eigenen
 Plan.
 
-| Stufe | Inhalt |
-|---|---|
-| **1a** | Repo-Gerüst, Lizenz, Tore, Startzeit-Nachweis. Umzug der Go-Pakete, die 1a benutzt, mit Tests, auf 100 % gehoben; jedes übrige Paket zieht mit der Stufe um, die es zuerst braucht. `config`, `hosts`, vereinter Wächter, post-edit mit Wiki-Lane im Prozess, `session-start`, `lint`, `wiki-gate`. `dev bench-hooks`. Pilot: das loomux-Repo nutzt sich selbst |
-| **1b** | `search`, `status`, `catalog`, `read`, `neighbors` mit Parität zur Python-Referenz — neuer Go-Code, kein Umzug (Identitäten in der Suche, `status` vollständig). `serve` mit MCP und Brücke. `dev mutants`. Wiki- und Doku-Umzug |
-| **2** | `child`, vollständige Prüfkette `[verify]`, `loomux check <profil>`, Coverage-Tor, commit-msg mit `--language`/`--calibrate`/`[commit]`, Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig |
-| **3** | Brain-Pflege: `reconcile` (auch als Durchgang vor `reindex`), `apply`/`approve`/`cases`/`evidence`/`vcs`, Locking, Bereichs-Onboarding, `merge-events`, `wiki types`/`retype`/`census`/`scaffold`, Upkeep in `serve` |
-| **4** | `convert`/`fetch` über `pdftotext`/`yt-dlp`, lokales Modell (Ollama über `net/http`, deutsche Zipf-Tabelle eingebettet), `bench`. `loomux init` vollständig für alle Hosts, `loomux migrate`. Umstellung der Wirte |
+**Stand am 2026-09-18.** Zwei Dinge sind anders gekommen, als diese Tabelle
+ursprünglich annahm, und beide stehen unten in der Spalte statt in einer
+Fußnote. Erstens ist **1b in drei Teilstufen zerfallen**, weil jede ihren
+eigenen Plan und ihre eigene Abnahme brauchte. Zweitens läuft **Säule 3 (der
+Code-Graph) parallel** und nicht nach Stufe 4 — der Grund steht in §10 der
+Säule-3-Spec und in §1 des G1-Deltas.
+
+| Stufe | Stand | Inhalt |
+|---|---|---|
+| **1a** | ✅ | Repo-Gerüst, Lizenz, Tore, Startzeit-Nachweis. Umzug der Go-Pakete, die 1a benutzt, mit Tests, auf 100 % gehoben; jedes übrige Paket zieht mit der Stufe um, die es zuerst braucht. `config`, `hosts`, vereinter Wächter, post-edit mit Wiki-Lane im Prozess, `session-start`, `lint`, `wiki-gate`. `dev bench-hooks`. Pilot: das loomux-Repo nutzt sich selbst |
+| **1b** | ➗ in drei Teilstufen zerfallen, siehe darunter | `search`, `status`, `catalog`, `read`, `neighbors` mit Parität zur Python-Referenz — neuer Go-Code, kein Umzug (Identitäten in der Suche, `status` vollständig). `serve` mit MCP und Brücke. `dev mutants`. Wiki- und Doku-Umzug |
+| **2** | offen | `child`, vollständige Prüfkette `[verify]`, `loomux check <profil>`, Coverage-Tor, commit-msg mit `--language`/`--calibrate`/`[commit]`, Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig |
+| **3** | offen | Brain-Pflege: `reconcile` (auch als Durchgang vor `reindex`), `apply`/`approve`/`cases`/`evidence`/`vcs`, Locking, Bereichs-Onboarding, `merge-events`, `wiki types`/`retype`/`census`/`scaffold`, Upkeep in `serve` |
+| **4** | offen | `convert`/`fetch` über `pdftotext`/`yt-dlp`, lokales Modell (Ollama über `net/http`, deutsche Zipf-Tabelle eingebettet), `bench`. `loomux init` vollständig für alle Hosts, `loomux migrate`. Umstellung der Wirte |
+
+**Die drei Teilstufen der 1b**, jede mit eigenem Plan; die beiden fertigen auch
+mit Paritätsakte (`parity/stufe-1b-1.md` samt geparkten Mutanten, und
+`parity/umzug-wiki-doku.md` — die Akte trägt den Namen des Umzugs, nicht die
+Nummer):
+
+| Teilstufe | Stand | Inhalt |
+|---|---|---|
+| **1b-1** | ✅ 2026-09-15 | `search`, `status`, `catalog`, `read`, `neighbors` mit Parität zur Python-Referenz, Identitäten in der Suche, `status` vollständig. `dev mutants` entsteht hier |
+| **1b-2** | 🔨 in Arbeit (Zweig `sdd-1b-2`, Plan `2026-09-17-loomux-stufe-1b-2.md`; noch keine Paritätsakte) | `serve` mit MCP über Streamable HTTP, die stdio-Brücke, Upkeep |
+| **1b-3** | ✅ 2026-09-17 | Wiki- und Doku-Umzug |
+
+**Säule 3, der Code-Graph** (`2026-09-14-loomux-code-graph-design.md`). Sie
+steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
+
+| Stufe | Stand | Inhalt |
+|---|---|---|
+| **G1** | ✅ 2026-09-17 | `internal/code/{model,pagerank,blast}` — Lesemodell, Personalized PageRank, Blast-Radius, an portierten Testvektoren belegt |
+| **G2a** | ✅ 2026-09-18 | Schema 2, `sourceset`, `extract/golang`, `resolve`, `store`, `freshness`, die Befehle `graph build` und `graph check` |
+| **G2b** | 📋 geplant | Die Abfrage: `lexicon`, `ask`, die Beiakte (`2026-09-17-loomux-code-g2b.md`) |
+| **G3–G5** | offen | MCP-Gateway, die übrige `graph`-Palette samt Hook-Anbindung, Mehrsprachigkeit über `wazero` |
+
+Vorgezogen wurde absichtlich: G1 und G2a ziehen keine Abhängigkeit ein, und die
+Messung, die die alte Reihenfolge begründete (§11 der Säule-3-Spec:
+Inittrace mit dem MCP-SDK), gehört zu G3, wo `internal/serve` das SDK
+tatsächlich holt.
 
 ### Eine Stufe ist fertig, wenn
 
