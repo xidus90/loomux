@@ -67,7 +67,8 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 	}
 
 	started := time.Now()
-	g, stats, err := writeEverything(project)
+	g, stats, err := writeEverything(project,
+		func(s string) { fmt.Fprintf(stderr, "loomux graph build: %s\n", s) })
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux graph build: %v\n", err)
 		return 1
@@ -114,9 +115,9 @@ func graphAsk(args []string, stdout, stderr io.Writer) int {
 
 	if !*noRefresh {
 		// Notices go to stderr, so a piped answer stays an answer.
+		say := func(s string) { fmt.Fprintf(stderr, "loomux graph ask: %s\n", s) }
 		ask.EnsureFresh(project, golang.Version,
-			func() error { _, _, err := writeEverything(project); return err },
-			func(s string) { fmt.Fprintf(stderr, "loomux graph ask: %s\n", s) })
+			func() error { _, _, err := writeEverything(project, say); return err }, say)
 	}
 
 	g, err := store.Read(project)
@@ -162,7 +163,13 @@ func graphAsk(args []string, stdout, stderr io.Writer) int {
 // the rebuild `graph ask` triggers, which owns neither. Two copies of this
 // sequence would be two places where the sidecar can be forgotten, and a
 // forgotten sidecar is a silently worse answer.
-func writeEverything(root string) (*model.Graph, buildStats, error) {
+//
+// The two writes a question reads are errors; the record is not. Once the graph
+// and the sidecar are on disk, a record that could not be written costs the
+// next probe its fast path and nothing more -- so it is announced through
+// notice and the build stands. Turning it into a failure would let a build that
+// produced everything a question needs report that it produced nothing.
+func writeEverything(root string, notice func(string)) (*model.Graph, buildStats, error) {
 	g, stats, err := buildGraph(root)
 	if err != nil {
 		return nil, buildStats{}, err
@@ -177,7 +184,7 @@ func writeEverything(root string) (*model.Graph, buildStats, error) {
 		return nil, buildStats{}, err
 	}
 	if err := freshness.Write(root, golang.Version, stats.files, stats.hashes); err != nil {
-		return nil, buildStats{}, err
+		notice(fmt.Sprintf("freshness record not written: %v", err))
 	}
 	return g, stats, nil
 }
