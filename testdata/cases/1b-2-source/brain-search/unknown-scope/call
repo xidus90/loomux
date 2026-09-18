@@ -1,0 +1,9 @@
+{
+  "tool": "search",
+  "arguments": {
+    "query": "q",
+    "scope": "nope",
+    "profile": "full"
+  },
+  "channel": "cloud"
+}

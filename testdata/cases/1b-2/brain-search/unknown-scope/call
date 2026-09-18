@@ -1,0 +1,9 @@
+{
+  "tool": "brain_search",
+  "arguments": {
+    "query": "q",
+    "scope": "nope",
+    "profile": "full"
+  },
+  "channel": "cloud"
+}

@@ -1,0 +1,5 @@
+[area]
+scope = "project/closed"
+
+[privacy]
+mode = "local_only"

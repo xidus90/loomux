@@ -1,0 +1,11 @@
+{
+  "edges": [
+    {"from": "guide.md", "to": "start.md"}
+  ],
+  "links": {"dropped": {}, "resolved": 1, "total": 1},
+  "nodes": [
+    {"id": "guide.md", "tags": [], "title": "guide"},
+    {"id": "start.md", "tags": [], "title": "start"}
+  ],
+  "scope": "notes"
+}

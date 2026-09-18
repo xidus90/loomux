@@ -1,0 +1,8 @@
+{
+  "tool": "brain_read",
+  "arguments": {
+    "scope": "project/bare",
+    "relative": "a.md"
+  },
+  "channel": "cloud"
+}

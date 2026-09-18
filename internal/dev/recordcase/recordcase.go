@@ -76,7 +76,7 @@ func Record(s Spec) error {
 	}
 	cmd := exec.Command(program, args...)
 	cmd.Dir = tmp
-	cmd.Env = recordEnv(runtime.GOOS, os.Environ(), s, tmp)
+	cmd.Env = recordEnv(runtime.GOOS, os.Environ(), s.Env, s.PathPrepend, tmp)
 	cmd.Stdin = bytes.NewReader(bytes.ReplaceAll(stdin, []byte(cases.WorldToken), []byte(world)))
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
@@ -120,14 +120,17 @@ func Record(s Spec) error {
 // recordEnv is the environment of a recorded process: the recorder's own, the
 // state directory the old tools read, UTF-8 for Python's pipes, the entries
 // the spec names, and the spec's directory in front of PATH.
-func recordEnv(goos string, base []string, s Spec, tmp string) []string {
+// The entries and the PATH prefix are the spec's own rather than the spec, so
+// that the MCP recorder beside this one shares the environment instead of
+// building a second one that drifts.
+func recordEnv(goos string, base []string, set []string, pathPrepend, tmp string) []string {
 	world := filepath.ToSlash(tmp)
-	env := mergeEnv(goos, base, "BRAIN_STATE_DIR="+tmp, "PYTHONUTF8=1")
-	for _, entry := range s.Env {
+	env := mergeEnv(goos, base, "BRAIN_STATE_DIR="+tmp, "PYTHONUTF8=1", "PYTHONDONTWRITEBYTECODE=1")
+	for _, entry := range set {
 		env = mergeEnv(goos, env, strings.ReplaceAll(entry, cases.WorldToken, world))
 	}
-	if s.PathPrepend != "" {
-		env = prependPath(goos, env, s.PathPrepend)
+	if pathPrepend != "" {
+		env = prependPath(goos, env, pathPrepend)
 	}
 	return env
 }

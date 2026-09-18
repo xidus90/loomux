@@ -23,9 +23,12 @@ type Rule struct {
 	To   string
 }
 
-// Mapping is the set of rules, read from a file of [[command]] tables.
+// Mapping is the set of rules, read from a file of [[command]] and [[tool]]
+// tables. A stage brings one kind or the other: a command line is rewritten at
+// its head, an MCP call at its tool's name.
 type Mapping struct {
 	Commands []Rule `toml:"command"`
+	Tools    []Rule `toml:"tool"`
 }
 
 // The old tools named their configuration in four places; loomux has one.
@@ -102,14 +105,25 @@ func prune(to string, found []*cases.Case) error {
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reading the corpus in %s: %w", to, err)
 	}
+	places := map[string]string{}
 	for _, c := range existing {
-		if backed[filepath.Join(c.Verb, c.Name)] {
+		places[filepath.Join(c.Verb, c.Name)] = c.Path
+	}
+	return prunePaths(backed, places)
+}
+
+// prunePaths removes every case directory in places that backed does not name.
+// It is shared with the MCP import: what a case is differs between the two
+// corpora, what an unbacked one costs does not.
+func prunePaths(backed map[string]bool, places map[string]string) error {
+	for key, path := range places {
+		if backed[key] {
 			continue
 		}
-		if err := os.RemoveAll(c.Path); err != nil {
-			return fmt.Errorf("clearing %s: %w", c.Path, err)
+		if err := os.RemoveAll(path); err != nil {
+			return fmt.Errorf("clearing %s: %w", path, err)
 		}
-		_ = os.Remove(filepath.Dir(c.Path))
+		_ = os.Remove(filepath.Dir(path))
 	}
 	return nil
 }

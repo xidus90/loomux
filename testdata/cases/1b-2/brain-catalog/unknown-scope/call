@@ -1,0 +1,7 @@
+{
+  "tool": "brain_catalog",
+  "arguments": {
+    "scope": "nope"
+  },
+  "channel": "cloud"
+}

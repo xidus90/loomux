@@ -1,0 +1,5 @@
+doc_id	pfad	content_hash	revision
+01A0001	open.md	sha256:o1	1
+01A0002	private/key.md	sha256:k1	1
+01A0003	private/k2.md	sha256:k2	1
+01A0004	private/k3.md	sha256:k2	1

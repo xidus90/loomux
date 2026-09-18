@@ -1,0 +1,8 @@
+[area]
+  scope = "project/beta"
+
+[index]
+  include = ["*.md", "docs/*.md"]
+
+[privacy]
+  mode = "local_only"

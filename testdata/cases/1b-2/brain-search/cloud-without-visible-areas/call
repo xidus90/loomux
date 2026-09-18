@@ -1,0 +1,8 @@
+{
+  "tool": "brain_search",
+  "arguments": {
+    "query": "closed",
+    "profile": "full"
+  },
+  "channel": "cloud"
+}

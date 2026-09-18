@@ -1,0 +1,7 @@
+{
+  "tool": "read",
+  "arguments": {
+    "relative": "notes/a.md"
+  },
+  "channel": "cloud"
+}

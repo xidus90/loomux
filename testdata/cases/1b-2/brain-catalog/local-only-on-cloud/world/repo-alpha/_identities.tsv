@@ -1,0 +1,6 @@
+doc_id	pfad	content_hash	revision
+01A0001	notes/a.md	sha256:a1	1
+01A0002	notes/b.md	sha256:a2	1
+01A0003	notes/lonely.md	sha256:a3	1
+01A0004	review/case.md	sha256:a4	1
+01A0005	secret/key.md	sha256:a5	1

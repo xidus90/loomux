@@ -1,0 +1,14 @@
+{
+  "collections": {
+    "notes": ["guide.md"],
+    "project-alpha": ["notes/a.md", "notes/b.md", "notes/lonely.md", "review/case.md"],
+    "project-beta": ["b.md"]
+  },
+  "hits": [
+    {"collection": "project-alpha", "relative": "notes/a.md", "line": 3, "score": 0.75, "docid": "#a0001", "title": "Alpha notes", "snippet": "The first finding.\nIt spans two lines."},
+    {"collection": "project-alpha", "relative": "secret/key.md", "line": 1, "score": 0.7, "docid": "#a0005", "title": "Key", "snippet": "not for anyone"},
+    {"collection": "notes", "relative": "guide.md", "line": 5, "score": 0.5, "docid": "#n0001", "title": "Guide", "snippet": "How to read the guide."},
+    {"collection": "project-alpha", "relative": "notes/unregistered.md", "line": 1, "score": 0.25, "docid": "#a0009", "title": "Unregistered", "snippet": ""},
+    {"collection": "project-beta", "relative": "b.md", "line": 2, "score": 0.1, "docid": "#b0001", "title": "Beta", "snippet": "line one\rline two"}
+  ]
+}
