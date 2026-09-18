@@ -1,0 +1,38 @@
+name: ci
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+    # The release commit touches only the changelog; running ci on it would
+    # start a release run that can cancel a pending one of a real merge.
+    paths-ignore: [CHANGELOG.md]
+permissions:
+  contents: read
+jobs:
+  gate-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: sh ci/gate.sh
+      - run: go build -o bin/loomux.exe ./cmd/loomux
+      - run: sh ci/smoke.sh bin/loomux.exe
+  # Linux does not run the test gate: several tests and the coverage of
+  # about 33 functions are bound to Windows, so the gate can only pass there.
+  # This leg keeps the Linux build honest with vet, a build and the smoke test.
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go build -o bin/loomux.exe ./cmd/loomux
+      - run: sh ci/smoke.sh bin/loomux.exe
