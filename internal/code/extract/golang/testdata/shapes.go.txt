@@ -1,0 +1,32 @@
+// Package shapes carries one of every definition the extractor tells apart.
+package shapes
+
+import "fmt"
+
+// Doc comments must not reach the body hash: go/ast's Pos() starts at `func`.
+func Exported() {}
+
+func unexported() {}
+
+type User struct {
+	Name string
+}
+
+type Reader interface {
+	Read() string
+}
+
+type ID int
+
+type (
+	First  int
+	Second string
+)
+
+// Save is a method on a pointer receiver; the id qualifies by the receiver.
+func (u *User) Save() error { return nil }
+
+// name is a method on a value receiver of the same type.
+func (u User) name() string { return u.Name }
+
+func useFmt() { fmt.Println("x") }
