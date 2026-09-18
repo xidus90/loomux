@@ -307,10 +307,186 @@ func hash(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// importEdges is Task 4.
-func importEdges(rel string, file *ast.File) []RawEdge { return nil }
+// importEdges is one edge per import specifier, from the file node.
+//
+// A blank import binds no selector and is still a dependency of the file, so it
+// keeps its edge. A dot import binds no selector either; the same holds.
+func importEdges(rel string, file *ast.File) []RawEdge {
+	var out []RawEdge
+	for _, imp := range importsOf(file) {
+		out = append(out, RawEdge{
+			Source: model.NodeID(rel), Relation: model.RelationImports,
+			Specifier: imp.Path, File: rel,
+		})
+	}
+	return out
+}
 
-// callEdges is Task 4.
+// callEdges walks every function body and the package-level initialisers and
+// emits one raw edge per call site.
+//
+// Three shapes reach resolve, and the difference is what resolve is allowed to
+// assume:
+//
+//   - a bare name          -- resolve tries the same file, then a unique match
+//   - a name plus an owner -- a member call on a known local type
+//   - a name plus a specifier -- a package selector; resolve looks in that
+//     package alone
 func callEdges(rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID) []RawEdge {
-	return nil
+	var out []RawEdge
+	// A call outside every function -- in a var initialiser -- is owned by the
+	// file, the same node that owns the imports.
+	walkCalls(file, rel, model.NodeID(rel), owners, &out)
+	return out
+}
+
+// walkCalls descends the file, keeping a scope stack and the symbol a call
+// belongs to.
+func walkCalls(file *ast.File, rel string, fileID model.NodeID, owners map[*ast.FuncDecl]model.NodeID, out *[]RawEdge) {
+	sc := newScope()
+	// The file's own package-level names: a call may target one of them, and a
+	// local of the same name must shadow it.
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Recv == nil {
+				sc.declare(d.Name.Name, "")
+			}
+		case *ast.GenDecl:
+			for _, spec := range d.Specs {
+				switch s := spec.(type) {
+				case *ast.TypeSpec:
+					sc.declare(s.Name.Name, "")
+				case *ast.ValueSpec:
+					for _, n := range s.Names {
+						sc.declare(n.Name, typeName(s.Type))
+					}
+				}
+			}
+		}
+	}
+
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			// A package-level initialiser: its calls belong to the file.
+			collect(decl, rel, fileID, sc, out)
+			continue
+		}
+		owner, ok := owners[fn]
+		if !ok {
+			// No node was minted for this declaration, so nothing can own its
+			// calls. Attributing them to the file would invent a caller.
+			continue
+		}
+		sc.push()
+		// The receiver variable is bound to its own type: that is how `c.Get()`
+		// inside a method of *Cache finds Cache.
+		if fn.Recv != nil {
+			sc.declare(receiverVar(fn.Recv), receiverType(fn.Recv))
+		}
+		declareParams(sc, fn.Type)
+		collect(fn, rel, owner, sc, out)
+		sc.pop()
+	}
+}
+
+// declareParams puts a function's parameters and named results in view. Their
+// types are recorded, so a member call on a parameter resolves.
+func declareParams(sc *scope, ft *ast.FuncType) {
+	for _, list := range []*ast.FieldList{ft.Params, ft.Results, ft.TypeParams} {
+		if list == nil {
+			continue
+		}
+		for _, field := range list.List {
+			for _, name := range field.Names {
+				sc.declare(name.Name, typeName(field.Type))
+			}
+		}
+	}
+}
+
+// collect walks one declaration's statements, tracking declarations as it goes
+// and emitting a raw edge per call.
+func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]RawEdge) {
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch s := n.(type) {
+		case *ast.AssignStmt:
+			if s.Tok == token.DEFINE {
+				for i, lhs := range s.Lhs {
+					id, ok := lhs.(*ast.Ident)
+					if !ok {
+						continue
+					}
+					typ := ""
+					if i < len(s.Rhs) {
+						typ = boundType(s.Rhs[i])
+					}
+					sc.declare(id.Name, typ)
+				}
+			}
+		case *ast.ValueSpec:
+			for _, name := range s.Names {
+				sc.declare(name.Name, typeName(s.Type))
+			}
+		case *ast.RangeStmt:
+			// A range variable binds no type this package can read, but it must
+			// shadow: `for store := range m` hides the package `store`.
+			for _, e := range []ast.Expr{s.Key, s.Value} {
+				if id, ok := e.(*ast.Ident); ok {
+					sc.declare(id.Name, "")
+				}
+			}
+		case *ast.CallExpr:
+			if e, ok := callEdge(s, rel, owner, sc); ok {
+				*out = append(*out, e)
+			}
+		}
+		return true
+	})
+}
+
+// callEdge reads one call site.
+//
+// Shadowing is decided HERE, because only this package sees the file's scopes;
+// whether an unshadowed receiver names a package is decided in resolve, because
+// only that sees the target's package clause. Splitting the question along that
+// line is what keeps `import "gopkg.in/yaml.v3"` from binding `v3`.
+func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (RawEdge, bool) {
+	switch fn := peelIndex(call.Fun).(type) {
+	case *ast.Ident:
+		return RawEdge{
+			Source: owner, Relation: model.RelationCalls,
+			Name: fn.Name, File: rel,
+		}, true
+	case *ast.SelectorExpr:
+		recv, ok := peelIndex(fn.X).(*ast.Ident)
+		if !ok {
+			// A chained or computed receiver -- `a.b().c()`, `m[k].c()`. Graft
+			// drops these too: without a receiver type a bare method name says
+			// nothing about what it belongs to.
+			return RawEdge{}, false
+		}
+		if !sc.declared(recv.Name) {
+			// Declared nowhere in view. It may be a package, and resolve is the
+			// only side that can say so.
+			return RawEdge{
+				Source: owner, Relation: model.RelationCalls,
+				Name: fn.Sel.Name, Receiver: recv.Name, File: rel,
+			}, true
+		}
+		typ := sc.lookup(recv.Name)
+		if typ == "" {
+			// Declared, but bound to nothing this package reads. Dropping beats
+			// guessing: a unique bare method name says nothing about its
+			// receiver.
+			return RawEdge{}, false
+		}
+		return RawEdge{
+			Source: owner, Relation: model.RelationCalls,
+			Name: fn.Sel.Name, Owner: typ, File: rel,
+		}, true
+	default:
+		return RawEdge{}, false
+	}
 }

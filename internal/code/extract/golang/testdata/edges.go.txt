@@ -1,0 +1,39 @@
+package edges
+
+import (
+	"fmt"
+	b "example.com/repo/blast"
+	"example.com/repo/store"
+	_ "example.com/repo/driver"
+)
+
+type Cache struct{ n int }
+
+func (c *Cache) Get() int { return c.n }
+
+func (c *Cache) Warm() int {
+	// A call on the method's own receiver variable.
+	return c.Get()
+}
+
+func local() int { return 1 }
+
+func caller() int {
+	// A call inside the same file.
+	n := local()
+	// A package selector, aliased.
+	_ = b.New(nil)
+	// A package selector, plain.
+	_ = store.Open("x")
+	// A shadowed package: from here `store` is a variable, not a package.
+	store := Cache{}
+	_ = store.Get()
+	// A call into the standard library: the import stays an external string.
+	fmt.Println(n)
+	return n
+}
+
+func generic() {
+	// A type argument list must be peeled before the selector is read.
+	_ = b.Of[int](3)
+}

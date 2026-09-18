@@ -2,6 +2,7 @@ package golang
 
 import (
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"testing"
 
@@ -155,6 +156,48 @@ func TestDeclNodesSkipsANonTypeSpecInATypeGenDecl(t *testing.T) {
 	}}}
 	if got := declNodes(token.NewFileSet(), "p.go", "", decl, map[string]bool{}); got != nil {
 		t.Errorf("declNodes(non-TypeSpec in TYPE GenDecl) = %v, want nil", got)
+	}
+}
+
+func TestWalkCallsSkipsAFuncDeclAbsentFromOwners(t *testing.T) {
+	// File's own decl loop mints exactly one node per FuncDecl, so owners
+	// always has an entry for a real one; this arm guards a map the caller
+	// never actually hands it short.
+	src := "package p\n\nfunc a() { b() }\n\nfunc b() {}\n"
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "p.go", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []RawEdge
+	walkCalls(file, "p.go", model.NodeID("p.go"), map[*ast.FuncDecl]model.NodeID{}, &out)
+	if len(out) != 0 {
+		t.Errorf("walkCalls(no owners) = %+v, want no edges", out)
+	}
+}
+
+func TestCollectSkipsANonIdentLhsOfADefineAssign(t *testing.T) {
+	// go/parser only ever accepts plain identifiers on the left of `:=`; a
+	// selector there is a shape it never actually produces.
+	assign := &ast.AssignStmt{
+		Tok: token.DEFINE,
+		Lhs: []ast.Expr{&ast.SelectorExpr{X: ast.NewIdent("o"), Sel: ast.NewIdent("f")}},
+		Rhs: []ast.Expr{ast.NewIdent("v")},
+	}
+	sc := newScope()
+	var out []RawEdge
+	collect(assign, "p.go", model.NodeID("p.go"), sc, &out)
+	if len(out) != 0 {
+		t.Errorf("collect(non-ident define lhs) = %+v, want no edges", out)
+	}
+}
+
+func TestScopeLookupOnAnUnknownName(t *testing.T) {
+	// callEdge only calls lookup after declared has confirmed the name exists,
+	// so an outright miss never happens through that path.
+	sc := newScope()
+	if got := sc.lookup("nope"); got != "" {
+		t.Errorf("lookup(unknown) = %q, want empty", got)
 	}
 }
 
