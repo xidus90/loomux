@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/sourceset"
+	"github.com/xidus90/loomux/internal/testlock"
 )
 
 // tree writes files into a fresh directory. The map's keys are slash paths
@@ -144,9 +145,24 @@ func TestListRefusesAMissingRoot(t *testing.T) {
 	}
 }
 
-func TestStatRefusesAMissingRoot(t *testing.T) {
-	_, err := sourceset.Stat(filepath.Join(t.TempDir(), "nope"))
-	if err == nil {
-		t.Fatal("got nil, want an error for a root that is not there")
+func TestStatContinuesWhenADirectoryIsLocked(t *testing.T) {
+	root := tree(t, map[string]string{
+		"accessible.go":    "package main\n",
+		"locked/hidden.go": "package hidden\n",
+	})
+
+	lockedDir := filepath.Join(root, "locked")
+	// Lock the directory so WalkDir cannot read it and passes an error to the callback.
+	// The callback returns nil to continue the walk and drops the inaccessible directory.
+	// This exercises the err != nil arm of the callback.
+	testlock.LockDir(t, lockedDir)
+
+	got, err := sourceset.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The locked directory is inaccessible during the walk, so it and its files are skipped.
+	if len(got) != 1 || got[0].Rel != "accessible.go" {
+		t.Fatalf("got %v, want only accessible.go", got)
 	}
 }

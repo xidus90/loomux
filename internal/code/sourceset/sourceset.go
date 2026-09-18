@@ -67,7 +67,7 @@ func List(root string) ([]string, error) {
 // A file that vanishes between the walk and the stat is dropped rather than
 // reported: the next probe will see the same thing and call it removed.
 //
-//coverage:exempt callback error path requires inaccessible directory entries during walk, hard to trigger portably
+//coverage:exempt d.Info() error arm requires file to vanish between walk and stat; filepath.Rel error arm is unreachable (WalkDir only returns paths under root)
 func Stat(root string) ([]SourceFile, error) {
 	if _, err := os.Stat(root); err != nil {
 		return nil, err
