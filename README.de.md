@@ -313,7 +313,9 @@ einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
    auf `master` war, behält einen eigenen Commit. Einen bereits gepushten
    Branch neu zu schreiben braucht `git push --force-with-lease`. Jede
    Nachricht ist ein Conventional Commit (`feat: …`, `fix: …`, `docs: …`;
-   `!` für eine inkompatible Änderung).
+   `!` für eine inkompatible Änderung). Der Hook `commit-msg` prüft das
+   lokal, und der Check `pr-label` lehnt einen Pull Request ab, sobald ein
+   Commit-Titel die Form verletzt.
 2. Ein Label aus der Tabelle oben wählen; zwischen zwei Stufen die höhere.
    Es liegt nie unter den Commits: `!` verlangt major, `feat` minor, `fix`
    patch.
