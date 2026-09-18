@@ -118,6 +118,19 @@ func TestReadRefusesABrokenGraph(t *testing.T) {
 	}
 }
 
+func TestWriteFailsWhenTheStateDirectoryCannotBeCreated(t *testing.T) {
+	root := t.TempDir()
+	// A file where the state directory needs to be: MkdirAll cannot create a
+	// directory through it. No permissions involved -- just the wrong inode
+	// type in the path.
+	if err := os.WriteFile(filepath.Join(root, ".loomux"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Write(root, graph()); err == nil {
+		t.Fatal("want an error when the state directory cannot be created")
+	}
+}
+
 func TestWriteFailsWhenTheTempFileCannotBeWritten(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(store.Dir(root), 0o755); err != nil {

@@ -42,7 +42,7 @@ func CachePath(root, name string) string {
 // The caller has sorted the graph; this function adds no order of its own, so
 // there is exactly one place where order is decided.
 //
-//coverage:exempt two arms are unreachable here: MkdirAll's needs a directory that refuses child creation, and testlock.LockDir denies opening the directory itself (a Windows sharing violation), which os.MkdirAll's CreateDirectory call does not go through, so it does not block it -- confirmed empirically, no test manufactured to force it; MarshalIndent's needs a value json cannot encode (a channel, a func, a cyclic pointer, or a NaN/Inf float), and *model.Graph is built entirely of strings, ints, bools and slices of Node/Edge, which are the same -- no *model.Graph this program can construct makes it fail
+//coverage:exempt the MarshalIndent arm needs a value json cannot encode (a channel, a func, a cyclic pointer, or a NaN/Inf float), and *model.Graph is built entirely of strings, ints, bools and slices of Node/Edge, which are the same -- no *model.Graph this program can construct makes it fail
 func Write(root string, g *model.Graph) error {
 	if err := os.MkdirAll(Dir(root), 0o755); err != nil {
 		return err
