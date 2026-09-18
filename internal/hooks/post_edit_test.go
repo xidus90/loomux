@@ -183,7 +183,7 @@ func TestRunPostEdit(t *testing.T) {
 			}
 
 			var stderr bytes.Buffer
-			exitCode := runPostEditWithStacks(strings.NewReader(tt.payload), &stderr, ".", tt.stacks, mockRunner)
+			exitCode := runPostEditWithStacks(strings.NewReader(tt.payload), &stderr, configuredCMakeRoot(t), tt.stacks, mockRunner)
 			if exitCode != tt.expectedExit {
 				t.Fatalf("expected exit %d, got %d", tt.expectedExit, exitCode)
 			}
@@ -925,4 +925,67 @@ func TestTargetCommandsForStacks(t *testing.T) {
 	if len(wikiInside) != 1 {
 		t.Fatalf("expected 1 command for wiki inside wiki, got %v", wikiInside)
 	}
+}
+
+// A C++ checkout that was never configured has no build tree, and cmake then
+// fails on the missing directory for every edit. That is a precondition the
+// edit cannot fix, so the lane is skipped out loud, like a missing tool.
+func TestPostEditSkipsTheCMakeLaneWithoutAConfiguredBuild(t *testing.T) {
+	for _, configured := range []bool{false, true} {
+		root := t.TempDir()
+		if configured {
+			if err := os.MkdirAll(filepath.Join(root, "build"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "build", "CMakeCache.txt"), nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var mu sync.Mutex
+		var ran []string
+		record := func(_ string, command string) (string, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			ran = append(ran, command)
+			return "", nil
+		}
+		var stdout, stderr bytes.Buffer
+
+		code := runPostEditWithContext(
+			strings.NewReader(`{"tool_input":{"file_path":"x.cpp"}}`), &stdout, &stderr, root,
+			[]string{"cpp"}, "wiki/", "",
+			func(io.Writer) CommandRunner { return record },
+		)
+
+		if code != ExitOK {
+			t.Fatalf("configured=%v: exit %d, stderr %q", configured, code, stderr.String())
+		}
+		cmake := false
+		for _, c := range ran {
+			if strings.HasPrefix(c, "cmake --build build") {
+				cmake = true
+			}
+		}
+		if cmake != configured {
+			t.Errorf("configured=%v: cmake lane ran=%v, commands %v", configured, cmake, ran)
+		}
+		named := strings.Contains(stdout.String(), "build/CMakeCache.txt")
+		if named == configured {
+			t.Errorf("configured=%v: the skip is named only when it happens, stdout %q", configured, stdout.String())
+		}
+	}
+}
+
+// configuredCMakeRoot is a project root whose C++ build tree has been
+// configured, so the cmake lane has what it needs to run.
+func configuredCMakeRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "build"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "build", "CMakeCache.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
 }

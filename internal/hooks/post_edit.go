@@ -33,6 +33,9 @@ type command struct {
 	dir  string
 	text string
 	run  func() (string, error)
+	// needs is a file, relative to the lane's directory, without which the
+	// lane cannot mean anything; its absence skips the lane out loud.
+	needs string
 }
 
 func at(dir, text string) command { return command{dir: dir, text: text} }
@@ -218,6 +221,12 @@ func runPostEditWithContext(stdin io.Reader, stdout io.Writer, stderr io.Writer,
 	runner := runnerFor(&notices)
 
 	for _, cmd := range commands {
+		if c := cmd; c.needs != "" {
+			if _, err := os.Stat(filepath.Join(root, c.dir, c.needs)); err != nil {
+				fmt.Fprintf(&notices, "loomux hook post-tool-use: lane skipped, %s is missing: %s\n", c.needs, c.text)
+				continue
+			}
+		}
 		wg.Add(1)
 		go func(c command) {
 			defer wg.Done()
@@ -369,9 +378,9 @@ func getCommandsForStacks(stacks []string, targetStack string, hasTarget bool, t
 	}
 	if shouldRun("cpp") {
 		if hasTarget && targetPath != "" {
-			cmds = append(cmds, root(fmt.Sprintf("clang-format -i %s", targetPath)), root("cmake --build build --parallel"))
+			cmds = append(cmds, root(fmt.Sprintf("clang-format -i %s", targetPath)), cmakeBuild())
 		} else {
-			cmds = append(cmds, root("clang-format -i"), root("cmake --build build --parallel"))
+			cmds = append(cmds, root("clang-format -i"), cmakeBuild())
 		}
 	}
 	if shouldRun("typescript") {
@@ -611,4 +620,11 @@ func TargetCommandsForStacks(stacks []string, targetPath string, godotDir string
 func StackForExtension(ext string) (string, bool) {
 	stack, ok := extensionStackMap[ext]
 	return stack, ok
+}
+
+// cmakeBuild builds an already configured tree. Configuring one is a project
+// decision (generator, options, toolchain), so a checkout without a
+// CMakeCache.txt gets no build rather than a guessed configure step.
+func cmakeBuild() command {
+	return command{text: "cmake --build build --parallel", needs: "build/CMakeCache.txt"}
 }
