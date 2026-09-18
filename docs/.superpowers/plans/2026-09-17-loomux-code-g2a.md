@@ -48,7 +48,7 @@ braucht ihn nicht.**
 - **Coverage 100 % je Funktion.** Eine Ausnahme nur mit
   `//coverage:exempt <reason>` direkt über `func`. Das Tor
   (`.githooks/pre-commit`) fährt `gofmt -l cmd internal`, `go vet ./...`,
-  `go test ./... -count=1 -covermode=set -coverpkg=./...`, `dev covergate` und
+  `go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/loomux/...`, `dev covergate` und
   baut danach das Pilot-Binary.
 - **Das Tor weist unstaged Eingaben ab.** Vor jedem Commit alles stagen, was
   die Aufgabe angefasst hat — `*.go`, `go.mod`, `go.sum`, `testdata`,
@@ -4954,7 +4954,7 @@ and warm, the probe alone, against the reference's ~3ms for 280 files.
 ```sh
 gofmt -l cmd internal
 go vet ./...
-go test ./... -count=1 -covermode=set -coverpkg=./... -coverprofile=coverage.out
+go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/loomux/... -coverprofile=coverage.out
 go run ./cmd/loomux dev covergate --profile coverage.out
 ```
 

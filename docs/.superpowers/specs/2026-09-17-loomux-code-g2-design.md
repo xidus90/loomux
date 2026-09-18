@@ -812,7 +812,7 @@ Zeitersparnis — das gilt mit jedem der beiden Böden unverändert.
 ### 12.1 Das Tor
 
 `.githooks/pre-commit` bleibt unverändert und gilt: `gofmt`, `go vet`,
-`go test ./... -count=1 -covermode=set -coverpkg=./...`, `dev covergate` mit 100 % je Funktion, dann
+`go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/loomux/...`, `dev covergate` mit 100 % je Funktion, dann
 das Pilot-Binary. Ein `//coverage:exempt <grund>` nur mit Begründung.
 
 Das CGo-Freiheitstor aus §9.2 der Säule-3-Spec führt G2 **nicht** ein: es wird keine Abhängigkeit

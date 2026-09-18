@@ -2767,7 +2767,7 @@ Fehlt einer, ist er jetzt zu schreiben.
 ```sh
 gofmt -l cmd internal
 go vet ./...
-go test ./... -count=1 -covermode=set -coverpkg=./... -coverprofile=coverage.out
+go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/loomux/... -coverprofile=coverage.out
 go run ./cmd/loomux dev covergate --profile coverage.out
 go build -o bin/loomux.exe ./cmd/loomux
 ```
