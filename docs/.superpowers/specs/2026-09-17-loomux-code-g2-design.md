@@ -5,9 +5,10 @@
 `2026-09-17-loomux-code-g2a.md`, Paritätsakte `parity/code-g2a.md`, 27 Commits).
 Damit stehen Schema 2, `sourceset`, `extract/golang`, `resolve`, `store`,
 `freshness` und die Befehle `loomux graph build` und `loomux graph check`.
-**G2b — die Abfrage (`lexicon`, `ask`, die Beiakte) — ist geplant und offen**
-(Plan `2026-09-17-loomux-code-g2b.md`). Die Paritätsakte wartet auf die
-Freigabe ihrer 21 Verfügungen.
+**G2b — die Abfrage (`lexicon`, `ask`, die Beiakte) — ist umgesetzt** (Plan
+`2026-09-17-loomux-code-g2b.md`, Branch `code-g2`); ihre Paritätsakte
+`parity/code-g2b.md` ist mit allen 22 Verfügungen freigegeben am 2026-09-18,
+ebenso die 44 Zeilen von `parity/code-g2a.md`. **G2 ist damit abgeschlossen.**
 **Ergänzt:** [`2026-09-14-loomux-code-graph-design.md`](2026-09-14-loomux-code-graph-design.md) und
 [`2026-09-16-loomux-code-g1-delta.md`](2026-09-16-loomux-code-g1-delta.md). Diese Datei ersetzt die
 Säule-3-Spec nicht, sie berichtigt und verengt sie für die Stufe G2.
