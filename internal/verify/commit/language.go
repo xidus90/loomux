@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/conventional"
 )
 
 // germanStopWords holds German function words and common development verbs/nouns
@@ -30,14 +32,16 @@ var germanStopWords = map[string]bool{
 
 var umlautRegex = regexp.MustCompile(`[äöüÄÖÜß]`)
 
-// ValidateCommitMessage checks that a commit message is non-empty and written in English.
+// ValidateCommitMessage checks that a commit message is non-empty, written
+// in English and opens with a Conventional Commits header. Git's comment
+// lines are ignored, since a message typed in the editor still carries them.
 func ValidateCommitMessage(msg string) error {
-	trimmed := strings.TrimSpace(msg)
-	if trimmed == "" {
+	lines := conventional.Message(msg)
+	if lines == nil {
 		return fmt.Errorf("commit message cannot be empty")
 	}
 
-	firstLine := strings.Split(trimmed, "\n")[0]
+	firstLine := lines[0]
 
 	// 1. Direct Umlaut Check
 	if umlautRegex.MatchString(firstLine) {
@@ -58,5 +62,9 @@ func ValidateCommitMessage(msg string) error {
 		return fmt.Errorf("commit message appears to be in German (%d German keyword(s) detected). All commit messages must be in English (AGENTS.md)", germanHits)
 	}
 
-	return nil
+	if conventional.Exempt(firstLine) {
+		return nil
+	}
+	_, err := conventional.Parse(firstLine)
+	return err
 }

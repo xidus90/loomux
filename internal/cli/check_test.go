@@ -15,7 +15,7 @@ func TestCheckNeedsASubcommand(t *testing.T) {
 
 func TestCheckCommitMsgAcceptsEnglish(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "msg")
-	os.WriteFile(file, []byte("Add the first loomux command\n"), 0o644)
+	os.WriteFile(file, []byte("feat: add the first loomux command\n"), 0o644)
 	if code, _, errOut := run("check", "commit-msg", file); code != 0 {
 		t.Fatalf("code %d: %s", code, errOut)
 	}
@@ -84,5 +84,13 @@ func TestCheckUnknownSubcommandIsAUsageError(t *testing.T) {
 	code, _, errOut := run("check", "types")
 	if code != 2 || !strings.Contains(errOut, `loomux check: unknown subcommand "types"`) {
 		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestCheckCommitMsgRefusesAMissingHeader(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "msg")
+	os.WriteFile(file, []byte("Add the first loomux command\n"), 0o644)
+	if code, _, errOut := run("check", "commit-msg", file); code != 1 || !strings.Contains(errOut, "<type>[(<scope>)][!]: <description>") {
+		t.Fatalf("code %d: %s", code, errOut)
 	}
 }
