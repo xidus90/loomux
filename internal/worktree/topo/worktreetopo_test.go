@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/gitenv"
+	"github.com/xidus90/loomux/internal/testlock"
 )
 
 func git(t *testing.T, dir string, argv ...string) {
@@ -233,29 +234,31 @@ func TestOrphansIgnoresAFileBesideTheWorktrees(t *testing.T) {
 // is absent -- reporting it as "no orphans" would let the sweep that takes
 // stale junctions down report a clean tree it never looked at.
 //
-// Windows only, because taking the right to list a directory away needs an
-// ACL here. Measured on 2026-09-07: the cheaper trick of putting a *file* at
+// A handle held on `.worktrees` without any share mode is what makes it
+// unreadable, and not a denied right, which an elevated token reads through.
+// Measured on 2026-09-07: the cheaper trick of putting a *file* at
 // `.worktrees` does not reach this path -- os.ReadDir then answers
 // ERROR_PATH_NOT_FOUND, for which os.IsNotExist is true, so Orphans skips it.
+//
+// main is resolved to its long spelling because the error names git's
+// spelling of it, and on a runner whose TEMP is an 8.3 short path the two
+// differ.
 func TestOrphansReportsAnUnreadableSearchSpace(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("taking away the right to list a directory is done by ACL here")
+	main, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
 	}
-	main := t.TempDir()
 	git(t, main, "init", "-q", "-b", "main")
 	unreadable := filepath.Join(main, ".worktrees")
 	if err := os.Mkdir(unreadable, 0o755); err != nil {
 		t.Fatal(err)
-	}
-	deny := exec.Command("icacls", unreadable, "/deny", os.Getenv("USERNAME")+":(RD)")
-	if out, err := deny.CombinedOutput(); err != nil {
-		t.Skipf("this account cannot deny itself the listing right: %v (%s)", err, out)
 	}
 
 	topology, err := Read(main)
 	if err != nil {
 		t.Fatal(err)
 	}
+	testlock.LockDir(t, unreadable)
 	orphans, err := topology.Orphans()
 	if err == nil {
 		t.Fatalf("Orphans = %q, nil; want a reported failure", orphans)
