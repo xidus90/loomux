@@ -1021,6 +1021,48 @@ there and the difference is noise.
    3,000 nodes there is no time win to claim. Whether the allocation saving
    becomes a time saving at 30,000 nodes is untested and must not be assumed.
 
+
+## 2026-09-19 00:15 - The Sidecar Version Check the Freshness Probe Now Does
+
+### What was measured
+
+`loomux graph ask` on a clean tree, where the freshness record says nothing has
+drifted and the probe returns without rebuilding. That is the only path the
+change touches: `EnsureFresh` now calls `lexicon.Usable`, one open and one
+partial read of `ask-index.json` decoded as far as its `version` field, before
+it may return early.
+
+Both binaries built from source to separate paths, `86fa192` (v1.1.0) as the
+baseline and `f160d73` plus this branch's working tree as the change, measured
+against the same root and the same graph state: a checkout of this repository at
+`86fa192`, 282 files, 3,073 nodes, 9,884 edges, sidecar on disk. Query
+`"retry backoff" --limit 1`, three warm-up runs discarded, then 10 runs timed
+with `Measure-Command` on the reference machine (AMD Ryzen 7 9800X3D, Windows
+x86_64).
+
+### Measurements
+
+| case | median | min | max |
+|---|---:|---:|---:|
+| baseline, record clean is enough | 51.2 ms | 49.1 ms | 53.6 ms |
+| change, record clean plus sidecar version | 49.9 ms | 48.9 ms | 53.1 ms |
+
+### Reading
+
+1. **The added read does not show.** The change measures 1.3 ms *below* the
+   baseline, which is inside the run-to-run spread of both (the ranges overlap
+   almost entirely) and is therefore noise, not a speed-up. The cost is one
+   `open` plus a few hundred buffered bytes against a 50 ms process whose time
+   is dominated by start-up and by reading the graph.
+2. **There is no cold case to measure.** A cold ask has no usable graph state
+   and rebuilds; the build reads and hashes every file and took 283 ms on this
+   root. The one extra read is on the warm path by construction, and on the
+   cold path it is not reached.
+3. **`Usable` is not `Read`.** It decodes to the `version` field and stops.
+   Measuring the whole-file `Read` instead would have been a different and
+   larger number; that is why the check exists as its own function.
+
+
 ## 2026-09-19 00:31 — `loomux dev bench` on loomux and the open-source corpus
 
 Repo `loomux`, branch `open-source-matrix`, `loomux dev bench --dir . --warm 3`

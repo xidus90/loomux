@@ -12,6 +12,8 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/freshness"
+	"github.com/xidus90/loomux/internal/code/lexicon"
+	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/sourceset"
 	"github.com/xidus90/loomux/internal/testlock"
 )
@@ -58,11 +60,47 @@ func TestEnsureFreshDoesNothingOnACleanTree(t *testing.T) {
 	if err := freshness.Write(root, "go/1", stat, hashes); err != nil {
 		t.Fatal(err)
 	}
+	// Clean means the whole of what a question reads, sidecar included.
+	if err := lexicon.Write(root, lexicon.Build(&model.Graph{})); err != nil {
+		t.Fatal(err)
+	}
 	built := 0
 
 	ask.EnsureFresh(root, "go/1", func() error { built++; return nil }, nil)
 	if built != 0 {
 		t.Fatalf("built %d times, want none: the probe is the whole point", built)
+	}
+}
+
+func TestEnsureFreshRebuildsWhenTheSidecarIsGone(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stat, err := sourceset.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hashes := map[string]string{}
+	for _, f := range stat {
+		hashes[f.Rel] = hashOf(t, f.Abs)
+	}
+	if err := freshness.Write(root, "go/1", stat, hashes); err != nil {
+		t.Fatal(err)
+	}
+	built := 0
+	var notices []string
+
+	ask.EnsureFresh(root, "go/1", func() error { built++; return nil }, func(s string) { notices = append(notices, s) })
+
+	// The record is clean and knows nothing about the sidecar. Deciding on it
+	// alone would leave every later question ranking without the body text,
+	// until a source file happened to move.
+	if built != 1 {
+		t.Fatalf("built %d times, want 1: a missing sidecar is drift", built)
+	}
+	if len(notices) == 0 || !strings.Contains(notices[0], "no ask index") {
+		t.Fatalf("notices %v want 'no ask index'", notices)
 	}
 }
 

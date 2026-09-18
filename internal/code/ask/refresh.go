@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/code/freshness"
+	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/store"
 )
 
@@ -41,6 +42,15 @@ func LockPath(root string) string { return store.CachePath(root, "rebuild.lock")
 //   - never fatal: a failed probe or rebuild answers from the graph on disk
 //   - no stampede: a lock, and the loser does not queue -- it answers
 //   - writes only what a question reads: the graph, the sidecar, the record
+//
+// The last one is why a clean tree is not enough to return on. The freshness
+// record knows about source files and nothing else, so a sidecar that was
+// deleted, or written by a binary with another index version, leaves the
+// record clean and the question ranking without the body text -- forever, or
+// until a source file happens to move. A sidecar that is missing, or of
+// another index version, therefore counts as drift. One that passes that
+// cheap check and only then fails to parse does not: the probe reads the
+// version field, not the whole file.
 func EnsureFresh(root, extractor string, rebuild Rebuild, notice func(string)) {
 	say := func(format string, args ...any) {
 		if notice != nil {
@@ -53,14 +63,16 @@ func EnsureFresh(root, extractor string, rebuild Rebuild, notice func(string)) {
 		say("freshness probe failed, answering from the graph on disk: %v", err)
 		return
 	}
-	if drift != nil && drift.Clean() {
-		return
-	}
-	if drift != nil {
-		say("%d files moved, rebuilding the graph", drift.Count())
-	} else {
+	switch {
+	case drift == nil:
 		// No record: unknown, never clean.
 		say("no freshness record, building the graph")
+	case !drift.Clean():
+		say("%d files moved, rebuilding the graph", drift.Count())
+	case !lexicon.Usable(root):
+		say("no ask index, rebuilding the graph")
+	default:
+		return
 	}
 
 	if !lock(root) {
