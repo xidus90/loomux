@@ -1,0 +1,8 @@
+[
+  {
+    "repo_url": "https://github.com/membraneframework/membrane_core",
+    "language": "Elixir",
+    "framework": "Membrane",
+    "reason": "error: invalid path 'guides/packages/02_Plugins_|_General_purpose.md'; fatal: unable to checkout working tree"
+  }
+]

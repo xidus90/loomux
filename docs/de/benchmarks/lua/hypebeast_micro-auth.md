@@ -1,0 +1,24 @@
+# Benchmark & Lücken-Audit: [hypebeast/micro-auth](https://github.com/hypebeast/micro-auth)
+
+- [← Zurück zur Gesamt-Matrix](../matrix.md)
+- **Sprache:** Lua | **Framework:** Lapis | **Tier:** Sehr viel
+- **Commit:** `bf4f729ab26a0df133f727d18d6a48f169ea6548`
+- **Beispieldatei:** `app/entrypoint.sh`
+
+## 1. Performance & Latenzen
+
+| Komponente | Kalt (1. Lauf) | Warmer Median | Warm Min | Warm Max | Status |
+|---|---:|---:|---:|---:|---|
+| **pre-tool-use** | 10.5 ms | 8.5 ms | 8.5 ms | 9.0 ms | [0] |
+| **post-tool-use** | 62.2 ms | 59.5 ms | 59.5 ms | 62.5 ms | [2] |
+| **graph build** | n/a | n/a | n/a | n/a | n/a (non-Go) |
+| **Gesamt** | 72.7 ms | 68.5 ms | 68.0 ms | 71.0 ms | [0, 2] |
+
+## 2. Test- & Lücken-Audit (Gap Analysis)
+
+- **Abdeckungsquote:** **100.0 %**
+
+## 3. Erkannte Stacks & Lanes
+
+- **Stacks:** `docker, shell`
+- **Lanes:** `shellcheck **/*.sh`

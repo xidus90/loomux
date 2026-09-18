@@ -1061,3 +1061,41 @@ Prozessstart, und der Unterschied ist Rauschen.
    Knoten ist kein Zeitgewinn zu behaupten. Ob aus der Allokationsersparnis bei
    30.000 Knoten ein Zeitgewinn wird, ist ungeprüft und darf nicht angenommen
    werden.
+
+## 2026-09-19 00:31 — `loomux dev bench` an loomux und am Open-Source-Korpus
+
+Repo `loomux`, Zweig `open-source-matrix`, `loomux dev bench --dir . --warm 3`
+nach dem Korpuslauf `--corpus docs/de/open-source-matrix.md --languages 25
+--warm 3`. Jeder Hook bekommt eine Claude-Code-Nutzlast für einen Edit an
+`cmd/loomux/main.go`, post-tool-use fährt also seine echten Lanes.
+Referenzmaschine (AMD Ryzen 7 9800X3D, Windows x86_64).
+
+### loomux
+
+| Komponente | Kalt | Warmer Median | Warm Min | Warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| pre-tool-use | 11,1 ms | 9,0 ms | 8,5 ms | 11,0 ms | 0 |
+| post-tool-use | 557,6 ms | 509,4 ms | 507,1 ms | 530,0 ms | 0 |
+| graph build | 259,8 ms | 252,7 ms | 250,1 ms | 293,4 ms | 0 |
+
+### Korpus
+
+243 Repositorys aus 25 Sprachen, eines übersprungen
+(`membraneframework/membrane_core`: ein `|` im Pfad lässt sich unter Windows
+nicht auschecken). post-tool-use endete in 137 Repositorys mit 0 und in 95 mit
+2; 11 hatten keine Beispieldatei. Details je Repository: [Open-Source
+Benchmark-Matrix](benchmarks/matrix.md).
+
+### Lesart
+
+1. **post-tool-use ist der Preis des Edits, und der sind die Lanes.** Rund
+   0,5 s bei loomux sind `go vet ./...` auf warmem Build-Cache; der Hook selbst
+   liegt im Bereich von pre-tool-use. Eine frühere Pilotmessung dieses
+   Werkzeugs nannte 11,5 ms für post-tool-use; jener Lauf schickte keine
+   Nutzlast, es lief also keine Lane, und seine Zahlen sind verworfen.
+2. **Exit 2 heißt: loomux blockiert, nicht: der Benchmark scheitert.** Von Hand
+   geprüft: `go vet` findet Befunde in gorm, `ruff` in celery. Ob ruff dort die
+   Konfiguration des Repositorys selbst benutzt, ist nicht geprüft.
+3. **Der Baseline-Speedup von 1,1x bei loomux vergleicht loomux mit sich
+   selbst**: Die `.claude/settings.json` dieses Repositorys ruft dasselbe
+   Binary.
