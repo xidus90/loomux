@@ -278,6 +278,93 @@ Design documents and internal working papers are located under `docs/.superpower
 
 ---
 
+## Releases
+
+Download a binary from the [Releases page](https://github.com/xidus90/loomux/releases):
+`loomux_<version>_<os>_<arch>` for `windows/amd64` (`.exe`), `linux/amd64`,
+`linux/arm64`, `darwin/amd64` and `darwin/arm64`. Verify it against
+`SHA256SUMS` from the same release:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+Every merged pull request to `master` is released according to its label:
+
+| Label | Meaning | Version |
+|---|---|---|
+| `release:major` | Breaking change to a command, flag, hook protocol, config format or exit code | `X+1.0.0` |
+| `release:minor` | New feature, compatible | `X.Y+1.0` |
+| `release:patch` | Bug fix or dependency update, compatible | `X.Y.Z+1` |
+| `release:none` | Docs, CI or tests only | no release |
+
+Every release is a beta pre-release until `RELEASE_CHANNEL` is set to
+`stable`. What changed is in [`CHANGELOG.md`](CHANGELOG.md).
+
+### Opening a pull request
+
+Nobody commits to `master`; every change goes through a pull request. The
+hooks in `.githooks` refuse a commit on `master` and a push to it once
+`git config core.hooksPath .githooks` is set. With an LLM, the `release-pr`
+skill does the steps below; by hand:
+
+1. Group the commits by theme, one commit per change. Fold a later
+   correction of something this branch introduced into the commit that
+   introduced it; only a fix of a bug that was already on `master` keeps its
+   own commit. Rewriting a pushed branch needs
+   `git push --force-with-lease`. Every message is a Conventional Commit
+   (`feat: …`, `fix: …`, `docs: …`; `!` for a breaking change).
+2. Pick one label from the table above; between two levels take the higher.
+   It is never lower than the commits: `!` needs major, `feat` minor, `fix`
+   patch.
+3. Write the body:
+   ```
+   Release: <level> — <one-sentence reason>
+
+   ## Summary
+   - <what changes for a user>
+
+   ## Changelog
+   ### Added
+   - <entry>
+   ```
+   Changelog headings are only `Added`, `Changed`, `Deprecated`, `Removed`,
+   `Fixed`, `Security`; with `release:none` the section is left out.
+4. Check it: `go run ./cmd/loomux dev release parse-body --labels release:<level> --body <file>`.
+5. Push the branch, then `gh pr create --base master --label release:<level> --body-file <file>`.
+
+### Setting up releases (maintainers)
+
+1. Labels:
+   ```sh
+   gh label create release:major --color B60205 --description "Breaking change"
+   gh label create release:minor --color 0E8A16 --description "New feature, compatible"
+   gh label create release:patch --color 1D76DB --description "Bug fix or dependency update"
+   gh label create release:none --color CCCCCC --description "No release"
+   ```
+2. Channel: `gh variable set RELEASE_CHANNEL --body beta`
+3. GitHub App (Settings → Developer settings → GitHub Apps → New): name
+   `loomux-release`, webhook off, repository permissions `Contents: Read and
+   write`, `Pull requests: Read-only`, `Metadata: Read-only`, "Only on this
+   account". Generate a private key, install the app only on
+   `xidus90/loomux`, then:
+   ```sh
+   gh secret set RELEASE_APP_ID --body <app-id>
+   gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
+   ```
+4. Rulesets (once the repository is public): one for `master` and one for
+   tags `v*`, each with the `loomux-release` app as the only bypass actor.
+   The `master` ruleset also requires the status checks `gate-windows` and
+   `build-linux` (workflow `ci`) and `check` (workflow `pr-label`).
+
+If a release was dropped, run the `release` workflow by hand
+(`gh workflow run release.yml -f pr=<number>`). It refuses a pull request
+not merged into `master`, and a rerun after the `chore(release): v*` commit landed
+reuses that commit. If a tag or release already exists for that pull
+request, do not dispatch again; fix the existing release by hand.
+
+---
+
 ## Licence
 
 PolyForm Noncommercial License 1.0 (`LICENSE.md`).

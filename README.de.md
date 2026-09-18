@@ -277,6 +277,96 @@ Detailentwürfe und interne Arbeitspapiere liegen unter `docs/.superpowers/specs
 
 ---
 
+## Releases
+
+Binaries gibt es auf der [Releases-Seite](https://github.com/xidus90/loomux/releases):
+`loomux_<version>_<os>_<arch>` für `windows/amd64` (`.exe`), `linux/amd64`,
+`linux/arm64`, `darwin/amd64` und `darwin/arm64`. Geprüft wird gegen
+`SHA256SUMS` aus demselben Release:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+Jeder gemergte Pull Request nach `master` wird nach seinem Label veröffentlicht:
+
+| Label | Bedeutung | Version |
+|---|---|---|
+| `release:major` | Inkompatible Änderung an Befehl, Flag, Hook-Protokoll, Konfigurationsformat oder Exit-Code | `X+1.0.0` |
+| `release:minor` | Neue Funktion, kompatibel | `X.Y+1.0` |
+| `release:patch` | Fehlerbehebung oder Abhängigkeits-Update, kompatibel | `X.Y.Z+1` |
+| `release:none` | Nur Doku, CI oder Tests | kein Release |
+
+Jedes Release ist ein Beta-Pre-Release, bis `RELEASE_CHANNEL` auf `stable`
+steht. Was sich geändert hat, steht in [`CHANGELOG.md`](CHANGELOG.md).
+
+### Einen Pull Request öffnen
+
+Auf `master` wird nie direkt committet; jede Änderung läuft über einen Pull
+Request. Die Hooks in `.githooks` lehnen einen Commit auf `master` und einen
+Push dorthin ab, sobald `git config core.hooksPath .githooks` gesetzt ist. Mit
+einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
+
+1. Commits thematisch gruppieren, ein Commit pro Änderung. Eine spätere
+   Korrektur an etwas, das dieser Branch eingeführt hat, gehört in den
+   Commit, der es eingeführt hat; nur die Behebung eines Fehlers, der schon
+   auf `master` war, behält einen eigenen Commit. Einen bereits gepushten
+   Branch neu zu schreiben braucht `git push --force-with-lease`. Jede
+   Nachricht ist ein Conventional Commit (`feat: …`, `fix: …`, `docs: …`;
+   `!` für eine inkompatible Änderung).
+2. Ein Label aus der Tabelle oben wählen; zwischen zwei Stufen die höhere.
+   Es liegt nie unter den Commits: `!` verlangt major, `feat` minor, `fix`
+   patch.
+3. Den Rumpf schreiben:
+   ```
+   Release: <level> — <one-sentence reason>
+
+   ## Summary
+   - <what changes for a user>
+
+   ## Changelog
+   ### Added
+   - <entry>
+   ```
+   Changelog-Überschriften sind nur `Added`, `Changed`, `Deprecated`,
+   `Removed`, `Fixed`, `Security`; bei `release:none` entfällt der Abschnitt.
+4. Prüfen: `go run ./cmd/loomux dev release parse-body --labels release:<level> --body <file>`.
+5. Branch pushen, dann `gh pr create --base master --label release:<level> --body-file <file>`.
+
+### Releases einrichten (Maintainer)
+
+1. Labels:
+   ```sh
+   gh label create release:major --color B60205 --description "Breaking change"
+   gh label create release:minor --color 0E8A16 --description "New feature, compatible"
+   gh label create release:patch --color 1D76DB --description "Bug fix or dependency update"
+   gh label create release:none --color CCCCCC --description "No release"
+   ```
+2. Kanal: `gh variable set RELEASE_CHANNEL --body beta`
+3. GitHub App (Settings → Developer settings → GitHub Apps → New): Name
+   `loomux-release`, Webhook aus, Repository-Rechte `Contents: Read and
+   write`, `Pull requests: Read-only`, `Metadata: Read-only`, „Only on this
+   account“. Private Key erzeugen, App nur in `xidus90/loomux` installieren,
+   dann:
+   ```sh
+   gh secret set RELEASE_APP_ID --body <app-id>
+   gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
+   ```
+4. Rulesets (erst wenn das Repository öffentlich ist): eines für `master`
+   und eines für Tags `v*`, jeweils mit der App `loomux-release` als einzigem
+   Bypass-Akteur. Das Ruleset für `master` verlangt außerdem die
+   Statuschecks `gate-windows` und `build-linux` (Workflow `ci`) sowie
+   `check` (Workflow `pr-label`).
+
+Ist ein Release ausgefallen, den Workflow `release` von Hand starten
+(`gh workflow run release.yml -f pr=<nummer>`). Er verweigert einen Pull
+Request, der nicht nach `master` gemergt ist, und ein erneuter Lauf nach dem
+`chore(release): v*`-Commit verwendet diesen Commit wieder. Gibt es für den Pull
+Request schon einen Tag oder ein Release, nicht erneut starten, sondern das
+vorhandene Release von Hand reparieren.
+
+---
+
 ## Lizenz
 
 PolyForm Noncommercial License 1.0 (`LICENSE.md`).
