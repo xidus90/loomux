@@ -807,3 +807,37 @@ func TestGraphBuildFailsWhenStoreWriteFails(t *testing.T) {
 		t.Fatalf("exit %d, want 1", code)
 	}
 }
+
+func TestGraphAskRebuildsADeletedSidecar(t *testing.T) {
+	files := sample()
+	files["lib/lib.go"] = "package lib\n\nfunc Run() { retryWithBackoff() }\n\nfunc retryWithBackoff() {}\n"
+	root := repo(t, files)
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	if err := os.Remove(lexicon.Path(root)); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	errOut.Reset()
+
+	// Nothing in the tree moved, so the freshness record stays clean and only
+	// the sidecar's own absence can trigger the rebuild. Without that, every
+	// later question would rank on names and paths for good.
+	if code := graphCommand([]string{"ask", "backoff", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if _, err := os.Stat(lexicon.Path(root)); err != nil {
+		t.Fatalf("the sidecar was not rebuilt: %v", err)
+	}
+	if strings.Contains(errOut.String(), "ranking on names and paths only") {
+		t.Errorf("stderr %q must not fall back once a rebuild is allowed", errOut.String())
+	}
+	// The two assertions above are the ones that discriminate: the name token
+	// survives the fallback to names and paths, so this last one passes without
+	// a rebuild as well. It is here for the answer, not for the regression.
+	if !strings.Contains(out.String(), "retryWithBackoff") {
+		t.Errorf("answer %q must find the symbol again", out.String())
+	}
+}

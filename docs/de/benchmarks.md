@@ -1062,6 +1062,49 @@ Prozessstart, und der Unterschied ist Rauschen.
    30.000 Knoten ein Zeitgewinn wird, ist ungeprüft und darf nicht angenommen
    werden.
 
+
+## 2026-09-19 00:15 - Die Beiaktenprüfung, die die Frischesonde jetzt macht
+
+### Was gemessen wurde
+
+`loomux graph ask` auf einem sauberen Baum, wo die Frischeakte keine Abweichung
+meldet und die Sonde ohne Neubau zurückkehrt. Nur diesen Weg berührt die
+Änderung: `EnsureFresh` ruft jetzt `lexicon.Usable`, ein `open` und eine
+Teillesung der `ask-index.json`, dekodiert bis zum Feld `version`, bevor es
+früh zurückkehren darf.
+
+Beide Binaries aus der Quelle an getrennte Pfade gebaut, `86fa192` (v1.1.0) als
+Grundstand und `f160d73` samt Arbeitsstand dieses Zweigs als Änderung, gegen
+dieselbe Wurzel und denselben Graphenstand gemessen: ein Checkout dieses
+Repositories auf `86fa192`, 282 Dateien, 3.073 Knoten, 9.884 Kanten, Beiakte auf
+der Platte. Anfrage `"retry backoff" --limit 1`, drei Aufwärmläufe verworfen,
+dann 10 Läufe mit `Measure-Command` auf der Referenzmaschine (AMD Ryzen 7
+9800X3D, Windows x86_64).
+
+### Messwerte
+
+| Fall | Median | Min | Max |
+|---|---:|---:|---:|
+| Grundstand, saubere Akte genügt | 51,2 ms | 49,1 ms | 53,6 ms |
+| Änderung, saubere Akte plus Beiaktenversion | 49,9 ms | 48,9 ms | 53,1 ms |
+
+### Lesart
+
+1. **Die zusätzliche Lesung zeigt sich nicht.** Die Änderung misst 1,3 ms
+   *unter* dem Grundstand, was innerhalb der Streuung beider Reihen liegt (die
+   Bereiche überlappen fast vollständig) und damit Rauschen ist, kein Gewinn.
+   Die Kosten sind ein `open` und ein paar hundert gepufferte Bytes gegen einen
+   50-ms-Prozess, dessen Zeit von Start und Graphenlesung bestimmt wird.
+2. **Einen kalten Fall gibt es hier nicht zu messen.** Eine kalte Anfrage hat
+   keinen brauchbaren Graphenstand und baut neu; der Bau liest und hasht jede
+   Datei und brauchte auf dieser Wurzel 283 ms. Die eine zusätzliche Lesung
+   liegt bauartbedingt auf dem warmen Weg und wird auf dem kalten nicht
+   erreicht.
+3. **`Usable` ist nicht `Read`.** Es dekodiert bis zum Feld `version` und hört
+   auf. Das ganzdateiige `Read` zu messen hätte eine andere und größere Zahl
+   ergeben; genau dafür existiert die Prüfung als eigene Funktion.
+
+
 ## 2026-09-19 00:31 — `loomux dev bench` an loomux und am Open-Source-Korpus
 
 Repo `loomux`, Zweig `open-source-matrix`, `loomux dev bench --dir . --warm 3`

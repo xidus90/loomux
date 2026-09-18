@@ -148,7 +148,7 @@ Retrieves code symbols ranked by BM25-style lexical matching blended with **Pers
   - `--no-refresh` — skip the freshness probe and automatic background rebuild on drift.
 - **The two things this otherwise gets asked twice**:
   - Without `--source`, no code is shown — only location (path, line span), symbol id, signature, and composite score along with its lexical and graph components.
-  - By default, `ask` probes the graph for freshness before answering. If the working tree has drifted or the graph has not been built yet, it rebuilds the graph and sidecar under a cross-process lock before answering, logging rebuild progress to `stderr`. To query the existing graph without rebuilding, pass `--no-refresh`.
+  - By default, `ask` probes the graph for freshness before answering. If the working tree has drifted, the graph has not been built yet, or the ask sidecar is missing or carries another index version, it rebuilds the graph and sidecar under a cross-process lock before answering, logging rebuild progress to `stderr`. The sidecar is part of the probe because the freshness record knows about source files only: without that check, a deleted `ask-index.json` would leave every later question ranking on names and paths until some source file happened to change. To query the existing graph without rebuilding, pass `--no-refresh` — which skips the sidecar check as well, so the answer may fall back to names and paths, and says so on `stderr`.
 - **Output**: Ranked list of hits in the format:
   `N. <id>  <path>:<span-or-line>  (<score> lex <lexical> graph <graph>)`
   followed by signature and, if `--source` is requested, the inlined code block prefixed with `|`. If no symbols match the query, outputs an empty answer note and exits 0.

@@ -392,3 +392,67 @@ func TestWriteReportsATargetItCannotReplace(t *testing.T) {
 		t.Fatalf("temporary file left behind: %v", err)
 	}
 }
+
+func TestUsableAcceptsWhatWriteWrote(t *testing.T) {
+	root := t.TempDir()
+	if err := lexicon.Write(root, lexicon.Build(graph())); err != nil {
+		t.Fatal(err)
+	}
+	if !lexicon.Usable(root) {
+		t.Fatal("a sidecar this binary just wrote must be usable")
+	}
+}
+
+func TestUsableRejectsWhatCannotBeRead(t *testing.T) {
+	// The freshness probe asks this question, so every answer here decides
+	// whether a query rebuilds. Anything but a readable sidecar of this
+	// version is drift.
+	for _, c := range []struct {
+		name string
+		body string
+	}{
+		{"an array", "[1]\n"},
+		{"an object without a version", "{}\n"},
+		{"another version", `{"version": 2}`},
+		{"a version that is not a number", `{"version": "one"}`},
+		{"a truncated value before the version", `{"df": `},
+		{"a truncated key", `{"df": {}, "ver`},
+		{"nothing at all", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.MkdirAll(filepath.Dir(lexicon.Path(root)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(lexicon.Path(root), []byte(c.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if lexicon.Usable(root) {
+				t.Fatalf("%s must not count as a usable sidecar", c.name)
+			}
+		})
+	}
+}
+
+func TestUsableRejectsASidecarThatIsNotThere(t *testing.T) {
+	if lexicon.Usable(t.TempDir()) {
+		t.Fatal("no file is no sidecar")
+	}
+}
+
+func TestUsableReadsTheVersionBehindOtherFields(t *testing.T) {
+	// The version is the first field Write emits, and the fast path depends on
+	// that. A reordered struct must still be read rather than counted as
+	// drift, or a rebuild would run on every question.
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Dir(lexicon.Path(root)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"avg_body_len": 1.5, "df": {"a": 1}, "docs": [], "version": 1}`
+	if err := os.WriteFile(lexicon.Path(root), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !lexicon.Usable(root) {
+		t.Fatal("the version must be found wherever it stands")
+	}
+}

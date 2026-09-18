@@ -197,6 +197,44 @@ func Write(root string, ix *Index) error {
 	return nil
 }
 
+// Usable reports whether the sidecar on disk is one this binary can read.
+//
+// This is the freshness probe's question and not a query's, so it must not
+// cost what Read costs: it stops at the version field and never materializes a
+// token bag. The version is the first field Write emits, so in practice this
+// is three tokens and a few hundred bytes; the loop over the remaining keys is
+// there so a reordered struct stays readable rather than counted as drift.
+func Usable(root string) bool {
+	f, err := os.Open(Path(root))
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return false
+	}
+	for dec.More() {
+		key, err := dec.Token()
+		if err != nil {
+			return false
+		}
+		if key != "version" {
+			var skip json.RawMessage
+			if err := dec.Decode(&skip); err != nil {
+				return false
+			}
+			continue
+		}
+		var version int
+		if err := dec.Decode(&version); err != nil {
+			return false
+		}
+		return version == indexVersion
+	}
+	return false
+}
+
 // Read loads the sidecar.
 func Read(root string) (*Index, error) {
 	b, err := os.ReadFile(Path(root))
