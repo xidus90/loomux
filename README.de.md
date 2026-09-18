@@ -75,7 +75,7 @@ sequenceDiagram
 
 Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen daraus via **Personalized PageRank**.
 
-> **Stand (Stufe G2a).** Extraktor, Wiring-Schreiber, Frischesonde sowie `loomux graph build` und `loomux graph check` stehen und sind gemessen: `graph build` auf diesem Repository braucht in der Größenordnung eines Zehntel einer Sekunde, kalt wie warm gleich (`build` liest und hasht jede Datei jedes Mal, es gibt also keinen warmen Pfad, der schneller wäre), `graph check` extrahiert neu und kostet ungefähr dasselbe. Dieser Absatz trägt absichtlich keine Punktzahl — drei Commits in Folge schrieben hier eine hin, und der jeweils nächste Commit machte sie falsch; die Zahl, ihr Befehl und ihre Rohausgabe stehen in `docs/de/benchmarks.md`, wo ein `git log` sie gegen den Code datieren kann, der sie erzeugt hat. Rang und Blast-Radius — `internal/code/pagerank` und `internal/code/blast` — sind Go-Pakete, belegt an portierten Testvektoren der Referenz, aber noch fragt sie niemand etwas: lexikalische Saat sowie `loomux graph ask` / `callers` sind Stufe G2b.
+> **Stand (Stufe G2b).** Stufe G2b vollendet den Abfragepfad: `loomux graph ask` sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen mit Personalized PageRank (alpha=0.25). Das Retrieval benötigt ~48 ms warm (~38 ms bei Namens-Matching ohne die 1-MB-Rumpfbeiakte auf diesem ~3.000-Knoten-Repo; die Beiakte dient der Skalierung auf 30.000+ Knoten). Quelltext-Spans werden bei Bedarf via `--source` inline eingeblendet. Bei Abweichung wird der Graph automatisch im Hintergrund neu gebaut, sofern `--no-refresh` fehlt. Graph-Navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) wartet auf die Stufen G3-G4.
 
 ```mermaid
 flowchart LR
@@ -148,7 +148,7 @@ Matrix darunter sagt, wo die einzelnen Funktionen stehen:
 | 3-Kanal-Distribution | Konfiguriert via `.loomux/config.toml`, synchronisiert in Host-Ordner, via MCP-Prompts oder Web OS. | 📋 **Spezifiziert** (Stufe W4) |
 | **3. Code-Graph & Loop** | | |
 | Nativer Go-AST-Extraktor | Deterministische Symbol- & Kantenextraktion allein via `go/parser` und `go/ast` — kein `go/types`, kein Build ($0, 0 Deps). Hinter `loomux graph build` verdrahtet; braucht auf diesem Repository in der Größenordnung eines Zehntel einer Sekunde, mit Befehl und Rohausgabe gemessen in `docs/de/benchmarks.md`. | ✅ **Implementiert** (Stufe G2a) |
-| Personalized PageRank | Power-Iteration Random-Walk-Ranking über Aufruf- und Abhängigkeitsgraphen, ungerichtet über fünf Relationen, max-normiert mit deterministischer Gleichstandsordnung. Noch fragt kein Befehl etwas. | 🧩 **Bibliothek** (Stufe G1) |
+| Personalized PageRank | Power-Iteration Random-Walk-Ranking über Aufruf- und Abhängigkeitsgraphen, ungerichtet über fünf Relationen, max-normiert mit deterministischer Gleichstandsordnung. Verschmolzen mit BM25-Kandidaten-Scoring in `loomux graph ask` (~48 ms warmes Retrieval). | ✅ **Implementiert** (Stufe G2b) |
 | Blast-Radius-Engine | Transitive Hülle und Impact-Analyse (`In`/`Out`, Tiefenbegrenzung, kleinste Tiefe gewinnt). Noch fragt kein Befehl etwas. | 🧩 **Bibliothek** (Stufe G1) |
 | Symbol-gekoppelter Grep | Regex-Suche, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Grad (`inDegree`). | 📋 **Spezifiziert** (Stufe G4) |
 | Multi-Language AST | CGo-freier Tree-sitter über WebAssembly (`wazero`) mit persistentem AOT-Kompilierungs-Cache. | 💡 **Geplant** (Stufe G5) |
@@ -191,17 +191,19 @@ loomux brain neighbors <pfad> --scope S  # Eingehende und ausgehende Links einer
 loomux brain status                 # Was man wissen muss, bevor man einer Antwort traut
 ```
 
-### Implementierte Befehle (Code-Graph — Stufe G2a)
+### Implementierte Befehle (Code-Graph — Stufen G2a–G2b)
 ```bash
-loomux graph build [--root <pfad>]  # extrahiert, löst auf und schreibt .loomux/state/graph/wiring.json
-loomux graph check [--root <pfad>]  # extrahiert neu und vergleicht mit dem Graphen auf der Platte (Exit 1 bei Drift)
+loomux graph build [--root <pfad>]  # Extrahiert, löst auf und schreibt .loomux/state/graph/wiring.json
+loomux graph check [--root <pfad>]  # Extrahiert neu und vergleicht mit Graph auf Platte (Exit 1 bei Drift)
+loomux graph ask "<anfrage>" [flags] # Sucht Symbole gerankt nach lexikalischem Score und Personalized PageRank
 ```
 
-### Spezifizierte Befehle (Code-Graph — Stufen G2b–G5)
+### Spezifizierte Befehle (Code-Graph — Stufen G3–G5)
 
-Stufe G1 hat die Rank- und Blast-Radius-Bibliotheken gebaut; Stufe G2a hat `build` und `check` oben darauf verdrahtet, aber noch fragt niemand die Bibliotheken etwas.
+Stufe G1 hat die Rank- und Blast-Radius-Bibliotheken gebaut; die Stufen G2a und G2b haben
+`build`, `check` und `ask` oben darauf verdrahtet, während die Graph-Navigation
+(`callers`, `blast`, `grep`, `skeleton`, `map`) auf die Stufen G3-G4 wartet.
 ```bash
-loomux graph ask "<anfrage>"        # Sucht Symbole gerankt nach Personalized PageRank
 loomux graph callers <symbol>       # Zeigt Aufrufer, Aufgerufene (--direction out) oder transitive Hülle (-d all)
 loomux graph blast [dir]            # Berechnet den Blast-Radius eines Git-Diffs gegen Working Tree oder Merge-Base
 loomux graph grep "<regex>"         # Regex-Suche gruppiert nach Symbol und sortiert nach Kopplung
@@ -235,7 +237,7 @@ loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter
 |---|---|---|---|
 | **Einziges Go-Binary** | Grundarchitektur | ✅ **Kernmandat** | 0 Python, 0 Node.js. 7,5 ms warmer Hook, autarke Auslieferung, 100 % Testabdeckung. |
 | **AST-Code-Graph & PageRank** | `trailhq/Graft` | ✅ **Nativ übernommen** | $0 deterministischer Code-Graph. Personalized PageRank filtert strukturelle Kern-Hubs statt naiver Keyword-Listen. |
-| **Blast Radius & Crux-Inlining** | `trailhq/Graft` | ✅ **Nativ übernommen** | Auswirkungsanalyse bei Edits (Ziel < 5 ms, ungemessen); liefert 5–10 Zeilen Kernlogik statt ganzer Dateidumps. |
+| **Blast Radius & Crux-Inlining** | `trailhq/Graft` | ✅ **Nativ übernommen** | Auswirkungsanalyse bei Edits (Ziel < 5 ms); liefert 5-10 Zeilen Kernlogik oder Spans ($0 Token-Lesekosten, ~48 ms warmes Retrieval). |
 | **Symbol-gekoppelter Grep** | `trailhq/Graft` | ✅ **Nativ übernommen** | Regex-Treffer gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`). |
 | **Lokales Second Brain & Wiki** | Grundarchitektur | ✅ **Kernmandat** | Markdown-Wiki, ADRs und Identitätsregister direkt im Repo. Code-Symbole verlinken direkt auf Architektur-Entscheidungen. |
 | **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Abgelehnt** | Graft setzt Node.js >=20, `node-gyp` und MSVC voraus. Loomux bleibt 100 % Pure Go ohne C-Compiler-Zwang. |

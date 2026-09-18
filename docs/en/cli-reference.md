@@ -125,7 +125,7 @@ Refuses the main checkout and any directory git holds no worktree at, removes th
 ## 6. Code Graph Engine (`loomux graph`)
 
 > [!NOTE]
-> **`build` and `check` are wired; the rest below is still specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — and stage G2a adds the extractor, the wiring writer, the freshness probe and the two commands documented next. `ask`, `callers`, `blast`, `skeleton`, `map` and `viz` remain unwired.
+> **`build`, `check` and `ask` are wired; the rest below is still specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — stage G2a added the extractor, the wiring writer, the freshness probe and `graph build` and `check`, and stage G2b adds the lexicon, lexical scoring, Personalized PageRank blend and `graph ask`. `callers`, `blast`, `skeleton`, `map` and `viz` remain unwired.
 
 ### `loomux graph build [--root <path>]`
 Reads and hashes every Go source file `internal/code/sourceset` finds under the root, extracts and resolves them into the deterministic AST graph, and writes it to `.loomux/state/graph/wiring.json`. It also writes the freshness record (`.loomux/state/graph/cache/fingerprint.json`) a later probe reads; a failure to write that record is announced on `stderr` but does not fail the build, since the graph on disk is already correct.
@@ -135,11 +135,24 @@ Reads and hashes every Go source file `internal/code/sourceset` finds under the 
 - **Exit codes**: `0` on success; `1` if the root cannot be resolved, a file cannot be read or parsed, module resolution fails, or the graph cannot be written; `2` for a usage error.
 - **Cost**: `build` never reads the freshness record — it reads and hashes every file, every time, cold or warm alike. It is the command that produces the state a probe compares against, so a stale byte in it would be a stale answer, not a saved read. See `docs/en/benchmarks.md` for measured figures.
 
-### `loomux graph ask "<query>" [dir]`
-Retrieves code symbols ranked by **Personalized PageRank** over the AST call graph.
+### `loomux graph ask "<query>" [flags]`
+Retrieves code symbols ranked by BM25-style lexical matching blended with **Personalized PageRank** over the AST call graph.
 
-- **Output**: Ranked symbols with file, lines, and inlined crux spans ($0 token read cost).
-- **Flags**: `--json` (machine-readable output).
+- **Flags**:
+  - `--root <path>` — project root; the working directory when empty.
+  - `--limit <n>` — maximum number of hits to report (default `8`).
+  - `--in <prefix>` — filter candidate nodes by path prefix before scoring and PageRank walk; recomputes document frequency over the remainder.
+  - `--source` — inline the source code span for each hit (capped at 80 lines unless `--full`). Without `--source`, only locations and signatures are reported.
+  - `--full` — when `--source` is enabled, inlines the full source code span without the 80-line cap.
+  - `--json` — emit machine-readable JSON matching the `ask.Answer` struct (`hits`, `query`, `note`, `stats`).
+  - `--no-refresh` — skip the freshness probe and automatic background rebuild on drift.
+- **The two things this otherwise gets asked twice**:
+  - Without `--source`, no code is shown — only location (path, line span), symbol id, signature, and composite score along with its lexical and graph components.
+  - By default, `ask` probes the graph for freshness before answering. If the working tree has drifted or the graph has not been built yet, it rebuilds the graph and sidecar under a cross-process lock before answering, logging rebuild progress to `stderr`. To query the existing graph without rebuilding, pass `--no-refresh`.
+- **Output**: Ranked list of hits in the format:
+  `N. <id>  <path>:<span-or-line>  (<score> lex <lexical> graph <graph>)`
+  followed by signature and, if `--source` is requested, the inlined code block prefixed with `|`. If no symbols match the query, outputs an empty answer note and exits 0.
+- **Exit codes**: `0` on success (including when no symbols match the query); `1` on failure (unreadable graph, rebuild failure, syntax error in file when rebuilding); `2` on usage error (missing query, negative limit).
 
 ### `loomux graph callers <symbol> [dir]`
 Traces who calls, imports, implements, or extends a symbol.

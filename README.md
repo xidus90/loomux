@@ -75,7 +75,7 @@ sequenceDiagram
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
-> **State (stage G2a).** The extractor, the wiring writer, the freshness probe and `loomux graph build` / `loomux graph check` are in place and measured: `graph build` on this repository takes on the order of a tenth of a second, cold and warm alike (`build` reads and hashes every file every time, so there is no warm path to speed it up), `graph check` re-extracts and costs about the same. This paragraph deliberately carries no point figure — three commits in a row wrote one here, and the next commit in each case made it wrong; the number, its command and its raw output live in `docs/en/benchmarks.md`, which a git log can date against the code that produced it. The ranking and the blast radius — `internal/code/pagerank` and `internal/code/blast` — are Go packages held to the reference by ported test vectors, but nothing yet asks them a question: the lexical seed and `loomux graph ask` / `callers` are stage G2b.
+> **State (stage G2b).** Stage G2b completes the query path: `loomux graph ask` retrieves code symbols ranked by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25). Retrieval takes ~48 ms warm (~38 ms when matching names without the 1MB body sidecar on this ~3,000-node repo; the sidecar exists to scale to 30,000+ nodes). Inlined code spans are provided via `--source`. Automatic background graph rebuild triggers on drift unless `--no-refresh` is passed. Graph navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) awaits stages G3-G4.
 
 ```mermaid
 flowchart LR
@@ -148,7 +148,7 @@ below says where each capability stands:
 | 3-Channel Distribution | Configured via `.loomux/config.toml`, synced to host folders, served via MCP prompts, or run via Web UI. | 📋 **Specified** (Stage W4) |
 | **3. Code Graph & Loop** | | |
 | Go Native AST Extractor | Deterministic symbol & call extraction via `go/parser` and `go/ast` alone — no `go/types`, no build ($0, zero dependencies). Wired behind `loomux graph build`; takes on the order of a tenth of a second on this repository, measured with its command and raw output in `docs/en/benchmarks.md`. | ✅ **Implemented** (Stage G2a) |
-| Personalized PageRank | Power-iteration random-walk ranking over call and dependency graphs, undirected over five relations, max-normalized with a deterministic tie order. No command asks it a question yet. | 🧩 **Library** (Stage G1) |
+| Personalized PageRank | Power-iteration random-walk ranking over call and dependency graphs, undirected over five relations, max-normalized with a deterministic tie order. Blended with BM25 lexical candidate scoring in `loomux graph ask` (~48 ms warm retrieval). | ✅ **Implemented** (Stage G2b) |
 | Blast Radius Engine | Transitive closure and impact analysis (`In`/`Out`, depth limits, smallest depth wins). No command asks it a question yet. | 🧩 **Library** (Stage G1) |
 | Symbol-Coupled Grep | Regex search grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). | 📋 **Specified** (Stage G4) |
 | Multi-Language AST | CGo-free Tree-sitter extraction via WebAssembly (`wazero`) with persistent AOT cache. | 💡 **Planned** (Stage G5) |
@@ -191,18 +191,19 @@ loomux brain neighbors <path> --scope S  # incoming and outgoing links of one pa
 loomux brain status                 # what to know before trusting an answer
 ```
 
-### Implemented Commands (Code Graph — Stage G2a)
+### Implemented Commands (Code Graph — Stages G2a–G2b)
 ```bash
 loomux graph build [--root <path>]  # extract, resolve and write .loomux/state/graph/wiring.json
 loomux graph check [--root <path>]  # re-extract and diff against the graph on disk (exit 1 on drift)
+loomux graph ask "<query>" [flags]  # retrieve code symbols ranked by lexical score and Personalized PageRank
 ```
 
-### Specified Commands (Code Graph — Stages G2b–G5)
+### Specified Commands (Code Graph — Stages G3–G5)
 
-Stage G1 built the ranking and blast-radius libraries; stage G2a wired `build`
-and `check` above onto them, but nothing yet asks the libraries a question.
+Stage G1 built the ranking and blast-radius libraries; stages G2a and G2b wired `build`,
+`check`, and `ask` above onto them, while graph navigation (`callers`, `blast`, `grep`,
+`skeleton`, `map`) awaits stages G3-G4.
 ```bash
-loomux graph ask "<query>"          # retrieve code symbols ranked by Personalized PageRank
 loomux graph callers <symbol>       # list direct callers, callees (--direction out), or full closure (-d all)
 loomux graph blast [dir]            # compute blast radius of a git diff against working tree or merge base
 loomux graph grep "<regex>"         # regex search grouped by enclosing symbol and ranked by coupling
@@ -236,7 +237,7 @@ loomux dev import-cases --map <f>   # translate a directory of recorded cases in
 |---|---|---|---|
 | **Single Go Binary** | Architecture | ✅ **Core Mandate** | Zero Python, zero Node.js. 7.5 ms warm hook, single executable deployment, 100% test coverage. |
 | **AST Code Graph & PageRank** | `trailhq/Graft` | ✅ **Adopted Natively** | $0 deterministic code graph. Personalized PageRank concentrates mass on structural hubs instead of naive keyword dumps. |
-| **Blast Radius & Crux Inlining** | `trailhq/Graft` | ✅ **Adopted Natively** | Impact calculation on edit (target <5ms, unmeasured); inlines 5–10 critical logic lines instead of full file reads. |
+| **Blast Radius & Crux Inlining** | `trailhq/Graft` | ✅ **Adopted Natively** | Impact calculation on edit (target <5ms); inlines 5-10 critical logic lines or spans ($0 token read cost, ~48 ms warm retrieval). |
 | **Symbol-Coupled Grep** | `trailhq/Graft` | ✅ **Adopted Natively** | Regex hits grouped by enclosing symbol and ranked by incoming call edges (`inDegree`). |
 | **Local Second Brain & Wiki** | Architecture | ✅ **Core Mandate** | Markdown wiki, ADRs, and identity registers stored in-repo. Code symbols directly link to architectural decisions. |
 | **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Rejected** | Graft requires Node.js >=20, `node-gyp`, and MSVC C++ builds. Loomux remains 100% pure Go with zero external compilers. |
