@@ -343,3 +343,29 @@ func TestProbeAlwaysChecksAFileTheLastBuildNeverHashed(t *testing.T) {
 		t.Fatalf("got %+v, want a.go changed: an empty recorded hash is never trusted, size and mtime notwithstanding", d)
 	}
 }
+
+func TestProbeTrustsAFileWhoseSizeAndModTimeStillMatch(t *testing.T) {
+	root := build(t, map[string]string{"a.go": "package a\n"})
+	abs := filepath.Join(root, "a.go")
+	info, err := os.Stat(abs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := info.ModTime()
+	// Other bytes of the same length, mtime put back: the stat fast path cannot
+	// tell, and by design does not read the file.
+	if err := os.WriteFile(abs, []byte("package b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(abs, orig, orig); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := freshness.Probe(root, "go/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d == nil || !d.Clean() {
+		t.Fatalf("got %+v, want clean: a matching stat is trusted without a read", d)
+	}
+}

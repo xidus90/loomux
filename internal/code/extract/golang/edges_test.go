@@ -520,3 +520,17 @@ func TestFileDoesNotReadPastAShortConstructorCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFileDoesNotLetAMethodNameShadowAnImportedPackage(t *testing.T) {
+	src := "package a\n\nimport \"strings\"\n\ntype T struct{}\n\nfunc (T) strings() {}\n\nfunc F() { strings.ToUpper(\"x\") }\n"
+	r, err := golang.File("a.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A method's name lives in its type's method set, not in package scope:
+	// `strings` here is still the package, and the selector must reach resolve.
+	calls := edgesOf(t, r, model.RelationCalls)
+	if !hasEdge(calls, golang.RawEdge{Source: "a.go#F", Name: "ToUpper", Receiver: "strings"}) {
+		t.Fatalf("a method named like an import must not shadow it; got %+v", calls)
+	}
+}
