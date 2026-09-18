@@ -721,3 +721,94 @@ die Graft-Referenzvergleiche entstanden sind.
    nächsten eine Zahl mit, die sagt, dass die Annahme auf einem
    verzeichnislastigen Baum neu geprüft werden muss, nicht nur auf einem
    dateilastigen.
+
+## 2026-09-18 11:35 — Der fehlende Sperrlisten-Eintrag der Sonde
+
+Repository `loomux`, Worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
+Branch `code-g2`. Dieser Eintrag klärt die Frage, die der vorige offen ließ:
+ob die Design-Entscheidung aus §7.1 (Verzeichnislauf statt `git ls-files`)
+umgekehrt werden soll. Soll sie nicht — die Ursache war ein fehlender Name auf
+der Sperrliste, nicht der Lauf selbst.
+
+**Die Prüfung.** `internal/code/sourceset.skipDirs` enthielt `testdata` nicht,
+also lief `sourceset.Stat`s `filepath.WalkDir` in jedes Verzeichnis unter
+`testdata/` hinein, auf der Suche nach `.go`-Dateien, die dort nie standen —
+keine der Fixturen dieses Repositories unter `testdata/` ist `.go` (sie sind
+`.go.txt` oder aufgezeichnete Testfall-Korpora). Gos eigenes `go/build`
+ignoriert `testdata/` bereits; Grafts eigene Sperrliste kennt den Namen nur
+deshalb nicht, weil Graft nicht Go-spezifisch ist. `"testdata"` zur
+`skipDirs`-Liste hinzuzufügen, in ihrer bestehenden Reihenfolge, ist die ganze
+Änderung (`internal/code/sourceset/sourceset.go`); ein neuer Test,
+`TestListSkipsTestdata`, prüft, dass eine `.go`-Datei unter `testdata/` nie
+aufgenommen wird.
+
+**Vorher und nachher, derselbe Befehl, derselbe Baum:**
+
+```
+$ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x
+```
+
+| Zeitpunkt | ns/op | sondierte Dateien | Verzeichnisse insgesamt | Verzeichnisse unter `testdata/` |
+|---|---:|---:|---:|---:|
+| vorher (wie in der ersten Runde committet) | 59.840.350 | 254 | 1.910 | 1.827 |
+| nachher (`testdata` zu `skipDirs` ergänzt) | 4.293.460 und 2.719.400 (zwei Läufe) | 254 | 1.910 (unverändert — die Verzeichnisse selbst sind nicht weg, nur nicht mehr durchlaufen) | 1.827 (unverändert) |
+
+Rohausgabe der beiden „nachher"-Läufe:
+
+```
+BenchmarkProbe-16    	      10	   4293460 ns/op
+BenchmarkProbe-16    	      10	   2719400 ns/op
+```
+
+**`graph build` und `graph check` danach, zur Bestätigung, dass sich nichts
+Indizierbares bewegt hat:**
+
+```
+$ rm -rf .loomux/state/graph && time /tmp/loomux-bench2.exe graph build --root .
+254 files, 2802 nodes, 8983 edges (2548 contains, 5083 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 157ms
+real	0m0.217s
+
+$ time /tmp/loomux-bench2.exe graph build --root .
+254 files, 2802 nodes, 8983 edges (2548 contains, 5083 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 152ms
+real	0m0.176s
+
+$ time /tmp/loomux-bench2.exe graph check --root .
+loomux graph check: OK
+real	0m0.177s
+```
+
+Dateizahl: 254, unverändert gegenüber dem Eintrag vom 2026-09-18 11:10.
+Knotenzahl bewegt sich um +1 (2801 → 2802) und Kanten um +3 (8980 → 8983) —
+beides erklärt durch den eigenen neuen Testcode dieser Runde innerhalb von
+`internal/code` (die ergänzte Funktion `TestListSkipsTestdata` und ihre
+Aufrufstellen), nicht durch die `skipDirs`-Änderung: eine `.go`-Datei unter
+`testdata/` war nie Teil der Dateimenge, weder vorher noch nachher, also
+konnte das Überspringen des Verzeichnisses keinen Knoten entfernen, den es nie
+gab. Bau- und Prüfzeiten (152–217 ms) liegen innerhalb des Rauschens des
+11:10-Eintrags (190–236 ms).
+
+### Lesart
+
+1. **Die 20-fache Lücke schließt sich auf etwa die Referenz oder darunter, mit
+   einer geänderten Zeile.** 59,8 ms/op vorher, 2,7–4,3 ms/op nachher, gegen
+   Grafts ~3 ms für 280 Dateien: der zweite Lauf liegt unter der Referenz, der
+   erste knapp darüber — beide in der richtigen Größenordnung, wo die Zahl des
+   vorigen Eintrags um das 20-Fache daneben lag. Die Dateizahl hat sich nicht
+   bewegt (254, beide Male), das ist die Prüfung, dass hier ein Lauf-Kosten-
+   Fehler behoben wurde und nicht stillschweigend etwas aus dem Index gefallen
+   ist.
+2. **Die Bedingung aus §7.1 löst sich in eine dritte Antwort auf, keine der
+   beiden vorgesehenen.** Der Abschnitt fragte, ob die Kosten der Sonde einen
+   Wechsel auf `git ls-files` erzwingen würden. Taten sie nicht: der
+   Verzeichnislauf selbst war nie das Problem, und das Fehlen von Git auch
+   nicht. Das Problem war ein fehlender Name auf einer Liste, die genau für
+   diesen Zweck schon existierte. §7.1, §13 und die Abweichungstabelle aus
+   §3.7 der Spec sind aktualisiert, um das festzuhalten, statt die Bedingung
+   so aussehen zu lassen, als wäre sie nie offen gewesen.
+3. **`graph build` und `graph check` haben sich nicht aus dem Grund bewegt,
+   der zählen würde.** Ihre Datei-, Knoten- und Kantenzahlen sind unverändert,
+   abgesehen von den eigenen Testergänzungen dieser Runde — die Bestätigung,
+   dass `testdata/` nichts enthielt, was der Graph braucht, und dass die
+   Korrektur die Sonde ihre Laufzeit gekostet hat, den Graphen aber nichts.

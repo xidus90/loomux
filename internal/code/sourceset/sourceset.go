@@ -25,8 +25,16 @@ import (
 // hook's budget could no longer hold them.
 const maxFileBytes = 1_000_000
 
-// skipDirs are dependency and build output, never source. The comparison is
-// against a single path segment.
+// skipDirs are dependency output, build output, and fixture input holding no
+// source the extractor would ever read — never a symbol the graph should
+// have a node for. The comparison is against a single path segment.
+//
+// testdata is the last of those three kinds, not the first two: Go's own
+// toolchain already ignores it for builds, and a probe that still walked it
+// paid for the difference. On this repository testdata/ holds 1,829 of 1,910
+// directories, none of them containing a .go file sourceset would list either
+// way -- the walk cost stayed on the probe until this entry named it. See
+// docs/en/benchmarks.md, 2026-09-18.
 var skipDirs = map[string]bool{
 	"node_modules": true,
 	"dist":         true,
@@ -38,6 +46,7 @@ var skipDirs = map[string]bool{
 	"coverage":     true,
 	"__pycache__":  true,
 	"venv":         true,
+	"testdata":     true,
 }
 
 // SourceFile is one file of the set, with what a freshness probe compares.

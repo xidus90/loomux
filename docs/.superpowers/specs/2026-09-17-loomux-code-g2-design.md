@@ -157,7 +157,7 @@ Kommandozeile zu loomux'. Sie ändern kein Verhalten, das jemand beobachtet:
 | `mtime` als `int64` aus `UnixNano()` | 7 | Grafts `mtimeMs` ist ein Double; in Go wäre das stiller Genauigkeitsverlust |
 | Stempel *in* der Frischeakte, nicht in ihrem Dateinamen | 7.2 | Grafts `fingerprint.<stempel>.json` trennt zwei gleichzeitig installierte Grafts (npx gegen lokal); ein einzelnes Binär hat dieses Problem nicht |
 | keine Vorfahrensuche nach der Wurzel | 9 | `--root` ist loomux' Hauskonvention, kein Befehl läuft hier ohne Wurzelbegriff |
-| Dateimenge über den Verzeichnislauf statt über Git | 7.1 | ein Unterprozess je Sondenaufruf kostet mehr als die Sonde; eine Messung kann das umdrehen |
+| Dateimenge über den Verzeichnislauf statt über Git | 7.1 | ein Unterprozess je Sondenaufruf kostet mehr als die Sonde; gemessen und bestätigt — die anfängliche 20-fache Abweichung war eine fehlende Sperrliste, nicht der Verzeichnislauf |
 | kein `--only-dir` | 9 | zieht eine Zustandsregel nach, die die Abnahme nicht braucht |
 
 Was Graft **nicht** hat und diese Spec deshalb selbst entscheidet, steht nicht hier, sondern an
@@ -531,12 +531,25 @@ Wie Graft (`ingest/fs.ts`, `graph/source-files.ts`), mit einer Ausnahme:
   Aufruf ist ein Vielfaches davon. Die Sperrliste plus „jedes Punktverzeichnis" deckt in einem
   Go-Repo praktisch dieselbe Menge ab; wo sie es nicht tut — eine ignorierte, aber nicht gesperrte
   Generatorausgabe —, landet die Datei im Graphen.
-  **Das ist die eine Entscheidung dieser Spec, die eine Messung umdrehen kann**, und die Messung
-  ist fällig (Abschnitt 13): steht die Sonde deutlich über 3 ms, ist Git die Quelle und der
-  Prozessstart das kleinere Übel. Gemessen wird die Drift in beiden Fällen gegen die Bytes im
+  **Das war die eine Entscheidung dieser Spec, die eine Messung umdrehen konnte, und Aufgabe 10 hat
+  sie gemessen — mit einer dritten Antwort, die keine der beiden vorgesehenen war.** Die Sonde
+  stand auf diesem Repository bei 57,5–72,5 ms statt ~3 ms, weit über der Schwelle, die Git als
+  Quelle nahegelegt hätte. Aber die Ursache war nicht der Verzeichnislauf selbst und nicht das
+  Fehlen von Git: `internal/code/sourceset.Stat` lief unter `testdata/` hindurch, das auf diesem
+  Repository 1.827–1.829 von 1.910 Verzeichnissen stellt und keine `.go`-Datei enthält, die die
+  Dateimenge je aufgenommen hätte. `testdata` fehlte schlicht auf der Sperrliste — Grafts Liste
+  kennt es nicht, weil Graft nicht Go-spezifisch ist, und Gos eigene Werkzeugkette ignoriert
+  `testdata/` für Bauten ohnehin. Mit dem Eintrag ergänzt, maß dieselbe Sonde 2,7–4,3 ms: die
+  Referenzzahl von ~3 ms, getroffen, ohne dass sich die Dateimenge (254 Dateien) geändert hätte.
+  **Der Verzeichnislauf bleibt, Git wird nicht gebraucht, und die Sperrliste bekommt den fehlenden
+  Eintrag.** Beide Zahlen, mit Befehl und Rohausgabe, stehen in `docs/de/benchmarks.md`, Eintrag
+  vom 2026-09-18 (zweite Runde). Gemessen wird die Drift in beiden Fällen gegen die Bytes im
   Arbeitsbaum — eine nicht eingecheckte Änderung sieht genauso aus wie eine eingecheckte.
 - Sperrliste: `node_modules`, `dist`, `build`, `_build`, `out`, `target`, `vendor`, `coverage`,
-  `__pycache__`, `venv`; dazu **jedes** Punktverzeichnis ganz.
+  `__pycache__`, `venv`, `testdata`; dazu **jedes** Punktverzeichnis ganz. `testdata` ist von
+  anderer Art als die übrigen neun — kein Abhängigkeits- oder Bauausgabeverzeichnis, sondern
+  Fixturen als Eingabe —, gehört aber aus demselben Grund auf die Liste: keine Datei darunter ist
+  je Quelle, die der Extraktor läse.
 - Grenze 1 MB je Datei (`MAX_FILE_BYTES`): darüber ist eine Datei in der Praxis generiert oder
   eingelagert, nicht handgeschrieben.
 - Die Ausgabemenge selbst (`.loomux/state/`) fällt heraus.
@@ -860,8 +873,11 @@ Fällig in G2a, teils als Nachholung aus G1:
    Untergrenze. Kalt heißt: frischer Prozess und keine Beiakte, und das ist beim Eintrag zu
    vermerken.
 3. Die Sondendauer über die Dateimenge dieses Repos, gegen Grafts ~3 ms für 280 Dateien. **Diese
-   Messung entscheidet Abschnitt 7.1**: liegt sie deutlich über 3 ms, wird die Dateimenge auf
-   `git ls-files` umgestellt und die Abweichung entfällt.
+   Messung hat Abschnitt 7.1 entschieden** — mit einer dritten Antwort: nicht „Verzeichnislauf
+   taugt" und nicht „auf `git ls-files` umstellen", sondern „der Sperrliste fehlte `testdata`".
+   Gemessen 57,5–72,5 ms vor der Ergänzung, 2,7–4,3 ms danach, bei unveränderter Dateimenge
+   (254 Dateien). Der Verzeichnislauf bleibt, die Abweichung entfällt aus einem anderen Grund als
+   vorgesehen.
 4. Die Antwortzeit von `graph ask`, warm, mit und ohne Beiakte — das ist die Messung, die den
    Existenzgrund der Beiakte für loomux belegt oder widerlegt.
 

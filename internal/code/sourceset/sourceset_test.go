@@ -81,6 +81,33 @@ func TestListSkipsDependencyAndBuildDirectories(t *testing.T) {
 	}
 }
 
+func TestListSkipsTestdata(t *testing.T) {
+	// testdata holds fixtures, not source; Go's own toolchain ignores it for
+	// builds. A .go file under it is never indexed, and on this repository
+	// that directory alone accounts for 1,829 of 1,910 directories under the
+	// root -- a probe that still walked it paid for every one of them
+	// (docs/en/benchmarks.md, 2026-09-18).
+	root := tree(t, map[string]string{
+		"keep.go":                 "package a\n",
+		"testdata/cases/case.go":  "package case1\n",
+		"pkg/testdata/fixture.go": "package fixture\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"keep.go": true}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want only keep.go", got)
+	}
+	for _, rel := range got {
+		if !want[rel] {
+			t.Errorf("unexpected file %q", rel)
+		}
+	}
+}
+
 func TestListDropsAFileOverTheSizeLimit(t *testing.T) {
 	big := "package big\n" + string(make([]byte, 1_000_001))
 	root := tree(t, map[string]string{"big.go": big, "small.go": "package small\n"})

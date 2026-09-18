@@ -694,3 +694,90 @@ comparisons were made on.
    was avoiding. This entry does not decide the design question; it hands the
    next one a number that says the assumption needs rechecking on a
    directory-heavy tree, not only a file-heavy one.
+
+## 2026-09-18 11:35 — The Probe's Missing Skip Entry
+
+Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
+branch `code-g2`. This entry closes the question the previous one left open:
+whether §7.1's design decision (walk the filesystem rather than shell out to
+`git ls-files`) should be reversed. It should not — the cause was a missing
+name on the skip list, not the walk itself.
+
+**The check.** `internal/code/sourceset.skipDirs` did not include `testdata`,
+so `sourceset.Stat`'s `filepath.WalkDir` descended into every directory under
+`testdata/` looking for `.go` files it never found there — none of this
+repository's fixtures under `testdata/` are `.go` (they are `.go.txt` or
+recorded case corpora). `go/build` itself already ignores `testdata/`; Graft's
+own skip list lacks the name only because Graft is not Go-specific. Adding
+`"testdata"` to `skipDirs`, in the list's existing order, is the whole change
+(`internal/code/sourceset/sourceset.go`); a new test,
+`TestListSkipsTestdata`, asserts a `.go` file under `testdata/` is never
+listed.
+
+**Before and after, same command, same tree:**
+
+```
+$ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x
+```
+
+| when | ns/op | files probed | directories total | directories under `testdata/` |
+|---|---:|---:|---:|---:|
+| before (as committed in the first round) | 59,840,350 | 254 | 1,910 | 1,827 |
+| after (`testdata` added to `skipDirs`) | 4,293,460 and 2,719,400 (two runs) | 254 | 1,910 (unchanged — the entries themselves are not removed, only not walked) | 1,827 (unchanged) |
+
+Raw output of the two "after" runs:
+
+```
+BenchmarkProbe-16    	      10	   4293460 ns/op
+BenchmarkProbe-16    	      10	   2719400 ns/op
+```
+
+**`graph build` and `graph check` afterward, to confirm nothing indexable
+moved:**
+
+```
+$ rm -rf .loomux/state/graph && time /tmp/loomux-bench2.exe graph build --root .
+254 files, 2802 nodes, 8983 edges (2548 contains, 5083 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 157ms
+real	0m0.217s
+
+$ time /tmp/loomux-bench2.exe graph build --root .
+254 files, 2802 nodes, 8983 edges (2548 contains, 5083 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 152ms
+real	0m0.176s
+
+$ time /tmp/loomux-bench2.exe graph check --root .
+loomux graph check: OK
+real	0m0.177s
+```
+
+File count: 254, unchanged from the 2026-09-18 11:10 entry. Node count moved
+by +1 (2801 → 2802) and edges by +3 (8980 → 8983) — both explained by this
+round's own new test code inside `internal/code` (the added
+`TestListSkipsTestdata` function and its call sites), not by the `skipDirs`
+change: a `.go` file under `testdata/` was never a member of the file set
+either way, so skipping the directory could not remove a node that was never
+there. Build and check times (152–217 ms) are within the noise of the
+11:10 entry's 190–236 ms.
+
+### Reading
+
+1. **The 20x gap closes to about at-or-under the reference, on one changed
+   line.** 59.8 ms/op before, 2.7–4.3 ms/op after, against Graft's ~3 ms for
+   280 files: the second run lands under the reference, the first just over
+   it — both are the right order of magnitude, where the previous entry's
+   number was 20x off. The file count did not move (254 either way), which is
+   the check that this was a walk-cost fix and not a silent narrowing of what
+   gets indexed.
+2. **§7.1's conditional resolves to a third answer, not either of the two it
+   named.** The section asked whether the probe's cost would force a switch
+   to `git ls-files`. It did not: the walk itself was never the problem, and
+   neither was the absence of Git. The problem was one missing name on a list
+   that already existed for exactly this purpose. The spec's §7.1, §13 and
+   §3.7 deviation table are updated to record this rather than leaving the
+   conditional looking like it was never opened.
+3. **`graph build` and `graph check` did not move for the reason that
+   mattered.** Their file, node and edge counts are unchanged apart from this
+   round's own test additions — confirming that `testdata/` held nothing the
+   graph needs, and that the fix cost the probe its walk time without costing
+   the graph anything.
