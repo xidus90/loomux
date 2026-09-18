@@ -3,4 +3,5 @@
 *.test
 /.loomux/state/
 /handovers/
+/.superpowers/
 /docs/wiki/.obsidian/
