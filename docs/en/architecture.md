@@ -134,10 +134,29 @@ flowchart LR
 
 > **State.** Stage G1 built the read model and the two calculators as Go
 > packages — `internal/code/model`, `internal/code/pagerank`,
-> `internal/code/blast`. No command calls them yet, and nothing writes the
-> wiring graph they read: the extractor, the lexical seed, the freshness check
-> and the `loomux graph` commands are stage G2 and later. The sections below
-> describe the whole pillar and mark what is already code.
+> `internal/code/blast`. Stage G2a adds five more packages that produce the
+> graph those calculators read and answer the freshness question a hook needs
+> before ranking anything:
+>
+> - `internal/code/sourceset` — the one file set both the build and the probe
+>   walk, so the two can never enumerate different files.
+> - `internal/code/extract/golang` — the deterministic extractor: `go/parser`
+>   and `go/ast` over one file at a time, no `go/types` and no build.
+> - `internal/code/resolve` — turns each file's local extraction into cross-file
+>   edges, using `go.mod` to tell an import inside this module from one
+>   outside it.
+> - `internal/code/store` — reads and atomically writes the graph at
+>   `.loomux/state/graph/wiring.json`.
+> - `internal/code/freshness` — the cheap stat-based probe and its sidecar
+>   record, `.loomux/state/graph/cache/fingerprint.json`.
+>
+> `freshness` does not import the extractor. That is deliberate: the stamp a
+> probe compares against arrives as a plain string, so a later stage can run
+> the probe from the per-edit hook path without pulling `go/parser` into it.
+> `loomux graph build` and `loomux graph check` are wired on top of `model` and
+> these five; the lexical seed, `pagerank` and `blast` wait on the `ask` and
+> `callers` commands of stage G2b. The sections below describe the whole
+> pillar and mark what is already code.
 
 ### 1. "Lexical Proposes, Graph Disposes"
 - **Lexical Step** (G2): BM25 and exact symbol indexing quickly identify candidate nodes matching the prompt keywords.

@@ -75,7 +75,7 @@ sequenceDiagram
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
-> **State (stage G1).** The ranking and the blast radius are Go packages — `internal/code/pagerank` and `internal/code/blast` — held to the reference by ported test vectors. Nothing writes the wiring graph yet and no command reads it: extractor, lexical seed, freshness check and the `loomux graph` commands are stage G2. The retrieval time is therefore still unmeasured; the figure lands in `docs/en/benchmarks.md` when G2 can rank a real repository.
+> **State (stage G2a).** The extractor, the wiring writer, the freshness probe and `loomux graph build` / `loomux graph check` are in place and measured: `graph build` on this repository takes 190–219 ms cold and warm alike (44–46 ms of that is the parsing floor of the spec's §11; `build` reads and hashes every file every time, so there is no warm path to speed it up), `graph check` re-extracts and costs about the same. The ranking and the blast radius — `internal/code/pagerank` and `internal/code/blast` — are Go packages held to the reference by ported test vectors, but nothing yet asks them a question: the lexical seed and `loomux graph ask` / `callers` are stage G2b. Measured figures are in `docs/en/benchmarks.md`.
 
 ```mermaid
 flowchart LR
@@ -109,14 +109,14 @@ flowchart TD
 
 ## Feature & Status Matrix
 
-Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1b-1 data commands complete, the wiki bundle moved in, the Stage G1 graph libraries standing without a command on them; subsequent stages in active development):
+Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1b-1 data commands complete, the wiki bundle moved in, Stage G2a wiring `graph build` and `graph check` onto the Stage G1 graph libraries; subsequent stages in active development):
 
 | Pillar / Capability | Description | Status |
 |---|---|---|
 | **1. Hooks & Guard** | | |
 | Unified Pre-Tool Guard | Single-pass validation of write barriers, path protections, and forbidden commands (<35ms budget; 32–34ms measured on predecessor; a write in a linked worktree measured 34.6 ms warm (2026-09-16)). Linked git worktrees of a registered workspace are writable without a registry entry of their own. Registry and area declarations are read through the same checks as the brain commands; a broken entry refuses every write. | ✅ **Implemented** (Stage 1a) |
 | Post-Tool Check Lanes | Lanes on the file that was just edited run side by side, chosen from the stacks detection finds in the tree — `go vet`, the in-process wiki lint, ruff/mypy, eslint/tsc, stylelint and the rest. A failing lane exits 2; lanes that had to be dropped are named back to the model. | ✅ **Implemented** (Stage 1a) |
-| Post-Tool Blast Monitor | Dirty-file hashing and dependent caller warning on edit. Needs the wiring graph, which nothing writes yet: no hash and no warning today. | 📋 **Specified** (Stage G4) |
+| Post-Tool Blast Monitor | Dirty-file hashing and dependent caller warning on edit. The wiring graph it needs is written now (`loomux graph build`), but nothing reads it from the edit hook yet: no hash and no warning today. | 📋 **Specified** (Stage G4) |
 | Session Start | Records the commit a session starts on and warns when the binary in the project is older than `go.mod`, `go.sum` or a `.go` file under `cmd/` or `internal/`. Announces only; never blocks a turn. | ✅ **Implemented** (Stage 1a) |
 | Subagent Drift & Stop Gate | Subagent drift detection and the execution counter of the stop gate. `loomux hook` knows three events — `pre-tool-use`, `post-tool-use`, `session-start`; no `stop` or `subagent-*` event is wired. | 🚧 **In Migration** (Stage 1b) |
 | Check Commands | `loomux check commit-msg` (language and structure of a message), `check gofmt` (formatting, with the exit code `gofmt -l` does not give) and `dev covergate` (100% per function against a profile). | ✅ **Implemented** (Stage 1a) |
@@ -129,9 +129,9 @@ Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1
 | Graph-Aware Code Review | Review skills that leverage `graph_blast` to inspect caller impact and enforce ADR conformance. | 📋 **Specified** (Stage W4) |
 | 3-Channel Distribution | Configured via `.loomux/config.toml`, synced to host folders, served via MCP prompts, or run via Web UI. | 📋 **Specified** (Stage W4) |
 | **3. Code Graph & Loop** | | |
-| Go Native AST Extractor | Deterministic symbol & call extraction via `go/parser` and `go/types` ($0, zero dependencies). | 📋 **Specified** (Stage G2) |
-| Personalized PageRank | Power-iteration random-walk ranking over call and dependency graphs, undirected over five relations, max-normalized with a deterministic tie order. | 🧩 **Library** (Stage G1) |
-| Blast Radius Engine | Transitive closure and impact analysis (`In`/`Out`, depth limits, smallest depth wins). | 🧩 **Library** (Stage G1) |
+| Go Native AST Extractor | Deterministic symbol & call extraction via `go/parser` and `go/ast` alone — no `go/types`, no build ($0, zero dependencies). Wired behind `loomux graph build`; measured 190–219 ms on this repository (254 files, `docs/en/benchmarks.md`). | ✅ **Implemented** (Stage G2a) |
+| Personalized PageRank | Power-iteration random-walk ranking over call and dependency graphs, undirected over five relations, max-normalized with a deterministic tie order. No command asks it a question yet. | 🧩 **Library** (Stage G1) |
+| Blast Radius Engine | Transitive closure and impact analysis (`In`/`Out`, depth limits, smallest depth wins). No command asks it a question yet. | 🧩 **Library** (Stage G1) |
 | Symbol-Coupled Grep | Regex search grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). | 📋 **Specified** (Stage G4) |
 | Multi-Language AST | CGo-free Tree-sitter extraction via WebAssembly (`wazero`) with persistent AOT cache. | 💡 **Planned** (Stage G5) |
 | **4. Second Brain & Wiki** | | |
@@ -173,18 +173,23 @@ loomux brain neighbors <path> --scope S  # incoming and outgoing links of one pa
 loomux brain status                 # what to know before trusting an answer
 ```
 
-### Specified Commands (Code Graph — Stages G2–G5)
-
-Stage G1 wired no command: it built the libraries these commands will call.
+### Implemented Commands (Code Graph — Stage G2a)
 ```bash
-loomux graph build [dir]            # build/rebuild .loomux/state/graph/wiring.json
+loomux graph build [--root <path>]  # extract, resolve and write .loomux/state/graph/wiring.json
+loomux graph check [--root <path>]  # re-extract and diff against the graph on disk (exit 1 on drift)
+```
+
+### Specified Commands (Code Graph — Stages G2b–G5)
+
+Stage G1 built the ranking and blast-radius libraries; stage G2a wired `build`
+and `check` above onto them, but nothing yet asks the libraries a question.
+```bash
 loomux graph ask "<query>"          # retrieve code symbols ranked by Personalized PageRank
 loomux graph callers <symbol>       # list direct callers, callees (--direction out), or full closure (-d all)
 loomux graph blast [dir]            # compute blast radius of a git diff against working tree or merge base
 loomux graph grep "<regex>"         # regex search grouped by enclosing symbol and ranked by coupling
 loomux graph skeleton <file>        # export definition signatures and line spans (~10x token reduction)
 loomux graph map                    # print token-budgeted directory clusters, hubs, and hotspots
-loomux graph check                  # verify graph freshness against the working tree (exit 1 on drift)
 loomux graph viz                    # launch the interactive graph viewer in your browser
 ```
 

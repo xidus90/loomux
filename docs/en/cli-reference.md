@@ -125,14 +125,15 @@ Refuses the main checkout and any directory git holds no worktree at, removes th
 ## 6. Code Graph Engine (`loomux graph`)
 
 > [!NOTE]
-> **Specified, not wired.** No `loomux graph` command exists yet; `loomux graph build` today exits as an unknown command. Stage G1 built the packages these commands will call — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — and stage G2 adds the extractor, the wiring writer, the freshness check and the commands below.
+> **`build` and `check` are wired; the rest below is still specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — and stage G2a adds the extractor, the wiring writer, the freshness probe and the two commands documented next. `ask`, `callers`, `blast`, `skeleton`, `map` and `viz` remain unwired.
 
-### `loomux graph build [dir]`
-Parses source files into the deterministic AST code graph and writes `.loomux/state/graph/wiring.json`.
+### `loomux graph build [--root <path>]`
+Reads and hashes every Go source file `internal/code/sourceset` finds under the root, extracts and resolves them into the deterministic AST graph, and writes it to `.loomux/state/graph/wiring.json`. It also writes the freshness record (`.loomux/state/graph/cache/fingerprint.json`) a later probe reads; a failure to write that record is announced on `stderr` but does not fail the build, since the graph on disk is already correct.
 
-- **Flags**:
-  - `--deep`: Enrich symbols with LLM crux summaries (cached).
-  - `--extensions <exts>`: Restrict parsed extensions (e.g., `.go .ts`).
+- **Flags**: `--root <path>` — project root; the working directory when empty.
+- **Output**: one line naming files, nodes and edges by relation, then a line with unresolved import targets, files without a symbol, and the time taken — for example `254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)` / `1123 unresolved import targets, 3 files without a symbol, 196ms`.
+- **Exit codes**: `0` on success; `1` if the root cannot be resolved, a file cannot be read or parsed, module resolution fails, or the graph cannot be written; `2` for a usage error.
+- **Cost**: `build` never reads the freshness record — it reads and hashes every file, every time, cold or warm alike. It is the command that produces the state a probe compares against, so a stale byte in it would be a stale answer, not a saved read. See `docs/en/benchmarks.md` for measured figures.
 
 ### `loomux graph ask "<query>" [dir]`
 Retrieves code symbols ranked by **Personalized PageRank** over the AST call graph.
@@ -161,9 +162,13 @@ Exports all function, type, interface, and method signatures without function bo
 ### `loomux graph map [dir]`
 Displays token-budgeted directory clusters, local hubs, and global codebase hotspots ranked by in-degree coupling.
 
-### `loomux graph check [dir]`
-Checks whether the code graph has drifted from the live working tree.
-- **Exit Codes**: `0` (Fresh), `1` (Stale / Drift detected).
+### `loomux graph check [--root <path>] [--json]`
+Re-extracts the whole tree and diffs it, node by node, against the graph written on disk.
+
+- **Flags**: `--root <path>` — project root; the working directory when empty. `--json` — write the drift as JSON (`checkResult`: `ok`, `missing`, `foreign`, `added`, `removed`, `changed`) instead of the human report.
+- **The one thing this otherwise gets asked twice**: `check` does not read the freshness record. That sidecar answers "should a query bother rebuilding"; `check` answers "does the graph still describe the code", and the only honest way to answer that is to extract again and compare body hashes. A `touch` that changes a file's mtime but not its bytes is therefore not a finding here, same as it is not one for the probe — but for a different reason: the probe never gets past its stat comparison, `check` gets all the way to a hash and finds it unchanged.
+- **Output**: `NO GRAPH` when nothing has been built yet; `FOREIGN GRAPH` when the graph on disk names an extractor version other than this binary's; `OK` when nothing has drifted; otherwise `DRIFT` with one line per added, removed or changed node id.
+- **Exit codes**: `0` — fresh (`OK`); `1` — no graph yet, a foreign graph, drift found, or a fault while re-extracting; `2` — usage error.
 
 ### `loomux graph viz [dir]`
 Starts the local D3-Force / WebGL interactive graph visualizer.

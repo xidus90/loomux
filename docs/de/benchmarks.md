@@ -575,3 +575,149 @@ also fragt kein Parse auf diesem Pfad die verzögerten Zonen an.
    Binary und schlägt fehl, sobald ein Paket-Init mehr als 500 Allokationen
    macht; eine Abhängigkeit, die die Zone zurückbringt, fängt also das Tor, nicht
    erst die nächste Messung.
+
+## 2026-09-18 11:10 — Die Graph-Befehle, kalt und warm, und die Schuld aus G1
+
+Repository `loomux`, Worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
+Branch `code-g2`, Commit `75c8136`. Diese Aufgabe ergänzt zwei Benchmark-Dateien
+und diesen Eintrag; sie ändert keinen Produktionscode.
+
+**Ziel.** Vier Zahlen, die Aufgabe 10 schuldete. Erstens die kalte Zahl zur
+Dangling-Masse-Optimierung in `internal/code/pagerank`, die der Eintrag vom
+2026-09-16 offen ließ (nur die warme ~9 ms gepoolt gegen ~4,5 s je Dangling-Knoten
+existierte). Zweitens und drittens `loomux graph build` auf diesem Repository,
+kalt und warm, gegen den 44–46-ms-Parse-Boden aus §11 der Spezifikation.
+Viertens `internal/code/freshness.Probe` allein, gegen die ~3 ms der
+Referenzimplementierung für 280 Dateien — die Zahl, von der §7.1 der
+Design-Spec seine Entscheidung über die Dateimenge abhängig macht.
+
+**Methode.**
+
+*Dangling-Masse, kalt.* `internal/code/pagerank/dangling_bench_test.go` gab es
+vor dieser Aufgabe nicht; sie enthält jetzt `BenchmarkDanglingPooled` (ruft das
+produktive `Rank`) und `BenchmarkDanglingPerNode` (eine Kopie von `Rank`s
+Schleife mit der einen Zeile, die die Optimierung ersetzt hat: die
+Dangling-Masse wird je Dangling-Knoten einzeln zurückgegeben statt gepoolt und
+in einem Durchgang verteilt). Beide nutzen dieselbe Fixtur wie
+`TestRankBroadSeedsOnMostlyDanglingGraph`: 20.000 Knoten, eine Kette aus 100,
+der Rest dangling, jeder Knoten geseedet. Kalt heißt ein Prozess je Messung,
+nicht mehrere Runden in einem:
+
+```
+$ go test ./internal/code/pagerank/ -run XXX -bench BenchmarkDanglingPooled -benchtime 1x -count 1
+BenchmarkDanglingPooled-16    	       1	   5875500 ns/op
+
+$ go test ./internal/code/pagerank/ -run XXX -bench BenchmarkDanglingPerNode -benchtime 1x -count 1
+BenchmarkDanglingPerNode-16    	       1	3299862800 ns/op
+```
+
+*`graph build`, kalt und warm.* Ein aus diesem Commit gebautes Binary
+(`go build -o /tmp/loomux-bench.exe ./cmd/loomux`), gegen dieses Repository
+gefahren. Kalt heißt: Graph und Frischeakte vorher entfernt, sodass die
+gemessene Zeit das Schreiben beider auf einen Baum einschließt, der keins von
+beiden hatte:
+
+```
+$ rm -rf .loomux/state/graph && time /tmp/loomux-bench.exe graph build --root .
+254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 196ms
+
+real	0m0.219s
+```
+
+Warm, drei Wiederholungen direkt danach, Graph und Frischeakte unverändert:
+
+```
+$ time /tmp/loomux-bench.exe graph build --root .
+254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 191ms   real 0m0.213s
+254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 190ms   real 0m0.214s
+254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 212ms   real 0m0.236s
+```
+
+*`graph check`, warm.* Dasselbe Binary, derselbe Baum, der Graph bereits vom
+Lauf oben geschrieben:
+
+```
+$ time /tmp/loomux-bench.exe graph check --root .
+loomux graph check: OK
+real	0m0.213s
+
+$ time /tmp/loomux-bench.exe graph check --root .
+loomux graph check: OK
+real	0m0.223s
+```
+
+*Die Sonde allein.* `internal/code/freshness/probe_bench_test.go` gab es vor
+dieser Aufgabe nicht. `BenchmarkProbe` schreibt eine Frischeakte für die
+echte Dateimenge dieses Repositories — 254 Go-Dateien, einmal außerhalb des
+Timers gelesen und gehasht — und misst dann `Probe` allein, wiederholt, gegen
+diese Akte:
+
+```
+$ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x
+BenchmarkProbe-16    	      10	  59840350 ns/op
+    probe_bench_test.go:61: probing 254 files
+```
+
+Maschine: AMD Ryzen 7 9800X3D, Go `go1.27.0 windows/amd64`, GOMAXPROCS 16 —
+dieselbe Maschine, auf der die gepoolten/je-Knoten-Zahlen vom 2026-09-16 und
+die Graft-Referenzvergleiche entstanden sind.
+
+| Fall | kalt | warm | Referenz / Boden |
+|---|---:|---:|---|
+| Pagerank-Dangling-Masse, gepoolt (20k Knoten, 19.900 dangling) | 5,88 ms | — | ~9 ms gepoolt, 2026-09-16 |
+| Pagerank-Dangling-Masse, je Knoten (derselbe Graph) | 3,30 s | — | ~4,5 s je Knoten, 2026-09-16 |
+| `graph build --root .` (dieses Repository) | 219 ms (196 ms gemeldet) | 213–236 ms (190–212 ms gemeldet) | 44–46 ms Parse-Boden, §11 |
+| `graph check --root .` (dieses Repository) | — | 213–223 ms | entfällt |
+| `freshness.Probe` allein (254 Dateien, dieses Repository) | — | 59,8 ms/op (10 Wdh.) | ~3 ms für 280 Dateien (Graft) |
+
+### Lesart
+
+1. **Die Schuld aus G1 ist beglichen, und die Zahl bestätigt den
+   Design-Kommentar fast wörtlich.** Kalt sind gepoolt 5,88 ms gegen 3,30 s je
+   Knoten — ein Faktor von rund 561, je auf einem kalten Prozess, nicht als
+   Mittel über viele warme. Beide liegen nahe an den warmen Zahlen vom
+   2026-09-16 (~9 ms, ~4,5 s) auf derselben Maschine, was für eine Rechnung
+   ohne I/O und ohne aufzuwärmenden Cache genau die kleine Lücke zwischen kalt
+   und warm ist, die man erwarten würde: die Kosten sind Arithmetik, kein
+   Prozesszustand.
+2. **`graph build` unterscheidet kalt nicht von warm, und der Code erklärt das,
+   bevor die Zahl es tut.** Kalt (219 ms) und warm (213–236 ms) überlappen
+   vollständig. `buildGraph`s eigener Kommentar sagt es: der Befehl „reads and
+   hashes every file, every time — never the probe's fast path", weil ein Stat
+   entscheiden darf, ob eine *Abfrage* neu baut, aber nie, wonach der Neubau
+   selbst schaut. Für `build` gibt es nichts aufzuwärmen. Gegen den
+   44–46-ms-Parse-Boden aus §11 sind 190–219 ms das 4,3- bis 4,8-fache —
+   Extraktion, Auflösung und das Schreiben von Graph und Frischeakte tragen den
+   Rest, und keine Messung dieses Eintrags schlüsselt das weiter auf.
+3. **`graph check`, warm, kostet ungefähr, was `build` kostet, und das ist
+   Design, kein Mangel.** 213–223 ms gegen `build`s 190–212 ms warm: `check`
+   extrahiert den ganzen Baum neu, um Rumpf-Hashes zu vergleichen, seine Kosten
+   sind also ein zweites `buildGraph` plus ein Diff, minus das Schreiben. Dass
+   die beiden Zahlen nahe beieinanderliegen, ist die Behauptung der
+   CLI-Referenz sichtbar gemacht — `check` liest die Frischeakte nicht, ein
+   `touch` ist deshalb kein Befund, aber eben auch kein billiger.
+4. **Die Sonde liegt beim 20-Fachen der Referenz, und die Prämisse von §7.1
+   hält nicht so sicher, wie sie sich liest.** 59,8 ms/op gegen Grafts ~3 ms
+   für 280 Dateien ist weit über dem, was ein Hook-Budget von wenigen zehn
+   Millisekunden neben allem anderen auf diesem Pfad noch tragen kann. Es sind
+   nicht die Extraktionskosten — `Probe` öffnet nie eine Datei, wenn Größe und
+   Änderungszeit übereinstimmen, was hier konstruktionsbedingt der Fall ist.
+   Eine separate Messung von `sourceset.Stat` allein gegen die Wurzel dieses
+   Repositories reproduzierte dieselben ~57–70 ms, die Kosten liegen also im
+   Verzeichnis-Walk von `internal/code/sourceset`, nicht im Vergleich danach.
+   Der Baum dieses Repositories hat 1.910 Verzeichnisse darunter, 1.827 davon
+   unter `testdata/` (überwiegend aufgezeichnete Testfälle ohne `.go`-Dateien);
+   Grafts Referenzbaum mit 280 Dateien hat diese Form nicht. Das Argument aus
+   §7.1 — dass ein `git ls-files`-Subprozess je Sondenaufruf mehr kosten würde
+   als die Sonde — stimmt weiterhin gegen den Boden eines *Subprozesses*
+   (einige zehn Millisekunden), aber der eigene Boden der Sonde auf einem Baum
+   mit so vielen Nicht-Quell-Verzeichnissen sind nicht die ~3 ms, von denen der
+   Abschnitt ausgeht; er liegt näher an den Subprozess-Kosten, die er vermeiden
+   wollte. Dieser Eintrag entscheidet die Design-Frage nicht; er gibt der
+   nächsten eine Zahl mit, die sagt, dass die Annahme auf einem
+   verzeichnislastigen Baum neu geprüft werden muss, nicht nur auf einem
+   dateilastigen.

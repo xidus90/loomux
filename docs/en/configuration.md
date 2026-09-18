@@ -127,24 +127,32 @@ mirror = [
 
 ---
 
-### `[graph]` (Code Graph Engine)
-Configures AST extraction, indexing boundaries, and freshness detection.
+### `[graph]` — there is none, and stage G2a settled why
 
-> [!NOTE]
-> **Specified, not read.** No code reads `[graph]` yet; the section arrives with the extractor in stage G2. The figures below are design targets, not measurements.
+An earlier draft of this manual specified a `[graph]` section with `extensions`,
+`exclude` and `freshness_check` fields. None of it exists in the code stage G2a
+shipped, and none is planned. The question keeps coming back, so the answer is
+here rather than left to be rediscovered:
 
-```toml
-[graph]
-extensions = [".go", ".ts", ".tsx", ".py", ".rs"]
-exclude = ["vendor/**", "dist/**", "node_modules/**", "**/*_test.go"]
-freshness_check = "hash" # "mtime" or "hash"
-```
+- **The languages a build parses follow from the extractor, not from a list a
+  repository declares.** `internal/code/extract/golang` is a Go extractor; it
+  parses `.go` files because that is what it knows how to read. A second
+  extractor for another language adds itself the same way — by existing — and
+  no config key decides which one runs on a given file.
+- **Narrowing a single build to a subset of the tree is a flag on the
+  command, not a repository setting.** `loomux graph build` and `loomux graph
+  check` already take `--root`; a future narrowing flag on one invocation is
+  the right shape for "index only this subtree today", because that choice
+  belongs to whoever runs the command, not to the tree being indexed.
+- **`freshness_check` never had a decision to make.** `internal/code/freshness`
+  always compares size and mtime first and falls back to a content hash only
+  when those disagree — the reference implementation's rule, not a strategy a
+  project could turn off. There is nothing left to configure.
 
-| Field | Type | Description |
-|---|---|---|
-| `extensions` | array of strings | File extensions to parse into the AST code graph. |
-| `exclude` | array of strings | Glob patterns to ignore during graph construction. |
-| `freshness_check` | string | Strategy for working tree drift detection: `"mtime"` (<1ms) or `"hash"` (<3ms, bit-exact). |
+What narrows or shapes one build belongs to the invocation that runs it, not to
+the configuration of the repository being indexed. If this section returns, it
+is because a real requirement forced a section-level knob to exist, not because
+the manual once sketched one.
 
 ---
 
@@ -235,12 +243,6 @@ mirror = [
   ".cache",
   "bin"
 ]
-
-# --- Code Graph & AST Settings -----------------------------------------------
-[graph]
-extensions = [".go", ".ts", ".py"]
-exclude = ["vendor/**", "dist/**"]
-freshness_check = "hash"
 
 # --- Curated Language Review Skills ------------------------------------------
 [skills]

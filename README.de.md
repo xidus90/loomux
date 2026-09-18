@@ -75,7 +75,7 @@ sequenceDiagram
 
 Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen daraus via **Personalized PageRank**.
 
-> **Stand (Stufe G1).** Rang und Blast-Radius sind Go-Pakete — `internal/code/pagerank` und `internal/code/blast` —, belegt an portierten Testvektoren der Referenz. Den Wiring-Graphen schreibt bisher nichts, und kein Befehl liest ihn: Extraktor, lexikalische Saat, Frischeprüfung und die `loomux graph`-Befehle sind Stufe G2. Die Antwortzeit ist deshalb noch ungemessen; die Zahl kommt nach `docs/de/benchmarks.md`, sobald G2 ein echtes Repository ranken kann.
+> **Stand (Stufe G2a).** Extraktor, Wiring-Schreiber, Frischesonde sowie `loomux graph build` und `loomux graph check` stehen und sind gemessen: `graph build` auf diesem Repository braucht 190–219 ms, kalt wie warm gleich (davon 44–46 ms der Parse-Boden aus §11 der Spezifikation; `build` liest und hasht jede Datei jedes Mal, es gibt also keinen warmen Pfad, der schneller wäre), `graph check` extrahiert neu und kostet ungefähr dasselbe. Rang und Blast-Radius — `internal/code/pagerank` und `internal/code/blast` — sind Go-Pakete, belegt an portierten Testvektoren der Referenz, aber noch fragt sie niemand etwas: lexikalische Saat sowie `loomux graph ask` / `callers` sind Stufe G2b. Gemessene Zahlen stehen in `docs/de/benchmarks.md`.
 
 ```mermaid
 flowchart LR
@@ -109,14 +109,14 @@ flowchart TD
 
 ## Funktions- & Status-Matrix
 
-Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Datenbefehle der Stufe 1b-1 abgeschlossen, das Wiki-Bündel umgezogen, die Graph-Bibliotheken der Stufe G1 stehen ohne Befehl darauf; Folgestufen in aktiver Entwicklung):
+Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Datenbefehle der Stufe 1b-1 abgeschlossen, das Wiki-Bündel umgezogen, Stufe G2a verdrahtet `graph build` und `graph check` auf die Graph-Bibliotheken der Stufe G1; Folgestufen in aktiver Entwicklung):
 
 | Säule / Funktion | Beschreibung | Status |
 |---|---|---|
 | **1. Hooks & Wächter** | | |
 | Einheitlicher Pre-Tool Wächter | Prüfung von Schreibschranken, Pfadregeln und verbotenen Befehlen (< 35 ms Zielbudget; 32–34 ms gemessen am Vorgänger; ein Write in einem verknüpften Worktree gemessen 34,6 ms warm (2026-09-16)). Verknüpfte Git-Worktrees eines registrierten Workspace sind ohne eigenen Registry-Eintrag beschreibbar. Registry und Bereichsdeklarationen laufen durch dieselben Prüfungen wie die Brain-Befehle; ein kaputter Eintrag verweigert jeden Write. | ✅ **Implementiert** (Stufe 1a) |
 | Post-Tool Prüf-Lanes | Die Lanes auf der eben geänderten Datei laufen nebeneinander, gewählt nach den Stacks, die die Erkennung im Baum findet — `go vet`, der Wiki-Lint im eigenen Prozess, ruff/mypy, eslint/tsc, stylelint und die übrigen. Eine gescheiterte Lane endet mit 2; ausgelassene werden dem Modell namentlich zurückgemeldet. | ✅ **Implementiert** (Stufe 1a) |
-| Post-Tool Blast Monitor | Hashing geänderter Dateien und Warnung bei berührten Aufrufern. Braucht den Wiring-Graphen, den bisher nichts schreibt: heute kein Hash und keine Warnung. | 📋 **Spezifiziert** (Stufe G4) |
+| Post-Tool Blast Monitor | Hashing geänderter Dateien und Warnung bei berührten Aufrufern. Den Wiring-Graphen, den es braucht, schreibt jetzt `loomux graph build`, aber der Edit-Hook liest ihn noch nicht: heute kein Hash und keine Warnung. | 📋 **Spezifiziert** (Stufe G4) |
 | Sitzungsstart | Hält den Commit fest, auf dem eine Sitzung beginnt, und warnt, wenn das Binary im Projekt älter ist als `go.mod`, `go.sum` oder eine `.go`-Datei unter `cmd/` oder `internal/`. Kündigt nur an; blockiert nie einen Zug. | ✅ **Implementiert** (Stufe 1a) |
 | Subagent-Drift & Stop-Tor | Drifterkennung für Subagenten und der Block-Zähler des Stop-Tors. `loomux hook` kennt drei Ereignisse — `pre-tool-use`, `post-tool-use`, `session-start`; kein `stop` und kein `subagent-*` ist verdrahtet. | 🚧 **In Migration** (Stufe 1b) |
 | Prüfbefehle | `loomux check commit-msg` (Sprache und Form einer Nachricht), `check gofmt` (Formatierung, mit dem Exit-Code, den `gofmt -l` nicht gibt) und `dev covergate` (100 % je Funktion gegen ein Profil). | ✅ **Implementiert** (Stufe 1a) |
@@ -129,9 +129,9 @@ Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Date
 | Graph-gestützter Code-Review | Review-Skills, die via `graph_blast` Aufrufer-Auswirkungen prüfen und ADRs abgleichen. | 📋 **Spezifiziert** (Stufe W4) |
 | 3-Kanal-Distribution | Konfiguriert via `.loomux/config.toml`, synchronisiert in Host-Ordner, via MCP-Prompts oder Web OS. | 📋 **Spezifiziert** (Stufe W4) |
 | **3. Code-Graph & Loop** | | |
-| Nativer Go-AST-Extraktor | Deterministische Symbol- & Kantenextraktion via `go/parser` und `go/types` ($0, 0 Deps). | 📋 **Spezifiziert** (Stufe G2) |
-| Personalized PageRank | Power-Iteration Random-Walk-Ranking über Aufruf- und Abhängigkeitsgraphen, ungerichtet über fünf Relationen, max-normiert mit deterministischer Gleichstandsordnung. | 🧩 **Bibliothek** (Stufe G1) |
-| Blast-Radius-Engine | Transitive Hülle und Impact-Analyse (`In`/`Out`, Tiefenbegrenzung, kleinste Tiefe gewinnt). | 🧩 **Bibliothek** (Stufe G1) |
+| Nativer Go-AST-Extraktor | Deterministische Symbol- & Kantenextraktion allein via `go/parser` und `go/ast` — kein `go/types`, kein Build ($0, 0 Deps). Hinter `loomux graph build` verdrahtet; auf diesem Repository 190–219 ms gemessen (254 Dateien, `docs/de/benchmarks.md`). | ✅ **Implementiert** (Stufe G2a) |
+| Personalized PageRank | Power-Iteration Random-Walk-Ranking über Aufruf- und Abhängigkeitsgraphen, ungerichtet über fünf Relationen, max-normiert mit deterministischer Gleichstandsordnung. Noch fragt kein Befehl etwas. | 🧩 **Bibliothek** (Stufe G1) |
+| Blast-Radius-Engine | Transitive Hülle und Impact-Analyse (`In`/`Out`, Tiefenbegrenzung, kleinste Tiefe gewinnt). Noch fragt kein Befehl etwas. | 🧩 **Bibliothek** (Stufe G1) |
 | Symbol-gekoppelter Grep | Regex-Suche, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Grad (`inDegree`). | 📋 **Spezifiziert** (Stufe G4) |
 | Multi-Language AST | CGo-freier Tree-sitter über WebAssembly (`wazero`) mit persistentem AOT-Kompilierungs-Cache. | 💡 **Geplant** (Stufe G5) |
 | **4. Second Brain & Wiki** | | |
@@ -173,18 +173,22 @@ loomux brain neighbors <pfad> --scope S  # Eingehende und ausgehende Links einer
 loomux brain status                 # Was man wissen muss, bevor man einer Antwort traut
 ```
 
-### Spezifizierte Befehle (Code-Graph — Stufen G2–G5)
-
-Stufe G1 hat keinen Befehl verdrahtet: sie hat die Bibliotheken gebaut, die diese Befehle rufen werden.
+### Implementierte Befehle (Code-Graph — Stufe G2a)
 ```bash
-loomux graph build [dir]            # Baut/aktualisiert .loomux/state/graph/wiring.json
+loomux graph build [--root <pfad>]  # extrahiert, löst auf und schreibt .loomux/state/graph/wiring.json
+loomux graph check [--root <pfad>]  # extrahiert neu und vergleicht mit dem Graphen auf der Platte (Exit 1 bei Drift)
+```
+
+### Spezifizierte Befehle (Code-Graph — Stufen G2b–G5)
+
+Stufe G1 hat die Rank- und Blast-Radius-Bibliotheken gebaut; Stufe G2a hat `build` und `check` oben darauf verdrahtet, aber noch fragt niemand die Bibliotheken etwas.
+```bash
 loomux graph ask "<anfrage>"        # Sucht Symbole gerankt nach Personalized PageRank
 loomux graph callers <symbol>       # Zeigt Aufrufer, Aufgerufene (--direction out) oder transitive Hülle (-d all)
 loomux graph blast [dir]            # Berechnet den Blast-Radius eines Git-Diffs gegen Working Tree oder Merge-Base
 loomux graph grep "<regex>"         # Regex-Suche gruppiert nach Symbol und sortiert nach Kopplung
 loomux graph skeleton <datei>       # Gibt Signaturen und Zeilenspans einer Datei aus (~10x Token-Ersparnis)
 loomux graph map                    # Gibt token-budgetierte Verzeichnis-Cluster, Hubs und Hotspots aus
-loomux graph check                  # Prüft Frische des Graphen gegenüber dem Arbeitsbaum (Exit 1 bei Drift)
 loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im Browser
 ```
 

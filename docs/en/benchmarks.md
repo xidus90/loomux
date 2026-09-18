@@ -555,3 +555,142 @@ the lazy zones.
    `TestStartDoesNoWorkInPackageInit` in `cmd/loomux` now builds the binary and
    fails if any package init makes more than 500 allocations, so a dependency
    that brings the zone back is caught by the gate, not by the next measurement.
+
+## 2026-09-18 11:10 — The Graph Commands, Cold and Warm, and the G1 Debt
+
+Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
+branch `code-g2`, commit `75c8136`. This task adds two benchmark files and
+this entry; it changes no production code.
+
+**Goal.** Four numbers task 10 owed. First, the cold figure for the dangling-mass
+optimisation in `internal/code/pagerank` that the entry of 2026-09-16 left
+open (only the warm ~9 ms pooled against ~4.5 s per-node existed). Second and
+third, `loomux graph build` on this repository, cold and warm, against the
+44–46 ms parsing floor of the spec's §11. Fourth, `internal/code/freshness.Probe`
+alone, against the reference implementation's ~3 ms for 280 files — the number
+§7.1 of the design spec makes its file-set decision conditional on.
+
+**Method.**
+
+*Dangling mass, cold.* `internal/code/pagerank/dangling_bench_test.go` did not
+exist before this task; it now holds `BenchmarkDanglingPooled` (calls the
+production `Rank`) and `BenchmarkDanglingPerNode` (a copy of `Rank`'s loop with
+the one line the optimisation replaced: the dangling mass is handed back once
+per dangling node instead of pooled and applied in one pass). Both use the
+same fixture as `TestRankBroadSeedsOnMostlyDanglingGraph`: 20,000 nodes, a
+100-node chain, the rest dangling, every node seeded. Cold means one process
+per measurement, not several rounds inside one:
+
+```
+$ go test ./internal/code/pagerank/ -run XXX -bench BenchmarkDanglingPooled -benchtime 1x -count 1
+BenchmarkDanglingPooled-16    	       1	   5875500 ns/op
+
+$ go test ./internal/code/pagerank/ -run XXX -bench BenchmarkDanglingPerNode -benchtime 1x -count 1
+BenchmarkDanglingPerNode-16    	       1	3299862800 ns/op
+```
+
+*`graph build`, cold and warm.* A binary built from this commit
+(`go build -o /tmp/loomux-bench.exe ./cmd/loomux`), run against this
+repository. Cold means the graph and the freshness record removed first, so
+the reported time includes writing both to a tree that had neither:
+
+```
+$ rm -rf .loomux/state/graph && time /tmp/loomux-bench.exe graph build --root .
+254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 196ms
+
+real	0m0.219s
+```
+
+Warm, three repeats immediately after, graph and freshness record left in
+place:
+
+```
+$ time /tmp/loomux-bench.exe graph build --root .
+254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 191ms   real 0m0.213s
+254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 190ms   real 0m0.214s
+254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)
+1123 unresolved import targets, 3 files without a symbol, 212ms   real 0m0.236s
+```
+
+*`graph check`, warm.* Same binary, same tree, graph already written by the
+run above:
+
+```
+$ time /tmp/loomux-bench.exe graph check --root .
+loomux graph check: OK
+real	0m0.213s
+
+$ time /tmp/loomux-bench.exe graph check --root .
+loomux graph check: OK
+real	0m0.223s
+```
+
+*The probe alone.* `internal/code/freshness/probe_bench_test.go` did not exist
+before this task. `BenchmarkProbe` writes a freshness record for this
+repository's real file set — 254 Go files, read and hashed once, outside the
+timer — then times `Probe` alone, repeatedly, against that record:
+
+```
+$ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x
+BenchmarkProbe-16    	      10	  59840350 ns/op
+    probe_bench_test.go:61: probing 254 files
+```
+
+Machine: AMD Ryzen 7 9800X3D, Go `go1.27.0 windows/amd64`, GOMAXPROCS 16 — the
+same machine the 2026-09-16 pooled/per-node figures and the Graft reference
+comparisons were made on.
+
+| case | cold | warm | reference / floor |
+|---|---:|---:|---|
+| pagerank dangling mass, pooled (20k nodes, 19,900 dangling) | 5.88 ms | — | ~9 ms pooled, 2026-09-16 |
+| pagerank dangling mass, per node (same graph) | 3.30 s | — | ~4.5 s per node, 2026-09-16 |
+| `graph build --root .` (this repository) | 219 ms (196 ms reported) | 213–236 ms (190–212 ms reported) | 44–46 ms parsing floor, §11 |
+| `graph check --root .` (this repository) | — | 213–223 ms | n/a |
+| `freshness.Probe` alone (254 files, this repository) | — | 59.8 ms/op (10 reps) | ~3 ms for 280 files (Graft) |
+
+### Reading
+
+1. **The G1 debt is paid, and the number confirms the design comment word for
+   word.** Cold, pooled is 5.88 ms against per-node's 3.30 s — a factor of
+   about 561, on a single cold process each, not an average over many warm
+   ones. Both are close to the 2026-09-16 warm figures (~9 ms, ~4.5 s) on the
+   same machine, which is what a cold-vs-warm gap this small should look like
+   for a computation with no I/O and no cache to warm: the cost is arithmetic,
+   not process state.
+2. **`graph build` does not distinguish cold from warm, and the code explains
+   why before the number does.** Cold (219 ms) and warm (213–236 ms) overlap
+   completely. `buildGraph`'s own comment says it: the command "reads and
+   hashes every file, every time — never the probe's fast path", because a
+   stat may decide whether a *query* rebuilds, never what a rebuild looks at.
+   There is no cache for `build` itself to warm. Against the 44–46 ms parsing
+   floor of §11, 190–219 ms is 4.3–4.8x — extraction, resolution and writing
+   the graph and the freshness record account for the rest, and no measurement
+   in this entry decomposes that further.
+3. **`graph check`, warm, costs about what `build` costs, which is the design,
+   not a defect.** 213–223 ms against `build`'s 190–212 ms warm: `check`
+   re-extracts the whole tree to compare body hashes, so its cost is a second
+   `buildGraph` plus a diff, minus the write. The two numbers being close is
+   the CLI reference's claim made visible — `check` does not read the
+   freshness record, so a `touch` is not a finding, but it is also not a
+   cheap one.
+4. **The probe is 20x the reference, and §7.1's premise does not hold as
+   confidently as it reads.** 59.8 ms/op against Graft's ~3 ms for 280 files
+   is far above what a hook budget of a few tens of milliseconds can absorb
+   once alongside everything else on that path. It is not extraction cost —
+   `Probe` never opens a file when size and mtime match, which they do here by
+   construction. A separate timing of `sourceset.Stat` alone against this
+   repository's root reproduced the same ~57–70 ms, so the cost is the
+   directory walk `internal/code/sourceset` performs, not the comparison
+   after it. This repository's tree has 1,910 directories under it, 1,827 of
+   them under `testdata/` (mostly recorded case fixtures with no `.go` files);
+   Graft's 280-file reference tree is not this shape. §7.1's argument — that a
+   `git ls-files` subprocess per probe call would cost more than the probe —
+   is still true against a *subprocess's* floor (tens of milliseconds), but
+   the probe's own floor on a tree with this many non-source directories is
+   not the ~3 ms the section assumes; it is closer to the subprocess cost it
+   was avoiding. This entry does not decide the design question; it hands the
+   next one a number that says the assumption needs rechecking on a
+   directory-heavy tree, not only a file-heavy one.

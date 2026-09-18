@@ -125,14 +125,15 @@ Lehnt den Haupt-Checkout und jedes Verzeichnis ab, an dem Git keinen Worktree h�
 ## 6. Code-Graph-Engine (`loomux graph`)
 
 > [!NOTE]
-> **Spezifiziert, nicht verdrahtet.** Es gibt bisher keinen `loomux graph`-Befehl; `loomux graph build` endet heute als unbekannter Befehl. Stufe G1 hat die Pakete gebaut, die diese Befehle rufen werden — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2 ergänzt Extraktor, Wiring-Schreiber, Frischeprüfung und die Befehle darunter.
+> **`build` und `check` sind verdrahtet, der Rest darunter bleibt spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die beiden Befehle direkt darunter. `ask`, `callers`, `blast`, `skeleton`, `map` und `viz` bleiben unverdrahtet.
 
-### `loomux graph build [dir]`
-Parst Quellcodedateien in den deterministischen AST-Code-Graphen und schreibt `.loomux/state/graph/wiring.json`.
+### `loomux graph build [--root <pfad>]`
+Liest und hasht jede Go-Quelldatei, die `internal/code/sourceset` unterhalb der Wurzel findet, extrahiert und löst sie zum deterministischen AST-Graphen auf und schreibt ihn nach `.loomux/state/graph/wiring.json`. Dabei schreibt er auch die Frischeakte (`.loomux/state/graph/cache/fingerprint.json`), die eine spätere Sonde liest; scheitert das Schreiben der Akte, meldet der Befehl das auf `stderr`, ohne den Bau selbst scheitern zu lassen — der Graph auf der Platte ist bereits korrekt.
 
-- **Flags**:
-  - `--deep`: Reichert Symbole mit LLM-Crux-Zusammenfassungen an (gecached).
-  - `--extensions <exts>`: Beschränkt die zu verarbeitenden Dateiendungen (z. B. `.go .ts`).
+- **Flags**: `--root <pfad>` — Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
+- **Ausgabe**: eine Zeile mit Dateien, Knoten und Kanten je Relation, dann eine Zeile mit unaufgelösten Importzielen, Dateien ohne Symbol und der benötigten Zeit — zum Beispiel `254 files, 2801 nodes, 8980 edges (2547 contains, 5081 calls, 1352 imports)` / `1123 unresolved import targets, 3 files without a symbol, 196ms`.
+- **Exit-Codes**: `0` bei Erfolg; `1`, wenn die Wurzel nicht auflösbar ist, eine Datei nicht gelesen oder geparst werden kann, die Modulauflösung scheitert oder der Graph nicht geschrieben werden kann; `2` bei einem Aufruffehler.
+- **Kosten**: `build` liest die Frischeakte nie — es liest und hasht jede Datei, kalt wie warm, jedes Mal. Es gibt dabei nichts zu überspringen: anders als `check` erzeugt `build` gerade den Stand, gegen den eine Sonde später vergleicht, und ein veraltetes Byte darin wäre eine veraltete Antwort, keine ersparte Lesung. Gemessene Zahlen stehen in `docs/de/benchmarks.md`.
 
 ### `loomux graph ask "<anfrage>" [dir]`
 Sucht Code-Symbole gerankt nach **Personalized PageRank** über den AST-Aufrufgraph.
@@ -161,9 +162,13 @@ Gibt alle Funktions-, Typ-, Interface- und Methodensignaturen ohne Rümpfe aus (
 ### `loomux graph map [dir]`
 Zeigt Verzeichnis-Cluster, lokale Hubs und globale Codebasis-Hotspots gerankt nach Kanten-Kopplung.
 
-### `loomux graph check [dir]`
-Prüft, ob der Code-Graph gegenüber dem Live-Arbeitsbaum veraltet ist.
-- **Exit-Codes**: `0` (Frisch), `1` (Veraltet / Drift erkannt).
+### `loomux graph check [--root <pfad>] [--json]`
+Extrahiert den ganzen Baum neu und vergleicht ihn, Knoten für Knoten, mit dem auf der Platte geschriebenen Graphen.
+
+- **Flags**: `--root <pfad>` — Projektwurzel; ohne Angabe das Arbeitsverzeichnis. `--json` — schreibt die Abweichung als JSON (`checkResult`: `ok`, `missing`, `foreign`, `added`, `removed`, `changed`) statt des menschenlesbaren Berichts.
+- **Das eine, was sonst zweimal gefragt wird**: `check` liest die Frischeakte nicht. Die Akte beantwortet „soll eine Anfrage sich die Mühe eines Neubaus machen"; `check` beantwortet „beschreibt der Graph den Code noch", und die einzig ehrliche Antwort darauf ist, neu zu extrahieren und Rumpf-Hashes zu vergleichen. Ein `touch`, das die Änderungszeit einer Datei ändert, aber keine Bytes, ist deshalb kein Befund — hier wie bei der Sonde, aber aus einem anderen Grund: die Sonde kommt gar nicht erst über ihren Stat-Vergleich hinaus, `check` kommt bis zum Hash und findet ihn unverändert.
+- **Ausgabe**: `NO GRAPH`, wenn noch nichts gebaut wurde; `FOREIGN GRAPH`, wenn der Graph auf der Platte eine andere Extraktor-Version nennt als dieses Binary; `OK`, wenn nichts abgewichen ist; sonst `DRIFT` mit je einer Zeile pro hinzugefügter, entfernter oder geänderter Knoten-ID.
+- **Exit-Codes**: `0` — frisch (`OK`); `1` — noch kein Graph, ein fremder Graph, gefundene Abweichung, oder ein Fehler bei der Neuextraktion; `2` — Aufruffehler.
 
 ### `loomux graph viz [dir]`
 Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.

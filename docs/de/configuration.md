@@ -127,24 +127,37 @@ mirror = [
 
 ---
 
-### `[graph]` (Code-Graph-Einstellungen)
-Konfiguriert AST-Extraktion, Indizierungsgrenzen und Frischeprüfung.
+### `[graph]` — den gibt es nicht, und Stufe G2a hat geklärt, warum
 
-> [!NOTE]
-> **Spezifiziert, nicht gelesen.** Kein Code liest `[graph]` bisher; der Abschnitt kommt mit dem Extraktor in Stufe G2. Die Zahlen darunter sind Entwurfsziele, keine Messwerte.
+Ein früherer Entwurf dieses Handbuchs spezifizierte einen Abschnitt `[graph]`
+mit den Feldern `extensions`, `exclude` und `freshness_check`. Nichts davon
+existiert im Code, den Stufe G2a ausgeliefert hat, und nichts davon ist
+geplant. Die Frage kommt immer wieder, deshalb steht die Antwort hier, statt
+neu entdeckt zu werden:
 
-```toml
-[graph]
-extensions = [".go", ".ts", ".tsx", ".py", ".rs"]
-exclude = ["vendor/**", "dist/**", "node_modules/**", "**/*_test.go"]
-freshness_check = "hash" # "mtime" oder "hash"
-```
+- **Welche Sprachen ein Bau parst, ergibt sich aus dem Extraktor, nicht aus
+  einer Liste, die ein Repository erklärt.** `internal/code/extract/golang`
+  ist ein Go-Extraktor; er parst `.go`-Dateien, weil er nur die lesen kann.
+  Ein zweiter Extraktor für eine andere Sprache reiht sich auf dieselbe Art
+  ein — indem er existiert —, und kein Konfigurationsschlüssel entscheidet,
+  welcher auf eine Datei angewandt wird.
+- **Einen einzelnen Bau auf einen Teilbaum einzuschränken ist eine Flagge des
+  Aufrufs, keine Repository-Einstellung.** `loomux graph build` und `loomux
+  graph check` nehmen bereits `--root`; eine künftige Einschränkungs-Flagge
+  auf einem Aufruf ist die richtige Form für „heute nur diesen Teilbaum
+  indizieren", weil diese Wahl zu dem gehört, der den Befehl ausführt, nicht
+  zu dem Baum, der indiziert wird.
+- **`freshness_check` hatte nie etwas zu entscheiden.** `internal/code/freshness`
+  vergleicht immer zuerst Größe und Änderungszeit und greift erst auf einen
+  Inhaltshash zurück, wenn die beiden nicht übereinstimmen — die Regel der
+  Referenzimplementierung, keine Strategie, die ein Projekt abschalten könnte.
+  Da bleibt nichts mehr zu konfigurieren.
 
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `extensions` | Array von Strings | Dateiendungen, die in den AST-Code-Graphen aufgenommen werden. |
-| `exclude` | Array von Strings | Glob-Muster, die bei der Graph-Erstellung ignoriert werden. |
-| `freshness_check` | String | Strategie für Arbeitsbaum-Drift-Erkennung: `"mtime"` (<1ms) oder `"hash"` (<3ms, bitgenau). |
+Was einen Bau einschränkt oder formt, gehört zum Aufruf, der ihn ausführt,
+nicht zur Konfiguration des Repositories, das indiziert wird. Kehrt dieser
+Abschnitt zurück, dann weil eine reale Anforderung eine Einstellung auf
+Abschnittsebene erzwungen hat — nicht weil das Handbuch einst eine skizziert
+hatte.
 
 ---
 
@@ -235,12 +248,6 @@ mirror = [
   ".cache",
   "bin"
 ]
-
-# --- Code-Graph & AST-Einstellungen ------------------------------------------
-[graph]
-extensions = [".go", ".ts", ".py"]
-exclude = ["vendor/**", "dist/**"]
-freshness_check = "hash"
 
 # --- Kuratierte Sprach-Review-Suiten -----------------------------------------
 [skills]

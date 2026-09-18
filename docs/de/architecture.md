@@ -134,10 +134,29 @@ flowchart LR
 
 > **Stand.** Stufe G1 hat das Lesemodell und die beiden Rechner als Go-Pakete
 > gebaut — `internal/code/model`, `internal/code/pagerank`,
-> `internal/code/blast`. Kein Befehl ruft sie bisher, und nichts schreibt den
-> Wiring-Graphen, den sie lesen: Extraktor, lexikalische Saat, Frischeprüfung
-> und die `loomux graph`-Befehle sind Stufe G2 und später. Die Abschnitte
-> darunter beschreiben die ganze Säule und markieren, was schon Code ist.
+> `internal/code/blast`. Stufe G2a ergänzt fünf weitere Pakete, die den
+> Graphen erzeugen, den diese Rechner lesen, und die Frischefrage beantworten,
+> die ein Hook braucht, bevor überhaupt gerankt wird:
+>
+> - `internal/code/sourceset` — die eine Dateimenge, die Bau und Sonde beide
+>   ablaufen; so können die zwei nie unterschiedliche Dateien aufzählen.
+> - `internal/code/extract/golang` — der deterministische Extraktor: `go/parser`
+>   und `go/ast` über eine Datei nach der anderen, kein `go/types` und kein Bau.
+> - `internal/code/resolve` — macht aus der lokalen Extraktion jeder Datei
+>   dateiübergreifende Kanten, mit `go.mod`, um einen Import innerhalb dieses
+>   Moduls von einem außerhalb zu unterscheiden.
+> - `internal/code/store` — liest und schreibt den Graphen atomar unter
+>   `.loomux/state/graph/wiring.json`.
+> - `internal/code/freshness` — die billige, stat-basierte Sonde und ihre
+>   Nebenakte, `.loomux/state/graph/cache/fingerprint.json`.
+>
+> `freshness` importiert den Extraktor nicht. Das ist Absicht: der Stempel, mit
+> dem eine Sonde vergleicht, kommt als bloße Zeichenkette an, damit eine
+> spätere Stufe die Sonde aus dem Hook-Pfad je Edit rufen kann, ohne `go/parser`
+> mitzuziehen. `loomux graph build` und `loomux graph check` sind auf `model`
+> und diesen fünf Paketen verdrahtet; die lexikalische Saat, `pagerank` und
+> `blast` warten auf `ask` und `callers` aus Stufe G2b. Die Abschnitte darunter
+> beschreiben die ganze Säule und markieren, was schon Code ist.
 
 ### 1. „Lexik schlägt vor, der Graph entscheidet“
 - **Lexikalischer Schritt** (G2): BM25- und Exakt-Symbol-Indizierung finden rasch Kandidaten-Knoten zu den Begriffen des Prompts.
