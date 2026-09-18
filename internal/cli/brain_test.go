@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/answer"
 	"github.com/xidus90/loomux/internal/brain/search"
 )
 
@@ -52,30 +53,41 @@ func brainReadOnlyWorld(t *testing.T, files map[string]string) brainWorldDirs {
 	return w
 }
 
+// stubBrainPorts replaces one of the command line's engines for one test and
+// leaves the others as they were, so that two stubs in one test add up.
+func stubBrainPorts(t *testing.T, change func(*answer.Ports)) {
+	t.Helper()
+	saved := brainPorts
+	ports := saved()
+	change(&ports)
+	brainPorts = func() answer.Ports { return ports }
+	t.Cleanup(func() { brainPorts = saved })
+}
+
 func stubBrainSearchPort(t *testing.T, port search.SearchPort, notice string) {
 	t.Helper()
-	saved := brainSearchPort
-	brainSearchPort = func(announce func(string)) search.SearchPort {
-		if notice != "" {
-			announce(notice)
+	stubBrainPorts(t, func(p *answer.Ports) {
+		p.Search = func(announce func(string)) search.SearchPort {
+			if notice != "" {
+				announce(notice)
+			}
+			return port
 		}
-		return port
-	}
-	t.Cleanup(func() { brainSearchPort = saved })
+	})
 }
 
 func stubBrainStatusPort(t *testing.T, port search.SearchPort) {
 	t.Helper()
-	saved := brainStatusPort
-	brainStatusPort = func() search.SearchPort { return port }
-	t.Cleanup(func() { brainStatusPort = saved })
+	stubBrainPorts(t, func(p *answer.Ports) {
+		p.Status = func() search.SearchPort { return port }
+	})
 }
 
 func stubBrainNow(t *testing.T, now time.Time) {
 	t.Helper()
-	saved := brainNow
-	brainNow = func() time.Time { return now }
-	t.Cleanup(func() { brainNow = saved })
+	stubBrainPorts(t, func(p *answer.Ports) {
+		p.Now = func() time.Time { return now }
+	})
 }
 
 // closingPort is a search port that can be closed, like the MCP port.
@@ -115,10 +127,10 @@ func TestBrainUsageErrorsNameTheParserThatRefused(t *testing.T) {
 }
 
 func TestBrainDefaultPortsAreTheQmdPorts(t *testing.T) {
-	if _, ok := brainSearchPort(func(string) {}).(*search.QmdMcpPort); !ok {
+	if _, ok := brainPorts().Search(func(string) {}).(*search.QmdMcpPort); !ok {
 		t.Fatal("brain search must ask the qmd daemon")
 	}
-	port, ok := brainStatusPort().(*search.QmdPort)
+	port, ok := brainPorts().Status().(*search.QmdPort)
 	if !ok || port.Executable != "qmd" || port.Runner == nil {
 		t.Fatalf("brain status must ask the qmd command line, got %#v", port)
 	}

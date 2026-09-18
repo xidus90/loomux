@@ -176,8 +176,9 @@ func stateDirOf(stateDir, scope string) string {
 	return ManifestDir(Area{Scope: scope, ReadOnly: true}, stateDir)
 }
 
-// stateDirEnv is the variable `paths._ENV` names.
-const stateDirEnv = "LOOMUX_STATE_DIR"
+// StateDirEnv is the variable `paths._ENV` names. It is exported because a
+// spawned child inherits its state directory through it and nowhere else.
+const StateDirEnv = "LOOMUX_STATE_DIR"
 
 // StateDir is where the registry lives when nobody says otherwise.
 //
@@ -191,7 +192,7 @@ const stateDirEnv = "LOOMUX_STATE_DIR"
 // defaultStateDir, which uses it only where the platform variable is missing,
 // and an empty home there yields a relative path rather than a wrong one.
 func StateDir() string {
-	if fromEnv := os.Getenv(stateDirEnv); fromEnv != "" {
+	if fromEnv := os.Getenv(StateDirEnv); fromEnv != "" {
 		return fromEnv
 	}
 	home, _ := os.UserHomeDir()

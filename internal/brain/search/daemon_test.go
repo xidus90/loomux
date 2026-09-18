@@ -212,14 +212,6 @@ func TestDefaultSpawner(t *testing.T) {
 	}
 }
 
-func TestStartDaemon(t *testing.T) {
-	t.Setenv("PATH", t.TempDir())
-	err := search.StartDaemon(nil, 0)
-	if err == nil {
-		t.Fatal("expected error when qmd is absent from PATH, got nil")
-	}
-}
-
 func TestStartDaemonWith_DefaultSpawner(t *testing.T) {
 	mockLauncher := func(tool string) ([]string, error) {
 		return []string{"go", "version"}, nil

@@ -8,6 +8,15 @@ import (
 	"time"
 )
 
+// ColdAttempts is the reference's cold_attempts (three), and with it the
+// attempt count of the command line, which stage 1b-1 signed off. Each attempt
+// after the first reconnects, and reconnecting probes and, where nothing
+// answered, restarts the daemon under the shared lock. A caller with a rule of
+// its own says so: serve asks for two, one try and exactly one retry.
+//
+// What fails in the last attempt is an error, never an empty hit list -- an
+// outage reported as "nothing found" teaches the model to read a dead engine
+// as an answer.
 const (
 	ColdAttempts = 3
 )
@@ -52,6 +61,15 @@ func WithBackbone(backbone Backbone) QmdMcpOption {
 	}
 }
 
+// WithQmdLock sets the lock the default connect takes across probing and
+// starting the daemon. Left unset, the port takes the lock of the state
+// directory this run works in.
+func WithQmdLock(path string) QmdMcpOption {
+	return func(p *QmdMcpPort) {
+		p.qmdLock = path
+	}
+}
+
 // WithPort sets the daemon port.
 func WithPort(port int) QmdMcpOption {
 	return func(p *QmdMcpPort) {
@@ -76,36 +94,42 @@ type QmdMcpPort struct {
 	cli      SearchPort
 	attempts int
 	notice   func(message string)
+	qmdLock  string
 
 	session Session
 	mu      sync.Mutex
 }
 
-// DefaultConnectWith returns a ConnectFunc using the given launcher, spawner, and timeout.
+// DefaultConnectWith returns a ConnectFunc using the given lock, launcher, spawner, and
+// timeout. Probing and starting happen under qmdLockPath, so that this connect and the one
+// of the other starter never bring up two daemons on the same port.
 // notice, when not nil, hears WarmingNotice at most once for the returned ConnectFunc: right
 // after a daemon start succeeded, before the wait for it.
-func DefaultConnectWith(port int, launcher func(string) ([]string, error), spawner DaemonSpawner, waitTimeout time.Duration, notice func(string)) ConnectFunc {
+func DefaultConnectWith(qmdLockPath string, port int, launcher func(string) ([]string, error), spawner DaemonSpawner, waitTimeout time.Duration, notice func(string)) ConnectFunc {
 	var once sync.Once
 	return func(env map[string]string) (Session, error) {
 		session := NewHTTPSession(port)
-		if !session.Reachable() {
-			if err := StartDaemonWith(env, port, launcher, spawner); err != nil {
-				return nil, err
-			}
-			if notice != nil {
-				once.Do(func() { notice(WarmingNotice) })
-			}
-			if err := session.WaitUntilReachable(waitTimeout); err != nil {
-				return nil, err
-			}
+		err := ensureDaemon(qmdLockPath, daemonSteps{
+			probe: session.Reachable,
+			start: func() error { return StartDaemonWith(env, port, launcher, spawner) },
+			started: func() {
+				if notice != nil {
+					once.Do(func() { notice(WarmingNotice) })
+				}
+			},
+			wait: func() error { return session.WaitUntilReachable(waitTimeout) },
+		})
+		if err != nil {
+			return nil, err
 		}
 		return session, nil
 	}
 }
 
-// DefaultConnect returns a ConnectFunc that connects to a local daemon on port, starting one if needed.
-func DefaultConnect(port int, notice func(string)) ConnectFunc {
-	return DefaultConnectWith(port, Launcher, DefaultSpawner, 60*time.Second, notice)
+// DefaultConnect returns a ConnectFunc that connects to a local daemon on port, starting one
+// under qmdLockPath if needed.
+func DefaultConnect(qmdLockPath string, port int, notice func(string)) ConnectFunc {
+	return DefaultConnectWith(qmdLockPath, port, Launcher, DefaultSpawner, DaemonWait, notice)
 }
 
 // connectDefault is the connect NewQmdMcpPort falls back to; a test replaces it to see what
@@ -124,7 +148,10 @@ func NewQmdMcpPort(opts ...QmdMcpOption) *QmdMcpPort {
 		opt(p)
 	}
 	if p.connect == nil {
-		p.connect = connectDefault(p.port, p.notice)
+		if p.qmdLock == "" {
+			p.qmdLock = DefaultQmdLockPath()
+		}
+		p.connect = connectDefault(p.qmdLock, p.port, p.notice)
 	}
 	if p.cli == nil {
 		p.cli = &QmdPort{Executable: "qmd"}
@@ -156,7 +183,7 @@ func (p *QmdMcpPort) ask(args map[string]any) (map[string]any, error) {
 				// A connection that never came is not a daemon that stumbled: the
 				// reference connects outside the retried block (qmd_mcp.py `_ask`), so a
 				// failed connect leaves at once. Retrying it would spawn one detached
-				// daemon per attempt and wait out the connect timeout three times over.
+				// daemon per attempt and wait out the connect timeout once more.
 				return nil, unanswered(append(failures, err.Error()))
 			}
 			p.session = session
