@@ -7,3 +7,5 @@
   pre-commit gate rebuilds. If session-start warns that the binary is older
   than a Go source under `cmd/` or `internal/` (or `go.mod`/`go.sum`), rebuild
   before trusting a refusal.
+- Opening or updating a pull request against `master`: use the `release-pr`
+  skill.

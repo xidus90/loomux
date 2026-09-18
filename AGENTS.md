@@ -16,6 +16,11 @@ that `ultraloom` and `ultra-brain` provided separately. Design:
   Moving to a newer upstream means redoing that patch; verify it by copying
   upstream's `*_test.go` files and `internal/tag` into a scratch copy, calling
   the zone accessors there, and running `go test ./...` inside it.
+- `internal/release` holds the release rules (next version, pull request
+  body, changelog, cross build) behind `loomux dev release`. `ci/` holds the
+  gate and the smoke test every forge runs. `.github/` holds only what is
+  GitHub's: triggers, permissions, tokens and API calls. A second forge gets
+  its own directory and calls the same scripts and subcommands.
 
 ## Languages
 
@@ -35,8 +40,47 @@ are German and never translated.
 - Coverage is 100% per function. A function may stay below only with
   `//coverage:exempt <reason>` on the line directly above `func`.
 - No `init()` and no package-level variable parses embedded data; load on first use.
-- Commits carry the user as author and committer and credit no model or agent.
-- Nobody but a human pushes.
+- Nobody works on `master`. Every change starts on a branch and reaches
+  `master` only as a merged pull request. `.githooks/pre-commit` refuses a
+  commit on `master` and `.githooks/pre-push` a push to it; the ruleset on
+  GitHub is the barrier that holds regardless.
+- Before a pull request is opened, and again before it is merged, its commits
+  are grouped by theme: one commit per change. A later correction of something
+  the same branch introduced (review fix, typo, follow-up) is folded into the
+  commit that introduced it. Only the fix of a bug that already existed on
+  `master` before the branch keeps a commit of its own. With an LLM the
+  `release-pr` skill does this and the label below; without one, follow
+  "Opening a pull request" in `README.md`.
+- Commit messages follow Conventional Commits:
+  `<type>[(<scope>)][!]: <description>`, optional body, optional footers.
+  Types: `feat`, `fix`, `build`, `chore`, `ci`, `docs`, `style`, `refactor`,
+  `perf`, `test`, `revert`. A breaking change carries `!` before the colon or
+  a `BREAKING CHANGE:` footer. `.githooks/commit-msg` checks the header.
+- The label of a pull request is never lower than its commits: a breaking
+  change needs `release:major`, a `feat` at least `release:minor`, a `fix` at
+  least `release:patch`. The label may be higher. `pr-label` checks it.
+- Every pull request to `master` carries exactly one label `release:major`
+  (breaking change to a command, flag, hook protocol, config format or exit
+  code), `release:minor` (new feature, compatible), `release:patch` (bug fix
+  or dependency update, compatible) or `release:none` (docs, CI or tests
+  only). Whoever opens the pull request reads the diff, picks the label (the
+  higher one when in doubt), sets it with `gh pr create --label`, and writes
+  into the body a line `Release: <level> — <one-sentence reason>` (a
+  convention; `parse-body` does not check it) and, unless
+  `release:none`, a `## Changelog` block in Keep a Changelog form, English,
+  from the user's point of view, headings only `Added`, `Changed`,
+  `Deprecated`, `Removed`, `Fixed`, `Security`. Every non-blank line in that
+  block is a `### ` heading or a `- ` entry; anything else is rejected. When
+  the pull request changes, label and block follow. `loomux dev release
+  parse-body` is the check.
+- The one exception to the rules on commit authors and pushes: `chore(release): v*`
+  commits and `v*` tags made by `.github/workflows/release.yml` through the
+  `loomux-release` GitHub App. No agent uses that app.
+- Commits carry the user as author and committer and credit no model or agent
+  (see the release exception above).
+- Nobody but a human pushes (see the release exception above). The loomux
+  guard refuses a push by an agent; an agent names the exact command and
+  waits.
 - Performance measurements go chronologically into `docs/en/benchmarks.md` and
   `docs/de/benchmarks.md`: date and time, what was measured, baseline against
   change, cold and warm.
@@ -54,5 +98,5 @@ git config core.hooksPath .githooks
 go build -o bin/loomux.exe ./cmd/loomux
 ```
 
-- Gate: `.githooks/pre-commit` (gofmt, go vet, tests with coverage, pilot binary).
+- Gate: `sh ci/gate.sh`; `.githooks/pre-commit` runs it, then rebuilds the pilot binary.
 - `go run ./cmd/loomux dev covergate --profile coverage.out`
