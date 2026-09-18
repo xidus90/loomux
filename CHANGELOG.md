@@ -4,6 +4,14 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-18
+
+<https://github.com/xidus90/loomux/pull/3>
+
+### Added
+- `loomux graph ask "<question>"` answers from the code graph with ranked definitions and their locations; `--in`, `--limit`, `--source`, `--full`, `--json` and `--no-refresh` shape the answer.
+- `loomux graph build` writes an ask index next to the graph, so a question can match words in function bodies.
+
 ## [1.0.1] - 2026-09-18
 
 <https://github.com/xidus90/loomux/pull/4>
