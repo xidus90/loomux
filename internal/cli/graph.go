@@ -12,10 +12,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/extract/golang"
 	"github.com/xidus90/loomux/internal/code/freshness"
+	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/resolve"
 	"github.com/xidus90/loomux/internal/code/sourceset"
@@ -33,6 +36,8 @@ func graphCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return graphBuild(args[1:], stdout, stderr)
 	case "check":
 		return graphCheck(args[1:], stdout, stderr)
+	case "ask":
+		return graphAsk(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "loomux graph: unknown command %q\n", args[0])
 		graphUsage(stderr)
@@ -44,6 +49,7 @@ func graphUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage: loomux graph <command> [arguments]")
 	fmt.Fprintln(w, "  build   analyse the source and write .loomux/state/graph/wiring.json")
 	fmt.Fprintln(w, "  check   report whether the graph still matches the code")
+	fmt.Fprintln(w, "  ask     answer a question from the graph")
 }
 
 // graphBuild writes the graph and reports what it wrote.
@@ -61,22 +67,140 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 	}
 
 	started := time.Now()
-	g, stats, err := buildGraph(project)
+	g, stats, err := writeEverything(project)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux graph build: %v\n", err)
 		return 1
 	}
-	if err := store.Write(project, g); err != nil {
-		fmt.Fprintf(stderr, "loomux graph build: %v\n", err)
-		return 1
-	}
-	if err := freshness.Write(project, golang.Version, stats.files, stats.hashes); err != nil {
-		// The graph is on disk already, so a failed record costs the next probe
-		// its fast path and nothing more.
-		fmt.Fprintf(stderr, "loomux graph build: freshness record not written: %v\n", err)
-	}
 	fmt.Fprint(stdout, report(g, stats, time.Since(started)))
 	return 0
+}
+
+// graphAsk answers a question from the graph.
+//
+//coverage:exempt the MarshalIndent arm needs a value json cannot encode, and ask.Answer is built entirely of strings, floats and model types -- no ask.Answer this program can construct makes it fail
+func graphAsk(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("graph ask", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", "", "project root; the working directory when empty")
+	limit := fs.Int("limit", 0, "how many hits to report (default 8)")
+	in := fs.String("in", "", "narrow to nodes under this path prefix, before scoring")
+	source := fs.Bool("source", false, "inline the source at each hit")
+	full := fs.Bool("full", false, "with --source: inline the whole span, uncapped")
+	asJSON := fs.Bool("json", false, "write the answer as JSON")
+	noRefresh := fs.Bool("no-refresh", false, "never rebuild, answer from the graph on disk")
+	var queries []string
+	for rest := args; ; rest = rest[1:] {
+		if err := fs.Parse(rest); err != nil {
+			return 2
+		}
+		rest = fs.Args()
+		if len(rest) == 0 {
+			break
+		}
+		queries = append(queries, rest[0])
+	}
+	if len(queries) != 1 {
+		fmt.Fprintln(stderr, `loomux graph ask: one query required: loomux graph ask "<question>" [flags]`)
+		return 2
+	}
+	query := queries[0]
+
+	project, err := projectRoot(*root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux graph ask: %v\n", err)
+		return 1
+	}
+
+	if !*noRefresh {
+		// Notices go to stderr, so a piped answer stays an answer.
+		ask.EnsureFresh(project, golang.Version,
+			func() error { _, _, err := writeEverything(project); return err },
+			func(s string) { fmt.Fprintf(stderr, "loomux graph ask: %s\n", s) })
+	}
+
+	g, err := store.Read(project)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintln(stderr, "loomux graph ask: no graph. Run `loomux graph build` first.")
+			return 1
+		}
+		fmt.Fprintf(stderr, "loomux graph ask: %v\n", err)
+		return 1
+	}
+	ix, err := lexicon.Read(project)
+	if err != nil {
+		// The sidecar is a cache: without it, tokenize live off the graph. The
+		// body text is gone from the written graph, so a body-only word will
+		// not be found -- say so rather than answer worse in silence.
+		fmt.Fprintf(stderr, "loomux graph ask: no ask index, ranking on names and paths only: %v\n", err)
+		ix = lexicon.Build(g)
+	}
+
+	answer := ask.Run(g, ix, query, ask.Options{Limit: *limit, In: *in})
+	if *source {
+		ask.Inline(project, &answer, *full)
+	}
+
+	if *asJSON {
+		body, err := json.MarshalIndent(answer, "", "  ")
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux graph ask: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "%s\n", body)
+		return 0
+	}
+	fmt.Fprint(stdout, askReport(answer))
+	return 0
+}
+
+// writeEverything is one whole build: the graph, the ask sidecar and the
+// freshness record.
+//
+// Both callers use it -- `graph build`, which owns the flags and the report, and
+// the rebuild `graph ask` triggers, which owns neither. Two copies of this
+// sequence would be two places where the sidecar can be forgotten, and a
+// forgotten sidecar is a silently worse answer.
+func writeEverything(root string) (*model.Graph, buildStats, error) {
+	g, stats, err := buildGraph(root)
+	if err != nil {
+		return nil, buildStats{}, err
+	}
+	if err := store.Write(root, g); err != nil {
+		return nil, buildStats{}, err
+	}
+	// From the graph in memory, which still carries the body text: the written
+	// file has it stripped, and that is what makes the sidecar necessary rather
+	// than redundant.
+	if err := lexicon.Write(root, lexicon.Build(g)); err != nil {
+		return nil, buildStats{}, err
+	}
+	if err := freshness.Write(root, golang.Version, stats.files, stats.hashes); err != nil {
+		return nil, buildStats{}, err
+	}
+	return g, stats, nil
+}
+
+// askReport is the human form: one block per hit, location first.
+func askReport(a ask.Answer) string {
+	if a.Note != "" {
+		return a.Note + "\n"
+	}
+	var b strings.Builder
+	for i, h := range a.Hits {
+		fmt.Fprintf(&b, "%d. %s  %s:%s  (%.3f lex %.3f graph %.3f)\n",
+			i+1, h.ID, h.Path, h.Span, h.Score, h.Lexical, h.Graph)
+		if h.Signature != "" {
+			fmt.Fprintf(&b, "   %s\n", h.Signature)
+		}
+		if h.Code != "" {
+			for _, line := range strings.Split(h.Code, "\n") {
+				fmt.Fprintf(&b, "   | %s\n", line)
+			}
+		}
+	}
+	return b.String()
 }
 
 // checkResult is what `graph check` found.

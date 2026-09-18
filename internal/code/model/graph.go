@@ -103,11 +103,25 @@ func (r Relation) IsWalk() bool {
 
 // Node is one definition: a file, or a symbol inside one.
 type Node struct {
-	ID        NodeID `json:"id"`
-	Name      string `json:"name"`
-	Kind      Kind   `json:"kind"`
-	Owner     string `json:"owner,omitempty"`
-	Path      string `json:"path"`
+	ID    NodeID `json:"id"`
+	Name  string `json:"name"`
+	Kind  Kind   `json:"kind"`
+	Owner string `json:"owner,omitempty"`
+
+	// Path is repo-relative and slash-separated, on every platform -- never a
+	// backslash, because an id begins with this path (a file node's id IS it,
+	// a symbol's continues with "#" and the symbol) and every prefix
+	// comparison runs over that shape. A backslash here cannot divide the
+	// index from the walk: lexicon.Filter normalizes its prefix argument and
+	// then compares the id unchanged, and an id and this Path are cut from the
+	// one rel, so the filter drops exactly the nodes lexicon.UnderPrefix drops
+	// in the walk. It empties both at once instead, and it does so visibly:
+	// asked with a prefix, the filtered index holds nothing, nothing is
+	// seeded, and ask.Run answers "no matching nodes" for a subtree that
+	// exists. The Go extractor takes it from its rel argument, which graph
+	// build fills from sourceset's Rel -- and that one is filepath.ToSlash'ed.
+	Path string `json:"path"`
+
 	Span      Span   `json:"span"`
 	Signature string `json:"signature"`
 	Exported  bool   `json:"exported"`

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/code/freshness"
+	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/testlock"
 )
@@ -385,22 +387,48 @@ func TestGraphBuildFailsWhenTheGraphCannotBeWritten(t *testing.T) {
 	}
 }
 
-func TestGraphBuildWarnsButSucceedsWhenTheFingerprintCannotBeWritten(t *testing.T) {
+func TestGraphBuildFailsWhenTheCacheDirectoryCannotBeCreated(t *testing.T) {
 	root := repo(t, sample())
 	if err := os.MkdirAll(store.Dir(root), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// A regular file named "cache" blocks freshness.Write's own MkdirAll,
-	// while leaving store.Write's directory untouched.
+	// A regular file named "cache" leaves store.Write's directory untouched
+	// and blocks the MkdirAll of everything under it. Both sidecars live
+	// there -- store.CachePath builds their paths -- so the build fails at
+	// lexicon.Write, the first of writeEverything's two sidecar writes, and
+	// never reaches freshness.Write.
 	if err := os.WriteFile(filepath.Join(store.Dir(root), "cache"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var out, errOut bytes.Buffer
-	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
-		t.Fatalf("exit %d, want 0, stderr %q", code, errOut.String())
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1, stderr %q", code, errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "freshness record not written") {
-		t.Errorf("stderr %q must warn about the freshness record", errOut.String())
+	if !strings.Contains(errOut.String(), "loomux graph build:") {
+		t.Errorf("stderr %q must report the build error", errOut.String())
+	}
+}
+
+func TestGraphBuildFailsWhenTheFingerprintCannotBeWritten(t *testing.T) {
+	root := repo(t, sample())
+	// A directory in the fingerprint's place leaves every earlier write alone:
+	// the cache directory exists, and the ask sidecar is a different name
+	// under it, so the build gets past store.Write and lexicon.Write and only
+	// then finds that the fingerprint's path is not a file it may write.
+	if err := os.MkdirAll(freshness.Path(root), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "loomux graph build:") {
+		t.Errorf("stderr %q must report the build error", errOut.String())
+	}
+	// The named path is what separates this arm from the two before it: their
+	// errors name "cache" or the ask sidecar, never the fingerprint.
+	if !strings.Contains(errOut.String(), "fingerprint.json") {
+		t.Errorf("stderr %q must name the fingerprint it could not write", errOut.String())
 	}
 }
 
@@ -522,5 +550,260 @@ func TestGoModPathsSkipsATestdataDirectory(t *testing.T) {
 	}
 	if len(got) != 1 || got[0] != "go.mod" {
 		t.Errorf("goModPaths(%q) = %v, want only the repository's own go.mod", root, got)
+	}
+}
+
+func TestGraphBuildWritesTheAskSidecar(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+
+	ix, err := lexicon.Read(root)
+	if err != nil {
+		t.Fatalf("no sidecar written: %v", err)
+	}
+	if ix.DocCount == 0 || len(ix.DF) == 0 {
+		t.Fatalf("sidecar is empty: %+v", ix)
+	}
+	// It must carry the body, which wiring.json does not: a symbol has to be
+	// findable by a word that appears only inside it.
+	found := false
+	for _, d := range ix.Docs {
+		if d.ID == "lib/lib.go#Run" && len(d.Body) > 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the sidecar must carry body tokens the graph does not")
+	}
+}
+
+func TestGraphAskAnswersWithLocationsAndNoCode(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+
+	if code := graphCommand([]string{"ask", "run the thing", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	report := out.String()
+	if !strings.Contains(report, "lib/lib.go") {
+		t.Fatalf("answer %q must name the file", report)
+	}
+	// The default is a locator. Source arrives only when asked for.
+	if strings.Contains(report, "func Run() {}") {
+		t.Errorf("answer %q must not inline source without --source", report)
+	}
+}
+
+func TestGraphAskSourceInlinesTheSpan(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+
+	if code := graphCommand([]string{"ask", "run", "--root", root, "--source"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "func Run()") {
+		t.Errorf("answer %q must carry the definition", out.String())
+	}
+}
+
+func TestGraphAskFindsASymbolByAWordOnlyInItsBody(t *testing.T) {
+	files := sample()
+	files["lib/lib.go"] = "package lib\n\nfunc Run() { retryWithBackoff() }\n\nfunc retryWithBackoff() {}\n"
+	root := repo(t, files)
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+
+	// The word lives in Run's body and in retryWithBackoff's name. Body
+	// indexing is what makes the first findable at all -- wiring.json does not
+	// carry the body, the sidecar does.
+	if code := graphCommand([]string{"ask", "backoff", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "retryWithBackoff") {
+		t.Errorf("answer %q must find the symbol", out.String())
+	}
+}
+
+func TestGraphAskFindsAFileByAWordInItsImportHeader(t *testing.T) {
+	files := sample()
+	files["lib/lib.go"] = "package lib\n\nimport \"encoding/json\"\n\nfunc Run() { _ = json.Marshal }\n"
+	root := repo(t, files)
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+
+	// The file node's residual carries what no symbol span covers.
+	if code := graphCommand([]string{"ask", "encoding", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "lib/lib.go") {
+		t.Errorf("answer %q must find the file", out.String())
+	}
+}
+
+func TestGraphAskBuildsWhenNothingIsBuiltYet(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+
+	// A fresh clone has no state: the graph is gitignored and was never checked
+	// out. No record means unknown, so the first question builds.
+	if code := graphCommand([]string{"ask", "run", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if _, err := os.Stat(store.WiringPath(root)); err != nil {
+		t.Fatalf("ask must have built the graph: %v", err)
+	}
+}
+
+func TestGraphAskNoRefreshAnswersFromWhatIsThere(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+
+	code := graphCommand([]string{"ask", "run", "--root", root, "--no-refresh"}, nil, &out, &errOut)
+	// Nothing built and no rebuild allowed: say so rather than answer from
+	// nothing.
+	if code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(errOut.String(), "graph build") {
+		t.Errorf("stderr %q must point at the command that fixes it", errOut.String())
+	}
+}
+
+func TestGraphAskJSONCarriesTheHits(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+
+	if code := graphCommand([]string{"ask", "run", "--root", root, "--json"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	var got struct {
+		Query string `json:"query"`
+		Hits  []struct {
+			ID      string  `json:"id"`
+			Score   float64 `json:"score"`
+			Lexical float64 `json:"lexical"`
+			Graph   float64 `json:"graph"`
+		} `json:"hits"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out.String())
+	}
+	if got.Query != "run" || len(got.Hits) == 0 {
+		t.Fatalf("got %+v", got)
+	}
+	// Both axes are reported, so a reader can see WHY a hit is there.
+	if got.Hits[0].Lexical == 0 && got.Hits[0].Graph == 0 {
+		t.Error("a hit must say which axis put it there")
+	}
+}
+
+func TestGraphAskWithoutAQueryIsAUsageError(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"ask"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+}
+
+func TestGraphAskOnAMissedQuerySaysSoAndExitsZero(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+
+	code := graphCommand([]string{"ask", "quantum entanglement", "--root", root}, nil, &out, &errOut)
+	// Asking and finding nothing is a successful question with an empty answer,
+	// not a failure -- a script must be able to tell the two apart.
+	if code != 0 {
+		t.Fatalf("exit %d, want 0", code)
+	}
+	if !strings.Contains(out.String(), "no matching nodes") {
+		t.Errorf("answer %q must say it found nothing", out.String())
+	}
+}
+
+func TestGraphAskRejectsUnknownFlag(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"ask", "run", "--unknown-flag"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+}
+
+func TestGraphAskReportsBadRoot(t *testing.T) {
+	var out, errOut bytes.Buffer
+	badRoot := filepath.Join(t.TempDir(), "nonexistent")
+	if code := graphCommand([]string{"ask", "run", "--root", badRoot}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+}
+
+func TestGraphAskReportsCorruptGraph(t *testing.T) {
+	root := repo(t, sample())
+	if err := os.MkdirAll(store.Dir(root), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(store.WiringPath(root), []byte("{corrupt"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"ask", "run", "--root", root, "--no-refresh"}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(errOut.String(), "loomux graph ask:") {
+		t.Errorf("stderr %q must report error", errOut.String())
+	}
+}
+
+func TestGraphAskFallsBackWhenSidecarIsMissing(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build failed: %s", errOut.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	_ = os.Remove(filepath.Join(root, ".loomux", "state", "graph", "cache", "ask-index.json"))
+
+	if code := graphCommand([]string{"ask", "run", "--root", root, "--no-refresh"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "no ask index") {
+		t.Errorf("stderr %q must warn about missing sidecar", errOut.String())
+	}
+	if !strings.Contains(out.String(), "lib/lib.go") {
+		t.Errorf("stdout %q must still answer", out.String())
+	}
+}
+
+func TestGraphBuildFailsWhenStoreWriteFails(t *testing.T) {
+	root := repo(t, sample())
+	if err := os.WriteFile(filepath.Join(root, ".loomux"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
 	}
 }
