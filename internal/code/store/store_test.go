@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -122,7 +123,15 @@ func TestWriteFailsWhenTheTempFileCannotBeWritten(t *testing.T) {
 	if err := os.MkdirAll(store.Dir(root), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	testlock.LockDir(t, store.Dir(root))
+	// The temp name is deterministic within a process -- final path plus this
+	// pid -- so the test can compute the exact path Write will try to create
+	// and pre-lock it, rather than locking the whole directory (which blocks
+	// Rename into it, not WriteFile's own create).
+	tmp := store.WiringPath(root) + "." + strconv.Itoa(os.Getpid()) + ".tmp"
+	if err := os.WriteFile(tmp, []byte("occupied"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testlock.Lock(t, tmp)
 	if err := store.Write(root, graph()); err == nil {
 		t.Fatal("want an error when the temp file cannot be written")
 	}
@@ -130,8 +139,11 @@ func TestWriteFailsWhenTheTempFileCannotBeWritten(t *testing.T) {
 
 func TestWriteFailsWhenTheRenameCannotReplaceTheFinalPath(t *testing.T) {
 	root := t.TempDir()
-	// The final path is occupied by a directory instead of a file: a rename
-	// onto it fails the way it would if something else raced to create one.
+	// The final path is occupied by a directory instead of a file, so the
+	// rename onto it fails with a real, reproducible error -- not a stand-in
+	// for the concurrent-writer race the temp naming scheme guards against
+	// (two runs never share a temp name, so they cannot collide here); this
+	// is a different, independently real way Rename can fail.
 	if err := os.MkdirAll(store.WiringPath(root), 0o755); err != nil {
 		t.Fatal(err)
 	}
