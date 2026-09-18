@@ -109,7 +109,25 @@ flowchart TD
 
 ## Funktions- & Status-Matrix
 
-Loomux setzt derzeit seinen mehrstufigen Fusionsplan um (Stufe-1a-Pilot und Datenbefehle der Stufe 1b-1 abgeschlossen, das Wiki-Bündel umgezogen, Stufe G2a verdrahtet `graph build` und `graph check` auf die Graph-Bibliotheken der Stufe G1; Folgestufen in aktiver Entwicklung):
+Loomux setzt einen mehrstufigen Fusionsplan um. Eine zweite Spur — der
+Code-Graph — läuft **neben** ihm statt hinter ihm, weil keine seiner fertigen
+Stufen eine Abhängigkeit einzieht:
+
+| Stufe | Stand | Was sie gebracht hat |
+|---|---|---|
+| **1a** | ✅ | Der Pilot: Repo-Gerüst, Tore, der vereinte Wächter, die Post-Edit-Lanes. loomux benutzt sich selbst |
+| **1b-1** | ✅ | Die lesenden Brain-Befehle — `search`, `status`, `catalog`, `read`, `neighbors` — mit Parität zur Python-Referenz |
+| **1b-2** | 🔨 in Arbeit | `serve` mit MCP über Streamable HTTP, die stdio-Brücke, Upkeep |
+| **1b-3** | ✅ | Wiki und Dokumentation sind umgezogen |
+| **2 – 4** | offen | Die vollständige Prüfkette, Brain-Pflege, Konvertierung und Abruf, `loomux migrate`, die Umstellung der Wirte |
+| **G1** | ✅ | Rang und Blast-Radius als Bibliotheken, an portierten Testvektoren der Referenz belegt |
+| **G2a** | ✅ | Extraktor, Auflösung, Speicher, Frischesonde sowie `graph build` und `graph check` |
+| **G2b** | 📋 geplant | Die Abfrage: lexikalische Saat, die Beiakte, `loomux graph ask` |
+| **G3 – G5** | offen | Das MCP-Gateway, die übrige `graph`-Palette samt Hook-Anbindung, Mehrsprachigkeit über `wazero` |
+
+Jede Stufe endet grün und wird einzeln übergeben, mit eigenem Plan und — sobald
+sie fertig ist — eigener Paritätsakte, die jede ihrer Verfügungen festhält. Die
+Matrix darunter sagt, wo die einzelnen Funktionen stehen:
 
 | Säule / Funktion | Beschreibung | Status |
 |---|---|---|

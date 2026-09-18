@@ -109,7 +109,25 @@ flowchart TD
 
 ## Feature & Status Matrix
 
-Loomux is currently executing its staged fusion plan (Stage 1a pilot and Stage 1b-1 data commands complete, the wiki bundle moved in, Stage G2a wiring `graph build` and `graph check` onto the Stage G1 graph libraries; subsequent stages in active development):
+Loomux is executing a staged fusion plan. A second track — the code graph —
+runs **alongside** it rather than after it, because neither of its finished
+stages pulls in a dependency:
+
+| Stage | Status | What it delivered |
+|---|---|---|
+| **1a** | ✅ | The pilot: repo scaffolding, gates, the unified guard, the post-edit lanes. loomux uses itself |
+| **1b-1** | ✅ | The brain read commands — `search`, `status`, `catalog`, `read`, `neighbors` — at parity with the Python reference |
+| **1b-2** | 🔨 in progress | `serve` with MCP over Streamable HTTP, the stdio bridge, upkeep |
+| **1b-3** | ✅ | The wiki and the documentation moved in |
+| **2 – 4** | open | The full check chain, brain upkeep, conversion and fetching, `loomux migrate`, the host switch-over |
+| **G1** | ✅ | Ranking and blast radius as libraries, held to the reference by ported test vectors |
+| **G2a** | ✅ | The extractor, the resolver, the store, the freshness probe, and `graph build` / `graph check` |
+| **G2b** | 📋 planned | The query: the lexical seed, the ask sidecar, `loomux graph ask` |
+| **G3 – G5** | open | The MCP gateway, the rest of the `graph` palette with its hook wiring, multi-language via `wazero` |
+
+Each stage ends green and is handed over on its own, with its own plan and — once
+it is done — its own parity file recording every ruling it made. The matrix
+below says where each capability stands:
 
 | Pillar / Capability | Description | Status |
 |---|---|---|
