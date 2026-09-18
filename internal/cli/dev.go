@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,12 +18,14 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/xidus90/loomux/internal/cases"
+	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/covergate"
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 	"github.com/xidus90/loomux/internal/dev/recordcase"
 	"github.com/xidus90/loomux/internal/dev/swap"
+	"github.com/xidus90/loomux/internal/gitenv"
 )
 
 const module = "github.com/xidus90/loomux"
@@ -49,6 +52,7 @@ var mutantsRoot = os.Getwd
 var mutantsNotify = signal.NotifyContext
 
 var devCommands = map[string]command{
+	"bench":        devBench,
 	"bench-hooks":  devBenchHooks,
 	"covergate":    devCovergate,
 	"import-cases": devImportCases,
@@ -306,5 +310,168 @@ func devSwapBinary(args []string, _ io.Reader, _, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "loomux dev swap-binary: %v\n", err)
 		return 1
 	}
+	return 0
+}
+
+var benchCorpusRun = benchcorpus.BenchmarkCorpus
+var benchRepoRun = benchcorpus.BenchmarkRepo
+var benchProcessRunner = defaultProcessRunner
+var benchCloner = defaultCloner
+var benchOpenFS = func(dir string) (fs.FS, error) { return os.DirFS(dir), nil }
+var benchLookPath = exec.LookPath
+var benchClock = time.Now
+var benchReadFile = os.ReadFile
+var benchWriteFile = os.WriteFile
+var benchSaveReport = benchcorpus.SaveReport
+var benchStorageOps = benchcorpus.DefaultStorageOps
+
+// defaultProcessRunner kills a component at its deadline so one hanging lane
+// cannot stall a corpus run; only the direct child is killed, its own
+// children may outlive it until WaitDelay gives up on their pipes.
+//
+//coverage:exempt runs external process in default process runner
+func defaultProcessRunner(dir string, argv []string, stdin []byte, timeout time.Duration) (string, int, bool, error) {
+	cmdName := argv[0]
+	if cmdName == "loomux" {
+		if self, err := os.Executable(); err == nil {
+			cmdName = self
+		}
+	}
+	ctx, cancel := context.Background(), context.CancelFunc(func() {})
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
+	cmd := exec.CommandContext(ctx, cmdName, argv[1:]...)
+	cmd.Dir = dir
+	cmd.Stdin = bytes.NewReader(stdin)
+	cmd.WaitDelay = 5 * time.Second
+	out, err := cmd.CombinedOutput()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return string(out), -1, true, nil
+	}
+	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return string(out), exit.ExitCode(), false, nil
+		}
+		return string(out), -1, false, err
+	}
+	return string(out), 0, false, nil
+}
+
+//coverage:exempt runs real git clone in default cloner
+func defaultCloner(repoURL, targetDir string) (string, error) {
+	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
+		cmd := exec.Command("git", "clone", "-c", "core.longpaths=true", "--depth=1", repoURL, targetDir)
+		cmd.Env = gitenv.Environ()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			// A clone whose checkout failed leaves a partial tree; kept, the
+			// next run would find the directory and benchmark it silently.
+			_ = os.RemoveAll(targetDir)
+			return "", fmt.Errorf("git clone: %w: %s", err, string(out))
+		}
+	}
+	cmd := exec.Command("git", "-C", targetDir, "rev-parse", "HEAD")
+	cmd.Env = gitenv.Environ()
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("rev-parse: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func devBench(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev bench", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
+	var opts benchcorpus.Options
+	fs.StringVar(&opts.TargetDir, "dir", ".", "path to target repository")
+	fs.StringVar(&opts.CorpusFile, "corpus", "", "path to open-source matrix markdown file")
+	fs.IntVar(&opts.Languages, "languages", 5, "number of top languages in corpus mode")
+	fs.StringVar(&opts.Tier, "tier", "Sehr viel", "tier category to filter in corpus mode")
+	fs.IntVar(&opts.WarmRuns, "warm", 3, "number of warm runs for median calculation")
+	fs.StringVar(&opts.CacheDir, "cache-dir", ".cache/benchcorpus", "directory for cloned repositories")
+	fs.DurationVar(&opts.Timeout, "timeout", 5*time.Minute, "timeout per repository")
+	fs.DurationVar(&opts.ComponentTimeout, "component-timeout", 60*time.Second, "deadline for each measured command")
+	fs.StringVar(&opts.OutFile, "out", "", "markdown report output file")
+	fs.StringVar(&opts.JSONOutFile, "json-out", "", "JSON report output file")
+	var save bool
+	var reportDir string
+	fs.BoolVar(&save, "save", false, "save benchmark reports and update matrix in documentation")
+	fs.StringVar(&reportDir, "report-dir", "docs", "documentation root directory for saving benchmarks")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if opts.WarmRuns < 1 {
+		fmt.Fprintln(stderr, "loomux dev bench: --warm must be at least 1")
+		return 2
+	}
+	if opts.CorpusFile != "" && opts.Languages < 1 {
+		fmt.Fprintln(stderr, "loomux dev bench: --languages must be at least 1")
+		return 2
+	}
+
+	var report *benchcorpus.BenchmarkReport
+	if opts.CorpusFile != "" {
+		matrixData, err := benchReadFile(opts.CorpusFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux dev bench: reading corpus file: %v\n", err)
+			return 1
+		}
+		rep, err := benchCorpusRun(matrixData, opts, benchCloner, func(dir string, o benchcorpus.Options) (*benchcorpus.RepoAudit, error) {
+			return benchRepoRun(dir, o, benchProcessRunner, benchClock, benchOpenFS, benchLookPath)
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux dev bench: corpus benchmark: %v\n", err)
+			return 1
+		}
+		for _, s := range rep.Skipped {
+			fmt.Fprintf(stderr, "loomux dev bench: skipped %s: %s\n", s.RepoURL, s.Reason)
+		}
+		report = rep
+	} else {
+		audit, err := benchRepoRun(opts.TargetDir, opts, benchProcessRunner, benchClock, benchOpenFS, benchLookPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux dev bench: repository benchmark: %v\n", err)
+			return 1
+		}
+		report = &benchcorpus.BenchmarkReport{
+			Timestamp: benchClock().UTC().Format(time.RFC3339),
+			Mode:      "single",
+			WarmRuns:  opts.WarmRuns,
+			Repos:     []*benchcorpus.RepoAudit{audit},
+		}
+	}
+
+	if opts.OutFile != "" {
+		var buf bytes.Buffer
+		_ = benchcorpus.FormatMarkdown(report, &buf)
+		if err := benchWriteFile(opts.OutFile, buf.Bytes(), 0o644); err != nil {
+			fmt.Fprintf(stderr, "loomux dev bench: writing markdown output: %v\n", err)
+			return 1
+		}
+	} else {
+		_ = benchcorpus.FormatMarkdown(report, stdout)
+	}
+
+	if opts.JSONOutFile != "" {
+		var buf bytes.Buffer
+		_ = benchcorpus.FormatJSON(report, &buf)
+		if err := benchWriteFile(opts.JSONOutFile, buf.Bytes(), 0o644); err != nil {
+			fmt.Fprintf(stderr, "loomux dev bench: writing JSON output: %v\n", err)
+			return 1
+		}
+	}
+
+	if save {
+		if err := benchSaveReport(report, reportDir, benchStorageOps()); err != nil {
+			fmt.Fprintf(stderr, "loomux dev bench: saving benchmark reports: %v\n", err)
+			return 1
+		}
+	}
+
 	return 0
 }

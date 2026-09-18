@@ -899,3 +899,30 @@ func TestAnInvalidLayoutWikiDeclaresNothing(t *testing.T) {
 		t.Fatal("a layout outside the repository declares no wiki")
 	}
 }
+
+func TestTargetCommandsForStacks(t *testing.T) {
+	// Broad (no target)
+	broadCmds := TargetCommandsForStacks([]string{"python", "go"}, "", "", "", "")
+	if len(broadCmds) != 3 { // ruff, mypy, go vet
+		t.Fatalf("expected 3 commands for broad python+go, got %v", broadCmds)
+	}
+
+	// Targeted python
+	pyCmds := TargetCommandsForStacks([]string{"python", "go"}, "foo.py", "", "", "")
+	if len(pyCmds) != 2 {
+		t.Fatalf("expected 2 commands for foo.py, got %v", pyCmds)
+	}
+
+	// Targeted wiki outside wiki
+	wikiOutside := TargetCommandsForStacks([]string{"wiki"}, "other/foo.md", "", "/repo", "wiki")
+	if len(wikiOutside) != 0 {
+		t.Fatalf("expected 0 commands for wiki outside wiki, got %v", wikiOutside)
+	}
+
+	// Targeted wiki inside wiki
+	wikiDir := t.TempDir()
+	wikiInside := TargetCommandsForStacks([]string{"wiki"}, filepath.Join(wikiDir, "page.md"), "", t.TempDir(), wikiDir)
+	if len(wikiInside) != 1 {
+		t.Fatalf("expected 1 command for wiki inside wiki, got %v", wikiInside)
+	}
+}

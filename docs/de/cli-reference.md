@@ -280,3 +280,24 @@ Mutiert die Go-Entscheidungen jedes Pakets und meldet, welche Mutanten seine Tes
 
 ### `loomux dev swap-binary --dir <bin>`
 Tauscht das laufende `loomux.exe`-Binary atomar gegen `loomux.new.exe` aus (löst Windows Dateisperren-Konflikte).
+
+### `loomux dev bench [--dir <dir>] [--corpus <datei>] [--languages <n>] [--tier <kategorie>] [--warm <n>] [--cache-dir <dir>] [--out <datei>] [--json-out <datei>] [--component-timeout <d>] [--save] [--report-dir <dir>]`
+Führt umfassende Latenz-Benchmarks und normalisierte Lücken-Audits (Gap Analysis) für ein Einzel-Repository oder das gesamte Open-Source-Matrix-Korpus durch (1x kalt + Nx warmer Median, Min, Max).
+
+- **Wie die Hooks gemessen werden**: Jeder Hook bekommt eine Claude-Code-Nutzlast für einen Edit an einer Beispieldatei der Hauptsprache des Repositorys, `post-tool-use` fährt also seine echten Lanes. Die Status-Spalte nennt die Exit-Codes aller Läufe.
+- **Einzel-Repository-Modus** (Standard): Misst `pre-tool-use`, `post-tool-use` und `graph build` (bei Go-Projekten), vergleicht mit bestehenden Claude-Hooks (Speedup) und prüft Lücken zwischen nativen Werkzeugen und Loomux-Lanes.
+- **Korpus-Modus** (`--corpus <pfad>`): Klont und benchmarkt die Top-N Open-Source-Projekte über Sprachen und Frameworks hinweg und liefert einen aggregierten Performance- und Lückenbericht.
+- **Flags**:
+  - `--dir <pfad>`: Ziel-Repository (Standard: `.`).
+  - `--corpus <pfad>`: Pfad zur Open-Source-Matrix-Markdown-Datei.
+  - `--languages <n>`: Anzahl der Sprachen im Korpus (Standard: `5`).
+  - `--tier <kategorie>`: Filter für Sterne-Kategorie (Standard: `"Sehr viel"`).
+  - `--warm <n>`: Anzahl warmer Messläufe für die Median-Berechnung (Standard: `3`).
+  - `--component-timeout <d>`: Frist je gemessenem Befehl; ein Befehl darüber wird beendet und als `timeout` gemeldet (Standard: `60s`).
+  - `--cache-dir <pfad>`: Verzeichnis für geklonte Repositories (Standard: `.cache/benchcorpus`).
+  - `--out <pfad>`: Schreibt Markdown-Bericht in Datei (Standard: stdout).
+  - `--json-out <pfad>`: Schreibt maschinenlesbaren JSON-Bericht in Datei.
+  - `--save`: Speichert Benchmark-Berichte automatisch in Sprachunterordnern (`docs/{en,de}/benchmarks/<sprache>/<slug>.md`) und aktualisiert die zentrale Gesamt-Matrix (`docs/{en,de}/benchmarks/matrix.md`).
+  - `--report-dir <pfad>`: Dokumentations-Stammverzeichnis für gespeicherte Berichte (Standard: `docs`).
+
+

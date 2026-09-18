@@ -224,6 +224,7 @@ loomux init                         # wire hooks, settings, and skills into dete
 ```bash
 loomux dev covergate --profile <p>  # verify strict 100% test coverage threshold
 loomux dev bench-hooks <case>       # benchmark hook execution latency against the <35ms baseline
+loomux dev bench [--dir <dir>] [--save] # benchmark repo/corpus with gap audit; --save persists to docs/
 loomux dev mutants <pkg>            # run mutation test suites across critical decision packages
 loomux dev record-case --out <dir>  # record one run of a reference binary as a case
 loomux dev import-cases --map <f>   # translate a directory of recorded cases into loomux cases
@@ -267,6 +268,7 @@ Exhaustive guides and technical manuals are organized under [`docs/en/`](docs/en
 | 📖 **[CLI Reference Manual](docs/en/cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |
 | 🪝 **[Hook Lifecycle & Integration](docs/en/hooks.md)** | Technical specification of the 4-phase hook lifecycle, host payload formats, and decoupled SSE event streaming. |
 | ⏱️ **[Performance Benchmarks](docs/en/benchmarks.md)** | Measured baseline performance against predecessor binaries and strict execution budgets. |
+| 📊 **[Benchmark Matrix](docs/en/benchmarks/matrix.md)** | Open-source matrix across top languages with detailed reports per language and repository. |
 
 ---
 
