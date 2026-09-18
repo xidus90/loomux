@@ -1,0 +1,7 @@
+{
+  "tool": "brain_read",
+  "arguments": {
+    "relative": "notes/a.md"
+  },
+  "channel": "cloud"
+}

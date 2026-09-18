@@ -15,3 +15,13 @@ func TestRunCaseReportsATempDirItCannotMake(t *testing.T) {
 		t.Fatal("want error")
 	}
 }
+
+// The MCP runner stages into the same temp directory, through the same seam.
+func TestRunMCPCaseReportsATempDirItCannotMake(t *testing.T) {
+	mkdirTemp = func(string, string) (string, error) { return "", errors.New("no temp") }
+	defer func() { mkdirTemp = defaultMkdirTemp }()
+	c := &MCPCase{Verb: "v", Name: "n", Path: t.TempDir()}
+	if _, err := RunMCPCase(c, nil); err == nil {
+		t.Fatal("want error")
+	}
+}

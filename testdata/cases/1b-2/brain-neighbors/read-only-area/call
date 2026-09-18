@@ -1,0 +1,8 @@
+{
+  "tool": "brain_neighbors",
+  "arguments": {
+    "scope": "notes",
+    "relative": "guide.md"
+  },
+  "channel": "cloud"
+}

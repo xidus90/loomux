@@ -1,0 +1,8 @@
+{
+  "tool": "neighbors",
+  "arguments": {
+    "scope": "project/gamma",
+    "relative": "a.md"
+  },
+  "channel": "cloud"
+}

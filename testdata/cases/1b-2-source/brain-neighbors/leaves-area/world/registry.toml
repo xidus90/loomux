@@ -1,0 +1,16 @@
+[[area]]
+scope = "project/beta"
+path = "{{WORLD}}/repo-beta"
+
+[[area]]
+scope = "notes"
+path = "{{WORLD}}/sources/notes"
+readonly = true
+
+[[area]]
+scope = "project/alpha"
+path = "{{WORLD}}/repo-alpha"
+
+[[area]]
+scope = "project/gamma"
+path = "{{WORLD}}/repo-gamma"

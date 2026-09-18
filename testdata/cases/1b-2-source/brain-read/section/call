@@ -1,0 +1,9 @@
+{
+  "tool": "read",
+  "arguments": {
+    "scope": "project/alpha",
+    "relative": "notes/a.md",
+    "section": "Second part"
+  },
+  "channel": "cloud"
+}

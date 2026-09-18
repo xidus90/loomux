@@ -1,0 +1,4 @@
+{
+  "isError": true,
+  "text": "unknown scope 'all'; known scopes are: notes, project/alpha, project/gamma"
+}

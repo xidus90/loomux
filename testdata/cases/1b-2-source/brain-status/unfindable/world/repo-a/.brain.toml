@@ -1,0 +1,8 @@
+[area]
+scope = "project/a"
+
+[privacy]
+never = ["private/**"]
+
+[index]
+unsearched = ["drafts/**"]

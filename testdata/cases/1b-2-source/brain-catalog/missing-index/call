@@ -1,0 +1,7 @@
+{
+  "tool": "catalog",
+  "arguments": {
+    "scope": "project/gamma"
+  },
+  "channel": "cloud"
+}

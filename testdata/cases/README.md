@@ -9,6 +9,7 @@ translation table and suite.
 |---|---|---|---:|
 | 1a | `ulguard` and `ulinit` from ultraloom, `brain` from ultra-brain, both at the tag `loomux-1a-source` | `internal/cli/cases_test.go` | 19 |
 | 1b-1 | `brain-mcp`, the Python reference of ultra-brain at the tag `loomux-1a-source` (`3cc72d2`), against a fake qmd | `internal/cli/cases_1b1_test.go` | 71 |
+| 1b-2 | `brain-mcp mcp`, the same reference's MCP front over its own daemon, against a fake qmd | `internal/cli/cases_1b2_test.go` | 54 |
 
 ## Layout
 
@@ -23,8 +24,14 @@ translation table and suite.
 | `1b-1-source/` | The recordings of `brain-mcp`, written by `loomux dev record-case --argv "uv run --no-sync --project <ub> brain-mcp"` with the fake qmd first on `PATH`. |
 | `1b-1-map.toml` | One rule: `brain-mcp ` → `loomux brain `. |
 | `1b-1/` | The translated cases. Besides the root and `areas/<name>`, the old manifests are folded in every directory the world's registry names as `{{WORLD}}/<path>`. A registry the import cannot read names no directory; the replay reports it. |
+| `1b-2-worlds/` | The state directories a 1b-2 case runs in: copies of the 1b-1 worlds a case needs, each with `maintenance/last-run.txt` set to `2999-01-01T00:00:00+00:00`. The reference's daemon runs a real reconciliation before its first answer whenever that stamp is missing or older than a day, and it rewrites the stamp doing so; a stamp in the year 2999 means nothing is due, so no pass runs, the world is not touched and the daemon adds no maintenance lines to the answer. It also means `status-stamp-stale` and `status-stamp-missing` have no 1b-2 case: the daemon destroys their subject before it answers. |
+| `1b-2-source/` | The recordings of `brain-mcp mcp`, written by `loomux dev record-mcp-case`. `verb/name/` holds `call`, `result`, `notes.md`, the staged `world/`, and optionally `compare`. The whole invocation, because every part of it was paid for once: `--argv "uv run --no-sync --project <ub> brain-mcp"`, `--path-prepend <dir holding qmd.exe>`, `--env "LOOMUX_FAKE_QMD_FIXTURE={{WORLD}}/qmd-fixture.json"`, `--channel cloud`, and then `--tool`, `--arguments`, `--world`, `--out`, `--notes` and optionally `--compare outcome`. **Without the `--env` the fake answers out of an empty fixture** and every `status` case records `Collection not found`, which is word for word what the real qmd says -- a recording round was lost to exactly that. The report of task 13 in `.superpowers/sdd/` carries the full list of 54 invocations. |
+| `1b-2-map.toml` | The tool renaming: `[[tool]]` rules putting the reference's five bare names into loomux's `brain_` family. |
+| `1b-2/` | The translated cases, written by `loomux dev import-cases --mcp`. This is the directory the 1b-2 suite runs. |
 
 ## What a case compares
+
+### 1a and 1b-1: a command line and its stdout
 
 `compare` in a case directory selects the comparison; a missing file means
 `data`.
@@ -45,6 +52,36 @@ the MCP daemon, and the two rank differently. A usage or runtime error compares
 data too — its stdout is empty on both sides, and that emptiness is part of the
 contract. stderr is never compared; the findings of `search` and every error
 wording are pinned by unit tests.
+
+### 1b-2: a tool call and its CallToolResult
+
+A 1b-2 case holds no command line and no stdout. `call` is one tool call --
+`tool`, `arguments`, `channel` -- and `result` is what the reference answered:
+the `text` of the CallToolResult, `isError`, and `rpcError` for a call the
+reference never turned into a result at all. `compare` selects one of two:
+
+- **`compare = text`** (the default) -- the text **and** `isError`.
+- **`compare = outcome`** -- `isError` alone. The wording of a refusal is
+  loomux's own, exactly as a `message` case's stdout is. 15 of the 54 cases
+  carry it; `docs/.superpowers/parity/stufe-1b-2.md` names every one and why.
+
+**The envelope is never compared.** The reference speaks through the Python MCP
+SDK and loomux through the Go one, so `initialize` alone differs in
+capabilities, in `serverInfo` and in the revision the two negotiate; comparing
+that would compare two libraries and would grow again at every SDK update. The
+envelope is held against the specification, in the unit tests of
+`internal/serve` and `internal/bridge`. For the same reason `tools/list` is no
+case: the Go SDK sorts it alphabetically (`go-sdk@v1.8.0/mcp/features.go`),
+the reference lists in registration order, and a case there would measure the
+SDK rather than us.
+
+A 1b-2 case carries no `world_after`. What a run leaves in the state directory
+belongs to the daemon -- its lock, its pid file, its reconciliation -- not to
+the tool whose answer the case pins.
+
+Every 1b-2 case runs on a state directory of its own (`LOOMUX_STATE_DIR`), gets
+its own `loomux serve`, and ends that service through `serve.Stop` when the case
+is over, so a `go test` run leaves nothing behind.
 
 ## The fake qmd (1b-1)
 
@@ -103,5 +140,23 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
   (`brain-catalog/broken-registry`).
 - **The case count is pinned.** `internal/cli/cases_test.go` fails when the 1a
   corpus does not hold exactly 19 cases, `internal/cli/cases_1b1_test.go` when
-  the 1b-1 corpus does not hold exactly 71, so a partial import cannot pass as
-  parity. Adding a case means raising that number.
+  the 1b-1 corpus does not hold exactly 71, `internal/cli/cases_1b2_test.go`
+  when the 1b-2 corpus does not hold exactly 54, so a partial import cannot
+  pass as parity. Adding a case means raising that number.
+- **A 1b-2 recording starts the reference's daemon as `daemon run`, never as
+  `daemon start`.** `daemon start` reaches `client._start_outside_job`, which
+  creates the daemon through WMI on Windows; a process created that way gets
+  the user's default environment, so neither the directory the recording puts
+  in front of PATH nor `LOOMUX_FAKE_QMD_FIXTURE` arrives, and the daemon
+  answers out of the machine's real qmd instead of the world's fixture. The
+  recorder therefore starts `daemon run` as its own child and waits for
+  `daemon status`. Readiness is the **absence of the phrase `no daemon`** in
+  that command's stdout: it exits 0 whether or not anything is running -- it
+  reports, it does not judge -- so its words are the only answer there is.
+  Measured on 2026-09-18; the parity list has the numbers.
+- **`search` with hits has no 1b-2 case, and cannot have one.**
+  `brain/search/qmd_mcp.py` pins the engine to `localhost:8765` with no way to
+  override it, so the reference's search reaches whatever qmd daemon holds that
+  port on the machine -- never the world's fixture. Only the five `search`
+  calls that fail or answer *before* the engine is asked are recorded. The
+  parity list says which, and what stays unproven because of it.

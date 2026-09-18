@@ -1,0 +1,4 @@
+{
+  "isError": false,
+  "text": "last reconcile: 2999-01-01T00:00:00+00:00\nproject/a: the search engine did not answer (qmd exited with 1: Collection not found: project-a\nRun 'qmd ls' to see available collections.); its index was not compared"
+}

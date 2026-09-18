@@ -51,15 +51,21 @@ var mutantsRoot = os.Getwd
 
 var mutantsNotify = signal.NotifyContext
 
+// recordMCPCase is the seam of the MCP recorder. A real recording starts a
+// Python reference and a daemon beside it, and no test of this command may do
+// either.
+var recordMCPCase = recordcase.RecordMCP
+
 var devCommands = map[string]command{
-	"bench":        devBench,
-	"bench-hooks":  devBenchHooks,
-	"covergate":    devCovergate,
-	"import-cases": devImportCases,
-	"mutants":      devMutants,
-	"record-case":  devRecordCase,
-	"release":      devRelease,
-	"swap-binary":  devSwapBinary,
+	"bench":           devBench,
+	"bench-hooks":     devBenchHooks,
+	"covergate":       devCovergate,
+	"import-cases":    devImportCases,
+	"mutants":         devMutants,
+	"record-case":     devRecordCase,
+	"record-mcp-case": devRecordMCPCase,
+	"release":         devRelease,
+	"swap-binary":     devSwapBinary,
 }
 
 func devCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -274,12 +280,60 @@ func devRecordCase(args []string, _ io.Reader, _, stderr io.Writer) int {
 	return 0
 }
 
+// devRecordMCPCase records one call of the reference's MCP front. It is the
+// second recorder rather than a flag on the first, because what it pins is a
+// tool call and a CallToolResult, not a command line and a stream of stdout.
+func devRecordMCPCase(args []string, _ io.Reader, _, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev record-mcp-case", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var s recordcase.MCPSpec
+	var argv string
+	var env envFlags
+	fs.StringVar(&argv, "argv", "", "the reference's program and its leading arguments")
+	fs.Var(&env, "env", "KEY=VALUE for the recorded process, {{WORLD}} allowed; repeatable")
+	fs.StringVar(&s.PathPrepend, "path-prepend", "", "directory put in front of the recorded process's PATH")
+	fs.StringVar(&s.Tool, "tool", "", "the tool to call")
+	fs.StringVar(&s.Arguments, "arguments", "", "the call's arguments as a JSON object, {{WORLD}} allowed")
+	fs.StringVar(&s.Channel, "channel", "", "the channel the case records")
+	fs.StringVar(&s.World, "world", "", "directory to stage")
+	fs.StringVar(&s.Out, "out", "", "case directory to write")
+	fs.StringVar(&s.Notes, "notes", "", "text for notes.md")
+	fs.StringVar(&s.Compare, "compare", "", `"" (text) or "outcome"`)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	tokens, err := cases.SplitCommand(argv)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux dev record-mcp-case: --argv: %v\n", err)
+		return 2
+	}
+	s.Argv, s.Env = tokens, env
+	if len(s.Argv) == 0 || s.Tool == "" || s.World == "" || s.Out == "" {
+		fmt.Fprintln(stderr, "loomux dev record-mcp-case: --argv, --tool, --world and --out are required")
+		return 2
+	}
+	if s.Compare != "" && s.Compare != cases.CompareText && s.Compare != cases.CompareOutcome {
+		fmt.Fprintf(stderr, "loomux dev record-mcp-case: --compare must be %q or %q, got %q\n",
+			cases.CompareText, cases.CompareOutcome, s.Compare)
+		return 2
+	}
+	if err := recordMCPCase(s); err != nil {
+		fmt.Fprintf(stderr, "loomux dev record-mcp-case: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
 func devImportCases(args []string, _ io.Reader, _, stderr io.Writer) int {
 	fs := flag.NewFlagSet("dev import-cases", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	mapFile := fs.String("map", "", "TOML file of [[command]] rules")
+	mapFile := fs.String("map", "", "TOML file of [[command]] or [[tool]] rules")
 	from := fs.String("from", "", "directory of recorded cases")
 	to := fs.String("to", "", "directory to write the translated cases to")
+	// The two corpora are read by two discoveries -- a command-line case holds
+	// a `cmd`, an MCP case a `call` -- so which one this is has to be said, not
+	// guessed from what happens to lie in the directory.
+	mcp := fs.Bool("mcp", false, "the recordings are MCP calls, not command lines")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -292,7 +346,11 @@ func devImportCases(args []string, _ io.Reader, _, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "loomux dev import-cases: %v\n", err)
 		return 1
 	}
-	if err := importcases.Import(*from, *to, m); err != nil {
+	importer := importcases.Import
+	if *mcp {
+		importer = importcases.ImportMCP
+	}
+	if err := importer(*from, *to, m); err != nil {
 		fmt.Fprintf(stderr, "loomux dev import-cases: %v\n", err)
 		return 1
 	}

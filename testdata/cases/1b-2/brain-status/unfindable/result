@@ -1,0 +1,4 @@
+{
+  "isError": false,
+  "text": "last reconcile: 2999-01-01T00:00:00+00:00\nproject/a: 4 of 6 indexed documents are unknown to the search engine, so `brain search` can never return them; e.g. b.md, c.md, d.md, …"
+}

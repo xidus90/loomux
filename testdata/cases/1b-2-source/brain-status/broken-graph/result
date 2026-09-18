@@ -1,0 +1,4 @@
+{
+  "isError": true,
+  "text": "{{WORLD}}\\repo-torn\\graph.json: graph is missing links; delete it and run `brain reindex`"
+}

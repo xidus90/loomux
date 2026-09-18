@@ -1,0 +1,4 @@
+{
+  "isError": true,
+  "text": "the brain daemon is running but does not serve cloud; it was started with --no-cloud"
+}

@@ -1,0 +1,4 @@
+{
+  "isError": false,
+  "text": "last reconcile: 2999-01-01T00:00:00+00:00\nproject/a: the search engine sees only docs/**/*.md; also declared: README*.md, notes/*.md"
+}

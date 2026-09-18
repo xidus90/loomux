@@ -1,0 +1,10 @@
+{
+  "edges": [],
+  "links": {"dropped": {}, "resolved": 0, "total": 0},
+  "nodes": [
+    {"id": "copy.md", "tags": [], "title": "copy"},
+    {"id": "shared.md", "tags": [], "title": "shared"},
+    {"id": "zeta-copy.md", "tags": [], "title": "zeta-copy"}
+  ],
+  "scope": "project/a"
+}

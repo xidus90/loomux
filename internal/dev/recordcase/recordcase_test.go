@@ -44,6 +44,10 @@ func TestHelperProcess(t *testing.T) {
 	case "crlf":
 		os.Stdout.WriteString("one\r\ntwo\r\n")
 		os.Exit(0)
+	case "mcp":
+		// The reference's two shapes: a daemon verb that only has to exit, and
+		// the front, which speaks a whole session. helperMCP knows both.
+		helperMCP(args)
 	default:
 		os.Stdout.WriteString("refused\n")
 		os.Exit(2)

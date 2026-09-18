@@ -1,0 +1,9 @@
+{
+  "tool": "brain_read",
+  "arguments": {
+    "scope": "project/alpha",
+    "relative": "notes/a.md",
+    "section": "Nowhere"
+  },
+  "channel": "cloud"
+}

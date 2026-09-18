@@ -1,0 +1,15 @@
+{
+  "edges": [
+    {"from": "notes/a.md", "to": "notes/b.md"},
+    {"from": "notes/b.md", "to": "notes/a.md"},
+    {"from": "review/case.md", "to": "notes/a.md"}
+  ],
+  "links": {"dropped": {"external": 1}, "resolved": 3, "total": 4},
+  "nodes": [
+    {"id": "notes/a.md", "tags": [], "title": "a"},
+    {"id": "notes/b.md", "tags": [], "title": "b"},
+    {"id": "notes/lonely.md", "tags": [], "title": "lonely"},
+    {"id": "review/case.md", "tags": [], "title": "case"}
+  ],
+  "scope": "project/alpha"
+}

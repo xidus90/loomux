@@ -1,0 +1,8 @@
+{
+  "tool": "read",
+  "arguments": {
+    "scope": "project/alpha",
+    "relative": "review/case.md"
+  },
+  "channel": "cloud"
+}

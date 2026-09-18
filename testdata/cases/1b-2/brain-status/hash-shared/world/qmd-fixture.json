@@ -1,0 +1,6 @@
+{
+  "collections": {
+    "project-a": ["copy.md", "shared.md", "zeta-copy.md"],
+    "project-b": ["shared.md", "zeta.md"]
+  }
+}
