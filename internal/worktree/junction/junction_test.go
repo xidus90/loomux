@@ -3,11 +3,12 @@ package junction
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/testlock"
 )
 
 func requireWindows(t *testing.T) {
@@ -194,17 +195,12 @@ func TestRemoveRefusesAnOrdinaryDirectory(t *testing.T) {
 // code is where a swallowed error costs the most, so this branch is measured
 // rather than reasoned about.
 //
-// Two denies, because one is not enough: deleting a child needs DELETE on the
-// child *or* FILE_DELETE_CHILD on its parent, and with only the first taken
-// away the removal still went through -- measured on 2026-09-08. `/L` on the
-// link's own ACE, because icacls follows a junction otherwise and would edit
-// the target's ACL instead. Target() itself keeps working under both denies:
-// it opens with no access rights at all.
+// A handle held on the link itself without FILE_SHARE_DELETE, and not a denied
+// right: an elevated token deletes through a deny ACE, and a sharing violation
+// stops it all the same. Target() itself keeps working under the lock: it
+// opens with no access rights at all, which no share mode refuses.
 func TestRemoveReportsALinkItMayNotDelete(t *testing.T) {
 	requireWindows(t)
-	if _, err := exec.LookPath("icacls"); err != nil {
-		t.Skip("icacls is not on PATH")
-	}
 	root := t.TempDir()
 	target := filepath.Join(root, "target")
 	if err := os.MkdirAll(target, 0o755); err != nil {
@@ -214,30 +210,13 @@ func TestRemoveReportsALinkItMayNotDelete(t *testing.T) {
 	if err := Create(link, target); err != nil {
 		t.Fatal(err)
 	}
-	user := os.Getenv("USERNAME")
-	// The rights come back before t.TempDir's own cleanup runs: that one was
-	// registered first and t.Cleanup is LIFO, so without this order the
-	// fixture cannot delete the tree it made.
-	icacls(t, link, "/deny", user+":(DE)", "/L")
-	icacls(t, root, "/deny", user+":(DC)")
-	t.Cleanup(func() {
-		icacls(t, root, "/remove:d", user)
-		icacls(t, link, "/remove:d", user, "/L")
-	})
+	testlock.LockLink(t, link)
 
 	if err := Remove(link); err == nil {
 		t.Fatal("Remove reported success over a link it could not delete")
 	}
 	if _, err := os.Lstat(link); err != nil {
 		t.Fatalf("the link the failure was about is gone: %v", err)
-	}
-}
-
-func icacls(t *testing.T, path string, argv ...string) {
-	t.Helper()
-	command := exec.Command("icacls", append([]string{path}, argv...)...)
-	if out, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("icacls %s %v: %v (%s)", path, argv, err, out)
 	}
 }
 

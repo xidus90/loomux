@@ -12,6 +12,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/sessions"
+	"github.com/xidus90/loomux/internal/testlock"
 )
 
 func requireWindows(t *testing.T) {
@@ -37,9 +38,18 @@ func git(t *testing.T, dir string, argv ...string) {
 
 // A main checkout with one committed file and one registered worktree, in the
 // `.worktrees` convention worktreetopo scans.
+//
+// main is resolved to its long spelling, so every path derived from it is the
+// one git reports. Where TEMP is an 8.3 short path -- C:\Users\RUNNER~1 on a
+// GitHub runner -- t.TempDir() hands out the short form, git answers with the
+// long one, and every comparison by text between the two fails.
+// filepath.EvalSymlinks expands 8.3 names, measured on 2026-09-18.
 func worktreeFixture(t *testing.T) (main string, worktree string) {
 	t.Helper()
-	main = t.TempDir()
+	main, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	git(t, main, "init", "-q", "-b", "main")
 	writeFile(t, filepath.Join(main, "a.txt"), "x\n")
 	git(t, main, "add", "-A")
@@ -48,6 +58,43 @@ func worktreeFixture(t *testing.T) (main string, worktree string) {
 	worktree = filepath.Join(main, ".worktrees", "one")
 	git(t, main, "worktree", "add", "-q", worktree, "-b", "one")
 	return main, worktree
+}
+
+// longestDirPath is the length of the longest path this machine makes a
+// directory at, measured in a temp dir of its own: a chain of components of
+// 200 characters as deep as it goes, then the longest last component that
+// still fits. The temp dir is taken in its long spelling, the one every other
+// path in these tests is built from.
+func longestDirPath(t *testing.T) int {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		next := filepath.Join(dir, strings.Repeat("p", 200))
+		if os.Mkdir(next, 0o755) != nil {
+			break
+		}
+		dir = next
+	}
+	// Mkdir of dir/<n characters> succeeds for n below some bound in 1..200;
+	// lo is known to succeed (0 means dir itself), hi known to fail.
+	lo, hi := 0, 200
+	for hi-lo > 1 {
+		mid := (lo + hi) / 2
+		probe := filepath.Join(dir, strings.Repeat("q", mid))
+		if os.Mkdir(probe, 0o755) == nil {
+			_ = os.Remove(probe)
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	if lo == 0 {
+		return len(dir)
+	}
+	return len(dir) + 1 + lo
 }
 
 func writeConfig(t *testing.T, main string, body string) {
@@ -231,25 +278,60 @@ func TestBrokenConfigIsAFailure(t *testing.T) {
 
 // A configured path that cannot be made is the one thing this reports, because
 // the directory behind it may be the pinned runtime every other hook needs.
-// Here the worktree's own `.tools` is a plain directory that may not gain a
-// subdirectory, so `.tools/sub` cannot be made and `.tools/sub/deep` has
-// nowhere to go: the MkdirAll of the parent is what fails.
+//
+// The fault is the length of the path and not a denied right, which an
+// elevated token creates through. How long a path Windows still makes a
+// directory at is a property of the machine: 32762 characters here, measured
+// on 2026-09-18, and less on the GitHub runner, where a fixture sized for
+// 32762 failed to make its own target. longestDirPath measures it on the
+// machine the test runs on. The worktree lies 15 characters deeper than the
+// main checkout (`.worktrees/one`), so a configured path whose target in the
+// main checkout ends just short of that limit has a parent in the worktree
+// that ends past it. parentsPlainOrAbsent lets it through: `.tools` is absent
+// in the worktree, and nothing below an absent component is looked at. The
+// MkdirAll of the parent is what fails.
 //
 // A *file* at `.tools` used to be this fixture and no longer reaches MkdirAll:
 // parentsPlainOrAbsent refuses it one step earlier, and
 // TestWorktreeLinkDoesNotCreateThroughAnIntermediateLink pins that.
 func TestWorktreeLinkReportsAPathItCannotMakeRoomFor(t *testing.T) {
+	requireWindows(t)
+	limit := longestDirPath(t)
 	main, worktree := worktreeFixture(t)
-	writeConfig(t, main, "[worktree]\nmirror = [\".tools/sub/deep\"]\n")
-	mkdirAll(t, filepath.Join(main, ".tools", "sub", "deep"))
-	mkdirAll(t, filepath.Join(worktree, ".tools"))
-	denyRight(t, filepath.Join(worktree, ".tools"), "AD")
+	// The target ends 4 characters short of the limit; its parent in the
+	// worktree then ends 15 - len("/deep") - 4 = 6 past it.
+	targetLength := limit - 4
+	relative := ".tools"
+	for rest := targetLength - len(main) - len("/.tools/deep"); rest > 0; {
+		pad := min(rest-1, 200)
+		if rest-pad-1 == 1 {
+			// A remainder of one would be an empty component.
+			pad--
+		}
+		relative += "/" + strings.Repeat("d", pad)
+		rest -= pad + 1
+	}
+	relative += "/deep"
+	target := filepath.Join(main, filepath.FromSlash(relative))
+	parent := filepath.Dir(filepath.Join(worktree, filepath.FromSlash(relative)))
+	if len(target) > limit || len(parent) <= limit {
+		t.Fatalf("fixture precondition: want the target in the main checkout at most %d "+
+			"characters and its parent in the worktree more than that, got %d and %d "+
+			"(main checkout %s, %d characters)",
+			limit, len(target), len(parent), main, len(main))
+	}
+	writeConfig(t, main, "[worktree]\nmirror = ['"+relative+"']\n")
+	mkdirAll(t, filepath.Join(main, filepath.FromSlash(relative)))
 
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	if code := WorktreeLink(stdout, stderr, worktree); code != ExitInternal {
 		t.Fatalf("exit = %d, want ExitInternal (stderr: %s)", code, stderr)
 	}
-	if !strings.Contains(stderr.String(), "making room for") {
+	// junction.Create words its own Mkdir failure as "making room for the
+	// junction", and with the MkdirAll error swallowed that is what fails
+	// next; the second condition keeps it from passing for this branch.
+	if msg := stderr.String(); !strings.Contains(msg, "making room for") ||
+		strings.Contains(msg, "making room for the junction") {
 		t.Fatalf("stderr = %q, want the MkdirAll branch reported", stderr)
 	}
 }
@@ -547,8 +629,10 @@ func TestTheSweepReportsADirectoryItCannotScan(t *testing.T) {
 	writeConfig(t, main, "[worktree]\nmirror = [\".tools\"]\n")
 	mkdirAll(t, filepath.Join(main, ".tools"))
 
-	// RD: reading the entries of the directory the orphan scan walks.
-	denyRight(t, filepath.Join(main, ".worktrees"), "RD")
+	// A handle without any share mode on the directory the orphan scan reads,
+	// so os.ReadDir of it fails with a sharing violation. Not a denied right:
+	// an elevated token lists a directory through a deny ACE.
+	testlock.LockDir(t, filepath.Join(main, ".worktrees"))
 
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	if code := WorktreeLink(stdout, stderr, main); code != ExitInternal {
@@ -560,19 +644,23 @@ func TestTheSweepReportsADirectoryItCannotScan(t *testing.T) {
 }
 
 // The loud case itself: a junction that was needed and did not come about.
-// The worktree may not gain a subdirectory, so the path is absent, there is
-// room to be made and the junction still cannot be created -- which is what
-// the missing directory being the pinned runtime would look like.
+// Nothing usable stands at the path, there is room to be made and the junction
+// still cannot be created -- which is what the missing directory being the
+// pinned runtime would look like.
 func TestWorktreeLinkReportsAJunctionItCouldNotMake(t *testing.T) {
 	requireWindows(t)
 	main, worktree := worktreeFixture(t)
 	writeConfig(t, main, "[worktree]\nmirror = [\".tools\"]\n")
 	mkdirAll(t, filepath.Join(main, ".tools"))
 
-	// AD: adding a subdirectory. Measured on 2026-09-07: an Lstat of the
-	// child still answers IsNotExist under this deny, so the run gets all the
-	// way to the junction before it fails.
-	denyRight(t, worktree, "AD")
+	// A directory pending deletion at the path, and not a denied right, which
+	// an elevated token creates through. Its Lstat fails, and link skips only
+	// on an Lstat that succeeds; a one-component path has no parent for
+	// parentsPlainOrAbsent to refuse; and the os.Mkdir inside junction.Create
+	// fails with access denied, because the name is still taken.
+	pending := filepath.Join(worktree, ".tools")
+	mkdirAll(t, pending)
+	testlock.DeletePending(t, pending)
 
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	if code := WorktreeLink(stdout, stderr, worktree); code != ExitInternal {
@@ -580,33 +668,6 @@ func TestWorktreeLinkReportsAJunctionItCouldNotMake(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), ".tools") {
 		t.Fatalf("stderr = %q, want the configured path named in it", stderr)
-	}
-}
-
-// denyRight takes one Windows right away from the user running the test and
-// gives it back afterwards. icacls and not a mode bit: measured on
-// 2026-09-07, `os.Chmod(dir, 0)` on a Windows directory returns nil and the
-// next os.ReadDir of it still succeeds, so there is no mode here that takes
-// access away.
-//
-// The right has to come back before the fixture's own cleanup runs, or
-// t.TempDir cannot delete the tree it made. t.Cleanup is LIFO and the fixture
-// registered its own first, so this one goes first.
-func denyRight(t *testing.T, path string, right string) {
-	t.Helper()
-	if _, err := exec.LookPath("icacls"); err != nil {
-		t.Skip("icacls is not on PATH")
-	}
-	user := os.Getenv("USERNAME")
-	icacls(t, path, "/deny", user+":("+right+")")
-	t.Cleanup(func() { icacls(t, path, "/remove:d", user) })
-}
-
-func icacls(t *testing.T, path string, argv ...string) {
-	t.Helper()
-	command := exec.Command("icacls", append([]string{path}, argv...)...)
-	if out, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("icacls %s %v: %v (%s)", path, argv, err, out)
 	}
 }
 
@@ -950,21 +1011,22 @@ func TestUnlinkReportsAStateFileItCannotRemove(t *testing.T) {
 	}
 }
 
-// A count that could not be taken is not a count of zero. Measured on
-// 2026-09-07: under this deny os.Remove of an absent child still answers
-// IsNotExist -- so Forget passes -- and os.ReadDir answers access denied.
+// A count that could not be taken is not a count of zero. The state directory
+// is held open without any share mode -- not denied by ACL, which an elevated
+// token reads through -- so os.ReadDir of it fails with a sharing violation,
+// while os.Remove of an absent child in it still answers IsNotExist and Forget
+// passes.
 func TestUnlinkReportsAStateDirectoryItCannotRead(t *testing.T) {
 	_, worktree := linkedFixture(t, ".tools")
 	hooks := filepath.Join(worktree, filepath.FromSlash(sessions.StateDir))
 	mkdirAll(t, hooks)
-	// RD: reading the entries of the directory the count walks.
-	denyRight(t, hooks, "RD")
+	testlock.LockDir(t, hooks)
 
 	_, stderr, code := unlinkAs(t, worktree, "mine")
 	if code != ExitInternal {
 		t.Fatalf("exit = %d, want ExitInternal (stderr: %s)", code, stderr)
 	}
-	// Others' own prefix. Under this deny Forget fails at nothing, but it
+	// Others' own prefix. Under this lock Forget fails at nothing, but it
 	// stands earlier in the same function and would produce the same exit code
 	// and the same non-empty stderr, so the message is what tells them apart.
 	if !strings.Contains(stderr.String(), "reading ") {

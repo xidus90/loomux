@@ -118,7 +118,7 @@ func TestADeviceNameIsWalkedPastRatherThanOpened(t *testing.T) {
 	// `GetFinalPathNameByHandle` refuses the handle with "invalid
 	// parameter". That number is in the list, so the walk shortens the
 	// path and the device name comes back as an ordinary tail.
-	tmp := t.TempDir()
+	tmp := longTempDir(t)
 	target := filepath.Join(tmp, "NUL")
 	got, err := resolvePath(target)
 	if err != nil {
@@ -134,7 +134,7 @@ func TestAPathTooLongForTheFirstBufferIsAskedAgain(t *testing.T) {
 	// buffer is too small, and the loop has to grow and ask again rather
 	// than truncate. MAX_PATH is the first guess, so the fixture has to
 	// stand past it.
-	tmp := t.TempDir()
+	tmp := longTempDir(t)
 	deep := tmp
 	for len(deep) < windows.MAX_PATH+40 {
 		deep = filepath.Join(deep, strings.Repeat("d", 40))
@@ -149,4 +149,18 @@ func TestAPathTooLongForTheFirstBufferIsAskedAgain(t *testing.T) {
 	if !strings.EqualFold(got, deep) {
 		t.Errorf("resolvePath of a long path = %q, want %q", got, deep)
 	}
+}
+
+// longTempDir is t.TempDir() in its long spelling. Where TEMP is an 8.3 short
+// path -- C:\Users\RUNNER~1 on a GitHub runner -- t.TempDir() hands out the
+// short form, resolvePath answers with the long one, and a comparison by text
+// between the two fails. filepath.EvalSymlinks expands 8.3 names, measured on
+// 2026-09-18.
+func longTempDir(t *testing.T) string {
+	t.Helper()
+	tmp, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tmp
 }
