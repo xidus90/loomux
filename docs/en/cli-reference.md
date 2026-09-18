@@ -280,3 +280,24 @@ Mutates the Go decisions of each package and reports which mutants its test suit
 
 ### `loomux dev swap-binary --dir <bin>`
 Atomically replaces the running `loomux.exe` binary with `loomux.new.exe` (solving Windows file-locking constraints).
+
+### `loomux dev bench [--dir <dir>] [--corpus <file>] [--languages <n>] [--tier <tier>] [--warm <n>] [--cache-dir <dir>] [--out <file>] [--json-out <file>] [--component-timeout <d>] [--save] [--report-dir <dir>]`
+Runs comprehensive latency benchmarks and normalized gap audits on a single repository or against the open-source matrix corpus (1 cold + N warm runs, median/min/max).
+
+- **How hooks are measured**: each hook receives a Claude Code payload for an edit of a sample file in the repository's primary language, so `post-tool-use` runs its real lanes. The Status column lists the exit codes seen across all runs.
+- **Single repository mode** (default): measures `pre-tool-use`, `post-tool-use`, and `graph build` (applicable on Go projects), compares against baseline Claude hooks if defined, and audits test/linter coverage gaps against native configuration.
+- **Corpus mode** (`--corpus <path>`): clones and benchmarks top-N open-source projects across cataloged languages and frameworks, reporting aggregate matrix latency and tool gaps.
+- **Flags**:
+  - `--dir <path>`: Target project directory (default: `.`).
+  - `--corpus <path>`: Path to open-source matrix Markdown document.
+  - `--languages <n>`: Number of languages from corpus to benchmark (default: `5`).
+  - `--tier <tier>`: Star category tier filter (default: `"Sehr viel"`).
+  - `--warm <n>`: Number of warm measurement runs for median calculation (default: `3`).
+  - `--component-timeout <d>`: Deadline for each measured command; a command past it is killed and reported as `timeout` (default: `60s`).
+  - `--cache-dir <dir>`: Directory for cached cloned repositories (default: `.cache/benchcorpus`).
+  - `--out <path>`: Write Markdown report to file (default: stdout).
+  - `--json-out <path>`: Write detailed machine-readable JSON report to file.
+  - `--save`: Automatically save benchmark reports into language subdirectories (`docs/{en,de}/benchmarks/<language>/<repo_slug>.md`) and update the central matrix (`docs/{en,de}/benchmarks/matrix.md`).
+  - `--report-dir <dir>`: Documentation root directory for saved reports (default: `docs`).
+
+

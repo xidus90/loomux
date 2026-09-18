@@ -585,3 +585,30 @@ func isWikiPath(rawPath, root, configuredWikiDir string) bool {
 	}
 	return false
 }
+
+// TargetCommandsForStacks returns the list of command lines that would be run for
+// the given stacks and optional target path. When targetPath is empty, it returns
+// the broad commands for all given stacks.
+func TargetCommandsForStacks(stacks []string, targetPath string, godotDir string, projectRoot string, wikiDir string) []string {
+	var ext string
+	if targetPath != "" {
+		ext = filepath.Ext(targetPath)
+	}
+	targetStack, hasTarget := extensionStackMap[ext]
+	if targetPath != "" && targetStack == "wiki" && !isWikiPath(targetPath, projectRoot, wikiDir) {
+		return nil
+	}
+	cmds := getCommandsForStacks(stacks, targetStack, hasTarget, targetPath, godotDir, projectRoot, wikiDir)
+	res := make([]string, len(cmds))
+	for i, c := range cmds {
+		res[i] = c.text
+	}
+	return res
+}
+
+// StackForExtension names the stack whose lanes an edit to a file with this
+// extension (dot included) runs, so callers outside the hook agree with it.
+func StackForExtension(ext string) (string, bool) {
+	stack, ok := extensionStackMap[ext]
+	return stack, ok
+}

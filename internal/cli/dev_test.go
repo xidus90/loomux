@@ -3,13 +3,16 @@ package cli
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 )
@@ -504,4 +507,222 @@ func TestUntilInterruptedStopsTheSignalRegistrationOfARunningSuite(t *testing.T)
 	if _, err := test("p", ""); !errors.Is(err, context.Canceled) || !stopped {
 		t.Fatalf("err %v, stopped %t", err, stopped)
 	}
+}
+
+func TestDevBench(t *testing.T) {
+	origRepoRun := benchRepoRun
+	origCorpusRun := benchCorpusRun
+	origReadFile := benchReadFile
+	origWriteFile := benchWriteFile
+	origSaveReport := benchSaveReport
+	origStorageOps := benchStorageOps
+	defer func() {
+		benchRepoRun = origRepoRun
+		benchCorpusRun = origCorpusRun
+		benchReadFile = origReadFile
+		benchWriteFile = origWriteFile
+		benchSaveReport = origSaveReport
+		benchStorageOps = origStorageOps
+	}()
+
+	mockAudit := &benchcorpus.RepoAudit{
+		Dir:          "/mock/repo",
+		CoverageRate: 100.0,
+	}
+
+	benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+		return mockAudit, nil
+	}
+
+	benchCorpusRun = func(matrixData []byte, opts benchcorpus.Options, cloner benchcorpus.Cloner, benchRepo func(string, benchcorpus.Options) (*benchcorpus.RepoAudit, error)) (*benchcorpus.BenchmarkReport, error) {
+		audit, err := benchRepo("/cached/repo", opts)
+		if err != nil {
+			return nil, err
+		}
+		return &benchcorpus.BenchmarkReport{
+			Timestamp: "2026-09-18T12:00:00Z",
+			Mode:      "corpus",
+			WarmRuns:  opts.WarmRuns,
+			Repos:     []*benchcorpus.RepoAudit{audit},
+			Skipped:   []benchcorpus.SkippedRepo{{RepoURL: "https://github.com/x/y", Reason: "fatal: unable to checkout working tree"}},
+		}, nil
+	}
+
+	t.Run("Flag validation", func(t *testing.T) {
+		if code, _, _ := run("dev", "bench", "--bogus"); code != 2 {
+			t.Errorf("expected 2 for unknown flag, got %d", code)
+		}
+		if code, _, errOut := run("dev", "bench", "--warm", "0"); code != 2 || !strings.Contains(errOut, "--warm") {
+			t.Errorf("expected 2 with --warm error, got code=%d, err=%s", code, errOut)
+		}
+		if code, _, errOut := run("dev", "bench", "--corpus", "matrix.md", "--languages", "0"); code != 2 || !strings.Contains(errOut, "--languages") {
+			t.Errorf("expected 2 with --languages error, got code=%d, err=%s", code, errOut)
+		}
+	})
+
+	t.Run("Component timeout flag", func(t *testing.T) {
+		mockRun := benchRepoRun
+		defer func() { benchRepoRun = mockRun }()
+		var got []time.Duration
+		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+			got = append(got, opts.ComponentTimeout)
+			return mockAudit, nil
+		}
+		run("dev", "bench", "--dir", ".")
+		run("dev", "bench", "--dir", ".", "--component-timeout", "2s")
+		if len(got) != 2 || got[0] != 60*time.Second || got[1] != 2*time.Second {
+			t.Errorf("component timeouts = %v, want [1m0s 2s]", got)
+		}
+	})
+
+	t.Run("Single repo success to stdout", func(t *testing.T) {
+		code, out, _ := run("dev", "bench", "--dir", ".")
+		if code != 0 {
+			t.Fatalf("expected 0, got %d", code)
+		}
+		if !strings.Contains(out, "# Loomux Benchmark & Lücken-Audit") {
+			t.Errorf("expected markdown report on stdout, got: %s", out)
+		}
+	})
+
+	t.Run("Single repo with out and json-out files", func(t *testing.T) {
+		var writtenFiles = make(map[string]string)
+		benchWriteFile = func(name string, data []byte, perm os.FileMode) error {
+			writtenFiles[name] = string(data)
+			return nil
+		}
+
+		code, _, _ := run("dev", "bench", "--dir", ".", "--out", "bench.md", "--json-out", "bench.json")
+		if code != 0 {
+			t.Fatalf("expected 0, got %d", code)
+		}
+		if _, ok := writtenFiles["bench.md"]; !ok {
+			t.Errorf("expected bench.md to be written")
+		}
+		if _, ok := writtenFiles["bench.json"]; !ok {
+			t.Errorf("expected bench.json to be written")
+		}
+	})
+
+	t.Run("Single repo benchRepo failure", func(t *testing.T) {
+		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+			return nil, errors.New("inspection crashed")
+		}
+
+		code, _, errOut := run("dev", "bench", "--dir", ".")
+		if code != 1 || !strings.Contains(errOut, "inspection crashed") {
+			t.Fatalf("expected code 1 with error, got code=%d err=%s", code, errOut)
+		}
+	})
+
+	t.Run("Single repo write markdown file failure", func(t *testing.T) {
+		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+			return mockAudit, nil
+		}
+		benchWriteFile = func(name string, data []byte, perm os.FileMode) error {
+			return errors.New("disk full")
+		}
+
+		code, _, errOut := run("dev", "bench", "--dir", ".", "--out", "out.md")
+		if code != 1 || !strings.Contains(errOut, "disk full") {
+			t.Fatalf("expected code 1 with disk full error, got code=%d err=%s", code, errOut)
+		}
+	})
+
+	t.Run("Single repo write JSON file failure", func(t *testing.T) {
+		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+			return mockAudit, nil
+		}
+		benchWriteFile = func(name string, data []byte, perm os.FileMode) error {
+			if strings.HasSuffix(name, ".json") {
+				return errors.New("json disk full")
+			}
+			return nil
+		}
+
+		code, _, errOut := run("dev", "bench", "--dir", ".", "--out", "out.md", "--json-out", "out.json")
+		if code != 1 || !strings.Contains(errOut, "json disk full") {
+			t.Fatalf("expected code 1 with json error, got code=%d err=%s", code, errOut)
+		}
+	})
+
+	t.Run("Corpus mode success", func(t *testing.T) {
+		benchReadFile = func(name string) ([]byte, error) {
+			return []byte("# matrix"), nil
+		}
+
+		code, out, errOut := run("dev", "bench", "--corpus", "matrix.md")
+		if code != 0 {
+			t.Fatalf("expected 0, got %d", code)
+		}
+		if !strings.Contains(errOut, "skipped https://github.com/x/y: fatal: unable to checkout working tree") {
+			t.Errorf("expected skipped repository on stderr, got %s", errOut)
+		}
+		if !strings.Contains(out, "# Loomux Benchmark & Lücken-Audit") {
+			t.Errorf("expected markdown report on stdout")
+		}
+	})
+
+	t.Run("Corpus mode read file failure", func(t *testing.T) {
+		benchReadFile = func(name string) ([]byte, error) {
+			return nil, errors.New("missing matrix file")
+		}
+
+		code, _, errOut := run("dev", "bench", "--corpus", "missing.md")
+		if code != 1 || !strings.Contains(errOut, "missing matrix file") {
+			t.Fatalf("expected code 1 with read error, got code=%d err=%s", code, errOut)
+		}
+	})
+
+	t.Run("Corpus mode corpus benchmark failure", func(t *testing.T) {
+		benchReadFile = func(name string) ([]byte, error) {
+			return []byte("# matrix"), nil
+		}
+		benchCorpusRun = func(matrixData []byte, opts benchcorpus.Options, cloner benchcorpus.Cloner, benchRepo func(string, benchcorpus.Options) (*benchcorpus.RepoAudit, error)) (*benchcorpus.BenchmarkReport, error) {
+			return nil, errors.New("corpus run failed")
+		}
+
+		code, _, errOut := run("dev", "bench", "--corpus", "matrix.md")
+		if code != 1 || !strings.Contains(errOut, "corpus run failed") {
+			t.Fatalf("expected code 1 with corpus error, got code=%d err=%s", code, errOut)
+		}
+	})
+
+	t.Run("Single repo with save flag success", func(t *testing.T) {
+		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+			return mockAudit, nil
+		}
+		var savedReport *benchcorpus.BenchmarkReport
+		var savedDir string
+		benchSaveReport = func(report *benchcorpus.BenchmarkReport, docsDir string, ops benchcorpus.StorageOps) error {
+			savedReport = report
+			savedDir = docsDir
+			return nil
+		}
+
+		code, _, _ := run("dev", "bench", "--dir", ".", "--save", "--report-dir", "custom/docs")
+		if code != 0 {
+			t.Fatalf("expected 0, got %d", code)
+		}
+		if savedReport == nil || len(savedReport.Repos) != 1 {
+			t.Errorf("expected saved report with 1 repo")
+		}
+		if savedDir != "custom/docs" {
+			t.Errorf("expected custom/docs dir, got %s", savedDir)
+		}
+	})
+
+	t.Run("Single repo with save flag failure", func(t *testing.T) {
+		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+			return mockAudit, nil
+		}
+		benchSaveReport = func(report *benchcorpus.BenchmarkReport, docsDir string, ops benchcorpus.StorageOps) error {
+			return errors.New("cannot write docs")
+		}
+
+		code, _, errOut := run("dev", "bench", "--dir", ".", "--save")
+		if code != 1 || !strings.Contains(errOut, "cannot write docs") {
+			t.Fatalf("expected code 1 with save error, got code=%d err=%s", code, errOut)
+		}
+	})
 }
