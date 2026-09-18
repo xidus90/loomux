@@ -134,29 +134,24 @@ flowchart LR
 
 > **Stand.** Stufe G1 hat das Lesemodell und die beiden Rechner als Go-Pakete
 > gebaut — `internal/code/model`, `internal/code/pagerank`,
-> `internal/code/blast`. Stufe G2a ergänzt fünf weitere Pakete, die den
-> Graphen erzeugen, den diese Rechner lesen, und die Frischefrage beantworten,
-> die ein Hook braucht, bevor überhaupt gerankt wird:
+> `internal/code/blast`. Stufe G2a ergänzte fünf Pakete zur Graphenerzeugung
+> und Frischeprüfung (`sourceset`, `extract/golang`, `resolve`, `store`,
+> `freshness`). Stufe G2b ergänzt zwei Pakete, die den Abfragepfad vollenden:
 >
-> - `internal/code/sourceset` — die eine Dateimenge, die Bau und Sonde beide
->   ablaufen; so können die zwei nie unterschiedliche Dateien aufzählen.
-> - `internal/code/extract/golang` — der deterministische Extraktor: `go/parser`
->   und `go/ast` über eine Datei nach der anderen, kein `go/types` und kein Bau.
-> - `internal/code/resolve` — macht aus der lokalen Extraktion jeder Datei
->   dateiübergreifende Kanten, mit `go.mod`, um einen Import innerhalb dieses
->   Moduls von einem außerhalb zu unterscheiden.
-> - `internal/code/store` — liest und schreibt den Graphen atomar unter
->   `.loomux/state/graph/wiring.json`.
-> - `internal/code/freshness` — die billige, stat-basierte Sonde und ihre
->   Nebenakte, `.loomux/state/graph/cache/fingerprint.json`.
+> - `internal/code/lexicon` — tokenisiert Anfragen und Dokumente, filtert
+>   Stoppwörter und verwaltet die Nebenakte `ask-index.json` mit
+>   korpusweiten Dokumenthäufigkeiten und Symbolrumpf-Tokens.
+> - `internal/code/ask` — berechnet BM25-artige lexikalische Relevanz über
+>   Name, Signatur und Rumpf, verschmilzt sie mit Personalized PageRank (alpha=0.25),
+>   extrahiert Quelltext-Spans und steuert Frischeprüfung samt gelocktem
+>   Hintergrund-Neubau.
 >
-> `freshness` importiert den Extraktor nicht. Das ist Absicht: der Stempel, mit
-> dem eine Sonde vergleicht, kommt als bloße Zeichenkette an, damit eine
-> spätere Stufe die Sonde aus dem Hook-Pfad je Edit rufen kann, ohne `go/parser`
-> mitzuziehen. `loomux graph build` und `loomux graph check` sind auf `model`
-> und diesen fünf Paketen verdrahtet; die lexikalische Saat, `pagerank` und
-> `blast` warten auf `ask` und `callers` aus Stufe G2b. Die Abschnitte darunter
-> beschreiben die ganze Säule und markieren, was schon Code ist.
+> `ask` importiert den Extraktor nicht. Die Neubaufähigkeit kommt als
+> `Rebuild`-Funktionsparameter herein, was die Architekturgrenze wahrt: Die
+> Abfrageausführung bleibt von Parser- und Extraktionsdetails entkoppelt.
+> `loomux graph build`, `check` und `ask` sind verdrahtet; `callers`, `blast`,
+> `grep`, `skeleton` und `map` warten auf die Stufen G3-G4. Die Abschnitte
+> darunter beschreiben die ganze Säule und markieren, was schon Code ist.
 
 ### 1. „Lexik schlägt vor, der Graph entscheidet“
 - **Lexikalischer Schritt** (G2): BM25- und Exakt-Symbol-Indizierung finden rasch Kandidaten-Knoten zu den Begriffen des Prompts.

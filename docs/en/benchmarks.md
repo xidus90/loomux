@@ -955,3 +955,68 @@ BenchmarkDanglingPerNode-16    	       1	3865115600 ns/op
    machine, three different sessions. The absolute numbers move by run-to-run
    noise (a factor of ~1.1–1.2×); the ~500–600× ratio between pooled and
    per-node does not.
+
+## 2026-09-18 19:30 - graph ask Response Time and the Sidecar
+
+Query response time of `loomux graph ask "write barrier refuse" --limit 8 --no-refresh`
+on this repository (267 files, 2,982 nodes, 9,637 edges), comparing the warm path
+with the `ask-index.json` sidecar against querying without the sidecar (names and
+paths only), plus a cold start.
+
+### Measurements
+
+| case | figure | command |
+|---|---:|---|
+| `graph ask`, warm with sidecar (10 runs, median) | 47.6 ms (range 46.5 - 59.2 ms) | `./bin/loomux.exe graph ask "write barrier refuse" --limit 8 --no-refresh` |
+| `graph ask`, warm without sidecar (10 runs, median) | 37.5 ms (range 35.6 - 44.1 ms) | (with `ask-index.json` moved away) `./bin/loomux.exe graph ask "write barrier refuse" --limit 8 --no-refresh` |
+| `graph ask`, cold (fresh process, graph and sidecar cached) | 52.7 ms | `./bin/loomux.exe graph ask "write barrier refuse" --limit 8 --no-refresh` |
+
+### Reading
+
+1. **The sidecar cost vs. benefit on a 3,000-node repository.**
+   Warm queries with the sidecar take ~48 ms; without the sidecar (evaluating names
+   and paths without body inverted index), queries take ~37 ms. Deserializing the
+   1MB `ask-index.json` payload takes ~10-12 ms of JSON decode time. On a repository
+   of this size (~3,000 nodes), parsing symbol names in memory is fast enough that
+   the sidecar load time exceeds the token matching savings.
+2. **Why the sidecar exists nonetheless.**
+   As documented in the design spec and Graft reference, at 30,000+ nodes
+   live extraction of all function bodies on every query is prohibitively slow
+   (~45% query time reduction observed in Graft at scale). The sidecar scales
+   to large multi-package codebases where full body rescanning is impossible
+   within interactive query budgets. The difference here is recorded honestly as
+   a property of repository size rather than rounded down or hidden.
+
+
+## 2026-09-18 21:20 - One Sorted Term Order Per Query Instead of Three Per Document
+
+### What was measured
+
+`ask.Run` over a synthetic graph of 3,000 nodes and 2,999 edges with a five-word
+query, before and after the query's term order moved out of the per-document
+score (`lexical` called `overlap` twice and `bm25` once, each sorting the same
+terms again) into one `newQuestion` per query. Throwaway benchmark, not kept in
+the tree, `-benchmem -count=5` on the reference machine (AMD Ryzen 7 9800X3D,
+Windows x86_64).
+
+### Measurements
+
+| case | ns/op (median of 5) | B/op (median of 5) | allocs/op |
+|---|---:|---:|---:|
+| baseline, order built per document | 8,318,985 (range 7.49 - 8.64 ms) | 3,881,243 | 18,167 |
+| change, one order per query | 8,510,965 (range 7.98 - 9.58 ms) | 3,148,879 | 9,167 |
+
+The CLI path was measured too, 10 warm runs of
+`graph ask "how does the write barrier decide what to refuse and why" --limit 5`
+on this repository: 77 ms median before, 79.5 ms after. Process start dominates
+there and the difference is noise.
+
+### Reading
+
+1. **The allocation count halves and the time does not move.** 18,167 -> 9,167
+   allocations per query and 19% fewer bytes, while the wall clock stays inside
+   the run-to-run spread of +-1 ms. Sorting four strings is cheap; doing it 9,000
+   times is measurable only in the allocator, not in the clock.
+2. **The change is recorded as removed redundant work, not as a speed-up.** At
+   3,000 nodes there is no time win to claim. Whether the allocation saving
+   becomes a time saving at 30,000 nodes is untested and must not be assumed.

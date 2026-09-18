@@ -125,7 +125,7 @@ Lehnt den Haupt-Checkout und jedes Verzeichnis ab, an dem Git keinen Worktree h�
 ## 6. Code-Graph-Engine (`loomux graph`)
 
 > [!NOTE]
-> **`build` und `check` sind verdrahtet, der Rest darunter bleibt spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die beiden Befehle direkt darunter. `ask`, `callers`, `blast`, `skeleton`, `map` und `viz` bleiben unverdrahtet.
+> **`build`, `check` und `ask` sind verdrahtet, der Rest darunter bleibt spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die Befehle `build` und `check`, und Stufe G2b ergänzt Lexik, lexikalisches Scoring, Personalized-PageRank-Verschmelzung und `graph ask`. `callers`, `blast`, `skeleton`, `map` und `viz` bleiben unverdrahtet.
 
 ### `loomux graph build [--root <pfad>]`
 Liest und hasht jede Go-Quelldatei, die `internal/code/sourceset` unterhalb der Wurzel findet, extrahiert und löst sie zum deterministischen AST-Graphen auf und schreibt ihn nach `.loomux/state/graph/wiring.json`. Dabei schreibt er auch die Frischeakte (`.loomux/state/graph/cache/fingerprint.json`), die eine spätere Sonde liest; scheitert das Schreiben der Akte, meldet der Befehl das auf `stderr`, ohne den Bau selbst scheitern zu lassen — der Graph auf der Platte ist bereits korrekt.
@@ -135,11 +135,24 @@ Liest und hasht jede Go-Quelldatei, die `internal/code/sourceset` unterhalb der 
 - **Exit-Codes**: `0` bei Erfolg; `1`, wenn die Wurzel nicht auflösbar ist, eine Datei nicht gelesen oder geparst werden kann, die Modulauflösung scheitert oder der Graph nicht geschrieben werden kann; `2` bei einem Aufruffehler.
 - **Kosten**: `build` liest die Frischeakte nie — es liest und hasht jede Datei, kalt wie warm, jedes Mal. Es gibt dabei nichts zu überspringen: anders als `check` erzeugt `build` gerade den Stand, gegen den eine Sonde später vergleicht, und ein veraltetes Byte darin wäre eine veraltete Antwort, keine ersparte Lesung. Gemessene Zahlen stehen in `docs/de/benchmarks.md`.
 
-### `loomux graph ask "<anfrage>" [dir]`
-Sucht Code-Symbole gerankt nach **Personalized PageRank** über den AST-Aufrufgraph.
+### `loomux graph ask "<anfrage>" [flags]`
+Sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen mit **Personalized PageRank** über den AST-Aufrufgraph.
 
-- **Ausgabe**: Gerankte Symbole mit Datei, Zeilen und inline eingeblendeten Crux-Spans ($0 Token-Lesekosten).
-- **Flags**: `--json` (maschinenlesbare Ausgabe).
+- **Flags**:
+  - `--root <pfad>` — Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
+  - `--limit <n>` — Maximale Anzahl auszugebender Treffer (Standard `8`).
+  - `--in <präfix>` — Filtert Kandidaten vor Scoring und PageRank-Lauf nach Pfadpräfix ein; berechnet Dokumenthäufigkeiten über den Rest neu.
+  - `--source` — Blendet den Quellcode-Span für jeden Treffer inline ein (gedeckelt auf 80 Zeilen, außer bei `--full`). Ohne `--source` werden nur Fundorte und Signaturen ausgegeben.
+  - `--full` — Hebt bei `--source` die 80-Zeilen-Deckelung auf und blendet den vollen Span ein.
+  - `--json` — Gibt maschinenlesbares JSON gemäß der `ask.Answer`-Struktur aus (`hits`, `query`, `note`, `stats`).
+  - `--no-refresh` — Überspringt die Frischeprüfung und den automatischen Hintergrund-Neubau bei Abweichung.
+- **Die beiden Dinge, die sonst zweimal gefragt werden**:
+  - Ohne `--source` kommt kein Quelltext — nur Fundort (Pfad, Zeilenspan), Symbol-ID, Signatur sowie der Gesamtwert mit seinen lexikalischen und graphischen Komponenten.
+  - Standardmäßig prüft `ask` vor der Antwort die Frische des Graphen. Ist der Graph veraltet oder fehlt er ganz, baut `ask` Graph und Beiakte unter einem prozessübergreifenden Lock im Hintergrund neu, bevor geantwortet wird (Statusmeldungen auf `stderr`). Um den bestehenden Stand ohne Neubau abzufragen, dient `--no-refresh`.
+- **Ausgabe**: Rangliste der Treffer im Format:
+  `N. <id>  <pfad>:<span-oder-zeile>  (<score> lex <lexical> graph <graph>)`
+  gefolgt von der Signatur und bei `--source` dem mit `|` eingerückten Quelltextblock. Passt kein Symbol zur Anfrage, wird ein Hinweis ausgegeben und mit Code 0 beendet.
+- **Exit-Codes**: `0` bei Erfolg (auch wenn keine Symbole matchen); `1` bei Fehlern (unlesbarer Graph, fehlerhafter Neubau); `2` bei Aufruffehlern (fehlende Anfrage, negatives Limit).
 
 ### `loomux graph callers <symbol> [dir]`
 Zeigt, wer ein Symbol aufruft, importiert, implementiert oder erweitert.

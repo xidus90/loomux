@@ -994,3 +994,70 @@ BenchmarkDanglingPerNode-16    	       1	3865115600 ns/op
    bewegen sich mit Lauf-zu-Lauf-Rauschen (ein Faktor von ~1,1–1,2); das
    Verhältnis von rund dem 500- bis 600-Fachen zwischen gepoolt und je Knoten
    nicht.
+
+## 2026-09-18 19:30 - Antwortzeit von graph ask und die Beiakte
+
+Antwortzeit von `loomux graph ask "write barrier refuse" --limit 8 --no-refresh`
+auf diesem Repository (267 Dateien, 2.982 Knoten, 9.637 Kanten) im Vergleich:
+warmer Pfad mit der Beiakte `ask-index.json` gegen Abfrage ohne Beiakte (nur
+Namen und Pfade) sowie Kaltstart.
+
+### Messungen
+
+| Fall | Wert | Befehl |
+|---|---:|---|
+| `graph ask`, warm mit Beiakte (10 Läufe, Median) | 47,6 ms (Spanne 46,5 - 59,2 ms) | `./bin/loomux.exe graph ask "write barrier refuse" --limit 8 --no-refresh` |
+| `graph ask`, warm ohne Beiakte (10 Läufe, Median) | 37,5 ms (Spanne 35,6 - 44,1 ms) | (bei entfernter `ask-index.json`) `./bin/loomux.exe graph ask "write barrier refuse" --limit 8 --no-refresh` |
+| `graph ask`, kalt (frischer Prozess, Graph und Beiakte im Cache) | 52,7 ms | `./bin/loomux.exe graph ask "write barrier refuse" --limit 8 --no-refresh` |
+
+### Einordnung
+
+1. **Kosten und Nutzen der Beiakte bei 3.000 Knoten.**
+   Warme Anfragen mit Beiakte benötigen ~48 ms; ohne Beiakte (Matching nur auf Namen
+   und Pfaden ohne invertierten Rumpfindex) liegen sie bei ~37 ms. Das Deserialisieren
+   des 1-MB-JSON-Bestands von `ask-index.json` kostet ~10-12 ms. Bei einem Projekt
+   dieser Größe (~3.000 Knoten) ist das Auswerten der Namen im Speicher so schnell,
+   dass die Ladezeit der Beiakte die Ersparnis übersteigt.
+2. **Warum die Beiakte dennoch existiert.**
+   Wie in der Spezifikation und der Graft-Referenz festgehalten, wird das erneute
+   Extrahieren aller Funktionsrümpfe ab etwa 30.000 Knoten zu langsam (Graft verzeichnete
+   bei dieser Größe ~45 % Ersparnis durch den Index). Die Beiakte skaliert auf große
+   Codebasen, bei denen ein voller Rumpf-Scan das interaktive Zeitbudget sprengen würde.
+   Dieser Befund wird hier ehrlich als Merkmal der aktuellen Projektgröße festgehalten,
+   statt künstlich geschönt zu werden.
+
+
+## 2026-09-18 21:20 - Eine sortierte Term-Reihenfolge je Abfrage statt dreier je Dokument
+
+### Was gemessen wurde
+
+`ask.Run` über einem synthetischen Graphen aus 3.000 Knoten und 2.999 Kanten mit
+einer fünfwortigen Abfrage, vor und nach dem Umzug der Term-Reihenfolge aus dem
+Dokument-Scoring (`lexical` rief `overlap` zweimal und `bm25` einmal, jeder
+sortierte dieselben Begriffe erneut) in ein `newQuestion` je Abfrage.
+Wegwerf-Benchmark, nicht im Baum behalten, `-benchmem -count=5` auf der
+Referenzmaschine (AMD Ryzen 7 9800X3D, Windows x86_64).
+
+### Messwerte
+
+| Fall | ns/op (Median aus 5) | B/op (Median aus 5) | allocs/op |
+|---|---:|---:|---:|
+| Ausgangsstand, Reihenfolge je Dokument | 8.318.985 (Spanne 7,49 - 8,64 ms) | 3.881.243 | 18.167 |
+| Änderung, eine Reihenfolge je Abfrage | 8.510.965 (Spanne 7,98 - 9,58 ms) | 3.148.879 | 9.167 |
+
+Der CLI-Weg wurde ebenfalls gemessen, 10 warme Läufe von
+`graph ask "how does the write barrier decide what to refuse and why" --limit 5`
+auf diesem Repository: 77 ms Median vorher, 79,5 ms nachher. Dort dominiert der
+Prozessstart, und der Unterschied ist Rauschen.
+
+### Lesart
+
+1. **Die Zahl der Allokationen halbiert sich, die Zeit bewegt sich nicht.**
+   18.167 -> 9.167 Allokationen je Abfrage und 19 % weniger Bytes, während die
+   Uhr innerhalb der Lauf-zu-Lauf-Streuung von +-1 ms bleibt. Vier Strings zu
+   sortieren ist billig; es 9.000-mal zu tun, ist nur im Allokator messbar,
+   nicht auf der Uhr.
+2. **Verbucht als entfernte Doppelarbeit, nicht als Beschleunigung.** Bei 3.000
+   Knoten ist kein Zeitgewinn zu behaupten. Ob aus der Allokationsersparnis bei
+   30.000 Knoten ein Zeitgewinn wird, ist ungeprüft und darf nicht angenommen
+   werden.

@@ -133,30 +133,26 @@ flowchart LR
 ```
 
 > **State.** Stage G1 built the read model and the two calculators as Go
-> packages — `internal/code/model`, `internal/code/pagerank`,
-> `internal/code/blast`. Stage G2a adds five more packages that produce the
+> packages - `internal/code/model`, `internal/code/pagerank`,
+> `internal/code/blast`. Stage G2a added five packages that produce the
 > graph those calculators read and answer the freshness question a hook needs
-> before ranking anything:
+> before ranking anything (`sourceset`, `extract/golang`, `resolve`, `store`,
+> `freshness`). Stage G2b adds two packages that complete the query path:
 >
-> - `internal/code/sourceset` — the one file set both the build and the probe
->   walk, so the two can never enumerate different files.
-> - `internal/code/extract/golang` — the deterministic extractor: `go/parser`
->   and `go/ast` over one file at a time, no `go/types` and no build.
-> - `internal/code/resolve` — turns each file's local extraction into cross-file
->   edges, using `go.mod` to tell an import inside this module from one
->   outside it.
-> - `internal/code/store` — reads and atomically writes the graph at
->   `.loomux/state/graph/wiring.json`.
-> - `internal/code/freshness` — the cheap stat-based probe and its sidecar
->   record, `.loomux/state/graph/cache/fingerprint.json`.
+> - `internal/code/lexicon` - tokenizes queries and documents, removes stop
+>   words, and writes/reads the `ask-index.json` sidecar caching corpus-wide
+>   document frequencies and symbol body tokens.
+> - `internal/code/ask` - computes BM25-style lexical relevance scores across
+>   name, signature, and body, blends them with Personalized PageRank (alpha=0.25),
+>   extracts inlined source spans, and coordinates freshness checks with
+>   cross-process locked rebuilds.
 >
-> `freshness` does not import the extractor. That is deliberate: the stamp a
-> probe compares against arrives as a plain string, so a later stage can run
-> the probe from the per-edit hook path without pulling `go/parser` into it.
-> `loomux graph build` and `loomux graph check` are wired on top of `model` and
-> these five; the lexical seed, `pagerank` and `blast` wait on the `ask` and
-> `callers` commands of stage G2b. The sections below describe the whole
-> pillar and mark what is already code.
+> `ask` does not import the extractor. Rebuild capability arrives as a
+> `Rebuild` function parameter, preserving clean architectural boundaries:
+> query execution remains decoupled from parser and extraction internals.
+> `loomux graph build`, `check`, and `ask` are wired; `callers`, `blast`,
+> `grep`, `skeleton`, and `map` wait on stages G3-G4. The sections below
+> describe the whole pillar and mark what is already code.
 
 ### 1. "Lexical Proposes, Graph Disposes"
 - **Lexical Step** (G2): BM25 and exact symbol indexing quickly identify candidate nodes matching the prompt keywords.
