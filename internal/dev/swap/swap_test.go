@@ -47,12 +47,50 @@ func TestSwapWorksWithoutAPreviousBinary(t *testing.T) {
 	}
 }
 
-func TestSwapFailsWhenTheOldSlotCannotBeFreed(t *testing.T) {
+func TestSwapTakesTheNextSlotWhenTheFirstOneIsHeld(t *testing.T) {
+	// The whole point: a predecessor that still runs from loomux.old.exe must
+	// not stop the swap. A directory that cannot be removed stands in for the
+	// hold here; swap_windows_test.go measures it against a real file handle.
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "loomux.exe"), "old")
 	write(t, filepath.Join(dir, "loomux.new.exe"), "new")
 	if err := os.MkdirAll(filepath.Join(dir, "loomux.old.exe", "x"), 0o755); err != nil {
 		t.Fatal(err)
+	}
+	if err := Swap(dir); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, filepath.Join(dir, "loomux.exe")) != "new" || read(t, filepath.Join(dir, "loomux.old.1.exe")) != "old" {
+		t.Fatal("the swap did not move the held slot out of the way")
+	}
+}
+
+func TestSwapSweepsTheSlotsThatHaveBecomeFree(t *testing.T) {
+	// A slot whose process has ended goes away on the next swap, wherever it
+	// sits. Without that the numbering would only ever grow.
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "loomux.exe"), "old")
+	write(t, filepath.Join(dir, "loomux.new.exe"), "new")
+	write(t, filepath.Join(dir, "loomux.old.3.exe"), "ended")
+	if err := os.MkdirAll(filepath.Join(dir, "loomux.old.exe", "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Swap(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "loomux.old.3.exe")); !os.IsNotExist(err) {
+		t.Fatal("a slot that nothing holds any more was kept")
+	}
+}
+
+func TestSwapFailsWhenEverySlotIsHeld(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "loomux.exe"), "old")
+	write(t, filepath.Join(dir, "loomux.new.exe"), "new")
+	for i := range oldSlots {
+		if err := os.MkdirAll(filepath.Join(dir, slotName(i), "x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := Swap(dir); err == nil {
 		t.Fatal("want error")
