@@ -9,12 +9,22 @@ import (
 	"sort"
 )
 
-// Version is what `loomux --version` answers. Nothing in this branch sets it:
-// the gate and the bootstrap both build with a plain `go build`, so every
-// binary of stage 1a says 0.0.0-dev. A release build would overwrite it with
-// -ldflags "-X github.com/xidus90/loomux/internal/cli.Version=…"; until such a
-// build exists, the literal below is the whole answer.
-var Version = "0.0.0-dev"
+// Version and Channel are what `loomux version` answers. A plain `go build`
+// leaves them at 0.0.0-dev and empty; the release build sets both with
+// -ldflags "-X github.com/xidus90/loomux/internal/cli.Version=… -X …Channel=…".
+var (
+	Version = "0.0.0-dev"
+	Channel = ""
+)
+
+// versionLine names the channel only while it is not the stable one, so a
+// stable release reads like any plain version string.
+func versionLine() string {
+	if Channel == "" || Channel == "stable" {
+		return "loomux " + Version
+	}
+	return "loomux " + Version + " (" + Channel + ")"
+}
 
 type command func(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 
@@ -26,7 +36,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "version", "--version", "-v":
-		fmt.Fprintf(stdout, "loomux %s\n", Version)
+		fmt.Fprintln(stdout, versionLine())
 		return 0
 	case "help", "--help", "-h":
 		usage(stdout)

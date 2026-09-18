@@ -16,8 +16,22 @@ func run(args ...string) (int, string, string) {
 func TestVersionPrintsTheVersion(t *testing.T) {
 	for _, arg := range []string{"version", "--version", "-v"} {
 		code, out, _ := run(arg)
-		if code != 0 || out != "loomux "+Version+"\n" {
+		if code != 0 || out != "loomux 0.0.0-dev\n" {
 			t.Fatalf("%s: code %d, out %q", arg, code, out)
+		}
+	}
+}
+
+func TestVersionNamesAChannelOtherThanStable(t *testing.T) {
+	defer func(v, c string) { Version, Channel = v, c }(Version, Channel)
+	for channel, want := range map[string]string{
+		"":       "loomux 1.2.3\n",
+		"stable": "loomux 1.2.3\n",
+		"beta":   "loomux 1.2.3 (beta)\n",
+	} {
+		Version, Channel = "1.2.3", channel
+		if _, out, _ := run("version"); out != want {
+			t.Fatalf("channel %q: out %q, want %q", channel, out, want)
 		}
 	}
 }
