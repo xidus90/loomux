@@ -203,7 +203,7 @@ Kommentar dort trägt bereits die Begründung („a writer that bumps it changed
 Die Tier-2-Felder (`summary`, `summary_state`, `crux`) kommen **nicht** mit. Sie hätten in G2
 keinen Erzeuger, und das G1-Delta verbietet Vorrat ohne Erzeuger ausdrücklich (§4, zu `FileCard`).
 
-### 4.1 Drei neue Regeln in `Validate`
+### 4.1 Vier neue Regeln in `Validate`
 
 Zwei davon sind die offenen Lücken aus `docs/.superpowers/parity/code-g1.md`; sie waren harmlos,
 solange kein Erzeuger außerhalb der Tests einen Graphen schrieb. G2 schreibt einen.

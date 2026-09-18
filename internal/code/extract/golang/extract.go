@@ -437,6 +437,15 @@ func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]Ra
 					sc.declare(id.Name, "")
 				}
 			}
+		case *ast.FuncLit:
+			// A closure's parameters and named results must shadow too, the same
+			// as a top-level function's: `func(model *Model) { model.Decode() }`
+			// must not read `model` as the package it shadows. Declared into the
+			// current frame and never popped -- this package is function-scoped
+			// throughout, and over-shadowing past the literal's own end is the
+			// same safe trade RangeStmt and AssignStmt already make: it can only
+			// drop a later edge, never invent one.
+			declareParams(sc, s.Type)
 		case *ast.CallExpr:
 			if e, ok := callEdge(s, rel, owner, sc); ok {
 				*out = append(*out, e)

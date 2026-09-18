@@ -81,12 +81,13 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 
 // checkResult is what `graph check` found.
 type checkResult struct {
-	OK      bool     `json:"ok"`
-	Missing bool     `json:"missing"`
-	Foreign string   `json:"foreign,omitempty"`
-	Added   []string `json:"added"`
-	Removed []string `json:"removed"`
-	Changed []string `json:"changed"`
+	OK       bool     `json:"ok"`
+	Missing  bool     `json:"missing"`
+	Foreign  string   `json:"foreign,omitempty"`
+	Outdated bool     `json:"outdated,omitempty"`
+	Added    []string `json:"added"`
+	Removed  []string `json:"removed"`
+	Changed  []string `json:"changed"`
 }
 
 // graphCheck re-extracts the tree and diffs it against the written graph.
@@ -139,6 +140,12 @@ func check(root string) (checkResult, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return checkResult{Missing: true}, nil
 		}
+		if errors.Is(err, model.ErrSchemaVersion) {
+			// A schema-1 graph has no extractor stamp to check next, so this
+			// has to be caught before that comparison and given the same
+			// pointer to a fix as every other unusable-graph case.
+			return checkResult{Outdated: true}, nil
+		}
 		return checkResult{}, err
 	}
 	// The stamp decides before a single node is compared: a graph from another
@@ -190,6 +197,8 @@ func checkReport(res checkResult) string {
 		return fmt.Sprintf(
 			"loomux graph check: FOREIGN GRAPH\n\nThe graph was written by extractor %q, this binary is %q.\nRun `loomux graph build`.\n",
 			res.Foreign, golang.Version)
+	case res.Outdated:
+		return "loomux graph check: OUTDATED GRAPH\n\nThe graph on disk predates this binary's schema.\nRun `loomux graph build`.\n"
 	case res.OK:
 		return "loomux graph check: OK\n"
 	}
@@ -296,7 +305,7 @@ func report(g *model.Graph, stats buildStats, took time.Duration) string {
 	}
 	for _, e := range g.Edges {
 		byRelation[e.Relation]++
-		if !nodes[e.Target] {
+		if e.Relation == model.RelationImports && !nodes[e.Target] {
 			unresolved++
 		}
 	}

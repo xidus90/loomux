@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -9,6 +10,12 @@ import (
 // schemaVersion is the only wiring.json this model reads. A writer that bumps
 // it changed something; failing loudly beats ranking stale shapes.
 const schemaVersion = 2
+
+// ErrSchemaVersion wraps a version mismatch, so a caller can tell "this graph
+// predates the schema this binary reads" from any other validation failure --
+// the two want different guidance, and a schema-1 graph in particular has no
+// extractor stamp at all to check next.
+var ErrSchemaVersion = errors.New("graph schema version mismatch")
 
 // Decode reads a wiring.json and validates it.
 func Decode(r io.Reader) (*Graph, error) {
@@ -30,7 +37,7 @@ func Decode(r io.Reader) (*Graph, error) {
 // names its module, and that is a fact about the code, not a defect.
 func (g *Graph) Validate() error {
 	if g.Meta.Version != schemaVersion {
-		return fmt.Errorf("graph version %d, want %d", g.Meta.Version, schemaVersion)
+		return fmt.Errorf("%w: graph version %d, want %d", ErrSchemaVersion, g.Meta.Version, schemaVersion)
 	}
 	if g.Meta.Extractor == "" {
 		return fmt.Errorf("graph has no extractor stamp")

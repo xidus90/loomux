@@ -372,6 +372,43 @@ func TestFileDropsAMemberCallOnAnUnexportedConstructorConvention(t *testing.T) {
 	}
 }
 
+func TestFileTreatsAFunctionLiteralParameterAsShadowingAPackage(t *testing.T) {
+	// A parameter of a closure must shadow an imported package name exactly as
+	// a top-level function's parameter does. Before the fix, `collect` never
+	// declared a *ast.FuncLit's parameters, so `model` inside the literal
+	// reached callEdge's undeclared-in-scope branch and would have resolved
+	// to the package `model` instead of being dropped -- a false cross-package
+	// edge the reference implementation warns against in spec section 6.2.
+	const src = `package p
+
+import "example.com/repo/model"
+
+type Model struct{}
+
+func (m Model) Decode(n int) int { return n }
+
+func run() {
+	f := func(model *Model) int { return model.Decode(1) }
+	_ = f
+}
+
+func real() int { return model.Decode(2) }
+`
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := edgesOf(t, r, model.RelationCalls)
+	for _, e := range calls {
+		if e.Source == "p.go#run" && e.Name == "Decode" && e.Receiver != "" {
+			t.Errorf("a parameter shadowing an import must not reach resolve as a package selector; got %+v", e)
+		}
+	}
+	if !hasEdge(calls, golang.RawEdge{Source: "p.go#real", Name: "Decode", Receiver: "model"}) {
+		t.Errorf("the genuine, unshadowed package call must still reach resolve unresolved; got %+v", calls)
+	}
+}
+
 func TestFileDropsACallOnAComputedReceiver(t *testing.T) {
 	const src = "package p\n\nfunc f(m map[string]T) { m[\"k\"].M() }\n\ntype T struct{}\n\nfunc (T) M() {}\n"
 	r, err := golang.File("p.go", src)

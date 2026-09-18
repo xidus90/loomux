@@ -271,6 +271,32 @@ func TestGraphCheckReportsAMissingGraphAndPointsAtBuild(t *testing.T) {
 	}
 }
 
+func TestGraphCheckReportsAnOutdatedSchemaAndPointsAtBuild(t *testing.T) {
+	root := repo(t, sample())
+	if err := os.MkdirAll(store.Dir(root), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A schema-1 graph, written by hand: it has no extractor stamp at all, so
+	// the version check must catch it before that comparison is even reached.
+	const schema1 = `{"meta":{"version":1},"nodes":[],"edges":[]}` + "\n"
+	if err := os.WriteFile(store.WiringPath(root), []byte(schema1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+
+	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	report := out.String()
+	if !strings.Contains(report, "graph build") {
+		t.Errorf("report %q must point at the command that fixes it", report)
+	}
+	if strings.Contains(report, "want 2") {
+		t.Errorf("report %q must not leak the raw decode error; use the same guidance as every other unusable-graph case", report)
+	}
+}
+
 func TestGraphCheckRefusesAGraphFromAnotherExtractor(t *testing.T) {
 	root := repo(t, sample())
 	var out, errOut bytes.Buffer
