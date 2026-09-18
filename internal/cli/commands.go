@@ -7,6 +7,7 @@ var commands = map[string]command{
 	"dev":       devCommand,
 	"doctor":    statusCommand,
 	"explain":   statusCommand,
+	"graph":     graphCommand,
 	"hook":      hookCommand,
 	"lint":      lintCommand,
 	"status":    statusCommand,
