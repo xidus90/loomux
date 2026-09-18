@@ -1,7 +1,9 @@
 package ask
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,6 +20,12 @@ import (
 // from ever refreshing again -- and the failure would be silent, which is the
 // worst kind.
 const lockStale = time.Hour
+
+// linkFile is the hard link takeOver restores a live lock with, swapped in a
+// test: every filesystem this repository is developed on supports links, so
+// the arm that matters -- the one a network share or an exFAT volume takes --
+// is not reachable otherwise.
+var linkFile = os.Link
 
 // Rebuild is the build a caller hands in.
 //
@@ -125,6 +133,20 @@ func lock(root string) bool {
 // The age and not os.SameFile against the earlier Stat: on Windows SameFile
 // looks the earlier file up again by its path, and after the rename that path
 // names nothing.
+//
+// The restore is a link where links work and a rename where they do not. The
+// link stays first because it cannot overwrite a lock a third run created in
+// the meantime -- an existing target is the one case where the live lock is
+// back already and this run has only its own copy left to drop. Any other
+// error is usually a filesystem with no hard links at all: a network share,
+// exFAT, a container bind mount. Removing the claim there, as this used to,
+// deleted the live lock and let both runs rebuild -- the stampede the lock
+// exists to prevent. A rename needs no link support and puts the file back.
+//
+// Usually, not always: EPERM under protected_hardlinks, EMLINK, ENOSPC and a
+// cross-device error reach the rename too, and there it can still overwrite a
+// lock a third run created in the window. That is the residual -- narrower
+// than what it replaces, which lost the live lock on every link failure.
 func takeOver(path string) bool {
 	claim := path + "." + strconv.Itoa(os.Getpid()) + ".stale"
 	if err := os.Rename(path, claim); err != nil {
@@ -132,8 +154,11 @@ func takeOver(path string) bool {
 	}
 	got, err := os.Stat(claim)
 	if err != nil || time.Since(got.ModTime()) < lockStale {
-		_ = os.Link(claim, path)
-		_ = os.Remove(claim)
+		if err := linkFile(claim, path); err == nil || errors.Is(err, fs.ErrExist) {
+			_ = os.Remove(claim)
+			return false
+		}
+		_ = os.Rename(claim, path)
 		return false
 	}
 	_ = os.Remove(claim)

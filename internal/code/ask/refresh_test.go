@@ -4,8 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -274,6 +276,62 @@ func TestTakeOverLeavesALiveLock(t *testing.T) {
 	b, err := os.ReadFile(path)
 	if err != nil || string(b) != "other" {
 		t.Fatalf("the other run's lock is gone: %q, %v", b, err)
+	}
+}
+
+func TestTakeOverLeavesALiveLockWithoutHardLinks(t *testing.T) {
+	root := t.TempDir()
+	path := ask.LockPath(root)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("other"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A network share, an exFAT volume, a container bind mount: the link fails
+	// and the restore has to happen anyway. Removing the claim regardless, as
+	// this used to, deleted the live lock and let both runs rebuild.
+	defer ask.SwapLinkFile(func(string, string) error {
+		return &os.LinkError{Op: "link", Err: errors.New("not supported")}
+	})()
+
+	if ask.TakeOver(path) {
+		t.Fatal("took over a live lock")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || string(b) != "other" {
+		t.Fatalf("the other run's lock is gone: %q, %v", b, err)
+	}
+	if _, err := os.Stat(path + "." + strconv.Itoa(os.Getpid()) + ".stale"); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the claim was left behind: %v", err)
+	}
+}
+
+func TestTakeOverDropsItsClaimWhenTheLockIsBackAlready(t *testing.T) {
+	root := t.TempDir()
+	path := ask.LockPath(root)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("other"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A third run created its own lock between the rename and the restore.
+	// Its lock is the live one; this run has nothing left but its copy, and a
+	// restore that overwrote the target would take that run's lock away.
+	defer ask.SwapLinkFile(func(_, newname string) error {
+		if err := os.WriteFile(newname, []byte("third"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return &os.LinkError{Op: "link", Err: fs.ErrExist}
+	})()
+
+	if ask.TakeOver(path) {
+		t.Fatal("took over a live lock")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || string(b) != "third" {
+		t.Fatalf("the third run's lock is gone: %q, %v", b, err)
 	}
 }
 
