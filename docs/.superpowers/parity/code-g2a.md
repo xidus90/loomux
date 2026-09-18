@@ -276,3 +276,21 @@ Für G2b und G4, damit sie es nicht suchen müssen:
   bevor die CLI-Verdrahtung dafür steht.
 - **Die `check`-Lanes `graph-freshness` und `blast-audit`** und die
   Post-Edit-Hook-Anbindung sind G4.
+- **Eine nicht parsbare Datei bricht den ganzen Bau ab** (`buildGraph` in
+  `internal/cli/graph.go`). Für G2a ist das richtig: ein Bau ist ausdrücklich,
+  und ein halber Graph, still geschrieben, ist schlechter als ein benannter
+  Fehler. Für **G4 ist es eine Entscheidung, keine Erbschaft**: im Hook-Pfad
+  ist eine Datei mitten in einer Bearbeitung der Normalfall, und dort ließe
+  dieses Verhalten sowohl `build` als auch `check` an ihr scheitern. Die Spec
+  schweigt dazu. G4 entscheidet bewusst — überspringen und zählen, oder
+  abbrechen wie hier.
+- **964 doppelte Kantentupel** im echten Graphen dieses Repos (gleiche Quelle,
+  Relation, Ziel und Konfidenz, eine je Aufrufstelle). Das ist das Verhalten der
+  Referenz und die Spec sagt nichts dazu, aber **G2b erbt es**: `pagerank`
+  gewichtet einen mehrfach vorkommenden Aufruf entsprechend stärker, und
+  `blast` liefert denselben Treffer mehrfach. Auch das ist dort zu entscheiden
+  und nicht zu übernehmen.
+
+Beide letzten Punkte stehen hier, weil sie sonst nur im Ausführungs-Ledger
+stünden, und das ist Wegwerf-Arbeitsverzeichnis: eine Verfügung, die mit dem
+Arbeitsverzeichnis stirbt, war eine Entscheidung im Verborgenen.
