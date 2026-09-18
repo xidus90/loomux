@@ -349,7 +349,7 @@ einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
    account“. Private Key erzeugen, App nur in `xidus90/loomux` installieren,
    dann:
    ```sh
-   gh secret set RELEASE_APP_ID --body <app-id>
+   gh secret set RELEASE_APP_CLIENT_ID --body <client-id>
    gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
    ```
 4. Rulesets (erst wenn das Repository öffentlich ist): eines für `master`
