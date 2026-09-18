@@ -133,7 +133,7 @@ var fixtureSites = []site{
 func TestGenerateMatchesTheScriptOnTheFixture(t *testing.T) {
 	ms := Generate("fixture.go.txt", []byte(fixtureSource))
 	if got := sites(ms); !slices.Equal(got, fixtureSites) {
-		t.Fatalf("got %d mutants:\n%q", len(got), got)
+		t.Fatalf("got %d mutants:\n%+v", len(got), got)
 	}
 	families := map[string]int{}
 	lines := strings.Split(fixtureSource, "\n")
@@ -152,7 +152,7 @@ func TestGenerateReadsCRLFAsTheScriptDoes(t *testing.T) {
 	crlf := strings.ReplaceAll(fixtureSource, "\n", "\r\n")
 	ms := Generate("fixture.go.txt", []byte(crlf))
 	if got := sites(ms); !slices.Equal(got, fixtureSites) {
-		t.Fatalf("got %d mutants:\n%q", len(got), got)
+		t.Fatalf("got %d mutants:\n%+v", len(got), got)
 	}
 	for _, m := range ms {
 		if strings.ContainsRune(m.Was, '\r') {
@@ -189,7 +189,7 @@ func TestGenerateNumbersLinesLikeTheScript(t *testing.T) {
 		{"a3", 11, "\ts := p < q\x1f\x1fr >= s"},
 	}
 	if got := sites(Generate("breaks.go", []byte(breaks))); !slices.Equal(got, want) {
-		t.Fatalf("got %d mutants:\n%q", len(got), got)
+		t.Fatalf("got %d mutants:\n%+v", len(got), got)
 	}
 }
 
