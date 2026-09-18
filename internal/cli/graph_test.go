@@ -282,6 +282,13 @@ func TestGraphCheckRefusesAGraphFromAnotherExtractor(t *testing.T) {
 		t.Fatal(err)
 	}
 	g.Meta.Extractor = "go/0"
+	// Also disagree with the tree on a node, not just on the stamp. If the
+	// stamp check ran after the diff instead of before it, the diff alone
+	// would report drift here and this test would catch that; with the
+	// disagreement removed, a "diff first" regression would produce the same
+	// clean-looking foreign report as the correct order, and the test
+	// couldn't tell the two designs apart.
+	g.Nodes[0].BodyHash = "not-a-real-hash"
 	if err := store.Write(root, g); err != nil {
 		t.Fatal(err)
 	}
@@ -293,8 +300,12 @@ func TestGraphCheckRefusesAGraphFromAnotherExtractor(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("exit %d, want 1", code)
 	}
-	if !strings.Contains(out.String(), "extractor") {
-		t.Errorf("report %q must say the graph is from another extractor", out.String())
+	report := out.String()
+	if !strings.Contains(report, "extractor") {
+		t.Errorf("report %q must say the graph is from another extractor", report)
+	}
+	if strings.Contains(report, "added") || strings.Contains(report, "removed") || strings.Contains(report, "changed") {
+		t.Errorf("report %q must not diff a foreign graph node by node", report)
 	}
 }
 
