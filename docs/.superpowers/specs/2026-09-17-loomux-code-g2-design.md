@@ -441,11 +441,13 @@ auf einem Feld, das auf dem Weg hinaus ist. Der Extraktor führt deshalb einen e
 Gültigkeitsbereich-Stapel, wie Graft es auch tut.
 
 Gemessen, damit die Entscheidung nicht nur Geschmack ist: Parsen mit Objektauflösung kostet auf
-diesem Repo warm ~38–45 ms gegen ~27–32 ms mit `SkipObjectResolution` (254 Dateien,
-2026-09-18, AMD Ryzen 7 9800X3D; die ursprüngliche Messung vom 2026-09-17 nannte 468 Dateien und
-58–59 ms gegen 44–46 ms — sie zählte einen eingehängten Checkout unter
-`.claude/worktrees/recursing-bartik-b2d7a1` mit, siehe die Korrektur und Rohausgabe in Abschnitt 11).
-Die ~13 ms wären so oder so zu verkraften; die Abkündigung ist der Grund, nicht die Zeit.
+diesem Repo warm 26,2 ms gegen 18,8 ms mit `SkipObjectResolution` (255 Dateien, 2026-09-18, AMD
+Ryzen 7 9800X3D, als reproduzierbare Go-Bank in
+`internal/code/extract/golang/parsefloor_bench_test.go`; Befehl und Rohausgabe in
+`docs/de/benchmarks.md`, Eintrag 2026-09-18 11:49). Die ursprüngliche Messung vom 2026-09-17 nannte
+468 Dateien und 58–59 ms gegen 44–46 ms — sie zählte einen eingehängten Checkout unter
+`.claude/worktrees/recursing-bartik-b2d7a1` mit, siehe die Korrektur in Abschnitt 11. Die ~7 ms
+wären so oder so zu verkraften; die Abkündigung ist der Grund, nicht die Zeit.
 
 **Zweitens: der gebundene Name ist die `package`-Klausel, nicht das letzte Pfadsegment.**
 `import "gopkg.in/yaml.v3"` bindet `yaml`, `import "github.com/x/go-foo"` kann `foo` binden. Ohne
@@ -791,14 +793,19 @@ zweiten, vollständigen Checkout desselben Codes unter `.claude/worktrees/recurs
 und der Lauf zählte ihn mit — 468 `.go`-Dateien insgesamt, davon 234 dieselben Dateien noch einmal
 unter diesem Worktree, 234 ohne ihn. Die Messung parste den Baum also zweimal.
 
-Aufgabe 10 hat das am 2026-09-18 gegen diesen Worktree neu gemessen, der keinen eingehängten
-Checkout enthält: **~27–32 ms warm** reines Parsen, **~38–45 ms warm** mit Objektauflösung, über die
-echten 254 Dateien dieses Baums (Rohausgabe in `docs/de/benchmarks.md`, Eintrag
-2026-09-18 11:10/11:35). Das ist der gültige Boden; die 44–46 ms und 58–59 ms oben sind falsch und
-stehen nur noch als Beleg dafür, woher der Fehler kam. AMD Ryzen 7 9800X3D für beide Messungen. Der
-Port nimmt weiterhin den schnellen Weg und führt den Gültigkeitsbereich selbst (6.2); der Grund war
-immer die Abkündigung von `ast.Object`, nicht die Zeitersparnis — das gilt mit dem korrigierten Boden
-unverändert.
+Aufgabe 10 hat das am 2026-09-18 zweimal neu gemessen, gegen diesen Worktree, der keinen
+eingehängten Checkout enthält. Ein erster Durchgang mit einem Wegwerfwerkzeug maß ~27–32 ms warm
+reines Parsen, ~38–45 ms warm mit Objektauflösung; diese Zahl hatte aber selbst keinen Befehl und
+keine Rohausgabe, die diese Spec oder das Benchmark-Journal trugen, und wird deshalb hier nicht mehr
+zitiert. **Der gültige Boden ist der zweite Durchgang**, als reproduzierbare Go-Bank geschrieben
+(`internal/code/extract/golang/parsefloor_bench_test.go`) und mit Befehl und Rohausgabe im
+Benchmark-Journal festgehalten (`docs/de/benchmarks.md`, Eintrag 2026-09-18 11:49): **18,8 ms warm**
+reines Parsen, **26,2 ms warm** mit Objektauflösung, über 255 Dateien (254 plus die neue Bank-Datei
+selbst). Diese Zahl liegt niedriger als der erste Durchgang — die Abweichung ist nicht untersucht,
+aber offen benannt statt verschwiegen. Die 44–46 ms und 58–59 ms oben sind falsch und stehen nur noch
+als Beleg dafür, woher der Fehler kam. Der Port nimmt weiterhin den schnellen Weg und führt den
+Gültigkeitsbereich selbst (6.2); der Grund war immer die Abkündigung von `ast.Object`, nicht die
+Zeitersparnis — das gilt mit jedem der beiden Böden unverändert.
 
 ## 12. Nachweise und Tor
 
@@ -889,10 +896,12 @@ Fällig in G2a, teils als Nachholung aus G1:
 1. Die offene G1-Messung: gepoolte Dangling-Masse ~9 ms gegen ~4,5 s je Dangling-Knoten auf einem
    Graphen mit 20k Knoten, 2026-09-16, AMD Ryzen 7 9800X3D — **nur warm. Die kalte Zahl fehlt und
    ist zu messen, nicht zu übernehmen.**
-2. `graph build` auf loomux selbst, kalt und warm, gegen die ~27–32 ms des reinen Parsens als
-   Untergrenze. Kalt heißt: frischer Prozess und keine Beiakte, und das ist beim Eintrag zu
-   vermerken. **Die zuerst genannten 44–46 ms waren falsch** — über einen Baum gemessen, der einen
-   eingehängten Checkout doppelt zählte (Abschnitt 11) —, die ~27–32 ms sind die Korrektur.
+2. `graph build` auf loomux selbst, kalt und warm, gegen die 18,8 ms des reinen Parsens als
+   Untergrenze (Abschnitt 11). Kalt heißt: frischer Prozess und keine Beiakte, und das ist beim
+   Eintrag zu vermerken. **Die zuerst genannten 44–46 ms waren falsch** — über einen Baum gemessen,
+   der einen eingehängten Checkout doppelt zählte —, und ein zwischenzeitlich genannter
+   ~27–32-ms-Boden trug keinen eigenen Befehl; 18,8 ms ist die Zahl mit reproduzierbarer Bank und
+   Rohausgabe.
 3. Die Sondendauer über die Dateimenge dieses Repos, gegen Grafts ~3 ms für 280 Dateien. **Diese
    Messung hat Abschnitt 7.1 entschieden** — mit einer dritten Antwort: nicht „Verzeichnislauf
    taugt" und nicht „auf `git ls-files` umstellen", sondern „der Sperrliste fehlte `testdata`".
@@ -915,14 +924,20 @@ und es ist best-effort: kein Server, ein Timeout oder ein Fehler lassen den Grap
 **Verworfen, mit Zahlen:** `golang.org/x/tools/go/packages` mit `NeedTypes` liefert echte Auflösung,
 kostet aber warm 680–1008 ms gegen 44–46 ms fürs reine Parsen — ein Faktor von rund dem 15- bis
 23-Fachen —, drei neue Module (`x/tools`, `x/mod`, `x/sync`) und einen Aufruf von `go list` zur
-Laufzeit. Gemessen am 2026-09-17, AMD Ryzen 7 9800X3D, warm, Wegwerfmodul im Scratchpad. **Beide
-Seiten dieses Paars liefen auf demselben doppelt gezählten Baum**, dessen falschen Zähler Abschnitt
-11 korrigiert (468 statt 254 Dateien, weil ein eingehängter Checkout mitgezählt wurde) — das
-**Verhältnis** trägt die Entscheidung, nicht die absoluten Millisekunden, und das Verhältnis ändert
-sich durch einen doppelt so großen, aber gleich zusammengesetzten Baum nicht: dieselben Dateien
-doppelt geparst verdoppeln beide Seiten der Division ungefähr gleich. Die absoluten Zahlen hier sind
-für diesen Baum in dieser Größe nicht neu gemessen; wer sie für eine andere Entscheidung braucht,
-misst sie gegen die echten 254 Dateien neu, nicht gegen diese Zeile.
+Laufzeit. Gemessen am 2026-09-17, AMD Ryzen 7 9800X3D, warm, Wegwerfmodul im Scratchpad — auf
+demselben doppelt gezählten Baum, dessen falschen Zähler Abschnitt 11 korrigiert (468 statt 254
+Dateien, weil ein eingehängter Checkout mitgezählt wurde). **Die folgende Zeile ist Schlussfolgerung,
+keine erneute Messung**: das Wegwerfmodul zog `x/tools`, `x/mod` und `x/sync` als Abhängigkeiten,
+genau die drei, die dieser Abschnitt als einen der Gründe gegen den Weg nennt, und es allein für eine
+Neuzählung wiederzubeleben ist den Aufwand nicht wert, wenn die Entscheidung ohnehin an der
+Abkündigung von `ast.Object` hängt, nicht an einer Zeitspanne. Die Überlegung: beide Seiten des
+Paars — Parsen und `go/packages`-Auflösung — liefen über denselben doppelt gezählten Baum, dieselben
+Dateien also zweimal auf beiden Seiten der Division, was das **Verhältnis** ungefähr erhält, auch
+wenn keine der beiden absoluten Zahlen diesen Baum in seiner echten Größe (254 Dateien) beschreibt.
+Das Verhältnis von rund dem 15- bis 23-Fachen ist deshalb eine plausible Schätzung, keine gemessene
+Tatsache für die echte Dateimenge; die Entscheidung selbst braucht sie nicht, weil sie an der
+Abkündigung hängt und nicht an der Zeit. Wer die absoluten Zahlen für eine andere Entscheidung
+braucht, misst sie neu gegen die echten 254 Dateien, statt diese Zeile weiterzuverwenden.
 
 **Ebenfalls verworfen:** `go/types` mit dem Quell-Importer der Standardbibliothek. Warm 7,5–14,4 s,
 und **50 von 76 Paketen scheitern**, weil der Quell-Importer keine Modulauflösung kennt und jede

@@ -661,8 +661,8 @@ comparisons were made on.
 |---|---:|---:|---|
 | pagerank dangling mass, pooled (20k nodes, 19,900 dangling) | 5.88 ms | — | ~9 ms pooled, 2026-09-16 |
 | pagerank dangling mass, per node (same graph) | 3.30 s | — | ~4.5 s per node, 2026-09-16 |
-| `graph build --root .` (this repository) | 219 ms wall / 196 ms self-reported | 213–236 ms wall / 190–212 ms self-reported | ~27–32 ms parsing floor, §11 (254 files, corrected — see Reading, point 2) |
-| `graph check --root .` (this repository) | — | 213–223 ms | n/a |
+| `graph build --root .` (this repository, pre-`SkipDir`, superseded) | 219 ms wall / 196 ms self-reported | 213–236 ms wall / 190–212 ms self-reported | superseded — see the 2026-09-18 11:49 entry below for the current figure and its own parsing-floor benchmark |
+| `graph check --root .` (this repository, pre-`SkipDir`, superseded) | — | 213–223 ms | n/a |
 | `freshness.Probe` alone (254 files, this repository) | — | 59.8 ms/op (10 reps) | ~3 ms for 280 files (Graft) |
 
 ### Reading
@@ -681,17 +681,18 @@ comparisons were made on.
    a stat may decide whether a *query* rebuilds, never what a rebuild looks
    at. There is no cache for `build` itself to warm.
    **Correction (2026-09-18, later the same day).** This entry originally read
-   "against the 44–46 ms parsing floor of §11, 190–219 ms is 4.3–4.8x". That
-   44–46 ms figure was wrong: it was measured over a tree that counted a
-   nested checkout at `.claude/worktrees/recursing-bartik-b2d7a1` twice (468
-   `.go` files total, 234 of them the same files again under that worktree,
-   234 without it). Re-measured against this worktree, which has no nested
-   checkout, the floor for these 254 files is **~27–32 ms warm** (parsing
-   alone) and **~38–45 ms warm** with object resolution. Against that
-   corrected floor and `build`'s 190–219 ms self-reported (254 files on both
-   sides), the multiple is **roughly 5–7×**, not 4.3–4.8×; extraction,
-   resolution and writing the graph and the freshness record still account for
-   the rest, and no measurement in this entry decomposes that further.
+   "against the 44–46 ms parsing floor of §11, 190–219 ms is 4.3–4.8x", and a
+   same-day fix then wrote "`build`'s 190–219 ms self-reported" — also wrong,
+   since 219 ms in this entry's own table above is the *cold wall-clock*
+   figure, not self-reported (self-reported cold is 196 ms). **Both the floor
+   and the `build` figures in this entry are superseded, and neither belongs
+   here any further**: `SkipDir` shipped after this entry was written and made
+   `build` itself faster (see the 2026-09-18 11:49 entry below, which carries
+   its own command and raw output, measured once on the final tree, after
+   every code change this task made). This paragraph is left in place, struck
+   through in spirit rather than deleted, because the journal is chronological
+   and a wrong number that vanishes teaches the next reader nothing about why
+   it was wrong.
 3. **`graph check`, warm, costs about what `build` costs, which is the design,
    not a defect.** 213–223 ms against `build`'s 190–212 ms warm: `check`
    re-extracts the whole tree to compare body hashes, so its cost is a second
@@ -812,3 +813,145 @@ there. Build and check times (152–217 ms) are within the noise of the
    round's own test additions — confirming that `testdata/` held nothing the
    graph needs, and that the fix cost the probe its walk time without costing
    the graph anything.
+
+The `graph build`/`graph check` figures above (152–157 ms self-reported,
+176–217 ms wall) are this round's own, honestly measured and left as-is; a
+later change (`goModPaths` sharing `sourceset.SkipDir`, see the commit after
+this one) made `build` faster still. The current figure, measured once after
+every code change this task made, is in the 2026-09-18 11:49 entry below.
+
+## 2026-09-18 11:49 — Final Numbers, Measured Once After the Last Code Change
+
+Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
+branch `code-g2`, on top of commit `cc8f7f0` (`goModPaths` now shares
+`sourceset.SkipDir`) — no further code change follows this entry. Every
+number below was measured in one sitting, after all of task 10's code changes
+had landed, specifically to close two problems the previous two entries had:
+the `build` figures in the 2026-09-18 11:10 entry were overtaken by the very
+commit that entry described (`SkipDir` stopped `goModPaths` from walking
+`testdata/`, so `build` got faster the same day it was measured slower), and
+the "~27–32 ms parsing floor" both benchmarks files asserted had no command
+or raw output of its own — it pointed at the design spec, which pointed back
+here. Every figure below carries its own command and its own raw output; none
+of them cites the spec, and none of them reuses a number this task did not
+measure itself on this machine.
+
+**The parsing floor, measured here for the first time as a real benchmark**
+(`internal/code/extract/golang/parsefloor_bench_test.go`, new in this
+commit): `go/parser` alone over this repository's real file set, with and
+without `parser.SkipObjectResolution`, mirroring the choice `extract.go`
+documents (`ast.Object` is deprecated, so the extractor keeps its own scope
+stack instead of asking `go/parser` to resolve identifiers).
+
+```
+$ go test ./internal/code/extract/golang/ -bench BenchmarkParse -benchtime 10x -v
+goos: windows
+goarch: amd64
+pkg: github.com/xidus90/loomux/internal/code/extract/golang
+cpu: AMD Ryzen 7 9800X3D 8-Core Processor
+BenchmarkParseSkipObjectResolution
+    parsefloor_bench_test.go:57: parsing 255 files
+    parsefloor_bench_test.go:57: parsing 255 files
+BenchmarkParseSkipObjectResolution-16    	      10	  18755780 ns/op
+BenchmarkParseWithObjectResolution
+    parsefloor_bench_test.go:74: parsing 255 files
+    parsefloor_bench_test.go:74: parsing 255 files
+BenchmarkParseWithObjectResolution-16    	      10	  26208830 ns/op
+PASS
+ok  	github.com/xidus90/loomux/internal/code/extract/golang	0.735s
+```
+
+**These figures — 18.8 ms / 26.2 ms warm over 255 files — differ from the
+~27–32 ms / ~38–45 ms the coordinator measured with a separate scratch
+harness on 2026-09-17.** Mine are lower on both sides and are the ones this
+document now carries, because they come with the command above, are
+reproducible with `go test`, and were taken on the same tree as every other
+number in this entry. I did not investigate the gap (different point in time,
+different process, a possibly different set of files — this benchmark counts
+255, the coordinator's harness counted 254) beyond noting it plainly rather
+than silently picking whichever number was more convenient.
+
+**`graph build` and `graph check`, cold and warm, on a binary built from this
+commit:**
+
+```
+$ go build -o /tmp/loomux-final.exe ./cmd/loomux
+$ rm -rf .loomux/state/graph && time /tmp/loomux-final.exe graph build --root .
+255 files, 2808 nodes, 9003 edges (2553 contains, 5092 calls, 1358 imports)
+1128 unresolved import targets, 3 files without a symbol, 94ms
+real	0m0.151s
+
+$ time /tmp/loomux-final.exe graph build --root .
+255 files, 2808 nodes, 9003 edges (2553 contains, 5092 calls, 1358 imports)
+1128 unresolved import targets, 3 files without a symbol, 106ms
+real	0m0.131s
+
+$ time /tmp/loomux-final.exe graph build --root .
+255 files, 2808 nodes, 9003 edges (2553 contains, 5092 calls, 1358 imports)
+1128 unresolved import targets, 3 files without a symbol, 98ms
+real	0m0.127s
+
+$ time /tmp/loomux-final.exe graph check --root .
+loomux graph check: OK
+real	0m0.136s
+```
+
+**`freshness.Probe` alone:**
+
+```
+$ go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x -v
+BenchmarkProbe
+    probe_bench_test.go:61: probing 255 files
+    probe_bench_test.go:61: probing 255 files
+BenchmarkProbe-16    	      10	   4245920 ns/op
+PASS
+```
+
+**The pagerank dangling-mass pair, cold, one process each, re-confirmed on
+this tree** (no code in `internal/code/pagerank` changed since the
+2026-09-18 11:10 entry, but this entry's rule is "measured in this sitting or
+it does not go in this entry"):
+
+```
+$ go test ./internal/code/pagerank/ -run XXX -bench BenchmarkDanglingPooled -benchtime 1x -count 1
+BenchmarkDanglingPooled-16    	       1	   6352900 ns/op
+
+$ go test ./internal/code/pagerank/ -run XXX -bench BenchmarkDanglingPerNode -benchtime 1x -count 1
+BenchmarkDanglingPerNode-16    	       1	3865115600 ns/op
+```
+
+| case | figure | command |
+|---|---:|---|
+| parsing floor, `SkipObjectResolution` (255 files, warm) | 18.8 ms | `go test ./internal/code/extract/golang/ -bench BenchmarkParseSkipObjectResolution -benchtime 10x` |
+| parsing floor, with object resolution (255 files, warm) | 26.2 ms | `go test ./internal/code/extract/golang/ -bench BenchmarkParseWithObjectResolution -benchtime 10x` |
+| `graph build --root .`, cold (255 files) | 151 ms wall / 94 ms self-reported | `rm -rf .loomux/state/graph && time /tmp/loomux-final.exe graph build --root .` |
+| `graph build --root .`, warm (255 files, two repeats) | 127–131 ms wall / 98–106 ms self-reported | `time /tmp/loomux-final.exe graph build --root .` |
+| `graph check --root .`, warm | 136 ms wall, exit 0 | `time /tmp/loomux-final.exe graph check --root .` |
+| `freshness.Probe` alone (255 files, 10 reps) | 4.25 ms/op | `go test ./internal/code/freshness/ -bench BenchmarkProbe -benchtime 10x` |
+| pagerank dangling mass, pooled (20k nodes, cold, one process) | 6.35 ms | `go test ./internal/code/pagerank/ -run XXX -bench BenchmarkDanglingPooled -benchtime 1x -count 1` |
+| pagerank dangling mass, per node (20k nodes, cold, one process) | 3.87 s | `go test ./internal/code/pagerank/ -run XXX -bench BenchmarkDanglingPerNode -benchtime 1x -count 1` |
+
+### Reading
+
+1. **`build` against its own floor: about 5–7×, on numbers that share a
+   command each.** 94–106 ms self-reported (255 files) against an 18.8 ms
+   parsing-only floor is 5.0–5.6×; against the 26.2 ms floor with object
+   resolution, 3.6–4.0×. Both are in the same range the earlier, doubled-tree
+   comparison landed on by accident (4.3–4.8× and, corrected, 5–7×) — the
+   ratio held up across a wrong floor, a corrected-but-uncommitted floor, and
+   now a floor with its own reproducible benchmark, which is some evidence
+   the extraction-and-resolution cost above the parse floor is a stable
+   multiple of it rather than an artifact of any one measurement's error.
+2. **`build` got faster than every previous entry in this file reported, and
+   the reason is a change this task made, not noise.** 94–106 ms self-reported
+   here against 190–212 ms in the 11:10 entry and 152–157 ms in the 11:35
+   entry, on the same 254–255 files: `goModPaths` no longer walks 1,826
+   `testdata/` directories looking for a `go.mod` it also never finds there.
+   This entry is the only one of the three where the number and the code that
+   produced it are the same commit.
+3. **The dangling-mass ratio is stable across re-measurement.** 6.35 ms
+   pooled against 3.87 s per node here, against 5.88 ms / 3.30 s in the 11:10
+   entry and ~9 ms / ~4.5 s on 2026-09-16 — all cold, single-process, same
+   machine, three different sessions. The absolute numbers move by run-to-run
+   noise (a factor of ~1.1–1.2×); the ~500–600× ratio between pooled and
+   per-node does not.
