@@ -1,7 +1,10 @@
 # loomux — Code-Graph & Graph Engineering (Säule 3)
 
 **Datum:** 2026-09-14  
-**Stand:** entworfen; G1 umgesetzt 2026-09-17, vorgezogen vor Fusions-Stufe 1b-2 und berichtigt durch [`2026-09-16-loomux-code-g1-delta.md`](2026-09-16-loomux-code-g1-delta.md); G2 ff. offen  
+**Stand:** entworfen; **G1 umgesetzt 2026-09-17**, **G2a umgesetzt 2026-09-18**, beide vorgezogen vor
+Fusions-Stufe 1b-2. Berichtigt durch [`2026-09-16-loomux-code-g1-delta.md`](2026-09-16-loomux-code-g1-delta.md)
+und [`2026-09-17-loomux-code-g2-design.md`](2026-09-17-loomux-code-g2-design.md) — bei Widerspruch
+gelten die beiden jüngeren Dokumente. G2b geplant und offen, G3 ff. offen  
 **Ort:** `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md`  
 **Ergänzt:** `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` (Säule: *Graph + Loop Engineering*)  
 **Referenz-Analyse:** `trailhq/Graft` (TypeScript, Node.js)  
@@ -232,15 +235,21 @@ Zwei CLI-Befehle werden direkt als Lanes in `loomux check` (Pre-Commit und Pre-P
 
 ## 10. Stufenplan (Nach Abschluss der Fusion)
 
-Die Umsetzung startet nach Stufe 4 der Fusions-Spec (`2026-09-14-loomux-fusion-design.md`):
+Diese Reihenfolge galt ursprünglich „nach Stufe 4 der Fusions-Spec"
+(`2026-09-14-loomux-fusion-design.md`). **So ist es nicht gekommen, und das war
+Absicht:** G1 und G2a wurden vorgezogen und parallel zu den Fusions-Stufen 1b-1
+und 1b-2 gebaut. Der Grund steht in §1 des G1-Deltas — die Begründung für die
+alte Reihenfolge (§11: Inittrace mit dem MCP-SDK) bindet G1 und G2a nicht, weil
+beide keine Abhängigkeit einziehen; die Messung gehört zu G3, wo
+`internal/serve` das SDK tatsächlich holt.
 
-| Stufe | Inhalt |
-|---|---|
-| **G1** | Paket `internal/graph/model`, `pagerank`, `blast` in Pure Go. 100 % Unit-Tests mit deterministischer Tie-Ordnung. Inittrace-Messung mit `go-sdk`. |
-| **G2** | Nativer Go-Extraktor (`extract/golang`), Frische-Check (`freshness`), Speicherung unter `.loomux/state/graph/`. CLI-Befehle `loomux graph build` und `loomux graph check`. |
-| **G3** | MCP-Integration: Verschachteltes Gateway in `internal/serve`, Handler `internal/serve/graph/`, Kanaltrennung mit Privacy-Schutz. Bereitstellung der 6 MCP-Tools: `graph_find_code`, `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`, `graph_check_freshness`. |
-| **G4** | Vollständige CLI-Palette: `loomux graph ask`, `callers`, `blast`, `grep`, `skeleton`, `map`, `stats`. Post-Edit-Hook-Anbindung (informativer Blast-Radius). Verknüpfung von Code-Symbolen mit Second-Brain-Seiten (`internal/brain/wiki`). |
-| **G5** | Multi-Language-Support: WASM-Tree-sitter via `wazero` für TypeScript und Python. Graph-Visualisierung `loomux graph viz` angebunden an `loomux/web`. |
+| Stufe | Stand | Inhalt |
+|---|---|---|
+| **G1** | ✅ 2026-09-17 | Paket `internal/graph/model`, `pagerank`, `blast` in Pure Go. 100 % Unit-Tests mit deterministischer Tie-Ordnung. Inittrace-Messung mit `go-sdk`. |
+| **G2** | 🔶 G2a ✅ 2026-09-18, G2b offen | Nativer Go-Extraktor (`extract/golang`), Frische-Check (`freshness`), Speicherung unter `.loomux/state/graph/`. CLI-Befehle `loomux graph build` und `loomux graph check`. |
+| **G3** | offen | MCP-Integration: Verschachteltes Gateway in `internal/serve`, Handler `internal/serve/graph/`, Kanaltrennung mit Privacy-Schutz. Bereitstellung der 6 MCP-Tools: `graph_find_code`, `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`, `graph_check_freshness`. |
+| **G4** | offen | Vollständige CLI-Palette: `loomux graph ask`, `callers`, `blast`, `grep`, `skeleton`, `map`, `stats`. Post-Edit-Hook-Anbindung (informativer Blast-Radius). Verknüpfung von Code-Symbolen mit Second-Brain-Seiten (`internal/brain/wiki`). |
+| **G5** | offen | Multi-Language-Support: WASM-Tree-sitter via `wazero` für TypeScript und Python. Graph-Visualisierung `loomux graph viz` angebunden an `loomux/web`. |
 
 ---
 

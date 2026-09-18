@@ -1,8 +1,16 @@
 # loomux — ultraloom und ultra-brain in einem Go-Binary
 
 **Datum:** 2026-09-14
-**Stand:** teilweise umgesetzt (2026-09-17): Stufe 1a, 1b-1 und 1b-3 (Wiki- und Doku-Umzug) sind
-abgeschlossen; 1b-2 (`serve`, MCP, Brücke, Upkeep) und die Stufen 2–4 sind offen
+**Stand:** teilweise umgesetzt (2026-09-18).
+**Fusions-Stufen:** 1a, 1b-1 und 1b-3 (Wiki- und Doku-Umzug) sind abgeschlossen;
+1b-2 (`serve`, MCP, Brücke, Upkeep) und die Stufen 2–4 sind offen.
+**Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
+Blast) am 2026-09-17 und G2a (Extraktor, Auflösung, Speicher, Frische, die
+Befehle `graph build` und `graph check`) am 2026-09-18 abgeschlossen; G2b (die
+Abfrage) ist geplant, G3 ff. offen. Die Vorziehung war Absicht: beide Stufen
+ziehen keine Abhängigkeit ein, und die Messung, die die alte Reihenfolge
+begründete, gehört zu G3
+(`2026-09-14-loomux-code-graph-design.md` §10, `2026-09-16-loomux-code-g1-delta.md` §1)
 **Ort:** vorläufig im `ultraloom`-Worktree `claude/ultra-loom-brain-fusion-a5bb17`,
 weil das Zielrepo `xidus90/loomux` noch nicht existiert. Zieht mit Stufe 1a um.
 **Löst ab:** ulflow M4–M6
