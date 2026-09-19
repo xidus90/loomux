@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/xidus90/loomux/internal/detect"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 var knownLegacyHooks = []struct {
@@ -131,73 +134,19 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 	fmt.Fprintln(stdout, "  -> loomux hook pre-tool-use (policy and write barrier)")
 
 	fmt.Fprintln(stdout, "\n[PostToolUse] (Matcher: Write|Edit|NotebookEdit)")
-	fmt.Fprintln(stdout, "  -> loomux hook post-tool-use (concurrent lanes per file type):")
-
-	if hasStack("python") {
-		if hasStack("pyright") {
-			if hasStack("uv") {
-				fmt.Fprintln(stdout, "     * *.py:           ruff check --output-format=concise . [parallel]")
-				fmt.Fprintln(stdout, "                       uv run pyright [parallel]")
-			} else {
-				fmt.Fprintln(stdout, "     * *.py:           ruff check --output-format=concise . [parallel]")
-				fmt.Fprintln(stdout, "                       pyright [parallel]")
-			}
-		} else if hasStack("uv") {
-			fmt.Fprintln(stdout, "     * *.py:           ruff check --output-format=concise . [parallel]")
-			fmt.Fprintln(stdout, "                       dmypy run -- --no-error-summary --no-pretty [parallel]")
-		} else {
-			fmt.Fprintln(stdout, "     * *.py:           ruff check --output-format=concise . [parallel]")
-			fmt.Fprintln(stdout, "                       mypy --no-error-summary --no-pretty [parallel]")
-		}
-	}
-	if hasStack("gdscript") {
-		fmt.Fprintln(stdout, "     * *.gd:           gdlint <target-file>")
-	}
-	if hasStack("cpp") {
-		fmt.Fprintln(stdout, "     * *.cpp, *.hpp:   clang-format -i <target-file> [parallel]")
-		fmt.Fprintln(stdout, "                       cmake --build build --parallel [parallel]")
-	}
-	if hasStack("typescript") {
-		fmt.Fprintln(stdout, "     * *.ts, *.tsx:    npx eslint . [parallel]")
-		fmt.Fprintln(stdout, "                       npx tsc --noEmit [parallel]")
-	}
-	if hasStack("vue") {
-		fmt.Fprintln(stdout, "     * *.vue:          npx vue-tsc --noEmit")
-	}
-	if hasStack("svelte") {
-		fmt.Fprintln(stdout, "     * *.svelte:       npx svelte-check")
-	}
-	if hasStack("css") {
-		fmt.Fprintln(stdout, "     * *.css, *.scss:  npx stylelint <target-file>")
-	}
-	if hasStack("html") {
-		fmt.Fprintln(stdout, "     * *.html:         npx htmlhint <target-file>")
-	}
-	if hasStack("shell") {
-		fmt.Fprintln(stdout, "     * *.sh, *.bash:   shellcheck <target-file>")
-	}
-	if hasStack("sql") {
-		fmt.Fprintln(stdout, "     * *.sql:          sqlfluff lint <target-file>")
-	}
-	if hasStack("rust") {
-		fmt.Fprintln(stdout, "     * *.rs:           cargo clippy -- -D warnings [parallel]")
-		fmt.Fprintln(stdout, "                       cargo fmt --check [parallel]")
-	}
-	if hasStack("go") {
-		if hasStack("golangci-lint") {
-			fmt.Fprintln(stdout, "     * *.go:           golangci-lint run --fast [parallel]")
-			fmt.Fprintln(stdout, "                       go vet ./... [parallel]")
-		} else {
-			fmt.Fprintln(stdout, "     * *.go:           go vet ./...")
-		}
-	}
-	if hasStack("wiki") {
+	// The lanes as post-edit plans them, from [verify] and the presets: a
+	// second list here drifted from what ran.
+	eff, lanesErr := editLoad(root, facts)
+	writeEditLanes(stdout, eff, lanesErr)
+	if hasStack("wiki") && eff.Config.Stacks["wiki"]["lint"].Lane.Off {
+		fmt.Fprintf(stdout, "     * *.md (in %s): off [config]\n", wikiDir)
+	} else if hasStack("wiki") {
 		fmt.Fprintf(stdout, "     * *.md (in %s): loomux lint <target-file>\n", wikiDir)
 		fmt.Fprintln(stdout, "     * *.md (outside): [SKIPPED] Instant 0ms exit")
 	} else {
 		fmt.Fprintln(stdout, "     * *.md:           [SKIPPED] Instant 0ms exit (Wiki disabled)")
 	}
-	fmt.Fprintln(stdout, "     * non-code files: [SKIPPED] Instant 0ms exit (.json, .yaml, .toml, images, ...)")
+	writeIgnored(stdout, eff.Ignored)
 
 	fmt.Fprintln(stdout, "\n[Stop] (Session End Gate)")
 	if hasStack("wiki") {
@@ -231,7 +180,7 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 			fmt.Fprintf(stdout, "   • [%s] %s\n     Reason: %s\n", f.Event, f.Command, f.Reason)
 		}
 	}
-	renderLaneTools(stdout, unavailableLanes(facts.Stacks, exec.LookPath, root, wikiDir))
+	renderLaneTools(stdout, unavailableLanes(eff, exec.LookPath))
 
 	fmt.Fprintln(stdout, "================================================================================")
 
@@ -241,32 +190,87 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 // unavailableLanes names every tool a configured lane would start that this
 // machine does not have.
 //
-// Built from getCommandsForStacks -- the same builder the hook runs -- and not
-// from the lane list printed above it. A second list drifts, and this one has
-// to be about the lanes that actually run.
+// Built from the lanes [verify] and the presets lay out -- what the hook and
+// `loomux check` run -- and not from the lane list printed above it. A second
+// list drifts, and this one has to be about the lanes that actually run.
 //
 // This report is the standing answer to the same question the hook answers
-// per edit. `commandRunner` drops a lane whose tool is missing -- the edit is
-// not blocked -- but names it on stderr as it goes; here the whole set is
-// listed at once, before an edit rather than after one.
-func unavailableLanes(stacks []string, look func(string) (string, error), projectRoot string, wikiDir string) []string {
+// per edit: a lane whose tool is missing is dropped there and named as it
+// goes; here the whole set is listed at once, before an edit rather than
+// after one. Without lanes -- a config they cannot be read from -- it lists
+// nothing; the report names that error above.
+func unavailableLanes(eff verify.Effective, look func(string) (string, error)) []string {
 	seen := map[string]bool{}
 	var missing []string
-	// The wide form: no target, so every configured lane contributes its tool.
-	for _, cmd := range getCommandsForStacks(stacks, "", false, "", "", projectRoot, wikiDir) {
-		tool := laneTool(cmd.text)
-		// A lane that runs in this process needs nothing on the PATH, so its
-		// text names no tool to install.
-		if cmd.run != nil || tool == "" || seen[tool] {
-			continue
-		}
-		seen[tool] = true
-		if _, err := look(tool); err != nil {
-			missing = append(missing, tool)
+	for _, stack := range eff.Active {
+		for _, kind := range verify.Kinds() {
+			lane := eff.Stacks[stack][kind].Lane
+			for _, command := range slices.Concat(lane.Commands, lane.OnFile, []string{lane.Measuring, lane.Measure}) {
+				fields := strings.Fields(command)
+				// {loomux} is this binary, which is running; the wiki lane
+				// runs in this process and has no command at all.
+				if len(fields) == 0 || fields[0] == "{loomux}" || seen[fields[0]] {
+					continue
+				}
+				seen[fields[0]] = true
+				if _, err := look(fields[0]); err != nil {
+					missing = append(missing, fields[0])
+				}
+			}
 		}
 	}
 	sort.Strings(missing)
 	return missing
+}
+
+// writeEditLanes lists the lanes of the `edit` profile for every active
+// stack: the on-file form where a lane has one, since that is what an edit
+// runs, and the layer that shaped it. A lane that is not defined runs nothing
+// and is left out; one switched off says so.
+func writeEditLanes(w io.Writer, eff verify.Effective, err error) {
+	if err != nil {
+		fmt.Fprintf(w, "  -> loomux hook post-tool-use:\n     [ERROR] the lanes cannot be read: %v\n", err)
+		return
+	}
+	// The defaults hold an edit profile and a config can only replace it.
+	kinds, _ := verify.ExpandProfile(eff.Config, "edit")
+	fmt.Fprintf(w, "  -> loomux hook post-tool-use (profile `edit`: %s):\n", strings.Join(kinds, ", "))
+	for _, stack := range eff.Active {
+		globs := []string{}
+		for _, ext := range slices.Sorted(maps.Keys(eff.Extensions)) {
+			if eff.Extensions[ext] == stack {
+				globs = append(globs, "*"+ext)
+			}
+		}
+		for _, kind := range kinds {
+			r := eff.Stacks[stack][kind]
+			head := fmt.Sprintf("     * %s (%s) %s:", stack, strings.Join(globs, ", "), kind)
+			if r.Lane.Off {
+				fmt.Fprintf(w, "%s off [%s]\n", head, r.Origin)
+				continue
+			}
+			cmds := r.Lane.OnFile
+			if len(cmds) == 0 && stack != "project" {
+				cmds = r.Lane.Commands
+			}
+			if !r.Defined || len(cmds) == 0 {
+				continue
+			}
+			tags := r.Origin
+			if r.Lane.Threaded {
+				tags += ", parallel"
+			}
+			fmt.Fprintf(w, "%s %s [%s]\n", head, strings.Join(cmds, " ; "), tags)
+		}
+	}
+}
+
+// writeIgnored names the extensions post-edit leaves alone.
+func writeIgnored(w io.Writer, ignored []string) {
+	if len(ignored) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "     * ignored (%s): [SKIPPED] no lane runs\n", strings.Join(ignored, ", "))
 }
 
 func renderLaneTools(stdout io.Writer, missing []string) {
@@ -278,6 +282,6 @@ func renderLaneTools(stdout io.Writer, missing []string) {
 		return
 	}
 	for _, tool := range missing {
-		fmt.Fprintf(stdout, " [WARN] %s is not on PATH: its lane is configured and silently skipped.\n", tool)
+		fmt.Fprintf(stdout, " [WARN] %s is not on PATH: its lane is configured and skipped on every edit.\n", tool)
 	}
 }

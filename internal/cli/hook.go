@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/hooks"
@@ -17,6 +18,9 @@ var malformed = map[string]int{
 	"post-tool-use": hooks.ExitInternal,
 	"session-start": hooks.ExitInternal,
 }
+
+// postToolUse is the seam a test uses to see what the flags handed on.
+var postToolUse = hooks.PostToolUse
 
 func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
@@ -33,6 +37,11 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags.SetOutput(stderr)
 	root := flags.String("root", "", "path to the project root; found upwards when empty")
 	host := flags.String("host", "", "the harness calling: claude, antigravity or codex")
+	// Only post-edit runs lanes, so only it has a budget to spend on them.
+	budget := new(time.Duration)
+	if event == "post-tool-use" {
+		budget = flags.Duration("budget", hooks.DefaultBudget, "how long the post-edit lanes may take in all")
+	}
 	if err := flags.Parse(args[1:]); err != nil {
 		return failure
 	}
@@ -59,7 +68,7 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case "pre-tool-use":
 		return hooks.PreToolUse(stdin, stdout, stderr, resolved, config.StateDir())
 	case "post-tool-use":
-		return hooks.PostToolUse(stdin, stdout, stderr, resolved)
+		return postToolUse(stdin, stdout, stderr, resolved, *budget)
 	default:
 		return hooks.SessionStart(stdin, stdout, stderr, resolved, *host)
 	}
