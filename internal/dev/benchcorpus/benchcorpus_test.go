@@ -626,3 +626,29 @@ func TestPickSampleFileSkipsUnreadableDirs(t *testing.T) {
 		t.Errorf("pickSampleFile = %q, want src/b.go", got)
 	}
 }
+
+// A C++ project with shell scripts is audited for what post-edit runs on an
+// edit: clang-format on the file rather than clang-tidy on the build tree,
+// and shellcheck, whose lane has only a form for one file.
+func TestBenchmarkRepoAuditsTheEditForms(t *testing.T) {
+	mockFS := fstest.MapFS{
+		"CMakeLists.txt": &fstest.MapFile{Data: []byte("project(p)\n")},
+		".clang-format":  &fstest.MapFile{Data: []byte("BasedOnStyle: LLVM\n")},
+		".shellcheckrc":  &fstest.MapFile{Data: []byte("\n")},
+		"main.cpp":       &fstest.MapFile{Data: []byte("int main() {}\n")},
+		"run.sh":         &fstest.MapFile{Data: []byte("#!/bin/sh\n")},
+	}
+	openFS := func(string) (fs.FS, error) { return mockFS, nil }
+	runner := func(string, []string, []byte, time.Duration) (string, int, bool, error) { return "", 0, false, nil }
+	audit, err := BenchmarkRepo("/repo/cpp", Options{WarmRuns: 1}, runner, fixedClock(), openFS, noLookPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	lanes := map[string]string{}
+	for _, a := range audit.Audit {
+		lanes[a.Tool] = a.Lane
+	}
+	if lanes["clang-format"] != "clang-format --dry-run --Werror {file}" || lanes["shellcheck"] != "shellcheck {file}" {
+		t.Errorf("audited lanes = %q, executed = %q", lanes, audit.ExecutedLanes)
+	}
+}

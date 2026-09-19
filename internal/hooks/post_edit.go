@@ -287,22 +287,32 @@ func StackForExtension(ext string) (string, bool) {
 	return stack, ok
 }
 
-// EditLaneCommands are the whole-project commands of the lanes the edit
-// profile runs for stacks when no config changes them, stack by stack in the
-// order given, so the bench corpus audits what post-edit would run.
-func EditLaneCommands(stacks []string) []string {
+// EditLaneCommands are the commands post-edit runs for a project with these
+// facts when no config changes them: the variant a detected signal selects,
+// each lane's form for one file where it has one, stack by stack in byte
+// order. {file} stays as it is, since the audit reads only the tool.
+func EditLaneCommands(facts detect.Facts) []string {
 	presets, err := editPresets()
 	if err != nil {
 		return nil
 	}
-	// An empty document is the default config, and the default holds an
-	// edit profile, so neither step can fail.
+	// An empty document is the default config, which holds an edit profile
+	// and forms no ring with the presets, so none of these steps can fail.
 	cfg, _ := verify.ParseConfig("", map[string]any{})
+	eff, _ := verify.Resolve(cfg, presets, facts)
 	kinds, _ := verify.ExpandProfile(cfg, "edit")
 	var out []string
-	for _, stack := range stacks {
+	for _, stack := range eff.Active {
 		for _, kind := range kinds {
-			for _, c := range presets.Stacks[stack].Lanes[kind].Commands {
+			r := eff.Stacks[stack][kind]
+			if !r.Defined {
+				continue
+			}
+			cmds := r.Lane.OnFile
+			if len(cmds) == 0 {
+				cmds = r.Lane.Commands
+			}
+			for _, c := range cmds {
 				out = append(out, strings.ReplaceAll(c, "{loomux}", "loomux"))
 			}
 		}

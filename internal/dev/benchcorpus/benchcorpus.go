@@ -46,7 +46,7 @@ func BenchmarkRepo(dir string, opts Options, runner ProcessRunner, clock func() 
 
 	signals := InspectProject(rootFS)
 	facts := detect.Detect(rootFS)
-	lanes := hooks.EditLaneCommands(facts.Stacks)
+	lanes := hooks.EditLaneCommands(facts)
 	lanes = append(lanes, gateLanes(rootFS)...)
 	checks, gaps, rate := AuditGaps(signals, facts.Stacks, lanes, lookPath)
 
