@@ -20,28 +20,12 @@ import (
 	"github.com/xidus90/loomux/internal/cases"
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
-	"github.com/xidus90/loomux/internal/dev/covergate"
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 	"github.com/xidus90/loomux/internal/dev/recordcase"
 	"github.com/xidus90/loomux/internal/dev/swap"
 	"github.com/xidus90/loomux/internal/gitenv"
 )
-
-const module = "github.com/xidus90/loomux"
-
-var coverFunc = runCoverFunc
-
-// runCoverFunc keeps the tool's stderr in the error: exec alone would report
-// only an exit status, never why the profile was unusable.
-func runCoverFunc(profile string) ([]byte, error) {
-	out, err := exec.Command("go", "tool", "cover", "-func="+profile).Output()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return out, fmt.Errorf("%w: %s", err, bytes.TrimSpace(exit.Stderr))
-	}
-	return out, err
-}
 
 var benchExec = benchhooks.Exec
 
@@ -59,7 +43,6 @@ var recordMCPCase = recordcase.RecordMCP
 var devCommands = map[string]command{
 	"bench":           devBench,
 	"bench-hooks":     devBenchHooks,
-	"covergate":       devCovergate,
 	"import-cases":    devImportCases,
 	"mutants":         devMutants,
 	"record-case":     devRecordCase,
@@ -200,31 +183,6 @@ func devBenchHooks(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
-}
-
-func devCovergate(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("dev covergate", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	profile := fs.String("profile", "coverage.out", "coverage profile written by go test")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	out, err := coverFunc(*profile)
-	if err != nil {
-		fmt.Fprintf(stderr, "loomux dev covergate: %v\n", err)
-		return 1
-	}
-	lines, err := covergate.Parse(bytes.NewReader(out))
-	if err != nil {
-		fmt.Fprintf(stderr, "loomux dev covergate: %v\n", err)
-		return 1
-	}
-	// A gate that finds nothing to judge must not pass.
-	if len(lines) == 0 {
-		fmt.Fprintf(stderr, "loomux dev covergate: no functions in %s\n", *profile)
-		return 1
-	}
-	return covergate.Gate(lines, module, os.ReadFile, stdout)
 }
 
 // envFlags collects a KEY=VALUE flag that may be given more than once.

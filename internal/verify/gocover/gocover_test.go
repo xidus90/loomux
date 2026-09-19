@@ -1,4 +1,4 @@
-package covergate
+package gocover
 
 import (
 	"bytes"
@@ -80,5 +80,31 @@ func TestGateFailsWhenTheSourceCannotBeRead(t *testing.T) {
 	var out bytes.Buffer
 	if code := Gate(lines, "github.com/xidus90/loomux", files(nil), &out); code != 1 {
 		t.Fatalf("code %d", code)
+	}
+}
+
+func TestModulePath(t *testing.T) {
+	got, err := ModulePath([]byte("// x\nmodule github.com/a/b\n\ngo 1.25.0\n"))
+	if err != nil || got != "github.com/a/b" {
+		t.Fatalf("%q %v", got, err)
+	}
+	if _, err := ModulePath([]byte("go 1.25.0\n")); err == nil || err.Error() != "go.mod has no module line" {
+		t.Fatalf("want error, got %v", err)
+	}
+}
+
+func TestTotal(t *testing.T) {
+	out := []byte("github.com/a/b/x.go:3:\tF\t100.0%\ntotal:\t(statements)\t97.5%\n")
+	if got, err := Total(out); err != nil || got != 97.5 {
+		t.Fatalf("%v %v", got, err)
+	}
+	if _, err := Total([]byte("x.go:1:\tF\t1%\n")); err == nil || err.Error() != "no total line" {
+		t.Fatalf("want error, got %v", err)
+	}
+}
+
+func TestTotalRefusesAnUnreadableNumber(t *testing.T) {
+	if _, err := Total([]byte("total:\t(statements)\tabc%\n")); err == nil {
+		t.Fatal("want error")
 	}
 }

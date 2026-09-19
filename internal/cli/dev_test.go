@@ -48,67 +48,6 @@ func TestDevSwapBinaryRefusesAnUnknownFlag(t *testing.T) {
 	}
 }
 
-func TestDevCovergateReadsTheCoverTool(t *testing.T) {
-	coverFunc = func(profile string) ([]byte, error) {
-		return []byte("github.com/xidus90/loomux/internal/cli/cli.go:1:\tRun\t100.0%\n"), nil
-	}
-	defer func() { coverFunc = runCoverFunc }()
-	if code, _, errOut := run("dev", "covergate", "--profile", "c.out"); code != 0 {
-		t.Fatalf("code %d: %s", code, errOut)
-	}
-}
-
-func TestDevCovergateRefusesAnUnknownFlag(t *testing.T) {
-	if code, _, _ := run("dev", "covergate", "--bogus"); code != 2 {
-		t.Fatalf("code %d", code)
-	}
-}
-
-func TestDevCovergateFailsWhenTheCoverToolFails(t *testing.T) {
-	coverFunc = func(string) ([]byte, error) { return nil, errors.New("no profile") }
-	defer func() { coverFunc = runCoverFunc }()
-	code, _, errOut := run("dev", "covergate")
-	if code != 1 || !strings.Contains(errOut, "loomux dev covergate: no profile") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-func TestDevCovergateRefusesAProfileWithoutFunctions(t *testing.T) {
-	coverFunc = func(string) ([]byte, error) { return []byte("total:\t(statements)\t0.0%\n"), nil }
-	defer func() { coverFunc = runCoverFunc }()
-	code, _, errOut := run("dev", "covergate")
-	if code != 1 || !strings.Contains(errOut, "loomux dev covergate: no functions in") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-func TestRunCoverFuncReadsAValidProfile(t *testing.T) {
-	profile := filepath.Join(t.TempDir(), "c.out")
-	if err := os.WriteFile(profile, []byte("mode: set\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := runCoverFunc(profile); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestRunCoverFuncReportsTheToolsStderr(t *testing.T) {
-	profile := filepath.Join(t.TempDir(), "missing.out")
-	_, err := runCoverFunc(profile)
-	if err == nil || !strings.Contains(err.Error(), "missing.out") {
-		t.Fatalf("err %v", err)
-	}
-}
-
-func TestDevCovergateFailsOnUnparsableOutput(t *testing.T) {
-	coverFunc = func(string) ([]byte, error) { return []byte("garbage\n"), nil }
-	defer func() { coverFunc = runCoverFunc }()
-	code, _, errOut := run("dev", "covergate")
-	if code != 1 || !strings.Contains(errOut, "unexpected cover line") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
 func TestDevRecordCaseNeedsItsFlags(t *testing.T) {
 	if code, _, _ := run("dev", "record-case", "--bogus"); code != 2 {
 		t.Fatalf("code %d", code)
