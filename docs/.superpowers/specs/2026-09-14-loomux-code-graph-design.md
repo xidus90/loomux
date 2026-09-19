@@ -4,7 +4,9 @@
 **Stand:** entworfen; **G1 umgesetzt 2026-09-17**, **G2a umgesetzt 2026-09-18**, beide vorgezogen vor
 Fusions-Stufe 1b-2. Berichtigt durch [`2026-09-16-loomux-code-g1-delta.md`](2026-09-16-loomux-code-g1-delta.md)
 und [`2026-09-17-loomux-code-g2-design.md`](2026-09-17-loomux-code-g2-design.md) — bei Widerspruch
-gelten die beiden jüngeren Dokumente. G2b geplant und offen, G3 ff. offen  
+gelten die beiden jüngeren Dokumente. G2b umgesetzt; **G3 umgesetzt 2026-09-19**, verengt durch
+[`2026-09-18-loomux-code-g3-delta.md`](2026-09-18-loomux-code-g3-delta.md) — auch hier gilt bei
+Widerspruch das jüngere Dokument. G4 und G5 offen  
 **Ort:** `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md`  
 **Ergänzt:** `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` (Säule: *Graph + Loop Engineering*)  
 **Referenz-Analyse:** `trailhq/Graft` (TypeScript, Node.js)  

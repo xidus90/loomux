@@ -1363,3 +1363,98 @@ Matrix](benchmarks/matrix.md).
    repository's own configuration there was not checked.
 3. **The baseline speedup of 1.1x on loomux compares loomux with itself**:
    this repository's `.claude/settings.json` calls the same binary.
+
+## 2026-09-19 00:40 - Stage G3: the Start Floor, and graph_find_code Through the Bridge Against graph ask
+
+### What was measured
+
+Two things. **The control:** the start floor (`loomux --version`) and the binary
+size of the base `11222c8` against the change `c25575f` (HEAD of `code-g3`), both
+built with `go build -o … ./cmd/loomux` into a scratch directory, the base from a
+detached worktree removed afterwards. G3 links nothing new — `extract/golang`
+has been in the binary through `internal/cli` since G2a — so the expectation was
+equal within the noise. `Measure-Command` in PowerShell, each pass one first
+run and 20 warm runs, over three passes: pass 1 the base alone, right after its
+build; pass 2 the change alone, right after its build; pass 3 both binaries back
+to back. **Cold and warm in the first table come from different passes:** cold
+is the first run after the build (pass 1 for the base, pass 2 for the change),
+warm is pass 3. **The new figure:** the answer
+time of `graph_find_code` and `graph_check_freshness` through `loomux mcp`
+against `loomux graph ask` and `graph check` on the command line.
+
+The area was the `code-g3` worktree at HEAD, scope `project/loomux`, its graph
+built once with `graph build --root <worktree>` (339 files, 3,719 nodes, 11,833
+edges). Every command ran with `LOOMUX_STATE_DIR` pointing at an isolated scratch
+state directory whose `registry.toml` holds only that area, so the bridge
+started its own service and never met the user's (a newer bridge replaces an
+older running service). The MCP side is a throwaway Go client outside the tree
+(`mcp.CommandTransport` over `loomux mcp`), which times each `tools/call` with
+`time.Since` after the handshake: 11 calls per session, the first shown
+separately, the median of the other ten as warm. The command line is
+`Measure-Command`, one first run and ten warm runs. Afterwards `serve stop` with
+the same state directory; no loomux process was left running.
+
+### Measurements
+
+| case | cold (1st run) | warm median | warm min | warm max |
+|---|---:|---:|---:|---:|
+| base `11222c8`: `loomux --version` (20 runs) | 48.5 ms | 8.0 ms | 7.7 ms | 8.6 ms |
+| change `c25575f`: `loomux --version` (20 runs) | 48.6 ms | 8.0 ms | 7.7 ms | 11.4 ms |
+
+The warm medians of the other passes: base 7.9 ms in pass 1 (range 7.6–10.1 ms),
+change 8.5 ms in pass 2 (range 7.9–9.5 ms). Pass 3's first runs were 15.2 ms
+(base) and 9.6 ms (change); they are not cold, since each binary had run
+before. Pass 3 is the one reported warm because it is the only pass that ran
+both binaries in one sitting, on the same machine state; passes 1 and 2 were
+taken separately, at different moments.
+
+Binary size: 17,839,616 bytes before, 17,863,680 bytes after (+24,064 bytes,
++0.13 %).
+
+| case | first run / call | warm median (10) | warm min | warm max |
+|---|---:|---:|---:|---:|
+| `graph ask "run" --root <worktree>` (limit 8, no source) | 69.6 ms | 57.6 ms | 55.9 ms | 62.4 ms |
+| `graph ask "run" --limit 5 --source --root <worktree>` (the MCP defaults) | 58.4 ms | 58.6 ms | 56.9 ms | 62.6 ms |
+| `graph_find_code` `{"scope": "project/loomux", "query": "run"}`, service started by this bridge | 342.6 ms | 62.2 ms | 59.4 ms | 80.4 ms |
+| `graph_find_code`, same, second session against the running service | 88.6 ms | 67.8 ms | 63.2 ms | 79.4 ms |
+| `graph check --root <worktree>` | 104.3 ms | 104.1 ms | 99.6 ms | 109.3 ms |
+| `graph_check_freshness` `{"scope": "project/loomux"}`, running service | 122.7 ms | 96.3 ms | 93.6 ms | 117.2 ms |
+
+The handshake (`Connect`, including the bridge's process start) took 9.5, 8.5
+and 8.0 ms in the three sessions. All answers had `isError: false`; the check
+said `OK` every time.
+
+### Reading
+
+1. **The control holds; the run-to-run spread it rests on is 0.1–0.5 ms.**
+   The same binary's warm median moved between passes by 0.1 ms (base,
+   7.9 -> 8.0 ms) and 0.5 ms (change, 8.5 -> 8.0 ms). Base and change are
+   0.0 ms apart in pass 3, where both ran in one sitting, and 0.6 ms apart
+   across passes 1 and 2 — no more than those two drifts added up. The cold
+   runs are 0.1 ms apart, and the binary is 24 KB larger for two handlers and
+   two tool definitions. G3 did not move the start floor beyond what the passes
+   move by themselves.
+2. **Through the bridge `graph_find_code` takes 11.6 ms more than its bare
+   answer, and this entry does not know why.** The two columns do not measure
+   the same thing: the command line includes a process start, the MCP client
+   times a call on an open session. Taking the 8.0 ms floor off the equal-work
+   command line (58.6 ms) leaves 50.6 ms; the bridge's 62.2 ms is 11.6 ms above
+   it. The second session's 67.8 ms has a range overlapping the first's. The
+   service reads the graph and sidecar for each call and keeps nothing between
+   calls, so a warm service is not a cached answer.
+3. **The same subtraction for the drift check gives 0.2 ms, so the two
+   differences disagree.** 96.3 ms through the bridge against 104.1 − 8.0 =
+   96.1 ms bare. Both calls take the same two hops (JSON-RPC over the pipes,
+   HTTP to the service), so the hops alone cannot be both 11.6 ms and 0.2 ms.
+   The cause of the 11.6 ms is unmeasured. Unconfirmed candidates: the reply of
+   `graph_find_code` carries the inlined source of five hits through both hops
+   where the check's reply is one line, and the subtraction mixes two
+   instruments (`Measure-Command` against `time.Since`). The check's own
+   spread (93.6–117.2 ms) is also wider than either difference.
+4. **The first call after a cold start carries the poll tick again.** 342.6 ms
+   holds the same 250 ms wait the entry of 2026-09-18 15:30 found (310 ms there,
+   its call included): the bridge polls for the service at `StartTick = 250 ms`.
+   250 ms plus one warm call (62.2 ms) accounts for about 312 ms; the remaining
+   ~30 ms is one unrepeated sample and is not taken apart here. A fresh session
+   against a running service pays 88.6 ms on its first call, about 20 ms above
+   warm.

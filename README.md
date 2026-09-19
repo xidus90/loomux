@@ -75,7 +75,7 @@ sequenceDiagram
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
-> **State (stage G2b).** Stage G2b completes the query path: `loomux graph ask` retrieves code symbols ranked by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25). Retrieval takes ~48 ms warm (~38 ms when matching names without the 1MB body sidecar on this ~3,000-node repo; the sidecar exists to scale to 30,000+ nodes). Inlined code spans are provided via `--source`. Automatic background graph rebuild triggers on drift unless `--no-refresh` is passed. Graph navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) awaits stages G3-G4.
+> **State (stage G3).** Stage G2b completed the query path: `loomux graph ask` retrieves code symbols ranked by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25). Retrieval takes ~48 ms warm (~38 ms when matching names without the 1MB body sidecar on this ~3,000-node repo; the sidecar exists to scale to 30,000+ nodes). Inlined code spans are provided via `--source`. Automatic background graph rebuild triggers on drift unless `--no-refresh` is passed; a query never builds a first graph. Stage G3 serves the same query and the drift check over MCP as `graph_find_code` and `graph_check_freshness` (see §3). Graph navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) awaits stage G4.
 
 ```mermaid
 flowchart LR
@@ -100,15 +100,16 @@ flowchart TD
     
     subgraph Namespaces["Sub-Server Modules"]
         Root <--> Brain["brain_*<br/>(search, catalog, read, neighbors, status)"]
-        Root <--> Graph["graph_*<br/>(find_code, trace_calls, file_api, find_all, repo_map)"]
+        Root <--> Graph["graph_*<br/>(find_code, check_freshness)<br/>planned G4: trace_calls, file_api, find_all, repo_map"]
         Root <--> Upstreams["Upstream Proxies<br/>(LSP servers, qmd mcp)"]
     end
 ```
 
-**What stands today (Stage 1b-2):** the host, the bridge and the root over two
-loopback listeners — one per channel, each with its own token — and the five
-`brain_*` tools. The `graph_*` namespace and the upstream proxies are specified,
-not built. `loomux mcp` defaults to `--channel local`, starts and replaces the
+**What stands today (Stages 1b-2 and G3):** the host, the bridge and the root over two
+loopback listeners — one per channel, each with its own token — and seven tools:
+the five `brain_*` tools and, from Stage G3, `graph_find_code` and
+`graph_check_freshness`. The other four `graph_*` tools (Stage G4) and the
+upstream proxies are specified, not built. `loomux mcp` defaults to `--channel local`, starts and replaces the
 service itself, and the per-edit hook path links none of it, which an
 import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.md) §8.
 
@@ -129,8 +130,9 @@ stages pulls in a dependency:
 | **2 – 4** | open | The full check chain, brain upkeep, conversion and fetching, `loomux migrate`, the host switch-over |
 | **G1** | ✅ | Ranking and blast radius as libraries, held to the reference by ported test vectors |
 | **G2a** | ✅ | The extractor, the resolver, the store, the freshness probe, and `graph build` / `graph check` |
-| **G2b** | 📋 planned | The query: the lexical seed, the ask sidecar, `loomux graph ask` |
-| **G3 – G5** | open | The MCP gateway, the rest of the `graph` palette with its hook wiring, multi-language via `wazero` |
+| **G2b** | ✅ | The query: the lexical seed, the ask sidecar, `loomux graph ask` |
+| **G3** | ✅ | `graph_find_code` and `graph_check_freshness` on the 1b-2 gateway; a query never builds a first graph |
+| **G4 – G5** | open | The rest of the `graph` palette with its hook wiring, multi-language via `wazero` |
 
 Each stage ends green and is handed over on its own, with its own plan and — once
 it is done — its own parity file recording every ruling it made. The matrix
@@ -159,7 +161,7 @@ below says where each capability stands:
 | Blast Radius Engine | Transitive closure and impact analysis (`In`/`Out`, depth limits, smallest depth wins). No command asks it a question yet. | 🧩 **Library** (Stage G1) |
 | Symbol-Coupled Grep | Regex search grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). | 📋 **Specified** (Stage G4) |
 | Multi-Language AST | CGo-free Tree-sitter extraction via WebAssembly (`wazero`) with persistent AOT cache. | 💡 **Planned** (Stage G5) |
-| MCP Service & stdio Bridge | `loomux serve` holds two loopback listeners, one per channel, each with its own token, and answers the five `brain_*` tools over Streamable HTTP; `loomux serve status` and `stop [--force]` control it, and `loomux mcp` is the stdio bridge a host starts, which starts and replaces the service itself. `internal/hooks` links none of it: a gate test reads the import graph. The front is held to the Python reference's own MCP front by a recorded case corpus, which compares the text of each `CallToolResult` and `isError` rather than the envelope two different SDKs negotiate. | ✅ **Implemented** (Stage 1b-2) |
+| MCP Service & stdio Bridge | `loomux serve` holds two loopback listeners, one per channel, each with its own token, and answers seven tools over Streamable HTTP — the five `brain_*` tools and, since Stage G3, `graph_find_code` and `graph_check_freshness`; `loomux serve status` and `stop [--force]` control it, and `loomux mcp` is the stdio bridge a host starts, which starts and replaces the service itself. `internal/hooks` links none of it: a gate test reads the import graph. The front is held to the Python reference's own MCP front by a recorded case corpus, which compares the text of each `CallToolResult` and `isError` rather than the envelope two different SDKs negotiate. | ✅ **Implemented** (Stages 1b-2, G3) |
 | **4. Second Brain & Wiki** | | |
 | Local Markdown Wiki | The bundle itself lives in `docs/wiki/` (area `project/loomux`, moved page by page on 2026-09-16 and released line by line). `loomux lint <file>` checks one page's links and frontmatter, `loomux wiki-gate` checks the bundle's freshness and structure. Identity registers and the topic graph are written by the reindex of stage 3, not by the move. | 🚧 **In Migration** (Stage 2) |
 | Semantic QMD Index | Embedding and neural search integration with local caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stage 3) |
@@ -207,14 +209,14 @@ loomux mcp [--channel local|cloud]  # stdio bridge an MCP host starts; it starts
 ```bash
 loomux graph build [--root <path>]  # extract, resolve and write .loomux/state/graph/wiring.json
 loomux graph check [--root <path>]  # re-extract and diff against the graph on disk (exit 1 on drift)
-loomux graph ask "<query>" [flags]  # retrieve code symbols ranked by lexical score and Personalized PageRank
+loomux graph ask "<query>" [flags]  # retrieve code symbols ranked by lexical score and Personalized PageRank; never builds a first graph
 ```
 
-### Specified Commands (Code Graph — Stages G3–G5)
+### Specified Commands (Code Graph — Stages G4–G5)
 
 Stage G1 built the ranking and blast-radius libraries; stages G2a and G2b wired `build`,
-`check`, and `ask` above onto them, while graph navigation (`callers`, `blast`, `grep`,
-`skeleton`, `map`) awaits stages G3-G4.
+`check`, and `ask` above onto them, and stage G3 serves `ask` and `check` over MCP; graph
+navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) awaits stage G4.
 ```bash
 loomux graph callers <symbol>       # list direct callers, callees (--direction out), or full closure (-d all)
 loomux graph blast [dir]            # compute blast radius of a git diff against working tree or merge base

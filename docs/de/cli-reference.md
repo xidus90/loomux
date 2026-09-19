@@ -125,7 +125,7 @@ Lehnt den Haupt-Checkout und jedes Verzeichnis ab, an dem Git keinen Worktree h�
 ## 6. Code-Graph-Engine (`loomux graph`)
 
 > [!NOTE]
-> **`build`, `check` und `ask` sind verdrahtet, der Rest darunter bleibt spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die Befehle `build` und `check`, und Stufe G2b ergänzt Lexik, lexikalisches Scoring, Personalized-PageRank-Verschmelzung und `graph ask`. `callers`, `blast`, `skeleton`, `map` und `viz` bleiben unverdrahtet.
+> **`build`, `check` und `ask` sind verdrahtet, der Rest darunter bleibt spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die Befehle `build` und `check`, und Stufe G2b ergänzt Lexik, lexikalisches Scoring, Personalized-PageRank-Verschmelzung und `graph ask`. Stufe G3 stellt `ask` und `check` hinter die MCP-Werkzeuge `graph_find_code` und `graph_check_freshness` (§8). `callers`, `blast`, `skeleton`, `map` und `viz` bleiben unverdrahtet.
 
 ### `loomux graph build [--root <pfad>]`
 Liest und hasht jede Go-Quelldatei, die `internal/code/sourceset` unterhalb der Wurzel findet, extrahiert und löst sie zum deterministischen AST-Graphen auf und schreibt ihn nach `.loomux/state/graph/wiring.json`. Dabei schreibt er auch die Frischeakte (`.loomux/state/graph/cache/fingerprint.json`), die eine spätere Sonde liest; scheitert das Schreiben der Akte, meldet der Befehl das auf `stderr`, ohne den Bau selbst scheitern zu lassen — der Graph auf der Platte ist bereits korrekt.
@@ -148,11 +148,12 @@ Sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen
   - `--no-refresh` — Überspringt die Frischeprüfung und den automatischen Hintergrund-Neubau bei Abweichung.
 - **Die beiden Dinge, die sonst zweimal gefragt werden**:
   - Ohne `--source` kommt kein Quelltext — nur Fundort (Pfad, Zeilenspan), Symbol-ID, Signatur sowie der Gesamtwert mit seinen lexikalischen und graphischen Komponenten.
-  - Standardmäßig prüft `ask` vor der Antwort die Frische des Graphen. Ist der Graph veraltet, fehlt er ganz, oder fehlt die Beiakte beziehungsweise trägt sie eine andere Indexversion, baut `ask` Graph und Beiakte unter einem prozessübergreifenden Lock neu, bevor geantwortet wird (Statusmeldungen auf `stderr`). Die Beiakte gehört zur Prüfung, weil die Frischeakte nur Quelldateien kennt: ohne diese Prüfung würde eine gelöschte `ask-index.json` jede spätere Frage auf Namen und Pfade zurückwerfen, bis sich zufällig eine Quelldatei ändert. Um den bestehenden Stand ohne Neubau abzufragen, dient `--no-refresh` — das überspringt auch die Beiaktenprüfung, sodass die Antwort auf Namen und Pfade zurückfallen kann und das auf `stderr` sagt.
+  - Standardmäßig prüft `ask` vor der Antwort die Frische des Graphen. Ist der Graph veraltet, fehlt seine Frischeakte, oder fehlt die Beiakte beziehungsweise trägt sie eine andere Indexversion, baut `ask` Graph und Beiakte unter einem prozessübergreifenden Lock neu, bevor geantwortet wird (Statusmeldungen auf `stderr`). Die Beiakte gehört zur Prüfung, weil die Frischeakte nur Quelldateien kennt: ohne diese Prüfung würde eine gelöschte `ask-index.json` jede spätere Frage auf Namen und Pfade zurückwerfen, bis sich zufällig eine Quelldatei ändert. Um den bestehenden Stand ohne Neubau abzufragen, dient `--no-refresh` — das überspringt auch die Beiaktenprüfung, sodass die Antwort auf Namen und Pfade zurückfallen kann und das auf `stderr` sagt.
+  - Ohne Graph endet `ask` mit Exit 1 und verweist auf `loomux graph build`; eine Abfrage baut nie einen ersten Graphen.
 - **Ausgabe**: Rangliste der Treffer im Format:
   `N. <id>  <pfad>:<span-oder-zeile>  (<score> lex <lexical> graph <graph>)`
   gefolgt von der Signatur und bei `--source` dem mit `|` eingerückten Quelltextblock. Passt kein Symbol zur Anfrage, wird ein Hinweis ausgegeben und mit Code 0 beendet.
-- **Exit-Codes**: `0` bei Erfolg (auch wenn keine Symbole matchen); `1` bei Fehlern (unlesbarer Graph, fehlerhafter Neubau); `2` bei Aufruffehlern (fehlende Anfrage, negatives Limit).
+- **Exit-Codes**: `0` bei Erfolg (auch wenn keine Symbole matchen); `1` bei Fehlern (noch kein Graph, unlesbarer Graph, fehlerhafter Neubau); `2` bei Aufruffehlern (fehlende Anfrage, negatives Limit).
 
 ### `loomux graph callers <symbol> [dir]`
 Zeigt, wer ein Symbol aufruft, importiert, implementiert oder erweitert.
@@ -243,10 +244,13 @@ Synchronisiert Zustandsänderungen, Identitätsregister und Vektorindex-Sammlung
 
 ## 8. MCP-Dienst & stdio-Brücke (`loomux serve` / `loomux mcp`)
 
-Der Dienst beantwortet die fünf `brain_*`-Werkzeuge über Streamable HTTP; die
-Brücke ist das, was ein MCP-Wirt startet, und sie reicht nur weiter. Beides ist
-in Stufe 1b-2 entstanden. Das Web OS der Stufe W1 gibt es noch nicht, die
-`graph_*`-Werkzeuge der Stufen G2–G5 ebenso wenig.
+Der Dienst beantwortet sieben Werkzeuge über Streamable HTTP — die fünf
+`brain_*`-Werkzeuge und die zwei `graph_*`-Werkzeuge der Stufe G3; die Brücke
+ist das, was ein MCP-Wirt startet, und sie reicht nur weiter. Beides ist in
+Stufe 1b-2 entstanden. Das Web OS der Stufe W1 gibt es noch nicht, die übrigen
+vier `graph_*`-Werkzeuge (`graph_trace_calls`, `graph_file_api`,
+`graph_find_all`, `graph_repo_map`) ebenso wenig; sie kommen in Stufe G4, jedes
+mit seinem Geschwister auf der Kommandozeile.
 
 **Der Kanal ist die Adresse, kein Feld der Anfrage.** `serve` bindet zwei
 Loopback-Listener, einen für `local` und einen für `cloud`, jeden mit eigenem
@@ -291,7 +295,7 @@ PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet. Erfolg ist still.
   gescheitert; `2` ein unbekanntes Argument.
 
 ### `loomux mcp [--channel local|cloud]`
-Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die fünf Werkzeuge selbst
+Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die sieben Werkzeuge selbst
 an — die Beschreibungen sind statisch, also sitzt nie ein kalter Dienst im
 Handschlag des Wirts — und leitet jeden `tools/call` an die Adresse des Kanals
 weiter, Name zu Name und Argumente zu Argumenten.
@@ -310,7 +314,7 @@ weiter, Name zu Name und Argumente zu Argumenten.
 - **Exit-Codes**: `0` der Wirt hat aufgelegt, oder Strg+C; `1` die Brücke ist
   gescheitert; `2` ein unbekanntes Argument oder ein ungültiges `--channel`.
 
-### Die fünf Werkzeuge
+### Die sieben Werkzeuge
 
 | Werkzeug | Argumente |
 |---|---|
@@ -319,9 +323,40 @@ weiter, Name zu Name und Argumente zu Argumenten.
 | `brain_read` | `scope` und `relative` (beide Pflicht), `section` |
 | `brain_neighbors` | `scope` und `relative` (beide Pflicht) |
 | `brain_status` | keine |
+| `graph_find_code` | `scope` und `query` (beide Pflicht), `limit` → 5, `full`, `in` |
+| `graph_check_freshness` | `scope` (Pflicht) |
 
 `n` ist hier 10 und auf der Kommandozeile 5; das ist Parität mit der
-Python-Referenz, die es genauso hält, und keine Unstimmigkeit.
+Python-Referenz, die es genauso hält, und keine Unstimmigkeit. `limit` ist hier
+5 und bei `loomux graph ask` 8, beides Grafts Werte.
+
+Die zwei `graph_*`-Werkzeuge sind `graph ask` und `graph check` eines
+Bereichs, dessen Pfad die Repo-Wurzel ist:
+
+- **`graph_find_code`** fügt den Quelltext an jedem Treffer immer ein; `full`
+  nimmt den ganzen Span statt des gekappten Auszugs, und `in` verengt vor dem
+  Scoring auf ein Pfadpräfix. Ein Auffrisch-Hinweis steht vor der Antwort. Ohne
+  Graph ist der Aufruf ein Fehler, der auf `loomux graph build` verweist — eine
+  Abfrage baut nie einen ersten Graphen.
+- **`graph_check_freshness`** frischt nie auf und berichtet deshalb über den
+  Graphen, wie er vorgefunden wurde. Drift und ein fehlender Graph sind Text,
+  keine Fehler. `isError` kennzeichnet einen abgewiesenen Aufruf — einen
+  fehlenden, unbekannten oder verborgenen Scope, bei `graph_find_code` auch
+  eine fehlende Anfrage — und einen echten Lesefehler.
+
+**Sichtbarkeit:** Ein Bereich, dessen Manifest `[privacy] mode = "local_only"`
+setzt, existiert auf dem cloud-Kanal nicht (`unknown scope`, wie bei
+`brain_*`), und auf beiden Kanälen fallen Pfade unter den `[privacy] never`-Globs
+des Manifests vor dem Scoring und aus dem Driftbericht heraus — der auf dem
+local-Kanal nennt, wie viele er weggelassen hat, auf dem cloud-Kanal nicht.
+Auf dem cloud-Kanal gehen außerdem keine Auffrisch-Hinweise hinaus, weder vor
+der Antwort noch als Fortschritt: ein Hinweis zählt auch Dateien unter den
+`never`-Globs mit. Jeder Lese- oder Abfragefehler wird dort zu dem festen Text
+„the graph could not be read on this channel; ask on the local channel for
+details", weil eine Fehlermeldung eine verborgene Datei oder einen lokalen
+Pfad nennen kann. Ausgenommen ist ein fehlender Graph, der seinen eigenen Text
+behält. Ein interner Fehler lautet dort „internal error; ask on the local
+channel for details", ohne den Wert, den er trug.
 
 ### Die `.mcp.json` eines Wirts
 

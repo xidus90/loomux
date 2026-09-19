@@ -1422,3 +1422,106 @@ Benchmark-Matrix](benchmarks/matrix.md).
 3. **Der Baseline-Speedup von 1,1x bei loomux vergleicht loomux mit sich
    selbst**: Die `.claude/settings.json` dieses Repositorys ruft dasselbe
    Binary.
+
+## 2026-09-19 00:40 - Stufe G3: die Startschwelle, und graph_find_code über die Brücke gegen graph ask
+
+### Was gemessen wurde
+
+Zweierlei. **Die Kontrolle:** die Startschwelle (`loomux --version`) und die
+Binärgröße des Ausgangsstands `11222c8` gegen die Änderung `c25575f` (HEAD von
+`code-g3`), beide mit `go build -o … ./cmd/loomux` in ein Scratch-Verzeichnis
+gebaut, der Ausgangsstand aus einem abgelösten Worktree, der danach entfernt
+wurde. G3 linkt nichts Neues — `extract/golang` hängt seit G2a über
+`internal/cli` im Binary —, erwartet war also Gleichstand im Rauschen.
+`Measure-Command` in PowerShell, je Durchgang ein erster Lauf und 20 warme, in
+drei Durchgängen: Durchgang 1 nur der Ausgangsstand, direkt nach seinem Bau;
+Durchgang 2 nur die Änderung, direkt nach ihrem Bau; Durchgang 3 beide Binaries
+nacheinander. **Kalt und warm der ersten Tabelle stammen aus verschiedenen
+Durchgängen:** kalt ist der erste Lauf nach dem Bau (Durchgang 1 für den
+Ausgangsstand, Durchgang 2 für die Änderung), warm ist Durchgang 3. **Die neue
+Zahl:** die Antwortzeit von `graph_find_code` und
+`graph_check_freshness` über `loomux mcp` gegen `loomux graph ask` und
+`graph check` auf der Kommandozeile.
+
+Der Bereich war der Worktree `code-g3` auf HEAD, Scope `project/loomux`, sein
+Graph einmal mit `graph build --root <worktree>` gebaut (339 Dateien, 3.719
+Knoten, 11.833 Kanten). Jeder Befehl lief mit `LOOMUX_STATE_DIR` auf einem
+isolierten Scratch-Zustandsverzeichnis, dessen `registry.toml` nur diesen
+Bereich enthält; die Brücke startete also ihren eigenen Dienst und traf nie den
+des Nutzers (eine neuere Brücke ersetzt einen älteren laufenden Dienst). Die
+MCP-Seite ist ein Wegwerf-Client in Go außerhalb des Baums
+(`mcp.CommandTransport` über `loomux mcp`), der jeden `tools/call` nach dem
+Handschlag mit `time.Since` misst: 11 Aufrufe je Sitzung, der erste getrennt,
+der Median der übrigen zehn als warm. Die Kommandozeile ist `Measure-Command`,
+ein erster Lauf und zehn warme. Danach `serve stop` mit demselben
+Zustandsverzeichnis; kein loomux-Prozess blieb zurück.
+
+### Messwerte
+
+| Fall | kalt (1. Lauf) | Median warm | warm min | warm max |
+|---|---:|---:|---:|---:|
+| Ausgangsstand `11222c8`: `loomux --version` (20 Läufe) | 48,5 ms | 8,0 ms | 7,7 ms | 8,6 ms |
+| Änderung `c25575f`: `loomux --version` (20 Läufe) | 48,6 ms | 8,0 ms | 7,7 ms | 11,4 ms |
+
+Die warmen Mediane der anderen Durchgänge: Ausgangsstand 7,9 ms in Durchgang 1
+(Spanne 7,6–10,1 ms), Änderung 8,5 ms in Durchgang 2 (Spanne 7,9–9,5 ms). Die
+ersten Läufe von Durchgang 3 lagen bei 15,2 ms (Ausgangsstand) und 9,6 ms
+(Änderung); sie sind nicht kalt, denn jedes Binary war vorher schon gelaufen.
+Durchgang 3 steht als warm in der Tabelle, weil er als einziger beide Binaries
+in einem Zug gemessen hat, im selben Maschinenzustand; die Durchgänge 1 und 2
+liefen getrennt, zu verschiedenen Zeitpunkten.
+
+Binärgröße: 17.839.616 Bytes vorher, 17.863.680 Bytes nachher (+24.064 Bytes,
++0,13 %).
+
+| Fall | erster Lauf / Aufruf | Median warm (10) | warm min | warm max |
+|---|---:|---:|---:|---:|
+| `graph ask "run" --root <worktree>` (Limit 8, ohne Quelltext) | 69,6 ms | 57,6 ms | 55,9 ms | 62,4 ms |
+| `graph ask "run" --limit 5 --source --root <worktree>` (die MCP-Vorgaben) | 58,4 ms | 58,6 ms | 56,9 ms | 62,6 ms |
+| `graph_find_code` `{"scope": "project/loomux", "query": "run"}`, Dienst von dieser Brücke gestartet | 342,6 ms | 62,2 ms | 59,4 ms | 80,4 ms |
+| `graph_find_code`, dasselbe, zweite Sitzung gegen den laufenden Dienst | 88,6 ms | 67,8 ms | 63,2 ms | 79,4 ms |
+| `graph check --root <worktree>` | 104,3 ms | 104,1 ms | 99,6 ms | 109,3 ms |
+| `graph_check_freshness` `{"scope": "project/loomux"}`, laufender Dienst | 122,7 ms | 96,3 ms | 93,6 ms | 117,2 ms |
+
+Der Handschlag (`Connect`, samt Prozessstart der Brücke) dauerte in den drei
+Sitzungen 9,5, 8,5 und 8,0 ms. Alle Antworten hatten `isError: false`; die
+Prüfung meldete jedes Mal `OK`.
+
+### Lesart
+
+1. **Die Kontrolle hält; die Lauf-zu-Lauf-Streuung, auf der sie steht, ist
+   0,1–0,5 ms.** Der warme Median desselben Binarys bewegte sich zwischen den
+   Durchgängen um 0,1 ms (Ausgangsstand, 7,9 -> 8,0 ms) und 0,5 ms (Änderung,
+   8,5 -> 8,0 ms). Ausgangsstand und Änderung liegen in Durchgang 3, in dem
+   beide in einem Zug liefen, 0,0 ms auseinander und über die Durchgänge 1 und
+   2 0,6 ms — nicht mehr als diese beiden Verschiebungen zusammen. Die kalten
+   Läufe liegen 0,1 ms auseinander, und das Binary ist 24 KB größer für zwei
+   Handler und zwei Werkzeugdefinitionen. G3 hat die Startschwelle nicht über
+   das hinaus bewegt, was die Durchgänge von selbst verschieben.
+2. **Über die Brücke braucht `graph_find_code` 11,6 ms mehr als seine nackte
+   Antwort, und dieser Eintrag weiß nicht, warum.** Die beiden Spalten messen
+   nicht dasselbe: die Kommandozeile enthält einen Prozessstart, der MCP-Client
+   misst einen Aufruf auf offener Sitzung. Zieht man die Schwelle von 8,0 ms
+   von der gleich arbeitenden Kommandozeile (58,6 ms) ab, bleiben 50,6 ms; die
+   62,2 ms der Brücke liegen 11,6 ms darüber. Die Spanne der 67,8 ms der zweiten
+   Sitzung überlappt die der ersten. Der Dienst liest Graph und Beiakte je
+   Aufruf und behält nichts zwischen Aufrufen; ein warmer Dienst ist keine
+   zwischengespeicherte Antwort.
+3. **Dieselbe Rechnung für die Driftprüfung ergibt 0,2 ms, die beiden
+   Differenzen widersprechen sich also.** 96,3 ms über die Brücke gegen
+   104,1 − 8,0 = 96,1 ms nackt. Beide Aufrufe nehmen dieselben zwei Sprünge
+   (JSON-RPC über die Pipes, HTTP zum Dienst); die Sprünge allein können nicht
+   zugleich 11,6 ms und 0,2 ms kosten. Die Ursache der 11,6 ms ist ungemessen.
+   Unbestätigte Kandidaten: die Antwort von `graph_find_code` trägt den
+   eingefügten Quelltext von fünf Treffern durch beide Sprünge, die der Prüfung
+   ist eine Zeile, und die Rechnung mischt zwei Instrumente
+   (`Measure-Command` gegen `time.Since`). Die eigene Streuung der Prüfung
+   (93,6–117,2 ms) ist zudem breiter als beide Differenzen.
+4. **Der erste Aufruf nach einem Kaltstart trägt wieder den Abfragetakt.**
+   342,6 ms enthalten dieselbe Wartezeit von 250 ms, die der Eintrag vom
+   2026-09-18 15:30 gefunden hat (dort 310 ms, samt Aufruf): die Brücke fragt im
+   Takt `StartTick = 250 ms` nach dem Dienst. 250 ms plus ein warmer Aufruf
+   (62,2 ms) erklären etwa 312 ms; die übrigen ~30 ms sind eine einzelne,
+   nicht wiederholte Probe und werden hier nicht zerlegt. Eine frische Sitzung
+   gegen einen laufenden Dienst zahlt beim ersten Aufruf 88,6 ms, etwa 20 ms
+   über warm.

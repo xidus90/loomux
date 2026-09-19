@@ -125,7 +125,7 @@ Refuses the main checkout and any directory git holds no worktree at, removes th
 ## 6. Code Graph Engine (`loomux graph`)
 
 > [!NOTE]
-> **`build`, `check` and `ask` are wired; the rest below is still specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — stage G2a added the extractor, the wiring writer, the freshness probe and `graph build` and `check`, and stage G2b adds the lexicon, lexical scoring, Personalized PageRank blend and `graph ask`. `callers`, `blast`, `skeleton`, `map` and `viz` remain unwired.
+> **`build`, `check` and `ask` are wired; the rest below is still specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — stage G2a added the extractor, the wiring writer, the freshness probe and `graph build` and `check`, and stage G2b adds the lexicon, lexical scoring, Personalized PageRank blend and `graph ask`. Stage G3 puts `ask` and `check` behind the MCP tools `graph_find_code` and `graph_check_freshness` (§8). `callers`, `blast`, `skeleton`, `map` and `viz` remain unwired.
 
 ### `loomux graph build [--root <path>]`
 Reads and hashes every Go source file `internal/code/sourceset` finds under the root, extracts and resolves them into the deterministic AST graph, and writes it to `.loomux/state/graph/wiring.json`. It also writes the freshness record (`.loomux/state/graph/cache/fingerprint.json`) a later probe reads; a failure to write that record is announced on `stderr` but does not fail the build, since the graph on disk is already correct.
@@ -148,11 +148,12 @@ Retrieves code symbols ranked by BM25-style lexical matching blended with **Pers
   - `--no-refresh` — skip the freshness probe and automatic background rebuild on drift.
 - **The two things this otherwise gets asked twice**:
   - Without `--source`, no code is shown — only location (path, line span), symbol id, signature, and composite score along with its lexical and graph components.
-  - By default, `ask` probes the graph for freshness before answering. If the working tree has drifted, the graph has not been built yet, or the ask sidecar is missing or carries another index version, it rebuilds the graph and sidecar under a cross-process lock before answering, logging rebuild progress to `stderr`. The sidecar is part of the probe because the freshness record knows about source files only: without that check, a deleted `ask-index.json` would leave every later question ranking on names and paths until some source file happened to change. To query the existing graph without rebuilding, pass `--no-refresh` — which skips the sidecar check as well, so the answer may fall back to names and paths, and says so on `stderr`.
+  - By default, `ask` probes the graph for freshness before answering. If the working tree has drifted, the freshness record is missing, or the ask sidecar is missing or carries another index version, it rebuilds the graph and sidecar under a cross-process lock before answering, logging rebuild progress to `stderr`. The sidecar is part of the probe because the freshness record knows about source files only: without that check, a deleted `ask-index.json` would leave every later question ranking on names and paths until some source file happened to change. To query the existing graph without rebuilding, pass `--no-refresh` — which skips the sidecar check as well, so the answer may fall back to names and paths, and says so on `stderr`.
+  - Without a graph, exits 1 and points at `loomux graph build`; a query never builds a first graph.
 - **Output**: Ranked list of hits in the format:
   `N. <id>  <path>:<span-or-line>  (<score> lex <lexical> graph <graph>)`
   followed by signature and, if `--source` is requested, the inlined code block prefixed with `|`. If no symbols match the query, outputs an empty answer note and exits 0.
-- **Exit codes**: `0` on success (including when no symbols match the query); `1` on failure (unreadable graph, rebuild failure, syntax error in file when rebuilding); `2` on usage error (missing query, negative limit).
+- **Exit codes**: `0` on success (including when no symbols match the query); `1` on failure (no graph yet, unreadable graph, rebuild failure, syntax error in file when rebuilding); `2` on usage error (missing query, negative limit).
 
 ### `loomux graph callers <symbol> [dir]`
 Traces who calls, imports, implements, or extends a symbol.
@@ -243,10 +244,12 @@ Synchronizes state changes, identity registers, and vector index collections.
 
 ## 8. MCP Service & stdio Bridge (`loomux serve` / `loomux mcp`)
 
-The service answers the five `brain_*` tools over Streamable HTTP; the bridge is
-what an MCP host starts and all it does is pass calls on. Both were built in
-Stage 1b-2. The Web OS of Stage W1 is not here yet, and neither are the `graph_*`
-tools of Stages G2–G5.
+The service answers seven tools over Streamable HTTP — the five `brain_*` tools
+and the two `graph_*` tools of Stage G3; the bridge is what an MCP host starts
+and all it does is pass calls on. Both were built in Stage 1b-2. The Web OS of
+Stage W1 is not here yet, and neither are the other four `graph_*` tools
+(`graph_trace_calls`, `graph_file_api`, `graph_find_all`, `graph_repo_map`),
+which come in Stage G4, each with its command-line sibling.
 
 **The channel is the address, not a field of the request.** `serve` binds two
 loopback listeners, one for `local` and one for `cloud`, each with its own
@@ -289,7 +292,7 @@ Ends the service through its own endpoint. `--force` kills it by the PID in
   failed; `2` an unrecognized argument.
 
 ### `loomux mcp [--channel local|cloud]`
-The stdio bridge an MCP host starts. It offers the five tools itself — the
+The stdio bridge an MCP host starts. It offers the seven tools itself — the
 descriptions are static, so a cold service never sits inside the host's
 handshake — and forwards every `tools/call` to the service over the channel's
 address, name to name and arguments to arguments.
@@ -307,7 +310,7 @@ address, name to name and arguments to arguments.
 - **Exit codes**: `0` the host hung up, or Ctrl+C; `1` the bridge failed; `2` an
   unrecognized argument or an invalid `--channel`.
 
-### The five tools
+### The seven tools
 
 | Tool | Arguments |
 |---|---|
@@ -316,9 +319,38 @@ address, name to name and arguments to arguments.
 | `brain_read` | `scope` and `relative` (both required), `section` |
 | `brain_neighbors` | `scope` and `relative` (both required) |
 | `brain_status` | none |
+| `graph_find_code` | `scope` and `query` (both required), `limit` → 5, `full`, `in` |
+| `graph_check_freshness` | `scope` (required) |
 
 `n` is 10 here and 5 on the command line; that is parity with the Python
-reference, which does the same, not an inconsistency.
+reference, which does the same, not an inconsistency. `limit` is 5 here and 8
+for `loomux graph ask`, both Graft's values.
+
+The two `graph_*` tools are `graph ask` and `graph check` of one area, the
+area's path being the repository root:
+
+- **`graph_find_code`** always inlines the source at each hit; `full` takes
+  the whole span instead of the capped excerpt, and `in` narrows to a path
+  prefix before scoring. A refresh note stands before the answer. Without a
+  graph the call is an error pointing at `loomux graph build` — a query never
+  builds a first graph.
+- **`graph_check_freshness`** never refreshes, so it reports on the graph as it
+  was found. Drift and a missing graph are text, not errors. `isError` marks
+  a refused call — a missing, unknown or hidden scope, or for
+  `graph_find_code` a missing query — and a real read failure.
+
+**Visibility:** an area whose manifest sets `[privacy] mode = "local_only"` does not exist on
+the cloud channel (`unknown scope`, as for `brain_*`), and on both channels
+paths under the manifest's `[privacy] never` globs are dropped before scoring
+and from the drift report — which names how many it left out on the local
+channel and not on the cloud one. On the cloud channel no refresh note goes
+out either, neither before the answer nor as progress: a note counts files
+under the `never` globs too. Every read or query error becomes the fixed text
+"the graph could not be read on this channel; ask on the local channel for
+details" there, because an error message can name a hidden file or a local
+path. A missing graph is the exception and keeps its own text. An internal
+error reads "internal error; ask on the local channel for details" there,
+without the value it carried.
 
 ### The `.mcp.json` of a host
 
