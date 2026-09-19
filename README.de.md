@@ -66,8 +66,8 @@ sequenceDiagram
     Hook->>Graph: Geänderte Datei hashen & Blast Radius berechnen (Ziel <5ms, G4)
     Hook-->>Agent: Betroffene Aufrufer & Blast-Warnungen inline ausgeben
 
-    Agent->>Hook: Stop (Rundenende, Stufe 1b — noch kein stop-Ereignis verdrahtet)
-    Hook->>Verify: Prüfkette fahren (konfigurierte Lanes, Tests, Coverage-Tor — Stufe 1b)
+    Agent->>Hook: Stop (Rundenende, Stufe 2c — noch kein stop-Ereignis verdrahtet)
+    Hook->>Verify: Prüfkette fahren (konfigurierte Lanes, Tests, Coverage-Tor — Stufe 2c)
     Verify-->>Agent: Grün (Exit 0) oder Stop mit Feedback (Exit 1/2)
 ```
 
@@ -151,7 +151,7 @@ Matrix darunter sagt, wo die einzelnen Funktionen stehen:
 | Sitzungsstart | Hält den Commit fest, auf dem eine Sitzung beginnt, und warnt, wenn das Binary im Projekt älter ist als `go.mod`, `go.sum` oder eine `.go`-Datei unter `cmd/` oder `internal/`. Kündigt nur an; blockiert nie einen Zug. | ✅ **Implementiert** (Stufe 1a) |
 | Subagent-Drift & Stop-Tor | Drifterkennung für Subagenten und der Block-Zähler des Stop-Tors. `loomux hook` kennt drei Ereignisse — `pre-tool-use`, `post-tool-use`, `session-start`; kein `stop` und kein `subagent-*` ist verdrahtet. | 📋 **Spezifiziert** (Stufe 2c) |
 | Prüfbefehle | `loomux check commit-msg` (Sprache und Form einer Nachricht), `check gofmt` (Formatierung, mit dem Exit-Code, den `gofmt -l` nicht gibt) und `check gocover` (100 % je Funktion gegen ein Profil, oder eine Gesamtgrenze mit `--floor`). `dev covergate` gibt es nicht mehr. | ✅ **Implementiert** (Stufe 1a; `gocover` 2a) |
-| Prüfketten-Tabelle | Eine Tabelle `[verify]` treibt `loomux check <profil>` und den post-edit-Hook: Presets je Stack, die ohne jede Konfiguration gelten, eine Lane je Art, Stack und Bereich, `after`-Kanten statt Stufen, ein Urteil je Art und `--show`, das zeigt, was läuft. Kindprozessbäume werden bei einer Frist ganz beendet (unter Windows über ein Job Object). | ✅ **Implementiert** (Stufe 2a) |
+| Prüfketten-Tabelle | Eine Tabelle `[verify]` treibt `loomux check <profil>` und den post-edit-Hook: Presets je Stack, die ohne jede Konfiguration gelten, eine Lane je Art, Stack und Bereich, `after`-Kanten statt Stufen, ein Urteil je Art und `--show`, das zeigt, was läuft. Eine Lane kann Dateien nennen, die sie braucht (`needs`): die C++-Lanes auf dem Build-Baum warten auf `build/CMakeCache.txt` und sind `unready`, bis der Build konfiguriert ist; ein Edit führt `clang-format` auf der Datei trotzdem aus. Kindprozessbäume werden bei einer Frist ganz beendet (unter Windows über ein Job Object). | ✅ **Implementiert** (Stufe 2a) |
 | Worktree-Spiegelung | Isolierte Subagent-Git-Worktrees mit NTFS-Junctions und Sitzungsverfolgung. | ✅ **Implementiert** (Stufe 1a) |
 | Zonenfreier Startpfad | Gos lokale Zeitzone bleibt vom Hook-Pfad fern: Der TOML-Parser baut seine lokalen Zonen beim ersten Gebrauch (`third_party/toml`), und ein Test im Tor lÃ¤sst jedes Paket-Init Ã¼ber 500 Allokationen scheitern. `hook pre-tool-use` 7,5 ms warm gegen 26,5 ms vorher (gemessen 2026-09-17). | â **Implementiert** (ohne Stufe) |
 | Claude-Mods-Adapter | Die Schreibschranke in einen `tool.check`-Function-Hook setzen ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)), der über `$.mcp.call` mit einem langlebigen loomux spricht — entfernt den Spawn, bringt ein `ask`-Urteil und eine gerenderte Begründung. Nur für Claude Code; der Exec-Hook bleibt der portable Pfad. | 💡 **Optional** (ohne Stufe) |
@@ -197,6 +197,7 @@ loomux hook session-start           # Hält den Basis-Commit der Sitzung fest un
 loomux status|doctor|explain        # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses (drei Namen, ein Codeweg)
 loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel und Junction-Pfade
 loomux dev swap-binary              # Tauscht laufendes Binary atomar gegen Neubau aus
+loomux version                      # Gibt die Version dieses Binaries aus
 loomux lint <datei>                 # Prüft Links und Frontmatter einer Wiki-Seite
 loomux wiki-gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
 loomux brain search "<anfrage>"     # Durchsucht die sichtbaren Bereiche über den qmd-Daemon (--profile fast|full|keyword)
@@ -245,6 +246,8 @@ loomux dev bench [--dir <dir>] [--save] # Benchmark für Einzel-Repo oder Open-S
 loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus
 loomux dev record-case --out <dir>  # Zeichnet einen Lauf eines Referenz-Binaries als Fall auf
 loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter Fälle in loomux-Fälle
+loomux dev record-mcp-case --out <dir> # Zeichnet einen MCP-Werkzeugaufruf eines Referenzdienstes als Fall auf
+loomux dev release <unterbefehl>    # Release-Regeln für die CI: next-version, parse-body, changelog-insert, build
 ```
 
 ---
