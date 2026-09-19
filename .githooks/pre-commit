@@ -10,11 +10,12 @@ if [ "$(git branch --show-current)" = master ]; then
 	exit 1
 fi
 # The gate reads the working tree. It only judges what is committed when no
-# input of its differs from the index -- the Go sources, and the parity corpus,
-# the hooks and the gate scripts themselves, which the suite and these scripts
-# read from the working tree just as directly.
-unstaged=$(git diff --name-only -- '*.go' go.mod go.sum testdata .githooks ci)
-untracked=$(git ls-files --others --exclude-standard -- '*.go' go.mod go.sum testdata .githooks ci)
+# input of its differs from the index -- the Go sources, the configuration the
+# check chain reads, and the parity corpus, the hooks and the gate scripts
+# themselves, which the suite and these scripts read from the working tree
+# just as directly.
+unstaged=$(git diff --name-only -- '*.go' '*.toml' go.mod go.sum testdata .githooks ci .loomux)
+untracked=$(git ls-files --others --exclude-standard -- '*.go' '*.toml' go.mod go.sum testdata .githooks ci .loomux)
 if [ -n "$unstaged$untracked" ]; then
 	echo "pre-commit: inputs differ from the index; stage or stash them:" >&2
 	[ -z "$unstaged" ] || echo "$unstaged" >&2

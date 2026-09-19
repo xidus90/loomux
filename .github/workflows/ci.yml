@@ -26,6 +26,7 @@ jobs:
   # Linux does not run the test gate: several tests and the coverage of
   # about 33 functions are bound to Windows, so the gate can only pass there.
   # This leg keeps the Linux build honest with vet, a build and the smoke test.
+  # child's process group arm only runs here, so its tests run here too.
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -34,5 +35,6 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go vet ./...
+      - run: go test ./internal/child/...
       - run: go build -o bin/loomux.exe ./cmd/loomux
       - run: sh ci/smoke.sh bin/loomux.exe
