@@ -212,6 +212,12 @@ func TestLoadCaseDefaultsCompareToData(t *testing.T) {
 	if err != nil || c.Compare != "message" {
 		t.Fatalf("%v %q", err, c.Compare)
 	}
+
+	writeCaseFile(t, dir, "compare", []byte("lanes\n"))
+	c, err = cases.LoadCase(dir)
+	if err != nil || c.Compare != "lanes" {
+		t.Fatalf("%v %q", err, c.Compare)
+	}
 }
 
 func TestLoadCaseRefusesAnUnknownCompare(t *testing.T) {

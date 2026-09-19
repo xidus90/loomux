@@ -55,6 +55,14 @@ func Import(from, to string, m Mapping) error {
 	}
 	for _, c := range found {
 		out := filepath.Join(to, c.Verb, c.Name)
+		// The worlds are staged afresh: a file an earlier import added there,
+		// such as a merged fixture the recording never had, would otherwise
+		// outlive it and be merged into again.
+		for _, world := range []string{"world", "world_after"} {
+			if err := os.RemoveAll(filepath.Join(out, world)); err != nil {
+				return fmt.Errorf("clearing %s: %w", filepath.Join(out, world), err)
+			}
+		}
 		// The two files this import rewrites are not copied first: one writer
 		// per file keeps the copy from being the one that fails.
 		skip := map[string]bool{"cmd": true, "stdin": len(c.Stdin) > 0}
@@ -227,6 +235,20 @@ func translateDir(dir string) error {
 	}
 	if worktree, ok := config["worktree"]; ok {
 		result["worktree"] = worktree
+	}
+	if raw, ok := config["verify"]; ok {
+		configPath := filepath.Join(dir, ".ultraloom", "config.toml")
+		old, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s: [verify] must be a table", configPath)
+		}
+		folded, err := foldVerify(dir, old)
+		if err != nil {
+			return fmt.Errorf("%s: %w", configPath, err)
+		}
+		if len(folded) > 0 {
+			result["verify"] = folded
+		}
 	}
 
 	answers, _, err := decode(filepath.Join(dir, ".ultraloom", "answers.toml"))

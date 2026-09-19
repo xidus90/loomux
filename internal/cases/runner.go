@@ -187,8 +187,12 @@ func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
 	if actualExit != c.ExitCode {
 		mismatches = append(mismatches, fmt.Sprintf("exit code: expected %d, got %d", c.ExitCode, actualExit))
 	}
-	// A message case pins the exit code alone: its wording is loomux's own.
-	if c.Compare != "message" && !bytes.Equal(actualStdout, c.Stdout) {
+	// A message case pins the exit code alone: its wording is loomux's own. A
+	// lanes case pins the verdict per kind: loomux reports per lane.
+	switch {
+	case c.Compare == "lanes":
+		mismatches = append(mismatches, compareLanes(c.Stdout, actualStdout)...)
+	case c.Compare != "message" && !bytes.Equal(actualStdout, c.Stdout):
 		mismatches = append(mismatches, fmt.Sprintf("stdout mismatch: expected %d bytes, got %d bytes", len(c.Stdout), len(actualStdout)))
 	}
 	if c.HasWorldAfter {

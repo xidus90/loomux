@@ -529,3 +529,28 @@ func TestTranslateWorldReportsARegisteredAreaItCannotTranslate(t *testing.T) {
 		t.Fatalf("want an error naming the area's manifest, got %v", err)
 	}
 }
+
+// The worlds of a case the recordings still back are staged afresh: a file
+// an earlier import left there -- a merged fixture the recording never had --
+// would otherwise survive and be merged into again.
+func TestImportStagesTheWorldsOfABackedCaseAfresh(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	stale := filepath.Join(to, "guard", "one", "world", "faketool.json")
+	writeFile(t, stale, "{}")
+	m := Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}}
+
+	if err := Import(from, to, m); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatalf("the file of an earlier import survived: %v", err)
+	}
+
+	locked := filepath.Join(to, "guard", "one", "world", "kept.txt")
+	writeFile(t, locked, "x")
+	testlock.Lock(t, locked)
+	if err := Import(from, to, m); err == nil || !strings.Contains(err.Error(), "clearing") {
+		t.Fatalf("want an error about the case it could not clear, got %v", err)
+	}
+}

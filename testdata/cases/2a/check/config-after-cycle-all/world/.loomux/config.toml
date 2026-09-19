@@ -1,0 +1,6 @@
+[verify]
+  [verify.project]
+    [verify.project.coverage]
+      after = "test"
+    [verify.project.test]
+      after = "coverage"

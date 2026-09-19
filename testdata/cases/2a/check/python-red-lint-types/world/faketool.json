@@ -1,0 +1,65 @@
+{
+  "answers": [
+    {
+      "prefix": "uvx ruff check",
+      "exit": 1,
+      "stdout": "faketool: uvx ruff check\ntests/test_a.py:1:1: F401 unused import\n"
+    },
+    {
+      "prefix": "uv run mypy",
+      "exit": 0,
+      "stdout": "faketool: uv run mypy\n"
+    },
+    {
+      "prefix": "uv run pytest",
+      "exit": 0,
+      "stdout": "faketool: uv run pytest\n1 passed\n"
+    },
+    {
+      "prefix": "uv run coverage run",
+      "exit": 0,
+      "stdout": "faketool: uv run coverage run\n1 passed\n"
+    },
+    {
+      "prefix": "uv run coverage report",
+      "exit": 0,
+      "stdout": "faketool: uv run coverage report\nTOTAL 1 0 100%\n"
+    },
+    {
+      "prefix": "npx eslint",
+      "exit": 0,
+      "stdout": "faketool: npx eslint\n"
+    },
+    {
+      "prefix": "npx tsc",
+      "exit": 0,
+      "stdout": "faketool: npx tsc\n"
+    },
+    {
+      "prefix": "npx vitest run",
+      "exit": 0,
+      "stdout": "faketool: npx vitest run\n1 passed\n"
+    },
+    {
+      "prefix": "npx vitest run --coverage",
+      "exit": 0,
+      "stdout": "faketool: npx vitest run --coverage\nAll files 100\n"
+    },
+    {
+      "prefix": "cmake --build",
+      "exit": 0,
+      "stdout": "faketool: cmake --build\n"
+    },
+    {
+      "prefix": "go test",
+      "exit": 0,
+      "stdout": "faketool: go test\nok example.com/world\n",
+      "writes": [
+        {
+          "path": "{{COVERPROFILE}}",
+          "content": "mode: set\nexample.com/world/a.go:3.16,3.26 1 1\n"
+        }
+      ]
+    }
+  ]
+}

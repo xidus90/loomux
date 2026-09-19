@@ -292,6 +292,7 @@ func devImportCases(args []string, _ io.Reader, _, stderr io.Writer) int {
 	// a `cmd`, an MCP case a `call` -- so which one this is has to be said, not
 	// guessed from what happens to lie in the directory.
 	mcp := fs.Bool("mcp", false, "the recordings are MCP calls, not command lines")
+	merge := fs.String("merge-fixture", "", "faketool fixture whose answers are appended to every translated world")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -309,6 +310,13 @@ func devImportCases(args []string, _ io.Reader, _, stderr io.Writer) int {
 		importer = importcases.ImportMCP
 	}
 	if err := importer(*from, *to, m); err != nil {
+		fmt.Fprintf(stderr, "loomux dev import-cases: %v\n", err)
+		return 1
+	}
+	if *merge == "" {
+		return 0
+	}
+	if err := importcases.MergeFixture(*to, *merge); err != nil {
 		fmt.Fprintf(stderr, "loomux dev import-cases: %v\n", err)
 		return 1
 	}
