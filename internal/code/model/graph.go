@@ -112,10 +112,10 @@ type Node struct {
 	// backslash, because an id begins with this path (a file node's id IS it,
 	// a symbol's continues with "#" and the symbol) and every prefix
 	// comparison runs over that shape. A backslash here cannot divide the
-	// index from the walk: lexicon.Filter normalizes its prefix argument and
-	// then compares the id unchanged, and an id and this Path are cut from the
-	// one rel, so the filter drops exactly the nodes lexicon.UnderPrefix drops
-	// in the walk. It empties both at once instead, and it does so visibly:
+	// index from the walk: ask.Run judges both by this Path through one
+	// admission rule, lexicon.UnderPrefix against the normalized prefix, so
+	// the index drops exactly the nodes the walk drops. It empties both at
+	// once instead, and it does so visibly:
 	// asked with a prefix, the filtered index holds nothing, nothing is
 	// seeded, and ask.Run answers "no matching nodes" for a subtree that
 	// exists. The Go extractor takes it from its rel argument, which graph

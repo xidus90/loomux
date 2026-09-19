@@ -130,9 +130,20 @@ func TestReadRefusesASidecarOfAnotherVersion(t *testing.T) {
 	}
 }
 
-func TestFilterRecomputesDocumentFrequencyOverTheRemainder(t *testing.T) {
-	ix := lexicon.Build(graph())
-	sub := ix.Filter("lib")
+// under is the id predicate a caller builds for a subtree, as ask.Run does:
+// it looks each id up in the graph and judges the node's own Path, never a
+// path cut from the id.
+func under(g *model.Graph, prefix string) func(model.NodeID) bool {
+	paths := map[model.NodeID]string{}
+	for _, n := range g.Nodes {
+		paths[n.ID] = n.Path
+	}
+	return func(id model.NodeID) bool { return lexicon.UnderPrefix(paths[id], prefix) }
+}
+
+func TestWhereOnASubtreeRecomputesDocumentFrequencyOverTheRemainder(t *testing.T) {
+	g := graph()
+	sub := lexicon.Build(g).Where(under(g, "lib"))
 
 	if sub.DocCount != 2 {
 		t.Fatalf("DocCount = %d, want the two documents under lib/", sub.DocCount)
@@ -157,27 +168,23 @@ func TestFilterRecomputesDocumentFrequencyOverTheRemainder(t *testing.T) {
 	}
 }
 
-func TestFilterIsSegmentAware(t *testing.T) {
+func TestUnderPrefixIsSegmentAware(t *testing.T) {
 	g := graph()
 	g.Nodes = append(g.Nodes, model.Node{
 		ID: "libextra/other.go#Other", Name: "Other", Kind: "function",
 		Path: "libextra/other.go", BodyHash: "h", BodyText: "x",
 	})
-	sub := lexicon.Build(g).Filter("lib")
+	sub := lexicon.Build(g).Where(under(g, "lib"))
 
 	// "lib" must not match "libextra": a prefix is a path prefix, not a string
 	// prefix.
 	for _, d := range sub.Docs {
 		if d.ID == "libextra/other.go#Other" {
-			t.Fatalf("segment-unaware filter matched %q", d.ID)
+			t.Fatalf("segment-unaware prefix matched %q", d.ID)
 		}
 	}
-}
-
-func TestFilterOnAnEmptyPrefixIsTheWholeIndex(t *testing.T) {
-	ix := lexicon.Build(graph())
-	if got := ix.Filter(""); got.DocCount != ix.DocCount {
-		t.Fatalf("DocCount = %d, want the whole index at %d", got.DocCount, ix.DocCount)
+	if len(sub.Docs) != 2 {
+		t.Fatalf("docs = %v, want the two under lib/", ids(sub))
 	}
 }
 
@@ -250,9 +257,11 @@ func TestBuildAnEmptyGraphHasNoAverage(t *testing.T) {
 	}
 }
 
-func TestFilterOnAPrefixNothingLiesUnderIsEmpty(t *testing.T) {
-	// The prefix a caller mistypes: the answer is no documents, not a panic.
-	sub := lexicon.Build(graph()).Filter("nowhere")
+func TestWhereThatAdmitsNothingIsEmpty(t *testing.T) {
+	// The prefix a caller mistypes: the answer is no documents, not a panic
+	// and not a division by zero.
+	g := graph()
+	sub := lexicon.Build(g).Where(under(g, "nowhere"))
 
 	if sub.DocCount != 0 || len(sub.Docs) != 0 || sub.AvgBodyLen != 0 {
 		t.Fatalf("got %+v, want an empty index", sub)
@@ -265,61 +274,6 @@ func ids(ix *lexicon.Index) []string {
 		out = append(out, string(d.ID))
 	}
 	return out
-}
-
-func TestFilterNormalizesTheShellCompletedPrefix(t *testing.T) {
-	ix := lexicon.Build(graph())
-	bare := ids(ix.Filter("lib"))
-
-	// Tab completion hands a caller "lib/", and on Windows "lib\": the same
-	// subtree, so the same documents.
-	for _, prefix := range []string{"lib/", "/lib", "/lib/", `lib\`, `\lib\`} {
-		if got := ids(ix.Filter(prefix)); !slices.Equal(got, bare) {
-			t.Errorf("Filter(%q) = %v, want %v", prefix, got, bare)
-		}
-	}
-}
-
-func TestFilterNormalizesAWindowsShapedSubtree(t *testing.T) {
-	g := graph()
-	g.Nodes = append(g.Nodes, model.Node{
-		ID: "lib/deep/inner.go#Inner", Name: "Inner", Kind: "function",
-		Path: "lib/deep/inner.go", BodyHash: "h", BodyText: "x",
-	})
-	ix := lexicon.Build(g)
-
-	if got, want := ids(ix.Filter(`lib\deep`)), ids(ix.Filter("lib/deep")); !slices.Equal(got, want) {
-		t.Errorf(`Filter("lib\deep") = %v, want %v`, got, want)
-	}
-}
-
-func TestFilterOnASlashAloneIsTheWholeIndex(t *testing.T) {
-	ix := lexicon.Build(graph())
-
-	// A prefix that normalizes away is no prefix at all.
-	for _, prefix := range []string{"/", "//", `\`} {
-		if got := ix.Filter(prefix); got.DocCount != ix.DocCount {
-			t.Errorf("Filter(%q).DocCount = %d, want the whole index at %d", prefix, got.DocCount, ix.DocCount)
-		}
-	}
-}
-
-func TestFilterStaysSegmentAwareAfterNormalizing(t *testing.T) {
-	g := graph()
-	g.Nodes = append(g.Nodes, model.Node{
-		ID: "libextra/other.go#Other", Name: "Other", Kind: "function",
-		Path: "libextra/other.go", BodyHash: "h", BodyText: "x",
-	})
-	sub := lexicon.Build(g).Filter("lib/")
-
-	for _, d := range sub.Docs {
-		if d.ID == "libextra/other.go#Other" {
-			t.Fatalf("normalizing a trailing slash made the filter segment-unaware: %q", d.ID)
-		}
-	}
-	if len(sub.Docs) != 2 {
-		t.Fatalf("docs = %v, want the two under lib/", ids(sub))
-	}
 }
 
 func TestNormalizePrefix(t *testing.T) {
@@ -343,8 +297,8 @@ func TestNormalizePrefix(t *testing.T) {
 }
 
 func TestNormalizePrefixIsIdempotent(t *testing.T) {
-	// Filter normalizes, and so does every caller that walks the graph for the
-	// same prefix. Both must be able to do it without changing the answer.
+	// ask.Run normalizes what the caller hands it, and a caller may hand it a
+	// prefix it normalized itself. The second pass must not change the answer.
 	for _, in := range []string{"lib", "lib/", `\lib\sub\`, "/"} {
 		once := lexicon.NormalizePrefix(in)
 		if twice := lexicon.NormalizePrefix(once); twice != once {
@@ -454,5 +408,38 @@ func TestUsableReadsTheVersionBehindOtherFields(t *testing.T) {
 	}
 	if !lexicon.Usable(root) {
 		t.Fatal("the version must be found wherever it stands")
+	}
+}
+
+func TestWhereKeepsOnlyWhatThePredicateAdmitsAndRecomputesStatistics(t *testing.T) {
+	ix := lexicon.Build(graph())
+	sub := ix.Where(func(id model.NodeID) bool { return id != "web/render.go#Render" })
+
+	for _, d := range sub.Docs {
+		if d.ID == "web/render.go#Render" {
+			t.Fatal("a document the predicate refuses must be gone")
+		}
+	}
+	if sub.DocCount != len(sub.Docs) {
+		t.Errorf("DocCount = %d, want %d", sub.DocCount, len(sub.Docs))
+	}
+	if _, ok := sub.DF["template"]; ok {
+		t.Error("a term that lives only in a refused document must be gone from df")
+	}
+}
+
+func TestWhereHandsTheWholeIDAndCutsNoPathFromIt(t *testing.T) {
+	// A path cannot be cut out of an id -- "#gen.go" is a file node's whole
+	// id -- so Where hands the id over untouched and the caller looks up the
+	// node's Path.
+	ix := lexicon.Build(graph())
+	var seen []model.NodeID
+	ix.Where(func(id model.NodeID) bool { seen = append(seen, id); return true })
+	want := make([]model.NodeID, 0, len(ix.Docs))
+	for _, d := range ix.Docs {
+		want = append(want, d.ID)
+	}
+	if !slices.Equal(seen, want) {
+		t.Fatalf("predicate saw %v, want every document id as it is: %v", seen, want)
 	}
 }

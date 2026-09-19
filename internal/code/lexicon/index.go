@@ -85,33 +85,26 @@ func terms(d Doc) map[string]bool {
 	return out
 }
 
-// Filter restricts the index to documents whose node path lies at or under a
-// repo-relative prefix, and recomputes the corpus statistics over what is left.
+// Where keeps the documents whose id the predicate admits, and recomputes
+// the statistics over what is left.
 //
 // Recomputing is the whole difference between a filter and a post-filter: a
 // word that is common across the repository and rare inside one subtree has to
 // discriminate inside that subtree. Graft pins this with a test of its own --
 // a term's rank flips relative to another between filtered and unfiltered.
+// The same holds for an area's never globs: a filter applied after scoring
+// would let a refused document shape df and take a place in the limit.
 //
-// The prefix is segment-aware: "lib" never matches "libextra".
-//
-// Filter normalizes the prefix before anything else, because it is package API
-// and the form a shell completes is the form a caller passes: "lib/" and, on
-// Windows, "lib\" name the same subtree as "lib", and a prefix that normalizes
-// away is no prefix at all. Unnormalized, a trailing slash matched nothing and
-// Filter answered with an empty index instead of an error -- a caller could not
-// tell that from a subtree that is genuinely empty. A later caller walking the
-// graph for the same prefix has to normalize it the same way, or the two
-// disagree about what a prefix means.
-func (ix *Index) Filter(prefix string) *Index {
-	prefix = NormalizePrefix(prefix)
-	if prefix == "" {
-		return ix
-	}
+// The predicate gets the id and not a path, because a path cannot be cut out
+// of an id: a file may be named "#gen.go" or sit under "dir#1/", and the first
+// '#' then falls inside the path. A caller that judges by path looks the id up
+// in its graph, where the node carries its Path; ask.Run does, for a subtree
+// prefix and never globs alike.
+func (ix *Index) Where(keep func(id model.NodeID) bool) *Index {
 	out := &Index{Version: ix.Version, DF: map[string]int{}}
 	bodyTotal := 0
 	for _, d := range ix.Docs {
-		if !idUnderPrefix(string(d.ID), prefix) {
+		if !keep(d.ID) {
 			continue
 		}
 		out.Docs = append(out.Docs, d)
@@ -131,12 +124,14 @@ func (ix *Index) Filter(prefix string) *Index {
 
 // NormalizePrefix brings a repo-relative prefix into the shape node ids carry:
 // forward slashes, no leading or trailing separator. An all-separator prefix
-// normalizes to the empty one, which names the whole repository.
+// normalizes to the empty one, which names the whole repository. The form a
+// shell completes is the form a caller passes: "lib/" and, on Windows, "lib\"
+// name the same subtree as "lib".
 //
-// It is exported because Filter is not the only place a prefix is interpreted:
-// a caller that also narrows the graph walk to the same subtree has to reach
-// the same verdict about what "lib/" means. Two normalizers that agree today
-// are two normalizers.
+// It is exported because the prefix is interpreted outside this package:
+// ask.Run narrows both the index and the graph walk to the same subtree, and
+// both have to reach the same verdict about what "lib/" means. Two
+// normalizers that agree today are two normalizers.
 func NormalizePrefix(prefix string) string {
 	return strings.Trim(strings.ReplaceAll(prefix, `\`, "/"), "/")
 }
@@ -153,17 +148,6 @@ func NormalizePrefix(prefix string) string {
 // missing graph axis.
 func UnderPrefix(path, prefix string) bool {
 	return path == prefix || strings.HasPrefix(path, prefix+"/")
-}
-
-// idUnderPrefix is UnderPrefix for a node id, whose path part ends at the "#"
-// when there is one -- a file node's id is its path and nothing more. Filter
-// needs this form because a Doc carries the id and no path of its own.
-func idUnderPrefix(id, prefix string) bool {
-	path := id
-	if i := strings.Index(id, "#"); i >= 0 {
-		path = id[:i]
-	}
-	return UnderPrefix(path, prefix)
 }
 
 // Write serializes the sidecar. Maps are serialized by encoding/json in sorted
