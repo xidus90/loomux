@@ -91,3 +91,15 @@ var ambiguities = []ambiguity{
 // The wiki question, kept beside the others although its shape differs: a
 // directory rather than a file, and answered by a marker inside it.
 const wikiNote = "wiki/ without an OKF marker in index.md: a brain bundle, or a plain docs folder?"
+
+// SignalNames lists every stack name a signal can report; the presets of
+// verify select their variants by these names and are checked against them.
+func SignalNames() []string {
+	set := map[string]bool{}
+	for _, sig := range signals {
+		for _, s := range sig.stacks {
+			set[s] = true
+		}
+	}
+	return sorted(set)
+}

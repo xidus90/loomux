@@ -28,6 +28,10 @@ type Facts struct {
 	// check started anywhere above this directory silently runs on
 	// defaults -- which is a different set of rules than the project's.
 	GodotDir string
+	// Areas names, per stack, every area a signal of that stack matched in:
+	// "." for the root, else the top-level directory. A check runs one lane
+	// per area, so two web apps under one root are linted where each lives.
+	Areas map[string][]string
 	// Ambiguous carries findings that must not be decided here -- a Django
 	// project whose migrations may be generated or wanted, a package.json
 	// that may be tooling only. The interview resolves them.
@@ -42,17 +46,25 @@ type Facts struct {
 func Detect(root fs.FS) Facts {
 	areas := searchAreas(root)
 	found := map[string]bool{}
+	areasOf := map[string]map[string]bool{}
 	for _, sig := range signals {
 		for _, area := range areas {
-			if matches(root, area, sig) {
-				for _, stack := range sig.stacks {
-					found[stack] = true
+			if !matches(root, area, sig) {
+				continue
+			}
+			for _, stack := range sig.stacks {
+				found[stack] = true
+				if areasOf[stack] == nil {
+					areasOf[stack] = map[string]bool{}
 				}
-				break
+				areasOf[stack][area] = true
 			}
 		}
 	}
-	facts := Facts{Stacks: sorted(found), Ambiguous: doubts(root, areas), GodotDir: godotArea(root, areas)}
+	facts := Facts{Stacks: sorted(found), Areas: map[string][]string{}, Ambiguous: doubts(root, areas), GodotDir: godotArea(root, areas)}
+	for stack, set := range areasOf {
+		facts.Areas[stack] = sorted(set)
+	}
 	if _, err := fs.Stat(root, ".git"); err == nil {
 		facts.HasGit = true
 	}

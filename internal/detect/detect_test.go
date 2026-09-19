@@ -2,6 +2,7 @@ package detect
 
 import (
 	"io/fs"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -402,5 +403,31 @@ func TestPyprojectWithPyrightSectionNamesPyright(t *testing.T) {
 	})
 	if !has(facts.Stacks, "pyright") {
 		t.Fatalf("stacks = %v, want pyright", facts.Stacks)
+	}
+}
+
+func TestDetectRecordsEveryAreaAStackIsFoundIn(t *testing.T) {
+	root := fstest.MapFS{
+		"go.mod":              {Data: []byte("module x\n")},
+		"web/package.json":    {Data: []byte("{}")},
+		"web/tsconfig.json":   {Data: []byte("{}")},
+		"admin/package.json":  {Data: []byte("{}")},
+		"admin/tsconfig.json": {Data: []byte("{}")},
+		"game/project.godot":  {Data: []byte("")},
+	}
+	f := Detect(root)
+	want := map[string][]string{
+		"go":         {"."},
+		"typescript": {"admin", "web"},
+		"godot":      {"game"},
+		"gdscript":   {"game"},
+	}
+	for stack, areas := range want {
+		if !reflect.DeepEqual(f.Areas[stack], areas) {
+			t.Errorf("%s: %v, want %v", stack, f.Areas[stack], areas)
+		}
+	}
+	if f.GodotDir != "game" {
+		t.Errorf("GodotDir %q", f.GodotDir)
 	}
 }
