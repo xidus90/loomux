@@ -395,7 +395,7 @@ func TestGraphBuildFailsWhenTheCacheDirectoryCannotBeCreated(t *testing.T) {
 	// A regular file named "cache" leaves store.Write's directory untouched
 	// and blocks the MkdirAll of everything under it. Both sidecars live
 	// there -- store.CachePath builds their paths -- so the build fails at
-	// lexicon.Write, the first of writeEverything's two sidecar writes, and
+	// lexicon.Write, the first of query.Build's two sidecar writes, and
 	// never reaches freshness.Write.
 	if err := os.WriteFile(filepath.Join(store.Dir(root), "cache"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
@@ -454,28 +454,6 @@ func TestGraphBuildCountsFilesWithoutASymbol(t *testing.T) {
 	}
 }
 
-func TestBuildGraphFailsWhenTheRootDoesNotExist(t *testing.T) {
-	if _, _, err := buildGraph(filepath.Join(t.TempDir(), "gone")); err == nil {
-		t.Fatal("want an error for a missing root")
-	}
-}
-
-func TestBuildGraphFailsWhenASourceFileCannotBeRead(t *testing.T) {
-	root := repo(t, sample())
-	testlock.Lock(t, filepath.Join(root, "main.go"))
-	if _, _, err := buildGraph(root); err == nil {
-		t.Fatal("want an error for an unreadable source file")
-	}
-}
-
-func TestBuildGraphFailsWhenGoModCannotBeRead(t *testing.T) {
-	root := repo(t, sample())
-	testlock.Lock(t, filepath.Join(root, "go.mod"))
-	if _, _, err := buildGraph(root); err == nil {
-		t.Fatal("want an error for an unreadable go.mod")
-	}
-}
-
 func TestGraphCheckFailsOnAnUnknownFlag(t *testing.T) {
 	var out, errOut bytes.Buffer
 	if code := graphCommand([]string{"check", "--nope"}, nil, &out, &errOut); code != 2 {
@@ -519,46 +497,6 @@ func TestGraphCheckFailsWhenReExtractionFails(t *testing.T) {
 	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
 	if code != 1 {
 		t.Fatalf("exit %d, want 1: an unreadable source file must fail check, not report it clean", code)
-	}
-}
-
-func TestGoModPathsSkipsADirectoryItCannotRead(t *testing.T) {
-	root := repo(t, sample())
-	blocked := filepath.Join(root, "blocked")
-	if err := os.MkdirAll(blocked, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(blocked, "go.mod"), []byte("module blocked\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	testlock.LockDir(t, blocked)
-	// The walk must not fail the whole build over one unreadable directory.
-	got := goModPaths(root)
-	for _, p := range got {
-		if strings.HasPrefix(p, "blocked/") {
-			t.Errorf("goModPaths(%q) must not see into the locked directory, got %v", root, got)
-		}
-	}
-}
-
-func TestGoModPathsSkipsATestdataDirectory(t *testing.T) {
-	// goModPaths used to keep its own, narrower skip list (dot-directories and
-	// vendor only), so a fixture go.mod under testdata/ reached module
-	// resolution after sourceset had already excluded its .go files from the
-	// build -- two walks of the same tree disagreeing about testdata. Both now
-	// share sourceset.SkipDir.
-	files := sample()
-	files["testdata/fixture/go.mod"] = "module fixture\n"
-	root := repo(t, files)
-
-	got := goModPaths(root)
-	for _, p := range got {
-		if strings.HasPrefix(p, "testdata/") {
-			t.Errorf("goModPaths(%q) must not see into testdata/, got %v", root, got)
-		}
-	}
-	if len(got) != 1 || got[0] != "go.mod" {
-		t.Errorf("goModPaths(%q) = %v, want only the repository's own go.mod", root, got)
 	}
 }
 
@@ -666,17 +604,21 @@ func TestGraphAskFindsAFileByAWordInItsImportHeader(t *testing.T) {
 	}
 }
 
-func TestGraphAskBuildsWhenNothingIsBuiltYet(t *testing.T) {
+func TestGraphAskDoesNotBuildAFirstGraph(t *testing.T) {
 	root := repo(t, sample())
 	var out, errOut bytes.Buffer
 
-	// A fresh clone has no state: the graph is gitignored and was never checked
-	// out. No record means unknown, so the first question builds.
-	if code := graphCommand([]string{"ask", "run", "--root", root}, nil, &out, &errOut); code != 0 {
-		t.Fatalf("exit %d: %s", code, errOut.String())
+	// A fresh clone has no graph. The reference refuses rather than build a
+	// whole repository under a question (src/graph/refresh.ts); so does loomux
+	// since G3.
+	if code := graphCommand([]string{"ask", "run", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
 	}
-	if _, err := os.Stat(store.WiringPath(root)); err != nil {
-		t.Fatalf("ask must have built the graph: %v", err)
+	if !strings.Contains(errOut.String(), "loomux graph build") {
+		t.Errorf("stderr %q must point at the command that fixes it", errOut.String())
+	}
+	if _, err := os.Stat(store.WiringPath(root)); !os.IsNotExist(err) {
+		t.Fatalf("ask must not have built the graph: %v", err)
 	}
 }
 

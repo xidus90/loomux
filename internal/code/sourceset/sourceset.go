@@ -136,8 +136,8 @@ func Stat(root string) ([]SourceFile, error) {
 // indexed its own output would grow on every build.
 //
 // Exported so every directory walk this package's callers run agrees with
-// this one on what counts as source. internal/cli's goModPaths used to keep
-// its own, narrower list (dot-directories and vendor only), which let a
+// this one on what counts as source. internal/code/query's goModPaths used to
+// keep its own, narrower list (dot-directories and vendor only), which let a
 // fixture go.mod under testdata/ reach module resolution while the .go files
 // beside it were already excluded from the file set -- two walks of the same
 // tree, two different answers about testdata. skipDirs itself stays
