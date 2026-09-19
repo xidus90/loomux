@@ -3,6 +3,7 @@ package ask_test
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/ask"
@@ -515,5 +516,92 @@ func TestRunRescuesJustAboveTheFloorAndNotJustBelowIt(t *testing.T) {
 	got = ask.Run(below, belowIx, "seeded", ask.Options{Limit: 20})
 	if len(got.Hits) != 1 || got.Hits[0].ID != "a.go#Seeded" {
 		t.Fatalf("got %v, want the seed alone -- 0.125164712 is under the floor", idsOf(got))
+	}
+}
+
+func TestRunKeepFiltersBeforeScoringAndStillFillsTheLimit(t *testing.T) {
+	nodes := []model.Node{
+		symbol("secrets/a.go#Render", "Render", "secrets/a.go", "render"),
+		symbol("lib/b.go#Render", "Render", "lib/b.go", "render"),
+		symbol("lib/c.go#Render", "Render", "lib/c.go", "render"),
+	}
+	g, ix := world(nodes, nil)
+	keep := func(path string) bool { return !strings.HasPrefix(path, "secrets/") }
+
+	got := ask.Run(g, ix, "render", ask.Options{Limit: 2, Keep: keep})
+	if len(got.Hits) != 2 {
+		t.Fatalf("got %d hits, want the limit of 2 filled from what Keep admits", len(got.Hits))
+	}
+	for _, h := range got.Hits {
+		if h.Path == "secrets/a.go" {
+			t.Fatal("a node Keep refuses must not be ranked at all")
+		}
+	}
+}
+
+func TestRunKeepNarrowsTheWalkAndNotOnlyTheSeed(t *testing.T) {
+	// The twin of TestRunNarrowsTheWalkAndNotOnlyTheSeed: a refused neighbour
+	// must not be rescued by the walk.
+	nodes := []model.Node{
+		symbol("open/a.go#Seeded", "Seeded", "open/a.go", "seeded"),
+		symbol("secrets/b.go#Neighbour", "Neighbour", "secrets/b.go", "nothing matching"),
+	}
+	edges := []model.Edge{edge("open/a.go#Seeded", "secrets/b.go#Neighbour")}
+	g, ix := world(nodes, edges)
+	keep := func(path string) bool { return !strings.HasPrefix(path, "secrets/") }
+
+	got := ask.Run(g, ix, "seeded", ask.Options{Keep: keep})
+	for _, h := range got.Hits {
+		if h.Path == "secrets/b.go" {
+			t.Fatal("the walk rescued a node Keep refuses")
+		}
+	}
+}
+
+func TestRunKeepAndInApplyTogether(t *testing.T) {
+	nodes := []model.Node{
+		symbol("lib/a.go#Render", "Render", "lib/a.go", "render"),
+		symbol("lib/secret.go#Render", "Render", "lib/secret.go", "render"),
+		symbol("web/c.go#Render", "Render", "web/c.go", "render"),
+	}
+	g, ix := world(nodes, nil)
+	keep := func(path string) bool { return path != "lib/secret.go" }
+
+	got := ask.Run(g, ix, "render", ask.Options{In: "lib", Keep: keep})
+	if len(got.Hits) != 1 || got.Hits[0].ID != "lib/a.go#Render" {
+		t.Fatalf("got %v, want only lib/a.go#Render", idsOf(got))
+	}
+}
+
+func TestRunKeepJudgesTheNodesPathAndNeverAPathCutFromTheID(t *testing.T) {
+	// A file may be named "#gen.go", and a directory "dir#1". Cutting a
+	// node id at its first '#' reads "" and "dir" for those, which a never
+	// glob does not cover; the node's own Path is the only path there is.
+	fileNode := model.Node{ID: "#gen.go", Name: "#gen.go", Kind: "file", Path: "#gen.go", Span: "L1-L3", BodyHash: "h", BodyText: "generate"}
+	nodes := []model.Node{
+		fileNode,
+		symbol("#gen.go#Generate", "Generate", "#gen.go", "generate"),
+		symbol("dir#1/a.go#Generate", "Generate", "dir#1/a.go", "generate"),
+		symbol("lib/b.go#Generate", "Generate", "lib/b.go", "generate"),
+	}
+	g, ix := world(nodes, nil)
+	keep := func(p string) bool { return !strings.HasPrefix(p, "#") && !strings.HasPrefix(p, "dir#1/") }
+
+	got := ask.Run(g, ix, "generate", ask.Options{Limit: 10, Keep: keep})
+	if len(got.Hits) != 1 || got.Hits[0].ID != "lib/b.go#Generate" {
+		t.Fatalf("got %v, want only lib/b.go#Generate", idsOf(got))
+	}
+}
+
+func TestRunInJudgesTheNodesPathToo(t *testing.T) {
+	nodes := []model.Node{
+		symbol("dir#1/a.go#Generate", "Generate", "dir#1/a.go", "generate"),
+		symbol("dir/b.go#Generate", "Generate", "dir/b.go", "generate"),
+	}
+	g, ix := world(nodes, nil)
+
+	got := ask.Run(g, ix, "generate", ask.Options{In: "dir"})
+	if len(got.Hits) != 1 || got.Hits[0].ID != "dir/b.go#Generate" {
+		t.Fatalf("got %v, want only dir/b.go#Generate -- dir#1 is not under dir", idsOf(got))
 	}
 }

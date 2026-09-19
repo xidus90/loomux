@@ -47,6 +47,10 @@ var isTestPath = regexp.MustCompile(`(^|/)(tests?|__tests__|spec)/|_test\.go$|(\
 type Options struct {
 	Limit int
 	In    string
+	// Keep refuses a path before anything is scored; nil admits every path.
+	// It is how a caller's privacy rule reaches the ranking without the
+	// ranking knowing what privacy is.
+	Keep func(path string) bool
 }
 
 // Hit is one answer, with both axes kept apart so a reader can see WHY it is
@@ -80,11 +84,21 @@ type Answer struct {
 //  4. blend   -- (lexical/max + 0.5*graph) * testFactor, de-ranked AGAIN
 //     because dividing by max would otherwise restore a winning test to 1.0
 func Run(g *model.Graph, ix *lexicon.Index, query string, opts Options) Answer {
-	// One normalization for both narrowings. lexicon owns the rule, because the
-	// index and the walk have to agree about what a prefix names.
+	// One normalization and one admission rule for both narrowings. lexicon
+	// owns the prefix rule, because the index and the walk have to agree about
+	// what a prefix names.
 	in := lexicon.NormalizePrefix(opts.In)
-	if in != "" {
-		ix = ix.Filter(in)
+	admit := admission(in, opts.Keep)
+
+	byID := make(map[model.NodeID]model.Node, len(g.Nodes))
+	for _, n := range g.Nodes {
+		byID[n.ID] = n
+	}
+	if admit != nil {
+		// Judged by the node's Path, never by a path cut from the id: a file
+		// named "#gen.go" or a directory "dir#1" puts a '#' inside the path.
+		// A document without a node is dropped below anyway.
+		ix = ix.Where(func(id model.NodeID) bool { return admit(byID[id].Path) })
 	}
 	terms := lexicon.Counts(lexicon.Tokenize(query))
 	factor := testFactor(query)
@@ -93,11 +107,6 @@ func Run(g *model.Graph, ix *lexicon.Index, query string, opts Options) Answer {
 	// it; sorting inside the per-document score meant three allocations and
 	// three sorts of the same handful of strings per document.
 	q := newQuestion(terms)
-
-	byID := make(map[model.NodeID]model.Node, len(g.Nodes))
-	for _, n := range g.Nodes {
-		byID[n.ID] = n
-	}
 
 	lex := map[model.NodeID]float64{}
 	var maxLex float64
@@ -118,7 +127,7 @@ func Run(g *model.Graph, ix *lexicon.Index, query string, opts Options) Answer {
 		}
 	}
 
-	pr := walk(g, byID, lex, in)
+	pr := walk(g, byID, lex, admit)
 
 	candidates := map[model.NodeID]bool{}
 	for id := range lex {
@@ -178,24 +187,40 @@ func Run(g *model.Graph, ix *lexicon.Index, query string, opts Options) Answer {
 // walk runs personalized PageRank over the wiring edges, seeded by the lexical
 // scores.
 //
-// The prefix narrows the WALK and not only the seed: without that, a neighbour
-// outside the prefix could clear the rescue floor and surface, which would
-// defeat the promise that a filter applies before scoring. G1's Prepare takes
-// exactly this filter. The prefix arrives normalized, and the comparison is
-// lexicon's own -- the index and the walk must not hold two opinions about what
-// a prefix names.
+// The admission narrows the WALK and not only the seed: without that, a
+// neighbour the admission refuses could clear the rescue floor and surface,
+// which would defeat the promise that a filter applies before scoring. G1's
+// Prepare takes an id predicate; walk builds it from the admission by looking
+// up each node's Path. The admission is the same rule the index
+// was narrowed by -- the index and the walk must not hold two opinions about
+// what is admitted.
 //
 // byID is Run's node lookup, handed over rather than rebuilt: the same scan of
 // g.Nodes served the lexical pass already.
-func walk(g *model.Graph, byID map[model.NodeID]model.Node, seed map[model.NodeID]float64, prefix string) []pagerank.Scored {
+func walk(g *model.Graph, byID map[model.NodeID]model.Node, seed map[model.NodeID]float64, admit func(string) bool) []pagerank.Scored {
 	if len(seed) == 0 {
 		return nil
 	}
 	keep := func(id model.NodeID) bool { return true }
-	if prefix != "" {
-		keep = func(id model.NodeID) bool { return lexicon.UnderPrefix(byID[id].Path, prefix) }
+	if admit != nil {
+		keep = func(id model.NodeID) bool { return admit(byID[id].Path) }
 	}
 	return pagerank.Rank(pagerank.Prepare(g, keep), seed, pagerank.Options{})
+}
+
+// admission joins the prefix and the caller's predicate into one rule, or
+// nil when neither narrows anything. One rule, because the index and the walk
+// must not hold two opinions about what is admitted.
+func admission(in string, keep func(string) bool) func(string) bool {
+	switch {
+	case in == "" && keep == nil:
+		return nil
+	case keep == nil:
+		return func(path string) bool { return lexicon.UnderPrefix(path, in) }
+	case in == "":
+		return keep
+	}
+	return func(path string) bool { return lexicon.UnderPrefix(path, in) && keep(path) }
 }
 
 // testFactor is the de-ranking multiplier for a path, or 1 throughout when the
