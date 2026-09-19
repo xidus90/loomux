@@ -46,7 +46,8 @@ type Lane struct {
 	After     string
 	Off       bool
 	// Needs are files, relative to the lane's directory, without which the
-	// lane cannot mean anything, such as a build tree nobody configured.
+	// lane's commands cannot mean anything, such as a build tree nobody
+	// configured. They do not guard on_file, which reads only the edited file.
 	Needs []string
 }
 

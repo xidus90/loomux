@@ -182,7 +182,7 @@ Die Schlüssel der Tabellenform:
 | `measuring` | String | Nur `test`/`coverage`. Der eine Befehl, den `test` statt `commands` fährt, wenn `coverage` im selben Lauf steht. |
 | `measure` | String | Nur `test`/`coverage`. Der eine Befehl, den `coverage` zuerst fährt, wenn sein Vorgänger nicht im Lauf steht. |
 | `after` | Art | Nur `test`/`coverage`. Die Art desselben Stacks, auf die diese Lane wartet. Zyklen sind Ladefehler, die Meldung nennt den Ring. |
-| `needs` | Liste | Dateien, relativ zum Verzeichnis der Lane und darin, ohne die die Lane nichts bedeutet. Fehlt eine, ist die Lane `unready`: im Edit übersprungen und genannt, im Check rot. |
+| `needs` | Liste | Dateien, relativ zum Verzeichnis der Lane und darin, ohne die ihre `commands` nichts bedeuten. Fehlt eine, ist die Lane `unready`: im Edit übersprungen und genannt, im Check rot. `on_file` bewachen sie nicht: ein Edit, der die Form einer Lane für eine Datei ausführt, führt sie in jedem Fall aus. |
 
 - **Ersetzen oder zusammenführen.** Ein String oder eine Liste steht für die
   Lane, wie sie dasteht: `measuring`, `measure`, `on_file` und `needs` des
@@ -254,10 +254,11 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
   css `npx stylelint {file}`, html `npx htmlhint {file}`, shell
   `shellcheck {file}`, sql `sqlfluff lint {file}`.
-- `types`, `test` und `coverage` von cpp tragen `needs =
+- `lint`, `types`, `test` und `coverage` von cpp tragen `needs =
   ["build/CMakeCache.txt"]`: solange der Build-Baum nicht konfiguriert ist,
   sind sie `unready` mit `build/CMakeCache.txt is missing: configure the build
-  first`. Konfigurieren ist Sache des Projekts (Generator, Optionen,
+  first`. Ein Edit führt das `clang-format` der Lint-Lane auf der Datei
+  trotzdem aus; es braucht keinen Build-Baum. Konfigurieren ist Sache des Projekts (Generator, Optionen,
   Toolchain), loomux rät keinen Konfigurationsschritt.
 - **Messen.** `test` misst nur, wenn `coverage` im selben Lauf steht (go:
   `-covermode=set -coverprofile={coverprofile}`, python:

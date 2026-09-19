@@ -746,12 +746,19 @@ in `internal/verify`, `internal/cli/check.go` und `internal/hooks/post_edit.go`.
     fest am cmake-Befehl von post-edit. Hier ist es ein Lane-Schlüssel, nur
     in Tabellenform, in Presets wie in `[verify]`: eine Liste von Pfaden
     relativ zum Verzeichnis der Lane (`{area}`), jeder innerhalb davon. Die
-    Presets geben ihn den C++-Lanes auf dem Build-Baum (`types` =
-    `cmake --build`, `test` = `ctest`, `coverage` = `gcovr`) als
-    `needs = ["build/CMakeCache.txt"]`; `lint` braucht keinen. Fehlt eine
+    Presets geben ihn den C++-Lanes auf dem Build-Baum (`lint` =
+    `clang-tidy -p build`, `types` = `cmake --build`, `test` = `ctest`,
+    `coverage` = `gcovr`) als `needs = ["build/CMakeCache.txt"]`. Fehlt eine
     verlangte Datei, markiert `Plan` die Lane `unready` mit der Notiz
     `<datei> is missing: configure the build first` — wie Godot: im Edit
-    laut übersprungen, im Check rot. Die String- und Listenform ersetzen die
+    laut übersprungen, im Check rot. `needs` bewacht nur `commands`: `Plan`
+    prüft es nur, wenn es die ganzprojektweiten Befehle wählt, also im
+    Check und im Edit einer Lane ohne `on_file`. So läuft im Edit einer
+    `.cpp` ohne Build-Baum `clang-format --dry-run --Werror {file}` weiter,
+    während `cmake --build` übersprungen wird. Die erste Fassung gab `lint`
+    kein `needs`, weil es sonst auch `clang-format` übersprungen hätte; dann
+    scheiterte `check lint` auf einem unkonfigurierten Checkout mit einem
+    Fehler von clang-tidy statt `unready`. Die String- und Listenform ersetzen die
     Lane ganz und tragen kein `needs`; eine Tabelle ändert es wie jeden
     anderen Schlüssel. `--show` druckt es, und es lädt zurück.
 30. **Die Bench-Suite von master liest ihre Lanes aus den Presets.**

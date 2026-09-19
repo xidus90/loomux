@@ -88,9 +88,12 @@ commands = ["godot --headless --quit"]
 [stack.cpp]
 tests_when = ["CMakeLists.txt:enable_testing("]
 
+# clang-tidy reads the build tree's compile commands; the edit form formats
+# one file and runs without it, since needs guard only the commands.
 [stack.cpp.lint]
 commands = ["clang-tidy -p build"]
 on_file = ["clang-format --dry-run --Werror {file}"]
+needs = ["build/CMakeCache.txt"]
 
 # The compiler is the type checker of C++; post-edit ran the build before.
 # The lanes on the build tree need it configured. Configuring is a project

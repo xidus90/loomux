@@ -226,7 +226,13 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		job.Pre, job.Note = StateUnready, "run the Godot editor once to import the project"
 		return job, link{}, true, nil
 	}
-	for _, need := range r.Lane.Needs {
+	// Needs guard the whole-project commands: the form for one file reads
+	// that file, not a build tree.
+	needs := r.Lane.Needs
+	if req.Scope == ScopeEdit && len(r.Lane.OnFile) > 0 {
+		needs = nil
+	}
+	for _, need := range needs {
 		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(need))); err != nil {
 			job.Pre, job.Note = StateUnready, need+" is missing: configure the build first"
 			return job, link{}, true, nil
