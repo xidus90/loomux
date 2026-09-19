@@ -191,17 +191,43 @@ auf dem ein Mensch einen Fehlstart überhaupt sehen kann.
 Fünf flache Werkzeuge: `brain_search`, `brain_catalog`, `brain_read`,
 `brain_neighbors`, `brain_status`. Argumentformen unverändert aus 1b-1:
 
-**Lesart der Tabelle:** „Pflicht" steht als `required` im Schema. Ein `=` nennt
-den Wert, den `answer.Run` anwendet, wenn das Feld fehlt — **nicht** ein
-`default` im JSON-Schema. Genau ein Feld trägt ein Schema-Default, `n`, und das
-ist Parität zur Referenz: `daemon/tools.py:17` gibt `scope` nur `type` und
-`description`, Zeile 52 gibt `profile` nur `type` und `enum`, Zeile 53 gibt `n`
-sein `"default": 10`. Wer die anderen beiden ins Schema schreibt, bricht die
-Parität.
+**Lesart der Tabelle, korrigiert am 2026-09-18:** „Pflicht" steht als `required`
+im Schema. Ein `→` nennt den Wert, den der Handler
+(`internal/serve/brain/tools.go`) einsetzt, wenn das Feld fehlt — `scope()`
+gibt `all`, `profile()` gibt `fast`, und beide tragen **kein** `default` im
+JSON-Schema. Ein `=` nennt ein Feld, das **beides** trägt: Schema und
+Verhalten. Genau eines ist so, `n`.
+
+Die frühere Fassung dieses Absatzes kannte nur die ersten beiden Notationen
+und schrieb `n` als reines „Schema-Default" an. **Das war die Ursache eines
+Fehlers und ist hier als solche festgehalten:** sie liest sich, als würde
+irgendetwas ein Schema-Default anwenden. Auf diesem Pfad tut das nichts. Beide
+Registrierungen — `serve/brain/tools.go` und `bridge/bridge.go` — gehen über
+die untypisierte Form `(*mcp.Server).AddTool(tool, handler)`, die kein
+aufgelöstes Schema ablegt; `applySchema`, der eine Aufruf, der Argumente prüft
+und Defaults einsetzt, wird nur aus dem generischen `mcp.AddTool[In,Out]`
+erreicht. Keine Prüfung heißt kein Default, das ist derselbe Aufruf. Der Beweis
+steht im eigenen Korpus: `testdata/cases/1b-2/brain-search/missing-query/call`
+schickt `{}` und erreicht den Handler, wo `refuse()` `query is required`
+erzeugt — prüfte das SDK hier, hätte `required: ["query"]` den Aufruf vorher
+abgewiesen. `count()` gab daraufhin 0 zurück, `search.ExecuteSearch` schnitt
+jeden Treffer weg, und `brain_search` ohne `n` antwortete `no matches`.
+
+Die Referenz trägt die Zehn deshalb zweimal, und loomux tut es seit dem
+2026-09-18 auch:
+
+| Ort | Referenz | loomux |
+|---|---|---|
+| Schema, für den Host | `daemon/tools.py:53` | `internal/mcptools/tools.go` |
+| Code, für den Handler | `daemon/tools.py:167` | `serve/brain/tools.go::count` |
+
+`scope` und `profile` bleiben ohne Schema-Default: `daemon/tools.py:17` gibt
+`scope` nur `type` und `description`, Zeile 52 gibt `profile` nur `type` und
+`enum`. Wer die beiden ins Schema schreibt, bricht die Parität.
 
 | Werkzeug | Argumente |
 |---|---|
-| `brain_search` | `query` (Pflicht), `scope` → `all`, `profile` ∈ {`fast`, `full`, `keyword`} → `fast`, `n` = 10 (Schema-Default) |
+| `brain_search` | `query` (Pflicht), `scope` → `all`, `profile` ∈ {`fast`, `full`, `keyword`} → `fast`, `n` = 10 (Schema **und** Verhalten) |
 | `brain_catalog` | `scope` → `all` |
 | `brain_read` | `scope` und `relative` (beide Pflicht), `section` |
 | `brain_neighbors` | `scope` und `relative` (beide Pflicht) |

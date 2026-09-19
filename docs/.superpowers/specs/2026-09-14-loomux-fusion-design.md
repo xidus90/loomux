@@ -287,9 +287,19 @@ Tore selbst.
   zweiten Dienst.
 - **MCP** über Streamable HTTP mit `github.com/modelcontextprotocol/go-sdk`,
   Werkzeuge wie heute: `search`, `catalog`, `read`, `neighbors`, `status`.
+  **Überholt — siehe `2026-09-17-loomux-stufe-1b-2-design.md`:** die Werkzeuge
+  heißen `brain_search`, `brain_catalog`, `brain_read`, `brain_neighbors`,
+  `brain_status`. Das Protokoll kennt keine verschachtelten Werkzeuge, und der
+  Codegraph legt `graph_*` in denselben Server; das Präfix ist die einzige
+  Familientrennung, die es gibt.
 - **Kanäle** `local` und `cloud` wie heute (`local_only`-Bereiche sind in
   `cloud` unsichtbar). Den Kanal wählt die Brücke per Flag; er ist Teil der
   Anfrage, keine eigene Bindung.
+  **Überholt — siehe `2026-09-17-loomux-stufe-1b-2-design.md`:** der Kanal
+  **ist** die Adresse. `serve` bindet zwei Listener mit je einem eigenen Token;
+  `--channel` der Brücke wählt, welchen sie anspricht, und kein Feld der
+  Anfrage trägt ihn. Ein Aufrufer mit dem cloud-Token erreicht die
+  local-Sicht dadurch gar nicht erst.
 - **qmd:** `serve` startet qmd (`qmd mcp --http --daemon`), prüft seine
   Gesundheit und hängt Antworten den Warm-Hinweis an, solange das Modell lädt.
   Es sind zwei langlebige Prozesse.

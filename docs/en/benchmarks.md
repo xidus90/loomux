@@ -556,6 +556,63 @@ the lazy zones.
    fails if any package init makes more than 500 allocations, so a dependency
    that brings the zone back is caught by the gate, not by the next measurement.
 
+## 2026-09-17 20:30 — The Start Floor With the MCP SDK Linked
+
+Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b-2`,
+branch `sdd-1b-2`, before `48e5d38`. Stage 1b-2, Task 1: `go-sdk` v1.8.0 comes
+in, `x/sys` rises to v0.48.0 and `x/text` to v0.42.0, and the `go` directive to
+1.26.0.
+
+**Goal.** Fix the start floor the MCP service will be measured against, and say
+what of it is the dependency bump and what is the SDK itself. The SDK is the
+first dependency of this size the binary carries, and every hook pays its start.
+
+**Method.** PowerShell, one `Measure-Command` per run, twelve runs per binary:
+the first is the cold value, the median of the other eleven the warm one.
+`loomux --version` in every case, Go `go1.27.0 windows/amd64`. Three binaries:
+`before` is `bin/loomux.exe` as `48e5d38` built it; `bump only` is a scratch
+build after the dependency bump, with nothing importing the SDK, so the linker
+drops it; `after` is `bin/loomux.exe` as the gate rebuilt it, with `cmd/loomux`
+importing `internal/mcptools` and the SDK therefore linked in. The cold values
+are first runs in an already warm shell and are not comparable across rows; they
+are shown, not read.
+
+| case | size | cold (1st run) | warm median | warm min | warm max |
+|---|---:|---:|---:|---:|---:|
+| before: `48e5d38` | 13,736,448 B | 18.9 ms | 7.4 ms | 7.3 ms | 7.8 ms |
+| bump only: SDK dropped by the linker | 13,755,904 B | 46.8 ms | 7.6 ms | 7.3 ms | 8.3 ms |
+| after: SDK linked | 16,004,608 B | 45.7 ms | 7.6 ms | 7.4 ms | 8.0 ms |
+
+Package inits over 100 allocations, from `GODEBUG=inittrace=1 loomux version`
+on `after`:
+
+| package | allocations |
+|---|---:|
+| `encoding/gob` | 369 |
+| `github.com/google/jsonschema-go/jsonschema` | 298 |
+| `gopkg.in/yaml.v3` | 274 |
+| `github.com/modelcontextprotocol/go-sdk/mcp` | 183 |
+| `github.com/xidus90/loomux/internal/brain/wiki` | 131 |
+| `github.com/xidus90/loomux/internal/brain/search` | 103 |
+
+### Reading
+
+1. **The start time does not move.** After against before is 7.6 ms against
+   7.4 ms warm (0.2 ms more), with warm ranges that overlap almost entirely
+   (7.4–8.0 against 7.3–7.8). The bump-only binary sits at the same 7.6 ms, so
+   even that 0.2 ms is not the SDK. The SDK's own init is 183 allocations and
+   costs no measurable clock.
+2. **The size does move, and the SDK is all of it.** After against before is
+   16,004,608 B against 13,736,448 B, 2,268,160 B more, 16.5 %. Of that, 19,456 B
+   belong to the dependency bump and 2,248,704 B to linking the SDK: `mcp`,
+   `jsonschema-go`, `segmentio/encoding`, `uritemplate`, `x/oauth2` and
+   `encoding/gob`.
+3. **The allocation ceiling holds, with room.** The largest init is
+   `encoding/gob` at 369, under the 500 that `TestStartDoesNoWorkInPackageInit`
+   allows and close to the 367 the plan recorded. `gob` is new on this path: it
+   comes in with the SDK, as does `jsonschema-go` at 298. Both are below the
+   line, but the line now has two packages under it that no loomux code asked
+   for directly, and a further SDK dependency could push one over.
 ## 2026-09-18 11:10 — The Graph Commands, Cold and Warm, and the G1 Debt
 
 Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
@@ -956,6 +1013,213 @@ BenchmarkDanglingPerNode-16    	       1	3865115600 ns/op
    noise (a factor of ~1.1–1.2×); the ~500–600× ratio between pooled and
    per-node does not.
 
+## 2026-09-18 15:30 — Stage 1b-2 Closed: Size, Hook Path, Handshake and the Two Hops
+
+Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b-2`,
+branch `sdd-1b-2`, commit `0a4786c` — the four measurements the stage is signed
+off against. Machine: AMD Ryzen 7 9800X3D, GOMAXPROCS 16, Go
+`go1.27.0 windows/amd64`.
+
+**One correction to the brief this task carried.** It named the pre-build
+figures as "13.7 MB / 8.1 ms without the SDK, 16.0 MB / 8.2 ms with it, measured
+2026-09-17 with `Measure-Command` over 20 runs". The entry of 2026-09-17 20:30
+above says 12 runs (one cold, median of eleven warm) and 7.4 / 7.6 ms. The
+method reproduced here is the file's, and the file's numbers are the baseline.
+
+### 1. Binary size and start floor, before and after the SDK
+
+**Method.** PowerShell, one `Measure-Command` per run, twelve runs per binary:
+the first is the cold value, the median of the other eleven the warm one;
+`loomux --version` in every case. `after` is `bin/loomux.exe` at `0a4786c`.
+`before` is `48e5d38` — the commit before the SDK came in, the same one the
+2026-09-17 entry measured — rebuilt here from a `git archive` export into a
+scratch directory, which is why it is 13,746,688 B against the 13,736,448 B
+recorded then: the export is not a git repository, so the build carries no VCS
+stamp. Cold values are first runs in an already warm shell and are not
+comparable across rows; they are shown, not read.
+
+**This section uses no fixture.** It times `loomux --version` with
+`Measure-Command` directly; the JSON fixture belongs to section 2 alone. The two
+therefore report two different start floors for the same binary — 8.4 ms here,
+6.4 ms there — and that is the instrument, not the binary. Section 4 says which
+of the two it subtracts and why it gives a range.
+
+Building the `before` binary, in PowerShell, since nothing in the tree does it:
+
+```powershell
+git archive -o "$env:TEMP\loomux-1b-2-src.tar" 48e5d38
+New-Item -ItemType Directory -Force "$env:TEMP\loomux-1b-2-src" | Out-Null
+tar -xf "$env:TEMP\loomux-1b-2-src.tar" -C "$env:TEMP\loomux-1b-2-src"
+Push-Location "$env:TEMP\loomux-1b-2-src"
+go build -o "$env:TEMP\loomux-1b-2\before.exe" ./cmd/loomux
+Pop-Location
+```
+
+| case | size | cold (1st run) | warm median | warm min | warm max |
+|---|---:|---:|---:|---:|---:|
+| before `48e5d38`: no SDK | 13,746,688 B | 53.2 ms | 8.3 ms | 7.9 ms | 10.5 ms |
+| after `0a4786c`: the whole stage | 17,559,552 B | 46.3 ms | 8.4 ms | 8.1 ms | 10.7 ms |
+
+Package inits over 100 allocations, `GODEBUG=inittrace=1 loomux version` on
+`after`:
+
+| package | allocations |
+|---|---:|
+| `encoding/gob` | 369 |
+| `github.com/google/jsonschema-go/jsonschema` | 298 |
+| `gopkg.in/yaml.v3` | 274 |
+| `github.com/modelcontextprotocol/go-sdk/mcp` | 183 |
+| `github.com/xidus90/loomux/internal/brain/wiki` | 131 |
+| `github.com/xidus90/loomux/internal/brain/search` | 103 |
+
+**Reading.** The start floor did not move across the whole stage: 8.4 ms against
+8.3 ms warm, with warm ranges that overlap almost entirely (8.1–10.7 against
+7.9–10.5). The size did: 17,559,552 B against 13,746,688 B, 3,812,864 B more,
+27.7 %. Of that, 2,268,160 B were the SDK arriving in Task 1; the remaining
+~1,545,000 B are the code this stage added and the SDK surface it reaches — the
+Streamable HTTP server and client, `x/oauth2`, `uritemplate`. That is more than
+the five new packages: `git diff --stat 48e5d38..0a4786c -- cmd/ internal/`
+names the case recorder, the case importer and the corpus loader among them. The
+allocation ceiling is unmoved: the largest init is still `encoding/gob` at 369,
+under the 500 `TestStartDoesNoWorkInPackageInit` allows, and no package of
+`internal/serve`, `internal/bridge`, `internal/lock`, `internal/mcptools` or
+`internal/brain/answer` appears in the list at all.
+
+### 2. The hook path, unchanged and measured
+
+**Method.** `loomux dev bench-hooks testdata/bench/1b-2-hooks.json -n 20`, one
+pass, one cold run per case and 20 warm. Payload an `Edit` on this worktree's
+`README.md` (`testdata/bench/edit-readme-1b-2.json`) against the real state
+directory — this worktree is a linked worktree of a registered workspace, so the
+barrier takes the worktree path. Same two binaries as above, in one pass with
+their own floors so the hook can be read against them.
+
+**Before this command runs anywhere else, the fixture has to be re-pathed.**
+`1b-2-hooks.json` and `edit-readme-1b-2.json` carry absolute paths of the
+worktree they were recorded in — every `dir`, every `stdin` and two `argv`
+entries in the first file, three more in the second — exactly as
+`1a-hooks.json` does for stage 1a. The `after` binary is `bin/loomux.exe` of
+that worktree; the `before` binary is built by the PowerShell above. The fixture
+names `%TEMP%\loomux-1b-2\before.exe`, a stable location rather than a session
+directory, so only the worktree paths need replacing.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: `loomux version` (start floor, no SDK) | 10.2 ms | 7.6 ms | 6.0 ms | 14.1 ms | [0] |
+| after: `loomux version` (start floor, SDK linked) | 7.5 ms | 6.4 ms | 5.7 ms | 7.0 ms | [0] |
+| before: `loomux hook pre-tool-use` (Edit on README.md) | 12.0 ms | 9.9 ms | 9.0 ms | 12.0 ms | [0] |
+| after: `loomux hook pre-tool-use` (Edit on README.md) | 11.5 ms | 9.0 ms | 8.1 ms | 11.0 ms | [0] |
+
+**Reading.** The hook is 9.0 ms warm after the stage against 9.9 ms before it,
+and cold 11.5 against 12.0 ms; the warm ranges overlap (8.1–11.0 against
+9.0–12.0). Above its own floor the hook costs 2.6 ms after and 2.3 ms before —
+the same decision, and the difference is inside the noise both floors show.
+That the MCP stack is not on this path is structural and held by
+`TestHooksNeverImportServeOrBridge` in `internal/cli/imports_test.go`, which
+reads `go list -deps` of `internal/hooks` and fails on `internal/serve`,
+`internal/bridge` or `.../go-sdk/mcp`. This table is the measured half of the
+same claim. Against the 7.5 ms of 2026-09-17 14:16: that run was the main
+checkout, where the barrier's path comparison ends before the worktree lookup;
+the two rows are not comparable and both are far under the target of 72 ms.
+
+#### 2026-09-18 19:40 — the same four cases after the fixture was re-pathed
+
+The committed fixture is not the one that produced the table above: the `before`
+binary was moved out of a session directory to `%TEMP%\loomux-1b-2\` and the
+fixture rewritten to name it. Same binaries, same payload, fewer runs — `-n 5`
+instead of `-n 20`, one cold and five warm:
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: `loomux version` (start floor, no SDK) | 39.5 ms | 6.5 ms | 6.0 ms | 6.6 ms | [0] |
+| after: `loomux version` (start floor, SDK linked) | 8.0 ms | 6.5 ms | 5.5 ms | 6.6 ms | [0] |
+| before: `loomux hook pre-tool-use` (Edit on README.md) | 14.9 ms | 9.2 ms | 9.0 ms | 9.5 ms | [0] |
+| after: `loomux hook pre-tool-use` (Edit on README.md) | 10.0 ms | 9.0 ms | 8.5 ms | 9.5 ms | [0] |
+
+**Reading.** The fixture still works and the conclusion is unchanged — but the
+numbers are not the same numbers, and calling this a reproduction would be too
+strong. The before/after gap on the hook is **0.2 ms here against 0.9 ms above**,
+and the two floors are equal here where they differed by 1.2 ms above. Both
+passes say the same thing — the gap is inside the noise and the hook did not
+move — and this one says it more plainly, on five warm runs instead of twenty
+and on a busier machine (the cold column shows it). Where the two disagree, the
+twenty-run pass above is the measurement; this one is the proof that the
+re-pathed fixture runs.
+
+### 3. The bridge handshake, with a running service and with a cold one
+
+**Method.** A stdlib-only Go probe in a scratch directory starts
+`loomux mcp --channel local`, writes `initialize` as one line of JSON on its
+stdin and stamps the moment the matching reply arrives on its stdout; the clock
+starts before the process does, so the number includes the bridge's own start.
+`LOOMUX_STATE_DIR` points at a scratch directory holding a copy of the real
+`registry.toml` (11 areas), so nothing here touches the real service. Warm:
+21 runs against a service that was already up. Cold: `loomux serve stop`, then
+one run, three times.
+
+| case | first run | warm median | warm min | warm max |
+|---|---:|---:|---:|---:|
+| `initialize`, service already running (21 runs) | 10.4 ms | 8.5 ms | 7.5 ms | 10.5 ms |
+| `initialize`, no service (3 runs: 9.0 / 9.1 / 10.0 ms) | — | 9.1 ms | 9.0 ms | 10.0 ms |
+
+**Reading.** The two are the same number, and that is the design and not an
+accident: `bridge.Run` offers the five tools out of `internal/mcptools` itself
+and nudges the service in a goroutine (`go func() { ensure(...) }()` in
+`bridge.go`), so no start ever sits inside the host's handshake. A host sees an
+answering server in about 9 ms whether a service exists or not, which is the
+bridge's own start floor plus one round trip over its pipes. The cold price is
+paid by the first `tools/call` instead — see 4.
+
+### 4. One `brain_search` through the bridge against the command line
+
+**Method.** Same probe, same scratch state directory. After the handshake it
+sends one `tools/call` for `brain_search` and stamps the reply; the command line
+is `loomux brain search latenz --profile keyword -n 5 --channel local` timed with
+`Measure-Command`. Both sides pin `profile`, `n` and `channel`, because the two
+fronts default differently (`n` is 10 over MCP and 5 on the command line) and
+because `keyword` is the one profile whose warm spread does not bury a
+millisecond: the entry of 2026-09-16 19:10 shows `fast` scattering 236–373 ms.
+21 runs each, the first shown separately. The qmd daemon on port 8765 was up and
+warm throughout; five connections were resident on it.
+
+| case | first run | warm median | warm min | warm max |
+|---|---:|---:|---:|---:|
+| `brain_search` through the bridge, service running | 55.5 ms | 49.5 ms | 44.5 ms | 61.0 ms |
+| `loomux brain search`, directly | 61.5 ms | 44.5 ms | 37.5 ms | 60.7 ms |
+| `brain_search` through the bridge, no service (3 runs) | — | 310.1 ms | 310.0 ms | 310.2 ms |
+| the service announcing itself after a detached start (3 runs) | — | 41.9 ms | 41.3 ms | 43.1 ms |
+
+**Reading.**
+
+1. **The two hops cost 5 ms end to end, and 11–13 ms of work.** The call through
+   the bridge is 49.5 ms against 44.5 ms for the command line, 5.0 ms more, with
+   overlapping warm ranges (44.5–61.0 against 37.5–60.7). But the command line
+   pays a process start the bridge call does not, so the bare answer is the
+   44.5 ms less the start floor, and the two hops — JSON-RPC over the host's
+   pipes, then HTTP with a bearer token to the service — are the difference.
+   **Which floor to subtract is not free of an instrument.** Taken with the same
+   `Measure-Command` as the 44.5 ms, the floor is 8.4 ms (measurement 1) and the
+   hops are 13.4 ms; taken with `dev bench-hooks`, which starts the process
+   itself, it is 6.4 ms (measurement 2) and the hops are 11.4 ms. The honest
+   figure is the range: **11–13 ms**, and no subtraction across two instruments
+   is tighter than that. Either way it is a millisecond figure against an answer
+   that qmd dominates.
+2. **A cold service costs 260 ms, and 250 of them are a poll interval, not a
+   start.** The three cold runs are 310.0, 310.2 and 310.1 ms — a spread of
+   0.2 ms, which is the signature of a quantised wait rather than of work. The
+   service itself is up and has written `serve.json` 41.3–43.1 ms after a
+   detached start. What the bridge waits for is `waitForService`, which polls at
+   `StartTick = 250 ms` (`internal/bridge/connect.go`), so a service ready after
+   42 ms is noticed at 250 ms. **This is the cheapest open lever in the stage:**
+   a shorter first tick, or a backing-off one, would take about 200 ms off the
+   first call after a cold start without touching anything else. It is not a
+   defect — 250 ms was taken from qmd's handshake on purpose, to have one waiting
+   rhythm in the project — and it is not changed here.
+3. **The machine has to settle first.** An earlier batch of ten warm runs, taken
+   immediately after the very first cold start, gave handshakes of 20–118 ms and
+   calls of 101–161 ms. The tables above are the settled state, measured after
+   qmd had answered once. The earlier batch is reported because it is what a
+   session's first minute looks like, not because it measures anything.
 ## 2026-09-18 19:30 - graph ask Response Time and the Sidecar
 
 Query response time of `loomux graph ask "write barrier refuse" --limit 8 --no-refresh`

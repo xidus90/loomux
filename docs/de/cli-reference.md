@@ -241,24 +241,95 @@ Synchronisiert Zustandsänderungen, Identitätsregister und Vektorindex-Sammlung
 
 ---
 
-## 8. Dienste & MCP-Gateway (`loomux serve` / `loomux mcp`)
+## 8. MCP-Dienst & stdio-Brücke (`loomux serve` / `loomux mcp`)
 
-### `loomux serve [--port <port>]`
-Startet den langlebigen localhost HTTP-Dienst mit dem Web OS und dem Root-MCP-Gateway.
+Der Dienst beantwortet die fünf `brain_*`-Werkzeuge über Streamable HTTP; die
+Brücke ist das, was ein MCP-Wirt startet, und sie reicht nur weiter. Beides ist
+in Stufe 1b-2 entstanden. Das Web OS der Stufe W1 gibt es noch nicht, die
+`graph_*`-Werkzeuge der Stufen G2–G5 ebenso wenig.
 
-- **Token-Bootstrap**: Gibt eine Einmal-URL aus (`http://127.0.0.1:<port>/?token=<hex>`). Der erste Aufruf setzt ein sicheres Session-Cookie.
-- **SSE-Stream**: Streamt Echtzeit-Ereignisse aus `.loomux/state/journal/events.jsonl` über `/api/events`.
+**Der Kanal ist die Adresse, kein Feld der Anfrage.** `serve` bindet zwei
+Loopback-Listener, einen für `local` und einen für `cloud`, jeden mit eigenem
+Zufallstoken. Ein Aufrufer mit dem cloud-Token erreicht die local-Sicht gar
+nicht erst. Alles, was der Dienst schreibt — `serve.json`, `serve.lock` und
+`logs/serve.log` —, liegt unter dem Zustandsverzeichnis (`LOOMUX_STATE_DIR`,
+standardmäßig `%LOCALAPPDATA%\loomux`), nie unter einem festen Pfad.
 
-### `loomux mcp`
-Stdio-Transportbrücke, die Claude Code, Cursor und Antigravity direkt mit Loomux-Tools verbindet:
-- `graph_find_code`
-- `graph_file_api`
-- `graph_trace_calls`
-- `graph_find_all`
-- `graph_repo_map`
-- `graph_check_freshness`
-- `brain_search`
-- `brain_catalog`
+### `loomux serve [--foreground]`
+Startet den langlebigen localhost-MCP-Dienst. Ohne `--foreground` ist der Start
+entkoppelt: der Dienst wird neben dem Aufrufer erzeugt, aus dessen Job-Object
+gelöst und der Befehl kehrt sofort zurück und nennt die Logdatei. Mit
+`--foreground` läuft der Dienst in diesem Prozess — der einzige Weg, auf dem ein
+Mensch einen fehlgeschlagenen Start sieht, und zugleich das, was das entkoppelte
+Kind ausführt.
+
+- **Eine Instanz**: `serve.lock` plus Lebendprüfung. Ein zweites `loomux serve`
+  sagt das, statt einen zweiten Dienst zu starten.
+- **Breakaway**: Wird das Lösen aus dem Job-Object des Wirts abgelehnt, wird der
+  Start ohne diese Bitte wiederholt und der Befehl meldet `note: the breakaway
+  was refused, so this service dies with its host`.
+- **Exit-Codes**: `0` gestartet; `1` läuft bereits, oder Erzeugung bzw. Lauf
+  sind gescheitert; `2` ein unbekanntes Argument oder ein unbekannter
+  Unterbefehl.
+
+### `loomux serve status`
+Fragt den local-Listener, ob er antwortet — eine Zustandsdatei ist ein Hinweis,
+ein antwortender Listener ist die Wahrheit — und gibt dann aus, was `serve.json`
+sagt: PID, beide Endpunkt-URLs, das Programm, seine Größe und Bauzeit, ob die
+Sperre gehalten wird und ob der Breakaway gegriffen hat. Die Token bleiben aus
+dem Bericht draußen. Ein Dienst, den es nicht gibt, ist ein Zustand und kein
+Fehlschlag: der Bericht sagt es, der Exit-Code ist `0`.
+
+- **Exit-Codes**: `0` berichtet; `1` der Zustand war nicht lesbar; `2` ein
+  unbekanntes Argument.
+
+### `loomux serve stop [--force]`
+Beendet den Dienst über seinen eigenen Endpunkt. `--force` tötet ihn über die
+PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet. Erfolg ist still.
+
+- **Exit-Codes**: `0` beendet, und ebenso, wenn nichts lief; `1` der Stopp ist
+  gescheitert; `2` ein unbekanntes Argument.
+
+### `loomux mcp [--channel local|cloud]`
+Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die fünf Werkzeuge selbst
+an — die Beschreibungen sind statisch, also sitzt nie ein kalter Dienst im
+Handschlag des Wirts — und leitet jeden `tools/call` an die Adresse des Kanals
+weiter, Name zu Name und Argumente zu Argumenten.
+
+- **Vorgabekanal**: `local`, genau wie `loomux brain` zurückfällt. Der enge
+  Kanal ist die einzige sichere Vorgabe.
+- **Sie startet den Dienst selbst**: im Hintergrund, neben dem Handschlag. Ein
+  aufgezeichneter Bau, der älter ist als der der Brücke, wird gestoppt und
+  ersetzt (neuer gewinnt); ein gleich alter oder neuerer, dessen Sperre niemand
+  hält, wird erneut gestartet.
+- **Eine Wiederholung**: Ein Aufruf, dessen Sitzung gestorben ist — ein Commit
+  hat das Binary neu gebaut und eine andere Brücke den Dienst ersetzt —, wird
+  einmal neu verhandelt. Zwei Wiederholungen verdeckten einen echten Ausfall.
+- **Auf stdout wird nie geschrieben**: stdout ist die MCP-Leitung des Wirts.
+  Ablehnungen und Fehlschläge gehen nach stderr.
+- **Exit-Codes**: `0` der Wirt hat aufgelegt, oder Strg+C; `1` die Brücke ist
+  gescheitert; `2` ein unbekanntes Argument oder ein ungültiges `--channel`.
+
+### Die fünf Werkzeuge
+
+| Werkzeug | Argumente |
+|---|---|
+| `brain_search` | `query` (Pflicht), `scope` → `all`, `profile` ∈ {`fast`, `full`, `keyword`} → `fast`, `n` → 10 |
+| `brain_catalog` | `scope` → `all` |
+| `brain_read` | `scope` und `relative` (beide Pflicht), `section` |
+| `brain_neighbors` | `scope` und `relative` (beide Pflicht) |
+| `brain_status` | keine |
+
+`n` ist hier 10 und auf der Kommandozeile 5; das ist Parität mit der
+Python-Referenz, die es genauso hält, und keine Unstimmigkeit.
+
+### Die `.mcp.json` eines Wirts
+
+Bis `loomux init` sie schreibt (Stufe 4), tut es ein Mensch:
+
+```json
+{ "mcpServers": { "loomux": { "command": "loomux", "args": ["mcp", "--channel", "local"] } } }
+```
 
 ---
 
@@ -279,7 +350,7 @@ Mutiert die Go-Entscheidungen jedes Pakets und meldet, welche Mutanten seine Tes
 - **Exit-Codes**: `0` nach einer vollständigen Runde, auch mit Überlebenden; `2` bei einem Usage-Fehler, einem Paket ohne Quelldateien oder einer Suite, die vor dem ersten Mutanten nicht grün ist; `1`, wenn ein Lauf nicht gestartet werden kann oder die Runde mit Strg+C abgebrochen wird.
 
 ### `loomux dev swap-binary --dir <bin>`
-Tauscht das laufende `loomux.exe`-Binary atomar gegen `loomux.new.exe` aus (löst Windows Dateisperren-Konflikte).
+Tauscht das laufende `loomux.exe`-Binary atomar gegen `loomux.new.exe` aus (löst Windows Dateisperren-Konflikte). Das abgelöste bleibt als `loomux.old.exe` liegen, oder als erstes freies `loomux.old.<n>.exe` daneben, wenn ein Prozess aus einem früheren Tausch — ein `loomux serve` oder eine Brücke — diesen Namen noch hält; jeder Platz, dessen Prozess beendet ist, wird beim nächsten Tausch geräumt, es bleiben also höchstens 16 Generationen liegen. Zwei Fälle scheitern weiterhin, und beide lassen die Binaries dort, wo sie waren: alle 16 Plätze gleichzeitig gehalten, und ein `loomux.exe`, das etwas so hält, dass es sich gar nicht umbenennen lässt — ein laufendes `loomux.exe` ist dieser Halter nicht, denn Windows lässt ein laufendes Abbild umbenennen.
 
 ### `loomux dev bench [--dir <dir>] [--corpus <datei>] [--languages <n>] [--tier <kategorie>] [--warm <n>] [--cache-dir <dir>] [--out <datei>] [--json-out <datei>] [--component-timeout <d>] [--save] [--report-dir <dir>]`
 Führt umfassende Latenz-Benchmarks und normalisierte Lücken-Audits (Gap Analysis) für ein Einzel-Repository oder das gesamte Open-Source-Matrix-Korpus durch (1x kalt + Nx warmer Median, Min, Max).
