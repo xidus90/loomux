@@ -1,0 +1,5 @@
+[commit]
+  language = "en"
+
+  [[commit.allow]]
+    regex = "foo"

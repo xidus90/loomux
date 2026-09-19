@@ -13,6 +13,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/verify"
+	"github.com/xidus90/loomux/internal/verify/commit"
 )
 
 func TestCheckNeedsARequest(t *testing.T) {
@@ -550,5 +551,105 @@ func TestRunCoverFuncReportsTheToolsStderr(t *testing.T) {
 	_, err := runCoverFunc(t.TempDir(), "missing.out")
 	if err == nil || !strings.Contains(err.Error(), "missing.out") {
 		t.Fatalf("err %v", err)
+	}
+}
+
+func TestCheckCommitMsgCalibrate(t *testing.T) {
+	oldRunner := commit.GitRunner
+	t.Cleanup(func() { commit.GitRunner = oldRunner })
+	commit.GitRunner = func(dir string, timeout time.Duration, argv ...string) (child.Result, error) {
+		return child.Result{
+			Code:   0,
+			Stdout: "feat: add feature\x00fix: bug fix\x00",
+		}, nil
+	}
+
+	code, out, errOut := run("check", "commit-msg", "--calibrate", "10")
+	if code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "threshold") {
+		t.Fatalf("expected calibrate output, got %q", out)
+	}
+
+	code, out, errOut = run("check", "commit-msg", "--calibrate", "5", "--language", "de")
+	if code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "threshold") {
+		t.Fatalf("expected calibrate output, got %q", out)
+	}
+
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".loomux"), 0o755)
+	os.WriteFile(filepath.Join(dir, ".loomux", "config.toml"), []byte("[commit]\nlanguage = \"de\"\n"), 0o644)
+	code, out, errOut = run("check", "commit-msg", "--root", dir, "--calibrate", "5")
+	if code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "threshold") {
+		t.Fatalf("expected calibrate output, got %q", out)
+	}
+
+	emptyDir := t.TempDir()
+	code, out, errOut = run("check", "commit-msg", "--root", emptyDir, "--calibrate", "5")
+	if code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "threshold") {
+		t.Fatalf("expected calibrate output, got %q", out)
+	}
+
+	commit.GitRunner = func(dir string, timeout time.Duration, argv ...string) (child.Result, error) {
+		return child.Result{Code: 1, Stderr: "git error"}, nil
+	}
+	code, _, errOut = run("check", "commit-msg", "--calibrate", "5")
+	if code != 1 || !strings.Contains(errOut, "git error") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestCheckCommitMsgCalibrateErrors(t *testing.T) {
+	if code, _, _ := run("check", "commit-msg", "--unknown-flag"); code != 2 {
+		t.Fatalf("expected 2, got %d", code)
+	}
+
+	if code, _, errOut := run("check", "commit-msg", "--calibrate", "5", "file.txt"); code != 2 || !strings.Contains(errOut, "cannot pass both a file and --calibrate") {
+		t.Fatalf("expected 2, got %d (%s)", code, errOut)
+	}
+
+	if code, _, errOut := run("check", "commit-msg", "--calibrate", "0"); code != 2 || !strings.Contains(errOut, "--calibrate needs a count of at least 1") {
+		t.Fatalf("expected 2, got %d (%s)", code, errOut)
+	}
+
+	if code, _, errOut := run("check", "commit-msg", "--calibrate", "5", "--language", "fr"); code != 2 || !strings.Contains(errOut, "--language must be one of") {
+		t.Fatalf("expected 2, got %d (%s)", code, errOut)
+	}
+
+	badDir := t.TempDir()
+	os.MkdirAll(filepath.Join(badDir, ".loomux"), 0o755)
+	os.WriteFile(filepath.Join(badDir, ".loomux", "config.toml"), []byte("bogus toml [[["), 0o644)
+	if code, _, errOut := run("check", "commit-msg", "--root", badDir, "--calibrate", "5"); code != 1 || !strings.Contains(errOut, "loomux check commit-msg:") {
+		t.Fatalf("expected 1, got %d (%s)", code, errOut)
+	}
+}
+
+func TestCheckCommitMsgFileErrors(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "msg")
+	os.WriteFile(file, []byte("feat: hello\n"), 0o644)
+
+	if code, _, errOut := run("check", "commit-msg", "--language", "en", file); code != 2 || !strings.Contains(errOut, "--language cannot be used when checking a file") {
+		t.Fatalf("expected 2, got %d (%s)", code, errOut)
+	}
+
+	if code, _, errOut := run("check", "commit-msg", file, file); code != 2 || !strings.Contains(errOut, "exactly one message file required") {
+		t.Fatalf("expected 2, got %d (%s)", code, errOut)
+	}
+
+	badDir := t.TempDir()
+	os.MkdirAll(filepath.Join(badDir, ".loomux"), 0o755)
+	os.WriteFile(filepath.Join(badDir, ".loomux", "config.toml"), []byte("bogus toml [[["), 0o644)
+	if code, _, errOut := run("check", "commit-msg", "--root", badDir, file); code != 1 || !strings.Contains(errOut, "loomux check commit-msg:") {
+		t.Fatalf("expected 1, got %d (%s)", code, errOut)
 	}
 }

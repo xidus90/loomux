@@ -124,7 +124,8 @@ level: `[verify]`, `[verify.<stack>]` and `[verify.<stack>.<kind>]`. So is
 the old top-level form `[verify].types = "…"`; the message points to
 `[verify.<stack>].types`.
 Commit message rules are not part of `[verify]`: `[verify.commit]` is refused
-like any other unknown stack, and the `[commit]` section arrives with stage 2b.
+like any other unknown stack. Commit message policy is configured in the dedicated
+top-level `[commit]` table (see below).
 
 #### Kinds, profiles and reserved names
 
@@ -336,6 +337,30 @@ profile never walks the tree.
   lanes and exits 0.
 
 ---
+
+### `[commit]` (Commit Message Validation)
+
+Configures the validation rules enforced by `loomux check commit-msg` and the `.githooks/commit-msg` hook.
+If `[commit]` is omitted from `.loomux/config.toml`, standard defaults apply: `language = "en"`, `threshold = 2`, `conventional = true`.
+
+```toml
+[commit]
+language     = "en"       # "en" (default) or "de"
+threshold    = 2          # hits in one line that refuse it (default: 2)
+conventional = true       # require Conventional Commits subject line (default: true)
+
+# A line one of these matches is skipped whole
+[[commit.allow]]
+regex  = '(Müller|Zürich|Löwis)'
+reason = "Proper names with umlauts: two of them in one line would refuse it"
+```
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `language` | string | `"en"` | Target language for the commit message: `"en"` (English) or `"de"` (German). |
+| `threshold` | integer | `2` | A line carrying this many hits or more is refused. Must be `> 0`. |
+| `conventional` | boolean | `true` | When `true`, validates that the first line matches the Conventional Commits format `<type>[(<scope>)][!]: <description>`. |
+| `allow` | list of tables | `[]` | Exception rules. Each entry must specify `regex` (valid RE2 pattern) and `reason` (non-empty string). A line the pattern matches is skipped whole, hits and all. |
 
 ### `[worktree]` (Worktree Mirrors)
 Names gitignored directories of the main checkout that `loomux worktree link` makes available in a linked git worktree through a Windows junction. Always read from the main checkout's `.loomux/config.toml`. Junctions exist only on Windows; there are no symlinks on other systems. The mechanism is described in [Hooks](hooks.md#9-worktree-mirroring).

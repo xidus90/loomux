@@ -576,3 +576,24 @@ out, and the next `link` puts them back.
 
 None of the three can hold a turn, and none is meant to: a session whose
 mirror could not be made should be told so, not stopped.
+
+
+---
+
+## 10. Git Repository Hooks
+
+In addition to coding agent harness hooks, loomux integrates with standard Git client hooks (configured via `git config core.hooksPath .githooks`):
+
+### `.githooks/commit-msg`
+Triggered by Git when preparing a commit. Runs:
+```bash
+loomux check commit-msg "$1"
+```
+
+- **Validation Checks**:
+  - **Language & Vocabulary**: Scans message lines for foreign-language stop words (Variant B). In the default `en` mode, a word carrying an umlaut counts as a hit, and 82 German developer words are a fourth word source.
+  - **Non-Latin Script Runs**: Sequences of non-Latin script characters (CJK, Cyrillic, etc.) count as foreign words.
+  - **Spans & Exemptions**: Comments (`#`), text following scissors cut lines (`# ------------------------ >8 ------------------------`), multi-line backtick code blocks, single-line quotes, file paths, name particles (`van`, `von`), and Git trailers (`Signed-off-by:`, `Co-authored-by:`) are exempted.
+  - **Allowed Exceptions**: Words or phrases matching patterns in `[[commit.allow]]` are excluded.
+  - **Conventional Commits**: When `[commit].conventional = true` (default), verifies the header format `<type>[(<scope>)][!]: <description>`.
+- **Exit Codes**: Exits `0` on success. On violation, exits `1` and prints refusal diagnostics with offending lines and hit tokens to `stderr`, aborting the commit.

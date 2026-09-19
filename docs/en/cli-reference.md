@@ -115,15 +115,24 @@ Judges a Go coverage profile of the module in `--dir` through
 - **Exit Codes**: `0` (passed), `1` (a function or the total below the gate, no
   `go.mod`, an unreadable profile), `2` (no `--profile`, an unknown flag).
 
-### `loomux check commit-msg <file>`
-Validates a git commit message file against language and formatting rules.
+### `loomux check commit-msg [flags] [<file>]`
+Validates a git commit message file against language and formatting rules, or measures thresholds against the git history.
 
-- **Arguments**: `<file>` — Path to `COMMIT_EDITMSG`.
+- **Arguments**:
+  - `<file>`: Path to the commit message file (e.g., `.git/COMMIT_EDITMSG`). Cannot be passed together with `--calibrate`.
+- **Flags**:
+  - `--root <path>`: Path to project root (defaults to walking up to find `.loomux/config.toml` or `.git`).
+  - `--calibrate <N>`: Measure refusal rates across the last `N` commits instead of checking a single file.
+  - `--language <en|de>`: The language to calibrate against (defaults to `[commit].language` or `"en"`). Cannot be passed when checking a file.
 - **Behavior**:
-  - Enforces English language for commit title and body.
-  - Rejects conversational preamble (e.g., *"Sure, I'll commit that..."*).
-  - Validates subject line length.
-- **Exit Codes**: `0` (Valid), `1` (Malformed commit message with reason on `stderr`).
+  - **Vocabulary & Language**: Scans all lines for foreign-language stop words (Variant B). In English mode (`en`), a word carrying an umlaut counts as a hit, and 82 German developer words (`fehler`, `datei`, `behebe`, `aktualisiere` …) are a fourth word source beside the German, English and Romance ones.
+  - **Non-Latin Scripts**: Detects runs of non-Latin script characters (CJK ideographs, Hiragana, Katakana, Cyrillic, etc.) and treats each run as a foreign-language hit.
+  - **Exemptions & Spans**: Skips text in multi-line backtick code blocks (``` `...` ```), single-line quotes (`"..."`; an apostrophe is not a delimiter), git comment lines (`#`), scissors lines (`# ------------------------ >8 ------------------------`) and trailing diffs, and git trailers (`Signed-off-by:`, `Co-authored-by:`, etc.) in the body. Also exempts file paths, name particles (`van`, `von`), hyphenated/underscored identifiers, and every line a `[[commit.allow]]` pattern matches, which is skipped whole.
+  - **Conventional Commits**: When `[commit].conventional = true` (default), validates that the subject line conforms to `<type>[(<scope>)][!]: <description>`.
+- **Exit Codes**:
+  - `0`: Valid commit message, or calibration completed successfully.
+  - `1`: Commit message refused (reason and offending lines on `stderr`), or configuration/git error.
+  - `2`: Command line usage error (invalid flags or arguments).
 
 ### `loomux check gofmt [paths...]`
 Inspects Go source files for formatting compliance without modifying them.

@@ -1,0 +1,7 @@
+[commit]
+  language = "en"
+  threshold = 2
+
+  [[commit.allow]]
+    reason = "allowed words"
+    regex = "\\b(eins|zwei|drei)\\b"

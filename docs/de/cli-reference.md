@@ -120,15 +120,24 @@ Beurteilt ein Go-Coverage-Profil des Moduls in `--dir` über
   Tor, kein `go.mod`, ein unlesbares Profil), `2` (kein `--profile`, ein
   unbekanntes Flag).
 
-### `loomux check commit-msg <datei>`
-Prüft eine Git-Commit-Nachricht auf englische Sprache und Einhaltung der Formatregeln.
+### `loomux check commit-msg [flags] [<datei>]`
+Prüft eine Git-Commit-Nachricht auf Sprache und Einhaltung der Formatregeln oder kalibriert Schwellenwerte gegen die Git-Historie.
 
-- **Argumente**: `<datei>` — Pfad zur Commit-Nachrichtendatei (`COMMIT_EDITMSG`).
+- **Argumente**:
+  - `<datei>`: Pfad zur Commit-Nachrichtendatei (`COMMIT_EDITMSG`). Kann nicht zusammen mit `--calibrate` angegeben werden.
+- **Flags**:
+  - `--root <pfad>`: Pfad zur Projektwurzel (Standard: sucht aufwärts nach `.loomux/config.toml` oder `.git`).
+  - `--calibrate <N>`: Misst Ablehnungsraten über die letzten `N` Commits statt eine Datei zu prüfen.
+  - `--language <en|de>`: Sprache zur Kalibrierung (Standard: `[commit].language` oder `"en"`). Kann bei der Prüfung einer Datei nicht verwendet werden.
 - **Verhalten**:
-  - Erzwingt englische Sprache für Titel und Textkörper.
-  - Verwirft Konversations-Präambeln (z. B. *„Sure, I'll commit that...“*).
-  - Validiert die Länge der ersten Betreffzeile.
-- **Exit-Codes**: `0` (Gültig), `1` (Ungültige Commit-Nachricht mit Begründung auf `stderr`).
+  - **Wortschatz & Sprache**: Prüft alle Zeilen auf fremdsprachige Stopwörter (Variante B). Bei Zielsprache `en` zählen Wörter mit Umlauten als Treffer, und 82 deutsche Entwicklerwörter (`fehler`, `datei`, `behebe`, `aktualisiere` …) bilden eine vierte Wortquelle neben der deutschen, englischen und romanischen.
+  - **Fremdschriften**: Erkennt Läufe von Nicht-Latein-Schriftzeichen (CJK-Ideogramme, Hiragana, Katakana, Kyrillisch etc.) und zählt jeden Lauf als Fremdwort-Treffer.
+  - **Ausnahmen & Spannen**: Ignoriert Text in mehrzeiligen Backtick-Codeblöcken (``` `...` ```), einzeiligen Anführungszeichen (`"..."`; ein Apostroph begrenzt nichts), Git-Kommentarzeilen (`#`), Scherenzeilen (`# ------------------------ >8 ------------------------`), Git-Trailers (`Signed-off-by:`, `Co-authored-by:`) im Rumpf, Pfad-Token, Namenspartikel (`van`, `von`), Bezeichner mit Binde-/Unterstrichen sowie jede Zeile, auf die ein Muster aus `[[commit.allow]]` passt — sie wird ganz übersprungen.
+  - **Conventional Commits**: Wenn `[commit].conventional = true` (Standard), wird geprüft, ob die Betreffzeile dem Schema `<type>[(<scope>)][!]: <description>` entspricht.
+- **Exit-Codes**:
+  - `0`: Gültige Commit-Nachricht bzw. Kalibrierung erfolgreich abgeschlossen.
+  - `1`: Commit-Nachricht abgewiesen (Begründung und Zeilen auf `stderr`) oder Konfigurations-/Git-Fehler.
+  - `2`: Syntaxfehler im Aufruf (ungültige Flags oder Argumente).
 
 ### `loomux check gofmt [pfade...]`
 Überprüft Go-Quelldateien auf Formatierungskonformität, ohne sie zu verändern.

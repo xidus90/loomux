@@ -56,20 +56,7 @@ func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "commit-msg":
-		if len(args) != 2 {
-			fmt.Fprintln(stderr, "loomux check commit-msg: exactly one message file required")
-			return 2
-		}
-		content, err := os.ReadFile(args[1])
-		if err != nil {
-			fmt.Fprintf(stderr, "loomux check commit-msg: %v\n", err)
-			return 1
-		}
-		if err := commit.ValidateCommitMessage(string(content)); err != nil {
-			fmt.Fprintf(stderr, "loomux check commit-msg: %v\n", err)
-			return 1
-		}
-		return 0
+		return checkCommitMsg(args[1:], stdout, stderr)
 	case "gocover":
 		return checkGocover(args[1:], stdout, stderr)
 	case "gofmt":
@@ -241,4 +228,96 @@ func checkGocover(args []string, stdout, stderr io.Writer) int {
 	}
 	read := func(p string) ([]byte, error) { return os.ReadFile(filepath.Join(*dir, p)) }
 	return gocover.Gate(lines, module, read, stdout)
+}
+
+func checkCommitMsg(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("loomux check commit-msg", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
+	var calibrate int
+	var language string
+	var rootFlag string
+
+	fs.IntVar(&calibrate, "calibrate", 0, "measure the thresholds against the last N commits")
+	fs.StringVar(&language, "language", "", "the language to check or calibrate against (en, de)")
+	fs.StringVar(&rootFlag, "root", "", "path to project root")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	calibratePassed := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "calibrate" {
+			calibratePassed = true
+		}
+	})
+
+	root := rootFlag
+	if root == "" {
+		root, _ = hosts.FindRoot(".")
+	}
+	if abs, err := filepath.Abs(cmp.Or(root, ".")); err == nil {
+		root = abs
+	}
+
+	if calibratePassed {
+		if fs.NArg() > 0 {
+			fmt.Fprintln(stderr, "loomux check commit-msg: cannot pass both a file and --calibrate")
+			return 2
+		}
+		if calibrate < 1 {
+			fmt.Fprintf(stderr, "loomux check commit-msg: --calibrate needs a count of at least 1, not %d\n", calibrate)
+			return 2
+		}
+		if language != "" && language != "en" && language != "de" {
+			fmt.Fprintf(stderr, "loomux check commit-msg: --language must be one of (\"en\", \"de\"), not %q\n", language)
+			return 2
+		}
+
+		policy, err := commit.ReadPolicy(root)
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux check commit-msg: %v\n", err)
+			return 1
+		}
+
+		lang := cmp.Or(language, policy.Language, "en")
+
+		messages, err := commit.ReadMessages(root, calibrate)
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux check commit-msg: %v\n", err)
+			return 1
+		}
+
+		commit.Render(messages, lang, commit.DefaultThresholds, stdout, policy.Allow)
+		return 0
+	}
+
+	if language != "" {
+		fmt.Fprintln(stderr, "loomux check commit-msg: --language cannot be used when checking a file; a commit cannot choose the rule it is judged by")
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprintln(stderr, "loomux check commit-msg: exactly one message file required")
+		return 2
+	}
+
+	filePath := fs.Arg(0)
+	policy, err := commit.ReadPolicy(root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check commit-msg: %v\n", err)
+		return 1
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check commit-msg: %v\n", err)
+		return 1
+	}
+
+	if err := commit.Check(string(content), policy); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	return 0
 }

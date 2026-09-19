@@ -11,6 +11,7 @@ translation table and suite.
 | 1b-1 | `brain-mcp`, the Python reference of ultra-brain at the tag `loomux-1a-source` (`3cc72d2`), against a fake qmd | `internal/cli/cases_1b1_test.go` | 71 |
 | 1b-2 | `brain-mcp mcp`, the same reference's MCP front over its own daemon, against a fake qmd | `internal/cli/cases_1b2_test.go` | 54 |
 | 2a | `ultraloom check` at the tag `loomux-1a-source` (`9d01a60`), against fake tools | `internal/cli/cases_2a_test.go` | 53 |
+| 2b | `ultraloom commit-msg` at the tag `loomux-1a-source` (`9d01a60`), against staged worlds and, for `--calibrate`, a fake git | `internal/cli/cases_2b_test.go` | 19 |
 
 ## Layout
 
@@ -34,6 +35,10 @@ translation table and suite.
 | `2a-map.toml` | One rule: `ultraloom check ` → `loomux check `. |
 | `2a-extra-answers.json` | The answers only loomux asks for: its presets call `npx eslint`, `npx tsc`, `npx vitest`, `cmake --build` and `go test`, which the old chain did not. `loomux dev import-cases --merge-fixture` appends them to every translated world's `faketool.json` (and writes one where the world had none); the recorded fixture stays as it was. |
 | `2a/` | The translated cases. The old `[verify]` of `.ultraloom/config.toml` is folded: every kind it named moves to `[verify.project]`, and every stack the world holds gets that kind switched off, because the old configuration replaced the preset. `[verify.after]` becomes `after` on the project lane, `godot_import` becomes `[verify.gdscript] import_check`; `tests` and `threshold` are dropped. |
+| `2b-worlds/` | The worlds a 2b case runs in: a `.ultraloom/config.toml` carrying the old `[commit]` section, the message file the case checks, and for the calibrate cases a `faketool.json` the replay answers `git log` from. |
+| `2b-source/` | The recordings of `ultraloom commit-msg`, written with `uv run ultraloom commit-msg --root <world> <world>/msg.txt`. A refusal prints to stderr only, so these cases compare the exit code (`compare = message`). |
+| `2b-map.toml` | One command rule, `ultraloom commit-msg ` → `loomux check commit-msg `, and one `[[exit]]` rule mapping a refusal's exit 2 onto loomux' 1 (deviation 5 of `parity/stufe-2b.md`). |
+| `2b/` | The translated cases. The old `[commit]` section moves into `.loomux/config.toml` unchanged. |
 
 ## What a case compares
 

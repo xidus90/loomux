@@ -1,6 +1,6 @@
 # Stufe 2b: `check commit-msg` mit `[commit]`, `--calibrate` und `--language`
 
-**Stand:** 2026-09-19, entworfen, nicht umgesetzt. Rahmen:
+**Stand:** 2026-09-19, umgesetzt (100 % Testabdeckung, Paritätsfälle 2b, vollständige Dokumentation). Rahmen:
 `2026-09-14-loomux-fusion-design.md`, Stufe 2; Geschwister:
 `2026-09-19-loomux-stufe-2a-design.md` (umgesetzt), 2c (offen). 2b hängt an
 nichts aus 2a außer `child.Run` für `git log`.
@@ -289,3 +289,35 @@ Exit-Codes bleiben. Changelog:
 6. `calibrate.go` und `--calibrate`.
 7. Aufzeichnung `2b-source` (nach der Policy-Regel), Gegenstücke `2b`.
 8. Doku, Fusions-Spec, Abweichungsliste.
+
+## Nachträge
+
+Was Umsetzung und Review gegenüber dem Entwurf geändert haben. Wo Text und
+Nachtrag sich widersprechen, gilt der Nachtrag.
+
+1. **Der Exit-Code wird übersetzt, nicht von Hand gesetzt.** Der Entwurf wollte
+   im Gegenstück Exit 1 eintragen und die Abweichung in `notes.md` erklären.
+   Stattdessen kennt die Übersetzungstabelle jetzt `[[exit]]`
+   (`testdata/cases/2b-map.toml`, `internal/dev/importcases`): Die Aufzeichnung
+   behält Pythons 2, das Gegenstück bekommt beim Import 1. So bleibt die
+   Übersetzung mechanisch, und **jeder** 2b-Fall muss bestehen. Eine Liste
+   „genehmigter Abweichungen“, in der ein Fall bloß irgendwie scheitern muss,
+   gibt es nicht mehr; sie hätte auch einen falschen Code durchgelassen.
+   Die Regel gilt unbedingt: Aufruffehler (auch bei Python Exit 2) werden
+   deshalb nicht aufgezeichnet.
+2. **Unicode gegen ASCII war im Entwurf nicht vorgesehen.** Pythons `\b`, `\s`,
+   `\w` und `str.splitlines` sind Unicode, Gos sind ASCII. Ohne Nachbau lehnte
+   `Credit to von Müller` eine englische Zeile ab. Nachgebaut sind daher die
+   Wortgrenze des Namenspartikels, das Wortmuster `[\p{L}\p{Nl}\p{No}]+` und
+   die Zeilentrennung (auch in `Subject`). Zusätzlich faltet `foldGerman` das
+   große `ẞ` wie Python zu `ss`.
+3. **Drei Aufzeichnungen mehr als geplant:** `allow-match-key`,
+   `allow-broken-regex` und `paragraph-break-span`. Damit sind es 19 Fälle.
+4. **Die Abweichungsliste hat neun Einträge, nicht zehn.** Der Unicode-Nachbau
+   (Nachtrag 2) hinterlässt keinen Unterschied und steht deshalb in der Fußnote
+   der Liste, nicht als Eintrag. Pythons falscher Kommentar zu Exit 1
+   (`commit/cli.py:18–19`) ist ebenfalls keine Verhaltensabweichung und steht
+   dort.
+5. **Offen, nur von Hand zu erledigen:** die Policy-Regel für
+   `testdata/cases/2b-source/**` in `.loomux/config.toml`. Sie fehlt noch, und
+   deshalb schützt die Schranke die Aufzeichnungen heute nicht.

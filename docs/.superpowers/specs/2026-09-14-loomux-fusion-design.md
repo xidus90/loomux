@@ -4,7 +4,8 @@
 **Stand:** teilweise umgesetzt (2026-09-19).
 **Fusions-Stufen:** 1a, 1b-1, 1b-2 (`serve`, MCP, Brücke), 1b-3 (Wiki- und
 Doku-Umzug) und 2a (Prüfkette `[verify]`, `loomux check <profil>`,
-`check gocover`) sind abgeschlossen; 2b, 2c, 3 und 4 sind offen. Sechzehn
+`check gocover`) und 2b (commit-msg mit `[commit]`, `--calibrate`, `--language`) sind
+abgeschlossen; 2c, 3 und 4 sind offen. Sechzehn
 Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
 „Stufen“ im Abschnitt „Nachgetragen“, zur Freigabe.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
@@ -101,6 +102,10 @@ Aus der Abdeckungskarte vom 2026-09-14, gegen den Code gelesen:
   `ulinit check commit-msg` ist eine englische Wortliste über die erste Zeile
   (62 Zeilen, `internal/commit/language.go`) und kein Ersatz für
   `commit/*.py` (1.444 Zeilen, `--language`, `--calibrate`, `[commit]`).
+  Die 62 Zeilen gelten für ulinit; loomux' Kopie davon hatte 70 und prüfte
+  zusätzlich den Conventional-Commits-Header.
+  *(Hinweis Stufe 2b: Am 2026-09-19 vollständig durch `internal/verify/commit` abgelöst:
+  Variante B, Go-Wortliste, Umlaut-Regel, RE2-`[[commit.allow]]`, `--calibrate` mit GitRunner-Naht).*
   `ulinit check coverage` misst nichts und **exitet 0 ohne `--summary`**.
 - **ultra-brain:** Python-only sind Daemon und IPC, `reconcile`, `merge-events`,
   `init`, das Registry-Locking, `convert`/`fetch`, das lokale Modell, `bench`
@@ -510,7 +515,7 @@ fertige auch mit Paritätsakte (`parity/stufe-2a.md`):
 | Teilstufe | Stand | Inhalt |
 |---|---|---|
 | **2a** | ✅ 2026-09-19 (Spec `2026-09-19-loomux-stufe-2a-design.md`, Plan `2026-09-19-loomux-stufe-2a.md`) | `child` (Prozessbaum, Fristen, Absaugen), das Schema `[verify]` mit Presets je Stack, `loomux check <profil\|arten>` mit `--show`, `loomux check gocover` statt `dev covergate`, post-edit auf `[verify]`. loomux prüft sich selbst mit `check precommit` |
-| **2b** | offen | commit-msg mit `--language`, `--calibrate`, `[commit]` |
+| **2b** | ✅ | commit-msg mit `--language`, `--calibrate`, `[commit]` (umgesetzt 2026-09-19) |
 | **2c** | offen | Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig; hängt an 2a |
 
 **Für 2c vorgemerkt:** zwei Schwächen der heutigen `stop.py` (gelesen am

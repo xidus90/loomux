@@ -1,0 +1,9 @@
+{
+  "answers": [
+    {
+      "prefix": "git log",
+      "stdout": "feat: initial commit\u0000fix: second commit\u0000",
+      "exit": 0
+    }
+  ]
+}

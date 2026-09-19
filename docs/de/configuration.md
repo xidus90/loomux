@@ -125,7 +125,8 @@ jeder Ebene: `[verify]`, `[verify.<stack>]` und `[verify.<stack>.<art>]`.
 Ebenso die alte Form auf oberster Ebene, `[verify].types = "…"`; die Meldung
 verweist auf `[verify.<stack>].types`.
 Regeln für Commit-Nachrichten gehören nicht zu `[verify]`: `[verify.commit]` wird
-wie jeder unbekannte Stack abgewiesen, der Abschnitt `[commit]` kommt mit Stufe 2b.
+wie jeder unbekannte Stack abgewiesen. Die Commit-Policy wird in der
+eigenen Top-Level-Tabelle `[commit]` konfiguriert (siehe unten).
 
 #### Arten, Profile und reservierte Namen
 
@@ -343,6 +344,30 @@ Profil `edit` läuft also nie durch den Baum.
   mit 0.
 
 ---
+
+### `[commit]` (Commit-Nachrichten-Validierung)
+
+Konfiguriert die Prüfregeln für `loomux check commit-msg` und den `.githooks/commit-msg`-Hook.
+Fehlt `[commit]` in `.loomux/config.toml`, gelten die Standardwerte: `language = "en"`, `threshold = 2`, `conventional = true`.
+
+```toml
+[commit]
+language     = "en"       # "en" (Standard) oder "de"
+threshold    = 2          # Treffer in einer Zeile, ab denen sie abgelehnt wird (Standard: 2)
+conventional = true       # Erzwingt Conventional-Commits-Format für Betreffzeile (Standard: true)
+
+# Eine Zeile, auf die eines dieser Muster passt, wird ganz übersprungen
+[[commit.allow]]
+regex  = '(Müller|Zürich|Löwis)'
+reason = "Eigennamen mit Umlaut: zwei davon in einer Zeile würden sie ablehnen"
+```
+
+| Schlüssel | Typ | Standard | Beschreibung |
+|---|---|---|---|
+| `language` | String | `"en"` | Zielsprache der Commit-Nachricht: `"en"` (Englisch) oder `"de"` (Deutsch). |
+| `threshold` | Integer | `2` | Eine Zeile mit so vielen Treffern oder mehr wird abgelehnt. Muss `> 0` sein. |
+| `conventional` | Boolean | `true` | Wenn `true`, muss die erste Zeile dem Conventional-Commits-Format `<type>[(<scope>)][!]: <description>` entsprechen. |
+| `allow` | Liste von Tabellen | `[]` | Ausnahmeregeln. Jeder Eintrag muss `regex` (gültiges RE2-Muster) und `reason` (nicht-leerer String) enthalten. Eine Zeile, auf die das Muster passt, wird ganz übersprungen, samt ihrer Treffer. |
 
 ### `[worktree]` (Worktree-Spiegel)
 Nennt git-ignorierte Verzeichnisse des Haupt-Checkouts, die `loomux worktree link` in einem verknüpften Git-Worktree über eine Windows-Junction bereitstellt. Gelesen wird immer die `.loomux/config.toml` des Haupt-Checkouts. Junctions gibt es nur unter Windows; Symlinks auf anderen Systemen gibt es nicht. Der Mechanismus steht unter [Hooks](hooks.md#9-worktree-spiegelung).
