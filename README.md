@@ -66,8 +66,8 @@ sequenceDiagram
     Hook->>Graph: Fingerprint modified file & calculate Blast Radius (target <5ms, G4)
     Hook-->>Agent: Inline dependent callers & blast warnings
 
-    Agent->>Hook: Stop (Turn Completion, stage 1b — no stop event wired yet)
-    Hook->>Verify: Run Check Chain (configured lanes, tests, coverage gate — stage 1b)
+    Agent->>Hook: Stop (Turn Completion, stage 2c — no stop event wired yet)
+    Hook->>Verify: Run Check Chain (configured lanes, tests, coverage gate — stage 2c)
     Verify-->>Agent: Pass (Exit 0) or Halt with feedback (Exit 1/2)
 ```
 
@@ -150,7 +150,7 @@ below says where each capability stands:
 | Session Start | Records the commit a session starts on and warns when the binary in the project is older than `go.mod`, `go.sum` or a `.go` file under `cmd/` or `internal/`. Announces only; never blocks a turn. | ✅ **Implemented** (Stage 1a) |
 | Subagent Drift & Stop Gate | Subagent drift detection and the execution counter of the stop gate. `loomux hook` knows three events — `pre-tool-use`, `post-tool-use`, `session-start`; no `stop` or `subagent-*` event is wired. | 📋 **Specified** (Stage 2c) |
 | Check Commands | `loomux check commit-msg` (language and structure of a message), `check gofmt` (formatting, with the exit code `gofmt -l` does not give) and `check gocover` (100% per function against a profile, or a total with `--floor`). `dev covergate` is gone. | ✅ **Implemented** (Stage 1a; `gocover` 2a) |
-| Check Chain Table | One `[verify]` table drives `loomux check <profile>` and the post-edit hook: presets per stack that work without any config, one lane per kind, stack and area, `after` edges instead of stages, a verdict per kind, and `--show` to print what runs. Child process trees are killed whole on a timeout (a Job Object on Windows). | ✅ **Implemented** (Stage 2a) |
+| Check Chain Table | One `[verify]` table drives `loomux check <profile>` and the post-edit hook: presets per stack that work without any config, one lane per kind, stack and area, `after` edges instead of stages, a verdict per kind, and `--show` to print what runs. A lane can name files it `needs`: the C++ lanes on the build tree wait for `build/CMakeCache.txt` and are `unready` until the build is configured, while an edit still runs `clang-format` on the file. Child process trees are killed whole on a timeout (a Job Object on Windows). | ✅ **Implemented** (Stage 2a) |
 | Worktree Mirroring | Isolated subagent git worktrees with symlink/junction mirroring and session tracking. | ✅ **Implemented** (Stage 1a) |
 | Zone-Free Start Path | Go's local time zone stays off the hook path: the TOML parser builds its local zones on first use (`third_party/toml`), and a gate test fails any package init over 500 allocations. `hook pre-tool-use` 7.5 ms warm against 26.5 ms before (measured 2026-09-17). | ✅ **Implemented** (no stage) |
 | Claude Mods Adapter | Seat the write barrier in a `tool.check` function hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)) talking to a long-lived loomux over `$.mcp.call` — removes the spawn, adds an `ask` verdict and a rendered reason. Claude-Code-only; the exec hook stays the portable path. | 💡 **Optional** (no stage) |
@@ -196,6 +196,7 @@ loomux hook session-start           # record the session's base commit and warn 
 loomux status|doctor|explain        # inspect hook setup, verification lanes, and active harnesses (three names, one code path)
 loomux worktree link|unlink|remove  # manage isolated worktree mirrors and junction paths
 loomux dev swap-binary              # atomically swap running binary with new compilation
+loomux version                      # print the version of this binary
 loomux lint <file>                  # lint one markdown wiki page's links and frontmatter
 loomux wiki-gate                    # gate wiki freshness and structural constraints
 loomux brain search "<query>"       # search the visible areas through the qmd daemon (--profile fast|full|keyword)
@@ -244,6 +245,8 @@ loomux dev bench [--dir <dir>] [--save] # benchmark repo/corpus with gap audit; 
 loomux dev mutants <pkg>            # run mutation test suites across critical decision packages
 loomux dev record-case --out <dir>  # record one run of a reference binary as a case
 loomux dev import-cases --map <f>   # translate a directory of recorded cases into loomux cases
+loomux dev record-mcp-case --out <dir> # record one MCP tool call of a reference service as a case
+loomux dev release <sub>            # release rules for CI: next-version, parse-body, changelog-insert, build
 ```
 
 ---
