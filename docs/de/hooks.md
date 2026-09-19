@@ -600,3 +600,24 @@ weg ist. Verweigert Git, sind die Junctions schon heraus, und das nächste
 Keiner der drei kann eine Runde anhalten, und keiner soll es: eine Sitzung,
 deren Spiegel nicht angelegt werden konnte, soll davon erfahren, nicht
 angehalten werden.
+
+
+---
+
+## 10. Git-Repository-Hooks
+
+Neben den Agenten-Harness-Hooks integriert loomux native Git-Hooks (konfiguriert über `git config core.hooksPath .githooks`):
+
+### `.githooks/commit-msg`
+Wird von Git beim Erstellen eines Commits aufgerufen. Führt aus:
+```bash
+loomux check commit-msg "$1"
+```
+
+- **Prüfungen**:
+  - **Sprache & Wortschatz**: Scannt alle Zeilen auf fremdsprachige Stopwörter (Variante B). Bei Zielsprache `en` zählt ein Wort mit Umlaut als Treffer; 82 deutsche Entwicklerwörter bilden eine vierte Wortquelle.
+  - **Fremdschrift-Läufe**: Folgen von Nicht-Latein-Schriftzeichen (CJK, Kyrillisch etc.) werden als Fremdwort-Treffer gewertet.
+  - **Spannen & Ausnahmen**: Kommentare (`#`), Text nach Scheren-Trennlinien (`# ------------------------ >8 ------------------------`), mehrzeilige Backtick-Codeblöcke, einzeilige Anführungszeichen, Pfad-Token, Namenspartikel (`van`, `von`) und Git-Trailers (`Signed-off-by:`, `Co-authored-by:`) werden nicht als Fremdwörter gewertet.
+  - **Zulässige Ausnahmen**: Ausdrücke, die auf Muster in `[[commit.allow]]` passen, werden ignoriert.
+  - **Conventional Commits**: Wenn `[commit].conventional = true` (Standard), wird das Format `<type>[(<scope>)][!]: <description>` der Betreffzeile geprüft.
+- **Exit-Codes**: Beendet mit `0` bei Erfolg. Bei Verletzungen beendet der Hook mit Exit `1` und gibt Diagnoseinformationen samt Zeilennummern und Trefferwörtern auf `stderr` aus, wodurch der Commit abgebrochen wird.

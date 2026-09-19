@@ -23,12 +23,33 @@ type Rule struct {
 	To   string
 }
 
-// Mapping is the set of rules, read from a file of [[command]] and [[tool]]
-// tables. A stage brings one kind or the other: a command line is rewritten at
-// its head, an MCP call at its tool's name.
+// ExitRule maps a recorded exit code onto the one loomux answers with.
+//
+// Written down here and not approved per case in the suite: an approved case
+// only has to differ, so any wrong code would pass for the deviation. Mapped,
+// the translated case names one code and the suite holds it to it.
+type ExitRule struct {
+	From int
+	To   int
+}
+
+// Mapping is the set of rules, read from a file of [[command]], [[tool]] and
+// [[exit]] tables. A stage brings one command kind or the other: a command
+// line is rewritten at its head, an MCP call at its tool's name.
 type Mapping struct {
-	Commands []Rule `toml:"command"`
-	Tools    []Rule `toml:"tool"`
+	Commands []Rule     `toml:"command"`
+	Tools    []Rule     `toml:"tool"`
+	Exits    []ExitRule `toml:"exit"`
+}
+
+// mapExit answers the code a translated case expects.
+func mapExit(code int, rules []ExitRule) int {
+	for _, rule := range rules {
+		if rule.From == code {
+			return rule.To
+		}
+	}
+	return code
 }
 
 // The old tools named their configuration in four places; loomux has one.
@@ -63,9 +84,10 @@ func Import(from, to string, m Mapping) error {
 				return fmt.Errorf("clearing %s: %w", filepath.Join(out, world), err)
 			}
 		}
-		// The two files this import rewrites are not copied first: one writer
-		// per file keeps the copy from being the one that fails.
-		skip := map[string]bool{"cmd": true, "stdin": len(c.Stdin) > 0}
+		// The files this import rewrites are not copied first: one writer per
+		// file keeps the copy from being the one that fails.
+		mapped := mapExit(c.ExitCode, m.Exits)
+		skip := map[string]bool{"cmd": true, "stdin": len(c.Stdin) > 0, "exit": mapped != c.ExitCode}
 		if err := copyTree(c.Path, out, skip); err != nil {
 			return err
 		}
@@ -75,6 +97,11 @@ func Import(from, to string, m Mapping) error {
 		}
 		if err := os.WriteFile(filepath.Join(out, "cmd"), []byte(cmd+"\n"), 0o644); err != nil {
 			return err
+		}
+		if mapped != c.ExitCode {
+			if err := os.WriteFile(filepath.Join(out, "exit"), fmt.Appendf(nil, "%d\n", mapped), 0o644); err != nil {
+				return err
+			}
 		}
 		if len(c.Stdin) > 0 {
 			payload := rewritePaths(string(c.Stdin))
@@ -235,6 +262,9 @@ func translateDir(dir string) error {
 	}
 	if worktree, ok := config["worktree"]; ok {
 		result["worktree"] = worktree
+	}
+	if commit, ok := config["commit"]; ok {
+		result["commit"] = commit
 	}
 	if raw, ok := config["verify"]; ok {
 		configPath := filepath.Join(dir, ".ultraloom", "config.toml")

@@ -554,3 +554,120 @@ func TestImportStagesTheWorldsOfABackedCaseAfresh(t *testing.T) {
 		t.Fatalf("want an error about the case it could not clear, got %v", err)
 	}
 }
+
+func TestTranslateWorldCarriesCommitConfig(t *testing.T) {
+	dir := t.TempDir()
+	buildOldWorld(t, dir, manifestWithLayout)
+	commitConfig := "[verify]\ngofmt = true\n\n[commit]\nlanguage = \"de\"\nthreshold = 3\n"
+	writeFile(t, filepath.Join(dir, ".ultraloom", "config.toml"), commitConfig)
+
+	if err := TranslateWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	got := decodeConfig(t, dir)
+	commit, ok := got["commit"].(map[string]any)
+	if !ok {
+		t.Fatalf("want [commit] table in translated config, got %v", got)
+	}
+	if commit["language"] != "de" || commit["threshold"] != int64(3) {
+		t.Errorf("commit config mismatch: %v", commit)
+	}
+}
+
+// A stage whose command answers a refusal with another code says so in its
+// map, so the translated case still names one expected code and not "differs".
+func TestImportMapsTheExitCode(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	dir := filepath.Join(from, "check-commit-msg", "refused")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"cmd": "ultraloom commit-msg {{WORLD}}/msg.txt\n", "exit": "2\n", "stdout": "", "compare": "message\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "world"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := Mapping{
+		Commands: []Rule{{From: "ultraloom commit-msg ", To: "loomux check commit-msg "}},
+		Exits:    []ExitRule{{From: 2, To: 1}},
+	}
+	if err := Import(from, to, m); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(to, "check-commit-msg", "refused", "exit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(got)) != "1" {
+		t.Errorf("exit = %q, want 1", got)
+	}
+}
+
+func TestImportKeepsAnUnmappedExitCode(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	dir := filepath.Join(from, "check-commit-msg", "refused")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"cmd": "ultraloom commit-msg {{WORLD}}/msg.txt\n", "exit": "1\n", "stdout": "",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "world"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := Mapping{
+		Commands: []Rule{{From: "ultraloom commit-msg ", To: "loomux check commit-msg "}},
+		Exits:    []ExitRule{{From: 2, To: 1}},
+	}
+	if err := Import(from, to, m); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(to, "check-commit-msg", "refused", "exit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(got)) != "1" {
+		t.Errorf("exit = %q, want 1", got)
+	}
+}
+
+// A mapped exit the import cannot write is an error, not a case carrying the
+// recorded code as if no rule had asked for another one.
+func TestImportReportsAnExitItCannotWrite(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	dir := filepath.Join(from, "check-commit-msg", "refused")
+	if err := os.MkdirAll(filepath.Join(dir, "world"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"cmd": "ultraloom commit-msg {{WORLD}}/msg.txt\n", "exit": "2\n", "stdout": "", "compare": "message\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	locked := filepath.Join(to, "check-commit-msg", "refused", "exit")
+	if err := os.MkdirAll(filepath.Dir(locked), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, locked, "2\n")
+	testlock.Lock(t, locked)
+
+	m := Mapping{
+		Commands: []Rule{{From: "ultraloom commit-msg ", To: "loomux check commit-msg "}},
+		Exits:    []ExitRule{{From: 2, To: 1}},
+	}
+	if err := Import(from, to, m); err == nil {
+		t.Fatal("expected an error for the locked exit file")
+	}
+}

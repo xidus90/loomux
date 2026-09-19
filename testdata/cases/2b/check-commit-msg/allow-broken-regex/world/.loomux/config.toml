@@ -1,0 +1,6 @@
+[commit]
+  language = "en"
+
+  [[commit.allow]]
+    reason = "broken on purpose"
+    regex = "([unclosed"

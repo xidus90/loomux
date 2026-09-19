@@ -1,0 +1,6 @@
+feat: test scissors and comments
+
+This is an English commit message.
+# Hier sind deutsche Woerter im Kommentar
+# ------------------------ >8 ------------------------
+Hier sind deutsche Woerter nach der Schere

@@ -1,0 +1,6 @@
+feat: test trailer filtering
+
+This is an English commit message.
+
+Signed-off-by: Hans Mueller <hans@mueller.de>
+Co-authored-by: Hans Mueller <hans@mueller.de>
