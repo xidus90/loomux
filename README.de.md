@@ -116,68 +116,10 @@ nichts davon, was ein Test über den Importgraphen festhält. Siehe
 
 ---
 
-## Funktions- & Status-Matrix
+## Migrationsplan
 
-Loomux setzt einen mehrstufigen Fusionsplan um. Eine zweite Spur — der
-Code-Graph — läuft **neben** ihm statt hinter ihm, weil keine seiner fertigen
-Stufen eine Abhängigkeit einzieht:
-
-| Stufe | Stand | Was sie gebracht hat |
-|---|---|---|
-| **1a** | ✅ | Der Pilot: Repo-Gerüst, Tore, der vereinte Wächter, die Post-Edit-Lanes. loomux benutzt sich selbst |
-| **1b-1** | ✅ | Die lesenden Brain-Befehle — `search`, `status`, `catalog`, `read`, `neighbors` — mit Parität zur Python-Referenz |
-| **1b-2** | ✅ | `serve` mit MCP über Streamable HTTP und die stdio-Brücke, durch einen aufgezeichneten Fallkorpus an die Referenz gemessen. Upkeep ist Stufe 3 |
-| **1b-3** | ✅ | Wiki und Dokumentation sind umgezogen |
-| **2a** | ✅ | Die Prüfkette: `[verify]` mit Presets je Stack, `loomux check <profil>`, `check gocover`, post-edit auf `[verify]`, Prozessbäume werden ganz beendet. loomux prüft seine eigenen Commits mit `check precommit` |
-| **2b** | offen | commit-msg mit `--language`, `--calibrate` und `[commit]` |
-| **2c** | offen | Die Hooks `stop`, `subagent-start`, `subagent-stop`; der Antigravity-Adapter vollständig |
-| **3 – 4** | offen | Brain-Pflege, Konvertierung und Abruf, `loomux migrate`, die Umstellung der Wirte |
-| **G1** | ✅ | Rang und Blast-Radius als Bibliotheken, an portierten Testvektoren der Referenz belegt |
-| **G2a** | ✅ | Extraktor, Auflösung, Speicher, Frischesonde sowie `graph build` und `graph check` |
-| **G2b** | ✅ | Die Abfrage: lexikalische Saat, die Beiakte, `loomux graph ask` |
-| **G3** | ✅ | `graph_find_code` und `graph_check_freshness` am Gateway von 1b-2; eine Abfrage baut nie einen ersten Graphen |
-| **G4 – G5** | offen | Die übrige `graph`-Palette samt Hook-Anbindung, Mehrsprachigkeit über `wazero` |
-
-Jede Stufe endet grün und wird einzeln übergeben, mit eigenem Plan und — sobald
-sie fertig ist — eigener Paritätsakte, die jede ihrer Verfügungen festhält. Die
-Matrix darunter sagt, wo die einzelnen Funktionen stehen:
-
-| Säule / Funktion | Beschreibung | Status |
-|---|---|---|
-| **1. Hooks & Wächter** | | |
-| Einheitlicher Pre-Tool Wächter | Prüfung von Schreibschranken, Pfadregeln und verbotenen Befehlen (< 35 ms Zielbudget; 32–34 ms gemessen am Vorgänger; ein Write in einem verknüpften Worktree gemessen 34,6 ms warm (2026-09-16)). Verknüpfte Git-Worktrees eines registrierten Workspace sind ohne eigenen Registry-Eintrag beschreibbar. Registry und Bereichsdeklarationen laufen durch dieselben Prüfungen wie die Brain-Befehle; ein kaputter Eintrag verweigert jeden Write. | ✅ **Implementiert** (Stufe 1a) |
-| Post-Tool Prüf-Lanes | Das Profil `edit` aus `[verify]` auf der eben geänderten Datei, für ihren Stack und in ihrem Bereich — `go vet` und `gofmt` der einen Datei, der Wiki-Lint im eigenen Prozess, ruff/mypy, eslint/tsc, stylelint und die übrigen, aus denselben Presets, die `loomux check` fährt. Befehle starten als argv, ohne Shell. Eine gescheiterte Lane endet mit 2; Lanes, die wegen eines fehlenden Werkzeugs oder eines aufgebrauchten Budgets (`--budget`, Vorgabe 50 s) ausfallen, werden dem Modell namentlich zurückgemeldet. | ✅ **Implementiert** (Stufe 1a; Lanes aus `[verify]` seit 2a) |
-| Post-Tool Blast Monitor | Hashing geänderter Dateien und Warnung bei berührten Aufrufern. Den Wiring-Graphen, den es braucht, schreibt jetzt `loomux graph build`, aber der Edit-Hook liest ihn noch nicht: heute kein Hash und keine Warnung. | 📋 **Spezifiziert** (Stufe G4) |
-| Sitzungsstart | Hält den Commit fest, auf dem eine Sitzung beginnt, und warnt, wenn das Binary im Projekt älter ist als `go.mod`, `go.sum` oder eine `.go`-Datei unter `cmd/` oder `internal/`. Kündigt nur an; blockiert nie einen Zug. | ✅ **Implementiert** (Stufe 1a) |
-| Subagent-Drift & Stop-Tor | Drifterkennung für Subagenten und der Block-Zähler des Stop-Tors. `loomux hook` kennt drei Ereignisse — `pre-tool-use`, `post-tool-use`, `session-start`; kein `stop` und kein `subagent-*` ist verdrahtet. | 📋 **Spezifiziert** (Stufe 2c) |
-| Prüfbefehle | `loomux check commit-msg` (Sprache und Form einer Nachricht), `check gofmt` (Formatierung, mit dem Exit-Code, den `gofmt -l` nicht gibt) und `check gocover` (100 % je Funktion gegen ein Profil, oder eine Gesamtgrenze mit `--floor`). `dev covergate` gibt es nicht mehr. | ✅ **Implementiert** (Stufe 1a; `gocover` 2a) |
-| Prüfketten-Tabelle | Eine Tabelle `[verify]` treibt `loomux check <profil>` und den post-edit-Hook: Presets je Stack, die ohne jede Konfiguration gelten, eine Lane je Art, Stack und Bereich, `after`-Kanten statt Stufen, ein Urteil je Art und `--show`, das zeigt, was läuft. Eine Lane kann Dateien nennen, die sie braucht (`needs`): die C++-Lanes auf dem Build-Baum warten auf `build/CMakeCache.txt` und sind `unready`, bis der Build konfiguriert ist; ein Edit führt `clang-format` auf der Datei trotzdem aus. Kindprozessbäume werden bei einer Frist ganz beendet (unter Windows über ein Job Object). | ✅ **Implementiert** (Stufe 2a) |
-| Worktree-Spiegelung | Isolierte Subagent-Git-Worktrees mit NTFS-Junctions und Sitzungsverfolgung. | ✅ **Implementiert** (Stufe 1a) |
-| Zonenfreier Startpfad | Gos lokale Zeitzone bleibt vom Hook-Pfad fern: Der TOML-Parser baut seine lokalen Zonen beim ersten Gebrauch (`third_party/toml`), und ein Test im Tor lÃ¤sst jedes Paket-Init Ã¼ber 500 Allokationen scheitern. `hook pre-tool-use` 7,5 ms warm gegen 26,5 ms vorher (gemessen 2026-09-17). | â **Implementiert** (ohne Stufe) |
-| Claude-Mods-Adapter | Die Schreibschranke in einen `tool.check`-Function-Hook setzen ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)), der über `$.mcp.call` mit einem langlebigen loomux spricht — entfernt den Spawn, bringt ein `ask`-Urteil und eine gerenderte Begründung. Nur für Claude Code; der Exec-Hook bleibt der portable Pfad. | 💡 **Optional** (ohne Stufe) |
-| **2. Skills & Best Practices** | | |
-| Kuratierte Sprach-Suiten | Eingebettete Best-Practice-Regeln für Go (Zero-Alloc, Error-Handling, no-init), Python, TS, Rust. | 📋 **Spezifiziert** (Stufe W4) |
-| Graph-gestützter Code-Review | Review-Skills, die via `graph_blast` Aufrufer-Auswirkungen prüfen und ADRs abgleichen. | 📋 **Spezifiziert** (Stufe W4) |
-| 3-Kanal-Distribution | Konfiguriert via `.loomux/config.toml`, synchronisiert in Host-Ordner, via MCP-Prompts oder Web OS. | 📋 **Spezifiziert** (Stufe W4) |
-| **3. Code-Graph & Loop** | | |
-| Nativer Go-AST-Extraktor | Deterministische Symbol- & Kantenextraktion allein via `go/parser` und `go/ast` — kein `go/types`, kein Build ($0, 0 Deps). Hinter `loomux graph build` verdrahtet; braucht auf diesem Repository in der Größenordnung eines Zehntel einer Sekunde, mit Befehl und Rohausgabe gemessen in `docs/de/benchmarks.md`. | ✅ **Implementiert** (Stufe G2a) |
-| Personalized PageRank | Power-Iteration Random-Walk-Ranking über Aufruf- und Abhängigkeitsgraphen, ungerichtet über fünf Relationen, max-normiert mit deterministischer Gleichstandsordnung. Verschmolzen mit BM25-Kandidaten-Scoring in `loomux graph ask` (~48 ms warmes Retrieval). | ✅ **Implementiert** (Stufe G2b) |
-| Blast-Radius-Engine | Transitive Hülle und Impact-Analyse (`In`/`Out`, Tiefenbegrenzung, kleinste Tiefe gewinnt). Noch fragt kein Befehl etwas. | 🧩 **Bibliothek** (Stufe G1) |
-| Symbol-gekoppelter Grep | Regex-Suche, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Grad (`inDegree`). | 📋 **Spezifiziert** (Stufe G4) |
-| Multi-Language AST | CGo-freier Tree-sitter über WebAssembly (`wazero`) mit persistentem AOT-Kompilierungs-Cache. | 💡 **Geplant** (Stufe G5) |
-| MCP-Dienst & stdio-Brücke | `loomux serve` hält zwei Loopback-Listener, je einen pro Kanal und jeden mit eigenem Token, und beantwortet sieben Werkzeuge über Streamable HTTP — die fünf `brain_*`-Werkzeuge und, seit Stufe G3, `graph_find_code` und `graph_check_freshness`; `loomux serve status` und `stop [--force]` steuern ihn, und `loomux mcp` ist die stdio-Brücke, die ein Wirt startet und die den Dienst selbst startet und ersetzt. `internal/hooks` bindet nichts davon: ein Tor-Test liest den Importgraphen. Die Front ist durch einen aufgezeichneten Fallkorpus an die MCP-Front der Python-Referenz gemessen; verglichen wird der Text jeder `CallToolResult` und `isError`, nicht der Umschlag, den zwei verschiedene SDKs aushandeln. | ✅ **Implementiert** (Stufen 1b-2, G3) |
-| **4. Second Brain & Wiki** | | |
-| Lokales Markdown-Wiki | Das Bündel selbst liegt in `docs/wiki/` (Bereich `project/loomux`, am 2026-09-16 Seite für Seite umgezogen und zeilenweise freigegeben). `loomux lint <datei>` prüft Links und Frontmatter einer Seite, `loomux wiki-gate` Frische und Struktur des Bündels. Identitätsregister und Themen-Graph schreibt der Reindex der Stufe 3, nicht der Umzug. | 🚧 **In Migration** (Stufe 2) |
-| Semantischer QMD-Index | Einbettung lokaler Vektoren und neuronaler Suche mit Caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stufe 3) |
-| Brain-Datenbefehle | `loomux brain search`, `catalog`, `read`, `neighbors` und `status` über die eine Registry, an der Python-Referenz durch einen aufgezeichneten Fallkorpus gemessen. Eine Registry oder Bereichsdeklaration, die loomux nicht verwenden kann, verweigert den Aufruf und nennt Datei, Eintrag und Grund. | ✅ **Implementiert** (Stufe 1b-1) |
-| Brain-zu-Graph Brücke | Code-Symbole verweisen direkt auf Architekturentscheidungen (ADRs) und Dokumentation. | 📋 **Spezifiziert** (Stufe W3) |
-| **5. LLM OS & Web-Interface** | | |
-| Eingebettetes Web-OS | Autarke React/Vite-SPA, per `go:embed` ausgeliefert über `loomux serve` auf `http://127.0.0.1` mit `embed_stub.go`-Fallback. | 📋 **Spezifiziert** (Stufe W1) |
-| Interaktiver Graph-Visualizer | D3-Force / WebGL Graph mit Kanten-Chips, Typen-Filterung und Blast-Radius-Overlays. | 📋 **Spezifiziert** (Stufe W3) |
-| Kanban Board & Loop Tracker | Echtzeit-Tracking von mehrstufigen Agenten-Workflows, Subagenten-Loops und Prüfketten. | 📋 **Spezifiziert** (Stufe W5) |
-| Grafischer Flow-Editor | Visueller DAG-Canvas zum Entwerfen, Abspielen und Debuggen von Agenten-Prüfschleifen. | 💡 **Zukunft** (Stufe W5) |
-
-*Legende: ✅ Im Go-Binary implementiert & verifiziert · 🧩 Bibliothek gebaut, noch an keinen Befehl verdrahtet · 🚧 In aktiver Migration / Fusion · 📋 Spezifiziert & Bau-Bereit · 💡 Geplant / Zukunftsvision*
+Wo jede Stufe und jede Funktion steht — Herkunft, Stand, Abhängigkeiten und
+Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**.
 
 ---
 
@@ -232,11 +174,13 @@ loomux graph map                    # Gibt token-budgetierte Verzeichnis-Cluster
 loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im Browser
 ```
 
-### Spezifizierte Befehle (Second Brain & Dienste — Stufen 2–3 & W1–W5)
+### Spezifizierte Befehle (Second Brain & Dienste — Stufen 3–4 & W1–W5)
 ```bash
 loomux brain reconcile             # Synchronisiert Zustandsänderungen, Identitäten und QMD-Sammlungen
+loomux brain check file|bundle|all  # Die Regeln für OKF, Haus und Föderation über eine Seite, ein Bündel oder alle Bereiche
+loomux brain embed                  # Erzeugt die Vektoren, die reindex offen lässt
 loomux serve                        # Das eingebettete Web OS neben den MCP-Listenern
-loomux init                         # Richtet Hooks, Einstellungen und Skills in erkannten Agenten ein
+loomux init [--detect-only]         # Richtet Hooks, Einstellungen, Skills und AGENTS.md in erkannten Agenten ein
 ```
 
 ### Entwickler- & Worktree-Werkzeuge
@@ -287,6 +231,7 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 | ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
 | 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
 | 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
+| 🗺️ **[Migrationsplan](docs/de/migration.md)** | Jede Stufe und jede Funktion der Fusion und des Code-Graphen: Herkunft, Stand, Abhängigkeiten und Priorität. |
 | ⏱️ **[Leistungs-Benchmarks](docs/de/benchmarks.md)** | Chronologische Messungen gegenüber den Vorläufer-Programmen und verbindliche Latenzbudgets. |
 | 📊 **[Benchmark-Matrix](docs/de/benchmarks/matrix.md)** | Open-Source-Matrix über Top-Sprachen hinweg mit Detailberichten pro Sprache und Repository. |
 
