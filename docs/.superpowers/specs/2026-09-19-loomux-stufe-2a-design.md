@@ -741,3 +741,26 @@ in `internal/verify`, `internal/cli/check.go` und `internal/hooks/post_edit.go`.
     `Reads`: `Run` prüft es nicht mit `os.Stat`, das Verhalten eines Laufs,
     der misst, bleibt gleich. Ein `coverage` ohne jeden gelesenen Pfad
     wartet weiter in jedem Fall (so C++, `gcovr` nach `ctest`).
+29. **Eine Lane kann Dateien verlangen: `needs`.** Portiert aus master
+    a24b17b („skip the cmake lane when no build tree is configured"), dort
+    fest am cmake-Befehl von post-edit. Hier ist es ein Lane-Schlüssel, nur
+    in Tabellenform, in Presets wie in `[verify]`: eine Liste von Pfaden
+    relativ zum Verzeichnis der Lane (`{area}`), jeder innerhalb davon. Die
+    Presets geben ihn den C++-Lanes auf dem Build-Baum (`types` =
+    `cmake --build`, `test` = `ctest`, `coverage` = `gcovr`) als
+    `needs = ["build/CMakeCache.txt"]`; `lint` braucht keinen. Fehlt eine
+    verlangte Datei, markiert `Plan` die Lane `unready` mit der Notiz
+    `<datei> is missing: configure the build first` — wie Godot: im Edit
+    laut übersprungen, im Check rot. Die String- und Listenform ersetzen die
+    Lane ganz und tragen kein `needs`; eine Tabelle ändert es wie jeden
+    anderen Schlüssel. `--show` druckt es, und es lädt zurück.
+30. **Die Bench-Suite von master liest ihre Lanes aus den Presets.**
+    `internal/dev/benchcorpus` rief `hooks.TargetCommandsForStacks` und
+    `hooks.StackForExtension` über die feste Tabelle von post-edit, die
+    diese Stufe entfernt. `hooks.StackForExtension` bleibt mit derselben
+    Signatur und liest `Presets.Extensions` (Ladefehler: `"", false`);
+    statt `TargetCommandsForStacks` liefert `hooks.EditLaneCommands(stacks)`
+    die ganzprojektweiten Befehle der Preset-Lanes im Profil `edit`
+    (`lint`, `types`), Stack für Stack. Varianten und ein `[verify]` des
+    vermessenen Projekts zählen dabei nicht; die Lückenprüfung vergleicht
+    also mit dem, was loomux ohne Konfiguration ausführt.

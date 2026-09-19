@@ -64,6 +64,11 @@ func TestParseConfigRefuses(t *testing.T) {
 		{"[verify.go.test]\nmeasure = \" \"", "[verify.go.test] measure #1 is empty"},
 		{"[verify.go.test]\nmeasure = \"x {file}\"", "[verify.go.test] measure uses {file}, which only on_file knows"},
 		{"[verify.gdscript]\nimport_check = 1", "[verify.gdscript].import_check must be a boolean"},
+		{"[verify.cpp.types]\nneeds = \"build/CMakeCache.txt\"", "[verify.cpp.types].needs must be a list of files"},
+		{"[verify.cpp.types]\nneeds = [1]", "[verify.cpp.types].needs #1 must be a string"},
+		{"[verify.cpp.types]\nneeds = []", "[verify.cpp.types].needs is empty"},
+		{"[verify.cpp.types]\nneeds = [\"../CMakeCache.txt\"]", `[verify.cpp.types].needs #1 "../CMakeCache.txt" must be a path inside the lane's directory`},
+		{"[verify.cpp.types]\nneeds = [\"/abs\"]", `[verify.cpp.types].needs #1 "/abs" must be a path inside the lane's directory`},
 	}
 	for _, c := range cases {
 		_, err := parse(t, c.src)
@@ -230,5 +235,22 @@ func TestReadConfigParsesTheVerifySection(t *testing.T) {
 	root = writeManifest(t, "[verify]\ntimeout = 0\n")
 	if _, err := ReadConfig(root); err == nil || !strings.HasPrefix(err.Error(), filepath.Join(root, ".loomux", "config.toml")+": ") {
 		t.Fatalf("%v", err)
+	}
+}
+
+// needs names files a lane cannot mean anything without; a table sets it
+// like any other key, and a command given as a string or list keeps none.
+func TestALaneTableNamesTheFilesItNeeds(t *testing.T) {
+	cfg, err := parse(t, "[verify.cpp.types]\nneeds = [\"out/CMakeCache.txt\", \"out/rules.ninja\"]\n[verify.cpp]\ntest = \"ctest\"\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	types := cfg.Stacks["cpp"]["types"]
+	if types.Replace || !types.Set["needs"] || len(types.Set) != 1 ||
+		strings.Join(types.Lane.Needs, ",") != "out/CMakeCache.txt,out/rules.ninja" {
+		t.Fatalf("%+v", types)
+	}
+	if test := cfg.Stacks["cpp"]["test"]; !test.Replace || test.Lane.Needs != nil {
+		t.Fatalf("%+v", test)
 	}
 }
