@@ -4,6 +4,16 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-09-19
+
+<https://github.com/xidus90/loomux/pull/8>
+
+### Added
+- `graph_find_code` and `graph_check_freshness` tools in `loomux serve` and the `loomux mcp` bridge, on the local and the cloud channel.
+- Paths under an area's `[privacy] never` globs are kept out of code-graph answers and drift reports.
+### Changed
+- `loomux graph ask` no longer builds a graph that was never built: without one it exits 1 and points at `loomux graph build`.
+
 ## [1.3.0] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/7>
