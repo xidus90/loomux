@@ -1,6 +1,6 @@
 ---
 name: release-pr
-description: Use when opening a pull request against master in loomux, when updating one after new commits, or when a pull request's diff changed and its release label, changelog or commit grouping may no longer fit.
+description: Use before every push of a branch in loomux, when opening a pull request against master, when updating one after new commits, or when a pull request's diff changed and its release label, changelog or commit grouping may no longer fit.
 ---
 
 # Release PR
