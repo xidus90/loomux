@@ -179,7 +179,7 @@ The keys of the table form:
 | `measuring` | string | `test`/`coverage` only. The one command `test` runs instead of `commands` when `coverage` is in the same run. |
 | `measure` | string | `test`/`coverage` only. The one command `coverage` runs first when its predecessor is not in the run. |
 | `after` | kind | `test`/`coverage` only. The kind of the same stack this lane waits for. Cycles are load errors that name the ring. |
-| `needs` | list | Files, relative to the lane's directory and inside it, the lane cannot mean anything without. A missing one makes the lane `unready`: skipped and named in an edit, red in a check. |
+| `needs` | list | Files, relative to the lane's directory and inside it, the lane's `commands` cannot mean anything without. A missing one makes the lane `unready`: skipped and named in an edit, red in a check. They do not guard `on_file`: an edit that runs a lane's form for one file runs it either way. |
 
 - **Replace or merge.** A string or a list stands for the lane as written:
   `measuring`, `measure`, `on_file` and `needs` of the preset no longer
@@ -249,9 +249,11 @@ then `[verify.<stack>]`.
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
   css `npx stylelint {file}`, html `npx htmlhint {file}`, shell
   `shellcheck {file}`, sql `sqlfluff lint {file}`.
-- The cpp `types`, `test` and `coverage` carry `needs =
+- The cpp `lint`, `types`, `test` and `coverage` carry `needs =
   ["build/CMakeCache.txt"]`: until the build tree is configured they are
   `unready` with `build/CMakeCache.txt is missing: configure the build first`.
+  An edit still runs the lint's `clang-format` on the file, which needs no
+  build tree.
   Configuring is the project's decision (generator, options, toolchain), so
   loomux does not guess a configure step.
 - **Measuring.** `test` measures only when `coverage` is in the same run

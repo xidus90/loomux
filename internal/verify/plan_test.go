@@ -499,8 +499,9 @@ func TestPlanLinksPythonCoverageToATestOverrideNamingTheDataFile(t *testing.T) {
 	}
 }
 
-// A lane whose needed file is missing cannot mean anything; it is unready in
-// both scopes, and the note names the file.
+// A lane whose needed file is missing cannot mean anything, and the note
+// names the file. Needs guard the whole-project commands only: the edit form
+// of the C++ lint formats one file and runs without a build tree.
 func TestPlanMarksALaneUnreadyWithoutTheFilesItNeeds(t *testing.T) {
 	facts := detect.Facts{Stacks: []string{"cpp"}, Areas: map[string][]string{"cpp": {"."}}}
 	root := t.TempDir()
@@ -512,9 +513,12 @@ func TestPlanMarksALaneUnreadyWithoutTheFilesItNeeds(t *testing.T) {
 			t.Fatalf("%+v %v", jobs, err)
 		}
 		for _, j := range jobs {
-			want, wantNote := State(""), ""
-			if j.Kind != "lint" {
-				want, wantNote = StateUnready, note
+			want, wantNote := State(StateUnready), note
+			if req.Scope == ScopeEdit && j.Kind == "lint" {
+				want, wantNote = "", ""
+				if len(j.Argvs) != 1 || j.Argvs[0][0] != "clang-format" {
+					t.Fatalf("edit lint: %+v", j)
+				}
 			}
 			if j.Pre != want || j.Note != wantNote {
 				t.Fatalf("scope %d: %+v", req.Scope, j)
