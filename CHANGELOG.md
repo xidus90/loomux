@@ -13,6 +13,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `[verify]` configuration per stack: presets for twelve languages, overrides as a string, a list, a table or `false`, test detection, and one lane per project area.
 - `loomux check gocover --profile <file>` with `--floor N` and `--dir D`.
 - `loomux hook post-tool-use --budget <duration>` (default 50 s).
+- A lane can name files it `needs`; the C++ lanes that read the build tree need `build/CMakeCache.txt` and are skipped on an edit (and reported as not ready by `check`) until the build is configured.
 ### Changed
 - post-edit takes its lanes from `[verify]` and the presets instead of a fixed list; a Go edit checks the formatting of the edited file only, a C++ edit checks formatting without rewriting the file, and TypeScript lanes call the tools through `npx`.
 - `loomux status` lists the lanes post-edit actually runs.
