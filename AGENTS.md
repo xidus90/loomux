@@ -25,7 +25,7 @@ that `ultraloom` and `ultra-brain` provided separately. Design:
 ## Languages
 
 Everything that instructs an LLM, and everything that is not prose, is
-English: this file, `CLAUDE.md`, `.claude/**`, code, comments, error
+English: this file, `.claude/**`, code, comments, error
 messages, commit messages. Documentation is multilingual: the project root maintains `README.md` (English, standard)
 and `README.de.md` (German). Deep documentation under `docs/` is organized into
 language subdirectories (`docs/en/`, `docs/de/`, etc.) with identical filenames across
@@ -102,3 +102,17 @@ go build -o bin/loomux.exe ./cmd/loomux
 - The gate is `go run ./cmd/loomux check precommit`: the `[verify]` lanes of
   `.loomux/config.toml` over the presets. `check lint`, `check test` or
   `check coverage` run one kind; `check precommit --show` prints what runs.
+
+## Claude Code
+
+Claude Code reads this file itself since 2.1.277, when the project has no
+`CLAUDE.md`; there is none, so do not add one. What only concerns Claude Code
+stands here:
+
+- Subagents never push; after a subagent run read `git log -1 --format='%an <%ae>'`.
+- The hooks in `.claude/settings.json` call `bin/loomux.exe`, which the
+  pre-commit gate rebuilds. If session-start warns that the binary is older
+  than a Go source under `cmd/` or `internal/` (or `go.mod`/`go.sum`), rebuild
+  before trusting a refusal.
+- Opening or updating a pull request against `master`: use the `release-pr`
+  skill.
