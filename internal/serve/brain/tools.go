@@ -31,7 +31,7 @@ type Deps struct {
 // Register adds the five tools to server. The channel is the listener's, never
 // an argument: a channel a caller can name is a claim.
 func Register(server *mcp.Server, channel privacy.Channel, deps Deps) {
-	for _, tool := range mcptools.Tools() {
+	for _, tool := range mcptools.Brain() {
 		server.AddTool(tool, handler(tool.Name, channel, deps))
 	}
 }

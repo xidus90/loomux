@@ -21,6 +21,7 @@ import (
 	"github.com/xidus90/loomux/internal/mcptools"
 	"github.com/xidus90/loomux/internal/serve"
 	servebrain "github.com/xidus90/loomux/internal/serve/brain"
+	servegraph "github.com/xidus90/loomux/internal/serve/graph"
 )
 
 // runTimeout bounds every wait in this file. A test that would otherwise hang
@@ -152,8 +153,8 @@ func TestToolsListIsAnsweredWithoutAService(t *testing.T) {
 	// inside the host's handshake. No service runs in this test at all.
 	session := connectBridge(t, bridge.Options{StateDir: t.TempDir()})
 	tools := toolsOf(t, session)
-	if len(tools) != 5 {
-		t.Fatalf("got %d tools without a service, want 5", len(tools))
+	if len(tools) != 7 {
+		t.Fatalf("got %d tools without a service, want 7", len(tools))
 	}
 	// The order is the SDK's, which sorts by name; the brief's brain_search
 	// would be a test of mcptools' registration order, which is not observable
@@ -177,7 +178,7 @@ func TestTheListIsByteIdenticalToTheServices(t *testing.T) {
 	}
 }
 
-// connectService registers the five tools the way serve does and hands back a
+// connectService registers the tools the way serve does and hands back a
 // session to them. The comparison has to be list against list over the wire:
 // the order there is the SDK's, not the one mcptools holds.
 func connectService(t *testing.T) *mcp.ClientSession {
@@ -188,6 +189,8 @@ func connectService(t *testing.T) *mcp.ClientSession {
 			return "", nil, nil
 		},
 	})
+	// Only the list is compared, so the graph tools need no dependencies.
+	servegraph.Register(server, privacy.ChannelLocal, servegraph.Deps{})
 	serverSide, clientSide := mcp.NewInMemoryTransports()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
