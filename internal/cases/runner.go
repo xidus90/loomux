@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/shellwords"
 )
 
 // WorldToken stands for the staged world directory in a case's files.
@@ -141,67 +143,9 @@ func collectFiles(dir string) (map[string][]byte, error) {
 	return files, nil
 }
 
-// SplitCommand parses a command line string into tokens respecting quotes and escapes.
-func SplitCommand(s string) ([]string, error) {
-	var tokens []string
-	var cur strings.Builder
-	inSingle := false
-	inDouble := false
-	escaped := false
-	hadQuotes := false
-
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if escaped {
-			cur.WriteByte(c)
-			escaped = false
-			continue
-		}
-		if c == '\\' && !inSingle {
-			escaped = true
-			continue
-		}
-		if inSingle {
-			if c == '\'' {
-				inSingle = false
-				hadQuotes = true
-			} else {
-				cur.WriteByte(c)
-			}
-			continue
-		}
-		if inDouble {
-			if c == '"' {
-				inDouble = false
-				hadQuotes = true
-			} else {
-				cur.WriteByte(c)
-			}
-			continue
-		}
-		switch c {
-		case '\'':
-			inSingle = true
-		case '"':
-			inDouble = true
-		case ' ', '\t', '\n', '\r':
-			if cur.Len() > 0 || hadQuotes {
-				tokens = append(tokens, cur.String())
-				cur.Reset()
-				hadQuotes = false
-			}
-		default:
-			cur.WriteByte(c)
-		}
-	}
-	if inSingle || inDouble || escaped {
-		return nil, fmt.Errorf("unclosed quote or escape in command: %s", s)
-	}
-	if cur.Len() > 0 || hadQuotes {
-		tokens = append(tokens, cur.String())
-	}
-	return tokens, nil
-}
+// SplitCommand splits a recorded command line; the rules live in shellwords
+// because verify splits configured commands the same way.
+func SplitCommand(s string) ([]string, error) { return shellwords.Split(s) }
 
 // RunCase runs a single case in process, in an isolated staged world.
 func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
