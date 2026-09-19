@@ -15,9 +15,11 @@ import (
 	"github.com/xidus90/loomux/internal/brain/answer"
 	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/brain/search"
+	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/lock"
 	"github.com/xidus90/loomux/internal/mcptools"
 	servebrain "github.com/xidus90/loomux/internal/serve/brain"
+	servegraph "github.com/xidus90/loomux/internal/serve/graph"
 )
 
 // ErrAlreadyRunning is what a second serve gets: the lock is held, and a
@@ -208,6 +210,12 @@ func handlers(name privacy.Channel, opts Options, stop func()) http.Handler {
 		RegistryDir: opts.RegistryDir,
 		LegacyDir:   opts.LegacyDir,
 	})
+	servegraph.Register(server, name, servegraph.Deps{
+		RegistryDir: opts.RegistryDir,
+		LegacyDir:   opts.LegacyDir,
+		Ask:         query.Ask,
+		Check:       query.Check,
+	})
 	mux := http.NewServeMux()
 	mux.Handle(MCPPath, mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
@@ -239,7 +247,7 @@ func protected(next http.Handler) http.Handler {
 	return http.NewCrossOriginProtection().Handler(next)
 }
 
-// setCacheable lets a host cache what it listed. Five static tools make that
+// setCacheable lets a host cache what it listed. Seven static tools make that
 // free, and the tool list is the one result a host asks for on every start.
 func setCacheable(_ context.Context, _ mcp.Request, c *mcp.Cacheable) {
 	c.TTLMs = int(mcptools.CacheTTL / time.Millisecond)

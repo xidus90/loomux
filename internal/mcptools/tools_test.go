@@ -2,14 +2,19 @@ package mcptools_test
 
 import (
 	"encoding/json"
+	"regexp"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/xidus90/loomux/internal/mcptools"
 )
 
-func TestToolsAreTheFiveInCanonicalOrder(t *testing.T) {
+func TestToolsAreTheSevenInCanonicalOrder(t *testing.T) {
 	got := mcptools.Tools()
-	want := []string{"brain_search", "brain_catalog", "brain_read", "brain_neighbors", "brain_status"}
+	want := []string{
+		"brain_search", "brain_catalog", "brain_read", "brain_neighbors", "brain_status",
+		"graph_find_code", "graph_check_freshness",
+	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d tools, want %d", len(got), len(want))
 	}
@@ -147,5 +152,91 @@ func schemaOf(t *testing.T, name string) map[string]any {
 		return schema
 	}
 	t.Fatalf("no tool named %s", name)
+	return nil
+}
+
+func TestGraphToolsAreTheTwoInCanonicalOrder(t *testing.T) {
+	got := mcptools.Graph()
+	want := []string{"graph_find_code", "graph_check_freshness"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d tools, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i].Name != want[i] {
+			t.Errorf("tool %d is %q, want %q", i, got[i].Name, want[i])
+		}
+	}
+}
+
+func TestBrainToolsAreTheFive(t *testing.T) {
+	want := []string{"brain_search", "brain_catalog", "brain_read", "brain_neighbors", "brain_status"}
+	got := mcptools.Brain()
+	if len(got) != len(want) {
+		t.Fatalf("got %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i].Name != want[i] {
+			t.Errorf("tool %d is %q, want %q", i, got[i].Name, want[i])
+		}
+	}
+}
+
+func TestEveryToolNameIsValidMCP(t *testing.T) {
+	valid := regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+	for _, tool := range append(append([]*mcp.Tool{}, mcptools.Brain()...), mcptools.Graph()...) {
+		if !valid.MatchString(tool.Name) {
+			t.Errorf("%q is not a valid MCP tool name", tool.Name)
+		}
+	}
+}
+
+func TestFindCodeRequiresScopeAndQueryAndCarriesNoSchemaDefault(t *testing.T) {
+	schema := graphSchemaOf(t, "graph_find_code")
+	required := schema["required"].([]any)
+	if len(required) != 2 || required[0] != "scope" || required[1] != "query" {
+		t.Errorf("required = %v, want [scope query]", required)
+	}
+	props := schema["properties"].(map[string]any)
+	for _, field := range []string{"scope", "query", "limit", "full", "in"} {
+		p, ok := props[field].(map[string]any)
+		if !ok {
+			t.Errorf("graph_find_code lacks %s", field)
+			continue
+		}
+		// The reference names its 5 in the description only (tools.ts:51).
+		if _, has := p["default"]; has {
+			t.Errorf("graph_find_code.%s carries a schema default", field)
+		}
+	}
+}
+
+func TestCheckFreshnessRequiresOnlyScope(t *testing.T) {
+	schema := graphSchemaOf(t, "graph_check_freshness")
+	required := schema["required"].([]any)
+	if len(required) != 1 || required[0] != "scope" {
+		t.Errorf("required = %v, want [scope]", required)
+	}
+	if props := schema["properties"].(map[string]any); len(props) != 1 {
+		t.Errorf("properties = %v, want scope alone", props)
+	}
+}
+
+func graphSchemaOf(t *testing.T, name string) map[string]any {
+	t.Helper()
+	for _, tool := range mcptools.Graph() {
+		if tool.Name != name {
+			continue
+		}
+		raw, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var schema map[string]any
+		if err := json.Unmarshal(raw, &schema); err != nil {
+			t.Fatal(err)
+		}
+		return schema
+	}
+	t.Fatalf("no graph tool named %s", name)
 	return nil
 }

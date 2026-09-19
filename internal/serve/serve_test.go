@@ -3,6 +3,7 @@ package serve_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/xidus90/loomux/internal/brain/answer"
+	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/mcptools"
 	"github.com/xidus90/loomux/internal/serve"
 )
@@ -374,5 +376,80 @@ func TestTheCloudListenerAnswersOnItsOwnChannel(t *testing.T) {
 		if !ok || text.Text != name {
 			t.Errorf("%s listener answered on channel %v", name, res.Content[0])
 		}
+	}
+}
+
+// graphRegistry registers one Go repository as project/code, and a second one
+// as project/private with local_only, and builds both graphs.
+func graphRegistry(t *testing.T, dir string) {
+	t.Helper()
+	areas := map[string]string{
+		"project/code":    "",
+		"project/private": "\n[privacy]\nmode = \"local_only\"\n",
+	}
+	var reg strings.Builder
+	for scope, privacyBlock := range areas {
+		root := t.TempDir()
+		files := map[string]string{
+			"go.mod":              "module example.com/repo\n",
+			"lib/lib.go":          "package lib\n\n// Run does the thing.\nfunc Run() {}\n",
+			".loomux/config.toml": "[area]\nscope = \"" + scope + "\"\n" + privacyBlock,
+		}
+		for rel, body := range files {
+			abs := filepath.Join(root, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, _, err := query.Build(root, func(string) {}); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintf(&reg, "[[area]]\nscope = %q\npath = %q\n\n", scope, filepath.ToSlash(root))
+	}
+	if err := os.WriteFile(filepath.Join(dir, "registry.toml"), []byte(reg.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFindCodeAnswersOverHTTPAndHidesALocalOnlyAreaFromTheCloud(t *testing.T) {
+	dir := t.TempDir()
+	graphRegistry(t, dir)
+	state, _ := start(t, dir)
+
+	local := connect(t, state.Local, nil)
+	res, err := local.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "graph_find_code", Arguments: map[string]any{"scope": "project/code", "query": "run"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if text := res.Content[0].(*mcp.TextContent).Text; res.IsError || !strings.Contains(text, "lib/lib.go") {
+		t.Fatalf("local answer %q (isError %v) must find lib/lib.go", text, res.IsError)
+	}
+
+	// The cloud listener answers an open area first: a refusal of the hidden
+	// one below is worth nothing from a listener that answers nothing.
+	cloud := connect(t, state.Cloud, nil)
+	res, err = cloud.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "graph_find_code", Arguments: map[string]any{"scope": "project/code", "query": "run"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if text := res.Content[0].(*mcp.TextContent).Text; res.IsError || !strings.Contains(text, "lib/lib.go") {
+		t.Fatalf("cloud answer %q (isError %v) must find lib/lib.go in project/code", text, res.IsError)
+	}
+
+	res, err = cloud.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "graph_find_code", Arguments: map[string]any{"scope": "project/private", "query": "run"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if text := res.Content[0].(*mcp.TextContent).Text; !res.IsError || !strings.HasPrefix(text, "unknown scope") {
+		t.Fatalf("cloud answer %q (isError %v) must not know project/private", text, res.IsError)
 	}
 }

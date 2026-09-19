@@ -87,7 +87,7 @@ func Run(ctx context.Context, opts Options) error {
 	return server.Run(ctx, opts.transport())
 }
 
-// setCacheable lets the host cache what it listed, exactly as serve does. Five
+// setCacheable lets the host cache what it listed, exactly as serve does. Seven
 // static tools make that free, and the list is what a host asks for on every
 // start.
 func setCacheable(_ context.Context, _ mcp.Request, c *mcp.Cacheable) {
