@@ -498,3 +498,39 @@ func TestPlanLinksPythonCoverageToATestOverrideNamingTheDataFile(t *testing.T) {
 		t.Fatalf("%v %+v", err, jobs[1])
 	}
 }
+
+// A lane whose needed file is missing cannot mean anything; it is unready in
+// both scopes, and the note names the file.
+func TestPlanMarksALaneUnreadyWithoutTheFilesItNeeds(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"cpp"}, Areas: map[string][]string{"cpp": {"."}}}
+	root := t.TempDir()
+	eff := effFor(t, "", facts)
+	note := "build/CMakeCache.txt is missing: configure the build first"
+	for _, req := range []Request{{Kinds: Kinds()}, {Kinds: []string{"lint", "types"}, Scope: ScopeEdit, File: "a.cpp"}} {
+		jobs, err := Plan(eff, req, env(root))
+		if err != nil || len(jobs) != len(req.Kinds) {
+			t.Fatalf("%+v %v", jobs, err)
+		}
+		for _, j := range jobs {
+			want, wantNote := State(""), ""
+			if j.Kind != "lint" {
+				want, wantNote = StateUnready, note
+			}
+			if j.Pre != want || j.Note != wantNote {
+				t.Fatalf("scope %d: %+v", req.Scope, j)
+			}
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "build"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "build", "CMakeCache.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	jobs, _ := Plan(eff, Request{Kinds: Kinds()}, env(root))
+	for _, j := range jobs {
+		if j.Pre != "" {
+			t.Fatalf("configured: %+v", j)
+		}
+	}
+}

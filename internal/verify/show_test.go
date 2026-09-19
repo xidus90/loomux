@@ -105,3 +105,22 @@ func TestWriteShowLoadsBack(t *testing.T) {
 		}
 	}
 }
+
+// What a lane needs is part of the lane, so show prints it and it loads back.
+func TestWriteShowPrintsWhatALaneNeeds(t *testing.T) {
+	cppOnly := detect.Facts{Stacks: []string{"cpp"}, Areas: map[string][]string{"cpp": {"."}}}
+	eff := effFor(t, "", cppOnly)
+	var b strings.Builder
+	WriteShow(&b, eff, []string{"types"}, env(`C:\repo`))
+	got := b.String()
+	if !strings.Contains(got, "[verify.cpp.types]\ncommands = [\"cmake --build build --parallel\"]  # preset\nneeds = [\"build/CMakeCache.txt\"]  # preset\n") {
+		t.Fatalf("%s", got)
+	}
+	cfg, err := parse(t, got)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, got)
+	}
+	if needs := cfg.Stacks["cpp"]["types"].Lane.Needs; len(needs) != 1 || needs[0] != "build/CMakeCache.txt" {
+		t.Fatalf("%q", needs)
+	}
+}

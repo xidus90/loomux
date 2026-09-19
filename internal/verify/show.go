@@ -88,6 +88,9 @@ func writeLane(w io.Writer, stack, kind string, r Resolved) {
 			key(s.name, strconv.Quote(s.value))
 		}
 	}
+	if len(l.Needs) > 0 {
+		key("needs", quoteList(l.Needs))
+	}
 }
 
 func quoteList(items []string) string {

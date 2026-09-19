@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sort"
@@ -44,6 +45,9 @@ type Lane struct {
 	Measure   string
 	After     string
 	Off       bool
+	// Needs are files, relative to the lane's directory, without which the
+	// lane cannot mean anything, such as a build tree nobody configured.
+	Needs []string
 }
 
 // Override is one [verify.<stack>].<kind> entry. A string or a list stands
@@ -278,6 +282,8 @@ func parseLaneTable(table, kind string, v map[string]any) (Override, error) {
 				return Override{}, fmt.Errorf("%s cannot have %s", table, key)
 			}
 			err = laneString(table, key, value, &o.Lane)
+		case "needs":
+			o.Lane.Needs, err = laneNeeds(table, value)
 		default:
 			return Override{}, fmt.Errorf("%s has unknown key %q", table, key)
 		}
@@ -301,6 +307,30 @@ func laneList(table, key string, value any, cmds, onFile []string) ([]string, []
 		return cmds, got, err
 	}
 	return got, onFile, err
+}
+
+// laneNeeds reads needs: files inside the lane's directory, since a lane
+// cannot wait for what lies outside the project.
+func laneNeeds(table string, value any) ([]string, error) {
+	list, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%s.needs must be a list of files", table)
+	}
+	if len(list) == 0 {
+		return nil, fmt.Errorf("%s.needs is empty", table)
+	}
+	out := make([]string, 0, len(list))
+	for i, item := range list {
+		s, ok := item.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s.needs #%d must be a string", table, i+1)
+		}
+		if !filepath.IsLocal(filepath.FromSlash(s)) {
+			return nil, fmt.Errorf("%s.needs #%d %q must be a path inside the lane's directory", table, i+1, s)
+		}
+		out = append(out, s)
+	}
+	return out, nil
 }
 
 // laneString reads measuring, measure or after into lane.

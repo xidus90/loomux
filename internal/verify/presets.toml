@@ -93,16 +93,22 @@ commands = ["clang-tidy -p build"]
 on_file = ["clang-format --dry-run --Werror {file}"]
 
 # The compiler is the type checker of C++; post-edit ran the build before.
+# The lanes on the build tree need it configured. Configuring is a project
+# decision (generator, options, toolchain), so without a CMakeCache.txt they
+# wait out loud instead of guessing a configure step.
 [stack.cpp.types]
 commands = ["cmake --build build --parallel"]
+needs = ["build/CMakeCache.txt"]
 
 [stack.cpp.test]
 commands = ["ctest --test-dir build --output-on-failure"]
+needs = ["build/CMakeCache.txt"]
 
 # --fail-under-line makes a gate of it: the old preset only wrote a report.
 [stack.cpp.coverage]
 commands = ["gcovr --root . --object-directory build --fail-under-line 100 --txt"]
 after = "test"
+needs = ["build/CMakeCache.txt"]
 
 [stack.typescript]
 tests_when = ["package.json:vitest"]

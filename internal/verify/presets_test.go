@@ -123,3 +123,21 @@ func BenchmarkLoadPresets(b *testing.B) {
 		}
 	}
 }
+
+// The C++ lanes that read the build tree need it configured; the lint of an
+// edit formats one file and needs nothing.
+func TestTheCppLanesOnTheBuildTreeNeedItConfigured(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cpp := p.Stacks["cpp"].Lanes
+	for _, kind := range []string{"types", "test", "coverage"} {
+		if !slices.Equal(cpp[kind].Needs, []string{"build/CMakeCache.txt"}) {
+			t.Errorf("%s: needs %q", kind, cpp[kind].Needs)
+		}
+	}
+	if cpp["lint"].Needs != nil {
+		t.Errorf("lint: needs %q", cpp["lint"].Needs)
+	}
+}

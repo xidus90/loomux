@@ -588,3 +588,32 @@ func TestPresetAnswersForTheBenchCorpus(t *testing.T) {
 		t.Errorf("EditLaneCommands without presets = %q", got)
 	}
 }
+
+// A C++ checkout nobody configured has no build tree, and cmake would fail on
+// it for every edit: a precondition the edit cannot fix. The lane is skipped
+// out loud, naming the file it waits for, and runs once the tree exists.
+func TestPostEditSkipsTheBuildLaneOfAnUnconfiguredCppCheckout(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "CMakeLists.txt"), []byte("project(p)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	payload := `{"tool_input":{"file_path":"a.cpp"}}`
+	code, so, se, seen := postEdit(t, root, payload, passing)
+	if code != ExitOK || !strings.Contains(so, "lane skipped") || !strings.Contains(so, "build/CMakeCache.txt") {
+		t.Fatalf("%d %q %q", code, so, se)
+	}
+	if got := strings.Join(seen, "\n"); strings.Contains(got, "cmake") || !strings.Contains(got, "clang-format") {
+		t.Fatalf("only the lint may run: %v", seen)
+	}
+
+	if err := os.MkdirAll(filepath.Join(root, "build"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "build", "CMakeCache.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, so, _, seen = postEdit(t, root, payload, passing)
+	if code != ExitOK || strings.Contains(so, "build/CMakeCache.txt") || !strings.Contains(strings.Join(seen, "\n"), "cmake --build build --parallel") {
+		t.Fatalf("configured: %d %q %v", code, so, seen)
+	}
+}

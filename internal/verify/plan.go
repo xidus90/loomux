@@ -226,6 +226,12 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		job.Pre, job.Note = StateUnready, "run the Godot editor once to import the project"
 		return job, link{}, true, nil
 	}
+	for _, need := range r.Lane.Needs {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(need))); err != nil {
+			job.Pre, job.Note = StateUnready, need+" is missing: configure the build first"
+			return job, link{}, true, nil
+		}
+	}
 	measuring := kind == "test" && r.Lane.Measuring != "" && slices.Contains(req.Kinds, "coverage")
 	if measuring {
 		cmds = []string{r.Lane.Measuring}

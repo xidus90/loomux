@@ -127,6 +127,9 @@ func merge(base Lane, o Override) Lane {
 	if o.Set["after"] {
 		base.After = o.Lane.After
 	}
+	if o.Set["needs"] {
+		base.Needs = o.Lane.Needs
+	}
 	return base
 }
 

@@ -45,11 +45,15 @@ func TestCleanCoverRemovesAFileExactlyADayOld(t *testing.T) {
 
 func TestATableOverrideKeepsEveryKeyItDoesNotName(t *testing.T) {
 	base := Lane{Commands: []string{"a"}, OnFile: []string{"f"}, Threaded: true,
-		Measuring: "m", Measure: "c", After: "types"}
+		Measuring: "m", Measure: "c", After: "types", Needs: []string{"n"}}
 	got := merge(base, Override{Lane: Lane{Commands: []string{"b"}}, Set: map[string]bool{"commands": true}})
 	if !slices.Equal(got.Commands, []string{"b"}) || !slices.Equal(got.OnFile, base.OnFile) ||
 		got.Threaded != base.Threaded || got.Measuring != base.Measuring ||
-		got.Measure != base.Measure || got.After != base.After {
+		got.Measure != base.Measure || got.After != base.After || !slices.Equal(got.Needs, base.Needs) {
+		t.Fatalf("%+v", got)
+	}
+	got = merge(base, Override{Lane: Lane{Needs: []string{"m"}}, Set: map[string]bool{"needs": true}})
+	if !slices.Equal(got.Needs, []string{"m"}) || !slices.Equal(got.Commands, base.Commands) {
 		t.Fatalf("%+v", got)
 	}
 }
