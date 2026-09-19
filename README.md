@@ -127,7 +127,10 @@ stages pulls in a dependency:
 | **1b-1** | ✅ | The brain read commands — `search`, `status`, `catalog`, `read`, `neighbors` — at parity with the Python reference |
 | **1b-2** | ✅ | `serve` with MCP over Streamable HTTP and the stdio bridge, held to the reference by a recorded case corpus. Upkeep is Stage 3 |
 | **1b-3** | ✅ | The wiki and the documentation moved in |
-| **2 – 4** | open | The full check chain, brain upkeep, conversion and fetching, `loomux migrate`, the host switch-over |
+| **2a** | ✅ | The check chain: `[verify]` with presets per stack, `loomux check <profile>`, `check gocover`, post-edit on `[verify]`, process trees killed whole. loomux gates its own commits with `check precommit` |
+| **2b** | open | commit-msg with `--language`, `--calibrate` and `[commit]` |
+| **2c** | open | The hooks `stop`, `subagent-start`, `subagent-stop`; the Antigravity adapter in full |
+| **3 – 4** | open | Brain upkeep, conversion and fetching, `loomux migrate`, the host switch-over |
 | **G1** | ✅ | Ranking and blast radius as libraries, held to the reference by ported test vectors |
 | **G2a** | ✅ | The extractor, the resolver, the store, the freshness probe, and `graph build` / `graph check` |
 | **G2b** | ✅ | The query: the lexical seed, the ask sidecar, `loomux graph ask` |
@@ -142,12 +145,12 @@ below says where each capability stands:
 |---|---|---|
 | **1. Hooks & Guard** | | |
 | Unified Pre-Tool Guard | Single-pass validation of write barriers, path protections, and forbidden commands (<35ms budget; 32–34ms measured on predecessor; a write in a linked worktree measured 34.6 ms warm (2026-09-16)). Linked git worktrees of a registered workspace are writable without a registry entry of their own. Registry and area declarations are read through the same checks as the brain commands; a broken entry refuses every write. | ✅ **Implemented** (Stage 1a) |
-| Post-Tool Check Lanes | Lanes on the file that was just edited run side by side, chosen from the stacks detection finds in the tree — `go vet`, the in-process wiki lint, ruff/mypy, eslint/tsc, stylelint and the rest. A failing lane exits 2; lanes that had to be dropped are named back to the model. | ✅ **Implemented** (Stage 1a) |
+| Post-Tool Check Lanes | The `edit` profile of `[verify]` on the file that was just edited, for its stack and in its area — `go vet` and `gofmt` of the one file, the in-process wiki lint, ruff/mypy, eslint/tsc, stylelint and the rest, from the same presets `loomux check` runs. Commands start as argv, without a shell. A failing lane exits 2; lanes skipped for a missing tool or a spent budget (`--budget`, default 50 s) are named back to the model. | ✅ **Implemented** (Stage 1a; lanes from `[verify]` since 2a) |
 | Post-Tool Blast Monitor | Dirty-file hashing and dependent caller warning on edit. The wiring graph it needs is written now (`loomux graph build`), but nothing reads it from the edit hook yet: no hash and no warning today. | 📋 **Specified** (Stage G4) |
 | Session Start | Records the commit a session starts on and warns when the binary in the project is older than `go.mod`, `go.sum` or a `.go` file under `cmd/` or `internal/`. Announces only; never blocks a turn. | ✅ **Implemented** (Stage 1a) |
-| Subagent Drift & Stop Gate | Subagent drift detection and the execution counter of the stop gate. `loomux hook` knows three events — `pre-tool-use`, `post-tool-use`, `session-start`; no `stop` or `subagent-*` event is wired. | 🚧 **In Migration** (Stage 1b) |
-| Check Commands | `loomux check commit-msg` (language and structure of a message), `check gofmt` (formatting, with the exit code `gofmt -l` does not give) and `dev covergate` (100% per function against a profile). | ✅ **Implemented** (Stage 1a) |
-| Check Chain Table | One configured table driving every lane. `[check] lanes` is parsed from the manifest and `loomux status` names the tools a lane would need, but nothing executes the table; `config.example.toml` still calls the section `[verify]`. | 🚧 **In Migration** (Stage 1b) |
+| Subagent Drift & Stop Gate | Subagent drift detection and the execution counter of the stop gate. `loomux hook` knows three events — `pre-tool-use`, `post-tool-use`, `session-start`; no `stop` or `subagent-*` event is wired. | 📋 **Specified** (Stage 2c) |
+| Check Commands | `loomux check commit-msg` (language and structure of a message), `check gofmt` (formatting, with the exit code `gofmt -l` does not give) and `check gocover` (100% per function against a profile, or a total with `--floor`). `dev covergate` is gone. | ✅ **Implemented** (Stage 1a; `gocover` 2a) |
+| Check Chain Table | One `[verify]` table drives `loomux check <profile>` and the post-edit hook: presets per stack that work without any config, one lane per kind, stack and area, `after` edges instead of stages, a verdict per kind, and `--show` to print what runs. Child process trees are killed whole on a timeout (a Job Object on Windows). | ✅ **Implemented** (Stage 2a) |
 | Worktree Mirroring | Isolated subagent git worktrees with symlink/junction mirroring and session tracking. | ✅ **Implemented** (Stage 1a) |
 | Zone-Free Start Path | Go's local time zone stays off the hook path: the TOML parser builds its local zones on first use (`third_party/toml`), and a gate test fails any package init over 500 allocations. `hook pre-tool-use` 7.5 ms warm against 26.5 ms before (measured 2026-09-17). | ✅ **Implemented** (no stage) |
 | Claude Mods Adapter | Seat the write barrier in a `tool.check` function hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)) talking to a long-lived loomux over `$.mcp.call` — removes the spawn, adds an `ask` verdict and a rendered reason. Claude-Code-only; the exec hook stays the portable path. | 💡 **Optional** (no stage) |
@@ -179,18 +182,19 @@ below says where each capability stands:
 
 ## CLI Reference
 
-Commands active after Stages 1a, 1b-1 and 1b-2 vs. specified for subsequent fusion and graph stages:
+Commands active after Stages 1a, 1b-1, 1b-2 and 2a vs. specified for subsequent fusion and graph stages:
 
-### Active Commands (Stages 1a, 1b-1 and 1b-2)
+### Active Commands (Stages 1a, 1b-1, 1b-2 and 2a)
 ```bash
+loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or lint,types,... (--root, --show, -v)
+loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
 loomux check commit-msg <file>      # validate commit message against language & structure rules
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files
 loomux hook pre-tool-use            # run policy and global write barrier against stdin payload
-loomux hook post-tool-use           # run the detected check lanes against the file just edited
+loomux hook post-tool-use           # run the edit profile's lanes against the file just edited (--budget, default 50s)
 loomux hook session-start           # record the session's base commit and warn about a stale binary
 loomux status|doctor|explain        # inspect hook setup, verification lanes, and active harnesses (three names, one code path)
 loomux worktree link|unlink|remove  # manage isolated worktree mirrors and junction paths
-loomux dev covergate                # enforce 100% test coverage per function
 loomux dev swap-binary              # atomically swap running binary with new compilation
 loomux lint <file>                  # lint one markdown wiki page's links and frontmatter
 loomux wiki-gate                    # gate wiki freshness and structural constraints
@@ -235,7 +239,6 @@ loomux init                         # wire hooks, settings, and skills into dete
 
 ### Developer & Worktree Tools
 ```bash
-loomux dev covergate --profile <p>  # verify strict 100% test coverage threshold
 loomux dev bench-hooks <case>       # benchmark hook execution latency against the <35ms baseline
 loomux dev bench [--dir <dir>] [--save] # benchmark repo/corpus with gap audit; --save persists to docs/
 loomux dev mutants <pkg>            # run mutation test suites across critical decision packages

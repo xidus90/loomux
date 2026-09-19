@@ -128,7 +128,10 @@ Stufen eine Abhängigkeit einzieht:
 | **1b-1** | ✅ | Die lesenden Brain-Befehle — `search`, `status`, `catalog`, `read`, `neighbors` — mit Parität zur Python-Referenz |
 | **1b-2** | ✅ | `serve` mit MCP über Streamable HTTP und die stdio-Brücke, durch einen aufgezeichneten Fallkorpus an die Referenz gemessen. Upkeep ist Stufe 3 |
 | **1b-3** | ✅ | Wiki und Dokumentation sind umgezogen |
-| **2 – 4** | offen | Die vollständige Prüfkette, Brain-Pflege, Konvertierung und Abruf, `loomux migrate`, die Umstellung der Wirte |
+| **2a** | ✅ | Die Prüfkette: `[verify]` mit Presets je Stack, `loomux check <profil>`, `check gocover`, post-edit auf `[verify]`, Prozessbäume werden ganz beendet. loomux prüft seine eigenen Commits mit `check precommit` |
+| **2b** | offen | commit-msg mit `--language`, `--calibrate` und `[commit]` |
+| **2c** | offen | Die Hooks `stop`, `subagent-start`, `subagent-stop`; der Antigravity-Adapter vollständig |
+| **3 – 4** | offen | Brain-Pflege, Konvertierung und Abruf, `loomux migrate`, die Umstellung der Wirte |
 | **G1** | ✅ | Rang und Blast-Radius als Bibliotheken, an portierten Testvektoren der Referenz belegt |
 | **G2a** | ✅ | Extraktor, Auflösung, Speicher, Frischesonde sowie `graph build` und `graph check` |
 | **G2b** | ✅ | Die Abfrage: lexikalische Saat, die Beiakte, `loomux graph ask` |
@@ -143,12 +146,12 @@ Matrix darunter sagt, wo die einzelnen Funktionen stehen:
 |---|---|---|
 | **1. Hooks & Wächter** | | |
 | Einheitlicher Pre-Tool Wächter | Prüfung von Schreibschranken, Pfadregeln und verbotenen Befehlen (< 35 ms Zielbudget; 32–34 ms gemessen am Vorgänger; ein Write in einem verknüpften Worktree gemessen 34,6 ms warm (2026-09-16)). Verknüpfte Git-Worktrees eines registrierten Workspace sind ohne eigenen Registry-Eintrag beschreibbar. Registry und Bereichsdeklarationen laufen durch dieselben Prüfungen wie die Brain-Befehle; ein kaputter Eintrag verweigert jeden Write. | ✅ **Implementiert** (Stufe 1a) |
-| Post-Tool Prüf-Lanes | Die Lanes auf der eben geänderten Datei laufen nebeneinander, gewählt nach den Stacks, die die Erkennung im Baum findet — `go vet`, der Wiki-Lint im eigenen Prozess, ruff/mypy, eslint/tsc, stylelint und die übrigen. Eine gescheiterte Lane endet mit 2; ausgelassene werden dem Modell namentlich zurückgemeldet. | ✅ **Implementiert** (Stufe 1a) |
+| Post-Tool Prüf-Lanes | Das Profil `edit` aus `[verify]` auf der eben geänderten Datei, für ihren Stack und in ihrem Bereich — `go vet` und `gofmt` der einen Datei, der Wiki-Lint im eigenen Prozess, ruff/mypy, eslint/tsc, stylelint und die übrigen, aus denselben Presets, die `loomux check` fährt. Befehle starten als argv, ohne Shell. Eine gescheiterte Lane endet mit 2; Lanes, die wegen eines fehlenden Werkzeugs oder eines aufgebrauchten Budgets (`--budget`, Vorgabe 50 s) ausfallen, werden dem Modell namentlich zurückgemeldet. | ✅ **Implementiert** (Stufe 1a; Lanes aus `[verify]` seit 2a) |
 | Post-Tool Blast Monitor | Hashing geänderter Dateien und Warnung bei berührten Aufrufern. Den Wiring-Graphen, den es braucht, schreibt jetzt `loomux graph build`, aber der Edit-Hook liest ihn noch nicht: heute kein Hash und keine Warnung. | 📋 **Spezifiziert** (Stufe G4) |
 | Sitzungsstart | Hält den Commit fest, auf dem eine Sitzung beginnt, und warnt, wenn das Binary im Projekt älter ist als `go.mod`, `go.sum` oder eine `.go`-Datei unter `cmd/` oder `internal/`. Kündigt nur an; blockiert nie einen Zug. | ✅ **Implementiert** (Stufe 1a) |
-| Subagent-Drift & Stop-Tor | Drifterkennung für Subagenten und der Block-Zähler des Stop-Tors. `loomux hook` kennt drei Ereignisse — `pre-tool-use`, `post-tool-use`, `session-start`; kein `stop` und kein `subagent-*` ist verdrahtet. | 🚧 **In Migration** (Stufe 1b) |
-| Prüfbefehle | `loomux check commit-msg` (Sprache und Form einer Nachricht), `check gofmt` (Formatierung, mit dem Exit-Code, den `gofmt -l` nicht gibt) und `dev covergate` (100 % je Funktion gegen ein Profil). | ✅ **Implementiert** (Stufe 1a) |
-| Prüfketten-Tabelle | Eine konfigurierte Tabelle, die jede Lane fährt. `[check] lanes` wird aus dem Manifest gelesen, und `loomux status` nennt die Werkzeuge, die eine Lane bräuchte — ausgeführt wird die Tabelle von nichts; `config.example.toml` nennt den Abschnitt noch `[verify]`. | 🚧 **In Migration** (Stufe 1b) |
+| Subagent-Drift & Stop-Tor | Drifterkennung für Subagenten und der Block-Zähler des Stop-Tors. `loomux hook` kennt drei Ereignisse — `pre-tool-use`, `post-tool-use`, `session-start`; kein `stop` und kein `subagent-*` ist verdrahtet. | 📋 **Spezifiziert** (Stufe 2c) |
+| Prüfbefehle | `loomux check commit-msg` (Sprache und Form einer Nachricht), `check gofmt` (Formatierung, mit dem Exit-Code, den `gofmt -l` nicht gibt) und `check gocover` (100 % je Funktion gegen ein Profil, oder eine Gesamtgrenze mit `--floor`). `dev covergate` gibt es nicht mehr. | ✅ **Implementiert** (Stufe 1a; `gocover` 2a) |
+| Prüfketten-Tabelle | Eine Tabelle `[verify]` treibt `loomux check <profil>` und den post-edit-Hook: Presets je Stack, die ohne jede Konfiguration gelten, eine Lane je Art, Stack und Bereich, `after`-Kanten statt Stufen, ein Urteil je Art und `--show`, das zeigt, was läuft. Kindprozessbäume werden bei einer Frist ganz beendet (unter Windows über ein Job Object). | ✅ **Implementiert** (Stufe 2a) |
 | Worktree-Spiegelung | Isolierte Subagent-Git-Worktrees mit NTFS-Junctions und Sitzungsverfolgung. | ✅ **Implementiert** (Stufe 1a) |
 | Zonenfreier Startpfad | Gos lokale Zeitzone bleibt vom Hook-Pfad fern: Der TOML-Parser baut seine lokalen Zonen beim ersten Gebrauch (`third_party/toml`), und ein Test im Tor lÃ¤sst jedes Paket-Init Ã¼ber 500 Allokationen scheitern. `hook pre-tool-use` 7,5 ms warm gegen 26,5 ms vorher (gemessen 2026-09-17). | â **Implementiert** (ohne Stufe) |
 | Claude-Mods-Adapter | Die Schreibschranke in einen `tool.check`-Function-Hook setzen ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)), der über `$.mcp.call` mit einem langlebigen loomux spricht — entfernt den Spawn, bringt ein `ask`-Urteil und eine gerenderte Begründung. Nur für Claude Code; der Exec-Hook bleibt der portable Pfad. | 💡 **Optional** (ohne Stufe) |
@@ -180,18 +183,19 @@ Matrix darunter sagt, wo die einzelnen Funktionen stehen:
 
 ## CLI-Referenz
 
-Aktive Befehle nach den Stufen 1a, 1b-1 und 1b-2 im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2 und 2a im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
 
-### Aktive Befehle (Stufen 1a, 1b-1 und 1b-2)
+### Aktive Befehle (Stufen 1a, 1b-1, 1b-2 und 2a)
 ```bash
+loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder lint,types,... (--root, --show, -v)
+loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
 loomux check commit-msg <datei>     # Prüft Commit-Nachricht auf englische Sprache und Formatregeln
 loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
 loomux hook pre-tool-use            # Prüft Policy und globale Schreibschranke gegen stdin
-loomux hook post-tool-use           # Fährt die erkannten Prüf-Lanes gegen die eben geänderte Datei
+loomux hook post-tool-use           # Fährt die Lanes des Profils edit gegen die eben geänderte Datei (--budget, Vorgabe 50s)
 loomux hook session-start           # Hält den Basis-Commit der Sitzung fest und warnt vor veraltetem Binary
 loomux status|doctor|explain        # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses (drei Namen, ein Codeweg)
 loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel und Junction-Pfade
-loomux dev covergate                # Erzwingt striktes 100 % Coverage-Tor pro Funktion
 loomux dev swap-binary              # Tauscht laufendes Binary atomar gegen Neubau aus
 loomux lint <datei>                 # Prüft Links und Frontmatter einer Wiki-Seite
 loomux wiki-gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
@@ -236,7 +240,6 @@ loomux init                         # Richtet Hooks, Einstellungen und Skills in
 
 ### Entwickler- & Worktree-Werkzeuge
 ```bash
-loomux dev covergate --profile <p>  # Prüft das strikte 100-%-Coverage-Tor pro Funktion
 loomux dev bench-hooks <fall>       # Misst die Latenz der Hook-Ausführung gegen die Grundlinie von < 35 ms
 loomux dev bench [--dir <dir>] [--save] # Benchmark für Einzel-Repo oder Open-Source-Matrix-Korpus mit Lücken-Audit; --save sichert in docs/
 loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus

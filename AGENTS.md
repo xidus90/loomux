@@ -99,4 +99,6 @@ go build -o bin/loomux.exe ./cmd/loomux
 ```
 
 - Gate: `sh ci/gate.sh`; `.githooks/pre-commit` runs it, then rebuilds the pilot binary.
-- `go run ./cmd/loomux dev covergate --profile coverage.out`
+- The gate is `go run ./cmd/loomux check precommit`: the `[verify]` lanes of
+  `.loomux/config.toml` over the presets. `check lint`, `check test` or
+  `check coverage` run one kind; `check precommit --show` prints what runs.

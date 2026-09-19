@@ -15,7 +15,7 @@ sequenceDiagram
     participant Host as Agenten-Harness (Claude / Antigravity)
     participant Pre as loomux hook pre-tool-use
     participant Post as loomux hook post-tool-use
-    participant Stop as loomux hook stop (Stufe 2)
+    participant Stop as loomux hook stop (Stufe 2c)
     participant Journal as events.jsonl (Append-Only)
 
     Dev->>Host: Prompt übergeben
@@ -44,7 +44,7 @@ sequenceDiagram
     end
 
     rect rgb(245, 255, 245)
-    Note over Host,Stop: Phase 3: Rundenende-Verifikation (Stufe 2, noch nicht gebaut)
+    Note over Host,Stop: Phase 3: Rundenende-Verifikation (Stufe 2c, noch nicht gebaut)
     Host->>Stop: Runde beendet (stdin)
     Stop->>Stop: Prüfkette [verify] fahren (Linter, Tests, Coverage)
     alt Quality Gate schlägt fehl
@@ -179,45 +179,59 @@ Exit-Code 2 signalisiert dem Agenten-Harness unmissverständlich, dass die Aktio
 ## 5. Die post-edit-Lanes je Sprachstack
 
 `loomux hook post-tool-use` liest den bearbeiteten Pfad aus der Nutzlast
-(`file_path`, sonst `notebook_path`) und startet nur die Lanes des Stacks, zu
-dem die Endung gehört — und nur, wenn dieser Stack im Projekt an seinen
-Markerdateien erkannt wurde (`go.mod`, `pyproject.toml`, `Cargo.toml`,
-`project.godot`, `tsconfig.json` neben `package.json`, …). Die Lanes laufen
-parallel; eine scheiternde Lane beendet den Hook mit Exit 2 und ihrer Ausgabe
-auf stderr.
+(`file_path`, sonst `notebook_path`), bestimmt den Stack, zu dem die Endung
+gehört, und fährt die Lanes des Profils `edit` (vorgegeben `lint` und `types`)
+für diesen Stack — nur, wenn der Stack aktiv ist: im Projekt an seinen
+Markerdateien erkannt (`go.mod`, `pyproject.toml`, `Cargo.toml`,
+`project.godot`, `tsconfig.json` neben `package.json`, …) oder in
+`[verify.<stack>]` mit einem Befehl versehen. Die Lanes kommen aus den Presets
+und `[verify]`, wie die
+[Konfiguration](configuration.md#verify-prüfketten--quality-gates) sie
+beschreibt; hat eine Lane eine `on_file`-Form, läuft diese, sonst ihre
+`commands`. Die Lanes laufen nebeneinander, jeder Befehl als argv ohne Shell.
+Eine scheiternde Lane beendet den Hook mit Exit 2 und ihrer Ausgabe auf
+stderr.
 
-| Stack | Endungen | Lanes |
-|---|---|---|
-| Python | `.py` | `ruff check --output-format=concise .` und ein Typprüfer: `mypy --no-error-summary --no-pretty`; `dmypy run -- --no-error-summary --no-pretty`, wo `uv.lock` liegt; `pyright` (`uv run pyright` mit `uv.lock`), wo `pyrightconfig.json` oder `[tool.pyright]` steht |
-| GDScript | `.gd` | `gdlint <datei>`, im Verzeichnis des Godot-Projekts |
-| C / C++ | `.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hpp` | `clang-format -i <datei>`, `cmake --build build --parallel` |
-| TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx eslint --cache <datei>`, `npx tsc --noEmit` |
-| Vue | `.vue` | `npx vue-tsc --noEmit` |
-| Svelte | `.svelte` | `npx svelte-check` |
-| CSS | `.css`, `.scss`, `.sass`, `.less` | `npx stylelint <datei>` |
-| HTML | `.html`, `.htm` | `npx htmlhint <datei>` |
-| Shell | `.sh`, `.bash`, `.zsh` | `shellcheck <datei>` |
-| SQL | `.sql` | `sqlfluff lint <datei>` |
-| Rust | `.rs` | `cargo clippy -- -D warnings`, `cargo fmt --check` |
-| Go | `.go` | `go vet ./...` |
-| Wiki | `.md` im Bündel | die Prüfung von `loomux lint <datei>`, im Prozess des Hooks selbst |
-| — | `.md` außerhalb des Bündels; `.txt`, `.json`, `.yaml`, `.yml`, `.toml`, `.svg`, `.png`, `.jpg`, `.jpeg`, `.import`, `.lock` | keine; der Hook endet sofort mit 0 |
+Die Presets, wie `loomux status` sie auflistet (`{file}` ist die bearbeitete
+Datei, relativ zu ihrem Bereich):
 
-- **Ein Paket in einem Unterverzeichnis.** Ist das erste Verzeichnis des
-  bearbeiteten Pfads keines von `src`, `lib`, `pkg`, `cmd`, `tests`, `test`,
-  `dist`, `build`, `public`, laufen die Web-Lanes über das Paket dieses
-  Verzeichnisses:
-  `npx --prefix <verz> eslint --config <verz>/eslint.config.js --cache <datei>`
-  und `npm --prefix <verz> run typecheck`; Vue fährt
-  `npm --prefix <verz> run typecheck`, Svelte `npm --prefix <verz> run check`,
-  CSS `npx --prefix <verz> stylelint <datei>`.
-- **Jede andere Endung** startet alle Lanes aller erkannten Stacks, die weite
-  Kette. Die Wiki-Lane bleibt draußen, weil sie ohne Seite nichts zu lesen hat.
-- **Ein Werkzeug, das nicht im `PATH` steht,** überspringt seine Lane, statt sie
-  scheitern zu lassen: der Exit-Code bleibt 0, und der Hook nennt die
-  übersprungene Lane in `hookSpecificOutput.additionalContext`.
-- **Keine Formatprüfung für Go.** `gofmt` läuft im Pre-Commit-Tor, nicht nach
-  einer Bearbeitung.
+| Stack | Endungen | `lint` | `types` |
+|---|---|---|---|
+| Go | `.go` | `go vet ./...`, `loomux check gofmt {file}` | — |
+| Python | `.py` | `uvx ruff check . --output-format=concise` | `uv run mypy --no-error-summary --no-pretty`; `uv run pyright`, wo `pyrightconfig.json` oder `[tool.pyright]` steht |
+| GDScript | `.gd` | `uvx gdlint {file}` | — |
+| C / C++ | `.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hpp` | `clang-format --dry-run --Werror {file}` | `cmake --build build --parallel` |
+| TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx eslint --cache {file}`; `npx biome check {file}`, wo `biome.json` liegt | `npx tsc --noEmit` |
+| Vue | `.vue` | — | `npx vue-tsc --noEmit` |
+| Svelte | `.svelte` | — | `npx svelte-check` |
+| CSS | `.css`, `.scss`, `.sass`, `.less` | `npx stylelint {file}` | — |
+| HTML | `.html`, `.htm` | `npx htmlhint {file}` | — |
+| Shell | `.sh`, `.bash`, `.zsh` | `shellcheck {file}` | — |
+| SQL | `.sql` | `sqlfluff lint {file}` | — |
+| Rust | `.rs` | `cargo clippy -- -D warnings`, `cargo fmt --check` | — |
+| Wiki | `.md` im Bündel | die Prüfung von `loomux lint <datei>`, im Prozess des Hooks selbst | — |
+| — | `.md` außerhalb des Bündels; `.txt`, `.json`, `.yaml`, `.yml`, `.toml`, `.svg`, `.png`, `.jpg`, `.jpeg`, `.import`, `.lock` | keine; der Hook endet sofort mit 0 | |
+
+- **Der Bereich.** Eine Lane läuft in dem Bereich, der die Datei enthält: Für
+  `web/src/app.ts` in einem Projekt, in dem `web/` eigene `package.json` und
+  `tsconfig.json` hat, laufen eslint und tsc in `web/` mit
+  `{file}` = `src/app.ts`. Die Workspace-Skripte eines Projekts
+  (`npm run typecheck`) werden nicht erraten; wer sie will, nennt sie in
+  `[verify.typescript]`.
+- **Jede andere Endung**, oder eine, deren Stack nicht aktiv ist, bekommt keine
+  Lanes: Der Hook endet mit 0. Lanes aus `[verify.project]` laufen nur neben
+  den Lanes eines aktiven Stacks und nur mit `on_file`.
+- **Übersprungen, nicht rot**: eine Lane, deren Werkzeug nicht auf dem `PATH`
+  liegt, ein noch nicht importiertes Godot-Projekt und eine Lane, die das
+  Budget (`--budget`, Vorgabe 50 s) nicht mehr erreicht. Der Exit-Code bleibt
+  0, und der Hook nennt die übersprungene Lane in
+  `hookSpecificOutput.additionalContext`.
+- **Prüfungen schreiben nie um.** `clang-format` läuft mit
+  `--dry-run --Werror`; eine Bearbeitung wird beurteilt, die Datei bleibt, wie
+  der Agent sie schrieb.
+- **`gofmt` prüft nur die bearbeitete Datei**: Eine unformatierte Datei
+  anderswo muss nicht diese Bearbeitung beheben. Das Pre-Commit-Tor prüft
+  alles.
 
 ---
 
@@ -342,7 +356,7 @@ stehen, steht in
 
 ---
 
-## 8. Sitzungshooks: was heute läuft, was mit Stufe 2 kommt
+## 8. Sitzungshooks: was heute läuft, was mit Stufe 2c kommt
 
 Die Policy lehnt einen Werkzeugaufruf ab, bevor er geschieht; Sitzungshooks
 stellen hinterher fest, was geschehen ist. Das Design nennt fünf. Zwei laufen
@@ -351,14 +365,14 @@ heute:
 | Ereignis in Claude Code | loomux-Hook | Stufe | Was er feststellt |
 |---|---|---|---|
 | `SessionStart` | `session-start` | 1a, läuft | Den Commit, auf dem die Sitzung beginnt; eine Warnung, wenn das Pilot-Binary älter ist als seine Quellen |
-| `PostToolUse` | `post-tool-use` | 1a, läuft | Die Lanes aus Abschnitt 5 für die bearbeitete Datei |
-| `SubagentStart` | `subagent-start` | 2 | Wo die Remote-Refs und der lokale `HEAD` vor einem Subagenten standen |
-| `SubagentStop` | `subagent-stop` | 2 | Jeden Remote-Ref, der sich bewegt hat, dazukam oder verschwand, und die Commits, die `HEAD` gewonnen hat |
-| `Stop` | `stop` | 2 | Ob alles seit dem letzten grünen Durchlauf grün ist — der einzige, der eine Runde anhalten kann |
+| `PostToolUse` | `post-tool-use` | 1a, läuft; Lanes aus `[verify]` seit 2a | Die Lanes aus Abschnitt 5 für die bearbeitete Datei |
+| `SubagentStart` | `subagent-start` | 2c | Wo die Remote-Refs und der lokale `HEAD` vor einem Subagenten standen |
+| `SubagentStop` | `subagent-stop` | 2c | Jeden Remote-Ref, der sich bewegt hat, dazukam oder verschwand, und die Commits, die `HEAD` gewonnen hat |
+| `Stop` | `stop` | 2c | Ob alles seit dem letzten grünen Durchlauf grün ist — der einzige, der eine Runde anhalten kann |
 
-Bis Stufe 2 kennt `loomux hook` die Ereignisse `pre-tool-use`,
+Bis Stufe 2c kennt `loomux hook` die Ereignisse `pre-tool-use`,
 `post-tool-use` und `session-start`; jeder andere Name wird mit Exit 2
-abgelehnt (`unknown event`). Phase 3 im Diagramm aus Abschnitt 1 ist Stufe 2.
+abgelehnt (`unknown event`). Phase 3 im Diagramm aus Abschnitt 1 ist Stufe 2c.
 
 ### `session-start` heute
 
@@ -392,7 +406,7 @@ loomux hook session-start --host claude --root <projekt>   # Nutzlast auf stdin
 ### Der Sitzungszustand
 
 Eine Datei je Sitzung unter `.loomux/state/hooks/` mit `base`, `blocks` und
-`snapshots` — die letzten beiden für die Hooks aus Stufe 2. Die Sitzungs-ID
+`snapshots` — die letzten beiden für die Hooks aus Stufe 2c. Die Sitzungs-ID
 kommt von außen und darf nicht entscheiden, wo die Datei landet: nur
 Buchstaben, Ziffern (im Unicode-Sinn), `-` und `_` bleiben stehen, und eine ID,
 von der nichts übrig bleibt, wird zu `unnamed`. Eine Datei, die sich nicht
@@ -401,13 +415,20 @@ Zählers. Das Verzeichnis ist eine eingebaute Pfadregel der Policy
 (Abschnitt 7), denn ein Agent, der seinen eigenen Blockzähler zurücksetzt, hat
 das Tor abgeschafft.
 
-### Was Stufe 2 bringt
+### Was Stufe 2c bringt
 
 So steht es im Fusionsdesign: `stop` fährt die Prüfkette über das, was sich
 seit der Basis geändert hat, mit einem `MAX_BLOCKS`-Zähler im Sitzungszustand,
 und liest `stop_hook_active` absichtlich nicht; `subagent-start` und
 `subagent-stop` halten den Remote-Stand fest und melden Drift. Zielwert: unter
 100 ms Eigenzeit je Hook, ohne die Zeit der Tore selbst.
+
+Zwei Regeln aus dem Lesen der alten `stop.py` kommen mit. `stop` bekommt ein
+Budget unter der Hook-Frist des Hosts, wie post-edit eins unter seinen 60 s
+hat, damit eine lange Suite gemeldet statt vom Host getötet wird. Und es
+merkt sich einen Fingerabdruck des Stands, den es zuletzt grün fand (`HEAD`,
+der Diff gegen die Basis, untracked Inhalte), in den `snapshots` der Sitzung
+und läuft nicht erneut, solange der Fingerabdruck gleich ist.
 
 ---
 
@@ -541,7 +562,7 @@ jede Lockerung der Bedingungen oben machte den Sweep erst unsicher.
 `unlink` zählt die anderen Sitzungsdateien, die jünger als 24 Stunden sind; die
 Änderungszeit einer Datei ist die einzige Lebendigkeit, die sich lesen lässt.
 In loomux schreibt heute genau ein Hook diese Datei: `session-start`, einmal.
-Die Hooks aus Stufe 2 werden sie bei jeder Blockade, jedem Durchlauf und jedem
+Die Hooks aus Stufe 2c werden sie bei jeder Blockade, jedem Durchlauf und jedem
 Subagenten neu schreiben; bis dahin ist eine Sitzungsdatei so jung wie der
 Start ihrer Sitzung. Eine Sitzung, die länger als einen Tag läuft, wird darum
 nicht gezählt, und eine zweite Sitzung, die auf demselben Baum endet, zieht ihr
