@@ -1,9 +1,10 @@
-// Package covergate turns `go tool cover -func` output into a gate: every
+// Package gocover turns `go tool cover -func` output into a gate: every
 // function at 100%, or an exemption with a reason written above it.
-package covergate
+package gocover
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -84,4 +85,32 @@ func exempt(read func(string) ([]byte, error), path string, line int) bool {
 	}
 	above := strings.TrimSpace(rows[line-2])
 	return strings.HasPrefix(above+" ", marker) && strings.TrimSpace(strings.TrimPrefix(above, strings.TrimSpace(marker))) != ""
+}
+
+// ModulePath is the argument of the `module` line of a go.mod: the prefix
+// the cover tool puts in front of every file it names.
+func ModulePath(gomod []byte) (string, error) {
+	for _, row := range strings.Split(string(gomod), "\n") {
+		fields := strings.Fields(row)
+		if len(fields) >= 2 && fields[0] == "module" {
+			return strings.Trim(fields[1], `"`), nil
+		}
+	}
+	return "", errors.New("go.mod has no module line")
+}
+
+// Total is the statement coverage of the closing `total:` line.
+func Total(out []byte) (float64, error) {
+	for _, row := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(row)
+		if len(fields) == 0 || fields[0] != "total:" {
+			continue
+		}
+		percent, err := strconv.ParseFloat(strings.TrimSuffix(fields[len(fields)-1], "%"), 64)
+		if err != nil {
+			return 0, fmt.Errorf("total in %q: %w", row, err)
+		}
+		return percent, nil
+	}
+	return 0, errors.New("no total line")
 }

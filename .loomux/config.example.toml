@@ -31,7 +31,7 @@ timeout = 180
 lanes = [
   { name = "lint", command = "golangci-lint run" },
   { name = "tests", command = "go test -v ./..." },
-  { name = "covergate", command = "loomux dev covergate --profile coverage.out" }
+  { name = "gocover", command = "loomux check gocover --profile coverage.out" }
 ]
 
 [verify.commit]
