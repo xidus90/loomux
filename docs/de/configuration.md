@@ -61,6 +61,8 @@ rules = [
 ### `[policy.commands]` (Befehlsausführungs-Regeln)
 Definiert Muster für Shell-Befehle (`Bash`, `PowerShell`), die blockiert werden müssen.
 
+Zwei Befehlsregeln sind eingebaut und brauchen hier keinen Eintrag: `git push` und jede Shell-Zeile, die `.loomux/config.toml` schreibt — eine Umleitung hinein, `sed -i`/`perl -i`, `tee`, `Set-Content`/`Add-Content`/`Out-File`, `cp`/`mv`/`Copy-Item` darauf oder das Löschen der Datei. Lesen (`cat`, `grep`, `Get-Content`) bleibt erlaubt. Die Regel liest den Befehlstext; ein Pfad in einer Variablen entgeht ihr.
+
 ```toml
 [policy.commands]
 rules = [

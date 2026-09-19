@@ -61,6 +61,8 @@ rules = [
 ### `[policy.commands]` (Command Execution Rules)
 Defines shell command patterns executed in `Bash` or `PowerShell` tools that must be blocked.
 
+Two command rules are built in and need no entry here: `git push`, and any shell line that writes `.loomux/config.toml` — a redirect into it, `sed -i`/`perl -i`, `tee`, `Set-Content`/`Add-Content`/`Out-File`, `cp`/`mv`/`Copy-Item` onto it, or removing it. Reading it (`cat`, `grep`, `Get-Content`) stays allowed. The rule reads command text, so a path held in a variable is not caught.
+
 ```toml
 [policy.commands]
 rules = [

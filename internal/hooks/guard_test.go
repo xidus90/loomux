@@ -160,6 +160,81 @@ func TestGitPushIsRefusedOnBashAndPowerShell(t *testing.T) {
 	}
 }
 
+// The manifest is refused to a shell line that writes it on the same terms as
+// to a writing tool, and left alone by one that only reads it. The allowed
+// lines are the ones a careless expression would refuse: a copy *from* the
+// manifest, a redirect *after* reading it, a redirect in another segment.
+func TestAShellLineThatWritesTheManifestIsRefused(t *testing.T) {
+	root := t.TempDir()
+	const want = "the manifest is where the barrier reads its own limits, so no shell command may write it"
+	refused := []string{
+		"cat >> .loomux/config.toml <<'EOF'\n[policy]\nEOF",
+		"echo x >.loomux/config.toml",
+		`echo x > "./.loomux/config.toml"`,
+		`echo x > .loomux\config.toml`,
+		"echo x >| /repo/.loomux/config.toml",
+		"echo x 2>&1 >> .LOOMUX/Config.toml",
+		"sed -i 's/a/b/' .loomux/config.toml",
+		"sed -i.bak 's/a/b/' .loomux/config.toml",
+		"sed -Ei 's/a/b/' .loomux/config.toml",
+		"sed --in-place -e 's/a/b/' .loomux/config.toml",
+		"sed 's/a/b/' .loomux/config.toml -i",
+		"/usr/bin/sed -i x .loomux/config.toml",
+		"perl -pi -e 's/a/b/' .loomux/config.toml",
+		"printf x | tee -a .loomux/config.toml",
+		"git status; tee .loomux/config.toml < x",
+		"sudo tee .loomux/config.toml",
+		"Set-Content -Path .loomux/config.toml -Value x",
+		`"x" | Out-File .loomux\config.toml`,
+		`Out-File -FilePath:.loomux\config.toml`,
+		`Add-Content .loomux/config.toml "x"`,
+		"Clear-Content .loomux/config.toml",
+		"'x' | Tee-Object -FilePath .loomux/config.toml",
+		"[IO.File]::WriteAllText('.loomux/config.toml', 'x')",
+		"cp other.toml .loomux/config.toml",
+		"cp -f other.toml '.loomux/config.toml'",
+		"mv tmp .loomux/config.toml && ls",
+		"mv .loomux/config.toml elsewhere.toml",
+		"rm .loomux/config.toml",
+		"Remove-Item .loomux\\config.toml",
+		"Copy-Item -Destination .loomux\\config.toml -Path x.toml",
+		"Copy-Item x.toml .loomux\\config.toml",
+		"git checkout -- .loomux/config.toml",
+		"dd if=x of=.loomux/config.toml",
+		"x=$(sed -i s/a/b/ .loomux/config.toml)",
+	}
+	for _, tool := range []string{"Bash", "PowerShell"} {
+		for _, line := range refused {
+			reasons := checkTool(root, tool, map[string]any{"command": line}, config.Policy{})
+			if len(reasons) != 1 || !strings.HasSuffix(reasons[0], want) {
+				t.Errorf("[%s] %q: reasons %v, want exactly the manifest refusal", tool, line, reasons)
+			}
+		}
+	}
+	allowed := []string{
+		"cat .loomux/config.toml",
+		"grep policy .loomux/config.toml",
+		"Get-Content .loomux/config.toml",
+		"sed -n '1,5p' .loomux/config.toml",
+		"sed -n '/min/p' .loomux/config.toml",
+		"cp .loomux/config.toml backup.toml",
+		"Copy-Item .loomux\\config.toml -Destination backup.toml",
+		"cat .loomux/config.toml > out.txt",
+		"echo x > other.toml; cat .loomux/config.toml",
+		"echo x > .loomux/config.toml.bak",
+		"echo x > my.loomux/config.toml",
+		"grep tee .loomux/config.toml",
+		"git show HEAD:.loomux/config.toml",
+		"dd if=.loomux/config.toml of=copy.toml",
+		"sed -i s/a/b/ other.toml; cat .loomux/config.toml",
+	}
+	for _, line := range allowed {
+		if reasons := checkTool(root, "Bash", map[string]any{"command": line}, config.Policy{}); len(reasons) != 0 {
+			t.Errorf("%q: reasons %v, want none", line, reasons)
+		}
+	}
+}
+
 func TestASafeCommandCarriesNoReason(t *testing.T) {
 	root := t.TempDir()
 	if reasons := checkTool(root, "Bash", map[string]any{"command": "git status"}, config.Policy{}); len(reasons) != 0 {
