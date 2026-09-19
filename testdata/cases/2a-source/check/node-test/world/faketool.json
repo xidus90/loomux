@@ -1,0 +1,24 @@
+{
+  "answers": [
+    {
+      "prefix": "eslint",
+      "exit": 0,
+      "stdout": "faketool: eslint\n"
+    },
+    {
+      "prefix": "tsc",
+      "exit": 0,
+      "stdout": "faketool: tsc\n"
+    },
+    {
+      "prefix": "vitest run",
+      "exit": 0,
+      "stdout": "faketool: vitest run\n1 passed\n"
+    },
+    {
+      "prefix": "vitest run --coverage",
+      "exit": 0,
+      "stdout": "faketool: vitest run --coverage\nAll files 100\n"
+    }
+  ]
+}

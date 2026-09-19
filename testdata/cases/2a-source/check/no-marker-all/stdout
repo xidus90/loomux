@@ -1,0 +1,8 @@
+lint: failed [unavailable]
+could not tell what kind of project {{WORLD}} is; set [verify].lint in {{WORLD}}\.ultraloom\config.toml
+types: failed [unavailable]
+could not tell what kind of project {{WORLD}} is; set [verify].types in {{WORLD}}\.ultraloom\config.toml
+test: failed [unavailable]
+could not tell what kind of project {{WORLD}} is; set [verify].test in {{WORLD}}\.ultraloom\config.toml
+coverage: failed [unavailable]
+could not tell what kind of project {{WORLD}} is; set [verify].coverage in {{WORLD}}\.ultraloom\config.toml

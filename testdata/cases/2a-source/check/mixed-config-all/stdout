@@ -1,0 +1,14 @@
+lint: ok [config]
+$ uvx ruff check .
+faketool: uvx ruff check
+
+$ go vet ./...
+faketool: go vet
+types: ok [preset]
+faketool: uv run mypy
+test: ok [config]
+faketool: uv run pytest
+1 passed
+coverage: ok [preset]
+faketool: uv run coverage report
+TOTAL 1 0 100%
