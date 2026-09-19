@@ -81,32 +81,265 @@ rules = [
 ---
 
 ### `[verify]` (Prüfketten & Quality-Gates)
-Definiert die Prüftabelle, die am Rundenende (`Stop`-Hook) oder vor dem Commit ausgeführt wird.
+Sagt, was `loomux check` und der post-edit-Hook fahren. **Ohne jedes
+`[verify]` gelten die eingebauten Presets** für jeden Stack, den die Erkennung
+findet; der Abschnitt ändert nur, was abweicht. `loomux check <profil> --show`
+druckt die wirksame Tabelle (siehe
+[CLI-Referenz](cli-reference.md#loomux-check-anfrage---root-pfad---show--v)).
 
 ```toml
 [verify]
-timeout = 300 # Sekunden
+max_parallel = 8        # Prozesse gleichzeitig; Vorgabe: Zahl der CPUs
+timeout      = 600      # Sekunden je Befehl; Vorgabe 600, keine Obergrenze
 
-lanes = [
-  { name = "format", command = "gofmt -l cmd internal" },
-  { name = "vet", command = "go vet ./..." },
-  { name = "test", command = "go test -v ./..." },
-  { name = "covergate", command = "loomux dev covergate --profile coverage.out" }
-]
+[verify.profiles]       # eingebaut: edit = [lint, types], precommit = alle vier
+edit      = ["lint", "types"]
+precommit = ["lint", "types", "test", "coverage"]
 
-[verify.commit]
-language = "en"       # Erzwingt englische Commit-Nachrichten
-max_first_line = 72   # Maximale Länge der ersten Titelzeile
+[verify.go]             # je Stack; nicht genannte Stacks behalten ihr Preset
+lint     = ["go vet ./...", "{loomux} check gofmt cmd internal"]
+coverage = "{loomux} check gocover --profile {coverprofile} --floor 90"
+
+[verify.typescript.lint]            # Tabellenform
+commands = ["npx eslint ."]
+on_file  = ["npx eslint --cache {file}"] # was post-edit fährt; fehlt es, gilt commands
+threaded = true
+
+[verify.cpp]
+types = false           # Lane abschalten, auch gegen ein Preset
+
+[verify.project]        # projektweit, ohne Stack, im Wurzelverzeichnis
+lint = "make lint"
 ```
 
-| Feld | Typ | Beschreibung |
+| Schlüssel | Typ | Beschreibung |
 |---|---|---|
-| `timeout` | Integer | Globales Zeitlimit in Sekunden für die Prüfkette (Standard: 300). |
-| `lanes` | Array von Tabellen | Einzelne Prüfschritte, die ausgeführt werden. |
-| `lanes[].name` | String | Eindeutiger Name der Prüf-Lane. |
-| `lanes[].command` | String | Auszuführender Shell-Befehl in der Projektwurzel. |
-| `commit.language` | String | Erzwungene Sprache für Commit-Nachrichten (`"en"`). |
-| `commit.max_first_line` | Integer | Maximale Zeichenlänge der ersten Zeile. |
+| `max_parallel` | positive Ganzzahl | Obergrenze gleichzeitig laufender Kindprozesse über alle Lanes. Vorgabe: Zahl der CPUs. |
+| `timeout` | positive Ganzzahl | Sekunden, die jeder Befehl laufen darf. Vorgabe 600, keine Obergrenze. Der post-edit-Hook hat zusätzlich ein Budget für den ganzen Lauf (`--budget`, Vorgabe 50 s); `loomux check` hat keins. |
+| `profiles.<name>` | Liste von Arten | Eine benannte Menge von Arten. `edit` (post-edit) und `precommit` (das Tor) sind eingebaut und überschreibbar. Eine leere Liste, eine unbekannte Art oder ein reservierter Name ist ein Ladefehler. |
+| `<stack>.<art>` | String, Liste, `false` oder Tabelle | Wie eine Art für einen Stack läuft; siehe unten. |
+| `gdscript.import_check` | Boolean | Vorgabe `true`: `test` und `coverage` von GDScript sind `unready`, bis der Godot-Editor das Projekt importiert hat (`.godot/global_script_class_cache.cfg`). |
+
+Jeder andere Schlüssel ist ein Ladefehler, der Datei und Schlüssel nennt, auf
+jeder Ebene: `[verify]`, `[verify.<stack>]` und `[verify.<stack>.<art>]`.
+Ebenso die alte Form auf oberster Ebene, `[verify].types = "…"`; die Meldung
+verweist auf `[verify.<stack>].types`.
+Regeln für Commit-Nachrichten gehören nicht zu `[verify]`: `[verify.commit]` wird
+wie jeder unbekannte Stack abgewiesen, der Abschnitt `[commit]` kommt mit Stufe 2b.
+
+#### Arten, Profile und reservierte Namen
+
+Es gibt vier Arten, in dieser Reihenfolge: `lint`, `types`, `test`,
+`coverage`. Eine Anfrage an `loomux check` ist ein Profil, `all` (immer alle
+vier Arten) oder eine Komma-Liste von Arten (`lint,types`). Die Namen `gofmt`,
+`commit-msg`, `gocover`, `all`, `lint`, `types`, `test` und `coverage` sind
+reserviert; ein Profil mit einem davon ist ein Ladefehler.
+
+#### Stacks
+
+`[verify.<stack>]` gibt es für `go`, `python`, `typescript`, `vue`, `svelte`,
+`css`, `html`, `gdscript`, `cpp`, `shell`, `sql`, `rust`, dazu `wiki` und
+`project`. Jeder andere Name ist ein Ladefehler.
+
+- **Wo ein Stack läuft.** Die Erkennung liest das Wurzelverzeichnis und eine
+  Ebene darunter (`go.mod`, `pyproject.toml`, `CMakeLists.txt`,
+  `tsconfig.json` neben `package.json`, `project.godot`, `Cargo.toml`,
+  `*.sh`, …). Jedes Verzeichnis, in dem ein Stack gefunden wurde, ist ein
+  **Bereich**: `.` für die Wurzel, sonst das Verzeichnis der obersten Ebene.
+  Zwei Bereiche ergeben zwei Lanes (`lint/typescript@admin`,
+  `lint/typescript@web`), jede läuft in ihrem Bereich. Einen Override je
+  Bereich gibt es nicht.
+- **Ein konfigurierter Stack gilt als erkannt.** Ein `[verify.<stack>]`, das
+  mindestens einer Art einen Befehl gibt, läuft im Wurzelverzeichnis, auch wo
+  die Erkennung nichts fand.
+- `.js` und `.jsx` gehören zu `typescript`; `javascript` gibt es nicht.
+  Godot-Code heißt `gdscript`.
+- `wiki` kennt nur `lint = false`; das schaltet den Wiki-Lint im Prozess des
+  post-edit-Hooks ab. `loomux wiki-gate` bleibt ein eigener Befehl.
+- `project` hat kein Preset. Seine Lanes laufen für `loomux check` im
+  Wurzelverzeichnis; der post-edit-Hook fährt sie nur mit `on_file` und nur
+  neben den Lanes einer bearbeiteten Datei, deren Stack aktiv ist.
+
+#### Die Formen einer Art
+
+Eine Stack-Tabelle kennt die Schlüssel `lint`, `types`, `test`, `coverage`
+(und `import_check` in `[verify.gdscript]`). Jede Art ist eins von:
+
+| Form | Beispiel | Bedeutung |
+|---|---|---|
+| String | `lint = "make lint"` | ein Befehl; **ersetzt die ganze Lane** |
+| Liste | `lint = ["go vet ./...", "{loomux} check gofmt ."]` | mehrere Befehle; **ersetzt die ganze Lane** |
+| `false` | `types = false` | schaltet die Lane ab, auch gegen ein Preset |
+| Tabelle | `[verify.go.test]` mit `measuring = "…"` | **führt Schlüssel für Schlüssel** mit dem Preset zusammen |
+
+Die Schlüssel der Tabellenform:
+
+| Schlüssel | Typ | Beschreibung |
+|---|---|---|
+| `commands` | Liste | Was `loomux check` fährt. |
+| `on_file` | Liste | Was der post-edit-Hook für eine Datei fährt; fehlt es, fährt er `commands`. |
+| `threaded` | Boolean | Die Befehle nebeneinander statt nacheinander fahren. |
+| `measuring` | String | Nur `test`/`coverage`. Der eine Befehl, den `test` statt `commands` fährt, wenn `coverage` im selben Lauf steht. |
+| `measure` | String | Nur `test`/`coverage`. Der eine Befehl, den `coverage` zuerst fährt, wenn sein Vorgänger nicht im Lauf steht. |
+| `after` | Art | Nur `test`/`coverage`. Die Art desselben Stacks, auf die diese Lane wartet. Zyklen sind Ladefehler, die Meldung nennt den Ring. |
+| `needs` | Liste | Dateien, relativ zum Verzeichnis der Lane und darin, ohne die die Lane nichts bedeutet. Fehlt eine, ist die Lane `unready`: im Edit übersprungen und genannt, im Check rot. |
+
+- **Ersetzen oder zusammenführen.** Ein String oder eine Liste steht für die
+  Lane, wie sie dasteht: `measuring`, `measure`, `on_file` und `needs` des
+  Presets gelten nicht mehr, nur `after` bleibt. Eine Tabelle ändert nur die
+  Schlüssel, die sie nennt: `[verify.go.test] measuring = "…"` behält
+  `commands` aus dem Preset.
+- Ein Schlüssel ist in TOML entweder Wert oder Tabelle: `test = "…"` und
+  `test.measuring = "…"` in derselben Tabelle sind ungültig. Dann die
+  Tabellenform mit `commands` nehmen.
+- `true`, eine leere Liste, ein leerer Befehl und eine offene Anführung sind
+  Ladefehler.
+- **Befehle sind argv, keine Shell.** Jeder Befehl wird nach Shell-Wortregeln
+  zerlegt und direkt gestartet; es gibt kein `cmd /c` und kein `sh -c`. Pipes,
+  `&&` und Globbing durch eine Shell gibt es nicht.
+- Bevor ein Befehl startet, muss sein Werkzeug auf dem `PATH` liegen, auch bei
+  konfigurierten Befehlen; sonst ist die Lane `missing-tool`.
+
+#### Platzhalter
+
+Ersetzt werden nur diese Namen, jeweils innerhalb eines Arguments; alle
+anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
+
+| Platzhalter | Wert |
+|---|---|
+| `{file}` | Die bearbeitete Datei, relativ zum Bereich der Lane, mit Schrägstrichen. **Nur in `on_file`**; anderswo ein Ladefehler. |
+| `{area}` | Das absolute Verzeichnis des Bereichs der Lane. |
+| `{coverprofile}` | `.loomux/state/cover/<lauf-id>-<stack>-<bereich>.out`, eine je Lauf und Lane. |
+| `{coverdata}` | Dasselbe mit `.data`. Python-Lanes bekommen zusätzlich `COVERAGE_FILE={coverdata}` in ihre Umgebung. |
+| `{loomux}` | Das laufende Binary. So findet das Go-Preset `gocover` auch dort, wo loomux nicht auf dem `PATH` liegt. |
+
+- Eine `coverage`-Lane, die `{coverprofile}` liest, während weder `test`,
+  `test.measuring` noch `coverage.measure` desselben Stacks es schreibt, ist
+  ein Ladefehler.
+- Fehlt eine Coverage-Datei, wenn die Lane startet, ist sie `failed`:
+  `<path> is missing: the measuring run did not write it`.
+- **Aufräumen.** `loomux check` und der post-edit-Hook legen beide
+  `.loomux/state/cover/` an, bevor eine Lane startet, und räumen danach gleich
+  auf. Ein grüner Lauf löscht am Ende seine eigenen
+  Coverage-Dateien; ein roter lässt sie zum Nachsehen liegen. Dateien anderer
+  Läufe werden gelöscht, sobald sie 24 Stunden alt sind, damit zwei Läufe
+  nebeneinander einander nie die Profile löschen. Einen Pfad außerhalb von
+  `.loomux/state/cover/` berührt loomux nie.
+
+#### Presets
+
+Die Presets sind ins Binary eingebettet (`internal/verify/presets.toml`) und
+benutzen das Schema oben; ein Preset kann also nichts sagen, was ein Projekt
+nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
+**Variante**, deren Signal die Erkennung fand, dann `[verify.<stack>]`.
+
+| Stack | `lint` | `types` | `test` | `coverage` |
+|---|---|---|---|---|
+| go | `go vet ./...`, `{loomux} check gofmt .` (parallel) | — | `go test ./... -count=1` | `{loomux} check gocover --profile {coverprofile}` |
+| python | `uvx ruff check . --output-format=concise` | `uv run mypy --no-error-summary --no-pretty`; mit `pyright`: `uv run pyright` | `uv run pytest -q --tb=short --no-header` | `uv run coverage report --skip-covered --skip-empty -m` |
+| typescript | `npx eslint .`; mit `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run` | `npx vitest run --coverage` |
+| vue | — | `npx vue-tsc --noEmit` | — | — |
+| svelte | — | `npx svelte-check` | — | — |
+| css | `npx stylelint **/*.{css,scss}` | — | — | — |
+| html | `npx htmlhint **/*.html` | — | — | — |
+| gdscript | `uvx gdlint .` | — | `godot --headless --quit` | — |
+| cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
+| shell | nur `on_file` | — | — | — |
+| sql | `sqlfluff lint .` | — | — | — |
+| rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
+
+- Die `on_file`-Formen: go `go vet ./...` und `{loomux} check gofmt {file}`
+  (ein Edit formatiert nur seine eigene Datei), gdscript `uvx gdlint {file}`,
+  cpp `clang-format --dry-run --Werror {file}` (prüft, schreibt nie um),
+  typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
+  css `npx stylelint {file}`, html `npx htmlhint {file}`, shell
+  `shellcheck {file}`, sql `sqlfluff lint {file}`.
+- `types`, `test` und `coverage` von cpp tragen `needs =
+  ["build/CMakeCache.txt"]`: solange der Build-Baum nicht konfiguriert ist,
+  sind sie `unready` mit `build/CMakeCache.txt is missing: configure the build
+  first`. Konfigurieren ist Sache des Projekts (Generator, Optionen,
+  Toolchain), loomux rät keinen Konfigurationsschritt.
+- **Messen.** `test` misst nur, wenn `coverage` im selben Lauf steht (go:
+  `-covermode=set -coverprofile={coverprofile}`, python:
+  `uv run coverage run -m pytest …`); allein bleibt es der schnelle Weg.
+  `coverage` läuft `after = "test"`, wartet aber nur dann auf `test`, wenn die
+  Test-Lane, wie sie für diesen Lauf geplant ist, eine Datei schreibt, die
+  `coverage` liest: Sie läuft in ihrer Form `measuring`, oder ihr Befehl nennt
+  das `{coverprofile}` oder `{coverdata}`, das `coverage` liest. Ein
+  Python-`coverage`, das mit coverage.py berichtet (`coverage report`, `xml`,
+  `json`, `html` oder `lcov`), liest `{coverdata}` über `COVERAGE_FILE`, auch
+  wenn sein Befehl es nicht nennt; da jede Python-Lane diese Variable
+  bekommt, sagt die Umgebung nichts darüber, wer schreibt. Ein `coverage`,
+  das keine solche Datei liest, wartet in jedem Fall auf `test`. Sonst, und
+  allein angefragt, misst `coverage` selbst mit `measure`; so bekommt auch
+  `[verify.go] test = "go test ./..."`, das `measuring` des Presets verwirft,
+  sein Profil. Ein `coverage` ohne `measure`, das eine Coverage-Datei liest,
+  die im Lauf niemand schreibt, ist rot: „`test` did not run and there is no
+  measure step" oder „`test` does not write what this lane reads and there is
+  no measure step". Eins, das keine Coverage-Datei liest, läuft einfach.
+- **Die Schwelle steht im Tor:** `--floor` bei `gocover`, `fail_under` in
+  `pyproject.toml` für Python, `--fail-under-line` bei gcovr. Nur Go prüft je
+  Funktion (100 %, außer `//coverage:exempt <grund>` steht über `func`).
+- Das Go-Preset misst ohne `-coverpkg`, weil es den Modulpfad nicht kennt; es
+  untertreibt deshalb bei Tests über Paketgrenzen. Ein Projekt nennt
+  `-coverpkg` in seinem `test.measuring` und `coverage.measure`, wie loomux
+  selbst.
+- GDScript hat kein Coverage-Preset.
+
+#### Testerkennung
+
+`test` und `coverage` laufen nur, wo es Tests gibt. Gesucht wird rekursiv in
+jedem Bereich, ausgenommen jedes Verzeichnis, dessen Name mit einem Punkt
+beginnt (`.git`, `.loomux`, `.venv`, `.tox`, …), sowie `vendor`,
+`node_modules`, `third_party`, `venv`, `build`, `target` und `dist`: Die Tests
+installierter Pakete machen ein Projekt nicht getestet. Gesucht wird nur, wenn `test` oder `coverage` angefragt ist, das
+Profil `edit` läuft also nie durch den Baum.
+
+| Stack | Signal |
+|---|---|
+| go | eine Datei `*_test.go` |
+| python | ein Verzeichnis `tests/`, eine Datei `test_*.py` oder `[tool.pytest` in `pyproject.toml` |
+| cpp | `enable_testing(` in `CMakeLists.txt` |
+| typescript | `vitest` in `package.json` |
+
+- Keine Tests: `test` und `coverage` sind `unavailable`.
+- Ein `[verify.<stack>].test`, das den Befehl hinschreibt, übergeht die Suche:
+  die String- oder Listenform oder eine Tabelle mit `commands`. Wer den Befehl
+  hinschreibt, hat Tests. `test = false` und eine Tabelle, die nur
+  `measuring`, `threaded` oder einen anderen Schlüssel ändert, behalten die
+  Suche.
+- Ein Stack ohne Signal (`gdscript`, `project`) fährt seine Lane, sobald sie
+  definiert ist.
+
+#### Zustände und Urteil
+
+| Zustand | wann | `loomux check` | post-edit |
+|---|---|---|---|
+| `ok` | alle Befehle Exit 0 | grün | grün |
+| `failed` | Exit ≠ 0, Startfehler, Ausgabe abgebrochen, Coverage-Datei fehlt | rot | rot, Exit 2 |
+| `timed-out` | eigenes `timeout` | rot | rot, Exit 2 |
+| `budget` | Laufbudget erschöpft | – | übersprungen, genannt |
+| `blocked` | die Lane, auf die sie wartet (`after`), ist rot | rot | rot, Exit 2 |
+| `missing-tool` | ein Werkzeug liegt nicht auf dem `PATH` | rot | übersprungen, genannt |
+| `unready` | Godot hat das Projekt nicht importiert, oder eine Datei aus `needs` fehlt | rot | übersprungen, genannt |
+| `unavailable` | Art definiert, kann nicht laufen (keine Tests gefunden) | neutral, zählt als „nichts lief" | nicht angezeigt |
+| `not-applicable` | Art im Stack nicht definiert oder `false` | neutral, angezeigt | nicht angezeigt |
+
+- **Was eine Lane erbt.** Konnte die Lane, auf die sie wartet, nicht laufen,
+  übernimmt eine Lane deren Zustand (`unavailable`, `not-applicable`, im
+  Edit-Scope auch `budget`, `missing-tool`, `unready`), statt `blocked` zu
+  werden. Ein abgeschaltetes `test` zählt als nicht angefragt: `coverage` misst
+  dann selbst mit `measure`.
+- **Urteil von `loomux check`, je angefragter Art:** Lief keine Lane einer Art
+  und ist die Art nirgends `not-applicable`, druckt der Check
+  ``nothing to check for `<art>` `` und endet mit Exit 1: Ein Tor, das nichts
+  prüft, ist nicht grün. Sonst Exit 0, wenn keine Lane rot ist, und 1, wenn
+  eine rot ist. Ein Ladefehler endet mit 1, ein fehlerhafter Aufruf mit 2.
+- **Urteil des post-edit-Hooks:** Eine rote Lane endet mit Exit 2 und ihrer
+  Ausgabe auf `stderr`; übersprungene Lanes nennt er in
+  `hookSpecificOutput.additionalContext` auf `stdout`, Exit 0. Eine Datei,
+  deren Endung kein aktiver Stack beansprucht, bekommt keine Lanes und endet
+  mit 0.
 
 ---
 
@@ -228,20 +461,15 @@ rules = [
   { regex = '(^|\s)rm\s+-rf\s+/', reason = "Löschung des System-Wurzelverzeichnisses ist verboten" }
 ]
 
-# --- Prüfkette für das Rundenende --------------------------------------------
-[verify]
-timeout = 180
+# --- Prüfkette: loomux check und post-edit; alles Übrige ist Preset ---------
+[verify.go.lint]
+commands = ["{loomux} check gofmt cmd internal", "go vet ./..."]
 
-lanes = [
-  { name = "gofmt", command = "gofmt -l cmd internal" },
-  { name = "vet", command = "go vet ./..." },
-  { name = "tests", command = "go test ./..." },
-  { name = "covergate", command = "go run ./cmd/loomux dev covergate --profile coverage.out" }
-]
+[verify.go.test]
+measuring = "go test ./... -count=1 -covermode=set -coverpkg=example.com/project/... -coverprofile={coverprofile}"
 
-[verify.commit]
-language = "en"
-max_first_line = 72
+[verify.go.coverage]
+measure = "go test ./... -count=1 -covermode=set -coverpkg=example.com/project/... -coverprofile={coverprofile}"
 
 # --- Worktree-Isolierungsspiegel ---------------------------------------------
 [worktree]

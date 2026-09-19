@@ -76,12 +76,10 @@ rules = [
   { regex = '(^|\s)git\s+push(\s|$)', reason = "Pushing to remote requires explicit human decision" }
 ]
 
-[verify]
-# Multi-lane check chain executed at turn completion
-lanes = [
-  { name = "lint", command = "golangci-lint run" },
-  { name = "test", command = "go test -v ./..." }
-]
+[verify.go.test]
+# Lanes run from built-in presets per detected stack; a table changes only
+# the keys it names. `loomux check precommit --show` prints what runs.
+measuring = "go test ./... -count=1 -covermode=set -coverpkg=example.com/my-project/... -coverprofile={coverprofile}"
 ```
 
 ### Step 3: Verify the Setup
@@ -89,15 +87,22 @@ Run the diagnostic doctor:
 ```bash
 loomux status
 ```
-You should see:
+You should see (excerpt):
 ```text
-=== loomux Hook Inspection ===
-Project root:     C:\Projects\my-project
-Harnesses found:  Claude Code, Antigravity
-Hook status:      PreToolUse (Active), PostToolUse (Active), Stop (Active)
-Verify lanes:     lint (golangci-lint), test (go test)
-Write barrier:    Enforced (global registry + project policy)
-Overall status:   READY (Green)
+================================================================================
+ loomux Hook Inspection
+================================================================================
+Project Root:    C:\Projects\my-project
+Detected Stacks: [go]
+...
+[PostToolUse] (Matcher: Write|Edit|NotebookEdit)
+  -> loomux hook post-tool-use (profile `edit`: lint, types):
+     * go (*.go) lint: go vet ./... ; {loomux} check gofmt {file} [preset, parallel]
+...
+--------------------------------------------------------------------------------
+ Lane Tools On This Machine
+--------------------------------------------------------------------------------
+ [OK] Every configured lane's tool is on PATH.
 ```
 
 > [!NOTE]

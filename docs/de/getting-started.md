@@ -76,12 +76,10 @@ rules = [
   { regex = '(^|\s)git\s+push(\s|$)', reason = "Pushen zum Remote erfordert eine explizite menschliche Entscheidung" }
 ]
 
-[verify]
-# Prüfkette, die am Rundenende automatisch ausgeführt wird
-lanes = [
-  { name = "lint", command = "golangci-lint run" },
-  { name = "test", command = "go test -v ./..." }
-]
+[verify.go.test]
+# Lanes kommen aus eingebauten Presets je erkanntem Stack; eine Tabelle ändert
+# nur die Schlüssel, die sie nennt. `loomux check precommit --show` zeigt, was läuft.
+measuring = "go test ./... -count=1 -covermode=set -coverpkg=example.com/my-project/... -coverprofile={coverprofile}"
 ```
 
 ### Schritt 3: Einrichtung verifizieren
@@ -89,15 +87,22 @@ Starte die Diagnose:
 ```bash
 loomux status
 ```
-Die Ausgabe zeigt dir den Status aller Schutz- und Prüfmechanismen:
+Die Ausgabe zeigt dir den Status aller Schutz- und Prüfmechanismen (Auszug):
 ```text
-=== loomux Hook Inspection ===
-Projektwurzel:    C:\Projekte\mein-projekt
-Erkannte Hosts:   Claude Code, Antigravity
-Hook-Status:      PreToolUse (Aktiv), PostToolUse (Aktiv), Stop (Aktiv)
-Prüfketten-Lanes: lint (golangci-lint), test (go test)
-Schreibschranke:  Aktiv (Globale Registry + Projekt-Policy)
-Gesamtstatus:     BEREIT (Grün)
+================================================================================
+ loomux Hook Inspection
+================================================================================
+Project Root:    C:\Projects\my-project
+Detected Stacks: [go]
+...
+[PostToolUse] (Matcher: Write|Edit|NotebookEdit)
+  -> loomux hook post-tool-use (profile `edit`: lint, types):
+     * go (*.go) lint: go vet ./... ; {loomux} check gofmt {file} [preset, parallel]
+...
+--------------------------------------------------------------------------------
+ Lane Tools On This Machine
+--------------------------------------------------------------------------------
+ [OK] Every configured lane's tool is on PATH.
 ```
 
 > [!NOTE]

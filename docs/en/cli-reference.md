@@ -23,6 +23,98 @@ Loomux uses strict exit code semantics aligned with AI coding agent harnesses:
 
 ## 2. Policy & Verification (`loomux check`)
 
+`loomux check` takes a **request** first and its flags after it. The request is
+a profile (`edit`, `precommit` or one of `[verify.profiles]`), `all`, a comma
+list of kinds (`lint,types`), or one of the three built-in checks below. What
+each kind runs per stack is set by
+[`[verify]`](configuration.md#verify-check-chains--quality-gates) and the
+presets.
+
+### `loomux check <request> [--root <path>] [--show] [-v]`
+Runs the lanes of the requested kinds for every active stack and area, and
+judges them.
+
+- **Flags** (after the request; `check --show` alone is a usage error):
+  - `--root <path>` — project root; found upwards from the working directory
+    when empty, the working directory when nothing is found. A project without
+    `.loomux/config.toml` is checked by the presets alone.
+  - `--show` — run nothing; print the effective lanes as `[verify]` tables.
+  - `-v` — print the output of green lanes too.
+- **Order**: a lane starts as soon as the lane it waits for (`after`) is done,
+  with at most `max_parallel` processes at once. The report comes at the end,
+  never interleaved: kinds in request order, within them stacks in byte order,
+  then areas.
+- **Output** (all on `stdout`): one line per lane,
+  `<kind>/<stack>[@<area>]: <state> [<origin>]`, followed by the duration for
+  a lane that started, `by <lane>` for a blocked one, or the reason for one
+  that never started. `<origin>` is `preset`, `preset, variant <signal>`,
+  `config` or `in-process`. A red lane prints its output below its line; a
+  green one only with `-v`. A lane with several commands prints one block per
+  command, headed `$ <argv>`, with `(failed)` on a red one. A kind that had
+  nothing to check ends the report with ``nothing to check for `<kind>` ``.
+  ```text
+  lint/go: ok [preset] 0.2s
+  types/go: not-applicable [preset] no command
+  test/go: ok [preset] 0.5s
+  coverage/go: failed [preset] 0.1s
+  not covered: w.go:3 A 66.7%
+  ```
+- **Coverage files**: measuring lanes write to `.loomux/state/cover/`, which
+  `check` and the post-edit hook create themselves. A green
+  run deletes its own files, a red one keeps them; other runs' files go once
+  they are 24 hours old.
+- **Exit Codes**: `0` (no lane red, and every requested kind had a lane that
+  ran or is `not-applicable` somewhere), `1` (a lane is red, a kind had nothing
+  to check, or `[verify]` or the request cannot be loaded; a load error is one
+  line on `stderr`), `2` (malformed call: no request, a flag before the
+  request, an unknown flag, a second request).
+
+### `loomux check <request> --show`
+Prints what the request would run, as TOML, and runs nothing.
+
+```text
+# max_parallel = 16, timeout = 600s
+
+# go: areas ., tests found
+[verify.go.lint]
+commands = ["go vet ./...", "{loomux} check gofmt ."]  # preset
+on_file = ["go vet ./...", "{loomux} check gofmt {file}"]  # preset
+threaded = true  # preset
+
+# [verify.go.types] not defined
+```
+
+- The first line holds the run's limits; each active stack gets a comment
+  with its areas and its test state (`tests found`, `no tests found`, or
+  `tests not detected` for a stack without a test signal).
+- Every key carries the origin of its **lane**: a table that changes one key
+  of a preset marks the whole lane `config`.
+- There is no budget line: `loomux check` has no budget. The post-edit budget
+  is the hook flag `--budget`.
+- The output loads as it stands and can be copied into
+  `.loomux/config.toml`. A lane with nothing to run is a comment,
+  `# [verify.<stack>.<kind>] not defined`; a lane switched off is printed as
+  `<kind> = false` under `[verify.<stack>]`, ahead of the stack's other
+  tables. Pasted back, both stay as they were.
+
+### `loomux check gocover --profile <path> [--floor <n>] [--dir <dir>]`
+Judges a Go coverage profile of the module in `--dir` through
+`go tool cover -func`. It is what the Go preset's `coverage` lane runs.
+
+- **Flags**: `--profile` (required; relative to `--dir`), `--floor <n>` (a
+  minimum total in percent instead of the per-function gate), `--dir`
+  (directory holding `go.mod`; default `.`). The module path comes from
+  `go.mod`.
+- **Without `--floor`**: every function at 100 %, unless
+  `//coverage:exempt <reason>` is the last comment line directly above its
+  `func`. Each other function is one line on `stdout`:
+  `not covered: <file>:<line> <func> <percent>%`. A profile without functions
+  fails.
+- **With `--floor`**: prints `coverage <total>%`, or fails with
+  `coverage <total>% is below the floor of <n>%` on `stderr`.
+- **Exit Codes**: `0` (passed), `1` (a function or the total below the gate, no
+  `go.mod`, an unreadable profile), `2` (no `--profile`, an unknown flag).
+
 ### `loomux check commit-msg <file>`
 Validates a git commit message file against language and formatting rules.
 
@@ -72,8 +164,10 @@ Evaluates the project policy and global write barrier before an agent executes a
 Fires after an agent has edited a file.
 
 - **Standard Input**: Tool name and input payload; the edited path comes from `file_path`, else `notebook_path`.
-- **Behavior**: Runs the lanes of the edited file's stack in parallel; see [Hooks](hooks.md#5-the-post-edit-lanes-by-stack).
-- **Exit Codes**: `0` (all lanes passed, or nothing to run), `1` (malformed call, such as a missing `--host`), `2` (a lane failed; its output on `stderr`).
+- **Flags**: `--host <h>` (required), `--root <r>`, `--budget <duration>` — how long the lanes may take in all (Go duration, default `50s`, below the host's hook timeout of 60 s). Each command gets the smaller of its own `timeout` and what is left of the budget.
+- **Behavior**: Runs the lanes of the `edit` profile (by default `lint` and `types`) for the edited file's stack, in the area that holds the file, as [`[verify]`](configuration.md#verify-check-chains--quality-gates) and the presets lay them out, with `on_file` where a lane has it; see [Hooks](hooks.md#5-the-post-edit-lanes-by-stack).
+- **Skipped lanes**: a lane whose tool is not on the `PATH`, a Godot project not yet imported, and every lane the budget did not reach are skipped, not failed. They are named on `stdout` as `{"hookSpecificOutput":{"additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go","hookEventName":"PostToolUse"}}`.
+- **Exit Codes**: `0` (all lanes passed, skipped, or nothing to run), `1` (malformed call, such as a missing `--host`, or a `[verify]` that cannot be loaded), `2` (a lane failed, timed out or is blocked; its output on `stderr`).
 
 ### `loomux hook session-start`
 Records the commit the session starts on.
@@ -82,7 +176,7 @@ Records the commit the session starts on.
 - **Behavior**:
   - Writes `HEAD` as `base` into `.loomux/state/hooks/<session_id>.json`.
   - Warns in `hookSpecificOutput.additionalContext` when the binary inside the project is older than its Go sources.
-  - Makes no worktree junctions; that is `loomux worktree link`. See [Hooks](hooks.md#8-session-hooks-what-runs-today-what-comes-with-stage-2).
+  - Makes no worktree junctions; that is `loomux worktree link`. See [Hooks](hooks.md#8-session-hooks-what-runs-today-what-comes-with-stage-2c).
 - **Exit Codes**: `0` (Success), `1` (missing or unknown host, no adapter for the host, unreadable payload, failed write).
 
 ---
@@ -100,7 +194,7 @@ loomux status
   - Project root path and declared areas.
   - Active harnesses (`.claude/`, `.agents/`, `.cursor/`).
   - Write barrier status and policy rule count.
-  - Configured `[verify]` lanes.
+  - The lanes the post-edit hook runs per active stack: the `edit` profile as `[verify]` and the presets lay it out, each with its origin, and which of their tools are missing from the `PATH`.
 - **Exit Codes**: `0` (Ready), `1` (Configuration error).
 
 ---
@@ -363,12 +457,6 @@ Until `loomux init` writes it (Stage 4), a human does:
 ---
 
 ## 9. Developer Quality Gates (`loomux dev`)
-
-### `loomux dev covergate --profile <coverage.out>`
-Enforces strict 100% test coverage per function.
-
-- **Policy**: Every non-exempt function below 100.0% fails the gate.
-- **Exemptions**: Permitted only with `//coverage:exempt <reason>` directly preceding the `func` declaration.
 
 ### `loomux dev mutants <package>... [--only <name>] [--family a1|a2|a3|a4] [--workers <n>]`
 Mutates the Go decisions of each package and reports which mutants its test suite does not notice — a port of ultra-brain's `tools/go_mutants.py`.
