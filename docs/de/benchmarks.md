@@ -1525,3 +1525,111 @@ Prüfung meldete jedes Mal `OK`.
    nicht wiederholte Probe und werden hier nicht zerlegt. Eine frische Sitzung
    gegen einen laufenden Dienst zahlt beim ersten Aufruf 88,6 ms, etwa 20 ms
    über warm.
+
+## 2026-09-19 08:31 — check und post-edit der Stufe 2a, Lanes aus den Presets
+
+Repository `loomux`, Worktree `.claude/worktrees/fusion-migration-teil-2-79865c`,
+Branch `claude/fusion-migration-teil-2-79865c` auf `c2e640c`. Stufe 2a ersetzt die
+fest verdrahteten post-edit-Lanes durch Lanes, die `[verify]` und die
+eingebetteten Presets auslegen, und bringt `loomux check`. `c2e640c` benennt
+Läufe in UTC (siehe Lesart 2); ein erster Durchgang um 08:26 auf `2aceea1`, vor
+diesem Commit, hat die Last gefunden, die er entfernt.
+
+**Ziel.** Zeigen, was `check` und post-edit jetzt kosten, post-edit gegen seine
+Basis (`master` `86fa192`, v1.1.0, fest verdrahtete Lanes) und gegen den
+1a-Zielwert von 72 ms; und zeigen, dass die Presets beim ersten Gebrauch geparst
+werden, nicht beim Start.
+
+**Methode.** `bin/loomux.exe dev bench-hooks -n 20 testdata/bench/2a-check.json`,
+ein Durchgang, je Fall ein kalter Lauf und 20 warme. `change.exe` ist aus
+`c2e640c` gebaut, `base.exe` aus `86fa192` in einem Wegwerf-Worktree, beide mit
+Go 1.27, kopiert nach `%TEMP%\loomux-2a-bench`. Die Welt ist eine Kopie von
+`testdata/cases/2a-worlds/go-only` im selben Verzeichnis (`check precommit` legt
+darin `.loomux/state/cover` an). Jedes Werkzeug ist das Faketool
+(`internal/dev/faketool/_faketool`, gebaut als `go.exe`, `gofmt.exe`, `uv.exe`,
+`uvx.exe`) vorn auf dem `PATH` und antwortet über `LOOMUX_FAKE_TOOL_FIXTURE` aus
+der `faketool.json` der Welt; die Lanes messen also loomux und einen
+Prozessstart, nicht `go vet`. Nutzlast: ein `Edit` auf `a.go` der Welt, absolut
+benannt, wie Claude es benennt. Die Falldatei nennt die Pfade dieser Maschine
+(`C:/Users/micro/AppData/Local/Temp/loomux-2a-bench/…`), wie schon
+`1a-hooks.json`. Vor der Messung liefen beide Binaries einmal gegen ein Fixture,
+dessen `go` mit 1 endet: Beide blockierten mit 2, keines überspringt seine Lanes
+also still.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| check-precommit (Änderung) | 45,2 ms | 16,5 ms | 15,1 ms | 18,5 ms | [1] |
+| check-show (Änderung: Laden, Presets, Plan, kein Kind) | 9,2 ms | 7,9 ms | 7,0 ms | 9,0 ms | [0] |
+| post-edit-go (Änderung: Lanes aus den Presets) | 17,0 ms | 15,9 ms | 15,0 ms | 18,4 ms | [0] |
+| post-edit-go (Basis 86fa192: fest verdrahtete Lanes) | 31,5 ms | 29,2 ms | 27,0 ms | 37,3 ms | [0] |
+| loomux version (Änderung, Startboden) | 7,7 ms | 6,5 ms | 6,0 ms | 7,0 ms | [0] |
+| loomux version (Basis 86fa192, Startboden) | 8,5 ms | 6,3 ms | 6,0 ms | 7,0 ms | [0] |
+
+Der erste Durchgang, 08:26, dieselbe Falldatei und derselbe Aufbau, `change.exe`
+aus `2aceea1` gebaut (Lauf-ID in lokaler Zeit):
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| check-precommit (2aceea1) | 63,8 ms | 34,1 ms | 33,1 ms | 39,5 ms | [1] |
+| check-show (2aceea1) | 26,5 ms | 25,1 ms | 24,7 ms | 27,0 ms | [0] |
+| post-edit-go (2aceea1) | 36,5 ms | 33,0 ms | 32,0 ms | 35,9 ms | [0] |
+| post-edit-go (Basis 86fa192) | 32,0 ms | 27,5 ms | 26,0 ms | 39,5 ms | [0] |
+| loomux version (2aceea1) | 7,5 ms | 6,0 ms | 6,0 ms | 6,5 ms | [0] |
+| loomux version (Basis 86fa192) | 7,9 ms | 6,0 ms | 5,6 ms | 7,5 ms | [0] |
+
+Der Parse der Presets allein (`BenchmarkLoadPresets` in
+`internal/verify/presets_test.go`, `parsePresets(presetsText)`):
+
+```
+$ go test ./internal/verify/ -bench LoadPresets -run '^$' -benchmem -count 5
+BenchmarkLoadPresets-16    	    7468	    135381 ns/op	  159596 B/op	    1757 allocs/op
+BenchmarkLoadPresets-16    	    9241	    135440 ns/op	  159593 B/op	    1757 allocs/op
+BenchmarkLoadPresets-16    	    9342	    139665 ns/op	  159593 B/op	    1757 allocs/op
+BenchmarkLoadPresets-16    	    7710	    146760 ns/op	  159593 B/op	    1757 allocs/op
+BenchmarkLoadPresets-16    	    8348	    147377 ns/op	  159593 B/op	    1757 allocs/op
+```
+
+Der Start-Trace, drei Läufe auf `c2e640c`:
+
+```
+$ GODEBUG=inittrace=1 bin/loomux.exe version 2>&1 | grep -E 'verify|child'
+init github.com/xidus90/loomux/internal/verify/commit @1.5 ms, 0 ms clock, 4416 bytes, 16 allocs
+init github.com/xidus90/loomux/internal/verify @2.5 ms, 0 ms clock, 88 bytes, 2 allocs
+init github.com/xidus90/loomux/internal/verify/commit @1.4 ms, 0 ms clock, 4416 bytes, 16 allocs
+init github.com/xidus90/loomux/internal/verify @2.4 ms, 0 ms clock, 88 bytes, 2 allocs
+init github.com/xidus90/loomux/internal/verify/commit @2.0 ms, 0 ms clock, 4416 bytes, 16 allocs
+init github.com/xidus90/loomux/internal/verify @3.0 ms, 0 ms clock, 88 bytes, 2 allocs
+```
+
+### Lesart
+
+1. **post-edit liegt unter seiner Basis und weit unter dem 1a-Zielwert.**
+   15,9 ms warm gegen 29,2 ms für die fest verdrahteten Lanes von `86fa192`
+   (13,3 ms weniger, getrennte warme Spannen 15,0–18,4 gegen 27,0–37,3) und gegen
+   72 ms. Kalt sind es 17,0 ms gegen 31,5 ms. Beide Startböden liegen bei
+   6,3–6,5 ms.
+2. **Die lokale Zeitzone war der größte Teil der Eigenzeit, und die Lauf-ID hat
+   sie geladen.** Im ersten Durchgang lag `check all --show`, das kein Kind
+   startet, 19,1 ms über seinem Boden, und post-edit war 5,5 ms langsamer als die
+   Basis. `verify.NewRunID` formatierte `time.Now()` in lokaler Zeit, und Windows
+   lädt die Zone beim ersten Gebrauch — die rund 18 ms, die der Eintrag vom
+   2026-09-17 vom Startpfad genommen hat, stattdessen zur Laufzeit bezahlt.
+   `c2e640c` formatiert `now.UTC()`: `check all --show` fällt von 25,1 auf
+   7,9 ms (1,4 ms über dem Boden), post-edit von 33,0 auf 15,9 ms,
+   `check precommit` von 34,1 auf 16,5 ms. Die Namen der Cover-Dateien tragen
+   jetzt die UTC-Zeit.
+3. **Die Presets kosten 0,14 ms.** 135–147 µs und 1.757 Allokationen je Parse,
+   einmal je Prozess beim ersten Gebrauch bezahlt; das ist ein kleiner Teil
+   dessen, was `check all --show` noch über dem Boden braucht, und kein Hebel.
+4. **Beim Start wird nichts geparst.** Die `verify`-Zeile ist die Closure von
+   `sync.OnceValues`: 0 ms Uhrzeit, 88 Bytes, 2 Allokationen. `@2,4–3,0 ms` ist
+   der Abstand vom Prozessstart, zu dem dieser Init lief, nicht seine Dauer; die
+   Dauer steht in der Spalte `clock`. `verify/commit` (16 Allokationen, 0 ms)
+   sind nicht die Presets.
+5. **`check precommit` endet mit 1, weil die Welt so gebaut ist.** Die
+   Coverage-Lane liest ein Profil, das der messende `go test` an einen Pfad mit
+   der Lauf-ID schreiben soll; das eigenständige Faketool kann diesen Pfad nicht
+   kennen, also scheitert die Lane sofort mit „the measuring run did not write
+   it“. Lint und Test liefen (`ok`), Typen gibt es für Go nicht; die 16,5 ms sind
+   der Pfad von loomux mit allen gestarteten Lanes, nicht die Laufzeit eines
+   scheiternden Werkzeugs.
