@@ -7,505 +7,186 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/xidus90/loomux/internal/brain/wiki"
+	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/detect"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
-type CommandRunner func(dir string, cmd string) (string, error)
+// DefaultBudget is how long post-edit may take before it lets the lanes it
+// has not reached go: an edit waits for its checks, but not forever.
+const DefaultBudget = 50 * time.Second
 
-// A command is a check plus the directory it has to run in.
-//
-// The directory is not decoration: gdlint reads .gdlintrc from the working
-// directory upwards, so a lane started above the project's own tree runs on
-// defaults and applies limits nobody in that project wrote down. An empty dir
-// means the root, which is where every other lane belongs.
-//
-// A lane with a run function is the exception to all of that: it asks its
-// question inside this process and never reaches a shell, so neither the
-// directory nor the PATH concerns it. The wiki lane is the one such lane.
-type command struct {
-	dir  string
-	text string
-	run  func() (string, error)
-	// needs is a file, relative to the lane's directory, without which the
-	// lane cannot mean anything; its absence skips the lane out loud.
-	needs string
+// EditEnv is what a post-edit run needs from outside: what starts a tool and
+// finds it on the PATH, which binary {loomux} names, the budget, the clock,
+// and whether Godot has imported a project. A nil ImportReady asks the disk.
+type EditEnv struct {
+	Start       func(child.Spec) child.Result
+	Look        func(string) (string, error)
+	Loomux      string
+	Budget      time.Duration
+	Now         func() time.Time
+	ImportReady func(dir string) bool
 }
 
-func at(dir, text string) command { return command{dir: dir, text: text} }
+// The seams no project can provoke: presets that fail to load, a plan that
+// fails, and a binary that cannot name its own path.
+var (
+	editPresets    = verify.LoadPresets
+	editPlan       = verify.Plan
+	editExecutable = os.Executable
+)
 
-func root(text string) command { return command{text: text} }
-
-// The one child in this program that keeps the inherited environment: no
-// gitenv.Environ here, and on purpose. A PostToolUse hook is not a git hook,
-// so nothing git exported is in this environment to begin with, and the
-// commands built above are linters and compilers -- ruff, gdlint, go vet,
-// npx, cmake -- none of which asks git about a repository. The strip belongs
-// where a git question is asked out of an inherited environment: worktree.go
-// for this program's own git calls, and `without_location` in
-// `src/ultraloom/process.py` for the children the Python check lane spawns.
-// commandRunner builds the runner from its two outside edges: what answers
-// the PATH, and where a dropped lane is named.
-//
-// Both are parameters because the interesting case has no output of its own.
-// A lane whose tool is missing is skipped -- exit 0 stays, and a missing
-// optional tool blocks no edit -- but it is skipped out loud: one line naming
-// the lane and the tool. Silence here was the older answer, with `ulguard
-// status` as the only place that said so; a check that never started then
-// looked exactly like one that passed, and on 2026-09-12 a PATH that had lost
-// `~/go/bin` took two lanes down that way without a word.
-func commandRunner(look func(string) (string, error), notice io.Writer) CommandRunner {
-	return func(dir, command string) (string, error) {
-		// Before the shell, so a missing tool costs the lane and not the exit
-		// code.
-		if !laneAvailable(command, look) {
-			fmt.Fprintf(notice, "loomux hook post-tool-use: lane skipped, %q is not on PATH: %s\n", laneTool(command), command)
-			return "", nil
-		}
-		return runLane(dir, command)
+// PostToolUse checks the file an edit touched, with the real tools.
+func PostToolUse(stdin io.Reader, stdout, stderr io.Writer, root string, budget time.Duration) int {
+	loomux, err := editExecutable()
+	if err != nil {
+		loomux = "loomux"
 	}
+	return RunPostEdit(stdin, stdout, stderr, root, EditEnv{
+		Start: child.Run, Look: exec.LookPath, Loomux: loomux, Budget: budget, Now: time.Now, ImportReady: verify.ImportReady,
+	})
 }
 
-//coverage:exempt the sh arm runs only where runtime.GOOS is not windows, and this suite is measured on Windows
-func runLane(dir, command string) (string, error) {
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/c", command)
-	} else {
-		cmd = exec.Command("sh", "-c", command)
+// RunPostEdit runs the lanes of the `edit` profile for the edited file's
+// stack, as [verify] and the presets lay them out, or the wiki lint for a
+// wiki page. A red lane blocks the edit with 2; a config it cannot read ends
+// with 1, which shows the error and blocks nothing.
+func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env EditEnv) int {
+	raw := editedFile(stdin)
+	if raw == "" {
+		return ExitOK
 	}
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	return string(out), err
-}
-
-// laneTool is the executable a lane command starts with, or "" for a text
-// that names none.
-func laneTool(command string) string {
-	fields := strings.Fields(command)
-	if len(fields) == 0 {
-		return ""
+	// Tools run in their area, so every path handed to them must be absolute.
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
 	}
-	return fields[0]
-}
-
-// laneAvailable answers whether a lane can run at all, by asking the PATH.
-//
-// This used to be decided after the fact, by matching the console's own words
-// against "is not recognized as an internal or external command". A German
-// Windows prints "ist entweder falsch geschrieben oder konnte nicht gefunden
-// werden", so the escape hatch never opened on this machine: every edit to a
-// file with an unmapped extension ran the whole chain -- which is the
-// deliberate fallback of the selective-dispatch design -- reached the shell
-// lane without shellcheck installed, and blocked the edit with exit 2. The
-// PATH speaks no language.
-//
-// A text with no tool is available, not refused. There is nothing to look up,
-// and answering "unavailable" would drop a lane over a bug elsewhere and hide
-// it.
-func laneAvailable(command string, look func(string) (string, error)) bool {
-	tool := laneTool(command)
-	if tool == "" {
-		return true
+	fail := func(err error) int {
+		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
+		return ExitInternal
 	}
-	_, err := look(tool)
-	return err == nil
-}
-
-var explicitIgnoredExtensions = map[string]bool{
-	".txt":    true,
-	".json":   true,
-	".yaml":   true,
-	".yml":    true,
-	".toml":   true,
-	".svg":    true,
-	".png":    true,
-	".jpg":    true,
-	".jpeg":   true,
-	".import": true,
-	".lock":   true,
-}
-
-var extensionStackMap = map[string]string{
-	".py":     "python",
-	".gd":     "gdscript",
-	".cpp":    "cpp",
-	".hpp":    "cpp",
-	".cc":     "cpp",
-	".cxx":    "cpp",
-	".c":      "cpp",
-	".h":      "cpp",
-	".ts":     "typescript",
-	".tsx":    "typescript",
-	".js":     "typescript",
-	".jsx":    "typescript",
-	".vue":    "vue",
-	".svelte": "svelte",
-	".css":    "css",
-	".scss":   "css",
-	".sass":   "css",
-	".less":   "css",
-	".html":   "html",
-	".htm":    "html",
-	".sh":     "shell",
-	".bash":   "shell",
-	".zsh":    "shell",
-	".sql":    "sql",
-	".go":     "go",
-	".rs":     "rust",
-	".md":     "wiki",
-}
-
-func PostToolUse(stdin io.Reader, stdout io.Writer, stderr io.Writer, root string) int {
 	facts := detect.Detect(os.DirFS(root))
-	// wikiDirFor and not detection first: the manifest's [layout] wiki outranks
-	// what detection guesses, and wikiDirFor already falls back to detection and
-	// then to wiki/. Asking detection first inverted that, so a manifest with
-	// both a [wiki] table and a [layout] wiki lost the lane: detection answered
-	// wiki/, a directory nobody created, and the edited page was judged to lie
-	// outside the bundle.
-	wikiDir := wikiDirFor(root)
-	return runPostEditWithContext(stdin, stdout, stderr, root, stacksWithWiki(facts.Stacks, root), wikiDir, facts.GodotDir, defaultRunnerFor)
+	eff, err := editLoad(root, facts)
+	if err != nil {
+		return fail(err)
+	}
+	ext := strings.ToLower(filepath.Ext(raw))
+	if slices.Contains(eff.Ignored, ext) {
+		return ExitOK
+	}
+	runID := verify.NewRunID(env.Now(), os.Getpid())
+	var jobs []verify.Job
+	if eff.Extensions[ext] == "wiki" {
+		jobs = wikiJobs(eff, facts, root, raw)
+	} else if jobs, err = editJobs(eff, root, raw, runID, env); err != nil {
+		return fail(err)
+	}
+	if err := verify.PrepareCover(root); err != nil {
+		return fail(err)
+	}
+	outs := verify.Run(jobs, verify.RunOptions{
+		Scope: verify.ScopeEdit, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
+		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now,
+	})
+	code := ExitOK
+	if verify.WriteEdit(stdout, stderr, outs) != 0 {
+		code = ExitDenied
+	}
+	// The same rule as a check: a red edit keeps its files for whoever looks
+	// into it, and a file left behind costs disk, not the verdict.
+	if err := verify.CleanCover(root, runID, code == ExitOK); err != nil {
+		fmt.Fprintf(stderr, "loomux hook post-tool-use: cleaning coverage files: %v\n", err)
+	}
+	return code
 }
 
-// defaultRunnerFor is the production factory: the runner has to be built
-// around the notice writer this run owns, so it is built here rather than
-// handed in.
-func defaultRunnerFor(notice io.Writer) CommandRunner {
-	return commandRunner(exec.LookPath, notice)
-}
-
-func runPostEditWithStacks(stdin io.Reader, stderr io.Writer, root string, stacks []string, runner CommandRunner) int {
-	return runPostEditWithContext(stdin, io.Discard, stderr, root, stacks, "wiki/", "", func(io.Writer) CommandRunner { return runner })
-}
-
-func runPostEditWithContext(stdin io.Reader, stdout io.Writer, stderr io.Writer, root string, stacks []string, wikiDir string, godotDir string, runnerFor func(io.Writer) CommandRunner) int {
+// editedFile is the path an edit payload names, "" when it names none or
+// cannot be read. A notebook edit names its file under notebook_path.
+func editedFile(stdin io.Reader) string {
 	var payload HookPayload
 	if err := json.NewDecoder(stdin).Decode(&payload); err != nil {
-		return ExitOK
-	}
-
-	rawPath, ok := payload.ToolInput["file_path"].(string)
-	if !ok || rawPath == "" {
-		rawPath, _ = payload.ToolInput["notebook_path"].(string)
-	}
-	if rawPath == "" {
-		return ExitOK
-	}
-
-	ext := strings.ToLower(filepath.Ext(rawPath))
-	if explicitIgnoredExtensions[ext] {
-		return ExitOK
-	}
-
-	targetStack, hasTarget := extensionStackMap[ext]
-	if targetStack == "wiki" && !isWikiPath(rawPath, root, wikiDir) {
-		return ExitOK
-	}
-	commands := getCommandsForStacks(stacks, targetStack, hasTarget, rawPath, godotDir, root, wikiDir)
-
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	hasFailure := false
-
-	// Every lane writes its notice here rather than straight out: the
-	// goroutines run side by side, and one document at the end is the only
-	// shape a reader can parse.
-	var notices lockedBuilder
-	runner := runnerFor(&notices)
-
-	for _, cmd := range commands {
-		if c := cmd; c.needs != "" {
-			if _, err := os.Stat(filepath.Join(root, c.dir, c.needs)); err != nil {
-				fmt.Fprintf(&notices, "loomux hook post-tool-use: lane skipped, %s is missing: %s\n", c.needs, c.text)
-				continue
-			}
-		}
-		wg.Add(1)
-		go func(c command) {
-			defer wg.Done()
-			var out string
-			var err error
-			if c.run != nil {
-				out, err = c.run()
-			} else {
-				out, err = runner(filepath.Join(root, c.dir), c.text)
-			}
-			if err != nil {
-				mu.Lock()
-				defer mu.Unlock()
-				hasFailure = true
-				io.WriteString(stderr, out)
-				if out == "" {
-					io.WriteString(stderr, err.Error()+"\n")
-				}
-			}
-		}(cmd)
-	}
-	wg.Wait()
-
-	if hasFailure {
-		return ExitDenied
-	}
-	reportSkipped(stdout, notices.String())
-	return ExitOK
-}
-
-// lockedBuilder is a strings.Builder every lane may write to at once.
-type lockedBuilder struct {
-	mu      sync.Mutex
-	builder strings.Builder
-}
-
-func (b *lockedBuilder) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.builder.Write(p)
-}
-
-func (b *lockedBuilder) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.builder.String()
-}
-
-// reportSkipped puts the dropped lanes where a PostToolUse hook exiting 0 is
-// read.
-//
-// Plain stdout and stderr at exit 0 could not be traced to a reader from
-// inside this repository, so nothing is claimed about them. A JSON document
-// with `hookSpecificOutput.additionalContext` is the one field this repository
-// can point at: it is what `writeClaudeContext` in internal/hosts/claude.go
-// writes for the model, from the harness table of the superpowers port
-// document. What stood here was `systemMessage`, a field no envelope in this
-// repository defines and no adapter reads.
-//
-// Nothing is written when nothing was skipped, because stdout that is not
-// valid JSON turns a passed hook into a hook-error notice.
-//
-//coverage:exempt json.Marshal cannot fail on a map of strings
-func reportSkipped(stdout io.Writer, notices string) {
-	if notices == "" {
-		return
-	}
-	document := map[string]any{
-		"hookSpecificOutput": map[string]any{
-			"hookEventName":     "PostToolUse",
-			"additionalContext": strings.TrimRight(notices, "\n"),
-		},
-	}
-	encoded, err := json.Marshal(document)
-	if err != nil {
-		// Unreachable for a map of strings, and silent on purpose: a hook that
-		// cannot phrase its aside must not fail the edit over it.
-		return
-	}
-	fmt.Fprintf(stdout, "%s\n", encoded)
-}
-
-var standardSrcDirs = map[string]bool{
-	"src":    true,
-	"lib":    true,
-	"pkg":    true,
-	"cmd":    true,
-	"tests":  true,
-	"test":   true,
-	"dist":   true,
-	"build":  true,
-	"public": true,
-}
-
-func getWorkspaceDir(targetPath string, hasTarget bool) string {
-	if !hasTarget || targetPath == "" {
 		return ""
 	}
-	norm := strings.TrimPrefix(filepath.ToSlash(targetPath), "./")
-	parts := strings.Split(norm, "/")
-	if len(parts) > 1 && parts[0] != "." && parts[0] != "" && !standardSrcDirs[parts[0]] {
-		return parts[0]
+	raw, _ := payload.ToolInput["file_path"].(string)
+	if raw == "" {
+		raw, _ = payload.ToolInput["notebook_path"].(string)
 	}
-	return ""
+	return raw
 }
 
-//coverage:exempt the workspace arms without a target path cannot run: getWorkspaceDir answers "" unless there is one, so targetDir and an absent target exclude each other
-func getCommandsForStacks(stacks []string, targetStack string, hasTarget bool, targetPath string, godotDir string, projectRoot string, wikiDir string) []command {
-	var cmds []command
-	has := func(stack string) bool {
-		for _, s := range stacks {
-			if s == stack {
-				return true
-			}
-		}
-		return false
+// editLoad lays the project's config over the presets for what root holds.
+func editLoad(root string, facts detect.Facts) (verify.Effective, error) {
+	cfg, err := verify.ReadConfig(root)
+	if err != nil {
+		return verify.Effective{}, err
 	}
-	shouldRun := func(stack string) bool {
-		if !has(stack) {
-			return false
-		}
-		if hasTarget && targetStack != "" {
-			return targetStack == stack
-		}
-		return true
+	presets, err := editPresets()
+	if err != nil {
+		return verify.Effective{}, err
 	}
-
-	targetDir := getWorkspaceDir(targetPath, hasTarget)
-
-	if shouldRun("python") {
-		typeChecker := "mypy --no-error-summary --no-pretty"
-		if has("pyright") {
-			if has("uv") {
-				typeChecker = "uv run pyright"
-			} else {
-				typeChecker = "pyright"
-			}
-		} else if has("uv") {
-			typeChecker = "dmypy run -- --no-error-summary --no-pretty"
-		}
-		cmds = append(cmds, root("ruff check --output-format=concise ."), root(typeChecker))
-	}
-	if shouldRun("gdscript") {
-		if hasTarget && targetPath != "" {
-			cmds = append(cmds, at(godotDir, fmt.Sprintf("gdlint %s", relativeToArea(targetPath, godotDir))))
-		} else {
-			cmds = append(cmds, at(godotDir, "gdlint ."))
-		}
-	}
-	if shouldRun("cpp") {
-		if hasTarget && targetPath != "" {
-			cmds = append(cmds, root(fmt.Sprintf("clang-format -i %s", targetPath)), cmakeBuild())
-		} else {
-			cmds = append(cmds, root("clang-format -i"), cmakeBuild())
-		}
-	}
-	if shouldRun("typescript") {
-		if targetDir != "" {
-			if hasTarget && targetPath != "" {
-				cmds = append(cmds,
-					root(fmt.Sprintf("npx --prefix %s eslint --config %s/eslint.config.js --cache %s", targetDir, targetDir, targetPath)),
-					root(fmt.Sprintf("npm --prefix %s run typecheck", targetDir)),
-				)
-			} else {
-				cmds = append(cmds,
-					root(fmt.Sprintf("npm --prefix %s run lint", targetDir)),
-					root(fmt.Sprintf("npm --prefix %s run typecheck", targetDir)),
-				)
-			}
-		} else {
-			if hasTarget && targetPath != "" {
-				cmds = append(cmds, root(fmt.Sprintf("npx eslint --cache %s", targetPath)), root("npx tsc --noEmit"))
-			} else {
-				cmds = append(cmds, root("npx eslint --cache ."), root("npx tsc --noEmit"))
-			}
-		}
-	}
-	if shouldRun("vue") {
-		if targetDir != "" {
-			cmds = append(cmds, root(fmt.Sprintf("npm --prefix %s run typecheck", targetDir)))
-		} else {
-			cmds = append(cmds, root("npx vue-tsc --noEmit"))
-		}
-	}
-	if shouldRun("svelte") {
-		if targetDir != "" {
-			cmds = append(cmds, root(fmt.Sprintf("npm --prefix %s run check", targetDir)))
-		} else {
-			cmds = append(cmds, root("npx svelte-check"))
-		}
-	}
-	if shouldRun("css") {
-		if targetDir != "" && hasTarget && targetPath != "" {
-			cmds = append(cmds, root(fmt.Sprintf("npx --prefix %s stylelint %s", targetDir, targetPath)))
-		} else if hasTarget && targetPath != "" {
-			cmds = append(cmds, root(fmt.Sprintf("npx stylelint %s", targetPath)))
-		} else {
-			cmds = append(cmds, root("npx stylelint \"**/*.{css,scss}\""))
-		}
-	}
-	if shouldRun("html") {
-		if hasTarget && targetPath != "" {
-			cmds = append(cmds, root(fmt.Sprintf("npx htmlhint %s", targetPath)))
-		} else {
-			cmds = append(cmds, root("npx htmlhint \"**/*.html\""))
-		}
-	}
-	if shouldRun("shell") {
-		if hasTarget && targetPath != "" {
-			cmds = append(cmds, root(fmt.Sprintf("shellcheck %s", targetPath)))
-		} else {
-			cmds = append(cmds, root("shellcheck **/*.sh"))
-		}
-	}
-	if shouldRun("sql") {
-		if hasTarget && targetPath != "" {
-			cmds = append(cmds, root(fmt.Sprintf("sqlfluff lint %s", targetPath)))
-		} else {
-			cmds = append(cmds, root("sqlfluff lint ."))
-		}
-	}
-	if shouldRun("rust") {
-		cmds = append(cmds, root("cargo clippy -- -D warnings"), root("cargo fmt --check"))
-	}
-	if shouldRun("go") {
-		cmds = append(cmds, root("go vet ./..."))
-	}
-	// The one lane with no argument-less form, and therefore the one that
-	// stays out when the chain runs wide. `sqlfluff lint .` and `shellcheck
-	// **/*.sh` still name something without a target; a wiki lint reads a
-	// single page and has nothing to read without one. A lane that cannot ask
-	// its question is silent rather than wrong.
-	//
-	// It is also the one lane that runs inside this process: the lint lives in
-	// this binary (internal/brain/wiki), so the text below is a label for the
-	// report rather than a command line. What it replaces is `uv run brain
-	// lint <page>` -- a second binary, a Python environment and a process per
-	// edit, for a check this program already carries.
-	if shouldRun("wiki") && hasTarget && targetPath != "" {
-		target := targetPath
-		cmds = append(cmds, command{
-			text: "loomux lint " + target,
-			run: func() (string, error) {
-				var report strings.Builder
-				// Claude names the edited file absolutely; a relative target
-				// comes from a caller that speaks from the root.
-				page := target
-				if !filepath.IsAbs(page) {
-					page = filepath.Join(projectRoot, page)
-				}
-				wikiRoot := filepath.Join(projectRoot, filepath.FromSlash(wikiDir))
-				if code := wiki.LintReport(page, wikiRoot, &report); code != 0 {
-					return report.String(), fmt.Errorf("wiki lint found errors in %s", target)
-				}
-				return "", nil
-			},
-		})
-	}
-
-	return cmds
+	return verify.Resolve(cfg, presets, facts)
 }
 
-// relativeToArea renames a path the hook gave from the repository root into
-// one the check can use from inside its own area.
-//
-// Without this the lane would look for godot/godot/ui/system/system_view.gd.
-// A path that does not start in the area is handed back untouched: an edit
-// outside the Godot tree still names a real file from the root, and guessing
-// at it would be worse than checking the wrong limits.
-func relativeToArea(targetPath, area string) string {
-	if area == "" {
-		return targetPath
+// editJobs plans the edit profile for a file inside root; a file outside it
+// belongs to no lane of this project.
+func editJobs(eff verify.Effective, root, raw, runID string, env EditEnv) ([]verify.Job, error) {
+	file := raw
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(root, file)
 	}
-	norm := strings.TrimPrefix(filepath.ToSlash(targetPath), "./")
-	prefix := filepath.ToSlash(area) + "/"
-	if strings.HasPrefix(norm, prefix) {
-		return strings.TrimPrefix(norm, prefix)
+	rel, err := filepath.Rel(root, file)
+	if err != nil || !filepath.IsLocal(rel) {
+		return nil, nil
 	}
-	return targetPath
+	// The defaults hold an edit profile and a config can only replace it, so
+	// asking for it cannot fail.
+	kinds, _ := verify.ExpandProfile(eff.Config, "edit")
+	ready := env.ImportReady
+	if ready == nil {
+		ready = verify.ImportReady
+	}
+	return editPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeEdit, File: filepath.ToSlash(rel)}, verify.PlanEnv{
+		Root:        root,
+		Loomux:      env.Loomux,
+		RunID:       runID,
+		HasTests:    verify.HasTests,
+		ImportReady: ready,
+	})
+}
+
+// wikiJobs is the one lane a wiki page gets: the lint this binary carries,
+// run in this process. It runs only for a page inside a wiki the project has
+// -- detected or declared through [layout] wiki -- and not when
+// [verify.wiki] lint = false switched it off.
+func wikiJobs(eff verify.Effective, facts detect.Facts, root, raw string) []verify.Job {
+	// wikiDirFor and not detection first: the manifest's [layout] wiki
+	// outranks what detection guesses.
+	wikiDir := wikiDirFor(root)
+	if !slices.Contains(stacksWithWiki(facts.Stacks, root), "wiki") || !isWikiPath(raw, root, wikiDir) || eff.Config.Stacks["wiki"]["lint"].Lane.Off {
+		return nil
+	}
+	// Claude names the edited file absolutely; a relative one comes from a
+	// caller that speaks from the root.
+	page := raw
+	if !filepath.IsAbs(page) {
+		page = filepath.Join(root, page)
+	}
+	wikiRoot := filepath.Join(root, filepath.FromSlash(wikiDir))
+	return []verify.Job{{
+		Name: "lint/wiki", Kind: "lint", Stack: "wiki", Area: ".", Origin: "in-process", Dir: root, After: -1,
+		Fn: func() (string, error) {
+			var report strings.Builder
+			if wiki.LintReport(page, wikiRoot, &report) != 0 {
+				return report.String(), fmt.Errorf("wiki lint found errors in %s", raw)
+			}
+			return "", nil
+		},
+	}}
 }
 
 // wikiDirFor answers where this project's wiki bundle is, seen from its root.
@@ -595,36 +276,36 @@ func isWikiPath(rawPath, root, configuredWikiDir string) bool {
 	return false
 }
 
-// TargetCommandsForStacks returns the list of command lines that would be run for
-// the given stacks and optional target path. When targetPath is empty, it returns
-// the broad commands for all given stacks.
-func TargetCommandsForStacks(stacks []string, targetPath string, godotDir string, projectRoot string, wikiDir string) []string {
-	var ext string
-	if targetPath != "" {
-		ext = filepath.Ext(targetPath)
-	}
-	targetStack, hasTarget := extensionStackMap[ext]
-	if targetPath != "" && targetStack == "wiki" && !isWikiPath(targetPath, projectRoot, wikiDir) {
-		return nil
-	}
-	cmds := getCommandsForStacks(stacks, targetStack, hasTarget, targetPath, godotDir, projectRoot, wikiDir)
-	res := make([]string, len(cmds))
-	for i, c := range cmds {
-		res[i] = c.text
-	}
-	return res
-}
-
 // StackForExtension names the stack whose lanes an edit to a file with this
 // extension (dot included) runs, so callers outside the hook agree with it.
 func StackForExtension(ext string) (string, bool) {
-	stack, ok := extensionStackMap[ext]
+	presets, err := editPresets()
+	if err != nil {
+		return "", false
+	}
+	stack, ok := presets.Extensions[ext]
 	return stack, ok
 }
 
-// cmakeBuild builds an already configured tree. Configuring one is a project
-// decision (generator, options, toolchain), so a checkout without a
-// CMakeCache.txt gets no build rather than a guessed configure step.
-func cmakeBuild() command {
-	return command{text: "cmake --build build --parallel", needs: "build/CMakeCache.txt"}
+// EditLaneCommands are the whole-project commands of the lanes the edit
+// profile runs for stacks when no config changes them, stack by stack in the
+// order given, so the bench corpus audits what post-edit would run.
+func EditLaneCommands(stacks []string) []string {
+	presets, err := editPresets()
+	if err != nil {
+		return nil
+	}
+	// An empty document is the default config, and the default holds an
+	// edit profile, so neither step can fail.
+	cfg, _ := verify.ParseConfig("", map[string]any{})
+	kinds, _ := verify.ExpandProfile(cfg, "edit")
+	var out []string
+	for _, stack := range stacks {
+		for _, kind := range kinds {
+			for _, c := range presets.Stacks[stack].Lanes[kind].Commands {
+				out = append(out, strings.ReplaceAll(c, "{loomux}", "loomux"))
+			}
+		}
+	}
+	return out
 }

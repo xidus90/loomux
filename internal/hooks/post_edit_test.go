@@ -4,281 +4,361 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/xidus90/loomux/internal/child"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
-func TestRunPostEdit(t *testing.T) {
-	tests := []struct {
-		name         string
-		payload      string
-		stacks       []string
-		expectedCmds []string
-		expectedExit int
-	}{
-		{
-			name:         "Python file triggers only python tools",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "src/main.py"}}`,
-			stacks:       []string{"python", "uv", "cpp", "gdscript"},
-			expectedCmds: []string{"ruff check", "dmypy run"},
-			expectedExit: 0,
+func editEnv(t *testing.T, answer func(child.Spec) child.Result, seen *[]string) EditEnv {
+	t.Helper()
+	var mu sync.Mutex
+	return EditEnv{
+		Start: func(s child.Spec) child.Result {
+			mu.Lock()
+			*seen = append(*seen, s.Dir+"|"+strings.Join(s.Argv, " "))
+			mu.Unlock()
+			return answer(s)
 		},
-		{
-			name:         "Python plain without uv triggers mypy",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "src/main.py"}}`,
-			stacks:       []string{"python"},
-			expectedCmds: []string{"ruff check", "mypy"},
-			expectedExit: 0,
-		},
-		{
-			name:         "C++ file triggers only cpp tools",
-			payload:      `{"tool_name": "Write", "tool_input": {"file_path": "core/engine.cpp"}}`,
-			stacks:       []string{"python", "cpp", "cmake"},
-			expectedCmds: []string{"clang-format -i", "cmake --build"},
-			expectedExit: 0,
-		},
-		{
-			name:         "GDScript file triggers only gdlint",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "player.gd"}}`,
-			stacks:       []string{"gdscript", "cpp"},
-			expectedCmds: []string{"gdlint"},
-			expectedExit: 0,
-		},
-		{
-			name:         "TypeScript file triggers eslint and tsc",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "app.ts"}}`,
-			stacks:       []string{"typescript"},
-			expectedCmds: []string{"npx eslint --cache app.ts", "npx tsc --noEmit"},
-			expectedExit: 0,
-		},
-		{
-			name:         "TypeScript file in nested workspace triggers prefix npm commands",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "frontend/src/app.tsx"}}`,
-			stacks:       []string{"typescript"},
-			expectedCmds: []string{"npx --prefix frontend eslint --config frontend/eslint.config.js --cache frontend/src/app.tsx", "npm --prefix frontend run typecheck"},
-			expectedExit: 0,
-		},
-		{
-			name:         "CSS file triggers stylelint",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "src/styles.css"}}`,
-			stacks:       []string{"css"},
-			expectedCmds: []string{"npx stylelint src/styles.css"},
-			expectedExit: 0,
-		},
-		{
-			name:         "HTML file triggers htmlhint",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "public/index.html"}}`,
-			stacks:       []string{"html"},
-			expectedCmds: []string{"npx htmlhint public/index.html"},
-			expectedExit: 0,
-		},
-		{
-			name:         "Shell file triggers shellcheck",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "scripts/deploy.sh"}}`,
-			stacks:       []string{"shell"},
-			expectedCmds: []string{"shellcheck scripts/deploy.sh"},
-			expectedExit: 0,
-		},
-		{
-			name:         "SQL file triggers sqlfluff",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "queries/users.sql"}}`,
-			stacks:       []string{"sql"},
-			expectedCmds: []string{"sqlfluff lint queries/users.sql"},
-			expectedExit: 0,
-		},
-		{
-			name:         "Vue file triggers vue-tsc",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "src/Component.vue"}}`,
-			stacks:       []string{"vue"},
-			expectedCmds: []string{"npx vue-tsc --noEmit"},
-			expectedExit: 0,
-		},
-		{
-			name:         "Svelte file triggers svelte-check",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "src/App.svelte"}}`,
-			stacks:       []string{"svelte"},
-			expectedCmds: []string{"npx svelte-check"},
-			expectedExit: 0,
-		},
-		{
-			name:         "Rust file triggers clippy and fmt",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "src/lib.rs"}}`,
-			stacks:       []string{"rust"},
-			expectedCmds: []string{"cargo clippy", "cargo fmt"},
-			expectedExit: 0,
-		},
-		{
-			name:         "Markdown file triggers no commands when wiki stack is inactive",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "docs/README.md"}}`,
-			stacks:       []string{"python"},
-			expectedCmds: []string{},
-			expectedExit: 0,
-		},
-		{
-			name:         "Markdown file outside wiki directory is skipped even when wiki stack is active",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "README.md"}}`,
-			stacks:       []string{"python", "wiki"},
-			expectedCmds: []string{},
-			expectedExit: 0,
-		},
-		{
-			name:         "Go file triggers go vet",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "cmd/main.go"}}`,
-			stacks:       []string{"go"},
-			expectedCmds: []string{"go vet ./..."},
-			expectedExit: 0,
-		},
-		{
-			name:         "Markdown file exits immediately with 0",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "docs/README.md"}}`,
-			stacks:       []string{"python", "cpp", "gdscript"},
-			expectedCmds: nil,
-			expectedExit: 0,
-		},
-		{
-			name:         "Unknown extension triggers fallback to all stacks",
-			payload:      `{"tool_name": "Edit", "tool_input": {"file_path": "custom.xyz"}}`,
-			stacks:       []string{"python", "uv", "cpp"},
-			expectedCmds: []string{"ruff check", "dmypy run", "clang-format -i", "cmake --build"},
-			expectedExit: 0,
-		},
-		{
-			name:         "NotebookEdit with notebook_path",
-			payload:      `{"tool_name": "NotebookEdit", "tool_input": {"notebook_path": "analysis.py"}}`,
-			stacks:       []string{"python"},
-			expectedCmds: []string{"ruff check"},
-			expectedExit: 0,
-		},
-		{
-			name:         "Invalid json exits 0",
-			payload:      `invalid json`,
-			stacks:       []string{"python"},
-			expectedCmds: nil,
-			expectedExit: 0,
-		},
-		{
-			name:         "Empty path exits 0",
-			payload:      `{"tool_name": "Edit", "tool_input": {}}`,
-			stacks:       []string{"python"},
-			expectedCmds: nil,
-			expectedExit: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var ranCmds []string
-			var mu sync.Mutex
-			mockRunner := func(dir string, cmd string) (string, error) {
-				mu.Lock()
-				defer mu.Unlock()
-				ranCmds = append(ranCmds, cmd)
-				return "", nil
-			}
-
-			var stderr bytes.Buffer
-			exitCode := runPostEditWithStacks(strings.NewReader(tt.payload), &stderr, configuredCMakeRoot(t), tt.stacks, mockRunner)
-			if exitCode != tt.expectedExit {
-				t.Fatalf("expected exit %d, got %d", tt.expectedExit, exitCode)
-			}
-			if len(tt.expectedCmds) == 0 && len(ranCmds) != 0 {
-				t.Fatalf("expected no commands, ran %v", ranCmds)
-			}
-			for _, exp := range tt.expectedCmds {
-				found := false
-				for _, ran := range ranCmds {
-					if strings.Contains(ran, exp) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Fatalf("expected command containing %q in %v", exp, ranCmds)
-				}
-			}
-		})
+		Look:   func(s string) (string, error) { return s, nil },
+		Loomux: "loomux",
+		Budget: DefaultBudget,
+		Now:    time.Now,
 	}
 }
 
-func TestRunPostEditFailure(t *testing.T) {
-	payload := `{"tool_name": "Edit", "tool_input": {"file_path": "src/main.py"}}`
-	mockFailRunner := func(dir string, cmd string) (string, error) {
-		return "syntax error in file\n", errors.New("exit 1")
-	}
+func passing(child.Spec) child.Result { return child.Result{} }
 
-	var stderr bytes.Buffer
-	exitCode := runPostEditWithStacks(strings.NewReader(payload), &stderr, ".", []string{"python"}, mockFailRunner)
-	if exitCode != ExitDenied {
-		t.Fatalf("expected ExitDenied (2), got %d", exitCode)
+// goProject is a root detection calls a Go module.
+func goProject(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module m\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(stderr.String(), "syntax error") {
-		t.Fatalf("expected stderr output, got %q", stderr.String())
-	}
+	return root
+}
 
-	// Failure with empty out string
-	mockEmptyFail := func(dir string, cmd string) (string, error) {
-		return "", errors.New("generic error")
+// postEdit runs one payload against root and answers every tool with answer.
+func postEdit(t *testing.T, root, payload string, answer func(child.Spec) child.Result) (int, string, string, []string) {
+	t.Helper()
+	seen := []string{}
+	var so, se bytes.Buffer
+	code := RunPostEdit(strings.NewReader(payload), &so, &se, root, editEnv(t, answer, &seen))
+	return code, so.String(), se.String(), seen
+}
+
+func filePayload(t *testing.T, path string) string {
+	t.Helper()
+	return `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, path) + `}}`
+}
+
+func TestPostEditRunsTheEditProfileOfTheFilesStack(t *testing.T) {
+	root := goProject(t)
+	code, _, se, seen := postEdit(t, root, filePayload(t, filepath.Join(root, "a.go")), passing)
+	if code != ExitOK {
+		t.Fatalf("%d %q", code, se)
 	}
-	var stderr2 bytes.Buffer
-	exitCode2 := runPostEditWithStacks(strings.NewReader(payload), &stderr2, ".", []string{"python"}, mockEmptyFail)
-	if exitCode2 != ExitDenied {
-		t.Fatalf("expected ExitDenied (2), got %d", exitCode2)
+	got := strings.Join(seen, "\n")
+	if !strings.Contains(got, root+"|go vet ./...") || !strings.Contains(got, "loomux check gofmt a.go") || strings.Contains(got, "go test") {
+		t.Fatalf("edit runs lint and types only, at the root: %v", seen)
 	}
 }
 
-func TestRunPostEditPayloadEdgeCases(t *testing.T) {
-	mockRunner := func(dir string, cmd string) (string, error) {
-		return "", nil
+func TestPostEditBlocksOnARedLane(t *testing.T) {
+	root := goProject(t)
+	code, _, se, _ := postEdit(t, root, `{"tool_input":{"file_path":"a.go"}}`, func(child.Spec) child.Result {
+		return child.Result{Code: 1, Stdout: "vet: bad\n"}
+	})
+	if code != ExitDenied || !strings.Contains(se, "vet: bad") || !strings.Contains(se, "lint/go: failed") {
+		t.Fatalf("%d %q", code, se)
 	}
+}
 
-	// 1. Invalid JSON
-	var stderr bytes.Buffer
-	if code := runPostEditWithStacks(strings.NewReader("invalid json"), &stderr, ".", []string{"python"}, mockRunner); code != ExitOK {
-		t.Fatalf("expected ExitOK on invalid json, got %d", code)
+// A lane whose tool is missing blocks no edit, but it is named where the
+// harness reads a hook that exited 0: hookSpecificOutput.additionalContext.
+func TestPostEditSkipsAMissingToolOutLoud(t *testing.T) {
+	root := goProject(t)
+	seen := []string{}
+	env := editEnv(t, passing, &seen)
+	env.Look = func(string) (string, error) { return "", errors.New("not found") }
+	var so, se bytes.Buffer
+	code := RunPostEdit(strings.NewReader(`{"tool_input":{"file_path":"a.go"}}`), &so, &se, root, env)
+	if code != ExitOK || !strings.Contains(so.String(), "lane skipped") {
+		t.Fatalf("%d %q", code, so.String())
 	}
-
-	// 2. Empty payload
-	if code := runPostEditWithStacks(strings.NewReader(`{}`), &stderr, ".", []string{"python"}, mockRunner); code != ExitOK {
-		t.Fatalf("expected ExitOK on empty payload, got %d", code)
+	// Walked by key, not decoded into the struct the code wrote, which would
+	// pass whatever field the code chose.
+	var said map[string]any
+	if err := json.Unmarshal(so.Bytes(), &said); err != nil {
+		t.Fatalf("stdout has to be one JSON document, got %q: %v", so.String(), err)
 	}
-
-	// 3. notebook_path support
-	notebookPayload := `{"tool_name": "NotebookEdit", "tool_input": {"notebook_path": "src/notebook.ipynb"}}`
-	if code := runPostEditWithStacks(strings.NewReader(notebookPayload), &stderr, ".", []string{"python"}, mockRunner); code != ExitOK {
-		t.Fatalf("expected ExitOK for notebook_path, got %d", code)
+	specific, _ := said["hookSpecificOutput"].(map[string]any)
+	context, _ := specific["additionalContext"].(string)
+	if specific["hookEventName"] != "PostToolUse" || !strings.Contains(context, `"go" is not on PATH`) {
+		t.Fatalf("the notice is not where the harness reads it: %q", so.String())
 	}
+	if len(seen) != 0 {
+		t.Fatalf("no tool may start when it is missing: %v", seen)
+	}
+}
 
-	// 4. Explicit ignored extensions
-	for _, ext := range []string{".txt", ".json", ".yaml", ".yml", ".toml", ".svg", ".png", ".jpg", ".jpeg", ".import", ".lock"} {
-		payload := `{"tool_name": "Edit", "tool_input": {"file_path": "file` + ext + `"}}`
-		if code := runPostEditWithStacks(strings.NewReader(payload), &stderr, ".", []string{"python"}, mockRunner); code != ExitOK {
-			t.Fatalf("expected ExitOK for ignored ext %s, got %d", ext, code)
+// A payload that names no file, or a file nothing checks, starts nothing and
+// blocks nothing.
+func TestPostEditLeavesAlonePayloadsAndFilesItHasNoLaneFor(t *testing.T) {
+	root := goProject(t)
+	outside := filepath.Join(t.TempDir(), "b.go")
+	for name, payload := range map[string]string{
+		"not json":          `not json`,
+		"no tool input":     `{"tool_name":"Edit"}`,
+		"empty file_path":   `{"tool_input":{"file_path":""}}`,
+		"empty both":        `{"tool_input":{"file_path":"","notebook_path":""}}`,
+		"ignored extension": `{"tool_input":{"file_path":"data.json"}}`,
+		"ignored upper":     `{"tool_input":{"file_path":"DATA.JSON"}}`,
+		"unknown extension": `{"tool_input":{"file_path":"a.xyz"}}`,
+		"no extension":      `{"tool_input":{"file_path":"Makefile"}}`,
+		"relative outside":  `{"tool_input":{"file_path":"../elsewhere/a.go"}}`,
+		"absolute outside":  filePayload(t, outside),
+		"inactive stack":    `{"tool_input":{"file_path":"a.py"}}`,
+	} {
+		code, so, se, seen := postEdit(t, root, payload, passing)
+		if code != ExitOK || so != "" || se != "" || len(seen) != 0 {
+			t.Errorf("%s: %d %q %q %v", name, code, so, se, seen)
 		}
 	}
 }
 
-func TestDefaultCommandRunnerMissingCommand(t *testing.T) {
-	// A tool the PATH does not answer costs the lane, not the run: no output
-	// and no error.
-	if out, err := commandRunner(exec.LookPath, io.Discard)(".", "command_that_definitely_does_not_exist_xyz123"); out != "" || err != nil {
-		t.Fatalf("out %q, err %v: a missing tool skips its lane", out, err)
+// A notebook edit names its file under notebook_path; it is checked like any
+// other file of its stack.
+func TestPostEditReadsTheNotebookPath(t *testing.T) {
+	root := goProject(t)
+	code, _, se, seen := postEdit(t, root, `{"tool_input":{"notebook_path":"a.go"}}`, passing)
+	if code != ExitOK || len(seen) == 0 {
+		t.Fatalf("%d %q %v", code, se, seen)
 	}
+}
 
-	// Normal failure returning error. `cmd` is the Windows shell, and the lane
-	// runner starts `sh` everywhere else, so this half of the test is about
-	// the host it is measured on.
-	if runtime.GOOS != "windows" {
-		t.Skip("cmd is the Windows shell")
+// A broken config blocks no edit, but it says why: exit 1 shows the message
+// without refusing the change.
+func TestPostEditReportsAConfigItCannotRead(t *testing.T) {
+	for name, body := range map[string]string{
+		"toml":     "[verify\n",
+		"schema":   "[verify]\nlint = \"x\"\n",
+		"resolved": "[verify.go.test]\nafter = \"coverage\"\n",
+	} {
+		root := goProject(t)
+		writeManifest(t, root, body)
+		code, _, se, seen := postEdit(t, root, `{"tool_input":{"file_path":"data.json"}}`, passing)
+		if code != ExitInternal || !strings.HasPrefix(se, "loomux hook post-tool-use: ") || len(seen) != 0 {
+			t.Errorf("%s: %d %q", name, code, se)
+		}
 	}
-	_, errFail := commandRunner(exec.LookPath, io.Discard)(".", "cmd /c exit 42")
-	if errFail == nil {
-		t.Fatal("expected error on exit 42")
+}
+
+// Presets that fail to load and a plan that fails cannot be provoked from a
+// project; they stand in through their seams and end like a broken config.
+func TestPostEditReportsPresetsAndPlansThatFail(t *testing.T) {
+	boom := errors.New("boom")
+	loadPresets, plan := editPresets, editPlan
+	t.Cleanup(func() { editPresets, editPlan = loadPresets, plan })
+
+	editPresets = func() (*verify.Presets, error) { return nil, boom }
+	if code, _, se, _ := postEdit(t, goProject(t), `{"tool_input":{"file_path":"a.go"}}`, passing); code != ExitInternal || se != "loomux hook post-tool-use: boom\n" {
+		t.Fatalf("presets: %d %q", code, se)
+	}
+	editPresets = loadPresets
+
+	editPlan = func(verify.Effective, verify.Request, verify.PlanEnv) ([]verify.Job, error) { return nil, boom }
+	if code, _, se, _ := postEdit(t, goProject(t), `{"tool_input":{"file_path":"a.go"}}`, passing); code != ExitInternal || se != "loomux hook post-tool-use: boom\n" {
+		t.Fatalf("plan: %d %q", code, se)
+	}
+}
+
+// measuringEdit stands in for go test: it writes the profile it is told to,
+// and like go test it fails when the directory for it is not there.
+func measuringEdit(s child.Spec) child.Result {
+	for _, a := range s.Argv {
+		if p, ok := strings.CutPrefix(a, "-coverprofile="); ok {
+			if err := os.WriteFile(p, []byte("mode: set\n"), 0o644); err != nil {
+				return child.Result{Code: 1, Stderr: err.Error()}
+			}
+		}
+	}
+	return child.Result{}
+}
+
+// An edit profile that measures coverage needs the cover directory, which
+// the agent cannot make: the policy refuses writes under .loomux/state. The
+// hook makes it, and a green run leaves nothing of its own behind.
+func TestPostEditMakesTheCoverDirectoryForAMeasuringProfile(t *testing.T) {
+	root := goProject(t)
+	os.WriteFile(filepath.Join(root, "a_test.go"), []byte("package m\n"), 0o644)
+	writeManifest(t, root, "[verify.profiles]\nedit = [\"lint\", \"test\", \"coverage\"]\n")
+	code, so, se, seen := postEdit(t, root, `{"tool_input":{"file_path":"a.go"}}`, measuringEdit)
+	if code != ExitOK {
+		t.Fatalf("%d %q %q %v", code, so, se, seen)
+	}
+	if !strings.Contains(strings.Join(seen, "\n"), "-coverprofile=") {
+		t.Fatalf("test must measure: %v", seen)
+	}
+	entries, err := os.ReadDir(filepath.Join(root, ".loomux", "state", "cover"))
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("a green edit cleans its own profile: %v %v", entries, err)
+	}
+}
+
+// A cover directory that cannot be made ends the hook like a broken config,
+// before any tool starts.
+func TestPostEditReportsACoverDirectoryItCannotMake(t *testing.T) {
+	root := goProject(t)
+	os.MkdirAll(filepath.Join(root, ".loomux"), 0o755)
+	os.WriteFile(filepath.Join(root, ".loomux", "state"), nil, 0o644)
+	code, _, se, seen := postEdit(t, root, `{"tool_input":{"file_path":"a.go"}}`, passing)
+	if code != ExitInternal || !strings.HasPrefix(se, "loomux hook post-tool-use: ") || len(seen) != 0 {
+		t.Fatalf("%d %q %v", code, se, seen)
+	}
+}
+
+// Files left behind cost disk, not correctness: the edit passes and the
+// hook says what it could not remove.
+func TestPostEditWarnsWhenItCannotCleanTheCoverDirectory(t *testing.T) {
+	root := goProject(t)
+	stale := filepath.Join(root, ".loomux", "state", "cover", "old")
+	os.MkdirAll(stale, 0o755)
+	os.WriteFile(filepath.Join(stale, "x"), nil, 0o644)
+	past := time.Now().Add(-48 * time.Hour)
+	os.Chtimes(stale, past, past)
+	code, _, se, _ := postEdit(t, root, `{"tool_input":{"file_path":"a.go"}}`, passing)
+	if code != ExitOK || !strings.HasPrefix(se, "loomux hook post-tool-use: cleaning coverage files: ") {
+		t.Fatalf("%d %q", code, se)
+	}
+}
+
+// A lane runs in the area holding the file, and {file} names it from there.
+func TestPostEditRunsATypeScriptLaneInItsArea(t *testing.T) {
+	root := t.TempDir()
+	web := filepath.Join(root, "web")
+	if err := os.MkdirAll(filepath.Join(web, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"package.json", "tsconfig.json"} {
+		if err := os.WriteFile(filepath.Join(web, name), []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	code, _, se, seen := postEdit(t, root, filePayload(t, filepath.Join(web, "src", "a.ts")), passing)
+	if code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	got := strings.Join(seen, "\n")
+	if !strings.Contains(got, web+"|npx eslint --cache src/a.ts") || !strings.Contains(got, web+"|npx tsc --noEmit") {
+		t.Fatalf("the lanes run in web/ on src/a.ts: %v", seen)
+	}
+}
+
+// A spent budget drops the lanes it did not reach and says so; an edit is
+// never refused for want of time.
+func TestPostEditPassesALaneTheBudgetDidNotReach(t *testing.T) {
+	root := goProject(t)
+	seen := []string{}
+	env := editEnv(t, passing, &seen)
+	var calls atomic.Int64
+	start := time.Now()
+	// Every reading of the clock lies 30s after the one before, so whatever
+	// reads it after the deadline was taken finds the 10s budget spent.
+	env.Now = func() time.Time { return start.Add(time.Duration(calls.Add(1)) * 30 * time.Second) }
+	env.Budget = 10 * time.Second
+	var so, se bytes.Buffer
+	code := RunPostEdit(strings.NewReader(`{"tool_input":{"file_path":"a.go"}}`), &so, &se, root, env)
+	if code != ExitOK || !strings.Contains(so.String(), "the edit budget ran out: lint/go") || len(seen) != 0 {
+		t.Fatalf("%d %q %q %v", code, so.String(), se.String(), seen)
+	}
+}
+
+// wikiProject declares docs/wiki and holds one page in it.
+func wikiProject(t *testing.T, manifest, body string) (string, string) {
+	t.Helper()
+	root := t.TempDir()
+	writeManifest(t, root, "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"docs/wiki\"\n"+manifest)
+	return root, writeWikiPage(t, root, "page.md", body)
+}
+
+const cleanPage = "---\ntitle: Sample Concept\ntype: concept\ndescription: A valid OKF test document\n---\n\n# Sample Concept\nThis is a test concept.\n"
+
+// A wiki page is linted in this process: no tool starts for it, and a page
+// the lint refuses blocks the edit, whether the path comes relative or
+// absolute.
+func TestPostEditLintsAWikiPageInProcess(t *testing.T) {
+	root, page := wikiProject(t, "", "no frontmatter at all\n")
+	for _, payload := range []string{`{"tool_input":{"file_path":"docs/wiki/page.md"}}`, filePayload(t, page)} {
+		code, _, se, seen := postEdit(t, root, payload, passing)
+		if code != ExitDenied || !strings.Contains(se, "lint/wiki: failed") || !strings.Contains(se, "page.md") || len(seen) != 0 {
+			t.Fatalf("%d %q %v", code, se, seen)
+		}
+	}
+}
+
+func TestPostEditLetsACleanWikiPageThrough(t *testing.T) {
+	root, _ := wikiProject(t, "", cleanPage)
+	code, so, se, _ := postEdit(t, root, `{"tool_input":{"file_path":"docs/wiki/page.md"}}`, passing)
+	if code != ExitOK || so != "" || se != "" {
+		t.Fatalf("%d %q %q", code, so, se)
+	}
+}
+
+// Markdown outside the wiki, a wiki nobody declared, and a wiki lane switched
+// off check nothing.
+func TestPostEditLeavesMarkdownAloneWhereNoWikiLaneRuns(t *testing.T) {
+	root, _ := wikiProject(t, "", "no frontmatter at all\n")
+	if code, _, se, _ := postEdit(t, root, `{"tool_input":{"file_path":"README.md"}}`, passing); code != ExitOK || se != "" {
+		t.Errorf("outside the wiki: %d %q", code, se)
+	}
+	off, _ := wikiProject(t, "[verify.wiki]\nlint = false\n", "no frontmatter at all\n")
+	if code, _, se, _ := postEdit(t, off, `{"tool_input":{"file_path":"docs/wiki/page.md"}}`, passing); code != ExitOK || se != "" {
+		t.Errorf("lint = false: %d %q", code, se)
+	}
+	bare := t.TempDir()
+	writeWikiPage(t, bare, "page.md", "no frontmatter at all\n")
+	if code, _, se, _ := postEdit(t, bare, `{"tool_input":{"file_path":"docs/wiki/page.md"}}`, passing); code != ExitOK || se != "" {
+		t.Errorf("no wiki declared: %d %q", code, se)
+	}
+}
+
+// The production door, through real tools: go vet on a module that compiles.
+// The lint lane is overridden so {loomux} does not name the test binary, which
+// would run this suite again.
+func TestPostToolUseRunsTheGoLaneThroughRealTools(t *testing.T) {
+	root := goProject(t)
+	writeManifest(t, root, "[verify.go]\nlint = \"go vet ./...\"\n")
+	if err := os.WriteFile(filepath.Join(root, "sample.go"), []byte("package sample\n\nfunc Sample() int { return 1 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var so, se bytes.Buffer
+	if code := PostToolUse(strings.NewReader(`{"tool_name":"Edit","tool_input":{"file_path":"sample.go"}}`), &so, &se, root, DefaultBudget); code != ExitOK {
+		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, se.String())
+	}
+	// A skipped lane says so on stdout, so silence tells a lane that ran and
+	// passed from one that never started.
+	if so.Len() != 0 {
+		t.Fatalf("the lane did not run: %s", so.String())
+	}
+}
+
+// Without its own path the binary still names itself for {loomux}.
+func TestPostToolUseFallsBackToTheCommandName(t *testing.T) {
+	executable := editExecutable
+	t.Cleanup(func() { editExecutable = executable })
+	editExecutable = func() (string, error) { return "", errors.New("no path") }
+	var so, se bytes.Buffer
+	if code := PostToolUse(strings.NewReader(`{"tool_input":{"file_path":"data.json"}}`), &so, &se, t.TempDir(), DefaultBudget); code != ExitOK {
+		t.Fatalf("%d %q", code, se.String())
 	}
 }
 
@@ -308,371 +388,6 @@ func TestIsWikiPath(t *testing.T) {
 	}
 }
 
-func TestGetCommandsForStacksVariants(t *testing.T) {
-	// 1. Rust
-	rustCmds := getCommandsForStacks([]string{"rust"}, "rust", true, "src/main.rs", "", ".", "wiki")
-	if len(rustCmds) != 2 || !strings.Contains(rustCmds[0].text, "cargo clippy") {
-		t.Fatalf("expected cargo clippy, got %v", rustCmds)
-	}
-
-	// 2. Go
-	goCmds := getCommandsForStacks([]string{"go"}, "go", true, "main.go", "", ".", "wiki")
-	if len(goCmds) != 1 || !strings.Contains(goCmds[0].text, "go vet") {
-		t.Fatalf("expected go vet, got %v", goCmds)
-	}
-
-	// 3. GDScript without target
-	gdCmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", false, "", "", ".", "wiki")
-	if len(gdCmds) != 1 || !strings.Contains(gdCmds[0].text, "gdlint .") {
-		t.Fatalf("expected gdlint ., got %v", gdCmds)
-	}
-
-	// 4. CPP without target
-	cppCmds := getCommandsForStacks([]string{"cpp"}, "cpp", false, "", "", ".", "wiki")
-	if len(cppCmds) != 2 || !strings.Contains(cppCmds[0].text, "clang-format -i") {
-		t.Fatalf("expected clang-format -i, got %v", cppCmds)
-	}
-
-	// 5. TypeScript with target in nested dir
-	tsNested := getCommandsForStacks([]string{"typescript"}, "typescript", true, "frontend/src/app.ts", "", ".", "wiki")
-	if len(tsNested) != 2 || !strings.Contains(tsNested[0].text, "npx --prefix frontend eslint") {
-		t.Fatalf("expected npx --prefix frontend eslint, got %v", tsNested)
-	}
-
-	// 6. TypeScript root without target
-	tsRootNoTarget := getCommandsForStacks([]string{"typescript"}, "typescript", false, "", "", ".", "wiki")
-	if len(tsRootNoTarget) != 2 || !strings.Contains(tsRootNoTarget[0].text, "npx eslint --cache .") {
-		t.Fatalf("expected npx eslint --cache ., got %v", tsRootNoTarget)
-	}
-
-	// 7. Vue without target in root
-	vueRoot := getCommandsForStacks([]string{"vue"}, "vue", false, "", "", ".", "wiki")
-	if len(vueRoot) != 1 || !strings.Contains(vueRoot[0].text, "npx vue-tsc --noEmit") {
-		t.Fatalf("expected npx vue-tsc --noEmit, got %v", vueRoot)
-	}
-
-	// 8. Svelte without target in root
-	svelteRoot := getCommandsForStacks([]string{"svelte"}, "svelte", false, "", "", ".", "wiki")
-	if len(svelteRoot) != 1 || !strings.Contains(svelteRoot[0].text, "npx svelte-check") {
-		t.Fatalf("expected npx svelte-check, got %v", svelteRoot)
-	}
-
-	// 9. CSS variants
-	cssNested := getCommandsForStacks([]string{"css"}, "css", true, "frontend/src/styles.css", "", ".", "wiki")
-	if len(cssNested) != 1 || !strings.Contains(cssNested[0].text, "npx --prefix frontend stylelint") {
-		t.Fatalf("expected npx --prefix frontend stylelint, got %v", cssNested)
-	}
-	cssNoTarget := getCommandsForStacks([]string{"css"}, "css", false, "", "", ".", "wiki")
-	if len(cssNoTarget) != 1 || !strings.Contains(cssNoTarget[0].text, "npx stylelint \"**/*.{css,scss}\"") {
-		t.Fatalf("expected glob stylelint, got %v", cssNoTarget)
-	}
-
-	// 10. HTML variant without target
-	htmlNoTarget := getCommandsForStacks([]string{"html"}, "html", false, "", "", ".", "wiki")
-	if len(htmlNoTarget) != 1 || !strings.Contains(htmlNoTarget[0].text, "npx htmlhint \"**/*.html\"") {
-		t.Fatalf("expected glob htmlhint, got %v", htmlNoTarget)
-	}
-
-	// 11. Shell variant without target
-	shNoTarget := getCommandsForStacks([]string{"shell"}, "shell", false, "", "", ".", "wiki")
-	if len(shNoTarget) != 1 || !strings.Contains(shNoTarget[0].text, "shellcheck **/*.sh") {
-		t.Fatalf("expected glob shellcheck, got %v", shNoTarget)
-	}
-
-	// 12. SQL variant without target
-	sqlNoTarget := getCommandsForStacks([]string{"sql"}, "sql", false, "", "", ".", "wiki")
-	if len(sqlNoTarget) != 1 || !strings.Contains(sqlNoTarget[0].text, "sqlfluff lint .") {
-		t.Fatalf("expected sqlfluff lint ., got %v", sqlNoTarget)
-	}
-
-	// 13. The wiki lane. It carries a target because it has no other shape,
-	// and its text names loomux itself: the page is linted in this process, so
-	// the text is a label for the report rather than a command line.
-	wikiLane := getCommandsForStacks([]string{"wiki"}, "wiki", true, "wiki/concept.md", "", ".", "wiki")
-	if len(wikiLane) != 1 || wikiLane[0].text != "loomux lint wiki/concept.md" {
-		t.Fatalf("expected loomux lint wiki/concept.md, got %v", wikiLane)
-	}
-
-	// 14. Python with pyright (plain without uv)
-	pyrightPlain := getCommandsForStacks([]string{"python", "pyright"}, "python", true, "src/main.py", "", ".", "wiki")
-
-	if len(pyrightPlain) != 2 || !strings.Contains(pyrightPlain[1].text, "pyright") || strings.Contains(pyrightPlain[1].text, "uv run") {
-		t.Fatalf("expected plain pyright, got %v", pyrightPlain)
-	}
-	pyrightUV := getCommandsForStacks([]string{"python", "pyright", "uv"}, "python", true, "src/main.py", "", ".", "wiki")
-
-	if len(pyrightUV) != 2 || !strings.Contains(pyrightUV[1].text, "uv run pyright") {
-		t.Fatalf("expected uv run pyright, got %v", pyrightUV)
-	}
-
-	// 15. Vue nested
-	vueNested := getCommandsForStacks([]string{"vue"}, "vue", true, "frontend/src/Component.vue", "", ".", "wiki")
-	if len(vueNested) != 1 || !strings.Contains(vueNested[0].text, "npm --prefix frontend run typecheck") {
-		t.Fatalf("expected npm --prefix frontend run typecheck, got %v", vueNested)
-	}
-
-	// 16. Svelte nested
-	svelteNested := getCommandsForStacks([]string{"svelte"}, "svelte", true, "frontend/src/App.svelte", "", ".", "wiki")
-	if len(svelteNested) != 1 || !strings.Contains(svelteNested[0].text, "npm --prefix frontend run check") {
-		t.Fatalf("expected npm --prefix frontend run check, got %v", svelteNested)
-	}
-}
-
-// A file whose extension names no stack draws the full chain -- every lane the
-// project has, because a gate that skips a check unnoticed is worse than none.
-// The wiki lane is the one exception, and this is why: it lints one page and
-// has no argument-less form. Where `sqlfluff lint .` and `shellcheck **/*.sh`
-// still say something without a target, a wiki lint without a page has
-// nothing to read -- so the lane that cannot ask its question stays out of the
-// chain instead of poisoning it.
-func TestWikiLaneStaysOutWithoutATarget(t *testing.T) {
-	cmds := getCommandsForStacks([]string{"wiki"}, "", false, ".gitignore", "", ".", "wiki")
-
-	for _, cmd := range cmds {
-		if strings.HasPrefix(cmd.text, "loomux lint") {
-			t.Fatalf("expected no argument-less wiki lint, got %v", cmds)
-		}
-	}
-}
-
-// gdlint reads .gdlintrc from the working directory upwards, so where the
-// check starts decides which rules it applies. A project that keeps its Godot
-// tree under godot/ and is checked from the repository root gets no
-// configuration at all: the exclusion list stays unread and the whole of
-// addons/ is linted on default limits, which is how a single edit turns into
-// thousands of findings.
-func TestGdscriptRunsWhereTheGodotTreeStands(t *testing.T) {
-	cmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", false, "", "godot", ".", "wiki")
-
-	if len(cmds) != 1 {
-		t.Fatalf("expected one command, got %v", cmds)
-	}
-	if cmds[0].dir != "godot" {
-		t.Fatalf("dir = %q, want %q", cmds[0].dir, "godot")
-	}
-	if cmds[0].text != "gdlint ." {
-		t.Fatalf("text = %q, want %q", cmds[0].text, "gdlint .")
-	}
-}
-
-// The target arrives named from the repository root, and the check runs one
-// directory down -- so the path has to lose that first segment or gdlint looks
-// for godot/godot/ui/system/system_view.gd.
-func TestGdscriptTargetIsRelativeToTheGodotTree(t *testing.T) {
-	cmds := getCommandsForStacks([]string{"gdscript"}, "gdscript", true, "godot/ui/system/system_view.gd", "godot", ".", "wiki")
-
-	if len(cmds) != 1 || cmds[0].dir != "godot" {
-		t.Fatalf("expected one command in godot/, got %v", cmds)
-	}
-	if cmds[0].text != "gdlint ui/system/system_view.gd" {
-		t.Fatalf("text = %q, want %q", cmds[0].text, "gdlint ui/system/system_view.gd")
-	}
-}
-
-// Every other lane keeps running at the root: they either read their
-// configuration from a file they are told about or carry their limits in the
-// command line, so moving them would change what they check for no gain.
-func TestOtherLanesStayAtTheRoot(t *testing.T) {
-	cmds := getCommandsForStacks([]string{"go"}, "go", true, "main.go", "godot", ".", "wiki")
-
-	if len(cmds) != 1 || cmds[0].dir != "" {
-		t.Fatalf("expected go vet at the root, got %v", cmds)
-	}
-}
-
-// The lane-availability tests. `defaultCommandRunner` used to answer this
-// question by matching the console's own words -- "is not recognized as an
-// internal or external command" -- and a German Windows prints "ist entweder
-// falsch geschrieben oder konnte nicht gefunden werden" instead. So the
-// escape hatch never opened here, and every edit to a file with an unmapped
-// extension blocked with exit 2 on a machine without shellcheck. The
-// replacement asks the PATH, which speaks no language.
-func TestLaneTool(t *testing.T) {
-	tests := []struct {
-		command string
-		want    string
-	}{
-		{"shellcheck **/*.sh", "shellcheck"},
-		{"npx --prefix frontend eslint app.ts", "npx"},
-		{"uv run brain lint file.md", "uv"},
-		{"go vet ./...", "go"},
-		{"   spaced   out  ", "spaced"},
-		{"", ""},
-	}
-	for _, tt := range tests {
-		if got := laneTool(tt.command); got != tt.want {
-			t.Errorf("laneTool(%q) = %q, want %q", tt.command, got, tt.want)
-		}
-	}
-}
-
-func TestLaneAvailable(t *testing.T) {
-	found := func(string) (string, error) { return "/usr/bin/shellcheck", nil }
-	missing := func(string) (string, error) { return "", errors.New("executable file not found in %PATH%") }
-
-	if !laneAvailable("shellcheck **/*.sh", found) {
-		t.Error("a lane whose tool is on PATH is available")
-	}
-	if laneAvailable("shellcheck **/*.sh", missing) {
-		t.Error("a lane whose tool is not on PATH is unavailable")
-	}
-	// An empty text names no tool, so there is nothing to look up and nothing
-	// to refuse. Answering "unavailable" would drop a lane over a bug
-	// somewhere else and hide it.
-	if !laneAvailable("", missing) {
-		t.Error("a lane with no tool is not refused for a missing tool")
-	}
-}
-
-// The whole point, measured against the real PATH rather than a stub: a tool
-// that is not installed costs the lane and not the exit code.
-func TestDefaultCommandRunnerSkipsMissingTool(t *testing.T) {
-	out, err := commandRunner(exec.LookPath, io.Discard)("", "ulguard-no-such-tool-8f3a --version")
-	if err != nil {
-		t.Fatalf("a missing tool must not fail the hook, got %v", err)
-	}
-	if out != "" {
-		t.Fatalf("a skipped lane says nothing here, got %q", out)
-	}
-}
-
-// A lane that never started must not pass in silence. Exit 0 stays -- a
-// missing optional tool blocks nothing -- but the line names which lane was
-// dropped and which tool was missing, so the gap is visible at the moment it
-// opens rather than only in `ulguard status`.
-func TestCommandRunnerNamesTheSkippedLane(t *testing.T) {
-	missing := func(string) (string, error) { return "", errors.New("executable file not found in %PATH%") }
-	var notice strings.Builder
-
-	out, err := commandRunner(missing, &notice)("", "shellcheck **/*.sh")
-
-	if err != nil {
-		t.Fatalf("a missing tool must not fail the hook, got %v", err)
-	}
-	if out != "" {
-		t.Fatalf("a skipped lane contributes no output, got %q", out)
-	}
-	said := notice.String()
-	if !strings.Contains(said, "shellcheck") {
-		t.Errorf("the notice names the missing tool, got %q", said)
-	}
-	if !strings.Contains(said, "shellcheck **/*.sh") {
-		t.Errorf("the notice names the lane that was dropped, got %q", said)
-	}
-}
-
-// The counterpart: a lane whose tool is there says nothing extra.
-func TestCommandRunnerIsSilentWhenTheToolIsThere(t *testing.T) {
-	var notice strings.Builder
-
-	_, _ = commandRunner(exec.LookPath, &notice)("", "go version")
-
-	if said := notice.String(); said != "" {
-		t.Errorf("a lane that ran writes no notice, got %q", said)
-	}
-}
-
-// Where the notice has to land to be seen at all.
-//
-// A PostToolUse hook that exits 0 has neither stdout nor stderr read by
-// anybody: both go to the debug log. The one channel left open at exit 0 is a
-// JSON document on stdout, whose `systemMessage` reaches the model. So the
-// skipped lane is named there -- exit 0 keeps the edit unblocked, and the gap
-// still arrives somewhere.
-func TestPostEditNamesASkippedLaneWhereItIsRead(t *testing.T) {
-	missing := func(string) (string, error) { return "", errors.New("executable file not found in %PATH%") }
-	payload := `{"tool_input":{"file_path":"x.sh"}}`
-	var stdout, stderr bytes.Buffer
-
-	code := runPostEditWithContext(
-		strings.NewReader(payload), &stdout, &stderr, t.TempDir(),
-		[]string{"shell"}, "wiki/", "",
-		func(notice io.Writer) CommandRunner { return commandRunner(missing, notice) },
-	)
-
-	if code != ExitOK {
-		t.Fatalf("a missing optional tool blocks no edit, got exit %d", code)
-	}
-	// Decoded into a generic map and walked by key, not into the struct the
-	// code wrote: a decode into that struct passes whatever field the code
-	// chose and says nothing about where the harness looks.
-	var said map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &said); err != nil {
-		t.Fatalf("stdout has to be one JSON document, got %q: %v", stdout.String(), err)
-	}
-	specific, ok := said["hookSpecificOutput"].(map[string]any)
-	if !ok {
-		t.Fatalf("the document carries no hookSpecificOutput: %q", stdout.String())
-	}
-	if specific["hookEventName"] != "PostToolUse" {
-		t.Errorf("the document names its event, got %v", specific["hookEventName"])
-	}
-	// The field this repository's own Claude adapter writes for the model.
-	context, ok := specific["additionalContext"].(string)
-	if !ok {
-		t.Fatalf("the notice is not at hookSpecificOutput.additionalContext: %q", stdout.String())
-	}
-	if !strings.Contains(context, "shellcheck") {
-		t.Errorf("the message names the missing tool, got %q", context)
-	}
-	if _, stray := specific["systemMessage"]; stray {
-		t.Errorf("systemMessage is no field of the PostToolUse envelope: %q", stdout.String())
-	}
-}
-
-// The ordinary run writes nothing to stdout: invalid JSON there would turn a
-// green hook into a hook-error notice, so an empty channel is the only safe
-// silence.
-func TestPostEditWritesNoDocumentWhenEveryLaneRan(t *testing.T) {
-	ran := func(_ string, _ string) (string, error) { return "", nil }
-	payload := `{"tool_input":{"file_path":"x.sh"}}`
-	var stdout, stderr bytes.Buffer
-
-	runPostEditWithContext(
-		strings.NewReader(payload), &stdout, &stderr, t.TempDir(),
-		[]string{"shell"}, "wiki/", "",
-		func(io.Writer) CommandRunner { return ran },
-	)
-
-	if stdout.Len() != 0 {
-		t.Errorf("a run with nothing to report says nothing, got %q", stdout.String())
-	}
-}
-
-// The production factory, exercised through the one door that builds it: a
-// real lane, on a project whose tool is certain to be there. The go lane runs
-// `go vet ./...`, so the root needs a module and a file that compiles.
-func TestPostToolUseRunsTheGoLaneThroughItsOwnRunner(t *testing.T) {
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module sample\n\ngo 1.25.0\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "sample.go"), []byte("package sample\n\nfunc Sample() int { return 1 }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.go"}}`
-	var stdout, stderr bytes.Buffer
-	if code := PostToolUse(strings.NewReader(payload), &stdout, &stderr, root); code != ExitOK {
-		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, stderr.String())
-	}
-	// A lane whose tool is missing is skipped, and a skipped lane says so on
-	// stdout -- so silence is what tells a lane that ran and passed from one
-	// that never started.
-	if stdout.Len() != 0 {
-		t.Fatalf("the lane did not run: %s", stdout.String())
-	}
-}
-
-// A path that does not start in the area is handed back untouched: an edit
-// outside the Godot tree still names a real file from the root, and guessing
-// at it would be worse than checking the wrong limits.
-func TestRelativeToAreaLeavesAPathOutsideTheAreaAlone(t *testing.T) {
-	if got := relativeToArea("tools/build.gd", "godot"); got != "tools/build.gd" {
-		t.Fatalf("got %q", got)
-	}
-}
-
 // The wiki directory itself, named absolutely: the path carries no separator
 // after the directory's name, so only the form relative to the root answers.
 func TestIsWikiPathMatchesTheWikiDirectoryItself(t *testing.T) {
@@ -680,58 +395,6 @@ func TestIsWikiPathMatchesTheWikiDirectoryItself(t *testing.T) {
 	if !isWikiPath(filepath.Join(root, "notes"), root, "notes") {
 		t.Fatal("the wiki directory itself is a wiki path")
 	}
-}
-
-// A wiki page is linted in this process: no shell lane starts for it, and a
-// page the lint refuses still blocks the edit.
-func TestTheWikiLaneRunsInProcess(t *testing.T) {
-	root := t.TempDir()
-	writeWikiPage(t, root, "page.md", "no frontmatter at all\n")
-
-	var stderr bytes.Buffer
-	shell := func(io.Writer) CommandRunner {
-		return func(dir, command string) (string, error) {
-			t.Fatalf("no shell lane may run for a wiki page, got %q", command)
-			return "", nil
-		}
-	}
-	input := `{"tool_name":"Edit","tool_input":{"file_path":"docs/wiki/page.md"}}`
-	code := runPostEditWithContext(strings.NewReader(input), io.Discard, &stderr, root, []string{"wiki"}, "docs/wiki", "", shell)
-	if code != ExitDenied || !strings.Contains(stderr.String(), "page.md") {
-		t.Fatalf("code %d, err %q", code, stderr.String())
-	}
-}
-
-// Claude names the edited file absolutely, so the lane joins the root only
-// under a relative path -- a join on an absolute one would name the root twice.
-func TestTheWikiLaneTakesAnAbsoluteTargetAsItIs(t *testing.T) {
-	root := t.TempDir()
-	page := writeWikiPage(t, root, "page.md", "no frontmatter at all\n")
-
-	var stderr bytes.Buffer
-	input := `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, page) + `}}`
-	code := runPostEditWithContext(strings.NewReader(input), io.Discard, &stderr, root, []string{"wiki"}, "docs/wiki", "", noShell)
-	if code != ExitDenied || !strings.Contains(stderr.String(), "page.md") {
-		t.Fatalf("code %d, err %q", code, stderr.String())
-	}
-}
-
-// A page the lint passes leaves the edit alone and says nothing.
-func TestTheWikiLaneLetsACleanPageThrough(t *testing.T) {
-	root := t.TempDir()
-	writeWikiPage(t, root, "sample.md", "---\ntitle: Sample Concept\ntype: concept\ndescription: A valid OKF test document\n---\n\n# Sample Concept\nThis is a test concept.\n")
-
-	var stderr bytes.Buffer
-	input := `{"tool_name":"Edit","tool_input":{"file_path":"docs/wiki/sample.md"}}`
-	code := runPostEditWithContext(strings.NewReader(input), io.Discard, &stderr, root, []string{"wiki"}, "docs/wiki", "", noShell)
-	if code != ExitOK || stderr.String() != "" {
-		t.Fatalf("code %d, err %q", code, stderr.String())
-	}
-}
-
-// noShell is the runner factory for a run that must not reach a shell.
-func noShell(io.Writer) CommandRunner {
-	return func(dir, command string) (string, error) { return "", nil }
 }
 
 func writeWikiPage(t *testing.T, root, name, body string) string {
@@ -831,7 +494,7 @@ func TestTheLayoutWikiAddsTheWikiStack(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	input := `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, page) + `}}`
-	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root); code != ExitDenied {
+	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root, DefaultBudget); code != ExitDenied {
 		t.Fatalf("code %d, err %q", code, stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "page.md") {
@@ -859,7 +522,7 @@ func TestTheDeclaredWikiOutranksTheDetectedOne(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	input := `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, page) + `}}`
-	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root); code != ExitDenied {
+	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root, DefaultBudget); code != ExitDenied {
 		t.Fatalf("code %d, err %q: the lane read the detected wiki, not the declared one", code, stderr.String())
 	}
 }
@@ -900,92 +563,28 @@ func TestAnInvalidLayoutWikiDeclaresNothing(t *testing.T) {
 	}
 }
 
-func TestTargetCommandsForStacks(t *testing.T) {
-	// Broad (no target)
-	broadCmds := TargetCommandsForStacks([]string{"python", "go"}, "", "", "", "")
-	if len(broadCmds) != 3 { // ruff, mypy, go vet
-		t.Fatalf("expected 3 commands for broad python+go, got %v", broadCmds)
+// The bench corpus asks which stack an ending belongs to and which commands
+// post-edit runs; both answers come from the presets, and presets that fail
+// to load leave neither an answer.
+func TestPresetAnswersForTheBenchCorpus(t *testing.T) {
+	got := EditLaneCommands([]string{"python", "go", "nothing"})
+	want := []string{
+		"uvx ruff check . --output-format=concise",
+		"uv run mypy --no-error-summary --no-pretty",
+		"go vet ./...",
+		"loomux check gofmt .",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("EditLaneCommands = %q, want %q", got, want)
 	}
 
-	// Targeted python
-	pyCmds := TargetCommandsForStacks([]string{"python", "go"}, "foo.py", "", "", "")
-	if len(pyCmds) != 2 {
-		t.Fatalf("expected 2 commands for foo.py, got %v", pyCmds)
+	loadPresets := editPresets
+	t.Cleanup(func() { editPresets = loadPresets })
+	editPresets = func() (*verify.Presets, error) { return nil, errors.New("boom") }
+	if stack, ok := StackForExtension(".go"); ok || stack != "" {
+		t.Errorf("StackForExtension without presets = %q, %v", stack, ok)
 	}
-
-	// Targeted wiki outside wiki
-	wikiOutside := TargetCommandsForStacks([]string{"wiki"}, "other/foo.md", "", "/repo", "wiki")
-	if len(wikiOutside) != 0 {
-		t.Fatalf("expected 0 commands for wiki outside wiki, got %v", wikiOutside)
+	if got := EditLaneCommands([]string{"go"}); got != nil {
+		t.Errorf("EditLaneCommands without presets = %q", got)
 	}
-
-	// Targeted wiki inside wiki
-	wikiDir := t.TempDir()
-	wikiInside := TargetCommandsForStacks([]string{"wiki"}, filepath.Join(wikiDir, "page.md"), "", t.TempDir(), wikiDir)
-	if len(wikiInside) != 1 {
-		t.Fatalf("expected 1 command for wiki inside wiki, got %v", wikiInside)
-	}
-}
-
-// A C++ checkout that was never configured has no build tree, and cmake then
-// fails on the missing directory for every edit. That is a precondition the
-// edit cannot fix, so the lane is skipped out loud, like a missing tool.
-func TestPostEditSkipsTheCMakeLaneWithoutAConfiguredBuild(t *testing.T) {
-	for _, configured := range []bool{false, true} {
-		root := t.TempDir()
-		if configured {
-			if err := os.MkdirAll(filepath.Join(root, "build"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(root, "build", "CMakeCache.txt"), nil, 0o644); err != nil {
-				t.Fatal(err)
-			}
-		}
-		var mu sync.Mutex
-		var ran []string
-		record := func(_ string, command string) (string, error) {
-			mu.Lock()
-			defer mu.Unlock()
-			ran = append(ran, command)
-			return "", nil
-		}
-		var stdout, stderr bytes.Buffer
-
-		code := runPostEditWithContext(
-			strings.NewReader(`{"tool_input":{"file_path":"x.cpp"}}`), &stdout, &stderr, root,
-			[]string{"cpp"}, "wiki/", "",
-			func(io.Writer) CommandRunner { return record },
-		)
-
-		if code != ExitOK {
-			t.Fatalf("configured=%v: exit %d, stderr %q", configured, code, stderr.String())
-		}
-		cmake := false
-		for _, c := range ran {
-			if strings.HasPrefix(c, "cmake --build build") {
-				cmake = true
-			}
-		}
-		if cmake != configured {
-			t.Errorf("configured=%v: cmake lane ran=%v, commands %v", configured, cmake, ran)
-		}
-		named := strings.Contains(stdout.String(), "build/CMakeCache.txt")
-		if named == configured {
-			t.Errorf("configured=%v: the skip is named only when it happens, stdout %q", configured, stdout.String())
-		}
-	}
-}
-
-// configuredCMakeRoot is a project root whose C++ build tree has been
-// configured, so the cmake lane has what it needs to run.
-func configuredCMakeRoot(t *testing.T) string {
-	t.Helper()
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "build"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "build", "CMakeCache.txt"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return root
 }

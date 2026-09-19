@@ -2,13 +2,16 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/gitenv"
+	"github.com/xidus90/loomux/internal/hooks"
 	"github.com/xidus90/loomux/internal/sessions"
 )
 
@@ -155,6 +158,36 @@ func TestHookPostToolUseRunsAndPasses(t *testing.T) {
 	code, _, errOut := runWith(payload, "hook", "post-tool-use", "--host", "claude", "--root", t.TempDir())
 	if code != 0 {
 		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// --budget reaches post-edit as given, and its absence as the default.
+func TestHookPostToolUsePassesTheBudgetOn(t *testing.T) {
+	saved := postToolUse
+	t.Cleanup(func() { postToolUse = saved })
+	var got time.Duration
+	postToolUse = func(_ io.Reader, _, _ io.Writer, _ string, budget time.Duration) int {
+		got = budget
+		return 0
+	}
+	root := t.TempDir()
+	if code, _, errOut := runWith(`{}`, "hook", "post-tool-use", "--host", "claude", "--root", root, "--budget", "3s"); code != 0 || got != 3*time.Second {
+		t.Fatalf("code %d, budget %v, err %q", code, got, errOut)
+	}
+	if code, _, errOut := runWith(`{}`, "hook", "post-tool-use", "--host", "claude", "--root", root); code != 0 || got != hooks.DefaultBudget {
+		t.Fatalf("code %d, budget %v, err %q", code, got, errOut)
+	}
+}
+
+// A budget that is no duration is a malformed call, and a malformed
+// post-tool-use call announces rather than blocks.
+func TestHookPostToolUseRefusesABudgetThatIsNoDuration(t *testing.T) {
+	code, _, errOut := runWith(`{}`, "hook", "post-tool-use", "--host", "claude", "--root", t.TempDir(), "--budget", "soon")
+	if code != 1 || !strings.Contains(errOut, "flag -budget") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	if code, _, _ := run("hook", "pre-tool-use", "--host", "claude", "--budget", "1s"); code != 2 {
+		t.Fatalf("only post-tool-use has a budget, pre-tool-use ended with %d", code)
 	}
 }
 

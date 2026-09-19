@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/detect"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 func TestRunStatus(t *testing.T) {
@@ -48,8 +51,15 @@ func TestRunStatus(t *testing.T) {
 	if !strings.Contains(out, "loomux Hook Inspection") {
 		t.Fatalf("expected header, got %s", out)
 	}
-	if !strings.Contains(out, "ruff check") {
-		t.Fatalf("expected ruff check in output, got %s", out)
+	// The lanes are the edit profile as the presets lay it out, not a list of
+	// their own.
+	for _, want := range []string{
+		"     * python (*.py) lint: uvx ruff check . --output-format=concise [preset]\n",
+		"     * python (*.py) types: uv run mypy --no-error-summary --no-pretty [preset]\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in output, got %s", want, out)
+		}
 	}
 	// The lane is named by the command this binary carries. `brain lint` was a
 	// second binary and a Python environment, and this very report calls the
@@ -120,25 +130,34 @@ func TestRunStatusAllStacksAndNoLegacy(t *testing.T) {
 	}
 
 	out := stdout.String()
+	// Each lane in the form post-edit runs it: the on-file command where the
+	// preset has one.
 	for _, expected := range []string{
-		"gdlint",
-		"clang-format",
-		"npx eslint",
-		"npx vue-tsc",
-		"npx svelte-check",
-		"npx stylelint",
-		"npx htmlhint",
-		"shellcheck",
-		"sqlfluff",
-		"cargo clippy",
-		"go vet",
-		"golangci-lint",
-		"pyright",
+		"gdscript (*.gd) lint: uvx gdlint {file} [preset]",
+		"cpp (*.c, *.cc, *.cpp, *.cxx, *.h, *.hpp) lint: clang-format --dry-run --Werror {file} [preset]",
+		"cpp (*.c, *.cc, *.cpp, *.cxx, *.h, *.hpp) types: cmake --build build --parallel [preset]",
+		"typescript (*.js, *.jsx, *.ts, *.tsx) lint: npx eslint --cache {file} [preset]",
+		"vue (*.vue) types: npx vue-tsc --noEmit [preset]",
+		"svelte (*.svelte) types: npx svelte-check [preset]",
+		"css (*.css, *.less, *.sass, *.scss) lint: npx stylelint {file} [preset]",
+		"html (*.htm, *.html) lint: npx htmlhint {file} [preset]",
+		"shell (*.bash, *.sh, *.zsh) lint: shellcheck {file} [preset]",
+		"sql (*.sql) lint: sqlfluff lint {file} [preset]",
+		"rust (*.rs) lint: cargo clippy -- -D warnings ; cargo fmt --check [preset]",
+		"go (*.go) lint: go vet ./... ; {loomux} check gofmt {file} [preset, parallel]",
+		"python (*.py) types: uv run pyright [",
 		"No obsolete or redundant legacy hooks found",
 		"UltraBrain Wiki: Inactive / Disabled",
 	} {
 		if !strings.Contains(out, expected) {
 			t.Fatalf("expected output to contain %q, but got:\n%s", expected, out)
+		}
+	}
+	// No preset runs these; the old list printed them anyway. golangci-lint
+	// itself stays in the detected signals above.
+	for _, gone := range []string{"golangci-lint run", "clang-format -i", "dmypy"} {
+		if strings.Contains(out, gone) {
+			t.Fatalf("no lane runs %q, but the report names it:\n%s", gone, out)
 		}
 	}
 }
@@ -238,11 +257,13 @@ func TestRunStatusPlainPythonAndGo(t *testing.T) {
 	}
 
 	out := stdout.String()
-	if !strings.Contains(out, "mypy --no-error-summary --no-pretty") {
-		t.Fatalf("expected plain mypy output, got:\n%s", out)
-	}
-	if !strings.Contains(out, "go vet ./...") {
-		t.Fatalf("expected plain go vet output, got:\n%s", out)
+	for _, want := range []string{
+		"python (*.py) types: uv run mypy --no-error-summary --no-pretty [preset]",
+		"go (*.go) lint: go vet ./... ; {loomux} check gofmt {file} [preset, parallel]",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q, got:\n%s", want, out)
+		}
 	}
 	if !strings.Contains(out, "[OK] PreToolUse:  'loomux hook pre-tool-use' installed") {
 		t.Fatalf("expected pre installed, got:\n%s", out)
@@ -263,24 +284,64 @@ func TestRunStatusPyrightWithUV(t *testing.T) {
 		t.Fatalf("expected ExitOK, got %d", code)
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "uv run pyright") {
+	if !strings.Contains(out, "python (*.py) types: uv run pyright [") {
 		t.Fatalf("expected uv run pyright in status output, got:\n%s", out)
 	}
 }
 
-// The missing-tool report is computed from getCommandsForStacks, the same
-// builder the hook runs, and not from the lane list printed above it. Two
-// lists drift, and this one has to be about the lanes that actually run.
+// The report reads [verify] as the hook does: an override shows with its
+// origin, a lane switched off says so, and a config the lanes cannot be read
+// from is named instead of a list.
+func TestStatusShowsTheLanesAsVerifyShapesThem(t *testing.T) {
+	root := t.TempDir()
+	_ = os.WriteFile(filepath.Join(root, "go.mod"), []byte("module sample\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(root, "requirements.txt"), []byte("requests"), 0o644)
+	_ = os.MkdirAll(filepath.Join(root, "notes"), 0o755)
+	writeManifest(t, root, "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"notes\"\n[verify.go]\nlint = \"golangci-lint run\"\n[verify.python]\ntypes = false\n[verify.wiki]\nlint = false\n")
+	var stdout, stderr bytes.Buffer
+	Status(&stdout, &stderr, root)
+	out := stdout.String()
+	for _, want := range []string{
+		"  -> loomux hook post-tool-use (profile `edit`: lint, types):\n",
+		"     * go (*.go) lint: golangci-lint run [config]\n",
+		"     * python (*.py) types: off [config]\n",
+		"     * *.md (in notes): off [config]\n",
+		"     * ignored (.txt, .json, .yaml, .yml, .toml, .svg, .png, .jpg, .jpeg, .import, .lock): [SKIPPED] no lane runs\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in:\n%s", want, out)
+		}
+	}
+
+	writeManifest(t, root, "[verify\n")
+	stdout.Reset()
+	Status(&stdout, &stderr, root)
+	if !strings.Contains(stdout.String(), "     [ERROR] the lanes cannot be read: ") {
+		t.Fatalf("a broken config is named, got:\n%s", stdout.String())
+	}
+}
+
+// The missing-tool report is computed from the lanes [verify] and the presets
+// lay out, which the hook runs, and not from the lane list printed above it.
+// Two lists drift, and this one has to be about the lanes that actually run.
 func TestUnavailableLanes(t *testing.T) {
 	nothing := func(string) (string, error) { return "", errors.New("not found") }
 	everything := func(string) (string, error) { return "/usr/bin/x", nil }
+	lanes := func(stacks ...string) verify.Effective {
+		eff, err := editLoad(t.TempDir(), detect.Facts{Stacks: stacks})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return eff
+	}
 
-	missing := unavailableLanes([]string{"shell", "go"}, nothing, ".", "wiki")
+	// {loomux} is this binary and names nothing to install.
+	missing := unavailableLanes(lanes("shell", "go"), nothing)
 	if len(missing) != 2 || missing[0] != "go" || missing[1] != "shellcheck" {
 		t.Fatalf("expected [go shellcheck] sorted, got %v", missing)
 	}
 
-	if got := unavailableLanes([]string{"shell", "go"}, everything, ".", "wiki"); len(got) != 0 {
+	if got := unavailableLanes(lanes("shell", "go"), everything); len(got) != 0 {
 		t.Fatalf("expected nothing missing, got %v", got)
 	}
 
@@ -292,8 +353,14 @@ func TestUnavailableLanes(t *testing.T) {
 		}
 		return "", errors.New("not found")
 	}
-	if got := unavailableLanes([]string{"typescript", "vue"}, onlyGo, ".", "wiki"); len(got) != 1 || got[0] != "npx" {
+	if got := unavailableLanes(lanes("typescript", "vue"), onlyGo); len(got) != 1 || got[0] != "npx" {
 		t.Fatalf("expected [npx] once, got %v", got)
+	}
+
+	// No lanes, nothing to install: what Status hands on when the config
+	// cannot be read.
+	if got := unavailableLanes(verify.Effective{}, nothing); len(got) != 0 {
+		t.Fatalf("expected nothing without lanes, got %v", got)
 	}
 }
 
