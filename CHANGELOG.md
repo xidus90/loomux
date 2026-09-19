@@ -4,6 +4,22 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-09-19
+
+<https://github.com/xidus90/loomux/pull/10>
+
+### Added
+- `loomux check <profile|kinds|all>` with `--root`, `-v` and `--show`, and the profiles `edit`, `precommit` and `all`.
+- `[verify]` configuration per stack: presets for twelve languages, overrides as a string, a list, a table or `false`, test detection, and one lane per project area.
+- `loomux check gocover --profile <file>` with `--floor N` and `--dir D`.
+- `loomux hook post-tool-use --budget <duration>` (default 50 s).
+### Changed
+- post-edit takes its lanes from `[verify]` and the presets instead of a fixed list; a Go edit checks the formatting of the edited file only, a C++ edit checks formatting without rewriting the file, and TypeScript lanes call the tools through `npx`.
+- `loomux status` lists the lanes post-edit actually runs.
+- A post-edit lane stopped by the edit budget is reported and skipped instead of holding the edit until the hook times out.
+### Removed
+- `loomux dev covergate`; use `loomux check gocover`.
+
 ## [2.0.1] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/9>
