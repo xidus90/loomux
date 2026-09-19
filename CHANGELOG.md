@@ -4,6 +4,18 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-09-19
+
+<https://github.com/xidus90/loomux/pull/7>
+
+### Added
+- `loomux serve` answers MCP over Streamable HTTP in stateless mode, one listener per channel, each guarded by its own bearer token. `loomux serve status` and `loomux serve stop` inspect and end it.
+- `loomux mcp` bridges one stdio host to that service, starting it on demand and reconnecting when it restarts.
+- `loomux dev record-mcp-case` records a call of the reference's MCP front, and the corpus under `testdata/cases/1b-2-*` replays those calls against this one.
+
+### Fixed
+- `loomux dev swap-binary` keeps up to sixteen numbered `loomux.old.<n>.exe` slots and sweeps the ones whose process has ended, so a swap no longer fails when a process started from an earlier swap still holds the old name.
+
 ## [1.2.1] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/5>
