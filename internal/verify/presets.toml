@@ -1,0 +1,152 @@
+# Presets of `loomux check` and of post-edit. The lanes use the schema of
+# [verify.<stack>] in .loomux/config.toml, so whatever a preset can say, a
+# project can say too. Parsed on first use, never at start.
+
+ignored = [".txt", ".json", ".yaml", ".yml", ".toml", ".svg", ".png", ".jpg", ".jpeg", ".import", ".lock"]
+
+[extensions]
+".go" = "go"
+".py" = "python"
+".gd" = "gdscript"
+".cpp" = "cpp"
+".hpp" = "cpp"
+".cc" = "cpp"
+".cxx" = "cpp"
+".c" = "cpp"
+".h" = "cpp"
+".ts" = "typescript"
+".tsx" = "typescript"
+".js" = "typescript"
+".jsx" = "typescript"
+".vue" = "vue"
+".svelte" = "svelte"
+".css" = "css"
+".scss" = "css"
+".sass" = "css"
+".less" = "css"
+".html" = "html"
+".htm" = "html"
+".sh" = "shell"
+".bash" = "shell"
+".zsh" = "shell"
+".sql" = "sql"
+".rs" = "rust"
+".md" = "wiki"
+
+[stack.go]
+tests_when = ["*_test.go"]
+
+[stack.go.lint]
+commands = ["go vet ./...", "{loomux} check gofmt ."]
+# An edit formats only its own file: an unformatted file elsewhere is not
+# the edit's to fix.
+on_file = ["go vet ./...", "{loomux} check gofmt {file}"]
+threaded = true
+
+[stack.go.test]
+commands = ["go test ./... -count=1"]
+measuring = "go test ./... -count=1 -covermode=set -coverprofile={coverprofile}"
+
+[stack.go.coverage]
+commands = ["{loomux} check gocover --profile {coverprofile}"]
+measure = "go test ./... -count=1 -covermode=set -coverprofile={coverprofile}"
+after = "test"
+
+[stack.python]
+tests_when = ["tests/", "test_*.py", "pyproject.toml:[tool.pytest"]
+
+[stack.python.lint]
+commands = ["uvx ruff check . --output-format=concise"]
+
+# `uv run`, not `uvx`: a type checker has to see the project's dependencies.
+[stack.python.types]
+commands = ["uv run mypy --no-error-summary --no-pretty"]
+
+[[stack.python.variant]]
+when = "pyright"
+[stack.python.variant.types]
+commands = ["uv run pyright"]
+
+[stack.python.test]
+commands = ["uv run pytest -q --tb=short --no-header"]
+measuring = "uv run coverage run -m pytest -q --tb=short --no-header"
+
+# --skip-covered --skip-empty: the files at 100 % are the ones nobody reads;
+# -m names the missing lines, which saves the repairer a round.
+[stack.python.coverage]
+commands = ["uv run coverage report --skip-covered --skip-empty -m"]
+measure = "uv run coverage run -m pytest -q --tb=short --no-header"
+after = "test"
+
+[stack.gdscript.lint]
+commands = ["uvx gdlint ."]
+on_file = ["uvx gdlint {file}"]
+
+[stack.gdscript.test]
+commands = ["godot --headless --quit"]
+
+[stack.cpp]
+tests_when = ["CMakeLists.txt:enable_testing("]
+
+[stack.cpp.lint]
+commands = ["clang-tidy -p build"]
+on_file = ["clang-format --dry-run --Werror {file}"]
+
+# The compiler is the type checker of C++; post-edit ran the build before.
+[stack.cpp.types]
+commands = ["cmake --build build --parallel"]
+
+[stack.cpp.test]
+commands = ["ctest --test-dir build --output-on-failure"]
+
+# --fail-under-line makes a gate of it: the old preset only wrote a report.
+[stack.cpp.coverage]
+commands = ["gcovr --root . --object-directory build --fail-under-line 100 --txt"]
+after = "test"
+
+[stack.typescript]
+tests_when = ["package.json:vitest"]
+
+[stack.typescript.lint]
+commands = ["npx eslint ."]
+on_file = ["npx eslint --cache {file}"]
+
+[[stack.typescript.variant]]
+when = "biome"
+[stack.typescript.variant.lint]
+commands = ["npx biome check ."]
+on_file = ["npx biome check {file}"]
+
+[stack.typescript.types]
+commands = ["npx tsc --noEmit"]
+
+[stack.typescript.test]
+commands = ["npx vitest run"]
+
+# One stage: vitest measures and reports in the same run.
+[stack.typescript.coverage]
+commands = ["npx vitest run --coverage"]
+
+[stack.vue.types]
+commands = ["npx vue-tsc --noEmit"]
+
+[stack.svelte.types]
+commands = ["npx svelte-check"]
+
+[stack.css.lint]
+commands = ["npx stylelint **/*.{css,scss}"]
+on_file = ["npx stylelint {file}"]
+
+[stack.html.lint]
+commands = ["npx htmlhint **/*.html"]
+on_file = ["npx htmlhint {file}"]
+
+[stack.shell.lint]
+on_file = ["shellcheck {file}"]
+
+[stack.sql.lint]
+commands = ["sqlfluff lint ."]
+on_file = ["sqlfluff lint {file}"]
+
+[stack.rust.lint]
+commands = ["cargo clippy -- -D warnings", "cargo fmt --check"]
