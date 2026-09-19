@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.1] - 2026-09-19
+
+<https://github.com/xidus90/loomux/pull/9>
+
+### Fixed
+- The pre-tool-use guard refuses shell commands (Bash and PowerShell) that write, move or delete `.loomux/config.toml`, as it already refused writing tools; reading it stays allowed.
+
 ## [2.0.0] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/8>
