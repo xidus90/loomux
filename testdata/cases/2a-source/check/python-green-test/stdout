@@ -1,0 +1,3 @@
+test: ok [preset]
+faketool: uv run pytest
+1 passed

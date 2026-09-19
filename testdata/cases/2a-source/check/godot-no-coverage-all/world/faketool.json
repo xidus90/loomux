@@ -1,0 +1,14 @@
+{
+  "answers": [
+    {
+      "prefix": "uvx gdlint",
+      "exit": 0,
+      "stdout": "faketool: uvx gdlint\n"
+    },
+    {
+      "prefix": "godot",
+      "exit": 0,
+      "stdout": "faketool: godot\n"
+    }
+  ]
+}

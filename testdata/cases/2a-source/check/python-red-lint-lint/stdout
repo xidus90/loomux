@@ -1,0 +1,3 @@
+lint: failed [preset]
+faketool: uvx ruff check
+tests/test_a.py:1:1: F401 unused import

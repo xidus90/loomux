@@ -1,0 +1,10 @@
+lint: ok [preset]
+faketool: eslint
+types: ok [preset]
+faketool: tsc
+test: ok [preset]
+faketool: vitest run
+1 passed
+coverage: ok [preset]
+faketool: vitest run --coverage
+All files 100

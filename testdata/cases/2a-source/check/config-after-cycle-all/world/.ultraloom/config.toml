@@ -1,0 +1,3 @@
+[verify.after]
+test = "coverage"
+coverage = "test"

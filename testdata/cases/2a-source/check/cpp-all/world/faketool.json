@@ -1,0 +1,19 @@
+{
+  "answers": [
+    {
+      "prefix": "clang-tidy",
+      "exit": 0,
+      "stdout": "faketool: clang-tidy\n"
+    },
+    {
+      "prefix": "ctest",
+      "exit": 0,
+      "stdout": "faketool: ctest\n100% tests passed\n"
+    },
+    {
+      "prefix": "gcovr",
+      "exit": 0,
+      "stdout": "faketool: gcovr\n"
+    }
+  ]
+}
