@@ -75,7 +75,7 @@ sequenceDiagram
 
 Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen daraus via **Personalized PageRank**.
 
-> **Stand (Stufe G2b).** Stufe G2b vollendet den Abfragepfad: `loomux graph ask` sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen mit Personalized PageRank (alpha=0.25). Das Retrieval benötigt ~48 ms warm (~38 ms bei Namens-Matching ohne die 1-MB-Rumpfbeiakte auf diesem ~3.000-Knoten-Repo; die Beiakte dient der Skalierung auf 30.000+ Knoten). Quelltext-Spans werden bei Bedarf via `--source` inline eingeblendet. Bei Abweichung wird der Graph automatisch im Hintergrund neu gebaut, sofern `--no-refresh` fehlt. Graph-Navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) wartet auf die Stufen G3-G4.
+> **Stand (Stufe G3).** Stufe G2b hat den Abfragepfad vollendet: `loomux graph ask` sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen mit Personalized PageRank (alpha=0.25). Das Retrieval benötigt ~48 ms warm (~38 ms bei Namens-Matching ohne die 1-MB-Rumpfbeiakte auf diesem ~3.000-Knoten-Repo; die Beiakte dient der Skalierung auf 30.000+ Knoten). Quelltext-Spans werden bei Bedarf via `--source` inline eingeblendet. Bei Abweichung wird der Graph automatisch im Hintergrund neu gebaut, sofern `--no-refresh` fehlt; einen ersten Graphen baut keine Abfrage. Stufe G3 stellt dieselbe Abfrage und die Driftprüfung als `graph_find_code` und `graph_check_freshness` über MCP bereit (siehe §3). Graph-Navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) wartet auf Stufe G4.
 
 ```mermaid
 flowchart LR
@@ -100,15 +100,16 @@ flowchart TD
     
     subgraph Namespaces["Sub-Server Module"]
         Root <--> Brain["brain_*<br/>(search, catalog, read, neighbors, status)"]
-        Root <--> Graph["graph_*<br/>(find_code, trace_calls, file_api, find_all, repo_map)"]
+        Root <--> Graph["graph_*<br/>(find_code, check_freshness)<br/>geplant G4: trace_calls, file_api, find_all, repo_map"]
         Root <--> Upstreams["Upstream Proxies<br/>(Sprachserver, qmd mcp)"]
     end
 ```
 
-**Was heute steht (Stufe 1b-2):** der Wirt, die Brücke und die Wurzel über zwei
-Loopback-Listener — einer je Kanal, jeder mit eigenem Token — und die fünf
-`brain_*`-Werkzeuge. Der Namensraum `graph_*` und die Upstream-Proxies sind
-spezifiziert, nicht gebaut. `loomux mcp` fällt auf `--channel local` zurück,
+**Was heute steht (Stufen 1b-2 und G3):** der Wirt, die Brücke und die Wurzel über zwei
+Loopback-Listener — einer je Kanal, jeder mit eigenem Token — und sieben Werkzeuge:
+die fünf `brain_*`-Werkzeuge und, seit Stufe G3, `graph_find_code` und
+`graph_check_freshness`. Die übrigen vier `graph_*`-Werkzeuge (Stufe G4) und die
+Upstream-Proxies sind spezifiziert, nicht gebaut. `loomux mcp` fällt auf `--channel local` zurück,
 startet und ersetzt den Dienst selbst, und der Pro-Edit-Hook-Pfad verlinkt
 nichts davon, was ein Test über den Importgraphen festhält. Siehe
 [`docs/de/cli-reference.md`](docs/de/cli-reference.md) §8.
@@ -130,8 +131,9 @@ Stufen eine Abhängigkeit einzieht:
 | **2 – 4** | offen | Die vollständige Prüfkette, Brain-Pflege, Konvertierung und Abruf, `loomux migrate`, die Umstellung der Wirte |
 | **G1** | ✅ | Rang und Blast-Radius als Bibliotheken, an portierten Testvektoren der Referenz belegt |
 | **G2a** | ✅ | Extraktor, Auflösung, Speicher, Frischesonde sowie `graph build` und `graph check` |
-| **G2b** | 📋 geplant | Die Abfrage: lexikalische Saat, die Beiakte, `loomux graph ask` |
-| **G3 – G5** | offen | Das MCP-Gateway, die übrige `graph`-Palette samt Hook-Anbindung, Mehrsprachigkeit über `wazero` |
+| **G2b** | ✅ | Die Abfrage: lexikalische Saat, die Beiakte, `loomux graph ask` |
+| **G3** | ✅ | `graph_find_code` und `graph_check_freshness` am Gateway von 1b-2; eine Abfrage baut nie einen ersten Graphen |
+| **G4 – G5** | offen | Die übrige `graph`-Palette samt Hook-Anbindung, Mehrsprachigkeit über `wazero` |
 
 Jede Stufe endet grün und wird einzeln übergeben, mit eigenem Plan und — sobald
 sie fertig ist — eigener Paritätsakte, die jede ihrer Verfügungen festhält. Die
@@ -160,7 +162,7 @@ Matrix darunter sagt, wo die einzelnen Funktionen stehen:
 | Blast-Radius-Engine | Transitive Hülle und Impact-Analyse (`In`/`Out`, Tiefenbegrenzung, kleinste Tiefe gewinnt). Noch fragt kein Befehl etwas. | 🧩 **Bibliothek** (Stufe G1) |
 | Symbol-gekoppelter Grep | Regex-Suche, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Grad (`inDegree`). | 📋 **Spezifiziert** (Stufe G4) |
 | Multi-Language AST | CGo-freier Tree-sitter über WebAssembly (`wazero`) mit persistentem AOT-Kompilierungs-Cache. | 💡 **Geplant** (Stufe G5) |
-| MCP-Dienst & stdio-Brücke | `loomux serve` hält zwei Loopback-Listener, je einen pro Kanal und jeden mit eigenem Token, und beantwortet die fünf `brain_*`-Werkzeuge über Streamable HTTP; `loomux serve status` und `stop [--force]` steuern ihn, und `loomux mcp` ist die stdio-Brücke, die ein Wirt startet und die den Dienst selbst startet und ersetzt. `internal/hooks` bindet nichts davon: ein Tor-Test liest den Importgraphen. Die Front ist durch einen aufgezeichneten Fallkorpus an die MCP-Front der Python-Referenz gemessen; verglichen wird der Text jeder `CallToolResult` und `isError`, nicht der Umschlag, den zwei verschiedene SDKs aushandeln. | ✅ **Implementiert** (Stufe 1b-2) |
+| MCP-Dienst & stdio-Brücke | `loomux serve` hält zwei Loopback-Listener, je einen pro Kanal und jeden mit eigenem Token, und beantwortet sieben Werkzeuge über Streamable HTTP — die fünf `brain_*`-Werkzeuge und, seit Stufe G3, `graph_find_code` und `graph_check_freshness`; `loomux serve status` und `stop [--force]` steuern ihn, und `loomux mcp` ist die stdio-Brücke, die ein Wirt startet und die den Dienst selbst startet und ersetzt. `internal/hooks` bindet nichts davon: ein Tor-Test liest den Importgraphen. Die Front ist durch einen aufgezeichneten Fallkorpus an die MCP-Front der Python-Referenz gemessen; verglichen wird der Text jeder `CallToolResult` und `isError`, nicht der Umschlag, den zwei verschiedene SDKs aushandeln. | ✅ **Implementiert** (Stufen 1b-2, G3) |
 | **4. Second Brain & Wiki** | | |
 | Lokales Markdown-Wiki | Das Bündel selbst liegt in `docs/wiki/` (Bereich `project/loomux`, am 2026-09-16 Seite für Seite umgezogen und zeilenweise freigegeben). `loomux lint <datei>` prüft Links und Frontmatter einer Seite, `loomux wiki-gate` Frische und Struktur des Bündels. Identitätsregister und Themen-Graph schreibt der Reindex der Stufe 3, nicht der Umzug. | 🚧 **In Migration** (Stufe 2) |
 | Semantischer QMD-Index | Einbettung lokaler Vektoren und neuronaler Suche mit Caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stufe 3) |
@@ -208,14 +210,14 @@ loomux mcp [--channel local|cloud]  # stdio-Brücke, die ein MCP-Wirt startet; s
 ```bash
 loomux graph build [--root <pfad>]  # Extrahiert, löst auf und schreibt .loomux/state/graph/wiring.json
 loomux graph check [--root <pfad>]  # Extrahiert neu und vergleicht mit Graph auf Platte (Exit 1 bei Drift)
-loomux graph ask "<anfrage>" [flags] # Sucht Symbole gerankt nach lexikalischem Score und Personalized PageRank
+loomux graph ask "<anfrage>" [flags] # Sucht Symbole gerankt nach lexikalischem Score und Personalized PageRank; baut nie einen ersten Graphen
 ```
 
-### Spezifizierte Befehle (Code-Graph — Stufen G3–G5)
+### Spezifizierte Befehle (Code-Graph — Stufen G4–G5)
 
 Stufe G1 hat die Rank- und Blast-Radius-Bibliotheken gebaut; die Stufen G2a und G2b haben
-`build`, `check` und `ask` oben darauf verdrahtet, während die Graph-Navigation
-(`callers`, `blast`, `grep`, `skeleton`, `map`) auf die Stufen G3-G4 wartet.
+`build`, `check` und `ask` oben darauf verdrahtet, und Stufe G3 stellt `ask` und `check` über
+MCP bereit; die Graph-Navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) wartet auf Stufe G4.
 ```bash
 loomux graph callers <symbol>       # Zeigt Aufrufer, Aufgerufene (--direction out) oder transitive Hülle (-d all)
 loomux graph blast [dir]            # Berechnet den Blast-Radius eines Git-Diffs gegen Working Tree oder Merge-Base
