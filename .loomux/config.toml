@@ -91,3 +91,7 @@ reason = "Machine state is written by loomux, not by an edit."
 [[policy.paths.rules]]
 match  = ["testdata/cases/2a-source/**"]
 reason = "Recordings of the old tools are evidence; re-record them, never edit them."
+
+[[policy.paths.rules]]
+match  = ["testdata/cases/2b-source/**"]
+reason = "Recordings of the old tools are evidence; re-record them, never edit them."
