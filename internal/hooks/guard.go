@@ -55,12 +55,71 @@ var builtinPathRules = []config.PathRule{
 // on every tool call, and a package variable would pay for the expression in
 // runs that never look at a command line.
 var builtinCommands = sync.OnceValue(func() []config.CommandRule {
+	manifest := manifestWriteSource()
 	return []config.CommandRule{{
 		Regex:  regexp.MustCompile(`(^|\s)git\s+push(\s|$)`),
 		Source: `(^|\s)git\s+push(\s|$)`,
 		Reason: "Whether commits reach the remote is a human's decision.",
+	}, {
+		Regex:  regexp.MustCompile(manifest),
+		Source: manifest,
+		Reason: ".loomux/config.toml: the manifest is where the barrier reads its own limits, so no shell command may write it",
 	}}
 })
+
+// manifestWriteSource is the expression for a shell line that writes the
+// manifest: the barrier refuses it to every writing tool, and a shell line is
+// the same write by another road.
+//
+// It reads command text, not a file system, so it is a net with known holes
+// rather than a proof: a path held in a variable (`> "$M"`), a program that
+// opens the file itself (`python -c …`) and a command spelled through an alias
+// the list does not know all pass. It errs the other way where it cannot tell:
+// a `>` inside a quoted string, or the manifest named as the source of a
+// `mv` or an `Out-File -InputObject`, is refused. One rule rather than one per
+// form, because `checkTool` names a reason once per matching rule and a line
+// like `tee M > M` would otherwise say the same thing twice.
+//
+// Every form stays inside one segment of the line -- nothing between the
+// command and the manifest crosses `;`, `|`, `&` or a line break -- so a write
+// elsewhere on the line and a read of the manifest do not add up to a refusal.
+func manifestWriteSource() string {
+	const (
+		// The manifest as one shell word: quoted or not, under any directory,
+		// or glued to a parameter (`of=`, `-FilePath:`); either slash, any case.
+		name = `['"]?(?:[^\s;|&'"<>]*[/\\=:])?\.loomux[/\\]+config\.toml['"]?`
+		word = name + `(?:[\s;|&),]|$)`
+		last = name + `\s*(?:[;|&\n)]|$)`
+		// A command at the head of a segment, behind `sudo` and friends and
+		// under any directory; `$(` opens a segment as well.
+		head = `(?:^|[;|&({\n])\s*(?:(?:sudo|command|exec|nohup)\s+)*(?:[^\s;|&]*[/\\])?`
+		exe  = `(?:\.exe)?\s`
+		// The rest of the segment up to the word that names the manifest.
+		rest = `(?:[^;|&\n]*[\s(,])?`
+		// `sed -i`, `-i.bak`, `-Ei`, `--in-place`; case-sensitive, because
+		// `perl -I` is an include path.
+		inPlace = `(?-i:-[A-Za-z]*i\S*|--in-place\S*)`
+	)
+	forms := []string{
+		// A redirect into it: `>`, `>>`, `>|`, `2>`, `&>`.
+		`>[>|!]?\s*` + word,
+		// Commands that write or remove every file they name.
+		head + `(?:tee|tee-object|set-content|add-content|out-file|clear-content|ac|` +
+			`mv|move|move-item|mi|rename-item|ren|rni|rm|del|erase|remove-item|ri|truncate)` +
+			exe + rest + word,
+		// Commands that write only their destination.
+		head + `(?:cp|copy|copy-item|cpi|install)` + exe + rest + last,
+		head + `(?:cp|copy|copy-item|cpi|install)` + exe + `(?:[^;|&\n]*\s)?-dest\w*[:\s]\s*` + word,
+		head + `dd` + exe + `(?:[^;|&\n]*\s)?of=` + word,
+		head + `git\s+(?:-\S+\s+)*(?:mv|rm|checkout|restore)\s` + rest + word,
+		// An in-place edit, with the flag before or after the file.
+		head + `(?:sed|perl)` + exe + `(?:[^;|&\n]*\s)?` + inPlace + `\s` + rest + word,
+		head + `(?:sed|perl)` + exe + rest + word + `(?:[^;|&\n]*\s)?` + inPlace,
+		// .NET from PowerShell.
+		`\[(?:system\.)?io\.file\]::(?:write|append|create|delete|move|replace)\w*\s*\(` + rest + word,
+	}
+	return `(?i)` + strings.Join(forms, "|")
+}
 
 // commandTools are the tools whose "command" argument is a shell line.
 var commandTools = map[string]bool{"Bash": true, "PowerShell": true}

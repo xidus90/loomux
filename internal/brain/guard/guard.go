@@ -19,6 +19,9 @@
 // altogether. Widening the list is not a small change: a shell line has
 // no `file_path` to read, so covering it means deciding about command
 // text, which is a different problem with a different failure mode.
+// The one exception is the manifest: the policy in `internal/hooks`
+// refuses a shell line that writes `.loomux/config.toml`, by reading the
+// command text, before this package is asked.
 //
 // Everything here rests on how the host reads an exit code: 2 blocks the
 // tool call whatever stdout carries, while 1 is a *non-blocking* error
