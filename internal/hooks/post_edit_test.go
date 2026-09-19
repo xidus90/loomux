@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/child"
+	"github.com/xidus90/loomux/internal/detect"
 	"github.com/xidus90/loomux/internal/verify"
 )
 
@@ -567,12 +568,12 @@ func TestAnInvalidLayoutWikiDeclaresNothing(t *testing.T) {
 // post-edit runs; both answers come from the presets, and presets that fail
 // to load leave neither an answer.
 func TestPresetAnswersForTheBenchCorpus(t *testing.T) {
-	got := EditLaneCommands([]string{"python", "go", "nothing"})
+	got := EditLaneCommands(detect.Facts{Stacks: []string{"python", "go", "nothing"}})
 	want := []string{
+		"go vet ./...",
+		"loomux check gofmt {file}",
 		"uvx ruff check . --output-format=concise",
 		"uv run mypy --no-error-summary --no-pretty",
-		"go vet ./...",
-		"loomux check gofmt .",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("EditLaneCommands = %q, want %q", got, want)
@@ -584,8 +585,28 @@ func TestPresetAnswersForTheBenchCorpus(t *testing.T) {
 	if stack, ok := StackForExtension(".go"); ok || stack != "" {
 		t.Errorf("StackForExtension without presets = %q, %v", stack, ok)
 	}
-	if got := EditLaneCommands([]string{"go"}); got != nil {
+	if got := EditLaneCommands(detect.Facts{Stacks: []string{"go"}}); got != nil {
 		t.Errorf("EditLaneCommands without presets = %q", got)
+	}
+}
+
+// The audit names what an edit runs: a lane's form for one file where it has
+// one, the variant a detected signal selects, and nothing for a lane that has
+// no command at all.
+func TestEditLaneCommandsFollowWhatAnEditRuns(t *testing.T) {
+	cases := []struct {
+		stacks []string
+		want   []string
+	}{
+		{[]string{"cpp", "cmake"}, []string{"clang-format --dry-run --Werror {file}", "cmake --build build --parallel"}},
+		{[]string{"shell", "shellcheck"}, []string{"shellcheck {file}"}},
+		{[]string{"python", "pyright"}, []string{"uvx ruff check . --output-format=concise", "uv run pyright"}},
+		{[]string{"biome", "typescript"}, []string{"npx biome check {file}", "npx tsc --noEmit"}},
+	}
+	for _, c := range cases {
+		if got := EditLaneCommands(detect.Facts{Stacks: c.stacks}); !slices.Equal(got, c.want) {
+			t.Errorf("EditLaneCommands(%v) = %q, want %q", c.stacks, got, c.want)
+		}
 	}
 }
 

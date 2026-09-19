@@ -759,8 +759,14 @@ in `internal/verify`, `internal/cli/check.go` und `internal/hooks/post_edit.go`.
     `hooks.StackForExtension` über die feste Tabelle von post-edit, die
     diese Stufe entfernt. `hooks.StackForExtension` bleibt mit derselben
     Signatur und liest `Presets.Extensions` (Ladefehler: `"", false`);
-    statt `TargetCommandsForStacks` liefert `hooks.EditLaneCommands(stacks)`
-    die ganzprojektweiten Befehle der Preset-Lanes im Profil `edit`
-    (`lint`, `types`), Stack für Stack. Varianten und ein `[verify]` des
-    vermessenen Projekts zählen dabei nicht; die Lückenprüfung vergleicht
-    also mit dem, was loomux ohne Konfiguration ausführt.
+    statt `TargetCommandsForStacks` liefert `hooks.EditLaneCommands(facts)`
+    die Befehle, die post-edit im Profil `edit` (`lint`, `types`) ausführt:
+    die Presets über `verify.Resolve` mit den erkannten Fakten aufgelöst, so
+    dass eine Variante greift (pyright, biome), je Lane die Form für eine
+    Datei, wo es sie gibt, sonst `commands`, Stack für Stack in Byte-Folge.
+    `{loomux}` wird zu `loomux`, `{file}` bleibt stehen; die Lückenprüfung
+    liest nur das Werkzeug. Ein `[verify]` des vermessenen Projekts zählt
+    nicht; sie vergleicht also mit dem, was loomux ohne Konfiguration beim
+    Edit ausführt. Die erste Fassung las die ganzprojektweiten `commands`
+    ohne Varianten und prüfte C++ damit auf clang-tidy statt clang-format,
+    Shell auf nichts und ein pyright-Projekt auf mypy.
