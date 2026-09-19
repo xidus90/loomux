@@ -105,6 +105,13 @@ flowchart TD
     end
 ```
 
+**What stands today (Stage 1b-2):** the host, the bridge and the root over two
+loopback listeners — one per channel, each with its own token — and the five
+`brain_*` tools. The `graph_*` namespace and the upstream proxies are specified,
+not built. `loomux mcp` defaults to `--channel local`, starts and replaces the
+service itself, and the per-edit hook path links none of it, which an
+import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.md) §8.
+
 ---
 
 ## Feature & Status Matrix
@@ -117,7 +124,7 @@ stages pulls in a dependency:
 |---|---|---|
 | **1a** | ✅ | The pilot: repo scaffolding, gates, the unified guard, the post-edit lanes. loomux uses itself |
 | **1b-1** | ✅ | The brain read commands — `search`, `status`, `catalog`, `read`, `neighbors` — at parity with the Python reference |
-| **1b-2** | 🔨 in progress | `serve` with MCP over Streamable HTTP, the stdio bridge, upkeep |
+| **1b-2** | ✅ | `serve` with MCP over Streamable HTTP and the stdio bridge, held to the reference by a recorded case corpus. Upkeep is Stage 3 |
 | **1b-3** | ✅ | The wiki and the documentation moved in |
 | **2 – 4** | open | The full check chain, brain upkeep, conversion and fetching, `loomux migrate`, the host switch-over |
 | **G1** | ✅ | Ranking and blast radius as libraries, held to the reference by ported test vectors |
@@ -152,6 +159,7 @@ below says where each capability stands:
 | Blast Radius Engine | Transitive closure and impact analysis (`In`/`Out`, depth limits, smallest depth wins). No command asks it a question yet. | 🧩 **Library** (Stage G1) |
 | Symbol-Coupled Grep | Regex search grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). | 📋 **Specified** (Stage G4) |
 | Multi-Language AST | CGo-free Tree-sitter extraction via WebAssembly (`wazero`) with persistent AOT cache. | 💡 **Planned** (Stage G5) |
+| MCP Service & stdio Bridge | `loomux serve` holds two loopback listeners, one per channel, each with its own token, and answers the five `brain_*` tools over Streamable HTTP; `loomux serve status` and `stop [--force]` control it, and `loomux mcp` is the stdio bridge a host starts, which starts and replaces the service itself. `internal/hooks` links none of it: a gate test reads the import graph. The front is held to the Python reference's own MCP front by a recorded case corpus, which compares the text of each `CallToolResult` and `isError` rather than the envelope two different SDKs negotiate. | ✅ **Implemented** (Stage 1b-2) |
 | **4. Second Brain & Wiki** | | |
 | Local Markdown Wiki | The bundle itself lives in `docs/wiki/` (area `project/loomux`, moved page by page on 2026-09-16 and released line by line). `loomux lint <file>` checks one page's links and frontmatter, `loomux wiki-gate` checks the bundle's freshness and structure. Identity registers and the topic graph are written by the reindex of stage 3, not by the move. | 🚧 **In Migration** (Stage 2) |
 | Semantic QMD Index | Embedding and neural search integration with local caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stage 3) |
@@ -169,9 +177,9 @@ below says where each capability stands:
 
 ## CLI Reference
 
-Commands active after Stages 1a and 1b-1 vs. specified for subsequent fusion and graph stages:
+Commands active after Stages 1a, 1b-1 and 1b-2 vs. specified for subsequent fusion and graph stages:
 
-### Active Commands (Stages 1a and 1b-1)
+### Active Commands (Stages 1a, 1b-1 and 1b-2)
 ```bash
 loomux check commit-msg <file>      # validate commit message against language & structure rules
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files
@@ -189,6 +197,10 @@ loomux brain catalog [--scope S]    # the root catalog of the visible areas, or 
 loomux brain read <path> --scope S  # one file of an area, or one section of it (--section)
 loomux brain neighbors <path> --scope S  # incoming and outgoing links of one page
 loomux brain status                 # what to know before trusting an answer
+loomux serve [--foreground]         # start the long-lived localhost MCP service, detached or here
+loomux serve status                 # what serve.json says and whether the listener answers
+loomux serve stop [--force]         # end the service through its own endpoint, or by its PID
+loomux mcp [--channel local|cloud]  # stdio bridge an MCP host starts; it starts the service itself
 ```
 
 ### Implemented Commands (Code Graph — Stages G2a–G2b)
@@ -215,8 +227,7 @@ loomux graph viz                    # launch the interactive graph viewer in you
 ### Specified Commands (Second Brain & Services — Stages 2–3 & W1–W5)
 ```bash
 loomux brain reconcile             # synchronize state changes, identities, and index collections
-loomux serve                        # start long-running localhost HTTP MCP service and Web OS
-loomux mcp                          # stdio bridge for Claude Code, Cursor, and Antigravity
+loomux serve                        # the embedded Web OS beside the MCP listeners
 loomux init                         # wire hooks, settings, and skills into detected coding agents
 ```
 

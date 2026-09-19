@@ -263,6 +263,13 @@ Nachricht: `Pull in the MCP SDK and raise the dependency floor`.
   - `func TryAcquire(path string) (*Handle, bool, error)` — nimmt sie oder gibt `false` zurück.
   - `func (h *Handle) Release() error`
   - `func (h *Handle) PID() int` — die PID, die in der Datei steht; nur zur Anzeige.
+  - `func WaitFree(path string, timeout time.Duration) error` — wartet, bis
+    niemand die Sperre hält: `TryAcquire` im 250-ms-Takt, sofort wieder
+    freigeben, bis frei oder Frist abgelaufen. **Ruling 2 des Preflight-Scans:**
+    Task 11 braucht das für die Abfolge Stop → warten → starten, und es gehört
+    ins Sperrpaket, nicht in die Brücke. Dazu ein Test, der eine gehaltene
+    Sperre in die Frist laufen lässt, und einer, der nach `Release` sofort
+    zurückkommt.
 
 **Warum PID nur zur Anzeige:** die Ein-Instanz-Garantie ist die des
 Betriebssystems. Stirbt der Prozess, gibt das OS die Sperre frei. Eine
@@ -908,6 +915,9 @@ Erwartet: FAIL, `Tools` gibt es nicht.
 
 - [ ] **Step 3: Die Liste schreiben**
 
+`Names()` aus Task 1 fällt dabei weg — das Gerüst existierte nur, damit der SDK
+gelinkt und die Startzeit gemessen werden konnte (Ruling 1 des Preflight-Scans).
+
 `internal/mcptools/tools.go`:
 
 ```go
@@ -1333,7 +1343,10 @@ Nachricht: `Record the service endpoints and the build that serves them`.
 **Interfaces:**
 - Consumes: nichts aus diesem Plan.
 - Produces:
-  - `func NewToken() (string, error)` — 32 Bytes aus `crypto/rand`, base64url.
+  - `func NewToken() string` — 32 Bytes aus `crypto/rand`, base64url. **Ruling 9:**
+    ohne Fehlerrückgabe. `crypto/rand.Read` kann seit Go 1.24 keinen Fehler mehr
+    liefern (es paniert), und `go.mod` steht auf 1.26.0 — eine Fehlerrückgabe
+    trüge den toten Zweig nur in jede Aufrufstelle weiter.
   - `func RequireToken(token string, next http.Handler) http.Handler`
 
 **Warum vor dem SDK-Handler:** ein falscher Token endet mit 401, bevor irgendetwas
@@ -1814,6 +1827,10 @@ type Options struct {
 	LegacyDir  string
 	Foreground bool
 	BrokeAway  bool
+	// Answer falls back to answer.Run when nil. It is the seam the HTTP
+	// progress test needs, and the same one stage 1b-1 uses for the launcher
+	// and the spawner. Ruling 3 of the preflight scan.
+	Answer func(answer.Request, string, string, func(string)) (string, []string, error)
 }
 
 // Run takes serve.lock, binds both listeners, writes serve.json and blocks
@@ -2412,6 +2429,10 @@ func Decide(state *serve.State, ours time.Time) Decision {
 }
 
 // Deps are the three moves a restart makes. A test replaces all three.
+//
+// Stop wraps serve.Stop(stateDir, false): the --force kill belongs to a human
+// at the command line, never to a bridge tidying up in the background
+// (Ruling 4 of the preflight scan).
 type Deps struct {
 	Stop     func(stateDir string) error
 	WaitFree func(lockPath string, timeout time.Duration) error

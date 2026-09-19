@@ -105,6 +105,14 @@ flowchart TD
     end
 ```
 
+**Was heute steht (Stufe 1b-2):** der Wirt, die Brücke und die Wurzel über zwei
+Loopback-Listener — einer je Kanal, jeder mit eigenem Token — und die fünf
+`brain_*`-Werkzeuge. Der Namensraum `graph_*` und die Upstream-Proxies sind
+spezifiziert, nicht gebaut. `loomux mcp` fällt auf `--channel local` zurück,
+startet und ersetzt den Dienst selbst, und der Pro-Edit-Hook-Pfad verlinkt
+nichts davon, was ein Test über den Importgraphen festhält. Siehe
+[`docs/de/cli-reference.md`](docs/de/cli-reference.md) §8.
+
 ---
 
 ## Funktions- & Status-Matrix
@@ -117,7 +125,7 @@ Stufen eine Abhängigkeit einzieht:
 |---|---|---|
 | **1a** | ✅ | Der Pilot: Repo-Gerüst, Tore, der vereinte Wächter, die Post-Edit-Lanes. loomux benutzt sich selbst |
 | **1b-1** | ✅ | Die lesenden Brain-Befehle — `search`, `status`, `catalog`, `read`, `neighbors` — mit Parität zur Python-Referenz |
-| **1b-2** | 🔨 in Arbeit | `serve` mit MCP über Streamable HTTP, die stdio-Brücke, Upkeep |
+| **1b-2** | ✅ | `serve` mit MCP über Streamable HTTP und die stdio-Brücke, durch einen aufgezeichneten Fallkorpus an die Referenz gemessen. Upkeep ist Stufe 3 |
 | **1b-3** | ✅ | Wiki und Dokumentation sind umgezogen |
 | **2 – 4** | offen | Die vollständige Prüfkette, Brain-Pflege, Konvertierung und Abruf, `loomux migrate`, die Umstellung der Wirte |
 | **G1** | ✅ | Rang und Blast-Radius als Bibliotheken, an portierten Testvektoren der Referenz belegt |
@@ -152,6 +160,7 @@ Matrix darunter sagt, wo die einzelnen Funktionen stehen:
 | Blast-Radius-Engine | Transitive Hülle und Impact-Analyse (`In`/`Out`, Tiefenbegrenzung, kleinste Tiefe gewinnt). Noch fragt kein Befehl etwas. | 🧩 **Bibliothek** (Stufe G1) |
 | Symbol-gekoppelter Grep | Regex-Suche, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Grad (`inDegree`). | 📋 **Spezifiziert** (Stufe G4) |
 | Multi-Language AST | CGo-freier Tree-sitter über WebAssembly (`wazero`) mit persistentem AOT-Kompilierungs-Cache. | 💡 **Geplant** (Stufe G5) |
+| MCP-Dienst & stdio-Brücke | `loomux serve` hält zwei Loopback-Listener, je einen pro Kanal und jeden mit eigenem Token, und beantwortet die fünf `brain_*`-Werkzeuge über Streamable HTTP; `loomux serve status` und `stop [--force]` steuern ihn, und `loomux mcp` ist die stdio-Brücke, die ein Wirt startet und die den Dienst selbst startet und ersetzt. `internal/hooks` bindet nichts davon: ein Tor-Test liest den Importgraphen. Die Front ist durch einen aufgezeichneten Fallkorpus an die MCP-Front der Python-Referenz gemessen; verglichen wird der Text jeder `CallToolResult` und `isError`, nicht der Umschlag, den zwei verschiedene SDKs aushandeln. | ✅ **Implementiert** (Stufe 1b-2) |
 | **4. Second Brain & Wiki** | | |
 | Lokales Markdown-Wiki | Das Bündel selbst liegt in `docs/wiki/` (Bereich `project/loomux`, am 2026-09-16 Seite für Seite umgezogen und zeilenweise freigegeben). `loomux lint <datei>` prüft Links und Frontmatter einer Seite, `loomux wiki-gate` Frische und Struktur des Bündels. Identitätsregister und Themen-Graph schreibt der Reindex der Stufe 3, nicht der Umzug. | 🚧 **In Migration** (Stufe 2) |
 | Semantischer QMD-Index | Einbettung lokaler Vektoren und neuronaler Suche mit Caching in `~/.cache/qmd`. | 🚧 **In Migration** (Stufe 3) |
@@ -169,9 +178,9 @@ Matrix darunter sagt, wo die einzelnen Funktionen stehen:
 
 ## CLI-Referenz
 
-Aktive Befehle nach den Stufen 1a und 1b-1 im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Aktive Befehle nach den Stufen 1a, 1b-1 und 1b-2 im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
 
-### Aktive Befehle (Stufen 1a und 1b-1)
+### Aktive Befehle (Stufen 1a, 1b-1 und 1b-2)
 ```bash
 loomux check commit-msg <datei>     # Prüft Commit-Nachricht auf englische Sprache und Formatregeln
 loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
@@ -189,6 +198,10 @@ loomux brain catalog [--scope S]    # Wurzelkatalog der sichtbaren Bereiche oder
 loomux brain read <pfad> --scope S  # Eine Datei eines Bereichs oder einen Abschnitt daraus (--section)
 loomux brain neighbors <pfad> --scope S  # Eingehende und ausgehende Links einer Seite
 loomux brain status                 # Was man wissen muss, bevor man einer Antwort traut
+loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dienst, abgekoppelt oder hier
+loomux serve status                 # Was serve.json sagt und ob der Listener antwortet
+loomux serve stop [--force]         # Beendet den Dienst über seinen Endpunkt oder über seine PID
+loomux mcp [--channel local|cloud]  # stdio-Brücke, die ein MCP-Wirt startet; sie startet den Dienst selbst
 ```
 
 ### Implementierte Befehle (Code-Graph — Stufen G2a–G2b)
@@ -215,8 +228,7 @@ loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im B
 ### Spezifizierte Befehle (Second Brain & Dienste — Stufen 2–3 & W1–W5)
 ```bash
 loomux brain reconcile             # Synchronisiert Zustandsänderungen, Identitäten und QMD-Sammlungen
-loomux serve                        # Startet den langlebigen localhost HTTP MCP-Dienst und das Web OS
-loomux mcp                          # stdio-Brücke für Claude Code, Cursor und Antigravity
+loomux serve                        # Das eingebettete Web OS neben den MCP-Listenern
 loomux init                         # Richtet Hooks, Einstellungen und Skills in erkannten Agenten ein
 ```
 
