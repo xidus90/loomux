@@ -69,3 +69,25 @@ reason = "Whether commits reach the remote is a human's decision."
 [[policy.paths.rules]]
 match  = ["testdata/cases/1b-1-source/**"]
 reason = "Recordings of the old tools are evidence; re-record them, never edit them."
+
+# A table, not a list: a list would replace the whole lane and drop the
+# preset's on_file, and post-edit would gofmt the whole tree again.
+[verify.go.lint]
+commands = ["{loomux} check gofmt cmd internal", "go vet ./..."]
+
+# Tables merge onto the preset: commands stay, only the measuring forms change.
+# -coverpkg because a function exercised only by another package's tests would
+# otherwise read 0 %.
+[verify.go.test]
+measuring = "go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/loomux/... -coverprofile={coverprofile}"
+
+[verify.go.coverage]
+measure = "go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/loomux/... -coverprofile={coverprofile}"
+
+[[policy.paths.rules]]
+match  = [".loomux/state/**"]
+reason = "Machine state is written by loomux, not by an edit."
+
+[[policy.paths.rules]]
+match  = ["testdata/cases/2a-source/**"]
+reason = "Recordings of the old tools are evidence; re-record them, never edit them."
