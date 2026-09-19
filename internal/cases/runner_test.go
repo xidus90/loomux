@@ -351,3 +351,32 @@ func TestCompareTreesReportsATreeItCannotRead(t *testing.T) {
 		t.Fatal("want error for an unreadable actual tree")
 	}
 }
+
+// A lanes case compares the exit code and the verdict per kind, never the
+// bytes: the old chain printed one line per kind, loomux one per lane.
+func TestALanesCaseComparesVerdictsPerKind(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", ExitCode: 1,
+		Stdout: []byte("lint: ok [preset]\nfaketool: ruff\ntest: failed [preset]\n"), Compare: "lanes"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	same := func(_ []string, _ string, _ io.Reader, stdout, _ io.Writer) int {
+		fmt.Fprint(stdout, "lint/python: ok [preset] 0.1s\ntest/python: failed [preset] 1.0s\nE1\n")
+		return 1
+	}
+	outcome, err := cases.RunCase(c, same)
+	if err != nil || !outcome.Passed {
+		t.Fatalf("%v %+v", err, outcome)
+	}
+
+	differs := func(_ []string, _ string, _ io.Reader, stdout, _ io.Writer) int {
+		fmt.Fprint(stdout, "lint/python: ok [preset] 0.1s\ntest/python: ok [preset] 1.0s\ncoverage/python: ok [preset] 0.1s\n")
+		return 1
+	}
+	outcome, err = cases.RunCase(c, differs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"lanes: coverage absent != ok", "lanes: test red != ok"}
+	if outcome.Passed || strings.Join(outcome.Mismatches, "|") != strings.Join(want, "|") {
+		t.Fatalf("%q", outcome.Mismatches)
+	}
+}

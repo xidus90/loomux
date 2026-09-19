@@ -1,0 +1,1 @@
+loomux check coverage --root {{WORLD}}

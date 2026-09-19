@@ -1,0 +1,10 @@
+lint: ok [preset]
+faketool: uvx ruff check
+types: ok [preset]
+faketool: uv run mypy
+test: failed [preset]
+faketool: uv run coverage run
+FAILED tests/test_a.py::test_a
+1 failed
+coverage: failed [blocked]
+did not run because `test` was red

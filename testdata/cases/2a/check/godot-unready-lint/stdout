@@ -1,0 +1,2 @@
+lint: ok [preset]
+faketool: uvx gdlint

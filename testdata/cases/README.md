@@ -10,6 +10,7 @@ translation table and suite.
 | 1a | `ulguard` and `ulinit` from ultraloom, `brain` from ultra-brain, both at the tag `loomux-1a-source` | `internal/cli/cases_test.go` | 19 |
 | 1b-1 | `brain-mcp`, the Python reference of ultra-brain at the tag `loomux-1a-source` (`3cc72d2`), against a fake qmd | `internal/cli/cases_1b1_test.go` | 71 |
 | 1b-2 | `brain-mcp mcp`, the same reference's MCP front over its own daemon, against a fake qmd | `internal/cli/cases_1b2_test.go` | 54 |
+| 2a | `ultraloom check` at the tag `loomux-1a-source` (`9d01a60`), against fake tools | `internal/cli/cases_2a_test.go` | 53 |
 
 ## Layout
 
@@ -28,6 +29,11 @@ translation table and suite.
 | `1b-2-source/` | The recordings of `brain-mcp mcp`, written by `loomux dev record-mcp-case`. `verb/name/` holds `call`, `result`, `notes.md`, the staged `world/`, and optionally `compare`. The whole invocation, because every part of it was paid for once: `--argv "uv run --no-sync --project <ub> brain-mcp"`, `--path-prepend <dir holding qmd.exe>`, `--env "LOOMUX_FAKE_QMD_FIXTURE={{WORLD}}/qmd-fixture.json"`, `--channel cloud`, and then `--tool`, `--arguments`, `--world`, `--out`, `--notes` and optionally `--compare outcome`. **Without the `--env` the fake answers out of an empty fixture** and every `status` case records `Collection not found`, which is word for word what the real qmd says -- a recording round was lost to exactly that. The report of task 13 in `.superpowers/sdd/` carries the full list of 54 invocations. |
 | `1b-2-map.toml` | The tool renaming: `[[tool]]` rules putting the reference's five bare names into loomux's `brain_` family. |
 | `1b-2/` | The translated cases, written by `loomux dev import-cases --mcp`. This is the directory the 1b-2 suite runs. |
+| `2a-worlds/` | The project trees a 2a case runs `check` in: one per stack (`python-*`, `node`, `cpp`, `go-only`, `godot-*`), `mixed-config` with a Python and a Go marker under one old `[verify]`, `no-marker` with none, and the three `config-*` worlds whose old `[verify]` the old schema already refused. Each world but those three and `no-marker` carries `faketool.json`. |
+| `2a-source/` | The recordings of `ultraloom check`, written by `loomux dev record-case` with the faketool executable first on `PATH` under every tool name the old chain calls. |
+| `2a-map.toml` | One rule: `ultraloom check ` → `loomux check `. |
+| `2a-extra-answers.json` | The answers only loomux asks for: its presets call `npx eslint`, `npx tsc`, `npx vitest`, `cmake --build` and `go test`, which the old chain did not. `loomux dev import-cases --merge-fixture` appends them to every translated world's `faketool.json` (and writes one where the world had none); the recorded fixture stays as it was. |
+| `2a/` | The translated cases. The old `[verify]` of `.ultraloom/config.toml` is folded: every kind it named moves to `[verify.project]`, and every stack the world holds gets that kind switched off, because the old configuration replaced the preset. `[verify.after]` becomes `after` on the project lane, `godot_import` becomes `[verify.gdscript] import_check`; `tests` and `threshold` are dropped. |
 
 ## What a case compares
 
@@ -38,6 +44,15 @@ translation table and suite.
 
 - **`compare = data`** — the exit code **and** the recorded `stdout`, byte for
   byte.
+- **`compare = lanes`** — the exit code **and** the verdict per kind: every
+  line `<kind>[/<lane>]: <state>` is read, a kind is red when one of its
+  lines is red (`failed`, `timed-out`, `blocked`, `missing-tool`, `unready`,
+  `error`) or loomux notes ``nothing to check for `<kind>` ``, else ok when
+  one is ok, else neutral. The old chain printed one
+  line per kind and wrote `unavailable` as the source of a failed kind
+  (`types: failed [unavailable]`), loomux prints one line per lane; the tool
+  output below the lines is not compared. Stage 2a uses it wherever the
+  recording printed a report.
 - **`compare = message`** — the exit code **alone**. The wording of a message
   is loomux's own: it is allowed to differ from the old tool's.
 
@@ -98,6 +113,19 @@ does (`N: `); loomux removes that prefix, so the recorded stdout still holds.
 A daemon that cannot be started is covered by unit tests, not by a case: no
 recording may start qmd.
 
+## The fake tools (2a)
+
+No recording and no replay starts a checking tool. `internal/dev/faketool`
+answers from the world's `faketool.json` by the longest command-line prefix:
+built as `uv.exe`, `uvx.exe`, `go.exe` … and put first on `PATH` for the
+recording, and through the `checkStart` seam in the suite. There, `{loomux}`
+runs in process: `check gocover` gets `--dir` of its lane and really reads
+the profile the fake `go test` wrote, through a real `go tool cover -func`.
+A write whose path is `{{COVERPROFILE}}` lands where the command line's
+`-coverprofile=` points, because that path carries the run's ID; without the
+flag nothing is written. A tool the fixture has no prefix for is not on the
+`PATH` (`missing-tool`), a command line it has no answer for exits 127.
+
 ## A recorded `stdout` is evidence, not always an expectation
 
 The `stdout` of a `message` case is kept as it was recorded — it still names
@@ -110,8 +138,8 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
 
 ## Rules for working with the corpus
 
-- **A recording is evidence.** Files under `1a-source/` and `1b-1-source/` are
-  never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
+- **A recording is evidence.** Files under `1a-source/`, `1b-1-source/` and
+  `2a-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
   for 1a with the old binaries (build them from the tag worktrees, put them
   first on `PATH`, run `loomux dev record-case`); for 1b-1 with the fake qmd
   rebuilt from `internal/dev/fakeqmd/_qmd` and the recording command of the
@@ -120,7 +148,11 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
   list says so.** Every such deviation has a line in
   `docs/.superpowers/parity/stufe-1a.md` or `stufe-1b-1.md`. Today there is
   one, in 1a: the exit of `hook-pre-tool-use/unreadable-payload` is 2 (the
-  guard fails closed) where the old tool gave 1. 1b-1 has none.
+  guard fails closed) where the old tool gave 1. 1b-1 has none. 2a keeps its
+  deviations out of the corpus: `approved2a` in `internal/cli/cases_2a_test.go`
+  names each case with its number in `docs/.superpowers/parity/stufe-2a.md`,
+  a re-import cannot lose them, and a listed case that starts to pass fails
+  the suite.
 - **A re-import throws that deviation away, and it has to be re-applied by
   hand.** The deviation lives only in `1a/`; `1a-source/` still holds the
   recorded 1, and `loomux dev import-cases` copies the recording over the
@@ -141,8 +173,9 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
 - **The case count is pinned.** `internal/cli/cases_test.go` fails when the 1a
   corpus does not hold exactly 19 cases, `internal/cli/cases_1b1_test.go` when
   the 1b-1 corpus does not hold exactly 71, `internal/cli/cases_1b2_test.go`
-  when the 1b-2 corpus does not hold exactly 54, so a partial import cannot
-  pass as parity. Adding a case means raising that number.
+  when the 1b-2 corpus does not hold exactly 54, `internal/cli/cases_2a_test.go`
+  when the 2a corpus does not hold exactly 53, so a partial import cannot pass
+  as parity. Adding a case means raising that number.
 - **A 1b-2 recording starts the reference's daemon as `daemon run`, never as
   `daemon start`.** `daemon start` reaches `client._start_outside_job`, which
   creates the daemon through WMI on Windows; a process created that way gets

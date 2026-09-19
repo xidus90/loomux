@@ -21,7 +21,8 @@ type Case struct {
 	ExitCode      int
 	Notes         string
 	HasWorldAfter bool
-	// Compare is "data" (exit and stdout) or "message" (exit only).
+	// Compare is "data" (exit and stdout), "message" (exit only) or "lanes"
+	// (exit and the verdict per kind of a check report).
 	Compare string
 }
 
@@ -70,7 +71,7 @@ func LoadCase(dir string) (*Case, error) {
 	compare := "data"
 	if data, err := os.ReadFile(filepath.Join(cleanDir, "compare")); err == nil {
 		compare = strings.TrimSpace(string(data))
-		if compare != "data" && compare != "message" {
+		if compare != "data" && compare != "message" && compare != "lanes" {
 			return nil, fmt.Errorf("unknown compare %q in %s", compare, cleanDir)
 		}
 	}

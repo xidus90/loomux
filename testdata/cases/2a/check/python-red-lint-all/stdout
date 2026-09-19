@@ -1,0 +1,11 @@
+lint: failed [preset]
+faketool: uvx ruff check
+tests/test_a.py:1:1: F401 unused import
+types: ok [preset]
+faketool: uv run mypy
+test: ok [preset]
+faketool: uv run coverage run
+1 passed
+coverage: ok [preset]
+faketool: uv run coverage report
+TOTAL 1 0 100%

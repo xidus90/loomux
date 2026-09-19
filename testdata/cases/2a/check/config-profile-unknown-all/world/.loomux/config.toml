@@ -1,0 +1,3 @@
+[verify]
+  [verify.profiles]
+    x = ["lint", "style"]

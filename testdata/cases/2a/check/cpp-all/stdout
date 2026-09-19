@@ -1,0 +1,9 @@
+lint: ok [preset]
+faketool: clang-tidy
+types: failed [error]
+KeyError: 'CMakeLists.txt'
+test: ok [preset]
+faketool: ctest
+100% tests passed
+coverage: ok [preset]
+faketool: gcovr

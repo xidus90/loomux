@@ -1,0 +1,12 @@
+[verify]
+  [verify.go]
+    lint = false
+    test = false
+  [verify.project]
+    [verify.project.lint]
+      commands = ["uvx ruff check .", "go vet ./..."]
+    [verify.project.test]
+      commands = ["uv run pytest -q"]
+  [verify.python]
+    lint = false
+    test = false

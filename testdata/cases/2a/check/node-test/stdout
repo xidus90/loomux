@@ -1,0 +1,3 @@
+test: ok [preset]
+faketool: vitest run
+1 passed

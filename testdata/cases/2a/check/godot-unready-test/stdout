@@ -1,0 +1,4 @@
+test: failed [unready]
+this Godot project has never been imported, so nothing measured here would mean anything
+run: godot --headless --path . --import
+a project whose own check command runs the import sets [verify].godot_import = false

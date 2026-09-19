@@ -1,0 +1,3 @@
+test: ok [preset]
+faketool: ctest
+100% tests passed

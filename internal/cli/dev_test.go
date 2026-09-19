@@ -665,3 +665,40 @@ func TestDevBench(t *testing.T) {
 		}
 	})
 }
+
+// --merge-fixture appends the extra answers to every translated world; extra
+// answers it cannot read fail the import after the cases were written.
+func TestDevImportCasesMergesTheExtraAnswers(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	caseDir := filepath.Join(from, "check", "one")
+	if err := os.MkdirAll(filepath.Join(caseDir, "world"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"cmd": "ultraloom check all --root {{WORLD}}\n", "exit": "1\n", "stdout": ""} {
+		if err := os.WriteFile(filepath.Join(caseDir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mapFile := filepath.Join(t.TempDir(), "map.toml")
+	if err := os.WriteFile(mapFile, []byte("[[command]]\nfrom = \"ultraloom check \"\nto = \"loomux check \"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	extra := filepath.Join(t.TempDir(), "extra.json")
+	if err := os.WriteFile(extra, []byte(`{"answers": [{"prefix": "cmake --build", "exit": 0}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, _, errOut := run("dev", "import-cases", "--map", mapFile, "--from", from, "--to", to, "--merge-fixture", extra)
+	if code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	got, err := os.ReadFile(filepath.Join(to, "check", "one", "world", "faketool.json"))
+	if err != nil || !strings.Contains(string(got), `"prefix": "cmake --build"`) {
+		t.Fatalf("%v %s", err, got)
+	}
+
+	code, _, errOut = run("dev", "import-cases", "--map", mapFile, "--from", from, "--to", to, "--merge-fixture", filepath.Join(t.TempDir(), "gone.json"))
+	if code != 1 || !strings.Contains(errOut, "loomux dev import-cases: reading the extra answers") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}

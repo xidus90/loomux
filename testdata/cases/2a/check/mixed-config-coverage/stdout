@@ -1,0 +1,4 @@
+coverage: ok [preset]
+faketool: uv run coverage report
+TOTAL 1 0 100%
+note: the configured coverage threshold is 100%; ultraloom does not enforce it — the coverage tool's own settings decide
