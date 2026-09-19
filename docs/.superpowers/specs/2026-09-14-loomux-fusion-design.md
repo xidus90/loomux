@@ -1,9 +1,10 @@
 # loomux — ultraloom und ultra-brain in einem Go-Binary
 
 **Datum:** 2026-09-14
-**Stand:** teilweise umgesetzt (2026-09-18).
-**Fusions-Stufen:** 1a, 1b-1 und 1b-3 (Wiki- und Doku-Umzug) sind abgeschlossen;
-1b-2 (`serve`, MCP, Brücke, Upkeep) ist in Arbeit, die Stufen 2–4 sind offen.
+**Stand:** teilweise umgesetzt (2026-09-19).
+**Fusions-Stufen:** 1a, 1b-1, 1b-3 (Wiki- und Doku-Umzug) und 2a (Prüfkette
+`[verify]`, `loomux check <profil>`, `check gocover`) sind abgeschlossen; 1b-2
+(`serve`, MCP, Brücke, Upkeep) ist in Arbeit, 2b, 2c, 3 und 4 sind offen.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
 Blast) am 2026-09-17 und G2a (Extraktor, Auflösung, Speicher, Frische, die
 Befehle `graph build` und `graph check`) am 2026-09-18 abgeschlossen; G2b (die
@@ -177,8 +178,14 @@ weil brain kein fremdes Programm mehr ist.
 ### Abhängigkeitsregeln
 
 - Jedes Paket darf `config` benutzen.
-- `hooks` → `verify`, `brain/guard`, `hosts`, `journal`, `worktree`.
-- `verify` → `child`, `brain/check` (die Wiki-Lane läuft im Prozess).
+- `hooks` → `verify`, `brain/guard`, `brain/wiki`, `hosts`, `journal`, `worktree`.
+  Die Wiki-Lane baut `hooks`: ein `verify.Job` mit einer Funktion (`Fn`), die
+  `wiki.LintReport` im Prozess ruft.
+- `verify` → `child`, `detect`, `shellwords`; `child` → `gitenv`. `verify`
+  importiert nie `hooks` und kein `brain/*`. (Nachtrag 2026-09-19, gegen
+  `go list` gerechnet: Hier stand `verify` → `child`, `brain/check`; die
+  Wiki-Lane ist aber in `hooks` gelandet, und `gitenv` erreicht `verify` nur
+  über `child`.)
 - `serve` → `brain/*`.
 - `install` → `hosts`, `config`, `verify` (Presets).
 - **`hooks` importiert nie `serve`.** Der Pfad an jedem Edit hängt nicht an
@@ -469,10 +476,10 @@ Schreibschranke freigegeben.**
 Jede Stufe endet grün und wird einzeln übergeben; jede bekommt ihren eigenen
 Plan.
 
-**Stand am 2026-09-18.** Zwei Dinge sind anders gekommen, als diese Tabelle
+**Stand am 2026-09-19.** Zwei Dinge sind anders gekommen, als diese Tabelle
 ursprünglich annahm, und beide stehen unten in der Spalte statt in einer
-Fußnote. Erstens ist **1b in drei Teilstufen zerfallen**, weil jede ihren
-eigenen Plan und ihre eigene Abnahme brauchte. Zweitens läuft **Säule 3 (der
+Fußnote. Erstens sind **1b und 2 je in drei Teilstufen zerfallen**, weil jede
+ihren eigenen Plan und ihre eigene Abnahme brauchte. Zweitens läuft **Säule 3 (der
 Code-Graph) parallel** und nicht nach Stufe 4 — der Grund steht in §10 der
 Säule-3-Spec und in §1 des G1-Deltas.
 
@@ -480,7 +487,7 @@ Säule-3-Spec und in §1 des G1-Deltas.
 |---|---|---|
 | **1a** | ✅ | Repo-Gerüst, Lizenz, Tore, Startzeit-Nachweis. Umzug der Go-Pakete, die 1a benutzt, mit Tests, auf 100 % gehoben; jedes übrige Paket zieht mit der Stufe um, die es zuerst braucht. `config`, `hosts`, vereinter Wächter, post-edit mit Wiki-Lane im Prozess, `session-start`, `lint`, `wiki-gate`. `dev bench-hooks`. Pilot: das loomux-Repo nutzt sich selbst |
 | **1b** | ➗ in drei Teilstufen zerfallen, siehe darunter | `search`, `status`, `catalog`, `read`, `neighbors` mit Parität zur Python-Referenz — neuer Go-Code, kein Umzug (Identitäten in der Suche, `status` vollständig). `serve` mit MCP und Brücke. `dev mutants`. Wiki- und Doku-Umzug |
-| **2** | offen | `child`, vollständige Prüfkette `[verify]`, `loomux check <profil>`, Coverage-Tor, commit-msg mit `--language`/`--calibrate`/`[commit]`, Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig |
+| **2** | ➗ in drei Teilstufen zerfallen, siehe darunter | `child`, vollständige Prüfkette `[verify]`, `loomux check <profil>`, Coverage-Tor, commit-msg mit `--language`/`--calibrate`/`[commit]`, Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig |
 | **3** | offen | Brain-Pflege: `reconcile` (auch als Durchgang vor `reindex`), `apply`/`approve`/`cases`/`evidence`/`vcs`, Locking, Bereichs-Onboarding, `merge-events`, `wiki types`/`retype`/`census`/`scaffold`, Upkeep in `serve` |
 | **4** | offen | `convert`/`fetch` über `pdftotext`/`yt-dlp`, lokales Modell (Ollama über `net/http`, deutsche Zipf-Tabelle eingebettet), `bench`. `loomux init` vollständig für alle Hosts, `loomux migrate`. Umstellung der Wirte |
 
@@ -494,6 +501,37 @@ Nummer):
 | **1b-1** | ✅ 2026-09-15 | `search`, `status`, `catalog`, `read`, `neighbors` mit Parität zur Python-Referenz, Identitäten in der Suche, `status` vollständig. `dev mutants` entsteht hier |
 | **1b-2** | 🔨 in Arbeit (Zweig `sdd-1b-2`, Plan `2026-09-17-loomux-stufe-1b-2.md`; noch keine Paritätsakte) | `serve` mit MCP über Streamable HTTP, die stdio-Brücke, Upkeep |
 | **1b-3** | ✅ 2026-09-17 | Wiki- und Doku-Umzug |
+
+**Die drei Teilstufen der 2**, jede mit eigener Spec und eigenem Plan; die
+fertige auch mit Paritätsakte (`parity/stufe-2a.md`):
+
+| Teilstufe | Stand | Inhalt |
+|---|---|---|
+| **2a** | ✅ 2026-09-19 (Spec `2026-09-19-loomux-stufe-2a-design.md`, Plan `2026-09-19-loomux-stufe-2a.md`) | `child` (Prozessbaum, Fristen, Absaugen), das Schema `[verify]` mit Presets je Stack, `loomux check <profil\|arten>` mit `--show`, `loomux check gocover` statt `dev covergate`, post-edit auf `[verify]`. loomux prüft sich selbst mit `check precommit` |
+| **2b** | offen | commit-msg mit `--language`, `--calibrate`, `[commit]` |
+| **2c** | offen | Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig; hängt an 2a |
+
+**Für 2c vorgemerkt:** zwei Schwächen der heutigen `stop.py` (gelesen am
+2026-09-18), die `stop` nicht übernimmt.
+
+- **Fristen widersprechen sich.** `[verify].timeout` ist je Befehl 600 s
+  (`config.py:33`), der Host tötet den Stop-Hook aber nach 300 s. Eine lange
+  Suite stirbt am Hook-Timeout, bevor die eigene Frist greift, und wird nicht
+  rot gemeldet. 2a hat die Frage für post-edit so entschieden, wie sie auch
+  hier gilt: `timeout` bleibt je Befehl und ohne Obergrenze beim Laden, das
+  **Budget gehört dem Scope**. `stop` bekommt ein Budget fest unter seiner
+  Hook-Frist, mit Abstand für Start, Git und Ausgabe, so wie post-edit 50 s
+  unter 60 s hat; jedes Kind bekommt `min(eigene Frist, Restbudget)`. Die
+  ursprüngliche Fassung dieser Regel (Zweig `docs/stufe-2-stop-notes`,
+  `967f3e6`) wollte einen größeren `timeout` beim Laden ablehnen; das hat 2a
+  verworfen (Abweichungsliste 2a, Eintrag 8).
+- **Dauerlauf bei uncommitteter Arbeit.** Die Basis rückt nur nach grünem
+  Lauf auf HEAD vor. Solange Änderungen uncommittet bleiben, fährt jedes
+  Turn-Ende die ganze Suite erneut, auch wenn sich seit dem letzten grünen
+  Lauf nichts geändert hat. `stop` merkt sich deshalb einen Fingerabdruck des
+  grün geprüften Stands (HEAD, Diff gegen die Basis, untracked Inhalte) in
+  `Snapshots` des Sitzungszustands (`internal/sessions/state.go`) und läuft
+  nicht, solange er gleich ist.
 
 **Säule 3, der Code-Graph** (`2026-09-14-loomux-code-graph-design.md`). Sie
 steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
