@@ -85,7 +85,15 @@ are German and never translated.
   `docs/de/benchmarks.md`: date and time, what was measured, baseline against
   change, cold and warm.
 - Maintain the project READMEs (`README.md` and `README.de.md`) alongside
-  implementation changes to reflect the actual state, capabilities, and roadmap.
+  implementation changes to reflect the actual state and capabilities.
+- The migration plan is `docs/en/migration.md` and `docs/de/migration.md`:
+  every stage with its status, origin, what is left, its dependencies and its
+  priority, and every capability with its origin and status. Every pull
+  request that starts, finishes, adds or drops migration work updates both in
+  the same pull request — a finished stage turns ✅ and its dependents are
+  re-read, a capability's status follows its stage, a new gap gets a row. A decision (a new stage, a
+  removal, a changed order) goes into the fusion spec first; the plan follows
+  it and never contradicts it.
 
 ## Commands
 
