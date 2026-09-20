@@ -4,6 +4,19 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-09-20
+
+<https://github.com/xidus90/loomux/pull/13>
+
+### Added
+- `[commit]` in `.loomux/config.toml`: `language` (`en` or `de`), `threshold`, `conventional`, and `[[commit.allow]]` rules of `regex` and `reason` that skip a line.
+- `loomux check commit-msg --calibrate N` prints, for the thresholds 1 to 4, how many of the last N commits each would have refused and which ones.
+- `loomux check commit-msg --language en|de` picks the language to calibrate against; it is refused when a message file is checked.
+
+### Changed
+- `loomux check commit-msg` reads every line of a message instead of the subject alone, and a line is refused at two hits instead of one. Code spans, quotes, paths, git trailers, the scissors line and `[[commit.allow]]` matches are exempt.
+- A refusal now names each refused line with its line number and the words that count against it, and exits 1 as before.
+
 ## [2.1.0] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/10>
