@@ -205,7 +205,8 @@ func RunCaseWith(c *Case, run RunFunc, normalize Normalizer) (*RunOutcome, error
 	}
 	// A world may declare a repository; it is built after staging, so the
 	// SHAs are the same every time and {{COMMIT:<n>}} can stand for them.
-	if err := BuildGitWorld(tmpDir); err != nil {
+	repo, err := BuildGitWorldAt(tmpDir)
+	if err != nil {
 		return nil, err
 	}
 	world := filepath.ToSlash(tmpDir)
@@ -240,6 +241,16 @@ func RunCaseWith(c *Case, run RunFunc, normalize Normalizer) (*RunOutcome, error
 	expected := filepath.Join(c.Path, "world_after")
 	if !c.HasWorldAfter {
 		expected = srcWorld
+	}
+	// A commit is compared only where the case asks for it: the git cases
+	// recorded before git.after existed hold none, and would find one extra.
+	if repo != "" {
+		rel, _ := filepath.Rel(tmpDir, repo)
+		if _, err := os.Stat(filepath.Join(expected, rel, GitAfterName)); err == nil {
+			if err := WriteGitAfter(repo); err != nil {
+				return nil, err
+			}
+		}
 	}
 	// A state and a finding case read loomux's state alone, so no tree
 	// comparison runs for them.

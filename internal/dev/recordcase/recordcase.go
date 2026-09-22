@@ -33,6 +33,7 @@ type Spec struct {
 	Argv        []string // program and leading arguments; replaces the command's first token; excludes Exe
 	Env         []string // KEY=VALUE for the recorded process; {{WORLD}} stands for the staged world
 	PathPrepend string   // directory put in front of the recorded process's PATH
+	GitAfter    bool     // write git.after into the git world's repository after the run
 }
 
 // Record runs the old binary in a staged copy of the world and writes the case.
@@ -53,7 +54,8 @@ func Record(s Spec) error {
 	if err := cases.StageWorld(s.World, tmp); err != nil {
 		return err
 	}
-	if err := cases.BuildGitWorld(tmp); err != nil {
+	repo, err := cases.BuildGitWorldAt(tmp)
+	if err != nil {
 		return err
 	}
 	world := filepath.ToSlash(tmp)
@@ -93,6 +95,16 @@ func Record(s Spec) error {
 			return fmt.Errorf("running %s: %w", program, err)
 		}
 		exit = exitErr.ExitCode()
+	}
+	// Before world_after is taken: git.after is how the case pins the commit
+	// the run made, and the replay writes it at the same place.
+	if s.GitAfter {
+		if repo == "" {
+			return errors.New("git.after needs a git world")
+		}
+		if err := cases.WriteGitAfter(repo); err != nil {
+			return err
+		}
 	}
 	// Python writes \r\n into a pipe on Windows and loomux writes \n: the
 	// recording keeps the lines, not the platform's line ends.

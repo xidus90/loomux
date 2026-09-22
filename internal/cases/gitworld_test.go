@@ -395,3 +395,174 @@ func TestRunCaseReportsAGitWorldItCannotBuild(t *testing.T) {
 		t.Fatal("want an error")
 	}
 }
+
+// A command that commits in a replay finds no identity in its environment:
+// gitenv strips the variables and the world's home holds no .gitconfig. The
+// repository's own configuration carries it instead.
+func TestBuildGitWorldWritesTheIdentityIntoTheRepository(t *testing.T) {
+	dir := writeWorld(t, map[string]string{GitWorldFile: "dir = \"repo\"\n[[commit]]\nmessage = \"one\"\npaths = [\"a.md\"]\n[commit.files]\n\"a.md\" = \"a\\n\"\n"})
+	if err := BuildGitWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{"user.name": "loomux cases", "user.email": "cases@loomux.invalid"} {
+		if got := gitOut(t, filepath.Join(dir, "repo"), "config", "--local", key); got != want {
+			t.Fatalf("%s = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestBuildGitWorldAtNamesTheRepositoryItMade(t *testing.T) {
+	for decl, want := range map[string]string{"": "", "[[commit]]\nmessage = \"a\"\n": ".", "dir = \"repo\"\n[[commit]]\nmessage = \"a\"\n": "repo"} {
+		files := map[string]string{"a.txt": "x"}
+		if decl != "" {
+			files[GitWorldFile] = decl
+		}
+		dir := writeWorld(t, files)
+		repo, err := BuildGitWorldAt(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want == "" && repo != "" || want != "" && repo != filepath.Join(dir, want) {
+			t.Errorf("%q: repository %q, want %q", decl, repo, want)
+		}
+	}
+}
+
+func TestWriteGitAfterNamesSubjectAndPaths(t *testing.T) {
+	dir := writeWorld(t, map[string]string{GitWorldFile: "dir = \"repo\"\n[[commit]]\nmessage = \"one\"\npaths = [\"b.md\", \"a.md\"]\n[commit.files]\n\"a.md\" = \"a\\n\"\n\"b.md\" = \"b\\n\"\n"})
+	if err := BuildGitWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+	repo := filepath.Join(dir, "repo")
+	if err := WriteGitAfter(repo); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(repo, GitAfterName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "one\na.md\nb.md\n"; string(got) != want {
+		t.Fatalf("git.after = %q, want %q", got, want)
+	}
+}
+
+// A tracked file that differs from HEAD is a status line: world_after holds
+// the content, and only the status says whether HEAD holds it too. An
+// untracked file is none -- git.after itself is one.
+func TestWriteGitAfterNamesTrackedChangesAfterThePaths(t *testing.T) {
+	decl := "[[commit]]\nmessage = \"one\"\n[commit.files]\n\"a.md\" = \"a\\n\"\n\"b.md\" = \"b\\n\"\n[worktree]\n\"b.md\" = \"changed\\n\"\n\"new.md\" = \"n\\n\"\n"
+	dir := writeWorld(t, map[string]string{GitWorldFile: decl})
+	if err := BuildGitWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteGitAfter(dir); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, GitAfterName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "one\na.md\nb.md\n M b.md\n"; string(got) != want {
+		t.Fatalf("git.after = %q, want %q", got, want)
+	}
+}
+
+func TestWriteGitAfterReportsARepositoryWithoutACommit(t *testing.T) {
+	// A repository rather than a bare directory: git would search a plain
+	// directory's parents for one and might find it.
+	dir := writeWorld(t, map[string]string{GitWorldFile: ""})
+	if err := BuildGitWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteGitAfter(dir); err == nil {
+		t.Fatal("want an error")
+	}
+}
+
+func TestWriteGitAfterReportsAFileItCannotWrite(t *testing.T) {
+	dir := writeWorld(t, map[string]string{GitWorldFile: "[[commit]]\nmessage = \"a\"\n", GitAfterName + "/x": "a directory in the way"})
+	if err := BuildGitWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteGitAfter(dir); err == nil {
+		t.Fatal("want an error")
+	}
+}
+
+const oneCommitInRepo = "dir = \"repo\"\n[[commit]]\nmessage = \"one\"\n[commit.files]\n\"a.md\" = \"a\\n\"\n"
+
+// gitCase writes a case whose world declares oneCommitInRepo and whose
+// world_after holds after.
+func gitCase(t *testing.T, after map[string]string) *Case {
+	t.Helper()
+	c := &Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", HasWorldAfter: true, Compare: "message"}
+	for dir, files := range map[string]map[string]string{
+		"world":       {GitWorldFile: oneCommitInRepo},
+		"world_after": after,
+	} {
+		for name, body := range files {
+			path := filepath.Join(c.Path, dir, filepath.FromSlash(name))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	return c
+}
+
+// A case that expects git.after has the commit its run made compared: the
+// run commits as a replayed command would, with nothing but the environment
+// gitenv leaves and no user configuration, so the identity comes from the
+// repository.
+func TestRunCaseComparesTheCommitARunMadeThroughGitAfter(t *testing.T) {
+	c := gitCase(t, map[string]string{
+		GitWorldFile: oneCommitInRepo, "repo/a.md": "a\n", "repo/b.md": "b\n",
+		"repo/" + GitAfterName: "two\na.md\nb.md\n",
+	})
+	outcome, err := RunCase(c, func(_ []string, dir string, _ io.Reader, _, _ io.Writer) int {
+		repo := filepath.Join(dir, "repo")
+		os.WriteFile(filepath.Join(repo, "b.md"), []byte("b\n"), 0o644)
+		for _, args := range [][]string{{"add", "b.md"}, {"-c", "commit.gpgsign=false", "commit", "-q", "-m", "two"}} {
+			cmd := exec.Command("git", args...)
+			cmd.Dir = repo
+			cmd.Env = append(gitenv.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Errorf("git %v: %v: %s", args, err, out)
+			}
+		}
+		if got := gitOut(t, repo, "log", "-1", "--format=%an <%ae>"); got != "loomux cases <cases@loomux.invalid>" {
+			t.Errorf("author %q", got)
+		}
+		return 0
+	})
+	if err != nil || !outcome.Passed {
+		t.Fatalf("%v %+v", err, outcome)
+	}
+}
+
+// Opt-in: a case whose expected tree carries no git.after gets none, so the
+// git cases recorded before it existed compare as they did.
+func TestRunCaseWritesNoGitAfterACaseDoesNotExpect(t *testing.T) {
+	c := gitCase(t, map[string]string{GitWorldFile: oneCommitInRepo, "repo/a.md": "a\n"})
+	outcome, err := RunCase(c, func([]string, string, io.Reader, io.Writer, io.Writer) int { return 0 })
+	if err != nil || !outcome.Passed {
+		t.Fatalf("%v %+v", err, outcome)
+	}
+}
+
+func TestRunCaseReportsAGitAfterItCannotWrite(t *testing.T) {
+	c := gitCase(t, map[string]string{GitWorldFile: oneCommitInRepo, "repo/a.md": "a\n", "repo/" + GitAfterName: "x"})
+	_, err := RunCase(c, func(_ []string, dir string, _ io.Reader, _, _ io.Writer) int {
+		// A pointer to nowhere rather than no .git: git would search the
+		// parents of a plain directory and might find a repository there.
+		os.RemoveAll(filepath.Join(dir, "repo", ".git"))
+		os.WriteFile(filepath.Join(dir, "repo", ".git"), []byte("gitdir: nowhere\n"), 0o644)
+		return 0
+	})
+	if err == nil || !strings.Contains(err.Error(), "git log") {
+		t.Fatalf("want git log to fail, got %v", err)
+	}
+}

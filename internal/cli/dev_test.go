@@ -75,6 +75,21 @@ func TestDevRecordCaseRecordsABinary(t *testing.T) {
 	}
 }
 
+// The flag reaches the recorder: a world without a repository has no commit
+// for git.after to name.
+func TestDevRecordCasePassesGitAfterOn(t *testing.T) {
+	goExe, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("no go binary on PATH")
+	}
+	code, _, errOut := run("dev", "record-case", "--git-after",
+		"--exe", goExe, "--cmd", "go version", "--world", t.TempDir(),
+		"--out", filepath.Join(t.TempDir(), "demo", "version"))
+	if code != 1 || !strings.Contains(errOut, "git world") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
 func TestDevRecordCaseReportsAFailedRecording(t *testing.T) {
 	code, _, errOut := run("dev", "record-case",
 		"--exe", filepath.Join(t.TempDir(), "gone.exe"), "--cmd", "ulguard x",
