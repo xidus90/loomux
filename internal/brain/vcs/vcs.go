@@ -1,4 +1,5 @@
-// Package vcs is the read side of git for the maintenance layer.
+// Package vcs is git for the maintenance layer: what it reads, and the one
+// commit a decided case writes.
 //
 // Three questions are asked here. Reconciliation needs the previous version of
 // a changed source to build a real diff, and git is the only place it exists:
@@ -21,7 +22,7 @@
 // plausible-looking line and still have failed -- so every call is judged by
 // what os/exec returns and never by what it printed.
 //
-// The write side (`commit_paths` in the original) is not here: it is stage 3b.
+// The write side, `commit_paths` in the original, is CommitPaths in commit.go.
 //
 // The original is `src/brain/maintenance/vcs.py`.
 package vcs
@@ -279,13 +280,22 @@ func readPath(directory string, arguments ...string) (string, error) {
 }
 
 func run(directory string, arguments ...string) ([]byte, error) {
+	return runWith(directory, nil, "", arguments...)
+}
+
+// runWith is run with variables of this package's own choosing added after the
+// strip -- the scratch index of CommitPaths -- and stdin fed from a string,
+// which commit-tree reads its message from. An empty stdin is no input at all,
+// the same as run's.
+func runWith(directory string, environment []string, stdin string, arguments ...string) ([]byte, error) {
 	command := exec.Command("git", arguments...)
 	command.Dir = directory
 	// See gitenv: GIT_DIR and its relatives outrank command.Dir, so without the
 	// strip every call here would answer about whatever GIT_DIR names instead
 	// of the tree the caller asked about -- and this layer runs from a hook,
 	// where git exports exactly those.
-	command.Env = gitenv.Environ()
+	command.Env = append(gitenv.Environ(), environment...)
+	command.Stdin = strings.NewReader(stdin)
 	// Output and not CombinedOutput: git writes a warning -- an ambiguous
 	// refname, a safe.directory note -- to stderr on a call that succeeds, and
 	// folded into the answer such a line would travel on as part of a path or
