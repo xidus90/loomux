@@ -270,8 +270,10 @@ Schreibfunktion ohne Aufrufer wäre Code, den nur ihr eigener Test benutzt.
 ## 3b im Einzelnen
 
 `loomux cases` listet, was im Prüfzentrum wartet; `loomux case <id>` zeigt
-Paket und Vorschlag; `loomux approve` entscheidet einen Fall und schreibt die
-Änderung über `vcs.commit_paths` in einen Zweig.
+Paket und Vorschlag; `loomux approve` entscheidet einen Fall und committet die
+Änderung über `vcs.commit_paths` auf den **aktuellen** Ref des Tresors.
+Korrigiert am 2026-09-22: hier stand „in einen Zweig“, aber `commit_paths`
+legt keinen Zweig an (`vcs.py:108-228`).
 
 **Die Belegbindung ist das Herz.** Jede Behauptung des Vorschlags braucht ein
 wörtliches Zitat aus einem Segment des Pakets (`evidence.py`, Kopfkommentar
@@ -285,6 +287,99 @@ Python-Fälle nachgewiesen.
 (Python), `brain approve` (Go, `pkg/maintenance/approve.go`) und die
 loomux-Form. Jeder Unterschied zwischen den beiden alten Formen ist ein
 Eintrag in `parity/stufe-3b.md` mit Entscheidung, welche Seite gilt.
+**Überholt am 2026-09-22** durch die Befunde darunter: der Nachweis ist am
+Code geführt und für `approve.go` negativ. Die Go-Form läuft darum nicht durch
+den Fallsatz; ihre Abweichungen stehen einmal, gelesen, in der Akte, und die
+Fälle laufen Python gegen loomux.
+
+### Befunde 3b, gegen den Code gelesen am 2026-09-22
+
+Referenz ist `ultra-brain` auf `loomux-3-source` (`3cc72d2`); an
+`src/brain/maintenance/` und `cli.py` hat sich seit dem Tag nichts geändert.
+
+- **`approve.go` (640 Zeilen) ist keine Portierung von `apply.py` (1.378).**
+  Es fehlen: die Schreibschranke `_gate`/`_preflight` (Links, Junctions,
+  8.3-Namen, Einschluss im Tresor, `apply.py:467-484` und `:556-633`), die
+  Prüfung von `[layout].review` auf absolut und `..` (`_layout`,
+  `:656-676`; dass der Schlüssel gesetzt ist, prüft Go), `_is_bundle` für
+  ein Wiki außerhalb des Tresors, die Quellsuche über die Register **aller**
+  registrierten Bereiche (`_resolve_sources`, `:155-186`; Go liest nur das
+  Register des Tresors), die Liste der berührten Dateien für den
+  Abbruchhinweis (`place.touched`; Go verwirft Schreibfehler mit `_ =`),
+  `_unrecorded` bei der gescheiterten Belegprüfung (bei bewegtem Ziel und
+  bewegter Quelle hat Go es). Texte weichen ab: `_safe` (200 Zeichen,
+  Ersatz `·`, eigene Satzzeichenliste), die drei Vermerke, die Zeile
+  `- entschieden:` der gescheiterten Belegprüfung, Zeitstempel
+  (`isoformat()` gegen RFC 3339). Zeilen am 2026-09-22 nachgerechnet, die
+  Einzelheiten stehen in `parity/stufe-3b.md`.
+- **Die Commit-Seite ist in Go unsicher.** `approve.go:294-394` ruft die
+  Plumbing wie `vcs.commit_paths` und übergibt `update-ref` den alten Wert,
+  prüft aber dessen Exitcode nicht (`:391`) — ein verlorener Tausch gilt als
+  Erfolg. Es fehlen die Weigerung bei laufendem Rebase oder Merge
+  (`vcs.py:265-275`), `RefMoved` und Wiederholung, `created=False` bei
+  unverändertem Baum und `:(literal)`; auch die übrigen Exitcodes bleiben
+  ungeprüft.
+- **Zwei Wege zu `ProposalRefused`.** Die gescheiterte Belegprüfung
+  (`_refuse`, `apply.py:1032-1062`) schreibt `note`, bei einem eigenen
+  Vorschlag `manual = true` und einen Auditblock. Ein Diff ohne Zaun, ein
+  überlappender oder unpassender Hunk (`_collect`, `_hunks`, `_patch`,
+  `:1065-1140`) schreibt **nichts**.
+- **Nach einem geschriebenen `approve`** fährt Python erst `reconcile`, bei
+  dessen Scheitern hält es an, dann `reindex` (`cli.py:1432-1516`). Die
+  Go-Form fährt nur `reindex`. Der Exit bleibt in beiden 0.
+- **Geerbter Fehler:** `--reject` rückt Revision und Hash der Seite nicht vor,
+  also eröffnet der nächste Abgleich denselben Fall wieder
+  (`OFFENE_AUFGABEN.md:213`). 3b übernimmt das Verhalten und trägt es als
+  geerbt in die Akte; eine Heilung ist ein Nachtrag der Fusions-Spec.
+- **Nah an Python und darum Umzug:** `evidence.go` (449), `patch.go` (109),
+  `frontmatter.go` (168), `format.go` (112), `lookup.go` (96), `cases.go`
+  (155), `privacy.go` (55). `case.go` zieht **nicht** um — loomux hat die
+  Fallakte seit 3a. `frontmatter.go` rendert über yaml.v3, Python über PyYAML
+  `safe_dump`; ob die Ausgabe gleich ist, ist nicht geprüft.
+- **Die aufgezeichneten Fälle von ultra-brain** (`bench/cases/{approve,case,cases}`,
+  8 + 4 + 8) vergleichen nur stdout und Exitcode: kein `approve`-Fall hat ein
+  `world_after`, keine Welt ein `.git`, und `approve-good` zeigt kein
+  `committet als`. Sie belegen die geschriebenen Dateien und den Commit nicht.
+- **Git-Identität beim Abspielen.** `BuildGitWorld` setzt Autor und
+  Committer nur als Umgebung seiner eigenen Aufrufe
+  (`internal/cases/gitworld.go:195-197`), und `gitenv` entfernt
+  `GIT_AUTHOR_*`/`GIT_COMMITTER_*`. Ein `commit-tree` aus `approve` fände im
+  abgespielten Fall keine Identität — auf beiden Seiten.
+- **Kein Modell, kein Netz** in `apply`, `evidence`, `case`, `package`,
+  `vcs`. Nur der `reconcile` nach dem Schreiben könnte das lokale Modell
+  rufen; das ist Stufe 4, und bis dahin gilt die 3a-Regel `manual = true`.
+
+### Bauweise (entschieden am 2026-09-22)
+
+**Hybrid.** Die Pipeline von `approve` und `commit_paths` werden **neu aus
+Python** geschrieben, mit den 126 Tests von `test_apply.py` und den 41 von
+`test_vcs.py` als Orakel. `evidence`, `patch`, `frontmatter`, `format`,
+`lookup`, `cases` und `privacy` **ziehen um** und werden, wo die Akte eine
+Abweichung zeigt, an Python gehoben.
+
+### Parität 3b
+
+- **Neue Aufnahmen**, nicht die 20 alten: je Befehl Erfolg, Ablehnung, Fehler,
+  und für `approve` mit `world_after` **und** einer Git-Welt, damit Seite,
+  `log.md`, `audit.md`, Register und Commit verglichen werden.
+- **Der Commit wird als Datei verglichen.** Der Rekorder blendet `.git` aus
+  (Akte 3a, `:23`), und `InfraPath` tut es beim Abspielen. Nach dem Lauf
+  schreibt der Harness darum `git.after` in die Welt: Betreff und Tree des
+  HEAD-Commits (`git log -1 --format=%s%n%T`) und `git ls-tree -r
+  --name-only HEAD`. Der Tree ist inhaltlich und darum ohne Normalisierung
+  vergleichbar, der Commit-SHA nicht — er steht nicht darin.
+- **Die Git-Identität** schreibt `BuildGitWorld` als lokale Konfiguration des
+  Repos der Welt (`user.name`, `user.email`), nicht nur als Umgebung.
+- **Neue Normalisierungen** in `cases.NormalizeState`, auf beiden Seiten
+  gleich: der Prüfer `human:<Benutzer>` wird `human:{{USER}}`; ein
+  `isoformat()`-Stempel **dieses Laufs** in `audit.md` und in der
+  Frontmatter (`generated.at`, `verified[].at`) wird `{{NOW}}`, der Tag in
+  `log.md` `{{TODAY}}`; `committet als <sha>` auf stdout wird
+  `committet als {{SHA}}`. Was sonst einen Zeitstempel trägt, bleibt stehen.
+- **Vergleichsklassen:** alle drei sind Daten — stdout exakt, Exit und
+  Dateiwelt exakt, bei `approve` samt `git.after`; stderr frei. Auch bei
+  `approve` ist stdout das Ergebnis (`Fall …: …`, `verworfene Behauptung`,
+  `committet als`), die Warnungen stehen auf stderr.
 
 ## 3c im Einzelnen
 
