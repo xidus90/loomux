@@ -1910,3 +1910,83 @@ der Startregel. Die warmen Mediane verschieben sich um etwa 1 ms, das liegt in
 der Streuung eines einzelnen Durchgangs. Die kalte Zeile „vorher“ ist der erste
 Start eines frisch geschriebenen Binaries und trägt den Datei-Cache. Sie ist
 nicht der Preis der Ausdrücke.
+
+## 2026-09-23 01:54 — Stufe 3b: cases, case und approve --defer gegen die Python-Referenz
+
+Worktree `.claude/worktrees/stuffe-4-brainstorming-74e215`, Zweig
+`feat/review-cases` auf `07d0881` (der Code wie in `a882946`; die Commits
+dazwischen fügen nur Tests hinzu). Referenz: ultra-brain `master` auf `3cc72d2`
+(der Tag `loomux-3-source`), aufgerufen als
+`ultra-brain/.venv/Scripts/brain-mcp.exe`, Python 3.14.7 — das Konsolenskript
+der venv statt `uv run brain`, damit uvs eigener Start nicht in der Zahl steckt.
+loomux gebaut mit Go 1.27.0 `windows/amd64`. Rechner: AMD Ryzen 7 9800X3D.
+
+**Ziel.** Die drei Befehle der Stufe, die nichts entscheiden oder nur
+hinsehen: `cases`, `case <id>` und `approve --defer <id>`, je gegen die
+Python-Form. Ein Zielwert war nicht gesetzt.
+
+**Methode.** Eine Wegwerfwelt, nie der echte Zustand: die Welt
+`testdata/cases/3b-worlds/cases-three` in den Scratchpad der Sitzung kopiert,
+`{{WORLD}}` ersetzt und das Repository, das ihr `git.toml` erklärt, von Hand
+gebaut (ein Commit `base`, die Quelle im Arbeitsbaum geändert). Drei Fälle in
+zwei Bereichen, der erste mit Paket und Vorschlag. Beide Werkzeuge zeigen
+darauf — `LOOMUX_STATE_DIR` und `BRAIN_STATE_DIR` auf die Welt,
+`LOOMUX_LEGACY_BRAIN_DIR` auf ein leeres Verzeichnis, `QMD_CONFIG_DIR`,
+`INDEX_PATH` und `XDG_CACHE_HOME` in die Welt. Beide Werkzeuge gaben für alle
+drei Befehle dasselbe stdout, dasselbe (leere) stderr und Exit 0, sobald das
+CRLF, das Pythons Textmodus-stdout unter Windows schreibt, zu LF gefaltet ist;
+loomux schreibt LF. Zeitmessung: ein
+PEP-723-Skript, `time.perf_counter_ns` um `subprocess.run`, je Fall ein erster
+und zehn warme Läufe, Median der warmen. Die Dateien der Welt hatten vor und
+nach der Reihe denselben Hash (`b0d3974bcb2db8b6`), und unter
+`%LOCALAPPDATA%\brain` und `%LOCALAPPDATA%\loomux` war nichts jünger als eine
+vorher gesetzte Marke.
+
+**Was „kalt“ hier heißt.** Für loomux der erste Start einer frisch
+geschriebenen Kopie des Binärs, eine Kopie je Befehl. Für brain-mcp der erste
+Lauf der Reihe, kein kalter Datei-Cache: brain-mcp war in derselben Sitzung
+etwa eine Stunde vorher gelaufen. Nur die allererste Zeile (`cases`) fällt
+heraus.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exitcodes |
+|---|---:|---:|---:|---:|---|
+| loomux cases | 66,1 ms | 26,9 ms | 26,2 ms | 28,4 ms | [0] |
+| brain-mcp cases | 1879,7 ms | 852,2 ms | 835,3 ms | 873,8 ms | [0] |
+| loomux case \<id\> | 67,3 ms | 26,9 ms | 25,8 ms | 28,2 ms | [0] |
+| brain-mcp case \<id\> | 848,5 ms | 841,1 ms | 827,7 ms | 879,9 ms | [0] |
+| loomux approve --defer \<id\> | 72,9 ms | 26,5 ms | 25,8 ms | 33,0 ms | [0] |
+| brain-mcp approve --defer \<id\> | 847,2 ms | 842,3 ms | 821,3 ms | 917,6 ms | [0] |
+| loomux --version (Startboden, 20 warm) | 9,6 ms | 6,9 ms | 6,8 ms | 12,8 ms | [0] |
+
+**Startzeit.** `GODEBUG=inittrace=1 loomux --version`, drei Läufe, in jedem
+dasselbe. Die Pakete der Stufe:
+
+| Paket | Uhr | Bytes | Allokationen |
+|---|---:|---:|---:|
+| `internal/brain/apply` | 0 ms (3/3) | 1.896 | 26 |
+| `internal/brain/evidence` | 0 ms (3/3) | 720 | 20 |
+| `internal/brain/vcs` | kein Init | — | — |
+| `internal/cases` | 0–0,5 ms | 43.216 | 446 |
+| `internal/cli` | 0 ms (3/3) | 1.752 | 10 |
+
+### Lesart
+
+1. **Alle drei sind warm 31- bis 32-mal so schnell.** 26,9 ms gegen 852,2 ms bei
+   `cases`, 26,9 gegen 841,1 bei `case`, 26,5 gegen 842,3 bei
+   `approve --defer`, mit getrennten Spannen. Die Python-Zahlen sind für alle
+   drei fast gleich, obwohl die Arbeit verschieden ist; das deutet auf das
+   Gemeinsame: den Start des Interpreters und die Importe von `brain`
+   (nicht getrennt gemessen).
+2. **loomux braucht etwa 20 ms über seinem Startboden.** 26,5–26,9 ms gegen
+   6,9 ms für `--version`, gleich für drei Befehle mit verschiedener Arbeit —
+   auflisten, einen Fall samt Paket lesen, nichts entscheiden. Gemeinsam ist
+   ihnen das Lesen der Registry und der Erklärungen der Bereiche und der Gang
+   durch das Prüfzentrum; welcher Teil die 20 ms kostet, ist nicht gemessen.
+3. **Kalt braucht loomux 66–73 ms.** Ein frisch geschriebenes Binär, erster
+   Start; woraus die 39–46 ms über der warmen Zahl bestehen, ist nicht
+   gemessen.
+4. **Die Startregel hält.** `TestStartDoesNoWorkInPackageInit` bleibt grün,
+   und kein Paket der Stufe kommt in die Nähe seiner 500 Allokationen. Das
+   größte Init von loomux ist weiter `internal/cases`, mit 446 (438 in Stufe
+   3a): der Abstand zu 500 schrumpft. Über 300 liegen sonst nur `encoding/gob`
+   (367–373) und `internal/verify/commit` (322), wie bisher.
