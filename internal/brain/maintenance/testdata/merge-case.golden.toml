@@ -1,0 +1,8 @@
+id = "a-2026-09-20-abcd"
+area = "project/a"
+target = "docs/wiki/a.md"
+target_hash = "sha256:cc"
+state = "due"
+trigger = "merge"
+weight = "change"
+created = 2026-09-20T08:00:00+02:00
