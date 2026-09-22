@@ -30,7 +30,7 @@ func TestToolsAreByteIdenticalAcrossCalls(t *testing.T) {
 	// map ranged into a slice: it pins that one process always serves the same
 	// bytes, nothing more. It cannot see drift between the bridge's list and
 	// serve's, because both read this very slice here; the test that compares
-	// the two fronts is Task 11's.
+	// the two fronts is bridge's TestTheListIsByteIdenticalToTheServices.
 	first, err := json.Marshal(mcptools.Tools())
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

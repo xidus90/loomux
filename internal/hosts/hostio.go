@@ -76,7 +76,7 @@ type Payload struct {
 
 	// AgentID and AgentType name the subagent a SubagentStart or
 	// SubagentStop fired for, "" on every other event. Measured with Claude
-	// Code 2.1.276 (stage 2c, Task 1, ba6bed7; the payloads are in
+	// Code 2.1.276 (stage 2c, ba6bed7; the payloads are in
 	// testdata/cases/2c-payloads/): SubagentStart and SubagentStop carry the
 	// same agent_id, both carry the main agent's session_id -- which files a
 	// subagent's snapshot under the session whose stop gate delivers its

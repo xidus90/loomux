@@ -105,8 +105,8 @@ func TestServeInTheForegroundRunsTheServiceHere(t *testing.T) {
 	}
 }
 
-// TestServeInTheForegroundReadsTheBreakawayFromTheEnvironment is the gap task 9
-// left open: only the parent that spawned this service knows whether the
+// TestServeInTheForegroundReadsTheBreakawayFromTheEnvironment closes a gap the
+// spawn leaves open: only the parent that spawned this service knows whether the
 // breakaway held, and it says so in the environment. Read nowhere, every
 // serve.json says false and `serve status` quietly stops telling a service
 // that outlives its host from one that does not.
