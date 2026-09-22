@@ -4,11 +4,11 @@
 **Stand:** teilweise umgesetzt (2026-09-22).
 **Fusions-Stufen:** 1a, 1b-1, 1b-2 (`serve`, MCP, Brücke), 1b-3 (Wiki- und
 Doku-Umzug) und 2a (Prüfkette `[verify]`, `loomux check <profil>`,
-`check gocover`) und 2b (commit-msg mit `[commit]`, `--calibrate`, `--language`) sind
-abgeschlossen. 2c ist auf der Claude-Seite
-abgeschlossen (Stop-Tor, `subagent-start`/`-stop`, am 2026-09-22); offen sind
-dort der Antigravity-Adapter und der Eintrag in der eingecheckten
-`.claude/settings.json`. 3 und 4 sind offen. Sechzehn
+`check gocover`), 2b (commit-msg mit `[commit]`, `--calibrate`, `--language`) und
+2c (Stop-Tor, `subagent-start`/`-stop`, Antigravity-Nachmessung und Host-Adapter,
+am 2026-09-22) sind abgeschlossen. Der Eintrag der drei Hooks in
+`.claude/settings.json` ist erfolgt; loomux prüft sich an jedem Rundenende selbst.
+3 und 4 sind offen. Sechzehn
 Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
 „Stufen“ im Abschnitt „Nachgetragen“, zur Freigabe.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
@@ -519,7 +519,7 @@ gebauten auch mit Paritätsakte (`parity/stufe-2a.md`, `parity/stufe-2c.md`):
 |---|---|---|
 | **2a** | ✅ 2026-09-19 (Spec `2026-09-19-loomux-stufe-2a-design.md`, Plan `2026-09-19-loomux-stufe-2a.md`) | `child` (Prozessbaum, Fristen, Absaugen), das Schema `[verify]` mit Presets je Stack, `loomux check <profil\|arten>` mit `--show`, `loomux check gocover` statt `dev covergate`, post-edit auf `[verify]`. loomux prüft sich selbst mit `check precommit` |
 | **2b** | ✅ | commit-msg mit `--language`, `--calibrate`, `[commit]` (umgesetzt 2026-09-19) |
-| **2c** | Claude-Seite ✅ 2026-09-22, Antigravity offen (Spec `2026-09-19-loomux-stufe-2c-design.md`, Plan `2026-09-19-loomux-stufe-2c.md`) | Hooks `stop`, `subagent-start`, `subagent-stop` für Claude Code, das Profil `stop`, das Wiki-Bündel als Lane `lint/wiki`; hängt an 2a. Offen: der Antigravity-Adapter nach eigener Messung (Tasks 14, 15). Der Eintrag in `.claude/settings.json` (Task 16) ist gemacht; loomux prüft sich damit an jedem Rundenende selbst |
+| **2c** | ✅ 2026-09-22 (Spec `2026-09-19-loomux-stufe-2c-design.md`, Plan `2026-09-19-loomux-stufe-2c.md`) | Hooks `stop`, `subagent-start`, `subagent-stop` für Claude Code und Antigravity, das Profil `stop`, das Wiki-Bündel als Lane `lint/wiki`; hängt an 2a. Antigravity nachgemessen und Host-Adapter implementiert. Der Eintrag in `.claude/settings.json` (Task 16) ist gemacht; loomux prüft sich damit an jedem Rundenende selbst |
 
 **Für 2c vorgemerkt:** zwei Schwächen der heutigen `stop.py` (gelesen am
 2026-09-18), die `stop` nicht übernimmt.
@@ -577,11 +577,12 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 
 | Prio | Stufe | Hängt ab von | Warum hier |
 |---|---|---|---|
-| 1 | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | Die Claude-Seite war sofort baubar und ist fertig (2026-09-22); sie bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Der Antigravity-Adapter war es nicht: er wartet auf eine eigene Messung der agy-Nutzlasten. Voraussetzung für `init` in Stufe 4 |
-| 2 | **2b** commit-msg | keine genannt | Klein und sofort baubar. `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
-| 3 | **3** Brain-Pflege | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
-| 4 | **G4** übrige `graph`-Palette, Blast-Monitor | G3 ✅ | Sofort baubar, neben der Fusion. W3 und W4 warten darauf |
-| 5 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b, 2c, 3 | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
+| — | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | ✅ Fertig (2026-09-22). Die Claude-Seite bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Antigravity-Messung durchgeführt und Adapter implementiert. Voraussetzung für `init` in Stufe 4 |
+| — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
+| 1 | **3** Brain-Pflege | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
+| 2 | **G4** übrige `graph`-Palette, Blast-Monitor | G3 ✅ | Sofort baubar, neben der Fusion. W3 und W4 warten darauf |
+| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
+
 | 6 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
 | 7 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4; W4 an G4 und 4; W5 an W1 und Flow | Folgeprojekt |
 | 8 | **G5** `wazero` | G4 | Nichts wartet darauf |
