@@ -693,3 +693,57 @@ func TestImportReportsAnExitItCannotWrite(t *testing.T) {
 		t.Fatal("expected an error for the locked exit file")
 	}
 }
+
+// A [[stdout]] rule rewrites every occurrence of from in the recorded stdout:
+// where the reference names itself in what it prints, loomux names itself.
+func TestImportRewritesTheRecordedStdout(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	dir := buildCase(t, from, "case", "listed", "brain case", "")
+	writeFile(t, filepath.Join(dir, "stdout"), "brain case --package a\nbrain case --package b\nbrain case x\n")
+	m := Mapping{
+		Commands: []Rule{{From: "brain case", To: "loomux case"}},
+		Stdout:   []Rule{{From: "brain case --package ", To: "loomux case --package "}},
+	}
+	if err := Import(from, to, m); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(to, "case", "listed", "stdout"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "loomux case --package a\nloomux case --package b\nbrain case x\n"; string(got) != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+}
+
+// The rule is read from the mapping file under the key [[stdout]].
+func TestMappingReadsStdoutRules(t *testing.T) {
+	var m Mapping
+	if _, err := toml.Decode("[[stdout]]\nfrom = \"brain \"\nto = \"loomux \"\n", &m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Stdout) != 1 || m.Stdout[0] != (Rule{From: "brain ", To: "loomux "}) {
+		t.Errorf("stdout rules = %+v", m.Stdout)
+	}
+}
+
+// A rewritten stdout the import cannot write is an error, not a case carrying
+// the reference's text.
+func TestImportReportsAStdoutItCannotWrite(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	dir := buildCase(t, from, "case", "listed", "brain case", "")
+	writeFile(t, filepath.Join(dir, "stdout"), "brain case --package a\n")
+	locked := filepath.Join(to, "case", "listed", "stdout")
+	if err := os.MkdirAll(filepath.Dir(locked), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, locked, "")
+	testlock.Lock(t, locked)
+	m := Mapping{
+		Commands: []Rule{{From: "brain case", To: "loomux case"}},
+		Stdout:   []Rule{{From: "brain case --package ", To: "loomux case --package "}},
+	}
+	if err := Import(from, to, m); err == nil {
+		t.Fatal("expected an error for the locked stdout file")
+	}
+}

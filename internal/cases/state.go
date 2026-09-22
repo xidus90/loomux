@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // Normalizer rewrites one side of a world_after comparison before the two are
@@ -21,11 +22,15 @@ const (
 	todayToken = "{{TODAY}}"
 	mtimeToken = "{{MTIME}}"
 	docIDToken = "{{DOCID}}"
+	userToken  = "{{USER}}"
+	shaToken   = "{{SHA}}"
 )
 
 const (
 	lastRunPath    = "maintenance/last-run.txt"
 	identitiesBase = "_identities.tsv"
+	auditBase      = "audit.md"
+	logBase        = "log.md"
 )
 
 // runStamp is the one spelling of the pass's `now` both writers produce:
@@ -45,6 +50,24 @@ var nanoseconds = regexp.MustCompile(`^\d{19}$`)
 // docID is the shape `NewDocID` and `new_doc_id` mint: 26 characters of the
 // Crockford alphabet.
 var docID = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{26}$`)
+
+// auditHeader is the head of a block `apply._append_audit` writes,
+// "## <now> — <target> (Fall `<id>`)"; the first group is the stamp. It and the
+// three patterns below compile on first use, which keeps the package's init
+// inside the allocation budget cmd/loomux holds every start to.
+var auditHeader = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile("^## (\\S+) — .+ \\(Fall `[^`]*`\\)$") })
+
+// reviewer is the one shape of a reviewer `cli._reviewer` hands on: the account
+// running the command behind `human:`. A quote ends it, for the spelling YAML
+// quotes.
+var reviewer = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`human:[^\s'"]+`) })
+
+// verifiedBy is a `by:` line of a `verified` entry, as PyYAML dumps it.
+var verifiedBy = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`(?m)^([ \t-]*by: ['"]?)human:[^\s'"]+`) })
+
+// commitLine is the line `approve` reports its commit on, with the full SHA git
+// printed; any other length is not one git printed.
+var commitLine = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`(?m)^committet als [0-9a-f]{40}$`) })
 
 // NormalizeState is the normalization of stage 3a's file worlds, as narrow as
 // the three things it folds:
@@ -68,6 +91,22 @@ var docID = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{26}$`)
 //     not folded: a doc id is unique across a vault, and the fold would hide
 //     exactly the duplicate.
 //
+// And the four an approval of stage 3b writes:
+//
+//   - The reviewer. `human:<account>` becomes `human:{{USER}}` in every
+//     `audit.md` and on the `by:` lines of a page's frontmatter; a reviewer of
+//     any other shape stays.
+//   - The approval's `now`. It writes no last-run.txt; its stamp is the one in
+//     the header of an audit block the world's `audit.md` did not hold. Where
+//     the tree holds exactly one such stamp of the reference's shape, and the
+//     world holds it nowhere, it becomes {{NOW}} in every file that differs from
+//     the world -- the new block, the page's `generated.at` and `verified[].at`,
+//     quoted or not. Older blocks cannot carry it and stay byte-equal.
+//   - That stamp's day, in the new line of `log.md`, `- <day> — …`, and only
+//     there.
+//   - The commit, on stdout: `committet als <40 hex digits>` becomes
+//     `committet als {{SHA}}`.
+//
 // Nothing else is touched. The catalogs carry no time at all, and the case
 // directories and files differ from run to run only in the day and the stamp.
 func NormalizeState(world, tree map[string][]byte) map[string][]byte {
@@ -88,7 +127,33 @@ func NormalizeState(world, tree map[string][]byte) map[string][]byte {
 		}
 		out[name] = data
 	}
+	foldApproval(world, tree, out)
 	return out
+}
+
+// foldApproval applies the four folds of an approval to out, the tree after
+// the folds of a pass. It decides from the tree as the run left it: what is
+// new is what the world did not hold.
+func foldApproval(world, tree, out map[string][]byte) {
+	approved := approvalStampOf(world, tree)
+	for name, data := range out {
+		base := path.Base(name)
+		if approved != "" && !bytes.Equal(tree[name], world[name]) {
+			data = bytes.ReplaceAll(data, []byte(approved), []byte(nowToken))
+			if base == logBase {
+				data = foldLogDay(data, world[name], approved[:len("2006-01-02")])
+			}
+		}
+		switch {
+		case name == stdoutKey:
+			data = commitLine().ReplaceAll(data, []byte("committet als "+shaToken))
+		case base == auditBase:
+			data = reviewer().ReplaceAll(data, []byte("human:"+userToken))
+		case base != logBase && path.Ext(base) == ".md":
+			data = foldFrontmatterReviewer(data)
+		}
+		out[name] = data
+	}
 }
 
 // runStampOf is the pass's stamp and its day, or two empty strings when the
@@ -99,6 +164,76 @@ func runStampOf(tree map[string][]byte) (string, string) {
 		return "", ""
 	}
 	return match[0], match[1]
+}
+
+// approvalStampOf is the stamp of the one run whose audit block is new, or ""
+// when there is none, more than one, one of another shape, or one the world
+// already spells somewhere.
+func approvalStampOf(world, tree map[string][]byte) string {
+	found := ""
+	for name, data := range tree {
+		if path.Base(name) != auditBase {
+			continue
+		}
+		old := lineSet(world[name])
+		for _, line := range strings.Split(string(data), "\n") {
+			match := auditHeader().FindStringSubmatch(line)
+			if match == nil || old[line] {
+				continue
+			}
+			if found != "" && found != match[1] {
+				return ""
+			}
+			found = match[1]
+		}
+	}
+	if !runStamp.MatchString(found) {
+		return ""
+	}
+	for _, data := range world {
+		if bytes.Contains(data, []byte(found)) {
+			return ""
+		}
+	}
+	return found
+}
+
+// foldLogDay puts {{TODAY}} in place of day at the head of every log line of
+// data that old does not hold.
+func foldLogDay(data, old []byte, day string) []byte {
+	known := lineSet(old)
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if rest, ok := strings.CutPrefix(line, "- "+day+" — "); ok && !known[line] {
+			lines[i] = "- " + todayToken + " — " + rest
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
+// foldFrontmatterReviewer tokenizes the reviewer on the `by:` lines of the
+// frontmatter of a page; the body stays as it is.
+func foldFrontmatterReviewer(data []byte) []byte {
+	text := string(data)
+	rest, ok := strings.CutPrefix(text, "---\n")
+	if !ok {
+		return data
+	}
+	end := strings.Index(rest, "\n---\n")
+	if end < 0 {
+		return data
+	}
+	head := verifiedBy().ReplaceAllString(rest[:end], "${1}human:"+userToken)
+	return []byte("---\n" + head + rest[end:])
+}
+
+// lineSet is the set of data's lines.
+func lineSet(data []byte) map[string]bool {
+	set := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		set[line] = true
+	}
+	return set
 }
 
 // foldDay puts {{TODAY}} in place of day wherever a case id carries it.
