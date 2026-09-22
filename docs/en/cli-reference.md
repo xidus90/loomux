@@ -18,6 +18,7 @@ Loomux uses strict exit code semantics aligned with AI coding agent harnesses:
 ### Global Flags & Environment
 - `--root <path>`: Explicit project root directory. If omitted, Loomux walks upwards from the current working directory until it locates `.loomux/config.toml`.
 - `LOOMUX_STATE_DIR`: Overrides the global state directory (defaults to `%LOCALAPPDATA%\loomux` on Windows or `~/.local/state/loomux` on POSIX).
+- `LOOMUX_LEGACY_BRAIN_DIR`: ultra-brain's state directory, read as the fallback for brain artefacts and never written (see section 7).
 
 ---
 
@@ -324,12 +325,12 @@ Starts the local D3-Force / WebGL interactive graph visualizer.
 
 ## 7. Second Brain & Wiki (`loomux brain`)
 
-The five data commands read the areas of the one registry (`registry.toml` in `LOOMUX_STATE_DIR` or its platform default) and answer as ultra-brain's `brain-mcp` does; a recorded case corpus (`testdata/cases/1b-1`) holds them to it. Until stage 3, a read-only area keeps its artefacts (`index.md`, `graph.json`, `_identities.tsv`) and the reconcile stamp in ultra-brain's state directory: `LOOMUX_LEGACY_BRAIN_DIR`, defaulting to `%LOCALAPPDATA%\brain` on Windows and to `$XDG_STATE_HOME/brain` or `~/.local/state/brain` on POSIX. Until stage 4, an area directory whose `.loomux/config.toml` is missing or has no `[area]` table is read through `.ultra-brain/config.toml` or `.brain.toml`.
+The five data commands read the areas of the one registry (`registry.toml` in `LOOMUX_STATE_DIR` or its platform default) and answer as ultra-brain's `brain-mcp` does; a recorded case corpus (`testdata/cases/1b-1`) holds them to it. A read-only area's artefacts (`index.md`, `graph.json`, `_identities.tsv`) and the reconcile stamp are read from loomux's state directory first, where stage 3a writes them, and from ultra-brain's state directory as long as nothing lies in the new place: `LOOMUX_LEGACY_BRAIN_DIR`, defaulting to `%LOCALAPPDATA%\brain` on Windows and to `$XDG_STATE_HOME/brain` or `~/.local/state/brain` on POSIX. The whole area directory decides, never a single file; `loomux migrate` (stage 4) moves the rest. Until stage 4, an area directory whose `.loomux/config.toml` is missing or has no `[area]` table is read through `.ultra-brain/config.toml` or `.brain.toml`.
 
 - **Channel**: every command takes `--channel local|cloud` (default `local`). An area with `[privacy] mode = "local_only"` does not exist on `cloud`; `[privacy] never` globs apply on every channel.
 - **Usage errors** (exit `2`): the usage line, then `loomux brain <command>: error: <reason>` for a missing argument, an invalid choice or `-n` below 1, and `loomux brain: error: <reason>` when the command is missing or unknown or arguments are left over.
 - **Runtime errors** (exit `1`): `error: <reason>` on `stderr` and nothing on `stdout` — an unknown scope, a refusal, a missing section, a broken `graph.json` or identity register, a missing or unreadable manifest of any registered area, a missing or broken registry, a search engine that cannot be reached.
-- **Advice**: the messages name `brain reindex`, `brain reconcile` and `brain embed`, the commands of ultra-brain, until stage 3 rewrites them.
+- **Advice**: the messages still name `brain reindex`, `brain reconcile` and `brain embed`, the commands of ultra-brain, because the recorded cases of 1b-1 and 1b-2 hold that wording; they move to `loomux reindex`, `loomux reconcile` and `loomux embed` with the switch-over.
 
 ### `loomux brain search <query> [--scope <scope>] [--profile fast|full|keyword] [-n <n>] [--channel local|cloud]`
 Searches the visible areas (`--scope all` by default) through the qmd MCP daemon at `http://localhost:8765/mcp`.
@@ -369,8 +370,46 @@ Prints what to know before trusting an answer, one line per finding.
 ### `loomux brain lint`
 Validates wikilinks (`[[Page]]`), orphaned documents, broken cross-references, and frontmatter taxonomy.
 
-### `loomux brain reconcile`
-Synchronizes state changes, identity registers, and vector index collections.
+### Upkeep: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
+
+Four commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 3a; a recorded case corpus (`testdata/cases/3a`) holds them to the Python reference. They write only to loomux's state directory and read the legacy one as the fallback described above.
+
+- **Environment**: `LOOMUX_STATE_DIR` holds the registry, the artefacts of read-only areas, `maintenance/` and `qmd-collections.json`; `LOOMUX_LEGACY_BRAIN_DIR` is the fallback and is never written. qmd's `index.yml` is found through `XDG_CONFIG_HOME`, else `~/.config`.
+- **No `--state-dir`**: the reference accepts it on all four; loomux refuses it like any unknown flag (exit `2`). The state comes from the environment, the one state model of every loomux command.
+- **Positional arguments** (exit `2`): none of the four takes one. A word left after the flags is refused with `<command>: unrecognized arguments: <words>` before the environment or qmd is looked at.
+- **Messages** of the reconcile pass are German, word for word the reference's.
+
+#### `loomux reindex [--registry <path>]`
+Runs a reconcile pass over the registered areas, then rebuilds each area's directory catalogs (`index.md`), link graph (`graph.json`) and identity register (`_identities.tsv`) and enters the areas as collections into qmd's `index.yml`. A writable area keeps its artefacts in its own tree; a read-only area's are written to `<state>/areas/<scope>/` through a staging directory and swapped in whole.
+
+- **`--registry`**: a `registry.toml`, or the directory holding one; default `registry.toml` in the state directory.
+- **Catch-up**: the reconcile pass runs first, so that a changed source becomes a case before the index run advances its hash. Cases it opens are listed on `stderr` and the run **goes on**; a vault without a review centre gets a warning and is indexed; any other failure of the pass stops the command before anything is indexed.
+- **Output**: `indexed the areas of <path>` on `stdout`; on `stderr` the collections updated or dropped, and each collection refused because qmd already holds one of that name that brain did not create.
+- **Exit codes**: `0` on success, and also when there is no registry in the state directory (`no areas registered in <path>; nothing to index` on `stdout`); `1` for a registry named with `--registry` that does not exist, a registry that does not read, a failed catch-up, a failed index run or a refused collection; `2` for a usage error.
+
+#### `loomux embed [--registry <path>]`
+Asks qmd to generate the vectors the index run leaves pending, for every registered area.
+
+- **qmd first**: without `qmd` on `PATH` it prints `loomux embed: qmd is not on PATH; install it with: npm install -g @tobilu/qmd` and exits `1` before it reads the registry.
+- **Output**: `embedded <n> area(s)` on `stderr`.
+- **Exit codes**: `0` on success, and also when there is no registry in the state directory (`no areas registered in <path>; nothing to embed` on `stdout`); `1` for missing qmd, a named registry that does not exist, a registry that does not read, or an engine that refuses; `2` for a usage error.
+
+#### `loomux reconcile`
+Measures every source of the registered areas against its identity register and, for each wiki page derived from a changed source, opens a case (`case.toml` and a package with the diff) in the review centre, the one directory an area declares under `[layout] review`. A merge recorded in `maintenance/merge-events.tsv` opens a case with the merge's evidence, after the source cases.
+
+- **Output** on `stdout`: `<n> Quellen geprüft, <m> davon gehasht`, one line per case (directory, area, target, state and `manuell` for a case that asks for a manual decision, tab-separated, indented by two spaces), then `<k> Fälle`.
+- **A case is not a failure**: open cases leave the exit code at `0`.
+- **Stamp**: the pass writes `maintenance/last-run.txt` in UTC, which `brain status` and `brain search` read.
+- **Exit codes**: `0` for a pass that ran to the end; `1` when a case file cannot be read (`unreadable case: <entry>` on `stderr`), and for a registry that does not read, a vault that declares no review centre or two, or another failure (`error: <reason>`); `2` for a usage error.
+
+#### `loomux area add [--path P] [--scope S] [--wiki W] [--sources S] [--merge-branch B] [--privacy M] [--no-reindex] [-y|--yes]`
+Registers a repository as an area and prepares it: the registry entry (written under a lock); `.loomux/config.toml` with `[area]`, `[layout]`, `[index]`, `[privacy]` and `[maintenance]` when the repository has none; the routing rule, appended once to `AGENTS.md`; the wiki bundle frame; then `loomux reindex` with its catch-up.
+
+- **Defaults**: `--path` the working directory; `--scope` `project/<directory name>`; `--sources` `docs` when there is a `docs/` directory, else `.`; `--wiki` `<repo>/docs/wiki` or `<repo>/wiki` (must be absolute); `--merge-branch` the branch git names, `master` without one; `--privacy` `manual_cloud`, one of `automatic_cloud`, `local_only`, `manual_cloud`.
+- **Registry first**: a scope already registered is refused before the repository is touched.
+- **A kept configuration**: an existing `.loomux/config.toml` is kept byte for byte, with a warning when it declares no `[area]` or another scope. One the declaration reader refuses ends the command with nothing registered.
+- **Differences from `brain init`**: no `.mcp.json` and no agent hooks (`loomux init`, stage 4); the index run really happens unless `--no-reindex` is given; the branch is written as `[maintenance] branch`, not `merge_branch`; `--privacy` is checked; the first area of a machine needs no registry file prepared by hand. `-y`/`--yes` is accepted and changes nothing.
+- **Exit codes**: `0`, or the exit code of the index run; `1` for a path that is not a directory, an invalid scope, a relative `--wiki`, a refused registry entry, an unreadable file or a failed write; `2` for a usage error, a missing or unknown subcommand (with the usage line) or an unknown `--privacy`.
 
 ---
 

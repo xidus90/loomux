@@ -120,15 +120,16 @@ import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.
 Where each stage and each capability stands — origin, status, dependencies
 and priority — is in the **[migration plan](docs/en/migration.md)**. Stage 2c
 (the stop gate and the subagent hooks) is done for Claude Code; its Antigravity
-adapter is pending.
+adapter is pending. Stage 3a (`reindex`, `embed`, `reconcile`, `area add`) is
+built; running it on this machine's own registry is still open.
 
 ---
 
 ## CLI Reference
 
-Commands active after Stages 1a, 1b-1, 1b-2, 2a, 2b and 2c vs. specified for subsequent fusion and graph stages:
+Commands active after Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c and 3a vs. specified for subsequent fusion and graph stages:
 
-### Active Commands (Stages 1a, 1b-1, 1b-2, 2a, 2b and 2c)
+### Active Commands (Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c and 3a)
 ```bash
 loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
@@ -154,6 +155,10 @@ loomux serve [--foreground]         # start the long-lived localhost MCP service
 loomux serve status                 # what serve.json says and whether the listener answers
 loomux serve stop [--force]         # end the service through its own endpoint, or by its PID
 loomux mcp [--channel local|cloud]  # stdio bridge an MCP host starts; it starts the service itself
+loomux reindex [--registry P]       # reconcile first, then rebuild every area's catalogs, link graph, identity register and qmd collections
+loomux embed [--registry P]         # generate the vectors reindex leaves pending (needs qmd on PATH)
+loomux reconcile                    # open review cases for changed sources and landed merges; a case is not a failure
+loomux area add [--path P] [--scope S]  # register a repository as an area, scaffold its wiki and index it (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
 ```
 
 ### Implemented Commands (Code Graph — Stages G2a–G2b)
@@ -177,11 +182,9 @@ loomux graph map                    # print token-budgeted directory clusters, h
 loomux graph viz                    # launch the interactive graph viewer in your browser
 ```
 
-### Specified Commands (Second Brain & Services — Stages 3–4 & W1–W5)
+### Specified Commands (Second Brain & Services — Stages 3b–4 & W1–W5)
 ```bash
-loomux brain reconcile             # synchronize state changes, identities, and index collections
 loomux brain check file|bundle|all  # the OKF, house and federation rules over a page, a bundle or every area
-loomux brain embed                  # generate the vectors reindex leaves pending
 loomux serve                        # the embedded Web OS beside the MCP listeners
 loomux init [--detect-only]         # wire hooks, settings, skills and AGENTS.md into detected coding agents
 ```
