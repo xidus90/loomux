@@ -133,8 +133,20 @@ func TestBuildGitWorldBuildsTheRepositoryInTheNamedDirectory(t *testing.T) {
 	repo := filepath.Join(dir, "repo-a")
 	first := gitOut(t, repo, "rev-parse", "HEAD~1")
 	second := gitOut(t, repo, "rev-parse", "HEAD")
-	if got := gitOut(t, repo, "rev-parse", "--show-toplevel"); !strings.EqualFold(filepath.Clean(got), filepath.Clean(repo)) {
-		t.Fatalf("top level %s, want %s", got, repo)
+	// Compared by identity, not by spelling: git reports the long form of a
+	// Windows path, while t.TempDir can hand out an 8.3 short name
+	// (C:\Users\RUNNER~1\... on a CI runner) for the same directory.
+	top := gitOut(t, repo, "rev-parse", "--show-toplevel")
+	topInfo, err := os.Stat(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repoInfo, err := os.Stat(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(topInfo, repoInfo) {
+		t.Fatalf("top level %s, want %s", top, repo)
 	}
 	if got := gitOut(t, repo, "show", "HEAD~1:a.txt"); got != "one" {
 		t.Fatalf("first commit holds %q", got)
