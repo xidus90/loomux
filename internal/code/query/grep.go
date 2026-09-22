@@ -11,6 +11,9 @@ import (
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
+// GrepAnswer aliases grep.Result.
+type GrepAnswer = grep.Result
+
 // GrepOptions configures the grep search.
 type GrepOptions struct {
 	IgnoreCase bool
