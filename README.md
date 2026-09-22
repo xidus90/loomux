@@ -121,7 +121,7 @@ Where each stage and each capability stands — origin, status, dependencies
 and priority — is in the **[migration plan](docs/en/migration.md)**. Stage 2c
 (the stop gate and the subagent hooks) is done for Claude Code; its Antigravity
 adapter is pending. Stage 3a (`reindex`, `embed`, `reconcile`, `area add`) is
-built; running it on this machine's own registry is still open.
+done; this machine runs it over its own registry.
 
 ---
 
