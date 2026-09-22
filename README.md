@@ -119,8 +119,7 @@ import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.
 
 Where each stage and each capability stands — origin, status, dependencies
 and priority — is in the **[migration plan](docs/en/migration.md)**. Stage 2c
-(the stop gate and the subagent hooks) is done for Claude Code; its Antigravity
-adapter is pending. Stage 3a (`reindex`, `embed`, `reconcile`, `area add`) is
+(the stop gate and the subagent hooks) is done for Claude Code and Antigravity. Stage 3a (`reindex`, `embed`, `reconcile`, `area add`) is
 done; this machine runs it over its own registry.
 
 ---
