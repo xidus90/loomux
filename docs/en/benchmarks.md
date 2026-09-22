@@ -1561,3 +1561,138 @@ init github.com/xidus90/loomux/internal/verify @3.0 ms, 0 ms clock, 88 bytes, 2 
    at once with "the measuring run did not write it". Lint and test ran
    (`ok`), types is not applicable for Go; the 16.5 ms is loomux's path with
    every lane started, not a failing tool's runtime.
+
+## 2026-09-20 02:20 — The Stop Gate and the Subagent Hooks of Stage 2c
+
+Repository `loomux`, worktree `.claude/worktrees/github-versioning-releases-cli-ca4f58`,
+branch `sdd-2c` on `745e301`. Windows 11, AMD Ryzen 7 9800X3D (16 threads),
+Go 1.27, `bin/loomux.exe` built from that tree.
+
+**Goal.** Show what `hook stop` costs at a turn end that finds nothing new —
+the path that runs at every turn end and starts no tool — and what the two
+subagent hooks cost, which are `git ls-remote` and little else. The plan's
+target for the no-op path is about 300 ms on this repository.
+
+**Method.** `bin/loomux.exe dev bench-hooks -n 20 testdata/bench/2c-hooks.json`,
+one cold run per case and 20 warm ones. Two worlds are staged into
+`%TEMP%\loomux-2c-bench` and built by `cases.BuildGitWorld` from the `git.toml`
+declarations in `testdata/bench/2c-worlds/` — `dev bench-hooks` builds no world,
+so a throwaway `main` under `internal/dev/_benchworld/` called
+`cases.StageWorld(src, dst)` and then `cases.BuildGitWorld(dst)`, and was
+deleted again: `clean`, a three-file Go module
+whose working tree is its last commit and whose `origin` is the bare
+`.origin.git` beside it, and `dirty`, the same module with one uncommitted
+`b.go`. Payloads are `stop.json` (`hook_event_name` `Stop` and `session_id`)
+and `subagent.json` (`hook_event_name` `SubagentStart`, `session_id`,
+`agent_id` and `agent_type`) in the same directory; `subagent-stop` was fed the
+same `subagent.json`, which it may be, because no hook reads the event name.
+Every tool is the faketool
+(`internal/dev/faketool/_faketool`, built as `go.exe`, `gofmt.exe`, `uv.exe`,
+`uvx.exe`) at the front of `PATH`, answering from `dirty/faketool.json` through
+`LOOMUX_FAKE_TOOL_FIXTURE`. The chain case runs in `seq` mode with a step that
+deletes the session's state file before the gate: after one pass the gate
+remembers the green tree and every warm run would take the no-op path instead,
+and after a block the give-up rule would let every fourth run through. The
+reset is measured on its own so it can be subtracted.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| stop-unchanged (small world, clean tree) | 121.3 ms | 121.3 ms | 114.7 ms | 169.4 ms | [0] |
+| stop-fake-chain (small world, changed tree, faketool) incl. state reset | 159.1 ms | 143.8 ms | 139.2 ms | 154.1 ms | [0 2] |
+| state reset only (control for the chain case) | 11.0 ms | 10.0 ms | 9.5 ms | 11.0 ms | [0] |
+| subagent-start (small world, local bare remote) | 105.9 ms | 101.4 ms | 97.0 ms | 218.0 ms | [0] |
+| subagent-start + subagent-stop (small world, local bare remote) | 200.6 ms | 201.6 ms | 193.5 ms | 215.1 ms | [0 0] |
+| git rev-parse HEAD (one git process, small world) | 17.0 ms | 13.0 ms | 12.0 ms | 16.3 ms | [0] |
+| git ls-remote origin (local bare remote) | 37.1 ms | 36.8 ms | 35.5 ms | 39.7 ms | [0] |
+| git ls-remote origin (GitHub, this worktree) | 991.5 ms | 1017.1 ms | 946.6 ms | 1506.5 ms | [0] |
+| subagent-start (this worktree, GitHub remote) | 1008.0 ms | 1038.7 ms | 997.0 ms | 1098.8 ms | [0] |
+| loomux version (start floor) | 8.5 ms | 6.5 ms | 6.0 ms | 12.5 ms | [0] |
+
+The gate on **this** repository (7,341 tracked files), measured in a first pass
+at 02:05 before this task had written a file, so the working tree was clean and
+the gate took its no-op path — the case is in `2c-hooks.json` and repeats once
+this entry is committed:
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| stop-unchanged (this worktree, clean tree, 7,341 files) | 176.1 ms | 169.5 ms | 164.4 ms | 178.0 ms | [0] |
+| git ls-remote origin (GitHub, this worktree) | 992.7 ms | 951.2 ms | 912.4 ms | 1048.3 ms | [0] |
+| subagent-start (this worktree, GitHub remote) | 1072.8 ms | 1035.2 ms | 997.4 ms | 1085.9 ms | [0] |
+| subagent-start + subagent-stop (this worktree, GitHub remote) | 2059.0 ms | 2068.6 ms | 2027.5 ms | 2206.0 ms | [0 0] |
+| loomux version (start floor) | 8.5 ms | 6.5 ms | 6.0 ms | 7.3 ms | [0] |
+
+It does repeat: the whole case file, run at 02:52 against the committed tree,
+reads 172.4 ms warm (167.7–217.1, cold 190.0) for that case, and every other
+case within its earlier range.
+
+The fingerprint alone (`BenchmarkContentTree` in
+`internal/gitwork/gitwork_test.go`, over this repository):
+
+```
+$ go test ./internal/gitwork/ -bench ContentTree -run '^$' -benchmem -count 5
+BenchmarkContentTree-16    	      10	 110482790 ns/op	 1440883 B/op	    2091 allocs/op
+BenchmarkContentTree-16    	      10	 112377110 ns/op	 1439894 B/op	    2090 allocs/op
+BenchmarkContentTree-16    	      10	 114720320 ns/op	 1439653 B/op	    2088 allocs/op
+BenchmarkContentTree-16    	      10	 107556430 ns/op	 1438593 B/op	    2086 allocs/op
+BenchmarkContentTree-16    	      10	 109411100 ns/op	 1439019 B/op	    2087 allocs/op
+```
+
+### Reading
+
+1. **The no-op path is 169.5 ms on this repository, well under the 300 ms the
+   plan budgets.** It starts no tool: 6.5 ms process start, 107–115 ms for the
+   content fingerprint, and the rest is `Head` (`check-ignore`, `rev-parse
+   --is-inside-work-tree`, `rev-parse HEAD^{commit}`) and `TreeOf` for the
+   base's tree — eight git processes in all, four of them inside `ContentTree`
+   (`rev-parse --git-path index`, `add -A`, `rm --cached`, `write-tree`).
+2. **What the gate pays for is eight git starts plus a content term that
+   scales.** One git process in the small world is 13.0 ms warm, measured as a
+   control case above. Eight of them are 104 ms; with the 6.5 ms process start
+   that is 110.5 ms of the small world's 121.3 ms, and the remaining ~11 ms is
+   the index work over three files. This repository costs 169.5 ms: the same
+   ~110 ms floor, ~11 ms of index work and about 48 ms more for scanning and
+   hashing 7,341 files. A first version of this entry divided that residual by
+   eight and called it 14 ms per process; the control case measures 13.0 ms
+   and the arithmetic no longer has to stand in for it. The floor is the same
+   for every repository, the content term is not: ten times the files would add
+   roughly 480 ms to it, and a machine with a slower `git` start moves the
+   floor instead.
+3. **The 224–245 ms the function's comment records is a different measurement,
+   not a lost one.** It is in
+   `docs/.superpowers/specs/2026-09-19-loomux-stufe-2c-design.md`, in the table
+   "Kosten, gemessen auf diesem Repo (7.322 Dateien, warm, Windows 11)": the
+   index copied and `git add -A`, `git rm --cached` and `git write-tree` each
+   started from a shell, timed around the whole sequence, with no run count
+   given. Re-run today exactly that way, five warm runs on this worktree, it
+   reads 150, 137, 139, 140 and 141 ms — about 30 ms above
+   `BenchmarkContentTree`, which times the same four steps in-process. So the
+   shell protocol explains 30 ms of the gap; the remaining ~85 ms between then
+   and now is not explained by anything measured here — same machine, same
+   repository, 19 files more. The number to carry forward is 107–115 ms
+   in-process, 137–150 ms shell-driven, 176–190 ms for the whole hook cold.
+4. **The subagent hooks are `git ls-remote`, and nothing else is worth naming.**
+   Against a local bare remote `subagent-start` is 101.4 ms, of which
+   `ls-remote` is 36.8 ms; against GitHub over the network it is 1,038.7 ms, of
+   which `ls-remote` is 1,017.1 ms. A subagent's whole lifecycle — start plus
+   stop, two snapshots — is 201.6 ms locally and 2,068.6 ms against GitHub. The
+   1.30–1.45 s the design spec's table records for `ls-remote origin` on
+   2026-09-19 — the same table as in reading 3 — were the same remote and the
+   same 24 refs; between 0.95 s and 1.45 s is the network, not the code, and
+   the 10 s deadline is what bounds it.
+5. **The chain adds little of its own.** The gate with a changed tree and four
+   fake lanes is 143.8 ms including a 10.0 ms state reset, so about 134 ms
+   against the 121.3 ms of the no-op path in the same world: some 13 ms for
+   `detect`, the config, the plan and four child processes. It exits 2 because
+   the coverage lane sees `b.go` uncovered — by construction of the world, not
+   because a lane is slow. What a real turn end costs is the real tools: with
+   the real Go toolchain on `PATH` instead of the faketool, `bin/loomux.exe
+   check precommit` through the same harness is 627.0 ms warm median of 5
+   (cold 641.8 ms) in the `dirty` world and 622.9 ms warm median of 10 (cold
+   719.0 ms) in a copy of `testdata/cases/2a-worlds/go-only`.
+6. **A faketool that is not really on `PATH` is not visible in the numbers.**
+   A first pass put `C:/Users/...` on `PATH` from a POSIX shell, where the colon
+   is the separator: the entry fell apart, the real Go toolchain answered, and
+   the chain read 768.9 ms with no sign that anything was wrong. Only
+   `exec.LookPath` in a probe said which `go.exe` was being started. Every
+   measurement that uses the faketool should check the resolved path once
+   before it counts.
