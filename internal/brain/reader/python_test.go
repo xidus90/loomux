@@ -92,7 +92,7 @@ func area(t *testing.T, files map[string]string) config.Area {
 
 func TestReadDocumentFoldsNewlinesLikeReadText(t *testing.T) {
 	a := area(t, map[string]string{"crlf.md": "# A\r\nb\rc\n"})
-	got, err := reader.ReadDocument(a, &config.Manifest{}, "crlf.md", "", privacy.ChannelLocal, "")
+	got, err := reader.ReadDocument(a, &config.Manifest{}, "crlf.md", "", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestReadDocumentFoldsNewlinesLikeReadText(t *testing.T) {
 
 func TestReadDocumentFindsASectionBehindLoneCarriageReturns(t *testing.T) {
 	a := area(t, map[string]string{"cr.md": "# A\rbody\r# B\rrest"})
-	got, err := reader.ReadDocument(a, &config.Manifest{}, "cr.md", "A", privacy.ChannelLocal, "")
+	got, err := reader.ReadDocument(a, &config.Manifest{}, "cr.md", "A", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestReadDocumentFindsASectionBehindLoneCarriageReturns(t *testing.T) {
 
 func TestReadDocumentRefusesInvalidUTF8(t *testing.T) {
 	a := area(t, map[string]string{"bad.md": "# A\n\xff\n"})
-	_, err := reader.ReadDocument(a, &config.Manifest{}, "bad.md", "", privacy.ChannelLocal, "")
+	_, err := reader.ReadDocument(a, &config.Manifest{}, "bad.md", "", privacy.ChannelLocal)
 	want := filepath.Join(a.Path, "bad.md") + ": not valid UTF-8"
 	if err == nil || err.Error() != want {
 		t.Fatalf("expected %q, got %v", want, err)
@@ -123,14 +123,14 @@ func TestReadDocumentRefusesInvalidUTF8(t *testing.T) {
 
 func TestReadDocumentKeepsTheByteOrderMark(t *testing.T) {
 	a := area(t, map[string]string{"bom.md": "\xef\xbb\xbf# A\n"})
-	got, err := reader.ReadDocument(a, &config.Manifest{}, "bom.md", "", privacy.ChannelLocal, "")
+	got, err := reader.ReadDocument(a, &config.Manifest{}, "bom.md", "", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got != "\xef\xbb\xbf# A\n" {
 		t.Errorf("expected %q, got %q", "\xef\xbb\xbf# A\n", got)
 	}
-	_, err = reader.ReadDocument(a, &config.Manifest{}, "bom.md", "A", privacy.ChannelLocal, "")
+	_, err = reader.ReadDocument(a, &config.Manifest{}, "bom.md", "A", privacy.ChannelLocal)
 	if err == nil || err.Error() != "no section titled 'A'" {
 		t.Fatalf("expected %q, got %v", "no section titled 'A'", err)
 	}
@@ -138,7 +138,7 @@ func TestReadDocumentKeepsTheByteOrderMark(t *testing.T) {
 
 func TestReadDocumentHandsOnAMissingFile(t *testing.T) {
 	a := area(t, nil)
-	_, err := reader.ReadDocument(a, &config.Manifest{}, "missing.md", "", privacy.ChannelLocal, "")
+	_, err := reader.ReadDocument(a, &config.Manifest{}, "missing.md", "", privacy.ChannelLocal)
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("expected a not-exist error, got %v", err)
 	}
@@ -147,7 +147,7 @@ func TestReadDocumentHandsOnAMissingFile(t *testing.T) {
 func TestReadDocumentChecksNeverBeforeTheReviewCentre(t *testing.T) {
 	a := area(t, map[string]string{"review/secret.md": "x"})
 	manifest := &config.Manifest{LayoutReview: "review", NeverGlobs: []string{"review/secret.md"}}
-	_, err := reader.ReadDocument(a, manifest, "review/secret.md", "", privacy.ChannelCloud, "")
+	_, err := reader.ReadDocument(a, manifest, "review/secret.md", "", privacy.ChannelCloud)
 	want := "project/test/review/secret.md is excluded by [privacy] never"
 	if err == nil || err.Error() != want {
 		t.Fatalf("expected %q, got %v", want, err)
@@ -157,7 +157,7 @@ func TestReadDocumentChecksNeverBeforeTheReviewCentre(t *testing.T) {
 func TestReadDocumentChecksContainmentBeforeNever(t *testing.T) {
 	a := area(t, nil)
 	manifest := &config.Manifest{NeverGlobs: []string{"**"}}
-	_, err := reader.ReadDocument(a, manifest, "../secrets/key.txt", "", privacy.ChannelLocal, "")
+	_, err := reader.ReadDocument(a, manifest, "../secrets/key.txt", "", privacy.ChannelLocal)
 	want := "project/test/../secrets/key.txt leaves the area"
 	if err == nil || err.Error() != want {
 		t.Fatalf("expected %q, got %v", want, err)
@@ -167,12 +167,12 @@ func TestReadDocumentChecksContainmentBeforeNever(t *testing.T) {
 func TestReadDocumentNamesTheContainedPathInRefusals(t *testing.T) {
 	a := area(t, map[string]string{"secrets/key.txt": "k", "review/cases/c1.md": "c"})
 	manifest := &config.Manifest{LayoutReview: "review", NeverGlobs: []string{"secrets/**"}}
-	_, err := reader.ReadDocument(a, manifest, "./secrets//key.txt", "", privacy.ChannelLocal, "")
+	_, err := reader.ReadDocument(a, manifest, "./secrets//key.txt", "", privacy.ChannelLocal)
 	want := "project/test/secrets/key.txt is excluded by [privacy] never"
 	if err == nil || err.Error() != want {
 		t.Fatalf("expected %q, got %v", want, err)
 	}
-	_, err = reader.ReadDocument(a, manifest, "review/./cases/c1.md", "", privacy.ChannelCloud, "")
+	_, err = reader.ReadDocument(a, manifest, "review/./cases/c1.md", "", privacy.ChannelCloud)
 	want = "project/test/review/cases/c1.md is the review centre; refused on the cloud channel"
 	if err == nil || err.Error() != want {
 		t.Fatalf("expected %q, got %v", want, err)
@@ -181,7 +181,7 @@ func TestReadDocumentNamesTheContainedPathInRefusals(t *testing.T) {
 
 func TestReadDocumentAsksForTheReviewCentreOnlyOnTheCloud(t *testing.T) {
 	a := area(t, map[string]string{"doc.md": "text\n"})
-	got, err := reader.ReadDocument(a, &config.Manifest{LayoutReview: "."}, "doc.md", "", privacy.ChannelLocal, "")
+	got, err := reader.ReadDocument(a, &config.Manifest{LayoutReview: "."}, "doc.md", "", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestReadDocumentAsksForTheReviewCentreOnlyOnTheCloud(t *testing.T) {
 func TestReadDocumentWithoutAPathReadsTheAreaItself(t *testing.T) {
 	a := area(t, nil)
 	for _, relative := range []string{"", "."} {
-		_, err := reader.ReadDocument(a, &config.Manifest{}, relative, "", privacy.ChannelLocal, "")
+		_, err := reader.ReadDocument(a, &config.Manifest{}, relative, "", privacy.ChannelLocal)
 		if err == nil || strings.Contains(err.Error(), "leaves the area") {
 			t.Fatalf("%q: expected a read error on the area directory, got %v", relative, err)
 		}

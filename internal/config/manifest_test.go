@@ -315,7 +315,7 @@ func TestTheHubValueIsRefusedTheWayPythonRefusesIt(t *testing.T) {
 // for a wiki.
 //
 // Every answer was read off `src/brain/manifest.py:60-93` running, not
-// derived from it -- the run is in the report of task 10.
+// derived from it.
 var wikiCases = []struct {
 	value  string
 	want   string

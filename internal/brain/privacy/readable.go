@@ -31,9 +31,31 @@ import (
 // shape of a pattern, not its size -- RE2's own size limit would need a glob
 // of megabytes, which no manifest holds.
 func MatchesGlobs(patterns []string, relative string) bool {
-	candidate := fullMatchForm(folded(relative))
+	return fullMatchesAny(patterns, relative, folded)
+}
+
+// MatchesGlobsUnfolded is MatchesGlobs without the two folds: `_matches_any`
+// (src/brain/walk.py:116-117), a plain `PurePosixPath(relative).full_match
+// (pattern)` that compares case and normal form as written. It matches the
+// index walk's include and exclude lists, its artefact names and the review
+// centre. Only `never` goes through MatchesGlobs there, and `find_files`
+// (walk.py:136-139) says why: the read gate folds, and the two enforcement
+// points of one pattern must not disagree.
+//
+// One translator serves both on purpose. The index port had brought back a
+// second one that worked byte by byte: it missed every non-ASCII literal --
+// the review centre `95 Prüfzentrum` was indexed -- and read `docs/**/*.md`
+// as needing a subdirectory.
+func MatchesGlobsUnfolded(patterns []string, relative string) bool {
+	return fullMatchesAny(patterns, relative, func(text string) string { return text })
+}
+
+// fullMatchesAny is `full_match` against every pattern, with fold applied to
+// both sides first.
+func fullMatchesAny(patterns []string, relative string, fold func(string) string) bool {
+	candidate := fullMatchForm(fold(relative))
 	for _, pattern := range patterns {
-		if regexp.MustCompile(translateGlob(fullMatchForm(folded(pattern)))).MatchString(candidate) {
+		if regexp.MustCompile(translateGlob(fullMatchForm(fold(pattern)))).MatchString(candidate) {
 			return true
 		}
 	}

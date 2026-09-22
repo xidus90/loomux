@@ -16,7 +16,6 @@ func ReadDocument(
 	manifest *config.Manifest,
 	relative, section string,
 	ch privacy.Channel,
-	stateDir string,
 ) (string, error) {
 	inside, err := privacy.Contained(area.Scope, relative)
 	if err != nil {

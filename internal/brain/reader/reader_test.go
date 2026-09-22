@@ -108,7 +108,7 @@ func TestReadDocument(t *testing.T) {
 	}
 
 	// 1. Plain read
-	got, err := reader.ReadDocument(area, manifest, "doc.md", "", privacy.ChannelLocal, tmp)
+	got, err := reader.ReadDocument(area, manifest, "doc.md", "", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestReadDocument(t *testing.T) {
 	}
 
 	// 2. Read section
-	got, err = reader.ReadDocument(area, manifest, "doc.md", "Sec", privacy.ChannelLocal, tmp)
+	got, err = reader.ReadDocument(area, manifest, "doc.md", "Sec", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -127,25 +127,25 @@ func TestReadDocument(t *testing.T) {
 	}
 
 	// 3. Path leaves area
-	_, err = reader.ReadDocument(area, manifest, "../escape.md", "", privacy.ChannelLocal, tmp)
+	_, err = reader.ReadDocument(area, manifest, "../escape.md", "", privacy.ChannelLocal)
 	if err == nil || !strings.Contains(err.Error(), "leaves the area") {
 		t.Errorf("expected 'leaves the area' error, got: %v", err)
 	}
 
 	// 4. Privacy never exclusion
-	_, err = reader.ReadDocument(area, manifest, "secrets/key.txt", "", privacy.ChannelLocal, tmp)
+	_, err = reader.ReadDocument(area, manifest, "secrets/key.txt", "", privacy.ChannelLocal)
 	if err == nil || !strings.Contains(err.Error(), "is excluded by [privacy] never") {
 		t.Errorf("expected 'excluded by [privacy] never' error, got: %v", err)
 	}
 
 	// 5. Cloud channel refuses review centre
-	_, err = reader.ReadDocument(area, manifest, "review/cases/c1.md", "", privacy.ChannelCloud, tmp)
+	_, err = reader.ReadDocument(area, manifest, "review/cases/c1.md", "", privacy.ChannelCloud)
 	if err == nil || !strings.Contains(err.Error(), "is the review centre; refused on the cloud channel") {
 		t.Errorf("expected cloud review centre refusal, got: %v", err)
 	}
 
 	// 6. Local channel allows review centre
-	got, err = reader.ReadDocument(area, manifest, "review/cases/c1.md", "", privacy.ChannelLocal, tmp)
+	got, err = reader.ReadDocument(area, manifest, "review/cases/c1.md", "", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatalf("unexpected error for local review read: %v", err)
 	}
@@ -154,14 +154,14 @@ func TestReadDocument(t *testing.T) {
 	}
 
 	// 7. Missing file
-	_, err = reader.ReadDocument(area, manifest, "missing.md", "", privacy.ChannelLocal, tmp)
+	_, err = reader.ReadDocument(area, manifest, "missing.md", "", privacy.ChannelLocal)
 	if err == nil {
 		t.Fatal("expected error for missing file, got nil")
 	}
 
 	// 8. Invalid LayoutReview error
 	badManifest := &config.Manifest{LayoutReview: "."}
-	_, err = reader.ReadDocument(area, badManifest, "doc.md", "", privacy.ChannelCloud, tmp)
+	_, err = reader.ReadDocument(area, badManifest, "doc.md", "", privacy.ChannelCloud)
 	if err == nil {
 		t.Fatal("expected error for bad LayoutReview on cloud channel, got nil")
 	}

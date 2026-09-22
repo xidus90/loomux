@@ -21,9 +21,10 @@ type VisibleArea struct {
 // holds here too: "filtering afterwards would mean the invisible area was
 // queried -- and a query is already a disclosure of the question".
 //
-// The registry comes from registryDir. The manifest of each area comes from
-// config.ManifestDir(area, legacyDir): a read-only area keeps it in
-// ultra-brain's state directory until stage 3. Every registered area's
+// The registry comes from registryDir, which is also the state directory the
+// artefacts of read-only areas are read from. The manifest of each area comes
+// from config.ResolvedAreaDir: a read-only area keeps it there, with
+// fallbackDir -- ultra-brain's -- as the fallback. Every registered area's
 // declaration is read and its inbox checked before scope and visibility are
 // asked, so the first registry or declaration error ends the call, whichever
 // area it belongs to -- a hidden area included.
@@ -31,14 +32,14 @@ type VisibleArea struct {
 // scope "all" answers every visible area in registry order. Any other scope
 // answers the visible areas of that name, or the UnknownScope error when there
 // are none.
-func VisibleAreas(registryDir, legacyDir, scope string, ch Channel) ([]VisibleArea, error) {
+func VisibleAreas(registryDir, fallbackDir, scope string, ch Channel) ([]VisibleArea, error) {
 	areas, err := config.ReadRegistry(registryDir)
 	if err != nil {
 		return nil, err
 	}
 	var visible []VisibleArea
 	for _, area := range areas {
-		manifest, seen, err := VisibleManifest(config.ManifestDir(area, legacyDir), ch)
+		manifest, seen, err := VisibleManifest(config.ResolvedAreaDir(area, registryDir, fallbackDir), ch)
 		if err != nil {
 			return nil, err
 		}

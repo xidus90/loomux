@@ -8,23 +8,31 @@ import (
 	"unicode/utf8"
 
 	"github.com/xidus90/loomux/internal/brain/pytext"
+	"github.com/xidus90/loomux/internal/config"
 )
 
 // ReconcileInterval is core.RECONCILE_INTERVAL: a full reconciliation older than one day is
 // reported by search and by status alike.
 const ReconcileInterval = 24 * time.Hour
 
-// ReconcileAdvice is core._RECONCILE_ADVICE; the backticks belong to the text. Until stage 3
-// it names the Python command the user has.
+// ReconcileAdvice is core._RECONCILE_ADVICE; the backticks belong to the text. It still
+// names the Python command, although `loomux reconcile` exists since stage 3a: the recorded
+// cases of stage 1b-1 hold this text. Once loomux writes the stamp, `brain reconcile` writes
+// only into the old directory, which loomux no longer reads first: followed, the advice
+// would never end the warning it comes with. It moves to `loomux reconcile` with the switch.
 const ReconcileAdvice = "run `brain reconcile`"
 
-// ReadLastRun reads <stateDir>/maintenance/last-run.txt as reconcile.read_last_run does. A
+// ReadLastRun reads maintenance/last-run.txt as reconcile.read_last_run does: from
+// stateDir, with fallbackDir -- ultra-brain's -- as the fallback. Both are arguments
+// and neither is read from the environment, so that a caller's state directory is the
+// only one this reads (internal/serve's promise). A
 // stamp that is missing, not UTF-8, unreadable as an ISO time or without a zone is no stamp
 // (false, nil): Python answers None for all four, UnicodeDecodeError being a ValueError there.
 // Only a stamp that exists and cannot be read is an error. Existence is Path.exists, which
 // swallows every stat error.
-func ReadLastRun(stateDir string) (time.Time, bool, error) {
-	path := filepath.Join(stateDir, "maintenance", "last-run.txt")
+func ReadLastRun(stateDir, fallbackDir string) (time.Time, bool, error) {
+	lookup := config.ArtifactLookup{Primary: stateDir, Fallback: fallbackDir}
+	path := lookup.Resolve(filepath.Join("maintenance", "last-run.txt"))
 	if _, err := os.Stat(path); err != nil {
 		return time.Time{}, false, nil
 	}
@@ -49,8 +57,8 @@ func Stale(stamp, now time.Time) bool {
 
 // StaleReconcile is core.stale_reconcile: the one finding a search carries for a stamp that
 // exists and has aged, never for a missing one.
-func StaleReconcile(stateDir string, now time.Time) ([]string, error) {
-	stamp, ok, err := ReadLastRun(stateDir)
+func StaleReconcile(stateDir, fallbackDir string, now time.Time) ([]string, error) {
+	stamp, ok, err := ReadLastRun(stateDir, fallbackDir)
 	if err != nil {
 		return nil, err
 	}

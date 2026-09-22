@@ -25,13 +25,16 @@ var manifestNamesUntilStage4 = []string{
 	".brain.toml",
 }
 
-// LegacyBrainDirUntilStage3 is ultra-brain's state directory. brain/* reads the artefacts of
-// read-only areas and the reconcile stamp from it until stage 3 moves reconcile to Go.
+// LegacyBrainDirUntilStage3 is ultra-brain's state directory. Since stage 3a
+// it is the **fallback**, not the place: ArtifactLookup reads the new state
+// directory first and falls back here as long as `loomux migrate` (stage 4)
+// has not moved the stock. Nothing is ever written here.
+// The registry does not come from here; it is StateDir's.
 //
-// Expires with stage 3: until then the Python side writes `graph.json`,
-// `_identities.tsv`, `index.md` of read-only areas and
-// `maintenance/last-run.txt` there, and loomux has no writer of its own.
-// The registry is not read from here; it stays StateDir's.
+// The name promises an expiry that stage 3a moved: the fallback now lives
+// until `loomux migrate` in stage 4, not until stage 3. It keeps the old name
+// on purpose: the brain commands of stage 1b, `serve` and ArtifactLookup
+// call it, and a rename would touch them for no change in behaviour.
 func LegacyBrainDirUntilStage3() string {
 	if fromEnv := os.Getenv(legacyBrainDirEnvUntilStage3); fromEnv != "" {
 		return fromEnv

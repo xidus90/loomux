@@ -1,5 +1,9 @@
-// Package graph reads what the indexer writes about one area and answers
-// neighbour questions over it.
+// Package graph renders what the indexer knows about one area, reads it back
+// and answers neighbour questions over it.
+//
+// Rendering and reading sit in one package because they share this model: a
+// field renamed on the write side and forgotten on the read side would be a
+// graph.json nobody can decode, and here the compiler catches it.
 //
 // A read model of its own rather than decoding into a map: a map would let a
 // field the indexer renames reach a caller unnoticed.

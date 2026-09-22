@@ -106,6 +106,14 @@ func TestADeclarationCarriesWhatItDeclares(t *testing.T) {
 	}
 }
 
+// One day is the smallest value the rule allows, and it is allowed.
+func TestADeclarationAcceptsOneUntouchedDay(t *testing.T) {
+	m, err := ReadDeclaration(declarationFile(t, areaX+"\n[wiki]\nuntouched_days = 1\n"))
+	if err != nil || m.UntouchedDays != 1 {
+		t.Fatalf("ReadDeclaration = %+v, %v; want one day", m, err)
+	}
+}
+
 func TestADeclarationThatSaysNothingElseGetsTheDefaults(t *testing.T) {
 	m, err := ReadDeclaration(declarationFile(t, areaX))
 	if err != nil {

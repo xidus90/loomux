@@ -49,7 +49,7 @@ func BenchmarkRegistersOfTheRealRegistry(b *testing.B) {
 	}
 	paths := make([]string, len(areas))
 	for i, visible := range areas {
-		paths[i] = filepath.Join(config.ManifestDir(visible.Area, legacyDir), "_identities.tsv")
+		paths[i] = filepath.Join(config.ResolvedAreaDir(visible.Area, registryDir, legacyDir), "_identities.tsv")
 	}
 	for _, path := range paths {
 		if _, err := identity.ReadIdentities(path); err != nil {
