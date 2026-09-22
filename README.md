@@ -126,13 +126,13 @@ adapter is pending.
 
 ## CLI Reference
 
-Commands active after Stages 1a, 1b-1, 1b-2, 2a and 2c vs. specified for subsequent fusion and graph stages:
+Commands active after Stages 1a, 1b-1, 1b-2, 2a, 2b and 2c vs. specified for subsequent fusion and graph stages:
 
-### Active Commands (Stages 1a, 1b-1, 1b-2, 2a and 2c)
+### Active Commands (Stages 1a, 1b-1, 1b-2, 2a, 2b and 2c)
 ```bash
 loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
-loomux check commit-msg <file>      # validate commit message against language & structure rules
+loomux check commit-msg <file>      # validate a commit message: Conventional Commits header and its language ([commit], --language, --calibrate N)
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files
 loomux hook pre-tool-use            # run policy and global write barrier against stdin payload
 loomux hook post-tool-use           # run the edit profile's lanes against the file just edited (--budget, default 50s)

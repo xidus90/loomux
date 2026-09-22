@@ -127,13 +127,13 @@ Antigravity-Adapter steht noch aus.
 
 ## CLI-Referenz
 
-Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a und 2c im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a, 2b und 2c im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
 
-### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a und 2c)
+### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a, 2b und 2c)
 ```bash
 loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
-loomux check commit-msg <datei>     # Prüft Commit-Nachricht auf englische Sprache und Formatregeln
+loomux check commit-msg <datei>     # Prüft eine Commit-Nachricht: Kopf nach Conventional Commits und Sprache ([commit], --language, --calibrate N)
 loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
 loomux hook pre-tool-use            # Prüft Policy und globale Schreibschranke gegen stdin
 loomux hook post-tool-use           # Fährt die Lanes des Profils edit gegen die eben geänderte Datei (--budget, Vorgabe 50s)
