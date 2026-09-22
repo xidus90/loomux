@@ -4,6 +4,14 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] - 2026-09-22
+
+<https://github.com/xidus90/loomux/pull/15>
+
+### Added
+- Antigravity host adapter in internal/hosts reading conversationId payloads
+- Normalized hook payload fixtures for Antigravity stop, pre-invocation, pre-tool, and post-tool events
+
 ## [2.3.0] - 2026-09-22
 
 <https://github.com/xidus90/loomux/pull/14>
