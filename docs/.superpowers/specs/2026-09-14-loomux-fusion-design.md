@@ -8,9 +8,11 @@ Doku-Umzug) und 2a (Prüfkette `[verify]`, `loomux check <profil>`,
 2c (Stop-Tor, `subagent-start`/`-stop`, Antigravity-Nachmessung und Host-Adapter,
 am 2026-09-22) sind abgeschlossen. Der Eintrag der drei Hooks in
 `.claude/settings.json` ist erfolgt; loomux prüft sich an jedem Rundenende selbst.
-3 und 4 sind offen. Sechzehn
+Stufe 3 ist in 3a, 3b und 3c zerfallen und lief parallel zu 2b und 2c; 3a
+(`reindex`, `embed`, `reconcile`, `area add`) ist gebaut (2026-09-22), ihre
+Selbstnutzung im loomux-Repo steht aus. 3b, 3c und 4 sind offen. Siebzehn
 Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
-„Stufen“ im Abschnitt „Nachgetragen“, zur Freigabe.
+„Stufen“ im Abschnitt „Nachgetragen“; #1, #2, #3 und #17 sind freigegeben.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
 Blast) am 2026-09-17, G2a (Extraktor, Auflösung, Speicher, Frische, die
 Befehle `graph build` und `graph check`) und G2b (die Abfrage) am 2026-09-18,
@@ -493,12 +495,16 @@ ihren eigenen Plan und ihre eigene Abnahme brauchte. Zweitens läuft **Säule 3 
 Code-Graph) parallel** und nicht nach Stufe 4 — der Grund steht in §10 der
 Säule-3-Spec und in §1 des G1-Deltas.
 
+**Nachtrag 2026-09-22.** Auch **Stufe 3 ist in drei Teilstufen zerfallen**
+(`2026-09-19-loomux-stufe-3-design.md`), und sie lief **parallel zu 2b und 2c**,
+nicht nach ihnen: 3 hängt an keiner der beiden.
+
 | Stufe | Stand | Inhalt |
 |---|---|---|
 | **1a** | ✅ | Repo-Gerüst, Lizenz, Tore, Startzeit-Nachweis. Umzug der Go-Pakete, die 1a benutzt, mit Tests, auf 100 % gehoben; jedes übrige Paket zieht mit der Stufe um, die es zuerst braucht. `config`, `hosts`, vereinter Wächter, post-edit mit Wiki-Lane im Prozess, `session-start`, `lint`, `wiki-gate`. `dev bench-hooks`. Pilot: das loomux-Repo nutzt sich selbst |
 | **1b** | ➗ in drei Teilstufen zerfallen, siehe darunter | `search`, `status`, `catalog`, `read`, `neighbors` mit Parität zur Python-Referenz — neuer Go-Code, kein Umzug (Identitäten in der Suche, `status` vollständig). `serve` mit MCP und Brücke. `dev mutants`. Wiki- und Doku-Umzug |
 | **2** | ➗ in drei Teilstufen zerfallen, siehe darunter | `child`, vollständige Prüfkette `[verify]`, `loomux check <profil>`, Coverage-Tor, commit-msg mit `--language`/`--calibrate`/`[commit]`, Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig |
-| **3** | offen | Brain-Pflege: `reconcile` (auch als Durchgang vor `reindex`), `apply`/`approve`/`cases`/`evidence`/`vcs`, Locking, Bereichs-Onboarding, `merge-events`, `wiki types`/`retype`/`census`/`scaffold`, Upkeep in `serve` |
+| **3** | ➗ in drei Teilstufen zerfallen, siehe darunter | Brain-Pflege: `reconcile` (auch als Durchgang vor `reindex`), `apply`/`approve`/`cases`/`evidence`/`vcs`, Bereichs-Onboarding, das Ereignisprotokoll, `wiki types`/`retype`/`census`/`scaffold`, Upkeep in `serve`. Korrigiert am 2026-09-22 nach der Spec der Stufe 3: „Locking“ stand hier, aber `internal/lock` ist seit 1a die Portierung von `locking.py`, fehlend war nur `ReplaceText`; und „`merge-events`“ ist kein Befehl, sondern das Ereignisprotokoll, das `reconcile` liest und ablegt — der Befehl ist `hook install\|status\|remove` und steht als Nachtrag #5 bei Stufe 4 |
 | **4** | offen | `convert`/`fetch` über `pdftotext`/`yt-dlp`, lokales Modell (Ollama über `net/http`, deutsche Zipf-Tabelle eingebettet), `bench`. `loomux init` vollständig für alle Hosts, `loomux migrate`. Umstellung der Wirte |
 
 **Die drei Teilstufen der 1b**, jede mit eigenem Plan und eigener
@@ -548,6 +554,16 @@ ist `--budget`, Vorgabe 270 s unter der Frist von 300 s; der Fingerabdruck ist
 der Inhaltsbaum (`gitwork.ContentTree`) und steht als `green` im
 Sitzungszustand, `Snapshots` gibt es dort nicht mehr (2c-Spec, „Nachträge“).
 
+**Die drei Teilstufen der 3**, eine gemeinsame Spec
+(`2026-09-19-loomux-stufe-3-design.md`), je Teilstufe ein Plan und eine
+Paritätsakte (`parity/stufe-3a.md`):
+
+| Teilstufe | Stand | Inhalt |
+|---|---|---|
+| **3a** Erkennen | gebaut 2026-09-22 (Plan `2026-09-20-loomux-stufe-3a.md`); Bedingung 5 offen | `lock.ReplaceText`, `legacy.go` auf „neu zuerst, alt als Rückfall“, die Registry-Schreibseite, `loomux area add`, `loomux reindex` und `loomux embed` (Umzug `ultra-brain/pkg/index`, Nachtrag #17), `loomux reconcile` samt Lese- und Ablageseite des Ereignisprotokolls, der Auffangdurchgang vor `reindex`. Die Selbstnutzung lief auf Entscheidung des Nutzers nur gegen eine Kopie der Registry; der Umstieg folgt nach dem Merge und braucht vorher ein `[index]` in `.loomux/config.toml` (Auflage S3 der Akte) |
+| **3b** Entscheiden | offen | `loomux cases`, `loomux case`, `loomux approve`; `apply`, `evidence`, die Schreibseite von `vcs`. Hängt an den Fällen aus 3a |
+| **3c** Pflegen | offen | `loomux check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1), `loomux lint --scope all` (#2), `wiki types\|retype\|census\|scaffold`, Upkeep in `serve`. Upkeep ruft `reconcile` aus 3a |
+
 **Säule 3, der Code-Graph** (`2026-09-14-loomux-code-graph-design.md`). Sie
 steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
 
@@ -570,7 +586,10 @@ Festgelegt am 2026-09-19. Drei Regeln, der Reihe nach: zuerst, was seine
 Abhängigkeiten schon zulassen; dann, was loomux an sich selbst benutzt
 (Bedingung 5 unter „Eine Stufe ist fertig, wenn“); dann die Größe. Der Weg zur
 Ablösung der alten Repos ist 2c und 2b, dann 3, dann 4; G4 liegt daneben und
-kann parallel laufen.
+kann parallel laufen. **Nachtrag 2026-09-22:** 3 lief tatsächlich parallel zu
+2b und 2c und steht nun auf Prio 1, weil sie an keiner der beiden hängt und die
+größte Stufe ist. 2b und 2c sind fertig, und die Zeilen unter Prio 3 sind
+lückenlos nachnummeriert — die Reihenfolge ist dieselbe.
 
 Wörtlich steht in dieser Spec nur „2c hängt an 2a“. Jede andere Abhängigkeit
 ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
@@ -579,27 +598,28 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 |---|---|---|---|
 | — | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | ✅ Fertig (2026-09-22). Die Claude-Seite bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Antigravity-Messung durchgeführt und Adapter implementiert. Voraussetzung für `init` in Stufe 4 |
 | — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
-| 1 | **3** Brain-Pflege | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
+| 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist gebaut, ihr Umstieg im eigenen Repo steht aus; 3b hängt an den Fällen aus 3a, 3c mit dem Upkeep an `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | 2 | **G4** übrige `graph`-Palette, Blast-Monitor | G3 ✅ | Sofort baubar, neben der Fusion. W3 und W4 warten darauf |
-| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
-
-| 6 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
-| 7 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4; W4 an G4 und 4; W5 an W1 und Flow | Folgeprojekt |
-| 8 | **G5** `wazero` | G4 | Nichts wartet darauf |
+| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 (3a gebaut, 3b und 3c offen) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
+| 4 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
+| 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4; W4 an G4 und 4; W5 an W1 und Flow | Folgeprojekt |
+| 6 | **G5** `wazero` | G4 | Nichts wartet darauf |
 
 ### Nachgetragen: was bisher keine Stufe hatte
 
 Eine Durchsicht beider Quellrepos am 2026-09-19, am Code und nicht an der
 Doku, fand sechzehn Stellen, die weder in loomux gebaut noch in dieser Spec
 oder einer Paritätsakte genannt waren — gegen den Grundsatz unter „Ziel“, dass
-nichts ersatzlos wegfällt, ohne in einer Liste zu stehen. Die Zuordnung ist ein
-**Vorschlag**; die Spalte „Freigabe“ füllt der Nutzer, erst dann gilt sie.
+nichts ersatzlos wegfällt, ohne in einer Liste zu stehen. Eine siebzehnte fand
+am selben Tag die Spec der Stufe 3 (`2026-09-19-loomux-stufe-3-design.md`,
+„Befunde“). Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
+der Nutzer, erst dann gilt sie.
 
 | # | Quelle | Stelle | Vorschlag | Begründung | Freigabe |
 |---|---|---|---|---|---|
-| 1 | ultra-brain | `brain check file\|bundle\|all` mit den Achsen OKF, Hausregeln, Föderation (`pkg/check/{okf,house,run}`, `cmd/brain/main.go:937`) | Stufe 3 | Nur das Basispaket `check` ist umgezogen; `internal/brain/wiki/lint.go` verweist die Regeln (`wrong-direction`, `long-planned`, `no-sources`, `log-date-form` …) an Checks, die es in loomux nicht gibt. Die Brain-Skills rufen `brain check` | |
-| 2 | ultra-brain | `lint` ohne Pfad und mit `--scope all` (`src/brain/cli.py:562`) | Stufe 3, mit #1 | `loomux lint` verlangt genau eine Datei. Den Lint über das ganze Bündel hat heute nur `wiki-gate`, und das nur zusammen mit der Driftprüfung | |
-| 3 | ultra-brain | `embed` als Befehl (`src/brain/cli.py:467`) | Stufe 3 | Gehört zu `reindex`; der Datenumzug (Punkt 3) rechnet schon mit „`reindex` + `embed` einmal je Bereich“. In loomux gibt es nur `QmdMcpPort.Embed` ohne Befehl | |
+| 1 | ultra-brain | `brain check file\|bundle\|all` mit den Achsen OKF, Hausregeln, Föderation (`pkg/check/{okf,house,run}`, `cmd/brain/main.go:937`) | Stufe 3 | Nur das Basispaket `check` ist umgezogen; `internal/brain/wiki/lint.go` verweist die Regeln (`wrong-direction`, `long-planned`, `no-sources`, `log-date-form` …) an Checks, die es in loomux nicht gibt. Die Brain-Skills rufen `brain check` | freigegeben 2026-09-19, Stufe 3c |
+| 2 | ultra-brain | `lint` ohne Pfad und mit `--scope all` (`src/brain/cli.py:562`) | Stufe 3, mit #1 | `loomux lint` verlangt genau eine Datei. Den Lint über das ganze Bündel hat heute nur `wiki-gate`, und das nur zusammen mit der Driftprüfung | freigegeben 2026-09-19, Stufe 3c |
+| 3 | ultra-brain | `embed` als Befehl (`src/brain/cli.py:467`) | Stufe 3 | Gehört zu `reindex`; der Datenumzug (Punkt 3) rechnet schon mit „`reindex` + `embed` einmal je Bereich“. In loomux gibt es nur `QmdMcpPort.Embed` ohne Befehl | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 mit #17 |
 | 4 | ultra-brain | `brain layout` und `layout.json` (`pkg/layout`, `cmd/brain/main.go:340`) | Folgeprojekt Web-Migration | Nur die Web-App liest die Orte aus `layout.json` (`web/src/canvas/cosmos.test.ts`) | |
 | 5 | ultra-brain | `hook install\|status\|remove`: der post-merge-Hook in einwilligenden Repos (`src/brain/cli.py:625`) | Stufe 4 (`loomux init`) | Hooks schreibt `init`; der Hook selbst speist `merge-events` aus Stufe 3. Der Abschnitt „Git-Hooks“ kennt ihn noch nicht | |
 | 6 | ultra-brain | `daemon start\|run --backbone`, `--no-local`, `--no-cloud` (`src/brain/cli.py:673`) | Abweichung 1b-2 nachtragen | `serve` kennt nur `--foreground`, das Backbone ist fest CUDA (`internal/brain/search/daemon.go:21`). Die Wahl CUDA oder Vulkan gehört unter „Offen und vor dem Bau zu messen“ | |
@@ -613,6 +633,7 @@ nichts ersatzlos wegfällt, ohne in einer Liste zu stehen. Die Zuordnung ist ein
 | 14 | ultraloom | `[agent].settings`, `[agent].mcp_servers` (`config.py:219`) | Folgeprojekt 1 (Flow-Migration) | Sie steuern den Aufruf von `claude -p` in Flows. Die Tabelle „Wegfall aus dem alten Schema“ der 2a-Spec streicht nur `cli_path` | |
 | 15 | ultraloom | `scripts/install.ps1` und `install.sh`: Bauen in `~/go/bin` | Stufe 4 (`loomux init`) | Release-Archive gibt es, aber keinen Weg, das Binary auf den `PATH` zu legen | |
 | 16 | ultraloom | `ulinit --detect-only` (`cmd/init/main.go:44`) | Stufe 4, als `loomux init --detect-only` | `internal/detect` ist da, nur ohne Befehl | |
+| 17 | ultra-brain | `reindex` und `embed` als Befehle (`ultra-brain/pkg/index`, `src/brain/cli.py:463,467`); `embed` allein ist #3 | Stufe 3a | Der Auffangdurchgang koppelt `reconcile` an `reindex` („`reconcile` auch als Durchgang vor `reindex`“ nennt einen Befehl, den es in loomux nicht gab), und `embed` ist ohne `reindex` gegenstandslos | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 |
 
 ### Eine Stufe ist fertig, wenn
 

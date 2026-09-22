@@ -1696,3 +1696,100 @@ BenchmarkContentTree-16    	      10	 109411100 ns/op	 1439019 B/op	    2087 all
    `exec.LookPath` in a probe said which `go.exe` was being started. Every
    measurement that uses the faketool should check the resolved path once
    before it counts.
+
+## 2026-09-22 11:42 — Stage 3a: reconcile, reindex and area add Against the Python Reference
+
+Repository `loomux`, worktree `.claude/worktrees/planung-von-3-c56c81`, branch
+`claude/planung-von-3-c56c81` on `4ca3fc2` (code as in `01c2a2a`; task 19
+adds tests only). Reference: ultra-brain `loomux-3-source` (`3cc72d2`), run as
+`ultra-brain/.venv/Scripts/brain-mcp.exe`, Python 3.14.7.
+
+**Goal.** The three measurements of the stage: `reconcile` warm, `reindex`
+cold and warm, `area add` on an empty repository, each against the Python
+form. No target was set (spec 3a, "Messen").
+
+**Method.** Neither command has an area filter; both walk the whole registry.
+So the runs did **not** touch the real state but copies: the five repositories
+of the writable areas, `.git` included, under `%TEMP%\lx3a\<world>\repos`; the
+three read-only areas in place (read only); a copy of the registry with the ten
+areas both tools know (without `project/loomux`, which the reference skips for
+lack of a `.brain.toml`); `%LOCALAPPDATA%\brain` copied. One world per tool,
+both from the same template. **With qmd** (2.8.3), but with `QMD_CONFIG_DIR`,
+`INDEX_PATH` and `XDG_CACHE_HOME` pointed into the world — every world starts
+with an empty qmd index, and `reindex` runs `qmd update` against it. Timing: a
+PEP 723 script, `time.perf_counter_ns` around `subprocess.run`, one first run
+and ten warm runs per case, median of the warm ones. Order per world: `reindex`
+(its first run is the cold one), then `reconcile`. `area add`: a fresh
+`git init` repository and a fresh state directory with an empty
+`registry.toml` for every run (the reference fails without it, ruling B5),
+only the command timed. Machine: AMD Ryzen 7 9800X3D, Go 1.27.0
+`windows/amd64`.
+
+**What "cold" means here.** The first `reindex` of a fresh world: an empty qmd
+index and, for loomux, an empty state directory — loomux reads the stat cache
+from its own directory only (parity record, finding S5), so the catch-up pass
+ahead of the index run hashes every source. The reference finds its cache in
+the copied `%LOCALAPPDATA%\brain`. Not cold in the file-cache sense: the copies
+had just been made.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| loomux reindex (10 areas) | 14983.0 ms | 4105.9 ms | 3770.6 ms | 4803.7 ms | [0] |
+| brain-mcp reindex (10 areas) | 37490.6 ms | 27822.7 ms | 25086.0 ms | 32346.4 ms | [0] |
+| loomux reconcile (10 areas) | 1083.0 ms | 962.2 ms | 924.2 ms | 1006.1 ms | [0] |
+| brain-mcp reconcile (10 areas) | 13087.1 ms | 12717.3 ms | 11775.6 ms | 17791.9 ms | [0] |
+| loomux area add -y | 286.9 ms | 274.6 ms | 264.3 ms | 290.2 ms | [0] |
+| loomux area add -y -no-reindex | 32.6 ms | 33.5 ms | 30.0 ms | 40.3 ms | [0] |
+| brain-mcp init -y | 947.9 ms | 922.9 ms | 900.4 ms | 973.6 ms | [0] |
+
+And loomux alone over all eleven areas (the world with `project/loomux`,
+whose register holds 2147 sources after the first run — 3064 checked over eleven areas less 917 over the ten):
+
+| case | first run | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| loomux reindex (11 areas) | 12381.4 ms | 6837.7 ms | 6460.2 ms | 7893.9 ms | [0] |
+| loomux reconcile (11 areas) | 1552.3 ms | 1385.0 ms | 1375.5 ms | 1446.8 ms | [0] |
+| loomux --version (start floor, 20 warm) | 11.0 ms | 7.6 ms | 7.3 ms | 13.3 ms | [0] |
+
+### Reading
+
+1. **`reindex` is 6.8 times as fast warm, 2.5 times cold.** 4105.9 ms against
+   27822.7 ms, with separate warm ranges (3770.6–4803.7 against
+   25086.0–32346.4). Cold it is 14983.0 ms against 37490.6 ms; the loomux
+   figure carries the catch-up pass hashing every source for want of a cache,
+   and the first `qmd update` against an empty index.
+2. **`reconcile` is 13.2 times as fast warm.** 962.2 ms against 12717.3 ms.
+   Neither side hashes anything in the warm runs (`0 davon gehasht`), so the
+   difference is the walk and the stat calls, not hashing. loomux counted 917
+   sources, the reference 910; the seven are findings S1, S2 and S6 of the
+   parity record (+14 packages in the review centre, −4 in `ultraloom`, −3
+   through the junction in `space`).
+3. **`area add` is 3.4 times as fast although it does more.** 274.6 ms against
+   922.9 ms — and `area add` indexes at the end (ruling of task 15), `brain init`
+   does not. Without the index run it is 33.5 ms, 27.5 times as fast; the index
+   run over the empty repository therefore costs 241.1 ms, nearly all of it
+   qmd's start.
+4. **`project/loomux` costs 2731.8 ms per `reindex` and 422.8 ms per
+   `reconcile`.** That is the area without `[index]`, which walks the whole
+   repository including `testdata/` (parity record, finding S3). An `[index]`
+   taking only `docs/wiki` would remove the item.
+5. **The start floor has not moved.** 7.6 ms warm against 5.5–7.6 ms in the
+   entries of 2026-09-17 and 2026-09-19.
+
+**Start time.** `GODEBUG=inittrace=1 loomux --version`, three runs. The new
+packages of the stage:
+
+| package | clock | bytes | allocations |
+|---|---:|---:|---:|
+| `internal/brain/index` | 0 ms (3/3) | 11,512 | 94 |
+| `internal/brain/maintenance` | 0 ms (3/3) | 3,576 | 36 |
+| `internal/brain/vcs`, `internal/lock` | no init | — | — |
+
+No `init()` and no `//go:embed` in the four packages; what runs at start is
+package variables: in `index` three `regexp.MustCompile` over literals
+(`document.go:16`, `:21`, `:22`) and the exclusion lists, in `maintenance` one
+(`package.go:38`) and small tables. None parses embedded data. The largest
+init of loomux is still `internal/cases` with 438 allocations, below the 500
+of `TestStartDoesNoWorkInPackageInit`; above 300 there are otherwise only
+`encoding/gob` (366–370) and `internal/verify/commit` (322), both present
+before 3a.
