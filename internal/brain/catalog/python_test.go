@@ -13,10 +13,7 @@ import (
 
 // Every expected value in this file was measured at the Python reference
 // (Path.read_text and the root lines of brain.core.catalog, Python 3.14.7,
-// ultra-brain tag loomux-1a-source) on 2026-09-15 -- except
-// TestAreaArtifactDirIsTheManifestDir, which has no counterpart at the
-// reference: it holds AreaArtifactDir against config.ManifestDir, the one
-// place that decides where an area's artifacts live.
+// ultra-brain tag loomux-1a-source) on 2026-09-15.
 
 // writableArea writes index.md with the given bytes into a fresh area.
 func writableArea(t *testing.T, index string) config.Area {
@@ -30,7 +27,7 @@ func writableArea(t *testing.T, index string) config.Area {
 
 func TestReadAreaCatalogFoldsNewlinesLikeReadText(t *testing.T) {
 	a := writableArea(t, "# A\r\nb\rc\n")
-	got, err := catalog.ReadAreaCatalog(a, "")
+	got, err := catalog.ReadAreaCatalog(a, "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -41,7 +38,7 @@ func TestReadAreaCatalogFoldsNewlinesLikeReadText(t *testing.T) {
 
 func TestReadAreaCatalogRefusesInvalidUTF8(t *testing.T) {
 	a := writableArea(t, "# A\n\xff\n")
-	_, err := catalog.ReadAreaCatalog(a, "")
+	_, err := catalog.ReadAreaCatalog(a, "", "")
 	want := filepath.Join(a.Path, "index.md") + ": not valid UTF-8"
 	if err == nil || err.Error() != want {
 		t.Fatalf("expected %q, got %v", want, err)
@@ -50,7 +47,7 @@ func TestReadAreaCatalogRefusesInvalidUTF8(t *testing.T) {
 
 func TestReadAreaCatalogKeepsTheByteOrderMark(t *testing.T) {
 	a := writableArea(t, "\xef\xbb\xbf# A\n")
-	got, err := catalog.ReadAreaCatalog(a, "")
+	got, err := catalog.ReadAreaCatalog(a, "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,20 +57,9 @@ func TestReadAreaCatalogKeepsTheByteOrderMark(t *testing.T) {
 }
 
 func TestReadAreaCatalogHandsOnAMissingIndex(t *testing.T) {
-	_, err := catalog.ReadAreaCatalog(config.Area{Scope: "project/x", Path: t.TempDir()}, "")
+	_, err := catalog.ReadAreaCatalog(config.Area{Scope: "project/x", Path: t.TempDir()}, "", "")
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("expected a not-exist error, got %v", err)
-	}
-}
-
-func TestAreaArtifactDirIsTheManifestDir(t *testing.T) {
-	for _, scope := range []string{"project/alpha", "\xc3\x84/b", "--x--"} {
-		for _, readOnly := range []bool{false, true} {
-			a := config.Area{Scope: scope, Path: filepath.Join("some", "path"), ReadOnly: readOnly}
-			if got, want := catalog.AreaArtifactDir(a, "state"), config.ManifestDir(a, "state"); got != want {
-				t.Errorf("%q read-only %v: expected %q, got %q", scope, readOnly, want, got)
-			}
-		}
 	}
 }
 

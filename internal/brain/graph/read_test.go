@@ -37,7 +37,7 @@ func TestReadGraph_Valid(t *testing.T) {
 		Path:  tmpDir,
 	}
 
-	g, err := graph.ReadGraph(area, tmpDir)
+	g, err := graph.ReadGraph(area, tmpDir, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestReadGraph_ReadOnlyAreaInStateDir(t *testing.T) {
 		ReadOnly: true,
 	}
 
-	g, err := graph.ReadGraph(area, stateDir)
+	g, err := graph.ReadGraph(area, stateDir, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestReadGraph_NeverIndexed(t *testing.T) {
 		Path:  tmpDir,
 	}
 
-	_, err := graph.ReadGraph(area, tmpDir)
+	_, err := graph.ReadGraph(area, tmpDir, "")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -221,7 +221,7 @@ func TestReadGraph_ReadError(t *testing.T) {
 		Path:  tmpDir,
 	}
 
-	_, err := graph.ReadGraph(area, tmpDir)
+	_, err := graph.ReadGraph(area, tmpDir, "")
 	if err == nil {
 		t.Fatal("expected error reading directory as file, got nil")
 	}

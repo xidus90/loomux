@@ -90,8 +90,8 @@ func DefaultPortsWith(opts ...brainsearch.QmdMcpOption) Ports {
 // The registry is loomux's; artefacts of read-only areas and the stamp stay in
 // ultra-brain's state directory until stage 3, which is why both directories
 // are named.
-func Run(req Request, registryDir, legacyDir string, notice func(string)) (string, []string, error) {
-	return RunWith(DefaultPorts(), req, registryDir, legacyDir, notice)
+func Run(req Request, registryDir, fallbackDir string, notice func(string)) (string, []string, error) {
+	return RunWith(DefaultPorts(), req, registryDir, fallbackDir, notice)
 }
 
 // RunFor is Run for a caller that has something to say about the qmd port: it
@@ -99,31 +99,31 @@ func Run(req Request, registryDir, legacyDir string, notice func(string)) (strin
 // baked in. The ports are built per call, as Run builds them, so that two
 // answers never share a session.
 func RunFor(opts ...brainsearch.QmdMcpOption) func(Request, string, string, func(string)) (string, []string, error) {
-	return func(req Request, registryDir, legacyDir string, notice func(string)) (string, []string, error) {
-		return RunWith(DefaultPortsWith(opts...), req, registryDir, legacyDir, notice)
+	return func(req Request, registryDir, fallbackDir string, notice func(string)) (string, []string, error) {
+		return RunWith(DefaultPortsWith(opts...), req, registryDir, fallbackDir, notice)
 	}
 }
 
 // RunWith is Run against engines of the caller's choosing. It is what a test of
 // either caller uses; production calls Run and takes the default ports.
-func RunWith(ports Ports, req Request, registryDir, legacyDir string, notice func(string)) (string, []string, error) {
+func RunWith(ports Ports, req Request, registryDir, fallbackDir string, notice func(string)) (string, []string, error) {
 	if notice == nil {
 		notice = func(string) {}
 	}
 	switch req.Command {
 	case "search":
-		return search(ports, req, registryDir, legacyDir, notice)
+		return search(ports, req, registryDir, fallbackDir, notice)
 	case "catalog":
-		text, err := catalog(req.Scope, req.Channel, registryDir, legacyDir)
+		text, err := catalog(req.Scope, req.Channel, registryDir, fallbackDir)
 		return text, nil, err
 	case "read":
-		text, err := read(req.Query, req.Scope, req.Section, req.Channel, registryDir, legacyDir)
+		text, err := read(req.Query, req.Scope, req.Section, req.Channel, registryDir, fallbackDir)
 		return text, nil, err
 	case "neighbors":
-		text, err := neighbors(req.Query, req.Scope, req.Channel, registryDir, legacyDir)
+		text, err := neighbors(req.Query, req.Scope, req.Channel, registryDir, fallbackDir)
 		return text, nil, err
 	case "status":
-		text, err := status(ports, req.Channel, registryDir, legacyDir)
+		text, err := status(ports, req.Channel, registryDir, fallbackDir)
 		return text, nil, err
 	}
 	return "", nil, fmt.Errorf("unknown command: %s", req.Command)
@@ -131,7 +131,7 @@ func RunWith(ports Ports, req Request, registryDir, legacyDir string, notice fun
 
 // search is core.search plus _print_search: the hits for stdout, the findings
 // as notes.
-func search(ports Ports, req Request, registryDir, legacyDir string, notice func(string)) (string, []string, error) {
+func search(ports Ports, req Request, registryDir, fallbackDir string, notice func(string)) (string, []string, error) {
 	port := ports.Search(notice)
 	if closer, ok := port.(io.Closer); ok {
 		// Let go of the session whatever the answer was; the answer does not
@@ -139,7 +139,7 @@ func search(ports Ports, req Request, registryDir, legacyDir string, notice func
 		defer closer.Close()
 	}
 	found, err := brainsearch.ExecuteSearch(req.Query, req.Scope, brainsearch.Profile(req.Profile),
-		req.Count, req.Channel, port, registryDir, legacyDir, ports.Now())
+		req.Count, req.Channel, port, registryDir, fallbackDir, ports.Now())
 	if err != nil {
 		return "", nil, err
 	}
@@ -148,8 +148,8 @@ func search(ports Ports, req Request, registryDir, legacyDir string, notice func
 
 // catalog is core.catalog: the root catalog of the visible areas, or the
 // index.md of one of them.
-func catalog(scope string, channel privacy.Channel, registryDir, legacyDir string) (string, error) {
-	areas, err := privacy.VisibleAreas(registryDir, legacyDir, "all", channel)
+func catalog(scope string, channel privacy.Channel, registryDir, fallbackDir string) (string, error) {
+	areas, err := privacy.VisibleAreas(registryDir, fallbackDir, "all", channel)
 	if err != nil {
 		return "", err
 	}
@@ -164,13 +164,13 @@ func catalog(scope string, channel privacy.Channel, registryDir, legacyDir strin
 	if err != nil {
 		return "", err
 	}
-	return braincatalog.ReadAreaCatalog(area.Area, legacyDir)
+	return braincatalog.ReadAreaCatalog(area.Area, registryDir, fallbackDir)
 }
 
 // area is the one visible area a read or a neighbour query names; every area
 // of the registry is checked first, as core._visible_areas("all") does.
-func area(scope string, channel privacy.Channel, registryDir, legacyDir string) (privacy.VisibleArea, error) {
-	areas, err := privacy.VisibleAreas(registryDir, legacyDir, "all", channel)
+func area(scope string, channel privacy.Channel, registryDir, fallbackDir string) (privacy.VisibleArea, error) {
+	areas, err := privacy.VisibleAreas(registryDir, fallbackDir, "all", channel)
 	if err != nil {
 		return privacy.VisibleArea{}, err
 	}
@@ -178,19 +178,19 @@ func area(scope string, channel privacy.Channel, registryDir, legacyDir string) 
 }
 
 // read is core.read.
-func read(relative, scope, section string, channel privacy.Channel, registryDir, legacyDir string) (string, error) {
-	found, err := area(scope, channel, registryDir, legacyDir)
+func read(relative, scope, section string, channel privacy.Channel, registryDir, fallbackDir string) (string, error) {
+	found, err := area(scope, channel, registryDir, fallbackDir)
 	if err != nil {
 		return "", err
 	}
-	return reader.ReadDocument(found.Area, found.Manifest, relative, section, channel, legacyDir)
+	return reader.ReadDocument(found.Area, found.Manifest, relative, section, channel)
 }
 
 // neighbors is core.neighbors plus render_neighbors: containment before the
 // graph is read, so a path leaving the area is refused even where no graph
 // exists.
-func neighbors(relative, scope string, channel privacy.Channel, registryDir, legacyDir string) (string, error) {
-	found, err := area(scope, channel, registryDir, legacyDir)
+func neighbors(relative, scope string, channel privacy.Channel, registryDir, fallbackDir string) (string, error) {
+	found, err := area(scope, channel, registryDir, fallbackDir)
 	if err != nil {
 		return "", err
 	}
@@ -198,7 +198,7 @@ func neighbors(relative, scope string, channel privacy.Channel, registryDir, leg
 	if err != nil {
 		return "", err
 	}
-	g, err := graph.ReadGraph(found.Area, legacyDir)
+	g, err := graph.ReadGraph(found.Area, registryDir, fallbackDir)
 	if err != nil {
 		return "", err
 	}
@@ -207,8 +207,8 @@ func neighbors(relative, scope string, channel privacy.Channel, registryDir, leg
 }
 
 // status is core.status plus _print_status: one line each.
-func status(ports Ports, channel privacy.Channel, registryDir, legacyDir string) (string, error) {
-	lines, err := brainstatus.Lines(channel, ports.Status(), registryDir, legacyDir, ports.Now())
+func status(ports Ports, channel privacy.Channel, registryDir, fallbackDir string) (string, error) {
+	lines, err := brainstatus.Lines(channel, ports.Status(), registryDir, fallbackDir, ports.Now())
 	if err != nil {
 		return "", err
 	}

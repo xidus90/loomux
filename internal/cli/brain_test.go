@@ -270,6 +270,30 @@ func TestBrainReadsAReadOnlyAreaFromTheLegacyDirectory(t *testing.T) {
 	}
 }
 
+// brainNewGraph is brainGraph with other edges, so that an answer names which
+// of the two directories its graph came from.
+const brainNewGraph = `{"scope":"project/r","nodes":[],"edges":[{"from":"notes/a.md","to":"notes/x.md"},{"from":"notes/y.md","to":"notes/a.md"}],"links":{"total":2,"resolved":2,"dropped":{}}}`
+
+// Lies an area under both places, the new one wins. Without this test the move
+// would be unprovable: with an empty state directory the fallback answers
+// exactly what the old fixed grip into the legacy directory answered, and the
+// case suite 1b-1 points both variables at one and the same directory.
+func TestBrainPrefersTheNewStateDirOverTheLegacyOne(t *testing.T) {
+	w := brainReadOnlyWorld(t, map[string]string{"index.md": "# old\n", "graph.json": brainGraph})
+	moved := filepath.Join(w.state, "areas", "project-r")
+	writeFile(t, filepath.Join(moved, ".loomux", "config.toml"), "[area]\nscope = \"project/r\"\n")
+	writeFile(t, filepath.Join(moved, "index.md"), "# new\n")
+	writeFile(t, filepath.Join(moved, "graph.json"), brainNewGraph)
+
+	if code, out, errOut := run("brain", "catalog", "--scope", "project/r"); code != 0 || out != "# new\n" {
+		t.Fatalf("catalog answered from the legacy directory: code %d\nout %q\nerr %q", code, out, errOut)
+	}
+	code, out, errOut := run("brain", "neighbors", "notes/a.md", "--scope", "project/r")
+	if code != 0 || out != "incoming: notes/y.md\noutgoing: notes/x.md\n" {
+		t.Fatalf("neighbors answered from the legacy directory: code %d\nout %q\nerr %q", code, out, errOut)
+	}
+}
+
 func TestBrainReadAnswersTheFileOrOneSection(t *testing.T) {
 	doc := "# Top\nintro\n## Part\nbody\n# Next\nrest\n"
 	brainWorld(t, "", map[string]string{"notes/a.md": doc})

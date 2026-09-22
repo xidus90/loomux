@@ -81,7 +81,7 @@ func TestParseGraph_NonStringEndsFailTheTypedDecode(t *testing.T) {
 func TestReadGraph_AnUnstatablePathIsNeverIndexed(t *testing.T) {
 	// Path.exists() answers False for every OSError, a NUL byte included.
 	area := config.Area{Scope: "project/odd", Path: filepath.Join(t.TempDir(), "a\x00b")}
-	_, err := graph.ReadGraph(area, "")
+	_, err := graph.ReadGraph(area, "", "")
 	if !errors.Is(err, graph.ErrNotIndexed) || err.Error() != "project/odd: never indexed; run `brain reindex`" {
 		t.Fatalf("got %v", err)
 	}
@@ -93,7 +93,7 @@ func TestReadGraph_InvalidUTF8NamesTheFileOnce(t *testing.T) {
 	if err := os.WriteFile(path, []byte("{\"edges\": [], \"links\": \xff}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := graph.ReadGraph(config.Area{Scope: "project/test", Path: dir}, dir)
+	_, err := graph.ReadGraph(config.Area{Scope: "project/test", Path: dir}, dir, "")
 	if err == nil || err.Error() != path+": not valid UTF-8" {
 		t.Fatalf("got %v", err)
 	}
@@ -105,7 +105,7 @@ func TestReadGraph_AnUnreadableGraphNamesTheFileOnce(t *testing.T) {
 	if err := os.Mkdir(path, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	_, err := graph.ReadGraph(config.Area{Scope: "project/test", Path: dir}, dir)
+	_, err := graph.ReadGraph(config.Area{Scope: "project/test", Path: dir}, dir, "")
 	if err == nil || strings.Count(err.Error(), path) != 1 {
 		t.Fatalf("got %v", err)
 	}

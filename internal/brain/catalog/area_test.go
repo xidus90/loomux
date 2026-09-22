@@ -9,27 +9,6 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-func TestAreaArtifactDir(t *testing.T) {
-	writable := config.Area{
-		Scope:    "project/alpha",
-		Path:     filepath.Join("some", "path"),
-		ReadOnly: false,
-	}
-	if dir := catalog.AreaArtifactDir(writable, "state"); dir != writable.Path {
-		t.Errorf("expected %q, got %q", writable.Path, dir)
-	}
-
-	readonly := config.Area{
-		Scope:    "project/alpha",
-		Path:     filepath.Join("some", "path"),
-		ReadOnly: true,
-	}
-	expected := filepath.Join("state", "areas", "project-alpha")
-	if dir := catalog.AreaArtifactDir(readonly, "state"); dir != expected {
-		t.Errorf("expected %q, got %q", expected, dir)
-	}
-}
-
 func TestReadAreaCatalog(t *testing.T) {
 	tmp := t.TempDir()
 	areaPath := filepath.Join(tmp, "writable")
@@ -47,7 +26,7 @@ func TestReadAreaCatalog(t *testing.T) {
 		ReadOnly: false,
 	}
 
-	got, err := catalog.ReadAreaCatalog(writableArea, tmp)
+	got, err := catalog.ReadAreaCatalog(writableArea, tmp, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +51,7 @@ func TestReadAreaCatalog(t *testing.T) {
 		ReadOnly: true,
 	}
 
-	got, err = catalog.ReadAreaCatalog(readonlyArea, stateDir)
+	got, err = catalog.ReadAreaCatalog(readonlyArea, stateDir, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +65,7 @@ func TestReadAreaCatalog(t *testing.T) {
 		Path:     filepath.Join(tmp, "nonexistent"),
 		ReadOnly: false,
 	}
-	_, err = catalog.ReadAreaCatalog(missingArea, stateDir)
+	_, err = catalog.ReadAreaCatalog(missingArea, stateDir, "")
 	if err == nil {
 		t.Fatal("expected error for missing index.md, got nil")
 	}

@@ -109,3 +109,33 @@ func TestMatchesGlobsAsksEveryPattern(t *testing.T) {
 		t.Error("no pattern matches nothing")
 	}
 }
+
+// Measured on 2026-09-22 under Python 3.14.7 with `PurePosixPath(relative)
+// .full_match(pattern)` and nothing folded -- the call `_matches_any` makes in
+// src/brain/walk.py for include, exclude and the review centre.
+func TestMatchesGlobsUnfoldedAnswersLikeFullMatch(t *testing.T) {
+	nfd := "Pru" + string(rune(0x0308)) + "fzentrum"
+	for _, tc := range []struct {
+		pattern, relative string
+		want              bool
+	}{
+		{"95 Prüfzentrum/**", "95 Prüfzentrum/knowledge/c1/package.md", true},
+		{"95 Prüfzentrum", "95 Prüfzentrum", true},
+		{"docs/**/*.md", "docs/a.md", true},
+		{"docs/**/*.md", "docs/sub/a.md", true},
+		{"a/**/x.md", "a/x.md", true},
+		// Nothing is folded: neither the case nor the normal form.
+		{"private/**", "Private/x.md", false},
+		{"Prüfzentrum/**", nfd + "/x.md", false},
+	} {
+		if got := privacy.MatchesGlobsUnfolded([]string{tc.pattern}, tc.relative); got != tc.want {
+			t.Errorf("MatchesGlobsUnfolded(%q, %q) = %v, want %v", tc.pattern, tc.relative, got, tc.want)
+		}
+	}
+	if !privacy.MatchesGlobs([]string{"private/**"}, "Private/x.md") {
+		t.Error("MatchesGlobs keeps folding: the never list is matched case-insensitively")
+	}
+	if privacy.MatchesGlobsUnfolded(nil, "a.md") {
+		t.Error("no pattern matches nothing")
+	}
+}

@@ -60,6 +60,17 @@ func ReadRegistry(stateDir string) ([]Area, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseRegistry(stateDir, path, data)
+}
+
+// parseRegistry is ReadRegistry without the read, so the writing side
+// (writeRegistryLocked) can hold a rendered registry to the very same rules
+// before it swaps the file in -- against the real state directory, so a
+// refusal names the real file and the scope rules see the directories they
+// will actually govern. Holding it to the reader's rules is what keeps the
+// write barrier, which reads the registry through ReadRegistry, from ever
+// finding a file this side wrote that it cannot use.
+func parseRegistry(stateDir, path string, data []byte) ([]Area, error) {
 	document := map[string]any{}
 	if err := toml.Unmarshal(data, &document); err != nil {
 		return nil, fmt.Errorf("%s: not valid TOML: %w", path, err)
