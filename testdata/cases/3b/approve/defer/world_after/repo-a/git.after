@@ -1,0 +1,12 @@
+base
+loomux cases <cases@loomux.invalid> / loomux cases <cases@loomux.invalid>
+_identities.tsv
+notes/source.md
+review/project-a/a-2026-09-21-5bd8/case.toml
+review/project-a/a-2026-09-21-5bd8/package.md
+review/project-a/a-2026-09-21-5bd8/proposal.md
+wiki/audit.md
+wiki/log.md
+wiki/page.md
+M	notes/source.md
+ M notes/source.md

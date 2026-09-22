@@ -14,6 +14,7 @@ translation table and suite.
 | 2b | `ultraloom commit-msg` at the tag `loomux-1a-source` (`9d01a60`), against staged worlds and, for `--calibrate`, a fake git | `internal/cli/cases_2b_test.go` | 19 |
 | 2c | `ultraloom hook stop`, `hook subagent-start` and `hook subagent-stop` at the tag `loomux-1a-source` (`9d01a60`), against fake tools and measured Claude Code payloads | `internal/cli/cases_2c_test.go` | 15 |
 | 3a | `brain-mcp reconcile`, `reindex`, `embed` and `init` of ultra-brain at the tag `loomux-3-source` (`3cc72d2`), against a fake qmd | `internal/cli/cases_3a_test.go` | 28 |
+| 3b | `brain-mcp cases`, `case` and `approve` of the same reference at the same tag, against a fake qmd | `internal/cli/cases_3b_test.go` | 24 |
 
 ## Layout
 
@@ -50,6 +51,10 @@ translation table and suite.
 | `3a-source/` | The recordings, written by `loomux dev record-case --argv <ultra-brain>/.venv/Scripts/brain-mcp.exe` with the fake qmd first on `PATH`, `LOOMUX_FAKE_QMD_FIXTURE={{WORLD}}/qmd-fixture.json`, `XDG_CONFIG_HOME={{WORLD}}/xdg`, and `LOCALAPPDATA`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` pointed at an empty sandbox; `embed/no-qmd` runs with `PATH=C:/Windows/System32` instead. The recorder sets `BRAIN_STATE_DIR` to the staged world itself. `reindex` and `area-add` are recorded with `--compare message`, `reconcile` and `embed` without it. `docs/.superpowers/parity/stufe-3a-orakel/record_all.sh` makes every call, through `record.sh` beside it. |
 | `3a-map.toml` | Four command rules (`brain-mcp init ` → `loomux area add `), `manifests = "verbatim"` and one `[[manifest_key]]` rule, `merge_branch` → `branch`. |
 | `3a/` | The translated cases. A manifest that nothing else is folded into is moved byte for byte (`manifests = "verbatim"`), because `area add` writes one and the replay holds the two files against each other. `area-add/known-scope/world_after` keeps `repo-new/.ultra-brain/config.toml` under its old name: the import folds only the directories a world's registry names, and the reference wrote that manifest without registering `repo-new`. The replay lists it as missing, which is what loomux, refusing the scope before any write, leaves behind. |
+| `3b-worlds/` | The state directories a 3b case runs in, laid out as in 3a: `repo-a` is the vault and, in all but `approve-no-repo`, a repository (`git.toml` with `dir = "repo-a"`), with a register, a wiki holding `page.md`, `audit.md` and `log.md`, and the review centre `review/`. `approve-success` is the base every other world is copied from: its case `a-2026-09-21-5bd8` is the one `reconcile/changed-source-baseline` of 3a opened, moved one day back (a case id dated on the run day would be folded to `{{TODAY}}` on one side only), with its `package.md` as the reference wrote it -- the package 3a holds byte-equal to `maintenance.RenderPackage` -- and a `proposal.md` written by hand. The approve worlds commit the case directory, so its removal lands in the commit; the `cases` and `case` worlds leave it untracked. `approve-rebase` writes `.git/rebase-merge/head-name` through `[worktree]`, the one place a marker in the git directory survives the recording, which skips `.git` when it copies a world. |
+| `3b-source/` | The recordings, written by `docs/.superpowers/parity/stufe-3b-orakel/record_all.sh` through `record.sh` beside it, under the environment of 3a. No case carries `compare`: stdout is what `cases` and `case` are for, and the commit id `approve` prints is folded. Every `approve` case with a repository is recorded with `--git-after`, the refusals included, because `git.after` is what proves HEAD did not move. |
+| `3b-map.toml` | Three command rules (`brain-mcp cases` before `brain-mcp case`, `brain-mcp approve` without a trailing space, for `approve/empty-args`), `manifests = "verbatim"` and one `[[stdout]]` rule, `brain case --package ` → `loomux case --package `. |
+| `3b/` | The translated cases. |
 
 ## What a case compares
 
@@ -115,6 +120,29 @@ differs, with the exact list of mismatches and the row of
 case not listed must pass; a listed one must report exactly its list. A file
 listed as `formatOnly` differs in its bytes and is decoded on both sides and
 held equal, so a format difference cannot cover a change of content.
+
+### 3b: stdout, the file world and the commit
+
+Every 3b case is a `data` case, replayed as 3a is, through
+`cases.RunCaseWith` and `cases.NormalizeState`. `NormalizeState` folds four
+things more for an approval: the reviewer `human:<account>` in `audit.md` and
+on a page's `by:` lines, the stamp of the new audit block wherever it stands
+in a file the run changed, its day in the new `log.md` line, and the commit id
+after `committet als` on stdout. An `approve` case also compares
+`repo-a/git.after`, written after the run on both sides: the subject of HEAD,
+its author and committer, the paths HEAD tracks, the paths whose working-tree
+content differs from HEAD (`git diff --name-status HEAD`) and the status
+lines. The diff lines are the proof of what the commit holds: an approval
+commits through a scratch index and leaves the user's index at the old
+state, so the status reads `MM` whether HEAD holds the working tree or not.
+
+`expected3b` in `internal/cli/cases_3b_test.go` lists five cases, none for a
+difference in behaviour: the scratch index `maintenance/index` (a git index
+with the stat data of its run), the index formats of 3a, and the register the
+technical update rewrites. That register hashes the page and `audit.md` the
+approval stamped, so its bytes cannot agree; the suite holds each side's
+`content_hash` against that side's own file and compares the rows without it
+(`rehashed`). `docs/.superpowers/parity/stufe-3b.md` names the rows.
 
 ### 1b-2: a tool call and its CallToolResult
 
@@ -225,7 +253,7 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
 ## Rules for working with the corpus
 
 - **A recording is evidence.** Files under `1a-source/`, `1b-1-source/`,
-  `2a-source/`, `2c-source/` and `3a-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
+  `2a-source/`, `2c-source/`, `3a-source/` and `3b-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
   for 1a with the old binaries (build them from the tag worktrees, put them
   first on `PATH`, run `loomux dev record-case`); for 1b-1 with the fake qmd
   rebuilt from `internal/dev/fakeqmd/_qmd` and the recording command of the
@@ -265,7 +293,8 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
   when the 1b-2 corpus does not hold exactly 54, `internal/cli/cases_2a_test.go`
   when the 2a corpus does not hold exactly 53, `internal/cli/cases_2c_test.go`
   when the 2c corpus does not hold exactly 15, `internal/cli/cases_3a_test.go`
-  when the 3a corpus does not hold exactly 28, so a partial import cannot pass
+  when the 3a corpus does not hold exactly 28, `internal/cli/cases_3b_test.go`
+  when the 3b corpus does not hold exactly 24, so a partial import cannot pass
   as parity. Adding a case means raising that number.
 - **A 3a recording never touches the machine's state.** The recorder sets
   `BRAIN_STATE_DIR` to the staged world and loomux's own two variables to an

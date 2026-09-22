@@ -169,14 +169,22 @@ git commit -m "docs(parity): open the record for deciding review cases"
    `gitenv.Environ()` die Variablen entfernt und `HOME` leer ist.
 2. **`git.after` hat genau diese Form**, LF-getrennt, mit abschließendem LF:
    ```
-   <Betreff des HEAD-Commits>
+   <Betreff des HEAD-Commits (%s)>
+   <%an <%ae> / %cn <%ce> des HEAD-Commits>
    <jeder Pfad aus git ls-tree -r --name-only HEAD, eine Zeile je Pfad>
+   <jede Zeile aus git diff --name-status HEAD>
    <jede Zeile aus git status --porcelain=v1 --untracked-files=no>
    ```
    Weder Commit-SHA noch Tree stehen darin: der SHA hängt an Zeit und
    Identität, und der Tree trüge die gestempelten Dateien, die keine
    Normalisierung reparieren kann; ihre Inhalte vergleicht `world_after`, und
-   die Statuszeilen belegen, dass HEAD genau diese Inhalte trägt.
+   die Zeilen aus `git diff --name-status HEAD` (Arbeitsbaum gegen HEAD, ohne
+   Index) belegen, welche davon HEAD genau so trägt. Die Statuszeilen allein
+   belegen das nicht: `approve` committet über einen Scratch-Index, der Index
+   des Nutzers bleibt auf dem alten Stand, und `MM` steht dann bei richtigem
+   wie bei falschem Commit-Inhalt (Fixrunde 1 von Task 14, im Scratch-Repo
+   nachgewiesen und in `TestWriteGitAfterTellsAWrongCommitThroughAStaleIndex`
+   festgehalten).
 3. **Opt-in.** Der Runner schreibt `git.after` nur, wenn der erwartete Baum
    (`world_after`, sonst `world`) im Repo-Verzeichnis eine Datei `git.after`
    trägt. So bleiben die Git-Fälle aus 2c und 3a unberührt.

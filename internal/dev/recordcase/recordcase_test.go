@@ -445,8 +445,9 @@ func TestRecordWritesGitAfterWhenAsked(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := read(t, s.Out, "world_after", "repo", "git.after")
-	// An empty commit on a clean worktree: the subject, and no path or status.
-	if got != "base\n" {
+	// An empty commit on a clean worktree: the subject and the identity, and
+	// no path, diff or status.
+	if got != "base\nloomux cases <cases@loomux.invalid> / loomux cases <cases@loomux.invalid>\n" {
 		t.Errorf("git.after %q", got)
 	}
 }
