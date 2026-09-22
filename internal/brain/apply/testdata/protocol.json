@@ -1,0 +1,201 @@
+{
+ "times": [
+  "2026-09-22T08:16:27.936837+00:00",
+  "2026-01-01T00:00:00+00:00",
+  "2025-12-31T22:30:05.000001+00:00"
+ ],
+ "safe": [
+  {
+   "in": "",
+   "out": ""
+  },
+  {
+   "in": "wiki/concepts/rust.md",
+   "out": "wiki/concepts/rust.md"
+  },
+  {
+   "in": "Fall 2026-09-22_ab12 (neu), a;b:c",
+   "out": "Fall 2026-09-22_ab12 (neu), a;b:c"
+  },
+  {
+   "in": "nul\u0000tab\tlf\ncr\rdel",
+   "out": "nul·tab·lf·cr·del·"
+  },
+  {
+   "in": "x😀y",
+   "out": "x·y"
+  },
+  {
+   "in": "E=mc²",
+   "out": "E·mc²"
+  },
+  {
+   "in": "Ⅻ ½ ٣ ३",
+   "out": "Ⅻ ½ ٣ ३"
+  },
+  {
+   "in": "‮evil‬ ⁦iso⁩ ​zw",
+   "out": "·evil· ·iso· ·zw"
+  },
+  {
+   "in": "line sep para",
+   "out": "line·sep·para"
+  },
+  {
+   "in": "%%%<!-- ![[x]] <div style=\"display:none\"> $$ `code` [[link]] #tag *b*",
+   "out": "·····-- ···x·· ·div style··display:none·· ·· ·code· ··link·· ·tag ·b·"
+  },
+  {
+   "in": "é combining",
+   "out": "e· combining"
+  },
+  {
+   "in": "日本語のページ",
+   "out": "日本語のページ"
+  },
+  {
+   "in": "already … and · kept",
+   "out": "already … and · kept"
+  },
+  {
+   "in": "� replacement",
+   "out": "· replacement"
+  },
+  {
+   "in": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "out": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+   "in": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "out": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+   "in": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "out": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+  },
+  {
+   "in": "äääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääää",
+   "out": "äääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääääää…"
+  },
+  {
+   "in": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+   "out": "·······································································································································································································…"
+  },
+  {
+   "in": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb<>",
+   "out": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb··"
+  },
+  {
+   "in": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "out": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc…"
+  }
+ ],
+ "log": [
+  {
+   "time": 0,
+   "target": "wiki/concepts/rust.md",
+   "applied": 3,
+   "case": "2026-09-22_ab12",
+   "out": "- 2026-09-22 — `wiki/concepts/rust.md`: 3 Behauptung(en) eingearbeitet (Fall `2026-09-22_ab12`)\n"
+  },
+  {
+   "time": 1,
+   "target": "a`b<c>😀",
+   "applied": 0,
+   "case": "id\nwith`tick",
+   "out": "- 2026-01-01 — `a·b·c··`: 0 Behauptung(en) eingearbeitet (Fall `id·with·tick`)\n"
+  },
+  {
+   "time": 2,
+   "target": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "applied": 1,
+   "case": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+   "out": "- 2025-12-31 — `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…`: 1 Behauptung(en) eingearbeitet (Fall `yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…`)\n"
+  }
+ ],
+ "audit": [
+  {
+   "time": 0,
+   "target": "wiki/concepts/rust.md",
+   "case": "2026-09-22_ab12",
+   "claims": 3,
+   "complaints": [],
+   "decided": "genehmigt durch human:tester",
+   "changed": "wiki/concepts/rust.md",
+   "out": "## 2026-09-22T08:16:27.936837+00:00 — wiki/concepts/rust.md (Fall `2026-09-22_ab12`)\n\n- vorgeschlagen: 3 Behauptung(en), 0 ohne Beleg\n- entschieden: genehmigt durch human:tester\n- tatsächlich geändert: wiki/concepts/rust.md\n"
+  },
+  {
+   "time": 1,
+   "target": "a`b<c>",
+   "case": "id`x",
+   "claims": 0,
+   "complaints": [
+    "kein Beleg: %%x%%",
+    "Zeile\nzwei",
+    "😀"
+   ],
+   "decided": "abgelehnt durch human:x",
+   "changed": "nichts",
+   "out": "## 2026-01-01T00:00:00+00:00 — a·b·c· (Fall `id·x`)\n\n- vorgeschlagen: 0 Behauptung(en), 3 ohne Beleg\n- entschieden: abgelehnt durch human:x\n- tatsächlich geändert: nichts\n- verworfen: kein Beleg: ··x··\n- verworfen: Zeile·zwei\n- verworfen: ·\n"
+  },
+  {
+   "time": 2,
+   "target": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+   "case": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "claims": 5,
+   "complaints": [
+    "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+   ],
+   "decided": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "changed": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+   "out": "## 2025-12-31T22:30:05.000001+00:00 — ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt… (Fall `ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc…`)\n\n- vorgeschlagen: 5 Behauptung(en), 1 ohne Beleg\n- entschieden: ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd…\n- tatsächlich geändert: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee…\n- verworfen: zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz…\n"
+  }
+ ],
+ "append": [
+  {
+   "existing": "",
+   "block": "block\n",
+   "out": "block\n"
+  },
+  {
+   "existing": "a",
+   "block": "block\n",
+   "out": "a\n\nblock\n"
+  },
+  {
+   "existing": "a\n",
+   "block": "block\n",
+   "out": "a\n\nblock\n"
+  },
+  {
+   "existing": "a\n\n\n",
+   "block": "block\n",
+   "out": "a\n\nblock\n"
+  },
+  {
+   "existing": "\n\n",
+   "block": "block\n",
+   "out": "block\n"
+  },
+  {
+   "existing": "a\r\n",
+   "block": "block\n",
+   "out": "a\r\n\nblock\n"
+  },
+  {
+   "existing": "a\n \n",
+   "block": "block\n",
+   "out": "a\n \n\nblock\n"
+  },
+  {
+   "existing": "# Log\n\n- one\n",
+   "block": "- two\n",
+   "out": "# Log\n\n- one\n\n- two\n"
+  }
+ ],
+ "notes": {
+  "moved": "die Zielseite hat sich unter dem Fall bewegt: es wurde nichts geschrieben, der Fall steht wieder zur Prüfung an",
+  "refused": "Evidenzbindung: kein Beleg hielt stand, der Vorschlag ist verworfen (§10.6)",
+  "amend": "Evidenzbindung: die eingereichte Nachbesserung hielt nicht stand"
+ }
+}
