@@ -325,7 +325,7 @@ func TestExpandProfile(t *testing.T) {
 		{"edit", []string{"lint", "types"}, ""},
 		{" test , lint,test ", []string{"test", "lint"}, ""},
 		{"coverage", []string{"coverage"}, ""},
-		{"lint,style", nil, `unknown check "style"; kinds: lint, types, test, coverage; profiles: edit, precommit`},
+		{"lint,style", nil, `unknown check "style"; kinds: lint, types, test, coverage; profiles: edit, precommit, stop`},
 		{"", nil, `"" names no check`},
 		{" , ", nil, `" , " names no check`},
 	}

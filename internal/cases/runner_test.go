@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/cases"
+	"github.com/xidus90/loomux/internal/sessions"
 	"github.com/xidus90/loomux/internal/testlock"
 )
 
@@ -378,5 +379,111 @@ func TestALanesCaseComparesVerdictsPerKind(t *testing.T) {
 	want := []string{"lanes: coverage absent != ok", "lanes: test red != ok"}
 	if outcome.Passed || strings.Join(outcome.Mismatches, "|") != strings.Join(want, "|") {
 		t.Fatalf("%q", outcome.Mismatches)
+	}
+}
+
+func TestRunCaseComparesTheStateAStopGateLeft(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", HasWorldAfter: true, Compare: "state"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	after := filepath.Join(c.Path, "world_after")
+	os.MkdirAll(after, 0o755)
+	sessions.WriteState(after, "s1", sessions.SessionState{Blocks: 1, Base: "b"})
+
+	// The green tree is loomux's own and no mismatch; so is the extra file
+	// the run leaves in the world, which a state case does not compare.
+	outcome, err := cases.RunCase(c, func(_ []string, world string, _ io.Reader, _, _ io.Writer) int {
+		sessions.WriteState(world, "s1", sessions.SessionState{Blocks: 1, Base: "b", Green: "t"})
+		os.WriteFile(filepath.Join(world, "scratch.txt"), []byte("x"), 0o644)
+		return 0
+	})
+	if err != nil || !outcome.Passed {
+		t.Fatalf("%v %+v", err, outcome)
+	}
+
+	outcome, err = cases.RunCase(c, func(_ []string, world string, _ io.Reader, _, _ io.Writer) int {
+		sessions.WriteState(world, "s1", sessions.SessionState{Blocks: 2, Base: "b"})
+		return 0
+	})
+	if err != nil || outcome.Passed || len(outcome.Mismatches) != 1 {
+		t.Fatalf("%v %q", err, outcome.Mismatches)
+	}
+}
+
+func TestRunCaseRefusesAStateCaseWithoutAWorldAfter(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x", Compare: "state"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+	outcome, err := cases.RunCase(c, func([]string, string, io.Reader, io.Writer, io.Writer) int { return 0 })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Passed || strings.Join(outcome.Mismatches, "|") != "a state case needs a world_after" {
+		t.Fatalf("%q", outcome.Mismatches)
+	}
+}
+
+func TestRunCaseComparesWhatASubagentHookFound(t *testing.T) {
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x",
+		Stdout: []byte("subagent a1: origin x is new at c\n"), Compare: "finding"}
+	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
+
+	outcome, err := cases.RunCase(c, func(_ []string, world string, _ io.Reader, _, _ io.Writer) int {
+		sessions.WriteAgent(world, "s1", "a1", sessions.AgentFile{Finding: []string{"origin x is new at c"}})
+		return 0
+	})
+	if err != nil || !outcome.Passed {
+		t.Fatalf("%v %+v", err, outcome)
+	}
+
+	outcome, err = cases.RunCase(c, func(_ []string, world string, _ io.Reader, _, _ io.Writer) int {
+		sessions.WriteAgent(world, "s1", "a1", sessions.AgentFile{Finding: []string{"origin x moved to d"}})
+		return 0
+	})
+	if err != nil || outcome.Passed || len(outcome.Mismatches) != 1 {
+		t.Fatalf("%v %q", err, outcome.Mismatches)
+	}
+}
+
+// A suite hands RunCase a RunFunc that moves the working directory into the
+// staged world, and it stays there until the subtest's cleanup -- long after
+// RunCase has compared. The case still has to find its own world_after, and
+// it was discovered under a relative path, as every suite here discovers one.
+// The assertion is that the mismatch is reported: a case that cannot find its
+// expectation compares against nothing and passes on anything.
+func TestACaseComparesAfterTheRunChangedTheWorkingDirectory(t *testing.T) {
+	corpus := t.TempDir()
+	dir := filepath.Join(corpus, "v", "n")
+	if err := os.MkdirAll(filepath.Join(dir, "world"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeCaseFile(t, dir, "cmd", []byte("loomux x"))
+	writeCaseFile(t, dir, "exit", []byte("0"))
+	writeCaseFile(t, dir, "stdout", nil)
+	writeCaseFile(t, dir, "compare", []byte("state"))
+	after := filepath.Join(dir, "world_after")
+	if err := os.MkdirAll(after, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := sessions.WriteState(after, "s1", sessions.SessionState{Blocks: 3, Base: "b"}); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(corpus)
+	c, err := cases.LoadCase(filepath.Join("v", "n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	outcome, err := cases.RunCase(c, func(_ []string, world string, _ io.Reader, _, _ io.Writer) int {
+		t.Chdir(world)
+		if err := sessions.WriteState(world, "s1", sessions.SessionState{Blocks: 0, Base: "b"}); err != nil {
+			t.Error(err)
+		}
+		return 0
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Passed {
+		t.Fatal("a state that differs by three blocks compared clean: the case no longer finds its own world_after")
 	}
 }

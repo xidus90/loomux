@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -200,18 +201,18 @@ func TestAuditSettingsEdgeCases(t *testing.T) {
 	tmp := t.TempDir()
 
 	// 1. Missing settings file
-	findings, pre, post := auditSettings(tmp)
-	if len(findings) != 0 || pre || post {
-		t.Fatalf("expected empty for missing settings, got findings=%v pre=%v post=%v", findings, pre, post)
+	findings, installed := auditSettings(tmp)
+	if len(findings) != 0 || len(installed) != 0 {
+		t.Fatalf("expected empty for missing settings, got findings=%v installed=%v", findings, installed)
 	}
 
 	// 2. Invalid JSON in settings file
 	claudeDir := filepath.Join(tmp, ".claude")
 	_ = os.MkdirAll(claudeDir, 0o755)
 	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("invalid json"), 0o644)
-	findings, pre, post = auditSettings(tmp)
-	if len(findings) != 0 || pre || post {
-		t.Fatalf("expected empty for invalid json, got findings=%v pre=%v post=%v", findings, pre, post)
+	findings, installed = auditSettings(tmp)
+	if len(findings) != 0 || len(installed) != 0 {
+		t.Fatalf("expected empty for invalid json, got findings=%v installed=%v", findings, installed)
 	}
 
 	// 3. All legacy hooks in settings
@@ -229,12 +230,98 @@ func TestAuditSettingsEdgeCases(t *testing.T) {
 		}
 	}`
 	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(allLegacyJSON), 0o644)
-	findings, pre, post = auditSettings(tmp)
+	findings, installed = auditSettings(tmp)
 	if len(findings) != 5 {
 		t.Fatalf("expected 5 legacy findings, got %d", len(findings))
 	}
-	if pre || post {
-		t.Fatalf("expected pre/post false, got pre=%v post=%v", pre, post)
+	if len(installed) != 0 {
+		t.Fatalf("expected no loomux hook installed, got %v", installed)
+	}
+
+	// 4. Five of the events this binary serves, each named once: every one is
+	// reported, an event nobody wired is not, and no legacy entry matches a
+	// loomux command. What this fixture cannot show is which entry `stop` came
+	// from -- fixture 6 pins that.
+	allLoomuxJSON := `{
+		"hooks": {
+			"PreToolUse": [{"hooks": [{"command": "loomux hook pre-tool-use --host claude"}]}],
+			"PostToolUse": [{"hooks": [{"command": "loomux hook post-tool-use --host claude"}]}],
+			"SessionStart": [{"hooks": [{"command": "loomux hook session-start --host claude"}]}],
+			"Stop": [{"hooks": [{"command": "loomux hook stop --host claude"}]}],
+			"SubagentStop": [{"hooks": [{"command": "loomux hook subagent-stop --host claude"}]}]
+		}
+	}`
+	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(allLoomuxJSON), 0o644)
+	findings, installed = auditSettings(tmp)
+	if len(findings) != 0 {
+		t.Fatalf("a loomux command is no legacy hook, got %v", findings)
+	}
+	for _, event := range []string{"pre-tool-use", "post-tool-use", "session-start", "stop", "subagent-stop"} {
+		if !installed[event] {
+			t.Fatalf("%s not seen in %v", event, installed)
+		}
+	}
+	if installed["subagent-start"] {
+		t.Fatalf("subagent-start is not wired here, got %v", installed)
+	}
+
+	// 5. The old Python session hooks are named as superseded, and each is a
+	// finding of its own.
+	legacySessionJSON := `{
+		"hooks": {
+			"Stop": [{"hooks": [{"command": "ultraloom hook stop"}]}],
+			"SubagentStart": [{"hooks": [{"command": "ultraloom hook subagent-start"}]}],
+			"SubagentStop": [{"hooks": [{"command": "ultraloom hook subagent-stop"}]}]
+		}
+	}`
+	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(legacySessionJSON), 0o644)
+	findings, _ = auditSettings(tmp)
+	if len(findings) != 3 {
+		t.Fatalf("expected 3 legacy session findings, got %v", findings)
+	}
+	for _, f := range findings {
+		if !strings.Contains(f.Reason, "superseded by 'loomux hook ") {
+			t.Fatalf("reason %q", f.Reason)
+		}
+	}
+
+	// 6. The word after `hook` is read whole. Only the subagent hook is wired
+	// here, so a matcher that looked for the bare event name -- `stop`
+	// anywhere in the command, or behind a word boundary that `-` satisfies
+	// -- would report a stop gate this project does not have, and the report
+	// would call the turn end guarded when nothing guards it. The literal
+	// `hook stop` as a substring is not what this catches: `hook subagent-stop`
+	// does not contain it.
+	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(
+		`{"hooks":{"SubagentStop":[{"hooks":[{"command":"loomux hook subagent-stop --host claude"}]}]}}`), 0o644)
+	_, installed = auditSettings(tmp)
+	if !installed["subagent-stop"] {
+		t.Fatalf("subagent-stop not seen in %v", installed)
+	}
+	if installed["stop"] {
+		t.Fatalf("`hook stop` was found inside `hook subagent-stop`: %v", installed)
+	}
+}
+
+// The findings are listed in the order of the event names and not in the
+// order a map hands them out.
+func TestAuditSettingsOrdersItsFindingsByEvent(t *testing.T) {
+	tmp := t.TempDir()
+	claudeDir := filepath.Join(tmp, ".claude")
+	_ = os.MkdirAll(claudeDir, 0o755)
+	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{
+		"hooks": {
+			"SubagentStop": [{"hooks": [{"command": "ultraloom hook subagent-stop"}]}],
+			"PreToolUse": [{"hooks": [{"command": "python guard_paths.py"}]}],
+			"Stop": [{"hooks": [{"command": "ultraloom hook stop"}]}]
+		}
+	}`), 0o644)
+	for i := 0; i < 5; i++ {
+		findings, _ := auditSettings(tmp)
+		got := []string{findings[0].Event, findings[1].Event, findings[2].Event}
+		if !slices.Equal(got, []string{"PreToolUse", "Stop", "SubagentStop"}) {
+			t.Fatalf("order %v", got)
+		}
 	}
 }
 
@@ -265,11 +352,57 @@ func TestRunStatusPlainPythonAndGo(t *testing.T) {
 			t.Fatalf("expected %q, got:\n%s", want, out)
 		}
 	}
-	if !strings.Contains(out, "[OK] PreToolUse:  'loomux hook pre-tool-use' installed") {
+	if !strings.Contains(out, "[OK] PreToolUse: 'loomux hook pre-tool-use' installed") {
 		t.Fatalf("expected pre installed, got:\n%s", out)
 	}
-	if !strings.Contains(out, "[INFO] PostToolUse: 'loomux hook post-tool-use' not found") {
-		t.Fatalf("expected post not found, got:\n%s", out)
+	// Every event this binary serves gets a line, installed or not.
+	for _, want := range []string{
+		"[INFO] PostToolUse: 'loomux hook post-tool-use' not found in .claude/settings.json",
+		"[INFO] SessionStart: 'loomux hook session-start' not found in .claude/settings.json",
+		"[INFO] Stop: 'loomux hook stop' not found in .claude/settings.json",
+		"[INFO] SubagentStart: 'loomux hook subagent-start' not found in .claude/settings.json",
+		"[INFO] SubagentStop: 'loomux hook subagent-stop' not found in .claude/settings.json",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q, got:\n%s", want, out)
+		}
+	}
+	// The gate is the Stop hook now, wiki or no wiki: this project has none.
+	if !strings.Contains(out, "  -> loomux hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" (profile `stop`, the wiki gate as lint/wiki)") {
+		t.Fatalf("expected the stop gate named, got:\n%s", out)
+	}
+}
+
+// Every hook the settings wire is reported as installed, each by the
+// subcommand its command line names.
+func TestStatusReportsEveryInstalledHook(t *testing.T) {
+	tmp := t.TempDir()
+	claudeDir := filepath.Join(tmp, ".claude")
+	_ = os.MkdirAll(claudeDir, 0o755)
+	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{
+		"hooks": {
+			"PreToolUse": [{"hooks": [{"command": "loomux hook pre-tool-use --host claude"}]}],
+			"PostToolUse": [{"hooks": [{"command": "loomux hook post-tool-use --host claude"}]}],
+			"SessionStart": [{"hooks": [{"command": "loomux hook session-start --host claude"}]}],
+			"Stop": [{"hooks": [{"command": "loomux hook stop --host claude"}]}],
+			"SubagentStart": [{"hooks": [{"command": "loomux hook subagent-start --host claude"}]}],
+			"SubagentStop": [{"hooks": [{"command": "loomux hook subagent-stop --host claude"}]}]
+		}
+	}`), 0o644)
+
+	var stdout, stderr bytes.Buffer
+	if code := Status(&stdout, &stderr, tmp); code != ExitOK {
+		t.Fatalf("code %d", code)
+	}
+	out := stdout.String()
+	for _, h := range [][2]string{
+		{"PreToolUse", "pre-tool-use"}, {"PostToolUse", "post-tool-use"}, {"SessionStart", "session-start"},
+		{"Stop", "stop"}, {"SubagentStart", "subagent-start"}, {"SubagentStop", "subagent-stop"},
+	} {
+		want := " [OK] " + h[0] + ": 'loomux hook " + h[1] + "' installed"
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q, got:\n%s", want, out)
+		}
 	}
 }
 

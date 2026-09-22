@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,14 +22,27 @@ type Case struct {
 	ExitCode      int
 	Notes         string
 	HasWorldAfter bool
-	// Compare is "data" (exit and stdout), "message" (exit only) or "lanes"
-	// (exit and the verdict per kind of a check report).
+	// Compare is "data" (exit and stdout), "message" (exit only), "lanes"
+	// (exit and the verdict per kind of a check report), "state" (exit and
+	// the base and blocks a stop gate left in the session files) or
+	// "finding" (exit and the lines the subagent files hold).
 	Compare string
 }
 
 // LoadCase loads a single case from its directory.
 func LoadCase(dir string) (*Case, error) {
 	cleanDir := filepath.Clean(dir)
+	// Absolute once, here. Path is what every consumer resolves a case's own
+	// files through, and RunCase reads world_after through it after the run --
+	// by which time a suite's RunFunc has moved the working directory into the
+	// staged world. A relative path resolves to nothing there. A state case
+	// then read no session file on the expected side and passed without a
+	// single field being looked at; a message case with a world_after failed
+	// loudly in CompareTrees. A finding case never read through Path after
+	// the run -- its expectation is the stdout loaded here.
+	if abs, err := filepath.Abs(cleanDir); err == nil {
+		cleanDir = abs
+	}
 
 	worldInfo, err := os.Stat(filepath.Join(cleanDir, "world"))
 	if err != nil || !worldInfo.IsDir() {
@@ -71,7 +85,7 @@ func LoadCase(dir string) (*Case, error) {
 	compare := "data"
 	if data, err := os.ReadFile(filepath.Join(cleanDir, "compare")); err == nil {
 		compare = strings.TrimSpace(string(data))
-		if compare != "data" && compare != "message" && compare != "lanes" {
+		if !slices.Contains([]string{"data", "message", "lanes", "state", "finding"}, compare) {
 			return nil, fmt.Errorf("unknown compare %q in %s", compare, cleanDir)
 		}
 	}

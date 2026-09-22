@@ -66,9 +66,9 @@ sequenceDiagram
     Hook->>Graph: Fingerprint modified file & calculate Blast Radius (target <5ms, G4)
     Hook-->>Agent: Inline dependent callers & blast warnings
 
-    Agent->>Hook: Stop (Turn Completion, stage 2c — no stop event wired yet)
-    Hook->>Verify: Run Check Chain (configured lanes, tests, coverage gate — stage 2c)
-    Verify-->>Agent: Pass (Exit 0) or Halt with feedback (Exit 1/2)
+    Agent->>Hook: Stop (Turn Completion, stage 2c)
+    Hook->>Verify: Run the stop profile over new content (lanes, tests, coverage gate)
+    Verify-->>Agent: Pass (Exit 0), Halt with feedback (Exit 2), or could not judge (Exit 1)
 ```
 
 ### 2. Deterministic Code Graph Retrieval ("GraphRank")
@@ -118,15 +118,17 @@ import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.
 ## Migration Plan
 
 Where each stage and each capability stands — origin, status, dependencies
-and priority — is in the **[migration plan](docs/en/migration.md)**.
+and priority — is in the **[migration plan](docs/en/migration.md)**. Stage 2c
+(the stop gate and the subagent hooks) is done for Claude Code; its Antigravity
+adapter is pending.
 
 ---
 
 ## CLI Reference
 
-Commands active after Stages 1a, 1b-1, 1b-2 and 2a vs. specified for subsequent fusion and graph stages:
+Commands active after Stages 1a, 1b-1, 1b-2, 2a and 2c vs. specified for subsequent fusion and graph stages:
 
-### Active Commands (Stages 1a, 1b-1, 1b-2 and 2a)
+### Active Commands (Stages 1a, 1b-1, 1b-2, 2a and 2c)
 ```bash
 loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
@@ -135,6 +137,8 @@ loomux check gofmt [paths...]       # inspect Go file formatting without modifyi
 loomux hook pre-tool-use            # run policy and global write barrier against stdin payload
 loomux hook post-tool-use           # run the edit profile's lanes against the file just edited (--budget, default 50s)
 loomux hook session-start           # record the session's base commit and warn about a stale binary
+loomux hook stop                    # the turn-end gate: the stop profile over new content, subagent findings (--budget, default 270s)
+loomux hook subagent-start|subagent-stop  # snapshot origin, branches and HEAD around a subagent; park what moved for stop
 loomux status|doctor|explain        # inspect hook setup, verification lanes, and active harnesses (three names, one code path)
 loomux worktree link|unlink|remove  # manage isolated worktree mirrors and junction paths
 loomux dev swap-binary              # atomically swap running binary with new compilation

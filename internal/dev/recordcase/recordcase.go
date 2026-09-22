@@ -53,6 +53,9 @@ func Record(s Spec) error {
 	if err := cases.StageWorld(s.World, tmp); err != nil {
 		return err
 	}
+	if err := cases.BuildGitWorld(tmp); err != nil {
+		return err
+	}
 	world := filepath.ToSlash(tmp)
 	tokens, err := cases.SplitCommand(s.Cmd)
 	if err != nil {
@@ -78,8 +81,11 @@ func Record(s Spec) error {
 	cmd.Dir = tmp
 	cmd.Env = recordEnv(runtime.GOOS, os.Environ(), s.Env, s.PathPrepend, tmp)
 	cmd.Stdin = bytes.NewReader(bytes.ReplaceAll(stdin, []byte(cases.WorldToken), []byte(world)))
-	var stdout bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
+	// Kept as evidence and never compared: the old hooks said everything on
+	// stderr, and a deviation list has to quote what they said.
+	cmd.Stderr = &stderr
 	exit := 0
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
@@ -96,6 +102,9 @@ func Record(s Spec) error {
 		"exit":     []byte(fmt.Sprintf("%d\n", exit)),
 		"stdout":   cases.Normalize(recorded, tmp),
 		"notes.md": []byte(s.Notes + "\n"),
+	}
+	if said := bytes.ReplaceAll(stderr.Bytes(), []byte("\r\n"), []byte("\n")); len(said) > 0 {
+		files["stderr"] = cases.Normalize(said, tmp)
 	}
 	if stdin != nil {
 		files["stdin"] = stdin
@@ -208,6 +217,14 @@ func copyTree(src, dst string, transform func([]byte) []byte) error {
 			return err
 		}
 		if rel == "." {
+			return nil
+		}
+		// The repositories BuildGitWorld made are rebuilt at every replay;
+		// copying them would put a .git into the corpus.
+		if cases.InfraPath(filepath.ToSlash(rel)) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		target := filepath.Join(dst, rel)

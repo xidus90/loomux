@@ -123,6 +123,15 @@ func collectFiles(dir string) (map[string][]byte, error) {
 			}
 			return err
 		}
+		// The repositories a git world is built into are the bench, not the
+		// world: git rewrites its index on a read, which is no change anybody
+		// made.
+		if rel, _ := filepath.Rel(dir, path); InfraPath(filepath.ToSlash(rel)) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if d.IsDir() {
 			return nil
 		}
@@ -159,6 +168,11 @@ func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
 	if err := StageWorld(srcWorld, tmpDir); err != nil {
 		return nil, err
 	}
+	// A world may declare a repository; it is built after staging, so the
+	// SHAs are the same every time and {{COMMIT:<n>}} can stand for them.
+	if err := BuildGitWorld(tmpDir); err != nil {
+		return nil, err
+	}
 	world := filepath.ToSlash(tmpDir)
 
 	tokens, err := SplitCommand(c.Cmd)
@@ -188,14 +202,30 @@ func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
 		mismatches = append(mismatches, fmt.Sprintf("exit code: expected %d, got %d", c.ExitCode, actualExit))
 	}
 	// A message case pins the exit code alone: its wording is loomux's own. A
-	// lanes case pins the verdict per kind: loomux reports per lane.
-	switch {
-	case c.Compare == "lanes":
+	// lanes case pins the verdict per kind. A state case pins what a stop
+	// gate decided, a finding case what a subagent hook found; both read
+	// loomux's state, and the rest of the tree is theirs to differ in.
+	switch c.Compare {
+	case "lanes":
 		mismatches = append(mismatches, compareLanes(c.Stdout, actualStdout)...)
-	case c.Compare != "message" && !bytes.Equal(actualStdout, c.Stdout):
-		mismatches = append(mismatches, fmt.Sprintf("stdout mismatch: expected %d bytes, got %d bytes", len(c.Stdout), len(actualStdout)))
+	case "state":
+		// Always against world_after: a git world has its commit tokens
+		// replaced at every staging, so the recorder always wrote one, and
+		// the world itself holds tokens where the SHAs belong.
+		if !c.HasWorldAfter {
+			mismatches = append(mismatches, "a state case needs a world_after")
+			break
+		}
+		mismatches = append(mismatches, compareState(filepath.Join(c.Path, "world_after"), tmpDir)...)
+	case "finding":
+		mismatches = append(mismatches, compareFindings(c.Stdout, tmpDir)...)
+	case "message":
+	default:
+		if !bytes.Equal(actualStdout, c.Stdout) {
+			mismatches = append(mismatches, fmt.Sprintf("stdout mismatch: expected %d bytes, got %d bytes", len(c.Stdout), len(actualStdout)))
+		}
 	}
-	if c.HasWorldAfter {
+	if c.HasWorldAfter && c.Compare != "state" && c.Compare != "finding" {
 		diffs, err := CompareTrees(tmpDir, filepath.Join(c.Path, "world_after"))
 		if err != nil {
 			return nil, err

@@ -69,9 +69,48 @@ func TestHookNeedsAnEvent(t *testing.T) {
 // the write barrier: that barrier reads stdin and decides about a file, and
 // answering a hook call that way is a verdict about the wrong question.
 func TestHookRefusesAnUnknownEvent(t *testing.T) {
-	code, _, errOut := run("hook", "stop", "--host", "claude")
-	if code != 2 || !strings.Contains(errOut, `unknown event "stop"`) {
+	code, _, errOut := run("hook", "nope", "--host", "claude")
+	if code != 2 || !strings.Contains(errOut, `unknown event "nope"`) {
 		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestHookRoutesTheStopGate(t *testing.T) {
+	old := stopHook
+	t.Cleanup(func() { stopHook = old })
+	var budget time.Duration
+	stopHook = func(_ io.Reader, _ io.Writer, _, _ string, b time.Duration) int { budget = b; return 2 }
+	code, _, _ := run("hook", "stop", "--host", "claude", "--root", t.TempDir(), "--budget", "5s")
+	if code != 2 || budget != 5*time.Second {
+		t.Fatalf("code %d, budget %s", code, budget)
+	}
+}
+
+func TestHookStopDefaultsItsBudget(t *testing.T) {
+	old := stopHook
+	t.Cleanup(func() { stopHook = old })
+	var budget time.Duration
+	stopHook = func(_ io.Reader, _ io.Writer, _, _ string, b time.Duration) int { budget = b; return 0 }
+	run("hook", "stop", "--host", "claude", "--root", t.TempDir())
+	if budget != hooks.DefaultStopBudget {
+		t.Fatalf("budget %s", budget)
+	}
+}
+
+// A malformed call ends the turn: 1, never the 2 that would hold it.
+func TestHookStopWithoutHostEndsTheTurn(t *testing.T) {
+	if code, _, _ := run("hook", "stop", "--root", t.TempDir()); code != 1 {
+		t.Fatalf("code %d", code)
+	}
+}
+
+func TestHookRoutesTheSubagentHooks(t *testing.T) {
+	for _, event := range []string{"subagent-start", "subagent-stop"} {
+		code, _, errOut := run("hook", event, "--host", "claude", "--root", t.TempDir())
+		// Empty stdin is no JSON: the hook itself answered, with its own name.
+		if code != 1 || !strings.Contains(errOut, "loomux hook "+event) {
+			t.Fatalf("%s: code %d, err %q", event, code, errOut)
+		}
 	}
 }
 
@@ -107,9 +146,12 @@ func TestHookSessionStartRefusesAnUnknownHost(t *testing.T) {
 // hook.go is pinned by behaviour and not by itself.
 func TestHookRefusesAnUnknownFlag(t *testing.T) {
 	for event, want := range map[string]int{
-		"session-start": 1,
-		"post-tool-use": 1,
-		"pre-tool-use":  2,
+		"session-start":  1,
+		"post-tool-use":  1,
+		"pre-tool-use":   2,
+		"stop":           1,
+		"subagent-start": 1,
+		"subagent-stop":  1,
 	} {
 		code, _, _ := run("hook", event, "--host", "claude", "--invalid-flag")
 		if code != want {

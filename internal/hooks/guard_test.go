@@ -35,7 +35,7 @@ func TestProtectedBuiltinPathsCarryTheirReason(t *testing.T) {
 		{"pypi token", ".pypirc", "secrets are not written by an agent"},
 		{"service account", "credentials.json", "secrets are not written by an agent"},
 		{"aws secret", ".aws/credentials", "secrets are not written by an agent"},
-		{"no-verify", ".claude/.no-verify", "the stop gate's own controls are not written by the party it gates"},
+		{"no-verify", ".loomux/no-verify", "the stop gate's own controls are not written by the party it gates"},
 		{"hook script", ".loomux/state/hooks/stop.py", "the stop gate's own controls are not written by the party it gates"},
 		{"uv lock", "uv.lock", "lock files are written by their package manager, not by hand"},
 		{"poetry lock", "poetry.lock", "lock files are written by their package manager, not by hand"},

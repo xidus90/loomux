@@ -54,9 +54,9 @@ func ParseHost(name string) (Host, error) {
 
 // Payload is what a hook needs to know, whichever host asked.
 //
-// Two fields, and no more: the tool and the paths a write barrier reads arrive
-// when the stage that needs them does, because a field nobody reads has no
-// test holding it in place.
+// The fields the hooks read, and no more: the tool and the paths a write
+// barrier reads arrive when the stage that needs them does, because a field
+// nobody reads has no test holding it in place.
 type Payload struct {
 	// Event is the host's own name for what fired. Carried for the adapters
 	// and read by no hook today -- session-start is dispatched by the
@@ -73,6 +73,16 @@ type Payload struct {
 	// filing nothing. An adapter that refused a mistyped id instead would
 	// exit 1 where the Python hook exited 0.
 	SessionID string
+
+	// AgentID and AgentType name the subagent a SubagentStart or
+	// SubagentStop fired for, "" on every other event. Measured with Claude
+	// Code 2.1.276 (stage 2c, Task 1, ba6bed7; the payloads are in
+	// testdata/cases/2c-payloads/): SubagentStart and SubagentStop carry the
+	// same agent_id, both carry the main agent's session_id -- which files a
+	// subagent's snapshot under the session whose stop gate delivers its
+	// finding -- and both carry agent_type. No hook reads AgentType today.
+	AgentID   string
+	AgentType string
 }
 
 // Read decodes the host's payload.
@@ -97,17 +107,20 @@ func Read(host Host, r io.Reader) (Payload, error) {
 // with no adapter answer nil to an empty call. So every arm answers for its
 // own host at every call size, and a second adapter that wants the same
 // silence spells it out where this one does.
-func WriteContext(host Host, w io.Writer, lines []string) error {
+// The event is the host's own name for what is being answered, since one
+// answer shape serves several events: a SessionStart envelope that named
+// SubagentStop's answer would be read by nobody.
+func WriteContext(host Host, event string, w io.Writer, lines []string) error {
 	switch host {
 	case HostClaude:
 		if len(lines) == 0 {
 			return nil
 		}
-		return writeClaudeContext(w, lines)
+		return writeClaudeContext(w, event, lines)
 	case HostAntigravity:
-		return writeAntigravityContext(w, lines)
+		return writeAntigravityContext(w, event, lines)
 	case HostCodex:
-		return writeCodexContext(w, lines)
+		return writeCodexContext(w, event, lines)
 	}
 	return fmt.Errorf("unknown host %q", host)
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/detect"
+	"github.com/xidus90/loomux/internal/hooks"
 	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/verify"
 	"github.com/xidus90/loomux/internal/verify/commit"
@@ -113,7 +114,7 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "loomux check: %v\n", err)
 		return 1
 	}
-	eff, kinds, err := checkLoad(root, request)
+	eff, kinds, facts, err := checkLoad(root, request)
 	if err != nil {
 		return fail(err)
 	}
@@ -134,6 +135,9 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(err)
 	}
+	// The wiki's lane is built by the hooks, like its edit lane; appended
+	// behind the plan, because a job's After is an index into it.
+	jobs = append(jobs, hooks.WikiGateJobs(eff, facts, root, kinds)...)
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeCheck, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
 		Start: checkStart, Look: checkLook, Now: checkNow,
@@ -152,24 +156,28 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 
 // checkLoad lays the project's config over the presets for what root holds,
 // and turns the request into kinds.
-func checkLoad(root, request string) (verify.Effective, []string, error) {
+//
+// The facts it detects go back to the caller: the wiki lane needs the same
+// ones, and detecting them twice would walk the tree twice.
+func checkLoad(root, request string) (verify.Effective, []string, detect.Facts, error) {
 	cfg, err := verify.ReadConfig(root)
 	if err != nil {
-		return verify.Effective{}, nil, err
+		return verify.Effective{}, nil, detect.Facts{}, err
 	}
 	presets, err := checkPresets()
 	if err != nil {
-		return verify.Effective{}, nil, err
+		return verify.Effective{}, nil, detect.Facts{}, err
 	}
-	eff, err := verify.Resolve(cfg, presets, detect.Detect(os.DirFS(root)))
+	facts := detect.Detect(os.DirFS(root))
+	eff, err := verify.Resolve(cfg, presets, facts)
 	if err != nil {
-		return verify.Effective{}, nil, err
+		return verify.Effective{}, nil, detect.Facts{}, err
 	}
 	kinds, err := verify.ExpandProfile(cfg, request)
 	if err != nil {
-		return verify.Effective{}, nil, err
+		return verify.Effective{}, nil, detect.Facts{}, err
 	}
-	return eff, kinds, nil
+	return eff, kinds, facts, nil
 }
 
 // checkGocover judges a coverage profile of the module in --dir: without

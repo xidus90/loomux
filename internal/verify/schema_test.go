@@ -3,6 +3,7 @@ package verify
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -252,5 +253,24 @@ func TestALaneTableNamesTheFilesItNeeds(t *testing.T) {
 	}
 	if test := cfg.Stacks["cpp"]["test"]; !test.Replace || test.Lane.Needs != nil {
 		t.Fatalf("%+v", test)
+	}
+}
+
+func TestDefaultsHoldAStopProfile(t *testing.T) {
+	cfg, err := ParseConfig("", map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(cfg.Profiles["stop"], []string{"lint", "types", "test", "coverage"}) {
+		t.Fatalf("stop = %v", cfg.Profiles["stop"])
+	}
+}
+
+// stop is a profile like edit and precommit: a project with a slow suite
+// narrows it rather than living without the gate.
+func TestAStopProfileCanBeNarrowed(t *testing.T) {
+	cfg, err := ParseConfig("", map[string]any{"verify": map[string]any{"profiles": map[string]any{"stop": []any{"lint"}}}})
+	if err != nil || !slices.Equal(cfg.Profiles["stop"], []string{"lint"}) {
+		t.Fatalf("%v, %v", cfg.Profiles["stop"], err)
 	}
 }

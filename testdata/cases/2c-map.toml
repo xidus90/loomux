@@ -1,0 +1,14 @@
+# Stage 2c: the old session hooks run under the same verbs in loomux; the
+# host is a flag there, and loomux init writes it.
+
+[[command]]
+from = "ultraloom hook stop"
+to   = "loomux hook stop --host claude"
+
+[[command]]
+from = "ultraloom hook subagent-start"
+to   = "loomux hook subagent-start --host claude"
+
+[[command]]
+from = "ultraloom hook subagent-stop"
+to   = "loomux hook subagent-stop --host claude"

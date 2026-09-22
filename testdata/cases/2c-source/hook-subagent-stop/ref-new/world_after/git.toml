@@ -1,0 +1,12 @@
+[[commit]]
+message = "base"
+paths = ["a.txt"]
+
+[[commit]]
+message = "second"
+[commit.files]
+"a.txt" = "two\n"
+
+[remote.push]
+master = 2
+feature = 1

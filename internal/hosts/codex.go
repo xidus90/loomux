@@ -34,7 +34,7 @@ func readCodex(io.Reader) (Payload, error) {
 	return Payload{}, fmt.Errorf("codex: %w -- its hook contract is unmeasured, see the design", ErrNoAdapter)
 }
 
-func writeCodexContext(io.Writer, []string) error {
+func writeCodexContext(io.Writer, string, []string) error {
 	return fmt.Errorf("codex: %w -- its hook contract is unmeasured, see the design", ErrNoAdapter)
 }
 
@@ -63,6 +63,6 @@ func readAntigravity(io.Reader) (Payload, error) {
 // relaxations agy itself names, both of which are the user's decision. The
 // fallback if the answer turns out to be no is prose in GEMINI.md rather than
 // a hook.
-func writeAntigravityContext(io.Writer, []string) error {
+func writeAntigravityContext(io.Writer, string, []string) error {
 	return fmt.Errorf("antigravity: whether PreInvocation can write context is unmeasured: %w", ErrNoAdapter)
 }

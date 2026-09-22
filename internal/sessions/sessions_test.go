@@ -113,6 +113,45 @@ func TestForgetRemovesOnlyThisSessionsFile(t *testing.T) {
 	}
 }
 
+// The subagents' files sit in a directory beside the session file; a session
+// that ends leaves neither behind.
+func TestForgetTakesTheAgentsWith(t *testing.T) {
+	root := t.TempDir()
+	if err := WriteState(root, "s1", SessionState{}); err != nil {
+		t.Fatal(err)
+	}
+	writeAgent(t, root, "s1", "a", AgentFile{Finding: []string{"x"}})
+
+	if err := Forget(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(StateDir), "s1")); !os.IsNotExist(err) {
+		t.Fatalf("agents dir: %v", err)
+	}
+}
+
+// A subagent's file that will not go is not a session that ended: leaving it
+// would let the next session read a finding nobody left for it. Windows only,
+// like the unreadable-directory case above -- Go's Open asks for no
+// FILE_SHARE_DELETE, so an open handle makes the removal refuse, while POSIX
+// unlinks an open file happily.
+func TestForgetReportsAnAgentsDirectoryItCannotRemove(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("an open handle only blocks a removal on Windows")
+	}
+	root := t.TempDir()
+	writeAgent(t, root, "s1", "a", AgentFile{Finding: []string{"x"}})
+	held, err := os.Open(filepath.Join(root, filepath.FromSlash(StateDir), "s1", "agents", "a.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+
+	if err := Forget(root, "s1"); err == nil {
+		t.Fatal("Forget = nil, want an error")
+	}
+}
+
 func TestForgetAnUnknownSessionIsNotAnError(t *testing.T) {
 	if err := Forget(t.TempDir(), "nobody"); err != nil {
 		t.Fatalf("Forget = %v, want nil", err)
@@ -155,12 +194,20 @@ func TestAnIdOutsideAsciiIsTheSameNameOnBothSides(t *testing.T) {
 func TestAnIdWithNothingKeepableInItBecomesUnnamed(t *testing.T) {
 	root := t.TempDir()
 	mine := state(t, root, "unnamed", 0)
+	// A neighbour nobody asked about. Without the shared name, Forget's
+	// RemoveAll would be aimed at the state directory itself and take this
+	// file with it -- and the removal of `mine` above would then look right
+	// for the wrong reason.
+	other := state(t, root, "other", 0)
 
 	if err := Forget(root, "!!!"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(mine); !os.IsNotExist(err) {
 		t.Fatalf("the file survived: %v", err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Fatalf("another session's file was removed: %v", err)
 	}
 }
 

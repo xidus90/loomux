@@ -1,0 +1,29 @@
+{
+  "answers": [
+    {
+      "prefix": "uvx ruff check",
+      "exit": 1,
+      "stdout": "faketool: uvx ruff check\ntests/test_a.py:1:1: F401 unused import\n"
+    },
+    {
+      "prefix": "uv run mypy",
+      "exit": 0,
+      "stdout": "faketool: uv run mypy\n"
+    },
+    {
+      "prefix": "uv run pytest",
+      "exit": 0,
+      "stdout": "faketool: uv run pytest\n1 passed\n"
+    },
+    {
+      "prefix": "uv run coverage run",
+      "exit": 0,
+      "stdout": "faketool: uv run coverage run\n1 passed\n"
+    },
+    {
+      "prefix": "uv run coverage report",
+      "exit": 0,
+      "stdout": "faketool: uv run coverage report\nTOTAL 1 0 100%\n"
+    }
+  ]
+}

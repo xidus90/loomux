@@ -92,9 +92,10 @@ druckt die wirksame Tabelle (siehe
 max_parallel = 8        # Prozesse gleichzeitig; Vorgabe: Zahl der CPUs
 timeout      = 600      # Sekunden je Befehl; Vorgabe 600, keine Obergrenze
 
-[verify.profiles]       # eingebaut: edit = [lint, types], precommit = alle vier
+[verify.profiles]       # eingebaut: edit = [lint, types], precommit = stop = alle vier
 edit      = ["lint", "types"]
 precommit = ["lint", "types", "test", "coverage"]
+stop      = ["lint", "types", "test", "coverage"]   # was das Stop-Tor am Rundenende fährt
 
 [verify.go]             # je Stack; nicht genannte Stacks behalten ihr Preset
 lint     = ["go vet ./...", "{loomux} check gofmt cmd internal"]
@@ -115,8 +116,8 @@ lint = "make lint"
 | Schlüssel | Typ | Beschreibung |
 |---|---|---|
 | `max_parallel` | positive Ganzzahl | Obergrenze gleichzeitig laufender Kindprozesse über alle Lanes. Vorgabe: Zahl der CPUs. |
-| `timeout` | positive Ganzzahl | Sekunden, die jeder Befehl laufen darf. Vorgabe 600, keine Obergrenze. Der post-edit-Hook hat zusätzlich ein Budget für den ganzen Lauf (`--budget`, Vorgabe 50 s); `loomux check` hat keins. |
-| `profiles.<name>` | Liste von Arten | Eine benannte Menge von Arten. `edit` (post-edit) und `precommit` (das Tor) sind eingebaut und überschreibbar. Eine leere Liste, eine unbekannte Art oder ein reservierter Name ist ein Ladefehler. |
+| `timeout` | positive Ganzzahl | Sekunden, die jeder Befehl laufen darf. Vorgabe 600, keine Obergrenze. Der post-edit-Hook und das Stop-Tor haben zusätzlich ein Budget für den ganzen Lauf (`--budget`, Vorgabe 50 s bzw. 270 s); `loomux check` hat keins. |
+| `profiles.<name>` | Liste von Arten | Eine benannte Menge von Arten. `edit` (post-edit), `precommit` (das Pre-Commit-Tor) und `stop` (das Stop-Tor am Rundenende) sind eingebaut und überschreibbar, aber nicht zu entfernen. Eine leere Liste, eine unbekannte Art oder ein reservierter Name ist ein Ladefehler. |
 | `<stack>.<art>` | String, Liste, `false` oder Tabelle | Wie eine Art für einen Stack läuft; siehe unten. |
 | `gdscript.import_check` | Boolean | Vorgabe `true`: `test` und `coverage` von GDScript sind `unready`, bis der Godot-Editor das Projekt importiert hat (`.godot/global_script_class_cache.cfg`). |
 
@@ -134,7 +135,10 @@ Es gibt vier Arten, in dieser Reihenfolge: `lint`, `types`, `test`,
 `coverage`. Eine Anfrage an `loomux check` ist ein Profil, `all` (immer alle
 vier Arten) oder eine Komma-Liste von Arten (`lint,types`). Die Namen `gofmt`,
 `commit-msg`, `gocover`, `all`, `lint`, `types`, `test` und `coverage` sind
-reserviert; ein Profil mit einem davon ist ein Ladefehler.
+reserviert; ein Profil mit einem davon ist ein Ladefehler. `stop` ist nicht
+reserviert: es ist ein eingebautes Profil wie `edit` und `precommit`, und ein
+Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
+(`stop = ["lint", "types"]`).
 
 #### Stacks
 
@@ -155,8 +159,13 @@ reserviert; ein Profil mit einem davon ist ein Ladefehler.
   die Erkennung nichts fand.
 - `.js` und `.jsx` gehören zu `typescript`; `javascript` gibt es nicht.
   Godot-Code heißt `gdscript`.
-- `wiki` kennt nur `lint = false`; das schaltet den Wiki-Lint im Prozess des
-  post-edit-Hooks ab. `loomux wiki-gate` bleibt ein eigener Befehl.
+- `wiki` kennt nur `lint = false`; das schaltet beide Wiki-Lanes ab, die im
+  eigenen Prozess von loomux laufen: den Lint der bearbeiteten Seite im
+  post-edit-Hook und `lint/wiki`, den Lint über das ganze Bündel, den
+  `loomux check` und das Stop-Tor dort anhängen, wo `lint` angefragt ist und
+  das Projekt ein Wiki hat. `lint/wiki` prüft nur die Struktur des Bündels und
+  steht im Bericht hinter jeder anderen Lane. Die Drift-Regel — Code geändert,
+  Doku nicht — bleibt bei `loomux wiki-gate`, einem eigenen Befehl.
 - `project` hat kein Preset. Seine Lanes laufen für `loomux check` im
   Wurzelverzeichnis; der post-edit-Hook fährt sie nur mit `on_file` und nur
   neben den Lanes einer bearbeiteten Datei, deren Stack aktiv ist.
@@ -342,6 +351,16 @@ Profil `edit` läuft also nie durch den Baum.
   `hookSpecificOutput.additionalContext` auf `stdout`, Exit 0. Eine Datei,
   deren Endung kein aktiver Stack beansprucht, bekommt keine Lanes und endet
   mit 0.
+- **Urteil des Stop-Tors:** das Profil `stop` im Check-Scope, die Zustände
+  gelten also wie in der Spalte `loomux check`. Eine rote Lane endet mit Exit 2
+  und hält die Runde an, nur die roten Lanes auf `stderr`; eine Lane, die das
+  Budget nicht mehr erreichte, oder eine angefragte Art ohne etwas, das lief,
+  endet mit Exit 1 — das Tor konnte nicht urteilen, und die Runde endet. Siehe
+  [Hooks](hooks.md#stop).
+- **Der Marker `.loomux/no-verify`.** Solange er existiert, lässt das Stop-Tor
+  jede Runde enden, ohne die Kette zu fahren. Befunde von Subagenten werden
+  trotzdem zugestellt und halten die Runde weiter an. Ein Mensch legt ihn an und entfernt ihn; die Policy
+  verweigert einem Agenten den Pfad.
 
 ---
 
@@ -476,7 +495,7 @@ agents = ["claude", "antigravity", "cursor"]
 rules = [
   { match = [".env*", "*.pem", "*.key", "id_rsa*"], reason = "Secrets dürfen nicht von Agenten bearbeitet werden" },
   { match = [".loomux/config.toml"], reason = "Wächter-Regeln werden vom Menschen verwaltet und sind schreibgeschützt" },
-  { match = [".claude/.no-verify"], reason = "Prüfschranken dürfen nicht durch Agenten umgangen werden" },
+  { match = [".loomux/no-verify"], reason = "Prüfschranken dürfen nicht durch Agenten umgangen werden" },
   { match = ["go.sum", "package-lock.json", "uv.lock"], reason = "Lockfiles werden durch Paketmanager verwaltet, nicht manuell" }
 ]
 
@@ -529,6 +548,9 @@ never = [".env*", "*.key", "credentials.json"]
 | Artefakte eines lesenden Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und sein Manifest, wie `loomux brain` sie liest | `%LOCALAPPDATA%\brain\areas\<scope>\` bis Stufe 3 |
 | Artefakte eines beschreibbaren Bereichs | sein `path` |
 | Stempel des letzten Reconcile | `%LOCALAPPDATA%\brain\maintenance\last-run.txt` bis Stufe 3 |
+| Sitzungszustand der Hooks (`base`, `blocks`, `green`) | `<projekt>\.loomux\state\hooks\<session_id>.json` |
+| Schnappschüsse und Befunde der Subagenten | `<projekt>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
+| Der Marker, der das Stop-Tor abschaltet | `<projekt>\.loomux\no-verify` |
 
 `LOOMUX_STATE_DIR` überschreibt das Zustandsverzeichnis,
 `LOOMUX_LEGACY_BRAIN_DIR` das Verzeichnis von ultra-brain; einen

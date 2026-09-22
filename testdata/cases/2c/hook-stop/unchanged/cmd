@@ -1,0 +1,1 @@
+loomux hook stop --host claude --root {{WORLD}}

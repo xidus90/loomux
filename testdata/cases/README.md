@@ -12,6 +12,7 @@ translation table and suite.
 | 1b-2 | `brain-mcp mcp`, the same reference's MCP front over its own daemon, against a fake qmd | `internal/cli/cases_1b2_test.go` | 54 |
 | 2a | `ultraloom check` at the tag `loomux-1a-source` (`9d01a60`), against fake tools | `internal/cli/cases_2a_test.go` | 53 |
 | 2b | `ultraloom commit-msg` at the tag `loomux-1a-source` (`9d01a60`), against staged worlds and, for `--calibrate`, a fake git | `internal/cli/cases_2b_test.go` | 19 |
+| 2c | `ultraloom hook stop`, `hook subagent-start` and `hook subagent-stop` at the tag `loomux-1a-source` (`9d01a60`), against fake tools and measured Claude Code payloads | `internal/cli/cases_2c_test.go` | 15 |
 
 ## Layout
 
@@ -39,6 +40,11 @@ translation table and suite.
 | `2b-source/` | The recordings of `ultraloom commit-msg`, written with `uv run ultraloom commit-msg --root <world> <world>/msg.txt`. A refusal prints to stderr only, so these cases compare the exit code (`compare = message`). |
 | `2b-map.toml` | One command rule, `ultraloom commit-msg ` → `loomux check commit-msg `, and one `[[exit]]` rule mapping a refusal's exit 2 onto loomux' 1 (deviation 5 of `parity/stufe-2b.md`). |
 | `2b/` | The translated cases. The old `[commit]` section moves into `.loomux/config.toml` unchanged. |
+| `2c-worlds/` | The project trees a 2c case runs a session hook in: `stop-*` for the eight stop cases, `subagent-start-*` and `subagent-stop-*` for the two subagent hooks. Every one of the fifteen declares two commits in `git.toml` and carries the old session file under `.ultraloom/hooks/`. Six of the eight stop worlds add a `[worktree]` that dirties a tracked file; `stop-unchanged` adds nothing, and `stop-untracked-only` instead holds a `b.py` that no commit tracks. Every subagent world declares a `[remote.push]` and no stop world does -- the subagent hooks measure refs, the stop gate measures the tree. Only the stop worlds hold a `faketool.json`: the subagent hooks start no checking tool. |
+| `2c-payloads/` | The hook payloads a 2c recording feeds on stdin. Measured on 2026-09-20 from a running Claude Code 2.1.276 session, not written by hand; `2c-payloads/README.md` names what was measured, what the measurement proves about `agent_id` and `session_id`, and which two payloads (`subagent-no-agent.json`, `not-json.txt`) are derived from it for the error cases. |
+| `2c-source/` | The recordings of ultraloom's session hooks, written by `loomux dev record-case` with the faketool executable first on `PATH` under every tool name the old stop chain calls. |
+| `2c-map.toml` | Three rules, one per verb: `ultraloom hook stop` → `loomux hook stop --host claude`, and the same for `subagent-start` and `subagent-stop`. The verbs are unchanged; the host is a flag in loomux, and `loomux init` writes it into the settings. |
+| `2c/` | The translated cases. The old session state is folded into loomux's: `.ultraloom/hooks/<id>.json` becomes `.loomux/state/hooks/<id>.json` with `base` and `blocks`, its `snapshots` map -- an agent id against the raw `git ls-remote` text the old hook kept -- becomes one file per subagent under `.loomux/state/hooks/<id>/agents/<agent>.json`, with those lines parsed into a snapshot object, and the old marker `.claude/.no-verify` becomes `.loomux/no-verify`. |
 
 ## What a case compares
 
@@ -103,6 +109,37 @@ Every 1b-2 case runs on a state directory of its own (`LOOMUX_STATE_DIR`), gets
 its own `loomux serve`, and ends that service through `serve.Stop` when the case
 is over, so a `go test` run leaves nothing behind.
 
+### 2c: what the hook decided, not what it said
+
+A session hook writes no stdout worth comparing: the stop gate speaks on
+stderr, and the subagent hooks speak through the files the next turn end
+reads. Two comparison classes pin what they decided instead.
+
+- **`compare = state`** — the exit code **and**, for every session file the
+  recording's `world_after` holds, the `base` the gate measures from and the
+  `blocks` it counted. Nothing else in the tree is compared: the green tree,
+  the lane output and every other file loomux writes are its own.
+- **`compare = finding`** — the exit code **and** the findings of the
+  subagent files after the run: every `finding` line of every
+  `.loomux/state/hooks/<id>/agents/<agent>.json`, each with the
+  `subagent <id>: ` prefix Python printed, against the recorded `stdout`, both
+  sides sorted. The file carries the line without that prefix; the stop gate
+  puts it there when it delivers, and the comparison puts it there when it
+  compares.
+
+Both read only loomux's state, so both always need a `world_after`: a git
+world has its `{{COMMIT:<n>}}` tokens replaced at every staging, and the world
+itself still holds the tokens where the SHAs belong. The two error cases
+(`hook-stop/bad-payload`, `hook-subagent-start/no-agent`) compare `message`
+instead -- the exit code alone, plus the whole staged tree against
+`world_after`, because a hook that refuses its payload must leave the world
+untouched.
+
+The stop gate's tools answer from the world's `faketool.json` through the
+`stopHook` seam, which the suite points at `hooks.RunStop` with the same fake
+`Start` and `Look` that `check` gets. A world without a fixture is a subagent
+world: it starts no tool, and the seam stays as it is.
+
 ## The fake qmd (1b-1)
 
 No recording and no replay starts qmd. `internal/dev/fakeqmd` answers from the
@@ -143,8 +180,8 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
 
 ## Rules for working with the corpus
 
-- **A recording is evidence.** Files under `1a-source/`, `1b-1-source/` and
-  `2a-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
+- **A recording is evidence.** Files under `1a-source/`, `1b-1-source/`,
+  `2a-source/` and `2c-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
   for 1a with the old binaries (build them from the tag worktrees, put them
   first on `PATH`, run `loomux dev record-case`); for 1b-1 with the fake qmd
   rebuilt from `internal/dev/fakeqmd/_qmd` and the recording command of the
@@ -157,7 +194,10 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
   deviations out of the corpus: `approved2a` in `internal/cli/cases_2a_test.go`
   names each case with its number in `docs/.superpowers/parity/stufe-2a.md`,
   a re-import cannot lose them, and a listed case that starts to pass fails
-  the suite.
+  the suite. 2c does the same with `approved2c` in
+  `internal/cli/cases_2c_test.go` and `stufe-2c.md`; it names two cases, and a
+  `-v` run logs what each one actually differs in, so a deviation that starts
+  to differ for another reason does not hide behind its entry.
 - **A re-import throws that deviation away, and it has to be re-applied by
   hand.** The deviation lives only in `1a/`; `1a-source/` still holds the
   recorded 1, and `loomux dev import-cases` copies the recording over the
@@ -179,7 +219,8 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
   corpus does not hold exactly 19 cases, `internal/cli/cases_1b1_test.go` when
   the 1b-1 corpus does not hold exactly 71, `internal/cli/cases_1b2_test.go`
   when the 1b-2 corpus does not hold exactly 54, `internal/cli/cases_2a_test.go`
-  when the 2a corpus does not hold exactly 53, so a partial import cannot pass
+  when the 2a corpus does not hold exactly 53, `internal/cli/cases_2c_test.go`
+  when the 2c corpus does not hold exactly 15, so a partial import cannot pass
   as parity. Adding a case means raising that number.
 - **A 1b-2 recording starts the reference's daemon as `daemon run`, never as
   `daemon start`.** `daemon start` reaches `client._start_outside_job`, which

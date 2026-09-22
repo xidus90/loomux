@@ -183,8 +183,14 @@ func rewritePaths(s string) string {
 
 // TranslateWorld rewrites the configuration files of the old tools in dir, in
 // every dir/areas/<name> and in every directory dir/registry.toml names as
-// {{WORLD}}/<path>, into one .loomux/config.toml each.
+// {{WORLD}}/<path>, into one .loomux/config.toml each. It also folds the old
+// hooks' session state and their no-verify marker into loomux's layout.
 func TranslateWorld(dir string) error {
+	// First: the old hooks' state lives under .ultraloom, which translateDir
+	// removes once it has nothing else in it.
+	if err := foldHookState(dir); err != nil {
+		return err
+	}
 	if err := translateDir(dir); err != nil {
 		return err
 	}
