@@ -483,7 +483,7 @@ git commit -m "feat(vcs): commit named paths onto the current ref"
   ```go
   type Segment struct{ Number, Kind, Label, Body string } // evidence.go:11
   type Claim struct{ Heading, Segment, Quote, Body string }
-  type PackageError struct{ Msg string }
+  type PackageError struct{ Message string }
   func (e *PackageError) Error() string
   func Normalised(text string) string
   func ReadProposal(text string) []Claim
