@@ -366,3 +366,130 @@ Fusions-Spec und eine Entscheidung des Nutzers.
   `3a-source/reconcile/changed-source-baseline` geschrieben hat, einen Tag
   zurückdatiert. Diesen Fall hält Stufe 3a ohne Abweichung gegen
   `maintenance.RenderPackage`; die Segmentgrenzen sind also die aus 3a.
+
+## Überlebende Mutanten
+
+**Die Runde mit `loomux dev mutants` (2026-09-23).** Gefahren mit
+`bin/loomux.exe dev mutants <paket>` gegen `a882946`, acht Arbeiter (bei
+`evidence` vier, weil `apply` daneben lief), `LOOMUX_STATE_DIR` und
+`LOOMUX_LEGACY_BRAIN_DIR` im Scratchpad der Sitzung. Die erste Runde über
+`vcs` ist verunreinigt und wird nur als Suche gelesen: ab etwa Mutant 110 von
+220 standen die ersten neuen Tests schon im Baum. Die zweite Runde lief
+sauber über den Stand nach den drei Test-Commits (`07d0881`), mit einer Kopie
+des Binärs, damit das Tor der Commits daneben bauen konnte. Ein Zeitüberlauf
+zählt in `dev mutants` als getötet; `go test ./internal/brain/apply` braucht
+allein 13 s und unter der vollen Last der Runde 14 s, weit unter den 60 s von
+`goTimeout`.
+
+| Paket | erzeugt | nicht übersetzbar | erste Runde: getötet / überlebt | zweite Runde: getötet / stehen |
+|---|---:|---:|---:|---:|
+| `internal/brain/vcs` | 220 | 24 | 183 / 13 | 194 / 2 |
+| `internal/brain/evidence` | 170 | 28 | 127 / 15 | 136 / 6 |
+| `internal/brain/apply` | 1284 | 221 | 963 / 100 | 1013 / 50 |
+
+Jeder Überlebende der ersten Runde ist einzeln per `go test -overlay` gegen
+den neuen Stand gespielt worden (ein Skript im Scratchpad ersetzt die Zeile
+und fährt die Suite des Pakets); was dort stirbt, stirbt an dem Test, der
+unten steht. Die neuen Goldens unter
+`internal/brain/apply/testdata/frontmatter/m*` hat der Generator der Stufe
+(`frontmatter_goldens.py`) aus `_advance` der Referenz geschrieben; beim
+Neuschreiben blieb jedes vorhandene Golden bytegleich.
+
+**Getötet in `vcs` (11 von 13).**
+`TestCommitPathsStopsAtAFailedCommitTreeBeforeTheWindow` (`commit.go:134`),
+`TestCommitPathsMakesAMissingScratchDirectory` und
+`TestCommitPathsRefusesAScratchPathThatIsAFile` (`:225`, drei Formen, und
+`:228`), die geschärfte Meldung in `TestCommitPathsRefusesAMovedRef`
+(`:241`), die geschärfte Meldung in
+`TestCommitPathsReportsAGitLostInTheWindow` (`:282`: der erste Fehler einer
+Sitzung ist der gemeldete),
+`TestCommitPathsReportsTheFailedAddAndNotTheRemovalAfterIt` (`:333`),
+`TestObjectNameTakesFourToSixtyFourDigits` (`vcs.go:205`, beide Grenzen) und
+`TestSaidAddsNothingForASilentFailure` (`vcs.go:251`).
+
+**Getötet in `evidence` (9 von 15).** Neue Datei `boundaries_test.go`, jede
+Erwartung am 2026-09-23 mit `read_proposal` und `read_package` der Referenz
+nachgemessen: Infostring des Öffners im Zaun (`:193`, `>=`), Zeile nur aus
+Leerraum (`:204`), erste Zeile nach der Frontmatter (`:227`), Zeile nur dem
+eigenen Abschnitt angelastet (`:333`, `< end` weggelassen), gewöhnliche
+Überschrift als Name (`:341`, `true`: ein Index außerhalb), versteckte
+Auszeichnung auf einer Überschriftenzeile (`:307`, `:333` mit `<=`),
+Nicht-Segment-Überschrift im Paket (`:408`) und Segment ohne eigenen Zaun
+(`:413`).
+
+**Getötet in `apply` (50 von 100).** 36 an neuen Goldens (`m01` bis `m18`):
+Datums- und Zeitgrenzen, `+0x`, `+0` und `+0b`, ein gequoteter
+`<<`-Schlüssel, ein Mapping als Schlüssel, die Ränder der druck- und
+schlichtbaren Bereiche im Emitter, Falten an der Breite in allen drei Stilen,
+verschachtelte und nicht einfache Schlüssel, Tabs um Blockskalare, Kommentare
+und gequotete Skalare, ein datumsförmiger `str`. 14 an Tests: drei Nähte,
+die jeden Lese- oder Auflösungsaufruf scheitern ließen und damit den
+Mutanten verdeckten, schneiden jetzt nur den gemeinten Pfad
+(`approve.go:320`, `:449`, `commit.go:64`);
+`TestTwoSourcesInOneRegisterBothAdvance` (`approve.go:422`),
+`TestSameFileIsFalseWhenEitherPathIsNoFile` (`:501`),
+`TestReplaceIfChangedCreatesAnEmptyFile` (`place.go:150`),
+`TestNormalisedNameCutsAStreamAtTheFirstCharacter` (`:322`),
+`TestRelativeDropsADotComponent` (`:292`),
+`TestAnOutsideWikiPassesOnAResolverFailure` (`:251`),
+`TestAWritableAreasNeighbourIsLeftAlone` (`stock.go:56`: ohne die Abfrage
+räumt `lock.Recover` ein `<tresor>.loomux-aside` neben einem beschreibbaren
+Tresor ab) und `TestAdvanceFrontmatterNamesWhyItRefuses` (`pyyaml.go:130`
+zweimal, `:187` zweimal: die Weigerung nennt ihren Grund).
+
+**Nachgetragen in der Fixrunde (2026-09-23).** Die Zeile zu `targetParts`
+hieß zuerst für alle drei Formen „äquivalent“; das hat die Durchsicht
+widerlegt. Mit einem Ziel `./…` fragt der Gang über die Teile
+(`resolve.go:210-216`) unter den Mutanten `true` und `part != ""` auch
+`isLink(<wiki>)`, das Original nicht, und Python ebenso wenig
+(`apply.py:890-899` geht `PurePosixPath(…).parts`, das `.` fallen lässt).
+`TestTargetPathWalksNoDotComponent` tötet beide, einzeln per `-overlay`
+nachgeprüft (`. is a link, not a page`). Die dritte Form, `part != "."`,
+hieß danach noch „äquivalent“, weil ein leerer Teil nur hinter einem
+verbotenen führenden `/` stünde; auch das hat die zweite Durchsicht
+widerlegt: das leere Ziel `""` ist `plainRelative` und zerfällt in genau
+einen leeren Teil. Das Original fragt dann keinen Teil und meldet `<wiki>: the
+case's target page is gone`, wie Python (`PurePosixPath("").parts` ist leer);
+der Mutant prüft das Wiki selbst auf einen Link. Derselbe Test ruft darum
+auch `targetPath(r, "")` und tötet sie. In `apply` stehen damit 47 statt
+50; die Tabelle oben gibt die zweite Runde wieder, wie sie lief.
+
+**Geerbt, festgehalten und nicht geheilt.** Versteckte Auszeichnung (`%%`,
+`<!--`, Bidi-Steuerzeichen) auf einer **Überschriftenzeile** eines Vorschlags
+wird keinem Abschnitt angelastet: ein Abschnitt beginnt hinter seiner
+Überschrift, der vorige endet vor ihr. Die Referenz tut dasselbe
+(`read_proposal`, gemessen am 2026-09-23), obwohl ihr Kommentar in
+`_is_allowed_line` sagt, eine Überschrift könne einen Kommentar ebenso
+verbergen wie ein Absatz. Python gilt;
+`TestHiddenMarkupOnAHeadingLineIsChargedToNoSection` hält das Verhalten fest,
+damit eine Heilung bewusst geschieht.
+
+| Paket | Mutant | Entscheidung |
+|---|---|---|
+| `internal/brain/vcs` | `scratchIndex`, `commit.go:225`: `if err == nil` → `true` | **Nicht erreichbar, stehengelassen.** `filepath.Abs` scheitert nur, wenn `os.Getwd` für einen relativen Pfad scheitert; der einzige Aufrufer reicht `<zustand>/maintenance`, und unter Windows lässt sich das Arbeitsverzeichnis eines laufenden Prozesses nicht löschen |
+| `internal/brain/vcs` | `session.call`, `commit.go:286`: `if g.index != ""` → `true` | **Äquivalent, stehengelassen.** Vor `scratchIndex` laufen nur `rev-parse --absolute-git-dir`, `symbolic-ref --quiet HEAD` und `rev-parse --verify`; keiner liest den Index, ein leeres `GIT_INDEX_FILE` ändert an ihnen nichts. Die ganze Suite bleibt unter dem Mutanten grün |
+| `internal/brain/evidence` | `inside`, `evidence.go:193`: `pos < s[1]` → `<=` | **Äquivalent, stehengelassen.** Das Ende einer Spanne ist das Ende der Schließerzeile vor ihrem Umbruch (`(?m)$`), eine Zeile beginnt also nie dort; bei einem offenen Zaun ist es `len(text)`, und dort beginnt nur die leere letzte Zeile, die ohnehin erlaubt ist |
+| `internal/brain/evidence` | `isAllowedLine`, `:207`: Überschrift und `evidence:`-Zeile aus der Ausnahme genommen | **Äquivalent, stehengelassen.** Eine `evidence:`-Zeile beginnt mit `e` und trifft `blockStart` nie. Eine Überschriftenzeile würde anstößig, aber `ReadProposal` lastet sie keinem Abschnitt an (siehe „Geerbt, festgehalten und nicht geheilt“ oben): ihr Offset ist der Anfang ihrer Überschrift, also weder vor der ersten noch innerhalb eines Abschnitts. Dieselbe Redundanz trägt `_is_allowed_line` |
+| `internal/brain/evidence` | `parseClaim`, `:279`: `opener.start >= ev[1]` → `>` | **Äquivalent, stehengelassen.** `evidenceLine` endet mit `\s*$` im Mehrzeilenmodus, also vor einem Umbruch; ein Öffner beginnt am Zeilenanfang, mindestens ein Byte dahinter |
+| `internal/brain/evidence` | `ReadProposal`, `:333`: `offset >= start` → `>` | **Äquivalent, stehengelassen.** `start` ist das Ende der Überschriftenzeile vor ihrem Umbruch; eine Zeile beginnt dort nie |
+| `internal/brain/evidence` | `ReadProposal`, `:341`: `len(claimSub) > 1` → `>= 1` | **Äquivalent, stehengelassen.** `FindStringSubmatch` antwortet `nil` oder zwei Elemente |
+| `internal/brain/evidence` | `decimal`, `:493`: `>` → `>=` | **Nicht beobachtbar, stehengelassen.** Der Mutant nennt die Zahlen von 9223372036854775790 bis 9223372036854775799 „passt nicht“, obwohl sie passen; eine so große Segmentzahl ist nie die Zahl gelesener Segmente, und die Meldung zitiert `m[1]` wie geschrieben, in beiden Fällen dieselbe |
+| `internal/brain/apply` | `AdvanceFrontmatter`, `frontmatter.go:73` (`&& entries.kind == pyList` weggelassen) und `:75` (`entry.kind != pyDict` → `false`) | **Äquivalent, stehengelassen.** Nur eine Liste trägt `items`; ein Mapping oder Skalar unter `sources` durchläuft die Schleife nicht. Ein Eintrag, der kein Mapping ist, hat keine `keys`, `get` antwortet `nil`, `pythonStr(nil)` ist `None`, und passt ein Update auf `None`, setzt `set` Schlüssel an einem Wert, den der Emitter nach seiner Art als Skalar oder Liste schreibt, ohne `keys` je zu lesen |
+| `internal/brain/apply` | `anchored`, `patch.go:117`: `< MaxInt` → `<=` | **Äquivalent, stehengelassen.** Bei genau `MaxInt` bleibt `line` leer statt `"9223372036854775808"`; `lineOf` rechnet dieselbe Zahl über `big.Int`, und in `before` ordnet ein leeres `line` vor jedem 19-stelligen wie der Text selbst, weil jeder größere Anker einen größeren Text trägt |
+| `internal/brain/apply` | `before`, `patch.go:153` und `:156`: `<` → `<=` | **Äquivalent, stehengelassen.** Beide Vergleiche stehen hinter `!=` derselben Werte |
+| `internal/brain/apply` | `isExternalRegister`, `place.go:234`: `samePath(path, valid)` → `false` | **Äquivalent, stehengelassen.** Ist die Schreibweise gleich, lösen beide Pfade gleich auf, und der zweite Vergleich derselben Schleife antwortet `true` |
+| `internal/brain/apply` | `components`, `place.go:305` (sechs Formen), `:309` (vier Formen), `:313` (`<= 0x80`) | **Äquivalent, stehengelassen.** `lexicalParts` liest nur den Schwanz hinter `len(components(base))`, und `IsRelativeTo` hat vorher festgestellt, dass Basis und Pfad dasselbe Laufwerk und dieselbe Wurzel tragen; jeder Mutant ändert den Kopf beider Zerlegungen gleich. Die Formen, die `rest[0]` auf leerem `rest` lesen, bräuchten einen Pfad, der nur ein Laufwerk ist, und kein Tresor ist das. `0x80` ist kein Trenner |
+| `internal/brain/apply` | `pythonStr`, `pyyaml.go:108` (drei Formen) | **Nicht beobachtbar über einen Aufrufer, stehengelassen.** Eine Liste oder ein Mapping als `doc_id` gibt dann `""` statt „kein str“. Ein Update mit leerer `doc_id` kommt aus keinem Fall: `ReadCase` weist eine leere `doc_id` ab (`required`, `maintenance/case.go:309`). Das exportierte `AdvanceFrontmatter` nimmt ein `SourceUpdate{DocID: ""}` allerdings an; nur dort, an der API selbst, wäre der Mutant sichtbar |
+| `internal/brain/apply` | `constructInt`, `pyyaml.go:320`: `sign < 0` → `<= 0` | **Äquivalent, stehengelassen.** `sign` ist 1 oder −1 |
+| `internal/brain/apply` | `newFloat`, `pyyaml.go:378`: `&& strings.Contains(repr, "e")` weggelassen | **Äquivalent, stehengelassen.** Eine endliche `floatRepr` ohne `.` ist immer die Exponentenform; die Festkommaform bekommt sonst `.0` angehängt |
+| `internal/brain/apply` | `constructTimestamp`, `pyyaml.go:442`: `m[9] != ""` → `true` | **Äquivalent, stehengelassen.** Leer ist `m[9]` nur bei `Z`; dann sind `m[10]` und `m[11]` leer, `atoi` gibt 0, der Versatz bleibt 0 |
+| `internal/brain/apply` | `analyzeScalar`, `pyyaml_emit.go:192` und `:193`: `index == …` → `!=` | **Äquivalent, stehengelassen.** `leadingBreak` und `trailingBreak` verbieten nur den schlichten Stil, und jeder Umbruch setzt schon `lineBreaks`, das dasselbe verbietet |
+| `internal/brain/apply` | `writeIndent`, `pyyaml_emit.go:230`: `column < indent` → `true` und `<=` | **Äquivalent, stehengelassen.** Nach der Zeile davor gilt `column <= indent`, und bei Gleichheit ist `whitespace` schon wahr, sonst hätte sie umgebrochen |
+| `internal/brain/apply` | `writeSingleQuoted`, `pyyaml_emit.go:319` (`ch == -1 \|\|` weggelassen), `:324` (vier Formen), `:333` (`ch != -1` → `true`) | **Äquivalent, stehengelassen.** `isBreak(-1)` ist falsch; `:324` schreibt dieselben Zeichen in kleineren Stücken oder ein leeres Stück, `writeText` hängt sie gleich an und zählt dieselben Spalten; nach `ch == -1` endet die Schleife |
+| `internal/brain/apply` | `writeDoubleQuoted`, `pyyaml_emit.go:359` (`true`, `<=`) und `:372` (`<=`) | **Äquivalent, stehengelassen.** Bei `start == end` wird ein leeres Stück geschrieben oder vor den Rückstrich gehängt |
+| `internal/brain/apply` | `escape`, `pyyaml_emit.go:394`: `<= 0xff` → `<` | **Nicht erreichbar, stehengelassen.** U+00FF liegt im schlichten Bereich ab U+00A0 und wird nie maskiert |
+| `internal/brain/apply` | `checkTabs`, `pyyaml_tabs.go:33` (Abkürzung ohne Tab weg), `:57` (`<=` im Sortieren), `:63` (`start < i`) | **Äquivalent, stehengelassen.** Ohne Tab findet die Schleife keinen; die Spannen beginnen an verschiedenen Stellen; an `start` selbst steht ein Anführungszeichen oder der Beginn eines Blockkörpers, nie `#` oder ein Tab, und einen leeren Körper überspringt die Schleife davor |
+| `internal/brain/apply` | `scalarSpan`, `pyyaml_tabs.go:158` und `:172`: `< len` → `<=` | **Nicht erreichbar, stehengelassen.** yaml.v3 hat den gequoteten Skalar gelesen, das schließende Zeichen steht also im Text, und die Schleife hält davor |
+| `internal/brain/apply` | `blockBody`, `pyyaml_tabs.go:193`: `width == 0` → `false` | **Äquivalent, stehengelassen.** Ohne Umbruch nach dem Kopf ist `bodyStart == len(text)`; beide Schleifen laufen nicht, die Spanne ist dieselbe leere |
+| `internal/brain/apply` | `blockBody`, `pyyaml_tabs.go:212` (drei Formen): die Einrückungserkennung hält am ersten Zeichen | **Nicht beobachtbar, stehengelassen.** Unterscheiden würde eine Zeile, deren Leerzeichen zwischen der Mindest- und der erkannten Einrückung liegen und die einen Tab trägt. Gemessen am 2026-09-23 an fünf Formen: yaml.v3 weist jede solche Zeile selbst ab („found a tab character where an indentation space is expected“), bevor `checkTabs` läuft; eine Kommentarzeile dort ist in beiden Formen Kommentar |
+| `internal/brain/apply` | `blockBody`, `pyyaml_tabs.go:224`: `spaces < indent` → `<=` | **Äquivalent, stehengelassen.** Ein Leerzeichen mehr gezählt ändert nur `at`, und die Abbruchbedingung fragt `spaces < indent`, das bei beiden falsch ist |
