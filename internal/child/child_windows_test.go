@@ -17,7 +17,9 @@ type accounting struct {
 }
 
 // cmd starts ping in the background and a second one in front: without the
-// job, the background ping would outlive the kill of cmd.
+// job, the background ping would outlive the kill of cmd. The deadline
+// leaves cmd time to start both under load: a kill before the first ping runs
+// has no grandchild to prove anything about.
 func TestRunKillsTheGrandchildAtTheDeadline(t *testing.T) {
 	var active, total uint32 = 99, 0
 	old := afterKill
@@ -29,7 +31,7 @@ func TestRunKillsTheGrandchildAtTheDeadline(t *testing.T) {
 	t.Cleanup(func() { afterKill = old })
 	r := Run(Spec{
 		Argv:    []string{"cmd", "/c", "start /b ping -n 60 127.0.0.1 >nul & ping -n 60 127.0.0.1 >nul"},
-		Timeout: time.Second,
+		Timeout: 5 * time.Second,
 	})
 	if !r.TimedOut || total < 3 || active != 0 {
 		t.Fatalf("%+v total %d active %d", r, total, active)
