@@ -471,7 +471,16 @@ func TestTheTargetGuardPassesOnItsFailures(t *testing.T) {
 	t.Run("claims", func(t *testing.T) {
 		v := newAppVault(t)
 		writeFile(t, v.page(), "von Hand")
-		seam(t, &readBytes, func(string) ([]byte, error) { return nil, broken })
+		// Only the proposal fails: a seam over every read would fail the
+		// audit's own read as well and hide a halt that went on without
+		// its claims.
+		read := readBytes
+		seam(t, &readBytes, func(path string) ([]byte, error) {
+			if path == v.proposal() {
+				return nil, broken
+			}
+			return read(path)
+		})
 		_, err := v.run()
 		e := stopped[*ApplyError](t, err, "broken")
 		if want := []string{v.caseRel() + "/case.toml"}; !slices.Equal(e.Dirty, want) {
@@ -1185,9 +1194,12 @@ func TestAFailureMidWayReportsWhatWasWritten(t *testing.T) {
 				written = written || filepath.Base(path) == registerName
 				return write(path, text)
 			})
+			// Only the register fails to resolve: a resolver failing on
+			// every path would stop the log's write as well, which leaves
+			// the same trace as a staging failure passed on.
 			resolve := resolvePath
 			seam(t, &resolvePath, func(path string) (string, error) {
-				if written {
+				if written && filepath.Base(path) == registerName {
 					return "", broken
 				}
 				return resolve(path)

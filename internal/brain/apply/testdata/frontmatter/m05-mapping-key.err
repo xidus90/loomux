@@ -1,0 +1,8 @@
+ApplyError: page.md: while constructing a mapping
+  in "<unicode string>", line 2, column 3:
+      ? {a: 1}
+      ^
+found unhashable key
+  in "<unicode string>", line 2, column 5:
+      ? {a: 1}
+        ^
