@@ -200,7 +200,9 @@ func TestSearchFailsWithTheScriptedError(t *testing.T) {
 func TestRunCLIRefusesACallNeitherPortMakes(t *testing.T) {
 	for _, args := range [][]string{
 		{},
-		{"embed"},
+		{"collection", "add"},
+		{"embed", "-c", "repo-a"},
+		{"update", "repo-a"},
 		{"ls"},
 		{"ls", "a", "b"},
 		{"status", "--json"},
@@ -352,7 +354,7 @@ func cliPort(f *Fixture) *search.QmdPort {
 // The fake is only worth its fixture if loomux's own ports read it: the MCP
 // port over HTTP, the CLI port through its Runner seam. The MCP snippets
 // arrive numbered; the port hands them on as the CLI port does, so this test
-// also holds Task 8's removal of qmd's line prefix.
+// also holds the port's removal of qmd's line prefix.
 func TestLoomuxsPortsReadTheFake(t *testing.T) {
 	f := world()
 	server := httptest.NewServer(f.MCPHandler())
@@ -437,6 +439,47 @@ func TestMainReportsAFixtureItCannotRead(t *testing.T) {
 	var out, errb bytes.Buffer
 	code := Main([]string{"status"}, func(string) string { return path }, &out, &errb)
 	if code != 2 || !strings.HasPrefix(errb.String(), "fakeqmd: "+path) {
+		t.Fatalf("code %d, err %q", code, errb.String())
+	}
+}
+
+func TestRunCLIAnswersTheTwoWritingCalls(t *testing.T) {
+	for _, verb := range []string{"update", "embed"} {
+		if code, out, errOut := runCLI(world(), verb); code != 0 || out != "" || errOut != "" {
+			t.Errorf("%s: code %d, out %q, err %q", verb, code, out, errOut)
+		}
+	}
+}
+
+func TestRunLogsTheWritingCallsBesideTheFixture(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, FixtureName)
+	if err := os.WriteFile(path, []byte(`{"pending":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"update"}, {"status"}, {"embed"}, {"embed", "-c", "x"}} {
+		var out, errb bytes.Buffer
+		Run(path, args, &out, &errb)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, CallLogName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A read is no change to the engine and a refused call changed nothing.
+	if string(got) != "update\nembed\n" {
+		t.Fatalf("log %q", got)
+	}
+}
+
+func TestRunReportsALogItCannotWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, FixtureName)
+	// A directory where the log belongs cannot be appended to.
+	if err := os.Mkdir(filepath.Join(dir, CallLogName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := Run(path, []string{"update"}, &out, &errb); code != 2 || !strings.HasPrefix(errb.String(), "fakeqmd: ") {
 		t.Fatalf("code %d, err %q", code, errb.String())
 	}
 }

@@ -13,6 +13,7 @@ translation table and suite.
 | 2a | `ultraloom check` at the tag `loomux-1a-source` (`9d01a60`), against fake tools | `internal/cli/cases_2a_test.go` | 53 |
 | 2b | `ultraloom commit-msg` at the tag `loomux-1a-source` (`9d01a60`), against staged worlds and, for `--calibrate`, a fake git | `internal/cli/cases_2b_test.go` | 19 |
 | 2c | `ultraloom hook stop`, `hook subagent-start` and `hook subagent-stop` at the tag `loomux-1a-source` (`9d01a60`), against fake tools and measured Claude Code payloads | `internal/cli/cases_2c_test.go` | 15 |
+| 3a | `brain-mcp reconcile`, `reindex`, `embed` and `init` of ultra-brain at the tag `loomux-3-source` (`3cc72d2`), against a fake qmd | `internal/cli/cases_3a_test.go` | 28 |
 
 ## Layout
 
@@ -45,6 +46,10 @@ translation table and suite.
 | `2c-source/` | The recordings of ultraloom's session hooks, written by `loomux dev record-case` with the faketool executable first on `PATH` under every tool name the old stop chain calls. |
 | `2c-map.toml` | Three rules, one per verb: `ultraloom hook stop` → `loomux hook stop --host claude`, and the same for `subagent-start` and `subagent-stop`. The verbs are unchanged; the host is a flag in loomux, and `loomux init` writes it into the settings. |
 | `2c/` | The translated cases. The old session state is folded into loomux's: `.ultraloom/hooks/<id>.json` becomes `.loomux/state/hooks/<id>.json` with `base` and `blocks`, its `snapshots` map -- an agent id against the raw `git ls-remote` text the old hook kept -- becomes one file per subagent under `.loomux/state/hooks/<id>/agents/<agent>.json`, with those lines parsed into a snapshot object, and the old marker `.claude/.no-verify` becomes `.loomux/no-verify`. |
+| `3a-worlds/` | The state directories a 3a case runs in, laid out as in 1b-1: the world is the reference's `BRAIN_STATE_DIR` and, in the replay, both `LOOMUX_STATE_DIR` and `LOOMUX_LEGACY_BRAIN_DIR`. `vault-*` hold a writable area `repo-a` (a source, a wiki page citing it, a register) and, for one case each, a read-only area, a second area, a standing case, a broken case file or a manifest left out; `embed-*` a registry and a fixture; `area-*` a repository `repo-new` to onboard. Every world but `embed-no-qmd` carries `qmd-fixture.json`, and qmd's own configuration is written below `xdg/`. Four worlds make `repo-a` a repository: `git.toml` names it with `dir = "repo-a"`, so the repository is the area and not the state directory around it, and every path the declaration names is relative to it. `vault-changed-baseline` commits the source at the state the register names and changes it in `[worktree]`; `vault-changed-stale-head` commits a third state on top, so HEAD is no state the register names. `vault-merge` and `vault-merge-standing` carry a page with `realization: planned` and a merge event in `maintenance/merge-events.tsv`: in `vault-merge` over two commits after the base (`{{COMMIT:1}}`, `{{COMMIT:3}}`), whose paths land in the reverse of their byte order, in `vault-merge-standing` over one (`{{COMMIT:1}}`, `{{COMMIT:2}}`) and with a standing source case on that page. |
+| `3a-source/` | The recordings, written by `loomux dev record-case --argv <ultra-brain>/.venv/Scripts/brain-mcp.exe` with the fake qmd first on `PATH`, `LOOMUX_FAKE_QMD_FIXTURE={{WORLD}}/qmd-fixture.json`, `XDG_CONFIG_HOME={{WORLD}}/xdg`, and `LOCALAPPDATA`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` pointed at an empty sandbox; `embed/no-qmd` runs with `PATH=C:/Windows/System32` instead. The recorder sets `BRAIN_STATE_DIR` to the staged world itself. `reindex` and `area-add` are recorded with `--compare message`, `reconcile` and `embed` without it. `docs/.superpowers/parity/stufe-3a-orakel/record_all.sh` makes every call, through `record.sh` beside it. |
+| `3a-map.toml` | Four command rules (`brain-mcp init ` → `loomux area add `), `manifests = "verbatim"` and one `[[manifest_key]]` rule, `merge_branch` → `branch`. |
+| `3a/` | The translated cases. A manifest that nothing else is folded into is moved byte for byte (`manifests = "verbatim"`), because `area add` writes one and the replay holds the two files against each other. `area-add/known-scope/world_after` keeps `repo-new/.ultra-brain/config.toml` under its old name: the import folds only the directories a world's registry names, and the reference wrote that manifest without registering `repo-new`. The replay lists it as missing, which is what loomux, refusing the scope before any write, leaves behind. |
 
 ## What a case compares
 
@@ -78,6 +83,38 @@ the MCP daemon, and the two rank differently. A usage or runtime error compares
 data too — its stdout is empty on both sides, and that emptiness is part of the
 contract. stderr is never compared; the findings of `search` and every error
 wording are pinned by unit tests.
+
+### 3a: stdout or the exit code, and a normalized file world
+
+The `reconcile` and `embed` cases are `data` cases: the counts of a pass and
+the cases it opened are its result, so stdout is compared byte for byte
+(`embed` prints nothing, and that is compared too). The `reindex` and
+`area add` cases are `message` cases: their exit code is compared, their
+wording is not. What all four commands are for is what they leave on disk, so
+every replay also compares the whole world, through `cases.RunCaseWith` and
+`cases.NormalizeState`:
+
+- A case **without** a `world_after` is held against its `world`: the recorder
+  writes a `world_after` only where the run changed something, so its absence
+  says nothing changed, and a refusal that writes after all fails.
+- Both sides are normalized before they are compared, and only in three
+  places: the pass's stamp (`maintenance/last-run.txt`, and that exact stamp
+  wherever a case file or package repeats it) becomes `{{NOW}}` and the day of
+  a case id `{{TODAY}}`, on stdout as well; a nanosecond count in the
+  modification time column of `maintenance/*/stats.tsv` becomes `{{MTIME}}`;
+  a doc id an index run minted, i.e. one no register of the `world` holds and
+  one row alone carries, becomes `{{DOCID}}`, and such a register's rows are
+  sorted. A stamp of any other shape than the reference's, a time in seconds
+  and an id minted twice are left to fail.
+  `docs/.superpowers/specs/2026-09-19-loomux-stufe-3-design.md` holds the
+  rule and its reasons.
+
+`expected3a` in `internal/cli/cases_3a_test.go` lists every case whose replay
+differs, with the exact list of mismatches and the row of
+`docs/.superpowers/parity/stufe-3a.md` it belongs to. A
+case not listed must pass; a listed one must report exactly its list. A file
+listed as `formatOnly` differs in its bytes and is decoded on both sides and
+held equal, so a format difference cannot cover a change of content.
 
 ### 1b-2: a tool call and its CallToolResult
 
@@ -155,6 +192,13 @@ does (`N: `); loomux removes that prefix, so the recorded stdout still holds.
 A daemon that cannot be started is covered by unit tests, not by a case: no
 recording may start qmd.
 
+For stage 3a the fake also answers `qmd update` and `qmd embed`, and appends
+each such call it accepted to `qmd-calls.log` beside the fixture. The two
+calls change the engine and print nothing either side reads, so without the
+log a command that never made them would replay exactly like one that did;
+with it, the call is part of the world both sides are compared on. Reads leave
+no trace.
+
 ## The fake tools (2a)
 
 No recording and no replay starts a checking tool. `internal/dev/faketool`
@@ -181,7 +225,7 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
 ## Rules for working with the corpus
 
 - **A recording is evidence.** Files under `1a-source/`, `1b-1-source/`,
-  `2a-source/` and `2c-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
+  `2a-source/`, `2c-source/` and `3a-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
   for 1a with the old binaries (build them from the tag worktrees, put them
   first on `PATH`, run `loomux dev record-case`); for 1b-1 with the fake qmd
   rebuilt from `internal/dev/fakeqmd/_qmd` and the recording command of the
@@ -220,8 +264,32 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
   the 1b-1 corpus does not hold exactly 71, `internal/cli/cases_1b2_test.go`
   when the 1b-2 corpus does not hold exactly 54, `internal/cli/cases_2a_test.go`
   when the 2a corpus does not hold exactly 53, `internal/cli/cases_2c_test.go`
-  when the 2c corpus does not hold exactly 15, so a partial import cannot pass
+  when the 2c corpus does not hold exactly 15, `internal/cli/cases_3a_test.go`
+  when the 3a corpus does not hold exactly 28, so a partial import cannot pass
   as parity. Adding a case means raising that number.
+- **A 3a recording never touches the machine's state.** The recorder sets
+  `BRAIN_STATE_DIR` to the staged world and loomux's own two variables to an
+  empty sandbox, and `XDG_CONFIG_HOME` keeps qmd's configuration inside the
+  world: without it, `reindex` on either side rewrites the `index.yml` of the
+  machine's real qmd. The replay sets `LOOMUX_STATE_DIR`,
+  `LOOMUX_LEGACY_BRAIN_DIR` and `XDG_CONFIG_HOME` to the staged world before
+  every run.
+- **A recording and its replay run git under one environment.**
+  `cases.GitEnv` sets `GIT_CONFIG_NOSYSTEM=1` and points `HOME` at
+  `{{WORLD}}/.no-git-home`, which nothing creates. The recorder adds both to
+  every recorded process, and `TestCases3a` and `TestCases2c` set them before
+  every run, so neither side reads the machine's system or user
+  configuration. `XDG_CONFIG_HOME` lies in the world in 3a; 2c sets it empty.
+  `GIT_CONFIG_GLOBAL` would not do: the reference and `gitenv` both strip it
+  before git starts. On Windows `HOME` reaches git alone; on POSIX it is also
+  the home both tools read.
+- **A git world may put its repository below the world.** `dir` in `git.toml`
+  names the directory, and `InfraPath` keeps a `.git` or `.origin.git` at any
+  depth out of the tree a replay compares and out of the corpus. The SHAs of
+  a git world are the same on every build -- fixed identity, dates,
+  configuration and object format (`--object-format=sha1`, whatever
+  `GIT_DEFAULT_HASH` says) -- so a `world_after` may hold them written out:
+  the recorder does not turn them back into `{{COMMIT:<n>}}`.
 - **A 1b-2 recording starts the reference's daemon as `daemon run`, never as
   `daemon start`.** `daemon start` reaches `client._start_outside_job`, which
   creates the daemon through WMI on Windows; a process created that way gets

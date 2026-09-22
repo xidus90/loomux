@@ -1,0 +1,9 @@
+[area]
+scope = "project/b"
+
+[layout]
+wiki = "wiki"
+review = "elsewhere"
+
+[index]
+include = ["**/*.md"]

@@ -555,6 +555,28 @@ func TestImportStagesTheWorldsOfABackedCaseAfresh(t *testing.T) {
 	}
 }
 
+// A file the recording no longer holds leaves the translated case with it:
+// a `compare` left behind would grade a re-recorded data case as a message.
+func TestImportDropsAFileTheRecordingDropped(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	buildCase(t, from, "reconcile", "one", "brain-mcp reconcile", "")
+	stale := filepath.Join(to, "reconcile", "one", "compare")
+	writeFile(t, stale, "message\n")
+	m := Mapping{Commands: []Rule{{From: "brain-mcp reconcile", To: "loomux reconcile"}}}
+	if err := Import(from, to, m); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatalf("the dropped compare survived: %v", err)
+	}
+
+	writeFile(t, stale, "message\n")
+	testlock.Lock(t, stale)
+	if err := Import(from, to, m); err == nil || !strings.Contains(err.Error(), "clearing") {
+		t.Fatalf("want an error about the file it could not drop, got %v", err)
+	}
+}
+
 func TestTranslateWorldCarriesCommitConfig(t *testing.T) {
 	dir := t.TempDir()
 	buildOldWorld(t, dir, manifestWithLayout)

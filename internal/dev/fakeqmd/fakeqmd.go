@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -83,6 +84,15 @@ func (f *Fixture) RunCLI(args []string, stdout, stderr io.Writer) int {
 		return f.status(args[1:], stdout, stderr)
 	case "search", "vsearch", "query":
 		return f.search(args[1:], stdout, stderr)
+	case "update", "embed":
+		// The two calls the index commands make. qmd 2.8.3 takes no argument
+		// for either as brain and loomux call them, and their output is read
+		// by neither, so the fake says nothing.
+		if len(args) != 1 {
+			fmt.Fprintf(stderr, "fakeqmd: %s takes no arguments\n", args[0])
+			return 2
+		}
+		return 0
 	}
 	fmt.Fprintf(stderr, "fakeqmd: unknown subcommand %q\n", args[0])
 	return 2
@@ -320,6 +330,46 @@ func writeJSON(w io.Writer, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// CallLogName is the file beside the fixture that every answered `update` and
+// `embed` is appended to, one command line per line.
+//
+// Those two calls change the engine and print nothing either side reads, so
+// without a trace a command that never made them would answer exactly like
+// one that did. Written into the world, the trace is part of what a recording
+// pins and a replay has to reproduce. Reads leave none: they change nothing,
+// and a trace of them would give every read-only recording a world_after.
+const CallLogName = "qmd-calls.log"
+
+// Run answers one command line from the fixture at path and logs it beside
+// the fixture when it was a writing call the engine accepted.
+func Run(path string, args []string, stdout, stderr io.Writer) int {
+	fixture, err := Load(path)
+	if err != nil {
+		fmt.Fprintf(stderr, "fakeqmd: %v\n", err)
+		return 2
+	}
+	code := fixture.RunCLI(args, stdout, stderr)
+	if code != 0 || (args[0] != "update" && args[0] != "embed") {
+		return code
+	}
+	if err := appendCall(filepath.Join(filepath.Dir(path), CallLogName), args); err != nil {
+		fmt.Fprintf(stderr, "fakeqmd: %v\n", err)
+		return 2
+	}
+	return 0
+}
+
+// appendCall adds one command line to the log. The write's own error is left
+// to Close: a file opened for appending takes a line or fails to flush it.
+func appendCall(path string, args []string) error {
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(file, strings.Join(args, " "))
+	return file.Close()
+}
+
 // Main is the fake qmd binary: it answers one command line from the fixture
 // FixtureEnv names.
 func Main(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
@@ -328,10 +378,5 @@ func Main(args []string, getenv func(string) string, stdout, stderr io.Writer) i
 		fmt.Fprintf(stderr, "fakeqmd: %s is not set\n", FixtureEnv)
 		return 2
 	}
-	fixture, err := Load(path)
-	if err != nil {
-		fmt.Fprintf(stderr, "fakeqmd: %v\n", err)
-		return 2
-	}
-	return fixture.RunCLI(args, stdout, stderr)
+	return Run(path, args, stdout, stderr)
 }

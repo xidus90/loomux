@@ -1,0 +1,18 @@
+collections:
+  project-a:
+    ignore:
+    - '**/index.md'
+    - '**/index.intro.md'
+    - '**/graph.json'
+    - '**/_identities.tsv'
+    - '**/.git/**'
+    - '**/.obsidian/**'
+    - '**/.claude/**'
+    - '**/.tools/**'
+    - '**/.superpowers/sdd/**'
+    - '**/node_modules/**'
+    - '**/tests/fixtures/**'
+    - '**/.brain.toml'
+    - '**/.ultra-brain/**'
+    path: {{WORLD}}/repo-a
+    pattern: '**/*.md'

@@ -1,0 +1,1 @@
+loomux area add -y --path {{WORLD}}/repo-new --scope project/a

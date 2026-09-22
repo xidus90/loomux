@@ -1,0 +1,13 @@
+id = "a-2000-01-01-5bd8"
+area = "project/a"
+target = "page.md"
+target_hash = "sha256:afcb279ad87513abd4f48e37f06b53aff273f625ca90a8208e3017ea25864a2c"
+state = "source_changed"
+trigger = "source_change"
+weight = "change"
+created = 2000-01-01T00:00:00+00:00
+
+[[sources]]
+doc_id = "0A00000000000000000000000A"
+revision = 1
+content_hash = "sha256:ff32bda091293e7e7233558966db8e49ed783d79cc8a5bb1342ca5033d01b1aa"

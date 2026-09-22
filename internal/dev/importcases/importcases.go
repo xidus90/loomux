@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -40,6 +41,37 @@ type Mapping struct {
 	Commands []Rule     `toml:"command"`
 	Tools    []Rule     `toml:"tool"`
 	Exits    []ExitRule `toml:"exit"`
+
+	// Manifests is how an old manifest becomes `.loomux/config.toml`: ""
+	// decodes it, folds the old tools' other files in and encodes the result;
+	// "verbatim" moves its bytes wherever there is nothing else to fold in.
+	//
+	// Verbatim is for a stage whose commands write the manifest: re-encoded,
+	// the recorded file would differ from the one loomux writes in every
+	// quote and every indent, and a byte comparison of the two would compare
+	// the TOML encoder rather than the command.
+	Manifests string `toml:"manifests"`
+
+	// Keys renames a key in a manifest moved verbatim, line by line: `From =`
+	// becomes `To =`. Each rule is a deviation of the parity list that a
+	// translated world has to carry, or the replay would hold loomux to the
+	// reference's spelling of a key loomux spells differently on purpose.
+	Keys []Rule `toml:"manifest_key"`
+}
+
+// verbatim is the one value of Mapping.Manifests besides the default.
+const verbatim = "verbatim"
+
+// check refuses a mapping whose manifest rules cannot be carried out, before
+// anything is written.
+func (m Mapping) check() error {
+	if m.Manifests != "" && m.Manifests != verbatim {
+		return fmt.Errorf("manifests must be %q or empty, found %q", verbatim, m.Manifests)
+	}
+	if len(m.Keys) > 0 && m.Manifests != verbatim {
+		return fmt.Errorf("a manifest_key rule renames a key of a verbatim manifest; set manifests = %q", verbatim)
+	}
+	return nil
 }
 
 // mapExit answers the code a translated case expects.
@@ -67,6 +99,9 @@ const loomuxConfig = ".loomux/config.toml"
 // recordings are read before anything is removed: a source that cannot be read
 // must not cost the corpus.
 func Import(from, to string, m Mapping) error {
+	if err := m.check(); err != nil {
+		return err
+	}
 	found, err := cases.DiscoverCases(from, "")
 	if err != nil {
 		return err
@@ -83,6 +118,9 @@ func Import(from, to string, m Mapping) error {
 			if err := os.RemoveAll(filepath.Join(out, world)); err != nil {
 				return fmt.Errorf("clearing %s: %w", filepath.Join(out, world), err)
 			}
+		}
+		if err := dropUnbacked(c.Path, out); err != nil {
+			return err
 		}
 		// The files this import rewrites are not copied first: one writer per
 		// file keeps the copy from being the one that fails.
@@ -114,9 +152,31 @@ func Import(from, to string, m Mapping) error {
 			if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 				continue
 			}
-			if err := TranslateWorld(dir); err != nil {
+			if err := translateWorld(dir, m); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// dropUnbacked removes every file of the translated case out that its
+// recording in src no longer holds. A `compare` a re-recording left out would
+// otherwise keep grading the case by a class nobody recorded. Directories are
+// left to the caller: the worlds are cleared whole, and nothing else is one.
+func dropUnbacked(src, out string) error {
+	// A case imported for the first time has nothing to drop.
+	entries, _ := os.ReadDir(out)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(src, entry.Name())); err == nil {
+			continue
+		}
+		stale := filepath.Join(out, entry.Name())
+		if err := os.Remove(stale); err != nil {
+			return fmt.Errorf("clearing %s: %w", stale, err)
 		}
 	}
 	return nil
@@ -186,12 +246,17 @@ func rewritePaths(s string) string {
 // {{WORLD}}/<path>, into one .loomux/config.toml each. It also folds the old
 // hooks' session state and their no-verify marker into loomux's layout.
 func TranslateWorld(dir string) error {
+	return translateWorld(dir, Mapping{})
+}
+
+// translateWorld is TranslateWorld under the manifest rules of m.
+func translateWorld(dir string, m Mapping) error {
 	// First: the old hooks' state lives under .ultraloom, which translateDir
 	// removes once it has nothing else in it.
 	if err := foldHookState(dir); err != nil {
 		return err
 	}
-	if err := translateDir(dir); err != nil {
+	if err := translateDir(dir, m); err != nil {
 		return err
 	}
 	// A world without areas/ has no read-only area to fold.
@@ -200,14 +265,14 @@ func TranslateWorld(dir string) error {
 		if !area.IsDir() {
 			continue
 		}
-		if err := translateDir(filepath.Join(dir, "areas", area.Name())); err != nil {
+		if err := translateDir(filepath.Join(dir, "areas", area.Name()), m); err != nil {
 			return err
 		}
 	}
 	// A registered directory that is also the root or an areas/ entry was
 	// folded above; translateDir finds no old file there and writes nothing.
 	for _, area := range registeredDirs(dir) {
-		if err := translateDir(area); err != nil {
+		if err := translateDir(area, m); err != nil {
 			return err
 		}
 	}
@@ -236,11 +301,23 @@ func registeredDirs(dir string) []string {
 	return dirs
 }
 
+// manifestNames are the two old manifests, in the order the old reader
+// preferred them.
+var manifestNames = []string{".ultra-brain/config.toml", ".brain.toml"}
+
+// ultraloomFiles are the old files a manifest is folded together with.
+var ultraloomFiles = []string{"policy.toml", "config.toml", "answers.toml"}
+
 // translateDir folds the old files of one directory into one config.
-func translateDir(dir string) error {
+func translateDir(dir string, m Mapping) error {
+	if m.Manifests == verbatim {
+		moved, err := moveVerbatim(dir, m.Keys)
+		if moved || err != nil {
+			return err
+		}
+	}
 	result := map[string]any{}
 
-	manifestNames := []string{".ultra-brain/config.toml", ".brain.toml"}
 	for _, name := range manifestNames {
 		decoded, ok, err := decode(filepath.Join(dir, name))
 		if err != nil {
@@ -345,11 +422,47 @@ func write(dir string, result map[string]any) error {
 	return toml.NewEncoder(file).Encode(result)
 }
 
+// moveVerbatim moves the old manifest of dir to `.loomux/config.toml` byte for
+// byte, with the keys renamed, and says whether it did. It leaves a directory
+// alone that holds none, and one where an old ultraloom file waits to be
+// folded in: a merge of two files has no bytes of its own to keep.
+func moveVerbatim(dir string, keys []Rule) (bool, error) {
+	for _, name := range ultraloomFiles {
+		if _, err := os.Stat(filepath.Join(dir, ".ultraloom", name)); err == nil {
+			return false, nil
+		}
+	}
+	for _, name := range manifestNames {
+		path := filepath.Join(dir, name)
+		data, err := os.ReadFile(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return false, fmt.Errorf("reading %s: %w", path, err)
+		}
+		text := string(data)
+		for _, key := range keys {
+			pattern := regexp.MustCompile(`(?m)^([ \t]*)` + regexp.QuoteMeta(key.From) + `([ \t]*=)`)
+			text = pattern.ReplaceAllString(text, "${1}"+key.To+"${2}")
+		}
+		target := filepath.Join(dir, ".loomux")
+		if err := os.MkdirAll(target, 0o755); err != nil {
+			return false, err
+		}
+		if err := os.WriteFile(filepath.Join(target, "config.toml"), []byte(text), 0o644); err != nil {
+			return false, err
+		}
+		return true, removeOld(dir, manifestNames)
+	}
+	return false, nil
+}
+
 // removeOld drops the files the translation replaced, and the directories that
 // held nothing else.
 func removeOld(dir string, manifestNames []string) error {
 	old := append([]string{}, manifestNames...)
-	for _, name := range []string{"policy.toml", "config.toml", "answers.toml"} {
+	for _, name := range ultraloomFiles {
 		old = append(old, filepath.Join(".ultraloom", name))
 	}
 	for _, name := range old {
