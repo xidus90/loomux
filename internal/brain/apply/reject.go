@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/xidus90/loomux/internal/brain/evidence"
 	"github.com/xidus90/loomux/internal/brain/maintenance"
 )
 
@@ -63,15 +61,11 @@ func claimHeadings(proposal string) ([]string, error) {
 	if !isFile(proposal) {
 		return nil, nil
 	}
-	data, err := readBytes(proposal)
+	claims, err := readClaims(proposal)
 	if err != nil {
 		return nil, err
 	}
-	var headings []string
-	for _, claim := range evidence.ReadProposal(strings.ToValidUTF8(string(data), "�")) {
-		headings = append(headings, claim.Heading)
-	}
-	return headings, nil
+	return headings(claims), nil
 }
 
 // appendProtocol is `_append` (apply.py:1301-1307): block below what the
