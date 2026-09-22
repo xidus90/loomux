@@ -4,6 +4,18 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.5.0] - 2026-09-22
+
+<https://github.com/xidus90/loomux/pull/16>
+
+### Added
+- `loomux reindex [--registry P]` rebuilds the identity register, directory catalogs, link graph and qmd collections of every registered area, running a reconcile pass first so no knowledge change slips past the review gate; open cases are listed and the run goes on.
+- `loomux embed [--registry P]` generates the vectors qmd has pending and names the install command when qmd is not on PATH.
+- `loomux reconcile` checks every registered source against its identity register and opens a case with a diff package in the review centre for each changed source and each landed merge; open cases are not a failure, an unreadable case file is.
+- `loomux area add` registers a repository as an area, writes its `.loomux/config.toml` when there is none, adds the routing rule to `AGENTS.md`, scaffolds the wiki bundle and indexes it (skip with `--no-reindex`).
+### Changed
+- `loomux brain` commands and `loomux serve` read the artefacts of read-only areas and the reconcile stamp from loomux's state directory first and fall back to ultra-brain's directory while nothing lies there.
+
 ## [2.4.0] - 2026-09-22
 
 <https://github.com/xidus90/loomux/pull/15>
