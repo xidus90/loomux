@@ -56,6 +56,12 @@ are German and never translated.
   Types: `feat`, `fix`, `build`, `chore`, `ci`, `docs`, `style`, `refactor`,
   `perf`, `test`, `revert`. A breaking change carries `!` before the colon or
   a `BREAKING CHANGE:` footer. `.githooks/commit-msg` checks the header.
+- A commit message says what changed and why in the terms of the code. It
+  names no working paper: no plan, stage, task or parity file, neither as a
+  scope (`docs(3a)`) nor in the text ("Task 18", "per the stage 3 plan"). A
+  reader of `git log` does not have those papers at hand. A scope names an
+  area of the code (`cli`, `index`, `config`); the pull request title is the
+  header of its main commit and follows the same rule.
 - The label of a pull request is never lower than its commits: a breaking
   change needs `release:major`, a `feat` at least `release:minor`, a `fix` at
   least `release:patch`. The label may be higher. `pr-label` checks it.
