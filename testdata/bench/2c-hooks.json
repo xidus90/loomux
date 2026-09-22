@@ -1,0 +1,124 @@
+[
+  {
+    "name": "stop-unchanged (small world, clean tree)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/stop.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58/bin/loomux.exe", "hook", "stop", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean"]
+      }
+    ]
+  },
+  {
+    "name": "stop-unchanged (this worktree, 7,341 tracked files)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/stop.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58/bin/loomux.exe", "hook", "stop", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58"]
+      }
+    ]
+  },
+  {
+    "name": "stop-fake-chain (small world, changed tree, faketool) incl. state reset",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/dirty",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/stop.json",
+    "mode": "seq",
+    "steps": [
+      {
+        "argv": ["cmd.exe", "/c", "if", "exist", "C:\\Users\\micro\\AppData\\Local\\Temp\\loomux-2c-bench\\dirty\\.loomux\\state\\hooks\\bench-2c-session.json", "del", "/q", "C:\\Users\\micro\\AppData\\Local\\Temp\\loomux-2c-bench\\dirty\\.loomux\\state\\hooks\\bench-2c-session.json"]
+      },
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58/bin/loomux.exe", "hook", "stop", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/dirty"]
+      }
+    ]
+  },
+  {
+    "name": "state reset only (control for the chain case)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/dirty",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["cmd.exe", "/c", "if", "exist", "C:\\Users\\micro\\AppData\\Local\\Temp\\loomux-2c-bench\\dirty\\.loomux\\state\\hooks\\bench-2c-session.json", "del", "/q", "C:\\Users\\micro\\AppData\\Local\\Temp\\loomux-2c-bench\\dirty\\.loomux\\state\\hooks\\bench-2c-session.json"]
+      }
+    ]
+  },
+  {
+    "name": "subagent-start (small world, local bare remote)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/subagent.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58/bin/loomux.exe", "hook", "subagent-start", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean"]
+      }
+    ]
+  },
+  {
+    "name": "subagent-start + subagent-stop (small world, local bare remote)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/subagent.json",
+    "mode": "seq",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58/bin/loomux.exe", "hook", "subagent-start", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean"]
+      },
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58/bin/loomux.exe", "hook", "subagent-stop", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean"]
+      }
+    ]
+  },
+  {
+    "name": "git rev-parse HEAD (one git process, small world)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["git", "rev-parse", "HEAD"]
+      }
+    ]
+  },
+  {
+    "name": "git ls-remote origin (local bare remote)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["git", "ls-remote", "origin"]
+      }
+    ]
+  },
+  {
+    "name": "git ls-remote origin (GitHub, this worktree)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["git", "ls-remote", "origin"]
+      }
+    ]
+  },
+  {
+    "name": "subagent-start (this worktree, GitHub remote)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/subagent.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58/bin/loomux.exe", "hook", "subagent-start", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58"]
+      }
+    ]
+  },
+  {
+    "name": "loomux version (start floor)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-2c-bench/clean",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/github-versioning-releases-cli-ca4f58/bin/loomux.exe", "version"]
+      }
+    ]
+  }
+]

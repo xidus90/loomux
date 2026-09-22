@@ -1,0 +1,13 @@
+# A small Go repository whose working tree is exactly its last commit, with a
+# bare remote at .origin.git. The stop gate takes its no-op path here, and the
+# subagent hooks reach a remote that never leaves the machine.
+
+[[commit]]
+message = "world"
+[commit.files]
+"go.mod" = "module example.com/world\n\ngo 1.25.0\n"
+"a.go" = "package world\n\nfunc A() int { return 1 }\n"
+"a_test.go" = "package world\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {\n\tif A() != 1 {\n\t\tt.Fatal(\"A\")\n\t}\n}\n"
+
+[remote.push]
+master = 1

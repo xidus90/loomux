@@ -1633,3 +1633,142 @@ init github.com/xidus90/loomux/internal/verify @3.0 ms, 0 ms clock, 88 bytes, 2 
    it“. Lint und Test liefen (`ok`), Typen gibt es für Go nicht; die 16,5 ms sind
    der Pfad von loomux mit allen gestarteten Lanes, nicht die Laufzeit eines
    scheiternden Werkzeugs.
+
+## 2026-09-20 02:20 — Das Stopp-Tor und die Subagentenhooks der Stufe 2c
+
+Repository `loomux`, Worktree `.claude/worktrees/github-versioning-releases-cli-ca4f58`,
+Branch `sdd-2c` auf `745e301`. Windows 11, AMD Ryzen 7 9800X3D (16 Threads),
+Go 1.27, `bin/loomux.exe` aus diesem Baum gebaut.
+
+**Ziel.** Zeigen, was `hook stop` an einem Rundenende kostet, das nichts Neues
+findet — der Weg, der an jedem Rundenende läuft und kein Werkzeug startet —,
+und was die beiden Subagentenhooks kosten, die `git ls-remote` sind und wenig
+sonst. Der Zielwert des Plans für den Leerweg liegt bei etwa 300 ms auf diesem
+Repository.
+
+**Methode.** `bin/loomux.exe dev bench-hooks -n 20 testdata/bench/2c-hooks.json`,
+je Fall ein kalter Lauf und 20 warme. Zwei Welten liegen in
+`%TEMP%\loomux-2c-bench` und werden von `cases.BuildGitWorld` aus den
+`git.toml`-Erklärungen in `testdata/bench/2c-worlds/` gebaut — `dev bench-hooks`
+baut keine Welt, also rief ein Wegwerf-`main` unter `internal/dev/_benchworld/`
+`cases.StageWorld(src, dst)` und danach `cases.BuildGitWorld(dst)` und wurde
+wieder gelöscht: `clean`, ein
+Go-Modul aus drei Dateien, dessen Arbeitsbaum sein letzter Commit ist und dessen
+`origin` das bare `.origin.git` daneben ist, und `dirty`, dasselbe Modul mit
+einer nicht eingecheckten `b.go`. Die Nutzlasten sind `stop.json`
+(`hook_event_name` `Stop` und `session_id`) und `subagent.json`
+(`hook_event_name` `SubagentStart`, `session_id`, `agent_id` und `agent_type`)
+im selben Verzeichnis; `subagent-stop` bekam dieselbe `subagent.json`, was
+geht, weil kein Hook den Ereignisnamen liest. Jedes Werkzeug ist das Faketool
+(`internal/dev/faketool/_faketool`, gebaut als `go.exe`, `gofmt.exe`, `uv.exe`,
+`uvx.exe`) vorn auf dem `PATH` und antwortet über `LOOMUX_FAKE_TOOL_FIXTURE` aus
+`dirty/faketool.json`. Der Kettenfall läuft im Modus `seq` mit einem Schritt,
+der die Zustandsdatei der Sitzung vor dem Tor löscht: Nach einem Durchgang merkt
+sich das Tor den grünen Baum, und jeder warme Lauf nähme sonst den Leerweg; nach
+einem Block ließe die Aufgeberegel jeden vierten Lauf durch. Das Zurücksetzen
+wird einzeln gemessen, damit es abgezogen werden kann.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| stop-unchanged (kleine Welt, sauberer Baum) | 121,3 ms | 121,3 ms | 114,7 ms | 169,4 ms | [0] |
+| stop-fake-chain (kleine Welt, geänderter Baum, Faketool) inkl. Zustandsreset | 159,1 ms | 143,8 ms | 139,2 ms | 154,1 ms | [0 2] |
+| nur Zustandsreset (Kontrolle zum Kettenfall) | 11,0 ms | 10,0 ms | 9,5 ms | 11,0 ms | [0] |
+| subagent-start (kleine Welt, lokales Bare-Remote) | 105,9 ms | 101,4 ms | 97,0 ms | 218,0 ms | [0] |
+| subagent-start + subagent-stop (kleine Welt, lokales Bare-Remote) | 200,6 ms | 201,6 ms | 193,5 ms | 215,1 ms | [0 0] |
+| git rev-parse HEAD (ein Git-Prozess, kleine Welt) | 17,0 ms | 13,0 ms | 12,0 ms | 16,3 ms | [0] |
+| git ls-remote origin (lokales Bare-Remote) | 37,1 ms | 36,8 ms | 35,5 ms | 39,7 ms | [0] |
+| git ls-remote origin (GitHub, dieser Worktree) | 991,5 ms | 1017,1 ms | 946,6 ms | 1506,5 ms | [0] |
+| subagent-start (dieser Worktree, GitHub-Remote) | 1008,0 ms | 1038,7 ms | 997,0 ms | 1098,8 ms | [0] |
+| loomux version (Startschwelle) | 8,5 ms | 6,5 ms | 6,0 ms | 12,5 ms | [0] |
+
+Das Tor auf **diesem** Repository (7.341 verfolgte Dateien), gemessen in einem
+ersten Durchgang um 02:05, bevor diese Aufgabe eine Datei geschrieben hatte: Der
+Arbeitsbaum war sauber, und das Tor nahm seinen Leerweg. Der Fall steht in
+`2c-hooks.json` und wiederholt sich, sobald dieser Eintrag eingecheckt ist:
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| stop-unchanged (dieser Worktree, sauberer Baum, 7.341 Dateien) | 176,1 ms | 169,5 ms | 164,4 ms | 178,0 ms | [0] |
+| git ls-remote origin (GitHub, dieser Worktree) | 992,7 ms | 951,2 ms | 912,4 ms | 1048,3 ms | [0] |
+| subagent-start (dieser Worktree, GitHub-Remote) | 1072,8 ms | 1035,2 ms | 997,4 ms | 1085,9 ms | [0] |
+| subagent-start + subagent-stop (dieser Worktree, GitHub-Remote) | 2059,0 ms | 2068,6 ms | 2027,5 ms | 2206,0 ms | [0 0] |
+| loomux version (Startschwelle) | 8,5 ms | 6,5 ms | 6,0 ms | 7,3 ms | [0] |
+
+Es wiederholt sich: Die ganze Falldatei, um 02:52 gegen den eingecheckten Baum
+gelaufen, liest für diesen Fall 172,4 ms warm (167,7–217,1, kalt 190,0), und
+jeder andere Fall bleibt in seiner früheren Spanne.
+
+Der Fingerabdruck allein (`BenchmarkContentTree` in
+`internal/gitwork/gitwork_test.go`, über dieses Repository):
+
+```
+$ go test ./internal/gitwork/ -bench ContentTree -run '^$' -benchmem -count 5
+BenchmarkContentTree-16    	      10	 110482790 ns/op	 1440883 B/op	    2091 allocs/op
+BenchmarkContentTree-16    	      10	 112377110 ns/op	 1439894 B/op	    2090 allocs/op
+BenchmarkContentTree-16    	      10	 114720320 ns/op	 1439653 B/op	    2088 allocs/op
+BenchmarkContentTree-16    	      10	 107556430 ns/op	 1438593 B/op	    2086 allocs/op
+BenchmarkContentTree-16    	      10	 109411100 ns/op	 1439019 B/op	    2087 allocs/op
+```
+
+### Lesart
+
+1. **Der Leerweg kostet auf diesem Repository 169,5 ms, deutlich unter den
+   300 ms des Plans.** Er startet kein Werkzeug: 6,5 ms Prozessstart, 107–115 ms
+   für den Inhaltsfingerabdruck, der Rest ist `Head` (`check-ignore`,
+   `rev-parse --is-inside-work-tree`, `rev-parse HEAD^{commit}`) und `TreeOf`
+   für den Baum der Basis — acht Git-Prozesse insgesamt, vier davon in
+   `ContentTree` (`rev-parse --git-path index`, `add -A`, `rm --cached`,
+   `write-tree`).
+2. **Das Tor bezahlt acht Git-Starts und einen Inhaltsanteil, der mitwächst.**
+   Ein Git-Prozess in der kleinen Welt kostet 13,0 ms warm, oben als
+   Kontrollfall gemessen. Acht davon sind 104 ms; mit den 6,5 ms Prozessstart
+   sind das 110,5 ms der 121,3 ms der kleinen Welt, die restlichen ~11 ms sind
+   die Index-Arbeit über drei Dateien. Dieses Repository kostet 169,5 ms:
+   derselbe Boden von ~110 ms, ~11 ms Index-Arbeit und etwa 48 ms mehr für das
+   Lesen und Hashen von 7.341 Dateien. Eine erste Fassung dieses Eintrags teilte
+   diesen Rest durch acht und nannte 14 ms je Prozess; der Kontrollfall misst
+   13,0 ms, die Rechnung muss nicht mehr dafür einstehen. Der Boden ist für
+   jedes Repository gleich, der Inhaltsanteil nicht: Zehnmal so viele Dateien
+   legten rund 480 ms darauf, und eine Maschine mit langsamerem `git`-Start
+   bewegt stattdessen den Boden.
+3. **Die 224–245 ms im Kommentar der Funktion sind eine andere Messung, keine
+   verlorene.** Sie stehen in
+   `docs/.superpowers/specs/2026-09-19-loomux-stufe-2c-design.md`, in der
+   Tabelle „Kosten, gemessen auf diesem Repo (7.322 Dateien, warm, Windows 11)“:
+   der Index kopiert und `git add -A`, `git rm --cached` und `git write-tree`
+   je aus einer Shell gestartet, um die ganze Folge herum gestoppt, ohne
+   Laufzahl. Heute genau so wiederholt, fünf warme Läufe auf diesem Worktree,
+   liest es 150, 137, 139, 140 und 141 ms — etwa 30 ms über
+   `BenchmarkContentTree`, der dieselben vier Schritte prozessintern misst. Das
+   Shell-Protokoll erklärt also 30 ms des Abstands; die übrigen ~85 ms zwischen
+   damals und heute erklärt nichts, was hier gemessen wurde — dieselbe Maschine,
+   dasselbe Repository, 19 Dateien mehr. Mitzunehmen sind 107–115 ms
+   prozessintern, 137–150 ms aus der Shell und 176–190 ms kalt für den ganzen
+   Hook.
+4. **Die Subagentenhooks sind `git ls-remote`, und sonst ist nichts zu
+   nennen.** Gegen ein lokales Bare-Remote kostet `subagent-start` 101,4 ms,
+   davon 36,8 ms `ls-remote`; gegen GitHub über das Netz 1.038,7 ms, davon
+   1.017,1 ms `ls-remote`. Das ganze Leben eines Subagenten — Start und Stopp,
+   zwei Momentaufnahmen — kostet lokal 201,6 ms und gegen GitHub 2.068,6 ms. Die
+   1,30–1,45 s, die die Tabelle der Entwurfs-Spec für `ls-remote origin` am
+   2026-09-19 nennt — dieselbe Tabelle wie in Lesart 3 —, galten demselben
+   Remote und denselben 24 Refs; zwischen 0,95 s und 1,45 s liegt das Netz,
+   nicht der Code, und die Frist von 10 s ist, was das begrenzt.
+5. **Die Kette selbst bringt wenig Eigenes mit.** Das Tor mit geändertem Baum
+   und vier gefälschten Lanes kostet 143,8 ms einschließlich 10,0 ms
+   Zustandsreset, also etwa 134 ms gegen die 121,3 ms des Leerwegs in derselben
+   Welt: rund 13 ms für `detect`, die Konfiguration, den Plan und vier
+   Kindprozesse. Es endet mit 2, weil die Coverage-Lane `b.go` als ungedeckt
+   sieht — so ist die Welt gebaut, nicht so langsam eine Lane. Was ein echtes
+   Rundenende kostet, sind die echten Werkzeuge: mit der echten Go-Werkzeugkette
+   auf dem `PATH` statt des Faketools kostet `bin/loomux.exe check precommit`
+   über dieselbe Bank 627,0 ms (warmer Median aus 5, kalt 641,8 ms) in der Welt
+   `dirty` und 622,9 ms (warmer Median aus 10, kalt 719,0 ms) in einer Kopie von
+   `testdata/cases/2a-worlds/go-only`.
+6. **Ein Faketool, das nicht wirklich auf dem `PATH` steht, sieht man den Zahlen
+   nicht an.** Ein erster Durchgang setzte `C:/Users/...` aus einer
+   POSIX-Shell auf den `PATH`, wo der Doppelpunkt der Trenner ist: Der Eintrag
+   zerfiel, die echte Go-Werkzeugkette antwortete, und die Kette las sich als
+   768,9 ms, ohne dass irgendetwas auffiel. Erst `exec.LookPath` in einer Sonde
+   sagte, welche `go.exe` startet. Jede Messung mit dem Faketool sollte den
+   aufgelösten Pfad einmal prüfen, bevor sie zählt.

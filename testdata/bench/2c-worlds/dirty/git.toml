@@ -1,0 +1,12 @@
+# The same repository with one uncommitted file: the content tree differs from
+# every remembered tree, so the stop gate plans and runs its whole chain.
+
+[[commit]]
+message = "world"
+[commit.files]
+"go.mod" = "module example.com/world\n\ngo 1.25.0\n"
+"a.go" = "package world\n\nfunc A() int { return 1 }\n"
+"a_test.go" = "package world\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {\n\tif A() != 1 {\n\t\tt.Fatal(\"A\")\n\t}\n}\n"
+
+[worktree]
+"b.go" = "package world\n\nfunc B() int { return 2 }\n"
