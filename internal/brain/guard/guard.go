@@ -151,14 +151,14 @@ func writableRoots(areas []area) ([]string, error) {
 	roots := make([]string, 0, len(areas)*2)
 	for _, registered := range areas {
 		if registered.wikiPath != "" && !registered.readOnly {
-			resolved, err := resolvePath(registered.wikiPath)
+			resolved, err := ResolvePath(registered.wikiPath)
 			if err != nil {
 				return nil, err
 			}
 			roots = append(roots, resolved)
 		}
 		if registered.workspace {
-			resolved, err := resolvePath(registered.path)
+			resolved, err := ResolvePath(registered.path)
 			if err != nil {
 				return nil, err
 			}
@@ -181,7 +181,7 @@ func forbiddenRoots(areas []area) ([]string, error) {
 	zones := make([]string, 0, len(areas))
 	for _, registered := range areas {
 		if registered.readOnly && registered.wikiPath != "" {
-			resolved, err := resolvePath(registered.wikiPath)
+			resolved, err := ResolvePath(registered.wikiPath)
 			if err != nil {
 				return nil, err
 			}
@@ -229,15 +229,15 @@ func reviewCentre(areas []area, stateDir string) string {
 		// (reconcile.py:258-262). This value is the ground of the one
 		// exemption, so a value reaching out of the area would make every
 		// file named `proposal.md` on the disk writable.
-		centre, centreErr := resolvePath(root)
-		area, areaErr := resolvePath(registered.path)
+		centre, centreErr := ResolvePath(root)
+		area, areaErr := ResolvePath(registered.path)
 		// A path this side cannot resolve joins the failures above: this
 		// function answers "" for every one of them, which withdraws the
 		// exemption and closes nothing that was open.
 		if centreErr != nil || areaErr != nil {
 			return ""
 		}
-		if !isRelativeTo(centre, area) {
+		if !IsRelativeTo(centre, area) {
 			return ""
 		}
 		if found != "" {
@@ -270,7 +270,7 @@ func isManifest(resolved string) bool {
 // the targets are compared with the trees.
 func isProposal(resolved, centre string) bool {
 	return centre != "" && filepath.Base(resolved) == proposalName &&
-		isRelativeTo(resolved, centre)
+		IsRelativeTo(resolved, centre)
 }
 
 // declaredWikiRoot is `_declared_wiki_root`: the bundle this
@@ -318,8 +318,8 @@ func declaredWikiRoot(target string, areas []area) (string, error) {
 		if place == "" {
 			return "", nil
 		}
-		root, rootErr := resolvePath(filepath.Join(directory, place))
-		here, hereErr := resolvePath(directory)
+		root, rootErr := ResolvePath(filepath.Join(directory, place))
+		here, hereErr := ResolvePath(directory)
 		// One arm for the two, because only one of them can ever be
 		// taken: `directory` comes out of `parents` of a path that was
 		// resolved before this function was called, so it resolves. The
@@ -334,7 +334,7 @@ func declaredWikiRoot(target string, areas []area) (string, error) {
 		// only ever open ground below itself -- so a planted `.git`
 		// beside a planted manifest buys at most its own subtree, never
 		// a neighbour's and never the vault.
-		if isRelativeTo(root, here) {
+		if IsRelativeTo(root, here) {
 			return root, nil
 		}
 		return "", nil
@@ -410,7 +410,7 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 	}
 	resolved := make([]string, len(targets))
 	for i, target := range targets {
-		place, err := resolvePath(target)
+		place, err := ResolvePath(target)
 		if err != nil {
 			// The barrier's entire answer is *where* a write lands. A
 			// path with no place to land is not a call it may wave

@@ -15,7 +15,7 @@ import (
 // path that lands nowhere.
 var errLinkCycle = errors.New("its links lead in a circle")
 
-// resolvePath is `Path.resolve()` as the barrier uses it: absolute, with
+// ResolvePath is `Path.resolve()` as the barrier uses it: absolute, with
 // `..` collapsed, with every link on the existing part of the path
 // followed, aliases folded to the names they stand for and the spelling
 // of each existing component closed. Non-strict like Python's -- a target
@@ -51,7 +51,16 @@ var errLinkCycle = errors.New("its links lead in a circle")
 //
 // One spelling is refused before any of that happens: a volume without a
 // root. `errDriveRelative` says why.
-func resolvePath(target string) (string, error) {
+//
+// Exported, and the reason is a second reader rather than a taste for
+// exported names: `[layout] review` is read here, to decide whether the
+// barrier's one exemption stands, and in `brain/maintenance`, to decide where
+// a case file is written. Two readers of one field that resolve differently
+// are worse than either answer -- measured on 2026-09-20, a junction out of
+// the area made this side withdraw the exemption while the other accepted the
+// place, and the write landed outside. A rename rather than a wrapper beside
+// it: one function, one name, and nothing of the barrier's own logic moved.
+func ResolvePath(target string) (string, error) {
 	if err := rejectDriveRelative(target); err != nil {
 		return "", err
 	}
@@ -364,12 +373,16 @@ func pathsEqual(left, right string) bool {
 	return slices.Equal(normalised(left), normalised(right))
 }
 
-// isRelativeTo is `Path.is_relative_to`: a prefix of components under
+// IsRelativeTo is `Path.is_relative_to`: a prefix of components under
 // `normcase`. `PROPOSAL` is compared with `==` on the bare name instead,
 // and that difference is deliberate on the Python side -- so a capital P
 // names a file this exemption does not cover, even where the disk would
 // open the same one.
-func isRelativeTo(path, base string) bool {
+//
+// Exported for the same second reader as ResolvePath above: the two belong
+// together, and a containment decided by one and a resolution by the other
+// would be the disagreement the export exists to end.
+func IsRelativeTo(path, base string) bool {
 	parts := normalised(base)
 	target := normalised(path)
 	return len(parts) <= len(target) &&
@@ -393,8 +406,8 @@ func isRelativeTo(path, base string) bool {
 // checkout, `core.worktree` -- the answer is false, which closes the tree
 // rather than opening it.
 func sameRepository(candidate, registered string) bool {
-	here, hereErr := resolvePath(candidate)
-	there, thereErr := resolvePath(registered)
+	here, hereErr := ResolvePath(candidate)
+	there, thereErr := ResolvePath(registered)
 	// Unresolvable is not the same repository. The caller reads a false
 	// here as "this manifest declares nothing", which closes the tree
 	// rather than opening it.

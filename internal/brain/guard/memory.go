@@ -53,7 +53,7 @@ func memoryBases() (claude string, antigravity []string) {
 		config = filepath.Join(home, ".claude")
 	}
 	if config != "" {
-		if resolved, err := resolvePath(filepath.Join(config, "projects")); err == nil {
+		if resolved, err := ResolvePath(filepath.Join(config, "projects")); err == nil {
 			claude = resolved
 		}
 	}
@@ -61,7 +61,7 @@ func memoryBases() (claude string, antigravity []string) {
 		return claude, nil
 	}
 	for _, name := range antigravityRoots {
-		if resolved, err := resolvePath(filepath.Join(home, ".gemini", name)); err == nil {
+		if resolved, err := ResolvePath(filepath.Join(home, ".gemini", name)); err == nil {
 			antigravity = append(antigravity, resolved)
 		}
 	}

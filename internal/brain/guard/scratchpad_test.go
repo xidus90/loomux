@@ -17,7 +17,7 @@ func TestScratchpadOfAClaudeSessionIsOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := scratchpadBase()
-	resolved, err := resolvePath(file)
+	resolved, err := ResolvePath(file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestOnlyTheScratchpadDirectoryIsOpen(t *testing.T) {
 		}
 		// An unresolved path is "", which no base encloses: the test would
 		// pass whatever the path.
-		resolved, err := resolvePath(path)
+		resolved, err := ResolvePath(path)
 		if err != nil {
 			t.Fatal(err)
 		}

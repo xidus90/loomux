@@ -20,7 +20,7 @@ import (
 
 // shortName is the 8.3 alias the file system keeps for `path`, or "" if
 // this volume keeps none. `GetShortPathName` is a different call from the
-// one `resolvePath` uses, so the fixture does not lean on the code it
+// one `ResolvePath` uses, so the fixture does not lean on the code it
 // tests -- and `dir /x` prints the same aliases to anyone who can list
 // the directory, which is why an agent needs no privilege to spell one.
 func shortName(t *testing.T, path string) string {
@@ -107,7 +107,7 @@ func TestANameTheFileSystemCannotEvenSpellIsRefused(t *testing.T) {
 	// an errno it recognises. Python answers such a path unresolved; this
 	// side refuses, which is the safe direction for a barrier whose whole
 	// answer is where a write lands.
-	if _, err := resolvePath("C:\\a\x00b"); err == nil {
+	if _, err := ResolvePath("C:\\a\x00b"); err == nil {
 		t.Error("a path carrying a zero byte was resolved")
 	}
 }
@@ -120,12 +120,12 @@ func TestADeviceNameIsWalkedPastRatherThanOpened(t *testing.T) {
 	// path and the device name comes back as an ordinary tail.
 	tmp := longTempDir(t)
 	target := filepath.Join(tmp, "NUL")
-	got, err := resolvePath(target)
+	got, err := ResolvePath(target)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.EqualFold(got, target) {
-		t.Errorf("resolvePath(%q) = %q", target, got)
+		t.Errorf("ResolvePath(%q) = %q", target, got)
 	}
 }
 
@@ -142,18 +142,18 @@ func TestAPathTooLongForTheFirstBufferIsAskedAgain(t *testing.T) {
 	if err := os.MkdirAll(deep, 0o755); err != nil {
 		t.Skipf("this machine will not build a long path: %v", err)
 	}
-	got, err := resolvePath(deep)
+	got, err := ResolvePath(deep)
 	if err != nil {
 		t.Skipf("this machine will not open a long path: %v", err)
 	}
 	if !strings.EqualFold(got, deep) {
-		t.Errorf("resolvePath of a long path = %q, want %q", got, deep)
+		t.Errorf("ResolvePath of a long path = %q, want %q", got, deep)
 	}
 }
 
 // longTempDir is t.TempDir() in its long spelling. Where TEMP is an 8.3 short
 // path -- C:\Users\RUNNER~1 on a GitHub runner -- t.TempDir() hands out the
-// short form, resolvePath answers with the long one, and a comparison by text
+// short form, ResolvePath answers with the long one, and a comparison by text
 // between the two fails. filepath.EvalSymlinks expands 8.3 names, measured on
 // 2026-09-18.
 func longTempDir(t *testing.T) string {

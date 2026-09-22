@@ -76,12 +76,12 @@ func TestResolveKeepsAPathItCannotReachAtAll(t *testing.T) {
 	// unchanged -- which is the ordinary case for a write, since the
 	// file it names is not there yet.
 	absent := filepath.Join(strangeVolume(), "no", "such", "x.md")
-	got, err := resolvePath(absent)
+	got, err := ResolvePath(absent)
 	if err != nil {
-		t.Fatalf("resolvePath(%q): %v", absent, err)
+		t.Fatalf("ResolvePath(%q): %v", absent, err)
 	}
 	if got != filepath.Clean(absent) {
-		t.Errorf("resolvePath(%q) = %q", absent, got)
+		t.Errorf("ResolvePath(%q) = %q", absent, got)
 	}
 }
 
@@ -155,14 +155,14 @@ func TestOnAPosixFileSystemTheCaseIsPartOfTheName(t *testing.T) {
 	upper := filepath.Join(strangeVolume(), "A", "x.md")
 	lower := filepath.Join(strangeVolume(), "a")
 	pathsFold = true
-	if !isRelativeTo(upper, lower) {
+	if !IsRelativeTo(upper, lower) {
 		t.Error("a folding file system kept the two apart")
 	}
 	if !pathsEqual(lower, filepath.Join(strangeVolume(), "A")) {
 		t.Error("a folding file system called one tree two")
 	}
 	pathsFold = false
-	if isRelativeTo(upper, lower) {
+	if IsRelativeTo(upper, lower) {
 		t.Error("a case-keeping file system ran them together")
 	}
 }
@@ -184,14 +184,14 @@ func TestComponentsKeepADriveRelativeAnchorApartFromARootedOne(t *testing.T) {
 
 // --- git, and the answers a failure has to give -------------------------
 
-// mustResolve is `resolvePath` where the test's own fixture is the thing
+// mustResolve is `ResolvePath` where the test's own fixture is the thing
 // being resolved: nothing there leads in a circle, so a failure is a
 // broken fixture rather than a case.
 func mustResolve(t *testing.T, path string) string {
 	t.Helper()
-	resolved, err := resolvePath(path)
+	resolved, err := ResolvePath(path)
 	if err != nil {
-		t.Fatalf("resolvePath(%q): %v", path, err)
+		t.Fatalf("ResolvePath(%q): %v", path, err)
 	}
 	return resolved
 }
@@ -742,7 +742,7 @@ func TestAJunctionOntoAMissingDirectoryCarriesTheWriteOut(t *testing.T) {
 }
 
 func TestAPathWithNoAnchorComesBackAsItWasSpelt(t *testing.T) {
-	// `finalPath` is asked directly, because `resolvePath` anchors every
+	// `finalPath` is asked directly, because `ResolvePath` anchors every
 	// path before it gets here. `_getfinalpathname_nonstrict` ends its
 	// walk by answering the tail it collected, and this is that arm:
 	// nothing to open, nothing to shorten, and no anchor to stop at.
@@ -855,8 +855,8 @@ func TestResolvePathRefusesAVolumeWithoutARoot(t *testing.T) {
 	// The bare volume is the same spelling with nothing after it: `C:` is
 	// that drive's current directory, not its root.
 	for _, target := range []string{"D:evil.txt", `C:foo\bar`, "C:"} {
-		if _, err := resolvePath(target); err == nil {
-			t.Errorf("resolvePath(%q) answered a place", target)
+		if _, err := ResolvePath(target); err == nil {
+			t.Errorf("ResolvePath(%q) answered a place", target)
 		}
 	}
 }
@@ -870,8 +870,8 @@ func TestResolvePathKeepsTheRootedSpellingsItAlwaysTook(t *testing.T) {
 	// the three spellings the refusal above must not touch.
 	rooted := tmp[len(filepath.VolumeName(tmp)):]
 	for _, target := range []string{tmp, rooted, "x.md"} {
-		if _, err := resolvePath(target); err != nil {
-			t.Errorf("resolvePath(%q): %v", target, err)
+		if _, err := ResolvePath(target); err != nil {
+			t.Errorf("ResolvePath(%q): %v", target, err)
 		}
 	}
 }

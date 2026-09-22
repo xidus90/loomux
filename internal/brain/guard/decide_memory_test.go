@@ -106,7 +106,7 @@ func TestAMixedCallIsJudgedForItsTargetOutsideMemory(t *testing.T) {
 		},
 	}
 	reason := deny(t, payload, state, "lies outside every writable tree")
-	resolved, err := resolvePath(outside)
+	resolved, err := ResolvePath(outside)
 	if err != nil {
 		t.Fatal(err)
 	}

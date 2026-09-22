@@ -155,10 +155,10 @@ func pointer(file, prefix, base string) string {
 	return resolvedOrEmpty(named)
 }
 
-// resolvedOrEmpty is `resolvePath` where an error and no answer mean the
+// resolvedOrEmpty is `ResolvePath` where an error and no answer mean the
 // same thing: not this repository.
 func resolvedOrEmpty(path string) string {
-	resolved, err := resolvePath(path)
+	resolved, err := ResolvePath(path)
 	if err != nil {
 		return ""
 	}
