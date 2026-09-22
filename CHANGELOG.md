@@ -4,6 +4,20 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-09-22
+
+<https://github.com/xidus90/loomux/pull/14>
+
+### Added
+- `loomux hook stop`: a stop gate that runs the `stop` profile at every turn end and holds the turn while a lane is red.
+- `loomux hook subagent-start` and `loomux hook subagent-stop`: report pushes, branch moves and new commits a subagent made to the main agent.
+- A `stop` profile in `[verify.profiles]`, defaulting to lint, types, test and coverage.
+- The lane `lint/wiki` in `loomux check` and in the stop gate, checking the wiki bundle's structure.
+### Changed
+- The no-verify marker is `.loomux/no-verify` instead of `.claude/.no-verify`.
+- `loomux hook session-start` keeps an existing session base on resume and compact instead of moving it to HEAD.
+- `loomux hook status` reports each hook event loomux serves and flags the `ultraloom hook stop` and subagent hooks as superseded.
+
 ## [2.2.0] - 2026-09-20
 
 <https://github.com/xidus90/loomux/pull/13>
