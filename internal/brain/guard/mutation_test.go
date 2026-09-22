@@ -16,7 +16,7 @@ import (
 
 func TestAReadonlyAreaWithoutAWikiDeclaresNoZoneAtAll(t *testing.T) {
 	tmp := t.TempDir()
-	// `resolvePath("")` answers the working directory, so a zone built
+	// `ResolvePath("")` answers the working directory, so a zone built
 	// from an unsaid wiki would forbid everything below wherever the
 	// session happens to stand. The chdir is what makes that visible:
 	// without it the mutant's zone and the target never meet.
@@ -128,11 +128,11 @@ func TestIsRelativeToIsReflexiveAndSurvivesALongerBase(t *testing.T) {
 	// error. The second is the one that matters here -- a comparison
 	// that sliced first and asked the length afterwards would fault.
 	own := filepath.Join(strangeVolume(), "a", "b")
-	if !isRelativeTo(own, own) {
+	if !IsRelativeTo(own, own) {
 		t.Error("a path was called no relative of itself")
 	}
 	deeper := filepath.Join(own, "c", "d")
-	if isRelativeTo(own, deeper) {
+	if IsRelativeTo(own, deeper) {
 		t.Error("a path was called a relative of something below it")
 	}
 }

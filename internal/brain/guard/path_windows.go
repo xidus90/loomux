@@ -41,7 +41,7 @@ const (
 //
 // The `\\?\` prefix comes off unconditionally, unlike Python's, which
 // keeps it wherever the plain path would not resolve back to the same
-// file. The comment above `resolvePath` carries the ground and the one
+// file. The comment above `ResolvePath` carries the ground and the one
 // call it decides.
 func finalName(path string) (string, error) {
 	wide, err := windows.UTF16PtrFromString(path)

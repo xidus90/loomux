@@ -30,7 +30,7 @@ func noHome(t *testing.T, config string) {
 // memoryAt resolves home-relative slash paths and asks isMemory about them.
 func memoryAt(t *testing.T, home, relative string) bool {
 	t.Helper()
-	resolved, err := resolvePath(filepath.Join(home, filepath.FromSlash(relative)))
+	resolved, err := ResolvePath(filepath.Join(home, filepath.FromSlash(relative)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestClaudeConfigDirMovesClaudeCodesMemory(t *testing.T) {
 	home := t.TempDir()
 	config := t.TempDir()
 	homeAt(t, home, config)
-	moved, err := resolvePath(filepath.Join(config, "projects", "p", "memory", "a.md"))
+	moved, err := ResolvePath(filepath.Join(config, "projects", "p", "memory", "a.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestWithoutAHomeOnlyAClaudeConfigDirCanNameMemory(t *testing.T) {
 	if claude != "" || len(antigravity) != 0 || memoryShown(claude, antigravity) != "" {
 		t.Fatalf("no home and no config named trees: %q %v", claude, antigravity)
 	}
-	target, err := resolvePath(filepath.Join(somewhere, ".claude", "projects", "p", "memory", "a.md"))
+	target, err := ResolvePath(filepath.Join(somewhere, ".claude", "projects", "p", "memory", "a.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestWithoutAHomeOnlyAClaudeConfigDirCanNameMemory(t *testing.T) {
 	config := t.TempDir()
 	noHome(t, config)
 	claude, antigravity = memoryBases()
-	moved, err := resolvePath(filepath.Join(config, "projects", "p", "memory", "a.md"))
+	moved, err := ResolvePath(filepath.Join(config, "projects", "p", "memory", "a.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

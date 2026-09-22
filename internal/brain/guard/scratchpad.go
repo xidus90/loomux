@@ -20,7 +20,7 @@ func scratchpadBase() string {
 	if !filepath.IsAbs(temp) {
 		return ""
 	}
-	resolved, err := resolvePath(filepath.Join(temp, "claude"))
+	resolved, err := ResolvePath(filepath.Join(temp, "claude"))
 	if err != nil {
 		return ""
 	}
