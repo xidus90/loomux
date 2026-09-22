@@ -51,24 +51,30 @@ type link struct {
 
 // Index is the adjacency of one graph, built once and walked many times.
 type Index struct {
-	in    map[model.NodeID][]link
-	out   map[model.NodeID][]link
-	nodes map[model.NodeID]*model.Node
+	in          map[model.NodeID][]link
+	out         map[model.NodeID][]link
+	nodes       map[model.NodeID]*model.Node
+	fileSymbols map[string][]model.NodeID
 }
 
 // New indexes a graph for walking. Only walk relations enter the adjacency;
 // "contains" would make every file a hub.
 func New(g *model.Graph) *Index {
 	x := &Index{
-		in:    map[model.NodeID][]link{},
-		out:   map[model.NodeID][]link{},
-		nodes: map[model.NodeID]*model.Node{},
+		in:          map[model.NodeID][]link{},
+		out:         map[model.NodeID][]link{},
+		nodes:       map[model.NodeID]*model.Node{},
+		fileSymbols: map[string][]model.NodeID{},
 	}
 	if g == nil {
 		return x
 	}
 	for i := range g.Nodes {
-		x.nodes[g.Nodes[i].ID] = &g.Nodes[i]
+		n := &g.Nodes[i]
+		x.nodes[n.ID] = n
+		if n.Kind != model.KindFile {
+			x.fileSymbols[n.Path] = append(x.fileSymbols[n.Path], n.ID)
+		}
 	}
 	for _, e := range g.Edges {
 		if !e.Relation.IsWalk() {
@@ -78,4 +84,13 @@ func New(g *model.Graph) *Index {
 		x.in[e.Target] = append(x.in[e.Target], link{other: e.Source, relation: e.Relation})
 	}
 	return x
+}
+
+// InDegree counts incoming walk relations (calls, references, imports, implements, extends)
+// to id. Contains edges are excluded.
+func (x *Index) InDegree(id model.NodeID) int {
+	if x == nil {
+		return 0
+	}
+	return len(x.in[id])
 }
