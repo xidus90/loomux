@@ -41,6 +41,15 @@ func TestCases2c(t *testing.T) {
 			outcome, err := cases.RunCase(c, func(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int {
 				t.Chdir(dir)
 				t.Setenv("LOOMUX_STATE_DIR", dir)
+				// The git environment the recorder now runs under, so the
+				// hooks' git calls answer the same on every machine. Unlike
+				// 3a, no world of 2c names an XDG_CONFIG_HOME; an empty one
+				// sends git to the home GitEnv names, where no file lies.
+				for _, entry := range cases.GitEnv(dir) {
+					key, value, _ := strings.Cut(entry, "=")
+					t.Setenv(key, value)
+				}
+				t.Setenv("XDG_CONFIG_HOME", "")
 				useFakeStopTools(t, dir)
 				return Run(args, stdin, stdout, stderr)
 			})

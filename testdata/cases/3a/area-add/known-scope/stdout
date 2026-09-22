@@ -1,0 +1,3 @@
+manifest: {{WORLD}}\repo-new\.ultra-brain\config.toml
+mcp:      {{WORLD}}\repo-new\.mcp.json
+wiki:     scaffolded at {{WORLD}}\repo-new\docs\wiki

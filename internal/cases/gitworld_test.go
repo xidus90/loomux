@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -112,6 +114,133 @@ func TestBuildGitWorldIsDeterministic(t *testing.T) {
 	}
 }
 
+// A world whose repository is one of its directories: `dir` names it, the
+// declaration's paths are the repository's own, and the tokens are replaced
+// in the whole world -- a state file beside the repository names its commits.
+func TestBuildGitWorldBuildsTheRepositoryInTheNamedDirectory(t *testing.T) {
+	dir := writeWorld(t, map[string]string{
+		"git.toml":                "dir = \"repo-a\"\n" + twoCommits,
+		"repo-a/a.txt":            "one\n",
+		"maintenance/events.tsv":  "{{COMMIT:1}}\t{{COMMIT:2}}\n",
+		"repo-a/notes/commit.txt": "{{COMMIT:2}}",
+	})
+	if err := BuildGitWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); !os.IsNotExist(err) {
+		t.Fatalf("the world root must stay no repository: %v", err)
+	}
+	repo := filepath.Join(dir, "repo-a")
+	first := gitOut(t, repo, "rev-parse", "HEAD~1")
+	second := gitOut(t, repo, "rev-parse", "HEAD")
+	if got := gitOut(t, repo, "rev-parse", "--show-toplevel"); !strings.EqualFold(filepath.Clean(got), filepath.Clean(repo)) {
+		t.Fatalf("top level %s, want %s", got, repo)
+	}
+	if got := gitOut(t, repo, "show", "HEAD~1:a.txt"); got != "one" {
+		t.Fatalf("first commit holds %q", got)
+	}
+	if got := gitOut(t, repo, "ls-remote", "origin", "refs/heads/master"); !strings.HasPrefix(got, second) {
+		t.Fatalf("origin master: %q, want %s", got, second)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".origin.git")); err != nil {
+		t.Fatalf("the remote lies beside the repository it serves: %v", err)
+	}
+	events, _ := os.ReadFile(filepath.Join(dir, "maintenance", "events.tsv"))
+	if want := first + "\t" + second + "\n"; string(events) != want {
+		t.Fatalf("tokens outside the repository: %q", events)
+	}
+	inside, _ := os.ReadFile(filepath.Join(repo, "notes", "commit.txt"))
+	if string(inside) != second {
+		t.Fatalf("tokens inside the repository: %q", inside)
+	}
+	// The worktree change is the declaration's; the untracked directory is the
+	// world's own file, which no commit named.
+	if got := gitOut(t, repo, "status", "--porcelain"); got != "M a.txt\n?? notes/" {
+		t.Fatalf("status %q", got)
+	}
+}
+
+// A dir that leaves the world, or names a place of its own, would build a
+// repository outside the bench.
+func TestBuildGitWorldRefusesADirOutsideTheWorld(t *testing.T) {
+	outside := []string{"../out", "/rooted", "a/../../out"}
+	// A volume name leaves the world only where there are volumes: on POSIX,
+	// `C:/elsewhere` is a directory called `C:` below the world.
+	if runtime.GOOS == "windows" {
+		outside = append(outside, "C:/elsewhere")
+	}
+	for _, dir := range outside {
+		t.Run(dir, func(t *testing.T) {
+			decl := "dir = \"" + dir + "\"\n[[commit]]\nmessage = \"a\"\n"
+			world := writeWorld(t, map[string]string{"git.toml": decl})
+			err := BuildGitWorld(world)
+			if err == nil || !strings.Contains(err.Error(), "dir") {
+				t.Fatalf("want a refusal naming dir, got %v", err)
+			}
+		})
+	}
+}
+
+// The repositories of a nested git world are the bench as much as a root one.
+func TestCollectFilesLeavesANestedRepositoryOut(t *testing.T) {
+	dir := writeWorld(t, map[string]string{
+		"repo-a/.git/HEAD": "ref: refs/heads/master\n", "repo-a/.origin.git/HEAD": "x", "repo-a/a.txt": "x",
+	})
+	files, err := collectFiles(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files["repo-a/a.txt"] == nil {
+		t.Fatalf("files: %v", files)
+	}
+}
+
+// The environment of GitEnv hands git no configuration file at all -- not the
+// system's, not the user's -- whatever this machine carries. The variables
+// are ones neither the reference's strip list nor gitenv's takes out.
+func TestGitEnvLeavesGitWithoutAConfigurationFile(t *testing.T) {
+	world := t.TempDir()
+	env := GitEnv(world)
+	for _, entry := range env {
+		key, _, _ := strings.Cut(entry, "=")
+		if slices.Contains(gitenv.Location, key) {
+			t.Errorf("%s is on gitenv's strip list; loomux's git would never see it", key)
+		}
+	}
+	cmd := exec.Command("git", "config", "--list", "--show-origin")
+	cmd.Dir = world
+	cmd.Env = append(gitenv.Environ(), env...)
+	out, err := cmd.CombinedOutput()
+	// Exit 0 with nothing listed, or exit 1 where a git build treats an empty
+	// list as a missing key; either way no file answered.
+	if len(out) != 0 {
+		t.Fatalf("git read configuration (%v):\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(world, noGitHome)); !os.IsNotExist(err) {
+		t.Fatalf("the home is never made: %v", err)
+	}
+}
+
+// The object format is part of every SHA a world_after writes out, and git
+// takes its default from GIT_DEFAULT_HASH, which no strip list names -- and
+// git 3.0 announces SHA-256 as the default. The build pins SHA-1 both for the
+// repository and for its remote.
+func TestBuildGitWorldPinsTheObjectFormat(t *testing.T) {
+	t.Setenv("GIT_DEFAULT_HASH", "sha256")
+	dir := writeWorld(t, map[string]string{"git.toml": twoCommits, "a.txt": "one\n"})
+	if err := BuildGitWorld(dir); err != nil {
+		t.Fatal(err)
+	}
+	for _, repo := range []string{".", ".origin.git"} {
+		if got := gitOut(t, filepath.Join(dir, repo), "rev-parse", "--show-object-format"); got != "sha1" {
+			t.Errorf("%s: object format %q", repo, got)
+		}
+	}
+	if head := gitOut(t, dir, "rev-parse", "HEAD"); len(head) != 40 {
+		t.Errorf("HEAD %q", head)
+	}
+}
+
 func TestBuildGitWorldWithoutDeclarationDoesNothing(t *testing.T) {
 	dir := writeWorld(t, map[string]string{"a.txt": "x"})
 	if err := BuildGitWorld(dir); err != nil {
@@ -198,7 +327,8 @@ func TestBuildGitWorldReportsADirectoryItCannotWalk(t *testing.T) {
 func TestInfraPath(t *testing.T) {
 	for rel, want := range map[string]bool{
 		".git": true, ".git/index": true, ".origin.git/HEAD": true,
-		"a.txt": false, "sub/.git": false, ".github/x": false,
+		"sub/.git": true, "repo-a/.git/index": true, "repo-a/.origin.git/HEAD": true,
+		"a.txt": false, ".github/x": false, "sub/.gitignore": false, "sub/x.git/y": false,
 	} {
 		if InfraPath(rel) != want {
 			t.Errorf("InfraPath(%q) = %v", rel, !want)

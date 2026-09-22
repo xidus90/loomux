@@ -1,0 +1,9 @@
+[area]
+scope = "project/a"
+
+[layout]
+review = "95 Prüfzentrum"
+
+[index]
+include = ["**/*.md"]
+exclude = ["docs/**/draft.md"]

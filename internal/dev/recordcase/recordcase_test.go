@@ -340,6 +340,21 @@ func TestRecordRunsAProgramWithLeadingArgumentsInItsEnvironment(t *testing.T) {
 }
 
 // Python on Windows ends every printed line with \r\n in a pipe.
+// The recorded process runs git under the environment the replay sets too, so
+// the user's configuration cannot shape what the reference printed.
+func TestRecordRunsTheProgramUnderTheReplaysGitEnvironment(t *testing.T) {
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "")
+	t.Setenv("HOME", t.TempDir())
+	s := helperArgvSpec(t, "env", "GIT_CONFIG_NOSYSTEM HOME")
+	if err := Record(s); err != nil {
+		t.Fatal(err)
+	}
+	want := "GIT_CONFIG_NOSYSTEM=1\nHOME={{WORLD}}/.no-git-home\n"
+	if got := read(t, s.Out, "stdout"); got != want {
+		t.Errorf("stdout %q, want %q", got, want)
+	}
+}
+
 func TestRecordFoldsCRLFInStdout(t *testing.T) {
 	s := helperSpec(t, "crlf", "")
 	if err := Record(s); err != nil {

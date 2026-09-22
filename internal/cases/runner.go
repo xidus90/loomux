@@ -83,16 +83,44 @@ func StageWorld(src, dst string) error {
 // CompareTrees compares regular files between actualDir and expectedDir. The
 // actual contents are normalised first: the expected tree keeps WorldToken.
 func CompareTrees(actualDir, expectedDir string) ([]string, error) {
+	mismatches, _, err := compareTrees(actualDir, expectedDir, "", nil, [2][]byte{})
+	return mismatches, err
+}
+
+// stdoutKey carries a side's stdout through the normalizer beside its tree. No
+// path a walk yields contains a NUL, so it can meet no file.
+const stdoutKey = "\x00stdout"
+
+// compareTrees is CompareTrees with a normalizer run over both sides, fed the
+// recorded world in worldDir. Without one, worldDir is not read.
+//
+// stdouts are the actual and the recorded stdout. They go through the
+// normalizer with their tree and come back normalized: the day a case id
+// carries stands on stdout too, and only the tree beside it knows which day
+// the run's own is.
+func compareTrees(actualDir, expectedDir, worldDir string, normalize Normalizer, stdouts [2][]byte) ([]string, [2][]byte, error) {
 	actualFiles, err := collectFiles(actualDir)
 	if err != nil {
-		return nil, err
+		return nil, stdouts, err
 	}
 	for rel, data := range actualFiles {
 		actualFiles[rel] = Normalize(data, actualDir)
 	}
 	expectedFiles, err := collectFiles(expectedDir)
 	if err != nil {
-		return nil, err
+		return nil, stdouts, err
+	}
+	if normalize != nil {
+		world, err := collectFiles(worldDir)
+		if err != nil {
+			return nil, stdouts, err
+		}
+		actualFiles[stdoutKey], expectedFiles[stdoutKey] = stdouts[0], stdouts[1]
+		actualFiles = normalize(world, actualFiles)
+		expectedFiles = normalize(world, expectedFiles)
+		stdouts = [2][]byte{actualFiles[stdoutKey], expectedFiles[stdoutKey]}
+		delete(actualFiles, stdoutKey)
+		delete(expectedFiles, stdoutKey)
 	}
 
 	var mismatches []string
@@ -110,7 +138,7 @@ func CompareTrees(actualDir, expectedDir string) ([]string, error) {
 		}
 	}
 	sort.Strings(mismatches)
-	return mismatches, nil
+	return mismatches, stdouts, nil
 }
 
 //coverage:exempt the filepath.Rel arm needs a path below dir that is not below dir, and the remaining WalkDir err arm a directory the OS refuses to list while its parent reads
@@ -158,6 +186,13 @@ func SplitCommand(s string) ([]string, error) { return shellwords.Split(s) }
 
 // RunCase runs a single case in process, in an isolated staged world.
 func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
+	return RunCaseWith(c, run, nil)
+}
+
+// RunCaseWith is RunCase with a world comparison that normalizes both sides
+// first, and that compares a case without a world_after against its world. A
+// nil normalizer compares as RunCase does.
+func RunCaseWith(c *Case, run RunFunc, normalize Normalizer) (*RunOutcome, error) {
 	tmpDir, err := mkdirTemp("", "case-run-*")
 	if err != nil {
 		return nil, err
@@ -197,6 +232,27 @@ func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
 	actualStdout := Normalize(stdoutBuf.Bytes(), tmpDir)
 	actualStderr := Normalize(stderrBuf.Bytes(), tmpDir)
 
+	// With a normalizer the whole world is compared: a case without a
+	// world_after is held against the world it started from. The recorder
+	// writes a world_after only where the run changed the world, so its
+	// absence is the recording's claim that nothing changed -- and a refusal
+	// that writes after all is exactly what such a case exists to catch.
+	expected := filepath.Join(c.Path, "world_after")
+	if !c.HasWorldAfter {
+		expected = srcWorld
+	}
+	// A state and a finding case read loomux's state alone, so no tree
+	// comparison runs for them.
+	var diffs []string
+	stdouts := [2][]byte{actualStdout, c.Stdout}
+	treeCompared := c.Compare != "state" && c.Compare != "finding"
+	if treeCompared && (c.HasWorldAfter || normalize != nil) {
+		diffs, stdouts, err = compareTrees(tmpDir, expected, srcWorld, normalize, stdouts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var mismatches []string
 	if actualExit != c.ExitCode {
 		mismatches = append(mismatches, fmt.Sprintf("exit code: expected %d, got %d", c.ExitCode, actualExit))
@@ -221,17 +277,11 @@ func RunCase(c *Case, run RunFunc) (*RunOutcome, error) {
 		mismatches = append(mismatches, compareFindings(c.Stdout, tmpDir)...)
 	case "message":
 	default:
-		if !bytes.Equal(actualStdout, c.Stdout) {
+		if !bytes.Equal(stdouts[0], stdouts[1]) {
 			mismatches = append(mismatches, fmt.Sprintf("stdout mismatch: expected %d bytes, got %d bytes", len(c.Stdout), len(actualStdout)))
 		}
 	}
-	if c.HasWorldAfter && c.Compare != "state" && c.Compare != "finding" {
-		diffs, err := CompareTrees(tmpDir, filepath.Join(c.Path, "world_after"))
-		if err != nil {
-			return nil, err
-		}
-		mismatches = append(mismatches, diffs...)
-	}
+	mismatches = append(mismatches, diffs...)
 
 	// Last, and only where something is wrong: a run that matched has nothing
 	// to explain, and a warning on stderr is no mismatch.

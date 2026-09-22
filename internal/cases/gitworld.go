@@ -21,9 +21,14 @@ import (
 // GitWorldFile declares the repository a staged world becomes.
 const GitWorldFile = "git.toml"
 
-// GitWorld is git.toml: commits in order, local branches and what the remote
-// holds by commit number (from 1), and files changed after the last commit.
+// GitWorld is git.toml: the directory the repository is made in, commits in
+// order, local branches and what the remote holds by commit number (from 1),
+// and files changed after the last commit.
+//
+// Dir is relative to the world and empty for the world itself; every path of
+// the declaration is relative to the repository.
 type GitWorld struct {
+	Dir      string            `toml:"dir"`
 	Commits  []GitCommit       `toml:"commit"`
 	Remote   *GitRemote        `toml:"remote"`
 	Branches map[string]int    `toml:"branches"`
@@ -54,20 +59,50 @@ var createTemp = defaultCreateTemp
 // working tree must not see them as somebody's change.
 var excluded = []string{"/git.toml", "/faketool.json", "/.origin.git/", "/.ultraloom/", "/.loomux/", "/.claude/"}
 
-// InfraPath reports whether a slash-separated path inside a world belongs to
-// the repositories BuildGitWorld made rather than to the world.
-func InfraPath(rel string) bool {
-	top, _, _ := strings.Cut(rel, "/")
-	return top == ".git" || top == ".origin.git"
+// noGitHome is the home GitEnv names inside a world. Nothing makes it, so git
+// finds no .gitconfig there and nothing lands in the tree a case compares.
+const noGitHome = ".no-git-home"
+
+// GitEnv is the git environment a recording and its replay both run the
+// command under: no system configuration, and a home without a .gitconfig.
+// XDG_CONFIG_HOME, git's other place for a user file, is the caller's to set:
+// a 3a world names its own, and the 2c replay empties it.
+//
+// The obvious GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM are useless here: the
+// reference's vcs.py and loomux's gitenv both strip them before git starts, so
+// the recorded command would have read the user's file all the same. Neither
+// list names HOME or GIT_CONFIG_NOSYSTEM. BuildGitWorld is a third party and
+// keeps its own isolation; it runs git directly, without either strip.
+func GitEnv(world string) []string {
+	return []string{"GIT_CONFIG_NOSYSTEM=1", "HOME=" + filepath.ToSlash(world) + "/" + noGitHome}
 }
 
-// BuildGitWorld turns dir into the repository its git.toml declares, then
-// puts each commit's SHA in place of {{COMMIT:<n>}} in every other file.
+// InfraPath reports whether a slash-separated path inside a world belongs to
+// the repositories BuildGitWorld made rather than to the world.
+//
+// Any segment and not only the first: the repository may be one of the
+// world's directories, and a caller holds the path without the declaration
+// that says which.
+func InfraPath(rel string) bool {
+	for segment := range strings.SplitSeq(rel, "/") {
+		if segment == ".git" || segment == ".origin.git" {
+			return true
+		}
+	}
+	return false
+}
+
+// BuildGitWorld makes the repository its git.toml declares -- in the world
+// dir itself, or in the directory the declaration's `dir` names below it --
+// then puts each commit's SHA in place of {{COMMIT:<n>}} in every other file
+// of the world.
 //
 // Git runs here without gitenv's strip and with an identity of its own: the
 // variables gitenv takes out are exactly the ones that make the same
 // declaration the same SHA on every machine. The user's global and system
-// configuration are kept out for the same reason.
+// configuration are kept out for the same reason, and the object format is
+// named rather than left to GIT_DEFAULT_HASH, because a world_after holds the
+// SHAs written out.
 func BuildGitWorld(dir string) error {
 	raw, err := os.ReadFile(filepath.Join(dir, GitWorldFile))
 	if errors.Is(err, fs.ErrNotExist) {
@@ -80,18 +115,23 @@ func BuildGitWorld(dir string) error {
 	if _, err := toml.Decode(string(raw), &w); err != nil {
 		return fmt.Errorf("%s: %w", GitWorldFile, err)
 	}
+	if w.Dir != "" && !filepath.IsLocal(w.Dir) {
+		return fmt.Errorf("%s: dir %q leaves the world", GitWorldFile, w.Dir)
+	}
 	empty, err := createTemp("", "gitworld-config-*")
 	if err != nil {
 		return err
 	}
 	empty.Close()
 	defer os.Remove(empty.Name())
-	g := &worldGit{dir: dir, config: empty.Name()}
-	g.run("init", "-q", "-b", "master")
+	repo := filepath.Join(dir, filepath.FromSlash(w.Dir))
+	g := &worldGit{dir: repo, config: empty.Name()}
+	g.fail(os.MkdirAll(repo, 0o755))
+	g.run("init", "-q", "--object-format=sha1", "-b", "master")
 	if g.err == nil {
 		// Written, not appended: with the user's configuration kept out, no
 		// template put anything there worth keeping.
-		g.fail(writeFile(dir, ".git/info/exclude", strings.Join(excluded, "\n")+"\n"))
+		g.fail(writeFile(repo, ".git/info/exclude", strings.Join(excluded, "\n")+"\n"))
 	}
 	var shas []string
 	for i, c := range w.Commits {
@@ -109,7 +149,7 @@ func BuildGitWorld(dir string) error {
 		g.run("branch", name, sha)
 	}
 	if w.Remote != nil {
-		g.run("init", "-q", "--bare", "-b", "master", ".origin.git")
+		g.run("init", "-q", "--bare", "--object-format=sha1", "-b", "master", ".origin.git")
 		g.run("remote", "add", "origin", "./.origin.git")
 		for _, branch := range slices.Sorted(maps.Keys(w.Remote.Push)) {
 			sha, err := commit(w.Remote.Push[branch])
@@ -118,7 +158,7 @@ func BuildGitWorld(dir string) error {
 		}
 	}
 	for _, path := range slices.Sorted(maps.Keys(w.Worktree)) {
-		g.fail(writeFile(dir, path, w.Worktree[path]))
+		g.fail(writeFile(repo, path, w.Worktree[path]))
 	}
 	if g.err != nil {
 		return g.err

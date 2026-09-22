@@ -1,0 +1,17 @@
+[area]
+scope = "project/repo-new"
+wiki = true
+
+[layout]
+sources = "docs"
+wiki = "docs/wiki"
+
+[index]
+include = ["docs/**/*.md", "README*.md"]
+
+[privacy]
+mode = "manual_cloud"
+
+[maintenance]
+on_merge = true
+branch = "master"

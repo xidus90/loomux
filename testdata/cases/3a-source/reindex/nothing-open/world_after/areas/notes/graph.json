@@ -1,0 +1,16 @@
+{
+  "edges": [],
+  "links": {
+    "dropped": {},
+    "resolved": 0,
+    "total": 0
+  },
+  "nodes": [
+    {
+      "id": "note.md",
+      "tags": [],
+      "title": "note"
+    }
+  ],
+  "scope": "notes"
+}
