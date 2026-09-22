@@ -653,3 +653,43 @@ func TestCheckCommitMsgFileErrors(t *testing.T) {
 		t.Fatalf("expected 1, got %d (%s)", code, errOut)
 	}
 }
+
+// wikiWorld is a project that declares a wiki bundle and holds one page in
+// it, the way a loomux project with docs/wiki does.
+func wikiWorld(t *testing.T, pages map[string]string) string {
+	t.Helper()
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".loomux"), 0o755)
+	if err := os.WriteFile(filepath.Join(root, ".loomux", "config.toml"), []byte("[area]\nscope = \"project/x\"\n[layout]\nwiki = \"docs/wiki\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(filepath.Join(root, "docs", "wiki"), 0o755)
+	for name, body := range pages {
+		if err := os.WriteFile(filepath.Join(root, "docs", "wiki", name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+const wikiPage = "---\ntitle: Sample Concept\ntype: concept\ndescription: A valid OKF test document\n---\n\n# Sample Concept\nThis is a test concept.\n"
+
+// A check for lint runs the wiki gate as a lane of the chain, in this
+// process: no tool starts for it, and its verdict is the run's.
+func TestCheckRunsTheWikiGateAsALintLane(t *testing.T) {
+	root := wikiWorld(t, map[string]string{"page.md": wikiPage})
+	stubCheck(t, green)
+	code, out, errOut := run("check", "lint", "--root", root)
+	if code != 0 || !strings.Contains(out, "lint/wiki: ok [in-process]") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestCheckFailsOnABrokenWikiBundle(t *testing.T) {
+	root := wikiWorld(t, map[string]string{"page.md": wikiPage, "broken.md": "no frontmatter at all\n"})
+	stubCheck(t, green)
+	code, out, _ := run("check", "lint", "--root", root)
+	if code != 1 || !strings.Contains(out, "lint/wiki: failed") {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+}

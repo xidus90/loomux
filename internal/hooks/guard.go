@@ -38,7 +38,9 @@ var builtinPathRules = []config.PathRule{
 	{Match: []string{".pypirc"}, Reason: "secrets are not written by an agent"},
 	{Match: []string{"credentials.json"}, Reason: "secrets are not written by an agent"},
 	{Match: []string{".aws/**"}, Reason: "secrets are not written by an agent"},
-	{Match: []string{".claude/.no-verify"}, Reason: "the stop gate's own controls are not written by the party it gates"},
+	// The constant the gate itself stats (stop.go), not a second copy of the
+	// path: a marker the guard spelled differently would be an open door.
+	{Match: []string{NoVerifyMarker}, Reason: "the stop gate's own controls are not written by the party it gates"},
 	// The literal below is the second copy of sessions.StateDir; a rule is a
 	// verbatim glob here, so the two are kept in step by hand.
 	{Match: []string{".loomux/state/hooks/**"}, Reason: "the stop gate's own controls are not written by the party it gates"},
@@ -158,7 +160,7 @@ func matchGlob(pattern, path string) (bool, error) {
 // A target that will not relativise -- another volume, or a path outside the
 // root -- is matched as the absolute path it is, and that is a deliberate
 // half-answer rather than a fallback that works. Every rule carrying a slash
-// (`.aws/**`, `.claude/.no-verify`) stops matching such a target, because the
+// (`.aws/**`, `.loomux/no-verify`) stops matching such a target, because the
 // absolute path does not begin where the rule does; only the rules without a
 // slash, which are matched against the base name, still reach it. Those
 // targets are the write barrier's to decide, and it does: it resolves the path

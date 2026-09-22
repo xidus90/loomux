@@ -406,3 +406,25 @@ func gitInit(t *testing.T, root string) {
 		}
 	}
 }
+
+// SessionStart fires on resume, clear and compact under the same session id,
+// not only at startup. A base it moved to HEAD there would swallow what the
+// session committed since its last green run: the stop gate would measure
+// from that commit, find nothing new, and end a red turn unchecked.
+func TestHookSessionStartKeepsABaseTheSessionAlreadyHas(t *testing.T) {
+	root := gitWorld(t, twoCommitsOnly, `{"base":"{{COMMIT:1}}","green":"`+goneSHA+`","blocks":0}`)
+	base := stateOf(t, root).Base
+
+	var stdout, stderr bytes.Buffer
+	if code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"compact"}`), &stdout, &stderr, root, "claude"); code != ExitOK {
+		t.Fatalf("%d %q", code, stderr.String())
+	}
+
+	if state := stateOf(t, root); state.Base != base {
+		t.Fatalf("the base moved from %s to %s", base, state.Base)
+	}
+	env, started := countTools(redVet())
+	if code, se := runStop(t, root, s1, env); code != ExitDenied || started.Load() == 0 {
+		t.Fatalf("the commit since the base went unchecked: %d %q, %d tools started", code, se, started.Load())
+	}
+}

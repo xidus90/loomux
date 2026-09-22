@@ -13,7 +13,7 @@ agents = ["claude", "antigravity", "cursor"]
 rules = [
   { match = [".env*", "*.pem", "*.key", "id_rsa*"], reason = "Secrets must not be written by agents" },
   { match = [".loomux/config.toml"], reason = "Guard policy is human-managed and write-protected" },
-  { match = [".claude/.no-verify"], reason = "Verification controls cannot be bypassed by agents" },
+  { match = [".loomux/no-verify"], reason = "Verification controls cannot be bypassed by agents" },
   { match = ["go.sum", "package-lock.json", "uv.lock"], reason = "Lock files are written by package tools, not by hand" }
 ]
 

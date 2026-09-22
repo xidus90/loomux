@@ -1,0 +1,1 @@
+ultraloom hook stop: gave up after 3 blocks in this session; the chain was still red the last time it ran. Run `ultraloom check all` by hand, or remove .claude/.no-verify once the gate should count again.

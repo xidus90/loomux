@@ -220,14 +220,24 @@ never = ["private/**"]
 Loomux works seamlessly alongside your favorite agent harnesses:
 
 ### Claude Code
-`loomux init` registers Loomux in `.claude/settings.json`:
+Loomux is wired in `.claude/settings.json`. No loomux command writes that file; `loomux status` names what it misses. The six entries, with the timeouts this repository uses:
 ```json
 {
   "hooks": {
-    "PreToolUse": "loomux hook pre-tool-use --host claude",
-    "PostToolUse": "loomux hook post-tool-use --host claude",
-    "SessionStart": "loomux hook session-start --host claude",
-    "Stop": "loomux hook stop --host claude"
+    "SessionStart": [{"hooks": [{"type": "command", "timeout": 20,
+      "command": "loomux hook session-start --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell",
+      "hooks": [{"type": "command", "timeout": 15,
+      "command": "loomux hook pre-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "PostToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit",
+      "hooks": [{"type": "command", "timeout": 60,
+      "command": "loomux hook post-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "Stop": [{"hooks": [{"type": "command", "timeout": 300,
+      "command": "loomux hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "timeout": 30,
+      "command": "loomux hook subagent-start --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "timeout": 30,
+      "command": "loomux hook subagent-stop --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}]
   }
 }
 ```

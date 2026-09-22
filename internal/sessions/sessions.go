@@ -1,12 +1,11 @@
 // Package sessions counts the agent sessions standing on one working tree.
 //
-// One file per session under `.loomux/state/hooks/`, in the shape the Python hooks
-// write: `loomux hook session-start` puts one down at session start -- it took
-// that over from `session_start.py` (fa3dd38), deleted in 6a7037a -- `stop.py`
-// rewrites it on every block and every pass, and `subagent_start.py` on every
-// subagent dispatch. Read here rather than through the Python side, because the reader is
-// a Go binary that must run in a worktree where the Python runtime is exactly
-// what is still missing.
+// One file per session under `.loomux/state/hooks/`, and a directory beside
+// it holding one file per subagent. loomux writes them all: `session-start`
+// puts the session file down, `stop` rewrites it on every block and every
+// pass, and `subagent-start` and `subagent-stop` keep the subagents' files.
+// ultraloom is no longer a writer here -- it keeps its own state under
+// `.ultraloom/hooks/`, a different directory.
 package sessions
 
 import (
@@ -19,8 +18,8 @@ import (
 )
 
 // StateDir is where a session's file lives, relative to the working tree.
-// The same constant as state.py's STATE_DIR; two spellings of one directory
-// would drift, and the Python side is the one that writes.
+// One constant for the whole package; two spellings of one directory would
+// drift, and every hook that writes here goes through this one.
 const StateDir = ".loomux/state/hooks"
 
 // Others counts the sessions on `root` that are not `sessionID`.
@@ -61,15 +60,19 @@ func Others(root, sessionID string, stale time.Duration) (int, error) {
 	return count, nil
 }
 
-// Forget removes this session's own file.
+// Forget removes this session's own file and its subagents' files.
 //
 // Nobody did this before, which is why `Others` needs a staleness rule at all.
-// A file that is not there is not an error: a session that never wrote state
-// still ends.
+// What is not there is not an error: a session that never wrote state still
+// ends.
 func Forget(root, sessionID string) error {
 	path := statePath(root, sessionID)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("removing %s: %w", path, err)
+	}
+	dir := filepath.Join(root, filepath.FromSlash(StateDir), safeName(sessionID))
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("removing %s: %w", dir, err)
 	}
 	return nil
 }

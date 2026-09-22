@@ -128,7 +128,7 @@ func TestReadClaudeAcceptsAMissingSessionID(t *testing.T) {
 func TestWriteClaudeContext(t *testing.T) {
 	var out bytes.Buffer
 
-	if err := hosts.WriteContext(hosts.HostClaude, &out, []string{"line one", "line two"}); err != nil {
+	if err := hosts.WriteContext(hosts.HostClaude, "SessionStart", &out, []string{"line one", "line two"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -147,7 +147,7 @@ func TestWriteClaudeContext(t *testing.T) {
 func TestWriteClaudeContextLeavesProseAlone(t *testing.T) {
 	var out bytes.Buffer
 
-	if err := hosts.WriteContext(hosts.HostClaude, &out, []string{"run 7 > gate open"}); err != nil {
+	if err := hosts.WriteContext(hosts.HostClaude, "SessionStart", &out, []string{"run 7 > gate open"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -163,7 +163,7 @@ func TestWriteClaudeContextLeavesProseAlone(t *testing.T) {
 func TestWriteClaudeContextOfNothingWritesNothing(t *testing.T) {
 	var out bytes.Buffer
 
-	if err := hosts.WriteContext(hosts.HostClaude, &out, nil); err != nil {
+	if err := hosts.WriteContext(hosts.HostClaude, "SessionStart", &out, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -175,7 +175,7 @@ func TestWriteClaudeContextOfNothingWritesNothing(t *testing.T) {
 func TestWriteClaudeContextReportsAFailingStdout(t *testing.T) {
 	boom := errors.New("stdout closed")
 
-	err := hosts.WriteContext(hosts.HostClaude, brokenWriter{err: boom}, []string{"a"})
+	err := hosts.WriteContext(hosts.HostClaude, "SessionStart", brokenWriter{err: boom}, []string{"a"})
 
 	if !errors.Is(err, boom) {
 		t.Fatalf("expected the writer's error, got %v", err)
@@ -191,10 +191,38 @@ func TestAnUnparsedHostIsRefused(t *testing.T) {
 		t.Error("Read refuses a host it does not know")
 	}
 	var out bytes.Buffer
-	if err := hosts.WriteContext(hosts.Host("nonsense"), &out, []string{"a"}); err == nil {
+	if err := hosts.WriteContext(hosts.Host("nonsense"), "SessionStart", &out, []string{"a"}); err == nil {
 		t.Error("WriteContext refuses a host it does not know")
 	}
 	if out.Len() != 0 {
 		t.Errorf("a refusal writes nothing, got %q", out.String())
+	}
+}
+
+// A SubagentStart or SubagentStop names the subagent it fired for, and a
+// mistyped id reads as absent like every other field of this adapter.
+func TestReadClaudeTakesTheAgent(t *testing.T) {
+	p, err := hosts.Read(hosts.HostClaude, strings.NewReader(`{"hook_event_name":"SubagentStop","session_id":"s","agent_id":"a","agent_type":"Explore"}`))
+	if err != nil || p.AgentID != "a" || p.AgentType != "Explore" {
+		t.Fatalf("%+v, %v", p, err)
+	}
+	p, _ = hosts.Read(hosts.HostClaude, strings.NewReader(`{"agent_id": 5}`))
+	if p.AgentID != "" {
+		t.Fatalf("a mistyped id reads as absent: %+v", p)
+	}
+}
+
+// The envelope names the event the caller answers, not a fixed SessionStart:
+// the same writer answers the other events from stage 2c on.
+func TestWriteContextNamesTheEvent(t *testing.T) {
+	// An event that is not SessionStart: with the old hard-coded string in
+	// place this is the assertion that fails, which is what makes the test
+	// hold the new behaviour rather than the old one.
+	var out strings.Builder
+	if err := hosts.WriteContext(hosts.HostClaude, "SubagentStop", &out, []string{"x"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"hookEventName":"SubagentStop"`) {
+		t.Fatalf("%s", out.String())
 	}
 }

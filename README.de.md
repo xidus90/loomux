@@ -66,9 +66,9 @@ sequenceDiagram
     Hook->>Graph: Geänderte Datei hashen & Blast Radius berechnen (Ziel <5ms, G4)
     Hook-->>Agent: Betroffene Aufrufer & Blast-Warnungen inline ausgeben
 
-    Agent->>Hook: Stop (Rundenende, Stufe 2c — noch kein stop-Ereignis verdrahtet)
-    Hook->>Verify: Prüfkette fahren (konfigurierte Lanes, Tests, Coverage-Tor — Stufe 2c)
-    Verify-->>Agent: Grün (Exit 0) oder Stop mit Feedback (Exit 1/2)
+    Agent->>Hook: Stop (Rundenende, Stufe 2c)
+    Hook->>Verify: Profil stop über neuen Inhalt fahren (Lanes, Tests, Coverage-Tor)
+    Verify-->>Agent: Grün (Exit 0), Halt mit Feedback (Exit 2) oder kein Urteil (Exit 1)
 ```
 
 ### 2. Deterministisches Code-Graph-Retrieval ("GraphRank")
@@ -119,15 +119,17 @@ nichts davon, was ein Test über den Importgraphen festhält. Siehe
 ## Migrationsplan
 
 Wo jede Stufe und jede Funktion steht — Herkunft, Stand, Abhängigkeiten und
-Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**.
+Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**. Stufe 2c
+(das Stop-Tor und die Subagenten-Hooks) ist für Claude Code fertig; ihr
+Antigravity-Adapter steht noch aus.
 
 ---
 
 ## CLI-Referenz
 
-Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2 und 2a im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a und 2c im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
 
-### Aktive Befehle (Stufen 1a, 1b-1, 1b-2 und 2a)
+### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a und 2c)
 ```bash
 loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
@@ -136,6 +138,8 @@ loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderung
 loomux hook pre-tool-use            # Prüft Policy und globale Schreibschranke gegen stdin
 loomux hook post-tool-use           # Fährt die Lanes des Profils edit gegen die eben geänderte Datei (--budget, Vorgabe 50s)
 loomux hook session-start           # Hält den Basis-Commit der Sitzung fest und warnt vor veraltetem Binary
+loomux hook stop                    # Tor am Rundenende: Profil stop über neuen Inhalt, Befunde der Subagenten (--budget, Vorgabe 270s)
+loomux hook subagent-start|subagent-stop  # Schnappschuss von origin, Branches und HEAD um einen Subagenten; parkt, was sich bewegt hat, für stop
 loomux status|doctor|explain        # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses (drei Namen, ein Codeweg)
 loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel und Junction-Pfade
 loomux dev swap-binary              # Tauscht laufendes Binary atomar gegen Neubau aus

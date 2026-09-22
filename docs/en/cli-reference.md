@@ -24,7 +24,7 @@ Loomux uses strict exit code semantics aligned with AI coding agent harnesses:
 ## 2. Policy & Verification (`loomux check`)
 
 `loomux check` takes a **request** first and its flags after it. The request is
-a profile (`edit`, `precommit` or one of `[verify.profiles]`), `all`, a comma
+a profile (`edit`, `precommit`, `stop` or one of `[verify.profiles]`), `all`, a comma
 list of kinds (`lint,types`), or one of the three built-in checks below. What
 each kind runs per stack is set by
 [`[verify]`](configuration.md#verify-check-chains--quality-gates) and the
@@ -43,7 +43,10 @@ judges them.
 - **Order**: a lane starts as soon as the lane it waits for (`after`) is done,
   with at most `max_parallel` processes at once. The report comes at the end,
   never interleaved: kinds in request order, within them stacks in byte order,
-  then areas.
+  then areas. The one exception is `lint/wiki`, the lint over the wiki bundle
+  that runs in this process wherever `lint` is requested and the project has a
+  wiki: it comes last. It checks the bundle's structure only; the drift rule
+  stays with `loomux wiki-gate`.
 - **Output** (all on `stdout`): one line per lane,
   `<kind>/<stack>[@<area>]: <state> [<origin>]`, followed by the duration for
   a lane that started, `by <lane>` for a blocked one, or the reason for one
@@ -185,8 +188,33 @@ Records the commit the session starts on.
 - **Behavior**:
   - Writes `HEAD` as `base` into `.loomux/state/hooks/<session_id>.json`.
   - Warns in `hookSpecificOutput.additionalContext` when the binary inside the project is older than its Go sources.
-  - Makes no worktree junctions; that is `loomux worktree link`. See [Hooks](hooks.md#8-session-hooks-what-runs-today-what-comes-with-stage-2c).
+  - Makes no worktree junctions; that is `loomux worktree link`. See [Hooks](hooks.md#8-session-hooks).
 - **Exit Codes**: `0` (Success), `1` (missing or unknown host, no adapter for the host, unreadable payload, failed write).
+
+### `loomux hook stop`
+The gate at the end of a turn: delivers what subagents left, then runs the `stop` profile over what changed since the last green run.
+
+- **Flags**: `--host <h>` (required; only `claude` has an adapter), `--root <r>`, `--budget <duration>` — how long the lanes may take in all (Go duration, default `270s`, below the 300 s its settings entry grants). Each command gets the smaller of its own `timeout` and what is left of the budget.
+- **Standard Input**: the host's `Stop` payload; only `session_id` is read.
+- **Behavior**: in this order — the subagents' findings to `stderr`, the block counter (after 3 blocks in a row it gives up for one turn and leaves the findings on disk for the next), the marker `.loomux/no-verify` (it skips the chain, not the findings), the content fingerprint (nothing new since the last green run or the base: no tool starts), then the kinds of the `stop` profile (by default `lint`, `types`, `test`, `coverage`) in the check scope, plus `lint/wiki` where `lint` is asked for and there is a wiki. A green run moves `base` to `HEAD` and remembers the tree. See [Hooks](hooks.md#stop).
+- **Standard Error**: delivered findings as `subagent <agent_id>: <line>`, then only the red lanes, in the format of `loomux check`.
+- **Exit Codes**: `0` (the turn ends: green, nothing new, the marker, or the counter gave up), `2` (the turn is held: a red lane, a git failure, or findings delivered — with findings even an exit 1 becomes 2), `1` (the gate could not judge: an unreadable payload or one without `session_id`, the budget ran out, a requested kind had nothing that ran, `[verify]` cannot be loaded, the plan fails, the coverage directory cannot be prepared (`verify.PrepareCover`), or a malformed call; the turn ends).
+
+### `loomux hook subagent-start`
+Writes down where `origin`, the local branches and `HEAD` stand before a subagent runs.
+
+- **Flags**: `--host <h>` (required; only `claude` has an adapter), `--root <r>`.
+- **Standard Input**: the host's `SubagentStart` payload; `session_id` and `agent_id` are read.
+- **Behavior**: `git ls-remote origin` (10 s deadline, `GIT_TERMINAL_PROMPT=0`), the local branches and `HEAD` go into `.loomux/state/hooks/<session_id>/agents/<agent_id>.json`; a remote that does not answer is recorded as `unavailable`. A finding still parked in that file is kept. See [Hooks](hooks.md#subagent-start-and-subagent-stop).
+- **Exit Codes**: `0` (written), `1` (missing or unknown host, no `session_id` or `agent_id`, unreadable payload, failed write). Never 2.
+
+### `loomux hook subagent-stop`
+Compares against the snapshot and parks what moved for the main agent's `stop`.
+
+- **Flags**: `--host <h>` (required; only `claude` has an adapter), `--root <r>`.
+- **Standard Input**: the host's `SubagentStop` payload; `session_id` and `agent_id` are read.
+- **Behavior**: one line per ref of `origin` or local branch that is new, gone or moved, and one `new commit <oneline>` per commit `HEAD` and the moved branches gained, appended to the agent's file; nothing to report removes the file. Without a file or a snapshot it is silent. It writes nothing for the model: its own output would reach the subagent, not the main agent.
+- **Exit Codes**: `0` (compared, or nothing to compare), `1` (missing or unknown host, no `session_id` or `agent_id`, unreadable payload, failed write). Never 2.
 
 ---
 
@@ -204,6 +232,7 @@ loomux status
   - Active harnesses (`.claude/`, `.agents/`, `.cursor/`).
   - Write barrier status and policy rule count.
   - The lanes the post-edit hook runs per active stack: the `edit` profile as `[verify]` and the presets lay it out, each with its origin, and which of their tools are missing from the `PATH`.
+  - The `Stop` entry to wire (`loomux hook stop`, profile `stop`, the wiki bundle as `lint/wiki`), and for each of the six events `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, `SubagentStart` and `SubagentStop` whether `.claude/settings.json` calls its `loomux hook` (`[OK]`) or not (`[INFO]`), plus legacy hooks it replaces.
 - **Exit Codes**: `0` (Ready), `1` (Configuration error).
 
 ---

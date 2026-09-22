@@ -24,7 +24,7 @@ Loomux nutzt eine strikte Exit-Code-Semantik, die exakt auf die Schnittstellen m
 ## 2. Policy & Prüfketten (`loomux check`)
 
 `loomux check` nimmt zuerst eine **Anfrage** und danach ihre Flags. Die Anfrage
-ist ein Profil (`edit`, `precommit` oder eins aus `[verify.profiles]`), `all`,
+ist ein Profil (`edit`, `precommit`, `stop` oder eins aus `[verify.profiles]`), `all`,
 eine Komma-Liste von Arten (`lint,types`) oder einer der drei eingebauten
 Prüfbefehle unten. Was jede Art je Stack fährt, legen
 [`[verify]`](configuration.md#verify-prüfketten--quality-gates) und die Presets
@@ -45,7 +45,10 @@ urteilt über sie.
 - **Reihenfolge**: Eine Lane startet, sobald die Lane, auf die sie wartet
   (`after`), fertig ist, mit höchstens `max_parallel` Prozessen gleichzeitig.
   Der Bericht kommt am Ende, nie verzahnt: Arten in Anfrage-Reihenfolge, darin
-  Stacks in Byte-Ordnung, dann Bereiche.
+  Stacks in Byte-Ordnung, dann Bereiche. Die eine Ausnahme ist `lint/wiki`, der
+  Lint über das Wiki-Bündel, der in diesem Prozess läuft, wo `lint` angefragt
+  ist und das Projekt ein Wiki hat: er kommt zuletzt. Er prüft nur die Struktur
+  des Bündels; die Drift-Regel bleibt bei `loomux wiki-gate`.
 - **Ausgabe** (alles auf `stdout`): eine Zeile je Lane,
   `<art>/<stack>[@<bereich>]: <zustand> [<herkunft>]`, dahinter die Dauer bei
   einer Lane, die gestartet ist, `by <lane>` bei einer blockierten oder der
@@ -190,8 +193,33 @@ Hält den Commit fest, auf dem die Sitzung beginnt.
 - **Verhalten**:
   - Schreibt `HEAD` als `base` in `.loomux/state/hooks/<session_id>.json`.
   - Warnt in `hookSpecificOutput.additionalContext`, wenn das Binary im Projekt älter ist als seine Go-Quellen.
-  - Legt keine Worktree-Junctions an; das tut `loomux worktree link`. Siehe [Hooks](hooks.md#8-sitzungshooks-was-heute-läuft-was-mit-stufe-2c-kommt).
+  - Legt keine Worktree-Junctions an; das tut `loomux worktree link`. Siehe [Hooks](hooks.md#8-sitzungshooks).
 - **Exit-Codes**: `0` (Erfolg), `1` (fehlender oder unbekannter Host, kein Adapter für den Host, unlesbare Nutzlast, gescheitertes Schreiben).
+
+### `loomux hook stop`
+Das Tor am Rundenende: stellt zu, was Subagenten hinterlassen haben, und fährt dann das Profil `stop` über das, was sich seit dem letzten grünen Lauf geändert hat.
+
+- **Flags**: `--host <h>` (Pflicht; nur `claude` hat einen Adapter), `--root <r>`, `--budget <dauer>` — wie lange die Lanes zusammen dauern dürfen (Go-Dauer, Vorgabe `270s`, unter den 300 s, die sein Settings-Eintrag gewährt). Jeder Befehl bekommt das Kleinere aus seinem eigenen `timeout` und dem Rest des Budgets.
+- **Standard-Input (stdin)**: die `Stop`-Nutzlast des Hosts; gelesen wird nur `session_id`.
+- **Verhalten**: in dieser Reihenfolge — die Befunde der Subagenten auf `stderr`, der Blockzähler (nach 3 Blockaden in Folge gibt er für eine Runde auf und lässt die Befunde für die nächste liegen), der Marker `.loomux/no-verify` (er überspringt die Kette, nicht die Befunde), der Fingerabdruck des Inhalts (nichts Neues seit dem letzten grünen Lauf oder der Basis: kein Werkzeug startet), dann die Arten des Profils `stop` (vorgegeben `lint`, `types`, `test`, `coverage`) im Check-Scope, dazu `lint/wiki`, wo `lint` angefragt ist und es ein Wiki gibt. Ein grüner Lauf rückt `base` auf `HEAD` vor und merkt sich den Baum. Siehe [Hooks](hooks.md#stop).
+- **Standard-Fehler (stderr)**: zugestellte Befunde als `subagent <agent_id>: <zeile>`, danach nur die roten Lanes, im Format von `loomux check`.
+- **Exit-Codes**: `0` (die Runde endet: grün, nichts Neues, der Marker, oder der Zähler hat aufgegeben), `2` (die Runde wird angehalten: eine rote Lane, ein Git-Fehler, oder zugestellte Befunde — mit Befunden wird selbst ein Exit 1 zu 2), `1` (das Tor konnte nicht urteilen: eine unlesbare Nutzlast oder eine ohne `session_id`, das Budget war aufgebraucht, eine angefragte Art hatte nichts, was lief, `[verify]` lässt sich nicht laden, der Plan scheitert, das Coverage-Verzeichnis lässt sich nicht vorbereiten (`verify.PrepareCover`), oder ein fehlerhafter Aufruf; die Runde endet).
+
+### `loomux hook subagent-start`
+Hält fest, wo `origin`, die lokalen Branches und `HEAD` stehen, bevor ein Subagent läuft.
+
+- **Flags**: `--host <h>` (Pflicht; nur `claude` hat einen Adapter), `--root <r>`.
+- **Standard-Input (stdin)**: die `SubagentStart`-Nutzlast des Hosts; gelesen werden `session_id` und `agent_id`.
+- **Verhalten**: `git ls-remote origin` (Frist 10 s, `GIT_TERMINAL_PROMPT=0`), die lokalen Branches und `HEAD` kommen nach `.loomux/state/hooks/<session_id>/agents/<agent_id>.json`; ein Remote, der nicht antwortet, wird als `unavailable` festgehalten. Ein Befund, der noch in dieser Datei geparkt ist, bleibt erhalten. Siehe [Hooks](hooks.md#subagent-start-und-subagent-stop).
+- **Exit-Codes**: `0` (geschrieben), `1` (fehlender oder unbekannter Host, keine `session_id` oder `agent_id`, unlesbare Nutzlast, gescheitertes Schreiben). Nie 2.
+
+### `loomux hook subagent-stop`
+Vergleicht mit dem Schnappschuss und parkt, was sich bewegt hat, für das `stop` des Hauptagenten.
+
+- **Flags**: `--host <h>` (Pflicht; nur `claude` hat einen Adapter), `--root <r>`.
+- **Standard-Input (stdin)**: die `SubagentStop`-Nutzlast des Hosts; gelesen werden `session_id` und `agent_id`.
+- **Verhalten**: eine Zeile je Ref von `origin` oder lokalem Branch, der neu, weg oder bewegt ist, und ein `new commit <oneline>` je Commit, den `HEAD` und die bewegten Branches gewonnen haben, angehängt an die Datei des Agenten; ohne Befund wird die Datei entfernt. Ohne Datei oder ohne Schnappschuss schweigt er. Für das Modell schreibt er nichts: seine eigene Ausgabe erreichte den Subagenten, nicht den Hauptagenten.
+- **Exit-Codes**: `0` (verglichen, oder nichts zu vergleichen), `1` (fehlender oder unbekannter Host, keine `session_id` oder `agent_id`, unlesbare Nutzlast, gescheitertes Schreiben). Nie 2.
 
 ---
 
@@ -209,6 +237,7 @@ loomux status
   - Aktive Agenten-Harnesses (`.claude/`, `.agents/`, `.cursor/`).
   - Status der Schreibschranke und Anzahl der aktiven Policy-Regeln.
   - Die Lanes, die der post-edit-Hook je aktivem Stack fährt: das Profil `edit`, wie `[verify]` und die Presets es auslegen, jede mit ihrer Herkunft, und welche ihrer Werkzeuge auf dem `PATH` fehlen.
+  - Den einzutragenden `Stop`-Eintrag (`loomux hook stop`, Profil `stop`, das Wiki-Bündel als `lint/wiki`), und für jedes der sechs Ereignisse `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, `SubagentStart` und `SubagentStop`, ob `.claude/settings.json` seinen `loomux hook` ruft (`[OK]`) oder nicht (`[INFO]`), dazu Alt-Hooks, die er ersetzt.
 - **Exit-Codes**: `0` (Bereit), `1` (Konfigurationsfehler).
 
 ---

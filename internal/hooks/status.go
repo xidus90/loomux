@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -25,7 +26,13 @@ var knownLegacyHooks = []struct {
 	{"guard_paths.py", "superseded by 'loomux hook pre-tool-use'"},
 	{"format_on_edit.py", "superseded by 'loomux hook post-tool-use'"},
 	{"post_edit.py", "superseded by 'loomux hook post-tool-use'"},
-	{"wiki_gate.py", "superseded by 'loomux wiki-gate' in Stop hook"},
+	{"wiki_gate.py", "superseded by the lint/wiki lane of 'loomux hook stop'"},
+	// The whole command line, not just the event: `ultraloom hook stop` as a
+	// substring would otherwise be missed and `hook stop` would match the
+	// loomux command that replaces it.
+	{"ultraloom hook stop", "superseded by 'loomux hook stop'"},
+	{"ultraloom hook subagent-start", "superseded by 'loomux hook subagent-start'"},
+	{"ultraloom hook subagent-stop", "superseded by 'loomux hook subagent-stop'"},
 	{"generate_index.py", "superseded by ultra-brain catalog/reindex and wiki-gate"},
 	{"lint.py", "superseded by 'loomux lint' and 'loomux hook post-tool-use'"},
 }
@@ -36,11 +43,14 @@ type LegacyFinding struct {
 	Reason  string
 }
 
-func auditSettings(root string) ([]LegacyFinding, bool, bool) {
+// auditSettings reads .claude/settings.json and answers with the legacy hooks
+// it still wires and with the loomux hook events it installs, by the
+// subcommand the command line names.
+func auditSettings(root string) ([]LegacyFinding, map[string]bool) {
 	settingsPath := filepath.Join(root, ".claude", "settings.json")
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
-		return nil, false, false
+		return nil, nil
 	}
 
 	var parsed struct {
@@ -52,22 +62,24 @@ func auditSettings(root string) ([]LegacyFinding, bool, bool) {
 		} `json:"hooks"`
 	}
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		return nil, false, false
+		return nil, nil
 	}
 
-	hasPreGuard := false
-	hasPostEdit := false
+	// hookEvent is the subcommand after `hook`; a word boundary on both sides,
+	// so `hook stop` is not found inside `hook subagent-stop`. Compiled here
+	// and not at load: this runs once per report.
+	hookEvent := regexp.MustCompile(`\bhook\s+([a-z-]+)`)
+	installed := map[string]bool{}
 	var findings []LegacyFinding
 
-	for event, entries := range parsed.Hooks {
-		for _, entry := range entries {
+	// Sorted: the order of the events lands in the findings list that is
+	// printed, and a map hands them out differently every run.
+	for _, event := range slices.Sorted(maps.Keys(parsed.Hooks)) {
+		for _, entry := range parsed.Hooks[event] {
 			for _, h := range entry.Hooks {
 				cmd := h.Command
-				if strings.Contains(cmd, "loomux") && strings.Contains(cmd, "pre-tool-use") {
-					hasPreGuard = true
-				}
-				if strings.Contains(cmd, "loomux") && strings.Contains(cmd, "post-tool-use") {
-					hasPostEdit = true
+				if match := hookEvent.FindStringSubmatch(cmd); match != nil && strings.Contains(cmd, "loomux") {
+					installed[match[1]] = true
 				}
 				for _, leg := range knownLegacyHooks {
 					if strings.Contains(cmd, leg.scriptName) {
@@ -82,7 +94,7 @@ func auditSettings(root string) ([]LegacyFinding, bool, bool) {
 		}
 	}
 
-	return findings, hasPreGuard, hasPostEdit
+	return findings, installed
 }
 
 //coverage:exempt filepath.Abs fails only when os.Getwd does, which no test on the platforms this runs on can provoke
@@ -148,28 +160,27 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 	}
 	writeIgnored(stdout, eff.Ignored)
 
+	// The gate runs whether or not there is a wiki: the bundle check is one of
+	// its lanes, not the reason it exists.
 	fmt.Fprintln(stdout, "\n[Stop] (Session End Gate)")
-	if hasStack("wiki") {
-		fmt.Fprintln(stdout, "  -> loomux wiki-gate --root \"${CLAUDE_PROJECT_DIR}\" (Git-Drift & OKF Bundle Validation)")
-	} else {
-		fmt.Fprintln(stdout, "  -> No Stop-Hook configured (Wiki disabled)")
-	}
+	fmt.Fprintln(stdout, "  -> loomux hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" (profile `stop`, the wiki gate as lint/wiki)")
 
 	fmt.Fprintln(stdout, "\n--------------------------------------------------------------------------------")
 	fmt.Fprintln(stdout, " Hook Audit & Redundancy Check (.claude/settings.json)")
 	fmt.Fprintln(stdout, "--------------------------------------------------------------------------------")
 
-	findings, hasPre, hasPost := auditSettings(root)
-	if hasPre {
-		fmt.Fprintln(stdout, " [OK] PreToolUse:  'loomux hook pre-tool-use' installed")
-	} else {
-		fmt.Fprintln(stdout, " [INFO] PreToolUse: 'loomux hook pre-tool-use' not found in .claude/settings.json")
-	}
-
-	if hasPost {
-		fmt.Fprintln(stdout, " [OK] PostToolUse: 'loomux hook post-tool-use' installed")
-	} else {
-		fmt.Fprintln(stdout, " [INFO] PostToolUse: 'loomux hook post-tool-use' not found in .claude/settings.json")
+	findings, installed := auditSettings(root)
+	// One line per event this binary serves, in the order a session meets
+	// them, so an event that is wired nowhere is visible by its absence.
+	for _, h := range []struct{ event, name string }{
+		{"PreToolUse", "pre-tool-use"}, {"PostToolUse", "post-tool-use"}, {"SessionStart", "session-start"},
+		{"Stop", "stop"}, {"SubagentStart", "subagent-start"}, {"SubagentStop", "subagent-stop"},
+	} {
+		if installed[h.name] {
+			fmt.Fprintf(stdout, " [OK] %s: 'loomux hook %s' installed\n", h.event, h.name)
+		} else {
+			fmt.Fprintf(stdout, " [INFO] %s: 'loomux hook %s' not found in .claude/settings.json\n", h.event, h.name)
+		}
 	}
 
 	if len(findings) == 0 {

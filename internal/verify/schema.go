@@ -77,6 +77,10 @@ func defaults() Config {
 		Profiles: map[string][]string{
 			"edit":      {"lint", "types"},
 			"precommit": {"lint", "types", "test", "coverage"},
+			// What the stop gate runs at every turn end. The same four kinds
+			// as precommit by default; a project whose suite is too slow for
+			// every turn end narrows it here and keeps a gate that moves.
+			"stop": {"lint", "types", "test", "coverage"},
 		},
 		Stacks:      map[string]map[string]Override{},
 		ImportCheck: true,

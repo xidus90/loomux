@@ -53,14 +53,15 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName stri
 
 	lines := staleBinary(root)
 
-	if err := hosts.WriteContext(host, stdout, lines); err != nil {
+	if err := hosts.WriteContext(host, "SessionStart", stdout, lines); err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)
 		return ExitInternal
 	}
 	return ExitOK
 }
 
-// recordBase keeps the commit this session starts on, if there is one to keep.
+// recordBase keeps the commit this session starts on, if there is one to keep
+// and the session has none yet.
 //
 // Here and nowhere else: by the time the first Stop fires, the turn has
 // already run, and anything it committed would sit inside the baseline that is
@@ -88,11 +89,19 @@ func recordBase(sessionID, root string) error {
 		// nothing here while Python filed it under `unnamed` (state.py:75).
 		return nil
 	}
+	state := sessions.ReadState(root, sessionID)
+	if state.Base != "" {
+		// SessionStart fires again on resume, clear and compact under the
+		// same id. Moving the base to HEAD there would put everything
+		// committed since the last green run inside the baseline, and the
+		// next stop would find nothing to check. The base stays; a green
+		// run advances it (spec, Nachtrag 22).
+		return nil
+	}
 	commit, err := gitwork.HeadCommit(root)
 	if err != nil {
 		return nil
 	}
-	state := sessions.ReadState(root, sessionID)
 	state.Base = commit
 	return sessions.WriteState(root, sessionID, state)
 }

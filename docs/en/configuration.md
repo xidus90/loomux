@@ -91,9 +91,10 @@ in effect (see [CLI Reference](cli-reference.md#loomux-check-request---root-path
 max_parallel = 8        # processes at once; default: the number of CPUs
 timeout      = 600      # seconds per command; default 600, no upper limit
 
-[verify.profiles]       # built in: edit = [lint, types], precommit = all four
+[verify.profiles]       # built in: edit = [lint, types], precommit = stop = all four
 edit      = ["lint", "types"]
 precommit = ["lint", "types", "test", "coverage"]
+stop      = ["lint", "types", "test", "coverage"]   # what the stop gate runs at a turn end
 
 [verify.go]             # per stack; stacks not named keep their preset
 lint     = ["go vet ./...", "{loomux} check gofmt cmd internal"]
@@ -114,8 +115,8 @@ lint = "make lint"
 | Key | Type | Description |
 |---|---|---|
 | `max_parallel` | positive integer | Cap on child processes running at once, across all lanes. Default: the number of CPUs. |
-| `timeout` | positive integer | Seconds each command may run. Default 600; no upper limit. The post-edit hook also has a budget for the whole run (`--budget`, default 50 s); `loomux check` has none. |
-| `profiles.<name>` | list of kinds | A named set of kinds. `edit` (post-edit) and `precommit` (the gate) are built in and can be overridden. An empty list, an unknown kind or a reserved name is a load error. |
+| `timeout` | positive integer | Seconds each command may run. Default 600; no upper limit. The post-edit hook and the stop gate also have a budget for the whole run (`--budget`, default 50 s and 270 s); `loomux check` has none. |
+| `profiles.<name>` | list of kinds | A named set of kinds. `edit` (post-edit), `precommit` (the pre-commit gate) and `stop` (the stop gate at a turn end) are built in and can be overridden, but not removed. An empty list, an unknown kind or a reserved name is a load error. |
 | `<stack>.<kind>` | string, list, `false` or table | How one kind runs for one stack; see below. |
 | `gdscript.import_check` | boolean | Default `true`: `test` and `coverage` of GDScript are `unready` until the Godot editor has imported the project (`.godot/global_script_class_cache.cfg`). |
 
@@ -133,7 +134,9 @@ There are four kinds, in the order they are listed: `lint`, `types`, `test`,
 `coverage`. A request to `loomux check` is a profile, `all` (always all four
 kinds) or a comma list of kinds (`lint,types`). The names `gofmt`,
 `commit-msg`, `gocover`, `all`, `lint`, `types`, `test` and `coverage` are
-reserved; a profile with one of them is a load error.
+reserved; a profile with one of them is a load error. `stop` is not reserved:
+it is a built-in profile like `edit` and `precommit`, and a project whose suite
+is too slow for every turn end narrows it (`stop = ["lint", "types"]`).
 
 #### Stacks
 
@@ -152,8 +155,13 @@ reserved; a profile with one of them is a load error.
   nothing.
 - `.js` and `.jsx` belong to `typescript`; there is no `javascript`. Godot
   code is `gdscript`.
-- `wiki` knows only `lint = false`, which switches off the in-process wiki
-  lint of the post-edit hook. `loomux wiki-gate` stays a command of its own.
+- `wiki` knows only `lint = false`, which switches off both wiki lanes that
+  run in loomux's own process: the lint of the edited page in the post-edit
+  hook, and `lint/wiki`, the lint over the whole bundle that `loomux check`
+  and the stop gate add wherever `lint` is requested and the project has a
+  wiki. `lint/wiki` checks the bundle's structure only and is reported after
+  every other lane. The drift rule — code changed, documentation not — stays
+  with `loomux wiki-gate`, a command of its own.
 - `project` has no preset. Its lanes run in the root for `loomux check`; the
   post-edit hook runs them only with `on_file`, and only beside the lanes of
   an edited file whose stack is active.
@@ -335,6 +343,15 @@ profile never walks the tree.
   `stderr`; lanes it skipped are named in `hookSpecificOutput.additionalContext`
   on `stdout`, exit 0. A file whose ending no active stack claims gets no
   lanes and exits 0.
+- **Verdict of the stop gate:** the profile `stop` in the check scope, so the
+  states read as in the `loomux check` column. A red lane exits 2 and holds the
+  turn, with only the red lanes on `stderr`; a lane the budget did not reach,
+  or a requested kind with nothing that ran, exits 1 — the gate could not
+  judge, and the turn ends. See [Hooks](hooks.md#stop).
+- **The marker `.loomux/no-verify`.** While it exists, the stop gate lets
+  every turn end without running the chain. Findings of subagents are still
+  delivered, and still hold the turn. A human creates and removes it; the policy refuses the path to
+  an agent.
 
 ---
 
@@ -464,7 +481,7 @@ agents = ["claude", "antigravity", "cursor"]
 rules = [
   { match = [".env*", "*.pem", "*.key", "id_rsa*"], reason = "Secrets must not be written by agents" },
   { match = [".loomux/config.toml"], reason = "Guard policy is human-managed and write-protected" },
-  { match = [".claude/.no-verify"], reason = "Verification controls cannot be bypassed by agents" },
+  { match = [".loomux/no-verify"], reason = "Verification controls cannot be bypassed by agents" },
   { match = ["go.sum", "package-lock.json", "uv.lock"], reason = "Lock files are written by package tools, not by hand" }
 ]
 
@@ -517,6 +534,9 @@ never = [".env*", "*.key", "credentials.json"]
 | Artefacts of a read-only area (`index.md`, `graph.json`, `_identities.tsv`) and its manifest, as `loomux brain` reads them | `%LOCALAPPDATA%\brain\areas\<scope>\` until stage 3 |
 | Artefacts of a writable area | its `path` |
 | Last reconcile stamp | `%LOCALAPPDATA%\brain\maintenance\last-run.txt` until stage 3 |
+| Session state of the hooks (`base`, `blocks`, `green`) | `<project>\.loomux\state\hooks\<session_id>.json` |
+| Snapshots and findings of subagents | `<project>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
+| The marker that switches the stop gate off | `<project>\.loomux\no-verify` |
 
 `LOOMUX_STATE_DIR` overrides the state directory and
 `LOOMUX_LEGACY_BRAIN_DIR` the ultra-brain directory; there is no command-line

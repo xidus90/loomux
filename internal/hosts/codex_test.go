@@ -23,7 +23,7 @@ func TestCodexFailsClosed(t *testing.T) {
 		t.Errorf("the codex seam refuses to read with ErrNoAdapter, got %v", err)
 	}
 	var out bytes.Buffer
-	if err := hosts.WriteContext(hosts.HostCodex, &out, []string{"a"}); !errors.Is(err, hosts.ErrNoAdapter) {
+	if err := hosts.WriteContext(hosts.HostCodex, "SessionStart", &out, []string{"a"}); !errors.Is(err, hosts.ErrNoAdapter) {
 		t.Errorf("the codex seam refuses to write with ErrNoAdapter, got %v", err)
 	}
 	if out.Len() != 0 {
@@ -34,7 +34,7 @@ func TestCodexFailsClosed(t *testing.T) {
 	// "Nothing to say writes nothing" is the Claude arm's rule, so a seam that
 	// answered nil to no lines would report success for a host it cannot
 	// write to at all.
-	if err := hosts.WriteContext(hosts.HostCodex, &out, nil); !errors.Is(err, hosts.ErrNoAdapter) {
+	if err := hosts.WriteContext(hosts.HostCodex, "SessionStart", &out, nil); !errors.Is(err, hosts.ErrNoAdapter) {
 		t.Errorf("the codex seam refuses an empty write with ErrNoAdapter, got %v", err)
 	}
 	if out.Len() != 0 {
@@ -62,7 +62,7 @@ func TestAntigravityFailsClosed(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	writeErr := hosts.WriteContext(hosts.HostAntigravity, &out, []string{"a"})
+	writeErr := hosts.WriteContext(hosts.HostAntigravity, "SessionStart", &out, []string{"a"})
 	if !errors.Is(writeErr, hosts.ErrNoAdapter) {
 		t.Fatalf("the antigravity context path is not built yet and must say so, got %v", writeErr)
 	}
@@ -76,7 +76,7 @@ func TestAntigravityFailsClosed(t *testing.T) {
 	// The empty call refuses as well. Silence for no lines is the Claude arm's
 	// rule and not a property of the answer, so this arm owes the caller
 	// ErrNoAdapter whether there is anything to write or not.
-	if err := hosts.WriteContext(hosts.HostAntigravity, &out, nil); !errors.Is(err, hosts.ErrNoAdapter) {
+	if err := hosts.WriteContext(hosts.HostAntigravity, "SessionStart", &out, nil); !errors.Is(err, hosts.ErrNoAdapter) {
 		t.Fatalf("the antigravity arm refuses an empty write with ErrNoAdapter, got %v", err)
 	}
 	if out.Len() != 0 {

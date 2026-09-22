@@ -15,7 +15,7 @@ sequenceDiagram
     participant Host as Agenten-Harness (Claude / Antigravity)
     participant Pre as loomux hook pre-tool-use
     participant Post as loomux hook post-tool-use
-    participant Stop as loomux hook stop (Stufe 2c)
+    participant Stop as loomux hook stop
     participant Journal as events.jsonl (Append-Only)
 
     Dev->>Host: Prompt übergeben
@@ -44,13 +44,15 @@ sequenceDiagram
     end
 
     rect rgb(245, 255, 245)
-    Note over Host,Stop: Phase 3: Rundenende-Verifikation (Stufe 2c, noch nicht gebaut)
+    Note over Host,Stop: Phase 3: Rundenende-Verifikation (Abschnitt 8)
     Host->>Stop: Runde beendet (stdin)
-    Stop->>Stop: Prüfkette [verify] fahren (Linter, Tests, Coverage)
-    alt Quality Gate schlägt fehl
-        Stop-->>Host: Exit 2 + Feedback (Runde anhalten)
-    else Alle Lanes grün
-        Stop-->>Host: Exit 0 (Runde erfolgreich)
+    Stop->>Stop: Befunde der Subagenten zustellen, dann das Profil stop über das Geänderte fahren
+    alt Eine Lane rot, oder Befunde von Subagenten zugestellt
+        Stop-->>Host: Exit 2 + rote Lanes und Befunde auf stderr (Runde anhalten)
+    else Nichts Neues, oder alle Lanes grün
+        Stop-->>Host: Exit 0 (Runde endet)
+    else Das Tor konnte nicht urteilen (Budget aufgebraucht, nichts geprüft, Ladefehler)
+        Stop-->>Host: Exit 1 (Runde endet, Grund auf stderr)
     end
     end
 ```
@@ -344,7 +346,7 @@ Die eingebauten Regeln (`internal/hooks/guard.go`):
 | Art | Trifft | Grund |
 |---|---|---|
 | Pfad | zehn Geheimnismuster, darunter `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `credentials.json` und `.aws/**` | secrets are not written by an agent |
-| Pfad | `.claude/.no-verify`, `.loomux/state/hooks/**` | the stop gate's own controls are not written by the party it gates |
+| Pfad | `.loomux/no-verify`, `.loomux/state/hooks/**` | the stop gate's own controls are not written by the party it gates |
 | Pfad | sieben Lockdateien, darunter `go.sum`, `package-lock.json` und `Cargo.lock` | lock files are written by their package manager, not by hand |
 | Befehl | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
 
@@ -356,25 +358,49 @@ stehen, steht in
 
 ---
 
-## 8. Sitzungshooks: was heute läuft, was mit Stufe 2c kommt
+## 8. Sitzungshooks
 
 Die Policy lehnt einen Werkzeugaufruf ab, bevor er geschieht; Sitzungshooks
-stellen hinterher fest, was geschehen ist. Das Design nennt fünf. Zwei laufen
-heute:
+stellen hinterher fest, was geschehen ist. Das Design nennt fünf, und alle fünf
+laufen:
 
 | Ereignis in Claude Code | loomux-Hook | Stufe | Was er feststellt |
 |---|---|---|---|
 | `SessionStart` | `session-start` | 1a, läuft | Den Commit, auf dem die Sitzung beginnt; eine Warnung, wenn das Pilot-Binary älter ist als seine Quellen |
 | `PostToolUse` | `post-tool-use` | 1a, läuft; Lanes aus `[verify]` seit 2a | Die Lanes aus Abschnitt 5 für die bearbeitete Datei |
-| `SubagentStart` | `subagent-start` | 2c | Wo die Remote-Refs und der lokale `HEAD` vor einem Subagenten standen |
-| `SubagentStop` | `subagent-stop` | 2c | Jeden Remote-Ref, der sich bewegt hat, dazukam oder verschwand, und die Commits, die `HEAD` gewonnen hat |
-| `Stop` | `stop` | 2c | Ob alles seit dem letzten grünen Durchlauf grün ist — der einzige, der eine Runde anhalten kann |
+| `SubagentStart` | `subagent-start` | 2c, läuft | Wo `origin`, die lokalen Branches und `HEAD` vor einem Subagenten standen |
+| `SubagentStop` | `subagent-stop` | 2c, läuft | Jeden Ref von `origin` und jeden lokalen Branch, der sich bewegt hat, dazukam oder verschwand, und die Commits, die `HEAD` und die bewegten Branches gewonnen haben — geparkt für das `stop` des Hauptagenten |
+| `Stop` | `stop` | 2c, läuft | Ob alles seit dem letzten grünen Durchlauf grün ist — der einzige, der eine Runde anhalten kann |
 
-Bis Stufe 2c kennt `loomux hook` die Ereignisse `pre-tool-use`,
-`post-tool-use` und `session-start`; jeder andere Name wird mit Exit 2
-abgelehnt (`unknown event`). Phase 3 im Diagramm aus Abschnitt 1 ist Stufe 2c.
+`loomux hook` kennt sechs Ereignisse: `pre-tool-use`, `post-tool-use`,
+`session-start`, `stop`, `subagent-start` und `subagent-stop`; jeder andere
+Name wird mit Exit 2 abgelehnt (`unknown event`). Ein fehlerhafter Aufruf eines
+der fünf Sitzungshooks — ein fehlendes oder unbekanntes `--host`, ein Flag, das
+er nicht kennt, und ohne `--root` keine `.loomux/config.toml` oberhalb des
+Arbeitsverzeichnisses — ist Exit 1, und der hält nichts an: ein Tor, das seinen
+Aufruf nicht lesen kann, darf die Runde nicht deswegen festhalten.
 
-### `session-start` heute
+**Nur `--host claude` hat einen Adapter** für die vier Hooks, die ihre
+Nutzlast über `internal/hosts` lesen: `session-start`, `stop`,
+`subagent-start` und `subagent-stop`. Für sie sind `antigravity` und `codex`
+Nähte: ihre Nutzlasten sind ungemessen, und jeder der vier lehnt sie mit
+Exit 1 ab, statt eine Form zu raten (`internal/hosts/codex.go`). Der Antigravity-Adapter wartet auf seine eigene
+Messung.
+
+Eingetragen in `.claude/settings.json` sehen die drei Hooks der Stufe 2c so aus
+(`loomux status` druckt die `Stop`-Zeile, ohne das vorgegebene `--budget`, und
+meldet, welche der sechs Ereignisse eingetragen sind):
+
+| Ereignis | Befehl | Frist |
+|---|---|---|
+| `Stop` | `loomux hook stop --host claude --root "${CLAUDE_PROJECT_DIR}" --budget 270s` | 300 |
+| `SubagentStart` | `loomux hook subagent-start --host claude --root "${CLAUDE_PROJECT_DIR}"` | 30 |
+| `SubagentStop` | `loomux hook subagent-stop --host claude --root "${CLAUDE_PROJECT_DIR}"` | 30 |
+
+Dieses Repository fährt sie über seine eingecheckte `.claude/settings.json`,
+neben seinen drei übrigen Hooks.
+
+### `session-start`
 
 ```sh
 loomux hook session-start --host claude --root <projekt>   # Nutzlast auf stdin
@@ -395,40 +421,211 @@ loomux hook session-start --host claude --root <projekt>   # Nutzlast auf stdin
   schreibt der Hook nichts.
 - **Meldet keine wartenden Flow-Läufe.** Das kommt mit der Flow-Migration
   zurück.
-- **Nur `--host claude` hat einen Adapter.** `antigravity` und `codex` sind
-  Nähte: ihre Sitzungsnutzlast ist ungemessen, und der Hook lehnt sie mit
-  Exit 1 ab, statt eine Form zu raten (`internal/hosts/codex.go`).
 - **Exit 0 oder 1, nie 2.** Er ist eine Ankündigung und hat keine Runde
   anzuhalten. Ein fehlendes oder unbekanntes `--host`, ein stdin, das kein
   JSON-Objekt ist, und — ohne `--root` — keine `.loomux/config.toml` oberhalb
   des Arbeitsverzeichnisses sind Exit 1.
 
+### `stop`
+
+```sh
+loomux hook stop --host claude --root <projekt> [--budget 270s]   # Nutzlast auf stdin
+```
+
+Das Tor am Rundenende. Es prüft, dass die Arbeit grün ist, und stellt zu, was
+sich am Remote und an den Branches bewegt hat, während ein Subagent lief. In
+dieser Reihenfolge
+(`internal/hooks/stop.go`):
+
+1. **Nutzlast.** Kein JSON oder keine `session_id`: Exit 1. Eine gemeinsame
+   Ersatzdatei gibt es nicht, denn zwei Sitzungen zählten sonst einander die
+   Blockaden. `stop_hook_active` wird nicht gelesen; der Blockzähler ist die
+   eine Quelle.
+2. **Befunde der Subagenten.** Jeder Befund, den ein beendeter Subagent unter
+   `.loomux/state/hooks/<session_id>/agents/` hinterlassen hat, geht zuerst
+   auf stderr, jede Zeile mit dem Präfix `subagent <agent_id>: `.
+   Zugestellte Befunde halten die Runde an (Exit 2) — siehe unten.
+3. **Zähler.** Nach **3 Blockaden in Folge** gibt das Tor für eine Runde auf:
+   `gave up after 3 consecutive blocks; base stays at <sha>. Fix the lanes or
+   set .loomux/no-verify.`, der Zähler geht auf 0, Exit 0. Die in Schritt 2
+   geschriebenen Befunde bleiben in ihren Dateien — stderr bei Exit 0 liest
+   niemand —, also stellt das nächste Rundenende sie erneut zu und hält an. In
+   jeder anderen Runde werden die zugestellten Zeilen hier aus ihren Dateien
+   geräumt.
+4. **Marker.** Existiert `.loomux/no-verify`, läuft die Kette nicht: Exit 0,
+   mit Befunden 2 — der Marker überspringt die Kette, nicht die Befunde. Nur
+   ein Mensch setzt ihn; die Policy verweigert einem Agenten den Pfad
+   (Abschnitt 7). Der Marker zählt nicht und setzt den Zähler nicht zurück.
+5. **Fingerabdruck.** `gitwork.ContentTree` nimmt den Arbeitsbaum in eine
+   Kopie des Index auf (im Temp-Verzeichnis des Systems, nicht im Zustand),
+   streicht `.loomux/state` daraus und schreibt einen Baum: einen Hash des
+   Inhalts, wie Git ihn committen würde, untracked Dateien eingeschlossen,
+   ignorierte nicht. Ist dieser Baum gleich dem des letzten grünen Laufs
+   (`green`) oder dem Baum der Basis, ist nichts neu: Exit 0 (mit Befunden 2),
+   und kein Werkzeug startet. Das ist ein grüner Durchgang: ein Zähler über 0
+   geht auf 0, sonst wird nichts geschrieben.
+6. **Profil.** Die Kette fährt die Arten des Profils `stop` — vorgegeben
+   `lint`, `types`, `test`, `coverage`, dieselben wie `precommit` — im
+   Check-Scope, wie `loomux check` es täte, dazu die Lane `lint/wiki` über das
+   Wiki-Bündel, wenn das Profil `lint` hat, das Projekt ein Wiki hat und
+   `[verify.wiki] lint = false` sie nicht abschaltet. Diese Lane prüft nur die
+   Struktur des Bündels; die Drift-Regel bleibt bei `loomux wiki-gate`.
+7. **Kette.** Jede Lane läuft innerhalb von `--budget` (Vorgabe 270 s, unter
+   den 300 s seines Settings-Eintrags); jeder Befehl bekommt das Kleinere aus
+   seinem eigenen `timeout` und dem Rest des Budgets.
+
+Was der Lauf entscheidet:
+
+| Ausgang | Exit | Zähler | `base`, `green` |
+|---|---|---|---|
+| Nichts neu seit dem letzten grünen Lauf oder der Basis | 0 | auf 0 | unverändert |
+| Jede Lane grün | 0 | auf 0 | `base` = `HEAD`, `green` = der Baum |
+| Eine Lane rot (`failed`, `timed-out`, `blocked`, `missing-tool`, `unready`) | 2, die **roten** Lanes mit ihrer Ausgabe auf stderr | + 1 | unverändert |
+| Ein Git-Befehl scheitert in einem Repo | 2, der Fehler auf stderr | + 1 | unverändert |
+| Das Budget war aufgebraucht, bevor jede Lane geurteilt hatte | 1: `not everything was verified; raise --budget or shrink the stop profile` | unverändert | unverändert |
+| Eine angefragte Art hatte keine Lane, die lief | 1: die Notizen, dann `nothing was verified for these kinds; the base stays` | unverändert | unverändert |
+| `[verify]` lässt sich nicht laden, oder der Plan scheitert | 1, der Fehler auf stderr | unverändert | unverändert |
+
+Exit 0 beendet die Runde, 2 hält sie mit dem Grund auf stderr an, 1 heißt: das
+Tor konnte nicht urteilen — es lässt die Runde enden und sagt das. Nur rote
+Lanes kommen auf stderr; grüne sind im Kontext des Agenten Rauschen. Die
+Coverage-Dateien behandelt es wie `loomux check`: ein grüner Lauf löscht seine
+eigenen, ein roter lässt sie liegen, damit der Agent sie lesen kann.
+
+**Befunde halten die Runde an, und selbst eine 1 wird zur 2.** Die
+Befunddateien sind nach dem Zustellen weg; nur eine angehaltene Runde sorgt
+dafür, dass der Hauptagent sie liest. Wurden im selben Aufruf Befunde
+zugestellt, wird darum jeder Ausgang, der die Runde enden ließe — Exit 0 oder
+Exit 1 —, zu Exit 2, gleich was der Zähler sagt. Dieser Halt zählt nicht als
+Blockade. Die Runde, in der der Zähler aufgibt, endet mit geschriebenen
+Befunden und lässt sie darum für die nächste auf der Platte.
+
+**Ein Befund, den das Tor nicht wegräumen kann, zählt als Blockade.** Lässt
+sich die Datei eines Befunds nach dem Zustellen nicht entfernen, käme er an
+jedem Rundenende wieder und hielte jedes an, und der Marker hilft nicht, weil
+er Befunde nicht überspringt. Also zählt er, und die Aufgeben-Regel beendet die
+Reihe wie die einer roten Kette: drei Runden angehalten, die vierte
+durchgelassen, mit dem Befund geschrieben und weiter auf der Platte. Solange
+ein Befund feststeckt, setzt auch eine grüne Kette den Zähler nicht zurück.
+Ein Rundenende ist eine Blockade: eine rote Kette oder ein Git-Fehler neben
+einem feststeckenden Befund zählt nicht ein zweites Mal.
+
+**Woher die Basis kommt.** `session-start` schreibt sie, einmal: eine
+fortgesetzte, geleerte oder kompaktierte Sitzung feuert `SessionStart` unter
+derselben ID erneut und behält ihre Basis, und nur ein grüner Lauf rückt sie
+vor. Fehlt sie, misst das
+Tor ab `HEAD` und sagt das: `no base commit for this session; measuring from
+HEAD, so what this session committed stays unseen`. Eine Basis, die nicht mehr
+auflöst — nach `--amend` oder einem Rebase und einem `gc` —, ist kein
+Git-Fehler: `base <sha> is gone; measuring from HEAD`, und der nächste grüne
+Lauf setzt eine neue Basis. In einem Repo ohne Commit ist die Basis der leere
+Baum.
+
+**Kein Repo, oder eine Wurzel, die Git ignoriert:** es gibt keinen Baum zu
+messen, also läuft die Kette an jedem Rundenende, ohne Abkürzung. Ein grüner
+Lauf schreibt `base` und `green` dann leer.
+
+**Was es kostet.** Ein Rundenende ohne neuen Inhalt braucht auf diesem
+Repository (7.341 Dateien) 169,5 ms warm, davon rund 110 ms der Fingerabdruck;
+in einer Welt mit drei Dateien 121,3 ms. Die Kette selbst kostet, was ihre
+Werkzeuge kosten ([Benchmarks](benchmarks.md), Eintrag vom 2026-09-20).
+
+### `subagent-start` und `subagent-stop`
+
+```sh
+loomux hook subagent-start --host claude --root <projekt>   # Nutzlast auf stdin
+loomux hook subagent-stop  --host claude --root <projekt>   # Nutzlast auf stdin
+```
+
+Ein Subagent kann pushen, einen Branch verschieben oder committen, und nichts,
+was der Hauptagent liest, sagte es ihm. Die beiden Hooks nehmen davor und
+danach einen Schnappschuss und legen für den Hauptagenten ab, was sich
+dazwischen bewegt hat. Das ist eine Beobachtung, keine Zuschreibung: pusht eine
+andere Sitzung im selben Zeitraum nach `origin`, liest sich das genauso, und
+nichts hier kann die beiden unterscheiden. Claude Code schickt beide mit der `session_id` des Hauptagenten und derselben
+`agent_id` (gemessen mit Claude Code 2.1.276, `testdata/cases/2c-payloads/`).
+
+- **Der Schnappschuss** hält die Refs von `origin` aus `git ls-remote origin`
+  (Frist 10 s, mit `GIT_TERMINAL_PROMPT=0`, damit keine Passwortabfrage auf
+  ein Terminal wartet), die lokalen Branches samt denen, die in einem anderen
+  Worktree des Repos ausgecheckt sind, und `HEAD`. Ein Remote, der nicht
+  antwortet — kein `origin`, kein Netz, die Frist —, wird als `unavailable`
+  festgehalten, nicht als Remote ohne Refs.
+- **`subagent-start`** schreibt den Schnappschuss nach
+  `.loomux/state/hooks/<session_id>/agents/<agent_id>.json`, eine Datei je
+  Subagent, atomar geschrieben, sodass zwei Subagenten, die in einer Nachricht
+  starten, einander nicht überschreiben. Einen Befund, den ein früherer Lauf
+  derselben Agent-ID dort geparkt hat und den noch kein Rundenende zugestellt
+  hat, behält er neben dem neuen Schnappschuss.
+- **`subagent-stop`** nimmt einen zweiten Schnappschuss und vergleicht. Eine
+  Zeile je Unterschied: `origin <ref> is new at <sha>`,
+  `… is gone; it was <sha>`, `… moved <alt> -> <neu>`, dieselben drei für
+  `branch <name>`, und `new commit <oneline>` für jeden Commit, den `HEAD` und
+  jeder bewegte Branch gewonnen haben, jeden Commit einmal. Ein bewegter
+  Standard-Branch gibt zwei `origin`-Zeilen, eine für `HEAD` und eine für
+  `refs/heads/<name>`, weil `ls-remote` beide meldet. Ist `origin` an keinem der beiden
+  Enden eingerichtet, gibt es keine `origin`-Zeile. War der Remote an einem
+  der beiden Enden nicht lesbar — dort nicht eingerichtet, oder eingerichtet
+  und ohne Antwort —, steht genau eine Zeile da —
+  `remote could not be read at start` bzw. `… at stop` — anstelle der
+  `origin`-Zeilen; die `branch`- und `new commit`-Zeilen kommen trotzdem.
+- **Branches anderer Worktrees bleiben draußen.** Lokale Branches teilen sich
+  alle Worktrees eines Repos, und ein Branch, der in einem anderen ausgecheckt
+  ist, bewegt sich mit der Sitzung, die dort arbeitet. Ein solcher Branch — am
+  Start oder am Stop anderswo ausgecheckt, verglichen über die Pfade, die Git
+  meldet — bekommt keine `branch`-Zeile und keine `new commit`-Zeilen.
+  Branches, die nirgends ausgecheckt sind, und der Branch dieses Worktrees
+  bleiben drin. Ein Subagent, der mit `isolation: "worktree"` startet,
+  committet darum ohne Zeile hier auf dem Branch seines eigenen Worktrees; das
+  Ergebnis des Agent-Werkzeugs nennt diesen Worktree und Branch.
+- **Der Befund wird geparkt, nie fallengelassen.** Die Zeilen werden hinten an
+  das angehängt, was die Datei schon trägt, ältester Lauf zuerst, ohne
+  Entdoppelung; eine Datei, in der nichts bleibt, wird entfernt. Ohne Datei
+  oder ohne Schnappschuss schweigt `subagent-stop`.
+- **Zugestellt von `stop`.** Das eigene stdout und ein Exit 2 eines
+  Subagenten-Hooks erreichten den Subagenten, nicht den Hauptagenten. Darum
+  schreibt keiner der beiden etwas für das Modell: das nächste `stop` des
+  Hauptagenten druckt die Zeilen und hält die Runde an (siehe oben).
+- **Exit 0 oder 1, nie 2.** Eine Nutzlast ohne `session_id` oder `agent_id`
+  oder eine Datei, die sich nicht schreiben lässt, ist Exit 1.
+
+Bekannte Grenzen: ein Befund, der nach dem letzten `Stop` der Sitzung
+entsteht, wird nie zugestellt. Ein Subagent, den der Wirt ohne `SubagentStop`
+beendet, lässt seinen Schnappschuss liegen. Beide Dateien bleiben, bis
+`sessions.Forget` das Verzeichnis der Sitzung entfernt, und das ruft nur
+`loomux worktree unlink` (Abschnitt 9), und nur in einem verknüpften Worktree,
+in dem es etwas zu spiegeln gibt. In diesem Repository läuft es nie:
+`[worktree] mirror` ist in `.loomux/config.toml` auskommentiert, und
+`WorktreeUnlink` kehrt vor `Forget` zurück, wenn nichts gespiegelt ist — die
+Sitzungsdateien und die `agents/`-Verzeichnisse bleiben also gleichermaßen
+liegen, bis jemand sie löscht. Ein Schreiben, das genau zwischen das erneute
+Lesen einer Befunddatei durch das Tor und deren Umbenennen fällt, verliert
+eine Zeile; eine Sperre über eine Datei, die zwei Prozesse anfassen, gibt es
+nicht. Und in einem Haupt-Checkout, der seine verknüpften Worktrees in sich
+trägt, geht ein Worktree-Verzeichnis, das Git nicht ignoriert, als
+eingebettetes Repository mit seinem `HEAD` in den Fingerabdruck ein: jeder
+Commit dort ändert den Baum des Haupt-Checkouts, und dessen Tor fährt die
+Kette erneut (dieses Repository ignoriert `.claude/worktrees/` in
+`.git/info/exclude`).
+
+Was sie kosten, ist `git ls-remote`: `subagent-start` braucht warm 101,4 ms
+gegen ein lokales Bare-Remote und 1.038,7 ms gegen GitHub, Start und Stop eines
+Subagenten zusammen 201,6 ms bzw. 2.068,6 ms ([Benchmarks](benchmarks.md),
+Eintrag vom 2026-09-20).
+
 ### Der Sitzungszustand
 
 Eine Datei je Sitzung unter `.loomux/state/hooks/` mit `base`, `blocks` und
-`snapshots` — die letzten beiden für die Hooks aus Stufe 2c. Die Sitzungs-ID
-kommt von außen und darf nicht entscheiden, wo die Datei landet: nur
-Buchstaben, Ziffern (im Unicode-Sinn), `-` und `_` bleiben stehen, und eine ID,
-von der nichts übrig bleibt, wird zu `unnamed`. Eine Datei, die sich nicht
-lesen lässt, zählt als leer: eine Ausnahme beendete eine Runde wegen eines
-Zählers. Das Verzeichnis ist eine eingebaute Pfadregel der Policy
-(Abschnitt 7), denn ein Agent, der seinen eigenen Blockzähler zurücksetzt, hat
-das Tor abgeschafft.
-
-### Was Stufe 2c bringt
-
-So steht es im Fusionsdesign: `stop` fährt die Prüfkette über das, was sich
-seit der Basis geändert hat, mit einem `MAX_BLOCKS`-Zähler im Sitzungszustand,
-und liest `stop_hook_active` absichtlich nicht; `subagent-start` und
-`subagent-stop` halten den Remote-Stand fest und melden Drift. Zielwert: unter
-100 ms Eigenzeit je Hook, ohne die Zeit der Tore selbst.
-
-Zwei Regeln aus dem Lesen der alten `stop.py` kommen mit. `stop` bekommt ein
-Budget unter der Hook-Frist des Hosts, wie post-edit eins unter seinen 60 s
-hat, damit eine lange Suite gemeldet statt vom Host getötet wird. Und es
-merkt sich einen Fingerabdruck des Stands, den es zuletzt grün fand (`HEAD`,
-der Diff gegen die Basis, untracked Inhalte), in den `snapshots` der Sitzung
-und läuft nicht erneut, solange der Fingerabdruck gleich ist.
+`green` — die letzten beiden schreibt nur `stop`. Daneben ein Verzeichnis
+`<session_id>/agents/` mit einer Datei je Subagent (`snapshot`, `finding`).
+Eine Datei aus der Zeit vor Stufe 2c liest sich weiter; ihr Schlüssel
+`snapshots` wird übergangen. Die Sitzungs-ID kommt von außen und darf nicht
+entscheiden, wo die Datei landet: nur Buchstaben, Ziffern (im Unicode-Sinn),
+`-` und `_` bleiben stehen, und eine ID, von der nichts übrig bleibt, wird zu
+`unnamed`. Eine Datei, die sich nicht lesen lässt, zählt als leer: eine
+Ausnahme beendete eine Runde wegen eines Zählers. Das Verzeichnis ist eine
+eingebaute Pfadregel der Policy (Abschnitt 7), denn ein Agent, der seinen
+eigenen Blockzähler zurücksetzt, hat das Tor abgeschafft.
 
 ---
 
@@ -561,13 +758,15 @@ jede Lockerung der Bedingungen oben machte den Sweep erst unsicher.
 
 `unlink` zählt die anderen Sitzungsdateien, die jünger als 24 Stunden sind; die
 Änderungszeit einer Datei ist die einzige Lebendigkeit, die sich lesen lässt.
-In loomux schreibt heute genau ein Hook diese Datei: `session-start`, einmal.
-Die Hooks aus Stufe 2c werden sie bei jeder Blockade, jedem Durchlauf und jedem
-Subagenten neu schreiben; bis dahin ist eine Sitzungsdatei so jung wie der
-Start ihrer Sitzung. Eine Sitzung, die länger als einen Tag läuft, wird darum
-nicht gezählt, und eine zweite Sitzung, die auf demselben Baum endet, zieht ihr
-die Junctions weg. Keine Zahl schließt dieses Loch; die Lösung ist ein
-Schreiben auf der lebenden Seite. Vierundzwanzig Stunden neigen wegen der
+Zwei Hooks schreiben diese Datei: `session-start` einmal, und `stop`, wann
+immer eine Kette grün oder rot endet, ein Git-Fehler zählt, der Zähler aufgibt
+oder ein Befund sich nicht wegräumen lässt. Ein Rundenende, das nichts Neues
+findet oder über das das Tor nicht urteilen konnte, schreibt nichts, und die
+Subagenten-Hooks schreiben nur ihre eigenen Dateien im Verzeichnis der Sitzung,
+die das Zählen nicht liest. Eine Sitzung, deren letztes geschriebenes
+Rundenende mehr als einen Tag zurückliegt, wird darum nicht gezählt, und eine
+zweite Sitzung, die auf demselben Baum endet, zieht ihr die Junctions weg.
+`stop` verengt dieses Loch; keine Zahl schließt es. Vierundzwanzig Stunden neigen wegen der
 Asymmetrie zur langen Seite: eine stehen gebliebene Junction kostet nichts —
 `link` überspringt sie, und der Sweep nimmt sie heraus, sobald Git einen Baum
 unter `.worktrees/` oder `.claude/worktrees/` nicht mehr hält —, eine zu früh

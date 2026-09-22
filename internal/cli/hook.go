@@ -11,16 +11,23 @@ import (
 	"github.com/xidus90/loomux/internal/hosts"
 )
 
-// Exit codes when a hook call is malformed: a write barrier refuses (2), an
-// announcement never blocks (1).
+// Exit codes when a hook call is malformed: a write barrier refuses (2);
+// everything else ends with 1, which blocks nothing -- a stop gate that
+// cannot read its call must not hold the turn over it.
 var malformed = map[string]int{
-	"pre-tool-use":  hooks.ExitDenied,
-	"post-tool-use": hooks.ExitInternal,
-	"session-start": hooks.ExitInternal,
+	"pre-tool-use":   hooks.ExitDenied,
+	"post-tool-use":  hooks.ExitInternal,
+	"session-start":  hooks.ExitInternal,
+	"stop":           hooks.ExitInternal,
+	"subagent-start": hooks.ExitInternal,
+	"subagent-stop":  hooks.ExitInternal,
 }
 
-// postToolUse is the seam a test uses to see what the flags handed on.
-var postToolUse = hooks.PostToolUse
+// The seams a test uses to see what the flags handed on.
+var (
+	postToolUse = hooks.PostToolUse
+	stopHook    = hooks.Stop
+)
 
 func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
@@ -37,10 +44,13 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags.SetOutput(stderr)
 	root := flags.String("root", "", "path to the project root; found upwards when empty")
 	host := flags.String("host", "", "the harness calling: claude, antigravity or codex")
-	// Only post-edit runs lanes, so only it has a budget to spend on them.
+	// post-edit and the stop gate run lanes, so only they have a budget.
 	budget := new(time.Duration)
-	if event == "post-tool-use" {
+	switch event {
+	case "post-tool-use":
 		budget = flags.Duration("budget", hooks.DefaultBudget, "how long the post-edit lanes may take in all")
+	case "stop":
+		budget = flags.Duration("budget", hooks.DefaultStopBudget, "how long the stop gate's lanes may take in all")
 	}
 	if err := flags.Parse(args[1:]); err != nil {
 		return failure
@@ -69,6 +79,12 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return hooks.PreToolUse(stdin, stdout, stderr, resolved, config.StateDir())
 	case "post-tool-use":
 		return postToolUse(stdin, stdout, stderr, resolved, *budget)
+	case "stop":
+		return stopHook(stdin, stderr, resolved, *host, *budget)
+	case "subagent-start":
+		return hooks.SubagentStart(stdin, stderr, resolved, *host)
+	case "subagent-stop":
+		return hooks.SubagentStop(stdin, stderr, resolved, *host)
 	default:
 		return hooks.SessionStart(stdin, stdout, stderr, resolved, *host)
 	}

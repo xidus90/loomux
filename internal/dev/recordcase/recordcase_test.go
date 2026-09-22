@@ -41,6 +41,9 @@ func TestHelperProcess(t *testing.T) {
 			os.Stdout.WriteString(name + "=" + value + "\n")
 		}
 		os.Exit(0)
+	case "stderr":
+		os.Stderr.WriteString(strings.Join(args, " ") + "\n")
+		os.Exit(0)
 	case "crlf":
 		os.Stdout.WriteString("one\r\ntwo\r\n")
 		os.Exit(0)
@@ -118,6 +121,71 @@ func TestRecordKeepsTheWorldTokenAndTheRecordedWorld(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(s.Out, "stdin")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("stdin is written only when there is one: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(s.Out, "stderr")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("stderr is written only when the run said something: %v", err)
+	}
+}
+
+// The old hooks said everything on stderr, so a case keeps it as evidence --
+// nothing compares it, and a deviation list has to be able to quote it.
+func TestRecordKeepsStderrAsEvidence(t *testing.T) {
+	s := helperSpec(t, "stderr", "gone wrong in {{WORLD}}")
+	if err := Record(s); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, s.Out, "stderr"); got != "gone wrong in {{WORLD}}\n" {
+		t.Errorf("stderr %q", got)
+	}
+}
+
+// A world that declares commits is built before the run, and the repository
+// the build made is the bench rather than the world: it stays out of the case.
+func TestRecordBuildsTheGitWorldAndLeavesItOutOfWorldAfter(t *testing.T) {
+	s := helperSpec(t, "write", "{{WORLD}}/made.txt")
+	if err := os.WriteFile(filepath.Join(s.World, "git.toml"), []byte("[[commit]]\nmessage = \"base\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.World, "head.txt"), []byte("{{COMMIT:1}}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Record(s); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(s.Out, "world_after", ".git")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("world_after/.git: %v", err)
+	}
+	if got := read(t, s.Out, "world_after", "head.txt"); len(got) != 40 {
+		t.Errorf("token not replaced: %q", got)
+	}
+	if got := read(t, s.Out, "world", "head.txt"); got != "{{COMMIT:1}}" {
+		t.Errorf("the recorded world keeps its declaration: %q", got)
+	}
+}
+
+// A linked worktree carries .git as a file rather than a directory; the skip
+// holds for both shapes.
+func TestRecordLeavesAGitFileOutOfTheCorpus(t *testing.T) {
+	s := helperSpec(t, "echo", "x")
+	if err := os.WriteFile(filepath.Join(s.World, ".git"), []byte("gitdir: elsewhere\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Record(s); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(s.Out, "world", ".git")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("world/.git: %v", err)
+	}
+}
+
+// A git.toml git cannot make is the recorder's error, not a case.
+func TestRecordReportsAGitWorldItCannotBuild(t *testing.T) {
+	s := helperSpec(t, "echo", "x")
+	if err := os.WriteFile(filepath.Join(s.World, "git.toml"), []byte("[[commit]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Record(s); err == nil {
+		t.Fatal("want error for a git.toml that does not parse")
 	}
 }
 

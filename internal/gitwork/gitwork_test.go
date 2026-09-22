@@ -1,22 +1,25 @@
-package gitwork_test
+package gitwork
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/gitenv"
-	"github.com/xidus90/loomux/internal/gitwork"
 )
 
 func TestHeadCommitOfARepository(t *testing.T) {
 	root := repo(t)
 	commit(t, root, "first")
 
-	got, err := gitwork.HeadCommit(root)
+	got, err := HeadCommit(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,13 +40,13 @@ func TestHeadCommitOfARepository(t *testing.T) {
 func TestHeadCommitReadsADetachedHead(t *testing.T) {
 	root := repo(t)
 	commit(t, root, "first")
-	sha, err := gitwork.HeadCommit(root)
+	sha, err := HeadCommit(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	run(t, root, "checkout", "-q", "--detach", sha)
 
-	got, err := gitwork.HeadCommit(root)
+	got, err := HeadCommit(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,9 +55,20 @@ func TestHeadCommitReadsADetachedHead(t *testing.T) {
 	}
 }
 
+// git ran and refused, so its own words on stderr are the only account of
+// why -- and they arrive behind a separator. Written straight onto the exit
+// status they would read as one word with it, which is the other half of the
+// rule the dangling separator below pins.
+var runsIntoTheExitStatus = regexp.MustCompile(`exit status \d+[^\d:]`)
+
 func TestHeadCommitOutsideARepository(t *testing.T) {
-	if _, err := gitwork.HeadCommit(t.TempDir()); err == nil {
+	_, err := HeadCommit(t.TempDir())
+
+	if err == nil {
 		t.Fatal("a directory that is not a repository has no head")
+	}
+	if runsIntoTheExitStatus.MatchString(err.Error()) {
+		t.Fatalf("git's own words run into the exit status: %q", err.Error())
 	}
 }
 
@@ -68,7 +82,7 @@ func TestHeadCommitOutsideARepository(t *testing.T) {
 // end every such message in a dangling ": ", which reads as an error that was
 // cut off rather than one that is complete.
 func TestHeadCommitOfADirectoryThatIsNotThere(t *testing.T) {
-	_, err := gitwork.HeadCommit(filepath.Join(t.TempDir(), "nowhere"))
+	_, err := HeadCommit(filepath.Join(t.TempDir(), "nowhere"))
 
 	if err == nil {
 		t.Fatal("a directory that is not there has no head")
@@ -81,7 +95,7 @@ func TestHeadCommitOfADirectoryThatIsNotThere(t *testing.T) {
 // `git init` leaves HEAD naming a branch that does not exist yet. That is a
 // repository without an answer, not an answer.
 func TestHeadCommitOfARepositoryWithoutACommit(t *testing.T) {
-	if _, err := gitwork.HeadCommit(repo(t)); err == nil {
+	if _, err := HeadCommit(repo(t)); err == nil {
 		t.Fatal("a repository with no commit has no head")
 	}
 }
@@ -104,9 +118,9 @@ func TestHeadCommitRefusesAnIgnoredRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := gitwork.HeadCommit(parked)
+	_, err := HeadCommit(parked)
 
-	if !errors.Is(err, gitwork.ErrIgnoredRoot) {
+	if !errors.Is(err, ErrIgnoredRoot) {
 		t.Fatalf("expected ErrIgnoredRoot, got %v", err)
 	}
 }
@@ -157,5 +171,349 @@ func run(t *testing.T, root string, args ...string) {
 	command.Env = gitenv.Environ()
 	if out, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// A repository without a commit is a state to measure from -- the empty tree
+// -- and not a failure, which is the whole difference between Head and
+// HeadCommit above.
+func TestHeadOfAnUnbornRepository(t *testing.T) {
+	root := t.TempDir()
+	mustGit(t, root, "init", "-q")
+	if head, err := Head(root); err != nil || head != "" {
+		t.Fatalf("head %q, %v", head, err)
+	}
+}
+
+func TestHeadOfARepositoryWithACommit(t *testing.T) {
+	root := repoWithCommit(t)
+	head, err := Head(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := mustGit(t, root, "rev-parse", "HEAD"); head != want {
+		t.Fatalf("head %q, want %q", head, want)
+	}
+}
+
+func TestHeadOutsideARepository(t *testing.T) {
+	if _, err := Head(t.TempDir()); !errors.Is(err, ErrNotRepository) {
+		t.Fatalf("err %v", err)
+	}
+}
+
+// The same refusal HeadCommit makes, and for the same reason: rev-parse would
+// answer with the surrounding repository's HEAD.
+func TestHeadRefusesAnIgnoredRoot(t *testing.T) {
+	outer := repo(t)
+	commit(t, outer, "first")
+	parked := filepath.Join(outer, "parked")
+	if err := os.MkdirAll(parked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outer, ".gitignore"), []byte("parked/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Head(parked); !errors.Is(err, ErrIgnoredRoot) {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestTreeOfRefusesACommitThatIsNotThere(t *testing.T) {
+	if _, err := TreeOf(repoWithCommit(t), "nosuchref"); err == nil {
+		t.Fatal("want an error")
+	}
+}
+
+func TestContentTreeMatchesHeadWhenClean(t *testing.T) {
+	root := repoWithCommit(t)
+	tree, err := ContentTree(root, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, _ := TreeOf(root, "HEAD")
+	if tree != head {
+		t.Fatalf("tree %s, head tree %s", tree, head)
+	}
+}
+
+func TestContentTreeSeesChangesAndNewFilesButNotState(t *testing.T) {
+	root := repoWithCommit(t)
+	clean, _ := ContentTree(root, t.TempDir())
+	if err := os.MkdirAll(filepath.Join(root, ".loomux", "state"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".loomux", "state", "x"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if tree, _ := ContentTree(root, t.TempDir()); tree != clean {
+		t.Fatal("machine state moved the tree")
+	}
+	if err := os.WriteFile(filepath.Join(root, "new.txt"), []byte("n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if tree, _ := ContentTree(root, t.TempDir()); tree == clean {
+		t.Fatal("a new file did not move the tree")
+	}
+	// The real index is untouched.
+	if out := mustGit(t, root, "diff", "--cached", "--name-only"); out != "" {
+		t.Fatalf("staged: %q", out)
+	}
+}
+
+func TestContentTreeOfAnUnbornRepository(t *testing.T) {
+	root := t.TempDir()
+	mustGit(t, root, "init", "-q")
+	if tree, err := ContentTree(root, t.TempDir()); err != nil || tree != EmptyTree {
+		t.Fatalf("tree %s, %v", tree, err)
+	}
+}
+
+// The first call is the one that refuses, and the message says so. Carried
+// on instead, the empty answer would read as a relative path and send the
+// copy looking for an index under the root, where the failure it ran into
+// would be the wrong one to report.
+func TestContentTreeOutsideARepository(t *testing.T) {
+	_, err := ContentTree(t.TempDir(), t.TempDir())
+
+	if err == nil {
+		t.Fatal("want an error")
+	}
+	if !strings.Contains(err.Error(), "--git-path") {
+		t.Fatalf("the message does not name the call that refused: %q", err.Error())
+	}
+}
+
+// A linked worktree is where `rev-parse --git-path` answers with an absolute
+// path, because the index lives under the main repository's
+// `.git/worktrees/<name>/`. Joined to the root all the same, that path is no
+// path at all and the copy fails.
+func TestContentTreeInALinkedWorktree(t *testing.T) {
+	main := repoWithCommit(t)
+	linked := filepath.Join(t.TempDir(), "linked")
+	mustGit(t, main, "worktree", "add", "-q", linked)
+
+	tree, err := ContentTree(linked, t.TempDir())
+
+	if err != nil {
+		t.Fatalf("a linked worktree has a content tree: %v", err)
+	}
+	if want := mustGit(t, linked, "rev-parse", "HEAD^{tree}"); tree != want {
+		t.Fatalf("ContentTree = %q, want %q", tree, want)
+	}
+}
+
+// The four ways the copy of the index can fail, each made by putting the
+// wrong kind of thing where the call expects its own: a file where the
+// scratch directory goes, a directory where the index is read, a directory
+// where the copy is written, and an index of bytes git cannot read.
+func TestContentTreeReportsWhatItCannotCopy(t *testing.T) {
+	t.Run("scratch is a file", func(t *testing.T) {
+		root := repoWithCommit(t)
+		scratch := filepath.Join(t.TempDir(), "scratch")
+		if err := os.WriteFile(scratch, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := ContentTree(root, scratch)
+		if err == nil {
+			t.Fatal("want an error")
+		}
+		// The scratch directory is reported where it fails, not two steps
+		// later through the copy that could not be written into it.
+		if strings.Contains(err.Error(), "index-") {
+			t.Fatalf("the message blames the copy, not the directory: %q", err.Error())
+		}
+	})
+	t.Run("the index is a directory", func(t *testing.T) {
+		root := t.TempDir()
+		mustGit(t, root, "init", "-q")
+		if err := os.MkdirAll(filepath.Join(root, ".git", "index"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ContentTree(root, t.TempDir()); err == nil {
+			t.Fatal("want an error")
+		}
+	})
+	t.Run("the copy is a directory", func(t *testing.T) {
+		root := repoWithCommit(t)
+		scratch := t.TempDir()
+		copied := filepath.Join(scratch, fmt.Sprintf("index-%d", os.Getpid()))
+		if err := os.MkdirAll(copied, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ContentTree(root, scratch); err == nil {
+			t.Fatal("want an error")
+		}
+	})
+	t.Run("the index is not an index", func(t *testing.T) {
+		root := repoWithCommit(t)
+		if err := os.WriteFile(filepath.Join(root, ".git", "index"), []byte("not an index"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ContentTree(root, t.TempDir()); err == nil {
+			t.Fatal("want an error")
+		}
+	})
+}
+
+func TestLocalHeadsAndLog(t *testing.T) {
+	root := repoWithCommit(t)
+	first := mustGit(t, root, "rev-parse", "HEAD")
+	mustGit(t, root, "branch", "feature")
+	if err := os.WriteFile(filepath.Join(root, "b.txt"), []byte("b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, root, "add", "b.txt")
+	mustGit(t, root, "commit", "-q", "-m", "second")
+	heads, elsewhere, err := LocalBranches(root)
+	if err != nil || heads["refs/heads/feature"] != first || len(heads) != 2 || elsewhere != nil {
+		t.Fatalf("heads %v, elsewhere %v, %v", heads, elsewhere, err)
+	}
+	log, err := LogOneline(root, first, "HEAD")
+	if err != nil || len(log) != 1 || !strings.HasSuffix(log[0], " second") {
+		t.Fatalf("log %v, %v", log, err)
+	}
+}
+
+// A branch checked out in another worktree is named, whichever worktree
+// asks; root's own branch and a branch checked out nowhere are not. Asked
+// from the other worktree -- a path git spells with forward slashes, the
+// test with its own -- the roles swap.
+func TestLocalBranchesNamesTheBranchesOfOtherWorktrees(t *testing.T) {
+	root := repoWithCommit(t)
+	mustGit(t, root, "branch", "free")
+	other := filepath.Join(t.TempDir(), "other")
+	mustGit(t, root, "worktree", "add", "-q", "-b", "wt", other)
+
+	_, elsewhere, err := LocalBranches(root)
+	if err != nil || !slices.Equal(elsewhere, []string{"refs/heads/wt"}) {
+		t.Fatalf("from root: %v, %v", elsewhere, err)
+	}
+	own := mustGit(t, root, "symbolic-ref", "HEAD")
+	_, elsewhere, err = LocalBranches(other)
+	if err != nil || !slices.Equal(elsewhere, []string{own}) {
+		t.Fatalf("from the other worktree: %v, %v", elsewhere, err)
+	}
+}
+
+// A bare repository has branches but no worktree of its own to compare them
+// against.
+func TestLocalBranchesInABareRepository(t *testing.T) {
+	root := t.TempDir()
+	mustGit(t, root, "init", "-q", "--bare")
+	if _, _, err := LocalBranches(root); err == nil {
+		t.Fatal("want an error")
+	}
+}
+
+func TestSamePathFoldsCaseOnlyOnWindows(t *testing.T) {
+	// One separator style on both sides: filepath.Clean folds separators the
+	// running system's way, and goos decides only the case.
+	if !samePath("windows", "C:/Repo/#GIT/x", "c:/repo/#git/x/") {
+		t.Fatal("windows: the same directory spelled twice")
+	}
+	if samePath("linux", "/repo/X", "/repo/x") {
+		t.Fatal("linux: two directories")
+	}
+	if !samePath("linux", "/repo/x/", "/repo/x") {
+		t.Fatal("linux: the same directory spelled twice")
+	}
+}
+
+func TestLocalHeadsAndLogOutsideARepository(t *testing.T) {
+	if _, _, err := LocalBranches(t.TempDir()); err == nil {
+		t.Fatal("want an error")
+	}
+	if _, err := LogOneline(t.TempDir(), "a", "b"); err == nil {
+		t.Fatal("want an error")
+	}
+}
+
+// mustGit runs git in root and answers with its stdout, trimmed. The identity
+// travels on the command line so that every call can commit, whatever the
+// repository's own configuration says, and the two config variables keep the
+// machine's settings out: a fixture that read them would build a different
+// repository on every developer's box.
+func mustGit(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
+	command.Dir = root
+	command.Env = append(gitenv.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
+	// stdout alone: git's warnings go to stderr, and folded in they would
+	// travel on as part of a SHA or of an empty answer.
+	out, err := command.Output()
+	if err != nil {
+		t.Fatalf("git %v: %v", args, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// repoWithCommit is a repository with one commit over one file. The content
+// carries no line ending on purpose: ContentTree measures under the user's
+// own git configuration, and a text file would be rewritten by an autocrlf
+// this fixture does not set.
+func repoWithCommit(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	mustGit(t, root, "init", "-q")
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("first"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, root, "add", "a.txt")
+	mustGit(t, root, "commit", "-q", "-m", "first")
+	return root
+}
+
+// BenchmarkContentTree measures the fingerprint the stop gate takes at every
+// turn end, on this repository rather than on a fixture: the cost is the
+// working tree's size, and only the real one has it. A repository is the one
+// thing this benchmark needs, so a checkout without one skips instead of
+// reporting a number that is a git failure.
+func BenchmarkContentTree(b *testing.B) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		b.Fatal(err)
+	}
+	if _, err := ContentTree(root, b.TempDir()); err != nil {
+		b.Skipf("no repository to measure: %v", err)
+	}
+	scratch := b.TempDir()
+	for b.Loop() {
+		if _, err := ContentTree(root, scratch); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// A file rewritten to the same size within the index's own timestamp is one
+// git calls racy: its stat matches the entry, and only the index's mtime
+// tells git to hash it again. The copy must keep that mtime, or the change
+// reads as no change -- the stop gate then takes a new edit for the old tree.
+func TestContentTreeSeesARacyChange(t *testing.T) {
+	root := repoWithCommit(t)
+	head := mustGit(t, root, "rev-parse", "HEAD^{tree}")
+	stamp := time.Now().Add(-time.Hour).Truncate(time.Second)
+	file := filepath.Join(root, "a.txt")
+	if err := os.Chtimes(file, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	// Refresh the entry to that stamp, then give the index the same one.
+	mustGit(t, root, "update-index", "--refresh")
+	index := filepath.Join(root, ".git", "index")
+	if err := os.Chtimes(index, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("other"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(file, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	tree, err := ContentTree(root, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree == head {
+		t.Fatal("a same-size change within the index's second reads as no change")
 	}
 }

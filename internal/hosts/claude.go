@@ -13,7 +13,8 @@ import (
 // and the one that succeeds on JSON null.
 var errNotAnObject = errors.New("a hook payload is an object")
 
-// claudeAnswer is the envelope Claude Code reads a SessionStart answer from.
+// claudeAnswer is the envelope Claude Code reads a hook's added context from,
+// for whichever event hookEventName names.
 type claudeAnswer struct {
 	HookSpecificOutput struct {
 		HookEventName     string `json:"hookEventName"`
@@ -59,13 +60,17 @@ func readClaude(r io.Reader) (Payload, error) {
 	}
 	event, _ := payload["hook_event_name"].(string)
 	sessionID, _ := payload["session_id"].(string)
-	return Payload{Event: event, SessionID: sessionID}, nil
+	agentID, _ := payload["agent_id"].(string)
+	agentType, _ := payload["agent_type"].(string)
+	return Payload{Event: event, SessionID: sessionID, AgentID: agentID, AgentType: agentType}, nil
 }
 
-// writeClaudeContext puts lines where the model will read them.
+// writeClaudeContext puts lines where the model will read them, as the
+// answer to event: it serves any event the caller names, though session-start
+// is the only hook that calls it today.
 //
 // `hookSpecificOutput.additionalContext` is the field Claude Code documents
-// for a SessionStart hook's context, and the field the superpowers port table
+// for a hook's added context, and the field the superpowers port table
 // names for this harness (superpowers/6.3.0/docs/porting-to-a-new-harness.md,
 // harness table at :788). What plain stdout from such a hook does instead
 // could not be measured from inside this repository, so nothing is claimed
@@ -75,9 +80,9 @@ func readClaude(r io.Reader) (Payload, error) {
 // line is prose, and a `>` in it belongs in the transcript as itself. The only
 // failure it can report is w's, because the document holds nothing but
 // strings.
-func writeClaudeContext(w io.Writer, lines []string) error {
+func writeClaudeContext(w io.Writer, event string, lines []string) error {
 	var answer claudeAnswer
-	answer.HookSpecificOutput.HookEventName = "SessionStart"
+	answer.HookSpecificOutput.HookEventName = event
 	answer.HookSpecificOutput.AdditionalContext = strings.Join(lines, "\n")
 
 	encoder := json.NewEncoder(w)
