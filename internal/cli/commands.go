@@ -4,6 +4,8 @@ package cli
 var commands = map[string]command{
 	"area":      areaCommand,
 	"brain":     brainCommand,
+	"case":      caseCommand,
+	"cases":     casesCommand,
 	"check":     checkCommand,
 	"dev":       devCommand,
 	"doctor":    statusCommand,
