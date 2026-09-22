@@ -1772,3 +1772,100 @@ BenchmarkContentTree-16    	      10	 109411100 ns/op	 1439019 B/op	    2087 all
    768,9 ms, ohne dass irgendetwas auffiel. Erst `exec.LookPath` in einer Sonde
    sagte, welche `go.exe` startet. Jede Messung mit dem Faketool sollte den
    aufgelösten Pfad einmal prüfen, bevor sie zählt.
+
+## 2026-09-22 11:42 — Stufe 3a: reconcile, reindex und area add gegen die Python-Referenz
+
+Repository `loomux`, Worktree `.claude/worktrees/planung-von-3-c56c81`, Branch
+`claude/planung-von-3-c56c81` auf `4ca3fc2` (Code wie `01c2a2a`; Task 19
+fügt nur Tests hinzu). Referenz: ultra-brain `loomux-3-source` (`3cc72d2`),
+gelaufen als `ultra-brain/.venv/Scripts/brain-mcp.exe`, Python 3.14.7.
+
+**Ziel.** Die drei Messungen der Stufe: `reconcile` warm, `reindex` kalt und
+warm, `area add` auf einem leeren Repo, jeweils gegen die Python-Form. Ein
+Zielwert war nicht gesetzt (Spec 3a, „Messen“).
+
+**Methode.** Keiner der beiden Befehle hat einen Bereichsfilter, beide laufen
+über die ganze Registry. Gemessen wurde darum **nicht** im echten Zustand,
+sondern auf Kopien: die fünf Repos der schreibbaren Bereiche samt `.git` unter
+`%TEMP%\lx3a\<Welt>\repos`, die drei schreibgeschützten Bereiche im Original
+(nur gelesen), eine Registry-Kopie mit den zehn Bereichen, die beide Werkzeuge
+kennen (ohne `project/loomux`, das die Referenz mangels `.brain.toml`
+überspringt), `%LOCALAPPDATA%\brain` kopiert. Eine Welt je Werkzeug, beide aus
+derselben Vorlage. **Mit qmd** (2.8.3), aber mit `QMD_CONFIG_DIR`,
+`INDEX_PATH` und `XDG_CACHE_HOME` auf die Welt umgeleitet — jede Welt beginnt
+mit einem leeren qmd-Index, `reindex` ruft `qmd update` gegen ihn. Zeitmessung:
+ein PEP-723-Skript, `time.perf_counter_ns` um `subprocess.run`, je Fall ein
+erster Lauf und zehn warme, Median der warmen. Reihenfolge je Welt:
+`reindex` (der erste Lauf ist der kalte), dann `reconcile`. `area add`: für
+jeden Lauf ein frisches `git init`-Repo und ein frisches Zustandsverzeichnis
+mit leerer `registry.toml` (ohne sie scheitert die Referenz, Ruling B5), nur
+der Befehl gemessen. Maschine: AMD Ryzen 7 9800X3D, Go 1.27.0
+`windows/amd64`.
+
+**Was „kalt“ hier heißt.** Der erste `reindex` einer frischen Welt: leerer
+qmd-Index, und bei loomux ein leeres Zustandsverzeichnis — loomux liest den
+Stat-Zwischenspeicher nur aus dem eigenen Verzeichnis (Akte, Befund S5), der
+Auffangdurchgang vor dem Indexlauf hasht also jede Quelle. Die Referenz findet
+ihren Zwischenspeicher in der kopierten `%LOCALAPPDATA%\brain` vor. Nicht
+kalt im Sinne des Dateisystem-Caches: die Kopien waren kurz vorher angelegt.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| loomux reindex (10 Bereiche) | 14983,0 ms | 4105,9 ms | 3770,6 ms | 4803,7 ms | [0] |
+| brain-mcp reindex (10 Bereiche) | 37490,6 ms | 27822,7 ms | 25086,0 ms | 32346,4 ms | [0] |
+| loomux reconcile (10 Bereiche) | 1083,0 ms | 962,2 ms | 924,2 ms | 1006,1 ms | [0] |
+| brain-mcp reconcile (10 Bereiche) | 13087,1 ms | 12717,3 ms | 11775,6 ms | 17791,9 ms | [0] |
+| loomux area add -y | 286,9 ms | 274,6 ms | 264,3 ms | 290,2 ms | [0] |
+| loomux area add -y -no-reindex | 32,6 ms | 33,5 ms | 30,0 ms | 40,3 ms | [0] |
+| brain-mcp init -y | 947,9 ms | 922,9 ms | 900,4 ms | 973,6 ms | [0] |
+
+Dazu loomux allein über alle elf Bereiche (Welt mit `project/loomux`, dessen
+Register nach dem ersten Lauf 2147 Quellen hält — 3064 geprüfte über elf Bereiche weniger 917 über die zehn):
+
+| Fall | erster Lauf | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| loomux reindex (11 Bereiche) | 12381,4 ms | 6837,7 ms | 6460,2 ms | 7893,9 ms | [0] |
+| loomux reconcile (11 Bereiche) | 1552,3 ms | 1385,0 ms | 1375,5 ms | 1446,8 ms | [0] |
+| loomux --version (Startboden, 20 warme) | 11,0 ms | 7,6 ms | 7,3 ms | 13,3 ms | [0] |
+
+### Lesart
+
+1. **`reindex` warm ist 6,8-mal so schnell, kalt 2,5-mal.** 4105,9 ms gegen
+   27822,7 ms, getrennte warme Spannen (3770,6–4803,7 gegen 25086,0–32346,4).
+   Kalt 14983,0 ms gegen 37490,6 ms; die loomux-Zahl trägt den Auffangdurchgang,
+   der mangels Zwischenspeicher jede Quelle hasht, und das erste `qmd update`
+   gegen einen leeren Index.
+2. **`reconcile` warm ist 13,2-mal so schnell.** 962,2 ms gegen 12717,3 ms.
+   Beide Seiten hashen in den warmen Läufen nichts (`0 davon gehasht`), der
+   Unterschied ist also Begehung und Stat, nicht Hashing. Gezählt hat loomux
+   917 Quellen, die Referenz 910; die sieben sind die Befunde S1, S2 und S6 der
+   Akte (+14 Pakete im Prüfzentrum, −4 in `ultraloom`, −3 über die Junction in
+   `space`).
+3. **`area add` ist 3,4-mal so schnell, obwohl es mehr tut.** 274,6 ms gegen
+   922,9 ms — und `area add` indiziert am Ende (Ruling Task 15), `brain init`
+   nicht. Ohne Indexlauf sind es 33,5 ms, 27,5-mal so schnell; der Indexlauf
+   über das leere Repo kostet damit 241,1 ms, fast ganz der Start von qmd.
+4. **`project/loomux` kostet 2731,8 ms je `reindex` und 422,8 ms je
+   `reconcile`.** Das ist der Bereich ohne `[index]`, der das ganze Repo samt
+   `testdata/` begeht (Akte, Befund S3). Mit einem `[index]`, das nur
+   `docs/wiki` nimmt, fiele der Posten weg.
+5. **Der Startboden hat sich nicht bewegt.** 7,6 ms warm gegen 5,5–7,6 ms in den
+   Einträgen vom 2026-09-17 und 2026-09-19.
+
+**Startzeit.** `GODEBUG=inittrace=1 loomux --version`, drei Läufe. Die
+neuen Pakete der Stufe:
+
+| Paket | Uhrzeit | Bytes | Allokationen |
+|---|---:|---:|---:|
+| `internal/brain/index` | 0 ms (3/3) | 11.512 | 94 |
+| `internal/brain/maintenance` | 0 ms (3/3) | 3.576 | 36 |
+| `internal/brain/vcs`, `internal/lock` | kein Init | — | — |
+
+Kein `init()` und kein `//go:embed` in den vier Paketen; was beim Start läuft,
+sind Paketvariablen: in `index` drei `regexp.MustCompile` über Literale
+(`document.go:16`, `:21`, `:22`) und die Ausschlusslisten, in `maintenance`
+eines (`package.go:38`) und kleine Tabellen. Eingebettete Daten parst keines.
+Der größte Init von loomux bleibt `internal/cases` mit 438 Allokationen, unter
+den 500 von `TestStartDoesNoWorkInPackageInit`; über 300 liegen sonst nur
+`encoding/gob` (366–370) und `internal/verify/commit` (322), beide vor 3a
+schon da.
