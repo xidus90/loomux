@@ -546,13 +546,15 @@ und `internal/gitwork`; jede Abweichung gegen Python steht mit Begründung in
     setzte `base` und `green` (`parity/stufe-2c.md`, „Selbstnutzung“). Offen
     aus diesem Lauf: eine rote Test-Lane schreibt ihre ganze Ausgabe in den
     Kontext des Agenten.
-21. **Offen.** Antigravity (Tasks 14 und 15): nicht gemessen, kein Adapter;
-    `--host antigravity` endet bei allen drei Hooks mit Exit 1 über
-    `ErrNoAdapter`, und Eintrag 16 der Abweichungsliste ist leer. Bis das
-    erledigt ist, steht 2c in der Fusions-Spec nicht auf ✅. Der Eintrag der
-    drei Hooks in der eingecheckten `.claude/settings.json` (Task 16) ist am
-    2026-09-22 gemacht, auf Anweisung des Menschen vom Controller
-    geschrieben.
+21. **Antigravity-Messung und Adapter umgesetzt (2026-09-22, Tasks 14 und 15).**
+    Die Nachmessung an `agy` 1.2.2 beantwortete die vier Fragen: Exit 2 hält in
+    Antigravity keine Runde an (nur Exit 0 mit `{"decision":"continue"}`);
+    `PreInvocation` unterstützt kein `additionalContext`, sondern `injectSteps`
+    (`writeAntigravityContext` bleibt `ErrNoAdapter`); `PostToolUse` liefert keine
+    `agent_id`, daher verweigern `subagent-start` und `-stop` mit Exit 1
+    (AgentID bleibt leer); Frist für Command-Hooks ist 30 s. `readAntigravity`
+    liegt in `internal/hosts/antigravity.go`, Eintrag 16 der Abweichungsliste
+    ist gefüllt, und Stufe 2c ist damit vollständig ✅.
 22. **`session-start` setzt die Basis nur, wenn die Sitzung noch keine hat.**
     Der Eintrag in `.claude/settings.json` hat keinen Matcher, also feuert
     `SessionStart` auch bei `resume`, `clear` und `compact`, mit derselben

@@ -1,0 +1,10 @@
+{
+  "conversationId": "s1",
+  "stepIdx": 2,
+  "toolCall": {
+    "name": "invoke_subagent",
+    "args": {
+      "Task": "explore workspace"
+    }
+  }
+}

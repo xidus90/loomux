@@ -37,32 +37,3 @@ func readCodex(io.Reader) (Payload, error) {
 func writeCodexContext(io.Writer, string, []string) error {
 	return fmt.Errorf("codex: %w -- its hook contract is unmeasured, see the design", ErrNoAdapter)
 }
-
-// readAntigravity is a seam too, because no payload was ever recorded.
-//
-// The measurement of 2026-09-10 against agy 1.1.24 set out to capture Stop and
-// PreInvocation payloads and captured none: in print mode neither event fires
-// at all, across three configurations, and the counter-probe by hand ruled out
-// the script, the path, the schema and the workspace trust as causes
-// (docs/.superpowers/specs/2026-09-10-antigravity-hook-messung.md, finding 4).
-//
-// Forwarding to readClaude would therefore assert a shape nobody has seen. It
-// may well be the same object-shaped payload with the event under another key,
-// but "may well be" is what a guessed adapter is made of, and it would look
-// exactly like a working one.
-func readAntigravity(io.Reader) (Payload, error) {
-	return Payload{}, fmt.Errorf("antigravity: %w -- its payload shape is unmeasured, no Stop or PreInvocation payload was ever recorded", ErrNoAdapter)
-}
-
-// writeAntigravityContext is the arm that waits on the same measurement.
-//
-// Whether `PreInvocation` can write into the model's context at all is
-// question 2 of the design's three, and it is unanswered for the reason above:
-// the event did not fire, so nothing could be observed reaching the model.
-// Answering it needs an interactive session or one of the two permission
-// relaxations agy itself names, both of which are the user's decision. The
-// fallback if the answer turns out to be no is prose in GEMINI.md rather than
-// a hook.
-func writeAntigravityContext(io.Writer, string, []string) error {
-	return fmt.Errorf("antigravity: whether PreInvocation can write context is unmeasured: %w", ErrNoAdapter)
-}

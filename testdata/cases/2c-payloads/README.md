@@ -41,7 +41,13 @@ dafür `effort`. Weder `stop.py` noch `hosts.Read` liest eines dieser Felder;
 die acht `hook-stop`-Fälle sind gegen die gemessene Nutzlast neu aufgezeichnet
 und kamen bis aufs Byte gleich heraus.
 
-## Was noch fehlt
+## Antigravity-Nutzlasten
 
-Die Nutzlasten von Antigravity (`agy-*.json`) gehören zur Messung, die die
-Spec unter „Antigravity" verlangt; sie ist noch nicht gemacht.
+Nachgemessen am 2026-09-22 mit Antigravity 1.2.2 (`agy.exe`):
+`agy-stop.json`, `agy-inv.json`, `agy-pre.json` und `agy-post.json`.
+Antigravity überträgt `conversationId` (in protojson camelCase) für die Sitzung.
+Bei `PreToolUse` werden `stepIdx` und `toolCall` übergeben; `PostToolUse` liefert
+nur `stepIdx`, `error` und `conversationId`. Eine gemeinsame `agent_id`
+existiert bei Antigravity nicht; `AgentID` bleibt leer und `subagent-start`/`-stop`
+verweigern bei Antigravity mit Exit 1.
+

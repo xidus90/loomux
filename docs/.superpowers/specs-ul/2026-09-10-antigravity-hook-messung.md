@@ -149,3 +149,59 @@ termination checks, which … lets `Stop` hooks run at all instead of sitting
 unreachable behind the built-ins." Vor jener Version liefen Stop-Hooks
 überhaupt nicht. Welche Version das war, sagt der Text nicht; 1.1.24 trägt
 den Fix.
+
+## Nachmessung 2c — Antigravity-Hooks (2026-09-22)
+
+**Datum:** 2026-09-22
+**Werkzeug:** `agy` 1.2.2 (`C:\Users\micro\AppData\Local\agy\bin\agy.exe`)
+**Anlass:** Stufe 2c, Task 14 und 15 des Fusion-Plans.
+
+Die Nachmessung und Analyse der Hook-Verarbeitung im Binärprogramm und der
+Typdefinitionen beantwortet die vier Fragen von Stufe 2c:
+
+### 1. Hält Exit 2 bei `Stop` die Runde an?
+
+**Nein.** Antigravity wertet Prozess-Rückgabewerte ungleich 0 bei Command-Hooks
+als Befehlsfehler (`command failed: ..., stderr: ...`) und bricht die Ausführung
+ab, statt eine Runde geordnet im Modellkontext anzuhalten.
+
+Das Anhalten bzw. Weiterführen der Runde erfolgt bei Antigravity stattdessen
+über stdout-JSON im Format:
+```json
+{"decision": "continue", "reason": "..."}
+```
+Damit signalisiert ein Hook dem Agenten bei Exit-Code 0, dass er die Runde nicht
+beenden darf, sondern weiterarbeiten muss (mit Angabe des Grundes).
+
+### 2. Kann `PreInvocation` Kontext einspeisen?
+
+**Ja**, aber nicht über Claudes `hookSpecificOutput.additionalContext`. Antigravity
+kennt dieses Feld nicht (0 Vorkommen in `agy.exe`). Antigravity verarbeitet auf
+stdout stattdessen:
+```json
+{"injectSteps": [{"ephemeralMessage": "..."}]}
+```
+bzw. `userMessage`. Claudes `additionalContext` wird von Antigravity schlicht
+ignoriert. Gemäß Task 15 bleibt `writeAntigravityContext` im Host-Adapter
+daher bei `ErrNoAdapter`, bis ein dedizierter Antigravity-Kontext-Emitter
+spezifiziert und gebaut wird.
+
+### 3. Nutzlast und Identifikation bei Subagenten (`invoke_subagent`)
+
+Die Nutzlastfelder für Tool-Hooks im Proto-Schema (`HookArgs`):
+- `PreToolUse`: liefert `stepIdx`, `conversationId` und `toolCall` (`name`, `args`).
+- `PostToolUse`: liefert `stepIdx`, `conversationId` und `error`.
+
+Antigravity übergibt bei `PostToolUse` **keine `agent_id`** und keinen `toolCall`.
+Zwischen `PreToolUse` und `PostToolUse` existiert somit kein verbindender
+Identifikator für Subagenten.
+
+Gemäß Task 15 bleibt `AgentID` im Host-Adapter für Antigravity daher leer (`""`),
+und `subagent-start`/`-stop` verweigern bei Antigravity mit Exit 1 („payload carries no agent_id“).
+
+### 4. Frist für Stop-Hooks
+
+Die Standardfrist (Timeout) für Command-Hooks in Antigravity beträgt 30 Sekunden.
+In `hooks.json` kann sie über das Attribut `"timeout": <sekunden>` projektspezifisch
+konfiguriert werden.
+
