@@ -1,0 +1,4 @@
+error: {{WORLD}}\repo-a\wiki\page.md: changed since the case was formed; nothing was written
+Hinweis: der Abbruch hat diese Dateien im Vault bereits geändert und nichts committet. Sie stehen unversioniert im Arbeitsbaum, bis der nächste Auto-Commit eines fremden Werkzeugs (etwa obsidian-git) sie einsammelt:
+  review/project-a/a-2026-09-21-5bd8/case.toml
+  wiki/audit.md

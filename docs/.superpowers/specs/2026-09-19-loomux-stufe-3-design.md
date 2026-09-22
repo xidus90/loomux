@@ -365,12 +365,18 @@ Abweichung zeigt, an Python gehoben.
 - **Der Commit wird als Datei verglichen.** Der Rekorder blendet `.git` aus
   (Akte 3a, `:23`), und `InfraPath` tut es beim Abspielen. Nach dem Lauf
   schreibt der Harness darum `git.after` in die Welt: den Betreff des
-  HEAD-Commits (`git log -1 --format=%s`), jeden Pfad aus `git ls-tree -r
-  --name-only HEAD` und jede Zeile aus `git status --porcelain=v1
-  --untracked-files=no`. Weder Commit-SHA noch Tree stehen darin: der Tree
-  trüge die gestempelten Dateien, die keine Normalisierung reparieren kann;
-  ihre Inhalte vergleicht `world_after`, und die Statuszeilen belegen, dass
-  HEAD genau diese Inhalte trägt.
+  HEAD-Commits (`git log -1 --format=%s`), eine Zeile `%an <%ae> / %cn
+  <%ce>` desselben Commits, jeden Pfad aus `git ls-tree -r --name-only
+  HEAD`, jede Zeile aus `git diff --name-status HEAD` und jede Zeile aus
+  `git status --porcelain=v1 --untracked-files=no`. Weder Commit-SHA noch
+  Tree stehen darin: der Tree trüge die gestempelten Dateien, die keine
+  Normalisierung reparieren kann; ihre Inhalte vergleicht `world_after`, und
+  die Zeilen aus `git diff --name-status HEAD` (Arbeitsbaum gegen HEAD; ein
+  Pfad, der im alten Index fehlt, erschiene als `D` — kein 3b-Fall legt eine
+  Datei an) belegen, dass HEAD genau diese Inhalte trägt. Die
+  Statuszeilen allein können das nicht: `approve` committet über einen
+  Scratch-Index, der Index des Nutzers bleibt auf dem alten Stand, und die
+  Statuszeile lautet `MM` bei richtigem wie bei falschem Commit-Inhalt.
 - **Die Git-Identität** schreibt `BuildGitWorld` als lokale Konfiguration des
   Repos der Welt (`user.name`, `user.email`), nicht nur als Umgebung.
 - **Neue Normalisierungen** in `cases.NormalizeState`, auf beiden Seiten

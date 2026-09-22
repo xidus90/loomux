@@ -1,0 +1,19 @@
+# The repository is the area, not the state directory around it.
+dir = "repo-a"
+
+[[commit]]
+message = "base"
+paths = [
+  "_identities.tsv",
+  "wiki/page.md",
+  "wiki/audit.md",
+  "wiki/log.md",
+  "review/project-a/a-2026-09-21-5bd8/case.toml",
+  "review/project-a/a-2026-09-21-5bd8/package.md",
+  "review/project-a/a-2026-09-21-5bd8/proposal.md",
+]
+[commit.files]
+"notes/source.md" = "# Source\n\nThe first state of the source.\n"
+
+[worktree]
+"notes/source.md" = "# Source\n\nThe second state of the source, a little longer now.\n"

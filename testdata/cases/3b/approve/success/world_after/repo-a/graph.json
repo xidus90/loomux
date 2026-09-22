@@ -1,0 +1,31 @@
+{
+  "edges": [],
+  "links": {
+    "dropped": {},
+    "resolved": 0,
+    "total": 0
+  },
+  "nodes": [
+    {
+      "id": "notes/source.md",
+      "tags": [],
+      "title": "source"
+    },
+    {
+      "id": "wiki/audit.md",
+      "tags": [],
+      "title": "audit"
+    },
+    {
+      "id": "wiki/log.md",
+      "tags": [],
+      "title": "log"
+    },
+    {
+      "id": "wiki/page.md",
+      "tags": [],
+      "title": "page"
+    }
+  ],
+  "scope": "project/a"
+}

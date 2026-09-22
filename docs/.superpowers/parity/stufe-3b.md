@@ -316,3 +316,53 @@ Fusions-Spec und eine Entscheidung des Nutzers.
 | Prüfer | Python: `getpass.getuser()` (`cli.py:1323-1331`), das zuerst `LOGNAME`, `USER`, `LNAME`, `USERNAME` liest und erst dann das Konto | `os/user.Current().Username`, der Domänenteil vor dem letzten `\` abgeschnitten. Kann das Konto nicht gelesen werden: `error: <meldung>`, Exit 1, `apply` wird nicht gerufen | Unter Windows fallen beide für ein angemeldetes Konto zusammen (`USERNAME` ist der Kontoname ohne Domäne). **Neu gegen Python:** eine Umgebungsvariable kann den Prüfer nicht mehr umbenennen |
 | Nachlauf nach einem geschriebenen `approve` | Python: `_technical_update` (`cli.py:1432-1516`): eigene Aufholung; scheitert sie mit irgendeinem `ReconcileError` oder `OSError`, auch mit `NoReviewCentreError` (`reconcile.py:155`), warnt sie „warning: die Aufholung vor der technischen Aktualisierung ist fehlgeschlagen (…). Die Freigabe steht, …“ und hält an, ohne zu indizieren; sonst listet sie neue Fälle und unlesbare Falldateien auf stderr und ruft die Funktion `reindex` ohne zweite Aufholung; scheitert die, folgt „warning: die technische Aktualisierung ist fehlgeschlagen; …“. Go-Form: siehe Abschnitt 4 | `technicalUpdate` in `internal/cli/approve.go`, genau diese Form (Controller-Entscheid R1, Fixrunde 1; er ersetzt den früheren Entscheid, `reindexCommand` einmal zu rufen): `catchUp` über die gelesene Registry, bei jedem Fehler Pythons Aufholungswarnung wörtlich (`brain` als `loomux`) und Halt, sonst `reportCatchUp` (mit `reindex` geteilt) und `indexAreas`, der Indexlauf ohne eigene Aufholung, den `reindexCommand` nach seiner Aufholung ebenso ruft. Scheitert er, Pythons Zeile der technischen Aktualisierung. Exit von `approve` bleibt 0 | Python gilt. Die Aufholung läuft genau einmal; „kein Prüfzentrum“ ist hier ein Fehlschlag, anders als beim Befehl `reindex` (`cli.py:1004-1027`), der warnt und weiterindiziert. `reindexCommand` verhält sich unverändert. Das „updated qmd collections: …“ auf stderr druckt auch Pythons `reindex` (`cli.py:320`) |
 | Daemon neu laden nach dem Nachlauf | Python: `_ask_daemon_to_reload(state_dir)` nach einem grünen `reindex` (`cli.py:1510`) | entfällt | Am Code von `internal/serve` geprüft, 2026-09-22: `handlers` reicht nur `RegistryDir` und `LegacyDir` an die Werkzeuge weiter (`serve.go:208-217`), `answer.RunWith` liest Registry, Katalog und Index bei jedem Aufruf, und die Ports werden je Aufruf gebaut (`answer.go:97-109`). Pythons Daemon hielt Graph und Registry ab seinem Start (`cli.py:1802-1810`). Der loomux-Dienst hält weder Index noch Graph noch Registry über einen Aufruf hinaus; die einzigen `sync.Once` in `internal/serve` und `internal/brain/search` sind die Stoppanfrage und ein Warmlauf-Hinweis. Es gibt nichts neu zu laden. loomux' eigenes `reindex` ruft ihn aus demselben Grund schon seit Stufe 3a nicht |
+| Scratch-Index im Fallsatz | Python: `scratch` ist `<zustand>/maintenance/index` und bleibt nach dem Commit liegen (`vcs.py:193-197`, gelöscht wird nur **vor** Gebrauch) | `<zustand>/maintenance/index`, ebenfalls liegen gelassen | **Keine Abweichung im Verhalten**, nur im Vergleich: beide Seiten hinterlassen die Datei am selben Ort, ihre Bytes tragen aber die Stat-Daten des Laufs (mtime, ctime, Inode der gestagten Dateien) und können nie gleich sein. `expected3b` führt `content mismatch: maintenance/index` bei `approve/success`, `approve/amend` und `approve/reject`; was der Index gestagt hat, hält `git.after` (Baum von HEAD, Status). Bei `approve/rebase` und `approve/no-repo` legt keine Seite ihn an, und der Fallsatz hält auch das fest |
+| Register über gestempelte Seiten | Python: `_technical_update` ruft `reindex`, das `wiki/page.md`, `wiki/audit.md` und `wiki/log.md` mit ihrem `content_hash` ins Register schreibt | dasselbe, über `indexAreas` | **Keine Abweichung im Verhalten**, nur im Vergleich: Seite und `audit.md` tragen den Zeitstempel des Laufs mit Mikrosekunden, ihr Hash ist darum auf jeder Seite ein anderer. Der Fallsatz führt `content mismatch: repo-a/_identities.tsv` bei den vier geschriebenen Freigaben (`success`, `amend`, `rebase`, `no-repo`) und prüft stattdessen (`rehashed` in `cases_3b_test.go`): jeder `content_hash` beider Seiten ist der Hash der Datei, die dieselbe Seite danebenlegt, und die Zeilen stimmen ohne ihn überein (Pfad, Revision, `doc_id` bzw. „neu vergeben“) |
+
+## Fallsatz 3b, aufgezeichnet am 2026-09-22, approve neu am 2026-09-23
+
+24 Fälle, aufgezeichnet mit `stufe-3b-orakel/record_all.sh` gegen
+`brain-mcp.exe` am Tag `loomux-3-source`, übersetzt mit
+`testdata/cases/3b-map.toml`, abgespielt von `TestCases3b`.
+
+- **19 Fälle ohne Unterschied nach der Normalisierung**: alle sechs `cases`,
+  alle sechs `case`, und `approve` mit `--defer`, bewegtem Ziel, bewegter
+  Quelle, gescheiterter Belegprüfung, unpassendem Hunk, leeren Argumenten und
+  unbekanntem Fall. „Ohne Unterschied“ heißt: null Abweichungen, nachdem
+  `NormalizeState` Zeitstempel, Prüfer, Commit-SHA und neu vergebene
+  `doc_id`s gefaltet hat; stderr
+  vergleicht der Fallsatz in **keinem** der 24 Fälle (die Spec erlaubt das).
+  Rohe Byte-Gleichheit ist es nicht. Die drei Weigerungen, die schreiben
+  (`case.toml` mit Vermerk und `manual`, ein Auditblock), sind gleich nach
+  der Normalisierung; die Faltung des Prüfers schreibt jedes `human:<x>` in
+  `audit.md` um, auch in älteren Blöcken, und verdeckte darum einen falschen
+  Prüfer dort. `git.after` belegt, dass HEAD stehen bleibt (Betreff `base`)
+  und im Arbeitsbaum genau diese Dateien von HEAD abweichen. Bei
+  `approve/unknown`, `approve/empty-args`, `case/unknown`, `case/ambiguous`
+  und der Warnung von `approve/rebase` hält der Fallsatz darum Exitcode,
+  Stdout und Welt fest, nicht den Wortlaut der Meldung.
+- **5 Fälle mit freigegebenen Unterschieden**, alle aus den beiden Zeilen
+  oben und den Indexformaten aus Stufe 3a (`graph.json`, `index.yml`,
+  `qmd-collections.json`, dekodiert gleich): `approve/success`,
+  `approve/amend`, `approve/reject`, `approve/rebase`, `approve/no-repo`.
+  Seite, `audit.md`, `log.md`, Fallverzeichnis und `git.after` sind in allen
+  fünf gleich. `git.after` trägt seit Fixrunde 1 von Task 14 die Zeilen aus
+  `git diff --name-status HEAD` und Autor/Committer: nach `approve/success`
+  weichen nur `notes/source.md` (nie Teil des Commits) und `_identities.tsv`
+  (vom Nachlauf nach dem Commit neu geschrieben, wie in Python) von HEAD ab,
+  also trägt HEAD Seite, `audit.md` und `log.md` genau so, wie `world_after`
+  sie vergleicht. Ein Mutant, der die Seite nur für den Commit um eine Zeile
+  verlängert, lässt `approve/success` und `approve/amend` allein an
+  `git.after` scheitern; die alten Statuszeilen (`MM`) hätten ihn nicht
+  gesehen.
+- **Kein Code geheilt**: der Fallsatz fand keinen Unterschied in einer
+  geschriebenen Datei oder in `git.after`.
+- Die Übersetzung `Bewusst ausgeben:` (Zeile oben) ist über die
+  `[[stdout]]`-Regel angewandt, bei `case/withheld`.
+- Die Commit-Nachricht (Zeile „Zeilenenden der Commit-Nachricht“) erreicht
+  den Vergleich nicht: `git.after` hält nur die Betreffzeile, und die ist auf
+  beiden Seiten gleich.
+- Die Welten der Freigaben tragen das Paket, das `reconcile` in
+  `3a-source/reconcile/changed-source-baseline` geschrieben hat, einen Tag
+  zurückdatiert. Diesen Fall hält Stufe 3a ohne Abweichung gegen
+  `maintenance.RenderPackage`; die Segmentgrenzen sind also die aus 3a.

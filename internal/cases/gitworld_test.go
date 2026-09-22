@@ -441,14 +441,17 @@ func TestWriteGitAfterNamesSubjectAndPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "one\na.md\nb.md\n"; string(got) != want {
+	if want := "one\n" + worldIdentity + "a.md\nb.md\n"; string(got) != want {
 		t.Fatalf("git.after = %q, want %q", got, want)
 	}
 }
 
-// A tracked file that differs from HEAD is a status line: world_after holds
-// the content, and only the status says whether HEAD holds it too. An
-// untracked file is none -- git.after itself is one.
+// worldIdentity is the line BuildGitWorld's identity gives HEAD in git.after.
+const worldIdentity = "loomux cases <cases@loomux.invalid> / loomux cases <cases@loomux.invalid>\n"
+
+// A tracked file that differs from HEAD is a diff line and a status line:
+// world_after holds the content, and only the diff says whether HEAD holds it
+// too. An untracked file is neither -- git.after itself is one.
 func TestWriteGitAfterNamesTrackedChangesAfterThePaths(t *testing.T) {
 	decl := "[[commit]]\nmessage = \"one\"\n[commit.files]\n\"a.md\" = \"a\\n\"\n\"b.md\" = \"b\\n\"\n[worktree]\n\"b.md\" = \"changed\\n\"\n\"new.md\" = \"n\\n\"\n"
 	dir := writeWorld(t, map[string]string{GitWorldFile: decl})
@@ -462,8 +465,43 @@ func TestWriteGitAfterNamesTrackedChangesAfterThePaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "one\na.md\nb.md\n M b.md\n"; string(got) != want {
+	if want := "one\n" + worldIdentity + "a.md\nb.md\nM\tb.md\n M b.md\n"; string(got) != want {
 		t.Fatalf("git.after = %q, want %q", got, want)
+	}
+}
+
+// A commit made through another index leaves the user's index at the old
+// state, so the status reads the same whether HEAD holds the working tree or
+// not. The diff against HEAD tells the two apart.
+func TestWriteGitAfterTellsAWrongCommitThroughAStaleIndex(t *testing.T) {
+	after := func(committed string) string {
+		t.Helper()
+		decl := "[[commit]]\nmessage = \"base\"\n[commit.files]\n\"p.md\" = \"base\\n\"\n" +
+			"[[commit]]\nmessage = \"land\"\n[commit.files]\n\"p.md\" = \"" + committed + "\\n\"\n"
+		dir := writeWorld(t, map[string]string{GitWorldFile: decl})
+		if err := BuildGitWorld(dir); err != nil {
+			t.Fatal(err)
+		}
+		g := &worldGit{dir: dir, config: os.DevNull}
+		g.run("read-tree", "HEAD~1")
+		g.fail(os.WriteFile(filepath.Join(dir, "p.md"), []byte("right\n"), 0o644))
+		if g.err != nil {
+			t.Fatal(g.err)
+		}
+		if err := WriteGitAfter(dir); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(filepath.Join(dir, GitAfterName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(got)
+	}
+	if got, want := after("right"), "land\n"+worldIdentity+"p.md\nMM p.md\n"; got != want {
+		t.Errorf("right commit: git.after = %q, want %q", got, want)
+	}
+	if got, want := after("wrong"), "land\n"+worldIdentity+"p.md\nM\tp.md\nMM p.md\n"; got != want {
+		t.Errorf("wrong commit: git.after = %q, want %q", got, want)
 	}
 }
 
@@ -520,7 +558,7 @@ func gitCase(t *testing.T, after map[string]string) *Case {
 func TestRunCaseComparesTheCommitARunMadeThroughGitAfter(t *testing.T) {
 	c := gitCase(t, map[string]string{
 		GitWorldFile: oneCommitInRepo, "repo/a.md": "a\n", "repo/b.md": "b\n",
-		"repo/" + GitAfterName: "two\na.md\nb.md\n",
+		"repo/" + GitAfterName: "two\n" + worldIdentity + "a.md\nb.md\n",
 	})
 	outcome, err := RunCase(c, func(_ []string, dir string, _ io.Reader, _, _ io.Writer) int {
 		repo := filepath.Join(dir, "repo")

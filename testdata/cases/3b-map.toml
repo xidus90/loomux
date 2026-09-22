@@ -1,0 +1,28 @@
+# Stage 3b translates the three commands of brain-mcp, the Python reference's
+# console script, that decide a review case: cases, case and approve.
+
+# A manifest is moved byte for byte, as in 3a: nothing of the old tools'
+# other files is folded into these worlds, and the manifest the reference
+# read is the one loomux reads.
+manifests = "verbatim"
+
+# `brain-mcp cases` before `brain-mcp case`: the rules rewrite the head of a
+# command line, and the shorter prefix would take the longer command.
+[[command]]
+from = "brain-mcp cases"
+to   = "loomux cases"
+
+[[command]]
+from = "brain-mcp case"
+to   = "loomux case"
+
+# No trailing space: `approve/empty-args` records the bare verb.
+[[command]]
+from = "brain-mcp approve"
+to   = "loomux approve"
+
+# Translation "Bewusst ausgeben:" in parity/stufe-3b.md: the reference names
+# its own command in the withheld block of `case`, loomux names its own.
+[[stdout]]
+from = "brain case --package "
+to   = "loomux case --package "

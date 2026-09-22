@@ -181,19 +181,30 @@ func BuildGitWorldAt(dir string) (string, error) {
 // GitAfterName is the file a case compares a commit through.
 const GitAfterName = "git.after"
 
-// WriteGitAfter writes the subject of HEAD, the paths HEAD tracks and the
-// tracked paths that differ from HEAD of the repository at repo into
-// repo/git.after.
+// WriteGitAfter writes into repo/git.after, one item per line: the subject of
+// HEAD, its author and committer as `name <mail> / name <mail>`, the paths
+// HEAD tracks, the tracked paths whose working-tree content differs from HEAD
+// (`git diff --name-status HEAD`), and the status lines.
 //
 // Neither the commit's SHA nor its tree stands there: the commit of an
 // approval holds files stamped with the run's time and reviewer, and no
-// normalization repairs a hash. world_after compares their content; the
-// status lines, empty after a clean commit, prove that HEAD holds exactly
-// that content. The user's configuration stays out -- core.quotePath alone
-// would spell a path differently on another machine.
+// normalization repairs a hash. world_after compares their content, and the
+// diff lines prove that HEAD holds exactly that content: an approval commits
+// through a scratch index and leaves the user's index at the old state, so
+// the status lines read the same whether HEAD holds the working tree or not,
+// while the diff compares the working tree against HEAD. It still walks the
+// index to find the working-tree files: a path HEAD holds and the stale index
+// lacks would read D. No approval case adds a file, so none does. The user's
+// configuration stays out -- core.quotePath alone would spell a path
+// differently on another machine.
 func WriteGitAfter(repo string) error {
 	var out strings.Builder
-	for _, args := range [][]string{{"log", "-1", "--format=%s"}, {"ls-tree", "-r", "--name-only", "HEAD"}, {"status", "--porcelain=v1", "--untracked-files=no"}} {
+	for _, args := range [][]string{
+		{"log", "-1", "--format=%s%n%an <%ae> / %cn <%ce>"},
+		{"ls-tree", "-r", "--name-only", "HEAD"},
+		{"diff", "--name-status", "HEAD"},
+		{"status", "--porcelain=v1", "--untracked-files=no"},
+	} {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = repo
 		cmd.Env = append(gitenv.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
