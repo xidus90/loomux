@@ -2,6 +2,8 @@ package vcs
 
 import (
 	"errors"
+	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -35,5 +37,34 @@ func TestBaselineTurnsAFailureIntoNoBaselineAndNotIntoAnError(t *testing.T) {
 
 	if got != nil || err != nil {
 		t.Fatalf("baseline = %q, %v; want nil, nil", got, err)
+	}
+}
+
+// Both ends of the length rule are inclusive: four digits is the shortest
+// abbreviation git accepts, sixty-four a full SHA-256 name. Called directly,
+// because a range over a real repository cannot tell a refused name from an
+// unknown one without a SHA-256 repository to hand.
+func TestObjectNameTakesFourToSixtyFourDigits(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		want bool
+	}{
+		{strings.Repeat("a", 3), false},
+		{strings.Repeat("a", 4), true},
+		{strings.Repeat("a", 64), true},
+		{strings.Repeat("a", 65), false},
+	} {
+		if got := objectName(testCase.name); got != testCase.want {
+			t.Errorf("objectName(%d digits) = %v, want %v", len(testCase.name), got, testCase.want)
+		}
+	}
+}
+
+// A git that exits non-zero and says nothing on stderr adds nothing to the
+// message -- no dangling ": ". Called directly: no fixture makes git fail
+// silently on demand.
+func TestSaidAddsNothingForASilentFailure(t *testing.T) {
+	if got := said(&exec.ExitError{}); got != "" {
+		t.Fatalf("said(silent exit) = %q, want it empty", got)
 	}
 }

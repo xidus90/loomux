@@ -127,13 +127,16 @@ func TestCommitPathsHonoursGitattributes(t *testing.T) {
 // test_vcs.py:194 test_a_moved_ref_is_refused_not_overwritten
 func TestCommitPathsRefusesAMovedRef(t *testing.T) {
 	repo := newVault(t, map[string]string{"seite.md": "alt"})
+	before := head(t, repo)
 	write(t, repo, "seite.md", "neu")
 	inWindow(t, func() { git(t, repo, "commit", "-q", "--allow-empty", "-m", "foreign") })
 
 	_, err := vcs.CommitPaths(repo, "Update", []string{"seite.md"}, nil, t.TempDir())
 
-	if !errors.Is(err, vcs.ErrRefMoved) {
-		t.Fatalf("err = %v, want ErrRefMoved", err)
+	// The message names the commit the swap expected, not "nothing": that
+	// spelling belongs to an unborn branch only.
+	if !errors.Is(err, vcs.ErrRefMoved) || !strings.HasSuffix(err.Error(), " moved away from "+before) {
+		t.Fatalf("err = %v, want ErrRefMoved from %s", err, before)
 	}
 	if subject := output(t, repo, "log", "-1", "--format=%s"); subject != "foreign\n" {
 		t.Fatalf("subject of HEAD = %q; the foreign commit was overwritten", subject)
@@ -250,6 +253,43 @@ func TestCommitPathsRefusesAnUnusableScratchIndex(t *testing.T) {
 	}
 }
 
+// No Python counterpart (`Path.mkdir(parents=True)` is not in question there):
+// a scratch directory that does not exist yet is made, parents included, and
+// the commit goes through.
+func TestCommitPathsMakesAMissingScratchDirectory(t *testing.T) {
+	repo := newVault(t, map[string]string{"seite.md": "alt"})
+	scratch := filepath.Join(t.TempDir(), "noch", "nicht", "da")
+	write(t, repo, "seite.md", "neu")
+
+	got, err := vcs.CommitPaths(repo, "Update", []string{"seite.md"}, nil, scratch)
+
+	if err != nil || got == nil || !got.Created {
+		t.Fatalf("CommitPaths = %+v, %v", got, err)
+	}
+	if info, err := os.Stat(scratch); err != nil || !info.IsDir() {
+		t.Fatalf("scratch directory = %v, %v; want it made", info, err)
+	}
+}
+
+// No Python counterpart: a scratch path that is a file cannot hold the index,
+// and the refusal says so before git is asked to write anything there.
+func TestCommitPathsRefusesAScratchPathThatIsAFile(t *testing.T) {
+	repo := newVault(t, map[string]string{"seite.md": "alt"})
+	before := head(t, repo)
+	scratch := filepath.Join(t.TempDir(), "datei")
+	write(t, filepath.Dir(scratch), "datei", "keine Ablage")
+	write(t, repo, "seite.md", "neu")
+
+	_, err := vcs.CommitPaths(repo, "Update", []string{"seite.md"}, nil, scratch)
+
+	if err == nil || !strings.Contains(err.Error(), "is unusable") {
+		t.Fatalf("err = %v, want the scratch index refused", err)
+	}
+	if head(t, repo) != before {
+		t.Fatal("HEAD moved")
+	}
+}
+
 // test_vcs.py:261 test_an_inherited_git_dir_does_not_redirect_the_commit
 func TestCommitPathsIgnoresAnInheritedGitDir(t *testing.T) {
 	repo := newVault(t, map[string]string{"seite.md": "alt"})
@@ -354,6 +394,29 @@ func TestCommitPathsFailsWithoutACommitterIdentity(t *testing.T) {
 	}
 	if head(t, repo) != before {
 		t.Fatal("HEAD moved")
+	}
+}
+
+// No Python counterpart: a failed commit-tree ends the call before the window
+// opens. Past it, a foreign commit would turn the commit-tree failure into
+// ErrRefMoved, and the caller would retry a commit that cannot succeed.
+func TestCommitPathsStopsAtAFailedCommitTreeBeforeTheWindow(t *testing.T) {
+	repo := newVault(t, map[string]string{"seite.md": "alt"})
+	git(t, repo, "config", "--unset", "user.email")
+	git(t, repo, "config", "--unset", "user.name")
+	git(t, repo, "config", "user.useConfigOnly", "true")
+	home := t.TempDir()
+	for _, name := range []string{"HOME", "USERPROFILE", "XDG_CONFIG_HOME"} {
+		t.Setenv(name, home)
+	}
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	write(t, repo, "seite.md", "neu")
+	inWindow(t, func() { t.Error("the window opened after commit-tree failed") })
+
+	_, err := vcs.CommitPaths(repo, "Update", []string{"seite.md"}, nil, t.TempDir())
+
+	if err == nil || errors.Is(err, vcs.ErrRefMoved) || !strings.Contains(err.Error(), "git commit-tree ") {
+		t.Fatalf("err = %v, want the commit-tree failure", err)
 	}
 }
 
@@ -491,11 +554,28 @@ func TestCommitPathsReportsAGitLostInTheWindow(t *testing.T) {
 	_, err := vcs.CommitPaths(repo, "Update", []string{"seite.md"}, nil, t.TempDir())
 	os.Setenv("PATH", path)
 
-	if err == nil || errors.Is(err, vcs.ErrRefMoved) || !strings.Contains(err.Error(), "could not be run") {
-		t.Fatalf("err = %v, want a spawn failure", err)
+	// The first call past the window is the second reading of HEAD, and the
+	// first failure is the one reported: a session that kept calling git would
+	// name update-ref instead.
+	if err == nil || errors.Is(err, vcs.ErrRefMoved) || !strings.Contains(err.Error(), "git symbolic-ref --quiet HEAD in ") ||
+		!strings.Contains(err.Error(), "could not be run") {
+		t.Fatalf("err = %v, want the spawn failure of symbolic-ref", err)
 	}
 	if head(t, repo) != before {
 		t.Fatal("HEAD moved")
+	}
+}
+
+// No Python counterpart: a failed add stops the session, so the removal after
+// it is never looked up and cannot be reported as untracked -- the add's own
+// failure is the one the caller sees.
+func TestCommitPathsReportsTheFailedAddAndNotTheRemovalAfterIt(t *testing.T) {
+	repo := newVault(t, map[string]string{"seite.md": "alt", "fall/case.toml": "x"})
+
+	_, err := vcs.CommitPaths(repo, "Decide", []string{"gibtsnicht.md"}, []string{"fall"}, t.TempDir())
+
+	if err == nil || !strings.Contains(err.Error(), "git update-index --add -- gibtsnicht.md failed: ") {
+		t.Fatalf("err = %v, want the failed add", err)
 	}
 }
 
