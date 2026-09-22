@@ -21,6 +21,15 @@ scope = "project/loomux"
 [layout]
 wiki = "docs/wiki"
 
+# Only the wiki is knowledge; testdata/cases holds recordings, and a catalog
+# written into them would change evidence.
+[index]
+include = ["docs/wiki/**/*.md"]
+
+# The bundle catalogs are registered but qmd never gets them (OwnArtifacts
+# hides **/index.md); without this line status reports them as divergence.
+unsearched = ["docs/**/**/index.md"]
+
 # --- Policy ---------------------------------------------------------------
 # Jede Regel wird beim Laden geprueft: ein kaputter Glob, ein leerer Glob,
 # ein fehlendes regex oder ein fehlender reason sind ein Fehler, und der
