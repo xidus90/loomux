@@ -1143,21 +1143,28 @@ git commit -m "feat(cli): list waiting review cases and show one"
    `committet als <sha>`; sonst stderr
    `<geschrieben|entschieden>, aber nicht committet: <warnung>`. **Exit 0,
    auch wenn der Commit scheiterte.**
-6. **Nachlauf, nur wenn `Written`:** `reindexCommand(nil, nil, io.Discard,
-   stderr)` — **einmal, ohne eigenen `catchUp` davor**. `reindex` holt den
-   Abgleich selbst nach (`catchUpBeforeIndexing`, `internal/cli/index.go:104`):
-   scheitert er, meldet es auf stderr und indiziert **nicht**; eröffnet er
-   Fälle, listet es sie auf stderr und indiziert weiter. Das ist genau die
-   Form von `_technical_update`. Ein zweiter `reconcile` davor liefe doppelt.
-   Der Exit von `reindex` ändert den Exit von `approve` nicht. Das lokale Modell
+6. **Nachlauf, nur wenn `Written`:** genau `_technical_update`
+   (`cli.py:1432-1516`; Controller-Entscheid R1 der Fixrunde 1, er ersetzt
+   „`reindexCommand` einmal rufen“, dessen Texte und dessen „kein
+   Prüfzentrum“ nicht die des Freigabepfads sind). Zuerst die Aufholung
+   selbst (`catchUp`). Scheitert sie, **auch ohne Prüfzentrum**, steht auf
+   stderr Pythons „warning: die Aufholung vor der technischen Aktualisierung
+   ist fehlgeschlagen (…) …“ (`brain` als `loomux`), und es wird **nicht**
+   indiziert. Sonst werden eröffnete Fälle und unlesbare Falldateien auf
+   stderr gelistet (`reportCatchUp`, mit `reindex` geteilt), dann läuft der
+   Indexlauf **ohne zweite Aufholung** (`indexAreas`, aus `reindexCommand`
+   herausgelöst, dessen Verhalten gleich bleibt). Scheitert er, folgt
+   „warning: die technische Aktualisierung ist fehlgeschlagen; …“. Nichts
+   davon ändert den Exit von `approve`. Das lokale Modell
    gibt es nicht; ein `local_only`-Fall bekommt `manual = true` (Regel aus
    3a). Den Dienst anzuhalten (`_ask_daemon_to_reload`) entfällt: `serve`
    liest den Index je Anfrage — die Akte hält es fest, nachdem Step 1 es
    am Code von `internal/serve` geprüft hat.
 
 - [ ] **Step 1: Write the failing tests** — je Regel; Nachlauf mit einer
-  Welt, in der `reconcile` scheitert (kein Prüfzentrum erklärbar), und einer,
-  in der er einen neuen Fall eröffnet.
+  Welt, in der `reconcile` scheitert (kaputtes Manifest), einer ohne
+  Prüfzentrum (ebenfalls Halt), einer, in der er einen neuen Fall eröffnet
+  (genau einmal gelistet), und einer, in der der Indexlauf scheitert.
 - [ ] **Step 2:** Run: `go test ./internal/cli/ -run Approve -v` — FAIL.
 - [ ] **Step 3:** Implementieren.
 - [ ] **Step 4:** Run: `go test ./internal/cli/ -cover` — PASS, 100 %.
