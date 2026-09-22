@@ -18,6 +18,7 @@ Loomux nutzt eine strikte Exit-Code-Semantik, die exakt auf die Schnittstellen m
 ### Globale Flags & Umgebung
 - `--root <pfad>`: Explizite Angabe der Projektwurzel. Wird dieses Flag weggelassen, wandert Loomux im Verzeichnisbaum aufwärts, bis es die erste `.loomux/config.toml` findet.
 - `LOOMUX_STATE_DIR`: Überschreibt das globale Zustandsverzeichnis (Standard: `%LOCALAPPDATA%\loomux` unter Windows, `~/.local/state/loomux` unter POSIX).
+- `LOOMUX_LEGACY_BRAIN_DIR`: Das Zustandsverzeichnis von ultra-brain, als Rückfall für brain-Artefakte gelesen und nie beschrieben (siehe Abschnitt 7).
 
 ---
 
@@ -329,12 +330,12 @@ Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.
 
 ## 7. Second Brain & Wiki (`loomux brain`)
 
-Die fünf Datenbefehle lesen die Bereiche der einen Registry (`registry.toml` in `LOOMUX_STATE_DIR` oder dessen Plattformvorgabe) und antworten wie `brain-mcp` von ultra-brain; ein aufgezeichneter Fallkorpus (`testdata/cases/1b-1`) hält sie daran. Bis Stufe 3 liegen die Artefakte eines schreibgeschützten Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und der Reconcile-Stempel im Zustandsverzeichnis von ultra-brain: `LOOMUX_LEGACY_BRAIN_DIR`, Standard `%LOCALAPPDATA%\brain` unter Windows und `$XDG_STATE_HOME/brain` oder `~/.local/state/brain` unter POSIX. Bis Stufe 4 wird ein Bereichsverzeichnis, dessen `.loomux/config.toml` fehlt oder keine `[area]`-Tabelle trägt, über `.ultra-brain/config.toml` oder `.brain.toml` gelesen.
+Die fünf Datenbefehle lesen die Bereiche der einen Registry (`registry.toml` in `LOOMUX_STATE_DIR` oder dessen Plattformvorgabe) und antworten wie `brain-mcp` von ultra-brain; ein aufgezeichneter Fallkorpus (`testdata/cases/1b-1`) hält sie daran. Die Artefakte eines schreibgeschützten Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und der Reconcile-Stempel werden zuerst aus dem Zustandsverzeichnis von loomux gelesen, wohin Stufe 3a sie schreibt, und aus dem Zustandsverzeichnis von ultra-brain, solange am neuen Ort nichts liegt: `LOOMUX_LEGACY_BRAIN_DIR`, Standard `%LOCALAPPDATA%\brain` unter Windows und `$XDG_STATE_HOME/brain` oder `~/.local/state/brain` unter POSIX. Es entscheidet das ganze Bereichsverzeichnis, nie eine einzelne Datei; `loomux migrate` (Stufe 4) zieht den Rest um. Bis Stufe 4 wird ein Bereichsverzeichnis, dessen `.loomux/config.toml` fehlt oder keine `[area]`-Tabelle trägt, über `.ultra-brain/config.toml` oder `.brain.toml` gelesen.
 
 - **Kanal**: Jeder Befehl nimmt `--channel local|cloud` (Standard `local`). Ein Bereich mit `[privacy] mode = "local_only"` existiert im Kanal `cloud` nicht; `[privacy] never`-Globs gelten in jedem Kanal.
 - **Usage-Fehler** (Exit `2`): die Usage-Zeile, dann `loomux brain <befehl>: error: <grund>` bei fehlendem Argument, ungültiger Wahl oder `-n` kleiner 1, und `loomux brain: error: <grund>`, wenn der Befehl fehlt oder unbekannt ist oder Argumente übrig bleiben.
 - **Laufzeitfehler** (Exit `1`): `error: <grund>` auf `stderr` und nichts auf `stdout` — ein unbekannter Scope, eine Verweigerung, ein fehlender Abschnitt, ein kaputtes `graph.json` oder Identitätsregister, ein fehlendes oder unlesbares Manifest irgendeines registrierten Bereichs, eine fehlende oder kaputte Registry, eine nicht erreichbare Suchmaschine.
-- **Ratschläge**: Die Meldungen nennen `brain reindex`, `brain reconcile` und `brain embed`, die Befehle von ultra-brain, bis Stufe 3 sie umschreibt.
+- **Ratschläge**: Die Meldungen nennen weiter `brain reindex`, `brain reconcile` und `brain embed`, die Befehle von ultra-brain, weil die aufgezeichneten Fälle von 1b-1 und 1b-2 diesen Wortlaut halten; mit dem Umstieg wechseln sie auf `loomux reindex`, `loomux reconcile` und `loomux embed`.
 
 ### `loomux brain search <anfrage> [--scope <scope>] [--profile fast|full|keyword] [-n <n>] [--channel local|cloud]`
 Durchsucht die sichtbaren Bereiche (Standard `--scope all`) über den qmd-MCP-Daemon unter `http://localhost:8765/mcp`.
@@ -374,8 +375,46 @@ Gibt aus, was man wissen muss, bevor man einer Antwort traut, eine Zeile je Befu
 ### `loomux brain lint`
 Validiert Wiki-Links (`[[Seite]]`), verwaiste Dokumente, tote Referenzen und Frontmatter-Taxonomien.
 
-### `loomux brain reconcile`
-Synchronisiert Zustandsänderungen, Identitätsregister und Vektorindex-Sammlungen.
+### Pflege: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
+
+Vier Befehle der `brain`-CLI von ultra-brain, seit Stufe 3a Befehle auf oberster Ebene von loomux; ein aufgezeichneter Fallkorpus (`testdata/cases/3a`) hält sie an der Python-Referenz. Sie schreiben nur ins Zustandsverzeichnis von loomux und lesen das alte als den oben beschriebenen Rückfall.
+
+- **Umgebung**: `LOOMUX_STATE_DIR` hält die Registry, die Artefakte schreibgeschützter Bereiche, `maintenance/` und `qmd-collections.json`; `LOOMUX_LEGACY_BRAIN_DIR` ist der Rückfall und wird nie beschrieben. qmds `index.yml` wird über `XDG_CONFIG_HOME` gefunden, sonst unter `~/.config`.
+- **Kein `--state-dir`**: Die Referenz nimmt es an allen vieren an; loomux lehnt es ab wie jede unbekannte Flagge (Exit `2`). Der Zustand kommt aus der Umgebung, dem einen Zustandsmodell aller loomux-Befehle.
+- **Positionale Argumente** (Exit `2`): Keiner der vier nimmt eines. Ein Wort, das nach den Flaggen übrig bleibt, wird mit `<befehl>: unrecognized arguments: <wörter>` abgelehnt, bevor Umgebung oder qmd gefragt werden.
+- **Meldungen** des Abgleichs sind deutsch, wörtlich die der Referenz.
+
+#### `loomux reindex [--registry <pfad>]`
+Fährt einen Abgleich über die registrierten Bereiche, baut danach je Bereich die Verzeichniskataloge (`index.md`), den Linkgraphen (`graph.json`) und das Identitätsregister (`_identities.tsv`) neu und trägt die Bereiche als Sammlungen in qmds `index.yml` ein. Ein schreibbarer Bereich hält seine Artefakte im eigenen Baum; die eines schreibgeschützten werden über ein Staging-Verzeichnis nach `<zustand>/areas/<scope>/` geschrieben und als Ganzes eingetauscht.
+
+- **`--registry`**: eine `registry.toml` oder das Verzeichnis, das eine hält; Standard ist `registry.toml` im Zustandsverzeichnis.
+- **Aufholung**: Der Abgleich läuft zuerst, damit eine geänderte Quelle zum Fall wird, bevor der Indexlauf ihren Hash fortschreibt. Fälle, die er eröffnet, stehen auf `stderr`, und der Lauf **geht weiter**; ein Tresor ohne Prüfzentrum bekommt eine Warnung und wird indiziert; jeder andere Fehlschlag des Abgleichs beendet den Befehl, bevor etwas indiziert ist.
+- **Ausgabe**: `indexed the areas of <pfad>` auf `stdout`; auf `stderr` die aktualisierten oder entfernten Sammlungen und jede verweigerte, weil qmd schon eine gleichnamige führt, die brain nicht angelegt hat.
+- **Exit-Codes**: `0` bei Erfolg, und auch dann, wenn im Zustandsverzeichnis keine Registry liegt (`no areas registered in <pfad>; nothing to index` auf `stdout`); `1` bei einer mit `--registry` benannten Registry, die es nicht gibt, einer Registry, die sich nicht lesen lässt, einer fehlgeschlagenen Aufholung, einem fehlgeschlagenen Indexlauf oder einer verweigerten Sammlung; `2` bei einem Usage-Fehler.
+
+#### `loomux embed [--registry <pfad>]`
+Lässt qmd die Vektoren erzeugen, die der Indexlauf offen lässt, für jeden registrierten Bereich.
+
+- **qmd zuerst**: Ohne `qmd` auf dem `PATH` schreibt er `loomux embed: qmd is not on PATH; install it with: npm install -g @tobilu/qmd` und endet mit Exit `1`, bevor er die Registry liest.
+- **Ausgabe**: `embedded <n> area(s)` auf `stderr`.
+- **Exit-Codes**: `0` bei Erfolg, und auch dann, wenn im Zustandsverzeichnis keine Registry liegt (`no areas registered in <pfad>; nothing to embed` auf `stdout`); `1` bei fehlendem qmd, einer benannten Registry, die es nicht gibt, einer Registry, die sich nicht lesen lässt, oder einer Suchmaschine, die ablehnt; `2` bei einem Usage-Fehler.
+
+#### `loomux reconcile`
+Misst jede Quelle der registrierten Bereiche an ihrem Identitätsregister und eröffnet für jede Wiki-Seite, die aus einer geänderten Quelle abgeleitet ist, einen Fall (`case.toml` und ein Paket mit dem Diff) im Prüfzentrum, dem einen Verzeichnis, das ein Bereich unter `[layout] review` erklärt. Ein in `maintenance/merge-events.tsv` festgehaltener Merge eröffnet einen Fall mit den Belegen des Merges, nach den Quellfällen.
+
+- **Ausgabe** auf `stdout`: `<n> Quellen geprüft, <m> davon gehasht`, je Fall eine Zeile (Verzeichnis, Bereich, Ziel, Zustand und `manuell` für einen Fall, der eine Entscheidung von Hand verlangt, durch Tabs getrennt, um zwei Leerzeichen eingerückt), dann `<k> Fälle`.
+- **Ein Fall ist kein Fehlschlag**: Offene Fälle lassen den Exit-Code bei `0`.
+- **Stempel**: Der Abgleich schreibt `maintenance/last-run.txt` in UTC, den `brain status` und `brain search` lesen.
+- **Exit-Codes**: `0` für einen Abgleich, der bis zum Ende lief; `1`, wenn sich eine Falldatei nicht lesen lässt (`unreadable case: <eintrag>` auf `stderr`), sowie bei einer Registry, die sich nicht lesen lässt, einem Tresor, der kein oder zwei Prüfzentren erklärt, oder einem anderen Fehlschlag (`error: <grund>`); `2` bei einem Usage-Fehler.
+
+#### `loomux area add [--path P] [--scope S] [--wiki W] [--sources S] [--merge-branch B] [--privacy M] [--no-reindex] [-y|--yes]`
+Meldet ein Repository als Bereich an und richtet es ein: der Registry-Eintrag (unter einer Sperre geschrieben); `.loomux/config.toml` mit `[area]`, `[layout]`, `[index]`, `[privacy]` und `[maintenance]`, wenn das Repository keine hat; die Routing-Regel, einmal an `AGENTS.md` angehängt; das Gerüst des Wiki-Bündels; danach `loomux reindex` samt Aufholung.
+
+- **Vorgaben**: `--path` das Arbeitsverzeichnis; `--scope` `project/<verzeichnisname>`; `--sources` `docs`, wenn es ein Verzeichnis `docs/` gibt, sonst `.`; `--wiki` `<repo>/docs/wiki` oder `<repo>/wiki` (muss absolut sein); `--merge-branch` der Branch, den git nennt, ohne einen `master`; `--privacy` `manual_cloud`, einer von `automatic_cloud`, `local_only`, `manual_cloud`.
+- **Registry zuerst**: Ein schon registrierter Scope wird abgelehnt, bevor das Repository berührt wird.
+- **Eine behaltene Konfiguration**: Eine vorhandene `.loomux/config.toml` bleibt Byte für Byte stehen, mit einer Warnung, wenn sie kein `[area]` oder einen anderen Scope erklärt. Eine, die der Deklarationsleser ablehnt, beendet den Befehl, ohne dass etwas registriert ist.
+- **Unterschiede zu `brain init`**: kein `.mcp.json` und keine Agenten-Hooks (`loomux init`, Stufe 4); der Indexlauf findet wirklich statt, außer mit `--no-reindex`; der Branch wird als `[maintenance] branch` geschrieben, nicht als `merge_branch`; `--privacy` wird geprüft; der erste Bereich einer Maschine braucht keine von Hand angelegte Registry-Datei. `-y`/`--yes` wird angenommen und ändert nichts.
+- **Exit-Codes**: `0` oder der Exit-Code des Indexlaufs; `1` bei einem Pfad, der kein Verzeichnis ist, einem ungültigen Scope, einem relativen `--wiki`, einem abgelehnten Registry-Eintrag, einer unlesbaren Datei oder einem fehlgeschlagenen Schreiben; `2` bei einem Usage-Fehler, einem fehlenden oder unbekannten Unterbefehl (mit der Usage-Zeile) oder einem unbekannten `--privacy`.
 
 ---
 

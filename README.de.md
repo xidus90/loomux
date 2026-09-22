@@ -121,15 +121,17 @@ nichts davon, was ein Test über den Importgraphen festhält. Siehe
 Wo jede Stufe und jede Funktion steht — Herkunft, Stand, Abhängigkeiten und
 Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**. Stufe 2c
 (das Stop-Tor und die Subagenten-Hooks) ist für Claude Code fertig; ihr
-Antigravity-Adapter steht noch aus.
+Antigravity-Adapter steht noch aus. Stufe 3a (`reindex`, `embed`, `reconcile`,
+`area add`) ist gebaut; der Lauf auf der eigenen Registry dieser Maschine
+steht noch aus.
 
 ---
 
 ## CLI-Referenz
 
-Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a, 2b und 2c im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c und 3a im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
 
-### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a, 2b und 2c)
+### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c und 3a)
 ```bash
 loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
@@ -155,6 +157,10 @@ loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dien
 loomux serve status                 # Was serve.json sagt und ob der Listener antwortet
 loomux serve stop [--force]         # Beendet den Dienst über seinen Endpunkt oder über seine PID
 loomux mcp [--channel local|cloud]  # stdio-Brücke, die ein MCP-Wirt startet; sie startet den Dienst selbst
+loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph, Identitätsregister und qmd-Sammlungen jedes Bereichs neu bauen
+loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
+loomux reconcile                    # Eröffnet Prüffälle für geänderte Quellen und gelandete Merges; ein Fall ist kein Fehlschlag
+loomux area add [--path P] [--scope S]  # Meldet ein Repository als Bereich an, legt sein Wiki an und indiziert es (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
 ```
 
 ### Implementierte Befehle (Code-Graph — Stufen G2a–G2b)
@@ -178,11 +184,9 @@ loomux graph map                    # Gibt token-budgetierte Verzeichnis-Cluster
 loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im Browser
 ```
 
-### Spezifizierte Befehle (Second Brain & Dienste — Stufen 3–4 & W1–W5)
+### Spezifizierte Befehle (Second Brain & Dienste — Stufen 3b–4 & W1–W5)
 ```bash
-loomux brain reconcile             # Synchronisiert Zustandsänderungen, Identitäten und QMD-Sammlungen
 loomux brain check file|bundle|all  # Die Regeln für OKF, Haus und Föderation über eine Seite, ein Bündel oder alle Bereiche
-loomux brain embed                  # Erzeugt die Vektoren, die reindex offen lässt
 loomux serve                        # Das eingebettete Web OS neben den MCP-Listenern
 loomux init [--detect-only]         # Richtet Hooks, Einstellungen, Skills und AGENTS.md in erkannten Agenten ein
 ```
