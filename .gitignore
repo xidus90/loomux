@@ -2,6 +2,7 @@
 /coverage.out
 *.test
 /.loomux/state/
+/.loomux/no-verify
 /handovers/
 /.superpowers/
 /docs/wiki/.obsidian/
