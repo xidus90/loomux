@@ -1793,3 +1793,41 @@ init of loomux is still `internal/cases` with 438 allocations, below the 500
 of `TestStartDoesNoWorkInPackageInit`; above 300 there are otherwise only
 `encoding/gob` (366–370) and `internal/verify/commit` (322), both present
 before 3a.
+
+## 2026-09-23 00:06 — Stage 3b: `apply` and `evidence` on the Start Path
+
+Worktree `.claude/worktrees/stuffe-4-brainstorming-74e215`, branch
+`feat/review-cases` on `d3a5303` plus the fixups before it. `loomux approve` makes
+`internal/cli` import `internal/brain/apply` for the first time, and with it
+`internal/brain/evidence`. Both declared their regular expressions as package
+variables (`regexp.MustCompile`), and `TestStartDoesNoWorkInPackageInit` failed.
+The change compiles each of them on first use through `sync.OnceValue`, which is
+the pattern `internal/cases/state.go` already follows.
+
+**Method.** `before.exe` is `d3a5303` with the four files carrying the
+expressions (`evidence/evidence.go`, `apply/patch.go`, `apply/frontmatter.go`,
+`apply/pyyaml.go`) taken from `04de33c`. `after.exe` is the branch. Both were built
+with Go 1.27 into the session scratchpad. `loomux dev bench-hooks <fixture> -n 20`,
+one pass, one cold run per case and 20 warm, in this worktree. The hook payload is
+`testdata/bench/edit-readme.json`: its path lies outside the worktree, so both
+binaries refuse with exit 2 on the same path. The init counts come from
+`GODEBUG=inittrace=1 loomux version`.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: loomux version (regexps compiled at start) | 40.5 ms | 7.5 ms | 7.0 ms | 13.0 ms | [0] |
+| after: loomux version (regexps compiled on first use) | 8.5 ms | 6.5 ms | 6.0 ms | 7.5 ms | [0] |
+| before: loomux hook pre-tool-use (Edit on README.md) | 13.5 ms | 10.0 ms | 9.5 ms | 17.5 ms | [2] |
+| after: loomux hook pre-tool-use (Edit on README.md) | 12.0 ms | 9.1 ms | 8.6 ms | 15.0 ms | [2] |
+
+| package init | before | after |
+|---|---:|---:|
+| `internal/brain/evidence` | 646 allocs, 74,544 bytes | 20 allocs, 720 bytes |
+| `internal/brain/apply` | 1,299 allocs, 148,096 bytes | 26 allocs, 1,896 bytes |
+
+### Reading
+
+The allocation counts are the finding: both packages are back far below the 500 of
+the start rule. The warm medians move by about 1 ms, which is within the spread of
+a single pass. The cold `before` row is the first start of a freshly written
+binary and carries the file cache, so it is not the price of the expressions.

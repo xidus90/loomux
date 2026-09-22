@@ -2,6 +2,7 @@ package cli
 
 // commands is the whole command table. Each stage-1a task adds its line here.
 var commands = map[string]command{
+	"approve":   approveCommand,
 	"area":      areaCommand,
 	"brain":     brainCommand,
 	"case":      caseCommand,

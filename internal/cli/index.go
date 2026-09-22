@@ -48,8 +48,7 @@ func reindexCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	lookup := config.NewArtifactLookup()
-	stateDir, fallbackDir := lookup.Primary, lookup.Fallback
-	path, named := registryPath(*registry, stateDir)
+	path, named := registryPath(*registry, lookup.Primary)
 	if silent, code := reportEmptyState(path, named, "reindex", "index", stdout, stderr); silent {
 		return code
 	}
@@ -69,7 +68,14 @@ func reindexCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	code, _ := index.ReindexWithOutput(path, stateDir, fallbackDir, brainPorts().Status(), stderr)
+	return indexAreas(path, lookup, stdout, stderr)
+}
+
+// indexAreas is the index run itself, without the catch-up in front of it:
+// reindexCommand runs its own first, and `approve` runs one in its own words
+// before it calls this, so neither passes over the vault twice.
+func indexAreas(path string, lookup config.ArtifactLookup, stdout, stderr io.Writer) int {
+	code, _ := index.ReindexWithOutput(path, lookup.Primary, lookup.Fallback, brainPorts().Status(), stderr)
 	if code == 0 {
 		fmt.Fprintf(stdout, "indexed the areas of %s\n", path)
 	}
@@ -118,13 +124,21 @@ func catchUpBeforeIndexing(areas []config.Area, lookup config.ArtifactLookup, st
 			"dann `loomux reconcile` und danach `loomux reindex`.\n", err)
 		return false
 	}
+	reportCatchUp(stderr, root, report)
+	return true
+}
+
+// reportCatchUp names what a green catch-up found, on stderr: the cases it
+// opened under one heading, then every case file it could not read. Neither
+// scores anything -- the reference drops that exit on both paths that catch
+// up, `reindex` and the update after an approval.
+func reportCatchUp(stderr io.Writer, root string, report maintenance.Report) {
 	if len(report.Cases) > 0 {
 		fmt.Fprintf(stderr, "warning: %s durch die Aufholung eröffnet:\n",
 			germanCount(len(report.Cases), "neuer Fall", "neue Fälle"))
 		listCases(stderr, root, report.Cases)
 	}
 	reportUnreadable(stderr, report.Unreadable)
-	return true
 }
 
 // embedCommand is `loomux embed`: it asks the search engine for the vectors

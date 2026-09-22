@@ -1869,3 +1869,44 @@ Der größte Init von loomux bleibt `internal/cases` mit 438 Allokationen, unter
 den 500 von `TestStartDoesNoWorkInPackageInit`; über 300 liegen sonst nur
 `encoding/gob` (366–370) und `internal/verify/commit` (322), beide vor 3a
 schon da.
+
+## 2026-09-23 00:06 — Stufe 3b: `apply` und `evidence` auf dem Startpfad
+
+Worktree `.claude/worktrees/stuffe-4-brainstorming-74e215`, Zweig
+`feat/review-cases` auf `d3a5303` samt den Fixups davor. Mit `loomux approve`
+importiert `internal/cli` erstmals `internal/brain/apply` und darüber
+`internal/brain/evidence`. Beide legten ihre regulären Ausdrücke als
+Paketvariablen an (`regexp.MustCompile`), und
+`TestStartDoesNoWorkInPackageInit` schlug fehl. Die Änderung übersetzt jeden
+Ausdruck erst beim ersten Gebrauch über `sync.OnceValue`, nach dem Muster, das
+`internal/cases/state.go` schon hat.
+
+**Methode.** `before.exe` ist `d3a5303`, die vier Dateien mit den Ausdrücken
+(`evidence/evidence.go`, `apply/patch.go`, `apply/frontmatter.go`,
+`apply/pyyaml.go`) aber aus `04de33c`. `after.exe` ist der Zweig. Beide sind mit
+Go 1.27 in den Scratchpad der Sitzung gebaut. Gemessen mit
+`loomux dev bench-hooks <fixture> -n 20` in diesem Worktree: ein Durchgang, je Fall
+ein kalter und 20 warme Läufe. Die Hook-Nutzlast ist
+`testdata/bench/edit-readme.json`. Ihr Pfad liegt außerhalb des Worktrees, also
+weisen beide Binaries auf demselben Weg mit Exit 2 ab. Die Init-Zahlen stammen
+aus `GODEBUG=inittrace=1 loomux version`.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exitcodes |
+|---|---:|---:|---:|---:|---|
+| vorher: loomux version (Ausdrücke beim Start übersetzt) | 40,5 ms | 7,5 ms | 7,0 ms | 13,0 ms | [0] |
+| nachher: loomux version (Ausdrücke beim ersten Gebrauch) | 8,5 ms | 6,5 ms | 6,0 ms | 7,5 ms | [0] |
+| vorher: loomux hook pre-tool-use (Edit auf README.md) | 13,5 ms | 10,0 ms | 9,5 ms | 17,5 ms | [2] |
+| nachher: loomux hook pre-tool-use (Edit auf README.md) | 12,0 ms | 9,1 ms | 8,6 ms | 15,0 ms | [2] |
+
+| Paket-Init | vorher | nachher |
+|---|---:|---:|
+| `internal/brain/evidence` | 646 Allokationen, 74.544 Bytes | 20 Allokationen, 720 Bytes |
+| `internal/brain/apply` | 1.299 Allokationen, 148.096 Bytes | 26 Allokationen, 1.896 Bytes |
+
+### Lesart
+
+Der Befund sind die Allokationen: beide Pakete liegen wieder weit unter den 500
+der Startregel. Die warmen Mediane verschieben sich um etwa 1 ms, das liegt in
+der Streuung eines einzelnen Durchgangs. Die kalte Zeile „vorher“ ist der erste
+Start eines frisch geschriebenen Binaries und trägt den Datei-Cache. Sie ist
+nicht der Preis der Ausdrücke.
