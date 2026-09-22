@@ -6,7 +6,9 @@ Fusions-Stufe 1b-2. Berichtigt durch [`2026-09-16-loomux-code-g1-delta.md`](2026
 und [`2026-09-17-loomux-code-g2-design.md`](2026-09-17-loomux-code-g2-design.md) — bei Widerspruch
 gelten die beiden jüngeren Dokumente. G2b umgesetzt; **G3 umgesetzt 2026-09-19**, verengt durch
 [`2026-09-18-loomux-code-g3-delta.md`](2026-09-18-loomux-code-g3-delta.md) — auch hier gilt bei
-Widerspruch das jüngere Dokument. G4 und G5 offen  
+Widerspruch das jüngere Dokument. G4 entworfen in
+[`2026-09-22-loomux-code-g4-delta.md`](2026-09-22-loomux-code-g4-delta.md) (berichtigt §7.1 und
+§8); G5 offen  
 **Ort:** `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md`  
 **Ergänzt:** `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` (Säule: *Graph + Loop Engineering*)  
 **Referenz-Analyse:** `trailhq/Graft` (TypeScript, Node.js)  
