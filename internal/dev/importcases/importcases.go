@@ -34,9 +34,10 @@ type ExitRule struct {
 	To   int
 }
 
-// Mapping is the set of rules, read from a file of [[command]], [[tool]] and
-// [[exit]] tables. A stage brings one command kind or the other: a command
-// line is rewritten at its head, an MCP call at its tool's name.
+// Mapping is the set of rules, read from a file of [[command]], [[tool]],
+// [[exit]] and [[stdout]] tables. A stage brings one command kind or the
+// other: a command line is rewritten at its head, an MCP call at its tool's
+// name.
 type Mapping struct {
 	Commands []Rule     `toml:"command"`
 	Tools    []Rule     `toml:"tool"`
@@ -57,6 +58,20 @@ type Mapping struct {
 	// translated world has to carry, or the replay would hold loomux to the
 	// reference's spelling of a key loomux spells differently on purpose.
 	Keys []Rule `toml:"manifest_key"`
+
+	// Stdout rewrites the recorded stdout: every occurrence of From becomes
+	// To. Each rule is a deviation of the parity list, where the reference
+	// names itself in what it prints and loomux names itself instead.
+	Stdout []Rule `toml:"stdout"`
+}
+
+// rewriteStdout applies every rule, in order, to a recorded stdout.
+func rewriteStdout(stdout []byte, rules []Rule) []byte {
+	text := string(stdout)
+	for _, rule := range rules {
+		text = strings.ReplaceAll(text, rule.From, rule.To)
+	}
+	return []byte(text)
 }
 
 // verbatim is the one value of Mapping.Manifests besides the default.
@@ -125,7 +140,9 @@ func Import(from, to string, m Mapping) error {
 		// The files this import rewrites are not copied first: one writer per
 		// file keeps the copy from being the one that fails.
 		mapped := mapExit(c.ExitCode, m.Exits)
-		skip := map[string]bool{"cmd": true, "stdin": len(c.Stdin) > 0, "exit": mapped != c.ExitCode}
+		stdout := rewriteStdout(c.Stdout, m.Stdout)
+		rewritten := string(stdout) != string(c.Stdout)
+		skip := map[string]bool{"cmd": true, "stdin": len(c.Stdin) > 0, "exit": mapped != c.ExitCode, "stdout": rewritten}
 		if err := copyTree(c.Path, out, skip); err != nil {
 			return err
 		}
@@ -138,6 +155,11 @@ func Import(from, to string, m Mapping) error {
 		}
 		if mapped != c.ExitCode {
 			if err := os.WriteFile(filepath.Join(out, "exit"), fmt.Appendf(nil, "%d\n", mapped), 0o644); err != nil {
+				return err
+			}
+		}
+		if rewritten {
+			if err := os.WriteFile(filepath.Join(out, "stdout"), stdout, 0o644); err != nil {
 				return err
 			}
 		}

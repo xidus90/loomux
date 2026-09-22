@@ -379,6 +379,14 @@ Abweichung zeigt, an Python gehoben.
   Frontmatter (`generated.at`, `verified[].at`) wird `{{NOW}}`, der Tag in
   `log.md` `{{TODAY}}`; `committet als <sha>` auf stdout wird
   `committet als {{SHA}}`. Was sonst einen Zeitstempel trägt, bleibt stehen.
+  Der Stempel dieses Laufs ist der aus der Überschrift des Auditblocks, den
+  die Ausgangswelt nicht hatte; getauscht wird er in jeder Datei, die von der
+  Welt abweicht, und nur, wenn die Welt ihn nirgends enthält — ältere Blöcke
+  bleiben so byte-gleich.
+- **`[[stdout]]` im Import** ersetzt im aufgezeichneten stdout jedes
+  Vorkommen von `from` durch `to`; für 3b `brain case --package ` →
+  `loomux case --package `. Jede solche Regel ist eine Abweichung, die die
+  Akte nennt.
 - **Vergleichsklassen:** alle drei sind Daten — stdout exakt, Exit und
   Dateiwelt exakt, bei `approve` samt `git.after`; stderr frei. Auch bei
   `approve` ist stdout das Ergebnis (`Fall …: …`, `verworfene Behauptung`,

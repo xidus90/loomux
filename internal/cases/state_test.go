@@ -287,3 +287,145 @@ func TestRunCaseWithReportsAWorldItCannotRead(t *testing.T) {
 		t.Fatal("want error")
 	}
 }
+
+const olderLog = "# Log\n\n- 2026-01-01 — `a.md`: 1 Behauptung(en) eingearbeitet (Fall `w`)\n"
+
+// approvalTree is what an approve of case x on a.md leaves behind: a new audit
+// block under stamp below older, a new log line of stamp's day, and the page's
+// frontmatter advanced to stamp with reviewer's `verified` entry, both spelled
+// the way PyYAML's safe_dump spells them.
+func approvalTree(older, stamp, reviewer string) map[string][]byte {
+	return tree(
+		"vault/audit.md", older+"\n## "+stamp+" — a.md (Fall `x`)\n\n"+
+			"- vorgeschlagen: 1 Behauptung(en), 0 ohne Beleg\n"+
+			"- entschieden: freigegeben durch "+reviewer+"\n"+
+			"- tatsächlich geändert: a.md, 1 Behauptung(en) eingearbeitet\n",
+		"vault/log.md", olderLog+"\n- "+stamp[:10]+" — `a.md`: 1 Behauptung(en) eingearbeitet (Fall `x`)\n",
+		"vault/wiki/a.md", "---\ngenerated:\n  at: "+stamp+"\nverified:\n- by: human:carol\n  at: 2026-01-01T00:00:00+00:00\n"+
+			"- by: "+reviewer+"\n  at: '"+stamp+"'\n---\nwritten by human:dave\n",
+	)
+}
+
+func TestNormalizeStateFoldsTheStampOfAnApproval(t *testing.T) {
+	const older = "## 2026-01-01T00:00:00+00:00 — a.md (Fall `x`)\n"
+	world := map[string][]byte{"vault/audit.md": []byte(older)}
+	left := cases.NormalizeState(world, approvalTree(older, "2026-09-22T08:16:27.936837+00:00", "human:alice"))
+	right := cases.NormalizeState(world, approvalTree(older, "2026-09-23T10:00:00+00:00", "human:bob"))
+	if !reflect.DeepEqual(left, right) {
+		t.Fatalf("trees differ after normalizing:\n%s\n%s", left["vault/audit.md"], right["vault/audit.md"])
+	}
+	if !strings.HasPrefix(string(left["vault/audit.md"]), older) {
+		t.Fatal("an older audit block was folded")
+	}
+}
+
+// The places an approval spells its stamp, its day and its reviewer, and
+// nothing beside them: an older `verified` entry keeps its time, the body of a
+// page its reviewer, another file its day and a stamp of another shape, an
+// older log line its date, and a page whose frontmatter never closes its
+// reviewer.
+func TestNormalizeStateFoldsAnApprovalExactlyWhereItWrites(t *testing.T) {
+	// An older line of the same day stays: only the new line is this run's.
+	const sameDay = "- 2026-09-22 — `b.md`: 1 Behauptung(en) eingearbeitet (Fall `v`)\n"
+	world := tree("vault/audit.md", "# Audit\n", "vault/log.md", olderLog+sameDay)
+	files := approvalTree("# Audit\n", "2026-09-22T08:16:27.936837+00:00", "human:alice")
+	files["vault/log.md"] = []byte(olderLog + sameDay + "\n- 2026-09-22 — `a.md`: 1 Behauptung(en) eingearbeitet (Fall `x`)\n")
+	files["vault/notes.md"] = []byte("on 2026-09-22 at 2026-09-22T08:16:27.936837Z\n")
+	files["vault/broken.md"] = []byte("---\nby: human:erin\n")
+	got := cases.NormalizeState(world, files)
+	want := tree(
+		"vault/notes.md", "on 2026-09-22 at 2026-09-22T08:16:27.936837Z\n",
+		"vault/broken.md", "---\nby: human:erin\n",
+		"vault/audit.md", "# Audit\n\n## {{NOW}} — a.md (Fall `x`)\n\n"+
+			"- vorgeschlagen: 1 Behauptung(en), 0 ohne Beleg\n"+
+			"- entschieden: freigegeben durch human:{{USER}}\n"+
+			"- tatsächlich geändert: a.md, 1 Behauptung(en) eingearbeitet\n",
+		"vault/log.md", olderLog+sameDay+"\n- {{TODAY}} — `a.md`: 1 Behauptung(en) eingearbeitet (Fall `x`)\n",
+		"vault/wiki/a.md", "---\ngenerated:\n  at: {{NOW}}\nverified:\n- by: human:{{USER}}\n  at: 2026-01-01T00:00:00+00:00\n"+
+			"- by: human:{{USER}}\n  at: '{{NOW}}'\n---\nwritten by human:dave\n",
+	)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+}
+
+// A reviewer that is not `human:` is not the account running the command, and
+// a stamp with a Z is not the isoformat() the reference writes: both stay to
+// fail the comparison.
+func TestNormalizeStateLeavesAnApprovalOfAnotherShapeAlone(t *testing.T) {
+	world := tree("vault/audit.md", "# Audit\n", "vault/log.md", olderLog)
+	for _, stamp := range []string{"2026-09-22T08:16:27Z", "2026-09-22T10:16:27.936837+02:00"} {
+		got := cases.NormalizeState(world, approvalTree("# Audit\n", stamp, "human:alice"))
+		for name, data := range got {
+			if strings.Contains(string(data), "{{NOW}}") || strings.Contains(string(data), "{{TODAY}}") {
+				t.Errorf("%s: %s folded: %s", stamp, name, data)
+			}
+		}
+	}
+	got := cases.NormalizeState(world, approvalTree("# Audit\n", "2026-09-22T08:16:27.936837+00:00", "model:x"))
+	if !strings.Contains(string(got["vault/audit.md"]), "durch model:x\n") {
+		t.Errorf("model:x folded in the audit: %s", got["vault/audit.md"])
+	}
+	if !strings.Contains(string(got["vault/wiki/a.md"]), "- by: model:x\n") {
+		t.Errorf("model:x folded in the page: %s", got["vault/wiki/a.md"])
+	}
+}
+
+// An audit block the world already held is no stamp of this run: a tree that
+// only carries it, or whose new block reuses a stamp the world holds, is not
+// folded -- the older blocks stay byte-equal.
+func TestNormalizeStateLeavesAStampOfTheWorldAlone(t *testing.T) {
+	const block = "## 2026-09-22T08:16:27+00:00 — a.md (Fall `w`)\n"
+	world := tree("vault/audit.md", block)
+	for _, files := range []map[string][]byte{
+		tree("vault/audit.md", block),
+		tree("vault/audit.md", block+"\n## 2026-09-22T08:16:27+00:00 — a.md (Fall `x`)\n"),
+		tree("vault/audit.md", block, "vault/b/audit.md", "## 2026-09-22T08:16:27+00:00 — b.md (Fall `y`)\n"),
+	} {
+		got := cases.NormalizeState(world, files)
+		if !reflect.DeepEqual(got, files) {
+			t.Errorf("got %q", got)
+		}
+	}
+	// Two runs' stamps in one tree name no single run: neither is folded.
+	two := tree("vault/audit.md", "## 2026-09-22T08:16:27+00:00 — a.md (Fall `x`)\n## 2026-09-23T08:16:27+00:00 — a.md (Fall `y`)\n")
+	if got := cases.NormalizeState(nil, two); !reflect.DeepEqual(got, two) {
+		t.Errorf("two stamps: got %q", got)
+	}
+}
+
+// The SHA a commit got differs on every run; its line on stdout is folded,
+// and a SHA of any other length is not one git printed.
+func TestRunCaseWithFoldsTheCommitOnStdout(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "case", "approve")
+	writeTree(t, dir, map[string]string{
+		"cmd":                  "loomux case x --approve\n",
+		"exit":                 "0\n",
+		"stdout":               "Fall x: freigegeben\ncommittet als " + strings.Repeat("a", 40) + "\n",
+		"world/keep.txt":       "k",
+		"world_after/keep.txt": "k",
+	})
+	c, err := cases.LoadCase(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	printing := func(line string) cases.RunFunc {
+		return func(_ []string, _ string, _ io.Reader, stdout, _ io.Writer) int {
+			io.WriteString(stdout, line)
+			return 0
+		}
+	}
+	another := printing("Fall x: freigegeben\ncommittet als " + strings.Repeat("b", 40) + "\n")
+	if outcome, err := cases.RunCaseWith(c, another, cases.NormalizeState); err != nil || !outcome.Passed {
+		t.Fatalf("normalized: %+v, %v", outcome, err)
+	}
+	if outcome, err := cases.RunCase(c, another); err != nil || outcome.Passed {
+		t.Fatalf("plain: %+v, %v", outcome, err)
+	}
+	for _, sha := range []string{strings.Repeat("b", 39), strings.Repeat("b", 41), strings.Repeat("B", 40)} {
+		short := printing("Fall x: freigegeben\ncommittet als " + sha + "\n")
+		if outcome, err := cases.RunCaseWith(c, short, cases.NormalizeState); err != nil || outcome.Passed {
+			t.Fatalf("%s: %+v, %v", sha, outcome, err)
+		}
+	}
+}
