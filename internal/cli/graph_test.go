@@ -11,6 +11,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/freshness"
 	"github.com/xidus90/loomux/internal/code/lexicon"
+	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/testlock"
 )
@@ -790,5 +791,338 @@ func TestGraphAskRebuildsADeletedSidecar(t *testing.T) {
 	// a rebuild as well. It is here for the answer, not for the regression.
 	if !strings.Contains(out.String(), "retryWithBackoff") {
 		t.Errorf("answer %q must find the symbol again", out.String())
+	}
+}
+
+func TestGraphUsage(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := graphCommand(nil, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	if !strings.Contains(errOut.String(), "Usage: loomux graph") {
+		t.Fatalf("usage missing, got %q", errOut.String())
+	}
+	errOut.Reset()
+	if code := graphCommand([]string{"unknown"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	if !strings.Contains(errOut.String(), "unknown command") {
+		t.Fatalf("unknown command error missing, got %q", errOut.String())
+	}
+}
+
+func TestGraphCallers(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	// 1. Missing graph -> exit 1
+	if code := graphCommand([]string{"callers", "Run", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+
+	// 2. Build graph
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+
+	// 3. Normal callers
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "Run", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "main.go") || !strings.Contains(out.String(), "lib/lib_test.go") {
+		t.Fatalf("callers output missing expected callers: %q", out.String())
+	}
+
+	// 4. Direction out, depth 2, json
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "main", "--root", root, "--direction", "out", "-d", "2", "--json"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	var callersAns query.CallersAnswer
+	if err := json.Unmarshal(out.Bytes(), &callersAns); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+
+	// 5. Depth all, in filter
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "Run", "--root", root, "--direction", "in", "--depth", "all", "--in", "lib/"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	// "full" is the documented synonym of "all".
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "Run", "--root", root, "-d", "FULL"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("-d FULL: exit %d, stderr %q", code, errOut.String())
+	}
+
+	// 6. Validation errors:
+	// a. missing symbol
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// b. two symbols
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "sym1", "sym2", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// c. invalid direction
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "Run", "--direction", "sideways", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// d. invalid depth
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "Run", "-d", "bad", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// e. flag parse error
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "--unknown"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// f. projectRoot error
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	defer func() { getwd = saved }()
+	errOut.Reset()
+	if code := graphCommand([]string{"callers", "Run"}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+}
+
+func TestGraphSkeleton(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	// 1. Missing graph -> exit 1
+	if code := graphCommand([]string{"skeleton", "lib/lib.go", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+
+	// 2. Build graph
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+
+	// 3. Normal skeleton
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"skeleton", "lib.go", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "func Run()") {
+		t.Fatalf("skeleton output missing Run(): %q", out.String())
+	}
+
+	// 4. JSON output
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"skeleton", "lib/lib.go", "--root", root, "--json"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	var skelAns query.SkeletonAnswer
+	if err := json.Unmarshal(out.Bytes(), &skelAns); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+
+	// 5. Validation errors:
+	// a. missing file
+	errOut.Reset()
+	if code := graphCommand([]string{"skeleton", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// b. two files
+	errOut.Reset()
+	if code := graphCommand([]string{"skeleton", "f1", "f2", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// c. flag parse error
+	errOut.Reset()
+	if code := graphCommand([]string{"skeleton", "--unknown"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// d. projectRoot error
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	defer func() { getwd = saved }()
+	errOut.Reset()
+	if code := graphCommand([]string{"skeleton", "lib/lib.go"}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+}
+
+func TestGraphGrep(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	// 1. Missing graph -> exit 1
+	if code := graphCommand([]string{"grep", "Run", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+
+	// 2. Build graph
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+
+	// 3. Normal grep
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "-i", "--fixed", "--in", "lib/", "--max-hits", "10"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "lib/lib.go") {
+		t.Fatalf("grep output missing hit: %q", out.String())
+	}
+
+	// 4. JSON output
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--json"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	var grepAns query.GrepAnswer
+	if err := json.Unmarshal(out.Bytes(), &grepAns); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+
+	// 5. Validation errors:
+	// a. missing pattern
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// b. two patterns
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "p1", "p2", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// c. flag parse error
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "--unknown"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// d. projectRoot error
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	defer func() { getwd = saved }()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run"}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+}
+
+func TestGraphMap(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	// 1. Missing graph -> exit 1
+	if code := graphCommand([]string{"map", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+
+	// 2. Build graph
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+
+	// 3. Normal map
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"map", "--root", root, "--max-dirs", "5", "--hubs-per-dir", "2", "--hotspots", "3"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "lib") {
+		t.Fatalf("map output missing directory: %q", out.String())
+	}
+
+	// 4. JSON output
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"map", "--root", root, "--json"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	var mapAns query.MapAnswer
+	if err := json.Unmarshal(out.Bytes(), &mapAns); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+
+	// 5. Validation errors:
+	// a. positional argument
+	errOut.Reset()
+	if code := graphCommand([]string{"map", "extra", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// b. flag parse error
+	errOut.Reset()
+	if code := graphCommand([]string{"map", "--unknown"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// c. projectRoot error
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	defer func() { getwd = saved }()
+	errOut.Reset()
+	if code := graphCommand([]string{"map"}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+}
+
+func TestGraphStats(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	// 1. Missing graph -> exit 1
+	if code := graphCommand([]string{"stats", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+
+	// 2. Build graph
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+
+	// 3. Normal stats
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"stats", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "Code Graph Stats:") {
+		t.Fatalf("stats output missing header: %q", out.String())
+	}
+
+	// 4. JSON output
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"stats", "--root", root, "--json"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	var statsAns query.StatsAnswer
+	if err := json.Unmarshal(out.Bytes(), &statsAns); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+	if statsAns.Files == 0 {
+		t.Fatalf("expected files > 0, got %d", statsAns.Files)
+	}
+
+	// 5. Validation errors:
+	// a. positional argument
+	errOut.Reset()
+	if code := graphCommand([]string{"stats", "extra", "--root", root}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// b. flag parse error
+	errOut.Reset()
+	if code := graphCommand([]string{"stats", "--unknown"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	// c. projectRoot error
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	defer func() { getwd = saved }()
+	errOut.Reset()
+	if code := graphCommand([]string{"stats"}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
 	}
 }
