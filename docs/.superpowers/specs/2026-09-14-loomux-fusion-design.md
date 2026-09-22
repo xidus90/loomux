@@ -1,11 +1,14 @@
 # loomux — ultraloom und ultra-brain in einem Go-Binary
 
 **Datum:** 2026-09-14
-**Stand:** teilweise umgesetzt (2026-09-19).
+**Stand:** teilweise umgesetzt (2026-09-22).
 **Fusions-Stufen:** 1a, 1b-1, 1b-2 (`serve`, MCP, Brücke), 1b-3 (Wiki- und
 Doku-Umzug) und 2a (Prüfkette `[verify]`, `loomux check <profil>`,
 `check gocover`) und 2b (commit-msg mit `[commit]`, `--calibrate`, `--language`) sind
-abgeschlossen; 2c, 3 und 4 sind offen. Sechzehn
+abgeschlossen. 2c ist auf der Claude-Seite
+abgeschlossen (Stop-Tor, `subagent-start`/`-stop`, am 2026-09-22); offen sind
+dort der Antigravity-Adapter und der Eintrag in der eingecheckten
+`.claude/settings.json`. 3 und 4 sind offen. Sechzehn
 Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
 „Stufen“ im Abschnitt „Nachgetragen“, zur Freigabe.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
@@ -510,13 +513,13 @@ Namen des Umzugs, nicht die Nummer):
 | **1b-3** | ✅ 2026-09-17 | Wiki- und Doku-Umzug |
 
 **Die drei Teilstufen der 2**, jede mit eigener Spec und eigenem Plan; die
-fertige auch mit Paritätsakte (`parity/stufe-2a.md`):
+gebauten auch mit Paritätsakte (`parity/stufe-2a.md`, `parity/stufe-2c.md`):
 
 | Teilstufe | Stand | Inhalt |
 |---|---|---|
 | **2a** | ✅ 2026-09-19 (Spec `2026-09-19-loomux-stufe-2a-design.md`, Plan `2026-09-19-loomux-stufe-2a.md`) | `child` (Prozessbaum, Fristen, Absaugen), das Schema `[verify]` mit Presets je Stack, `loomux check <profil\|arten>` mit `--show`, `loomux check gocover` statt `dev covergate`, post-edit auf `[verify]`. loomux prüft sich selbst mit `check precommit` |
 | **2b** | ✅ | commit-msg mit `--language`, `--calibrate`, `[commit]` (umgesetzt 2026-09-19) |
-| **2c** | offen | Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig; hängt an 2a |
+| **2c** | Claude-Seite ✅ 2026-09-22, Antigravity offen (Spec `2026-09-19-loomux-stufe-2c-design.md`, Plan `2026-09-19-loomux-stufe-2c.md`) | Hooks `stop`, `subagent-start`, `subagent-stop` für Claude Code, das Profil `stop`, das Wiki-Bündel als Lane `lint/wiki`; hängt an 2a. Offen: der Antigravity-Adapter nach eigener Messung (Tasks 14, 15). Der Eintrag in `.claude/settings.json` (Task 16) ist gemacht; loomux prüft sich damit an jedem Rundenende selbst |
 
 **Für 2c vorgemerkt:** zwei Schwächen der heutigen `stop.py` (gelesen am
 2026-09-18), die `stop` nicht übernimmt.
@@ -539,6 +542,11 @@ fertige auch mit Paritätsakte (`parity/stufe-2a.md`):
   grün geprüften Stands (HEAD, Diff gegen die Basis, untracked Inhalte) in
   `Snapshots` des Sitzungszustands (`internal/sessions/state.go`) und läuft
   nicht, solange er gleich ist.
+
+Umgesetzt am 2026-09-22, beide anders gefasst als hier vorgemerkt: das Budget
+ist `--budget`, Vorgabe 270 s unter der Frist von 300 s; der Fingerabdruck ist
+der Inhaltsbaum (`gitwork.ContentTree`) und steht als `green` im
+Sitzungszustand, `Snapshots` gibt es dort nicht mehr (2c-Spec, „Nachträge“).
 
 **Säule 3, der Code-Graph** (`2026-09-14-loomux-code-graph-design.md`). Sie
 steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
@@ -569,7 +577,7 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 
 | Prio | Stufe | Hängt ab von | Warum hier |
 |---|---|---|---|
-| 1 | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | Sofort baubar. Bringt `wiki-gate` ans Rundenende (`internal/hooks/status.go:28`) und ist Voraussetzung für `init` in Stufe 4 |
+| 1 | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | Die Claude-Seite war sofort baubar und ist fertig (2026-09-22); sie bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Der Antigravity-Adapter war es nicht: er wartet auf eine eigene Messung der agy-Nutzlasten. Voraussetzung für `init` in Stufe 4 |
 | 2 | **2b** commit-msg | keine genannt | Klein und sofort baubar. `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
 | 3 | **3** Brain-Pflege | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | 4 | **G4** übrige `graph`-Palette, Blast-Monitor | G3 ✅ | Sofort baubar, neben der Fusion. W3 und W4 warten darauf |
