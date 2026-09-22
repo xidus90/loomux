@@ -9,11 +9,11 @@ import (
 	"github.com/xidus90/loomux/internal/mcptools"
 )
 
-func TestToolsAreTheSevenInCanonicalOrder(t *testing.T) {
+func TestToolsAreTheElevenInCanonicalOrder(t *testing.T) {
 	got := mcptools.Tools()
 	want := []string{
 		"brain_search", "brain_catalog", "brain_read", "brain_neighbors", "brain_status",
-		"graph_find_code", "graph_check_freshness",
+		"graph_find_code", "graph_file_api", "graph_trace_calls", "graph_find_all", "graph_repo_map", "graph_check_freshness",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d tools, want %d", len(got), len(want))
@@ -155,15 +155,99 @@ func schemaOf(t *testing.T, name string) map[string]any {
 	return nil
 }
 
-func TestGraphToolsAreTheTwoInCanonicalOrder(t *testing.T) {
+func TestGraphToolsAreTheSixInCanonicalOrder(t *testing.T) {
 	got := mcptools.Graph()
-	want := []string{"graph_find_code", "graph_check_freshness"}
+	want := []string{
+		"graph_find_code", "graph_file_api", "graph_trace_calls",
+		"graph_find_all", "graph_repo_map", "graph_check_freshness",
+	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d tools, want %d", len(got), len(want))
 	}
 	for i := range want {
 		if got[i].Name != want[i] {
 			t.Errorf("tool %d is %q, want %q", i, got[i].Name, want[i])
+		}
+	}
+}
+
+func TestFileApiRequiresScopeAndFileAndCarriesNoSchemaDefault(t *testing.T) {
+	schema := graphSchemaOf(t, "graph_file_api")
+	required := schema["required"].([]any)
+	if len(required) != 2 || required[0] != "scope" || required[1] != "file" {
+		t.Errorf("required = %v, want [scope file]", required)
+	}
+	props := schema["properties"].(map[string]any)
+	for _, field := range []string{"scope", "file"} {
+		p, ok := props[field].(map[string]any)
+		if !ok {
+			t.Errorf("graph_file_api lacks %s", field)
+			continue
+		}
+		if _, has := p["default"]; has {
+			t.Errorf("graph_file_api.%s carries a schema default", field)
+		}
+	}
+}
+
+func TestTraceCallsRequiresScopeAndSymbolAndCarriesNoSchemaDefault(t *testing.T) {
+	schema := graphSchemaOf(t, "graph_trace_calls")
+	required := schema["required"].([]any)
+	if len(required) != 2 || required[0] != "scope" || required[1] != "symbol" {
+		t.Errorf("required = %v, want [scope symbol]", required)
+	}
+	props := schema["properties"].(map[string]any)
+	for _, field := range []string{"scope", "symbol", "direction", "depth", "in"} {
+		p, ok := props[field].(map[string]any)
+		if !ok {
+			t.Errorf("graph_trace_calls lacks %s", field)
+			continue
+		}
+		if _, has := p["default"]; has {
+			t.Errorf("graph_trace_calls.%s carries a schema default", field)
+		}
+	}
+	dirProp := props["direction"].(map[string]any)
+	enums := dirProp["enum"].([]any)
+	if len(enums) != 2 || enums[0] != "in" || enums[1] != "out" {
+		t.Errorf("direction enum = %v, want [in out]", enums)
+	}
+}
+
+func TestFindAllRequiresScopeAndPatternAndCarriesNoSchemaDefault(t *testing.T) {
+	schema := graphSchemaOf(t, "graph_find_all")
+	required := schema["required"].([]any)
+	if len(required) != 2 || required[0] != "scope" || required[1] != "pattern" {
+		t.Errorf("required = %v, want [scope pattern]", required)
+	}
+	props := schema["properties"].(map[string]any)
+	for _, field := range []string{"scope", "pattern", "in", "ignore_case", "fixed"} {
+		p, ok := props[field].(map[string]any)
+		if !ok {
+			t.Errorf("graph_find_all lacks %s", field)
+			continue
+		}
+		if _, has := p["default"]; has {
+			t.Errorf("graph_find_all.%s carries a schema default", field)
+		}
+	}
+}
+
+func TestRepoMapRequiresScopeAndCarriesNoSchemaDefault(t *testing.T) {
+	schema := graphSchemaOf(t, "graph_repo_map")
+	required := schema["required"].([]any)
+	if len(required) != 1 || required[0] != "scope" {
+		t.Errorf("required = %v, want [scope]", required)
+	}
+	props := schema["properties"].(map[string]any)
+	for _, field := range []string{"scope", "max_dirs"} {
+		p, ok := props[field].(map[string]any)
+		if !ok {
+			t.Errorf("graph_repo_map lacks %s", field)
+			continue
+		}
+		if _, has := p["default"]; has {
+			t.Errorf("graph_repo_map.%s carries a schema default", field)
 		}
 	}
 }

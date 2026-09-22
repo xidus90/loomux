@@ -6,6 +6,9 @@ import (
 	"github.com/xidus90/loomux/internal/code/repomap"
 )
 
+// MapAnswer aliases repomap.RepoMap.
+type MapAnswer = repomap.RepoMap
+
 // MapOptions configures the repository map generation.
 type MapOptions struct {
 	MaxDirs    int

@@ -15,7 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// CacheTTL and CacheScope let a host cache tools/list. Seven static tools make
+// CacheTTL and CacheScope let a host cache tools/list. Eleven static tools make
 // that free.
 const (
 	CacheTTL   = 5 * time.Minute
@@ -44,7 +44,7 @@ func Graph() []*mcp.Tool {
 }
 
 // Tools are every tool, as the bridge lists them and serve registers them:
-// the brain's five, then the graph's two.
+// the brain's five, then the graph's six.
 //
 // Built on first use rather than in a package variable: the start floor of
 // every loomux invocation, the per-edit hook included, is measured, and a
@@ -146,6 +146,60 @@ func build() {
 					"in":    map[string]any{"type": "string", "description": "narrow to nodes under this path prefix, filtered before scoring"},
 				},
 				"required": []string{"scope", "query"},
+			},
+		},
+		{
+			Name:        "graph_file_api",
+			Description: "Inspect the symbols, signatures, and types declared in one file without reading the whole file body.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope": areaScope,
+					"file":  map[string]any{"type": "string", "description": "path to the file, or a unique basename"},
+				},
+				"required": []string{"scope", "file"},
+			},
+		},
+		{
+			Name:        "graph_trace_calls",
+			Description: "Trace callers or callees of a symbol along call, reference, and inheritance edges.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope":     areaScope,
+					"symbol":    map[string]any{"type": "string", "description": "symbol name, Class.method, pkg.Fn, or file path"},
+					"direction": map[string]any{"type": "string", "enum": []string{"in", "out"}, "description": "'in' for callers/dependents, 'out' for callees/dependencies"},
+					"depth":     map[string]any{"description": "depth limit as integer or 'all' for full transitive closure"},
+					"in":        map[string]any{"type": "string", "description": "narrow to nodes under this path prefix"},
+				},
+				"required": []string{"scope", "symbol"},
+			},
+		},
+		{
+			Name:        "graph_find_all",
+			Description: "Find all occurrences of a string or regex across indexed files, grouped by enclosing symbol and ranked by symbol coupling (inDegree).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope":       areaScope,
+					"pattern":     map[string]any{"type": "string", "description": "literal string or regular expression"},
+					"in":          map[string]any{"type": "string", "description": "narrow to files under this path prefix"},
+					"ignore_case": map[string]any{"type": "boolean", "description": "case-insensitive search"},
+					"fixed":       map[string]any{"type": "boolean", "description": "treat pattern as literal string instead of regex"},
+				},
+				"required": []string{"scope", "pattern"},
+			},
+		},
+		{
+			Name:        "graph_repo_map",
+			Description: "Generate a compact overview of repository structure, directory clusters, hubs, and hotspots.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope":    areaScope,
+					"max_dirs": map[string]any{"type": "integer", "description": "maximum number of directories to list (default 16)"},
+				},
+				"required": []string{"scope"},
 			},
 		},
 		{

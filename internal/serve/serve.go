@@ -215,6 +215,10 @@ func handlers(name privacy.Channel, opts Options, stop func()) http.Handler {
 		LegacyDir:   opts.LegacyDir,
 		Ask:         query.Ask,
 		Check:       query.Check,
+		Callers:     query.Callers,
+		Skeleton:    query.Skeleton,
+		Grep:        query.Grep,
+		Map:         query.Map,
 	})
 	mux := http.NewServeMux()
 	mux.Handle(MCPPath, mcp.NewStreamableHTTPHandler(

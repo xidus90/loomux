@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/code/ask"
+	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/query"
 	servegraph "github.com/xidus90/loomux/internal/serve/graph"
 )
@@ -128,6 +129,29 @@ type recorder struct {
 	checkErr   error
 	askPanic   any
 	checkPanic any
+
+	callersSym   string
+	callersOpts  query.CallersOptions
+	callersAns   query.CallersAnswer
+	callersErr   error
+	callersPanic any
+
+	skeletonFile  string
+	skeletonOpts  query.SkeletonOptions
+	skeletonAns   query.SkeletonAnswer
+	skeletonErr   error
+	skeletonPanic any
+
+	grepPat   string
+	grepOpts  query.GrepOptions
+	grepAns   query.GrepAnswer
+	grepErr   error
+	grepPanic any
+
+	mapOpts  query.MapOptions
+	mapAns   query.MapAnswer
+	mapErr   error
+	mapPanic any
 }
 
 func (r *recorder) deps(registryDir string) servegraph.Deps {
@@ -148,6 +172,34 @@ func (r *recorder) deps(registryDir string) servegraph.Deps {
 			r.checked, r.root = true, root
 			return r.drift, r.checkErr
 		},
+		Callers: func(root, symbol string, opts query.CallersOptions) (query.CallersAnswer, []string, error) {
+			if r.callersPanic != nil {
+				panic(r.callersPanic)
+			}
+			r.root, r.callersSym, r.callersOpts = root, symbol, opts
+			return r.callersAns, r.notes, r.callersErr
+		},
+		Skeleton: func(root, file string, opts query.SkeletonOptions) (query.SkeletonAnswer, []string, error) {
+			if r.skeletonPanic != nil {
+				panic(r.skeletonPanic)
+			}
+			r.root, r.skeletonFile, r.skeletonOpts = root, file, opts
+			return r.skeletonAns, r.notes, r.skeletonErr
+		},
+		Grep: func(root, pattern string, opts query.GrepOptions) (query.GrepAnswer, []string, error) {
+			if r.grepPanic != nil {
+				panic(r.grepPanic)
+			}
+			r.root, r.grepPat, r.grepOpts = root, pattern, opts
+			return r.grepAns, r.notes, r.grepErr
+		},
+		Map: func(root string, opts query.MapOptions) (query.MapAnswer, []string, error) {
+			if r.mapPanic != nil {
+				panic(r.mapPanic)
+			}
+			r.root, r.mapOpts = root, opts
+			return r.mapAns, r.notes, r.mapErr
+		},
 	}
 }
 
@@ -158,7 +210,7 @@ func sameDir(t *testing.T, got, want string) {
 	}
 }
 
-func TestTheTwoToolsAreListed(t *testing.T) {
+func TestTheSixToolsAreListed(t *testing.T) {
 	dir, _, _ := registry(t)
 	session := connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir))
 	res, err := session.ListTools(context.Background(), nil)
@@ -170,8 +222,9 @@ func TestTheTwoToolsAreListed(t *testing.T) {
 		got = append(got, tool.Name)
 	}
 	// Sorted by the SDK, see TestTheFiveToolsAreListed in serve/brain.
-	if strings.Join(got, ",") != "graph_check_freshness,graph_find_code" {
-		t.Errorf("tools = %v", got)
+	want := "graph_check_freshness,graph_file_api,graph_find_all,graph_find_code,graph_repo_map,graph_trace_calls"
+	if strings.Join(got, ",") != want {
+		t.Errorf("tools = %v, want %v", got, want)
 	}
 }
 
@@ -695,5 +748,420 @@ func TestFindCodeWithNeitherArgumentAsksForTheScope(t *testing.T) {
 	text, isError := call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_find_code", map[string]any{})
 	if !isError || text != "graph_find_code requires a scope" || r.asked {
 		t.Errorf("got %q (isError %v, asked %v); the scope is checked first", text, isError, r.asked)
+	}
+}
+
+func TestFileApi(t *testing.T) {
+	dir, _, _ := registry(t)
+
+	// Missing scope
+	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_file_api",
+		map[string]any{"file": "main.go"})
+	if !isError || text != "graph_file_api requires a scope" {
+		t.Fatalf("want scope required, got %q", text)
+	}
+
+	// Missing file
+	text, isError = call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_file_api",
+		map[string]any{"scope": "project/open"})
+	if !isError || text != "graph_file_api requires a file" {
+		t.Fatalf("want file required, got %q", text)
+	}
+
+	// Unknown scope
+	text, isError = call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_file_api",
+		map[string]any{"scope": "project/nowhere", "file": "main.go"})
+	if !isError {
+		t.Fatal("want error for unknown scope")
+	}
+
+	// Success with notes and progress
+	sink := newProgressSink()
+	r := &recorder{notes: []string{"rebuilt graph"}}
+	session := connectWith(t, privacy.ChannelLocal, r.deps(dir), sink.options())
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "graph_file_api",
+		Meta:      mcp.Meta{"progressToken": "token-1"},
+		Arguments: map[string]any{"scope": "project/open", "file": "main.go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text = res.Content[0].(*mcp.TextContent).Text
+	if res.IsError || !strings.Contains(text, "rebuilt graph") {
+		t.Fatalf("unexpected result: %q, isError=%v", text, res.IsError)
+	}
+	if sink.next(t) != "rebuilt graph" {
+		t.Fatal("progress notification missing")
+	}
+
+	// Cloud suppresses notes
+	rCloud := &recorder{notes: []string{"rebuilt graph"}}
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rCloud.deps(dir)), "graph_file_api",
+		map[string]any{"scope": "project/open", "file": "main.go"})
+	if isError || strings.Contains(text, "rebuilt graph") {
+		t.Fatalf("cloud must suppress notes, got %q", text)
+	}
+
+	// Error handling: local vs cloud (cloudFailure and ErrNoGraph)
+	rErr := &recorder{skeletonErr: errors.New("read failed")}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, rErr.deps(dir)), "graph_file_api",
+		map[string]any{"scope": "project/open", "file": "main.go"})
+	if !isError || !strings.Contains(text, "read failed") {
+		t.Fatalf("local must report error, got %q", text)
+	}
+
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rErr.deps(dir)), "graph_file_api",
+		map[string]any{"scope": "project/open", "file": "main.go"})
+	if !isError || text != cloudFailure {
+		t.Fatalf("cloud must report cloudFailure, got %q", text)
+	}
+
+	rNoGraph := &recorder{skeletonErr: query.ErrNoGraph}
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rNoGraph.deps(dir)), "graph_file_api",
+		map[string]any{"scope": "project/open", "file": "main.go"})
+	if !isError || text != query.ErrNoGraph.Error() {
+		t.Fatalf("cloud must report ErrNoGraph text, got %q", text)
+	}
+
+	// Panic handling: local vs cloud
+	rPanic := &recorder{skeletonPanic: "boom"}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, rPanic.deps(dir)), "graph_file_api",
+		map[string]any{"scope": "project/open", "file": "main.go"})
+	if !isError || !strings.Contains(text, "boom") {
+		t.Fatalf("local panic must contain boom, got %q", text)
+	}
+
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rPanic.deps(dir)), "graph_file_api",
+		map[string]any{"scope": "project/open", "file": "main.go"})
+	if !isError || text != cloudPanic {
+		t.Fatalf("cloud panic must be cloudPanic, got %q", text)
+	}
+}
+
+func TestTraceCalls(t *testing.T) {
+	dir, _, _ := registry(t)
+
+	// Missing scope
+	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_trace_calls",
+		map[string]any{"symbol": "Main"})
+	if !isError || text != "graph_trace_calls requires a scope" {
+		t.Fatalf("want scope required, got %q", text)
+	}
+
+	// Missing symbol
+	text, isError = call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_trace_calls",
+		map[string]any{"scope": "project/open"})
+	if !isError || text != "graph_trace_calls requires a symbol" {
+		t.Fatalf("want symbol required, got %q", text)
+	}
+
+	// Unknown scope
+	text, isError = call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_trace_calls",
+		map[string]any{"scope": "project/nowhere", "symbol": "Main"})
+	if !isError {
+		t.Fatal("want error for unknown scope")
+	}
+
+	// Execution: default dir (in), direction out, depths
+	tests := []struct {
+		args    map[string]any
+		wantDir blast.Direction
+		wantDep blast.Depth
+		wantIn  string
+	}{
+		{
+			args:    map[string]any{"scope": "project/open", "symbol": "Main"},
+			wantDir: blast.In,
+			wantDep: 1,
+		},
+		{
+			args:    map[string]any{"scope": "project/open", "symbol": "Main", "direction": "out", "depth": "all", "in": "pkg/"},
+			wantDir: blast.Out,
+			wantDep: blast.All,
+			wantIn:  "pkg/",
+		},
+		{
+			args:    map[string]any{"scope": "project/open", "symbol": "Main", "depth": "Full"},
+			wantDir: blast.In,
+			wantDep: blast.All,
+		},
+		{
+			args:    map[string]any{"scope": "project/open", "symbol": "Main", "direction": "in", "depth": "2"},
+			wantDir: blast.In,
+			wantDep: 2,
+		},
+		{
+			args:    map[string]any{"scope": "project/open", "symbol": "Main", "depth": float64(3)},
+			wantDir: blast.In,
+			wantDep: 3,
+		},
+		{
+			args:    map[string]any{"scope": "project/open", "symbol": "Main", "depth": float64(0)},
+			wantDir: blast.In,
+			wantDep: 1,
+		},
+		{
+			args:    map[string]any{"scope": "project/open", "symbol": "Main", "depth": "invalid"},
+			wantDir: blast.In,
+			wantDep: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		r := &recorder{}
+		text, isError = call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_trace_calls", tc.args)
+		if isError {
+			t.Fatalf("unexpected error: %q", text)
+		}
+		if r.callersOpts.Direction != tc.wantDir {
+			t.Errorf("direction = %v, want %v", r.callersOpts.Direction, tc.wantDir)
+		}
+		if r.callersOpts.Depth != tc.wantDep {
+			t.Errorf("depth = %v, want %v", r.callersOpts.Depth, tc.wantDep)
+		}
+		if r.callersOpts.In != tc.wantIn {
+			t.Errorf("in = %v, want %v", r.callersOpts.In, tc.wantIn)
+		}
+	}
+
+	// Notes on local vs cloud
+	sink := newProgressSink()
+	rNotes := &recorder{notes: []string{"drift note"}}
+	session := connectWith(t, privacy.ChannelLocal, rNotes.deps(dir), sink.options())
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "graph_trace_calls",
+		Meta:      mcp.Meta{"progressToken": "token-1"},
+		Arguments: map[string]any{"scope": "project/open", "symbol": "Main"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text = res.Content[0].(*mcp.TextContent).Text
+	if res.IsError || !strings.Contains(text, "drift note") {
+		t.Fatalf("local must contain note, got %q", text)
+	}
+	if sink.next(t) != "drift note" {
+		t.Fatal("progress notification missing")
+	}
+
+	rCloud := &recorder{notes: []string{"drift note"}}
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rCloud.deps(dir)), "graph_trace_calls",
+		map[string]any{"scope": "project/open", "symbol": "Main"})
+	if isError || strings.Contains(text, "drift note") {
+		t.Fatalf("cloud must suppress notes, got %q", text)
+	}
+
+	// Error handling: local vs cloud
+	rErr := &recorder{callersErr: errors.New("trace failed")}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, rErr.deps(dir)), "graph_trace_calls",
+		map[string]any{"scope": "project/open", "symbol": "Main"})
+	if !isError || !strings.Contains(text, "trace failed") {
+		t.Fatalf("local must report error, got %q", text)
+	}
+
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rErr.deps(dir)), "graph_trace_calls",
+		map[string]any{"scope": "project/open", "symbol": "Main"})
+	if !isError || text != cloudFailure {
+		t.Fatalf("cloud must report cloudFailure, got %q", text)
+	}
+
+	// Panic handling: local vs cloud
+	rPanic := &recorder{callersPanic: "panic trace"}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, rPanic.deps(dir)), "graph_trace_calls",
+		map[string]any{"scope": "project/open", "symbol": "Main"})
+	if !isError || !strings.Contains(text, "panic trace") {
+		t.Fatalf("local panic must contain message, got %q", text)
+	}
+
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rPanic.deps(dir)), "graph_trace_calls",
+		map[string]any{"scope": "project/open", "symbol": "Main"})
+	if !isError || text != cloudPanic {
+		t.Fatalf("cloud panic must be cloudPanic, got %q", text)
+	}
+}
+
+func TestFindAll(t *testing.T) {
+	dir, _, _ := registry(t)
+
+	// Missing scope
+	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_find_all",
+		map[string]any{"pattern": "needle"})
+	if !isError || text != "graph_find_all requires a scope" {
+		t.Fatalf("want scope required, got %q", text)
+	}
+
+	// Missing pattern
+	text, isError = call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_find_all",
+		map[string]any{"scope": "project/open"})
+	if !isError || text != "graph_find_all requires a pattern" {
+		t.Fatalf("want pattern required, got %q", text)
+	}
+
+	// Unknown scope
+	text, isError = call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_find_all",
+		map[string]any{"scope": "project/nowhere", "pattern": "needle"})
+	if !isError {
+		t.Fatal("want error for unknown scope")
+	}
+
+	// Options forwarding
+	r := &recorder{}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_find_all",
+		map[string]any{"scope": "project/open", "pattern": "needle", "in": "src/", "ignore_case": true, "fixed": true})
+	if isError {
+		t.Fatalf("unexpected error: %q", text)
+	}
+	if r.grepPat != "needle" || r.grepOpts.In != "src/" || !r.grepOpts.IgnoreCase || !r.grepOpts.Fixed {
+		t.Errorf("grep opts mismatch: pat=%v, opts=%+v", r.grepPat, r.grepOpts)
+	}
+
+	// Notes on local vs cloud
+	sink := newProgressSink()
+	rNotes := &recorder{notes: []string{"grep note"}}
+	session := connectWith(t, privacy.ChannelLocal, rNotes.deps(dir), sink.options())
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "graph_find_all",
+		Meta:      mcp.Meta{"progressToken": "token-1"},
+		Arguments: map[string]any{"scope": "project/open", "pattern": "needle"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text = res.Content[0].(*mcp.TextContent).Text
+	if res.IsError || !strings.Contains(text, "grep note") {
+		t.Fatalf("local must contain note, got %q", text)
+	}
+	if sink.next(t) != "grep note" {
+		t.Fatal("progress notification missing")
+	}
+
+	rCloud := &recorder{notes: []string{"grep note"}}
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rCloud.deps(dir)), "graph_find_all",
+		map[string]any{"scope": "project/open", "pattern": "needle"})
+	if isError || strings.Contains(text, "grep note") {
+		t.Fatalf("cloud must suppress notes, got %q", text)
+	}
+
+	// Error handling: local vs cloud
+	rErr := &recorder{grepErr: errors.New("grep error")}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, rErr.deps(dir)), "graph_find_all",
+		map[string]any{"scope": "project/open", "pattern": "needle"})
+	if !isError || !strings.Contains(text, "grep error") {
+		t.Fatalf("local must report error, got %q", text)
+	}
+
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rErr.deps(dir)), "graph_find_all",
+		map[string]any{"scope": "project/open", "pattern": "needle"})
+	if !isError || text != cloudFailure {
+		t.Fatalf("cloud must report cloudFailure, got %q", text)
+	}
+
+	// Panic handling: local vs cloud
+	rPanic := &recorder{grepPanic: "panic grep"}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, rPanic.deps(dir)), "graph_find_all",
+		map[string]any{"scope": "project/open", "pattern": "needle"})
+	if !isError || !strings.Contains(text, "panic grep") {
+		t.Fatalf("local panic must contain message, got %q", text)
+	}
+
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rPanic.deps(dir)), "graph_find_all",
+		map[string]any{"scope": "project/open", "pattern": "needle"})
+	if !isError || text != cloudPanic {
+		t.Fatalf("cloud panic must be cloudPanic, got %q", text)
+	}
+}
+
+func TestRepoMap(t *testing.T) {
+	dir, _, _ := registry(t)
+
+	// Missing scope
+	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_repo_map",
+		map[string]any{})
+	if !isError || text != "graph_repo_map requires a scope" {
+		t.Fatalf("want scope required, got %q", text)
+	}
+
+	// Unknown scope
+	text, isError = call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_repo_map",
+		map[string]any{"scope": "project/nowhere"})
+	if !isError {
+		t.Fatal("want error for unknown scope")
+	}
+
+	// Options: max_dirs provided vs default
+	r1 := &recorder{}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, r1.deps(dir)), "graph_repo_map",
+		map[string]any{"scope": "project/open", "max_dirs": float64(5)})
+	if isError {
+		t.Fatalf("unexpected error: %q", text)
+	}
+	if r1.mapOpts.MaxDirs != 5 {
+		t.Errorf("maxDirs = %v, want 5", r1.mapOpts.MaxDirs)
+	}
+
+	r2 := &recorder{}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, r2.deps(dir)), "graph_repo_map",
+		map[string]any{"scope": "project/open"})
+	if isError {
+		t.Fatalf("unexpected error: %q", text)
+	}
+	if r2.mapOpts.MaxDirs != 16 {
+		t.Errorf("maxDirs = %v, want 16", r2.mapOpts.MaxDirs)
+	}
+
+	// Notes on local vs cloud
+	sink := newProgressSink()
+	rNotes := &recorder{notes: []string{"map note"}}
+	session := connectWith(t, privacy.ChannelLocal, rNotes.deps(dir), sink.options())
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "graph_repo_map",
+		Meta:      mcp.Meta{"progressToken": "token-1"},
+		Arguments: map[string]any{"scope": "project/open"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text = res.Content[0].(*mcp.TextContent).Text
+	if res.IsError || !strings.Contains(text, "map note") {
+		t.Fatalf("local must contain note, got %q", text)
+	}
+	if sink.next(t) != "map note" {
+		t.Fatal("progress notification missing")
+	}
+
+	rCloud := &recorder{notes: []string{"map note"}}
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rCloud.deps(dir)), "graph_repo_map",
+		map[string]any{"scope": "project/open"})
+	if isError || strings.Contains(text, "map note") {
+		t.Fatalf("cloud must suppress notes, got %q", text)
+	}
+
+	// Error handling: local vs cloud
+	rErr := &recorder{mapErr: errors.New("map error")}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, rErr.deps(dir)), "graph_repo_map",
+		map[string]any{"scope": "project/open"})
+	if !isError || !strings.Contains(text, "map error") {
+		t.Fatalf("local must report error, got %q", text)
+	}
+
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rErr.deps(dir)), "graph_repo_map",
+		map[string]any{"scope": "project/open"})
+	if !isError || text != cloudFailure {
+		t.Fatalf("cloud must report cloudFailure, got %q", text)
+	}
+
+	// Panic handling: local vs cloud
+	rPanic := &recorder{mapPanic: "panic map"}
+	text, isError = call(t, connect(t, privacy.ChannelLocal, rPanic.deps(dir)), "graph_repo_map",
+		map[string]any{"scope": "project/open"})
+	if !isError || !strings.Contains(text, "panic map") {
+		t.Fatalf("local panic must contain message, got %q", text)
+	}
+
+	text, isError = call(t, connect(t, privacy.ChannelCloud, rPanic.deps(dir)), "graph_repo_map",
+		map[string]any{"scope": "project/open"})
+	if !isError || text != cloudPanic {
+		t.Fatalf("cloud panic must be cloudPanic, got %q", text)
 	}
 }

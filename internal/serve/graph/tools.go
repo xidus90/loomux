@@ -10,23 +10,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/code/ask"
+	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/mcptools"
 )
 
-// Deps are what the tools need. A test replaces Ask and Check and needs no
-// tree; serve passes query.Ask and query.Check.
+// Deps are what the tools need. A test replaces them and needs no
+// tree; serve passes query's functions.
 type Deps struct {
 	RegistryDir string
 	LegacyDir   string
 	Ask         func(root, question string, opts query.AskOptions) (ask.Answer, []string, error)
 	Check       func(root string) (query.Drift, error)
+	Callers     func(root, symbol string, opts query.CallersOptions) (query.CallersAnswer, []string, error)
+	Skeleton    func(root, file string, opts query.SkeletonOptions) (query.SkeletonAnswer, []string, error)
+	Grep        func(root, pattern string, opts query.GrepOptions) (query.GrepAnswer, []string, error)
+	Map         func(root string, opts query.MapOptions) (query.MapAnswer, []string, error)
 }
 
 // mcpLimit is the reference's MCP default (src/mcp/tools.ts), not the command
@@ -37,6 +43,10 @@ const mcpLimit = 5
 func Register(server *mcp.Server, channel privacy.Channel, deps Deps) {
 	handlers := map[string]mcp.ToolHandler{
 		"graph_find_code":       findCode(channel, deps),
+		"graph_file_api":        fileApi(channel, deps),
+		"graph_trace_calls":     traceCalls(channel, deps),
+		"graph_find_all":        findAll(channel, deps),
+		"graph_repo_map":        repoMap(channel, deps),
 		"graph_check_freshness": checkFreshness(channel, deps),
 	}
 	for _, tool := range mcptools.Graph() {
@@ -77,6 +87,140 @@ func findCode(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 			return failure(withNotes(notes, errorText(channel, err))), nil
 		}
 		return success(withNotes(notes, strings.TrimSuffix(query.AskReport(answer), "\n"))), nil
+	}
+}
+
+func fileApi(channel privacy.Channel, deps Deps) mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := arguments(req)
+		scope, file := str(args, "scope"), str(args, "file")
+		if scope == "" {
+			return failure("graph_file_api requires a scope"), nil
+		}
+		if file == "" {
+			return failure("graph_file_api requires a file"), nil
+		}
+		area, refusal := resolve("graph_file_api", channel, deps, scope)
+		if refusal != nil {
+			return refusal, nil
+		}
+		answer, notes, err := deps.Skeleton(area.Area.Path, file, query.SkeletonOptions{
+			Keep: readable(area.Manifest),
+		})
+		if channel == privacy.ChannelCloud {
+			notes = nil
+		}
+		for _, note := range notes {
+			report(ctx, req, note)
+		}
+		if err != nil {
+			return failure(withNotes(notes, errorText(channel, err))), nil
+		}
+		return success(withNotes(notes, strings.TrimSuffix(query.SkeletonReport(answer), "\n"))), nil
+	}
+}
+
+func traceCalls(channel privacy.Channel, deps Deps) mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := arguments(req)
+		scope, symbol := str(args, "scope"), str(args, "symbol")
+		if scope == "" {
+			return failure("graph_trace_calls requires a scope"), nil
+		}
+		if symbol == "" {
+			return failure("graph_trace_calls requires a symbol"), nil
+		}
+		area, refusal := resolve("graph_trace_calls", channel, deps, scope)
+		if refusal != nil {
+			return refusal, nil
+		}
+		var dir blast.Direction
+		if str(args, "direction") == "out" {
+			dir = blast.Out
+		} else {
+			dir = blast.In
+		}
+		answer, notes, err := deps.Callers(area.Area.Path, symbol, query.CallersOptions{
+			Direction: dir,
+			Depth:     parseDepth(args["depth"]),
+			In:        str(args, "in"),
+			Keep:      readable(area.Manifest),
+		})
+		if channel == privacy.ChannelCloud {
+			notes = nil
+		}
+		for _, note := range notes {
+			report(ctx, req, note)
+		}
+		if err != nil {
+			return failure(withNotes(notes, errorText(channel, err))), nil
+		}
+		return success(withNotes(notes, strings.TrimSuffix(query.CallersReport(answer), "\n"))), nil
+	}
+}
+
+func findAll(channel privacy.Channel, deps Deps) mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := arguments(req)
+		scope, pattern := str(args, "scope"), str(args, "pattern")
+		if scope == "" {
+			return failure("graph_find_all requires a scope"), nil
+		}
+		if pattern == "" {
+			return failure("graph_find_all requires a pattern"), nil
+		}
+		area, refusal := resolve("graph_find_all", channel, deps, scope)
+		if refusal != nil {
+			return refusal, nil
+		}
+		answer, notes, err := deps.Grep(area.Area.Path, pattern, query.GrepOptions{
+			In:         str(args, "in"),
+			IgnoreCase: flag(args, "ignore_case"),
+			Fixed:      flag(args, "fixed"),
+			Keep:       readable(area.Manifest),
+		})
+		if channel == privacy.ChannelCloud {
+			notes = nil
+		}
+		for _, note := range notes {
+			report(ctx, req, note)
+		}
+		if err != nil {
+			return failure(withNotes(notes, errorText(channel, err))), nil
+		}
+		return success(withNotes(notes, strings.TrimSuffix(query.GrepReport(answer), "\n"))), nil
+	}
+}
+
+func repoMap(channel privacy.Channel, deps Deps) mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := arguments(req)
+		scope := str(args, "scope")
+		if scope == "" {
+			return failure("graph_repo_map requires a scope"), nil
+		}
+		area, refusal := resolve("graph_repo_map", channel, deps, scope)
+		if refusal != nil {
+			return refusal, nil
+		}
+		maxDirs := 16
+		if n, ok := args["max_dirs"].(float64); ok && n >= 1 {
+			maxDirs = int(n)
+		}
+		answer, notes, err := deps.Map(area.Area.Path, query.MapOptions{
+			MaxDirs: maxDirs,
+			Keep:    readable(area.Manifest),
+		})
+		if channel == privacy.ChannelCloud {
+			notes = nil
+		}
+		for _, note := range notes {
+			report(ctx, req, note)
+		}
+		if err != nil {
+			return failure(withNotes(notes, errorText(channel, err))), nil
+		}
+		return success(withNotes(notes, strings.TrimSuffix(query.MapReport(answer), "\n"))), nil
 	}
 }
 
@@ -239,4 +383,21 @@ func report(ctx context.Context, req *mcp.CallToolRequest, message string) {
 		ProgressToken: token,
 		Message:       message,
 	})
+}
+
+func parseDepth(v any) blast.Depth {
+	switch val := v.(type) {
+	case string:
+		if strings.EqualFold(val, "all") || strings.EqualFold(val, "full") {
+			return blast.All
+		}
+		if n, err := strconv.Atoi(val); err == nil && n > 0 {
+			return blast.Depth(n)
+		}
+	case float64:
+		if val > 0 {
+			return blast.Depth(int(val))
+		}
+	}
+	return 1
 }
