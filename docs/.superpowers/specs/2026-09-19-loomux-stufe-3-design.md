@@ -364,10 +364,13 @@ Abweichung zeigt, an Python gehoben.
   `log.md`, `audit.md`, Register und Commit verglichen werden.
 - **Der Commit wird als Datei verglichen.** Der Rekorder blendet `.git` aus
   (Akte 3a, `:23`), und `InfraPath` tut es beim Abspielen. Nach dem Lauf
-  schreibt der Harness darum `git.after` in die Welt: Betreff und Tree des
-  HEAD-Commits (`git log -1 --format=%s%n%T`) und `git ls-tree -r
-  --name-only HEAD`. Der Tree ist inhaltlich und darum ohne Normalisierung
-  vergleichbar, der Commit-SHA nicht — er steht nicht darin.
+  schreibt der Harness darum `git.after` in die Welt: den Betreff des
+  HEAD-Commits (`git log -1 --format=%s`), jeden Pfad aus `git ls-tree -r
+  --name-only HEAD` und jede Zeile aus `git status --porcelain=v1
+  --untracked-files=no`. Weder Commit-SHA noch Tree stehen darin: der Tree
+  trüge die gestempelten Dateien, die keine Normalisierung reparieren kann;
+  ihre Inhalte vergleicht `world_after`, und die Statuszeilen belegen, dass
+  HEAD genau diese Inhalte trägt.
 - **Die Git-Identität** schreibt `BuildGitWorld` als lokale Konfiguration des
   Repos der Welt (`user.name`, `user.email`), nicht nur als Umgebung.
 - **Neue Normalisierungen** in `cases.NormalizeState`, auf beiden Seiten

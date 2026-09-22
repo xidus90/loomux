@@ -214,6 +214,7 @@ func devRecordCase(args []string, _ io.Reader, _, stderr io.Writer) int {
 	fs.StringVar(&s.Out, "out", "", "case directory to write")
 	fs.StringVar(&s.Notes, "notes", "", "text for notes.md")
 	fs.StringVar(&s.Compare, "compare", "", `"" (data) or "message"`)
+	fs.BoolVar(&s.GitAfter, "git-after", false, "pin the commit the run made in git.after of the git world's repository")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}

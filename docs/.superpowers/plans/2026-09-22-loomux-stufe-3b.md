@@ -170,11 +170,13 @@ git commit -m "docs(parity): open the record for deciding review cases"
 2. **`git.after` hat genau diese Form**, LF-getrennt, mit abschließendem LF:
    ```
    <Betreff des HEAD-Commits>
-   <Tree-SHA des HEAD-Commits>
    <jeder Pfad aus git ls-tree -r --name-only HEAD, eine Zeile je Pfad>
+   <jede Zeile aus git status --porcelain=v1 --untracked-files=no>
    ```
-   Der Commit-SHA steht **nicht** darin: er hängt an Zeit und Identität. Der
-   Tree hängt nur am Inhalt und ist darum ohne Normalisierung vergleichbar.
+   Weder Commit-SHA noch Tree stehen darin: der SHA hängt an Zeit und
+   Identität, und der Tree trüge die gestempelten Dateien, die keine
+   Normalisierung reparieren kann; ihre Inhalte vergleicht `world_after`, und
+   die Statuszeilen belegen, dass HEAD genau diese Inhalte trägt.
 3. **Opt-in.** Der Runner schreibt `git.after` nur, wenn der erwartete Baum
    (`world_after`, sonst `world`) im Repo-Verzeichnis eine Datei `git.after`
    trägt. So bleiben die Git-Fälle aus 2c und 3a unberührt.
@@ -200,7 +202,7 @@ func TestBuildGitWorldWritesTheIdentityIntoTheRepository(t *testing.T) {
 	}
 }
 
-func TestWriteGitAfterNamesSubjectTreeAndPaths(t *testing.T) {
+func TestWriteGitAfterNamesSubjectAndPaths(t *testing.T) {
 	dir := t.TempDir()
 	writeGitToml(t, dir, "dir = \"repo\"\n[[commit]]\nmessage = \"one\"\npaths = [\"b.md\", \"a.md\"]\n[commit.files]\n\"a.md\" = \"a\\n\"\n\"b.md\" = \"b\\n\"\n")
 	if err := cases.BuildGitWorld(dir); err != nil {
@@ -214,8 +216,7 @@ func TestWriteGitAfterNamesSubjectTreeAndPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tree := gitOutput(t, repo, "rev-parse", "HEAD^{tree}")
-	want := "one\n" + tree + "\na.md\nb.md\n"
+	want := "one\na.md\nb.md\n"
 	if string(got) != want {
 		t.Fatalf("git.after = %q, want %q", got, want)
 	}
@@ -242,8 +243,8 @@ Expected: FAIL — `WriteGitAfter` und `GitAfterName` sind nicht definiert.
 
 `gitworld.go`: nach dem `init` des Repos die beiden `config`-Aufrufe über
 dieselbe `worldGit`-Ausführung wie die übrigen. `WriteGitAfter`: drei
-git-Aufrufe (`log -1 --format=%s`, `rev-parse HEAD^{tree}`,
-`ls-tree -r --name-only HEAD`) mit `gitenv.Environ()`, Ergebnis über
+git-Aufrufe (`log -1 --format=%s`, `ls-tree -r --name-only HEAD`,
+`status --porcelain=v1 --untracked-files=no`) mit `gitenv.Environ()`, Ergebnis über
 `os.WriteFile`. `runner.go`: nach `run`, vor dem Vergleich, für jedes
 Repo-Verzeichnis aus `git.toml` prüfen, ob der erwartete Baum dort
 `git.after` trägt, und nur dann `WriteGitAfter` rufen. `recordcase.go`:

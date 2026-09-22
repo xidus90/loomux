@@ -432,3 +432,38 @@ func TestPrependPathPutsTheDirectoryFirst(t *testing.T) {
 		}
 	}
 }
+
+// A recording of a command that commits carries git.after in world_after, so
+// the replay compares the commit rather than the files alone.
+func TestRecordWritesGitAfterWhenAsked(t *testing.T) {
+	s := helperSpec(t, "echo", "x")
+	s.GitAfter = true
+	if err := os.WriteFile(filepath.Join(s.World, "git.toml"), []byte("dir = \"repo\"\n[[commit]]\nmessage = \"base\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Record(s); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, s.Out, "world_after", "repo", "git.after")
+	// An empty commit on a clean worktree: the subject, and no path or status.
+	if got != "base\n" {
+		t.Errorf("git.after %q", got)
+	}
+}
+
+func TestRecordRefusesGitAfterWithoutACommit(t *testing.T) {
+	for name, decl := range map[string]string{"no git world": "", "no commit": "dir = \"repo\"\n"} {
+		t.Run(name, func(t *testing.T) {
+			s := helperSpec(t, "echo", "x")
+			s.GitAfter = true
+			if decl != "" {
+				if err := os.WriteFile(filepath.Join(s.World, "git.toml"), []byte(decl), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := Record(s); err == nil {
+				t.Fatal("want an error")
+			}
+		})
+	}
+}

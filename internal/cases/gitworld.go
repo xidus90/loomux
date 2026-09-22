@@ -104,23 +104,30 @@ func InfraPath(rel string) bool {
 // named rather than left to GIT_DEFAULT_HASH, because a world_after holds the
 // SHAs written out.
 func BuildGitWorld(dir string) error {
+	_, err := BuildGitWorldAt(dir)
+	return err
+}
+
+// BuildGitWorldAt is BuildGitWorld that also names the repository it made:
+// its directory, or "" for a world without a declaration.
+func BuildGitWorldAt(dir string) (string, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, GitWorldFile))
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+		return "", nil
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	var w GitWorld
 	if _, err := toml.Decode(string(raw), &w); err != nil {
-		return fmt.Errorf("%s: %w", GitWorldFile, err)
+		return "", fmt.Errorf("%s: %w", GitWorldFile, err)
 	}
 	if w.Dir != "" && !filepath.IsLocal(w.Dir) {
-		return fmt.Errorf("%s: dir %q leaves the world", GitWorldFile, w.Dir)
+		return "", fmt.Errorf("%s: dir %q leaves the world", GitWorldFile, w.Dir)
 	}
 	empty, err := createTemp("", "gitworld-config-*")
 	if err != nil {
-		return err
+		return "", err
 	}
 	empty.Close()
 	defer os.Remove(empty.Name())
@@ -128,6 +135,11 @@ func BuildGitWorld(dir string) error {
 	g := &worldGit{dir: repo, config: empty.Name()}
 	g.fail(os.MkdirAll(repo, 0o755))
 	g.run("init", "-q", "--object-format=sha1", "-b", "master")
+	// The identity the environment below hands the build is gone when a
+	// replayed command commits: gitenv strips it and the world's home holds
+	// no .gitconfig. The repository keeps it for that command.
+	g.run("config", "user.name", "loomux cases")
+	g.run("config", "user.email", "cases@loomux.invalid")
 	if g.err == nil {
 		// Written, not appended: with the user's configuration kept out, no
 		// template put anything there worth keeping.
@@ -161,9 +173,37 @@ func BuildGitWorld(dir string) error {
 		g.fail(writeFile(repo, path, w.Worktree[path]))
 	}
 	if g.err != nil {
-		return g.err
+		return "", g.err
 	}
-	return replaceCommitTokens(dir, shas)
+	return repo, replaceCommitTokens(dir, shas)
+}
+
+// GitAfterName is the file a case compares a commit through.
+const GitAfterName = "git.after"
+
+// WriteGitAfter writes the subject of HEAD, the paths HEAD tracks and the
+// tracked paths that differ from HEAD of the repository at repo into
+// repo/git.after.
+//
+// Neither the commit's SHA nor its tree stands there: the commit of an
+// approval holds files stamped with the run's time and reviewer, and no
+// normalization repairs a hash. world_after compares their content; the
+// status lines, empty after a clean commit, prove that HEAD holds exactly
+// that content. The user's configuration stays out -- core.quotePath alone
+// would spell a path differently on another machine.
+func WriteGitAfter(repo string) error {
+	var out strings.Builder
+	for _, args := range [][]string{{"log", "-1", "--format=%s"}, {"ls-tree", "-r", "--name-only", "HEAD"}, {"status", "--porcelain=v1", "--untracked-files=no"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		cmd.Env = append(gitenv.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
+		line, err := cmd.Output()
+		if err != nil {
+			return fmt.Errorf("git %s in %s: %w", strings.Join(args, " "), repo, err)
+		}
+		out.Write(line)
+	}
+	return os.WriteFile(filepath.Join(repo, GitAfterName), []byte(out.String()), 0o644)
 }
 
 // worldGit runs git in one world and keeps the first failure.
