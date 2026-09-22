@@ -263,7 +263,7 @@ Lehnt den Haupt-Checkout und jedes Verzeichnis ab, an dem Git keinen Worktree h�
 ## 6. Code-Graph-Engine (`loomux graph`)
 
 > [!NOTE]
-> **`build`, `check` und `ask` sind verdrahtet, der Rest darunter bleibt spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die Befehle `build` und `check`, und Stufe G2b ergänzt Lexik, lexikalisches Scoring, Personalized-PageRank-Verschmelzung und `graph ask`. Stufe G3 stellt `ask` und `check` hinter die MCP-Werkzeuge `graph_find_code` und `graph_check_freshness` (§8). `callers`, `blast`, `skeleton`, `map` und `viz` bleiben unverdrahtet.
+> **`build`, `check`, `ask`, `callers`, `skeleton`, `grep`, `map` und `stats` sind verdrahtet; `blast` und `viz` bleiben spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die Befehle `build` und `check`, Stufe G2b ergänzt Lexik, lexikalisches Scoring, Personalized-PageRank-Verschmelzung und `graph ask`, Stufe G3 stellt `ask` und `check` hinter die MCP-Werkzeuge `graph_find_code` und `graph_check_freshness` (§8), und Stufe G4a lieferte die Navigationspalette (`callers`, `skeleton`, `grep`, `map`, `stats`) und ihre vier MCP-Werkzeuge. Stufe G4b ergänzt Git-Diff-Blast-Radius-Analyse und den Post-Edit-Blast-Monitor.
 
 ### `loomux graph build [--root <pfad>]`
 Liest und hasht jede Go-Quelldatei, die `internal/code/sourceset` unterhalb der Wurzel findet, extrahiert und löst sie zum deterministischen AST-Graphen auf und schreibt ihn nach `.loomux/state/graph/wiring.json`. Dabei schreibt er auch die Frischeakte (`.loomux/state/graph/cache/fingerprint.json`), die eine spätere Sonde liest; scheitert das Schreiben der Akte, meldet der Befehl das auf `stderr`, ohne den Bau selbst scheitern zu lassen — der Graph auf der Platte ist bereits korrekt.
@@ -293,26 +293,51 @@ Sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen
   gefolgt von der Signatur und bei `--source` dem mit `|` eingerückten Quelltextblock. Passt kein Symbol zur Anfrage, wird ein Hinweis ausgegeben und mit Code 0 beendet.
 - **Exit-Codes**: `0` bei Erfolg (auch wenn keine Symbole matchen); `1` bei Fehlern (noch kein Graph, unlesbarer Graph, fehlerhafter Neubau); `2` bei Aufruffehlern (fehlende Anfrage, negatives Limit).
 
-### `loomux graph callers <symbol> [dir]`
-Zeigt, wer ein Symbol aufruft, importiert, implementiert oder erweitert.
+### `loomux graph callers <symbol> [--direction in|out] [-d <tiefe>] [--in <präfix>] [--json]`
+Zeigt, wer ein Symbol aufruft, importiert oder referenziert (`--direction in`, Standard), oder was das Symbol selbst aufruft (`--direction out`).
 
 - **Flags**:
-  - `--direction out`: Umgekehrte Richtung — was das Symbol selbst aufruft.
-  - `-d <tiefe>`: Transitive Tiefe (`-d all` für die vollständige transitive Hülle).
+  - `--direction <in|out>`: Verfolgt eingehende Aufrufer (`in`) oder ausgehende Aufrufe (`out`).
+  - `-d <tiefe>`: Transitive Tiefe (Standard `1`; `-d all` oder `-d full` für die vollständige transitive Hülle).
+  - `--in <präfix>`: Filtert Symbole vor der Auflösung nach Pfadpräfix.
+  - Jeder direkte Treffer (Tiefe 1) trägt die erste Zeile im Span des Aufrufers, die den Aufgerufenen nennt. Bei `--direction out` liegt diese Zeile in der Datei des Startsymbols und wird mit ihrem Pfad ausgegeben.
+  - `--json`: Gibt maschinenlesbares JSON aus (`query.CallersAnswer`).
+- **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem/unlesbarem Graph oder unbekanntem Symbol; `2` bei Aufruffehlern.
 
-### `loomux graph blast [dir]`
-Berechnet den Blast-Radius eines Git-Diffs gegen den Working Tree oder Merge-Base.
+### `loomux graph skeleton <datei> [--json]`
+Gibt alle Funktions-, Typ-, Interface- und Methodensignaturen sowie Zeilenspannen einer Datei ohne Rümpfe aus (~10x Token-Ersparnis).
 
 - **Flags**:
-  - `--base <ref>`: Diff gegen Git-Referenz (z. B. `origin/main`).
-  - `--format markdown`: Formatiert die Ausgabe als fertigen GitHub-PR-Kommentar.
-  - `--export-viz <dir>`: Exportiert eine interaktive HTML-Visualisierung des Blast-Radius.
+  - `--json`: Gibt maschinenlesbares JSON aus (`skeleton.FileSkeleton`).
+- **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem Graph oder Datei nicht im Graph; `2` bei Aufruffehlern.
 
-### `loomux graph skeleton <datei>`
-Gibt alle Funktions-, Typ-, Interface- und Methodensignaturen ohne Rümpfe aus (~10x Token-Ersparnis).
+### `loomux graph grep <muster> [-i] [--fixed] [--in <präfix>] [--max-hits <n>] [--json]`
+Regex-Suche über indizierte Dateien, gruppiert nach umschließendem Symbol und sortiert nach Kopplungsgrad (`inDegree`).
 
-### `loomux graph map [dir]`
-Zeigt Verzeichnis-Cluster, lokale Hubs und globale Codebasis-Hotspots gerankt nach Kanten-Kopplung.
+- **Flags**:
+  - `-i`: Regex-Suche ohne Beachtung von Groß-/Kleinschreibung.
+  - `--fixed`: Behandelt das Muster als reinen Text (ohne Regex-Syntax).
+  - `--in <präfix>`: Begrenzt die Suche auf Dateien unterhalb des Pfadpräfix.
+  - `--max-hits <n>`: Maximale Anzahl von Zeilentreffern (Standard `300`); weitere Treffer werden nur gezählt.
+  - `--json`: Gibt maschinenlesbares JSON aus (`grep.Result`).
+- **Exit-Codes**: `0` bei Erfolg (auch bei 0 Treffern); `1` bei fehlendem/unlesbarem Graph oder ungültigem Regex; `2` bei Aufruffehlern.
+
+### `loomux graph map [--max-dirs <n>] [--hubs-per-dir <n>] [--hotspots <n>] [--json]`
+Zeigt token-budgetierte Verzeichnis-Cluster, lokale Hubs und globale Codebasis-Hotspots gerankt nach Kanten-Kopplung.
+
+- **Flags**:
+  - `--max-dirs <n>`: Maximale Anzahl von Verzeichnis-Clustern (Standard `16`).
+  - `--hubs-per-dir <n>`: Höchstzahl der Hubs je Verzeichnis (Standard `3`).
+  - `--hotspots <n>`: Höchstzahl der Hotspots im ganzen Repository (Standard `12`).
+  - `--json`: Gibt maschinenlesbares JSON aus (`repomap.RepoMap`).
+- **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem oder unlesbarem Graph; `2` bei Aufruffehlern.
+
+### `loomux graph stats [--json]`
+Gibt strukturelle Codebasis-Kennzahlen aus `.loomux/state/graph/wiring.json` aus: Knotenzahl, Kantenzahl gruppiert nach Relation, indizierte Dateien, Sprachen und Dateigröße.
+
+- **Flags**:
+  - `--json`: Gibt maschinenlesbares JSON aus (`query.StatsAnswer`).
+- **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem oder unlesbarem Graph; `2` bei Aufruffehlern.
 
 ### `loomux graph check [--root <pfad>] [--json]`
 Extrahiert den ganzen Baum neu und vergleicht ihn, Knoten für Knoten, mit dem auf der Platte geschriebenen Graphen.
@@ -321,6 +346,14 @@ Extrahiert den ganzen Baum neu und vergleicht ihn, Knoten für Knoten, mit dem a
 - **Das eine, was sonst zweimal gefragt wird**: `check` liest die Frischeakte nicht. Die Akte beantwortet „soll eine Anfrage sich die Mühe eines Neubaus machen"; `check` beantwortet „beschreibt der Graph den Code noch", und die einzig ehrliche Antwort darauf ist, neu zu extrahieren und Rumpf-Hashes zu vergleichen. Ein `touch`, das die Änderungszeit einer Datei ändert, aber keine Bytes, ist deshalb kein Befund — hier wie bei der Sonde, aber aus einem anderen Grund: die Sonde kommt gar nicht erst über ihren Stat-Vergleich hinaus, `check` kommt bis zum Hash und findet ihn unverändert.
 - **Ausgabe**: `NO GRAPH`, wenn noch nichts gebaut wurde; `FOREIGN GRAPH`, wenn der Graph auf der Platte eine andere Extraktor-Version nennt als dieses Binary; `OK`, wenn nichts abgewichen ist; sonst `DRIFT` mit je einer Zeile pro hinzugefügter, entfernter oder geänderter Knoten-ID.
 - **Exit-Codes**: `0` — frisch (`OK`); `1` — noch kein Graph, ein fremder Graph, gefundene Abweichung, oder ein Fehler bei der Neuextraktion; `2` — Aufruffehler.
+
+### `loomux graph blast [dir]`
+Berechnet den Blast-Radius eines Git-Diffs gegen den Working Tree oder Merge-Base.
+
+- **Flags**:
+  - `--base <ref>`: Diff gegen Git-Referenz (z. B. `origin/main`).
+  - `--format markdown`: Formatiert die Ausgabe als fertigen GitHub-PR-Kommentar.
+  - `--export-viz <dir>`: Exportiert eine interaktive HTML-Visualisierung des Blast-Radius.
 
 ### `loomux graph viz [dir]`
 Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.
@@ -420,13 +453,11 @@ Meldet ein Repository als Bereich an und richtet es ein: der Registry-Eintrag (u
 
 ## 8. MCP-Dienst & stdio-Brücke (`loomux serve` / `loomux mcp`)
 
-Der Dienst beantwortet sieben Werkzeuge über Streamable HTTP — die fünf
-`brain_*`-Werkzeuge und die zwei `graph_*`-Werkzeuge der Stufe G3; die Brücke
+Der Dienst beantwortet elf Werkzeuge über Streamable HTTP — die fünf
+`brain_*`-Werkzeuge und die sechs `graph_*`-Werkzeuge der Stufen G3 und G4a; die Brücke
 ist das, was ein MCP-Wirt startet, und sie reicht nur weiter. Beides ist in
-Stufe 1b-2 entstanden. Das Web OS der Stufe W1 gibt es noch nicht, die übrigen
-vier `graph_*`-Werkzeuge (`graph_trace_calls`, `graph_file_api`,
-`graph_find_all`, `graph_repo_map`) ebenso wenig; sie kommen in Stufe G4, jedes
-mit seinem Geschwister auf der Kommandozeile.
+Stufe 1b-2 entstanden. Das Web OS der Stufe W1 gibt es noch nicht, Git-Diff-Blast-Radius-Analyse
+(Stufe G4b) und die Upstream-Proxies ebenso wenig.
 
 **Der Kanal ist die Adresse, kein Feld der Anfrage.** `serve` bindet zwei
 Loopback-Listener, einen für `local` und einen für `cloud`, jeden mit eigenem
@@ -471,7 +502,7 @@ PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet. Erfolg ist still.
   gescheitert; `2` ein unbekanntes Argument.
 
 ### `loomux mcp [--channel local|cloud]`
-Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die sieben Werkzeuge selbst
+Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die elf Werkzeuge selbst
 an — die Beschreibungen sind statisch, also sitzt nie ein kalter Dienst im
 Handschlag des Wirts — und leitet jeden `tools/call` an die Adresse des Kanals
 weiter, Name zu Name und Argumente zu Argumenten.
@@ -490,7 +521,7 @@ weiter, Name zu Name und Argumente zu Argumenten.
 - **Exit-Codes**: `0` der Wirt hat aufgelegt, oder Strg+C; `1` die Brücke ist
   gescheitert; `2` ein unbekanntes Argument oder ein ungültiges `--channel`.
 
-### Die sieben Werkzeuge
+### Die elf Werkzeuge
 
 | Werkzeug | Argumente |
 |---|---|
@@ -501,13 +532,16 @@ weiter, Name zu Name und Argumente zu Argumenten.
 | `brain_status` | keine |
 | `graph_find_code` | `scope` und `query` (beide Pflicht), `limit` → 5, `full`, `in` |
 | `graph_check_freshness` | `scope` (Pflicht) |
+| `graph_file_api` | `scope` und `file_path` (beide Pflicht) |
+| `graph_trace_calls` | `scope` und `symbol` (beide Pflicht), `direction` ∈ {`in`, `out`} → `in`, `depth` → 1 |
+| `graph_find_all` | `scope` und `pattern` (beide Pflicht), `ignore_case`, `fixed` |
+| `graph_repo_map` | `scope` (Pflicht), `max_dirs` → 16 |
 
 `n` ist hier 10 und auf der Kommandozeile 5; das ist Parität mit der
 Python-Referenz, die es genauso hält, und keine Unstimmigkeit. `limit` ist hier
 5 und bei `loomux graph ask` 8, beides Grafts Werte.
 
-Die zwei `graph_*`-Werkzeuge sind `graph ask` und `graph check` eines
-Bereichs, dessen Pfad die Repo-Wurzel ist:
+Die sechs `graph_*`-Werkzeuge operieren über das Repository eines registrierten Bereichs:
 
 - **`graph_find_code`** fügt den Quelltext an jedem Treffer immer ein; `full`
   nimmt den ganzen Span statt des gekappten Auszugs, und `in` verengt vor dem
@@ -519,15 +553,28 @@ Bereichs, dessen Pfad die Repo-Wurzel ist:
   keine Fehler. `isError` kennzeichnet einen abgewiesenen Aufruf — einen
   fehlenden, unbekannten oder verborgenen Scope, bei `graph_find_code` auch
   eine fehlende Anfrage — und einen echten Lesefehler.
+- **`graph_file_api`** gibt Definitionen und Typen für `file_path` aus dem
+  gepufferten AST-Graphen ohne Funktionsrümpfe aus.
+- **`graph_trace_calls`** verfolgt eingehende Aufrufer (`direction: in`) oder ausgehende
+  Aufrufe (`direction: out`) von `symbol`, entweder direkt (`depth: 1`) oder
+  transitiv (`depth: "all"`).
+- **`graph_find_all`** führt eine symbol-gekoppelte Regex-Suche über indizierte Dateien
+  durch, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`).
+- **`graph_repo_map`** erzeugt eine token-budgetierte strukturelle Übersicht über
+  Verzeichnis-Cluster, Hubs und Hotspots.
 
 **Sichtbarkeit:** Ein Bereich, dessen Manifest `[privacy] mode = "local_only"`
 setzt, existiert auf dem cloud-Kanal nicht (`unknown scope`, wie bei
 `brain_*`), und auf beiden Kanälen fallen Pfade unter den `[privacy] never`-Globs
-des Manifests vor dem Scoring und aus dem Driftbericht heraus — der auf dem
+des Manifests vor dem Scoring, aus Dateilisten und aus dem Driftbericht heraus — der auf dem
 local-Kanal nennt, wie viele er weggelassen hat, auf dem cloud-Kanal nicht.
-Auf dem cloud-Kanal gehen außerdem keine Auffrisch-Hinweise hinaus, weder vor
-der Antwort noch als Fortschritt: ein Hinweis zählt auch Dateien unter den
-`never`-Globs mit. Jeder Lese- oder Abfragefehler wird dort zu dem festen Text
+Auf dem cloud-Kanal gilt außerdem:
+- `graph_file_api` auf eine Datei unter `never`-Globs meldet `NotFound` (`isError`).
+- `graph_trace_calls` filtert Aufrufer und Aufgerufene in geschützten Pfaden aus und zählt sie in `hidden`.
+- `graph_find_all` verweigert über die injizierte Lesefunktion den Zugriff auf geschützte Pfade (`os.ErrPermission`), zählt sie in `unreadable_files` und gibt keine Quelltextzeilen daraus zurück.
+- `graph_repo_map` filtert geschützte Verzeichnisse und Knoten vor der Erstellung der Karte heraus.
+- Keine Auffrisch-Hinweise gehen hinaus, weder vor der Antwort noch als Fortschritt: ein Hinweis zählt auch Dateien unter den `never`-Globs mit.
+Jeder Lese- oder Abfragefehler wird dort zu dem festen Text
 „the graph could not be read on this channel; ask on the local channel for
 details", weil eine Fehlermeldung eine verborgene Datei oder einen lokalen
 Pfad nennen kann. Ausgenommen ist ein fehlender Graph, der seinen eigenen Text

@@ -1,0 +1,9 @@
+Repo Map: 3 files, 4 symbols, 8 edges [go]
+
+Hotspots:
+  - Add (function, inDegree=2) in calc/calc.go:L4-L6
+
+Directories:
+  calc (dir: 2 files, 3 symbols)
+    hubs: Add (2)
+  main.go (file: 1 files, 1 symbols)

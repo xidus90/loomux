@@ -258,7 +258,7 @@ Refuses the main checkout and any directory git holds no worktree at, removes th
 ## 6. Code Graph Engine (`loomux graph`)
 
 > [!NOTE]
-> **`build`, `check` and `ask` are wired; the rest below is still specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — stage G2a added the extractor, the wiring writer, the freshness probe and `graph build` and `check`, and stage G2b adds the lexicon, lexical scoring, Personalized PageRank blend and `graph ask`. Stage G3 puts `ask` and `check` behind the MCP tools `graph_find_code` and `graph_check_freshness` (§8). `callers`, `blast`, `skeleton`, `map` and `viz` remain unwired.
+> **`build`, `check`, `ask`, `callers`, `skeleton`, `grep`, `map` and `stats` are wired; `blast` and `viz` remain specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — stage G2a added the extractor, the wiring writer, the freshness probe and `graph build` and `check`, stage G2b added the lexicon, lexical scoring, Personalized PageRank blend and `graph ask`, stage G3 put `ask` and `check` behind the MCP tools `graph_find_code` and `graph_check_freshness` (§8), and stage G4a delivered the navigation suite (`callers`, `skeleton`, `grep`, `map`, `stats`) and their four MCP tools. Stage G4b adds git-diff blast radius analysis and the post-edit blast monitor hook.
 
 ### `loomux graph build [--root <path>]`
 Reads and hashes every Go source file `internal/code/sourceset` finds under the root, extracts and resolves them into the deterministic AST graph, and writes it to `.loomux/state/graph/wiring.json`. It also writes the freshness record (`.loomux/state/graph/cache/fingerprint.json`) a later probe reads; a failure to write that record is announced on `stderr` but does not fail the build, since the graph on disk is already correct.
@@ -288,26 +288,51 @@ Retrieves code symbols ranked by BM25-style lexical matching blended with **Pers
   followed by signature and, if `--source` is requested, the inlined code block prefixed with `|`. If no symbols match the query, outputs an empty answer note and exits 0.
 - **Exit codes**: `0` on success (including when no symbols match the query); `1` on failure (no graph yet, unreadable graph, rebuild failure, syntax error in file when rebuilding); `2` on usage error (missing query, negative limit).
 
-### `loomux graph callers <symbol> [dir]`
-Traces who calls, imports, implements, or extends a symbol.
+### `loomux graph callers <symbol> [--direction in|out] [-d <depth>] [--in <prefix>] [--json]`
+Traces who calls, imports, or references a symbol (`--direction in`, default), or what this symbol calls (`--direction out`).
 
 - **Flags**:
-  - `--direction out`: Reverse trace — what this symbol calls.
-  - `-d <depth>`: Transitive depth (`-d all` for full closure).
+  - `--direction <in|out>`: Trace callers into this symbol (`in`) or callees out of this symbol (`out`).
+  - `-d <depth>`: Transitive depth (default `1`; `-d all` or `-d full` for full transitive closure).
+  - `--in <prefix>`: Filter symbols by repository path prefix before resolving.
+  - Each direct hit (depth 1) carries the first line in the caller's span that names the callee. For `--direction out` that line lies in the start symbol's file and is printed with its path.
+  - `--json`: Output machine-readable JSON (`query.CallersAnswer`).
+- **Exit codes**: `0` on success; `1` if graph is missing, unreadable, or symbol not found; `2` on usage error.
 
-### `loomux graph blast [dir]`
-Computes the downstream blast radius of a git diff against the working tree or merge base.
+### `loomux graph skeleton <file> [--json]`
+Exports definition signatures, types, and line spans for a file from the graph without function bodies (~10x token reduction).
 
 - **Flags**:
-  - `--base <ref>`: Diff against git reference (e.g., `origin/main`).
-  - `--format markdown`: Formats output as a GitHub PR comment.
-  - `--export-viz <dir>`: Exports a standalone interactive HTML blast visualization.
+  - `--json`: Output machine-readable JSON (`skeleton.FileSkeleton`).
+- **Exit codes**: `0` on success; `1` if graph is missing or file not found in graph; `2` on usage error.
 
-### `loomux graph skeleton <file>`
-Exports all function, type, interface, and method signatures without function bodies (~10x token reduction).
+### `loomux graph grep <pattern> [-i] [--fixed] [--in <prefix>] [--max-hits <n>] [--json]`
+Regex search across indexed files, grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`).
 
-### `loomux graph map [dir]`
+- **Flags**:
+  - `-i`: Case-insensitive regex matching.
+  - `--fixed`: Treat pattern as a literal string (no regex syntax).
+  - `--in <prefix>`: Narrow search to files under path prefix.
+  - `--max-hits <n>`: Maximum number of matched lines to return (default `300`); further matches are only counted.
+  - `--json`: Output machine-readable JSON (`grep.Result`).
+- **Exit codes**: `0` on success (even with 0 hits); `1` on missing/unreadable graph or invalid regex; `2` on usage error.
+
+### `loomux graph map [--max-dirs <n>] [--hubs-per-dir <n>] [--hotspots <n>] [--json]`
 Displays token-budgeted directory clusters, local hubs, and global codebase hotspots ranked by in-degree coupling.
+
+- **Flags**:
+  - `--max-dirs <n>`: Maximum number of directory clusters to display (default `16`).
+  - `--hubs-per-dir <n>`: Maximum hubs listed per directory (default `3`).
+  - `--hotspots <n>`: Maximum repository-wide hotspots (default `12`).
+  - `--json`: Output machine-readable JSON (`repomap.RepoMap`).
+- **Exit codes**: `0` on success; `1` on missing or unreadable graph; `2` on usage error.
+
+### `loomux graph stats [--json]`
+Prints structural codebase metrics from `.loomux/state/graph/wiring.json`: total node count, edge count grouped by relation, indexed file count, language distribution, and file size.
+
+- **Flags**:
+  - `--json`: Output machine-readable JSON (`query.StatsAnswer`).
+- **Exit codes**: `0` on success; `1` on missing or unreadable graph; `2` on usage error.
 
 ### `loomux graph check [--root <path>] [--json]`
 Re-extracts the whole tree and diffs it, node by node, against the graph written on disk.
@@ -316,6 +341,14 @@ Re-extracts the whole tree and diffs it, node by node, against the graph written
 - **The one thing this otherwise gets asked twice**: `check` does not read the freshness record. That sidecar answers "should a query bother rebuilding"; `check` answers "does the graph still describe the code", and the only honest way to answer that is to extract again and compare body hashes. A `touch` that changes a file's mtime but not its bytes is therefore not a finding here, same as it is not one for the probe — but for a different reason: the probe never gets past its stat comparison, `check` gets all the way to a hash and finds it unchanged.
 - **Output**: `NO GRAPH` when nothing has been built yet; `FOREIGN GRAPH` when the graph on disk names an extractor version other than this binary's; `OK` when nothing has drifted; otherwise `DRIFT` with one line per added, removed or changed node id.
 - **Exit codes**: `0` — fresh (`OK`); `1` — no graph yet, a foreign graph, drift found, or a fault while re-extracting; `2` — usage error.
+
+### `loomux graph blast [dir]`
+Computes the downstream blast radius of a git diff against the working tree or merge base.
+
+- **Flags**:
+  - `--base <ref>`: Diff against git reference (e.g., `origin/main`).
+  - `--format markdown`: Formats output as a GitHub PR comment.
+  - `--export-viz <dir>`: Exports a standalone interactive HTML blast visualization.
 
 ### `loomux graph viz [dir]`
 Starts the local D3-Force / WebGL interactive graph visualizer.
@@ -415,12 +448,11 @@ Registers a repository as an area and prepares it: the registry entry (written u
 
 ## 8. MCP Service & stdio Bridge (`loomux serve` / `loomux mcp`)
 
-The service answers seven tools over Streamable HTTP — the five `brain_*` tools
-and the two `graph_*` tools of Stage G3; the bridge is what an MCP host starts
+The service answers eleven tools over Streamable HTTP — the five `brain_*` tools
+and the six `graph_*` tools of Stages G3 and G4a; the bridge is what an MCP host starts
 and all it does is pass calls on. Both were built in Stage 1b-2. The Web OS of
-Stage W1 is not here yet, and neither are the other four `graph_*` tools
-(`graph_trace_calls`, `graph_file_api`, `graph_find_all`, `graph_repo_map`),
-which come in Stage G4, each with its command-line sibling.
+Stage W1 is not here yet, and neither are git-diff blast radius analysis (Stage G4b)
+or the upstream proxies.
 
 **The channel is the address, not a field of the request.** `serve` binds two
 loopback listeners, one for `local` and one for `cloud`, each with its own
@@ -463,7 +495,7 @@ Ends the service through its own endpoint. `--force` kills it by the PID in
   failed; `2` an unrecognized argument.
 
 ### `loomux mcp [--channel local|cloud]`
-The stdio bridge an MCP host starts. It offers the seven tools itself — the
+The stdio bridge an MCP host starts. It offers the eleven tools itself — the
 descriptions are static, so a cold service never sits inside the host's
 handshake — and forwards every `tools/call` to the service over the channel's
 address, name to name and arguments to arguments.
@@ -481,7 +513,7 @@ address, name to name and arguments to arguments.
 - **Exit codes**: `0` the host hung up, or Ctrl+C; `1` the bridge failed; `2` an
   unrecognized argument or an invalid `--channel`.
 
-### The seven tools
+### The eleven tools
 
 | Tool | Arguments |
 |---|---|
@@ -492,13 +524,16 @@ address, name to name and arguments to arguments.
 | `brain_status` | none |
 | `graph_find_code` | `scope` and `query` (both required), `limit` → 5, `full`, `in` |
 | `graph_check_freshness` | `scope` (required) |
+| `graph_file_api` | `scope` and `file_path` (both required) |
+| `graph_trace_calls` | `scope` and `symbol` (both required), `direction` ∈ {`in`, `out`} → `in`, `depth` → 1 |
+| `graph_find_all` | `scope` and `pattern` (both required), `ignore_case`, `fixed` |
+| `graph_repo_map` | `scope` (required), `max_dirs` → 16 |
 
 `n` is 10 here and 5 on the command line; that is parity with the Python
 reference, which does the same, not an inconsistency. `limit` is 5 here and 8
 for `loomux graph ask`, both Graft's values.
 
-The two `graph_*` tools are `graph ask` and `graph check` of one area, the
-area's path being the repository root:
+The six `graph_*` tools operate over the repository of one registered area:
 
 - **`graph_find_code`** always inlines the source at each hit; `full` takes
   the whole span instead of the capped excerpt, and `in` narrows to a path
@@ -509,13 +544,26 @@ area's path being the repository root:
   was found. Drift and a missing graph are text, not errors. `isError` marks
   a refused call — a missing, unknown or hidden scope, or for
   `graph_find_code` a missing query — and a real read failure.
+- **`graph_file_api`** exports definitions and types for `file_path` from the
+  cached AST graph without function bodies.
+- **`graph_trace_calls`** traces incoming callers (`direction: in`) or outgoing
+  callees (`direction: out`) of `symbol`, either direct (`depth: 1`) or
+  transitive (`depth: "all"`).
+- **`graph_find_all`** performs symbol-coupled regex search across indexed files,
+  grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`).
+- **`graph_repo_map`** generates a token-budgeted structural overview of directory
+  clusters, hubs, and hotspots.
 
 **Visibility:** an area whose manifest sets `[privacy] mode = "local_only"` does not exist on
 the cloud channel (`unknown scope`, as for `brain_*`), and on both channels
-paths under the manifest's `[privacy] never` globs are dropped before scoring
-and from the drift report — which names how many it left out on the local
-channel and not on the cloud one. On the cloud channel no refresh note goes
-out either, neither before the answer nor as progress: a note counts files
+paths under the manifest's `[privacy] never` globs are dropped before scoring,
+from file listings, and from the drift report — which names how many it left out on the local
+channel and not on the cloud one. On the cloud channel:
+- `graph_file_api` on a file under `never` globs reports not found (`isError`).
+- `graph_trace_calls` suppresses callers and callees located in files under `never` globs, incrementing `hidden`.
+- `graph_find_all` uses an injected reader that refuses files under `never` globs (`os.ErrPermission`), reporting them in `unreadable_files` without returning any matching lines.
+- `graph_repo_map` strips directories and nodes under `never` globs before constructing the map.
+- No refresh note goes out either, neither before the answer nor as progress: a note counts files
 under the `never` globs too. Every read or query error becomes the fixed text
 "the graph could not be read on this channel; ask on the local channel for
 details" there, because an error message can name a hidden file or a local

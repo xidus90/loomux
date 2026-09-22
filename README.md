@@ -75,7 +75,7 @@ sequenceDiagram
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
-> **State (stage G3).** Stage G2b completed the query path: `loomux graph ask` retrieves code symbols ranked by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25). Retrieval takes ~48 ms warm (~38 ms when matching names without the 1MB body sidecar on this ~3,000-node repo; the sidecar exists to scale to 30,000+ nodes). Inlined code spans are provided via `--source`. Automatic background graph rebuild triggers on drift unless `--no-refresh` is passed; a query never builds a first graph. Stage G3 serves the same query and the drift check over MCP as `graph_find_code` and `graph_check_freshness` (see §3). Graph navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) awaits stage G4.
+> **State (stage G4a).** Stage G2b completed the query path: `loomux graph ask` retrieves code symbols ranked by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25). Retrieval takes ~48 ms warm (~38 ms when matching names without the 1MB body sidecar on this ~3,000-node repo; the sidecar exists to scale to 30,000+ nodes). Inlined code spans are provided via `--source`. Automatic background graph rebuild triggers on drift unless `--no-refresh` is passed; a query never builds a first graph. Stage G3 serves the query and the drift check over MCP as `graph_find_code` and `graph_check_freshness` (see §3). Stage G4a delivers the full code graph navigation palette (`callers`, `skeleton`, `grep`, `map`, `stats`) and their four MCP tools (`graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`). Stage G4b adds git-diff blast radius analysis and the post-edit blast monitor hook.
 
 ```mermaid
 flowchart LR
@@ -100,16 +100,17 @@ flowchart TD
     
     subgraph Namespaces["Sub-Server Modules"]
         Root <--> Brain["brain_*<br/>(search, catalog, read, neighbors, status)"]
-        Root <--> Graph["graph_*<br/>(find_code, check_freshness)<br/>planned G4: trace_calls, file_api, find_all, repo_map"]
+        Root <--> Graph["graph_*<br/>(find_code, check_freshness, file_api,<br/>trace_calls, find_all, repo_map)"]
         Root <--> Upstreams["Upstream Proxies<br/>(LSP servers, qmd mcp)"]
     end
 ```
 
-**What stands today (Stages 1b-2 and G3):** the host, the bridge and the root over two
-loopback listeners — one per channel, each with its own token — and seven tools:
-the five `brain_*` tools and, from Stage G3, `graph_find_code` and
-`graph_check_freshness`. The other four `graph_*` tools (Stage G4) and the
-upstream proxies are specified, not built. `loomux mcp` defaults to `--channel local`, starts and replaces the
+**What stands today (Stages 1b-2, G3 and G4a):** the host, the bridge and the root over two
+loopback listeners — one per channel, each with its own token — and eleven tools:
+the five `brain_*` tools and, from Stages G3 and G4a, six `graph_*` tools
+(`graph_find_code`, `graph_check_freshness`, `graph_file_api`, `graph_trace_calls`,
+`graph_find_all`, `graph_repo_map`). The upstream proxies are specified, not built.
+`loomux mcp` defaults to `--channel local`, starts and replaces the
 service itself, and the per-edit hook path links none of it, which an
 import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.md) §8.
 
@@ -120,7 +121,7 @@ import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.
 Where each stage and each capability stands — origin, status, dependencies
 and priority — is in the **[migration plan](docs/en/migration.md)**. Stage 2c
 (the stop gate and the subagent hooks) is done for Claude Code and Antigravity. Stage 3a (`reindex`, `embed`, `reconcile`, `area add`) is
-done; this machine runs it over its own registry.
+done; this machine runs it over its own registry. Stage G4a (`callers`, `skeleton`, `grep`, `map`, `stats`, and 4 MCP tools) is done.
 
 ---
 
@@ -160,24 +161,23 @@ loomux reconcile                    # open review cases for changed sources and 
 loomux area add [--path P] [--scope S]  # register a repository as an area, scaffold its wiki and index it (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
 ```
 
-### Implemented Commands (Code Graph — Stages G2a–G2b)
+### Implemented Commands (Code Graph — Stages G2a–G4a)
 ```bash
 loomux graph build [--root <path>]  # extract, resolve and write .loomux/state/graph/wiring.json
 loomux graph check [--root <path>]  # re-extract and diff against the graph on disk (exit 1 on drift)
 loomux graph ask "<query>" [flags]  # retrieve code symbols ranked by lexical score and Personalized PageRank; never builds a first graph
+loomux graph callers <symbol>       # list direct callers, callees (--direction out), or full closure (-d all)
+loomux graph skeleton <file>        # export definition signatures and line spans (~10x token reduction)
+loomux graph grep "<regex>"         # regex search grouped by enclosing symbol and ranked by coupling
+loomux graph map                    # print token-budgeted directory clusters, hubs, and hotspots
+loomux graph stats                  # display graph metrics (nodes, edges by relation, files, languages, size)
 ```
 
-### Specified Commands (Code Graph — Stages G4–G5)
+### Specified Commands (Code Graph — Stages G4b–G5)
 
-Stage G1 built the ranking and blast-radius libraries; stages G2a and G2b wired `build`,
-`check`, and `ask` above onto them, and stage G3 serves `ask` and `check` over MCP; graph
-navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) awaits stage G4.
+Stage G4a delivered navigation and retrieval (`callers`, `skeleton`, `grep`, `map`, `stats`); stage G4b adds `blast` and the post-tool blast monitor; stage G5 adds multi-language extraction via `wazero`.
 ```bash
-loomux graph callers <symbol>       # list direct callers, callees (--direction out), or full closure (-d all)
 loomux graph blast [dir]            # compute blast radius of a git diff against working tree or merge base
-loomux graph grep "<regex>"         # regex search grouped by enclosing symbol and ranked by coupling
-loomux graph skeleton <file>        # export definition signatures and line spans (~10x token reduction)
-loomux graph map                    # print token-budgeted directory clusters, hubs, and hotspots
 loomux graph viz                    # launch the interactive graph viewer in your browser
 ```
 
