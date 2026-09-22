@@ -9,8 +9,8 @@ Doku-Umzug) und 2a (Prüfkette `[verify]`, `loomux check <profil>`,
 am 2026-09-22) sind abgeschlossen. Der Eintrag der drei Hooks in
 `.claude/settings.json` ist erfolgt; loomux prüft sich an jedem Rundenende selbst.
 Stufe 3 ist in 3a, 3b und 3c zerfallen und lief parallel zu 2b und 2c; 3a
-(`reindex`, `embed`, `reconcile`, `area add`) ist gebaut (2026-09-22), ihre
-Selbstnutzung im loomux-Repo steht aus. 3b, 3c und 4 sind offen. Siebzehn
+(`reindex`, `embed`, `reconcile`, `area add`) ist fertig (2026-09-22), samt
+Selbstnutzung über die echte Registry. 3b, 3c und 4 sind offen. Siebzehn
 Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
 „Stufen“ im Abschnitt „Nachgetragen“; #1, #2, #3 und #17 sind freigegeben.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
