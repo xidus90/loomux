@@ -415,9 +415,45 @@ zeigt in 3a auf beiden Seiten schon in die Welt. Der Rekorder (`recordEnv`),
 Heimatverzeichnis-Zugriffe von loomux und der Referenz um — geprüft ist das
 nicht.
 
-## Selbstnutzung (Task 18, 2026-09-22) — auf einer Kopie, Bedingung 5 offen
+## Umstieg (2026-09-22) — Bedingung 5 erfüllt
 
-**Bedingung 5 der Stufe ist nicht erfüllt, und das ist entschieden.** „Das
+Nach dem Merge von 3a (`1253c42`), mit dem Binary des Hauptcheckouts auf
+diesem Stand, gegen die echte Registry mit elf Bereichen:
+
+- **`[index]` vorher** (Auflage S3), von Hand eingetragen: `include =
+  ["docs/wiki/**/*.md"]` und `unsearched = ["docs/**/**/index.md"]`.
+  Vorgeschlagen war `docs/wiki/**/index.md`; heute wirkt beides gleich, weil
+  das Register nur Seiten unter `docs/wiki` führt. Wird `include` erweitert,
+  blendet das eingetragene Muster jeden Katalog unter `docs/` aus.
+- **`loomux reindex`** (die Ausgabe blieb im Terminal des Nutzers, der
+  Exit-Code ist nicht mitgeschrieben): im loomux-Repo **keine** versionierte
+  Datei geändert, neu `/_identities.tsv` (32 Einträge, die Seiten unter
+  `docs/wiki`), `/graph.json`, `/index.md`, `/docs/index.md`. Versioniert wird
+  nur das Register; die drei ableitbaren stehen in `.gitignore`, das
+  Register mit nur der Kopfzeile unter `docs/wiki/` ist entfernt. Der
+  Auffangdurchgang öffnete keinen Fall (in `brain-knowledge/95 Prüfzentrum/`
+  ist nichts neuer als der Lauf). `%LOCALAPPDATA%\loomux` hält jetzt `areas/`
+  (drei schreibgeschützte Bereiche), `maintenance/` (zwölf Einträge) und
+  `qmd-collections.json` (zwölf Sammlungen).
+- **Nebenwirkung in fremden Repos,** anders als auf der Kopie (Abschnitt
+  darunter): `brain-knowledge` hat drei versionierte Dateien geändert
+  (`_identities.tsv`, `graph.json`, `index.md`, +354/−52), `ultraloom` drei
+  neue unversionierte (`_identities.tsv`, `docs/index.md`, `graph.json`).
+  `space`, `ultra-brain`, `iam_wiki` und `ecoflow` trugen keine Datei mit dem
+  Zeitstempel des Laufs. Zurückgesetzt wurde nichts; das entscheidet der
+  Nutzer in beiden Repos.
+- **`loomux brain status`**: für `project/loomux` keine Divergenz und keine
+  unaufgelösten Links, nur drei Hinweise „same content hash under 2 paths“ —
+  die Kataloge `sources`, `topics`, `entities` sind byte-gleich mit denen in
+  `ultra-brain`.
+- **`loomux embed`**: `embedded 11 area(s)`, Exit 0. `loomux brain search
+  Schreibschranke --scope project/loomux` liefert Seiten aus `docs/wiki`.
+- **`loomux area add`** hatte nichts zu tun: `project/loomux` war schon
+  registriert.
+
+## Selbstnutzung (Task 18, 2026-09-22) — auf einer Kopie
+
+**Stand vor dem Umstieg darüber: Bedingung 5 der Stufe war nicht erfüllt, und das war entschieden.** „Das
 loomux-Repo fährt `loomux reconcile` und `loomux reindex` auf sich selbst"
 gibt es so nicht: beide Befehle haben keinen Bereichsfilter und laufen über
 die **ganze** Registry, auf dieser Maschine elf Bereiche. Ein echter Lauf

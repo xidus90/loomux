@@ -122,8 +122,7 @@ Wo jede Stufe und jede Funktion steht — Herkunft, Stand, Abhängigkeiten und
 Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**. Stufe 2c
 (das Stop-Tor und die Subagenten-Hooks) ist für Claude Code fertig; ihr
 Antigravity-Adapter steht noch aus. Stufe 3a (`reindex`, `embed`, `reconcile`,
-`area add`) ist gebaut; der Lauf auf der eigenen Registry dieser Maschine
-steht noch aus.
+`area add`) ist fertig; diese Maschine fährt sie über ihre eigene Registry.
 
 ---
 

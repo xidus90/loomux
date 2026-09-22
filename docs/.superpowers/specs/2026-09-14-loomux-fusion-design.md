@@ -560,7 +560,7 @@ Paritätsakte (`parity/stufe-3a.md`):
 
 | Teilstufe | Stand | Inhalt |
 |---|---|---|
-| **3a** Erkennen | gebaut 2026-09-22 (Plan `2026-09-20-loomux-stufe-3a.md`); Bedingung 5 offen | `lock.ReplaceText`, `legacy.go` auf „neu zuerst, alt als Rückfall“, die Registry-Schreibseite, `loomux area add`, `loomux reindex` und `loomux embed` (Umzug `ultra-brain/pkg/index`, Nachtrag #17), `loomux reconcile` samt Lese- und Ablageseite des Ereignisprotokolls, der Auffangdurchgang vor `reindex`. Die Selbstnutzung lief auf Entscheidung des Nutzers nur gegen eine Kopie der Registry; der Umstieg folgt nach dem Merge und braucht vorher ein `[index]` in `.loomux/config.toml` (Auflage S3 der Akte) |
+| **3a** Erkennen | ✅ 2026-09-22 (Plan `2026-09-20-loomux-stufe-3a.md`) | `lock.ReplaceText`, `legacy.go` auf „neu zuerst, alt als Rückfall“, die Registry-Schreibseite, `loomux area add`, `loomux reindex` und `loomux embed` (Umzug `ultra-brain/pkg/index`, Nachtrag #17), `loomux reconcile` samt Lese- und Ablageseite des Ereignisprotokolls, der Auffangdurchgang vor `reindex`. Die Selbstnutzung lief zuerst auf Entscheidung des Nutzers nur gegen eine Kopie der Registry; der Umstieg folgte am 2026-09-22 nach dem Merge: ein `[index]` in `.loomux/config.toml` (Auflage S3 der Akte), dann `reindex` und `embed` über die echte Registry |
 | **3b** Entscheiden | offen | `loomux cases`, `loomux case`, `loomux approve`; `apply`, `evidence`, die Schreibseite von `vcs`. Hängt an den Fällen aus 3a |
 | **3c** Pflegen | offen | `loomux check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1), `loomux lint --scope all` (#2), `wiki types\|retype\|census\|scaffold`, Upkeep in `serve`. Upkeep ruft `reconcile` aus 3a |
 
@@ -598,9 +598,9 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 |---|---|---|---|
 | — | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | ✅ Fertig (2026-09-22). Die Claude-Seite bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Antigravity-Messung durchgeführt und Adapter implementiert. Voraussetzung für `init` in Stufe 4 |
 | — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
-| 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist gebaut, ihr Umstieg im eigenen Repo steht aus; 3b hängt an den Fällen aus 3a, 3c mit dem Upkeep an `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
+| 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b hängt an den Fällen aus 3a, 3c mit dem Upkeep an `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | 2 | **G4** übrige `graph`-Palette, Blast-Monitor | G3 ✅ | Sofort baubar, neben der Fusion. W3 und W4 warten darauf |
-| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 (3a gebaut, 3b und 3c offen) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
+| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 (3a ✅, 3b und 3c offen) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
 | 4 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
 | 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4; W4 an G4 und 4; W5 an W1 und Flow | Folgeprojekt |
 | 6 | **G5** `wazero` | G4 | Nichts wartet darauf |
