@@ -1,0 +1,62 @@
+{
+ "a repeated line on both sides": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,5 +1,5 @@\n m\n-a\n+A\n m\n p\n q",
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -7,5 +7,5 @@\n s\n t\n m\n-z\n+Z\n m"
+ ],
+ "a struck line grows the block": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -99,7 +99,7 @@\n x\n u49\n x\n-u50\n+CHANGED\n x\n u51\n x"
+ ],
+ "added empty line": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,2 +1,3 @@\n a\n+\n b"
+ ],
+ "autojunk": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -4,7 +4,7 @@\n line 4\n line 5\n line 6\n-line 7\n+\n line 8\n line 9\n line 10",
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -197,7 +197,7 @@\n line 197\n line 198\n line 199\n-line 200\n+\n line 201\n line 202\n line 203",
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -268,3 +268,4 @@\n \n \n \n+tail"
+ ],
+ "autojunk stays off below the mark": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,150 +1,150 @@\n-u0\n+v0\n x\n-u1\n+v1\n x\n-u2\n+v2\n x\n-u3\n+v3\n x\n-u4\n+v4\n x\n-u5\n+v5\n x\n-u6\n+v6\n x\n-u7\n+v7\n x\n-u8\n+v8\n x\n-u9\n+v9\n x\n-u10\n+v10\n x\n-u11\n+v11\n x\n-u12\n+v12\n x\n-u13\n+v13\n x\n-u14\n+v14\n x\n-u15\n+v15\n x\n-u16\n+v16\n x\n-u17\n+v17\n x\n-u18\n+v18\n x\n-u19\n+v19\n x\n-u20\n+v20\n x\n-u21\n+v21\n x\n-u22\n+v22\n x\n-u23\n+v23\n x\n-u24\n+v24\n x\n-u25\n+v25\n x\n-u26\n+v26\n x\n-u27\n+v27\n x\n-u28\n+v28\n x\n-u29\n+v29\n x\n-u30\n+v30\n x\n-u31\n+v31\n x\n-u32\n+v32\n x\n-u33\n+v33\n x\n-u34\n+v34\n x\n-u35\n+v35\n x\n-u36\n+v36\n x\n-u37\n+v37\n x\n-u38\n+v38\n x\n-u39\n+v39\n x\n-u40\n+v40\n x\n-u41\n+v41\n x\n-u42\n+v42\n x\n-u43\n+v43\n x\n-u44\n+v44\n x\n-u45\n+v45\n x\n-u46\n+v46\n x\n-u47\n+v47\n x\n-u48\n+v48\n x\n-u49\n+v49\n x\n-u50\n+v50\n x\n-u51\n+v51\n x\n-u52\n+v52\n x\n-u53\n+v53\n x\n-u54\n+v54\n x\n-u55\n+v55\n x\n-u56\n+v56\n x\n-u57\n+v57\n x\n-u58\n+v58\n x\n-u59\n+v59\n x\n-u60\n+v60\n x\n-u61\n+v61\n x\n-u62\n+v62\n x\n-u63\n+v63\n x\n-u64\n+v64\n x\n-u65\n+v65\n x\n-u66\n+v66\n x\n-u67\n+v67\n x\n-u68\n+v68\n x\n-u69\n+v69\n x\n-u70\n+v70\n x\n-u71\n+v71\n x\n-u72\n+v72\n x\n-u73\n+v73\n x\n-u74\n+v74\n x"
+ ],
+ "autojunk strikes a popular line": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,200 +1,200 @@\n-u0\n-x\n-u1\n-x\n-u2\n-x\n-u3\n-x\n-u4\n-x\n-u5\n-x\n-u6\n-x\n-u7\n-x\n-u8\n-x\n-u9\n-x\n-u10\n-x\n-u11\n-x\n-u12\n-x\n-u13\n-x\n-u14\n-x\n-u15\n-x\n-u16\n-x\n-u17\n-x\n-u18\n-x\n-u19\n-x\n-u20\n-x\n-u21\n-x\n-u22\n-x\n-u23\n-x\n-u24\n-x\n-u25\n-x\n-u26\n-x\n-u27\n-x\n-u28\n-x\n-u29\n-x\n-u30\n-x\n-u31\n-x\n-u32\n-x\n-u33\n-x\n-u34\n-x\n-u35\n-x\n-u36\n-x\n-u37\n-x\n-u38\n-x\n-u39\n-x\n-u40\n-x\n-u41\n-x\n-u42\n-x\n-u43\n-x\n-u44\n-x\n-u45\n-x\n-u46\n-x\n-u47\n-x\n-u48\n-x\n-u49\n-x\n-u50\n-x\n-u51\n-x\n-u52\n-x\n-u53\n-x\n-u54\n-x\n-u55\n-x\n-u56\n-x\n-u57\n-x\n-u58\n-x\n-u59\n-x\n-u60\n-x\n-u61\n-x\n-u62\n-x\n-u63\n-x\n-u64\n-x\n-u65\n-x\n-u66\n-x\n-u67\n-x\n-u68\n-x\n-u69\n-x\n-u70\n-x\n-u71\n-x\n-u72\n-x\n-u73\n-x\n-u74\n-x\n-u75\n-x\n-u76\n-x\n-u77\n-x\n-u78\n-x\n-u79\n-x\n-u80\n-x\n-u81\n-x\n-u82\n-x\n-u83\n-x\n-u84\n-x\n-u85\n-x\n-u86\n-x\n-u87\n-x\n-u88\n-x\n-u89\n-x\n-u90\n-x\n-u91\n-x\n-u92\n-x\n-u93\n-x\n-u94\n-x\n-u95\n-x\n-u96\n-x\n-u97\n-x\n-u98\n-x\n-u99\n-x\n+v0\n+x\n+v1\n+x\n+v2\n+x\n+v3\n+x\n+v4\n+x\n+v5\n+x\n+v6\n+x\n+v7\n+x\n+v8\n+x\n+v9\n+x\n+v10\n+x\n+v11\n+x\n+v12\n+x\n+v13\n+x\n+v14\n+x\n+v15\n+x\n+v16\n+x\n+v17\n+x\n+v18\n+x\n+v19\n+x\n+v20\n+x\n+v21\n+x\n+v22\n+x\n+v23\n+x\n+v24\n+x\n+v25\n+x\n+v26\n+x\n+v27\n+x\n+v28\n+x\n+v29\n+x\n+v30\n+x\n+v31\n+x\n+v32\n+x\n+v33\n+x\n+v34\n+x\n+v35\n+x\n+v36\n+x\n+v37\n+x\n+v38\n+x\n+v39\n+x\n+v40\n+x\n+v41\n+x\n+v42\n+x\n+v43\n+x\n+v44\n+x\n+v45\n+x\n+v46\n+x\n+v47\n+x\n+v48\n+x\n+v49\n+x\n+v50\n+x\n+v51\n+x\n+v52\n+x\n+v53\n+x\n+v54\n+x\n+v55\n+x\n+v56\n+x\n+v57\n+x\n+v58\n+x\n+v59\n+x\n+v60\n+x\n+v61\n+x\n+v62\n+x\n+v63\n+x\n+v64\n+x\n+v65\n+x\n+v66\n+x\n+v67\n+x\n+v68\n+x\n+v69\n+x\n+v70\n+x\n+v71\n+x\n+v72\n+x\n+v73\n+x\n+v74\n+x\n+v75\n+x\n+v76\n+x\n+v77\n+x\n+v78\n+x\n+v79\n+x\n+v80\n+x\n+v81\n+x\n+v82\n+x\n+v83\n+x\n+v84\n+x\n+v85\n+x\n+v86\n+x\n+v87\n+x\n+v88\n+x\n+v89\n+x\n+v90\n+x\n+v91\n+x\n+v92\n+x\n+v93\n+x\n+v94\n+x\n+v95\n+x\n+v96\n+x\n+v97\n+x\n+v98\n+x\n+v99\n+x"
+ ],
+ "both empty": [],
+ "emptied": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,2 +0,0 @@\n-a\n-b"
+ ],
+ "empty baseline": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -0,0 +1,2 @@\n+a\n+b"
+ ],
+ "identical": [],
+ "lone carriage return": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,2 +1,2 @@\n-a\n+a\rb\n c"
+ ],
+ "middle": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -2,7 +2,7 @@\n line 2\n line 3\n line 4\n-line 5\n+line five\n line 6\n line 7\n line 8"
+ ],
+ "no baseline": [
+  "# ohne verifizierten Vorzustand: das Paket führt nur den neuen Stand\n--- /dev/null\n+++ src/a.go\n@@ -0,0 +1,2 @@\n+a\n+b"
+ ],
+ "no newline": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,3 +1,3 @@\n a\n b\n-c\n+c\n\\ No newline at end of file"
+ ],
+ "no newline before": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,3 +1,3 @@\n a\n b\n-c\n\\ No newline at end of file\n+c"
+ ],
+ "one hunk over a short stretch": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,11 +1,11 @@\n line 1\n-line 2\n+line two\n line 3\n line 4\n line 5\n line 6\n line 7\n-line 8\n+line eight\n line 9\n line 10\n line 11"
+ ],
+ "the first of two equal blocks": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1 +1,3 @@\n L1\n+L0\n+L1"
+ ],
+ "three occurrences are not popular": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,200 +1,200 @@\n x\n-u1\n-u2\n-u3\n-u4\n-u5\n-u6\n-u7\n-u8\n-u9\n-u10\n-u11\n-u12\n-u13\n-u14\n-u15\n-u16\n-u17\n-u18\n-u19\n-u20\n-u21\n-u22\n-u23\n-u24\n-u25\n-u26\n-u27\n-u28\n-u29\n-u30\n-u31\n-u32\n-u33\n-u34\n-u35\n-u36\n-u37\n-u38\n-u39\n-u40\n-u41\n-u42\n-u43\n-u44\n-u45\n-u46\n-u47\n-u48\n-u49\n-u50\n-u51\n-u52\n-u53\n-u54\n-u55\n-u56\n-u57\n-u58\n-u59\n-u60\n-u61\n-u62\n-u63\n-u64\n-u65\n-u66\n-u67\n-u68\n-u69\n-u70\n-u71\n-u72\n-u73\n-u74\n-u75\n-u76\n-u77\n-u78\n-u79\n-u80\n-u81\n-u82\n-u83\n-u84\n-u85\n-u86\n-u87\n-u88\n-u89\n-u90\n-u91\n-u92\n-u93\n-u94\n-u95\n-u96\n-u97\n-u98\n-u99\n+v1\n+v2\n+v3\n+v4\n+v5\n+v6\n+v7\n+v8\n+v9\n+v10\n+v11\n+v12\n+v13\n+v14\n+v15\n+v16\n+v17\n+v18\n+v19\n+v20\n+v21\n+v22\n+v23\n+v24\n+v25\n+v26\n+v27\n+v28\n+v29\n+v30\n+v31\n+v32\n+v33\n+v34\n+v35\n+v36\n+v37\n+v38\n+v39\n+v40\n+v41\n+v42\n+v43\n+v44\n+v45\n+v46\n+v47\n+v48\n+v49\n+v50\n+v51\n+v52\n+v53\n+v54\n+v55\n+v56\n+v57\n+v58\n+v59\n+v60\n+v61\n+v62\n+v63\n+v64\n+v65\n+v66\n+v67\n+v68\n+v69\n+v70\n+v71\n+v72\n+v73\n+v74\n+v75\n+v76\n+v77\n+v78\n+v79\n+v80\n+v81\n+v82\n+v83\n+v84\n+v85\n+v86\n+v87\n+v88\n+v89\n+v90\n+v91\n+v92\n+v93\n+v94\n+v95\n+v96\n+v97\n+v98\n+v99\n x\n-u101\n-u102\n-u103\n-u104\n-u105\n-u106\n-u107\n-u108\n-u109\n-u110\n-u111\n-u112\n-u113\n-u114\n-u115\n-u116\n-u117\n-u118\n-u119\n-u120\n-u121\n-u122\n-u123\n-u124\n-u125\n-u126\n-u127\n-u128\n-u129\n-u130\n-u131\n-u132\n-u133\n-u134\n-u135\n-u136\n-u137\n-u138\n-u139\n-u140\n-u141\n-u142\n-u143\n-u144\n-u145\n-u146\n-u147\n-u148\n-u149\n-u150\n-u151\n-u152\n-u153\n-u154\n-u155\n-u156\n-u157\n-u158\n-u159\n-u160\n-u161\n-u162\n-u163\n-u164\n-u165\n-u166\n-u167\n-u168\n-u169\n-u170\n-u171\n-u172\n-u173\n-u174\n-u175\n-u176\n-u177\n-u178\n-u179\n-u180\n-u181\n-u182\n-u183\n-u184\n-u185\n-u186\n-u187\n-u188\n-u189\n-u190\n-u191\n-u192\n-u193\n-u194\n-u195\n-u196\n-u197\n-u198\n+v101\n+v102\n+v103\n+v104\n+v105\n+v106\n+v107\n+v108\n+v109\n+v110\n+v111\n+v112\n+v113\n+v114\n+v115\n+v116\n+v117\n+v118\n+v119\n+v120\n+v121\n+v122\n+v123\n+v124\n+v125\n+v126\n+v127\n+v128\n+v129\n+v130\n+v131\n+v132\n+v133\n+v134\n+v135\n+v136\n+v137\n+v138\n+v139\n+v140\n+v141\n+v142\n+v143\n+v144\n+v145\n+v146\n+v147\n+v148\n+v149\n+v150\n+v151\n+v152\n+v153\n+v154\n+v155\n+v156\n+v157\n+v158\n+v159\n+v160\n+v161\n+v162\n+v163\n+v164\n+v165\n+v166\n+v167\n+v168\n+v169\n+v170\n+v171\n+v172\n+v173\n+v174\n+v175\n+v176\n+v177\n+v178\n+v179\n+v180\n+v181\n+v182\n+v183\n+v184\n+v185\n+v186\n+v187\n+v188\n+v189\n+v190\n+v191\n+v192\n+v193\n+v194\n+v195\n+v196\n+v197\n+v198\n x"
+ ],
+ "two hunks": [
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -1,5 +1,5 @@\n line 1\n-line 2\n+line two\n line 3\n line 4\n line 5",
+  "--- src/a.go (HEAD)\n+++ src/a.go\n@@ -15,6 +15,6 @@\n line 15\n line 16\n line 17\n-line 18\n+line eighteen\n line 19\n line 20"
+ ],
+ "umlaut path": [
+  "--- src/ä b.md (HEAD)\n+++ src/ä b.md\n@@ -1 +1 @@\n-alt\n+neu"
+ ]
+}

@@ -3,3 +3,45 @@
 # The recordings of the old tools are evidence, not text this repository owns:
 # no line-ending normalisation, so a case stays byte for byte what was recorded.
 testdata/cases/1a-source/** -text
+
+# The rendered package is evidence of the Python format, not text this
+# repository owns: the D3 segment carries a lone carriage return on purpose.
+internal/brain/maintenance/testdata/package.golden.md -text
+
+# The stamp cache is evidence of the Python format: `_write_stats` produced
+# these bytes, and a fold of any kind would make the comparison a comparison
+# with this repository rather than with the reference.
+internal/brain/maintenance/testdata/stats.golden.tsv -text
+
+# The diff goldens are evidence of `difflib`'s answers, not text this
+# repository owns: the test holds them byte for byte against what `_hunks`
+# wrote, and a fold of any kind would make the comparison a comparison with
+# this repository rather than with the reference. Neither file holds a raw
+# carriage return today -- JSON escapes the one a hand vector carries -- so
+# the attribute guards a byte-exact record, not a byte a fold would break now.
+internal/brain/maintenance/testdata/hunks.golden.json -text
+internal/brain/maintenance/testdata/hunks-fuzz.golden.json -text
+
+# The package and the case file are evidence of the Python format for the same
+# reason `package.golden.md` above is: `_segments`, `render_package` and
+# `write_case` produced these bytes.
+internal/brain/maintenance/testdata/case-package.golden.md -text
+internal/brain/maintenance/testdata/case.golden.toml -text
+
+# The merge package and the merge case file are the same kind of evidence:
+# `_merge_evidence` over a real repository, `render_package` and `write_case`
+# produced these bytes.
+internal/brain/maintenance/testdata/merge-package.golden.md -text
+internal/brain/maintenance/testdata/merge-case.golden.toml -text
+
+# The bundle frame is evidence of `init_bundle`'s bytes: an oracle over
+# src/brain/wiki/scaffold.py wrote these files, and a fold of any kind would
+# make the comparison a comparison with this repository rather than with the
+# reference.
+internal/brain/wiki/testdata/bundle/*.golden -text
+
+# The stage-3a recordings and their translation compare whole file worlds byte
+# for byte -- stat caches, registers, case files, the bytes `brain init` wrote.
+# A fold of any kind would compare with this repository, not with the reference.
+testdata/cases/3a-source/** -text
+testdata/cases/3a/** -text

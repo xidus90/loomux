@@ -1,0 +1,23 @@
+id = "a-2026-09-20-abcd"
+area = "project/a"
+target = "docs/wiki/a.md"
+target_hash = "sha256:cc"
+state = "source_changed"
+trigger = "source_change"
+weight = "change"
+created = 2026-09-20T08:00:00+02:00
+note = "zwei\nzeilen, ein \"Zitat\", ein \\ und ein \t sowie \u007f"
+superseded_proposal = "superseded-proposal.md"
+manual = true
+local_only = true
+prompt_version = "propose/7"
+
+[[sources]]
+doc_id = "d1"
+revision = 1
+content_hash = "sha256:aa"
+
+[[sources]]
+doc_id = "d2"
+revision = 2
+content_hash = "sha256:bb"
