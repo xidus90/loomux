@@ -1,0 +1,5 @@
+Add (function) in calc/calc.go:L4-L6
+  - TestAdd (function, depth 1, calls) in calc/calc_test.go:L5-L9
+    L6: if Add(1, 2) != 3 {
+  - main (function, depth 1, calls) in main.go:L5-L7
+    L6: calc.Add(1, 2)

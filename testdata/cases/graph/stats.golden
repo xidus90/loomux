@@ -1,0 +1,10 @@
+Code Graph Stats:
+  Files:        3
+  Symbols:      4
+  Edges:        8
+  Wiring size:  <normalized>
+  Languages:    go
+  Relations:
+    calls        2
+    contains     4
+    imports      2

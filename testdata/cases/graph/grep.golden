@@ -1,0 +1,14 @@
+Found 5 matches across 3 files for "Add":
+
+calc/calc.go  Add (function, inDegree=2):
+  L4    | func Add(a, b int) int {
+
+calc/calc.go (file level):
+  L3    | // Add sums two numbers.
+
+calc/calc_test.go  TestAdd (function, inDegree=0):
+  L5    | func TestAdd(t *testing.T) {
+  L6    | 	if Add(1, 2) != 3 {
+
+main.go  main (function, inDegree=0):
+  L6    | 	calc.Add(1, 2)

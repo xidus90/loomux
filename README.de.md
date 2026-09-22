@@ -75,7 +75,7 @@ sequenceDiagram
 
 Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen daraus via **Personalized PageRank**.
 
-> **Stand (Stufe G3).** Stufe G2b hat den Abfragepfad vollendet: `loomux graph ask` sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen mit Personalized PageRank (alpha=0.25). Das Retrieval benötigt ~48 ms warm (~38 ms bei Namens-Matching ohne die 1-MB-Rumpfbeiakte auf diesem ~3.000-Knoten-Repo; die Beiakte dient der Skalierung auf 30.000+ Knoten). Quelltext-Spans werden bei Bedarf via `--source` inline eingeblendet. Bei Abweichung wird der Graph automatisch im Hintergrund neu gebaut, sofern `--no-refresh` fehlt; einen ersten Graphen baut keine Abfrage. Stufe G3 stellt dieselbe Abfrage und die Driftprüfung als `graph_find_code` und `graph_check_freshness` über MCP bereit (siehe §3). Graph-Navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) wartet auf Stufe G4.
+> **Stand (Stufe G4a).** Stufe G2b hat den Abfragepfad vollendet: `loomux graph ask` sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen mit Personalized PageRank (alpha=0.25). Das Retrieval benötigt ~48 ms warm (~38 ms bei Namens-Matching ohne die 1-MB-Rumpfbeiakte auf diesem ~3.000-Knoten-Repo; die Beiakte dient der Skalierung auf 30.000+ Knoten). Quelltext-Spans werden bei Bedarf via `--source` inline eingeblendet. Bei Abweichung wird der Graph automatisch im Hintergrund neu gebaut, sofern `--no-refresh` fehlt; einen ersten Graphen baut keine Abfrage. Stufe G3 stellt die Abfrage und die Driftprüfung als `graph_find_code` und `graph_check_freshness` über MCP bereit (siehe §3). Stufe G4a liefert die vollständige Graph-Navigationspalette (`callers`, `skeleton`, `grep`, `map`, `stats`) und vier neue MCP-Werkzeuge (`graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`). Stufe G4b ergänzt Git-Diff-Blast-Radius-Analyse und den Post-Edit-Blast-Monitor.
 
 ```mermaid
 flowchart LR
@@ -100,19 +100,19 @@ flowchart TD
     
     subgraph Namespaces["Sub-Server Module"]
         Root <--> Brain["brain_*<br/>(search, catalog, read, neighbors, status)"]
-        Root <--> Graph["graph_*<br/>(find_code, check_freshness)<br/>geplant G4: trace_calls, file_api, find_all, repo_map"]
+        Root <--> Graph["graph_*<br/>(find_code, check_freshness, file_api,<br/>trace_calls, find_all, repo_map)"]
         Root <--> Upstreams["Upstream Proxies<br/>(Sprachserver, qmd mcp)"]
     end
 ```
 
-**Was heute steht (Stufen 1b-2 und G3):** der Wirt, die Brücke und die Wurzel über zwei
-Loopback-Listener — einer je Kanal, jeder mit eigenem Token — und sieben Werkzeuge:
-die fünf `brain_*`-Werkzeuge und, seit Stufe G3, `graph_find_code` und
-`graph_check_freshness`. Die übrigen vier `graph_*`-Werkzeuge (Stufe G4) und die
-Upstream-Proxies sind spezifiziert, nicht gebaut. `loomux mcp` fällt auf `--channel local` zurück,
-startet und ersetzt den Dienst selbst, und der Pro-Edit-Hook-Pfad verlinkt
-nichts davon, was ein Test über den Importgraphen festhält. Siehe
-[`docs/de/cli-reference.md`](docs/de/cli-reference.md) §8.
+**Was heute steht (Stufen 1b-2, G3 und G4a):** der Wirt, die Brücke und die Wurzel über zwei
+Loopback-Listener — einer je Kanal, jeder mit eigenem Token — und elf Werkzeuge:
+die fünf `brain_*`-Werkzeuge und, seit den Stufen G3 und G4a, sechs `graph_*`-Werkzeuge
+(`graph_find_code`, `graph_check_freshness`, `graph_file_api`, `graph_trace_calls`,
+`graph_find_all`, `graph_repo_map`). Die Upstream-Proxies sind spezifiziert, nicht gebaut.
+`loomux mcp` fällt auf `--channel local` zurück, startet und ersetzt den Dienst selbst,
+und der Pro-Edit-Hook-Pfad verlinkt nichts davon, was ein Test über den Importgraphen
+festhält. Siehe [`docs/de/cli-reference.md`](docs/de/cli-reference.md) §8.
 
 ---
 
@@ -123,6 +123,7 @@ Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**. Stufe 2c
 (das Stop-Tor und die Subagenten-Hooks) ist für Claude Code und Antigravity
 fertig. Stufe 3a (`reindex`, `embed`, `reconcile`,
 `area add`) ist fertig; diese Maschine fährt sie über ihre eigene Registry.
+Stufe G4a (`callers`, `skeleton`, `grep`, `map`, `stats` und 4 MCP-Werkzeuge) ist fertig.
 
 ---
 
@@ -162,24 +163,23 @@ loomux reconcile                    # Eröffnet Prüffälle für geänderte Quel
 loomux area add [--path P] [--scope S]  # Meldet ein Repository als Bereich an, legt sein Wiki an und indiziert es (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
 ```
 
-### Implementierte Befehle (Code-Graph — Stufen G2a–G2b)
+### Implementierte Befehle (Code-Graph — Stufen G2a–G4a)
 ```bash
 loomux graph build [--root <pfad>]  # Extrahiert, löst auf und schreibt .loomux/state/graph/wiring.json
 loomux graph check [--root <pfad>]  # Extrahiert neu und vergleicht mit Graph auf Platte (Exit 1 bei Drift)
 loomux graph ask "<anfrage>" [flags] # Sucht Symbole gerankt nach lexikalischem Score und Personalized PageRank; baut nie einen ersten Graphen
+loomux graph callers <symbol>       # Zeigt Aufrufer, Aufgerufene (--direction out) oder transitive Hülle (-d all)
+loomux graph skeleton <datei>       # Gibt Signaturen und Zeilenspans einer Datei aus (~10x Token-Ersparnis)
+loomux graph grep "<regex>"         # Regex-Suche gruppiert nach Symbol und sortiert nach Kopplung
+loomux graph map                    # Gibt token-budgetierte Verzeichnis-Cluster, Hubs und Hotspots aus
+loomux graph stats                  # Gibt Graph-Kennzahlen aus (Knoten, Kanten je Relation, Dateien, Sprachen, Größe)
 ```
 
-### Spezifizierte Befehle (Code-Graph — Stufen G4–G5)
+### Spezifizierte Befehle (Code-Graph — Stufen G4b–G5)
 
-Stufe G1 hat die Rank- und Blast-Radius-Bibliotheken gebaut; die Stufen G2a und G2b haben
-`build`, `check` und `ask` oben darauf verdrahtet, und Stufe G3 stellt `ask` und `check` über
-MCP bereit; die Graph-Navigation (`callers`, `blast`, `grep`, `skeleton`, `map`) wartet auf Stufe G4.
+Stufe G4a hat Navigation und Retrieval geliefert (`callers`, `skeleton`, `grep`, `map`, `stats`); Stufe G4b ergänzt `blast` und den Post-Tool-Blast-Monitor; Stufe G5 ergänzt mehrsprachige Extraktion über `wazero`.
 ```bash
-loomux graph callers <symbol>       # Zeigt Aufrufer, Aufgerufene (--direction out) oder transitive Hülle (-d all)
 loomux graph blast [dir]            # Berechnet den Blast-Radius eines Git-Diffs gegen Working Tree oder Merge-Base
-loomux graph grep "<regex>"         # Regex-Suche gruppiert nach Symbol und sortiert nach Kopplung
-loomux graph skeleton <datei>       # Gibt Signaturen und Zeilenspans einer Datei aus (~10x Token-Ersparnis)
-loomux graph map                    # Gibt token-budgetierte Verzeichnis-Cluster, Hubs und Hotspots aus
 loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im Browser
 ```
 
