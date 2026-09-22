@@ -449,6 +449,22 @@ func TestTargetPathRefusesALinkOnTheWay(t *testing.T) {
 	}
 }
 
+// A leading `./` names no component: pathlib drops `.` from `parts`
+// (apply.py:890-899), so the walk never asks whether the wiki itself is a
+// link -- that is the registration's business, not the target's.
+func TestTargetPathWalksNoDotComponent(t *testing.T) {
+	r := resolvedVault(t)
+	wiki := filepath.Clean(r.wiki)
+	seam(t, &isLink, func(path string) bool { return filepath.Clean(path) == wiki })
+	if _, err := targetPath(r, "./topics/thema.md"); err != nil {
+		t.Fatalf("targetPath: %v", err)
+	}
+	// An empty target has no parts either (`PurePosixPath("").parts` is
+	// empty): it names the wiki itself, which is no page -- not a link.
+	_, err := targetPath(r, "")
+	refused(t, err, r.wiki+": the case's target page is gone")
+}
+
 // test_a_vanished_target_page_is_refused (test_apply.py:702); in Python the
 // check follows `_target` at its one caller, `_apply`.
 func TestTargetPathRefusesAVanishedPage(t *testing.T) {

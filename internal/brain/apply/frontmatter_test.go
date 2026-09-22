@@ -106,6 +106,24 @@ func TestAdvanceFrontmatterNamesTheMissingFrontmatter(t *testing.T) {
 	}
 }
 
+// A refusal names its reason: an empty block is no mapping (as the
+// reference says, e04-empty), a parse failure is the parser's own message,
+// and a merge key is named as such rather than as a tag nobody wrote.
+func TestAdvanceFrontmatterNamesWhyItRefuses(t *testing.T) {
+	_, err := apply.AdvanceFrontmatter("---\n\n---\n", nil, goldenReviewer, goldenNow)
+	if err == nil || err.Error() != "frontmatter is not a mapping" {
+		t.Errorf("empty: got %v", err)
+	}
+	_, err = apply.AdvanceFrontmatter("---\n: broken: [\n---\n", nil, goldenReviewer, goldenNow)
+	if err == nil || !strings.HasPrefix(err.Error(), "yaml: ") {
+		t.Errorf("broken: got %v, want the parser's message", err)
+	}
+	_, err = apply.AdvanceFrontmatter("---\n<<: {a: 1}\n---\n", nil, goldenReviewer, goldenNow)
+	if err == nil || err.Error() != "merge keys are not supported" {
+		t.Errorf("merge: got %v", err)
+	}
+}
+
 func TestIsoFormatIsPythonsIsoformat(t *testing.T) {
 	for _, tc := range []struct {
 		in   time.Time

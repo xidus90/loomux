@@ -288,8 +288,10 @@ func TestRejectPassesOnAResolverFailureWhenStaging(t *testing.T) {
 	})
 	broken := errors.New("unresolvable")
 	real := resolvePath
+	// The vault still resolves: were it to fail too, its own failure would
+	// stand in for the one this test is about.
 	seam(t, &resolvePath, func(path string) (string, error) {
-		if removed {
+		if removed && path != j.vault {
 			return "", broken
 		}
 		return real(path)
