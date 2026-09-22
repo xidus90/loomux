@@ -561,7 +561,7 @@ Paritätsakte (`parity/stufe-3a.md`):
 | Teilstufe | Stand | Inhalt |
 |---|---|---|
 | **3a** Erkennen | ✅ 2026-09-22 (Plan `2026-09-20-loomux-stufe-3a.md`) | `lock.ReplaceText`, `legacy.go` auf „neu zuerst, alt als Rückfall“, die Registry-Schreibseite, `loomux area add`, `loomux reindex` und `loomux embed` (Umzug `ultra-brain/pkg/index`, Nachtrag #17), `loomux reconcile` samt Lese- und Ablageseite des Ereignisprotokolls, der Auffangdurchgang vor `reindex`. Die Selbstnutzung lief zuerst auf Entscheidung des Nutzers nur gegen eine Kopie der Registry; der Umstieg folgte am 2026-09-22 nach dem Merge: ein `[index]` in `.loomux/config.toml` (Auflage S3 der Akte), dann `reindex` und `embed` über die echte Registry |
-| **3b** Entscheiden | offen | `loomux cases`, `loomux case`, `loomux approve`; `apply`, `evidence`, die Schreibseite von `vcs`. Hängt an den Fällen aus 3a |
+| **3b** Entscheiden | offen; Plan `2026-09-22-loomux-stufe-3b.md`, Bauweise hybrid (Stufe-3-Spec, „Bauweise“) | `loomux cases`, `loomux case`, `loomux approve`; `apply`, `evidence`, die Schreibseite von `vcs`. Hängt an den Fällen aus 3a |
 | **3c** Pflegen | offen | `loomux check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1), `loomux lint --scope all` (#2), `wiki types\|retype\|census\|scaffold`, Upkeep in `serve`. Upkeep ruft `reconcile` aus 3a |
 
 **Säule 3, der Code-Graph** (`2026-09-14-loomux-code-graph-design.md`). Sie
