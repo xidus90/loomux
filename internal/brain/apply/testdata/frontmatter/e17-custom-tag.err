@@ -1,0 +1,4 @@
+ApplyError: page.md: could not determine a constructor for the tag '!custom'
+  in "<unicode string>", line 1, column 4:
+    d: !custom x
+       ^
