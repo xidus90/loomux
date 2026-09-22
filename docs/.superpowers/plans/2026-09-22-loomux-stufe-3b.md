@@ -559,16 +559,22 @@ git commit -F <scratchpad>/commit-evidence.txt
   }
   type RefusedError struct{ Msg string } // a proposal that cannot be applied
   func (e *RefusedError) Error() string
-  func CollectDiff(body string) (string, error)          // _collect
+  func CollectDiff(body string) ([]string, error)        // _collect
   func ParseUnifiedDiff(diff string) ([]Hunk, error)      // _hunks
   func ApplyHunks(text string, hunks []Hunk) (string, error) // _patch
   ```
 
 **Die Regeln (Python gilt):**
 
-1. Der Diff ist der Rumpf des ersten Zauns aus `evidence.FencedBlocks`, dessen
-   Info-Zeichenkette mit `diff` beginnt. Kein solcher Zaun ⇒ `*RefusedError`.
-2. Kopf `^@@ -(\d+)(?:,(\d+))? \+…@@` (`:225`). Eine reine Einfügung
+1. Die Diffs sind die Rümpfe **jedes** Zauns aus `evidence.FencedBlocks`,
+   dessen Info-Zeichenkette mit `diff` beginnt, in Reihenfolge; jeder wird
+   für sich gelesen (`apply.py:1069-1073`; Ruling 2026-09-22, die Form mit
+   nur dem ersten Zaun war ein Planfehler). Kein solcher Zaun ⇒
+   `*RefusedError` „no proposed diff in the claim's section“. Jede Meldung
+   ist Pythons Text **ohne** das vorangestellte `{heading}: `; das setzt
+   Task 11 davor.
+2. Kopf `^@@ -(\d+)(?:,(\d+))? \+…@@` (`:225`), `\d` wie in Python
+   Unicode-Nd, die Zahl wie `int()` ohne Obergrenze. Eine reine Einfügung
    (Anzahl 0) ankert bei `start`, nicht `start-1`. Zeilen, die mit `\`
    beginnen, werden übersprungen; eine leere Zeile ist Kontext.
 3. **Exakt, ohne Unschärfe**, auf der LF-gefalteten Seite. Kein Kopf,
@@ -993,7 +999,12 @@ git commit -m "feat(apply): reject a proposal and commit a decision with one ret
    - **`*RefusedError` aus `patch`** (Task 5) ⇒ `*ProposalRefused` mit
      derselben Meldung, und es wird **nichts** geschrieben.
    Ein Test je Weg prüft die Dateiwelt danach.
-6. **Anwenden:** Hunks auf die Seite, `AdvanceFrontmatter`, je betroffenem
+6. **Anwenden:** Je bestandener Behauptung `CollectDiff(claim.Body)`, jeden
+   Rumpf durch `ParseUnifiedDiff`, die Hunks aller Behauptungen aneinander
+   gehängt (`_collect`, `apply.py:1065-1074`). Eine Weigerung aus
+   `CollectDiff` oder `ParseUnifiedDiff` bekommt `claim.Heading + ": "`
+   vorangestellt und bleibt `*RefusedError`; eine aus `ApplyHunks` bleibt
+   ohne Überschrift, wie in `_patch`. Dann die Hunks auf die Seite, `AdvanceFrontmatter`, je betroffenem
    Register `AdvanceRegister` (nur Register **im** Tresor werden gestagt),
    `LogLine`, Auditblock, Fallverzeichnis löschen, Commit
    `Land the reviewed change to <Safe(target)>` mit Seite, `log.md`,
