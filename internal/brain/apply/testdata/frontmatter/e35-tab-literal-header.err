@@ -1,0 +1,8 @@
+ApplyError: page.md: while scanning a block scalar
+  in "<unicode string>", line 1, column 4:
+    a: |	
+       ^
+expected chomping or indentation indicators, but found '\t'
+  in "<unicode string>", line 1, column 5:
+    a: |	
+        ^

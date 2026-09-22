@@ -1,0 +1,8 @@
+ApplyError: page.md: while scanning a simple key
+  in "<unicode string>", line 2, column 1:
+    b
+    ^
+could not find expected ':'
+  in "<unicode string>", line 2, column 2:
+    b
+     ^

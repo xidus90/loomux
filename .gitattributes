@@ -45,3 +45,8 @@ internal/brain/wiki/testdata/bundle/*.golden -text
 # A fold of any kind would compare with this repository, not with the reference.
 testdata/cases/3a-source/** -text
 testdata/cases/3a/** -text
+
+# The frontmatter goldens are evidence of what `_advance` and PyYAML wrote:
+# a generator ran the reference over each input, and the test holds the port
+# to those bytes. A fold of any kind would compare with this repository.
+internal/brain/apply/testdata/frontmatter/** -text
