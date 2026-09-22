@@ -191,7 +191,7 @@ func writeRegistryWithOneArea(t *testing.T, registryDir string) {
 }
 
 // TestTheDefaultAnswerTakesThisServicesQmdLock covers the call site of
-// qmdOptions rather than its body. The re-review of task 10 found the mutation
+// qmdOptions rather than its body. A review found the mutation
 // that survives everything above: answerFunc reverted to answer.Run answers
 // just as well, and only a run of the whole answer says which lock it took.
 //

@@ -19,7 +19,7 @@ import (
 const neverReconciled = "last reconcile: never; run `brain reconcile`"
 
 // asked is the moment every test asks at: the stale stamps lie before it and
-// the fresh ones after, as in the recorded worlds of Task 12.
+// the fresh ones after, as in the recorded worlds.
 func asked() time.Time { return time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC) }
 
 // world keeps the registry, the legacy state directory and the writable

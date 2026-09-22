@@ -84,8 +84,8 @@ func TestReceiverTypeOnUnreadableExpr(t *testing.T) {
 }
 
 func TestReceiverVar(t *testing.T) {
-	// callEdges (Task 4) is the only production caller; nothing in this task
-	// invokes receiverVar, so its arms are covered here directly.
+	// Extraction calls receiverVar only for a method, whose receiver list is
+	// never nil, so the nil and the empty arm are covered here directly.
 	if got := receiverVar(nil); got != "" {
 		t.Errorf("receiverVar(nil) = %q, want empty", got)
 	}
