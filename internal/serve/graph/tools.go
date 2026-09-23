@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -395,8 +396,8 @@ func parseDepth(v any) blast.Depth {
 			return blast.Depth(n)
 		}
 	case float64:
-		if val > 0 {
-			return blast.Depth(int(val))
+		if n := int(math.Floor(val)); n >= 1 {
+			return blast.Depth(n)
 		}
 	}
 	return 1

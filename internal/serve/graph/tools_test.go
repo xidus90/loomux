@@ -1165,3 +1165,18 @@ func TestRepoMap(t *testing.T) {
 		t.Fatalf("cloud panic must be cloudPanic, got %q", text)
 	}
 }
+
+func TestParseDepthFloorsAndNeverGoesBelowOne(t *testing.T) {
+	cases := []struct {
+		in   any
+		want blast.Depth
+	}{
+		{0.5, 1}, {2.7, 2}, {3.0, 3}, {-4.0, 1}, {"all", blast.All}, {"FULL", blast.All},
+		{"2", 2}, {"0", 1}, {"x", 1}, {nil, 1}, {true, 1},
+	}
+	for _, c := range cases {
+		if got := servegraph.ParseDepth(c.in); got != c.want {
+			t.Errorf("parseDepth(%v) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
