@@ -4,6 +4,19 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.8.0] - 2026-09-23
+
+<https://github.com/xidus90/loomux/pull/20>
+
+### Added
+- `loomux brain check file|bundle|all [--notes]` checks pages, bundles and the federation against the Open Knowledge Format and the house rules.
+- `loomux lint --scope all|<scope>` lints every registered bundle, or one, by the rules of the reference lint.
+- `loomux wiki init`, `loomux wiki types` and `loomux wiki retype` lay out a bundle, count page types across every area, and rename a page type.
+- `loomux serve` catches up on the daily reconciliation before its first answer when the last pass is more than a day old, and reports open cases and failures of the pass with its answers.
+
+### Changed
+- `loomux lint` without a file no longer stops with a usage error; it lints every registered bundle.
+
 ## [2.7.0] - 2026-09-23
 
 <https://github.com/xidus90/loomux/pull/19>
