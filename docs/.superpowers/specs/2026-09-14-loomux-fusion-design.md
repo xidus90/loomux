@@ -564,7 +564,7 @@ Paritätsakte (`parity/stufe-3a.md`, `parity/stufe-3b.md`):
 |---|---|---|
 | **3a** Erkennen | ✅ 2026-09-22 (Plan `2026-09-20-loomux-stufe-3a.md`) | `lock.ReplaceText`, `legacy.go` auf „neu zuerst, alt als Rückfall“, die Registry-Schreibseite, `loomux area add`, `loomux reindex` und `loomux embed` (Umzug `ultra-brain/pkg/index`, Nachtrag #17), `loomux reconcile` samt Lese- und Ablageseite des Ereignisprotokolls, der Auffangdurchgang vor `reindex`. Die Selbstnutzung lief zuerst auf Entscheidung des Nutzers nur gegen eine Kopie der Registry; der Umstieg folgte am 2026-09-22 nach dem Merge: ein `[index]` in `.loomux/config.toml` (Auflage S3 der Akte), dann `reindex` und `embed` über die echte Registry |
 | **3b** Entscheiden | ✅ 2026-09-23 (Plan `2026-09-22-loomux-stufe-3b.md`, Bauweise hybrid, Stufe-3-Spec, „Bauweise“) | `loomux cases`, `loomux case`, `loomux approve`; `apply`, `evidence`, die Schreibseite von `vcs`. Hängt an den Fällen aus 3a. 24 Fälle gegen die Python-Referenz, 19 ohne Unterschied nach der Normalisierung (stderr nicht verglichen), 5 freigegeben. Die Selbstnutzung lief am 2026-09-23 gegen die echte Registry: `cases` und `case` über das Prüfzentrum des Tresors gleich der Python-Referenz, `approve` auf Entscheidung des Nutzers nur mit `--defer` (Akte, „Selbstnutzung“). Was nach 3b zu entscheiden bleibt, steht unter „Offen nach 3b“ |
-| **3c** Pflegen | offen | `loomux check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1), `loomux lint --scope all` (#2), `wiki types\|retype\|census\|scaffold`, Upkeep in `serve`. Upkeep ruft `reconcile` aus 3a |
+| **3c** Pflegen | offen (Plan `2026-09-23-loomux-stufe-3c.md`, Entscheidungen freigegeben 2026-09-23) | `loomux brain check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1; `loomux check all` ist die Prüfkette, darum unter `brain`); `loomux lint --scope all\|<scope>` (#2) mit den zwölf Regeln von `lint.py` als eigenem Regelsatz neben der Go-Form, die `lint <datei>`, `wiki-gate` und die Lane behalten; `loomux wiki init\|types\|retype` — die drei Befehle der Referenz, `census` ist `types` und `scaffold` ist `wiki init`; Upkeep in `serve`, der nur `reconcile` aus 3a ruft. `brain check code` fällt weg (#18) |
 
 **Säule 3, der Code-Graph** (`2026-09-14-loomux-code-graph-design.md`). Sie
 steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
@@ -614,7 +614,7 @@ Doku, fand sechzehn Stellen, die weder in loomux gebaut noch in dieser Spec
 oder einer Paritätsakte genannt waren — gegen den Grundsatz unter „Ziel“, dass
 nichts ersatzlos wegfällt, ohne in einer Liste zu stehen. Eine siebzehnte fand
 am selben Tag die Spec der Stufe 3 (`2026-09-19-loomux-stufe-3-design.md`,
-„Befunde“). Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
+„Befunde“), eine achtzehnte am 2026-09-23 der Plan von 3c. Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
 der Nutzer, erst dann gilt sie.
 
 | # | Quelle | Stelle | Vorschlag | Begründung | Freigabe |
@@ -636,6 +636,7 @@ der Nutzer, erst dann gilt sie.
 | 15 | ultraloom | `scripts/install.ps1` und `install.sh`: Bauen in `~/go/bin` | Stufe 4 (`loomux init`) | Release-Archive gibt es, aber keinen Weg, das Binary auf den `PATH` zu legen | |
 | 16 | ultraloom | `ulinit --detect-only` (`cmd/init/main.go:44`) | Stufe 4, als `loomux init --detect-only` | `internal/detect` ist da, nur ohne Befehl | |
 | 17 | ultra-brain | `reindex` und `embed` als Befehle (`ultra-brain/pkg/index`, `src/brain/cli.py:463,467`); `embed` allein ist #3 | Stufe 3a | Der Auffangdurchgang koppelt `reconcile` an `reindex` („`reconcile` auch als Durchgang vor `reindex`“ nennt einen Befehl, den es in loomux nicht gab), und `embed` ist ohne `reindex` gegenstandslos | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 |
+| 18 | ultra-brain | `brain check code` (`pkg/check/code`, die Lanes aus `[check].lanes`) | Wegfall | Die Prüfkette aus 2a (`[verify]`, Presets je Stack, `loomux check`) fährt dieselben Lanes samt Reihenfolge und Coverage-Tor; eine zweite Lane-Konfiguration stünde daneben. `Manifest.Lanes` bleibt geparst, bis `loomux migrate` (Stufe 4) es nach `[verify]` überträgt. Gefunden beim Planen von 3c | freigegeben 2026-09-23 |
 
 ### Offen nach 3b
 
