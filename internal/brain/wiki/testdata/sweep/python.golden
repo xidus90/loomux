@@ -1,0 +1,49 @@
+d.md:missing-type:error: '' is neither core nor catalogue; add it to `[wiki] types` in the area's manifest, or use a catalogue name
+f.md:broken-frontmatter:error: frontmatter is unreadable: frontmatter is not a mapping
+h.md:missing-type:error: no type; every OKF page needs one
+raw/s.md:missing-type:error: no type; every OKF page needs one
+sub dir/c.md:broken-frontmatter:error: frontmatter is unreadable: while parsing a flow sequence
+  in "<unicode string>", line 1, column 7:
+    type: [unclosed
+          ^
+expected ',' or ']', but got '<stream end>'
+  in "<unicode string>", line 1, column 16:
+    type: [unclosed
+                   ^
+topics/b.md:missing-type:error: 'Design Decision' is an old name for 'Decision'; rename it
+topics/orphaned.md:missing-type:error: 'topic' is neither core nor catalogue; add it to `[wiki] types` in the area's manifest, or use a catalogue name
+f.md:no-sources:error: sources[] is empty
+g.md:no-sources:error: sources[] is empty
+h.md:no-sources:error: sources[] is empty
+i.md:no-sources:error: sources[] is empty
+raw/s.md:no-sources:error: sources[] is empty
+sub dir/c.md:no-sources:error: sources[] is empty
+topics/b.md:no-sources:error: source entries lack id, resource, doc_id, content_hash or revision: s2, <unnamed>
+topics/orphaned.md:no-sources:error: sources[] is empty
+d.md:orphan:error: no page and no catalog entry links here
+e.md:orphan:error: no page and no catalog entry links here
+f.md:orphan:error: no page and no catalog entry links here
+g.md:orphan:error: no page and no catalog entry links here
+h.md:orphan:error: no page and no catalog entry links here
+i.md:orphan:error: no page and no catalog entry links here
+raw/s.md:orphan:error: no page and no catalog entry links here
+topics/orphaned.md:orphan:error: no page and no catalog entry links here
+Upper.md:orphan:error: no page and no catalog entry links here
+index.md:unlisted-area:error: the signpost does not link to area 'project/q'; expected one of: {{BASE}}\other\wiki\nope, {{BASE}}\Hub\q.md
+index.md:unlisted-area:error: the signpost does not link to area 'project/r'; expected one of: {{BASE}}\rwiki
+a.md:dead-link:error: target does not exist: %zz.md (resolved: %zz.md)
+a.md:dead-link:error: target does not exist: /../escape.md (resolved: escape.md)
+a.md:dead-link:error: target does not exist: /abs.md (resolved: abs.md)
+a.md:dead-link:error: target does not exist: Wiki Link (resolved: Wiki Link)
+a.md:dead-link:error: target does not exist: c.md?x=1#f (resolved: c.md)
+a.md:dead-link:error: target does not exist: missing.md (resolved: missing.md)
+a.md:dead-link:error: target does not exist: spaced (resolved: spaced)
+topics/b.md:dead-link:error: target does not exist: r (resolved: topics/r)
+a.md:outside-area:warning: target leaves the area and cannot be checked: ../up.md
+e.md:wrong-direction:error: a shared area must not cite 'project/x/topics/y'; promote the page instead (architecture 5.7.4)
+d.md:conflict-count:error: open_conflicts says 2, 1 box(es) found
+sub dir/c.md:conflict-count:error: 1 conflict box(es) present, open_conflicts is missing
+e.md:untouched:warning: unchanged for more than 30 days
+d.md:stale:error: stale_after 2020-01-01 has passed
+d.md:implemented-without-commit:error: realization: implemented without implemented_in
+e.md:long-planned:warning: planned and untouched since 2026-01-01

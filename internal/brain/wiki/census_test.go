@@ -214,7 +214,7 @@ func TestTheWalkSortsAsPythonSortsPathsOnWindows(t *testing.T) {
 		writeCensusFile(t, filepath.Join(root, filepath.FromSlash(name)), "")
 	}
 	var got []string
-	for _, path := range markdownBelow(root) {
+	for _, path := range MarkdownBelow(root) {
 		rel, _ := filepath.Rel(root, path)
 		got = append(got, filepath.ToSlash(rel))
 	}

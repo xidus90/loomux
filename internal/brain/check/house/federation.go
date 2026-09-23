@@ -49,9 +49,9 @@ import (
 // `unlisted_area` before `wrong_direction`. It is not the output order --
 // `check.Sort` is the job of whoever merges the axes.
 func Federation(
-	bundles map[string][]wiki.WikiPage, areas []config.Area,
+	bundles map[string][]wiki.WikiPage, areas []config.Area, lookup config.ArtifactLookup,
 ) []check.Finding {
-	return FederationFor(areas, bundles, areas)
+	return FederationFor(areas, bundles, areas, lookup)
 }
 
 // FederationFor runs the same two rules over the areas named in
@@ -74,10 +74,10 @@ func Federation(
 // question.
 func FederationFor(
 	subjects []config.Area, bundles map[string][]wiki.WikiPage,
-	areas []config.Area,
+	areas []config.Area, lookup config.ArtifactLookup,
 ) []check.Finding {
 	var out []check.Finding
-	out = append(out, unlistedArea(subjects, bundles, areas)...)
+	out = append(out, unlistedArea(subjects, bundles, areas, lookup)...)
 	out = append(out, wrongDirection(subjects, bundles, areas)...)
 	return out
 }
@@ -281,14 +281,14 @@ func wrongDirection(
 // and not in their pages.
 func unlistedArea(
 	subjects []config.Area, bundles map[string][]wiki.WikiPage,
-	areas []config.Area,
+	areas []config.Area, lookup config.ArtifactLookup,
 ) []check.Finding {
 	var out []check.Finding
 	for _, area := range subjects {
 		if !area.Signpost || area.WikiPath == "" {
 			continue
 		}
-		hub, mayRun := hubFolder(area)
+		hub, mayRun := hubFolder(area, lookup)
 		if !mayRun {
 			continue
 		}
@@ -363,15 +363,14 @@ func missingFromSignpost(
 // whoever reads that manifest for its other values -- this rule has no
 // channel to carry it.
 //
-// The manifest is read at the signpost's area *path*, which is where
-// `manifest_path` looks for a writable area (`src/brain/registry.py:129`
-// returns `area.path` unless the area is `readonly`, in which case it
-// reads out of the state directory). A read-only signpost would
-// therefore be read from a different file on the two sides; the real
-// registration has none, and the signpost is by definition the area one
-// writes the federation's entrance into.
-func hubFolder(signpost config.Area) (string, bool) {
-	manifest, err := config.ReadAreaManifestUntilStage4(signpost.Path)
+// The manifest is read where `manifest_path` looks for it
+// (`src/brain/registry.py:129`): at the area's path, or for a read-only
+// area out of the state directory -- `config.ResolvedAreaDir`, the same
+// answer `run.areaManifest` and the sweep take for every other value of
+// that file.
+func hubFolder(signpost config.Area, lookup config.ArtifactLookup) (string, bool) {
+	manifest, err := config.ReadAreaManifestUntilStage4(
+		config.ResolvedAreaDir(signpost, lookup.Primary, lookup.Fallback))
 	if errors.Is(err, config.ErrNoManifest) {
 		return "", true
 	}
@@ -479,51 +478,19 @@ func catalogTargets(pages []wiki.WikiPage, root string) []string {
 }
 
 // namesAny asks whether any catalog link names any of an area's targets.
+//
+// One link names one target by `wiki.LinkNames`, the sweep's own answer:
+// a hub target by equality, a wiki by any path below it, taken by
+// component so `python-old` never names `python`, and without regard to
+// case, as `WindowsPath` compares. A second spelling here once compared
+// exactly and reported a folder the registry spelt in another case.
 func namesAny(linked, targets []string) bool {
 	for _, link := range linked {
 		for _, target := range targets {
-			if names(link, target) {
+			if wiki.LinkNames(link, target) {
 				return true
 			}
 		}
 	}
 	return false
-}
-
-// names decides whether one catalog link names one target, and the two
-// kinds of target are asked different questions on purpose.
-//
-// A wiki is a directory and the signpost may point at any page inside
-// it, so anything below it counts. A hub target is a single page and
-// nothing lies below a page -- but the wider question would pass a path
-// merely spelt below it. Python's own example
-// (`src/brain/wiki/lint.py:492-493`):
-// `Path("p.md/deeper.md").is_relative_to(Path("p.md"))` is True.
-//
-// The suffix is what tells the two apart, and this is the one place the
-// brief's wording had to be checked rather than copied: Python asks
-// `target.suffix == ".md"`, not whether the target is a directory. For
-// the two kinds `_expected_targets` builds -- a hub target with `.md`
-// appended, a wiki target from the registration, where a bundle is a
-// folder -- the two questions agree, and `filepath.Ext` is
-// case-sensitive exactly as `PurePath.suffix` is.
-//
-// The prefix is taken by path component and not by string, or
-// `.../python-old/index.md` would name the area `.../python`. Python's
-// `is_relative_to` compares components for the same reason.
-//
-// Compared exactly, where `WindowsPath.__eq__` and `is_relative_to` fold
-// case. Measured against the real registration, every path agrees in
-// spelling on both sides, so the difference costs nothing today; it
-// would show on a vault whose catalog spelt a folder differently from
-// the registry entry.
-func names(link, target string) bool {
-	if filepath.Ext(target) == ".md" {
-		return link == target
-	}
-	// Equality is asked separately here, where `is_relative_to` folds it
-	// into the one question: a link that hits the directory itself
-	// carries no trailing separator.
-	return link == target ||
-		strings.HasPrefix(link, target+string(filepath.Separator))
 }
