@@ -3,7 +3,9 @@ package run
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
+	"github.com/xidus90/loomux/internal/brain/pytext"
 	"github.com/xidus90/loomux/internal/config"
 )
 
@@ -52,15 +54,15 @@ func Targets(areas []config.Area, scope string) ([]config.Area, error) {
 		}
 		if area.WikiPath == "" {
 			return nil, fmt.Errorf(
-				"area %q declares no wiki path; "+
-					"add `wiki = ...` to its entry", scope)
+				"area %s declares no wiki path; "+
+					"add `wiki = ...` to its entry", pytext.Repr(scope))
 		}
 		if err := existing(area); err != nil {
 			return nil, err
 		}
 		return []config.Area{area}, nil
 	}
-	return nil, fmt.Errorf("no area named %q in the registry", scope)
+	return nil, fmt.Errorf("no area named %s in the registry", pytext.Repr(scope))
 }
 
 // existing is `_existing` of `src/brain/cli.py:1478-1484`: the wiki path
@@ -79,7 +81,7 @@ func existing(area config.Area) error {
 		return nil
 	}
 	return fmt.Errorf(
-		"area %q has no wiki at %s; "+
+		"area %s has no wiki at %s; "+
 			"run `loomux wiki init --scope %s` first",
-		area.Scope, area.WikiPath, area.Scope)
+		pytext.Repr(area.Scope), filepath.Clean(area.WikiPath), area.Scope)
 }
