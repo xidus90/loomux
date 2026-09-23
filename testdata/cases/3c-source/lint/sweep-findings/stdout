@@ -1,0 +1,6 @@
+project/a
+  c.md:no-sources: sources[] is empty
+  c.md:dead-link: target does not exist: gone.md (resolved: gone.md)
+  c.md:outside-area: target leaves the area and cannot be checked: ../outside.md
+  c.md:stale: stale_after 2020-01-01 has passed
+4 findings (3 errors, 1 warnings)

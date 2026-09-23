@@ -1,0 +1,11 @@
+knowledge
+  index.md:unlisted-area: the signpost does not link to area 'project/a'; expected one of: {{WORLD}}\repo-a\wiki, {{WORLD}}\repo-k\Hub\a.md
+  index.md:unlisted-area: the signpost does not link to area 'engineering/x'; expected one of: {{WORLD}}\repo-x\wiki, {{WORLD}}\repo-k\Hub\x.md
+  a.md:wrong-direction: a shared area must not cite 'x/y'; promote the page instead (architecture 5.7.4)
+  b.md:wrong-direction: a shared area must not cite 'x/y'; promote the page instead (architecture 5.7.4)
+project/a
+  no findings
+engineering/x
+  a.md:wrong-direction: a shared area must not cite 'project/a/topics/y'; promote the page instead (architecture 5.7.4)
+  b.md:wrong-direction: a shared area must not cite 'x/y'; promote the page instead (architecture 5.7.4)
+6 findings (6 errors, 0 warnings)

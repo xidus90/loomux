@@ -1,0 +1,14 @@
+[[area]]
+scope = "project/a"
+path = "{{WORLD}}/repo-a"
+wiki = "{{WORLD}}/repo-a/wiki"
+
+[[area]]
+scope = "project/nowiki"
+path = "{{WORLD}}/repo-n"
+
+[[area]]
+scope = "project/gone"
+path = "{{WORLD}}/repo-g"
+wiki = "{{WORLD}}/repo-g/wiki"
+
