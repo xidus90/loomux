@@ -50,7 +50,12 @@ func ReadPage(filePath, wikiRoot string) (*WikiPage, error) {
 	if err != nil {
 		return nil, err
 	}
+	return pageFrom(content, filePath, wikiRoot), nil
+}
 
+// pageFrom is ReadPage on bytes already read, for a caller that needs the
+// file's own text as well: reading it twice would let the two disagree.
+func pageFrom(content []byte, filePath, wikiRoot string) *WikiPage {
 	rel, err := filepath.Rel(wikiRoot, filePath)
 	if err != nil {
 		rel = filePath
@@ -139,7 +144,7 @@ func ReadPage(filePath, wikiRoot string) (*WikiPage, error) {
 	cBoxes := conflictBoxRe.FindAllString(string(content), -1)
 	page.FoundConflicts = len(cBoxes)
 
-	return page, nil
+	return page
 }
 
 // markdownLinks is `mdLinkRe` plus the one thing RE2 cannot express: the
