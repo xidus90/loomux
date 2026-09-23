@@ -26,7 +26,24 @@ type Deps struct {
 	Answer      func(answer.Request, string, string, func(string)) (string, []string, error)
 	RegistryDir string
 	LegacyDir   string
+	// Upkeep is the daily reconciliation of the serve process. Nil means no
+	// catch-up behind these tools, which is what a test of one tool wants and
+	// what serve never asks for.
+	Upkeep Upkeep
 }
+
+// Upkeep is what the tools ask of the daily reconciliation: whether its first
+// pass is behind, a wait for it, and the lines an answer carries beyond itself.
+type Upkeep interface {
+	Settled() bool
+	CaughtUp(ctx context.Context) error
+	Trailer(cmd string, ch privacy.Channel) ([]string, error)
+}
+
+// CatchUpNotice is what a tool call hears while it waits for the first pass.
+const CatchUpNotice = "catching up on the daily reconciliation before answering: the last full pass is " +
+	"more than 24 hours old, and it stats every registered source and hashes the " +
+	"suspects (arch 10.3)."
 
 // Register adds the five tools to server. The channel is the listener's, never
 // an argument: a channel a caller can name is a claim.
@@ -50,6 +67,17 @@ func handler(name string, channel privacy.Channel, deps Deps) mcp.ToolHandler {
 			Channel: channel,
 		}
 		notice := func(message string) { report(ctx, req, message) }
+		if deps.Upkeep != nil {
+			// Before every answer, the model-free ones included: an answer
+			// built on knowledge nobody has checked is what the catch-up
+			// prevents. Said before the wait, which a full pass can make long.
+			if !deps.Upkeep.Settled() {
+				notice(CatchUpNotice)
+			}
+			if err := deps.Upkeep.CaughtUp(ctx); err != nil {
+				return nil, err
+			}
+		}
 		out, notes, err := refuse(args, cmd)
 		if err == nil {
 			out, notes, err = deps.Answer(request, deps.RegistryDir, deps.LegacyDir, notice)
@@ -69,8 +97,25 @@ func handler(name string, channel privacy.Channel, deps Deps) mcp.ToolHandler {
 		for _, note := range notes {
 			report(ctx, req, note)
 		}
+		text := withFindings(cmd, forMCP(cmd, out), notes)
+		if deps.Upkeep != nil {
+			trailer, err := deps.Upkeep.Trailer(cmd, channel)
+			if err != nil {
+				// The answer above is ready and right; losing the notes around
+				// it is no reason to lose it too. The cause names host paths
+				// more often than not, so only the local channel reads it.
+				tail := ": " + err.Error()
+				if channel != privacy.ChannelLocal {
+					tail = " (the cause is named on the local channel)"
+				}
+				trailer = []string{"! the notes of the daily reconciliation could not be read" + tail}
+			}
+			// Into the one text block, under the answer, as the reference's
+			// `_with_notes` puts them; an error answer above stays untouched.
+			text = strings.Join(append([]string{text}, trailer...), "\n")
+		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: withFindings(cmd, forMCP(cmd, out), notes)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: text}},
 		}, nil
 	}
 }
