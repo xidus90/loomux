@@ -26,6 +26,21 @@ func forbiddenForHooks() []string {
 	}
 }
 
+// forbiddenMaintenanceForHooks is the part of brain that decides review cases:
+// the PyYAML port, the evidence binding, the write barrier and the commit
+// plumbing. None of it belongs on the per-edit path. It is a list of its own
+// because TestTheCommandLineDoesReachServeAndTheBridge asserts that the
+// command line reaches every entry of forbiddenForHooks, and that test is
+// about the MCP stack, not about these packages.
+func forbiddenMaintenanceForHooks() []string {
+	return []string{
+		"github.com/xidus90/loomux/internal/brain/apply",
+		"github.com/xidus90/loomux/internal/brain/evidence",
+		"github.com/xidus90/loomux/internal/brain/maintenance",
+		"github.com/xidus90/loomux/internal/brain/vcs",
+	}
+}
+
 // dependencies is the import graph of one package as a set of whole lines.
 // Both directions ask through it: a check by substring would read
 // `.../internal/serve/brain` as `.../internal/serve`, and a go list that
@@ -58,6 +73,31 @@ func TestHooksNeverImportServeOrBridge(t *testing.T) {
 	for _, forbidden := range forbiddenForHooks() {
 		if seen[forbidden] {
 			t.Errorf("%s depends on %s, which puts the MCP stack on the per-edit path", hooksPackage, forbidden)
+		}
+	}
+}
+
+// TestHooksNeverImportTheMaintenanceLayer holds the same boundary for the
+// packages behind approve, reject and defer. The command line reaches each of
+// them, so a hit here is a real edge and not a list gone stale.
+func TestHooksNeverImportTheMaintenanceLayer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("asks the go tool for the import graph")
+	}
+	hooks, err := dependencies(hooksPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cli, err := dependencies("github.com/xidus90/loomux/internal/cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range forbiddenMaintenanceForHooks() {
+		if hooks[forbidden] {
+			t.Errorf("%s depends on %s, which puts the maintenance layer on the per-edit path", hooksPackage, forbidden)
+		}
+		if !cli[forbidden] {
+			t.Errorf("the command line does not reach %s, so the boundary test proves nothing", forbidden)
 		}
 	}
 }
