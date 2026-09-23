@@ -1,6 +1,7 @@
 package maintenance_test
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -915,5 +916,20 @@ func junction(t *testing.T, link, target string) {
 	command := exec.Command("cmd", "/c", "mklink", "/J", link, target)
 	if out, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("mklink /J %s %s: %v\n%s", link, target, err, out)
+	}
+}
+
+// A pass whose context has ended stops before it writes anything: no case,
+// no stamp. Serve cancels the pass it carries when it shuts down, and a
+// half-written pass would let the next serve find a stamp nobody earned.
+func TestReconcileContextStopsBeforeItWritesWhenCancelled(t *testing.T) {
+	w := changedSource(t, sourceArea("project/a"))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := maintenance.ReconcileContext(ctx, w.Areas, w.Lookup(), w.Now()); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if _, ok, err := search.ReadLastRun(w.StateDir, w.Fallback); ok || err != nil {
+		t.Fatalf("a cancelled pass left a stamp (ok %v, err %v)", ok, err)
 	}
 }
