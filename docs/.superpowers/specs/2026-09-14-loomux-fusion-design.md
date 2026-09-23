@@ -11,8 +11,9 @@ am 2026-09-22) sind abgeschlossen. Der Eintrag der drei Hooks in
 Stufe 3 ist in 3a, 3b und 3c zerfallen und lief parallel zu 2b und 2c; 3a
 (`reindex`, `embed`, `reconcile`, `area add`) ist fertig (2026-09-22), samt
 Selbstnutzung über die echte Registry. 3b (`cases`, `case`, `approve`) ist
-fertig (2026-09-23), samt Selbstnutzung über die echte Registry. 3c und 4
-sind offen. Siebzehn
+fertig (2026-09-23), samt Selbstnutzung über die echte Registry. 3c (`brain check`,
+`lint --scope`, `wiki init|types|retype`, die Aufholung in `serve`) ist fertig
+(2026-09-23), die lesenden Befehle samt Selbstnutzung. Stufe 4 ist offen. Siebzehn
 Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
 „Stufen“ im Abschnitt „Nachgetragen“; #1, #2, #3 und #17 sind freigegeben.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
@@ -564,7 +565,7 @@ Paritätsakte (`parity/stufe-3a.md`, `parity/stufe-3b.md`):
 |---|---|---|
 | **3a** Erkennen | ✅ 2026-09-22 (Plan `2026-09-20-loomux-stufe-3a.md`) | `lock.ReplaceText`, `legacy.go` auf „neu zuerst, alt als Rückfall“, die Registry-Schreibseite, `loomux area add`, `loomux reindex` und `loomux embed` (Umzug `ultra-brain/pkg/index`, Nachtrag #17), `loomux reconcile` samt Lese- und Ablageseite des Ereignisprotokolls, der Auffangdurchgang vor `reindex`. Die Selbstnutzung lief zuerst auf Entscheidung des Nutzers nur gegen eine Kopie der Registry; der Umstieg folgte am 2026-09-22 nach dem Merge: ein `[index]` in `.loomux/config.toml` (Auflage S3 der Akte), dann `reindex` und `embed` über die echte Registry |
 | **3b** Entscheiden | ✅ 2026-09-23 (Plan `2026-09-22-loomux-stufe-3b.md`, Bauweise hybrid, Stufe-3-Spec, „Bauweise“) | `loomux cases`, `loomux case`, `loomux approve`; `apply`, `evidence`, die Schreibseite von `vcs`. Hängt an den Fällen aus 3a. 24 Fälle gegen die Python-Referenz, 19 ohne Unterschied nach der Normalisierung (stderr nicht verglichen), 5 freigegeben. Die Selbstnutzung lief am 2026-09-23 gegen die echte Registry: `cases` und `case` über das Prüfzentrum des Tresors gleich der Python-Referenz, `approve` auf Entscheidung des Nutzers nur mit `--defer` (Akte, „Selbstnutzung“). Was nach 3b zu entscheiden bleibt, steht unter „Offen nach 3b“ |
-| **3c** Pflegen | offen (Plan `2026-09-23-loomux-stufe-3c.md`, Entscheidungen freigegeben 2026-09-23) | `loomux brain check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1; `loomux check all` ist die Prüfkette, darum unter `brain`); `loomux lint --scope all\|<scope>` (#2) mit den zwölf Regeln von `lint.py` als eigenem Regelsatz neben der Go-Form, die `lint <datei>`, `wiki-gate` und die Lane behalten; `loomux wiki init\|types\|retype` — die drei Befehle der Referenz, `census` ist `types` und `scaffold` ist `wiki init`; Upkeep in `serve`, der nur `reconcile` aus 3a ruft. `brain check code` fällt weg (#18) |
+| **3c** Pflegen | ✅ 2026-09-23 (Plan `2026-09-23-loomux-stufe-3c.md`, Akte `parity/stufe-3c.md`; 35 Fälle, 34 ohne Unterschied, einer freigegeben) | `loomux brain check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1; `loomux check all` ist die Prüfkette, darum unter `brain`); `loomux lint --scope all\|<scope>` (#2) mit den zwölf Regeln von `lint.py` als eigenem Regelsatz neben der Go-Form, die `lint <datei>`, `wiki-gate` und die Lane behalten; `loomux wiki init\|types\|retype` — die drei Befehle der Referenz, `census` ist `types` und `scaffold` ist `wiki init`; Upkeep in `serve`, der nur `reconcile` aus 3a ruft. `brain check code` fällt weg (#18) |
 
 **Säule 3, der Code-Graph** (`2026-09-14-loomux-code-graph-design.md`). Sie
 steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
@@ -600,9 +601,9 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 |---|---|---|---|
 | — | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | ✅ Fertig (2026-09-22). Die Claude-Seite bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Antigravity-Messung durchgeführt und Adapter implementiert. Voraussetzung für `init` in Stufe 4 |
 | — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
-| 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c hängt mit dem Upkeep an `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
+| 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c ist fertig (2026-09-23), der Upkeep ruft `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | 2 | **G4** übrige `graph`-Palette, Blast-Monitor | G3 ✅ | Sofort baubar, neben der Fusion. W3 und W4 warten darauf |
-| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 (3a ✅, 3b ✅, 3c offen) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
+| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
 | 4 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
 | 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4; W4 an G4 und 4; W5 an W1 und Flow | Folgeprojekt |
 | 6 | **G5** `wazero` | G4 | Nichts wartet darauf |
@@ -619,8 +620,8 @@ der Nutzer, erst dann gilt sie.
 
 | # | Quelle | Stelle | Vorschlag | Begründung | Freigabe |
 |---|---|---|---|---|---|
-| 1 | ultra-brain | `brain check file\|bundle\|all` mit den Achsen OKF, Hausregeln, Föderation (`pkg/check/{okf,house,run}`, `cmd/brain/main.go:937`) | Stufe 3 | Nur das Basispaket `check` ist umgezogen; `internal/brain/wiki/lint.go` verweist die Regeln (`wrong-direction`, `long-planned`, `no-sources`, `log-date-form` …) an Checks, die es in loomux nicht gibt. Die Brain-Skills rufen `brain check` | freigegeben 2026-09-19, Stufe 3c |
-| 2 | ultra-brain | `lint` ohne Pfad und mit `--scope all` (`src/brain/cli.py:562`) | Stufe 3, mit #1 | `loomux lint` verlangt genau eine Datei. Den Lint über das ganze Bündel hat heute nur `wiki-gate`, und das nur zusammen mit der Driftprüfung | freigegeben 2026-09-19, Stufe 3c |
+| 1 | ultra-brain | `brain check file\|bundle\|all` mit den Achsen OKF, Hausregeln, Föderation (`pkg/check/{okf,house,run}`, `cmd/brain/main.go:937`) | Stufe 3 | Nur das Basispaket `check` ist umgezogen; `internal/brain/wiki/lint.go` verweist die Regeln (`wrong-direction`, `long-planned`, `no-sources`, `log-date-form` …) an Checks, die es in loomux nicht gibt. Die Brain-Skills rufen `brain check` | freigegeben 2026-09-19, Stufe 3c; gebaut 2026-09-23 |
+| 2 | ultra-brain | `lint` ohne Pfad und mit `--scope all` (`src/brain/cli.py:562`) | Stufe 3, mit #1 | `loomux lint` verlangt genau eine Datei. Den Lint über das ganze Bündel hat heute nur `wiki-gate`, und das nur zusammen mit der Driftprüfung | freigegeben 2026-09-19, Stufe 3c; gebaut 2026-09-23 |
 | 3 | ultra-brain | `embed` als Befehl (`src/brain/cli.py:467`) | Stufe 3 | Gehört zu `reindex`; der Datenumzug (Punkt 3) rechnet schon mit „`reindex` + `embed` einmal je Bereich“. In loomux gibt es nur `QmdMcpPort.Embed` ohne Befehl | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 mit #17 |
 | 4 | ultra-brain | `brain layout` und `layout.json` (`pkg/layout`, `cmd/brain/main.go:340`) | Folgeprojekt Web-Migration | Nur die Web-App liest die Orte aus `layout.json` (`web/src/canvas/cosmos.test.ts`) | |
 | 5 | ultra-brain | `hook install\|status\|remove`: der post-merge-Hook in einwilligenden Repos (`src/brain/cli.py:625`) | Stufe 4 (`loomux init`) | Hooks schreibt `init`; der Hook selbst speist `merge-events` aus Stufe 3. Der Abschnitt „Git-Hooks“ kennt ihn noch nicht | |

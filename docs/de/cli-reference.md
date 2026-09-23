@@ -405,8 +405,33 @@ Gibt aus, was man wissen muss, bevor man einer Antwort traut, eine Zeile je Befu
 - **Suchmaschine**: Zwei Zeilen fragen die qmd-CLI (`qmd ls <collection>`, `qmd status`); antwortet sie nicht, sagt die Zeile das, und der Befehl läuft weiter.
 - **Exit-Codes**: `0`; `1` bei einem Laufzeitfehler (Registry, Manifest, Stempel, `graph.json`, Identitätsregister); `2` bei einem Usage-Fehler.
 
-### `loomux brain lint`
-Validiert Wiki-Links (`[[Seite]]`), verwaiste Dokumente, tote Referenzen und Frontmatter-Taxonomien.
+### Wiki-Pflege: `loomux brain check`, `loomux lint`, `loomux wiki`
+
+Seit Stufe 3c. Ein aufgezeichneter Fallkorpus (`testdata/cases/3c`) hält sie an der Referenz: `brain check` am Go-Binär von ultra-brain, denn eine Python-Form gibt es nicht, die übrigen an `brain-mcp`. Registry und Erklärungen kommen wie bei den Pflegebefehlen aus `LOOMUX_STATE_DIR`; die Erklärung eines Bereichs wird bis Stufe 4 auch unter `.ultra-brain/config.toml` und `.brain.toml` gelesen. Keiner nimmt `--state-dir`.
+
+#### `loomux brain check file <pfad> | bundle --scope <scope> | all [--notes]`
+Prüft Seiten nach den Achsen `okf` (was ein fremder Leser des Open Knowledge Format verlangt) und `house` (die strengeren Hausregeln samt Föderation: `wrong-direction`, `unlisted-area`).
+
+- **Breiten**: `file` eine Seite ohne Nachbarn; `bundle` einen registrierten Bereich, gegen die ganze Registry; `all` jeden Bereich mit Wiki. Die vierte Breite der Referenz, `code`, gibt es nicht: die Code-Lanes gehören `loomux check`.
+- **Ausgabe** auf `stdout`: je Befund `[<stufe>] <achse>/<regel> <scope>/<pfad>: <meldung>`, sortiert nach Scope, Pfad, Achse und Regel. Notizen erscheinen nur mit `--notes`, das nach der Breite an beliebiger Stelle stehen darf.
+- **Exit-Codes**: `0` geprüft und ohne Fehler; `1` mindestens ein Fehler-Befund; `2` der Lauf fand nicht statt — keine oder eine unbekannte Breite, ein Pfad, der fehlt oder keine Datei ist, `bundle` ohne `--scope` oder mit `--scope all` (das ist die Breite `all`), ein unbekannter Scope, eine Registry, die sich nicht lesen lässt (`error: <grund>` auf `stderr`).
+
+#### `loomux lint [<datei> | --file <datei>] [--scope all|<scope>] [--root <pfad>]`
+Ohne Datei der Lint über die registrierten Bereiche nach den zwölf Regeln von `lint.py` der Referenz; mit einer Datei (einem Pfad, der eine Datei ist, oder einem Namen auf `.md`) die Einzelseite der Stufe 1a, deren Regeln auch `loomux wiki-gate`, die Lane `lint/wiki` und der post-edit-Hook fahren.
+
+- **Über Bereiche**: `--scope all` (Standard) jeder Bereich mit Wiki-Pfad, sonst genau einer. Je Bereich eine Kopfzeile, darunter `  <pfad>:<regel>: <meldung>` oder `  no findings`; am Ende `no findings` oder `<n> findings (<e> errors, <w> warnings)`.
+- **Regeln**, in der Reihenfolge der Ausgabe: `broken-frontmatter`/`missing-type`, `no-sources`, `orphan`, `unlisted-area`, `dead-link`, `outside-area` (Warnung), `wrong-direction`, `conflict-count`, `untouched` (Warnung), `stale`, `implemented-without-commit`, `long-planned` (Warnung). Die letzten beiden nur in Bereichen der Familie `project/`; `unlisted-area` nur im Wegweiser.
+- **Weigerungen** (Exit `1`, `error: <grund>`, nichts auf `stdout`): ein unbekannter Scope, ein Bereich ohne Wiki-Pfad, ein Wiki-Pfad, der kein Verzeichnis ist (``… run `loomux wiki init --scope <scope>` first``, auch im Lauf über alle), eine Registry, die sich nicht lesen lässt. Eine Erklärung, die sich nicht lesen lässt, beendet den Lauf dort, wo er steht.
+- **Exit-Codes**: `0` ohne Fehler-Befund, auch mit Warnungen; `1` mit mindestens einem Fehler-Befund oder einer Weigerung; `2` bei einem Usage-Fehler.
+
+#### `loomux wiki init --scope <scope>`
+Legt das Gerüst des Wiki-Bündels eines Bereichs an (`_schema.md`, `index.md`, `log.md`, `audit.md`, `_identities.tsv`) und nennt jede geschriebene Datei. Eine vorhandene Datei bleibt, wie sie ist. Exit `1` bei einem unbekannten Scope, einem Bereich ohne Wiki-Pfad oder einem schreibgeschützten Bereich.
+
+#### `loomux wiki types`
+Zählt die Seitentypen über alle Bereiche mit Wiki: je Typ `<typ> [<rang>]: <summe> (<scope>: <n>, …)`, nach Summe absteigend, dann nach Name. Der Rang ist `core`, `catalogue`, `origin`, `declared` oder `unknown`; ein unbekannter Typ trägt das Präfix `? `, ein bekannter Altname ` -> <katalogname>`. Über Bereiche zählt der schlechteste Rang. Exit `0`, außer die Registry, eine Erklärung oder eine Seite lässt sich nicht lesen (`1`).
+
+#### `loomux wiki retype --scope <scope> --from <alt> --to <neu>`
+Benennt einen Seitentyp in einem Bündel um und nennt jede geschriebene Seite. Geändert wird nur die Zeile `type:` des Frontmatters; eine geschriebene Seite wird ganz auf LF gefaltet. Übersprungen werden Gerüstdateien, kaputtes Frontmatter (auch ein doppelter Schlüssel), Bytes, die kein UTF-8 sind, und ein gequoteter oder gefalteter Wert. Ein Zieltyp, den kein Rang kennt, ergibt eine Warnung auf `stderr`, der Lauf geht weiter. Exit `1` bei einem unbekannten Scope, einem Bereich ohne Wiki-Pfad oder einem schreibgeschützten Bereich.
 
 ### Pflege: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
 
@@ -517,6 +542,15 @@ Kind ausführt.
 - **Breakaway**: Wird das Lösen aus dem Job-Object des Wirts abgelehnt, wird der
   Start ohne diese Bitte wiederholt und der Befehl meldet `note: the breakaway
   was refused, so this service dies with its host`.
+- **Tägliche Aufholung** (seit Stufe 3c): Ist der letzte `reconcile` älter als
+  24 Stunden oder gab es noch keinen, fährt der Dienst ihn beim Start selbst und
+  danach alle 24 Stunden, solange er läuft; nie `reindex`. Jedes
+  `brain_*`-Werkzeug wartet auf den ersten Durchgang und meldet das als
+  Fortschritt. Was er gefunden hat, hängt an den Antworten: `brain_status` die
+  geöffneten Fälle, die unlesbaren Falldateien und einen Fehlschlag, die übrigen
+  vier eine Zeile mit `! ` (der Fehlschlag oder die Zahl der Fälle), alle außer
+  `brain_search` dazu die Zeile zum veralteten Stempel. Der Kanal `cloud` sieht
+  nur seine Bereiche und nicht die Ursache eines Fehlschlags.
 - **Exit-Codes**: `0` gestartet; `1` läuft bereits, oder Erzeugung bzw. Lauf
   sind gescheitert; `2` ein unbekanntes Argument oder ein unbekannter
   Unterbefehl.

@@ -1990,3 +1990,64 @@ dasselbe. Die Pakete der Stufe:
    größte Init von loomux ist weiter `internal/cases`, mit 446 (438 in Stufe
    3a): der Abstand zu 500 schrumpft. Über 300 liegen sonst nur `encoding/gob`
    (367–373) und `internal/verify/commit` (322), wie bisher.
+
+## 2026-09-23 20:21 — Stufe 3c: brain check, lint und wiki types gegen die Referenz
+
+Worktree `.claude/worktrees/recursing-bartik-b2d7a1`, Zweig
+`claude/mit-3c-fortsetzen-94e9a0` auf `c081369`. Referenz: ultra-brain auf
+`3cc72d2` (der Tag `loomux-3-source`); `brain check` gegen `brain-3c.exe`,
+das der Nutzer am 2026-09-23 vom Tag gebaut hat, `lint` und `types` gegen
+`ultra-brain/.venv/Scripts/brain-mcp.exe`, Python 3.14.7. loomux gebaut mit
+Go 1.27.0 `windows/amd64`. Rechner: AMD Ryzen 7 9800X3D.
+
+**Ziel.** Die drei lesenden Befehle der Stufe gegen die echte Registry dieses
+Rechners, je gegen ihre Referenz. Ein Zielwert war nicht gesetzt.
+
+**Methode.** Nur lesend. Beide Seiten auf dieselbe Registry:
+`LOOMUX_STATE_DIR` und `LOOMUX_LEGACY_BRAIN_DIR` auf `%LOCALAPPDATA%\brain`,
+den Zustandsort der Referenz, zehn Bereiche. Ausgaben verglichen (Akte
+`parity/stufe-3c.md`, „Selbstnutzung“): `check all --notes` byte-gleich,
+`lint --scope all` und `types` gleich bis auf das CRLF, das Pythons
+Textmodus-stdout unter Windows schreibt. Zeitmessung wie in 3b: ein
+PEP-723-Skript, `time.perf_counter_ns` um `subprocess.run`, je Fall ein erster
+und zehn warme Läufe, Median der warmen. Kalt heißt für loomux der erste Start
+einer frisch geschriebenen Kopie des Binärs, eine Kopie je Befehl; für die
+Referenz der erste Lauf der Reihe.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exitcodes |
+|---|---:|---:|---:|---:|---|
+| brain.exe check all | 50,7 ms | 44,0 ms | 38,7 ms | 46,4 ms | [0] |
+| loomux brain check all | 79,9 ms | 38,2 ms | 36,2 ms | 66,7 ms | [0] |
+| brain-mcp lint --scope all | 936,5 ms | 930,2 ms | 914,6 ms | 1025,9 ms | [0] |
+| loomux lint --scope all | 88,9 ms | 44,8 ms | 43,9 ms | 60,7 ms | [0] |
+| brain-mcp types | 908,5 ms | 919,5 ms | 903,6 ms | 932,1 ms | [0] |
+| loomux wiki types | 59,3 ms | 20,7 ms | 20,0 ms | 28,5 ms | [0] |
+| loomux --version (Startboden) | 47,1 ms | 11,9 ms | 11,4 ms | 12,3 ms | [0] |
+
+**Startzeit.** `GODEBUG=inittrace=1 loomux --version`. Die Pakete der Stufe:
+
+| Paket | Uhr | Bytes | Allokationen |
+|---|---:|---:|---:|
+| `internal/brain/check/okf` | 0 ms | 72 | 2 |
+| `internal/brain/check/run` | 0 ms | 256 | 2 |
+| `internal/brain/check/house` | kein Init | — | — |
+| `internal/brain/wiki` | 0 ms | 15.680 | 131 |
+| `internal/cli` | 0 ms | 1.752 | 10 |
+
+### Lesart
+
+1. **`brain check` ist gleichauf mit dem Go-Binär.** 38,2 ms gegen 44,0 ms
+   warm, beide über zehn Bereiche und dieselben Regeln; die Spannen
+   überschneiden sich am Rand (loomux bis 66,7 ms in einem Ausreißer).
+2. **`lint` und `types` sind 21- und 44-mal so schnell wie Python.** 44,8 ms
+   gegen 930,2 ms, 20,7 ms gegen 919,5 ms. Die Python-Zahlen liegen fast
+   gleich, obwohl `types` weniger tut; das deutet wie in 3b auf den Start von
+   Interpreter und Importen (nicht getrennt gemessen).
+3. **Der Startboden liegt bei 11,9 ms**, gegen 6,9 ms in der Messung von 3b.
+   Das Binär misst heute 20,2 MB; woraus die fünf Millisekunden bestehen, ist
+   nicht gemessen.
+4. **Die Startregel hält.** `okf` kompilierte seinen Regex für
+   Datumsüberschriften beim Paketstart (68 Allokationen, 0,5 ms) und tut das
+   seit dieser Stufe beim ersten Gebrauch (2 Allokationen). `wiki` steht mit
+   seinen drei Regexen aus Stufe 1a bei 131; der neue Leser des Lints baut
+   seine Muster erst im Aufruf.
