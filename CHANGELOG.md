@@ -4,6 +4,15 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.6.0] - 2026-09-23
+
+<https://github.com/xidus90/loomux/pull/18>
+
+### Added
+- Code graph navigation commands: `loomux graph callers`, `loomux graph skeleton`, `loomux graph grep`, `loomux graph map`, and `loomux graph stats`
+- Four new MCP tools: `graph_file_api`, `graph_trace_calls`, `graph_find_all`, and `graph_repo_map` with fail-closed privacy redaction on cloud channel
+- Query orchestration and pure algorithmic packages for AST symbol spans, blast resolution/walks, skeleton extraction, symbol-coupled grep, and token-budgeted repo orientation maps
+
 ## [2.5.0] - 2026-09-22
 
 <https://github.com/xidus90/loomux/pull/16>
