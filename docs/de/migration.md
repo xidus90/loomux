@@ -40,6 +40,75 @@ selbst benutzt, dann Größe. Festgelegt ist sie in der
 | **Flow** | offen | ultraloom | Folgeprojekt: die ulflow-Laufzeit, Journal, Resume und Replay, `verify_until_green` als Daten-Flow | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | 4 |
 | **W1 – W5** | offen | ultra-brain + neu | Web-OS: Hülle (W1), die Brain-Web-App (W2), Graph-Visualizer (W3), Skill-Suiten und Review (W4), Flow-Editor und Kanban (W5) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4a; W4 an G4b und 4; W5 an W1 und Flow | 5 |
 
+Die Stufen und worauf jede wartet, gezeichnet aus der Spalte „Hängt ab von“
+oben (`P` ist die Priorität einer offenen Stufe, 1 zuerst). Ein Pull Request,
+der eine Zeile ändert, ändert den Knoten mit:
+
+```mermaid
+flowchart TD
+    subgraph Fusion["Fusionsspur"]
+        s1a["1a Pilot, Wächter, Post-Edit"]:::done
+        s1b1["1b-1 Brain-Lesebefehle"]:::done
+        s1b2["1b-2 serve, MCP, stdio-Brücke"]:::done
+        s1b3["1b-3 Wiki und Doku umgezogen"]:::done
+        s2a["2a Prüfkette"]:::done
+        s2b["2b commit-msg"]:::done
+        s2c["2c Stop-Tor, Subagenten-Hooks"]:::done
+        s3a["3a Erkennen: reindex, embed, reconcile"]:::done
+        s3b["3b Entscheiden: cases, case, approve"]:::done
+        s3c["3c Pflegen: brain check, Wiki-Typen · P1"]:::planned
+        s4["4 init, migrate, lokales Modell, Host-Umstellung · P3"]:::planned
+    end
+
+    subgraph Code["Code-Graph-Spur"]
+        g1["G1 Ranking- und Blast-Bibliotheken"]:::done
+        g2a["G2a Extraktor, graph build und check"]:::done
+        g2b["G2b graph ask"]:::done
+        g3["G3 Graph-MCP-Werkzeuge"]:::done
+        g4a["G4a Navigationspalette"]:::done
+        g4b["G4b Diff-Blast, Prüfart graph, Edit-Monitor · P2"]:::partial
+        g5["G5 Mehrsprachig über wazero · P6"]:::planned
+    end
+
+    subgraph WebOS["Web OS · P5"]
+        w1["W1 Shell"]:::planned
+        w2["W2 Brain-Web-App"]:::planned
+        w3["W3 Graph-Visualisierung"]:::planned
+        w4["W4 Skill-Suiten und Review"]:::planned
+        w5["W5 Flow-Editor und Kanban"]:::planned
+    end
+
+    ulflow["ulflow M1<br/>(Branch feature/agent-harness, nicht gemergt)"]:::external
+    flow["Flow: ulflow-Laufzeit, Journal, Replay · P4"]:::planned
+
+    s2a --> s2c
+    s1b1 --> s3a
+    s3a --> s3b
+    s3a --> s3c
+    s1b2 --> s3c
+    s2b --> s4
+    s2c --> s4
+    s3b --> s4
+    s3c --> s4
+    g3 --> g4a
+    g4a --> g4b
+    g4b --> g5
+    ulflow --> flow
+    s1b2 --> w1
+    w1 --> w2
+    w1 --> w3
+    g4a --> w3
+    g4b --> w4
+    s4 --> w4
+    w1 --> w5
+    flow --> w5
+
+    classDef done fill:#d4edda,stroke:#28a745,color:#155724
+    classDef partial fill:#fff3cd,stroke:#d39e00,color:#664d03
+    classDef planned fill:#f1f3f5,stroke:#868e96,stroke-dasharray:5 5,color:#495057
+    classDef external fill:#ffffff,stroke:#6f42c1,stroke-dasharray:2 2,color:#6f42c1
+```
+
 Was die beiden Quellrepos können und bisher keine Stufe übernommen hatte, steht
 in der [Fusions-Spec](../.superpowers/specs/2026-09-14-loomux-fusion-design.md) unter „Nachgetragen“, je mit einer
 vorgeschlagenen Stufe oder einem vorgeschlagenen Wegfall; die Zuordnung gilt

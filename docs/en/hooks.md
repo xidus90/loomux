@@ -16,7 +16,7 @@ sequenceDiagram
     participant Pre as loomux hook pre-tool-use
     participant Post as loomux hook post-tool-use
     participant Stop as loomux hook stop
-    participant Journal as events.jsonl (Append-Only)
+    participant Journal as events.jsonl (planned, W1)
 
     Dev->>Host: User Prompt
     Host->>Host: Plans tool action
@@ -28,7 +28,7 @@ sequenceDiagram
     alt Forbidden Path or Disallowed Command
         Pre-->>Host: Exit 2 + Deny Envelope (stderr explanation)
     else Permitted
-        Pre->>Journal: Append Event (<0.2ms)
+        Pre--)Journal: Planned (W1): append event
         Pre-->>Host: Exit 0 (Proceed)
     end
     end
@@ -36,10 +36,11 @@ sequenceDiagram
     Host->>Host: Executes Tool (File Edit / Shell Command)
 
     rect rgb(255, 250, 240)
-    Note over Host,Post: Phase 2: Post-Tool Blast Analysis (<5ms)
+    Note over Host,Post: Phase 2: Post-Tool Check Lanes (section 5)
     Host->>Post: Tool Output & Modified Paths (stdin)
-    Post->>Post: Hash Dirty Files & Calculate Blast Radius
-    Post->>Journal: Append Event (<0.2ms)
+    Post->>Post: Run the edit profile's lanes on the edited file (budget 50 s)
+    Post->>Post: Planned (G4b): blast monitor, direct callers of changed Go symbols, only when no lane is red
+    Post--)Journal: Planned (W1): append event
     Post-->>Host: Exit 0, or Exit 2 when a lane fails (section 5)
     end
 
@@ -121,6 +122,10 @@ Loomux parses both representations natively into a unified internal representati
 A common architectural trap in agent tooling is having hooks make synchronous HTTP calls or IPC requests to a background daemon. This introduces significant latency (>10ms) and creates a catastrophic failure mode if the background service crashes.
 
 Loomux guarantees total isolation through an **append-only file journal**:
+
+> **Planned (stage W1).** No hook writes the journal yet, and `loomux serve` tails
+> nothing; the isolation itself holds today: `internal/hooks` links none of
+> `serve`, which an import-graph test keeps. Status: [migration plan](migration.md).
 
 ```
 Hook Process (loomux hook pre/post-tool-use)

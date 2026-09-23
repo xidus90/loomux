@@ -348,15 +348,19 @@ Extrahiert den ganzen Baum neu und vergleicht ihn, Knoten für Knoten, mit dem a
 - **Ausgabe**: `NO GRAPH`, wenn noch nichts gebaut wurde; `FOREIGN GRAPH`, wenn der Graph auf der Platte eine andere Extraktor-Version nennt als dieses Binary; `OK`, wenn nichts abgewichen ist; sonst `DRIFT` mit je einer Zeile pro hinzugefügter, entfernter oder geänderter Knoten-ID.
 - **Exit-Codes**: `0` — frisch (`OK`); `1` — noch kein Graph, ein fremder Graph, gefundene Abweichung, oder ein Fehler bei der Neuextraktion; `2` — Aufruffehler.
 
-### `loomux graph blast [dir]`
-Berechnet den Blast-Radius eines Git-Diffs gegen den Working Tree oder Merge-Base.
+### `loomux graph blast [--root <pfad>] [--cached | --base <ref>] [-d N|all] [--no-refresh] [--json]`
+Zeigt, was eine Änderung erreicht, aus dem Git-Diff: je geänderter Datei die Symbole, die ihre Hunks berühren, was sie erreicht und ob sich ein Test, der sie erreicht, mitgeändert hat. Gelöschte Dateien schließen den Bericht ab.
 
 - **Flags**:
-  - `--base <ref>`: Diff gegen Git-Referenz (z. B. `origin/main`).
-  - `--format markdown`: Formatiert die Ausgabe als fertigen GitHub-PR-Kommentar.
-  - `--export-viz <dir>`: Exportiert eine interaktive HTML-Visualisierung des Blast-Radius.
+  - `--root <pfad>`: Projektwurzel; das Arbeitsverzeichnis, wenn leer.
+  - `--cached`: vergleicht den Index mit `HEAD`.
+  - `--base <ref>`: vergleicht `<ref>...HEAD` statt des Working Tree. Nicht zusammen mit `--cached`.
+  - `-d`, `--depth`: Tiefengrenze, eine positive ganze Zahl (Vorgabe `1`), oder `all`/`full` für die Hülle.
+  - `--no-refresh`: antwortet aus dem Graphen auf der Platte, baut nie neu.
+  - `--json`: schreibt die Antwort als JSON.
+- **Exitcodes**: `0` bei Erfolg; `1` ohne Projektwurzel oder Graph oder wenn Git oder der Graph scheitert; `2` bei einem Aufruffehler (ein Argument, `--base` mit `--cached`, eine ungültige Tiefe).
 
-### `loomux graph viz [dir]`
+### `loomux graph viz [dir]` *(spezifiziert, Stufe W3)*
 Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.
 - **Flags**: `--port <p>`, `--no-open`.
 
@@ -517,11 +521,11 @@ Entscheidet einen Fall. Ohne Flagge wird der Vorschlag des Falls freigegeben; `-
 
 ## 8. MCP-Dienst & stdio-Brücke (`loomux serve` / `loomux mcp`)
 
-Der Dienst beantwortet elf Werkzeuge über Streamable HTTP — die fünf
-`brain_*`-Werkzeuge und die sechs `graph_*`-Werkzeuge der Stufen G3 und G4a; die Brücke
+Der Dienst beantwortet zwölf Werkzeuge über Streamable HTTP — die fünf
+`brain_*`-Werkzeuge und die sieben `graph_*`-Werkzeuge der Stufen G3, G4a und G4b; die Brücke
 ist das, was ein MCP-Wirt startet, und sie reicht nur weiter. Beides ist in
-Stufe 1b-2 entstanden. Das Web OS der Stufe W1 gibt es noch nicht, Git-Diff-Blast-Radius-Analyse
-(Stufe G4b) und die Upstream-Proxies ebenso wenig.
+Stufe 1b-2 entstanden. Das Web OS der Stufe W1 gibt es noch nicht, die
+Upstream-Proxies ebenso wenig.
 
 **Der Kanal ist die Adresse, kein Feld der Anfrage.** `serve` bindet zwei
 Loopback-Listener, einen für `local` und einen für `cloud`, jeden mit eigenem
@@ -603,7 +607,7 @@ Durchlauf von `serve` für den Sitzungsstart stehen.
 | 2 | ausgelassen: nicht Windows, ein Entwicklungs-Build oder nicht das maschinenweite Binary; oder ein unbekanntes Argument |
 
 ### `loomux mcp [--channel local|cloud]`
-Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die elf Werkzeuge selbst
+Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die zwölf Werkzeuge selbst
 an — die Beschreibungen sind statisch, also sitzt nie ein kalter Dienst im
 Handschlag des Wirts — und leitet jeden `tools/call` an die Adresse des Kanals
 weiter, Name zu Name und Argumente zu Argumenten.
@@ -622,7 +626,7 @@ weiter, Name zu Name und Argumente zu Argumenten.
 - **Exit-Codes**: `0` der Wirt hat aufgelegt, oder Strg+C; `1` die Brücke ist
   gescheitert; `2` ein unbekanntes Argument oder ein ungültiges `--channel`.
 
-### Die elf Werkzeuge
+### Die zwölf Werkzeuge
 
 | Werkzeug | Argumente |
 |---|---|
@@ -637,12 +641,13 @@ weiter, Name zu Name und Argumente zu Argumenten.
 | `graph_trace_calls` | `scope` und `symbol` (beide Pflicht), `direction` ∈ {`in`, `out`} → `in`, `depth` → 1 |
 | `graph_find_all` | `scope` und `pattern` (beide Pflicht), `ignore_case`, `fixed` |
 | `graph_repo_map` | `scope` (Pflicht), `max_dirs` → 16 |
+| `graph_blast` | `scope` (Pflicht), `base`, `depth` → 1 |
 
 `n` ist hier 10 und auf der Kommandozeile 5; das ist Parität mit der
 Python-Referenz, die es genauso hält, und keine Unstimmigkeit. `limit` ist hier
 5 und bei `loomux graph ask` 8, beides Grafts Werte.
 
-Die sechs `graph_*`-Werkzeuge operieren über das Repository eines registrierten Bereichs:
+Die sieben `graph_*`-Werkzeuge operieren über das Repository eines registrierten Bereichs:
 
 - **`graph_find_code`** fügt den Quelltext an jedem Treffer immer ein; `full`
   nimmt den ganzen Span statt des gekappten Auszugs, und `in` verengt vor dem
@@ -663,6 +668,11 @@ Die sechs `graph_*`-Werkzeuge operieren über das Repository eines registrierten
   durch, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`).
 - **`graph_repo_map`** erzeugt eine token-budgetierte strukturelle Übersicht über
   Verzeichnis-Cluster, Hubs und Hotspots.
+- **`graph_blast`** ist `loomux graph blast` in der Wurzel des Bereichs: `base`
+  vergleicht `base...HEAD`, leer vergleicht den Working Tree mit `HEAD` oder,
+  bei sauberem Baum, den letzten Commit; `depth` wie bei `graph_trace_calls`.
+  Eine geänderte Datei oder ein Treffer unter den `never`-Globs wird gezählt,
+  nicht genannt, und die Auffrisch-Hinweise fallen auf dem Cloud-Kanal weg.
 
 **Sichtbarkeit:** Ein Bereich, dessen Manifest `[privacy] mode = "local_only"`
 setzt, existiert auf dem cloud-Kanal nicht (`unknown scope`, wie bei

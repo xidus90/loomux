@@ -20,20 +20,32 @@ Loomux gibt KI-Coding-Agenten (Claude Code, Antigravity, Cursor, Codex) tiefes C
 
 ```mermaid
 flowchart TD
-    subgraph Core["loomux (Einziges Go-Binary)"]
-        P1["1. Hooks & Wächter<br/><b>Policy & Schreibschranke</b>"]
-        P2["2. Skills & Review<br/><b>Best-Practice-Suiten</b>"]
-        P3["3. Graph & Loop<br/><b>AST, PageRank, Blast Radius</b>"]
-        P4["4. Second Brain<br/><b>Wiki, ADRs, Semantisches QMD</b>"]
-        P5["5. LLM OS & UI<br/><b>Eingebettetes Web-Dashboard</b>"]
+    subgraph Core["loomux (ein einziges Go-Binary)"]
+        P1["1. Hooks & Wächter<br/><b>Policy, Schreibschranke, Prüfkette</b>"]
+        P2["2. Skills & Review<br/><b>Best-Practice-Suiten, graphgestützter Review</b>"]
+        P3["3. Code-Graph & Loop<br/><b>AST, PageRank, Blast Radius</b>"]
+        P4["4. Second Brain<br/><b>Wiki, Prüfzentrum, qmd-Suche</b>"]
+        P5["5. LLM OS & UI<br/><b>Eingebettetes Web OS</b>"]
+        Serve["loomux serve<br/><b>MCP-Gateway</b>"]
     end
 
-    Agents["Coding-Agenten<br/>(Claude Code / Antigravity / Cursor)"] <--> |Hooks| P1
-    Agents <--> |MCP / Prompts| P2
-    Agents <--> |MCP Tools| P3
-    Agents <--> |MCP Tools| P4
-    Human["Entwickler / Team"] <--> |Browser / localhost| P5
+    Agents["Coding-Agenten<br/>(Claude Code / Antigravity / Cursor)"]
+    Human["Entwickler / Team"]
+
+    Agents <--> |"Hooks: stdin, Exitcode"| P1
+    Agents <--> |"MCP über loomux mcp"| Serve
+    Serve --> P3
+    Serve --> P4
+    Agents <-.-> |"MCP-Prompts, Skill-Dateien"| P2
+    Human --> |".githooks: check precommit"| P1
+    Human --> |"CLI: graph ask, callers, blast"| P3
+    Human --> |"CLI: brain, reindex, cases, approve"| P4
+    Human <-.-> |"Browser, localhost"| P5
+    P5 -.-> Serve
 ```
+
+*Eine gestrichelte Linie ist spezifiziert und nicht gebaut. Welche Stufe was baut
+und was fertig ist, steht im [Migrationsplan](docs/de/migration.md).*
 
 ---
 
@@ -49,45 +61,50 @@ sequenceDiagram
     actor Agent as Coding-Agent
     participant Hook as loomux hook
     participant Policy as Policy & Schranke
-    participant Graph as Code-Graph (State)
-    participant Verify as Prüfkette
+    participant Verify as Prüfkette (verify-Lanes)
+
+    Agent->>Hook: SessionStart
+    Hook-->>Agent: Basis-Commit festgehalten, Warnung bei veraltetem Binary (blockiert nie)
 
     Agent->>Hook: PreToolUse (Tool-Call auf stdin)
-    Hook->>Policy: Pfade, Befehle & Schreibschranke prüfen (<35ms)
-    alt Verboten
-        Policy-->>Agent: Exit 2 (Abgelehnt mit exakter Zeilenbegründung)
+    Hook->>Policy: Pfade, Befehle, Schreibschranke, Schutz der config.toml (Budget 35 ms)
+    alt Abgelehnt
+        Policy-->>Agent: Exit 2 (die Begründung nennt die Regel)
     else Erlaubt
-        Hook-->>Agent: Exit 0 (Ausführung gestattet)
+        Hook-->>Agent: Exit 0
     end
 
-    Agent->>Agent: Führt Datei-Änderung / Befehl aus
+    Agent->>Agent: Ändert eine Datei oder führt einen Befehl aus
 
     Agent->>Hook: PostToolUse (stdin)
-    Hook->>Graph: Geänderte Datei hashen & Blast Radius berechnen (Ziel <5ms, G4)
-    Hook-->>Agent: Betroffene Aufrufer & Blast-Warnungen inline ausgeben
+    Hook->>Verify: Profil edit über die geänderte Datei (vet, gofmt, Wiki-Lint, ruff, eslint ...)
+    alt Eine Lane ist rot
+        Verify-->>Agent: Exit 2 mit dem Befund
+    else Keine Lane ist rot
+        Hook-->>Agent: Exit 0, übersprungene Lanes als Kontext
+    end
 
-    Agent->>Hook: Stop (Rundenende, Stufe 2c)
-    Hook->>Verify: Profil stop über neuen Inhalt fahren (Lanes, Tests, Coverage-Tor)
+    opt Ein Subagent läuft
+        Agent->>Hook: SubagentStart / SubagentStop
+        Hook->>Hook: Schnappschuss von origin, Branches und HEAD, parkt, was sich bewegt hat
+    end
+
+    Agent->>Hook: Stop (Rundenende)
+    Hook->>Verify: Profil stop über neuen Inhalt, dazu geparkte Subagenten-Befunde
     Verify-->>Agent: Grün (Exit 0), Halt mit Feedback (Exit 2) oder kein Urteil (Exit 1)
 ```
+
+Jede Phase mit Nutzlast, Exitcodes und Budgets: [Hook-Lebenszyklus](docs/de/hooks.md).
 
 ### 2. Deterministisches Code-Graph-Retrieval ("GraphRank")
 
 Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen daraus via **Personalized PageRank**.
 
-> **Stand (Stufe G4a).** Stufe G2b hat den Abfragepfad vollendet: `loomux graph ask` sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen mit Personalized PageRank (alpha=0.25). Das Retrieval benötigt ~48 ms warm (~38 ms bei Namens-Matching ohne die 1-MB-Rumpfbeiakte auf diesem ~3.000-Knoten-Repo; die Beiakte dient der Skalierung auf 30.000+ Knoten). Quelltext-Spans werden bei Bedarf via `--source` inline eingeblendet. Bei Abweichung wird der Graph automatisch im Hintergrund neu gebaut, sofern `--no-refresh` fehlt; einen ersten Graphen baut keine Abfrage. Stufe G3 stellt die Abfrage und die Driftprüfung als `graph_find_code` und `graph_check_freshness` über MCP bereit (siehe §3). Stufe G4a liefert die vollständige Graph-Navigationspalette (`callers`, `skeleton`, `grep`, `map`, `stats`) und vier neue MCP-Werkzeuge (`graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`). Stufe G4b ergänzt Git-Diff-Blast-Radius-Analyse und den Post-Edit-Blast-Monitor.
-
-```mermaid
-flowchart LR
-    Q["Anfrage / Task"] --> Lex["Lexikalischer Treffer<br/>(Tokens / Symbole)"]
-    Lex --> |Seeds| PR["Personalized PageRank<br/>(Power-Iteration, alpha=0.25)"]
-    Graph[".loomux/state/graph/<br/>AST Wiring Graph"] --> PR
-    PR --> Ranked["Gerankte Symbole<br/>(Strukturelle Hubs oben)"]
-    Ranked --> Crux["Crux-Inliner<br/>(5-10 Zeilen Kernlogik, $0)"]
-    Crux --> Context["Injektierter Kontext<br/>(Volle Antwort ohne Dateilesen)"]
-```
+`loomux graph ask` rankt Code-Symbole nach BM25-artiger lexikalischer Relevanz verschmolzen mit Personalized PageRank (alpha=0.25), baut einen driftenden Graphen vor der Antwort neu (nie einen ersten) und blendet mit `--source` den Span jedes Treffers ein. `loomux graph blast` zeigt über dieselben Kanten, was ein Git-Diff erreicht.
 
 > **„Lexik schlägt vor, der Graph entscheidet“**: Keywords finden potenzielle Kandidaten; der strukturelle Aufrufgraph konzentriert die Masse auf die tatsächlich relevanten Kernkomponenten und filtert isolierten oder toten Code heraus.
+
+Abfragepfad und Blast-Radius Schritt für Schritt gezeichnet: [Architektur, Säule III](docs/de/architecture.md). Zeiten: [Benchmarks](docs/de/benchmarks.md).
 
 ### 3. Verschachteltes MCP-Composite-Gateway
 
@@ -95,47 +112,41 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Host["Agenten-Host (Claude / Antigravity / Cursor)"] <--> |stdio| Bridge["loomux mcp"]
-    Bridge <--> |localhost HTTP| Root["loomux serve (Root MCP Gateway)"]
-    
-    subgraph Namespaces["Sub-Server Module"]
-        Root <--> Brain["brain_*<br/>(search, catalog, read, neighbors, status)"]
-        Root <--> Graph["graph_*<br/>(find_code, check_freshness, file_api,<br/>trace_calls, find_all, repo_map)"]
-        Root <--> Upstreams["Upstream Proxies<br/>(Sprachserver, qmd mcp)"]
+    Host["Agenten-Wirt (Claude / Antigravity / Cursor)"] <--> |"stdio"| Bridge["loomux mcp<br/>(--channel local oder cloud)"]
+    Bridge <--> |"Loopback-HTTP, ein Token je Kanal"| Root["loomux serve<br/>(Wurzel-MCP-Gateway,<br/>ein Listener je Kanal)"]
+    Browser["Browser"] <-.-> |"SPA, REST, SSE"| Web["Web OS<br/>/api/brain, /api/graph, /api/events"]
+    Web -.-> Root
+
+    subgraph Namespaces["Werkzeug-Namensräume"]
+        Root <--> Brain["brain_*<br/>(Bereiche durchsuchen und lesen)"]
+        Root <--> Graph["graph_*<br/>(Code-Graph abfragen und navigieren)"]
+        Root <-.-> Upstreams["Upstream-Proxies<br/>(Sprachserver, qmd mcp)"]
     end
+    Brain --> Qmd["qmd-Daemon"]
 ```
 
-**Was heute steht (Stufen 1b-2, G3 und G4a):** der Wirt, die Brücke und die Wurzel über zwei
-Loopback-Listener — einer je Kanal, jeder mit eigenem Token — und elf Werkzeuge:
-die fünf `brain_*`-Werkzeuge und, seit den Stufen G3 und G4a, sechs `graph_*`-Werkzeuge
-(`graph_find_code`, `graph_check_freshness`, `graph_file_api`, `graph_trace_calls`,
-`graph_find_all`, `graph_repo_map`). Die Upstream-Proxies sind spezifiziert, nicht gebaut.
-`loomux mcp` fällt auf `--channel local` zurück, startet und ersetzt den Dienst selbst,
+*Eine gestrichelte Linie ist spezifiziert und nicht gebaut.* Der Kanal ist die
+Adresse: jeder Listener hat sein eigenes Token, und der Cloud-Kanal sieht nie
+einen Bereich, der lokal bleibt. `loomux mcp` fällt auf `--channel local` zurück, startet und ersetzt den Dienst selbst,
 und der Pro-Edit-Hook-Pfad verlinkt nichts davon, was ein Test über den Importgraphen
-festhält. Siehe [`docs/de/cli-reference.md`](docs/de/cli-reference.md) §8.
+festhält. Jedes Werkzeug mit seinen Argumenten: [CLI-Referenz §8](docs/de/cli-reference.md).
 
 ---
 
 ## Migrationsplan
 
 Wo jede Stufe und jede Funktion steht — Herkunft, Stand, Abhängigkeiten und
-Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**. Stufe 2c
-(das Stop-Tor und die Subagenten-Hooks) ist für Claude Code und Antigravity
-fertig. Stufe 3a (`reindex`, `embed`, `reconcile`,
-`area add`) ist fertig; diese Maschine fährt sie über ihre eigene Registry.
-Stufe 3b (`cases`, `case`, `approve`) ist fertig, samt ihrer Selbstnutzung gegen die
-echte Registry. Stufe 3c (`brain check`, `lint --scope`, `wiki init|types|retype`,
-die tägliche Aufholung in `serve`) ist fertig; ihre lesenden Befehle sind gegen die
-echte Registry gelaufen.
-Stufe G4a (`callers`, `skeleton`, `grep`, `map`, `stats` und 4 MCP-Werkzeuge) ist fertig.
+Priorität, mit einer Karte, welche Stufe auf welche wartet —, steht im
+**[Migrationsplan](docs/de/migration.md)**. Diese README beschreibt, was loomux
+ist; der Plan sagt, wie weit es ist.
 
 ---
 
 ## CLI-Referenz
 
-Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a, 3b und 3c im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Die gebauten Befehle, je eine Zeile; jedes Flag und jeden Exitcode beschreibt die [CLI-Referenz](docs/de/cli-reference.md), was spezifiziert und noch nicht gebaut ist, steht im [Migrationsplan](docs/de/migration.md).
 
-### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a, 3b und 3c)
+### Befehle
 ```bash
 loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
@@ -176,7 +187,7 @@ loomux case <id> [--package]        # Zeigt einen Fall mit Paket und Vorschlag; 
 loomux approve <id>                 # Entscheidet einen Fall: wendet den belegten Vorschlag an und committet ihn (--amend D, --reject, --defer)
 ```
 
-### Implementierte Befehle (Code-Graph — Stufen G2a–G4a)
+### Code-Graph
 ```bash
 loomux graph build [--root <pfad>]  # Extrahiert, löst auf und schreibt .loomux/state/graph/wiring.json
 loomux graph check [--root <pfad>]  # Extrahiert neu und vergleicht mit Graph auf Platte (Exit 1 bei Drift)
@@ -186,20 +197,9 @@ loomux graph skeleton <datei>       # Gibt Signaturen und Zeilenspans einer Date
 loomux graph grep "<regex>"         # Regex-Suche gruppiert nach Symbol und sortiert nach Kopplung
 loomux graph map                    # Gibt token-budgetierte Verzeichnis-Cluster, Hubs und Hotspots aus
 loomux graph stats                  # Gibt Graph-Kennzahlen aus (Knoten, Kanten je Relation, Dateien, Sprachen, Größe)
-```
-
-### Spezifizierte Befehle (Code-Graph — Stufen G4b–G5)
-
-Stufe G4a hat Navigation und Retrieval geliefert (`callers`, `skeleton`, `grep`, `map`, `stats`); Stufe G4b ergänzt `blast` und den Post-Tool-Blast-Monitor; Stufe G5 ergänzt mehrsprachige Extraktion über `wazero`.
-```bash
-loomux graph blast [dir]            # Berechnet den Blast-Radius eines Git-Diffs gegen Working Tree oder Merge-Base
-loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im Browser
-```
-
-### Spezifizierte Befehle (Second Brain & Dienste — Stufen 4 & W1–W5)
-```bash
-loomux serve                        # Das eingebettete Web OS neben den MCP-Listenern
-loomux init [--detect-only]         # Richtet Hooks, Einstellungen, Skills und AGENTS.md in erkannten Agenten ein
+loomux graph blast [--cached|--base B] [-d N|all]  # Was ein Git-Diff erreicht: Working Tree, Index oder B...HEAD (--json, --no-refresh)
+loomux check graph-fresh [--wait 30s]  # Bringt den Graphen für ein Tor auf den Stand des Baums; Exit 1 ohne Graph, bei gescheitertem Neubau oder gehaltener Sperre
+loomux check blast-audit [--cached|--base B] [--threshold 3]  # Exit 1, wenn ein geändertes Symbol mit so vielen Aufrufern keinen mitgeänderten erreichenden Test hat (--skip-test-callers)
 ```
 
 ### Entwickler- & Worktree-Werkzeuge
@@ -221,7 +221,8 @@ loomux dev release <unterbefehl>    # Release-Regeln für die CI: next-version, 
 |---|---|---|---|
 | **Einziges Go-Binary** | Grundarchitektur | ✅ **Kernmandat** | 0 Python, 0 Node.js. 7,5 ms warmer Hook, autarke Auslieferung, 100 % Testabdeckung. |
 | **AST-Code-Graph & PageRank** | `trailhq/Graft` | ✅ **Nativ übernommen** | $0 deterministischer Code-Graph. Personalized PageRank filtert strukturelle Kern-Hubs statt naiver Keyword-Listen. |
-| **Blast Radius & Crux-Inlining** | `trailhq/Graft` | ✅ **Nativ übernommen** | Auswirkungsanalyse bei Edits (Ziel < 5 ms); liefert 5-10 Zeilen Kernlogik oder Spans ($0 Token-Lesekosten, ~48 ms warmes Retrieval). |
+| **Blast Radius** | `trailhq/Graft` | ✅ **Nativ übernommen** | Der Blast-Radius eines Git-Diffs mit Testsignal (`graph blast`, `graph_blast`). |
+| **Crux-Inlining** | `trailhq/Graft` | ❌ **Weggelassen** | Grafts Crux ist ein Ausschnitt, den ein LLM gewählt hat; in loomux sitzt kein LLM im Pfad. `--source` blendet stattdessen den Span ein (höchstens 80 Zeilen, `--full` ohne Grenze), Grafts eigener Rückfall. |
 | **Symbol-gekoppelter Grep** | `trailhq/Graft` | ✅ **Nativ übernommen** | Regex-Treffer gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`). |
 | **Lokales Second Brain & Wiki** | Grundarchitektur | ✅ **Kernmandat** | Markdown-Wiki, ADRs und Identitätsregister direkt im Repo. Code-Symbole verlinken direkt auf Architektur-Entscheidungen. |
 | **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Abgelehnt** | Graft setzt Node.js >=20, `node-gyp` und MSVC voraus. Loomux bleibt 100 % Pure Go ohne C-Compiler-Zwang. |

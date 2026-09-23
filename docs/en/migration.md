@@ -39,6 +39,75 @@ what its dependencies already allow, what loomux uses on itself, then size. The
 | **Flow** | open | ultraloom | Follow-up project: the ulflow runtime, journal, resume and replay, `verify_until_green` as a data flow | ulflow M1 (branch `feature/agent-harness`, not merged) | 4 |
 | **W1 – W5** | open | ultra-brain + new | Web OS: shell (W1), the brain web app (W2), graph visualizer (W3), skill suites and review (W4), flow editor and Kanban (W5) | W1 on 1b-2 ✅; W2 on W1; W3 on W1 and G4a; W4 on G4b and 4; W5 on W1 and Flow | 5 |
 
+The stages and what each waits for, drawn from the "Depends on" column above
+(`P` is the priority of an open stage, 1 first). A pull request that changes a
+row changes the node with it:
+
+```mermaid
+flowchart TD
+    subgraph Fusion["Fusion track"]
+        s1a["1a pilot, guard, post-edit"]:::done
+        s1b1["1b-1 brain read commands"]:::done
+        s1b2["1b-2 serve, MCP, stdio bridge"]:::done
+        s1b3["1b-3 wiki and docs moved in"]:::done
+        s2a["2a check chain"]:::done
+        s2b["2b commit-msg"]:::done
+        s2c["2c stop gate, subagent hooks"]:::done
+        s3a["3a detect: reindex, embed, reconcile"]:::done
+        s3b["3b decide: cases, case, approve"]:::done
+        s3c["3c maintain: brain check, wiki types · P1"]:::planned
+        s4["4 init, migrate, local model, host switch-over · P3"]:::planned
+    end
+
+    subgraph Code["Code graph track"]
+        g1["G1 ranking and blast libraries"]:::done
+        g2a["G2a extractor, graph build and check"]:::done
+        g2b["G2b graph ask"]:::done
+        g3["G3 graph MCP tools"]:::done
+        g4a["G4a navigation palette"]:::done
+        g4b["G4b diff blast, graph kind, edit monitor · P2"]:::partial
+        g5["G5 multi-language via wazero · P6"]:::planned
+    end
+
+    subgraph WebOS["Web OS · P5"]
+        w1["W1 shell"]:::planned
+        w2["W2 brain web app"]:::planned
+        w3["W3 graph visualizer"]:::planned
+        w4["W4 skill suites and review"]:::planned
+        w5["W5 flow editor and Kanban"]:::planned
+    end
+
+    ulflow["ulflow M1<br/>(branch feature/agent-harness, not merged)"]:::external
+    flow["Flow: ulflow runtime, journal, replay · P4"]:::planned
+
+    s2a --> s2c
+    s1b1 --> s3a
+    s3a --> s3b
+    s3a --> s3c
+    s1b2 --> s3c
+    s2b --> s4
+    s2c --> s4
+    s3b --> s4
+    s3c --> s4
+    g3 --> g4a
+    g4a --> g4b
+    g4b --> g5
+    ulflow --> flow
+    s1b2 --> w1
+    w1 --> w2
+    w1 --> w3
+    g4a --> w3
+    g4b --> w4
+    s4 --> w4
+    w1 --> w5
+    flow --> w5
+
+    classDef done fill:#d4edda,stroke:#28a745,color:#155724
+    classDef partial fill:#fff3cd,stroke:#d39e00,color:#664d03
+    classDef planned fill:#f1f3f5,stroke:#868e96,stroke-dasharray:5 5,color:#495057
+    classDef external fill:#ffffff,stroke:#6f42c1,stroke-dasharray:2 2,color:#6f42c1
+```
+
 What the two source repositories can do and no stage had taken on yet is listed
 in the [fusion spec](../.superpowers/specs/2026-09-14-loomux-fusion-design.md) under "Nachgetragen", each item with a
 proposed stage or a proposed removal; the assignment holds once it is signed off.
