@@ -1,13 +1,13 @@
 // Package check carries the result model of a check run: one finding, the
-// three axes it can belong to, and the three degrees of severity.
+// two axes it can belong to, and the three degrees of severity.
 //
 // The axes answer different questions that used to share one name. "okf" asks
 // whether a foreign reader of the Open Knowledge Format may consume this
 // bundle; "house" asks whether it also satisfies the stricter rules of this
 // repository. A bundle can fail the second and still be perfectly consumable,
 // so a run that reported both under one verdict said less than it seemed to.
-// "code" is the third, and it is not about the bundle at all: the one thing
-// that carries it here is `LaneBrokenFinding`, a lane that could not run.
+// The axis of `check code` is gone with that command: the check chain of
+// `loomux check` owns the code lanes.
 package check
 
 import (
@@ -22,12 +22,6 @@ type Axis string
 const (
 	AxisOKF   Axis = "okf"
 	AxisHouse Axis = "house"
-	AxisCode  Axis = "code"
-)
-
-const (
-	RuleLaneBroken = "lane-broken"
-	RelativeLane   = "(lane)"
 )
 
 // Severity names how far a finding goes. Only Error moves the exit code.
@@ -122,21 +116,4 @@ func location(f Finding) string {
 		return f.Relative
 	}
 	return f.Scope + "/" + f.Relative
-}
-
-// LaneBrokenFinding constructs an Error finding for a verification lane that
-// could not execute at all (e.g. missing binary, crash, or setup failure).
-// Spec 5.2: code/lane-broken carries Relative: "(lane)".
-func LaneBrokenFinding(lane string, err error) Finding {
-	msg := lane
-	if err != nil {
-		msg = fmt.Sprintf("%s: %v", lane, err)
-	}
-	return Finding{
-		Relative: RelativeLane,
-		Axis:     AxisCode,
-		Rule:     RuleLaneBroken,
-		Severity: Error,
-		Message:  msg,
-	}
 }
