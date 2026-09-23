@@ -61,7 +61,7 @@ func Census(areas []config.Area, manifestDir func(config.Area) string) ([]TypeCo
 		if err != nil {
 			return nil, err
 		}
-		for _, path := range markdownBelow(area.WikiPath) {
+		for _, path := range MarkdownBelow(area.WikiPath) {
 			if IsScaffoldFile(path) {
 				continue
 			}
@@ -147,12 +147,12 @@ func DeclaredTypesIn(dir string) (map[string]bool, error) {
 	return declared, nil
 }
 
-// markdownBelow is `sorted(rglob("*.md"))` over files: every regular file
+// MarkdownBelow is `sorted(rglob("*.md"))` over files: every regular file
 // below root whose name ends in `.md`, in the order Python sorts paths on
 // Windows -- component by component, each folded to lower case. The walk
 // itself goes byte by byte per directory, which puts upper case first and
 // `a-c.md` before the directory `a`.
-func markdownBelow(root string) []string {
+func MarkdownBelow(root string) []string {
 	var paths []string
 	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() && strings.HasSuffix(d.Name(), ".md") {

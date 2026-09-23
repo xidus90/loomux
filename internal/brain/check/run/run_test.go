@@ -930,3 +930,28 @@ func citing(found []check.Finding, scope string) int {
 	}
 	return n
 }
+
+// The bundle is read in the order Python's `sorted(rglob("*.md"))` gives on
+// Windows -- component by component, each folded to lower case -- and not in
+// WalkDir's byte order, which puts `B.md` before `a.md` and `a-c.md` before
+// the directory `a`. The sort after the rules is stable, so this order is the
+// one findings equal on every key keep.
+func TestReadBundleReadsInPythonsOrder(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"B.md", "a.md", "a-c.md", filepath.Join("a", "x.md")} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, name), []byte("# p\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var got []string
+	for _, p := range readBundle(root) {
+		got = append(got, p.Relative)
+	}
+	want := []string{"a/x.md", "a-c.md", "a.md", "B.md"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("read order %q, want %q", got, want)
+	}
+}

@@ -33,7 +33,7 @@ import (
 func Retype(wikiRoot, source, target string) ([]string, error) {
 	root := filepath.Clean(wikiRoot)
 	var changed []string
-	for _, path := range markdownBelow(root) {
+	for _, path := range MarkdownBelow(root) {
 		if IsScaffoldFile(path) {
 			continue
 		}

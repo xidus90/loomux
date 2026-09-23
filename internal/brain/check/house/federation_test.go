@@ -71,7 +71,7 @@ func TestASharedAreaMustNotCiteAProject(t *testing.T) {
 			cites("a.md", "brain://project/ultra-brain/topics/y"),
 		},
 	}
-	got := Federation(bundles, areas)
+	got := Federation(bundles, areas, config.ArtifactLookup{})
 	if !hasRule(got, "wrong-direction") {
 		t.Fatalf("a project citation was not reported: %v", got)
 	}
@@ -93,7 +93,7 @@ func TestWrongDirectionNamesTheWholeReference(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {cites("a.md", "brain://project/space/topics/y")},
 	}
-	got := messagesOf(Federation(bundles, areas), "wrong-direction")
+	got := messagesOf(Federation(bundles, areas, config.ArtifactLookup{}), "wrong-direction")
 	if len(got) != 1 {
 		t.Fatalf("messages = %v, want one", got)
 	}
@@ -115,7 +115,7 @@ func TestWrongDirectionCarriesTheAreaItJudged(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"engineering/craft": {cites("a.md", "brain://project/space/y")},
 	}
-	got := Federation(bundles, areas)
+	got := Federation(bundles, areas, config.ArtifactLookup{})
 	if len(got) != 1 || got[0].Scope != "engineering/craft" {
 		t.Fatalf("findings = %+v, want one on engineering/craft", got)
 	}
@@ -138,7 +138,7 @@ func TestASharedAreaMayCiteAnotherSharedArea(t *testing.T) {
 			cites("b.md", "brain://engineering/python"),
 		},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a citation between shared areas was reported: %v", got)
 	}
 }
@@ -160,7 +160,7 @@ func TestASiblingSpeltBelowASharedScopeIsNoHit(t *testing.T) {
 			cites("a.md", "brain://engineering/pythonx/topics/y"),
 		},
 	}
-	got := Federation(bundles, areas)
+	got := Federation(bundles, areas, config.ArtifactLookup{})
 	if len(got) != 1 || got[0].Rule != "wrong-direction" {
 		t.Fatalf("a citation to a same-prefixed area went unreported: %v",
 			got)
@@ -176,7 +176,7 @@ func TestAProjectAreaIsNotAskedAboutItsDirection(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"project/ecoflow": {cites("a.md", "brain://project/space/y")},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a project bundle was judged: %v", got)
 	}
 }
@@ -194,7 +194,7 @@ func TestASourceWithoutASchemeStaysInsideItsArea(t *testing.T) {
 			cites("b.md", "https://example.invalid/x"),
 		},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a citation with no brain:// form was reported: %v", got)
 	}
 }
@@ -210,7 +210,7 @@ func TestABareBrainReferenceNamesNoScope(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {cites("a.md", "brain://"), cites("b.md", "")},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a reference naming no scope was reported: %v", got)
 	}
 }
@@ -225,7 +225,7 @@ func TestAScaffoldFileIsNoSubjectOfWrongDirection(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {cites("_schema.md", "brain://project/space/y")},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a scaffold file was judged: %v", got)
 	}
 }
@@ -238,7 +238,7 @@ func TestAnUnreadBundleIsNotACleanBundle(t *testing.T) {
 	areas := []config.Area{
 		{Scope: "knowledge", Path: "k", WikiPath: "k", Shared: true},
 	}
-	if got := Federation(map[string][]wiki.WikiPage{}, areas); got !=
+	if got := Federation(map[string][]wiki.WikiPage{}, areas, config.ArtifactLookup{}); got !=
 		nil {
 		t.Fatalf("an unread shared area produced findings: %v", got)
 	}
@@ -259,7 +259,7 @@ func TestTheSignpostMustNameEveryRegisteredArea(t *testing.T) {
 		"knowledge": {catalog(
 			linkTo(wikiPath, filepath.Join(named, "index.md")))},
 	}
-	got := Federation(bundles, areas)
+	got := Federation(bundles, areas, config.ArtifactLookup{})
 	if len(got) != 1 {
 		t.Fatalf("findings = %+v, want one", got)
 	}
@@ -285,7 +285,7 @@ func TestTheSignpostItselfIsNotExpected(t *testing.T) {
 	areaPath, wikiPath := vault(t)
 	areas := []config.Area{signpost(areaPath, wikiPath)}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {catalog()}}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("the signpost was expected to link itself: %v", got)
 	}
 }
@@ -300,7 +300,7 @@ func TestAnAreaWithoutAWikiIsNotExpected(t *testing.T) {
 		{Scope: "project/nowiki", Path: filepath.Join(areaPath, "n")},
 	}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {catalog()}}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("an area without a wiki was expected: %v", got)
 	}
 }
@@ -319,7 +319,7 @@ func TestAWikiIsNamedByAnyPageBelowIt(t *testing.T) {
 		"knowledge": {catalog(linkTo(wikiPath,
 			filepath.Join(other, "topics", "deep.md")))},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a page below the wiki did not name it: %v", got)
 	}
 }
@@ -339,7 +339,7 @@ func TestASiblingSpeltBelowAWikiDoesNotNameIt(t *testing.T) {
 		"knowledge": {catalog(linkTo(wikiPath,
 			filepath.Join(sibling, "index.md")))},
 	}
-	if got := Federation(bundles, areas); len(got) != 1 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 1 {
 		t.Fatalf("a sibling folder passed for the wiki: %v", got)
 	}
 }
@@ -362,7 +362,7 @@ func TestAHubPointerNamesAnAreaWhoseWikiLiesElsewhere(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog(linkTo(wikiPath, hub))},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("the hub pointer did not name the area: %v", got)
 	}
 }
@@ -385,7 +385,7 @@ func TestAHubPointerIsComparedByEquality(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog(linkTo(wikiPath, below))},
 	}
-	if got := Federation(bundles, areas); len(got) != 1 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 1 {
 		t.Fatalf("a path below the hub page passed for it: %v", got)
 	}
 }
@@ -407,7 +407,7 @@ func TestWithoutAHubTheWikiPathIsTheOnlyName(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog(linkTo(wikiPath, hub))},
 	}
-	got := messagesOf(Federation(bundles, areas), "unlisted-area")
+	got := messagesOf(Federation(bundles, areas, config.ArtifactLookup{}), "unlisted-area")
 	if len(got) != 1 {
 		t.Fatalf("messages = %v, want one", got)
 	}
@@ -424,7 +424,7 @@ func TestWithoutASignpostNothingIsExpected(t *testing.T) {
 	areas := []config.Area{
 		{Scope: "project/space", Path: other, WikiPath: other},
 	}
-	if got := Federation(map[string][]wiki.WikiPage{}, areas); len(
+	if got := Federation(map[string][]wiki.WikiPage{}, areas, config.ArtifactLookup{}); len(
 		got) != 0 {
 		t.Fatalf("a federation without a signpost was judged: %v", got)
 	}
@@ -456,7 +456,7 @@ func TestEverySignpostIsAsked(t *testing.T) {
 			linkTo(firstWiki, missing))},
 		"engineering/craft": {catalog(linkTo(secondWiki, firstWiki))},
 	}
-	got := Federation(bundles, areas)
+	got := Federation(bundles, areas, config.ArtifactLookup{})
 	if len(got) != 1 {
 		t.Fatalf("findings = %+v, want one -- the second signpost", got)
 	}
@@ -482,10 +482,10 @@ func TestASignpostWithoutACatalogNamesNobody(t *testing.T) {
 	withPages := map[string][]wiki.WikiPage{
 		"knowledge": {{Relative: "topics/a.md"}},
 	}
-	if got := Federation(withPages, areas); len(got) != 1 {
+	if got := Federation(withPages, areas, config.ArtifactLookup{}); len(got) != 1 {
 		t.Fatalf("a bundle without a catalog named an area: %v", got)
 	}
-	if got := Federation(nil, areas); len(got) != 1 {
+	if got := Federation(nil, areas, config.ArtifactLookup{}); len(got) != 1 {
 		t.Fatalf("an unread signpost bundle named an area: %v", got)
 	}
 }
@@ -506,7 +506,7 @@ func TestOnlyTheRootCatalogIsTheSignpost(t *testing.T) {
 		Links:    []string{linkTo(wikiPath, other)},
 	}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {nested}}
-	got := Federation(bundles, areas)
+	got := Federation(bundles, areas, config.ArtifactLookup{})
 	if len(got) != 1 {
 		t.Fatalf("a nested catalog stood in for the signpost: %v", got)
 	}
@@ -533,7 +533,7 @@ func TestASchemeInTheSignpostNamesNoArea(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog("brain://project/space/index.md")},
 	}
-	if got := Federation(bundles, areas); len(got) != 1 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 1 {
 		t.Fatalf("a brain:// target was read as a path: %v", got)
 	}
 }
@@ -551,7 +551,7 @@ func TestAnEmptyTargetNamesNoEnclosingArea(t *testing.T) {
 		{Scope: "hub", Path: areaPath, WikiPath: areaPath},
 	}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {catalog("?")}}
-	if got := Federation(bundles, areas); len(got) != 1 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 1 {
 		t.Fatalf("an empty target named the enclosing area: %v", got)
 	}
 }
@@ -571,7 +571,7 @@ func TestALinkIsNoCitation(t *testing.T) {
 			Links:    []string{"brain://project/space/topics/y"},
 		}},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a link was judged as a citation: %v", got)
 	}
 }
@@ -589,7 +589,7 @@ func TestASignpostWithoutAWikiPathIsNotAsked(t *testing.T) {
 		{Scope: "project/space", Path: other, WikiPath: other},
 	}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {catalog()}}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a signpost without a wiki was asked: %v", got)
 	}
 }
@@ -608,7 +608,7 @@ func TestACatalogTargetWithASchemeNamesNoArea(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog("brain://project/space/index.md", "?")},
 	}
-	if got := Federation(bundles, areas); len(got) != 1 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 1 {
 		t.Fatalf("a scheme or an empty target named an area: %v", got)
 	}
 }
@@ -626,7 +626,7 @@ func TestTheSignpostIsReadWithItsEscapesUndone(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog("../92%20Engineering/python/index.md")},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("an encoded blank hid the area: %v", got)
 	}
 }
@@ -648,7 +648,7 @@ func TestTheTwoFederationRulesSpeakInOneRun(t *testing.T) {
 			cites("a.md", "brain://project/space/topics/y"),
 		},
 	}
-	got := Federation(bundles, areas)
+	got := Federation(bundles, areas, config.ArtifactLookup{})
 	if len(got) != 2 {
 		t.Fatalf("findings = %+v, want two", got)
 	}
@@ -687,7 +687,7 @@ func TestABrokenManifestSilencesTheSignpost(t *testing.T) {
 			WikiPath: filepath.Join(elsewhere, "docs", "wiki")},
 	}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {catalog()}}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("an unreadable manifest let the rule speak: %v", got)
 	}
 }
@@ -705,7 +705,7 @@ func TestAMalformedEscapeStillNamesAScope(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {cites("a.md", "brain://project/space/%zz")},
 	}
-	got := messagesOf(Federation(bundles, areas), "wrong-direction")
+	got := messagesOf(Federation(bundles, areas, config.ArtifactLookup{}), "wrong-direction")
 	if len(got) != 1 {
 		t.Fatalf("messages = %v, want one", got)
 	}
@@ -726,7 +726,7 @@ func TestTheCitedScopeIsNotDecoded(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {cites("a.md", "brain://project/x/a%20b")},
 	}
-	got := messagesOf(Federation(bundles, areas), "wrong-direction")
+	got := messagesOf(Federation(bundles, areas, config.ArtifactLookup{}), "wrong-direction")
 	if len(got) != 1 || !strings.Contains(got[0], `"project/x/a%20b"`) {
 		t.Fatalf("messages = %v, want the reference as written", got)
 	}
@@ -748,7 +748,7 @@ func TestAQueryOrFragmentIsNoPartOfTheScope(t *testing.T) {
 			cites("b.md", "brain://knowledge#section"),
 		},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a query or fragment hid the shared scope: %v", got)
 	}
 }
@@ -764,7 +764,7 @@ func TestTheSchemeIsReadWithoutRegardToCase(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {cites("a.md", "BRAIN://project/space/y")},
 	}
-	if got := Federation(bundles, areas); len(got) != 1 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 1 {
 		t.Fatalf("an upper-case scheme was not read: %v", got)
 	}
 }
@@ -786,7 +786,7 @@ func TestATrailingSlashIsNoPartOfTheScope(t *testing.T) {
 			cites("b.md", "brain://project/space/"),
 		},
 	}
-	got := messagesOf(Federation(bundles, areas), "wrong-direction")
+	got := messagesOf(Federation(bundles, areas, config.ArtifactLookup{}), "wrong-direction")
 	if len(got) != 1 {
 		t.Fatalf("messages = %v, want one -- the shared scope is not "+
 			"a finding whatever it is spelt with", got)
@@ -811,7 +811,7 @@ func TestABrokenManifestDoesNotSilenceWrongDirection(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {cites("a.md", "brain://project/space/topics/y")},
 	}
-	got := Federation(bundles, areas)
+	got := Federation(bundles, areas, config.ArtifactLookup{})
 	if len(got) != 1 || got[0].Rule != "wrong-direction" {
 		t.Fatalf("findings = %+v, want one wrong-direction", got)
 	}
@@ -839,7 +839,7 @@ func TestAnUnusableHubSilencesTheSignpostToo(t *testing.T) {
 			WikiPath: filepath.Join(elsewhere, "docs", "wiki")},
 	}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {catalog()}}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("an unusable hub folder let the rule speak: %v", got)
 	}
 }
@@ -860,12 +860,12 @@ func TestOnlyASubjectIsJudgedThoughTheMapHoldsMore(t *testing.T) {
 		"shared/two": {cites("b.md", "brain://project/x/y")},
 	}
 	got := messagesOf(
-		FederationFor(areas[:1], bundles, areas), "wrong-direction")
+		FederationFor(areas[:1], bundles, areas, config.ArtifactLookup{}), "wrong-direction")
 	if len(got) != 1 {
 		t.Fatalf("messages = %v, want the subject's one", got)
 	}
 	scopes := map[string]bool{}
-	for _, f := range FederationFor(areas[:1], bundles, areas) {
+	for _, f := range FederationFor(areas[:1], bundles, areas, config.ArtifactLookup{}) {
 		scopes[f.Scope] = true
 	}
 	if scopes["shared/two"] {
@@ -881,7 +881,47 @@ func TestAReferenceThatIsOnlyAFragmentOrAQueryNamesNoScope(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {cites("a.md", "brain:#x"), cites("b.md", "brain:?q")},
 	}
-	if got := Federation(bundles, areas); len(got) != 0 {
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
 		t.Fatalf("a reference naming nothing was reported: %v", got)
+	}
+}
+
+func TestAWikiIsNamedWithoutRegardToCase(t *testing.T) {
+	// Windows compares paths without regard to case, and so do Python's
+	// `WindowsPath` and the sweep's `wiki.LinkNames`: a registry entry
+	// spelt in another case than the catalog link is the same folder.
+	areaPath, wikiPath := vault(t)
+	other := filepath.Join(areaPath, "92 Engineering", "python")
+	areas := []config.Area{
+		signpost(areaPath, wikiPath),
+		{Scope: "engineering/python", Path: other, WikiPath: strings.ToUpper(other)},
+	}
+	bundles := map[string][]wiki.WikiPage{
+		"knowledge": {catalog(linkTo(wikiPath, filepath.Join(other, "index.md")))},
+	}
+	if got := Federation(bundles, areas, config.ArtifactLookup{}); len(got) != 0 {
+		t.Fatalf("a link spelt in another case did not name the wiki: %v", got)
+	}
+}
+
+func TestAReadOnlySignpostReadsItsHubFromTheStateDirectory(t *testing.T) {
+	// A read-only area keeps its declaration under the state directory
+	// (`config.ResolvedAreaDir`); the one in its own tree is not the one
+	// that counts, and here there is none.
+	areaPath, wikiPath := vault(t)
+	state := t.TempDir()
+	write(t, state, "areas/knowledge/.loomux/config.toml",
+		"[area]\nscope = \"knowledge\"\n\n[layout]\nhub = \"91 P\"\n")
+	elsewhere := t.TempDir()
+	post := signpost(areaPath, wikiPath)
+	post.ReadOnly = true
+	areas := []config.Area{post, {Scope: "project/ultra-brain", Path: elsewhere,
+		WikiPath: filepath.Join(elsewhere, "docs", "wiki")}}
+	bundles := map[string][]wiki.WikiPage{
+		"knowledge": {catalog(linkTo(wikiPath, filepath.Join(areaPath, "91 P", "ultra-brain.md")))},
+	}
+	lookup := config.ArtifactLookup{Primary: state, Fallback: t.TempDir()}
+	if got := Federation(bundles, areas, lookup); len(got) != 0 {
+		t.Fatalf("the hub of the state directory's declaration was not read: %v", got)
 	}
 }

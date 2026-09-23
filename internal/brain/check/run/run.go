@@ -22,7 +22,6 @@ package run
 
 import (
 	"errors"
-	"io/fs"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -131,7 +130,7 @@ func CheckBundle(area config.Area, areas []config.Area, lookup config.ArtifactLo
 	pages, findings := readArea(area, lookup, time.Now())
 	findings = append(findings, house.FederationFor(
 		[]config.Area{area},
-		map[string][]wiki.WikiPage{area.Scope: pages}, areas)...)
+		map[string][]wiki.WikiPage{area.Scope: pages}, areas, lookup)...)
 	return sorted(findings)
 }
 
@@ -217,7 +216,7 @@ func runAreas(subjects, areas []config.Area, lookup config.ArtifactLookup, paral
 	// speaking on a bundle it was not given, so it would report the
 	// federation as unlisted once per area. Here the map is complete
 	// before any subject is asked.
-	return append(out, house.Federation(bundles, areas)...)
+	return append(out, house.Federation(bundles, areas, lookup)...)
 }
 
 // readArea reads one bundle and runs every rule that stops at its edge.
@@ -290,9 +289,10 @@ func sorted(findings []check.Finding) []check.Finding {
 // reads. Every rule that must not judge a scaffold page as knowledge
 // draws that line itself, in `judgedAsConcept` and `judgedInBundle`.
 //
-// `filepath.WalkDir` walks each directory in lexical order, which is
-// Python's `sorted(rglob(...))` -- so the read order is already
-// deterministic before anything sorts.
+// The order is `wiki.MarkdownBelow`'s, Python's `sorted(rglob(...))` on
+// Windows. WalkDir's own byte order is not it: it puts `B.md` before
+// `a.md`, and the stable sort after the rules keeps whatever order equal
+// findings arrived in.
 //
 // A page that cannot be read is skipped rather than reported. That is the
 // behaviour `internal/brain/wiki/lint.go` already has, and this width has no rule
@@ -300,22 +300,11 @@ func sorted(findings []check.Finding) []check.Finding {
 // change here.
 func readBundle(root string) []wiki.WikiPage {
 	var pages []wiki.WikiPage
-	// The error is dropped, not swallowed: the callback below never
-	// returns one, so the only value WalkDir can answer with is the
-	// failure to read the root itself -- an area whose wiki is not there
-	// yet. That is no finding of this catalog, and a bundle of no pages
-	// is what every rule then judges.
-	_ = filepath.WalkDir(root,
-		func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() ||
-				!strings.HasSuffix(d.Name(), ".md") {
-				return nil
-			}
-			if page, err := wiki.ReadPage(path, root); err == nil {
-				pages = append(pages, *page)
-			}
-			return nil
-		})
+	for _, path := range wiki.MarkdownBelow(root) {
+		if page, err := wiki.ReadPage(path, root); err == nil {
+			pages = append(pages, *page)
+		}
+	}
 	return pages
 }
 
