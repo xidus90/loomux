@@ -122,16 +122,18 @@ Where each stage and each capability stands — origin, status, dependencies
 and priority — is in the **[migration plan](docs/en/migration.md)**. Stage 2c
 (the stop gate and the subagent hooks) is done for Claude Code and Antigravity. Stage 3a (`reindex`, `embed`, `reconcile`, `area add`) is
 done; this machine runs it over its own registry. Stage 3b (`cases`, `case`,
-`approve`) is done, its self-use against the real registry included.
+`approve`) is done, its self-use against the real registry included. Stage 3c
+(`brain check`, `lint --scope`, `wiki init|types|retype`, the daily catch-up in
+`serve`) is done; its reading commands have run against the real registry.
 Stage G4a (`callers`, `skeleton`, `grep`, `map`, `stats`, and 4 MCP tools) is done.
 
 ---
 
 ## CLI Reference
 
-Commands active after Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a and 3b vs. specified for subsequent fusion and graph stages:
+Commands active after Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a, 3b and 3c vs. specified for subsequent fusion and graph stages:
 
-### Active Commands (Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a and 3b)
+### Active Commands (Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a, 3b and 3c)
 ```bash
 loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
@@ -147,13 +149,18 @@ loomux worktree link|unlink|remove  # manage isolated worktree mirrors and junct
 loomux dev swap-binary              # atomically swap running binary with new compilation
 loomux version                      # print the version of this binary
 loomux lint <file>                  # lint one markdown wiki page's links and frontmatter
+loomux lint [--scope all|S]         # lint every registered bundle by the reference's twelve rules
+loomux brain check file|bundle|all  # the OKF, house and federation rules over a page, a bundle or every area (--notes)
+loomux wiki init --scope S          # lay out the frame of an area's wiki bundle
+loomux wiki types                   # count the page types across every area, with rank and old names
+loomux wiki retype --scope S --from A --to B  # rename one page type in one bundle
 loomux wiki-gate                    # gate wiki freshness and structural constraints
 loomux brain search "<query>"       # search the visible areas through the qmd daemon (--profile fast|full|keyword)
 loomux brain catalog [--scope S]    # the root catalog of the visible areas, or one area's index.md
 loomux brain read <path> --scope S  # one file of an area, or one section of it (--section)
 loomux brain neighbors <path> --scope S  # incoming and outgoing links of one page
 loomux brain status                 # what to know before trusting an answer
-loomux serve [--foreground]         # start the long-lived localhost MCP service, detached or here
+loomux serve [--foreground]         # start the long-lived localhost MCP service, detached or here; catches up on a due reconcile daily
 loomux serve status                 # what serve.json says and whether the listener answers
 loomux serve stop [--force]         # end the service through its own endpoint, or by its PID
 loomux mcp [--channel local|cloud]  # stdio bridge an MCP host starts; it starts the service itself
@@ -186,9 +193,8 @@ loomux graph blast [dir]            # compute blast radius of a git diff against
 loomux graph viz                    # launch the interactive graph viewer in your browser
 ```
 
-### Specified Commands (Second Brain & Services — Stages 3c–4 & W1–W5)
+### Specified Commands (Second Brain & Services — Stages 4 & W1–W5)
 ```bash
-loomux brain check file|bundle|all  # the OKF, house and federation rules over a page, a bundle or every area
 loomux serve                        # the embedded Web OS beside the MCP listeners
 loomux init [--detect-only]         # wire hooks, settings, skills and AGENTS.md into detected coding agents
 ```

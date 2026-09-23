@@ -400,8 +400,33 @@ Prints what to know before trusting an answer, one line per finding.
 - **Search engine**: two lines ask the qmd CLI (`qmd ls <collection>`, `qmd status`); when it does not answer, the line says so and the command goes on.
 - **Exit codes**: `0`; `1` for a runtime error (registry, manifest, stamp, `graph.json`, identity register); `2` for a usage error.
 
-### `loomux brain lint`
-Validates wikilinks (`[[Page]]`), orphaned documents, broken cross-references, and frontmatter taxonomy.
+### Wiki upkeep: `loomux brain check`, `loomux lint`, `loomux wiki`
+
+Since stage 3c. A recorded case corpus (`testdata/cases/3c`) holds them to the reference: `brain check` to ultra-brain's Go binary, since there is no Python form, the others to `brain-mcp`. Registry and declarations come from `LOOMUX_STATE_DIR` as for the maintenance commands; until stage 4 an area's declaration is also read under `.ultra-brain/config.toml` and `.brain.toml`. None takes `--state-dir`.
+
+#### `loomux brain check file <path> | bundle --scope <scope> | all [--notes]`
+Checks pages along the `okf` axis (what a foreign reader of the Open Knowledge Format requires) and the `house` axis (the stricter house rules including the federation: `wrong-direction`, `unlisted-area`).
+
+- **Widths**: `file` one page without neighbours; `bundle` one registered area, against the whole registry; `all` every area with a wiki. The reference's fourth width, `code`, does not exist: the code lanes belong to `loomux check`.
+- **Output** on `stdout`: one line per finding, `[<severity>] <axis>/<rule> <scope>/<path>: <message>`, sorted by scope, path, axis and rule. Notes appear only with `--notes`, which may stand anywhere after the width.
+- **Exit codes**: `0` checked and without error; `1` at least one error finding; `2` the run did not happen — no or an unknown width, a path that is missing or not a file, `bundle` without `--scope` or with `--scope all` (that is the width `all`), an unknown scope, a registry that cannot be read (`error: <reason>` on `stderr`).
+
+#### `loomux lint [<file> | --file <file>] [--scope all|<scope>] [--root <path>]`
+Without a file, the lint over the registered areas by the twelve rules of the reference's `lint.py`; with a file (a path that is a file, or a name ending in `.md`), the single page of stage 1a, whose rules `loomux wiki-gate`, the `lint/wiki` lane and the post-edit hook run as well.
+
+- **Over areas**: `--scope all` (the default) every area with a wiki path, otherwise exactly one. A header line per area, below it `  <path>:<rule>: <message>` or `  no findings`; at the end `no findings` or `<n> findings (<e> errors, <w> warnings)`.
+- **Rules**, in the order of the output: `broken-frontmatter`/`missing-type`, `no-sources`, `orphan`, `unlisted-area`, `dead-link`, `outside-area` (warning), `wrong-direction`, `conflict-count`, `untouched` (warning), `stale`, `implemented-without-commit`, `long-planned` (warning). The last two only in areas of the `project/` family; `unlisted-area` only in the signpost.
+- **Refusals** (exit `1`, `error: <reason>`, nothing on `stdout`): an unknown scope, an area without a wiki path, a wiki path that is not a directory (``… run `loomux wiki init --scope <scope>` first``, in the run over all as well), a registry that cannot be read. A declaration that cannot be read ends the run where it stands.
+- **Exit codes**: `0` without an error finding, warnings included; `1` with at least one error finding or a refusal; `2` on a usage error.
+
+#### `loomux wiki init --scope <scope>`
+Lays out the frame of an area's wiki bundle (`_schema.md`, `index.md`, `log.md`, `audit.md`, `_identities.tsv`) and names every file it wrote. An existing file stays as it is. Exit `1` for an unknown scope, an area without a wiki path, or a read-only area.
+
+#### `loomux wiki types`
+Counts the page types across every area with a wiki: per type `<type> [<rank>]: <total> (<scope>: <n>, …)`, by total descending, then by name. The rank is `core`, `catalogue`, `origin`, `declared` or `unknown`; an unknown type carries the prefix `? `, a known old name ` -> <catalogue name>`. Across areas the worst rank counts. Exit `0`, unless the registry, a declaration or a page cannot be read (`1`).
+
+#### `loomux wiki retype --scope <scope> --from <old> --to <new>`
+Renames one page type in one bundle and names every page it wrote. Only the frontmatter's `type:` line changes; a written page is folded to LF throughout. Skipped are scaffold files, broken frontmatter (a duplicate key included), bytes that are not UTF-8, and a quoted or folded value. A target type no rank knows gives a warning on `stderr`, and the run goes on. Exit `1` for an unknown scope, an area without a wiki path, or a read-only area.
 
 ### Upkeep: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
 
@@ -511,6 +536,14 @@ sees a failed start — and it is also what the detached child runs.
 - **Breakaway**: if the request to leave the host's job object is refused, the
   start is retried without it and the command says `note: the breakaway was
   refused, so this service dies with its host`.
+- **Daily catch-up** (since stage 3c): when the last `reconcile` is older than
+  24 hours, or there was none, the service runs it itself at start and every 24
+  hours after that for as long as it lives; never `reindex`. Every `brain_*`
+  tool waits for the first pass and says so as progress. What it found rides
+  on the answers: `brain_status` the opened cases, the unreadable case files
+  and a failure, the other four one line with `! ` (the failure or the number
+  of cases), every one but `brain_search` also the line about an aged stamp.
+  The `cloud` channel sees only its own areas and not the cause of a failure.
 - **Exit codes**: `0` started; `1` already running, or the spawn or the run
   failed; `2` an unrecognized argument or an unknown subcommand.
 

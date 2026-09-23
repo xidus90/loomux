@@ -124,16 +124,18 @@ Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**. Stufe 2c
 fertig. Stufe 3a (`reindex`, `embed`, `reconcile`,
 `area add`) ist fertig; diese Maschine fährt sie über ihre eigene Registry.
 Stufe 3b (`cases`, `case`, `approve`) ist fertig, samt ihrer Selbstnutzung gegen die
-echte Registry.
+echte Registry. Stufe 3c (`brain check`, `lint --scope`, `wiki init|types|retype`,
+die tägliche Aufholung in `serve`) ist fertig; ihre lesenden Befehle sind gegen die
+echte Registry gelaufen.
 Stufe G4a (`callers`, `skeleton`, `grep`, `map`, `stats` und 4 MCP-Werkzeuge) ist fertig.
 
 ---
 
 ## CLI-Referenz
 
-Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a und 3b im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a, 3b und 3c im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
 
-### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a und 3b)
+### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a, 3b und 3c)
 ```bash
 loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
@@ -149,13 +151,18 @@ loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel un
 loomux dev swap-binary              # Tauscht laufendes Binary atomar gegen Neubau aus
 loomux version                      # Gibt die Version dieses Binaries aus
 loomux lint <datei>                 # Prüft Links und Frontmatter einer Wiki-Seite
+loomux lint [--scope all|S]         # Lintet jedes registrierte Bündel nach den zwölf Regeln der Referenz
+loomux brain check file|bundle|all  # Die Regeln für OKF, Haus und Föderation über eine Seite, ein Bündel oder alle Bereiche (--notes)
+loomux wiki init --scope S          # Legt das Gerüst des Wiki-Bündels eines Bereichs an
+loomux wiki types                   # Zählt die Seitentypen über alle Bereiche, mit Rang und Altnamen
+loomux wiki retype --scope S --from A --to B  # Benennt einen Seitentyp in einem Bündel um
 loomux wiki-gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
 loomux brain search "<anfrage>"     # Durchsucht die sichtbaren Bereiche über den qmd-Daemon (--profile fast|full|keyword)
 loomux brain catalog [--scope S]    # Wurzelkatalog der sichtbaren Bereiche oder das index.md eines Bereichs
 loomux brain read <pfad> --scope S  # Eine Datei eines Bereichs oder einen Abschnitt daraus (--section)
 loomux brain neighbors <pfad> --scope S  # Eingehende und ausgehende Links einer Seite
 loomux brain status                 # Was man wissen muss, bevor man einer Antwort traut
-loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dienst, abgekoppelt oder hier
+loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dienst, abgekoppelt oder hier; holt einen fälligen reconcile täglich nach
 loomux serve status                 # Was serve.json sagt und ob der Listener antwortet
 loomux serve stop [--force]         # Beendet den Dienst über seinen Endpunkt oder über seine PID
 loomux mcp [--channel local|cloud]  # stdio-Brücke, die ein MCP-Wirt startet; sie startet den Dienst selbst
@@ -188,9 +195,8 @@ loomux graph blast [dir]            # Berechnet den Blast-Radius eines Git-Diffs
 loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im Browser
 ```
 
-### Spezifizierte Befehle (Second Brain & Dienste — Stufen 3c–4 & W1–W5)
+### Spezifizierte Befehle (Second Brain & Dienste — Stufen 4 & W1–W5)
 ```bash
-loomux brain check file|bundle|all  # Die Regeln für OKF, Haus und Föderation über eine Seite, ein Bündel oder alle Bereiche
 loomux serve                        # Das eingebettete Web OS neben den MCP-Listenern
 loomux init [--detect-only]         # Richtet Hooks, Einstellungen, Skills und AGENTS.md in erkannten Agenten ein
 ```
