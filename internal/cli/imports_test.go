@@ -26,9 +26,11 @@ func forbiddenForHooks() []string {
 	}
 }
 
-// forbiddenMaintenanceForHooks is the part of brain that decides review cases:
-// the PyYAML port, the evidence binding, the write barrier and the commit
-// plumbing. None of it belongs on the per-edit path. It is a list of its own
+// forbiddenMaintenanceForHooks is the part of brain that decides review cases
+// -- the PyYAML port, the evidence binding, the write barrier and the commit
+// plumbing -- and the three axes behind `brain check`, which read whole
+// bundles and every registered area. None of it belongs on the per-edit path;
+// the edit lint there is `wiki`'s own. It is a list of its own
 // because TestTheCommandLineDoesReachServeAndTheBridge asserts that the
 // command line reaches every entry of forbiddenForHooks, and that test is
 // about the MCP stack, not about these packages.
@@ -38,6 +40,9 @@ func forbiddenMaintenanceForHooks() []string {
 		"github.com/xidus90/loomux/internal/brain/evidence",
 		"github.com/xidus90/loomux/internal/brain/maintenance",
 		"github.com/xidus90/loomux/internal/brain/vcs",
+		"github.com/xidus90/loomux/internal/brain/check/okf",
+		"github.com/xidus90/loomux/internal/brain/check/house",
+		"github.com/xidus90/loomux/internal/brain/check/run",
 	}
 }
 
