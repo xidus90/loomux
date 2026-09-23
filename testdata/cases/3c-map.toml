@@ -1,0 +1,27 @@
+# Stage 3c translates the check widths of the Go binary (`brain check`, E4)
+# and four commands of brain-mcp, the Python reference's console script: lint,
+# wiki init, types and retype.
+
+# A manifest is moved byte for byte, as in 3a and 3b: the worlds declare their
+# areas under the old names, which loomux reads until stage 4.
+manifests = "verbatim"
+
+[[command]]
+from = "brain check"
+to   = "loomux brain check"
+
+[[command]]
+from = "brain-mcp lint"
+to   = "loomux lint"
+
+[[command]]
+from = "brain-mcp wiki init"
+to   = "loomux wiki init"
+
+[[command]]
+from = "brain-mcp types"
+to   = "loomux wiki types"
+
+[[command]]
+from = "brain-mcp retype"
+to   = "loomux wiki retype"

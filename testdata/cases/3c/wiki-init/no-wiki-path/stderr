@@ -1,0 +1,1 @@
+error: area 'project/nowiki' declares no wiki path; add `wiki = ...` to its entry

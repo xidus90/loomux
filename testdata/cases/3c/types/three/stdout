@@ -1,0 +1,6 @@
+Topic [origin]: 6 (engineering/c: 2, project/a: 2, project/b: 2)
+? Balancing Rule [unknown]: 2 (project/a: 1, project/b: 1)
+? (no type) [unknown]: 1 (engineering/c: 1)
+Architecture [core]: 1 (project/b: 1)
+? Design Decision [unknown] -> Decision: 1 (project/a: 1)
+? topic [unknown]: 1 (engineering/c: 1)
