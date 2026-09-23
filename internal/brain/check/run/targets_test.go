@@ -23,7 +23,7 @@ func TestTargetsRefusesANamedAreaWhoseWikiIsNotThere(t *testing.T) {
 	if err == nil {
 		t.Fatal("no error for a named area whose wiki is not there")
 	}
-	want := "area \"project/p\" has no wiki at " + a.WikiPath +
+	want := "area 'project/p' has no wiki at " + filepath.Clean(a.WikiPath) +
 		"; run `loomux wiki init --scope project/p` first"
 	if err.Error() != want {
 		t.Errorf("err = %q, want %q", err, want)
@@ -36,7 +36,7 @@ func TestTargetsRefusesANamedAreaThatDeclaresNoWiki(t *testing.T) {
 	if err == nil {
 		t.Fatal("no error for a named area that declares no wiki")
 	}
-	want := "area \"project/p\" declares no wiki path; " +
+	want := "area 'project/p' declares no wiki path; " +
 		"add `wiki = ...` to its entry"
 	if err.Error() != want {
 		t.Errorf("err = %q, want %q", err, want)
@@ -45,7 +45,7 @@ func TestTargetsRefusesANamedAreaThatDeclaresNoWiki(t *testing.T) {
 
 func TestTargetsRefusesAnUnregisteredScope(t *testing.T) {
 	_, err := Targets(nil, "project/nope")
-	want := "no area named \"project/nope\" in the registry"
+	want := "no area named 'project/nope' in the registry"
 	if err == nil || err.Error() != want {
 		t.Errorf("err = %v, want %q", err, want)
 	}

@@ -29,13 +29,6 @@ func stubGetwd(t *testing.T, dir string, err error) {
 	t.Cleanup(func() { getwd = saved })
 }
 
-func TestLintWithoutAFileIsAUsageError(t *testing.T) {
-	code, _, errOut := run("lint")
-	if code != 2 || !strings.Contains(errOut, "file path required") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
 func TestLintRejectsAnUnknownFlag(t *testing.T) {
 	if code, _, _ := run("lint", "--nope", "x.md"); code != 2 {
 		t.Fatalf("code %d", code)

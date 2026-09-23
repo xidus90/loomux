@@ -150,7 +150,7 @@ func TestBrainCheckBundleRefusesWithoutAKnownScope(t *testing.T) {
 		want string
 	}{
 		{[]string{"brain", "check", "bundle"}, "error: 'loomux brain check bundle' needs --scope <area>\n"},
-		{[]string{"brain", "check", "bundle", "--scope", "project/b"}, "error: no area named \"project/b\" in the registry\n"},
+		{[]string{"brain", "check", "bundle", "--scope", "project/b"}, "error: no area named 'project/b' in the registry\n"},
 	} {
 		code, out, errOut := run(c.args...)
 		if code != 2 || out != "" || errOut != c.want {
