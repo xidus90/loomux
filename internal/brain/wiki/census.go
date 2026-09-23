@@ -57,7 +57,7 @@ func Census(areas []config.Area, manifestDir func(config.Area) string) ([]TypeCo
 		if info, err := os.Stat(area.WikiPath); err != nil || !info.IsDir() {
 			continue
 		}
-		declared, err := declaredTypes(manifestDir(area))
+		declared, err := DeclaredTypesIn(manifestDir(area))
 		if err != nil {
 			return nil, err
 		}
@@ -130,9 +130,9 @@ func RenderCensus(counts []TypeCount) string {
 	return b.String()
 }
 
-// declaredTypes is `_declared_types`: the types an area declares of its own,
-// or none when it has no declaration.
-func declaredTypes(dir string) (map[string]bool, error) {
+// DeclaredTypesIn is `_declared_types`: the types the declaration in dir names
+// beyond the built-in ones, or none when dir holds no declaration.
+func DeclaredTypesIn(dir string) (map[string]bool, error) {
 	manifest, err := config.ReadAreaManifestUntilStage4(dir)
 	if errors.Is(err, config.ErrNoManifest) {
 		return nil, nil

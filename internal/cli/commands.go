@@ -20,6 +20,7 @@ var commands = map[string]command{
 	"reindex":   reindexCommand,
 	"serve":     serveCommand,
 	"status":    statusCommand,
+	"wiki":      wikiCommand,
 	"wiki-gate": wikiGateCommand,
 	"worktree":  worktreeCommand,
 }
