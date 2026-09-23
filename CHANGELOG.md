@@ -4,6 +4,15 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.7.0] - 2026-09-23
+
+<https://github.com/xidus90/loomux/pull/19>
+
+### Added
+- `loomux cases` lists the review cases waiting for a decision.
+- `loomux case <id> [--package]` shows a case with its package and proposal; local-only material is withheld unless `--package` is given.
+- `loomux approve <id>` applies a proposal whose every claim quotes its evidence, and commits the change; `--amend PATH` approves a corrected proposal, `--reject` rejects it, `--defer` leaves the case waiting.
+
 ## [2.6.0] - 2026-09-23
 
 <https://github.com/xidus90/loomux/pull/18>
