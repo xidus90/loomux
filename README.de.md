@@ -123,15 +123,17 @@ Priorität —, steht im **[Migrationsplan](docs/de/migration.md)**. Stufe 2c
 (das Stop-Tor und die Subagenten-Hooks) ist für Claude Code und Antigravity
 fertig. Stufe 3a (`reindex`, `embed`, `reconcile`,
 `area add`) ist fertig; diese Maschine fährt sie über ihre eigene Registry.
+Stufe 3b (`cases`, `case`, `approve`) ist fertig, samt ihrer Selbstnutzung gegen die
+echte Registry.
 Stufe G4a (`callers`, `skeleton`, `grep`, `map`, `stats` und 4 MCP-Werkzeuge) ist fertig.
 
 ---
 
 ## CLI-Referenz
 
-Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c und 3a im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
+Aktive Befehle nach den Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a und 3b im Vergleich zu spezifizierten Befehlen der Folge- und Graph-Stufen:
 
-### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c und 3a)
+### Aktive Befehle (Stufen 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a und 3b)
 ```bash
 loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
@@ -161,6 +163,9 @@ loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph,
 loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
 loomux reconcile                    # Eröffnet Prüffälle für geänderte Quellen und gelandete Merges; ein Fall ist kein Fehlschlag
 loomux area add [--path P] [--scope S]  # Meldet ein Repository als Bereich an, legt sein Wiki an und indiziert es (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
+loomux cases                        # Listet die Fälle, die im Prüfzentrum warten; ein Fall ist kein Fehlschlag
+loomux case <id> [--package]        # Zeigt einen Fall mit Paket und Vorschlag; bei local_only zurückgehalten bis --package
+loomux approve <id>                 # Entscheidet einen Fall: wendet den belegten Vorschlag an und committet ihn (--amend D, --reject, --defer)
 ```
 
 ### Implementierte Befehle (Code-Graph — Stufen G2a–G4a)
@@ -183,7 +188,7 @@ loomux graph blast [dir]            # Berechnet den Blast-Radius eines Git-Diffs
 loomux graph viz                    # Öffnet den interaktiven Graph-Viewer im Browser
 ```
 
-### Spezifizierte Befehle (Second Brain & Dienste — Stufen 3b–4 & W1–W5)
+### Spezifizierte Befehle (Second Brain & Dienste — Stufen 3c–4 & W1–W5)
 ```bash
 loomux brain check file|bundle|all  # Die Regeln für OKF, Haus und Föderation über eine Seite, ein Bündel oder alle Bereiche
 loomux serve                        # Das eingebettete Web OS neben den MCP-Listenern

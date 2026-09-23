@@ -449,6 +449,44 @@ Meldet ein Repository als Bereich an und richtet es ein: der Registry-Eintrag (u
 - **Unterschiede zu `brain init`**: kein `.mcp.json` und keine Agenten-Hooks (`loomux init`, Stufe 4); der Indexlauf findet wirklich statt, außer mit `--no-reindex`; der Branch wird als `[maintenance] branch` geschrieben, nicht als `merge_branch`; `--privacy` wird geprüft; der erste Bereich einer Maschine braucht keine von Hand angelegte Registry-Datei. `-y`/`--yes` wird angenommen und ändert nichts.
 - **Exit-Codes**: `0` oder der Exit-Code des Indexlaufs; `1` bei einem Pfad, der kein Verzeichnis ist, einem ungültigen Scope, einem relativen `--wiki`, einem abgelehnten Registry-Eintrag, einer unlesbaren Datei oder einem fehlgeschlagenen Schreiben; `2` bei einem Usage-Fehler, einem fehlenden oder unbekannten Unterbefehl (mit der Usage-Zeile) oder einem unbekannten `--privacy`.
 
+### Prüfzentrum: `loomux cases`, `loomux case`, `loomux approve`
+
+Drei Befehle der `brain`-CLI von ultra-brain, seit Stufe 3b Befehle auf oberster Ebene von loomux; ein aufgezeichneter Fallkorpus (`testdata/cases/3b`) hält sie an der Python-Referenz, `approve` samt den Dateien, die es schreibt, und dem Commit, den es anlegt. Sie entscheiden die Fälle, die `loomux reconcile` ins Prüfzentrum legt. Ein Fall wird über den Namen seines Verzeichnisses im Prüfzentrum angesprochen, die erste Spalte von `loomux cases`.
+
+- **Umgebung**: Registry und Prüfzentrum kommen aus `LOOMUX_STATE_DIR`, wie bei den Pflegebefehlen; das Prüfzentrum ist das eine Verzeichnis, das ein Bereich unter `[layout] review` erklärt.
+- **Kein `--state-dir`**: Die Referenz nimmt es an allen dreien an; loomux lehnt es ab wie jede unbekannte Flagge (Exit `2`).
+- **Flaggen und ID** dürfen in beliebiger Reihenfolge stehen, wie bei argparse. Eine fehlende ID ist `<befehl>: the following arguments are required: id`, ein zweites Wort `<befehl>: unrecognized arguments: <wörter>`, beides Exit `2`.
+- **Meldungen** auf `stdout` sind deutsch, wörtlich die der Referenz.
+- **Laufzeitfehler** (Exit `1`): `error: <grund>` auf `stderr` — eine Registry, die sich nicht lesen lässt, ein Tresor, der kein oder zwei Prüfzentren erklärt, eine ID, auf die kein Fall antwortet (`no case named '<id>' …`) oder die zwei Verzeichnisse tragen, eine `case.toml`, die sich nicht lesen lässt.
+
+#### `loomux cases`
+Listet jeden Fall im Prüfzentrum, eine Zeile je Fall: Verzeichnis, Bereich, Ziel und Zustand, durch Tabs getrennt, und `manuell` für einen Fall, der eine Entscheidung von Hand verlangt; `keine offenen Fälle`, wenn keiner wartet.
+
+- **Ein Fall ist kein Fehlschlag**: Wartende Fälle lassen den Exit-Code bei `0`.
+- **Umbenannter Fall**: Weichen die `id` in `case.toml` und der Verzeichnisname voneinander ab, sagt eine Warnung auf `stderr` das; es zählt der Verzeichnisname.
+- **Exit-Codes**: `0`; `1`, wenn sich eine Falldatei nicht lesen lässt (`unreadable case: <eintrag>` auf `stderr`, die übrigen Fälle werden trotzdem gelistet), oder bei einem Laufzeitfehler; `2` bei jedem positionalen Argument.
+
+#### `loomux case <id> [--package]`
+Gibt aus, was das menschliche Tor sehen muss, bevor es entscheidet: `Fall <id> (<zustand>, ausgelöst durch <auslöser>, Gewicht <gewicht>)`, den Bereich, das Ziel, je Quelle eine Zeile `Quelle:` mit Revision und Hash, dann `package.md`, `proposal.md` und, wo einer abgelöst wurde, `superseded-proposal.md`, jede unter einer Überschrift `===== <datei> =====`, oder `(nicht vorhanden: <pfad>)`.
+
+- **Zurückgehalten**: Ein Fall eines `local_only`-Bereichs, oder eines Bereichs, dessen Erklärung sich nicht lesen lässt, gibt statt seiner Dateien die Haltezeile aus, mit dem Ort im Prüfzentrum und `Bewusst ausgeben: loomux case --package <id>`. Das Paket trägt den Quelldiff, und ein Vorschlag zitiert ihn wörtlich.
+- **`--package`**: Gibt die zurückgehaltenen Dateien trotzdem aus. Die Haltezeile steht weiter darüber.
+- **Weitere Zeilen**: `manuell: für diesen Fall wird kein Skill-Pfad angeboten` bei einem manuellen Fall, `Vermerk: <vermerk>`, wenn eine verweigerte Freigabe einen hinterlassen hat.
+- **Exit-Codes**: `0`; `1` bei einem Laufzeitfehler; `2` bei einem Usage-Fehler.
+
+#### `loomux approve <id> [--amend <datei> | --reject | --defer]`
+Entscheidet einen Fall. Ohne Flagge wird der Vorschlag des Falls freigegeben; `--amend` gibt stattdessen die genannte Datei frei; `--reject` verwirft den Vorschlag; `--defer` lässt den Fall in der Warteschlange.
+
+- **Belegbindung**: Jede Behauptung des Vorschlags braucht ein wörtliches Zitat aus einem Segment des Pakets. Eine Behauptung ohne Beleg wird verworfen und auf `stdout` genannt (`  verworfene Behauptung: <behauptung>`); bleibt keine übrig, oder tragen die übrigen keinen Diff, der passt, wird nichts an die Seite geschrieben.
+- **Eine Freigabe** prüft zuerst, dass sich weder die Zielseite noch eine zitierte Quelle seit dem Fall geändert hat, schreibt dann die Seite mit fortgeschriebener Frontmatter (`generated`, `verified` mit dem Prüfer), schiebt die Identitätsregister vor, hängt an `log.md` und `audit.md` an, entfernt das Fallverzeichnis und committet genau diese Pfade über einen eigenen Index (`<zustand>/maintenance/index`) auf den aktuellen Ref des Tresors; der Index des Nutzers bleibt unberührt. Danach laufen eine Aufholung und ein Indexlauf, dieser ohne eigene Aufholung. Scheitert die Aufholung, sagt eine Warnung das, und es wird nicht indiziert; scheitert der Indexlauf, nennt eine Warnung `loomux reindex`. Keines von beiden ändert den Exit-Code.
+- **Eine Ablehnung** hängt an `audit.md` an, entfernt das Fallverzeichnis und committet beides. Revision und Hash der Seite schiebt sie **nicht** vor, also eröffnet der nächste `loomux reconcile` denselben Fall wieder — von der Referenz geerbt.
+- **`--defer`** schreibt nichts: `Fall <id> zurückgestellt; er bleibt unverändert in der Warteschlange.`
+- **Der Prüfer** ist `human:<konto>`, das Konto, unter dem der Befehl läuft, ohne Domäne. Keine Flagge nennt ihn.
+- **Ausgabe**: `Fall <id>: approve` oder `Fall <id>: reject`, dann `committet als <sha>`. Eine Entscheidung, die geschrieben, aber nicht committet ist — der Tresor ist kein Git-Repository, oder ein Rebase oder Merge läuft —, ist `geschrieben, aber nicht committet: <grund>` (bei einer Ablehnung `entschieden, …`) auf `stderr`, mit Exit `0`: Der Tresor hat sich geändert, und ein zweiter Aufruf machte es nicht besser.
+- **Weigerungen** (Exit `1`): Eine bewegte Zielseite, eine bewegte Quelle oder ein Vorschlag, den die Belegprüfung abweist, schreiben einen Vermerk in `case.toml` und, für einen Ausgang, der noch nicht vermerkt war, einen Block in `audit.md`; ein abgewiesener Vorschlag des Falls selbst, keine Datei aus `--amend`, markiert den Fall zudem `manuell`. Dann `error: <grund>`. Jede schon geänderte Datei steht nach einer Zeile `Hinweis:` auf `stderr`; nichts davon ist committet.
+- **`--amend=`** mit leerem Wert nennt `.`, wie Python `Path("")` liest, und wird als Verzeichnis abgewiesen; es fällt nie auf den Vorschlag des Falls zurück.
+- **Exit-Codes**: `0` für eine getroffene Entscheidung, committet oder nicht, und für `--defer`; `1` bei einer Weigerung oder einem Laufzeitfehler; `2` bei einem Usage-Fehler, auch bei zwei Entscheidungen zugleich (`loomux approve: argument --<spätere>: not allowed with argument --<frühere>`) und bei `--amend` gefolgt von einem Wort, das argparse als Option liest (`argument --amend: expected one argument`).
+
 ---
 
 ## 8. MCP-Dienst & stdio-Brücke (`loomux serve` / `loomux mcp`)
