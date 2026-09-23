@@ -120,7 +120,7 @@ widersprechen der Fusions-Spec.
 |---|---|---|
 | **3a Erkennen** | `lock.ReplaceText`; `legacy.go` auf „neu zuerst, alt als Rückfall"; Registry-Schreibseite; `loomux area add`; `loomux reindex` und `loomux embed` (Umzug `pkg/index`); `loomux reconcile` (`reconcile.py` 1.043, `case.py` 253, `package.py` 163, `derive.py` 33, Leseseite `vcs.py`); die Lese-/Drop-Seite des Ereignisprotokolls; der Auffangdurchgang vor `reindex` | Alles, was schreibt, braucht zuerst Sperre und atomares Ersetzen. `reindex` ist der Befehl, an den der Durchgang gekoppelt ist. `reconcile` legt die Fälle an, ohne die 3b keinen Eingang hat |
 | **3b Entscheiden** | `loomux cases`, `loomux case`, `loomux approve`; `apply.py` (1.378), `evidence.py` (677), die Schreibseite von `vcs.py` (Zweig, Commit, `RefMoved`) | Hängt an den Fällen aus 3a. Hier wird die Gleichheit der vorhandenen Go-Formen (`approve.go` 640, `evidence.go` 449, `case.go` 247) gegen Python nachgewiesen |
-| **3c Pflegen** | `loomux check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1); `loomux lint --scope all` (#2); `wiki types\|retype\|census\|scaffold`; Upkeep in `serve` | `check` und `lint --scope all` gehören zusammen (#2 sagt „mit #1"). Upkeep ruft `reconcile` aus 3a und meldet den Rückstand, den 1b-2 dorthin verschoben hat |
+| **3c Pflegen** | `loomux brain check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1); `loomux lint --scope all\|<scope>` (#2); `loomux wiki init\|types\|retype`; Upkeep in `serve` (Namen berichtigt 2026-09-23, „Befunde 3c“) | `check` und `lint --scope all` gehören zusammen (#2 sagt „mit #1"). Upkeep ruft `reconcile` aus 3a und meldet den Rückstand, den 1b-2 dorthin verschoben hat |
 
 ## Pakete
 
@@ -135,10 +135,10 @@ widersprechen der Fusions-Spec.
 | `internal/brain/vcs` | Schreibseite: `commit_paths`, `RefMoved`, die Ablehnungen bei laufender Git-Operation | `maintenance/vcs.py:108-283` | 3b |
 | `internal/brain/apply` | Vorschlag anwenden, Segmente, Frontmatter, Format | `apply.py`, `pkg/maintenance/{patch,format,frontmatter,lookup}.go` | 3b |
 | `internal/brain/evidence` | Belegbindung: jedes Zitat wörtlich aus einem Paketsegment | `evidence.py`, `pkg/maintenance/evidence.go` | 3b |
-| `internal/brain/check` | **ergänzt** um OKF, Hausregeln, Föderation — das Basispaket ist seit 1a da, die drei Achsen fehlen | `ultra-brain/pkg/check/{okf,house,run,code}` | 3c |
-| `internal/brain/wiki` | `types`, `retype`, `census`, `scaffold`, `lint --scope all` | `wiki/{types,retype,census,scaffold,lint}.py` | 3c |
+| `internal/brain/check` | **ergänzt** um OKF, Hausregeln, Föderation — das Basispaket ist seit 1a da, die drei Achsen fehlen | `ultra-brain/pkg/check/{okf,house,run}` (`code` fällt weg, Fusions-Spec #18) | 3c |
+| `internal/brain/wiki` | `types`, `census`, `retype`; die zwölf Regeln von `lint.py` als eigener Regelsatz (`sweep.go`) neben der Go-Form in `lint.go`; das Anlegen (`scaffold.go`) ist seit 3a da | `wiki/{types,census,retype,lint}.py` | 3c |
 | `internal/serve` | Upkeep: `reconcile` nachholen, Hinweis anhängen | 1b-2 hat den Platz freigelassen | 3c |
-| `internal/cli` | `area`, `reindex`, `embed`, `reconcile` (3a); `cases`, `case`, `approve` (3b); `check`, `wiki` (3c) | — | je Teilstufe |
+| `internal/cli` | `area`, `reindex`, `embed`, `reconcile` (3a); `cases`, `case`, `approve` (3b); `brain check`, `wiki`, `lint --scope` (3c) | — | je Teilstufe |
 
 **Abhängigkeitsregeln.** `brain/maintenance` → `brain/identity` (es liest das
 Identitätsregister), `brain/index`, `brain/vcs`, `config`, `lock`.
@@ -400,16 +400,28 @@ Abweichung zeigt, an Python gehoben.
 
 ## 3c im Einzelnen
 
-- **`loomux check file|bundle|all`** — die drei Achsen aus
-  `pkg/check/{okf,house,run}`: OKF-Form, Hausregeln, Föderation. `check code`
-  zieht mit, weil es im selben Paket sitzt.
-- **`loomux lint --scope all`** — heute verlangt `loomux lint` genau eine
-  Datei; den Lint über das ganze Bündel hat nur `wiki-gate`, und nur zusammen
-  mit der Driftprüfung. Mit #1 zusammen, weil `lint.go` seine Regeln an die
-  Prüfungen aus #1 verweist.
-- **`wiki types|retype|census|scaffold`** — Seitentypen zählen, einen Typ in
-  einem Bündel umbenennen, die Volkszählung über alle Bereiche, ein Bündel
-  anlegen.
+- **`loomux brain check file|bundle|all`** — die drei Achsen aus
+  `pkg/check/{okf,house,run}`: OKF-Form, Hausregeln, Föderation. Unter
+  `brain`, weil `loomux check all` die Prüfkette aus 2a ist. `check code`
+  fällt weg (Fusions-Spec #18). Referenz ist das Go-Binary vom Tag, denn eine
+  Python-Form von `check` gibt es nicht.
+- **`loomux lint --scope all|<scope>`** — heute verlangt `loomux lint` genau
+  eine Datei; den Lint über das ganze Bündel hat nur `wiki-gate`, und nur
+  zusammen mit der Driftprüfung. Die Regeln sind die zwölf von `lint.py`,
+  als eigener Regelsatz neben `lint.go` (`internal/brain/wiki/sweep.go`),
+  statt die Befunde von `house` abzubilden, denn Texte, Regelnamen und
+  Auslöser weichen dort ab. `lint <datei>`, `wiki-gate` und die Lane
+  `lint/wiki` behalten die Go-Form von 1a (Entscheidung vom 2026-09-23).
+- **`loomux wiki init|types|retype`** — ein Bündel anlegen, die Seitentypen
+  über alle Bereiche zählen (in Python `types`, das `census()` druckt), einen
+  Typ in einem Bündel umbenennen. `census` und `scaffold` sind keine eigenen
+  Befehle.
+
+### Befunde und Entscheidungen 3c
+
+Gegen den Code gelesen am 2026-09-23. Die Befunde B1–B18 und die
+Entscheidungen E1–E8, freigegeben am 2026-09-23 (E5 geändert), stehen in
+`parity/stufe-3c.md`.
 - **Upkeep in `serve`** — ist der letzte `reconcile` älter als 24 h, holt
   `serve` ihn nach und hängt den Hinweis an die Antwort. Der Platz dafür ist
   seit 1b-2 frei.
