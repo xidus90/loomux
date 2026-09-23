@@ -23,6 +23,12 @@ func brainCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		brainRefuse(stderr, brainTopUsage(), "loomux brain", "the following arguments are required: command")
 		return 2
 	}
+	// Before the argparse emulation and not among its verbs: `check` comes
+	// from the Go binary and speaks its own usage, and adding it to the
+	// choices would change what the other five answer to an unknown verb.
+	if args[0] == "check" {
+		return brainCheckCommand(args[1:], stdout, stderr)
+	}
 	parser, known := brainParserFor(args[0])
 	if !known {
 		brainRefuse(stderr, brainTopUsage(), "loomux brain",
