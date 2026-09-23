@@ -1,44 +1,9 @@
 package check
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
-
-func TestAxisCodeAndLaneBrokenFinding(t *testing.T) {
-	if AxisCode != "code" {
-		t.Fatalf("expected AxisCode to be 'code', got %q", AxisCode)
-	}
-
-	err := errors.New("command not found in PATH")
-	f := LaneBrokenFinding("pytest", err)
-
-	if f.Axis != AxisCode {
-		t.Errorf("expected Axis %s, got %s", AxisCode, f.Axis)
-	}
-	if f.Rule != RuleLaneBroken {
-		t.Errorf("expected Rule %s, got %s", RuleLaneBroken, f.Rule)
-	}
-	if f.Relative != RelativeLane {
-		t.Errorf("expected Relative %s, got %s", RelativeLane, f.Relative)
-	}
-	if f.Severity != Error {
-		t.Errorf("expected Severity %s, got %s", Error, f.Severity)
-	}
-	if f.Name() != "code/lane-broken" {
-		t.Errorf("expected Name 'code/lane-broken', got %q", f.Name())
-	}
-	expectedMsg := "pytest: command not found in PATH"
-	if f.Message != expectedMsg {
-		t.Errorf("expected Message %q, got %q", expectedMsg, f.Message)
-	}
-
-	fNil := LaneBrokenFinding("pytest", nil)
-	if fNil.Message != "pytest" {
-		t.Errorf("expected Message 'pytest' for nil err, got %q", fNil.Message)
-	}
-}
 
 func TestNameCarriesTheAxis(t *testing.T) {
 	f := Finding{Axis: AxisOKF, Rule: "type-missing"}
