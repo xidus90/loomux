@@ -6,6 +6,7 @@ package hooks
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -129,29 +130,33 @@ var commandTools = map[string]bool{"Bash": true, "PowerShell": true}
 // matchGlob matches a slash-separated path against a glob pattern supporting
 // `**`, and answers an error for a pattern it cannot read.
 //
+// It is `path.Match`, not `filepath.Match`: the path is slash-separated on
+// every platform, and on Windows `filepath.Match` separates on `\` only, so a
+// `*` there ran across a `/`.
+//
 // The error is not dropped, and that is the point. `config.ReadPolicy` refuses
-// a malformed glob at load, but its check -- `filepath.Match(glob, "")` --
+// a malformed glob at load, but its check -- `path.Match(glob, "")` --
 // stops at the first chunk that does not match an empty name, so a bad class in
 // a later chunk (`foo/*[x`) still arrives here. Treating that as "no match"
 // made the rule protect nothing without a word; the caller turns it into a
 // refusal instead.
-func matchGlob(pattern, path string) (bool, error) {
-	if pattern == path {
+func matchGlob(pattern, name string) (bool, error) {
+	if pattern == name {
 		return true, nil
 	}
 	// Direct wildcard suffix like .aws/**
 	if strings.HasSuffix(pattern, "/**") {
 		prefix := strings.TrimSuffix(pattern, "/**")
-		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+		if name == prefix || strings.HasPrefix(name, prefix+"/") {
 			return true, nil
 		}
 	}
 	if strings.Contains(pattern, "/") {
-		return filepath.Match(pattern, path)
+		return path.Match(pattern, name)
 	}
 	// For patterns without slashes (e.g. *.pem or .env.* or uv.lock)
 	// they match either at the root or base name depending on rule semantics
-	return filepath.Match(pattern, filepath.Base(path))
+	return path.Match(pattern, path.Base(name))
 }
 
 // relativePath names a target the way a rule spells one: relative to the
