@@ -308,3 +308,30 @@ func TestSearchEdgeCases(t *testing.T) {
 		t.Fatalf("want unreadable counted, got %v err=%v", res, err)
 	}
 }
+
+// The rejections read the pattern the way RE2 does: a backslash escapes the
+// character after it, so `\\1` is a literal backslash before a 1 and `\(?=` an
+// optional literal parenthesis, while a third backslash or an unescaped group
+// brings the unsupported form back.
+func TestSearchRejectsOnlyUnescapedForms(t *testing.T) {
+	g := sampleGrepGraph()
+	x := blast.New(g)
+	reader := makeReader(map[string]string{
+		"pkg/service.go": `line with \1 backslash and f(=x)` + "\n",
+	})
+	for pattern, want := range map[string]string{
+		`\\1`:     "",
+		`\(?=`:    "",
+		`\\\1`:    "backreference",
+		`\\(?=x)`: "lookaround",
+		`x\`:      "invalid regex",
+	} {
+		res, err := grep.Search(g, x, nil, pattern, grep.Options{}, reader)
+		switch {
+		case want == "" && (err != nil || res.TotalHits != 1):
+			t.Errorf("%s: want 1 hit, got %d hits, err %v", pattern, res.TotalHits, err)
+		case want != "" && (err == nil || !strings.Contains(err.Error(), want)):
+			t.Errorf("%s: want a %s error, got %v", pattern, want, err)
+		}
+	}
+}
