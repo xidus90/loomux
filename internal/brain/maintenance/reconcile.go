@@ -32,6 +32,7 @@ package maintenance
 // The original is `src/brain/maintenance/reconcile.py`.
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -111,6 +112,13 @@ type Report struct {
 // promises everything hangs off the state directory it was handed, and a
 // lookup that asked StateDir() itself would break that for every caller.
 func Reconcile(areas []config.Area, lookup config.ArtifactLookup, now time.Time) (Report, error) {
+	return ReconcileContext(context.Background(), areas, lookup, now)
+}
+
+// ReconcileContext is Reconcile under a context that can end it. It is asked
+// after every area's scan, the last of them standing before the first write,
+// so a pass that ends early has only read: no case, no stamp.
+func ReconcileContext(ctx context.Context, areas []config.Area, lookup config.ArtifactLookup, now time.Time) (Report, error) {
 	manifests, err := manifestsOf(areas, lookup)
 	if err != nil {
 		return Report{}, err
@@ -128,6 +136,9 @@ func Reconcile(areas []config.Area, lookup config.ArtifactLookup, now time.Time)
 		}
 		areaChecked, areaHashed, areaChanged, err := Scan(area, manifest, lookup.Primary, lookup.Fallback)
 		if err != nil {
+			return Report{}, err
+		}
+		if err := ctx.Err(); err != nil {
 			return Report{}, err
 		}
 		checked += areaChecked
