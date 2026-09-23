@@ -75,14 +75,8 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 		}
 		re = regexp.MustCompile(p)
 	} else {
-		if strings.Contains(pattern, "(?=") || strings.Contains(pattern, "(?!") ||
-			strings.Contains(pattern, "(?<=") || strings.Contains(pattern, "(?<!") {
-			return Result{}, fmt.Errorf("lookaround not supported in RE2 regex: %s", pattern)
-		}
-		for i := 1; i <= 9; i++ {
-			if strings.Contains(pattern, fmt.Sprintf(`\%d`, i)) {
-				return Result{}, fmt.Errorf("backreference not supported in RE2 regex: %s", pattern)
-			}
+		if form := unsupported(pattern); form != "" {
+			return Result{}, fmt.Errorf("%s not supported in RE2 regex: %s", form, pattern)
 		}
 		p := pattern
 		if opts.IgnoreCase {
@@ -208,4 +202,28 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 	})
 
 	return res, nil
+}
+
+// unsupported names the first form RE2 has no answer for -- "lookaround" or
+// "backreference" -- or "" when there is none. It walks the pattern instead of
+// searching it, because a backslash escapes the character after it: `\\1` is
+// a literal backslash and a 1, `\(?=` an optional literal parenthesis.
+func unsupported(pattern string) string {
+	for i := 0; i < len(pattern); i++ {
+		switch pattern[i] {
+		case '\\':
+			if i+1 < len(pattern) && pattern[i+1] >= '1' && pattern[i+1] <= '9' {
+				return "backreference"
+			}
+			i++
+		case '(':
+			rest := pattern[i+1:]
+			for _, open := range []string{"?=", "?!", "?<=", "?<!"} {
+				if strings.HasPrefix(rest, open) {
+					return "lookaround"
+				}
+			}
+		}
+	}
+	return ""
 }
