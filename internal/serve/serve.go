@@ -58,6 +58,11 @@ type Options struct {
 	// progress test needs, and the same one stage 1b-1 uses for the launcher
 	// and the spawner.
 	Answer func(answer.Request, string, string, func(string)) (string, []string, error)
+
+	// upkeep is the daily reconciliation Run starts, one per process and
+	// shared by both channels. Nil outside Run, which leaves a handler built
+	// by a test without a catch-up.
+	upkeep *Upkeep
 }
 
 // answerFunc is the answer this run gives, the real one unless a caller
@@ -119,6 +124,21 @@ func Run(ctx context.Context, opts Options) error {
 		return ErrAlreadyRunning
 	}
 	defer handle.Release()
+
+	// Started before the listeners, so the first request finds the gate; and
+	// ended before the lock is released, so no pass writes behind a serve
+	// that has already let another one start.
+	opts.upkeep = NewUpkeep(opts.RegistryDir, opts.LegacyDir)
+	upkeepCtx, endUpkeep := context.WithCancel(ctx)
+	upkeepDone := make(chan struct{})
+	go func() {
+		defer close(upkeepDone)
+		opts.upkeep.KeepUp(upkeepCtx)
+	}()
+	defer func() {
+		endUpkeep()
+		<-upkeepDone
+	}()
 
 	var once sync.Once
 	stopped := make(chan struct{})
@@ -205,11 +225,17 @@ func handlers(name privacy.Channel, opts Options, stop func()) http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{Name: "loomux", Version: "1"}, &mcp.ServerOptions{
 		SetCacheable: setCacheable,
 	})
-	servebrain.Register(server, name, servebrain.Deps{
+	deps := servebrain.Deps{
 		Answer:      opts.answerFunc(),
 		RegistryDir: opts.RegistryDir,
 		LegacyDir:   opts.LegacyDir,
-	})
+	}
+	// Only a real upkeep: a nil *Upkeep in the interface would be a non-nil
+	// Upkeep that answers nobody.
+	if opts.upkeep != nil {
+		deps.Upkeep = opts.upkeep
+	}
+	servebrain.Register(server, name, deps)
 	servegraph.Register(server, name, servegraph.Deps{
 		RegistryDir: opts.RegistryDir,
 		LegacyDir:   opts.LegacyDir,
