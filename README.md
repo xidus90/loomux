@@ -20,20 +20,32 @@ Loomux gives AI coding agents (Claude Code, Antigravity, Cursor, Codex) deep cod
 
 ```mermaid
 flowchart TD
-    subgraph Core["loomux (Single Go Binary)"]
-        P1["1. Hooks & Guard<br/><b>Policy & Write Barrier</b>"]
-        P2["2. Skills & Review<br/><b>Best Practice Suites</b>"]
-        P3["3. Graph & Loop<br/><b>AST, PageRank, Blast Radius</b>"]
-        P4["4. Second Brain<br/><b>Wiki, ADRs, Semantic QMD</b>"]
-        P5["5. LLM OS & UI<br/><b>Embedded Web Dashboard</b>"]
+    subgraph Core["loomux (single Go binary)"]
+        P1["1. Hooks & Guard<br/><b>Policy, write barrier, check chain</b>"]
+        P2["2. Skills & Review<br/><b>Best-practice suites, graph-aware review</b>"]
+        P3["3. Code Graph & Loop<br/><b>AST, PageRank, blast radius</b>"]
+        P4["4. Second Brain<br/><b>Wiki, review centre, qmd search</b>"]
+        P5["5. LLM OS & UI<br/><b>Embedded Web OS</b>"]
+        Serve["loomux serve<br/><b>MCP gateway</b>"]
     end
 
-    Agents["Coding Agents<br/>(Claude Code / Antigravity / Cursor)"] <--> |Hooks| P1
-    Agents <--> |MCP / Prompts| P2
-    Agents <--> |MCP Tools| P3
-    Agents <--> |MCP Tools| P4
-    Human["Developer / Team"] <--> |Browser / localhost| P5
+    Agents["Coding agents<br/>(Claude Code / Antigravity / Cursor)"]
+    Human["Developer / team"]
+
+    Agents <--> |"hooks: stdin, exit code"| P1
+    Agents <--> |"MCP via loomux mcp"| Serve
+    Serve --> P3
+    Serve --> P4
+    Agents <-.-> |"MCP prompts, skill files"| P2
+    Human --> |".githooks: check precommit"| P1
+    Human --> |"CLI: graph ask, callers, blast"| P3
+    Human --> |"CLI: brain, reindex, cases, approve"| P4
+    Human <-.-> |"browser, localhost"| P5
+    P5 -.-> Serve
 ```
+
+*A dashed line is specified and not built. Which stage builds what, and what is
+done, is in the [migration plan](docs/en/migration.md).*
 
 ---
 
@@ -46,48 +58,53 @@ Every agent interaction is guarded and monitored in real time without blocking d
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Agent as Coding Agent
+    actor Agent as Coding agent
     participant Hook as loomux hook
-    participant Policy as Policy & Barrier
-    participant Graph as Code Graph (State)
-    participant Verify as Check Chain
+    participant Policy as Policy & barrier
+    participant Verify as Check chain (verify lanes)
 
-    Agent->>Hook: PreToolUse (Tool Call, stdin)
-    Hook->>Policy: Validate path, command & write barrier (<35ms)
-    alt Disallowed
-        Policy-->>Agent: Exit 2 (Forbidden with exact line explanation)
+    Agent->>Hook: SessionStart
+    Hook-->>Agent: Base commit recorded, warning if the binary is stale (never blocks)
+
+    Agent->>Hook: PreToolUse (tool call on stdin)
+    Hook->>Policy: Paths, commands, write barrier, config.toml protection (budget 35 ms)
+    alt Refused
+        Policy-->>Agent: Exit 2 (the reason names the rule)
     else Allowed
-        Hook-->>Agent: Exit 0 (Proceed)
+        Hook-->>Agent: Exit 0
     end
 
-    Agent->>Agent: Executes file edit / command
+    Agent->>Agent: Edits a file or runs a command
 
     Agent->>Hook: PostToolUse (stdin)
-    Hook->>Graph: Fingerprint modified file & calculate Blast Radius (target <5ms, G4)
-    Hook-->>Agent: Inline dependent callers & blast warnings
+    Hook->>Verify: edit profile on the edited file (vet, gofmt, wiki lint, ruff, eslint ...)
+    alt A lane is red
+        Verify-->>Agent: Exit 2 with the finding
+    else No lane is red
+        Hook-->>Agent: Exit 0, skipped lanes as context
+    end
 
-    Agent->>Hook: Stop (Turn Completion, stage 2c)
-    Hook->>Verify: Run the stop profile over new content (lanes, tests, coverage gate)
-    Verify-->>Agent: Pass (Exit 0), Halt with feedback (Exit 2), or could not judge (Exit 1)
+    opt Subagent runs
+        Agent->>Hook: SubagentStart / SubagentStop
+        Hook->>Hook: Snapshot origin, branches and HEAD, park what moved
+    end
+
+    Agent->>Hook: Stop (turn end)
+    Hook->>Verify: stop profile over new content, plus parked subagent findings
+    Verify-->>Agent: Pass (exit 0), hold with feedback (exit 2) or could not judge (exit 1)
 ```
+
+Every phase with its payloads, exit codes and budgets: [hook lifecycle](docs/en/hooks.md).
 
 ### 2. Deterministic Code Graph Retrieval ("GraphRank")
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
-> **State (stage G4a).** Stage G2b completed the query path: `loomux graph ask` retrieves code symbols ranked by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25). Retrieval takes ~48 ms warm (~38 ms when matching names without the 1MB body sidecar on this ~3,000-node repo; the sidecar exists to scale to 30,000+ nodes). Inlined code spans are provided via `--source`. Automatic background graph rebuild triggers on drift unless `--no-refresh` is passed; a query never builds a first graph. Stage G3 serves the query and the drift check over MCP as `graph_find_code` and `graph_check_freshness` (see §3). Stage G4a delivers the full code graph navigation palette (`callers`, `skeleton`, `grep`, `map`, `stats`) and their four MCP tools (`graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`). Stage G4b adds git-diff blast radius analysis and the post-edit blast monitor hook.
-
-```mermaid
-flowchart LR
-    Q["Query / Task"] --> Lex["Lexical Match<br/>(Tokens / Symbols)"]
-    Lex --> |Seeds| PR["Personalized PageRank<br/>(Power-Iteration, alpha=0.25)"]
-    Graph[".loomux/state/graph/<br/>AST Wiring Graph"] --> PR
-    PR --> Ranked["Ranked Symbols<br/>(Structural Hubs top)"]
-    Ranked --> Crux["Crux Inliner<br/>(5-10 lines key logic, $0)"]
-    Crux --> Context["Injected Agent Context<br/>(Full answer, no file reads)"]
-```
+`loomux graph ask` ranks code symbols by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25), rebuilds a drifted graph before it answers (never a first one), and with `--source` inlines each hit's span. `loomux graph blast` shows what a git diff reaches over the same edges.
 
 > **"Lexical proposes, graph disposes"**: Keywords find candidate symbols; the structural call graph concentrates mass on the components that actually matter, filtering out dead or isolated hits.
+
+The retrieval path and the blast radius, drawn step by step: [architecture, pillar III](docs/en/architecture.md#4-conceptual-pillar-iii-structural-graph-intelligence-graft). Timings: [benchmarks](docs/en/benchmarks.md).
 
 ### 3. Nested MCP Composite Gateway
 
@@ -95,45 +112,41 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Host["Agent Host (Claude / Antigravity / Cursor)"] <--> |stdio| Bridge["loomux mcp"]
-    Bridge <--> |localhost HTTP| Root["loomux serve (Root MCP Gateway)"]
-    
-    subgraph Namespaces["Sub-Server Modules"]
-        Root <--> Brain["brain_*<br/>(search, catalog, read, neighbors, status)"]
-        Root <--> Graph["graph_*<br/>(find_code, check_freshness, file_api,<br/>trace_calls, find_all, repo_map)"]
-        Root <--> Upstreams["Upstream Proxies<br/>(LSP servers, qmd mcp)"]
+    Host["Agent host (Claude / Antigravity / Cursor)"] <--> |"stdio"| Bridge["loomux mcp<br/>(--channel local or cloud)"]
+    Bridge <--> |"loopback HTTP, one token per channel"| Root["loomux serve<br/>(root MCP gateway,<br/>one listener per channel)"]
+    Browser["Browser"] <-.-> |"SPA, REST, SSE"| Web["Web OS<br/>/api/brain, /api/graph, /api/events"]
+    Web -.-> Root
+
+    subgraph Namespaces["Tool namespaces"]
+        Root <--> Brain["brain_*<br/>(search and read the areas)"]
+        Root <--> Graph["graph_*<br/>(query and navigate the code graph)"]
+        Root <-.-> Upstreams["Upstream proxies<br/>(LSP servers, qmd mcp)"]
     end
+    Brain --> Qmd["qmd daemon"]
 ```
 
-**What stands today (Stages 1b-2, G3 and G4a):** the host, the bridge and the root over two
-loopback listeners — one per channel, each with its own token — and eleven tools:
-the five `brain_*` tools and, from Stages G3 and G4a, six `graph_*` tools
-(`graph_find_code`, `graph_check_freshness`, `graph_file_api`, `graph_trace_calls`,
-`graph_find_all`, `graph_repo_map`). The upstream proxies are specified, not built.
-`loomux mcp` defaults to `--channel local`, starts and replaces the
+*A dashed line is specified and not built.* The channel is the address: each
+listener has its own token, and the cloud channel never sees an area kept
+local. `loomux mcp` defaults to `--channel local`, starts and replaces the
 service itself, and the per-edit hook path links none of it, which an
-import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.md) §8.
+import-graph test holds. Every tool with its arguments: [CLI reference §8](docs/en/cli-reference.md#8-mcp-service--stdio-bridge-loomux-serve--loomux-mcp).
 
 ---
 
 ## Migration Plan
 
 Where each stage and each capability stands — origin, status, dependencies
-and priority — is in the **[migration plan](docs/en/migration.md)**. Stage 2c
-(the stop gate and the subagent hooks) is done for Claude Code and Antigravity. Stage 3a (`reindex`, `embed`, `reconcile`, `area add`) is
-done; this machine runs it over its own registry. Stage 3b (`cases`, `case`,
-`approve`) is done, its self-use against the real registry included. Stage 3c
-(`brain check`, `lint --scope`, `wiki init|types|retype`, the daily catch-up in
-`serve`) is done; its reading commands have run against the real registry.
-Stage G4a (`callers`, `skeleton`, `grep`, `map`, `stats`, and 4 MCP tools) is done.
+and priority, with a map of which stage waits for which — is in the
+**[migration plan](docs/en/migration.md)**. This README describes what loomux
+is; the plan says how far it has got.
 
 ---
 
 ## CLI Reference
 
-Commands active after Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a, 3b and 3c vs. specified for subsequent fusion and graph stages:
+The commands that are built, one line each; every flag and exit code is in the [CLI reference](docs/en/cli-reference.md), and what is specified and not built yet is in the [migration plan](docs/en/migration.md).
 
-### Active Commands (Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a, 3b and 3c)
+### Commands
 ```bash
 loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
@@ -174,7 +187,7 @@ loomux case <id> [--package]        # show a case with its package and proposal;
 loomux approve <id>                 # decide a case: apply the evidence-bound proposal and commit it (--amend F, --reject, --defer)
 ```
 
-### Implemented Commands (Code Graph — Stages G2a–G4a)
+### Code Graph
 ```bash
 loomux graph build [--root <path>]  # extract, resolve and write .loomux/state/graph/wiring.json
 loomux graph check [--root <path>]  # re-extract and diff against the graph on disk (exit 1 on drift)
@@ -184,20 +197,9 @@ loomux graph skeleton <file>        # export definition signatures and line span
 loomux graph grep "<regex>"         # regex search grouped by enclosing symbol and ranked by coupling
 loomux graph map                    # print token-budgeted directory clusters, hubs, and hotspots
 loomux graph stats                  # display graph metrics (nodes, edges by relation, files, languages, size)
-```
-
-### Specified Commands (Code Graph — Stages G4b–G5)
-
-Stage G4a delivered navigation and retrieval (`callers`, `skeleton`, `grep`, `map`, `stats`); stage G4b adds `blast` and the post-tool blast monitor; stage G5 adds multi-language extraction via `wazero`.
-```bash
-loomux graph blast [dir]            # compute blast radius of a git diff against working tree or merge base
-loomux graph viz                    # launch the interactive graph viewer in your browser
-```
-
-### Specified Commands (Second Brain & Services — Stages 4 & W1–W5)
-```bash
-loomux serve                        # the embedded Web OS beside the MCP listeners
-loomux init [--detect-only]         # wire hooks, settings, skills and AGENTS.md into detected coding agents
+loomux graph blast [--cached|--base B] [-d N|all]  # what a git diff reaches: working tree, index, or B...HEAD (--json, --no-refresh)
+loomux check graph-fresh [--wait 30s]  # drive the graph to match the tree for a gate; exit 1 without a graph, on a failed rebuild or a held lock
+loomux check blast-audit [--cached|--base B] [--threshold 3]  # exit 1 when a changed symbol with that many callers has no changed test reaching it (--skip-test-callers)
 ```
 
 ### Developer & Worktree Tools
@@ -219,7 +221,8 @@ loomux dev release <sub>            # release rules for CI: next-version, parse-
 |---|---|---|---|
 | **Single Go Binary** | Architecture | ✅ **Core Mandate** | Zero Python, zero Node.js. 7.5 ms warm hook, single executable deployment, 100% test coverage. |
 | **AST Code Graph & PageRank** | `trailhq/Graft` | ✅ **Adopted Natively** | $0 deterministic code graph. Personalized PageRank concentrates mass on structural hubs instead of naive keyword dumps. |
-| **Blast Radius & Crux Inlining** | `trailhq/Graft` | ✅ **Adopted Natively** | Impact calculation on edit (target <5ms); inlines 5-10 critical logic lines or spans ($0 token read cost, ~48 ms warm retrieval). |
+| **Blast Radius** | `trailhq/Graft` | ✅ **Adopted Natively** | The blast radius of a git diff with a test signal (`graph blast`, `graph_blast`). |
+| **Crux Inlining** | `trailhq/Graft` | ❌ **Left Out** | Graft's crux is an excerpt an LLM chose; no LLM sits in loomux's path. `--source` inlines the span instead (at most 80 lines, `--full` uncapped), Graft's own fallback. |
 | **Symbol-Coupled Grep** | `trailhq/Graft` | ✅ **Adopted Natively** | Regex hits grouped by enclosing symbol and ranked by incoming call edges (`inDegree`). |
 | **Local Second Brain & Wiki** | Architecture | ✅ **Core Mandate** | Markdown wiki, ADRs, and identity registers stored in-repo. Code symbols directly link to architectural decisions. |
 | **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Rejected** | Graft requires Node.js >=20, `node-gyp`, and MSVC C++ builds. Loomux remains 100% pure Go with zero external compilers. |

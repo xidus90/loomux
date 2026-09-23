@@ -16,7 +16,7 @@ sequenceDiagram
     participant Pre as loomux hook pre-tool-use
     participant Post as loomux hook post-tool-use
     participant Stop as loomux hook stop
-    participant Journal as events.jsonl (Append-Only)
+    participant Journal as events.jsonl (geplant, W1)
 
     Dev->>Host: Prompt übergeben
     Host->>Host: Plant Werkzeug-Aufruf
@@ -28,7 +28,7 @@ sequenceDiagram
     alt Verbotener Pfad oder Befehl
         Pre-->>Host: Exit 2 + Ablehnung (stderr Begründung)
     else Erlaubt
-        Pre->>Journal: Ereignis anhängen (<0,2ms)
+        Pre--)Journal: Geplant (W1): Ereignis anhängen
         Pre-->>Host: Exit 0 (Ausführung gestattet)
     end
     end
@@ -36,10 +36,11 @@ sequenceDiagram
     Host->>Host: Führt Werkzeug aus (Datei-Edit / Befehl)
 
     rect rgb(255, 250, 240)
-    Note over Host,Post: Phase 2: Post-Tool Blast-Analyse (<5ms)
+    Note over Host,Post: Phase 2: Post-Tool-Prüflanes (Abschnitt 5)
     Host->>Post: Ergebnis & geänderte Pfade (stdin)
-    Post->>Post: Hash geänderter Dateien & Blast-Radius berechnen
-    Post->>Journal: Ereignis anhängen (<0,2ms)
+    Post->>Post: Lanes des Profils edit über die geänderte Datei fahren (Budget 50 s)
+    Post->>Post: Geplant (G4b): Blast-Monitor, direkte Aufrufer geänderter Go-Symbole, nur wenn keine Lane rot ist
+    Post--)Journal: Geplant (W1): Ereignis anhängen
     Post-->>Host: Exit 0, oder Exit 2, wenn eine Lane scheitert (Abschnitt 5)
     end
 
@@ -121,6 +122,11 @@ Loomux verarbeitet beide Varianten nativ und überführt sie intern in eine einh
 Eine gefährliche Fehlerquelle in Agenten-Werkzeugen sind synchrone HTTP-Aufrufe oder IPC-Sockets von Hooks zu einem Hintergrunddienst. Dies erzeugt untragbare Latenzen (>10ms) und führt zum Komplettausfall, wenn der Hintergrunddienst abstürzt.
 
 Loomux garantiert vollständige Entkopplung über ein **Append-Only Datei-Journal**:
+
+> **Geplant (Stufe W1).** Noch schreibt kein Hook das Journal, und `loomux serve`
+> liest nichts mit; die Entkopplung selbst gilt schon heute: `internal/hooks`
+> verlinkt nichts aus `serve`, was ein Test über den Importgraphen festhält.
+> Stand: [Migrationsplan](migration.md).
 
 ```
 Hook-Prozess (loomux hook pre/post-tool-use)

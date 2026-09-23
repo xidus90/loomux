@@ -29,8 +29,8 @@ flowchart TD
     subgraph LoomuxSupervised["Loomux-Supervised Agent (Deterministic Retrieval)"]
         direction TB
         Task2["Task received"] --> GraphRank["graph_ask 'handleAuth'<br/>(Personalized PageRank)"]
-        GraphRank --> Crux["Inline Crux Spans<br/>(1,200 tokens, $0 AST)"]
-        Crux --> Blast["graph_blast traces callers"]
+        GraphRank --> Spans["Inline source spans<br/>(--source, $0 AST)"]
+        Spans --> Blast["graph_blast traces callers"]
         Blast --> SafeEdit["Safe edit + ADR verification<br/>(15 seconds, 2,500 tokens)"]
     end
 ```
@@ -44,7 +44,7 @@ Loomux eliminates this exploration tax through a unified runtime providing **mem
 In late 2023, AI researcher Andrej Karpathy framed the LLM not merely as a text generator, but as the **Central Processing Unit (CPU) of an emerging Operating System**:
 - **CPU**: The LLM (instruction execution, reasoning, synthesis).
 - **RAM**: The Context Window (fast, high bandwidth, but volatile, expensive, and limited).
-- **L1/L2 Cache**: The **Deterministic AST Code Graph & Crux Inliner** (instant structural retrieval, zero token cost, sub-millisecond lookups — a design target, unmeasured until stage G2 can rank a real repository).
+- **L1/L2 Cache**: The **Deterministic AST Code Graph & Span Inliner** (structural retrieval at zero token cost; `loomux graph ask` answers in ~48 ms warm on this repository, see [benchmarks](benchmarks.md)).
 - **Non-Volatile Storage (Disk / SSD)**: The **Second Brain / LLM Wiki** (curated Architectural Decision Records (ADRs), system boundaries, domain invariants, operational runbooks).
 - **Kernel & Memory Protection Unit (MPU)**: The **Loomux Hooks & Write Barrier** (enforcing file boundaries, pre-tool policy, preventing destructive system commands).
 - **I/O Peripherals**: Terminals, compilers, git, and MCP protocol servers.
@@ -57,7 +57,7 @@ flowchart TD
         
         subgraph Loomux_Kernel["Loomux Kernel & Subsystems"]
             MPU["Loomux Hook Guard<br/>[Memory Protection Unit & Policy Barrier]"]
-            L1["AST Code Graph & Crux Inliner<br/>[L1/L2 Cache — target <1ms, $0 token cost]"]
+            L1["AST Code Graph & Span Inliner<br/>[L1/L2 Cache — ~48 ms warm, $0 token cost]"]
             Disk["LLM Wiki / Second Brain<br/>[Persistent SSD — ADRs, Invariants, Docs]"]
         end
         
@@ -74,7 +74,7 @@ flowchart TD
 In this architecture, Loomux acts as the **OS Kernel and Runtime Supervisor**:
 - It ensures the agent does not overwrite forbidden files or execute destructive shell commands (MPU / Write Barrier).
 - It provides non-volatile project memory so decisions made last week do not have to be re-discovered today (Disk / Wiki).
-- It feeds the CPU with micro-targeted code spans rather than multi-megabyte file dumps (L1 Cache / Crux).
+- It feeds the CPU with micro-targeted code spans rather than multi-megabyte file dumps (L1 Cache / inlined spans).
 
 ---
 
@@ -124,35 +124,30 @@ Text embeddings alone cannot determine whether modifying `function A` breaks `fu
 
 ```mermaid
 flowchart LR
-    Q["Query / Task"] --> Lex["Lexical Candidate Search<br/>(Tokens & Symbols)"]
-    Lex --> |Seeds| PR["Personalized PageRank<br/>(Power-Iteration, alpha=0.25)"]
-    Graph[".loomux/state/graph/<br/>AST Wiring Graph"] --> PR
-    PR --> Ranked["Ranked Symbol Hierarchy<br/>(Structural Hubs Top)"]
-    Ranked --> Crux["Crux Inliner<br/>(5-10 lines key logic, $0)"]
-    Crux --> Context["Injected Agent Context<br/>(Full answer without file reads)"]
+    Q["Query / task"] --> Fresh{"Graph on disk?"}
+    Fresh --> |"none"| NoGraph["Refused:<br/>run loomux graph build"]
+    Fresh --> |"yes"| Drift{"Drift?"}
+    Drift --> |"yes, no --no-refresh"| Rebuild["Rebuild under a lock"]
+    Drift --> |"no"| Lex
+    Rebuild --> Lex["BM25 lexical seeds<br/>(name, signature, body sidecar)"]
+    Lex --> |"seeds"| PR["Personalized PageRank<br/>(power iteration, alpha=0.25)"]
+    Graph[".loomux/state/graph/<br/>wiring graph"] --> PR
+    PR --> Ranked["Ranked symbols<br/>(structural hubs on top)"]
+    Ranked --> Src["--source: span inlined<br/>(at most 80 lines, --full uncapped)"]
+    Src --> Context["Agent context<br/>(fewer file reads)"]
 ```
 
-> **State.** Stage G1 built the read model and the two calculators as Go
-> packages - `internal/code/model`, `internal/code/pagerank`,
-> `internal/code/blast`. Stage G2a added five packages that produce the
-> graph those calculators read and answer the freshness question a hook needs
-> before ranking anything (`sourceset`, `extract/golang`, `resolve`, `store`,
-> `freshness`). Stage G2b adds two packages that complete the query path:
->
-> - `internal/code/lexicon` - tokenizes queries and documents, removes stop
->   words, and writes/reads the `ask-index.json` sidecar caching corpus-wide
->   document frequencies and symbol body tokens.
-> - `internal/code/ask` - computes BM25-style lexical relevance scores across
->   name, signature, and body, blends them with Personalized PageRank (alpha=0.25),
->   extracts inlined source spans, and coordinates freshness checks with
->   cross-process locked rebuilds.
->
-> `ask` does not import the extractor. Rebuild capability arrives as a
-> `Rebuild` function parameter, preserving clean architectural boundaries:
-> query execution remains decoupled from parser and extraction internals.
-> `loomux graph build`, `check`, and `ask` are wired; `callers`, `blast`,
-> `grep`, `skeleton`, and `map` wait on stages G3-G4. The sections below
-> describe the whole pillar and mark what is already code.
+> **Packages.** The read model and the two calculators are `internal/code/model`,
+> `internal/code/pagerank` and `internal/code/blast`; the graph they read comes from
+> `sourceset`, `extract/golang`, `resolve` and `store`, and `freshness` answers
+> whether it still matches the tree. `internal/code/lexicon` tokenizes queries and
+> documents and keeps the `ask-index.json` sidecar; `internal/code/ask` blends
+> BM25-style relevance over name, signature and body with Personalized PageRank
+> (alpha=0.25), inlines source spans and runs the locked rebuild. `ask` does not
+> import the extractor: the rebuild arrives as a `Rebuild` function, so the query
+> path stays apart from the parser. Which commands and tools are built, and what is
+> still open, is in the [migration plan](migration.md); every command is in the
+> [CLI reference](cli-reference.md).
 
 ### 1. "Lexical Proposes, Graph Disposes"
 - **Lexical Step** (G2): BM25 and exact symbol indexing quickly identify candidate nodes matching the prompt keywords.
@@ -182,8 +177,26 @@ the walk. Where the rank drops an unresolved target, the walk keeps it as a hit
 without a node rather than hide the dependency. A node is reported once, at the
 smallest depth any start reached it at, and a start node is never its own hit.
 
-### 3. Crux Extraction
-Reading an entire 1,000-line file into context just to inspect a 20-line method wastes tokens. The Crux Inliner extracts the core definition, signature, and vital inner logic (5–10 lines), providing immediate answers at **$0 token cost**.
+The blast radius of a whole change starts from git's diff and walks the same
+edges. The solid part is code; the dashed part is specified and not built
+(its status is in the [migration plan](migration.md)):
+
+```mermaid
+flowchart LR
+    Diff["git diff<br/>(working tree, --cached or --base B)"] --> Parse["name-status and<br/>zero-context hunks"]
+    Parse --> Seeds["Per changed file:<br/>the symbols its hunks touch"]
+    Graph[".loomux/state/graph/<br/>wiring graph"] --> Radius
+    Seeds --> Radius["blast.Radius<br/>(what reaches them to depth -d,<br/>did a reaching test change too?)"]
+    Radius --> Out["loomux graph blast<br/>MCP graph_blast"]
+    Radius --> Audit["check blast-audit<br/>(--threshold, default 3)"]
+    Fresh["check graph-fresh<br/>(rebuild on drift, wait for the lock)"] -.-> Lane
+    Audit -.-> Lane["verify kind graph<br/>in the precommit profile"]
+    Edit["post-edit hook"] -.-> Monitor["blast monitor:<br/>direct callers of changed Go symbols"]
+    Graph -.-> Monitor
+```
+
+### 3. Span Inlining Instead of a Crux
+Reading an entire 1,000-line file into context just to inspect a 20-line method wastes tokens. `loomux graph ask --source` attaches each hit's own span, at most 80 lines (`--full` lifts the cap), at **$0 token cost** for the lookup. Graft's crux — an excerpt an LLM chose and stored on the node — is left out on purpose: no LLM sits in loomux's path, and the span is Graft's own fallback for a node without a crux (`internal/code/ask/source.go`).
 
 ---
 

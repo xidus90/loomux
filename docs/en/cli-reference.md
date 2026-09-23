@@ -343,15 +343,19 @@ Re-extracts the whole tree and diffs it, node by node, against the graph written
 - **Output**: `NO GRAPH` when nothing has been built yet; `FOREIGN GRAPH` when the graph on disk names an extractor version other than this binary's; `OK` when nothing has drifted; otherwise `DRIFT` with one line per added, removed or changed node id.
 - **Exit codes**: `0` — fresh (`OK`); `1` — no graph yet, a foreign graph, drift found, or a fault while re-extracting; `2` — usage error.
 
-### `loomux graph blast [dir]`
-Computes the downstream blast radius of a git diff against the working tree or merge base.
+### `loomux graph blast [--root <path>] [--cached | --base <ref>] [-d N|all] [--no-refresh] [--json]`
+Shows what a change reaches, from git's diff: per changed file the symbols its hunks touch, what reaches them, and whether a test that reaches them changed too. Deleted files close the report.
 
 - **Flags**:
-  - `--base <ref>`: Diff against git reference (e.g., `origin/main`).
-  - `--format markdown`: Formats output as a GitHub PR comment.
-  - `--export-viz <dir>`: Exports a standalone interactive HTML blast visualization.
+  - `--root <path>`: project root; the working directory when empty.
+  - `--cached`: compare the index against `HEAD`.
+  - `--base <ref>`: compare `<ref>...HEAD` instead of the working tree. Not together with `--cached`.
+  - `-d`, `--depth`: depth limit, a positive integer (default `1`), or `all`/`full` for the closure.
+  - `--no-refresh`: answer from the graph on disk, never rebuild.
+  - `--json`: write the answer as JSON.
+- **Exit codes**: `0` on success; `1` without a project root or graph, or when git or the graph fails; `2` on usage error (an argument, `--base` with `--cached`, a bad depth).
 
-### `loomux graph viz [dir]`
+### `loomux graph viz [dir]` *(specified, Stage W3)*
 Starts the local D3-Force / WebGL interactive graph visualizer.
 - **Flags**: `--port <p>`, `--no-open`.
 
@@ -512,11 +516,10 @@ Decides one case. Without a flag the case's own proposal is approved; `--amend` 
 
 ## 8. MCP Service & stdio Bridge (`loomux serve` / `loomux mcp`)
 
-The service answers eleven tools over Streamable HTTP — the five `brain_*` tools
-and the six `graph_*` tools of Stages G3 and G4a; the bridge is what an MCP host starts
+The service answers twelve tools over Streamable HTTP — the five `brain_*` tools
+and the seven `graph_*` tools of Stages G3, G4a and G4b; the bridge is what an MCP host starts
 and all it does is pass calls on. Both were built in Stage 1b-2. The Web OS of
-Stage W1 is not here yet, and neither are git-diff blast radius analysis (Stage G4b)
-or the upstream proxies.
+Stage W1 is not here yet, and neither are the upstream proxies.
 
 **The channel is the address, not a field of the request.** `serve` binds two
 loopback listeners, one for `local` and one for `cloud`, each with its own
@@ -595,7 +598,7 @@ so the record of `serve`'s last pass stays for session start to read.
 | 2 | skipped: not on Windows, a development build, or not the machine-wide binary; or an unrecognized argument |
 
 ### `loomux mcp [--channel local|cloud]`
-The stdio bridge an MCP host starts. It offers the eleven tools itself — the
+The stdio bridge an MCP host starts. It offers the twelve tools itself — the
 descriptions are static, so a cold service never sits inside the host's
 handshake — and forwards every `tools/call` to the service over the channel's
 address, name to name and arguments to arguments.
@@ -613,7 +616,7 @@ address, name to name and arguments to arguments.
 - **Exit codes**: `0` the host hung up, or Ctrl+C; `1` the bridge failed; `2` an
   unrecognized argument or an invalid `--channel`.
 
-### The eleven tools
+### The twelve tools
 
 | Tool | Arguments |
 |---|---|
@@ -628,12 +631,13 @@ address, name to name and arguments to arguments.
 | `graph_trace_calls` | `scope` and `symbol` (both required), `direction` ∈ {`in`, `out`} → `in`, `depth` → 1 |
 | `graph_find_all` | `scope` and `pattern` (both required), `ignore_case`, `fixed` |
 | `graph_repo_map` | `scope` (required), `max_dirs` → 16 |
+| `graph_blast` | `scope` (required), `base`, `depth` → 1 |
 
 `n` is 10 here and 5 on the command line; that is parity with the Python
 reference, which does the same, not an inconsistency. `limit` is 5 here and 8
 for `loomux graph ask`, both Graft's values.
 
-The six `graph_*` tools operate over the repository of one registered area:
+The seven `graph_*` tools operate over the repository of one registered area:
 
 - **`graph_find_code`** always inlines the source at each hit; `full` takes
   the whole span instead of the capped excerpt, and `in` narrows to a path
@@ -653,6 +657,11 @@ The six `graph_*` tools operate over the repository of one registered area:
   grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`).
 - **`graph_repo_map`** generates a token-budgeted structural overview of directory
   clusters, hubs, and hotspots.
+- **`graph_blast`** is `loomux graph blast` in the area's root: `base` compares
+  `base...HEAD`, empty compares the working tree with `HEAD`, or the last commit
+  when the tree is clean; `depth` as for `graph_trace_calls`. A changed file or
+  hit under the `never` globs is counted, not named, and the refresh notes are
+  left out on the cloud channel.
 
 **Visibility:** an area whose manifest sets `[privacy] mode = "local_only"` does not exist on
 the cloud channel (`unknown scope`, as for `brain_*`), and on both channels
