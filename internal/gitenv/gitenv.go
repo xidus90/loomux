@@ -9,6 +9,7 @@ package gitenv
 
 import (
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -88,21 +89,25 @@ var numbered = []string{"GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"}
 // os.Environ spells them; anything without a separator is passed through
 // untouched, because a name we cannot read is not a name we can match.
 //
-// The match is case-sensitive, and `src/ultraloom/gitenv.py` is not --
-// os.environ upper-cases its keys on Windows, measured on 2026-09-08: after
-// `os.environ["git_dir"] = "x"` the only key that reads back is GIT_DIR, so a
-// lowercase spelling is stripped there and passed through here. Git writes the
-// uppercase spelling, so nothing has ever produced the difference.
-//
-// It is written down because the case was the *only* difference for as long as
-// the two lists were the same list. They are not: Location is ultra-brain's
-// wider one, which cuts identity and configuration as well as the repository
-// pointers, so the Python module is no mirror image of this one any more and
-// nothing here may be read off it.
+// The match ignores case on Windows and only there, because that is where the
+// environment does: a name is one variable however it is spelled, os.Environ
+// hands back the spelling it was set with, and git.exe reads it -- measured on
+// 2026-09-24, `git rev-parse` under `$env:git_dir='C:\nonexistent-xyz'`
+// answered "not a git repository: 'C:\nonexistent-xyz'". On POSIX `git_dir`
+// is another variable, one git never reads, and it stays.
 func Clean(parent []string) []string {
+	return clean(parent, runtime.GOOS == "windows")
+}
+
+// clean is Clean with the platform's answer to "does case count" handed in, so
+// both answers are testable on either platform.
+func clean(parent []string, fold bool) []string {
 	cleaned := make([]string, 0, len(parent))
 	for _, entry := range parent {
 		name, _, found := strings.Cut(entry, "=")
+		if fold {
+			name = strings.ToUpper(name)
+		}
 		if found && (contains(Location, name) || hasAnyPrefix(name, numbered)) {
 			continue
 		}
