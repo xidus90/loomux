@@ -2,6 +2,7 @@ package gitenv
 
 import (
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -52,6 +53,25 @@ func TestCleanPassesThroughAnEntryWithoutAValue(t *testing.T) {
 	parent := []string{"GIT_DIR", "PATH=/usr/bin"}
 	if got := Clean(parent); !slices.Equal(got, parent) {
 		t.Fatalf("Clean = %q, want the input unchanged", got)
+	}
+}
+
+// On Windows a name is one variable however it is spelled, and git.exe reads
+// `git_dir` as GIT_DIR; on POSIX `git_dir` is a variable git never reads.
+func TestCleanFoldsCaseOnlyWhereTheEnvironmentDoes(t *testing.T) {
+	parent := []string{"git_dir=/repo/.git", "Git_Work_Tree=/repo", "git_config_key_0=user.name", "PATH=/bin"}
+	if got := clean(parent, true); !slices.Equal(got, []string{"PATH=/bin"}) {
+		t.Fatalf("folding: Clean = %q, want only PATH", got)
+	}
+	if got := clean(parent, false); !slices.Equal(got, parent) {
+		t.Fatalf("not folding: Clean = %q, want the input unchanged", got)
+	}
+}
+
+func TestCleanFoldsCaseOnWindows(t *testing.T) {
+	folded := len(Clean([]string{"git_dir=/repo/.git"})) == 0
+	if folded != (runtime.GOOS == "windows") {
+		t.Fatalf("Clean folded case: %v on %s", folded, runtime.GOOS)
 	}
 }
 
