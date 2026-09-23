@@ -121,15 +121,17 @@ import-graph test holds. See [`docs/en/cli-reference.md`](docs/en/cli-reference.
 Where each stage and each capability stands — origin, status, dependencies
 and priority — is in the **[migration plan](docs/en/migration.md)**. Stage 2c
 (the stop gate and the subagent hooks) is done for Claude Code and Antigravity. Stage 3a (`reindex`, `embed`, `reconcile`, `area add`) is
-done; this machine runs it over its own registry. Stage G4a (`callers`, `skeleton`, `grep`, `map`, `stats`, and 4 MCP tools) is done.
+done; this machine runs it over its own registry. Stage 3b (`cases`, `case`,
+`approve`) is done, its self-use against the real registry included.
+Stage G4a (`callers`, `skeleton`, `grep`, `map`, `stats`, and 4 MCP tools) is done.
 
 ---
 
 ## CLI Reference
 
-Commands active after Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c and 3a vs. specified for subsequent fusion and graph stages:
+Commands active after Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a and 3b vs. specified for subsequent fusion and graph stages:
 
-### Active Commands (Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c and 3a)
+### Active Commands (Stages 1a, 1b-1, 1b-2, 2a, 2b, 2c, 3a and 3b)
 ```bash
 loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or lint,types,... (--root, --show, -v)
 loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
@@ -159,6 +161,9 @@ loomux reindex [--registry P]       # reconcile first, then rebuild every area's
 loomux embed [--registry P]         # generate the vectors reindex leaves pending (needs qmd on PATH)
 loomux reconcile                    # open review cases for changed sources and landed merges; a case is not a failure
 loomux area add [--path P] [--scope S]  # register a repository as an area, scaffold its wiki and index it (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
+loomux cases                        # list the cases waiting in the review centre; a case is not a failure
+loomux case <id> [--package]        # show a case with its package and proposal; withheld for local_only until --package
+loomux approve <id>                 # decide a case: apply the evidence-bound proposal and commit it (--amend F, --reject, --defer)
 ```
 
 ### Implemented Commands (Code Graph — Stages G2a–G4a)
@@ -181,7 +186,7 @@ loomux graph blast [dir]            # compute blast radius of a git diff against
 loomux graph viz                    # launch the interactive graph viewer in your browser
 ```
 
-### Specified Commands (Second Brain & Services — Stages 3b–4 & W1–W5)
+### Specified Commands (Second Brain & Services — Stages 3c–4 & W1–W5)
 ```bash
 loomux brain check file|bundle|all  # the OKF, house and federation rules over a page, a bundle or every area
 loomux serve                        # the embedded Web OS beside the MCP listeners

@@ -1,7 +1,7 @@
 # loomux — ultraloom und ultra-brain in einem Go-Binary
 
 **Datum:** 2026-09-14
-**Stand:** teilweise umgesetzt (2026-09-22).
+**Stand:** teilweise umgesetzt (2026-09-23).
 **Fusions-Stufen:** 1a, 1b-1, 1b-2 (`serve`, MCP, Brücke), 1b-3 (Wiki- und
 Doku-Umzug) und 2a (Prüfkette `[verify]`, `loomux check <profil>`,
 `check gocover`), 2b (commit-msg mit `[commit]`, `--calibrate`, `--language`) und
@@ -10,7 +10,9 @@ am 2026-09-22) sind abgeschlossen. Der Eintrag der drei Hooks in
 `.claude/settings.json` ist erfolgt; loomux prüft sich an jedem Rundenende selbst.
 Stufe 3 ist in 3a, 3b und 3c zerfallen und lief parallel zu 2b und 2c; 3a
 (`reindex`, `embed`, `reconcile`, `area add`) ist fertig (2026-09-22), samt
-Selbstnutzung über die echte Registry. 3b, 3c und 4 sind offen. Siebzehn
+Selbstnutzung über die echte Registry. 3b (`cases`, `case`, `approve`) ist
+fertig (2026-09-23), samt Selbstnutzung über die echte Registry. 3c und 4
+sind offen. Siebzehn
 Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
 „Stufen“ im Abschnitt „Nachgetragen“; #1, #2, #3 und #17 sind freigegeben.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
@@ -556,12 +558,12 @@ Sitzungszustand, `Snapshots` gibt es dort nicht mehr (2c-Spec, „Nachträge“)
 
 **Die drei Teilstufen der 3**, eine gemeinsame Spec
 (`2026-09-19-loomux-stufe-3-design.md`), je Teilstufe ein Plan und eine
-Paritätsakte (`parity/stufe-3a.md`):
+Paritätsakte (`parity/stufe-3a.md`, `parity/stufe-3b.md`):
 
 | Teilstufe | Stand | Inhalt |
 |---|---|---|
 | **3a** Erkennen | ✅ 2026-09-22 (Plan `2026-09-20-loomux-stufe-3a.md`) | `lock.ReplaceText`, `legacy.go` auf „neu zuerst, alt als Rückfall“, die Registry-Schreibseite, `loomux area add`, `loomux reindex` und `loomux embed` (Umzug `ultra-brain/pkg/index`, Nachtrag #17), `loomux reconcile` samt Lese- und Ablageseite des Ereignisprotokolls, der Auffangdurchgang vor `reindex`. Die Selbstnutzung lief zuerst auf Entscheidung des Nutzers nur gegen eine Kopie der Registry; der Umstieg folgte am 2026-09-22 nach dem Merge: ein `[index]` in `.loomux/config.toml` (Auflage S3 der Akte), dann `reindex` und `embed` über die echte Registry |
-| **3b** Entscheiden | offen; Plan `2026-09-22-loomux-stufe-3b.md`, Bauweise hybrid (Stufe-3-Spec, „Bauweise“) | `loomux cases`, `loomux case`, `loomux approve`; `apply`, `evidence`, die Schreibseite von `vcs`. Hängt an den Fällen aus 3a |
+| **3b** Entscheiden | ✅ 2026-09-23 (Plan `2026-09-22-loomux-stufe-3b.md`, Bauweise hybrid, Stufe-3-Spec, „Bauweise“) | `loomux cases`, `loomux case`, `loomux approve`; `apply`, `evidence`, die Schreibseite von `vcs`. Hängt an den Fällen aus 3a. 24 Fälle gegen die Python-Referenz, 19 ohne Unterschied nach der Normalisierung (stderr nicht verglichen), 5 freigegeben. Die Selbstnutzung lief am 2026-09-23 gegen die echte Registry: `cases` und `case` über das Prüfzentrum des Tresors gleich der Python-Referenz, `approve` auf Entscheidung des Nutzers nur mit `--defer` (Akte, „Selbstnutzung“). Was nach 3b zu entscheiden bleibt, steht unter „Offen nach 3b“ |
 | **3c** Pflegen | offen | `loomux check file\|bundle\|all` mit OKF, Hausregeln, Föderation (#1), `loomux lint --scope all` (#2), `wiki types\|retype\|census\|scaffold`, Upkeep in `serve`. Upkeep ruft `reconcile` aus 3a |
 
 **Säule 3, der Code-Graph** (`2026-09-14-loomux-code-graph-design.md`). Sie
@@ -598,9 +600,9 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 |---|---|---|---|
 | — | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | ✅ Fertig (2026-09-22). Die Claude-Seite bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Antigravity-Messung durchgeführt und Adapter implementiert. Voraussetzung für `init` in Stufe 4 |
 | — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
-| 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b hängt an den Fällen aus 3a, 3c mit dem Upkeep an `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
+| 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c hängt mit dem Upkeep an `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | 2 | **G4** übrige `graph`-Palette, Blast-Monitor | G3 ✅ | Sofort baubar, neben der Fusion. W3 und W4 warten darauf |
-| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 (3a ✅, 3b und 3c offen) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
+| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 (3a ✅, 3b ✅, 3c offen) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
 | 4 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
 | 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4; W4 an G4 und 4; W5 an W1 und Flow | Folgeprojekt |
 | 6 | **G5** `wazero` | G4 | Nichts wartet darauf |
@@ -634,6 +636,37 @@ der Nutzer, erst dann gilt sie.
 | 15 | ultraloom | `scripts/install.ps1` und `install.sh`: Bauen in `~/go/bin` | Stufe 4 (`loomux init`) | Release-Archive gibt es, aber keinen Weg, das Binary auf den `PATH` zu legen | |
 | 16 | ultraloom | `ulinit --detect-only` (`cmd/init/main.go:44`) | Stufe 4, als `loomux init --detect-only` | `internal/detect` ist da, nur ohne Befehl | |
 | 17 | ultra-brain | `reindex` und `embed` als Befehle (`ultra-brain/pkg/index`, `src/brain/cli.py:463,467`); `embed` allein ist #3 | Stufe 3a | Der Auffangdurchgang koppelt `reconcile` an `reindex` („`reconcile` auch als Durchgang vor `reindex`“ nennt einen Befehl, den es in loomux nicht gab), und `embed` ist ohne `reindex` gegenstandslos | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 |
+
+### Offen nach 3b
+
+Drei Fehler, die 3b von der Python-Referenz geerbt und absichtlich
+nachgebildet hat, und eine Lücke, die 3b festgehalten hat. Keiner ist
+geheilt, und hier steht kein Vorschlag: jeder wartet auf eine Entscheidung
+des Nutzers, ob und wie er geheilt wird. Die Belegstellen stehen in
+`parity/stufe-3b.md`.
+
+1. **`--reject` schiebt Revision und Hash nicht vor.** Die Ablehnung schreibt
+   `audit.md`, entfernt den Fall und committet, schiebt aber weder die
+   `sources[]` der Seite noch das Register vor; der nächste Abgleich eröffnet
+   denselben Fall wieder. Akte, Abschnitt „Geerbt“, erster Absatz.
+2. **Eine schließende Frontmatter-Zeile mit Leerraum (`--- `) verliert bei
+   der Freigabe die alte Frontmatter.** Die zwei Frontmatter-Muster der
+   Referenz sind sich über diese Zeile uneinig; geschrieben wird dann nur
+   `generated` und `verified`. Akte, Abschnitt „Geerbt“, zweiter Absatz, und
+   Zeile „Zwei Frontmatter-Muster“ der Abweichungsliste (Golden
+   `s13-closing-blanks`).
+3. **Versteckte Auszeichnung (`%%`, `<!--`, Bidi-Steuerzeichen) auf einer
+   Überschriftenzeile eines Vorschlags wird keinem Abschnitt angelastet.**
+   Akte, Abschnitt „Überlebende Mutanten“, Absatz „Geerbt, festgehalten und
+   nicht geheilt“; `TestHiddenMarkupOnAHeadingLineIsChargedToNoSection` hält
+   das Verhalten fest.
+4. **`reindex` und `approve` teilen keine Sperre.** Laufen beide zugleich über
+   einen schreibgeschützten Bereich, kann `reindex` das Register zwischen
+   Lesen und Tausch durch `approve` neu schreiben (eine Zeile geht verloren,
+   der nächste Abgleich eröffnet den Fall neu), oder beide treffen sich beim
+   ersten Schreiben unter `<zustand>/areas/<scope>`. Akte, Zeilen „Register
+   vorschieben ohne Sperre“ und „Erstes Schreiben in einen schreibgeschützten
+   Bereich“ der Abweichungsliste.
 
 ### Eine Stufe ist fertig, wenn
 

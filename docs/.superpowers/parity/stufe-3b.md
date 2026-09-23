@@ -367,6 +367,26 @@ Fusions-Spec und eine Entscheidung des Nutzers.
   zurückdatiert. Diesen Fall hält Stufe 3a ohne Abweichung gegen
   `maintenance.RenderPackage`; die Segmentgrenzen sind also die aus 3a.
 
+## Selbstnutzung (2026-09-23)
+
+Bedingung 5 der Stufe, gegen die echte Registry dieses Rechners und das
+Prüfzentrum des Tresors (`brain-knowledge/95 Prüfzentrum`, unversioniert,
+ohne Remote). Verglichen wurde `bin/loomux.exe` mit der Python-Referenz
+`ultra-brain/.venv/Scripts/brain-mcp.exe`.
+
+| Aufruf | Ergebnis |
+|---|---|
+| `cases` | Beide Exit 0, 14 wartende Fälle (1 in `hub`, 13 in `project/ultra-brain`, alle `source_changed`). stdout gleich, nachdem die Zeilenenden gefaltet sind: Python schreibt unter Windows CRLF |
+| `case hub-2026-09-04-a673` (702 Zeilen) | Beide Exit 0, gleich nach Faltung der CRLF |
+| `case ultra-brain-2026-09-12-4401` (2243 Zeilen) | Beide Exit 0, gleich nach Faltung der CRLF |
+| `approve --defer ultra-brain-2026-09-12-4401` | Beide geben `Fall ultra-brain-2026-09-12-4401 zurückgestellt; er bleibt unverändert in der Warteschlange.` aus, Exit 0. Das Fallverzeichnis ist danach Byte für Byte dasselbe (sha256 vorher und nachher) |
+
+**Warum nur `--defer`.** Keiner der 14 Fälle trägt ein `proposal.md`; ein
+schlichtes `approve` hielte mit „no proposal to approve“ an. Der Nutzer hat
+entschieden, nur `approve --defer` zu fahren und keine schreibende Freigabe
+(`approve`, `--reject`, `--amend`) gegen die unversionierten echten Daten.
+Die schreibenden Freigaben belegt allein der aufgezeichnete Fallsatz (oben).
+
 ## Überlebende Mutanten
 
 **Die Runde mit `loomux dev mutants` (2026-09-23).** Gefahren mit

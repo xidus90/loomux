@@ -444,6 +444,44 @@ Registers a repository as an area and prepares it: the registry entry (written u
 - **Differences from `brain init`**: no `.mcp.json` and no agent hooks (`loomux init`, stage 4); the index run really happens unless `--no-reindex` is given; the branch is written as `[maintenance] branch`, not `merge_branch`; `--privacy` is checked; the first area of a machine needs no registry file prepared by hand. `-y`/`--yes` is accepted and changes nothing.
 - **Exit codes**: `0`, or the exit code of the index run; `1` for a path that is not a directory, an invalid scope, a relative `--wiki`, a refused registry entry, an unreadable file or a failed write; `2` for a usage error, a missing or unknown subcommand (with the usage line) or an unknown `--privacy`.
 
+### Review: `loomux cases`, `loomux case`, `loomux approve`
+
+Three commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 3b; a recorded case corpus (`testdata/cases/3b`) holds them to the Python reference, `approve` together with the files it writes and the commit it makes. They decide the cases `loomux reconcile` leaves in the review centre. A case is addressed by the name of its directory in the review centre, the first column of `loomux cases`.
+
+- **Environment**: the registry and the review centre come from `LOOMUX_STATE_DIR`, as for the upkeep commands; the review centre is the one directory an area declares under `[layout] review`.
+- **No `--state-dir`**: the reference accepts it on all three; loomux refuses it like any unknown flag (exit `2`).
+- **Flags and the id** may stand in any order, as with argparse. A missing id is `<command>: the following arguments are required: id`, a second word `<command>: unrecognized arguments: <words>`, both exit `2`.
+- **Messages** on `stdout` are German, word for word the reference's.
+- **Runtime errors** (exit `1`): `error: <reason>` on `stderr` — a registry that does not read, a vault that declares no review centre or two, an id no case answers to (`no case named '<id>' …`) or that two directories carry, a `case.toml` that does not read.
+
+#### `loomux cases`
+Lists every case standing in the review centre, one line each: directory, area, target and state, tab-separated, and `manuell` for a case that asks for a manual decision; `keine offenen Fälle` when there is none.
+
+- **A case is not a failure**: waiting cases leave the exit code at `0`.
+- **Renamed case**: when the `id` in `case.toml` and the directory name differ, a warning on `stderr` says so; the directory name counts.
+- **Exit codes**: `0`; `1` when a case file cannot be read (`unreadable case: <entry>` on `stderr`, the other cases are still listed) or for a runtime error; `2` for any positional argument.
+
+#### `loomux case <id> [--package]`
+Prints what the human gate has to see before it decides: `Fall <id> (<state>, ausgelöst durch <trigger>, Gewicht <weight>)`, the area, the target, one `Quelle:` line per source with revision and hash, then `package.md`, `proposal.md` and, where one was superseded, `superseded-proposal.md`, each under a `===== <file> =====` heading, or `(nicht vorhanden: <path>)`.
+
+- **Withheld**: a case of a `local_only` area, or of an area whose declaration cannot be read, prints the halt line instead of its files, with the place in the review centre and `Bewusst ausgeben: loomux case --package <id>`. The package carries the source diff, and a proposal quotes it verbatim.
+- **`--package`**: prints the withheld files anyway. The halt line still stands above them.
+- **Further lines**: `manuell: für diesen Fall wird kein Skill-Pfad angeboten` for a manual case, `Vermerk: <note>` when a refused approval left one.
+- **Exit codes**: `0`; `1` for a runtime error; `2` for a usage error.
+
+#### `loomux approve <id> [--amend <file> | --reject | --defer]`
+Decides one case. Without a flag the case's own proposal is approved; `--amend` approves the named file instead; `--reject` discards the proposal; `--defer` leaves the case in the queue.
+
+- **Evidence binding**: every claim of the proposal needs a verbatim quote from a segment of the package. A claim without one is dropped and named on `stdout` (`  verworfene Behauptung: <claim>`); when none survives, or the surviving claims carry no diff that applies, nothing is written to the page.
+- **An approval** checks first that neither the target page nor a cited source changed since the case was formed, then writes the page with its advanced frontmatter (`generated`, `verified` with the reviewer), advances the identity registers, appends to `log.md` and `audit.md`, removes the case directory and commits exactly those paths onto the vault's current ref through a scratch index (`<state>/maintenance/index`); the user's own index is left alone. It then runs a catch-up pass and an index run, the index run without a catch-up of its own. When the catch-up fails, a warning says so and nothing is indexed; when the index run fails, a warning names `loomux reindex`. Neither changes the exit code.
+- **A rejection** appends to `audit.md`, removes the case directory and commits both. It does **not** advance the page's revision and hash, so the next `loomux reconcile` opens the same case again — inherited from the reference.
+- **`--defer`** writes nothing: `Fall <id> zurückgestellt; er bleibt unverändert in der Warteschlange.`
+- **The reviewer** is `human:<account>`, the account running the command with its domain cut off. No flag names it.
+- **Output**: `Fall <id>: approve` or `Fall <id>: reject`, then `committet als <sha>`. A decision written but not committed — the vault is no git repository, or a rebase or merge is in progress — is `geschrieben, aber nicht committet: <reason>` (or `entschieden, …` for a rejection) on `stderr`, with exit `0`: the vault changed, and running the command again would not improve matters.
+- **Refusals** (exit `1`): a moved target, a moved source or a proposal refused by the evidence check write a note into `case.toml` and, for an outcome not recorded before, a block into `audit.md`; a refused proposal of the case itself, not an `--amend` file, also marks the case `manuell`. Then `error: <reason>`. Every file already changed is named after a `Hinweis:` line on `stderr`; none of it is committed.
+- **`--amend=`** with an empty value names `.`, as Python reads `Path("")`, and is refused as a directory; it never falls back to the case's own proposal.
+- **Exit codes**: `0` for a decision taken, committed or not, and for `--defer`; `1` for a refusal or a runtime error; `2` for a usage error, including two decisions at once (`loomux approve: argument --<later>: not allowed with argument --<earlier>`) and `--amend` followed by a word argparse reads as an option (`argument --amend: expected one argument`).
+
 ---
 
 ## 8. MCP Service & stdio Bridge (`loomux serve` / `loomux mcp`)
