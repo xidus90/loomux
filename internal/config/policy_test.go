@@ -136,6 +136,9 @@ func TestReadPolicyRefusesAPathRuleWithAMalformedGlob(t *testing.T) {
 		"unclosed class":  {"match = \"secrets/[a-z.env\"", "glob #1 \"secrets/[a-z.env\" is malformed"},
 		"in a list":       {"match = [\"bin/*\", \"[\"]", "glob #2 \"[\" is malformed"},
 		"bare class open": {"match = \"a[\"", "glob #1 \"a[\" is malformed"},
+		// The guard's path.Match reads a backslash as an escape on every
+		// platform, so one with nothing after it is refused on Windows too.
+		"trailing escape": {`match = 'bin\'`, `glob #1 "bin\\" is malformed`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := writeConfig(t, "[[policy.paths.rules]]\n"+tc.body+"\nreason = \"x\"\n")

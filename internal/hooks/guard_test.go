@@ -73,10 +73,26 @@ func TestAConfiguredPathRuleCarriesItsReason(t *testing.T) {
 	}
 }
 
+// A `*` stops at a slash on every platform. On Windows `filepath.Match`
+// separates on `\` only, so there `docs/*.md` reached into `docs/sub/`.
+func TestConfiguredGlobDoesNotMatchAcrossDirectories(t *testing.T) {
+	root := t.TempDir()
+	policy := config.Policy{Paths: []config.PathRule{{
+		Match:  []string{"docs/*.md"},
+		Reason: "docs root files are protected",
+	}}}
+	if reasons := checkTool(root, "Write", map[string]any{"file_path": "docs/sub/nested.md"}, policy); len(reasons) != 0 {
+		t.Fatalf("docs/*.md matched docs/sub/nested.md: %v", reasons)
+	}
+	if reasons := checkTool(root, "Write", map[string]any{"file_path": "docs/top.md"}, policy); len(reasons) != 1 {
+		t.Fatalf("docs/*.md missed docs/top.md: %v", reasons)
+	}
+}
+
 // A glob the matcher cannot read is a refusal, not a miss.
 //
 // Load-time validation catches nearly all of them, but not this one:
-// `filepath.Match(glob, "")` stops at the first chunk that does not match an
+// `path.Match(glob, "")` stops at the first chunk that does not match an
 // empty name, so a bad class in a later chunk reaches the matcher. Discarding
 // the error there turned the rule into one that protects nothing, without a
 // word -- the very defect the policy refuses at load.

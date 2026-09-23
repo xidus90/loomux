@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 
@@ -98,11 +99,11 @@ func ReadPolicy(root string) (Policy, error) {
 }
 
 // globList also refuses what would load and never match: no glob at all, an
-// empty one, or one whose syntax `filepath.Match` rejects.
+// empty one, or one whose syntax `path.Match` -- the guard's matcher -- rejects.
 //
 // A malformed glob is the path half of the defect the commands side already
 // refuses two rules up: `match = "secrets/[a-z.env"` loaded happily and never
-// matched, so the policy named a path it did not protect. `filepath.Match`
+// matched, so the policy named a path it did not protect. `path.Match`
 // answers `ErrBadPattern` for a pattern it cannot read, and an empty name is
 // enough to make it read one -- with one gap, which is why the guard side
 // still refuses loudly on a match error rather than trusting this: a bad class
@@ -132,7 +133,7 @@ func globList(value any) ([]string, error) {
 		if glob == "" {
 			return nil, fmt.Errorf("glob #%d is empty", i+1)
 		}
-		if _, err := filepath.Match(glob, ""); err != nil {
+		if _, err := path.Match(glob, ""); err != nil {
 			return nil, fmt.Errorf("glob #%d %q is malformed: %w", i+1, glob, err)
 		}
 	}
