@@ -1,6 +1,7 @@
 package blast_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/blast"
@@ -165,5 +166,46 @@ func TestResolveEdgeCases(t *testing.T) {
 	hits, err = blast.Resolve(g, "DoesNotExistAtAll", "")
 	if err != nil || len(hits) != 0 {
 		t.Fatalf("want 0 matches, got %v err=%v", hits, err)
+	}
+}
+
+func TestResolveStageBoundaries(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "pkg/util", Path: "pkg/util", Name: "util", Kind: model.KindFile},
+		{ID: "pkg/x.go#util", Path: "pkg/x.go", Name: "util", Kind: "function"},
+		{ID: "a/b/f.go#Foo", Path: "a/b/f.go", Name: "Foo", Kind: "function"},
+		{ID: "docs/notes.txt", Path: "docs/notes.txt", Name: "notes.txt", Kind: model.KindFile},
+		{ID: "n.go#Add2", Path: "n.go", Name: "Add2", Kind: "function"},
+		{ID: "n.go#F~9", Path: "n.go", Name: "F~9", Kind: "function"},
+		{ID: "n.go#G~0", Path: "n.go", Name: "G~0", Kind: "function"},
+		{ID: "n.go#a~b", Path: "n.go", Name: "a~b", Kind: "function"},
+		{ID: "n.go#", Path: "n.go", Name: "", Kind: "function"},
+		{ID: "dir/x.go#y", Path: "dir/x.go", Name: "y", Kind: "function"},
+	}}
+	for _, c := range []struct {
+		query string
+		want  []model.NodeID
+		why   string
+	}{
+		{"util", []model.NodeID{"pkg/x.go#util"}, "a file node is no exact-name hit"},
+		{"pkg.util", []model.NodeID{"pkg/x.go#util"}, "a file node is no package-filter hit"},
+		{"a/b.Foo", []model.NodeID{"a/b/f.go#Foo"}, "the package part may be the whole directory"},
+		{"notes.txt", []model.NodeID{"docs/notes.txt"}, "no bare-name hit falls through to the files"},
+		{"Ad", nil, "a digit after a letter is no ordinal"},
+		{"F", []model.NodeID{"n.go#F~9"}, "~9 is an ordinal"},
+		{"G", []model.NodeID{"n.go#G~0"}, "~0 is an ordinal"},
+		{"ab", nil, "a ~ without digits stays"},
+		{"", nil, "an empty query resolves to nothing"},
+		{"dir/x.y", nil, "a slash makes a file query, never a bare name"},
+		{`dir\x.y`, nil, "so does a backslash"},
+	} {
+		hits, err := blast.Resolve(g, c.query, "")
+		var got []model.NodeID
+		for _, h := range hits {
+			got = append(got, h.ID)
+		}
+		if err != nil || !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Resolve(%q) = %v, %v, want %v: %s", c.query, got, err, c.want, c.why)
+		}
 	}
 }
