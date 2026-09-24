@@ -7,11 +7,14 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/gitwork"
 	"github.com/xidus90/loomux/internal/hosts"
+	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/sessions"
 )
 
@@ -51,7 +54,7 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName stri
 		return ExitInternal
 	}
 
-	lines := staleBinary(root)
+	lines := append(staleBinary(root), updateWarnings(config.StateDir(), runtime.GOOS)...)
 
 	if err := hosts.WriteContext(host, "SessionStart", stdout, lines); err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)
@@ -138,6 +141,39 @@ func staleBinary(root string) []string {
 	return []string{fmt.Sprintf(
 		"loomux binary %s is older than %s; rebuild with: go build -o bin/loomux.new.exe ./cmd/loomux, then go run ./cmd/loomux dev swap-binary --dir bin",
 		filepath.ToSlash(rel), name)}
+}
+
+// updateWarnings reads what serve's last self-update pass left in
+// update.json. Only the file: session start asks neither the network nor the
+// service, and hooks may not import serve. Without the file it says nothing,
+// because a machine without a running service is not at fault. goos is a
+// parameter so that a test reaches both platforms' rules on either.
+//
+// There is deliberately no warning by age. serve checks a minute after it
+// starts, so after two days off the first session would read one while
+// nothing is wrong.
+func updateWarnings(stateDir, goos string) []string {
+	st, err := selfupdate.ReadStatus(stateDir)
+	if err != nil {
+		return []string{fmt.Sprintf("loomux cannot read the self-update status: %v", err)}
+	}
+	if st == nil {
+		return nil
+	}
+	var lines []string
+	// A pass by hand may run from a checkout; only serve's record says where
+	// the service runs from. And only on Windows: elsewhere the pass skips
+	// before it looks at the path, and no location there is ever canonical.
+	if canonical := selfupdate.Canonical(stateDir); goos == "windows" && st.Source == selfupdate.SourceServe && !selfupdate.IsCanonical(st.Executable, stateDir) {
+		lines = append(lines, fmt.Sprintf(
+			"loomux serve runs from %s, not from %s; point the MCP entry at %s",
+			st.Executable, canonical, canonical))
+	}
+	if st.Result == selfupdate.Failed {
+		lines = append(lines, fmt.Sprintf("loomux self-update failed at %s: %s",
+			st.CheckedAt.UTC().Format(time.RFC3339), st.Error))
+	}
+	return lines
 }
 
 // newestSource is the latest modification among go.mod, go.sum and the .go

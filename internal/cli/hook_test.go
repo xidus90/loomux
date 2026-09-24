@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/hooks"
 	"github.com/xidus90/loomux/internal/sessions"
@@ -164,6 +165,7 @@ func TestHookRefusesAnUnknownFlag(t *testing.T) {
 // that holds `.loomux/config.toml`, and the hook runs against that: with no
 // root to find, hosts.FindRoot refuses and the call ends with 1 instead.
 func TestHookWalksUpToTheRootWhenNoneIsGiven(t *testing.T) {
+	t.Setenv(config.StateDirEnv, t.TempDir())
 	root := project(t)
 	gitInit(t, root)
 	inside := filepath.Join(root, "deep", "deeper")
