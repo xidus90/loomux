@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/child"
+	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/detect"
 	"github.com/xidus90/loomux/internal/verify"
 )
@@ -636,5 +637,80 @@ func TestPostEditSkipsTheBuildLaneOfAnUnconfiguredCppCheckout(t *testing.T) {
 	code, so, _, seen = postEdit(t, root, payload, passing)
 	if code != ExitOK || strings.Contains(so, "build/CMakeCache.txt") || !strings.Contains(strings.Join(seen, "\n"), "cmake --build build --parallel") {
 		t.Fatalf("configured: %d %q %v", code, so, seen)
+	}
+}
+
+// A green edit to a Go file whose symbols the graph knows names their
+// callers in the one JSON document the harness reads.
+func TestPostEditNamesTheCallersOfAChangedSymbol(t *testing.T) {
+	root := graphRepo(t)
+	writeRepoFile(t, root, "calc/calc.go", calcHead+strings.Replace(addSource, "a + b", "b + a", 1)+"\n"+subSource)
+	payload := filePayload(t, filepath.Join(root, "calc", "calc.go"))
+	code, so, se, _ := postEdit(t, root, payload, passing)
+	if code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	var said map[string]any
+	if err := json.Unmarshal([]byte(so), &said); err != nil {
+		t.Fatalf("stdout has to be one JSON document, got %q: %v", so, err)
+	}
+	specific, _ := said["hookSpecificOutput"].(map[string]any)
+	context, _ := specific["additionalContext"].(string)
+	if !strings.HasPrefix(context, "[graph] calc/calc.go: changed Add; callers in other files:") || !strings.Contains(context, "main (main.go)") {
+		t.Fatalf("%q", so)
+	}
+	code, so, _, _ = postEdit(t, root, payload, func(child.Spec) child.Result { return child.Result{Code: 1, Stdout: "vet: bad\n"} })
+	if code != ExitDenied || so != "" {
+		t.Fatalf("a red lane drops the aside: %d %q", code, so)
+	}
+}
+
+// Only a Go edit inside the root asks the graph.
+func TestPostEditAsksTheGraphOnlyForAGoFileInTheRoot(t *testing.T) {
+	root := graphRepo(t)
+	writeRepoFile(t, root, "calc/calc.py", "x = 1\n")
+	outside := t.TempDir()
+	writeRepoFile(t, outside, "calc/calc.go", calcHead+subSource)
+	for name, payload := range map[string]string{
+		"python file":  filePayload(t, filepath.Join(root, "calc", "calc.py")),
+		"outside root": filePayload(t, filepath.Join(outside, "calc", "calc.go")),
+	} {
+		code, so, se, _ := postEdit(t, root, payload, passing)
+		if code != ExitOK || strings.Contains(so, "[graph]") {
+			t.Errorf("%s: %d %q %q", name, code, so, se)
+		}
+	}
+}
+
+// The graph is read only for a green Go edit: a file of another stack and a
+// red lane never pay for reading it. A green Go edit reads it once, which
+// shows the count sees the reads it is there to rule out.
+func TestPostEditReadsTheGraphOnlyForAGreenGoEdit(t *testing.T) {
+	root := graphRepo(t)
+	writeRepoFile(t, root, "calc/calc.py", "x = 1\n")
+	reads := 0
+	saved := monitorRead
+	monitorRead = func(root string) (*model.Graph, error) {
+		reads++
+		return saved(root)
+	}
+	t.Cleanup(func() { monitorRead = saved })
+	red := func(child.Spec) child.Result { return child.Result{Code: 1, Stdout: "vet: bad\n"} }
+	goFile := filePayload(t, filepath.Join(root, "calc", "calc.go"))
+	for _, c := range []struct {
+		name    string
+		payload string
+		answer  func(child.Spec) child.Result
+		want    int
+	}{
+		{"python file", filePayload(t, filepath.Join(root, "calc", "calc.py")), passing, 0},
+		{"red lane", goFile, red, 0},
+		{"green go file", goFile, passing, 1},
+	} {
+		reads = 0
+		postEdit(t, root, c.payload, c.answer)
+		if reads != c.want {
+			t.Errorf("%s: %d reads of the graph, want %d", c.name, reads, c.want)
+		}
 	}
 }

@@ -69,8 +69,10 @@ func CheckVerdict(kinds []string, outs []Outcome) (code int, notes []string) {
 }
 
 // WriteEdit reports a post-edit run: red lanes on stderr, which blocks the
-// edit with 2, and lanes it had to skip as an aside for the model on stdout.
-func WriteEdit(stdout, stderr io.Writer, outs []Outcome) int {
+// edit with 2, and as an aside for the model on stdout the lanes it had to
+// skip and whatever else the hook has to say. The aside is dropped when a
+// lane is red: the finding matters more, and stderr stays the finding's.
+func WriteEdit(stdout, stderr io.Writer, outs []Outcome, aside string) int {
 	code := 0
 	var skipped strings.Builder
 	const prefix = "loomux hook post-tool-use: lane skipped, "
@@ -88,7 +90,11 @@ func WriteEdit(stdout, stderr io.Writer, outs []Outcome) int {
 			skipped.WriteString(prefix + o.Output + "\n")
 		}
 	}
-	writeSkipped(stdout, skipped.String())
+	notices := skipped.String()
+	if aside != "" && code == 0 {
+		notices += aside + "\n"
+	}
+	writeSkipped(stdout, notices)
 	return code
 }
 

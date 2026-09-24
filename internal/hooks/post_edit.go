@@ -93,8 +93,16 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 		Scope: verify.ScopeEdit, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
 		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now,
 	})
+	aside := ""
+	if eff.Extensions[ext] == "go" && !slices.ContainsFunc(outs, func(o verify.Outcome) bool { return verify.Red(o.State, verify.ScopeEdit) }) {
+		if rel, ok := relInRoot(root, raw); ok {
+			aside = blastAside(root, rel, func(p string) ([]byte, error) {
+				return os.ReadFile(filepath.Join(root, filepath.FromSlash(p)))
+			})
+		}
+	}
 	code := ExitOK
-	if verify.WriteEdit(stdout, stderr, outs) != 0 {
+	if verify.WriteEdit(stdout, stderr, outs, aside) != 0 {
 		code = ExitDenied
 	}
 	// The same rule as a check: a red edit keeps its files for whoever looks
@@ -135,12 +143,8 @@ func editLoad(root string, facts detect.Facts) (verify.Effective, error) {
 // editJobs plans the edit profile for a file inside root; a file outside it
 // belongs to no lane of this project.
 func editJobs(eff verify.Effective, root, raw, runID string, env EditEnv) ([]verify.Job, error) {
-	file := raw
-	if !filepath.IsAbs(file) {
-		file = filepath.Join(root, file)
-	}
-	rel, err := filepath.Rel(root, file)
-	if err != nil || !filepath.IsLocal(rel) {
+	rel, ok := relInRoot(root, raw)
+	if !ok {
 		return nil, nil
 	}
 	// The defaults hold an edit profile and a config can only replace it, so
@@ -150,7 +154,7 @@ func editJobs(eff verify.Effective, root, raw, runID string, env EditEnv) ([]ver
 	if ready == nil {
 		ready = verify.ImportReady
 	}
-	return editPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeEdit, File: filepath.ToSlash(rel)}, verify.PlanEnv{
+	return editPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeEdit, File: rel}, verify.PlanEnv{
 		Root:        root,
 		Loomux:      env.Loomux,
 		RunID:       runID,
