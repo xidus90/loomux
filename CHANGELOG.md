@@ -4,6 +4,21 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.10.0] - 2026-09-24
+
+<https://github.com/xidus90/loomux/pull/24>
+
+### Added
+- `loomux graph blast [--cached|--base X] [-d N|all] [--json]`: the blast radius of a git diff with a test signal per changed file.
+- MCP tool `graph_blast` (scope, base, depth), with refused paths counted and never quoted on the cloud channel.
+- `loomux check graph-fresh`: rebuilds a drifted, foreign or outdated graph for a gate and waits up to 30 s for another rebuild.
+- `loomux check blast-audit [--threshold N] [--skip-test-callers]`: fails when a changed, well-connected symbol has no changed test reaching it.
+- Verify kind `graph` in the default precommit profile, with a Go lane at threshold 5 that is not-applicable where it cannot mean anything.
+- post-tool-use names the callers an edit to a Go symbol may break, and notes a changed type the graph cannot follow yet.
+
+### Fixed
+- `graph_trace_calls` treated a depth like 0.5 as zero and returned no callers; it now floors to at least one.
+
 ## [2.9.1] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/23>
