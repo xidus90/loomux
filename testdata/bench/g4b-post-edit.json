@@ -1,0 +1,9 @@
+[
+  {
+    "name": "loomux hook post-tool-use (Edit on a .go file)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux",
+    "stdin": "C:/Users/micro/Documents/#GIT/loomux/testdata/bench/edit-go.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/micro/Documents/#GIT/loomux/bin/loomux.exe", "hook", "post-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux"]}]
+  }
+]
