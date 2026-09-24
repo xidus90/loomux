@@ -141,7 +141,7 @@ Uhr (`TestLintTakesTheAreasDeclaration`, `internal/serve/upkeep_test.go`).
 
 Gegen die echte Registry dieses Rechners, nur lesend. Damit beide Seiten
 dieselben zehn Bereiche sehen, lief loomux mit `LOOMUX_STATE_DIR` und
-`LOOMUX_LEGACY_BRAIN_DIR` auf `%LOCALAPPDATA%rain`, dem Zustandsort der
+`LOOMUX_LEGACY_BRAIN_DIR` auf `%LOCALAPPDATA%\brain`, dem Zustandsort der
 Referenz; die loomux-Registry ist dieselbe plus `project/loomux`.
 
 | Befehl | Referenz | loomux | Ergebnis |
@@ -156,9 +156,35 @@ und `brain check bundle --scope project/loomux` ohne Befund, `wiki types`
 zählt die Seiten des Bereichs mit.
 
 Nicht gelaufen, weil sie schreiben: `wiki retype` und `wiki init` (in
-`brain-knowledge`, dessen Sicherung offen ist) und `serve` mit einem Stempel
-über 24 Stunden, der einen echten `reconcile` fährt. Die drei warten auf die
+`brain-knowledge`, dessen Sicherung offen ist). Die beiden warten auf die
 Entscheidung des Menschen.
+
+### Upkeep in `serve`, 2026-09-24
+
+Auf Entscheidung des Menschen gegen eine **Kopie**, nicht gegen den echten
+Zustand: `reconcile` schreibt seine Fälle ins Review-Zentrum
+(`[layout] review` von `brain-knowledge`, `95 Prüfzentrum`), also in ein
+echtes Repo. Kopiert wurden `%LOCALAPPDATA%\loomux` ohne `bin/`, `logs/` und
+`serve.*`, dazu `brain-knowledge`; in der kopierten `registry.toml` zeigen die
+Pfade nach `brain-knowledge` auf die Kopie, die übrigen Bereiche liest
+`reconcile` nur. `LOOMUX_STATE_DIR` auf die Kopie, `LOOMUX_LEGACY_BRAIN_DIR`
+auf ein leeres Verzeichnis, `XDG_CONFIG_HOME` isoliert. Binary aus dem
+Checkout auf master `3453354e`. Gerufen über `loomux mcp --channel local`, das
+`serve` selbst startete, mit `brain_status` zweimal hintereinander.
+
+| Prüfpunkt | Ergebnis |
+|---|---|
+| Stempel vorher | `last-run.txt` auf 25 Stunden zurückgesetzt |
+| Erster Aufruf | wartet: Fortschrittsmeldung `catching up on the daily reconciliation before answering: …`, Antwort nach 16,4 s |
+| Zweiter Aufruf | ohne Meldung, 6,6 s (`brain_status` selbst, das je Bereich `qmd` fragt) |
+| Zeile | `last reconcile: 2026-09-24T14:34:56.103616+00:00` in beiden Antworten |
+| `last-run.txt` | neu, derselbe Zeitpunkt |
+| Neue Fälle im Review-Zentrum | keine |
+| Echter Zustand | `last-run.txt` unverändert, `git status` von `brain-knowledge` unverändert, Binary am kanonischen Ort unverändert; das Self-Update der Kopie schrieb kein `bin/` |
+
+Die Zeilen `the search engine did not answer (… Collection not found …)` in
+der Antwort kommen von der Isolation: Das leere `XDG_CONFIG_HOME` kennt keine
+qmd-Sammlung. Sie sind kein Befund gegen den Upkeep.
 
 ## Überlebende Mutanten
 
