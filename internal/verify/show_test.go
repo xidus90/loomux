@@ -24,6 +24,9 @@ measuring = "go test ./... -count=1 -covermode=set -coverprofile={coverprofile}"
 commands = ["{loomux} check gocover --profile {coverprofile}"]  # preset
 measure = "go test ./... -count=1 -covermode=set -coverprofile={coverprofile}"  # preset
 after = "test"  # preset
+
+[verify.go.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]  # preset
 `
 
 func TestWriteShowGoOnly(t *testing.T) {

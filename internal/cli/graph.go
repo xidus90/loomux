@@ -31,6 +31,8 @@ func graphCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return graphAsk(args[1:], stdout, stderr)
 	case "callers":
 		return graphCallers(args[1:], stdout, stderr)
+	case "blast":
+		return graphBlast(args[1:], stdout, stderr)
 	case "skeleton":
 		return graphSkeleton(args[1:], stdout, stderr)
 	case "grep":
@@ -52,6 +54,7 @@ func graphUsage(w io.Writer) {
 	fmt.Fprintln(w, "  check     report whether the graph still matches the code")
 	fmt.Fprintln(w, "  ask       answer a question from the graph")
 	fmt.Fprintln(w, "  callers   trace callers or callees of a symbol")
+	fmt.Fprintln(w, "  blast     show what a change reaches, from git's diff")
 	fmt.Fprintln(w, "  skeleton  show API and signatures of a file")
 	fmt.Fprintln(w, "  grep      search code with symbol grouping and ranking")
 	fmt.Fprintln(w, "  map       generate repository map with hubs and hotspots")
@@ -506,5 +509,72 @@ func graphStats(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	fmt.Fprint(stdout, query.StatsReport(answer))
+	return 0
+}
+
+// graphBlast shows what a change reaches, from git's diff.
+//
+//coverage:exempt the MarshalIndent arm needs a value json cannot encode, and query.BlastAnswer is built of strings, ints, slices and model types -- no query.BlastAnswer this program can construct makes it fail
+func graphBlast(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("graph blast", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", "", "project root; the working directory when empty")
+	base := fs.String("base", "", "compare <base>...HEAD instead of the working tree")
+	cached := fs.Bool("cached", false, "compare the index against HEAD")
+	depthStr := fs.String("d", "1", "depth limit: positive integer, or 'all' or 'full' for the closure")
+	fs.StringVar(depthStr, "depth", "1", "alias for -d")
+	noRefresh := fs.Bool("no-refresh", false, "never rebuild, answer from the graph on disk")
+	asJSON := fs.Bool("json", false, "write the answer as JSON")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(stderr, "loomux graph blast: no arguments expected, got %q\n", fs.Arg(0))
+		return 2
+	}
+	if *base != "" && *cached {
+		fmt.Fprintf(stderr, "loomux graph blast: %v\n", query.ErrBaseAndCached)
+		return 2
+	}
+	var dep blast.Depth
+	if strings.EqualFold(*depthStr, "all") || strings.EqualFold(*depthStr, "full") {
+		dep = blast.All
+	} else if n, err := strconv.Atoi(*depthStr); err == nil && n > 0 {
+		dep = blast.Depth(n)
+	} else {
+		fmt.Fprintf(stderr, "loomux graph blast: -d/--depth must be a positive integer, 'all' or 'full', got %q\n", *depthStr)
+		return 2
+	}
+
+	project, err := projectRoot(*root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux graph blast: %v\n", err)
+		return 1
+	}
+
+	answer, notes, err := query.Blast(project, query.BlastOptions{
+		Base:      *base,
+		Cached:    *cached,
+		Depth:     dep,
+		NoRefresh: *noRefresh,
+	})
+	for _, n := range notes {
+		fmt.Fprintf(stderr, "loomux graph blast: %s\n", n)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux graph blast: %v\n", err)
+		return 1
+	}
+
+	if *asJSON {
+		body, err := json.MarshalIndent(answer, "", "  ")
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux graph blast: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "%s\n", body)
+		return 0
+	}
+	fmt.Fprint(stdout, query.BlastReport(answer))
 	return 0
 }

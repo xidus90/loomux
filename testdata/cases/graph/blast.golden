@@ -1,0 +1,11 @@
+blast radius: working tree against HEAD
+calc/calc.go [stale]
+  seed Add (function) L4-L6 in-degree 2
+  tests: calc/calc_test.go
+reached:
+  TestAdd (function, depth 1, calls) in calc/calc_test.go:L5-L9 from calc/calc.go
+  main (function, depth 1, calls) in main.go:L5-L7 from calc/calc.go
+evidence:
+  Add in calc/calc.go
+    -	return a + b
+    +	return b + a

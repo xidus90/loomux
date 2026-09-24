@@ -34,6 +34,7 @@ type Deps struct {
 	Skeleton    func(root, file string, opts query.SkeletonOptions) (query.SkeletonAnswer, []string, error)
 	Grep        func(root, pattern string, opts query.GrepOptions) (query.GrepAnswer, []string, error)
 	Map         func(root string, opts query.MapOptions) (query.MapAnswer, []string, error)
+	Blast       func(root string, opts query.BlastOptions) (query.BlastAnswer, []string, error)
 }
 
 // mcpLimit is the reference's MCP default (src/mcp/tools.ts), not the command
@@ -48,6 +49,7 @@ func Register(server *mcp.Server, channel privacy.Channel, deps Deps) {
 		"graph_trace_calls":     traceCalls(channel, deps),
 		"graph_find_all":        findAll(channel, deps),
 		"graph_repo_map":        repoMap(channel, deps),
+		"graph_blast":           graphBlast(channel, deps),
 		"graph_check_freshness": checkFreshness(channel, deps),
 	}
 	for _, tool := range mcptools.Graph() {
@@ -222,6 +224,35 @@ func repoMap(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 			return failure(withNotes(notes, errorText(channel, err))), nil
 		}
 		return success(withNotes(notes, strings.TrimSuffix(query.MapReport(answer), "\n"))), nil
+	}
+}
+
+// graphBlast has no refusal of its own before resolve: scope is its only
+// required argument, and resolve refuses an empty one with the same text.
+// git runs in the area's root; the never globs reach query as Keep, which
+// counts a refused changed file or hit instead of naming it.
+func graphBlast(channel privacy.Channel, deps Deps) mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := arguments(req)
+		area, refusal := resolve("graph_blast", channel, deps, str(args, "scope"))
+		if refusal != nil {
+			return refusal, nil
+		}
+		answer, notes, err := deps.Blast(area.Area.Path, query.BlastOptions{
+			Base:  str(args, "base"),
+			Depth: parseDepth(args["depth"]),
+			Keep:  readable(area.Manifest),
+		})
+		if channel == privacy.ChannelCloud {
+			notes = nil
+		}
+		for _, note := range notes {
+			report(ctx, req, note)
+		}
+		if err != nil {
+			return failure(withNotes(notes, errorText(channel, err))), nil
+		}
+		return success(withNotes(notes, strings.TrimSuffix(query.BlastReport(answer), "\n"))), nil
 	}
 }
 

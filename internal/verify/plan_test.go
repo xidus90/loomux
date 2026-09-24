@@ -321,11 +321,12 @@ func TestExpandProfile(t *testing.T) {
 		want []string
 		err  string
 	}{
-		{"all", []string{"lint", "types", "test", "coverage"}, ""},
+		{"all", []string{"lint", "types", "test", "coverage", "graph"}, ""},
+		{"graph", []string{"graph"}, ""},
 		{"edit", []string{"lint", "types"}, ""},
 		{" test , lint,test ", []string{"test", "lint"}, ""},
 		{"coverage", []string{"coverage"}, ""},
-		{"lint,style", nil, `unknown check "style"; kinds: lint, types, test, coverage; profiles: edit, precommit, stop`},
+		{"lint,style", nil, `unknown check "style"; kinds: lint, types, test, coverage, graph; profiles: edit, precommit, stop`},
 		{"", nil, `"" names no check`},
 		{" , ", nil, `" , " names no check`},
 	}
@@ -507,7 +508,7 @@ func TestPlanMarksALaneUnreadyWithoutTheFilesItNeeds(t *testing.T) {
 	root := t.TempDir()
 	eff := effFor(t, "", facts)
 	note := "build/CMakeCache.txt is missing: configure the build first"
-	for _, req := range []Request{{Kinds: Kinds()}, {Kinds: []string{"lint", "types"}, Scope: ScopeEdit, File: "a.cpp"}} {
+	for _, req := range []Request{{Kinds: fourKinds}, {Kinds: []string{"lint", "types"}, Scope: ScopeEdit, File: "a.cpp"}} {
 		jobs, err := Plan(eff, req, env(root))
 		if err != nil || len(jobs) != len(req.Kinds) {
 			t.Fatalf("%+v %v", jobs, err)
@@ -531,10 +532,123 @@ func TestPlanMarksALaneUnreadyWithoutTheFilesItNeeds(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "build", "CMakeCache.txt"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	jobs, _ := Plan(eff, Request{Kinds: Kinds()}, env(root))
+	jobs, _ := Plan(eff, Request{Kinds: fourKinds}, env(root))
 	for _, j := range jobs {
 		if j.Pre != "" {
 			t.Fatalf("configured: %+v", j)
 		}
+	}
+}
+
+// fourKinds are the kinds that check code; the graph kind is left out where
+// a test is about those lanes alone.
+var fourKinds = []string{"lint", "types", "test", "coverage"}
+
+// graphEnv is env with a graph probe that answers ready and note, and counts
+// how often it was asked.
+func graphEnv(root string, ready bool, note string, calls *int) PlanEnv {
+	e := env(root)
+	e.GraphReady = func(r string) (bool, string) {
+		if r != root {
+			panic("GraphReady asked about " + r)
+		}
+		*calls++
+		return ready, note
+	}
+	return e
+}
+
+var goTwoAreas = detect.Facts{Stacks: []string{"go"}, Areas: map[string][]string{"go": {".", "tools"}}}
+
+// The graph belongs to the root: a stack in two areas gets one graph job,
+// in ".", named without an area.
+func TestPlanRunsTheGraphKindOncePerStackAtTheRoot(t *testing.T) {
+	root := t.TempDir()
+	calls := 0
+	jobs, err := Plan(effFor(t, "", goTwoAreas), Request{Kinds: []string{"graph"}}, graphEnv(root, true, "", &calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names(jobs) != "graph/go" || jobs[0].Area != "." || jobs[0].Dir != root || jobs[0].Pre != "" || calls != 1 {
+		t.Fatalf("%+v, %d probes", jobs, calls)
+	}
+	want := [][]string{
+		{`C:\bin\loomux.exe`, "check", "graph-fresh"},
+		{`C:\bin\loomux.exe`, "check", "blast-audit", "--cached", "--threshold", "5"},
+	}
+	if !slices.EqualFunc(jobs[0].Argvs, want, slices.Equal) {
+		t.Fatalf("argvs %q", jobs[0].Argvs)
+	}
+	lint, _ := Plan(effFor(t, "", goTwoAreas), Request{Kinds: []string{"lint"}}, graphEnv(root, true, "", &calls))
+	if names(lint) != "lint/go@. lint/go@tools" {
+		t.Fatalf("the other kinds keep one job per area: %s", names(lint))
+	}
+}
+
+// A probe that says no makes the lane not-applicable with its note, and a
+// plan without a probe cannot know, so the lane stands aside too.
+func TestPlanAsksTheGraphProbe(t *testing.T) {
+	root := t.TempDir()
+	calls := 0
+	jobs, _ := Plan(effFor(t, "", goOnly), Request{Kinds: []string{"graph"}}, graphEnv(root, false, "no graph", &calls))
+	if len(jobs) != 1 || jobs[0].Pre != StateNotApplicable || jobs[0].Note != "no graph" || jobs[0].Argvs != nil {
+		t.Fatalf("%+v", jobs)
+	}
+	jobs, _ = Plan(effFor(t, "", goOnly), Request{Kinds: []string{"graph"}}, env(root))
+	if len(jobs) != 1 || jobs[0].Pre != StateNotApplicable || jobs[0].Note != "graph lanes need a graph probe" {
+		t.Fatalf("%+v", jobs)
+	}
+}
+
+// The graph lane's commands run as child processes whose environment loses
+// the hook's GIT_INDEX_FILE; GraphEnv hands it back to that job alone. Without
+// GraphEnv the job carries nothing extra.
+func TestPlanHandsTheGraphJobItsGraphEnv(t *testing.T) {
+	root := t.TempDir()
+	calls := 0
+	e := graphEnv(root, true, "", &calls)
+	e.GraphEnv = func(r string) []string {
+		if r != root {
+			panic("GraphEnv asked about " + r)
+		}
+		return []string{"GIT_INDEX_FILE=" + filepath.Join(root, ".git", "index.lock")}
+	}
+	jobs, err := Plan(effFor(t, "", goOnly), Request{Kinds: []string{"lint", "graph"}}, e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names(jobs) != "lint/go graph/go" {
+		t.Fatalf("%s", names(jobs))
+	}
+	if jobs[0].Env != nil {
+		t.Fatalf("lint job env %q", jobs[0].Env)
+	}
+	want := []string{"GIT_INDEX_FILE=" + filepath.Join(root, ".git", "index.lock")}
+	if !slices.Equal(jobs[1].Env, want) {
+		t.Fatalf("graph job env %q, want %q", jobs[1].Env, want)
+	}
+	jobs, _ = Plan(effFor(t, "", goOnly), Request{Kinds: []string{"graph"}}, graphEnv(root, true, "", &calls))
+	if len(jobs) != 1 || jobs[0].Env != nil {
+		t.Fatalf("without GraphEnv: %+v", jobs)
+	}
+}
+
+// An edit never runs the graph lane: it would rebuild the graph at every edit.
+func TestPlanLeavesTheGraphKindOutOfAnEdit(t *testing.T) {
+	calls := 0
+	jobs, err := Plan(effFor(t, "", goOnly), Request{Kinds: []string{"graph"}, Scope: ScopeEdit, File: "a.go"},
+		graphEnv(t.TempDir(), true, "", &calls))
+	if err != nil || len(jobs) != 0 || calls != 0 {
+		t.Fatalf("%+v %v, %d probes", jobs, err, calls)
+	}
+}
+
+// A stack without a graph lane has no command for it, and the probe, which
+// costs git calls, is not asked on its behalf.
+func TestPlanDoesNotProbeForAStackWithoutAGraphLane(t *testing.T) {
+	calls := 0
+	jobs, _ := Plan(effFor(t, "", pythonOnly), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
+	if names(jobs) != "graph/python" || jobs[0].Pre != StateNotApplicable || jobs[0].Note != "no command" || calls != 0 {
+		t.Fatalf("%+v, %d probes", jobs, calls)
 	}
 }

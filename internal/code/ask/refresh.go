@@ -37,7 +37,49 @@ type Rebuild func() error
 // LockPath is the file that keeps two rebuilds apart.
 func LockPath(root string) string { return store.CachePath(root, "rebuild.lock") }
 
-// EnsureFresh probes the tree and rebuilds when it moved.
+// Status is how a refresh ended when it did not fail.
+type Status int
+
+const (
+	// StatusClean means the graph on disk already matched the tree.
+	StatusClean Status = iota
+	// StatusRebuilt means this run rebuilt the graph.
+	StatusRebuilt
+)
+
+// RefreshOptions tunes one refresh.
+type RefreshOptions struct {
+	Force  string        // a reason to rebuild although the probe is clean; "" probes
+	Wait   time.Duration // how long to wait for a held lock; 0 does not wait
+	Notice func(string)
+}
+
+// ProbeError is a freshness probe that could not run.
+type ProbeError struct{ Err error }
+
+func (e *ProbeError) Error() string { return "freshness probe failed: " + e.Err.Error() }
+func (e *ProbeError) Unwrap() error { return e.Err }
+
+// RebuildError is a rebuild that ran and failed.
+type RebuildError struct{ Err error }
+
+func (e *RebuildError) Error() string { return "rebuild failed: " + e.Err.Error() }
+func (e *RebuildError) Unwrap() error { return e.Err }
+
+// LockedError is a rebuild lock another run still held when the wait ran out.
+type LockedError struct {
+	Path string
+	Age  time.Duration
+}
+
+func (e *LockedError) Error() string {
+	return fmt.Sprintf("another run holds the rebuild lock %s (%s old)", e.Path, e.Age)
+}
+
+// lockPoll is how often a waiting run looks at the lock again.
+const lockPoll = 100 * time.Millisecond
+
+// Refresh probes the tree and rebuilds when it moved, and says how that ended.
 //
 // Freshness belongs in the query path, and the reference explains why from
 // experience: with the rebuild hanging off a session hook, every question
@@ -47,8 +89,9 @@ func LockPath(root string) string { return store.CachePath(root, "rebuild.lock")
 //
 // Three properties, all of them load-bearing:
 //
-//   - never fatal: a failed probe or rebuild answers from the graph on disk
-//   - no stampede: a lock, and the loser does not queue -- it answers
+//   - a failure is typed, never a panic: a question answers from the graph
+//     on disk, a gate turns red
+//   - no stampede: a lock, and the loser waits at most opts.Wait, then yields
 //   - writes only what a question reads: the graph, the sidecar, the record
 //
 // The last one is why a clean tree is not enough to return on. The freshness
@@ -59,38 +102,69 @@ func LockPath(root string) string { return store.CachePath(root, "rebuild.lock")
 // another index version, therefore counts as drift. One that passes that
 // cheap check and only then fails to parse does not: the probe reads the
 // version field, not the whole file.
-func EnsureFresh(root, extractor string, rebuild Rebuild, notice func(string)) {
+//
+// opts.Force skips the probe: the caller already knows the graph cannot stand,
+// for a reason the record does not see (an outdated schema, another extractor).
+func Refresh(root, extractor string, rebuild Rebuild, opts RefreshOptions) (Status, error) {
 	say := func(format string, args ...any) {
-		if notice != nil {
-			notice(fmt.Sprintf(format, args...))
+		if opts.Notice != nil {
+			opts.Notice(fmt.Sprintf(format, args...))
 		}
 	}
-
-	drift, err := freshness.Probe(root, extractor)
-	if err != nil {
-		say("freshness probe failed, answering from the graph on disk: %v", err)
-		return
+	if opts.Force != "" {
+		say("%s", opts.Force)
+	} else {
+		drift, err := freshness.Probe(root, extractor)
+		if err != nil {
+			return StatusClean, &ProbeError{err}
+		}
+		switch {
+		case drift == nil:
+			// No record: unknown, never clean.
+			say("no freshness record, building the graph")
+		case !drift.Clean():
+			say("%d files moved, rebuilding the graph", drift.Count())
+		case !lexicon.Usable(root):
+			say("no ask index, rebuilding the graph")
+		default:
+			return StatusClean, nil
+		}
 	}
-	switch {
-	case drift == nil:
-		// No record: unknown, never clean.
-		say("no freshness record, building the graph")
-	case !drift.Clean():
-		say("%d files moved, rebuilding the graph", drift.Count())
-	case !lexicon.Usable(root):
-		say("no ask index, rebuilding the graph")
-	default:
-		return
-	}
-
-	if !lock(root) {
-		say("another run is rebuilding, answering from the graph on disk")
-		return
+	deadline := time.Now().Add(opts.Wait)
+	for !lock(root) {
+		if !time.Now().Before(deadline) {
+			locked := &LockedError{Path: LockPath(root)}
+			if info, err := os.Stat(locked.Path); err == nil {
+				locked.Age = time.Since(info.ModTime()).Round(time.Second)
+			}
+			return StatusClean, locked
+		}
+		time.Sleep(lockPoll)
 	}
 	defer unlock(root)
-
 	if err := rebuild(); err != nil {
-		say("rebuild failed, answering from the graph on disk: %v", err)
+		return StatusClean, &RebuildError{err}
+	}
+	return StatusRebuilt, nil
+}
+
+// EnsureFresh is Refresh for a question: it never fails, and says why it
+// answers from the graph on disk.
+func EnsureFresh(root, extractor string, rebuild Rebuild, notice func(string)) {
+	_, err := Refresh(root, extractor, rebuild, RefreshOptions{Notice: notice})
+	if err == nil || notice == nil {
+		return
+	}
+	var probe *ProbeError
+	var locked *LockedError
+	var failed *RebuildError
+	switch {
+	case errors.As(err, &probe):
+		notice(fmt.Sprintf("freshness probe failed, answering from the graph on disk: %v", probe.Err))
+	case errors.As(err, &locked):
+		notice("another run is rebuilding, answering from the graph on disk")
+	case errors.As(err, &failed):
+		notice(fmt.Sprintf("rebuild failed, answering from the graph on disk: %v", failed.Err))
 	}
 }
 

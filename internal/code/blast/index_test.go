@@ -137,3 +137,31 @@ func TestReachConverges(t *testing.T) {
 		t.Errorf("a start id is never its own hit, not even around a cycle: %v", got)
 	}
 }
+
+func TestInDegreeWhereCountsOnlyTheSourcesKeepAccepts(t *testing.T) {
+	g := radiusGraph()
+	x := blast.New(g)
+	notTest := func(n *model.Node) bool { return n != nil && !blast.IsTestPath(n.Path) }
+
+	if got := x.InDegreeWhere("lib.go#Add", notTest); got != 1 {
+		t.Errorf("InDegreeWhere(Add, not a test) = %d, want 1", got)
+	}
+	if got := x.InDegree("lib.go#Add"); got != 2 {
+		t.Errorf("InDegree(Add) = %d, want 2", got)
+	}
+}
+
+func TestInDegreeWhereHandsKeepNilForASourceThatIsNoNode(t *testing.T) {
+	g := radiusGraph()
+	g.Edges = append(g.Edges, model.Edge{Source: "ghost", Target: "lib.go#Sub", Relation: model.RelationCalls})
+	var seen []*model.Node
+
+	got := blast.New(g).InDegreeWhere("lib.go#Sub", func(n *model.Node) bool {
+		seen = append(seen, n)
+		return true
+	})
+
+	if got != 1 || len(seen) != 1 || seen[0] != nil {
+		t.Errorf("got %d, keep saw %v, want 1 and a single nil", got, seen)
+	}
+}

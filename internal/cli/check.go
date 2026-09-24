@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/child"
+	"github.com/xidus90/loomux/internal/code/ask"
+	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/detect"
 	"github.com/xidus90/loomux/internal/hooks"
 	"github.com/xidus90/loomux/internal/hosts"
@@ -52,7 +54,7 @@ var (
 
 func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage), or one of: commit-msg, gofmt, gocover")
+		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, graph-fresh, blast-audit")
 		return 2
 	}
 	switch args[0] {
@@ -60,6 +62,10 @@ func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return checkCommitMsg(args[1:], stdout, stderr)
 	case "gocover":
 		return checkGocover(args[1:], stdout, stderr)
+	case "graph-fresh":
+		return checkGraphFresh(args[1:], stdout, stderr)
+	case "blast-audit":
+		return checkBlastAudit(args[1:], stdout, stderr)
 	case "gofmt":
 		paths := args[1:]
 		if len(paths) == 0 {
@@ -79,6 +85,68 @@ func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 0
 	}
 	return checkRun(args, stdout, stderr)
+}
+
+// checkGraphFresh is the first half of the graph lane: the graph must match
+// the tree before blast-audit reads it.
+func checkGraphFresh(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("check graph-fresh", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", "", "project root; found upwards when empty")
+	wait := fs.Duration("wait", 30*time.Second, "how long to wait for another run's rebuild")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	project, err := projectRoot(*root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check graph-fresh: %v\n", err)
+		return 1
+	}
+	status, err := query.RefreshGraph(project, *wait,
+		func(s string) { fmt.Fprintf(stderr, "loomux check graph-fresh: %s\n", s) })
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check graph-fresh: %v\n", err)
+		return 1
+	}
+	if status == ask.StatusRebuilt {
+		fmt.Fprintln(stdout, "graph rebuilt")
+	} else {
+		fmt.Fprintln(stdout, "graph is fresh")
+	}
+	return 0
+}
+
+// checkBlastAudit is the second half of the graph lane: red when a changed
+// area with enough callers has no changed test. It reads the graph as it is.
+func checkBlastAudit(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("check blast-audit", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", "", "project root; found upwards when empty")
+	base := fs.String("base", "", "audit base...HEAD instead of the working tree")
+	cached := fs.Bool("cached", false, "audit the index against HEAD")
+	threshold := fs.Int("threshold", 3, "callers a seed needs before a missing test is a finding")
+	skipTests := fs.Bool("skip-test-callers", false, "count only callers outside test files")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	project, err := projectRoot(*root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check blast-audit: %v\n", err)
+		return 1
+	}
+	// Audit never refreshes the graph, so it has no refresh notes to pass on.
+	ans, _, err := query.Audit(project, query.AuditOptions{
+		Base: *base, Cached: *cached, Threshold: *threshold, SkipTestCallers: *skipTests,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check blast-audit: %v\n", err)
+		return 1
+	}
+	fmt.Fprint(stdout, query.AuditReport(ans, *threshold))
+	if len(ans.Findings) > 0 {
+		return 1
+	}
+	return 0
 }
 
 // checkRun checks a project: the request comes first and the flags after it,
@@ -123,7 +191,8 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 		loomux = "loomux"
 	}
 	runID := verify.NewRunID(checkNow(), os.Getpid())
-	env := verify.PlanEnv{Root: root, Loomux: loomux, RunID: runID, HasTests: verify.HasTests, ImportReady: verify.ImportReady}
+	env := verify.PlanEnv{Root: root, Loomux: loomux, RunID: runID, HasTests: verify.HasTests,
+		ImportReady: verify.ImportReady, GraphReady: query.GraphReady, GraphEnv: query.GraphEnv}
 	if *show {
 		verify.WriteShow(stdout, eff, kinds, env)
 		return 0

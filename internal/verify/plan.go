@@ -62,11 +62,18 @@ type Job struct {
 }
 
 // PlanEnv is what a plan needs from outside: where it runs, which binary
-// {loomux} names, and the two questions that touch the disk.
+// {loomux} names, and the three questions that touch the disk.
 type PlanEnv struct {
 	Root, Loomux, RunID string
 	HasTests            func(root string, patterns []string) bool
 	ImportReady         func(dir string) bool
+	// GraphReady says whether the graph lanes can mean anything at root, and
+	// why not. nil means they cannot.
+	GraphReady func(root string) (bool, string)
+	// GraphEnv is the extra environment of the graph job: a child's
+	// environment loses the git pointers a surrounding hook exports, and
+	// the lane needs the index that hook hands in. nil means none.
+	GraphEnv func(root string) []string
 }
 
 // ImportReady says whether Godot has imported the project in dir: only then
@@ -129,7 +136,12 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 	links := []link{}
 	for _, kind := range req.Kinds {
 		for _, t := range targets(eff, req) {
-			for _, area := range t.areas {
+			areas := t.areas
+			if kind == "graph" {
+				// The graph belongs to the root: one job, not one rebuild per area.
+				areas = []string{"."}
+			}
+			for _, area := range areas {
 				job, l, ok, err := planJob(eff, req, env, kind, t.stack, area)
 				if err != nil {
 					return nil, err
@@ -208,6 +220,13 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	if len(eff.Areas[stack]) > 1 {
 		job.Name += "@" + area
 	}
+	if kind == "graph" {
+		// A graph lane rebuilds the graph, which no edit should wait for.
+		if req.Scope == ScopeEdit {
+			return Job{}, link{}, false, nil
+		}
+		job.Name = kind + "/" + stack
+	}
 	cmds := commandsFor(req, stack, r.Lane)
 	if !r.Defined || len(cmds) == 0 {
 		if req.Scope == ScopeEdit {
@@ -215,6 +234,17 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		}
 		job.Pre, job.Note = StateNotApplicable, "no command"
 		return job, link{}, true, nil
+	}
+	// Asked only for a stack with a graph lane: the probe costs git calls.
+	if kind == "graph" {
+		ready, note := false, "graph lanes need a graph probe"
+		if env.GraphReady != nil {
+			ready, note = env.GraphReady(env.Root)
+		}
+		if !ready {
+			job.Pre, job.Note = StateNotApplicable, note
+			return job, link{}, true, nil
+		}
 	}
 	measured := kind == "test" || kind == "coverage"
 	patterns := eff.TestsWhen[stack]
@@ -273,6 +303,9 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		if kind == "coverage" && reportsWithCoveragePy(job.Argvs) {
 			l.hidden = []string{data}
 		}
+	}
+	if kind == "graph" && env.GraphEnv != nil {
+		job.Env = append(job.Env, env.GraphEnv(env.Root)...)
 	}
 	return job, l, true, nil
 }
