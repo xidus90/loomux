@@ -13,7 +13,9 @@ Stufe 3 ist in 3a, 3b und 3c zerfallen und lief parallel zu 2b und 2c; 3a
 Selbstnutzung über die echte Registry. 3b (`cases`, `case`, `approve`) ist
 fertig (2026-09-23), samt Selbstnutzung über die echte Registry. 3c (`brain check`,
 `lint --scope`, `wiki init|types|retype`, die Aufholung in `serve`) ist fertig
-(2026-09-23), die lesenden Befehle samt Selbstnutzung. Stufe 4 ist offen. Siebzehn
+(2026-09-23), die lesenden Befehle samt Selbstnutzung. Stufe 4 ist offen und
+am 2026-09-24 in 4a-1, 4a-2, 4c, 4d und den Abschlussschritt 4e geschnitten
+(`2026-09-23-loomux-stufe-4-design.md`); `loomux migrate` fällt weg. Siebzehn
 Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
 „Stufen“ im Abschnitt „Nachgetragen“; #1, #2, #3 und #17 sind freigegeben.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
@@ -186,7 +188,7 @@ Alle unter `internal/`; es gibt keine öffentliche Go-API.
 | `worktree` | Worktree-Spiegel | `ultraloom/internal/{worktreetopo,junction,mirrorcfg,gitwork}` |
 | `serve` | MCP-Dienst, Upkeep, stdio-Brücke | `src/brain/{daemon,ipc,client,mcp}`, `ultra-brain/pkg/mcp` |
 | `selfupdate`, `swap` | Update des maschinenweiten Binarys aus dem Release; Tausch eines laufenden Binarys (Nachtrag 2026-09-23, `swap` war `dev/swap`) | neu |
-| `install` | `loomux init`, `loomux migrate` | `ultraloom/internal/{answers,interview,render,tooling,write,settings,agenthooks,detect}`, `src/brain/init.py` |
+| `install` | `loomux init` (`migrate` entfällt, Nachtrag #19; das Paket heißt nach der Stufe-4-Spec `internal/setup`) | `ultraloom/internal/{answers,interview,render,tooling,write,settings,agenthooks,detect}`, `src/brain/init.py` |
 | `journal` | Sitzungs- und Laufzustand, soweit Hooks ihn brauchen | `ultraloom/internal/{journal,sessions}` |
 
 **Entfällt ersatzlos:** `ultraloom/internal/vendoring` — es pinnt eine
@@ -235,7 +237,12 @@ Sitzungsstart meldet das.
 
 - **`.loomux/config.toml`**, von Hand gepflegt, Sektionen je Modul: `[project]`
   (u. a. `agents`), `[area]`, `[layout]`, `[index]`, `[verify]`, `[policy]`,
-  `[commit]`, `[worktree]`. Kommentare englisch.
+  `[commit]`, `[worktree]`. Kommentare englisch. Seit Stufe 4 dazu
+  `[modules]` (`hooks`, `brain`, `graph`: welche Module laufen, fehlend heißt
+  an; der Wächter prüft immer) und `[model]` (das lokale Modell, global und je
+  Bereich, aus schlägt an). Geschrieben wird die Datei von einem Menschen,
+  auch über `loomux config` und `loomux init`, die jede Änderung einzeln
+  bestätigen lassen und einem Agenten verweigert werden.
 - **`.loomux/state/`**, nur maschinengeschrieben: Antworten des Installers,
   installierte Hookstände, Sitzungszustand, Blockzähler. Wo es geht
   git-ignoriert.
@@ -308,6 +315,10 @@ Tore selbst.
 - Beide lesen dieselbe `[verify]`-Tabelle wie post-edit. Die heutige
   Doppelung — Lanes fest in `post_edit.go`, Lanes aus der Konfiguration in
   Python — entfällt.
+- post-merge (Stufe 4, Nachtrag #5): ein kurzes sh, das `loomux merge-hook
+  record` ruft und immer mit `exit 0` endet; `record` hängt das
+  Merge-Ereignis an `maintenance/merge-events.tsv`. Eingerichtet von
+  `loomux merge-hook install` bzw. `loomux init`.
 
 ### `loomux serve`
 
@@ -491,16 +502,20 @@ Schreibschranke freigegeben.**
      Zahl fiel, weil beide Register beim Nachzählen am 2026-09-16 nur die
      Kopfzeile trugen — das Register zog darum nicht mit und wurde in loomux mit
      nur der Kopfzeile neu angelegt.
-2. **Maschinenzustand** (Stufe 4, `loomux migrate`): `registry.toml`,
-   `areas/` (Identitätsregister werden umgezogen, nicht neu erzeugt),
-   `maintenance/`, `ui.json` nach `%LOCALAPPDATA%\loomux\`, übersetzt. Das alte
-   Verzeichnis bleibt als Sicherung, bis die Folgeprojekte fertig sind.
+2. **Maschinenzustand:** `registry.toml`, `areas/` (Identitätsregister werden
+   umgezogen, nicht neu erzeugt), `maintenance/` nach `%LOCALAPPDATA%\loomux\`.
+   Korrigiert am 2026-09-24: `loomux migrate` fällt weg (Nachtrag #19). Die
+   Selbstnutzung seit 3a hat den Bestand schon ins neue Verzeichnis gebracht;
+   was bleibt, ist ein einmaliger Abgleich von Hand in der Checkliste von 4e.
+   `ui.json` zieht mit der Web-Migration. Das alte Verzeichnis bleibt als
+   Sicherung, bis die Folgeprojekte fertig sind.
 3. **qmd:** Collections werden mit den neuen Ignore-Mustern neu konfiguriert.
    Ob die Vektoren wiederverwendet werden, wird bei der Umstellung gemessen;
    wenn nicht, ist der Preis `reindex` + `embed` einmal je Bereich.
-4. **Wirtsprojekte** (`loomux migrate` je Wirt): `.ultraloom/*.toml` und
-   `.brain.toml`/`.ultra-brain/config.toml` → `.loomux/config.toml` und
-   `.loomux/state/`. Ein einmaliger Übersetzer, keine Laufzeit-Kompatibilität.
+4. **Wirtsprojekte:** Kein Übersetzer (korrigiert am 2026-09-24, Nachtrag
+   #19). `loomux init` richtet jeden der vier Wirte neu ein und fragt ab, was
+   `.ultraloom/*.toml` und `.brain.toml` hielten; die alten Dateien entfernt
+   der Mensch nach der Checkliste von 4e.
 5. **`brain-knowledge`** wird nicht angefasst. Das Remote-Risiko steht
    außerhalb dieser Spec, gehört aber vor die Umstellung gelöst.
 
@@ -526,7 +541,18 @@ nicht nach ihnen: 3 hängt an keiner der beiden.
 | **1b** | ➗ in drei Teilstufen zerfallen, siehe darunter | `search`, `status`, `catalog`, `read`, `neighbors` mit Parität zur Python-Referenz — neuer Go-Code, kein Umzug (Identitäten in der Suche, `status` vollständig). `serve` mit MCP und Brücke. `dev mutants`. Wiki- und Doku-Umzug |
 | **2** | ➗ in drei Teilstufen zerfallen, siehe darunter | `child`, vollständige Prüfkette `[verify]`, `loomux check <profil>`, Coverage-Tor, commit-msg mit `--language`/`--calibrate`/`[commit]`, Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig |
 | **3** | ➗ in drei Teilstufen zerfallen, siehe darunter | Brain-Pflege: `reconcile` (auch als Durchgang vor `reindex`), `apply`/`approve`/`cases`/`evidence`/`vcs`, Bereichs-Onboarding, das Ereignisprotokoll, `wiki types`/`retype`/`census`/`scaffold`, Upkeep in `serve`. Korrigiert am 2026-09-22 nach der Spec der Stufe 3: „Locking“ stand hier, aber `internal/lock` ist seit 1a die Portierung von `locking.py`, fehlend war nur `ReplaceText`; und „`merge-events`“ ist kein Befehl, sondern das Ereignisprotokoll, das `reconcile` liest und ablegt — der Befehl ist `hook install\|status\|remove` und steht als Nachtrag #5 bei Stufe 4 |
-| **4** | offen | `convert`/`fetch` über `pdftotext`/`yt-dlp`, lokales Modell (Ollama über `net/http`, deutsche Zipf-Tabelle eingebettet), `bench`. `loomux init` vollständig für alle Hosts, `loomux migrate`. Umstellung der Wirte |
+| **4** | ➗ in Teilstufen zerfallen, siehe darunter | `convert`/`fetch` über `pdftotext`/`yt-dlp`, lokales Modell (Ollama über `net/http`, deutsche Zipf-Tabelle eingebettet), `bench`. `loomux init` vollständig für alle Hosts. Umstellung der Wirte. `loomux migrate` fällt weg (Nachtrag #19) |
+
+**Die Teilstufen der 4** (Spec `2026-09-23-loomux-stufe-4-design.md`,
+geschnitten am 2026-09-24), je mit eigenem Plan und eigener Paritätsakte:
+
+| Teilstufe | Stand | Inhalt |
+|---|---|---|
+| **4a-1** Schema und `config` | 🚧 gebaut; Schritte des Menschen offen (Messung des MCP-Arbeitsverzeichnisses, Prüfung in drei Terminals, ein `config set` durch den Menschen) | Schlüsselschema, Zeileneditor, Oberfläche auf `x/term`, `loomux config` (auch `--global`), `[modules]` mit Laufzeitwirkung, der Modulfilter in `loomux mcp`, die Wächterregel gegen schreibende `init`/`config`/`area add` |
+| **4a-2** `init` | offen | Umzug von ulinit auf das Schema, Module mit alles/einzeln/nichts, Host-Einträge über `${LOCALAPPDATA}`, Git-Hooks und post-merge, Skills, `AGENTS.md`, `.gitignore`, `.mcp.json`, das neueste Release an den kanonischen Ort, `--detect-only`. Hängt an 4a-1 und an `feat/self-update` |
+| **4c** Modell | offen | Ollama-Client, Tor, Richter, Prompts, `[model]`, `propose` in `reconcile`; Heilung von „Offen nach 3b“ #1 und #4; `loomux dev bench search` und ein Berichtsschema für `dev bench` |
+| **4d** `convert`/`fetch` | offen | Eingang wandeln, Untertitel holen, die Modellrollen `describe` und `place` |
+| **4e** Umstellung | offen | Checkliste ohne Code, vom Menschen abgehakt; wartet auf den Remote für `brain-knowledge` |
 
 **Die drei Teilstufen der 1b**, jede mit eigenem Plan und eigener
 Paritätsakte (`parity/stufe-1b-1.md` und `parity/stufe-1b-2.md`, je samt
@@ -627,7 +653,7 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 | 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c ist fertig (2026-09-23), der Upkeep ruft `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | — | **G4a** Navigation, **G4b** Diff-Blast, Art `graph`, Edit-Monitor | G3 ✅; G4b an G4a ✅ | ✅ Fertig (G4a 2026-09-22, G4b 2026-09-23). W3 wartete auf G4a, W4 auf G4b |
 | 2 | **G4c** Stop-Hook mit Blast-Logik | G4b ✅ | Sofort baubar, neben der Fusion; loomux prüft sich an jedem Rundenende selbst und bekäme den Blast dort. Nichts wartet darauf |
-| 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
+| 3 | **4** `config`, `init`, Modell, `convert`/`fetch` | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. In sich 4a-1 → 4a-2 → 4c → 4d, dann 4e, nach Regel 2 (Selbstnutzung); 4a-2 wartet zudem auf `feat/self-update`. Die Umstellung der Wirte braucht einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
 | 4 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
 | 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4a ✅; W4 an G4b ✅ und 4; W5 an W1 und Flow | Folgeprojekt |
 | 6 | **G5** `wazero` | G4b ✅ | Nichts wartet darauf |
@@ -648,20 +674,21 @@ der Nutzer, erst dann gilt sie.
 | 2 | ultra-brain | `lint` ohne Pfad und mit `--scope all` (`src/brain/cli.py:562`) | Stufe 3, mit #1 | `loomux lint` verlangt genau eine Datei. Den Lint über das ganze Bündel hat heute nur `wiki-gate`, und das nur zusammen mit der Driftprüfung | freigegeben 2026-09-19, Stufe 3c; gebaut 2026-09-23 |
 | 3 | ultra-brain | `embed` als Befehl (`src/brain/cli.py:467`) | Stufe 3 | Gehört zu `reindex`; der Datenumzug (Punkt 3) rechnet schon mit „`reindex` + `embed` einmal je Bereich“. In loomux gibt es nur `QmdMcpPort.Embed` ohne Befehl | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 mit #17 |
 | 4 | ultra-brain | `brain layout` und `layout.json` (`pkg/layout`, `cmd/brain/main.go:340`) | Folgeprojekt Web-Migration | Nur die Web-App liest die Orte aus `layout.json` (`web/src/canvas/cosmos.test.ts`) | |
-| 5 | ultra-brain | `hook install\|status\|remove`: der post-merge-Hook in einwilligenden Repos (`src/brain/cli.py:625`) | Stufe 4 (`loomux init`) | Hooks schreibt `init`; der Hook selbst speist `merge-events` aus Stufe 3. Der Abschnitt „Git-Hooks“ kennt ihn noch nicht | |
+| 5 | ultra-brain | `hook install\|status\|remove`: der post-merge-Hook in einwilligenden Repos (`src/brain/cli.py:625`) | Stufe 4 (`loomux init`) | Hooks schreibt `init`; der Hook selbst speist `merge-events` aus Stufe 3. Der Abschnitt „Git-Hooks“ kennt ihn noch nicht | freigegeben 2026-09-23, Stufe 4a-2, als `loomux merge-hook`; der Hook ruft das Binary statt eingebackener Pfade (2026-09-24) |
 | 6 | ultra-brain | `daemon start\|run --backbone`, `--no-local`, `--no-cloud` (`src/brain/cli.py:673`) | Abweichung 1b-2 nachtragen | `serve` kennt nur `--foreground`, das Backbone ist fest CUDA (`internal/brain/search/daemon.go:21`). Die Wahl CUDA oder Vulkan gehört unter „Offen und vor dem Bau zu messen“ | |
-| 7 | ultra-brain | Die Skills `brain-ingest`, `brain-land`, `brain-research`, `brain-review`, `brain-wiki-plan` (`.claude/skills/`) | Stufe 4 (`loomux init`), Befehle nach #1 umgeschrieben | Keine davon ist eine Review-Suite aus W4; `init` legt Skills in die Wirte | |
-| 8 | ultraloom | Skill `verify-until-green` (`templates/skills/…SKILL.md.tmpl`) | Stufe 4 (`loomux init`) | Ruft fest `uv run ultraloom check all`; wird zu `loomux check all`. Der Flow dahinter bleibt Folgeprojekt 1 | |
-| 9 | ultraloom | Skill `session-handover` | Stufe 4 (`loomux init`) | Ohne Abhängigkeit auf einen Befehl; zieht mit den übrigen Skills | |
-| 10 | ultraloom | Die erzeugte `AGENTS.md` (`internal/render/render.go:109`, `templates/AGENTS.md.tmpl`) | Stufe 4 (`loomux init`) | `render`/`install` ziehen dort um; die Vorlage war nicht genannt | |
-| 11 | ultraloom | `.gitignore`-Einträge des Installers (`cmd/init/run.go:381`) | Stufe 4 (`loomux init`) | Mit den Pfaden von loomux: `.loomux/state/` statt `.ultraloom/hooks/` | |
-| 12 | ultraloom | `[relevance]` (`internal/render/templates/config.toml.tmpl:22`, `cmd/init/run.go:678`) | Wegfall | Der Installer schreibt ihn, aber kein Hook liest ihn, schon in ultraloom nicht. Die Presets je Stack decken die Absicht ab. `loomux migrate` lässt ihn fallen und sagt es | |
-| 13 | ultraloom | `[project].commit_language` (`cmd/init/run.go:507`) | Stufe 2b, `migrate` in Stufe 4 | Nur `ulinit` liest ihn als Antwortvorgabe; die Prüfung liest `[commit].language`. `migrate` übersetzt ihn dorthin | |
+| 7 | ultra-brain | Die Skills `brain-ingest`, `brain-land`, `brain-research`, `brain-review`, `brain-wiki-plan` (`.claude/skills/`) | Stufe 4 (`loomux init`), Befehle nach #1 umgeschrieben | Keine davon ist eine Review-Suite aus W4; `init` legt Skills in die Wirte | freigegeben 2026-09-23, Stufe 4a-2; dazu ins Englische übersetzt |
+| 8 | ultraloom | Skill `verify-until-green` (`templates/skills/…SKILL.md.tmpl`) | Stufe 4 (`loomux init`) | Ruft fest `uv run ultraloom check all`; wird zu `loomux check all`. Der Flow dahinter bleibt Folgeprojekt 1 | freigegeben 2026-09-23, Stufe 4a-2 |
+| 9 | ultraloom | Skill `session-handover` | Stufe 4 (`loomux init`) | Ohne Abhängigkeit auf einen Befehl; zieht mit den übrigen Skills | Wegfall aus `init`, freigegeben 2026-09-24: die globale Fassung des Nutzers ist eine andere, eine Projektkopie würde sie verdecken |
+| 10 | ultraloom | Die erzeugte `AGENTS.md` (`internal/render/render.go:109`, `templates/AGENTS.md.tmpl`) | Stufe 4 (`loomux init`) | `render`/`install` ziehen dort um; die Vorlage war nicht genannt | freigegeben 2026-09-23, Stufe 4a-2; nur wenn keine `AGENTS.md` da ist |
+| 11 | ultraloom | `.gitignore`-Einträge des Installers (`cmd/init/run.go:381`) | Stufe 4 (`loomux init`) | Mit den Pfaden von loomux: `.loomux/state/` statt `.ultraloom/hooks/` | freigegeben 2026-09-23, Stufe 4a-2 |
+| 12 | ultraloom | `[relevance]` (`internal/render/templates/config.toml.tmpl:22`, `cmd/init/run.go:678`) | Wegfall | Der Installer schreibt ihn, aber kein Hook liest ihn, schon in ultraloom nicht. Die Presets je Stack decken die Absicht ab. `loomux migrate` lässt ihn fallen und sagt es | freigegeben 2026-09-23; da `migrate` wegfällt (#19), kennt `init` ihn einfach nicht |
+| 13 | ultraloom | `[project].commit_language` (`cmd/init/run.go:507`) | Stufe 2b, `migrate` in Stufe 4 | Nur `ulinit` liest ihn als Antwortvorgabe; die Prüfung liest `[commit].language`. `migrate` übersetzt ihn dorthin | freigegeben 2026-09-23, Stufe 4a-2: statt `migrate` fragt `init` die Commit-Sprache ab |
 | 14 | ultraloom | `[agent].settings`, `[agent].mcp_servers` (`config.py:219`) | Folgeprojekt 1 (Flow-Migration) | Sie steuern den Aufruf von `claude -p` in Flows. Die Tabelle „Wegfall aus dem alten Schema“ der 2a-Spec streicht nur `cli_path` | |
-| 15 | ultraloom | `scripts/install.ps1` und `install.sh`: Bauen in `~/go/bin` | Stufe 4 (`loomux init`) | Release-Archive gibt es, aber keinen Weg, das Binary auf den `PATH` zu legen | |
-| 16 | ultraloom | `ulinit --detect-only` (`cmd/init/main.go:44`) | Stufe 4, als `loomux init --detect-only` | `internal/detect` ist da, nur ohne Befehl | |
+| 15 | ultraloom | `scripts/install.ps1` und `install.sh`: Bauen in `~/go/bin` | Stufe 4 (`loomux init`) | Release-Archive gibt es, aber keinen Weg, das Binary auf den `PATH` zu legen | freigegeben 2026-09-24, Stufe 4a-2: `init` holt das neueste Release an den kanonischen Ort `%LOCALAPPDATA%\loomux\bin\loomux.exe` der Self-Update-Spec; die Einträge rufen es über `${LOCALAPPDATA}`, nicht über den `PATH` |
+| 16 | ultraloom | `ulinit --detect-only` (`cmd/init/main.go:44`) | Stufe 4, als `loomux init --detect-only` | `internal/detect` ist da, nur ohne Befehl | freigegeben 2026-09-23, Stufe 4a-2 |
 | 17 | ultra-brain | `reindex` und `embed` als Befehle (`ultra-brain/pkg/index`, `src/brain/cli.py:463,467`); `embed` allein ist #3 | Stufe 3a | Der Auffangdurchgang koppelt `reconcile` an `reindex` („`reconcile` auch als Durchgang vor `reindex`“ nennt einen Befehl, den es in loomux nicht gab), und `embed` ist ohne `reindex` gegenstandslos | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 |
-| 18 | ultra-brain | `brain check code` (`pkg/check/code`, die Lanes aus `[check].lanes`) | Wegfall | Die Prüfkette aus 2a (`[verify]`, Presets je Stack, `loomux check`) fährt dieselben Lanes samt Reihenfolge und Coverage-Tor; eine zweite Lane-Konfiguration stünde daneben. `Manifest.Lanes` bleibt geparst, bis `loomux migrate` (Stufe 4) es nach `[verify]` überträgt. Gefunden beim Planen von 3c | freigegeben 2026-09-23 |
+| 18 | ultra-brain | `brain check code` (`pkg/check/code`, die Lanes aus `[check].lanes`) | Wegfall | Die Prüfkette aus 2a (`[verify]`, Presets je Stack, `loomux check`) fährt dieselben Lanes samt Reihenfolge und Coverage-Tor; eine zweite Lane-Konfiguration stünde daneben. `Manifest.Lanes` bleibt geparst, bis `loomux migrate` (Stufe 4) es nach `[verify]` überträgt. Gefunden beim Planen von 3c | freigegeben 2026-09-23. Da `migrate` wegfällt (#19), wird `Manifest.Lanes` in 4e gelöscht statt übertragen; `[check].lanes` steht nur in `ultra-brain` |
+| 19 | — | `loomux migrate`, der einmalige Übersetzer für Maschinenzustand und Wirtskonfiguration (Punkte 2 und 4 unter „Datenumzug“) | Wegfall | Die alten Werkzeuge hat nur der Nutzer benutzt, auf einem Rechner und in vier Wirten. Der Maschinenzustand liegt durch die Selbstnutzung seit 3a schon in `%LOCALAPPDATA%\loomux`; die Wirte richtet `init` neu ein. Was bleibt, ist die Checkliste von 4e | freigegeben 2026-09-24 |
 
 ### Offen nach 3b
 
@@ -709,9 +736,11 @@ des Nutzers, ob und wie er geheilt wird. Die Belegstellen stehen in
 ### Umstellung der Wirte nach Stufe 4
 
 1. `brain-knowledge` hat einen Remote und ist committet.
-2. Je Wirt: `loomux migrate`, dann `loomux init`. Alte Hook-Einträge werden an
-   der Marke `ultraLoomOwned: true` (Claude) und am Gruppennamen
-   `ultraloom-wiki-guard` (Antigravity) erkannt und entfernt.
+2. Je Wirt: `loomux init` (`migrate` fällt weg, #19). Alte Hook-Einträge —
+   Marke `ultraLoomOwned: true` (Claude), Gruppe `ultraloom-wiki-guard`
+   (Antigravity), `ulguard`, `brain guard` — entfernt der Mensch nach der
+   Checkliste von 4e, dann `.ultraloom/`, `.brain.toml` und `.ultra-brain/`.
+   Vorher der Abgleich des Maschinenzustands (Punkt 2 unter „Datenumzug“).
 3. Rauchtest je Wirt: ein erlaubter Edit, ein verweigerter Edit, ein Commit
    durch commit-msg und Pre-Commit, eine Suche über MCP.
 
