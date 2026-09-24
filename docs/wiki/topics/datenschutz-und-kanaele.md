@@ -49,7 +49,7 @@ CLI ist der Kanal setzbar, damit der Nachweis ohne MCP-Prozess führbar ist.
 `read` auf einen bekannten Pfad daraus muss verweigern. Der Bereich wird dabei
 gar nicht erst befragt, statt seine Treffer nachträglich zu filtern. Dieser
 Nachweis ist Fertig-Kriterium von Scheibe 2a und wird in 2c über den echten
-MCP-Kanal wiederholt ([Die Scheiben und ihre Abnahmen](scheiben-und-abnahme.md)).
+MCP-Kanal wiederholt ([Die Stufen und ihre Abnahme](scheiben-und-abnahme.md)).
 
 ## Was es über MCP nicht gibt
 
