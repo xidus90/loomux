@@ -7,11 +7,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/gitenv"
+	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/sessions"
 )
 
@@ -149,6 +152,7 @@ func TestHookSessionStartOnAHostWithoutAnAdapter(t *testing.T) {
 // pilot is a project holding a binary and one source, each aged as asked.
 func pilot(t *testing.T, binaryAge, sourceAge time.Duration) (root, binary string) {
 	t.Helper()
+	t.Setenv(config.StateDirEnv, t.TempDir())
 	root = t.TempDir()
 	binary = filepath.Join(root, "bin", "loomux.exe")
 	source := filepath.Join(root, "internal", "cli", "cli.go")
@@ -367,9 +371,12 @@ func TestHookSessionStartAnnouncesAStaleBinary(t *testing.T) {
 	}
 }
 
-// project is a directory loomux recognises as a root.
+// project is a directory loomux recognises as a root. It also gives the test a
+// state directory of its own: session start reads update.json from there, and
+// this machine's would otherwise decide what the session hears.
 func project(t *testing.T) string {
 	t.Helper()
+	t.Setenv(config.StateDirEnv, t.TempDir())
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
 		t.Fatal(err)
@@ -412,6 +419,7 @@ func gitInit(t *testing.T, root string) {
 // session committed since its last green run: the stop gate would measure
 // from that commit, find nothing new, and end a red turn unchecked.
 func TestHookSessionStartKeepsABaseTheSessionAlreadyHas(t *testing.T) {
+	t.Setenv(config.StateDirEnv, t.TempDir())
 	root := gitWorld(t, twoCommitsOnly, `{"base":"{{COMMIT:1}}","green":"`+goneSHA+`","blocks":0}`)
 	base := stateOf(t, root).Base
 
@@ -426,5 +434,87 @@ func TestHookSessionStartKeepsABaseTheSessionAlreadyHas(t *testing.T) {
 	env, started := countTools(redVet())
 	if code, se := runStop(t, root, s1, env); code != ExitDenied || started.Load() == 0 {
 		t.Fatalf("the commit since the base went unchecked: %d %q, %d tools started", code, se, started.Load())
+	}
+}
+
+// canonicalIn is a state directory whose canonical binary exists, so that
+// IsCanonical has a file to compare the recorded executable with.
+func canonicalIn(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	exe := selfupdate.Canonical(dir)
+	if err := os.MkdirAll(filepath.Dir(exe), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(exe, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestUpdateWarnings(t *testing.T) {
+	at := time.Date(2026, 9, 24, 8, 0, 0, 0, time.UTC)
+	for _, c := range []struct {
+		name string
+		goos string
+		// windowsOnly marks a row that needs the file system of Windows.
+		windowsOnly bool
+		status      func(dir string) *selfupdate.Status
+		want        []string
+	}{
+		{"no pass yet", "windows", false, func(string) *selfupdate.Status { return nil }, nil},
+		{"all well", "windows", false, func(dir string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: selfupdate.Canonical(dir), Result: selfupdate.Current}
+		}, nil},
+		{"the canonical path in other letters", "windows", true, func(dir string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: strings.ToUpper(selfupdate.Canonical(dir)), Result: selfupdate.Current}
+		}, nil},
+		{"serve from a checkout", "windows", false, func(string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: `C:\repo\bin\loomux.exe`, Result: selfupdate.Skipped}
+		}, []string{`loomux serve runs from C:\repo\bin\loomux.exe, not from `}},
+		{"serve off Windows", "linux", false, func(string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: "/usr/local/bin/loomux", Result: selfupdate.Skipped}
+		}, nil},
+		{"a pass by hand from a checkout", "windows", false, func(string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceCLI, Executable: `C:\repo\bin\loomux.exe`, Result: selfupdate.Skipped}
+		}, nil},
+		{"a failed pass", "windows", false, func(dir string) *selfupdate.Status {
+			return &selfupdate.Status{Executable: selfupdate.Canonical(dir), Result: selfupdate.Failed, CheckedAt: at, Error: "gh not found"}
+		}, []string{"loomux self-update failed at 2026-09-24T08:00:00Z: gh not found"}},
+		{"a failed pass off Windows", "linux", false, func(string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: "/usr/local/bin/loomux", Result: selfupdate.Failed, CheckedAt: at, Error: "gh not found"}
+		}, []string{"loomux self-update failed at 2026-09-24T08:00:00Z: gh not found"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if c.windowsOnly && runtime.GOOS != "windows" {
+				t.Skip("only Windows spells one file in other letters")
+			}
+			dir := canonicalIn(t)
+			if st := c.status(dir); st != nil {
+				if err := selfupdate.WriteStatus(dir, *st); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := updateWarnings(dir, c.goos)
+			if len(got) != len(c.want) {
+				t.Fatalf("updateWarnings = %v, want %v", got, c.want)
+			}
+			for i := range c.want {
+				if !strings.HasPrefix(got[i], c.want[i]) {
+					t.Fatalf("line %d = %q, want prefix %q", i, got[i], c.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestUpdateWarningsNamesAnUnreadableStatus(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(selfupdate.StatusPath(dir), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := updateWarnings(dir, "windows")
+	if len(got) != 1 || !strings.HasPrefix(got[0], "loomux cannot read the self-update status: ") {
+		t.Fatalf("updateWarnings = %v", got)
 	}
 }
