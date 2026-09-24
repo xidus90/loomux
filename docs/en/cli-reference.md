@@ -189,6 +189,7 @@ Records the commit the session starts on.
 - **Behavior**:
   - Writes `HEAD` as `base` into `.loomux/state/hooks/<session_id>.json`.
   - Warns in `hookSpecificOutput.additionalContext` when the binary inside the project is older than its Go sources.
+  - Also reads `<state dir>/update.json` and warns when, on Windows, a pass `serve` ran recorded another binary than `<state dir>/bin/loomux.exe` as its own, or when the last self-update pass failed, whoever ran it.
   - Makes no worktree junctions; that is `loomux worktree link`. See [Hooks](hooks.md#8-session-hooks).
 - **Exit Codes**: `0` (Success), `1` (missing or unknown host, no adapter for the host, unreadable payload, failed write).
 
@@ -564,6 +565,34 @@ Ends the service through its own endpoint. `--force` kills it by the PID in
 
 - **Exit codes**: `0` stopped, and also when nothing was running; `1` the stop
   failed; `2` an unrecognized argument.
+
+### `loomux self-update`
+
+One self-update pass by hand; `serve` runs the same pass a minute after it
+starts and every 24 hours after that. It acts only on the machine-wide
+binary, `<state dir>/bin/loomux.exe`, when that is the running binary and
+carries a release version.
+
+1. Lists the releases through `gh release list` and takes the highest version
+   of the running binary's channel (`beta` takes pre-releases, `stable` does
+   not).
+2. Downloads the Windows asset and `SHA256SUMS` through `gh release
+   download`, checks the checksum and the new binary's `--version`.
+3. Stamps the file with the current time and swaps it in; the old one goes to
+   `loomux.old.exe` or the first free numbered slot. The next bridge replaces
+   the running `serve`.
+
+Writes `<state dir>/update.json` (`source` = `serve` | `cli`, `checked_at`,
+`executable`, `running`, `result` = `current` | `updated` | `skipped` |
+`failed`, `version`, `error`). A pass that finds `update.lock` held steps
+aside and writes nothing. A pass by hand that skips writes nothing either,
+so the record of `serve`'s last pass stays for session start to read.
+
+| Exit | Meaning |
+|---|---|
+| 0 | `already current (vX)` or `updated to vX` |
+| 1 | the pass failed, or another pass is running |
+| 2 | skipped: not on Windows, a development build, or not the machine-wide binary; or an unrecognized argument |
 
 ### `loomux mcp [--channel local|cloud]`
 The stdio bridge an MCP host starts. It offers the eleven tools itself — the

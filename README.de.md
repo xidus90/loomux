@@ -143,7 +143,7 @@ loomux check commit-msg <datei>     # Prüft eine Commit-Nachricht: Kopf nach Co
 loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
 loomux hook pre-tool-use            # Prüft Policy und globale Schreibschranke gegen stdin
 loomux hook post-tool-use           # Fährt die Lanes des Profils edit gegen die eben geänderte Datei (--budget, Vorgabe 50s)
-loomux hook session-start           # Hält den Basis-Commit der Sitzung fest und warnt vor veraltetem Binary
+loomux hook session-start           # Hält den Basis-Commit der Sitzung fest; warnt bei veraltetem Binary, bei einem serve außerhalb des Installationsorts und bei gescheitertem Self-Update
 loomux hook stop                    # Tor am Rundenende: Profil stop über neuen Inhalt, Befunde der Subagenten (--budget, Vorgabe 270s)
 loomux hook subagent-start|subagent-stop  # Schnappschuss von origin, Branches und HEAD um einen Subagenten; parkt, was sich bewegt hat, für stop
 loomux status|doctor|explain        # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses (drei Namen, ein Codeweg)
@@ -165,6 +165,7 @@ loomux brain status                 # Was man wissen muss, bevor man einer Antwo
 loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dienst, abgekoppelt oder hier; holt einen fälligen reconcile täglich nach
 loomux serve status                 # Was serve.json sagt und ob der Listener antwortet
 loomux serve stop [--force]         # Beendet den Dienst über seinen Endpunkt oder über seine PID
+loomux self-update                  # Ersetzt das maschinenweite Binary durch das neueste Release seines Kanals; serve tut das täglich
 loomux mcp [--channel local|cloud]  # stdio-Brücke, die ein MCP-Wirt startet; sie startet den Dienst selbst
 loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph, Identitätsregister und qmd-Sammlungen jedes Bereichs neu bauen
 loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
@@ -274,6 +275,34 @@ Binaries gibt es auf der [Releases-Seite](https://github.com/xidus90/loomux/rele
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
 ```
+
+### Das maschinenweite Binary installieren
+
+MCP-Brücke und `loomux serve` laufen aus einem Binary je Rechner,
+`%LOCALAPPDATA%\loomux\bin\loomux.exe`, das aus einem Release stammt und nie
+aus einem Checkout. Einmal installieren mit der
+[GitHub CLI](https://cli.github.com/), angemeldet per `gh auth login`:
+
+```powershell
+$bin = "$env:LOCALAPPDATA\loomux\bin"
+New-Item -ItemType Directory -Force $bin | Out-Null
+gh release download <tag> --repo xidus90/loomux --pattern 'loomux_*_windows_amd64.exe' --pattern SHA256SUMS --dir $bin
+```
+
+Die Datei gegen `SHA256SUMS` prüfen, in `loomux.exe` umbenennen,
+`SHA256SUMS` löschen und den MCP-Eintrag darauf zeigen lassen:
+
+```powershell
+claude mcp add loomux -s user -- "$env:LOCALAPPDATA\loomux\bin\loomux.exe" mcp --channel local
+```
+
+Danach hält `serve` es aktuell: eine Minute nach dem Start und danach täglich
+holt es über `gh` das höchste Release des eigenen Kanals, prüft es gegen
+`SHA256SUMS` und seine `--version` und tauscht die Datei. Die nächste Brücke
+ersetzt den laufenden Dienst. `loomux self-update` tut dasselbe von Hand. Was
+der letzte Durchlauf fand, steht in `update.json` im Zustandsverzeichnis; der
+Sitzungsstart warnt, wenn `serve` woanders läuft oder der Durchlauf
+gescheitert ist. Vorerst nur unter Windows.
 
 Jeder gemergte Pull Request nach `master` wird nach seinem Label veröffentlicht:
 
