@@ -26,7 +26,7 @@ Loomux uses strict exit code semantics aligned with AI coding agent harnesses:
 
 `loomux check` takes a **request** first and its flags after it. The request is
 a profile (`edit`, `precommit`, `stop` or one of `[verify.profiles]`), `all`, a comma
-list of kinds (`lint,types`), or one of the three built-in checks below. What
+list of kinds (`lint,types`), or one of the five built-in checks below. What
 each kind runs per stack is set by
 [`[verify]`](configuration.md#verify-check-chains--quality-gates) and the
 presets.
@@ -144,6 +144,43 @@ Inspects Go source files for formatting compliance without modifying them.
 - **Arguments**: Optional directory or file paths (defaults to working directory).
 - **Exit Codes**: `0` (Formatted), `1` (Unformatted files listed on `stdout`).
 
+### `loomux check graph-fresh [--root <path>] [--wait <duration>]`
+The first half of the graph lane: makes the graph on disk describe the tree
+before `blast-audit` reads it.
+
+- **Flags**: `--root <path>` (project root; found upwards when empty), `--wait
+  <duration>` (how long to wait for another run's rebuild to release the lock;
+  default `30s`).
+- **Behavior**: drift, a missing freshness record, a graph from another
+  extractor version and an outdated schema all rebuild the graph under the
+  cross-process lock, and are green. A lock older than one hour is taken over.
+  Progress notes go to `stderr`.
+- **Output**: `graph rebuilt` or `graph is fresh` on `stdout`.
+- **Exit Codes**: `0` (fresh, or rebuilt), `1` (no project root, no graph at
+  all — it never builds a first one —, a failed rebuild, a failed probe, or a
+  lock still held after `--wait`, named with its path and age), `2` (an
+  unknown flag).
+
+### `loomux check blast-audit [--root <path>] [--cached | --base <ref>] [--threshold <n>] [--skip-test-callers]`
+The second half of the graph lane: red when a changed area with enough
+callers has no changed test that reaches it.
+
+- **Flags**: `--root <path>`; `--cached` (the index against `HEAD`, what the
+  lane uses); `--base <ref>` (`<ref>...HEAD`); neither is the working tree
+  against `HEAD`, or the last commit when the tree is clean, as for
+  `graph blast`. `--threshold <n>` (default `3`; the Go preset passes `5`);
+  `--skip-test-callers` (count only callers outside `_test.go` files).
+- **The finding**: an area whose test signal is `none` or `stale` and that has
+  a seed with at least `<n>` incoming walk edges. It reads the graph as it is
+  and never rebuilds it; that is `graph-fresh`'s job.
+- **Output**: on a finding `blast audit: <range>, threshold <n>` and one line
+  per red area, `<path> [<signal>]: <seed> in-degree <k>, …`; otherwise
+  `no area at or above <n> callers lacks a changed test (<m> areas)`.
+- **Exit Codes**: `0` (no finding), `1` (a finding, or an error on `stderr`:
+  no project root or graph, `--base` together with `--cached`, a base that
+  starts with `-`, a threshold below 1, a git failure), `2` (an unknown flag).
+  The exit code alone does not tell a finding from an error; `stdout` does.
+
 ---
 
 ## 3. Agent Harness Hooks (`loomux hook`)
@@ -180,6 +217,7 @@ Fires after an agent has edited a file.
 - **Flags**: `--host <h>` (required), `--root <r>`, `--budget <duration>` — how long the lanes may take in all (Go duration, default `50s`, below the host's hook timeout of 60 s). Each command gets the smaller of its own `timeout` and what is left of the budget.
 - **Behavior**: Runs the lanes of the `edit` profile (by default `lint` and `types`) for the edited file's stack, in the area that holds the file, as [`[verify]`](configuration.md#verify-check-chains--quality-gates) and the presets lay them out, with `on_file` where a lane has it; see [Hooks](hooks.md#5-the-post-edit-lanes-by-stack).
 - **Skipped lanes**: a lane whose tool is not on the `PATH`, a Godot project not yet imported, and every lane the budget did not reach are skipped, not failed. They are named on `stdout` as `{"hookSpecificOutput":{"additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go","hookEventName":"PostToolUse"}}`.
+- **Blast monitor**: after a `.go` edit with no red lane, the direct callers in other files of every symbol the edit changed or removed, measured against the graph on disk, follow the skipped lanes in the same `additionalContext`. Silent without a graph and never a finding; see [Hooks](hooks.md#the-blast-monitor).
 - **Exit Codes**: `0` (all lanes passed, skipped, or nothing to run), `1` (malformed call, such as a missing `--host`, or a `[verify]` that cannot be loaded), `2` (a lane failed, timed out or is blocked; its output on `stderr`).
 
 ### `loomux hook session-start`
@@ -259,7 +297,7 @@ Refuses the main checkout and any directory git holds no worktree at, removes th
 ## 6. Code Graph Engine (`loomux graph`)
 
 > [!NOTE]
-> **`build`, `check`, `ask`, `callers`, `skeleton`, `grep`, `map` and `stats` are wired; `blast` and `viz` remain specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — stage G2a added the extractor, the wiring writer, the freshness probe and `graph build` and `check`, stage G2b added the lexicon, lexical scoring, Personalized PageRank blend and `graph ask`, stage G3 put `ask` and `check` behind the MCP tools `graph_find_code` and `graph_check_freshness` (§8), and stage G4a delivered the navigation suite (`callers`, `skeleton`, `grep`, `map`, `stats`) and their four MCP tools. Stage G4b adds git-diff blast radius analysis and the post-edit blast monitor hook.
+> **`build`, `check`, `ask`, `callers`, `skeleton`, `grep`, `map`, `stats` and `blast` are wired; `viz` remains specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — stage G2a added the extractor, the wiring writer, the freshness probe and `graph build` and `check`, stage G2b added the lexicon, lexical scoring, Personalized PageRank blend and `graph ask`, stage G3 put `ask` and `check` behind the MCP tools `graph_find_code` and `graph_check_freshness` (§8), and stage G4a delivered the navigation suite (`callers`, `skeleton`, `grep`, `map`, `stats`) and their four MCP tools; stage G4b added `blast`, the MCP tool `graph_blast`, the checks `graph-fresh` and `blast-audit` (§2) and the post-edit blast monitor (§3).
 
 ### `loomux graph build [--root <path>]`
 Reads and hashes every Go source file `internal/code/sourceset` finds under the root, extracts and resolves them into the deterministic AST graph, and writes it to `.loomux/state/graph/wiring.json`. It also writes the freshness record (`.loomux/state/graph/cache/fingerprint.json`) a later probe reads; a failure to write that record is announced on `stderr` but does not fail the build, since the graph on disk is already correct.
@@ -353,7 +391,9 @@ Shows what a change reaches, from git's diff: per changed file the symbols its h
   - `-d`, `--depth`: depth limit, a positive integer (default `1`), or `all`/`full` for the closure.
   - `--no-refresh`: answer from the graph on disk, never rebuild.
   - `--json`: write the answer as JSON.
-- **Exit codes**: `0` on success; `1` without a project root or graph, or when git or the graph fails; `2` on usage error (an argument, `--base` with `--cached`, a bad depth).
+- **Range**: without `--cached` and `--base`, the working tree against `HEAD`, and `HEAD~1...HEAD` when the tree is clean. git runs in the project root with `--relative`, so the paths are the graph's also in a subdirectory area.
+- **Output**: `blast radius: <range>`, then per changed file `<path> [<signal>]` with its seeds (`seed <name> (<kind>) <span> in-degree <n>`) and the tests that reach it; `reached:` with every hit's depth, relation and the changed files it came from; `not indexed:` files the graph does not know; `evidence:` the diff lines inside at most four seeds, six lines each; `deleted:` last. The signal is `changed` (a test file that reaches the area is in the diff too), `stale` (tests reach it, none changed), `none` (no test reaches it) or `na` (the file is a test, or no seed is a function or method); the tests always come from the full closure, whatever `-d` says.
+- **Exit codes**: `0` on success; `1` without a project root or graph, a base that starts with `-`, or when git or the graph fails; `2` on usage error (an argument, `--base` with `--cached`, a bad depth).
 
 ### `loomux graph viz [dir]` *(specified, Stage W3)*
 Starts the local D3-Force / WebGL interactive graph visualizer.

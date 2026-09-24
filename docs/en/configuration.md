@@ -91,9 +91,9 @@ in effect (see [CLI Reference](cli-reference.md#loomux-check-request---root-path
 max_parallel = 8        # processes at once; default: the number of CPUs
 timeout      = 600      # seconds per command; default 600, no upper limit
 
-[verify.profiles]       # built in: edit = [lint, types], precommit = stop = all four
+[verify.profiles]       # built in: edit = [lint, types], precommit = all five, stop = all but graph
 edit      = ["lint", "types"]
-precommit = ["lint", "types", "test", "coverage"]
+precommit = ["lint", "types", "test", "coverage", "graph"]
 stop      = ["lint", "types", "test", "coverage"]   # what the stop gate runs at a turn end
 
 [verify.go]             # per stack; stacks not named keep their preset
@@ -130,10 +130,10 @@ top-level `[commit]` table (see below).
 
 #### Kinds, profiles and reserved names
 
-There are four kinds, in the order they are listed: `lint`, `types`, `test`,
-`coverage`. A request to `loomux check` is a profile, `all` (always all four
+There are five kinds, in the order they are listed: `lint`, `types`, `test`,
+`coverage`, `graph`. A request to `loomux check` is a profile, `all` (always all five
 kinds) or a comma list of kinds (`lint,types`). The names `gofmt`,
-`commit-msg`, `gocover`, `all`, `lint`, `types`, `test` and `coverage` are
+`commit-msg`, `gocover`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage` and `graph` are
 reserved; a profile with one of them is a load error. `stop` is not reserved:
 it is a built-in profile like `edit` and `precommit`, and a project whose suite
 is too slow for every turn end narrows it (`stop = ["lint", "types"]`).
@@ -168,7 +168,7 @@ is too slow for every turn end narrows it (`stop = ["lint", "types"]`).
 
 #### The forms of a kind
 
-A stack table knows the keys `lint`, `types`, `test`, `coverage` (and
+A stack table knows the keys `lint`, `types`, `test`, `coverage`, `graph` (and
 `import_check` in `[verify.gdscript]`). Each kind is one of:
 
 | Form | Example | Meaning |
@@ -291,6 +291,53 @@ then `[verify.<stack>]`.
   `-coverpkg` in its `test.measuring` and `coverage.measure`, as loomux does.
 - GDScript has no coverage preset.
 
+#### The `graph` kind
+
+The fifth kind checks what a commit's change reaches in the code graph. Only
+Go has a preset for it:
+
+```toml
+[stack.go.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+```
+
+`graph-fresh` rebuilds a drifted graph; `blast-audit --cached` is red when a
+staged area has a seed with at least five callers (callers in tests count
+too) and no changed test reaches it (see
+[CLI Reference](cli-reference.md#loomux-check-blast-audit---root-path---cached----base-ref---threshold-n---skip-test-callers)).
+The commands run one after the other, and `blast-audit` runs even after a red
+`graph-fresh`, against the graph on disk; the lane is red then anyway.
+
+- **One lane per stack, in the root.** The graph belongs to the project root,
+  so a stack with several areas still gets one `graph/go`, not one rebuild per
+  area.
+- **Only in a check.** The edit scope plans no `graph` lane at all, as for a
+  kind without a command: an `edit` profile that names `graph` never rebuilds
+  on an edit.
+- **A probe decides before the lane starts.** `loomux check` asks, in this
+  order, whether `.loomux/state/graph/wiring.json` exists, whether there is a
+  `HEAD` (`git rev-parse --git-path MERGE_HEAD HEAD`), whether no merge is in
+  progress, and whether anything is staged (`git diff --cached --quiet`). The
+  first "no" makes the lane `not-applicable` with that reason, which leaves
+  the verdict green. So the lane is local by nature: it is `not-applicable`
+  in CI and in every fresh clone (`.loomux/state/` is not committed), in a
+  manual `loomux check precommit` with nothing staged, in a `commit --amend`
+  without new changes, during a merge and at the root commit. It runs only
+  where someone built the graph.
+- **The stop gate has no probe.** `stop` does not include `graph` by default;
+  a project that adds it gets `not-applicable` ("graph lanes need a graph
+  probe") at every turn end.
+- **Changing the threshold** means replacing `commands` in
+  `[verify.go.graph]`, **both** entries; a lane that names only `blast-audit`
+  loses the rebuild:
+
+  ```toml
+  [verify.go.graph]
+  commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 10"]
+  ```
+
+  `graph = false` under `[verify.go]` switches the lane off.
+
 #### Test detection
 
 `test` and `coverage` run only where tests exist. The search runs through each
@@ -327,7 +374,7 @@ profile never walks the tree.
 | `missing-tool` | a tool is not on the `PATH` | red | skipped, named |
 | `unready` | Godot has not imported the project, or a file in `needs` is missing | red | skipped, named |
 | `unavailable` | the kind is defined but cannot run (no tests found) | neutral, counts as "nothing ran" | not shown |
-| `not-applicable` | the kind is not defined for the stack, or `false` | neutral, shown | not shown |
+| `not-applicable` | the kind is not defined for the stack, or `false`; for `graph`, the probe said no | neutral, shown | not shown |
 
 - **What a lane inherits.** When the lane it waits for could not run, a lane
   takes over that state (`unavailable`, `not-applicable`, and in the edit scope

@@ -81,7 +81,7 @@ sequenceDiagram
     alt A lane is red
         Verify-->>Agent: Exit 2 with the finding
     else No lane is red
-        Hook-->>Agent: Exit 0, skipped lanes as context
+        Hook-->>Agent: Exit 0; skipped lanes, and for Go the callers of the changed symbols, as context
     end
 
     opt Subagent runs
@@ -100,7 +100,7 @@ Every phase with its payloads, exit codes and budgets: [hook lifecycle](docs/en/
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
-`loomux graph ask` ranks code symbols by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25), rebuilds a drifted graph before it answers (never a first one), and with `--source` inlines each hit's span. `loomux graph blast` shows what a git diff reaches over the same edges.
+`loomux graph ask` ranks code symbols by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25), rebuilds a drifted graph before it answers (never a first one), and with `--source` inlines each hit's span. `loomux graph blast` shows what a git diff reaches over the same edges; the verify kind `graph` audits the staged change the same way in `loomux check precommit`, wherever a graph was built ([configuration](docs/en/configuration.md#the-graph-kind)).
 
 > **"Lexical proposes, graph disposes"**: Keywords find candidate symbols; the structural call graph concentrates mass on the components that actually matter, filtering out dead or isolated hits.
 
@@ -148,12 +148,12 @@ The commands that are built, one line each; every flag and exit code is in the [
 
 ### Commands
 ```bash
-loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or lint,types,... (--root, --show, -v)
+loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or kinds of lint,types,test,coverage,graph (--root, --show, -v)
 loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
 loomux check commit-msg <file>      # validate a commit message: Conventional Commits header and its language ([commit], --language, --calibrate N)
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files
 loomux hook pre-tool-use            # run policy and global write barrier against stdin payload
-loomux hook post-tool-use           # run the edit profile's lanes against the file just edited (--budget, default 50s)
+loomux hook post-tool-use           # run the edit profile's lanes against the file just edited, then name the callers of changed Go symbols (--budget, default 50s)
 loomux hook session-start           # record the session's base commit; warn about a stale binary, a serve outside the install location and a failed self-update
 loomux hook stop                    # the turn-end gate: the stop profile over new content, subagent findings (--budget, default 270s)
 loomux hook subagent-start|subagent-stop  # snapshot origin, branches and HEAD around a subagent; park what moved for stop

@@ -26,7 +26,7 @@ Loomux nutzt eine strikte Exit-Code-Semantik, die exakt auf die Schnittstellen m
 
 `loomux check` nimmt zuerst eine **Anfrage** und danach ihre Flags. Die Anfrage
 ist ein Profil (`edit`, `precommit`, `stop` oder eins aus `[verify.profiles]`), `all`,
-eine Komma-Liste von Arten (`lint,types`) oder einer der drei eingebauten
+eine Komma-Liste von Arten (`lint,types`) oder einer der fünf eingebauten
 Prüfbefehle unten. Was jede Art je Stack fährt, legen
 [`[verify]`](configuration.md#verify-prüfketten--quality-gates) und die Presets
 fest.
@@ -149,6 +149,45 @@ Prüft eine Git-Commit-Nachricht auf Sprache und Einhaltung der Formatregeln ode
 - **Argumente**: Optionale Verzeichnisse oder Dateipfade (Standard: Arbeitsverzeichnis).
 - **Exit-Codes**: `0` (Korrekt formatiert), `1` (Unformatierte Dateien auf `stdout` gelistet).
 
+### `loomux check graph-fresh [--root <pfad>] [--wait <dauer>]`
+Die erste Hälfte der Graph-Lane: bringt den Graphen auf der Platte auf den
+Stand des Baums, bevor `blast-audit` ihn liest.
+
+- **Flags**: `--root <pfad>` (Projektwurzel; leer: nach oben gesucht),
+  `--wait <dauer>` (wie lange auf den Neubau eines anderen Laufs gewartet
+  wird, bis er die Sperre freigibt; Vorgabe `30s`).
+- **Verhalten**: Drift, ein fehlender Frische-Datensatz, ein Graph einer
+  anderen Extraktor-Version und ein veraltetes Schema bauen den Graphen unter
+  der prozessübergreifenden Sperre neu und sind grün. Eine Sperre, die älter
+  als eine Stunde ist, wird übernommen. Fortschrittsnotizen gehen auf `stderr`.
+- **Ausgabe**: `graph rebuilt` oder `graph is fresh` auf `stdout`.
+- **Exit-Codes**: `0` (frisch oder neu gebaut), `1` (keine Projektwurzel, gar
+  kein Graph — einen ersten baut er nie —, ein fehlgeschlagener Neubau, eine
+  fehlgeschlagene Probe oder eine Sperre, die nach `--wait` noch gehalten
+  wird, mit Pfad und Alter genannt), `2` (ein unbekanntes Flag).
+
+### `loomux check blast-audit [--root <pfad>] [--cached | --base <ref>] [--threshold <n>] [--skip-test-callers]`
+Die zweite Hälfte der Graph-Lane: rot, wenn ein geänderter Bereich mit genug
+Aufrufern keinen geänderten Test hat, der ihn erreicht.
+
+- **Flags**: `--root <pfad>`; `--cached` (der Index gegen `HEAD`, das nutzt
+  die Lane); `--base <ref>` (`<ref>...HEAD`); ohne beide der Arbeitsbaum gegen
+  `HEAD` oder, bei sauberem Baum, der letzte Commit, wie bei `graph blast`.
+  `--threshold <n>` (Vorgabe `3`; das Go-Preset setzt `5`);
+  `--skip-test-callers` (nur Aufrufer außerhalb von `_test.go`-Dateien zählen).
+- **Der Befund**: ein Bereich mit dem Testsignal `none` oder `stale`, der
+  einen Seed mit mindestens `<n>` eingehenden Walk-Kanten hat. Der Befehl liest
+  den Graphen, wie er ist, und baut ihn nie neu; das ist Sache von
+  `graph-fresh`.
+- **Ausgabe**: bei einem Befund `blast audit: <bereich>, threshold <n>` und
+  eine Zeile je rotem Bereich, `<pfad> [<signal>]: <seed> in-degree <k>, …`;
+  sonst `no area at or above <n> callers lacks a changed test (<m> areas)`.
+- **Exit-Codes**: `0` (kein Befund), `1` (ein Befund oder ein Fehler auf
+  `stderr`: keine Projektwurzel oder kein Graph, `--base` zusammen mit
+  `--cached`, eine Basis, die mit `-` beginnt, eine Schwelle unter 1, ein
+  git-Fehler), `2` (ein unbekanntes Flag). Der Exit-Code allein unterscheidet
+  Befund und Fehler nicht; `stdout` tut es.
+
 ---
 
 ## 3. Agenten-Harness-Hooks (`loomux hook`)
@@ -185,6 +224,7 @@ Wird ausgeführt, nachdem ein Agent eine Datei bearbeitet hat.
 - **Flags**: `--host <h>` (Pflicht), `--root <r>`, `--budget <dauer>` — wie lange die Lanes zusammen dauern dürfen (Go-Dauer, Vorgabe `50s`, unter der Hook-Frist des Hosts von 60 s). Jeder Befehl bekommt das Kleinere aus seinem eigenen `timeout` und dem Rest des Budgets.
 - **Verhalten**: Fährt die Lanes des Profils `edit` (vorgegeben `lint` und `types`) für den Stack der bearbeiteten Datei, in dem Bereich, der die Datei enthält, so wie [`[verify]`](configuration.md#verify-prüfketten--quality-gates) und die Presets sie auslegen, mit `on_file`, wo eine Lane es hat; siehe [Hooks](hooks.md#5-die-post-edit-lanes-je-sprachstack).
 - **Übersprungene Lanes**: Eine Lane, deren Werkzeug nicht auf dem `PATH` liegt, ein noch nicht importiertes Godot-Projekt und jede Lane, die das Budget nicht mehr erreicht, werden übersprungen, nicht rot. Sie stehen auf `stdout` als `{"hookSpecificOutput":{"additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go","hookEventName":"PostToolUse"}}`.
+- **Blast-Monitor**: Nach einem Edit an einer `.go`-Datei ohne rote Lane folgen den übersprungenen Lanes im selben `additionalContext` die direkten Aufrufer in anderen Dateien jedes Symbols, das der Edit gegenüber dem Graphen auf der Platte geändert oder entfernt hat. Ohne Graph schweigt er, und ein Befund ist er nie; siehe [Hooks](hooks.md#der-blast-monitor).
 - **Exit-Codes**: `0` (alle Lanes grün, übersprungen oder nichts zu fahren), `1` (fehlerhafter Aufruf, etwa ein fehlendes `--host`, oder ein `[verify]`, das sich nicht laden lässt), `2` (eine Lane ist gescheitert, abgelaufen oder blockiert; ihre Ausgabe auf `stderr`).
 
 ### `loomux hook session-start`
@@ -264,7 +304,7 @@ Lehnt den Haupt-Checkout und jedes Verzeichnis ab, an dem Git keinen Worktree h�
 ## 6. Code-Graph-Engine (`loomux graph`)
 
 > [!NOTE]
-> **`build`, `check`, `ask`, `callers`, `skeleton`, `grep`, `map` und `stats` sind verdrahtet; `blast` und `viz` bleiben spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die Befehle `build` und `check`, Stufe G2b ergänzt Lexik, lexikalisches Scoring, Personalized-PageRank-Verschmelzung und `graph ask`, Stufe G3 stellt `ask` und `check` hinter die MCP-Werkzeuge `graph_find_code` und `graph_check_freshness` (§8), und Stufe G4a lieferte die Navigationspalette (`callers`, `skeleton`, `grep`, `map`, `stats`) und ihre vier MCP-Werkzeuge. Stufe G4b ergänzt Git-Diff-Blast-Radius-Analyse und den Post-Edit-Blast-Monitor.
+> **`build`, `check`, `ask`, `callers`, `skeleton`, `grep`, `map`, `stats` und `blast` sind verdrahtet; `viz` bleibt spezifiziert.** Stufe G1 hat die Pakete gebaut, auf denen der Graph aufsetzt — `internal/code/model`, `internal/code/pagerank` und `internal/code/blast` —, Stufe G2a ergänzt Extraktor, Wiring-Schreiber, Frischesonde und die Befehle `build` und `check`, Stufe G2b ergänzt Lexik, lexikalisches Scoring, Personalized-PageRank-Verschmelzung und `graph ask`, Stufe G3 stellt `ask` und `check` hinter die MCP-Werkzeuge `graph_find_code` und `graph_check_freshness` (§8), und Stufe G4a lieferte die Navigationspalette (`callers`, `skeleton`, `grep`, `map`, `stats`) und ihre vier MCP-Werkzeuge; Stufe G4b ergänzte `blast`, das MCP-Werkzeug `graph_blast`, die Prüfbefehle `graph-fresh` und `blast-audit` (§2) und den Blast-Monitor im Post-Edit-Hook (§3).
 
 ### `loomux graph build [--root <pfad>]`
 Liest und hasht jede Go-Quelldatei, die `internal/code/sourceset` unterhalb der Wurzel findet, extrahiert und löst sie zum deterministischen AST-Graphen auf und schreibt ihn nach `.loomux/state/graph/wiring.json`. Dabei schreibt er auch die Frischeakte (`.loomux/state/graph/cache/fingerprint.json`), die eine spätere Sonde liest; scheitert das Schreiben der Akte, meldet der Befehl das auf `stderr`, ohne den Bau selbst scheitern zu lassen — der Graph auf der Platte ist bereits korrekt.
@@ -358,7 +398,9 @@ Zeigt, was eine Änderung erreicht, aus dem Git-Diff: je geänderter Datei die S
   - `-d`, `--depth`: Tiefengrenze, eine positive ganze Zahl (Vorgabe `1`), oder `all`/`full` für die Hülle.
   - `--no-refresh`: antwortet aus dem Graphen auf der Platte, baut nie neu.
   - `--json`: schreibt die Antwort als JSON.
-- **Exitcodes**: `0` bei Erfolg; `1` ohne Projektwurzel oder Graph oder wenn Git oder der Graph scheitert; `2` bei einem Aufruffehler (ein Argument, `--base` mit `--cached`, eine ungültige Tiefe).
+- **Bereich**: ohne `--cached` und `--base` der Arbeitsbaum gegen `HEAD`, bei sauberem Baum `HEAD~1...HEAD`. git läuft in der Projektwurzel mit `--relative`, die Pfade sind also auch in einem Unterverzeichnis-Bereich die des Graphen.
+- **Ausgabe**: `blast radius: <bereich>`, dann je geänderter Datei `<pfad> [<signal>]` mit ihren Seeds (`seed <name> (<art>) <span> in-degree <n>`) und den Tests, die sie erreichen; `reached:` mit Tiefe, Relation und den geänderten Dateien jedes Treffers; `not indexed:` Dateien, die der Graph nicht kennt; `evidence:` die Diff-Zeilen in höchstens vier Seeds, je sechs Zeilen; zuletzt `deleted:`. Das Signal ist `changed` (eine Testdatei, die den Bereich erreicht, ist auch im Diff), `stale` (Tests erreichen ihn, keiner ist geändert), `none` (kein Test erreicht ihn) oder `na` (die Datei ist ein Test, oder kein Seed ist Funktion oder Methode); die Tests kommen immer aus der ganzen Hülle, gleich was `-d` sagt.
+- **Exitcodes**: `0` bei Erfolg; `1` ohne Projektwurzel oder Graph, bei einer Basis, die mit `-` beginnt, oder wenn Git oder der Graph scheitert; `2` bei einem Aufruffehler (ein Argument, `--base` mit `--cached`, eine ungültige Tiefe).
 
 ### `loomux graph viz [dir]` *(spezifiziert, Stufe W3)*
 Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.
