@@ -40,6 +40,21 @@ func ReadDeclaration(path string) (*Manifest, error) {
 	return manifest, nil
 }
 
+// DeclarationKeys are the keys ReadDeclaration reads, per section. The
+// reader takes its lists from here, so the schema of `loomux config` and the
+// reader cannot drift apart.
+func DeclarationKeys() map[string][]string {
+	return map[string][]string{
+		"area":        {"scope"},
+		"privacy":     {"mode", "never"},
+		"wiki":        {"types", "untouched_days"},
+		"maintenance": {"on_merge", "branch"},
+		"model":       {"enabled", "roles"},
+		"layout":      {"wiki", "hub", "review", "inbox"},
+		"index":       {"include", "exclude", "unsearched"},
+	}
+}
+
 // declarationSections are the tables a declaration reads, in the order their
 // shape is checked.
 func declarationSections() []string {
@@ -87,8 +102,9 @@ func declaration(document map[string]any) (*Manifest, error) {
 	if err := checkRoles(sections["model"]); err != nil {
 		return nil, err
 	}
+	keys := DeclarationKeys()
 	layout := map[string]string{}
-	for _, key := range []string{"wiki", "hub", "review", "inbox"} {
+	for _, key := range keys["layout"] {
 		value, present := sections["layout"][key]
 		if !present {
 			continue
@@ -100,7 +116,7 @@ func declaration(document map[string]any) (*Manifest, error) {
 		layout[key] = text
 	}
 	globs := map[string][]string{}
-	for _, key := range []string{"include", "exclude", "unsearched"} {
+	for _, key := range keys["index"] {
 		if globs[key], err = stringList(sections["index"], key, "[index]"); err != nil {
 			return nil, err
 		}

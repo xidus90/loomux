@@ -35,6 +35,15 @@ func ManifestPath(root string) string {
 	return filepath.Join(root, manifestNames[0])
 }
 
+// PolicyKeys are the keys of the two rule lists ReadPolicy reads. The reader
+// decodes through the struct tags of policyFile; a test holds the two equal.
+func PolicyKeys() map[string][]string {
+	return map[string][]string{
+		"policy.paths.rules":    {"match", "reason"},
+		"policy.commands.rules": {"regex", "reason"},
+	}
+}
+
 type policyFile struct {
 	Policy struct {
 		Paths struct {

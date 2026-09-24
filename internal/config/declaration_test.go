@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -164,5 +165,17 @@ func TestAnInboxMustStayInsideTheArea(t *testing.T) {
 		if got, err := m.InboxLayout(); err != nil || got != value {
 			t.Errorf("InboxLayout(%q) = %q, %v", value, got, err)
 		}
+	}
+}
+
+func TestDeclarationKeysNameEverySectionTheReaderChecks(t *testing.T) {
+	keys := DeclarationKeys()
+	for _, section := range declarationSections() {
+		if _, ok := keys[section]; !ok {
+			t.Errorf("DeclarationKeys lacks [%s]", section)
+		}
+	}
+	if !slices.Equal(keys["layout"], []string{"wiki", "hub", "review", "inbox"}) {
+		t.Errorf("layout keys %v", keys["layout"])
 	}
 }
