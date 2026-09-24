@@ -8,7 +8,7 @@ implemented_in: f6315d3
 sources:
   - id: plan-scheibe-2a-suchkette
     resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-20-scheibe-2a-suchkette.md
-    doc_id: 01M0QGS593GGJ1X2Q2P0XJFVKW
+    doc_id: 01M39G4J145RS6BD2T0F9X0XDR
     content_hash: "sha256:5dbd29fd127681cc63433ce94492a6f6a029e3d555339811c33c00dd70436507"
     revision: 1
 ---

@@ -7,12 +7,12 @@ realization: in_progress
 sources:
   - id: abnahme-scheibe-2a
     resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-20-scheibe-2a-abnahme.md
-    doc_id: 01M0QGS5931BKD9QS6B8C2TNCT
+    doc_id: 01M39G4J1442WTWSH1VRCYEEDX
     content_hash: "sha256:71c8d0e5c0196b026a5b96125297b8f7662829501f8e1f2e8efebc36065a5027"
     revision: 1
   - id: plan-scheibe-1
     resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-19-scheibe-1-indexer.md
-    doc_id: 01M0QGS593D5A8B9E3P0SV6GD9
+    doc_id: 01M39G4J146PHJMJRKF36X1YME
     content_hash: "sha256:1c38fd1e30390ffb31ab13083d09006e6f6a49996776312c3f781da0eb09d90e"
     revision: 1
 ---

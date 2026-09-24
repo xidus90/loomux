@@ -8,7 +8,7 @@ implemented_in: 7d3e267
 sources:
   - id: plan-scheibe-0
     resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-18-scheibe-0-fundament.md
-    doc_id: 01M0QGS5938AFTQ36ECK6FQ4VM
+    doc_id: 01M39G4J14E1Q40012BSGH3PZC
     content_hash: "sha256:f927f47a11773eae3c57d9a8416882a735e6dcf1f990ef69c222c77a5bd797eb"
     revision: 1
 ---

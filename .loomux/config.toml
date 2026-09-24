@@ -24,7 +24,7 @@ wiki = "docs/wiki"
 # Only the wiki is knowledge; testdata/cases holds recordings, and a catalog
 # written into them would change evidence.
 [index]
-include = ["docs/wiki/**/*.md"]
+include = ["docs/wiki/**/*.md", "docs/.superpowers/**/*.md"]
 
 # The bundle catalogs are registered but qmd never gets them (OwnArtifacts
 # hides **/index.md); without this line status reports them as divergence.

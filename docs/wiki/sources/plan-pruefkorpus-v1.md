@@ -8,7 +8,7 @@ implemented_in: c3e0661
 sources:
   - id: plan-pruefkorpus-v1
     resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-21-pruefkorpus-v1.md
-    doc_id: 01M0QGS593RKFQZES0JGRRHTPT
+    doc_id: 01M39G4J14AGHVYCB236STY4DY
     content_hash: "sha256:2a9358ddace4085a0ce389fda921b968fa17964e5688a741f194b50be41c301d"
     revision: 1
 ---
