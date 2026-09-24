@@ -69,3 +69,24 @@ func Process() {
 		t.Fatalf("want empty target handled, got lineNum=%d line=%q ok=%v", lineNum, line, ok)
 	}
 }
+
+func TestQuoteLineReadsTheSpansEdges(t *testing.T) {
+	// No trailing newline: the last line of the file is the last element.
+	src := []byte("Render()\nx\nRender()")
+	read := func(string) ([]byte, error) { return src, nil }
+
+	for _, c := range []struct {
+		span model.Span
+		line int
+		ok   bool
+	}{
+		{"L1-L1", 1, true},  // a one-line span on the first line
+		{"L2-L3", 3, true},  // the match on the span's last line, the file's last line
+		{"L0-L1", 0, false}, // line 0 does not exist
+	} {
+		line, _, ok := blast.QuoteLine(read, "f.go", c.span, "Render")
+		if line != c.line || ok != c.ok {
+			t.Errorf("QuoteLine(%s) = %d, %v, want %d, %v", c.span, line, ok, c.line, c.ok)
+		}
+	}
+}
