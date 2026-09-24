@@ -194,6 +194,7 @@ Hält den Commit fest, auf dem die Sitzung beginnt.
 - **Verhalten**:
   - Schreibt `HEAD` als `base` in `.loomux/state/hooks/<session_id>.json`.
   - Warnt in `hookSpecificOutput.additionalContext`, wenn das Binary im Projekt älter ist als seine Go-Quellen.
+  - Liest außerdem `<Zustandsverzeichnis>/update.json` und warnt, wenn unter Windows ein Durchlauf von `serve` ein anderes Binary als `<Zustandsverzeichnis>/bin/loomux.exe` als sein eigenes verzeichnet hat, oder wenn der letzte Self-Update-Durchlauf gescheitert ist, gleich wer ihn fuhr.
   - Legt keine Worktree-Junctions an; das tut `loomux worktree link`. Siehe [Hooks](hooks.md#8-sitzungshooks).
 - **Exit-Codes**: `0` (Erfolg), `1` (fehlender oder unbekannter Host, kein Adapter für den Host, unlesbare Nutzlast, gescheitertes Schreiben).
 
@@ -572,6 +573,34 @@ PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet. Erfolg ist still.
 
 - **Exit-Codes**: `0` beendet, und ebenso, wenn nichts lief; `1` der Stopp ist
   gescheitert; `2` ein unbekanntes Argument.
+
+### `loomux self-update`
+
+Ein Self-Update-Durchlauf von Hand; `serve` fährt denselben eine Minute nach
+dem Start und danach alle 24 Stunden. Er wirkt nur auf das maschinenweite
+Binary, `<Zustandsverzeichnis>/bin/loomux.exe`, wenn das das laufende Binary
+ist und eine Release-Version trägt.
+
+1. Listet die Releases über `gh release list` und nimmt die höchste Version
+   im Kanal des laufenden Binarys (`beta` nimmt Prereleases, `stable` nicht).
+2. Lädt das Windows-Asset und `SHA256SUMS` über `gh release download`, prüft
+   die Prüfsumme und die `--version` des neuen Binarys.
+3. Stempelt die Datei mit der aktuellen Zeit und tauscht sie ein; das alte
+   Binary kommt nach `loomux.old.exe` oder in den ersten freien nummerierten
+   Platz. Die nächste Brücke ersetzt den laufenden `serve`.
+
+Schreibt `<Zustandsverzeichnis>/update.json` (`source` = `serve` | `cli`,
+`checked_at`, `executable`, `running`, `result` = `current` | `updated` |
+`skipped` | `failed`, `version`, `error`). Ein Durchlauf, der `update.lock`
+belegt findet, tritt zurück und schreibt nichts. Ebenso wenig schreibt ein
+Durchlauf von Hand, der ausgelassen wird; so bleibt der Eintrag vom letzten
+Durchlauf von `serve` für den Sitzungsstart stehen.
+
+| Exit | Bedeutung |
+|---|---|
+| 0 | `already current (vX)` oder `updated to vX` |
+| 1 | der Durchlauf ist gescheitert, oder ein anderer läuft |
+| 2 | ausgelassen: nicht Windows, ein Entwicklungs-Build oder nicht das maschinenweite Binary; oder ein unbekanntes Argument |
 
 ### `loomux mcp [--channel local|cloud]`
 Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die elf Werkzeuge selbst

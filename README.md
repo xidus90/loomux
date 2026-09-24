@@ -141,7 +141,7 @@ loomux check commit-msg <file>      # validate a commit message: Conventional Co
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files
 loomux hook pre-tool-use            # run policy and global write barrier against stdin payload
 loomux hook post-tool-use           # run the edit profile's lanes against the file just edited (--budget, default 50s)
-loomux hook session-start           # record the session's base commit and warn about a stale binary
+loomux hook session-start           # record the session's base commit; warn about a stale binary, a serve outside the install location and a failed self-update
 loomux hook stop                    # the turn-end gate: the stop profile over new content, subagent findings (--budget, default 270s)
 loomux hook subagent-start|subagent-stop  # snapshot origin, branches and HEAD around a subagent; park what moved for stop
 loomux status|doctor|explain        # inspect hook setup, verification lanes, and active harnesses (three names, one code path)
@@ -163,6 +163,7 @@ loomux brain status                 # what to know before trusting an answer
 loomux serve [--foreground]         # start the long-lived localhost MCP service, detached or here; catches up on a due reconcile daily
 loomux serve status                 # what serve.json says and whether the listener answers
 loomux serve stop [--force]         # end the service through its own endpoint, or by its PID
+loomux self-update                  # replace the machine-wide binary with the newest release of its channel; serve does this daily
 loomux mcp [--channel local|cloud]  # stdio bridge an MCP host starts; it starts the service itself
 loomux reindex [--registry P]       # reconcile first, then rebuild every area's catalogs, link graph, identity register and qmd collections
 loomux embed [--registry P]         # generate the vectors reindex leaves pending (needs qmd on PATH)
@@ -272,6 +273,34 @@ Download a binary from the [Releases page](https://github.com/xidus90/loomux/rel
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
 ```
+
+### Installing the machine-wide binary
+
+The MCP bridge and `loomux serve` run from one binary per machine,
+`%LOCALAPPDATA%\loomux\bin\loomux.exe`, taken from a release and never from a
+checkout. Install it once with the [GitHub CLI](https://cli.github.com/),
+logged in with `gh auth login`:
+
+```powershell
+$bin = "$env:LOCALAPPDATA\loomux\bin"
+New-Item -ItemType Directory -Force $bin | Out-Null
+gh release download <tag> --repo xidus90/loomux --pattern 'loomux_*_windows_amd64.exe' --pattern SHA256SUMS --dir $bin
+```
+
+Check the file against `SHA256SUMS`, rename it to `loomux.exe`, delete
+`SHA256SUMS`, and point the MCP entry at it:
+
+```powershell
+claude mcp add loomux -s user -- "$env:LOCALAPPDATA\loomux\bin\loomux.exe" mcp --channel local
+```
+
+From then on `serve` keeps it current: a minute after it starts and daily
+after that it takes the highest release of the binary's own channel through
+`gh`, checks it against `SHA256SUMS` and its `--version`, and swaps the file.
+The next bridge replaces the running service. `loomux self-update` does the
+same by hand. What the last pass found is in `update.json` beside the binary's
+directory; session start warns when `serve` runs from anywhere else or the
+pass failed. Windows only for now.
 
 Every merged pull request to `master` is released according to its label:
 
