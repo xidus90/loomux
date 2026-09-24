@@ -3,6 +3,7 @@ package hooks
 import (
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -294,5 +295,438 @@ func TestRelativePathHelper(t *testing.T) {
 	absOutside := relativePath(filepath.Join(otherDir, "other.txt"), root)
 	if !strings.Contains(absOutside, "other.txt") {
 		t.Fatalf("absOutside = %q", absOutside)
+	}
+}
+
+func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
+	refused := []string{
+		"loomux init",
+		"loomux init --yes",
+		"bin/loomux.exe init --hooks=all",
+		`"${LOCALAPPDATA}/loomux/bin/loomux.exe" config`,
+		"loomux config set commit.language de --yes",
+		"loomux config --global",
+		"loomux config set model.enabled true --global",
+		"loomux area add --path .",
+		"go run ./cmd/loomux config set commit.language de",
+		"cd x && loomux config",
+		"LOOMUX_STATE_DIR=x loomux area add",
+		"go run ./cmd/loomux/ init",
+		"cd x\nloomux init",
+		`.\bin\loomux.exe config set a b`,
+		`& "C:\x\loomux.exe" init`,
+		`& 'C:\x\loomux.exe' area add`,
+		`go run .\cmd\loomux config set a b`,
+		"sudo loomux init",
+		"command loomux init",
+		"exec loomux config set a b",
+		"nohup loomux area add",
+		"env X=1 loomux init",
+		"time loomux config",
+		"sudo X=1 env loomux init",
+		"(loomux init)",
+		"echo $(loomux config set a b)",
+		"{ loomux area add; }",
+		`loomux config set commit.message "say \"hi"`,
+		`loomux config set a 'it'\''s'`,
+		`loomux config set a "(x)"`,
+		`loomux config set a "x;y"`,
+		`"C:\Program Files (x86)\loomux\loomux.exe" init`,
+		`.\bin\loomux.exe config set a "say \"hi"`,
+		`.\bin\loomux.exe init \'`,
+		`"C:\Program Files\loomux\loomux.exe" init`,
+		`"C:\Program Files\loomux\loomux.exe" init \'`,
+		`"C:\Program Files\loomux\loomux.exe" config set a "say \"hi"`,
+		`"C:\Program Files\loomux\loomux.exe" config set a 'x`,
+		`"C:\Program Files (x86)\loomux\loomux.exe" config set a "b"`,
+		`'C:\Program Files\loomux\loomux.exe' config set a "it's" ""`,
+		`"C:\Program Files (x86)\My Tools\loomux.exe" init`,
+		`"C:\Program Files (x86)\loomux tools\loomux.exe" init`,
+		`"C:\R&D Tools\loomux.exe" init`,
+		`"C:\x;y z\loomux.exe" init`,
+		`& "C:\R&D Tools\loomux.exe" config set a b`,
+		`echo "x; loomux init"`,
+		`loomux con\fig set a b`,
+		// An earlier escaped quote mispairs both cuts; the plain field
+		// reading still finds the program behind the ( of the path.
+		`echo "a \" b"; "C:\Program Files (x86)\loomux\loomux.exe" init`,
+		`echo 'a \' b'; "C:\Program Files (x86)\loomux\loomux.exe" init`,
+		`echo "a \" b"; "C:\Program Files (x86)\loomux\loomux.exe" config set a b`,
+		// Shell reserved words in front of the program.
+		"for i in 1; do loomux config set a b --yes; done",
+		"if true; then loomux config set a b; fi",
+		"if false; then :; else loomux init; fi",
+		"if x; then :; elif loomux init; then :; fi",
+		"if loomux init; then :; fi",
+		"! loomux config set a b",
+		"while x; do loomux init; done",
+		"until x; do loomux area add; done",
+		// Line continuations, bash and PowerShell, with either line end.
+		"loomux \\\nconfig set a b --yes",
+		"loomux \\\r\nconfig set a b",
+		"loom\\\nux init",
+		"loomux `\nconfig set a b",
+		"loomux `\r\ninit",
+		// A PowerShell line-end continuation is no bash one: PowerShell
+		// runs the first line on its own.
+		"loomux init \\\n--dry-run",
+		// Backtick substitution, and a PowerShell backtick escape.
+		"echo `loomux config set a b`",
+		"x=\"`loomux init`\"",
+		"loomux con`fig set a b",
+		// Wrappers without flags, wrapper flags without a value, and
+		// redirections in front of the program.
+		"cmd /c loomux config set a b",
+		"cmd.exe /c loomux init",
+		`C:\Windows\System32\CMD.EXE /S /C loomux init`,
+		`cmd /c "loomux init"`,
+		"xargs loomux config set a b",
+		"xargs -0 loomux init",
+		"timeout 60 loomux config set a b",
+		"timeout --foreground 60 loomux init",
+		"sudo -E loomux init",
+		"env -i loomux init",
+		"2>/dev/null loomux config set a b",
+		">out loomux init",
+		"< f loomux init",
+		"2> err loomux init",
+		"2>&1 loomux init",
+		">&2 loomux init",
+		"&>out loomux init",
+		"Start-Process loomux -ArgumentList 'config','set','a','b'",
+		"Start-Process -FilePath loomux.exe -ArgumentList 'init'",
+		`saps .\bin\loomux.exe`,
+		// A false refusal kept on purpose: Start-Process hides the
+		// arguments from the words.
+		"start loomux config list",
+		// loomux anywhere among Start-Process's arguments.
+		"Start-Process -NoNewWindow loomux init",
+		"Start-Process -Wait -FilePath loomux.exe -ArgumentList init",
+		"Start-Process -ArgumentList 'init' -FilePath loomux.exe",
+		`start "" loomux init`,
+		"start /b loomux init",
+		// Every cmd switch before /c or /k.
+		"cmd /v:on /c loomux init",
+		"cmd /d /s /c loomux init",
+		"CMD /E:ON /K loomux init",
+		// Function bodies, coprocesses and PowerShell's try, catch, finally.
+		"function f { loomux init; }",
+		"function f { loomux init }",
+		"coproc loomux init",
+		"try { loomux init } catch {}",
+		"try { x } catch { loomux init }",
+		"try { x } finally { loomux init }",
+		"}; catch { loomux init }",
+		// nice, bare, with -n N, and with the old -N.
+		"nice loomux init",
+		"nice -n 10 loomux init",
+		"nice -10 loomux init",
+		// A false refusal kept on purpose: -v only looks the name up.
+		"command -v loomux init",
+		// A PowerShell parameter glued to its value with a colon.
+		"Start-Process -FilePath:loomux.exe -ArgumentList init",
+		"Start-Process -FilePath:loomux init",
+		"Start-Process -FilePath:'loomux.exe' -ArgumentList init",
+		`Start-Process -FilePath:"C:\x\loomux.exe"`,
+		// Braces glued to the words around them.
+		"try{ loomux init }catch{}",
+		"try {loomux init} catch {}",
+		"& {loomux init}",
+		"function f {loomux init}",
+		"Invoke-Command -ScriptBlock {loomux init}",
+		"${X}/loomux init",
+		// Every combination of the line variants: a backtick escape inside
+		// a block whose braces are glued to the words.
+		"try{ loomux con`fig set a b }",
+		"{loomux con`fig set a b}",
+		"try {loomux con`fig set a b} catch {}",
+		"try{ loomux `\ninit }",
+		// nice with -n N and then more flags or --.
+		"nice -n 10 -- loomux init",
+		"nice -n 10 -x loomux init",
+		// False refusals kept on purpose: a word after a lone brace, and
+		// loomux as an argument of another program Start-Process runs.
+		"awk '{ print }' loomux init",
+		"echo } loomux config set a b",
+		"echo ${X} loomux init",
+		"Start-Process code -ArgumentList loomux",
+		// go run with build flags, a file, a module path or no ./.
+		"go run -race ./cmd/loomux config set a b",
+		"go run -tags x ./cmd/loomux init",
+		"go run -ldflags=-s ./cmd/loomux init",
+		"go run -C . ./cmd/loomux init",
+		"go run ./cmd/loomux/main.go config set a b",
+		"go run github.com/xidus90/loomux/cmd/loomux config set a b",
+		"go run github.com/xidus90/loomux/cmd/loomux@latest init",
+		"go run cmd/loomux init",
+		// Only list, get, proposals and a lone --help or -h read.
+		"loomux config ''",
+		"loomux config unset commit.language",
+		"loomux config lis",
+		"loomux config --root d list",
+		"loomux config --help --global",
+		"loomux config 'unclosed",
+		// set and unset pass only as a proposal, and applying or
+		// rejecting one is the human's half.
+		"loomux config apply --all --yes",
+		"loomux config apply 20260924T101530Z-001",
+		"loomux config reject 20260924T101530Z-001",
+		"loomux config reject --all",
+		"loomux config set a b --yes",
+		"loomux config set a b --propos",
+		"loomux config set a b ---propose",
+		// Past -- the word is the value, not the flag.
+		"loomux config set a -- --propose",
+		"loomux config unset -- --propose",
+		// A later =false turns the flag off again.
+		"loomux config set a b --propose=false",
+		"loomux config set a b --propose --propose=false",
+		"loomux config set a b -propose=false",
+		"loomux config set a b --propose=true",
+		"loomux config --propose set a b",
+		// The same for init: a --dry-run the program never receives.
+		"loomux init # --dry-run",
+		"loomux init #--dry-run",
+		"loomux init > --dry-run",
+		"loomux init 2> --detect-only",
+		"loomux init <<< --dry-run",
+		"loomux init <# --detect-only #>",
+		"loomux init -- --dry-run",
+		// An expansion may bring a word that takes the flag back or turns
+		// it into a value; the words are judged as written, so any
+		// expansion among them refuses.
+		"loomux config set a b --propose $X",
+		"loomux config set a b --propose ${X}",
+		"loomux config set a b --propose $(echo --propose=false)",
+		"loomux config set a b --propose $env:X",
+		"loomux config set a b --propose @x",
+		"loomux config set a $X --propose",
+		"loomux config set a b --propose `echo --propose=false`",
+		"loomux init --dry-run $X",
+		"loomux init --dry-run @args",
+		// The exemption holds only for a line of plain words: brace
+		// expansion, PowerShell sub-expressions and globs can each bring
+		// a word that takes the flag back.
+		"loomux config set a b --propose --propose{,=false}",
+		"loomux init --dry-run --dry-run{,=false}",
+		"loomux config set a b --propose ('--propose=false')",
+		`loomux config set a b --propose ("--propose" + "=false")`,
+		"loomux init --dry-run ('--dry-run=false')",
+		"loomux config set a b --propose ?-propose=false",
+		"loomux config set a b --propose [-]-propose=false",
+		"loomux config set a b --propose *",
+		`loomux config set a "$X" --propose`,
+		`loomux config set a "x\y" --propose`,
+		"loomux config set a b --propose \\",
+		"loomux config set a b --propose~",
+		"loomux config set a b --propose !x",
+		"loomux config set a b --propose a#b",
+		"loomux config set a 'b --propose",
+		"loomux config set a 'ü’ $(x)' --propose",
+		"loomux config set a b --propose --% %X%",
+		"cmd /c loomux init --dry-run %X%",
+		// A redirection does not end the arguments: words after its
+		// target still reach the program.
+		"loomux config set a b --propose > out --propose=false",
+		"loomux config set a b --propose > out x",
+		"loomux init --dry-run 2>&1 --dry-run=false",
+		// Only a direct call is exempt: a wrapper may read the words a
+		// second time (cmd reads ^, %X%, !X! and " inside '…'), so
+		// loomux behind any prefix is judged without its flag.
+		"cmd /c loomux config set a b --propose '--propose^=false'",
+		"cmd /c loomux init --dry-run '--dry-run^=false'",
+		"cmd /c loomux init --dry-run '%X%'",
+		"X=--dry-run=false cmd //c loomux init --dry-run '%X%'",
+		"cmd /v:on /c loomux init --dry-run '!X!'",
+		`cmd /c loomux config set a b --propose '-"-propose=false"'`,
+		"cmd /c loomux init --dry-run",
+		"sudo loomux init --dry-run",
+		"env loomux config set a b --propose",
+		"nice loomux init --dry-run",
+		"timeout 60 loomux init --dry-run",
+		"xargs loomux init --dry-run",
+		"exec loomux init --dry-run",
+		"command loomux config set a b --propose",
+		"X=1 loomux init --dry-run",
+		"2>/dev/null loomux init --dry-run",
+		"if true; then loomux init --dry-run; fi",
+		"! loomux init --dry-run",
+		"Start-Process loomux init --dry-run",
+		// A wrapper's quoted inner command: a cut inside the quotes puts
+		// loomux at the head of a segment, while the wrapper reads the
+		// string again (cmd resolves ^, % and !), so only a segment whose
+		// bounds lie outside quotes may exempt, and single quotes may hold
+		// neither a break nor a character cmd rereads.
+		"cmd /c 'echo; loomux init --dry-run --dry-run^=false'",
+		"cmd /c 'x&loomux config set a b --propose -propose^=0'",
+		"cmd /c 'x|loomux init --dry-run %X%'",
+		"cmd /c 'x (loomux init --dry-run)'",
+		"Start-Process cmd '/c loomux init --dry-run --dry-run^=false'",
+		"& cmd /c 'x; loomux init --dry-run'",
+		"sh -c 'true\nloomux init --dry-run'",
+		"sh -c 'x `loomux init --dry-run` y'",
+		"pwsh -c 'x\nloomux config set a b --propose'",
+		"loomux config set a 'x!y' --propose",
+		"loomux config set a 'x^y' --propose",
+		"loomux config set a '50%' --propose",
+		"loomux config set a 'a>b' --propose",
+		// A quoted # is a word to the program, yet flagOn reads a word
+		// starting with # as a comment and stops there.
+		"loomux init --dry-run '#x' --dry-run=false",
+		"loomux config set a b --propose '#x' --propose=false",
+		// A lone & is PowerShell's call operator or a background job.
+		"& loomux init --dry-run",
+		"& 'loomux' config set a b --propose",
+		"sleep 1 & loomux config set a b --propose",
+		"loomux init --dry-run &",
+		// Blocks and a program path with an expansion are no plain line.
+		"try { loomux config set a b --propose}",
+		"try { loomux init --dry-run } catch {}",
+		"${X}/loomux init --dry-run",
+		"{loomux init --dry-run}",
+		"try { loomux init --dry-run}",
+		// A later =false takes the flag back for init as well.
+		"loomux init --dry-run --dry-run=false",
+		"loomux init --detect-only -detect-only=false",
+		// A comment or a redirect puts the word on the line, not in the
+		// program's arguments.
+		"loomux config set a b --yes # --propose",
+		"loomux config set a b --yes #--propose",
+		"loomux config set a b --yes > --propose",
+		"loomux config set a b --yes >--propose",
+		"loomux config set a b --yes 2> --propose",
+		"loomux config set a b --yes 2>--propose",
+		"loomux config set a b --yes &> --propose",
+		"loomux config set a b --yes <<< --propose",
+		"loomux config set a b --yes < --propose",
+		"loomux config set a b --yes <# --propose #>",
+		"loomux config set a b --propose; loomux config apply --all --yes",
+	}
+	// Known holes, pinned so that closing one shows up here and the readings
+	// comment and both cli-references are corrected with it.
+	holes := []string{
+		// After an earlier escaped quote, a quoted path whose part after
+		// its last break character holds a blank.
+		`echo "a \" b"; "C:\R&D Tools\loomux.exe" init`,
+		`echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`,
+		// Wrapper flags that take a value.
+		"sudo -u root loomux init",
+		"xargs -n 1 loomux init",
+		"timeout -s KILL 60 loomux init",
+		// A command inside a string, an alias, a program in a variable.
+		`sh -c "loomux init"`,
+		`pwsh -c "loomux init"`,
+		"alias l=loomux; l init",
+		"M=loomux; $M init",
+		// go run of a package that names no cmd/loomux.
+		"cd cmd/loomux && go run . init",
+	}
+	allowed := []string{
+		"loomux init --dry-run",
+		"loomux init --detect-only",
+		"loomux config list",
+		"loomux config get commit.language",
+		"loomux config list --global",
+		"loomux config --help",
+		"loomux config -h",
+		"loomux config proposals",
+		"loomux config proposals --json --global",
+		"loomux config set commit.language de --propose",
+		"loomux config set a b -propose",
+		"loomux config unset commit.language --propose --global",
+		"loomux config set --propose a b --root d",
+		"loomux config set layout.wiki docs/wiki --propose",
+		"loomux config set index.include 'docs/**/*.md' --propose",
+		`loomux config set commit.message "a b" --propose`,
+		"loomux config set a 'x {y} * ? [z] ~ @w' --propose",
+		"loomux init --detect-only > plan.txt",
+		"cd docs && loomux init --dry-run | tee plan.txt",
+		"loomux config set commit.message 'it''s' --propose",
+		"loomux config unset a --propose",
+		"go run ./cmd/loomux config set a b --propose",
+		"go run -race ./cmd/loomux init --dry-run",
+		"loomux init --dry-run && echo done",
+		"loomux init --dry-run &> plan.txt",
+		"loomux init --dry-run # a $note {x}\nloomux config list",
+		"loomux config set a b --propose > out.txt",
+		"loomux config set a b --propose 2>&1",
+		"loomux config set a b --propose # note",
+		"loomux init --dry-run > plan.txt",
+		"loomux init --detect-only 2>&1 # note",
+		"loomux check precommit",
+		"echo loomux config set",
+		"grep 'loomux init' docs",
+		"loomux",
+		"loomux area list",
+		"loomux area",
+		"go run",
+		"go run ./cmd/other init",
+		"go run ./mycmd/loomux init",
+		"go run -race ./cmd/other init",
+		"go run -tags",
+		"X=1",
+		"a ;; b",
+		"sudo",
+		"{ }",
+		"cmd /c loomux config list",
+		"cmd /c",
+		"timeout",
+		"timeout 60",
+		"2>/dev/null loomux config get a",
+		">",
+		"echo `date`",
+		"Start-Process notepad",
+		"Start-Process",
+		"Start-Process -FilePath",
+		"echo hi >&2",
+		"Start-Process -Wait notepad",
+		"cmd /v:on /c loomux config list",
+		"function f { loomux config list; }",
+		"nice -n 10 loomux config get a",
+		"nice -n",
+		"function",
+		"}",
+		"try{ loomux config list }catch{}",
+		"Start-Process -FilePath:notepad",
+		"echo ${HOME}",
+		"grep ' { ' loomux.txt",
+		`"${LOCALAPPDATA}/loomux/bin/loomux.exe" config list`,
+		"loomux config get {a}",
+		"try { loomux config list}",
+		"try{ loomux con`fig list }",
+	}
+	for _, line := range refused {
+		if !writesConfiguration(line) {
+			t.Errorf("must refuse %q", line)
+		}
+	}
+	for _, line := range allowed {
+		if writesConfiguration(line) {
+			t.Errorf("must allow %q", line)
+		}
+	}
+	for _, line := range holes {
+		if writesConfiguration(line) {
+			t.Errorf("hole %q is closed: move it to refused and correct the readings comment", line)
+		}
+	}
+}
+
+func TestCheckToolNamesTheConfigurationReason(t *testing.T) {
+	got := checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux config set x y"}, config.Policy{})
+	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "a human runs them") }) {
+		t.Fatalf("reasons %v", got)
+	}
+	got = checkTool(t.TempDir(), "PowerShell", map[string]any{"command": `& "$env:LOCALAPPDATA\loomux\bin\loomux.exe" config set x y`}, config.Policy{})
+	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "a human runs them") }) {
+		t.Fatalf("PowerShell reasons %v", got)
+	}
+	if got := checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux config list"}, config.Policy{}); len(got) != 0 {
+		t.Fatalf("reasons %v", got)
+	}
+	// The refusal names the way an agent may take instead.
+	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux config set x y"}, config.Policy{})
+	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "--propose") }) {
+		t.Fatalf("no --propose in %v", got)
 	}
 }

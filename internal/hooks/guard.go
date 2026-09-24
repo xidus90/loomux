@@ -9,11 +9,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/xidus90/loomux/internal/brain/guard"
 	"github.com/xidus90/loomux/internal/config"
+	"github.com/xidus90/loomux/internal/shellwords"
 )
 
 const (
@@ -218,7 +220,543 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 					reasons = append(reasons, rule.Reason)
 				}
 			}
+			if writesConfiguration(line) {
+				reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
+			}
 		}
 	}
 	return reasons
+}
+
+// writesConfiguration says whether a shell line runs a loomux command that
+// writes .loomux/config.toml or the global config in-process, past every path
+// rule. It is a function rather than a CommandRule because "init without
+// --dry-run" needs a lookahead that RE2 lacks. It reads words, not a file
+// system, so it is a net with holes; readings states what it guarantees and
+// what passes.
+func writesConfiguration(line string) bool {
+	// Judged on the line as written, before any rewrite: a continuation or
+	// an escape the rewrites resolve is already no plain line.
+	plain := plainLine(line)
+	for _, variant := range lineVariants(line) {
+		// The quote-blind cut also breaks inside a wrapper's quoted inner
+		// command and puts its loomux at the head of a segment, while the
+		// wrapper reads that string once more. Such a segment finds a call
+		// but exempts nothing; only one whose bounds lie outside quotes may.
+		aware := splitSegments(variant, true)
+		for _, segment := range segments(variant) {
+			exempt := plain && slices.Contains(aware, segment)
+			for _, words := range readings(segment) {
+				if readingWrites(words, exempt) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// lineVariants are the line as written and the line as each shell would join
+// it before reading words. The line as written stays among them because a
+// continuation of one shell is none to the other: `\` at a line end continues
+// in bash but not in PowerShell, which runs the first line on its own. The
+// joined line then loses its backticks, the PowerShell escape character, so
+// loomux con`fig is read as config; a bash substitution in backticks is
+// already cut apart by segments in the line as written.
+//
+// Each rewrite applies to every variant made before it, so every combination
+// is judged -- a backtick escape inside a block with glued braces as well as
+// either alone. A rewrite that changes nothing adds no variant, which keeps a
+// plain line at one.
+func lineVariants(line string) []string {
+	out := []string{line}
+	rewrites := []*strings.Replacer{
+		strings.NewReplacer("\\\r\n", "", "\\\n", "", "`\r\n", " ", "`\n", " "),
+		strings.NewReplacer("`", ""),
+		// A brace glued to a word ({loomux init}, try{) still opens or
+		// closes a block; set apart, it becomes the lone word readingWrites
+		// looks behind.
+		strings.NewReplacer("{", " { ", "}", " } "),
+	}
+	for _, r := range rewrites {
+		for _, v := range out {
+			if w := r.Replace(v); !slices.Contains(out, w) {
+				out = append(out, w)
+			}
+		}
+	}
+	return out
+}
+
+// readings returns the ways a segment may be read, and the rule refuses when
+// any of them writes, so a reading can add a refusal but never remove one.
+//
+// A backslash is a shell escape to bash and a path separator to PowerShell.
+// The bash reading is the strict split as written, which resolves escapes
+// (con\fig, "say \"hi") and is dropped when it fails. The PowerShell reading
+// turns backslashes into slashes and splits tolerantly: it never fails, and
+// wherever a strict split of that text would succeed the two agree. The
+// field reading splits at blanks and trims the quotes off each word, honouring
+// no quote at all: after an earlier escaped quote both other readings group
+// the wrong text, but the tail of a quote-blind segment cut at the ( of
+// "C:\Program Files (x86)\…" still starts with the program's path.
+//
+// Guaranteed, together with segments: a program named loomux, loomux.exe or
+// a path ending in either, quoted or not, with any bytes in the quoted path,
+// is read as the program of some segment, and an unclosed quote or a stray
+// escape never makes a segment pass. Not guaranteed: an alias, a program held
+// in a variable, a wrapper flag with a separate value (sudo -u root), a
+// command inside a string (sh -c "loomux init", pwsh -c ...), and, after any
+// earlier escaped \" or \' on the line, a quoted program path whose part after
+// its last break character ( ) & ; | holds a blank: the field reading then
+// starts that segment inside the path, as in
+// `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.
+func readings(segment string) [][]string {
+	var out [][]string
+	if words, err := shellwords.Split(segment); err == nil {
+		out = append(out, words)
+	}
+	fields := strings.Fields(segment)
+	for i, w := range fields {
+		fields[i] = strings.Trim(w, `"'`)
+	}
+	return append(out, tolerantWords(strings.ReplaceAll(segment, `\`, "/")), fields)
+}
+
+// tolerantWords splits like a shell without escapes and never fails: ' and "
+// group, and a quote left open runs to the end of the segment.
+func tolerantWords(s string) []string {
+	var words []string
+	var word strings.Builder
+	inWord := false
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case quote != 0 && c == quote:
+			quote = 0
+		case quote != 0:
+			word.WriteByte(c)
+		case c == '"' || c == '\'':
+			quote, inWord = c, true
+		case c == ' ' || c == '\t' || c == '\r':
+			if inWord {
+				words = append(words, word.String())
+				word.Reset()
+				inWord = false
+			}
+		default:
+			word.WriteByte(c)
+			inWord = true
+		}
+	}
+	if inWord {
+		words = append(words, word.String())
+	}
+	return words
+}
+
+// readingWrites judges one reading of a segment from its head and from every
+// word after a lone { or }. Braces are no segment breaks, because ${VAR}
+// holds them, yet a block opens a command: the body of try { … } catch { … }
+// or of a function sits there, behind a word no break precedes.
+func readingWrites(words []string, plain bool) bool {
+	if wordsWriteConfiguration(words, plain) {
+		return true
+	}
+	// A call behind a brace is no direct call, so its flag exempts nothing.
+	for i, w := range words {
+		if (w == "{" || w == "}") && wordsWriteConfiguration(words[i+1:], false) {
+			return true
+		}
+	}
+	return false
+}
+
+// wordsWriteConfiguration judges one reading of a segment. An exempting flag
+// counts only when the whole line is plain and loomux is the segment's first
+// word: a wrapper may read the words once more (cmd resolves ^, %X%, !X! and
+// " inside what the shell passed on as one quoted word), and the guard does
+// not model that second reading.
+func wordsWriteConfiguration(words []string, plain bool) bool {
+	head := len(words)
+	words = dropPrefixes(words)
+	if len(words) == 0 {
+		return false
+	}
+	exempt := plain && len(words) == head
+	switch baseName(words[0]) {
+	case "start-process", "start", "saps":
+		// The arguments travel as one PowerShell list the words cannot
+		// judge, and the program may stand behind any parameter, so loomux
+		// anywhere after the cmdlet counts as writing.
+		return slices.ContainsFunc(words[1:], func(w string) bool {
+			// -FilePath:loomux.exe carries the program behind the colon.
+			if strings.HasPrefix(w, "-") {
+				w = w[strings.IndexByte(w, ':')+1:]
+			}
+			return isLoomux(strings.Trim(w, `"'`))
+		})
+	}
+	found, ok := loomuxArgs(words)
+	if !ok || len(found) == 0 {
+		return false
+	}
+	// A block's closing brace glued to the last word (--dry-run}) is no part
+	// of it; the reading where braces stand apart judges the same line.
+	args := make([]string, len(found))
+	for i, a := range found {
+		args[i] = strings.TrimRight(a, "})")
+	}
+	switch args[0] {
+	case "init":
+		return !exempt || !flagOn(args, "--dry-run", "--detect-only")
+	case "config":
+		// What reads is named, and everything else writes: a subcommand
+		// added later is refused until it is listed here.
+		if len(args) > 1 {
+			switch args[1] {
+			case "list", "get", "proposals":
+				return false
+			case "set", "unset":
+				return !exempt || !onlyProposes(args[2:])
+			}
+		}
+		return len(args) != 2 || (args[1] != "--help" && args[1] != "-h")
+	case "area":
+		return len(args) > 1 && args[1] == "add"
+	}
+	return false
+}
+
+// onlyProposes says whether config set or unset stores a proposal instead of
+// writing: --propose stands as a flag of its own (see flagOn).
+func onlyProposes(args []string) bool {
+	return flagOn(args, "--propose", "-propose")
+}
+
+// flagOn says whether one of the spellings stands among the arguments as a
+// word of its own, with nothing that could take it back. It trusts the words
+// only on a plainLine, where each word is what the program receives.
+//
+// A comment ends the words. Past a -- a word is a value the parse hands on,
+// so a flag there counts for nothing. A redirection does not end the
+// arguments -- `> out --x` still passes --x -- so from the first one on only
+// redirections and their targets may follow. A -name=… of the same flag
+// refuses, since the last one wins and it may say false.
+func flagOn(args []string, spellings ...string) bool {
+	for i, a := range args {
+		if strings.HasPrefix(a, "#") {
+			args = args[:i]
+			break
+		}
+	}
+	for i, a := range args {
+		if redirects(a) {
+			if !onlyRedirections(args[i:]) {
+				return false
+			}
+			args = args[:i]
+			break
+		}
+	}
+	on := false
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		name := strings.TrimLeft(a, "-")
+		for _, s := range spellings {
+			if name != a && strings.HasPrefix(name, strings.TrimLeft(s, "-")+"=") {
+				return false
+			}
+			on = on || a == s
+		}
+	}
+	return on
+}
+
+// onlyRedirections says whether words are redirections alone, each with its
+// target: glued (>out, 2>&1) or as the next word (> out).
+func onlyRedirections(words []string) bool {
+	for i := 0; i < len(words); i++ {
+		if !redirects(words[i]) {
+			return false
+		}
+		target := strings.TrimLeft(strings.TrimLeft(words[i], "0123456789&"), "<>")
+		if target == "" {
+			i++
+		}
+	}
+	return true
+}
+
+// plainLine says whether a line holds only words a shell passes on as
+// written, so the words the guard reads are the words the program gets. It
+// is an allowlist, because every list of what expands (brace expansion,
+// globs, $, backticks, PowerShell sub-expressions and splats, cmd's %X%)
+// has kept growing.
+//
+// Outside quotes a line may hold plainByte, the breaks ; | & and line
+// breaks, the redirections < and >, and a # that opens a comment at the
+// start of a word. Inside double quotes only plainByte may stand, which
+// leaves out $, the backtick and \. Inside single quotes any ASCII byte may
+// stand but the breaks ; | & ( ) < >, cmd's ^ % ! and #; a byte beyond ASCII
+// refuses, because PowerShell also ends a single quoted string at a
+// typographic quote (’). A quote left open refuses.
+func plainLine(line string) bool {
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case c >= 0x80:
+			return false
+		case quote == '\'':
+			if c == '\'' {
+				quote = 0
+			} else if strings.IndexByte(";|&()<>^%!#", c) >= 0 {
+				// Neither bash nor PowerShell reads these here, but a
+				// wrapper that gets the string may: as a break for an inner
+				// command, or as cmd's escape and expansions. A quoted #
+				// reaches the program as a word, which flagOn would take
+				// for the start of a comment.
+				return false
+			}
+		case quote == '"':
+			if c == '"' {
+				quote = 0
+			} else if !plainByte(c) {
+				return false
+			}
+		case c == '\'' || c == '"':
+			quote = c
+		case c == '#' && (i == 0 || strings.IndexByte(" \t\r\n;|&", line[i-1]) >= 0):
+			end := strings.IndexByte(line[i:], '\n')
+			if end < 0 {
+				return true
+			}
+			i += end
+		case c == '&' && !pairedAmpersand(line, i):
+			return false
+		case !plainByte(c) && strings.IndexByte(";|&\r\n<>", c) < 0:
+			return false
+		}
+	}
+	return quote == 0
+}
+
+// pairedAmpersand says whether the & at i is part of && or of a redirection
+// (2>&1, &>). A lone & is PowerShell's call operator or bash's background
+// job; either puts a loomux call behind something that is not a plain break.
+func pairedAmpersand(line string, i int) bool {
+	return i > 0 && strings.IndexByte("&<>", line[i-1]) >= 0 ||
+		i+1 < len(line) && strings.IndexByte("&<>", line[i+1]) >= 0
+}
+
+// plainByte is a byte no shell reads as anything but itself inside a word:
+// letters, digits, blanks and . _ / : = , + -. The % of cmd's %X% is left
+// out, and so is everything that globs, expands or escapes.
+func plainByte(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+		strings.IndexByte(" \t._/:=,+-", c) >= 0
+}
+
+// redirects says whether a word opens a redirection: >, <, their doubled
+// forms and a descriptor or & before them (2>, &>, 2>&1, <<<).
+func redirects(word string) bool {
+	rest := strings.TrimLeft(word, "0123456789&")
+	return strings.HasPrefix(rest, "<") || strings.HasPrefix(rest, ">")
+}
+
+// segments cuts a line where a new command may start, and answers the pieces
+// of two cuts together, because each one alone lets something through.
+//
+// Both break at ; | & (so && and || too), line breaks, ( ) for subshells
+// and $( ), and the backtick of a bash substitution; the PowerShell call
+// operator & is a break as well, which leaves the program it calls at the head
+// of the next segment. The & of >& and <& is none. Braces are not breaks,
+// because ${VAR} holds one; a { that opens a group is a word of its own and
+// dropPrefixes skips it.
+//
+//   - The quote-blind cut breaks inside strings too. It keeps a command that a
+//     misread quote would hide: a bash-escaped \" pairs wrongly under a cut
+//     that honours no escapes, and a real ; after it would vanish. It also
+//     refuses `echo "x; loomux init"`, a false positive kept on purpose.
+//   - The quote-aware cut breaks only outside ' and " and gives every quoted
+//     program path an uncut segment: "C:\R&D Tools\loomux.exe" and
+//     "C:\Program Files (x86)\…" stay whole. It honours no escapes, so a
+//     backslash never moves a break and one run on the line as written serves
+//     the rewritten reading as well; a quote left open runs to the end.
+//
+// A line without quotes cuts the same both ways, so only then is the second
+// cut skipped.
+func segments(line string) []string {
+	out := splitSegments(line, false)
+	if strings.ContainsAny(line, `"'`) {
+		out = append(out, splitSegments(line, true)...)
+	}
+	return out
+}
+
+// splitSegments is one cut of segments, in a single pass without allocation
+// beyond the result.
+func splitSegments(line string, quoteAware bool) []string {
+	var out []string
+	start := 0
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case quoteAware && (c == '"' || c == '\''):
+			quote = c
+		case c == '&' && i > 0 && (line[i-1] == '>' || line[i-1] == '<'):
+			// >& and <& duplicate a descriptor; cutting there would leave
+			// the 1 of 2>&1 in front of the program.
+		case strings.IndexByte(";|&\n()`", c) >= 0:
+			out = append(out, line[start:i])
+			start = i + 1
+		}
+	}
+	return append(out, line[start:])
+}
+
+// dropPrefixes strips what runs in front of the real program: the VAR=value
+// assignments a shell applies to its environment, redirections with their
+// target, the shell's reserved words, the { that opens a group, and the
+// wrappers that run the word after them -- with their flags, as long as a
+// flag carries no separate value.
+func dropPrefixes(words []string) []string {
+	for len(words) > 0 {
+		w := words[0]
+		n := 1
+		isRedirect, bare := redirection(w)
+		switch base := baseName(w); {
+		case isRedirect:
+			if bare {
+				n = 2
+			}
+		case strings.Contains(w, "=") && !strings.HasPrefix(w, "-"):
+		case base == "{" || base == "!" || base == "if" || base == "then" || base == "else" ||
+			base == "elif" || base == "while" || base == "until" || base == "do" ||
+			base == "coproc" || base == "try" || base == "catch" || base == "finally":
+		case base == "function":
+			// The name, then the body.
+			n = 2
+		case base == "sudo" || base == "command" || base == "exec" || base == "nohup" ||
+			base == "env" || base == "time" || base == "xargs":
+			n += flagCount(words[1:])
+		case base == "nice":
+			if len(words) > 2 && words[1] == "-n" {
+				n = 3 + flagCount(words[3:])
+			} else {
+				n += flagCount(words[1:])
+			}
+		case base == "timeout":
+			// The duration comes before the program.
+			n += flagCount(words[1:]) + 1
+		case base == "cmd" || base == "cmd.exe":
+			// Every switch up to /c or /k, which the command follows.
+			for n < len(words) && len(words[n]) > 1 && words[n][0] == '/' {
+				n++
+				if f := strings.ToLower(words[n-1]); f == "/c" || f == "/k" {
+					break
+				}
+			}
+		default:
+			return words
+		}
+		words = words[min(n, len(words)):]
+	}
+	return words
+}
+
+// flagCount is how many words at the head of words are flags.
+func flagCount(words []string) int {
+	n := 0
+	for n < len(words) && len(words[n]) > 1 && words[n][0] == '-' {
+		n++
+	}
+	return n
+}
+
+// redirection says whether w is a redirection (>out, 2>/dev/null, <, 2>&1)
+// and whether its target is the next word rather than glued to it.
+func redirection(w string) (isRedirect, bare bool) {
+	i := 0
+	for i < len(w) && w[i] >= '0' && w[i] <= '9' {
+		i++
+	}
+	if i == len(w) || (w[i] != '<' && w[i] != '>') {
+		return false, false
+	}
+	for i < len(w) && strings.IndexByte("<>|&", w[i]) >= 0 {
+		i++
+	}
+	return true, i == len(w)
+}
+
+// baseName is the last path element of w in lower case. It is cut by hand at
+// either slash so the answer does not depend on the platform the guard runs
+// on.
+func baseName(w string) string {
+	return strings.ToLower(w[strings.LastIndexAny(w, `/\`)+1:])
+}
+
+// isLoomux says whether w names the loomux program: by name or by a path
+// ending in loomux or loomux.exe.
+func isLoomux(w string) bool {
+	base := baseName(w)
+	return base == "loomux" || base == "loomux.exe"
+}
+
+// loomuxArgs returns the arguments after the program when the program is
+// loomux, or go run of its main package.
+func loomuxArgs(words []string) ([]string, bool) {
+	if isLoomux(words[0]) {
+		return words[1:], true
+	}
+	if baseName(words[0]) != "go" || len(words) < 2 || words[1] != "run" {
+		return nil, false
+	}
+	rest := words[2:]
+	for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
+		flag := rest[0]
+		rest = rest[1:]
+		if !strings.Contains(flag, "=") && goFlagTakesValue(strings.TrimLeft(flag, "-")) && len(rest) > 0 {
+			rest = rest[1:]
+		}
+	}
+	if len(rest) > 0 && isLoomuxPackage(rest[0]) {
+		return rest[1:], true
+	}
+	return nil, false
+}
+
+// goFlagTakesValue names the build flags of go run whose value is the next
+// word; every other flag is a switch.
+func goFlagTakesValue(name string) bool {
+	switch name {
+	case "C", "tags", "ldflags", "gcflags", "asmflags", "gccgoflags", "mod", "modfile",
+		"exec", "toolexec", "overlay", "pgo", "p", "pkgdir", "buildmode", "compiler",
+		"installsuffix", "coverpkg", "covermode", "o":
+		return true
+	}
+	return false
+}
+
+// isLoomuxPackage says whether a go run argument is loomux's main package:
+// cmd/loomux or its main.go, relative or under a module path, at any version.
+// It compares whole path elements, so mycmd/loomux is another package.
+func isLoomuxPackage(p string) bool {
+	p = strings.ToLower(p)
+	if at := strings.LastIndexByte(p, '@'); at >= 0 {
+		p = p[:at]
+	}
+	p = strings.TrimSuffix(strings.TrimSuffix(p, "/"), "/main.go")
+	p = strings.TrimPrefix(p, "./")
+	return p == "cmd/loomux" || strings.HasSuffix(p, "/cmd/loomux")
 }
