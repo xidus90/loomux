@@ -362,6 +362,12 @@ Tore selbst.
 
 ## Fehlerverhalten
 
+Grundsatz 5 von ultra-brain („Ausfälle degradieren, sie blockieren nicht“)
+gilt weiter für die Wissensschicht: Fällt qmd, der Index oder das Modell aus,
+wird loomux unbequemer und sagt das laut, nie unbenutzbar und nie stumm leer.
+Wächter und Tore sind ausgenommen, sie scheitern geschlossen (entschieden am
+2026-09-24):
+
 - **Der Wächter vor dem Edit scheitert geschlossen.** Zusammenbruch oder
   unlesbare Konfiguration ⇒ Exit 2 mit Begründung, die Datei und Zeile nennt.
 - **`.loomux/config.toml` ist für Agenten nie beschreibbar** (entschieden am

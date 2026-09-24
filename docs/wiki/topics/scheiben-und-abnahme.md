@@ -13,8 +13,8 @@ sources:
   - id: fusion-spec
     resource: brain://project/loomux/docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md
     doc_id: 01M39G4J1486TZBN5SM5489MZS
-    content_hash: "sha256:5c91e809fa1a0989c52d1dd7516a6a6b686294bee03e55256cc2ecdfea7972ec"
-    revision: 2
+    content_hash: "sha256:6fb778dd75759468370010fea63889b110dde93d03b7f0986894f5c371c65e00"
+    revision: 3
 ---
 
 loomux baut in **Stufen**, und **jede Stufe endet grün und wird einzeln
