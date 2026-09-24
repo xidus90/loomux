@@ -3,7 +3,7 @@ type: Topic
 title: Brain Maintenance
 description: Wie das System merkt, dass eine Quelle sich geändert hat — Erkennung, Prüfzentrum, Evidenzbindung, Merge-Auslöser.
 open_conflicts: 0
-realization: planned
+realization: in_progress
 sources:
   - id: architektur-spec
     resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
@@ -12,11 +12,23 @@ sources:
     revision: 3
 ---
 
-Diese Seite beschreibt Scheibe 5 und damit **Absicht, nicht Zustand**; gebaut
-ist davon zum Zeitpunkt der Verdichtung nichts. Seit dem Umzug am 2026-09-16
-heißt diese Scheibe **Stufe 3** — `reconcile`, `apply`/`approve`/`cases`/
-`evidence`, `merge-events` und die `wiki`-Unterbefehle stehen dort im Plan der
-Fusion —, und auch in Go ist davon nichts gebaut.
+Diese Seite beschrieb Scheibe 5 als Absicht. Seit dem Umzug am 2026-09-16
+heißt die Scheibe **Stufe 3**, und seit dem 2026-09-23 ist sie in loomux
+gebaut (Stufen 3a bis 3c). `loomux reconcile` misst jede registrierte Quelle
+gegen ihr Identitätsregister und öffnet je betroffener Seite einen Fall samt
+Analysepaket. `loomux cases`, `loomux case` und `loomux approve` entscheiden
+ihn: freigeben, mit `--amend` einen eigenen Vorschlag freigeben, mit
+`--reject` verwerfen oder mit `--defer` zurückstellen. Die Freigabe prüft die
+Evidenzbindung, schreibt Seite, Register, `log.md` und `audit.md` und
+committet genau diese Pfade. `loomux serve` holt einen fälligen Abgleich beim
+Start und danach täglich nach, und vor jedem `loomux reindex` läuft er
+ebenfalls.
+
+**Offen sind zwei Teile, beide Stufe 4:** der Prüfvorschlag des lokalen
+Modells — bis dahin kommt ein Fall in `project/loomux` ohne Vorschlag an, und
+freigegeben wird ein eigener mit `--amend` — und der `post-merge`-Hook, der
+den zweiten Auslöser schreibt; sein Protokoll liest `reconcile` schon. Einen
+Wächter gibt es nicht.
 
 ## Zwei Arten von Aktualität
 
@@ -92,7 +104,9 @@ ungefragt in fremde Git-Hooks schreibt, wird einmal benutzt.
 
 `log.md` hält fest, **was** sich geändert hat. `audit.md` hält fest, was
 **vorgeschlagen**, was **entschieden** und was **tatsächlich geändert** wurde —
-nur so bleibt ein abgelehnter Vorschlag nachvollziehbar.
+nur so bleibt ein abgelehnter Vorschlag nachvollziehbar. `loomux approve`
+schreibt seine Zeile in `log.md` unter die Überschrift des Tages, neueste
+zuerst, wie OKF §9 es verlangt; `audit.md` wächst nach unten.
 
 Siehe [Die Wiki-Schicht](wiki-schicht.md) für den anderen Schreibweg; Quelle ist
 [Architektur-Design ultra-brain](../sources/architektur-spec.md).
