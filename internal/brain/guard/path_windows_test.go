@@ -42,6 +42,26 @@ func shortName(t *testing.T, path string) string {
 	return short
 }
 
+// absentVolume is the root of a drive letter this machine has not
+// assigned. No fixed letter can promise that: `Q:` was one, until another
+// session's `subst` mapped exactly it. The mask is asked rather than each
+// root stat'ed, because a reader with no medium in it fails the stat too
+// while its letter is taken, and the walk would then meet "not ready"
+// instead of the absent volume the test is about.
+func absentVolume(t *testing.T) string {
+	t.Helper()
+	assigned, err := windows.GetLogicalDrives()
+	if err != nil {
+		t.Fatalf("GetLogicalDrives: %v", err)
+	}
+	volume, ok := unmappedDrive(assigned)
+	if !ok {
+		t.Skip("every drive letter from A: to Z: is assigned on this " +
+			"machine, so no volume is certain to be absent")
+	}
+	return volume
+}
+
 func TestAShortNameNamesTheZoneItStandsFor(t *testing.T) {
 	tmp := t.TempDir()
 	state, zone := zoneWithALongName(t, tmp)

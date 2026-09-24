@@ -75,7 +75,7 @@ func TestResolveKeepsAPathItCannotReachAtAll(t *testing.T) {
 	// Nothing on the way down resolves, so the cleaned path comes back
 	// unchanged -- which is the ordinary case for a write, since the
 	// file it names is not there yet.
-	absent := filepath.Join(strangeVolume(), "no", "such", "x.md")
+	absent := filepath.Join(absentVolume(t), "no", "such", "x.md")
 	got, err := ResolvePath(absent)
 	if err != nil {
 		t.Fatalf("ResolvePath(%q): %v", absent, err)
@@ -85,18 +85,43 @@ func TestResolveKeepsAPathItCannotReachAtAll(t *testing.T) {
 	}
 }
 
-// strangeVolume names a place no file system on this machine answers for.
+func TestUnmappedDriveAnswersOnlyALetterTheMaskLeavesFree(t *testing.T) {
+	// A mask with exactly one letter free has exactly one right answer,
+	// and the two ends of the alphabet are where a loop bound slips.
+	const all = uint32(1<<26 - 1)
+	for _, free := range []int{0, 16, 25} {
+		want := string(rune('A'+free)) + `:\`
+		got, ok := unmappedDrive(all &^ (1 << free))
+		if !ok || got != want {
+			t.Errorf("unmappedDrive(all but %s) = %q, %v", want, got, ok)
+		}
+	}
+	// With every letter taken there is no absent volume to name, and any
+	// guess would put the test back on one that exists.
+	if got, ok := unmappedDrive(all); ok {
+		t.Errorf("unmappedDrive(all) = %q, want none", got)
+	}
+}
+
+// unmappedDrive is the root of the first letter `assigned` leaves free.
+// The mask is `GetLogicalDrives`' own, bit 0 for A:, and it is taken as a
+// parameter so that the choice can be asked about every machine's mask
+// rather than only this one's.
+func unmappedDrive(assigned uint32) (string, bool) {
+	for bit := range 26 {
+		if assigned&(1<<bit) == 0 {
+			return string(rune('A'+bit)) + `:\`, true
+		}
+	}
+	return "", false
+}
+
+// strangeVolume is an anchor for path arithmetic that never reaches the
+// disk, so any spelling of a volume serves and whether it is mapped
+// decides nothing. The one test that opens its path takes `absentVolume`.
 func strangeVolume() string {
 	if filepath.Separator == '\\' {
-		// Pick an unused drive letter. Hardcoded Q:\ failed when another
-		// session mounted Q:\ via subst for a scratchpad.
-		for _, l := range "XYVUTRMLKFEDBA" {
-			drive := string(l) + `:\`
-			if _, err := os.Stat(drive); err != nil {
-				return drive
-			}
-		}
-		return `X:\`
+		return `Q:\`
 	}
 	return "/proc/self/no-such-root"
 }
