@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -428,8 +429,9 @@ func TestBlastEndsTheOptionsBeforeTheRevision(t *testing.T) {
 }
 
 // The patch is git's own text diff: a textconv filter from the user's
-// attributes would hand the hunk parser lines of some other format.
-func TestBlastAsksForThePatchWithoutTextconv(t *testing.T) {
+// attributes would hand the hunk parser lines of some other format, and a
+// diff.interHunkContext from their configuration would fuse hunks.
+func TestBlastPinsThePatchFormat(t *testing.T) {
 	root := built(t)
 	var calls [][]string
 	fake := func(_ string, args ...string) ([]byte, error) {
@@ -445,7 +447,48 @@ func TestBlastAsksForThePatchWithoutTextconv(t *testing.T) {
 	if _, _, err := Blast(root, BlastOptions{NoRefresh: true}); err != nil {
 		t.Fatal(err)
 	}
-	if len(calls) != 2 || !slices.Contains(calls[1], "--unified=0") || !slices.Contains(calls[1], "--no-textconv") {
-		t.Fatalf("git calls %q, want the patch with --no-textconv", calls)
+	if len(calls) != 2 {
+		t.Fatalf("git calls %q, want two", calls)
+	}
+	for _, flag := range []string{"--unified=0", "--no-textconv", "--inter-hunk-context=0"} {
+		if !slices.Contains(calls[1], flag) {
+			t.Errorf("patch call %q lacks %s", calls[1], flag)
+		}
+	}
+}
+
+// A user's diff.interHunkContext fuses near hunks and widens their ranges
+// over lines nobody changed; each change keeps its own hunk, and the file
+// after a fused one still gets its own.
+func TestBlastKeepsHunksApartUnderInterHunkContext(t *testing.T) {
+	root := gitRepo(t)
+	git(t, root, "config", "diff.interHunkContext", "3")
+	editAdd(t, root)
+	for p, from := range map[string]string{
+		filepath.Join(root, "calc", "calc.go"): "// Add sums two numbers.",
+		filepath.Join(root, "main.go"):         "calc.Add(1, 2)",
+	} {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(strings.Replace(string(data), from, from+" // x", 1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := changedFiles(root, nil, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type span struct{ from, to int }
+	got := map[string][]span{}
+	for _, f := range files {
+		for _, h := range f.Hunks {
+			got[f.Path] = append(got[f.Path], span{h.From, h.To})
+		}
+	}
+	want := map[string][]span{"calc/calc.go": {{3, 3}, {5, 5}}, "main.go": {{6, 6}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("hunks %v, want %v", got, want)
 	}
 }
