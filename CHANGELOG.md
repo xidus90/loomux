@@ -4,6 +4,20 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.12.0] - 2026-09-24
+
+<https://github.com/xidus90/loomux/pull/27>
+
+### Added
+- `loomux config` with `list`, `get`, `set`, `unset` and an interactive full-screen form, plus `--global` for the machine-wide file.
+- `[modules]` in `.loomux/config.toml`: `hooks`, `brain` and `graph` switch the session hooks, the wiki lane and the matching MCP tools off per project; a missing key means on.
+- `loomux mcp --root <dir>`; without it the bridge looks for the project upwards from where the host starts it.
+- Configuration proposals for agents: `loomux config set|unset … --propose`, `loomux config proposals`, `loomux config apply` and `loomux config reject`.
+
+### Changed
+- The guard refuses an agent `loomux init`, `loomux config set`, `loomux config unset`, `loomux config apply`, `loomux config reject`, the interactive `loomux config` and `loomux area add`; `loomux config list`, `get`, `proposals` and a direct `set|unset … --propose` stay allowed.
+- `loomux mcp` offers only the tools of the modules a project leaves on; a broken `[modules]` table makes it exit 1.
+
 ## [2.11.1] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/25>
