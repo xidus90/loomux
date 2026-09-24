@@ -3,12 +3,15 @@ package cli
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/bridge"
 	"github.com/xidus90/loomux/internal/config"
+	"github.com/xidus90/loomux/internal/mcptools"
 )
 
 // stubBridgeRun keeps the real bridge away from this process's stdio: it would
@@ -16,6 +19,9 @@ import (
 // speaks.
 func stubBridgeRun(t *testing.T, err error) *bridge.Options {
 	t.Helper()
+	// The bridge reads [modules] upwards from the working directory; the
+	// package directory would hand every test this repository's own file.
+	t.Chdir(t.TempDir())
 	seen := &bridge.Options{}
 	saved := bridgeRun
 	bridgeRun = func(_ context.Context, opts bridge.Options) error {
@@ -116,6 +122,91 @@ func TestMcpEndsQuietlyWhenItIsAskedTo(t *testing.T) {
 
 	code, out, errOut := run("mcp")
 	if code != 0 || out != "" || errOut != "" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+// offers says whether the bridge was handed any tool of the module whose
+// names start with prefix.
+func offers(o *bridge.Options, prefix string) bool {
+	for _, tool := range o.Tools {
+		if strings.HasPrefix(tool.Name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestMcpReadsTheModulesOfTheProjectAbove: a host starts the bridge in the
+// project, not necessarily at its root, so the lookup climbs.
+func TestMcpReadsTheModulesOfTheProjectAbove(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[modules]\ngraph = false\n")
+	sub := filepath.Join(root, "internal")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	seen := stubBridgeRun(t, nil)
+	t.Chdir(sub)
+	t.Setenv(config.StateDirEnv, t.TempDir())
+
+	if code, out, errOut := run("mcp"); code != 0 || out != "" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	if offers(seen, "graph_") || !offers(seen, "brain_") {
+		t.Fatalf("tools %v; want graph off, brain on", seen.Tools)
+	}
+}
+
+// TestMcpWithoutAProjectOffersEverything: a host may start the bridge in any
+// directory, and no project there is no reason to withhold a tool.
+func TestMcpWithoutAProjectOffersEverything(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv(config.StateDirEnv, t.TempDir())
+	seen := stubBridgeRun(t, nil)
+
+	if code, out, errOut := run("mcp"); code != 0 || out != "" || errOut != "" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	if len(seen.Tools) != len(mcptools.Tools()) {
+		t.Fatalf("%d tools; want all %d", len(seen.Tools), len(mcptools.Tools()))
+	}
+}
+
+func TestMcpTakesAnExplicitRootInBothSpellings(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[modules]\nbrain = false\n")
+	for _, args := range [][]string{{"--root", root}, {"--root=" + root}} {
+		t.Setenv(config.StateDirEnv, t.TempDir())
+		seen := stubBridgeRun(t, nil)
+		if code, out, errOut := run(append([]string{"mcp"}, args...)...); code != 0 || out != "" {
+			t.Fatalf("%v: code %d, out %q, err %q", args, code, out, errOut)
+		}
+		if offers(seen, "brain_") || !offers(seen, "graph_") {
+			t.Fatalf("%v: tools %v; want brain off, graph on", args, seen.Tools)
+		}
+	}
+}
+
+func TestMcpRefusesARootWithoutAValue(t *testing.T) {
+	stubBridgeRun(t, errors.New("the bridge was run although --root was refused"))
+	code, out, errOut := run("mcp", "--root")
+	want := mcpUsage() + "\nloomux mcp: error: argument --root: expected one argument\n"
+	if code != 2 || out != "" || errOut != want {
+		t.Fatalf("code %d, out %q, err %q, want %q", code, out, errOut, want)
+	}
+}
+
+// TestMcpRefusesABrokenModulesTable: a bridge that guessed would offer tools
+// the project switched off, or hide ones it wants. And stdout stays empty:
+// it is the host's MCP pipe.
+func TestMcpRefusesABrokenModulesTable(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[modules]\nbrain = 3\n")
+	stubBridgeRun(t, errors.New("the bridge was run although [modules] is broken"))
+
+	code, out, errOut := run("mcp", "--root", root)
+	if code != 1 || out != "" || !strings.HasPrefix(errOut, "loomux mcp: ") || !strings.Contains(errOut, "brain") {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
 }

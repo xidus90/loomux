@@ -96,10 +96,13 @@ func TestWikiGateJobsOnlyForLintAndAWiki(t *testing.T) {
 	if jobs := WikiGateJobs(plainEff, plainFacts, plain, []string{"lint"}); jobs != nil {
 		t.Fatalf("jobs without a wiki: %+v", jobs)
 	}
-	off, _ := wikiProject(t, "[verify.wiki]\nlint = false\n", cleanPage)
-	offEff, offFacts := loadedFor(t, off)
-	if jobs := WikiGateJobs(offEff, offFacts, off, []string{"lint"}); jobs != nil {
-		t.Fatalf("jobs with the lane off: %+v", jobs)
+	// The brain module owns the lane: switching it off switches the lane off.
+	for _, manifest := range []string{"[verify.wiki]\nlint = false\n", "[modules]\nbrain = false\n"} {
+		off, _ := wikiProject(t, manifest, cleanPage)
+		offEff, offFacts := loadedFor(t, off)
+		if jobs := WikiGateJobs(offEff, offFacts, off, []string{"lint"}); jobs != nil {
+			t.Fatalf("%q: jobs with the lane off: %+v", manifest, jobs)
+		}
 	}
 }
 

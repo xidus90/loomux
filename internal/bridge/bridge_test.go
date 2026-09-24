@@ -164,6 +164,29 @@ func TestToolsListIsAnsweredWithoutAService(t *testing.T) {
 	}
 }
 
+// TestTheBridgeOffersTheToolsItIsGiven: the command line hands down the list
+// the project's [modules] leave, and nothing else may reach the host.
+func TestTheBridgeOffersTheToolsItIsGiven(t *testing.T) {
+	tools := toolsOf(t, connectBridge(t, bridge.Options{StateDir: t.TempDir(), Tools: mcptools.Brain()}))
+	if len(tools) != len(mcptools.Brain()) {
+		t.Fatalf("got %d tools, want the brain's %d", len(tools), len(mcptools.Brain()))
+	}
+	for _, tool := range tools {
+		if !strings.HasPrefix(tool.Name, "brain_") {
+			t.Errorf("%s offered, the bridge was given only the brain's", tool.Name)
+		}
+	}
+}
+
+// TestAnEmptyToolListOffersNothing: empty is a project with every module off,
+// not the unset field -- only nil falls back to every tool.
+func TestAnEmptyToolListOffersNothing(t *testing.T) {
+	tools := toolsOf(t, connectBridge(t, bridge.Options{StateDir: t.TempDir(), Tools: []*mcp.Tool{}}))
+	if len(tools) != 0 {
+		t.Fatalf("got %d tools from an empty list", len(tools))
+	}
+}
+
 func TestTheListIsByteIdenticalToTheServices(t *testing.T) {
 	bridged, err := json.Marshal(toolsOf(t, connectBridge(t, bridge.Options{StateDir: t.TempDir()})))
 	if err != nil {

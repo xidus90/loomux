@@ -107,20 +107,35 @@ func ReadConfig(root string) (Config, error) {
 	return ParseConfig(path, doc)
 }
 
-// ParseConfig reads [verify] from a decoded document. It refuses every key it
-// does not know: a misspelt lane that silently kept its preset would look
-// configured and not be.
+// ParseConfig reads [verify] from a decoded document, and [modules] too,
+// because the brain's switch there owns the wiki lane. It refuses every key
+// of [verify] it does not know: a misspelt lane that silently kept its preset
+// would look configured and not be.
 func ParseConfig(path string, doc map[string]any) (Config, error) {
 	cfg := defaults()
-	raw, ok := doc["verify"]
-	if !ok {
-		return cfg, nil
+	if raw, ok := doc["verify"]; ok {
+		if err := parseVerify(&cfg, raw); err != nil {
+			return Config{}, fmt.Errorf("%s: %w", path, err)
+		}
 	}
-	if err := parseVerify(&cfg, raw); err != nil {
-		return Config{}, fmt.Errorf("%s: %w", path, err)
+	modules, err := config.ParseModules(path, doc)
+	if err != nil {
+		return Config{}, err
+	}
+	if !modules.Brain {
+		// The wiki lane is the brain module's lane. Off, it takes the very
+		// value `[verify.wiki] lint = false` leaves, so the edit lane, the
+		// check chain and the stop gate ask no second question.
+		if cfg.Stacks["wiki"] == nil {
+			cfg.Stacks["wiki"] = map[string]Override{}
+		}
+		cfg.Stacks["wiki"]["lint"] = laneOff()
 	}
 	return cfg, nil
 }
+
+// laneOff is a kind switched off with `<kind> = false`.
+func laneOff() Override { return Override{Lane: Lane{Off: true}, Replace: true} }
 
 func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
@@ -135,6 +150,10 @@ func isTable(v any) bool {
 	_, ok := v.(map[string]any)
 	return ok
 }
+
+// TopKeys are the keys of [verify] that are not stacks; parseVerify reads
+// every other key as a stack and refuses one that names none.
+func TopKeys() []string { return []string{"max_parallel", "timeout", "profiles"} }
 
 func parseVerify(cfg *Config, raw any) error {
 	table, ok := raw.(map[string]any)
@@ -250,7 +269,7 @@ func parseLane(owner, kind string, value any) (Override, error) {
 		if v {
 			return Override{}, fmt.Errorf("%s = true is not a command; leave the key out to keep the preset", label)
 		}
-		return Override{Lane: Lane{Off: true}, Replace: true}, nil
+		return laneOff(), nil
 	case string:
 		cmds, err := commands(label, []any{v}, false)
 		return Override{Lane: Lane{Commands: cmds}, Replace: true}, err

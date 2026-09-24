@@ -318,3 +318,42 @@ func TestHookPreToolUseIsReachedWithoutARoot(t *testing.T) {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
 }
+
+func TestHookEndsAtOnceWhenTheHooksModuleIsOff(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[modules]\nhooks = false\n")
+	called := false
+	restore := postToolUse
+	postToolUse = func(io.Reader, io.Writer, io.Writer, string, time.Duration) int { called = true; return 2 }
+	t.Cleanup(func() { postToolUse = restore })
+	var out, errOut bytes.Buffer
+	code := Run([]string{"hook", "post-tool-use", "--host", "claude", "--root", root}, strings.NewReader("{}"), &out, &errOut)
+	if code != 0 || called {
+		t.Fatalf("code %d, called %v; want 0 and no lanes", code, called)
+	}
+}
+
+// The state directory is a fresh one and `.env` lies in the project, so the
+// refusal comes from the rule on secrets and not from the machine's registry.
+func TestTheGuardRunsEvenWhenTheHooksModuleIsOff(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[modules]\nhooks = false\n")
+	t.Setenv("LOOMUX_STATE_DIR", t.TempDir())
+	t.Chdir(root)
+	payload := `{"tool_name":"Write","tool_input":{"file_path":".env","content":"x"}}`
+	var out, errOut bytes.Buffer
+	code := Run([]string{"hook", "pre-tool-use", "--host", "claude", "--root", root}, strings.NewReader(payload), &out, &errOut)
+	if code != hooks.ExitDenied || !strings.Contains(errOut.String(), "secrets") {
+		t.Fatalf("code %d, stderr %q; the guard must still refuse a write to .env", code, errOut.String())
+	}
+}
+
+func TestHookRefusesABrokenModulesTable(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[modules]\nhooks = 1\n")
+	var out, errOut bytes.Buffer
+	code := Run([]string{"hook", "stop", "--host", "claude", "--root", root}, strings.NewReader("{}"), &out, &errOut)
+	if code != hooks.ExitInternal || !strings.Contains(errOut.String(), "[modules]") {
+		t.Fatalf("code %d, stderr %q", code, errOut.String())
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/xidus90/loomux/internal/config"
 )
 
 // CacheTTL and CacheScope let a host cache tools/list. Twelve static tools make
@@ -60,6 +61,21 @@ func Graph() []*mcp.Tool {
 func Tools() []*mcp.Tool {
 	once.Do(build)
 	return tools
+}
+
+// For is the tool list a project with these modules offers: a tool of a
+// module that is off is not listed, so the host never sees it and a call to
+// it is an unknown tool.
+func For(m config.Modules) []*mcp.Tool {
+	// Empty, never nil: bridge.Options reads nil as "every tool".
+	offered := make([]*mcp.Tool, 0, len(Tools()))
+	if m.Brain {
+		offered = append(offered, Brain()...)
+	}
+	if m.Graph {
+		offered = append(offered, Graph()...)
+	}
+	return offered
 }
 
 func build() {

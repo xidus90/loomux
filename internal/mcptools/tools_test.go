@@ -2,10 +2,13 @@ package mcptools_test
 
 import (
 	"encoding/json"
+	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/mcptools"
 )
 
@@ -352,4 +355,40 @@ func graphSchemaOf(t *testing.T, name string) map[string]any {
 	}
 	t.Fatalf("no graph tool named %s", name)
 	return nil
+}
+
+func TestForDropsTheToolsOfAModuleThatIsOff(t *testing.T) {
+	all := len(mcptools.Tools())
+	noBrain := mcptools.For(config.Modules{Hooks: true, Brain: false, Graph: true})
+	if len(noBrain) != all-len(mcptools.Brain()) {
+		t.Fatalf("got %d tools, want %d", len(noBrain), all-len(mcptools.Brain()))
+	}
+	for _, tool := range noBrain {
+		if strings.HasPrefix(tool.Name, "brain_") {
+			t.Fatalf("%s must be gone", tool.Name)
+		}
+	}
+	noGraph := mcptools.For(config.Modules{Hooks: true, Brain: true, Graph: false})
+	if len(noGraph) != len(mcptools.Brain()) {
+		t.Fatalf("got %d tools, want %d", len(noGraph), len(mcptools.Brain()))
+	}
+	for _, tool := range noGraph {
+		if strings.HasPrefix(tool.Name, "graph_") {
+			t.Fatalf("%s must be gone", tool.Name)
+		}
+	}
+	// The same order as Tools, so a project with every module on lists
+	// exactly what a bridge without a project lists.
+	if !reflect.DeepEqual(mcptools.For(config.AllModules()), mcptools.Tools()) {
+		t.Fatal("all modules on must keep every tool in Tools' order")
+	}
+}
+
+// TestForWithNoModuleIsEmptyNotNil: bridge.Options reads a nil list as
+// "every tool", so a project that switched both off would get them all back.
+func TestForWithNoModuleIsEmptyNotNil(t *testing.T) {
+	none := mcptools.For(config.Modules{Hooks: true})
+	if none == nil || len(none) != 0 {
+		t.Fatalf("got %v, want an empty non-nil list", none)
+	}
 }
