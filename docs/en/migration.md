@@ -41,7 +41,7 @@ what its dependencies already allow, what loomux uses on itself, then size. The
 | **G4b** | ✅ 2026-09-23 | new | Git-diff blast radius (`blast.Radius`, `graph blast`, MCP `graph_blast`), `check graph-fresh` and `check blast-audit`, the verify kind `graph` (in the profile default `precommit`, `not-applicable` without a graph), and the post-edit blast monitor | G4a ✅ | — |
 | **G4c** | open | new | The stop hook with blast logic: a working-tree-against-HEAD form that knows it runs at the turn end; until then `graph` in a `stop` profile is `not-applicable` | G4b ✅ | 2 |
 | **G5** | open | new | Multi-language extraction via `wazero` | G4b ✅ | 6 |
-| **Flow** | open | ultraloom | Follow-up project: the ulflow runtime, journal, resume and replay, `verify_until_green` as a data flow | ulflow M1 (branch `feature/agent-harness`, not merged) | 4 |
+| **Flow** | open | ultraloom | Follow-up project: the ulflow runtime, journal, resume and replay, `verify_until_green` as a data flow; agent flows over Gemini and Claude after ultraloom's multi-provider spec (fusion spec #22) | ulflow M1 (branch `feature/agent-harness`, not merged) | 4 |
 | **W1 – W5** | open | ultra-brain + new | Web OS: shell (W1), the brain web app (W2), graph visualizer (W3), skill suites and review (W4), flow editor and Kanban (W5) | W1 on 1b-2 ✅; W2 on W1; W3 on W1 and G4a ✅; W4 on G4b ✅ and 4; W5 on W1 and Flow | 5 |
 
 The stages and what each waits for, drawn from the "Depends on" column above

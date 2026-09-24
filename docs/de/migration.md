@@ -42,7 +42,7 @@ selbst benutzt, dann Größe. Festgelegt ist sie in der
 | **G4b** | ✅ 2026-09-23 | neu | Git-Diff-Blast-Radius (`blast.Radius`, `graph blast`, MCP `graph_blast`), `check graph-fresh` und `check blast-audit`, die Prüfart `graph` (in der Profilvorgabe `precommit`, ohne Graph `not-applicable`) und der Blast-Monitor im Post-Edit-Hook | G4a ✅ | — |
 | **G4c** | offen | neu | Der Stop-Hook mit Blast-Logik: eine Form Arbeitsbaum gegen HEAD, die weiß, dass sie am Rundenende läuft; bis dahin ist `graph` in einem Profil `stop` `not-applicable` | G4b ✅ | 2 |
 | **G5** | offen | neu | Mehrsprachige Extraktion über `wazero` | G4b ✅ | 6 |
-| **Flow** | offen | ultraloom | Folgeprojekt: die ulflow-Laufzeit, Journal, Resume und Replay, `verify_until_green` als Daten-Flow | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | 4 |
+| **Flow** | offen | ultraloom | Folgeprojekt: die ulflow-Laufzeit, Journal, Resume und Replay, `verify_until_green` als Daten-Flow; Agenten-Flows über Gemini und Claude nach der Multi-Provider-Spec aus ultraloom (Fusions-Spec #22) | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | 4 |
 | **W1 – W5** | offen | ultra-brain + neu | Web-OS: Hülle (W1), die Brain-Web-App (W2), Graph-Visualizer (W3), Skill-Suiten und Review (W4), Flow-Editor und Kanban (W5) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4a ✅; W4 an G4b ✅ und 4; W5 an W1 und Flow | 5 |
 
 Die Stufen und worauf jede wartet, gezeichnet aus der Spalte „Hängt ab von“
