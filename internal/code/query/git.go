@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xidus90/loomux/internal/brain/guard"
 	"github.com/xidus90/loomux/internal/gitenv"
 )
 
@@ -68,9 +69,12 @@ func indexFileFor(dir string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	// filepath.Rel compares case-insensitively on Windows, where git writes
-	// the directory with forward slashes and the hook's path may differ in case.
-	rel, err := filepath.Rel(filepath.Clean(strings.TrimSpace(string(out))), filepath.Clean(index))
+	// Both sides go through the barrier's resolver before they are compared:
+	// git answers the long name of the git directory, while the hook's index
+	// may carry an 8.3 alias of the same directory (a CI runner's %TEMP% is
+	// C:\Users\RUNNER~1\...) or another case, and a plain filepath.Rel would
+	// place the index outside the directory it lies in.
+	rel, err := filepath.Rel(resolved(strings.TrimSpace(string(out))), resolved(index))
 	if err != nil || !filepath.IsLocal(rel) || rel == "." {
 		return "", false
 	}
@@ -79,4 +83,15 @@ func indexFileFor(dir string) (string, bool) {
 		return "", false
 	}
 	return index, true
+}
+
+// resolved is path with every existing component spelt as the file system
+// names it, the missing rest joined on as given. A path the resolver refuses
+// (a drive-relative one) stays as it was, cleaned: the comparison then
+// answers as it did before, which refuses rather than accepts.
+func resolved(path string) string {
+	if full, err := guard.ResolvePath(path); err == nil {
+		return full
+	}
+	return filepath.Clean(path)
 }
