@@ -2,7 +2,7 @@
 type: Topic
 title: Grundsätze und Vertrauenskette
 description: Die sechs Grundsätze aus ultra-brain, die Grundsätze der Fusion, die Arbeitsteilung zwischen Code, KI und Mensch und die vier Fehlerstellen.
-open_conflicts: 1
+open_conflicts: 0
 realization: in_progress
 sources:
   - id: architektur-spec
@@ -13,8 +13,8 @@ sources:
   - id: fusion-spec
     resource: brain://project/loomux/docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md
     doc_id: 01M39G4J1486TZBN5SM5489MZS
-    content_hash: "sha256:5c91e809fa1a0989c52d1dd7516a6a6b686294bee03e55256cc2ecdfea7972ec"
-    revision: 2
+    content_hash: "sha256:6fb778dd75759468370010fea63889b110dde93d03b7f0986894f5c371c65e00"
+    revision: 3
 ---
 
 ## Sechs Grundsätze
@@ -28,18 +28,15 @@ Aus dem Architektur-Design ultra-brain übernommen.
    byteweise gleiche Ausgabe.
 3. **Der Mensch entscheidet, die KI liefert.**
 4. **Lokal zuerst.** An ein Cloud-Modell gehen nur ausgewählte Ausschnitte.
-5. **Ausfälle degradieren, sie blockieren nicht.**
+5. **Ausfälle degradieren, sie blockieren nicht** — in der Wissensschicht.
+   Fällt qmd, der Index oder das Modell aus, wird loomux unbequemer und sagt
+   das laut, nie unbenutzbar und nie stumm leer. **Wächter und Tore sind
+   ausgenommen, sie scheitern geschlossen:** Ein Wächter, der bei kaputter
+   Konfiguration durchlässt, vergäbe Schreibrechte genau dann, wenn niemand
+   sie prüfen kann, und ein grünes Tor ohne Arbeit täuscht Sicherheit vor.
+   Entschieden am 2026-09-24 (Fusions-Spec, „Fehlerverhalten“).
 6. **Rohquellen sind unantastbar.** Die KI liest sie und schreibt ausschließlich
    in die Wiki-Schicht.
-
-> [!conflict] Degradieren oder geschlossen scheitern
-> Das Architektur-Design ultra-brain
-> (`docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md`,
-> §3) sagt: Ausfälle degradieren, sie blockieren nicht.
-> Die Fusions-Spec (`docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`,
-> „Fehlerverhalten") sagt: Der Wächter vor dem Edit scheitert geschlossen,
-> und eine Lane, die nicht laufen kann, ist rot.
-> Beide Stände bleiben stehen. Entscheidung offen.
 
 ## Grundsätze der Fusion
 
@@ -113,5 +110,5 @@ Leseschicht über den Notizen, nie ihr Ersatz.
 
 Wie diese Riegel konkret aussehen, steht unter [Die Wiki-Schicht](wiki-schicht.md)
 und [Brain Maintenance](brain-maintenance.md), die Stufen unter
-[Die Scheiben und ihre Abnahmen](scheiben-und-abnahme.md); Quellen sind das
+[Die Stufen und ihre Abnahme](scheiben-und-abnahme.md); Quellen sind das
 Architektur-Design ultra-brain und die Fusions-Spec.

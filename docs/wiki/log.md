@@ -6,6 +6,17 @@
 
 ## 2026-09-24
 
+- 2026-09-24 — `topics/architektur-grundsaetze.md`: Konflikt zu Grundsatz 5
+  aufgelöst — beides gilt in verschiedenem Kontext: die Wissensschicht
+  degradiert, Wächter und Tore scheitern geschlossen. Kasten entfernt,
+  `open_conflicts` auf 0. Die Entscheidung steht zuerst in der Quelle:
+  `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`,
+  „Fehlerverhalten“. Der Titel „Die Stufen und ihre Abnahme“ ist in allen
+  Verweisen nachgezogen.
+- 2026-09-24 — `audit.md`: die Fälle `loomux-2026-09-24-5565` und
+  `loomux-2026-09-24-947f` zweimal abgelehnt; sie meldeten Änderungen der
+  Fusions-Spec, gegen die beide Seiten schon verdichtet waren.
+
 - 2026-09-24 — `topics/datenmodell-und-bereiche.md`,
   `topics/suche-und-profile.md`: verweisen auf die beiden neuen Seiten.
 - 2026-09-24 — `topics/schreibschranke.md`: neu. Registry, Manifest und
