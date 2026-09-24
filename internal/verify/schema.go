@@ -22,7 +22,7 @@ import (
 const placeholderFile = "{file}"
 
 // Kinds are the lanes every stack can have, in the order they run.
-func Kinds() []string { return []string{"lint", "types", "test", "coverage"} }
+func Kinds() []string { return []string{"lint", "types", "test", "coverage", "graph"} }
 
 // StackNames are the stacks [verify] may configure.
 func StackNames() []string {
@@ -33,7 +33,7 @@ func StackNames() []string {
 // Reserved reports whether name is taken by a built-in check, a kind or the
 // profile of everything, so a profile cannot shadow it.
 func Reserved(name string) bool {
-	return slices.Contains([]string{"gofmt", "commit-msg", "gocover", "all"}, name) || slices.Contains(Kinds(), name)
+	return slices.Contains([]string{"gofmt", "commit-msg", "gocover", "graph-fresh", "blast-audit", "all"}, name) || slices.Contains(Kinds(), name)
 }
 
 // Lane is how one kind runs for one stack.
@@ -76,9 +76,10 @@ func defaults() Config {
 		Timeout:     600 * time.Second,
 		Profiles: map[string][]string{
 			"edit":      {"lint", "types"},
-			"precommit": {"lint", "types", "test", "coverage"},
-			// What the stop gate runs at every turn end. The same four kinds
-			// as precommit by default; a project whose suite is too slow for
+			"precommit": {"lint", "types", "test", "coverage", "graph"},
+			// What the stop gate runs at every turn end. The four kinds that
+			// check code, without graph: its lane reads the index, which is
+			// empty at a turn end. A project whose suite is too slow for
 			// every turn end narrows it here and keeps a gate that moves.
 			"stop": {"lint", "types", "test", "coverage"},
 		},

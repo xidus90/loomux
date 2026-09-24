@@ -38,10 +38,10 @@ const All Depth = -1
 // after New leaves the index and every Node it hands out stale. Treat a hit as
 // read-only and build a new Index after a change.
 type Hit struct {
-	ID       model.NodeID
-	Node     *model.Node
-	Relation model.Relation
-	Depth    int
+	ID       model.NodeID   `json:"id"`
+	Node     *model.Node    `json:"node"`
+	Relation model.Relation `json:"relation"`
+	Depth    int            `json:"depth"`
 }
 
 type link struct {
@@ -93,4 +93,16 @@ func (x *Index) InDegree(id model.NodeID) int {
 		return 0
 	}
 	return len(x.in[id])
+}
+
+// InDegreeWhere counts the incoming walk edges of id whose source keep
+// accepts. keep sees nil for a source that is not a node of the graph.
+func (x *Index) InDegreeWhere(id model.NodeID, keep func(*model.Node) bool) int {
+	n := 0
+	for _, l := range x.in[id] {
+		if keep(x.nodes[l.other]) {
+			n++
+		}
+	}
+	return n
 }

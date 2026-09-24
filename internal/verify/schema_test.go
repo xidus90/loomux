@@ -46,6 +46,8 @@ func TestParseConfigRefuses(t *testing.T) {
 		{"[verify]\ntimeout = 0", "[verify].timeout must be a positive number of seconds, found 0"},
 		{"[verify.profiles]\nlint = [\"lint\"]", "[verify.profiles].lint collides with a reserved name"},
 		{"[verify.profiles]\nall = [\"lint\"]", "[verify.profiles].all collides with a reserved name"},
+		{"[verify.profiles]\ngraph = [\"lint\"]", "[verify.profiles].graph collides with a reserved name"},
+		{"[verify.go.graph]\nmeasure = \"x\"", "[verify.go.graph] cannot have measure"},
 		{"[verify.profiles]\nx = []", "[verify.profiles].x is empty"},
 		{"[verify.profiles]\nx = [\"style\"]", `[verify.profiles].x names unknown kind "style"`},
 		{"[verify.profiles]\nx = [1]", `[verify.profiles].x names unknown kind "1"`},
@@ -84,7 +86,7 @@ func TestParseConfigDefaults(t *testing.T) {
 	if err != nil || cfg.MaxParallel < 1 || cfg.Timeout != 600*time.Second || !cfg.ImportCheck {
 		t.Fatalf("%+v %v", cfg, err)
 	}
-	if strings.Join(cfg.Profiles["edit"], ",") != "lint,types" || len(cfg.Profiles["precommit"]) != 4 {
+	if strings.Join(cfg.Profiles["edit"], ",") != "lint,types" || len(cfg.Profiles["precommit"]) != 5 {
 		t.Fatalf("%v", cfg.Profiles)
 	}
 }
@@ -122,7 +124,7 @@ lint = false
 	if cfg.MaxParallel != 3 || cfg.Timeout != 90*time.Second || cfg.ImportCheck {
 		t.Fatalf("%+v", cfg)
 	}
-	if strings.Join(cfg.Profiles["edit"], ",") != "lint" || strings.Join(cfg.Profiles["fast"], ",") != "lint,test" || len(cfg.Profiles["precommit"]) != 4 {
+	if strings.Join(cfg.Profiles["edit"], ",") != "lint" || strings.Join(cfg.Profiles["fast"], ",") != "lint,test" || len(cfg.Profiles["precommit"]) != 5 {
 		t.Fatalf("%v", cfg.Profiles)
 	}
 	golint := cfg.Stacks["go"]["lint"]
@@ -175,13 +177,13 @@ func TestCheckCycleIgnoresAnAfterOutsideTheLanes(t *testing.T) {
 }
 
 func TestNames(t *testing.T) {
-	if strings.Join(Kinds(), ",") != "lint,types,test,coverage" {
+	if strings.Join(Kinds(), ",") != "lint,types,test,coverage,graph" {
 		t.Fatal(Kinds())
 	}
 	if strings.Join(StackNames(), ",") != "go,python,typescript,vue,svelte,css,html,gdscript,cpp,shell,sql,rust,wiki,project" {
 		t.Fatal(StackNames())
 	}
-	for _, name := range []string{"gofmt", "commit-msg", "gocover", "all", "lint", "types", "test", "coverage"} {
+	for _, name := range []string{"gofmt", "commit-msg", "gocover", "graph-fresh", "blast-audit", "all", "lint", "types", "test", "coverage", "graph"} {
 		if !Reserved(name) {
 			t.Errorf("%s is not reserved", name)
 		}
@@ -263,6 +265,21 @@ func TestDefaultsHoldAStopProfile(t *testing.T) {
 	}
 	if !slices.Equal(cfg.Profiles["stop"], []string{"lint", "types", "test", "coverage"}) {
 		t.Fatalf("stop = %v", cfg.Profiles["stop"])
+	}
+}
+
+// Only precommit takes the graph kind by default: an edit never rebuilds the
+// graph, and a turn end is no commit whose staged change the lane could read.
+func TestDefaultsPutTheGraphKindIntoPrecommitOnly(t *testing.T) {
+	cfg, err := ParseConfig("", map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(cfg.Profiles["precommit"], []string{"lint", "types", "test", "coverage", "graph"}) {
+		t.Fatalf("precommit = %v", cfg.Profiles["precommit"])
+	}
+	if !slices.Equal(cfg.Profiles["edit"], []string{"lint", "types"}) {
+		t.Fatalf("edit = %v", cfg.Profiles["edit"])
 	}
 }
 

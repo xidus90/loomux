@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/query"
+	"github.com/xidus90/loomux/internal/gitenv"
 	servegraph "github.com/xidus90/loomux/internal/serve/graph"
 )
 
@@ -152,6 +154,12 @@ type recorder struct {
 	mapAns   query.MapAnswer
 	mapErr   error
 	mapPanic any
+
+	blasted    bool
+	blastOpts  query.BlastOptions
+	blastAns   query.BlastAnswer
+	blastErr   error
+	blastPanic any
 }
 
 func (r *recorder) deps(registryDir string) servegraph.Deps {
@@ -200,6 +208,13 @@ func (r *recorder) deps(registryDir string) servegraph.Deps {
 			r.root, r.mapOpts = root, opts
 			return r.mapAns, r.notes, r.mapErr
 		},
+		Blast: func(root string, opts query.BlastOptions) (query.BlastAnswer, []string, error) {
+			if r.blastPanic != nil {
+				panic(r.blastPanic)
+			}
+			r.blasted, r.root, r.blastOpts = true, root, opts
+			return r.blastAns, r.notes, r.blastErr
+		},
 	}
 }
 
@@ -210,7 +225,7 @@ func sameDir(t *testing.T, got, want string) {
 	}
 }
 
-func TestTheSixToolsAreListed(t *testing.T) {
+func TestTheSevenToolsAreListed(t *testing.T) {
 	dir, _, _ := registry(t)
 	session := connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir))
 	res, err := session.ListTools(context.Background(), nil)
@@ -222,7 +237,7 @@ func TestTheSixToolsAreListed(t *testing.T) {
 		got = append(got, tool.Name)
 	}
 	// Sorted by the SDK, see TestTheFiveToolsAreListed in serve/brain.
-	want := "graph_check_freshness,graph_file_api,graph_find_all,graph_find_code,graph_repo_map,graph_trace_calls"
+	want := "graph_blast,graph_check_freshness,graph_file_api,graph_find_all,graph_find_code,graph_repo_map,graph_trace_calls"
 	if strings.Join(got, ",") != want {
 		t.Errorf("tools = %v, want %v", got, want)
 	}
@@ -978,6 +993,133 @@ func TestTraceCalls(t *testing.T) {
 		map[string]any{"scope": "project/open", "symbol": "Main"})
 	if !isError || text != cloudPanic {
 		t.Fatalf("cloud panic must be cloudPanic, got %q", text)
+	}
+}
+
+func TestGraphBlastWithoutAScopeIsRefused(t *testing.T) {
+	dir, _, _ := registry(t)
+	r := &recorder{}
+	text, isError := call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_blast", map[string]any{"base": "HEAD~1"})
+	if !isError || text != "graph_blast requires a scope" || r.blasted {
+		t.Errorf("got %q (isError %v, blasted %v)", text, isError, r.blasted)
+	}
+}
+
+func TestGraphBlastPassesBaseDepthAndKeep(t *testing.T) {
+	dir, open, _ := registry(t)
+	r := &recorder{}
+	_, isError := call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_blast",
+		map[string]any{"scope": "project/open", "base": "main", "depth": 0.5})
+	if isError || !r.blasted {
+		t.Fatalf("isError %v, blasted %v", isError, r.blasted)
+	}
+	sameDir(t, r.root, open)
+	o := r.blastOpts
+	if o.Base != "main" || o.Depth != 1 || o.Cached || o.NoRefresh {
+		t.Errorf("opts = %+v, want base main, depth 1, no cached, refresh on", o)
+	}
+	if o.Keep == nil || o.Keep("secrets/x.go") || !o.Keep("lib.go") {
+		t.Error("Keep must refuse what the never glob covers and keep the rest")
+	}
+
+	r = &recorder{}
+	call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_blast",
+		map[string]any{"scope": "project/open", "depth": "all"})
+	if r.blastOpts.Base != "" || r.blastOpts.Depth != blast.All {
+		t.Errorf("opts = %+v, want no base and the whole closure", r.blastOpts)
+	}
+}
+
+func TestGraphBlastAnswersWithTheReportAndTheNotesInFront(t *testing.T) {
+	dir, _, _ := registry(t)
+	ans := query.BlastAnswer{Range: "main...HEAD", Hidden: 2}
+	want := strings.TrimSuffix(query.BlastReport(ans), "\n")
+
+	r := &recorder{blastAns: ans, notes: []string{"rebuilt the graph"}}
+	text, isError := call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_blast",
+		map[string]any{"scope": "project/open"})
+	if isError || text != "rebuilt the graph\n"+want {
+		t.Errorf("local: got %q (isError %v)", text, isError)
+	}
+
+	r = &recorder{blastAns: ans, notes: []string{"rebuilt the graph"}}
+	text, isError = call(t, connect(t, privacy.ChannelCloud, r.deps(dir)), "graph_blast",
+		map[string]any{"scope": "project/open"})
+	if isError || text != want {
+		t.Errorf("cloud: got %q (isError %v), want the report without notes", text, isError)
+	}
+}
+
+func TestGraphBlastFailures(t *testing.T) {
+	dir, _, _ := registry(t)
+	gitErr := errors.New("git diff: fatal: not a git repository: " + dir)
+	cases := []struct {
+		name    string
+		channel privacy.Channel
+		err     error
+		want    string
+	}{
+		{"local git failure", privacy.ChannelLocal, gitErr, gitErr.Error()},
+		{"cloud git failure", privacy.ChannelCloud, gitErr, cloudFailure},
+		{"cloud no graph", privacy.ChannelCloud, fmt.Errorf("blast: %w", query.ErrNoGraph), query.ErrNoGraph.Error()},
+		{"local bad base", privacy.ChannelLocal, fmt.Errorf("%w, got %q", query.ErrBadBase, "--output=x"),
+			`--base must name a revision, got "--output=x"`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := &recorder{blastErr: c.err}
+			text, isError := call(t, connect(t, c.channel, r.deps(dir)), "graph_blast",
+				map[string]any{"scope": "project/open"})
+			if !isError || text != c.want {
+				t.Errorf("got %q (isError %v), want %q", text, isError, c.want)
+			}
+		})
+	}
+
+	r := &recorder{blastPanic: "secrets/x.go: boom"}
+	text, isError := call(t, connect(t, privacy.ChannelCloud, r.deps(dir)), "graph_blast",
+		map[string]any{"scope": "project/open"})
+	if !isError || text != cloudPanic {
+		t.Errorf("cloud panic: got %q (isError %v)", text, isError)
+	}
+}
+
+func TestGraphBlastOutsideGitIsAnErrorEndToEnd(t *testing.T) {
+	// The area has a graph but no repository: an error, not an empty report.
+	deps, _ := hashRepo(t)
+	deps.Blast = query.Blast
+	text, isError := call(t, connect(t, privacy.ChannelLocal, deps), "graph_blast",
+		map[string]any{"scope": "project/hash"})
+	if !isError || !strings.Contains(text, "not a git repository") {
+		t.Errorf("local: got %q (isError %v), want git's failure", text, isError)
+	}
+	text, isError = call(t, connect(t, privacy.ChannelCloud, deps), "graph_blast",
+		map[string]any{"scope": "project/hash"})
+	if !isError || text != cloudFailure {
+		t.Errorf("cloud: got %q (isError %v), want %q", text, isError, cloudFailure)
+	}
+}
+
+// A clean tree in a one-commit repository has nothing to compare with, and
+// the local answer says so in its own words, not in git's.
+func TestGraphBlastWithoutHistoryNamesItLocally(t *testing.T) {
+	deps, root := hashRepo(t)
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
+		{"config", "core.autocrlf", "false"}, {"config", "commit.gpgsign", "false"},
+		{"add", "."}, {"commit", "-qm", "init"},
+	} {
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = gitenv.Environ()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	deps.Blast = query.Blast
+	text, isError := call(t, connect(t, privacy.ChannelLocal, deps), "graph_blast",
+		map[string]any{"scope": "project/hash"})
+	if !isError || !strings.HasSuffix(text, "nothing to compare: HEAD has no parent commit") {
+		t.Errorf("local: got %q (isError %v), want ErrNoHistory's text", text, isError)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -12,12 +13,15 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/child"
+	"github.com/xidus90/loomux/internal/code/ask"
+	"github.com/xidus90/loomux/internal/code/query"
+	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/verify"
 	"github.com/xidus90/loomux/internal/verify/commit"
 )
 
 func TestCheckNeedsARequest(t *testing.T) {
-	want := "loomux check: name a profile or kinds (lint,types,test,coverage), or one of: commit-msg, gofmt, gocover\n"
+	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, graph-fresh, blast-audit\n"
 	if code, _, errOut := run("check"); code != 2 || errOut != want {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
@@ -691,5 +695,188 @@ func TestCheckFailsOnABrokenWikiBundle(t *testing.T) {
 	code, out, _ := run("check", "lint", "--root", root)
 	if code != 1 || !strings.Contains(out, "lint/wiki: failed") {
 		t.Fatalf("code %d, out %q", code, out)
+	}
+}
+
+// graphFresh runs `check graph-fresh` with args.
+func graphFresh(args ...string) (int, string, string) {
+	var out, errOut bytes.Buffer
+	code := checkCommand(append([]string{"graph-fresh"}, args...), nil, &out, &errOut)
+	return code, out.String(), errOut.String()
+}
+
+// builtRepo is sample() with a graph built for it.
+func builtRepo(t *testing.T) string {
+	t.Helper()
+	root := repo(t, sample())
+	if _, _, err := query.Build(root, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// moveFile edits a source file so the graph no longer matches the tree.
+func moveFile(t *testing.T, root string) {
+	t.Helper()
+	body := "package lib\n\n// Run does the thing.\nfunc Run() { _ = 1 }\n"
+	if err := os.WriteFile(filepath.Join(root, "lib", "lib.go"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCheckGraphFreshIsGreenOnAFreshGraph(t *testing.T) {
+	code, out, errOut := graphFresh("--root", builtRepo(t))
+	if code != 0 || out != "graph is fresh\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestCheckGraphFreshRebuildsOnDriftAndStaysGreen(t *testing.T) {
+	root := builtRepo(t)
+	moveFile(t, root)
+	code, out, errOut := graphFresh("--root", root)
+	if code != 0 || out != "graph rebuilt\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	if !strings.Contains(errOut, "loomux check graph-fresh: 1 files moved, rebuilding the graph") {
+		t.Fatalf("stderr %q does not say why it rebuilt", errOut)
+	}
+}
+
+func TestCheckGraphFreshIsRedOnAHeldLock(t *testing.T) {
+	root := builtRepo(t)
+	moveFile(t, root)
+	lock := ask.LockPath(root)
+	if err := os.WriteFile(lock, []byte("999999"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := graphFresh("--root", root, "--wait", "0s")
+	if code != 1 || !strings.Contains(errOut, lock) {
+		t.Fatalf("code %d, err %q; want 1 and the lock path", code, errOut)
+	}
+}
+
+func TestCheckGraphFreshIsRedWithoutAGraph(t *testing.T) {
+	code, _, errOut := graphFresh("--root", repo(t, sample()))
+	if code != 1 || !strings.Contains(errOut, query.ErrNoGraph.Error()) {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestCheckGraphFreshRejectsABadWait(t *testing.T) {
+	if code, _, _ := graphFresh("--wait", "x"); code != 2 {
+		t.Fatalf("code %d, want 2", code)
+	}
+}
+
+func TestCheckGraphFreshFailsWhenTheRootCannotBeFound(t *testing.T) {
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	t.Cleanup(func() { getwd = saved })
+	code, _, errOut := graphFresh()
+	if code != 1 || !strings.HasPrefix(errOut, "loomux check graph-fresh: ") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// blastAudit runs `check blast-audit` with args.
+func blastAudit(args ...string) (int, string, string) {
+	var out, errOut bytes.Buffer
+	code := checkCommand(append([]string{"blast-audit"}, args...), nil, &out, &errOut)
+	return code, out.String(), errOut.String()
+}
+
+// stagedRun is builtRepo committed, with Run's body changed and staged:
+// main and TestRun call Run, and the test did not change with it.
+func stagedRun(t *testing.T) string {
+	t.Helper()
+	root := builtRepo(t)
+	gitIn := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = gitenv.Environ()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
+		{"config", "core.autocrlf", "false"}, {"config", "commit.gpgsign", "false"},
+		{"add", "go.mod", "main.go", "lib"}, {"commit", "-qm", "init"},
+	} {
+		gitIn(args...)
+	}
+	moveFile(t, root)
+	gitIn("add", "lib")
+	return root
+}
+
+func TestCheckBlastAuditIsRedOnAFinding(t *testing.T) {
+	code, out, errOut := blastAudit("--cached", "--threshold", "2", "--root", stagedRun(t))
+	want := "blast audit: index against HEAD, threshold 2\nlib/lib.go [stale]: Run in-degree 2\n"
+	if code != 1 || out != want {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestCheckBlastAuditIsGreenBelowTheThreshold(t *testing.T) {
+	code, out, errOut := blastAudit("--cached", "--threshold", "3", "--root", stagedRun(t))
+	if code != 0 || out != "no area at or above 3 callers lacks a changed test (1 areas)\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestCheckBlastAuditSkipsTestCallers(t *testing.T) {
+	code, out, errOut := blastAudit("--cached", "--threshold", "2", "--skip-test-callers", "--root", stagedRun(t))
+	if code != 0 || !strings.HasPrefix(out, "no area at or above 2 callers") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestCheckBlastAuditRefusesBaseAndCached(t *testing.T) {
+	code, _, errOut := blastAudit("--base", "X", "--cached", "--root", t.TempDir())
+	if code != 1 || !strings.Contains(errOut, query.ErrBaseAndCached.Error()) {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestCheckBlastAuditRejectsABadThreshold(t *testing.T) {
+	if code, _, _ := blastAudit("--threshold", "x"); code != 2 {
+		t.Fatalf("code %d, want 2", code)
+	}
+}
+
+func TestCheckBlastAuditFailsWhenTheRootCannotBeFound(t *testing.T) {
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	t.Cleanup(func() { getwd = saved })
+	code, _, errOut := blastAudit()
+	if code != 1 || !strings.HasPrefix(errOut, "loomux check blast-audit: ") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// With a graph and a staged change the graph lane runs both its commands, in
+// the order the preset gives them.
+func TestCheckGraphRunsTheLaneWhereTheProbeAgrees(t *testing.T) {
+	root := stagedRun(t)
+	seen := stubCheck(t, green)
+	code, out, errOut := run("check", "graph", "--root", root)
+	if code != 0 || !strings.Contains(out, "graph/go: ok [preset]") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	want := []string{"loomux check graph-fresh", "loomux check blast-audit --cached --threshold 5"}
+	if !slices.Equal(*seen, want) {
+		t.Fatalf("ran %q, want %q", *seen, want)
+	}
+}
+
+// Without a graph the lane stands aside, and a check of the kind alone is
+// green: in CI and in a fresh clone there is nothing for it to read.
+func TestCheckGraphWithoutAGraphIsNotApplicable(t *testing.T) {
+	root := goWorld(t)
+	seen := stubCheck(t, green)
+	code, out, errOut := run("check", "graph", "--root", root)
+	if code != 0 || !strings.Contains(out, "graph/go: not-applicable [preset] no graph at .loomux/state/graph/wiring.json") || len(*seen) != 0 {
+		t.Fatalf("code %d, out %q, err %q, ran %q", code, out, errOut, *seen)
 	}
 }

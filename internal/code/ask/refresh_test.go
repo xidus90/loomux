@@ -341,3 +341,218 @@ func TestTakeOverFailsWhenTheLockVanished(t *testing.T) {
 		t.Fatal("took over a lock that no longer exists")
 	}
 }
+
+// cleanTree writes a one-file tree whose record and sidecar match it.
+func cleanTree(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stat, err := sourceset.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hashes := map[string]string{}
+	for _, f := range stat {
+		hashes[f.Rel] = hashOf(t, f.Abs)
+	}
+	if err := freshness.Write(root, "go/1", stat, hashes); err != nil {
+		t.Fatal(err)
+	}
+	if err := lexicon.Write(root, lexicon.Build(&model.Graph{})); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// holdLock puts a lock at root that another run holds, modified at mtime.
+func holdLock(t *testing.T, root string, mtime time.Time) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(ask.LockPath(root)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ask.LockPath(root), []byte("999999"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(ask.LockPath(root), mtime, mtime); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRefreshIsCleanOnACleanTree(t *testing.T) {
+	root := cleanTree(t)
+	built := 0
+	status, err := ask.Refresh(root, "go/1", func() error { built++; return nil }, ask.RefreshOptions{})
+	if err != nil || status != ask.StatusClean || built != 0 {
+		t.Fatalf("status %v, err %v, built %d; want clean, nil, 0", status, err, built)
+	}
+}
+
+func TestRefreshRebuildsWhenFilesMoved(t *testing.T) {
+	root := cleanTree(t)
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a // edited\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var notices []string
+	status, err := ask.Refresh(root, "go/1", func() error { return nil },
+		ask.RefreshOptions{Notice: func(s string) { notices = append(notices, s) }})
+	if err != nil || status != ask.StatusRebuilt {
+		t.Fatalf("status %v, err %v; want rebuilt", status, err)
+	}
+	if len(notices) != 1 || notices[0] != "1 files moved, rebuilding the graph" {
+		t.Fatalf("notices %q", notices)
+	}
+}
+
+func TestRefreshRebuildsACleanTreeWhenForced(t *testing.T) {
+	root := cleanTree(t)
+	built := 0
+	var notices []string
+	status, err := ask.Refresh(root, "go/1", func() error { built++; return nil },
+		ask.RefreshOptions{Force: "x", Notice: func(s string) { notices = append(notices, s) }})
+	if err != nil || status != ask.StatusRebuilt || built != 1 {
+		t.Fatalf("status %v, err %v, built %d; want rebuilt once", status, err, built)
+	}
+	if len(notices) != 1 || notices[0] != "x" {
+		t.Fatalf("notices %q, want the force reason", notices)
+	}
+}
+
+func TestRefreshReportsAFailedProbe(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "does-not-exist")
+	built := 0
+	status, err := ask.Refresh(root, "go/1", func() error { built++; return nil }, ask.RefreshOptions{})
+	var probe *ask.ProbeError
+	if !errors.As(err, &probe) || status != ask.StatusClean || built != 0 {
+		t.Fatalf("status %v, err %v, built %d; want a probe error and no build", status, err, built)
+	}
+	if !strings.HasPrefix(err.Error(), "freshness probe failed: ") || errors.Unwrap(err) != probe.Err {
+		t.Fatalf("error %q does not name and wrap the cause", err)
+	}
+}
+
+func TestRefreshReportsAFailedRebuildAndReleasesTheLock(t *testing.T) {
+	root := cleanTree(t)
+	cause := errors.New("disk full")
+	status, err := ask.Refresh(root, "go/1", func() error { return cause }, ask.RefreshOptions{Force: "x"})
+	var failed *ask.RebuildError
+	if !errors.As(err, &failed) || status != ask.StatusClean {
+		t.Fatalf("status %v, err %v; want a rebuild error", status, err)
+	}
+	if err.Error() != "rebuild failed: disk full" || !errors.Is(err, cause) {
+		t.Fatalf("error %q does not name and wrap the cause", err)
+	}
+	if _, err := os.Stat(ask.LockPath(root)); !os.IsNotExist(err) {
+		t.Fatal("the lock must be gone after a failed rebuild")
+	}
+}
+
+func TestRefreshReportsAHeldLockWithoutWaiting(t *testing.T) {
+	root := cleanTree(t)
+	holdLock(t, root, time.Now().Add(-5*time.Minute))
+	built := 0
+	status, err := ask.Refresh(root, "go/1", func() error { built++; return nil }, ask.RefreshOptions{Force: "x"})
+	var locked *ask.LockedError
+	if !errors.As(err, &locked) || status != ask.StatusClean || built != 0 {
+		t.Fatalf("status %v, err %v, built %d; want a lock error and no build", status, err, built)
+	}
+	if locked.Path != ask.LockPath(root) {
+		t.Fatalf("path %q, want %q", locked.Path, ask.LockPath(root))
+	}
+	// The age tells a human whether the other run is working or dead.
+	if locked.Age < 5*time.Minute || locked.Age > 6*time.Minute {
+		t.Fatalf("age %v, want about five minutes", locked.Age)
+	}
+	want := "another run holds the rebuild lock " + ask.LockPath(root) + " (" + locked.Age.String() + " old)"
+	if err.Error() != want {
+		t.Fatalf("error %q, want %q", err, want)
+	}
+}
+
+func TestRefreshWaitsForAReleasedLock(t *testing.T) {
+	root := cleanTree(t)
+	holdLock(t, root, time.Now())
+	released := make(chan error, 1)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		released <- os.Remove(ask.LockPath(root))
+	}()
+	built := 0
+	// The wait is generous on purpose: Refresh returns as soon as the lock is
+	// free, so the margin costs nothing on a fast machine and keeps a slow one
+	// from failing.
+	status, err := ask.Refresh(root, "go/1", func() error { built++; return nil },
+		ask.RefreshOptions{Force: "x", Wait: 10 * time.Second})
+	if rmErr := <-released; rmErr != nil {
+		t.Fatal(rmErr)
+	}
+	if err != nil || status != ask.StatusRebuilt || built != 1 {
+		t.Fatalf("status %v, err %v, built %d; want rebuilt once after the wait", status, err, built)
+	}
+}
+
+func TestRefreshGivesUpOnALockHeldPastTheWait(t *testing.T) {
+	root := cleanTree(t)
+	holdLock(t, root, time.Now())
+	start := time.Now()
+	_, err := ask.Refresh(root, "go/1", func() error { return nil },
+		ask.RefreshOptions{Force: "x", Wait: 150 * time.Millisecond})
+	var locked *ask.LockedError
+	if !errors.As(err, &locked) {
+		t.Fatalf("err %v, want a lock error", err)
+	}
+	if elapsed := time.Since(start); elapsed < 150*time.Millisecond {
+		t.Fatalf("gave up after %v, before the wait was over", elapsed)
+	}
+}
+
+func TestEnsureFreshSaysWhyItAnswersFromDisk(t *testing.T) {
+	cases := map[string]struct {
+		root    func(t *testing.T) string
+		rebuild ask.Rebuild
+		want    string
+	}{
+		"probe": {
+			root:    func(t *testing.T) string { return filepath.Join(t.TempDir(), "gone") },
+			rebuild: func() error { return nil },
+			want:    "freshness probe failed, answering from the graph on disk: ",
+		},
+		"lock": {
+			root: func(t *testing.T) string {
+				root := cleanTree(t)
+				if err := os.Remove(filepath.Join(root, "a.go")); err != nil {
+					t.Fatal(err)
+				}
+				holdLock(t, root, time.Now())
+				return root
+			},
+			rebuild: func() error { return nil },
+			want:    "another run is rebuilding, answering from the graph on disk",
+		},
+		"rebuild": {
+			root: func(t *testing.T) string {
+				root := cleanTree(t)
+				if err := os.Remove(filepath.Join(root, "a.go")); err != nil {
+					t.Fatal(err)
+				}
+				return root
+			},
+			rebuild: func() error { return errors.New("disk full") },
+			want:    "rebuild failed, answering from the graph on disk: disk full",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			var notices []string
+			ask.EnsureFresh(c.root(t), "go/1", c.rebuild, func(s string) { notices = append(notices, s) })
+			last := ""
+			if len(notices) > 0 {
+				last = notices[len(notices)-1]
+			}
+			if !strings.HasPrefix(last, c.want) {
+				t.Fatalf("notices %q, want the last to start with %q", notices, c.want)
+			}
+		})
+	}
+}

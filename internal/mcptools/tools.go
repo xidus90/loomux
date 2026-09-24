@@ -15,7 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// CacheTTL and CacheScope let a host cache tools/list. Eleven static tools make
+// CacheTTL and CacheScope let a host cache tools/list. Twelve static tools make
 // that free.
 const (
 	CacheTTL   = 5 * time.Minute
@@ -44,7 +44,7 @@ func Graph() []*mcp.Tool {
 }
 
 // Tools are every tool, as the bridge lists them and serve registers them:
-// the brain's five, then the graph's six.
+// the brain's five, then the graph's seven.
 //
 // Built on first use rather than in a package variable: the start floor of
 // every loomux invocation, the per-edit hook included, is measured, and a
@@ -198,6 +198,19 @@ func build() {
 				"properties": map[string]any{
 					"scope":    areaScope,
 					"max_dirs": map[string]any{"type": "integer", "description": "maximum number of directories to list (default 16)"},
+				},
+				"required": []string{"scope"},
+			},
+		},
+		{
+			Name:        "graph_blast",
+			Description: "Show what a change reaches: the symbols a git diff touches, their callers, and whether a test that reaches them changed too.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope": areaScope,
+					"base":  map[string]any{"type": "string", "description": "compare base...HEAD; empty compares the working tree with HEAD, or the last commit when the tree is clean"},
+					"depth": map[string]any{"description": "depth limit as integer or 'all' for full transitive closure"},
 				},
 				"required": []string{"scope"},
 			},

@@ -124,6 +124,20 @@ func BenchmarkLoadPresets(b *testing.B) {
 	}
 }
 
+// The Go graph lane first drives the graph to fresh, then audits the index
+// against it; both commands, since a lane that only audits reads a stale graph.
+func TestTheGoGraphLaneRefreshesThenAudits(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lane := p.Stacks["go"].Lanes["graph"]
+	want := []string{"{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"}
+	if !slices.Equal(lane.Commands, want) || lane.OnFile != nil || lane.Threaded {
+		t.Fatalf("%+v", lane)
+	}
+}
+
 // The C++ lanes that read the build tree need it configured, clang-tidy's
 // lint among them; the edit form of the lint formats one file, and needs do
 // not guard it.

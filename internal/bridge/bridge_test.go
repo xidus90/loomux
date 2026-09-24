@@ -153,8 +153,8 @@ func TestToolsListIsAnsweredWithoutAService(t *testing.T) {
 	// inside the host's handshake. No service runs in this test at all.
 	session := connectBridge(t, bridge.Options{StateDir: t.TempDir()})
 	tools := toolsOf(t, session)
-	if len(tools) != 11 {
-		t.Fatalf("got %d tools without a service, want 11", len(tools))
+	if len(tools) != 12 {
+		t.Fatalf("got %d tools without a service, want 12", len(tools))
 	}
 	// The order is the SDK's, which sorts by name; the brief's brain_search
 	// would be a test of mcptools' registration order, which is not observable

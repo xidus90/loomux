@@ -9,11 +9,12 @@ import (
 	"github.com/xidus90/loomux/internal/mcptools"
 )
 
-func TestToolsAreTheElevenInCanonicalOrder(t *testing.T) {
+func TestToolsAreTheTwelveInCanonicalOrder(t *testing.T) {
 	got := mcptools.Tools()
 	want := []string{
 		"brain_search", "brain_catalog", "brain_read", "brain_neighbors", "brain_status",
-		"graph_find_code", "graph_file_api", "graph_trace_calls", "graph_find_all", "graph_repo_map", "graph_check_freshness",
+		"graph_find_code", "graph_file_api", "graph_trace_calls", "graph_find_all", "graph_repo_map", "graph_blast",
+		"graph_check_freshness",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d tools, want %d", len(got), len(want))
@@ -155,11 +156,11 @@ func schemaOf(t *testing.T, name string) map[string]any {
 	return nil
 }
 
-func TestGraphToolsAreTheSixInCanonicalOrder(t *testing.T) {
+func TestGraphToolsAreTheSevenInCanonicalOrder(t *testing.T) {
 	got := mcptools.Graph()
 	want := []string{
 		"graph_find_code", "graph_file_api", "graph_trace_calls",
-		"graph_find_all", "graph_repo_map", "graph_check_freshness",
+		"graph_find_all", "graph_repo_map", "graph_blast", "graph_check_freshness",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d tools, want %d", len(got), len(want))
@@ -249,6 +250,34 @@ func TestRepoMapRequiresScopeAndCarriesNoSchemaDefault(t *testing.T) {
 		if _, has := p["default"]; has {
 			t.Errorf("graph_repo_map.%s carries a schema default", field)
 		}
+	}
+}
+
+func TestBlastRequiresScopeAndCarriesNoSchemaDefault(t *testing.T) {
+	schema := graphSchemaOf(t, "graph_blast")
+	required := schema["required"].([]any)
+	if len(required) != 1 || required[0] != "scope" {
+		t.Errorf("required = %v, want [scope]", required)
+	}
+	props := schema["properties"].(map[string]any)
+	if len(props) != 3 {
+		t.Errorf("properties = %v, want scope, base and depth", props)
+	}
+	for _, field := range []string{"scope", "base", "depth"} {
+		p, ok := props[field].(map[string]any)
+		if !ok {
+			t.Fatalf("graph_blast lacks %s", field)
+		}
+		if _, has := p["default"]; has {
+			t.Errorf("graph_blast.%s carries a schema default", field)
+		}
+	}
+	if typ := props["base"].(map[string]any)["type"]; typ != "string" {
+		t.Errorf("base type = %v, want string", typ)
+	}
+	// A number or "all", as graph_trace_calls takes it: no one JSON type fits.
+	if _, has := props["depth"].(map[string]any)["type"]; has {
+		t.Error("graph_blast.depth carries a type")
 	}
 }
 

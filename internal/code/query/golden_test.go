@@ -3,12 +3,14 @@ package query_test
 import (
 	"flag"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/query"
+	"github.com/xidus90/loomux/internal/gitenv"
 )
 
 var update = flag.Bool("update", false, "update golden files")
@@ -126,4 +128,56 @@ func TestGolden(t *testing.T) {
 		}
 	}
 	checkGolden(t, filepath.Join(casesDir, "stats.golden"), strings.Join(normLines, "\n"))
+}
+
+func TestGoldenBlast(t *testing.T) {
+	casesDir := filepath.Join("..", "..", "..", "testdata", "cases", "graph")
+	root := t.TempDir()
+	copyDir(t, filepath.Join(casesDir, "repo"), root)
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
+		{"config", "core.autocrlf", "false"}, {"config", "commit.gpgsign", "false"},
+		{"add", "."}, {"commit", "-qm", "init"},
+	} {
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = gitenv.Environ()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if _, _, err := query.Build(root, func(string) {}); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	// Line 5 of calc/calc.go is Add's body.
+	calc := filepath.Join(root, "calc", "calc.go")
+	data, err := os.ReadFile(calc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := strings.Replace(string(data), "\treturn a + b\n", "\treturn b + a\n", 1)
+	if edited == string(data) {
+		t.Fatal("calc.go no longer holds Add's body")
+	}
+	if err := os.WriteFile(calc, []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ans, _, err := query.Blast(root, query.BlastOptions{NoRefresh: true})
+	if err != nil {
+		t.Fatalf("blast: %v", err)
+	}
+	checkGolden(t, filepath.Join(casesDir, "blast.golden"), query.BlastReport(ans))
+
+	// Staged, the same change is an audit finding at threshold 2.
+	add := exec.Command("git", "-C", root, "add", ".")
+	add.Env = gitenv.Environ()
+	if out, err := add.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, out)
+	}
+	audit, _, err := query.Audit(root, query.AuditOptions{Cached: true, Threshold: 2})
+	if err != nil {
+		t.Fatalf("audit: %v", err)
+	}
+	checkGolden(t, filepath.Join(casesDir, "audit.golden"), query.AuditReport(audit, 2))
 }

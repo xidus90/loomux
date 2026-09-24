@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/code/store"
+	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/testlock"
 )
 
@@ -1124,5 +1126,86 @@ func TestGraphStats(t *testing.T) {
 	errOut.Reset()
 	if code := graphCommand([]string{"stats"}, nil, &out, &errOut); code != 1 {
 		t.Fatalf("exit %d, want 1", code)
+	}
+}
+
+func TestGraphBlast(t *testing.T) {
+	root := repo(t, sample())
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
+		{"config", "core.autocrlf", "false"}, {"config", "commit.gpgsign", "false"},
+		{"add", "."}, {"commit", "-qm", "init"},
+	} {
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = gitenv.Environ()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"blast", "--root", root, "--no-refresh"}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("missing graph: exit %d, want 1", code)
+	}
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+	lib := filepath.Join(root, "lib", "lib.go")
+	if err := os.WriteFile(lib, []byte("package lib\n\n// Run does the thing.\nfunc Run() { _ = 1 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"blast", "--root", root, "--no-refresh"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "blast radius: working tree against HEAD") || !strings.Contains(out.String(), "seed Run") {
+		t.Fatalf("report = %q", out.String())
+	}
+
+	out.Reset()
+	if code := graphCommand([]string{"blast", "--root", root, "--no-refresh", "--json", "-d", "all"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("json exit %d, stderr %q", code, errOut.String())
+	}
+	var ans map[string]any
+	if err := json.Unmarshal(out.Bytes(), &ans); err != nil || ans["range"] != "working tree against HEAD" {
+		t.Fatalf("json = %v, err %v", ans, err)
+	}
+
+	// Without --no-refresh the edit drifts the graph, and the rebuild note
+	// goes to stderr under the command's name.
+	errOut.Reset()
+	if code := graphCommand([]string{"blast", "--root", root, "--depth", "2"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("refresh exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "loomux graph blast: ") {
+		t.Errorf("no note on stderr: %q", errOut.String())
+	}
+
+	for _, args := range [][]string{
+		{"blast", "--root", root, "--base", "HEAD", "--cached"},
+		{"blast", "--root", root, "--bogus"},
+		{"blast", "--root", root, "HEAD"},
+		{"blast", "--root", root, "--depth", "0"},
+	} {
+		if code := graphCommand(args, nil, &out, &errOut); code != 2 {
+			t.Errorf("%v: exit %d, want 2", args, code)
+		}
+	}
+	if code := graphCommand([]string{"blast", "--root", filepath.Join(root, "missing")}, nil, &out, &errOut); code != 1 {
+		t.Errorf("bad root: exit %d, want 1", code)
+	}
+	if code := graphCommand([]string{"blast", "--root", root, "--no-refresh", "--base=--output=x"}, nil, &out, &errOut); code == 0 {
+		t.Errorf("--base=--output=x: exit 0")
+	}
+}
+
+func TestGraphBlastFailsWhenTheRootCannotBeFound(t *testing.T) {
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	t.Cleanup(func() { getwd = saved })
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"blast"}, nil, &out, &errOut); code != 1 || !strings.HasPrefix(errOut.String(), "loomux graph blast: ") {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
 	}
 }
