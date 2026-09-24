@@ -403,6 +403,17 @@ Hook-Befehl ebenso auflöst.
 Vor dem ersten Umschreiben sichert `init` die Datei als `.bak`. Fremde
 Einträge bleiben stehen.
 
+Für `.agents/hooks.json` heißt das genauer (Fusions-Spec #21, aus
+`internal/agenthooks` auf dem ultraloom-Zweig `claude/wiki-stufe-2`, der als
+Ausgangspunkt umzieht): Die Datei ist eine Map benannter Gruppen, und der Name
+ist die Identität. `init` besitzt genau eine Gruppe, `loomux`, ersetzt nur sie
+und kodiert jede andere byte-treu aus dem gelesenen JSON neu. Ein
+Besitzerfeld im Hook-Objekt gibt es nicht, weil ungemessen ist, ob
+Antigravity ein unbekanntes Feld duldet; ein strenger Leser ließe den Hook
+still fallen. Eine fremde Gruppe, die dasselbe Kommando führt, wird gemeldet,
+nie repariert. Eine Wurzel, die kein Objekt ist, `null` eingeschlossen, wird
+abgelehnt, und die Meldung nennt die Datei.
+
 ### Binary an den kanonischen Ort (#15)
 
 Ziel ist der **kanonische Ort** der Self-Update-Spec
