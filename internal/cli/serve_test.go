@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/lock"
+	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/serve"
 )
 
@@ -374,5 +376,64 @@ func TestServeStopRefusesAnUnknownFlag(t *testing.T) {
 	}
 	if seen.calls != 0 {
 		t.Error("a refused stop still reached the service")
+	}
+}
+
+func TestServeForegroundHandsTheServiceAnUpdatePass(t *testing.T) {
+	serveStateDir(t)
+	seen := stubServeRun(t, nil)
+	stubServeNotify(t)
+	calls := fakeSelfUpdate(t, selfupdate.Result{Outcome: selfupdate.Current})
+	if code := serveForeground(&bytes.Buffer{}); code != 0 {
+		t.Fatalf("code = %d", code)
+	}
+	if seen.Update == nil {
+		t.Fatal("serve got no update pass")
+	}
+	seen.Update(context.Background())
+	if *calls != 1 {
+		t.Fatalf("the pass ran selfupdate %d times", *calls)
+	}
+}
+
+// serve cancels the context it hands the pass when it stops; a pass that ran
+// under any other context would keep downloading after the service is gone.
+func TestServeUpdatePassRunsUnderServesContext(t *testing.T) {
+	serveStateDir(t)
+	seen := stubServeRun(t, nil)
+	stubServeNotify(t)
+	var got context.Context
+	selfUpdateRun = func(ctx context.Context, _ selfupdate.Options) selfupdate.Result {
+		got = ctx
+		return selfupdate.Result{}
+	}
+	t.Cleanup(func() { selfUpdateRun = selfupdate.Run })
+	serveForeground(&bytes.Buffer{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	seen.Update(ctx)
+	if got != ctx {
+		t.Fatal("the pass did not run under serve's context")
+	}
+}
+
+// serve's pass records itself as serve's: only that record tells session
+// start where the service runs from.
+func TestServeUpdatePassRunsAsServe(t *testing.T) {
+	serveStateDir(t)
+	seen := stubServeRun(t, nil)
+	stubServeNotify(t)
+	var source string
+	selfUpdateRun = func(_ context.Context, o selfupdate.Options) selfupdate.Result {
+		source = o.Source
+		return selfupdate.Result{}
+	}
+	t.Cleanup(func() { selfUpdateRun = selfupdate.Run })
+	serveForeground(&bytes.Buffer{})
+
+	seen.Update(context.Background())
+	if source != selfupdate.SourceServe {
+		t.Fatalf("source = %q", source)
 	}
 }
