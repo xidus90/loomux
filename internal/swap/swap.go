@@ -1,4 +1,6 @@
-// Package swap replaces the pilot binary while hooks may be running it.
+// Package swap replaces a loomux binary while processes may be running it:
+// the pilot binary of a checkout, and the machine-wide one the self-update
+// installs.
 // Windows lets a running executable be renamed but not overwritten, so the
 // current one is moved aside first.
 //
