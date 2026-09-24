@@ -8,7 +8,7 @@ implemented_in: 6f65c70
 sources:
   - id: plan-scheibe-2b
     resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-21-scheibe-2b-messwerk.md
-    doc_id: 01M0QGS593NNV4TQ4XFBRQWD2K
+    doc_id: 01M39G4J14QJC2Q6SCQJT866TY
     content_hash: "sha256:e82b5213f0a5b0e3570941b3f6ae5b19d908c10846bc2d8067f5fde92ce65586"
     revision: 1
 ---

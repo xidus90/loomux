@@ -6,7 +6,7 @@ open_conflicts: 0
 sources:
   - id: entscheidungen-scheibe-2a
     resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-20-scheibe-2a-entscheidungen.md
-    doc_id: 01M0QGS593QJAQMMK5N520KBND
+    doc_id: 01M39G4J1401E7S4ZZQTWHNWVS
     content_hash: "sha256:0c7bfd21611ad0bb511986c9e98735c0d54fa3f1c259308f856978faa913606c"
     revision: 1
 ---

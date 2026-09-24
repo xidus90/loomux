@@ -8,7 +8,7 @@ implemented_in: 59b9303
 sources:
   - id: plan-scheibe-2c1
     resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-21-scheibe-2c1-daemon.md
-    doc_id: 01M0QGS5933HZYYJT7JVDGMZ1Y
+    doc_id: 01M39G4J14766JJKC2EXJQP1MR
     content_hash: "sha256:a034db4372598772a762d81b2a12f0df815ce2fed764ae3b3f19c70b89976b10"
     revision: 1
 ---

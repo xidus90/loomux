@@ -34,3 +34,10 @@
   benannt. Quelle: Code von loomux (`internal/brain/wiki`).
 - 2026-09-17 — `topics/datenmodell-und-bereiche.md`: die Aussage, ein Wiki im
   Code-Repo sei keine Option, bis zum Umzug datiert.
+- 2026-09-24 — alle Seiten mit `sources[]`: jede `doc_id` auf die ID gesetzt,
+  die das Register von `project/loomux` für ihre `resource` führt. Die alten
+  IDs stammten aus dem Register von `ultra-brain`, und die Quellen unter
+  `docs/.superpowers/` standen in keinem Register; `reconcile` konnte eine
+  geänderte Quelle so keiner Seite zuordnen. `content_hash` und `revision`
+  bleiben der Stand, aus dem die Seiten verdichtet wurden. Quelle:
+  `_identities.tsv` nach `loomux reindex`.
