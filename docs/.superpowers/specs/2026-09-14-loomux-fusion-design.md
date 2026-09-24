@@ -66,6 +66,7 @@ Python-Wirte wie `iam_backend` behalten ihre ruff-, dmypy- und pyright-Lanes.
 | Wikis der beiden Repos | Nach `loomux/docs/wiki`, ein Bereich `project/loomux`, jede Seite vorher geprüft |
 | Flow, Web, Editor | Folgeprojekte; ulflow M1 ist die Flow-Basis |
 | Laufende Vorhaben | Begonnene Stufen werden abgeschlossen (Wiki-Flotte Stufe 2, laufende ulflow-Welle), danach Stillstand in den alten Repos bis auf Fehlerbehebungen |
+| Maschinenweites Binary (Nachtrag 2026-09-23) | Brücke und `serve` laufen aus `%LOCALAPPDATA%\loomux\bin\loomux.exe`, das aus einem Release stammt, nie aus einem Checkout; `serve` aktualisiert es täglich über `gh`. Siehe `2026-09-23-self-update-design.md` |
 
 ## Ausgangslage, vermessen am 2026-09-14
 
@@ -183,6 +184,7 @@ Alle unter `internal/`; es gibt keine öffentliche Go-API.
 | `brain/convert`, `brain/model`, `brain/bench` | Neu in Go | `src/brain/{convert,model,bench}` |
 | `worktree` | Worktree-Spiegel | `ultraloom/internal/{worktreetopo,junction,mirrorcfg,gitwork}` |
 | `serve` | MCP-Dienst, Upkeep, stdio-Brücke | `src/brain/{daemon,ipc,client,mcp}`, `ultra-brain/pkg/mcp` |
+| `selfupdate`, `swap` | Update des maschinenweiten Binarys aus dem Release; Tausch eines laufenden Binarys (Nachtrag 2026-09-23, `swap` war `dev/swap`) | neu |
 | `install` | `loomux init`, `loomux migrate` | `ultraloom/internal/{answers,interview,render,tooling,write,settings,agenthooks,detect}`, `src/brain/init.py` |
 | `journal` | Sitzungs- und Laufzustand, soweit Hooks ihn brauchen | `ultraloom/internal/{journal,sessions}` |
 
@@ -203,6 +205,9 @@ weil brain kein fremdes Programm mehr ist.
   über `child`.)
 - `serve` → `brain/*`.
 - `install` → `hosts`, `config`, `verify` (Presets).
+- `serve`, `hooks` und `cli` → `selfupdate` → `swap`, `config`. `selfupdate`
+  importiert keins der drei; die laufende Version reicht der Aufrufer herein.
+  (Nachtrag 2026-09-23.)
 - **`hooks` importiert nie `serve`.** Der Pfad an jedem Edit hängt nicht an
   einem laufenden Dienst.
 
@@ -221,7 +226,9 @@ Pakets läuft bei jedem `loomux hook pre-tool-use`. Deshalb:
 `git`, `qmd` (Node, gepinnt), `pdftotext` (Poppler) und `yt-dlp` für
 `convert`/`fetch`, optional Ollama. Fehlt eins, meldet der betroffene Befehl
 Name und Installationsbefehl und exitet ungleich 0. `claude` und `agy` braucht
-diese Spec nicht; sie kommen mit dem Flow-Folgeprojekt.
+diese Spec nicht; sie kommen mit dem Flow-Folgeprojekt. Optional ist auch
+`gh` (Nachtrag 2026-09-23): Ohne es fällt nur das Self-Update aus, und der
+Sitzungsstart meldet das.
 
 ## Konfiguration und Zustand
 
@@ -233,7 +240,9 @@ diese Spec nicht; sie kommen mit dem Flow-Folgeprojekt.
   git-ignoriert.
 - **Global `%LOCALAPPDATA%\loomux\`:** `registry.toml`, `areas/`,
   `maintenance/`, `ui.json`, `serve.json`, Logs. Unter POSIX
-  `$XDG_STATE_HOME/loomux`.
+  `$XDG_STATE_HOME/loomux`. Dazu (Nachtrag 2026-09-23) `bin/loomux.exe`, das
+  maschinenweite Binary, sowie `update.json` und `update.lock` des
+  Self-Updates.
 - **qmd:** Index bleibt in `~/.cache/qmd`. Die Ignore-Muster, die heute
   `**/.brain.toml` und `**/.ultra-brain/**` nennen, bekommen `**/.loomux/**`.
 
@@ -330,6 +339,14 @@ Tore selbst.
 - **Brücke:** `loomux mcp --channel local|cloud` spricht stdio, findet den
   Dienst über `serve.json`, startet ihn bei Bedarf und leitet nur weiter.
   `.mcp.json` der Wirte zeigt auf die Brücke.
+- **Self-Update (Nachtrag 2026-09-23):** Läuft `serve` aus
+  `%LOCALAPPDATA%\loomux\bin\loomux.exe` mit einer Release-Version, prüft es
+  eine Minute nach dem Start und danach alle 24 h das höchste Release seines
+  Kanals (`beta` nimmt auch Prereleases), lädt es
+  über `gh`, prüft `SHA256SUMS` und tauscht die Datei. Aktiv wird das neue
+  Binary über die vorhandene Regel „neueres Binary ersetzt `serve`“. Das
+  Ergebnis steht in `update.json`; der Sitzungsstart liest nur diese Datei.
+  Siehe `2026-09-23-self-update-design.md`.
 
 ## Fehlerverhalten
 
