@@ -81,7 +81,7 @@ sequenceDiagram
     alt Eine Lane ist rot
         Verify-->>Agent: Exit 2 mit dem Befund
     else Keine Lane ist rot
-        Hook-->>Agent: Exit 0; übersprungene Lanes und bei Go die Aufrufer der geänderten Symbole als Kontext
+        Hook-->>Agent: Exit 0 — übersprungene Lanes und bei Go die Aufrufer der geänderten Symbole als Kontext
     end
 
     opt Ein Subagent läuft

@@ -81,7 +81,7 @@ sequenceDiagram
     alt A lane is red
         Verify-->>Agent: Exit 2 with the finding
     else No lane is red
-        Hook-->>Agent: Exit 0; skipped lanes, and for Go the callers of the changed symbols, as context
+        Hook-->>Agent: Exit 0 — skipped lanes, and for Go the callers of the changed symbols, as context
     end
 
     opt Subagent runs
