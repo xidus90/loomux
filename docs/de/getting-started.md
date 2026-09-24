@@ -210,7 +210,8 @@ never = ["privat/**"]
   Namen im Zustandsverzeichnis fallen, ein zweites `signpost`, `[area]` statt
   `[[area]]` oder das Manifest eines registrierten Bereichs, das seine eigenen
   Prüfungen nicht besteht, schließt jeden Baum. Offen bleiben nur das Memory
-  der Agenten und das Scratchpad der Sitzung. Die `brain`-Befehle sind
+  der Agenten, das Scratchpad der Sitzung und die Dateien, die `open.toml`
+  nennt. Die `brain`-Befehle sind
   nachsichtiger und überspringen einen Eintrag ohne `scope` oder `path`
   wortlos.
 - **Seiten unter einem Punktverzeichnis werden nie gefunden.** Das ist eine

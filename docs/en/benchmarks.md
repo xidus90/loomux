@@ -2323,3 +2323,27 @@ afterwards; no commit ran while anything was staged.
    calls, 46.5 and 52.5 ms, to every check that plans a graph lane, also
    when the lane ends `not-applicable` — except the first check, a missing
    `wiring.json`, which costs no git call.
+
+## 2026-09-24 10:45 — The write barrier reading open.toml
+
+Measured on `eb83426e` with `internal/brain/guard/open.go` uncommitted on top,
+go1.27.0 windows/amd64, this machine. `Decide` now calls `openFiles` on every
+writing tool call, before the memory fast path, so its cost lands on the
+hook the host runs most often. A throwaway Go benchmark (not committed) ran
+`openFiles` over a fresh temporary state directory, `-count 5`; `b.Loop`
+warms up on its own, so there is no separate cold figure.
+
+| case | ns/op, 5 runs | median |
+|---|---|---:|
+| no `open.toml` | 90293, 80033, 74248, 82883, 101659 | 82883 |
+| `open.toml` with one entry | 222814, 196172, 203734, 253601, 216453 | 216453 |
+
+### Reading
+
+1. **Without the file the barrier pays about 0.08 ms per call**: one path
+   resolution of the state directory and one failed read. With one entry it
+   is about 0.22 ms: the read, the TOML decode, and a second resolution for
+   the entry.
+2. **Against the hook this is noise.** A `pre-tool-use` call spawns a process
+   in the tens of milliseconds; 0.2 ms is below the spread of two passes of
+   the same series in the entries above.

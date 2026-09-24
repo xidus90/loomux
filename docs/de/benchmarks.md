@@ -2423,3 +2423,28 @@ war.
    git-Aufrufe, 46,5 und 52,5 ms, auf jeden Check, der eine Graph-Lane plant,
    auch wenn die Lane `not-applicable` endet — außer bei der ersten Prüfung,
    einem fehlenden `wiring.json`, die keinen git-Aufruf kostet.
+
+## 2026-09-24 10:45 — Die Schreibschranke liest open.toml
+
+Gemessen auf `eb83426e` mit `internal/brain/guard/open.go` uncommittet
+darüber, go1.27.0 windows/amd64, dieser Rechner. `Decide` ruft `openFiles`
+jetzt bei jedem schreibenden Werkzeugaufruf, vor dem schnellen Weg fürs
+Memory; die Kosten fallen also auf den Hook, den der Host am häufigsten fährt.
+Ein Wegwerf-Benchmark in Go (nicht committet) lief `openFiles` über ein
+frisches temporäres Zustandsverzeichnis, `-count 5`; `b.Loop` wärmt selbst
+auf, eine eigene Kaltzahl gibt es daher nicht.
+
+| Fall | ns/op, 5 Läufe | Median |
+|---|---|---:|
+| kein `open.toml` | 90293, 80033, 74248, 82883, 101659 | 82883 |
+| `open.toml` mit einem Eintrag | 222814, 196172, 203734, 253601, 216453 | 216453 |
+
+### Lesart
+
+1. **Ohne die Datei zahlt die Schranke etwa 0,08 ms je Aufruf**: eine
+   Pfadauflösung des Zustandsverzeichnisses und ein fehlschlagendes Lesen. Mit
+   einem Eintrag sind es etwa 0,22 ms: das Lesen, das TOML-Dekodieren und eine
+   zweite Auflösung für den Eintrag.
+2. **Gegen den Hook ist das Rauschen.** Ein `pre-tool-use`-Aufruf startet
+   einen Prozess im Bereich von Dutzenden Millisekunden; 0,2 ms liegen unter
+   der Streuung zweier Durchläufe derselben Reihe in den Einträgen oben.
