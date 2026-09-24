@@ -204,6 +204,102 @@ Evaluates the project policy and global write barrier before an agent executes a
   }
   ```
 - **Execution Budget**: `<35ms` cold start floor.
+- **Not a module**: `[modules]` is not read here. The write barrier is global
+  and protects other repositories' read-only areas, so `hooks = false` leaves
+  the guard running.
+- **Commands that write the configuration**: a `Bash` or `PowerShell` line
+  that runs `loomux init` (without an exempting `--dry-run` or
+  `--detect-only`), any
+  `loomux config` but `config list …`, `config get …`, `config proposals …`,
+  a lone `config --help` or `config -h`, and `config set …` or
+  `config unset …` with an exempting `--propose`, or
+  `loomux area add` is refused with ``loomux init, config and area add write
+  the configuration the guard reads; a human runs them. An agent proposes a
+  change with `loomux config set|unset … --propose`, which a human applies``.
+  `config apply` and `config reject` stay refused.
+  - **When a flag exempts** — an allowlist, judged on the line as written
+    before any rewriting. The flag exempts only when all three hold:
+    - The call is direct: the loomux program (`loomux`, a path to it, or
+      `go run` of `cmd/loomux`) is the first word of a command that the
+      line itself starts — at the line's start or right after a `;`, `|`,
+      `&&` or line break that stands outside quotes. A loomux inside a
+      quoted string (`cmd /c 'x; loomux init --dry-run'`,
+      `sh -c 'true` + line break + `loomux …'`) is still found and refused,
+      but never exempt. Behind any prefix — `cmd /c`, `sudo`, `env`, `nice`,
+      `timeout`, `xargs`, `exec`, `command`, `Start-Process`, `VAR=value`, a
+      redirection, a keyword such as `then` or `!`, a `{` — the flag exempts
+      nothing either, because a wrapper may read the words a second time:
+      `cmd /c` resolves `^`, `%X%`, `!X!` and `"` even inside what the shell
+      passed on as one single-quoted word.
+    - The whole line is plain. Outside quotes it holds only letters,
+      digits, blanks, `. _ / : = , + -`, the breaks `;` `|` `&&` and line
+      breaks, the redirections `<` `>` (with `&` inside one, `2>&1`, `&>`),
+      and a `#` that starts a word (a comment; the rest of its line is not
+      judged). A lone `&` — PowerShell's call operator or a background job —
+      is not plain. Inside double quotes only the first of these sets may
+      stand, so no `$`, backtick or `\`. Inside single quotes any ASCII
+      character may stand, since neither bash nor PowerShell expands
+      anything there, except the breaks `; | & ( ) < >` and cmd's `^ % !`,
+      which a wrapper handed the string could read again, and `#`, since a
+      quoted `#x` reaches the program as a word the guard would read as a
+      comment; and none beyond
+      ASCII, because PowerShell also ends a single-quoted string at a
+      typographic quote. An unclosed quote is not
+      plain. Anything else — `$`, a backtick, `\`, `( ) { } [ ]`,
+      `* ? ~ ! @`, a `#` inside a word — makes the line not plain. `%` is
+      not plain either: after PowerShell's stop-parsing token `--%` the rest
+      of the line goes to the program with `%X%` expanded.
+    - Among the arguments, the flag (`--propose` or `-propose`; `--dry-run`
+      or `--detect-only`) stands as a word of its own before any `--`, with
+      no `-name=…` of the same flag beside it (the last one wins, so
+      `--dry-run --dry-run=false` is refused). A `#` word ends the
+      arguments. From the first redirection on, only redirections and their
+      targets may follow (`> out`, `>out`, `2>&1`): `> out --propose=false`
+      still hands the program `--propose=false`.
+
+    So a value that holds `$`, `*`, `{…}`, `?`, `[…]` or a backslash must be
+    single-quoted (`loomux config set index.include 'docs/**/*.md'
+    --propose`), and an exempt command must stand on its own, not in a
+    block (`try { … }`) or behind a program path that expands (`${X}/loomux`).
+
+  These commands write `.loomux/config.toml` from inside
+  their own process, where no path rule sees the write. The program is
+  recognised as `loomux`, `loomux.exe` or a path ending in either (quoted or
+  not, `\` or `/`), and as `go run` of `cmd/loomux` or `cmd/loomux/main.go`
+  (with or without `./`, under a module path, at any `@version`, behind build
+  flags). It is found behind `VAR=value`, redirections (`2>/dev/null`,
+  `> out`, `2>&1`), the reserved words `if`, `then`, `else`, `elif`, `while`,
+  `until`, `do`, `!`, `{`, `coproc`, `function <name>`, `try`, `catch` and
+  `finally`, after every `{` or `}` on the line, alone or glued to a word
+  (the body of a block, function or script block: `try{`, `{loomux …}`),
+  and behind the wrappers `sudo`, `command`, `exec`, `nohup`, `env`, `time`,
+  `xargs`, `nice` (also `nice -n N`), `timeout <duration>` and `cmd` with
+  every switch up to `/c` or `/k`, together with their flags that take no
+  separate value (and `--`). `Start-Process`, `start` or `saps` is refused
+  when loomux is any of its arguments, also as the value of a parameter
+  written with a colon (`-FilePath:loomux.exe`), whatever the others. Every
+  segment of the line counts (`;`, `|`, `&`, `&&`, `||`, a line break, `(`,
+  `)`, `$(`, a backtick), and a line continuation (`\` or a backtick at the
+  line end) is joined first; a backtick escape inside a word
+  (``loomux con`fig``) is read as PowerShell does.
+  - **Known holes** — the rule reads words, not a shell, so it passes: an
+    alias; a program held in a variable; a wrapper flag with a separate value
+    (`sudo -u root loomux init`, `xargs -n 1 …`, `timeout -s KILL 60 …`); a
+    command inside a string (`sh -c "loomux init"`, `pwsh -c …`); `go run .`
+    inside `cmd/loomux`; and, after an earlier escaped `\"` or `\'` on the
+    same line, a quoted program path whose part after its last break
+    character (`(`, `)`, `&`, `;`, `|`) holds a blank, such as
+    `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.
+  - **Known false refusals** — it errs toward refusing: `echo "x; loomux
+    init"`, `start loomux config list`, `Start-Process code -ArgumentList
+    loomux`, `command -v loomux init` (which only looks the name up), a
+    loomux word right after a brace that opens no block
+    (`awk '{ print }' loomux init`, `echo } loomux config set a b`,
+    `echo ${X} loomux init`), `loomux init \` followed by
+    `--dry-run` on the next line (PowerShell would run the first line alone),
+    and `loomux config --root <dir> list` (flags before the subcommand; that
+    form is a usage error anyway). So is a line that carries such text only
+    as data, such as a heredoc holding `loomux config set …`.
 - **Standard Output / Error**:
   - On Refusal: JSON refusal envelope on `stdout`, human-readable reason on `stderr`.
 - **Exit Codes**:
@@ -637,7 +733,7 @@ so the record of `serve`'s last pass stays for session start to read.
 | 1 | the pass failed, or another pass is running |
 | 2 | skipped: not on Windows, a development build, or not the machine-wide binary; or an unrecognized argument |
 
-### `loomux mcp [--channel local|cloud]`
+### `loomux mcp [--channel local|cloud] [--root <dir>]`
 The stdio bridge an MCP host starts. It offers the twelve tools itself — the
 descriptions are static, so a cold service never sits inside the host's
 handshake — and forwards every `tools/call` to the service over the channel's
@@ -645,6 +741,16 @@ address, name to name and arguments to arguments.
 
 - **Default channel**: `local`, exactly as `loomux brain` falls back. The narrow
   channel is the only safe default.
+- **Only the project's modules**: the bridge offers the `brain_*` tools only
+  with `[modules] brain` on and the `graph_*` tools only with `graph` on (see
+  [`[modules]`](configuration.md#modules-what-runs-in-this-project)). The
+  project is the one `--root` names, else the first `.loomux/config.toml`
+  above the directory the host started the bridge in; outside any project
+  every tool is offered. A `[modules]` the reader refuses ends the bridge with
+  exit `1` before the handshake.
+- **A change of `[modules]` needs a restart**: the bridge reads it once at
+  start, and the host caches `tools/list`. The change takes effect when the
+  host starts the bridge again.
 - **It starts the service itself**: in the background, beside the handshake. A
   recorded build older than the bridge's own is stopped and replaced (newer
   wins); an equal or newer one whose lock nobody holds is started again.
@@ -761,5 +867,185 @@ Runs comprehensive latency benchmarks and normalized gap audits on a single repo
   - `--json-out <path>`: Write detailed machine-readable JSON report to file.
   - `--save`: Automatically save benchmark reports into language subdirectories (`docs/{en,de}/benchmarks/<language>/<repo_slug>.md`) and update the central matrix (`docs/{en,de}/benchmarks/matrix.md`).
   - `--report-dir <dir>`: Documentation root directory for saved reports (default: `docs`).
+
+---
+
+## 10. Configuration (`loomux config`)
+
+Shows every key of `.loomux/config.toml` with where its value comes from, and
+changes one key at a time as a line edit that keeps every comment and every
+line it does not touch.
+
+```bash
+loomux config                                   # the interactive form
+loomux config list [--json]
+loomux config get <key>
+loomux config set <key> <value> [--yes | --propose]
+loomux config unset <key> [--yes | --propose]
+loomux config proposals [--json]
+loomux config apply <id>|--all [--yes]
+loomux config reject <id>|--all
+# each form also takes --root <dir> or --global, after the subcommand
+```
+
+- **The guard refuses an agent** every form but `list`, `get`, `proposals`,
+  a lone `--help` or `-h`, and `set` or `unset` with `--propose`: `set` and
+  `unset` without it, `apply`, `reject` and the interactive form (see
+  [`hook pre-tool-use`](#loomux-hook-pre-tool-use)). A human runs them.
+- **For agents**: an agent changes nothing itself. It proposes a change with
+  `loomux config set <key> <value> --propose` or
+  `loomux config unset <key> --propose`, which goes through every check of
+  `set` and is stored instead of written; the human reviews it with
+  `loomux config proposals` and applies it with `loomux config apply <id>`
+  (or drops it with `loomux config reject <id>`). `config list` names how
+  many proposals are open.
+- **Flags** (after the subcommand; a flag before it is a usage error):
+  - `--root <dir>` — the project; found upwards from the working directory
+    when empty.
+  - `--global` — the machine-wide `config.toml` in the state directory
+    instead. It knows no key yet: `list` prints nothing (`[]` with
+    `--json`), and `get`, `set` and `unset`
+    refuse every key as unknown. `--global` together with `--root` is a usage
+    error.
+  - `--yes` — `set`, `unset` and `apply` write without asking.
+  - `--propose` — `set` and `unset` store a proposal instead of writing;
+    together with `--yes` it is a usage error.
+  - `--all` — `apply` and `reject` act on every open proposal instead of one
+    `<id>`; an `<id>` together with `--all` is a usage error.
+  - `--json` — `list` prints a JSON array of `{key, module, value, origin,
+    count}`; `proposals` prints a JSON array of proposals (`[]` when none is
+    open).
+- **Keys** are `<section>.<name>` (`commit.threshold`, `modules.graph`,
+  `verify.timeout`), grouped by module: `base`, `hooks`, `brain`. Every key
+  the readers of the file accept is listed, and no other, except the
+  per-stack tables `[verify.<stack>.<kind>]` (see `list`).
+- **Origins**: `set` (in the file), `default` (the reader's default, shown as
+  its value), `preset` (`verify.profiles`, filled by the presets; the value
+  shown is the built-in one) and `unset` (no value and no default).
+
+### `loomux config list [--json]`
+One line per key: module, key, value, origin. A list of tables
+(`commit.allow`, `policy.paths.rules`, `policy.commands.rules`) shows its
+number of entries instead of a value. When proposals are open, a last line
+`N proposals open — loomux config proposals` follows (`1 proposal open …`
+for one); `--json` prints the
+rows alone. The per-stack tables
+`[verify.<stack>.<kind>]` are not keys: they are changed by hand, and
+`loomux check precommit --show` prints what they add up to with the presets.
+
+### `loomux config get <key>`
+Prints the key's value, the default where none is set. For a list of tables
+it prints one line per entry, the table as Go prints it
+(`map[reason:… regex:…]`), and an empty line when there is none; `list` shows the
+number of entries (`list --json` as `count`).
+
+### `loomux config set <key> <value> [--yes]`
+Computes the new file, prints the change as a line diff on `stderr`, asks
+`write these changes? [y/N]` and writes only on `y`.
+
+- **Values** are typed as a human writes them: a string without quotes, a
+  number, `true`/`false`, a list as `a, b`. A comma inside a `{…}` group
+  belongs to the item, so `docs/**/*.{md,txt}, src` is two globs. An enum
+  key takes only the values its reader accepts. `verify.timeout` is whole
+  seconds (`600`, not `10m`). A number is written in its plain form: `+600`
+  and `0600` are `600`. The word `default` is a value like any other.
+- **Defaults are never written**: `set` to the default value removes the
+  line, and a section it leaves empty goes too. A file that repeated a
+  default would pin it against a later change of the default.
+- **Checked by the real readers**: the new text is handed to every reader
+  that runs in operation (area declaration, `[modules]`, policy, `[verify]`,
+  commit policy, worktree mirrors) and written only when all of them accept
+  it.
+- **Brain keys need `[area]`**: without it the brain reads nothing, so every
+  brain key but `area.scope` is refused with `set area.scope first`.
+- **Refused as tables**: `model.roles`, `verify.profiles` and the lists of
+  tables are edited by hand.
+- **Refused as a guess**: a file that holds the section's keys as dotted or
+  quoted keys or an inline table, a multi-line string, a key or section
+  written twice, or a line of no known form. The message names the line.
+- **Kept as written**: a replaced line keeps its indentation, the spacing
+  around `=` and its trailing comment; a leading UTF-8 byte order mark stays.
+- **Output**: `loomux config: wrote <path>`, `already so; nothing written`
+  (the file would not change) or `declined; nothing written`, all on
+  `stderr`.
+
+### `loomux config unset <key> [--yes]`
+Takes the key's line out, so the key falls back to its default (or to unset
+where it has none), and a section left empty goes too. Diff, question,
+readers, refusals and output are those of `set`; a brain key needs no
+`[area]` here. A key that is not in the file writes nothing (`already so`).
+
+### `loomux config set|unset … --propose`
+Computes the change exactly as `set` or `unset` does, with the same
+refusals (exit `1`), but writes no `config.toml`. It stores a proposal as
+`.loomux/state/config/proposals/<id>.json` in the project (for `--global`:
+`config/proposals/<id>.json` in the state directory) with `id`, `op`
+(`set`/`unset`), `key`, `input` (the value as typed), `created` (UTC),
+and `target` (`project`/`global`), and prints the diff and the id on
+`stdout`. No diff is stored: every form that shows one computes it anew
+against the file as it is then. The id is the UTC time and a counter
+(`20260924T101530Z-001`), so ids sort in the order they were made. A
+proposal that would change nothing is not stored (`already so; nothing
+proposed`, exit `0`).
+
+### `loomux config proposals [--json]`
+Lists the open proposals, oldest first: id, time, the change asked for, and
+the diff it would make to the current file, computed now. Each diff is
+against the current file on its own, not against what the proposals before
+it would leave behind under `apply --all`. A proposal that no longer holds
+shows `refused now: <reason>` instead of a diff, one that is already so
+`already so; apply removes it`. With `--json` each entry carries the
+recomputed `diff` and, when it no longer holds, an `error`. Nothing open
+prints nothing (`[]` with `--json`). A proposal file that does not read is
+named on `stderr`, the others are still listed, and the run ends in `1`;
+`reject` still removes it. A `config.toml` that does not read is `1`.
+
+Key, value and diff come from an agent. In the output of `--propose`,
+`proposals` (text and `--json`) and `apply`, every control character but
+the line break and the tab (an escape sequence, a bell, a carriage return,
+DEL, the C1 range) and every byte that is no UTF-8 is printed escaped as
+`\xNN`; in `--json` that escape stands in the string's value (`"\\x1b"`).
+In the header lines of the text forms and in `apply`'s messages, a key or
+value is shown as typed when it is one word of printable characters, and
+quoted with Go escapes when it is empty or holds a blank, a `"` or a
+character that is not printable.
+
+### `loomux config apply <id>|--all [--yes]`
+For each proposal in id order: computes the change again from `op`, `key`
+and `input` against the file **as it is now**, prints that diff, asks (or
+takes `--yes`), writes the way `set` writes and removes the proposal. A
+proposal that is already so is removed with a note; a declined one stays;
+one that now fails a reader stays with its error, the others go on, and the
+run ends in `1`. When the change is written but the proposal file cannot be
+removed, it says so and the run ends in `1`; `reject` removes the file. An
+unknown id is `1`.
+
+### `loomux config reject <id>|--all`
+Removes the proposal, or every open one, without writing anything.
+
+### `loomux config` (interactive)
+A full-screen list of the keys, grouped by module: `↑`/`↓` move, `/`
+filters, `enter` changes the key under the cursor, `q` or `esc` ends. A text
+key is typed; an enum or a boolean cycles its choices with `tab`, and when
+it has a default one more choice, `(default)`, takes its line out the way
+`unset` does. A typed key goes back to its default with `unset`. The diff
+follows with a confirmation, and each change is written on its own, the way
+`set` writes it. A table is shown, not edited; a list of tables shows its
+number of entries and each entry. The title shows how many proposals are
+open. Without a terminal the form
+exits `2` and names `list`, `get`, `set` and `unset`.
+
+### Exit codes
+`0` success, also a declined confirmation, a change that changes nothing, a
+stored proposal and `apply`/`reject` with nothing open; `1` a reader or the
+editor refuses (unknown key, invalid value, a guess, a file that does not
+read), the write fails, a proposal cannot be stored or read, an unknown
+proposal id, or `apply` left a proposal that no longer holds; `2` a usage
+error (also `--propose` with `--yes`, a `set`/`unset` that names the
+propose flag but ends with it off — `--propose --propose=false`,
+`-propose=0`, or `--propose` after `--` where it is a value — which says
+`--propose given and switched off; say what you mean`, `--propose` outside `set`/`unset`,
+`--all` outside `apply`/`reject`, `apply`/`reject` without exactly one of
+`<id>` and `--all`), and the interactive form without a terminal.
 
 
