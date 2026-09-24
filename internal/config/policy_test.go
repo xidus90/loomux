@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -168,5 +170,33 @@ func TestReadPolicyRefusesAConfigThatExistsButCannotBeRead(t *testing.T) {
 func TestManifestPathIsTheOneManifestName(t *testing.T) {
 	if got, want := ManifestPath("r"), filepath.Join("r", ".loomux", "config.toml"); got != want {
 		t.Fatalf("ManifestPath = %q, want %q", got, want)
+	}
+}
+
+func TestPolicyKeysNameBothRuleLists(t *testing.T) {
+	keys := PolicyKeys()
+	if !slices.Equal(keys["policy.paths.rules"], []string{"match", "reason"}) ||
+		!slices.Equal(keys["policy.commands.rules"], []string{"regex", "reason"}) {
+		t.Fatal(keys)
+	}
+}
+
+// The reader decodes through struct tags, not through PolicyKeys; this holds
+// the two equal so the schema cannot list a key the reader ignores.
+func TestPolicyKeysAreTheTagsTheReaderDecodes(t *testing.T) {
+	var file policyFile
+	tags := func(rules reflect.Type) []string {
+		var names []string
+		for i := range rules.NumField() {
+			names = append(names, rules.Field(i).Tag.Get("toml"))
+		}
+		return names
+	}
+	keys := PolicyKeys()
+	if got := tags(reflect.TypeOf(file.Policy.Paths.Rules).Elem()); !slices.Equal(got, keys["policy.paths.rules"]) {
+		t.Errorf("paths rule tags %v, PolicyKeys %v", got, keys["policy.paths.rules"])
+	}
+	if got := tags(reflect.TypeOf(file.Policy.Commands.Rules).Elem()); !slices.Equal(got, keys["policy.commands.rules"]) {
+		t.Errorf("commands rule tags %v, PolicyKeys %v", got, keys["policy.commands.rules"])
 	}
 }

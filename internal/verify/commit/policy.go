@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -30,6 +31,10 @@ func DefaultPolicy() Policy {
 }
 
 var knownCommitKeys = []string{"allow", "conventional", "language", "threshold"}
+
+// KnownKeys are the keys [commit] accepts.
+func KnownKeys() []string { return slices.Clone(knownCommitKeys) }
+
 var knownAllowKeys = []string{"reason", "regex"}
 
 // ReadPolicy reads the [commit] section of .loomux/config.toml.

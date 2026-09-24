@@ -3,6 +3,7 @@ package commit_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -211,5 +212,11 @@ allow = [ { regex = "[", reason = "r" } ]
 	_, err := commit.ReadPolicy(root)
 	if err == nil || !strings.Contains(err.Error(), "invalid regex") {
 		t.Errorf("expected invalid regex error, got: %v", err)
+	}
+}
+
+func TestKnownKeysAreTheOnesTheReaderAccepts(t *testing.T) {
+	if !slices.Equal(commit.KnownKeys(), []string{"allow", "conventional", "language", "threshold"}) {
+		t.Fatal(commit.KnownKeys())
 	}
 }
