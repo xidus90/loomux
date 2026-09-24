@@ -385,9 +385,9 @@ func parents(path string) []string {
 // registration a writable area declares the parent directory of three
 // read-only project wikis -- so subtracting them would change nothing.
 //
-// Three places lie open outside those trees -- the two agents' memory bases
-// and a Claude Code session's scratchpad, all on the same terms -- and one
-// file name is exempted besides.
+// Four places lie open outside those trees -- the two agents' memory bases,
+// a Claude Code session's scratchpad and the files open.toml lists (open.go),
+// all on the same terms -- and one file name is exempted besides.
 // A call that writes only memory is let through right after the manifest
 // and before the registry, because memory is open whatever the registry
 // says and a registry that cannot be read must not close it (spec
@@ -433,11 +433,19 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 	}
 	claude, antigravity := memoryBases()
 	scratch := scratchpadBase()
-	// The session scratchpad is open on exactly the terms memory is, so it
-	// joins memory here rather than being asked again at each use below.
+	opened, openErr := openFiles(stateDir)
+	// The session scratchpad and the files open.toml lists are open on
+	// exactly the terms memory is, so they join memory here rather than being
+	// asked again at each use below.
 	inMemory := func(path string) bool {
 		return isMemory(path, claude, antigravity) ||
-			isScratchpad(path, scratch)
+			isScratchpad(path, scratch) || isOpen(path, opened)
+	}
+	// A refusal says why open.toml opened nothing, or a user who wrote it
+	// would see the file refused and never learn it was ignored.
+	ignored := ""
+	if openErr != nil {
+		ignored = "; " + filepath.Join(stateDir, openName) + " is ignored: " + openErr.Error()
 	}
 	if !slices.ContainsFunc(resolved, func(path string) bool { return !inMemory(path) }) {
 		return "", false
@@ -484,13 +492,21 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 			"and that outranks any writable tree around it", true
 	}
 	if len(roots) == 0 {
-		open := "the agents' memory"
+		open := []string{"the agents' memory"}
+		if len(opened) > 0 {
+			open = append(open, "the files "+openName+" opens")
+		}
 		if scratch != "" {
-			open += " and the session scratchpad below: " +
-				filepath.Join(scratch, "*", "*", "scratchpad")
+			open = append(open, "the session scratchpad below: "+
+				filepath.Join(scratch, "*", "*", "scratchpad"))
+		}
+		last := len(open) - 1
+		named := open[last]
+		if last > 0 {
+			named = strings.Join(open[:last], ", ") + " and " + open[last]
 		}
 		return "the registry declares no writable wiki path and no " +
-			"workspace, so nothing outside " + open + " may be written", true
+			"workspace, so nothing outside " + named + " may be written" + ignored, true
 	}
 	outside := []string{}
 	for _, path := range resolved {
@@ -541,11 +557,14 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 		permitted += ", plus the session scratchpad below: " +
 			filepath.Join(scratch, "*", "*", "scratchpad")
 	}
+	if len(opened) > 0 {
+		permitted += ", plus the files " + openName + " opens: " + strings.Join(opened, ", ")
+	}
 	if shown := memoryShown(claude, antigravity); shown != "" {
 		permitted += ", plus the agents' memory below: " + shown
 	}
 	return strings.Join(refused, ", ") + " lies outside every writable " +
-		"tree; writing is allowed only below: " + permitted, true
+		"tree; writing is allowed only below: " + permitted + ignored, true
 }
 
 // pick names every path a test answers yes to, in the order they were

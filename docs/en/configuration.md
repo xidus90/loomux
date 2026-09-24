@@ -576,6 +576,7 @@ never = [".env*", "*.key", "credentials.json"]
 |---|---|
 | State directory | on Windows `%LOCALAPPDATA%\loomux`, else `~\AppData\Local\loomux`; elsewhere `$XDG_STATE_HOME/loomux`, else `~/.local/state/loomux` |
 | Area registry | `<state directory>\registry.toml` |
+| Single files the write barrier keeps open | `<state directory>\open.toml` |
 | Manifest of a writable area | `<area path>\.loomux\config.toml` |
 | Manifest of a read-only area, as the write barrier reads it | `<state directory>\areas\<scope>\.loomux\config.toml` |
 | Artefacts of a read-only area (`index.md`, `graph.json`, `_identities.tsv`) and its manifest, as `loomux brain` reads them | `%LOCALAPPDATA%\brain\areas\<scope>\` until stage 3 |
@@ -629,6 +630,33 @@ user and without a registry entry:
   whether Antigravity loads `knowledge/` the same way has not been measured.
   That was accepted knowingly with the decision of 2026-09-13.
 
+### Single files: `open.toml`
+
+A file a user's own conventions put outside every tree — a global `CLAUDE.md`
+that has agents keep `~/.claude/AGENT_LEARNINGS.md`, say — is opened in
+`<state directory>\open.toml`, which a human writes:
+
+```toml
+files = ["C:/Users/me/.claude/AGENT_LEARNINGS.md"]
+```
+
+- Each listed file is open on the terms memory is, above: also when the
+  registry cannot be read, never for the manifest.
+- Only single files open. An entry must be an absolute path, may not name a
+  directory and may not lie in the state directory, where `registry.toml` and
+  `open.toml` keep the barrier's own limits. There are no globs.
+- `files` is the only key. The file is read whole or not at all: one entry the
+  barrier cannot use, an unknown key or invalid TOML, and nothing in it opens.
+  Every refusal then ends with `open.toml is ignored:` and the reason.
+- A file of its own rather than a table in `registry.toml`, because
+  `loomux area add` rewrites the registry from its `[[area]]` entries and
+  would drop the table.
+- No agent can write it: the state directory lies outside every tree the
+  barrier opens.
+- What an agent writes into such a file acts like an instruction wherever it
+  is loaded; for `AGENT_LEARNINGS.md` behind a global `CLAUDE.md` that is every
+  session in every project. The list is the user's to decide.
+
 A refusal that reads `lies outside every writable tree` lists where writing is
-allowed: the permitted trees, then the session scratchpad and the memory trees,
-wherever they can be named.
+allowed: the permitted trees, then the session scratchpad, the files
+`open.toml` opens and the memory trees, wherever they can be named.

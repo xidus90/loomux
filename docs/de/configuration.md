@@ -590,6 +590,7 @@ never = [".env*", "*.key", "credentials.json"]
 |---|---|
 | Zustandsverzeichnis | unter Windows `%LOCALAPPDATA%\loomux`, sonst `~\AppData\Local\loomux`; auf anderen Systemen `$XDG_STATE_HOME/loomux`, sonst `~/.local/state/loomux` |
 | Bereichsregistry | `<Zustandsverzeichnis>\registry.toml` |
+| Einzelne Dateien, die die Schreibschranke offen hält | `<Zustandsverzeichnis>\open.toml` |
 | Manifest eines beschreibbaren Bereichs | `<Bereichspfad>\.loomux\config.toml` |
 | Manifest eines lesenden Bereichs, wie die Schreibschranke es liest | `<Zustandsverzeichnis>\areas\<scope>\.loomux\config.toml` |
 | Artefakte eines lesenden Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und sein Manifest, wie `loomux brain` sie liest | `%LOCALAPPDATA%\brain\areas\<scope>\` bis Stufe 3 |
@@ -646,6 +647,38 @@ für jeden Nutzer, ohne Eintrag in der Registry:
   ob Antigravity `knowledge/` ebenso lädt, ist nicht gemessen. Das ist mit der
   Entscheidung vom 2026-09-13 bewusst in Kauf genommen.
 
+### Einzelne Dateien: `open.toml`
+
+Eine Datei, die die eigenen Konventionen eines Nutzers außerhalb jedes Baums
+ablegen — etwa `~/.claude/AGENT_LEARNINGS.md`, die eine globale `CLAUDE.md` von
+den Agenten pflegen lässt —, wird in `<Zustandsverzeichnis>\open.toml` geöffnet.
+Die Datei schreibt ein Mensch:
+
+```toml
+files = ["C:/Users/ich/.claude/AGENT_LEARNINGS.md"]
+```
+
+- Jede genannte Datei ist zu denselben Bedingungen offen wie das Memory oben:
+  auch dann, wenn die Registry nicht lesbar ist, und nie für das Manifest.
+- Es öffnen nur einzelne Dateien. Ein Eintrag muss ein absoluter Pfad sein,
+  darf kein Verzeichnis nennen und nicht im Zustandsverzeichnis liegen, wo
+  `registry.toml` und `open.toml` die Grenzen der Schranke selbst halten. Globs
+  gibt es nicht.
+- `files` ist der einzige Schlüssel. Die Datei gilt ganz oder gar nicht: Ein
+  Eintrag, den die Schranke nicht verwenden kann, ein unbekannter Schlüssel
+  oder ungültiges TOML, und nichts darin öffnet. Jede Ablehnung endet dann mit
+  `open.toml is ignored:` und dem Grund.
+- Eine eigene Datei statt einer Tabelle in `registry.toml`, weil
+  `loomux area add` die Registry aus ihren `[[area]]`-Einträgen neu schreibt
+  und die Tabelle dabei verlöre.
+- Kein Agent kann sie schreiben: Das Zustandsverzeichnis liegt außerhalb jedes
+  Baums, den die Schranke öffnet.
+- Was ein Agent in eine solche Datei schreibt, wirkt überall, wo sie geladen
+  wird, wie eine Anweisung; bei `AGENT_LEARNINGS.md` hinter einer globalen
+  `CLAUDE.md` ist das jede Sitzung in jedem Projekt. Die Liste entscheidet der
+  Nutzer.
+
 Eine Ablehnung mit `lies outside every writable tree` nennt, wo geschrieben
-werden darf: die erlaubten Bäume, danach das Scratchpad der Sitzung und die
-Memory-Bäume, sofern sie sich benennen lassen.
+werden darf: die erlaubten Bäume, danach das Scratchpad der Sitzung, die
+Dateien, die `open.toml` öffnet, und die Memory-Bäume, sofern sie sich
+benennen lassen.

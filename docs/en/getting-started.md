@@ -207,7 +207,8 @@ never = ["private/**"]
   `path`, a duplicate scope, two scopes that flatten to the same state
   directory name, a second `signpost`, `[area]` written instead of `[[area]]`,
   or a registered area's manifest that fails its own checks closes every tree.
-  Only the agents' memory and the session scratchpad stay open. The `brain`
+  Only the agents' memory, the session scratchpad and the files `open.toml`
+  lists stay open. The `brain`
   commands are laxer and skip an entry without `scope` or `path` without a
   word.
 - **Pages under a dot directory are never found.** That is the limit of the
