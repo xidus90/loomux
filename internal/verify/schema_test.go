@@ -3,6 +3,7 @@ package verify
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -289,5 +290,66 @@ func TestAStopProfileCanBeNarrowed(t *testing.T) {
 	cfg, err := ParseConfig("", map[string]any{"verify": map[string]any{"profiles": map[string]any{"stop": []any{"lint"}}}})
 	if err != nil || !slices.Equal(cfg.Profiles["stop"], []string{"lint"}) {
 		t.Fatalf("%v, %v", cfg.Profiles["stop"], err)
+	}
+}
+
+// The brain module owns the wiki lane, so switching the module off has to
+// leave exactly the value `[verify.wiki] lint = false` leaves: the edit lane,
+// `loomux check` and the stop gate all read that one field.
+func TestTheBrainModuleOffTurnsTheWikiLaneOff(t *testing.T) {
+	want, err := parse(t, "[verify.wiki]\nlint = false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, src := range []string{
+		"[modules]\nbrain = false",
+		"[modules]\nbrain = false\n[verify.wiki]\nlint = false",
+	} {
+		cfg, err := parse(t, src)
+		if err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		if !cfg.Stacks["wiki"]["lint"].Lane.Off {
+			t.Fatalf("%q: brain = false must turn lint/wiki off", src)
+		}
+		if !reflect.DeepEqual(cfg.Stacks["wiki"], want.Stacks["wiki"]) {
+			t.Fatalf("%q: wiki lanes = %+v, want %+v", src, cfg.Stacks["wiki"], want.Stacks["wiki"])
+		}
+	}
+}
+
+func TestTheBrainModuleOnLeavesTheWikiLaneAlone(t *testing.T) {
+	for _, src := range []string{"", "[modules]\nbrain = true", "[modules]\ngraph = false"} {
+		cfg, err := parse(t, src)
+		if err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		if _, ok := cfg.Stacks["wiki"]; ok {
+			t.Fatalf("%q: wiki lanes = %+v, want none", src, cfg.Stacks["wiki"])
+		}
+	}
+}
+
+func TestABrokenModulesTableFailsTheVerifyConfig(t *testing.T) {
+	_, err := parse(t, "[modules]\nbrain = \"no\"")
+	if err == nil || !strings.Contains(err.Error(), "cfg.toml: [modules] brain must be true or false") {
+		t.Fatalf("err = %v, want the modules error naming the file", err)
+	}
+}
+
+func TestTopKeysAreTheScalarsOfVerify(t *testing.T) {
+	if !slices.Equal(TopKeys(), []string{"max_parallel", "timeout", "profiles"}) {
+		t.Fatal(TopKeys())
+	}
+}
+
+// parseVerify handles the scalars in its own switch; every key TopKeys names
+// must reach a case of its own rather than the unknown-key or stack branches.
+func TestParseVerifyAcceptsEveryTopKey(t *testing.T) {
+	values := map[string]any{"max_parallel": int64(2), "timeout": int64(5), "profiles": map[string]any{}}
+	for _, key := range TopKeys() {
+		if _, err := ParseConfig("", map[string]any{"verify": map[string]any{key: values[key]}}); err != nil {
+			t.Errorf("%s: %v", key, err)
+		}
 	}
 }

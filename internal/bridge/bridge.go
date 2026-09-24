@@ -30,6 +30,11 @@ type Options struct {
 	// Transport is what the host speaks over, and nil means its stdio. It is
 	// the seam a test connects through, the same kind serve.Options.Answer is.
 	Transport mcp.Transport
+	// Tools are what this bridge offers; nil offers every tool. The command
+	// line passes the list filtered by the project's [modules]. Nil rather
+	// than an empty list as the default, so a caller that forgets the field
+	// gets the old behaviour instead of a server with no tools.
+	Tools []*mcp.Tool
 }
 
 // transport is the host's connection, stdio unless a caller named one.
@@ -60,7 +65,11 @@ func Run(ctx context.Context, opts Options) error {
 		SetCacheable: setCacheable,
 	})
 	b := &bridge{opts: opts, ready: make(chan struct{}), hostGone: ctx}
-	for _, tool := range mcptools.Tools() {
+	tools := opts.Tools
+	if tools == nil {
+		tools = mcptools.Tools()
+	}
+	for _, tool := range tools {
 		// Answered here rather than fetched: the descriptions are static, and
 		// asking would put a cold start inside the handshake. The same list
 		// object as the service's, so the two cannot drift.

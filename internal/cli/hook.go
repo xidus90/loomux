@@ -74,6 +74,18 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		// judges against the registry alone.
 		resolved = found
 	}
+	// The guard is not a module: the write barrier is global and protects
+	// other repositories' read-only areas, so no project switches it off.
+	if event != "pre-tool-use" {
+		modules, err := config.ReadModules(resolved)
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux hook %s: %v\n", event, err)
+			return failure
+		}
+		if !modules.Hooks {
+			return 0
+		}
+	}
 	switch event {
 	case "pre-tool-use":
 		return hooks.PreToolUse(stdin, stdout, stderr, resolved, config.StateDir())
