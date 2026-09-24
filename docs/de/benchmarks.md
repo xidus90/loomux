@@ -2051,3 +2051,375 @@ Referenz der erste Lauf der Reihe.
    seit dieser Stufe beim ersten Gebrauch (2 Allokationen). `wiki` steht mit
    seinen drei Regexen aus Stufe 1a bei 131; der neue Leser des Lints baut
    seine Muster erst im Aufruf.
+
+## 2026-09-23 20:21 — Post-edit auf einer .go-Datei, vor dem Blast-Monitor
+
+Repository `loomux`, der Haupt-Checkout, Zweig `feat/code-g4b` auf `219dd0f`
+(der Baum sauber bis auf die zwei neuen Falldateien). `bin/loomux.exe` aus
+diesem Baum gebaut mit Go 1.27.0 `windows/amd64`. Rechner: AMD Ryzen 7
+9800X3D. Die Basis für den post-edit-Hook auf einer Go-Datei, bevor der Hook
+einen Monitor bekommt; der Nachher-Teil ist der Eintrag
+[2026-09-23 22:55](#2026-09-23-2255--post-edit-auf-einer-go-datei-mit-dem-blast-monitor).
+
+**Ziel.** Was der post-edit-Hook heute für ein `Edit` auf einer `.go`-Datei in
+diesem Repository kostet, mit den echten Werkzeugen und dem echten Graphen. Ein
+Zielwert war nicht gesetzt.
+
+**Methode.** Das Protokoll, das der Nachher-Teil wiederholt:
+
+1. `go build -o bin/loomux.new.exe ./cmd/loomux`, dann
+   `go run ./cmd/loomux dev swap-binary --dir bin`.
+2. `bin/loomux.exe graph build`: 555 Dateien, 6551 Knoten, 21706 Kanten (5996
+   contains, 12330 calls, 3380 imports), 897 ms;
+   `.loomux/state/graph/wiring.json` hat 7.161.354 Bytes.
+3. Ein Durchgang, der verworfen wird (Durchgang 1 unten).
+4. Der gezählte Durchgang:
+   `bin/loomux.exe dev bench-hooks testdata/bench/g4b-post-edit.json -n 10`,
+   ein kalter Lauf und zehn warme.
+
+Nutzlast `testdata/bench/edit-go.json`: ein `PostToolUse`-`Edit` auf
+`internal/code/blast/reach.go`, absolut benannt, wie Claude es benennt, mit
+`old_string` gleich `new_string`; die Datei wird nicht angefasst (`git status`
+zeigte nach der Reihe keine Änderung). Die Falldatei nennt die Pfade dieser
+Maschine. Das Edit-Profil fährt laut `bin/loomux.exe check edit --show` die
+Go-Lint-Lane `on_file`: `go vet ./...` über das ganze Repository und
+`{loomux} check gofmt {file}`, parallel. Die Shell-Lane greift bei einer
+`.go`-Datei nicht. Kein Faketool: das sind das echte `go vet` und der echte
+Graph.
+
+| Durchgang (Uhrzeit) | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exitcodes |
+|---|---:|---:|---:|---:|---|
+| 1 (20:20, direkt nach Build, Swap und Graph-Build; verworfen) | 2090,0 ms | 1796,7 ms | 988,1 ms | 1965,7 ms | [0] |
+| 2 (20:20) | 685,9 ms | 657,0 ms | 622,8 ms | 969,0 ms | [0] |
+| 3 (20:21, gezählt) | 644,2 ms | 638,8 ms | 623,6 ms | 964,0 ms | [0] |
+
+Die beiden Lanes allein, um 20:22, über dieselbe Messbank aus einer
+Wegwerf-Falldatei (nicht eingecheckt):
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exitcodes |
+|---|---:|---:|---:|---:|---|
+| go vet ./... (allein) | 628,2 ms | 612,9 ms | 595,8 ms | 647,1 ms | [0] |
+| loomux check gofmt reach.go (allein) | 11,0 ms | 7,5 ms | 7,0 ms | 8,5 ms | [0] |
+
+### Lesart
+
+1. **Die Basis ist 638,8 ms warm.** Der erste Lauf des gezählten Durchgangs 3
+   las 644,2 ms; die kalte Zahl nach einem Neubau ist der erste Lauf von
+   Durchgang 1, 2090,0 ms. Die Durchgänge 2 und 3
+   stimmen im Median auf 18 ms überein (657,0 gegen 638,8), und jeder hat einen
+   Lauf bei etwa 965 ms; das ist die Auflösung dieses Aufbaus. Ein Monitor, der
+   einige zehn Millisekunden kostet, liegt in ihrer Nähe.
+2. **Der erste Durchgang nach einem Neubau ist nicht die Basis.** Durchgang 1,
+   direkt nach `go build`, `swap-binary` und `graph build`, las 1796,7 ms warm
+   und setzte sich noch innerhalb des Durchgangs (Min 988,1 ms). Was sich dabei
+   nachgefüllt hat, ist nicht getrennt gemessen. Der Nachher-Teil verwirft
+   seinen ersten Durchgang genauso.
+3. **`go vet ./...` ist der Preis des Hooks.** 612,9 ms allein gegen 638,8 ms
+   für den ganzen Hook; gofmt auf einer Datei kostet 7,5 ms und läuft neben vet.
+   Für den eigenen Weg von loomux bleiben etwa 26 ms. Der ganze Hook, 638,8 ms,
+   ist das 40-Fache der 15,9 ms aus dem Eintrag vom 2026-09-19, der denselben
+   Hook gegen das Faketool in der Welt `go-only` maß und damit nicht `go vet`.
+
+## 2026-09-23 21:48 — blast-audit über die letzten 50 Commits
+
+Repository `loomux`, Zweig `feat/code-g4b` auf `cad8255`; `bin/loomux.exe`
+aus diesem Baum gebaut mit Go 1.27.0 `windows/amd64` (`go build -o
+bin/loomux.new.exe ./cmd/loomux`, dann `go run ./cmd/loomux dev swap-binary
+--dir bin`). Rechner: AMD Ryzen 7 9800X3D. Nachgespielte Historie: die letzten
+50 First-Parent-Commits von `master` bis `e3cab29c` (v2.7.0), `d902e8fa` bis
+`e3cab29c`. Alle 50 haben einen Elternteil: die Historie ist linear, jeder
+nachgespielte Diff ist also ein Commit, die Einheit, die die Pre-Commit-Lane
+prüft.
+
+**Ziel.** Wie oft `loomux check blast-audit` auf der jüngeren Historie dieses
+Repositorys rot gewesen wäre, für die Schwellen 3, 5 und 10, mit und ohne
+`--skip-test-callers`. Die Zahlen entscheiden Vorgabeschwelle und Zählweise
+der Pre-Commit-Lane. Ein Zielwert war nicht gesetzt.
+
+**Methode.** Ein abgelöster Worktree im Scratchpad der Sitzung, vom ältesten
+Commit an durchlaufen. Für jeden Commit `c` ist der Diff `c~1...c`
+(`--base c~1`, der Worktree auf `c`), geprüft gegen zwei Graphen:
+
+- **Graph von `c~1`** (der Elternstand), noch vom Schritt davor auf der
+  Platte; ihn verlangt der Entwurfstext;
+- **Graph von `c`**, nach dem Checkout neu gebaut. Das ist, was die Lane
+  sieht: `check graph-fresh` läuft zuerst, und `query.Build` liest den Baum
+  auf der Platte, der die gestagte Änderung enthält.
+
+Das Urteil kommt aus stdout, nicht aus dem Exit-Code: `check blast-audit`
+endet auch bei einem Fehler mit 1 (`internal/cli/check.go`), der Exit-Code
+trennt also Befund und Fehler nicht. `R` ist ein Bericht, der mit
+`blast audit:` beginnt, `G` einer, der mit `no area at or above` beginnt, `E`
+alles andere oder alles auf stderr. Die Zahl der Bereiche kommt aus einem
+zusätzlichen Aufruf mit `--threshold 999999`, weil nur der saubere Bericht sie
+nennt. Das Skript im Wortlaut:
+
+```sh
+#!/bin/sh
+# Replays blast-audit over the last 50 first-parent commits of master, oldest
+# first, in one detached worktree. For each commit c and the diff c~1...c it
+# audits twice: once against the graph of c~1 (the parent state, still on disk
+# from the previous step) and once against the graph of c (what the lane sees
+# after graph-fresh has rebuilt from the tree). Each for N = 3, 5, 10, with and
+# without test callers. The verdict comes from stdout, not the exit code:
+# check blast-audit exits 1 both for findings and for errors.
+# R = red, G = green, E = error. areas comes from a call whose threshold no
+# seed reaches, since only the clean report prints the area count.
+set -u
+repo="C:/Users/micro/Documents/#GIT/loomux"
+bin="$repo/bin/loomux.exe"
+out="C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/e346e4ea-8ea8-4af2-b360-1800a79cfdec/scratchpad/e2"
+wt="$out/wt"
+mkdir -p "$out/n3"
+: > "$out/times.txt"
+: > "$out/builds.txt"
+
+# audit <n> <skip> <tag>: prints R, G or E; saves the N=3 reports.
+audit() {
+  t0=$(date +%s%N)
+  "$bin" check blast-audit --root "$wt" --base "$c~1" --threshold "$1" $2 >"$out/stdout" 2>"$out/stderr"
+  t1=$(date +%s%N)
+  echo $(( (t1 - t0) / 1000000 )) >> "$out/times.txt"
+  if [ "$1" = 3 ]; then cat "$out/stdout" "$out/stderr" > "$out/n3/$c-$3${2:+-skip}.txt"; fi
+  if [ -s "$out/stderr" ]; then echo E
+  elif head -1 "$out/stdout" | grep -q '^blast audit:'; then echo R
+  elif head -1 "$out/stdout" | grep -q '^no area at or above'; then echo G
+  else echo E; fi
+}
+
+areas() {
+  "$bin" check blast-audit --root "$wt" --base "$c~1" --threshold 999999 2>/dev/null \
+    | sed -n 's/.*(\([0-9]*\) areas)$/\1/p'
+}
+
+build() {
+  t0=$(date +%s%N)
+  "$bin" graph build --root "$wt" >/dev/null 2>"$out/build-stderr" || echo "build failed at $1" >&2
+  t1=$(date +%s%N)
+  echo $(( (t1 - t0) / 1000000 )) >> "$out/builds.txt"
+}
+
+commits=$(git -C "$repo" rev-list --first-parent --reverse -n 50 master)
+first=$(echo "$commits" | head -1)
+git -C "$repo" worktree add -q --detach "$wt" "$first~1" || { echo "worktree add failed" >&2; exit 2; }
+build "$first~1"
+echo "commit,areas_parent,p3,p5,p10,p3s,p5s,p10s,areas_c,n3,n5,n10,n3s,n5s,n10s"
+for c in $commits; do
+  if ! git -C "$wt" checkout -q --detach "$c"; then echo "$c,ERR_CHECKOUT"; continue; fi
+  line="$c,$(areas)"
+  for skip in "" "--skip-test-callers"; do
+    for n in 3 5 10; do line="$line,$(audit "$n" "$skip" parent)"; done
+  done
+  build "$c"
+  line="$line,$(areas)"
+  for skip in "" "--skip-test-callers"; do
+    for n in 3 5 10; do line="$line,$(audit "$n" "$skip" own)"; done
+  done
+  echo "$line"
+done
+git -C "$repo" worktree remove --force "$wt"
+git -C "$repo" worktree prune
+```
+
+Der Lauf ging von 21:48 bis 21:53. Kein Aufruf endete mit `E`, kein Checkout
+scheiterte, jeder Graph-Neubau gelang.
+
+**Rote Commits von 50.** „alle Aufrufer" ist die Vorgabe-Zählung,
+„ohne Tests" ist `--skip-test-callers`. In Klammern der Anteil an den Commits,
+deren Diff mindestens einen Bereich hatte: 34 beim Graphen von `c`, 18 beim
+Graphen von `c~1` (eine neue Datei steht nicht im Elterngraphen und ist dort
+kein Bereich).
+
+| Graph | Zählweise | N = 3 | N = 5 | N = 10 |
+|---|---|---:|---:|---:|
+| von `c` (was die Lane sieht) | alle Aufrufer | 3/50 = 6 % (3/34) | 1/50 = 2 % (1/34) | 0/50 |
+| von `c` (was die Lane sieht) | ohne Tests | 3/50 = 6 % (3/34) | 1/50 = 2 % (1/34) | 0/50 |
+| von `c~1` (Elternstand) | alle Aufrufer | 2/50 = 4 % (2/18) | 1/50 = 2 % (1/18) | 1/50 = 2 % (1/18) |
+| von `c~1` (Elternstand) | ohne Tests | 1/50 = 2 % (1/18) | 0/50 | 0/50 |
+
+Bereiche je Commit (Graph von `c`): 16 Commits mit 0 Bereichen (Doku,
+Releases, aufgezeichnete Fälle), 14 mit 1–3, 15 mit 4–9, 5 mit 10 oder mehr;
+Median 2, zusammen 175. Rot bei N = 3 nach dieser Größe: 0 von 16, 1 von 14,
+1 von 15, 1 von 5.
+
+**Laufzeit.** Ein Aufruf `check blast-audit --base c~1`: Median 129 ms über
+600 Aufrufe (min 98 ms, max 663 ms), beide Graphen zusammen. Ein `graph build`
+eines Commits: Median 655 ms über 51 Neubauten (min 510 ms, max 2520 ms, der
+erste Neubau im frischen Worktree).
+
+**Die roten Commits, von Hand gelesen.** In der Tabelle kommen vier Commits
+vor; die Berichte bei N = 3:
+
+1. `245be87d` feat(cli): add reindex, embed, reconcile and area add — Graph
+   von `c`, `internal/cli/index.go [none]: refusesArguments in-degree 4` und
+   `internal/cli/maintenance.go [none]: reportReconcileError in-degree 3,
+   germanCount in-degree 3`. **Lärm.** Der Commit bringt `index_test.go`,
+   `index_catchup_test.go` und `maintenance_test.go` mit; sie treiben die
+   Befehle über die Befehlstabelle der CLI, ein Aufruf über einen
+   Funktionswert, den der Graph nicht zeichnet, also „erreicht" keine
+   Testdatei den Bereich.
+2. `d2c45688` feat(vcs): commit named paths onto the current ref — beide
+   Graphen, `internal/brain/vcs/vcs.go [stale]: run in-degree 3`. **Lärm, bei
+   richtigem Signal.** `run` wurde zu einem einzeiligen Umschlag um das neue
+   `runWith`; die unveränderten `vcs`-Tests, die es erreichen, decken das alte
+   Verhalten weiter ab, ein geänderter Test hätte nichts hinzuzufügen.
+3. `a0de5983` feat(apply): write only inside the vault and name every touched
+   file — Graph von `c`, `internal/brain/apply/place.go [none]: refuse
+   in-degree 7, touch 3, gate 6, isScaffoldName 3`. **Lärm.** Die neue Datei
+   kommt mit einem 774-zeiligen `place_test.go`, das diese Methoden auf 34 Zeilen
+   ruft, aber über ein `*place` aus einer Hilfsfunktion; der Graph löst
+   Methodenaufrufe auf einer lokalen Variablen nicht auf, also erreicht der
+   Test nichts.
+4. `df3fb48c` feat(blast): add Resolve with Go package filter, EdgeWalk and
+   Quote — nur im Graphen von `c~1`, bei jedem N,
+   `internal/code/blast/index.go [stale]: New in-degree 11`. **Lärm, aus dem
+   Elterngraphen.** Die neuen `edgewalk_test.go` und `quote_test.go` rufen
+   `New`, stehen aber nicht im Elterngraphen; im Graphen von `c` ist der
+   Bereich grün.
+
+Kein roter Commit war ein echter Befund. Drei von vier sind blinde Flecken des
+Aufrufgraphen (ein Aufruf über einen Funktionswert, ein Methodenaufruf auf
+einer lokalen Variablen, ein Test, der im Elterngraphen fehlt); der vierte ist
+ein Umbau, den seine unveränderten Tests schon abdecken.
+
+### Lesart
+
+1. **Die Rot-Quote ist bei jeder Einstellung niedrig.** Aus Sicht der Lane
+   (Graph von `c`) ist N = 3 auf 3 von 50 Commits rot, N = 5 auf 1, N = 10 auf
+   keinem. Die Sorge „fast jeder Commit rot" hat sich auf dieser Historie
+   nicht bestätigt.
+2. **`--skip-test-callers` ändert aus Sicht der Lane nichts.** Die drei roten
+   Bereiche bei N = 3 sind `none`-Bereiche, und ein `none`-Bereich hat per
+   Definition keinen Testaufrufer; der inDegree ist in beiden Zählungen
+   gleich. Der Schalter wirkt nur auf `stale`-Bereiche, und der eine rote
+   `stale`-Bereich aus Sicht der Lane (`d2c45688`, `run`) hat drei Aufrufer
+   außerhalb von Tests.
+3. **Der Elterngraph ist für die Lane die falsche Basis.** Ihm fehlen neue
+   Dateien als Bereiche (18 gegen 34 Commits mit Bereichen), und er liefert
+   das eine Rot, das die Lane nicht hätte (`df3fb48c`), weil die Tests
+   desselben Commits nicht in ihm stehen. Für die Entscheidung gelten die
+   Zeilen „Graph von `c`".
+4. **Jedes Rot hier ist Lärm.** Den Befund, den die Lane fangen soll, gab es
+   in diesen 50 Commits nicht; die Rots kommen aus Kanten, die der Graph nicht
+   zeichnet. Bei N = 5 bleibt ein Rot (`a0de5983`), bei N = 10 keins.
+5. **Die Kosten sind klein.** 129 ms je Prüfaufruf und ein Graph-Neubau von
+   rund 650 ms, wenn der Baum abgewichen ist; das ist der Preis je Commit.
+
+## 2026-09-23 22:55 — Post-edit auf einer .go-Datei, mit dem Blast-Monitor
+
+Der Nachher-Teil zur Basis in [2026-09-23 20:21 — Post-edit auf einer .go-Datei, vor dem Blast-Monitor](#2026-09-23-2021--post-edit-auf-einer-go-datei-vor-dem-blast-monitor), gemessen nach ihrem Protokoll.
+
+Gemessen um 22:55–22:58 auf `6dcbc00e`, derselbe Zweig, nachdem der Monitor in
+den Hook gebaut war (`internal/hooks/blast_monitor.go`); der Baum sauber.
+Derselbe Rechner, dasselbe Go, dieselbe Falldatei und Nutzlast. Das Protokoll
+jenes Eintrags: `go build -o bin/loomux.new.exe ./cmd/loomux`, `go run ./cmd/loomux
+dev swap-binary --dir bin`, `bin/loomux.exe graph build` (571 Dateien, 6777
+Knoten, 22506 Kanten: 6206 contains, 12795 calls, 3505 imports; 2,527 s;
+`wiring.json` 7.415.396 Bytes = 7,07 MiB), ein verworfener Durchgang, dann
+der gezählte.
+
+Der Monitor läuft nach den Lanes, nur wenn keine rot ist, und nur für eine
+`.go`-Datei. Bei unveränderter Datei haben ihre Symbole dieselben Hashes wie im
+Graphen, er schweigt also: der Hook schrieb nichts auf `stdout`. Für die zweite
+Reihe wurde der Rumpf von `Reach` in `reach.go` geändert (`var hits []Hit` →
+`var hits []Hit // edited`, dieselbe Änderung, die der Go-Benchmark unten
+nachspielt); `go vet` und gofmt bleiben grün, und der Hook schrieb, einmal von
+Hand aufgerufen:
+
+```text
+{"hookSpecificOutput":{"additionalContext":"[graph] internal/code/blast/reach.go: changed Reach; callers in other files:\n  EdgeWalk (internal/code/blast/edgewalk.go)\n  Radius (internal/code/blast/radius.go)\n  signal (internal/code/blast/radius.go)","hookEventName":"PostToolUse"}}
+```
+
+Die Änderung wurde danach zurückgenommen und der Graph aus dem sauberen Baum
+neu gebaut.
+
+| Reihe | Durchgang (Uhrzeit) | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exitcodes |
+|---|---|---:|---:|---:|---:|---|
+| vorher (20:21, `219dd0f`) | 3, gezählt | 644,2 ms | 638,8 ms | 623,6 ms | 964,0 ms | [0] |
+| nachher, Datei unverändert (Monitor schweigt) | 1 (22:55, direkt nach Build, Swap und Graph-Build; verworfen) | 1088,6 ms | 720,0 ms | 707,7 ms | 1639,7 ms | [0] |
+| nachher, Datei unverändert (Monitor schweigt) | 2 (22:55, gezählt) | 716,2 ms | 722,7 ms | 694,8 ms | 798,2 ms | [0] |
+| nachher, Datei unverändert (Monitor schweigt) | 3 (22:55) | 724,3 ms | 762,1 ms | 703,5 ms | 961,8 ms | [0] |
+| nachher, Rumpf von `Reach` geändert (Monitor meldet) | 1 (22:56; verworfen) | 717,2 ms | 713,1 ms | 678,8 ms | 770,6 ms | [0] |
+| nachher, Rumpf von `Reach` geändert (Monitor meldet) | 2 (22:56, gezählt) | 836,0 ms | 738,1 ms | 691,4 ms | 859,7 ms | [0] |
+
+Die beiden Lanes allein, um 22:55, über dieselbe Messbank aus einer
+Wegwerf-Falldatei (nicht eingecheckt), wie vorher:
+
+| Fall | vorher (20:22) warm Median | nachher (22:55) kalt (1. Lauf) | nachher warm Median | nachher warm Min | nachher warm Max |
+|---|---:|---:|---:|---:|---:|
+| go vet ./... (allein) | 612,9 ms | 672,8 ms | 678,0 ms | 643,1 ms | 848,3 ms |
+| loomux check gofmt reach.go (allein) | 7,5 ms | 10,7 ms | 8,0 ms | 7,5 ms | 19,0 ms |
+
+**Der Monitor allein**, `go test ./internal/hooks/ -run '^$' -bench
+BlastAside -benchtime 20x -count=3` um 22:58 (`wiring.json` lesen und
+dekodieren, die bearbeitete Datei parsen, die Hashes vergleichen, eine Ebene
+nach innen laufen). Der Median der drei Zählungen; `BenchmarkBlastAsideScaled`
+schreibt den Graphen dieses Repositorys `k`-mal, jede Id und jeden Pfad unter
+`copyN/`, und ändert den Rumpf von `Reach` in `copy0/`:
+
+| Fall | `wiring.json` | ms je Aufruf (Median aus 3) | die drei |
+|---|---:|---:|---|
+| unverändert (schweigt) | 7,07 MiB | 24,7 | 24,1, 24,7, 25,1 |
+| Rumpf von `Reach` geändert | 7,07 MiB | 27,6 | 25,0, 28,3, 27,6 |
+| k = 1 | 7,41 MiB | 30,4 | 30,6, 28,8, 30,4 |
+| k = 2 | 14,81 MiB | 58,0 | 58,5, 57,4, 58,0 |
+| k = 5 | 37,03 MiB | 148,5 | 148,0, 148,5, 153,2 |
+| k = 10 | 74,07 MiB | 298,8 | 323,3, 298,8, 295,1 |
+| k = 20 | 148,7 MiB | 625,2 | 625,2, 681,8, 589,6 |
+
+Ein einzelner Lauf mit `-count=1` kurz davor, um 22:57, las 23,3 und 22,3 ms
+für die ersten beiden Zeilen, aber 86,4 ms für k = 2 und 312,4 ms für k = 5; er
+fehlt in der Tabelle als der Ausreißer, der er gegen die drei folgenden war.
+(k = 1 ist derselbe Graph wie die Zeile „unverändert“, jede Id und jeder Pfad
+mit dem Präfix `copy0/`; daher 7,41 gegen 7,07 MiB.)
+
+**Die Befehle der Graph-Lane**, je 11 Aufrufe in einer Shell-Schleife, gemessen
+mit `date +%s%N`, der erste Aufruf als kalt, die übrigen zehn als warm:
+
+| Befehl | Zustand | kalt | warm Median | warm Min | warm Max | Exit |
+|---|---|---:|---:|---:|---:|---|
+| `check graph-fresh` | Drift vor jedem Aufruf (ein Kommentar in `reach.go` umgeschaltet), also jeder Aufruf ein Neubau | 582 ms | 597,5 ms | 578 ms | 647 ms | 0, `graph rebuilt` |
+| `check graph-fresh` | keine Drift | 88 ms | 73,5 ms | 68 ms | 105 ms | 0, `graph is fresh` |
+| `check blast-audit --cached` | die Änderung an `reach.go` gestagt; Durchgang 1, 22:56 (verworfen) | 190 ms | 164,5 ms | 106 ms | 362 ms | 1 |
+| `check blast-audit --cached` | dasselbe, Durchgang 2, 22:57 (gezählt) | 105 ms | 110,5 ms | 104 ms | 125 ms | 1 |
+| `git rev-parse --git-path MERGE_HEAD HEAD` | erster Probe-Aufruf von `GraphReady` | 65 ms | 46,5 ms | 43 ms | 57 ms | 0 |
+| `git diff --cached --quiet` | zweiter Probe-Aufruf, etwas gestagt | 58 ms | 52,5 ms | 47 ms | 111 ms | 1 |
+
+`blast-audit --cached` fand mit der Vorgabe-Schwelle 3
+`internal/code/blast/reach.go [stale]: Reach in-degree 3`; mit dem
+`--threshold 5` des Presets ist derselbe Index grün (`no area at or above 5
+callers lacks a changed test (1 areas)`, Exit 0). Danach wurde der Index
+geleert und die Datei zurückgesetzt; kein Commit lief, solange etwas gestagt
+war.
+
+### Lesart
+
+1. **Der Hook ging von 638,8 auf 722,7 ms warm, und das meiste davon ist
+   `go vet`.** `go vet ./...` allein stieg von 612,9 auf 678,0 ms: der Baum
+   wuchs zwischen den beiden Messungen von 555 auf 571 Dateien. Was für den
+   eigenen Weg von loomux bleibt, stieg von etwa 26 auf etwa 45 ms (722,7 −
+   678,0). Der Unterschied, etwa 19 ms, passt zu den 24,7 ms, die der Monitor
+   allein kostet; er läuft nach den Lanes, nicht neben ihnen, und zählt darum
+   ganz.
+2. **Ein Monitor, der meldet, kostet nicht mehr als einer, der schweigt,
+   soweit der Hook es auflöst.** 738,1 gegen 722,7 ms warm liegt innerhalb der
+   40 ms, um die zwei Durchgänge derselben Reihe auseinanderliegen (722,7 und
+   762,1). Im Go-Benchmark kostet der geänderte Rumpf 2,9 ms mehr (27,6 gegen
+   24,7): Parsen und Vergleichen laufen in beiden Fällen, nur Walk und Text
+   kommen dazu.
+3. **Die Kosten sind das Dekodieren von `wiring.json`, linear in seiner
+   Größe.** 58,0, 148,5, 298,8 und 625,2 ms für 14,81, 37,03, 74,07 und
+   148,7 MiB sind 3,9 bis 4,2 ms je MiB. Der Entwurf nahm 12 ms für
+   `store.Read` auf einem Graphen von 3 MB an; bei etwa 4 ms je MiB hält das,
+   aber der Graph dieses Repositorys hat heute 7,07 MiB.
+4. **Der Monitor reißt die 100 ms bei etwa 25 MiB `wiring.json` (k ≈ 3,4).**
+   Linear interpoliert zwischen k = 2 (14,81 MiB, 58,0 ms) und k = 5
+   (37,03 MiB, 148,5 ms), 4,07 ms je MiB; kein gemessener Punkt liegt bei
+   100 ms. Das ist etwa das 3,5-Fache des Graphen dieses Repositorys.
+5. **Die Graph-Lane kostet einen Neubau, wenn der Baum driftete, und etwa
+   180 ms, wenn nicht.** `graph-fresh` braucht 597,5 ms mit Neubau und 73,5 ms
+   ohne; `blast-audit --cached` 110,5 ms warm, sein erster Durchgang streute
+   stärker (106 bis 362 ms). Die Prüfung im Plan, `GraphReady`, legt ihre zwei
+   git-Aufrufe, 46,5 und 52,5 ms, auf jeden Check, der eine Graph-Lane plant,
+   auch wenn die Lane `not-applicable` endet — außer bei der ersten Prüfung,
+   einem fehlenden `wiring.json`, die keinen git-Aufruf kostet.
