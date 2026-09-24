@@ -57,7 +57,7 @@ flowchart TD
         s2c["2c Stop-Tor, Subagenten-Hooks"]:::done
         s3a["3a Erkennen: reindex, embed, reconcile"]:::done
         s3b["3b Entscheiden: cases, case, approve"]:::done
-        s3c["3c Pflegen: brain check, Wiki-Typen · P1"]:::planned
+        s3c["3c Pflegen: brain check, Wiki-Typen"]:::done
         s4["4 init, migrate, lokales Modell, Host-Umstellung · P3"]:::planned
     end
 

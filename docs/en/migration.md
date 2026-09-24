@@ -56,7 +56,7 @@ flowchart TD
         s2c["2c stop gate, subagent hooks"]:::done
         s3a["3a detect: reindex, embed, reconcile"]:::done
         s3b["3b decide: cases, case, approve"]:::done
-        s3c["3c maintain: brain check, wiki types · P1"]:::planned
+        s3c["3c maintain: brain check, wiki types"]:::done
         s4["4 init, migrate, local model, host switch-over · P3"]:::planned
     end
 
