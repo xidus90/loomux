@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.12.1] - 2026-09-24
+
+<https://github.com/xidus90/loomux/pull/28>
+
+### Fixed
+- `loomux approve` writes its line in `log.md` newest first, under one `## YYYY-MM-DD` heading per day as OKF §9 requires, instead of appending it at the end of the file.
+
 ## [2.12.0] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/27>
