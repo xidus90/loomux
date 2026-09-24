@@ -171,7 +171,11 @@ func changedFiles(root string, flags []string, rev string) ([]diff.File, error) 
 	if err != nil || len(files) == 0 {
 		return files, err
 	}
-	args = append([]string{"diff", "--relative", "-M", "--unified=0", "--no-color", "--no-ext-diff", "--no-textconv"}, diffPrefixes...)
+	// Each flag overrides a setting of the user's that would change the
+	// patch: a hunk fused under diff.interHunkContext spans lines nobody
+	// changed and seeds the symbols between them.
+	args = append([]string{"diff", "--relative", "-M", "--unified=0", "--inter-hunk-context=0",
+		"--no-color", "--no-ext-diff", "--no-textconv"}, diffPrefixes...)
 	patch, err := gitOutput(root, append(args, tail...)...)
 	if err != nil {
 		return nil, err
