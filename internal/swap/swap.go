@@ -31,6 +31,11 @@ import (
 // slot returns on the day the last of them ends.
 const oldSlots = 16
 
+// rename is os.Rename, as a variable so that a test can refuse the second
+// rename of a swap -- the one after the old binary is already aside, which no
+// real file on disk can be made to refuse on cue.
+var rename = os.Rename
+
 // Swap moves dir/loomux.new.exe to dir/loomux.exe, keeping the previous one
 // as dir/loomux.old.exe, or as the first free numbered slot beside it when a
 // running process still holds that name.
@@ -40,17 +45,28 @@ func Swap(dir string) error {
 	if _, err := os.Stat(next); err != nil {
 		return fmt.Errorf("no new binary at %s: %w", next, err)
 	}
+	aside := ""
 	if _, err := os.Stat(current); err == nil {
-		aside, err := freeSlot(dir)
+		slot, err := freeSlot(dir)
 		if err != nil {
 			return err
 		}
-		if err := os.Rename(current, aside); err != nil {
+		if err := rename(current, slot); err != nil {
 			return fmt.Errorf("moving %s aside: %w", current, err)
 		}
+		aside = slot
 	}
-	if err := os.Rename(next, current); err != nil {
-		return fmt.Errorf("putting %s in place: %w", next, err)
+	if err := rename(next, current); err != nil {
+		if aside == "" {
+			return fmt.Errorf("putting %s in place: %w", next, err)
+		}
+		// Between the two renames there is no loomux.exe at all, and a bridge
+		// started then would find nothing; a failed swap has to leave the
+		// binary it found.
+		if back := rename(aside, current); back != nil {
+			return fmt.Errorf("putting %s in place: %w; rollback of %s to %s failed too: %w", next, err, aside, current, back)
+		}
+		return fmt.Errorf("putting %s in place: %w; the previous binary is back from %s", next, err, aside)
 	}
 	return nil
 }
