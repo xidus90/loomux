@@ -673,7 +673,8 @@ nichts ersatzlos wegfällt, ohne in einer Liste zu stehen. Eine siebzehnte fand
 am selben Tag die Spec der Stufe 3 (`2026-09-19-loomux-stufe-3-design.md`,
 „Befunde“), eine achtzehnte am 2026-09-23 der Plan von 3c, die zwanzigste
 und einundzwanzigste am 2026-09-24 eine Bestandsliste über alle lokalen
-Zweige beider Repos, nicht nur `master`. Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
+Zweige beider Repos, nicht nur `master`, die zweiundzwanzigste dieselbe
+Durchsicht unter den ungetrackten Dateien. Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
 der Nutzer, erst dann gilt sie.
 
 | # | Quelle | Stelle | Vorschlag | Begründung | Freigabe |
@@ -699,6 +700,7 @@ der Nutzer, erst dann gilt sie.
 | 19 | — | `loomux migrate`, der einmalige Übersetzer für Maschinenzustand und Wirtskonfiguration (Punkte 2 und 4 unter „Datenumzug“) | Wegfall | Die alten Werkzeuge hat nur der Nutzer benutzt, auf einem Rechner und in vier Wirten. Der Maschinenzustand liegt durch die Selbstnutzung seit 3a schon in `%LOCALAPPDATA%\loomux`; die Wirte richtet `init` neu ein. Was bleibt, ist die Checkliste von 4e | freigegeben 2026-09-24 |
 | 20 | ultra-brain | Der nie gemergte Zweig `feature/artefakte-nach-lebensdauer` (44 Commits vor `master`, Stand 2026-09-12; Spec `2026-09-11-artefakte-nach-lebensdauer-design.md` auf `docs/artefakte-nach-lebensdauer`): `graph.json` und `layout.json` ins Zustandsverzeichnis, nur der Wurzelkatalog, ein Register mit Aliasen, in das ein Indexlauf nur Geburten und Umbenennungen schreibt, die Auflösung eines Bereichs aus einem verknüpften Worktree, dazu Fehlerbehebungen am Indexlauf (ein Worktree-Lauf schreibt nicht in die Dateien des Hauptcheckouts, ein Bereichspfad mit abschließendem Trenner, frühere Indexausgabe wird aus dem Baum geräumt) | Vor 4e: den Zweig Commit für Commit gegen `internal/brain/index` und die Registerschreibung lesen; was loomux nicht schon anders löst, wird ein Fix-PR oder eine eigene Zeile, der Rest fällt mit Begründung weg | Die Paritätsfälle von 3a sind gegen `master` aufgezeichnet, das Verhalten des Zweigs hat keiner gesehen. 3a hat dasselbe Problem nur mit `[index] include` und einer offenen Versionierungsfrage behandelt (`parity/stufe-3a.md`) | freigegeben 2026-09-24, vor 4e |
 | 21 | ultraloom | Wiki-Flottenstandard Stufe 2, nicht fertig: auf `claude/wiki-stufe-2` liegen nur `560709c` und `be0011d` (`internal/agenthooks/merge.go` mit Tests), Task 2 von 4 des Plans `2026-09-13-wiki-flottenstandard-stufe-2.md` (nur auf ultraloom-`master`, nicht gepusht). Die Regeln: `.agents/hooks.json` ist eine Map benannter Gruppen, der Name ist die Identität; das Werkzeug besitzt genau eine Gruppe und kodiert jede andere byte-treu aus dem gelesenen JSON neu; kein Besitzerfeld im Hook-Objekt, weil ungemessen ist, ob Antigravity ein unbekanntes Feld duldet; eine fremde Gruppe mit demselben Kommando wird gemeldet, nie repariert; eine Wurzel `null` wird abgelehnt wie jede Nicht-Objekt-Wurzel, mit dem Dateinamen in der Meldung. Task 3 (`ulinit` schreibt die Gruppe) und Task 4 (Nachweis) fehlen | Stufe 4a-2: die Regeln in den Abschnitt „Host-Einträge“ der Stufe-4-Spec, der bisher nur „Fremde Einträge bleiben stehen“ sagt; `merge.go` samt Tests zieht als Ausgangspunkt für den Schreiber von `.agents/hooks.json` um, der Gruppenname wird `loomux`-eigen | Die Zeile „Wiki-Flottenstandard“ unter „Laufende Vorhaben“ setzte voraus, dass die Stufe in ultraloom fertig wird; sie ruht seit dem 2026-09-13, und `init` ist der einzige Ort, an dem sie noch landen kann | freigegeben 2026-09-24, Stufe 4a-2 |
+| 22 | ultraloom | Die Spec `2026-08-24-multi-provider-llm-design.md`, nie committet, nur als ungetrackte Datei im Hauptcheckout von ultraloom; jetzt unverändert unter `specs-ul/`. Agenten-Flows unabhängig vom Anbieter: ein `Model`-Port mit Adaptern für Gemini (`google-genai`) und Claude (`anthropic`), ein eigener Werkzeug-Ausführer (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash`) mit Profilen und dem Schutz von `[verify].tests`, `[agent].provider`/`model`, `--provider`/`--model` | Folgeprojekt Flow, als Eingang seiner Spec | Geschrieben für die Python-Flows von ultraloom, nicht für ulflow. Sie überschneidet sich mit M2 (`claude -p`, `agy -p`), das dieselben zwei Anbieter über ihre CLIs und damit über die Abos anspricht; welcher Weg gilt oder ob beide, entscheidet die Flow-Spec | freigegeben 2026-09-24, Folgeprojekt Flow |
 
 ### Offen nach 3b
 
@@ -760,7 +762,11 @@ In dieser Reihenfolge, je mit eigener Spec:
 
 1. **Flow-Migration.** Basis ist ulflow M1 (`feature/agent-harness`: Laufzeit,
    Journal, Resume, Replay, `internal/flowload`). Dazu M2 (`claude -p`,
-   `agy -p`) und M3 (`verify_until_green` als Daten-Flow). Das Flow-Format ist
+   `agy -p`) und M3 (`verify_until_green` als Daten-Flow). Eingang ist
+   außerdem die Multi-Provider-Spec
+   (`specs-ul/2026-08-24-multi-provider-llm-design.md`, Nachtrag #22): ein
+   `Model`-Port mit SDK-Adaptern und eigenem Werkzeug-Ausführer, der neben
+   oder statt der CLI-Aufrufe aus M2 steht. Das Flow-Format ist
    heute TOML mit Go-Bausteinen und Go-Prädikaten; ob es für den Editor so
    bleibt oder um Ausdrücke erweitert wird, entscheidet dieses Folgeprojekt.
    Bis dahin bleiben `ulflow` und die Python-Flows in ihren Repos benutzbar.
