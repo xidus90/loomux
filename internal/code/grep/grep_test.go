@@ -2,6 +2,8 @@ package grep_test
 
 import (
 	"errors"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -333,5 +335,96 @@ func TestSearchRejectsOnlyUnescapedForms(t *testing.T) {
 		case want != "" && (err == nil || !strings.Contains(err.Error(), want)):
 			t.Errorf("%s: want a %s error, got %v", pattern, want, err)
 		}
+	}
+}
+
+// oneFileGraph is s.go with a function per span, all named as given.
+func oneFileGraph(names ...string) *model.Graph {
+	g := &model.Graph{Nodes: []model.Node{{ID: "s.go", Path: "s.go", Name: "s.go", Kind: model.KindFile, Span: "L1-L10"}}}
+	for i, name := range names {
+		line := strconv.Itoa(i + 1)
+		g.Nodes = append(g.Nodes, model.Node{
+			ID: model.NodeID("s.go#" + line + "." + name), Path: "s.go", Name: name, Kind: "function", Span: model.Span("L" + line + "-L" + line),
+		})
+	}
+	return g
+}
+
+func groupIDs(res grep.Result) []string {
+	var out []string
+	for _, grp := range res.Groups {
+		if grp.Symbol == nil {
+			out = append(out, grp.Path)
+		} else {
+			out = append(out, string(grp.Symbol.ID))
+		}
+	}
+	return out
+}
+
+func TestSearchOrdersGroupsOfOneFile(t *testing.T) {
+	for _, c := range []struct {
+		names []string
+		text  string
+		want  []string
+	}{
+		{[]string{"A", "B"}, "m\nm\n", []string{"s.go#1.A", "s.go#2.B"}},         // already in name order
+		{[]string{"A"}, "m\nm\n", []string{"s.go#1.A", "s.go"}},                  // file level after the symbol
+		{[]string{"Get", "Get"}, "m\nm\n", []string{"s.go#1.Get", "s.go#2.Get"}}, // equal names keep line order
+	} {
+		g := oneFileGraph(c.names...)
+		res, err := grep.Search(g, blast.New(g), nil, "m", grep.Options{}, makeReader(map[string]string{"s.go": c.text}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := groupIDs(res); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%v: groups = %v, want %v", c.names, got, c.want)
+		}
+	}
+}
+
+func TestSearchRanksTheHigherInDegreeFirst(t *testing.T) {
+	g := &model.Graph{
+		Nodes: []model.Node{
+			{ID: "a.go#X", Path: "a.go", Name: "X", Kind: "function", Span: "L1-L1"},
+			{ID: "b.go#Y", Path: "b.go", Name: "Y", Kind: "function", Span: "L1-L1"},
+		},
+		Edges: []model.Edge{{Source: "a.go#X", Target: "b.go#Y", Relation: model.RelationCalls}},
+	}
+	res, err := grep.Search(g, blast.New(g), nil, "m", grep.Options{}, makeReader(map[string]string{"a.go": "m", "b.go": "m"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := groupIDs(res); !reflect.DeepEqual(got, []string{"b.go#Y", "a.go#X"}) {
+		t.Errorf("groups = %v, want b.go#Y (in-degree 1) before a.go#X", got)
+	}
+}
+
+func TestSearchIsCaseSensitiveUnlessAsked(t *testing.T) {
+	g := oneFileGraph("A")
+	read := makeReader(map[string]string{"s.go": "FOO"})
+	for _, opts := range []grep.Options{{Fixed: true}, {}} {
+		res, err := grep.Search(g, nil, nil, "foo", opts, read)
+		if err != nil || res.TotalHits != 0 {
+			t.Errorf("%+v: hits = %d, err = %v, want no hit on FOO", opts, res.TotalHits, err)
+		}
+	}
+}
+
+func TestSearchRefusesTheNinthBackreference(t *testing.T) {
+	g := oneFileGraph("A")
+	if _, err := grep.Search(g, nil, nil, `(a)(b)(c)(d)(e)(f)(g)(h)(i)\9`, grep.Options{}, makeReader(nil)); err == nil || !strings.Contains(err.Error(), "backreference") {
+		t.Errorf(`\9: err = %v, want the backreference refusal`, err)
+	}
+}
+
+func TestSearchUsesTheSpansItIsGiven(t *testing.T) {
+	g := oneFileGraph("A")
+	res, err := grep.Search(g, nil, map[string][]model.SymbolSpan{}, "m", grep.Options{}, makeReader(map[string]string{"s.go": "m"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := groupIDs(res); !reflect.DeepEqual(got, []string{"s.go"}) {
+		t.Errorf("groups = %v, want only the file level -- the given spans hold no symbol", got)
 	}
 }
