@@ -23,8 +23,8 @@ import (
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 	"github.com/xidus90/loomux/internal/dev/recordcase"
-	"github.com/xidus90/loomux/internal/dev/swap"
 	"github.com/xidus90/loomux/internal/gitenv"
+	"github.com/xidus90/loomux/internal/swap"
 )
 
 var benchExec = benchhooks.Exec
