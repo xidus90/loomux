@@ -101,12 +101,16 @@ func blastWith(root string, opts BlastOptions) (BlastAnswer, *model.Graph, []str
 		return BlastAnswer{}, nil, notes, err
 	}
 	ans := BlastAnswer{Range: rng}
+	// A refused file is withheld, not dropped: a test that changed with the
+	// code it covers still makes the signal changed.
+	var withheld []string
 	if opts.Keep != nil {
 		kept := files[:0]
 		for _, f := range files {
 			if opts.Keep(f.Path) {
 				kept = append(kept, f)
 			} else {
+				withheld = append(withheld, f.Path)
 				ans.Hidden++
 			}
 		}
@@ -116,7 +120,7 @@ func blastWith(root string, opts BlastOptions) (BlastAnswer, *model.Graph, []str
 	if depth <= 0 && depth != blast.All {
 		depth = 1
 	}
-	ans.Report = blast.Radius(g, blast.New(g), files, depth)
+	ans.Report = blast.Radius(g, blast.New(g), files, withheld, depth)
 	if opts.Keep != nil {
 		hits := ans.Hits[:0]
 		for _, h := range ans.Hits {

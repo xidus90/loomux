@@ -60,7 +60,7 @@ func radiusGraph() *model.Graph {
 }
 
 func radius(g *model.Graph, depth blast.Depth, files ...diff.File) blast.Report {
-	return blast.Radius(g, blast.New(g), files, depth)
+	return blast.Radius(g, blast.New(g), files, nil, depth)
 }
 
 func changed(path string, lines ...int) diff.File {
@@ -131,6 +131,27 @@ func TestRadiusSignalIsChangedWhenAReachingTestChangedToo(t *testing.T) {
 
 	if rep.Areas[0].Signal != blast.SignalChanged {
 		t.Errorf("signal = %q, want changed", rep.Areas[0].Signal)
+	}
+}
+
+// A withheld path is in the diff for the signal and nowhere else: no area,
+// no walk from it, no evidence.
+func TestRadiusSignalCountsAWithheldTestThatChanged(t *testing.T) {
+	g := radiusGraph()
+	rep := blast.Radius(g, blast.New(g), []diff.File{changed("lib.go", 4)}, []string{"lib_test.go"}, 1)
+
+	if len(rep.Areas) != 1 || rep.Areas[0].Signal != blast.SignalChanged {
+		t.Fatalf("areas = %+v, want lib.go changed", rep.Areas)
+	}
+	for _, e := range rep.Evidence {
+		if e.Node.Path != "lib.go" {
+			t.Errorf("evidence from %s", e.Node.Path)
+		}
+	}
+	for _, h := range rep.Hits {
+		if !reflect.DeepEqual(h.From, []string{"lib.go"}) {
+			t.Errorf("hit %s from %v", h.ID, h.From)
+		}
 	}
 }
 

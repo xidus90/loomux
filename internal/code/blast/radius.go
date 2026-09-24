@@ -70,12 +70,14 @@ type Report struct {
 
 // Radius is the blast radius of a change: per changed file the symbols its
 // hunks touch, what reaches them, and whether a test that reaches them
-// changed too.
+// changed too. withheld are paths of the same diff the caller keeps out of
+// the report: they count as changed for the test signal and are neither
+// areas, walked nor quoted.
 //
 // Ported from trailhq/Graft @ 1e352a3 (MIT), src/blast/blast.ts, with the
 // corrections of the G4 delta: the file node is a seed only when no symbol
 // was hit, and it is walked as itself, not expanded.
-func Radius(g *model.Graph, x *Index, changed []diff.File, depth Depth) Report {
+func Radius(g *model.Graph, x *Index, changed []diff.File, withheld []string, depth Depth) Report {
 	spans := model.FileSpans(g)
 	files := map[string]*model.Node{}
 	for i := range g.Nodes {
@@ -86,6 +88,9 @@ func Radius(g *model.Graph, x *Index, changed []diff.File, depth Depth) Report {
 	inDiff := map[string]bool{}
 	for _, f := range changed {
 		inDiff[f.Path] = true
+	}
+	for _, p := range withheld {
+		inDiff[p] = true
 	}
 	rep := Report{}
 	hitAt := map[model.NodeID]int{}
