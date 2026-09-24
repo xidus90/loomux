@@ -67,4 +67,4 @@ nicht als Vermutung.
 - Was vertagt wird, wird **eingecheckt** — damit es nicht mit dem
   Arbeitsverzeichnis stirbt.
 
-Siehe [Die Scheiben und ihre Abnahmen](scheiben-und-abnahme.md).
+Siehe [Die Stufen und ihre Abnahme](scheiben-und-abnahme.md).
