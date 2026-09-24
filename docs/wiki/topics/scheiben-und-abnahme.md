@@ -1,7 +1,7 @@
 ---
 type: Topic
-title: Die Scheiben und ihre Abnahmen
-description: Acht Scheiben, jede mit einem Fertig-Kriterium, das ohne Codelektüre prüfbar ist.
+title: Die Stufen und ihre Abnahme
+description: Wie loomux in Stufen baut — die fünf Bedingungen einer fertigen Stufe, der Stand jeder Stufe und der Paritätsnachweis.
 open_conflicts: 0
 realization: in_progress
 sources:
@@ -10,75 +10,112 @@ sources:
     doc_id: 01M39G4J14CK311B66GRSAK7HQ
     content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
     revision: 3
+  - id: fusion-spec
+    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md
+    doc_id: 01M39G4J1486TZBN5SM5489MZS
+    content_hash: "sha256:5c91e809fa1a0989c52d1dd7516a6a6b686294bee03e55256cc2ecdfea7972ec"
+    revision: 2
 ---
 
-Der Bau ist in Scheiben zerlegt, und **jede Scheibe trägt ein Fertig-Kriterium,
-das ohne Codelektüre prüfbar ist**. Nach jeder Scheibe läuft das zutreffende
-Messprogramm; eine Scheibe ohne Zahlen gilt nicht als fertig.
+loomux baut in **Stufen**, und **jede Stufe endet grün und wird einzeln
+übergeben**, mit eigenem Plan und, sobald sie fertig ist, eigener
+Paritätsakte. Die Herkunft: ultra-brain zerlegte seinen Bau in acht
+„Scheiben" (0 bis 7) mit je einem Fertig-Kriterium, das ohne Codelektüre
+prüfbar war; mit dem Umzug nach loomux ersetzen die Stufen der Fusions-Spec
+diese Zerlegung.
 
-| # | Scheibe | Fertig, wenn |
+## Eine Stufe ist fertig, wenn
+
+1. alle übersetzten Fälle der Stufe grün sind oder freigegeben in der
+   Abweichungsliste stehen,
+2. die Coverage 100 % ist, jeder Ausschluss begründet,
+3. die Mutationsrunde der Stufe gelaufen ist und ihre Überlebenden
+   dokumentiert sind — ab Stufe 1b, weil `loomux dev mutants` dort entsteht;
+   die Runde von 1b schließt die Entscheidungspakete aus 1a ein,
+4. die Zielwerte der Stufe gemessen und in `docs/en/benchmarks.md` und
+   `docs/de/benchmarks.md` eingetragen sind,
+5. das loomux-Repo die Funktionen der Stufe selbst benutzt.
+
+**Fehlt eine der fünf Bedingungen, ist die Stufe nicht fertig** — auch dann
+nicht, wenn der Code steht.
+
+## Die Stufen
+
+Zwei Spuren laufen nebeneinander: die Fusion der beiden Altrepos und der
+Code-Graph (Säule 3), der **neben** ihr statt hinter ihr gebaut wird, weil
+keine seiner fertigen Stufen eine Abhängigkeit einzieht. 1b, 2 und 3 sind
+je in drei Teilstufen zerfallen, weil jede ihren eigenen Plan und ihre
+eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migration.md`:
+
+| Stufe | Stand | Inhalt |
 |---|---|---|
-| 0 | Fundament ohne Code | Suchleiter läuft im Alltag; Vergleich mit und ohne einmal gefahren; Spike: trägt qmd sprachübergreifend? |
-| 1 | Indexer | zwei Läufe auf unverändertem Bestand erzeugen **byteweise identische** Dateien |
-| 2a | Suchkette ohne Daemon | die fünf schreibfreien Werkzeuge laufen als direkte CLI über drei externe Bestände; Datenschutznachweis; leeres Ergebnis von Fehler unterscheidbar |
-| 2b | Messwerk | `brain bench` in allen Profilen und mit Latenzmessung gelaufen, Protokolle im Vault |
-| 2c | Daemon, IPC und MCP | Daemon hält Index und Modelle, Klient startet ihn; der MCP-Adapter setzt auf denselben Kern; Datenschutznachweis über den echten Kanal wiederholt |
-| 3 | Wiki-Schicht plus die zwei Skills | präparierte Notiz: drei Widersprüche markiert, harmlose Ergänzung eingearbeitet, nichts überschrieben, die Konfliktzahl stimmt; eine Recherche landet auf Wunsch als Entwurf im Wiki |
-| 4 | Import und Konverter | zwei Transkripte ergeben zweimal hintereinander dieselbe Datei, mit Absätzen statt Zeitstempelfragmenten |
-| 5 | Brain Maintenance plus Merge-Hook | nachgebauter Fall vollständig durchlaufen; Selbstheilung beim Umbenennen; erfundenes Zitat fällt durch, wörtliches geht durch; im Analysepaket **kein Quelltext** |
-| 6 | Lokales Modell (opt-in) | Vorschlag ohne ausgehenden Verkehr; Gegenprobe abgeschaltet ebenfalls ohne Verkehr |
-| 7 | Web-App | Freigabe in der App erzeugt dieselben Wirkungen wie über die CLI |
+| 1a | ✅ | Pilot: Repo-Gerüst, Tore, vereinter Wächter, Post-Edit-Lanes |
+| 1b-1 | ✅ | die lesenden Brain-Befehle mit Parität zur Python-Referenz |
+| 1b-2 | ✅ | `serve` mit MCP und die stdio-Brücke |
+| 1b-3 | ✅ | Wiki und Dokumentation umgezogen |
+| 2a | ✅ | die Prüfkette `[verify]`, `loomux check <profil>` |
+| 2b | ✅ | commit-msg mit `--language`, `--calibrate`, `[commit]` |
+| 2c | ✅ | Stop-Tor, `subagent-start`/`-stop`, Host-Adapter |
+| 3a | ✅ | Erkennen: `reindex`, `embed`, `reconcile`, `area add` |
+| 3b | ✅ | Entscheiden: `cases`, `case`, `approve` |
+| 3c | ✅ | Pflegen: `brain check`, `lint --scope`, `wiki init\|types\|retype` |
+| 4a-1 | 🚧 | Schema und `loomux config`; gebaut, Schritte des Menschen offen |
+| 4a-2 | offen | `loomux init` |
+| 4c | offen | das lokale Modell |
+| 4d | offen | `convert` und `fetch` |
+| 4e | offen | Umstellung der Wirte, eine Checkliste ohne Code |
+| G1–G4b | ✅ | Rang, Blast-Radius, Extraktor, Abfrage, Navigation, Diff-Blast |
+| G4c | offen | Stop-Hook mit Blast-Logik |
+| G5 | offen | mehrsprachige Extraktion über `wazero` |
 
-## Warum Scheibe 2 dreigeteilt ist
+Eine Teilstufe 4b gibt es nicht. `loomux migrate` fällt weg: den
+Maschinenzustand hat die Selbstnutzung seit 3a schon umgezogen, die Wirte
+richtet `init` neu ein. Flow und das Web-OS (W1–W5) sind Folgeprojekte mit
+eigener Spec.
 
-Ihr Fertig-Kriterium bündelte vier Teilsysteme in einem Satz — und die Messung,
-die über das Prozessmodell entscheiden soll, hätte sonst mitten in der Scheibe
-gelegen, deren Bau sie bestimmt. **2a baut die Kette, 2b misst sie, 2c setzt den
-Daemon darunter.** Der Datenschutznachweis steht in 2a, weil der Kanal dort zum
-Begriff wird; 2c wiederholt ihn nur am echten Adapter.
+## Reihenfolge der offenen Stufen
 
-## Der Plan je Scheibe
+Drei Regeln, der Reihe nach: **zuerst, was seine Abhängigkeiten schon
+zulassen; dann, was loomux an sich selbst benutzt; dann die Größe.** Daraus
+folgt G4c auf Priorität 2, Stufe 4 auf 3 (in sich 4a-1 → 4a-2 → 4c → 4d,
+dann 4e), Flow auf 4, W1–W5 auf 5 und G5 auf 6. Ohne Stufe 4 bleiben die
+alten Repos im Dienst, und die Umstellung der Wirte braucht vorher einen
+Remote für `brain-knowledge`.
 
-Jede gebaute Scheibe hat eine eigene Planseite; sie führt die Aufgaben und das,
-was die Ausführung am Plan widerlegt hat.
+## Der Paritätsnachweis
 
-- 0 — [Fundament ohne Code](../sources/plan-scheibe-0-fundament.md)
-- 1 — [Indexer](../sources/plan-scheibe-1-indexer.md)
-- 2a — [Suchkette ohne Daemon](../sources/plan-scheibe-2a-suchkette.md), dazu
-  die [Nacharbeit nach der Abnahme](../sources/plan-scheibe-2a-nacharbeit.md)
-- 2b — [Messwerk](../sources/plan-scheibe-2b-messwerk.md), dazu der
-  [Prüfkorpus v1](../sources/plan-pruefkorpus-v1.md)
-- 2c — [Daemon, IPC und gehaltener Unterprozess](../sources/plan-scheibe-2c1-daemon.md)
-  und [MCP-Fronten](../sources/plan-scheibe-2c2-mcp-fronten.md)
+Was eine der beiden Altseiten konnte, kann loomux am Ende auch, **oder die
+Abweichung steht mit Begründung und Freigabe in einer Liste**. Vor jeder Stufe
+wird das Verhalten der alten Form von einem getaggten Commit aufgezeichnet —
+Erfolgs-, Ablehnungs- und Fehlerfälle — und unter `testdata/cases/` als
+Fallkorpus übersetzt; der Originalfall bleibt als Beleg daneben.
 
-## Reihenfolge
+- **Daten** (`search`, `catalog`, `read`, `neighbors`, `status`): stdout
+  exakt.
+- **Meldungen** (Wächter, Hooks, `check`): Exit-Code und Dateiwelt exakt,
+  Text frei.
 
-Scheibe 3 und 4 hängen nur am Kern, nicht aneinander; Scheibe 5 braucht beide;
-die Web-App braucht alle. Sie entsteht nach dem Muster „Zielbilder zuerst":
-Mockups erzeugen, dann Schritt für Schritt nachbauen mit Abnahme im Browser —
-keine Beschreibungen als Auftrag.
+Die Abweichungsliste liegt je Stufe unter `docs/.superpowers/parity/`; jeder
+Eintrag nennt Fall, altes und neues Verhalten, Begründung und Freigabe.
 
 ## Bau- und Qualitätsregeln
 
-TDD mit dem fehlschlagenden Test zuerst; **100 % Coverage, gemessen**,
-Ausschlüsse nur mit begründendem Kommentar; keine ungeprüften Typen;
-Python ≥ 3.14; `uv` für alles. **Kein Sprachmodell in Tests** — der
-Prüfvorschlag wird gegen aufgezeichnete Antworten geprüft, und die Suche steht
-in Tests hinter einer Attrappe. Reproduzierbarkeit ist Pflicht: gleiche Eingabe,
-byteweise gleiche Ausgabe.
+TDD je Task; **100 % Coverage je Funktion**, jeder Ausschluss mit Begründung
+im Code. Umgezogene Go-Pakete bringen ihre Tests mit und werden beim Umzug auf
+100 % gehoben oder bekommen begründete Ausschlüsse; neuer Code entsteht
+test-first. Golden-Dateien halten die Antwortformen von Claude und
+Antigravity fest; `loomux dev mutants` fährt je Stufe eine Mutationsrunde
+über die Entscheidungspakete, und `loomux dev bench-hooks` misst die
+Zielwerte jeder Stufe mit demselben Werkzeug. **Externe Programme** — qmd,
+Ollama, `pdftotext`, `yt-dlp`, Git-Remotes — werden an der Prozessgrenze
+durch Stubs ersetzt, deren Antworten aus einem echten, einmal
+aufgezeichneten Lauf stammen.
 
-Bis zum Umzug am 2026-09-16 hieß diese Zerlegung „Scheiben" und war Python;
-loomux baut in **Stufen** (1a, 1b, 2, 3, 4) und ist Go, sonst gelten die Regeln
-unverändert. Die Abnahme ist dabei enger gefasst: Eine Stufe ist fertig, wenn
-alle übersetzten Fälle grün sind oder freigegeben in der Abweichungsliste
-stehen, die Coverage 100 % ist und jeder Ausschluss begründet, die
-Mutationsrunde der Stufe gelaufen ist und ihre Überlebenden dokumentiert sind
-(ab Stufe 1b, weil `loomux dev mutants` dort entsteht; die Runde von 1b
-schließt die Entscheidungspakete aus 1a ein), die Zielwerte der Stufe gemessen
-und in `docs/en/benchmarks.md`
-und `docs/de/benchmarks.md` eingetragen sind, und das loomux-Repo die
-Funktionen der Stufe selbst benutzt.
+Die Sprache ist Go ≥ 1.25; Python bleibt nur in den Projekten, die loomux
+prüft, nicht im Produkt. Die Tore von loomux selbst fahren
+`loomux check precommit` — `gofmt`, `go vet`, `go test` mit 100 % Coverage.
 
-Siehe auch [Suche, Profile und Messwerte](suche-und-profile.md) und
-[Die Wiki-Schicht](wiki-schicht.md); Quelle ist
-[Architektur-Design ultra-brain](../sources/architektur-spec.md).
+Siehe auch [Suche, Profile und Messwerte](suche-und-profile.md),
+[Die Wiki-Schicht](wiki-schicht.md) und
+[Grundsätze und Vertrauenskette](architektur-grundsaetze.md); Quellen sind
+die Fusions-Spec und, für die Herkunft, das Architektur-Design ultra-brain.

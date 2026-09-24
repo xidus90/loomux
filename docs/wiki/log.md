@@ -6,6 +6,40 @@
 
 ## 2026-09-24
 
+- 2026-09-24 — `topics/datenmodell-und-bereiche.md`,
+  `topics/suche-und-profile.md`: verweisen auf die beiden neuen Seiten.
+- 2026-09-24 — `topics/schreibschranke.md`: neu. Registry, Manifest und
+  Policy, verknüpfte Worktrees und `open.toml`. Quelle:
+  `docs/.superpowers/specs/2026-09-15-loomux-schranke-worktrees-design.md`,
+  `…-samerepo-design.md`, `2026-09-24-schranke-open-toml-design.md`; Code von
+  loomux (`internal/brain/guard`, `internal/config`).
+- 2026-09-24 — `topics/code-graph.md`: neu. Extraktion, Rang und
+  Blast-Radius, `graph`-Befehle und die sieben `graph_*`-Werkzeuge; wo die Spec
+  überholt ist, steht der gebaute Stand. Quelle:
+  `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md`, Code von
+  loomux (`internal/code`), Migrationsplan.
+- 2026-09-24 — `topics/wiki-schicht.md`: gegen die Spec der Stufe 3
+  verdichtet — zwei Regelsätze im Lint, die Wiki-Werkzeuge, der Commit einer
+  Freigabe, die Skills noch nicht in loomux; `implemented_in` auf `db780a0`.
+  Quelle: `docs/.superpowers/specs/2026-09-19-loomux-stufe-3-design.md`,
+  `…/2026-09-23-loomux-stufe-4-design.md`.
+- 2026-09-24 — `topics/brain-maintenance.md`: gegen die Specs der Stufen 3
+  und 4 verdichtet — Teilstufen 3a bis 3c, Auffangdurchgang vor `reindex`,
+  Prüfzentrum, Ablauf einer Freigabe, der geerbte Fehler von `--reject`, die
+  Kandidaten des Merge-Auslösers. Quelle: wie oben.
+- 2026-09-24 — `topics/architektur-grundsaetze.md`: Grundsätze der Fusion
+  ergänzt, das lokale Modell als Absicht datiert, `realization` auf
+  `in_progress`; Konfliktkasten zu Grundsatz 5 gegen das Fehlerverhalten der
+  Fusion, `open_conflicts` auf 1. Quelle:
+  `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`.
+- 2026-09-24 — `topics/scheiben-und-abnahme.md`: heißt „Die Stufen und ihre
+  Abnahme“; die Scheiben von ultra-brain durch die Stufen von loomux ersetzt,
+  mit Fertig-Bedingungen, Stand jeder Stufe, Reihenfolge und Paritätsnachweis.
+  Quelle: `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`,
+  Migrationsplan.
+- 2026-09-24 — `sources/`: alle elf Source-Seiten gelöscht. Die Rohquellen
+  liegen im selben Repo und stehen im Register; die Seiten zitieren sie direkt
+  (`_schema.md`). Die Links auf die gelöschten Seiten sind Text geworden.
 - 2026-09-24 — `topics/wiki-schicht.md`: `loomux lint --scope` und
   `loomux brain check` aus Stufe 3c ergänzt; die Regeln, die es in Go „noch
   nicht“ gab, sind gebaut. Quelle: Code von loomux (`internal/brain/wiki`,

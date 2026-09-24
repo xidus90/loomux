@@ -58,5 +58,5 @@ Ingest braucht kein Werkzeug, weil Claude Wiki-Seiten als normale Dateien
 schreibt. **Ein Sprachmodell kann über diese Schnittstelle nichts am Wissen
 ändern.**
 
-Quelle: [Architektur-Design ultra-brain](../sources/architektur-spec.md); der
+Quelle: Architektur-Design ultra-brain; der
 Ort der Bereiche steht unter [Datenmodell und Bereiche](datenmodell-und-bereiche.md).

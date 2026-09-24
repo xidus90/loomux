@@ -66,7 +66,7 @@ Zwei weitere Befunde derselben Messreihe:
 - **Das frühere `fast` gab es nie.** Die Kette „Frageerweiterung ohne Reranker"
   existiert bei qmd 2.8.3 nicht — die Definition war eine ungeprüfte Annahme
   über ein fremdes Werkzeug. Damit fiel auch ein viertes Profil weg, das
-  denselben Befehl aufrief. Der [Plan der Scheibe 0](../sources/plan-scheibe-0-fundament.md)
+  denselben Befehl aufrief. Der Plan der Scheibe 0
   führt diese alte Definition noch und leitet daraus **zwei** getrennte
   Nachfolgeläufe ab; unter qmd 2.8.3 sind beide derselbe Aufruf, und der eine
   verbliebene Lauf beantwortet beide Fragen.
@@ -149,4 +149,7 @@ leeren Treffersatz — ein Fehler, der sich als Ergebnis tarnt, und die
 gefährlichste Sorte, weil „nichts gefunden" plausibel klingt und niemand sie
 nachprüft.
 
-Quelle: [Architektur-Design ultra-brain](../sources/architektur-spec.md).
+Die Suche im Quelltext statt im Wissen beschreibt
+[Der Code-Graph](code-graph.md).
+
+Quelle: Architektur-Design ultra-brain.

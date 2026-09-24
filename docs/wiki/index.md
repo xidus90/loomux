@@ -3,7 +3,6 @@
 ## Bereiche
 
 * [entities](entities/)
-* [sources](sources/)
 * [syntheses](syntheses/)
 * [topics](topics/)
 
