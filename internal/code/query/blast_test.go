@@ -492,3 +492,32 @@ func TestBlastKeepsHunksApartUnderInterHunkContext(t *testing.T) {
 		t.Fatalf("hunks %v, want %v", got, want)
 	}
 }
+
+// A refused test that changed with the code it covers still says so: the
+// signal is changed, while the test is neither an area, a hit nor named.
+func TestBlastCountsARefusedTestThatChangedAsChanged(t *testing.T) {
+	root := gitRepo(t)
+	editAdd(t, root)
+	p := filepath.Join(root, "calc", "calc_test.go")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(strings.Replace(string(data), "t.Fail()", "t.FailNow()", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a, _, err := Blast(root, BlastOptions{NoRefresh: true, Keep: func(p string) bool { return p != "calc/calc_test.go" }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Areas) != 1 || a.Areas[0].Path != "calc/calc.go" || a.Areas[0].Signal != blast.SignalChanged || len(a.Areas[0].Tests) != 0 {
+		t.Fatalf("areas = %+v", a.Areas)
+	}
+	// The changed file, its path as the area's test and TestAdd as a hit.
+	if slices.Contains(hitNames(a), "TestAdd") || a.Hidden != 3 {
+		t.Errorf("hits = %v, hidden = %d", hitNames(a), a.Hidden)
+	}
+	if strings.Contains(BlastReport(a), "calc_test.go") {
+		t.Errorf("report names the refused test:\n%s", BlastReport(a))
+	}
+}
