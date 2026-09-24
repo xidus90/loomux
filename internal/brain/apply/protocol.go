@@ -98,6 +98,35 @@ func Append(existing, block string) string {
 	return existing + "\n\n" + block
 }
 
+// LogInsert is the text `log.md` holds once line is recorded: OKF §9 wants
+// "a flat list of date-grouped entries, newest first", so line goes before
+// the first entry, not after the last as Append would put it. Under the
+// heading of now's day (UTC, as LogLine dates) it becomes that day's first
+// entry; otherwise a new day group opens in front. Title and preamble stay
+// on top, and a log of undated lines from before the headings keeps them
+// below the new group.
+//
+// This is where loomux leaves the reference, which appends the log as it
+// appends the audit.
+func LogInsert(existing string, now time.Time, line string) string {
+	heading := "## " + now.UTC().Format(time.DateOnly)
+	offset := 0
+	for _, raw := range strings.SplitAfter(existing, "\n") {
+		text := strings.TrimRight(raw, "\r\n")
+		if strings.HasPrefix(text, "## ") || strings.HasPrefix(text, "- ") || strings.HasPrefix(text, "* ") {
+			before, rest := existing[:offset], existing[offset:]
+			if text == heading {
+				// The day's entries follow the blank line below its heading.
+				rest = strings.TrimLeft(rest[len(raw):], "\r\n")
+				return before + heading + "\n\n" + line + rest
+			}
+			return before + heading + "\n\n" + line + "\n" + rest
+		}
+		offset += len(raw)
+	}
+	return Append(existing, heading+"\n\n"+line)
+}
+
 // Unrecorded reports whether note is a new outcome for a case whose last
 // recorded note is last, as `_unrecorded` compares `case.note` with the
 // note about to be written. The audit block of a stopped decision is

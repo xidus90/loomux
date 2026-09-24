@@ -73,6 +73,13 @@ func claimHeadings(proposal string) ([]string, error) {
 // protocol is read as it stands, line endings and all, and strictly as
 // UTF-8, as `read_text(encoding="utf-8", newline="")` reads it.
 func (p *place) appendProtocol(path, block string) error {
+	return p.rewriteProtocol(path, func(existing string) string { return Append(existing, block) })
+}
+
+// rewriteProtocol reads a protocol the way appendProtocol describes and
+// writes back what edit makes of it; `log.md` takes LogInsert here, where
+// the reference appends it like the audit.
+func (p *place) rewriteProtocol(path string, edit func(existing string) string) error {
 	existing := ""
 	if isFile(path) {
 		data, err := readBytes(path)
@@ -84,5 +91,5 @@ func (p *place) appendProtocol(path, block string) error {
 		}
 		existing = string(data)
 	}
-	return p.writeScaffold(path, Append(existing, block))
+	return p.writeScaffold(path, edit(existing))
 }

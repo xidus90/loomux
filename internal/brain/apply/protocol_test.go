@@ -152,6 +152,41 @@ func TestAppendMatchesTheReference(t *testing.T) {
 	}
 }
 
+func TestLogInsertPutsTheNewestFirst(t *testing.T) {
+	// OKF §9: "a flat list of date-grouped entries, newest first", each day
+	// under a `## YYYY-MM-DD` heading. The day is taken in UTC, as LogLine's.
+	now := time.Date(2026, 9, 25, 0, 30, 0, 0, time.FixedZone("x", 2*3600))
+	const head = "# Protokoll\n\n> Vorspann.\n\n"
+	const line = "- 2026-09-24 — `neu.md`\n"
+	cases := []struct {
+		name, existing, want string
+	}{
+		{"empty", "", "## 2026-09-24\n\n" + line},
+		{"no entry yet", head, head + "## 2026-09-24\n\n" + line},
+		{"no entry yet, no trailing newline", "# Protokoll", "# Protokoll\n\n## 2026-09-24\n\n" + line},
+		{"an older day",
+			head + "## 2026-09-20\n\n- alt\n",
+			head + "## 2026-09-24\n\n" + line + "\n## 2026-09-20\n\n- alt\n"},
+		{"the same day",
+			head + "## 2026-09-24\n\n- früher\n\n## 2026-09-20\n\n- alt\n",
+			head + "## 2026-09-24\n\n" + line + "- früher\n\n## 2026-09-20\n\n- alt\n"},
+		{"the same day, checked out with CRLF",
+			"# P\r\n\r\n## 2026-09-24\r\n\r\n- früher\r\n",
+			"# P\r\n\r\n## 2026-09-24\n\n" + line + "- früher\r\n"},
+		{"lines without headings",
+			head + "- 2026-09-17 — alt\n",
+			head + "## 2026-09-24\n\n" + line + "\n- 2026-09-17 — alt\n"},
+		{"star entries without headings",
+			head + "* alt\n",
+			head + "## 2026-09-24\n\n" + line + "\n* alt\n"},
+	}
+	for _, c := range cases {
+		if got := LogInsert(c.existing, now, line); got != c.want {
+			t.Errorf("%s: LogInsert =\n%q\nwant\n%q", c.name, got, c.want)
+		}
+	}
+}
+
 func TestUnrecordedComparesTheLastNote(t *testing.T) {
 	cases := []struct {
 		last, note string
