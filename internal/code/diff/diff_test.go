@@ -265,3 +265,21 @@ func TestParseHunkHeaderNeedsMinusThenPlus(t *testing.T) {
 		t.Errorf("header without the closing @@ = %+v, %v, want From 4", h, err)
 	}
 }
+
+// With diff.interHunkContext set, git fuses near hunks even under
+// --unified=0: the context line between them counts in both header counts,
+// and the next file's headers must still be read as headers.
+func TestApplyHunksCountsAContextLineOfAMergedHunk(t *testing.T) {
+	files := []File{{Status: Modified, Path: "f"}, {Status: Modified, Path: "g"}}
+	patch := "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,3 +1,3 @@\n-a\n+A\n b\n-c\n+C\n" +
+		"diff --git a/g b/g\n--- a/g\n+++ b/g\n@@ -2 +2 @@\n-2\n+X\n"
+	if err := ApplyHunks(files, strings.NewReader(patch)); err != nil {
+		t.Fatal(err)
+	}
+	if h := files[0].Hunks; len(h) != 1 || h[0].From != 1 || h[0].To != 3 || !reflect.DeepEqual(h[0].Lines, []string{"-a", "+A", "-c", "+C"}) {
+		t.Fatalf("f hunks %+v", h)
+	}
+	if h := files[1].Hunks; len(h) != 1 || h[0].From != 2 || h[0].To != 2 || !reflect.DeepEqual(h[0].Lines, []string{"-2", "+X"}) {
+		t.Fatalf("g hunks %+v", h)
+	}
+}
