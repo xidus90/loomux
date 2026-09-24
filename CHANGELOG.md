@@ -4,6 +4,15 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.9.1] - 2026-09-24
+
+<https://github.com/xidus90/loomux/pull/23>
+
+### Fixed
+- On Windows a `*` in a `[policy]` path glob no longer matches across `/`; use `/**` to guard a whole tree. A glob ending in a lone backslash is now refused when the config loads.
+- `graph grep` no longer rejects valid patterns such as `\\1` (a literal backslash before a digit) or `\(?=` as unsupported.
+- On Windows, git variables such as `git_dir` spelled in lower or mixed case are no longer passed to loomux's git child processes.
+
 ## [2.9.0] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/22>
