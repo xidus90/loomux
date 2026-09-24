@@ -47,7 +47,7 @@ const (
 type Hunk struct {
 	From    int      `json:"from"`
 	To      int      `json:"to"`
-	Lines   []string `json:"lines,omitempty"`   // '+' and '-' lines, capped
+	Lines   []string `json:"lines,omitempty"`   // '+' and '-' lines, capped; context is left out
 	Omitted int      `json:"omitted,omitempty"` // lines beyond the caps
 }
 
@@ -104,7 +104,9 @@ func ParseNameStatus(r io.Reader) ([]File, error) {
 // ApplyHunks reads `git diff --unified=0` and attaches each hunk to the file
 // of files with the same post-image path. Files the patch names but files
 // lacks are skipped. Hunk bodies are consumed by their header counts, so a
-// removed line that reads like a "--- " header stays a line.
+// removed line that reads like a "--- " header stays a line. A hunk git fused
+// under diff.interHunkContext keeps its context lines inside From..To, so a
+// caller that maps ranges to symbols pins --inter-hunk-context=0.
 func ApplyHunks(files []File, r io.Reader) error {
 	byPath := make(map[string]*File, len(files))
 	for i := range files {
@@ -130,6 +132,12 @@ func ApplyHunks(files []File, r io.Reader) error {
 				oldLeft--
 			case strings.HasPrefix(line, "+"):
 				newLeft--
+			case strings.HasPrefix(line, " "):
+				// Context between hunks git fused under
+				// diff.interHunkContext: in both images, changed in neither.
+				oldLeft--
+				newLeft--
+				continue
 			default: // "\ No newline at end of file"
 				continue
 			}
