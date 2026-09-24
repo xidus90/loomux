@@ -92,9 +92,9 @@ druckt die wirksame Tabelle (siehe
 max_parallel = 8        # Prozesse gleichzeitig; Vorgabe: Zahl der CPUs
 timeout      = 600      # Sekunden je Befehl; Vorgabe 600, keine Obergrenze
 
-[verify.profiles]       # eingebaut: edit = [lint, types], precommit = stop = alle vier
+[verify.profiles]       # eingebaut: edit = [lint, types], precommit = alle fünf, stop = alle außer graph
 edit      = ["lint", "types"]
-precommit = ["lint", "types", "test", "coverage"]
+precommit = ["lint", "types", "test", "coverage", "graph"]
 stop      = ["lint", "types", "test", "coverage"]   # was das Stop-Tor am Rundenende fährt
 
 [verify.go]             # je Stack; nicht genannte Stacks behalten ihr Preset
@@ -131,10 +131,10 @@ eigenen Top-Level-Tabelle `[commit]` konfiguriert (siehe unten).
 
 #### Arten, Profile und reservierte Namen
 
-Es gibt vier Arten, in dieser Reihenfolge: `lint`, `types`, `test`,
-`coverage`. Eine Anfrage an `loomux check` ist ein Profil, `all` (immer alle
-vier Arten) oder eine Komma-Liste von Arten (`lint,types`). Die Namen `gofmt`,
-`commit-msg`, `gocover`, `all`, `lint`, `types`, `test` und `coverage` sind
+Es gibt fünf Arten, in dieser Reihenfolge: `lint`, `types`, `test`,
+`coverage`, `graph`. Eine Anfrage an `loomux check` ist ein Profil, `all` (immer alle
+fünf Arten) oder eine Komma-Liste von Arten (`lint,types`). Die Namen `gofmt`,
+`commit-msg`, `gocover`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage` und `graph` sind
 reserviert; ein Profil mit einem davon ist ein Ladefehler. `stop` ist nicht
 reserviert: es ist ein eingebautes Profil wie `edit` und `precommit`, und ein
 Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
@@ -172,7 +172,7 @@ Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
 
 #### Die Formen einer Art
 
-Eine Stack-Tabelle kennt die Schlüssel `lint`, `types`, `test`, `coverage`
+Eine Stack-Tabelle kennt die Schlüssel `lint`, `types`, `test`, `coverage`, `graph`
 (und `import_check` in `[verify.gdscript]`). Jede Art ist eins von:
 
 | Form | Beispiel | Bedeutung |
@@ -297,6 +297,53 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   selbst.
 - GDScript hat kein Coverage-Preset.
 
+#### Die Art `graph`
+
+Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
+erreicht. Ein Preset hat nur Go:
+
+```toml
+[stack.go.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+```
+
+`graph-fresh` baut einen gedrifteten Graphen neu; `blast-audit --cached` ist
+rot, wenn ein gestagter Bereich einen Seed mit mindestens fünf Aufrufern hat
+(Aufrufer in Tests zählen mit) und kein geänderter Test ihn erreicht (siehe
+[CLI-Referenz](cli-reference.md#loomux-check-blast-audit---root-pfad---cached----base-ref---threshold-n---skip-test-callers)).
+Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
+`graph-fresh`, gegen den Graphen auf der Platte; die Lane ist dann ohnehin rot.
+
+- **Eine Lane je Stack, in der Wurzel.** Der Graph gehört der Projektwurzel;
+  ein Stack mit mehreren Bereichen bekommt trotzdem ein `graph/go`, nicht
+  einen Neubau je Bereich.
+- **Nur in einem Check.** Im Edit-Scope plant `graph` gar keine Lane, wie
+  eine Art ohne Befehl: ein Profil `edit` mit `graph` baut bei einem Edit nie
+  neu.
+- **Eine Prüfung entscheidet, bevor die Lane startet.** `loomux check` fragt
+  in dieser Reihenfolge, ob `.loomux/state/graph/wiring.json` existiert, ob es
+  ein `HEAD` gibt (`git rev-parse --git-path MERGE_HEAD HEAD`), ob kein Merge
+  läuft und ob etwas gestagt ist (`git diff --cached --quiet`). Das erste
+  „nein“ macht die Lane `not-applicable` mit diesem Grund, und das Urteil
+  bleibt grün. Die Lane ist darum lokal: `not-applicable` in CI und in jedem
+  frischen Klon (`.loomux/state/` wird nicht eingecheckt), bei einem
+  manuellen `loomux check precommit` ohne gestagte Änderungen, bei
+  `commit --amend` ohne neue Änderungen, während eines Merges und beim
+  Root-Commit. Sie läuft nur, wo jemand den Graphen gebaut hat.
+- **Das Stop-Tor hat keine Prüfung.** `stop` enthält `graph` nicht; ein
+  Projekt, das es einträgt, bekommt an jedem Rundenende `not-applicable`
+  („graph lanes need a graph probe“).
+- **Den Schwellenwert ändern** heißt, `commands` in `[verify.go.graph]` zu
+  ersetzen, **beide** Einträge; eine Lane, die nur `blast-audit` nennt,
+  verliert den Neubau:
+
+  ```toml
+  [verify.go.graph]
+  commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 10"]
+  ```
+
+  `graph = false` unter `[verify.go]` schaltet die Lane ab.
+
 #### Testerkennung
 
 `test` und `coverage` laufen nur, wo es Tests gibt. Gesucht wird rekursiv in
@@ -334,7 +381,7 @@ Profil `edit` läuft also nie durch den Baum.
 | `missing-tool` | ein Werkzeug liegt nicht auf dem `PATH` | rot | übersprungen, genannt |
 | `unready` | Godot hat das Projekt nicht importiert, oder eine Datei aus `needs` fehlt | rot | übersprungen, genannt |
 | `unavailable` | Art definiert, kann nicht laufen (keine Tests gefunden) | neutral, zählt als „nichts lief" | nicht angezeigt |
-| `not-applicable` | Art im Stack nicht definiert oder `false` | neutral, angezeigt | nicht angezeigt |
+| `not-applicable` | Art im Stack nicht definiert oder `false`; bei `graph` sagte die Prüfung nein | neutral, angezeigt | nicht angezeigt |
 
 - **Was eine Lane erbt.** Konnte die Lane, auf die sie wartet, nicht laufen,
   übernimmt eine Lane deren Zustand (`unavailable`, `not-applicable`, im

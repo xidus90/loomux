@@ -39,7 +39,7 @@ sequenceDiagram
     Note over Host,Post: Phase 2: Post-Tool-Prüflanes (Abschnitt 5)
     Host->>Post: Ergebnis & geänderte Pfade (stdin)
     Post->>Post: Lanes des Profils edit über die geänderte Datei fahren (Budget 50 s)
-    Post->>Post: Geplant (G4b): Blast-Monitor, direkte Aufrufer geänderter Go-Symbole, nur wenn keine Lane rot ist
+    Post->>Post: Blast-Monitor: direkte Aufrufer geänderter Go-Symbole, nur wenn keine Lane rot ist (Abschnitt 5)
     Post--)Journal: Geplant (W1): Ereignis anhängen
     Post-->>Host: Exit 0, oder Exit 2, wenn eine Lane scheitert (Abschnitt 5)
     end
@@ -233,13 +233,62 @@ Datei, relativ zu ihrem Bereich):
   liegt, ein noch nicht importiertes Godot-Projekt und eine Lane, die das
   Budget (`--budget`, Vorgabe 50 s) nicht mehr erreicht. Der Exit-Code bleibt
   0, und der Hook nennt die übersprungene Lane in
-  `hookSpecificOutput.additionalContext`.
+  `hookSpecificOutput.additionalContext`; bei einer `.go`-Datei schreibt der
+  Blast-Monitor unten in dasselbe Feld.
 - **Prüfungen schreiben nie um.** `clang-format` läuft mit
   `--dry-run --Werror`; eine Bearbeitung wird beurteilt, die Datei bleibt, wie
   der Agent sie schrieb.
 - **`gofmt` prüft nur die bearbeitete Datei**: Eine unformatierte Datei
   anderswo muss nicht diese Bearbeitung beheben. Das Pre-Commit-Tor prüft
   alles.
+
+### Der Blast-Monitor
+
+Nach den Lanes eines Edits an einer `.go`-Datei, und nur wenn keine davon rot
+ist, sagt der Hook dem Modell, wer aufruft, was der Edit gerade geändert hat.
+Er liest den Graphen auf der Platte (`.loomux/state/graph/wiring.json`),
+extrahiert die bearbeitete Datei neu und vergleicht den Rumpf-Hash jedes
+Symbols mit den Knoten desselben Pfads im Graphen:
+
+- **Seeds** sind die Symbole, die der Graph hat und die Datei nicht mehr
+  (entfernt, zuerst genannt: ihre Aufrufer brechen sicher), dann die, deren
+  Rumpf-Hash abweicht (geändert). Ein neues Symbol seedet nichts; es hat im
+  alten Graphen keine Aufrufer. Der Dateiknoten seedet nie: seine eingehenden
+  Kanten sind Importe, und die kommen nur in einer Repräsentanten-Datei je
+  Paket an; eine Änderung zwischen den Symbolen (ein Import, eine Konstante
+  auf Paketebene) würde gemeldet oder nicht, je nachdem, welche Datei des
+  Pakets bearbeitet wurde.
+- **Er meldet** die direkten Aufrufer der Seeds in anderen Dateien,
+  höchstens zehn Zeilen und einen Zähler für den Rest, im selben
+  `hookSpecificOutput.additionalContext` wie die übersprungenen Lanes:
+
+  ```text
+  [graph] internal/code/blast/reach.go: changed Reach; callers in other files:
+    EdgeWalk (internal/code/blast/edgewalk.go)
+    Radius (internal/code/blast/radius.go)
+    signal (internal/code/blast/radius.go)
+  ```
+
+- **Ein geänderter Typ bekommt einen Hinweis, mit oder ohne Aufrufer.** Der
+  Go-Graph hat keine Kanten auf Typen; Schweigen hieße dort „nichts hängt
+  daran“. Ist ein Seed `struct`, `interface` oder `type`, endet der Kontext mit
+  `[graph] Modified struct/interface/type: type coupling not wired in graph v1 (check references via grep)`.
+- **Er schweigt** ohne Graph, bei einem Graphen einer anderen
+  Extraktor-Version oder eines anderen Schemas, wenn die Datei sich nicht
+  lesen oder nicht parsen lässt (ein halb fertiger Edit), wenn sich kein
+  Symbol geändert hat (auch bei schon frischem Graphen) und wenn die einzigen
+  Aufrufer in der bearbeiteten Datei selbst liegen. Er endet nie mit Exit 1
+  und blockiert nie; weder die Frischeprobe noch `graph check` läuft im Hook.
+- **Eine rote Lane geht vor.** Ist eine Lane rot, endet der Hook mit Exit 2
+  und dem Befund auf `stderr` und schreibt keinen Blast-Kontext: der Befund
+  ist wichtiger, und `stdout` bleibt gültiges JSON oder leer.
+- **Er wiederholt sich bis zum Neubau.** Der Graph bleibt, wie er war, bis
+  zum nächsten `graph build`, einer Abfrage, die ihn auffrischt, oder dem
+  `graph-fresh` des Pre-Commit-Tors; jeder weitere Edit an derselben Datei
+  nennt dieselben Seeds noch einmal. Ein Gedächtnis je Datei gibt es nicht.
+- **Kosten**: 24,7 ms auf dem 7,07-MiB-Graphen dieses Repositorys, etwa 4 ms
+  mehr je MiB `wiring.json`
+  ([Benchmarks, 2026-09-23 22:55](benchmarks.md#2026-09-23-2255--post-edit-auf-einer-go-datei-mit-dem-blast-monitor)).
 
 ---
 

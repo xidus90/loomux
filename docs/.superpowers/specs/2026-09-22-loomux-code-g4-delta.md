@@ -3,6 +3,7 @@
 **Datum:** 2026-09-22  
 **Stand:** entworfen und vom Nutzer freigegeben am 2026-09-22. Die vier Entscheidungen sind
 getroffen (§9); der Plan folgt in zwei Phasen: G4a (Navigation & MCP) und G4b (Blast, Hooks & Verify).  
+**Berichtigt und für G4b ergänzt durch** [`2026-09-23-loomux-code-g4b-delta.md`](2026-09-23-loomux-code-g4b-delta.md).  
 **Ergänzt:** [`2026-09-14-loomux-code-graph-design.md`](2026-09-14-loomux-code-graph-design.md),
 [`2026-09-16-loomux-code-g1-delta.md`](2026-09-16-loomux-code-g1-delta.md),
 [`2026-09-17-loomux-code-g2-design.md`](2026-09-17-loomux-code-g2-design.md) und

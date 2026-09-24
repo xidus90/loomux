@@ -182,8 +182,8 @@ Tiefe, in der ihn irgendein Startknoten erreicht hat; ein Startknoten ist nie
 sein eigener Treffer.
 
 Der Blast-Radius einer ganzen Änderung beginnt beim Git-Diff und läuft über
-dieselben Kanten. Der durchgezogene Teil ist Code, der gestrichelte ist
-spezifiziert und nicht gebaut (sein Stand steht im [Migrationsplan](migration.md)):
+dieselben Kanten. Seit Stufe G4b ist alles davon gebaut (sein Stand steht im
+[Migrationsplan](migration.md)):
 
 ```mermaid
 flowchart LR
@@ -193,10 +193,10 @@ flowchart LR
     Seeds --> Radius["blast.Radius<br/>(was sie bis Tiefe -d erreicht,<br/>hat sich ein erreichender Test mitgeändert?)"]
     Radius --> Out["loomux graph blast<br/>MCP graph_blast"]
     Radius --> Audit["check blast-audit<br/>(--threshold, Vorgabe 3)"]
-    Fresh["check graph-fresh<br/>(Neubau bei Drift, wartet auf die Sperre)"] -.-> Lane
-    Audit -.-> Lane["Prüfart graph<br/>im Profil precommit"]
-    Edit["Post-Edit-Hook"] -.-> Monitor["Blast-Monitor:<br/>direkte Aufrufer geänderter Go-Symbole"]
-    Graph -.-> Monitor
+    Fresh["check graph-fresh<br/>(Neubau bei Drift, wartet auf die Sperre)"] --> Lane
+    Audit --> Lane["Prüfart graph<br/>im Profil precommit"]
+    Edit["Post-Edit-Hook"] --> Monitor["Blast-Monitor:<br/>direkte Aufrufer geänderter Go-Symbole"]
+    Graph --> Monitor
 ```
 
 ### 3. Spans statt einer Crux

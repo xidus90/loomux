@@ -19,7 +19,8 @@ Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
 Blast) am 2026-09-17, G2a (Extraktor, Auflösung, Speicher, Frische, die
 Befehle `graph build` und `graph check`) und G2b (die Abfrage) am 2026-09-18,
-G3 (die Abfrage über MCP) am 2026-09-19 abgeschlossen; G4 ff. offen. Die Vorziehung war Absicht: beide Stufen
+G3 (die Abfrage über MCP) am 2026-09-19, G4a (die Navigation) am 2026-09-22 und G4b (Diff-Blast,
+die Art `graph`, der Edit-Monitor) am 2026-09-23 abgeschlossen; G4c und G5 offen. Die Vorziehung war Absicht: beide Stufen
 ziehen keine Abhängigkeit ein, und die Messung, die die alte Reihenfolge
 begründete, gehört zu G3
 (`2026-09-14-loomux-code-graph-design.md` §10, `2026-09-16-loomux-code-g1-delta.md` §1)
@@ -593,7 +594,10 @@ steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
 | **G2a** | ✅ 2026-09-18 | Schema 2, `sourceset`, `extract/golang`, `resolve`, `store`, `freshness`, die Befehle `graph build` und `graph check` |
 | **G2b** | ✅ 2026-09-18 | Die Abfrage: `lexicon`, `ask`, die Beiakte (`2026-09-17-loomux-code-g2b.md`) |
 | **G3** | ✅ 2026-09-19 | `graph_find_code` und `graph_check_freshness` am MCP-Gateway von 1b-2 |
-| **G4–G5** | offen | Die übrige `graph`-Palette samt Hook-Anbindung, Mehrsprachigkeit über `wazero` |
+| **G4a** | ✅ 2026-09-22 | Die Navigation: `graph callers`, `skeleton`, `grep`, `map`, `stats` und die MCP-Werkzeuge `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map` (`2026-09-22-loomux-code-g4-delta.md`, Paritätsakte `parity/code-g4.md`) |
+| **G4b** | ✅ 2026-09-23 | Der Blast-Radius eines git-Diffs: `internal/code/diff`, `blast.Radius`, `graph blast` und `graph_blast`, `check graph-fresh` und `check blast-audit`, die Art `graph` in `[verify]` (Profilvorgabe `precommit`), der Blast-Monitor im Post-Edit-Hook (`2026-09-23-loomux-code-g4b-delta.md`, Paritätsakte `parity/code-g4.md` §4) |
+| **G4c** | offen | Der Stop-Hook mit Blast-Logik: eine Form Arbeitsbaum gegen HEAD, die weiß, dass sie am Zugende läuft (E4′ im G4b-Nachtrag); `graph` im Profil `stop` bleibt bis dahin `not-applicable` |
+| **G5** | offen | Mehrsprachigkeit über `wazero` |
 
 Vorgezogen wurde absichtlich: G1 und G2a ziehen keine Abhängigkeit ein, und die
 Messung, die die alte Reihenfolge begründete (§11 der Säule-3-Spec:
@@ -609,7 +613,9 @@ Ablösung der alten Repos ist 2c und 2b, dann 3, dann 4; G4 liegt daneben und
 kann parallel laufen. **Nachtrag 2026-09-22:** 3 lief tatsächlich parallel zu
 2b und 2c und steht nun auf Prio 1, weil sie an keiner der beiden hängt und die
 größte Stufe ist. 2b und 2c sind fertig, und die Zeilen unter Prio 3 sind
-lückenlos nachnummeriert — die Reihenfolge ist dieselbe.
+lückenlos nachnummeriert — die Reihenfolge ist dieselbe. **Nachtrag 2026-09-23:** G4 zerfiel in
+G4a und G4b, beide fertig; der Stop-Hook mit Blast-Logik, den der G4b-Nachtrag aus G4b herausnahm
+(E4′), ist die neue Stufe G4c und erbt Prio 2.
 
 Wörtlich steht in dieser Spec nur „2c hängt an 2a“. Jede andere Abhängigkeit
 ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
@@ -619,11 +625,12 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 | — | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | ✅ Fertig (2026-09-22). Die Claude-Seite bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Antigravity-Messung durchgeführt und Adapter implementiert. Voraussetzung für `init` in Stufe 4 |
 | — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
 | 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c ist fertig (2026-09-23), der Upkeep ruft `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
-| 2 | **G4** übrige `graph`-Palette, Blast-Monitor | G3 ✅ | Sofort baubar, neben der Fusion. W3 und W4 warten darauf |
+| — | **G4a** Navigation, **G4b** Diff-Blast, Art `graph`, Edit-Monitor | G3 ✅; G4b an G4a ✅ | ✅ Fertig (G4a 2026-09-22, G4b 2026-09-23). W3 wartete auf G4a, W4 auf G4b |
+| 2 | **G4c** Stop-Hook mit Blast-Logik | G4b ✅ | Sofort baubar, neben der Fusion; loomux prüft sich an jedem Rundenende selbst und bekäme den Blast dort. Nichts wartet darauf |
 | 3 | **4** `init`, `migrate`, `convert`/`fetch`, Modell | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. Die Umstellung der Wirte braucht zudem einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
 | 4 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
-| 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4; W4 an G4 und 4; W5 an W1 und Flow | Folgeprojekt |
-| 6 | **G5** `wazero` | G4 | Nichts wartet darauf |
+| 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4a ✅; W4 an G4b ✅ und 4; W5 an W1 und Flow | Folgeprojekt |
+| 6 | **G5** `wazero` | G4b ✅ | Nichts wartet darauf |
 
 ### Nachgetragen: was bisher keine Stufe hatte
 

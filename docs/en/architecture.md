@@ -178,8 +178,8 @@ without a node rather than hide the dependency. A node is reported once, at the
 smallest depth any start reached it at, and a start node is never its own hit.
 
 The blast radius of a whole change starts from git's diff and walks the same
-edges. The solid part is code; the dashed part is specified and not built
-(its status is in the [migration plan](migration.md)):
+edges. All of it is built since Stage G4b (its status is in the
+[migration plan](migration.md)):
 
 ```mermaid
 flowchart LR
@@ -189,10 +189,10 @@ flowchart LR
     Seeds --> Radius["blast.Radius<br/>(what reaches them to depth -d,<br/>did a reaching test change too?)"]
     Radius --> Out["loomux graph blast<br/>MCP graph_blast"]
     Radius --> Audit["check blast-audit<br/>(--threshold, default 3)"]
-    Fresh["check graph-fresh<br/>(rebuild on drift, wait for the lock)"] -.-> Lane
-    Audit -.-> Lane["verify kind graph<br/>in the precommit profile"]
-    Edit["post-edit hook"] -.-> Monitor["blast monitor:<br/>direct callers of changed Go symbols"]
-    Graph -.-> Monitor
+    Fresh["check graph-fresh<br/>(rebuild on drift, wait for the lock)"] --> Lane
+    Audit --> Lane["verify kind graph<br/>in the precommit profile"]
+    Edit["post-edit hook"] --> Monitor["blast monitor:<br/>direct callers of changed Go symbols"]
+    Graph --> Monitor
 ```
 
 ### 3. Span Inlining Instead of a Crux

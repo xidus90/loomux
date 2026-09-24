@@ -8,7 +8,9 @@ gelten die beiden jüngeren Dokumente. G2b umgesetzt; **G3 umgesetzt 2026-09-19*
 [`2026-09-18-loomux-code-g3-delta.md`](2026-09-18-loomux-code-g3-delta.md) — auch hier gilt bei
 Widerspruch das jüngere Dokument. G4 entworfen in
 [`2026-09-22-loomux-code-g4-delta.md`](2026-09-22-loomux-code-g4-delta.md) (berichtigt §7.1 und
-§8); G5 offen  
+§8), **G4a umgesetzt 2026-09-22**, **G4b umgesetzt 2026-09-23** nach
+[`2026-09-23-loomux-code-g4b-delta.md`](2026-09-23-loomux-code-g4b-delta.md); G4c (Stop-Hook mit
+Blast-Logik) und G5 offen  
 **Ort:** `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md`  
 **Ergänzt:** `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` (Säule: *Graph + Loop Engineering*)  
 **Referenz-Analyse:** `trailhq/Graft` (TypeScript, Node.js)  

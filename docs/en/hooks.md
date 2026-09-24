@@ -39,7 +39,7 @@ sequenceDiagram
     Note over Host,Post: Phase 2: Post-Tool Check Lanes (section 5)
     Host->>Post: Tool Output & Modified Paths (stdin)
     Post->>Post: Run the edit profile's lanes on the edited file (budget 50 s)
-    Post->>Post: Planned (G4b): blast monitor, direct callers of changed Go symbols, only when no lane is red
+    Post->>Post: Blast monitor: direct callers of changed Go symbols, only when no lane is red (section 5)
     Post--)Journal: Planned (W1): append event
     Post-->>Host: Exit 0, or Exit 2 when a lane fails (section 5)
     end
@@ -227,11 +227,57 @@ relative to its area):
 - **Skipped, not failed**: a lane whose tool is not on the `PATH`, a Godot
   project not yet imported, and a lane the budget (`--budget`, default 50 s)
   did not reach. The exit code stays 0, and the hook names the skipped lane in
-  `hookSpecificOutput.additionalContext`.
+  `hookSpecificOutput.additionalContext`; for a `.go` file the blast monitor
+  below writes into the same field.
 - **Checks never rewrite.** `clang-format` runs with `--dry-run --Werror`; an
   edit is judged, the file stays as the agent wrote it.
 - **`gofmt` checks the edited file only**: an unformatted file elsewhere is not
   the edit's to fix. The pre-commit gate checks everything.
+
+### The blast monitor
+
+After the lanes of a `.go` edit, and only when none of them is red, the hook
+tells the model who calls what the edit just changed. It reads the graph on
+disk (`.loomux/state/graph/wiring.json`), extracts the edited file again and
+compares each symbol's body hash with the graph's nodes of the same path:
+
+- **Seeds** are the symbols the graph has and the file no longer does
+  (removed, named first: their callers break for sure), then those whose body
+  hash differs (changed). A new symbol seeds nothing; it has no callers in the
+  old graph. The file node never seeds: its incoming edges are imports, which
+  arrive at one representative file per package, so a change between
+  symbols (an import, a package-level constant) would be reported or not
+  depending on which file of the package was edited.
+- **It speaks** with the direct callers of the seeds in other files, at most
+  ten lines and a count of the rest, in the same
+  `hookSpecificOutput.additionalContext` as the skipped lanes:
+
+  ```text
+  [graph] internal/code/blast/reach.go: changed Reach; callers in other files:
+    EdgeWalk (internal/code/blast/edgewalk.go)
+    Radius (internal/code/blast/radius.go)
+    signal (internal/code/blast/radius.go)
+  ```
+
+- **A changed type gets a note, callers or not.** The Go graph has no edges to
+  types, so silence would read as "nothing depends on this". When a seed is a
+  `struct`, `interface` or `type`, the context ends with
+  `[graph] Modified struct/interface/type: type coupling not wired in graph v1 (check references via grep)`.
+- **It is silent** without a graph, on a graph from another extractor version
+  or schema, when the file cannot be read or does not parse (an edit half
+  done), when no symbol changed (also when the graph is already fresh), and
+  when the only callers are in the edited file itself. It never exits 1 and
+  never blocks; neither the freshness probe nor `graph check` runs in the hook.
+- **A red lane comes first.** When a lane is red the hook exits 2 with the
+  finding on `stderr` and writes no blast context: the finding matters more,
+  and `stdout` stays valid JSON or empty.
+- **It repeats until the graph is rebuilt.** The graph stays as it was until
+  the next `graph build`, a query that refreshes it, or the pre-commit gate's
+  `graph-fresh`; every further edit to the same file names the same seeds
+  again. There is no memory per file.
+- **Cost**: 24.7 ms on this repository's 7.07 MiB graph, growing by about
+  4 ms per MiB of `wiring.json`
+  ([benchmarks, 2026-09-23 22:55](benchmarks.md#2026-09-23-2255--post-edit-on-a-go-file-with-the-blast-monitor)).
 
 ---
 
