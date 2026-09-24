@@ -3,6 +3,7 @@ package serve
 import (
 	"errors"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -64,6 +65,18 @@ func TestChildEnvAnnouncesTheBreakawayOnlyWhenThereWasOne(t *testing.T) {
 	for _, entry := range without {
 		if strings.HasPrefix(entry, BrokeAwayEnv+"=") {
 			t.Errorf("childEnv = %v, want no breakaway left over from the parent", without)
+		}
+	}
+}
+
+// gh reads its login from the user's configuration, and serve runs it. The
+// child keeps every variable it does not replace, these included.
+func TestChildEnvKeepsWhatGhNeeds(t *testing.T) {
+	base := []string{`PATH=C:\bin`, `APPDATA=C:\a`, `USERPROFILE=C:\u`, `GH_CONFIG_DIR=C:\gh`}
+	got := childEnv(base, "/state", false)
+	for _, want := range base {
+		if !slices.Contains(got, want) {
+			t.Errorf("childEnv dropped %s: %v", want, got)
 		}
 	}
 }

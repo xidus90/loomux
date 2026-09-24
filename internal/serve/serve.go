@@ -58,6 +58,11 @@ type Options struct {
 	// progress test needs, and the same one stage 1b-1 uses for the launcher
 	// and the spawner.
 	Answer func(answer.Request, string, string, func(string)) (string, []string, error)
+	// Update is one self-update pass; nil runs none. The command line fills
+	// it, so serve knows nothing of releases.
+	Update func(context.Context)
+	// UpdateAfter is the clock of the update loop, time.After when nil.
+	UpdateAfter func(time.Duration) <-chan time.Time
 
 	// upkeep is the daily reconciliation Run starts, one per process and
 	// shared by both channels. Nil outside Run, which leaves a handler built
@@ -175,6 +180,28 @@ func Run(ctx context.Context, opts Options) error {
 		BrokeAway:  opts.BrokeAway,
 	}); err != nil {
 		return err
+	}
+
+	if opts.Update != nil {
+		after := opts.UpdateAfter
+		if after == nil {
+			after = time.After
+		}
+		loop, cancel := context.WithCancel(ctx)
+		ended := make(chan struct{})
+		go func() {
+			UpdateLoop(loop, opts.Update, UpdateFirst, UpdateInterval, after)
+			close(ended)
+		}()
+		// The process exits once Run returns, and a pass cut off between
+		// swap's two renames would leave no loomux.exe. The gh calls die with
+		// the context and the swap is two renames, so the wait is short; it
+		// runs before the lock is released, so no second serve starts a pass
+		// beside it.
+		defer func() {
+			cancel()
+			<-ended
+		}()
 	}
 
 	select {
