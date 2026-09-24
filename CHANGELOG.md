@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.11.0] - 2026-09-24
+
+<https://github.com/xidus90/loomux/pull/21>
+
+### Added
+- The write barrier reads `open.toml` in the state directory (`files = ["C:/Users/me/.claude/AGENT_LEARNINGS.md"]`) and keeps each single file listed there open to every agent, like the agents' memory. An unusable `open.toml` opens nothing, and the refusal names the reason.
+
 ## [2.10.0] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/24>
