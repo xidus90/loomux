@@ -4,6 +4,15 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.11.1] - 2026-09-24
+
+<https://github.com/xidus90/loomux/pull/25>
+
+### Fixed
+- `graph blast`, `graph_blast` and `check blast-audit` no longer mix up the hunks of two files when git's `diff.interHunkContext` is set.
+- The blast radius no longer counts unchanged symbols between two nearby changes as changed.
+- `graph_blast` reports `changed` instead of `stale` when a test file hidden by a `never` rule changed together with the code it covers.
+
 ## [2.11.0] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/21>
