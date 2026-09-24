@@ -4,6 +4,17 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.9.0] - 2026-09-24
+
+<https://github.com/xidus90/loomux/pull/22>
+
+### Added
+- `loomux self-update` replaces the machine-wide binary with the newest release of its channel.
+- `loomux serve` checks for a newer release a minute after it starts and daily after that, and installs it (Windows only; needs the GitHub CLI, logged in).
+- Session start warns when `serve` runs from another binary than `%LOCALAPPDATA%\loomux\bin\loomux.exe`, or when its last self-update failed.
+### Fixed
+- `loomux dev swap-binary` puts the previous binary back when the new one cannot take its place, instead of leaving no `loomux.exe` behind.
+
 ## [2.8.0] - 2026-09-23
 
 <https://github.com/xidus90/loomux/pull/20>
