@@ -14,6 +14,7 @@ import (
 	"github.com/xidus90/loomux/internal/brain/pytext"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/lock"
+	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/serve"
 )
 
@@ -109,6 +110,7 @@ func serveForeground(stderr io.Writer) int {
 		LegacyDir:   config.LegacyBrainDirUntilStage3(),
 		Foreground:  true,
 		BrokeAway:   serve.BrokeAwayFromEnv(),
+		Update:      func(ctx context.Context) { selfUpdateRun(ctx, selfUpdateOptions(selfupdate.SourceServe)) },
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux serve: %v\n", err)

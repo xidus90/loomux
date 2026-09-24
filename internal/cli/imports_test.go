@@ -124,3 +124,26 @@ func TestTheCommandLineDoesReachServeAndTheBridge(t *testing.T) {
 		}
 	}
 }
+
+// selfupdate sits below its callers serve, hooks and cli, and away from the
+// MCP bridge; an import of any of them would be a cycle or would pull the MCP
+// stack onto the session-start path.
+func TestSelfupdateStaysBelowItsCallers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("asks the go tool for the import graph")
+	}
+	deps, err := dependencies("github.com/xidus90/loomux/internal/selfupdate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pkg := range []string{
+		"github.com/xidus90/loomux/internal/serve",
+		"github.com/xidus90/loomux/internal/hooks",
+		"github.com/xidus90/loomux/internal/cli",
+		"github.com/xidus90/loomux/internal/bridge",
+	} {
+		if deps[pkg] {
+			t.Errorf("internal/selfupdate depends on %s", pkg)
+		}
+	}
+}
