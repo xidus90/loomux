@@ -8,7 +8,7 @@ This document provides a comprehensive reference for `.loomux/config.toml`, the 
 
 1. **Human-Maintained & Agent-Guarded**:
    > [!IMPORTANT]
-   > `.loomux/config.toml` is **never modified by an AI agent**. The write barrier strictly forbids agent writes to `.loomux/config.toml`. Propose changes; a human commits them.
+   > `.loomux/config.toml` is **never modified by an AI agent**. The write barrier strictly forbids agent writes to `.loomux/config.toml`, and the guard refuses an agent the commands that write it (`loomux init`, a writing `loomux config`, `loomux area add`). Propose changes; a human writes and commits them, by hand or with `loomux config` (see the [CLI reference](cli-reference.md#10-configuration-loomux-config)).
 2. **Deterministic & Strict**:
    All regular expressions and path globs are compiled on first use. If any rule contains an invalid regex or missing reason, Loomux refuses startup immediately with a clear error naming the exact line.
 3. **Separation of Config and State**:
@@ -402,6 +402,41 @@ profile never walks the tree.
 
 ---
 
+### `[modules]` (What Runs in This Project)
+
+Switches the three modules of loomux on or off for one project. A missing
+table or a missing key means **on**; an unknown key or a value other than
+`true`/`false` makes the file count as broken, so a misspelt `graf = false`
+cannot look configured and not be.
+
+```toml
+[modules]
+hooks = true   # post-edit, stop, session-start, subagent-start/-stop
+brain = true   # the wiki lane and the brain_* MCP tools
+graph = false  # the graph_* MCP tools
+```
+
+| Key | Type | Default | Off means |
+|---|---|---|---|
+| `hooks` | boolean | `true` | `loomux hook post-tool-use`, `stop`, `session-start`, `subagent-start` and `subagent-stop` exit 0 at once and do nothing. |
+| `brain` | boolean | `true` | The lane `lint/wiki` is off everywhere — edit lane, `loomux check` and the stop gate — exactly as `[verify.wiki] lint = false` would turn it off; `loomux mcp` offers no `brain_*` tool. |
+| `graph` | boolean | `true` | `loomux mcp` offers no `graph_*` tool. |
+
+- **The guard always runs.** `hook pre-tool-use` does not read `[modules]`:
+  the write barrier is global and protects other repositories' read-only
+  areas, so no project can switch it off.
+- **The bridge reads it at start.** `loomux mcp` takes the project from
+  `--root`, else from the first `.loomux/config.toml` above the directory the
+  host started it in; outside any project it offers every tool. A host caches
+  `tools/list`, so a change takes effect when the bridge restarts.
+- **The commands stay.** `loomux brain …` and `loomux graph …` on the command
+  line are not modules; `[modules]` decides what runs by itself and what an
+  agent is offered.
+- `loomux config set modules.graph false` writes the key; `true` removes it
+  again, since a default is never written.
+
+---
+
 ### `[commit]` (Commit Message Validation)
 
 Configures the validation rules enforced by `loomux check commit-msg` and the `.githooks/commit-msg` hook.
@@ -548,6 +583,10 @@ measuring = "go test ./... -count=1 -covermode=set -coverpkg=example.com/project
 
 [verify.go.coverage]
 measure = "go test ./... -count=1 -covermode=set -coverpkg=example.com/project/... -coverprofile={coverprofile}"
+
+# --- Modules: a missing key is on; the guard always runs ---------------------
+[modules]
+graph = false
 
 # --- Worktree Isolation Mirrors ----------------------------------------------
 [worktree]

@@ -127,7 +127,7 @@ flowchart TD
 
 *A dashed line is specified and not built.* The channel is the address: each
 listener has its own token, and the cloud channel never sees an area kept
-local. `loomux mcp` defaults to `--channel local`, starts and replaces the
+local. `loomux mcp` defaults to `--channel local`, offers only the tools of the modules `[modules]` leaves on, starts and replaces the
 service itself, and the per-edit hook path links none of it, which an
 import-graph test holds. Every tool with its arguments: [CLI reference §8](docs/en/cli-reference.md#8-mcp-service--stdio-bridge-loomux-serve--loomux-mcp).
 
@@ -177,7 +177,7 @@ loomux serve [--foreground]         # start the long-lived localhost MCP service
 loomux serve status                 # what serve.json says and whether the listener answers
 loomux serve stop [--force]         # end the service through its own endpoint, or by its PID
 loomux self-update                  # replace the machine-wide binary with the newest release of its channel; serve does this daily
-loomux mcp [--channel local|cloud]  # stdio bridge an MCP host starts; it starts the service itself
+loomux mcp [--channel local|cloud] [--root D]  # stdio bridge an MCP host starts; offers the tools of the project's [modules] and starts the service itself
 loomux reindex [--registry P]       # reconcile first, then rebuild every area's catalogs, link graph, identity register and qmd collections
 loomux embed [--registry P]         # generate the vectors reindex leaves pending (needs qmd on PATH)
 loomux reconcile                    # open review cases for changed sources and landed merges; a case is not a failure
@@ -185,6 +185,8 @@ loomux area add [--path P] [--scope S]  # register a repository as an area, scaf
 loomux cases                        # list the cases waiting in the review centre; a case is not a failure
 loomux case <id> [--package]        # show a case with its package and proposal; withheld for local_only until --package
 loomux approve <id>                 # decide a case: apply the evidence-bound proposal and commit it (--amend F, --reject, --defer)
+loomux config [list|get K|set K V]  # show every key of .loomux/config.toml with its origin, change one line after a diff and a y; bare: full-screen (--root, --global, --yes, --json; a human's command, the guard refuses an agent)
+loomux config set|unset … --propose # an agent's way: store the checked change as a proposal; a human runs `config proposals`, then `config apply <id>|--all` or `config reject`
 ```
 
 ### Code Graph
@@ -248,7 +250,7 @@ Exhaustive guides and technical manuals are organized under [`docs/en/`](docs/en
 |---|---|
 | 🚀 **[Getting Started](docs/en/getting-started.md)** | Installation, 3-minute quickstart, and agent harness wiring (Claude Code, Antigravity, Cursor). |
 | 🏛️ **[Architecture & Concepts](docs/en/architecture.md)** | Deep dive into Andrej Karpathy's LLM OS, Google Knowledge Items (KI), Graft AST GraphRank, and the Write Barrier Kernel. |
-| ⚙️ **[Configuration Reference](docs/en/configuration.md)** | Complete reference for `.loomux/config.toml` (`[verify]`, `[policy]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
+| ⚙️ **[Configuration Reference](docs/en/configuration.md)** | Complete reference for `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
 | 📖 **[CLI Reference Manual](docs/en/cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |
 | 🪝 **[Hook Lifecycle & Integration](docs/en/hooks.md)** | Technical specification of the 4-phase hook lifecycle, host payload formats, and decoupled SSE event streaming. |
 | 🗺️ **[Migration Plan](docs/en/migration.md)** | Every stage and every capability of the fusion and the code graph: origin, status, dependencies and priority. |

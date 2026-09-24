@@ -2448,3 +2448,69 @@ auf, eine eigene Kaltzahl gibt es daher nicht.
 2. **Gegen den Hook ist das Rauschen.** Ein `pre-tool-use`-Aufruf startet
    einen Prozess im Bereich von Dutzenden Millisekunden; 0,2 ms liegen unter
    der Streuung zweier Durchläufe derselben Reihe in den Einträgen oben.
+
+## 2026-09-24 03:55 — Stufe 4a-1: der Hook-Pfad mit `[modules]`, und `config list`
+
+Worktree `.claude/worktrees/fusion-migration-teil-2-79865c`, Zweig
+`feat/stage-4-config` auf `58b4a8d`. `before.exe` ist `master` auf `1d42d2f`
+(die Merge-Basis des Zweigs), `after.exe` der Zweig; beide mit Go 1.27.0
+`windows/amd64` in den Scratchpad der Sitzung gebaut. Maschine: AMD Ryzen 7
+9800X3D.
+
+**Ziel.** `hook pre-tool-use` liest `[modules]` nicht und darf sich nicht
+bewegen; `hook post-tool-use` liest es einmal je Aufruf und darf höchstens um
+das Rauschen steigen. `config list`, ein Befehl, den ein Mensch tippt, wird
+für sich gemessen. Die Baseline, die der Plan nennt, 7,5 ms warm für
+`pre-tool-use` (2026-09-17 14:16), stammt aus dem Hauptcheckout auf einem
+Startboden von 5,5 ms; der Vergleich, der trägt, ist das Paar vorher/nachher
+unten, weil beide im selben Durchgang laufen.
+
+**Methode.** `bin/loomux.exe dev bench-hooks <fälle> -n 20`, ein Durchgang,
+je Fall ein kalter und 20 warme Läufe, in diesem Worktree mit seiner eigenen
+`.loomux/config.toml` und der Registry der Maschine. Nutzlasten: ein `Edit`
+von `README.md` (pre-tool-use, erlaubt), ein `PostToolUse`-`Edit` von
+`README.md` (keine Lane für Markdown außerhalb des Wikis) und einer von
+`docs/wiki/index.md`. Für `config list`: `dev bench-hooks <fall> -n 10` auf
+einer frisch kopierten Binärdatei, sodass der kalte Lauf der erste Start
+dieser Datei ist. Die Init-Zahlen aus `GODEBUG=inittrace=1 loomux version`.
+Zwei Mutationsrunden liefen vor diesem Durchgang, keine während.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| vorher: loomux hook pre-tool-use (Edit auf README.md) | 16,5 ms | 13,0 ms | 12,5 ms | 13,5 ms | [0] |
+| nachher: loomux hook pre-tool-use (Edit auf README.md) | 15,0 ms | 12,7 ms | 12,0 ms | 26,7 ms | [0] |
+| vorher: loomux hook post-tool-use (Edit auf README.md) | 17,9 ms | 17,0 ms | 16,0 ms | 17,8 ms | [0] |
+| nachher: loomux hook post-tool-use (Edit auf README.md) | 17,4 ms | 17,5 ms | 16,4 ms | 33,0 ms | [0] |
+| vorher: loomux hook post-tool-use (Edit auf docs/wiki/index.md) | 17,4 ms | 16,6 ms | 16,5 ms | 18,8 ms | [0] |
+| nachher: loomux hook post-tool-use (Edit auf docs/wiki/index.md) | 18,8 ms | 17,8 ms | 16,5 ms | 32,0 ms | [0] |
+| vorher: loomux version (Startboden) | 10,6 ms | 10,7 ms | 10,0 ms | 13,0 ms | [0] |
+| nachher: loomux version (Startboden) | 11,0 ms | 10,5 ms | 10,0 ms | 24,9 ms | [0] |
+| loomux config list (dieses Repository, n = 10) | 24,0 ms | 11,0 ms | 10,0 ms | 11,8 ms | [0] |
+
+| Paket-Init (nachher) | Uhr | Bytes | Allokationen |
+|---|---:|---:|---:|
+| `internal/config/edit` | 0 ms | 104 | 2 |
+| `internal/tui` | 0 ms | 72 | 2 |
+| `internal/config/schema` | kein Init | — | — |
+| `internal/cli` | 0 ms | 1.752 | 10 |
+
+### Lesart
+
+1. **`pre-tool-use` hat sich nicht bewegt.** 12,7 ms gegen 13,0 ms warm, die
+   Spannen überschneiden sich (12,0–26,7 gegen 12,5–13,5). Das Maximum von
+   26,7 ms ist ein Ausreißer; die Zeilen des Startbodens tragen im selben
+   Durchgang einen gleich großen.
+2. **`post-tool-use` stieg um 0,5 und 1,2 ms**, innerhalb der Streuung: Die
+   Minima liegen bei 16,4 gegen 16,0 und 16,5 gegen 16,5 ms. `[modules]` zu
+   lesen ist je Aufruf ein kleiner Dateizugriff und ein TOML-Parse mehr.
+3. **Gegen die 7,5 ms vom 2026-09-17 ist der Hook 5,2 ms langsamer**, der
+   Startboden 5,0 ms (10,5 gegen 5,5 ms). Die Stufe hat das nicht verursacht:
+   `vorher`, ohne diese Stufe, steht an derselben Stelle. Der Eintrag zu 3c
+   hat den Startboden schon bei 11,9 ms gemessen; das Binär misst jetzt
+   20,3 MB.
+4. **`config list` kostet etwa so viel wie `version`** (11,0 gegen 10,5 ms
+   warm): `list` liest die Datei einmal und dekodiert sie einmal; die Leser,
+   die `set` über `Validate` fährt, liegen nicht auf seinem Pfad.
+5. **Die Startregel hält für die neuen Pakete**: `edit` und `tui` kompilieren
+   ihre Ausdrücke beim ersten Gebrauch (je 2 Allokationen), `schema` hat kein
+   Paket-Init.

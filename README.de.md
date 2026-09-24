@@ -127,7 +127,7 @@ flowchart TD
 
 *Eine gestrichelte Linie ist spezifiziert und nicht gebaut.* Der Kanal ist die
 Adresse: jeder Listener hat sein eigenes Token, und der Cloud-Kanal sieht nie
-einen Bereich, der lokal bleibt. `loomux mcp` fällt auf `--channel local` zurück, startet und ersetzt den Dienst selbst,
+einen Bereich, der lokal bleibt. `loomux mcp` fällt auf `--channel local` zurück, bietet nur die Werkzeuge der Module an, die `[modules]` eingeschaltet lässt, startet und ersetzt den Dienst selbst,
 und der Pro-Edit-Hook-Pfad verlinkt nichts davon, was ein Test über den Importgraphen
 festhält. Jedes Werkzeug mit seinen Argumenten: [CLI-Referenz §8](docs/de/cli-reference.md).
 
@@ -177,7 +177,7 @@ loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dien
 loomux serve status                 # Was serve.json sagt und ob der Listener antwortet
 loomux serve stop [--force]         # Beendet den Dienst über seinen Endpunkt oder über seine PID
 loomux self-update                  # Ersetzt das maschinenweite Binary durch das neueste Release seines Kanals; serve tut das täglich
-loomux mcp [--channel local|cloud]  # stdio-Brücke, die ein MCP-Wirt startet; sie startet den Dienst selbst
+loomux mcp [--channel local|cloud] [--root D]  # stdio-Brücke, die ein MCP-Wirt startet; bietet die Werkzeuge der [modules] des Projekts an und startet den Dienst selbst
 loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph, Identitätsregister und qmd-Sammlungen jedes Bereichs neu bauen
 loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
 loomux reconcile                    # Eröffnet Prüffälle für geänderte Quellen und gelandete Merges; ein Fall ist kein Fehlschlag
@@ -185,6 +185,8 @@ loomux area add [--path P] [--scope S]  # Meldet ein Repository als Bereich an, 
 loomux cases                        # Listet die Fälle, die im Prüfzentrum warten; ein Fall ist kein Fehlschlag
 loomux case <id> [--package]        # Zeigt einen Fall mit Paket und Vorschlag; bei local_only zurückgehalten bis --package
 loomux approve <id>                 # Entscheidet einen Fall: wendet den belegten Vorschlag an und committet ihn (--amend D, --reject, --defer)
+loomux config [list|get K|set K V]  # zeigt jeden Schlüssel von .loomux/config.toml mit Herkunft, ändert eine Zeile nach Diff und y; ohne Unterbefehl Vollbild (--root, --global, --yes, --json; ein Befehl für Menschen, der Wächter verweigert ihn einem Agenten)
+loomux config set|unset … --propose # der Weg eines Agenten: die geprüfte Änderung als Vorschlag ablegen; ein Mensch ruft `config proposals`, dann `config apply <id>|--all` oder `config reject`
 ```
 
 ### Code-Graph
@@ -248,7 +250,7 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 |---|---|
 | 🚀 **[Erste Schritte](docs/de/getting-started.md)** | Installation, 3-Minuten-Schnellstart und Anbindung an Agenten-Harnesses (Claude Code, Antigravity, Cursor). |
 | 🏛️ **[Architektur & Konzepte](docs/de/architecture.md)** | Das theoretische Fundament: Andrej Karpathys LLM OS, Googles Knowledge Items (KI), Grafts AST-GraphRank und der Schreibschranken-Kernel. |
-| ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
+| ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
 | 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
 | 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
 | 🗺️ **[Migrationsplan](docs/de/migration.md)** | Jede Stufe und jede Funktion der Fusion und des Code-Graphen: Herkunft, Stand, Abhängigkeiten und Priorität. |

@@ -2347,3 +2347,65 @@ warms up on its own, so there is no separate cold figure.
 2. **Against the hook this is noise.** A `pre-tool-use` call spawns a process
    in the tens of milliseconds; 0.2 ms is below the spread of two passes of
    the same series in the entries above.
+
+## 2026-09-24 03:55 — Stage 4a-1: the Hook Path With `[modules]`, and `config list`
+
+Worktree `.claude/worktrees/fusion-migration-teil-2-79865c`, branch
+`feat/stage-4-config` at `58b4a8d`. `before.exe` is `master` at `1d42d2f`
+(the branch's merge base), `after.exe` the branch; both built with Go 1.27.0
+`windows/amd64` into the session scratchpad. Machine: AMD Ryzen 7 9800X3D.
+
+**Goal.** `hook pre-tool-use` does not read `[modules]` and must not move;
+`hook post-tool-use` reads it once per call and may rise by the noise at
+most. `config list`, a command a human types, is measured on its own. The
+baseline the plan names, 7.5 ms warm for `pre-tool-use` (2026-09-17 14:16),
+was taken in the main checkout on a 5.5 ms start floor; the before/after pair
+below is the comparison that holds, since both run in the same pass.
+
+**Method.** `bin/loomux.exe dev bench-hooks <cases> -n 20`, one pass, one
+cold run per case and 20 warm, in this worktree with its own
+`.loomux/config.toml` and the machine's registry. Payloads: an `Edit` of
+`README.md` (pre-tool-use, allowed), a `PostToolUse` `Edit` of `README.md`
+(no lane for Markdown outside the wiki) and one of `docs/wiki/index.md`. For
+`config list`: `dev bench-hooks <case> -n 10` on a freshly copied binary, so
+the cold run is the first start of that file. The init counts come from
+`GODEBUG=inittrace=1 loomux version`. Two mutation rounds ran before this
+pass, none during it.
+
+| case | cold (1st run) | warm median | warm min | warm max | exit codes |
+|---|---:|---:|---:|---:|---|
+| before: loomux hook pre-tool-use (Edit on README.md) | 16.5 ms | 13.0 ms | 12.5 ms | 13.5 ms | [0] |
+| after: loomux hook pre-tool-use (Edit on README.md) | 15.0 ms | 12.7 ms | 12.0 ms | 26.7 ms | [0] |
+| before: loomux hook post-tool-use (Edit on README.md) | 17.9 ms | 17.0 ms | 16.0 ms | 17.8 ms | [0] |
+| after: loomux hook post-tool-use (Edit on README.md) | 17.4 ms | 17.5 ms | 16.4 ms | 33.0 ms | [0] |
+| before: loomux hook post-tool-use (Edit on docs/wiki/index.md) | 17.4 ms | 16.6 ms | 16.5 ms | 18.8 ms | [0] |
+| after: loomux hook post-tool-use (Edit on docs/wiki/index.md) | 18.8 ms | 17.8 ms | 16.5 ms | 32.0 ms | [0] |
+| before: loomux version (start floor) | 10.6 ms | 10.7 ms | 10.0 ms | 13.0 ms | [0] |
+| after: loomux version (start floor) | 11.0 ms | 10.5 ms | 10.0 ms | 24.9 ms | [0] |
+| loomux config list (this repository, n = 10) | 24.0 ms | 11.0 ms | 10.0 ms | 11.8 ms | [0] |
+
+| package init (after) | clock | bytes | allocations |
+|---|---:|---:|---:|
+| `internal/config/edit` | 0 ms | 104 | 2 |
+| `internal/tui` | 0 ms | 72 | 2 |
+| `internal/config/schema` | no init | — | — |
+| `internal/cli` | 0 ms | 1,752 | 10 |
+
+### Reading
+
+1. **`pre-tool-use` did not move.** 12.7 ms against 13.0 ms warm, the ranges
+   overlap (12.0–26.7 against 12.5–13.5). The 26.7 ms maximum is one outlier;
+   the floor rows carry one of the same size in the same pass.
+2. **`post-tool-use` rose by 0.5 and 1.2 ms**, within the spread: the
+   minimums are 16.4 against 16.0 and 16.5 against 16.5 ms. Reading
+   `[modules]` is one more small file read and TOML parse per call.
+3. **Against the 7.5 ms of 2026-09-17 the hook is 5.2 ms slower**, and the
+   start floor 5.0 ms (10.5 against 5.5 ms). The stage did not cause it:
+   `before`, without this stage, stands at the same place. The 3c entry
+   already measured the floor at 11.9 ms; the binary is 20.3 MB now.
+4. **`config list` costs about what `version` costs** (11.0 against 10.5 ms
+   warm): `list` reads the file once and decodes it once; the readers that
+   `set` runs through `Validate` are not on its path.
+5. **The start rule holds for the new packages**: `edit` and `tui` compile
+   their expressions on first use (2 allocations each), `schema` has no
+   package init.

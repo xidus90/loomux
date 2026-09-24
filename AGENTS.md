@@ -35,8 +35,10 @@ are German and never translated.
 ## Rules
 
 - `.loomux/config.toml` is never written by an agent. It declares the areas a
-  write barrier trusts and the policy that guards edits; propose changes, a
-  human writes them.
+  write barrier trusts and the policy that guards edits. An agent proposes a
+  change with `loomux config set|unset … --propose`; a human reviews it with
+  `loomux config proposals`, which shows each proposal's diff against the
+  current file, and applies it with `loomux config apply`.
 - Coverage is 100% per function. A function may stay below only with
   `//coverage:exempt <reason>` on the line directly above `func`.
 - No `init()` and no package-level variable parses embedded data; load on first use.

@@ -8,7 +8,7 @@ Dieses Dokument bietet eine vollständige Referenz für `.loomux/config.toml`, d
 
 1. **Vom Menschen gepflegt, vom Wächter geschützt**:
    > [!IMPORTANT]
-   > `.loomux/config.toml` wird **niemals von einem KI-Agenten bearbeitet**. Die Schreibschranke blockiert jeden Schreibversuch eines Agenten auf `.loomux/config.toml`. Änderungen werden vorgeschlagen; ein Mensch schreibt und committet sie.
+   > `.loomux/config.toml` wird **niemals von einem KI-Agenten bearbeitet**. Die Schreibschranke blockiert jeden Schreibversuch eines Agenten auf `.loomux/config.toml`, und der Wächter verweigert einem Agenten die Befehle, die sie schreiben (`loomux init`, ein schreibendes `loomux config`, `loomux area add`). Änderungen werden vorgeschlagen; ein Mensch schreibt und committet sie, von Hand oder mit `loomux config` (siehe die [CLI-Referenz](cli-reference.md#10-konfiguration-loomux-config)).
 2. **Deterministisch & Strikt**:
    Alle regulären Ausdrücke und Pfad-Globs werden beim ersten Gebrauch kompiliert. Enthält eine Regel einen ungültigen Regex oder fehlt eine Begründung (`reason`), bricht Loomux sofort mit einer präzisen Fehlermeldung unter Nennung der exakten Zeile ab.
 3. **Trennung von Konfiguration und Zustand**:
@@ -411,6 +411,43 @@ Profil `edit` läuft also nie durch den Baum.
 
 ---
 
+### `[modules]` (Was in diesem Projekt läuft)
+
+Schaltet die drei Module von loomux für ein Projekt ein oder aus. Fehlt die
+Tabelle oder ein Schlüssel darin, ist das Modul **an**; ein unbekannter
+Schlüssel oder ein Wert außer `true`/`false` lässt die Datei als kaputt
+gelten, damit ein vertipptes `graf = false` nicht eingestellt aussieht, ohne
+es zu sein.
+
+```toml
+[modules]
+hooks = true   # post-edit, stop, session-start, subagent-start/-stop
+brain = true   # die Wiki-Lane und die MCP-Werkzeuge brain_*
+graph = false  # die MCP-Werkzeuge graph_*
+```
+
+| Schlüssel | Typ | Vorgabe | Aus heißt |
+|---|---|---|---|
+| `hooks` | Boolean | `true` | `loomux hook post-tool-use`, `stop`, `session-start`, `subagent-start` und `subagent-stop` enden sofort mit 0 und tun nichts. |
+| `brain` | Boolean | `true` | Die Lane `lint/wiki` ist überall aus — Edit-Lane, `loomux check` und Stop-Gate —, genau so, wie `[verify.wiki] lint = false` sie abschaltet; `loomux mcp` bietet kein `brain_*`-Werkzeug an. |
+| `graph` | Boolean | `true` | `loomux mcp` bietet kein `graph_*`-Werkzeug an. |
+
+- **Der Wächter läuft immer.** `hook pre-tool-use` liest `[modules]` nicht:
+  Die Schreibschranke ist global und schützt die schreibgeschützten Bereiche
+  anderer Repositories; kein Projekt kann sie abschalten.
+- **Die Brücke liest es beim Start.** `loomux mcp` nimmt das Projekt aus
+  `--root`, sonst aus der ersten `.loomux/config.toml` oberhalb des
+  Verzeichnisses, in dem der Wirt sie gestartet hat; außerhalb jedes
+  Projekts bietet sie jedes Werkzeug an. Der Wirt hält `tools/list` im
+  Cache; eine Änderung wirkt darum, wenn die Brücke neu startet.
+- **Die Befehle bleiben.** `loomux brain …` und `loomux graph …` auf der
+  Kommandozeile sind keine Module; `[modules]` entscheidet, was von selbst
+  läuft und was einem Agenten angeboten wird.
+- `loomux config set modules.graph false` schreibt den Schlüssel; `true`
+  entfernt ihn wieder, weil eine Vorgabe nie geschrieben wird.
+
+---
+
 ### `[commit]` (Commit-Nachrichten-Validierung)
 
 Konfiguriert die Prüfregeln für `loomux check commit-msg` und den `.githooks/commit-msg`-Hook.
@@ -562,6 +599,10 @@ measuring = "go test ./... -count=1 -covermode=set -coverpkg=example.com/project
 
 [verify.go.coverage]
 measure = "go test ./... -count=1 -covermode=set -coverpkg=example.com/project/... -coverprofile={coverprofile}"
+
+# --- Module: ein fehlender Schlüssel ist an; der Wächter läuft immer ---------
+[modules]
+graph = false
 
 # --- Worktree-Isolierungsspiegel ---------------------------------------------
 [worktree]
