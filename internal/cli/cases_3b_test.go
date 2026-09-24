@@ -37,7 +37,16 @@ type expectation3b struct {
 	// held against the file it names on that side, and the rows are then
 	// compared without it. Each one also stands in differ.
 	rehashed []string
+	// grouped are logs loomux writes newest first under a day heading (OKF
+	// §9), where the reference appends the bare line. The recording holds
+	// only the preamble before the one new line, so taking the heading out
+	// of what loomux wrote has to give the recording back. Each one also
+	// stands in differ.
+	grouped []string
 }
+
+// recordedLog is the log an approval writes in every recorded world.
+const recordedLog = "repo-a/wiki/log.md"
 
 // The scratch index both sides leave at `<state>/maintenance/index`: a git
 // index, whose entries carry the stat data of the run that staged them. What
@@ -52,8 +61,9 @@ const stampedRegister = "repo-a/_identities.tsv"
 // ran the technical update, with the scratch index its commit leaves or, when
 // the commit was refused before the index was made, without.
 func wroteAndIndexed(committed bool) expectation3b {
-	why := "Register über gestempelte Seiten; format of graph.json, index.yml, qmd-collections.json"
-	differ := []string{"content mismatch: " + stampedRegister}
+	why := "Register über gestempelte Seiten; Protokoll nach Tagen, neueste zuerst; " +
+		"format of graph.json, index.yml, qmd-collections.json"
+	differ := []string{"content mismatch: " + stampedRegister, "content mismatch: " + recordedLog}
 	if committed {
 		why = "Scratch-Index im Fallsatz; " + why
 		differ = append(differ, scratchIndex)
@@ -63,6 +73,7 @@ func wroteAndIndexed(committed bool) expectation3b {
 		differ:     differ,
 		formatOnly: indexedFormats("repo-a/graph.json"),
 		rehashed:   []string{stampedRegister},
+		grouped:    []string{recordedLog},
 	}
 }
 
@@ -119,6 +130,13 @@ func TestCases3b(t *testing.T) {
 				for _, name := range want.rehashed {
 					rows[name] = registerRows(t, c, dir, name)
 				}
+				for _, name := range want.grouped {
+					data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+					if err != nil {
+						t.Fatal(err)
+					}
+					written[name] = data
+				}
 				return code
 			}, cases.NormalizeState)
 			if err != nil {
@@ -149,6 +167,23 @@ func TestCases3b(t *testing.T) {
 				}
 				if a, b := decoded(t, name, recorded), decoded(t, name, written[name]); !reflect.DeepEqual(a, b) {
 					t.Errorf("%s differs in content, not only in format:\nrecorded %v\nwritten  %v", name, a, b)
+				}
+			}
+			for _, name := range want.grouped {
+				recorded, err := os.ReadFile(filepath.Join(c.Path, "world_after", filepath.FromSlash(name)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Each side dates its line with the day it ran, so the day
+				// loomux wrote is folded into the recorded one first.
+				text := string(written[name])
+				_, entry, _ := strings.Cut(text, "\n## ")
+				day, _, _ := strings.Cut(entry, "\n")
+				_, line, _ := strings.Cut(string(recorded), "\n- ")
+				recordedDay, _, _ := strings.Cut(line, " ")
+				ungrouped := strings.ReplaceAll(strings.Replace(text, "## "+day+"\n\n", "", 1), day, recordedDay)
+				if len(day) != len("2006-01-02") || ungrouped != string(recorded) {
+					t.Errorf("%s is not the recording under a day heading:\nrecorded %q\nwritten  %q", name, recorded, text)
 				}
 			}
 			for _, name := range want.rehashed {

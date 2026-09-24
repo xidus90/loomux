@@ -894,7 +894,7 @@ func TestApproveLandsTheChangeInOneCommit(t *testing.T) {
 			t.Fatalf("page lacks %q:\n%s", want, page)
 		}
 	}
-	wantLog := "# Protokoll\n\n- 2026-08-27 — `" + appTarget + "`: 1 Behauptung(en) eingearbeitet (Fall `" + v.caseID() + "`)\n"
+	wantLog := "# Protokoll\n\n## 2026-08-27\n\n- 2026-08-27 — `" + appTarget + "`: 1 Behauptung(en) eingearbeitet (Fall `" + v.caseID() + "`)\n"
 	if got := readFile(t, v.wiki("log.md")); got != wantLog {
 		t.Fatalf("log.md =\n%q\nwant\n%q", got, wantLog)
 	}
@@ -1018,7 +1018,7 @@ func TestAMissingLogIsCreated(t *testing.T) {
 		t.Fatal(err)
 	}
 	v.mustApprove(t)
-	if log := readFile(t, v.wiki("log.md")); !strings.HasPrefix(log, "- 2026-08-27") {
+	if log := readFile(t, v.wiki("log.md")); !strings.HasPrefix(log, "## 2026-08-27\n\n- 2026-08-27") {
 		t.Fatalf("log.md = %q", log)
 	}
 }

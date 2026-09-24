@@ -217,7 +217,8 @@ func (a approval) run() (Result, error) {
 		return Result{}, err
 	}
 	log := filepath.Join(a.r.wiki, "log.md")
-	if err := a.p.appendProtocol(log, LogLine(a.o.Now, a.c.Target, len(passed), a.c.ID)); err != nil {
+	line := LogLine(a.o.Now, a.c.Target, len(passed), a.c.ID)
+	if err := a.p.rewriteProtocol(log, func(existing string) string { return LogInsert(existing, a.o.Now, line) }); err != nil {
 		return Result{}, err
 	}
 	audit := filepath.Join(a.r.wiki, "audit.md")
