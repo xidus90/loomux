@@ -6,6 +6,15 @@
 
 ## 2026-09-24
 
+- 2026-09-24 — `topics/wiki-schicht.md`: `loomux lint --scope` und
+  `loomux brain check` aus Stufe 3c ergänzt; die Regeln, die es in Go „noch
+  nicht“ gab, sind gebaut. Quelle: Code von loomux (`internal/brain/wiki`,
+  `internal/brain/check`), Migrationsplan.
+- 2026-09-24 — `topics/brain-maintenance.md`: Stufe 3 ist gebaut
+  (`reconcile`, `cases`, `case`, `approve`, Nachholen im Dienst),
+  `realization` auf `in_progress`; offen bleiben der Prüfvorschlag des lokalen
+  Modells und der `post-merge`-Hook (Stufe 4). Quelle: Code von loomux
+  (`internal/brain/maintenance`, `internal/brain/apply`), Migrationsplan.
 - 2026-09-24 — `log.md`: nach Tagen gruppiert, neueste zuerst, wie OKF §9 es
   verlangt. Quelle: OKF v0.2, §9.
 - 2026-09-24 — alle Seiten mit `sources[]`: jede `doc_id` auf die ID gesetzt,

@@ -81,13 +81,19 @@ unberührte Seite, abgelaufenes `stale_after`, in geteilten Bereichen zusätzlic
 die verletzte Leserichtung. In Projekt-Bundles kommen die beiden
 `realization`-Prüfungen dazu.
 
-Das ist der Stand bis zum Umzug am 2026-09-16. In loomux heißen die beiden Wege
-`loomux lint` (eine Seite) und `loomux wiki-gate` (das Bündel im Tor), und sie
-tragen fünf Regeln: `missing-type`, `conflict-count`, `dead-link`, `orphan` und
-das neue `outside-area` für ein Ziel außerhalb des Bündels; die übrigen
-Prüfungen der Liste oben gibt es in Go noch nicht. Die vier Seitentypen bleiben,
-aber der Lint fragt eine eigene Liste statt das Manifest: `Topic` geht als
-`topic` durch, `Source`, `Entity` und `Synthesis` melden je eine Warnung
+Das ist der Stand bis zum Umzug am 2026-09-16. In loomux prüfen
+`loomux lint --file` (eine Seite) und `loomux wiki-gate` (das Bündel im Tor)
+fünf Regeln: `missing-type`, `conflict-count`, `dead-link`, `orphan` und das
+neue `outside-area` für ein Ziel außerhalb des Bündels. Seit Stufe 3c
+(2026-09-23) ist auch der Rest der Liste gebaut:
+`loomux lint --scope <bereich>|all` lintet jedes registrierte Bündel nach den
+Regeln von `lint.py`,
+darunter `no-sources`, `untouched`, `stale`, `wrong-direction` und die beiden
+`realization`-Prüfungen `implemented-without-commit` und `long-planned`, und
+`loomux brain check file|bundle|all` prüft Seiten, Bündel und Föderation nach
+OKF und Hausregeln. Die vier Seitentypen bleiben, aber der Einzelseiten-Lint
+fragt eine eigene Liste statt das Manifest: `Topic` geht als `topic` durch,
+`Source`, `Entity` und `Synthesis` melden je eine Warnung
 `unknown document type`, die nichts aufhält, weil das Tor nur bei `Error`
 abbricht (`_schema.md`).
 
