@@ -13,7 +13,11 @@ Vor jeder Wiki-Arbeit gelesen. Sechs Regeln (Architektur §9.1):
 ## Die vier Seitentypen
 
 - `Source` — eine Quelle, verdichtet; trägt `sources[]` mit `doc_id`,
-  `content_hash` und `revision`.
+  `content_hash` und `revision`. **In diesem Bündel gibt es keine
+  Source-Seiten** (seit 2026-09-24): die Rohquellen liegen im selben Repo
+  unter `docs/.superpowers/` und stehen im Identitätsregister, also zitiert
+  jede Seite sie direkt in ihren `sources[]`. Eine Source-Seite wäre eine
+  zweite Fassung desselben Texts, die veralten kann.
 - `Topic` — ein Thema über mehrere Quellen hinweg.
 - `Entity` — eine Person, ein Werkzeug, ein Ort, ein Begriff.
 - `Synthesis` — eine eigene Ableitung aus mehreren Seiten.

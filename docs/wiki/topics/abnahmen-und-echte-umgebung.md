@@ -26,14 +26,14 @@ ersten Gebrauch in der echten Umgebung.** Der Testlauf war jedes Mal grün.
 **Ein Nullergebnis sieht aus wie ein Erfolg.** Ein Graph mit 0 von 979
 aufgelösten Links ist von einem Bestand ohne Links nicht zu unterscheiden; das
 Programm verhielt sich richtig und sagte nur nirgends, dass es gerade alles
-verworfen hatte ([Plan Scheibe 1](../sources/plan-scheibe-1-indexer.md)).
+verworfen hatte (Plan Scheibe 1).
 Gegenmittel ist jedes Mal dasselbe: **eine Quote ausgeben, nicht nur ein
 Ergebnis.**
 
 **Ein grüner Test kann eine Welt prüfen, die es nicht gibt.** Die Fixture der
 Entdopplung schrieb ein Register, das der Indexer gar nicht erzeugen kann. Der
 Test war nicht falsch — er war **unverankert**
-([Abnahme der Scheibe 2a](../sources/abnahme-scheibe-2a.md)).
+(Abnahme der Scheibe 2a).
 
 **Die Umgebung bringt eigene Regeln mit, die keine Testsuite kennt.** Die
 Zeichenkodierung der Standardausgabe, die Zeilenenden einer Sicherungskopie, ein

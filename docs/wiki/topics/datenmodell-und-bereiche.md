@@ -117,6 +117,7 @@ nicht in der Sammlung liegt, kann nicht versehentlich in einer Antwort
 auftauchen. Es bleibt eine Vorgabe, keine Sperre: Ein Modell darf bewusst
 weiten, soll das Weiten aber benennen.
 
-Siehe auch [Datenschutz und Kanäle](datenschutz-und-kanaele.md) und
-[Die Wiki-Schicht](wiki-schicht.md); Quelle ist
-[Architektur-Design ultra-brain](../sources/architektur-spec.md).
+Siehe auch [Datenschutz und Kanäle](datenschutz-und-kanaele.md),
+[Die Wiki-Schicht](wiki-schicht.md) und, wie Registry und Manifest beim
+Schreiben gelesen werden, [Die Schreibschranke](schreibschranke.md); Quelle ist
+Architektur-Design ultra-brain.
