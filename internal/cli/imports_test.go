@@ -46,6 +46,19 @@ func forbiddenMaintenanceForHooks() []string {
 	}
 }
 
+// forbiddenConfigUIForHooks is the configuration command's weight: the
+// schema pulls every reader, the editor its text surgery, the interface the
+// terminal. [modules] on the per-edit path is read by config.ReadModules
+// alone.
+func forbiddenConfigUIForHooks() []string {
+	return []string{
+		"github.com/xidus90/loomux/internal/config/schema",
+		"github.com/xidus90/loomux/internal/config/edit",
+		"github.com/xidus90/loomux/internal/tui",
+		"golang.org/x/term",
+	}
+}
+
 // dependencies is the import graph of one package as a set of whole lines.
 // Both directions ask through it: a check by substring would read
 // `.../internal/serve/brain` as `.../internal/serve`, and a go list that
@@ -103,6 +116,28 @@ func TestHooksNeverImportTheMaintenanceLayer(t *testing.T) {
 		}
 		if !cli[forbidden] {
 			t.Errorf("the command line does not reach %s, so the boundary test proves nothing", forbidden)
+		}
+	}
+}
+
+func TestHooksNeverImportTheConfigurationCommand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("asks the go tool for the import graph")
+	}
+	hooks, err := dependencies(hooksPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cli, err := dependencies("github.com/xidus90/loomux/internal/cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range forbiddenConfigUIForHooks() {
+		if hooks[forbidden] {
+			t.Errorf("%s depends on %s", hooksPackage, forbidden)
+		}
+		if !cli[forbidden] {
+			t.Errorf("the command line no longer reaches %s; the list is stale", forbidden)
 		}
 	}
 }

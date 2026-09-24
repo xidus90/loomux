@@ -8,6 +8,7 @@ var commands = map[string]command{
 	"case":        caseCommand,
 	"cases":       casesCommand,
 	"check":       checkCommand,
+	"config":      configCommand,
 	"dev":         devCommand,
 	"doctor":      statusCommand,
 	"embed":       embedCommand,
