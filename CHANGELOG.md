@@ -4,6 +4,14 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.13.1] - 2026-09-25
+
+<https://github.com/xidus90/loomux/pull/38>
+
+### Fixed
+- A session resumed in a linked worktree with `[worktree] mirror` keeps its stop-gate base, so the next turn end still checks every commit since the last green run instead of none.
+- A session resumed more than a day after its last turn end counts again for `worktree unlink`, so another session ending in the same worktree no longer removes its junctions.
+
 ## [2.13.0] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/36>
