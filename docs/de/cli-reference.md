@@ -756,7 +756,8 @@ PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet. Erfolg ist still.
 Ein Self-Update-Durchlauf von Hand; `serve` fährt denselben eine Minute nach
 dem Start und danach alle 24 Stunden. Er wirkt nur auf das maschinenweite
 Binary, `<Zustandsverzeichnis>/bin/loomux.exe`, wenn das das laufende Binary
-ist und eine Release-Version trägt.
+ist. Ein Entwicklungs-Build (`0.0.0-dev`) dort wird durch das neueste Release
+ersetzt; einer an jedem anderen Ort bleibt unberührt.
 
 1. Listet die Releases über `gh release list` und nimmt die höchste Version
    im Kanal des laufenden Binarys (`beta` nimmt Prereleases, `stable` nicht).
@@ -777,7 +778,7 @@ Durchlauf von `serve` für den Sitzungsstart stehen.
 |---|---|
 | 0 | `already current (vX)` oder `updated to vX` |
 | 1 | der Durchlauf ist gescheitert, oder ein anderer läuft |
-| 2 | ausgelassen: nicht Windows, ein Entwicklungs-Build oder nicht das maschinenweite Binary; oder ein unbekanntes Argument |
+| 2 | ausgelassen: nicht Windows oder nicht das maschinenweite Binary (auch ein Entwicklungs-Build); oder ein unbekanntes Argument |
 
 ### `loomux mcp [--channel local|cloud] [--root <verz>]`
 Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die zwölf Werkzeuge selbst

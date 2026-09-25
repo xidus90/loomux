@@ -13,7 +13,8 @@ import (
 )
 
 // DevVersion is what a plain go build reports (cli.Version's default). Such a
-// binary is someone's work in progress and is never replaced.
+// binary is someone's work in progress and is never replaced -- except at the
+// canonical place, where no work in progress belongs.
 const DevVersion = "0.0.0-dev"
 
 // Options describe the running binary to an update pass. Everything the pass
@@ -74,14 +75,18 @@ func run(ctx context.Context, o Options) Result {
 	if o.GOOS != "windows" {
 		return Result{Outcome: Skipped, Err: errors.New("self-update runs on Windows only")}
 	}
-	if o.Version == DevVersion {
-		return Result{Outcome: Skipped, Err: fmt.Errorf("development build %s is never replaced", DevVersion)}
-	}
+	dev := o.Version == DevVersion
 	canonical := Canonical(o.StateDir)
 	if !IsCanonical(o.Executable, o.StateDir) {
+		if dev {
+			return Result{Outcome: Skipped, Err: fmt.Errorf("development build %s is never replaced", DevVersion)}
+		}
 		return Result{Outcome: Skipped, Err: fmt.Errorf("running from %s, not from %s", o.Executable, canonical)}
 	}
-	return installLocked(ctx, o, canonical, true)
+	// At the canonical place a development build was put there by hand and
+	// is replaced like an old release; its version says nothing about what
+	// is current, so only the file's own answer counts.
+	return installLocked(ctx, o, canonical, !dev)
 }
 
 // installLocked is the part of a pass that run and Install share: take the

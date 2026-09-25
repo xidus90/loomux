@@ -205,6 +205,23 @@ func TestRunUpdatesWhenTheInstalledVersionSaysNothingNewer(t *testing.T) {
 	}
 }
 
+// A development build at the canonical place was put there by hand; every
+// host would run it until someone noticed. The pass replaces it like any
+// older release instead of refusing it for good.
+func TestRunReplacesADevelopmentBuildAtTheCanonicalPlace(t *testing.T) {
+	f := release("2.8.0")
+	f.installed = "loomux 0.0.0-dev\n"
+	o := installed(t, f)
+	o.Version = DevVersion
+	res := Run(context.Background(), o)
+	if res.Outcome != Updated || res.Version != "2.8.0" || res.Err != nil {
+		t.Fatalf("Run = %+v", res)
+	}
+	if got := canonicalBody(t, o); got != "binary 2.8.0" {
+		t.Fatalf("canonical binary = %q", got)
+	}
+}
+
 func TestRunSkips(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -212,7 +229,10 @@ func TestRunSkips(t *testing.T) {
 		want string
 	}{
 		{"off Windows", func(o *Options) { o.GOOS = "linux" }, "self-update runs on Windows only"},
-		{"a development build", func(o *Options) { o.Version = DevVersion }, "development build 0.0.0-dev is never replaced"},
+		{"a development build elsewhere", func(o *Options) {
+			o.Version = DevVersion
+			o.Executable = filepath.Join(o.StateDir, "elsewhere.exe")
+		}, "development build 0.0.0-dev is never replaced"},
 		{"a binary elsewhere", func(o *Options) { o.Executable = filepath.Join(o.StateDir, "elsewhere.exe") }, "running from "},
 	} {
 		t.Run(c.name, func(t *testing.T) {

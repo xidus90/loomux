@@ -45,7 +45,7 @@ Pre-Commit-Gate, und `staleBinary` im Sitzungsstart wacht weiter über sie.
 | Tausch | `swap.Swap` (heute `internal/dev/swap`, verschoben nach `internal/swap`) |
 | Aktivierung | Keine eigene: Die nächste Brücke startet aus der neuen Datei, `OlderThan` ersetzt `serve` |
 | Plattform | Windows. Auf POSIX ist der Update-Schritt aus und meldet das in `update.json`; `swap` kennt nur `loomux.exe`, und „Windows zuerst“ gilt laut Fusion-Spec |
-| Nie überschrieben | Ein Binary außerhalb des kanonischen Orts und jeder Build mit Version `0.0.0-dev` |
+| Nie überschrieben | Ein Binary außerhalb des kanonischen Orts, darunter jeder Build mit Version `0.0.0-dev` dort. Ein Entwicklungsbuild am kanonischen Ort wird dagegen ersetzt wie ein altes Release: Er kann nur von Hand dorthin gekommen sein, und nach der ursprünglichen Regel hätte ihn kein Lauf je wieder entfernt (Nachtrag 2026-09-25, beobachtet mit zwei von Hand getauschten Builds am selben Tag) |
 
 ## Aufbau
 

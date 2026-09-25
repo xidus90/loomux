@@ -732,8 +732,9 @@ Ends the service through its own endpoint. `--force` kills it by the PID in
 
 One self-update pass by hand; `serve` runs the same pass a minute after it
 starts and every 24 hours after that. It acts only on the machine-wide
-binary, `<state dir>/bin/loomux.exe`, when that is the running binary and
-carries a release version.
+binary, `<state dir>/bin/loomux.exe`, when that is the running binary. A
+development build (`0.0.0-dev`) there is replaced by the newest release; one
+anywhere else is never touched.
 
 1. Lists the releases through `gh release list` and takes the highest version
    of the running binary's channel (`beta` takes pre-releases, `stable` does
@@ -754,7 +755,7 @@ so the record of `serve`'s last pass stays for session start to read.
 |---|---|
 | 0 | `already current (vX)` or `updated to vX` |
 | 1 | the pass failed, or another pass is running |
-| 2 | skipped: not on Windows, a development build, or not the machine-wide binary; or an unrecognized argument |
+| 2 | skipped: not on Windows, or not the machine-wide binary (a development build included); or an unrecognized argument |
 
 ### `loomux mcp [--channel local|cloud] [--root <dir>]`
 The stdio bridge an MCP host starts. It offers the twelve tools itself — the
