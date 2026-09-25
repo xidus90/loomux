@@ -1118,7 +1118,7 @@ follows the project; the answers of an earlier run come first.
 | base | `agents-md` | `AGENTS.md`, only when the project has none | on, off in a checkout |
 | base | `mcp-json` | `.mcp.json` with the server `loomux` (see [The `.mcp.json` of a host](#the-mcpjson-of-a-host)) | on, off in a checkout |
 | base | `tools` | looks for `git`, `qmd`, `pdftotext`, `yt-dlp` and `ollama` on the `PATH` and names the install command of a missing one; installs nothing | on |
-| hooks | `host-entries` | the hook entries of each host (`.claude/settings.json`) | on |
+| hooks | `host-entries` | the hook entries of each host (`.claude/settings.json`, Antigravity's `.agents/hooks.json`) | on |
 | hooks | `git-hooks` | `pre-commit`, `pre-push` (refuses a push to `main` or `master`) and `commit-msg` under `.githooks`, and `git config core.hooksPath .githooks` | on in a repository |
 | hooks | `verify-skill` | the skill `verify-until-green` | on, off in a checkout |
 | brain | `area` | `loomux area add --scope <scope>`, without `--wiki`, so area add's default wiki applies | on, off in a checkout or an area already declared or registered |
@@ -1135,19 +1135,23 @@ checks this is still pending.
 - **Never overwrite, report instead.** A new file is created exclusively; a
   file that is there is changed only where init owns it. A host entry is
   init's when its command calls a loomux binary; a foreign entry stays and is
-  named. A host file or `.mcp.json` that is no JSON, or whose `hooks` or
-  `mcpServers` is no object, is not repaired: the plan fails and the run
-  stops with nothing written. An existing `AGENTS.md` or skill stays as it
-  is. Before a file changes for the first time, a copy goes to
+  named. A host file or `.mcp.json` that is no JSON, whose root is `null`,
+  or whose `hooks` or `mcpServers` is no object, is not repaired: the plan
+  fails and the run stops with nothing written. An existing `AGENTS.md` or
+  skill stays as it is. Before a file changes for the first time, a copy goes to
   `.loomux/state/backup/<path>.bak` — except `.loomux/config.toml`, which is
   replaced whole once its readers accept the new text.
-- **Entries call the binary by its place**: a host project's entries call
-  `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`, a checkout's
-  `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"` (its git hooks `./bin/loomux.exe`).
-  When no binary stands there — the part `binary` is off, declined or failed
-  — host entries, git hooks and the merge hook are left out and init says
-  so. `binary-install` fails when `LOOMUX_STATE_DIR` moves the state
-  directory away from `${LOCALAPPDATA}/loomux`, because the entries would call
+- **Entries call the binary by its place**: Claude Code's entries in a host
+  project call `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`, in a checkout
+  `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"`; the git hooks call the same
+  binary, a checkout's as `./bin/loomux.exe`. When no binary stands there —
+  the part `binary` is off, declined or failed — these entries and git hooks
+  are left out and init says so. Antigravity's entries call the installed
+  binary in every project through `cmd.exe`, unquoted, as
+  `%LOCALAPPDATA%/loomux/bin/loomux.exe`, and like the merge hook they are
+  planned only where it is installed or `binary-install` runs (see below).
+  `binary-install` fails when `LOOMUX_STATE_DIR` moves the state directory
+  away from `${LOCALAPPDATA}/loomux`, because the entries would call
   nothing.
 - **Order**: the binary, `area add`, the files, `core.hooksPath`, the merge
   hook, the graph. `area add` writes `[area]`, `[layout]`, `[index]`,
@@ -1164,10 +1168,30 @@ checks this is still pending.
   `pre-commit`, `pre-push` or `commit-msg` in `.git/hooks`, init writes only
   the missing hooks there. A hook directory outside the root (a linked
   worktree, a submodule) is left alone with a note.
-- **Antigravity** is accepted but gets no hook entries and no skills yet: its
-  hook file has not been measured against a running agent, nor how it
-  expands `${LOCALAPPDATA}`. The plan says so in a note, and
-  `.agents/hooks.json` is neither read nor refused. Codex has no hook file.
+- **Antigravity** gets two entries in the group `loomux` of
+  `.agents/hooks.json` — `PreToolUse` on
+  `write_to_file|replace_file_content|multi_replace_file_content|run_command`
+  (timeout 15 s) and `PostToolUse` on the three writing tools (60 s) — and
+  the skills under `.agents/skills/<name>/SKILL.md`, the same texts Claude
+  Code gets. agy runs a hook through `cmd.exe` from `.agents/`: it expands
+  `%LOCALAPPDATA%` but leaves `${LOCALAPPDATA}` as it stands, and it breaks a
+  quoted program path. So the entries always call the installed binary,
+  unquoted, in a checkout too:
+  `%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..`
+  (and `post-tool-use` alike). Without that binary, and without a
+  `binary-install` in the same run, the plan leaves the entries out with a
+  note, as for the merge hook, and a run writes the file only while the
+  binary stands; Claude Code's entries keep their own binary. When
+  `LOCALAPPDATA` contains whitespace, `cmd.exe` would split the unquoted
+  path: init then writes no Antigravity entries, says so in a note and does
+  not read `.agents/hooks.json`; the skills still come. Every
+  other group of the file is carried over token for token (key order,
+  escapes and numbers as they were; only the indentation becomes two
+  spaces), and a group that already runs one of the commands above is named
+  (`the group X already runs …; it now fires twice`), never repaired. agy
+  loads a project's hooks only in a folder it trusts (`trustedWorkspaces` in
+  `~/.gemini/antigravity-cli/settings.json`); the plan reminds of that in a
+  note. Codex has no hook file.
 - **State**: `.loomux/state/answers.toml` keeps the chosen hosts and parts
   (everything else is in `.loomux/config.toml`); `.loomux/state/installed.toml`
   lists what the last run wrote and ran, and is written last, so an
@@ -1195,8 +1219,9 @@ interview or the approval, or it could not be restored; `2`, before
 anything is written: a usage error, a root that is no directory, a
 `.loomux/config.toml` or `.claude/settings.json` that cannot be read, an
 `answers.toml` that does not read, a plan that fails (a configuration its
-readers refuse, a host file or `.mcp.json` that is no JSON or whose `hooks`
-or `mcpServers` is no object, any file the plan cannot read), and a run
+readers refuse, a host file or `.mcp.json` that is no JSON, whose root is
+`null` or whose `hooks` or `mcpServers` is no object, any file the plan
+cannot read), and a run
 that has to ask without a terminal (`init asks questions; run it
 in a terminal, or pass --yes or --dry-run`).
 

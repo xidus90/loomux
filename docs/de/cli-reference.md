@@ -1161,7 +1161,7 @@ folgen dem Projekt; die Antworten eines früheren Laufs gehen vor.
 | base | `agents-md` | `AGENTS.md`, nur wenn das Projekt keine hat | an, aus in einem Checkout |
 | base | `mcp-json` | `.mcp.json` mit dem Server `loomux` (siehe [Die `.mcp.json` eines Wirts](#die-mcpjson-eines-wirts)) | an, aus in einem Checkout |
 | base | `tools` | sucht `git`, `qmd`, `pdftotext`, `yt-dlp` und `ollama` auf dem `PATH` und nennt für ein fehlendes den Installationsbefehl; installiert nichts | an |
-| hooks | `host-entries` | die Hook-Einträge jedes Wirts (`.claude/settings.json`) | an |
+| hooks | `host-entries` | die Hook-Einträge jedes Wirts (`.claude/settings.json`, bei Antigravity `.agents/hooks.json`) | an |
 | hooks | `git-hooks` | `pre-commit`, `pre-push` (verweigert einen Push nach `main` oder `master`) und `commit-msg` unter `.githooks`, dazu `git config core.hooksPath .githooks` | an in einem Repository |
 | hooks | `verify-skill` | der Skill `verify-until-green` | an, aus in einem Checkout |
 | brain | `area` | `loomux area add --scope <scope>`, ohne `--wiki`, also mit dem vorgegebenen Wiki von area add | an, aus in einem Checkout oder bei einem schon erklärten oder registrierten Bereich |
@@ -1179,19 +1179,24 @@ durch einen Menschen, der das prüft, steht noch aus.
   exklusiv; eine vorhandene ändert sich nur, wo sie `init` gehört. Ein
   Host-Eintrag gehört `init`, wenn sein Befehl ein loomux-Binary ruft; ein
   fremder bleibt stehen und wird genannt. Eine Host-Datei oder `.mcp.json`,
-  die kein JSON ist oder deren `hooks` oder `mcpServers` kein Objekt ist,
+  die kein JSON ist, deren Wurzel `null` ist oder deren `hooks` oder
+  `mcpServers` kein Objekt ist,
   wird nicht repariert: Der Plan scheitert, und der Lauf endet, ohne etwas
   zu schreiben. Eine vorhandene `AGENTS.md` oder ein vorhandener Skill
   bleibt, wie er ist. Bevor sich eine Datei zum ersten Mal ändert, geht eine
   Kopie nach `.loomux/state/backup/<pfad>.bak` — außer
   `.loomux/config.toml`, die im Ganzen ersetzt wird, sobald ihre Leser den
   neuen Text annehmen.
-- **Einträge rufen das Binary an seinem Ort**: Die Einträge eines
-  Wirtsprojekts rufen `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`, die eines
-  Checkouts `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"` (seine Git-Hooks
-  `./bin/loomux.exe`). Steht dort kein Binary — der Teil `binary` ist aus,
-  abgelehnt oder gescheitert —, entfallen Host-Einträge, Git-Hooks und der
-  Merge-Hook, und `init` sagt es. `binary-install` scheitert, wenn
+- **Einträge rufen das Binary an seinem Ort**: Die Einträge von Claude Code
+  rufen in einem Wirtsprojekt `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`, in
+  einem Checkout `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"`; die Git-Hooks
+  rufen dasselbe Binary, die eines Checkouts als `./bin/loomux.exe`. Steht
+  dort kein Binary — der Teil `binary` ist aus, abgelehnt oder gescheitert
+  —, entfallen diese Einträge und Git-Hooks, und `init` sagt es. Die
+  Einträge von Antigravity rufen in jedem Projekt das installierte Binary
+  über `cmd.exe`, ungequotet, als `%LOCALAPPDATA%/loomux/bin/loomux.exe`,
+  und werden wie der Merge-Hook nur geplant, wo es installiert ist oder
+  `binary-install` läuft (siehe unten). `binary-install` scheitert, wenn
   `LOOMUX_STATE_DIR` das Zustandsverzeichnis von `${LOCALAPPDATA}/loomux`
   wegverlegt, weil die Einträge sonst nichts riefen.
 - **Reihenfolge**: das Binary, `area add`, die Dateien, `core.hooksPath`,
@@ -1211,11 +1216,33 @@ durch einen Menschen, der das prüft, steht noch aus.
   oder `commit-msg`, schreibt `init` nur die fehlenden Hooks dorthin. Ein
   Hookverzeichnis außerhalb der Wurzel (ein verknüpfter Worktree, ein
   Submodul) bleibt mit einer Notiz unberührt.
-- **Antigravity** wird angenommen, bekommt aber noch keine Hook-Einträge und
-  keine Skills: Seine Hookdatei ist gegen einen laufenden Agenten noch nicht
-  gemessen, ebenso wenig, wie es `${LOCALAPPDATA}` auflöst. Der Plan sagt das
-  in einer Notiz, und `.agents/hooks.json` wird weder gelesen noch
-  abgelehnt. Codex hat keine Hookdatei.
+- **Antigravity** bekommt zwei Einträge in der Gruppe `loomux` von
+  `.agents/hooks.json` — `PreToolUse` auf
+  `write_to_file|replace_file_content|multi_replace_file_content|run_command`
+  (Timeout 15 s) und `PostToolUse` auf die drei schreibenden Werkzeuge
+  (60 s) — und die Skills unter `.agents/skills/<name>/SKILL.md`, dieselben
+  Texte wie Claude Code. agy führt einen Hook über `cmd.exe` aus
+  `.agents/` aus: Es löst `%LOCALAPPDATA%` auf, lässt `${LOCALAPPDATA}`
+  stehen und zerbricht einen gequoteten Programmpfad. Deshalb rufen die
+  Einträge immer das installierte Binary, ungequotet, auch in einem
+  Checkout:
+  `%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..`
+  (und `post-tool-use` ebenso). Ohne dieses Binary und ohne
+  `binary-install` im selben Lauf lässt der Plan die Einträge mit einer
+  Notiz weg, wie beim Merge-Hook, und ein Lauf schreibt die Datei nur,
+  solange das Binary steht; die Einträge von Claude Code behalten ihr
+  eigenes Binary. Enthält `LOCALAPPDATA`
+  Leerraum, würde `cmd.exe` den ungequoteten Pfad zerteilen: `init`
+  schreibt dann keine Antigravity-Einträge, sagt es in einer Notiz und
+  liest `.agents/hooks.json` nicht; die Skills kommen trotzdem. Jede andere
+  Gruppe der Datei wird Token für Token übernommen (Schlüsselreihenfolge,
+  Escapes und Zahlen wie vorher; nur die Einrückung wird zu zwei
+  Leerzeichen), und eine Gruppe, die schon einen der Befehle oben ruft,
+  wird genannt (`the group X already runs …; it now fires twice`), nie
+  repariert. agy lädt die Hooks eines Projekts nur in einem Ordner, dem es
+  vertraut (`trustedWorkspaces` in
+  `~/.gemini/antigravity-cli/settings.json`); der Plan erinnert daran in
+  einer Notiz. Codex hat keine Hookdatei.
 - **Zustand**: `.loomux/state/answers.toml` hält die gewählten Wirte und
   Teile (alles andere steht in `.loomux/config.toml`);
   `.loomux/state/installed.toml` nennt, was der letzte Lauf geschrieben und
@@ -1246,9 +1273,10 @@ etwas geschrieben ist: ein Usage-Fehler, eine Wurzel, die kein Verzeichnis
 ist, eine `.loomux/config.toml` oder `.claude/settings.json`, die sich nicht
 lesen lässt, eine `answers.toml`, die
 nicht liest, ein scheiternder Plan (eine Konfiguration, die ihre Leser
-ablehnen, eine Host-Datei oder `.mcp.json`, die kein JSON ist oder deren
-`hooks` oder `mcpServers` kein Objekt ist, jede Datei, die der Plan nicht
-lesen kann), und ein Lauf, der fragen muss und kein Terminal hat (`init asks questions; run it in a
-terminal, or pass --yes or --dry-run`).
+ablehnen, eine Host-Datei oder `.mcp.json`, die kein JSON ist, deren Wurzel
+`null` ist oder deren `hooks` oder `mcpServers` kein Objekt ist, jede Datei,
+die der Plan nicht lesen kann), und ein Lauf, der fragen muss und kein
+Terminal hat (`init asks questions; run it in a terminal, or pass --yes or
+--dry-run`).
 
 

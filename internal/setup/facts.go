@@ -149,6 +149,7 @@ func Gather(root, home string, git detect.Runner) (Facts, error) {
 	f.BinaryThere = isFile(BinaryPath(root, f.Binary))
 	f.CanonicalThere = isFile(BinaryPath(root, hostfile.Canonical))
 	f.Graph = isFile(store.WiringPath(root))
+	// Whitespace only; cmd metacharacters such as & ^ ( ) are not checked.
 	f.LocalAppDataSpaced = strings.ContainsFunc(os.Getenv("LOCALAPPDATA"), unicode.IsSpace)
 	if hooksNow != "" {
 		data, err := os.ReadFile(filepath.Join(hooksNow, "post-merge"))
