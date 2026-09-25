@@ -4,6 +4,16 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.14.0] - 2026-09-25
+
+<https://github.com/xidus90/loomux/pull/39>
+
+### Added
+- `loomux init` sets up Antigravity: hook entries in `.agents/hooks.json` and skills in `.agents/skills/`, only where the installed loomux can serve them.
+- loomux's hooks answer Antigravity's PreToolUse, PostToolUse, Stop and PreInvocation in the form agy reads, and the guard judges `run_command` and `send_command_input`.
+### Changed
+- `loomux init` refuses a hook file whose root is `null` instead of reading it as empty.
+
 ## [2.13.2] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/37>
