@@ -647,13 +647,9 @@ nichts hier kann die beiden unterscheiden. Claude Code schickt beide mit der `se
 Bekannte Grenzen: ein Befund, der nach dem letzten `Stop` der Sitzung
 entsteht, wird nie zugestellt. Ein Subagent, den der Wirt ohne `SubagentStop`
 beendet, lässt seinen Schnappschuss liegen. Beide Dateien bleiben, bis
-`sessions.Forget` das Verzeichnis der Sitzung entfernt, und das ruft nur
-`loomux worktree unlink` (Abschnitt 9), und nur in einem verknüpften Worktree,
-in dem es etwas zu spiegeln gibt. In diesem Repository läuft es nie:
-`[worktree] mirror` ist in `.loomux/config.toml` auskommentiert, und
-`WorktreeUnlink` kehrt vor `Forget` zurück, wenn nichts gespiegelt ist — die
-Sitzungsdateien und die `agents/`-Verzeichnisse bleiben also gleichermaßen
-liegen, bis jemand sie löscht. Ein Schreiben, das genau zwischen das erneute
+jemand sie löscht: kein Hook entfernt das Verzeichnis einer Sitzung, und
+`loomux worktree unlink` (Abschnitt 9) markiert die Sitzung nur als beendet,
+damit eine Fortsetzung unter derselben ID ihren Stand noch findet. Ein Schreiben, das genau zwischen das erneute
 Lesen einer Befunddatei durch das Tor und deren Umbenennen fällt, verliert
 eine Zeile; eine Sperre über eine Datei, die zwei Prozesse anfassen, gibt es
 nicht. Und in einem Haupt-Checkout, der seine verknüpften Worktrees in sich
@@ -730,8 +726,8 @@ flowchart TD
     wt2 --> cfg2{"worktree.mirror"}
     cfg2 -->|"fehlt oder leer"| silent2
     cfg2 -->|"unlesbar oder kaputt"| loud2["Exit 1, auf stderr benannt"]
-    cfg2 --> forget["die Datei dieser Sitzung unter<br/>.loomux/state/hooks/ entfernen"]
-    forget --> count{"eine andere Datei dort,<br/>jünger als 24 h?"}
+    cfg2 --> forget["diese Sitzung neben ihrer Datei unter<br/>.loomux/state/hooks/ als beendet markieren"]
+    forget --> count{"eine andere Datei dort, jünger<br/>als 24 h und nicht beendet?"}
     count -->|"ja"| silent2
     count -->|"nein"| unlink["je konfiguriertem Pfad:<br/>eine Junction von uns -> entfernt"]
     unlink --> silent2
@@ -759,9 +755,15 @@ Drei Dinge in diesem Bild zeichnet man leicht falsch, und
   Haupt-Checkout ist der gewöhnliche Weg zu bemerken, dass ein Worktree weg ist.
 - **Ein gescheitertes Anlegen hält den Sweep nicht auf.** Beide Schritte laufen,
   und scheitert einer, ist das Ergebnis Exit 1.
-- **`unlink` entfernt die eigene Sitzungsdatei, bevor es die anderen zählt.**
-  Andersherum zählte die endende Sitzung als jemand anderes, und die letzte
-  Sitzung auf einem Baum entfernte nie etwas.
+- **`unlink` markiert die eigene Sitzung als beendet, bevor es die anderen
+  zählt.** Andersherum zählte die endende Sitzung als jemand anderes, und die
+  letzte Sitzung auf einem Baum entfernte nie etwas. `sessions.Retire` legt
+  eine Datei `<id>.ended` neben den Stand der Sitzung und lässt den Stand
+  selbst stehen: eine unter derselben ID fortgesetzte Sitzung findet Basis,
+  grünen Baum des Stop-Tors und die nicht zugestellten Befunde
+  ihrer Subagenten, und `session-start` nimmt die Marke wieder weg. Eine
+  Marke und nicht das Alter der Datei, weil ein Stop, der beim Ende der
+  Sitzung noch läuft, die Datei danach neu schreibt.
 
 ### Nichts zu tun ist still, Schaden ist laut
 
@@ -811,8 +813,9 @@ jede Lockerung der Bedingungen oben machte den Sweep erst unsicher.
 
 ### Die 24-Stunden-Grenze, und warum sie in loomux schwächer ist
 
-`unlink` zählt die anderen Sitzungsdateien, die jünger als 24 Stunden sind; die
-Änderungszeit einer Datei ist die einzige Lebendigkeit, die sich lesen lässt.
+`unlink` zählt die anderen Sitzungsdateien, die jünger als 24 Stunden und
+nicht als beendet markiert sind. Für eine Sitzung, die ohne SessionEnd endete,
+ist die Änderungszeit der Datei die einzige Lebendigkeit, die sich lesen lässt.
 Zwei Hooks schreiben diese Datei: `session-start` einmal, und `stop`, wann
 immer eine Kette grün oder rot endet, ein Git-Fehler zählt, der Zähler aufgibt
 oder ein Befund sich nicht wegräumen lässt. Ein Rundenende, das nichts Neues

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/sessions"
 	"github.com/xidus90/loomux/internal/testlock"
@@ -797,11 +798,41 @@ func TestWorktreeUnlinkTakesTheJunctionWhenItWasTheLastSession(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(main, ".tools", "godot")); err != nil {
 		t.Fatalf("unlink reached through the junction: %v", err)
 	}
-	if _, err := os.Stat(mine); !os.IsNotExist(err) {
-		t.Fatalf("this session's own state file is still there: %v", err)
+	// Marked ended, not removed: a resume under the same id reads it again,
+	// as it was.
+	if body, err := os.ReadFile(mine); err != nil || string(body) != `{"blocks":0,"snapshots":{}}` {
+		t.Fatalf("this session's own state file changed: %q, %v", body, err)
+	}
+	if n, err := sessions.Others(worktree, "other", sessionStale); err != nil || n != 0 {
+		t.Fatalf("the ended session still counts: %d, %v", n, err)
 	}
 	if stdout.Len() != 0 || stderr.Len() != 0 {
 		t.Fatalf("stdout = %q, stderr = %q; want silence", stdout, stderr)
+	}
+}
+
+// The whole row: a session ends, its junction goes, and when it resumes under
+// the same id it finds its state as it left it and counts for the others
+// again.
+func TestAnUnlinkedSessionThatResumesCountsAgain(t *testing.T) {
+	_, worktree := linkedFixture(t, ".tools")
+	t.Setenv(config.StateDirEnv, t.TempDir())
+	if err := sessions.WriteState(worktree, "mine", sessions.SessionState{Base: "abc", Blocks: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := unlinkAs(t, worktree, "mine"); code != ExitOK {
+		t.Fatalf("unlink: %d %s", code, stderr)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := SessionStart(strings.NewReader(`{"session_id":"mine","source":"resume"}`), &stdout, &stderr, worktree, "claude"); code != ExitOK {
+		t.Fatalf("session-start: %d %q", code, stderr.String())
+	}
+	// The base stays; the row of blocks starts again with the resume.
+	if got := sessions.ReadState(worktree, "mine"); got.Base != "abc" || got.Blocks != 0 {
+		t.Fatalf("state %+v", got)
+	}
+	if n, err := sessions.Others(worktree, "other", sessionStale); err != nil || n != 1 {
+		t.Fatalf("others = %d, %v; the resumed session does not count", n, err)
 	}
 }
 
@@ -990,13 +1021,14 @@ func TestUnlinkReportsABrokenConfig(t *testing.T) {
 	}
 }
 
-// A state file that is there and will not go must not read as "nobody else is
-// here": the file would then count as somebody else's on the next run, and the
-// junction would stay for ever. A directory with something in it is the
-// portable way to make os.Remove refuse.
-func TestUnlinkReportsAStateFileItCannotRemove(t *testing.T) {
+// A session that cannot be marked ended must not read as "nobody else is
+// here": it would then count as somebody else's on the next run, and the
+// junction would stay for ever. A directory with something in it, where the
+// marker goes, is the portable way to make the write refuse.
+func TestUnlinkReportsASessionItCannotRetire(t *testing.T) {
 	_, worktree := linkedFixture(t, ".tools")
-	busy := filepath.Join(worktree, filepath.FromSlash(sessions.StateDir), "mine.json")
+	writeSessionState(t, worktree, "mine")
+	busy := filepath.Join(worktree, filepath.FromSlash(sessions.StateDir), "mine.ended")
 	mkdirAll(t, busy)
 	writeFile(t, filepath.Join(busy, "inside"), "x")
 
@@ -1004,18 +1036,18 @@ func TestUnlinkReportsAStateFileItCannotRemove(t *testing.T) {
 	if code != ExitInternal {
 		t.Fatalf("exit = %d, want ExitInternal (stderr: %s)", code, stderr)
 	}
-	// Forget's own prefix, so the test cannot pass on a failure from the count
-	// that runs after it.
-	if !strings.Contains(stderr.String(), "removing ") {
-		t.Fatalf("stderr = %q, want Forget's error in it", stderr)
+	if !strings.Contains(stderr.String(), "retiring ") {
+		t.Fatalf("stderr = %q, want Retire's error in it", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(worktree, ".tools", "godot")); err != nil {
+		t.Fatalf("the junction went although the session could not retire: %v", err)
 	}
 }
 
 // A count that could not be taken is not a count of zero. The state directory
 // is held open without any share mode -- not denied by ACL, which an elevated
 // token reads through -- so os.ReadDir of it fails with a sharing violation,
-// while os.Remove of an absent child in it still answers IsNotExist and Forget
-// passes.
+// while the marker is still written into it and Retire passes.
 func TestUnlinkReportsAStateDirectoryItCannotRead(t *testing.T) {
 	_, worktree := linkedFixture(t, ".tools")
 	hooks := filepath.Join(worktree, filepath.FromSlash(sessions.StateDir))
@@ -1026,7 +1058,7 @@ func TestUnlinkReportsAStateDirectoryItCannotRead(t *testing.T) {
 	if code != ExitInternal {
 		t.Fatalf("exit = %d, want ExitInternal (stderr: %s)", code, stderr)
 	}
-	// Others' own prefix. Under this lock Forget fails at nothing, but it
+	// Others' own prefix. Under this lock Retire fails at nothing, but it
 	// stands earlier in the same function and would produce the same exit code
 	// and the same non-empty stderr, so the message is what tells them apart.
 	if !strings.Contains(stderr.String(), "reading ") {

@@ -95,6 +95,145 @@ func TestOthersReportsADirectoryItCannotRead(t *testing.T) {
 	}
 }
 
+// A retired session no longer counts for anybody, keeps its state and its
+// subagents' findings for a resume under the same id, and stays ended when a
+// stop that was still running rewrites its file afterwards.
+func TestRetireEndsTheSessionAndKeepsItsState(t *testing.T) {
+	root := t.TempDir()
+	if err := WriteState(root, "s1", SessionState{Base: "abc", Blocks: 2}); err != nil {
+		t.Fatal(err)
+	}
+	writeAgent(t, root, "s1", "a", AgentFile{Finding: []string{"x"}})
+	state(t, root, "s2", 0)
+
+	if err := Retire(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteState(root, "s1", SessionState{Base: "abc", Blocks: 3}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := Others(root, "s2", time.Hour); err != nil || n != 0 {
+		t.Fatalf("others = %d, %v; the retired session still counts", n, err)
+	}
+	if got := ReadState(root, "s1"); got.Base != "abc" || got.Blocks != 3 {
+		t.Fatalf("state %+v", got)
+	}
+	if _, err := os.Stat(agentPath(root, "s1", "a")); err != nil {
+		t.Fatalf("agent file: %v", err)
+	}
+}
+
+// A revived session counts again; reviving one never retired is no error.
+func TestReviveCountsTheSessionAgain(t *testing.T) {
+	root := t.TempDir()
+	state(t, root, "s1", 0)
+	if err := Retire(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := Revive(root, "s1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, err := Others(root, "s2", time.Hour); err != nil || n != 1 {
+		t.Fatalf("others = %d, %v", n, err)
+	}
+}
+
+// A marker that cannot be put down or taken away is an error. A directory
+// with something in it is the portable way to make both refuse.
+func TestRetireAndReviveReportAMarkerTheyCannotTouch(t *testing.T) {
+	root := t.TempDir()
+	state(t, root, "s1", 0)
+	busy := endedPath(root, "s1")
+	if err := os.MkdirAll(filepath.Join(busy, "inside"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Retire(root, "s1"); err == nil {
+		t.Fatal("Retire: want an error")
+	}
+	if err := Revive(root, "s1"); err == nil {
+		t.Fatal("Revive: want an error")
+	}
+	// A marker directory is no marker: the session still counts.
+	if n, err := Others(root, "s2", time.Hour); err != nil || n != 1 {
+		t.Fatalf("others = %d, %v", n, err)
+	}
+}
+
+// A session killed without a SessionEnd has no marker; when it resumes after
+// a day its file is made young, and its content stays.
+func TestReviveMakesAnUnmarkedOldFileYoung(t *testing.T) {
+	root := t.TempDir()
+	if err := WriteState(root, "s1", SessionState{Base: "abc", Blocks: 2}); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(statePath(root, "s1"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := Revive(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := Others(root, "s2", 24*time.Hour); err != nil || n != 1 {
+		t.Fatalf("others = %d, %v", n, err)
+	}
+	if got := ReadState(root, "s1"); got.Base != "abc" || got.Blocks != 2 {
+		t.Fatalf("state %+v", got)
+	}
+}
+
+// A session that never wrote its file gets no marker.
+func TestRetireMarksNothingWithoutAFile(t *testing.T) {
+	root := t.TempDir()
+	if err := Retire(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(endedPath(root, "s1")); !os.IsNotExist(err) {
+		t.Fatalf("marker: %v", err)
+	}
+}
+
+// A revived session starts a new row of blocks, keeps its base, and is young
+// again however long it rested.
+func TestReviveResetsTheBlocksAndMakesTheFileYoung(t *testing.T) {
+	root := t.TempDir()
+	if err := WriteState(root, "s1", SessionState{Base: "abc", Green: "t", Blocks: 3}); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(statePath(root, "s1"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := Retire(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Revive(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := ReadState(root, "s1"); got.Base != "abc" || got.Green != "t" || got.Blocks != 0 {
+		t.Fatalf("state %+v", got)
+	}
+	if n, err := Others(root, "s2", 24*time.Hour); err != nil || n != 1 {
+		t.Fatalf("others = %d, %v", n, err)
+	}
+}
+
+// Forget takes the end marker along with the file.
+func TestForgetTakesTheMarkerWith(t *testing.T) {
+	root := t.TempDir()
+	state(t, root, "s1", 0)
+	if err := Retire(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Forget(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(endedPath(root, "s1")); !os.IsNotExist(err) {
+		t.Fatalf("marker: %v", err)
+	}
+}
+
 // The id comes from outside, so it may not decide which file is read -- the
 // same reasoning as ultraloom/hooks/state.py's own path builder.
 func TestForgetRemovesOnlyThisSessionsFile(t *testing.T) {

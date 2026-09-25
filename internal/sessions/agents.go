@@ -120,11 +120,7 @@ var createTemp = os.CreateTemp
 
 // RemoveAgent deletes one subagent's file; one that is not there is gone.
 func RemoveAgent(root, sessionID, agentID string) error {
-	path := agentPath(root, sessionID, agentID)
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("removing %s: %w", path, err)
-	}
-	return nil
+	return removeFile(agentPath(root, sessionID, agentID), "removing")
 }
 
 // Findings are the finding lines of the subagent files, sorted by agent id.

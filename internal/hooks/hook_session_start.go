@@ -49,12 +49,24 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName stri
 		return ExitInternal
 	}
 
+	// A session worktree unlink retired and that now resumes under the same
+	// id counts again, and before the base is looked at, so that a base that
+	// cannot be written does not leave it uncounted. A session that stays
+	// uncounted is told in its context, the one channel a host reads at exit
+	// 0: exit 1 would drop the context lines with it.
+	var lines []string
+	if payload.SessionID != "" {
+		if err := sessions.Revive(root, payload.SessionID); err != nil {
+			lines = append(lines, "loomux: this session may not count for worktree unlink, so another session ending here may remove its junctions: "+err.Error())
+		}
+	}
 	if err := recordBase(payload.SessionID, root); err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)
 		return ExitInternal
 	}
 
-	lines := append(staleBinary(root), updateWarnings(config.StateDir(), runtime.GOOS)...)
+	lines = append(lines, staleBinary(root)...)
+	lines = append(lines, updateWarnings(config.StateDir(), runtime.GOOS)...)
 
 	if err := hosts.WriteContext(host, "SessionStart", stdout, lines); err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)

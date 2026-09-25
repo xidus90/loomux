@@ -617,13 +617,10 @@ same, and nothing here can tell the two apart. Claude Code sends both with the m
 
 Known limits: a finding that arises after the session's last `Stop` is never
 delivered. A subagent the host ends without a `SubagentStop` leaves its
-snapshot behind. Both files stay until `sessions.Forget` removes the
-session's directory, which only `loomux worktree unlink` calls (section 9),
-and only in a linked worktree with something to mirror. In this repository it
-never runs at all: `[worktree] mirror` is commented out in
-`.loomux/config.toml`, and `WorktreeUnlink` returns before `Forget` when
-nothing is mirrored — so the session files and the `agents/` directories
-alike stay until someone deletes them. A write that lands exactly between the
+snapshot behind. Both files stay until someone deletes them: no hook
+removes a session's directory, and `loomux worktree unlink` (section 9) only
+marks the session ended, so that a resume under the same id still finds its
+state. A write that lands exactly between the
 gate's re-read of a finding file and its rename loses one line; there is no
 lock over a file two processes touch. And in a main checkout that holds its
 linked worktrees, a worktree directory git does not ignore enters the
@@ -696,8 +693,8 @@ flowchart TD
     wt2 --> cfg2{"worktree.mirror"}
     cfg2 -->|"absent, or empty"| silent2
     cfg2 -->|"unreadable or broken"| loud2["exit 1, named on stderr"]
-    cfg2 --> forget["remove this session's file<br/>under .loomux/state/hooks/"]
-    forget --> count{"any other file there,<br/>younger than 24 h?"}
+    cfg2 --> forget["mark this session ended<br/>beside its file under .loomux/state/hooks/"]
+    forget --> count{"any other file there, younger<br/>than 24 h and not marked ended?"}
     count -->|"yes"| silent2
     count -->|"no"| unlink["for each configured path:<br/>a junction of ours -> removed"]
     unlink --> silent2
@@ -725,9 +722,14 @@ Three things in that picture are easy to draw wrong, and
   checkout is the ordinary way to notice that a worktree is gone.
 - **A failed link does not stop the sweep.** Both steps run, and either one
   failing sets exit 1.
-- **`unlink` removes its own session file before it counts the others.** The
+- **`unlink` marks its own session ended before it counts the others.** The
   other order would count the ending session as somebody else, and the last
-  session on a tree would never unlink anything.
+  session on a tree would never unlink anything. `sessions.Retire` puts a
+  `<id>.ended` file beside the session's state and leaves the state itself:
+  a session resumed under the same id finds the stop gate's base and green
+  tree, and its subagents' undelivered findings, and `session-start`
+  takes the marker away again. A marker and not the file's age, because a
+  stop still running when the session ends rewrites the file afterwards.
 
 ### Nothing to do is silent, damage is loud
 
@@ -774,8 +776,9 @@ conditions above is what would make the sweep unsafe.
 
 ### The 24-hour cutoff, and why it is weaker in loomux
 
-`unlink` counts the other session files that are younger than 24 hours; a
-file's modification time is the only liveness there is to read. Two hooks
+`unlink` counts the other session files that are younger than 24 hours and
+not marked ended. For a session that ended without a SessionEnd, the file's
+modification time is the only liveness there is to read. Two hooks
 write that file: `session-start` once, and `stop` whenever a chain ends green
 or red, a git failure counts, the counter gives up, or a finding cannot be
 cleared. A turn end that finds nothing new or that the gate could not judge
