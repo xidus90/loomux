@@ -174,6 +174,7 @@ func RunMCPCase(c *MCPCase, run MCPRunFunc) (*MCPRunOutcome, error) {
 		return nil, err
 	}
 	defer os.RemoveAll(tmpDir)
+	tmpDir = longPath(tmpDir)
 
 	if err := StageWorld(filepath.Join(c.Path, "world"), tmpDir); err != nil {
 		return nil, err

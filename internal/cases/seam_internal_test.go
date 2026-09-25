@@ -2,6 +2,7 @@ package cases
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 )
 
@@ -13,6 +14,23 @@ func TestRunCaseReportsATempDirItCannotMake(t *testing.T) {
 	c := &Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "loomux x"}
 	if _, err := RunCase(c, nil); err == nil {
 		t.Fatal("want error")
+	}
+}
+
+// A world is staged under the spelling the file system resolves to, the one
+// git answers with; a path that does not resolve is kept as given.
+func TestLongPathIsTheResolvedSpelling(t *testing.T) {
+	dir := t.TempDir()
+	want, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := longPath(dir); got != want {
+		t.Fatalf("longPath(%q) = %q, want %q", dir, got, want)
+	}
+	missing := filepath.Join(dir, "gone")
+	if got := longPath(missing); got != missing {
+		t.Fatalf("longPath(%q) = %q, want it unchanged", missing, got)
 	}
 }
 
