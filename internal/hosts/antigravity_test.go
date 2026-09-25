@@ -2,6 +2,7 @@ package hosts_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -122,22 +123,56 @@ func TestReadAntigravityAcceptsAMistypedOrMissingSessionID(t *testing.T) {
 	}
 }
 
-// TestWriteAntigravityContextFailsClosed verifies that writeAntigravityContext
-// always returns ErrNoAdapter until context emission for Antigravity is implemented.
-func TestWriteAntigravityContextFailsClosed(t *testing.T) {
-	var out bytes.Buffer
-	writeErr := hosts.WriteContext(hosts.HostAntigravity, "PreInvocation", &out, []string{"line"})
-	if !errors.Is(writeErr, hosts.ErrNoAdapter) {
-		t.Fatalf("expected ErrNoAdapter, got %v", writeErr)
-	}
-	if out.Len() != 0 {
-		t.Fatalf("expected nothing written, got %q", out.String())
+// TestWriteAntigravityContext verifies that writeAntigravityContext encodes lines
+// as protojson injectSteps with ephemeralMessage.
+func TestWriteAntigravityContext(t *testing.T) {
+	var buf bytes.Buffer
+	lines := []string{"hello", "world"}
+	if err := hosts.WriteContext(hosts.HostAntigravity, "PreInvocation", &buf, lines); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if err := hosts.WriteContext(hosts.HostAntigravity, "PreInvocation", &out, nil); !errors.Is(err, hosts.ErrNoAdapter) {
-		t.Fatalf("expected ErrNoAdapter for empty lines, got %v", err)
+	var payload struct {
+		InjectSteps []struct {
+			EphemeralMessage string `json:"ephemeralMessage"`
+		} `json:"injectSteps"`
 	}
-	if out.Len() != 0 {
-		t.Fatalf("expected nothing written, got %q", out.String())
+	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v, raw: %s", err, buf.String())
+	}
+	if len(payload.InjectSteps) != 1 {
+		t.Fatalf("expected 1 injectStep, got %d", len(payload.InjectSteps))
+	}
+	if got := payload.InjectSteps[0].EphemeralMessage; got != "hello\nworld" {
+		t.Errorf("expected %q, got %q", "hello\nworld", got)
+	}
+}
+
+// TestWriteAntigravityContextEmpty verifies that an empty or nil slice of lines
+// writes nothing and returns nil.
+func TestWriteAntigravityContextEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	if err := hosts.WriteContext(hosts.HostAntigravity, "PreInvocation", &buf, nil); err != nil {
+		t.Fatalf("unexpected error on nil: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("expected empty buffer, got %q", buf.String())
+	}
+
+	if err := hosts.WriteContext(hosts.HostAntigravity, "PreInvocation", &buf, []string{}); err != nil {
+		t.Fatalf("unexpected error on empty: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("expected empty buffer, got %q", buf.String())
+	}
+}
+
+// TestWriteAntigravityContextFailingWriter verifies that errors from a broken
+// writer are returned wrapped.
+func TestWriteAntigravityContextFailingWriter(t *testing.T) {
+	boom := errors.New("write failed")
+	err := hosts.WriteContext(hosts.HostAntigravity, "PreInvocation", brokenWriter{err: boom}, []string{"line"})
+	if err == nil || !errors.Is(err, boom) {
+		t.Fatalf("expected wrapped error %v, got %v", boom, err)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // readAntigravity decodes an Antigravity hook payload.
@@ -43,12 +44,26 @@ func readAntigravity(r io.Reader) (Payload, error) {
 	return Payload{SessionID: sessionID}, nil
 }
 
-// writeAntigravityContext is the seam that waits on a dedicated Antigravity context emitter.
-//
-// The 2026-09-22 measurement against agy 1.2.2 established that Antigravity does not
-// read Claude's `hookSpecificOutput.additionalContext`, but supports injectSteps
-// (ephemeralMessage / userMessage) on stdout. Until an Antigravity context emitter
-// is designed and built, writing context returns ErrNoAdapter.
-func writeAntigravityContext(io.Writer, string, []string) error {
-	return fmt.Errorf("antigravity: %w -- context emission is not implemented yet, see the measurement", ErrNoAdapter)
+type antigravityAnswer struct {
+	InjectSteps []antigravityStep `json:"injectSteps"`
+}
+
+type antigravityStep struct {
+	EphemeralMessage string `json:"ephemeralMessage"`
+}
+
+// writeAntigravityContext writes lines as an ephemeral message in an
+// injectSteps array, the format Antigravity reads from a hook on stdout.
+func writeAntigravityContext(w io.Writer, _ string, lines []string) error {
+	answer := antigravityAnswer{
+		InjectSteps: []antigravityStep{
+			{EphemeralMessage: strings.Join(lines, "\n")},
+		},
+	}
+	encoder := json.NewEncoder(w)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(answer); err != nil {
+		return fmt.Errorf("antigravity: writing context: %w", err)
+	}
+	return nil
 }
