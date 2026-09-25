@@ -241,16 +241,6 @@ func TestATimeoutOfZeroIsLeftOut(t *testing.T) {
 	}
 }
 
-func TestANullFileIsTreatedAsAnEmptyOne(t *testing.T) {
-	got, err := Merge(claude, []byte("null"), []Entry{{Event: "Stop", Command: "ours"}})
-	if err != nil {
-		t.Fatalf("Merge: %v", err)
-	}
-	if !strings.Contains(string(got.Merged), "ours") {
-		t.Fatalf("merged = %s, want the entry added", got.Merged)
-	}
-}
-
 // TestAMatcherlessEntryDoesNotClaimEveryEntry: Stop and SessionStart carry no
 // matcher, and an entry that matches everything would report the first
 // unrelated hook in the list as holding its slot.
@@ -497,5 +487,16 @@ func TestBinaryOfReadsEveryCommandOfABlock(t *testing.T) {
 		`{"type": "command", "command": "\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook stop"}]}]}}`)
 	if got := BinaryOf(claude, existing); got != Checkout {
 		t.Fatalf("BinaryOf = %s, want Checkout", got)
+	}
+}
+
+// A root of null parses into a nil map without an error; it is a root that
+// is no object, and the file is refused rather than written over.
+func TestMergeRefusesANullRoot(t *testing.T) {
+	for _, existing := range []string{"null", " null\n"} {
+		_, err := Merge(claude, []byte(existing), Entries(claude, Canonical))
+		if err == nil || !strings.Contains(err.Error(), ".claude/settings.json") {
+			t.Errorf("Merge(%q): err = %v, want one naming the file", existing, err)
+		}
 	}
 }
