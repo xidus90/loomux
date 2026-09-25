@@ -18,9 +18,10 @@ type Runner func(dir string, argv ...string) (string, error)
 //
 // It lives in git's configuration, so reading it costs the single subprocess
 // the design allows. An empty answer means no hooks path is set, which is the
-// common case and not an error.
+// common case and not an error. It is read as a path, so git expands a
+// leading ~ the way it does when it runs a hook.
 func HooksPath(run Runner, dir string) (string, error) {
-	out, err := run(dir, "git", "config", "--get", "core.hooksPath")
+	out, err := run(dir, "git", "config", "--type=path", "--get", "core.hooksPath")
 	if err != nil {
 		return "", err
 	}

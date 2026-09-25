@@ -20,7 +20,8 @@ func TestHooksPathReportsWhatGitHasSet(t *testing.T) {
 	if got != ".githooks" {
 		t.Fatalf("hooks path = %q, want %q", got, ".githooks")
 	}
-	want := "/project: git config --get core.hooksPath"
+	// As a path: git expands ~/.githooks where a raw read would not.
+	want := "/project: git config --type=path --get core.hooksPath"
 	if len(asked) != 1 || asked[0] != want {
 		t.Fatalf("asked = %v, want [%q]", asked, want)
 	}
