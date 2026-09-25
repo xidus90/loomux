@@ -354,6 +354,13 @@ func TestStatusNamesEveryState(t *testing.T) {
 			mustInstall(t, areas, lookup)
 			return nil
 		}, "orphaned"},
+		// The file is still there, but git now looks for hooks elsewhere
+		// and never runs it.
+		"hooks path changed": {func(t *testing.T, lookup config.ArtifactLookup, areas []config.Area, repo string) []config.Area {
+			mustInstall(t, areas, lookup)
+			mustGit(t, repo, "config", "core.hooksPath", ".githooks")
+			return areas
+		}, "moved"},
 	} {
 		lookup, areas, repo := consenting(t, "main")
 		areas = row.change(t, lookup, areas, repo)

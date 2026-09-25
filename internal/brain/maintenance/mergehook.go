@@ -193,6 +193,10 @@ func HookStatus(areas []config.Area, lookup config.ArtifactLookup, git Git) ([]H
 			state = "orphaned"
 		case !isFile(record.hook):
 			state = "missing"
+		case !samePath(target.hook, record.hook):
+			// core.hooksPath moved since the install: the file stands, but
+			// git looks for its hooks elsewhere and never runs it.
+			state = "moved"
 		}
 		found = append(found, HookState{State: state, Scope: record.scope, Repo: record.repo, Detail: record.hook})
 	}
