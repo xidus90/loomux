@@ -62,17 +62,16 @@ func agentsMD(fsys fs.FS, v Vars) (string, error) {
 }
 
 // Skills returns the named skills at the path the host reads project skills
-// from. A host whose skill location is not known yet gets none.
+// from; every host gets the same texts. A host without a known skill
+// location is an error.
 func Skills(names []string, host hosts.Host) ([]File, error) {
 	var root string
 	switch host {
 	case hosts.HostClaude:
 		root = ".claude/skills"
 	case hosts.HostAntigravity:
-		// Where Antigravity looks for a project's skills has not been
-		// measured yet; until it is, writing a guess would leave files no
-		// host reads. The installer's measurement decides the path.
-		return nil, nil
+		// Measured with agy 1.2.8 on 2026-09-24.
+		root = ".agents/skills"
 	default:
 		return nil, fmt.Errorf("no skill location known for host %q", host)
 	}

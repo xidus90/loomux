@@ -163,7 +163,7 @@ func TestMergeKeepsForeignTopLevelKeysInTheirOrder(t *testing.T) {
 
 func TestMergeWritesTheAntigravityGroup(t *testing.T) {
 	existing := []byte(`{"wiki-guard":{"PreToolUse":[{"matcher":"write_to_file","hooks":[{"type":"command","command":"brain guard"}]}]}}`)
-	wanted := entries(hosts.HostAntigravity, Canonical, true)
+	wanted := Entries(hosts.HostAntigravity, Canonical)
 	got, err := Merge(hosts.HostAntigravity, existing, wanted)
 	if err != nil {
 		t.Fatalf("Merge: %v", err)
@@ -180,6 +180,69 @@ func TestMergeWritesTheAntigravityGroup(t *testing.T) {
 	if _, err := Merge(hosts.HostAntigravity, []byte(`{"loomux":[]}`), wanted); err == nil ||
 		!strings.Contains(err.Error(), ".agents/hooks.json") {
 		t.Fatalf("err = %v, want the file named", err)
+	}
+}
+
+// Another group is carried over token for token: the same keys in the same
+// order, the same escapes and numbers; only the indentation is the file's
+// two spaces. A group already written that way comes back byte for byte.
+func TestMergeCarriesEveryOtherAntigravityGroupOver(t *testing.T) {
+	indented := "{\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"run_command\",\n" +
+		"        \"hooks\": [\n          {\n            \"type\": \"command\",\n" +
+		"            \"command\": \"brain guard\"\n          }\n        ]\n      }\n    ]\n  }"
+	compact := `{"z":1.0,"a":"x \u0026 y","m":[true,null]}`
+	existing := []byte("{\n  \"indented\": " + indented + ",\n  \"compact\": " + compact + "\n}\n")
+	got, err := Merge(hosts.HostAntigravity, existing, Entries(hosts.HostAntigravity, Canonical))
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	merged := string(got.Merged)
+	if !strings.Contains(merged, "\"indented\": "+indented+",\n") {
+		t.Errorf("the indented group changed:\n%s", merged)
+	}
+	want := "\"compact\": {\n    \"z\": 1.0,\n    \"a\": \"x \\u0026 y\",\n    \"m\": [\n      true,\n      null\n    ]\n  }"
+	if !strings.Contains(merged, want) {
+		t.Errorf("the compact group lost a token:\n%s", merged)
+	}
+	if !strings.Contains(merged, "\"loomux\": {") {
+		t.Errorf("no group loomux:\n%s", merged)
+	}
+}
+
+// A group of the project that already runs one of our commands is named and
+// left alone, whether the merge adds anything or not: the hook now fires
+// twice, and the group is not ours to repair.
+func TestMergeNamesAnotherGroupThatRunsOurCommand(t *testing.T) {
+	wanted := Entries(hosts.HostAntigravity, Canonical)
+	pre := wanted[0].Command
+	existing := []byte(`{"zeta":{"PreToolUse":[{"matcher":"x","hooks":[{"type":"command","command":` + strconvQuote(pre) + `}]}]},` +
+		`"alpha":{"deep":{"list":[{"command":` + strconvQuote(pre) + `}]}},` +
+		`"other":{"PreToolUse":[{"hooks":[{"command":"loomux hook pre-tool-use"},{"command":7}]}]},"plain":"x"}`)
+	got, err := Merge(hosts.HostAntigravity, existing, wanted)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	want := []string{
+		"the group alpha already runs " + pre + "; it now fires twice",
+		"the group zeta already runs " + pre + "; it now fires twice",
+	}
+	if !reflect.DeepEqual(got.Notes, want) {
+		t.Fatalf("notes = %q, want %q", got.Notes, want)
+	}
+	if !bytes.Contains(got.Merged, []byte(`"zeta": {`)) || len(got.Added) != 2 {
+		t.Fatalf("added %v:\n%s", got.Added, got.Merged)
+	}
+	again, err := Merge(hosts.HostAntigravity, got.Merged, wanted)
+	if err != nil {
+		t.Fatalf("second Merge: %v", err)
+	}
+	if len(again.Added) != 0 || !bytes.Equal(again.Merged, got.Merged) || !reflect.DeepEqual(again.Notes, want) {
+		t.Fatalf("second merge added %v, notes %q", again.Added, again.Notes)
+	}
+	// Claude's file has no groups; its hooks object is read as before.
+	claudeFile := []byte(`{"alpha":{"command":` + strconvQuote(pre) + `}}`)
+	if got, _ := Merge(claude, claudeFile, nil); len(got.Notes) != 0 {
+		t.Fatalf("claude notes = %q", got.Notes)
 	}
 }
 
@@ -238,6 +301,17 @@ func TestATimeoutOfZeroIsLeftOut(t *testing.T) {
 	}
 	if strings.Contains(string(got.Merged), "timeout") {
 		t.Fatalf("merged = %s, want no timeout key", got.Merged)
+	}
+}
+
+// A root that is null is a root that is not an object, in either host's
+// file: refused with the file named, never replaced by one.
+func TestANullRootIsRefused(t *testing.T) {
+	for _, host := range []hosts.Host{claude, hosts.HostAntigravity} {
+		_, err := Merge(host, []byte("null"), []Entry{{Event: "Stop", Command: "ours"}})
+		if err == nil || !strings.Contains(err.Error(), Path(host)+" is not a JSON object: its root is null") {
+			t.Errorf("Merge(%s, null): err = %v", host, err)
+		}
 	}
 }
 

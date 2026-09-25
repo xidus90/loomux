@@ -8,6 +8,12 @@
 // removed: where the merge has nothing to add, the file comes back byte for
 // byte.
 //
+// Antigravity's .agents/hooks.json is a map of named groups, and the name is
+// the identity: the group loomux is ours, every other group is carried over
+// token for token, and one that already runs a command of ours is named,
+// never repaired. No owner field is written into a hook object; whether agy
+// tolerates a key it does not know has not been measured.
+//
 // The JSON is carried as map[string]any throughout, and that is the reason
 // this package may use it at all: the hook file belongs to the project, and
 // everything in it that is not one of our own hook entries has to come back
@@ -40,7 +46,10 @@ type Result struct {
 	Added   []string // an entry of ours appended
 	Kept    []string // an entry of ours already there
 	Foreign []string // someone else's hook on the same event and matcher, kept
-	Notes   []string // an entry of ours kept under another matcher
+	// Notes names an entry of ours kept under another matcher and, in
+	// Antigravity's file, another group that already runs one of our
+	// commands.
+	Notes []string
 }
 
 // Merge adds the wanted entries of host to existing, the content of its hook
@@ -72,6 +81,9 @@ func Merge(host hosts.Host, existing []byte, wanted []Entry) (Result, error) {
 	}
 
 	result := Result{Merged: existing}
+	if host == hosts.HostAntigravity {
+		result.Notes = twiceRun(root, key, wanted)
+	}
 	for _, entry := range wanted {
 		rawList, listed := hooks[entry.Event]
 		list, ok := rawList.([]any)
@@ -104,6 +116,52 @@ func Merge(host hosts.Host, existing []byte, wanted []Entry) (Result, error) {
 	root[key] = orderHooks(hooks)
 	result.Merged = formatRoot(extractTopEntries(existing), root, key)
 	return result, nil
+}
+
+// twiceRun names every group of an Antigravity hook file, other than ours
+// under key, that already runs one of the wanted commands. Such a group is
+// reported and never repaired: it is not ours, so the honest answer is that
+// the hook now fires twice. The group is searched at any depth, because a
+// group somebody else wrote need not have the shape ours has.
+func twiceRun(root map[string]any, key string, wanted []Entry) []string {
+	names := make([]string, 0, len(root))
+	for name := range root {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var notes []string
+	for _, name := range names {
+		if name == key {
+			continue
+		}
+		runs := map[string]bool{}
+		collectCommands(root[name], runs)
+		for _, entry := range wanted {
+			if runs[entry.Command] {
+				notes = append(notes, "the group "+name+" already runs "+entry.Command+"; it now fires twice")
+				break
+			}
+		}
+	}
+	return notes
+}
+
+// collectCommands adds to into every string under a key "command" in v, at
+// any depth.
+func collectCommands(v any, into map[string]bool) {
+	switch v := v.(type) {
+	case map[string]any:
+		for k, child := range v {
+			if command, ok := child.(string); ok && k == "command" {
+				into[command] = true
+			}
+			collectCommands(child, into)
+		}
+	case []any:
+		for _, child := range v {
+			collectCommands(child, into)
+		}
+	}
 }
 
 // BinaryOf is the binary the entries of host already call in existing:

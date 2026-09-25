@@ -384,6 +384,49 @@ func TestTheMergeHookNeedsTheInstalledBinary(t *testing.T) {
 	}
 }
 
+// In a checkout, Claude's entries call the checkout's binary and
+// Antigravity's the installed one; each hook file is written only while the
+// binary it calls stands.
+func TestEachHookFileIsJudgedByTheBinaryItCalls(t *testing.T) {
+	root := world(t, map[string]string{".agents/": "", ".claude/": "", "go.mod": checkoutGoMod})
+	// The plan needs the installed binary to plan Antigravity's file at all.
+	installBinary(t)
+	f := gather(t, root, "")
+	c := DefaultChoice(f, Answers{})
+	full, err := Build(f, c, reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	installed := filepath.Join(os.Getenv("LOCALAPPDATA"), "loomux", "bin", "loomux.exe")
+	if err := os.Remove(installed); err != nil {
+		t.Fatal(err)
+	}
+	var p Plan
+	for _, ch := range full.Changes {
+		if ch.Part == "host-entries" {
+			p.Changes = append(p.Changes, ch)
+		}
+	}
+	if len(p.Changes) != 2 {
+		t.Fatalf("host changes = %v", paths(p))
+	}
+	none := func(Action) error { return nil }
+	// The checkout's binary stands, the installed one does not.
+	r, err := Apply(root, p, c, all, none, there, "1", applyTime)
+	if err != nil || !slices.Equal(r.Written, []string{".claude/settings.json"}) || !slices.Equal(r.Failed, []string{".agents/hooks.json"}) {
+		t.Errorf("checkout only: report %+v, err %v", r, err)
+	}
+	if err := os.Remove(filepath.Join(root, ".claude", "settings.json")); err != nil {
+		t.Fatal(err)
+	}
+	// The installed binary stands, the checkout's does not.
+	installBinary(t)
+	r, err = Apply(root, p, c, all, none, func() bool { return false }, "1", applyTime)
+	if err != nil || !slices.Equal(r.Written, []string{".agents/hooks.json"}) || !slices.Equal(r.Failed, []string{".claude/settings.json"}) {
+		t.Errorf("installed only: report %+v, err %v", r, err)
+	}
+}
+
 func TestTheMergeHookIsJudgedByTheInstalledBinaryAlone(t *testing.T) {
 	root := world(t, map[string]string{})
 	p := Plan{Actions: []Action{{Part: "merge-hook", ID: "merge-hook"}}}

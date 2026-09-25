@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -389,26 +390,131 @@ func TestNoRepositoryMeansNoGitParts(t *testing.T) {
 }
 
 func TestAHostWithoutAHookFileGetsANote(t *testing.T) {
-	// A hook file nothing would be written into is not read, so a broken
-	// one does not stop the plan.
-	root := world(t, map[string]string{".agents/hooks.json": "{not json"})
+	root := world(t, map[string]string{".agents/": ""})
 	f := gather(t, root, "")
 	if !slices.Equal(f.Hosts, []hosts.Host{hosts.HostAntigravity}) {
 		t.Fatalf("hosts = %v", f.Hosts)
 	}
-	c := DefaultChoice(f, Answers{Hosts: []string{"codex", "nobody", "antigravity"}})
-	if !slices.Equal(c.Hosts, []hosts.Host{hosts.HostCodex, hosts.HostAntigravity}) {
+	c := DefaultChoice(f, Answers{Hosts: []string{"codex", "nobody"}})
+	if !slices.Equal(c.Hosts, []hosts.Host{hosts.HostCodex}) {
 		t.Fatalf("hosts = %v", c.Hosts)
 	}
 	p, err := Build(f, c, reader(root))
-	if err != nil || !hasNote(p, "codex: init writes nothing") ||
-		!hasNote(p, "antigravity: no entries or skills yet; the host's expansion of ${LOCALAPPDATA} is not measured") {
+	if err != nil || !hasNote(p, "codex: init writes nothing") {
 		t.Errorf("err = %v, notes = %v", err, p.Notes)
 	}
 	for _, path := range paths(p) {
 		if strings.HasPrefix(path, ".agents/") || strings.HasPrefix(path, ".claude/") {
-			t.Errorf("unmeasured host gets %s", path)
+			t.Errorf("codex gets %s", path)
 		}
+	}
+}
+
+const agyTrust = "antigravity: .agents/hooks.json loads only in a folder agy trusts (trustedWorkspaces)"
+
+// Antigravity gets its two entries, in the form cmd.exe expands, and the
+// skills under .agents/skills -- in a checkout too, where Claude's entries
+// call the checkout's binary.
+func TestAntigravityGetsItsEntriesAndSkills(t *testing.T) {
+	root := world(t, map[string]string{".agents/": "", ".claude/": "", ".git/": "", "go.mod": checkoutGoMod})
+	installBinary(t)
+	f := gather(t, root, "")
+	c := DefaultChoice(f, Answers{})
+	if !slices.Equal(c.Hosts, []hosts.Host{hosts.HostClaude, hosts.HostAntigravity}) {
+		t.Fatalf("hosts = %v", c.Hosts)
+	}
+	// A checkout has its skills checked in; here they are asked for.
+	c.Parts["verify-skill"], c.Parts["brain-skills"] = true, true
+	p, err := Build(f, c, reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, ok := changeOf(p, ".agents/hooks.json")
+	if !ok || ch.Part != "host-entries" ||
+		!strings.Contains(ch.After, `"command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root .."`) ||
+		!strings.Contains(ch.After, `"command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root .."`) {
+		t.Fatalf(".agents/hooks.json = %+v", ch)
+	}
+	if claude, _ := changeOf(p, ".claude/settings.json"); !strings.Contains(claude.After, "${CLAUDE_PROJECT_DIR}/bin/loomux.exe") {
+		t.Errorf("claude's entries do not call the checkout:\n%s", claude.After)
+	}
+	for _, rel := range []string{".agents/skills/verify-until-green/SKILL.md", ".agents/skills/brain-land/SKILL.md"} {
+		if _, ok := changeOf(p, rel); !ok {
+			t.Errorf("no %s in %v", rel, paths(p))
+		}
+	}
+	if !hasNote(p, agyTrust) || hasNote(p, "no entries or skills yet") {
+		t.Errorf("notes = %v", p.Notes)
+	}
+	// A hook file that does not read stops the plan, named.
+	writeFile(t, root, ".agents/hooks.json", "{not json")
+	if _, err := Build(f, c, reader(root)); err == nil || !strings.Contains(err.Error(), ".agents/hooks.json") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// Antigravity's entries call the installed binary even in a checkout, so
+// they are planned only where it stands or binary-install runs.
+func TestAntigravityEntriesWaitForTheInstalledBinary(t *testing.T) {
+	root := world(t, map[string]string{".agents/": "", ".git/": "", "go.mod": checkoutGoMod})
+	f := gather(t, root, "")
+	c := DefaultChoice(f, Answers{})
+	c.Parts["verify-skill"] = true
+	p, err := Build(f, c, reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := changeOf(p, ".agents/hooks.json"); ok || f.CanonicalThere {
+		t.Error("entries planned without the installed binary")
+	}
+	want := "antigravity: no entries; they call %LOCALAPPDATA%/loomux/bin/loomux.exe, which is not installed; run loomux self-update"
+	if !slices.Contains(p.Notes, want) || !hasNote(p, agyTrust) {
+		t.Errorf("notes = %v", p.Notes)
+	}
+	if _, ok := changeOf(p, ".agents/skills/verify-until-green/SKILL.md"); !ok {
+		t.Errorf("no skill in %v", paths(p))
+	}
+	installBinary(t)
+	f = gather(t, root, "")
+	if p, err = Build(f, c, reader(root)); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := changeOf(p, ".agents/hooks.json"); !ok || hasNote(p, "which is not installed") {
+		t.Errorf("paths = %v, notes = %v", paths(p), p.Notes)
+	}
+}
+
+// With whitespace in LOCALAPPDATA cmd.exe would split the unquoted path, so
+// Antigravity gets no entries, and its hook file is not read; the skills
+// still come.
+func TestASpacedLocalAppDataWritesNoAntigravityEntries(t *testing.T) {
+	root := world(t, map[string]string{".agents/hooks.json": "{not json"})
+	f := gather(t, root, "")
+	f.LocalAppDataSpaced = true
+	p, err := Build(f, DefaultChoice(f, Answers{}), reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := changeOf(p, ".agents/hooks.json"); ok {
+		t.Error("entries planned under a spaced LOCALAPPDATA")
+	}
+	want := "antigravity: no entries; %LOCALAPPDATA% contains a space, and cmd.exe would split the unquoted path"
+	if !slices.Contains(p.Notes, want) || !hasNote(p, agyTrust) {
+		t.Errorf("notes = %v", p.Notes)
+	}
+	if _, ok := changeOf(p, ".agents/skills/verify-until-green/SKILL.md"); !ok {
+		t.Errorf("no skill in %v", paths(p))
+	}
+}
+
+// A group of the project that runs our command already is named in the plan.
+func TestAnotherAntigravityGroupRunningOurCommandIsNamed(t *testing.T) {
+	pre := hostfile.Entries(hosts.HostAntigravity, hostfile.Canonical)[0].Command
+	root := world(t, map[string]string{".agents/hooks.json": `{"mine":{"PreToolUse":[{"hooks":[{"type":"command","command":` +
+		strconv.Quote(pre) + `}]}]}}`})
+	p := plan(t, gather(t, root, ""))
+	if !slices.Contains(p.Notes, ".agents/hooks.json: the group mine already runs "+pre+"; it now fires twice") {
+		t.Errorf("notes = %v", p.Notes)
 	}
 }
 

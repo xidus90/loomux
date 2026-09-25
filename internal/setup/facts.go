@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 	"github.com/xidus90/loomux/internal/brain/maintenance"
@@ -63,6 +64,11 @@ type Facts struct {
 	OnMerge bool
 	// Graph says whether the code graph has been built.
 	Graph bool
+	// LocalAppDataSpaced says whether LOCALAPPDATA holds whitespace.
+	// Antigravity's entries name the installed binary as an unquoted
+	// %LOCALAPPDATA% path, since agy breaks a quoted one, and cmd.exe would
+	// split that path at the space.
+	LocalAppDataSpaced bool
 }
 
 // HookWanted says whether the merge hook has an area to serve without area
@@ -143,6 +149,7 @@ func Gather(root, home string, git detect.Runner) (Facts, error) {
 	f.BinaryThere = isFile(BinaryPath(root, f.Binary))
 	f.CanonicalThere = isFile(BinaryPath(root, hostfile.Canonical))
 	f.Graph = isFile(store.WiringPath(root))
+	f.LocalAppDataSpaced = strings.ContainsFunc(os.Getenv("LOCALAPPDATA"), unicode.IsSpace)
 	if hooksNow != "" {
 		data, err := os.ReadFile(filepath.Join(hooksNow, "post-merge"))
 		f.MergeHook = err == nil && maintenance.OwnsHook(data)
