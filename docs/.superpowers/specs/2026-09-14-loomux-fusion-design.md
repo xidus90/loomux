@@ -654,7 +654,7 @@ steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
 | **G3** | ✅ 2026-09-19 | `graph_find_code` und `graph_check_freshness` am MCP-Gateway von 1b-2 |
 | **G4a** | ✅ 2026-09-22 | Die Navigation: `graph callers`, `skeleton`, `grep`, `map`, `stats` und die MCP-Werkzeuge `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map` (`2026-09-22-loomux-code-g4-delta.md`, Paritätsakte `parity/code-g4.md`) |
 | **G4b** | ✅ 2026-09-23 | Der Blast-Radius eines git-Diffs: `internal/code/diff`, `blast.Radius`, `graph blast` und `graph_blast`, `check graph-fresh` und `check blast-audit`, die Art `graph` in `[verify]` (Profilvorgabe `precommit`), der Blast-Monitor im Post-Edit-Hook (`2026-09-23-loomux-code-g4b-delta.md`, Paritätsakte `parity/code-g4.md` §4) |
-| **G4c** | offen | Der Stop-Hook mit Blast-Logik: eine Form Arbeitsbaum gegen HEAD, die weiß, dass sie am Zugende läuft (E4′ im G4b-Nachtrag); `graph` im Profil `stop` bleibt bis dahin `not-applicable` |
+| **G4c** | offen (entworfen 2026-09-25) | Der Stop-Hook mit Blast-Logik: `graph` in der Profilvorgabe `stop`, der Bereich „alles, was git nicht ignoriert, gegen HEAD“ über eine Indexkopie mit `add -A`, die die Lane als `GIT_INDEX_FILE` bekommt; ein Befund hält die Runde wie einen Commit (`2026-09-25-loomux-code-g4c-delta.md`, E9–E11) |
 | **G5a** | ✅ 2026-09-26 (Spec `2026-09-26-loomux-code-g5-design.md`, Akte `parity/code-g5.md`) | Extraktor-Schnittstelle, gemeinsamer Tree-sitter-Kern auf `gotreesitter` (reines Go) statt `wazero`, Cache je Datei, CGo-Freiheitstor; dazu Python |
 | **G5b** | offen | TypeScript/TSX |
 | **G5c** | offen | GDScript |
