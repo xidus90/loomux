@@ -2,6 +2,7 @@ package write
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -318,5 +319,25 @@ func TestWriteNewExecutablePermissions(t *testing.T) {
 	}
 	if len(written) != 2 {
 		t.Fatalf("written = %v, want 2 files", written)
+	}
+}
+
+// Windows keeps no execute bits, and the test chain runs there, so the mode
+// is judged where it is chosen rather than read back from the disk.
+func TestAScriptIsWrittenExecutableWhereverItLies(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		want       fs.FileMode
+	}{
+		{".githooks/pre-commit", "#!/bin/sh\nexit 0\n", 0o755},
+		{"tools/hooks/pre-push", "#!/bin/sh\nexit 0\n", 0o755},
+		{".git/hooks/commit-msg", "#!/bin/sh\nexit 0\n", 0o755},
+		{"script.sh", "echo hi\n", 0o755},
+		{"AGENTS.md", "# loomux\n", 0o644},
+		{".mcp.json", "{}\n", 0o644},
+	} {
+		if got := mode(tc.name, tc.body); got != tc.want {
+			t.Errorf("mode(%s) = %o, want %o", tc.name, got, tc.want)
+		}
 	}
 }
