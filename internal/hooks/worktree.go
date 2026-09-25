@@ -72,7 +72,8 @@ func WorktreeLink(stdout, stderr io.Writer, root string) int {
 	return code
 }
 
-// How long a session's state file counts for. Nothing deletes these files, so
+// How long a session's state file counts for. Nothing deletes these files,
+// and a session that ends without a SessionEnd gets no end marker, so for it
 // the mtime is the only liveness there is to read, and it is as good as the
 // writes: `ulguard hook session-start` writes at session start -- as
 // session_start.py (fa3dd38):59 did before it -- stop.py on every block and
@@ -90,9 +91,11 @@ func WorktreeLink(stdout, stderr io.Writer, root string) int {
 // 4.2 GB through it. A working day is also the unit in which a human answers
 // "is that session still mine?".
 //
-// No number closes this hole, and this one does not either: the fix is a write
-// on the live side -- worktree-link touching the file at session start, or a
-// write from the SessionEnd side -- which is follow-up work and not this.
+// No number closes this hole for a session that is still running and writes
+// nothing. A session that ends is marked ended by the SessionEnd side (Retire),
+// and one that resumes is revived by session-start, which writes its file
+// back or makes it young; the age decides only for a session that ended without a SessionEnd,
+// or one still running that has written nothing for a day.
 const sessionStale = 24 * time.Hour
 
 // WorktreeUnlink takes the junctions back out -- but only if this was the
@@ -111,7 +114,7 @@ func WorktreeUnlink(stdout, stderr io.Writer, stdin io.Reader, root string) int 
 	}
 	// A payload we cannot read is not a reason to remove anything: without an
 	// id there is no way to tell our own state file from somebody else's, so
-	// the count would always say "somebody else is here" -- and Forget would
+	// the count would always say "somebody else is here" -- and retiring would
 	// be worse than useless, since safeName turns an empty id into "unnamed"
 	// and that may be the collapsed name of a session that is still running.
 	if err := json.NewDecoder(stdin).Decode(&payload); err != nil || payload.SessionID == "" {
@@ -137,10 +140,11 @@ func WorktreeUnlink(stdout, stderr io.Writer, stdin io.Reader, root string) int 
 		return ExitOK
 	}
 
-	// Our own file goes before the count and before the early return below: it
-	// has to be gone whether or not this was the last session, or the next run
-	// finds it and reads a session that has ended as one still standing.
-	if err := sessions.Forget(root, payload.SessionID); err != nil {
+	// Our own session is marked ended before the count and before the early
+	// return below: whether or not this was the last session, the next run
+	// must not read a session that has ended as one still standing. Marked,
+	// not removed: a resume under the same id needs the stop gate's base.
+	if err := sessions.Retire(root, payload.SessionID); err != nil {
 		fmt.Fprintf(stderr, "loomux worktree unlink: %v\n", err)
 		return ExitInternal
 	}

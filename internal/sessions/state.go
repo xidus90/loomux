@@ -87,5 +87,11 @@ func WriteState(root, sessionID string, state SessionState) error {
 }
 
 func statePath(root, sessionID string) string {
-	return filepath.Join(root, filepath.FromSlash(StateDir), safeName(sessionID)+".json")
+	return sessionFile(root, sessionID, ".json")
+}
+
+// sessionFile is one of the files beside the others in StateDir, named by the
+// session and ext.
+func sessionFile(root, sessionID, ext string) string {
+	return filepath.Join(root, filepath.FromSlash(StateDir), safeName(sessionID)+ext)
 }

@@ -437,6 +437,47 @@ func TestHookSessionStartKeepsABaseTheSessionAlreadyHas(t *testing.T) {
 	}
 }
 
+// A session whose end marker cannot be taken away is told so in its context,
+// with exit 0: exit 1 would drop the context lines.
+func TestHookSessionStartSaysAMarkerItCannotRemove(t *testing.T) {
+	t.Setenv(config.StateDirEnv, t.TempDir())
+	root := gitWorld(t, twoCommitsOnly, `{"base":"{{COMMIT:1}}","green":"`+goneSHA+`","blocks":0}`)
+	busy := filepath.Join(root, filepath.FromSlash(sessions.StateDir), "s1.ended", "inside")
+	if err := os.MkdirAll(busy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"resume"}`), &stdout, &stderr, root, "claude")
+	if code != ExitOK || !strings.Contains(stdout.String(), "may not count for worktree unlink") || !strings.Contains(stdout.String(), "reviving ") {
+		t.Fatalf("%d %q %q", code, stdout.String(), stderr.String())
+	}
+}
+
+// A session that worktree unlink retired and that then resumes under the same
+// id counts again for the others, and still has its base.
+func TestHookSessionStartRevivesARetiredSession(t *testing.T) {
+	t.Setenv(config.StateDirEnv, t.TempDir())
+	root := gitWorld(t, twoCommitsOnly, `{"base":"{{COMMIT:1}}","green":"`+goneSHA+`","blocks":0}`)
+	base := stateOf(t, root).Base
+	if err := sessions.Retire(root, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := sessions.Others(root, "s2", time.Hour); err != nil || n != 0 {
+		t.Fatalf("others before the resume = %d, %v", n, err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"resume"}`), &stdout, &stderr, root, "claude"); code != ExitOK {
+		t.Fatalf("%d %q", code, stderr.String())
+	}
+	if n, err := sessions.Others(root, "s2", time.Hour); err != nil || n != 1 {
+		t.Fatalf("others after the resume = %d, %v; the resumed session does not count", n, err)
+	}
+	if state := stateOf(t, root); state.Base != base {
+		t.Fatalf("the base moved from %s to %s", base, state.Base)
+	}
+}
+
 // canonicalIn is a state directory whose canonical binary exists, so that
 // IsCanonical has a file to compare the recorded executable with.
 func canonicalIn(t *testing.T) string {

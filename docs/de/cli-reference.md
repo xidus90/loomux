@@ -343,6 +343,7 @@ Hält den Commit fest, auf dem die Sitzung beginnt.
 - **Flags**: `--host <h>` (Pflichtfeld; nur `claude` hat einen Adapter), `--root <r>`.
 - **Verhalten**:
   - Schreibt `HEAD` als `base` in `.loomux/state/hooks/<session_id>.json`.
+  - Belebt eine Sitzung wieder, die `worktree unlink` als beendet markiert hat: entfernt `<session_id>.ended` und schreibt die Datei mit zurückgesetzter Blockreihe zurück, sodass die Sitzung wieder zählt; bei einer nie als beendet markierten Sitzung wird die Datei nur verjüngt. Eine Marke, die sich nicht entfernen lässt, oder eine Datei, die sich nicht zurückschreiben lässt, steht im Kontext, mit Exit 0.
   - Warnt in `hookSpecificOutput.additionalContext`, wenn das Binary im Projekt älter ist als seine Go-Quellen.
   - Liest außerdem `<Zustandsverzeichnis>/update.json` und warnt, wenn unter Windows ein Durchlauf von `serve` ein anderes Binary als `<Zustandsverzeichnis>/bin/loomux.exe` als sein eigenes verzeichnet hat, oder wenn der letzte Self-Update-Durchlauf gescheitert ist, gleich wer ihn fuhr.
   - Legt keine Worktree-Junctions an; das tut `loomux worktree link`. Siehe [Hooks](hooks.md#8-sitzungshooks).
@@ -402,7 +403,7 @@ Stellt die in `[worktree] mirror` genannten Verzeichnisse als Windows-Junctions 
 Legt in einem verknüpften Worktree für jeden konfigurierten Pfad, der dort fehlt, eine Junction in den Haupt-Checkout an; räumt danach, wo immer es läuft, unsere Junctions aus Verzeichnissen unter `.worktrees/` und `.claude/worktrees/`, die Git nicht mehr hält.
 
 ### `loomux worktree unlink [--root <pfad>]`
-Liest `session_id` aus der Nutzlast auf `stdin`, entfernt die Datei dieser Sitzung unter `.loomux/state/hooks/` und entfernt die Junctions nur, wenn keine andere Sitzungsdatei jünger als 24 Stunden übrig ist.
+Liest `session_id` aus der Nutzlast auf `stdin`, markiert diese Sitzung mit einer Datei `<id>.ended` neben ihrem Stand unter `.loomux/state/hooks/` als beendet (der Stand bleibt für eine Fortsetzung unter derselben ID; `hook session-start` nimmt die Marke wieder weg) und entfernt die Junctions nur, wenn keine andere Sitzung übrig ist, die jünger als 24 Stunden und nicht als beendet markiert ist.
 
 ### `loomux worktree remove <worktree-pfad>`
 Lehnt den Haupt-Checkout und jedes Verzeichnis ab, an dem Git keinen Worktree hält, entfernt die Junctions, fährt `git worktree remove --force`, prüft, ob das Verzeichnis weg ist, und gibt `removed <pfad>` aus.

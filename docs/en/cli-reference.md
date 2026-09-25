@@ -324,6 +324,7 @@ Records the commit the session starts on.
 - **Flags**: `--host <h>` (required; only `claude` has an adapter), `--root <r>`.
 - **Behavior**:
   - Writes `HEAD` as `base` into `.loomux/state/hooks/<session_id>.json`.
+  - Revives a session `worktree unlink` marked ended: removes `<session_id>.ended` and writes the file back with its row of blocks reset, so the session counts again; a session never marked ended only has its file made young. A marker it cannot remove, or a file it cannot write back, is said in the context, with exit 0.
   - Warns in `hookSpecificOutput.additionalContext` when the binary inside the project is older than its Go sources.
   - Also reads `<state dir>/update.json` and warns when, on Windows, a pass `serve` ran recorded another binary than `<state dir>/bin/loomux.exe` as its own, or when the last self-update pass failed, whoever ran it.
   - Makes no worktree junctions; that is `loomux worktree link`. See [Hooks](hooks.md#8-session-hooks).
@@ -383,7 +384,7 @@ Puts the directories named in `[worktree] mirror` into linked git worktrees as W
 In a linked worktree, makes a junction into the main checkout for every configured path that is missing there; then, wherever it runs, sweeps our junctions out of directories under `.worktrees/` and `.claude/worktrees/` that git no longer holds.
 
 ### `loomux worktree unlink [--root <path>]`
-Reads `session_id` from the payload on `stdin`, removes this session's file under `.loomux/state/hooks/`, and removes the junctions only when no other session file younger than 24 hours remains.
+Reads `session_id` from the payload on `stdin`, marks this session ended with a `<id>.ended` file beside its state under `.loomux/state/hooks/` (the state stays, for a resume under the same id; `hook session-start` takes the marker away again), and removes the junctions only when no other session younger than 24 hours and not marked ended remains.
 
 ### `loomux worktree remove <worktree-path>`
 Refuses the main checkout and any directory git holds no worktree at, removes the junctions, runs `git worktree remove --force`, checks that the directory is gone, and prints `removed <path>`.
