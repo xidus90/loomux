@@ -92,6 +92,7 @@ func Apply(root string, p Plan, c Choice, approve func(Change) bool, run Runner,
 			a.report.Refused = append(a.report.Refused, ch.Path)
 		default:
 			if err := a.change(ch); err != nil {
+				a.report.Failed = append(a.report.Failed, ch.Path)
 				return a.done(), err
 			}
 		}
@@ -105,8 +106,10 @@ func Apply(root string, p Plan, c Choice, approve func(Change) bool, run Runner,
 	}
 	state := map[string]any{answersPath: Answers{Hosts: hostNames, Parts: maps.Clone(c.Parts)}}
 	order := []string{answersPath}
-	// A run that changed nothing leaves the record of the last one that did.
-	if len(a.files)+len(a.ran) > 0 {
+	// A run that changed nothing leaves the record of the last one that did,
+	// and one in which a step failed leaves none, so the next plan shows
+	// what is still open.
+	if len(a.files)+len(a.ran) > 0 && len(a.report.Failed) == 0 {
 		state[installedPath] = installed{Version: version, At: now.UTC().Truncate(time.Second), Files: a.files, Actions: a.ran}
 		order = append(order, installedPath)
 	}
@@ -166,6 +169,11 @@ func (a *applier) redo(ch Change) (Change, error) {
 // either: there was no text before init.
 func (a *applier) change(ch Change) error {
 	planned := ch.Exists
+	if ch.Redo == nil && ch.Exists {
+		if err := a.unchanged(ch); err != nil {
+			return err
+		}
+	}
 	ch, err := a.redo(ch)
 	if err != nil || ch.Empty() {
 		return err
@@ -197,6 +205,21 @@ func (a *applier) change(ch Change) error {
 		return fmt.Errorf("%s: %w", ch.Path, err)
 	}
 	a.files = append(a.files, ch.Path)
+	return nil
+}
+
+// unchanged says whether the file of a change nothing can redo still holds
+// the text the change was planned over. Someone else may have written it
+// between the plan and the approval; After would take that back without a
+// word, and the backup would keep the older text instead of theirs.
+func (a *applier) unchanged(ch Change) error {
+	data, exists, err := readOptional(a.root, ch.Path)
+	if err != nil {
+		return err
+	}
+	if !exists || string(data) != ch.Before {
+		return fmt.Errorf("%s changed since the plan was made; nothing written", ch.Path)
+	}
 	return nil
 }
 
