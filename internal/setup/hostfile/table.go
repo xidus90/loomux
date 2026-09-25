@@ -20,22 +20,20 @@ type Entry struct {
 const Canonical = `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`
 const Checkout = `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"`
 
-// antigravityMeasured says whether the hook file of Antigravity has been
-// measured against a running agy: which --root it hands over and which tool
-// names its matchers see. Until that human step is done, the installer
-// writes no Antigravity hooks, because a guessed hook file either fires on
-// nothing or refuses what it should not.
-const antigravityMeasured = false
+// AntigravityBinary is the installed binary in the form Antigravity's hook
+// entries call it. agy (measured with 1.2.8 on 2026-09-24) runs a hook
+// command through cmd.exe, which expands %LOCALAPPDATA% and leaves
+// ${LOCALAPPDATA} as it stands, and it hands a quoted program path on as
+// \"…\", which breaks it -- so the path goes unquoted, with forward slashes.
+const AntigravityBinary = "%LOCALAPPDATA%/loomux/bin/loomux.exe"
 
-// Entries are the hooks loomux installs for host, each calling binary.
-// A host without a hook file, or one not yet measured, gets none.
+// Entries are the hooks loomux installs for host. Claude's call binary;
+// Antigravity's always call AntigravityBinary, also in a checkout, because
+// ${CLAUDE_PROJECT_DIR} means nothing to agy. A host without a hook file
+// gets none.
 func Entries(host hosts.Host, binary string) []Entry {
-	return entries(host, binary, antigravityMeasured)
-}
-
-func entries(host hosts.Host, binary string, antigravity bool) []Entry {
-	switch {
-	case host == hosts.HostClaude:
+	switch host {
+	case hosts.HostClaude:
 		root := ` --root "${CLAUDE_PROJECT_DIR}"`
 		hook := func(name string) string { return binary + " hook " + name + " --host claude" + root }
 		return []Entry{
@@ -48,9 +46,12 @@ func entries(host hosts.Host, binary string, antigravity bool) []Entry {
 			{Event: "SubagentStart", Command: hook("subagent-start"), Timeout: 30},
 			{Event: "SubagentStop", Command: hook("subagent-stop"), Timeout: 30},
 		}
-	case host == hosts.HostAntigravity && antigravity:
+	case hosts.HostAntigravity:
+		// agy runs a hook from .agents/, one below the project root.
 		writers := "write_to_file|replace_file_content|multi_replace_file_content"
-		hook := func(name string) string { return binary + " hook " + name + " --host antigravity --root ." }
+		hook := func(name string) string {
+			return AntigravityBinary + " hook " + name + " --host antigravity --root .."
+		}
 		return []Entry{
 			{Event: "PreToolUse", Matcher: writers + "|run_command", Command: hook("pre-tool-use"), Timeout: 15},
 			{Event: "PostToolUse", Matcher: writers, Command: hook("post-tool-use"), Timeout: 60},

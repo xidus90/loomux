@@ -26,21 +26,30 @@ func TestEntriesMatchTheTable(t *testing.T) {
 	}
 }
 
-// The Antigravity rows wait for the measurement of the hook file; until it
-// has been made, the installer writes none.
-func TestEntriesForAntigravityWaitForTheMeasurement(t *testing.T) {
-	if got := Entries(hosts.HostAntigravity, Canonical); got != nil {
-		t.Fatalf("Entries(antigravity) = %v, want nil while unmeasured", got)
+// Antigravity's entries call the installed binary in the form cmd.exe
+// expands, whichever binary Claude's entries call: agy runs them through
+// cmd.exe from .agents/, keeps ${LOCALAPPDATA} literal and breaks a quoted
+// program path.
+func TestAntigravityEntriesCallTheInstalledBinaryThroughCmd(t *testing.T) {
+	if AntigravityBinary != "%LOCALAPPDATA%/loomux/bin/loomux.exe" {
+		t.Fatalf("AntigravityBinary = %q", AntigravityBinary)
 	}
-	b := Checkout
 	want := []Entry{
 		{Event: "PreToolUse", Matcher: "write_to_file|replace_file_content|multi_replace_file_content|run_command",
-			Command: b + " hook pre-tool-use --host antigravity --root .", Timeout: 15},
+			Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..", Timeout: 15},
 		{Event: "PostToolUse", Matcher: "write_to_file|replace_file_content|multi_replace_file_content",
-			Command: b + " hook post-tool-use --host antigravity --root .", Timeout: 60},
+			Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..", Timeout: 60},
 	}
-	if got := entries(hosts.HostAntigravity, b, true); !reflect.DeepEqual(got, want) {
-		t.Fatalf("entries(antigravity, measured) =\n%v\nwant\n%v", got, want)
+	for _, binary := range []string{Canonical, Checkout} {
+		got := Entries(hosts.HostAntigravity, binary)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("Entries(antigravity, %s) =\n%v\nwant\n%v", binary, got, want)
+		}
+		for _, e := range got {
+			if !Owned(e.Command) || hookEventOf(e.Command) == "" {
+				t.Errorf("%q is not recognised as ours", e.Command)
+			}
+		}
 	}
 }
 
@@ -69,6 +78,7 @@ func TestOwnedKnowsEveryLoomuxBinary(t *testing.T) {
 		"LOOMUX.EXE hook stop",
 		`"${CLAUDE_PROJECT_DIR}/bin/loomux.exe" hook stop`,
 		Canonical + " hook stop",
+		AntigravityBinary + " hook stop",
 		`C:\x\loomux.exe hook stop`,
 		`"C:\Program Files\loomux\loomux.exe" hook stop`,
 	}

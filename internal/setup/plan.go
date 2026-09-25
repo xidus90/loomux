@@ -78,17 +78,14 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 	on := func(id string) bool { return c.Parts[id] && c.moduleOn(modules[id]) }
 	var targets []hosts.Host
 	for _, h := range c.Hosts {
-		switch {
-		case hostfile.Path(h) == "":
+		if hostfile.Path(h) == "" {
 			b.note(fmt.Sprintf("%s: init writes nothing for this host yet", h))
-			continue
-		case len(hostfile.Entries(h, f.Binary)) == 0:
-			// Its hook file is neither read nor refused while nothing would
-			// be written into it.
-			b.note(fmt.Sprintf("%s: no entries or skills yet; the host's expansion of ${LOCALAPPDATA} is not measured", h))
 			continue
 		}
 		targets = append(targets, h)
+	}
+	if slices.Contains(targets, hosts.HostAntigravity) {
+		b.note("antigravity: .agents/hooks.json loads only in a folder agy trusts (trustedWorkspaces)")
 	}
 
 	// An action is planned only while its result is missing, so a second
@@ -123,9 +120,21 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 			b.note(n)
 		}
 	}
+	// Antigravity's entries and the merge hook call the installed binary in
+	// every project, a checkout included.
+	installed := f.CanonicalThere || slices.ContainsFunc(b.plan.Actions, func(a Action) bool { return a.ID == "binary-install" })
 	if on("host-entries") {
 		for _, h := range targets {
-			b.hostEntries(h)
+			// Antigravity's hook file is neither read nor refused while
+			// nothing would be written into it.
+			switch {
+			case h == hosts.HostAntigravity && f.LocalAppDataSpaced:
+				b.note("antigravity: no entries; %LOCALAPPDATA% contains a space, and cmd.exe would split the unquoted path")
+			case h == hosts.HostAntigravity && !installed:
+				b.note("antigravity: no entries; they call " + hostfile.AntigravityBinary + ", which is not installed; run loomux self-update")
+			default:
+				b.hostEntries(h)
+			}
 		}
 	}
 	git := b.hasGit(on)
@@ -156,11 +165,9 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 		}
 	}
 	if git && on("merge-hook") && !b.mergeHookThere() {
-		// The hook is installed for areas that consent, and it calls the
-		// installed binary even in a checkout.
-		install := slices.ContainsFunc(b.plan.Actions, func(a Action) bool { return a.ID == "binary-install" })
+		// The hook is installed for areas that consent.
 		switch {
-		case !f.CanonicalThere && !install:
+		case !installed:
 			b.note("merge-hook: skipped; the hook calls ${LOCALAPPDATA}/loomux/bin/loomux.exe, which is not installed; run loomux self-update")
 		case f.HookWanted() || declares:
 			b.action("merge-hook", "merge-hook", "install the post-merge hook of this project")
@@ -290,8 +297,14 @@ func (b *builder) hostEntries(h hosts.Host) {
 	for _, n := range result.Notes {
 		b.note(path + ": " + n)
 	}
+	// Antigravity's entries call the installed binary in every project, a
+	// checkout included (hostfile.AntigravityBinary).
+	binary := b.f.Binary
+	if h == hosts.HostAntigravity {
+		binary = hostfile.Canonical
+	}
 	b.add(Change{Part: "host-entries", Path: path, Before: string(before), After: string(result.Merged),
-		Exists: exists, Binary: b.f.Binary})
+		Exists: exists, Binary: binary})
 }
 
 // hasGit says whether the project is a repository, and names the git parts

@@ -103,10 +103,19 @@ func TestSkillsGoWhereTheHostLooks(t *testing.T) {
 		}
 	}
 
-	// Antigravity's project skill location is not measured yet: nothing.
-	none, err := Skills(allSkills(), hosts.HostAntigravity)
-	if err != nil || none != nil {
-		t.Errorf("Antigravity got %v, %v; want nil, nil", none, err)
+	// agy reads a project's skills from .agents/skills/<name>/SKILL.md; the
+	// texts are Claude's.
+	agy, err := Skills(allSkills(), hosts.HostAntigravity)
+	if err != nil || len(agy) != len(files) {
+		t.Fatalf("Antigravity got %d skills, %v", len(agy), err)
+	}
+	for i, name := range allSkills() {
+		if want := ".agents/skills/" + name + "/SKILL.md"; agy[i].Path != want {
+			t.Errorf("path %q, want %q", agy[i].Path, want)
+		}
+		if agy[i].Text != files[i].Text {
+			t.Errorf("%s: the Antigravity text differs from Claude's", name)
+		}
 	}
 }
 

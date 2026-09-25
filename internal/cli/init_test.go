@@ -639,6 +639,33 @@ func TestInitWritesForTheHostsGiven(t *testing.T) {
 	}
 }
 
+// Both hosts' hook files are planned; Antigravity's entries call the
+// installed binary through cmd.exe from .agents/, and its skills go under
+// .agents/skills.
+func TestInitPlansAntigravityBesideClaude(t *testing.T) {
+	root, _ := initWorld(t)
+	code, out, errOut := run("init", "--root", root, "--dry-run", "--yes", "--hosts=claude,antigravity")
+	if code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	for _, want := range []string{
+		"--- .claude/settings.json",
+		"--- .agents/hooks.json",
+		"%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..",
+		"%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..",
+		"--- .agents/skills/verify-until-green/SKILL.md",
+		"--- .agents/skills/brain-land/SKILL.md",
+		"antigravity: .agents/hooks.json loads only in a folder agy trusts (trustedWorkspaces)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("plan lacks %q:\n%s", want, out)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents")); err == nil {
+		t.Error("a dry run wrote .agents/")
+	}
+}
+
 func TestInitNamesAModuleSwitchedOffWithoutAConfiguration(t *testing.T) {
 	root, _ := initWorld(t)
 	keys := tui.Keys("tab", "enter", "down", " ", "enter", // base each: config off

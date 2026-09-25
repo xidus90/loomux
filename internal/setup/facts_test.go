@@ -55,6 +55,21 @@ func TestTheUserScopeCountsOnlyAServerNamedLoomux(t *testing.T) {
 	}
 }
 
+// cmd.exe splits the unquoted %LOCALAPPDATA% path of Antigravity's entries
+// at any whitespace, so Gather says whether there is some.
+func TestGatherSeesWhitespaceInLocalAppData(t *testing.T) {
+	root := world(t, map[string]string{})
+	if f := gather(t, root, ""); f.LocalAppDataSpaced {
+		t.Errorf("%q counts as spaced", os.Getenv("LOCALAPPDATA"))
+	}
+	for _, local := range []string{`C:\Users\Jane Doe\AppData\Local`, "C:\\x\ty"} {
+		t.Setenv("LOCALAPPDATA", local)
+		if f := gather(t, root, ""); !f.LocalAppDataSpaced {
+			t.Errorf("%q does not count as spaced", local)
+		}
+	}
+}
+
 func TestGatherTakesTheBinaryTheEntriesCall(t *testing.T) {
 	files := fixture(t)
 	root := world(t, map[string]string{".claude/settings.json": files[".claude/settings.json"]})
