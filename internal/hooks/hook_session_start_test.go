@@ -135,17 +135,35 @@ func TestHookSessionStartOnAnUnknownHost(t *testing.T) {
 	}
 }
 
-// A host whose adapter is still a promise is refused where it is first asked a
-// question -- hosts.Read -- and the refusal carries that host's own words.
+// A host whose adapter is still a promise is refused when it writes context,
+// and the refusal carries that host's own words.
 func TestHookSessionStartOnAHostWithoutAnAdapter(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, project(t), "antigravity")
+	root, _ := pilot(t, time.Hour, 2*time.Hour)
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "codex")
 
 	if code != ExitInternal {
 		t.Fatalf("expected exit 1, got %d", code)
 	}
-	if !strings.Contains(stderr.String(), "antigravity") {
+	if !strings.Contains(stderr.String(), "codex") {
 		t.Fatalf("the refusal names the host, got %q", stderr.String())
+	}
+}
+
+// Antigravity encodes context warnings as injectSteps with an ephemeral message.
+func TestHookSessionStartOnAntigravity(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, time.Minute)
+	write(t, filepath.Join(root, ".loomux", "config.toml"), 3*time.Hour)
+	runningAs(t, binary)
+
+	var stdout, stderr bytes.Buffer
+	code := SessionStart(strings.NewReader(`{"conversationId":"s1"}`), &stdout, &stderr, root, "antigravity")
+
+	if code != ExitOK {
+		t.Fatalf("expected exit 0, got %d; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "injectSteps") || !strings.Contains(stdout.String(), "ephemeralMessage") {
+		t.Fatalf("expected injectSteps in stdout, got %q", stdout.String())
 	}
 }
 

@@ -118,6 +118,9 @@ func WriteContext(host Host, event string, w io.Writer, lines []string) error {
 		}
 		return writeClaudeContext(w, event, lines)
 	case HostAntigravity:
+		if len(lines) == 0 {
+			return nil
+		}
 		return writeAntigravityContext(w, event, lines)
 	case HostCodex:
 		return writeCodexContext(w, event, lines)
