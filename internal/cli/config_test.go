@@ -459,6 +459,29 @@ func TestConfigUsage(t *testing.T) {
 	}
 }
 
+// A long value would widen the value column for every row; the list cuts
+// it, and get and --json still give it whole.
+func TestConfigListShortensALongValue(t *testing.T) {
+	root := configRoot(t, "")
+	_, out, _ := runConfig(t, "", "list", "--root", root)
+	_, whole, _ := runConfig(t, "", "get", "verify.profiles", "--root", root)
+	whole = strings.TrimSuffix(whole, "\n")
+	if len([]rune(whole)) <= listWidth {
+		t.Fatalf("verify.profiles is no longer long: %q", whole)
+	}
+	cut := string([]rune(whole)[:listWidth-1]) + "…"
+	if !strings.Contains(out, cut+"  ") || strings.Contains(out, whole) {
+		t.Errorf("list does not cut the value to %q:\n%s", cut, out)
+	}
+	_, asJSON, _ := runConfig(t, "", "list", "--json", "--root", root)
+	if !strings.Contains(asJSON, "precommit") || !strings.Contains(asJSON, "stop") {
+		t.Errorf("--json cut the value:\n%s", asJSON)
+	}
+	if got := shorten("short"); got != "short" {
+		t.Errorf("shorten(short) = %q", got)
+	}
+}
+
 // Flags may come before the subcommand, the way --root is typed first when
 // a human reaches for the project before the verb.
 func TestConfigTakesFlagsBeforeTheSubcommand(t *testing.T) {

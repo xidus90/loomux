@@ -955,7 +955,8 @@ loomux config reject <id>|--all
 ### `loomux config list [--json]`
 One line per key: module, key, value, origin. A list of tables
 (`commit.allow`, `policy.paths.rules`, `policy.commands.rules`) shows its
-number of entries instead of a value. When proposals are open, a last line
+number of entries instead of a value. A value longer than 60 characters is
+cut there and ends in `…`; `get` and `--json` give it whole. When proposals are open, a last line
 `N proposals open — loomux config proposals` follows (`1 proposal open …`
 for one); `--json` prints the
 rows alone. The per-stack tables
