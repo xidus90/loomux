@@ -99,7 +99,7 @@ func inputForm(value any) string {
 		for i, item := range v {
 			parts[i] = fmt.Sprint(item)
 		}
-		return strings.Join(parts, ", ")
+		return JoinList(parts)
 	default:
 		return fmt.Sprint(v)
 	}

@@ -975,7 +975,11 @@ Computes the new file, prints the change as a line diff on `stderr`, asks
 
 - **Values** are typed as a human writes them: a string without quotes, a
   number, `true`/`false`, a list as `a, b`. A comma inside a `{…}` group
-  belongs to the item, so `docs/**/*.{md,txt}, src` is two globs. An enum
+  belongs to the item, so `docs/**/*.{md,txt}, src` is two globs. An item
+  with a comma, an empty item or one with blanks at its ends stands in double
+  quotes, as a TOML string with its escapes: `"a,b", c` is two items, `""`
+  is an empty one. An empty item without quotes is none, so `a,` is the list
+  of `a`. The interactive form shows a list in this same form. An enum
   key takes only the values its reader accepts. `verify.timeout` is whole
   seconds (`600`, not `10m`). A number is written in its plain form: `+600`
   and `0600` are `600`. The word `default` is a value like any other.
