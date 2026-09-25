@@ -186,15 +186,23 @@ func CheckParents(root, name string) error {
 	return nil
 }
 
+// mode is 0o755 for a script -- a body that opens with #! or a name ending
+// in .sh -- and 0o644 otherwise. It is judged by the body and not by the
+// directory, because a git hook lies wherever core.hooksPath or git's own
+// directory puts it, and on POSIX git skips a hook it cannot execute
+// without a word.
+func mode(name, body string) fs.FileMode {
+	if strings.HasPrefix(body, "#!") || strings.HasSuffix(name, ".sh") {
+		return 0o755
+	}
+	return 0o644
+}
+
 // writeNew creates a file that must not exist yet. O_EXCL is the skip
 // decision enforced at the last moment: between Prepare and here somebody may
 // have created the file, and this run has no claim on what they wrote.
 func writeNew(full, body string) error {
-	perm := fs.FileMode(0o644)
-	if strings.Contains(full, ".githooks") || strings.HasSuffix(full, ".sh") {
-		perm = 0o755
-	}
-	f, err := os.OpenFile(full, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	f, err := os.OpenFile(full, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode(full, body))
 	if err != nil {
 		return err
 	}
