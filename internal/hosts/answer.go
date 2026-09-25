@@ -35,8 +35,10 @@ func Answer(host Host, event string, w io.Writer, code int, out []byte, reason s
 	}
 	switch {
 	case event == "post-tool-use":
-		// agy expects {} from a PostToolUse; what post-edit writes on stdout
-		// is Claude's additionalContext, which it does not read.
+		// What post-edit writes on stdout is Claude's additionalContext,
+		// which agy does not read. Its guide names {} as a PostToolUse's
+		// answer, and an empty stdout passes as well (measured with agy
+		// 1.2.11 on 2026-09-25, no hook error in its log).
 		if code == exitDenied {
 			return exitDenied
 		}
