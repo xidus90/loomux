@@ -35,12 +35,12 @@ func TestPickTogglesAndConfirms(t *testing.T) {
 }
 
 func TestPickAllTogglesEveryRow(t *testing.T) {
-	got, _, _ := Pick(Script(80, 20, Keys("a", "enter")...), "t", parts(), []bool{true, false, true})
-	if !slices.Equal(got, []bool{true, true, true}) {
+	got, ok, err := Pick(Script(80, 20, Keys("a", "enter")...), "t", parts(), []bool{true, false, true})
+	if !ok || err != nil || !slices.Equal(got, []bool{true, true, true}) {
 		t.Fatalf("a with one off turns all on: %v", got)
 	}
-	got, _, _ = Pick(Script(80, 20, Keys("a", "enter")...), "t", parts(), []bool{true, true, true})
-	if !slices.Equal(got, []bool{false, false, false}) {
+	got, ok, err = Pick(Script(80, 20, Keys("a", "enter")...), "t", parts(), []bool{true, true, true})
+	if !ok || err != nil || !slices.Equal(got, []bool{false, false, false}) {
 		t.Fatalf("a with all on turns all off: %v", got)
 	}
 }
@@ -55,16 +55,16 @@ func TestPickCancels(t *testing.T) {
 }
 
 func TestPickStopsAtTheEnds(t *testing.T) {
-	got, _, _ := Pick(Script(80, 20, Keys("up", " ", "down", "down", "down", " ", "enter")...), "t", parts(), []bool{true, true, true})
-	if !slices.Equal(got, []bool{false, true, false}) {
-		t.Fatal(got)
+	got, ok, err := Pick(Script(80, 20, Keys("up", " ", "down", "down", "down", " ", "enter")...), "t", parts(), []bool{true, true, true})
+	if !ok || err != nil || !slices.Equal(got, []bool{false, true, false}) {
+		t.Fatal(got, ok, err)
 	}
 }
 
 func TestPickMovesUp(t *testing.T) {
-	got, _, _ := Pick(Script(80, 20, Keys("down", "down", "up", " ", "enter")...), "t", parts(), []bool{true, true, true})
-	if !slices.Equal(got, []bool{true, false, true}) {
-		t.Fatal(got)
+	got, ok, err := Pick(Script(80, 20, Keys("down", "down", "up", " ", "enter")...), "t", parts(), []bool{true, true, true})
+	if !ok || err != nil || !slices.Equal(got, []bool{true, false, true}) {
+		t.Fatal(got, ok, err)
 	}
 }
 

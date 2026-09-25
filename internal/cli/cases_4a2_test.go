@@ -22,6 +22,9 @@ type expectation4a2 struct {
 	// differences belong to.
 	why    string
 	differ []string
+	// stdout, where set, is loomux's own output in full: a difference in
+	// length alone would let any other output of the same length pass.
+	stdout string
 }
 
 var expected4a2 = map[string]expectation4a2{
@@ -45,6 +48,7 @@ var expected4a2 = map[string]expectation4a2{
 	"hook/remove-installed": {
 		why:    "Prüfstand: Schreibweise des Hookpfads im Eintrag",
 		differ: []string{"stdout mismatch: expected 81 bytes, got 81 bytes"},
+		stdout: "removed: project/a — {{WORLD}}/repo-a [{{WORLD}}/repo-a/.git/hooks/post-merge]\n",
 	},
 }
 
@@ -116,6 +120,9 @@ func TestCases4a2(t *testing.T) {
 				}
 				t.Fatalf("differences %q, want %q (%s)\nstdout:\n%s\nstderr:\n%s",
 					got, wanted, why, outcome.ActualStdout, outcome.ActualStderr)
+			}
+			if want.stdout != "" && string(outcome.ActualStdout) != want.stdout {
+				t.Fatalf("stdout %q, want %q", outcome.ActualStdout, want.stdout)
 			}
 		})
 	}

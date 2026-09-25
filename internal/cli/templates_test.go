@@ -2,6 +2,7 @@ package cli
 
 import (
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/hosts"
@@ -24,13 +25,23 @@ func TestEveryLoomuxCommandInASkillExists(t *testing.T) {
 	}
 	files = append(files, templates.File{Path: "AGENTS.md", Text: agents})
 
-	call := regexp.MustCompile(`\bloomux ([a-z][a-z-]*)`)
+	// The commands whose first argument is a subcommand; for them the second
+	// word must be one they take, or `loomux brain lookup` would pass.
+	subcommands := map[string][]string{
+		"brain":  append(slices.Clone(brainSubcommands), "check"),
+		"config": {"list", "get", "set", "unset", "proposals", "apply", "reject"},
+		"wiki":   {"init", "types", "retype"},
+	}
+	call := regexp.MustCompile(`\bloomux ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?`)
 	seen := 0
 	for _, file := range files {
 		for _, match := range call.FindAllStringSubmatch(file.Text, -1) {
 			seen++
 			if _, ok := commands[match[1]]; !ok {
 				t.Errorf("%s calls %q, which is no loomux command", file.Path, match[0])
+			}
+			if subs, ok := subcommands[match[1]]; ok && !slices.Contains(subs, match[2]) {
+				t.Errorf("%s calls %q, which is no subcommand of loomux %s", file.Path, match[0], match[1])
 			}
 		}
 	}

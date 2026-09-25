@@ -665,3 +665,18 @@ func TestMergeNamesNothingForACurrentOwnEntry(t *testing.T) {
 		t.Fatalf("notes %v, err %v; want none for loomux's own settings", got.Notes, err)
 	}
 }
+
+// The fixture above is a copy, and a copy drifts: it once lacked the
+// worktree hooks the real file had. This holds the repository's own hook
+// file to what init would write -- no entry of ours missing, nothing
+// rewritten -- while hooks a developer added beside ours are left to them.
+func TestTheRepositorysOwnSettingsNeedNoChange(t *testing.T) {
+	own, err := os.ReadFile("../../../.claude/settings.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Merge(claude, own, Entries(claude, BinaryOf(claude, own)))
+	if err != nil || len(got.Added) != 0 || len(got.Notes) != 0 || !bytes.Equal(got.Merged, own) {
+		t.Fatalf("added %v, notes %v, err %v; init would change .claude/settings.json", got.Added, got.Notes, err)
+	}
+}
