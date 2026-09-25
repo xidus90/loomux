@@ -984,7 +984,7 @@ Computes the new file, prints the change as a line diff on `stderr`, asks
   seconds (`600`, not `10m`). A number is written in its plain form: `+600`
   and `0600` are `600`. The word `default` is a value like any other.
 - **Defaults are never written**: `set` to the default value removes the
-  line, and a section it leaves empty goes too. A file that repeated a
+  line, and a section it leaves empty goes too, unless a comment is left in it. A file that repeated a
   default would pin it against a later change of the default.
 - **Checked by the real readers**: the new text is handed to every reader
   that runs in operation (area declaration, `[modules]`, policy, `[verify]`,

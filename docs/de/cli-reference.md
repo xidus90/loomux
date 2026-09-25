@@ -1017,7 +1017,7 @@ fragt `write these changes? [y/N]` und schreibt nur bei `y` oder `yes`.
   `10m`). Eine Zahl wird in ihrer schlichten Form geschrieben: `+600` und
   `0600` sind `600`. Das Wort `default` ist ein Wert wie jeder andere.
 - **Vorgaben werden nie geschrieben**: `set` auf den Vorgabewert entfernt die
-  Zeile, und ein Abschnitt, der dadurch leer wird, geht mit. Eine Datei, die eine Vorgabe wiederholt, hielte sie gegen eine
+  Zeile, und ein Abschnitt, der dadurch leer wird, geht mit — außer es steht noch ein Kommentar darin. Eine Datei, die eine Vorgabe wiederholt, hielte sie gegen eine
   spätere Änderung der Vorgabe fest.
 - **Geprüft von den echten Lesern**: Der neue Text geht an jeden Leser, der
   im Betrieb läuft (Bereichsdeklaration, `[modules]`, Policy, `[verify]`,
