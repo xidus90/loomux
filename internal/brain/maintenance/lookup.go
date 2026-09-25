@@ -103,6 +103,6 @@ func FindCase(reviewRoot, identifier string) (string, error) {
 // refuses a broken one, so only a file broken between the two reads gets
 // here -- and nil closes the case rather than opening it.
 func AreaManifest(areas []config.Area, lookup config.ArtifactLookup, scope string) *config.Manifest {
-	manifests, _ := manifestsOf(areas, lookup)
+	manifests, _ := Manifests(areas, lookup)
 	return manifests[scope]
 }

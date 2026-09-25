@@ -1,0 +1,50 @@
+# The repository is the area, not the state directory around it.
+dir = "repo-a"
+
+# One commit, so HEAD names a branch. The manifest stays untracked: the
+# import moves it under its new name, and a commit naming the old one
+# would not build.
+[[commit]]
+message = "base"
+
+# The reference's own hook, as brain-mcp hook install writes it.
+[worktree]
+".git/hooks/post-merge" = '''
+#!/bin/sh
+# brain post-merge hook -- records that something landed. Nothing more.
+#
+# It runs inside the user's `git merge`: it may not block, may not fail the
+# merge, and may not start anything that outlives it. So it appends one line
+# and leaves. `brain reconcile` turns that line into a case.
+#
+# Every step exits 0 on failure, and the whole write is silenced. A merge must
+# never fail over bookkeeping, and must never print over it either.
+events='{{WORLD}}/maintenance/merge-events.tsv'
+# The branch name is no address -- `main` exists in every repository, and a
+# shared `core.hooksPath` (this project sets one) points every repository on
+# the machine at this very file. Without this check a foreign merge would file
+# an event under its own root.
+#
+# The common directory, and not the top level: every linked worktree has its
+# own top level while sharing this hook file, so comparing top levels would
+# make the hook go silent for every merge outside the one checkout it was
+# installed from -- and this project works with worktrees.
+common=$(git rev-parse --path-format=absolute --git-common-dir) || exit 0
+[ "$common" = '{{WORLD}}/repo-a/.git' ] || exit 0
+# Still the top level, but as the fact recorded rather than the address
+# checked: it says which working tree the merge actually happened in.
+here=$(git rev-parse --show-toplevel) || exit 0
+branch=$(git symbolic-ref --quiet --short HEAD) || exit 0
+[ "$branch" = 'main' ] || exit 0
+first=$(git rev-parse --quiet --verify ORIG_HEAD) || exit 0
+last=$(git rev-parse HEAD) || exit 0
+{
+    # `>>` creates the file but not its directory, and the redirection's own
+    # error would print into the merge -- outside any redirection `printf`
+    # itself could carry.
+    mkdir -p "${events%/*}"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$here" "$first" "$last" \
+        "$branch" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$events"
+} 2>/dev/null
+exit 0
+'''

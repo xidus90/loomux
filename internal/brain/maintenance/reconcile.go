@@ -119,7 +119,7 @@ func Reconcile(areas []config.Area, lookup config.ArtifactLookup, now time.Time)
 // after every area's scan, the last of them standing before the first write,
 // so a pass that ends early has only read: no case, no stamp.
 func ReconcileContext(ctx context.Context, areas []config.Area, lookup config.ArtifactLookup, now time.Time) (Report, error) {
-	manifests, err := manifestsOf(areas, lookup)
+	manifests, err := Manifests(areas, lookup)
 	if err != nil {
 		return Report{}, err
 	}
@@ -201,7 +201,7 @@ func dedupedByID(raw []Case) []Case {
 // exactly one reader here, and a command that assembled the path from the
 // manifest itself would be the second place a rename has to reach.
 func ReviewRoot(areas []config.Area, lookup config.ArtifactLookup) (string, error) {
-	manifests, err := manifestsOf(areas, lookup)
+	manifests, err := Manifests(areas, lookup)
 	if err != nil {
 		return "", err
 	}
@@ -216,7 +216,7 @@ func writeLastRun(lookup config.ArtifactLookup, now time.Time) error {
 	return writeIfChanged(lookup.WritePath(filepath.FromSlash(lastRunRelative)), pytext.IsoFormat(now)+"\n")
 }
 
-// manifestsOf is every area's declaration, skipping the ones that have not
+// Manifests is every area's declaration, skipping the ones that have not
 // declared themselves.
 //
 // Registering an area before it writes a declaration is normal, and such an
@@ -227,7 +227,7 @@ func writeLastRun(lookup config.ArtifactLookup, now time.Time) error {
 // The declaration is looked for under ResolvedAreaDir and not under the area,
 // because a read-only area keeps its artefacts -- the declaration among them
 // -- in the state directory.
-func manifestsOf(areas []config.Area, lookup config.ArtifactLookup) (map[string]*config.Manifest, error) {
+func Manifests(areas []config.Area, lookup config.ArtifactLookup) (map[string]*config.Manifest, error) {
 	found := map[string]*config.Manifest{}
 	for _, area := range areas {
 		manifest, err := config.ReadAreaManifestUntilStage4(

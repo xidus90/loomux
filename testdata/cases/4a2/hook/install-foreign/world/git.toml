@@ -1,0 +1,15 @@
+# The repository is the area, not the state directory around it.
+dir = "repo-a"
+
+# One commit, so HEAD names a branch. The manifest stays untracked: the
+# import moves it under its new name, and a commit naming the old one
+# would not build.
+[[commit]]
+message = "base"
+
+# A post-merge hook of the user's own, without either marker.
+[worktree]
+".git/hooks/post-merge" = '''
+#!/bin/sh
+echo "the user's own post-merge hook"
+'''

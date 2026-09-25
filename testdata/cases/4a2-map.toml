@@ -1,0 +1,8 @@
+# Stage 4a-2 translates the merge hook of brain-mcp, the Python reference's
+# console script: `brain-mcp hook` becomes `loomux merge-hook`, because
+# `hook` is the namespace of the host hooks in loomux.
+manifests = "verbatim"
+
+[[command]]
+from = "brain-mcp hook"
+to   = "loomux merge-hook"

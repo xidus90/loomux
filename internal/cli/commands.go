@@ -17,6 +17,7 @@ var commands = map[string]command{
 	"hook":        hookCommand,
 	"lint":        lintCommand,
 	"mcp":         mcpCommand,
+	"merge-hook":  mergeHookCommand,
 	"reconcile":   reconcileCommand,
 	"reindex":     reindexCommand,
 	"self-update": selfUpdateCommand,

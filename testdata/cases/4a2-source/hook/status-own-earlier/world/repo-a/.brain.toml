@@ -1,0 +1,6 @@
+[area]
+scope = "project/a"
+
+[maintenance]
+on_merge = true
+branch = "main"
