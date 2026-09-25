@@ -193,7 +193,7 @@ func HookStatus(areas []config.Area, lookup config.ArtifactLookup, git Git) ([]H
 			state = "orphaned"
 		case !isFile(record.hook):
 			state = "missing"
-		case !samePath(target.hook, record.hook):
+		case !sameFile(target.hook, record.hook):
 			// core.hooksPath moved since the install: the file stands, but
 			// git looks for its hooks elsewhere and never runs it.
 			state = "moved"
@@ -355,6 +355,16 @@ func isOurs(hook string) bool {
 // reference wrote.
 func OwnsHook(data []byte) bool {
 	return bytes.Contains(data, []byte(HookMarker)) || bytes.Contains(data, []byte(referenceMarker))
+}
+
+// sameFile says whether a and b name one file, by identity rather than
+// spelling: a record may hold an 8.3 short name or a path through a
+// junction for the file git names in its long form. A path that does not
+// stat names no file, so it is never the same as one that does.
+func sameFile(a, b string) bool {
+	infoA, errA := os.Stat(a)
+	infoB, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(infoA, infoB)
 }
 
 func isFile(path string) bool {
