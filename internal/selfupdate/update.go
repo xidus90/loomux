@@ -81,6 +81,16 @@ func run(ctx context.Context, o Options) Result {
 	if !IsCanonical(o.Executable, o.StateDir) {
 		return Result{Outcome: Skipped, Err: fmt.Errorf("running from %s, not from %s", o.Executable, canonical)}
 	}
+	return installLocked(ctx, o, canonical, true)
+}
+
+// installLocked is the part of a pass that run and Install share: take the
+// lock, ask gh for the newest release, and put it at canonical unless what is
+// there is at least as new. With byRunning the running version o.Version
+// counts as well: a pass run from the canonical binary is done when that one
+// is current. Install runs from anywhere, so only the file at canonical
+// counts there.
+func installLocked(ctx context.Context, o Options, canonical string, byRunning bool) Result {
 	handle, held, err := lock.TryAcquire(filepath.Join(o.StateDir, "update.lock"))
 	if err != nil {
 		return Result{Outcome: Failed, Err: err}
@@ -94,7 +104,7 @@ func run(ctx context.Context, o Options) Result {
 	if err != nil {
 		return Result{Outcome: Failed, Err: err}
 	}
-	if !Newer(rel.Tag, o.Version) {
+	if byRunning && !Newer(rel.Tag, o.Version) {
 		return Result{Outcome: Current, Version: o.Version}
 	}
 	// A serve that installed the release keeps running the version before it
