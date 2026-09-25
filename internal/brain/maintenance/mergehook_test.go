@@ -777,3 +777,23 @@ func TestInstallRecordsWhatItWroteBeforeAFailure(t *testing.T) {
 		t.Errorf("hooks.tsv = %q, want the record of project/a", got)
 	}
 }
+
+// A record may spell the hook another way than git does now -- an 8.3 short
+// name, a junction -- while naming the same file; that hook is installed,
+// not moved.
+func TestStatusComparesTheHookByIdentityNotSpelling(t *testing.T) {
+	requireJunctions(t)
+	lookup, areas, repo := consenting(t, "main")
+	mustInstall(t, areas, lookup)
+	link := filepath.Join(t.TempDir(), "hooks-link")
+	junction(t, link, filepath.Dir(hookIn(repo)))
+	top := topLevel(t, repo)
+	writeFile(t, recordsOf(lookup), "project/a\t"+top+"\t"+filepath.Join(link, "post-merge")+"\n")
+	states, err := maintenance.HookStatus(areas, lookup, realGit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if statesOf(states) != "project/a:installed" {
+		t.Errorf("states = %+v, want installed", states)
+	}
+}
