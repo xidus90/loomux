@@ -21,17 +21,23 @@ func Diff(before, after string) string {
 		return ""
 	}
 	var out strings.Builder
+	// Lines are compared as they are, so a changed ending still shows, but
+	// printed without their \r: a terminal would return to the start of the
+	// line and garble what follows.
+	line := func(mark, l string) {
+		out.WriteString(mark + strings.TrimSuffix(l, "\r") + "\n")
+	}
 	if start > 0 {
-		out.WriteString("  " + a[start-1] + "\n")
+		line("  ", a[start-1])
 	}
 	for _, l := range a[start:endA] {
-		out.WriteString("- " + l + "\n")
+		line("- ", l)
 	}
 	for _, l := range b[start:endB] {
-		out.WriteString("+ " + l + "\n")
+		line("+ ", l)
 	}
 	if endA < len(a) {
-		out.WriteString("  " + a[endA] + "\n")
+		line("  ", a[endA])
 	}
 	return out.String()
 }

@@ -45,15 +45,32 @@ func split(text string) (bom string, lines []string, eol string) {
 	if strings.HasPrefix(text, byteOrderMark) {
 		bom, text = byteOrderMark, text[len(byteOrderMark):]
 	}
-	eol = "\n"
-	if strings.Contains(text, "\r\n") {
-		eol = "\r\n"
-	}
-	body := strings.TrimSuffix(text, eol)
+	body := strings.TrimSuffix(text, "\n")
 	if body == "" {
-		return bom, nil, eol
+		return bom, nil, "\n"
 	}
-	return bom, strings.Split(body, eol), eol
+	lines = strings.Split(body, "\n")
+	// Only a file whose every line ends in \r\n is a CRLF file, and its
+	// lines lose the \r here and get it back in join, new lines included.
+	// A file with both endings keeps each \r on its own line, so an
+	// untouched line comes back as it was and no line is glued to the next.
+	// A last line without an ending of its own gives no vote.
+	ended := lines
+	if !strings.HasSuffix(text, "\n") {
+		ended = lines[:len(lines)-1]
+	}
+	if len(ended) == 0 {
+		return bom, lines, "\n"
+	}
+	for _, l := range ended {
+		if !strings.HasSuffix(l, "\r") {
+			return bom, lines, "\n"
+		}
+	}
+	for i, l := range lines {
+		lines[i] = strings.TrimSuffix(l, "\r")
+	}
+	return bom, lines, "\r\n"
 }
 
 func join(bom string, lines []string, eol string) string {

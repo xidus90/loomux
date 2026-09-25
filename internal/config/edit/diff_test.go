@@ -32,3 +32,10 @@ func TestDiffWhereOneSideIsAPrefixOfTheOther(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+func TestDiffShowsNoCarriageReturn(t *testing.T) {
+	got := Diff("[commit]\r\nthreshold = 2\r\n", "[commit]\r\nthreshold = 3\r\n")
+	if got != "  [commit]\n- threshold = 2\n+ threshold = 3\n" {
+		t.Fatalf("Diff = %q", got)
+	}
+}
