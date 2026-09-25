@@ -639,3 +639,41 @@ func TestTheWikiValuesTheBarrierHeldAreStillJudgedSo(t *testing.T) {
 		}
 	}
 }
+
+// manifested writes body as the manifest of a fresh area and reads it back.
+func manifested(t *testing.T, body string) *Manifest {
+	t.Helper()
+	dir := t.TempDir()
+	write(t, manifestIn(t, dir), body)
+	m, err := ReadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func TestTheManifestCarriesTheMergeConsent(t *testing.T) {
+	m := manifested(t, "[area]\nscope = \"project/x\"\n[maintenance]\non_merge = true\nbranch = \"master\"\n")
+	if !m.OnMerge || m.MergeBranch != "master" {
+		t.Fatalf("OnMerge=%v MergeBranch=%q", m.OnMerge, m.MergeBranch)
+	}
+}
+
+func TestTheManifestMergeBranchDefaultsToMain(t *testing.T) {
+	for name, body := range map[string]string{
+		"unsaid": "[area]\nscope = \"project/x\"\n",
+		"empty":  "[area]\nscope = \"project/x\"\n[maintenance]\nbranch = \"\"\n",
+	} {
+		m := manifested(t, body)
+		if m.OnMerge || m.MergeBranch != "main" {
+			t.Errorf("%s: OnMerge=%v MergeBranch=%q", name, m.OnMerge, m.MergeBranch)
+		}
+	}
+}
+
+func TestTheManifestDoesNotReadTheOldMergeBranchName(t *testing.T) {
+	m := manifested(t, "[area]\nscope = \"project/x\"\n[maintenance]\non_merge = true\nmerge_branch = \"dev\"\n")
+	if m.MergeBranch != "main" {
+		t.Fatalf("merge_branch must stay unread, got %q", m.MergeBranch)
+	}
+}

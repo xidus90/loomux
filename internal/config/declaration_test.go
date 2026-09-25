@@ -179,3 +179,36 @@ func TestDeclarationKeysNameEverySectionTheReaderChecks(t *testing.T) {
 		t.Errorf("layout keys %v", keys["layout"])
 	}
 }
+
+// declared reads body as a declaration and fails the test on any refusal.
+func declared(t *testing.T, body string) *Manifest {
+	t.Helper()
+	m, err := ReadDeclaration(declarationFile(t, body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func TestTheDeclarationCarriesTheMergeConsent(t *testing.T) {
+	m := declared(t, "[area]\nscope = \"project/x\"\n[maintenance]\non_merge = true\nbranch = \"master\"\n")
+	if !m.OnMerge || m.MergeBranch != "master" {
+		t.Fatalf("OnMerge=%v MergeBranch=%q", m.OnMerge, m.MergeBranch)
+	}
+}
+
+func TestTheMergeBranchDefaultsToMain(t *testing.T) {
+	m := declared(t, "[area]\nscope = \"project/x\"\n")
+	if m.OnMerge || m.MergeBranch != "main" {
+		t.Fatalf("OnMerge=%v MergeBranch=%q", m.OnMerge, m.MergeBranch)
+	}
+}
+
+// Unknown keys are not judged, so the old name passes without a word and
+// without effect.
+func TestTheOldMergeBranchNameIsNotRead(t *testing.T) {
+	m := declared(t, "[area]\nscope = \"project/x\"\n[maintenance]\non_merge = true\nmerge_branch = \"dev\"\n")
+	if m.MergeBranch != "main" {
+		t.Fatalf("merge_branch must stay unread, got %q", m.MergeBranch)
+	}
+}
