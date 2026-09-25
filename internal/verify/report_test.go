@@ -3,6 +3,7 @@ package verify
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -86,10 +87,18 @@ func TestCheckVerdictPerKind(t *testing.T) {
 	}
 }
 
-func TestWriteEditSkipsQuietlyAndBlocksOnRed(t *testing.T) {
+// writeEdit reports one file's lanes the way post-edit does for a call that
+// names only that file.
+func writeEdit(stdout, stderr io.Writer, outs []Outcome, aside string) int {
+	code, notices := EditReport(stderr, outs, aside)
+	WriteNotices(stdout, notices)
+	return code
+}
+
+func TestEditReportSkipsQuietlyAndBlocksOnRed(t *testing.T) {
 	var so, se strings.Builder
 	skip := Outcome{Job: Job{Name: "lint/python"}, State: StateMissingTool, Output: `"ruff" is not on PATH: ruff check .`}
-	if code := WriteEdit(&so, &se, []Outcome{skip}, ""); code != 0 || se.Len() != 0 {
+	if code := writeEdit(&so, &se, []Outcome{skip}, ""); code != 0 || se.Len() != 0 {
 		t.Fatalf("%d %q", code, se.String())
 	}
 	if !strings.Contains(so.String(), `lane skipped, \"ruff\" is not on PATH`) || !strings.Contains(so.String(), `"hookEventName":"PostToolUse"`) {
@@ -97,12 +106,12 @@ func TestWriteEditSkipsQuietlyAndBlocksOnRed(t *testing.T) {
 	}
 	so.Reset()
 	red := Outcome{Job: Job{Name: "lint/go"}, State: StateFailed, Output: "vet: x\n"}
-	if code := WriteEdit(&so, &se, []Outcome{red}, ""); code != 2 || !strings.Contains(se.String(), "vet: x") {
+	if code := writeEdit(&so, &se, []Outcome{red}, ""); code != 2 || !strings.Contains(se.String(), "vet: x") {
 		t.Fatalf("%d %q", code, se.String())
 	}
 }
 
-func TestWriteEditNamesEverySkipAndEveryRed(t *testing.T) {
+func TestEditReportNamesEverySkipAndEveryRed(t *testing.T) {
 	var so, se strings.Builder
 	outs := []Outcome{
 		{Job: Job{Name: "types/go"}, State: StateOK, Output: "fine\n"},
@@ -111,7 +120,7 @@ func TestWriteEditNamesEverySkipAndEveryRed(t *testing.T) {
 		{Job: Job{Name: "lint/go"}, State: StateFailed, Output: "vet: x"},
 		{Job: Job{Name: "lint/sql"}, State: StateBlocked, BlockedBy: "x"},
 	}
-	if code := WriteEdit(&so, &se, outs, ""); code != 2 {
+	if code := writeEdit(&so, &se, outs, ""); code != 2 {
 		t.Fatalf("red lanes block the edit: %d", code)
 	}
 	if se.String() != "lint/go: failed\nvet: x\nlint/sql: blocked\n" {
@@ -126,9 +135,9 @@ func TestWriteEditNamesEverySkipAndEveryRed(t *testing.T) {
 
 // Stdout that is not valid JSON turns a passed hook into a hook-error notice,
 // so a run with nothing skipped leaves it empty.
-func TestWriteEditGreenIsSilent(t *testing.T) {
+func TestEditReportGreenIsSilent(t *testing.T) {
 	var so, se strings.Builder
-	if code := WriteEdit(&so, &se, []Outcome{{Job: Job{Name: "lint/go"}, State: StateOK}}, ""); code != 0 || so.Len() != 0 || se.Len() != 0 {
+	if code := writeEdit(&so, &se, []Outcome{{Job: Job{Name: "lint/go"}, State: StateOK}}, ""); code != 0 || so.Len() != 0 || se.Len() != 0 {
 		t.Fatalf("%d %q %q", code, so.String(), se.String())
 	}
 }
@@ -145,10 +154,10 @@ func editContext(t *testing.T, stdout string) string {
 	return context
 }
 
-func TestWriteEditCarriesTheAsideOnAGreenRun(t *testing.T) {
+func TestEditReportCarriesTheAsideOnAGreenRun(t *testing.T) {
 	var so, se strings.Builder
 	aside := "[graph] a.go: changed F; callers in other files:\n  G (b.go)"
-	if code := WriteEdit(&so, &se, []Outcome{{Job: Job{Name: "lint/go"}, State: StateOK}}, aside); code != 0 || se.Len() != 0 {
+	if code := writeEdit(&so, &se, []Outcome{{Job: Job{Name: "lint/go"}, State: StateOK}}, aside); code != 0 || se.Len() != 0 {
 		t.Fatalf("%d %q", code, se.String())
 	}
 	if got := editContext(t, so.String()); got != aside {
@@ -156,10 +165,10 @@ func TestWriteEditCarriesTheAsideOnAGreenRun(t *testing.T) {
 	}
 }
 
-func TestWriteEditPutsTheAsideAfterTheSkips(t *testing.T) {
+func TestEditReportPutsTheAsideAfterTheSkips(t *testing.T) {
 	var so, se strings.Builder
 	skip := Outcome{Job: Job{Name: "test/go"}, State: StateBudget}
-	if code := WriteEdit(&so, &se, []Outcome{skip}, "[graph] x"); code != 0 {
+	if code := writeEdit(&so, &se, []Outcome{skip}, "[graph] x"); code != 0 {
 		t.Fatalf("%d", code)
 	}
 	want := "loomux hook post-tool-use: lane skipped, the edit budget ran out: test/go\n[graph] x"
@@ -170,15 +179,15 @@ func TestWriteEditPutsTheAsideAfterTheSkips(t *testing.T) {
 
 // A red lane matters more than who calls the edited code; the aside goes,
 // the skips of another lane stay as they were.
-func TestWriteEditDropsTheAsideOnRed(t *testing.T) {
+func TestEditReportDropsTheAsideOnRed(t *testing.T) {
 	var so, se strings.Builder
 	red := Outcome{Job: Job{Name: "lint/go"}, State: StateFailed, Output: "vet: x"}
-	if code := WriteEdit(&so, &se, []Outcome{red}, "[graph] x"); code != 2 || so.Len() != 0 {
+	if code := writeEdit(&so, &se, []Outcome{red}, "[graph] x"); code != 2 || so.Len() != 0 {
 		t.Fatalf("%d %q", code, so.String())
 	}
 	skip := Outcome{Job: Job{Name: "test/go"}, State: StateBudget}
 	so.Reset()
-	if code := WriteEdit(&so, &se, []Outcome{red, skip}, "[graph] x"); code != 2 {
+	if code := writeEdit(&so, &se, []Outcome{red, skip}, "[graph] x"); code != 2 {
 		t.Fatalf("%d", code)
 	}
 	if got := editContext(t, so.String()); strings.Contains(got, "[graph]") || !strings.Contains(got, "test/go") {
@@ -186,13 +195,13 @@ func TestWriteEditDropsTheAsideOnRed(t *testing.T) {
 	}
 }
 
-func TestWriteSkipped(t *testing.T) {
+func TestWriteNotices(t *testing.T) {
 	var b strings.Builder
-	writeSkipped(&b, "")
+	WriteNotices(&b, "")
 	if b.Len() != 0 {
 		t.Fatalf("nothing skipped, nothing written: %q", b.String())
 	}
-	writeSkipped(&b, "a <b>\nc\n")
+	WriteNotices(&b, "a <b>\nc\n")
 	// Marshal escapes markup, as the notice it replaces did.
 	want := `{"hookSpecificOutput":{"additionalContext":"a ` + "\\u003cb\\u003e" + `\nc","hookEventName":"PostToolUse"}}` + "\n"
 	if b.String() != want {

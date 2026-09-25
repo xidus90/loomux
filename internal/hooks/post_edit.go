@@ -82,32 +82,41 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 	start := env.Now()
 	runID := verify.NewRunID(start, os.Getpid())
 	code := ExitOK
+	var notices strings.Builder
 	for i, raw := range files {
 		fileEnv, id := env, runID
 		// A budget of 0 is none, and stays none for every file.
 		if i > 0 && env.Budget > 0 {
 			fileEnv.Budget = start.Add(env.Budget).Sub(env.Now())
 			if fileEnv.Budget <= 0 {
-				fmt.Fprintf(stderr, "loomux hook post-tool-use: lane skipped, the edit budget ran out: %s\n", raw)
+				// stdout for the model at exit 0; stderr as well, which a
+				// host reads at exit 2 and agy keeps in its log.
+				skipped := verify.SkipPrefix + "the edit budget ran out: " + raw + "\n"
+				notices.WriteString(skipped)
+				fmt.Fprint(stderr, skipped)
 				continue
 			}
 			// Coverage files of their own; CleanCover matches `<runID>-`.
 			id += "." + strconv.Itoa(i)
 		}
-		code = max(code, checkEdit(stdout, stderr, root, raw, id, eff, facts, fileEnv))
+		fileCode, said := checkEdit(stderr, root, raw, id, eff, facts, fileEnv)
+		code = max(code, fileCode)
+		notices.WriteString(said)
 	}
+	verify.WriteNotices(stdout, notices.String())
 	return code
 }
 
-// checkEdit runs the lanes for one edited file.
-func checkEdit(stdout, stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv) int {
-	fail := func(err error) int {
+// checkEdit runs the lanes for one edited file, and answers its code with
+// what it has to tell the model.
+func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv) (int, string) {
+	fail := func(err error) (int, string) {
 		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
-		return ExitInternal
+		return ExitInternal, ""
 	}
 	ext := strings.ToLower(filepath.Ext(raw))
 	if slices.Contains(eff.Ignored, ext) {
-		return ExitOK
+		return ExitOK, ""
 	}
 	var jobs []verify.Job
 	var err error
@@ -132,7 +141,8 @@ func checkEdit(stdout, stderr io.Writer, root, raw, runID string, eff verify.Eff
 		}
 	}
 	code := ExitOK
-	if verify.WriteEdit(stdout, stderr, outs, aside) != 0 {
+	red, notices := verify.EditReport(stderr, outs, aside)
+	if red != 0 {
 		code = ExitDenied
 	}
 	// The same rule as a check: a red edit keeps its files for whoever looks
@@ -140,7 +150,7 @@ func checkEdit(stdout, stderr io.Writer, root, raw, runID string, eff verify.Eff
 	if err := verify.CleanCover(root, runID, code == ExitOK); err != nil {
 		fmt.Fprintf(stderr, "loomux hook post-tool-use: cleaning coverage files: %v\n", err)
 	}
-	return code
+	return code, notices
 }
 
 // editedFiles are the paths an edit payload names, none when it names none,
