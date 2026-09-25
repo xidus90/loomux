@@ -214,18 +214,64 @@ func TestApplyStopsAtAFailedWrite(t *testing.T) {
 		"missing directory": {nil, Plan{Changes: []Change{
 			{Path: configPath, Before: "a", After: "b", Exists: true},
 		}}},
-		"backup": {map[string]string{backupDir: "file"}, Plan{Changes: []Change{
+		"backup": {map[string]string{backupDir: "file", ".gitignore": "a"}, Plan{Changes: []Change{
 			{Path: ".gitignore", Before: "a", After: "b", Exists: true},
 		}}},
 		"state": {map[string]string{".loomux/state": "file"}, Plan{}},
+		"unreadable": {map[string]string{".gitignore/": ""}, Plan{Changes: []Change{
+			{Path: ".gitignore", Before: "a", After: "b", Exists: true},
+		}}},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			root := world(t, tc.files)
-			if _, err := Apply(root, tc.plan, Choice{}, all, nil, there, "1", applyTime); err == nil {
+			r, err := Apply(root, tc.plan, Choice{}, all, nil, there, "1", applyTime)
+			if err == nil {
 				t.Error("no error")
 			}
+			for _, ch := range tc.plan.Changes {
+				if !slices.Contains(r.Failed, ch.Path) {
+					t.Errorf("failed = %v, lack %s", r.Failed, ch.Path)
+				}
+			}
 		})
+	}
+}
+
+func TestAFileChangedSinceThePlanIsNotOverwritten(t *testing.T) {
+	root := world(t, map[string]string{".gitignore": "a\n"})
+	p := Plan{Changes: []Change{{Part: "gitignore", Path: ".gitignore", Before: "a\n", After: "a\nb\n", Exists: true}}}
+	writeFile(t, root, ".gitignore", "someone else\n")
+	r, err := Apply(root, p, Choice{}, all, nil, there, "1", applyTime)
+	if err == nil || !strings.Contains(err.Error(), ".gitignore changed since the plan") {
+		t.Fatalf("err = %v, want one naming .gitignore", err)
+	}
+	if got := read(t, root, ".gitignore"); got != "someone else\n" {
+		t.Errorf(".gitignore = %q, want the other writer's text", got)
+	}
+	if !slices.Contains(r.Failed, ".gitignore") || exists(root, backupDir+"/.gitignore.bak") {
+		t.Errorf("failed = %v, backup there = %v; want the failure and no backup",
+			r.Failed, exists(root, backupDir+"/.gitignore.bak"))
+	}
+}
+
+func TestAFailedStepLeavesNoInstalledRecord(t *testing.T) {
+	root := world(t, nil)
+	p := Plan{Actions: []Action{{Part: "binary", ID: "binary-install"}},
+		Changes: []Change{{Part: "gitignore", Path: ".gitignore", After: "x\n"}}}
+	fail := func(Action) error { return errors.New("offline") }
+	r, err := Apply(root, p, Choice{}, all, fail, there, "1", applyTime)
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if !slices.Contains(r.Failed, "binary-install") || !exists(root, ".gitignore") {
+		t.Errorf("report = %+v; want binary-install failed and .gitignore written", r)
+	}
+	if exists(root, installedPath) {
+		t.Error("installed.toml written by a run in which a step failed")
+	}
+	if !exists(root, answersPath) {
+		t.Error("answers.toml missing; the choices of a run that went through are kept")
 	}
 }
 
