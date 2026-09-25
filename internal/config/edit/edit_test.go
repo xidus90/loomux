@@ -76,6 +76,39 @@ func TestSetKeepsCRLF(t *testing.T) {
 	}
 }
 
+// A file whose lines end in both ways, as one edited by two editors: every
+// line keeps its own ending, and no key is lost to a line glued to the one
+// before it.
+func TestSetKeepsMixedLineEndings(t *testing.T) {
+	text := "[commit]\r\nthreshold = 2\nlanguage = \"en\"\r\n"
+	got, err := Set(text, "commit", "threshold", "3")
+	if err != nil || got != "[commit]\r\nthreshold = 3\nlanguage = \"en\"\r\n" {
+		t.Fatalf("Set = %q, %v", got, err)
+	}
+	got, err = Set(text, "commit", "language", `"de"`)
+	if err != nil || got != "[commit]\r\nthreshold = 2\nlanguage = \"de\"\n" {
+		t.Fatalf("Set = %q, %v", got, err)
+	}
+	got, err = Remove(text, "commit", "threshold")
+	if err != nil || got != "[commit]\r\nlanguage = \"en\"\r\n" {
+		t.Fatalf("Remove = %q, %v", got, err)
+	}
+}
+
+// Notepad saves a CRLF file without an ending after the last line; that line
+// has no \r to give, and the file is still CRLF.
+func TestSetKeepsCRLFWithoutAFinalLineEnd(t *testing.T) {
+	got, err := Set("[commit]\r\nlanguage = \"en\"\r\nthreshold = 2", "modules", "graph", "false")
+	if err != nil || got != "[commit]\r\nlanguage = \"en\"\r\nthreshold = 2\r\n\r\n[modules]\r\ngraph = false\r\n" {
+		t.Fatalf("Set = %q, %v", got, err)
+	}
+	// One line and no ending at all names no CRLF: new lines get \n.
+	got, err = Set("[commit]", "commit", "threshold", "2")
+	if err != nil || got != "[commit]\nthreshold = 2\n" {
+		t.Fatalf("Set = %q, %v", got, err)
+	}
+}
+
 // TestSetReadsStringsAndCommentsInsideAValue covers what the value scanners
 // must skip: an escaped quote inside a string, and a bracket in a comment of
 // a multi-line list.
