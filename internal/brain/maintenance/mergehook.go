@@ -209,13 +209,17 @@ func HookStatus(areas []config.Area, lookup config.ArtifactLookup, git Git) ([]H
 			found = append(found, HookState{State: "not installed", Scope: target.scope, Repo: target.path})
 			continue
 		}
-		state := "not installed"
-		if isOurs(target.hook) {
+		state, detail := "not installed", target.hook
+		switch {
+		case isOurs(target.hook):
 			// The record was lost, the hook was not: calling that "not
 			// installed" would send the user looking for a hook they have.
 			state = "unrecorded"
+		case isFile(target.hook):
+			// The path alone would read as the place a hook is missing.
+			detail += ": another hook"
 		}
-		found = append(found, HookState{State: state, Scope: target.scope, Repo: target.repo, Detail: target.hook})
+		found = append(found, HookState{State: state, Scope: target.scope, Repo: target.repo, Detail: detail})
 	}
 	return found, nil
 }
