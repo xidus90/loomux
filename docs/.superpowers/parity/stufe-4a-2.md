@@ -69,9 +69,10 @@ sie falsch ist.
    …)` gibt nil zurück, solange die Konstante `antigravityMeasured` in
    `internal/setup/hostfile/table.go` falsch ist; die Messung von Task 1
    steht aus. Preis: Antigravity-Wirte bekommen nichts, bis jemand die
-   Konstante umlegt.
+   Konstante umlegt. *Überholt am 2026-09-25, siehe „Antigravity-Einträge“.*
 2. **Antigravity bekommt noch keine Skills.** `Skills(…, HostAntigravity)`
-   gibt nil zurück, bis Task 1 den Skill-Ort nennt.
+   gibt nil zurück, bis Task 1 den Skill-Ort nennt. *Überholt am
+   2026-09-25.*
 3. **`Answers` und `ReadAnswers` entstanden in Task 11** statt in Task 12,
    weil Task 11 sie zuerst braucht; Task 12 fügte das Schreiben hinzu.
 4. **`.mcp.json` nach E5 ohne die Messung.** E5 ist freigegeben, die Messung
@@ -515,6 +516,70 @@ Verzeichnis, die dritte Runde ließ nichts liegen) und
 jetzt in einem eigenen Verzeichnis laufen). Beide nach der Runde von Hand
 entfernt.
 
+## Antigravity-Einträge, 2026-09-25
+
+Gemessen am 2026-09-24 mit agy 1.2.8 („Messungen vor dem Bau“ im Plan):
+
+- agy führt einen Hook-Befehl über `cmd.exe` aus: `${LOCALAPPDATA}` bleibt
+  wörtlich stehen, `%LOCALAPPDATA%` wird aufgelöst.
+- Ein gequoteter Programmpfad zerbricht, weil agy `"…"` als `\"…\"`
+  weiterreicht; ungequotet `%LOCALAPPDATA%/loomux/bin/loomux.exe` geht,
+  Schrägstriche vorwärts auch.
+- Das Arbeitsverzeichnis eines Hooks ist `.agents/` (Messung vom
+  2026-09-10), also `--root ..`.
+- Ein scheiternder Hook blockiert den Werkzeugaufruf.
+- Projekt-Skills liegen unter `.agents/skills/<name>/SKILL.md`.
+- Projekt-Hooks lädt agy nur in einem vertrauten Ordner
+  (`trustedWorkspaces` in `~/.gemini/antigravity-cli/settings.json`).
+- `"timeout"` in Sekunden wird beachtet, Vorgabe 30 s.
+
+Gebaut:
+
+- `antigravityMeasured` ist weg. Die zwei Einträge (`pre-tool-use` mit
+  Timeout 15, `post-tool-use` mit 60, Matcher wie zuvor) rufen immer
+  `hostfile.AntigravityBinary`, also
+  `%LOCALAPPDATA%/loomux/bin/loomux.exe … --host antigravity --root ..`,
+  auch in einem Checkout. `Apply` schreibt `.agents/hooks.json` darum nur,
+  wenn das installierte Binary steht (wie beim Merge-Hook); die Einträge
+  von Claude Code behalten ihr Tor. Schon der Plan lässt die Einträge mit
+  einer Notiz weg, wenn das installierte Binary fehlt und im selben Lauf
+  kein `binary-install` geplant ist.
+- Enthält `LOCALAPPDATA` Leerraum (`Facts.LocalAppDataSpaced`, gelesen in
+  `Gather`), plant `init` keine Antigravity-Einträge und sagt es; die
+  Hookdatei wird dann nicht gelesen, die Skills kommen trotzdem.
+- Die Regeln von Fusions-Spec #21 stehen in `internal/setup/hostfile`: Die
+  Gruppe `loomux` gehört uns, jede andere wird Token für Token übernommen
+  (`json.Indent` des gelesenen Rohtexts: Schlüsselreihenfolge, Escapes und
+  Zahlen bleiben, nur die Einrückung wird zwei Leerzeichen — dieselbe
+  Treue, die ultraloom mit seinem Encoder hatte; eine schon so eingerückte
+  Gruppe kommt Byte für Byte zurück). Eine fremde Gruppe, die einen der
+  gewollten Befehle wörtlich schon ruft, wird als Notiz gemeldet, nie
+  repariert. Eine Wurzel `null` wird abgelehnt, mit dem Dateinamen — auch
+  in `.claude/settings.json`, wo `null` bisher als leere Datei galt; ein
+  Merge, eine Regel.
+- **`internal/agenthooks` zieht nicht um.** Der Merge in `hostfile` kannte
+  die Gruppe `loomux` schon als eigenen Container; ein zweites Paket für
+  dieselbe Datei hätte zwei Schreiber mit zwei Formaten ergeben. Nur seine
+  Regeln (Null-Wurzel, Meldung fremder Gruppen) sind übernommen.
+- Die Notiz „no entries or skills yet“ ist weg; statt ihrer erinnert der
+  Plan an `trustedWorkspaces`.
+
+**Durchstich mit einem laufenden agy, 2026-09-25** (agy 1.2.8, loomux 2.11.1
+am kanonischen Ort, ein Wegwerf-Repo unter `C:\Users\micro`, also vertraut).
+`init --dry-run --yes --hosts=antigravity` mit dem Binary dieses Zweigs
+plante `.agents/hooks.json` genau in der obigen Form; dieser Text wurde in
+das Repo gelegt, dann lief `agy -p … --add-dir <repo>
+--dangerously-skip-permissions`:
+
+| Auftrag an agy | Ergebnis |
+|---|---|
+| `.loomux/config.toml` mit dem Schreibwerkzeug anlegen | verweigert: der Hook endete mit Exit 2 und der Begründung des Wächters („the manifest is where the barrier reads its own limits …“), die Datei entstand nicht |
+| `hello.txt` mit dem Schreibwerkzeug anlegen | geschrieben, `post-tool-use` lief ohne Einwand |
+
+Damit ist belegt: agy lädt die Gruppe `loomux`, `%LOCALAPPDATA%` löst auf,
+`--root ..` trifft die Projektwurzel, und der Wächter von loomux sperrt
+unter Antigravity, was er unter Claude Code sperrt.
+
 ## Offen
 
 - **Task 1 ist gelaufen, bis auf einen Schritt.** Am 2026-09-24 vom Agenten
@@ -527,11 +592,6 @@ entfernt.
   `C:\Users\micro\AppData\Local` und findet dort `loomux.exe`. Offen bleibt
   der Freigabeweg einer Projekt-`.mcp.json` („Pending approval“), der eine
   interaktive Sitzung braucht (Mensch).
-- **Antigravity-Einträge und -Skills:** gemessen, nicht gebaut.
-  `antigravityMeasured` bleibt falsch, bis sie gebaut sind; der Entwurf
-  (Regeln aus #21 in `internal/setup/hostfile`, Befehlsform für `cmd.exe`,
-  Probe gegen agy) steht in `plans/2026-09-25-loomux-4a-nachziehen.md`,
-  Tasks 1, 6 bis 8, und ist auf Wunsch des Nutzers zurückgestellt.
 - **Task 15, Schritte 2 bis 4 (Mensch):** siehe „Selbstnutzung“.
 - **Die aufgeschobenen Kleinigkeiten beider Akten, sortiert am 2026-09-25**
   gegen den Code (die Listen unten und in `stufe-4a-1.md` bleiben als
