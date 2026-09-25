@@ -55,9 +55,11 @@ func Merge(host hosts.Host, existing []byte, wanted []Entry) (Result, error) {
 		if err := json.Unmarshal(existing, &root); err != nil {
 			return Result{}, fmt.Errorf("%s is not a JSON object: %w", file, err)
 		}
-	}
-	if root == nil {
-		root = map[string]any{}
+		// null is the one document that parses into a nil map without an
+		// error; writing over it would repair a file that is no object.
+		if root == nil {
+			return Result{}, fmt.Errorf("%s is not a JSON object: its root is null", file)
+		}
 	}
 	raw, present := root[key]
 	hooks, ok := raw.(map[string]any)
