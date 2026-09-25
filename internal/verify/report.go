@@ -68,14 +68,18 @@ func CheckVerdict(kinds []string, outs []Outcome) (code int, notes []string) {
 	return code, notes
 }
 
-// WriteEdit reports a post-edit run: red lanes on stderr, which blocks the
-// edit with 2, and as an aside for the model on stdout the lanes it had to
-// skip and whatever else the hook has to say. The aside is dropped when a
-// lane is red: the finding matters more, and stderr stays the finding's.
-func WriteEdit(stdout, stderr io.Writer, outs []Outcome, aside string) int {
+// SkipPrefix begins every notice of a lane post-edit did not run.
+const SkipPrefix = "loomux hook post-tool-use: lane skipped, "
+
+// EditReport reports the lanes of one edited file: red lanes on stderr,
+// which blocks the edit with 2, and as notices for the model the lanes it had
+// to skip and whatever else the hook has to say. The aside is dropped when a
+// lane is red: the finding matters more, and stderr stays the finding's. The
+// notices of every file of a call go to WriteNotices together, because a host
+// reads stdout as one document.
+func EditReport(stderr io.Writer, outs []Outcome, aside string) (int, string) {
 	code := 0
 	var skipped strings.Builder
-	const prefix = "loomux hook post-tool-use: lane skipped, "
 	for _, o := range outs {
 		switch {
 		case Red(o.State, ScopeEdit):
@@ -85,24 +89,23 @@ func WriteEdit(stdout, stderr io.Writer, outs []Outcome, aside string) int {
 				fmt.Fprintf(stderr, "%s\n", strings.TrimSuffix(o.Output, "\n"))
 			}
 		case o.State == StateBudget:
-			skipped.WriteString(prefix + "the edit budget ran out: " + o.Job.Name + "\n")
+			skipped.WriteString(SkipPrefix + "the edit budget ran out: " + o.Job.Name + "\n")
 		case o.State == StateMissingTool, o.State == StateUnready:
-			skipped.WriteString(prefix + o.Output + "\n")
+			skipped.WriteString(SkipPrefix + o.Output + "\n")
 		}
 	}
 	notices := skipped.String()
 	if aside != "" && code == 0 {
 		notices += aside + "\n"
 	}
-	writeSkipped(stdout, notices)
-	return code
+	return code, notices
 }
 
-// writeSkipped puts the dropped lanes where a PostToolUse hook exiting 0 is
+// WriteNotices puts the dropped lanes where a PostToolUse hook exiting 0 is
 // read: `hookSpecificOutput.additionalContext`, the field the Claude adapter
 // writes for the model. Nothing is written when nothing was skipped, because
 // stdout that is not valid JSON turns a passed hook into a hook-error notice.
-func writeSkipped(stdout io.Writer, notices string) {
+func WriteNotices(stdout io.Writer, notices string) {
 	if notices == "" {
 		return
 	}

@@ -768,7 +768,7 @@ func TestPostEditChecksNothingForACallItCannotUse(t *testing.T) {
 func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
 	root := goProject(t)
 	payload := agyCall(t, root, "a.go", "b.go")
-	run := func(budget time.Duration) ([]string, string) {
+	run := func(budget time.Duration) ([]string, string, string) {
 		now := time.Now()
 		var seen []string
 		env := EditEnv{
@@ -784,15 +784,51 @@ func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
 		}
 		var so, se bytes.Buffer
 		RunPostEdit(strings.NewReader(payload), &so, &se, root, env)
-		return seen, se.String()
+		return seen, so.String(), se.String()
 	}
-	seen, stderr := run(DefaultBudget)
-	if strings.Contains(strings.Join(seen, "\n"), "b.go") || !strings.Contains(stderr, "the edit budget ran out: "+filepath.ToSlash(filepath.Join(root, "b.go"))) {
-		t.Fatalf("seen %v, stderr %q", seen, stderr)
+	// Named for the model on stdout, and on stderr, which a host reads at
+	// exit 2 and agy logs.
+	seen, stdout, stderr := run(DefaultBudget)
+	skipped := "the edit budget ran out: " + filepath.ToSlash(filepath.Join(root, "b.go"))
+	if strings.Contains(strings.Join(seen, "\n"), "b.go") || !strings.Contains(editContextOf(t, stdout), skipped) || !strings.Contains(stderr, skipped) {
+		t.Fatalf("seen %v, stdout %q, stderr %q", seen, stdout, stderr)
 	}
-	if seen, _ := run(0); !strings.Contains(strings.Join(seen, "\n"), "b.go") {
+	if seen, _, _ := run(0); !strings.Contains(strings.Join(seen, "\n"), "b.go") {
 		t.Fatalf("no budget skipped b.go: %v", seen)
 	}
+}
+
+// Every file of one call may have lanes to skip; they are said in one JSON
+// document, since a host reads stdout as one.
+func TestPostEditSaysTheSkipsOfEveryFileInOneDocument(t *testing.T) {
+	root := goProject(t)
+	seen := []string{}
+	env := editEnv(t, passing, &seen)
+	env.Look = func(string) (string, error) { return "", errors.New("not found") }
+	var so, se bytes.Buffer
+	if code := RunPostEdit(strings.NewReader(agyCall(t, root, "a.go", "b.go")), &so, &se, root, env); code != ExitOK {
+		t.Fatalf("%d %q", code, se.String())
+	}
+	// One skipped lane per file.
+	said := editContextOf(t, so.String())
+	if strings.Count(said, verify.SkipPrefix) != 2 {
+		t.Fatalf("%q", said)
+	}
+}
+
+// editContextOf is the additionalContext of the one JSON document stdout
+// holds.
+func editContextOf(t *testing.T, stdout string) string {
+	t.Helper()
+	var said struct {
+		HookSpecificOutput struct {
+			AdditionalContext string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &said); err != nil {
+		t.Fatalf("stdout has to be one JSON document, got %q: %v", stdout, err)
+	}
+	return said.HookSpecificOutput.AdditionalContext
 }
 
 // Each file of one call measures into coverage files of its own.
