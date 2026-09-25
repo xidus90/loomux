@@ -524,3 +524,25 @@ func TestAnOwnEntryUnderAnOldMatcherIsNamed(t *testing.T) {
 		t.Errorf("settings =\n%s\nnotes = %v", c.After, p.Notes)
 	}
 }
+
+func TestAChangeNamesTheBinaryItsFileCalls(t *testing.T) {
+	root := world(t, map[string]string{"go.mod": goMod, ".git/": ""})
+	f := gather(t, root, "")
+	p := plan(t, f)
+	for path, want := range map[string]string{
+		mcpPath:                 hostfile.Canonical,
+		".claude/settings.json": f.Binary,
+		".githooks/pre-commit":  f.Binary,
+		"AGENTS.md":             "",
+		".gitignore":            "",
+	} {
+		ch, ok := changeOf(p, path)
+		if !ok {
+			t.Errorf("%s not planned", path)
+			continue
+		}
+		if ch.Binary != want {
+			t.Errorf("%s: Binary = %q, want %q", path, ch.Binary, want)
+		}
+	}
+}

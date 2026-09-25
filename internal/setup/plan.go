@@ -22,6 +22,10 @@ type Change struct {
 	Path          string // slash-separated, relative to Root
 	Before, After string
 	Exists        bool
+	// Binary is the binary the written file calls, hostfile.Canonical or
+	// hostfile.Checkout, and "" for a file that calls none. Without it the
+	// file would call nothing, so Apply drops the change.
+	Binary string
 	// Redo makes After again from the text that stands when Apply writes,
 	// if that is no longer Before: area-add runs first and may have written
 	// the file since the plan was made. nil for a change nothing else in a
@@ -218,7 +222,11 @@ func (b *builder) change(part, path string, before []byte, exists bool, after st
 // redoable plans a change that redo makes again over the text standing when
 // Apply writes it.
 func (b *builder) redoable(part, path string, before []byte, exists bool, after string, redo func(string) (string, error)) {
-	c := Change{Part: part, Path: path, Before: string(before), After: after, Exists: exists, Redo: redo}
+	b.add(Change{Part: part, Path: path, Before: string(before), After: after, Exists: exists, Redo: redo})
+}
+
+// add plans c unless it leaves its file as it is.
+func (b *builder) add(c Change) {
 	if !c.Empty() {
 		b.plan.Changes = append(b.plan.Changes, c)
 	}
@@ -263,7 +271,9 @@ func (b *builder) mcpJSON() {
 		b.fail(err)
 		return
 	}
-	b.change("mcp-json", mcpPath, before, exists, string(after))
+	// The server entry calls the installed binary in every project.
+	b.add(Change{Part: "mcp-json", Path: mcpPath, Before: string(before), After: string(after),
+		Exists: exists, Binary: hostfile.Canonical})
 }
 
 func (b *builder) hostEntries(h hosts.Host) {
@@ -280,7 +290,8 @@ func (b *builder) hostEntries(h hosts.Host) {
 	for _, n := range result.Notes {
 		b.note(path + ": " + n)
 	}
-	b.change("host-entries", path, before, exists, string(result.Merged))
+	b.add(Change{Part: "host-entries", Path: path, Before: string(before), After: string(result.Merged),
+		Exists: exists, Binary: b.f.Binary})
 }
 
 // hasGit says whether the project is a repository, and names the git parts
@@ -323,7 +334,7 @@ func (b *builder) gitHooks() {
 		case exists:
 			b.note(path + ": kept; a hook of the project is already there")
 		default:
-			b.change("git-hooks", path, nil, false, hooks[name])
+			b.add(Change{Part: "git-hooks", Path: path, After: hooks[name], Binary: b.f.Binary})
 		}
 	}
 }

@@ -23,14 +23,6 @@ type Report struct {
 	Refused                  []string // changes the human declined
 }
 
-// callsBinary names the parts whose files or actions call the binary the
-// entries call -- the checkout's bin/loomux.exe or the installed one;
-// without it they would call nothing. The hooks-path action belongs to
-// git-hooks and goes with them. merge-hook is not among them: its hook
-// calls the installed binary in every project, and Apply judges it by that
-// one alone.
-var callsBinary = map[string]bool{"host-entries": true, "git-hooks": true}
-
 // applier carries a run of Apply: the files it wrote and the actions it ran
 // go into installed.toml, the report to the caller.
 type applier struct {
@@ -44,10 +36,11 @@ type applier struct {
 // binary, area-add, files, hooks-path, merge-hook, graph-build, answers,
 // installed. area-add goes before the files because it writes the
 // declaration only into a configuration that is not there yet; a change
-// with a Redo is then made again over what it left. Without the binary the
-// entries call, every change and action that calls it -- host entries, git
-// hooks -- is dropped and reported as failed; without the installed binary
-// under LOCALAPPDATA, merge-hook is, whichever binary the entries call.
+// with a Redo is then made again over what it left. A change whose file
+// calls a binary that is not there (Change.Binary) is dropped and reported
+// as failed, and so are the git-hooks actions without the binary the
+// entries call and merge-hook without the installed binary under
+// LOCALAPPDATA, whichever binary the entries call.
 //
 // Any other failure stops the run and leaves installed.toml unwritten, so
 // the next plan shows what is still open; version is the version of the
@@ -75,18 +68,35 @@ func Apply(root string, p Plan, c Choice, approve func(Change) bool, run Runner,
 	}
 	present := binaryThere()
 	canonical := isFile(BinaryPath(root, hostfile.Canonical))
-	dropped := func(part string) bool {
-		if part == "merge-hook" {
+	// missing says whether the binary a file calls is absent; the file
+	// would call nothing.
+	missing := func(binary string) bool {
+		switch binary {
+		case "":
+			return false
+		case hostfile.Canonical:
 			return !canonical
 		}
-		return callsBinary[part] && !present
+		return !present
+	}
+	// An action names no binary of its own: merge-hook's hook calls the
+	// installed one in every project, and hooks-path goes with the git
+	// hooks, which call the binary the entries call.
+	dropped := func(part string) bool {
+		switch part {
+		case "merge-hook":
+			return !canonical
+		case "git-hooks":
+			return !present
+		}
+		return false
 	}
 	if err := a.actions(first, run, dropped); err != nil {
 		return a.done(), err
 	}
 	for _, ch := range p.Changes {
 		switch {
-		case dropped(ch.Part):
+		case missing(ch.Binary):
 			a.report.Failed = append(a.report.Failed, ch.Path)
 		case !approve(ch):
 			a.report.Refused = append(a.report.Refused, ch.Path)
