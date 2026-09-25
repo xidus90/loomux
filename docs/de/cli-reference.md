@@ -15,14 +15,13 @@ Loomux nutzt eine strikte Exit-Code-Semantik, die exakt auf die Schnittstellen m
 | **`1`** | **Mitteilung / Warnung** | Vom Harness als rein informativ bzw. „weitermachen“ interpretiert. |
 | **`2`** | **Strikte Ablehnung / Blockiert** | Die Schreibschranke oder Policy hat die Aktion blockiert; Abbruch des Aufrufs. |
 
-Antigravity wertet jeden Exit ungleich 0 eines Hooks als gescheiterten
-Befehl und bricht ab. Deshalb endet `loomux hook … --host antigravity`
-überall mit `0` außer bei `pre-tool-use`, dessen `2` den Aufruf dort
-verweigert wie in Claude Code. Ein gehaltener Stop wird zu
-`{"decision":"continue","reason":"…"}` auf stdout, eine rote
-Post-Edit-Spur zu `{"injectSteps":[{"ephemeralMessage":"…"}]}`; der Grund ist,
-was der Hook nach stderr geschrieben hat. Die Stop-Antwort ist aus dem
-Binary von agy gelesen, die Post-Edit-Antwort noch nicht gemessen.
+Unter `--host antigravity` (gemessen mit agy 1.2.8 und 1.2.11, 2026-09-25):
+Die `2` von `pre-tool-use` verweigert den Aufruf wie in Claude Code, die `2`
+von `post-tool-use` gibt stderr als Warnung an das Modell, ohne abzubrechen.
+Ein gehaltener Stop wird zu `{"decision":"continue","reason":"…"}` auf
+stdout mit Exit `0`, der Grund ist, was das Tor nach stderr geschrieben hat;
+agy tritt dann erneut in seine Schleife ein. Jeder andere Code ungleich 0
+endet mit `0`, seine Meldung auf stderr.
 
 ### Globale Flags & Umgebung
 - `--root <pfad>`: Explizite Angabe der Projektwurzel. Wird dieses Flag weggelassen, wandert Loomux im Verzeichnisbaum aufwärts, bis es die erste `.loomux/config.toml` findet.
@@ -349,7 +348,7 @@ Wird ausgeführt, nachdem ein Agent eine Datei bearbeitet hat.
 ### `loomux hook session-start`
 Hält den Commit fest, auf dem die Sitzung beginnt.
 
-- **Flags**: `--host <h>` (Pflichtfeld; nur `claude` hat einen Adapter), `--root <r>`.
+- **Flags**: `--host <h>` (Pflichtfeld; `claude` und `antigravity` haben Adapter), `--root <r>`.
 - **Verhalten**:
   - Schreibt `HEAD` als `base` in `.loomux/state/hooks/<session_id>.json`.
   - Belebt eine Sitzung wieder, die `worktree unlink` als beendet markiert hat: entfernt `<session_id>.ended` und schreibt die Datei mit zurückgesetzter Blockreihe zurück, sodass die Sitzung wieder zählt; bei einer nie als beendet markierten Sitzung wird die Datei nur verjüngt. Eine Marke, die sich nicht entfernen lässt, oder eine Datei, die sich nicht zurückschreiben lässt, steht im Kontext, mit Exit 0.
@@ -361,7 +360,7 @@ Hält den Commit fest, auf dem die Sitzung beginnt.
 ### `loomux hook stop`
 Das Tor am Rundenende: stellt zu, was Subagenten hinterlassen haben, und fährt dann das Profil `stop` über das, was sich seit dem letzten grünen Lauf geändert hat.
 
-- **Flags**: `--host <h>` (Pflicht; nur `claude` hat einen Adapter), `--root <r>`, `--budget <dauer>` — wie lange die Lanes zusammen dauern dürfen (Go-Dauer, Vorgabe `270s`, unter den 300 s, die sein Settings-Eintrag gewährt). Jeder Befehl bekommt das Kleinere aus seinem eigenen `timeout` und dem Rest des Budgets.
+- **Flags**: `--host <h>` (Pflicht; `claude` und `antigravity` haben Adapter), `--root <r>`, `--budget <dauer>` — wie lange die Lanes zusammen dauern dürfen (Go-Dauer, Vorgabe `270s`, unter den 300 s, die sein Settings-Eintrag gewährt). Jeder Befehl bekommt das Kleinere aus seinem eigenen `timeout` und dem Rest des Budgets.
 - **Standard-Input (stdin)**: die `Stop`-Nutzlast des Hosts; gelesen wird nur `session_id`.
 - **Verhalten**: in dieser Reihenfolge — die Befunde der Subagenten auf `stderr`, der Blockzähler (nach 3 Blockaden in Folge gibt er für eine Runde auf und lässt die Befunde für die nächste liegen), der Marker `.loomux/no-verify` (er überspringt die Kette, nicht die Befunde), der Fingerabdruck des Inhalts (nichts Neues seit dem letzten grünen Lauf oder der Basis: kein Werkzeug startet), dann die Arten des Profils `stop` (vorgegeben `lint`, `types`, `test`, `coverage`) im Check-Scope, dazu `lint/wiki`, wo `lint` angefragt ist und es ein Wiki gibt. Ein grüner Lauf rückt `base` auf `HEAD` vor und merkt sich den Baum. Siehe [Hooks](hooks.md#stop).
 - **Standard-Fehler (stderr)**: zugestellte Befunde als `subagent <agent_id>: <zeile>`, danach nur die roten Lanes, im Format von `loomux check`.
@@ -370,7 +369,7 @@ Das Tor am Rundenende: stellt zu, was Subagenten hinterlassen haben, und fährt 
 ### `loomux hook subagent-start`
 Hält fest, wo `origin`, die lokalen Branches und `HEAD` stehen, bevor ein Subagent läuft.
 
-- **Flags**: `--host <h>` (Pflicht; nur `claude` hat einen Adapter), `--root <r>`.
+- **Flags**: `--host <h>` (Pflicht; `claude` und `antigravity` haben Adapter), `--root <r>`.
 - **Standard-Input (stdin)**: die `SubagentStart`-Nutzlast des Hosts; gelesen werden `session_id` und `agent_id`.
 - **Verhalten**: `git ls-remote origin` (Frist 10 s, `GIT_TERMINAL_PROMPT=0`), die lokalen Branches und `HEAD` kommen nach `.loomux/state/hooks/<session_id>/agents/<agent_id>.json`; ein Remote, der nicht antwortet, wird als `unavailable` festgehalten. Ein Befund, der noch in dieser Datei geparkt ist, bleibt erhalten. Siehe [Hooks](hooks.md#subagent-start-und-subagent-stop).
 - **Exit-Codes**: `0` (geschrieben), `1` (fehlender oder unbekannter Host, keine `session_id` oder `agent_id`, unlesbare Nutzlast, gescheitertes Schreiben). Nie 2.
@@ -378,7 +377,7 @@ Hält fest, wo `origin`, die lokalen Branches und `HEAD` stehen, bevor ein Subag
 ### `loomux hook subagent-stop`
 Vergleicht mit dem Schnappschuss und parkt, was sich bewegt hat, für das `stop` des Hauptagenten.
 
-- **Flags**: `--host <h>` (Pflicht; nur `claude` hat einen Adapter), `--root <r>`.
+- **Flags**: `--host <h>` (Pflicht; `claude` und `antigravity` haben Adapter), `--root <r>`.
 - **Standard-Input (stdin)**: die `SubagentStop`-Nutzlast des Hosts; gelesen werden `session_id` und `agent_id`.
 - **Verhalten**: eine Zeile je Ref von `origin` oder lokalem Branch, der neu, weg oder bewegt ist, und ein `new commit <oneline>` je Commit, den `HEAD` und die bewegten Branches gewonnen haben, angehängt an die Datei des Agenten; ohne Befund wird die Datei entfernt. Ohne Datei oder ohne Schnappschuss schweigt er. Für das Modell schreibt er nichts: seine eigene Ausgabe erreichte den Subagenten, nicht den Hauptagenten.
 - **Exit-Codes**: `0` (verglichen, oder nichts zu vergleichen), `1` (fehlender oder unbekannter Host, keine `session_id` oder `agent_id`, unlesbare Nutzlast, gescheitertes Schreiben). Nie 2.
@@ -1231,12 +1230,13 @@ durch einen Menschen, der das prüft, steht noch aus.
   20 s), `PreToolUse` auf
   `write_to_file|replace_file_content|multi_replace_file_content|run_command`
   (15 s), `PostToolUse` auf die drei schreibenden Werkzeuge (60 s) und
-  `Stop` mit `--budget 270s` (300 s). Ein `run_command` wird nach denselben
-  Befehlsregeln beurteilt wie `Bash`; eines, in dem der Wächter keine
-  Befehlszeile findet, wird verweigert. Das `PostToolUse` von Antigravity
-  nennt keine Datei, deshalb legt `pre-tool-use` jedes erlaubte Ziel unter
-  Konversation und Schritt ab, und `post-tool-use` prüft jede Datei, die
-  sein Schritt abgelegt hat. Dazu kommen die Skills unter
+  `Stop` mit `--budget 270s` (300 s); `PreToolUse` trifft auch
+  `send_command_input`. `PreInvocation` und `Stop` stehen als flache Liste
+  von Handlern, die Werkzeug-Ereignisse als Block mit `matcher` und `hooks`:
+  agy 1.2.11 verwirft sonst die ganze Datei. Ein `run_command` oder
+  `send_command_input` wird nach denselben Befehlsregeln beurteilt wie
+  `Bash`; eines, in dem der Wächter keine Befehlszeile findet, wird
+  verweigert. Dazu kommen die Skills unter
   `.agents/skills/<name>/SKILL.md`, dieselben
   Texte wie Claude Code. agy führt einen Hook über `cmd.exe` aus
   `.agents/` aus: Es löst `%LOCALAPPDATA%` auf, lässt `${LOCALAPPDATA}`
