@@ -503,8 +503,10 @@ func onlyRedirections(words []string) bool {
 //
 // Outside quotes a line may hold plainByte, the breaks ; | & and line
 // breaks, the redirections < and >, and a # that opens a comment at the
-// start of a word. Inside double quotes only plainByte may stand, which
-// leaves out $, the backtick and \. Inside single quotes any ASCII byte may
+// start of a word. Inside double quotes only plainByte and # may stand, which
+// leaves out $, the backtick and \; a # there is a byte of the word to both
+// shells, and a word that begins with it only ends the flags flagOn reads,
+// which can refuse more but never less. Inside single quotes any ASCII byte may
 // stand but the breaks ; | & ( ) < >, cmd's ^ % ! and #; a byte beyond ASCII
 // refuses, because PowerShell also ends a single quoted string at a
 // typographic quote (’). A quote left open refuses.
@@ -529,7 +531,7 @@ func plainLine(line string) bool {
 		case quote == '"':
 			if c == '"' {
 				quote = 0
-			} else if !plainByte(c) {
+			} else if !plainByte(c) && c != '#' {
 				return false
 			}
 		case c == '\'' || c == '"':
