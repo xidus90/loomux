@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -84,6 +85,103 @@ func TestHookRoutesTheStopGate(t *testing.T) {
 	code, _, _ := run("hook", "stop", "--host", "claude", "--root", t.TempDir(), "--budget", "5s")
 	if code != 2 || budget != 5*time.Second {
 		t.Fatalf("code %d, budget %s", code, budget)
+	}
+}
+
+// On Antigravity a held stop reaches the host as a continue decision with
+// what the gate told stderr, and the hook exits 0.
+func TestHookAnswersAntigravitysStopThroughItsAdapter(t *testing.T) {
+	old := stopHook
+	t.Cleanup(func() { stopHook = old })
+	stopHook = func(_ io.Reader, stderr io.Writer, _, _ string, _ time.Duration) int {
+		fmt.Fprintln(stderr, "go vet: red")
+		return 2
+	}
+	code, out, errOut := run("hook", "stop", "--host", "antigravity", "--root", t.TempDir())
+	if code != 0 || out != `{"decision":"continue","reason":"go vet: red"}`+"\n" || errOut != "go vet: red\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+// A root whose modules cannot be read ends with 0 on Antigravity, where 1
+// would abort the agent, and still says why on stderr.
+func TestHookEndsAntigravitysUnreadableModulesWithZero(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".loomux", "config.toml"), []byte("[modules\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := run("hook", "stop", "--host", "antigravity", "--root", root)
+	if code != 0 || errOut == "" {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	if code, _, _ := run("hook", "stop", "--host", "claude", "--root", root); code != 1 {
+		t.Fatalf("claude code %d", code)
+	}
+}
+
+// Antigravity's entries run from `.agents/` with `--root ..`. The relative
+// root is made absolute, so a rule with a slash still matches an absolute
+// target: the stop gate's marker stays refused.
+func TestHookMakesARelativeRootAbsolute(t *testing.T) {
+	root := t.TempDir()
+	agents := filepath.Join(root, ".agents")
+	if err := os.MkdirAll(agents, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(agents)
+	marker := filepath.ToSlash(filepath.Join(root, ".loomux", "no-verify"))
+	payload := `{"conversationId":"c1","toolCall":{"name":"write_to_file","args":{"TargetFile":"` + marker + `"}}}`
+	code, _, errOut := runWith(payload, "hook", "pre-tool-use", "--host", "antigravity", "--root", "..")
+	if code != 2 || !strings.Contains(errOut, "the stop gate's own controls") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// A call whose flags cannot be read, or whose event is unknown, still ends
+// with 0 on Antigravity, and keeps its code everywhere else.
+func TestHookAnswersAMalformedAntigravityCallWithZero(t *testing.T) {
+	for _, args := range [][]string{
+		{"hook", "stop", "--host", "antigravity", "--nope"},
+		{"hook", "stop", "--host=antigravity", "--nope"},
+	} {
+		if code, _, _ := run(args...); code != 0 {
+			t.Fatalf("%v: code %d", args, code)
+		}
+	}
+	for _, args := range [][]string{
+		{"hook", "stop", "--nope", "--host", "claude"},
+		{"hook", "stop", "--nope", "host", "antigravity"},
+		{"hook", "stop", "--nope", "--host"},
+		{"hook", "nope", "--host", "mars"},
+	} {
+		if code, _, _ := run(args...); code == 0 {
+			t.Fatalf("%v: code 0", args)
+		}
+	}
+}
+
+// An unknown event refuses on every host: it may be a barrier's entry.
+func TestHookRefusesAnUnknownEventOnAntigravityToo(t *testing.T) {
+	if code, out, _ := run("hook", "nope", "--host", "antigravity"); code != 2 || out != "" {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+}
+
+// A hook that panics still reaches the host through its adapter: on
+// Antigravity a stop that broke down ends with 0 and says why on stderr.
+func TestHookAnswersAPanicThroughTheAdapter(t *testing.T) {
+	old := stopHook
+	t.Cleanup(func() { stopHook = old })
+	stopHook = func(io.Reader, io.Writer, string, string, time.Duration) int { panic("boom") }
+	code, _, errOut := run("hook", "stop", "--host", "antigravity", "--root", t.TempDir())
+	if code != 0 || !strings.Contains(errOut, "loomux hook stop broke down: boom") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	if code, _, _ := run("hook", "stop", "--host", "claude", "--root", t.TempDir()); code != 1 {
+		t.Fatalf("claude code %d", code)
 	}
 }
 

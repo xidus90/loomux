@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/xidus90/loomux/internal/config"
@@ -37,6 +40,8 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	event := args[0]
 	failure, known := malformed[event]
 	if !known {
+		// 2 on every host: an entry naming no event this binary knows may be
+		// a barrier's, and a barrier that cannot run refuses.
 		fmt.Fprintf(stderr, "loomux hook: unknown event %q\n", event)
 		return 2
 	}
@@ -53,18 +58,67 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		budget = flags.Duration("budget", hooks.DefaultStopBudget, "how long the stop gate's lanes may take in all")
 	}
 	if err := flags.Parse(args[1:]); err != nil {
-		return failure
+		return hosts.Answer(hostIn(args[1:]), event, stdout, failure, nil, "")
 	}
 	if *host == "" {
 		fmt.Fprintf(stderr, "loomux hook %s: --host is required: expected claude, antigravity or codex\n", event)
 		return failure
 	}
-	if _, err := hosts.ParseHost(*host); err != nil {
+	parsed, err := hosts.ParseHost(*host)
+	if err != nil {
 		fmt.Fprintf(stderr, "loomux hook %s: %v\n", event, err)
 		return failure
 	}
-	resolved := *root
-	if resolved == "" {
+	// Every way out below reaches the host through its adapter: stdout is
+	// held until the code is known, and stderr is kept as the reason. The
+	// buffer comes first because MultiWriter stops at the first writer that
+	// fails, and a stderr nobody drains must not cost the reason.
+	var out, reason bytes.Buffer
+	errs := io.MultiWriter(&reason, stderr)
+	code := func() (code int) {
+		// A hook that breaks down still answers through the adapter, with
+		// the code its malformed call would have had.
+		defer func() {
+			if broke := recover(); broke != nil {
+				fmt.Fprintf(errs, "loomux hook %s broke down: %v\n", event, broke)
+				code = failure
+			}
+		}()
+		return runHook(event, *root, *host, *budget, failure, stdin, &out, errs)
+	}()
+	return hosts.Answer(parsed, event, stdout, code, out.Bytes(), reason.String())
+}
+
+// hostIn is the host a call names, for the answers given before its flags
+// could be read; a call naming none, or none that is known, is answered as
+// Claude Code, whose codes pass through as they are.
+func hostIn(args []string) hosts.Host {
+	for i, arg := range args {
+		name, value, inline := strings.Cut(strings.TrimLeft(arg, "-"), "=")
+		if name != "host" || arg == name {
+			continue
+		}
+		if !inline && i+1 < len(args) {
+			value = args[i+1]
+		}
+		if parsed, err := hosts.ParseHost(value); err == nil {
+			return parsed
+		}
+	}
+	return hosts.HostClaude
+}
+
+// runHook resolves the root, honours the hooks module and runs the event.
+func runHook(event, root, host string, budget time.Duration, failure int, stdin io.Reader, stdout, stderr io.Writer) int {
+	resolved := root
+	if resolved != "" {
+		// Antigravity's entries pass `--root ..` from `.agents/`. A relative
+		// root would reach every rule that relativises a target against it,
+		// and filepath.Rel cannot relate an absolute target to "..".
+		if abs, err := filepath.Abs(resolved); err == nil {
+			resolved = abs
+		}
+	} else {
 		found, err := hosts.FindRoot(".")
 		if err != nil && event != "pre-tool-use" {
 			fmt.Fprintf(stderr, "loomux hook %s: %v\n", event, err)
@@ -90,15 +144,15 @@ func hookCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case "pre-tool-use":
 		return hooks.PreToolUse(stdin, stdout, stderr, resolved, config.StateDir())
 	case "post-tool-use":
-		return postToolUse(stdin, stdout, stderr, resolved, *budget)
+		return postToolUse(stdin, stdout, stderr, resolved, budget)
 	case "stop":
-		return stopHook(stdin, stderr, resolved, *host, *budget)
+		return stopHook(stdin, stderr, resolved, host, budget)
 	case "subagent-start":
-		return hooks.SubagentStart(stdin, stderr, resolved, *host)
+		return hooks.SubagentStart(stdin, stderr, resolved, host)
 	case "subagent-stop":
-		return hooks.SubagentStop(stdin, stderr, resolved, *host)
+		return hooks.SubagentStop(stdin, stderr, resolved, host)
 	default:
-		return hooks.SessionStart(stdin, stdout, stderr, resolved, *host)
+		return hooks.SessionStart(stdin, stdout, stderr, resolved, host)
 	}
 }
 
