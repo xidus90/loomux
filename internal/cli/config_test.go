@@ -139,6 +139,23 @@ func TestConfigSetAsksAndWrites(t *testing.T) {
 	}
 }
 
+func TestConfigSetTakesYesAsAConfirmation(t *testing.T) {
+	for _, answer := range []string{"yes\n", " YES \n", "Y\n"} {
+		root := configRoot(t, "[commit]\nlanguage = \"en\"\n")
+		code, _, errOut := runConfig(t, answer, "set", "commit.language", "de", "--root", root)
+		if got := readConfig(t, root); code != 0 || got != "[commit]\nlanguage = \"de\"\n" {
+			t.Errorf("%q: %d %s\n%s", answer, code, errOut, got)
+		}
+	}
+	for _, answer := range []string{"no\n", "\n", "yess\n", ""} {
+		root := configRoot(t, "[commit]\nlanguage = \"en\"\n")
+		runConfig(t, answer, "set", "commit.language", "de", "--root", root)
+		if got := readConfig(t, root); got != "[commit]\nlanguage = \"en\"\n" {
+			t.Errorf("%q wrote:\n%s", answer, got)
+		}
+	}
+}
+
 func TestConfigSetWritesNothingWhenDeclined(t *testing.T) {
 	root := configRoot(t, "[commit]\nlanguage = \"en\"\n")
 	code, _, errOut := runConfig(t, "n\n", "set", "commit.language", "de", "--root", root)

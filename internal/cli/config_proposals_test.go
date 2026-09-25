@@ -381,7 +381,7 @@ func TestConfigApplyAsksAndKeepsADeclinedProposal(t *testing.T) {
 	if code != 0 || !strings.Contains(errOut, "declined") || readConfig(t, root) != "" || len(proposalFiles(t, proposalDir(root))) != 1 {
 		t.Fatalf("%d %s", code, errOut)
 	}
-	if code, _, errOut := runConfig(t, "y\n", "apply", "--all", "--root", root); code != 0 || readConfig(t, root) != "[commit]\nthreshold = 4\n" {
+	if code, _, errOut := runConfig(t, "yes\n", "apply", "--all", "--root", root); code != 0 || readConfig(t, root) != "[commit]\nthreshold = 4\n" {
 		t.Fatalf("%d %s", code, errOut)
 	}
 }
