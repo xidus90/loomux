@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -300,6 +301,62 @@ func TestConfigSetReportsAFailedWrite(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".loomux"), "")
 	if code, _, errOut := runConfig(t, "", "set", "commit.threshold", "4", "--yes", "--root", root); code != 1 || errOut == "" {
 		t.Fatalf("%d %q", code, errOut)
+	}
+}
+
+// changingReader rewrites path when the answer is read, the way a second
+// terminal would between the diff and the confirmation.
+type changingReader struct {
+	t          *testing.T
+	path, text string
+	done       bool
+}
+
+func (r *changingReader) Read(p []byte) (int, error) {
+	if r.done {
+		return 0, io.EOF
+	}
+	r.done = true
+	writeFile(r.t, r.path, r.text)
+	return copy(p, "y\n"), nil
+}
+
+func TestConfigSetRefusesAFileChangedBeforeTheAnswer(t *testing.T) {
+	root := configRoot(t, "[commit]\nthreshold = 2\n")
+	path := filepath.Join(root, ".loomux", "config.toml")
+	var out, errOut bytes.Buffer
+	in := &changingReader{t: t, path: path, text: "[commit]\nthreshold = 5\n"}
+	code := Run([]string{"config", "set", "commit.threshold", "3", "--root", root}, in, &out, &errOut)
+	if code != 1 || !strings.Contains(errOut.String(), "changed since it was read") {
+		t.Fatalf("code %d, stderr %q; want a refusal", code, errOut.String())
+	}
+	if got := readConfig(t, root); got != "[commit]\nthreshold = 5\n" {
+		t.Fatalf("file = %q, want the other writer's text", got)
+	}
+}
+
+func TestWriteConfigRefusesATextItWasNotMadeFrom(t *testing.T) {
+	_, target := projectTarget(t, "[commit]\nthreshold = 5\n")
+	err := writeConfig(target, "[commit]\nthreshold = 2\n", "[commit]\nthreshold = 3\n")
+	if err == nil || !strings.Contains(err.Error(), "changed since it was read; nothing written") {
+		t.Fatalf("err = %v, want a refusal", err)
+	}
+	// A file that went missing since it was read changed too.
+	os.Remove(target.path)
+	if err := writeConfig(target, "[commit]\nthreshold = 5\n", "x"); err == nil {
+		t.Fatal("a vanished file was written over")
+	}
+	if _, err := os.Stat(target.path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stat = %v, want the file still missing", err)
+	}
+}
+
+func TestWriteConfigReportsAFileItCannotRead(t *testing.T) {
+	_, target := projectTarget(t, "")
+	os.Remove(target.path)
+	os.Mkdir(target.path, 0o755)
+	if err := writeConfig(target, "", "x"); err == nil {
+		t.Fatal("no error for a configuration that is a directory")
 	}
 }
 

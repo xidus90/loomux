@@ -131,5 +131,5 @@ func changeOne(term tui.Terminal, target configTarget, text string, e schema.Ent
 	if err != nil || !yes {
 		return err
 	}
-	return writeConfig(target, next)
+	return writeConfig(target, text, next)
 }
