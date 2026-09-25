@@ -221,7 +221,7 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 				}
 			}
 			if writesConfiguration(line) {
-				reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
+				reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, and merge-hook install and remove write executable hooks into repositories; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
 			}
 		}
 	}
@@ -425,6 +425,10 @@ func wordsWriteConfiguration(words []string, plain bool) bool {
 		return len(args) != 2 || (args[1] != "--help" && args[1] != "-h")
 	case "area":
 		return len(args) > 1 && args[1] == "add"
+	case "merge-hook":
+		// install and remove put executable hooks into other repositories;
+		// status reads and record is what the installed hook itself calls.
+		return len(args) > 1 && (args[1] == "install" || args[1] == "remove")
 	}
 	return false
 }

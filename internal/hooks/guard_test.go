@@ -601,6 +601,17 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"loomux config set a b --yes < --propose",
 		"loomux config set a b --yes <# --propose #>",
 		"loomux config set a b --propose; loomux config apply --all --yes",
+		// merge-hook install and remove put executable hooks into other
+		// repositories, as area add writes into another configuration.
+		"loomux merge-hook install",
+		"loomux merge-hook remove",
+		"loomux merge-hook install --dry-run",
+		"sudo loomux merge-hook install",
+		"cmd /c loomux merge-hook remove",
+		"go run ./cmd/loomux merge-hook install",
+		`& "C:\x\loomux.exe" merge-hook remove`,
+		"{ loomux merge-hook install; }",
+		"cd x && loomux merge-hook remove",
 	}
 	// Known holes, pinned so that closing one shows up here and the readings
 	// comment and both cli-references are corrected with it.
@@ -694,6 +705,12 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"loomux config get {a}",
 		"try { loomux config list}",
 		"try{ loomux con`fig list }",
+		"loomux merge-hook status",
+		"loomux merge-hook record",
+		"loomux merge-hook",
+		"sudo loomux merge-hook status",
+		"cmd /c loomux merge-hook record",
+		"go run ./cmd/loomux merge-hook status",
 	}
 	for _, line := range refused {
 		if !writesConfiguration(line) {
@@ -720,6 +737,10 @@ func TestCheckToolNamesTheConfigurationReason(t *testing.T) {
 	got = checkTool(t.TempDir(), "PowerShell", map[string]any{"command": `& "$env:LOCALAPPDATA\loomux\bin\loomux.exe" config set x y`}, config.Policy{})
 	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "a human runs them") }) {
 		t.Fatalf("PowerShell reasons %v", got)
+	}
+	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux merge-hook install"}, config.Policy{})
+	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "merge-hook install and remove") }) {
+		t.Fatalf("merge-hook reasons %v", got)
 	}
 	if got := checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux config list"}, config.Policy{}); len(got) != 0 {
 		t.Fatalf("reasons %v", got)
