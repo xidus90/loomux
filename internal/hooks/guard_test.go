@@ -370,6 +370,16 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"loomux config set commit.language de --yes",
 		"loomux config --global",
 		"loomux config set model.enabled true --global",
+		// config takes its flags before the subcommand too; a write that
+		// names them first is still a write.
+		"loomux config --root . set commit.language en",
+		"loomux config --global unset model.enabled",
+		"loomux config --root . set commit.language en --propose=false",
+		"loomux config --root .",
+		"loomux config --global",
+		"loomux config --root",
+		"loomux config --root . apply x",
+		"loomux config --yes list",
 		"loomux area add --path .",
 		"go run ./cmd/loomux config set commit.language de",
 		"cd x && loomux config",
@@ -526,7 +536,6 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"loomux config ''",
 		"loomux config unset commit.language",
 		"loomux config lis",
-		"loomux config --root d list",
 		"loomux config --help --global",
 		"loomux config 'unclosed",
 		// set and unset pass only as a proposal, and applying or
@@ -712,6 +721,12 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"loomux config set a b -propose",
 		"loomux config unset commit.language --propose --global",
 		"loomux config set --propose a b --root d",
+		// config takes --root and --global before the subcommand too.
+		"loomux config --root . list",
+		"loomux config --root=d get commit.language",
+		"loomux config --global list --json",
+		"loomux config -root d --global proposals",
+		"loomux config --root . set commit.language de --propose",
 		"loomux config set layout.wiki docs/wiki --propose",
 		"loomux config set index.include 'docs/**/*.md' --propose",
 		`loomux config set commit.message "a b" --propose`,

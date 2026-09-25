@@ -456,6 +456,9 @@ func wordsWriteConfiguration(words []string, plain bool) bool {
 	case "init":
 		return !exempt || !flagOn(args, "--dry-run", "--detect-only")
 	case "config":
+		// config takes --root and --global before its subcommand as well;
+		// the subcommand is judged where it stands.
+		args = append(args[:1:1], skipTargetFlags(args[1:])...)
 		// What reads is named, and everything else writes: a subcommand
 		// added later is refused until it is listed here.
 		if len(args) > 1 {
@@ -475,6 +478,29 @@ func wordsWriteConfiguration(words []string, plain bool) bool {
 		return len(args) > 1 && (args[1] == "install" || args[1] == "remove")
 	}
 	return false
+}
+
+// skipTargetFlags drops the flags that choose config's file -- --root with
+// its value, --root=…, --global -- from the front of args. Any other flag
+// stops it: the words after it are judged as they stand, and a bare flag
+// there refuses.
+func skipTargetFlags(args []string) []string {
+	for len(args) > 0 {
+		name, _, glued := strings.Cut(strings.TrimLeft(args[0], "-"), "=")
+		switch {
+		case !strings.HasPrefix(args[0], "-"):
+			return args
+		case name == "global" && !glued:
+			args = args[1:]
+		case name == "root" && glued:
+			args = args[1:]
+		case name == "root" && len(args) > 1:
+			args = args[2:]
+		default:
+			return args
+		}
+	}
+	return args
 }
 
 // onlyProposes says whether config set or unset stores a proposal instead of

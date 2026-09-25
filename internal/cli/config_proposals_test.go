@@ -476,7 +476,11 @@ func TestConfigApplyAndRejectOfAnUnknownProposal(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".loomux", "x.json"), "{}")
 	for _, sub := range []string{"apply", "reject"} {
 		for _, id := range []string{"nope", "../x", "a-1.json"} {
-			if code, _, errOut := runConfig(t, "", sub, id, "--yes", "--root", root); code != 1 || !strings.Contains(errOut, "no open proposal") {
+			args := []string{sub, id, "--root", root}
+			if sub == "apply" {
+				args = append(args, "--yes")
+			}
+			if code, _, errOut := runConfig(t, "", args...); code != 1 || !strings.Contains(errOut, "no open proposal") {
 				t.Errorf("%s %s: %d %q", sub, id, code, errOut)
 			}
 		}

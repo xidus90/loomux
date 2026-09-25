@@ -49,10 +49,26 @@ func configCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 	propose := flags.Bool("propose", false, "store the change for a human to apply instead of writing it")
 	all := flags.Bool("all", false, "apply or reject every open proposal")
 	positional, err := parseInterspersed(flags, args)
+	// `config --root DIR list`: the subcommand stood behind the flags.
+	if sub == "" && len(positional) > 0 {
+		sub, positional = positional[0], positional[1:]
+	}
 	// The call is judged before the file is looked for: a wrong call is a 2
 	// wherever it is typed, also outside any project.
 	arity := map[string]int{"": 0, "list": 0, "get": 1, "set": 2, "unset": 1, "proposals": 0, "apply": 1, "reject": 1}
 	want, known := arity[sub]
+	// A flag the subcommand has no use for is refused rather than ignored:
+	// `get --yes` would read as a write that happened.
+	takes := map[string][]string{
+		"list": {"json"}, "proposals": {"json"},
+		"set": {"yes", "propose"}, "unset": {"yes", "propose"},
+		"apply": {"yes", "all"}, "reject": {"all"},
+	}
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name != "root" && f.Name != "global" && !slices.Contains(takes[sub], f.Name) {
+			known = false
+		}
+	})
 	// apply and reject name one proposal or all of them, never both.
 	if *all {
 		want--
