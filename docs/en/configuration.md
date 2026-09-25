@@ -33,7 +33,7 @@ agents = ["claude", "antigravity", "cursor"]
 |---|---|---|
 | `name` | string | Project identifier used for scoped collections and registries. |
 | `version` | string | Optional project version string. |
-| `agents` | array of strings | Active harness targets wired by `loomux init`. |
+| `agents` | array of strings | Not read by loomux. `loomux init` keeps the hosts it set up in `.loomux/state/answers.toml`, not here. |
 
 ---
 

@@ -45,10 +45,12 @@ Wechsle in das Wurzelverzeichnis deines Projekts und führe aus:
 loomux init
 ```
 Dieser Befehl:
-1. Erkennt vorhandene Coding-Agenten in deinem Arbeitsbereich (`.claude/`, `.agents/`, `.cursor/`).
-2. Erstellt das Konfigurationsverzeichnis `.loomux/`.
-3. Erzeugt eine Starter-Konfiguration `.loomux/config.toml` (mit Schreibschranken und Prüfketten).
-4. Richtet die Agenten-Hook-Dateien so ein, dass sie `loomux hook` aufrufen.
+1. Erkennt vorhandene Coding-Agenten in deinem Arbeitsbereich (`.claude/` → Claude Code, `.agents/` → Antigravity).
+2. Fragt je Modul (`hooks`, `brain`, `graph`) `all`, `each` oder `none` und dann die Commit-Sprache.
+3. Zeigt jede Änderung als Diff — `.loomux/config.toml` (Module, Commit-Sprache, Policy-Regeln des Stacks; die Prüfketten kommen aus den Presets), `.gitignore`, Hook-Einträge der Agenten, Git-Hooks, Skills — und schreibt nur, was du bestätigst.
+4. Legt das neueste Release nach `%LOCALAPPDATA%\loomux\bin\loomux.exe`, das die Hook-Einträge rufen.
+
+Alle Teile, Flags und Exit-Codes stehen in der [CLI-Referenz](cli-reference.md#11-projekt-einrichten-loomux-init).
 
 > [!NOTE]
 > Mit dem Flag `--dry-run` siehst du vorab, welche Dateien berührt würden, ohne Änderungen vorzunehmen:
@@ -120,8 +122,9 @@ Detected Stacks: [go]
 
 Ein Bereich besteht aus zwei Erklärungen: einem Eintrag in der Registry der
 Maschine, der sagt, wo der Baum liegt und was darin geschrieben werden darf,
-und einem Manifest im Baum, das sagt, was er ist. Das Binary kennt noch keinen
-Befehl `init` (Stufe 4); beide Dateien schreibt also ein Mensch. Kein Agent
+und einem Manifest im Baum, das sagt, was er ist. `loomux area add` schreibt
+beide, und `loomux init` ruft es als seinen Teil `area`; dieser Abschnitt ist
+für einen Menschen, der sie von Hand schreibt. Kein Agent
 schreibt eine davon, und die Schreibschranke verweigert `.loomux/config.toml`
 jedem schreibenden Werkzeug. Wo beide Dateien liegen, steht unter
 [Wo was liegt](configuration.md#4-wo-was-liegt).

@@ -2514,3 +2514,90 @@ Zwei Mutationsrunden liefen vor diesem Durchgang, keine während.
 5. **Die Startregel hält für die neuen Pakete**: `edit` und `tui` kompilieren
    ihre Ausdrücke beim ersten Gebrauch (je 2 Allokationen), `schema` hat kein
    Paket-Init.
+
+## 2026-09-24 20:06 — Stufe 4a-2: `init --dry-run` und der Hook-Pfad neben `internal/setup`
+
+Worktree `.claude/worktrees/beautiful-noether-local-c6dd1a`, Zweig
+`feat/stage-4a-2-init` auf `309f592b`. `before.exe` ist `master` auf
+`540ea728`, `after.exe` der Zweig; beide mit Go 1.27.0 `windows/amd64` in den
+Scratchpad der Sitzung gebaut. `master` ist seit der Merge-Basis `3453354e`
+um einen Doku-Commit weiter; unter `cmd`, `internal`, `third_party`, `go.mod`
+und `go.sum` hat sich nichts geändert, vorher ist also der Code der
+Merge-Basis.
+Maschine: AMD Ryzen 7 9800X3D.
+
+**Ziel.** `hook pre-tool-use` darf warm nicht messbar steigen: Die Stufe
+bringt `internal/setup/...` ins Binär, und der Wächter kennt `merge-hook`;
+den Installer erreicht der Hook-Pfad nicht (`TestHooksNeverImportTheInstaller`).
+`init --dry-run`, ein Befehl, den ein Mensch tippt, wird für sich gemessen.
+
+**Methode.** `after.exe dev bench-hooks <fälle> -n 10`, zwei Durchgänge
+direkt hintereinander und ein dritter um 20:28, je Fall ein kalter und 10 warme Läufe, in diesem
+Worktree mit seiner `.loomux/config.toml` und der Registry der Maschine.
+Nutzlast für `pre-tool-use`: ein `Edit` von `README.md` dieses Worktrees
+(erlaubt), `--host claude --root <worktree>`. `init --dry-run --root
+<worktree>` läuft auf einer frisch kopierten Binärdatei, sodass sein kalter
+Lauf im ersten Durchgang der erste Start dieser Datei ist; für `before.exe`
+und `after.exe` ist er das nicht (beide liefen vorher einmal für die
+Init-Zahlen). `master` hat kein `init`, die Zeile gibt es nur nachher. Die
+Init-Zahlen aus `GODEBUG=inittrace=1 loomux --version`. Die Mutationsrunde
+lief vor diesem Durchgang, keine während.
+
+Erster Durchgang:
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| vorher: loomux hook pre-tool-use (Edit auf README.md) | 16,5 ms | 10,4 ms | 10,0 ms | 11,0 ms | [0] |
+| nachher: loomux hook pre-tool-use (Edit auf README.md) | 36,5 ms | 11,8 ms | 10,0 ms | 24,9 ms | [0] |
+| vorher: loomux version (Startboden) | 12,0 ms | 9,0 ms | 7,0 ms | 11,2 ms | [0] |
+| nachher: loomux version (Startboden) | 9,5 ms | 8,5 ms | 7,5 ms | 9,5 ms | [0] |
+| nachher: loomux init --dry-run (dieser Worktree) | 119,7 ms | 63,7 ms | 58,6 ms | 84,9 ms | [0] |
+
+Zweiter Durchgang:
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| vorher: loomux hook pre-tool-use (Edit auf README.md) | 15,0 ms | 10,5 ms | 10,0 ms | 11,5 ms | [0] |
+| nachher: loomux hook pre-tool-use (Edit auf README.md) | 12,5 ms | 10,5 ms | 9,5 ms | 42,0 ms | [0] |
+| vorher: loomux version (Startboden) | 9,5 ms | 7,8 ms | 7,5 ms | 14,5 ms | [0] |
+| nachher: loomux version (Startboden) | 9,0 ms | 7,0 ms | 7,0 ms | 7,5 ms | [0] |
+| nachher: loomux init --dry-run (dieser Worktree) | 60,1 ms | 58,5 ms | 57,0 ms | 76,5 ms | [0] |
+
+Dritter Durchgang, 20:28:
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| vorher: loomux hook pre-tool-use (Edit auf README.md) | 16,0 ms | 10,3 ms | 10,0 ms | 19,0 ms | [0] |
+| nachher: loomux hook pre-tool-use (Edit auf README.md) | 13,0 ms | 9,8 ms | 9,0 ms | 14,5 ms | [0] |
+| vorher: loomux version (Startboden) | 10,0 ms | 7,5 ms | 7,5 ms | 8,0 ms | [0] |
+| nachher: loomux version (Startboden) | 8,5 ms | 7,0 ms | 6,5 ms | 27,5 ms | [0] |
+| nachher: loomux init --dry-run (dieser Worktree) | 61,5 ms | 54,7 ms | 52,3 ms | 65,5 ms | [0] |
+
+| Paket-Init | vorher: Bytes / Allokationen | nachher: Bytes / Allokationen |
+|---|---:|---:|
+| `internal/setup` | — | 256 / 2 |
+| `internal/setup/hostfile`, `gitfiles`, `templates`, `write` | — | kein Init |
+| `internal/brain/maintenance` | 3.576 / 36 | 3.624 / 38 |
+| `internal/cli` | 1.752 / 10 | 2.008 / 12 |
+
+### Lesart
+
+1. **`pre-tool-use` hat sich nicht bewegt.** Die warmen Mediane nachher
+   gegen vorher: 11,8 gegen 10,4 ms im ersten Durchgang, 10,5 gegen 10,5 im
+   zweiten, 9,8 gegen 10,3 im dritten. Im ersten lag mehr als die Hälfte der
+   Läufe nachher über dem langsamsten vorher (11,0 ms); die beiden folgenden
+   Durchgänge zeigen das nicht, der dritte kehrt es um. Die Minima liegen
+   in allen drei gleich oder nachher darunter (10,0/9,5/9,0 gegen
+   10,0/10,0/10,0 ms). Der erste Durchgang war der erste nach der
+   Mutationsrunde; eine Verschiebung, die die Stufe verursacht, müsste in
+   allen dreien stehen. Die Maxima von 24,9 und 42,0 ms und der kalte Lauf
+   von 36,5 ms sind Ausreißer einzelner Läufe.
+2. **Der Startboden auch nicht**, obwohl das Binär von 20,7 auf 24,2 MB
+   wuchs (8,5/7,0/7,0 gegen 9,0/7,8/7,5 ms warm).
+3. **`init --dry-run` kostet warm 55 bis 64 ms**, kalt beim ersten Start
+   der Datei 120 ms. Es liest die Git-Konfiguration über `git`, sucht fünf
+   Werkzeuge auf dem `PATH`, liest die Registry und plant jede Datei; für
+   einen Befehl, den ein Mensch einmal je Projekt tippt, ist das kein Thema.
+4. **Die Startregel hält**: Von den neuen Paketen hat nur `internal/setup`
+   ein Paket-Init (2 Allokationen); `maintenance` und `cli` wachsen um je
+   2. Kein neues Init kommt in die Nähe von 500.

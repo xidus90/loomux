@@ -114,6 +114,10 @@ git config core.hooksPath .githooks
 go build -o bin/loomux.exe ./cmd/loomux
 ```
 
+`go run ./cmd/loomux init --yes`, run by a human, does both and is meant to
+replace them. Until a human has run it once on a fresh clone and found
+`git status` empty afterwards, the two commands above stay the way.
+
 - Gate: `sh ci/gate.sh`; `.githooks/pre-commit` runs it, then rebuilds the pilot binary.
 - The gate is `go run ./cmd/loomux check precommit`: the `[verify]` lanes of
   `.loomux/config.toml` over the presets. `check lint`, `check test` or

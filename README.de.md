@@ -182,11 +182,13 @@ loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph,
 loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
 loomux reconcile                    # Eröffnet Prüffälle für geänderte Quellen und gelandete Merges; ein Fall ist kein Fehlschlag
 loomux area add [--path P] [--scope S]  # Meldet ein Repository als Bereich an, legt sein Wiki an und indiziert es (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
+loomux merge-hook install|status|remove  # Der post-merge-Hook jedes Bereichs, dessen Manifest [maintenance] on_merge = true sagt; er ruft `loomux merge-hook record`, das den Merge für reconcile vormerkt; noch in keinem Wirt in Gebrauch
 loomux cases                        # Listet die Fälle, die im Prüfzentrum warten; ein Fall ist kein Fehlschlag
 loomux case <id> [--package]        # Zeigt einen Fall mit Paket und Vorschlag; bei local_only zurückgehalten bis --package
 loomux approve <id>                 # Entscheidet einen Fall: wendet den belegten Vorschlag an und committet ihn (--amend D, --reject, --defer)
 loomux config [list|get K|set K V]  # zeigt jeden Schlüssel von .loomux/config.toml mit Herkunft, ändert eine Zeile nach Diff und y; ohne Unterbefehl Vollbild (--root, --global, --yes, --json; ein Befehl für Menschen, der Wächter verweigert ihn einem Agenten)
 loomux config set|unset … --propose # der Weg eines Agenten: die geprüfte Änderung als Vorschlag ablegen; ein Mensch ruft `config proposals`, dann `config apply <id>|--all` oder `config reject`
+loomux init                         # Richtet ein Projekt in Modulen ein (hooks, brain, graph): Binary, Konfiguration, Host-Einträge, Git-Hooks, Merge-Hook, Skills; jede Änderung als Diff, geschrieben nach einem y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; ein Befehl des Menschen; seine ersten Läufe auf einem frischen Klon und in einem Wirt stehen aus)
 ```
 
 ### Code-Graph
@@ -306,6 +308,13 @@ ersetzt den laufenden Dienst. `loomux self-update` tut dasselbe von Hand. Was
 der letzte Durchlauf fand, steht in `update.json` im Zustandsverzeichnis; der
 Sitzungsstart warnt, wenn `serve` woanders läuft oder der Durchlauf
 gescheitert ist. Vorerst nur unter Windows.
+
+`loomux init` nimmt die ersten Schritte ab: Sein Teil `binary` holt das
+neueste Release an denselben Ort, wenn dort keines liegt, und sein Teil
+`mcp-json` schreibt die `.mcp.json` des Projekts, wenn der Nutzerbereich
+keinen Server `loomux` kennt (siehe die
+[CLI-Referenz](docs/de/cli-reference.md#11-projekt-einrichten-loomux-init)).
+Sein erster Lauf durch einen Menschen steht noch aus.
 
 Jeder gemergte Pull Request nach `master` wird nach seinem Label veröffentlicht:
 
