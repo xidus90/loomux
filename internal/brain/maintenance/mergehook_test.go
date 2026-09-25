@@ -377,6 +377,30 @@ func TestStatusNamesEveryState(t *testing.T) {
 	}
 }
 
+// hookOf is the hook path the way status names it: from git's answer, in
+// its long spelling, which differs from t.TempDir's where TEMP is an 8.3
+// short name, as on a GitHub runner.
+func hookOf(t *testing.T, repo string) string {
+	t.Helper()
+	return filepath.Join(topLevel(t, repo), ".git", "hooks", "post-merge")
+}
+
+// A file of someone else's where the hook would go is named as such: the
+// bare path read as if the hook were missing there.
+func TestStatusNamesAForeignHookFile(t *testing.T) {
+	lookup, areas, repo := consenting(t, "main")
+	states, err := maintenance.HookStatus(areas, lookup, realGit)
+	if err != nil || len(states) != 1 || states[0].Detail != hookOf(t, repo) {
+		t.Fatalf("no file: %+v, %v", states, err)
+	}
+	writeFile(t, hookIn(repo), "#!/bin/sh\necho mine\n")
+	states, err = maintenance.HookStatus(areas, lookup, realGit)
+	want := maintenance.HookState{State: "not installed", Scope: "project/a", Repo: states[0].Repo, Detail: hookOf(t, repo) + ": another hook"}
+	if err != nil || len(states) != 1 || states[0] != want {
+		t.Fatalf("foreign file: %+v, %v; want %+v", states, err, want)
+	}
+}
+
 func TestStatusOfAnAreaThatIsNoRepositoryIsNotInstalled(t *testing.T) {
 	requireGit(t)
 	dir := t.TempDir()
