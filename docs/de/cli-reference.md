@@ -1166,7 +1166,9 @@ loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]
 Das Interview fragt je Modul `all`, `each` oder `none` (bei `each` eine
 Vollbildliste seiner Teile), dann die Commit-Sprache (`en` oder `de`) und,
 wenn das Projekt ein Bereich wird, seinen Scope. Die Vorgaben der Teile
-folgen dem Projekt; die Antworten eines früheren Laufs gehen vor.
+folgen dem Projekt; die Antworten eines früheren Laufs gehen vor. Der
+vorgegebene Scope ist `project/<verzeichnisname>`, Leerraum durch `-`
+ersetzt, und `project/root`, wo vom Namen nichts bleibt.
 
 | Modul | Teil | Was er tut | Vorgabe |
 |---|---|---|---|

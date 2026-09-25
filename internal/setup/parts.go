@@ -2,6 +2,7 @@ package setup
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/xidus90/loomux/internal/config/schema"
 	"github.com/xidus90/loomux/internal/hosts"
@@ -66,6 +67,19 @@ func (c Choice) moduleOn(m schema.Module) bool {
 	return m == schema.Base || !set || on
 }
 
+// scopeName is the last segment of the default scope: the directory's name
+// with its blanks joined by a hyphen, since the interactive form refuses a
+// scope with blanks and --yes takes this one without asking. A name that
+// leaves nothing -- blanks alone, a volume root -- becomes root, as area add
+// refuses an empty segment.
+func scopeName(root string) string {
+	name := strings.Join(strings.Fields(filepath.Base(root)), "-")
+	if name == "" || name == "." || strings.ContainsAny(name, `/\`) {
+		return "root"
+	}
+	return name
+}
+
 // DefaultChoice starts from what already holds: modules and the commit
 // language from the configuration, hosts and parts from the answers of an
 // earlier run, and only then the defaults of Parts. `init --yes` therefore
@@ -76,7 +90,7 @@ func DefaultChoice(f Facts, answers Answers) Choice {
 		Modules:        map[schema.Module]bool{schema.Hooks: true, schema.Brain: true, schema.Graph: true},
 		Parts:          map[string]bool{},
 		CommitLanguage: "en",
-		Scope:          "project/" + filepath.Base(f.Root),
+		Scope:          "project/" + scopeName(f.Root),
 	}
 	// A configuration that does not parse keeps the defaults here; Build
 	// refuses it and names the file.

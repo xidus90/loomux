@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -73,5 +74,28 @@ func TestAnswersOverrideTheDefaults(t *testing.T) {
 	c := DefaultChoice(f, Answers{Hosts: []string{"nobody"}, Parts: map[string]bool{"agents-md": false}})
 	if c.Parts["agents-md"] || !slices.Equal(c.Hosts, f.Hosts) {
 		t.Errorf("choice = %+v", c)
+	}
+}
+
+// The default scope comes from the directory name, and the interactive form
+// refuses a scope with blanks; --yes takes the default without asking, so
+// the default must be one the form would take.
+func TestTheDefaultScopeHasNoBlanks(t *testing.T) {
+	for dir, want := range map[string]string{
+		"my project": "project/my-project",
+		"a  b\tc":    "project/a-b-c",
+		"plain":      "project/plain",
+	} {
+		c := DefaultChoice(Facts{Root: filepath.Join(t.TempDir(), dir)}, Answers{})
+		if c.Scope != want {
+			t.Errorf("%q: scope %q, want %q", dir, c.Scope, want)
+		}
+	}
+	// A name of blanks alone, or a volume root, leaves nothing to take the
+	// scope from; area add refuses an empty segment.
+	for _, root := range []string{filepath.Join(t.TempDir(), "   "), filepath.VolumeName(t.TempDir()) + string(filepath.Separator), ""} {
+		if c := DefaultChoice(Facts{Root: root}, Answers{}); c.Scope != "project/root" {
+			t.Errorf("%q: scope %q, want project/root", root, c.Scope)
+		}
 	}
 }

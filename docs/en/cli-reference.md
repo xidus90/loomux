@@ -1121,7 +1121,8 @@ loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]
 The interview asks per module `all`, `each` or `none` (for `each`, a
 full-screen list of its parts), then the commit language (`en` or `de`) and,
 when the project becomes an area, its scope. What the parts default to
-follows the project; the answers of an earlier run come first.
+follows the project; the answers of an earlier run come first. The
+default scope is `project/<directory name>` with blanks joined by `-`, and `project/root` where the name leaves nothing.
 
 | Module | Part | What it does | Default |
 |---|---|---|---|
