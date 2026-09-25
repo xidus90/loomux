@@ -106,3 +106,18 @@ func TestCurrentRefusesBrokenTOML(t *testing.T) {
 		t.Fatal("want an error")
 	}
 }
+
+// Current decodes a default to offer it for editing and drops one that does
+// not decode without a word; every default must therefore be a TOML value,
+// the keys without a name of their own included.
+func TestEveryDefaultDecodes(t *testing.T) {
+	for _, k := range Keys() {
+		if k.Default == "" {
+			continue
+		}
+		var doc map[string]any
+		if _, err := toml.Decode("v = "+k.Default, &doc); err != nil {
+			t.Errorf("%s: default %s does not decode: %v", k.ID(), k.Default, err)
+		}
+	}
+}

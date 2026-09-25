@@ -462,6 +462,22 @@ func TestMCPJSONIsJudgedByTheInstalledBinaryAlone(t *testing.T) {
 	}
 }
 
+// A change dropped for want of its binary is not put to the human: a yes
+// to it would write nothing.
+func TestADroppedChangeIsNotAskedFor(t *testing.T) {
+	root := world(t, nil)
+	p := Plan{Changes: []Change{
+		{Part: "mcp-json", Path: mcpPath, After: "{}\n", Binary: hostfile.Canonical},
+		{Part: "gitignore", Path: ".gitignore", After: "x\n"},
+	}}
+	var asked []string
+	approve := func(ch Change) bool { asked = append(asked, ch.Path); return true }
+	r, err := Apply(root, p, Choice{}, approve, nil, there, "1", applyTime)
+	if err != nil || !slices.Equal(asked, []string{".gitignore"}) || !slices.Contains(r.Failed, mcpPath) {
+		t.Errorf("asked %v, report %+v, err %v; want only .gitignore asked", asked, r, err)
+	}
+}
+
 // A file calling the checkout's bin/loomux.exe goes with that binary, which
 // binaryThere reports, not with the installed one.
 func TestACheckoutFileIsJudgedByTheCheckoutBinary(t *testing.T) {

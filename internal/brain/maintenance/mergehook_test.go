@@ -734,6 +734,28 @@ func TestRecordCountsAMergeInAWorktreeOfTheArea(t *testing.T) {
 	}
 }
 
+// The repository is compared by the common git directory git names, and git
+// names it in its long spelling whichever way it is reached: an area
+// registered through a junction, and a merge made through one, still meet.
+func TestRecordMeetsAnAreaReachedThroughAJunction(t *testing.T) {
+	requireJunctions(t)
+	lookup, areas, repo := consenting(t, "main")
+	link := filepath.Join(t.TempDir(), "link")
+	junction(t, link, repo)
+	merge(t, repo)
+	for name, c := range map[string]struct{ area, dir string }{
+		"area through the junction":  {link, repo},
+		"merge through the junction": {repo, link},
+	} {
+		through := []config.Area{areas[0]}
+		through[0].Path = c.area
+		recorded, err := maintenance.RecordMerge(c.dir, through, lookup, realGit, someTime)
+		if err != nil || !recorded {
+			t.Errorf("%s: RecordMerge = %v, %v", name, recorded, err)
+		}
+	}
+}
+
 func TestRecordWritesOneLineWhenTwoAreasShareTheRepository(t *testing.T) {
 	lookup, areas, repo := twoAreas(t)
 	merge(t, repo)
