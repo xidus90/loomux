@@ -199,7 +199,7 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 func antigravityGap(f Facts, installing bool) string {
 	switch {
 	case f.LocalAppDataSpaced:
-		return "%LOCALAPPDATA% contains a space or a character cmd.exe reads as syntax, and cmd.exe would split the unquoted path"
+		return "%LOCALAPPDATA% contains a space or a character cmd.exe reads as a space or as syntax, and cmd.exe would split the unquoted path"
 	case !selfupdate.IsVersion(f.Version):
 		return "this init is the development build " + f.Version + ", and no installed loomux can be compared with it; run a released loomux init"
 	case installing:
