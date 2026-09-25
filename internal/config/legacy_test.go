@@ -303,3 +303,32 @@ func TestReadManifestStillAcceptsAManifestWithoutAScope(t *testing.T) {
 		t.Fatalf("ReadManifest = %+v, %v", m, err)
 	}
 }
+
+func TestEveryNameCarriesTheMergeConsent(t *testing.T) {
+	// The post-merge hook asks ReadAreaManifestUntilStage4 for consent, so
+	// all three names must carry `[maintenance]` alike, the default branch
+	// included.
+	names := []string{filepath.Join(".loomux", "config.toml"), filepath.Join(".ultra-brain", "config.toml"), ".brain.toml"}
+	for _, name := range names {
+		for _, row := range []struct {
+			maintenance string
+			onMerge     bool
+			branch      string
+		}{
+			{"[maintenance]\non_merge = true\nbranch = \"trunk\"\n", true, "trunk"},
+			{"[maintenance]\non_merge = true\n", true, DefaultMergeBranch},
+			{"", false, DefaultMergeBranch},
+		} {
+			dir := t.TempDir()
+			legacyWrite(t, dir, name, "[area]\nscope = \"a\"\n"+row.maintenance)
+			m, err := ReadAreaManifestUntilStage4(dir)
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			if m.OnMerge != row.onMerge || m.MergeBranch != row.branch {
+				t.Errorf("%s %q: OnMerge, MergeBranch = %v, %q; want %v, %q",
+					name, row.maintenance, m.OnMerge, m.MergeBranch, row.onMerge, row.branch)
+			}
+		}
+	}
+}

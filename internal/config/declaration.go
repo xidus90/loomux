@@ -90,10 +90,12 @@ func declaration(document map[string]any) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := optionalBool(sections["maintenance"], "on_merge", "[maintenance]", " "); err != nil {
+	onMerge, err := optionalBool(sections["maintenance"], "on_merge", "[maintenance]", " ")
+	if err != nil {
 		return nil, err
 	}
-	if _, err := optionalString(sections["maintenance"], "branch", "[maintenance]", " "); err != nil {
+	branch, err := optionalString(sections["maintenance"], "branch", "[maintenance]", " ")
+	if err != nil {
 		return nil, err
 	}
 	if _, err := optionalBool(sections["model"], "enabled", "[model]", " "); err != nil {
@@ -142,6 +144,8 @@ func declaration(document map[string]any) (*Manifest, error) {
 		IndexInclude:    globs["include"],
 		IndexExclude:    globs["exclude"],
 		IndexUnsearched: globs["unsearched"],
+		OnMerge:         onMerge,
+		MergeBranch:     mergeBranch(branch),
 	}, nil
 }
 

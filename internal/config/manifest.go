@@ -107,6 +107,23 @@ type Manifest struct {
 	IndexInclude    []string
 	IndexExclude    []string
 	IndexUnsearched []string
+	// OnMerge is the area's consent to have merges recorded (`[maintenance]
+	// on_merge`); MergeBranch the branch whose merges count, "main" when the
+	// declaration names none, as the reference's reader has it.
+	OnMerge     bool
+	MergeBranch string
+}
+
+// DefaultMergeBranch is the branch whose merges count where a declaration
+// names none, as `manifest.py:41-43` of the reference has it.
+const DefaultMergeBranch = "main"
+
+// mergeBranch answers the declared branch, or the default for an unsaid one.
+func mergeBranch(declared string) string {
+	if declared == "" {
+		return DefaultMergeBranch
+	}
+	return declared
 }
 
 // manifestFile is the wire shape of the file. It is separate from Manifest
@@ -137,6 +154,10 @@ type manifestFile struct {
 		Exclude    []string `toml:"exclude"`
 		Unsearched []string `toml:"unsearched"`
 	} `toml:"index"`
+	Maintenance struct {
+		OnMerge bool   `toml:"on_merge"`
+		Branch  string `toml:"branch"`
+	} `toml:"maintenance"`
 }
 
 // ReadManifest reads the manifest of the area rooted at repoRoot.
@@ -218,6 +239,8 @@ func readManifestAmong(dir string, names []string) (*Manifest, error) {
 			IndexInclude:    file.Index.Include,
 			IndexExclude:    file.Index.Exclude,
 			IndexUnsearched: file.Index.Unsearched,
+			OnMerge:         file.Maintenance.OnMerge,
+			MergeBranch:     mergeBranch(file.Maintenance.Branch),
 		}, nil
 	}
 	return nil, fmt.Errorf("%s: %w (%s)", dir, ErrNoManifest,
