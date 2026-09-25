@@ -325,8 +325,9 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
     die keinen Block öffnet (`awk '{ print }' loomux init`,
     `echo } loomux config set a b`, `echo ${X} loomux init`), `loomux init \`
     mit `--dry-run` auf der nächsten Zeile (PowerShell führte die erste Zeile
-    allein aus) und `loomux config --root <verz> list` (Flags vor dem
-    Unterbefehl; diese Form ist ohnehin ein Bedienfehler). Ebenso eine Zeile,
+    allein aus) und `config` mit einem anderen Flag als `--root <verz>`,
+    `--root=<verz>` oder `--global` vor dem Unterbefehl
+    (`loomux config --json list`). Ebenso eine Zeile,
     die solchen Text nur als Daten trägt, etwa ein Heredoc mit
     `loomux config set …`.
 - **Standard-Output / Fehler**:
@@ -941,7 +942,7 @@ loomux config unset <schlüssel> [--yes | --propose]
 loomux config proposals [--json]
 loomux config apply <id>|--all [--yes]
 loomux config reject <id>|--all
-# jede Form nimmt auch --root <verz> oder --global, hinter dem Unterbefehl
+# jede Form nimmt auch --root <verz> oder --global, vor oder hinter dem Unterbefehl
 ```
 
 - **Der Wächter verweigert einem Agenten** jede Form außer `list`, `get`,
@@ -957,7 +958,7 @@ loomux config reject <id>|--all
   `loomux config apply <id>` an (oder verwirft sie mit
   `loomux config reject <id>`). `config list` nennt, wie viele Vorschläge
   offen sind.
-- **Flags** (hinter dem Unterbefehl; ein Flag davor ist ein Bedienfehler):
+- **Flags** (vor oder hinter dem Unterbefehl; ein Flag, das der Unterbefehl nicht nimmt, ist ein Bedienfehler):
   - `--root <verz>` — das Projekt; leer wird es vom Arbeitsverzeichnis aus
     nach oben gesucht.
   - `--global` — stattdessen die rechnerweite `config.toml` im

@@ -307,8 +307,8 @@ Evaluates the project policy and global write barrier before an agent executes a
     (`awk '{ print }' loomux init`, `echo } loomux config set a b`,
     `echo ${X} loomux init`), `loomux init \` followed by
     `--dry-run` on the next line (PowerShell would run the first line alone),
-    and `loomux config --root <dir> list` (flags before the subcommand; that
-    form is a usage error anyway). So is a line that carries such text only
+    and `config` with any flag but `--root <dir>`, `--root=<dir>` or
+    `--global` before its subcommand (`loomux config --json list`). So is a line that carries such text only
     as data, such as a heredoc holding `loomux config set …`.
 - **Standard Output / Error**:
   - On Refusal: JSON refusal envelope on `stdout`, human-readable reason on `stderr`.
@@ -914,7 +914,7 @@ loomux config unset <key> [--yes | --propose]
 loomux config proposals [--json]
 loomux config apply <id>|--all [--yes]
 loomux config reject <id>|--all
-# each form also takes --root <dir> or --global, after the subcommand
+# each form also takes --root <dir> or --global, before or after the subcommand
 ```
 
 - **The guard refuses an agent** every form but `list`, `get`, `proposals`,
@@ -928,7 +928,7 @@ loomux config reject <id>|--all
   `loomux config proposals` and applies it with `loomux config apply <id>`
   (or drops it with `loomux config reject <id>`). `config list` names how
   many proposals are open.
-- **Flags** (after the subcommand; a flag before it is a usage error):
+- **Flags** (before or after the subcommand; a flag the subcommand does not take is a usage error):
   - `--root <dir>` — the project; found upwards from the working directory
     when empty.
   - `--global` — the machine-wide `config.toml` in the state directory

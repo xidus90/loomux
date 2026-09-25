@@ -442,6 +442,45 @@ func TestConfigUsage(t *testing.T) {
 	}
 }
 
+// Flags may come before the subcommand, the way --root is typed first when
+// a human reaches for the project before the verb.
+func TestConfigTakesFlagsBeforeTheSubcommand(t *testing.T) {
+	root := configRoot(t, "[commit]\nlanguage = \"de\"\n")
+	if code, out, _ := runConfig(t, "", "--root", root, "get", "commit.language"); code != 0 || out != "\"de\"\n" {
+		t.Fatalf("get: %d %q", code, out)
+	}
+	if code, _, errOut := runConfig(t, "", "--root", root, "set", "commit.threshold", "7", "--yes"); code != 0 {
+		t.Fatalf("set: %d %s", code, errOut)
+	}
+	if got := readConfig(t, root); got != "[commit]\nlanguage = \"de\"\nthreshold = 7\n" {
+		t.Fatalf("file:\n%s", got)
+	}
+}
+
+// A flag the subcommand has no use for is a wrong call, not one to ignore:
+// `get --yes` reads as if it could write.
+func TestConfigRefusesAFlagTheSubcommandDoesNotTake(t *testing.T) {
+	root := configRoot(t, "[commit]\nlanguage = \"de\"\n")
+	for _, args := range [][]string{
+		{"get", "commit.language", "--yes"},
+		{"get", "commit.language", "--json"},
+		{"list", "--yes"},
+		{"list", "--propose"},
+		{"proposals", "--yes"},
+		{"reject", "x", "--yes"},
+		{"apply", "x", "--json"},
+		{"unset", "commit.language", "--json"},
+		{"--yes"},
+	} {
+		if code, _, _ := runConfig(t, "", append(args, "--root", root)...); code != 2 {
+			t.Errorf("%v: code %d, want 2", args, code)
+		}
+	}
+	if got := readConfig(t, root); got != "[commit]\nlanguage = \"de\"\n" {
+		t.Fatalf("file changed:\n%s", got)
+	}
+}
+
 func TestConfigWithoutATerminalNamesTheOtherForms(t *testing.T) {
 	// Chdir into a project so the target resolves. The seam stands in for
 	// the console: a human running go test in one would otherwise have it
