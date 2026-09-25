@@ -454,7 +454,9 @@ Exit 0, worauf agy erneut in seine Schleife eintritt; der Grund ist, was das
 Tor nach stderr geschrieben hat. Jeder andere Code ungleich 0 endet mit 0.
 Ein unbekanntes Ereignis bleibt auf jedem Wirt Exit 2. `session-start` läuft
 auf `PreInvocation`, das vor jedem Modellaufruf feuert und sie in
-`invocationNum` zählt; nur der erste meldet sich. `subagent-start` und
+`invocationNum` zählt; nur der erste meldet sich, ein späterer nur, um zu
+sagen, dass die Sitzung für worktree unlink nicht wieder mitzählt.
+`subagent-start` und
 `subagent-stop` sind für Antigravity nicht verdrahtet: seine Nutzlasten tragen
 keine `agent_id`.
 

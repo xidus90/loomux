@@ -87,7 +87,8 @@ type Payload struct {
 	// Repeat says the host fires this start again within one run: agy's
 	// PreInvocation, where session-start is wired, comes before every model
 	// call and counts them in invocationNum. What a start announces is said
-	// once, at the first. Whether the count begins at 0 or 1 is not
+	// once, at the first; only a session left uncounted since then is said
+	// again. Whether the count begins at 0 or 1 is not
 	// measured; from 1 on, the worst case is one announcement too many.
 	Repeat bool
 }
