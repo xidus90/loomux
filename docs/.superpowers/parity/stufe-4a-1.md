@@ -273,7 +273,9 @@ verunreinigen.
     Panik ließe die Konsole im Rohmodus (Task 14). Erledigt im Abschlussfix;
     ein Fehler beim Zurücksetzen steht auf stderr und gibt Exit 1.
   - Eine geänderte Datei zwischen Listenbild und Bestätigung wird
-    überschrieben (Task 14).
+    überschrieben (Task 14). Behoben am 2026-09-25: `writeConfig` bekommt
+    den gelesenen Text und verweigert, wenn die Datei ihn nicht mehr hält —
+    für `set`, `unset`, die interaktive Form und `apply`.
   - `projectModules` nimmt jeden Fehler von `FindRoot` als „kein Projekt“,
     nicht nur `ErrNoRoot` (Task 5).
   - Ältere `TestMcp*`-Tests lesen die eigene `.loomux/config.toml` des Repos;

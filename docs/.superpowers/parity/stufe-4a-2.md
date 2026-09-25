@@ -517,18 +517,107 @@ entfernt.
 
 ## Offen
 
-- **Task 1 (Mensch) ist nicht gelaufen.** Daran hängen drei Dinge:
-  `antigravityMeasured = false` (Entscheidungen 1 und 2: keine
-  Antigravity-Einträge und -Skills) und die Bestätigung von E5 (Claude Code
-  löst `${LOCALAPPDATA}` in `.mcp.json` auf). Ebenso offen, ob Git for
-  Windows `${LOCALAPPDATA}` in einem Hook auflöst, den `init` schreibt.
+- **Task 1 ist gelaufen, bis auf einen Schritt.** Am 2026-09-24 vom Agenten
+  gemessen (Plan, „Messungen vor dem Bau“): Git-Hook mit `${LOCALAPPDATA}`
+  läuft, `.mcp.json` mit `${LOCALAPPDATA}` verbindet über
+  `claude -p --mcp-config`, der Skill-Ort von Antigravity ist
+  `.agents/skills/<name>/SKILL.md`, und agy führt Hooks über `cmd.exe` aus
+  (`%LOCALAPPDATA%` ohne Anführungszeichen). Nachbestätigt am 2026-09-25:
+  ein post-commit-Hook unter Git for Windows sieht `LOCALAPPDATA` als
+  `C:\Users\micro\AppData\Local` und findet dort `loomux.exe`. Offen bleibt
+  der Freigabeweg einer Projekt-`.mcp.json` („Pending approval“), der eine
+  interaktive Sitzung braucht (Mensch).
+- **Antigravity-Einträge und -Skills:** gemessen, nicht gebaut.
+  `antigravityMeasured` bleibt falsch, bis sie gebaut sind; der Entwurf
+  (Regeln aus #21 in `internal/setup/hostfile`, Befehlsform für `cmd.exe`,
+  Probe gegen agy) steht in `plans/2026-09-25-loomux-4a-nachziehen.md`,
+  Tasks 1, 6 bis 8, und ist auf Wunsch des Nutzers zurückgestellt.
 - **Task 15, Schritte 2 bis 4 (Mensch):** siehe „Selbstnutzung“.
-- **Eine Fehlverweigerung des Wächters:** `cd "C:/…/#GIT/loomux/…" &&
-  bin/loomux.exe init --dry-run` wird verweigert, obwohl `--dry-run` als
-  eigenes Wort dasteht und kein `$` folgt. `cd . && bin/loomux.exe init
-  --dry-run` geht durch, es liegt also am `#` im gequoteten Pfad, nicht am
-  `cd … &&`. Vermutlich liest der Wächter ab `#` einen Kommentar; nicht
-  untersucht.
+- **Die aufgeschobenen Kleinigkeiten beider Akten, sortiert am 2026-09-25**
+  gegen den Code (die Listen unten und in `stufe-4a-1.md` bleiben als
+  Herkunft stehen):
+  - **Fehler** — die ersten fünf sind am 2026-09-25 behoben (Auswahl des
+    Menschen): der Modus eines Skripts richtet sich nach `#!` oder `.sh`,
+    `edit.split` trennt an `\n` und behält in einer gemischten Datei jedes
+    `\r`, ein veralteter eigener Block wird gemeldet, `InstallHooks` schreibt
+    die Einträge vor dem Fehler, und `status` meldet `moved`:
+    - Hooks in einem eigenen `core.hooksPath` oder in `.git/hooks`
+      entstehen mit 0644: `writeNew` macht nur `.githooks/…` und `*.sh`
+      ausführbar (`internal/setup/write/atomic.go:194`). Auf POSIX überspringt
+      git sie still.
+    - Gemischte Zeilenenden: Steht ein einziges `\r\n` in der Datei, trennt
+      `edit.split` nur daran (`internal/config/edit/edit.go:49`). LF-Zeilen
+      kleben dann aneinander, und ein `Set` auf eine solche Zeile verschluckt
+      Schlüssel.
+    - `Kept` meldet einen veralteten eigenen Block als eingerichtet
+      (`internal/setup/hostfile/merge.go:81`).
+    - `InstallHooks` kehrt vor `writeRecords` zurück, und schon geschriebene
+      Hooks bleiben ohne Eintrag (`internal/brain/maintenance/mergehook.go:157`).
+    - `merge-hook status` vergleicht den Hookpfad nicht mit dem heutigen
+      Hookverzeichnis (`mergehook.go:188`).
+    - An der Kommandozeile:
+      - `config --root DIR list` endet mit Exit 2, fremde Flags werden still
+        angenommen.
+      - `yes` gilt als Ablehnung, nur `y` bestätigt.
+      - `Render(StringList)` macht aus `"a,"` ein leeres Element.
+      - `init --yes` schreibt einen `Scope` mit Leerzeichen, den die
+        interaktive Form verweigert.
+      - Ein angebotenes `none` lässt das Modul an.
+    - Kosmetisch:
+      - `Remove` lässt Kommentare in einem geleerten Abschnitt zurück.
+      - `tui.fit` zählt Runen statt Zellen.
+      - Die Spalte „Wert“ von `config list` wird zu breit.
+      - `samePath` vergleicht auch auf POSIX ohne Groß- und Kleinschreibung.
+      - `merge-hook status` zeigt bei einer fremden Datei `[datei]`.
+  - **Testlücken:**
+    - Vorgaben aller `Keys()` dekodieren
+    - `tui.Pick`-Tests prüfen `ok` und `err` nicht
+    - Modus in `TestWriteNewExecutablePermissions`
+    - `OnMerge` über `.brain.toml`
+    - `remove-installed` nur über die Bytezahl
+    - Fixture gegen `.claude/settings.json`
+    - 8.3 und Junction für das Common-Dir und `within`
+    - Vorlagentest prüft nur das erste Wort
+    - `approve` wird für entfallene Änderungen nicht gefragt
+  - **Fällt weg** (wie die Referenz, nicht erreichbar oder Prozessnotiz):
+    - `projectModules` und `FindRoot`
+    - `MkdirAll` mit 0o755 (nur Windows)
+    - `tui.Pick` bei ungleichen Längen, und Zeilen ohne Notiz
+    - `.githooks` am ganzen Pfad
+    - `merge_branch`
+    - ein verschobenes Repo
+    - der Kommentar in `cases_4a2_test.go`
+    - `targetOf`-Zusammenlegung
+    - `RunsAGate`
+    - `!/.loomux/state/`
+    - CRLF in `.gitignore`
+    - `brain-research`
+    - `lifecycleOrder`
+    - Modul aus bei ausgeschaltetem `config`
+    - `namedConfig`
+    - Toolchain-Zeit von `TestBuildPilotBuildsAndSwaps`
+  - **Schon erledigt:**
+    - Tests von `selfupdate`
+    - `DefaultMergeBranch`
+    - `registered()` über `SameDir`
+    - `SetEscapeHTML(false)`
+    - das Wort `default` als Wert
+    - `go run` im Wächter
+  - Was davon umgesetzt wird, entscheidet der Mensch.
+- **Behoben am 2026-09-25** (`plans/2026-09-25-loomux-4a-nachziehen.md`):
+  - Die Fehlverweigerung des Wächters bei `cd "C:/…/#GIT/…" &&
+    bin/loomux.exe init --dry-run`: `plainLine` ließ in doppelten
+    Anführungszeichen kein `#` zu, die ganze Zeile galt als nicht plain.
+  - `init` schreibt keine Datei mehr über, die sich seit dem Plan geändert
+    hat; ein gescheitertes Schreiben steht in `Failed`; ein Lauf mit einem
+    Fehler hinterlässt kein `installed.toml`.
+  - `.mcp.json` entfällt mit dem Binary, das sie ruft (`Change.Binary`
+    ersetzt die Tabelle `callsBinary`).
+  - Eine Hookdatei mit der Wurzel `null` wird abgelehnt statt überschrieben
+    (#21; der von ulinit übernommene Test, der sie als leer nahm, ist
+    ersetzt).
+  - `config` schreibt nicht mehr über eine Datei, die sich seit dem Lesen
+    geändert hat (aus der Liste von 4a-1).
 - **Aufgeschobene Kleinigkeiten aus dem Bau** (Ledger, `minor (deferred)`):
   - `selfupdate`: `TestInstallReplacesAnOlderBinary` übergeht Fehler der
     Einrichtung und prüft den neuen Inhalt nicht; `NewerOrEqual` wird nur auf
