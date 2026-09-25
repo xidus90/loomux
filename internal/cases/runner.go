@@ -26,6 +26,17 @@ var defaultMkdirTemp = os.MkdirTemp
 
 var mkdirTemp = defaultMkdirTemp
 
+// longPath is dir as the file system spells it. Windows may hand out a temp
+// directory under its 8.3 short name (C:\Users\RUNNER~1\...) while git
+// answers with the long one, and a world whose path differs from git's
+// never folds to WorldToken. A path that does not resolve stays as it is.
+func longPath(dir string) string {
+	if long, err := filepath.EvalSymlinks(dir); err == nil {
+		return long
+	}
+	return dir
+}
+
 // Normalize replaces every spelling of dir -- slashed, native and
 // JSON-escaped -- with WorldToken, so a recording matches on any machine.
 func Normalize(data []byte, dir string) []byte {
@@ -198,6 +209,7 @@ func RunCaseWith(c *Case, run RunFunc, normalize Normalizer) (*RunOutcome, error
 		return nil, err
 	}
 	defer os.RemoveAll(tmpDir)
+	tmpDir = longPath(tmpDir)
 
 	srcWorld := filepath.Join(c.Path, "world")
 	if err := StageWorld(srcWorld, tmpDir); err != nil {
