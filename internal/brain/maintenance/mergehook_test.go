@@ -744,3 +744,29 @@ func TestRecordCarriesAFailedAppend(t *testing.T) {
 		t.Error("RecordMerge succeeded without writing its event")
 	}
 }
+
+// A hook that cannot be written stops the run, but the hooks written before
+// it keep their records: without one, status calls them unrecorded and the
+// next run cannot tell them from a hook somebody else left.
+func TestInstallRecordsWhatItWroteBeforeAFailure(t *testing.T) {
+	lookup, areas, repo := consenting(t, "main")
+	other := newRepo(t)
+	declare(t, other, "project/b", "[maintenance]\non_merge = true\n")
+	areas = append(areas, config.Area{Scope: "project/b", Path: other})
+	blocker := filepath.Join(other, "blocker")
+	writeFile(t, blocker, "a file, not a directory\n")
+	git := func(dir string, args ...string) (string, error) {
+		if dir == other && args[len(args)-1] == "hooks" {
+			return filepath.ToSlash(filepath.Join(blocker, "hooks")), nil
+		}
+		return realGit(dir, args...)
+	}
+	if _, err := maintenance.InstallHooks(areas, lookup, git); err == nil {
+		t.Fatal("InstallHooks succeeded without a hooks directory for project/b")
+	}
+	top := topLevel(t, repo)
+	want := "project/a\t" + top + "\t" + filepath.Join(top, ".git", "hooks", "post-merge") + "\n"
+	if got := readText(t, recordsOf(lookup)); got != want {
+		t.Errorf("hooks.tsv = %q, want the record of project/a", got)
+	}
+}

@@ -156,7 +156,9 @@ func InstallHooks(areas []config.Area, lookup config.ArtifactLookup, git Git) ([
 			continue
 		}
 		if err := writeHook(target.hook); err != nil {
-			return nil, err
+			// The hooks written before this one keep their records; without
+			// them status would call those hooks unrecorded.
+			return nil, errors.Join(err, writeRecords(lookup, records))
 		}
 		records = upsert(records, hookRecord{scope: target.scope, repo: target.repo, hook: target.hook})
 		found = append(found, HookState{State: "installed", Scope: target.scope, Repo: target.repo, Detail: target.hook})
