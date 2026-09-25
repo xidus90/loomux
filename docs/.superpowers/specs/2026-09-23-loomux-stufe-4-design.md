@@ -333,6 +333,32 @@ widerspricht:
   des SDK für ein unbekanntes Werkzeug, nicht einen Werkzeugfehler mit
   Hinweis auf `[modules]`. Ein Wirt ruft nur, was gelistet ist.
 
+### Abweichungen beim Planen von 4a-2
+
+Beim Planen (2026-09-24) gegen den Code gelesen und mit dem Nutzer
+entschieden; die Befunde stehen im Plan
+(`plans/2026-09-24-loomux-stufe-4a-2.md`). Der Text unten gilt, wo er nicht
+widerspricht:
+
+- **Umzug schmal.** Mit ihren Tests ziehen nur `write` und das Zusammenführen
+  aus `settings` um. `answers` und `interview` werden auf Schema und `tui` neu
+  geschrieben, `render` bleibt als zwei Vorlagen (`AGENTS.md`,
+  `verify-until-green`). `detect` und `gitenv` gibt es schon; `commit`,
+  `coverage`, `verify`, `tomlstr`, `tooling` und `ulinit check …` fallen weg.
+- **`answers.toml`** hält nur, was kein Schlüssel des Schemas ist: Hosts und je
+  Modul die gewählten Teile.
+- **Besitz eines Host-Eintrags** ohne Marke: Er gehört `init`, wenn sein Befehl
+  ein loomux-Binary ruft. Fremde Einträge, auch `ulguard` und `brain guard`,
+  bleiben stehen und werden gemeldet.
+- **`merge-hook status`** kennt `stale path`, `stale branch` und `shared hook
+  path` nicht, weil der Hook nichts einbackt; `record` prüft Common-Dir und
+  Zweig zur Laufzeit.
+- **`.mcp.json`** ruft `${LOCALAPPDATA}/loomux/bin/loomux.exe mcp --channel
+  local`, dieselbe Form wie die Host-Einträge, statt `loomux` über den `PATH`.
+- **Erstinstall:** `selfupdate.Run` aktualisiert nur ein Binary, das schon am
+  kanonischen Ort liegt; `init` bekommt dafür `selfupdate.Install` mit
+  derselben Kette aus `gh`, `SHA256SUMS`, `--version` und `swap`.
+
 ## 4a-2 im Einzelnen
 
 ### Umzug
