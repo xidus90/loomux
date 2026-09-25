@@ -26,6 +26,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/lock"
+	"github.com/xidus90/loomux/internal/pathkey"
 )
 
 // Git runs git in dir and returns its trimmed stdout.
@@ -187,7 +188,7 @@ func HookStatus(areas []config.Area, lookup config.ArtifactLookup, git Git) ([]H
 		state := "installed"
 		target, ok := byScope[record.scope]
 		switch {
-		case !ok || !samePath(target.repo, record.repo):
+		case !ok || !pathkey.Same(target.repo, record.repo):
 			// The area left the registry, withdrew its consent or moved; the
 			// hook is still in that repository and still calls record.
 			state = "orphaned"
@@ -261,7 +262,7 @@ func RemoveHooks(areas []config.Area, lookup config.ArtifactLookup, git Git) ([]
 
 // takeOnce is take, answering a file this run already handled from memory.
 func takeOnce(hook string, handled map[string]string) (string, error) {
-	key := pathKey(hook)
+	key := pathkey.Key(hook)
 	if state, ok := handled[key]; ok {
 		return state, nil
 	}
@@ -314,7 +315,7 @@ func RecordMerge(dir string, areas []config.Area, lookup config.ArtifactLookup, 
 			continue
 		}
 		theirs, err := git(area.Path, "rev-parse", "--path-format=absolute", "--git-common-dir")
-		if err != nil || !samePath(theirs, common) {
+		if err != nil || !pathkey.Same(theirs, common) {
 			continue
 		}
 		// Once, however many areas share the repository: the event names a
@@ -441,14 +442,4 @@ func writeRecords(lookup config.ArtifactLookup, records []hookRecord) error {
 // cleanPath is git's forward-slash path in the platform's spelling.
 func cleanPath(path string) string {
 	return filepath.Clean(filepath.FromSlash(path))
-}
-
-// samePath compares two paths as Windows does, without regard to case or
-// slash direction.
-func samePath(a, b string) bool {
-	return strings.EqualFold(cleanPath(a), cleanPath(b))
-}
-
-func pathKey(path string) string {
-	return strings.ToLower(cleanPath(path))
 }
