@@ -46,8 +46,7 @@ func interview(t tui.Terminal, f setup.Facts, c *setup.Choice, given map[schema.
 		}
 		switch {
 		case answer == offered && answer != "each":
-			// The offer is what c already holds, a flag included; taking a
-			// none that only says no part is on now keeps the module on.
+			// The offer is what c already holds, a flag included.
 			continue
 		case answer != "each":
 			switchModule(c, f, m, answer == "all")
@@ -87,7 +86,9 @@ func interview(t tui.Terminal, f setup.Facts, c *setup.Choice, given map[schema.
 }
 
 // preset is the answer c already gives for m: all when every part is on,
-// none when every part or the module is off, each otherwise.
+// none when the module is off, each otherwise. A module that runs with no
+// part set up now -- the graph of a checkout -- is each, not none: taking an
+// offered none switches the module off.
 func preset(c setup.Choice, m schema.Module, mine []setup.Part) string {
 	on := 0
 	for _, p := range mine {
@@ -96,7 +97,8 @@ func preset(c setup.Choice, m schema.Module, mine []setup.Part) string {
 		}
 	}
 	switch {
-	case moduleOff(c, m) || on == 0:
+	// The base module always runs; for it none only says no part.
+	case moduleOff(c, m) || (on == 0 && m == schema.Base):
 		return "none"
 	case on == len(mine):
 		return "all"
