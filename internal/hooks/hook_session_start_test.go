@@ -478,6 +478,23 @@ func TestHookSessionStartSaysAMarkerItCannotRemove(t *testing.T) {
 	}
 }
 
+// A later PreInvocation announces nothing again, but a marker it cannot take
+// away is new, and is said: worktree unlink may have retired the session
+// between two model calls.
+func TestHookSessionStartSaysAMarkerItCannotRemoveOnALaterInvocation(t *testing.T) {
+	t.Setenv(config.StateDirEnv, t.TempDir())
+	root := gitWorld(t, twoCommitsOnly, `{"base":"{{COMMIT:1}}","green":"`+goneSHA+`","blocks":0}`)
+	busy := filepath.Join(root, filepath.FromSlash(sessions.StateDir), "s1.ended", "inside")
+	if err := os.MkdirAll(busy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := SessionStart(strings.NewReader(`{"conversationId":"s1","invocationNum":2}`), &stdout, &stderr, root, "antigravity")
+	if code != ExitOK || !strings.Contains(stdout.String(), "injectSteps") || !strings.Contains(stdout.String(), "may not count for worktree unlink") {
+		t.Fatalf("%d %q %q", code, stdout.String(), stderr.String())
+	}
+}
+
 // A session that worktree unlink retired and that then resumes under the same
 // id counts again for the others, and still has its base.
 func TestHookSessionStartRevivesARetiredSession(t *testing.T) {

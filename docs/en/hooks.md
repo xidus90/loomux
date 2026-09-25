@@ -433,7 +433,9 @@ the model as a warning without aborting, and a held stop becomes
 re-enters its loop; the reason is what the gate wrote to stderr. Every other
 non-zero code ends with 0. An unknown event stays exit 2 on every host.
 `session-start` runs on `PreInvocation`, which fires before every model call
-and counts them in `invocationNum`; only the first one announces.
+and counts them in `invocationNum`; only the first one announces, and a
+later one speaks only to say that the session could not be counted again
+for worktree unlink.
 `subagent-start` and `subagent-stop` are not wired for Antigravity: its
 payloads carry no `agent_id`.
 

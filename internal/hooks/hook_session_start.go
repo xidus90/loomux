@@ -65,12 +65,12 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName stri
 		return ExitInternal
 	}
 
-	if payload.Repeat {
-		// The base is filed and the warnings were said at the first start.
-		return ExitOK
+	// The base is filed and the warnings were said at the first start; only a
+	// session left uncounted since then is news.
+	if !payload.Repeat {
+		lines = append(lines, staleBinary(root)...)
+		lines = append(lines, updateWarnings(config.StateDir(), runtime.GOOS)...)
 	}
-	lines = append(lines, staleBinary(root)...)
-	lines = append(lines, updateWarnings(config.StateDir(), runtime.GOOS)...)
 
 	if err := hosts.WriteContext(host, "SessionStart", stdout, lines); err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)
