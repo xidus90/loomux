@@ -1258,7 +1258,7 @@ durch einen Menschen, der das prüft, steht noch aus.
   Jeder Fall steht in einer Notiz. Der Merge-Hook wartet auf keine Version:
   Sein Aufruf ist still und endet mit 0, ein älteres Binary zeichnet also
   nichts auf, bis es aktualisiert ist. Enthält `LOCALAPPDATA`
-  Leerraum oder eines von `& | < > ^ ( ) "`, würde `cmd.exe` den
+  Leerraum oder eines von `, ; = & | < > ^ ( ) "`, würde `cmd.exe` den
   ungequoteten Pfad zerteilen: `init`
   schreibt dann keine Antigravity-Einträge, sagt es in einer Notiz und
   liest `.agents/hooks.json` nicht; die Skills kommen trotzdem. Jede andere

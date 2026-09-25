@@ -1206,7 +1206,7 @@ checks this is still pending.
   (`0.0.0-dev`) has no version to compare and plans none. Each case is named
   in a note. The merge hook does not wait for a version: its call is silent
   and exits 0, so an older binary records nothing until it is updated. When
-  `LOCALAPPDATA` contains whitespace or one of `& | < > ^ ( ) "`, `cmd.exe` would split the unquoted
+  `LOCALAPPDATA` contains whitespace or one of `, ; = & | < > ^ ( ) "`, `cmd.exe` would split the unquoted
   path: init then writes no Antigravity entries, says so in a note and does
   not read `.agents/hooks.json`; the skills still come. Every
   other group of the file is carried over token for token (key order,

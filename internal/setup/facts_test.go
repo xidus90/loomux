@@ -78,14 +78,16 @@ func TestTheUserScopeCountsOnlyAServerNamedLoomux(t *testing.T) {
 }
 
 // cmd.exe splits the unquoted %LOCALAPPDATA% path of Antigravity's entries
-// at any whitespace and at its own syntax, so Gather says whether there is
-// some.
+// at any whitespace, at its own syntax and at the separators , ; = it reads
+// as whitespace (measured on Windows 11 on 2026-09-25), so Gather says
+// whether there is some.
 func TestGatherSeesWhitespaceInLocalAppData(t *testing.T) {
 	root := world(t, map[string]string{})
 	if f := gather(t, root, ""); f.LocalAppDataSpaced {
 		t.Errorf("%q counts as spaced", os.Getenv("LOCALAPPDATA"))
 	}
-	for _, local := range []string{`C:\Users\Jane Doe\AppData\Local`, "C:\\x\ty", `C:\Users\R&D\AppData\Local`, `C:\Users\a^b`} {
+	for _, local := range []string{`C:\Users\Jane Doe\AppData\Local`, "C:\\x\ty", `C:\Users\R&D\AppData\Local`, `C:\Users\a^b`,
+		`C:\Users\a;b`, `C:\Users\a,b`, `C:\Users\a=b`} {
 		t.Setenv("LOCALAPPDATA", local)
 		if f := gather(t, root, ""); !f.LocalAppDataSpaced {
 			t.Errorf("%q does not count as spaced", local)

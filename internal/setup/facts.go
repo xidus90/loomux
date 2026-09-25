@@ -65,7 +65,7 @@ type Facts struct {
 	// Graph says whether the code graph has been built.
 	Graph bool
 	// LocalAppDataSpaced says whether LOCALAPPDATA holds whitespace or a
-	// character cmd.exe reads as syntax. Antigravity's entries name the
+	// character cmd.exe reads as whitespace or syntax. Antigravity's entries name the
 	// installed binary as an unquoted %LOCALAPPDATA% path, since agy breaks a
 	// quoted one, and cmd.exe would split that path there.
 	LocalAppDataSpaced bool
@@ -111,11 +111,11 @@ func isFile(path string) bool {
 }
 
 // cmdSplits says whether cmd.exe would not take path, expanded into an
-// unquoted command line, as one word: whitespace splits it, and & | < > ^ ( )
-// and a quote are its syntax.
+// unquoted command line, as one word: whitespace splits it, so do , ; and =,
+// which it reads as whitespace, and & | < > ^ ( ) and a quote are its syntax.
 func cmdSplits(path string) bool {
 	return strings.ContainsFunc(path, func(r rune) bool {
-		return unicode.IsSpace(r) || strings.ContainsRune(`&|<>^()"`, r)
+		return unicode.IsSpace(r) || strings.ContainsRune(`,;=&|<>^()"`, r)
 	})
 }
 

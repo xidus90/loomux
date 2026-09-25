@@ -556,7 +556,7 @@ func TestASpacedLocalAppDataWritesNoAntigravityEntries(t *testing.T) {
 	if _, ok := changeOf(p, ".agents/hooks.json"); ok {
 		t.Error("entries planned under a spaced LOCALAPPDATA")
 	}
-	want := "antigravity: no entries; %LOCALAPPDATA% contains a space or a character cmd.exe reads as syntax, and cmd.exe would split the unquoted path"
+	want := "antigravity: no entries; %LOCALAPPDATA% contains a space or a character cmd.exe reads as a space or as syntax, and cmd.exe would split the unquoted path"
 	if !slices.Contains(p.Notes, want) || !hasNote(p, agyTrust) {
 		t.Errorf("notes = %v", p.Notes)
 	}
