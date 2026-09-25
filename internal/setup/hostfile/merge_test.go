@@ -500,3 +500,33 @@ func TestMergeRefusesANullRoot(t *testing.T) {
 		}
 	}
 }
+
+// An own block on the slot that runs something else than the entry -- an
+// old binary, an old subcommand -- is kept, never rewritten, but named, so
+// "kept" does not pass for "current".
+func TestMergeNamesAStaleOwnEntry(t *testing.T) {
+	existing := []byte(`{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"C:/old/loomux.exe hook stop --host claude"}]}]}}`)
+	want := []Entry{{Event: "Stop", Command: Canonical + " hook stop --host claude"}}
+	got, err := Merge(claude, existing, want)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if !slices.Equal(got.Kept, []string{"Stop/"}) || !bytes.Equal(got.Merged, existing) {
+		t.Fatalf("kept %v, merged %s; want the block kept as it is", got.Kept, got.Merged)
+	}
+	if len(got.Notes) != 1 || !strings.Contains(got.Notes[0], "C:/old/loomux.exe hook stop") ||
+		!strings.Contains(got.Notes[0], "Stop") {
+		t.Fatalf("notes %v, want one naming the stale command", got.Notes)
+	}
+}
+
+func TestMergeNamesNothingForACurrentOwnEntry(t *testing.T) {
+	existing, err := os.ReadFile("testdata/loomux-settings.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Merge(claude, existing, Entries(claude, BinaryOf(claude, existing)))
+	if err != nil || len(got.Notes) != 0 {
+		t.Fatalf("notes %v, err %v; want none for loomux's own settings", got.Notes, err)
+	}
+}

@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -78,9 +79,13 @@ func Merge(host hosts.Host, existing []byte, wanted []Entry) (Result, error) {
 			return Result{}, fmt.Errorf("%s: [%s].%s is not a list", file, key, entry.Event)
 		}
 		slot := entry.Event + "/" + entry.Matcher
-		own, foreign, elsewhere := find(list, entry)
+		own, foreign, elsewhere, stale := find(list, entry)
 		if foreign {
 			result.Foreign = append(result.Foreign, slot)
+		}
+		if stale != "" {
+			result.Notes = append(result.Notes, slot+": kept an own entry that runs "+stale+
+				" instead of "+entry.Command+"; update it by hand")
 		}
 		if !own && elsewhere != "" {
 			result.Notes = append(result.Notes, entry.Event+": kept an own entry under matcher "+elsewhere)
@@ -131,32 +136,42 @@ func BinaryOf(host hosts.Host, existing []byte) string {
 // does not. elsewhere is the matcher of an own block under another matcher
 // that runs the same hook -- an entry from before the matcher changed, such
 // as ulinit's -- or "" when there is none; it counts as own too, so the hook
-// never runs twice.
-func find(list []any, entry Entry) (own, foreign bool, elsewhere string) {
+// never runs twice. stale is the first loomux command of an own block on the
+// matcher when none of them is entry's command -- an old binary or an old
+// subcommand, kept but not current -- and "" otherwise.
+func find(list []any, entry Entry) (own, foreign bool, elsewhere, stale string) {
 	event := hookEventOf(entry.Command)
+	current := false
 	for _, raw := range list {
 		item, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
-		mine := false
+		var mine []string
 		sameHook := false
 		for _, command := range commandsOf(item) {
 			if Owned(command) {
-				mine = true
+				mine = append(mine, command)
 				sameHook = sameHook || (event != "" && hookEventOf(command) == event)
 			}
 		}
 		switch {
-		case matcherOf(item) == entry.Matcher && mine:
+		case matcherOf(item) == entry.Matcher && len(mine) > 0:
 			own = true
+			current = current || slices.Contains(mine, entry.Command)
+			if stale == "" {
+				stale = mine[0]
+			}
 		case matcherOf(item) == entry.Matcher:
 			foreign = true
 		case sameHook && elsewhere == "":
 			elsewhere = matcherOf(item)
 		}
 	}
-	return own, foreign, elsewhere
+	if current {
+		stale = ""
+	}
+	return own, foreign, elsewhere, stale
 }
 
 // commandsOf is every command of a block, in order.
