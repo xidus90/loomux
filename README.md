@@ -157,6 +157,7 @@ loomux hook post-tool-use           # run the edit profile's lanes against the f
 loomux hook session-start           # record the session's base commit; warn about a stale binary, a serve outside the install location and a failed self-update
 loomux hook stop                    # the turn-end gate: the stop profile over new content, subagent findings (--budget, default 270s)
 loomux hook subagent-start|subagent-stop  # snapshot origin, branches and HEAD around a subagent; park what moved for stop
+loomux hook <event> --host antigravity    # the same hooks for agy: exit 0 with JSON on stdout (stop continues, a red edit is a message); only pre-tool-use refuses with 2
 loomux status|doctor|explain        # inspect hook setup, verification lanes, and active harnesses (three names, one code path)
 loomux worktree link|unlink|remove  # manage isolated worktree mirrors and junction paths
 loomux dev swap-binary              # atomically swap running binary with new compilation

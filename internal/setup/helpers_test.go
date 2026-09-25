@@ -16,12 +16,14 @@ import (
 
 // world writes files under a fresh root; a key ending in "/" is a
 // directory. It also points the state directory at an empty place, so no
-// test reads the registry of the machine, LOCALAPPDATA at an empty place,
-// so none finds the machine's binary, and makes every tool present.
+// test reads the registry of the machine, LOCALAPPDATA at an empty place
+// cmd.exe takes as one word (localAppData), so none finds the machine's
+// binary and none loses Antigravity's entries to the temp path, and makes
+// every tool present.
 func world(t *testing.T, files map[string]string) string {
 	t.Helper()
 	t.Setenv("LOOMUX_STATE_DIR", t.TempDir())
-	t.Setenv("LOCALAPPDATA", t.TempDir())
+	t.Setenv("LOCALAPPDATA", localAppData(t))
 	all := func(string) (string, error) { return "found", nil }
 	old := lookPath
 	lookPath = all
@@ -46,6 +48,25 @@ func world(t *testing.T, files map[string]string) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+// localAppData is an empty directory for LOCALAPPDATA whose path cmdSplits
+// passes. t.TempDir() is one unless the temp directory or the test's name
+// carries a space, & or a parenthesis (C:\Users\Jane Doe\…); then the
+// directory is made at the root of the same volume instead and removed
+// afterwards.
+func localAppData(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if !cmdSplits(dir) {
+		return dir
+	}
+	dir, err := os.MkdirTemp(filepath.VolumeName(dir)+string(filepath.Separator), "loomux-local-")
+	if err != nil || cmdSplits(dir) {
+		t.Skipf("no directory without whitespace or cmd.exe syntax for LOCALAPPDATA: %q, %v", dir, err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
 }
 
 // fixture copies testdata/loomux into a fresh root, the configuration to
@@ -149,10 +170,22 @@ func reader(root string) func(string) ([]byte, bool, error) {
 	}
 }
 
+// testVersion is the version the tests' init runs as.
+const testVersion = "2.13.0"
+
+// tested is an init of testVersion whose installed binary, wherever a file
+// stands at its place, names testVersion too; no binary is run.
+var tested = Running{Version: testVersion, VersionOf: func(path string) string {
+	if isFile(path) {
+		return testVersion
+	}
+	return ""
+}}
+
 // gather is Gather with an empty home, failing the test on an error.
 func gather(t *testing.T, root, hooksPath string) Facts {
 	t.Helper()
-	f, err := Gather(root, t.TempDir(), git(hooksPath))
+	f, err := Gather(root, t.TempDir(), tested, git(hooksPath))
 	if err != nil {
 		t.Fatal(err)
 	}

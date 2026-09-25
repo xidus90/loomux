@@ -168,7 +168,7 @@ func TestMergeWritesTheAntigravityGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
-	if len(got.Added) != 2 {
+	if len(got.Added) != 4 {
 		t.Fatalf("added %v", got.Added)
 	}
 	if pre := commands(t, got.Merged, "loomux", "PreToolUse"); len(pre) != 1 || !Owned(pre[0]) {
@@ -180,6 +180,36 @@ func TestMergeWritesTheAntigravityGroup(t *testing.T) {
 	if _, err := Merge(hosts.HostAntigravity, []byte(`{"loomux":[]}`), wanted); err == nil ||
 		!strings.Contains(err.Error(), ".agents/hooks.json") {
 		t.Fatalf("err = %v, want the file named", err)
+	}
+}
+
+// agy refuses the whole file when PreInvocation or Stop hold a block: they
+// get their handler directly, the tool events a block with matcher and hooks.
+// Merged again, the flat handlers count as ours and nothing is added.
+func TestMergeWritesAntigravitysFlatEventsFlat(t *testing.T) {
+	wanted := Entries(hosts.HostAntigravity, Canonical)
+	got, err := Merge(hosts.HostAntigravity, nil, wanted)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	var root map[string]map[string][]map[string]any
+	if err := json.Unmarshal(got.Merged, &root); err != nil {
+		t.Fatalf("result: %v\n%s", err, got.Merged)
+	}
+	for _, event := range []string{"PreInvocation", "Stop"} {
+		handler := root["loomux"][event][0]
+		if _, isBlock := handler["hooks"]; isBlock || !Owned(handler["command"].(string)) || handler["type"] != "command" {
+			t.Fatalf("%s = %v, want a flat handler", event, handler)
+		}
+	}
+	for _, event := range []string{"PreToolUse", "PostToolUse"} {
+		if block := root["loomux"][event][0]; block["matcher"] == nil || block["hooks"] == nil {
+			t.Fatalf("%s = %v, want a block", event, block)
+		}
+	}
+	again, err := Merge(hosts.HostAntigravity, got.Merged, wanted)
+	if err != nil || len(again.Added) != 0 || !bytes.Equal(again.Merged, got.Merged) {
+		t.Fatalf("again: added %v, err %v", again.Added, err)
 	}
 }
 
@@ -209,27 +239,43 @@ func TestMergeCarriesEveryOtherAntigravityGroupOver(t *testing.T) {
 	}
 }
 
-// A group of the project that already runs one of our commands is named and
+// A group of the project that already runs one of our hooks is named and
 // left alone, whether the merge adds anything or not: the hook now fires
-// twice, and the group is not ours to repair.
+// twice, and the group is not ours to repair. Any form of the call counts --
+// a bare loomux, another --root, the quoted ${LOCALAPPDATA} path -- as long
+// as a loomux binary runs the same hook; another loomux command, or another
+// program running a "hook", does not.
 func TestMergeNamesAnotherGroupThatRunsOurCommand(t *testing.T) {
 	wanted := Entries(hosts.HostAntigravity, Canonical)
-	pre := wanted[0].Command
+	pre := wanted[1].Command
+	group := func(command string) string {
+		return `{"PreToolUse":[{"hooks":[{"type":"command","command":` + strconvQuote(command) + `}]}]}`
+	}
 	existing := []byte(`{"zeta":{"PreToolUse":[{"matcher":"x","hooks":[{"type":"command","command":` + strconvQuote(pre) + `}]}]},` +
 		`"alpha":{"deep":{"list":[{"command":` + strconvQuote(pre) + `}]}},` +
-		`"other":{"PreToolUse":[{"hooks":[{"command":"loomux hook pre-tool-use"},{"command":7}]}]},"plain":"x"}`)
+		`"other":{"PreToolUse":[{"hooks":[{"command":"loomux hook pre-tool-use"},{"command":7}]}]},` +
+		`"rooted":` + group(AntigravityBinary+" hook pre-tool-use --host antigravity --root .") + `,` +
+		`"quoted":` + group(`"${LOCALAPPDATA}/loomux/bin/loomux.exe" hook pre-tool-use --host antigravity --root ..`) + `,` +
+		`"stopper":` + group(`C:\Users\x\AppData\Local\loomux\bin\LOOMUX.EXE hook stop --host antigravity`) + `,` +
+		`"check":` + group("loomux check precommit") + `,` +
+		`"foreign":` + group("mytool hook pre-tool-use") + `,` +
+		`"plain":"x"}`)
 	got, err := Merge(hosts.HostAntigravity, existing, wanted)
 	if err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
 	want := []string{
-		"the group alpha already runs " + pre + "; it now fires twice",
-		"the group zeta already runs " + pre + "; it now fires twice",
+		"the group alpha already runs loomux hook pre-tool-use; it now fires twice",
+		"the group other already runs loomux hook pre-tool-use; it now fires twice",
+		"the group quoted already runs loomux hook pre-tool-use; it now fires twice",
+		"the group rooted already runs loomux hook pre-tool-use; it now fires twice",
+		"the group stopper already runs loomux hook stop; it now fires twice",
+		"the group zeta already runs loomux hook pre-tool-use; it now fires twice",
 	}
 	if !reflect.DeepEqual(got.Notes, want) {
 		t.Fatalf("notes = %q, want %q", got.Notes, want)
 	}
-	if !bytes.Contains(got.Merged, []byte(`"zeta": {`)) || len(got.Added) != 2 {
+	if !bytes.Contains(got.Merged, []byte(`"zeta": {`)) || len(got.Added) != 4 {
 		t.Fatalf("added %v:\n%s", got.Added, got.Merged)
 	}
 	again, err := Merge(hosts.HostAntigravity, got.Merged, wanted)

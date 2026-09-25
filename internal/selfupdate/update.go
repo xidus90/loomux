@@ -110,7 +110,7 @@ func installLocked(ctx context.Context, o Options, canonical string, byRunning b
 	// A serve that installed the release keeps running the version before it
 	// until a bridge replaces it; asked only the running version, every pass
 	// until then would install the same release again.
-	if have, ok := installedVersion(ctx, o.Run, canonical); ok && !Newer(rel.Tag, have) {
+	if have, ok := InstalledVersion(ctx, o.Run, canonical); ok && !Newer(rel.Tag, have) {
 		return Result{Outcome: Current, Version: have}
 	}
 	ver := strings.TrimPrefix(rel.Tag, "v")
@@ -124,11 +124,11 @@ func installLocked(ctx context.Context, o Options, canonical string, byRunning b
 	return Result{Outcome: Updated, Version: ver}
 }
 
-// installedVersion is what the binary at path says it is: "loomux <ver>",
+// InstalledVersion is what the binary at path says it is: "loomux <ver>",
 // optionally followed by the channel. An answer that is not a release version
 // is no answer, so that the pass falls back to the running version rather
 // than holding back an update on a guess.
-func installedVersion(ctx context.Context, run Runner, path string) (string, bool) {
+func InstalledVersion(ctx context.Context, run Runner, path string) (string, bool) {
 	out, err := call(ctx, run, path, "--version")
 	if err != nil {
 		return "", false

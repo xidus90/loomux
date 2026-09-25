@@ -34,7 +34,7 @@ const checkoutModule = "github.com/xidus90/loomux"
 type Facts struct {
 	Root      string
 	Detect    detect.Facts
-	Hosts     []hosts.Host // .claude/ -> claude, .agents/ -> antigravity; neither -> claude
+	Hosts     []hosts.Host // .claude/ -> claude; .agents/hooks.json, .agents/skills/ or GEMINI.md -> antigravity; neither -> claude
 	HooksPath string       // core.hooksPath, "" when unset
 	// GitHooksDir is git's own hook directory, absolute, as
 	// `git rev-parse --git-path hooks` names it; read only in a repository
@@ -64,11 +64,25 @@ type Facts struct {
 	OnMerge bool
 	// Graph says whether the code graph has been built.
 	Graph bool
-	// LocalAppDataSpaced says whether LOCALAPPDATA holds whitespace.
-	// Antigravity's entries name the installed binary as an unquoted
-	// %LOCALAPPDATA% path, since agy breaks a quoted one, and cmd.exe would
-	// split that path at the space.
+	// LocalAppDataSpaced says whether LOCALAPPDATA holds whitespace or a
+	// character cmd.exe reads as syntax. Antigravity's entries name the
+	// installed binary as an unquoted %LOCALAPPDATA% path, since agy breaks a
+	// quoted one, and cmd.exe would split that path there.
 	LocalAppDataSpaced bool
+	// Version is the running init's own version, cli.Version.
+	Version string
+	// Installed is the version the installed binary names with --version,
+	// "" when it is not there or names none. Antigravity's entries call it,
+	// and an older one does not know them.
+	Installed string
+}
+
+// Running is what Gather is told about the init that runs it.
+type Running struct {
+	// Version is cli.Version; setup may not import cli.
+	Version string
+	// VersionOf is what the binary at path names with --version, or "".
+	VersionOf func(path string) string
 }
 
 // HookWanted says whether the merge hook has an area to serve without area
@@ -96,17 +110,34 @@ func isFile(path string) bool {
 	return path != "" && err == nil && !info.IsDir()
 }
 
+// cmdSplits says whether cmd.exe would not take path, expanded into an
+// unquoted command line, as one word: whitespace splits it, and & | < > ^ ( )
+// and a quote are its syntax.
+func cmdSplits(path string) bool {
+	return strings.ContainsFunc(path, func(r rune) bool {
+		return unicode.IsSpace(r) || strings.ContainsRune(`&|<>^()"`, r)
+	})
+}
+
+// isDir says whether path names a directory.
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 // Gather reads the facts of the project at root; home is the user's home
-// directory and git runs git where the facts need it.
-func Gather(root, home string, git detect.Runner) (Facts, error) {
-	f := Facts{Root: root, Detect: detect.Detect(os.DirFS(root))}
-	for _, h := range []struct {
-		dir  string
-		host hosts.Host
-	}{{".claude", hosts.HostClaude}, {".agents", hosts.HostAntigravity}} {
-		if info, err := os.Stat(filepath.Join(root, h.dir)); err == nil && info.IsDir() {
-			f.Hosts = append(f.Hosts, h.host)
-		}
+// directory, running describes the init that asks, and git runs git where
+// the facts need it.
+func Gather(root, home string, running Running, git detect.Runner) (Facts, error) {
+	f := Facts{Root: root, Detect: detect.Detect(os.DirFS(root)), Version: running.Version}
+	if isDir(filepath.Join(root, ".claude")) {
+		f.Hosts = append(f.Hosts, hosts.HostClaude)
+	}
+	// .agents/ alone is a name other tools use too; Antigravity is taken
+	// only from its hook file, its skills or its GEMINI.md.
+	if isFile(filepath.Join(root, ".agents", "hooks.json")) || isDir(filepath.Join(root, ".agents", "skills")) ||
+		isFile(filepath.Join(root, "GEMINI.md")) {
+		f.Hosts = append(f.Hosts, hosts.HostAntigravity)
 	}
 	if len(f.Hosts) == 0 {
 		f.Hosts = []hosts.Host{hosts.HostClaude}
@@ -148,9 +179,11 @@ func Gather(root, home string, git detect.Runner) (Facts, error) {
 	}
 	f.BinaryThere = isFile(BinaryPath(root, f.Binary))
 	f.CanonicalThere = isFile(BinaryPath(root, hostfile.Canonical))
+	if f.CanonicalThere {
+		f.Installed = running.VersionOf(BinaryPath(root, hostfile.Canonical))
+	}
 	f.Graph = isFile(store.WiringPath(root))
-	// Whitespace only; cmd metacharacters such as & ^ ( ) are not checked.
-	f.LocalAppDataSpaced = strings.ContainsFunc(os.Getenv("LOCALAPPDATA"), unicode.IsSpace)
+	f.LocalAppDataSpaced = cmdSplits(os.Getenv("LOCALAPPDATA"))
 	if hooksNow != "" {
 		data, err := os.ReadFile(filepath.Join(hooksNow, "post-merge"))
 		f.MergeHook = err == nil && maintenance.OwnsHook(data)

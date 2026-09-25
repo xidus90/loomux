@@ -119,10 +119,13 @@ func Merge(host hosts.Host, existing []byte, wanted []Entry) (Result, error) {
 }
 
 // twiceRun names every group of an Antigravity hook file, other than ours
-// under key, that already runs one of the wanted commands. Such a group is
-// reported and never repaired: it is not ours, so the honest answer is that
-// the hook now fires twice. The group is searched at any depth, because a
-// group somebody else wrote need not have the shape ours has.
+// under key, that already runs one of the wanted hooks: a command of ours
+// (Owned) running the same `hook <event>`, in whatever form -- another
+// program path, quoted or not, another --root -- as find judges Claude's.
+// Such a group is reported and never repaired: it is not ours, so the honest
+// answer is that the hook now fires twice. The group is searched at any
+// depth, because a group somebody else wrote need not have the shape ours
+// has.
 func twiceRun(root map[string]any, key string, wanted []Entry) []string {
 	names := make([]string, 0, len(root))
 	for name := range root {
@@ -136,9 +139,15 @@ func twiceRun(root map[string]any, key string, wanted []Entry) []string {
 		}
 		runs := map[string]bool{}
 		collectCommands(root[name], runs)
+		events := map[string]bool{}
+		for command := range runs {
+			if Owned(command) {
+				events[hookEventOf(command)] = true
+			}
+		}
 		for _, entry := range wanted {
-			if runs[entry.Command] {
-				notes = append(notes, "the group "+name+" already runs "+entry.Command+"; it now fires twice")
+			if event := hookEventOf(entry.Command); event != "" && events[event] {
+				notes = append(notes, "the group "+name+" already runs loomux hook "+event+"; it now fires twice")
 				break
 			}
 		}
@@ -232,8 +241,12 @@ func find(list []any, entry Entry) (own, foreign bool, elsewhere, stale string) 
 	return own, foreign, elsewhere, stale
 }
 
-// commandsOf is every command of a block, in order.
+// commandsOf is every command of a block, in order; a flat handler is its
+// own one command.
 func commandsOf(item map[string]any) []string {
+	if command, ok := item["command"].(string); ok {
+		return []string{command}
+	}
 	hooks, _ := item["hooks"].([]any)
 	var out []string
 	for _, raw := range hooks {
@@ -254,6 +267,9 @@ func blockFor(entry Entry) map[string]any {
 	command := map[string]any{"type": "command", "command": entry.Command}
 	if entry.Timeout > 0 {
 		command["timeout"] = entry.Timeout
+	}
+	if entry.Flat {
+		return command
 	}
 	block := map[string]any{"hooks": []any{command}}
 	if entry.Matcher != "" {
@@ -458,6 +474,9 @@ func formatBlock(item any, indent string) string {
 	if !ok {
 		b := EncodeJSON(item, indent, "  ")
 		return indent + string(b)
+	}
+	if _, flat := block["command"]; flat {
+		return formatCommand(block, indent)
 	}
 	keys := orderedKeys(block, "matcher", "hooks")
 	var buf strings.Builder

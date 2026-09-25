@@ -11,6 +11,7 @@ import (
 	"github.com/xidus90/loomux/internal/brain/maintenance"
 	"github.com/xidus90/loomux/internal/config/schema"
 	"github.com/xidus90/loomux/internal/hosts"
+	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/setup/gitfiles"
 	"github.com/xidus90/loomux/internal/setup/hostfile"
 	"github.com/xidus90/loomux/internal/setup/templates"
@@ -122,19 +123,19 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 	}
 	// Antigravity's entries and the merge hook call the installed binary in
 	// every project, a checkout included.
-	installed := f.CanonicalThere || slices.ContainsFunc(b.plan.Actions, func(a Action) bool { return a.ID == "binary-install" })
+	installing := slices.ContainsFunc(b.plan.Actions, func(a Action) bool { return a.ID == "binary-install" })
+	installed := f.CanonicalThere || installing
 	if on("host-entries") {
 		for _, h := range targets {
 			// Antigravity's hook file is neither read nor refused while
 			// nothing would be written into it.
-			switch {
-			case h == hosts.HostAntigravity && f.LocalAppDataSpaced:
-				b.note("antigravity: no entries; %LOCALAPPDATA% contains a space, and cmd.exe would split the unquoted path")
-			case h == hosts.HostAntigravity && !installed:
-				b.note("antigravity: no entries; they call " + hostfile.AntigravityBinary + ", which is not installed; run loomux self-update")
-			default:
-				b.hostEntries(h)
+			if h == hosts.HostAntigravity {
+				if gap := antigravityGap(f, installing); gap != "" {
+					b.note("antigravity: no entries; " + gap)
+					continue
+				}
 			}
+			b.hostEntries(h)
 		}
 	}
 	git := b.hasGit(on)
@@ -187,6 +188,30 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 		return Plan{}, b.err
 	}
 	return b.plan, nil
+}
+
+// antigravityGap is why Antigravity's entries cannot be planned, or "" when
+// they can. They call the installed binary, and one older than this init may
+// not know them: agy aborts on a hook that fails. A binary-install in the
+// same run puts the newest release there, which is at least this init only
+// when this init is a release itself; a development build has no version to
+// hold the installed one against.
+func antigravityGap(f Facts, installing bool) string {
+	switch {
+	case f.LocalAppDataSpaced:
+		return "%LOCALAPPDATA% contains a space or a character cmd.exe reads as syntax, and cmd.exe would split the unquoted path"
+	case !selfupdate.IsVersion(f.Version):
+		return "this init is the development build " + f.Version + ", and no installed loomux can be compared with it; run a released loomux init"
+	case installing:
+		return ""
+	case !f.CanonicalThere:
+		return "they call " + hostfile.AntigravityBinary + ", which is not installed; run loomux self-update"
+	case f.Installed == "":
+		return "the installed loomux names no version; run loomux self-update"
+	case !selfupdate.AtLeast(f.Installed, f.Version):
+		return "the installed loomux " + f.Installed + " is older than this init " + f.Version + "; run loomux self-update"
+	}
+	return ""
 }
 
 // areaWiki is the wiki area add picks without --wiki: docs/wiki when root has

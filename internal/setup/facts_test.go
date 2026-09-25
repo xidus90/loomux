@@ -14,7 +14,7 @@ import (
 )
 
 func TestGatherReadsHostsHooksPathAndTheUserScope(t *testing.T) {
-	root := world(t, map[string]string{".claude/": "", ".agents/": "", ".git/": "", "go.mod": goMod})
+	root := world(t, map[string]string{".claude/": "", ".agents/skills/": "", ".git/": "", "go.mod": goMod})
 	home := t.TempDir()
 	writeFile(t, home, ".claude.json", `{"mcpServers": {"loomux": {"command": "loomux"}}}`)
 	var asked []string
@@ -24,7 +24,7 @@ func TestGatherReadsHostsHooksPathAndTheUserScope(t *testing.T) {
 		}
 		return ".githooks\n", nil
 	}
-	f, err := Gather(root, home, run)
+	f, err := Gather(root, home, tested, run)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,6 +42,28 @@ func TestGatherReadsHostsHooksPathAndTheUserScope(t *testing.T) {
 	}
 }
 
+// Other tools keep an .agents/ too, so Antigravity is taken only from its
+// hook file, its skills or its GEMINI.md; a bare directory, or one with
+// something else in it, is no Antigravity.
+func TestAntigravityIsTakenOnlyFromItsOwnFiles(t *testing.T) {
+	claude := []hosts.Host{hosts.HostClaude}
+	agy := []hosts.Host{hosts.HostAntigravity}
+	for _, c := range []struct {
+		files map[string]string
+		want  []hosts.Host
+	}{
+		{map[string]string{".agents/hooks.json": "{}"}, agy},
+		{map[string]string{".agents/skills/": ""}, agy},
+		{map[string]string{"GEMINI.md": "# demo\n"}, agy},
+		{map[string]string{".agents/": ""}, claude},
+		{map[string]string{".agents/rules.md": "x", ".agents/hooks.json/": "", ".agents/skills": "x", "GEMINI.md/": ""}, claude},
+	} {
+		if got := gather(t, world(t, c.files), "").Hosts; !slices.Equal(got, c.want) {
+			t.Errorf("%v: hosts = %v, want %v", c.files, got, c.want)
+		}
+	}
+}
+
 func TestTheUserScopeCountsOnlyAServerNamedLoomux(t *testing.T) {
 	root := world(t, map[string]string{})
 	for _, text := range []string{"", "{not json", `{"mcpServers": {"other": {}}}`} {
@@ -49,20 +71,21 @@ func TestTheUserScopeCountsOnlyAServerNamedLoomux(t *testing.T) {
 		if text != "" {
 			writeFile(t, home, ".claude.json", text)
 		}
-		if f, _ := Gather(root, home, git("")); f.UserMCP {
+		if f, _ := Gather(root, home, tested, git("")); f.UserMCP {
 			t.Errorf("%q counts as a loomux server", text)
 		}
 	}
 }
 
 // cmd.exe splits the unquoted %LOCALAPPDATA% path of Antigravity's entries
-// at any whitespace, so Gather says whether there is some.
+// at any whitespace and at its own syntax, so Gather says whether there is
+// some.
 func TestGatherSeesWhitespaceInLocalAppData(t *testing.T) {
 	root := world(t, map[string]string{})
 	if f := gather(t, root, ""); f.LocalAppDataSpaced {
 		t.Errorf("%q counts as spaced", os.Getenv("LOCALAPPDATA"))
 	}
-	for _, local := range []string{`C:\Users\Jane Doe\AppData\Local`, "C:\\x\ty"} {
+	for _, local := range []string{`C:\Users\Jane Doe\AppData\Local`, "C:\\x\ty", `C:\Users\R&D\AppData\Local`, `C:\Users\a^b`} {
 		t.Setenv("LOCALAPPDATA", local)
 		if f := gather(t, root, ""); !f.LocalAppDataSpaced {
 			t.Errorf("%q does not count as spaced", local)
@@ -105,14 +128,14 @@ func TestGatherFindsTheRootInTheRegistry(t *testing.T) {
 		t.Errorf("another area counts as this root")
 	}
 	writeFile(t, state, "registry.toml", "not toml [")
-	if _, err := Gather(root, t.TempDir(), git("")); err == nil || !strings.Contains(err.Error(), "registry.toml") {
+	if _, err := Gather(root, t.TempDir(), tested, git("")); err == nil || !strings.Contains(err.Error(), "registry.toml") {
 		t.Errorf("err = %v", err)
 	}
 }
 
 func TestGatherStopsOnWhatItCannotRead(t *testing.T) {
 	root := world(t, map[string]string{})
-	if _, err := Gather(root, t.TempDir(), func(string, ...string) (string, error) {
+	if _, err := Gather(root, t.TempDir(), tested, func(string, ...string) (string, error) {
 		return "", errors.New("no git")
 	}); err == nil || !strings.Contains(err.Error(), "core.hooksPath") {
 		t.Errorf("err = %v", err)
@@ -121,7 +144,7 @@ func TestGatherStopsOnWhatItCannotRead(t *testing.T) {
 	// Only the files init merges into are unmergeable.
 	for rel, merged := range map[string]bool{configPath: true, "go.mod": false, ".claude/settings.json": true} {
 		root := world(t, map[string]string{rel + "/": ""})
-		if _, err := Gather(root, t.TempDir(), git("")); err == nil || !strings.Contains(err.Error(), rel) || Unmergeable(err) != merged {
+		if _, err := Gather(root, t.TempDir(), tested, git("")); err == nil || !strings.Contains(err.Error(), rel) || Unmergeable(err) != merged {
 			t.Errorf("%s: err = %v", rel, err)
 		}
 	}
@@ -138,7 +161,7 @@ func TestGatherAsksGitForItsHookDirectory(t *testing.T) {
 		}
 	}
 	// An older git answers relative to where it ran.
-	f, err := Gather(root, t.TempDir(), answer(".git/hooks\n", nil))
+	f, err := Gather(root, t.TempDir(), tested, answer(".git/hooks\n", nil))
 	if err != nil || f.GitHooksDir != filepath.Join(root, ".git", "hooks") || f.GitHooksLive {
 		t.Errorf("dir = %q, live = %v, err = %v", f.GitHooksDir, f.GitHooksLive, err)
 	}
@@ -147,7 +170,7 @@ func TestGatherAsksGitForItsHookDirectory(t *testing.T) {
 		"names none": answer("\n", nil),
 		"unreadable": answer(root+"/bad\x00dir", nil),
 	} {
-		if _, err := Gather(root, t.TempDir(), run); err == nil {
+		if _, err := Gather(root, t.TempDir(), tested, run); err == nil {
 			t.Errorf("%s: no error", name)
 		}
 	}
@@ -177,7 +200,7 @@ func TestATildeInCoreHooksPathIsTheHome(t *testing.T) {
 	run(t, root, "init", "-q")
 	run(t, root, "config", "core.hooksPath", "~/.githooks")
 	writeFile(t, home, ".githooks/post-merge", "#!/bin/sh\n# loomux post-merge hook\n")
-	f, err := Gather(root, home, realGit)
+	f, err := Gather(root, home, tested, realGit)
 	if err != nil {
 		t.Fatal(err)
 	}

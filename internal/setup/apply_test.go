@@ -388,7 +388,7 @@ func TestTheMergeHookNeedsTheInstalledBinary(t *testing.T) {
 // Antigravity's the installed one; each hook file is written only while the
 // binary it calls stands.
 func TestEachHookFileIsJudgedByTheBinaryItCalls(t *testing.T) {
-	root := world(t, map[string]string{".agents/": "", ".claude/": "", "go.mod": checkoutGoMod})
+	root := world(t, map[string]string{".agents/skills/": "", ".claude/": "", "go.mod": checkoutGoMod})
 	// The plan needs the installed binary to plan Antigravity's file at all.
 	installBinary(t)
 	f := gather(t, root, "")

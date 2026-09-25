@@ -354,8 +354,11 @@ there and which is not.
 `replace_file_content` and `multi_replace_file_content` — yields every target
 it names under `file_path`, `notebook_path`, `TargetFile` or `target_file`; all
 of them are judged, not the first one found. `Bash` and `PowerShell` yield
-their `command`. What a tool writes into a file is not judged, and
-Antigravity's `run_command` reaches no command rule.
+their `command`, and Antigravity's `run_command` its command line under
+`CommandLine`, `commandLine` or `command_line` — the three spellings agy.exe
+carries, all of them judged; which one agy sends is not measured, so a
+`run_command` carrying none of them is refused. What a tool writes into a
+file is not judged.
 
 **Paths are compared relative to the root.** A pattern without a slash
 (`*.pem`, `go.sum`) matches the base name; a pattern with one (`.aws/**`)
@@ -415,14 +418,30 @@ is refused with exit 2 (`unknown event`). A malformed call to one of the five
 session hooks — a missing or unknown `--host`, a flag it does not know, and
 without `--root` no `.loomux/config.toml` above the working directory — is
 exit 1, which holds nothing: a gate that cannot read its call must not hold
-the turn over it.
+the turn over it. A relative `--root`, such as Antigravity's `..`, is made
+absolute before anything is judged against it.
 
-**Only `--host claude` has an adapter** for the four hooks that read their
-payload through `internal/hosts`: `session-start`, `stop`, `subagent-start`
-and `subagent-stop`. For them `antigravity` and `codex` are seams: their
-payloads are unmeasured, and each of the four refuses them with exit 1 rather
-than guessing a shape (`internal/hosts/codex.go`). The Antigravity adapter waits on its own
-measurement.
+**Claude Code and Antigravity have adapters** for the hooks that read their
+payload through `internal/hosts`; `codex` is a seam that refuses with exit 1
+rather than guessing a shape (`internal/hosts/codex.go`). Antigravity reads
+every non-zero exit of a hook as a failed command and aborts, so `loomux hook`
+hands every answer to `hosts.Answer` once: for `--host antigravity` a held
+stop becomes `{"decision":"continue","reason":…}` on stdout, a red post-edit
+lane an `injectSteps` message, the reason being what the hook wrote to stderr,
+and every other code, a malformed call included, exit 0. `pre-tool-use` keeps
+its exit 2, which refuses the call under agy (measured 2026-09-25). The stop
+answer is read from agy's binary and the post-edit answer is not measured.
+`subagent-start` and `subagent-stop` are not wired for Antigravity: its
+payloads carry no `agent_id`.
+
+Antigravity's `PostToolUse` names no file, only `conversationId`, `stepIdx`
+and `error`. So `pre-tool-use` files every target of an allowed write under
+`.loomux/state/hooks/<conversation>/pending/<step>/`, one file per call, and
+`post-tool-use` checks every filed target of its step that stands on disk,
+within one budget for them all. A failed call takes nothing, since a sibling
+of its step may still come for its file; any post-edit drops what earlier
+steps left. Nothing is filed while `[modules] hooks = false`. Whether both
+hooks of one call carry the same `stepIdx` is not measured.
 
 Wired in `.claude/settings.json`, the three stage 2c hooks look like this
 (`loomux status` prints the `Stop` line, without the default `--budget`, and

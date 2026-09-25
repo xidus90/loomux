@@ -157,6 +157,7 @@ loomux hook post-tool-use           # Fährt die Lanes des Profils edit gegen di
 loomux hook session-start           # Hält den Basis-Commit der Sitzung fest; warnt bei veraltetem Binary, bei einem serve außerhalb des Installationsorts und bei gescheitertem Self-Update
 loomux hook stop                    # Tor am Rundenende: Profil stop über neuen Inhalt, Befunde der Subagenten (--budget, Vorgabe 270s)
 loomux hook subagent-start|subagent-stop  # Schnappschuss von origin, Branches und HEAD um einen Subagenten; parkt, was sich bewegt hat, für stop
+loomux hook <event> --host antigravity    # dieselben Hooks für agy: Exit 0 mit JSON auf stdout (Stop läuft weiter, ein roter Edit wird eine Nachricht); nur pre-tool-use verweigert mit 2
 loomux status|doctor|explain        # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses (drei Namen, ein Codeweg)
 loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel und Junction-Pfade
 loomux dev swap-binary              # Tauscht laufendes Binary atomar gegen Neubau aus

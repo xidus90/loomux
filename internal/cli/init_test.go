@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/brain/maintenance"
 	"github.com/xidus90/loomux/internal/config/schema"
@@ -75,7 +76,46 @@ func initWorld(t *testing.T) (string, *initSeams) {
 	replace(t, &openTerminal, func() (tui.Terminal, func() error, error) {
 		return nil, nil, errors.New("not a terminal")
 	})
+	// A release init, whose installed binary, wherever one stands, is as new.
+	replace(t, &Version, "2.13.0")
+	replace(t, &binaryVersion, func(path string) string {
+		if _, err := os.Stat(path); err == nil {
+			return Version
+		}
+		return ""
+	})
 	return root, s
+}
+
+func TestInstalledVersionReadsTheBinarysAnswer(t *testing.T) {
+	replace(t, &versionRunner, func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if name != "bin" || strings.Join(args, " ") != "--version" {
+			t.Errorf("ran %s %v", name, args)
+		}
+		return []byte("loomux 2.13.0 (beta)\n"), nil
+	})
+	if got := installedVersion("bin"); got != "2.13.0" {
+		t.Fatalf("installedVersion = %q, want 2.13.0", got)
+	}
+}
+
+func TestInstalledVersionGivesUpOnAHungBinary(t *testing.T) {
+	replace(t, &versionDeadline, 10*time.Millisecond)
+	replace(t, &versionRunner, func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Minute):
+			return []byte("loomux 2.13.0\n"), nil
+		}
+	})
+	start := time.Now()
+	if got := installedVersion("bin"); got != "" {
+		t.Fatalf("installedVersion = %q, want none", got)
+	}
+	if took := time.Since(start); took > 10*time.Second {
+		t.Fatalf("took %s, the deadline did not hold", took)
+	}
 }
 
 // replace sets *seam to v for the test.
@@ -225,7 +265,7 @@ func TestInitYesSetsUpAFreshRepository(t *testing.T) {
 		t.Errorf("report:\n%s", out)
 	}
 	installed := readAt(t, root, ".loomux/state/installed.toml")
-	if !strings.Contains(installed, `version = "0.0.0-dev"`) {
+	if !strings.Contains(installed, `version = "2.13.0"`) {
 		t.Errorf("installed.toml:\n%s", installed)
 	}
 	if !strings.Contains(readAt(t, root, ".githooks/post-merge"), maintenance.HookMarker) {
@@ -651,8 +691,10 @@ func TestInitPlansAntigravityBesideClaude(t *testing.T) {
 	for _, want := range []string{
 		"--- .claude/settings.json",
 		"--- .agents/hooks.json",
+		"%LOCALAPPDATA%/loomux/bin/loomux.exe hook session-start --host antigravity --root ..",
 		"%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..",
 		"%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..",
+		"%LOCALAPPDATA%/loomux/bin/loomux.exe hook stop --host antigravity --root .. --budget 270s",
 		"--- .agents/skills/verify-until-green/SKILL.md",
 		"--- .agents/skills/brain-land/SKILL.md",
 		"antigravity: .agents/hooks.json loads only in a folder agy trusts (trustedWorkspaces)",

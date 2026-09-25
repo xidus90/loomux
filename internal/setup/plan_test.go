@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/hosts"
+	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/setup/hostfile"
 )
 
@@ -240,7 +241,7 @@ func linkedWorktree(t *testing.T, hook string) (main, wt string) {
 
 func TestAWorktreeLeavesTheSharedHooksAlone(t *testing.T) {
 	main, wt := linkedWorktree(t, "#!/bin/sh\nsh ci/gate.sh\n")
-	f, err := Gather(wt, t.TempDir(), realGit)
+	f, err := Gather(wt, t.TempDir(), tested, realGit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +290,7 @@ func TestARootReachedThroughALinkKeepsItsHooksInside(t *testing.T) {
 		}
 		return "", nil
 	}
-	f, err := Gather(root, t.TempDir(), answer)
+	f, err := Gather(root, t.TempDir(), tested, answer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +322,7 @@ func TestWithinComparesAMissingRootBySpelling(t *testing.T) {
 
 func TestAWorktreeWithoutLiveHooksIsAsBefore(t *testing.T) {
 	_, wt := linkedWorktree(t, "")
-	f, err := Gather(wt, t.TempDir(), realGit)
+	f, err := Gather(wt, t.TempDir(), tested, realGit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +391,7 @@ func TestNoRepositoryMeansNoGitParts(t *testing.T) {
 }
 
 func TestAHostWithoutAHookFileGetsANote(t *testing.T) {
-	root := world(t, map[string]string{".agents/": ""})
+	root := world(t, map[string]string{".agents/skills/": ""})
 	f := gather(t, root, "")
 	if !slices.Equal(f.Hosts, []hosts.Host{hosts.HostAntigravity}) {
 		t.Fatalf("hosts = %v", f.Hosts)
@@ -416,7 +417,7 @@ const agyTrust = "antigravity: .agents/hooks.json loads only in a folder agy tru
 // skills under .agents/skills -- in a checkout too, where Claude's entries
 // call the checkout's binary.
 func TestAntigravityGetsItsEntriesAndSkills(t *testing.T) {
-	root := world(t, map[string]string{".agents/": "", ".claude/": "", ".git/": "", "go.mod": checkoutGoMod})
+	root := world(t, map[string]string{".agents/skills/": "", ".claude/": "", ".git/": "", "go.mod": checkoutGoMod})
 	installBinary(t)
 	f := gather(t, root, "")
 	c := DefaultChoice(f, Answers{})
@@ -431,8 +432,10 @@ func TestAntigravityGetsItsEntriesAndSkills(t *testing.T) {
 	}
 	ch, ok := changeOf(p, ".agents/hooks.json")
 	if !ok || ch.Part != "host-entries" ||
+		!strings.Contains(ch.After, `"command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook session-start --host antigravity --root .."`) ||
 		!strings.Contains(ch.After, `"command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root .."`) ||
-		!strings.Contains(ch.After, `"command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root .."`) {
+		!strings.Contains(ch.After, `"command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root .."`) ||
+		!strings.Contains(ch.After, `"command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook stop --host antigravity --root .. --budget 270s"`) {
 		t.Fatalf(".agents/hooks.json = %+v", ch)
 	}
 	if claude, _ := changeOf(p, ".claude/settings.json"); !strings.Contains(claude.After, "${CLAUDE_PROJECT_DIR}/bin/loomux.exe") {
@@ -456,7 +459,7 @@ func TestAntigravityGetsItsEntriesAndSkills(t *testing.T) {
 // Antigravity's entries call the installed binary even in a checkout, so
 // they are planned only where it stands or binary-install runs.
 func TestAntigravityEntriesWaitForTheInstalledBinary(t *testing.T) {
-	root := world(t, map[string]string{".agents/": "", ".git/": "", "go.mod": checkoutGoMod})
+	root := world(t, map[string]string{".agents/skills/": "", ".git/": "", "go.mod": checkoutGoMod})
 	f := gather(t, root, "")
 	c := DefaultChoice(f, Answers{})
 	c.Parts["verify-skill"] = true
@@ -484,6 +487,61 @@ func TestAntigravityEntriesWaitForTheInstalledBinary(t *testing.T) {
 	}
 }
 
+// An installed binary older than this init does not know Antigravity's hooks,
+// and agy aborts on one that fails; so the entries wait for one at least as
+// new. A development build has nothing to compare, and a binary-install in
+// the same run brings the newest release, at least a released init.
+func TestAntigravityEntriesWaitForAnInstalledBinaryAsNewAsInit(t *testing.T) {
+	root := world(t, map[string]string{".agents/skills/": "", "go.mod": goMod})
+	const older = "antigravity: no entries; the installed loomux 2.11.1 is older than this init 2.13.0; run loomux self-update"
+	const unnamed = "antigravity: no entries; the installed loomux names no version; run loomux self-update"
+	const dev = "antigravity: no entries; this init is the development build 0.0.0-dev, and no installed loomux can be compared with it; run a released loomux init"
+	for _, c := range []struct {
+		name, init, installed string
+		there                 bool
+		note                  string
+	}{
+		{"older", "2.13.0", "2.11.1", true, older},
+		{"names none", "2.13.0", "", true, unnamed},
+		{"as new", "2.13.0", "2.13.0", true, ""},
+		{"newer", "2.13.0", "2.14.0", true, ""},
+		{"development build", selfupdate.DevVersion, "2.13.0", true, dev},
+		{"installed in this run", "2.13.0", "", false, ""},
+		{"development build installing", selfupdate.DevVersion, "", false, dev},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			local := localAppData(t)
+			t.Setenv("LOCALAPPDATA", local)
+			if c.there {
+				installBinary(t)
+			}
+			asked := 0
+			running := Running{Version: c.init, VersionOf: func(path string) string {
+				asked++
+				if path != filepath.Join(local, "loomux", "bin", "loomux.exe") {
+					t.Errorf("asked %s", path)
+				}
+				return c.installed
+			}}
+			f, err := Gather(root, t.TempDir(), running, git(""))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if f.Version != c.init || f.Installed != c.installed || asked != map[bool]int{true: 1}[c.there] {
+				t.Fatalf("version %q, installed %q, asked %d", f.Version, f.Installed, asked)
+			}
+			p := plan(t, f)
+			_, planned := changeOf(p, ".agents/hooks.json")
+			if planned != (c.note == "") || (c.note != "" && !slices.Contains(p.Notes, c.note)) {
+				t.Errorf("planned %v, notes = %v", planned, p.Notes)
+			}
+			if !slices.Contains(actions(p), "binary-install") && !c.there {
+				t.Errorf("actions = %v", actions(p))
+			}
+		})
+	}
+}
+
 // With whitespace in LOCALAPPDATA cmd.exe would split the unquoted path, so
 // Antigravity gets no entries, and its hook file is not read; the skills
 // still come.
@@ -498,7 +556,7 @@ func TestASpacedLocalAppDataWritesNoAntigravityEntries(t *testing.T) {
 	if _, ok := changeOf(p, ".agents/hooks.json"); ok {
 		t.Error("entries planned under a spaced LOCALAPPDATA")
 	}
-	want := "antigravity: no entries; %LOCALAPPDATA% contains a space, and cmd.exe would split the unquoted path"
+	want := "antigravity: no entries; %LOCALAPPDATA% contains a space or a character cmd.exe reads as syntax, and cmd.exe would split the unquoted path"
 	if !slices.Contains(p.Notes, want) || !hasNote(p, agyTrust) {
 		t.Errorf("notes = %v", p.Notes)
 	}
@@ -513,7 +571,7 @@ func TestAnotherAntigravityGroupRunningOurCommandIsNamed(t *testing.T) {
 	root := world(t, map[string]string{".agents/hooks.json": `{"mine":{"PreToolUse":[{"hooks":[{"type":"command","command":` +
 		strconv.Quote(pre) + `}]}]}}`})
 	p := plan(t, gather(t, root, ""))
-	if !slices.Contains(p.Notes, ".agents/hooks.json: the group mine already runs "+pre+"; it now fires twice") {
+	if !slices.Contains(p.Notes, ".agents/hooks.json: the group mine already runs loomux hook session-start; it now fires twice") {
 		t.Errorf("notes = %v", p.Notes)
 	}
 }
