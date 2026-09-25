@@ -65,6 +65,10 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName stri
 		return ExitInternal
 	}
 
+	if payload.Repeat {
+		// The base is filed and the warnings were said at the first start.
+		return ExitOK
+	}
 	lines = append(lines, staleBinary(root)...)
 	lines = append(lines, updateWarnings(config.StateDir(), runtime.GOOS)...)
 

@@ -26,7 +26,11 @@ func PreToolUse(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string
 	if err != nil {
 		return guard.Refuse(stdout, stderr, fmt.Sprintf("loomux cannot read the hook payload, so it refuses: %v", err))
 	}
-	reasons, err := policyReasons(data, root)
+	// The barrier reads the bytes itself; a payload that is no object
+	// arrives as nil.
+	var object map[string]any
+	_ = json.Unmarshal(data, &object)
+	reasons, err := policyReasons(object, root)
 	if err != nil {
 		return guard.Refuse(stdout, stderr, fmt.Sprintf("loomux cannot read its policy, so it refuses: %v", err))
 	}
@@ -36,14 +40,10 @@ func PreToolUse(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string
 	return guard.Run(bytes.NewReader(data), stdout, stderr, stateDir)
 }
 
-// policyReasons judges the call against the policy. A payload it cannot
-// decode yields no reasons: refusing it is the barrier's job, with the
+// policyReasons judges the call against the policy. A payload that did not
+// decode arrives as nil and yields no reasons: refusing it is the barrier's job, with the
 // barrier's wording, one step later.
-func policyReasons(data []byte, root string) ([]string, error) {
-	var object map[string]any
-	if json.Unmarshal(data, &object) != nil {
-		return nil, nil
-	}
+func policyReasons(object map[string]any, root string) ([]string, error) {
 	tool, input := guard.Call(object)
 	if tool == "" {
 		return nil, nil

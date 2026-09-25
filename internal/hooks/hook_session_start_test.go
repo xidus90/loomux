@@ -165,6 +165,13 @@ func TestHookSessionStartOnAntigravity(t *testing.T) {
 	if !strings.Contains(stdout.String(), "injectSteps") || !strings.Contains(stdout.String(), "ephemeralMessage") {
 		t.Fatalf("expected injectSteps in stdout, got %q", stdout.String())
 	}
+
+	// PreInvocation fires before every model call; only the first announces.
+	stdout.Reset()
+	code = SessionStart(strings.NewReader(`{"conversationId":"s1","invocationNum":2}`), &stdout, &stderr, root, "antigravity")
+	if code != ExitOK || stdout.Len() != 0 {
+		t.Fatalf("a later invocation: %d %q", code, stdout.String())
+	}
 }
 
 // pilot is a project holding a binary and one source, each aged as asked.
