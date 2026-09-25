@@ -4,6 +4,18 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.14.2] - 2026-09-25
+
+<https://github.com/xidus90/loomux/pull/41>
+
+### Security
+- On Antigravity, input sent to a running command with `manage_task` is now judged by the guard's command rules; before, such a line reached an open shell unchecked. `.agents/hooks.json` written by an earlier init keeps its matcher and is named in a note: add `|manage_task` to its `PreToolUse` matcher by hand.
+### Fixed
+- `loomux init` plans no Antigravity entries when `LOCALAPPDATA` contains `,`, `;` or `=`; `cmd.exe` split the unquoted path there and every Antigravity hook, the guard included, failed.
+- On Antigravity, a later model call now tells the session when it could not be counted again for worktree unlink; before, only the first call could say so.
+- `loomux hook post-tool-use` writes a single JSON document for an edit naming several files, so the host no longer reports a hook error, and a file the shared budget did not reach is named there.
+- `loomux init` recognises its entry inside a hook block that holds both a `command` and a `hooks` list, instead of adding a second entry that made the hook fire twice.
+
 ## [2.14.1] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/40>
