@@ -4,6 +4,22 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.13.2] - 2026-09-25
+
+<https://github.com/xidus90/loomux/pull/37>
+
+### Fixed
+- The guard no longer refuses `loomux init --dry-run` and similar exempt calls when another part of the line holds a `#` inside double quotes, such as a path.
+- `loomux init` refuses to write over a file changed after the plan was made, lists a failed write under failures, and records no `installed.toml` after a failed step.
+- `loomux init` no longer writes `.mcp.json` when the installed binary it calls is missing.
+- `loomux init` refuses a hook file whose content is `null` instead of writing over it.
+- `loomux init` makes a git hook executable wherever it writes it, including a custom `core.hooksPath` and `.git/hooks`.
+- `loomux init` names an own hook entry that runs an outdated command instead of reporting it as kept.
+- `loomux config set`, `unset`, `apply` and the interactive form refuse to write over a file changed after it was read.
+- `loomux config` keeps every key and each line's ending in a file with mixed line endings, including a CRLF file without a final line break.
+- `loomux merge-hook install` keeps the records of the hooks it wrote before a failure.
+- `loomux merge-hook status` reports a hook git no longer runs after `core.hooksPath` changed as `moved`.
+
 ## [2.13.1] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/38>
