@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.14.1] - 2026-09-25
+
+<https://github.com/xidus90/loomux/pull/40>
+
+### Fixed
+- `loomux self-update` and serve's update pass replace a development build (`0.0.0-dev`) at `%LOCALAPPDATA%\loomux\bin\loomux.exe` with the newest release instead of skipping it on every pass.
+
 ## [2.14.0] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/39>
