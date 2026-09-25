@@ -173,7 +173,10 @@ bei `refused` oder `no repository`, sonst 0. `record` ist neu (siehe unten).
    `not installed` keine; loomux druckt ` [<datei>]` auch dort, weil die
    Datei in einem Repo liegt, das der Nutzer nie genannt hat. Fall
    `hook/status-orphaned` (stdout 93 gegen 178 Byte), und in
-   `hook/status-installed` zusammen mit 6.
+   `hook/status-installed` zusammen mit 6. Seit dem 2026-09-25 hängt an eine
+   fremde Datei bei `not installed` `: another hook` an
+   (`[<datei>: another hook]`); die Referenz nennt sie nicht, kein
+   aufgezeichneter Fall hat eine.
 5. **Das Zustandsverzeichnis der Referenz wird nicht gelesen.** Eine
    `hooks.tsv` unter dem alten Verzeichnis von ultra-brain bleibt liegen;
    gelesen und geschrieben wird nur unter `LOOMUX_STATE_DIR`. Ein von
@@ -759,6 +762,46 @@ Gemessen mit dem Aufbau oben.
     - das Wort `default` als Wert
     - `go run` im Wächter
   - Was davon umgesetzt wird, entscheidet der Mensch.
+- **Behoben am 2026-09-25, zweite Runde**
+  (`plans/2026-09-25-loomux-4a-kleinigkeiten.md`). Der Mensch wählte alle
+  übrigen Fehler, die Testlücken und die Kommata in Listen (`stufe-4a-1.md`).
+  Vorher wurde jeder Punkt per Probetest gegen `master` (v2.14.0)
+  bestätigt; der Befund zu `Remove` war schlimmer als notiert, weil die
+  Kommentare unter den Abschnitt darüber rutschten. Drei Testlücken waren
+  schon geschlossen: der Modus über `mode()`, `OnMerge` über `.brain.toml`
+  und `within` über eine Junction. Entscheidungen des Menschen, jeweils die
+  Empfehlung:
+  - Ein Modul, das an ist, ohne dass ein Teil an ist, wird mit `each`
+    angeboten; `none` schaltet immer aus.
+  - `unset` lässt einen Abschnittskopf stehen, solange noch ein Kommentar
+    darunter steht.
+  - Ein Listenelement mit Komma steht in TOML-Anführungszeichen
+    (`"a,b", c`); ein leeres Element ohne Anführungszeichen fällt weg.
+  - Eine fremde Hookdatei heißt `[<pfad>: another hook]`; Zustand und
+    Exit-Code bleiben wie in der Referenz. Die 14 Fälle bleiben ohne neuen
+    Unterschied, und `hook/remove-installed` hält jetzt die Ausgabe von
+    loomux im Ganzen fest statt nur ihrer Länge.
+
+  Ohne Rückfrage entschieden: `config list` kürzt einen Wert über 60
+  Zeichen (`get` und `--json` nicht); Groß- und Kleinschreibung gilt beim
+  Pfadvergleich nur unter Windows und macOS als gleich. Der Wächter liest
+  den Unterbefehl von `config` weiter nur direkt hinter `config`; eine
+  Schreibform mit Flags davor bleibt einem Agenten verweigert. Die Fixture
+  `loomux-settings.json` ist weg, die Tests lesen die echte
+  `.claude/settings.json`; die Kopie war schon abgedriftet (es fehlten die
+  Worktree-Hooks). Beim Bau fiel einmal ein Torlauf rot, der sich danach
+  weder im vollen `go test ./...` noch im nächsten Torlauf wiederholte; der
+  Test ist nicht bekannt, weil die Ausgabe gekürzt war.
+
+  Das Review vor dem Merge (Stufe high, neun Befunde, alle behoben) brachte:
+  `JoinList` setzt einen Eintrag mit offener `{` in Anführungszeichen, sonst
+  verschluckte er die folgenden; die Pfadregel steht in `internal/pathkey`
+  und gilt auch für `samePlace` in `init` (dort ein Fehler schon auf
+  `master`); der Wächter liest den Unterbefehl von `config` hinter
+  `--root`/`--global`; `tui` füllt Spalten nach Zellen; ein Scope, von
+  dessen Verzeichnisnamen nichts bleibt, heißt `project/root`; die Fixture
+  der Host-Datei bleibt für die byte-genauen Tests, und ein eigener Test
+  hält die echte `.claude/settings.json` gegen das, was `init` schriebe.
 - **Behoben am 2026-09-25** (`plans/2026-09-25-loomux-4a-nachziehen.md`):
   - Die Fehlverweigerung des Wächters bei `cd "C:/…/#GIT/…" &&
     bin/loomux.exe init --dry-run`: `plainLine` ließ in doppelten

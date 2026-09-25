@@ -255,6 +255,16 @@ verunreinigen.
   `internal/config/schema`, weil der Pfad dann relativ ist. Der Mutant stirbt,
   die Datei bleibt liegen; nach beiden Runden von Hand entfernt. Abhilfe: der
   Test mit `t.Chdir(t.TempDir())` — erledigt im Abschlussfix.
+- **Am 2026-09-25 behoben, zweite Runde** (`plans/2026-09-25-loomux-4a-kleinigkeiten.md`,
+  Entscheidungen in `stufe-4a-2.md`, „Offen“): aus der Liste unten `"a,"`,
+  gemischte Zeilenenden (schon in der ersten Runde), `Remove` mit
+  Kommentaren, die ungetestete Vorgabe in `Current`, Kommata in
+  Listeneinträgen (jetzt `"a,b", c`), `config --root DIR list` und fremde
+  Flags, die Antwort `yes`, `fit` nach Zellen und die Spalte „Wert“.
+  `projectModules` ist nicht behoben, sondern fällt weg (Sortierung in
+  `stufe-4a-2.md`); `default` als Wert, `go run` im Wächter und die
+  übrigen „Erledigt“-Punkte waren es schon. Offen bleiben nur die
+  Menschenschritte oben.
 - **Aufgeschobene Kleinigkeiten, die es wert sind, behalten zu werden** (aus
   dem Ledger, Auswahl):
   - `edit.Render(Int)` lässt `"007"` und `"+3"` durch; `strconv.Itoa(n)`
