@@ -27,6 +27,9 @@ func TestRenderMakesALiteralPerKind(t *testing.T) {
 		{schema.Bool, `no`, ``, true},
 		{schema.StringList, `a, b`, `["a", "b"]`, false},
 		{schema.StringList, ``, `[]`, false},
+		{schema.StringList, `a,`, `["a"]`, false},
+		{schema.StringList, `a, , b`, `["a", "b"]`, false},
+		{schema.StringList, ` , `, `[]`, false},
 		{schema.Table, `x`, ``, true},
 	}
 	for _, c := range cases {

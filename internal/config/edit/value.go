@@ -30,12 +30,12 @@ func Render(kind schema.Kind, input string) (string, error) {
 		}
 		return input, nil
 	case schema.StringList:
-		if input == "" {
-			return "[]", nil
-		}
-		parts := splitList(input)
-		for i, p := range parts {
-			parts[i] = config.QuoteTOML(strings.TrimSpace(p))
+		// An empty item is a stray comma, not an item: "a," is the list of a.
+		var parts []string
+		for _, p := range splitList(input) {
+			if p = strings.TrimSpace(p); p != "" {
+				parts = append(parts, config.QuoteTOML(p))
+			}
 		}
 		return "[" + strings.Join(parts, ", ") + "]", nil
 	default:
