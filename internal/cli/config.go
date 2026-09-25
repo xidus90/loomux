@@ -364,7 +364,7 @@ func configWrite(t configTarget, propose func(text string) (string, error), yes 
 	if !yes {
 		fmt.Fprint(stderr, "write these changes? [y/N] ")
 		answer, _ := bufio.NewReader(stdin).ReadString('\n')
-		if strings.ToLower(strings.TrimSpace(answer)) != "y" {
+		if !confirmed(answer) {
 			fmt.Fprintln(stderr, "loomux config: declined; nothing written")
 			return 0
 		}
@@ -375,6 +375,12 @@ func configWrite(t configTarget, propose func(text string) (string, error), yes 
 	}
 	fmt.Fprintf(stderr, "loomux config: wrote %s\n", t.path)
 	return 0
+}
+
+// confirmed reads the answer to a [y/N] question: y or yes, in any case.
+func confirmed(answer string) bool {
+	a := strings.ToLower(strings.TrimSpace(answer))
+	return a == "y" || a == "yes"
 }
 
 // writeConfig is the one way every form puts a new text in place: set,

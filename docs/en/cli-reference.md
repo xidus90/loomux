@@ -971,7 +971,7 @@ number of entries (`list --json` as `count`).
 
 ### `loomux config set <key> <value> [--yes]`
 Computes the new file, prints the change as a line diff on `stderr`, asks
-`write these changes? [y/N]` and writes only on `y`.
+`write these changes? [y/N]` and writes only on `y` or `yes`.
 
 - **Values** are typed as a human writes them: a string without quotes, a
   number, `true`/`false`, a list as `a, b`. A comma inside a `{…}` group

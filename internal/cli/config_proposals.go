@@ -406,7 +406,7 @@ func applyOne(t configTarget, id string, yes bool, answers *bufio.Reader, stderr
 	if !yes {
 		fmt.Fprint(stderr, "write these changes? [y/N] ")
 		answer, _ := answers.ReadString('\n')
-		if strings.ToLower(strings.TrimSpace(answer)) != "y" {
+		if !confirmed(answer) {
 			say(stderr, "loomux config: declined; proposal %s stays\n", id)
 			return true
 		}

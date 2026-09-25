@@ -1002,7 +1002,7 @@ wie Go sie druckt (`map[reason:… regex:…]`), und eine leere Zeile, wenn es k
 
 ### `loomux config set <schlüssel> <wert> [--yes]`
 Berechnet die neue Datei, zeigt die Änderung als Zeilendiff auf `stderr`,
-fragt `write these changes? [y/N]` und schreibt nur bei `y`.
+fragt `write these changes? [y/N]` und schreibt nur bei `y` oder `yes`.
 
 - **Werte** werden getippt, wie ein Mensch sie schreibt: eine Zeichenkette
   ohne Anführungszeichen, eine Zahl, `true`/`false`, eine Liste als `a, b`.
