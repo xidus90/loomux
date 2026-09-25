@@ -1,0 +1,28 @@
+#!/bin/sh
+# Pre-commit gate of loomux itself (stage 1a): check that the index holds
+# every input, then the shared gate in ci/gate.sh, then rebuild the pilot
+# binary the hooks call.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+# master changes only through a pull request; work starts on a branch.
+if [ "$(git branch --show-current)" = master ]; then
+	echo "pre-commit: no commits on master; create a branch and open a pull request" >&2
+	exit 1
+fi
+# The gate reads the working tree. It only judges what is committed when no
+# input of its differs from the index -- the Go sources, the configuration the
+# check chain reads, and the parity corpus, the hooks and the gate scripts
+# themselves, which the suite and these scripts read from the working tree
+# just as directly.
+unstaged=$(git diff --name-only -- '*.go' '*.toml' go.mod go.sum testdata .githooks ci .loomux)
+untracked=$(git ls-files --others --exclude-standard -- '*.go' '*.toml' go.mod go.sum testdata .githooks ci .loomux)
+if [ -n "$unstaged$untracked" ]; then
+	echo "pre-commit: inputs differ from the index; stage or stash them:" >&2
+	[ -z "$unstaged" ] || echo "$unstaged" >&2
+	[ -z "$untracked" ] || echo "$untracked" >&2
+	exit 1
+fi
+sh ci/gate.sh
+mkdir -p bin
+go build -o bin/loomux.new.exe ./cmd/loomux
+go run ./cmd/loomux dev swap-binary --dir bin

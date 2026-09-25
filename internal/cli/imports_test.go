@@ -142,6 +142,53 @@ func TestHooksNeverImportTheConfigurationCommand(t *testing.T) {
 	}
 }
 
+// setupTree is the installer: templates, host files, git files and the
+// writer that applies a plan. It runs once per project, by a human; the
+// per-edit path reaches none of it, and a package added below it later falls
+// under the same rule without being listed.
+const setupTree = "github.com/xidus90/loomux/internal/setup"
+
+// inSetupTree says whether a package is the installer or lies below it; a
+// sibling like `.../internal/setupx` is neither.
+func inSetupTree(pkg string) bool {
+	return pkg == setupTree || strings.HasPrefix(pkg, setupTree+"/")
+}
+
+func TestHooksNeverImportTheInstaller(t *testing.T) {
+	if testing.Short() {
+		t.Skip("asks the go tool for the import graph")
+	}
+	hooks, err := dependencies(hooksPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cli, err := dependencies("github.com/xidus90/loomux/internal/cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for dep := range hooks {
+		if inSetupTree(dep) {
+			t.Errorf("%s depends on %s, which puts the installer on the per-edit path", hooksPackage, dep)
+		}
+	}
+	if !cli[setupTree] {
+		t.Errorf("the command line no longer reaches %s; the boundary test proves nothing", setupTree)
+	}
+}
+
+func TestInSetupTreeTakesTheTreeAndNoSibling(t *testing.T) {
+	for pkg, want := range map[string]bool{
+		setupTree:            true,
+		setupTree + "/write": true,
+		setupTree + "x":      false,
+		"github.com/xidus90/loomux/internal/hooks": false,
+	} {
+		if got := inSetupTree(pkg); got != want {
+			t.Errorf("inSetupTree(%q) = %v, want %v", pkg, got, want)
+		}
+	}
+}
+
 // TestTheCommandLineDoesReachServeAndTheBridge is the other half: the test
 // above passes just as happily when nothing in loomux links the SDK at all,
 // and then it measures a boundary that costs nothing to keep.

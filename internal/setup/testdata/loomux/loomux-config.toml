@@ -1,0 +1,106 @@
+# Vorlage fuer .loomux/config.toml im Repowurzelverzeichnis von loomux.
+# Kopieren nach: C:\Users\micro\Documents\#GIT\loomux\.loomux\config.toml
+#
+# Diese Datei schreibt kein Agent (Spec, Fehlerverhalten): sie ist zugleich
+# Manifest und Policy — wer sie bearbeiten darf, gibt sich selbst Rechte.
+# Kommentare im Produkt sind englisch; diese Vorlage erklaert auf Deutsch,
+# was du aendern kannst. Vor dem Kopieren die deutschen Zeilen ruhig loeschen.
+
+# --- Manifest -------------------------------------------------------------
+# [area] macht das Projekt zu einem Bereich. Fehlt die Tabelle ganz, ist die
+# Datei nur Policy und deklariert nichts (dann entscheidet allein die
+# Registry, wo geschrieben werden darf). Ein vorhandenes [area] ohne scope
+# oder kaputtes TOML laesst die Schranke jeden Write verweigern.
+[area]
+scope = "project/loomux"
+
+# [layout] wiki sagt, wo die Wiki-Seiten liegen. Der post-edit-Hook lintet
+# eine Seite nur, wenn dieser Pfad ein existierendes Verzeichnis benennt.
+# docs/wiki entsteht erst in Stufe 1b — bis dahin laeuft die Lane nicht an,
+# das ist in Ordnung. Anderer Ort? Pfad relativ zur Repowurzel, Schraegstriche.
+[layout]
+wiki = "docs/wiki"
+
+# Only the wiki is knowledge; testdata/cases holds recordings, and a catalog
+# written into them would change evidence.
+[index]
+include = ["docs/wiki/**/*.md", "docs/.superpowers/**/*.md"]
+
+# The bundle catalogs are registered but qmd never gets them (OwnArtifacts
+# hides **/index.md); without this line status reports them as divergence.
+unsearched = ["docs/**/**/index.md"]
+
+# --- Policy ---------------------------------------------------------------
+# Jede Regel wird beim Laden geprueft: ein kaputter Glob, ein leerer Glob,
+# ein fehlendes regex oder ein fehlender reason sind ein Fehler, und der
+# Waechter verweigert dann jeden Aufruf und nennt Datei und Regel. Lieber
+# eine Regel weglassen als eine kaputte stehen lassen.
+#
+# match: ein String oder eine Liste von Strings, Globs relativ zur Wurzel.
+#   "*"  trifft innerhalb eines Segments, "dir/**" trifft alles unter dir/.
+# reason: der Satz, den die Ablehnung ausgibt. Nicht leer.
+
+[[policy.paths.rules]]
+match  = ["coverage.out", "bin/*"]
+reason = "Build output belongs to the pre-commit gate, not to an edit."
+
+[[policy.paths.rules]]
+match  = ["testdata/cases/1a-source/**"]
+reason = "Recordings of the old tools are evidence; re-record them, never edit them."
+
+# Eigene Regel nach diesem Muster ergaenzen, z. B. generierter Code:
+# [[policy.paths.rules]]
+# match  = ["internal/**/zz_generated_*.go"]
+# reason = "Generated code is rebuilt, not edited."
+
+# Befehlsregeln pruefen die Kommandozeile von Bash und PowerShell.
+# Der Ausdruck ist Go-RE2: kein Lookahead, kein Backreference. Er wird beim
+# Laden kompiliert; was nicht kompiliert, ist ein Fehler (in ultraloom fiel
+# genau so eine Regel jahrelang still aus).
+# Hinweis: `git push` faengt bereits eine eingebaute Regel ab — die Zeile hier
+# ist die ausdrueckliche Fassung im Projekt und kann auch entfallen.
+[[policy.commands.rules]]
+regex  = '(^|[\n;&|(`])\s*git\s+push([^\w-]|$)'
+reason = "Whether commits reach the remote is a human's decision."
+
+# Beispiel fuer eine eigene Befehlsregel:
+# [[policy.commands.rules]]
+# regex  = '(^|[\n;&|(`])\s*pip\s+install([^\w-]|$)'
+# reason = "uv, never pip."
+
+# --- Optional -------------------------------------------------------------
+# [worktree] mirror nennt Pfade, die loomux in jeden Worktree spiegelt
+# (Junctions unter Windows). Leer lassen oder ganz weglassen, wenn du keine
+# Worktree-Spiegel brauchst.
+# [worktree]
+# mirror = [".venv", "node_modules"]
+
+[[policy.paths.rules]]
+match  = ["testdata/cases/1b-1-source/**"]
+reason = "Recordings of the old tools are evidence; re-record them, never edit them."
+
+# A table, not a list: a list would replace the whole lane and drop the
+# preset's on_file, and post-edit would gofmt the whole tree again.
+[verify.go.lint]
+commands = ["{loomux} check gofmt cmd internal", "go vet ./..."]
+
+# Tables merge onto the preset: commands stay, only the measuring forms change.
+# -coverpkg because a function exercised only by another package's tests would
+# otherwise read 0 %.
+[verify.go.test]
+measuring = "go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/loomux/... -coverprofile={coverprofile}"
+
+[verify.go.coverage]
+measure = "go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/loomux/... -coverprofile={coverprofile}"
+
+[[policy.paths.rules]]
+match  = [".loomux/state/**"]
+reason = "Machine state is written by loomux, not by an edit."
+
+[[policy.paths.rules]]
+match  = ["testdata/cases/2a-source/**"]
+reason = "Recordings of the old tools are evidence; re-record them, never edit them."
+
+[[policy.paths.rules]]
+match  = ["testdata/cases/2b-source/**"]
+reason = "Recordings of the old tools are evidence; re-record them, never edit them."
