@@ -198,6 +198,47 @@ func TestListShowsAsManyRowsAboveTheCursorAsFit(t *testing.T) {
 	checkFrame(t, term, "t", "layout.wiki")
 }
 
+// A wide character takes two cells of the terminal and a combining mark
+// none; counting runes let a line of wide characters wrap.
+func TestFitCountsDisplayCells(t *testing.T) {
+	for _, c := range []struct {
+		in    string
+		width int
+		want  string
+	}{
+		{"日本語テキスト", 6, "日本語"},
+		{"ab日本", 3, "ab"},
+		{"ab日本", 4, "ab日"},
+		{"ｆｕｌｌ", 4, "ｆｕ"},
+		{"ééé", 2, "éé"},
+		{"abc", 3, "abc"},
+		{"abcd", 3, "abc"},
+	} {
+		if got := fit(c.in, c.width); got != c.want {
+			t.Errorf("fit(%q, %d) = %q, want %q", c.in, c.width, got, c.want)
+		}
+	}
+}
+
+// A wide label must not push the value column: columns are filled to the
+// same number of cells, not runes.
+func TestPadFillsToCells(t *testing.T) {
+	for _, c := range []struct {
+		in    string
+		width int
+		want  string
+	}{
+		{"ab", 4, "ab  "},
+		{"日本", 6, "日本  "},
+		{"é", 2, "é "},
+		{"toolong", 3, "toolong"},
+	} {
+		if got := pad(c.in, c.width); got != c.want {
+			t.Errorf("pad(%q, %d) = %q, want %q", c.in, c.width, got, c.want)
+		}
+	}
+}
+
 func TestFitLeavesALineAloneWhenTheWidthIsUnknown(t *testing.T) {
 	if got := fit("abc", 0); got != "abc" {
 		t.Fatalf("%q", got)

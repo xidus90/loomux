@@ -1,8 +1,10 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
+	"unicode"
+
+	"golang.org/x/text/width"
 )
 
 const (
@@ -95,7 +97,7 @@ func draw(t Terminal, title string, rows []Row, visible []int, cursor int, filte
 	top := windowTop(rows, visible, cursor, room)
 	lines = append(lines, layout(rows, visible, top, cursor, room, width, func(i int) string {
 		r := rows[i]
-		return fmt.Sprintf("  %-28s %-24s %s", r.Label, r.Value, r.Note)
+		return "  " + pad(r.Label, 28) + " " + pad(r.Value, 24) + " " + r.Note
 	})...)
 	_, _ = t.Write([]byte(clearScreen + strings.Join(lines, eol)))
 }
@@ -148,10 +150,40 @@ func windowTop(rows []Row, visible []int, cursor, room int) int {
 	return top
 }
 
-// fit cuts s to width runes so a line never wraps.
+// fit cuts s to width terminal cells so a line never wraps.
 func fit(s string, width int) string {
-	if rs := []rune(s); width > 0 && len(rs) > width {
-		return string(rs[:width])
+	if width <= 0 {
+		return s
+	}
+	used := 0
+	for i, r := range s {
+		if used += cells(r); used > width {
+			return s[:i]
+		}
 	}
 	return s
+}
+
+// pad fills s with blanks to width terminal cells, the way %-*s would if it
+// counted cells rather than runes; a longer s stays as it is.
+func pad(s string, width int) string {
+	used := 0
+	for _, r := range s {
+		used += cells(r)
+	}
+	return s + strings.Repeat(" ", max(width-used, 0))
+}
+
+// cells is the terminal columns r takes: two for an East Asian wide or
+// fullwidth character, none for a combining mark or a format character,
+// one otherwise.
+func cells(r rune) int {
+	if unicode.In(r, unicode.Mn, unicode.Me, unicode.Cf) {
+		return 0
+	}
+	switch width.LookupRune(r).Kind() {
+	case width.EastAsianWide, width.EastAsianFullwidth:
+		return 2
+	}
+	return 1
 }
