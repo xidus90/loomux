@@ -256,7 +256,7 @@ Für Antigravity werden die Hooks in `.agents/hooks.json` eingetragen:
 {
   "loomux": {
     "PreInvocation": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook session-start --host antigravity --root ..", "timeout": 20}],
-    "PreToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..", "timeout": 15}]}],
+    "PreToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input|manage_task", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..", "timeout": 15}]}],
     "PostToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..", "timeout": 60}]}],
     "Stop": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook stop --host antigravity --root .. --budget 270s", "timeout": 300}]
   }

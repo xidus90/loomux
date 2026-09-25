@@ -130,24 +130,37 @@ func manifestWriteSource() string {
 // names that line may stand under; all of them are judged, for WriteTargets'
 // reason. Antigravity's run_command sends CommandLine (measured with agy
 // 1.2.11 on 2026-09-25); the other two are the spellings agy.exe carries.
-// send_command_input types a line into a shell run_command left open, and
-// its argument name is not measured: Input is the guess, and a call without
-// it is refused like a run_command without its line.
+// agy 1.2.11 types a line into a task run_command left open with
+// manage_task, Action send_input and the line under Input (measured on
+// 2026-09-25). send_command_input is the older tool for the same, which
+// agy.exe still carries; its argument name is not measured, Input is the
+// guess. A call without its line is refused like a run_command without one.
 var commandTools = map[string][]string{
 	"Bash":               {"command"},
 	"PowerShell":         {"command"},
 	"run_command":        {"CommandLine", "commandLine", "command_line"},
 	"send_command_input": {"Input", "input"},
+	"manage_task":        {"Input"},
 }
 
 // judgedOrRefused are the command tools whose call is refused when it carries
 // none of its lines: Antigravity's, whose argument names are not all known.
-var judgedOrRefused = map[string]bool{"run_command": true, "send_command_input": true}
+var judgedOrRefused = map[string]bool{"run_command": true, "send_command_input": true, "manage_task": true}
+
+// quietActions names, for a tool that does more than run a line, the
+// Actions whose calls carry none: manage_task's schema in agy 1.2.11 names
+// list, status, kill and send_input. Every other Action, one the schema does
+// not name or none at all, is judged, so that a spelling the guard does not
+// know cannot carry a line past it.
+var quietActions = map[string][]string{"manage_task": {"list", "status", "kill"}}
 
 // commandLines is every shell line a call to one of commandTools carries.
 // A call that carries none is answered with ok false: a line the guard
 // cannot find would switch off every command rule without a word.
 func commandLines(tool string, input map[string]any) (lines []string, ok bool) {
+	if action, named := input["Action"].(string); named && slices.Contains(quietActions[tool], action) {
+		return nil, true
+	}
 	for _, key := range commandTools[tool] {
 		if line, present := input[key].(string); present {
 			lines = append(lines, line)

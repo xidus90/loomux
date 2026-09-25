@@ -194,6 +194,36 @@ func TestGitPushIsRefusedOnRunCommand(t *testing.T) {
 	}
 }
 
+// agy 1.2.11 types into a task run_command left open with manage_task,
+// Action send_input and the line under Input (measured 2026-09-25): that line
+// is judged. list, status and kill carry none and pass; any other Action,
+// or none, is judged, so one without Input is refused.
+func TestManageTaskSendInputIsJudgedByTheCommandRules(t *testing.T) {
+	root := t.TempDir()
+	const push = "Whether commits reach the remote is a human's decision."
+	send := map[string]any{"Action": "send_input", "Input": "git push origin main\n", "TaskId": "c/task-6"}
+	if reasons := checkTool(root, "manage_task", send, config.Policy{}); len(reasons) != 1 || reasons[0] != push {
+		t.Fatalf("send_input: reasons %v", reasons)
+	}
+	for _, action := range []string{"kill", "list", "status"} {
+		quiet := map[string]any{"Action": action, "TaskId": "c/task-2"}
+		if reasons := checkTool(root, "manage_task", quiet, config.Policy{}); len(reasons) != 0 {
+			t.Fatalf("%s: reasons %v, want none", action, reasons)
+		}
+	}
+	// An action agy's schema does not name may carry a line all the same.
+	other := map[string]any{"Action": "sendInput", "Input": "git push origin main\n"}
+	if reasons := checkTool(root, "manage_task", other, config.Policy{}); len(reasons) != 1 || reasons[0] != push {
+		t.Fatalf("sendInput: reasons %v", reasons)
+	}
+	for _, input := range []map[string]any{{"Action": "send_input"}, {"TaskId": "c/task-6", "Text": "git push"}} {
+		reasons := checkTool(root, "manage_task", input, config.Policy{})
+		if len(reasons) != 1 || !strings.Contains(reasons[0], "no command line in this manage_task call") {
+			t.Fatalf("%v: reasons %v", input, reasons)
+		}
+	}
+}
+
 // A run_command whose line stands under a name the guard does not know is
 // refused, not waved through; a Bash call without a command stays unjudged,
 // as it was.

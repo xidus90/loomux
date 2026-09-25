@@ -1231,12 +1231,15 @@ durch einen Menschen, der das prüft, steht noch aus.
   `write_to_file|replace_file_content|multi_replace_file_content|run_command`
   (15 s), `PostToolUse` auf die drei schreibenden Werkzeuge (60 s) und
   `Stop` mit `--budget 270s` (300 s); `PreToolUse` trifft auch
-  `send_command_input`. `PreInvocation` und `Stop` stehen als flache Liste
-  von Handlern, die Werkzeug-Ereignisse als Block mit `matcher` und `hooks`:
-  agy 1.2.11 verwirft sonst die ganze Datei. Ein `run_command` oder
-  `send_command_input` wird nach denselben Befehlsregeln beurteilt wie
+  `send_command_input` und `manage_task`. `PreInvocation` und `Stop` stehen
+  als flache Liste von Handlern, die Werkzeug-Ereignisse als Block mit
+  `matcher` und `hooks`: agy 1.2.11 verwirft sonst die ganze Datei. Ein
+  `run_command`, ein `send_command_input` und ein `manage_task`, das einer
+  Aufgabe Eingabe schickt, werden nach denselben Befehlsregeln beurteilt wie
   `Bash`; eines, in dem der Wächter keine Befehlszeile findet, wird
-  verweigert. Dazu kommen die Skills unter
+  verweigert. Ein Eintrag von vor `manage_task` im Matcher bleibt stehen und
+  wird in einer Notiz genannt; `|manage_task` ergänzt man von Hand. Dazu
+  kommen die Skills unter
   `.agents/skills/<name>/SKILL.md`, dieselben
   Texte wie Claude Code. agy führt einen Hook über `cmd.exe` aus
   `.agents/` aus: Es löst `%LOCALAPPDATA%` auf, lässt `${LOCALAPPDATA}`

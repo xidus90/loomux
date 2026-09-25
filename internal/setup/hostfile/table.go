@@ -60,7 +60,7 @@ func Entries(host hosts.Host, binary string) []Entry {
 		}
 		return []Entry{
 			{Event: "PreInvocation", Command: hook("session-start"), Timeout: 20, Flat: true},
-			{Event: "PreToolUse", Matcher: writers + "|run_command|send_command_input", Command: hook("pre-tool-use"), Timeout: 15},
+			{Event: "PreToolUse", Matcher: writers + "|run_command|send_command_input|manage_task", Command: hook("pre-tool-use"), Timeout: 15},
 			{Event: "PostToolUse", Matcher: writers, Command: hook("post-tool-use"), Timeout: 60},
 			{Event: "Stop", Command: hook("stop") + " --budget 270s", Timeout: 300, Flat: true},
 		}

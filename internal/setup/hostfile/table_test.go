@@ -36,7 +36,7 @@ func TestAntigravityEntriesCallTheInstalledBinaryThroughCmd(t *testing.T) {
 	}
 	want := []Entry{
 		{Event: "PreInvocation", Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook session-start --host antigravity --root ..", Timeout: 20, Flat: true},
-		{Event: "PreToolUse", Matcher: "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input",
+		{Event: "PreToolUse", Matcher: "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input|manage_task",
 			Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..", Timeout: 15},
 		{Event: "PostToolUse", Matcher: "write_to_file|replace_file_content|multi_replace_file_content",
 			Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..", Timeout: 60},
