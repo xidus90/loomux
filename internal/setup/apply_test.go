@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xidus90/loomux/internal/setup/hostfile"
 )
 
 var applyTime = time.Date(2026, 9, 24, 18, 0, 0, 0, time.UTC)
@@ -98,7 +100,7 @@ func TestAMissingBinaryDropsWhatCallsIt(t *testing.T) {
 	if want := []string{"binary-install", "area-add", "graph-build"}; !slices.Equal(order, want) {
 		t.Errorf("order = %v, want %v", order, want)
 	}
-	for _, rel := range []string{".claude/settings.json", ".githooks/pre-commit", ".githooks/pre-push", ".githooks/commit-msg"} {
+	for _, rel := range []string{".claude/settings.json", ".githooks/pre-commit", ".githooks/pre-push", ".githooks/commit-msg", mcpPath} {
 		if exists(root, rel) {
 			t.Errorf("%s written without a binary", rel)
 		}
@@ -108,7 +110,7 @@ func TestAMissingBinaryDropsWhatCallsIt(t *testing.T) {
 			t.Errorf("%s not written", rel)
 		}
 	}
-	for _, id := range []string{"binary-install", ".claude/settings.json", ".githooks/pre-commit", "hooks-path", "merge-hook"} {
+	for _, id := range []string{"binary-install", ".claude/settings.json", ".githooks/pre-commit", "hooks-path", "merge-hook", mcpPath} {
 		if !slices.Contains(r.Failed, id) {
 			t.Errorf("failed = %v, lacks %s", r.Failed, id)
 		}
@@ -399,5 +401,35 @@ func TestTheMergeHookIsJudgedByTheInstalledBinaryAlone(t *testing.T) {
 	ran = nil
 	if r, err := Apply(root, p, Choice{}, all, run, missing, "1", applyTime); err != nil || len(ran) != 0 || !slices.Equal(r.Failed, []string{"merge-hook"}) {
 		t.Errorf("ran %v, report %+v, err %v", ran, r, err)
+	}
+}
+
+// .mcp.json calls the installed binary whichever binary the entries call,
+// so a checkout's bin/loomux.exe does not keep it.
+func TestMCPJSONIsJudgedByTheInstalledBinaryAlone(t *testing.T) {
+	root := world(t, nil)
+	p := Plan{Changes: []Change{{Part: "mcp-json", Path: mcpPath, After: "{}\n", Binary: hostfile.Canonical}}}
+	r, err := Apply(root, p, Choice{}, all, nil, there, "1", applyTime)
+	if err != nil || exists(root, mcpPath) || !slices.Contains(r.Failed, mcpPath) {
+		t.Errorf("err %v, written %v, failed %v; want .mcp.json dropped", err, exists(root, mcpPath), r.Failed)
+	}
+	installBinary(t)
+	if r, err := Apply(root, p, Choice{}, all, nil, func() bool { return false }, "1", applyTime); err != nil || !exists(root, mcpPath) {
+		t.Errorf("err %v, report %+v; want .mcp.json written beside the installed binary", err, r)
+	}
+}
+
+// A file calling the checkout's bin/loomux.exe goes with that binary, which
+// binaryThere reports, not with the installed one.
+func TestACheckoutFileIsJudgedByTheCheckoutBinary(t *testing.T) {
+	root := world(t, nil)
+	installBinary(t)
+	p := Plan{Changes: []Change{{Part: "host-entries", Path: ".claude/settings.json", After: "{}\n", Binary: hostfile.Checkout}}}
+	r, err := Apply(root, p, Choice{}, all, nil, func() bool { return false }, "1", applyTime)
+	if err != nil || exists(root, ".claude/settings.json") || !slices.Contains(r.Failed, ".claude/settings.json") {
+		t.Errorf("err %v, report %+v; want the entries dropped without bin/loomux.exe", err, r)
+	}
+	if _, err := Apply(root, p, Choice{}, all, nil, there, "1", applyTime); err != nil || !exists(root, ".claude/settings.json") {
+		t.Errorf("err %v; want the entries written beside bin/loomux.exe", err)
 	}
 }
