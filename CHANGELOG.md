@@ -4,6 +4,29 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] - 2026-09-25
+
+<https://github.com/xidus90/loomux/pull/42>
+
+### Added
+- `loomux config set` and the interactive form take a list item in double quotes, as a TOML string: `"a,b", c` is two items and `""` an empty one.
+### Changed
+- `loomux config` refuses a flag its subcommand does not take with exit code 2, where it used to ignore it: `--yes` on `get`, `list`, `proposals` and `reject`, `--json` outside `list` and `proposals`, `--propose` outside `set` and `unset`, `--all` outside `apply` and `reject`.
+- `loomux config` takes `--root` and `--global` before the subcommand as well as after it.
+- `loomux config list` cuts a value longer than 60 characters and ends it with `…`; `get` and `--json` still give it whole.
+- `loomux merge-hook status` adds `: another hook` to the path when someone else's post-merge hook stands where loomux's would go.
+### Fixed
+- `loomux config set`, `unset` and `apply` take `yes` as a confirmation, not only `y`.
+- A stray comma in a typed list no longer adds an empty item.
+- `loomux config unset` no longer leaves a section's comments behind under the section above when it removes the section's last key.
+- `loomux init` no longer keeps a module on when a human takes the offered `none`; a module that runs without a part set up now is offered as `each`.
+- `loomux init --yes` no longer registers an area under a scope with blanks from the directory name; blanks become `-`.
+- `loomux init --yes` in a directory whose name leaves nothing (blanks alone, a volume root) uses the scope `project/root` instead of an empty segment.
+- Full-screen lists no longer wrap lines of wide characters, and their columns stay aligned.
+- `loomux merge-hook` tells two repositories apart on Linux whose paths differ only in case.
+- `loomux init` on Linux no longer takes a state directory that differs from `$LOCALAPPDATA/loomux` only in case for the place of the installed binary.
+- The guard lets an agent run `loomux config --root <dir> list` and other reads or `--propose` calls that name `--root` or `--global` before the subcommand; writes stay refused.
+
 ## [2.14.2] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/41>
