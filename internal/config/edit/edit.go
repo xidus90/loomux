@@ -323,14 +323,32 @@ func Remove(text, section, key string) (string, error) {
 		}
 	}
 	if keys == 0 && len(headers) == 1 {
-		h := headers[0].first
-		start := h
-		if start > 0 && strings.TrimSpace(lines[start-1]) == "" {
-			start--
-		}
-		lines = append(lines[:start], lines[h+1:]...)
+		lines = dropEmptySection(lines, headers[0].first)
 	}
 	return join(bom, lines, eol), nil
+}
+
+// dropEmptySection takes the header at h out with the blank lines of its
+// section, and a blank line above it. A section that still holds a comment
+// keeps its header: without it the comment would read as one of the section
+// above. Where both a blank line above and one inside go, one stays to part
+// what comes before from the next header.
+func dropEmptySection(lines []string, h int) []string {
+	f := forms()
+	end := h + 1
+	for ; end < len(lines) && !f.header.MatchString(lines[end]) && !f.listHeader.MatchString(lines[end]); end++ {
+		if strings.TrimSpace(lines[end]) != "" {
+			return lines
+		}
+	}
+	start := h
+	if start > 0 && strings.TrimSpace(lines[start-1]) == "" {
+		start--
+		if end > h+1 && end < len(lines) {
+			end--
+		}
+	}
+	return append(lines[:start], lines[end:]...)
 }
 
 // AppendBlock adds one [[section]] entry at the end.

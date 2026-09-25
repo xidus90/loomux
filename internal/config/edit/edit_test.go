@@ -336,6 +336,22 @@ func TestRemoveKeepsTheLineBeforeAnEmptiedSection(t *testing.T) {
 	}
 }
 
+// TestRemoveKeepsAHeaderThatStillHoldsComments: without its header a
+// comment in the section would read as one of the section above.
+func TestRemoveKeepsAHeaderThatStillHoldsComments(t *testing.T) {
+	for in, want := range map[string]string{
+		"[commit]\nlanguage = \"de\"\n\n[verify]\n# a note\nbudget = 5\n":                "[commit]\nlanguage = \"de\"\n\n[verify]\n# a note\n",
+		"[verify]\nbudget = 5\n# trailing note\n\n[commit]\nlanguage = \"de\"\n":         "[verify]\n# trailing note\n\n[commit]\nlanguage = \"de\"\n",
+		"[commit]\nlanguage = \"de\"\n\n[verify]\nbudget = 5\n\n[area]\nscope = \"s\"\n": "[commit]\nlanguage = \"de\"\n\n[area]\nscope = \"s\"\n",
+		"[verify]\n\nbudget = 5\n\n": "",
+	} {
+		got, err := Remove(in, "verify", "budget")
+		if err != nil || got != want {
+			t.Errorf("Remove(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+}
+
 // TestRemoveTakesATopLevelKey: a key above every header has no header to
 // drop with it.
 func TestRemoveTakesATopLevelKey(t *testing.T) {
