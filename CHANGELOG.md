@@ -4,6 +4,17 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [2.13.0] - 2026-09-25
+
+<https://github.com/xidus90/loomux/pull/36>
+
+### Added
+- `loomux init`: set up a project interactively or with `--yes`, preview with `--dry-run`, inspect with `--detect-only`; choose modules and parts with `--hooks`, `--brain`, `--graph` and hosts with `--hosts`.
+- `loomux merge-hook install|status|remove|record`: record merges on an area's branch for `reconcile`, through a post-merge hook that works in every clone; `install` and `remove` are for humans, the guard refuses them to agents.
+- A multi-select in the full-screen terminal forms.
+### Fixed
+- A `core.hooksPath` starting with `~` is now read the way git expands it.
+
 ## [2.12.1] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/28>
