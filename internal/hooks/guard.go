@@ -126,8 +126,35 @@ func manifestWriteSource() string {
 	return `(?i)` + strings.Join(forms, "|")
 }
 
-// commandTools are the tools whose "command" argument is a shell line.
-var commandTools = map[string]bool{"Bash": true, "PowerShell": true}
+// commandTools are the tools that run a shell line, each with the argument
+// names that line may stand under; all of them are judged, for WriteTargets'
+// reason. Antigravity's run_command sends CommandLine (measured with agy
+// 1.2.11 on 2026-09-25); the other two are the spellings agy.exe carries.
+// send_command_input types a line into a shell run_command left open, and
+// its argument name is not measured: Input is the guess, and a call without
+// it is refused like a run_command without its line.
+var commandTools = map[string][]string{
+	"Bash":               {"command"},
+	"PowerShell":         {"command"},
+	"run_command":        {"CommandLine", "commandLine", "command_line"},
+	"send_command_input": {"Input", "input"},
+}
+
+// judgedOrRefused are the command tools whose call is refused when it carries
+// none of its lines: Antigravity's, whose argument names are not all known.
+var judgedOrRefused = map[string]bool{"run_command": true, "send_command_input": true}
+
+// commandLines is every shell line a call to one of commandTools carries.
+// A call that carries none is answered with ok false: a line the guard
+// cannot find would switch off every command rule without a word.
+func commandLines(tool string, input map[string]any) (lines []string, ok bool) {
+	for _, key := range commandTools[tool] {
+		if line, present := input[key].(string); present {
+			lines = append(lines, line)
+		}
+	}
+	return lines, len(lines) > 0
+}
 
 // matchGlob matches a slash-separated path against a glob pattern supporting
 // `**`, and answers an error for a pattern it cannot read.
@@ -213,8 +240,12 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 			}
 		}
 	}
-	if commandTools[tool] {
-		if line, ok := input["command"].(string); ok {
+	if _, shell := commandTools[tool]; shell {
+		lines, ok := commandLines(tool, input)
+		if !ok && judgedOrRefused[tool] {
+			reasons = append(reasons, "loomux found no command line in this "+tool+" call, so it cannot judge it and refuses")
+		}
+		for _, line := range lines {
 			for _, rule := range append(builtinCommands(), policy.Commands...) {
 				if rule.Regex.MatchString(line) {
 					reasons = append(reasons, rule.Reason)

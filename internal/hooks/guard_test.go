@@ -177,6 +177,39 @@ func TestGitPushIsRefusedOnBashAndPowerShell(t *testing.T) {
 	}
 }
 
+// Antigravity's run_command is judged by the same command rules, under every
+// spelling of its argument that agy.exe carries.
+func TestGitPushIsRefusedOnRunCommand(t *testing.T) {
+	root := t.TempDir()
+	for tool, keys := range map[string][]string{
+		"run_command":        {"CommandLine", "commandLine", "command_line"},
+		"send_command_input": {"Input", "input"},
+	} {
+		for _, key := range keys {
+			reasons := checkTool(root, tool, map[string]any{key: "git push origin main"}, config.Policy{})
+			if len(reasons) != 1 || reasons[0] != "Whether commits reach the remote is a human's decision." {
+				t.Fatalf("[%s %s] reasons %v", tool, key, reasons)
+			}
+		}
+	}
+}
+
+// A run_command whose line stands under a name the guard does not know is
+// refused, not waved through; a Bash call without a command stays unjudged,
+// as it was.
+func TestARunCommandWithoutALineIsRefused(t *testing.T) {
+	root := t.TempDir()
+	for _, tool := range []string{"run_command", "send_command_input"} {
+		reasons := checkTool(root, tool, map[string]any{"Cmd": "git push"}, config.Policy{})
+		if len(reasons) != 1 || !strings.Contains(reasons[0], "no command line in this "+tool+" call") {
+			t.Fatalf("[%s] reasons %v", tool, reasons)
+		}
+	}
+	if reasons := checkTool(root, "Bash", map[string]any{}, config.Policy{}); len(reasons) != 0 {
+		t.Fatalf("Bash reasons %v, want none", reasons)
+	}
+}
+
 // The manifest is refused to a shell line that writes it on the same terms as
 // to a writing tool, and left alone by one that only reads it. The allowed
 // lines are the ones a careless expression would refuse: a copy *from* the
