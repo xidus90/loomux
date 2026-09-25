@@ -4,7 +4,7 @@
 
 **Goal:** Vollständige Implementierung und Aktivierung der Antigravity-Lebenszyklus-Hooks (`PreInvocation`, `PreToolUse`, `PostToolUse`, `Stop`) im Loomux-Go-Binary inklusive 100 % Testabdeckung und Bereitstellung von `.agents/hooks.json`.
 
-**Architecture:** Antigravity verlangt Exit-Code 0 bei geordneter Signalisierung und JSON auf `stdout` (`injectSteps` für Kontext, `decision: continue` für Stop-Tor-Blockaden); nur `pre-tool-use` behält Exit 2. Die Abbildung leistet ein Adapter `hosts.Answer`, den `loomux hook` einmal für jeden Austrittspfad ruft (Task 5). Da `PostToolUse` bei Antigravity keine Tool-Argumente liefert, puffert `PreToolUse` erlaubte Dateiänderungen temporär im Sitzungs-State ab. `internal/setup/hostfile` stellt alle 4 Einträge im Namensraum `loomux` bereit.
+**Architecture:** Antigravity verlangt Exit-Code 0 bei geordneter Signalisierung und JSON auf `stdout` (`injectSteps` für Kontext, `decision: continue` für Stop-Tor-Blockaden); nur `pre-tool-use` behält Exit 2. Die Abbildung leistet ein Adapter `hosts.Answer`, den `loomux hook` einmal für jeden Austrittspfad ruft (Task 5); Post-Edit liest das Ziel aus dem `toolCall` des PostToolUse (Task 6). Da `PostToolUse` bei Antigravity keine Tool-Argumente liefert, puffert `PreToolUse` erlaubte Dateiänderungen temporär im Sitzungs-State ab. `internal/setup/hostfile` stellt alle 4 Einträge im Namensraum `loomux` bereit.
 
 **Tech Stack:** Go (Standard-Bibliothek `encoding/json`, `io`, `os`), Antigravity ProtoJSON Hook-Protokoll, Loomux Verifikationskette.
 
@@ -122,4 +122,23 @@ Das Review fand an Task 2 und 3 Lücken; Task 2 ist dabei ersetzt worden.
 - [x] **Step 3: Pufferung je Aufruf, Abruf aller Ziele eines Schritts, auch bei `error`**
 - [x] **Step 4: Tests, 100 % je Funktion, Gate**
 - [x] **Step 5: Doku**
-- [ ] **Step 6 (Mensch): die Probe aus `parity/stufe-4a-2.md` mit einem laufenden agy**
+- [x] **Step 6 (Mensch): die Probe aus `parity/stufe-4a-2.md` mit einem laufenden agy** (lief 2026-09-25 mit agy 1.2.11)
+
+---
+
+### Task 6: Umbau nach der Probe mit agy 1.2.11
+
+**Files:**
+- Modify: `internal/setup/hostfile/{table,merge}.go` und Tests, `.agents/hooks.json` (flache `Stop`/`PreInvocation`, `send_command_input` im Matcher)
+- Delete: `internal/sessions/pending.go`, `internal/sessions/pending_test.go`
+- Modify: `internal/hooks/{pretool,post_edit,guard,hook_session_start}.go` und Tests
+- Modify: `internal/hosts/{answer,antigravity,hostio}.go` und Tests, `internal/cli/hook.go` und Tests
+- Docs: Fusions-Spec #23, diese Spec, `docs/{en,de}/{migration,cli-reference,getting-started,hooks}.md`, beide READMEs, `parity/stufe-4a-2.md`
+
+- [x] **Step 1: flache Form für `Stop` und `PreInvocation` (`Entry.Flat`)**
+- [x] **Step 2: Post-Edit liest `toolCall`; die Ablage entfällt**
+- [x] **Step 3: `post-tool-use` behält Exit 2 unter agy; unbekanntes Ereignis bleibt 2; Panik über den Adapter**
+- [x] **Step 4: `send_command_input` durch die Befehlsregeln**
+- [x] **Step 5: `session-start` meldet sich nur beim ersten `invocationNum`**
+- [x] **Step 6: Budget 0 bleibt unbegrenzt**
+- [x] **Step 7: Doku, Gate**

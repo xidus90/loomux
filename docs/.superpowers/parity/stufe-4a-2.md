@@ -614,31 +614,66 @@ Nutzlast wird für Policy und Ablage einmal dekodiert; `hosts.AntigravityStep`
 und `writeAntigravityContext` statt Doppelungen; `docs/{en,de}/hooks.md`
 nachgezogen. Im Bereich 52c889e7..6e584810 und dort gemeldet: Sonderzeichen
 in `LOCALAPPDATA`, die Tests hinter `world()`, ungefaltete Folge-Commits.
-**Offen:** `init` prüft nur, dass das installierte Binary steht, nicht seine
-Version; mit dem installierten 2.11.1 endet `session-start --host antigravity`
-mit Exit 1 und agy bricht ab, bis ein Release mit diesem Zweig installiert
-ist. Das betrifft auch die eingecheckte `.agents/hooks.json` dieses Repos.
+**Offen war:** `init` prüfte nur, dass das installierte Binary steht, nicht
+seine Version; mit dem installierten 2.11.1 endet `session-start --host
+antigravity` mit Exit 1 und agy bricht ab, bis ein Release mit diesem Zweig
+installiert ist. `init` plant die Einträge jetzt nur noch für ein
+installiertes Binary, das mindestens so neu ist wie es selbst (Nacharbeit
+vom 2026-09-25). Die eingecheckte `.agents/hooks.json` dieses Repos betrifft
+das weiterhin, bis ein solches Release installiert ist.
 
-**Ungemessen, deshalb offen:** die Antwort `decision: continue` auf Stop, die
-Antwort `injectSteps` auf einen roten Post-Edit, ob Pre und Post eines
-Aufrufs denselben `stepIdx` tragen, welchen Argumentnamen `run_command`
-sendet, was zwei parallele Schreibaufrufe eines Schritts melden. Eine Probe
-mit einem laufenden agy klärt alle fünf; der Agent darf sie nicht starten
-(der Auto-Modus verweigert das Starten eines Agenten). Vorbereitet unter
-`C:\Users\micro\agy-probe-2026-09-25` (vertraut, weil unter `C:\Users\micro`):
-`.agents/hooks.json` hängt `log.cmd` an `PreToolUse`, `PostToolUse` und
-`Stop`; `log.cmd`
-schreibt jede Nutzlast nach `log.txt`, antwortet auf den ersten Stop mit
-`continue` und, solange die Datei `postfail` liegt, auf ein Post-Edit mit
-Exit 2. Vom Menschen auszuführen, einmal ohne und einmal mit `postfail`:
+**Inzwischen gemessen** (siehe „Probe mit agy 1.2.11, 2026-09-25“ unten):
+die Antwort `decision: continue` auf Stop, ob Pre und Post eines Aufrufs
+denselben `stepIdx` tragen, welchen Argumentnamen `run_command` sendet, was
+zwei parallele Schreibaufrufe eines Schritts melden und was agy nach einem
+Exit 2 eines Post-Hooks tut. Ungemessen bleibt nur die Antwort
+`injectSteps` auf einen roten Post-Edit. Die Probe lief, vom Menschen
+gestartet (der Auto-Modus verweigert dem Agenten das Starten eines
+Agenten), unter `C:\Users\micro\agy-probe-2026-09-25` (vertraut, weil unter
+`C:\Users\micro`): `.agents/hooks.json` hängt `log.cmd` an `PreToolUse`,
+`PostToolUse` und `Stop`; `log.cmd` schreibt jede Nutzlast nach `log.txt`,
+antwortet auf den ersten Stop mit `continue` und, solange die Datei
+`postfail` liegt, auf ein Post-Edit mit Exit 2. Einmal ohne und einmal mit
+`postfail`:
 
 ```sh
 cd /c/Users/micro/agy-probe-2026-09-25 && agy -p "In one single step, call write_to_file twice in parallel: create a.txt containing A and b.txt containing B. Then run the shell command 'echo hello' with run_command. Then stop." --add-dir "C:\Users\micro\agy-probe-2026-09-25" --dangerously-skip-permissions --print-timeout 280s; cat log.txt
 ```
 
-Zu lesen: `stepIdx` der `pre`- und `post`-Zeilen je Datei, die Argumente
-von `run_command`, ob nach dem ersten `stop` eine `stopped.txt` entstand,
-und was agy nach dem Exit 2 von `post` tat.
+### Probe mit agy 1.2.11, 2026-09-25
+
+Gemessen mit dem Aufbau oben.
+
+| Frage | Befund |
+|---|---|
+| Version | agy hat sich im Lauf des Tages selbst von 1.2.8 auf 1.2.11 aktualisiert. |
+| Form von `hooks.json` | 1.2.11 verwirft die ganze Datei, wenn `Stop` oder `PreInvocation` die gruppierte Form `{"hooks":[…]}` nutzen („command hook must specify 'command'“). Laut dem eingebetteten Hook-Leitfaden von agy sind `PreToolUse`/`PostToolUse` gruppiert, `PreInvocation`/`PostInvocation`/`Stop` flach. |
+| Arbeitsverzeichnis eines Hooks | `.agents/`; ein nackter relativer Befehl wird nicht gefunden, ein absoluter schon. |
+| `stepIdx` | Pre und Post eines Aufrufs tragen denselben; zwei parallele `write_to_file`-Aufrufe bekommen je einen eigenen. |
+| Nutzlast von `PostToolUse` | stdin trägt `toolCall` mit Name und Argumenten (entgegen dem Leitfaden). |
+| Argumente von `run_command` | `CommandLine`. |
+| Stop mit `{"decision":"continue","reason":…}` | agy macht weiter und erledigt die Aufgabe aus `reason`. |
+| Post-Hook mit Exit 2 und stderr | bricht agy nicht ab; das Modell sieht den Text als Warnung. |
+
+### Umbau nach der Probe, 2026-09-25
+
+- `Stop` und `PreInvocation` stehen flach in `.agents/hooks.json`
+  (`Entry.Flat`); ein zweiter Lauf erkennt die flachen Handler als eigene.
+  Vorher verwarf agy 1.2.11 die ganze Datei, der Wächter lud nicht.
+- Post-Edit liest die Ziele aus dem `toolCall` des PostToolUse; die Ablage
+  unter `pending/` samt `bufferPendingEdits` ist entfernt. Damit fallen auch
+  die Fragen nach gleichem `stepIdx` und parallelen Aufrufen weg.
+- `post-tool-use` behält unter agy seinen Exit 2 (gemessen: Warnung, kein
+  Abbruch); die nie gemessene `injectSteps`-Antwort, die PostToolUse laut
+  Leitfaden gar nicht kennt, ist weg.
+- `send_command_input` steht im Matcher und in den Befehlsregeln, Argument
+  `Input` ungemessen; ohne erkennbare Zeile wird verweigert.
+- `session-start` meldet sich unter `PreInvocation` nur beim ersten
+  `invocationNum` (ob die Zählung bei 0 oder 1 beginnt, ist ungemessen).
+- Ein unbekanntes Ereignis bleibt Exit 2 auch unter agy; eine Panik läuft
+  über den Adapter; ein Budget 0 bleibt für jede Datei unbegrenzt.
+- Offen: eine erneute Probe mit diesem Stand (flache Datei geladen, Wächter
+  sperrt, Post-Edit prüft aus `toolCall`).
 
 ## Offen
 

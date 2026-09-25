@@ -355,10 +355,11 @@ there and which is not.
 it names under `file_path`, `notebook_path`, `TargetFile` or `target_file`; all
 of them are judged, not the first one found. `Bash` and `PowerShell` yield
 their `command`, and Antigravity's `run_command` its command line under
-`CommandLine`, `commandLine` or `command_line` — the three spellings agy.exe
-carries, all of them judged; which one agy sends is not measured, so a
-`run_command` carrying none of them is refused. What a tool writes into a
-file is not judged.
+`CommandLine` (measured with agy 1.2.11; `commandLine` and `command_line`,
+the other spellings agy.exe carries, are judged too). `send_command_input`,
+which types into a shell `run_command` left open, yields `Input`, a name that
+is not measured. A `run_command` or `send_command_input` carrying none of its
+names is refused. What a tool writes into a file is not judged.
 
 **Paths are compared relative to the root.** A pattern without a slash
 (`*.pem`, `go.sum`) matches the base name; a pattern with one (`.aws/**`)
@@ -423,25 +424,24 @@ absolute before anything is judged against it.
 
 **Claude Code and Antigravity have adapters** for the hooks that read their
 payload through `internal/hosts`; `codex` is a seam that refuses with exit 1
-rather than guessing a shape (`internal/hosts/codex.go`). Antigravity reads
-every non-zero exit of a hook as a failed command and aborts, so `loomux hook`
-hands every answer to `hosts.Answer` once: for `--host antigravity` a held
-stop becomes `{"decision":"continue","reason":…}` on stdout, a red post-edit
-lane an `injectSteps` message, the reason being what the hook wrote to stderr,
-and every other code, a malformed call included, exit 0. `pre-tool-use` keeps
-its exit 2, which refuses the call under agy (measured 2026-09-25). The stop
-answer is read from agy's binary and the post-edit answer is not measured.
+rather than guessing a shape (`internal/hosts/codex.go`). `loomux hook`
+hands every answer, a panic included, to `hosts.Answer` once. For
+`--host antigravity` (measured with agy 1.2.8 and 1.2.11, 2026-09-25):
+`pre-tool-use`'s exit 2 refuses the call, `post-tool-use`'s exit 2 reaches
+the model as a warning without aborting, and a held stop becomes
+`{"decision":"continue","reason":…}` on stdout with exit 0, after which agy
+re-enters its loop; the reason is what the gate wrote to stderr. Every other
+non-zero code ends with 0. An unknown event stays exit 2 on every host.
+`session-start` runs on `PreInvocation`, which fires before every model call
+and counts them in `invocationNum`; only the first one announces.
 `subagent-start` and `subagent-stop` are not wired for Antigravity: its
 payloads carry no `agent_id`.
 
-Antigravity's `PostToolUse` names no file, only `conversationId`, `stepIdx`
-and `error`. So `pre-tool-use` files every target of an allowed write under
-`.loomux/state/hooks/<conversation>/pending/<step>/`, one file per call, and
-`post-tool-use` checks every filed target of its step that stands on disk,
-within one budget for them all. A failed call takes nothing, since a sibling
-of its step may still come for its file; any post-edit drops what earlier
-steps left. Nothing is filed while `[modules] hooks = false`. Whether both
-hooks of one call carry the same `stepIdx` is not measured.
+Antigravity's `PostToolUse` carries the call it follows, `toolCall` with its
+`args`, beside `stepIdx` and `error` (measured with agy 1.2.11; its hooks
+guide lists only the latter two). `post-tool-use` reads the targets from it
+as the guard does, checks each within one budget for them all, and checks
+nothing for a call whose `error` is set.
 
 Wired in `.claude/settings.json`, the three stage 2c hooks look like this
 (`loomux status` prints the `Stop` line, without the default `--budget`, and

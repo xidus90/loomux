@@ -370,10 +370,12 @@ genau die Schranke, die man für vorhanden hält und die es nicht ist.
 das es unter `file_path`, `notebook_path`, `TargetFile` oder `target_file`
 nennt; geprüft werden alle, nicht das erste gefundene. `Bash` und `PowerShell`
 liefern ihr `command`, Antigravitys `run_command` seine Befehlszeile unter
-`CommandLine`, `commandLine` oder `command_line` — den drei Schreibweisen,
-die agy.exe enthält, alle geprüft; welche agy sendet, ist ungemessen, deshalb
-wird ein `run_command` ohne eine davon verweigert. Was ein Werkzeug in eine
-Datei schreibt, wird nicht geprüft.
+`CommandLine` (gemessen mit agy 1.2.11; `commandLine` und `command_line`, die
+anderen Schreibweisen in agy.exe, werden mitgeprüft). `send_command_input`,
+das in eine offen gelassene Shell von `run_command` tippt, liefert `Input`,
+ein ungemessener Name. Ein `run_command` oder `send_command_input` ohne einen
+seiner Namen wird verweigert. Was ein Werkzeug in eine Datei schreibt, wird
+nicht geprüft.
 
 **Pfade werden relativ zur Wurzel verglichen.** Ein Muster ohne Schrägstrich
 (`*.pem`, `go.sum`) trifft den Dateinamen, eines mit Schrägstrich (`.aws/**`)
@@ -442,28 +444,25 @@ daran gemessen wird.
 
 **Claude Code und Antigravity haben Adapter** für die Hooks, die ihre
 Nutzlast über `internal/hosts` lesen; `codex` ist eine Naht, die mit Exit 1
-ablehnt, statt eine Form zu raten (`internal/hosts/codex.go`). Antigravity
-wertet jeden Exit ungleich 0 eines Hooks als gescheiterten Befehl und bricht
-ab, deshalb gibt `loomux hook` jede Antwort einmal an `hosts.Answer`: für
-`--host antigravity` wird ein gehaltener Stop zu
-`{"decision":"continue","reason":…}` auf stdout, eine rote Post-Edit-Spur zu
-einer `injectSteps`-Nachricht, der Grund ist, was der Hook nach stderr
-geschrieben hat, und jeder andere Code, ein fehlerhafter Aufruf eingeschlossen,
-zu Exit 0. `pre-tool-use` behält seinen Exit 2, der den Aufruf unter agy
-verweigert (gemessen 2026-09-25). Die Stop-Antwort ist aus dem Binary von agy
-gelesen, die Post-Edit-Antwort ungemessen. `subagent-start` und
+ablehnt, statt eine Form zu raten (`internal/hosts/codex.go`). `loomux hook`
+gibt jede Antwort, eine Panik eingeschlossen, einmal an `hosts.Answer`. Für
+`--host antigravity` (gemessen mit agy 1.2.8 und 1.2.11, 2026-09-25): Der
+Exit 2 von `pre-tool-use` verweigert den Aufruf, der Exit 2 von
+`post-tool-use` erreicht das Modell als Warnung, ohne abzubrechen, und ein
+gehaltener Stop wird zu `{"decision":"continue","reason":…}` auf stdout mit
+Exit 0, worauf agy erneut in seine Schleife eintritt; der Grund ist, was das
+Tor nach stderr geschrieben hat. Jeder andere Code ungleich 0 endet mit 0.
+Ein unbekanntes Ereignis bleibt auf jedem Wirt Exit 2. `session-start` läuft
+auf `PreInvocation`, das vor jedem Modellaufruf feuert und sie in
+`invocationNum` zählt; nur der erste meldet sich. `subagent-start` und
 `subagent-stop` sind für Antigravity nicht verdrahtet: seine Nutzlasten tragen
 keine `agent_id`.
 
-Das `PostToolUse` von Antigravity nennt keine Datei, nur `conversationId`,
-`stepIdx` und `error`. Deshalb legt `pre-tool-use` jedes Ziel eines erlaubten
-Schreibaufrufs unter `.loomux/state/hooks/<konversation>/pending/<schritt>/`
-ab, eine Datei je Aufruf, und `post-tool-use` prüft jedes abgelegte Ziel
-seines Schritts, das auf der Platte steht, in einem Budget für alle. Ein
-gescheiterter Aufruf nimmt nichts, denn ein Geschwister seines Schritts kann
-noch nach seiner Datei kommen; jedes Post-Edit verwirft, was frühere Schritte
-liegen ließen. Solange `[modules] hooks = false` gilt, wird nichts abgelegt.
-Ob beide Hooks eines Aufrufs denselben `stepIdx` tragen, ist ungemessen.
+Das `PostToolUse` von Antigravity trägt den Aufruf, dem es folgt, `toolCall`
+mit seinen `args`, neben `stepIdx` und `error` (gemessen mit agy 1.2.11; sein
+Hook-Leitfaden nennt nur die beiden letzten). `post-tool-use` liest die Ziele
+daraus wie der Wächter, prüft jedes in einem Budget für alle und prüft nichts
+für einen Aufruf, dessen `error` gesetzt ist.
 
 Eingetragen in `.claude/settings.json` sehen die drei Hooks der Stufe 2c so aus
 (`loomux status` druckt die `Stop`-Zeile, ohne das vorgegebene `--budget`, und
