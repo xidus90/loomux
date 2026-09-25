@@ -22,6 +22,7 @@ import (
 	"github.com/xidus90/loomux/internal/config/schema"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/hosts"
+	"github.com/xidus90/loomux/internal/pathkey"
 	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/setup"
 	"github.com/xidus90/loomux/internal/swap"
@@ -535,7 +536,7 @@ func (r *initRun) sub(args ...string) error {
 // will look for it.
 func installStep() error {
 	local := os.Getenv("LOCALAPPDATA")
-	if local == "" || !samePlace(config.StateDir(), filepath.Join(local, "loomux")) {
+	if local == "" || !pathkey.Same(config.StateDir(), filepath.Join(local, "loomux")) {
 		return errors.New(movedStateDir)
 	}
 	res := installBinary(context.Background())
@@ -546,9 +547,4 @@ func installStep() error {
 		return fmt.Errorf("installing loomux: %v; run `gh auth login`, then `loomux self-update`", res.Err)
 	}
 	return fmt.Errorf("installing loomux: %s: %v", res.Outcome, res.Err)
-}
-
-// samePlace compares two paths the way Windows does: cleaned, in any case.
-func samePlace(a, b string) bool {
-	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
 }
