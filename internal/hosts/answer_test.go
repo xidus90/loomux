@@ -63,7 +63,8 @@ func TestAnswerEndsAntigravitysOtherCodesWithZero(t *testing.T) {
 }
 
 // A passed or unjudged edit on Antigravity ends with 0 and drops the
-// Claude-shaped notices.
+// Claude-shaped notices; the empty stdout left is an answer agy 1.2.11
+// takes without a hook error.
 func TestAnswerDropsAntigravitysPostEditNotices(t *testing.T) {
 	for _, code := range []int{0, 1} {
 		got, out := answer(hosts.HostAntigravity, "post-tool-use", code, `{"hookSpecificOutput":{}}`, "")
