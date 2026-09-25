@@ -1,0 +1,45 @@
+# {{ .Project }}
+
+## Where things live
+
+Specs, plans and SDD live under `docs/.superpowers/`. Flows, each with its
+graph picture and an explanation, live under `docs/flows/`.
+
+## Languages
+
+Anything that instructs an LLM is written in English: this file{{ if has "claude" }},
+`CLAUDE.md` and whatever lives under `.claude/`{{ end }}{{ if has "antigravity" }},
+`GEMINI.md` and whatever lives under `.agents/`{{ end }}. A model reads them on
+every turn, and a second language in the file it steers by buys nothing.
+
+So is everything inside a file that is not prose: comments, docstrings and
+error messages, in source and in configuration alike — `.loomux/config.toml`{{ if has "claude" }}
+and `.claude/settings.json`{{ end }} included. The line runs between prose and
+everything else, not between one file type and another; a comment that
+explains a regex belongs to the code it sits in, whoever wrote it.
+
+The documentation is bilingual instead: the file without a suffix is written
+in `{{ .CommitLanguage }}`, the language of the commit messages, and is the
+standard; a translation carries its language code right beside it —
+`README.md` / `README.<code>.md`. Each variant links to the other under its
+heading.
+
+Exempt from both rules are the working papers under `docs/.superpowers/`:
+specs and plans are written once, read by a human, and never translated.
+
+## Configuration
+
+`.loomux/config.toml` is written by a human, never by an agent. It declares
+the areas a write barrier trusts and the policy that guards edits. An agent
+proposes a change with `loomux config set … --propose` (or `unset`); a human
+reviews it with `loomux config proposals` and applies it with
+`loomux config apply`.
+
+## Commits
+
+Commit messages are written in `{{ .CommitLanguage }}`.
+
+A commit carries the user as its author and its committer, and nothing in the
+message credits a model or an agent — no `Co-Authored-By` line for Claude,
+Gemini or a subagent. The history says what changed, not which tool held the
+pen.
