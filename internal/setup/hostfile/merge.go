@@ -241,14 +241,15 @@ func find(list []any, entry Entry) (own, foreign bool, elsewhere, stale string) 
 	return own, foreign, elsewhere, stale
 }
 
-// commandsOf is every command of a block, in order; a flat handler is its
-// own one command.
+// commandsOf is every command of a block, in order: a flat handler's own
+// command first, then those of its hooks list. A block may hold both, and a
+// command of ours in either makes it ours.
 func commandsOf(item map[string]any) []string {
+	var out []string
 	if command, ok := item["command"].(string); ok {
-		return []string{command}
+		out = append(out, command)
 	}
 	hooks, _ := item["hooks"].([]any)
-	var out []string
 	for _, raw := range hooks {
 		hook, _ := raw.(map[string]any)
 		if command, ok := hook["command"].(string); ok {
