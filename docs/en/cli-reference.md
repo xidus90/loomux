@@ -1183,12 +1183,14 @@ checks this is still pending.
   20 s), `PreToolUse` on
   `write_to_file|replace_file_content|multi_replace_file_content|run_command`
   (15 s), `PostToolUse` on the three writing tools (60 s) and `Stop` with
-  `--budget 270s` (300 s); `PreToolUse` also matches `send_command_input`.
-  `PreInvocation` and `Stop` are written as a flat list of handlers, the
-  tool events as a block with `matcher` and `hooks`: agy 1.2.11 refuses the
-  whole file otherwise. A `run_command` or `send_command_input` is judged by
-  the same command rules as `Bash`; one whose command line the guard cannot
-  find is refused. It also gets
+  `--budget 270s` (300 s); `PreToolUse` also matches `send_command_input`
+  and `manage_task`. `PreInvocation` and `Stop` are written as a flat list of
+  handlers, the tool events as a block with `matcher` and `hooks`: agy 1.2.11
+  refuses the whole file otherwise. A `run_command`, a `send_command_input`
+  and a `manage_task` that sends input to a task are judged by the same
+  command rules as `Bash`; one whose command line the guard cannot find is
+  refused. An entry from before `manage_task` joined the matcher is kept and
+  named in a note; add `|manage_task` to it by hand. It also gets
   the skills under `.agents/skills/<name>/SKILL.md`, the same texts Claude
   Code gets. agy runs a hook through `cmd.exe` from `.agents/`: it expands
   `%LOCALAPPDATA%` but leaves `${LOCALAPPDATA}` as it stands, and it breaks a

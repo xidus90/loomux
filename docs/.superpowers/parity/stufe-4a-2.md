@@ -668,6 +668,16 @@ Gemessen mit dem Aufbau oben.
   Leitfaden gar nicht kennt, ist weg.
 - `send_command_input` steht im Matcher und in den Befehlsregeln, Argument
   `Input` ungemessen; ohne erkennbare Zeile wird verweigert.
+- Nachmessung am 2026-09-25 mit agy 1.2.11 (CLI, Probe mit `log.cmd` im
+  Scratchpad, Auftrag: Hintergrundbefehl beenden, einem zweiten Eingabe
+  schicken): agy ruft `send_command_input` gar nicht. Beenden kam als
+  `manage_task` mit `{"Action":"kill","TaskId":…}`, Eingabe als
+  `manage_task` mit `{"Action":"send_input","Input":"hello\n","TaskId":…}`.
+  `manage_task` stand nicht im Matcher, eine getippte Zeile lief also an den
+  Befehlsregeln vorbei. Jetzt im Matcher; das Schema in agy.exe nennt die
+  Aktionen `list`, `status`, `kill` und `send_input`. Die ersten drei laufen
+  durch, jede andere Aktion und ein Aufruf ohne `Action` wird geprüft. Das
+  Arbeitsverzeichnis des Hooks war `.agents\`, `--root ..` stimmt.
 - `session-start` meldet sich unter `PreInvocation` nur beim ersten
   `invocationNum` (ob die Zählung bei 0 oder 1 beginnt, ist ungemessen).
 - Ein unbekanntes Ereignis bleibt Exit 2 auch unter agy; eine Panik läuft

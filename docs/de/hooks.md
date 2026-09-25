@@ -371,11 +371,14 @@ das es unter `file_path`, `notebook_path`, `TargetFile` oder `target_file`
 nennt; geprüft werden alle, nicht das erste gefundene. `Bash` und `PowerShell`
 liefern ihr `command`, Antigravitys `run_command` seine Befehlszeile unter
 `CommandLine` (gemessen mit agy 1.2.11; `commandLine` und `command_line`, die
-anderen Schreibweisen in agy.exe, werden mitgeprüft). `send_command_input`,
-das in eine offen gelassene Shell von `run_command` tippt, liefert `Input`,
-ein ungemessener Name. Ein `run_command` oder `send_command_input` ohne einen
-seiner Namen wird verweigert. Was ein Werkzeug in eine Datei schreibt, wird
-nicht geprüft.
+anderen Schreibweisen in agy.exe, werden mitgeprüft). In eine von
+`run_command` offen gelassene Aufgabe tippt agy mit `manage_task`, dessen
+Aktion `send_input` die Zeile unter `Input` liefert (gemessen mit agy 1.2.11);
+`list`, `status` und `kill` tragen keine Zeile und laufen durch, jede andere
+Aktion und ein Aufruf ohne Aktion wird geprüft. `send_command_input`, das ältere Werkzeug
+dafür, das agy.exe noch trägt, liefert `Input`, ein ungemessener Name. Ein
+`run_command`, `send_command_input` oder `manage_task` ohne einen seiner Namen
+wird verweigert. Was ein Werkzeug in eine Datei schreibt, wird nicht geprüft.
 
 **Pfade werden relativ zur Wurzel verglichen.** Ein Muster ohne Schrägstrich
 (`*.pem`, `go.sum`) trifft den Dateinamen, eines mit Schrägstrich (`.aws/**`)

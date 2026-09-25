@@ -356,10 +356,14 @@ it names under `file_path`, `notebook_path`, `TargetFile` or `target_file`; all
 of them are judged, not the first one found. `Bash` and `PowerShell` yield
 their `command`, and Antigravity's `run_command` its command line under
 `CommandLine` (measured with agy 1.2.11; `commandLine` and `command_line`,
-the other spellings agy.exe carries, are judged too). `send_command_input`,
-which types into a shell `run_command` left open, yields `Input`, a name that
-is not measured. A `run_command` or `send_command_input` carrying none of its
-names is refused. What a tool writes into a file is not judged.
+the other spellings agy.exe carries, are judged too). agy types into a task
+`run_command` left open with `manage_task`, whose `send_input` action yields
+the line under `Input` (measured with agy 1.2.11); `list`, `status` and
+`kill` carry no line and pass, and any other action, or none, is judged.
+`send_command_input`, the older tool for the same that agy.exe still carries,
+yields `Input`, a name that is not measured. A `run_command`,
+`send_command_input` or `manage_task` carrying none of its names is refused.
+What a tool writes into a file is not judged.
 
 **Paths are compared relative to the root.** A pattern without a slash
 (`*.pem`, `go.sum`) matches the base name; a pattern with one (`.aws/**`)
