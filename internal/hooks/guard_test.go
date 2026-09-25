@@ -487,6 +487,9 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		// The same for init: a --dry-run the program never receives.
 		"loomux init # --dry-run",
 		"loomux init #--dry-run",
+		// A quoted # word still ends the flags flagOn reads.
+		`loomux init "#" --dry-run`,
+		`loomux init "# x" --dry-run`,
 		"loomux init > --dry-run",
 		"loomux init 2> --detect-only",
 		"loomux init <<< --dry-run",
@@ -711,6 +714,10 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"sudo loomux merge-hook status",
 		"cmd /c loomux merge-hook record",
 		"go run ./cmd/loomux merge-hook status",
+		// A # inside double quotes is a byte of the word to both shells.
+		`cd "C:/x/#GIT/loomux" && loomux init --dry-run`,
+		`Set-Location "C:/x/#GIT/loomux"; loomux init --dry-run`,
+		`loomux init --dry-run --root "C:/x/#GIT/loomux"`,
 	}
 	for _, line := range refused {
 		if !writesConfiguration(line) {
