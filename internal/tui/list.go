@@ -93,6 +93,18 @@ func draw(t Terminal, title string, rows []Row, visible []int, cursor int, filte
 	// when the terminal is too small for them.
 	room := max(height-len(lines), 2)
 	top := windowTop(rows, visible, cursor, room)
+	lines = append(lines, layout(rows, visible, top, cursor, room, width, func(i int) string {
+		r := rows[i]
+		return fmt.Sprintf("  %-28s %-24s %s", r.Label, r.Value, r.Note)
+	})...)
+	_, _ = t.Write([]byte(clearScreen + strings.Join(lines, eol)))
+}
+
+// layout lays the visible rows from top on into at most room lines, each
+// group under its header and the cursor row inverted; line renders the row
+// at an index into rows, so List and Pick differ only in their row text.
+func layout(rows []Row, visible []int, top, cursor, room, width int, line func(i int) string) []string {
+	var lines []string
 	used, group := 0, ""
 	for n, i := range visible[top:] {
 		r := rows[i]
@@ -107,14 +119,14 @@ func draw(t Terminal, title string, rows []Row, visible []int, cursor int, filte
 			lines = append(lines, fit("["+r.Group+"]", width))
 			group = r.Group
 		}
-		line := fit(fmt.Sprintf("  %-28s %-24s %s", r.Label, r.Value, r.Note), width)
+		l := fit(line(i), width)
 		if top+n == cursor {
-			line = reverse + line + reset
+			l = reverse + l + reset
 		}
-		lines = append(lines, line)
+		lines = append(lines, l)
 		used += need
 	}
-	_, _ = t.Write([]byte(clearScreen + strings.Join(lines, eol)))
+	return lines
 }
 
 // windowTop is the first visible row to draw: the earliest one from which
