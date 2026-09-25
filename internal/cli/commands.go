@@ -15,6 +15,7 @@ var commands = map[string]command{
 	"explain":     statusCommand,
 	"graph":       graphCommand,
 	"hook":        hookCommand,
+	"init":        initCommand,
 	"lint":        lintCommand,
 	"mcp":         mcpCommand,
 	"merge-hook":  mergeHookCommand,

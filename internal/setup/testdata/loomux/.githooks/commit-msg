@@ -1,0 +1,8 @@
+#!/bin/sh
+# Commit messages of loomux are English; the pilot binary checks them.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+if [ -x bin/loomux.exe ]; then
+	exec bin/loomux.exe check commit-msg "$1"
+fi
+exec go run ./cmd/loomux check commit-msg "$1"
