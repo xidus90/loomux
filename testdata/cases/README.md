@@ -15,6 +15,7 @@ translation table and suite.
 | 2c | `ultraloom hook stop`, `hook subagent-start` and `hook subagent-stop` at the tag `loomux-1a-source` (`9d01a60`), against fake tools and measured Claude Code payloads | `internal/cli/cases_2c_test.go` | 15 |
 | 3a | `brain-mcp reconcile`, `reindex`, `embed` and `init` of ultra-brain at the tag `loomux-3-source` (`3cc72d2`), against a fake qmd | `internal/cli/cases_3a_test.go` | 28 |
 | 3b | `brain-mcp cases`, `case` and `approve` of the same reference at the same tag, against a fake qmd | `internal/cli/cases_3b_test.go` | 24 |
+| 4a-2 | `brain-mcp hook install`, `status` and `remove` of ultra-brain at the tag `loomux-3-source` (`3cc72d2`) | `internal/cli/cases_4a2_test.go` | 14 |
 
 ## Layout
 
@@ -55,6 +56,10 @@ translation table and suite.
 | `3b-source/` | The recordings, written by `docs/.superpowers/parity/stufe-3b-orakel/record_all.sh` through `record.sh` beside it, under the environment of 3a. No case carries `compare`: stdout is what `cases` and `case` are for, and the commit id `approve` prints is folded. Every `approve` case with a repository is recorded with `--git-after`, the refusals included, because `git.after` is what proves HEAD did not move. |
 | `3b-map.toml` | Three command rules (`brain-mcp cases` before `brain-mcp case`, `brain-mcp approve` without a trailing space, for `approve/empty-args`), `manifests = "verbatim"` and one `[[stdout]]` rule, `brain case --package ` → `loomux case --package `. |
 | `3b/` | The translated cases. |
+| `4a2-worlds/` | The state directories a 4a-2 case runs in, laid out as in 3a: `registry.toml` names `project/a` at `{{WORLD}}/repo-a`, whose `.brain.toml` consents with `[maintenance] on_merge = true` and `branch = "main"`. `git.toml` makes `repo-a` a repository with one empty commit; the manifest stays untracked, because the import moves it under its new name. `hook-consenting` is that and nothing more; `hook-no-consent` says `on_merge = false`; `hook-no-repository` has no `git.toml`; `hook-empty` registers no area. The hook file lies in `.git/hooks`, which a recording does not copy, so a world that needs one writes it through `[worktree]`: `hook-foreign` a `post-merge` of the user's own without a marker, `hook-own-earlier` the reference's hook as `brain-mcp hook install` renders it, and `hook-installed` the same hook with its record in `maintenance/hooks.tsv`. `hook-orphaned` records a hook for `project/gone`, which the registry does not name. A record carries the reference's five fields, so both tools read it. |
+| `4a2-source/` | The recordings of `brain-mcp hook`, written by `docs/.superpowers/parity/stufe-4a-2-orakel/record_all.sh` through `record.sh` beside it, under the environment of 3a. `install`, `status` and `remove` each where they show something; a case whose reference prints its German sentence for "no area, no hook" carries `compare = message`. |
+| `4a2-map.toml` | One command rule, `brain-mcp hook` → `loomux merge-hook` (`hook` is the host hooks' namespace in loomux), and `manifests = "verbatim"`. |
+| `4a2/` | The translated cases. The suite compares `maintenance/hooks.tsv` over its first three fields: the reference also records the branch and the event path it baked into the hook, loomux bakes nothing in. |
 
 ## What a case compares
 
@@ -253,7 +258,7 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
 ## Rules for working with the corpus
 
 - **A recording is evidence.** Files under `1a-source/`, `1b-1-source/`,
-  `2a-source/`, `2c-source/`, `3a-source/` and `3b-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
+  `2a-source/`, `2c-source/`, `3a-source/`, `3b-source/` and `4a2-source/` are never edited by hand. If a case is wrong, it is *re-recorded*, never patched:
   for 1a with the old binaries (build them from the tag worktrees, put them
   first on `PATH`, run `loomux dev record-case`); for 1b-1 with the fake qmd
   rebuilt from `internal/dev/fakeqmd/_qmd` and the recording command of the
@@ -294,7 +299,8 @@ Python with `PYTHONUTF8=1`; nothing else in its stdout is changed.
   when the 2a corpus does not hold exactly 53, `internal/cli/cases_2c_test.go`
   when the 2c corpus does not hold exactly 15, `internal/cli/cases_3a_test.go`
   when the 3a corpus does not hold exactly 28, `internal/cli/cases_3b_test.go`
-  when the 3b corpus does not hold exactly 24, so a partial import cannot pass
+  when the 3b corpus does not hold exactly 24, `internal/cli/cases_4a2_test.go`
+  when the 4a-2 corpus does not hold exactly 14, so a partial import cannot pass
   as parity. Adding a case means raising that number.
 - **A 3a recording never touches the machine's state.** The recorder sets
   `BRAIN_STATE_DIR` to the staged world and loomux's own two variables to an

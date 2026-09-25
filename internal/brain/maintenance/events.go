@@ -2,12 +2,13 @@
 // case a person later decides (case.go), and the log of landed merges here,
 // which is the second trigger a case can come from.
 //
-// Of the log, only the reading and the forgetting are here. The one writer of the log is a
-// POSIX sh `post-merge` hook that records the repository, the commit range and
-// the branch and ends with an unconditional `exit 0` -- it may not block a
-// merge, may not fail it and may not start anything that outlives it, so it
-// appends one line and leaves. Installing that hook is stage 4; a Go
-// `RecordEvent` would today have no caller but its own test.
+// The log has two writers, and both only append. loomux's `post-merge` hook
+// (mergehook.go) calls RecordMerge, which asks the registry whether the merge
+// counts and writes the line through AppendEvent. The reference's POSIX sh
+// hook, still installed in repositories this machine has not switched over,
+// writes the same line with `date -u` into its own state directory, which is
+// why the reader falls back there. Either way the writer runs inside git merge
+// and may not block or fail it, so it appends one line and leaves.
 //
 // The original is `src/brain/maintenance/merge_events.py`.
 package maintenance
@@ -133,6 +134,16 @@ func DropEvent(stateDir string, event MergeEvent) error {
 	key := event.Key()
 	path := config.ArtifactLookup{Primary: stateDir}.WritePath(droppedRelative)
 	return appendLine(path, strings.Join(key[:], "\t")+"\n")
+}
+
+// AppendEvent adds one merge to the log in stateDir, in the form the
+// reference's hook writes and parseEvent reads: five tab-separated fields,
+// the stamp in UTC to the second with a `Z`. A blind append with no read
+// first, so the deduplication lives in ReadEvents where both writers meet it.
+func AppendEvent(stateDir string, e MergeEvent) error {
+	path := config.ArtifactLookup{Primary: stateDir}.WritePath(eventsRelative)
+	stamp := e.At.UTC().Format("2006-01-02T15:04:05Z")
+	return appendLine(path, strings.Join([]string{e.Repo, e.First, e.Last, e.Branch, stamp}, "\t")+"\n")
 }
 
 // dropped is the set of ranges whose case exists (`_dropped`). A line that is
