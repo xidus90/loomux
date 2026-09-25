@@ -640,6 +640,21 @@ func TestMergeNamesAStaleOwnEntry(t *testing.T) {
 	}
 }
 
+// A block that holds a command of its own beside a hooks list runs both; our
+// entry in the list is found, and none is added beside it.
+func TestMergeFindsAnEntryInTheListOfABlockWithACommand(t *testing.T) {
+	entry := Entry{Event: "Stop", Command: Canonical + " hook stop --host claude"}
+	existing := []byte(`{"hooks":{"Stop":[{"command":"echo x","hooks":[{"type":"command","command":` +
+		string(EncodeJSON(entry.Command, "", "")) + `}]}]}}`)
+	got, err := Merge(claude, existing, []Entry{entry})
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if len(got.Added) != 0 || !slices.Equal(got.Kept, []string{"Stop/"}) {
+		t.Fatalf("added %v, kept %v; want the entry found", got.Added, got.Kept)
+	}
+}
+
 func TestMergeNamesNothingForACurrentOwnEntry(t *testing.T) {
 	existing, err := os.ReadFile("testdata/loomux-settings.json")
 	if err != nil {
