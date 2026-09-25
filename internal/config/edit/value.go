@@ -30,35 +30,16 @@ func Render(kind schema.Kind, input string) (string, error) {
 		}
 		return input, nil
 	case schema.StringList:
-		// An empty item is a stray comma, not an item: "a," is the list of a.
-		var parts []string
-		for _, p := range splitList(input) {
-			if p = strings.TrimSpace(p); p != "" {
-				parts = append(parts, config.QuoteTOML(p))
-			}
+		items, err := schema.SplitList(input)
+		if err != nil {
+			return "", err
+		}
+		parts := make([]string, len(items))
+		for i, item := range items {
+			parts[i] = config.QuoteTOML(item)
 		}
 		return "[" + strings.Join(parts, ", ") + "]", nil
 	default:
 		return "", fmt.Errorf("a table is edited by hand")
 	}
-}
-
-// splitList cuts a typed list at its commas, except those inside a {…}
-// group: the lists hold globs, and docs/**/*.{md,txt} is one of them. A }
-// without its { closes nothing.
-func splitList(input string) []string {
-	var parts []string
-	depth, start := 0, 0
-	for i := 0; i < len(input); i++ {
-		switch c := input[i]; {
-		case c == '{':
-			depth++
-		case c == '}' && depth > 0:
-			depth--
-		case c == ',' && depth == 0:
-			parts = append(parts, input[start:i])
-			start = i + 1
-		}
-	}
-	return append(parts, input[start:])
 }

@@ -1006,7 +1006,12 @@ fragt `write these changes? [y/N]` und schreibt nur bei `y` oder `yes`.
 - **Werte** werden getippt, wie ein Mensch sie schreibt: eine Zeichenkette
   ohne Anführungszeichen, eine Zahl, `true`/`false`, eine Liste als `a, b`.
   Ein Komma in einer `{…}`-Gruppe gehört zum Eintrag, `docs/**/*.{md,txt}, src`
-  sind also zwei Globs. Ein Aufzählungsschlüssel nimmt nur die Werte, die
+  sind also zwei Globs. Ein Eintrag mit einem Komma, ein leerer Eintrag oder
+  einer mit Leerraum an den Enden steht in doppelten Anführungszeichen, als
+  TOML-Zeichenkette mit ihren Escapes: `"a,b", c` sind zwei Einträge, `""`
+  ist ein leerer. Ein leerer Eintrag ohne Anführungszeichen ist keiner, `a,`
+  ist die Liste aus `a`. Die interaktive Form zeigt eine Liste in eben dieser
+  Schreibweise. Ein Aufzählungsschlüssel nimmt nur die Werte, die
   sein Leser annimmt. `verify.timeout` sind ganze Sekunden (`600`, nicht
   `10m`). Eine Zahl wird in ihrer schlichten Form geschrieben: `+600` und
   `0600` sind `600`. Das Wort `default` ist ein Wert wie jeder andere.
