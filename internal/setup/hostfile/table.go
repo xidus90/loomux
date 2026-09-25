@@ -10,10 +10,13 @@ import (
 
 // Entry is one hook a host runs: on Event, for tools matching Matcher (empty
 // for events without tools), the shell command Command, stopped after
-// Timeout seconds (0 leaves the host's default).
+// Timeout seconds (0 leaves the host's default). Flat puts the handler into
+// the event's list itself instead of a block with a "hooks" list, the form
+// agy requires for its events without tools.
 type Entry struct {
 	Event, Matcher, Command string
 	Timeout                 int
+	Flat                    bool
 }
 
 // Canonical and Checkout are the two binaries an entry may call.
@@ -47,14 +50,19 @@ func Entries(host hosts.Host, binary string) []Entry {
 			{Event: "SubagentStop", Command: hook("subagent-stop"), Timeout: 30},
 		}
 	case hosts.HostAntigravity:
-		// agy runs a hook from .agents/, one below the project root.
+		// agy runs a hook from .agents/, one below the project root. Its
+		// PreInvocation and Stop take a flat list of handlers: agy 1.2.11
+		// refuses the whole file when either holds a {"hooks": [...]} block
+		// (measured 2026-09-25), which would leave the guard unloaded.
 		writers := "write_to_file|replace_file_content|multi_replace_file_content"
 		hook := func(name string) string {
 			return AntigravityBinary + " hook " + name + " --host antigravity --root .."
 		}
 		return []Entry{
-			{Event: "PreToolUse", Matcher: writers + "|run_command", Command: hook("pre-tool-use"), Timeout: 15},
+			{Event: "PreInvocation", Command: hook("session-start"), Timeout: 20, Flat: true},
+			{Event: "PreToolUse", Matcher: writers + "|run_command|send_command_input", Command: hook("pre-tool-use"), Timeout: 15},
 			{Event: "PostToolUse", Matcher: writers, Command: hook("post-tool-use"), Timeout: 60},
+			{Event: "Stop", Command: hook("stop") + " --budget 270s", Timeout: 300, Flat: true},
 		}
 	}
 	return nil

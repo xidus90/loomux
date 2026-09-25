@@ -15,6 +15,14 @@ Loomux uses strict exit code semantics aligned with AI coding agent harnesses:
 | **`1`** | **Announcement / Warning** | Read by harnesses as "informational" or "carry-on". |
 | **`2`** | **Hard Refusal / Denied** | The write barrier or policy blocked the action. Tool execution is aborted. |
 
+Antigravity reads every non-zero exit of a hook as a failed command and
+aborts, so `loomux hook … --host antigravity` ends with `0` everywhere but
+`pre-tool-use`, whose `2` refuses the call there as it does in Claude Code.
+A held stop becomes `{"decision":"continue","reason":"…"}` on stdout, a red
+post-edit lane an `{"injectSteps":[{"ephemeralMessage":"…"}]}`, and the reason
+is what the hook wrote to stderr. The stop answer is read from agy's binary,
+the post-edit answer is not measured yet.
+
 ### Global Flags & Environment
 - `--root <path>`: Explicit project root directory. If omitted, Loomux walks upwards from the current working directory until it locates `.loomux/config.toml`.
 - `LOOMUX_STATE_DIR`: Overrides the global state directory (defaults to `%LOCALAPPDATA%\loomux` on Windows or `~/.local/state/loomux` on POSIX).
@@ -1098,8 +1106,9 @@ loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]
   module, `none` turns the module off, `each` asks part by part. A flag beats
   the answers of an earlier run.
 - **`--hosts`**: comma-separated, `claude`, `antigravity` or `codex`; by
-  default the hosts the project has (`.claude/` → Claude Code, `.agents/` →
-  Antigravity; neither → Claude Code).
+  default the hosts the project has (`.claude/` → Claude Code;
+  `.agents/hooks.json`, `.agents/skills/` or `GEMINI.md` → Antigravity, a
+  bare `.agents/` is not enough; neither → Claude Code).
 - `--dry-run=…` and `--detect-only=…` are a usage error, and no flag takes a
   following `--dry-run` as its value: the guard lets a line with the word
   `--dry-run` through, and a value could take that back.
@@ -1168,27 +1177,42 @@ checks this is still pending.
   `pre-commit`, `pre-push` or `commit-msg` in `.git/hooks`, init writes only
   the missing hooks there. A hook directory outside the root (a linked
   worktree, a submodule) is left alone with a note.
-- **Antigravity** gets two entries in the group `loomux` of
-  `.agents/hooks.json` — `PreToolUse` on
+- **Antigravity** gets four entries in the group `loomux` of
+  `.agents/hooks.json` — `PreInvocation` running `session-start` (timeout
+  20 s), `PreToolUse` on
   `write_to_file|replace_file_content|multi_replace_file_content|run_command`
-  (timeout 15 s) and `PostToolUse` on the three writing tools (60 s) — and
+  (15 s), `PostToolUse` on the three writing tools (60 s) and `Stop` with
+  `--budget 270s` (300 s). A `run_command` is judged by the same command
+  rules as `Bash`; one whose command line the guard cannot find is refused.
+  Antigravity's `PostToolUse` names no file, so `pre-tool-use` files each
+  allowed target under the conversation and step, and `post-tool-use` checks
+  every file its step filed. It also gets
   the skills under `.agents/skills/<name>/SKILL.md`, the same texts Claude
   Code gets. agy runs a hook through `cmd.exe` from `.agents/`: it expands
   `%LOCALAPPDATA%` but leaves `${LOCALAPPDATA}` as it stands, and it breaks a
   quoted program path. So the entries always call the installed binary,
   unquoted, in a checkout too:
   `%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..`
-  (and `post-tool-use` alike). Without that binary, and without a
+  (and the other three alike). Without that binary, and without a
   `binary-install` in the same run, the plan leaves the entries out with a
   note, as for the merge hook, and a run writes the file only while the
-  binary stands; Claude Code's entries keep their own binary. When
-  `LOCALAPPDATA` contains whitespace, `cmd.exe` would split the unquoted
+  binary stands; Claude Code's entries keep their own binary. An installed
+  binary older than the running init may not know these hooks, and agy
+  aborts on a hook that fails: init asks it for its `--version` and plans the
+  entries only when it is at least the running init's, or when
+  `binary-install` runs in the same run. A development build of init
+  (`0.0.0-dev`) has no version to compare and plans none. Each case is named
+  in a note. The merge hook does not wait for a version: its call is silent
+  and exits 0, so an older binary records nothing until it is updated. When
+  `LOCALAPPDATA` contains whitespace or one of `& | < > ^ ( ) "`, `cmd.exe` would split the unquoted
   path: init then writes no Antigravity entries, says so in a note and does
   not read `.agents/hooks.json`; the skills still come. Every
   other group of the file is carried over token for token (key order,
   escapes and numbers as they were; only the indentation becomes two
-  spaces), and a group that already runs one of the commands above is named
-  (`the group X already runs …; it now fires twice`), never repaired. agy
+  spaces), and a group in which a loomux binary already runs one of these
+  hooks, in any form (another path, quoted, another `--root`), is named
+  (`the group X already runs loomux hook …; it now fires twice`), never
+  repaired. agy
   loads a project's hooks only in a folder it trusts (`trustedWorkspaces` in
   `~/.gemini/antigravity-cli/settings.json`); the plan reminds of that in a
   note. Codex has no hook file.

@@ -55,6 +55,25 @@ func Newer(tag, running string) bool {
 	return r.less(t)
 }
 
+// AtLeast reports whether have names a release no older than want. Unlike
+// !Newer(want, have) it is false when either side does not parse: a binary
+// that cannot say what it is does not pass for one new enough.
+func AtLeast(have, want string) bool {
+	h, ok := parseVersion(have)
+	if !ok {
+		return false
+	}
+	w, ok := parseVersion(want)
+	return ok && !h.less(w)
+}
+
+// IsVersion reports whether s is a release version, as a development build's
+// DevVersion is not.
+func IsVersion(s string) bool {
+	_, ok := parseVersion(s)
+	return ok
+}
+
 // Release is one entry of `gh release list --json tagName,isPrerelease`.
 type Release struct {
 	Tag        string `json:"tagName"`

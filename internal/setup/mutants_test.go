@@ -114,7 +114,7 @@ func TestGatherOutsideARepositoryAsksGitNothing(t *testing.T) {
 func TestGatherCarriesGitsError(t *testing.T) {
 	root := world(t, map[string]string{".git/": ""})
 	boom := errors.New("boom")
-	_, err := Gather(root, t.TempDir(), func(_ string, argv ...string) (string, error) {
+	_, err := Gather(root, t.TempDir(), tested, func(_ string, argv ...string) (string, error) {
 		if slices.Contains(argv, "rev-parse") {
 			return "", boom
 		}

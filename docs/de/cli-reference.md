@@ -15,6 +15,15 @@ Loomux nutzt eine strikte Exit-Code-Semantik, die exakt auf die Schnittstellen m
 | **`1`** | **Mitteilung / Warnung** | Vom Harness als rein informativ bzw. „weitermachen“ interpretiert. |
 | **`2`** | **Strikte Ablehnung / Blockiert** | Die Schreibschranke oder Policy hat die Aktion blockiert; Abbruch des Aufrufs. |
 
+Antigravity wertet jeden Exit ungleich 0 eines Hooks als gescheiterten
+Befehl und bricht ab. Deshalb endet `loomux hook … --host antigravity`
+überall mit `0` außer bei `pre-tool-use`, dessen `2` den Aufruf dort
+verweigert wie in Claude Code. Ein gehaltener Stop wird zu
+`{"decision":"continue","reason":"…"}` auf stdout, eine rote
+Post-Edit-Spur zu `{"injectSteps":[{"ephemeralMessage":"…"}]}`; der Grund ist,
+was der Hook nach stderr geschrieben hat. Die Stop-Antwort ist aus dem
+Binary von agy gelesen, die Post-Edit-Antwort noch nicht gemessen.
+
 ### Globale Flags & Umgebung
 - `--root <pfad>`: Explizite Angabe der Projektwurzel. Wird dieses Flag weggelassen, wandert Loomux im Verzeichnisbaum aufwärts, bis es die erste `.loomux/config.toml` findet.
 - `LOOMUX_STATE_DIR`: Überschreibt das globale Zustandsverzeichnis (Standard: `%LOCALAPPDATA%\loomux` unter Windows, `~/.local/state/loomux` unter POSIX).
@@ -1141,8 +1150,9 @@ loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]
   an, `none` das Modul aus, `each` fragt Teil für Teil. Ein Flag schlägt die
   Antworten eines früheren Laufs.
 - **`--hosts`**: kommagetrennt, `claude`, `antigravity` oder `codex`;
-  vorgegeben sind die Wirte, die das Projekt hat (`.claude/` → Claude Code,
-  `.agents/` → Antigravity; keines → Claude Code).
+  vorgegeben sind die Wirte, die das Projekt hat (`.claude/` → Claude Code;
+  `.agents/hooks.json`, `.agents/skills/` oder `GEMINI.md` → Antigravity,
+  ein `.agents/` allein genügt nicht; keines → Claude Code).
 - `--dry-run=…` und `--detect-only=…` sind ein Usage-Fehler, und kein Flag
   nimmt ein folgendes `--dry-run` als Wert: Der Wächter lässt eine Zeile mit
   dem Wort `--dry-run` durch, ein Wert könnte das zurücknehmen.
@@ -1216,29 +1226,47 @@ durch einen Menschen, der das prüft, steht noch aus.
   oder `commit-msg`, schreibt `init` nur die fehlenden Hooks dorthin. Ein
   Hookverzeichnis außerhalb der Wurzel (ein verknüpfter Worktree, ein
   Submodul) bleibt mit einer Notiz unberührt.
-- **Antigravity** bekommt zwei Einträge in der Gruppe `loomux` von
-  `.agents/hooks.json` — `PreToolUse` auf
+- **Antigravity** bekommt vier Einträge in der Gruppe `loomux` von
+  `.agents/hooks.json` — `PreInvocation` mit `session-start` (Timeout
+  20 s), `PreToolUse` auf
   `write_to_file|replace_file_content|multi_replace_file_content|run_command`
-  (Timeout 15 s) und `PostToolUse` auf die drei schreibenden Werkzeuge
-  (60 s) — und die Skills unter `.agents/skills/<name>/SKILL.md`, dieselben
+  (15 s), `PostToolUse` auf die drei schreibenden Werkzeuge (60 s) und
+  `Stop` mit `--budget 270s` (300 s). Ein `run_command` wird nach denselben
+  Befehlsregeln beurteilt wie `Bash`; eines, in dem der Wächter keine
+  Befehlszeile findet, wird verweigert. Das `PostToolUse` von Antigravity
+  nennt keine Datei, deshalb legt `pre-tool-use` jedes erlaubte Ziel unter
+  Konversation und Schritt ab, und `post-tool-use` prüft jede Datei, die
+  sein Schritt abgelegt hat. Dazu kommen die Skills unter
+  `.agents/skills/<name>/SKILL.md`, dieselben
   Texte wie Claude Code. agy führt einen Hook über `cmd.exe` aus
   `.agents/` aus: Es löst `%LOCALAPPDATA%` auf, lässt `${LOCALAPPDATA}`
   stehen und zerbricht einen gequoteten Programmpfad. Deshalb rufen die
   Einträge immer das installierte Binary, ungequotet, auch in einem
   Checkout:
   `%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..`
-  (und `post-tool-use` ebenso). Ohne dieses Binary und ohne
+  (die drei anderen ebenso). Ohne dieses Binary und ohne
   `binary-install` im selben Lauf lässt der Plan die Einträge mit einer
   Notiz weg, wie beim Merge-Hook, und ein Lauf schreibt die Datei nur,
   solange das Binary steht; die Einträge von Claude Code behalten ihr
-  eigenes Binary. Enthält `LOCALAPPDATA`
-  Leerraum, würde `cmd.exe` den ungequoteten Pfad zerteilen: `init`
+  eigenes Binary. Ein installiertes Binary, das älter ist als das laufende
+  `init`, kennt diese Hooks womöglich nicht, und agy bricht bei einem
+  scheiternden Hook ab: `init` fragt es nach seiner `--version` und plant
+  die Einträge nur, wenn sie mindestens die des laufenden `init` ist, oder
+  wenn `binary-install` im selben Lauf läuft. Ein Entwicklungsbuild von
+  `init` (`0.0.0-dev`) hat keine Version zum Vergleichen und plant keine.
+  Jeder Fall steht in einer Notiz. Der Merge-Hook wartet auf keine Version:
+  Sein Aufruf ist still und endet mit 0, ein älteres Binary zeichnet also
+  nichts auf, bis es aktualisiert ist. Enthält `LOCALAPPDATA`
+  Leerraum oder eines von `& | < > ^ ( ) "`, würde `cmd.exe` den
+  ungequoteten Pfad zerteilen: `init`
   schreibt dann keine Antigravity-Einträge, sagt es in einer Notiz und
   liest `.agents/hooks.json` nicht; die Skills kommen trotzdem. Jede andere
   Gruppe der Datei wird Token für Token übernommen (Schlüsselreihenfolge,
   Escapes und Zahlen wie vorher; nur die Einrückung wird zu zwei
-  Leerzeichen), und eine Gruppe, die schon einen der Befehle oben ruft,
-  wird genannt (`the group X already runs …; it now fires twice`), nie
+  Leerzeichen), und eine Gruppe, in der ein loomux-Binary schon einen
+  dieser Hooks ausführt, in welcher Form auch immer (anderer Pfad,
+  gequotet, anderes `--root`), wird genannt
+  (`the group X already runs loomux hook …; it now fires twice`), nie
   repariert. agy lädt die Hooks eines Projekts nur in einem Ordner, dem es
   vertraut (`trustedWorkspaces` in
   `~/.gemini/antigravity-cli/settings.json`); der Plan erinnert daran in

@@ -24,6 +24,32 @@ func TestNewer(t *testing.T) {
 	}
 }
 
+// AtLeast is no negation of Newer: a side that does not parse makes it false
+// as well, so a guess never passes for a version high enough.
+func TestAtLeast(t *testing.T) {
+	for _, c := range []struct {
+		have, want string
+		ok         bool
+	}{
+		{"2.13.0", "2.13.0", true},
+		{"v2.13.1", "2.13.0", true},
+		{"3.0.0", "2.99.99", true},
+		{"2.11.1", "2.13.0", false},
+		{"", "2.13.0", false},
+		{"2.13.0", "0.0.0-dev", false},
+		{"2.13.0-rc1", "2.13.0", false},
+	} {
+		if got := AtLeast(c.have, c.want); got != c.ok {
+			t.Errorf("AtLeast(%q, %q) = %v, want %v", c.have, c.want, got, c.ok)
+		}
+	}
+	for s, want := range map[string]bool{"2.13.0": true, "v1.0.0": true, DevVersion: false, "": false} {
+		if got := IsVersion(s); got != want {
+			t.Errorf("IsVersion(%q) = %v, want %v", s, got, want)
+		}
+	}
+}
+
 // Every release so far is a pre-release: release.sh marks each one so while
 // RELEASE_CHANNEL is unset. A beta binary must still find them.
 func TestPickFollowsTheChannel(t *testing.T) {

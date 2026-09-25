@@ -38,13 +38,35 @@ const noTerminal = "loomux init: init asks questions; run it in a terminal, or p
 // the state directory, so an install there would leave them calling nothing.
 const movedStateDir = `the state directory is moved by LOOMUX_STATE_DIR; host entries would call %LOCALAPPDATA%\loomux\bin\loomux.exe`
 
-// installBinary, buildCheckout and runAction are the seams tests replace:
-// the real ones reach GitHub, run the Go toolchain, and start qmd.
+// installBinary, buildCheckout, runAction and binaryVersion are the seams
+// tests replace: the real ones reach GitHub, run the Go toolchain, start qmd,
+// and run the installed binary.
 var (
 	installBinary = installRelease
 	buildCheckout = buildPilot
 	runAction     = runSubcommand
+	binaryVersion = installedVersion
 )
+
+// versionRunner runs the installed binary for its version; versionDeadline
+// bounds that call. Every init asks, a detect-only one too, so a hung binary
+// must not hold it for selfupdate's two-minute limit: past the deadline it
+// has no version. Variables so that a test can hang without waiting.
+var (
+	versionRunner   = selfupdate.ExecRunner
+	versionDeadline = 10 * time.Second
+)
+
+// installedVersion is what the binary at path names with --version, "" when
+// it names none or does not answer in time.
+func installedVersion(path string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), versionDeadline)
+	defer cancel()
+	if v, ok := selfupdate.InstalledVersion(ctx, versionRunner, path); ok {
+		return v
+	}
+	return ""
+}
 
 // installRelease puts the newest release at the canonical place.
 //
@@ -179,7 +201,7 @@ func initCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 2
 	}
 	home, _ := os.UserHomeDir()
-	facts, err := setup.Gather(root, home, gitFacts)
+	facts, err := setup.Gather(root, home, setup.Running{Version: Version, VersionOf: binaryVersion}, gitFacts)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux init: %v\n", err)
 		// A file init has to merge and cannot read stops it as a plan

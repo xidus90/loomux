@@ -4,11 +4,11 @@
 
 **Goal:** Vollständige Implementierung und Aktivierung der Antigravity-Lebenszyklus-Hooks (`PreInvocation`, `PreToolUse`, `PostToolUse`, `Stop`) im Loomux-Go-Binary inklusive 100 % Testabdeckung und Bereitstellung von `.agents/hooks.json`.
 
-**Architecture:** Antigravity verlangt Exit-Code 0 bei geordneter Signalisierung und JSON auf `stdout` (`injectSteps` für Kontext, `decision: continue` für Stop-Tor-Blockaden). Da `PostToolUse` bei Antigravity keine Tool-Argumente liefert, puffert `PreToolUse` erlaubte Dateiänderungen temporär im Sitzungs-State ab. `internal/setup/hostfile` stellt alle 4 Einträge im Namensraum `loomux` bereit.
+**Architecture:** Antigravity verlangt Exit-Code 0 bei geordneter Signalisierung und JSON auf `stdout` (`injectSteps` für Kontext, `decision: continue` für Stop-Tor-Blockaden); nur `pre-tool-use` behält Exit 2. Die Abbildung leistet ein Adapter `hosts.Answer`, den `loomux hook` einmal für jeden Austrittspfad ruft (Task 5). Da `PostToolUse` bei Antigravity keine Tool-Argumente liefert, puffert `PreToolUse` erlaubte Dateiänderungen temporär im Sitzungs-State ab. `internal/setup/hostfile` stellt alle 4 Einträge im Namensraum `loomux` bereit.
 
 **Tech Stack:** Go (Standard-Bibliothek `encoding/json`, `io`, `os`), Antigravity ProtoJSON Hook-Protokoll, Loomux Verifikationskette.
 
-**Spec:** [`docs/.superpowers/specs/2026-09-25-antigravity-hooks-integration-design.md`](file:///c:/Users/micro/Documents/#GIT/loomux/docs/.superpowers/specs/2026-09-25-antigravity-hooks-integration-design.md)
+**Spec:** [`docs/.superpowers/specs/2026-09-25-antigravity-hooks-integration-design.md`](../specs/2026-09-25-antigravity-hooks-integration-design.md)
 
 ## Global Constraints
 
@@ -30,11 +30,11 @@
 - Consumes: `hosts.HostAntigravity`, `WriteContext(host, event, w, lines)`
 - Produces: `writeAntigravityContext(w io.Writer, event string, lines []string) error`
 
-- [ ] **Step 1: Tests für `writeAntigravityContext` anlegen**
-- [ ] **Step 2: Tests ausführen und Fehlschlag verifizieren**
-- [ ] **Step 3: `writeAntigravityContext` in `internal/hosts/antigravity.go` implementieren**
-- [ ] **Step 4: Tests ausführen und 100 % Coverage prüfen**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Tests für `writeAntigravityContext` anlegen**
+- [x] **Step 2: Tests ausführen und Fehlschlag verifizieren**
+- [x] **Step 3: `writeAntigravityContext` in `internal/hosts/antigravity.go` implementieren**
+- [x] **Step 4: Tests ausführen und 100 % Coverage prüfen**
+- [x] **Step 5: Commit**
 
 ---
 
@@ -47,13 +47,13 @@
 
 **Interfaces:**
 - Consumes: `hosts.HostAntigravity`
-- Produces: `RunStop` mit Antigravity-JSON-Ausgabe (`decision: continue`) bei Exit 0
+- Produces: `RunStop` mit Antigravity-JSON-Ausgabe (`decision: continue`) bei Exit 0 — ersetzt durch Task 5
 
-- [ ] **Step 1: Test für Antigravity Stop schreiben (`decision: continue` bei Exit 0)**
-- [ ] **Step 2: Test ausführen und Fehlschlag verifizieren**
-- [ ] **Step 3: Antigravity-Zweig in `internal/hooks/stop.go` implementieren**
-- [ ] **Step 4: Tests ausführen und 100 % Coverage prüfen**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Test für Antigravity Stop schreiben (`decision: continue` bei Exit 0)**
+- [x] **Step 2: Test ausführen und Fehlschlag verifizieren**
+- [x] **Step 3: Antigravity-Zweig in `internal/hooks/stop.go` implementieren**
+- [x] **Step 4: Tests ausführen und 100 % Coverage prüfen**
+- [x] **Step 5: Commit**
 
 ---
 
@@ -70,11 +70,11 @@
 - Consumes: `sessions.RecordPendingEdit(root, sessionID string, stepIdx int, path string) error`
 - Produces: `sessions.TakePendingEdit(root, sessionID string, stepIdx int) (string, error)`
 
-- [ ] **Step 1: Tests für `RecordPendingEdit` & `TakePendingEdit` in `internal/sessions` schreiben**
-- [ ] **Step 2: `internal/sessions/pending.go` implementieren und testen (100 % Coverage)**
-- [ ] **Step 3: Pufferung in `PreToolUse` und Abruf in `PostToolUse` verdrahten**
-- [ ] **Step 4: Tests ausführen und 100 % Coverage prüfen**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Tests für `RecordPendingEdit` & `TakePendingEdit` in `internal/sessions` schreiben**
+- [x] **Step 2: `internal/sessions/pending.go` implementieren und testen (100 % Coverage)**
+- [x] **Step 3: Pufferung in `PreToolUse` und Abruf in `PostToolUse` verdrahten**
+- [x] **Step 4: Tests ausführen und 100 % Coverage prüfen**
+- [x] **Step 5: Commit**
 
 ---
 
@@ -91,9 +91,35 @@
 - Consumes: `table.Entries(hosts.HostAntigravity, binary)`
 - Produces: 4 Einträge (`PreInvocation`, `PreToolUse`, `PostToolUse`, `Stop`) in `.agents/hooks.json`
 
-- [ ] **Step 1: Tests für alle 4 Antigravity-Einträge schreiben**
-- [ ] **Step 2: `internal/setup/hostfile/table.go` um `PreInvocation` und `Stop` erweitern**
-- [ ] **Step 3: Tests in `hostfile` und `plan_test.go` anpassen und ausführen (100 % Coverage)**
-- [ ] **Step 4: `loomux init` ausführen, um `.agents/hooks.json` im Workspace zu aktualisieren**
-- [ ] **Step 5: Pre-Commit Gate (`ci/gate.sh`) und kanonisches Binary bauen**
-- [ ] **Step 6: Commit**
+- [x] **Step 1: Tests für alle 4 Antigravity-Einträge schreiben**
+- [x] **Step 2: `internal/setup/hostfile/table.go` um `PreInvocation` und `Stop` erweitern**
+- [x] **Step 3: Tests in `hostfile` und `plan_test.go` anpassen und ausführen (100 % Coverage)**
+- [x] **Step 4: `loomux init` ausführen, um `.agents/hooks.json` im Workspace zu aktualisieren**
+- [x] **Step 5: Pre-Commit Gate (`ci/gate.sh`) und kanonisches Binary bauen**
+- [x] **Step 6: Commit**
+
+---
+
+### Task 5: Nacharbeit nach dem Review vom 2026-09-25
+
+Das Review fand an Task 2 und 3 Lücken; Task 2 ist dabei ersetzt worden.
+
+**Files:**
+- Create: `internal/hosts/answer.go`, `internal/hosts/answer_test.go`
+- Modify: `internal/cli/hook.go`, `internal/cli/hook_test.go`
+- Revert: `internal/hooks/stop.go`, `internal/hooks/stop_test.go`, `internal/cli/cases_2c_test.go` auf den Stand von `master` (der Antigravity-Zweig in `RunStop` entfällt)
+- Modify: `internal/hooks/guard.go`, `internal/hooks/guard_test.go`
+- Modify: `internal/sessions/pending.go`, `internal/sessions/pending_test.go`
+- Modify: `internal/hooks/pretool.go`, `internal/hooks/post_edit.go` und ihre Tests
+- Docs: Fusions-Spec #23, diese Spec, `docs/{en,de}/{migration,cli-reference,getting-started}.md`, beide READMEs, `parity/stufe-4a-2.md`
+
+**Interfaces:**
+- Produces: `hosts.Answer(host, event string, w io.Writer, code int, out []byte, reason string) int`
+- Produces: `sessions.TakePendingEdits(root, sessionID string, stepIdx int) ([]string, error)` statt `TakePendingEdit`
+
+- [x] **Step 1: `run_command` in `commandTools` mit den drei Schreibweisen, Verweigerung ohne Befehlszeile**
+- [x] **Step 2: `hosts.Answer` und der Aufruf in `cli/hook.go`; `RunStop` wieder wirtsneutral**
+- [x] **Step 3: Pufferung je Aufruf, Abruf aller Ziele eines Schritts, auch bei `error`**
+- [x] **Step 4: Tests, 100 % je Funktion, Gate**
+- [x] **Step 5: Doku**
+- [ ] **Step 6 (Mensch): die Probe aus `parity/stufe-4a-2.md` mit einem laufenden agy**

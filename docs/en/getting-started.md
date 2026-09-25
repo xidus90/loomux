@@ -45,7 +45,7 @@ Stand in the root of your project and run:
 loomux init
 ```
 This command:
-1. Detects the coding agent harnesses in your workspace (`.claude/` → Claude Code, `.agents/` → Antigravity).
+1. Detects the coding agent harnesses in your workspace (`.claude/` → Claude Code, `.agents/hooks.json`, `.agents/skills/` or `GEMINI.md` → Antigravity).
 2. Asks per module (`hooks`, `brain`, `graph`) `all`, `each` or `none`, then the commit language.
 3. Shows every change as a diff — `.loomux/config.toml` (modules, commit language, the policy rules of your stack; verify lanes come from the presets), `.gitignore`, agent hook entries, git hooks, skills — and writes only what you approve.
 4. Puts the newest release at `%LOCALAPPDATA%\loomux\bin\loomux.exe`, which the hook entries call.
@@ -251,18 +251,15 @@ Whenever Claude Code attempts a `Write`, `Edit`, or shell command, Loomux valida
 For Antigravity, hooks are registered in `.agents/hooks.json`:
 ```json
 {
-  "hooks": [
-    {
-      "event": "PreToolUse",
-      "command": "loomux hook pre-tool-use --host antigravity"
-    },
-    {
-      "event": "PostToolUse",
-      "command": "loomux hook post-tool-use --host antigravity"
-    }
-  ]
+  "loomux": {
+    "PreInvocation": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook session-start --host antigravity --root ..", "timeout": 20}],
+    "PreToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..", "timeout": 15}]}],
+    "PostToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..", "timeout": 60}]}],
+    "Stop": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook stop --host antigravity --root .. --budget 270s", "timeout": 300}]
+  }
 }
 ```
+`loomux init` writes this group; agy runs it through `cmd.exe` from `.agents/`, hence `%LOCALAPPDATA%` and `--root ..`. The CLI reference explains how the hooks answer Antigravity.
 
 ### Cursor & MCP Clients
 Start the local MCP service:

@@ -35,10 +35,12 @@ func TestAntigravityEntriesCallTheInstalledBinaryThroughCmd(t *testing.T) {
 		t.Fatalf("AntigravityBinary = %q", AntigravityBinary)
 	}
 	want := []Entry{
-		{Event: "PreToolUse", Matcher: "write_to_file|replace_file_content|multi_replace_file_content|run_command",
+		{Event: "PreInvocation", Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook session-start --host antigravity --root ..", Timeout: 20, Flat: true},
+		{Event: "PreToolUse", Matcher: "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input",
 			Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..", Timeout: 15},
 		{Event: "PostToolUse", Matcher: "write_to_file|replace_file_content|multi_replace_file_content",
 			Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..", Timeout: 60},
+		{Event: "Stop", Command: "%LOCALAPPDATA%/loomux/bin/loomux.exe hook stop --host antigravity --root .. --budget 270s", Timeout: 300, Flat: true},
 	}
 	for _, binary := range []string{Canonical, Checkout} {
 		got := Entries(hosts.HostAntigravity, binary)

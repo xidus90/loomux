@@ -580,6 +580,66 @@ Damit ist belegt: agy lädt die Gruppe `loomux`, `%LOCALAPPDATA%` löst auf,
 `--root ..` trifft die Projektwurzel, und der Wächter von loomux sperrt
 unter Antigravity, was er unter Claude Code sperrt.
 
+## Antigravity-Hooks: Review und Nacharbeit, 2026-09-25
+
+Ein Review (`code-review xhigh`) lief gegen Plan und Spec auf
+`feat/antigravity-hooks`, nicht gegen den Code hier. Gegen diesen Zweig
+nachgerechnet:
+
+| Befund | Stand vor der Nacharbeit | Jetzt |
+|---|---|---|
+| Deny mit Exit 0 bei PreToolUse | Code blieb bei Exit 2 | unverändert; Spec und Plan sagen es |
+| Nur Stop-Block wird abgebildet, jeder andere Exit ≠ 0 bricht agy ab | `finish` in `RunStop`, frühe Austritte und Post-Edit nicht abgebildet | `hosts.Answer`, einmal in `cli/hook.go` für jeden Austritt; `RunStop` wieder wie auf `master` |
+| `run_command` fehlt in `commandTools` | offen | drei Schreibweisen geprüft, ohne Befehlszeile verweigert |
+| Pfad-Traversal über `conversationId` | `safeName` war schon da | Test dazu; `Forget` räumt die Ablage mit ab |
+| Stop-Grund ein fester Text | stderr wurde schon mitgeschrieben | unverändert, jetzt im Adapter |
+| Signaturen und Seams | gebaut | `Stop` ohne stdout wie auf `master` |
+| Tests kompilieren nicht, Task 4 hängt an unfertigem Zweig | gegenstandslos: der Plan wurde hier umgesetzt | — |
+| `json.Marshal`-Zweig unerreichbar | Encoder auf `w` | — |
+| Gleicher `stepIdx`, parallele Aufrufe, Eintrag nach gescheitertem Aufruf | eine Datei je Schritt, bei `error` liegen gelassen | eine Datei je Aufruf, Post nimmt alle, auch bei `error`; Gleichheit ungemessen |
+| Ein Decode von stdin | ein Decode in eine gemeinsame Struktur | ein Decode in eine Map |
+| SessionEnd `worktree unlink` ruft `Forget` | Fehler auf `master` (`387f7d2a`) | nicht hier: eigener Zweig von `master` |
+| `%LOCALAPPDATA%` in Befehlen, `serve`-Binary überschrieben | stand nur im alten Plan | — |
+| migration, READMEs, Fusions-Spec | migration hatte zwei Einträge | vier Einträge, Protokoll, Offenes; Fusions-Spec #23 (Freigabe offen) |
+| Host-Zweige im Hook-Kern, `file:///`-Link | `host == HostAntigravity` in `stop.go`, Link im Plan | beides weg |
+
+**Zweite Runde** (erneuter Review gegen diesen Zweig, 15 Befunde): `--root`
+wird absolut gemacht (ein relatives `..` schaltete jede Pfadregel mit `/`
+aus); ein Budget für alle Dateien eines Aufrufs, eine runID je Datei; der
+Grund wird vor stderr gepuffert; die frühen Ausgänge (Flags, unbekanntes
+Ereignis) laufen über den Adapter; ein gescheiterter Aufruf nimmt nichts,
+`TakePendingEdits` löscht nur Gelesenes, frühere Schritte werden verworfen,
+fehlende Ziele übersprungen, bei `hooks = false` nichts abgelegt; die
+Nutzlast wird für Policy und Ablage einmal dekodiert; `hosts.AntigravityStep`
+und `writeAntigravityContext` statt Doppelungen; `docs/{en,de}/hooks.md`
+nachgezogen. Im Bereich 52c889e7..6e584810 und dort gemeldet: Sonderzeichen
+in `LOCALAPPDATA`, die Tests hinter `world()`, ungefaltete Folge-Commits.
+**Offen:** `init` prüft nur, dass das installierte Binary steht, nicht seine
+Version; mit dem installierten 2.11.1 endet `session-start --host antigravity`
+mit Exit 1 und agy bricht ab, bis ein Release mit diesem Zweig installiert
+ist. Das betrifft auch die eingecheckte `.agents/hooks.json` dieses Repos.
+
+**Ungemessen, deshalb offen:** die Antwort `decision: continue` auf Stop, die
+Antwort `injectSteps` auf einen roten Post-Edit, ob Pre und Post eines
+Aufrufs denselben `stepIdx` tragen, welchen Argumentnamen `run_command`
+sendet, was zwei parallele Schreibaufrufe eines Schritts melden. Eine Probe
+mit einem laufenden agy klärt alle fünf; der Agent darf sie nicht starten
+(der Auto-Modus verweigert das Starten eines Agenten). Vorbereitet unter
+`C:\Users\micro\agy-probe-2026-09-25` (vertraut, weil unter `C:\Users\micro`):
+`.agents/hooks.json` hängt `log.cmd` an `PreToolUse`, `PostToolUse` und
+`Stop`; `log.cmd`
+schreibt jede Nutzlast nach `log.txt`, antwortet auf den ersten Stop mit
+`continue` und, solange die Datei `postfail` liegt, auf ein Post-Edit mit
+Exit 2. Vom Menschen auszuführen, einmal ohne und einmal mit `postfail`:
+
+```sh
+cd /c/Users/micro/agy-probe-2026-09-25 && agy -p "In one single step, call write_to_file twice in parallel: create a.txt containing A and b.txt containing B. Then run the shell command 'echo hello' with run_command. Then stop." --add-dir "C:\Users\micro\agy-probe-2026-09-25" --dangerously-skip-permissions --print-timeout 280s; cat log.txt
+```
+
+Zu lesen: `stepIdx` der `pre`- und `post`-Zeilen je Datei, die Argumente
+von `run_command`, ob nach dem ersten `stop` eine `stopped.txt` entstand,
+und was agy nach dem Exit 2 von `post` tat.
+
 ## Offen
 
 - **Task 1 ist gelaufen, bis auf einen Schritt.** Am 2026-09-24 vom Agenten
