@@ -8,9 +8,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/guard"
 	"github.com/xidus90/loomux/internal/brain/wiki"
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/config"
@@ -56,31 +58,59 @@ func PostToolUse(stdin io.Reader, stdout, stderr io.Writer, root string, budget 
 // RunPostEdit runs the lanes of the `edit` profile for the edited file's
 // stack, as [verify] and the presets lay them out, or the wiki lint for a
 // wiki page. A red lane blocks the edit with 2; a config it cannot read ends
-// with 1, which shows the error and blocks nothing.
+// with 1, which shows the error and blocks nothing. A call that names several
+// files checks each, within one budget for them all, and ends with the worst
+// of their codes.
 func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env EditEnv) int {
-	raw := editedFile(stdin)
-	if raw == "" {
+	files := editedFiles(stdin)
+	if len(files) == 0 {
 		return ExitOK
 	}
 	// Tools run in their area, so every path handed to them must be absolute.
 	if abs, err := filepath.Abs(root); err == nil {
 		root = abs
 	}
-	fail := func(err error) int {
-		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
-		return ExitInternal
-	}
 	facts := detect.Detect(os.DirFS(root))
 	eff, err := editLoad(root, facts)
 	if err != nil {
-		return fail(err)
+		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
+		return ExitInternal
+	}
+	// One budget for the call: a host's timeout is per hook, not per file.
+	// The first file runs as a single edit always has; each later one gets
+	// what is left, and none once that is spent.
+	start := env.Now()
+	runID := verify.NewRunID(start, os.Getpid())
+	code := ExitOK
+	for i, raw := range files {
+		fileEnv, id := env, runID
+		// A budget of 0 is none, and stays none for every file.
+		if i > 0 && env.Budget > 0 {
+			fileEnv.Budget = start.Add(env.Budget).Sub(env.Now())
+			if fileEnv.Budget <= 0 {
+				fmt.Fprintf(stderr, "loomux hook post-tool-use: lane skipped, the edit budget ran out: %s\n", raw)
+				continue
+			}
+			// Coverage files of their own; CleanCover matches `<runID>-`.
+			id += "." + strconv.Itoa(i)
+		}
+		code = max(code, checkEdit(stdout, stderr, root, raw, id, eff, facts, fileEnv))
+	}
+	return code
+}
+
+// checkEdit runs the lanes for one edited file.
+func checkEdit(stdout, stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv) int {
+	fail := func(err error) int {
+		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
+		return ExitInternal
 	}
 	ext := strings.ToLower(filepath.Ext(raw))
 	if slices.Contains(eff.Ignored, ext) {
 		return ExitOK
 	}
-	runID := verify.NewRunID(env.Now(), os.Getpid())
 	var jobs []verify.Job
+	var err error
 	if eff.Extensions[ext] == "wiki" {
 		jobs = wikiJobs(eff, facts, root, raw)
 	} else if jobs, err = editJobs(eff, root, raw, runID, env); err != nil {
@@ -113,18 +143,22 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 	return code
 }
 
-// editedFile is the path an edit payload names, "" when it names none or
-// cannot be read. A notebook edit names its file under notebook_path.
-func editedFile(stdin io.Reader) string {
-	var payload HookPayload
-	if err := json.NewDecoder(stdin).Decode(&payload); err != nil {
-		return ""
+// editedFiles are the paths an edit payload names, none when it names none,
+// when its call failed or when it cannot be read: Claude's tool_input with
+// file_path or notebook_path, Antigravity's toolCall with TargetFile, read as
+// the guard reads them. agy's PostToolUse carries the call (measured with agy
+// 1.2.11 on 2026-09-25, although its hooks guide lists only stepIdx and
+// error), and "error" when the tool failed.
+func editedFiles(stdin io.Reader) []string {
+	var object map[string]any
+	if err := json.NewDecoder(stdin).Decode(&object); err != nil {
+		return nil
 	}
-	raw, _ := payload.ToolInput["file_path"].(string)
-	if raw == "" {
-		raw, _ = payload.ToolInput["notebook_path"].(string)
+	if failed, _ := object["error"].(string); failed != "" {
+		return nil
 	}
-	return raw
+	_, input := guard.Call(object)
+	return guard.WriteTargets(input)
 }
 
 // editLoad lays the project's config over the presets for what root holds.

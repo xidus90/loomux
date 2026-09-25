@@ -41,7 +41,8 @@ func readAntigravity(r io.Reader) (Payload, error) {
 	if sessionID == "" {
 		sessionID, _ = payload["conversation_id"].(string)
 	}
-	return Payload{SessionID: sessionID}, nil
+	invocation, _ := payload["invocationNum"].(float64)
+	return Payload{SessionID: sessionID, Repeat: invocation > 1}, nil
 }
 
 type antigravityAnswer struct {

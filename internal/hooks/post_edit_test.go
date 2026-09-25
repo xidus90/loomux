@@ -16,6 +16,7 @@ import (
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/detect"
+
 	"github.com/xidus90/loomux/internal/verify"
 )
 
@@ -712,5 +713,103 @@ func TestPostEditReadsTheGraphOnlyForAGreenGoEdit(t *testing.T) {
 		if reads != c.want {
 			t.Errorf("%s: %d reads of the graph, want %d", c.name, reads, c.want)
 		}
+	}
+}
+
+// / agyCall writes the files and answers the PostToolUse payload agy sends for
+// one write_to_file naming them, as measured with agy 1.2.11.
+func agyCall(t *testing.T, root string, names ...string) string {
+	t.Helper()
+	args := map[string]any{}
+	keys := []string{"TargetFile", "target_file"}
+	for i, name := range names {
+		path := filepath.Join(root, name)
+		if err := os.WriteFile(path, []byte("package m\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		args[keys[i]] = filepath.ToSlash(path)
+	}
+	data, _ := json.Marshal(args)
+	return `{"conversationId":"c1","stepIdx":3,"toolCall":{"name":"write_to_file","args":` + string(data) + `}}`
+}
+
+// agy's PostToolUse carries the call: post-edit checks every file it names,
+// and the worst code wins.
+func TestPostEditChecksTheFilesAntigravitysCallNames(t *testing.T) {
+	root := goProject(t)
+	red := func(s child.Spec) child.Result {
+		if strings.Contains(strings.Join(s.Argv, " "), "gofmt a.go") {
+			return child.Result{Code: 1, Stdout: "a.go\n"}
+		}
+		return child.Result{}
+	}
+	code, _, _, seen := postEdit(t, root, agyCall(t, root, "a.go", "b.go"), red)
+	got := strings.Join(seen, "\n")
+	if code != ExitDenied || !strings.Contains(got, "gofmt a.go") || !strings.Contains(got, "gofmt b.go") {
+		t.Fatalf("code %d, seen %v", code, seen)
+	}
+}
+
+// A call that failed, one naming no file and a payload that is no JSON check
+// nothing.
+func TestPostEditChecksNothingForACallItCannotUse(t *testing.T) {
+	root := goProject(t)
+	failed := strings.Replace(agyCall(t, root, "a.go"), `"stepIdx":3`, `"stepIdx":3,"error":"exit status 1"`, 1)
+	for _, payload := range []string{failed, `{"conversationId":"c1","stepIdx":3}`, `not json`} {
+		if code, _, _, seen := postEdit(t, root, payload, passing); code != ExitOK || len(seen) != 0 {
+			t.Fatalf("%s: code %d, seen %v", payload, code, seen)
+		}
+	}
+}
+
+// Several files share one budget: once it is spent, the rest are named as
+// skipped rather than each given the whole budget again. A budget of 0 is
+// none, for every file.
+func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
+	root := goProject(t)
+	payload := agyCall(t, root, "a.go", "b.go")
+	run := func(budget time.Duration) ([]string, string) {
+		now := time.Now()
+		var seen []string
+		env := EditEnv{
+			Start: func(s child.Spec) child.Result {
+				seen = append(seen, strings.Join(s.Argv, " "))
+				now = now.Add(DefaultBudget)
+				return child.Result{}
+			},
+			Look:   func(s string) (string, error) { return s, nil },
+			Loomux: "loomux",
+			Budget: budget,
+			Now:    func() time.Time { return now },
+		}
+		var so, se bytes.Buffer
+		RunPostEdit(strings.NewReader(payload), &so, &se, root, env)
+		return seen, se.String()
+	}
+	seen, stderr := run(DefaultBudget)
+	if strings.Contains(strings.Join(seen, "\n"), "b.go") || !strings.Contains(stderr, "the edit budget ran out: "+filepath.ToSlash(filepath.Join(root, "b.go"))) {
+		t.Fatalf("seen %v, stderr %q", seen, stderr)
+	}
+	if seen, _ := run(0); !strings.Contains(strings.Join(seen, "\n"), "b.go") {
+		t.Fatalf("no budget skipped b.go: %v", seen)
+	}
+}
+
+// Each file of one call measures into coverage files of its own.
+func TestPostEditGivesEachFileItsOwnRunID(t *testing.T) {
+	root := goProject(t)
+	os.WriteFile(filepath.Join(root, "a_test.go"), []byte("package m\n"), 0o644)
+	writeManifest(t, root, "[verify.profiles]\nedit = [\"test\", \"coverage\"]\n")
+	_, _, _, seen := postEdit(t, root, agyCall(t, root, "a.go", "b.go"), measuringEdit)
+	profiles := map[string]bool{}
+	for _, line := range seen {
+		for _, arg := range strings.Fields(line) {
+			if p, ok := strings.CutPrefix(arg, "-coverprofile="); ok {
+				profiles[p] = true
+			}
+		}
+	}
+	if len(profiles) != 2 {
+		t.Fatalf("profiles %v", profiles)
 	}
 }
