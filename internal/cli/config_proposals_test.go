@@ -169,7 +169,7 @@ func TestConfigApplyWhenTheProposalCannotBeRemoved(t *testing.T) {
 
 func TestConfigApplyWhenTheWriteFails(t *testing.T) {
 	restore := applyWrite
-	applyWrite = func(configTarget, string) error { return errors.New("disk full") }
+	applyWrite = func(configTarget, string, string) error { return errors.New("disk full") }
 	t.Cleanup(func() { applyWrite = restore })
 	root := configRoot(t, "")
 	forgeProposal(t, proposalDir(root), proposal{ID: "a-1", Op: "set", Key: "commit.threshold", Input: "4"})

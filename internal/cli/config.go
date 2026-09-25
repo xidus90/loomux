@@ -353,7 +353,7 @@ func configWrite(t configTarget, propose func(text string) (string, error), yes 
 			return 0
 		}
 	}
-	if err := writeConfig(t, next); err != nil {
+	if err := writeConfig(t, text, next); err != nil {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
 		return 1
 	}
@@ -362,9 +362,18 @@ func configWrite(t configTarget, propose func(text string) (string, error), yes 
 }
 
 // writeConfig is the one way every form puts a new text in place: set,
-// unset, the interactive form and apply.
-func writeConfig(t configTarget, next string) error {
-	err := os.MkdirAll(filepath.Dir(t.path), 0o755)
+// unset, the interactive form and apply. before is the text next was made
+// from; a file that no longer holds it was changed by someone else while
+// the human read the diff, and next would take that change back unseen.
+func writeConfig(t configTarget, before, next string) error {
+	current, err := t.read()
+	if err != nil {
+		return err
+	}
+	if current != before {
+		return fmt.Errorf("%s changed since it was read; nothing written", t.path)
+	}
+	err = os.MkdirAll(filepath.Dir(t.path), 0o755)
 	if err == nil {
 		err = lock.ReplaceText(t.path, next)
 	}

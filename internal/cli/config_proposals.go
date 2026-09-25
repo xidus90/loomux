@@ -411,7 +411,7 @@ func applyOne(t configTarget, id string, yes bool, answers *bufio.Reader, stderr
 			return true
 		}
 	}
-	if err := applyWrite(t, next); err != nil {
+	if err := applyWrite(t, text, next); err != nil {
 		say(stderr, "loomux config: %v; nothing written, the proposal stays\n", err)
 		return false
 	}
