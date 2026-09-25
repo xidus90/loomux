@@ -209,7 +209,7 @@ func configList(t configTarget, asJSON bool, stdout, stderr io.Writer) int {
 	}
 	w := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 	for _, e := range entries {
-		value := shownValue(e)
+		value := shorten(shownValue(e))
 		if e.Key.Kind == schema.TableList {
 			value = entryCount(e.Count)
 		}
@@ -222,6 +222,19 @@ func configList(t configTarget, asJSON bool, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, proposalHint(n))
 	}
 	return 0
+}
+
+// listWidth is the widest value `config list` prints; the tabwriter sizes
+// the column by its longest cell, and one preset table would push the
+// origin of every row far to the right. get prints a value whole.
+const listWidth = 60
+
+// shorten cuts value to listWidth runes, the last one an ellipsis.
+func shorten(value string) string {
+	if rs := []rune(value); len(rs) > listWidth {
+		return string(rs[:listWidth-1]) + "…"
+	}
+	return value
 }
 
 func entryCount(n int) string {

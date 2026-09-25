@@ -986,7 +986,9 @@ loomux config reject <id>|--all
 ### `loomux config list [--json]`
 Eine Zeile je Schlüssel: Modul, Schlüssel, Wert, Herkunft. Eine Liste von
 Tabellen (`commit.allow`, `policy.paths.rules`, `policy.commands.rules`)
-zeigt statt eines Werts die Zahl ihrer Einträge. Sind Vorschläge offen,
+zeigt statt eines Werts die Zahl ihrer Einträge. Ein Wert über 60 Zeichen
+wird dort abgeschnitten und endet auf `…`; `get` und `--json` geben ihn
+ganz. Sind Vorschläge offen,
 folgt eine letzte Zeile `N proposals open — loomux config proposals`
 (`1 proposal open …` bei einem);
 `--json` gibt nur die Zeilen aus. Die Tabellen je Stack,
