@@ -182,11 +182,13 @@ loomux reindex [--registry P]       # reconcile first, then rebuild every area's
 loomux embed [--registry P]         # generate the vectors reindex leaves pending (needs qmd on PATH)
 loomux reconcile                    # open review cases for changed sources and landed merges; a case is not a failure
 loomux area add [--path P] [--scope S]  # register a repository as an area, scaffold its wiki and index it (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
+loomux merge-hook install|status|remove  # the post-merge hook of every area whose manifest says [maintenance] on_merge = true; it calls `loomux merge-hook record`, which notes the merge for reconcile; not yet in use on a host
 loomux cases                        # list the cases waiting in the review centre; a case is not a failure
 loomux case <id> [--package]        # show a case with its package and proposal; withheld for local_only until --package
 loomux approve <id>                 # decide a case: apply the evidence-bound proposal and commit it (--amend F, --reject, --defer)
 loomux config [list|get K|set K V]  # show every key of .loomux/config.toml with its origin, change one line after a diff and a y; bare: full-screen (--root, --global, --yes, --json; a human's command, the guard refuses an agent)
 loomux config set|unset … --propose # an agent's way: store the checked change as a proposal; a human runs `config proposals`, then `config apply <id>|--all` or `config reject`
+loomux init                         # set a project up in modules (hooks, brain, graph): binary, config, host entries, git hooks, merge hook, skills; every change as a diff, written after a y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; a human's command; its first runs on a fresh clone and a host are pending)
 ```
 
 ### Code Graph
@@ -306,6 +308,12 @@ The next bridge replaces the running service. `loomux self-update` does the
 same by hand. What the last pass found is in `update.json` beside the binary's
 directory; session start warns when `serve` runs from anywhere else or the
 pass failed. Windows only for now.
+
+`loomux init` takes over the first steps: its part `binary` puts the newest
+release at the same place when none stands there, and its part `mcp-json`
+writes the project's `.mcp.json` when the user scope has no server `loomux`
+(see the [CLI reference](docs/en/cli-reference.md#11-project-setup-loomux-init)).
+Its first run by a human is still pending.
 
 Every merged pull request to `master` is released according to its label:
 

@@ -45,10 +45,12 @@ Stand in the root of your project and run:
 loomux init
 ```
 This command:
-1. Detects active coding agent harnesses in your workspace (`.claude/`, `.agents/`, `.cursor/`).
-2. Creates the configuration folder `.loomux/`.
-3. Creates a starter `.loomux/config.toml` (declaring write boundaries and verify lanes).
-4. Configures agent hook files to invoke the `loomux hook` entry points.
+1. Detects the coding agent harnesses in your workspace (`.claude/` → Claude Code, `.agents/` → Antigravity).
+2. Asks per module (`hooks`, `brain`, `graph`) `all`, `each` or `none`, then the commit language.
+3. Shows every change as a diff — `.loomux/config.toml` (modules, commit language, the policy rules of your stack; verify lanes come from the presets), `.gitignore`, agent hook entries, git hooks, skills — and writes only what you approve.
+4. Puts the newest release at `%LOCALAPPDATA%\loomux\bin\loomux.exe`, which the hook entries call.
+
+Every part, flag and exit code is in the [CLI reference](cli-reference.md#11-project-setup-loomux-init).
 
 > [!NOTE]
 > Pass `--dry-run` to see what files would be created without writing to disk:
@@ -120,8 +122,9 @@ Detected Stacks: [go]
 
 An area is two declarations: an entry in the machine-wide registry that says
 where the tree lies and what may be written in it, and a manifest inside the
-tree that says what it is. The binary has no `init` command yet (stage 4), so a
-human writes both files; no agent writes either, and the write barrier
+tree that says what it is. `loomux area add` writes both, and `loomux init`
+runs it as its part `area`; this section is for a human writing them by hand.
+No agent writes either, and the write barrier
 refuses `.loomux/config.toml` to every writing tool. Where both files live is
 listed in
 [Where Things Live](configuration.md#4-where-things-live).

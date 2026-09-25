@@ -219,9 +219,12 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   `--detect-only`), jedes `loomux config` außer `config list …`,
   `config get …`, `config proposals …`, einem alleinstehenden
   `config --help` oder `config -h` und `config set …` oder `config unset …`
-  mit befreiendem `--propose`, oder `loomux area add` ausführt, wird
-  verweigert mit ``loomux init, config and area add write the configuration
-  the guard reads; a human runs them. An agent proposes a change with
+  mit befreiendem `--propose`, `loomux area add` oder
+  `loomux merge-hook install` oder `remove` (`status` und `record` gehen
+  durch) ausführt, wird verweigert mit ``loomux init, config and area add
+  write the configuration the guard reads, and merge-hook install and remove
+  write executable hooks into repositories; a human runs them. An agent
+  proposes a change with
   `loomux config set|unset … --propose`, which a human applies``.
   `config apply` und `config reject` bleiben verweigert.
   - **Wann ein Flag befreit** — eine Positivliste, geprüft an der Zeile, wie
@@ -628,6 +631,18 @@ Meldet ein Repository als Bereich an und richtet es ein: der Registry-Eintrag (u
 - **Unterschiede zu `brain init`**: kein `.mcp.json` und keine Agenten-Hooks (`loomux init`, Stufe 4); der Indexlauf findet wirklich statt, außer mit `--no-reindex`; der Branch wird als `[maintenance] branch` geschrieben, nicht als `merge_branch`; `--privacy` wird geprüft; der erste Bereich einer Maschine braucht keine von Hand angelegte Registry-Datei. `-y`/`--yes` wird angenommen und ändert nichts.
 - **Exit-Codes**: `0` oder der Exit-Code des Indexlaufs; `1` bei einem Pfad, der kein Verzeichnis ist, einem ungültigen Scope, einem relativen `--wiki`, einem abgelehnten Registry-Eintrag, einer unlesbaren Datei oder einem fehlgeschlagenen Schreiben; `2` bei einem Usage-Fehler, einem fehlenden oder unbekannten Unterbefehl (mit der Usage-Zeile) oder einem unbekannten `--privacy`.
 
+### Der post-merge-Hook: `loomux merge-hook install|status|remove|record`
+Der Hook, der `reconcile` einen gelandeten Merge meldet, in jedem Repository eines Bereichs, dessen Manifest `[maintenance] on_merge = true` sagt. `brain-mcp hook` von ultra-brain unter neuem Namen, weil `hook` hier der Namensraum der Host-Hooks ist; ein aufgenommener Fallkorpus (`testdata/cases/4a2`, 14 Fälle, elf ohne Unterschied) hält ihn an der Referenz. `loomux init` ruft `merge-hook install` als seinen Teil `merge-hook` (aus in einem Checkout von loomux, dessen Hookverzeichnis das eingecheckte `.githooks` ist).
+
+- **Der Hook backt nichts ein**: Die Datei ist überall derselbe Text, ein kurzes `sh`, das `"${LOCALAPPDATA}/loomux/bin/loomux.exe" merge-hook record` ruft und dessen Ausgabe verwirft. Welches Repository und welcher Zweig zählen, entscheidet die Registry zur Merge-Zeit; nichts in der Datei kann veralten. Sie liegt, wo git Hooks sucht, `core.hooksPath` eingeschlossen. Die Einrichtungen merkt sich `maintenance/hooks.tsv` unter `LOOMUX_STATE_DIR` (drei Felder, `scope`, `repo`, `hook`; eine Zeile der Referenz mit mehr wird über ihre ersten drei gelesen).
+- **`install`** schreibt den Hook in jedes einwilligende Repository und merkt ihn sich; eine Datei mit der Marke der Referenz `# brain post-merge hook` ist der Vorgänger desselben Hooks und wird ersetzt. Ein fremder `post-merge` heißt `refused` und bleibt stehen.
+- **`status`** nennt den Zustand jedes Repositorys: `installed`, `missing` (gemerkt, Datei weg), `not installed`, `unrecorded` (die Datei ist unsere, der Eintrag verloren — auch ein Hook, den `brain-mcp` eingerichtet hat, dessen Einträge unter dem alten Zustandsverzeichnis nicht gelesen werden), `orphaned` (gemerkt für einen Bereich, der nicht mehr einwilligt, oder ein verschobenes Repository) und `refused`; jeder Befehl sagt `no repository` für einen einwilligenden Bereich, dessen Pfad in keinem liegt.
+- **`remove`** nimmt jeden eigenen Hook zurück, den er kennt, einen ohne Eintrag eingeschlossen; einen, den jemand durch einen eigenen ersetzt hat, nennt er `refused` und behält dessen Eintrag.
+- **Ausgabe** auf `stdout`: eine Zeile je Repository, `<zustand>: <scope> — <repo>`, gefolgt von ` [<hookdatei>]`, wenn es eine gibt. Ohne Zeile: `no area consents with [maintenance] on_merge = true, and no hook is installed`.
+- **`record`** ruft der Hook selbst: ein Ereignis für den Merge, der eben im Arbeitsverzeichnis gelandet ist, wenn ein Bereich es will. Es läuft im `git merge` des Nutzers, schreibt darum nie etwas und endet immer mit `0` — keine Registry, eine kaputte, kein Repository, ein nicht schreibbares Zustandsverzeichnis und überzählige Argumente eingeschlossen.
+- **Der Wächter** verweigert einem Agenten `install` und `remove`, die ausführbare Dateien in Repositorys schreiben; `status` und `record` gehen durch (siehe [`hook pre-tool-use`](#loomux-hook-pre-tool-use)).
+- **Exit-Codes**: `0`, auch bei einem verwaisten, fehlenden oder unverzeichneten Hook, die Befunde sind; `1`, wenn eine Zeile `refused` oder `no repository` sagt, die Registry nicht liest oder eine Hookdatei nicht geschrieben werden kann (`loomux merge-hook <sub>: <grund>` auf `stderr`); `2` bei einem Usage-Fehler (`usage: loomux merge-hook install|status|remove|record`).
+
 ### Prüfzentrum: `loomux cases`, `loomux case`, `loomux approve`
 
 Drei Befehle der `brain`-CLI von ultra-brain, seit Stufe 3b Befehle auf oberster Ebene von loomux; ein aufgezeichneter Fallkorpus (`testdata/cases/3b`) hält sie an der Python-Referenz, `approve` samt den Dateien, die es schreibt, und dem Commit, den es anlegt. Sie entscheiden die Fälle, die `loomux reconcile` ins Prüfzentrum legt. Ein Fall wird über den Namen seines Verzeichnisses im Prüfzentrum angesprochen, die erste Spalte von `loomux cases`.
@@ -854,11 +869,17 @@ channel for details", ohne den Wert, den er trug.
 
 ### Die `.mcp.json` eines Wirts
 
-Bis `loomux init` sie schreibt (Stufe 4), tut es ein Mensch:
+`loomux init` schreibt sie als seinen Teil `mcp-json` (siehe [`loomux init`](#11-projekt-einrichten-loomux-init)),
+nur wenn der Nutzerbereich (`~/.claude.json`) keinen Server `loomux` nennt,
+und behält jeden anderen Server einer vorhandenen Datei:
 
 ```json
-{ "mcpServers": { "loomux": { "command": "loomux", "args": ["mcp", "--channel", "local"] } } }
+{ "mcpServers": { "loomux": { "command": "${LOCALAPPDATA}/loomux/bin/loomux.exe", "args": ["mcp", "--channel", "local"] } } }
 ```
+
+Sie ruft das maschinenweite Binary an seinem festen Ort, nicht `loomux` über
+den `PATH`. Dass Claude Code `${LOCALAPPDATA}` dort auflöst, ist noch nicht
+gemessen; bis dahin kann ein Wirt `loomux` über den `PATH` von Hand nennen.
 
 ---
 
@@ -1088,5 +1109,145 @@ Meldung `--propose given and switched off; say what you mean`, `--propose`
 außerhalb von
 `set`/`unset`, `--all` außerhalb von `apply`/`reject`, `apply`/`reject` ohne
 genau eines von `<id>` und `--all`) und die interaktive Form ohne Terminal.
+
+---
+
+## 11. Projekt einrichten (`loomux init`)
+
+Richtet ein Projekt für loomux ein: Es liest, was das Projekt ist, fragt je
+Modul, was einzurichten ist, zeigt jede Änderung als Diff und jede Handlung
+beim Namen und schreibt nur, was ein Mensch bestätigt. Es ersetzt `ulinit`
+aus ultraloom, `scripts/install.ps1` und die Hook-Hälfte von `brain init`.
+Gebaut mit Stufe 4a-2; der Lauf auf einem frischen Klon dieses Repositorys
+und in einem Wirtsprojekt steht für einen Menschen noch aus (siehe den
+[Migrationsplan](migration.md)).
+
+```bash
+loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]
+            [--hooks=all|each|none] [--brain=all|each|none] [--graph=all|each|none]
+            [--hosts=claude,antigravity]
+```
+
+- **`--root DIR`**: das Projekt; leer das Arbeitsverzeichnis.
+- **`--dry-run`**: zeigt den Plan und schreibt nichts. Ohne Terminal behält
+  es die Vorgaben, statt zu fragen.
+- **`--detect-only`**: druckt als JSON, was das Projekt ist (Stacks, Wirte,
+  Hookverzeichnis, Konfiguration, Binary, Merge-Hook, Graph), und endet;
+  daneben nimmt es nur `--root`.
+- **`--yes`**: nimmt die Vorgaben und bestätigt jede Änderung und Handlung,
+  ohne Terminal.
+- **`--hooks`, `--brain`, `--graph`**: `all` schaltet jeden Teil des Moduls
+  an, `none` das Modul aus, `each` fragt Teil für Teil. Ein Flag schlägt die
+  Antworten eines früheren Laufs.
+- **`--hosts`**: kommagetrennt, `claude`, `antigravity` oder `codex`;
+  vorgegeben sind die Wirte, die das Projekt hat (`.claude/` → Claude Code,
+  `.agents/` → Antigravity; keines → Claude Code).
+- `--dry-run=…` und `--detect-only=…` sind ein Usage-Fehler, und kein Flag
+  nimmt ein folgendes `--dry-run` als Wert: Der Wächter lässt eine Zeile mit
+  dem Wort `--dry-run` durch, ein Wert könnte das zurücknehmen.
+
+### Module und Teile
+Das Interview fragt je Modul `all`, `each` oder `none` (bei `each` eine
+Vollbildliste seiner Teile), dann die Commit-Sprache (`en` oder `de`) und,
+wenn das Projekt ein Bereich wird, seinen Scope. Die Vorgaben der Teile
+folgen dem Projekt; die Antworten eines früheren Laufs gehen vor.
+
+| Modul | Teil | Was er tut | Vorgabe |
+|---|---|---|---|
+| base | `binary` | das Binary, das die Einträge rufen: `binary-install` legt das neueste Release nach `${LOCALAPPDATA}/loomux/bin/loomux.exe` (über `gh`, geprüft gegen `SHA256SUMS` und sein `--version`); in einem Checkout von loomux baut `binary-build` `bin/loomux.exe` | an |
+| base | `config` | `.loomux/config.toml`: `[modules]`, wo ein Modul aus ist, `[commit] language`, wo sie nicht `en` ist, und die noch fehlenden Policy-Regeln der erkannten Stacks; `[verify]` bleibt den Presets. Der Text muss die eigenen Leser der Konfiguration bestehen | an |
+| base | `gitignore` | `.gitignore`: `/.loomux/state/` | an |
+| base | `agents-md` | `AGENTS.md`, nur wenn das Projekt keine hat | an, aus in einem Checkout |
+| base | `mcp-json` | `.mcp.json` mit dem Server `loomux` (siehe [Die `.mcp.json` eines Wirts](#die-mcpjson-eines-wirts)) | an, aus in einem Checkout |
+| base | `tools` | sucht `git`, `qmd`, `pdftotext`, `yt-dlp` und `ollama` auf dem `PATH` und nennt für ein fehlendes den Installationsbefehl; installiert nichts | an |
+| hooks | `host-entries` | die Hook-Einträge jedes Wirts (`.claude/settings.json`) | an |
+| hooks | `git-hooks` | `pre-commit`, `pre-push` (verweigert einen Push nach `main` oder `master`) und `commit-msg` unter `.githooks`, dazu `git config core.hooksPath .githooks` | an in einem Repository |
+| hooks | `verify-skill` | der Skill `verify-until-green` | an, aus in einem Checkout |
+| brain | `area` | `loomux area add --scope <scope>`, ohne `--wiki`, also mit dem vorgegebenen Wiki von area add | an, aus in einem Checkout oder bei einem schon erklärten oder registrierten Bereich |
+| brain | `merge-hook` | der post-merge-Hook von `loomux merge-hook install`, nur für die Bereiche an dieser Wurzel: Ein veralteter Bereich oder ein fremder Hook anderswo in der Registry hält `init` nicht auf. Geplant nur, wenn hier ein Bereich der Registry dieses Rechners steht und die Erklärung hier `[maintenance] on_merge = true` sagt, oder wenn `area` im selben Lauf in einem Projekt ohne `.loomux/config.toml` läuft (area add schreibt die Zustimmung nur in eine neue), und nur, wo `${LOCALAPPDATA}/loomux/bin/loomux.exe`, das der Hook ruft, installiert ist oder `binary-install` läuft, auch in einem Checkout; ohne eine Zeile für diese Wurzel scheitert die Handlung | an in einem Repository, aus in einem Checkout |
+| brain | `brain-skills` | die Skills `brain-ingest`, `brain-land`, `brain-research`, `brain-review`, `brain-wiki-plan` | an, aus in einem Checkout |
+| graph | `graph-build` | `loomux graph build` | an bei einem bekannten Stack, aus in einem Checkout |
+
+Ein Checkout von loomux (sein `go.mod` erklärt `github.com/xidus90/loomux`)
+bekommt als Vorgabe nur an, was seine eingecheckten Dateien schon haben,
+damit `init --yes` auf einem frischen Klon `git status` leer lässt; ein Lauf
+durch einen Menschen, der das prüft, steht noch aus.
+
+### Was es schreibt und was es stehen lässt
+- **Nie überschreiben, stattdessen melden.** Eine neue Datei entsteht
+  exklusiv; eine vorhandene ändert sich nur, wo sie `init` gehört. Ein
+  Host-Eintrag gehört `init`, wenn sein Befehl ein loomux-Binary ruft; ein
+  fremder bleibt stehen und wird genannt. Eine Host-Datei oder `.mcp.json`,
+  die kein JSON ist oder deren `hooks` oder `mcpServers` kein Objekt ist,
+  wird nicht repariert: Der Plan scheitert, und der Lauf endet, ohne etwas
+  zu schreiben. Eine vorhandene `AGENTS.md` oder ein vorhandener Skill
+  bleibt, wie er ist. Bevor sich eine Datei zum ersten Mal ändert, geht eine
+  Kopie nach `.loomux/state/backup/<pfad>.bak` — außer
+  `.loomux/config.toml`, die im Ganzen ersetzt wird, sobald ihre Leser den
+  neuen Text annehmen.
+- **Einträge rufen das Binary an seinem Ort**: Die Einträge eines
+  Wirtsprojekts rufen `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`, die eines
+  Checkouts `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"` (seine Git-Hooks
+  `./bin/loomux.exe`). Steht dort kein Binary — der Teil `binary` ist aus,
+  abgelehnt oder gescheitert —, entfallen Host-Einträge, Git-Hooks und der
+  Merge-Hook, und `init` sagt es. `binary-install` scheitert, wenn
+  `LOOMUX_STATE_DIR` das Zustandsverzeichnis von `${LOCALAPPDATA}/loomux`
+  wegverlegt, weil die Einträge sonst nichts riefen.
+- **Reihenfolge**: das Binary, `area add`, die Dateien, `core.hooksPath`,
+  der Merge-Hook, der Graph. `area add` schreibt `[area]`, `[layout]`,
+  `[index]`, `[privacy]` und `[maintenance]` nur in eine Konfiguration, die
+  es noch nicht gibt, und läuft deshalb zuerst; die eigene Änderung von
+  `init` an `.loomux/config.toml` und eine fehlende `AGENTS.md` entstehen
+  dann über dem, was es hinterlassen hat (die Vorlage vor seiner
+  Routing-Regel). Der Plan zeigt den Diff gegen die Datei, wie sie steht,
+  und sagt das in einer Notiz.
+- **Eine Handlung wird nur geplant, solange ihr Ergebnis fehlt**:
+  `binary-install` ohne installiertes Binary (Updates bleiben bei `serve` und
+  `loomux self-update`), `binary-build` ohne `bin/loomux.exe`, `merge-hook`
+  ohne eigenen `post-merge`, `graph-build` ohne Graph.
+- **Lebende Hooks behalten ihr Verzeichnis**: Ist kein `core.hooksPath`
+  gesetzt und liegt in `.git/hooks` ein lebender `pre-commit`, `pre-push`
+  oder `commit-msg`, schreibt `init` nur die fehlenden Hooks dorthin. Ein
+  Hookverzeichnis außerhalb der Wurzel (ein verknüpfter Worktree, ein
+  Submodul) bleibt mit einer Notiz unberührt.
+- **Antigravity** wird angenommen, bekommt aber noch keine Hook-Einträge und
+  keine Skills: Seine Hookdatei ist gegen einen laufenden Agenten noch nicht
+  gemessen, ebenso wenig, wie es `${LOCALAPPDATA}` auflöst. Der Plan sagt das
+  in einer Notiz, und `.agents/hooks.json` wird weder gelesen noch
+  abgelehnt. Codex hat keine Hookdatei.
+- **Zustand**: `.loomux/state/answers.toml` hält die gewählten Wirte und
+  Teile (alles andere steht in `.loomux/config.toml`);
+  `.loomux/state/installed.toml` nennt, was der letzte Lauf geschrieben und
+  ausgeführt hat, und wird zuletzt geschrieben, sodass ein abgebrochener Lauf
+  seine offenen Änderungen im nächsten Plan wieder zeigt.
+
+### Ausgabe
+Der Plan auf `stdout`: jede Änderung als `--- <pfad>` mit Diff, dann
+`actions:` mit einer Zeile je Handlung, dann `notes:`; `nothing to change`,
+wenn nichts ansteht. Nach einem Lauf eine Zeile je Pfad oder Handlung:
+`written: …`, `skipped: …`, `refused: …` (abgelehnt), `failed: …`.
+
+### Der Wächter
+Der Wächter verweigert einem Agenten `loomux init`, außer es trägt
+`--dry-run` oder `--detect-only` als eigenes Wort (siehe
+[`hook pre-tool-use`](#loomux-hook-pre-tool-use)). Ein Mensch ruft es.
+
+### Exit-Codes
+`0` Erfolg, ein Probelauf, `--detect-only`, ein mit `esc` oder
+Eingabeende abgebrochener Lauf (`loomux init: cancelled; nothing written`)
+und ein Lauf, in dem der Mensch eine Änderung oder Handlung abgelehnt oder
+einen Teil abgeschaltet hat, das Binary eingeschlossen, auch wenn dadurch
+Host-Einträge, Git-Hooks und Merge-Hook entfallen; `1` das Projekt lässt
+sich nicht lesen (`go.mod`, git, die Registry), der Binary-Schritt, eine
+Änderung oder Handlung ist gescheitert, das Terminal versagte im Interview
+oder bei der Bestätigung, oder es ließ sich nicht zurücksetzen; `2`, bevor
+etwas geschrieben ist: ein Usage-Fehler, eine Wurzel, die kein Verzeichnis
+ist, eine `.loomux/config.toml` oder `.claude/settings.json`, die sich nicht
+lesen lässt, eine `answers.toml`, die
+nicht liest, ein scheiternder Plan (eine Konfiguration, die ihre Leser
+ablehnen, eine Host-Datei oder `.mcp.json`, die kein JSON ist oder deren
+`hooks` oder `mcpServers` kein Objekt ist, jede Datei, die der Plan nicht
+lesen kann), und ein Lauf, der fragen muss und kein Terminal hat (`init asks questions; run it in a
+terminal, or pass --yes or --dry-run`).
 
 

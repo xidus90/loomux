@@ -33,7 +33,7 @@ agents = ["claude", "antigravity", "cursor"]
 |---|---|---|
 | `name` | String | Projekt-Bezeichner für Namensräume und Registrierungen. |
 | `version` | String | Optionale Versionsnummer. |
-| `agents` | Array von Strings | Aktive Agenten-Harnesses, die durch `loomux init` angebunden werden. |
+| `agents` | Array von Strings | Von loomux nicht gelesen. `loomux init` hält die eingerichteten Wirte in `.loomux/state/answers.toml`, nicht hier. |
 
 ---
 
