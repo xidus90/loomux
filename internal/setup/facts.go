@@ -75,6 +75,12 @@ type Facts struct {
 	// "" when it is not there or names none. Antigravity's entries call it,
 	// and an older one does not know them.
 	Installed string
+	// Model is the global [model] block of the state directory's
+	// config.toml, the defaults where it declares none.
+	Model config.ModelSettings
+	// ModelProblem is why that file does not read, "" when it does. It stops
+	// no init; the part model names it.
+	ModelProblem string
 }
 
 // Running is what Gather is told about the init that runs it.
@@ -192,6 +198,9 @@ func Gather(root, home string, running Running, git detect.Runner) (Facts, error
 	// the configuration on its own when the part config is on.
 	declared, err := config.ReadAreaManifestUntilStage4(root)
 	f.OnMerge = err == nil && declared.OnMerge
+	if f.Model, err = config.ReadModelSettings(config.StateDir()); err != nil {
+		f.ModelProblem = err.Error()
+	}
 	f.UserMCP = userMCP(filepath.Join(home, ".claude.json"))
 	if f.Registered, err = registered(root); err != nil {
 		return Facts{}, err

@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -420,7 +421,7 @@ func printReport(w io.Writer, r setup.Report) {
 	for _, group := range []struct {
 		name  string
 		items []string
-	}{{"written", r.Written}, {"skipped", r.Skipped}, {"refused", r.Refused}, {"failed", r.Failed}} {
+	}{{"written", r.Written}, {"skipped", r.Skipped}, {"refused", r.Refused}, {"failed", r.Failed}, {"note", r.Notes}} {
 		for _, item := range group.items {
 			fmt.Fprintf(w, "%s: %s\n", group.name, item)
 		}
@@ -490,6 +491,12 @@ func (r *initRun) action(a setup.Action) error {
 		return r.sub("area", "add", "--path", r.root, "--scope", r.scope, "--yes")
 	case "merge-hook":
 		return r.mergeHook()
+	case "model-pull":
+		// Ctrl+C ends the download, not init: Apply notes the failure and
+		// writes what is left.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		return setup.PullModel(ctx, r.facts.Model, r.stderr)
 	case "graph-build":
 		return r.sub("graph", "build", "--root", r.root)
 	}

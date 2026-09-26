@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/brain/maintenance"
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/config/schema"
 	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/setup"
@@ -29,6 +32,26 @@ import (
 type initSeams struct {
 	installed, built int
 	actions          []string
+	pulls            []string // the models asked for at /api/pull
+}
+
+// useOllama points the global configuration of the state directory at a
+// fake Ollama that answers /api/tags with tags and /api/pull with the lines
+// of pull, recording each pull in s.
+func useOllama(t *testing.T, s *initSeams, tags, pull string) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/pull" {
+			var body struct{ Model string }
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			s.pulls = append(s.pulls, body.Model)
+			_, _ = io.WriteString(w, pull+"\n")
+			return
+		}
+		_, _ = io.WriteString(w, tags)
+	}))
+	t.Cleanup(server.Close)
+	writeAt(t, filepath.Join(config.StateDir(), "config.toml"), "[model]\nendpoint = \""+server.URL+"\"\n")
 }
 
 // initWorld is a fresh repository named demo, with LOCALAPPDATA, the state
@@ -76,6 +99,9 @@ func initWorld(t *testing.T) (string, *initSeams) {
 	replace(t, &openTerminal, func() (tui.Terminal, func() error, error) {
 		return nil, nil, errors.New("not a terminal")
 	})
+	// No init of a test may reach the machine's Ollama: the global
+	// configuration points at a fake one that has the default model.
+	useOllama(t, s, `{"models":[{"name":"`+config.DefaultModelName+`"}]}`, `{"status":"success"}`)
 	// A release init, whose installed binary, wherever one stands, is as new.
 	replace(t, &Version, "2.13.0")
 	replace(t, &binaryVersion, func(path string) string {
@@ -317,7 +343,8 @@ func TestInitPresetsTheAnswersFromTheProject(t *testing.T) {
 		}
 	}
 	root, _ := initWorld(t)
-	term := tui.Script(100, 40, tui.Keys("enter", "enter", "enter")...)
+	// base, hooks, brain and its part list, graph.
+	term := tui.Script(100, 40, tui.Keys("enter", "enter", "enter", "enter", "enter")...)
 	withTerminal(t, term, nil)
 	run("init", "--root", root, "--dry-run", "--graph=all")
 	if !strings.Contains(term.Output(), "module graph (graph-build): all") {
@@ -382,7 +409,7 @@ func TestInitAsksPerModule(t *testing.T) {
 	keys := tui.Keys(
 		"enter",                              // base: all
 		"tab", "enter", "down", " ", "enter", // hooks: each, git-hooks off
-		"tab", "tab", "enter", // brain: none
+		"tab", "enter", // brain: none, one tab from the offered each
 		"tab", "enter", // graph: none as offered, tab to all
 		"tab", "enter", // language: de
 	)
@@ -412,7 +439,7 @@ func TestInitAsksPerModule(t *testing.T) {
 
 func TestInitAsksForTheScope(t *testing.T) {
 	root, s := initWorld(t)
-	keys := tui.Keys("enter", "enter", "enter", "enter", "enter",
+	keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter",
 		"backspace", "backspace", "backspace", "backspace", " ", "enter", // project/ + space: refused
 		"backspace", "x", "enter")
 	for range 40 {
@@ -438,7 +465,7 @@ func TestInitAsksForTheScope(t *testing.T) {
 func TestInitPicksBaseParts(t *testing.T) {
 	root, s := initWorld(t)
 	// base each: binary off; everything else as offered.
-	keys := tui.Keys("tab", "enter", " ", "enter", "enter", "enter", "enter", "enter", "enter", "enter")
+	keys := tui.Keys("tab", "enter", " ", "enter", "enter", "enter", "enter", "enter", "enter", "enter", "enter")
 	for range 40 {
 		keys = append(keys, tui.Keys("y")...)
 	}
@@ -458,7 +485,7 @@ func TestInitWritesOnlyWhatIsApproved(t *testing.T) {
 	root, s := initWorld(t)
 	// A binary from an earlier install: nothing is left out for want of one.
 	writeAt(t, filepath.Join(os.Getenv("LOCALAPPDATA"), "loomux", "bin", "loomux.exe"), "binary")
-	keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter")
+	keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter", "enter")
 	for range 40 {
 		keys = append(keys, tui.Keys("n")...)
 	}
@@ -479,9 +506,9 @@ func TestInitEndsWhenTheHumanCancels(t *testing.T) {
 	for name, keys := range map[string][]tui.Key{
 		"module":   tui.Keys("esc"),
 		"pick":     tui.Keys("tab", "enter", "esc"),
-		"language": tui.Keys("enter", "enter", "enter", "enter", "enter", "esc"),
-		"scope":    tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "esc"),
-		"approval": tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter"),
+		"language": tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "esc"),
+		"scope":    tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter", "esc"),
+		"approval": tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter", "enter"),
 	} {
 		root, s := initWorld(t)
 		withTerminal(t, tui.Script(100, 40, keys...), nil)
@@ -522,7 +549,7 @@ func TestInitReportsATerminalItCannotRestore(t *testing.T) {
 func TestInitNeedsTheConsoleForTheApprovalToo(t *testing.T) {
 	root, _ := initWorld(t)
 	opened := 0
-	term := tui.Script(100, 40, tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter")...)
+	term := tui.Script(100, 40, tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter", "enter")...)
 	replace(t, &openTerminal, func() (tui.Terminal, func() error, error) {
 		opened++
 		if opened > 1 {
@@ -711,7 +738,7 @@ func TestInitPlansAntigravityBesideClaude(t *testing.T) {
 func TestInitNamesAModuleSwitchedOffWithoutAConfiguration(t *testing.T) {
 	root, _ := initWorld(t)
 	keys := tui.Keys("tab", "enter", "down", " ", "enter", // base each: config off
-		"enter", "tab", "tab", "enter", "enter", "enter", "enter")
+		"enter", "tab", "enter", "enter", "enter", "enter") // brain: none, one tab from the offered each
 	withTerminal(t, tui.Script(100, 40, keys...), nil)
 	code, out, errOut := run("init", "--root", root, "--dry-run")
 	if code != 0 || !strings.Contains(out, "modules.brain = false is not written; the part config is off") {
@@ -946,7 +973,7 @@ func TestInitJudgesTheMergeHookByItsOwnLines(t *testing.T) {
 func TestInitDecliningTheBinaryIsNoFailure(t *testing.T) {
 	root, s := initWorld(t)
 	_, plan, _ := run("init", "--root", root, "--dry-run", "--yes")
-	keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter")
+	keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter", "enter")
 	// Every change, then no to binary-install, the first action.
 	for range strings.Count(plan, "\n--- ") + 1 {
 		keys = append(keys, tui.Keys("y")...)
@@ -1009,7 +1036,7 @@ func TestInitSetsCoreHooksPathWithTheHooks(t *testing.T) {
 	for name, keep := range map[string]string{"none": "", "one": ".githooks/pre-push"} {
 		root, _ := initWorld(t)
 		_, plan, _ := run("init", "--root", root, "--dry-run", "--yes")
-		keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter")
+		keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter", "enter")
 		for _, line := range strings.Split(plan, "\n") {
 			path, ok := strings.CutPrefix(line, "--- ")
 			if !ok {

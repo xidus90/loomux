@@ -681,6 +681,23 @@ Admin-Shell.
 4c-2: `dev bench search --corpus v1 --profile fast --latency` gegen die
 Baseline, eingetragen in beide `benchmarks.md`.
 
+### Nachtrag 2026-09-26: `init` lädt das lokale Modell
+
+Mit dem Nutzer entschieden. `loomux init` bekommt im Modul brain den Teil
+`model`: Fehlt das in `[model] name` der globalen `config.toml` genannte
+Modell in Ollama (`GET /api/tags`, ein Name ohne Tag gilt als `:latest`),
+plant init die Aktion `model-pull` (`ollama pull <name>`), bestätigt wie jede
+Änderung, in `--dry-run` gezeigt und nie ausgeführt. Ausgeführt wird sie über
+`POST /api/pull` auf demselben Loopback-Transport, mit dem Fortschritt auf
+stderr und ohne Gesamtzeitlimit; Ctrl+C beendet nur den Download. Ein
+Fehlschlag ist ein Hinweis, init läuft weiter. Ist Ollama nicht erreichbar
+oder weist der Wächter den Endpunkt ab, bleibt es beim Hinweis.
+
+Vorgabe an nur bei `[privacy] mode = "local_only"` im Projekt oder
+`[model] enabled = true` global, damit `init --yes` nicht ungefragt mehrere
+GB lädt. Das ist die eine Ausnahme von „Werkzeuge werden geprüft, nie
+installiert“ (4a-2). Geladen wird nur in init, nie in `reconcile`.
+
 ## 4d im Einzelnen
 
 - **`loomux convert [datei]`** geht den Eingang jedes Bereichs durch, oder die

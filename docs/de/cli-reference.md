@@ -1206,6 +1206,7 @@ ersetzt, und `project/root`, wo vom Namen nichts bleibt.
 | brain | `area` | `loomux area add --scope <scope>`, ohne `--wiki`, also mit dem vorgegebenen Wiki von area add | an, aus in einem Checkout oder bei einem schon erklärten oder registrierten Bereich |
 | brain | `merge-hook` | der post-merge-Hook von `loomux merge-hook install`, nur für die Bereiche an dieser Wurzel: Ein veralteter Bereich oder ein fremder Hook anderswo in der Registry hält `init` nicht auf. Geplant nur, wenn hier ein Bereich der Registry dieses Rechners steht und die Erklärung hier `[maintenance] on_merge = true` sagt, oder wenn `area` im selben Lauf in einem Projekt ohne `.loomux/config.toml` läuft (area add schreibt die Zustimmung nur in eine neue), und nur, wo `${LOCALAPPDATA}/loomux/bin/loomux.exe`, das der Hook ruft, installiert ist oder `binary-install` läuft, auch in einem Checkout; ohne eine Zeile für diese Wurzel scheitert die Handlung | an in einem Repository, aus in einem Checkout |
 | brain | `brain-skills` | die Skills `brain-ingest`, `brain-land`, `brain-research`, `brain-review`, `brain-wiki-plan` | an, aus in einem Checkout |
+| brain | `model` | fragt Ollama (`GET /api/tags`) nach dem Modell aus `[model] name` der rechnerweiten `config.toml` und plant, wenn es fehlt, `model-pull`: `ollama pull <name>` über `POST /api/pull`, mit dem Fortschritt auf stderr und ohne Gesamtzeitlimit; Ctrl+C beendet nur den Download. Das einzige Werkzeug, das `init` installiert statt es zu nennen; ein Fehlschlag ist ein Hinweis, `init` läuft weiter. Ist Ollama nicht erreichbar oder liegt der Endpunkt nicht auf dem Loopback, bleibt es beim Hinweis. Nur `init` lädt ein Modell, `reconcile` nie | an bei `[privacy] mode = "local_only"` im Projekt oder `[model] enabled = true` global, sonst aus |
 | graph | `graph-build` | `loomux graph build` | an bei einem bekannten Stack, aus in einem Checkout |
 
 Ein Checkout von loomux (sein `go.mod` erklärt `github.com/xidus90/loomux`)
@@ -1314,7 +1315,11 @@ durch einen Menschen, der das prüft, steht noch aus.
 Der Plan auf `stdout`: jede Änderung als `--- <pfad>` mit Diff, dann
 `actions:` mit einer Zeile je Handlung, dann `notes:`; `nothing to change`,
 wenn nichts ansteht. Nach einem Lauf eine Zeile je Pfad oder Handlung:
-`written: …`, `skipped: …`, `refused: …` (abgelehnt), `failed: …`.
+`written: …`, `skipped: …`, `refused: …` (abgelehnt), `failed: …` und
+`note: …` für einen Fehlschlag, der nichts aufhält (ein nicht beendeter
+Download des Modells, mit dem Befehl, ihn von Hand nachzuholen). Während `model-pull` läuft,
+geht sein Fortschritt als `model-pull: …`-Zeilen auf `stderr`: eine je
+Status und eine je zehn Prozent einer Schicht im Download.
 
 ### Der Wächter
 Der Wächter verweigert einem Agenten `loomux init`, außer es trägt
@@ -1326,7 +1331,9 @@ Der Wächter verweigert einem Agenten `loomux init`, außer es trägt
 Eingabeende abgebrochener Lauf (`loomux init: cancelled; nothing written`)
 und ein Lauf, in dem der Mensch eine Änderung oder Handlung abgelehnt oder
 einen Teil abgeschaltet hat, das Binary eingeschlossen, auch wenn dadurch
-Host-Einträge, Git-Hooks und Merge-Hook entfallen; `1` das Projekt lässt
+Host-Einträge, Git-Hooks und Merge-Hook entfallen, und ein Lauf, dessen
+Download des Modells scheiterte oder mit Ctrl+C beendet wurde (ein `note:`,
+`init` läuft weiter); `1` das Projekt lässt
 sich nicht lesen (`go.mod`, git, die Registry), der Binary-Schritt, eine
 Änderung oder Handlung ist gescheitert, das Terminal versagte im Interview
 oder bei der Bestätigung, oder es ließ sich nicht zurücksetzen; `2`, bevor

@@ -1156,6 +1156,7 @@ blanks joined by `-`, and `project/root` where the name leaves nothing.
 | brain | `area` | `loomux area add --scope <scope>`, without `--wiki`, so area add's default wiki applies | on, off in a checkout or an area already declared or registered |
 | brain | `merge-hook` | the post-merge hook of `loomux merge-hook install`, for the areas at this root only: a stale area or a foreign hook elsewhere in the registry does not stop init. Planned only when an area of this machine's registry stands here and the declaration here says `[maintenance] on_merge = true`, or `area` runs in the same run on a project without `.loomux/config.toml` (area add writes the consent only into a new one), and only where `${LOCALAPPDATA}/loomux/bin/loomux.exe`, which the hook calls, is installed or `binary-install` runs, a checkout included; without a line for this root the action fails | on in a repository, off in a checkout |
 | brain | `brain-skills` | the skills `brain-ingest`, `brain-land`, `brain-research`, `brain-review`, `brain-wiki-plan` | on, off in a checkout |
+| brain | `model` | asks Ollama (`GET /api/tags`) for the model `[model] name` of the machine-wide `config.toml` names and, when it is missing, plans `model-pull`: `ollama pull <name>` through `POST /api/pull`, with its progress on stderr and no total time limit; Ctrl+C ends only the download. The one tool `init` installs rather than names; a failure is a note and `init` goes on. When Ollama cannot be reached or the endpoint is off the loopback, the note is all. Only `init` pulls a model, `reconcile` never does | on with `[privacy] mode = "local_only"` in the project or `[model] enabled = true` globally, off otherwise |
 | graph | `graph-build` | `loomux graph build` | on for a known stack, off in a checkout |
 
 A checkout of loomux (its `go.mod` declares `github.com/xidus90/loomux`) gets
@@ -1251,7 +1252,11 @@ checks this is still pending.
 The plan on `stdout`: each change as `--- <path>` and a diff, then
 `actions:` with one line per action, then `notes:`; `nothing to change` when
 there is nothing. After a run, one line per path or action:
-`written: …`, `skipped: …`, `refused: …` (declined), `failed: …`.
+`written: …`, `skipped: …`, `refused: …` (declined), `failed: …`, and
+`note: …` for a failure that stops nothing (a model pull that did not
+finish, with the command to run by hand). While `model-pull` runs, its
+progress goes to `stderr` as `model-pull: …` lines: one per status, and one
+per ten percent of a layer being downloaded.
 
 ### The guard
 The guard refuses an agent `loomux init` unless it carries `--dry-run` or
@@ -1263,7 +1268,8 @@ The guard refuses an agent `loomux init` unless it carries `--dry-run` or
 end of input (`loomux init: cancelled; nothing written`), and a run in which
 the human declined a change or an action or switched a part off, the binary
 included, even where that leaves the host entries, git hooks and merge hook
-out; `1` the project cannot be read (`go.mod`, git, the registry), the
+out, and a run whose model pull failed or was ended with Ctrl+C (a `note:`,
+init goes on); `1` the project cannot be read (`go.mod`, git, the registry), the
 binary step, a change or an action failed, the terminal failed during the
 interview or the approval, or it could not be restored; `2`, before
 anything is written: a usage error, a root that is no directory, a

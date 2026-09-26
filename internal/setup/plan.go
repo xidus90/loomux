@@ -39,14 +39,14 @@ func (c Change) Empty() bool { return c.Before == c.After }
 
 // Action is one step init runs rather than writes; ID is one of
 // "binary-install", "binary-build", "hooks-path", "area-add", "merge-hook",
-// "graph-build".
+// "model-pull", "graph-build".
 type Action struct{ Part, ID, Describe string }
 
 // Plan is everything a run of init would do, for a human to read first.
 type Plan struct {
 	Changes []Change // Empty() ones are dropped
 	Actions []Action
-	Notes   []string // skipped files, foreign entries, missing tools, the user-scope MCP server
+	Notes   []string // skipped files, foreign entries, missing tools, the user-scope MCP server, the model
 }
 
 // checkoutGitBinary is what a git hook of a checkout calls. Git sets no
@@ -180,6 +180,9 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 	}
 	if on("brain-skills") {
 		b.skills("brain-skills", "brain", targets)
+	}
+	if on("model") {
+		b.model()
 	}
 	if on("graph-build") && !f.Graph {
 		b.action("graph-build", "graph-build", "loomux graph build")

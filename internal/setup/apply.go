@@ -21,6 +21,9 @@ type Runner func(a Action) error
 type Report struct {
 	Written, Skipped, Failed []string // paths and action ids
 	Refused                  []string // changes the human declined
+	// Notes are failures that stop nothing and leave nothing half done: a
+	// pull of the local model that did not finish.
+	Notes []string
 }
 
 // applier carries a run of Apply: the files it wrote and the actions it ran
@@ -33,8 +36,9 @@ type applier struct {
 }
 
 // Apply writes the approved changes and runs the actions in this order:
-// binary, area-add, files, hooks-path, merge-hook, graph-build, answers,
-// installed. area-add goes before the files because it writes the
+// binary, area-add, files, hooks-path, merge-hook, model-pull, graph-build,
+// answers, installed. A failed model-pull is a note and the run goes on,
+// as the next plan asks Ollama again. area-add goes before the files because it writes the
 // declaration only into a configuration that is not there yet; a change
 // with a Redo is then made again over what it left. A change whose file
 // calls a binary that is not there (Change.Binary) is dropped and reported
@@ -145,7 +149,12 @@ func (a *applier) actions(acts []Action, run Runner, dropped func(string) bool) 
 			a.report.Failed = append(a.report.Failed, act.ID)
 			continue
 		}
-		if err := run(act); err != nil {
+		err := run(act)
+		switch {
+		case err != nil && act.ID == "model-pull":
+			a.report.Notes = append(a.report.Notes, act.ID+": "+err.Error()+"; run it by hand: "+act.Describe)
+			continue
+		case err != nil:
 			a.report.Failed = append(a.report.Failed, act.ID)
 			return fmt.Errorf("%s: %w", act.ID, err)
 		}
