@@ -71,7 +71,11 @@ func GuardEndpoint(endpoint string) error {
 type Client struct {
 	settings config.ModelSettings
 	http     *http.Client
-	url      string
+	// pull shares http's transport and redirect rule but has no total
+	// timeout: a download of several GB outlasts any limit a question keeps.
+	pull *http.Client
+	base string // the endpoint without its trailing slashes
+	url  string
 }
 
 // NewClient guards the endpoint and builds the client. No proxy is taken
@@ -89,14 +93,14 @@ func NewClient(s config.ModelSettings) (*Client, error) {
 		DialContext:       (&net.Dialer{Timeout: connectTimeout}).DialContext,
 		DisableKeepAlives: true,
 	}
+	noRedirect := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	base := strings.TrimRight(s.Endpoint, "/")
 	return &Client{
 		settings: s,
-		url:      strings.TrimRight(s.Endpoint, "/") + "/api/generate",
-		http: &http.Client{
-			Transport:     transport,
-			Timeout:       totalTimeout,
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
+		base:     base,
+		url:      base + "/api/generate",
+		http:     &http.Client{Transport: transport, Timeout: totalTimeout, CheckRedirect: noRedirect},
+		pull:     &http.Client{Transport: transport, CheckRedirect: noRedirect},
 	}, nil
 }
 
