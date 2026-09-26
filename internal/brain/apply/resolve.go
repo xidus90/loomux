@@ -186,6 +186,20 @@ func checkTarget(target string) error {
 // every component on the way, since a link that stays inside the wiki still
 // makes the protocols name a page that was never changed.
 func targetPath(r resolved, target string) (string, error) {
+	page, err := targetPlace(r, target)
+	if err != nil {
+		return "", err
+	}
+	if !isFile(page) {
+		return "", refuse("%s: the case's target page is gone", page)
+	}
+	return page, nil
+}
+
+// targetPlace is every check of targetPath but the last: where the page the
+// case points at lies, whether or not it is still there. A rejection asks
+// this, since a page gone since the case was formed must not keep it open.
+func targetPlace(r resolved, target string) (string, error) {
 	parts, ok := targetParts(target)
 	if !ok {
 		return "", refuse("%s: target is not inside the wiki", target)
@@ -213,9 +227,6 @@ func targetPath(r resolved, target string) (string, error) {
 		if isLink(walked) {
 			return "", refuse("%s: %s is a link, not a page", target, part)
 		}
-	}
-	if !isFile(page) {
-		return "", refuse("%s: the case's target page is gone", page)
 	}
 	return page, nil
 }

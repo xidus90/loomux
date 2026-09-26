@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/identity"
 	"github.com/xidus90/loomux/internal/brain/maintenance"
 	"github.com/xidus90/loomux/internal/brain/vcs"
 	"github.com/xidus90/loomux/internal/config"
@@ -35,6 +36,8 @@ type rejection struct {
 	p     *place
 	c     maintenance.Case
 	areas []config.Area
+	// lookup is the state directory, where the area locks lie.
+	lookup config.ArtifactLookup
 }
 
 func newRejection(t *testing.T) rejection {
@@ -50,17 +53,21 @@ func rejectionAt(t *testing.T, casePath string, areas []config.Area) rejection {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &place{anchor: r.vault, wiki: r.wiki, registers: registersOf(areas, config.ArtifactLookup{})}
+	lookup := config.ArtifactLookup{Primary: t.TempDir()}
+	p := &place{anchor: r.vault, wiki: r.wiki, registers: registersOf(areas, lookup)}
 	if err := p.preflight(r.directory); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(r.directory, "proposal.md"), twoClaims)
-	return rejection{vault: r.vault, r: r, p: p, c: c, areas: areas}
+	return rejection{vault: r.vault, r: r, p: p, c: c, areas: areas, lookup: lookup}
 }
 
 func (j rejection) run(t *testing.T) (Result, error) {
 	t.Helper()
-	return reject(j.r, j.p, j.c, rejectReviewer, rejectNow, t.TempDir())
+	a := approval{r: j.r, p: j.p, c: j.c, areas: j.areas, o: Options{
+		Decision: "reject", Reviewer: rejectReviewer, Now: rejectNow, Scratch: t.TempDir(), Lookup: j.lookup,
+	}}
+	return a.reject()
 }
 
 func (j rejection) audit(t *testing.T) string {
@@ -191,7 +198,14 @@ func TestRejectCountsTheClaimsOfAProposalThatIsNotUTF8(t *testing.T) {
 func TestRejectPassesOnAProposalThatCannotBeRead(t *testing.T) {
 	j := newRejection(t)
 	broken := errors.New("unreadable")
-	seam(t, &readBytes, func(string) ([]byte, error) { return nil, broken })
+	// Only the proposal fails: a seam failing every read would stop the
+	// rejection at the page as well and hide whether this failure stops it.
+	seam(t, &readBytes, func(path string) ([]byte, error) {
+		if filepath.Base(path) == "proposal.md" {
+			return nil, broken
+		}
+		return os.ReadFile(path)
+	})
 	if _, err := j.run(t); !errors.Is(err, broken) {
 		t.Fatalf("err = %v, want %v", err, broken)
 	}
@@ -353,23 +367,178 @@ func TestRejectReportsAFailedCommitAsARecordedDecision(t *testing.T) {
 	}
 }
 
-// Inherited, not healed: a rejection advances neither the page's
-// `sources[]` revision and hash nor the register, so the next reconcile
-// opens the same case again. Spec stufe-3-design.md:330 ("Geerbter
-// Fehler"), `OFFENE_AUFGABEN.md:213` in ultra-brain, and the parity record
-// docs/.superpowers/parity/stufe-3b.md, section "Geerbt".
-func TestRejectAdvancesNeitherThePageNorTheRegister(t *testing.T) {
+// rejectRegister names source 01DOC0 at `q.md` with the hash the case
+// carries after withSource; `q.md` itself is not written, so the source
+// guard skips it unless a test writes it.
+const rejectRegister = "doc_id\trelative\tcontent_hash\trevision\n01DOC0\tq.md\tsha256:aa\t1\n"
+
+// withSource makes the case one formed over source 01DOC0 at revision 1 with
+// hash `sha256:aa`, the state rejectRegister holds, and writes that register.
+func withSource(t *testing.T, j *rejection) string {
+	t.Helper()
+	j.c.Sources = []maintenance.SourceState{{DocID: "01DOC0", ContentHash: "sha256:aa", Revision: 1}}
+	register := filepath.Join(j.vault, registerName)
+	writeFile(t, register, rejectRegister)
+	return register
+}
+
+// Healed: a rejection advances the page's `sources[]` and the register to
+// the state the case was formed over, so the next reconcile does not open it
+// again. `generated` and `verified` stay: the page was neither regenerated
+// nor confirmed.
+func TestRejectAdvancesThePageSourcesAndTheRegister(t *testing.T) {
 	j := newRejection(t)
 	page := filepath.Join(j.r.wiki, "topics", "thema.md")
-	pageText := "---\nsources:\n  - doc_id: 01DOC0\n    content_hash: \"sha256:aa\"\n    revision: 1\n---\n\nText\n"
-	writeFile(t, page, pageText)
-	register := filepath.Join(j.vault, registerName)
-	registerText := "doc_id\trelative\tcontent_hash\trevision\n01DOC0\tq.md\tsha256:aa\t1\n"
-	writeFile(t, register, registerText)
+	writeFile(t, page, "---\nsources:\n  - doc_id: 01DOC0\n    content_hash: \"sha256:aa\"\n    revision: 1\n---\n\nText\n")
+	register := withSource(t, &j)
+	calls := fakeCommits(t, landed("abc"))
+	mustReject(t, j)
+	if got := readFile(t, page); !strings.Contains(got, "revision: 2") || strings.Contains(got, "verified") || strings.Contains(got, "generated") {
+		t.Fatalf("page %q", got)
+	}
+	if got := readFile(t, register); !strings.Contains(got, "01DOC0\tq.md\t") || !strings.HasSuffix(strings.TrimSpace(got), "\t2") {
+		t.Fatalf("register %q", got)
+	}
+	want := []string{testWiki + "/topics/thema.md", testWiki + "/audit.md", registerName}
+	if got := (*calls)[0].add; !slices.Equal(got, want) {
+		t.Fatalf("add = %q, want %q", got, want)
+	}
+}
+
+// Review Focus 5.
+func TestRejectOnAPageWithoutFrontmatterStillAdvancesTheRegister(t *testing.T) {
+	j := newRejection(t)
+	page := filepath.Join(j.r.wiki, "topics", "thema.md")
+	writeFile(t, page, "Text\n")
+	register := withSource(t, &j)
 	noRepository(t)
 	mustReject(t, j)
-	if readFile(t, page) != pageText || readFile(t, register) != registerText {
-		t.Fatal("the rejection changed the page or the register")
+	if readFile(t, page) != "Text\n" || !strings.HasSuffix(strings.TrimSpace(readFile(t, register)), "\t2") {
+		t.Fatal("page changed or register stood")
+	}
+	if isFile(filepath.Join(j.r.directory, "case.toml")) {
+		t.Fatal("the case stayed")
+	}
+}
+
+// Review Focus 6: the old path never read the page and closed the case; a
+// page deleted or renamed since must not keep the case open for good.
+func TestRejectWithTheTargetPageGoneStillClosesTheCase(t *testing.T) {
+	j := newRejection(t)
+	page := filepath.Join(j.r.wiki, "topics", "thema.md")
+	if err := os.Remove(page); err != nil {
+		t.Fatal(err)
+	}
+	register := withSource(t, &j)
+	noRepository(t)
+	mustReject(t, j)
+	if isFile(page) || !strings.HasSuffix(strings.TrimSpace(readFile(t, register)), "\t2") || isFile(filepath.Join(j.r.directory, "case.toml")) {
+		t.Fatal("a page appeared, the register stood, or the case stayed")
+	}
+}
+
+func TestRejectHaltsOnASourceThatMovedAgain(t *testing.T) {
+	j := newRejection(t)
+	register := withSource(t, &j)
+	writeFile(t, filepath.Join(j.vault, "q.md"), "moved again\n")
+	noRepository(t)
+	_, err := j.run(t)
+	var moved *SourceMoved
+	if !errors.As(err, &moved) {
+		t.Fatalf("%v", err)
+	}
+	if !isFile(filepath.Join(j.r.directory, "case.toml")) || readFile(t, register) != rejectRegister {
+		t.Fatal("the case went or the register moved although nothing was decided")
+	}
+}
+
+// A target outside the wiki is refused before anything is read or written.
+func TestRejectRefusesATargetOutsideTheWiki(t *testing.T) {
+	j := newRejection(t)
+	j.c.Target = "../fremd.md"
+	_, err := j.run(t)
+	refused(t, err, "target is not inside the wiki")
+	if len(j.p.touched) != 0 {
+		t.Fatalf("touched = %q", j.p.touched)
+	}
+}
+
+func TestRejectPassesOnASourceThatCannotBeHashed(t *testing.T) {
+	j := newRejection(t)
+	withSource(t, &j)
+	writeFile(t, filepath.Join(j.vault, "q.md"), "x\n")
+	broken := errors.New("unhashable")
+	seam(t, &contentHash, func(string) (string, error) { return "", broken })
+	if _, err := j.run(t); !errors.Is(err, broken) {
+		t.Fatalf("err = %v, want %v", err, broken)
+	}
+}
+
+func TestRejectRefusesAPageThatIsNotUTF8(t *testing.T) {
+	j := newRejection(t)
+	writeFile(t, filepath.Join(j.r.wiki, "topics", "thema.md"), "\xff\n")
+	withSource(t, &j)
+	if _, err := j.run(t); err == nil || !strings.Contains(err.Error(), "not valid UTF-8") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestRejectRefusesFrontmatterThatDoesNotLoad(t *testing.T) {
+	j := newRejection(t)
+	writeFile(t, filepath.Join(j.r.wiki, "topics", "thema.md"), "---\n- a\n---\n")
+	withSource(t, &j)
+	_, err := j.run(t)
+	var stopped *ApplyError
+	if !errors.As(err, &stopped) || err.Error() != "topics/thema.md: frontmatter is not a mapping" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestRejectPassesOnAFailedPageWrite(t *testing.T) {
+	j := newRejection(t)
+	page := filepath.Join(j.r.wiki, "topics", "thema.md")
+	writeFile(t, page, "---\nsources:\n- doc_id: 01DOC0\n  revision: 1\n---\n")
+	withSource(t, &j)
+	broken := errors.New("disk full")
+	seam(t, &replaceText, func(string, string) error { return broken })
+	if _, err := j.run(t); !errors.Is(err, broken) {
+		t.Fatalf("err = %v, want %v", err, broken)
+	}
+}
+
+// The page is staged right after it is written; a resolver failure there is
+// passed on.
+func TestRejectPassesOnAResolverFailureWhenStagingThePage(t *testing.T) {
+	j := newRejection(t)
+	page := filepath.Join(j.r.wiki, "topics", "thema.md")
+	writeFile(t, page, "---\nsources:\n- doc_id: 01DOC0\n  revision: 1\n---\n")
+	withSource(t, &j)
+	written := false
+	realReplace := replaceText
+	seam(t, &replaceText, func(path, text string) error {
+		written = true
+		return realReplace(path, text)
+	})
+	broken := errors.New("unresolvable")
+	realResolve := resolvePath
+	seam(t, &resolvePath, func(path string) (string, error) {
+		if written && path == page {
+			return "", broken
+		}
+		return realResolve(path)
+	})
+	if _, err := j.run(t); !errors.Is(err, broken) {
+		t.Fatalf("err = %v, want %v", err, broken)
+	}
+}
+
+func TestRejectPassesOnAFailedRegisterAdvance(t *testing.T) {
+	j := newRejection(t)
+	withSource(t, &j)
+	broken := errors.New("register unreadable")
+	seam(t, &advanceRegister, func(string, map[string]identity.Identity) (string, error) { return "", broken })
+	if _, err := j.run(t); !errors.Is(err, broken) {
+		t.Fatalf("err = %v, want %v", err, broken)
 	}
 }
 

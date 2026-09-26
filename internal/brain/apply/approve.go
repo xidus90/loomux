@@ -130,11 +130,12 @@ func Approve(casePath string, areas []config.Area, o Options) (Result, error) {
 	if err := p.preflight(r.directory); err != nil {
 		return Result{}, failed(err, p.touched)
 	}
+	a := approval{r: r, p: p, c: c, areas: areas, o: o}
 	var result Result
 	if o.Decision == "reject" {
-		result, err = reject(r, p, c, o.Reviewer, o.Now, o.Scratch)
+		result, err = a.reject()
 	} else {
-		result, err = approval{r: r, p: p, c: c, areas: areas, o: o}.run()
+		result, err = a.run()
 	}
 	if err != nil {
 		// Filled here and not at each stop: `place.touched` is the record,

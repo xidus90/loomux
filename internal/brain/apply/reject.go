@@ -4,10 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 	"unicode/utf8"
-
-	"github.com/xidus90/loomux/internal/brain/maintenance"
 )
 
 // readBytes is os.ReadFile, as a variable so that a test can fail a read of
@@ -15,42 +12,81 @@ import (
 // `read_text` leaves open.
 var readBytes = os.ReadFile
 
-// reject is `_reject` (apply.py:698-727): a human said no. The wiki stays as
-// it is, but the case is closed and gone.
+// reject is `_reject` (apply.py:698-727), healed: a human said no to the
+// proposal, and the sources the case was formed over are acknowledged all
+// the same -- the page's `sources[]` and the register move on, so the next
+// reconcile does not open the same case again. A source that moved once more
+// since the case was formed halts it as it halts an approval: that newer
+// state was never under review. The page's text, `generated` and `verified`
+// stay: it was neither regenerated nor confirmed.
 //
 // The audit block is written even so -- a rejected proposal stays
-// traceable -- and the case directory is removed in the same commit, which
-// carries audit.md alone: leaving the case standing would put a decided case
-// back in the queue on every later pass. No proposal is needed and no hash
-// is checked; a missing proposal is counted as no claims.
-//
-// Inherited from the reference, not healed: neither the page's `sources[]`
-// nor the register is advanced, so the next reconcile opens the same case
-// again (parity record, "Geerbt").
-func reject(r resolved, p *place, c maintenance.Case, reviewer string, now time.Time, scratch string) (Result, error) {
-	claims, err := claimHeadings(filepath.Join(r.directory, "proposal.md"))
+// traceable -- and the case directory is removed in the same commit: leaving
+// the case standing would put a decided case back in the queue on every
+// later pass. No proposal is needed and the page's hash is not checked; a
+// missing proposal is counted as no claims.
+func (a approval) reject() (Result, error) {
+	// targetPlace and not targetPath: a page deleted or renamed since the
+	// case was formed must not keep the rejection from closing it, as the
+	// unhealed path, which never read the page, did not either.
+	page, err := targetPlace(a.r, a.c.Target)
 	if err != nil {
 		return Result{}, err
 	}
-	audit := filepath.Join(r.wiki, "audit.md")
+	sources, err := a.guardSources()
+	if err != nil {
+		return Result{}, err
+	}
+	claims, err := claimHeadings(a.proposal())
+	if err != nil {
+		return Result{}, err
+	}
+	advanced, changed := "", false
+	if isFile(page) {
+		current, err := readPage(page)
+		if err != nil {
+			return Result{}, err
+		}
+		advanced, changed, err = AdvanceSources(current, a.updates())
+		if err != nil {
+			return Result{}, &ApplyError{Msg: a.c.Target + ": " + err.Error()}
+		}
+	}
+	var add []string
+	if changed {
+		if err := a.p.write(page, advanced); err != nil {
+			return Result{}, err
+		}
+		staged, err := a.p.staged(page)
+		if err != nil {
+			return Result{}, err
+		}
+		add = append(add, staged...)
+	}
+	registers, err := a.advanceRegisters(sources)
+	if err != nil {
+		return Result{}, err
+	}
+	audit := filepath.Join(a.r.wiki, "audit.md")
 	block := RenderAudit(AuditEntry{
-		Now: now, Target: c.Target, CaseID: c.ID, Claims: claims,
-		Decided: "abgelehnt durch " + reviewer, Changed: "nichts",
+		Now: a.o.Now, Target: a.c.Target, CaseID: a.c.ID, Claims: claims,
+		Decided: "abgelehnt durch " + a.o.Reviewer, Changed: "nichts",
 	})
-	if err := p.appendProtocol(audit, block); err != nil {
+	if err := a.p.appendProtocol(audit, block); err != nil {
 		return Result{}, err
 	}
-	if err := p.remove(r.directory); err != nil {
+	if err := a.p.remove(a.r.directory); err != nil {
 		return Result{}, err
 	}
-	add, err := p.staged(audit)
+	staged, err := a.p.staged(audit)
 	if err != nil {
 		return Result{}, err
 	}
-	sha, warning := commit(p.anchor, c.ID, "decision recorded",
-		"Reject the proposed change to "+Safe(c.Target),
-		add, []string{p.relative(r.directory)}, scratch)
-	return Result{Case: c, Decision: "reject", Written: false, Commit: sha, Warning: warning}, nil
+	add = append(add, staged...)
+	sha, warning := commit(a.p.anchor, a.c.ID, "decision recorded",
+		"Reject the proposed change to "+Safe(a.c.Target),
+		append(add, registers...), []string{a.p.relative(a.r.directory)}, a.o.Scratch)
+	return Result{Case: a.c, Decision: "reject", Written: false, Commit: sha, Warning: warning}, nil
 }
 
 // claimHeadings is `_claims` (apply.py:1217-1221): the claims of a proposal
