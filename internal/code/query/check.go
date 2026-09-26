@@ -6,7 +6,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/xidus90/loomux/internal/code/extract/golang"
+	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/store"
 )
@@ -47,12 +47,16 @@ func Check(root string) (Drift, error) {
 	}
 	// The stamp decides before a single node is compared: a graph from another
 	// extractor is not stale, it is foreign, and diffing it node by node would
-	// report the whole repository.
-	if written.Meta.Extractor != golang.Version {
+	// report the whole repository. Equality and not Meta.BuiltBy: a graph that
+	// lacks one of this binary's languages would diff as all of that
+	// language's files added.
+	if written.Meta.Extractor != all.Version() {
 		return Drift{Foreign: written.Meta.Extractor}, nil
 	}
 
-	fresh, _, err := Extract(root)
+	// Reads the extract cache and never writes it: writing is the build's, and
+	// a check that cannot read the cache only parses more, so it stays silent.
+	fresh, _, err := Extract(root, ExtractOptions{Reuse: true})
 	if err != nil {
 		return Drift{}, err
 	}
@@ -138,7 +142,7 @@ func CheckReport(d Drift) string {
 	case d.Foreign != "":
 		return fmt.Sprintf(
 			"loomux graph check: FOREIGN GRAPH\n\nThe graph was written by extractor %q, this binary is %q.\nRun `loomux graph build`.\n",
-			d.Foreign, golang.Version)
+			d.Foreign, all.Version())
 	case d.Outdated:
 		return "loomux graph check: OUTDATED GRAPH\n\nThe graph on disk predates this binary's schema.\nRun `loomux graph build`.\n"
 	case d.OK:

@@ -3,13 +3,14 @@ package golang_test
 import (
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/extract/golang"
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
-func edgesOf(t *testing.T, r golang.Result, rel model.Relation) []golang.RawEdge {
+func edgesOf(t *testing.T, r extract.Result, rel model.Relation) []extract.RawEdge {
 	t.Helper()
-	var out []golang.RawEdge
+	var out []extract.RawEdge
 	for _, e := range r.Edges {
 		if e.Relation == rel {
 			out = append(out, e)
@@ -18,7 +19,7 @@ func edgesOf(t *testing.T, r golang.Result, rel model.Relation) []golang.RawEdge
 	return out
 }
 
-func hasEdge(edges []golang.RawEdge, want golang.RawEdge) bool {
+func hasEdge(edges []extract.RawEdge, want extract.RawEdge) bool {
 	for _, e := range edges {
 		if e.Source == want.Source && e.Name == want.Name &&
 			e.Owner == want.Owner && e.Receiver == want.Receiver {
@@ -87,7 +88,7 @@ func TestFileResolvesACallOnTheMethodsOwnReceiver(t *testing.T) {
 	calls := edgesOf(t, r, model.RelationCalls)
 	// `c.Get()` inside a method of *Cache: the receiver variable is known, so
 	// the edge carries the owner and resolve can find the right method.
-	if !hasEdge(calls, golang.RawEdge{Source: "pkg/edges.go#Cache.Warm", Name: "Get", Owner: "Cache"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "pkg/edges.go#Cache.Warm", Name: "Get", Owner: "Cache"}) {
 		t.Errorf("a call on the own receiver must carry its owner; got %+v", calls)
 	}
 }
@@ -98,7 +99,7 @@ func TestFileEmitsABareCallWithoutAnOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
-	if !hasEdge(calls, golang.RawEdge{Source: "pkg/edges.go#caller", Name: "local"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "pkg/edges.go#caller", Name: "local"}) {
 		t.Errorf("a bare call must be a raw edge with a name alone; got %+v", calls)
 	}
 }
@@ -113,7 +114,7 @@ func TestFileCarriesAnUnshadowedSelectorReceiverUnresolved(t *testing.T) {
 	// import binds is the TARGET's package clause, and one file cannot see it.
 	// `import "gopkg.in/yaml.v3"` binds `yaml`, not `v3`, and guessing here
 	// would put the guess where nothing can correct it.
-	for _, want := range []golang.RawEdge{
+	for _, want := range []extract.RawEdge{
 		{Source: "pkg/edges.go#caller", Name: "New", Receiver: "b"},
 		{Source: "pkg/edges.go#caller", Name: "Open", Receiver: "store"},
 		{Source: "pkg/edges.go#caller", Name: "Println", Receiver: "fmt"},
@@ -177,7 +178,7 @@ func TestFileTreatsAShadowedPackageNameAsAVariable(t *testing.T) {
 		}
 	}
 	// It is a member call on a known local type instead.
-	if !hasEdge(calls, golang.RawEdge{Source: "pkg/edges.go#caller", Name: "Get", Owner: "Cache"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "pkg/edges.go#caller", Name: "Get", Owner: "Cache"}) {
 		t.Errorf("the shadowed call must resolve against the local binding; got %+v", calls)
 	}
 }
@@ -189,7 +190,7 @@ func TestFilePeelsATypeArgumentList(t *testing.T) {
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
 	// `b.Of[int](3)` must take the same path as `b.Of(3)`.
-	if !hasEdge(calls, golang.RawEdge{
+	if !hasEdge(calls, extract.RawEdge{
 		Source: "pkg/edges.go#generic", Name: "Of", Receiver: "b",
 	}) {
 		t.Errorf("a generic call must peel its type arguments; got %+v", calls)
@@ -327,7 +328,7 @@ func TestFileResolvesACallOnAPointerParameter(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
-	if !hasEdge(calls, golang.RawEdge{Source: "p.go#f", Name: "Get", Owner: "Cache"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "p.go#f", Name: "Get", Owner: "Cache"}) {
 		t.Errorf("a call on a pointer parameter must carry its owner; got %+v", calls)
 	}
 }
@@ -339,7 +340,7 @@ func TestFileShadowsAPackageThroughARangeVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
-	if !hasEdge(calls, golang.RawEdge{Source: "p.go#f", Name: "local"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "p.go#f", Name: "local"}) {
 		t.Errorf("got %+v, want the bare call inside the range body", calls)
 	}
 }
@@ -351,7 +352,7 @@ func TestFilePeelsATwoArgumentTypeList(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
-	if !hasEdge(calls, golang.RawEdge{Source: "p.go#f", Name: "Of2", Receiver: "b"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "p.go#f", Name: "Of2", Receiver: "b"}) {
 		t.Errorf("a two-argument type list must be peeled too; got %+v", calls)
 	}
 }
@@ -404,7 +405,7 @@ func real() int { return model.Decode(2) }
 			t.Errorf("a parameter shadowing an import must not reach resolve as a package selector; got %+v", e)
 		}
 	}
-	if !hasEdge(calls, golang.RawEdge{Source: "p.go#real", Name: "Decode", Receiver: "model"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "p.go#real", Name: "Decode", Receiver: "model"}) {
 		t.Errorf("the genuine, unshadowed package call must still reach resolve unresolved; got %+v", calls)
 	}
 }
@@ -435,7 +436,7 @@ func TestFileDoesNotDeclareAMethodsBareNameInPackageScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
-	if !hasEdge(calls, golang.RawEdge{Source: "p.go#caller", Name: "Foo", Owner: "Cache"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "p.go#caller", Name: "Foo", Owner: "Cache"}) {
 		t.Errorf("Get must still resolve to the package var's type Cache, not be overwritten by the method's own bare name; got %+v", calls)
 	}
 }
@@ -467,7 +468,7 @@ func TestFileRebindsALocalOnlyOnADefiningAssignment(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
-	if !hasEdge(calls, golang.RawEdge{Source: "p.go#caller", Name: "Do", Owner: "I"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "p.go#caller", Name: "Do", Owner: "I"}) {
 		t.Errorf("a plain assignment must not rebind x's declared type; got %+v", calls)
 	}
 }
@@ -491,7 +492,7 @@ func TestFileResolvesAPackageLevelReceiverFromTheOutermostScopeFrame(t *testing.
 		t.Fatal(err)
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
-	if !hasEdge(calls, golang.RawEdge{Source: "p.go#caller", Name: "Get", Owner: "Cache"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "p.go#caller", Name: "Get", Owner: "Cache"}) {
 		t.Errorf("a name declared only at package level must still resolve from inside a function; got %+v", calls)
 	}
 }
@@ -530,7 +531,7 @@ func TestFileDoesNotLetAMethodNameShadowAnImportedPackage(t *testing.T) {
 	// A method's name lives in its type's method set, not in package scope:
 	// `strings` here is still the package, and the selector must reach resolve.
 	calls := edgesOf(t, r, model.RelationCalls)
-	if !hasEdge(calls, golang.RawEdge{Source: "a.go#F", Name: "ToUpper", Receiver: "strings"}) {
+	if !hasEdge(calls, extract.RawEdge{Source: "a.go#F", Name: "ToUpper", Receiver: "strings"}) {
 		t.Fatalf("a method named like an import must not shadow it; got %+v", calls)
 	}
 }

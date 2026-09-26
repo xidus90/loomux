@@ -328,8 +328,22 @@ func TestRadiusReportEncodesItsFieldNames(t *testing.T) {
 	}
 }
 
-func TestIsTestPath(t *testing.T) {
-	for path, want := range map[string]bool{"a_test.go": true, "x/b_test.go": true, "a.go": false, "test.go": false} {
+// Each language names its tests its own way: Go by the _test.go suffix, Python
+// by what pytest, Django and unittest collect. Extensions match exactly, as
+// everywhere a source file is recognised, so an upper-case name is no test
+// path.
+func TestIsTestPathPerLanguage(t *testing.T) {
+	for path, want := range map[string]bool{
+		"a_test.go": true, "x/b_test.go": true, "a.go": false, "test.go": false, "tests/x.go": false,
+		"test_x.py": true, "pkg/x_test.py": true, "conftest.py": true, "pkg/conftest.py": true,
+		"tests/x.py": true, "a/tests/b/c.py": true,
+		// Django's app template and unittest's default name.
+		"tests.py": true, "shop/tests.py": true,
+		"test/x.py": true, "a/test/b.py": true,
+		"x.py": false, "testing.py": false, "attests/x.py": false, "mytests/x.py": false,
+		"contest.py": false, "latest/x.py": false, "shop/tests.pyc": false,
+		"a.ts": false, "TEST_X.PY": false, "A_TEST.GO": false,
+	} {
 		if got := blast.IsTestPath(path); got != want {
 			t.Errorf("IsTestPath(%q) = %v, want %v", path, got, want)
 		}

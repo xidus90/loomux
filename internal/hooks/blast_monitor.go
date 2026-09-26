@@ -28,8 +28,13 @@ const typeNote = "[graph] Modified struct/interface/type: type coupling not wire
 // has and the file no longer does, and their direct callers in other files.
 // It never fails and never blocks; whatever it cannot know is silence.
 func blastAside(root, rel string, read func(string) ([]byte, error)) string {
+	// Membership and not equality: a graph several languages built together
+	// carries a combined stamp, and this aside needs only the Go extractor to
+	// have taken part, since Go body hashes are all it compares. golang and
+	// not extract/all: all would pull every language's parser onto the hook
+	// path.
 	g, err := monitorRead(root)
-	if err != nil || g.Meta.Extractor != golang.Version {
+	if err != nil || !g.Meta.BuiltBy(golang.Version) {
 		return ""
 	}
 	src, err := read(rel)

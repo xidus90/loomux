@@ -8,7 +8,10 @@
 // Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/types.ts.
 package model
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // NodeID identifies a node. It is path-scoped -- "src/cache.ts#Cache.get" --
 // and opaque: the span is deliberately not part of it, so a definition moving
@@ -158,10 +161,23 @@ type Meta struct {
 	EdgeCount int      `json:"edgeCount"`
 	Languages []string `json:"languages"`
 
-	// Extractor identifies the extractor that produced this graph. `check`
-	// compares it before diffing a single node: a graph from another extractor
-	// is not stale, it is foreign, and its nodes say nothing about this code.
+	// Extractor identifies the extractors that produced this graph: the
+	// version of each language, sorted and joined by "+" ("go/1" alone, or
+	// "go/1+python/1@..."). `check` compares it before diffing a single node:
+	// a graph from another extractor is not stale, it is foreign, and its
+	// nodes say nothing about this code.
 	Extractor string `json:"extractor"`
+}
+
+// BuiltBy reports whether one extractor version is a member of the graph's
+// combined stamp.
+//
+// Membership and not equality, for a reader that knows one language only:
+// the Go edit hook compares Go body hashes and needs the Go extractor to have
+// taken part, whichever other languages took part with it. Membership and
+// not a prefix either: "go/10" is not "go/1".
+func (m Meta) BuiltBy(version string) bool {
+	return m.Extractor != "" && slices.Contains(strings.Split(m.Extractor, "+"), version)
 }
 
 // Graph is a whole wiring.json.

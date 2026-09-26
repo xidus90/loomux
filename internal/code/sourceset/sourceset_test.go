@@ -3,6 +3,7 @@ package sourceset_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/sourceset"
@@ -26,11 +27,13 @@ func tree(t *testing.T, files map[string]string) string {
 	return root
 }
 
-func TestListTakesGoFilesAndNothingElse(t *testing.T) {
+func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 	root := tree(t, map[string]string{
 		"main.go":            "package main\n",
 		"pkg/helper.go":      "package pkg\n",
 		"pkg/helper_test.go": "package pkg\n",
+		"tool/run.py":        "def run(): pass\n",
+		"tool/run.pyi":       "def run() -> None: ...\n",
 		"README.md":          "# no\n",
 		"web/app.ts":         "export {}\n",
 	})
@@ -41,7 +44,8 @@ func TestListTakesGoFilesAndNothingElse(t *testing.T) {
 	}
 	// _test.go stays in: Graft does not exclude tests, it de-ranks them at
 	// query time, and "where are the tests" is a fair question of the graph.
-	want := []string{"main.go", "pkg/helper.go", "pkg/helper_test.go"}
+	// A .pyi stub stays out: it repeats every definition of its module.
+	want := []string{"main.go", "pkg/helper.go", "pkg/helper_test.go", "tool/run.py"}
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -49,6 +53,39 @@ func TestListTakesGoFilesAndNothingElse(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("got %v, want %v", got, want)
 		}
+	}
+}
+
+func TestExtensionsIsACopy(t *testing.T) {
+	first := sourceset.Extensions()
+	if !reflect.DeepEqual(first, []string{".go", ".py"}) {
+		t.Fatalf("Extensions() = %v, want [.go .py]", first)
+	}
+	// A caller that edits its answer must not change what the walk takes.
+	first[0] = ".txt"
+	if again := sourceset.Extensions(); !reflect.DeepEqual(again, []string{".go", ".py"}) {
+		t.Fatalf("Extensions() after editing an earlier answer = %v, want [.go .py]", again)
+	}
+}
+
+func TestListMatchesTheExtensionExactly(t *testing.T) {
+	root := tree(t, map[string]string{
+		"lower.go":  "package a\n",
+		"UPPER.GO":  "package a\n",
+		"notes.gox": "no\n",
+		"lower.py":  "x = 1\n",
+		"UPPER.PY":  "x = 1\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// UPPER.GO is no Go file to the Go toolchain, so it is none to the graph
+	// either, and UPPER.PY follows the same rule. extract/all's For applies
+	// it too, so no file the walk lists is one no extractor claims.
+	if !reflect.DeepEqual(got, []string{"lower.go", "lower.py"}) {
+		t.Fatalf("got %v, want lower.go and lower.py alone", got)
 	}
 }
 
@@ -81,6 +118,28 @@ func TestListSkipsDependencyAndBuildDirectories(t *testing.T) {
 	}
 }
 
+// A virtualenv is named whatever its owner chose (env, py311, .venv), but
+// every layout keeps the installed packages in a directory site-packages:
+// lib/python3.x/site-packages on POSIX, Lib/site-packages on Windows.
+func TestListSkipsSitePackages(t *testing.T) {
+	root := tree(t, map[string]string{
+		"app.py":                                  "x = 1\n",
+		"env/Lib/site-packages/django/db.py":      "x = 1\n",
+		"py311/lib/python3.11/site-packages/r.py": "x = 1\n",
+		"env/Scripts/activate_this.py":            "x = 1\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The venv's own scripts are no installed package and stay; nothing below
+	// site-packages does.
+	if !reflect.DeepEqual(got, []string{"app.py", "env/Scripts/activate_this.py"}) {
+		t.Fatalf("got %v, want app.py and the venv script alone", got)
+	}
+}
+
 func TestListSkipsTestdata(t *testing.T) {
 	// testdata holds fixtures Go's own toolchain does not build. On this
 	// repository none of its testdata/ fixtures are .go files, and skipping
@@ -91,6 +150,8 @@ func TestListSkipsTestdata(t *testing.T) {
 		"keep.go":                 "package a\n",
 		"testdata/cases/case.go":  "package case1\n",
 		"pkg/testdata/fixture.go": "package fixture\n",
+		// Python fixtures lie there too, some broken on purpose.
+		"testdata/cases/broken.py": "def broken(:\n",
 	})
 
 	got, err := sourceset.List(root)

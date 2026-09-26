@@ -1,0 +1,105 @@
+node app/__init__.py file L1-L2 exported=true sig=
+node app/broken.py file L1-L5 exported=true sig=
+node app/models.py file L1-L23 exported=true sig=
+node app/models.py#Base class L8-L13 exported=true sig=class Base
+node app/models.py#Base.__init__ method L9-L10 exported=true sig=def __init__(self, name)
+node app/models.py#Base.describe method L12-L13 exported=true sig=def describe(self)
+node app/models.py#User class L16-L22 exported=true sig=class User(Base)
+node app/models.py#User.__eq__ method L17-L18 exported=true sig=def __eq__(self, other)
+node app/models.py#User.guest method L20-L22 exported=true sig=def guest()
+node app/models.py#_helper function L4-L5 exported=false sig=def _helper(value)
+node app/runner.py file L1-L10 exported=true sig=
+node app/runner.py#Turbo class L6-L9 exported=true sig=class Turbo(Engine)
+node app/runner.py#Turbo.go method L7-L9 exported=true sig=def go(self)
+node app/service.py file L1-L36 exported=true sig=
+node app/service.py#Service class L21-L35 exported=true sig=class Service
+node app/service.py#Service.__init__ method L22-L23 exported=true sig=def __init__(self, prefix)
+node app/service.py#Service.report method L33-L35 exported=true sig=def report(self, users)
+node app/service.py#Service.run method L25-L31 exported=true sig=def run(self, names)
+node app/service.py#logged function L7-L11 exported=true sig=def logged(tag)
+node app/service.py#make_user function L14-L18 exported=true sig=def make_user(name)
+node backend/apps/orders/services.py file L1-L6 exported=true sig=
+node backend/apps/orders/services.py#run function L4-L5 exported=true sig=def run()
+node backend/apps/users/models.py file L1-L3 exported=true sig=
+node backend/apps/users/models.py#helper function L1-L2 exported=true sig=def helper()
+node backend/manage.py file L1-L3 exported=true sig=
+node backend/manage.py#main function L1-L2 exported=true sig=def main()
+node pkg/__init__.py file L1-L3 exported=true sig=
+node pkg/impl.py file L1-L8 exported=true sig=
+node pkg/impl.py#Engine class L1-L3 exported=true sig=class Engine
+node pkg/impl.py#Engine.spin method L2-L3 exported=true sig=def spin(self)
+node pkg/impl.py#start function L6-L7 exported=true sig=def start()
+node scripts/run.py file L1-L6 exported=true sig=
+node scripts/run.py#main function L4-L5 exported=true sig=def main()
+node scripts/tool.py file L1-L3 exported=true sig=
+node scripts/tool.py#work function L1-L2 exported=true sig=def work()
+node shop/tests.py file L1-L6 exported=true sig=
+node shop/tests.py#test_guest function L4-L5 exported=true sig=def test_guest()
+node src/lib/__init__.py file L1-L2 exported=true sig=
+node src/lib/util.py file L1-L10 exported=true sig=
+node src/lib/util.py#clean function L4-L5 exported=true sig=def clean(text)
+node src/lib/util.py#open function L8-L9 exported=true sig=def open(path)
+node test/helper.py file L1-L3 exported=true sig=
+node test/helper.py#fixture function L1-L2 exported=true sig=def fixture()
+node tests/test_service.py file L1-L13 exported=true sig=
+node tests/test_service.py#test_fixture function L10-L12 exported=true sig=def test_fixture()
+node tests/test_service.py#test_run function L5-L7 exported=true sig=def test_run()
+edge app/models.py -contains/extracted-> app/models.py#Base
+edge app/models.py -contains/extracted-> app/models.py#User
+edge app/models.py -contains/extracted-> app/models.py#_helper
+edge app/models.py#Base -contains/extracted-> app/models.py#Base.__init__
+edge app/models.py#Base -contains/extracted-> app/models.py#Base.describe
+edge app/models.py#Base.__init__ -calls/extracted-> app/models.py#_helper
+edge app/models.py#User -contains/extracted-> app/models.py#User.__eq__
+edge app/models.py#User -contains/extracted-> app/models.py#User.guest
+edge app/models.py#User -extends/extracted-> app/models.py#Base
+edge app/models.py#User.__eq__ -calls/extracted-> app/models.py#Base.describe
+edge app/models.py#User.guest -calls/extracted-> app/models.py#User
+edge app/runner.py -contains/extracted-> app/runner.py#Turbo
+edge app/runner.py -imports/extracted-> pkg/__init__.py
+edge app/runner.py#Turbo -contains/extracted-> app/runner.py#Turbo.go
+edge app/runner.py#Turbo -extends/extracted-> pkg/impl.py#Engine
+edge app/runner.py#Turbo.go -calls/extracted-> pkg/impl.py#Engine.spin
+edge app/runner.py#Turbo.go -calls/extracted-> pkg/impl.py#start
+edge app/service.py -contains/extracted-> app/service.py#Service
+edge app/service.py -contains/extracted-> app/service.py#logged
+edge app/service.py -contains/extracted-> app/service.py#make_user
+edge app/service.py -imports/extracted-> app/__init__.py
+edge app/service.py -imports/extracted-> app/models.py
+edge app/service.py -imports/extracted-> src/lib/__init__.py
+edge app/service.py -imports/extracted-> src/lib/util.py
+edge app/service.py#Service -contains/extracted-> app/service.py#Service.__init__
+edge app/service.py#Service -contains/extracted-> app/service.py#Service.report
+edge app/service.py#Service -contains/extracted-> app/service.py#Service.run
+edge app/service.py#Service.__init__ -calls/extracted-> src/lib/util.py#clean
+edge app/service.py#Service.report -calls/extracted-> app/models.py#User.guest
+edge app/service.py#Service.run -calls/extracted-> app/service.py#Service.report
+edge app/service.py#Service.run -calls/extracted-> app/service.py#make_user
+edge app/service.py#Service.run -calls/extracted-> src/lib/util.py#clean
+edge app/service.py#make_user -calls/extracted-> app/models.py#Base.__init__
+edge app/service.py#make_user -calls/extracted-> app/models.py#User
+edge app/service.py#make_user -calls/extracted-> app/service.py#logged
+edge backend/apps/orders/services.py -contains/extracted-> backend/apps/orders/services.py#run
+edge backend/apps/orders/services.py -imports/extracted-> backend/apps/users/models.py
+edge backend/apps/orders/services.py#run -calls/extracted-> backend/apps/users/models.py#helper
+edge backend/apps/users/models.py -contains/extracted-> backend/apps/users/models.py#helper
+edge backend/manage.py -contains/extracted-> backend/manage.py#main
+edge pkg/__init__.py -imports/extracted-> pkg/impl.py
+edge pkg/impl.py -contains/extracted-> pkg/impl.py#Engine
+edge pkg/impl.py -contains/extracted-> pkg/impl.py#start
+edge pkg/impl.py#Engine -contains/extracted-> pkg/impl.py#Engine.spin
+edge scripts/run.py -contains/extracted-> scripts/run.py#main
+edge scripts/run.py#main -calls/inferred-> scripts/tool.py#work
+edge scripts/tool.py -contains/extracted-> scripts/tool.py#work
+edge shop/tests.py -contains/extracted-> shop/tests.py#test_guest
+edge shop/tests.py -imports/extracted-> app/models.py
+edge shop/tests.py#test_guest -calls/extracted-> app/models.py#User.guest
+edge src/lib/util.py -contains/extracted-> src/lib/util.py#clean
+edge src/lib/util.py -contains/extracted-> src/lib/util.py#open
+edge test/helper.py -contains/extracted-> test/helper.py#fixture
+edge tests/test_service.py -contains/extracted-> tests/test_service.py#test_fixture
+edge tests/test_service.py -contains/extracted-> tests/test_service.py#test_run
+edge tests/test_service.py -imports/extracted-> app/__init__.py
+edge tests/test_service.py -imports/extracted-> app/service.py
+edge tests/test_service.py#test_run -calls/extracted-> app/service.py#Service.__init__
+edge tests/test_service.py#test_run -calls/inferred-> app/service.py#make_user

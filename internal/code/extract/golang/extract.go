@@ -12,16 +12,13 @@
 package golang
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"path"
 	"strconv"
-	"strings"
 
+	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
@@ -33,63 +30,42 @@ import (
 // byte for byte, reports fresh, and keeps answering from nodes the old
 // extractor built. cli.Version cannot serve: every development build says
 // 0.0.0-dev.
+//
+// The extract cache keys every file's entry on it too. A forgotten bump
+// therefore survives even an explicit `graph build` -- the cached entries
+// still match and are reused -- and only `graph build --no-reuse` clears
+// them. So every change to the nodes or edges comes with a bump.
 const Version = "go/1"
 
-// RawEdge is an edge whose target is not resolved yet.
-//
-// Three shapes of call reach the resolver, and the difference is exactly what
-// the resolver is allowed to assume:
-//
-//   - Name alone      -- a bare call; the same file first, then a unique match
-//   - Name and Owner  -- a member call on a local whose type is known
-//   - Name and Receiver -- a selector whose receiver is declared nowhere in the
-//     file; the resolver decides whether that receiver names a package, because
-//     only it can see the target's package clause
-type RawEdge struct {
-	Source    model.NodeID
-	Relation  model.Relation
-	TargetID  model.NodeID
-	Name      string
-	Owner     string
-	Receiver  string
-	Specifier string
-	File      string
-}
+// Language is the Go extractor as extract.Language describes one.
+type Language struct{}
 
-// Import is one import of a file, with the alias exactly as written.
-//
-// The alias is kept raw and not resolved to a name here, because resolving it
-// needs the TARGET package's clause -- `import "gopkg.in/yaml.v3"` binds `yaml`
-// and not `v3` -- and this package parses one file at a time. Guessing the last
-// path segment here would put the guess where nothing can correct it.
-type Import struct {
-	Alias string `json:"alias,omitempty"`
-	Path  string `json:"path"`
-}
+// Name is "go".
+func (Language) Name() string { return "go" }
 
-// Result is what one file contributes to the graph.
-type Result struct {
-	Path    string
-	Package string
-	Imports []Import
-	Nodes   []model.Node
-	Edges   []RawEdge
-}
+// Version is this package's Version.
+func (Language) Version() string { return Version }
+
+// Extensions is the one extension go/parser reads.
+func (Language) Extensions() []string { return []string{".go"} }
+
+// File is this package's File.
+func (Language) File(rel, source string) (extract.Result, error) { return File(rel, source) }
 
 // File extracts one Go file. rel is its repo-relative, slash-separated path;
 // source is its contents, which the caller has already read in order to hash
 // it.
-func File(rel, source string) (Result, error) {
+func File(rel, source string) (extract.Result, error) {
 	fset := token.NewFileSet()
 	// SkipObjectResolution: ast.Object and File.Unresolved are deprecated as of
 	// Go 1.22, and this package tracks scopes itself (scope.go). Skipping also
 	// costs less -- 44-46ms against 58-59ms over this repository.
 	file, err := parser.ParseFile(fset, rel, source, parser.ParseComments|parser.SkipObjectResolution)
 	if err != nil {
-		return Result{}, fmt.Errorf("parse %s: %w", rel, err)
+		return extract.Result{}, fmt.Errorf("parse %s: %w", rel, err)
 	}
 
-	r := Result{Path: rel, Package: file.Name.Name, Imports: importsOf(file)}
+	r := extract.Result{Path: rel, Language: "go", Package: file.Name.Name, Imports: importsOf(file)}
 	minted := map[string]bool{}
 	fileID := model.NodeID(rel)
 
@@ -105,7 +81,7 @@ func File(rel, source string) (Result, error) {
 		}
 		for _, n := range nodes {
 			r.Nodes = append(r.Nodes, n)
-			r.Edges = append(r.Edges, RawEdge{
+			r.Edges = append(r.Edges, extract.RawEdge{
 				Source: fileID, Relation: model.RelationContains,
 				TargetID: n.ID, File: rel,
 			})
@@ -113,7 +89,7 @@ func File(rel, source string) (Result, error) {
 		}
 	}
 
-	r.Nodes = append([]model.Node{fileNode(fset, rel, source, file, covered)}, r.Nodes...)
+	r.Nodes = append([]model.Node{extract.FileNode(rel, source, covered)}, r.Nodes...)
 	r.Edges = append(r.Edges, importEdges(rel, file)...)
 	r.Edges = append(r.Edges, callEdges(rel, file, owners)...)
 	return r, nil
@@ -124,56 +100,20 @@ func File(rel, source string) (Result, error) {
 // "_" and "." are recorded with their alias as written: they bind no selector,
 // and the resolver has to be able to tell "this import binds nothing" from
 // "this import binds its package clause".
-func importsOf(file *ast.File) []Import {
-	var out []Import
+func importsOf(file *ast.File) []extract.Import {
+	var out []extract.Import
 	for _, spec := range file.Imports {
 		p, err := strconv.Unquote(spec.Path.Value)
 		if err != nil {
 			continue
 		}
-		imp := Import{Path: p}
+		imp := extract.Import{Path: p}
 		if spec.Name != nil {
 			imp.Alias = spec.Name.Name
 		}
 		out = append(out, imp)
 	}
 	return out
-}
-
-// fileNode is the node that stands for the whole file.
-//
-// Its id is the path itself, with no '#'. That is not cosmetic: an import edge
-// has the file as its source, and model.Validate requires an edge's source to
-// be a node of the graph.
-func fileNode(fset *token.FileSet, rel, source string, file *ast.File, covered map[int]bool) model.Node {
-	sum := sha256.Sum256([]byte(source))
-	lines := strings.Count(source, "\n") + 1
-	return model.Node{
-		ID:       model.NodeID(rel),
-		Name:     path.Base(rel),
-		Kind:     model.KindFile,
-		Path:     rel,
-		Span:     model.Span(fmt.Sprintf("L1-L%d", lines)),
-		Exported: true,
-		BodyHash: hex.EncodeToString(sum[:]),
-		BodyText: collapse(residual(source, covered)),
-	}
-}
-
-// residual is the file's text outside every symbol span: the import header,
-// package constants, the package comment.
-//
-// Symbol bodies are indexed on their own nodes, so repeating them here would
-// store most of the repository twice. What is left is exactly what makes a file
-// findable by a word that lives in no function.
-func residual(source string, covered map[int]bool) string {
-	var keep []string
-	for i, line := range strings.Split(source, "\n") {
-		if !covered[i+1] {
-			keep = append(keep, line)
-		}
-	}
-	return strings.Join(keep, "\n")
 }
 
 // markCovered records the lines of a span as belonging to a symbol.
@@ -243,16 +183,16 @@ func funcNode(fset *token.FileSet, rel, source string, d *ast.FuncDecl, minted m
 		headerEnd = d.Body.Pos()
 	}
 	return model.Node{
-		ID:        model.NodeID(mintID(rel+"#"+qualified, minted)),
+		ID:        model.NodeID(extract.MintID(rel+"#"+qualified, minted)),
 		Name:      name,
 		Kind:      kind,
 		Owner:     owner,
 		Path:      rel,
 		Span:      span(fset, d.Pos(), d.End()),
-		Signature: collapse(slice(fset, source, d.Pos(), headerEnd)),
+		Signature: extract.Collapse(slice(fset, source, d.Pos(), headerEnd)),
 		Exported:  exported(name),
-		BodyHash:  hash(slice(fset, source, d.Pos(), d.End())),
-		BodyText:  collapse(slice(fset, source, d.Pos(), d.End())),
+		BodyHash:  extract.Hash(slice(fset, source, d.Pos(), d.End())),
+		BodyText:  extract.Collapse(slice(fset, source, d.Pos(), d.End())),
 	}
 }
 
@@ -264,7 +204,7 @@ func funcNode(fset *token.FileSet, rel, source string, d *ast.FuncDecl, minted m
 // value no test of the reference pins. See 5.2.1 of the G2 spec.
 func typeNode(fset *token.FileSet, rel, source string, ts *ast.TypeSpec, minted map[string]bool) model.Node {
 	kind := model.Kind("type")
-	sig := "type " + collapse(slice(fset, source, ts.Pos(), ts.End()))
+	sig := "type " + extract.Collapse(slice(fset, source, ts.Pos(), ts.End()))
 	switch ts.Type.(type) {
 	case *ast.StructType:
 		kind = "struct"
@@ -274,15 +214,15 @@ func typeNode(fset *token.FileSet, rel, source string, ts *ast.TypeSpec, minted 
 		sig = "type " + ts.Name.Name + " interface"
 	}
 	return model.Node{
-		ID:        model.NodeID(mintID(rel+"#"+ts.Name.Name, minted)),
+		ID:        model.NodeID(extract.MintID(rel+"#"+ts.Name.Name, minted)),
 		Name:      ts.Name.Name,
 		Kind:      kind,
 		Path:      rel,
 		Span:      span(fset, ts.Pos(), ts.End()),
 		Signature: sig,
 		Exported:  exported(ts.Name.Name),
-		BodyHash:  hash(slice(fset, source, ts.Pos(), ts.End())),
-		BodyText:  collapse(slice(fset, source, ts.Pos(), ts.End())),
+		BodyHash:  extract.Hash(slice(fset, source, ts.Pos(), ts.End())),
+		BodyText:  extract.Collapse(slice(fset, source, ts.Pos(), ts.End())),
 	}
 }
 
@@ -300,21 +240,14 @@ func slice(fset *token.FileSet, source string, from, to token.Pos) string {
 	return source[a:b]
 }
 
-// hash is sha256 as full hex. Truncating would save bytes in wiring.json and
-// buy a collision nobody would debug.
-func hash(text string) string {
-	sum := sha256.Sum256([]byte(text))
-	return hex.EncodeToString(sum[:])
-}
-
 // importEdges is one edge per import specifier, from the file node.
 //
 // A blank import binds no selector and is still a dependency of the file, so it
 // keeps its edge. A dot import binds no selector either; the same holds.
-func importEdges(rel string, file *ast.File) []RawEdge {
-	var out []RawEdge
+func importEdges(rel string, file *ast.File) []extract.RawEdge {
+	var out []extract.RawEdge
 	for _, imp := range importsOf(file) {
-		out = append(out, RawEdge{
+		out = append(out, extract.RawEdge{
 			Source: model.NodeID(rel), Relation: model.RelationImports,
 			Specifier: imp.Path, File: rel,
 		})
@@ -332,8 +265,8 @@ func importEdges(rel string, file *ast.File) []RawEdge {
 //   - a name plus an owner -- a member call on a known local type
 //   - a name plus a specifier -- a package selector; resolve looks in that
 //     package alone
-func callEdges(rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID) []RawEdge {
-	var out []RawEdge
+func callEdges(rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID) []extract.RawEdge {
+	var out []extract.RawEdge
 	// A call outside every function -- in a var initialiser -- is owned by the
 	// file, the same node that owns the imports.
 	walkCalls(file, rel, model.NodeID(rel), owners, &out)
@@ -342,7 +275,7 @@ func callEdges(rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID
 
 // walkCalls descends the file, keeping a scope stack and the symbol a call
 // belongs to.
-func walkCalls(file *ast.File, rel string, fileID model.NodeID, owners map[*ast.FuncDecl]model.NodeID, out *[]RawEdge) {
+func walkCalls(file *ast.File, rel string, fileID model.NodeID, owners map[*ast.FuncDecl]model.NodeID, out *[]extract.RawEdge) {
 	sc := newScope()
 	// The file's own package-level names: a call may target one of them, and a
 	// local of the same name must shadow it.
@@ -408,7 +341,7 @@ func declareParams(sc *scope, ft *ast.FuncType) {
 
 // collect walks one declaration's statements, tracking declarations as it goes
 // and emitting a raw edge per call.
-func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]RawEdge) {
+func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]extract.RawEdge) {
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch s := n.(type) {
 		case *ast.AssignStmt:
@@ -461,10 +394,10 @@ func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]Ra
 // whether an unshadowed receiver names a package is decided in resolve, because
 // only that sees the target's package clause. Splitting the question along that
 // line is what keeps `import "gopkg.in/yaml.v3"` from binding `v3`.
-func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (RawEdge, bool) {
+func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (extract.RawEdge, bool) {
 	switch fn := peelIndex(call.Fun).(type) {
 	case *ast.Ident:
-		return RawEdge{
+		return extract.RawEdge{
 			Source: owner, Relation: model.RelationCalls,
 			Name: fn.Name, File: rel,
 		}, true
@@ -474,13 +407,13 @@ func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (Ra
 			// A chained or computed receiver -- `a.b().c()`, `m[k].c()`. Graft
 			// drops these too: without a receiver type a bare method name says
 			// nothing about what it belongs to.
-			return RawEdge{}, false
+			return extract.RawEdge{}, false
 		}
 		typ, ok := sc.lookup(recv.Name)
 		if !ok {
 			// Declared nowhere in view. It may be a package, and resolve is the
 			// only side that can say so.
-			return RawEdge{
+			return extract.RawEdge{
 				Source: owner, Relation: model.RelationCalls,
 				Name: fn.Sel.Name, Receiver: recv.Name, File: rel,
 			}, true
@@ -489,13 +422,13 @@ func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (Ra
 			// Declared, but bound to nothing this package reads. Dropping beats
 			// guessing: a unique bare method name says nothing about its
 			// receiver.
-			return RawEdge{}, false
+			return extract.RawEdge{}, false
 		}
-		return RawEdge{
+		return extract.RawEdge{
 			Source: owner, Relation: model.RelationCalls,
 			Name: fn.Sel.Name, Owner: typ, File: rel,
 		}, true
 	default:
-		return RawEdge{}, false
+		return extract.RawEdge{}, false
 	}
 }

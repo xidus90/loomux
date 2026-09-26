@@ -1,24 +1,32 @@
 package resolve_test
 
 import (
+	"encoding/json"
 	"path"
+	"reflect"
+	"strings"
 	"testing"
 
-	"github.com/xidus90/loomux/internal/code/extract/golang"
+	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/resolve"
 )
 
+// stamp is the extractor identity these tests hand to Graph. resolve writes
+// whatever its caller names and knows no list of languages; query passes
+// all.Version().
+const stamp = "test/1"
+
 // result is a hand-built extraction of one file, so these tests exercise
 // resolve alone and never the parser. The package clause defaults to the last
 // segment of the directory, which is the ordinary case.
-func result(rel string, nodes []model.Node, edges []golang.RawEdge) golang.Result {
-	return golang.Result{Path: rel, Package: path.Base(path.Dir(rel)), Nodes: nodes, Edges: edges}
+func result(rel string, nodes []model.Node, edges []extract.RawEdge) extract.Result {
+	return extract.Result{Path: rel, Language: "go", Package: path.Base(path.Dir(rel)), Nodes: nodes, Edges: edges}
 }
 
 // importing is result plus the imports the file wrote, which is what a selector
 // resolves through.
-func importing(rel string, imports []golang.Import, nodes []model.Node, edges []golang.RawEdge) golang.Result {
+func importing(rel string, imports []extract.Import, nodes []model.Node, edges []extract.RawEdge) extract.Result {
 	r := result(rel, nodes, edges)
 	r.Imports = imports
 	return r
@@ -46,12 +54,12 @@ func edgeBetween(g *model.Graph, from, to model.NodeID, rel model.Relation) *mod
 }
 
 func TestGraphResolvesASameFileCallAsExtracted(t *testing.T) {
-	files := []golang.Result{result("a.go",
+	files := []extract.Result{result("a.go",
 		[]model.Node{fileNode("a.go"), fn("a.go", "caller", false), fn("a.go", "local", false)},
-		[]golang.RawEdge{{Source: "a.go#caller", Relation: model.RelationCalls, Name: "local", File: "a.go"}},
+		[]extract.RawEdge{{Source: "a.go#caller", Relation: model.RelationCalls, Name: "local", File: "a.go"}},
 	)}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	e := edgeBetween(g, "a.go#caller", "a.go#local", model.RelationCalls)
 	if e == nil {
 		t.Fatalf("edge missing; got %+v", g.Edges)
@@ -63,15 +71,15 @@ func TestGraphResolvesASameFileCallAsExtracted(t *testing.T) {
 }
 
 func TestGraphResolvesAUniqueCrossFileCallAsInferred(t *testing.T) {
-	files := []golang.Result{
+	files := []extract.Result{
 		result("a.go",
 			[]model.Node{fileNode("a.go"), fn("a.go", "caller", false)},
-			[]golang.RawEdge{{Source: "a.go#caller", Relation: model.RelationCalls, Name: "helper", File: "a.go"}},
+			[]extract.RawEdge{{Source: "a.go#caller", Relation: model.RelationCalls, Name: "helper", File: "a.go"}},
 		),
 		result("b.go", []model.Node{fileNode("b.go"), fn("b.go", "helper", false)}, nil),
 	}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	e := edgeBetween(g, "a.go#caller", "b.go#helper", model.RelationCalls)
 	if e == nil {
 		t.Fatalf("edge missing; got %+v", g.Edges)
@@ -84,16 +92,16 @@ func TestGraphResolvesAUniqueCrossFileCallAsInferred(t *testing.T) {
 }
 
 func TestGraphDropsAnAmbiguousCall(t *testing.T) {
-	files := []golang.Result{
+	files := []extract.Result{
 		result("a.go",
 			[]model.Node{fileNode("a.go"), fn("a.go", "caller", false)},
-			[]golang.RawEdge{{Source: "a.go#caller", Relation: model.RelationCalls, Name: "helper", File: "a.go"}},
+			[]extract.RawEdge{{Source: "a.go#caller", Relation: model.RelationCalls, Name: "helper", File: "a.go"}},
 		),
 		result("b_windows.go", []model.Node{fileNode("b_windows.go"), fn("b_windows.go", "helper", false)}, nil),
 		result("b_other.go", []model.Node{fileNode("b_other.go"), fn("b_other.go", "helper", false)}, nil),
 	}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	// Build constraints are not evaluated: a platform pair is two definitions,
 	// the call is ambiguous, and the edge falls. Sound by the rule, and stated
 	// in 6.1 of the spec so nobody files it as a bug.
@@ -109,15 +117,15 @@ func TestGraphResolvesAMemberCallThroughTheOwner(t *testing.T) {
 		ID: "a.go#Cache.Get", Name: "Get", Kind: "method", Owner: "Cache",
 		Path: "a.go", BodyHash: "h", Exported: true,
 	}
-	files := []golang.Result{result("a.go",
+	files := []extract.Result{result("a.go",
 		[]model.Node{fileNode("a.go"), fn("a.go", "caller", false), method},
-		[]golang.RawEdge{{
+		[]extract.RawEdge{{
 			Source: "a.go#caller", Relation: model.RelationCalls,
 			Name: "Get", Owner: "Cache", File: "a.go",
 		}},
 	)}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	if edgeBetween(g, "a.go#caller", "a.go#Cache.Get", model.RelationCalls) == nil {
 		t.Fatalf("a member call must resolve against the owner-qualified index; got %+v", g.Edges)
 	}
@@ -125,11 +133,11 @@ func TestGraphResolvesAMemberCallThroughTheOwner(t *testing.T) {
 
 func TestGraphResolvesAPackageSelectorInsideTheTargetPackageOnly(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{{Path: "example.com/repo/blast"}},
+			[]extract.Import{{Path: "example.com/repo/blast"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "New", Receiver: "blast", File: "cli/run.go",
 			}},
@@ -139,7 +147,7 @@ func TestGraphResolvesAPackageSelectorInsideTheTargetPackageOnly(t *testing.T) {
 		result("other/thing.go", []model.Node{fileNode("other/thing.go"), fn("other/thing.go", "New", true)}, nil),
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	e := edgeBetween(g, "cli/run.go#run", "blast/index.go#New", model.RelationCalls)
 	if e == nil {
 		t.Fatalf("a package selector must resolve inside the target package; got %+v", g.Edges)
@@ -158,11 +166,11 @@ func TestGraphSelectorSkipsMethodsAndTestFiles(t *testing.T) {
 		ID: "blast/index.go#T.New", Name: "New", Kind: "method", Owner: "T",
 		Path: "blast/index.go", BodyHash: "h", Exported: true,
 	}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{{Path: "example.com/repo/blast"}},
+			[]extract.Import{{Path: "example.com/repo/blast"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "New", Receiver: "blast", File: "cli/run.go",
 			}},
@@ -173,7 +181,7 @@ func TestGraphSelectorSkipsMethodsAndTestFiles(t *testing.T) {
 		result("blast/index_test.go", []model.Node{fileNode("blast/index_test.go"), fn("blast/index_test.go", "New", true)}, nil),
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	for _, e := range g.Edges {
 		if e.Relation == model.RelationCalls {
 			t.Errorf("neither a method nor a test-file symbol is a selector candidate; got %+v", e)
@@ -183,10 +191,10 @@ func TestGraphSelectorSkipsMethodsAndTestFiles(t *testing.T) {
 
 func TestGraphResolvesAnInRepoImportToANonTestRepresentative(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		result("cli/run.go",
 			[]model.Node{fileNode("cli/run.go")},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go", Relation: model.RelationImports,
 				Specifier: "example.com/repo/blast", File: "cli/run.go",
 			}},
@@ -196,21 +204,21 @@ func TestGraphResolvesAnInRepoImportToANonTestRepresentative(t *testing.T) {
 		result("blast/index.go", []model.Node{fileNode("blast/index.go")}, nil),
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	if edgeBetween(g, "cli/run.go", "blast/index.go", model.RelationImports) == nil {
 		t.Fatalf("the representative must skip test files; got %+v", g.Edges)
 	}
 }
 
 func TestGraphKeepsAnExternalImportAsAString(t *testing.T) {
-	files := []golang.Result{result("a.go",
+	files := []extract.Result{result("a.go",
 		[]model.Node{fileNode("a.go")},
-		[]golang.RawEdge{{
+		[]extract.RawEdge{{
 			Source: "a.go", Relation: model.RelationImports, Specifier: "fmt", File: "a.go",
 		}},
 	)}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	e := edgeBetween(g, "a.go", "fmt", model.RelationImports)
 	if e == nil {
 		t.Fatalf("an external import keeps its package path as the target; got %+v", g.Edges)
@@ -223,15 +231,15 @@ func TestGraphKeepsAnExternalImportAsAString(t *testing.T) {
 }
 
 func TestGraphEmitsNoCallEdgeForAnExternalSelector(t *testing.T) {
-	files := []golang.Result{result("a.go",
+	files := []extract.Result{result("a.go",
 		[]model.Node{fileNode("a.go"), fn("a.go", "f", false)},
-		[]golang.RawEdge{{
+		[]extract.RawEdge{{
 			Source: "a.go#f", Relation: model.RelationCalls,
 			Name: "Println", Receiver: "fmt", File: "a.go",
 		}},
 	)}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	for _, e := range g.Edges {
 		if e.Relation == model.RelationCalls {
 			t.Errorf("a call into a package outside the repository has no node to point at; got %+v", e)
@@ -241,24 +249,24 @@ func TestGraphEmitsNoCallEdgeForAnExternalSelector(t *testing.T) {
 
 func TestGraphResolvesASelectorIntoTheRootPackage(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{{Path: "example.com/repo"}},
+			[]extract.Import{{Path: "example.com/repo"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "Root", Receiver: "repo", File: "cli/run.go",
 			}},
 		),
 		// A file at the repository root: its directory is "" and not ".", or it
 		// could never be found by the import path of the root module.
-		golang.Result{
-			Path: "root.go", Package: "repo",
+		extract.Result{
+			Path: "root.go", Language: "go", Package: "repo",
 			Nodes: []model.Node{fileNode("root.go"), fn("root.go", "Root", true)},
 		},
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	if edgeBetween(g, "cli/run.go#run", "root.go#Root", model.RelationCalls) == nil {
 		t.Fatalf("the root package must be reachable; got %+v", g.Edges)
 	}
@@ -266,11 +274,11 @@ func TestGraphResolvesASelectorIntoTheRootPackage(t *testing.T) {
 
 func TestGraphBindsAPlainImportByThePackageClauseAndNotThePathTail(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{{Path: "example.com/repo/yaml.v3"}},
+			[]extract.Import{{Path: "example.com/repo/yaml.v3"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "Marshal", Receiver: "yaml", File: "cli/run.go",
 			}},
@@ -278,13 +286,13 @@ func TestGraphBindsAPlainImportByThePackageClauseAndNotThePathTail(t *testing.T)
 		// The directory's last segment is "yaml.v3", the clause is "yaml", and
 		// Go binds the clause. Guessing the path tail would drop this call --
 		// and versioned module paths make the case ordinary, not exotic.
-		golang.Result{
-			Path: "yaml.v3/marshal.go", Package: "yaml",
+		extract.Result{
+			Path: "yaml.v3/marshal.go", Language: "go", Package: "yaml",
 			Nodes: []model.Node{fileNode("yaml.v3/marshal.go"), fn("yaml.v3/marshal.go", "Marshal", true)},
 		},
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	if edgeBetween(g, "cli/run.go#run", "yaml.v3/marshal.go#Marshal", model.RelationCalls) == nil {
 		t.Fatalf("a plain import binds the target's package clause; got %+v", g.Edges)
 	}
@@ -292,25 +300,25 @@ func TestGraphBindsAPlainImportByThePackageClauseAndNotThePathTail(t *testing.T)
 
 func TestGraphIgnoresABlankAndADotImportForASelector(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{
+			[]extract.Import{
 				{Alias: "_", Path: "example.com/repo/driver"},
 				{Alias: ".", Path: "example.com/repo/dsl"},
 			},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "Open", Receiver: "driver", File: "cli/run.go",
 			}},
 		),
-		golang.Result{
-			Path: "driver/driver.go", Package: "driver",
+		extract.Result{
+			Path: "driver/driver.go", Language: "go", Package: "driver",
 			Nodes: []model.Node{fileNode("driver/driver.go"), fn("driver/driver.go", "Open", true)},
 		},
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	// Neither binds a selector name. A `driver.Open` in a file that only
 	// blank-imports driver is some other driver entirely.
 	for _, e := range g.Edges {
@@ -321,20 +329,23 @@ func TestGraphIgnoresABlankAndADotImportForASelector(t *testing.T) {
 }
 
 func TestGraphCarriesContainsThroughAndStampsTheExtractor(t *testing.T) {
-	files := []golang.Result{result("a.go",
+	files := []extract.Result{result("a.go",
 		[]model.Node{fileNode("a.go"), fn("a.go", "f", false)},
-		[]golang.RawEdge{{
+		[]extract.RawEdge{{
 			Source: "a.go", Relation: model.RelationContains, TargetID: "a.go#f", File: "a.go",
 		}},
 	)}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	e := edgeBetween(g, "a.go", "a.go#f", model.RelationContains)
 	if e == nil || e.Confidence != model.ConfidenceExtracted {
 		t.Fatalf("contains is already resolved and certain; got %+v", g.Edges)
 	}
-	if g.Meta.Extractor != golang.Version {
-		t.Errorf("Meta.Extractor = %q, want %q", g.Meta.Extractor, golang.Version)
+	if g.Meta.Extractor != stamp {
+		t.Errorf("Meta.Extractor = %q, want the stamp the caller named, %q", g.Meta.Extractor, stamp)
+	}
+	if len(g.Meta.Languages) != 1 || g.Meta.Languages[0] != "go" {
+		t.Errorf("Meta.Languages = %v, want [go]", g.Meta.Languages)
 	}
 	if g.Meta.Version == 0 || g.Meta.NodeCount != len(g.Nodes) || g.Meta.EdgeCount != len(g.Edges) {
 		t.Errorf("meta = %+v, want the counts of the graph it describes", g.Meta)
@@ -352,25 +363,25 @@ func TestGraphResolvesASelectorIntoANestedModule(t *testing.T) {
 		{Dir: "tools", Path: "example.com/repo/tools"},
 		{Dir: "", Path: "example.com/repo"},
 	}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{{Path: "example.com/repo/tools"}, {Path: "example.com/repo/blast"}},
+			[]extract.Import{{Path: "example.com/repo/tools"}, {Path: "example.com/repo/blast"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{
+			[]extract.RawEdge{
 				{Source: "cli/run.go#run", Relation: model.RelationCalls, Name: "Root", Receiver: "tools", File: "cli/run.go"},
 				{Source: "cli/run.go#run", Relation: model.RelationCalls, Name: "New", Receiver: "blast", File: "cli/run.go"},
 			},
 		),
 		// The nested module's root package: importDir must land exactly on
 		// its Dir, not Dir plus a spurious "/" + "".
-		golang.Result{Path: "tools/root.go", Package: "tools", Nodes: []model.Node{fileNode("tools/root.go"), fn("tools/root.go", "Root", true)}},
+		extract.Result{Path: "tools/root.go", Language: "go", Package: "tools", Nodes: []model.Node{fileNode("tools/root.go"), fn("tools/root.go", "Root", true)}},
 		// The parent module's own package, reached only because the nested
 		// module's prefix does not match this import path -- exercising the
 		// "continue to the next module" arm.
 		result("blast/index.go", []model.Node{fileNode("blast/index.go"), fn("blast/index.go", "New", true)}, nil),
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	if edgeBetween(g, "cli/run.go#run", "tools/root.go#Root", model.RelationCalls) == nil {
 		t.Fatalf("a selector into a nested module's root package must resolve; got %+v", g.Edges)
 	}
@@ -384,21 +395,21 @@ func TestGraphResolvesASelectorIntoANestedModuleSubpackage(t *testing.T) {
 		{Dir: "tools", Path: "example.com/repo/tools"},
 		{Dir: "", Path: "example.com/repo"},
 	}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{{Path: "example.com/repo/tools/gen"}},
+			[]extract.Import{{Path: "example.com/repo/tools/gen"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "Run", Receiver: "gen", File: "cli/run.go",
 			}},
 		),
 		// A subpackage of the nested module: importDir must join the module's
 		// Dir with the remaining path segment.
-		golang.Result{Path: "tools/gen/run.go", Package: "gen", Nodes: []model.Node{fileNode("tools/gen/run.go"), fn("tools/gen/run.go", "Run", true)}},
+		extract.Result{Path: "tools/gen/run.go", Language: "go", Package: "gen", Nodes: []model.Node{fileNode("tools/gen/run.go"), fn("tools/gen/run.go", "Run", true)}},
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	if edgeBetween(g, "cli/run.go#run", "tools/gen/run.go#Run", model.RelationCalls) == nil {
 		t.Fatalf("a selector into a nested module's subpackage must resolve; got %+v", g.Edges)
 	}
@@ -406,10 +417,10 @@ func TestGraphResolvesASelectorIntoANestedModuleSubpackage(t *testing.T) {
 
 func TestGraphKeepsAnImportAsAStringWhenTheModulePackageIsUnindexed(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		result("cli/run.go",
 			[]model.Node{fileNode("cli/run.go")},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go", Relation: model.RelationImports,
 				// Inside the repository's own module, but this run's file set
 				// never reached that directory -- an unscanned package, not an
@@ -419,7 +430,7 @@ func TestGraphKeepsAnImportAsAStringWhenTheModulePackageIsUnindexed(t *testing.T
 		),
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	e := edgeBetween(g, "cli/run.go", "example.com/repo/unscanned", model.RelationImports)
 	if e == nil {
 		t.Fatalf("an in-module import with nothing indexed there keeps its path as the target; got %+v", g.Edges)
@@ -428,11 +439,11 @@ func TestGraphKeepsAnImportAsAStringWhenTheModulePackageIsUnindexed(t *testing.T
 
 func TestGraphResolvesASelectorThroughAnExplicitAlias(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{{Alias: "b", Path: "example.com/repo/blast"}},
+			[]extract.Import{{Alias: "b", Path: "example.com/repo/blast"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "New", Receiver: "b", File: "cli/run.go",
 			}},
@@ -440,7 +451,7 @@ func TestGraphResolvesASelectorThroughAnExplicitAlias(t *testing.T) {
 		result("blast/index.go", []model.Node{fileNode("blast/index.go"), fn("blast/index.go", "New", true)}, nil),
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	if edgeBetween(g, "cli/run.go#run", "blast/index.go#New", model.RelationCalls) == nil {
 		t.Fatalf("an explicit alias must bind the selector outright; got %+v", g.Edges)
 	}
@@ -448,13 +459,13 @@ func TestGraphResolvesASelectorThroughAnExplicitAlias(t *testing.T) {
 
 func TestGraphSkipsAnUnresolvablePlainImportWhileLookingForTheClause(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
 			// fmt resolves to no module of the repository, so packageDir must
 			// pass over it and keep looking among the remaining plain imports.
-			[]golang.Import{{Path: "fmt"}, {Path: "example.com/repo/blast"}},
+			[]extract.Import{{Path: "fmt"}, {Path: "example.com/repo/blast"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "New", Receiver: "blast", File: "cli/run.go",
 			}},
@@ -462,17 +473,17 @@ func TestGraphSkipsAnUnresolvablePlainImportWhileLookingForTheClause(t *testing.
 		result("blast/index.go", []model.Node{fileNode("blast/index.go"), fn("blast/index.go", "New", true)}, nil),
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	if edgeBetween(g, "cli/run.go#run", "blast/index.go#New", model.RelationCalls) == nil {
 		t.Fatalf("packageDir must skip an unresolvable plain import and find the next; got %+v", g.Edges)
 	}
 }
 
 func TestGraphSortsEdgesBySourceThenRelationThenTarget(t *testing.T) {
-	files := []golang.Result{
+	files := []extract.Result{
 		result("a.go",
 			[]model.Node{fileNode("a.go"), fn("a.go", "caller", false), fn("a.go", "helperA", false), fn("a.go", "helperB", false)},
-			[]golang.RawEdge{
+			[]extract.RawEdge{
 				{Source: "a.go", Relation: model.RelationContains, TargetID: "a.go#caller", File: "a.go"},
 				// Same source as the contains edge above ("a.go" is both the
 				// container and the importer): exercises the relation branch
@@ -485,7 +496,7 @@ func TestGraphSortsEdgesBySourceThenRelationThenTarget(t *testing.T) {
 		result("b.go", []model.Node{fileNode("b.go")}, nil),
 	}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	var got []string
 	for _, e := range g.Edges {
 		got = append(got, string(e.Source)+"|"+string(e.Relation)+"|"+string(e.Target))
@@ -507,10 +518,10 @@ func TestGraphSortsEdgesBySourceThenRelationThenTarget(t *testing.T) {
 }
 
 func TestGraphSortsEdgesByRelationBeforeTarget(t *testing.T) {
-	files := []golang.Result{
+	files := []extract.Result{
 		result("a.go",
 			[]model.Node{fileNode("a.go")},
-			[]golang.RawEdge{
+			[]extract.RawEdge{
 				// Same source, different relation, and the TARGET order runs
 				// the opposite way from the RELATION order ("aaa" < "z.go#Sym"
 				// but "contains" < "imports"): only sorting by relation before
@@ -521,7 +532,7 @@ func TestGraphSortsEdgesByRelationBeforeTarget(t *testing.T) {
 		),
 	}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	if len(g.Edges) != 2 {
 		t.Fatalf("got %d edges, want 2: %+v", len(g.Edges), g.Edges)
 	}
@@ -532,40 +543,40 @@ func TestGraphSortsEdgesByRelationBeforeTarget(t *testing.T) {
 
 func TestGraphKeepsThePackageClauseFromTheNonTestFileWhateverOrderTheFilesArriveIn(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
-		golang.Result{
-			Path: "pkg/foo.go", Package: "foo",
+	files := []extract.Result{
+		extract.Result{
+			Path: "pkg/foo.go", Language: "go", Package: "foo",
 			Nodes: []model.Node{fileNode("pkg/foo.go"), fn("pkg/foo.go", "Fn", true)},
 		},
 		// Indexed AFTER the real file: "package foo_test" must never become
 		// the clause an importer binds, whatever order the files arrive in.
-		golang.Result{
-			Path: "pkg/foo_test.go", Package: "foo_test",
+		extract.Result{
+			Path: "pkg/foo_test.go", Language: "go", Package: "foo_test",
 			Nodes: []model.Node{fileNode("pkg/foo_test.go")},
 		},
 		importing("cli/run.go",
-			[]golang.Import{{Path: "example.com/repo/pkg"}},
+			[]extract.Import{{Path: "example.com/repo/pkg"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "Fn", Receiver: "foo", File: "cli/run.go",
 			}},
 		),
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	if edgeBetween(g, "cli/run.go#run", "pkg/foo.go#Fn", model.RelationCalls) == nil {
 		t.Fatalf("the package clause must come from the non-test file; got %+v", g.Edges)
 	}
 }
 
 func TestGraphResolvesASameFileCallToAnEarlierFunctionInTheFile(t *testing.T) {
-	files := []golang.Result{result("a.go",
+	files := []extract.Result{result("a.go",
 		[]model.Node{fileNode("a.go"), fn("a.go", "A", false), fn("a.go", "B", false), fn("a.go", "C", false)},
-		[]golang.RawEdge{{Source: "a.go#C", Relation: model.RelationCalls, Name: "A", File: "a.go"}},
+		[]extract.RawEdge{{Source: "a.go#C", Relation: model.RelationCalls, Name: "A", File: "a.go"}},
 	)}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	e := edgeBetween(g, "a.go#C", "a.go#A", model.RelationCalls)
 	if e == nil {
 		t.Fatalf("edge missing; got %+v", g.Edges)
@@ -580,26 +591,26 @@ func TestGraphResolvesASameFileCallToAnEarlierFunctionInTheFile(t *testing.T) {
 
 func TestGraphResolvesASelectorToTheFirstIndexedFunctionOfThePackage(t *testing.T) {
 	mods := []resolve.Module{{Dir: "", Path: "example.com/repo"}}
-	files := []golang.Result{
+	files := []extract.Result{
 		importing("cli/run.go",
-			[]golang.Import{{Path: "example.com/repo/pkg"}},
+			[]extract.Import{{Path: "example.com/repo/pkg"}},
 			[]model.Node{fileNode("cli/run.go"), fn("cli/run.go", "run", false)},
-			[]golang.RawEdge{{
+			[]extract.RawEdge{{
 				Source: "cli/run.go#run", Relation: model.RelationCalls,
 				Name: "First", Receiver: "pkg", File: "cli/run.go",
 			}},
 		),
-		golang.Result{
-			Path: "pkg/a.go", Package: "pkg",
+		extract.Result{
+			Path: "pkg/a.go", Language: "go", Package: "pkg",
 			Nodes: []model.Node{fileNode("pkg/a.go"), fn("pkg/a.go", "First", true)},
 		},
-		golang.Result{
-			Path: "pkg/b.go", Package: "pkg",
+		extract.Result{
+			Path: "pkg/b.go", Language: "go", Package: "pkg",
 			Nodes: []model.Node{fileNode("pkg/b.go"), fn("pkg/b.go", "Second", true)},
 		},
 	}
 
-	g := resolve.Graph(files, mods)
+	g := resolve.Graph(files, mods, stamp)
 	// First is indexed before Second: a per-directory index that forgets
 	// everything but the last function indexed would lose it.
 	if edgeBetween(g, "cli/run.go#run", "pkg/a.go#First", model.RelationCalls) == nil {
@@ -607,13 +618,79 @@ func TestGraphResolvesASelectorToTheFirstIndexedFunctionOfThePackage(t *testing.
 	}
 }
 
+func TestGraphKeepsLanguagesApart(t *testing.T) {
+	files := []extract.Result{
+		result("a.go",
+			[]model.Node{fileNode("a.go"), fn("a.go", "caller", false)},
+			[]extract.RawEdge{{Source: "a.go#caller", Relation: model.RelationCalls, Name: "Run", File: "a.go"}},
+		),
+		result("b.go", []model.Node{fileNode("b.go"), fn("b.go", "Run", false)}, nil),
+		// A language this package has no rules for: Go and Python both have
+		// theirs, and this one stands for any language added to the build
+		// before its resolver is.
+		{
+			Path: "tool.other", Language: "other",
+			Nodes: []model.Node{fileNode("tool.other"), fn("tool.other", "Run", false), fn("tool.other", "main", false)},
+			Edges: []extract.RawEdge{
+				{Source: "tool.other", Relation: model.RelationContains, TargetID: "tool.other#Run", File: "tool.other"},
+				{Source: "tool.other#main", Relation: model.RelationCalls, Name: "Run", File: "tool.other"},
+			},
+		},
+	}
+
+	g := resolve.Graph(files, nil, stamp)
+	// Run exists twice, once per language. One index across both would see two
+	// candidates and drop the Go call; each language has its own.
+	e := edgeBetween(g, "a.go#caller", "b.go#Run", model.RelationCalls)
+	if e == nil {
+		t.Fatalf("the Go call must resolve against the Go files alone; got %+v", g.Edges)
+	}
+	if e.Confidence != model.ConfidenceInferred {
+		t.Errorf("confidence = %q, want inferred: one match across Go files", e.Confidence)
+	}
+	// A language without resolution rules keeps its nodes and the containment
+	// its extractor already resolved, and nothing it would have to guess.
+	if c := edgeBetween(g, "tool.other", "tool.other#Run", model.RelationContains); c == nil || c.Confidence != model.ConfidenceExtracted {
+		t.Errorf("contains of a language without rules must be carried through; got %+v", g.Edges)
+	}
+	for _, e := range g.Edges {
+		if e.Source == "tool.other#main" {
+			t.Errorf("a call of a language without rules must yield no edge; got %+v", e)
+		}
+	}
+	if len(g.Nodes) != 7 {
+		t.Errorf("got %d nodes, want the 7 of both languages", len(g.Nodes))
+	}
+	if !reflect.DeepEqual(g.Meta.Languages, []string{"go", "other"}) {
+		t.Errorf("Meta.Languages = %v, want [go other]", g.Meta.Languages)
+	}
+	if err := g.Validate(); err != nil {
+		t.Errorf("a graph of two languages must validate: %v", err)
+	}
+}
+
+func TestEmptyGraphHasNoLanguages(t *testing.T) {
+	g := resolve.Graph(nil, nil, stamp)
+	// An empty list and not nil: nil would reach wiring.json as null.
+	if g.Meta.Languages == nil || len(g.Meta.Languages) != 0 {
+		t.Fatalf("Meta.Languages = %#v, want an empty list", g.Meta.Languages)
+	}
+	b, err := json.Marshal(g.Meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"languages":[]`) {
+		t.Errorf("meta = %s, want an empty languages list", b)
+	}
+}
+
 func TestGraphSortsNodesAndEdges(t *testing.T) {
-	files := []golang.Result{
+	files := []extract.Result{
 		result("b.go", []model.Node{fileNode("b.go")}, nil),
 		result("a.go", []model.Node{fileNode("a.go")}, nil),
 	}
 
-	g := resolve.Graph(files, nil)
+	g := resolve.Graph(files, nil, stamp)
 	// Byte order, so a rebuild of an unchanged tree is byte-identical and the
 	// golden files do not wander between platforms.
 	if g.Nodes[0].ID != "a.go" || g.Nodes[1].ID != "b.go" {

@@ -52,6 +52,30 @@ func TestSymbolsInFile(t *testing.T) {
 	}
 }
 
+func TestMetaBuiltBy(t *testing.T) {
+	combined := model.Meta{Extractor: "go/1+python/1@gotreesitter/v0.55.0"}
+	cases := []struct {
+		name    string
+		meta    model.Meta
+		version string
+		want    bool
+	}{
+		{"the one extractor", model.Meta{Extractor: "go/1"}, "go/1", true},
+		{"first member of a combined stamp", combined, "go/1", true},
+		{"second member of a combined stamp", combined, "python/1@gotreesitter/v0.55.0", true},
+		{"another version of a member", combined, "go/2", false},
+		{"no stamp at all", model.Meta{}, "go/1", false},
+		// Membership, not a prefix: go/10 is a different extractor.
+		{"a longer version with the same prefix", model.Meta{Extractor: "go/10"}, "go/1", false},
+	}
+	for _, c := range cases {
+		if got := c.meta.BuiltBy(c.version); got != c.want {
+			t.Errorf("%s: Meta{Extractor: %q}.BuiltBy(%q) = %v, want %v",
+				c.name, c.meta.Extractor, c.version, got, c.want)
+		}
+	}
+}
+
 func TestSpanLines(t *testing.T) {
 	cases := []struct {
 		span     model.Span

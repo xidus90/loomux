@@ -6,39 +6,6 @@ import (
 	"unicode"
 )
 
-// maxBodyChars caps the searchable body. Graft's figure; a definition longer
-// than this is findable by its first 5000 characters or not at all.
-const maxBodyChars = 5000
-
-// mintID returns base, or base with the lowest free ordinal appended.
-//
-// A loop and not a single "~2" guess: a qualified source name may itself end
-// in "~2", and only the loop is tight against that.
-func mintID(base string, minted map[string]bool) string {
-	id := base
-	for k := 2; minted[id]; k++ {
-		id = base + "~" + itoa(k)
-	}
-	minted[id] = true
-	return id
-}
-
-// itoa is strconv.Itoa without the import, so this file stays free of
-// anything but the AST.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b [20]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(b[i:])
-}
-
 // exported reports Go visibility: the first letter of a symbol's OWN name is
 // uppercase. For a receiver-qualified name the own name is the part after the
 // last dot.
@@ -83,14 +50,4 @@ func receiverVar(recv *ast.FieldList) string {
 		return ""
 	}
 	return recv.List[0].Names[0].Name
-}
-
-// collapse turns a definition's text into one searchable line: every run of
-// whitespace becomes a single space, and the result is capped.
-func collapse(text string) string {
-	out := strings.Join(strings.Fields(text), " ")
-	if len(out) > maxBodyChars {
-		return out[:maxBodyChars]
-	}
-	return out
 }
