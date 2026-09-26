@@ -17,17 +17,8 @@ package maintenance
 // run's rename detection to judge, and reading it as a change would raise a
 // case for a file that merely moved.
 //
-// Two things this file does **not** do that the reference does, both of them
-// recorded in docs/.superpowers/parity/stufe-3a.md:
-//
-//   - **Nobody is asked for a proposal.** `_proposers` builds one Ollama
-//     proposer per `local_only` area; the local model is stage 4. A closed
-//     area's case therefore carries `Manual` and the note that says why no
-//     proposal lies beside it, which is exactly the state the field semantics
-//     were written for.
-//   - **The merge trigger asks nobody either.** `_merge_cases` is here, behind
-//     the source cases and through the same `landCase`, but the case it lands
-//     carries no proposal for the same reason a source case does not.
+// The local model is asked for a proposal on every case of a `local_only`
+// area, source or merge, through the proposer `proposers` built for the run.
 //
 // The original is `src/brain/maintenance/reconcile.py`.
 
@@ -43,7 +34,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/evidence"
 	"github.com/xidus90/loomux/internal/brain/guard"
+	"github.com/xidus90/loomux/internal/brain/model"
 	"github.com/xidus90/loomux/internal/brain/pytext"
 	"github.com/xidus90/loomux/internal/brain/search"
 	"github.com/xidus90/loomux/internal/brain/vcs"
@@ -66,6 +59,12 @@ const (
 	lastRunRelative = "maintenance/last-run.txt"
 	localOnlyNote   = "manual review: this area is local_only, so no skill path is offered (spec 5)"
 	localOnlyMode   = "local_only"
+
+	// proposalRefusedNote is `_PROPOSAL_REJECTED_NOTE`, spelt to the letter
+	// for the reason localOnlyNote is. It says only what the three ways out
+	// of Propose -- no answer, nothing readable, a refused claim -- have in
+	// common, because this branch cannot tell them apart.
+	proposalRefusedNote = "manual review: the local proposer returned no usable proposal (slice-6 spec §3)"
 )
 
 // mergePathsHeading and mergeSubjectsHeading are `_MERGE_PATHS` and
@@ -116,8 +115,9 @@ func Reconcile(areas []config.Area, lookup config.ArtifactLookup, now time.Time)
 }
 
 // ReconcileContext is Reconcile under a context that can end it. It is asked
-// after every area's scan, the last of them standing before the first write,
-// so a pass that ends early has only read: no case, no stamp.
+// after every area's scan and once more after every question to the local
+// model; a pass that ends there leaves the cases landed before it and no
+// stamp.
 func ReconcileContext(ctx context.Context, areas []config.Area, lookup config.ArtifactLookup, now time.Time) (Report, error) {
 	manifests, err := Manifests(areas, lookup)
 	if err != nil {
@@ -147,15 +147,22 @@ func ReconcileContext(ctx context.Context, areas []config.Area, lookup config.Ar
 			changed[docID] = item
 		}
 	}
+	// After the scans, as the reference reads [model] (reconcile.py:205,
+	// :210): a refused setting leaves the stamp caches the scans wrote, and
+	// still stops the run before the first case.
+	asking, err := proposers(areas, manifests, lookup.Primary)
+	if err != nil {
+		return Report{}, err
+	}
 	var broken []string
-	raw, err := sourceCases(areas, manifests, root, changed, now, &broken)
+	raw, err := sourceCases(ctx, areas, manifests, root, changed, now, &broken, asking)
 	if err != nil {
 		return Report{}, err
 	}
 	// After the source cases, never before: a merge case defers to a standing
 	// source case for the same page, and it can only see one that is already
 	// on disk.
-	merged, err := mergeCases(areas, manifests, root, lookup, now, &broken)
+	merged, err := mergeCases(ctx, areas, manifests, root, lookup, now, &broken, asking)
 	if err != nil {
 		return Report{}, err
 	}
@@ -206,6 +213,36 @@ func ReviewRoot(areas []config.Area, lookup config.ArtifactLookup) (string, erro
 		return "", err
 	}
 	return reviewRootOf(areas, manifests)
+}
+
+// proposers is `_proposers` (reconcile.py:271-310): one proposer per
+// local_only area, built once for the whole run. The settings are not read
+// at all unless such an area exists: a vault without one never asks the
+// model, and a mistyped [model] must not stop a run that would not use it.
+// A misconfiguration stops the run before the first case is written.
+func proposers(areas []config.Area, manifests map[string]*config.Manifest, stateDir string) (map[string]*model.Proposer, error) {
+	var closed []string
+	for _, area := range areas {
+		if m := manifests[area.Scope]; m != nil && m.PrivacyMode == localOnlyMode && !slices.Contains(closed, area.Scope) {
+			closed = append(closed, area.Scope)
+		}
+	}
+	if len(closed) == 0 {
+		return nil, nil
+	}
+	settings, err := config.ReadModelSettings(stateDir)
+	if err != nil {
+		return nil, err
+	}
+	found := map[string]*model.Proposer{}
+	for _, scope := range closed {
+		proposer, err := model.ProposerFor(settings, manifests[scope], "propose")
+		if err != nil {
+			return nil, err
+		}
+		found[scope] = proposer
+	}
+	return found, nil
 }
 
 // writeLastRun records when the last full pass ran. Its reader is
@@ -356,12 +393,14 @@ func rootedValue(value string) bool {
 // sourceCases groups the changed sources by the page derived from them, one
 // case each.
 func sourceCases(
+	ctx context.Context,
 	areas []config.Area,
 	manifests map[string]*config.Manifest,
 	reviewRoot string,
 	changed map[string]Changed,
 	now time.Time,
 	broken *[]string,
+	asking map[string]*model.Proposer,
 ) ([]Case, error) {
 	var cases []Case
 	for _, area := range areas {
@@ -383,8 +422,8 @@ func sourceCases(
 		}
 		for _, target := range sortedTargets(affected) {
 			landed, err := landCase(
-				area, manifest, reviewRoot, target, affected[target], now, broken,
-				"source_change", "source_changed", nil)
+				ctx, area, manifest, reviewRoot, target, affected[target], now, broken,
+				"source_change", "source_changed", nil, asking[area.Scope])
 			if err != nil {
 				return nil, err
 			}
@@ -411,12 +450,14 @@ func sourceCases(
 // could not be written, and a drop that could not be recorded. All four say the
 // pass broke rather than that this one merge is unreadable.
 func mergeCases(
+	ctx context.Context,
 	areas []config.Area,
 	manifests map[string]*config.Manifest,
 	reviewRoot string,
 	lookup config.ArtifactLookup,
 	now time.Time,
 	broken *[]string,
+	asking map[string]*model.Proposer,
 ) ([]Case, error) {
 	events, err := ReadEvents(lookup.Primary, lookup.Fallback)
 	if err != nil {
@@ -438,7 +479,7 @@ func mergeCases(
 			// reached on this path.
 			continue
 		}
-		deferred, err := landMerge(found, reviewRoot, evidence, now, broken, &cases)
+		deferred, err := landMerge(ctx, found, reviewRoot, evidence, now, broken, &cases, asking[found.area.Scope])
 		if err != nil {
 			return nil, err
 		}
@@ -578,12 +619,14 @@ func mergeEvidence(event MergeEvent) ([]string, error) {
 // deferred event with some of its cases already written, and those cases would
 // then block it on every later pass.
 func landMerge(
+	ctx context.Context,
 	found repositoryArea,
 	reviewRoot string,
 	evidence []string,
 	now time.Time,
 	broken *[]string,
 	cases *[]Case,
+	proposer *model.Proposer,
 ) (bool, error) {
 	scope := search.CollectionName(found.area.Scope)
 	targets, err := candidates(found.area)
@@ -609,8 +652,8 @@ func landMerge(
 		// the page has simply become due for the one question this trigger
 		// asks -- is what it promised now built?
 		landed, err := landCase(
-			found.area, found.manifest, reviewRoot, target, nil, now, broken,
-			"merge", "due", evidence)
+			ctx, found.area, found.manifest, reviewRoot, target, nil, now, broken,
+			"merge", "due", evidence, proposer)
 		if err != nil {
 			return false, err
 		}
@@ -727,6 +770,7 @@ func sortedTargets(affected map[string][]Changed) []string {
 // has not been measured yet. Inventing a third value here would change the
 // format ahead of the measurement that would justify it.
 func landCase(
+	ctx context.Context,
 	area config.Area,
 	manifest *config.Manifest,
 	reviewRoot, target string,
@@ -735,6 +779,7 @@ func landCase(
 	broken *[]string,
 	trigger, state string,
 	evidence []string,
+	proposer *model.Proposer,
 ) (Case, error) {
 	scope := search.CollectionName(area.Scope)
 	states := sourceStates(sources)
@@ -754,19 +799,7 @@ func landCase(
 		return withCurrentMode(standingDir, *standing, manifest)
 	}
 	identifier := CaseID(area.Scope, target, now)
-	directory := CaseDir(reviewRoot, scope, identifier)
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		return Case{}, err
-	}
-	superseded, err := supersede(standingDir, standing != nil, directory)
-	if err != nil {
-		return Case{}, err
-	}
 	page := filepath.Join(area.WikiPath, filepath.FromSlash(target))
-	targetHash, err := contentHashFn(page)
-	if err != nil {
-		return Case{}, err
-	}
 	closed := manifest.PrivacyMode == localOnlyMode
 	landed := Case{
 		ID:      identifier,
@@ -777,17 +810,9 @@ func landCase(
 		Weight:  "change",
 		Created: now,
 		Sources: states,
-
-		TargetHash:         targetHash,
-		SupersededProposal: superseded,
 		// Here already: the area's mode is settled before anyone was asked,
 		// and exactly that makes it the switch.
 		LocalOnly: closed,
-		// No local model is asked before stage 4, so both of these are settled
-		// here as well -- where the reference waits for an answer from it. No
-		// proposal means a manual case, and the note says why one is missing.
-		Manual: closed,
-		Note:   noteFor(manifest),
 	}
 	segments, err := segmentsOf(sources, page, evidence)
 	if err != nil {
@@ -797,13 +822,66 @@ func landCase(
 	// the package the checker reads later. RenderPackage takes id and created
 	// off the case, and neither moves between here and the write.
 	packageText := RenderPackage(landed, segments)
+	// Asked before anything is laid down or cleared away, where the reference
+	// asks after `supersede`: the output is the same, but a pass that ends
+	// while the model computes must leave neither an empty case directory
+	// behind nor a standing case gone.
+	//
+	// No mode check before asking: proposers hands one out only for closed
+	// areas. Manual still reads the mode, because a closed area whose
+	// proposal is missing -- no proposer, or a refused answer -- is a manual
+	// case too.
+	proposal, proposed := "", false
+	if proposer != nil {
+		proposal, proposed = proposer.Propose(ctx, packageText, evidenceSegments(segments))
+		// A pass that ended while the model computed has spent no attempt:
+		// writing the refused note now would keep this case from ever being
+		// asked again.
+		if err := ctx.Err(); err != nil {
+			return Case{}, err
+		}
+	}
+	landed.Manual = closed && !proposed
+	landed.Note = noteFor(manifest, proposer != nil, proposed)
+	if proposed {
+		landed.PromptVersion = model.ProposeVersion
+	}
+	directory := CaseDir(reviewRoot, scope, identifier)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return Case{}, err
+	}
+	superseded, err := supersede(standingDir, standing != nil, directory)
+	if err != nil {
+		return Case{}, err
+	}
+	targetHash, err := contentHashFn(page)
+	if err != nil {
+		return Case{}, err
+	}
+	landed.TargetHash = targetHash
+	landed.SupersededProposal = superseded
 	if _, err := WriteCase(filepath.Join(directory, caseName), landed); err != nil {
 		return Case{}, err
 	}
 	if err := writeIfChanged(filepath.Join(directory, packageName), packageText); err != nil {
 		return Case{}, err
 	}
+	if proposed {
+		if err := writeIfChanged(filepath.Join(directory, proposalName), proposal); err != nil {
+			return Case{}, err
+		}
+	}
 	return landed, nil
+}
+
+// evidenceSegments hands the package's segments to the checker in its own
+// type; the two carry the same four fields.
+func evidenceSegments(segments []Segment) []evidence.Segment {
+	out := make([]evidence.Segment, len(segments))
+	for i, s := range segments {
+		out[i] = evidence.Segment(s)
+	}
+	return out
 }
 
 // sourceStates is the state of every source the case was opened over, sorted
@@ -819,14 +897,14 @@ func sourceStates(sources []Changed) []SourceState {
 	return states
 }
 
-// noteFor is the reason a case carries no proposal.
-//
-// One wording and not the reference's two: the second of them names a spent
-// attempt at the local model, and stage 3a makes none. It returns with the
-// local model in stage 4.
-func noteFor(manifest *config.Manifest) string {
-	if manifest.PrivacyMode != localOnlyMode {
+// noteFor is `_note_for` (reconcile.py:836-848): the reason a closed area's
+// case carries no proposal, in the reference's two versions.
+func noteFor(manifest *config.Manifest, hadProposer, proposed bool) string {
+	if manifest.PrivacyMode != localOnlyMode || proposed {
 		return ""
+	}
+	if hadProposer {
+		return proposalRefusedNote
 	}
 	return localOnlyNote
 }

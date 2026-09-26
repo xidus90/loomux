@@ -93,6 +93,10 @@ type areaOptions struct {
 	// applies, which is `manual_cloud`.
 	PrivacyMode string
 
+	// Declaration is appended to the written declaration as it stands: a
+	// table the options above do not spell out, such as the area's [model].
+	Declaration string
+
 	// Cites are the wiki pages whose frontmatter names sources, keyed by the
 	// page's path under the area and holding the sources' paths. The pages are
 	// written after the doc ids are handed out and before the register is
@@ -415,7 +419,11 @@ func declaration(scope string, include []string, opts areaOptions) string {
 	if opts.PrivacyMode != "" {
 		out += "\n[privacy]\nmode = " + config.QuoteTOML(opts.PrivacyMode) + "\n"
 	}
-	return out + "\n[index]\ninclude = [" + strings.Join(quoted, ", ") + "]\n"
+	out += "\n[index]\ninclude = [" + strings.Join(quoted, ", ") + "]\n"
+	if opts.Declaration != "" {
+		out += "\n" + opts.Declaration
+	}
+	return out
 }
 
 func sortedKeys[V any](entries map[string]V) []string {

@@ -494,8 +494,9 @@ func TestReconcileRaisesNoCaseForAMissingWikiDirectory(t *testing.T) {
 	}
 }
 
-// A closed area gets a case a person decides by hand: stage 3a asks no model,
-// so no proposal lies beside it, and the case says so in as many words.
+// A closed area gets a case a person decides by hand: with the model off,
+// nobody is asked, so no proposal lies beside it, and the case says so in as
+// many words.
 func TestReconcileMarksALocalOnlyCaseManual(t *testing.T) {
 	area := sourceArea("project/a")
 	area.PrivacyMode = "local_only"
@@ -515,7 +516,7 @@ func TestReconcileMarksALocalOnlyCaseManual(t *testing.T) {
 		t.Fatalf("note = %q, want %q", raised.Note, want)
 	}
 	if _, err := os.Stat(filepath.Join(caseDirOf(w, raised), "proposal.md")); err == nil {
-		t.Fatal("a proposal lies beside a case stage 3a never asked anyone for")
+		t.Fatal("a proposal lies beside a case nobody was asked for, the model being off")
 	}
 }
 
