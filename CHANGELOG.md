@@ -4,6 +4,21 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [3.3.0] - 2026-09-26
+
+<https://github.com/xidus90/loomux/pull/44>
+
+### Added
+- The code graph reads Python: modules, classes, functions and methods, with their imports, base classes, calls through self and cls and the base classes, and constructor calls; graph ask, callers, blast and the graph MCP tools answer for Python code.
+- `graph build --no-reuse` parses every file; without it, graph build reuses the extraction of unchanged files from `.loomux/state/graph/cache/extract.json`.
+- graph build reports files, reused files and parse errors per language and counts extends edges; a Python file with syntax errors keeps its file node instead of failing the build.
+- graph blast and check blast-audit treat Python test files as tests: test_*.py, *_test.py, tests.py, conftest.py and files under tests/ or test/.
+- A graph lane for Python projects in [verify].
+### Changed
+- A project with several stacks runs one graph lane instead of one per stack; graph = false under any active stack switches it off.
+- A graph built by an earlier loomux is rebuilt once on the next query, because the extractor stamp now names every language.
+- The binary is about 12 MB larger and its start about 1–2 ms slower, the cost of the tree-sitter runtime.
+
 ## [3.2.0] - 2026-09-26
 
 <https://github.com/xidus90/loomux/pull/45>
