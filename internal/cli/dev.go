@@ -20,6 +20,7 @@ import (
 	"github.com/xidus90/loomux/internal/cases"
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 	"github.com/xidus90/loomux/internal/dev/fakeollama"
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/mutants"
@@ -47,8 +48,7 @@ var recordMCPCase = recordcase.RecordMCP
 var fakeOllamaNotify = signal.NotifyContext
 
 var devCommands = map[string]command{
-	"bench":           devBench,
-	"bench-hooks":     devBenchHooks,
+	"bench":           devBenchGroup,
 	"fake-ollama":     devFakeOllama,
 	"import-cases":    devImportCases,
 	"mutants":         devMutants,
@@ -149,44 +149,101 @@ func untilInterrupted(ctx context.Context, stop func(), test mutants.TestFunc) m
 	}
 }
 
+var benchCommands = map[string]command{
+	"hooks": devBenchHooks,
+	"repos": devBenchRepos,
+}
+
+const benchUsage = `usage: loomux dev bench <hooks|repos> [flags]
+  hooks   time the hook commands of a case file
+  repos   time the hooks on repositories and audit their lanes
+`
+
+func devBenchGroup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprint(stderr, benchUsage)
+		return 2
+	}
+	sub, ok := benchCommands[args[0]]
+	if !ok {
+		fmt.Fprintf(stderr, "loomux dev bench: unknown subcommand %q\n%s", args[0], benchUsage)
+		return 2
+	}
+	return sub(args[1:], stdin, stdout, stderr)
+}
+
+// benchHead opens the markdown of a bench run with what tells two runs apart.
+func benchHead(command string, env benchreport.Environment, stamp string) string {
+	return fmt.Sprintf("# loomux dev bench %s — %s\n\n- system: %s/%s, %s\n- go: %s\n- loomux: %s\n\n",
+		command, stamp, env.OS, env.Arch, env.CPU, env.Go, env.Loomux)
+}
+
+// benchTargets names the two report files of a run under --out, or none
+// without it. It runs before the first measurement, so a run that could not
+// save does not measure for minutes first.
+func benchTargets(dir, command, stamp string) (string, string, error) {
+	if dir == "" {
+		return "", "", nil
+	}
+	return benchreport.Targets(dir, "bench-"+stamp+"-"+command)
+}
+
 // devBenchHooks measures the hook commands of a case file. The file may
 // stand before or after the flags: Go's flag package stops at the first
 // argument that is no flag, so the rest is parsed once more behind it.
 func devBenchHooks(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("dev bench-hooks", flag.ContinueOnError)
+	fs := flag.NewFlagSet("dev bench hooks", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	n := fs.Int("n", 20, "warm runs per case, after one cold run")
+	out := fs.String("out", "", "directory to write the markdown and JSON report to")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	rest := fs.Args()
 	if len(rest) == 0 {
-		fmt.Fprintln(stderr, "loomux dev bench-hooks: a case file is required")
+		fmt.Fprintln(stderr, "loomux dev bench hooks: a case file is required")
 		return 2
 	}
 	if err := fs.Parse(rest[1:]); err != nil {
 		return 2
 	}
 	if extra := fs.Args(); len(extra) > 0 {
-		fmt.Fprintf(stderr, "loomux dev bench-hooks: unexpected argument %q after the case file\n", extra[0])
+		fmt.Fprintf(stderr, "loomux dev bench hooks: unexpected argument %q after the case file\n", extra[0])
 		return 2
 	}
 	// A run of zero warm runs reports a row of noughts; a negative one
 	// would ask for a slice of negative capacity.
 	if *n < 1 {
-		fmt.Fprintf(stderr, "loomux dev bench-hooks: -n must be at least 1, got %d\n", *n)
+		fmt.Fprintf(stderr, "loomux dev bench hooks: -n must be at least 1, got %d\n", *n)
 		return 2
 	}
+	stamp := benchreport.Stamp(benchClock())
+	md, js, err := benchTargets(*out, "hooks", stamp)
 	var cases []benchhooks.Case
-	data, err := os.ReadFile(rest[0])
 	if err == nil {
-		err = json.Unmarshal(data, &cases)
+		var data []byte
+		data, err = os.ReadFile(rest[0])
+		if err == nil {
+			err = json.Unmarshal(data, &cases)
+		}
+	}
+	var timings []benchreport.Timing
+	if err == nil {
+		timings, err = benchhooks.Measure(cases, *n, benchExec, time.Now)
 	}
 	if err == nil {
-		err = benchhooks.Run(cases, *n, stdout, benchExec, time.Now)
+		env := benchreport.Current(Version)
+		text := benchHead("hooks", env, stamp) + benchhooks.Table(timings)
+		fmt.Fprint(stdout, text)
+		if md != "" {
+			// Measured durations are finite, so the report always encodes.
+			payload, _ := benchreport.Report{Schema: benchreport.Schema, Command: "hooks", Stamp: stamp,
+				Environment: env, Timings: timings}.JSON()
+			err = benchWriteBoth(md, js, []byte(text), payload)
+		}
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "loomux dev bench-hooks: %v\n", err)
+		fmt.Fprintf(stderr, "loomux dev bench hooks: %v\n", err)
 		return 1
 	}
 	return 0
@@ -392,7 +449,7 @@ var benchOpenFS = func(dir string) (fs.FS, error) { return os.DirFS(dir), nil }
 var benchLookPath = exec.LookPath
 var benchClock = time.Now
 var benchReadFile = os.ReadFile
-var benchWriteFile = os.WriteFile
+var benchWriteBoth = benchreport.WriteBoth
 var benchSaveReport = benchcorpus.SaveReport
 var benchStorageOps = benchcorpus.DefaultStorageOps
 
@@ -452,8 +509,10 @@ func defaultCloner(repoURL, targetDir string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func devBench(args []string, _ io.Reader, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("dev bench", flag.ContinueOnError)
+// devBenchRepos times the hooks on one repository or on the open-source
+// corpus and audits which native tools loomux leaves uncovered.
+func devBenchRepos(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev bench repos", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
 	var opts benchcorpus.Options
@@ -465,8 +524,7 @@ func devBench(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	fs.StringVar(&opts.CacheDir, "cache-dir", ".cache/benchcorpus", "directory for cloned repositories")
 	fs.DurationVar(&opts.Timeout, "timeout", 5*time.Minute, "timeout per repository")
 	fs.DurationVar(&opts.ComponentTimeout, "component-timeout", 60*time.Second, "deadline for each measured command")
-	fs.StringVar(&opts.OutFile, "out", "", "markdown report output file")
-	fs.StringVar(&opts.JSONOutFile, "json-out", "", "JSON report output file")
+	out := fs.String("out", "", "directory to write the markdown and JSON report to")
 	var save bool
 	var reportDir string
 	fs.BoolVar(&save, "save", false, "save benchmark reports and update matrix in documentation")
@@ -477,36 +535,43 @@ func devBench(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	if opts.WarmRuns < 1 {
-		fmt.Fprintln(stderr, "loomux dev bench: --warm must be at least 1")
+		fmt.Fprintln(stderr, "loomux dev bench repos: --warm must be at least 1")
 		return 2
 	}
 	if opts.CorpusFile != "" && opts.Languages < 1 {
-		fmt.Fprintln(stderr, "loomux dev bench: --languages must be at least 1")
+		fmt.Fprintln(stderr, "loomux dev bench repos: --languages must be at least 1")
 		return 2
+	}
+
+	stamp := benchreport.Stamp(benchClock())
+	md, js, err := benchTargets(*out, "repos", stamp)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux dev bench repos: %v\n", err)
+		return 1
 	}
 
 	var report *benchcorpus.BenchmarkReport
 	if opts.CorpusFile != "" {
 		matrixData, err := benchReadFile(opts.CorpusFile)
 		if err != nil {
-			fmt.Fprintf(stderr, "loomux dev bench: reading corpus file: %v\n", err)
+			fmt.Fprintf(stderr, "loomux dev bench repos: reading corpus file: %v\n", err)
 			return 1
 		}
 		rep, err := benchCorpusRun(matrixData, opts, benchCloner, func(dir string, o benchcorpus.Options) (*benchcorpus.RepoAudit, error) {
 			return benchRepoRun(dir, o, benchProcessRunner, benchClock, benchOpenFS, benchLookPath)
 		})
 		if err != nil {
-			fmt.Fprintf(stderr, "loomux dev bench: corpus benchmark: %v\n", err)
+			fmt.Fprintf(stderr, "loomux dev bench repos: corpus benchmark: %v\n", err)
 			return 1
 		}
 		for _, s := range rep.Skipped {
-			fmt.Fprintf(stderr, "loomux dev bench: skipped %s: %s\n", s.RepoURL, s.Reason)
+			fmt.Fprintf(stderr, "loomux dev bench repos: skipped %s: %s\n", s.RepoURL, s.Reason)
 		}
 		report = rep
 	} else {
 		audit, err := benchRepoRun(opts.TargetDir, opts, benchProcessRunner, benchClock, benchOpenFS, benchLookPath)
 		if err != nil {
-			fmt.Fprintf(stderr, "loomux dev bench: repository benchmark: %v\n", err)
+			fmt.Fprintf(stderr, "loomux dev bench repos: repository benchmark: %v\n", err)
 			return 1
 		}
 		report = &benchcorpus.BenchmarkReport{
@@ -517,29 +582,27 @@ func devBench(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 
-	if opts.OutFile != "" {
-		var buf bytes.Buffer
-		_ = benchcorpus.FormatMarkdown(report, &buf)
-		if err := benchWriteFile(opts.OutFile, buf.Bytes(), 0o644); err != nil {
-			fmt.Fprintf(stderr, "loomux dev bench: writing markdown output: %v\n", err)
+	env := benchreport.Current(Version)
+	var text bytes.Buffer
+	text.WriteString(benchHead("repos", env, stamp))
+	_ = benchcorpus.FormatMarkdown(report, &text)
+	if md == "" {
+		_, _ = stdout.Write(text.Bytes())
+	} else {
+		payload, err := benchcorpus.ReportJSON(report, stamp, env)
+		if err != nil {
+			fmt.Fprintf(stderr, "loomux dev bench repos: encoding the report: %v\n", err)
 			return 1
 		}
-	} else {
-		_ = benchcorpus.FormatMarkdown(report, stdout)
-	}
-
-	if opts.JSONOutFile != "" {
-		var buf bytes.Buffer
-		_ = benchcorpus.FormatJSON(report, &buf)
-		if err := benchWriteFile(opts.JSONOutFile, buf.Bytes(), 0o644); err != nil {
-			fmt.Fprintf(stderr, "loomux dev bench: writing JSON output: %v\n", err)
+		if err := benchWriteBoth(md, js, text.Bytes(), payload); err != nil {
+			fmt.Fprintf(stderr, "loomux dev bench repos: writing the report: %v\n", err)
 			return 1
 		}
 	}
 
 	if save {
 		if err := benchSaveReport(report, reportDir, benchStorageOps()); err != nil {
-			fmt.Fprintf(stderr, "loomux dev bench: saving benchmark reports: %v\n", err)
+			fmt.Fprintf(stderr, "loomux dev bench repos: saving benchmark reports: %v\n", err)
 			return 1
 		}
 	}

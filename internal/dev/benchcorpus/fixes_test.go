@@ -9,6 +9,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 func TestFindMatchingLaneBoundary(t *testing.T) {
@@ -40,29 +42,33 @@ func TestParseMatrixTierExact(t *testing.T) {
 func TestExitStatus(t *testing.T) {
 	cases := []struct {
 		name string
-		runs []ComponentTiming
+		runs []benchreport.Timing
 		want string
 	}{
-		{"single", []ComponentTiming{{ExitCode: 0}, {ExitCode: 0}}, "[0]"},
-		{"distinct sorted", []ComponentTiming{{ExitCode: 2}, {ExitCode: 0}, {ExitCode: 2}}, "[0, 2]"},
-		{"timeout wins", []ComponentTiming{{ExitCode: 0}, {TimedOut: true, ExitCode: -1}}, "timeout"},
+		{"single", []benchreport.Timing{{ExitCodes: []int{0, 0}}}, "[0]"},
+		{"distinct sorted", []benchreport.Timing{{ExitCodes: []int{2, 0, 2}}}, "[0, 2]"},
+		{"across timings", []benchreport.Timing{{ExitCodes: []int{2}}, {ExitCodes: []int{0}}}, "[0, 2]"},
+		{"timeout wins", []benchreport.Timing{{ExitCodes: []int{0}}, {ExitCodes: []int{-1}, TimedOut: 1}}, "timeout"},
 		{"none", nil, "n/a"},
 	}
 	for _, c := range cases {
-		if got := exitStatus(c.runs); got != c.want {
+		if got := exitStatus(c.runs...); got != c.want {
 			t.Errorf("%s: exitStatus = %q, want %q", c.name, got, c.want)
 		}
 	}
 }
 
-func TestComponentStatusesSkipsInapplicable(t *testing.T) {
-	cold := TimingRun{Components: []ComponentTiming{{Name: "a", Applicable: true, ExitCode: 2}, {Name: "b"}}}
-	warm := []TimingRun{{Components: []ComponentTiming{{Name: "a", Applicable: true, ExitCode: 0}}}}
-	if got := exitStatus(componentRuns(cold, warm, 0)); got != "[0, 2]" {
-		t.Errorf("component status = %q", got)
-	}
-	if got := exitStatus(allRuns(cold, warm)); got != "[0, 2]" {
+func TestTotalStatusSkipsInapplicableAndBaseline(t *testing.T) {
+	a := comp("a", 1, 1)
+	a.ExitCodes = []int{2, 0}
+	base := comp(BaselineTiming("claude PreToolUse"), 1, 1)
+	base.ExitCodes = []int{5, 5}
+	audit := &RepoAudit{Timings: timings(benchreport.Timing{}, a, notApplicable("b"), base)}
+	if got := exitStatus(allRuns(audit)...); got != "[0, 2]" {
 		t.Errorf("total status = %q", got)
+	}
+	if got := exitStatus(baselineRuns(audit)...); got != "[5]" {
+		t.Errorf("baseline status = %q", got)
 	}
 }
 
@@ -103,8 +109,8 @@ func TestSpeedupComparesHooksOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Every call takes one 10 ms clock tick: two hooks, graph build, one baseline hook.
-	if audit.HookWarmMedian != 20*time.Millisecond || audit.WarmMedian != 30*time.Millisecond {
-		t.Errorf("hook median %v, total median %v", audit.HookWarmMedian, audit.WarmMedian)
+	if total, _ := audit.Timing(TotalTiming); audit.HookWarmMedian != 20 || total.MedianMS != 30 {
+		t.Errorf("hook median %v, total median %v", audit.HookWarmMedian, total.MedianMS)
 	}
 	if audit.Speedup != 0.5 {
 		t.Errorf("speedup = %v, want 0.5", audit.Speedup)
@@ -134,7 +140,7 @@ func TestBaselineUnavailableLine(t *testing.T) {
 	audit := &RepoAudit{
 		Dir:           "/r",
 		BaselineError: `exec: "sh": not found`,
-		Cold:          TimingRun{Components: []ComponentTiming{{Name: "graph build"}}},
+		Timings:       timings(benchreport.Timing{}, notApplicable("graph build")),
 	}
 	want := map[string]string{
 		"en": "- **Baseline Claude Hook:** unavailable (exec: \"sh\": not found)",
@@ -182,10 +188,8 @@ func TestBaselineFailingInAWarmPassDropsEarlierBaselines(t *testing.T) {
 	if audit.BaselineError != "sh vanished" || audit.ClaudeWarmMed != 0 {
 		t.Errorf("expected unavailable baseline, got %q %v", audit.BaselineError, audit.ClaudeWarmMed)
 	}
-	for _, run := range append([]TimingRun{audit.Cold}, audit.Warm...) {
-		if run.Baseline != nil {
-			t.Errorf("baseline timings left behind: %+v", run.Baseline)
-		}
+	if runs := baselineRuns(audit); runs != nil {
+		t.Errorf("baseline timings left behind: %+v", runs)
 	}
 	if shCalls != 3 {
 		t.Errorf("baseline kept running after it failed: %d calls", shCalls)

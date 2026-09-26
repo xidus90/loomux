@@ -10,6 +10,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 func TestBenchmarkRepo(t *testing.T) {
@@ -67,25 +69,20 @@ func TestBenchmarkRepo(t *testing.T) {
 		if audit.Dir != "/repo/go" {
 			t.Errorf("expected dir /repo/go, got %s", audit.Dir)
 		}
-		if len(audit.Warm) != 3 {
-			t.Fatalf("expected 3 warm runs, got %d", len(audit.Warm))
+		total, _ := audit.Timing(TotalTiming)
+		if len(total.WarmMS) != 3 {
+			t.Fatalf("expected 3 warm runs, got %d", len(total.WarmMS))
 		}
-		if audit.WarmMedian == 0 || audit.WarmMin == 0 || audit.WarmMax == 0 {
-			t.Errorf("expected non-zero warm stats: median=%v min=%v max=%v", audit.WarmMedian, audit.WarmMin, audit.WarmMax)
+		if total.MedianMS == 0 || total.MinMS == 0 || total.MaxMS == 0 {
+			t.Errorf("expected non-zero warm stats: %+v", total)
 		}
 
-		// Check component applicability
-		var graphFound bool
-		for _, comp := range audit.Cold.Components {
-			if comp.Name == "graph build" {
-				graphFound = true
-				if !comp.Applicable {
-					t.Errorf("expected graph build to be applicable for Go project")
-				}
-			}
+		graph, ok := audit.Timing("graph build")
+		if !ok {
+			t.Fatalf("expected a graph build timing")
 		}
-		if !graphFound {
-			t.Errorf("expected graph build component in cold run")
+		if graph.Applicable != nil {
+			t.Errorf("expected graph build to be applicable for Go project")
 		}
 	})
 
@@ -105,15 +102,12 @@ func TestBenchmarkRepo(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		for _, comp := range audit.Cold.Components {
-			if comp.Name == "graph build" {
-				if comp.Applicable {
-					t.Errorf("expected graph build to NOT be applicable for non-Go project")
-				}
-				if comp.Elapsed != 0 {
-					t.Errorf("expected graph build elapsed to be 0 when non-applicable, got %v", comp.Elapsed)
-				}
-			}
+		graph, _ := audit.Timing("graph build")
+		if graph.Applicable == nil || *graph.Applicable {
+			t.Errorf("expected graph build to NOT be applicable for non-Go project")
+		}
+		if graph.ColdMS != 0 || graph.WarmMS != nil || graph.ExitCodes != nil {
+			t.Errorf("expected no measurement when non-applicable, got %+v", graph)
 		}
 	})
 
@@ -221,10 +215,11 @@ func TestBenchmarkRepo(t *testing.T) {
 		if err != nil {
 			t.Fatalf("a broken baseline must not fail the repository: %v", err)
 		}
-		if audit.BaselineError != "claude hook crashed" || audit.ClaudeWarmMed != 0 || audit.Speedup != 0 || audit.Cold.Baseline != nil || audit.Warm[0].Baseline != nil {
+		_, measured := audit.Timing(BaselineTiming("claude PostToolUse"))
+		if audit.BaselineError != "claude hook crashed" || audit.ClaudeWarmMed != 0 || audit.Speedup != 0 || measured {
 			t.Errorf("expected an unavailable baseline, got %+v", audit)
 		}
-		if audit.WarmMedian == 0 {
+		if total, _ := audit.Timing(TotalTiming); total.MedianMS == 0 {
 			t.Errorf("loomux measurement lost")
 		}
 	})
@@ -266,15 +261,100 @@ func TestBenchmarkRepo(t *testing.T) {
 	})
 }
 
-func TestCalculateMedian(t *testing.T) {
-	if m := calculateMedian(nil); m != 0 {
-		t.Errorf("expected 0 for nil, got %v", m)
+// timings is a row's timings with total first, the order BenchmarkRepo writes.
+func timings(total benchreport.Timing, parts ...benchreport.Timing) []benchreport.Timing {
+	total.Name = TotalTiming
+	return append([]benchreport.Timing{total}, parts...)
+}
+
+// comp is an applicable component whose every run, cold and warm, exited 0.
+func comp(name string, coldMS float64, warmMS ...float64) benchreport.Timing {
+	t := benchreport.Summarize(name, coldMS, warmMS)
+	t.ExitCodes = make([]int, 1+len(warmMS))
+	return t
+}
+
+// notApplicable is a component the repository gave nothing to measure.
+func notApplicable(name string) benchreport.Timing {
+	no := false
+	return benchreport.Timing{Name: name, Applicable: &no}
+}
+
+// runFakeRepoWithBaseline benchmarks a repository without Go whose Claude
+// settings hold one PreToolUse hook; every command takes 10 ms.
+func runFakeRepoWithBaseline(t *testing.T) *RepoAudit {
+	t.Helper()
+	mockFS := fstest.MapFS{
+		"README.md": &fstest.MapFile{Data: []byte("# foo\n")},
+		".claude/settings.json": &fstest.MapFile{
+			Data: []byte(`{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"python -m unittest"}]}]}}`),
+		},
 	}
-	if m := calculateMedian([]time.Duration{10 * time.Millisecond}); m != 10*time.Millisecond {
-		t.Errorf("expected 10ms for single, got %v", m)
+	openFS := func(string) (fs.FS, error) { return mockFS, nil }
+	runner := func(dir string, argv []string, stdin []byte, timeout time.Duration) (string, int, bool, error) {
+		return "", 0, false, nil
 	}
-	if m := calculateMedian([]time.Duration{10 * time.Millisecond, 20 * time.Millisecond}); m != 15*time.Millisecond {
-		t.Errorf("expected 15ms for even, got %v", m)
+	audit, err := BenchmarkRepo("/repo/claude", Options{WarmRuns: 2}, runner, fixedClock(), openFS, noLookPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return audit
+}
+
+func TestBenchmarkRepoNamesTotalComponentsAndBaseline(t *testing.T) {
+	audit := runFakeRepoWithBaseline(t)
+	var names []string
+	for _, tm := range audit.Timings {
+		names = append(names, tm.Name)
+	}
+	want := []string{"total", "pre-tool-use", "post-tool-use", "graph build", "baseline:claude PreToolUse"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("names = %v", names)
+	}
+	if g, _ := audit.Timing("graph build"); g.Applicable == nil || *g.Applicable {
+		t.Fatalf("graph build without Go must be applicable=false: %+v", g)
+	}
+}
+
+func TestBenchmarkRepoSummarizesInMilliseconds(t *testing.T) {
+	audit := runFakeRepoWithBaseline(t)
+	total, _ := audit.Timing(TotalTiming)
+	if total.ColdMS != 20 || !slices.Equal(total.WarmMS, []float64{20, 20}) || total.MedianMS != 20 || total.MinMS != 20 || total.MaxMS != 20 {
+		t.Errorf("total = %+v", total)
+	}
+	pre, _ := audit.Timing("pre-tool-use")
+	if pre.ColdMS != 10 || pre.MedianMS != 10 || !slices.Equal(pre.ExitCodes, []int{0, 0, 0}) || pre.TimedOut != 0 {
+		t.Errorf("pre-tool-use = %+v", pre)
+	}
+	base, _ := audit.Timing(BaselineTiming("claude PreToolUse"))
+	if base.ColdMS != 10 || base.MedianMS != 10 || len(base.ExitCodes) != 3 {
+		t.Errorf("baseline = %+v", base)
+	}
+	if audit.HookWarmMedian != 20 || audit.ClaudeWarmMed != 10 || audit.Speedup != 0.5 {
+		t.Errorf("hook %v, claude %v, speedup %v", audit.HookWarmMedian, audit.ClaudeWarmMed, audit.Speedup)
+	}
+}
+
+func TestRepoAuditTimingLookups(t *testing.T) {
+	a := &RepoAudit{Timings: timings(benchreport.Timing{MedianMS: 3},
+		benchreport.Timing{Name: "pre-tool-use"},
+		benchreport.Timing{Name: BaselineTiming("claude PreToolUse")},
+		benchreport.Timing{Name: "graph build"})}
+	if got, ok := a.Timing(TotalTiming); !ok || got.MedianMS != 3 {
+		t.Errorf("Timing(total) = %+v, %v", got, ok)
+	}
+	if _, ok := a.Timing("absent"); ok {
+		t.Error("Timing(absent) found something")
+	}
+	var names []string
+	for _, c := range a.Components() {
+		names = append(names, c.Name)
+	}
+	if !slices.Equal(names, []string{"pre-tool-use", "graph build"}) {
+		t.Errorf("Components() = %v", names)
+	}
+	if BaselineTiming("x") != "baseline:x" {
+		t.Errorf("BaselineTiming(x) = %q", BaselineTiming("x"))
 	}
 }
 
@@ -313,7 +393,7 @@ func TestBenchmarkCorpus(t *testing.T) {
 	mockBenchRepo := func(dir string, opts Options) (*RepoAudit, error) {
 		return &RepoAudit{
 			Dir:          dir,
-			WarmMedian:   50 * time.Millisecond,
+			Timings:      timings(benchreport.Timing{MedianMS: 50}),
 			CoverageRate: 100.0,
 		}, nil
 	}
@@ -488,8 +568,8 @@ func TestBenchmarkRepoHookPayload(t *testing.T) {
 			t.Errorf("%s file_path = %q", hook, doc.ToolInput.FilePath)
 		}
 	}
-	pre := audit.Cold.Components[0]
-	if pre.Name != "pre-tool-use" || pre.ExitCode != 2 || pre.TimedOut {
+	pre := audit.Timings[1]
+	if pre.Name != "pre-tool-use" || !slices.Equal(pre.ExitCodes, []int{2, 2}) || pre.TimedOut != 0 {
 		t.Errorf("pre-tool-use timing = %+v", pre)
 	}
 }
@@ -507,8 +587,8 @@ func TestBenchmarkRepoRecordsTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !audit.Cold.Components[1].TimedOut || !audit.Warm[0].Components[1].TimedOut {
-		t.Errorf("expected post-tool-use to be recorded as timed out, got %+v", audit.Cold.Components[1])
+	if post, _ := audit.Timing("post-tool-use"); post.TimedOut != 2 {
+		t.Errorf("expected both post-tool-use runs to be recorded as timed out, got %+v", post)
 	}
 }
 
@@ -531,8 +611,8 @@ func TestBenchmarkRepoSampleFallbacks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if audit.SampleFile != "README.md" || !audit.Cold.Components[0].Applicable {
-			t.Errorf("expected README.md sample with applicable hooks, got %q %+v", audit.SampleFile, audit.Cold.Components[0])
+		if pre, _ := audit.Timing("pre-tool-use"); audit.SampleFile != "README.md" || pre.Applicable != nil {
+			t.Errorf("expected README.md sample with applicable hooks, got %q %+v", audit.SampleFile, pre)
 		}
 	})
 
@@ -552,8 +632,10 @@ func TestBenchmarkRepoSampleFallbacks(t *testing.T) {
 		if hookCalls != 0 || audit.SampleFile != "" {
 			t.Errorf("expected no hook calls and no sample, got %d calls, sample %q", hookCalls, audit.SampleFile)
 		}
-		if audit.Cold.Components[0].Applicable || audit.Cold.Components[1].Applicable {
-			t.Errorf("expected hook components to be n/a, got %+v", audit.Cold.Components)
+		for _, c := range audit.Components()[:2] {
+			if c.Applicable == nil || *c.Applicable {
+				t.Errorf("expected hook components to be n/a, got %+v", c)
+			}
 		}
 		if audit.ClaudeWarmMed != 0 {
 			t.Errorf("expected no baseline without a sample file, got %v", audit.ClaudeWarmMed)
@@ -598,8 +680,9 @@ func TestBenchmarkRepoBaselineHooks(t *testing.T) {
 	if events[wantPost] != "PostToolUse" || events[wantPre] != "PreToolUse" {
 		t.Errorf("baseline payload events = %v", events)
 	}
-	if len(audit.Cold.Baseline) != 2 || audit.Cold.Baseline[0].ExitCode != 1 || audit.Cold.Baseline[0].Name != "claude PostToolUse" {
-		t.Errorf("baseline timings = %+v", audit.Cold.Baseline)
+	baseline := audit.Timings[len(audit.Timings)-2:]
+	if baseline[0].Name != BaselineTiming("claude PostToolUse") || baseline[1].Name != BaselineTiming("claude PreToolUse") || !slices.Equal(baseline[0].ExitCodes, []int{1, 1}) {
+		t.Errorf("baseline timings = %+v", baseline)
 	}
 	if audit.ClaudeWarmMed == 0 {
 		t.Errorf("expected a baseline median")

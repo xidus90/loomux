@@ -1,7 +1,10 @@
 package benchcorpus
 
 import (
+	"strings"
 	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 // Options controls repository inspection and benchmarking.
@@ -12,8 +15,6 @@ type Options struct {
 	Languages        int
 	WarmRuns         int
 	CacheDir         string
-	OutFile          string
-	JSONOutFile      string
 	Timeout          time.Duration
 	ComponentTimeout time.Duration
 }
@@ -43,45 +44,58 @@ type CheckAudit struct {
 	OnPath   bool   `json:"on_path"`
 }
 
-// ComponentTiming records execution time for one pipeline step.
-type ComponentTiming struct {
-	Name       string        `json:"name"`
-	Applicable bool          `json:"applicable"`
-	Elapsed    time.Duration `json:"elapsed"`
-	ExitCode   int           `json:"exit_code,omitempty"`
-	TimedOut   bool          `json:"timed_out,omitempty"`
-}
-
-// TimingRun represents one measurement pass (cold or warm).
-type TimingRun struct {
-	Total      time.Duration     `json:"total"`
-	Components []ComponentTiming `json:"components"`
-	Baseline   []ComponentTiming `json:"baseline,omitempty"`
-}
-
 // RepoAudit holds complete benchmark and gap-audit results for a repository.
 type RepoAudit struct {
-	RepoURL        string        `json:"repo_url"`
-	Dir            string        `json:"dir"`
-	Language       string        `json:"language"`
-	Framework      string        `json:"framework,omitempty"`
-	Tier           string        `json:"tier"`
-	CommitSHA      string        `json:"commit_sha,omitempty"`
-	SampleFile     string        `json:"sample_file,omitempty"`
-	DetectedStacks []string      `json:"detected_stacks"`
-	ExecutedLanes  []string      `json:"executed_lanes"`
-	Audit          []CheckAudit  `json:"audit"`
-	MissingGaps    []string      `json:"missing_gaps"`
-	CoverageRate   float64       `json:"coverage_rate"`
-	Cold           TimingRun     `json:"cold"`
-	Warm           []TimingRun   `json:"warm"`
-	WarmMedian     time.Duration `json:"warm_median"`
-	WarmMin        time.Duration `json:"warm_min"`
-	WarmMax        time.Duration `json:"warm_max"`
-	HookWarmMedian time.Duration `json:"hook_warm_median,omitempty"`
-	ClaudeWarmMed  time.Duration `json:"claude_warm_median,omitempty"`
-	Speedup        float64       `json:"speedup,omitempty"`
-	BaselineError  string        `json:"baseline_error,omitempty"`
+	RepoURL        string               `json:"repo_url"`
+	Dir            string               `json:"dir"`
+	Language       string               `json:"language"`
+	Framework      string               `json:"framework,omitempty"`
+	Tier           string               `json:"tier"`
+	CommitSHA      string               `json:"commit_sha,omitempty"`
+	SampleFile     string               `json:"sample_file,omitempty"`
+	DetectedStacks []string             `json:"detected_stacks"`
+	ExecutedLanes  []string             `json:"executed_lanes"`
+	Audit          []CheckAudit         `json:"audit"`
+	MissingGaps    []string             `json:"missing_gaps"`
+	CoverageRate   float64              `json:"coverage_rate"`
+	Timings        []benchreport.Timing `json:"timings"`
+	HookWarmMedian float64              `json:"hook_warm_median_ms,omitempty"`
+	ClaudeWarmMed  float64              `json:"claude_warm_median_ms,omitempty"`
+	Speedup        float64              `json:"speedup,omitempty"`
+	BaselineError  string               `json:"baseline_error,omitempty"`
+}
+
+// TotalTiming names the timing of a whole pass. A row's timings come in this
+// order: the total first, then one per component, then one per baseline hook
+// under BaselineTiming.
+const TotalTiming = "total"
+
+// baselinePrefix sets the Claude hooks a row compares against apart from
+// what loomux measured.
+const baselinePrefix = "baseline:"
+
+// BaselineTiming names the timing of the Claude hook component.
+func BaselineTiming(component string) string { return baselinePrefix + component }
+
+// Timing finds the timing called name.
+func (a *RepoAudit) Timing(name string) (benchreport.Timing, bool) {
+	for _, t := range a.Timings {
+		if t.Name == name {
+			return t, true
+		}
+	}
+	return benchreport.Timing{}, false
+}
+
+// Components are the steps loomux measured, without the total and the baseline.
+func (a *RepoAudit) Components() []benchreport.Timing {
+	var parts []benchreport.Timing
+	for _, t := range a.Timings {
+		if t.Name != TotalTiming && !strings.HasPrefix(t.Name, baselinePrefix) {
+			parts = append(parts, t)
+		}
+	}
+	return parts
 }
 
 // SkippedRepo names a corpus repository that could not be cloned or benchmarked.

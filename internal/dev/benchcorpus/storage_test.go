@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 type mockStorage struct {
@@ -65,28 +66,11 @@ func sampleAudits() []*RepoAudit {
 			Language:       "Go",
 			CoverageRate:   100.0,
 			DetectedStacks: []string{"go"},
-			Cold: TimingRun{
-				Total: 20 * time.Millisecond,
-				Components: []ComponentTiming{
-					{Name: "pre-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-					{Name: "post-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-					{Name: "graph build", Applicable: true, Elapsed: 80 * time.Millisecond},
-				},
-			},
-			Warm: []TimingRun{
-				{
-					Total: 18 * time.Millisecond,
-					Components: []ComponentTiming{
-						{Name: "pre-tool-use", Applicable: true, Elapsed: 7 * time.Millisecond},
-						{Name: "post-tool-use", Applicable: true, Elapsed: 11 * time.Millisecond},
-						{Name: "graph build", Applicable: true, Elapsed: 75 * time.Millisecond},
-					},
-				},
-			},
-			WarmMedian:    18 * time.Millisecond,
-			WarmMin:       18 * time.Millisecond,
-			WarmMax:       18 * time.Millisecond,
-			ClaudeWarmMed: 90 * time.Millisecond,
+			Timings: timings(benchreport.Summarize("", 20, []float64{18}),
+				comp("pre-tool-use", 10, 7),
+				comp("post-tool-use", 10, 11),
+				comp("graph build", 80, 75)),
+			ClaudeWarmMed: 90,
 			Speedup:       5.0,
 		},
 		{
@@ -96,27 +80,10 @@ func sampleAudits() []*RepoAudit {
 			Tier:           "Tier 1",
 			CoverageRate:   75.0,
 			DetectedStacks: []string{"python"},
-			Cold: TimingRun{
-				Total: 30 * time.Millisecond,
-				Components: []ComponentTiming{
-					{Name: "pre-tool-use", Applicable: true, Elapsed: 12 * time.Millisecond},
-					{Name: "post-tool-use", Applicable: true, Elapsed: 18 * time.Millisecond},
-					{Name: "graph build", Applicable: false, Elapsed: 0},
-				},
-			},
-			Warm: []TimingRun{
-				{
-					Total: 25 * time.Millisecond,
-					Components: []ComponentTiming{
-						{Name: "pre-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-						{Name: "post-tool-use", Applicable: true, Elapsed: 15 * time.Millisecond},
-						{Name: "graph build", Applicable: false, Elapsed: 0},
-					},
-				},
-			},
-			WarmMedian: 25 * time.Millisecond,
-			WarmMin:    25 * time.Millisecond,
-			WarmMax:    25 * time.Millisecond,
+			Timings: timings(benchreport.Summarize("", 30, []float64{25}),
+				comp("pre-tool-use", 12, 10),
+				comp("post-tool-use", 18, 15),
+				notApplicable("graph build")),
 		},
 	}
 }
@@ -177,10 +144,7 @@ func TestSaveReport_SuccessAndMerge(t *testing.T) {
 		Tier:           "Tier 1",
 		CoverageRate:   90.0, // updated
 		DetectedStacks: []string{"python"},
-		Cold: TimingRun{
-			Total: 25 * time.Millisecond,
-		},
-		WarmMedian: 20 * time.Millisecond,
+		Timings:        timings(benchreport.Timing{ColdMS: 25, MedianMS: 20}),
 	}
 	singleReport := &BenchmarkReport{
 		Timestamp: "2026-09-18T19:00:00Z",
@@ -213,7 +177,7 @@ func TestSaveReport_SingleRepoKeepsCorpusMetadata(t *testing.T) {
 		Tier:           "Sehr viel",
 		CommitSHA:      "5c6a15f",
 		DetectedStacks: []string{"go"},
-		WarmMedian:     21 * time.Millisecond,
+		Timings:        timings(benchreport.Timing{MedianMS: 21}),
 	}
 	if err := SaveReport(&BenchmarkReport{Repos: []*RepoAudit{corpus}}, tempDir, StorageOps{}); err != nil {
 		t.Fatalf("corpus save: %v", err)
@@ -222,7 +186,7 @@ func TestSaveReport_SingleRepoKeepsCorpusMetadata(t *testing.T) {
 	single := &RepoAudit{
 		Dir:            ".cache/benchcorpus/gin-gonic_gin",
 		DetectedStacks: []string{"go"},
-		WarmMedian:     20 * time.Millisecond,
+		Timings:        timings(benchreport.Timing{MedianMS: 20}),
 	}
 	if err := SaveReport(&BenchmarkReport{Repos: []*RepoAudit{single}}, tempDir, StorageOps{}); err != nil {
 		t.Fatalf("single save: %v", err)
@@ -243,8 +207,8 @@ func TestSaveReport_SingleRepoKeepsCorpusMetadata(t *testing.T) {
 	if got.RepoURL != corpus.RepoURL || got.Language != "Go" || got.Framework != "Gin" || got.Tier != "Sehr viel" || got.CommitSHA != "5c6a15f" {
 		t.Errorf("corpus metadata lost: %+v", got)
 	}
-	if got.WarmMedian != 20*time.Millisecond {
-		t.Errorf("expected new measurement, got %v", got.WarmMedian)
+	if total, _ := got.Timing(TotalTiming); total.MedianMS != 20 {
+		t.Errorf("expected new measurement, got %v", total.MedianMS)
 	}
 
 	detail, err := os.ReadFile(filepath.Join(tempDir, "en", "benchmarks", "go", "gin-gonic_gin.md"))

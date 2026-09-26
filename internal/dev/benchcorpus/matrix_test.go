@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 func TestMergeAudits(t *testing.T) {
@@ -112,28 +113,11 @@ func TestFormatMatrixMarkdown(t *testing.T) {
 		Dir:            "/repos/loomux",
 		CoverageRate:   100.0,
 		DetectedStacks: []string{"go"},
-		Cold: TimingRun{
-			Total: 20 * time.Millisecond,
-			Components: []ComponentTiming{
-				{Name: "pre-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-				{Name: "post-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-				{Name: "graph build", Applicable: true, Elapsed: 80 * time.Millisecond},
-			},
-		},
-		Warm: []TimingRun{
-			{
-				Total: 18 * time.Millisecond,
-				Components: []ComponentTiming{
-					{Name: "pre-tool-use", Applicable: true, Elapsed: 7 * time.Millisecond},
-					{Name: "post-tool-use", Applicable: true, Elapsed: 11 * time.Millisecond},
-					{Name: "graph build", Applicable: true, Elapsed: 75 * time.Millisecond},
-				},
-			},
-		},
-		WarmMedian:    18 * time.Millisecond,
-		WarmMin:       18 * time.Millisecond,
-		WarmMax:       18 * time.Millisecond,
-		ClaudeWarmMed: 90 * time.Millisecond,
+		Timings: timings(benchreport.Summarize("", 20, []float64{18}),
+			comp("pre-tool-use", 10, 7),
+			comp("post-tool-use", 10, 11),
+			comp("graph build", 80, 75)),
+		ClaudeWarmMed: 90,
 		Speedup:       5.0,
 	}
 
@@ -144,27 +128,10 @@ func TestFormatMatrixMarkdown(t *testing.T) {
 		Tier:           "Sehr viel",
 		CoverageRate:   66.7,
 		DetectedStacks: []string{"python"},
-		Cold: TimingRun{
-			Total: 25 * time.Millisecond,
-			Components: []ComponentTiming{
-				{Name: "pre-tool-use", Applicable: true, Elapsed: 8 * time.Millisecond},
-				{Name: "post-tool-use", Applicable: true, Elapsed: 17 * time.Millisecond},
-				{Name: "graph build", Applicable: false, Elapsed: 0},
-			},
-		},
-		Warm: []TimingRun{
-			{
-				Total: 20 * time.Millisecond,
-				Components: []ComponentTiming{
-					{Name: "pre-tool-use", Applicable: true, Elapsed: 6 * time.Millisecond},
-					{Name: "post-tool-use", Applicable: true, Elapsed: 14 * time.Millisecond},
-					{Name: "graph build", Applicable: false, Elapsed: 0},
-				},
-			},
-		},
-		WarmMedian: 20 * time.Millisecond,
-		WarmMin:    20 * time.Millisecond,
-		WarmMax:    20 * time.Millisecond,
+		Timings: timings(benchreport.Summarize("", 25, []float64{20}),
+			comp("pre-tool-use", 8, 6),
+			comp("post-tool-use", 17, 14),
+			notApplicable("graph build")),
 	}
 
 	report := &BenchmarkReport{
@@ -233,19 +200,12 @@ func TestFormatMatrixMarkdown(t *testing.T) {
 	})
 
 	t.Run("FormatComponentTiming missing or empty warm", func(t *testing.T) {
-		auditEmpty := &RepoAudit{
-			Cold: TimingRun{
-				Components: []ComponentTiming{
-					{Name: "other-tool", Applicable: true, Elapsed: 5 * time.Millisecond},
-				},
-			},
-			Warm: nil, // no warm runs
-		}
-		// Component not found in cold
+		auditEmpty := &RepoAudit{Timings: timings(benchreport.Timing{}, benchreport.Timing{Name: "other-tool", ColdMS: 5})}
+		// Component not measured at all
 		if res := formatComponentTiming(auditEmpty, "non-existent"); res != "n/a" {
 			t.Errorf("expected n/a for non-existent component, got %s", res)
 		}
-		// Component found in cold but warm is empty
+		// Component measured cold only
 		if res := formatComponentTiming(auditEmpty, "other-tool"); res != "n/a" {
 			t.Errorf("expected n/a for empty warm, got %s", res)
 		}

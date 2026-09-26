@@ -5,38 +5,24 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 // statusAudit carries mixed exit codes, one timeout and a failing baseline.
 func statusAudit() *RepoAudit {
-	ms := time.Millisecond
+	pre := comp("pre-tool-use", 10, 8)
+	pre.ExitCodes = []int{2, 0}
+	post := comp("post-tool-use", 20, 17)
+	post.ExitCodes, post.TimedOut = []int{0, -1}, 1
+	base := comp(BaselineTiming("claude PreToolUse"), 50, 40)
+	base.ExitCodes = []int{1, 1}
 	return &RepoAudit{
-		Dir:        "/repo",
-		SampleFile: "cmd/main.go",
-		Cold: TimingRun{
-			Total: 30 * ms,
-			Components: []ComponentTiming{
-				{Name: "pre-tool-use", Applicable: true, Elapsed: 10 * ms, ExitCode: 2},
-				{Name: "post-tool-use", Applicable: true, Elapsed: 20 * ms},
-				{Name: "graph build"},
-			},
-			Baseline: []ComponentTiming{{Name: "claude PreToolUse", Applicable: true, Elapsed: 50 * ms, ExitCode: 1}},
-		},
-		Warm: []TimingRun{{
-			Total: 25 * ms,
-			Components: []ComponentTiming{
-				{Name: "pre-tool-use", Applicable: true, Elapsed: 8 * ms},
-				{Name: "post-tool-use", Applicable: true, Elapsed: 17 * ms, ExitCode: -1, TimedOut: true},
-				{Name: "graph build"},
-			},
-			Baseline: []ComponentTiming{{Name: "claude PreToolUse", Applicable: true, Elapsed: 40 * ms, ExitCode: 1}},
-		}},
-		WarmMedian:     25 * ms,
-		WarmMin:        25 * ms,
-		WarmMax:        25 * ms,
-		HookWarmMedian: 25 * ms,
-		ClaudeWarmMed:  40 * ms,
+		Dir:            "/repo",
+		SampleFile:     "cmd/main.go",
+		Timings:        timings(benchreport.Summarize("", 30, []float64{25}), pre, post, notApplicable("graph build"), base),
+		HookWarmMedian: 25,
+		ClaudeWarmMed:  40,
 		Speedup:        1.6,
 	}
 }
@@ -81,8 +67,7 @@ func TestStatusColumns(t *testing.T) {
 func TestStatusWithoutSampleOrBaseline(t *testing.T) {
 	audit := statusAudit()
 	audit.SampleFile = ""
-	audit.Cold.Baseline = nil
-	audit.Warm[0].Baseline = nil
+	audit.Timings = audit.Timings[:len(audit.Timings)-1]
 	for _, lang := range []string{"en", "de"} {
 		var buf bytes.Buffer
 		if err := FormatDetailMarkdown(audit, lang, &buf); err != nil {
@@ -98,14 +83,14 @@ func TestStatusWithoutSampleOrBaseline(t *testing.T) {
 	}
 }
 
-func TestOldReportJSONStillLoads(t *testing.T) {
-	old := `{"repos":[{"dir":".","cold":{"total":1,"components":[{"name":"pre-tool-use","applicable":true,"elapsed":1}]},"warm":[],"warm_median":1}]}`
+func TestTimingWithoutOutcomeFieldsLoadsAsApplicable(t *testing.T) {
+	stored := `{"repos":[{"dir":".","timings":[{"name":"pre-tool-use","cold_ms":1,"warm_ms":[1],"median_ms":1,"min_ms":1,"max_ms":1}]}]}`
 	var report BenchmarkReport
-	if err := json.Unmarshal([]byte(old), &report); err != nil {
-		t.Fatalf("old report no longer loads: %v", err)
+	if err := json.Unmarshal([]byte(stored), &report); err != nil {
+		t.Fatalf("stored report no longer loads: %v", err)
 	}
-	comp := report.Repos[0].Cold.Components[0]
-	if comp.ExitCode != 0 || comp.TimedOut || report.Repos[0].SampleFile != "" {
-		t.Errorf("old report decoded with unexpected new fields: %+v", report.Repos[0])
+	pre, ok := report.Repos[0].Timing("pre-tool-use")
+	if !ok || pre.Applicable != nil || pre.TimedOut != 0 || pre.ExitCodes != nil || report.Repos[0].SampleFile != "" {
+		t.Errorf("stored report decoded with unexpected fields: %+v", report.Repos[0])
 	}
 }

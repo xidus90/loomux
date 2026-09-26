@@ -5,7 +5,8 @@ import (
 	"io"
 	"slices"
 	"strings"
-	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 // MergeAudits upserts an incoming RepoAudit into an existing list of audits,
@@ -171,30 +172,9 @@ func FormatMatrixMarkdown(report *BenchmarkReport, lang string, w io.Writer) err
 }
 
 func formatComponentTiming(audit *RepoAudit, name string) string {
-	cIdx := -1
-	for i, c := range audit.Cold.Components {
-		if c.Name == name {
-			if !c.Applicable {
-				return "n/a"
-			}
-			cIdx = i
-			break
-		}
-	}
-	if cIdx == -1 {
+	t, ok := audit.Timing(name)
+	if !ok || (t.Applicable != nil && !*t.Applicable) || len(t.WarmMS) == 0 {
 		return "n/a"
 	}
-
-	var warmTimes []time.Duration
-	for _, wRun := range audit.Warm {
-		if cIdx < len(wRun.Components) {
-			warmTimes = append(warmTimes, wRun.Components[cIdx].Elapsed)
-		}
-	}
-	if len(warmTimes) == 0 {
-		return "n/a"
-	}
-	slices.Sort(warmTimes)
-	med := calculateMedian(warmTimes)
-	return formatDuration(med)
+	return benchreport.FormatMS(t.MedianMS)
 }

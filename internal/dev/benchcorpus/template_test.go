@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 func TestRepoSlug(t *testing.T) {
@@ -109,30 +110,12 @@ func TestFormatDetailMarkdown(t *testing.T) {
 			{Tool: "mypy", Category: "typecheck", Native: "pyproject.toml", Lane: "mypy .", OnPath: false},
 			{Tool: "pytest", Category: "test", Native: "pytest.ini", Lane: "", OnPath: true},
 		},
-		Cold: TimingRun{
-			Total: 30 * time.Millisecond,
-			Components: []ComponentTiming{
-				{Name: "pre-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-				{Name: "post-tool-use", Applicable: true, Elapsed: 20 * time.Millisecond},
-				{Name: "graph build", Applicable: false, Elapsed: 0},
-				{Name: "custom", Applicable: false, Elapsed: 0},
-			},
-		},
-		Warm: []TimingRun{
-			{
-				Total: 25 * time.Millisecond,
-				Components: []ComponentTiming{
-					{Name: "pre-tool-use", Applicable: true, Elapsed: 8 * time.Millisecond},
-					{Name: "post-tool-use", Applicable: true, Elapsed: 17 * time.Millisecond},
-					{Name: "graph build", Applicable: false, Elapsed: 0},
-					{Name: "custom", Applicable: false, Elapsed: 0},
-				},
-			},
-		},
-		WarmMedian:    25 * time.Millisecond,
-		WarmMin:       25 * time.Millisecond,
-		WarmMax:       25 * time.Millisecond,
-		ClaudeWarmMed: 100 * time.Millisecond,
+		Timings: timings(benchreport.Summarize("", 30, []float64{25}),
+			comp("pre-tool-use", 10, 8),
+			comp("post-tool-use", 20, 17),
+			notApplicable("graph build"),
+			notApplicable("custom")),
+		ClaudeWarmMed: 100,
 		Speedup:       4.0,
 	}
 
@@ -197,23 +180,7 @@ func TestFormatDetailMarkdown(t *testing.T) {
 		localAudit := &RepoAudit{
 			Dir:          "/repos/loomux",
 			CoverageRate: 100.0,
-			Cold: TimingRun{
-				Total: 10 * time.Millisecond,
-				Components: []ComponentTiming{
-					{Name: "pre-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-				},
-			},
-			Warm: []TimingRun{
-				{
-					Total: 8 * time.Millisecond,
-					Components: []ComponentTiming{
-						{Name: "pre-tool-use", Applicable: true, Elapsed: 8 * time.Millisecond},
-					},
-				},
-			},
-			WarmMedian: 8 * time.Millisecond,
-			WarmMin:    8 * time.Millisecond,
-			WarmMax:    8 * time.Millisecond,
+			Timings:      timings(benchreport.Summarize("", 10, []float64{8}), comp("pre-tool-use", 10, 8)),
 		}
 		var buf bytes.Buffer
 		if err := FormatDetailMarkdown(localAudit, "de", &buf); err != nil {
@@ -229,23 +196,7 @@ func TestFormatDetailMarkdown(t *testing.T) {
 		singleURLAudit := &RepoAudit{
 			RepoURL:      "http://singlename",
 			CoverageRate: 100.0,
-			Cold: TimingRun{
-				Total: 10 * time.Millisecond,
-				Components: []ComponentTiming{
-					{Name: "pre-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-				},
-			},
-			Warm: []TimingRun{
-				{
-					Total: 8 * time.Millisecond,
-					Components: []ComponentTiming{
-						{Name: "pre-tool-use", Applicable: true, Elapsed: 8 * time.Millisecond},
-					},
-				},
-			},
-			WarmMedian: 8 * time.Millisecond,
-			WarmMin:    8 * time.Millisecond,
-			WarmMax:    8 * time.Millisecond,
+			Timings:      timings(benchreport.Summarize("", 10, []float64{8}), comp("pre-tool-use", 10, 8)),
 		}
 		var buf bytes.Buffer
 		if err := FormatDetailMarkdown(singleURLAudit, "en", &buf); err != nil {

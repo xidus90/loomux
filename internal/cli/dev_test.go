@@ -2,8 +2,10 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 )
 
@@ -209,10 +212,10 @@ func benchCases(t *testing.T, body string) string {
 
 const oneCase = `[{"name":"probe","mode":"single","steps":[{"argv":["x"]}]}]`
 
-func TestDevBenchHooksMeasuresTheCases(t *testing.T) {
+func TestDevBenchHooksKeepsTheOldBehaviour(t *testing.T) {
 	benchExec = func(benchhooks.Case, benchhooks.Step) (int, error) { return 0, nil }
 	defer func() { benchExec = benchhooks.Exec }()
-	code, out, errOut := run("dev", "bench-hooks", benchCases(t, oneCase), "-n", "2")
+	code, out, errOut := run("dev", "bench", "hooks", benchCases(t, oneCase), "-n", "2")
 	if code != 0 || !strings.Contains(out, "| probe |") {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
@@ -221,28 +224,28 @@ func TestDevBenchHooksMeasuresTheCases(t *testing.T) {
 func TestDevBenchHooksTakesTheFlagBeforeTheFile(t *testing.T) {
 	benchExec = func(benchhooks.Case, benchhooks.Step) (int, error) { return 0, nil }
 	defer func() { benchExec = benchhooks.Exec }()
-	code, out, _ := run("dev", "bench-hooks", "-n", "1", benchCases(t, oneCase))
+	code, out, _ := run("dev", "bench", "hooks", "-n", "1", benchCases(t, oneCase))
 	if code != 0 || !strings.Contains(out, "| probe |") {
 		t.Fatalf("code %d, out %q", code, out)
 	}
 }
 
 func TestDevBenchHooksNeedsACaseFile(t *testing.T) {
-	code, _, errOut := run("dev", "bench-hooks")
-	if code != 2 || !strings.Contains(errOut, "loomux dev bench-hooks: a case file is required") {
+	code, _, errOut := run("dev", "bench", "hooks")
+	if code != 2 || !strings.Contains(errOut, "loomux dev bench hooks: a case file is required") {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
 
 func TestDevBenchHooksRefusesAnUnknownFlag(t *testing.T) {
-	if code, _, _ := run("dev", "bench-hooks", "--bogus"); code != 2 {
+	if code, _, _ := run("dev", "bench", "hooks", "--bogus"); code != 2 {
 		t.Fatalf("code %d", code)
 	}
 }
 
 func TestDevBenchHooksReportsAnUnreadableCaseFile(t *testing.T) {
-	code, _, errOut := run("dev", "bench-hooks", filepath.Join(t.TempDir(), "gone.json"))
-	if code != 1 || !strings.Contains(errOut, "loomux dev bench-hooks:") {
+	code, _, errOut := run("dev", "bench", "hooks", filepath.Join(t.TempDir(), "gone.json"))
+	if code != 1 || !strings.Contains(errOut, "loomux dev bench hooks:") {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
@@ -252,43 +255,156 @@ func TestDevBenchHooksReportsABrokenMeasurement(t *testing.T) {
 		return 0, errors.New("no such binary")
 	}
 	defer func() { benchExec = benchhooks.Exec }()
-	code, _, errOut := run("dev", "bench-hooks", benchCases(t, oneCase))
+	code, _, errOut := run("dev", "bench", "hooks", benchCases(t, oneCase))
 	if code != 1 || !strings.Contains(errOut, "no such binary") {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
 
 func TestDevBenchHooksRefusesAnUnknownFlagBehindTheFile(t *testing.T) {
-	code, _, _ := run("dev", "bench-hooks", benchCases(t, oneCase), "--bogus")
+	code, _, _ := run("dev", "bench", "hooks", benchCases(t, oneCase), "--bogus")
 	if code != 2 {
 		t.Fatalf("code %d", code)
 	}
 }
 
 func TestDevBenchHooksRefusesLessThanOneWarmRun(t *testing.T) {
-	code, _, errOut := run("dev", "bench-hooks", "-n", "0", benchCases(t, oneCase))
+	code, _, errOut := run("dev", "bench", "hooks", "-n", "0", benchCases(t, oneCase))
 	if code != 2 || !strings.Contains(errOut, "-n must be at least 1, got 0") {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
 
 func TestDevBenchHooksRefusesANegativeWarmRunBehindTheFile(t *testing.T) {
-	code, _, errOut := run("dev", "bench-hooks", benchCases(t, oneCase), "-n", "-3")
+	code, _, errOut := run("dev", "bench", "hooks", benchCases(t, oneCase), "-n", "-3")
 	if code != 2 || !strings.Contains(errOut, "-n must be at least 1, got -3") {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
 
 func TestDevBenchHooksRefusesAnExtraArgumentBehindTheFile(t *testing.T) {
-	code, _, errOut := run("dev", "bench-hooks", benchCases(t, oneCase), "leftover")
+	code, _, errOut := run("dev", "bench", "hooks", benchCases(t, oneCase), "leftover")
 	if code != 2 || !strings.Contains(errOut, `unexpected argument "leftover" after the case file`) {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
 
 func TestDevBenchHooksReportsBrokenJSON(t *testing.T) {
-	code, _, errOut := run("dev", "bench-hooks", benchCases(t, "{"))
-	if code != 1 || !strings.Contains(errOut, "loomux dev bench-hooks:") {
+	code, _, errOut := run("dev", "bench", "hooks", benchCases(t, "{"))
+	if code != 1 || !strings.Contains(errOut, "loomux dev bench hooks:") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevBenchWithoutSubcommandPrintsTheGroupsHelp(t *testing.T) {
+	code, out, errOut := run("dev", "bench")
+	if code != 2 || out != "" {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+	for _, want := range []string{"usage: loomux dev bench <hooks|repos>", "hooks", "repos"} {
+		if !strings.Contains(errOut, want) {
+			t.Fatalf("help lacks %q:\n%s", want, errOut)
+		}
+	}
+}
+
+func TestTheOldBenchNamesAreGone(t *testing.T) {
+	code, _, errOut := run("dev", "bench-hooks", "x")
+	if code != 2 || !strings.Contains(errOut, `loomux dev: unknown subcommand "bench-hooks"`) {
+		t.Fatalf("bench-hooks: code %d, stderr %q", code, errOut)
+	}
+	code, _, errOut = run("dev", "bench", "--dir", ".")
+	if code != 2 || !strings.Contains(errOut, `loomux dev bench: unknown subcommand "--dir"`) ||
+		!strings.Contains(errOut, "usage: loomux dev bench <hooks|repos>") {
+		t.Fatalf("bench --dir: code %d, stderr %q", code, errOut)
+	}
+}
+
+// pinBenchClock fixes the clock a bench run takes its stamp from and returns
+// the stamp.
+func pinBenchClock(t *testing.T) string {
+	t.Helper()
+	now := time.Date(2026, 9, 26, 14, 7, 0, 0, time.UTC)
+	orig := benchClock
+	benchClock = func() time.Time { return now }
+	t.Cleanup(func() { benchClock = orig })
+	return benchreport.Stamp(now)
+}
+
+// countingBenchExec replaces the process start with one that succeeds and
+// counts its calls.
+func countingBenchExec(t *testing.T) *int {
+	t.Helper()
+	calls := 0
+	benchExec = func(benchhooks.Case, benchhooks.Step) (int, error) {
+		calls++
+		return 0, nil
+	}
+	t.Cleanup(func() { benchExec = benchhooks.Exec })
+	return &calls
+}
+
+func TestDevBenchHooksWritesBothFilesWithOut(t *testing.T) {
+	stamp := pinBenchClock(t)
+	countingBenchExec(t)
+	dir := t.TempDir()
+	code, out, errOut := run("dev", "bench", "hooks", benchCases(t, oneCase), "-n", "1", "--out", dir)
+	if code != 0 {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	base := filepath.Join(dir, "bench-"+stamp+"-hooks")
+	text, err := os.ReadFile(base + ".md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	head := "# loomux dev bench hooks — " + stamp + "\n\n- system: "
+	if !strings.HasPrefix(string(text), head) || !strings.Contains(string(text), "- loomux: "+Version) ||
+		!strings.Contains(string(text), "| probe |") {
+		t.Fatalf("markdown:\n%s", text)
+	}
+	// The markdown stays on stdout as well, as the file has it.
+	if out != string(text) {
+		t.Fatalf("stdout %q, file %q", out, text)
+	}
+	data, err := os.ReadFile(base + ".json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report benchreport.Report
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	if report.Command != "hooks" || report.Stamp != stamp || report.Schema != benchreport.Schema ||
+		report.Environment.Loomux != Version || len(report.Timings) != 1 || report.Timings[0].Name != "probe" {
+		t.Fatalf("report %+v", report)
+	}
+}
+
+// A run that could not save its report must not measure first.
+func TestDevBenchHooksRefusesATakenTargetBeforeMeasuring(t *testing.T) {
+	stamp := pinBenchClock(t)
+	calls := countingBenchExec(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bench-"+stamp+"-hooks.md"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := run("dev", "bench", "hooks", benchCases(t, oneCase), "--out", dir)
+	if code != 1 || !strings.Contains(errOut, "loomux dev bench hooks:") || !strings.Contains(errOut, "already exists") || *calls != 0 {
+		t.Fatalf("code %d, calls %d, err %q", code, *calls, errOut)
+	}
+	code, _, errOut = run("dev", "bench", "hooks", benchCases(t, oneCase), "--out", filepath.Join(dir, "gone"))
+	if code != 1 || !strings.Contains(errOut, "no directory at") || *calls != 0 {
+		t.Fatalf("code %d, calls %d, err %q", code, *calls, errOut)
+	}
+}
+
+func TestDevBenchHooksReportsAFailedWrite(t *testing.T) {
+	countingBenchExec(t)
+	orig := benchWriteBoth
+	benchWriteBoth = func(string, string, []byte, []byte) error { return errors.New("disk full") }
+	t.Cleanup(func() { benchWriteBoth = orig })
+	code, _, errOut := run("dev", "bench", "hooks", benchCases(t, oneCase), "--out", t.TempDir())
+	if code != 1 || !strings.Contains(errOut, "loomux dev bench hooks: disk full") {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
@@ -527,18 +643,18 @@ func TestUntilInterruptedStopsTheSignalRegistrationOfARunningSuite(t *testing.T)
 	}
 }
 
-func TestDevBench(t *testing.T) {
+func TestDevBenchRepos(t *testing.T) {
 	origRepoRun := benchRepoRun
 	origCorpusRun := benchCorpusRun
 	origReadFile := benchReadFile
-	origWriteFile := benchWriteFile
+	origWriteBoth := benchWriteBoth
 	origSaveReport := benchSaveReport
 	origStorageOps := benchStorageOps
 	defer func() {
 		benchRepoRun = origRepoRun
 		benchCorpusRun = origCorpusRun
 		benchReadFile = origReadFile
-		benchWriteFile = origWriteFile
+		benchWriteBoth = origWriteBoth
 		benchSaveReport = origSaveReport
 		benchStorageOps = origStorageOps
 	}()
@@ -546,6 +662,7 @@ func TestDevBench(t *testing.T) {
 	mockAudit := &benchcorpus.RepoAudit{
 		Dir:          "/mock/repo",
 		CoverageRate: 100.0,
+		Timings:      []benchreport.Timing{{Name: benchcorpus.TotalTiming, MedianMS: 42}},
 	}
 
 	benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
@@ -567,13 +684,16 @@ func TestDevBench(t *testing.T) {
 	}
 
 	t.Run("Flag validation", func(t *testing.T) {
-		if code, _, _ := run("dev", "bench", "--bogus"); code != 2 {
+		if code, _, _ := run("dev", "bench", "repos", "--bogus"); code != 2 {
 			t.Errorf("expected 2 for unknown flag, got %d", code)
 		}
-		if code, _, errOut := run("dev", "bench", "--warm", "0"); code != 2 || !strings.Contains(errOut, "--warm") {
+		if code, _, _ := run("dev", "bench", "repos", "--json-out", "x.json"); code != 2 {
+			t.Errorf("expected 2 for the dropped --json-out, got %d", code)
+		}
+		if code, _, errOut := run("dev", "bench", "repos", "--warm", "0"); code != 2 || !strings.Contains(errOut, "loomux dev bench repos: --warm") {
 			t.Errorf("expected 2 with --warm error, got code=%d, err=%s", code, errOut)
 		}
-		if code, _, errOut := run("dev", "bench", "--corpus", "matrix.md", "--languages", "0"); code != 2 || !strings.Contains(errOut, "--languages") {
+		if code, _, errOut := run("dev", "bench", "repos", "--corpus", "matrix.md", "--languages", "0"); code != 2 || !strings.Contains(errOut, "--languages") {
 			t.Errorf("expected 2 with --languages error, got code=%d, err=%s", code, errOut)
 		}
 	})
@@ -586,39 +706,77 @@ func TestDevBench(t *testing.T) {
 			got = append(got, opts.ComponentTimeout)
 			return mockAudit, nil
 		}
-		run("dev", "bench", "--dir", ".")
-		run("dev", "bench", "--dir", ".", "--component-timeout", "2s")
+		run("dev", "bench", "repos", "--dir", ".")
+		run("dev", "bench", "repos", "--dir", ".", "--component-timeout", "2s")
 		if len(got) != 2 || got[0] != 60*time.Second || got[1] != 2*time.Second {
 			t.Errorf("component timeouts = %v, want [1m0s 2s]", got)
 		}
 	})
 
 	t.Run("Single repo success to stdout", func(t *testing.T) {
-		code, out, _ := run("dev", "bench", "--dir", ".")
+		stamp := pinBenchClock(t)
+		code, out, _ := run("dev", "bench", "repos", "--dir", ".")
 		if code != 0 {
 			t.Fatalf("expected 0, got %d", code)
 		}
-		if !strings.Contains(out, "# Loomux Benchmark & Lücken-Audit") {
-			t.Errorf("expected markdown report on stdout, got: %s", out)
+		if !strings.HasPrefix(out, "# loomux dev bench repos — "+stamp+"\n") || !strings.Contains(out, "# Loomux Benchmark & Lücken-Audit") {
+			t.Errorf("expected head and markdown report on stdout, got: %s", out)
 		}
 	})
 
-	t.Run("Single repo with out and json-out files", func(t *testing.T) {
-		var writtenFiles = make(map[string]string)
-		benchWriteFile = func(name string, data []byte, perm os.FileMode) error {
-			writtenFiles[name] = string(data)
-			return nil
-		}
-
-		code, _, _ := run("dev", "bench", "--dir", ".", "--out", "bench.md", "--json-out", "bench.json")
+	t.Run("Single repo with out writes both files", func(t *testing.T) {
+		stamp := pinBenchClock(t)
+		dir := t.TempDir()
+		code, out, errOut := run("dev", "bench", "repos", "--dir", ".", "--out", dir)
 		if code != 0 {
-			t.Fatalf("expected 0, got %d", code)
+			t.Fatalf("expected 0, got %d: %s", code, errOut)
 		}
-		if _, ok := writtenFiles["bench.md"]; !ok {
-			t.Errorf("expected bench.md to be written")
+		if out != "" {
+			t.Errorf("the markdown went to its file, yet stdout has %q", out)
 		}
-		if _, ok := writtenFiles["bench.json"]; !ok {
-			t.Errorf("expected bench.json to be written")
+		base := filepath.Join(dir, "bench-"+stamp+"-repos")
+		text, err := os.ReadFile(base + ".md")
+		if err != nil || !strings.HasPrefix(string(text), "# loomux dev bench repos — "+stamp) || !strings.Contains(string(text), "# Loomux Benchmark & Lücken-Audit") {
+			t.Fatalf("%v\n%s", err, text)
+		}
+		data, err := os.ReadFile(base + ".json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var report benchreport.Report
+		if err := json.Unmarshal(data, &report); err != nil {
+			t.Fatal(err)
+		}
+		if report.Command != "repos" || report.Stamp != stamp || report.Environment.Loomux != Version ||
+			len(report.Timings) != 1 || report.Timings[0].Name != "/mock/repo" || report.Timings[0].MedianMS != 42 {
+			t.Fatalf("report %s", data)
+		}
+	})
+
+	t.Run("Out refuses a taken target before measuring", func(t *testing.T) {
+		stamp := pinBenchClock(t)
+		mockRun, mockCorpus := benchRepoRun, benchCorpusRun
+		defer func() { benchRepoRun, benchCorpusRun = mockRun, mockCorpus }()
+		calls := 0
+		benchRepoRun = func(string, benchcorpus.Options, benchcorpus.ProcessRunner, func() time.Time, func(string) (fs.FS, error), func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+			calls++
+			return mockAudit, nil
+		}
+		benchCorpusRun = func([]byte, benchcorpus.Options, benchcorpus.Cloner, func(string, benchcorpus.Options) (*benchcorpus.RepoAudit, error)) (*benchcorpus.BenchmarkReport, error) {
+			calls++
+			return nil, errors.New("measured")
+		}
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "bench-"+stamp+"-repos.json"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, _, errOut := run("dev", "bench", "repos", "--dir", ".", "--out", dir)
+		if code != 1 || !strings.Contains(errOut, "loomux dev bench repos:") || !strings.Contains(errOut, "already exists") || calls != 0 {
+			t.Fatalf("code %d, calls %d, err %q", code, calls, errOut)
+		}
+		code, _, errOut = run("dev", "bench", "repos", "--corpus", "matrix.md", "--out", "bench.md")
+		if code != 1 || !strings.Contains(errOut, "no directory at bench.md") || calls != 0 {
+			t.Fatalf("code %d, calls %d, err %q", code, calls, errOut)
 		}
 	})
 
@@ -627,53 +785,52 @@ func TestDevBench(t *testing.T) {
 			return nil, errors.New("inspection crashed")
 		}
 
-		code, _, errOut := run("dev", "bench", "--dir", ".")
-		if code != 1 || !strings.Contains(errOut, "inspection crashed") {
+		code, _, errOut := run("dev", "bench", "repos", "--dir", ".")
+		if code != 1 || !strings.Contains(errOut, "loomux dev bench repos: repository benchmark: inspection crashed") {
 			t.Fatalf("expected code 1 with error, got code=%d err=%s", code, errOut)
 		}
 	})
 
-	t.Run("Single repo write markdown file failure", func(t *testing.T) {
+	t.Run("Single repo write failure", func(t *testing.T) {
 		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
 			return mockAudit, nil
 		}
-		benchWriteFile = func(name string, data []byte, perm os.FileMode) error {
-			return errors.New("disk full")
-		}
+		benchWriteBoth = func(string, string, []byte, []byte) error { return errors.New("disk full") }
+		defer func() { benchWriteBoth = origWriteBoth }()
 
-		code, _, errOut := run("dev", "bench", "--dir", ".", "--out", "out.md")
-		if code != 1 || !strings.Contains(errOut, "disk full") {
+		code, _, errOut := run("dev", "bench", "repos", "--dir", ".", "--out", t.TempDir())
+		if code != 1 || !strings.Contains(errOut, "loomux dev bench repos: writing the report: disk full") {
 			t.Fatalf("expected code 1 with disk full error, got code=%d err=%s", code, errOut)
 		}
 	})
 
-	t.Run("Single repo write JSON file failure", func(t *testing.T) {
+	t.Run("Single repo JSON failure", func(t *testing.T) {
 		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
-			return mockAudit, nil
+			return &benchcorpus.RepoAudit{Dir: "/r", Speedup: math.NaN()}, nil
 		}
-		benchWriteFile = func(name string, data []byte, perm os.FileMode) error {
-			if strings.HasSuffix(name, ".json") {
-				return errors.New("json disk full")
-			}
-			return nil
+		dir := t.TempDir()
+		code, _, errOut := run("dev", "bench", "repos", "--dir", ".", "--out", dir)
+		if code != 1 || !strings.Contains(errOut, "loomux dev bench repos: encoding the report:") {
+			t.Fatalf("expected code 1 with an encoding error, got code=%d err=%s", code, errOut)
 		}
-
-		code, _, errOut := run("dev", "bench", "--dir", ".", "--out", "out.md", "--json-out", "out.json")
-		if code != 1 || !strings.Contains(errOut, "json disk full") {
-			t.Fatalf("expected code 1 with json error, got code=%d err=%s", code, errOut)
+		if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+			t.Fatalf("a half report was written: %v", entries)
 		}
 	})
 
 	t.Run("Corpus mode success", func(t *testing.T) {
+		benchRepoRun = func(dir string, opts benchcorpus.Options, runner benchcorpus.ProcessRunner, clock func() time.Time, openFS func(string) (fs.FS, error), lookPath func(string) (string, error)) (*benchcorpus.RepoAudit, error) {
+			return mockAudit, nil
+		}
 		benchReadFile = func(name string) ([]byte, error) {
 			return []byte("# matrix"), nil
 		}
 
-		code, out, errOut := run("dev", "bench", "--corpus", "matrix.md")
+		code, out, errOut := run("dev", "bench", "repos", "--corpus", "matrix.md")
 		if code != 0 {
 			t.Fatalf("expected 0, got %d", code)
 		}
-		if !strings.Contains(errOut, "skipped https://github.com/x/y: fatal: unable to checkout working tree") {
+		if !strings.Contains(errOut, "loomux dev bench repos: skipped https://github.com/x/y: fatal: unable to checkout working tree") {
 			t.Errorf("expected skipped repository on stderr, got %s", errOut)
 		}
 		if !strings.Contains(out, "# Loomux Benchmark & Lücken-Audit") {
@@ -686,7 +843,7 @@ func TestDevBench(t *testing.T) {
 			return nil, errors.New("missing matrix file")
 		}
 
-		code, _, errOut := run("dev", "bench", "--corpus", "missing.md")
+		code, _, errOut := run("dev", "bench", "repos", "--corpus", "missing.md")
 		if code != 1 || !strings.Contains(errOut, "missing matrix file") {
 			t.Fatalf("expected code 1 with read error, got code=%d err=%s", code, errOut)
 		}
@@ -700,7 +857,7 @@ func TestDevBench(t *testing.T) {
 			return nil, errors.New("corpus run failed")
 		}
 
-		code, _, errOut := run("dev", "bench", "--corpus", "matrix.md")
+		code, _, errOut := run("dev", "bench", "repos", "--corpus", "matrix.md")
 		if code != 1 || !strings.Contains(errOut, "corpus run failed") {
 			t.Fatalf("expected code 1 with corpus error, got code=%d err=%s", code, errOut)
 		}
@@ -718,7 +875,7 @@ func TestDevBench(t *testing.T) {
 			return nil
 		}
 
-		code, _, _ := run("dev", "bench", "--dir", ".", "--save", "--report-dir", "custom/docs")
+		code, _, _ := run("dev", "bench", "repos", "--dir", ".", "--save", "--report-dir", "custom/docs")
 		if code != 0 {
 			t.Fatalf("expected 0, got %d", code)
 		}
@@ -738,7 +895,7 @@ func TestDevBench(t *testing.T) {
 			return errors.New("cannot write docs")
 		}
 
-		code, _, errOut := run("dev", "bench", "--dir", ".", "--save")
+		code, _, errOut := run("dev", "bench", "repos", "--dir", ".", "--save")
 		if code != 1 || !strings.Contains(errOut, "cannot write docs") {
 			t.Fatalf("expected code 1 with save error, got code=%d err=%s", code, errOut)
 		}
