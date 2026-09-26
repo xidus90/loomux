@@ -66,23 +66,7 @@ func AdvanceFrontmatter(page string, updates []SourceUpdate, reviewer string, no
 		meta = loaded
 	}
 	stamp := IsoFormat(now)
-	fresh := make(map[string]SourceUpdate, len(updates))
-	for _, update := range updates {
-		fresh[update.DocID] = update
-	}
-	if entries := meta.get("sources"); entries != nil && entries.kind == pyList {
-		for _, entry := range entries.items {
-			if entry.kind != pyDict {
-				continue
-			}
-			id, ok := pythonStr(entry.get("doc_id"))
-			state, found := fresh[id]
-			if ok && found {
-				entry.set("content_hash", newStr(state.ContentHash))
-				entry.set("revision", newInt(state.Revision+1))
-			}
-		}
-	}
+	advanceSourceEntries(meta, updates)
 	if generated := meta.get("generated"); generated != nil && generated.kind == pyDict {
 		generated.set("at", newStr(stamp))
 	} else {
@@ -99,6 +83,58 @@ func AdvanceFrontmatter(page string, updates []SourceUpdate, reviewer string, no
 		meta.set("verified", &pyValue{kind: pyList, items: []*pyValue{entry}})
 	}
 	return "---\n" + dumpYAML(meta) + "---\n" + page[block[1]:], nil
+}
+
+// AdvanceSources is the half of AdvanceFrontmatter a rejection needs: the
+// `sources[]` entries the updates name get their hash and revision+1, and
+// nothing else changes -- no `generated`, no `verified`, since a rejected
+// page was neither regenerated nor confirmed. A page without frontmatter or
+// without a matching entry is returned as it is, with false: rewriting it
+// would only reformat YAML nobody asked to touch. So is a page on which the
+// two frontmatter patterns disagree, where AdvanceFrontmatter would drop the
+// old frontmatter rather than read it.
+func AdvanceSources(page string, updates []SourceUpdate) (string, bool, error) {
+	block := advanceBlock().FindStringIndex(page)
+	match := documentBlock().FindStringSubmatch(page)
+	if block == nil || match == nil {
+		return page, false, nil
+	}
+	meta, err := loadFrontmatter(match[1])
+	if err != nil {
+		return "", false, err
+	}
+	if !advanceSourceEntries(meta, updates) {
+		return page, false, nil
+	}
+	return "---\n" + dumpYAML(meta) + "---\n" + page[block[1]:], true, nil
+}
+
+// advanceSourceEntries moves every `sources[]` entry of meta whose `doc_id`
+// reads, as Python's `str()`, like an update's DocID to that update's hash
+// and revision+1, and reports whether any entry matched.
+func advanceSourceEntries(meta *pyValue, updates []SourceUpdate) bool {
+	fresh := make(map[string]SourceUpdate, len(updates))
+	for _, update := range updates {
+		fresh[update.DocID] = update
+	}
+	entries := meta.get("sources")
+	if entries == nil || entries.kind != pyList {
+		return false
+	}
+	changed := false
+	for _, entry := range entries.items {
+		if entry.kind != pyDict {
+			continue
+		}
+		id, ok := pythonStr(entry.get("doc_id"))
+		state, found := fresh[id]
+		if ok && found {
+			entry.set("content_hash", newStr(state.ContentHash))
+			entry.set("revision", newInt(state.Revision+1))
+			changed = true
+		}
+	}
+	return changed
 }
 
 // AdvanceRegister is the text `_advance_register` hands to `_write(...,

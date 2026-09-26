@@ -174,7 +174,8 @@ func reportAbort(stderr io.Writer, err error) {
 // improve matters.
 //
 // A written approval is followed by the technical update, and only that one:
-// a rejection changed no page.
+// a rejection leaves the page's text as it was and moves only its `sources[]`
+// and the register.
 func reportDecision(stdout, stderr io.Writer, vault registered, result apply.Result) {
 	fmt.Fprintf(stdout, "Fall %s: %s\n", result.Case.ID, result.Decision)
 	for _, dropped := range result.Dropped {

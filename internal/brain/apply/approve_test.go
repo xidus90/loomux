@@ -341,10 +341,10 @@ func TestApproveRunsThePreflightFirst(t *testing.T) {
 }
 
 // test_a_rejected_case_leaves_the_wiki_alone (test_apply.py:328), through
-// Approve.
+// Approve, healed: the page's text stays, its `sources[]` and the register
+// move on, and the next reconcile opens no case again.
 func TestApproveHandsARejectionToReject(t *testing.T) {
 	v := newAppVault(t)
-	page := readFile(t, v.page())
 	result, err := v.run(func(o *Options) { o.Decision = "reject" })
 	if err != nil {
 		t.Fatal(err)
@@ -352,10 +352,18 @@ func TestApproveHandsARejectionToReject(t *testing.T) {
 	if result.Decision != "reject" || result.Written || result.Commit != "abc" || result.Case.ID != v.caseID() {
 		t.Fatalf("result = %+v", result)
 	}
-	if readFile(t, v.page()) != page || !strings.Contains(readFile(t, v.wiki("audit.md")), "- entschieden: abgelehnt durch human:cw\n") {
-		t.Fatal("the rejection changed the page or left no audit block")
+	page := readFile(t, v.page())
+	if !strings.HasSuffix(page, "---\n\n"+appOld) || !strings.Contains(page, hashOf(t, v.source())) ||
+		!strings.Contains(page, "revision: 2") || strings.Contains(page, "verified") || strings.Contains(page, "generated") {
+		t.Fatalf("page =\n%s", page)
+	}
+	if !strings.Contains(readFile(t, v.wiki("audit.md")), "- entschieden: abgelehnt durch human:cw\n") {
+		t.Fatal("the rejection left no audit block")
 	}
 	absent(t, v.dir)
+	if report := v.reconcile(t); len(report.Cases) != 0 {
+		t.Fatalf("reconcile opened %d case(s) again", len(report.Cases))
+	}
 }
 
 // A rejection that stops half-way reports what it touched, too.
@@ -365,7 +373,8 @@ func TestApproveReportsWhatAFailedRejectionTouched(t *testing.T) {
 	seam(t, &removeAll, func(string) error { return broken })
 	_, err := v.run(func(o *Options) { o.Decision = "reject" })
 	e := stopped[*ApplyError](t, err, "directory in use")
-	if want := []string{testWiki + "/audit.md", v.caseRel()}; !slices.Equal(e.Dirty, want) || !errors.Is(err, broken) {
+	want := []string{testWiki + "/" + appTarget, registerName, testWiki + "/audit.md", v.caseRel()}
+	if !slices.Equal(e.Dirty, want) || !errors.Is(err, broken) {
 		t.Fatalf("dirty = %q, want %q; err = %v", e.Dirty, want, err)
 	}
 }

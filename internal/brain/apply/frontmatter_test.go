@@ -203,3 +203,51 @@ func TestAdvanceRegisterRefusesABrokenRegister(t *testing.T) {
 		t.Fatal("a register with an unreadable revision was read")
 	}
 }
+
+func TestAdvanceSourcesTouchesOnlyTheSources(t *testing.T) {
+	page := "---\ntitle: T\nsources:\n- doc_id: 01DOC0\n  content_hash: sha256:aa\n  revision: 1\ngenerated:\n  at: '2026-01-01T00:00:00+00:00'\n---\n\nText\n"
+	got, changed, err := apply.AdvanceSources(page, []apply.SourceUpdate{{DocID: "01DOC0", ContentHash: "sha256:bb", Revision: 1}})
+	if err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	if !strings.Contains(got, "content_hash: sha256:bb") || !strings.Contains(got, "revision: 2") ||
+		!strings.Contains(got, "at: '2026-01-01T00:00:00+00:00'") || strings.Contains(got, "verified") || !strings.HasSuffix(got, "---\n\nText\n") {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestAdvanceSourcesLeavesAPageWithNothingToAdvance(t *testing.T) {
+	for name, page := range map[string]string{
+		"no frontmatter":   "Text\n",
+		"no sources":       "---\ntitle: T\n---\nText\n",
+		"other doc":        "---\nsources:\n- doc_id: 01OTHER\n  revision: 1\n---\nText\n",
+		"entry no mapping": "---\nsources:\n- 01DOC0\n---\nText\n",
+		"blocks disagree":  "---\nsources:\n- doc_id: 01DOC0\n---\r\nText\n",
+		// The other way round: a blank after the closing line satisfies the
+		// block AdvanceFrontmatter cuts, not the one it reads.
+		"closing line with a blank": "---\nsources:\n- doc_id: 01DOC0\n--- \nText\n",
+	} {
+		got, changed, err := apply.AdvanceSources(page, []apply.SourceUpdate{{DocID: "01DOC0", ContentHash: "h", Revision: 1}})
+		if err != nil || changed || got != page {
+			t.Errorf("%s: %q %v %v", name, got, changed, err)
+		}
+	}
+}
+
+// An entry that is no mapping has no `doc_id`, and Python's `str()` of the
+// missing one is "None": only the mapping check keeps such an entry from
+// matching a source whose id reads "None".
+func TestAdvanceSourcesSkipsAnEntryThatIsNoMappingForADocIDOfNone(t *testing.T) {
+	page := "---\nsources:\n- 01DOC0\n---\nText\n"
+	got, changed, err := apply.AdvanceSources(page, []apply.SourceUpdate{{DocID: "None", ContentHash: "h", Revision: 1}})
+	if err != nil || changed || got != page {
+		t.Fatalf("%q %v %v", got, changed, err)
+	}
+}
+
+// Frontmatter that does not load is refused, as AdvanceFrontmatter refuses it.
+func TestAdvanceSourcesRefusesFrontmatterThatDoesNotLoad(t *testing.T) {
+	if _, _, err := apply.AdvanceSources("---\n- a\n---\n", nil); err == nil || err.Error() != "frontmatter is not a mapping" {
+		t.Fatalf("got %v", err)
+	}
+}

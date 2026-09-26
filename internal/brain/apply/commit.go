@@ -22,7 +22,7 @@ var commitPaths = vcs.CommitPaths
 // committed" by its kind alone; a git problem comes back as the warning
 // instead, and sha is then empty. said is what the warning claims was done:
 // `written` for an approval, `decision recorded` for a rejection, which
-// changed no page.
+// leaves the page's text as it was and moves only its `sources[]`.
 //
 // scratch is the directory vcs keeps its scratch index in; the caller owns
 // it, as Python's CLI hands over one below the state directory.

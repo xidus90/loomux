@@ -83,8 +83,16 @@ var expected3b = map[string]expectation3b{
 	// Both sides refuse the commit before the scratch index is made.
 	"approve/rebase":  wroteAndIndexed(false),
 	"approve/no-repo": wroteAndIndexed(false),
-	// A rejection runs no technical update and rewrites no register.
-	"approve/reject": {why: "Scratch-Index im Fallsatz", differ: []string{scratchIndex}},
+	// A rejection runs no technical update. Healed against the recording: it
+	// advances the target page's `sources[]` and the register, and commits
+	// both.
+	"approve/reject": {why: "Scratch-Index im Fallsatz; Heilung #1 (--reject schiebt vor); Sperre je Bereich", differ: []string{
+		scratchIndex,
+		areaLock("project-a"),
+		"content mismatch: " + stampedRegister,
+		"content mismatch: repo-a/git.after",
+		"content mismatch: repo-a/wiki/page.md",
+	}},
 }
 
 // TestCases3b replays the recordings of brain-mcp's cases, case and approve
