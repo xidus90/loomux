@@ -2,6 +2,7 @@
 
 - qmd: 2.8.3
 - models: embedding=embeddinggemma, query_expansion=qmd-query-expansion, rerank=qwen3-reranker
+- qmd backbone: vulkan
 - system: windows/amd64, Test CPU
 - loomux: 1.2.3
 - search path: daemon

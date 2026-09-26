@@ -14,9 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/privacy"
+	"github.com/xidus90/loomux/internal/brain/search"
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/benchreport"
+	"github.com/xidus90/loomux/internal/dev/benchsearch"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 )
 
@@ -301,7 +304,8 @@ func TestDevBenchWithoutSubcommandPrintsTheGroupsHelp(t *testing.T) {
 	if code != 2 || out != "" {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
-	for _, want := range []string{"usage: loomux dev bench <hooks|repos>", "hooks", "repos"} {
+	for _, want := range []string{"usage: loomux dev bench <hooks|repos|search>", "hooks", "repos",
+		"  search  measure the rank of search hits and the chain's latency"} {
 		if !strings.Contains(errOut, want) {
 			t.Fatalf("help lacks %q:\n%s", want, errOut)
 		}
@@ -315,7 +319,7 @@ func TestTheOldBenchNamesAreGone(t *testing.T) {
 	}
 	code, _, errOut = run("dev", "bench", "--dir", ".")
 	if code != 2 || !strings.Contains(errOut, `loomux dev bench: unknown subcommand "--dir"`) ||
-		!strings.Contains(errOut, "usage: loomux dev bench <hooks|repos>") {
+		!strings.Contains(errOut, "usage: loomux dev bench <hooks|repos|search>") {
 		t.Fatalf("bench --dir: code %d, stderr %q", code, errOut)
 	}
 }
@@ -936,5 +940,129 @@ func TestDevImportCasesMergesTheExtraAnswers(t *testing.T) {
 	code, _, errOut = run("dev", "import-cases", "--map", mapFile, "--from", from, "--to", to, "--merge-fixture", filepath.Join(t.TempDir(), "gone.json"))
 	if code != 1 || !strings.Contains(errOut, "loomux dev import-cases: reading the extra answers") {
 		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// stubBenchSearch replaces the search bench with one that records what it
+// was asked and answers text or err.
+func stubBenchSearch(t *testing.T, text string, err error) *benchsearch.Options {
+	t.Helper()
+	var asked benchsearch.Options
+	benchSearchRun = func(o benchsearch.Options, _ benchsearch.Deps) (string, error) {
+		asked = o
+		return text, err
+	}
+	t.Cleanup(func() { benchSearchRun = benchsearch.Bench })
+	return &asked
+}
+
+func stubRepoRoot(t *testing.T, root string, err error) {
+	t.Helper()
+	benchRepoRoot = func() (string, error) { return root, err }
+	t.Cleanup(func() { benchRepoRoot = gitTopLevel })
+}
+
+func TestDevBenchSearchRefusesBadFlags(t *testing.T) {
+	stubBenchSearch(t, "", errors.New("not reached"))
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--frobnicate"}, "flag provided but not defined"},
+		{[]string{"--profile", "slow"}, `--profile must be keyword, fast or full, got "slow"`},
+		{[]string{"--channel", "radio"}, "invalid channel"},
+		{[]string{"--repeat", "0"}, "--repeat must be at least 1, got 0"},
+		{[]string{"leftover"}, `unexpected argument "leftover"`},
+	} {
+		code, _, errOut := run(append([]string{"dev", "bench", "search"}, c.args...)...)
+		if code != 2 || !strings.Contains(errOut, c.want) {
+			t.Errorf("%v: code %d, err %q", c.args, code, errOut)
+		}
+	}
+}
+
+func TestDevBenchSearchHandsOnTheFlags(t *testing.T) {
+	asked := stubBenchSearch(t, "# report\n", nil)
+	code, out, errOut := run("dev", "bench", "search", "--scope", "all", "--profile", "full", "--channel", "cloud",
+		"--out", "o", "--questions", "q.yaml", "--latency", "--latency-query", "x", "--repeat", "3")
+	if code != 0 || out != "# report\n" || errOut != "" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	want := benchsearch.Options{Scope: "all", ScopeSet: true, Profile: search.ProfileFull, Channel: privacy.ChannelCloud,
+		Out: "o", Questions: "q.yaml", Latency: true, LatencyQuery: "x", Repeat: 3}
+	if *asked != want {
+		t.Fatalf("asked %+v", *asked)
+	}
+	run("dev", "bench", "search")
+	want = benchsearch.Options{Scope: "knowledge", Profile: search.ProfileFast, Channel: privacy.ChannelLocal, LatencyQuery: "latenz", Repeat: 10}
+	if *asked != want {
+		t.Fatalf("defaults %+v", *asked)
+	}
+}
+
+func TestDevBenchSearchFindsCorpusV1InTheCheckout(t *testing.T) {
+	asked := stubBenchSearch(t, "", nil)
+	root := t.TempDir()
+	stand := filepath.Join(root, "testdata", "bench", "search", "v1")
+	if err := os.MkdirAll(stand, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stubRepoRoot(t, root, nil)
+	if code, _, errOut := run("dev", "bench", "search", "--corpus", "v1", "--out", "o"); code != 0 || asked.Corpus != stand {
+		t.Fatalf("code %d, corpus %q, err %q", code, asked.Corpus, errOut)
+	}
+	if run("dev", "bench", "search", "--corpus", "elsewhere"); asked.Corpus != "elsewhere" {
+		t.Fatalf("corpus %q", asked.Corpus)
+	}
+}
+
+func TestDevBenchSearchNeedsACheckoutForCorpusV1(t *testing.T) {
+	stubBenchSearch(t, "", errors.New("not reached"))
+	for _, err := range []error{nil, errors.New("not a git repository")} {
+		stubRepoRoot(t, t.TempDir(), err)
+		code, _, errOut := run("dev", "bench", "search", "--corpus", "v1")
+		if code != 1 || errOut != "error: --corpus v1 needs a loomux checkout; name the stand's directory instead\n" {
+			t.Fatalf("code %d, err %q", code, errOut)
+		}
+	}
+}
+
+func TestDevBenchSearchPrintsEveryProblem(t *testing.T) {
+	stubBenchSearch(t, "", benchsearch.Problems{"one", "two"})
+	code, out, errOut := run("dev", "bench", "search")
+	if code != 1 || out != "" || errOut != "error: one\nerror: two\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	stubBenchSearch(t, "", errors.New("refused"))
+	if code, _, errOut := run("dev", "bench", "search"); code != 1 || errOut != "error: refused\n" {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	// qmd's stderr, a crash dump among it, arrives inside one error.
+	stubBenchSearch(t, "", errors.New("qmd exited with 1: first\n\nsecond\n"))
+	if code, _, errOut := run("dev", "bench", "search"); code != 1 || errOut != "error: qmd exited with 1: first\nerror: second\n" {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestBenchSearchDepsReachTheRealSystem(t *testing.T) {
+	t.Setenv("QMD_LLAMA_GPU", "vulkan")
+	t.Setenv("QMD_FORCE_CPU", "")
+	var stderr strings.Builder
+	d := benchSearchDeps(&stderr)
+	if _, ok := d.Daemon().(*search.QmdMcpPort); !ok {
+		t.Fatal("the daemon is no MCP port")
+	}
+	if port, ok := d.CLI("loomux-bench-x").(*search.QmdPort); !ok || port.Index != "loomux-bench-x" || port.Executable != "qmd" {
+		t.Fatalf("cli = %+v", port)
+	}
+	if backbone := benchreport.Backbone(d.Getenv); backbone != "vulkan" {
+		t.Fatalf("backbone %q", backbone)
+	}
+	if first, second := d.Random(), d.Random(); first == "" || first == second || strings.ContainsAny(first, `/\. `) {
+		t.Fatalf("random %q, %q", first, second)
+	}
+	d.Warn("careful")
+	if stderr.String() != "warning: careful\n" || d.Loomux != Version || d.StateDir == "" {
+		t.Fatalf("stderr %q, deps %+v", stderr.String(), d)
 	}
 }
