@@ -266,8 +266,9 @@ loomux check blast-audit [--cached|--base B] [--threshold 3]  # exit 1 when a ch
 
 ### Developer & Worktree Tools
 ```bash
-loomux dev bench-hooks <case>       # benchmark hook execution latency against the <35ms baseline
-loomux dev bench [--dir <dir>] [--save] # benchmark repo/corpus with gap audit; --save persists to docs/
+loomux dev bench hooks <cases>      # time the hook commands of a case file against the <35ms baseline (-n, --out <dir>)
+loomux dev bench repos [--dir <dir>] [--save] # time the hooks on a repo or the open-source corpus with gap audit; --save persists to docs/
+loomux dev bench search [--corpus v1 --out <dir>] # measure the rank of search hits over a question set or the corpus v1 (--profile, --latency, --out <dir>)
 loomux dev mutants <pkg>            # run mutation test suites across critical decision packages
 loomux dev record-case --out <dir>  # record one run of a reference binary as a case
 loomux dev import-cases --map <f>   # translate a directory of recorded cases into loomux cases

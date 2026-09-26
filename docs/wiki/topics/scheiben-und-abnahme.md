@@ -108,7 +108,7 @@ im Code. Umgezogene Go-Pakete bringen ihre Tests mit und werden beim Umzug auf
 100 % gehoben oder bekommen begründete Ausschlüsse; neuer Code entsteht
 test-first. Golden-Dateien halten die Antwortformen von Claude und
 Antigravity fest; `loomux dev mutants` fährt je Stufe eine Mutationsrunde
-über die Entscheidungspakete, und `loomux dev bench-hooks` misst die
+über die Entscheidungspakete, und `loomux dev bench hooks` misst die
 Zielwerte jeder Stufe mit demselben Werkzeug. **Externe Programme** — qmd,
 Ollama, `pdftotext`, `yt-dlp`, Git-Remotes — werden an der Prozessgrenze
 durch Stubs ersetzt, deren Antworten aus einem echten, einmal

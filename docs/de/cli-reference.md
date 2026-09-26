@@ -917,24 +917,58 @@ Mutiert die Go-Entscheidungen jedes Pakets und meldet, welche Mutanten seine Tes
 ### `loomux dev swap-binary --dir <bin>`
 Tauscht das laufende `loomux.exe`-Binary atomar gegen `loomux.new.exe` aus (löst Windows Dateisperren-Konflikte). Das abgelöste bleibt als `loomux.old.exe` liegen, oder als erstes freies `loomux.old.<n>.exe` daneben, wenn ein Prozess aus einem früheren Tausch — ein `loomux serve` oder eine Brücke — diesen Namen noch hält; jeder Platz, dessen Prozess beendet ist, wird beim nächsten Tausch geräumt, es bleiben also höchstens 16 Generationen liegen. Zwei Fälle scheitern weiterhin, und beide lassen die Binaries dort, wo sie waren: alle 16 Plätze gleichzeitig gehalten, und ein `loomux.exe`, das etwas so hält, dass es sich gar nicht umbenennen lässt — ein laufendes `loomux.exe` ist dieser Halter nicht, denn Windows lässt ein laufendes Abbild umbenennen.
 
-### `loomux dev bench [--dir <dir>] [--corpus <datei>] [--languages <n>] [--tier <kategorie>] [--warm <n>] [--cache-dir <dir>] [--out <datei>] [--json-out <datei>] [--component-timeout <d>] [--save] [--report-dir <dir>]`
-Führt umfassende Latenz-Benchmarks und normalisierte Lücken-Audits (Gap Analysis) für ein Einzel-Repository oder das gesamte Open-Source-Matrix-Korpus durch (1x kalt + Nx warmer Median, Min, Max).
+### `loomux dev bench <hooks|repos|search> [flags]`
+Drei Messungen unter einer Gruppe. `loomux dev bench` allein nennt die drei Unterbefehle und endet mit `2`; ein unbekannter Unterbefehl ebenso. Die Gruppe ersetzt `dev bench-hooks` (jetzt `dev bench hooks`) und `dev bench` (jetzt `dev bench repos`).
+
+- **Eine Berichtsform**: Mit `--out <verzeichnis>` schreibt jeder Unterbefehl `bench-<stempel>-<befehl>.md` und `.json` (`dev bench search`: `bench-<stempel>-<profil>`) in dieses vorhandene Verzeichnis, beide oder keine, und nie über eine vorhandene Datei, auch nicht über eine, die ein Lauf derselben Minute inzwischen geschrieben hat. Der Stempel ist UTC, `JJJJ-MM-TT-HHMM`. Liegt eine der beiden Dateien schon da, bricht der Lauf vor der ersten Messung ab. Das Markdown von `hooks` und `repos` beginnt mit Befehl, Stempel, System, Go-Version und loomux-Version; das von `search` mit Stempel, Profil, qmd, Modellen, dem qmd-Backbone, System, loomux, Suchweg, der Zahl der indizierten Dokumente und dem Fragensatz, dann im Korpusmodus mit dem Korpus und dem Hinweis, dass seine Zahlen nur Regression messen, und bei `fast` mit dem Hinweis, dass der Lauf rein vektoriell ist. Das JSON ist eine Hülle für alle drei: `schema` (`1`), `command` (`hooks`, `repos` oder `search`), `stamp`, `environment` (`os`, `arch`, `cpu`, `go`, `loomux`; `search` ergänzt `qmd`, `models`, `profile`, `port`, das `daemon` oder `cli` ist, und `backbone`: im Korpusmodus den Wert von `QMD_LLAMA_GPU`, `cpu` unter `QMD_FORCE_CPU`, `default`, wenn keines gesetzt ist, gelesen aus der Umgebung des Messprozesses, die die qmd-Kommandozeile erbt; `unknown` bei einem Lauf über den Suchdienst, der das Backbone des Prozesses behält, der ihn gestartet hat), `timings[]` (`name`, `cold_ms`, `warm_ms[]`, `median_ms`, `min_ms`, `max_ms` und, wo sie gelten, `exit_codes`, `applicable`, `timed_out`), alle Zeiten in Millisekunden, und eine eigene `payload` je Befehl (`repos`: die geprüften Repositories; `search`: `question_set`, `corpus` (null außerhalb des Korpusmodus), `documents`, `questions[]` mit `id`, `sort`, `rank` (null, wenn nicht gefunden), `hit` und `elapsed_ms`, `findings[]` und `latency` (gemessenes Dokument und Anfrage, null ohne `--latency`); `hooks`: keine).
+
+#### `loomux dev bench hooks <falldatei> [-n <n>] [--out <dir>]`
+Misst die Hook-Befehle einer Falldatei: jeden Fall einmal kalt, dann `-n`-mal warm, und schreibt eine Markdown-Tabelle (Fall, kalt, warmer Median, Min, Max, Exit-Codes des letzten Laufs) auf stdout; mit `--out` zusätzlich die beiden Berichtsdateien. Die Falldatei ist eine JSON-Liste von Fällen, je mit `name`, `dir`, `stdin` (eine Datei, die den Schritten zugeführt wird), `mode` (`single`, die Vorgabe, und `seq` fahren die Schritte nacheinander in einer gemessenen Spanne; `par` startet sie zugleich) und `steps[]` (`argv`). Die Falldatei darf vor oder hinter den Flags stehen. Die Falldateien der Chronik in `docs/de/benchmarks.md` liegen unter `testdata/bench/`.
+
+- **Flags**:
+  - `-n <n>`: Warme Läufe je Fall, nach einem kalten (Standard: `20`, mindestens `1`).
+  - `--out <dir>`: Verzeichnis für den Markdown- und JSON-Bericht.
+- **Exit-Codes**: `0` nach einer Messung, gleich, womit die gemessenen Befehle enden; `2` bei einem unbekannten Flag, ohne Falldatei, mit einem zweiten Argument oder mit `-n` unter 1; `1`, wenn die Falldatei nicht gelesen oder dekodiert werden kann, ein Fall ungültig ist, ein Schritt nicht gestartet werden kann oder eine Berichtsdatei schon da ist oder nicht geschrieben werden kann.
+
+#### `loomux dev bench repos [--dir <dir>] [--corpus <datei>] [--languages <n>] [--tier <kategorie>] [--warm <n>] [--cache-dir <dir>] [--timeout <d>] [--component-timeout <d>] [--out <dir>] [--save] [--report-dir <dir>]`
+Führt Latenz-Benchmarks und normalisierte Lücken-Audits (Gap Analysis) für ein Einzel-Repository oder das gesamte Open-Source-Matrix-Korpus durch (1x kalt + Nx warmer Median, Min, Max).
 
 - **Wie die Hooks gemessen werden**: Jeder Hook bekommt eine Claude-Code-Nutzlast für einen Edit an einer Beispieldatei der Hauptsprache des Repositorys, `post-tool-use` fährt also seine echten Lanes. Die Status-Spalte nennt die Exit-Codes aller Läufe.
 - **Einzel-Repository-Modus** (Standard): Misst `pre-tool-use`, `post-tool-use` und `graph build` (bei Go-Projekten), vergleicht mit bestehenden Claude-Hooks (Speedup) und prüft Lücken zwischen nativen Werkzeugen und Loomux-Lanes.
-- **Korpus-Modus** (`--corpus <pfad>`): Klont und benchmarkt die Top-N Open-Source-Projekte über Sprachen und Frameworks hinweg und liefert einen aggregierten Performance- und Lückenbericht.
+- **Korpus-Modus** (`--corpus <pfad>`): Klont und benchmarkt die Top-N Open-Source-Projekte über Sprachen und Frameworks hinweg und liefert einen aggregierten Performance- und Lückenbericht. Ein Repository, das nicht gemessen werden konnte, wird auf stderr als übersprungen genannt.
+- **Ausgabe**: Ohne `--out` geht der Markdown-Bericht auf stdout; mit `--out` nur in die beiden Berichtsdateien.
 - **Flags**:
   - `--dir <pfad>`: Ziel-Repository (Standard: `.`).
   - `--corpus <pfad>`: Pfad zur Open-Source-Matrix-Markdown-Datei.
-  - `--languages <n>`: Anzahl der Sprachen im Korpus (Standard: `5`).
+  - `--languages <n>`: Anzahl der Sprachen im Korpus (Standard: `5`, im Korpus-Modus mindestens `1`).
   - `--tier <kategorie>`: Filter für Sterne-Kategorie (Standard: `"Sehr viel"`).
-  - `--warm <n>`: Anzahl warmer Messläufe für die Median-Berechnung (Standard: `3`).
-  - `--component-timeout <d>`: Frist je gemessenem Befehl; ein Befehl darüber wird beendet und als `timeout` gemeldet (Standard: `60s`).
+  - `--warm <n>`: Anzahl warmer Messläufe für die Median-Berechnung (Standard: `3`, mindestens `1`).
   - `--cache-dir <pfad>`: Verzeichnis für geklonte Repositories (Standard: `.cache/benchcorpus`).
-  - `--out <pfad>`: Schreibt Markdown-Bericht in Datei (Standard: stdout).
-  - `--json-out <pfad>`: Schreibt maschinenlesbaren JSON-Bericht in Datei.
+  - `--timeout <d>`: Frist für die Messung eines Repositorys (Standard: `5m`).
+  - `--component-timeout <d>`: Frist je gemessenem Befehl; ein Befehl darüber wird beendet und als `timeout` gemeldet (Standard: `60s`).
+  - `--out <dir>`: Verzeichnis für den Markdown- und JSON-Bericht (Standard: Markdown auf stdout).
   - `--save`: Speichert Benchmark-Berichte automatisch in Sprachunterordnern (`docs/{en,de}/benchmarks/<sprache>/<slug>.md`) und aktualisiert die zentrale Gesamt-Matrix (`docs/{en,de}/benchmarks/matrix.md`).
   - `--report-dir <pfad>`: Dokumentations-Stammverzeichnis für gespeicherte Berichte (Standard: `docs`).
+- **Exit-Codes**: `0` nach einer Messung; `2` bei einem Usage-Fehler (`--warm` unter 1, `--languages` unter 1 im Korpus-Modus); `1`, wenn die Korpusdatei nicht gelesen werden kann, eine Messung scheitert oder ein Bericht nicht geschrieben oder gesichert werden kann.
+
+#### `loomux dev bench search [--scope <scope>|all] [--profile keyword|fast|full] [--channel local|cloud] [--out <dir>] [--questions <datei>] [--corpus v1|<dir>] [--latency] [--latency-query <q>] [--repeat <n>]`
+Misst, wie gut die Suche eine Notiz findet: für jede Frage eines Fragensatzes den Rang der erwarteten Quelle (Treffer bei Rang ≤ 3) und die Zeit der Antwort; mit `--latency` zusätzlich die Latenz von Katalog, Lesen und den drei Profilen. Der Bericht wird immer als die beiden Dateien geschrieben; danach geht das Markdown auf stdout.
+
+- **Alltagsmodus** (Standard): fragt den registrierten Bereich über den Suchdienst (`environment.port` ist `daemon`), so wie loomux im Betrieb sucht. Der Fragensatz ist `<out>/questions.yaml`; `--out` ist standardmäßig `<bereich>/98 Messung` und muss vorhanden sein. Wird mehr als ein Bereich gemessen (`--scope all` über ein Register mit mehreren), gibt es keine Vorgabe, `--out` ist dann Pflicht.
+- **Korpusmodus** (`--corpus`): misst einen Korpusstand. `v1` meint den eingecheckten `testdata/bench/search/v1` (100 Notizen, 50 Fragen, Baseline 43/50 bei `fast`) und braucht einen loomux-Checkout; jeder andere Wert ist das Verzeichnis eines Stands. Der Stand wird zuerst geprüft, dann in einem Wegwerf-Zustand und einem eigenen qmd-Index `loomux-bench-<zufall>` angelegt und über die qmd-Befehlszeile befragt (`environment.port` ist `cli`); die geteilte `index.yml` wird nie angefasst. Der Lauf übernimmt den Block `models:` aus `index.yml` in seinen eigenen Index, hält eine Sperre je Indexname und räumt Index und Zustand auf jedem Rückweg weg, auch nach einem Fehler. Strg+C räumt nicht auf; einen `loomux-bench-*`-Index, den ein abgebrochener oder abgestürzter Lauf liegen ließ und den niemand hält, räumt der nächste Korpuslauf mit demselben Zustandsverzeichnis. Scheitert `qmd update`, bricht der Lauf vor `qmd embed` ab. Meldet qmd nach dem Einbetten noch Dokumente ohne Vektoren, bricht ein `fast`- oder `full`-Lauf mit Exit 1 ab und nennt ihre Zahl, weil der Bericht einen nicht eingebetteten Index messen würde; `keyword` liest keine Vektoren und prüft das nicht. Seine Latenz (Sekunden je Aufruf, weil die Befehlszeile die Modelle jedes Mal lädt) ist mit dem Alltagsmodus nicht vergleichbar.
+- **Fragensatz**: eine YAML-Liste von Einträgen mit `id`, `sort` (`exakt`, `umschreibung`, `gemischt`, `sprachuebergreifend`), `query`, `expect` (die Notiz, relativ zur Fragendatei), `beleg` (eine Stelle dieser Notiz) und optional `hinweis`. Alle Probleme werden gesammelt vor der ersten Anfrage gemeldet.
+- **Während des Laufs**: Hält die Suchmaschine kein Dokument der gemessenen Bereiche, bricht der Lauf vor der ersten Frage ab. Was die Suchkette zu einer Anfrage vermerkt (etwa zweimal hintereinander eine leere Antwort), steht als Befund im Bericht. Mit `--latency` wird die Latenzanfrage zuerst einmal ungezählt geprobt; findet sie nichts, bricht der Lauf ab.
+- **Flags**:
+  - `--scope <scope>`: Der zu messende Bereich, oder `all` (Standard: `knowledge`).
+  - `--profile <p>`: `keyword`, `fast` oder `full` (Standard: `fast`).
+  - `--channel <c>`: `local` oder `cloud` (Standard: `local`).
+  - `--out <dir>`: Verzeichnis für den Bericht (Standard: `<bereich>/98 Messung`).
+  - `--questions <datei>`: Fragensatz (Standard: `<out>/questions.yaml`).
+  - `--corpus <v1|dir>`: `v1` für den eingecheckten Korpus, oder das Verzeichnis eines Stands. Verweigert `--scope`, `--questions` und `--latency` und verlangt `--out`.
+  - `--latency`: Misst zusätzlich Katalog, Lesen und die drei Profile, nach dem Qualitätsdurchgang (die Kette ist dann schon warm).
+  - `--latency-query <q>`: Die Anfrage der Latenzsuchen (Standard: `latenz`).
+  - `--repeat <n>`: Warme Läufe je gemessener Operation, nach einem kalten (Standard: `10`, mindestens `1`).
+- **Exit-Codes**: `0` nach einer Messung; `2` bei einem unbekannten Flag, einem überzähligen Argument, einem unbekannten Profil oder Kanal oder `--repeat` unter 1; `1` mit einer Zeile `error: <problem>` je Problem auf stderr für alles andere (eine verweigerte Flag-Kombination, `--corpus v1` außerhalb eines Checkouts, ein fehlerhafter Fragensatz oder Stand, ein fehlendes Verzeichnis oder eine schon vorhandene Berichtsdatei, ein leerer Index, ein Fehler der Suchmaschine).
 
 ---
 

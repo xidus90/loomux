@@ -889,24 +889,58 @@ Mutates the Go decisions of each package and reports which mutants its test suit
 ### `loomux dev swap-binary --dir <bin>`
 Atomically replaces the running `loomux.exe` binary with `loomux.new.exe` (solving Windows file-locking constraints). The one it replaces is kept as `loomux.old.exe`, or as the first free `loomux.old.<n>.exe` beside it when a process started from an earlier swap -- a `loomux serve` or a bridge -- still holds that name; every slot whose process has ended is removed on the next swap, so at most 16 generations are kept. Two cases still fail, and both leave the binaries where they were: all 16 slots held at once, and a `loomux.exe` that something holds so that it cannot be renamed at all -- a running `loomux.exe` is not that holder, since Windows keeps a running image renamable.
 
-### `loomux dev bench [--dir <dir>] [--corpus <file>] [--languages <n>] [--tier <tier>] [--warm <n>] [--cache-dir <dir>] [--out <file>] [--json-out <file>] [--component-timeout <d>] [--save] [--report-dir <dir>]`
-Runs comprehensive latency benchmarks and normalized gap audits on a single repository or against the open-source matrix corpus (1 cold + N warm runs, median/min/max).
+### `loomux dev bench <hooks|repos|search> [flags]`
+Three measurements under one group. `loomux dev bench` alone prints the three subcommands and exits `2`; an unknown subcommand does the same. The group replaces `dev bench-hooks` (now `dev bench hooks`) and `dev bench` (now `dev bench repos`).
+
+- **One report shape**: with `--out <dir>` each subcommand writes `bench-<stamp>-<command>.md` and `.json` (`dev bench search`: `bench-<stamp>-<profile>`) into that existing directory, both or neither, and never over an existing file, not even one a run of the same minute wrote in the meantime. The stamp is UTC, `YYYY-MM-DD-HHMM`. If either file already exists, the run stops before its first measurement. The markdown of `hooks` and `repos` opens with the command, the stamp, the system, the Go version and the loomux version; that of `search` with the stamp, the profile, qmd, the models, the qmd backbone, the system, loomux, the search path, the number of indexed documents and the question set, then in corpus mode the corpus with a caveat that its numbers measure regression only, and on `fast` a note that the run is purely vectorial. The JSON is one envelope for all three: `schema` (`1`), `command` (`hooks`, `repos` or `search`), `stamp`, `environment` (`os`, `arch`, `cpu`, `go`, `loomux`; `search` adds `qmd`, `models`, `profile`, `port`, which is `daemon` or `cli`, and `backbone`: in corpus mode the value of `QMD_LLAMA_GPU`, `cpu` under `QMD_FORCE_CPU`, `default` when neither is set, read from the environment of the bench process, which the qmd command line inherits; `unknown` for a run through the search service, which keeps the backbone of whichever process started it), `timings[]` (`name`, `cold_ms`, `warm_ms[]`, `median_ms`, `min_ms`, `max_ms`, and where they apply `exit_codes`, `applicable`, `timed_out`), all times in milliseconds, and a `payload` of the command's own (`repos`: the audited repositories; `search`: `question_set`, `corpus` (null outside corpus mode), `documents`, `questions[]` with `id`, `sort`, `rank` (null when not found), `hit` and `elapsed_ms`, `findings[]`, and `latency` (the document and query timed, null without `--latency`); `hooks`: none).
+
+#### `loomux dev bench hooks <case-file> [-n <n>] [--out <dir>]`
+Times the hook commands of a case file: every case once cold, then `-n` times warm, and prints a markdown table (case, cold, warm median, min, max, exit codes of the last run) to stdout; with `--out` it writes the two report files as well. The case file is a JSON list of cases, each with `name`, `dir`, `stdin` (a file fed to the steps), `mode` (`single`, the default, and `seq` run the steps in order within one measured span; `par` starts them at once) and `steps[]` (`argv`). The case file may stand before or after the flags. The case files of the chronicle in `docs/en/benchmarks.md` live under `testdata/bench/`.
+
+- **Flags**:
+  - `-n <n>`: Warm runs per case, after one cold run (default: `20`, at least `1`).
+  - `--out <dir>`: Directory to write the markdown and JSON report to.
+- **Exit codes**: `0` after a measurement, whatever the measured commands exit with; `2` for an unknown flag, without a case file, with a second argument or with `-n` below 1; `1` when the case file cannot be read or decoded, a case is invalid, a step cannot be started, or a report file exists or cannot be written.
+
+#### `loomux dev bench repos [--dir <dir>] [--corpus <file>] [--languages <n>] [--tier <tier>] [--warm <n>] [--cache-dir <dir>] [--timeout <d>] [--component-timeout <d>] [--out <dir>] [--save] [--report-dir <dir>]`
+Runs latency benchmarks and normalized gap audits on a single repository or against the open-source matrix corpus (1 cold + N warm runs, median/min/max).
 
 - **How hooks are measured**: each hook receives a Claude Code payload for an edit of a sample file in the repository's primary language, so `post-tool-use` runs its real lanes. The Status column lists the exit codes seen across all runs.
 - **Single repository mode** (default): measures `pre-tool-use`, `post-tool-use`, and `graph build` (applicable on Go projects), compares against baseline Claude hooks if defined, and audits test/linter coverage gaps against native configuration.
-- **Corpus mode** (`--corpus <path>`): clones and benchmarks top-N open-source projects across cataloged languages and frameworks, reporting aggregate matrix latency and tool gaps.
+- **Corpus mode** (`--corpus <path>`): clones and benchmarks top-N open-source projects across cataloged languages and frameworks, reporting aggregate matrix latency and tool gaps. A repository that could not be benchmarked is named on stderr as skipped.
+- **Output**: without `--out` the markdown report goes to stdout; with `--out` it goes only into the two report files.
 - **Flags**:
   - `--dir <path>`: Target project directory (default: `.`).
   - `--corpus <path>`: Path to open-source matrix Markdown document.
-  - `--languages <n>`: Number of languages from corpus to benchmark (default: `5`).
+  - `--languages <n>`: Number of languages from corpus to benchmark (default: `5`, at least `1` in corpus mode).
   - `--tier <tier>`: Star category tier filter (default: `"Sehr viel"`).
-  - `--warm <n>`: Number of warm measurement runs for median calculation (default: `3`).
-  - `--component-timeout <d>`: Deadline for each measured command; a command past it is killed and reported as `timeout` (default: `60s`).
+  - `--warm <n>`: Number of warm measurement runs for median calculation (default: `3`, at least `1`).
   - `--cache-dir <dir>`: Directory for cached cloned repositories (default: `.cache/benchcorpus`).
-  - `--out <path>`: Write Markdown report to file (default: stdout).
-  - `--json-out <path>`: Write detailed machine-readable JSON report to file.
+  - `--timeout <d>`: Deadline for the benchmark of one repository (default: `5m`).
+  - `--component-timeout <d>`: Deadline for each measured command; a command past it is killed and reported as `timeout` (default: `60s`).
+  - `--out <dir>`: Directory to write the markdown and JSON report to (default: markdown on stdout).
   - `--save`: Automatically save benchmark reports into language subdirectories (`docs/{en,de}/benchmarks/<language>/<repo_slug>.md`) and update the central matrix (`docs/{en,de}/benchmarks/matrix.md`).
   - `--report-dir <dir>`: Documentation root directory for saved reports (default: `docs`).
+- **Exit codes**: `0` after a benchmark; `2` for a usage error (`--warm` below 1, `--languages` below 1 in corpus mode); `1` when the corpus file cannot be read, a benchmark fails, or a report cannot be written or saved.
+
+#### `loomux dev bench search [--scope <scope>|all] [--profile keyword|fast|full] [--channel local|cloud] [--out <dir>] [--questions <file>] [--corpus v1|<dir>] [--latency] [--latency-query <q>] [--repeat <n>]`
+Measures how well the search finds a note: for every question of a question set, the rank of the expected source (a hit at rank ≤ 3) and the time of the answer; with `--latency`, also the latency of catalog, read and the three profiles. The report is always written as the two files; the markdown then goes to stdout.
+
+- **Everyday mode** (default): asks the registered area through the search service (`environment.port` is `daemon`), as loomux searches in use. The question set is `<out>/questions.yaml`; `--out` defaults to `<area>/98 Messung` and must exist. When more than one area is measured (`--scope all` over a registry of several), there is no default and `--out` is required.
+- **Corpus mode** (`--corpus`): measures a corpus stand. `v1` names the checked-in `testdata/bench/search/v1` (100 notes, 50 questions, baseline 43/50 on `fast`) and needs a loomux checkout; any other value is a stand's directory. The stand is checked first, then registered in a throwaway state and a qmd index of its own, `loomux-bench-<random>`, and asked through the qmd command line (`environment.port` is `cli`); the shared `index.yml` is never touched. The run copies the `models:` block of `index.yml` into its own index, holds a lock per index name, and removes its index and state on every return path, errors included. Ctrl+C runs no cleanup; a `loomux-bench-*` index that an interrupted or crashed run left and nobody holds is removed by the next corpus run that uses the same state directory. A failed `qmd update` stops the run before `qmd embed`. After the embed, a `fast` or `full` run stops with exit 1 if qmd still reports documents without vectors, naming their count, since the report would measure an unembedded index; `keyword` reads no vectors and does not check. Its latency (seconds per call, since the command line loads the models every time) does not compare with the everyday mode.
+- **Question set**: a YAML list of entries with `id`, `sort` (`exakt`, `umschreibung`, `gemischt`, `sprachuebergreifend`), `query`, `expect` (the note, relative to the question file), `beleg` (a passage of that note) and an optional `hinweis`. Every problem is reported at once, before the first query.
+- **During the run**: an engine that holds no document for the measured areas stops the run before the first question. What the search chain notes on a query (such as an empty answer twice in a row) is listed as a finding. With `--latency` the latency query is first probed once, untimed; if it finds nothing, the run stops.
+- **Flags**:
+  - `--scope <scope>`: The area to measure, or `all` (default: `knowledge`).
+  - `--profile <p>`: `keyword`, `fast` or `full` (default: `fast`).
+  - `--channel <c>`: `local` or `cloud` (default: `local`).
+  - `--out <dir>`: Directory for the report (default: `<area>/98 Messung`).
+  - `--questions <file>`: Question set (default: `<out>/questions.yaml`).
+  - `--corpus <v1|dir>`: `v1` for the checked-in corpus, or a stand's directory. Refuses `--scope`, `--questions` and `--latency`, and requires `--out`.
+  - `--latency`: Also time catalog, read and the three profiles, after the quality pass (the chain is warm by then).
+  - `--latency-query <q>`: The query the latency searches ask (default: `latenz`).
+  - `--repeat <n>`: Warm runs per timed operation, after one cold run (default: `10`, at least `1`).
+- **Exit codes**: `0` after a measurement; `2` for an unknown flag, an extra argument, an unknown profile or channel, or `--repeat` below 1; `1` with one `error: <problem>` line on stderr per problem for everything else (a refused flag combination, `--corpus v1` outside a checkout, a broken question set or stand, a missing directory or an existing report file, an empty index, an engine error).
 
 ---
 
