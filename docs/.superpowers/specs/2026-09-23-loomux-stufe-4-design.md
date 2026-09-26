@@ -698,6 +698,124 @@ Vorgabe an nur bei `[privacy] mode = "local_only"` im Projekt oder
 GB lädt. Das ist die eine Ausnahme von „Werkzeuge werden geprüft, nie
 installiert“ (4a-2). Geladen wird nur in init, nie in `reconcile`.
 
+### Abweichungen beim Planen von 4c-2
+
+Beim Planen (2026-09-26) gegen den Code und gegen die Referenz am Tag
+`loomux-3-source` gelesen, gemessen und mit dem Nutzer entschieden. Wo dieser
+Abschnitt „4c-2 im Einzelnen“ oder den Abschnitt davor widerspricht, gilt er.
+
+**Korrekturen, die die Referenz erzwingt:**
+
+- **Richtung einer Frage.** Die Korpusprüfung erkennt eine Frage in
+  Gegenrichtung (englische Frage an eine deutsche Notiz, nur Sorte
+  `sprachuebergreifend`) an eigenen Listen in `corpus.py:43-81`: 14 englische
+  gegen 17 deutsche Wörter, Gegenrichtung heißt mehr englische als deutsche.
+  Die 72 Funktionswörter aus `judge.py:34-40` braucht 4c-2 nicht; sie bleiben
+  bei 4d. Der Satz oben, 4c-2 bette die Funktionswortliste ein, entfällt.
+- **Probelauf.** Er ist eine `keyword`-Suche mit n=5, ungezählt; findet sie
+  nichts, bricht der Lauf ab. Es gibt keinen Aufwärmlauf je Operation. Die
+  Latenz läuft nach dem Qualitätsdurchgang; der Bericht sagt, dass die Kette
+  dann schon warm ist. `--latency-query` hat die Vorgabe `latenz`, `--repeat`
+  die Vorgabe 10 und mindestens 1; die drei Suchen der Latenz nehmen n=5.
+- **Fragensatz.** Pflicht sind `id`, `sort`, `query`, `expect`, `beleg`;
+  `hinweis` ist optional. Die Sorten heißen `exakt`, `umschreibung`,
+  `gemischt`, `sprachuebergreifend` (Form 13/13/10/14, im Alltag wie im
+  Korpus). `beleg` wird nach dem Zusammenfassen von Leerraum gesucht, nicht
+  byteweise. `expect` gilt relativ zur Fragendatei. Doppelte `id`, eine
+  unbekannte Sorte und ein fehlendes Ziel sind Fehler; alle Fehler werden
+  gesammelt gemeldet.
+- **Vorgaben der Befehlszeile.** Bereich `knowledge`; `--out` ist
+  `<bereich>/98 Messung` und muss ein vorhandenes Verzeichnis sein; der
+  Fragensatz ist `<out>/questions.yaml`, folgt also `--out`. Über mehrere
+  Bereiche ist `--out` Pflicht. `--corpus` verweigert `--scope` und
+  `--questions`. Die Dateien heißen `bench-<stempel>-<profil>.md` und `.json`
+  (Stempel in UTC, `JJJJ-MM-TT-HHMM`); liegt eine davon schon da, bricht der
+  Lauf vor der ersten Anfrage ab. Scheitert das Schreiben des JSON, wird das
+  Markdown gelöscht. Das Markdown geht erst nach dem Aufräumen auf stdout.
+  Ein Index ohne Dokumente bricht vor der ersten Frage ab. Ein Fehlschlag ist
+  `error: <problem>` auf stderr, eine Zeile je Problem, Exit 1.
+- **Je Frage** stehen `id`, `sort`, `rank` (bei einem Fehlschlag leer),
+  `hit` und `elapsed_ms` im Bericht; eine leere Antwort wird einmal
+  wiederholt und dann ein Befund `<anfrage>: <befund>`.
+
+**Mit dem Nutzer entschieden (2026-09-26):**
+
+| Frage | Entscheidung |
+|---|---|
+| Isolation im Korpusmodus | Nicht über `XDG_CONFIG_HOME` und `XDG_CACHE_HOME`: qmd legt seine Modelle unter `~/.cache/qmd/models` ab (2,7 GB, gemessen 2026-09-26), ein eigenes `XDG_CACHE_HOME` lüde sie bei jedem Lauf neu. Stattdessen `qmd --index loomux-bench-<zufall>`: qmd 2.8.3 legt Sammlung und Index dann in `<name>.yml` und `<name>.sqlite` ab und teilt die Modelle; eine Probe mit `collection add`, `update`, `embed`, `search`, `vsearch` und `query` ließ `index.yml` bitgleich und den Modellordner unverändert. Aufgeräumt wird immer: `<name>.yml`, `<name>.sqlite` samt `-wal` und `-shm` und eine Sicherung, falls der YAML-Schreiber eine anlegt. Ein Lauf hält für die ganze Dauer eine Sperre je Name unter dem Zustandsverzeichnis von loomux; einen `loomux-bench-*`-Index ohne gehaltene Sperre, den ein abgestürzter Lauf liegen ließ, entfernt der nächste Lauf, einen gehaltenen nie, denn oft laufen mehrere Sitzungen zugleich. Die Referenz isoliert gar nicht, sie trägt die Sammlung in die echte `index.yml` ein |
+| Suchweg | Im Alltagsmodus über den Dienst (`QmdMcpPort`), wie loomux im Betrieb sucht; im Korpusmodus über die CLI (`QmdPort`) mit `--index`, denn nur sie trennt den Index, ohne den geteilten Dienst anzufassen. `environment.port` sagt `daemon` oder `cli`; die Latenzen beider Modi sind nicht vergleichbar. Gemessen 2026-09-26 auf dem echten Index: `fast` über den Dienst warm 331–348 ms, über die CLI 5,3–11,6 s je Aufruf, weil die CLI die Modelle jedes Mal lädt |
+| `docs/benchmarks.json` | Bleibt ein Bestand je Repo, geführt von `MergeAudits`, und wird keine Liste von Läufen. Seine Zeiten tragen dieselbe Form wie die Hülle, `timings[]` in Millisekunden, einmal umgerechnet mit einem Wegwerfskript. Eine gesammelte Ablage der Hüllen je Lauf (auch als Debug-Modus) gibt es nicht |
+
+**Was daraus für den Bau folgt:**
+
+- **`benchreport`** ist die Hülle eines Laufs, die alle drei Befehle mit
+  `--out` als `.md` und `.json` schreiben, und die einzige Stelle, die
+  Median, Minimum und Maximum rechnet. `benchhooks.median` und
+  `benchcorpus.calculateMedian` fallen weg. `dev bench hooks` schreibt wie
+  heute Markdown auf stdout und mit `--out` zusätzlich beide Dateien.
+- **qmd mit Indexnamen.** `index.QmdConfigPath` kennt heute nur
+  `index.yml`; es bekommt den Namen. Im Korpusmodus trägt **jeder**
+  qmd-Aufruf `--index <name>`: der Abgleich der Sammlungen, `update` und
+  `embed` im Paket `index`, `ls` (davon lebt die Latenzoperation `read`),
+  `status` und die Suche über `QmdPort`. Gemessen mit qmd 2.8.3: nur die
+  JSON-Ausgabe der Suche hängt `?index=<name>` an die `file`-URI
+  (`qmd://colla/baustatik-04.md?index=…`), `ls` und `status` nicht; der
+  Parser der Suche schneidet es ab.
+- **Modelle im Korpusmodus.** qmd schreibt in eine neue `<name>.yml` seine
+  eigenen Vorgabemodelle. Dass sie heute denen der echten `index.yml`
+  gleichen, ist Zufall. Der Lauf übernimmt deshalb den Block `models:` aus
+  `index.yml` in `<name>.yml`, bevor er indiziert, und `environment.models`
+  berichtet, was in `<name>.yml` steht.
+- **Zustand für den Privatsphärefilter.** Der Wegwerf-Zustand geht über die
+  Verzeichnisparameter von `privacy.VisibleAreas` und der Suchkette, nicht
+  über `os.Setenv("LOOMUX_STATE_DIR")` im Prozess.
+- **Die Zeilen von `docs/benchmarks.json`.** Aus `cold`, `warm[]` und den
+  `*_median`-, `*_min`- und `*_max`-Feldern einer Zeile wird `timings[]`:
+  ein Eintrag `total`, einer je Komponente und einer je Komponente der
+  Claude-Baseline als `baseline:<name>`. Ein Eintrag trägt neben
+  `{name, cold_ms, warm_ms[], median_ms, min_ms, max_ms, exit_codes}` bei
+  Bedarf `applicable: false` und `timed_out` (Zahl der Läufe). Als eigene
+  Felder bleiben `hook_warm_median_ms`, `claude_warm_median_ms`, `speedup`
+  und `baseline_error`, dazu alle Felder außerhalb der Zeiten. Millisekunden
+  mit sechs Nachkommastellen: Nanosekunden durch 10⁶ haben nie mehr, so ist
+  die Umrechnung verlustfrei und der Wert derselbe `float64` wie
+  `float64(ns)/1e6` im alten Renderer. Das Wegwerfskript gilt als richtig, wenn
+  `matrix.md` und die Seiten je Repo aus dem umgerechneten JSON bytegleich
+  zu den committeten entstehen.
+- **`fakeqmd`** nimmt `--index` an und bekommt einen zusätzlichen
+  Fixture-Schlüssel mit Treffern je Anfrage; heute übergeht es den Text der
+  Anfrage, und ein Rangtest liefe ins Leere.
+- **`dev bench`** allein zeigt die Hilfe der drei Unterbefehle.
+  `docs/*/cli-reference.md` nennt heute nur `dev bench`, nicht
+  `dev bench-hooks`; beide Sprachen bekommen `dev bench hooks|repos|search`.
+- **`--timeout`** von `dev bench` wird gelesen, aber nie benutzt. Der Fehler
+  liegt schon auf master und bekommt einen eigenen `fix`-Commit.
+- **Daten.** Der Korpus kommt mit `git -c core.autocrlf=false archive
+  loomux-3-source bench/corpus/v1` aus ultra-brain, nicht aus dessen
+  Arbeitsbaum; beide Repos stehen auf `core.autocrlf=true`, und ohne den
+  Schalter wendet auch `git archive` die Umwandlung an: 106 Dateien, 330 246
+  Bytes, Baseline 43/50 bei `fast` auf qmd 2.8.3 (13/13, 11/13, 8/10,
+  11/14). Vor dem Commit wird jede sha256 gegen `manifest.json` geprüft.
+- **Paritätsprobe.** `brain bench --corpus v1 --profile keyword` trägt die
+  Sammlung in den geteilten Index ein, loomux sucht im eigenen. Das ist
+  nicht dasselbe: `keyword` rechnet die Wortgewichte über den ganzen Index,
+  und der Sammlungsfilter ändert sie (gemessen 2026-09-26: dieselbe Notiz
+  0,76 im Index mit 10 Notizen, 0,88 im Index mit 100, Ränge in vier
+  Stichproben gleich). „Gleiche Ränge je Frage“ bleibt das Kriterium; ein
+  abweichender Rang wird in der Akte gegen den Abstand der Scores
+  nachgerechnet, bevor er als Fehler von loomux gilt. Die Referenz isoliert
+  über `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` und einen verlinkten Modellordner
+  laufen zu lassen, wurde probiert: `qmd embed` hing dabei über zehn
+  Minuten. Vor der Probe werden `index.yml` **und** `index.sqlite` gesichert
+  und danach zurückgelegt.
+- **Selbstnutzung.** Die Trefferqualität kommt aus
+  `dev bench search --corpus v1 --profile fast` gegen die Baseline, die
+  Latenz aus einem Alltagslauf mit `--latency` über den Dienst. Beides geht
+  in beide `benchmarks.md`; die Latenz des Korpusmodus (CLI, 5–12 s je
+  Aufruf) nicht. Das ersetzt die Zeile zu 4c-2 unter „Selbstnutzung“ oben.
+- **Im selben Pull Request:** `docs/en|de/migration.md`, beide READMEs und
+  beide `cli-reference.md`.
+
 ## 4d im Einzelnen
 
 - **`loomux convert [datei]`** geht den Eingang jedes Bereichs durch, oder die
