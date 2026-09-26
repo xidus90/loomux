@@ -62,8 +62,8 @@ const stampedRegister = "repo-a/_identities.tsv"
 // the commit was refused before the index was made, without.
 func wroteAndIndexed(committed bool) expectation3b {
 	why := "Register über gestempelte Seiten; Protokoll nach Tagen, neueste zuerst; " +
-		"format of graph.json, index.yml, qmd-collections.json"
-	differ := []string{"content mismatch: " + stampedRegister, "content mismatch: " + recordedLog}
+		"format of graph.json, index.yml, qmd-collections.json; Sperre je Bereich"
+	differ := []string{"content mismatch: " + stampedRegister, "content mismatch: " + recordedLog, areaLock("project-a")}
 	if committed {
 		why = "Scratch-Index im Fallsatz; " + why
 		differ = append(differ, scratchIndex)

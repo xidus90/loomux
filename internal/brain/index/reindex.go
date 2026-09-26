@@ -147,6 +147,15 @@ func indexArea(
 		return indexedArea{}, true, nil
 	}
 
+	// Held from the register's reading in collect to its writing in publish:
+	// an approve advancing it in between would otherwise lose its row. It
+	// covers the recovery of a half-done swap too, as approve's does.
+	release, err := config.LockArea(area, stateDir)
+	if err != nil {
+		return indexedArea{}, false, err
+	}
+	defer release()
+
 	if err := recoverStockFn(area, stateDir); err != nil {
 		return indexedArea{}, false, err
 	}

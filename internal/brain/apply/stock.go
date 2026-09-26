@@ -42,9 +42,11 @@ var beforeSwap func()
 // swap a killed run left half-done is finished first, as `index` does, so
 // that an aside is not mistaken for an absent stock.
 //
-// It never replaces an area the new place holds. No lock is shared with
-// `index`, so between the decision above and the swap a reindex may publish
-// the area; that stock is newer than the legacy copy, and it is kept. The
+// It never replaces an area the new place holds. The caller holds the
+// area's lock, which `index` takes too; but a checkout from before that lock
+// can still run beside this one, so between the decision above and the swap
+// a reindex may publish the area. That stock is newer than the legacy copy,
+// and it is kept. The
 // swap is therefore a plain rename, which refuses an existing directory
 // (Windows) or a non-empty one (POSIX) -- and not lock.ReplaceDir, which
 // would put the fresh stock aside and delete it. A rename that fails while

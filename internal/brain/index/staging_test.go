@@ -113,8 +113,9 @@ func TestReindexLeavesTheOldStockWholeWhenAWriteBreaks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDir: %v", err)
 	}
-	if len(entries) != 1 || entries[0].Name() != "read-only" {
-		t.Errorf("entries = %v, want only the area itself -- no staging, no aside", entries)
+	// The area and the lock index holds beside it, never inside it.
+	if len(entries) != 2 || entries[0].Name() != "read-only" || entries[1].Name() != "read-only.lock" {
+		t.Errorf("entries = %v, want only the area itself and its lock -- no staging, no aside", entries)
 	}
 }
 
@@ -331,8 +332,9 @@ func TestReindexLeavesTheOldStockWholeWhenTheSwapBreaks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDir: %v", err)
 	}
-	if len(entries) != 1 || entries[0].Name() != "read-only" {
-		t.Errorf("entries = %v, want only the area itself -- no staging, no aside", entries)
+	// The area and the lock index holds beside it, never inside it.
+	if len(entries) != 2 || entries[0].Name() != "read-only" || entries[1].Name() != "read-only.lock" {
+		t.Errorf("entries = %v, want only the area itself and its lock -- no staging, no aside", entries)
 	}
 }
 
