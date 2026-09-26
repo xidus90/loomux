@@ -126,7 +126,7 @@ Loomux garantiert vollständige Entkopplung über ein **Append-Only Datei-Journa
 > **Geplant (Stufe W1).** Noch schreibt kein Hook das Journal, und `loomux serve`
 > liest nichts mit; die Entkopplung selbst gilt schon heute: `internal/hooks`
 > verlinkt nichts aus `serve`, was ein Test über den Importgraphen festhält.
-> Stand: [Migrationsplan](migration.md).
+> Stand: [Roadmap](../../README.de.md#roadmap).
 
 ```
 Hook-Prozess (loomux hook pre/post-tool-use)

@@ -44,8 +44,9 @@ flowchart TD
     P5 -.-> Serve
 ```
 
-*Eine gestrichelte Linie ist spezifiziert und nicht gebaut. Welche Stufe was baut
-und was fertig ist, steht im [Migrationsplan](docs/de/migration.md).*
+*Eine gestrichelte Linie ist spezifiziert und nicht gebaut. Was jede
+Migrationsstufe gebaut hat, steht im [Migrationsplan](docs/de/migration.md);
+was danach kommt, in der [Roadmap](#roadmap).*
 
 ---
 
@@ -137,16 +138,55 @@ festhält. Jedes Werkzeug mit seinen Argumenten: [CLI-Referenz §8](docs/de/cli-
 
 ## Migrationsplan
 
-Wo jede Stufe und jede Funktion steht — Herkunft, Stand, Abhängigkeiten und
-Priorität, mit einer Karte, welche Stufe auf welche wartet —, steht im
+Wo jede Migrationsstufe und jede aus ultraloom und ultra-brain übernommene
+Funktion steht — Herkunft, Stand, Abhängigkeiten und Priorität, mit einer
+Karte, welche Stufe auf welche wartet —, steht im
 **[Migrationsplan](docs/de/migration.md)**. Diese README beschreibt, was loomux
-ist; der Plan sagt, wie weit es ist.
+ist; der Plan sagt, wie weit die Migration ist, und die Roadmap darunter, was
+danach kommt.
+
+---
+
+## Roadmap
+
+Was loomux über die Migration hinaus bekommt. *Priorität* ist dieselbe
+Reihenfolge wie im Migrationsplan, festgelegt in der
+[Fusions-Spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
+unter „Reihenfolge der offenen Stufen“ (1 zuerst); die offenen
+Migrationsstufen 4c-1 bis 4e haben Priorität 3.
+
+### Kommt
+
+| Funktion | Was sie bringt | Stufe | Hängt ab von | Priorität |
+|---|---|---|---|---|
+| **Blast-Audit im Stop-Hook** | Der Blast-Audit am Rundenende, Arbeitsbaum gegen `HEAD`, für das Stop-Tor; bis dahin ist `graph` in einem Profil `stop` `not-applicable` | G4c | G4b ✅ | 2 |
+| **Flow-Laufzeit** | Flows als Daten: ein Graph aus Knoten in TOML, der läuft, an einem Tor auf die Antwort eines Menschen wartet und sich aus einem Journal fortsetzen und wiedergeben lässt (`loomux flow`). Ausgangspunkt ist ulflow M1, gebaut auf dem ungemergten ultraloom-Zweig `feature/agent-harness`; Agentenknoten über Claude und Gemini (über deren CLIs, deren APIs oder beides, was die Flow-Spec entscheidet); `verify_until_green` als Daten-Flow | Flow | ulflow M1 | 4 |
+| **Entwicklungszyklus als Default-Flow** | Von der Planung bis zum Pull Request: Klärung, Spec und Plan, jeweils von einem Fächer aus Prüflinsen geprüft, dann je Aufgabe Recherche, Test zuerst, Bau, Prüfkette, Codereview und Nacharbeit, zum Schluss Doku, Abschlussreview und Commit. Ein Mensch antwortet an festen Toren und immer dann, wenn ein Modell nicht weiterkommt, und pusht | Flow | Flow-Laufzeit | 4 |
+| **Community-Flows** | Der Entwicklungszyklus ist nur die Vorgabe. Ein Projekt fährt eigene Flows; per Pull Request beigetragene Flows landen als Beispiele im Repository und werden mit dem Binary ausgeliefert. `.loomux/config.toml` wählt den Flow, und ein Projekt überschreibt einzelne Anweisungen und Modelle, ohne ihn zu kopieren | Flow | Flow-Laufzeit | 4 |
+| **Web-OS-Shell** | Eine React/Vite-App, per `go:embed` eingebettet und von `loomux serve` auf `127.0.0.1` ausgeliefert: Eventbus, Layout, Command-Palette | W1 | 1b-2 ✅ | 5 |
+| **Brain-Web-App** | Das Second Brain im Browser: Markdown-Editor, ADR-Katalog, Wissensgraph (Komponenten aus `ultra-brain/web`) | W2 | W1 | 5 |
+| **Graph-Visualizer** | Ein interaktiver Code-Graph mit Kanten-Chips, Typfiltern und Blast-Overlays; Code-Symbole verknüpft mit ADRs und Entwurfsdoku | W3 | W1, G4a ✅ | 5 |
+| **Skill-Suiten und Review** | Eingebettete Best-Practice-Regeln je Sprache (Go, Python, TypeScript, Rust); ein graphgestütztes Review, das `graph_blast` liest und die ADR-Treue prüft; verteilt über `.loomux/config.toml`, Host-Ordner, MCP-Prompts und die Web-Oberfläche | W4 | G4b ✅, Migrationsstufe 4 | 5 |
+| **Flow-Editor und Kanban** | Flows als Graph im Web-OS zeichnen, wiedergeben und debuggen, im selben Format wie die Flow-Dateien; ein Kanban-Board, das Agentenschleifen, Prüf-Lanes und Subagenten live verfolgt | W5 | W1, Flow | 5 |
+| **TypeScript/TSX im Code-Graphen** | Extraktion auf demselben Tree-sitter-Kern in reinem Go (`gotreesitter`), der seit G5a Python liest | G5b | G5a ✅ | 6 |
+| **GDScript im Code-Graphen** | Derselbe Kern für GDScript aus Godot | G5c | G5b | 6 |
+| **C++ im Code-Graphen** | Derselbe Kern für C++, sobald eine Recall-Prüfung von `gotreesitter` gegen die C-Laufzeit trägt | G5d | G5c | 6 |
+
+### Vielleicht
+
+| Funktion | Was sie bringt | Warum nur vielleicht |
+|---|---|---|
+| **Claude-Mods-Adapter** | Setzt die Schreibschranke in einen `tool.check`-Function-Hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)), der über `$.mcp.call` mit einem langlebigen loomux spricht: kein Spawn je Aufruf, ein `ask`-Urteil und eine gerenderte Begründung | Nur Claude Code; der Exec-Hook bleibt der portable Weg |
+
+Ein Pull Request, der Roadmap-Arbeit beginnt, abschließt, hinzufügt oder
+streicht, ändert diesen Abschnitt und sein englisches Gegenstück in
+[`README.md`](README.md#roadmap).
 
 ---
 
 ## CLI-Referenz
 
-Die gebauten Befehle, je eine Zeile; jedes Flag und jeden Exitcode beschreibt die [CLI-Referenz](docs/de/cli-reference.md), was spezifiziert und noch nicht gebaut ist, steht im [Migrationsplan](docs/de/migration.md).
+Die gebauten Befehle, je eine Zeile; jedes Flag und jeden Exitcode beschreibt die [CLI-Referenz](docs/de/cli-reference.md), was spezifiziert und noch nicht gebaut ist, steht im [Migrationsplan](docs/de/migration.md) oder in der [Roadmap](#roadmap).
 
 ### Befehle
 ```bash
@@ -277,7 +317,7 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 | ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
 | 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
 | 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
-| 🗺️ **[Migrationsplan](docs/de/migration.md)** | Jede Stufe und jede Funktion der Fusion und des Code-Graphen: Herkunft, Stand, Abhängigkeiten und Priorität. |
+| 🗺️ **[Migrationsplan](docs/de/migration.md)** | Jede Migrationsstufe und jede in der Fusion übernommene oder gebaute Funktion: Herkunft, Stand, Abhängigkeiten und Priorität. Was danach kommt, steht in der [Roadmap](#roadmap). |
 | ⏱️ **[Leistungs-Benchmarks](docs/de/benchmarks.md)** | Chronologische Messungen gegenüber den Vorläufer-Programmen und verbindliche Latenzbudgets. |
 | 📊 **[Benchmark-Matrix](docs/de/benchmarks/matrix.md)** | Open-Source-Matrix über Top-Sprachen hinweg mit Detailberichten pro Sprache und Repository. |
 

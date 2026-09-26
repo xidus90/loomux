@@ -147,8 +147,9 @@ flowchart LR
 > BM25-style relevance over name, signature and body with Personalized PageRank
 > (alpha=0.25), inlines source spans and runs the locked rebuild. `ask` does not
 > import the extractor: the rebuild arrives as a `Rebuild` function, so the query
-> path stays apart from the parser. Which commands and tools are built, and what is
-> still open, is in the [migration plan](migration.md); every command is in the
+> path stays apart from the parser. Which commands and tools are built is in the
+> [migration plan](migration.md), what is still open (stages G4c and G5b to G5d) on the
+> [roadmap](../../README.md#roadmap); every command is in the
 > [CLI reference](cli-reference.md).
 
 ### 1. "Lexical Proposes, Graph Disposes"
