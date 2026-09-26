@@ -1,0 +1,17 @@
+---
+titel: Network Time Protocol
+quelle: https://de.wikipedia.org/wiki/Network_Time_Protocol
+abgerufen: 2026-08-21
+lizenz: CC BY-SA 4.0
+thema: netzwerkprotokolle
+---
+
+## Grundlagen
+
+NTP wurde von David L. Mills an der Universität von Delaware entwickelt und 1985 als RFC 958 veröffentlicht. Seit der Pensionierung von Mills wird die Referenzimplementierung derzeit als Open-Source-Projekt durch die im Jahr 2011 gegründete Network Time Foundation unter der Leitung von Harlan Stenn gepflegt.
+Bis zum Tod von Mills wurde das Protokoll und die UNIX-Implementierung unter seiner Leitung ständig weiterentwickelt. Gegenwärtig ist die Protokollversion 4 aktuell.
+Die IANA hat UDP und TCP auf Port 123 für NTP reserviert, doch da Wiederholungen nach Übertragungsfehlern andere Fehler durch Verzögerungen ergäben, ist NTP auf UDP festgelegt.
+NTP ist in UNIX-artigen Betriebssystemen in Form des Hintergrundprozesses (daemon) ntpd implementiert, der sowohl das lokale System justieren als auch als Server die Zeit für andere Systeme bereitstellen kann. Windows-Systeme können ebenfalls ohne Zusatzsoftware die genaue Zeit mittels NTP aus dem Internet beziehen (Systemsteuerung „Datum und Uhrzeit“ / „Internetzeit“, oder Kommando w32tm.exe) und nach Bearbeitung eines Eintrags in der Registrierungsdatenbank auch über NTP bereitstellen.
+ Der UNIX-ntpd synchronisiert die lokale Uhr mit Hilfe von externen Zeitsignalen, die er entweder direkt von einer lokalen Atomuhr (Caesium-Uhr, Rubidium-Oszillator usw.) oder einem lokalen Funkempfänger (zum Beispiel DCF77, GPS, LORAN), oder per NTP von einem NTP-Server erhält. Damit die lokale Uhrzeit nicht nur zu den zyklischen Synchronisationszeitpunkten präzise mit dem externen Signal übereinstimmt, korrigiert der ntpd-Prozess nicht nur die Phase, sondern auch die Frequenz des lokalen Zeitgebers mit Hilfe einer Software-PLL sowie einer Software-FLL. Um den internen Zeitgeber mit Hilfe eines hochpräzisen Sekundensignals noch enger an einen externen Normalzeitempfänger zu koppeln, haben einige UNIX-Varianten (unter anderem Linux und FreeBSD) die oben erwähnte Software-PLL im Kernel implementiert.
+Die Zeitstempel im NTP (bis v3) sind 64 Bits lang. 32 Bits kodieren die Sekunden seit dem Beginn einer Ära, wobei Ära 0 am 1. Januar 1900, 00:00:00 Uhr begann, weitere 32 Bits den Sekundenbruchteil. Auf diese Weise lässt sich ein Zeitraum von 232 Sekunden (etwa 136 Jahre) mit einer Auflösung von 2−32 Sekunden (etwa 0,23 Nanosekunden) darstellen. Soweit das Betriebssystem in einem Bereich von etwa 68 Jahren die grobe Zeit vorgeben kann, genügt theoretisch ein NTP-Zeitstempel, um die exakte Zeit in der richtigen Ära zu erhalten, allerdings wird dies nicht von allen Betriebssystemen korrekt beachtet. Ab NTP v4 (gemäß der Fassung in RFC 5905) kann mit einem 128 Bits umfassenden Zeitstempel auch die Ära übermittelt werden.
+NTP nutzt ein hierarchisches System verschiedener Strata (Plural von Stratum). Als Stratum 0 bezeichnet man das Zeitnormal, beispielsweise eine Atomuhr oder eine Funkuhr (Zeitzeichenempfänger via GNSS oder DCF77). Die unmittelbar mit ihm gekoppelten NTP-Server heißen Stratum 1. Jede weitere abhängige Einheit erhält bei der Bezeichnung eine höhere Nummer (Stratum 2, Stratum 3 …). Die NTP-Software auf Stratum 1, Stratum 2, Stratum 3 usw. ist zugleich Client des darüber liegenden Stratums als auch Server des darunter liegenden Stratums, sofern eines existiert.

@@ -1,0 +1,13 @@
+---
+titel: Nacherfüllung
+quelle: https://de.wikipedia.org/wiki/Nacherfüllung
+abgerufen: 2026-08-21
+lizenz: CC BY-SA 4.0
+thema: vertragsrecht
+---
+
+### Ausschluss der Nacherfüllung
+
+Die Pflicht, die vom Käufer gewählte Art der Nacherfüllung vorzunehmen, entfällt, wenn sie gemäß § 275 BGB unmöglich ist. Unmöglichkeit liegt vor, wenn der Schuldner die Leistung nicht erbringen kann, die Nacherfüllung einen Aufwand erfordert, der in grobem Missverhältnis zum Gläubigerinteresse steht oder die Leistung dem Gläubiger aus persönlichen Gründen nicht zumutbar ist. Sind beide Formen der Nacherfüllung unmöglich, kann der Käufer vom Vertrag zurücktreten oder den Kaufpreis mindern. Ist die Nacherfüllung teilweise unmöglich, muss er nach überwiegender Auffassung nacherfüllen, soweit ihm dies möglich ist; im Fall einer solchen Beschränkung spricht man von einem Ausbesserungsanspruch.
+Weiterhin ist der Nacherfüllungsanspruch entsprechend § 323 Abs. 6 BGB ausgeschlossen, wenn der Käufer überwiegend für den Mangel verantwortlich ist.
+Schließlich räumt § 439 Abs. 4 S. 1 BGB dem Verkäufer das Recht ein, die vom Käufer gewählte Form der Nacherfüllung zu verweigern, wenn sie mit unverhältnismäßigen Kosten verbunden ist. Unverhältnismäßigkeit kann sich insbesondere aus einem hohen Nacherfüllungsaufwand ergeben, der in keinem angemessenen Verhältnis zum Interesse des Käufers am Erhalt der mangelfreien Leistung steht. Dies wird als absolute Unverhältnismäßigkeit bezeichnet. Die Schwelle der Unzumutbarkeit ist niedriger als bei dem allgemeinen Leistungsverweigerungsrecht wegen wirtschaftlicher Unzumutbarkeit aus § 275 Abs. 2 BGB. Der Gesetzgeber wollte durch dieses Leistungsverweigerungsrecht insbesondere Händler schützen, die nicht gewerblich handeln oder über keine eigenen Reparaturmöglichkeiten verfügen. Unverhältnismäßigkeit kann sich ferner daraus ergeben, dass die vom Käufer gewünschte Art der Nacherfüllung mit einem wesentlich größeren Aufwand verbunden ist, als die alternative Nacherfüllungsform. Dies trifft beispielsweise zu, wenn der Käufer bei einer teuren Kaufsache die Neulieferung begehrt, obwohl eine Reparatur der mangelhaften Sache vergleichsweise kostengünstig möglich wäre. In solchen Fällen spricht die Rechtswissenschaft von relativer Unverhältnismäßigkeit. Ist lediglich eine Form der Nacherfüllung möglich, kann der Unternehmer im Falle eines Verbrauchsgüterkaufs iSd. § 474 BGB diese nach § 475 Abs. 4 S. 1 BGB nicht wegen Unverhältnismäßigkeit verweigern. § 475 Abs. 4 S. 1 BGB trat zum 1. Januar 2018 in Kraft, um die Rechtsprechung des EuGH in der Rechtssache Weber und Putz umzusetzen.
