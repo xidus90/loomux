@@ -98,10 +98,12 @@ func declaration(document map[string]any) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := optionalBool(sections["model"], "enabled", "[model]", " "); err != nil {
+	modelEnabled, err := optionalFlag(sections["model"], "enabled", "[model]")
+	if err != nil {
 		return nil, err
 	}
-	if err := checkRoles(sections["model"]); err != nil {
+	modelRoles, err := declaredRoles(sections["model"])
+	if err != nil {
 		return nil, err
 	}
 	keys := DeclarationKeys()
@@ -146,6 +148,8 @@ func declaration(document map[string]any) (*Manifest, error) {
 		IndexUnsearched: globs["unsearched"],
 		OnMerge:         onMerge,
 		MergeBranch:     mergeBranch(branch),
+		ModelEnabled:    modelEnabled,
+		ModelRoles:      modelRoles,
 	}, nil
 }
 
@@ -198,7 +202,7 @@ func checkRoles(model map[string]any) error {
 	if !ok {
 		return fmt.Errorf("[model] roles must be a table, found %s", tomlType(value))
 	}
-	known := []string{"describe", "place", "propose"}
+	known := ModelRoleNames()
 	var unknown []string
 	for name := range roles {
 		if !slices.Contains(known, name) {
