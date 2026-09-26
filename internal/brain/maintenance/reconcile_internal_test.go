@@ -1,7 +1,11 @@
 package maintenance
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/model"
 	"github.com/xidus90/loomux/internal/config"
 )
 
@@ -26,6 +31,7 @@ type landing struct {
 	sources    []Changed
 	now        time.Time
 	broken     []string
+	proposer   *model.Proposer
 }
 
 func newLanding(t *testing.T) *landing {
@@ -58,8 +64,8 @@ func newLanding(t *testing.T) *landing {
 
 func (l *landing) land(t *testing.T) (Case, error) {
 	t.Helper()
-	return landCase(l.area, l.manifest, l.reviewRoot, "a.md", l.sources, l.now, &l.broken,
-		"source_change", "source_changed", nil)
+	return landCase(context.Background(), l.area, l.manifest, l.reviewRoot, "a.md", l.sources, l.now, &l.broken,
+		"source_change", "source_changed", nil, l.proposer)
 }
 
 // directory is where the case of this landing will come to lie.
@@ -124,6 +130,29 @@ func TestLandCaseCarriesAFailedWrite(t *testing.T) {
 				t.Fatalf("landCase reported success although %s could not be written", name)
 			}
 		})
+	}
+}
+
+// A proposal that passed the binding and cannot be written is a refusal too:
+// case.toml would carry a prompt_version for a file that is not there.
+func TestLandCaseCarriesAFailedProposalWrite(t *testing.T) {
+	l := newLanding(t)
+	answer := "## B1 - B kam hinzu.\n\nevidence: D1\n\n```\n+func B() {}\n```\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"response": answer})
+	}))
+	t.Cleanup(server.Close)
+	settings, err := config.ParseModelSettings("config.toml",
+		"[model]\nenabled = true\nendpoint = \""+server.URL+"\"\n")
+	if err != nil {
+		t.Fatalf("ParseModelSettings: %v", err)
+	}
+	if l.proposer, err = model.ProposerFor(settings, l.manifest, "propose"); err != nil || l.proposer == nil {
+		t.Fatalf("ProposerFor: %v %v", l.proposer, err)
+	}
+	blockWith(t, filepath.Join(l.directory(), proposalName))
+	if _, err := l.land(t); err == nil {
+		t.Fatal("landCase reported success although proposal.md could not be written")
 	}
 }
 
