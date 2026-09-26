@@ -269,8 +269,9 @@ loomux check blast-audit [--cached|--base B] [--threshold 3]  # Exit 1, wenn ein
 
 ### Entwickler- & Worktree-Werkzeuge
 ```bash
-loomux dev bench-hooks <fall>       # Misst die Latenz der Hook-Ausführung gegen die Grundlinie von < 35 ms
-loomux dev bench [--dir <dir>] [--save] # Benchmark für Einzel-Repo oder Open-Source-Matrix-Korpus mit Lücken-Audit; --save sichert in docs/
+loomux dev bench hooks <fälle>      # Misst die Hook-Befehle eines Fallsatzes gegen die Grundlinie von < 35 ms (-n, --out <dir>)
+loomux dev bench repos [--dir <dir>] [--save] # Misst die Hooks an einem Repo oder am Open-Source-Matrix-Korpus mit Lücken-Audit; --save sichert in docs/
+loomux dev bench search [--corpus v1 --out <dir>] # Misst den Trefferrang der Suche über einen Fragensatz oder den Korpus v1 (--profile, --latency, --out <dir>)
 loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus
 loomux dev record-case --out <dir>  # Zeichnet einen Lauf eines Referenz-Binaries als Fall auf
 loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter Fälle in loomux-Fälle

@@ -2,6 +2,8 @@
 
 Chronologische Leistungsmessungen für loomux, kalt und warm.
 
+Einträge vor dem 2026-09-26 tragen die Befehlsnamen ihres Tages: `dev bench-hooks` heißt jetzt `dev bench hooks`, `dev bench` jetzt `dev bench repos`.
+
 ## 2026-09-14 16:05 — Basismessung (Vorläufer-Programme)
 
 Gemessen unter Windows x86_64, warm Median über 5 Läufe. Grundlage für die Zielwerte der Loomux-Fusion.
@@ -2693,3 +2695,96 @@ Einzelheiten im Entwurf
    wie `--no-reuse`, ist nicht eigens gemessen. Bei reinem Go spart der
    Cache wenig — 17 MB JSON zu dekodieren kostet fast so viel wie
    `go/parser` —, aber `graph check` wird viermal schneller.
+
+## 2026-09-27 00:47 — Stufe 4c-2: Suchqualität am Korpus `v1` und Alltagslatenz über den Dienst
+
+Worktree `.claude/worktrees/4c-planung-bd1521`, Zweig `feat/bench-search`,
+ein aus dem Zweig gebautes Binär; qmd 2.8.3 (`facd35e`) mit den drei Modellen
+der `index.yml` des Rechners (embeddinggemma-300M, qmd-query-expansion-1.7B,
+Qwen3-Reranker-0.6B). Rechner: `windows/amd64`, AMD64 Family 26 Model 68
+(wie der Bericht ihn nennt). Backbone von qmd in beiden Läufen:
+`QMD_LLAMA_GPU=vulkan`; unter dem Vorgabe-Backbone (CUDA) kam auf diesem
+Rechner keiner der beiden Läufe durch (Einzelheiten in der Paritätsakte
+`stufe-4c-2.md`).
+
+**Methode.** Qualität: `loomux dev bench search --corpus v1 --profile fast
+--out <scratch>`, 00:47–00:57, über die qmd-Befehlszeile in einem eigenen
+benannten Index, 100 Dokumente, 50 Fragen; gegen die Baseline vom
+2026-08-21 (`testdata/bench/search/v1/baseline/`). Latenz: `loomux dev bench
+search --scope all --latency` über eine Scratch-Kopie des echten
+Fragensatzes, über den qmd-Dienst (`port: daemon`), 511 indizierte
+Dokumente, Berichtsstempel `2026-09-26-2304` UTC (01:04 Ortszeit); je
+Operation ein kalter und 10 warme Läufe, nach dem Qualitätsdurchgang, die
+Kette ist beim kalten Lauf also schon warm. Gelesenes Dokument
+`engineering/craft/_schema.md`, Anfrage `latenz`.
+
+Qualität am Korpus, `fast`:
+
+| Sorte | 2026-09-27 | Baseline 2026-08-21 |
+|---|---:|---:|
+| exakt | 12/13 | 13/13 |
+| umschreibung | 11/13 | 11/13 |
+| gemischt | 7/10 | 8/10 |
+| sprachuebergreifend | 10/14 | 11/14 |
+| gesamt | 40/50 | 43/50 |
+
+Latenz über den Dienst:
+
+| Operation | kalt | warm Median | warm Min | warm Max |
+|---|---:|---:|---:|---:|
+| catalog | 1,0 ms | 1,0 ms | 1,0 ms | 1,5 ms |
+| read | 1,0 ms | 1,0 ms | 1,0 ms | 1,5 ms |
+| keyword | 13,5 ms | 12,6 ms | 12,0 ms | 14,5 ms |
+| fast | 185,7 ms | 185,5 ms | 179,1 ms | 209,7 ms |
+| full | 9.293,0 ms | 706,7 ms | 653,0 ms | 730,6 ms |
+
+### Lesart
+
+1. **Der Korpus verliert drei Treffer gegen die Baseline.** Mit der Baseline
+   gemeinsame Fehlschläge sind `c16`, `c21`, `c27`, `c40`, `c44`, `c49`; neu
+   sind `c07`, `c32`, `c35` (nicht gefunden) und `c50` (Rang 4); `c33` trifft
+   jetzt. Der Lauf klärt den Abstand nicht auf.
+2. **Die Latenz des Korpuslaufs ist keine Zahl zum Behalten.** Der Median je
+   Frage liegt bei rund 10,8 s (Treffer 10.804 ms, Fehlschläge 11.132 ms),
+   weil die Befehlszeile die Modelle bei jedem Aufruf lädt; der Dienst nicht.
+3. **Die Alltagsqualität ließ sich nicht sauber messen.** Der Index ist unter
+   CUDA eingebettet; unter Vulkan passen die Einbettungen der Anfragen nicht
+   dazu, und `fast` kam auf 0/50 mit derselben Seite für jede Anfrage.
+   `keyword` kam auf 8/50, was nur zeigt, dass loomux Treffer auf Bereich und
+   Pfad abbildet. Die Referenz kam im Alltag mit `fast` am 2026-08-22 auf
+   26/50; jener Lauf indizierte 276 Dokumente gegen 511 heute, mit dem
+   Fragensatz von vor dem Umzug des Wikis von `space`; die beiden Zahlen
+   sind also nicht direkt vergleichbar. Eine saubere Zahl braucht einen
+   funktionierenden CUDA-Weg oder einen Index, der unter dem Backbone
+   eingebettet ist, unter dem gesucht wird.
+4. **`full` zahlt einmal.** Sein kalter Lauf, die erste `full`-Suche des
+   Laufs (der Qualitätsdurchgang fragte `fast`), dauert 9,3 s; warm sind es
+   0,7 s, `fast` 0,19 s, `keyword` 13 ms.
+
+## 2026-09-27 01:14 — Stufe 4c-2: `dev bench hooks` und `dev bench repos` mit `--out`
+
+Derselbe Worktree, Zweig und dasselbe Binär wie im Eintrag darüber; Go
+1.27.0. Berichtsstempel `2026-09-26-2314` UTC. Beide Läufe schrieben beide
+Berichtsdateien.
+
+**Methode.** `loomux dev bench hooks <fall> -n 10 --out <scratch>` über
+einen für den Lauf geschriebenen Fall: den Wächter `pre-tool-use` bei einem
+`Edit` in diesem Worktree. `loomux dev bench repos --dir . --warm 3 --out
+<scratch>` auf diesem Worktree, Beispieldatei `cmd/loomux/main.go`; ein
+kalter und drei warme Läufe.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit-Codes |
+|---|---:|---:|---:|---:|---|
+| hooks: Wächter pre-tool-use (dieser Worktree) | 14,5 ms | 9,0 ms | 8,5 ms | 9,5 ms | [0] |
+| repos: pre-tool-use | 11,5 ms | 10,5 ms | 9,7 ms | 10,5 ms | [0] |
+| repos: post-tool-use | 787,2 ms | 791,2 ms | 783,6 ms | 844,4 ms | [0] |
+| repos: graph build | 675,5 ms | 679,2 ms | 677,0 ms | 687,6 ms | [0] |
+| repos: gesamt | 1.474,2 ms | 1.489,3 ms | 1.472,5 ms | 1.531,9 ms | [0] |
+
+### Lesart
+
+1. **Der Wächter bleibt unter dem Budget von 35 ms**, kalt wie warm, in
+   beiden Befehlen.
+2. **Die umbenannten Befehle schreiben die gemeinsame Hülle**: das JSON von
+   `repos` trägt `schema` 1, `command` `repos` und eine `payload` mit
+   `repos` und `skipped`.
