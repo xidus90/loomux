@@ -7,6 +7,11 @@
 // tie the hook path to the parser. Two enumerations that can drift are two
 // answers to "did anything change".
 //
+// The same reason keeps the list of extensions here rather than asking
+// extract/all for it: all imports every language's extractor, and the probe
+// runs on the hook path. The copy cannot drift unnoticed -- all's own test
+// compares its Extensions with this package's.
+//
 // Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/source-files.ts and
 // src/ingest/fs.ts.
 package sourceset
@@ -15,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -34,27 +40,46 @@ const maxFileBytes = 1_000_000
 // testdata is the third kind, not the first two: it holds fixtures, not
 // dependency or build output, and go/build ignores it for builds by
 // convention rather than by content. On THIS repository none of its fixtures
-// are .go files (they are .go.txt or recorded case corpora), so skipping it
-// costs nothing here -- but a repository whose testdata/ held real Go it
-// wanted indexed would need this entry removed -- the same argument the
-// design spec (§7.1) makes for keeping _test.go files in the graph rather
-// than excluding them for looking like a test. A probe that still walked
-// testdata/ paid for 1,826 directories
-// below the 3 named testdata roots, out of 1,910 directories in this
-// repository's tree -- the walk cost stayed on the probe until this entry
-// named it. See docs/en/benchmarks.md, 2026-09-18.
+// are .go files (they are .go.txt or recorded case corpora) and its .py
+// files are the worlds of recorded cases, not code of this repository, so
+// skipping it costs nothing here -- but a repository whose testdata/ held
+// real Go it wanted indexed would need this entry removed -- the same
+// argument the design spec (§7.1) makes for keeping _test.go files in the
+// graph rather than excluding them for looking like a test. A probe that
+// still walked testdata/ paid for 1,826 directories below the 3 named
+// testdata roots, out of 1,910 directories in this repository's tree -- the
+// walk cost stayed on the probe until this entry named it. See
+// docs/en/benchmarks.md, 2026-09-18.
+//
+// venv names one virtualenv; site-packages names the installed packages of
+// every one, whatever the environment is called (env/Lib/site-packages on
+// Windows, <env>/lib/python3.x/site-packages on POSIX). A dot directory such
+// as .venv is skipped anyway.
 var skipDirs = map[string]bool{
-	"node_modules": true,
-	"dist":         true,
-	"build":        true,
-	"_build":       true,
-	"out":          true,
-	"target":       true,
-	"vendor":       true,
-	"coverage":     true,
-	"__pycache__":  true,
-	"venv":         true,
-	"testdata":     true,
+	"node_modules":  true,
+	"dist":          true,
+	"build":         true,
+	"_build":        true,
+	"out":           true,
+	"target":        true,
+	"vendor":        true,
+	"coverage":      true,
+	"__pycache__":   true,
+	"venv":          true,
+	"site-packages": true,
+	"testdata":      true,
+}
+
+// extensions are the extensions of every extracted language, dot included,
+// matched exactly: x.GO is no Go file to the Go toolchain, so it is none to
+// the graph either. A literal and nothing parsed: see the package comment for
+// why it is not taken from extract/all.
+var extensions = []string{".go", ".py"}
+
+// Extensions is a copy of the extensions the walk takes, so no caller can
+// change what the next walk looks at.
+func Extensions() []string {
+	return slices.Clone(extensions)
 }
 
 // SourceFile is one file of the set, with what a freshness probe compares.
@@ -65,8 +90,8 @@ type SourceFile struct {
 	MTime int64
 }
 
-// List returns the repo-relative paths of the Go files a build looks at,
-// sorted in byte order.
+// List returns the repo-relative paths of the source files of every extracted
+// language a build looks at, sorted in byte order.
 func List(root string) ([]string, error) {
 	files, err := Stat(root)
 	if err != nil {
@@ -103,7 +128,7 @@ func Stat(root string) ([]SourceFile, error) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(d.Name(), ".go") {
+		if !slices.Contains(extensions, filepath.Ext(d.Name())) {
 			return nil
 		}
 		info, err := d.Info()

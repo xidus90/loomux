@@ -12,6 +12,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/freshness"
 	"github.com/xidus90/loomux/internal/code/lexicon"
+	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/gitenv"
@@ -454,6 +455,74 @@ func TestGraphBuildCountsFilesWithoutASymbol(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "1 files without a symbol") {
 		t.Errorf("report %q must count the symbol-less file", out.String())
+	}
+}
+
+func TestGraphBuildNoReuseParsesEveryFile(t *testing.T) {
+	root := repo(t, sample())
+	for _, step := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"build", "--root", root}, "  go: 3 files, 3 parsed, 0 reused, 0 parse errors\n"},
+		// The first build left a cache, so the second parses nothing ...
+		{[]string{"build", "--root", root}, "  go: 3 files, 0 parsed, 3 reused, 0 parse errors\n"},
+		// ... and --no-reuse parses every file all the same.
+		{[]string{"build", "--no-reuse", "--root", root}, "  go: 3 files, 3 parsed, 0 reused, 0 parse errors\n"},
+	} {
+		var out, errOut bytes.Buffer
+		if code := graphCommand(step.args, nil, &out, &errOut); code != 0 {
+			t.Fatalf("%v: exit %d: %s", step.args, code, errOut.String())
+		}
+		if !strings.Contains(out.String(), step.want) {
+			t.Errorf("%v: report %q lacks %q", step.args, out.String(), step.want)
+		}
+	}
+}
+
+func TestReportListsEveryLanguageAndItsParseErrors(t *testing.T) {
+	stats := query.Stats{PerLanguage: map[string]query.LangStats{
+		"python": {Files: 9, Parsed: 2, Reused: 7, ParseErrors: 11, ErrorFiles: []string{
+			"a.py", "b.py", "c.py", "d.py", "e.py", "f.py", "g.py",
+		}},
+		"go":   {Files: 4, Parsed: 1, Reused: 3},
+		"rust": {Files: 2, Parsed: 2, ParseErrors: 1, ErrorFiles: []string{"x.rs"}},
+	}}
+	got := report(&model.Graph{}, stats, time.Second)
+	lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
+	want := []string{
+		"  go: 4 files, 1 parsed, 3 reused, 0 parse errors",
+		"  python: 9 files, 2 parsed, 7 reused, 11 parse errors",
+		"  python parse errors in: a.py, b.py, c.py, d.py, e.py (+2 more)",
+		"  rust: 2 files, 2 parsed, 0 reused, 1 parse errors",
+		"  rust parse errors in: x.rs",
+	}
+	// After the two count lines, sorted by language.
+	if len(lines) != 2+len(want) || strings.Join(lines[2:], "\n") != strings.Join(want, "\n") {
+		t.Errorf("report =\n%s\nwant the two count lines, then\n%s", got, strings.Join(want, "\n"))
+	}
+}
+
+// The first line counts extends only where there are some: a Go graph has
+// none, and its report reads as it did before Python brought base classes.
+func TestReportCountsExtendsOnlyWhenThereAreSome(t *testing.T) {
+	edge := func(rel model.Relation) model.Edge {
+		return model.Edge{Source: "a", Target: "b", Relation: rel, Confidence: model.ConfidenceExtracted}
+	}
+	stats := query.Stats{}
+	for _, c := range []struct {
+		edges []model.Edge
+		want  string
+	}{
+		{[]model.Edge{edge(model.RelationContains), edge(model.RelationCalls), edge(model.RelationCalls), edge(model.RelationImports)},
+			"0 files, 0 nodes, 4 edges (1 contains, 2 calls, 1 imports)"},
+		{[]model.Edge{edge(model.RelationContains), edge(model.RelationExtends), edge(model.RelationExtends)},
+			"0 files, 0 nodes, 3 edges (1 contains, 0 calls, 0 imports, 2 extends)"},
+	} {
+		got, _, _ := strings.Cut(report(&model.Graph{Edges: c.edges}, stats, time.Second), "\n")
+		if got != c.want {
+			t.Errorf("first line %q, want %q", got, c.want)
+		}
 	}
 }
 

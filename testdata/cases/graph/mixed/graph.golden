@@ -1,0 +1,19 @@
+node main.go file L1-L6 exported=true sig=
+node main.go#main function L3-L5 exported=false sig=func main()
+node run.go file L1-L11 exported=true sig=
+node run.go#Run function L4-L4 exported=true sig=func Run()
+node run.go#T struct L7-L7 exported=true sig=type T struct
+node run.go#T.Run method L10-L10 exported=true sig=func (T) Run()
+node tool/__init__.py file L1-L2 exported=true sig=
+node tool/run.py file L1-L8 exported=true sig=
+node tool/run.py#Run function L1-L2 exported=true sig=def Run()
+node tool/run.py#T class L5-L7 exported=true sig=class T
+node tool/run.py#T.Run method L6-L7 exported=true sig=def Run(self)
+edge main.go -contains/extracted-> main.go#main
+edge main.go#main -calls/inferred-> run.go#Run
+edge run.go -contains/extracted-> run.go#Run
+edge run.go -contains/extracted-> run.go#T
+edge run.go -contains/extracted-> run.go#T.Run
+edge tool/run.py -contains/extracted-> tool/run.py#Run
+edge tool/run.py -contains/extracted-> tool/run.py#T
+edge tool/run.py#T -contains/extracted-> tool/run.py#T.Run

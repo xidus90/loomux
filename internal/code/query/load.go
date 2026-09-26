@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/xidus90/loomux/internal/code/ask"
-	"github.com/xidus90/loomux/internal/code/extract/golang"
+	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/store"
 )
@@ -18,7 +18,7 @@ func loadGraph(root string, noRefresh bool) (*model.Graph, []string, error) {
 	var notes []string
 	if !noRefresh {
 		say := func(s string) { notes = append(notes, s) }
-		ask.EnsureFresh(root, golang.Version,
+		ask.EnsureFresh(root, all.Version(),
 			func() error { _, _, err := Build(root, say); return err }, say)
 	}
 	g, err := store.Read(root)

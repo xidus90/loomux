@@ -3,9 +3,11 @@ package golang_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/extract/golang"
 	"github.com/xidus90/loomux/internal/code/model"
 )
@@ -22,7 +24,7 @@ func fixture(t *testing.T, name string) string {
 	return string(b)
 }
 
-func nodeByID(r golang.Result, id model.NodeID) *model.Node {
+func nodeByID(r extract.Result, id model.NodeID) *model.Node {
 	for i := range r.Nodes {
 		if r.Nodes[i].ID == id {
 			return &r.Nodes[i]
@@ -79,6 +81,38 @@ func TestFileEmitsOneNodePerDefinitionShape(t *testing.T) {
 		if n.Kind == "const" || n.Kind == "var" {
 			t.Errorf("node %q: this extractor emits no %s nodes", n.ID, n.Kind)
 		}
+	}
+}
+
+func TestLanguageDescribesGo(t *testing.T) {
+	var l extract.Language = golang.Language{}
+	if l.Name() != "go" {
+		t.Errorf("Name() = %q, want go", l.Name())
+	}
+	if l.Version() != golang.Version {
+		t.Errorf("Version() = %q, want %q", l.Version(), golang.Version)
+	}
+	if !reflect.DeepEqual(l.Extensions(), []string{".go"}) {
+		t.Errorf("Extensions() = %v, want [.go]", l.Extensions())
+	}
+	r, err := l.File("pkg/a.go", "package pkg\n\nfunc F() {}\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Language != "go" || r.Path != "pkg/a.go" || r.Package != "pkg" || nodeByID(r, "pkg/a.go#F") == nil {
+		t.Errorf("File through the interface = %+v, want the Go extraction stamped go", r)
+	}
+}
+
+func TestFileStampsItsLanguage(t *testing.T) {
+	r, err := golang.File("p.go", "package p\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The resolver groups files by this field; a Go file without it would be
+	// resolved by no rule at all.
+	if r.Language != "go" {
+		t.Errorf("Language = %q, want go", r.Language)
 	}
 }
 
@@ -184,6 +218,28 @@ func TestFileNodeCarriesPathAsItsID(t *testing.T) {
 	}
 	if !strings.HasPrefix(string(f.Span), "L1-L") {
 		t.Errorf("file span = %q, want L1-L<lines>", f.Span)
+	}
+}
+
+func TestFileNodeCountsTheLineAfterATrailingNewline(t *testing.T) {
+	// Five newlines, so six lines: the Go graph has always counted the empty
+	// line after the last newline in the file node's span, where F's own span
+	// ends on line 5. The body text is what F's line leaves over.
+	const src = "package p\n\nimport \"strings\"\n\nfunc F() { _ = strings.TrimSpace(\"x\") }\n"
+	r, err := golang.File("p.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := model.Node{
+		ID: "p.go", Name: "p.go", Kind: model.KindFile, Path: "p.go",
+		Span: "L1-L6", Exported: true, BodyHash: extract.Hash(src),
+		BodyText: `package p import "strings"`,
+	}
+	if got := nodeByID(r, "p.go"); got == nil || !reflect.DeepEqual(*got, want) {
+		t.Errorf("file node =\n %+v\nwant\n %+v", got, want)
+	}
+	if got := nodeByID(r, "p.go#F"); got == nil || got.Span != "L5-L5" {
+		t.Errorf("F = %+v, want span L5-L5", got)
 	}
 }
 

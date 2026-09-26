@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/xidus90/loomux/internal/code/ask"
-	"github.com/xidus90/loomux/internal/code/extract/golang"
+	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/store"
 )
@@ -44,7 +44,7 @@ func Ask(root, question string, opts AskOptions) (ask.Answer, []string, error) {
 	var notes []string
 	if !opts.NoRefresh {
 		say := func(s string) { notes = append(notes, s) }
-		ask.EnsureFresh(root, golang.Version,
+		ask.EnsureFresh(root, all.Version(),
 			func() error { _, _, err := Build(root, say); return err }, say)
 	}
 	g, err := store.Read(root)

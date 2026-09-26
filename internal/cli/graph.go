@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -66,6 +68,7 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("graph build", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	root := fs.String("root", "", "project root; the working directory when empty")
+	noReuse := fs.Bool("no-reuse", false, "parse every file, ignoring the extract cache")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -76,7 +79,7 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 	}
 
 	started := time.Now()
-	g, stats, err := query.Build(project,
+	g, stats, err := query.BuildWith(project, query.BuildOptions{NoReuse: *noReuse},
 		func(s string) { fmt.Fprintf(stderr, "loomux graph build: %s\n", s) })
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux graph build: %v\n", err)
@@ -188,8 +191,10 @@ func graphCheck(args []string, stdout, stderr io.Writer) int {
 	return 1
 }
 
-// report is the count line after a build: what the extractor found, so a
-// reader can see at a glance whether it found the right kind of thing.
+// report is the count lines after a build: what the extractor found, so a
+// reader can see at a glance whether it found the right kind of thing, then
+// one line per language with what was parsed, what the extract cache gave,
+// and the files a tolerant parser had to skip parts of.
 func report(g *model.Graph, stats query.Stats, took time.Duration) string {
 	byRelation := map[model.Relation]int{}
 	unresolved := 0
@@ -203,14 +208,36 @@ func report(g *model.Graph, stats query.Stats, took time.Duration) string {
 			unresolved++
 		}
 	}
-	return fmt.Sprintf(
-		"%d files, %d nodes, %d edges (%d contains, %d calls, %d imports)\n"+
+	// Only Python has base classes; a graph without an extends edge reads as
+	// the Go graph's report always did.
+	extends := ""
+	if n := byRelation[model.RelationExtends]; n > 0 {
+		extends = fmt.Sprintf(", %d extends", n)
+	}
+	out := fmt.Sprintf(
+		"%d files, %d nodes, %d edges (%d contains, %d calls, %d imports%s)\n"+
 			"%d unresolved import targets, %d files without a symbol, %s\n",
 		len(stats.Files), len(g.Nodes), len(g.Edges),
 		byRelation[model.RelationContains], byRelation[model.RelationCalls],
-		byRelation[model.RelationImports],
+		byRelation[model.RelationImports], extends,
 		unresolved, stats.NoSymbol, took.Round(time.Millisecond),
 	)
+	for _, name := range slices.Sorted(maps.Keys(stats.PerLanguage)) {
+		ls := stats.PerLanguage[name]
+		out += fmt.Sprintf("  %s: %d files, %d parsed, %d reused, %d parse errors\n",
+			name, ls.Files, ls.Parsed, ls.Reused, ls.ParseErrors)
+		if len(ls.ErrorFiles) == 0 {
+			continue
+		}
+		// Five names say where to look; the whole list of a repository full
+		// of broken files would bury the count lines above it.
+		shown, more := ls.ErrorFiles, ""
+		if len(shown) > 5 {
+			shown, more = shown[:5], fmt.Sprintf(" (+%d more)", len(shown)-5)
+		}
+		out += fmt.Sprintf("  %s parse errors in: %s%s\n", name, strings.Join(shown, ", "), more)
+	}
+	return out
 }
 
 // graphCallers traces callers or callees of a symbol.

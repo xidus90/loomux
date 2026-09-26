@@ -183,6 +183,23 @@ func TestRunDeRanksATestEvenWhenItIsTheStrongestRawMatch(t *testing.T) {
 	}
 }
 
+// A Python test file is de-ranked by the same names the blast audit counts
+// as tests, and not only by a directory the reference already knew.
+func TestRunDeRanksAPythonTestFile(t *testing.T) {
+	for _, path := range []string{"shop/tests.py", "test_cache.py", "pkg/cache_test.py", "conftest.py"} {
+		nodes := []model.Node{
+			symbol(path+"#test_cache_cache", "test_cache_cache", path, "cache cache cache"),
+			symbol("shop/cache.py#Cache", "Cache", "shop/cache.py", "implementation"),
+		}
+		g, ix := world(nodes, nil)
+
+		got := ask.Run(g, ix, "cache", ask.Options{})
+		if got.Hits[0].ID != "shop/cache.py#Cache" {
+			t.Errorf("%s: got %v, want the source above the test", path, idsOf(got))
+		}
+	}
+}
+
 func TestRunLiftsThePenaltyWhenTheQueryAsksForTests(t *testing.T) {
 	nodes := []model.Node{
 		symbol("lib/cache.go#Cache", "Cache", "lib/cache.go", "implementation"),

@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
@@ -13,14 +14,6 @@ import (
 // that a well-formed Go source, parsed by go/parser, never drives: go/parser
 // only ever hands this package ASTs it built itself, so the defensive arms
 // below guard shapes File never actually produces.
-
-func TestItoaZero(t *testing.T) {
-	// mintID only ever calls itoa with k starting at 2, so the n == 0 arm is
-	// unreachable through File. Direct call is the only way to it.
-	if got := itoa(0); got != "0" {
-		t.Errorf("itoa(0) = %q, want %q", got, "0")
-	}
-}
 
 func TestExportedSplitsOnTheLastDot(t *testing.T) {
 	// funcNode always calls exported with the bare name, never the qualified
@@ -164,7 +157,7 @@ func TestWalkCallsSkipsAFuncDeclAbsentFromOwners(t *testing.T) {
 	// owners always has an entry for a real one when walkCalls runs after it.
 	// That is an invariant BETWEEN the two functions in this package, not a
 	// grammar-level impossibility: a future dedup pass or an ordinal
-	// collision in mintID's caller could leave a FuncDecl unminted, and this
+	// collision in extract.MintID's caller could leave a FuncDecl unminted, and this
 	// guard is what keeps that case from inventing a caller for its calls.
 	src := "package p\n\nfunc a() { b() }\n\nfunc b() {}\n"
 	fset := token.NewFileSet()
@@ -172,7 +165,7 @@ func TestWalkCallsSkipsAFuncDeclAbsentFromOwners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var out []RawEdge
+	var out []extract.RawEdge
 	walkCalls(file, "p.go", model.NodeID("p.go"), map[*ast.FuncDecl]model.NodeID{}, &out)
 	if len(out) != 0 {
 		t.Errorf("walkCalls(no owners) = %+v, want no edges", out)
@@ -188,7 +181,7 @@ func TestCollectSkipsANonIdentLhsOfADefineAssign(t *testing.T) {
 		Rhs: []ast.Expr{ast.NewIdent("v")},
 	}
 	sc := newScope()
-	var out []RawEdge
+	var out []extract.RawEdge
 	collect(assign, "p.go", model.NodeID("p.go"), sc, &out)
 	if len(out) != 0 {
 		t.Errorf("collect(non-ident define lhs) = %+v, want no edges", out)

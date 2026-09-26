@@ -2,6 +2,7 @@ package blast
 
 import (
 	"maps"
+	"path"
 	"slices"
 	"sort"
 	"strings"
@@ -170,8 +171,11 @@ func signal(x *Index, path string, seeds []*model.Node, inDiff map[string]bool) 
 	}
 	var ids []model.NodeID
 	for _, s := range seeds {
-		// Behaviour is what the Go extractor emits for code that runs; a
-		// struct, interface or named type has no test that calls it.
+		// Behaviour is a function or a method; a Go type has no test that
+		// calls it. A Python class seed falls under the same rule, and that
+		// is an open gap rather than a choice: a constructor call reaches a
+		// class that defines no __init__ itself, yet a change to such a
+		// class, or to a class attribute, gets na and passes blast-audit.
 		if s.Kind == "function" || s.Kind == "method" {
 			ids = append(ids, s.ID)
 		}
@@ -225,6 +229,27 @@ func evidence(seeds []evidenceSeed) ([]Evidence, int) {
 	return out, 0
 }
 
-// IsTestPath reports whether path is a test file. Go only, as long as Go is
-// the only extractor.
-func IsTestPath(path string) bool { return strings.HasSuffix(path, "_test.go") }
+// IsTestPath reports whether p, a slash path relative to the root, is a test
+// file by its language's own convention. The extension picks the language and
+// matches exactly, as the source set does. Go: the _test.go suffix the go tool
+// compiles only for tests. Python: test_*.py and *_test.py (pytest's default
+// collection), tests.py (Django's app template, and a name unittest's
+// test*.py finds), conftest.py (pytest's fixtures), and every file under a
+// directory tests/ or test/ (the helpers beside the tests).
+func IsTestPath(p string) bool {
+	switch path.Ext(p) {
+	case ".go":
+		return strings.HasSuffix(p, "_test.go")
+	case ".py":
+		base := path.Base(p)
+		return strings.HasPrefix(base, "test_") || strings.HasSuffix(base, "_test.py") ||
+			base == "tests.py" || base == "conftest.py" || underDir(p, "tests") || underDir(p, "test")
+	}
+	return false
+}
+
+// underDir reports whether slash path p lies below a directory named dir, at
+// the root or deeper; a directory whose name merely ends in dir does not count.
+func underDir(p, dir string) bool {
+	return strings.HasPrefix(p, dir+"/") || strings.Contains(p, "/"+dir+"/")
+}

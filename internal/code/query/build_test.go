@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/extract"
+	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/freshness"
 	"github.com/xidus90/loomux/internal/testlock"
 )
@@ -68,7 +70,7 @@ func sample() map[string]string {
 }
 
 func TestExtractFailsWhenTheRootDoesNotExist(t *testing.T) {
-	if _, _, err := Extract(filepath.Join(t.TempDir(), "gone")); err == nil {
+	if _, _, err := Extract(filepath.Join(t.TempDir(), "gone"), ExtractOptions{}); err == nil {
 		t.Fatal("want an error for a missing root")
 	}
 }
@@ -76,7 +78,7 @@ func TestExtractFailsWhenTheRootDoesNotExist(t *testing.T) {
 func TestExtractFailsWhenASourceFileCannotBeRead(t *testing.T) {
 	root := repo(t, sample())
 	testlock.Lock(t, filepath.Join(root, "main.go"))
-	if _, _, err := Extract(root); err == nil {
+	if _, _, err := Extract(root, ExtractOptions{}); err == nil {
 		t.Fatal("want an error for an unreadable source file")
 	}
 }
@@ -84,7 +86,7 @@ func TestExtractFailsWhenASourceFileCannotBeRead(t *testing.T) {
 func TestExtractFailsWhenGoModCannotBeRead(t *testing.T) {
 	root := repo(t, sample())
 	testlock.Lock(t, filepath.Join(root, "go.mod"))
-	if _, _, err := Extract(root); err == nil {
+	if _, _, err := Extract(root, ExtractOptions{}); err == nil {
 		t.Fatal("want an error for an unreadable go.mod")
 	}
 }
@@ -159,7 +161,7 @@ func TestBuildFailsWhenTheRootDoesNotExist(t *testing.T) {
 func TestExtractReportsTheReadFailureNotAParseError(t *testing.T) {
 	root := repo(t, sample())
 	testlock.Lock(t, filepath.Join(root, "main.go"))
-	_, _, err := Extract(root)
+	_, _, err := Extract(root, ExtractOptions{})
 	var pathErr *fs.PathError
 	if !errors.As(err, &pathErr) {
 		t.Fatalf("err = %v, want the read failure itself", err)
@@ -168,8 +170,49 @@ func TestExtractReportsTheReadFailureNotAParseError(t *testing.T) {
 
 func TestExtractRefusesAFileItCannotParse(t *testing.T) {
 	root := repo(t, map[string]string{"go.mod": "module x\n", "broken.go": "package ???\n"})
-	if _, _, err := Extract(root); err == nil || !strings.Contains(err.Error(), "broken.go") {
+	if _, _, err := Extract(root, ExtractOptions{}); err == nil || !strings.Contains(err.Error(), "broken.go") {
 		t.Fatalf("err = %v, want a parse error naming broken.go", err)
+	}
+}
+
+func TestExtractSkipsAFileNoLanguageClaims(t *testing.T) {
+	// Unreachable while sourceset and extract/all agree on the extensions,
+	// which all's own test holds; the seam stands in for the day they do not.
+	claims := languageFor
+	t.Cleanup(func() { languageFor = claims })
+	languageFor = func(rel string) (extract.Language, bool) {
+		if rel == "lib/lib_test.go" {
+			return nil, false
+		}
+		return claims(rel)
+	}
+
+	g, stats, err := Extract(repo(t, sample()), ExtractOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range g.Nodes {
+		if n.Path == "lib/lib_test.go" {
+			t.Errorf("node %q of a file no language claims reached the graph", n.ID)
+		}
+	}
+	if len(g.Nodes) == 0 {
+		t.Fatal("the files a language claims must still be extracted")
+	}
+	// The freshness record still covers every file the walk listed, or the
+	// next probe would call the skipped one added and rebuild for nothing.
+	if _, ok := stats.Hashes["lib/lib_test.go"]; !ok || len(stats.Files) != 3 {
+		t.Errorf("stats = %d files, hashes %v; want all three files hashed", len(stats.Files), stats.Hashes)
+	}
+}
+
+func TestExtractStampsTheCombinedVersion(t *testing.T) {
+	g, _, err := Extract(repo(t, sample()), ExtractOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Meta.Extractor != all.Version() {
+		t.Errorf("Meta.Extractor = %q, want %q", g.Meta.Extractor, all.Version())
 	}
 }
 

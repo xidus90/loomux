@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/pagerank"
@@ -37,9 +38,16 @@ const testRankPenalty = 0.35
 // the tests.
 var testSeeking = regexp.MustCompile(`(?i)\b(tests?|specs?|coverage|assert(?:ion)?s?|fixtures?|mocks?)\b`)
 
-// isTestPath reports whether a path holds tests. Go's _test.go, and the
-// directory names the reference also covers.
-var isTestPath = regexp.MustCompile(`(^|/)(tests?|__tests__|spec)/|_test\.go$|(\.test|\.spec)\.[a-z]+$`)
+// testNames are the paths the reference de-ranks whatever the language: the
+// directories tests/, test/, __tests__/ and spec/, and a .test or .spec before
+// the extension. Go's _test.go is among them since before Python was.
+var testNames = regexp.MustCompile(`(^|/)(tests?|__tests__|spec)/|_test\.go$|(\.test|\.spec)\.[a-z]+$`)
+
+// isTestPath reports whether a path holds tests: a name the reference
+// de-ranks, or a test file by its language's convention, the rule the blast
+// audit counts callers by. Either alone would miss what the other knows --
+// the reference has no Python file names, blast no spec/ or .test.ts.
+func isTestPath(path string) bool { return testNames.MatchString(path) || blast.IsTestPath(path) }
 
 // Options are the knobs of the RANKING. Whether the source is inlined is not
 // one of them: that is Inline's argument (source.go), because the ranking does
@@ -230,7 +238,7 @@ func testFactor(query string) func(path string) float64 {
 		return func(string) float64 { return 1 }
 	}
 	return func(path string) float64 {
-		if isTestPath.MatchString(path) {
+		if isTestPath(path) {
 			return testRankPenalty
 		}
 		return 1

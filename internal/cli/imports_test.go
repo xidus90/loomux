@@ -176,6 +176,35 @@ func TestHooksNeverImportTheInstaller(t *testing.T) {
 	}
 }
 
+// treeSitter is the pure-Go tree-sitter runtime with its embedded grammars.
+// Hooks run in the one binary, so its init() runs on every start anyway. What
+// the boundary keeps out of the hook package is the parser itself: the
+// per-edit path extracts one Go file through go/parser, and a grammar load
+// plus a parse on every edit would not fit the blast monitor's time.
+const treeSitter = "github.com/odvcencio/gotreesitter"
+
+func TestHooksNeverReachTreeSitter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("asks the go tool for the import graph")
+	}
+	hooks, err := dependencies(hooksPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for dep := range hooks {
+		if dep == treeSitter || strings.HasPrefix(dep, treeSitter+"/") {
+			t.Errorf("%s depends on %s, which puts the tree-sitter parser into the hook package", hooksPackage, dep)
+		}
+	}
+	core, err := dependencies("github.com/xidus90/loomux/internal/code/extract/treesitter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !core[treeSitter] {
+		t.Errorf("the tree-sitter core does not reach %s; the boundary test proves nothing", treeSitter)
+	}
+}
+
 func TestInSetupTreeTakesTheTreeAndNoSibling(t *testing.T) {
 	for pkg, want := range map[string]bool{
 		setupTree:            true,

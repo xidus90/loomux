@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/code/ask"
-	"github.com/xidus90/loomux/internal/code/extract/golang"
+	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/store"
 )
@@ -29,10 +29,10 @@ func RefreshGraph(root string, wait time.Duration, notice func(string)) (ask.Sta
 		force = "graph schema is outdated, rebuilding"
 	case err != nil:
 		force = fmt.Sprintf("graph is unreadable (%v), rebuilding", err)
-	case g.Meta.Extractor != golang.Version:
+	case g.Meta.Extractor != all.Version():
 		force = fmt.Sprintf("graph was built by extractor %q, rebuilding", g.Meta.Extractor)
 	}
-	return ask.Refresh(root, golang.Version,
+	return ask.Refresh(root, all.Version(),
 		func() error { _, _, err := Build(root, notice); return err },
 		ask.RefreshOptions{Force: force, Wait: wait, Notice: notice})
 }

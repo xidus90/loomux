@@ -183,6 +183,25 @@ func TestBlastAsideIsSilentOnAForeignGraph(t *testing.T) {
 	}
 }
 
+// A graph several extractors built together carries a combined stamp; the Go
+// extractor is one member of it, and its body hashes are this one's.
+func TestBlastAsideReadsAGraphTheGoExtractorBuiltWithOthers(t *testing.T) {
+	root := graphRepo(t)
+	g, err := store.Read(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Meta.Extractor = "go/1+python/1@gotreesitter/v0.55.0"
+	if err := store.Write(root, g); err != nil {
+		t.Fatal(err)
+	}
+	edited := calcHead + strings.Replace(addSource, "a + b", "b + a", 1) + "\n" + subSource
+	got := blastAside(root, "calc/calc.go", fixed(edited))
+	if !strings.HasPrefix(got, "[graph] calc/calc.go: changed Add; callers in other files:\n") {
+		t.Fatalf("%q", got)
+	}
+}
+
 // The aside names at most ten callers and counts the rest.
 func TestBlastAsideCountsCallersPastTen(t *testing.T) {
 	root := t.TempDir()

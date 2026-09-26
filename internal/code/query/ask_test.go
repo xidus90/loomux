@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/ask"
+	"github.com/xidus90/loomux/internal/code/freshness"
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/store"
 )
@@ -56,6 +57,38 @@ func TestAskRefreshesADriftedGraphAndSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(AskReport(a), "Walk") {
 		t.Errorf("the answer must come from the rebuilt graph: %q", AskReport(a))
+	}
+}
+
+// The probe and the build must name the same stamp, the combined one: a
+// record another extractor wrote is rebuilt once, and the record that rebuild
+// writes is then trusted. Two different strings would rebuild on every
+// question.
+func TestAskRebuildsARecordAnotherExtractorWroteOnce(t *testing.T) {
+	root := repo(t, sample())
+	_, stats, err := Build(root, ignore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := freshness.Write(root, "go/0", stats.Files, stats.Hashes); err != nil {
+		t.Fatal(err)
+	}
+	_, notes, err := Ask(root, "run", AskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) == 0 || !strings.Contains(notes[0], "building the graph") {
+		t.Errorf("notes = %v, want a rebuild for a record another extractor wrote", notes)
+	}
+	a, notes, err := Ask(root, "run", AskOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 0 {
+		t.Errorf("notes = %v, want none: the rebuilt record is this binary's", notes)
+	}
+	if !strings.Contains(AskReport(a), "lib/lib.go") {
+		t.Errorf("report %q must find lib/lib.go", AskReport(a))
 	}
 }
 
