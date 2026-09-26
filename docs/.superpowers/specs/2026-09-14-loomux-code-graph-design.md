@@ -10,7 +10,10 @@ Widerspruch das jüngere Dokument. G4 entworfen in
 [`2026-09-22-loomux-code-g4-delta.md`](2026-09-22-loomux-code-g4-delta.md) (berichtigt §7.1 und
 §8), **G4a umgesetzt 2026-09-22**, **G4b umgesetzt 2026-09-23** nach
 [`2026-09-23-loomux-code-g4b-delta.md`](2026-09-23-loomux-code-g4b-delta.md); G4c (Stop-Hook mit
-Blast-Logik) und G5 offen  
+Blast-Logik) offen. G5 entworfen in
+[`2026-09-26-loomux-code-g5-design.md`](2026-09-26-loomux-code-g5-design.md) — ersetzt §3.2
+(Lazy Loading von `wazero`), §6.2 und die Zeile G5 in §10: `gotreesitter` in reinem Go statt
+`wazero`, Sprachen Python, TypeScript/TSX, GDScript, C++; G5a umgesetzt 2026-09-26  
 **Ort:** `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md`  
 **Ergänzt:** `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` (Säule: *Graph + Loop Engineering*)  
 **Referenz-Analyse:** `trailhq/Graft` (TypeScript, Node.js)  
@@ -255,7 +258,7 @@ beide keine Abhängigkeit einziehen; die Messung gehört zu G3, wo
 | **G2** | 🔶 G2a ✅ 2026-09-18, G2b offen | Nativer Go-Extraktor (`extract/golang`), Frische-Check (`freshness`), Speicherung unter `.loomux/state/graph/`. CLI-Befehle `loomux graph build` und `loomux graph check`. |
 | **G3** | offen | MCP-Integration: Verschachteltes Gateway in `internal/serve`, Handler `internal/serve/graph/`, Kanaltrennung mit Privacy-Schutz. Bereitstellung der 6 MCP-Tools: `graph_find_code`, `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`, `graph_check_freshness`. |
 | **G4** | offen | Vollständige CLI-Palette: `loomux graph ask`, `callers`, `blast`, `grep`, `skeleton`, `map`, `stats`. Post-Edit-Hook-Anbindung (informativer Blast-Radius). Verknüpfung von Code-Symbolen mit Second-Brain-Seiten (`internal/brain/wiki`). |
-| **G5** | offen | Multi-Language-Support: WASM-Tree-sitter via `wazero` für TypeScript und Python. Graph-Visualisierung `loomux graph viz` angebunden an `loomux/web`. |
+| **G5** | offen | Multi-Language-Support: WASM-Tree-sitter via `wazero` für TypeScript und Python. Graph-Visualisierung `loomux graph viz` angebunden an `loomux/web`. **Überholt** durch das G5-Delta (2026-09-26): `gotreesitter` statt `wazero`, G5a–d, `graph viz` bei W3. |
 
 ---
 
