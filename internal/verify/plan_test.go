@@ -562,7 +562,7 @@ var goTwoAreas = detect.Facts{Stacks: []string{"go"}, Areas: map[string][]string
 
 // The graph belongs to the root: a stack in two areas gets one graph job,
 // in ".", named without an area.
-func TestPlanRunsTheGraphKindOncePerStackAtTheRoot(t *testing.T) {
+func TestPlanRunsTheGraphKindOnceAtTheRoot(t *testing.T) {
 	root := t.TempDir()
 	calls := 0
 	jobs, err := Plan(effFor(t, "", goTwoAreas), Request{Kinds: []string{"graph"}}, graphEnv(root, true, "", &calls))
@@ -572,11 +572,7 @@ func TestPlanRunsTheGraphKindOncePerStackAtTheRoot(t *testing.T) {
 	if names(jobs) != "graph/go" || jobs[0].Area != "." || jobs[0].Dir != root || jobs[0].Pre != "" || calls != 1 {
 		t.Fatalf("%+v, %d probes", jobs, calls)
 	}
-	want := [][]string{
-		{`C:\bin\loomux.exe`, "check", "graph-fresh"},
-		{`C:\bin\loomux.exe`, "check", "blast-audit", "--cached", "--threshold", "5"},
-	}
-	if !slices.EqualFunc(jobs[0].Argvs, want, slices.Equal) {
+	if !slices.EqualFunc(jobs[0].Argvs, graphArgvs, slices.Equal) {
 		t.Fatalf("argvs %q", jobs[0].Argvs)
 	}
 	lint, _ := Plan(effFor(t, "", goTwoAreas), Request{Kinds: []string{"lint"}}, graphEnv(root, true, "", &calls))
@@ -634,6 +630,8 @@ func TestPlanHandsTheGraphJobItsGraphEnv(t *testing.T) {
 }
 
 // An edit never runs the graph lane: it would rebuild the graph at every edit.
+// Nor does a second stack with a graph command stand aside in an edit: with
+// no job carrying the graph there is nothing to cover.
 func TestPlanLeavesTheGraphKindOutOfAnEdit(t *testing.T) {
 	calls := 0
 	jobs, err := Plan(effFor(t, "", goOnly), Request{Kinds: []string{"graph"}, Scope: ScopeEdit, File: "a.go"},
@@ -641,14 +639,198 @@ func TestPlanLeavesTheGraphKindOutOfAnEdit(t *testing.T) {
 	if err != nil || len(jobs) != 0 || calls != 0 {
 		t.Fatalf("%+v %v, %d probes", jobs, err, calls)
 	}
+	src := "[verify.project.graph]\non_file = [\"audit {file}\"]\n"
+	jobs, err = Plan(effFor(t, src, goOnly), Request{Kinds: []string{"graph"}, Scope: ScopeEdit, File: "a.go"},
+		graphEnv(t.TempDir(), true, "", &calls))
+	if err != nil || len(jobs) != 0 || calls != 0 {
+		t.Fatalf("with a project graph lane: %+v %v, %d probes", jobs, err, calls)
+	}
 }
+
+var shellOnly = detect.Facts{Stacks: []string{"shell"}, Areas: map[string][]string{"shell": {"ci"}}}
 
 // A stack without a graph lane has no command for it, and the probe, which
 // costs git calls, is not asked on its behalf.
 func TestPlanDoesNotProbeForAStackWithoutAGraphLane(t *testing.T) {
 	calls := 0
-	jobs, _ := Plan(effFor(t, "", pythonOnly), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
-	if names(jobs) != "graph/python" || jobs[0].Pre != StateNotApplicable || jobs[0].Note != "no command" || calls != 0 {
+	jobs, _ := Plan(effFor(t, "", shellOnly), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
+	if names(jobs) != "graph/shell" || jobs[0].Pre != StateNotApplicable || jobs[0].Note != "no command" || calls != 0 {
 		t.Fatalf("%+v, %d probes", jobs, calls)
+	}
+}
+
+var goAndPython = detect.Facts{Stacks: []string{"go", "python"}, Areas: map[string][]string{"go": {"."}, "python": {"."}}}
+
+var goAndShell = detect.Facts{Stacks: []string{"go", "shell"}, Areas: map[string][]string{"go": {"."}, "shell": {"ci"}}}
+
+// graphArgvs are the graph lane's commands as the presets hold them, expanded
+// for env's loomux.
+var graphArgvs = [][]string{
+	{`C:\bin\loomux.exe`, "check", "graph-fresh"},
+	{`C:\bin\loomux.exe`, "check", "blast-audit", "--cached", "--threshold", "5"},
+}
+
+// The graph belongs to the root, not to a stack: of two stacks with a graph
+// command the first in byte order carries the one job of the run, and the
+// other stands aside with a note naming it, without asking the probe again.
+func TestGraphRunsOncePerRun(t *testing.T) {
+	root := t.TempDir()
+	calls := 0
+	jobs, err := Plan(effFor(t, "", goAndPython), Request{Kinds: []string{"graph"}}, graphEnv(root, true, "", &calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names(jobs) != "graph/go graph/python" || calls != 1 {
+		t.Fatalf("%s, %d probes", names(jobs), calls)
+	}
+	if jobs[0].Pre != "" || !slices.EqualFunc(jobs[0].Argvs, graphArgvs, slices.Equal) {
+		t.Fatalf("graph/go: %+v", jobs[0])
+	}
+	py := jobs[1]
+	if py.Pre != StateNotApplicable || py.Note != "graph covered by graph/go" || py.Argvs != nil {
+		t.Fatalf("graph/python: %+v", py)
+	}
+	if py.Kind != "graph" || py.Stack != "python" || py.Area != "." || py.Dir != jobs[0].Dir || py.Origin != "preset" || py.After != -1 {
+		t.Fatalf("graph/python carries the fields of a planned job: %+v", py)
+	}
+}
+
+// A repository with Go and shell has one stack with a graph lane: its report
+// is the one it had before a second stack could carry the graph, graph/go
+// running and graph/shell without a command.
+func TestGoOnlyGraphPlanUnchanged(t *testing.T) {
+	root := t.TempDir()
+	calls := 0
+	jobs, err := Plan(effFor(t, "", goAndShell), Request{Kinds: []string{"graph"}}, graphEnv(root, true, "", &calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names(jobs) != "graph/go graph/shell" || calls != 1 {
+		t.Fatalf("%s, %d probes", names(jobs), calls)
+	}
+	if jobs[0].Pre != "" || !slices.EqualFunc(jobs[0].Argvs, graphArgvs, slices.Equal) {
+		t.Fatalf("graph/go: %+v", jobs[0])
+	}
+	if jobs[1].Pre != StateNotApplicable || jobs[1].Note != "no command" || jobs[1].Area != "." {
+		t.Fatalf("graph/shell: %+v", jobs[1])
+	}
+}
+
+// A Python repository has a graph lane of its own.
+func TestPythonOnlyGraphRuns(t *testing.T) {
+	root := t.TempDir()
+	calls := 0
+	jobs, err := Plan(effFor(t, "", pythonOnly), Request{Kinds: []string{"graph"}}, graphEnv(root, true, "", &calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names(jobs) != "graph/python" || jobs[0].Pre != "" || calls != 1 {
+		t.Fatalf("%+v, %d probes", jobs, calls)
+	}
+	if !slices.EqualFunc(jobs[0].Argvs, graphArgvs, slices.Equal) {
+		t.Fatalf("argvs %q", jobs[0].Argvs)
+	}
+}
+
+// Who carries the graph follows the command, not the probe: when the probe
+// says no, the carrier stands aside with the probe's note, and the second
+// stack still names it instead of asking again.
+func TestGraphNotReadyStillNamesCarrier(t *testing.T) {
+	calls := 0
+	jobs, _ := Plan(effFor(t, "", goAndPython), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), false, "nothing staged", &calls))
+	if names(jobs) != "graph/go graph/python" || calls != 1 {
+		t.Fatalf("%s, %d probes", names(jobs), calls)
+	}
+	if jobs[0].Pre != StateNotApplicable || jobs[0].Note != "nothing staged" {
+		t.Fatalf("graph/go: %+v", jobs[0])
+	}
+	if jobs[1].Pre != StateNotApplicable || jobs[1].Note != "graph covered by graph/go" {
+		t.Fatalf("graph/python: %+v", jobs[1])
+	}
+}
+
+// wantGraphJobs checks each graph job's name, state and note, and that none
+// of them runs anything.
+func wantGraphJobs(t *testing.T, jobs []Job, want ...[3]string) {
+	t.Helper()
+	if len(jobs) != len(want) {
+		t.Fatalf("jobs %s, want %d", names(jobs), len(want))
+	}
+	for i, w := range want {
+		j := jobs[i]
+		if j.Name != w[0] || string(j.Pre) != w[1] || j.Note != w[2] || j.Argvs != nil {
+			t.Errorf("job %d = %s %q %q %v, want %q", i, j.Name, j.Pre, j.Note, j.Argvs, w)
+		}
+	}
+}
+
+// The graph belongs to the root, so `graph = false` under one stack switches
+// the project's graph off: no other stack carries it in its place, and the
+// probe, which costs git calls, is not asked.
+func TestGraphSwitchedOffUnderOneStackIsOffForTheProject(t *testing.T) {
+	for _, c := range []struct{ src, note string }{
+		{"[verify.go]\ngraph = false\n", "graph switched off under [verify.go]"},
+		{"[verify.python]\ngraph = false\n", "graph switched off under [verify.python]"},
+	} {
+		calls := 0
+		jobs, err := Plan(effFor(t, c.src, goAndPython), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
+		if err != nil || calls != 0 {
+			t.Fatalf("%q: %v, %d probes", c.src, err, calls)
+		}
+		wantGraphJobs(t, jobs,
+			[3]string{"graph/go", "not-applicable", c.note},
+			[3]string{"graph/python", "not-applicable", c.note})
+	}
+	// Every graph job says so, a stack without a graph lane too; the first
+	// switch in byte order is the one named.
+	facts := detect.Facts{Stacks: []string{"go", "python", "shell"}, Areas: map[string][]string{"go": {"."}, "python": {"."}, "shell": {"ci"}}}
+	calls := 0
+	jobs, _ := Plan(effFor(t, "[verify.shell]\ngraph = false\n[verify.python]\ngraph = false\n", facts),
+		Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
+	note := "graph switched off under [verify.python]"
+	wantGraphJobs(t, jobs,
+		[3]string{"graph/go", "not-applicable", note},
+		[3]string{"graph/python", "not-applicable", note},
+		[3]string{"graph/shell", "not-applicable", note})
+}
+
+// Where no stack is left with a graph command, a switch changes nothing:
+// the lanes say "no command" as they did before a second stack could carry
+// the graph -- a Go repository with `graph = false` reads as it always did.
+func TestGraphSwitchedOffWithNoOtherCarrierReadsAsBefore(t *testing.T) {
+	for _, c := range []struct {
+		src   string
+		facts detect.Facts
+		want  []string
+	}{
+		{"[verify.go]\ngraph = false\n", goOnly, []string{"graph/go"}},
+		{"[verify.go]\ngraph = false\n", goAndShell, []string{"graph/go", "graph/shell"}},
+		{"[verify.go]\ngraph = false\n[verify.python]\ngraph = false\n", goAndPython, []string{"graph/go", "graph/python"}},
+	} {
+		calls := 0
+		jobs, _ := Plan(effFor(t, c.src, c.facts), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
+		var want [][3]string
+		for _, name := range c.want {
+			want = append(want, [3]string{name, "not-applicable", "no command"})
+		}
+		wantGraphJobs(t, jobs, want...)
+		if calls != 0 {
+			t.Errorf("%q: %d probes", c.src, calls)
+		}
+	}
+}
+
+// A switch under a stack the project does not have is no switch of this
+// project's graph, and an edit plans no graph job either way.
+func TestGraphSwitchOnlyCountsForAnActiveStackAndACheck(t *testing.T) {
+	calls := 0
+	jobs, _ := Plan(effFor(t, "[verify.python]\ngraph = false\n", goOnly), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
+	if names(jobs) != "graph/go" || jobs[0].Pre != "" || !slices.EqualFunc(jobs[0].Argvs, graphArgvs, slices.Equal) || calls != 1 {
+		t.Fatalf("graph/go: %+v, %d probes", jobs, calls)
+	}
+	jobs, err := Plan(effFor(t, "[verify.go]\ngraph = false\n", goAndPython),
+		Request{Kinds: []string{"graph"}, Scope: ScopeEdit, File: "a.go"}, graphEnv(t.TempDir(), true, "", &calls))
+	if err != nil || len(jobs) != 0 {
+		t.Fatalf("an edit: %+v %v", jobs, err)
 	}
 }

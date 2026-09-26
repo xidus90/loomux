@@ -138,6 +138,19 @@ func TestTheGoGraphLaneRefreshesThenAudits(t *testing.T) {
 	}
 }
 
+// The graph belongs to the root, not to a stack, so Python's graph lane runs
+// the very commands of Go's; the plan keeps one of them per run.
+func TestThePythonGraphLaneIsTheGoOne(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	py, goLane := p.Stacks["python"].Lanes["graph"], p.Stacks["go"].Lanes["graph"]
+	if len(py.Commands) == 0 || !slices.Equal(py.Commands, goLane.Commands) || py.OnFile != nil || py.Threaded {
+		t.Fatalf("python %+v, go %+v", py, goLane)
+	}
+}
+
 // The C++ lanes that read the build tree need it configured, clang-tidy's
 // lint among them; the edit form of the lint formats one file, and needs do
 // not guard it.
