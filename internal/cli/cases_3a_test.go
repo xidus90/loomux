@@ -68,14 +68,20 @@ const noMCPJSON = "missing file in actual: repo-new/.mcp.json"
 // The lock file loomux keeps where the reference removes its own.
 const registryLock = "unexpected extra file in actual: registry.lock"
 
+// areaLock is the lock reindex and approve share per area, which the
+// reference does not take (Heilung #4).
+func areaLock(scope string) string {
+	return "unexpected extra file in actual: areas/" + scope + ".lock"
+}
+
 var expected3a = map[string]expectation3a{
 	"area-add/new-area": {
-		why:    "Wirtsteil; Indexlauf; Sperre",
-		differ: append([]string{noMCPJSON, registryLock}, areaAddIndexRun...),
+		why:    "Wirtsteil; Indexlauf; Sperre; Sperre je Bereich",
+		differ: append([]string{noMCPJSON, registryLock, areaLock("project-repo-new")}, areaAddIndexRun...),
 	},
 	"area-add/without-yes": {
-		why:    "Wirtsteil; Indexlauf; Sperre",
-		differ: append([]string{noMCPJSON, registryLock}, areaAddIndexRun...),
+		why:    "Wirtsteil; Indexlauf; Sperre; Sperre je Bereich",
+		differ: append([]string{noMCPJSON, registryLock, areaLock("project-repo-new")}, areaAddIndexRun...),
 	},
 	"area-add/no-reindex": {
 		why:    "Wirtsteil; Sperre",
@@ -97,9 +103,10 @@ var expected3a = map[string]expectation3a{
 		},
 	},
 	"area-add/no-registry": {
-		why: "area add ohne vorher angelegte registry.toml: the reference fails, loomux creates it; Sperre",
+		why: "area add ohne vorher angelegte registry.toml: the reference fails, loomux creates it; Sperre; Sperre je Bereich",
 		differ: []string{
 			"exit code: expected 1, got 0",
+			areaLock("project-repo-new"),
 			"unexpected extra file in actual: qmd-calls.log",
 			"unexpected extra file in actual: qmd-collections.json",
 			"unexpected extra file in actual: registry.lock",
@@ -127,8 +134,10 @@ var expected3a = map[string]expectation3a{
 		},
 	},
 	"reindex/area-without-include": {
-		why: "leeres [index] include; graph.json, index.yml, qmd-collections.json",
+		why: "leeres [index] include; graph.json, index.yml, qmd-collections.json; Sperre je Bereich",
 		differ: []string{
+			areaLock("notes"),
+			areaLock("project-a"),
 			"content mismatch: areas/notes/_identities.tsv",
 			"content mismatch: areas/notes/graph.json",
 			"content mismatch: areas/notes/index.md",
@@ -137,26 +146,34 @@ var expected3a = map[string]expectation3a{
 		formatOnly: indexedFormats("repo-a/graph.json"),
 	},
 	"reindex/nothing-open": {
-		why:        "format of graph.json, qmd's index.yml and qmd-collections.json",
+		why:        "format of graph.json, qmd's index.yml and qmd-collections.json; Sperre je Bereich",
+		differ:     []string{areaLock("notes"), areaLock("project-a")},
 		formatOnly: indexedFormats("repo-a/graph.json", "areas/notes/graph.json"),
 	},
 	"reindex/cases-opened": {
-		why:        "format of graph.json, index.yml, qmd-collections.json",
+		why:        "format of graph.json, index.yml, qmd-collections.json; Sperre je Bereich",
+		differ:     []string{areaLock("project-a")},
 		formatOnly: indexedFormats("repo-a/graph.json"),
 	},
 	"reindex/no-review-centre": {
-		why:        "format of graph.json, index.yml, qmd-collections.json",
+		why:        "format of graph.json, index.yml, qmd-collections.json; Sperre je Bereich",
+		differ:     []string{areaLock("project-a")},
 		formatOnly: indexedFormats("repo-a/graph.json"),
 	},
 	// The case that holds S1 and S2 of the self-use: a review centre named
 	// `95 Prüfzentrum` stays out, and `docs/**/*.md` and `docs/**/draft.md`
-	// match a file directly below docs. Everything but the format agrees.
+	// match a file directly below docs. Everything but the format and the
+	// area locks agrees.
 	"reindex/globs": {
-		why:        "format of graph.json, index.yml, qmd-collections.json",
+		why:        "format of graph.json, index.yml, qmd-collections.json; Sperre je Bereich",
+		differ:     []string{areaLock("project-a"), areaLock("project-b")},
 		formatOnly: indexedFormats("repo-a/graph.json", "repo-b/graph.json"),
 	},
+	// project/b has no manifest and is skipped, but only after its lock was
+	// taken: the lock file stays behind for it too.
 	"reindex/missing-manifest": {
-		why:        "format of graph.json, index.yml, qmd-collections.json",
+		why:        "format of graph.json, index.yml, qmd-collections.json; Sperre je Bereich",
+		differ:     []string{areaLock("project-a"), areaLock("project-b")},
 		formatOnly: indexedFormats("repo-a/graph.json"),
 	},
 }

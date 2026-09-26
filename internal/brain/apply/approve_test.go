@@ -15,6 +15,7 @@ import (
 	"github.com/xidus90/loomux/internal/brain/maintenance"
 	"github.com/xidus90/loomux/internal/brain/vcs"
 	"github.com/xidus90/loomux/internal/config"
+	"github.com/xidus90/loomux/internal/lock"
 )
 
 // An approval, ported from `approve` and `_apply` (apply.py:307-358,
@@ -1156,6 +1157,61 @@ func TestAReadOnlyAreasRegisterIsWrittenToTheNewPlace(t *testing.T) {
 	}
 	if readFile(t, filepath.Join(filepath.Dir(next), "catalog.tsv")) != "stock\n" || readFile(t, old) != registered {
 		t.Fatal("the stock did not move whole, or the old place changed")
+	}
+}
+
+// A reindex reads a register and writes it back later; the approval's
+// advance in between would be lost. So every area whose register is
+// advanced is locked while it is, a read-only one from the move of its
+// stock on.
+func TestTheRegisterIsAdvancedUnderTheAreasLock(t *testing.T) {
+	v := newAppVault(t)
+	v.addReadOnlyArea(t, "sha256:old")
+	held := map[string]bool{}
+	advance := advanceRegister
+	seam(t, &advanceRegister, func(register string, rows map[string]identity.Identity) (string, error) {
+		for _, area := range v.areas {
+			if registerWrite(area, v.lookup) != register {
+				continue
+			}
+			handle, free, err := lock.TryAcquire(config.AreaLockPath(area, v.lookup.Primary))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if free {
+				_ = handle.Release()
+			} else {
+				held[area.Scope] = true
+			}
+		}
+		return advance(register, rows)
+	})
+	v.mustApprove(t)
+	if !held["knowledge"] || !held["project/ro"] {
+		t.Fatalf("held = %v, want both areas locked", held)
+	}
+	for _, area := range v.areas {
+		handle, free, err := lock.TryAcquire(config.AreaLockPath(area, v.lookup.Primary))
+		if err != nil || !free {
+			t.Fatalf("%s still locked: %v", area.Scope, err)
+		}
+		_ = handle.Release()
+	}
+}
+
+// An area that cannot be locked stops the approval after the page, and
+// the register stays as it was.
+func TestAnAreaThatCannotBeLockedStopsTheApproval(t *testing.T) {
+	v := newAppVault(t)
+	register := readFile(t, v.register())
+	writeFile(t, filepath.Join(v.lookup.Primary, "areas"), "")
+	_, err := v.run()
+	e := stopped[*ApplyError](t, err, "")
+	if want := []string{testWiki + "/" + appTarget}; !slices.Equal(e.Dirty, want) {
+		t.Fatalf("dirty = %q, want %q", e.Dirty, want)
+	}
+	if readFile(t, v.register()) != register {
+		t.Fatal("the register changed")
 	}
 }
 

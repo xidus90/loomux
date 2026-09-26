@@ -409,9 +409,11 @@ func (a approval) updates() []SourceUpdate {
 // register knows is left to the next reconciliation; a row invented here
 // would mint an identity nobody can check.
 //
-// A read-only area's stock is moved to loomux's state directory first,
-// since its register is written only there. No lock is taken, as Python
-// takes none; a `reindex` running at the same time can race it.
+// Each register is advanced under the lock of its area, which `reindex`
+// holds from reading that register to writing it back; Python takes none,
+// and a reindex in between lost the advanced row. A read-only area's stock
+// is moved to loomux's state directory under the same lock first, since
+// its register is written only there.
 func (a approval) advanceRegisters(found map[string]sourceFile) ([]string, error) {
 	var order []string
 	rows := map[string]map[string]identity.Identity{}
@@ -431,28 +433,41 @@ func (a approval) advanceRegisters(found map[string]sourceFile) ([]string, error
 	}
 	var staged []string
 	for _, register := range order {
-		for _, area := range a.areas {
-			if registerWrite(area, a.o.Lookup) != register {
-				continue
-			}
-			if err := moveStock(area, a.o.Lookup); err != nil {
-				return nil, err
-			}
-		}
-		text, err := advanceRegister(register, rows[register])
-		if err != nil {
-			return nil, err
-		}
-		if err := a.p.writeScaffold(register, text); err != nil {
-			return nil, err
-		}
-		add, err := a.p.staged(register)
+		add, err := a.advanceRegisterLocked(register, rows[register])
 		if err != nil {
 			return nil, err
 		}
 		staged = append(staged, add...)
 	}
 	return staged, nil
+}
+
+// advanceRegisterLocked advances one register while the lock of every
+// area writing it is held, and releases them once it is written and
+// staged. The registry refuses two scopes that share a state directory,
+// so no lock is taken twice here.
+func (a approval) advanceRegisterLocked(register string, rows map[string]identity.Identity) ([]string, error) {
+	for _, area := range a.areas {
+		if registerWrite(area, a.o.Lookup) != register {
+			continue
+		}
+		release, err := config.LockArea(area, a.o.Lookup.Primary)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+		if err := moveStock(area, a.o.Lookup); err != nil {
+			return nil, err
+		}
+	}
+	text, err := advanceRegister(register, rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.p.writeScaffold(register, text); err != nil {
+		return nil, err
+	}
+	return a.p.staged(register)
 }
 
 // collect is `_collect` (apply.py:1065-1074): every diff fence of every

@@ -10,6 +10,8 @@ import (
 
 	"github.com/xidus90/loomux/internal/brain/identity"
 	"github.com/xidus90/loomux/internal/brain/search"
+	"github.com/xidus90/loomux/internal/config"
+	"github.com/xidus90/loomux/internal/lock"
 )
 
 func writeTestRegistry(t *testing.T, dir string, content string) string {
@@ -700,5 +702,63 @@ func TestReindexPrunesFromTheRecordTheSyncJustWrote(t *testing.T) {
 		if want := "[\n \"fresh\",\n \"knowledge\"\n]\n"; string(written) != want {
 			t.Fatalf("run %d: new record = %q, want %q", run, written, want)
 		}
+	}
+}
+
+// reindex reads an area's register in collect and writes it in publish; an
+// approve advancing it in between would lose its row. The area's lock is
+// therefore held while the stock is read.
+func TestReindexHoldsTheAreaLockWhileItReadsAndWritesTheRegister(t *testing.T) {
+	tmp := t.TempDir()
+	stateDir := filepath.Join(tmp, "state")
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	areaDir := filepath.Join(tmp, "area")
+	setupTestArea(t, areaDir, "[area]\nscope = \"lock-scope\"\n")
+	_ = os.WriteFile(filepath.Join(areaDir, "note.md"), []byte("# Note\n"), 0o644)
+	regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"lock-scope\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
+
+	area := config.Area{Scope: "lock-scope", Path: areaDir}
+	held := false
+	restore := readDocFn
+	t.Cleanup(func() { readDocFn = restore })
+	readDocFn = func(path, root string) (*Document, error) {
+		handle, free, err := lock.TryAcquire(config.AreaLockPath(area, stateDir))
+		if err != nil {
+			return nil, err
+		}
+		if free {
+			_ = handle.Release()
+		} else {
+			held = true
+		}
+		return restore(path, root)
+	}
+	if code, err := ReindexWithOutput(regPath, stateDir, "", search.NewFakePort(), nil); err != nil || code != 0 {
+		t.Fatalf("reindex: %v, code %d", err, code)
+	}
+	if !held {
+		t.Fatal("the area lock was free while the stock was read")
+	}
+	// Released once the area is published.
+	handle, free, err := lock.TryAcquire(config.AreaLockPath(area, stateDir))
+	if err != nil || !free {
+		t.Fatal(free, err)
+	}
+	_ = handle.Release()
+}
+
+func TestReindexStopsWhenTheAreaCannotBeLocked(t *testing.T) {
+	tmp := t.TempDir()
+	stateDir := filepath.Join(tmp, "state")
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	areaDir := filepath.Join(tmp, "area")
+	setupTestArea(t, areaDir, "[area]\nscope = \"lock-scope\"\n")
+	regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"lock-scope\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
+	// A file where the lock's directory belongs.
+	if err := os.WriteFile(filepath.Join(stateDir, "areas"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := ReindexWithOutput(regPath, stateDir, "", search.NewFakePort(), nil); err == nil || code != 1 {
+		t.Fatalf("expected a refusal, got %v, code %d", err, code)
 	}
 }
