@@ -48,6 +48,7 @@ type Fixture struct {
 	StatusError string              `json:"status_error"` // not empty: qmd status exits 1 with this stderr
 	SearchError string              `json:"search_error"` // not empty: every search exits 1 with this stderr, MCP query is a JSON-RPC error
 	Hits        []Hit               `json:"hits"`         // search|vsearch|query --json and MCP query
+	Queries     map[string][]Hit    `json:"queries"`      // hits for one query text, in place of Hits
 }
 
 // Load reads a fixture. A world without one has an engine that knows nothing.
@@ -70,9 +71,25 @@ func Load(path string) (*Fixture, error) {
 	return fixture, nil
 }
 
+// splitIndex takes qmd's global --index NAME off the front of a command line.
+func splitIndex(args []string) (string, []string, bool) {
+	if len(args) == 0 || args[0] != "--index" {
+		return "", args, true
+	}
+	if len(args) == 1 {
+		return "", nil, false
+	}
+	return args[1], args[2:], true
+}
+
 // RunCLI answers the qmd command lines both CLI ports run and refuses every
 // other one with exit code 2.
 func (f *Fixture) RunCLI(args []string, stdout, stderr io.Writer) int {
+	index, args, ok := splitIndex(args)
+	if !ok {
+		fmt.Fprintln(stderr, "fakeqmd: --index needs a name")
+		return 2
+	}
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, "fakeqmd: subcommand required")
 		return 2
@@ -83,7 +100,7 @@ func (f *Fixture) RunCLI(args []string, stdout, stderr io.Writer) int {
 	case "status":
 		return f.status(args[1:], stdout, stderr)
 	case "search", "vsearch", "query":
-		return f.search(args[1:], stdout, stderr)
+		return f.search(args[1:], index, stdout, stderr)
 	case "update", "embed":
 		// The two calls the index commands make. qmd 2.8.3 takes no argument
 		// for either as brain and loomux call them, and their output is read
@@ -151,8 +168,9 @@ type cliHit struct {
 }
 
 // search prints the hits of the named collections as qmd --json does: an
-// array, indented by two, empty as [] and never as null.
-func (f *Fixture) search(args []string, stdout, stderr io.Writer) int {
+// array, indented by two, empty as [] and never as null. Searching a named
+// index, qmd 2.8.3 appends ?index=<name> to every file (measured 2026-09-26).
+func (f *Fixture) search(args []string, index string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, "fakeqmd: a query is required")
 		return 2
@@ -165,12 +183,16 @@ func (f *Fixture) search(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, f.SearchError)
 		return 1
 	}
+	mark := ""
+	if index != "" {
+		mark = "?index=" + index
+	}
 	rows := []cliHit{}
-	for _, hit := range f.hitsIn(collections, limit) {
+	for _, hit := range f.hitsIn(args[0], collections, limit) {
 		rows = append(rows, cliHit{
 			DocID:   hit.DocID,
 			Score:   hit.Score,
-			File:    "qmd://" + hit.Collection + "/" + hit.Relative,
+			File:    "qmd://" + hit.Collection + "/" + hit.Relative + mark,
 			Line:    hit.Line,
 			Title:   hit.Title,
 			Snippet: hit.Snippet,
@@ -216,11 +238,16 @@ func searchFlags(args []string, stderr io.Writer) (int, []string, bool) {
 	return limit, collections, true
 }
 
-// hitsIn keeps the fixture's order as the engine's ranking. No collection
-// named means every collection, as qmd's MCP query answered in the spike.
-func (f *Fixture) hitsIn(collections []string, limit int) []Hit {
+// hitsIn keeps the fixture's order as the engine's ranking. A query text with
+// hits of its own answers from those instead of Hits. No collection named
+// means every collection, as qmd's MCP query answered in the spike.
+func (f *Fixture) hitsIn(query string, collections []string, limit int) []Hit {
+	candidates, ok := f.Queries[query]
+	if !ok {
+		candidates = f.Hits
+	}
 	var found []Hit
-	for _, hit := range f.Hits {
+	for _, hit := range candidates {
 		if len(found) == limit {
 			break
 		}
@@ -249,6 +276,10 @@ type rpcRequest struct {
 	Params struct {
 		Name      string `json:"name"`
 		Arguments struct {
+			Query    string `json:"query"`
+			Searches []struct {
+				Query string `json:"query"`
+			} `json:"searches"`
 			Collections []string `json:"collections"`
 			Limit       *int     `json:"limit"`
 		} `json:"arguments"`
@@ -297,8 +328,14 @@ func (f *Fixture) MCPHandler() http.Handler {
 			if req.Params.Arguments.Limit != nil {
 				limit = *req.Params.Arguments.Limit
 			}
+			// The port sends a typed search for the fast and keyword
+			// profiles and a plain query otherwise.
+			query := req.Params.Arguments.Query
+			if len(req.Params.Arguments.Searches) > 0 {
+				query = req.Params.Arguments.Searches[0].Query
+			}
 			results := []mcpHit{}
-			for _, hit := range f.hitsIn(req.Params.Arguments.Collections, limit) {
+			for _, hit := range f.hitsIn(query, req.Params.Arguments.Collections, limit) {
 				results = append(results, mcpHit{
 					DocID:   hit.DocID,
 					File:    hit.Collection + "/" + hit.Relative,
@@ -349,7 +386,8 @@ func Run(path string, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	code := fixture.RunCLI(args, stdout, stderr)
-	if code != 0 || (args[0] != "update" && args[0] != "embed") {
+	_, command, _ := splitIndex(args)
+	if code != 0 || (command[0] != "update" && command[0] != "embed") {
 		return code
 	}
 	if err := appendCall(filepath.Join(filepath.Dir(path), CallLogName), args); err != nil {

@@ -1121,3 +1121,30 @@ func TestReplaceWithRenameError(t *testing.T) {
 func sameRecord(path string) OwnershipRecord {
 	return OwnershipRecord{Read: path, Write: path}
 }
+
+func TestQmdConfigPathForNamesTheIndexFile(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/x")
+	if got := QmdConfigPathFor("loomux-bench-a"); got != filepath.Join("/x", "qmd", "loomux-bench-a.yml") {
+		t.Fatalf("got %q", got)
+	}
+	if QmdConfigPath() != QmdConfigPathFor("index") {
+		t.Fatal("QmdConfigPath is not the index named index")
+	}
+}
+
+func TestQmdCacheDirHonoursXDG(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", "/c")
+	if got := QmdCacheDir(); got != filepath.Join("/c", "qmd") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestQmdCacheDirFallsBackToTheHomeCache(t *testing.T) {
+	orig := userHomeDir
+	t.Cleanup(func() { userHomeDir = orig })
+	userHomeDir = func() (string, error) { return "/home/u", nil }
+	t.Setenv("XDG_CACHE_HOME", "")
+	if got := QmdCacheDir(); got != filepath.Join("/home/u", ".cache", "qmd") {
+		t.Fatalf("got %q", got)
+	}
+}

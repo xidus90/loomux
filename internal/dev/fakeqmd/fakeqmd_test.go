@@ -483,3 +483,82 @@ func TestRunReportsALogItCannotWrite(t *testing.T) {
 		t.Fatalf("code %d, err %q", code, errb.String())
 	}
 }
+
+func TestFakeQmdAnswersAQueryFromItsOwnList(t *testing.T) {
+	f := &Fixture{Hits: []Hit{{Collection: "c", Relative: "any.md", DocID: "#0"}},
+		Queries: map[string][]Hit{"Eurocode": {{Collection: "c", Relative: "b.md", DocID: "#1"}}}}
+	var out, errOut bytes.Buffer
+	if code := f.RunCLI([]string{"search", "Eurocode", "--json", "-n", "5"}, &out, &errOut); code != 0 {
+		t.Fatal(errOut.String())
+	}
+	if !strings.Contains(out.String(), "qmd://c/b.md") || strings.Contains(out.String(), "any.md") {
+		t.Fatalf("out = %s", out.String())
+	}
+}
+
+func TestFakeQmdTakesAnIndexAndMarksItsURIs(t *testing.T) {
+	f := &Fixture{Hits: []Hit{{Collection: "c", Relative: "a.md", DocID: "#1"}}}
+	var out, errOut bytes.Buffer
+	code := f.RunCLI([]string{"--index", "n", "search", "q", "--json", "-n", "5"}, &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), `"qmd://c/a.md?index=n"`) {
+		t.Fatalf("code=%d out=%s err=%s", code, out.String(), errOut.String())
+	}
+}
+
+func TestFakeQmdListsWithoutTheIndexMark(t *testing.T) {
+	// qmd ls does not append ?index= (measured 2026-09-26).
+	f := &Fixture{Collections: map[string][]string{"c": {"a.md"}}}
+	var out, errOut bytes.Buffer
+	code := f.RunCLI([]string{"--index", "n", "ls", "c"}, &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), "qmd://c/a.md") || strings.Contains(out.String(), "?index=") {
+		t.Fatalf("code=%d out=%s err=%s", code, out.String(), errOut.String())
+	}
+}
+
+func TestFakeQmdWantsANameAfterIndex(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := world().RunCLI([]string{"--index"}, &out, &errOut); code != 2 || !strings.Contains(errOut.String(), "--index") {
+		t.Fatalf("code=%d err=%s", code, errOut.String())
+	}
+}
+
+func TestRunLogsAWritingCallBehindAnIndex(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, FixtureName)
+	if err := os.WriteFile(path, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := Run(path, []string{"--index", "n", "embed"}, &out, &errb); code != 0 {
+		t.Fatalf("code %d, err %q", code, errb.String())
+	}
+	logged, err := os.ReadFile(filepath.Join(dir, CallLogName))
+	if err != nil || string(logged) != "--index n embed\n" {
+		t.Fatalf("log %q, err %v", logged, err)
+	}
+}
+
+func TestMCPHandlerAnswersAQueryFromItsOwnListWithoutAnIndexMark(t *testing.T) {
+	f := &Fixture{Hits: []Hit{{Collection: "c", Relative: "any.md", DocID: "#0"}},
+		Queries: map[string][]Hit{
+			"lexical": {{Collection: "c", Relative: "lex.md", DocID: "#1"}},
+			"plain":   {{Collection: "c", Relative: "plain.md", DocID: "#2"}},
+		}}
+	server := httptest.NewServer(f.MCPHandler())
+	defer server.Close()
+	cases := map[string]string{
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"query","arguments":{"searches":[{"type":"lex","query":"lexical"}]}}}`: "c/lex.md",
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query","arguments":{"query":"plain"}}}`:                               "c/plain.md",
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"query","arguments":{"query":"other"}}}`:                               "c/any.md",
+	}
+	for body, want := range cases {
+		_, reply := post(t, server.URL, body)
+		results := queryResults(reply)
+		if len(results) != 1 {
+			t.Fatalf("reply %v", reply)
+		}
+		if hit, _ := results[0].(map[string]any); hit["file"] != want {
+			t.Fatalf("body %s: hit %v, want %s", body, hit, want)
+		}
+	}
+}

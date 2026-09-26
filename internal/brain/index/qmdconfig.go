@@ -139,15 +139,32 @@ var userHomeDir = os.UserHomeDir
 
 // QmdConfigPath returns the path to qmd's index.yml, respecting XDG on all platforms.
 func QmdConfigPath() string {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := userHomeDir()
-		if err != nil {
-			home = ""
-		}
-		base = filepath.Join(home, ".config")
+	return QmdConfigPathFor("index")
+}
+
+// QmdConfigPathFor returns the collection list of the qmd index called name,
+// the file `qmd --index <name>` reads; the default index is called index.
+func QmdConfigPathFor(name string) string {
+	return filepath.Join(xdgBase("XDG_CONFIG_HOME", ".config"), "qmd", name+".yml")
+}
+
+// QmdCacheDir returns the directory holding qmd's index databases
+// (<name>.sqlite); qmd 2.8.3 honours XDG_CACHE_HOME on Windows too.
+func QmdCacheDir() string {
+	return filepath.Join(xdgBase("XDG_CACHE_HOME", ".cache"), "qmd")
+}
+
+// xdgBase is the XDG directory env names, or its conventional place in the
+// home directory when env is unset.
+func xdgBase(env, fallback string) string {
+	if base := os.Getenv(env); base != "" {
+		return base
 	}
-	return filepath.Join(base, "qmd", "index.yml")
+	home, err := userHomeDir()
+	if err != nil {
+		home = ""
+	}
+	return filepath.Join(home, fallback)
 }
 
 func loadDocument(configPath, raw string) (map[string]any, error) {

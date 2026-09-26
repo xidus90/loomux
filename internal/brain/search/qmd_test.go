@@ -366,3 +366,49 @@ func TestQmdPort_InvokeErrors(t *testing.T) {
 		t.Error("expected error from execution error, got nil")
 	}
 }
+
+// stdoutOf is a runner that answers every call with out and exit code 0.
+func stdoutOf(out string) search.RunnerFunc {
+	return func(argv []string) ([]byte, []byte, int, error) {
+		return []byte(out), nil, 0, nil
+	}
+}
+
+func TestQmdPortPutsTheIndexBehindTheProgram(t *testing.T) {
+	var seen [][]string
+	port := &search.QmdPort{Executable: "qmd", Index: "loomux-bench-x", Runner: func(argv []string) ([]byte, []byte, int, error) {
+		seen = append(seen, argv)
+		return []byte("[]"), nil, 0, nil
+	}}
+	_, _ = port.Search("q", []string{"c"}, search.ProfileKeyword, 5)
+	_, _ = port.Indexed("c")
+	_ = port.Refresh(nil)
+	_ = port.Embed(nil)
+	_, _ = port.NotYetSearchable()
+	if len(seen) != 5 {
+		t.Fatalf("calls = %v", seen)
+	}
+	for _, argv := range seen {
+		if len(argv) < 4 || argv[0] != "qmd" || argv[1] != "--index" || argv[2] != "loomux-bench-x" {
+			t.Fatalf("argv = %v", argv)
+		}
+	}
+}
+
+func TestQmdPortCutsTheIndexFromTheFileURI(t *testing.T) {
+	out := `[{"file":"qmd://colla/baustatik-04.md?index=loomux-bench-x","docid":"#1"}]`
+	port := &search.QmdPort{Index: "loomux-bench-x", Runner: stdoutOf(out)}
+	hits, err := port.Search("q", []string{"colla"}, search.ProfileKeyword, 5)
+	if err != nil || hits[0].Collection != "colla" || hits[0].Relative != "baustatik-04.md" {
+		t.Fatalf("hits=%+v err=%v", hits, err)
+	}
+}
+
+func TestQmdPortWithoutIndexKeepsAQuestionMarkInTheName(t *testing.T) {
+	// No index configured: the path is taken as written, as before.
+	out := `[{"file":"qmd://c/a?b.md","docid":"#1"}]`
+	hits, _ := (&search.QmdPort{Runner: stdoutOf(out)}).Search("q", nil, search.ProfileKeyword, 5)
+	if hits[0].Relative != "a?b.md" {
+		t.Fatalf("relative = %q", hits[0].Relative)
+	}
+}
