@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -24,6 +25,10 @@ type ProcessRunner func(dir string, argv []string, stdin []byte, timeout time.Du
 
 // Cloner clones a repository URL to targetDir and returns the commit SHA.
 type Cloner func(repoURL, targetDir string) (commitSHA string, err error)
+
+// ErrRepoTimeout ends the measurement of one repository once --timeout is
+// spent; BenchmarkCorpus records it as a skip like any other failure.
+var ErrRepoTimeout = errors.New("repository timeout exceeded")
 
 // benchStep is one component of a measurement pass.
 type benchStep struct {
@@ -80,6 +85,26 @@ func BenchmarkRepo(dir string, opts Options, runner ProcessRunner, clock func() 
 		}
 	}
 
+	// Each command gets the smaller of its own deadline and what is left of
+	// the repository's; a zero on either side means that side sets no limit.
+	var deadline time.Time
+	if opts.Timeout > 0 {
+		deadline = clock().Add(opts.Timeout)
+	}
+	budget := func() (time.Duration, error) {
+		if deadline.IsZero() {
+			return opts.ComponentTimeout, nil
+		}
+		left := deadline.Sub(clock())
+		if left <= 0 {
+			return 0, fmt.Errorf("%w after %s", ErrRepoTimeout, opts.Timeout)
+		}
+		if opts.ComponentTimeout <= 0 {
+			return left, nil
+		}
+		return min(opts.ComponentTimeout, left), nil
+	}
+
 	measure := func(steps []benchStep) ([]ComponentTiming, time.Duration, error) {
 		timings := make([]ComponentTiming, 0, len(steps))
 		var total time.Duration
@@ -88,8 +113,12 @@ func BenchmarkRepo(dir string, opts Options, runner ProcessRunner, clock func() 
 				timings = append(timings, ComponentTiming{Name: step.name})
 				continue
 			}
+			limit, err := budget()
+			if err != nil {
+				return nil, 0, err
+			}
 			t0 := clock()
-			_, code, timedOut, err := runner(absDir, step.argv, step.stdin, opts.ComponentTimeout)
+			_, code, timedOut, err := runner(absDir, step.argv, step.stdin, limit)
 			if err != nil {
 				return nil, 0, err
 			}

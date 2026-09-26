@@ -652,3 +652,66 @@ func TestBenchmarkRepoAuditsTheEditForms(t *testing.T) {
 		t.Errorf("audited lanes = %q, executed = %q", lanes, audit.ExecutedLanes)
 	}
 }
+
+// goRepoFS opens a Go module with one source file, whatever the directory.
+func goRepoFS(string) (fs.FS, error) {
+	return fstest.MapFS{"go.mod": &fstest.MapFile{Data: []byte("module foo\n")}, "main.go": &fstest.MapFile{Data: []byte("package main\n")}}, nil
+}
+
+// budgetRecorder is a runner whose every command takes 40 seconds on the
+// returned clock and records the timeout it was given.
+func budgetRecorder() (ProcessRunner, func() time.Time, *[]time.Duration) {
+	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	budgets := &[]time.Duration{}
+	runner := func(dir string, argv []string, stdin []byte, timeout time.Duration) (string, int, bool, error) {
+		*budgets = append(*budgets, timeout)
+		now = now.Add(40 * time.Second)
+		return "", 0, false, nil
+	}
+	return runner, func() time.Time { return now }, budgets
+}
+
+func TestBenchmarkRepoStopsAtTheRepositoryTimeout(t *testing.T) {
+	runner, clock, budgets := budgetRecorder()
+	opts := Options{WarmRuns: 3, Timeout: 100 * time.Second, ComponentTimeout: 60 * time.Second}
+	_, err := BenchmarkRepo(".", opts, runner, clock, goRepoFS, noLookPath)
+	if !errors.Is(err, ErrRepoTimeout) {
+		t.Fatalf("err = %v, want ErrRepoTimeout", err)
+	}
+	want := []time.Duration{60 * time.Second, 60 * time.Second, 20 * time.Second}
+	if !slices.Equal(*budgets, want) {
+		t.Fatalf("budgets = %v, want %v", *budgets, want)
+	}
+}
+
+func TestBenchmarkRepoWithoutTimeoutKeepsTheComponentBudget(t *testing.T) {
+	// Timeout 0 means no repository deadline, as before.
+	runner, clock, budgets := budgetRecorder()
+	opts := Options{WarmRuns: 3, ComponentTimeout: 60 * time.Second}
+	if _, err := BenchmarkRepo(".", opts, runner, clock, goRepoFS, noLookPath); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(*budgets) != 12 {
+		t.Fatalf("got %d runs, want 12", len(*budgets))
+	}
+	for _, budget := range *budgets {
+		if budget != 60*time.Second {
+			t.Fatalf("budgets = %v, want every one 60s", *budgets)
+		}
+	}
+}
+
+func TestBenchmarkRepoWithoutComponentTimeoutUsesTheRepositoryBudget(t *testing.T) {
+	// ComponentTimeout 0 means no limit per command; the repository deadline
+	// still bounds each one.
+	runner, clock, budgets := budgetRecorder()
+	opts := Options{WarmRuns: 3, Timeout: 100 * time.Second}
+	_, err := BenchmarkRepo(".", opts, runner, clock, goRepoFS, noLookPath)
+	if !errors.Is(err, ErrRepoTimeout) {
+		t.Fatalf("err = %v, want ErrRepoTimeout", err)
+	}
+	want := []time.Duration{100 * time.Second, 60 * time.Second, 20 * time.Second}
+	if !slices.Equal(*budgets, want) {
+		t.Fatalf("budgets = %v, want %v", *budgets, want)
+	}
+}
