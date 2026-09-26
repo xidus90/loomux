@@ -4,6 +4,18 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [3.1.0] - 2026-09-26
+
+<https://github.com/xidus90/loomux/pull/43>
+
+### Added
+- `loomux reconcile` asks a local Ollama model, on the loopback only, for a proposal on cases of `local_only` areas and keeps it only when every claim passes the evidence check; without a usable answer the case stays manual.
+- `loomux config --global` lists and edits the local model's settings (`[model]`: `enabled`, `endpoint`, `name`, `temperature`, `roles`) and refuses an endpoint off the loopback; an area's `[model]` can switch the model off or narrow its roles.
+- `loomux dev fake-ollama` serves a fixed answer to Ollama requests, for recording and replaying cases.
+### Fixed
+- `loomux approve --reject` advances the page's sources and the identity register, so the next `reconcile` no longer reopens the rejected case; it halts, like an approval, when a source changed again since the case was opened.
+- `loomux reindex` and `loomux approve` share a lock per area, so a register advanced by an approval is no longer lost to a reindex running at the same time.
+
 ## [3.0.0] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/42>
