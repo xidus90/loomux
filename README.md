@@ -192,6 +192,19 @@ loomux config set|unset … --propose # an agent's way: store the checked change
 loomux init                         # set a project up in modules (hooks, brain, graph): binary, config, host entries, git hooks, merge hook, skills; every change as a diff, written after a y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; a human's command; its first runs on a fresh clone and a host are pending)
 ```
 
+**The local model.** For an area whose manifest says `[privacy] mode = "local_only"`,
+`loomux reconcile` asks a local Ollama for a proposal on each case it opens. A
+proposal whose every claim passes the evidence binding lands beside the case as
+`proposal.md`; anything else — no answer, a claim without a verbatim quote —
+leaves a manual case. No other area is ever sent to the model. The settings are
+`[model]` in the machine-wide `config.toml` of the state directory (by default
+`%LOCALAPPDATA%\loomux\config.toml`): `enabled` (off by default), `endpoint`,
+`name`, `temperature` and `roles`, shown and changed with `loomux config --global`
+(an agent only with `--propose`). An area's `.loomux/config.toml` may set only
+`[model] enabled` and `roles`, and only to switch off or narrow what the machine
+allows. The endpoint must stay on the loopback (`127.0.0.1`, `localhost`, `::1`);
+no proxy is taken from the environment and no redirect is followed.
+
 ### Code Graph
 ```bash
 loomux graph build [--root <path>]  # extract, resolve and write .loomux/state/graph/wiring.json
@@ -215,6 +228,7 @@ loomux dev mutants <pkg>            # run mutation test suites across critical d
 loomux dev record-case --out <dir>  # record one run of a reference binary as a case
 loomux dev import-cases --map <f>   # translate a directory of recorded cases into loomux cases
 loomux dev record-mcp-case --out <dir> # record one MCP tool call of a reference service as a case
+loomux dev fake-ollama --fixture <f>  # a stand-in Ollama that answers every request with the fixture, for recording and replaying cases (--addr, default 127.0.0.1:11435; --log)
 loomux dev release <sub>            # release rules for CI: next-version, parse-body, changelog-insert, build
 ```
 

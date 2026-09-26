@@ -593,7 +593,8 @@ Four commands of ultra-brain's `brain` CLI, top-level commands of loomux since s
 Runs a reconcile pass over the registered areas, then rebuilds each area's directory catalogs (`index.md`), link graph (`graph.json`) and identity register (`_identities.tsv`) and enters the areas as collections into qmd's `index.yml`. A writable area keeps its artefacts in its own tree; a read-only area's are written to `<state>/areas/<scope>/` through a staging directory and swapped in whole.
 
 - **`--registry`**: a `registry.toml`, or the directory holding one; default `registry.toml` in the state directory.
-- **Catch-up**: the reconcile pass runs first, so that a changed source becomes a case before the index run advances its hash. Cases it opens are listed on `stderr` and the run **goes on**; a vault without a review centre gets a warning and is indexed; any other failure of the pass stops the command before anything is indexed.
+- **Catch-up**: the reconcile pass runs first, so that a changed source becomes a case before the index run advances its hash. Cases it opens are listed on `stderr` and the run **goes on**; a vault without a review centre gets a warning and is indexed; any other failure of the pass stops the command before anything is indexed. For a case of a `local_only` area the pass also asks the local model (up to 30 s per case, see [`loomux reconcile`](#loomux-reconcile)), and a broken `[model]` that ends that pass (see there for when it counts) is such a failure: `reindex` stops.
+- **Area lock**: each area is indexed under `<state>/areas/<scope>.lock`, the lock `loomux approve` takes for the same area, so neither rewrites the identity register while the other reads it; a second runner waits until the first releases it. The file stays behind, like `registry.lock`.
 - **Output**: `indexed the areas of <path>` on `stdout`; on `stderr` the collections updated or dropped, and each collection refused because qmd already holds one of that name that brain did not create.
 - **Exit codes**: `0` on success, and also when there is no registry in the state directory (`no areas registered in <path>; nothing to index` on `stdout`); `1` for a registry named with `--registry` that does not exist, a registry that does not read, a failed catch-up, a failed index run or a refused collection; `2` for a usage error.
 
@@ -610,6 +611,7 @@ Measures every source of the registered areas against its identity register and,
 - **Output** on `stdout`: `<n> Quellen geprüft, <m> davon gehasht`, one line per case (directory, area, target, state and `manuell` for a case that asks for a manual decision, tab-separated, indented by two spaces), then `<k> Fälle`.
 - **A case is not a failure**: open cases leave the exit code at `0`.
 - **Stamp**: the pass writes `maintenance/last-run.txt` in UTC, which `brain status` and `brain search` read.
+- **Local model**: for a case of a `local_only` area the pass asks the local model (`[model]` of the machine-wide `config.toml`, see [`loomux config`](#10-configuration-loomux-config)) for a proposal; one whose every claim passes the evidence binding lands as `proposal.md` beside the case, with `prompt_version` in `case.toml`, and anything else leaves a manual case with the note `manual review: the local proposer returned no usable proposal (slice-6 spec §3)`. With the model off the case stays manual as before. The settings are read only when a `local_only` area is registered; then a `[model]` block that does not read, or an endpoint off the loopback while the model and its role `propose` are on for such an area, ends the pass with exit `1`, after the sources were measured and before any case is written.
 - **Exit codes**: `0` for a pass that ran to the end; `1` when a case file cannot be read (`unreadable case: <entry>` on `stderr`), and for a registry that does not read, a vault that declares no review centre or two, or another failure (`error: <reason>`); `2` for a usage error.
 
 #### `loomux area add [--path P] [--scope S] [--wiki W] [--sources S] [--merge-branch B] [--privacy M] [--no-reindex] [-y|--yes]`
@@ -662,8 +664,9 @@ Prints what the human gate has to see before it decides: `Fall <id> (<state>, au
 Decides one case. Without a flag the case's own proposal is approved; `--amend` approves the named file instead; `--reject` discards the proposal; `--defer` leaves the case in the queue.
 
 - **Evidence binding**: every claim of the proposal needs a verbatim quote from a segment of the package. A claim without one is dropped and named on `stdout` (`  verworfene Behauptung: <claim>`); when none survives, or the surviving claims carry no diff that applies, nothing is written to the page.
-- **An approval** checks first that neither the target page nor a cited source changed since the case was formed, then writes the page with its advanced frontmatter (`generated`, `verified` with the reviewer), advances the identity registers, appends to `log.md` and `audit.md`, removes the case directory and commits exactly those paths onto the vault's current ref through a scratch index (`<state>/maintenance/index`); the user's own index is left alone. It then runs a catch-up pass and an index run, the index run without a catch-up of its own. When the catch-up fails, a warning says so and nothing is indexed; when the index run fails, a warning names `loomux reindex`. Neither changes the exit code.
-- **A rejection** appends to `audit.md`, removes the case directory and commits both. It does **not** advance the page's revision and hash, so the next `loomux reconcile` opens the same case again — inherited from the reference.
+- **An approval** checks first that neither the target page nor a cited source changed since the case was formed, then writes the page with its advanced frontmatter (`generated`, `verified` with the reviewer), advances the identity registers, appends to `log.md` and `audit.md`, removes the case directory and commits exactly those paths onto the vault's current ref through a scratch index (`<state>/maintenance/index`); the user's own index is left alone. It then runs a catch-up pass and an index run, the index run without a catch-up of its own. The catch-up asks the local model for `local_only` cases as `loomux reconcile` does (up to 30 s per case). When the catch-up fails — a broken `[model]` included — a warning says so and nothing is indexed; when the index run fails, a warning names `loomux reindex`. Neither changes the exit code.
+- **A rejection** acknowledges the sources the case was formed over, so the next `loomux reconcile` does not open the same case again: it advances the `revision` and `content_hash` of each matching entry in the page's `sources[]` and the identity registers, appends to `audit.md`, removes the case directory and commits all of it. The page's text, `generated` and `verified` stay as they are, and its hash is not checked; a page without frontmatter, or one deleted or renamed since the case was formed, keeps no rejection from closing the case; a page whose frontmatter does not load (not a mapping, say) refuses the rejection with exit `1` before anything is written. A cited source that changed once more since the case was formed halts the rejection as it halts an approval (note in `case.toml`, exit `1`): that newer state was never under review. The reference does not advance anything on a rejection and reopens the case on every pass; loomux departs from it here on purpose.
+- **Area lock**: while an approval or a rejection advances an identity register, it holds `<state>/areas/<scope>.lock` of every area that writes that register — the lock `loomux reindex` takes — and waits for it when an index run holds it. `--defer` takes none.
 - **`--defer`** writes nothing: `Fall <id> zurückgestellt; er bleibt unverändert in der Warteschlange.`
 - **The reviewer** is `human:<account>`, the account running the command with its domain cut off. No flag names it.
 - **Output**: `Fall <id>: approve` or `Fall <id>: reject`, then `committet als <sha>`. A decision written but not committed — the vault is no git repository, or a rebase or merge is in progress — is `geschrieben, aber nicht committet: <reason>` (or `entschieden, …` for a rejection) on `stderr`, with exit `0`: the vault changed, and running the command again would not improve matters.
@@ -701,7 +704,10 @@ sees a failed start — and it is also what the detached child runs.
   refused, so this service dies with its host`.
 - **Daily catch-up** (since stage 3c): when the last `reconcile` is older than
   24 hours, or there was none, the service runs it itself at start and every 24
-  hours after that for as long as it lives; never `reindex`. Every `brain_*`
+  hours after that for as long as it lives; never `reindex`. The pass asks
+  the local model for `local_only` cases as `loomux reconcile` does (up to
+  30 s per case); a broken `[model]` fails the pass, which is reported like
+  any other failure and stops nothing. Every `brain_*`
   tool waits for the first pass and says so as progress. What it found rides
   on the answers: `brain_status` the opened cases, the unreadable case files
   and a failure, the other four one line with `! ` (the failure or the number
@@ -933,10 +939,17 @@ loomux config reject <id>|--all
   - `--root <dir>` — the project; found upwards from the working directory
     when empty.
   - `--global` — the machine-wide `config.toml` in the state directory
-    instead. It knows no key yet: `list` prints nothing (`[]` with
-    `--json`), and `get`, `set` and `unset`
-    refuse every key as unknown. `--global` together with `--root` is a usage
-    error.
+    instead (`LOOMUX_STATE_DIR`, by default `%LOCALAPPDATA%\loomux`). Its
+    keys are the local model's: `model.enabled` (default `false`),
+    `model.endpoint` (default `http://127.0.0.1:11434`, loopback only),
+    `model.name` (the Ollama model), `model.temperature` (a number from 0
+    to 2, default `0.0`) and `model.roles` (a table, edited by hand; once
+    set, every role it does not name is off). A new text is checked by the
+    reader of `[model]` and by the client's loopback guard: an endpoint off
+    the loopback is refused (exit `1`) and the file stays as it was. A file
+    that is no TOML is named by its own path. An area's `.loomux/config.toml` knows only
+    `model.enabled` and `model.roles`, and can only switch off or narrow.
+    `--global` together with `--root` is a usage error.
   - `--yes` — `set`, `unset` and `apply` write without asking.
   - `--propose` — `set` and `unset` store a proposal instead of writing;
     together with `--yes` it is a usage error.

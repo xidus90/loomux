@@ -556,8 +556,9 @@ geschnitten am 2026-09-24), je mit eigenem Plan und eigener Paritätsakte:
 |---|---|---|
 | **4a-1** Schema und `config` | 🚧 gebaut; Schritte des Menschen offen (Messung des MCP-Arbeitsverzeichnisses, Prüfung in drei Terminals, ein `config set` durch den Menschen) | Schlüsselschema, Zeileneditor, Oberfläche auf `x/term`, `loomux config` (auch `--global`), `[modules]` mit Laufzeitwirkung, der Modulfilter in `loomux mcp`, die Wächterregel gegen schreibende `init`/`config`/`area add` |
 | **4a-2** `init` | 🚧 gebaut 2026-09-24 (Plan `2026-09-24-loomux-stufe-4a-2.md`, Akte `parity/stufe-4a-2.md`; 14 Fälle für `merge-hook`, elf ohne Unterschied); Messung von Task 1 am 2026-09-24 gemacht (Hookdatei und Skill-Ort von Antigravity, `${LOCALAPPDATA}` in `.mcp.json` und in einem Git-Hook), Antigravity-Einträge und -Skills gemessen, nicht gebaut; Schritte des Menschen offen (Freigabe einer Projekt-`.mcp.json`; Selbstnutzung von Task 15: `init --yes` auf einem frischen Klon, ein Wirt interaktiv) | Umzug von ulinit auf das Schema, Module mit alles/einzeln/nichts, Host-Einträge über `${LOCALAPPDATA}`, Git-Hooks und post-merge, Skills, `AGENTS.md`, `.gitignore`, `.mcp.json`, das neueste Release an den kanonischen Ort, `--detect-only`. Hängt an 4a-1 und an `feat/self-update` |
-| **4c** Modell | offen | Ollama-Client, Tor, Richter, Prompts, `[model]`, `propose` in `reconcile`; Heilung von „Offen nach 3b“ #1 und #4; `loomux dev bench search` und ein Berichtsschema für `dev bench` |
-| **4d** `convert`/`fetch` | offen | Eingang wandeln, Untertitel holen, die Modellrollen `describe` und `place` |
+| **4c-1** Modell | 🚧 gebaut 2026-09-26; Selbstnutzung offen (Schritte des Menschen: Wikiseite in obsidian-ai, `pktmon`-Mitschnitt, Messung gegen das echte Modell); geplant 2026-09-25 (Stufe-4-Spec, „Abweichungen beim Planen von 4c“, Plan `2026-09-25-loomux-stufe-4c-1.md`, Akte `parity/stufe-4c-1.md`) | Ollama-Client, Tor, Prompts, `[model]` global und je Bereich, `propose` in `reconcile`; Heilung von „Offen nach 3b“ #1 und #4 |
+| **4c-2** Bench | offen; geplant 2026-09-25 (ebenda) | `loomux dev bench search`, die Untergruppe `dev bench hooks\|repos\|search` (bisher `dev bench-hooks` und `dev bench`, darum `release:major`) und ein Berichtsschema für alle drei. Hängt nicht an 4c-1 |
+| **4d** `convert`/`fetch` | offen | Eingang wandeln, Untertitel holen, die Modellrollen `describe` und `place`, die Richter samt Zipf-Tabelle (aus 4c hierher, weil nur `describe` sie braucht) |
 | **4e** Umstellung | offen | Checkliste ohne Code, vom Menschen abgehakt; wartet auf den Remote für `brain-knowledge` |
 
 **Die drei Teilstufen der 1b**, jede mit eigenem Plan und eigener
@@ -659,7 +660,7 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 | 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c ist fertig (2026-09-23), der Upkeep ruft `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | — | **G4a** Navigation, **G4b** Diff-Blast, Art `graph`, Edit-Monitor | G3 ✅; G4b an G4a ✅ | ✅ Fertig (G4a 2026-09-22, G4b 2026-09-23). W3 wartete auf G4a, W4 auf G4b |
 | 2 | **G4c** Stop-Hook mit Blast-Logik | G4b ✅ | Sofort baubar, neben der Fusion; loomux prüft sich an jedem Rundenende selbst und bekäme den Blast dort. Nichts wartet darauf |
-| 3 | **4** `config`, `init`, Modell, `convert`/`fetch` | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. In sich 4a-1 → 4a-2 → 4c → 4d, dann 4e, nach Regel 2 (Selbstnutzung). 4a-1 und 4a-2 sind gebaut, beide mit offenen Schritten des Menschen; `feat/self-update` ist gemergt. Die Umstellung der Wirte braucht einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
+| 3 | **4** `config`, `init`, Modell, `convert`/`fetch` | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. In sich 4a-1 → 4a-2 → 4c-1 → 4d, dann 4e; 4c-2 daneben, ohne dass etwas auf sie wartet, nach Regel 2 (Selbstnutzung). 4a-1, 4a-2 und 4c-1 sind gebaut, alle mit offenen Schritten des Menschen; `feat/self-update` ist gemergt. Die Umstellung der Wirte braucht einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
 | 4 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
 | 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4a ✅; W4 an G4b ✅ und 4; W5 an W1 und Flow | Folgeprojekt |
 | 6 | **G5** `wazero` | G4b ✅ | Nichts wartet darauf |
@@ -706,12 +707,18 @@ der Nutzer, erst dann gilt sie.
 ### Offen nach 3b
 
 Drei Fehler, die 3b von der Python-Referenz geerbt und absichtlich
-nachgebildet hat, und eine Lücke, die 3b festgehalten hat. Keiner ist
-geheilt, und hier steht kein Vorschlag: jeder wartet auf eine Entscheidung
-des Nutzers, ob und wie er geheilt wird. Die Belegstellen stehen in
+nachgebildet hat, und eine Lücke, die 3b festgehalten hat. #1 und #4 sind
+seit 4c-1 geheilt (2026-09-26); #2 und #3 sind nicht geheilt, und hier steht
+kein Vorschlag: beide warten auf eine Entscheidung des Nutzers, ob und wie
+sie geheilt werden. Die Belegstellen stehen in
 `parity/stufe-3b.md`.
 
-1. **`--reject` schiebt Revision und Hash nicht vor.** Die Ablehnung schreibt
+1. **Geheilt in 4c-1 (2026-09-26):** `--reject` schiebt jetzt `sources[]`
+   der Seite (Revision und Hash) und das Register vor und hält an einer
+   Quelle an, die sich seit der Fallbildung erneut bewegt hat
+   (`fix(approve)`, Akte `parity/stufe-4c-1.md`, Abweichungsliste). Der
+   Befund, wie er nach 3b stand: **`--reject` schiebt Revision und Hash nicht
+   vor.** Die Ablehnung schreibt
    `audit.md`, entfernt den Fall und committet, schiebt aber weder die
    `sources[]` der Seite noch das Register vor; der nächste Abgleich eröffnet
    denselben Fall wieder. Akte, Abschnitt „Geerbt“, erster Absatz.
@@ -726,7 +733,11 @@ des Nutzers, ob und wie er geheilt wird. Die Belegstellen stehen in
    Akte, Abschnitt „Überlebende Mutanten“, Absatz „Geerbt, festgehalten und
    nicht geheilt“; `TestHiddenMarkupOnAHeadingLineIsChargedToNoSection` hält
    das Verhalten fest.
-4. **`reindex` und `approve` teilen keine Sperre.** Laufen beide zugleich über
+4. **Geheilt in 4c-1 (2026-09-26):** `reindex` und `approve` teilen jetzt
+   eine Sperre je Bereich, `<zustand>/areas/<scope>.lock` (`fix(index)`,
+   Akte `parity/stufe-4c-1.md`, Abweichungsliste). Der Befund, wie er nach
+   3b stand: **`reindex` und `approve` teilen keine Sperre.** Laufen beide
+   zugleich über
    einen schreibgeschützten Bereich, kann `reindex` das Register zwischen
    Lesen und Tausch durch `approve` neu schreiben (eine Zeile geht verloren,
    der nächste Abgleich eröffnet den Fall neu), oder beide treffen sich beim
