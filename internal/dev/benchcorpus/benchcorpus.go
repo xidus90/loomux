@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/detect"
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 	"github.com/xidus90/loomux/internal/hooks"
 )
 
@@ -105,12 +106,12 @@ func BenchmarkRepo(dir string, opts Options, runner ProcessRunner, clock func() 
 		return min(opts.ComponentTimeout, left), nil
 	}
 
-	measure := func(steps []benchStep) ([]ComponentTiming, time.Duration, error) {
-		timings := make([]ComponentTiming, 0, len(steps))
-		var total time.Duration
+	measure := func(steps []benchStep) ([]stepRun, float64, error) {
+		runs := make([]stepRun, 0, len(steps))
+		var total float64
 		for _, step := range steps {
 			if !step.applicable {
-				timings = append(timings, ComponentTiming{Name: step.name})
+				runs = append(runs, stepRun{})
 				continue
 			}
 			limit, err := budget()
@@ -122,56 +123,59 @@ func BenchmarkRepo(dir string, opts Options, runner ProcessRunner, clock func() 
 			if err != nil {
 				return nil, 0, err
 			}
-			elapsed := clock().Sub(t0)
-			total += elapsed
-			timings = append(timings, ComponentTiming{Name: step.name, Applicable: true, Elapsed: elapsed, ExitCode: code, TimedOut: timedOut})
+			ms := benchreport.MS(clock().Sub(t0))
+			total += ms
+			runs = append(runs, stepRun{ms: ms, code: code, timedOut: timedOut})
 		}
-		return timings, total, nil
+		return runs, total, nil
 	}
 
-	var coldRun TimingRun
-	var warmRuns []TimingRun
-	var warmTotals []time.Duration
-	var claudeWarmTotals []time.Duration
-	var hookWarmTotals []time.Duration
+	var totalColdMS float64
+	var totalWarmMS []float64
+	components := newSeries(steps)
+	baselines := newSeries(baseline)
+	var hookWarmMS, claudeWarmMS []float64
 	var baselineErr string
 
 	for p := 0; p < 1+opts.WarmRuns; p++ {
-		components, total, err := measure(steps)
+		cold := p == 0
+		runs, passMS, err := measure(steps)
 		if err != nil {
 			return nil, err
 		}
 		// The baseline is a comparison, not the measurement: a hook that cannot
 		// start drops the comparison and keeps what loomux measured.
-		baseTimings, baseTotal, err := measure(baseline)
+		baseRuns, baseMS, err := measure(baseline)
 		if err != nil {
 			baselineErr = err.Error()
-			baseline, baseTimings, claudeWarmTotals = nil, nil, nil
-			coldRun.Baseline = nil
-			for i := range warmRuns {
-				warmRuns[i].Baseline = nil
-			}
+			baseline, baseRuns, baselines, claudeWarmMS = nil, nil, nil, nil
 		}
-		run := TimingRun{Total: total, Components: components}
-		if len(baseTimings) > 0 {
-			run.Baseline = baseTimings
+		for i, run := range runs {
+			components[i].add(run, cold)
+		}
+		for i, run := range baseRuns {
+			baselines[i].add(run, cold)
 		}
 
-		if p == 0 {
-			coldRun = run
+		if cold {
+			totalColdMS = passMS
 			continue
 		}
-		warmRuns = append(warmRuns, run)
-		warmTotals = append(warmTotals, total)
+		totalWarmMS = append(totalWarmMS, passMS)
 		// The baseline replaces the edit hooks alone, so only they are its rival.
-		hookWarmTotals = append(hookWarmTotals, components[0].Elapsed+components[1].Elapsed)
+		hookWarmMS = append(hookWarmMS, runs[0].ms+runs[1].ms)
 		if len(baseline) > 0 {
-			claudeWarmTotals = append(claudeWarmTotals, baseTotal)
+			claudeWarmMS = append(claudeWarmMS, baseMS)
 		}
 	}
 
-	sortedWarmTotals := slices.Clone(warmTotals)
-	slices.Sort(sortedWarmTotals)
+	timings := []benchreport.Timing{benchreport.Summarize(TotalTiming, totalColdMS, totalWarmMS)}
+	for i, step := range steps {
+		timings = append(timings, components[i].timing(step.name))
+	}
+	for i, step := range baseline {
+		timings = append(timings, baselines[i].timing(BaselineTiming(step.name)))
+	}
 
 	audit := &RepoAudit{
 		Dir:            dir,
@@ -182,25 +186,69 @@ func BenchmarkRepo(dir string, opts Options, runner ProcessRunner, clock func() 
 		Audit:          checks,
 		MissingGaps:    gaps,
 		CoverageRate:   rate,
-		Cold:           coldRun,
-		Warm:           warmRuns,
-		WarmMedian:     calculateMedian(sortedWarmTotals),
-		WarmMin:        sortedWarmTotals[0],
-		WarmMax:        sortedWarmTotals[len(sortedWarmTotals)-1],
+		Timings:        timings,
+		HookWarmMedian: benchreport.Median(hookWarmMS),
 	}
-
-	slices.Sort(hookWarmTotals)
-	audit.HookWarmMedian = calculateMedian(hookWarmTotals)
-
-	if len(claudeWarmTotals) > 0 {
-		slices.Sort(claudeWarmTotals)
-		audit.ClaudeWarmMed = calculateMedian(claudeWarmTotals)
+	if len(claudeWarmMS) > 0 {
+		audit.ClaudeWarmMed = benchreport.Median(claudeWarmMS)
 		if audit.HookWarmMedian > 0 {
-			audit.Speedup = float64(audit.ClaudeWarmMed) / float64(audit.HookWarmMedian)
+			audit.Speedup = audit.ClaudeWarmMed / audit.HookWarmMedian
 		}
 	}
 
 	return audit, nil
+}
+
+// stepRun is one call of one step; a step that does not apply leaves it zero.
+type stepRun struct {
+	ms       float64
+	code     int
+	timedOut bool
+}
+
+// series gathers the calls of one step over the cold and the warm passes.
+type series struct {
+	applicable bool
+	coldMS     float64
+	warmMS     []float64
+	codes      []int
+	timedOut   int
+}
+
+// newSeries starts one series per step.
+func newSeries(steps []benchStep) []series {
+	out := make([]series, len(steps))
+	for i, step := range steps {
+		out[i].applicable = step.applicable
+	}
+	return out
+}
+
+// add records run; a step that does not apply records nothing.
+func (s *series) add(run stepRun, cold bool) {
+	if !s.applicable {
+		return
+	}
+	if cold {
+		s.coldMS = run.ms
+	} else {
+		s.warmMS = append(s.warmMS, run.ms)
+	}
+	s.codes = append(s.codes, run.code)
+	if run.timedOut {
+		s.timedOut++
+	}
+}
+
+// timing summarizes the series under name.
+func (s *series) timing(name string) benchreport.Timing {
+	t := benchreport.Summarize(name, s.coldMS, s.warmMS)
+	if !s.applicable {
+		no := false
+		t.Applicable = &no
+	}
+	t.ExitCodes, t.TimedOut = s.codes, s.timedOut
+	return t
 }
 
 // hookPayload is the event Claude Code sends a hook for an empty edit of file.
@@ -371,17 +419,6 @@ func parseMatrix(matrixData []byte, maxLanguages int, tierFilter string) []matri
 func sanitizeRepoDir(name string) string {
 	r := strings.NewReplacer("/", "_", "\\", "_", ":", "_")
 	return r.Replace(name)
-}
-
-func calculateMedian(d []time.Duration) time.Duration {
-	n := len(d)
-	if n == 0 {
-		return 0
-	}
-	if n%2 == 1 {
-		return d[n/2]
-	}
-	return (d[n/2-1] + d[n/2]) / 2
 }
 
 // BenchmarkCorpus benchmarks multiple repositories defined in the open-source matrix corpus.

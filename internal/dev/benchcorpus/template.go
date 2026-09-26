@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"slices"
 	"strings"
-	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 // RepoSlug returns a clean, filesystem-safe identifier for the repository.
@@ -128,8 +128,8 @@ func FormatDetailMarkdown(audit *RepoAudit, lang string, w io.Writer) error {
 		fmt.Fprintln(w, "|---|---:|---:|---:|---:|---|")
 	}
 
-	for cIdx, comp := range audit.Cold.Components {
-		if !comp.Applicable {
+	for _, comp := range audit.Components() {
+		if comp.Applicable != nil && !*comp.Applicable {
 			statusTxt := "n/a (non-Go)"
 			if comp.Name != "graph build" {
 				statusTxt = "n/a"
@@ -137,34 +137,18 @@ func FormatDetailMarkdown(audit *RepoAudit, lang string, w io.Writer) error {
 			fmt.Fprintf(w, "| **%s** | n/a | n/a | n/a | n/a | %s |\n", comp.Name, statusTxt)
 			continue
 		}
-
-		coldStr := formatDuration(comp.Elapsed)
-		var warmCompTimes []time.Duration
-		for _, wRun := range audit.Warm {
-			if cIdx < len(wRun.Components) {
-				warmCompTimes = append(warmCompTimes, wRun.Components[cIdx].Elapsed)
-			}
-		}
-		slices.Sort(warmCompTimes)
-		medStr := formatDuration(calculateMedian(warmCompTimes))
-		minStr := formatDuration(warmCompTimes[0])
-		maxStr := formatDuration(warmCompTimes[len(warmCompTimes)-1])
-
-		fmt.Fprintf(w, "| **%s** | %s | %s | %s | %s | %s |\n", comp.Name, coldStr, medStr, minStr, maxStr, exitStatus(componentRuns(audit.Cold, audit.Warm, cIdx)))
+		fmt.Fprintf(w, "| **%s** | %s | %s |\n", comp.Name, timingCells(comp), exitStatus(comp))
 	}
 
-	totalCold := formatDuration(audit.Cold.Total)
-	totalMed := formatDuration(audit.WarmMedian)
-	totalMin := formatDuration(audit.WarmMin)
-	totalMax := formatDuration(audit.WarmMax)
+	total, _ := audit.Timing(TotalTiming)
+	totalLabel := "Total"
 	if isDE {
-		fmt.Fprintf(w, "| **Gesamt** | %s | %s | %s | %s | %s |\n", totalCold, totalMed, totalMin, totalMax, exitStatus(allRuns(audit.Cold, audit.Warm)))
-	} else {
-		fmt.Fprintf(w, "| **Total** | %s | %s | %s | %s | %s |\n", totalCold, totalMed, totalMin, totalMax, exitStatus(allRuns(audit.Cold, audit.Warm)))
+		totalLabel = "Gesamt"
 	}
+	fmt.Fprintf(w, "| **%s** | %s | %s |\n", totalLabel, timingCells(total), exitStatus(allRuns(audit)...))
 
 	if audit.ClaudeWarmMed > 0 {
-		fmt.Fprintf(w, "\n- **Baseline Claude Hook:** %s%s (Speedup: %.1fx%s)\n", formatDuration(audit.ClaudeWarmMed), hookComparison(audit), audit.Speedup, baselineStatus(audit))
+		fmt.Fprintf(w, "\n- **Baseline Claude Hook:** %s%s (Speedup: %.1fx%s)\n", benchreport.FormatMS(audit.ClaudeWarmMed), hookComparison(audit), audit.Speedup, baselineStatus(audit))
 	} else if audit.BaselineError != "" {
 		fmt.Fprintf(w, "\n- **Baseline Claude Hook:** %s (%s)\n", unavailableWord(isDE), audit.BaselineError)
 	}
@@ -251,4 +235,12 @@ func FormatDetailMarkdown(audit *RepoAudit, lang string, w io.Writer) error {
 	}
 
 	return nil
+}
+
+// timingCells are the cold, warm median, minimum and maximum cells of a row.
+func timingCells(t benchreport.Timing) string {
+	return strings.Join([]string{
+		benchreport.FormatMS(t.ColdMS), benchreport.FormatMS(t.MedianMS),
+		benchreport.FormatMS(t.MinMS), benchreport.FormatMS(t.MaxMS),
+	}, " | ")
 }

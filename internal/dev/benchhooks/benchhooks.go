@@ -13,12 +13,13 @@ package benchhooks
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
-	"slices"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 // Step is one process of a case.
@@ -38,35 +39,48 @@ type Case struct {
 	Steps []Step `json:"steps"`
 }
 
-// Run measures every case and writes the table to w.
-func Run(cases []Case, n int, w io.Writer, run func(Case, Step) (int, error), now func() time.Time) error {
-	// Every case is judged before the first byte is written: a table whose
-	// header stands above nothing is worse than no table.
+// Measure runs every case once cold and n times warm and reports each as
+// a timing, the exit codes of its last run attached.
+func Measure(cases []Case, n int, run func(Case, Step) (int, error), now func() time.Time) ([]benchreport.Timing, error) {
+	// Every case is judged before the first process starts: a measurement
+	// that breaks off halfway leaves nothing worth reporting.
 	if err := validate(cases); err != nil {
-		return err
+		return nil, err
 	}
-	fmt.Fprintln(w, "| case | cold (1st run) | warm median | warm min | warm max | exit codes |")
-	fmt.Fprintln(w, "|---|---:|---:|---:|---:|---|")
+	timings := make([]benchreport.Timing, 0, len(cases))
 	for _, c := range cases {
-		var cold time.Duration
-		warm := make([]time.Duration, 0, n)
+		var cold float64
+		warm := make([]float64, 0, n)
 		var codes []int
 		for i := 0; i <= n; i++ {
 			d, exits, err := once(c, run, now)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			codes = exits
 			if i == 0 {
-				cold = d
+				cold = benchreport.MS(d)
 				continue
 			}
-			warm = append(warm, d)
+			warm = append(warm, benchreport.MS(d))
 		}
-		fmt.Fprintf(w, "| %s | %s | %s | %s | %s | %v |\n", c.Name,
-			ms(cold), ms(median(warm)), ms(low(warm)), ms(high(warm)), codes)
+		t := benchreport.Summarize(c.Name, cold, warm)
+		t.ExitCodes = codes
+		timings = append(timings, t)
 	}
-	return nil
+	return timings, nil
+}
+
+// Table is the markdown the command prints: one row per case, the exit
+// codes of the last run in the last column.
+func Table(timings []benchreport.Timing) string {
+	var b strings.Builder
+	b.WriteString("| case | cold (1st run) | warm median | warm min | warm max | exit codes |\n")
+	b.WriteString("|---|---:|---:|---:|---:|---|\n")
+	for _, t := range timings {
+		fmt.Fprintf(&b, "%s %v |\n", t.Row(), t.ExitCodes)
+	}
+	return b.String()
 }
 
 func validate(cases []Case) error {
@@ -76,9 +90,9 @@ func validate(cases []Case) error {
 		}
 		for i, step := range c.Steps {
 			// A step with no argv names no process, and Exec reaches for
-			// argv[0]: without this the table's header was written and the run
-			// then panicked, which is the one thing this function exists to
-			// prevent.
+			// argv[0]: without this the measurement would panic halfway,
+			// after the cases before it had already run, which is the one
+			// thing this function exists to prevent.
 			if len(step.Argv) == 0 {
 				return fmt.Errorf("%s: step #%d names no command", c.Name, i+1)
 			}
@@ -104,7 +118,7 @@ func once(c Case, run func(Case, Step) (int, error), now func() time.Time) (time
 	case "par":
 		err = parallel(c, run, codes)
 	default:
-		// Unreachable through Run, which validates first; kept so the
+		// Unreachable through Measure, which validates first; kept so the
 		// switch stays total and tested directly.
 		return 0, nil, fmt.Errorf("%s: unknown mode %q", c.Name, c.Mode)
 	}
@@ -149,39 +163,6 @@ func firstError(errs []error) error {
 		}
 	}
 	return nil
-}
-
-// median averages the two middle values of an even count, so a run of
-// four does not silently report the upper one as the middle.
-func median(d []time.Duration) time.Duration {
-	if len(d) == 0 {
-		return 0
-	}
-	s := slices.Clone(d)
-	slices.Sort(s)
-	half := len(s) / 2
-	if len(s)%2 == 1 {
-		return s[half]
-	}
-	return (s[half-1] + s[half]) / 2
-}
-
-func low(d []time.Duration) time.Duration {
-	if len(d) == 0 {
-		return 0
-	}
-	return slices.Min(d)
-}
-
-func high(d []time.Duration) time.Duration {
-	if len(d) == 0 {
-		return 0
-	}
-	return slices.Max(d)
-}
-
-func ms(d time.Duration) string {
-	return fmt.Sprintf("%.1f ms", float64(d)/float64(time.Millisecond))
 }
 
 // Exec is the real process start. A non-zero exit is a reading and not a

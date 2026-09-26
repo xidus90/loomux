@@ -3,9 +3,12 @@ package benchcorpus
 import (
 	"bytes"
 	"encoding/json"
+	"math"
+	"reflect"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 func TestFormatMarkdown(t *testing.T) {
@@ -28,36 +31,11 @@ func TestFormatMarkdown(t *testing.T) {
 						{Tool: "mypy", Category: "typecheck", Native: "pyproject.toml", Lane: "mypy .", OnPath: false},
 						{Tool: "pytest", Category: "test", Native: "pytest.ini", Lane: "", OnPath: true},
 					},
-					Cold: TimingRun{
-						Total: 50 * time.Millisecond,
-						Components: []ComponentTiming{
-							{Name: "pre-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-							{Name: "post-tool-use", Applicable: true, Elapsed: 40 * time.Millisecond},
-							{Name: "graph build", Applicable: false, Elapsed: 0},
-						},
-					},
-					Warm: []TimingRun{
-						{
-							Total: 30 * time.Millisecond,
-							Components: []ComponentTiming{
-								{Name: "pre-tool-use", Applicable: true, Elapsed: 8 * time.Millisecond},
-								{Name: "post-tool-use", Applicable: true, Elapsed: 22 * time.Millisecond},
-								{Name: "graph build", Applicable: false, Elapsed: 0},
-							},
-						},
-						{
-							Total: 32 * time.Millisecond,
-							Components: []ComponentTiming{
-								{Name: "pre-tool-use", Applicable: true, Elapsed: 9 * time.Millisecond},
-								{Name: "post-tool-use", Applicable: true, Elapsed: 23 * time.Millisecond},
-								{Name: "graph build", Applicable: false, Elapsed: 0},
-							},
-						},
-					},
-					WarmMedian:    31 * time.Millisecond,
-					WarmMin:       30 * time.Millisecond,
-					WarmMax:       32 * time.Millisecond,
-					ClaudeWarmMed: 90 * time.Millisecond,
+					Timings: timings(benchreport.Summarize("", 50, []float64{30, 32}),
+						comp("pre-tool-use", 10, 8, 9),
+						comp("post-tool-use", 40, 22, 23),
+						notApplicable("graph build")),
+					ClaudeWarmMed: 90,
 					Speedup:       2.9,
 				},
 			},
@@ -104,52 +82,18 @@ func TestFormatMarkdown(t *testing.T) {
 					Tier:         "Sehr viel",
 					CommitSHA:    "abc1234",
 					CoverageRate: 100.0,
-					Cold: TimingRun{
-						Total: 20 * time.Millisecond,
-						Components: []ComponentTiming{
-							{Name: "pre-tool-use", Applicable: true, Elapsed: 5 * time.Millisecond},
-							{Name: "post-tool-use", Applicable: true, Elapsed: 10 * time.Millisecond},
-							{Name: "graph build", Applicable: true, Elapsed: 5 * time.Millisecond},
-						},
-					},
-					Warm: []TimingRun{
-						{
-							Total: 18 * time.Millisecond,
-							Components: []ComponentTiming{
-								{Name: "pre-tool-use", Applicable: true, Elapsed: 4 * time.Millisecond},
-								{Name: "post-tool-use", Applicable: true, Elapsed: 9 * time.Millisecond},
-								{Name: "graph build", Applicable: true, Elapsed: 5 * time.Millisecond},
-							},
-						},
-					},
-					WarmMedian: 18 * time.Millisecond,
-					WarmMin:    18 * time.Millisecond,
-					WarmMax:    18 * time.Millisecond,
+					Timings: timings(benchreport.Summarize("", 20, []float64{18}),
+						comp("pre-tool-use", 5, 4),
+						comp("post-tool-use", 10, 9),
+						comp("graph build", 5, 5)),
 				},
 				{
 					Dir:          "/local/repo2",
 					CoverageRate: 100.0,
-					Cold: TimingRun{
-						Total: 10 * time.Millisecond,
-						Components: []ComponentTiming{
-							{Name: "pre-tool-use", Applicable: true, Elapsed: 4 * time.Millisecond},
-							{Name: "post-tool-use", Applicable: true, Elapsed: 6 * time.Millisecond},
-							{Name: "graph build", Applicable: false, Elapsed: 0},
-						},
-					},
-					Warm: []TimingRun{
-						{
-							Total: 9 * time.Millisecond,
-							Components: []ComponentTiming{
-								{Name: "pre-tool-use", Applicable: true, Elapsed: 3 * time.Millisecond},
-								{Name: "post-tool-use", Applicable: true, Elapsed: 6 * time.Millisecond},
-								{Name: "graph build", Applicable: false, Elapsed: 0},
-							},
-						},
-					},
-					WarmMedian: 9 * time.Millisecond,
-					WarmMin:    9 * time.Millisecond,
-					WarmMax:    9 * time.Millisecond,
+					Timings: timings(benchreport.Summarize("", 10, []float64{9}),
+						comp("pre-tool-use", 4, 3),
+						comp("post-tool-use", 6, 6),
+						notApplicable("graph build")),
 				},
 			},
 		}
@@ -172,29 +116,69 @@ func TestFormatMarkdown(t *testing.T) {
 	})
 }
 
-func TestFormatJSON(t *testing.T) {
+// The JSON of a run is the shared report: each repository's total under the
+// name its markdown section carries, the rows themselves in the payload.
+func TestReportJSONIsTheSharedReport(t *testing.T) {
 	report := &BenchmarkReport{
 		Timestamp: "2026-09-18T15:35:00Z",
-		Mode:      "single",
+		Mode:      "corpus",
 		WarmRuns:  2,
 		Repos: []*RepoAudit{
-			{
-				Dir:          "/repo",
-				CoverageRate: 100.0,
-			},
+			{RepoURL: "https://github.com/foo/repo1", Timings: timings(benchreport.Timing{MedianMS: 12.5})},
+			{Dir: "/local/repo2", Timings: timings(benchreport.Timing{MedianMS: 7})},
+			{Dir: "/local/unmeasured"},
 		},
+		Skipped: []SkippedRepo{{RepoURL: "https://github.com/x/y", Reason: "clone failed"}},
 	}
+	env := benchreport.Environment{OS: "windows", Arch: "amd64", CPU: "cpu", Go: "go1.27", Loomux: "v9"}
 
-	var buf bytes.Buffer
-	if err := FormatJSON(report, &buf); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	data, err := ReportJSON(report, "2026-09-18-1535", env)
+	if err != nil {
+		t.Fatal(err)
 	}
+	var parsed struct {
+		benchreport.Report
+		Payload struct {
+			Repos   []RepoAudit   `json:"repos"`
+			Skipped []SkippedRepo `json:"skipped"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("%v\n%s", err, data)
+	}
+	if parsed.Schema != benchreport.Schema || parsed.Command != "repos" || parsed.Stamp != "2026-09-18-1535" || !reflect.DeepEqual(parsed.Environment, env) {
+		t.Fatalf("head: %+v", parsed.Report)
+	}
+	if len(parsed.Timings) != 2 || parsed.Timings[0].Name != "https://github.com/foo/repo1" ||
+		parsed.Timings[0].MedianMS != 12.5 || parsed.Timings[1].Name != "/local/repo2" {
+		t.Fatalf("timings: %+v", parsed.Timings)
+	}
+	if len(parsed.Payload.Repos) != 3 || len(parsed.Payload.Skipped) != 1 || parsed.Payload.Skipped[0].Reason != "clone failed" {
+		t.Fatalf("payload: %s", data)
+	}
+	// The repository keeps its own total: the renamed copy lives in the head only.
+	if report.Repos[0].Timings[0].Name != TotalTiming {
+		t.Fatalf("the audit's total was renamed: %+v", report.Repos[0].Timings)
+	}
+}
 
-	var parsed BenchmarkReport
-	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
-		t.Fatalf("failed to unmarshal JSON: %v", err)
+// A run without repositories or skips says so with empty lists, not null.
+func TestReportJSONWritesEmptyListsForAnEmptyRun(t *testing.T) {
+	data, err := ReportJSON(&BenchmarkReport{}, "s", benchreport.Environment{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if parsed.Timestamp != report.Timestamp || parsed.Mode != report.Mode || len(parsed.Repos) != 1 {
-		t.Errorf("parsed JSON does not match: %+v", parsed)
+	text := string(data)
+	for _, want := range []string{`"timings": []`, `"repos": []`, `"skipped": []`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("lacks %s:\n%s", want, text)
+		}
+	}
+}
+
+func TestReportJSONRefusesARowJSONCannotCarry(t *testing.T) {
+	report := &BenchmarkReport{Repos: []*RepoAudit{{Dir: "/r", Speedup: math.NaN()}}}
+	if _, err := ReportJSON(report, "s", benchreport.Environment{}); err == nil {
+		t.Fatal("NaN encoded")
 	}
 }

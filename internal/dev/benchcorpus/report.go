@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"slices"
-	"time"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
 // FormatMarkdown formats a BenchmarkReport as a deterministic Markdown document.
@@ -35,35 +35,19 @@ func FormatMarkdown(report *BenchmarkReport, w io.Writer) error {
 		fmt.Fprintln(w, "| Komponente | Kalt (1. Lauf) | Warmer Median | Warm Min | Warm Max | Status |")
 		fmt.Fprintln(w, "|---|---:|---:|---:|---:|---|")
 
-		for cIdx, comp := range repo.Cold.Components {
-			if !comp.Applicable {
+		for _, comp := range repo.Components() {
+			if comp.Applicable != nil && !*comp.Applicable {
 				fmt.Fprintf(w, "| **%s** | n/a | n/a | n/a | n/a | n/a |\n", comp.Name)
 				continue
 			}
-
-			coldStr := formatDuration(comp.Elapsed)
-			var warmCompTimes []time.Duration
-			for _, wRun := range repo.Warm {
-				if cIdx < len(wRun.Components) {
-					warmCompTimes = append(warmCompTimes, wRun.Components[cIdx].Elapsed)
-				}
-			}
-			slices.Sort(warmCompTimes)
-			medStr := formatDuration(calculateMedian(warmCompTimes))
-			minStr := formatDuration(warmCompTimes[0])
-			maxStr := formatDuration(warmCompTimes[len(warmCompTimes)-1])
-
-			fmt.Fprintf(w, "| **%s** | %s | %s | %s | %s | %s |\n", comp.Name, coldStr, medStr, minStr, maxStr, exitStatus(componentRuns(repo.Cold, repo.Warm, cIdx)))
+			fmt.Fprintf(w, "| **%s** | %s | %s |\n", comp.Name, timingCells(comp), exitStatus(comp))
 		}
 
-		totalCold := formatDuration(repo.Cold.Total)
-		totalMed := formatDuration(repo.WarmMedian)
-		totalMin := formatDuration(repo.WarmMin)
-		totalMax := formatDuration(repo.WarmMax)
-		fmt.Fprintf(w, "| **Gesamt** | %s | %s | %s | %s | %s |\n", totalCold, totalMed, totalMin, totalMax, exitStatus(allRuns(repo.Cold, repo.Warm)))
+		total, _ := repo.Timing(TotalTiming)
+		fmt.Fprintf(w, "| **Gesamt** | %s | %s |\n", timingCells(total), exitStatus(allRuns(repo)...))
 
 		if repo.ClaudeWarmMed > 0 {
-			fmt.Fprintf(w, "\n- **Baseline Claude Hook:** %s%s (Speedup: %.1fx%s)\n", formatDuration(repo.ClaudeWarmMed), hookComparison(repo), repo.Speedup, baselineStatus(repo))
+			fmt.Fprintf(w, "\n- **Baseline Claude Hook:** %s%s (Speedup: %.1fx%s)\n", benchreport.FormatMS(repo.ClaudeWarmMed), hookComparison(repo), repo.Speedup, baselineStatus(repo))
 		} else if repo.BaselineError != "" {
 			fmt.Fprintf(w, "\n- **Baseline Claude Hook:** %s (%s)\n", "nicht verfügbar", repo.BaselineError)
 		}
@@ -116,14 +100,34 @@ func repoDisplay(repo *RepoAudit) string {
 	return repo.Dir
 }
 
-func formatDuration(d time.Duration) string {
-	ms := float64(d) / float64(time.Millisecond)
-	return fmt.Sprintf("%.1f ms", ms)
+// runPayload is what a repos run adds to the shared report: the full rows,
+// and the repositories it could not measure.
+type runPayload struct {
+	Repos   []*RepoAudit  `json:"repos"`
+	Skipped []SkippedRepo `json:"skipped"`
 }
 
-// FormatJSON formats a BenchmarkReport as formatted JSON.
-func FormatJSON(report *BenchmarkReport, w io.Writer) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(report)
+// ReportJSON is the shared report of a run as written next to its markdown.
+// Its timings are each repository's total, named as its markdown section is,
+// so two runs compare without reading the payload.
+func ReportJSON(report *BenchmarkReport, stamp string, env benchreport.Environment) ([]byte, error) {
+	payload, err := json.Marshal(runPayload{
+		Repos:   append([]*RepoAudit{}, report.Repos...),
+		Skipped: append([]SkippedRepo{}, report.Skipped...),
+	})
+	if err != nil {
+		return nil, err
+	}
+	totals := []benchreport.Timing{}
+	for _, repo := range report.Repos {
+		if total, ok := repo.Timing(TotalTiming); ok {
+			total.Name = repoDisplay(repo)
+			totals = append(totals, total)
+		}
+	}
+	// The head holds nothing the payload did not already encode, so it
+	// cannot fail where the payload succeeded.
+	data, _ := benchreport.Report{Schema: benchreport.Schema, Command: "repos", Stamp: stamp,
+		Environment: env, Timings: totals, Payload: payload}.JSON()
+	return data, nil
 }

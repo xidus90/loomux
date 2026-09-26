@@ -4,18 +4,22 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
 
-// exitStatus condenses the outcomes of several runs into one table cell: a
-// single timeout outweighs every exit code, since its code says nothing.
-func exitStatus(runs []ComponentTiming) string {
+// exitStatus condenses the outcomes of every run of timings into one table
+// cell: a single timeout outweighs every exit code, since its code says nothing.
+func exitStatus(timings ...benchreport.Timing) string {
 	var codes []int
-	for _, run := range runs {
-		if run.TimedOut {
+	for _, t := range timings {
+		if t.TimedOut > 0 {
 			return "timeout"
 		}
-		if !slices.Contains(codes, run.ExitCode) {
-			codes = append(codes, run.ExitCode)
+		for _, code := range t.ExitCodes {
+			if !slices.Contains(codes, code) {
+				codes = append(codes, code)
+			}
 		}
 	}
 	if len(codes) == 0 {
@@ -29,35 +33,24 @@ func exitStatus(runs []ComponentTiming) string {
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
-// componentRuns gathers the cold and warm measurements of one component.
-func componentRuns(cold TimingRun, warm []TimingRun, idx int) []ComponentTiming {
-	runs := []ComponentTiming{cold.Components[idx]}
-	for _, w := range warm {
-		if idx < len(w.Components) {
-			runs = append(runs, w.Components[idx])
+// allRuns gathers every applicable component, whose runs the total row reports.
+func allRuns(audit *RepoAudit) []benchreport.Timing {
+	var runs []benchreport.Timing
+	for _, c := range audit.Components() {
+		if c.Applicable == nil || *c.Applicable {
+			runs = append(runs, c)
 		}
 	}
 	return runs
 }
 
-// allRuns gathers every applicable measurement, which the total row reports.
-func allRuns(cold TimingRun, warm []TimingRun) []ComponentTiming {
-	var runs []ComponentTiming
-	for _, run := range append([]TimingRun{cold}, warm...) {
-		for _, comp := range run.Components {
-			if comp.Applicable {
-				runs = append(runs, comp)
-			}
+// baselineRuns gathers the Claude hooks the row was compared against.
+func baselineRuns(audit *RepoAudit) []benchreport.Timing {
+	var runs []benchreport.Timing
+	for _, t := range audit.Timings {
+		if strings.HasPrefix(t.Name, baselinePrefix) {
+			runs = append(runs, t)
 		}
-	}
-	return runs
-}
-
-// baselineRuns gathers every baseline hook call of the cold and warm passes.
-func baselineRuns(cold TimingRun, warm []TimingRun) []ComponentTiming {
-	runs := slices.Clone(cold.Baseline)
-	for _, w := range warm {
-		runs = append(runs, w.Baseline...)
 	}
 	return runs
 }
@@ -65,11 +58,11 @@ func baselineRuns(cold TimingRun, warm []TimingRun) []ComponentTiming {
 // baselineStatus appends the exit status of the Claude baseline hooks to the
 // baseline line, when any were measured.
 func baselineStatus(audit *RepoAudit) string {
-	runs := baselineRuns(audit.Cold, audit.Warm)
+	runs := baselineRuns(audit)
 	if len(runs) == 0 {
 		return ""
 	}
-	return ", Status: " + exitStatus(runs)
+	return ", Status: " + exitStatus(runs...)
 }
 
 // hookComparison names the loomux side of the speedup, which counts the two
@@ -78,7 +71,7 @@ func hookComparison(audit *RepoAudit) string {
 	if audit.HookWarmMedian == 0 {
 		return ""
 	}
-	return " vs. loomux hooks " + formatDuration(audit.HookWarmMedian)
+	return " vs. loomux hooks " + benchreport.FormatMS(audit.HookWarmMedian)
 }
 
 // unavailableWord marks a baseline that could not be measured.
