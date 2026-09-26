@@ -15,6 +15,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/xidus90/loomux/internal/brain/model"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/config/edit"
 	"github.com/xidus90/loomux/internal/config/schema"
@@ -156,20 +157,15 @@ func (t configTarget) read() (string, error) {
 	return string(data), err
 }
 
-// entries is schema.Current narrowed to the keys this target knows: the
-// global file shares the project file's reader but not its keys.
+// entries pairs this target's keys with their values in text: the global
+// file shares the project file's reader but not its keys. A parse error
+// names the global file by its path; the project file keeps its short name.
 func (t configTarget) entries(text string) ([]schema.Entry, error) {
-	all, err := schema.Current(text)
-	if err != nil {
-		return nil, err
+	file := schema.ProjectFile
+	if t.global {
+		file = t.path
 	}
-	var out []schema.Entry
-	for _, e := range all {
-		if _, ok := t.lookup(e.Key.ID()); ok {
-			out = append(out, e)
-		}
-	}
-	return out, nil
+	return schema.CurrentOf(file, t.keys, text)
 }
 
 func (t configTarget) lookup(id string) (schema.Key, bool) {
@@ -294,7 +290,7 @@ func proposeChange(t configTarget, text, id, input string) (string, error) {
 	}
 	// Without [area] the declaration reader stops before the brain's keys,
 	// so Validate below would pass any value there unseen.
-	if key.Module == schema.Brain && id != "area.scope" {
+	if key.Module == schema.Brain && !t.global && id != "area.scope" {
 		hasArea, err := declaresArea(text)
 		if err != nil {
 			return "", err
@@ -335,13 +331,23 @@ func proposeUnset(t configTarget, text, id string) (string, error) {
 	return t.validated(next)
 }
 
-// validated hands a new project text to the readers that run in operation;
-// the global file has no keys yet and so no reader.
+// validated hands a new text to the reader that runs in operation: the
+// declaration readers for a project file, the model reader and the client's
+// loopback guard for the global one. The guard runs here too so that the
+// file never holds an address the next pass would refuse.
 func (t configTarget) validated(next string) (string, error) {
-	if !t.global {
-		if err := schema.Validate(next); err != nil {
+	if t.global {
+		settings, err := config.ParseModelSettings(t.path, next)
+		if err != nil {
 			return "", err
 		}
+		if err := model.GuardEndpoint(settings.Endpoint); err != nil {
+			return "", fmt.Errorf("%s: %w", t.path, err)
+		}
+		return next, nil
+	}
+	if err := schema.Validate(next); err != nil {
+		return "", err
 	}
 	return next, nil
 }

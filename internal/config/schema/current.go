@@ -26,16 +26,23 @@ type Entry struct {
 	Count  int // TableList: number of [[…]] blocks
 }
 
-// Current pairs every key with its value in text and says where that value
-// comes from, in Keys() order. The value shown for a set key is re-encoded
-// from the decoded document, so a list written across lines is shown on one.
-func Current(text string) ([]Entry, error) {
+// ProjectFile is how an error names the project's configuration.
+const ProjectFile = ".loomux/config.toml"
+
+// Current is CurrentOf over the project file's keys.
+func Current(text string) ([]Entry, error) { return CurrentOf(ProjectFile, Keys(), text) }
+
+// CurrentOf pairs every key with its value in text and says where that value
+// comes from, in the order of keys. The value shown for a set key is
+// re-encoded from the decoded document, so a list written across lines is
+// shown on one. file names the text in a parse error.
+func CurrentOf(file string, keys []Key, text string) ([]Entry, error) {
 	doc := map[string]any{}
 	if err := toml.Unmarshal([]byte(text), &doc); err != nil {
-		return nil, fmt.Errorf(".loomux/config.toml: not valid TOML: %w", err)
+		return nil, fmt.Errorf("%s: not valid TOML: %w", file, err)
 	}
 	var out []Entry
-	for _, k := range Keys() {
+	for _, k := range keys {
 		value, found := lookup(doc, k)
 		e := Entry{Key: k, Origin: Unset}
 		switch {

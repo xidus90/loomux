@@ -439,13 +439,70 @@ func TestConfigSetOnAFileThatIsNoTOMLNamesTheParse(t *testing.T) {
 	}
 }
 
-func TestConfigGlobalKnowsNoKeyYet(t *testing.T) {
-	t.Setenv("LOOMUX_STATE_DIR", t.TempDir())
-	if code, out, _ := runConfig(t, "", "list", "--global"); code != 0 || strings.TrimSpace(out) != "" {
+func TestConfigGlobalEditsTheModelBlock(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", state)
+	if code, out, _ := runConfig(t, "", "list", "--global"); code != 0 || !strings.Contains(out, "model.endpoint") || !strings.Contains(out, "http://127.0.0.1:11434") {
 		t.Fatalf("%d %q", code, out)
 	}
-	if code, _, _ := runConfig(t, "", "set", "model.enabled", "true", "--yes", "--global"); code != 1 {
+	// No [area] is asked for: the global file has none.
+	if code, _, errOut := runConfig(t, "", "set", "model.enabled", "true", "--yes", "--global"); code != 0 {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if code, _, _ := runConfig(t, "", "set", "model.temperature", "0.3", "--yes", "--global"); code != 0 {
 		t.Fatal(code)
+	}
+	data, _ := os.ReadFile(filepath.Join(state, "config.toml"))
+	if !strings.Contains(string(data), "enabled = true") || !strings.Contains(string(data), "temperature = 0.3") {
+		t.Fatalf("%q", data)
+	}
+	// The reader in operation judges the value.
+	if code, _, errOut := runConfig(t, "", "set", "model.temperature", "3", "--yes", "--global"); code != 1 || !strings.Contains(errOut, "between 0 and 2") {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	// A project key is still no global key.
+	if code, _, _ := runConfig(t, "", "set", "commit.threshold", "4", "--yes", "--global"); code != 1 {
+		t.Fatal(code)
+	}
+}
+
+// The global file is guarded like the client it feeds: an address off the
+// loopback is refused before it is written, not only when a pass reads it.
+func TestConfigGlobalRefusesAnEndpointOffTheLoopback(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", state)
+	path := filepath.Join(state, "config.toml")
+	if err := os.WriteFile(path, []byte("[model]\nenabled = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := runConfig(t, "", "set", "model.endpoint", "http://192.0.2.1:11434", "--yes", "--global")
+	if code != 1 || !strings.Contains(errOut, "loopback") {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if data, _ := os.ReadFile(path); string(data) != "[model]\nenabled = true\n" {
+		t.Fatalf("the file changed: %q", data)
+	}
+	if code, _, errOut := runConfig(t, "", "set", "model.endpoint", "http://localhost:11434", "--yes", "--global"); code != 0 {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if data, _ := os.ReadFile(path); !strings.Contains(string(data), `endpoint = "http://localhost:11434"`) {
+		t.Fatalf("%q", data)
+	}
+	if code, _, errOut := runConfig(t, "", "unset", "model.endpoint", "--yes", "--global"); code != 0 {
+		t.Fatalf("%d %s", code, errOut)
+	}
+}
+
+// A global file that is no TOML is named by its own path, not the project's.
+func TestConfigGlobalNamesItsOwnFileInAParseError(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", state)
+	if err := os.WriteFile(filepath.Join(state, "config.toml"), []byte("[model\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := runConfig(t, "", "list", "--global")
+	if code != 1 || !strings.Contains(errOut, filepath.Join(state, "config.toml")) || strings.Contains(errOut, ".loomux/config.toml") {
+		t.Fatalf("%d %s", code, errOut)
 	}
 }
 

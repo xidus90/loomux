@@ -9,6 +9,17 @@ import (
 	"github.com/xidus90/loomux/internal/config/schema"
 )
 
+func TestRenderAFloat(t *testing.T) {
+	for input, want := range map[string]string{"0": "0.0", "0.7": "0.7", " 1.25 ": "1.25", "2": "2.0", "1e-1": "0.1"} {
+		if got, err := Render(schema.Float, input); err != nil || got != want {
+			t.Errorf("%q: %q %v, want %q", input, got, err, want)
+		}
+	}
+	if _, err := Render(schema.Float, "warm"); err == nil {
+		t.Fatal("a word passed as a number")
+	}
+}
+
 func TestRenderMakesALiteralPerKind(t *testing.T) {
 	cases := []struct {
 		kind  schema.Kind
