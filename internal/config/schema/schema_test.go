@@ -3,6 +3,7 @@ package schema
 import (
 	"cmp"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/config"
@@ -70,9 +71,45 @@ func TestLookupFindsByID(t *testing.T) {
 	}
 }
 
-func TestGlobalKeysAreEmptyForNow(t *testing.T) {
-	if len(GlobalKeys()) != 0 {
-		t.Fatal("the global file has no keys before [model] arrives")
+func TestTheGlobalKeysAreTheModelReadersKeys(t *testing.T) {
+	var got []string
+	for _, k := range GlobalKeys() {
+		if k.Section != "model" || k.Module != Brain || k.Doc == "" {
+			t.Errorf("%+v", k)
+		}
+		got = append(got, k.Name)
+	}
+	if !slices.Equal(sorted(got), sorted(config.GlobalModelKeys())) {
+		t.Fatalf("schema %v, reader %v", got, config.GlobalModelKeys())
+	}
+	defaults := map[string]string{}
+	for _, k := range GlobalKeys() {
+		defaults[k.Name] = k.Default
+	}
+	if defaults["enabled"] != "false" || defaults["temperature"] != "0.0" ||
+		defaults["endpoint"] != strconv.Quote(config.DefaultModelEndpoint) ||
+		defaults["name"] != strconv.Quote(config.DefaultModelName) ||
+		defaults["roles"] != "{ describe = true, place = true, propose = true }" {
+		t.Fatalf("%v", defaults)
+	}
+}
+
+func TestCurrentOfReadsTheKeysItIsGiven(t *testing.T) {
+	entries, err := CurrentOf("global.toml", GlobalKeys(), "[model]\nendpoint = \"http://localhost:1\"\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		switch e.Key.Name {
+		case "endpoint":
+			if e.Origin != Set || e.Input != "http://localhost:1" {
+				t.Errorf("%+v", e)
+			}
+		case "temperature":
+			if e.Origin != Default || e.Value != "0.0" {
+				t.Errorf("%+v", e)
+			}
+		}
 	}
 }
 

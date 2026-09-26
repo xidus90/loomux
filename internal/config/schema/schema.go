@@ -18,6 +18,7 @@ type Kind int
 const (
 	String Kind = iota
 	Int
+	Float
 	Bool
 	Enum
 	StringList
@@ -116,6 +117,14 @@ func Lookup(id string) (Key, bool) {
 	return Key{}, false
 }
 
-// GlobalKeys are the keys of the per-user file. None exist before [model]
-// moves there.
-func GlobalKeys() []Key { return nil }
+// GlobalKeys are the keys of the per-user file `<state>/config.toml`: the
+// local model's settings. An area may only narrow enabled and roles.
+func GlobalKeys() []Key {
+	return []Key{
+		{Section: "model", Name: "enabled", Kind: Bool, Default: "false", Module: Brain, Doc: "Let the local model be asked at all; an area can only switch it off."},
+		{Section: "model", Name: "endpoint", Kind: String, Default: strconv.Quote(config.DefaultModelEndpoint), Module: Brain, Doc: "Where Ollama listens; it must stay on the loopback."},
+		{Section: "model", Name: "name", Kind: String, Default: strconv.Quote(config.DefaultModelName), Module: Brain, Doc: "The Ollama model that is asked."},
+		{Section: "model", Name: "roles", Kind: Table, Default: "{ describe = true, place = true, propose = true }", Module: Brain, Doc: "Which roles the model takes; once set, an unnamed role is off."},
+		{Section: "model", Name: "temperature", Kind: Float, Default: "0.0", Module: Brain, Doc: "The sampling temperature, between 0 and 2."},
+	}
+}

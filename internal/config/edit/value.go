@@ -24,6 +24,18 @@ func Render(kind schema.Kind, input string) (string, error) {
 		// The canonical form lets a caller compare against a key's default
 		// by text; +600 and 007 would otherwise slip past as new values.
 		return strconv.Itoa(n), nil
+	case schema.Float:
+		f, err := strconv.ParseFloat(input, 64)
+		if err != nil {
+			return "", fmt.Errorf("%q is not a number", input)
+		}
+		// Canonical, and always with a point: TOML reads 2 as an integer,
+		// and the key's default is compared by text.
+		text := strconv.FormatFloat(f, 'f', -1, 64)
+		if !strings.Contains(text, ".") {
+			text += ".0"
+		}
+		return text, nil
 	case schema.Bool:
 		if input != "true" && input != "false" {
 			return "", fmt.Errorf("%q is not true or false", input)
