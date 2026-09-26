@@ -112,6 +112,11 @@ type Manifest struct {
 	// declaration names none, as the reference's reader has it.
 	OnMerge     bool
 	MergeBranch string
+	// ModelEnabled and ModelRoles are the area's word on the local model;
+	// nil where the declaration says nothing. ModelRoles holds the roles
+	// switched on. config.ModelSettings.Narrowed reads both.
+	ModelEnabled *bool
+	ModelRoles   map[string]bool
 }
 
 // DefaultMergeBranch is the branch whose merges count where a declaration
