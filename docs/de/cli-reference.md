@@ -613,7 +613,8 @@ Vier Befehle der `brain`-CLI von ultra-brain, seit Stufe 3a Befehle auf oberster
 Fährt einen Abgleich über die registrierten Bereiche, baut danach je Bereich die Verzeichniskataloge (`index.md`), den Linkgraphen (`graph.json`) und das Identitätsregister (`_identities.tsv`) neu und trägt die Bereiche als Sammlungen in qmds `index.yml` ein. Ein schreibbarer Bereich hält seine Artefakte im eigenen Baum; die eines schreibgeschützten werden über ein Staging-Verzeichnis nach `<zustand>/areas/<scope>/` geschrieben und als Ganzes eingetauscht.
 
 - **`--registry`**: eine `registry.toml` oder das Verzeichnis, das eine hält; Standard ist `registry.toml` im Zustandsverzeichnis.
-- **Aufholung**: Der Abgleich läuft zuerst, damit eine geänderte Quelle zum Fall wird, bevor der Indexlauf ihren Hash fortschreibt. Fälle, die er eröffnet, stehen auf `stderr`, und der Lauf **geht weiter**; ein Tresor ohne Prüfzentrum bekommt eine Warnung und wird indiziert; jeder andere Fehlschlag des Abgleichs beendet den Befehl, bevor etwas indiziert ist.
+- **Aufholung**: Der Abgleich läuft zuerst, damit eine geänderte Quelle zum Fall wird, bevor der Indexlauf ihren Hash fortschreibt. Fälle, die er eröffnet, stehen auf `stderr`, und der Lauf **geht weiter**; ein Tresor ohne Prüfzentrum bekommt eine Warnung und wird indiziert; jeder andere Fehlschlag des Abgleichs beendet den Befehl, bevor etwas indiziert ist. Für einen Fall eines `local_only`-Bereichs fragt der Abgleich auch das lokale Modell (bis zu 30 s je Fall, siehe [`loomux reconcile`](#loomux-reconcile)), und ein kaputtes `[model]`, das diesen Abgleich beendet (wann, steht dort), ist ein solcher Fehlschlag: `reindex` bricht ab.
+- **Bereichssperre**: Jeder Bereich wird unter `<zustand>/areas/<scope>.lock` indiziert, der Sperre, die `loomux approve` für denselben Bereich nimmt; so schreibt keiner das Identitätsregister neu, während der andere es liest. Ein zweiter Läufer wartet, bis der erste sie freigibt. Die Datei bleibt liegen wie `registry.lock`.
 - **Ausgabe**: `indexed the areas of <pfad>` auf `stdout`; auf `stderr` die aktualisierten oder entfernten Sammlungen und jede verweigerte, weil qmd schon eine gleichnamige führt, die brain nicht angelegt hat.
 - **Exit-Codes**: `0` bei Erfolg, und auch dann, wenn im Zustandsverzeichnis keine Registry liegt (`no areas registered in <pfad>; nothing to index` auf `stdout`); `1` bei einer mit `--registry` benannten Registry, die es nicht gibt, einer Registry, die sich nicht lesen lässt, einer fehlgeschlagenen Aufholung, einem fehlgeschlagenen Indexlauf oder einer verweigerten Sammlung; `2` bei einem Usage-Fehler.
 
@@ -630,6 +631,7 @@ Misst jede Quelle der registrierten Bereiche an ihrem Identitätsregister und er
 - **Ausgabe** auf `stdout`: `<n> Quellen geprüft, <m> davon gehasht`, je Fall eine Zeile (Verzeichnis, Bereich, Ziel, Zustand und `manuell` für einen Fall, der eine Entscheidung von Hand verlangt, durch Tabs getrennt, um zwei Leerzeichen eingerückt), dann `<k> Fälle`.
 - **Ein Fall ist kein Fehlschlag**: Offene Fälle lassen den Exit-Code bei `0`.
 - **Stempel**: Der Abgleich schreibt `maintenance/last-run.txt` in UTC, den `brain status` und `brain search` lesen.
+- **Lokales Modell**: Für einen Fall eines `local_only`-Bereichs fragt der Abgleich das lokale Modell (`[model]` der rechnerweiten `config.toml`, siehe [`loomux config`](#10-konfiguration-loomux-config)) nach einem Vorschlag; einer, dessen Behauptungen alle die Belegbindung bestehen, landet als `proposal.md` neben dem Fall, mit `prompt_version` in `case.toml`, alles andere hinterlässt einen manuellen Fall mit dem Vermerk `manual review: the local proposer returned no usable proposal (slice-6 spec §3)`. Ist das Modell aus, bleibt der Fall manuell wie bisher. Die Einstellungen werden nur gelesen, wenn ein `local_only`-Bereich registriert ist; dann beendet ein `[model]`-Block, der sich nicht lesen lässt, oder ein Endpunkt außerhalb des Loopbacks, während Modell und Rolle `propose` für einen solchen Bereich an sind, den Abgleich mit Exit `1`, nachdem die Quellen gemessen sind und bevor ein Fall geschrieben wird.
 - **Exit-Codes**: `0` für einen Abgleich, der bis zum Ende lief; `1`, wenn sich eine Falldatei nicht lesen lässt (`unreadable case: <eintrag>` auf `stderr`), sowie bei einer Registry, die sich nicht lesen lässt, einem Tresor, der kein oder zwei Prüfzentren erklärt, oder einem anderen Fehlschlag (`error: <grund>`); `2` bei einem Usage-Fehler.
 
 #### `loomux area add [--path P] [--scope S] [--wiki W] [--sources S] [--merge-branch B] [--privacy M] [--no-reindex] [-y|--yes]`
@@ -682,8 +684,9 @@ Gibt aus, was das menschliche Tor sehen muss, bevor es entscheidet: `Fall <id> (
 Entscheidet einen Fall. Ohne Flagge wird der Vorschlag des Falls freigegeben; `--amend` gibt stattdessen die genannte Datei frei; `--reject` verwirft den Vorschlag; `--defer` lässt den Fall in der Warteschlange.
 
 - **Belegbindung**: Jede Behauptung des Vorschlags braucht ein wörtliches Zitat aus einem Segment des Pakets. Eine Behauptung ohne Beleg wird verworfen und auf `stdout` genannt (`  verworfene Behauptung: <behauptung>`); bleibt keine übrig, oder tragen die übrigen keinen Diff, der passt, wird nichts an die Seite geschrieben.
-- **Eine Freigabe** prüft zuerst, dass sich weder die Zielseite noch eine zitierte Quelle seit dem Fall geändert hat, schreibt dann die Seite mit fortgeschriebener Frontmatter (`generated`, `verified` mit dem Prüfer), schiebt die Identitätsregister vor, hängt an `log.md` und `audit.md` an, entfernt das Fallverzeichnis und committet genau diese Pfade über einen eigenen Index (`<zustand>/maintenance/index`) auf den aktuellen Ref des Tresors; der Index des Nutzers bleibt unberührt. Danach laufen eine Aufholung und ein Indexlauf, dieser ohne eigene Aufholung. Scheitert die Aufholung, sagt eine Warnung das, und es wird nicht indiziert; scheitert der Indexlauf, nennt eine Warnung `loomux reindex`. Keines von beiden ändert den Exit-Code.
-- **Eine Ablehnung** hängt an `audit.md` an, entfernt das Fallverzeichnis und committet beides. Revision und Hash der Seite schiebt sie **nicht** vor, also eröffnet der nächste `loomux reconcile` denselben Fall wieder — von der Referenz geerbt.
+- **Eine Freigabe** prüft zuerst, dass sich weder die Zielseite noch eine zitierte Quelle seit dem Fall geändert hat, schreibt dann die Seite mit fortgeschriebener Frontmatter (`generated`, `verified` mit dem Prüfer), schiebt die Identitätsregister vor, hängt an `log.md` und `audit.md` an, entfernt das Fallverzeichnis und committet genau diese Pfade über einen eigenen Index (`<zustand>/maintenance/index`) auf den aktuellen Ref des Tresors; der Index des Nutzers bleibt unberührt. Danach laufen eine Aufholung und ein Indexlauf, dieser ohne eigene Aufholung. Die Aufholung fragt für `local_only`-Fälle das lokale Modell wie `loomux reconcile` (bis zu 30 s je Fall). Scheitert die Aufholung — ein kaputtes `[model]` eingeschlossen —, sagt eine Warnung das, und es wird nicht indiziert; scheitert der Indexlauf, nennt eine Warnung `loomux reindex`. Keines von beiden ändert den Exit-Code.
+- **Eine Ablehnung** nimmt die Quellen zur Kenntnis, über denen der Fall gebildet wurde, damit der nächste `loomux reconcile` denselben Fall nicht wieder eröffnet: Sie schiebt `revision` und `content_hash` jedes passenden Eintrags in `sources[]` der Seite und die Identitätsregister vor, hängt an `audit.md` an, entfernt das Fallverzeichnis und committet alles zusammen. Text, `generated` und `verified` der Seite bleiben, wie sie sind, und ihr Hash wird nicht geprüft; eine Seite ohne Frontmatter, oder eine, die seit der Fallbildung gelöscht oder umbenannt wurde, hält keine Ablehnung davon ab, den Fall zu schließen; eine Seite, deren Frontmatter sich nicht laden lässt (etwa keine Zuordnung ist), verweigert die Ablehnung mit Exit `1`, bevor etwas geschrieben ist. Eine zitierte Quelle, die sich seit der Fallbildung erneut geändert hat, hält die Ablehnung an wie eine Freigabe (Vermerk in `case.toml`, Exit `1`): Dieser neuere Stand lag nie zur Prüfung vor. Die Referenz schiebt bei einer Ablehnung nichts vor und eröffnet den Fall bei jedem Abgleich neu; loomux weicht hier bewusst ab.
+- **Bereichssperre**: Während eine Freigabe oder Ablehnung ein Identitätsregister vorschiebt, hält sie `<zustand>/areas/<scope>.lock` jedes Bereichs, der dieses Register schreibt — die Sperre, die `loomux reindex` nimmt —, und wartet auf sie, solange ein Indexlauf sie hält. `--defer` nimmt keine.
 - **`--defer`** schreibt nichts: `Fall <id> zurückgestellt; er bleibt unverändert in der Warteschlange.`
 - **Der Prüfer** ist `human:<konto>`, das Konto, unter dem der Befehl läuft, ohne Domäne. Keine Flagge nennt ihn.
 - **Ausgabe**: `Fall <id>: approve` oder `Fall <id>: reject`, dann `committet als <sha>`. Eine Entscheidung, die geschrieben, aber nicht committet ist — der Tresor ist kein Git-Repository, oder ein Rebase oder Merge läuft —, ist `geschrieben, aber nicht committet: <grund>` (bei einer Ablehnung `entschieden, …`) auf `stderr`, mit Exit `0`: Der Tresor hat sich geändert, und ein zweiter Aufruf machte es nicht besser.
@@ -723,7 +726,10 @@ Kind ausführt.
   was refused, so this service dies with its host`.
 - **Tägliche Aufholung** (seit Stufe 3c): Ist der letzte `reconcile` älter als
   24 Stunden oder gab es noch keinen, fährt der Dienst ihn beim Start selbst und
-  danach alle 24 Stunden, solange er läuft; nie `reindex`. Jedes
+  danach alle 24 Stunden, solange er läuft; nie `reindex`. Der Durchgang
+  fragt für `local_only`-Fälle das lokale Modell wie `loomux reconcile` (bis
+  zu 30 s je Fall); ein kaputtes `[model]` lässt den Durchgang scheitern, was
+  wie jeder andere Fehlschlag gemeldet wird und nichts anhält. Jedes
   `brain_*`-Werkzeug wartet auf den ersten Durchgang und meldet das als
   Fortschritt. Was er gefunden hat, hängt an den Antworten: `brain_status` die
   geöffneten Fälle, die unlesbaren Falldateien und einen Fehlschlag, die übrigen
@@ -963,8 +969,18 @@ loomux config reject <id>|--all
   - `--root <verz>` — das Projekt; leer wird es vom Arbeitsverzeichnis aus
     nach oben gesucht.
   - `--global` — stattdessen die rechnerweite `config.toml` im
-    Zustandsverzeichnis. Sie kennt noch keinen Schlüssel: `list` gibt nichts
-    aus (`[]` mit `--json`), `get`, `set` und `unset` weisen jeden Schlüssel als unbekannt ab. `--global`
+    Zustandsverzeichnis (`LOOMUX_STATE_DIR`, Vorgabe `%LOCALAPPDATA%\loomux`).
+    Ihre Schlüssel sind die des lokalen Modells: `model.enabled` (Vorgabe
+    `false`), `model.endpoint` (Vorgabe `http://127.0.0.1:11434`, nur
+    Loopback), `model.name` (das Ollama-Modell), `model.temperature` (eine
+    Zahl von 0 bis 2, Vorgabe `0.0`) und `model.roles` (eine Tabelle, von
+    Hand bearbeitet; einmal gesetzt, ist jede Rolle aus, die sie nicht
+    nennt). Ein neuer Text wird vom Leser von `[model]` und von der
+    Loopback-Wache des Clients geprüft: ein Endpunkt außerhalb des Loopbacks
+    wird verweigert (Exit `1`), und die Datei bleibt, wie sie war. Eine Datei,
+    die kein TOML ist, wird mit ihrem eigenen Pfad genannt. Die
+    `.loomux/config.toml` eines Bereichs kennt nur `model.enabled` und
+    `model.roles` und kann nur abschalten oder einengen. `--global`
     zusammen mit `--root` ist ein Bedienfehler.
   - `--yes` — `set`, `unset` und `apply` schreiben, ohne zu fragen.
   - `--propose` — `set` und `unset` legen einen Vorschlag ab, statt zu

@@ -192,6 +192,21 @@ loomux config set|unset … --propose # der Weg eines Agenten: die geprüfte Än
 loomux init                         # Richtet ein Projekt in Modulen ein (hooks, brain, graph): Binary, Konfiguration, Host-Einträge, Git-Hooks, Merge-Hook, Skills; jede Änderung als Diff, geschrieben nach einem y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; ein Befehl des Menschen; seine ersten Läufe auf einem frischen Klon und in einem Wirt stehen aus)
 ```
 
+**Das lokale Modell.** Für einen Bereich, dessen Manifest `[privacy] mode = "local_only"`
+sagt, fragt `loomux reconcile` ein lokales Ollama nach einem Vorschlag zu jedem
+Fall, den es eröffnet. Ein Vorschlag, dessen Behauptungen alle die Belegbindung
+bestehen, landet als `proposal.md` neben dem Fall; alles andere — keine Antwort,
+eine Behauptung ohne wörtliches Zitat — hinterlässt einen manuellen Fall. Kein
+anderer Bereich geht je an das Modell. Die Einstellungen stehen in `[model]` der
+rechnerweiten `config.toml` im Zustandsverzeichnis (Vorgabe
+`%LOCALAPPDATA%\loomux\config.toml`): `enabled` (vorgegeben aus), `endpoint`,
+`name`, `temperature` und `roles`, angezeigt und geändert mit
+`loomux config --global` (ein Agent nur mit `--propose`). Die `.loomux/config.toml`
+eines Bereichs darf nur `[model] enabled` und `roles` setzen, und nur, um
+abzuschalten oder einzuengen, was der Rechner erlaubt. Der Endpunkt muss auf dem
+Loopback bleiben (`127.0.0.1`, `localhost`, `::1`); kein Proxy wird aus der
+Umgebung genommen, keiner Umleitung gefolgt.
+
 ### Code-Graph
 ```bash
 loomux graph build [--root <pfad>]  # Extrahiert, löst auf und schreibt .loomux/state/graph/wiring.json
@@ -215,6 +230,7 @@ loomux dev mutants <paket>          # Führt Mutationstests über kritische Ents
 loomux dev record-case --out <dir>  # Zeichnet einen Lauf eines Referenz-Binaries als Fall auf
 loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter Fälle in loomux-Fälle
 loomux dev record-mcp-case --out <dir> # Zeichnet einen MCP-Werkzeugaufruf eines Referenzdienstes als Fall auf
+loomux dev fake-ollama --fixture <f>  # Ein Ollama-Ersatz, der jede Anfrage mit der Fixture beantwortet, zum Aufzeichnen und Abspielen von Fällen (--addr, Vorgabe 127.0.0.1:11435; --log)
 loomux dev release <unterbefehl>    # Release-Regeln für die CI: next-version, parse-body, changelog-insert, build
 ```
 
