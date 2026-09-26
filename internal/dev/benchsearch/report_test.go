@@ -22,8 +22,9 @@ func sampleRun(latency bool) Run {
 			OS: "windows", Arch: "amd64", CPU: "Test CPU", Go: "go1.26.0", Loomux: "1.2.3",
 			Qmd: "2.8.3",
 			// Declared out of order: the report sorts the keys.
-			Models: map[string]string{"rerank": "qwen3-reranker", "embedding": "embeddinggemma", "query_expansion": "qmd-query-expansion"},
-			Port:   "daemon",
+			Models:   map[string]string{"rerank": "qwen3-reranker", "embedding": "embeddinggemma", "query_expansion": "qmd-query-expansion"},
+			Port:     "daemon",
+			Backbone: "unknown",
 		},
 		Documents:   12,
 		QuestionSet: "C:/sets/questions.yaml",
@@ -91,6 +92,7 @@ func TestMarkdownOfACorpusRunCarriesTheCaveat(t *testing.T) {
 	r := sampleRun(true)
 	r.Profile = "full"
 	r.Corpus = "v1"
+	r.Environment.Backbone = "vulkan"
 	got := Markdown(r)
 	want := readGolden(t, "testdata/report-corpus.md")
 	if got != want {

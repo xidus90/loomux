@@ -57,6 +57,7 @@ func Markdown(r Run) string {
 		"",
 		"- qmd: " + env.Qmd,
 		"- models: " + models(env.Models),
+		"- qmd backbone: " + env.Backbone,
 		fmt.Sprintf("- system: %s/%s, %s", env.OS, env.Arch, env.CPU),
 		"- loomux: " + env.Loomux,
 		"- search path: " + env.Port,

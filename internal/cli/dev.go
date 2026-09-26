@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -12,15 +13,21 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/xidus90/loomux/internal/brain/index"
+	"github.com/xidus90/loomux/internal/brain/privacy"
+	"github.com/xidus90/loomux/internal/brain/search"
 	"github.com/xidus90/loomux/internal/cases"
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/benchreport"
+	"github.com/xidus90/loomux/internal/dev/benchsearch"
 	"github.com/xidus90/loomux/internal/dev/fakeollama"
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/mutants"
@@ -150,13 +157,15 @@ func untilInterrupted(ctx context.Context, stop func(), test mutants.TestFunc) m
 }
 
 var benchCommands = map[string]command{
-	"hooks": devBenchHooks,
-	"repos": devBenchRepos,
+	"hooks":  devBenchHooks,
+	"repos":  devBenchRepos,
+	"search": devBenchSearch,
 }
 
-const benchUsage = `usage: loomux dev bench <hooks|repos> [flags]
+const benchUsage = `usage: loomux dev bench <hooks|repos|search> [flags]
   hooks   time the hook commands of a case file
   repos   time the hooks on repositories and audit their lanes
+  search  measure the rank of search hits and the chain's latency
 `
 
 func devBenchGroup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -607,5 +616,133 @@ func devBenchRepos(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 
+	return 0
+}
+
+// benchSearchRun is the seam of the search bench: a real run asks the qmd
+// engine, and no test of this command may.
+var benchSearchRun = benchsearch.Bench
+
+// benchRepoRoot names the checkout --corpus v1 is read from.
+var benchRepoRoot = gitTopLevel
+
+//coverage:exempt runs git in the working directory
+func gitTopLevel() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Env = gitenv.Environ()
+	out, err := cmd.Output()
+	return strings.TrimSpace(string(out)), err
+}
+
+// benchQmdVersion is what the engine calls itself, for the report's head.
+// Anything but an answer is "unknown", never an abort: the head is a
+// document, and a missing line must not throw away a finished measurement.
+// It starts qmd through the launcher, since a bare "qmd" on Windows is a
+// batch shim that no process start takes.
+//
+//coverage:exempt starts the qmd process
+func benchQmdVersion() string {
+	launched, err := search.Launcher("qmd")
+	if err != nil {
+		return "unknown"
+	}
+	out, _ := exec.Command(launched[0], append(launched[1:], "--version")...).Output()
+	if version := strings.TrimSpace(string(out)); version != "" {
+		return version
+	}
+	return "unknown"
+}
+
+// benchSearchDeps are the search bench's reach into the running system.
+func benchSearchDeps(stderr io.Writer) benchsearch.Deps {
+	return benchsearch.Deps{
+		StateDir:    config.StateDir(),
+		FallbackDir: config.LegacyBrainDirUntilStage3(),
+		Daemon: func() search.SearchPort {
+			return search.NewQmdMcpPort(search.WithNotice(prefixedLine(stderr, "note")))
+		},
+		CLI:        func(name string) search.SearchPort { return &search.QmdPort{Executable: "qmd", Index: name} },
+		QmdVersion: benchQmdVersion,
+		Models:     index.Models,
+		Loomux:     Version,
+		Now:        benchClock,
+		Clock:      time.Now,
+		// Lower case, so the index name reads alike on every file system.
+		Random: func() string { return strings.ToLower(rand.Text()) },
+		Warn:   prefixedLine(stderr, "warning"),
+		Getenv: os.Getenv,
+	}
+}
+
+// prefixedLine writes each message as one line behind its kind.
+func prefixedLine(w io.Writer, kind string) func(string) {
+	return func(message string) { fmt.Fprintf(w, "%s: %s\n", kind, message) }
+}
+
+// devBenchSearch measures how well the search finds a note: over the
+// registered areas through the search service, or over a corpus stand
+// through the qmd command line.
+func devBenchSearch(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev bench search", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var o benchsearch.Options
+	fs.StringVar(&o.Scope, "scope", "knowledge", "the area to measure, or all")
+	profile := fs.String("profile", string(search.ProfileFast), "keyword, fast or full")
+	channel := fs.String("channel", string(privacy.ChannelLocal), "local or cloud")
+	fs.StringVar(&o.Out, "out", "", "directory for the report; default <area>/98 Messung")
+	fs.StringVar(&o.Questions, "questions", "", "question set; default <out>/questions.yaml")
+	fs.StringVar(&o.Corpus, "corpus", "", "v1 for the checked-in corpus, or a stand's directory")
+	fs.BoolVar(&o.Latency, "latency", false, "also time catalog, read and the three profiles")
+	fs.StringVar(&o.LatencyQuery, "latency-query", "latenz", "the query the latency searches ask")
+	fs.IntVar(&o.Repeat, "repeat", 10, "warm runs per timed operation, after one cold run")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if extra := fs.Args(); len(extra) > 0 {
+		fmt.Fprintf(stderr, "loomux dev bench search: unexpected argument %q\n", extra[0])
+		return 2
+	}
+	// Given or not decides whether --corpus is told a scope twice; the
+	// value cannot, since the default is a scope too.
+	fs.Visit(func(f *flag.Flag) { o.ScopeSet = o.ScopeSet || f.Name == "scope" })
+	o.Profile = search.Profile(*profile)
+	if o.Profile != search.ProfileKeyword && o.Profile != search.ProfileFast && o.Profile != search.ProfileFull {
+		fmt.Fprintf(stderr, "loomux dev bench search: --profile must be keyword, fast or full, got %q\n", *profile)
+		return 2
+	}
+	ch, err := privacy.ParseChannel(*channel)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux dev bench search: --channel: %v\n", err)
+		return 2
+	}
+	o.Channel = ch
+	if o.Repeat < 1 {
+		fmt.Fprintf(stderr, "loomux dev bench search: --repeat must be at least 1, got %d\n", o.Repeat)
+		return 2
+	}
+	if o.Corpus == "v1" {
+		root, err := benchRepoRoot()
+		stand := filepath.Join(root, "testdata", "bench", "search", "v1")
+		if err == nil {
+			_, err = os.Stat(stand)
+		}
+		if err != nil {
+			fmt.Fprintln(stderr, "error: --corpus v1 needs a loomux checkout; name the stand's directory instead")
+			return 1
+		}
+		o.Corpus = stand
+	}
+	text, err := benchSearchRun(o, benchSearchDeps(stderr))
+	if err != nil {
+		// Problems joins its findings by line, and qmd's stderr arrives
+		// inside an error: every line is one error line of its own.
+		for _, line := range strings.Split(err.Error(), "\n") {
+			if line != "" {
+				fmt.Fprintf(stderr, "error: %s\n", line)
+			}
+		}
+		return 1
+	}
+	fmt.Fprint(stdout, text)
 	return 0
 }
