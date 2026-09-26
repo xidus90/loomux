@@ -84,6 +84,11 @@ commands = ["uv run coverage report --skip-covered --skip-empty -m"]
 measure = "uv run coverage run -m pytest -q --tb=short --no-header"
 after = "test"
 
+# The graph belongs to the root, not to a stack: the same commands as Go's,
+# and in a repository with both the plan runs one job, the first stack's.
+[stack.python.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
 [stack.gdscript.lint]
 commands = ["uvx gdlint ."]
 on_file = ["uvx gdlint {file}"]

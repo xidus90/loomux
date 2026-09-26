@@ -130,18 +130,42 @@ type link struct {
 
 // Plan lays out the lanes of a run: kinds as requested, stacks in byte
 // order, areas in byte order. Edges come only from after; what cannot run
-// is decided here and carried as Pre.
+// is decided here and carried as Pre. The graph kind runs at most once: the
+// first stack with a graph command carries it, and every later stack with
+// one stands aside with a note naming that stack -- unless one stack's table
+// switches the graph off, which switches it off for the whole project.
 func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 	jobs := []Job{}
 	links := []link{}
 	for _, kind := range req.Kinds {
+		// carrier is the stack whose graph job this run plans; only the graph
+		// kind sets it.
+		carrier, off := "", ""
+		if kind == "graph" {
+			off = graphOff(eff, req)
+		}
 		for _, t := range targets(eff, req) {
 			areas := t.areas
 			if kind == "graph" {
-				// The graph belongs to the root: one job, not one rebuild per area.
+				// The graph belongs to the root: one job, not one rebuild per
+				// area, nor one per stack with a graph lane.
 				areas = []string{"."}
 			}
 			for _, area := range areas {
+				note := ""
+				switch {
+				case off != "":
+					note = "graph switched off under [verify." + off + "]"
+				case kind == "graph" && carrier != "" && hasCommand(eff, req, t.stack, kind):
+					note = "graph covered by graph/" + carrier
+				}
+				if note != "" {
+					job := baseJob(eff, env, kind, t.stack, area)
+					job.Pre, job.Note = StateNotApplicable, note
+					jobs = append(jobs, job)
+					links = append(links, link{})
+					continue
+				}
 				job, l, ok, err := planJob(eff, req, env, kind, t.stack, area)
 				if err != nil {
 					return nil, err
@@ -149,6 +173,10 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 				if ok {
 					jobs = append(jobs, job)
 					links = append(links, l)
+				}
+				// An edit plans no graph job, so it has no carrier either.
+				if kind == "graph" && ok && hasCommand(eff, req, t.stack, kind) {
+					carrier = t.stack
 				}
 			}
 		}
@@ -159,6 +187,31 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 		}
 	}
 	return jobs, nil
+}
+
+// graphOff is the first active stack, in byte order, whose table switches the
+// graph lane off with `graph = false`, when some active stack would still
+// carry the graph without it. "" otherwise: when no table switches it off,
+// in an edit, which plans no graph job anyway, and when no stack is left
+// with a graph command -- the lanes then say "no command" as they did before
+// a second stack could carry the graph, and a Go repository with `graph =
+// false` reads as it always has. A switch under a stack the project does not
+// have is none of its graph's business.
+func graphOff(eff Effective, req Request) string {
+	if req.Scope != ScopeCheck {
+		return ""
+	}
+	off, carried := "", false
+	for _, t := range targets(eff, req) {
+		if off == "" && eff.Config.Stacks[t.stack]["graph"].Lane.Off {
+			off = t.stack
+		}
+		carried = carried || hasCommand(eff, req, t.stack, "graph")
+	}
+	if !carried {
+		return ""
+	}
+	return off
 }
 
 // targets are every active stack in every area for a check. For an edit they
@@ -212,29 +265,41 @@ func commandsFor(req Request, stack string, lane Lane) []string {
 	return lane.Commands
 }
 
-func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) (Job, link, bool, error) {
+// hasCommand says whether a stack's lane of kind has something to run in the
+// request's scope.
+func hasCommand(eff Effective, req Request, stack, kind string) bool {
 	r := eff.Stacks[stack][kind]
-	dir := filepath.Join(env.Root, area)
+	return r.Defined && len(commandsFor(req, stack, r.Lane)) > 0
+}
+
+// baseJob is a lane before the plan has decided anything about it. The graph
+// kind runs once at the root, so its name carries no area.
+func baseJob(eff Effective, env PlanEnv, kind, stack, area string) Job {
+	r := eff.Stacks[stack][kind]
 	job := Job{Name: kind + "/" + stack, Kind: kind, Stack: stack, Area: area, Origin: r.Origin,
-		Dir: dir, Threaded: r.Lane.Threaded, After: -1}
-	if len(eff.Areas[stack]) > 1 {
+		Dir: filepath.Join(env.Root, area), Threaded: r.Lane.Threaded, After: -1}
+	if len(eff.Areas[stack]) > 1 && kind != "graph" {
 		job.Name += "@" + area
 	}
-	if kind == "graph" {
-		// A graph lane rebuilds the graph, which no edit should wait for.
-		if req.Scope == ScopeEdit {
-			return Job{}, link{}, false, nil
-		}
-		job.Name = kind + "/" + stack
+	return job
+}
+
+func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) (Job, link, bool, error) {
+	r := eff.Stacks[stack][kind]
+	job := baseJob(eff, env, kind, stack, area)
+	dir := job.Dir
+	// A graph lane rebuilds the graph, which no edit should wait for.
+	if kind == "graph" && req.Scope == ScopeEdit {
+		return Job{}, link{}, false, nil
 	}
-	cmds := commandsFor(req, stack, r.Lane)
-	if !r.Defined || len(cmds) == 0 {
+	if !hasCommand(eff, req, stack, kind) {
 		if req.Scope == ScopeEdit {
 			return Job{}, link{}, false, nil
 		}
 		job.Pre, job.Note = StateNotApplicable, "no command"
 		return job, link{}, true, nil
 	}
+	cmds := commandsFor(req, stack, r.Lane)
 	// Asked only for a stack with a graph lane: the probe costs git calls.
 	if kind == "graph" {
 		ready, note := false, "graph lanes need a graph probe"
