@@ -100,6 +100,8 @@ Every phase with its payloads, exit codes and budgets: [hook lifecycle](docs/en/
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
+The graph covers Go, read with `go/parser`, and Python, read on `gotreesitter`, a Tree-sitter runtime in pure Go, so the binary stays CGo-free. `loomux graph build` parses only the files that changed since the last build and takes the rest from its extract cache; `--no-reuse` parses every file.
+
 `loomux graph ask` ranks code symbols by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25), rebuilds a drifted graph before it answers (never a first one), and with `--source` inlines each hit's span. `loomux graph blast` shows what a git diff reaches over the same edges; the verify kind `graph` audits the staged change the same way in `loomux check precommit`, wherever a graph was built ([configuration](docs/en/configuration.md#the-graph-kind)).
 
 > **"Lexical proposes, graph disposes"**: Keywords find candidate symbols; the structural call graph concentrates mass on the components that actually matter, filtering out dead or isolated hits.
@@ -210,7 +212,7 @@ other change; `reconcile` never downloads a model.
 
 ### Code Graph
 ```bash
-loomux graph build [--root <path>]  # extract, resolve and write .loomux/state/graph/wiring.json
+loomux graph build [--root <path>] [--no-reuse]  # extract Go and Python, resolve and write .loomux/state/graph/wiring.json; unchanged files come from the extract cache
 loomux graph check [--root <path>]  # re-extract and diff against the graph on disk (exit 1 on drift)
 loomux graph ask "<query>" [flags]  # retrieve code symbols ranked by lexical score and Personalized PageRank; never builds a first graph
 loomux graph callers <symbol>       # list direct callers, callees (--direction out), or full closure (-d all)

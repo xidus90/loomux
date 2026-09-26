@@ -300,10 +300,13 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset hat nur Go:
+erreicht. Ein Preset haben Go und Python, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.python.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 
@@ -314,9 +317,14 @@ rot, wenn ein gestagter Bereich einen Seed mit mindestens fünf Aufrufern hat
 Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
 `graph-fresh`, gegen den Graphen auf der Platte; die Lane ist dann ohnehin rot.
 
-- **Eine Lane je Stack, in der Wurzel.** Der Graph gehört der Projektwurzel;
-  ein Stack mit mehreren Bereichen bekommt trotzdem ein `graph/go`, nicht
-  einen Neubau je Bereich.
+- **Eine Lane je Lauf, in der Wurzel.** Der Graph gehört der Projektwurzel,
+  nicht einem Stack. Ein Stack mit mehreren Bereichen bekommt trotzdem ein
+  `graph/go`, nicht einen Neubau je Bereich, und von mehreren Stacks mit
+  Graph-Befehl führt ihn nur der erste in Byte-Reihenfolge aus: in einem
+  Repository mit Go und Python läuft `graph/go`, und `graph/python` ist
+  `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Ein
+  Stack ohne Graph-Lane (etwa shell) trägt nichts: seine Lane meldet „no
+  command“, und der nächste Stack mit Befehl läuft.
 - **Nur in einem Check.** Im Edit-Scope plant `graph` gar keine Lane, wie
   eine Art ohne Befehl: ein Profil `edit` mit `graph` baut bei einem Edit nie
   neu.
@@ -333,16 +341,29 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
 - **Das Stop-Tor hat keine Prüfung.** `stop` enthält `graph` nicht; ein
   Projekt, das es einträgt, bekommt an jedem Rundenende `not-applicable`
   („graph lanes need a graph probe“).
-- **Den Schwellenwert ändern** heißt, `commands` in `[verify.go.graph]` zu
-  ersetzen, **beide** Einträge; eine Lane, die nur `blast-audit` nennt,
-  verliert den Neubau:
+- **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
+  zu ersetzen, der die Lane trägt (`[verify.go.graph]`, in einem reinen
+  Python-Repository `[verify.python.graph]`), **beide** Einträge; eine Lane,
+  die nur `blast-audit` nennt, verliert den Neubau:
 
   ```toml
   [verify.go.graph]
   commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 10"]
   ```
 
-  `graph = false` unter `[verify.go]` schaltet die Lane ab.
+- **Die Lane abschalten** heißt `graph = false` unter einem beliebigen Stack.
+  Der Graph gehört der Wurzel, also gilt der Schalter für das Projekt: in
+  einem Repository mit Go und Python macht `graph = false` unter
+  `[verify.go]` (oder unter `[verify.python]`) jede Graph-Lane
+  `not-applicable` mit „graph switched off under [verify.go]“, benannt nach
+  dem ersten solchen Stack in Byte-Reihenfolge, und kein anderer Stack trägt
+  den Graphen an seiner Stelle. Bleibt kein Stack mit Graph-Befehl übrig, wie
+  in einem Go-Repository mit `graph = false` unter `[verify.go]`, melden die
+  Lanes „no command“, wie schon immer. Ein Schalter unter einem Stack, den
+  das Projekt nicht hat, ändert nichts. `graph` aus einem Profil wegzulassen
+  (`precommit = ["lint", "types", "test", "coverage"]`) hält die Lane nur aus
+  diesem Profil heraus: `loomux check all` und `loomux check graph` planen sie
+  weiter.
 
 #### Testerkennung
 
@@ -499,12 +520,14 @@ existiert im Code, den Stufe G2a ausgeliefert hat, und nichts davon ist
 geplant. Die Frage kommt immer wieder, deshalb steht die Antwort hier, statt
 neu entdeckt zu werden:
 
-- **Welche Sprachen ein Bau parst, ergibt sich aus dem Extraktor, nicht aus
+- **Welche Sprachen ein Bau parst, ergibt sich aus den Extraktoren, nicht aus
   einer Liste, die ein Repository erklärt.** `internal/code/extract/golang`
-  ist ein Go-Extraktor; er parst `.go`-Dateien, weil er nur die lesen kann.
-  Ein zweiter Extraktor für eine andere Sprache reiht sich auf dieselbe Art
-  ein — indem er existiert —, und kein Konfigurationsschlüssel entscheidet,
-  welcher auf eine Datei angewandt wird.
+  liest `.go`-Dateien und `internal/code/extract/python` liest `.py`-Dateien,
+  weil jeder nur die lesen kann; eine feste Liste in
+  `internal/code/extract/all` hält sie, und allein die Endung wählt, welcher
+  auf eine Datei angewandt wird. Eine weitere Sprache kommt im Code in diese
+  Liste, und kein Konfigurationsschlüssel entscheidet, welcher Extraktor auf
+  eine Datei angewandt wird.
 - **Einen einzelnen Bau auf einen Teilbaum einzuschränken ist eine Flagge des
   Aufrufs, keine Repository-Einstellung.** `loomux graph build` und `loomux
   graph check` nehmen bereits `--root`; eine künftige Einschränkungs-Flagge

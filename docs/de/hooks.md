@@ -273,9 +273,9 @@ Symbols mit den Knoten desselben Pfads im Graphen:
   Go-Graph hat keine Kanten auf Typen; Schweigen hieße dort „nichts hängt
   daran“. Ist ein Seed `struct`, `interface` oder `type`, endet der Kontext mit
   `[graph] Modified struct/interface/type: type coupling not wired in graph v1 (check references via grep)`.
-- **Er schweigt** ohne Graph, bei einem Graphen einer anderen
-  Extraktor-Version oder eines anderen Schemas, wenn die Datei sich nicht
-  lesen oder nicht parsen lässt (ein halb fertiger Edit), wenn sich kein
+- **Er schweigt** ohne Graph, bei einem Graphen eines anderen Schemas oder
+  einem, den kein Build mit dem Go-Extraktor dieses Binarys geschrieben hat,
+  wenn die Datei sich nicht lesen oder nicht parsen lässt (ein halb fertiger Edit), wenn sich kein
   Symbol geändert hat (auch bei schon frischem Graphen) und wenn die einzigen
   Aufrufer in der bearbeiteten Datei selbst liegen. Er endet nie mit Exit 1
   und blockiert nie; weder die Frischeprobe noch `graph check` läuft im Hook.
@@ -286,6 +286,13 @@ Symbols mit den Knoten desselben Pfads im Graphen:
   zum nächsten `graph build`, einer Abfrage, die ihn auffrischt, oder dem
   `graph-fresh` des Pre-Commit-Tors; jeder weitere Edit an derselben Datei
   nennt dieselben Seeds noch einmal. Ein Gedächtnis je Datei gibt es nicht.
+- **Nur Go.** Ein Edit an einer `.py`-Datei bekommt keinen Blast-Kontext:
+  jeder solche Edit zahlte das Laden einer Grammatik und das Parsen der
+  Datei, gegen das Ziel von unter 100 ms Eigenzeit des Monitors, und eine
+  einzelne große Datei kann allein über eine Sekunde zum Parsen brauchen. Der Graph
+  bleibt veraltet, bis der nächste Build ihn erneuert. `internal/hooks`
+  importiert die Tree-sitter-Laufzeit nicht, und
+  `TestHooksNeverReachTreeSitter` hält das fest.
 - **Kosten**: 24,7 ms auf dem 7,07-MiB-Graphen dieses Repositorys, etwa 4 ms
   mehr je MiB `wiring.json`
   ([Benchmarks, 2026-09-23 22:55](benchmarks.md#2026-09-23-2255--post-edit-auf-einer-go-datei-mit-dem-blast-monitor)).

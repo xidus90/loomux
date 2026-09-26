@@ -293,11 +293,14 @@ then `[verify.<stack>]`.
 
 #### The `graph` kind
 
-The fifth kind checks what a commit's change reaches in the code graph. Only
-Go has a preset for it:
+The fifth kind checks what a commit's change reaches in the code graph. Go and
+Python have a preset for it, with the same commands:
 
 ```toml
 [stack.go.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.python.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 
@@ -308,9 +311,14 @@ too) and no changed test reaches it (see
 The commands run one after the other, and `blast-audit` runs even after a red
 `graph-fresh`, against the graph on disk; the lane is red then anyway.
 
-- **One lane per stack, in the root.** The graph belongs to the project root,
-  so a stack with several areas still gets one `graph/go`, not one rebuild per
-  area.
+- **One lane per run, in the root.** The graph belongs to the project root,
+  not to a stack. A stack with several areas still gets one `graph/go`, not
+  one rebuild per area, and of several stacks with a graph command only the
+  first in byte order runs it: in a repository with Go and Python, `graph/go`
+  runs and `graph/python` is `not-applicable` ("graph covered by graph/go"),
+  which leaves the verdict green. A stack without a graph lane (shell, say)
+  carries nothing: its lane says "no command", and the next stack with one
+  runs.
 - **Only in a check.** The edit scope plans no `graph` lane at all, as for a
   kind without a command: an `edit` profile that names `graph` never rebuilds
   on an edit.
@@ -327,16 +335,28 @@ The commands run one after the other, and `blast-audit` runs even after a red
 - **The stop gate has no probe.** `stop` does not include `graph` by default;
   a project that adds it gets `not-applicable` ("graph lanes need a graph
   probe") at every turn end.
-- **Changing the threshold** means replacing `commands` in
-  `[verify.go.graph]`, **both** entries; a lane that names only `blast-audit`
-  loses the rebuild:
+- **Changing the threshold** means replacing `commands` in the table of the
+  stack that carries the lane (`[verify.go.graph]`, in a Python-only
+  repository `[verify.python.graph]`), **both** entries; a lane that names
+  only `blast-audit` loses the rebuild:
 
   ```toml
   [verify.go.graph]
   commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 10"]
   ```
 
-  `graph = false` under `[verify.go]` switches the lane off.
+- **Switching the lane off** takes `graph = false` under any one stack. The
+  graph belongs to the root, so the switch is the project's: in a repository
+  with Go and Python, `graph = false` under `[verify.go]` (or under
+  `[verify.python]`) makes every graph lane `not-applicable` with "graph
+  switched off under [verify.go]", naming the first such stack in byte
+  order, and no other stack carries the graph in its place. Where no stack
+  is left with a graph command, as in a Go repository with `graph = false`
+  under `[verify.go]`, the lanes say "no command", as they always did. A
+  switch under a stack the project does not have changes nothing. Leaving
+  `graph` out of a profile (`precommit = ["lint", "types", "test",
+  "coverage"]`) keeps it out of that profile only: `loomux check all` and
+  `loomux check graph` still plan it.
 
 #### Test detection
 
@@ -487,11 +507,13 @@ An earlier draft of this manual specified a `[graph]` section with `extensions`,
 shipped, and none is planned. The question keeps coming back, so the answer is
 here rather than left to be rediscovered:
 
-- **The languages a build parses follow from the extractor, not from a list a
-  repository declares.** `internal/code/extract/golang` is a Go extractor; it
-  parses `.go` files because that is what it knows how to read. A second
-  extractor for another language adds itself the same way — by existing — and
-  no config key decides which one runs on a given file.
+- **The languages a build parses follow from the extractors, not from a list a
+  repository declares.** `internal/code/extract/golang` reads `.go` files and
+  `internal/code/extract/python` reads `.py` files, because that is what each
+  knows how to read; a fixed list in `internal/code/extract/all` holds them,
+  and the extension alone picks the one that runs on a file. A further
+  language joins that list in code, and no config key decides which extractor
+  runs on a given file.
 - **Narrowing a single build to a subset of the tree is a flag on the
   command, not a repository setting.** `loomux graph build` and `loomux graph
   check` already take `--root`; a future narrowing flag on one invocation is

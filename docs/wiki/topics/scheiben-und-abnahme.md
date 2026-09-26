@@ -43,7 +43,8 @@ nicht, wenn der Code steht.
 
 Zwei Spuren laufen nebeneinander: die Fusion der beiden Altrepos und der
 Code-Graph (Säule 3), der **neben** ihr statt hinter ihr gebaut wird, weil
-keine seiner fertigen Stufen eine Abhängigkeit einzieht. 1b, 2 und 3 sind
+keine seiner Stufen auf eine Fusions-Stufe wartet (G5a zog die bisher einzige
+Abhängigkeit ein, `gotreesitter`). 1b, 2 und 3 sind
 je in drei Teilstufen zerfallen, weil jede ihren eigenen Plan und ihre
 eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migration.md`:
 
@@ -66,7 +67,8 @@ eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migra
 | 4e | offen | Umstellung der Wirte, eine Checkliste ohne Code |
 | G1–G4b | ✅ | Rang, Blast-Radius, Extraktor, Abfrage, Navigation, Diff-Blast |
 | G4c | offen | Stop-Hook mit Blast-Logik |
-| G5 | offen | mehrsprachige Extraktion über `wazero` |
+| G5a | ✅ | Extraktor-Schnittstelle, Tree-sitter-Kern auf `gotreesitter`, Python; abgenommen an `iam_backend` und `ultra-brain` |
+| G5b–G5d | offen | TypeScript/TSX, GDScript, C++ |
 
 Eine Teilstufe 4b gibt es nicht. `loomux migrate` fällt weg: den
 Maschinenzustand hat die Selbstnutzung seit 3a schon umgezogen, die Wirte
@@ -78,7 +80,8 @@ eigener Spec.
 Drei Regeln, der Reihe nach: **zuerst, was seine Abhängigkeiten schon
 zulassen; dann, was loomux an sich selbst benutzt; dann die Größe.** Daraus
 folgt G4c auf Priorität 2, Stufe 4 auf 3 (in sich 4a-1 → 4a-2 → 4c → 4d,
-dann 4e), Flow auf 4, W1–W5 auf 5 und G5 auf 6. Ohne Stufe 4 bleiben die
+dann 4e), Flow auf 4, W1–W5 auf 5 und G5 auf 6; G5a hat der Nutzer am
+2026-09-26 vorgezogen. Ohne Stufe 4 bleiben die
 alten Repos im Dienst, und die Umstellung der Wirte braucht vorher einen
 Remote für `brain-knowledge`.
 
