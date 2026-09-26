@@ -95,13 +95,21 @@ are German and never translated.
 - Maintain the project READMEs (`README.md` and `README.de.md`) alongside
   implementation changes to reflect the actual state and capabilities.
 - The migration plan is `docs/en/migration.md` and `docs/de/migration.md`:
-  every stage with its status, origin, what is left, its dependencies and its
-  priority, and every capability with its origin and status. Every pull
-  request that starts, finishes, adds or drops migration work updates both in
-  the same pull request — a finished stage turns ✅ and its dependents are
-  re-read, a capability's status follows its stage, a new gap gets a row. A decision (a new stage, a
-  removal, a changed order) goes into the fusion spec first; the plan follows
-  it and never contradicts it.
+  every migration stage with its status, origin, what is left, its
+  dependencies and its priority, and every capability with its origin and
+  status. Every pull request that starts, finishes, adds or drops migration
+  work updates both in the same pull request — a finished stage turns ✅ and
+  its dependents are re-read, a capability's status follows its stage, a new
+  gap gets a row. A decision (a new stage, a removal, a changed order) goes
+  into the fusion spec first; the plan follows it and never contradicts it.
+- The roadmap is the section `Roadmap` in `README.md` and `README.de.md`: open
+  work beyond the migration (follow-up projects, the open code-graph stages,
+  optional features), split into "Coming" and "Maybe", each row with its stage,
+  dependencies and priority where it has them. Every pull request that starts,
+  finishes, adds or drops such work updates both in the same pull request; a
+  finished row leaves the roadmap and its capability goes into the
+  documentation it now belongs to. Priorities and stages come from the fusion
+  spec as they do for the migration plan.
 
 ## Commands
 

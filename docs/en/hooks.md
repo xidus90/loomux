@@ -125,7 +125,7 @@ Loomux guarantees total isolation through an **append-only file journal**:
 
 > **Planned (stage W1).** No hook writes the journal yet, and `loomux serve` tails
 > nothing; the isolation itself holds today: `internal/hooks` links none of
-> `serve`, which an import-graph test keeps. Status: [migration plan](migration.md).
+> `serve`, which an import-graph test keeps. Status: [roadmap](../../README.md#roadmap).
 
 ```
 Hook Process (loomux hook pre/post-tool-use)

@@ -148,8 +148,9 @@ flowchart LR
 > PageRank (alpha=0.25), blendet Quelltext-Spans ein und fährt den gesperrten
 > Neubau. `ask` importiert den Extraktor nicht: der Neubau kommt als
 > `Rebuild`-Funktion herein, so bleibt der Abfragepfad vom Parser getrennt. Welche
-> Befehle und Werkzeuge gebaut sind und was noch offen ist, steht im
-> [Migrationsplan](migration.md); jeden Befehl beschreibt die
+> Befehle und Werkzeuge gebaut sind, steht im [Migrationsplan](migration.md),
+> was noch offen ist (Stufen G4c und G5b bis G5d), in der
+> [Roadmap](../../README.de.md#roadmap); jeden Befehl beschreibt die
 > [CLI-Referenz](cli-reference.md).
 
 ### 1. „Lexik schlägt vor, der Graph entscheidet“

@@ -44,8 +44,9 @@ flowchart TD
     P5 -.-> Serve
 ```
 
-*A dashed line is specified and not built. Which stage builds what, and what is
-done, is in the [migration plan](docs/en/migration.md).*
+*A dashed line is specified and not built. What each migration stage built is
+in the [migration plan](docs/en/migration.md); what comes after it is on the
+[roadmap](#roadmap).*
 
 ---
 
@@ -137,16 +138,54 @@ import-graph test holds. Every tool with its arguments: [CLI reference §8](docs
 
 ## Migration Plan
 
-Where each stage and each capability stands — origin, status, dependencies
-and priority, with a map of which stage waits for which — is in the
+Where each migration stage and each capability carried over from ultraloom
+and ultra-brain stands — origin, status, dependencies and priority, with a map
+of which stage waits for which — is in the
 **[migration plan](docs/en/migration.md)**. This README describes what loomux
-is; the plan says how far it has got.
+is; the plan says how far the migration has got, and the roadmap below what
+comes after it.
+
+---
+
+## Roadmap
+
+What loomux will gain beyond the migration. *Priority* is the same order the
+migration plan uses, set in the
+[fusion spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
+under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
+4c-1 to 4e hold priority 3.
+
+### Coming
+
+| Feature | What it brings | Stage | Depends on | Priority |
+|---|---|---|---|---|
+| **Stop-hook blast audit** | The blast audit at the turn end, working tree against `HEAD`, for the stop gate; until then `graph` in a `stop` profile is `not-applicable` | G4c | G4b ✅ | 2 |
+| **Flow runtime** | Flows as data: a graph of nodes in TOML, run, paused at a gate for a human's answer, resumed and replayed from a journal (`loomux flow`). Starts from ulflow M1, built on ultraloom's unmerged branch `feature/agent-harness`; agent nodes over Claude and Gemini (through their CLIs, their APIs or both, which the Flow spec decides); `verify_until_green` as a data flow | Flow | ulflow M1 | 4 |
+| **Development cycle as the default flow** | From planning to the pull request: clarification, spec and plan, each checked by a fan of reviewer lenses, then per task research, test first, build, check chain, code review and rework, then docs, final review and commit. A human answers at fixed gates and whenever a model is stuck, and pushes | Flow | Flow runtime | 4 |
+| **Community flows** | The development cycle is only the default. A project runs flows of its own; flows contributed by pull request land in the repository as examples and ship with the binary. `.loomux/config.toml` picks the flow, and a project overrides single instructions and models without copying it | Flow | Flow runtime | 4 |
+| **Web OS shell** | A React/Vite app embedded with `go:embed` and served by `loomux serve` on `127.0.0.1`: event bus, layout, command palette | W1 | 1b-2 ✅ | 5 |
+| **Brain web app** | The second brain in the browser: markdown editor, ADR catalog, knowledge graph (components from `ultra-brain/web`) | W2 | W1 | 5 |
+| **Graph visualizer** | An interactive code graph with edge chips, type filters and blast overlays; code symbols linked to ADRs and design docs | W3 | W1, G4a ✅ | 5 |
+| **Skill suites and review** | Embedded best-practice rules per language (Go, Python, TypeScript, Rust); graph-aware review that reads `graph_blast` and checks ADR conformance; distributed through `.loomux/config.toml`, host folders, MCP prompts and the web UI | W4 | G4b ✅, migration stage 4 | 5 |
+| **Flow editor and Kanban** | Flows drawn, replayed and debugged as a graph in the Web OS, in the same format as the flow files; a Kanban board that tracks agent loops, check lanes and subagents live | W5 | W1, Flow | 5 |
+| **TypeScript/TSX in the code graph** | Extraction on the same pure-Go Tree-sitter core (`gotreesitter`) that reads Python since G5a | G5b | G5a ✅ | 6 |
+| **GDScript in the code graph** | The same core for Godot's GDScript | G5c | G5b | 6 |
+| **C++ in the code graph** | The same core for C++, once a recall check of `gotreesitter` against the C runtime holds | G5d | G5c | 6 |
+
+### Maybe
+
+| Feature | What it brings | Why only maybe |
+|---|---|---|
+| **Claude Mods adapter** | Seats the write barrier in a `tool.check` function hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)) talking to a long-lived loomux over `$.mcp.call`: no spawn per call, an `ask` verdict and a rendered reason | Claude Code only; the exec hook stays the portable path |
+
+A pull request that starts, finishes, adds or drops roadmap work updates this
+section and its German twin in [`README.de.md`](README.de.md#roadmap).
 
 ---
 
 ## CLI Reference
 
-The commands that are built, one line each; every flag and exit code is in the [CLI reference](docs/en/cli-reference.md), and what is specified and not built yet is in the [migration plan](docs/en/migration.md).
+The commands that are built, one line each; every flag and exit code is in the [CLI reference](docs/en/cli-reference.md), and what is specified and not built yet is in the [migration plan](docs/en/migration.md) or on the [roadmap](#roadmap).
 
 ### Commands
 ```bash
@@ -275,7 +314,7 @@ Exhaustive guides and technical manuals are organized under [`docs/en/`](docs/en
 | ⚙️ **[Configuration Reference](docs/en/configuration.md)** | Complete reference for `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
 | 📖 **[CLI Reference Manual](docs/en/cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |
 | 🪝 **[Hook Lifecycle & Integration](docs/en/hooks.md)** | Technical specification of the 4-phase hook lifecycle, host payload formats, and decoupled SSE event streaming. |
-| 🗺️ **[Migration Plan](docs/en/migration.md)** | Every stage and every capability of the fusion and the code graph: origin, status, dependencies and priority. |
+| 🗺️ **[Migration Plan](docs/en/migration.md)** | Every migration stage and every capability carried over or built during the fusion: origin, status, dependencies and priority. What comes after it is on the [roadmap](#roadmap). |
 | ⏱️ **[Performance Benchmarks](docs/en/benchmarks.md)** | Measured baseline performance against predecessor binaries and strict execution budgets. |
 | 📊 **[Benchmark Matrix](docs/en/benchmarks/matrix.md)** | Open-source matrix across top languages with detailed reports per language and repository. |
 
