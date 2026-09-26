@@ -435,6 +435,70 @@ func TestDevMutantsCleansUpAnInterruptedRound(t *testing.T) {
 	}
 }
 
+func TestDevFakeOllamaNeedsAFixture(t *testing.T) {
+	if code, _, _ := run("dev", "fake-ollama", "--bogus"); code != 2 {
+		t.Fatalf("code %d", code)
+	}
+	code, _, errOut := run("dev", "fake-ollama")
+	if code != 2 || errOut != "loomux dev fake-ollama: --fixture is required\n" {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// interruptedFakeOllama hands the command a context that has already ended,
+// as a Ctrl+C would; the fake then stops as soon as it listens.
+func interruptedFakeOllama(t *testing.T) {
+	t.Helper()
+	fakeOllamaNotify = func(parent context.Context, _ ...os.Signal) (context.Context, context.CancelFunc) {
+		ctx, cancel := context.WithCancel(parent)
+		cancel()
+		return ctx, cancel
+	}
+	t.Cleanup(func() { fakeOllamaNotify = signal.NotifyContext })
+}
+
+func ollamaFixture(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "ollama-fixture.json")
+	if err := os.WriteFile(path, []byte(`{"response":"x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestDevFakeOllamaServesUntilInterrupted(t *testing.T) {
+	interruptedFakeOllama(t)
+	logPath := filepath.Join(t.TempDir(), "ollama.log")
+	if err := os.WriteFile(logPath, []byte("earlier\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := run("dev", "fake-ollama", "--fixture", ollamaFixture(t), "--addr", "127.0.0.1:0", "--log", logPath)
+	if code != 0 || errOut != "" {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	if data, err := os.ReadFile(logPath); err != nil || string(data) != "earlier\n" {
+		t.Fatalf("the log was not appended to: %q, %v", data, err)
+	}
+	if code, _, errOut := run("dev", "fake-ollama", "--fixture", ollamaFixture(t), "--addr", "127.0.0.1:0"); code != 0 {
+		t.Fatalf("without --log: code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevFakeOllamaReportsWhatKeepsItFromServing(t *testing.T) {
+	interruptedFakeOllama(t)
+	dir := t.TempDir()
+	for name, args := range map[string][]string{
+		"fixture": {"--fixture", filepath.Join(dir, "missing.json")},
+		"log":     {"--fixture", ollamaFixture(t), "--log", filepath.Join(dir, "no", "such", "dir", "ollama.log")},
+		"addr":    {"--fixture", ollamaFixture(t), "--addr", "127.0.0.1:-1"},
+	} {
+		code, _, errOut := run(append([]string{"dev", "fake-ollama"}, args...)...)
+		if code != 1 || !strings.HasPrefix(errOut, "loomux dev fake-ollama: ") {
+			t.Errorf("%s: code %d, err %q", name, code, errOut)
+		}
+	}
+}
+
 func TestUntilInterruptedStartsNoRunAfterTheInterrupt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
