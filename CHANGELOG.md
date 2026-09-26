@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [3.2.0] - 2026-09-26
+
+<https://github.com/xidus90/loomux/pull/45>
+
+### Added
+- `loomux init` can pull the local model into Ollama when it is missing (part `model` of the brain module, on by default for `local_only` projects or with `[model] enabled = true`), showing its progress; Ctrl+C ends only the download.
+
 ## [3.1.0] - 2026-09-26
 
 <https://github.com/xidus90/loomux/pull/43>
