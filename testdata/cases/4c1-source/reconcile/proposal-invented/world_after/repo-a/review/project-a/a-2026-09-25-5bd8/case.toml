@@ -1,0 +1,16 @@
+id = "a-2026-09-25-5bd8"
+area = "project/a"
+target = "page.md"
+target_hash = "sha256:6e90693d8e9150b26ee89b841a761aea02faac586154c4a64ca5b846709e2ee7"
+state = "source_changed"
+trigger = "source_change"
+weight = "change"
+created = 2026-09-25T21:51:57.259274+00:00
+note = "manual review: the local proposer returned no usable proposal (slice-6 spec §3)"
+manual = true
+local_only = true
+
+[[sources]]
+doc_id = "0A00000000000000000000000A"
+revision = 1
+content_hash = "sha256:5a51bfa4315274ee9e5856a690617049ff0586a1682ec4e211c662336520082d"
