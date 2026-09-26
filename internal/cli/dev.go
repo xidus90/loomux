@@ -20,6 +20,7 @@ import (
 	"github.com/xidus90/loomux/internal/cases"
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
+	"github.com/xidus90/loomux/internal/dev/fakeollama"
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 	"github.com/xidus90/loomux/internal/dev/recordcase"
@@ -40,9 +41,15 @@ var mutantsNotify = signal.NotifyContext
 // either.
 var recordMCPCase = recordcase.RecordMCP
 
+// fakeOllamaNotify is the seam of the fake Ollama's lifetime. The command
+// serves until Ctrl+C, which a test on Windows cannot send; a test hands it a
+// context that has already ended instead.
+var fakeOllamaNotify = signal.NotifyContext
+
 var devCommands = map[string]command{
 	"bench":           devBench,
 	"bench-hooks":     devBenchHooks,
+	"fake-ollama":     devFakeOllama,
 	"import-cases":    devImportCases,
 	"mutants":         devMutants,
 	"record-case":     devRecordCase,
@@ -278,6 +285,45 @@ func devRecordMCPCase(args []string, _ io.Reader, _, stderr io.Writer) int {
 	}
 	if err := recordMCPCase(s); err != nil {
 		fmt.Fprintf(stderr, "loomux dev record-mcp-case: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+// devFakeOllama answers every request to an Ollama endpoint from one fixture
+// until the process is interrupted. The log of requests goes to a file of its
+// own, never into a case world: the recorder stages the world in a directory
+// the fake does not know.
+func devFakeOllama(args []string, _ io.Reader, _, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev fake-ollama", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fixturePath := fs.String("fixture", "", "JSON file with the one answer every request gets")
+	addr := fs.String("addr", "127.0.0.1:11435", "address to listen on")
+	logPath := fs.String("log", "", "file the request lines are appended to; stderr without it")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *fixturePath == "" {
+		fmt.Fprintln(stderr, "loomux dev fake-ollama: --fixture is required")
+		return 2
+	}
+	fixture, err := fakeollama.Load(*fixturePath)
+	log := stderr
+	if err == nil && *logPath != "" {
+		var file *os.File
+		file, err = os.OpenFile(*logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err == nil {
+			defer file.Close()
+			log = file
+		}
+	}
+	if err == nil {
+		ctx, stop := fakeOllamaNotify(context.Background(), os.Interrupt)
+		defer stop()
+		err = fakeollama.Serve(ctx, *addr, fixture, log)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux dev fake-ollama: %v\n", err)
 		return 1
 	}
 	return 0
