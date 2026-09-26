@@ -50,3 +50,14 @@ testdata/cases/3a/** -text
 # a generator ran the reference over each input, and the test holds the port
 # to those bytes. A fold of any kind would compare with this repository.
 internal/brain/apply/testdata/frontmatter/** -text
+
+# The proposer's prompt is the reference's file byte for byte: its version
+# comment included, the whole file goes to the model, and a test holds its
+# sha256. A fold of any kind would send the model a different prompt.
+internal/brain/model/prompts/** -text
+
+# The local model's recordings and their translation are the same kind of
+# evidence as stage 3a's: whole file worlds held byte for byte against the
+# reference, a proposal the model's answer wrote included.
+testdata/cases/4c1-source/** -text
+testdata/cases/4c1/** -text
