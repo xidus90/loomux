@@ -130,9 +130,10 @@ Gegen Code und Rechner gelesen am 2026-09-23.
 |---|---|---|
 | **4a-1** Schema und `config` | Schlüsselschema, Zeileneditor, Oberfläche auf `x/term`, `loomux config`, `[modules]` mit Laufzeitwirkung, `loomux mcp --root`, die Wächterregel | 3 ✅ |
 | **4a-2** `init` | Umzug von ulinit auf das Schema, Module, Host-Einträge, Git-Hooks und post-merge (#5), Skills (#7, #8), `AGENTS.md` (#10), `.gitignore` (#11), `.mcp.json`, Binary an den kanonischen Ort (#15), `--detect-only` (#16) | 4a-1, 2b ✅, 2c ✅, `feat/self-update` gemergt (`internal/swap`, kanonischer Ort, `selfupdate`) |
-| **4c** Modell | Ollama-Client, Tor, Richter, Prompts, `[model]`, die Rolle `propose` in `reconcile`; Heilung von #1 und #4; `dev bench search` und das gemeinsame Berichtsschema | 4a-1 (`[model]` im Schema), 3 ✅ |
-| **4d** `convert`/`fetch` | Eingang wandeln, Untertitel holen, die Rollen `describe` und `place` | 4c |
-| **4e** Umstellung | Checkliste, kein Code | 4a-2, 4c, 4d; Remote für `brain-knowledge` |
+| **4c-1** Modell | Ollama-Client, Tor, Prompts, `[model]` global und je Bereich, die Rolle `propose` in `reconcile`; Heilung von #1 und #4 (geschnitten beim Planen von 4c, siehe dort) | 4a-1 (`[model]` im Schema), 3 ✅ |
+| **4c-2** Bench | `dev bench search`, die Untergruppe `dev bench hooks\|repos\|search` und das gemeinsame Berichtsschema | 3 ✅ |
+| **4d** `convert`/`fetch` | Eingang wandeln, Untertitel holen, die Rollen `describe` und `place`, die Richter | 4c-1 |
+| **4e** Umstellung | Checkliste, kein Code | 4a-2, 4c-1, 4d; Remote für `brain-knowledge` |
 
 ## 4a-1 im Einzelnen
 
@@ -531,6 +532,155 @@ Skill-Ort von Antigravity.
   und Maximum, Ausgabe als JSON und Markdown. `benchhooks` und `benchcorpus`
   werden darauf umgestellt.
 
+### Abweichungen beim Planen von 4c
+
+Beim Planen (2026-09-25) gegen den Code und gegen die Referenz am Tag
+`loomux-3-source` gelesen und mit dem Nutzer entschieden; der Text oben gilt,
+wo er nicht widerspricht.
+
+**Schnitt.** 4c zerfällt in **4c-1** (Modell, `propose`, Heilung #1 und #4)
+und **4c-2** (`dev bench search`, das Berichtsschema). Beide hängen nicht
+aneinander, jede bekommt einen eigenen Plan, eine eigene Akte
+(`parity/stufe-4c-1.md`, `parity/stufe-4c-2.md`) und einen eigenen Pull
+Request. 4d hängt nur an 4c-1.
+
+**Korrekturen, die der Code erzwingt:**
+
+- **Die Richter gehören zu 4d.** `propose` prüft nur mit `evidence`;
+  `is_german`, `chopped_words` und `is_one_sentence` braucht nur `describe`.
+  Die Spec vermengt zwei Dinge: eine Liste von 72 Funktionswörtern, die in
+  der Referenz im Code steht (`judge.py:34-40`), und die Zipf-Frequenzen aus
+  `wordfreq`, die nur `chopped_words` braucht. Größe und Lizenz einer
+  eingebetteten Zipf-Tabelle sind eine Frage von 4d. Die Funktionswortliste
+  bettet 4c-2 ein, weil die Korpusprüfung die Richtung einer Frage daran
+  erkennt.
+- **Das Tor kennt keine Freigabe und keine Umgebungsvariable.** Ein Client
+  entsteht genau dann, wenn `enabled` an ist und die Rolle aktiv
+  (`gate.py:17-29`). Erst dann wird der Endpoint geprüft; ein falscher
+  Endpoint bei ausgeschaltetem Modell bleibt unbemerkt, wie in der Referenz.
+- **`[model]` hat zwei verschiedene Schlüsselmengen.** Global
+  (`<zustand>/config.toml`): `enabled` (Vorgabe `false`), `endpoint`
+  (`http://127.0.0.1:11434`), `name`
+  (`hf.co/unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL`), `temperature` (`0.0`,
+  0 bis 2, kein Bool) und `roles` (Vorgabe alle drei an; ist `roles`
+  gesetzt, ist jede nicht genannte Rolle aus). Je Bereich nur `enabled` und
+  `roles`. Die Einengung: `enabled` gilt, wenn es global an und im Bereich
+  nicht `false` ist; die Rollen sind die Schnittmenge. Unbekannte Schlüssel
+  in `[model]` bleiben still übergangen, eine unbekannte Rolle wird
+  abgewiesen, beides wie in der Referenz.
+- **Der globale Teil fehlt.** Die Bereichsschlüssel stehen seit 4a-1 im
+  Schema und werden von `ReadDeclaration` geprüft, aber `Manifest` verwirft
+  sie, `schema.GlobalKeys()` ist leer, und für `<zustand>/config.toml` gibt
+  es keinen Leser. 4c-1 füllt `GlobalKeys`, schreibt den Leser, hängt ihn in
+  die Prüfung von `config --global` und gibt `Manifest` die Felder
+  `ModelEnabled` und `ModelRoles`.
+- **Der Client** folgt der Referenz, nicht den Vorgaben von Go: nur `POST
+  <endpoint>/api/generate` mit `model`, `prompt`, `stream:false`,
+  `think:false`, `options{temperature, num_ctx:8192}`; kein Proxy aus der
+  Umgebung (`trust_env=False`), keine Weiterleitung (eine 3xx ist ein
+  Ausfall), 2 s für den Verbindungsaufbau, 30 s insgesamt. Jeder Ausfall ist
+  „keine Antwort“; ein leerer `response` ist eine Antwort. Der Request hängt
+  am Kontext des Aufrufers, damit `serve` einen laufenden Aufruf beim Beenden
+  abbricht. Loopback heißt: Host als Zeichenkette gleich `127.0.0.1`,
+  `localhost` oder `::1`, keine Namensauflösung; die fünf Fehler der
+  Referenz in ihrer Reihenfolge (`client.py:59-109`).
+- **Der Prompt ist die ganze Datei** `vorschlag-v4.md`, samt dem
+  Versionskommentar am Anfang; eingesetzt wird nur `{paket}`. Ein Test hält
+  fest, dass die Datei sonst keine geschweiften Klammern trägt, sonst wäre
+  die Ersetzung nicht mehr gleich `str.format`.
+- **`propose` gibt es nur für `local_only`-Bereiche.** Ohne einen solchen
+  Bereich liest `reconcile` die globale Datei gar nicht; ein
+  Konfigurationsfehler wird ein Fehler von `reconcile`. Eingehängt wird in
+  `landCase` zwischen `RenderPackage` und `WriteCase`. Mit Vorschlag:
+  `proposal.md` mit dem Rohtext, `prompt_version = "vorschlag-v4"`,
+  `local_only = true`, kein `manual`, keine `note`. Mit Proposer, aber ohne
+  brauchbaren Vorschlag: `manual = true` und die zweite Notiz der Referenz,
+  „manual review: the local proposer returned no usable proposal“. Ein
+  stehender Fall wird nicht erneut gefragt.
+- **Wo das Modell läuft:** in `reconcile`, im Abgleich vor `reindex`, nach
+  `approve` und im Upkeep von `serve`; auf keinem Hook-Pfad. Im schlimmsten
+  Fall kostet ein Fall 30 s, wie in der Referenz.
+- **Die Sperre von #4 liegt neben dem Bereichsverzeichnis**, nicht darin:
+  `<zustand>/areas/<scope>.lock` (flach geschrieben wie das Verzeichnis).
+  `ReplaceDir` tauscht `<zustand>/areas/<scope>` als Ganzes, und eine offene
+  Datei darin hielte unter Windows den Tausch auf; ein schreibbarer Bereich
+  hat das Verzeichnis gar nicht, bekommt die Sperre aber auch. Beide nehmen
+  sie blockierend: `reindex` um das Schreiben des Bestands je Bereich,
+  `approve` um `moveStock` und das Vorschieben des Registers. Keiner hält
+  sie über einen qmd-Aufruf.
+- **Für die Aufzeichnung** gegen Python braucht es eine Ollama-Attrappe als
+  eigenen Prozess auf Loopback; `fakeqmd` gibt es nur als Handler im selben
+  Prozess. Neu ist `loomux dev fake-ollama --fixture <json>` auf einem
+  festen Port, den die Welt in ihrer `config.toml` nennt. Im Go-Test hängt
+  derselbe Handler als `httptest`-Server an einer Naht. Aufgezeichnet werden
+  sieben Fälle: guter Vorschlag, erfundenes Zitat, Ollama läuft nicht,
+  Modell aus, `manual_cloud` fragt nie, Endpoint außerhalb von Loopback,
+  kaputtes `[model]`.
+- **Bench-Namen.** `dev bench-hooks` und `dev bench` gibt es, `dev bench
+  corpus` nicht, und „corpus“ heißt dort die OSS-Matrix. Siehe unten.
+
+**Mit dem Nutzer entschieden (2026-09-25):**
+
+| Frage | Entscheidung |
+|---|---|
+| Schnitt | 4c-1 und 4c-2, wie oben |
+| Heilung #1 | `approve --reject` läuft erst durch `guardSources`: Hat sich eine Quelle seit der Fallbildung bewegt, hält es an wie `approve`, und der Fall bleibt. Sonst schiebt es nur `revision` und `content_hash` in `sources[]` der Seite vor, dazu das Register; `generated` und `verified` bleiben, denn die Seite ist weder neu erzeugt noch bestätigt. Ein Commit nimmt Seite, Register und `audit.md`. `TestRejectAdvancesNeitherThePageNorTheRegister` dreht sich um, der Fall `3b/approve/reject` wird freigegebene Abweichung |
+| Bench-Befehle | Eine Untergruppe: `dev bench hooks` (heute `dev bench-hooks`), `dev bench repos` (heute `dev bench`), `dev bench search`. `dev bench` allein zeigt die Hilfe; die alten Namen fallen weg. Die Einträge der Chronik in `benchmarks.md` bleiben, wie sie sind, und die Fallsätze bleiben flach in `testdata/bench/` |
+| Release von 4c-2 | Die Umbenennung ist ein „breaking change to a command“ nach AGENTS.md: 4c-2 geht als `release:major` |
+
+**4c-2 im Einzelnen:**
+
+- **`internal/dev/benchreport`**, eine Hülle für alle drei Befehle:
+  `schema: 1`, `command`, `stamp`, `environment{os, arch, cpu, go, loomux,
+  qmd, models, profile}`, `timings[]` aus `{name, cold_ms, warm_ms[],
+  median_ms, min_ms, max_ms, exit_codes}`, dazu eine Nutzlast je Befehl
+  (Trefferqualität bei `search`, Lückenaudit bei `repos`). Zeiten durchweg in
+  Millisekunden als Zahl; heute schreibt `benchcorpus` Nanosekunden.
+  JSON und Markdown aus demselben Wert; Median, Minimum und Maximum an einer
+  Stelle statt zweimal. `docs/benchmarks.json` wird im selben Pull Request
+  einmal umgerechnet, mit einem Wegwerfskript, das nicht eingecheckt wird.
+- **`dev bench search`**, übertragen von `brain bench` (`cli.py:503-540`,
+  `2011-2340`, `bench/*.py`): Rang der erwarteten Quelle unter den ersten
+  zehn, Treffer ist Rang ≤ 3, über die volle Suchkette samt
+  Privatsphärefilter; `--latency` misst `catalog`, `read`, `keyword`,
+  `fast` und `full` je einmal kalt und `--repeat` mal warm, nach einem
+  ungezählten Probelauf. Profile `keyword|fast|full`, Vorgabe `fast`.
+  Fragensatz mit `id`, `sort`, `query`, `expect`, `beleg`, `hinweis`, Form
+  13/13/10/14, `beleg` wörtlich im Ziel. Der echte Fragensatz bleibt privat,
+  Vorgabe `<bereich>/98 Messung/questions.yaml`. Ausgabe: `.md` und `.json`
+  beide oder keine, das Markdown auch auf stdout; eine vorhandene Zieldatei
+  bricht ab; im Korpusmodus ist `--out` Pflicht. Exit 1 bei jedem Fehler des
+  Korpus, des Fragensatzes oder der Suche; keine Schwelle für Qualität oder
+  Latenz.
+- **Korpusmodus `--corpus v1`:** erst die Prüfungen (sha256 je Notiz gegen
+  `manifest.json`, `HERKUNFT.md` in beide Richtungen, Partition 100 Notizen
+  in 10 Themen zu je 10, Nachbarthema vorhanden und verschieden, mindestens
+  fünf Fragen in Gegenrichtung), dann ein Wegwerf-Zustand. qmd läuft dabei
+  mit eigenem `XDG_CONFIG_HOME` und `XDG_CACHE_HOME`, damit weder die echte
+  `index.yml` noch der echte Index berührt wird; aufgeräumt wird immer.
+- **Daten:** `testdata/bench/search/v1/` mit `notes/`, `HERKUNFT.md`,
+  `manifest.json`, `themes.yaml`, `questions.yaml` und `baseline/` (43/50
+  bei `fast`), dazu eine Lizenznotiz für **CC BY-SA 4.0**. `.gitattributes`
+  setzt dort `-text`, denn die Prüfsummen gelten den Rohbytes.
+- **Parität:** Die Tests laufen gegen `fakeqmd`. Einmal von Hand und in
+  der Akte festgehalten: `dev bench search --corpus v1 --profile keyword`
+  gegen `brain bench` mit demselben qmd, gleiche Ränge je Frage. `fast` und
+  `full` hängen an den Modellen von qmd; sie werden gemessen, nicht
+  verglichen, und die Latenz nie.
+
+**Selbstnutzung:** 4c-1: `project/obsidian-ai` ist auf diesem Rechner
+`local_only`; mit laufendem Ollama und dem Referenzmodell (heruntergeladen,
+2026-09-25) öffnet ein geänderter Quelltext dort einen Fall mit Vorschlag.
+Keine Wikiseite des Bereichs zitiert heute eine Quelle; der Mensch legt eine
+an (entschieden 2026-09-25). Dazu die offene Abnahme der Referenz
+(Scheibe-6-Spec §7 und §9, `OFFENE_AUFGABEN.md` Abschnitt 3, Task 10): der
+Vorschlag entsteht unter `pktmon`-Mitschnitt ohne Paket außerhalb der
+Schleife, die Gegenprobe mit abgeschaltetem Modell ebenso, und ein Vorschlag
+braucht unter zwei Sekunden. Den Mitschnitt nimmt der Mensch in einer
+Admin-Shell.
+4c-2: `dev bench search --corpus v1 --profile fast --latency` gegen die
+Baseline, eingetragen in beide `benchmarks.md`.
+
 ## 4d im Einzelnen
 
 - **`loomux convert [datei]`** geht den Eingang jedes Bereichs durch, oder die
@@ -544,6 +694,10 @@ Skill-Ort von Antigravity.
   Videos über `yt-dlp` in den Eingang.
 - **Rollen aus 4c:** `describe` (Beschreibung der Quelle) und `place`
   (Zielbereich einer Datei aus dem Eingang), mit den Rückfällen der Referenz.
+- **Die Richter** (seit dem Planen von 4c hier, siehe dort): `is_german`,
+  `chopped_words`, `is_one_sentence`, `word_count`. `chopped_words` braucht
+  deutsche Zipf-Frequenzen aus `wordfreq`; Größe und Lizenz einer
+  eingebetteten Tabelle klärt der Plan von 4d, bevor er baut.
 - **Modul Brain:** Bei `brain = false` verweigern beide.
 - **Externe Programme:** Fehlt `pdftotext` oder `yt-dlp`, nennt die Meldung
   Programm und Installationsbefehl, Exit ungleich 0. In den Tests vertreten
