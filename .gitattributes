@@ -61,3 +61,7 @@ internal/brain/model/prompts/** -text
 # reference, a proposal the model's answer wrote included.
 testdata/cases/4c1-source/** -text
 testdata/cases/4c1/** -text
+
+# The search corpus is held by checksums over its raw bytes: manifest.json
+# names the sha256 of every note, and a fold of any kind would break them.
+testdata/bench/search/** -text

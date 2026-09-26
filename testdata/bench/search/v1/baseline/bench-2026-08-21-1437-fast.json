@@ -1,0 +1,373 @@
+{
+  "environment": {
+    "corpus": "C:\\Users\\micro\\Documents\\#GIT\\ultra-brain\\.worktrees\\pruefkorpus-v1\\bench\\corpus\\v1",
+    "documents": 100,
+    "models": {
+      "embedding": "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf",
+      "query_expansion": "hf:tobil/qmd-query-expansion-1.7B-gguf/qmd-query-expansion-1.7B-q4_k_m.gguf",
+      "rerank": "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf"
+    },
+    "platform": "Windows-11-10.0.26200-SP0",
+    "qmd_version": "qmd 2.8.3 (facd35e)",
+    "question_set": "C:\\Users\\micro\\Documents\\#GIT\\ultra-brain\\.worktrees\\pruefkorpus-v1\\bench\\corpus\\v1\\questions.yaml"
+  },
+  "findings": [
+    "Warum wird ein kleiner Riffbewohner nicht verletzt, wenn er zwischen den brennenden Armen seines Gastgebers wohnt?: the search engine answered empty twice in a row on profile fast; an empty answer to a meaning search is practically unreachable, so this is more likely a silent failure of the engine than an absence of matches (spec 16.14)",
+    "Warum verwendet man bei der traditionellen sensorischen Bewertung ein durchsichtiges Trinkglas statt einer Tasse?: the search engine answered empty twice in a row on profile fast; an empty answer to a meaning search is practically unreachable, so this is more likely a silent failure of the engine than an absence of matches (spec 16.14)"
+  ],
+  "latency": null,
+  "profile": "fast",
+  "questions": [
+    {
+      "elapsed_ms": 7503.3131,
+      "hit": true,
+      "id": "c01",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4827.127,
+      "hit": true,
+      "id": "c02",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4555.213,
+      "hit": true,
+      "id": "c03",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4661.0359,
+      "hit": true,
+      "id": "c04",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4740.6492,
+      "hit": true,
+      "id": "c05",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4746.7585,
+      "hit": true,
+      "id": "c06",
+      "rank": 2,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4677.4533,
+      "hit": true,
+      "id": "c07",
+      "rank": 3,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4702.3577,
+      "hit": true,
+      "id": "c08",
+      "rank": 2,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 5143.5195,
+      "hit": true,
+      "id": "c09",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4817.2078,
+      "hit": true,
+      "id": "c10",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4651.6392,
+      "hit": true,
+      "id": "c11",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4657.8282,
+      "hit": true,
+      "id": "c12",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4660.2383,
+      "hit": true,
+      "id": "c13",
+      "rank": 1,
+      "sort": "exakt"
+    },
+    {
+      "elapsed_ms": 4802.0203,
+      "hit": true,
+      "id": "c14",
+      "rank": 3,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 7091.9669,
+      "hit": true,
+      "id": "c15",
+      "rank": 2,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 4631.8889,
+      "hit": false,
+      "id": "c16",
+      "rank": null,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 4793.3595,
+      "hit": true,
+      "id": "c17",
+      "rank": 1,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 6688.7648,
+      "hit": true,
+      "id": "c18",
+      "rank": 3,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 6489.8656,
+      "hit": true,
+      "id": "c19",
+      "rank": 1,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 4774.5676,
+      "hit": true,
+      "id": "c20",
+      "rank": 1,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 7591.5083,
+      "hit": false,
+      "id": "c21",
+      "rank": null,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 6470.0445,
+      "hit": true,
+      "id": "c22",
+      "rank": 3,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 7578.6474,
+      "hit": true,
+      "id": "c23",
+      "rank": 1,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 4726.5809,
+      "hit": true,
+      "id": "c24",
+      "rank": 1,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 4747.637,
+      "hit": true,
+      "id": "c25",
+      "rank": 1,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 6892.8271,
+      "hit": true,
+      "id": "c26",
+      "rank": 1,
+      "sort": "umschreibung"
+    },
+    {
+      "elapsed_ms": 4703.8268,
+      "hit": false,
+      "id": "c27",
+      "rank": null,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 6849.893,
+      "hit": true,
+      "id": "c28",
+      "rank": 1,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 7413.8164,
+      "hit": true,
+      "id": "c29",
+      "rank": 1,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 6973.0013,
+      "hit": true,
+      "id": "c30",
+      "rank": 1,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 6972.9327,
+      "hit": true,
+      "id": "c31",
+      "rank": 1,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 6403.348,
+      "hit": true,
+      "id": "c32",
+      "rank": 3,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 5088.4133,
+      "hit": false,
+      "id": "c33",
+      "rank": 4,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 6236.9451,
+      "hit": true,
+      "id": "c34",
+      "rank": 1,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 6733.4092,
+      "hit": true,
+      "id": "c35",
+      "rank": 2,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 7113.132,
+      "hit": true,
+      "id": "c36",
+      "rank": 1,
+      "sort": "gemischt"
+    },
+    {
+      "elapsed_ms": 5009.0458,
+      "hit": true,
+      "id": "c37",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 6605.041,
+      "hit": true,
+      "id": "c38",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 6562.2857,
+      "hit": true,
+      "id": "c39",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 4739.3408,
+      "hit": false,
+      "id": "c40",
+      "rank": null,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 4982.7607,
+      "hit": true,
+      "id": "c41",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 5028.6931,
+      "hit": true,
+      "id": "c42",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 6762.6335,
+      "hit": true,
+      "id": "c43",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 9615.585,
+      "hit": false,
+      "id": "c44",
+      "rank": null,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 4772.0211,
+      "hit": true,
+      "id": "c45",
+      "rank": 2,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 4634.4742,
+      "hit": true,
+      "id": "c46",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 4764.759,
+      "hit": true,
+      "id": "c47",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 4762.2474,
+      "hit": true,
+      "id": "c48",
+      "rank": 1,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 4861.8274,
+      "hit": false,
+      "id": "c49",
+      "rank": null,
+      "sort": "sprachuebergreifend"
+    },
+    {
+      "elapsed_ms": 4637.1963,
+      "hit": true,
+      "id": "c50",
+      "rank": 2,
+      "sort": "sprachuebergreifend"
+    }
+  ],
+  "stamp": "2026-08-21-1437"
+}

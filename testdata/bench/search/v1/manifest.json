@@ -1,0 +1,602 @@
+{
+  "baustatik-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Biegemoment",
+    "sha256": "07de9f1b2f208d43e745831a132b8c1d628a4f0b0c83a211dcc64ba836654ddf"
+  },
+  "baustatik-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Knicken",
+    "sha256": "69aa64a2a37abb97860b6576b0c42eb0a4af05450ae3083bb04064facaab4d11"
+  },
+  "baustatik-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Fachwerk",
+    "sha256": "4cf3665c89e38ebab3ad6ae2d8f83417d8367a0e50f3d0edff083e5fee26224c"
+  },
+  "baustatik-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Eurocode",
+    "sha256": "ed0a063c50312a0cb747a6f72aade92036bf7efbc0d61a6fdca00efc0be01f70"
+  },
+  "baustatik-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Teilsicherheitskonzept",
+    "sha256": "8f00ff33ccefa5d1285be393803ddce02cb987980deced81e3a47652c9c2de2a"
+  },
+  "baustatik-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Lager_%28Statik%29",
+    "sha256": "6c5ea39373db2852e91e0100e88a38cd53244a63da191f26f25e3cf73df69457"
+  },
+  "baustatik-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Statische_Bestimmtheit",
+    "sha256": "e5592b03bc9ce923a795a67374ebf84275e168e0d143cd1bae35b1b05737d875"
+  },
+  "baustatik-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Schneelast",
+    "sha256": "0020998f3c79ee4534d01f92b9f9e046cba38a50111861b5728cc57ef0be6f5c"
+  },
+  "baustatik-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Windlast",
+    "sha256": "3271f23710550e410365fec33425122a7e717f5338714c2861860af3720f491b"
+  },
+  "baustatik-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Fl%C3%A4chentr%C3%A4gheitsmoment",
+    "sha256": "c2f734025c260856de6dc4edb48915ced8e11b40f6e2b2faee689c3d31effb4d"
+  },
+  "baustoffe-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Beton",
+    "sha256": "0121cc2508d1a314b2885e41d52ed9c991871106abbdada2a9b0661f347809ce"
+  },
+  "baustoffe-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Zement",
+    "sha256": "161f4884da63b080a15ec1998e64dea635dfe13fd2444f75546c5a6dcbceb3f5"
+  },
+  "baustoffe-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Bewehrungsstahl",
+    "sha256": "b84153f78b39fcfb3940ced7142dbb19d1feaf377ec8fc00d716b34b4eace879"
+  },
+  "baustoffe-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Bauholz",
+    "sha256": "c55ef79fa767f62a9ab93d4125fcc5f75ce08bd8417b32f624859526b5c90f9c"
+  },
+  "baustoffe-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Mauerziegel",
+    "sha256": "2389c018c14a9a602d58ae8e2037dd1f40a9ecfaa2e9d7670273b01a6df39047"
+  },
+  "baustoffe-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Mörtel",
+    "sha256": "f61fe157b9ae315f01443277f4304285281e6b87bfe3f143c5ebf12beb50a1f3"
+  },
+  "baustoffe-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Dämmstoff",
+    "sha256": "446418f4bc81db75db2ba167d9d3e2c7f95d728cb21a3defad383585fb915712"
+  },
+  "baustoffe-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Flachglas",
+    "sha256": "1ce789916315abc4470b59982fabf3dc2e877d85ca78096fe0d32fa6d9247fbb"
+  },
+  "baustoffe-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Holztrocknung",
+    "sha256": "314d1e7e26db160ddb973907ecf2f7f06016a8977cd4aa161b39f4954ffee138"
+  },
+  "baustoffe-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Carbonatisierung_(Beton)",
+    "sha256": "3824d0cd773e6513f9c7dfe2a920a34964befd595e5ac4753c019ca709ae613b"
+  },
+  "gesellschaftsrecht-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Gesellschaft_mit_beschränkter_Haftung_(Deutschland)",
+    "sha256": "4fdbaab61931d5aa5dc5a2122c21adc59a5759faf366debad3a35cbbdb2c4b6f"
+  },
+  "gesellschaftsrecht-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Aktiengesellschaft_(Deutschland)",
+    "sha256": "1489d0fe70ce1fedef23c01a47782ea41e5e0565bd20ff5a7c7e1571f7f28480"
+  },
+  "gesellschaftsrecht-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Offene_Handelsgesellschaft",
+    "sha256": "a0f3a0e89b7a1bac9ff422f178fbbc6da078312fc3abc3ecdbaf9b1725a95bab"
+  },
+  "gesellschaftsrecht-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Kommanditgesellschaft_(Deutschland)",
+    "sha256": "a005bfcf79aabf70a0ccf934e13a0a4c6856224d0778d2e871fbed0aa07931ea"
+  },
+  "gesellschaftsrecht-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Gesellschaft_bürgerlichen_Rechts_(Deutschland)",
+    "sha256": "b4f37ff89162c544e3fd15598a5adbfb08a4ef45acff1db50b5ea68b58f194cd"
+  },
+  "gesellschaftsrecht-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Genossenschaft",
+    "sha256": "62e0c4d1b03e49153cd6cfd28aedd46209508bec19fb77e319183ebd556b7bbe"
+  },
+  "gesellschaftsrecht-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Handelsregister_(Deutschland)",
+    "sha256": "7e0b5e087d2e33a32de1659ce1fbb0b83b2df1caf44e77646dfc303b350893fa"
+  },
+  "gesellschaftsrecht-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Unternehmergesellschaft_(haftungsbeschränkt)",
+    "sha256": "ce0c23bfc754928002bd07474730e64b6f7349888184e6690f3492779e5e33db"
+  },
+  "gesellschaftsrecht-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Aufsichtsrat",
+    "sha256": "1f375fffb3aa47f037ff07ca58af61b08c77d1cfeb3fcdfd484dc00eead3ca3a"
+  },
+  "gesellschaftsrecht-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Stammkapital",
+    "sha256": "2647d82a72b490d02d4a83266db85b678f6206e32c01e3b604ef3375260da76c"
+  },
+  "kaffeeanbau-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Coffea_arabica",
+    "sha256": "1016ea93d37a42f7f90c47d192fc18e6e3f91b6ec3d1ca93e96a549d364ddfb0"
+  },
+  "kaffeeanbau-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Coffea_canephora",
+    "sha256": "544187d7714eb75d59d7a6acd9924b3ec6c068d6710000a3cf4e05d0c4456c48"
+  },
+  "kaffeeanbau-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Shade-grown_coffee",
+    "sha256": "7a2d98ee2d9cebd9b0f77811f9dcb878fbd0de00a142ebd11d7881852e6cccb3"
+  },
+  "kaffeeanbau-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Coffee_production",
+    "sha256": "b8bd272e02c9fea719826d9e06c6f75bf32eaea597f2413ee2f6e41e55fa5eaa"
+  },
+  "kaffeeanbau-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Coffee_roasting",
+    "sha256": "fbd0c732eed62bfc4337f704a74378eb55ee3f7c20b3c76c331ce6aa9fb319f5"
+  },
+  "kaffeeanbau-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Hemileia_vastatrix",
+    "sha256": "deeb513269d51c4d22dee4aef351802b9a6c4efa1d1ffb7c39d445fd7851dfa8"
+  },
+  "kaffeeanbau-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Hypothenemus_hampei",
+    "sha256": "beda70f08fbf4914f332e62168b44da54888507ec6438306c5e20c02ce64e949"
+  },
+  "kaffeeanbau-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Coffee_cupping",
+    "sha256": "c8538bbf06a71876ef392b0ef1c0877eddac85f22dba97400d784b4cd6d20bca"
+  },
+  "kaffeeanbau-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Economics_of_coffee",
+    "sha256": "00ee430e478e69f29187cda245caf40d59a22d09b04d4b5793ea326bb44e71dd"
+  },
+  "kaffeeanbau-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Coffee_bean",
+    "sha256": "86d3b4486b1cb74b37e514fbeda4103409e662b076527e6bae3a89d94ded50eb"
+  },
+  "meeresbiologie-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Biolumineszenz",
+    "sha256": "61b322d03ac379597d672fe81ddacf04cb1faef6da90d7e7d413c6f430127b21"
+  },
+  "meeresbiologie-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Tiefseefisch",
+    "sha256": "dcc167c3bbb6857cb7a0463ae73ca9c3de54d17128c38982205be684a83b0e59"
+  },
+  "meeresbiologie-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Korallenriff",
+    "sha256": "adc8343aacb88d0aabd24cc319787d89396bf0ade3e98d148aa30658522be91a"
+  },
+  "meeresbiologie-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Plankton",
+    "sha256": "76c3634868e5d69ecededde27eac86aebdf2416d818ac15217e43749f41cef38"
+  },
+  "meeresbiologie-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Anemonenfische",
+    "sha256": "b3350e86313203e369218da8c60e04376f693d811f0159a7909574f082cda2f8"
+  },
+  "meeresbiologie-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Antarktischer_Krill",
+    "sha256": "29dfe367b4e38d34290f55b11072018fa9a224f0791da1a182cbd43e4154a11f"
+  },
+  "meeresbiologie-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Seegraswiese",
+    "sha256": "c0046ada26dcc536b856f6eb7aa887037c85c4bfaa7f7125f1da1c82e952b0ea"
+  },
+  "meeresbiologie-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Meeresschildkr%C3%B6ten",
+    "sha256": "36bacda4996d52b00db133a232ef360cb0df0d5dd2a9c78b3db0ff5b158d71f9"
+  },
+  "meeresbiologie-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Tiefsee-Anglerfische",
+    "sha256": "f6da55300ef4d5cc0ed46ebb8b7a8bc5573d2eaf7cc105f5c50bf2da8bd53ba1"
+  },
+  "meeresbiologie-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Buckelwal",
+    "sha256": "7f5c44ba596f29d27dac86daa127bf8d794d347e621795cb12d04bd19ac0ef7c"
+  },
+  "meereskunde-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Ocean_current",
+    "sha256": "5ea0c257d3ab967afedfce7c62942a21586c79752a4e38feaf20252b3105ec6e"
+  },
+  "meereskunde-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Thermohaline_circulation",
+    "sha256": "b09a779e437d276e579b048b04bf30bc01360c28c96ec5c4d71bfdfedbbf1c9f"
+  },
+  "meereskunde-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Salinity",
+    "sha256": "19332ef34160505a5e728bf28136845779961ed04bef969eae4448728cbf51db"
+  },
+  "meereskunde-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Thermocline",
+    "sha256": "0648ad41ce7accefb305b5ca0b05a7c103ee559b34ffed080fe19599fa626a66"
+  },
+  "meereskunde-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Tide",
+    "sha256": "9e9decf328005cea9d52a9e079d7d1c78930f4dc6585ac100d3272b8e85366d1"
+  },
+  "meereskunde-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Wind_wave",
+    "sha256": "c0490429ccbe8a505edbd8990abab906b14e9b6eae5a7f1ffdcdcbeeb3cf975f"
+  },
+  "meereskunde-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Upwelling",
+    "sha256": "724af1f68e3fc7414d3e832e152b0f372ba93e756db53087c765a1b12436e748"
+  },
+  "meereskunde-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Sea_level_rise",
+    "sha256": "351ecc2dcb442516f6b1cb51186c520eea82ae5b0c2ef348d8952e70d885f25a"
+  },
+  "meereskunde-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Ocean_acidification",
+    "sha256": "ced67bb290eb301a3e44d48ad181e1890967985749f7fbea082587a7a0f59e40"
+  },
+  "meereskunde-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Argo_%28oceanography%29",
+    "sha256": "b03d96d21b630f84102cac4a3b50754a074b2f31179a5f38c2d92f7fdeaf9ba2"
+  },
+  "netzwerkprotokolle-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Transmission_Control_Protocol",
+    "sha256": "947f737b779d488d259e8e1d4406b110fb8c70b5df61a1ce97874035c3554c68"
+  },
+  "netzwerkprotokolle-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/User_Datagram_Protocol",
+    "sha256": "2aab177e3a3c9304d7789d385bc18b2aec6d6f49051f39c16f4d0aff547ac514"
+  },
+  "netzwerkprotokolle-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Domain_Name_System",
+    "sha256": "f9a5e1309c6bf0def6104bba2f79aa8955edc46e855f0d8090f1ba8d1db7a6e3"
+  },
+  "netzwerkprotokolle-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Hypertext_Transfer_Protocol",
+    "sha256": "5c399c01920eda37960f460100ba3f6e12bfbd5b21e343de5d45725ee3a02e96"
+  },
+  "netzwerkprotokolle-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Network_Time_Protocol",
+    "sha256": "c493d27b0bca1e6ce4f05ec12bf4bb6e2da9623470eff97c662abf81e7758580"
+  },
+  "netzwerkprotokolle-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol",
+    "sha256": "e2e05dc9de81d4d31abda3505eb2a6d270a9bcf1357368eede5934827d569cfc"
+  },
+  "netzwerkprotokolle-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Internet_Control_Message_Protocol",
+    "sha256": "e7f7d7bbea2248ec8064ed4198481812945049baed1a7411b3fde471787685fe"
+  },
+  "netzwerkprotokolle-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/OSI-Modell",
+    "sha256": "a058b1c6cc9f4aeecd8aac49bbc668c6e2a96504ccf21d2f2cc2ec8bdefa06bf"
+  },
+  "netzwerkprotokolle-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Border_Gateway_Protocol",
+    "sha256": "87c33c2b6f80e059f8985052b1bf438241580395594591ba8d3cffef015b4b43"
+  },
+  "netzwerkprotokolle-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Address_Resolution_Protocol",
+    "sha256": "17fd1018d8032fc5927b96bd3fc15a4c7fe06d125a88a1fbf8f32ba0218da012"
+  },
+  "netzwerksicherheit-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Transport_Layer_Security",
+    "sha256": "00d5a7cd0c9b742342a8c0a32b008cf409c3da3edc80dfc96d93926815c88a49"
+  },
+  "netzwerksicherheit-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Public_key_certificate",
+    "sha256": "d398167ae8c9fa90a20a892a3f6622a28f63bb20158508f68ff147416db910a7"
+  },
+  "netzwerksicherheit-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Certificate_authority",
+    "sha256": "34936a86fd9cc9d4b3dd40b82c37c7b96e87f13f4d84e00d4239143b129c369b"
+  },
+  "netzwerksicherheit-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/X.509",
+    "sha256": "3b03a411ca263646df6b63a025ad9df45a57adb3be16ce6b9ea6526e1f634ad9"
+  },
+  "netzwerksicherheit-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/IPsec",
+    "sha256": "c408941db57d5866c9eb7a5c8bb406fa4164c592a9ae7f956873b6c7658f5073"
+  },
+  "netzwerksicherheit-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Secure_Shell",
+    "sha256": "f158e157da84244236c8a0da3ce9456aa541c0451449f2648b9f287327fa3111"
+  },
+  "netzwerksicherheit-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange",
+    "sha256": "aa1f7c8966dd3111ec20ad240fb7dda67c8f512509e79095b3503e915b81846b"
+  },
+  "netzwerksicherheit-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Firewall_(computing)",
+    "sha256": "564282bdbbccbb0cf77b27b51f99266580e24cd2b743a7ae08c5b30e08c4e8ef"
+  },
+  "netzwerksicherheit-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Intrusion_detection_system",
+    "sha256": "6dcacd14e7db93c0475c49da8ccc7b61862a4839908753699c74cb830bad01b3"
+  },
+  "netzwerksicherheit-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://en.wikipedia.org/wiki/Man-in-the-middle_attack",
+    "sha256": "6697ca0233cf91800047e42e2ca38e0c174fbf85b20d534dcd3f4e5a355cfd78"
+  },
+  "teeanbau-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Tee_(Pflanze)",
+    "sha256": "18fe37b79cf3de356d8e4aafecdded323476583c4fee90c62ffb823909ab90fc"
+  },
+  "teeanbau-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Tee",
+    "sha256": "7488e042d9af3eadbc9dd67f4069bf56673417bf04df5ad14c10e5deba7613d7"
+  },
+  "teeanbau-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Schwarzer_Tee",
+    "sha256": "5f5563854c082607fbec2373ce6378643375918a050963e3c704a503d2e7ce3f"
+  },
+  "teeanbau-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Grüner_Tee",
+    "sha256": "3b305a96cd75496fff113aa0725d5dcbed0e86f13cf5b32385d16e99d64ec1d5"
+  },
+  "teeanbau-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Oolong",
+    "sha256": "e417257e8515d44219be454e9a8ac5c7daf5fd02e04ad4594eb9f71d222f8a5f"
+  },
+  "teeanbau-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Pu-Erh",
+    "sha256": "621dccd1debc3d9108bc81195e8d4f3816871e16deb1b566c7e2ef22476c1c6d"
+  },
+  "teeanbau-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Orange_Pekoe",
+    "sha256": "70aea3654b50d7adbce9c80b4ba894691ccfb8d118f588ea7bf3b1f3ab358ccd"
+  },
+  "teeanbau-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Darjeeling_(Tee)",
+    "sha256": "2e65549a1209a8fd141549ea50b314a38d8b07ce35a031ffdec2223e68c9d1e9"
+  },
+  "teeanbau-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Teeanbau_in_Indien",
+    "sha256": "f20f56394bbf4142c00df3505b275f2cdfffe6cb85267f4186a098e81a29c95a"
+  },
+  "teeanbau-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Ceylon_(Tee)",
+    "sha256": "b99be75979668aba4197dd1645ce2c5ae762e73175edfc72dbcf40c9b597a48f"
+  },
+  "vertragsrecht-01.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Willenserklärung",
+    "sha256": "b907d8dee1d00b012a7dce43d81f31139c01bf1a19ddbc0492793388ec1cfde7"
+  },
+  "vertragsrecht-02.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Anfechtung",
+    "sha256": "40469c4a39b1b60b8c52ea3a0dded1c614b12d827bb95409f103b3c11c0c2cdf"
+  },
+  "vertragsrecht-03.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Verjährung_(Deutschland)",
+    "sha256": "5f11a0437f0ff68862bcbe611911c7008ad9a299acc916d84fbd1d504d0cc54c"
+  },
+  "vertragsrecht-04.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Rücktritt_(Zivilrecht)",
+    "sha256": "50d1795735e7686bf350480591cee067ff896311dd707fe56d9aac017dd8a289"
+  },
+  "vertragsrecht-05.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Allgemeine_Geschäftsbedingungen_(Deutschland)",
+    "sha256": "87a22785ffe87680b6918b5bfa96024fc7770cba4ab2937166f4515cd17ede0a"
+  },
+  "vertragsrecht-06.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Schuldnerverzug_(Deutschland)",
+    "sha256": "270a4de8cd93d970756cef46756faf3c38041bf8c287835d0c3fb1538498a4f7"
+  },
+  "vertragsrecht-07.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Gewährleistung",
+    "sha256": "7718bf06c04ae3ac64f6d52cd3fabd599dd1d4482aced605ea43f0c1530463df"
+  },
+  "vertragsrecht-08.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Nacherfüllung",
+    "sha256": "26f62864333abb9943260fee8e158dc4be8bd9776ae60bec8be3ab5c36c6060d"
+  },
+  "vertragsrecht-09.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Widerruf_(Recht)",
+    "sha256": "0b5a9550a590b6c9455e14f0219fb8df070bc746b478d2ef326f04fca3e08eaf"
+  },
+  "vertragsrecht-10.md": {
+    "abgerufen": "2026-08-21",
+    "lizenz": "CC BY-SA 4.0",
+    "quelle": "https://de.wikipedia.org/wiki/Dauerschuldverhältnis",
+    "sha256": "b856275acf18d3cc71c10ac6584c8554fffafc4011e10ae8ab13f8eee33ffa1e"
+  }
+}

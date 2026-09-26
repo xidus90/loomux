@@ -1,0 +1,18 @@
+---
+titel: Allgemeine Geschäftsbedingungen (Deutschland)
+quelle: https://de.wikipedia.org/wiki/Allgemeine_Geschäftsbedingungen_(Deutschland)
+abgerufen: 2026-08-21
+lizenz: CC BY-SA 4.0
+thema: vertragsrecht
+---
+
+## Inhaltskontrolle
+
+Allgemeine Geschäftsbedingungen unterliegen gemäß § 307, § 308 und § 309 BGB einer Inhaltskontrolle. Da eine Prüfung vom Speziellen zum Allgemeinen vollzogen werden muss, muss die 3-teilige Inhaltskontrolle grundsätzlich mit § 309 BGB begonnen werden. Hier werden Klauselverbote aufgezählt, die auf jeden Fall, also ohne Wertungsmöglichkeiten, unwirksam sind. (Bsp.: Wird in AGB die Aufrechnung (§§ 387 ff. BGB) ausgeschlossen, ist diese Klausel unwirksam).
+Danach wird § 308 BGB geprüft. Hier sind einige Klauselverbote aufgezählt, die nur mit einer bestimmten Abwägung, also mit Wertungsmöglichkeiten, unwirksam sind. Wann „Unangemessenheit“ vorliegt, bestimmt sich nach den Umständen des Einzelfalls. (Bsp.: Bei Alltagsgeschäften ist eine Frist in den AGB zur Annahme eines Angebots von länger als 14 Tagen in der Regel unangemessen lange. Teilweise zu finden in Bestell- oder Antragsformularen). Wenn der Katalog in den §§ 308 und 309 BGB keine Unwirksamkeit zur Folge hat, so sind stets noch § 305c und § 307 BGB zu beachten. 
+Als sogenannte Generalklausel sieht § 307 BGB vor, dass Bestimmungen in allgemeinen Geschäftsbedingungen unwirksam sind, wenn sie den Vertragspartner des Verwenders entgegen den Geboten von Treu und Glauben unangemessen benachteiligen. Unangemessen bedeutet, dass keine hinreichende Rücksichtnahme auf die Interessen der durch die AGB benachteiligten Partei festzustellen ist, beispielsweise dann, wenn von der Risikoverteilung vergleichbarer gesetzlicher Regelungen abgewichen wird oder bei Gefährdung des Vertragszwecks. Eine Benachteiligung kann sich auch daraus ergeben, dass eine Bestimmung nicht klar und verständlich ist (Verstoß gegen das Transparenzprinzip).
+Auch bei der Inhaltskontrolle ist § 310 Abs. 1 BGB zu beachten:
+I. § 305 Abs. 2 und 3 und § 308, § 309 BGB gelten uneingeschränkt nur für AGB, die gegenüber Verbrauchern (§ 13 BGB) eingebracht werden.
+II. Für AGB gegenüber Unternehmern (§ 14 BGB) gilt lediglich § 307 BGB. Allerdings werden zur Bestimmung des Begriffs „unangemessene Benachteiligung“ die §§ 308 und 309 BGB herangezogen. Sie haben Indizwirkung. Die Normen sind zwar nicht direkt anwendbar, finden aber über § 307 Abs. 1 BGB wieder ihren Weg auch zur Auslegung von AGB gegenüber Unternehmern. Dabei ist nach § 310 Abs. 1 S. 2 BGB auf die im Handelsverkehr geltenden Gewohnheiten und Gebräuche ist angemessen Rücksicht zu nehmen. Ein Verstoß gegen die §§ 308, 309 BGB kann mithin mittelbar zu einem Verstoß nach § 307 Abs. 1 BGB führen.
+Wichtiges Anwendungsbeispiel zur Inhaltskontrolle von AGB nach § 309 BGB:
+Ein Verbraucher verkauft bei einem Internetauktionshaus eine Sache. Gewöhnlich steht in den Bedingungen vermerkt, dass „es sich um einen Privatverkauf handelt und deshalb jegliche Gewährleistungsrechte ausgeschlossen sind“. Dieser Ausschluss ist nach § 309 Nr. 7 a und b BGB in den meisten Fällen unwirksam. Der Gewährleistungsausschluss ist im Normalfall als AGB zu werten. Durch AGB darf kein Haftungsausschluss für Verletzungen von Leben, Körper, Gesundheit oder grobe Fahrlässigkeit eingeführt werden. Durch den vollumfänglichen Haftungsausschluss wird aber eben auch die Haftung für Vorgenanntes ausgeschlossen. Der Haftungsausschluss ist unwirksam. Nur wenn die in § 309 Nr. 7 a, b und § 309 Nr. 8 b BGB genannten Punkte nicht mit ausgeschlossen werden, ist ein wirksamer (Teil-)Ausschluss der Mängelrechte möglich.

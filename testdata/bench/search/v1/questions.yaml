@@ -1,0 +1,476 @@
+- id: c01
+  sort: exakt
+  query: "Eurocode 58 Teilnormen"
+  expect: "notes/baustatik-04.md"
+  beleg: "Es gibt insgesamt 58 Teilnormen."
+  hinweis: "Die Zahl 58 Teilnormen ist ein eindeutiger Zahlwert, der nur in der Eurocode-Notiz\
+  \ steht."
+
+- id: c02
+  sort: exakt
+  query: "DIN 18800 Stahlbau Teilsicherheitskonzept"
+  expect: "notes/baustatik-05.md"
+  beleg: "DIN 18800 Stahlbau."
+  hinweis: "Die Normbezeichnung DIN 18800 kommt im ganzen Korpus nur in dieser Notiz vor."
+
+- id: c03
+  sort: exakt
+  query: "Wichte Schnee 2 kN/m³"
+  expect: "notes/baustatik-08.md"
+  beleg: "einer Wichte (spezifisches Gewicht, Gewichtskraft je Volumen) von 2 kN/m³ gerechnet"
+  hinweis: "Zahl mit Einheit als Suchanker; 2 kN/m³ steht nur in der Schneelast-Notiz."
+
+- id: c04
+  sort: exakt
+  query: "DIN 1055-4 Tabelle 2 Geschwindigkeitsdruck"
+  expect: "notes/baustatik-09.md"
+  beleg: "in der Tabelle 2 der DIN 1055-4 der Geschwindigkeitsdruck q für Bauwerkshöhen bis\
+  \ 25 Meter zusammengestellt"
+  hinweis: "Die Normstelle DIN 1055-4 ist ein eindeutiger Bezeichner und trennt Windlast von\
+  \ den übrigen Lastnotizen."
+
+- id: c05
+  sort: exakt
+  query: "Flächenmoment 2. Grades"
+  expect: "notes/baustatik-10.md"
+  beleg: "auch als Flächenmoment 2. Grades bezeichnet"
+  hinweis: "Fachbegriff, der als Zweitname genau einmal im Korpus auftaucht."
+
+- id: c06
+  sort: exakt
+  query: "§ 133 HGB Auflösungsklage"
+  expect: "notes/gesellschaftsrecht-03.md"
+  beleg: "Auflösungsklage nach § 133 HGB hin ergeht"
+  hinweis: "Paragraphenangabe als Suchanker; § 133 HGB steht nur in der OHG-Notiz."
+
+- id: c07
+  sort: exakt
+  query: "BGH Entscheidung Weißes Ross"
+  expect: "notes/gesellschaftsrecht-05.md"
+  beleg: "in der Entscheidung Weißes Ross"
+  hinweis: "Der Entscheidungsname ist ein einmaliger Eigenname im Korpus."
+
+- id: c08
+  sort: exakt
+  query: "§ 24e GenG Aufsichtsrat"
+  expect: "notes/gesellschaftsrecht-06.md"
+  beleg: "weist ihm § 24e GenG zwingende Kontrollen und Zustimmungsrechte zu"
+  hinweis: "Die Norm § 24e GenG kommt nur in der Genossenschafts-Notiz vor, obwohl mehrere Notizen\
+  \ über Aufsichtsräte sprechen."
+
+- id: c09
+  sort: exakt
+  query: "Aktienrechtsnovelle 2016 Zahl der Aufsichtsratsmitglieder"
+  expect: "notes/gesellschaftsrecht-09.md"
+  beleg: "seit der Aktienrechtsnovelle 2016 nur noch nötig, wenn es zur Erfüllung mitbestimmungsrechtlicher\
+  \ Vorgaben erforderlich ist"
+  hinweis: "Der Gesetzesname mit Jahreszahl ist ein einmaliger Bezeichner."
+
+- id: c10
+  sort: exakt
+  query: "Stammkapital GmbH 50.000 DM bis 1998"
+  expect: "notes/gesellschaftsrecht-10.md"
+  beleg: "bis 1998 musste es mindestens 50.000 DM betragen"
+  hinweis: "Der DM-Betrag trennt diese Notiz von der UG-Notiz, die dieselben Euro-Beträge nennt."
+
+- id: c11
+  sort: exakt
+  query: "IAPSO Standard Seawater"
+  expect: "notes/meereskunde-03.md"
+  beleg: "IAPSO Standard Seawater is used by oceanographers to standardize their measurements\
+  \ with enough precision to meet this requirement"
+  hinweis: "Produkt- und Programmname, der genau einmal im Korpus steht."
+
+- id: c12
+  sort: exakt
+  query: "Argo float parking depth"
+  expect: "notes/meereskunde-10.md"
+  beleg: "Experts call this the parking depth."
+  hinweis: "Der Fachbegriff \"parking depth\" kommt nur in der Argo-Notiz vor."
+
+- id: c13
+  sort: exakt
+  query: "Thomas Lempriere sea-level benchmark"
+  expect: "notes/meereskunde-08.md"
+  beleg: "measurements by Thomas Lempriere, an amateur meteorologist, beginning in 1837"
+  hinweis: "Eigenname als eindeutiger Suchanker in einer Notiz voller Messreihen."
+
+- id: c14
+  sort: umschreibung
+  query: "Warum darf ein frisch geformter Lehmstein am Meer nicht einfach im Freien stehen?"
+  expect: "notes/baustoffe-05.md"
+  beleg: "In küstennahen Regionen ist ein geschlossener Trockenschuppen nötig, da der nahezu\
+  \ beständig herrschende Wind die Ziegel zu schnell trocknen und somit brechen lassen\
+  \ würde."
+  hinweis: "Die Frage nennt weder Ziegel noch Trocknen noch Trockenschuppen, sondern beschreibt\
+  \ die Situation in Alltagsworten."
+
+- id: c15
+  sort: umschreibung
+  query: "Warum entweicht die Feuchte aus einem Balken auch bei geringer Wärme rasch, wenn\
+  \ man die Kammer leerpumpt?"
+  expect: "notes/baustoffe-09.md"
+  beleg: "Grundprinzip dieses Verfahrens, das vor allem für Werthölzer und schwer zu trocknende\
+  \ Hölzer zum Einsatz kommt, ist die Druckabhängigkeit des Siedepunktes des Wassers\
+  \ (siehe Dampfdruck)."
+  hinweis: "Vakuum, Siedepunkt, Unterdruck und Holztrocknung sind alle umschrieben; nur die Sache\
+  \ selbst bleibt erkennbar."
+
+- id: c16
+  sort: umschreibung
+  query: "Warum schadet Eis einem Belag weniger, wenn beim Anmischen winzige Bläschen eingeschlossen\
+  \ werden?"
+  expect: "notes/baustoffe-01.md"
+  beleg: "Sie stellen einen Ausweichraum für gefrierendes Wasser dar und erhöhen somit die\
+  \ Frostbeständigkeit des Betons."
+  hinweis: "Weder Luftporen noch Frostbeständigkeit noch Beton stehen in der Frage; sie zielt\
+  \ allein auf den beschriebenen Vorgang."
+
+- id: c17
+  sort: umschreibung
+  query: "Warum legt man die Eisen im Gerippe nicht direkt auf die Bretter der Form?"
+  expect: "notes/baustoffe-03.md"
+  beleg: "Das Zusammenbinden der einzelnen Bewehrungselemente mit Draht (Rödeln) und die Verwendung\
+  \ von Abstandshaltern (z. B. aufgeklemmte Räder aus Kunststoff, Betonklötze oder\
+  \ -stäbe) zwischen Schalung und Bewehrung soll gewährleisten, dass der Bewehrungsstahl\
+  \ an der vorgesehenen Position im Bauteil liegt und ausreichend vom Beton überdeckt\
+  \ wird."
+  hinweis: "Bewehrung, Abstandshalter und Schalung sind durch Alltagswörter ersetzt; die Frage\
+  \ trifft trotzdem nur diese Notiz."
+
+- id: c18
+  sort: umschreibung
+  query: "Wie tief darf ein Längsspalt in einem gebogenen Dachbalken höchstens sein, damit\
+  \ er noch unbedenklich ist?"
+  expect: "notes/baustoffe-04.md"
+  beleg: "Bei Biegung ist die zulässige Risstiefe t ≤ 0,7 mal die Höhe oder t ≤ 0,6 Breite\
+  \ des Trägers."
+  hinweis: "Riss, Schwinden und Träger kommen in der Frage nicht vor, nur die Alltagsbeschreibung\
+  \ eines aufgespaltenen Balkens."
+
+- id: c19
+  sort: umschreibung
+  query: "Wie sperren mehrere Meeressäuger im Zusammenspiel einen Fischschwarm mit einem Ring\
+  \ aus Bläschen ein?"
+  expect: "notes/meeresbiologie-10.md"
+  beleg: "In letzterem Fall produziert der Wal einen Vorhang aus aufsteigenden Luftblasen,\
+  \ um die Nahrung zu konzentrieren."
+  hinweis: "Buckelwal, Luftblasen und Schluckfiltrierer sind umschrieben; die Frage beschreibt\
+  \ nur, was zu sehen ist."
+
+- id: c20
+  sort: umschreibung
+  query: "Warum kann in mehr als acht Kilometern Wassertiefe kein Wirbeltier mehr leben?"
+  expect: "notes/meeresbiologie-02.md"
+  beleg: "Dies bedeutet, dass diese Fische unterhalb einer Tiefe von etwa 8200 m nicht leben\
+  \ können: Höhere TMAO-Konzentrationen würden die Proteine in der Zelle wie das für\
+  \ Muskelbewegungen verantwortliche Myosin in einem Ausmaß destabilisieren, dass\
+  \ sie nicht mehr ihre Funktion wahrnehmen könnten."
+  hinweis: "Weder TMAO noch Osmolalität noch hydrostatischer Druck stehen in der Frage; gefragt\
+  \ ist nur nach der Grenze."
+
+- id: c21
+  sort: umschreibung
+  query: "Warum wird ein kleiner Riffbewohner nicht verletzt, wenn er zwischen den brennenden\
+  \ Armen seines Gastgebers wohnt?"
+  expect: "notes/meeresbiologie-05.md"
+  beleg: "Anemonenfische schützen sich vor der Vernesselung ihrer Wirtsanemonen durch die chemische\
+  \ Zusammensetzung ihrer den Körper umgebenden Schleimhaut."
+  hinweis: "Anemone, Nesselzelle und Schleimhaut fehlen in der Frage; sie beschreibt das Zusammenleben\
+  \ in Alltagsworten."
+
+- id: c22
+  sort: umschreibung
+  query: "Was geschieht mit den kleinen Schwarmtierchen im Südpolarmeer, wenn im Winter kaum\
+  \ etwas zu fressen da ist?"
+  expect: "notes/meeresbiologie-06.md"
+  beleg: "Ist keine ausreichende Nahrung vorhanden, schrumpfen die Krebse, wobei sie sich weiterhin\
+  \ regelmäßig häuten."
+  hinweis: "Krill, Nahrungsknappheit und Häutung sind umschrieben; die Frage zielt auf die überraschende\
+  \ Reaktion."
+
+- id: c23
+  sort: umschreibung
+  query: "Warum laufen die winzigen Panzertiere nach dem Ausschlüpfen in die falsche Richtung,\
+  \ wenn am Ufer Laternen brennen?"
+  expect: "notes/meeresbiologie-08.md"
+  beleg: "Da sich die gerade geschlüpften Tiere natürlicherweise am Mondlicht orientieren,\
+  \ um den Weg zurück ins Meer zu finden, werden sie durch künstliches Licht auf ihrem\
+  \ instinktiven Weg fehlgeleitet und verenden."
+  hinweis: "Schildkröte, Mondlicht und künstliches Licht stehen nicht in der Frage, nur die beobachtete\
+  \ Szene."
+
+- id: c24
+  sort: umschreibung
+  query: "Ab wann läuft die Zeit, in der ich eine im Netz gekaufte Sache grundlos zurückgeben\
+  \ darf — ab Bestellung oder ab Ankunft?"
+  expect: "notes/vertragsrecht-09.md"
+  beleg: "Die Widerrufsfrist beträgt einheitlich 14 Tage und beginnt frühestens, wenn der Verbraucher\
+  \ eine wirksame Widerrufsbelehrung erhalten hat, im Fernabsatz laut § 356 Abs. 2\
+  \ BGB jedoch nicht vor Eingang der Ware beim Empfänger."
+  hinweis: "Widerruf, Frist, Fernabsatz und Belehrung fehlen; gefragt ist in der Sprache eines\
+  \ Kunden."
+
+- id: c25
+  sort: umschreibung
+  query: "Was darf ich einem Geschäftskunden zusätzlich berechnen, wenn er meine Forderung\
+  \ trotz Erinnerung nicht begleicht?"
+  expect: "notes/vertragsrecht-06.md"
+  beleg: "Der Gläubiger kann Verzugsschadenersatz (§ 280 Abs. 1, 2 BGB) verlangen, bei Entgeltforderungen\
+  \ auch die 40-Euro-Verzugspauschale (§§ 288 Abs. 4 BGB) und Verzugszinsen (§§ 288\
+  \ ff. BGB)."
+  hinweis: "Verzug, Mahnung, Gläubiger und Pauschale sind alle ersetzt; die Frage ist die eines\
+  \ Rechnungsstellers."
+
+- id: c26
+  sort: umschreibung
+  query: "Muss ein Ladenbesitzer mir ein fabrikneues Stück geben, oder darf er das defekte\
+  \ teure Gerät stattdessen billig instand setzen?"
+  expect: "notes/vertragsrecht-08.md"
+  beleg: "Dies trifft beispielsweise zu, wenn der Käufer bei einer teuren Kaufsache die Neulieferung\
+  \ begehrt, obwohl eine Reparatur der mangelhaften Sache vergleichsweise kostengünstig\
+  \ möglich wäre."
+  hinweis: "Nacherfüllung, Neulieferung, Reparatur und Unverhältnismäßigkeit fehlen in der Frage;\
+  \ sie schildert nur den Streitfall."
+
+- id: c27
+  sort: gemischt
+  query: "Wie wirkt sich die Stärke des Welkens (Withering) auf die spätere Oxidation aus?"
+  expect: "notes/teeanbau-02.md"
+  beleg: "Die Stärke der Welkung wirkt sich (im umgekehrten Verhältnis) auf den Grad der später\
+  \ erzielbaren Oxidation aus."
+  hinweis: "Deutsche Frage mit dem wörtlichen englischen Prozessnamen Withering; die Antwort\
+  \ — das umgekehrte Verhältnis — steht nur in der deutschen Prosa, nicht im Bezeichner."
+
+- id: c28
+  sort: gemischt
+  query: "In welchen Anbaugebieten ist Broken Orange Pekoe vorherrschend, und welchen Rang\
+  \ hat dieser Grad unter den Broken?"
+  expect: "notes/teeanbau-07.md"
+  beleg: "BOP – Broken Orange Pekoe – Der Standardgrad unter den Broken. Vorherrschend in Sri\
+  \ Lanka, Süd-Indien, auf Java und in China."
+  hinweis: "Der Blattgrad wird wörtlich englisch genannt, gefragt ist aber nach Herkunft und\
+  \ Einordnung, die nur die deutsche Erläuterung liefert."
+
+- id: c29
+  sort: gemischt
+  query: "Welche Tassenfarbe und welches Aroma hat ein Second Flush aus Darjeeling?"
+  expect: "notes/teeanbau-08.md"
+  beleg: "## Second Flush Erntezeitpunkt: Anfang Juni bis Anfang Juli Tassenfarbe: Bernstein\
+  \ Aroma: abgerundet, kräftiger als First Flush"
+  hinweis: "Second Flush steht auch in teeanbau-01, dort aber ohne Tassenfarbe — der englische\
+  \ Bezeichner findet beide Notizen, beantwortet wird die Frage nur von einer."
+
+- id: c30
+  sort: gemischt
+  query: "Welcher Anteil der indischen Teeproduktion wurde 2013 mit CTC hergestellt?"
+  expect: "notes/teeanbau-09.md"
+  beleg: "2013 wurden 75 % der indischen Teeproduktion und 94 % des inländischen Teeverbrauchs\
+  \ mit CTC hergestellt."
+  hinweis: "CTC kommt auch in teeanbau-02 vor, wo das Verfahren erklärt wird; die hier gefragte\
+  \ Mengenangabe steht ausschließlich in der deutschen Prosa dieser Notiz."
+
+- id: c31
+  sort: gemischt
+  query: "Ab welcher Höhe gilt ein Teeanbaugebiet in Sri Lanka als low grown, und welche Regionen\
+  \ zählen dazu?"
+  expect: "notes/teeanbau-10.md"
+  beleg: "low grown (unter 600 m; 49 % der Anbaufläche) mit den Anbaugebieten Ruhuna und Sabaragamuwa"
+  hinweis: "Die englische Lagenbezeichnung ist wörtlich zitiert, gefragt sind Höhengrenze und\
+  \ Regionen aus der deutschen Erläuterung."
+
+- id: c32
+  sort: gemischt
+  query: "Welcher Schritt des TCP-Verbindungsaufbaus wird als Forward Acknowledgement bezeichnet?"
+  expect: "notes/netzwerkprotokolle-01.md"
+  beleg: "Der Client bestätigt zuletzt den Erhalt des SYN/ACK-Pakets durch das Senden eines\
+  \ eigenen ACK-Pakets mit der Sequenznummer x+1. Dieser Vorgang wird auch als „Forward\
+  \ Acknowledgement“ bezeichnet."
+  hinweis: "Der englische Fachbegriff wird wörtlich genannt, die Auflösung — der dritte Schritt\
+  \ des Handshakes — steht in der deutschen Prosa."
+
+- id: c33
+  sort: gemischt
+  query: "Wie groß dürfen die Nutzdaten (Payload) eines UDP-Datagramms höchstens sein, wenn\
+  \ IPv6 verwendet wird?"
+  expect: "notes/netzwerkprotokolle-02.md"
+  beleg: "Die tatsächlich verfügbare Länge der Nutzdaten ist bedingt durch das zugrundeliegende\
+  \ IP-Protokoll jedoch auf 65.507 Bytes (65.535 – 8 Byte UDP Header – 20 Byte IP\
+  \ Header) bei Verwendung von IPv4 und 65.487 Bytes (65.535 – 8 Bytes UDP Header\
+  \ – 40 Bytes IPv6 Header) bei Nutzung von IPv6 beschränkt."
+  hinweis: "Payload ist wörtlich aus der Notiz, die Zahl selbst steht mehrere Absätze entfernt\
+  \ in der deutschen Beschreibung des Längenfelds."
+
+- id: c34
+  sort: gemischt
+  query: "Was kann ein Anfragender tun, wenn eine DNS-Antwort mit dem Header-Flag Truncated\
+  \ (TC) markiert ist?"
+  expect: "notes/netzwerkprotokolle-03.md"
+  beleg: "Überlange Antworten werden abgeschnitten übertragen, sodass sie die maximal mögliche\
+  \ Nachrichtenlänge des Antwortenden nicht übersteigen, und mit dem Header-Flag Truncated\
+  \ (TC) als solches markiert. Der Anfragende kann daraufhin die Anfrage über TCP\
+  \ wiederholen."
+  hinweis: "Die englische Flag-Bezeichnung ist wörtlich, gefragt ist die Reaktion darauf, die\
+  \ nur die deutsche Prosa nennt."
+
+- id: c35
+  sort: gemischt
+  query: "Wozu dient das Feld flags im DHCP-Paket, und wie viele seiner Bits werden derzeit\
+  \ genutzt?"
+  expect: "notes/netzwerkprotokolle-06.md"
+  beleg: "flags (2 Byte): Z. Zt. wird nur das erste Bit verwendet (zeigt an, ob der Client\
+  \ noch eine gültige IP-Adresse hat), die restlichen Bits sind für spätere Protokollerweiterungen\
+  \ reserviert"
+  hinweis: "Der Feldname ist wörtlich englisch, die Bedeutung des einen genutzten Bits ergibt\
+  \ sich erst aus der deutschen Erklärung."
+
+- id: c36
+  sort: gemischt
+  query: "Was geschieht bei BGP, wenn innerhalb der Hold Time keine KEEPALIVE-Nachricht eintrifft?"
+  expect: "notes/netzwerkprotokolle-09.md"
+  beleg: "Kommt innerhalb der Hold Time keine KEEPALIVE-Nachricht an, wird die BGP-Session\
+  \ mit einer NOTIFICATION beendet."
+  hinweis: "Zwei englische Bezeichner wörtlich, gefragt ist die Folge ihres Ausbleibens — eine\
+  \ Aussage der deutschen Prosa, nicht der Namen."
+
+- id: c37
+  sort: sprachuebergreifend
+  query: "Wie nennt man das Maß dafür, wie viele Browser, Geräte und Anwendungen einer bestimmten\
+  \ beglaubigenden Stelle von Haus aus vertrauen?"
+  expect: "notes/netzwerksicherheit-03.md"
+  beleg: "The quantity of web browsers, other devices, and applications which trust a particular\
+  \ certificate authority is referred to as ubiquity."
+  hinweis: "Deutsche Frage auf eine englische Notiz; das gesuchte Wort selbst kommt in der Frage\
+  \ nicht vor, nur seine Umschreibung."
+
+- id: c38
+  sort: sprachuebergreifend
+  query: "Welche Einrichtung der US-Marine setzte Anfang der 1990er Jahre mit Mitteln einer\
+  \ Militärforschungsbehörde eine quelloffene Verschlüsselung auf der Vermittlungsschicht\
+  \ um, die zur Grundlage der meisten frühen kommerziellen Produkte wurde?"
+  expect: "notes/netzwerksicherheit-05.md"
+  beleg: "NRL's open-source IPsec implementation was made available online by MIT and became\
+  \ the basis for most initial commercial implementations."
+  hinweis: "Deutsche Frage, englische Notiz; die Frage umschreibt Behörde und Verfahren, statt\
+  \ Namen zu nennen, die in beiden Sprachen gleich aussähen."
+
+- id: c39
+  sort: sprachuebergreifend
+  query: "Welcher finnische Informatiker entwarf 1995 einen verschlüsselten Ersatz für die\
+  \ alten Programme zur Fernanmeldung an Unix-Rechnern?"
+  expect: "notes/netzwerksicherheit-06.md"
+  beleg: "Finnish computer scientist Tatu Ylönen designed SSH in 1995 and provided an implementation\
+  \ in the form of two commands, ssh and slogin, as secure replacements for rsh and\
+  \ rlogin, respectively."
+  hinweis: "Deutsche Frage auf englische Notiz; kein gemeinsames Inhaltswort — der Name des Protokolls\
+  \ bleibt ungenannt."
+
+- id: c40
+  sort: sprachuebergreifend
+  query: "Mit welchem Verfahren können sich zwei Parteien, die einander vorher nicht kannten,\
+  \ über eine unsichere Leitung auf ein gemeinsames Geheimnis einigen, ohne dieses\
+  \ jemals zu übertragen?"
+  expect: "notes/netzwerksicherheit-07.md"
+  beleg: "The Diffie–Hellman key exchange method allows two parties that have no prior knowledge\
+  \ of each other to jointly establish a shared secret key over an insecure channel."
+  hinweis: "Deutsche Frage, englische Notiz; die Frage beschreibt den Vorgang und nennt die beiden\
+  \ Erfindernamen nicht."
+
+- id: c41
+  sort: sprachuebergreifend
+  query: "Welcher heute geläufige Fachbegriff der Netztechnik bezeichnete ursprünglich eine\
+  \ Brandmauer zwischen benachbarten Gebäuden?"
+  expect: "notes/netzwerksicherheit-08.md"
+  beleg: "The term firewall originally referred to a wall to confine a fire within a line of\
+  \ adjacent buildings."
+  hinweis: "Deutsche Frage auf englische Notiz; das gesuchte Wort steht bewusst nicht in der\
+  \ Frage, sonst wäre es die Stichwortbrücke."
+
+- id: c42
+  sort: sprachuebergreifend
+  query: "Ab welcher Temperatur schlägt das Rösten der Bohnen von wärmeaufnehmend in wärmeabgebend\
+  \ um, so dass die Wärmezufuhr nachgeregelt werden muss?"
+  expect: "notes/kaffeeanbau-05.md"
+  beleg: "Initially, the process is endothermic (absorbing heat), but at around 175 °C (347\
+  \ °F) it becomes exothermic (giving off heat)."
+  hinweis: "Deutsche Frage auf englische Notiz; nur die Zahl verbindet beide, kein Inhaltswort."
+
+- id: c43
+  sort: sprachuebergreifend
+  query: "Wie viele Eier legt das Weibchen des Bohrschädlings zwei Tage nach dem Eindringen\
+  \ in die Frucht ab, und wie ist das Geschlechterverhältnis der Nachkommen?"
+  expect: "notes/kaffeeanbau-07.md"
+  beleg: "Two days after penetration, the beetle lays 35–50 eggs, which produce 13 females\
+  \ for each male."
+  hinweis: "Deutsche Frage, englische Notiz; der wissenschaftliche Name des Käfers, der in beiden\
+  \ Sprachen gleich lautet, bleibt ungenannt."
+
+- id: c44
+  sort: sprachuebergreifend
+  query: "Warum verwendet man bei der traditionellen sensorischen Bewertung ein durchsichtiges\
+  \ Trinkglas statt einer Tasse?"
+  expect: "notes/kaffeeanbau-08.md"
+  beleg: "The cups used for coffee tasting are traditionally 8 oz. glass, such as a whiskey\
+  \ glass, so that the coffee taster can see the color of the brew, and inspect the\
+  \ foam on top of the cup and the sediments formed at the bottom of the cup."
+  hinweis: "Deutsche Frage auf englische Notiz; kein gemeinsames Inhaltswort mit der Zielnotiz."
+
+- id: c45
+  sort: sprachuebergreifend
+  query: "How long is the standard limitation period in German civil law today, and how long\
+  \ was it before the 2002 reform of the law of obligations shortened it?"
+  expect: "notes/vertragsrecht-03.md"
+  beleg: "So wurde die Regelverjährung von 30 Jahren verkürzt auf drei Jahre;"
+  hinweis: "Englische Frage auf deutsche Notiz; die Fachbegriffe der Antwort haben in der Frage\
+  \ keine Entsprechung als Zeichenkette."
+
+- id: c46
+  sort: sprachuebergreifend
+  query: "When a set of standard business terms is checked for unfair clauses under German\
+  \ law, which of the three tiers has to be worked through first, and what is the\
+  \ reasoning behind that order?"
+  expect: "notes/vertragsrecht-05.md"
+  beleg: "Da eine Prüfung vom Speziellen zum Allgemeinen vollzogen werden muss, muss die 3-teilige\
+  \ Inhaltskontrolle grundsätzlich mit § 309 BGB begonnen werden."
+  hinweis: "Englische Frage auf deutsche Notiz; die Frage nennt weder Paragraphennummern noch\
+  \ die deutsche Abkürzung der Klauselwerke, so dass keine Zeichenkette beide Texte\
+  \ verbindet."
+
+- id: c47
+  sort: sprachuebergreifend
+  query: "Which German company form can be incorporated with as little as one euro of nominal\
+  \ capital, and why are contributions in kind not allowed for it?"
+  expect: "notes/gesellschaftsrecht-08.md"
+  beleg: "Das Stammkapital muss mindestens einen Euro betragen."
+  hinweis: "Englische Frage auf deutsche Notiz; die Abkürzung der Rechtsform wird bewusst nicht\
+  \ genannt, sonst gäbe es eine Stichwortbrücke."
+
+- id: c48
+  sort: sprachuebergreifend
+  query: "How many independent ways can a rigid body move in space compared with a flat problem,\
+  \ and what must the supports take away from it so that the reactions follow from\
+  \ equilibrium alone?"
+  expect: "notes/baustatik-07.md"
+  beleg: "Bei räumlichen Problemen sind es 6 Freiheitsgrade (je 3 Translationen und Rotationen),\
+  \ bei ebenen Problemen sind es 3 Freiheitsgrade (2 Translationen, 1 Rotation)."
+  hinweis: "Englische Frage auf deutsche Notiz; die Frage umschreibt den Freiheitsgrad, statt\
+  \ ihn zu benennen, und teilt mit der Notiz kein Wort."
+
+- id: c49
+  sort: sprachuebergreifend
+  query: "Which shallow coastal habitat acts as a nursery for young fish, with garfish and\
+  \ herring gluing their eggs onto its long blades?"
+  expect: "notes/meeresbiologie-07.md"
+  beleg: "Außerdem heften Hornhechte und Heringe ihre Eier an die Halme des Seegrases."
+  hinweis: "Englische Frage auf deutsche Notiz; kein gemeinsames Inhaltswort, die Fischnamen\
+  \ unterscheiden sich in beiden Sprachen vollständig."
+
+- id: c50
+  sort: sprachuebergreifend
+  query: "How many kilograms of freshly picked leaves have to be harvested to yield one kilogram\
+  \ of finished black tea?"
+  expect: "notes/teeanbau-01.md"
+  beleg: "Dabei müssen für 1 kg fertigen Schwarztee ca. 8 kg an frischen Teeblättern gepflückt\
+  \ werden."
+  hinweis: "Englische Frage auf deutsche Notiz; nur die Maßeinheit ist beiden gemeinsam, kein\
+  \ Inhaltswort."
