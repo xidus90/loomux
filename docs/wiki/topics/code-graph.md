@@ -32,13 +32,25 @@ Telemetrie:
 
 ## Wie der Graph entsteht
 
-`loomux graph build` zieht Symbole und Kanten aus dem Go-Quelltext, allein mit
-`go/parser`, und schreibt sie nach `.loomux/state/graph/wiring.json` —
-Maschinenzustand, git-ignoriert. Die Spec sah für den Offline-Bau noch
-`go/types` vor; gebaut ist der Extraktor ohne `go/types` und ohne Build
-(`internal/code/extract/golang`). `loomux graph check` extrahiert erneut,
-vergleicht mit dem Graphen auf der Platte und endet mit 0, wenn er frisch
-ist, mit 1 bei Drift.
+`loomux graph build` zieht Symbole und Kanten aus dem Quelltext und schreibt
+sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
+
+- **Go** liest er allein mit `go/parser`. Die Spec sah für den Offline-Bau
+  noch `go/types` vor; gebaut ist der Extraktor ohne `go/types` und ohne
+  Build (`internal/code/extract/golang`).
+- **Python** liest er seit G5a auf `gotreesitter`, einer Tree-sitter-Laufzeit
+  in reinem Go (`internal/code/extract/python` auf dem gemeinsamen Kern
+  `extract/treesitter`). Das Binary bleibt CGo-frei; ein Build mit
+  `CGO_ENABLED=0` im Tor hält das fest. Eine Datei mit Syntaxfehlern bricht
+  den Build nicht ab: sie behält ihren Dateiknoten, und der Bericht zählt die
+  Fehler.
+
+Jede Sprache löst in einem eigenen Namensindex auf; Kanten über
+Sprachgrenzen gibt es nicht. Unveränderte Dateien nimmt der Build aus dem
+Extraktions-Cache (`.loomux/state/graph/cache/extract.json`), statt sie neu zu
+parsen; gelesen und gehasht wird trotzdem jede, und `--no-reuse` parst alle.
+`loomux graph check` extrahiert erneut, vergleicht mit dem Graphen auf der
+Platte und endet mit 0, wenn er frisch ist, mit 1 bei Drift.
 
 **Die Pakete liegen unter `internal/code/`, nicht unter dem `internal/graph/`
 der Spec.** Die Trennung, die die Spec verlangt, gilt trotzdem: der
@@ -82,11 +94,19 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
 - **Post-Edit-Hook, rein informativ:** Nach einem Edit an einer `.go`-Datei
   ohne rote Lane nennt er die direkten Aufrufer in anderen Dateien dessen, was
   sich geändert hat (höchstens zehn). Ohne Graph oder bei einem Parsefehler
-  schweigt er; **einen Edit blockiert er nie.**
+  schweigt er; **einen Edit blockiert er nie.** Eine `.py`-Datei bekommt
+  keinen: jeder solche Edit zahlte das Laden einer Grammatik und das Parsen
+  der Datei, gegen ein Ziel von unter 100 ms Eigenzeit des Monitors.
+  `internal/hooks` importiert die Tree-sitter-Laufzeit darum nicht.
 - **Prüfart `graph`:** `check graph-fresh` baut bei Drift neu und ist nur rot,
   wenn der Neubau scheitert; `check blast-audit` ist rot, wenn ein geänderter
   Bereich mit genug Aufrufern keinen geänderten Test hat. Die Lane-Namen der
-  Spec (`graph-freshness`) wurden dabei ersetzt.
+  Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go und
+  Python; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom ersten
+  Stack mit Graph-Befehl, und `graph = false` unter einem Stack schaltet sie
+  für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
+  `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter
+  `tests/` oder `test/`.
 
 ## Was bewusst fehlt
 
@@ -98,8 +118,14 @@ das Binary kommt über die üblichen Wege.
 
 - **Stop-Hook mit Blast-Logik** (G4c): der Audit am Rundenende, Arbeitsbaum
   gegen `HEAD`; bis dahin bleibt `graph` im Profil `stop` außen vor.
-- **Mehrsprachige Extraktion** (G5): Tree-sitter als WebAssembly über
-  `wazero`, zuerst TypeScript und Python.
+- **Mehrsprachige Extraktion** (G5): G5a — die Schnittstelle, der Kern auf
+  `gotreesitter`, Python und der Cache — ist fertig und an zwei Python-Repos
+  abgenommen (`docs/.superpowers/parity/code-g5.md`). Offen sind G5b (TypeScript/TSX), G5c (GDScript) und
+  G5d (C++, erst nach einer Recall-Prüfung gegen die C-Laufzeit). Der erste
+  Plan, Tree-sitter als WebAssembly über `wazero`, ist verworfen.
+- **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
+  Verhalten zählen nur Funktionen und Methoden, eine Änderung an einer Klasse
+  ohne `__init__` läuft darum still durch `blast-audit`.
 - **Die Konfiguration `[graph]`** mit `languages`, `exclude` und `max_depth`
   aus der Spec: das Schema kennt heute nur den Schalter `graph` unter
   `[modules]`.
@@ -108,4 +134,4 @@ das Binary kommt über die üblichen Wege.
   beide heute unter dem Web-OS (W3).
 
 Quelle: Code-Graph-Design; den Stand führt `docs/de/migration.md`
-(G1 bis G4b fertig).
+(G1 bis G4b und G5a fertig).

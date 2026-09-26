@@ -139,8 +139,10 @@ flowchart LR
 
 > **Pakete.** Das Lesemodell und die beiden Rechner sind `internal/code/model`,
 > `internal/code/pagerank` und `internal/code/blast`; den Graphen, den sie lesen,
-> erzeugen `sourceset`, `extract/golang`, `resolve` und `store`, und `freshness`
-> beantwortet, ob er noch zum Baum passt. `internal/code/lexicon` tokenisiert
+> erzeugen `sourceset`, die Extraktoren in `extract/all` (`extract/golang` auf
+> `go/parser`, `extract/python` auf dem gemeinsamen Tree-sitter-Kern
+> `extract/treesitter`, der auf `gotreesitter` in reinem Go läuft), `resolve` und
+> `store`, und `freshness` beantwortet, ob er noch zum Baum passt. `internal/code/lexicon` tokenisiert
 > Anfragen und Dokumente und führt die Beiakte `ask-index.json`; `internal/code/ask`
 > verschmilzt BM25-artige Relevanz über Name, Signatur und Rumpf mit Personalized
 > PageRank (alpha=0.25), blendet Quelltext-Spans ein und fährt den gesperrten

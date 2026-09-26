@@ -139,7 +139,9 @@ flowchart LR
 
 > **Packages.** The read model and the two calculators are `internal/code/model`,
 > `internal/code/pagerank` and `internal/code/blast`; the graph they read comes from
-> `sourceset`, `extract/golang`, `resolve` and `store`, and `freshness` answers
+> `sourceset`, the extractors in `extract/all` (`extract/golang` on `go/parser`,
+> `extract/python` on the shared tree-sitter core `extract/treesitter`, which runs on
+> `gotreesitter` in pure Go), `resolve` and `store`, and `freshness` answers
 > whether it still matches the tree. `internal/code/lexicon` tokenizes queries and
 > documents and keeps the `ask-index.json` sidecar; `internal/code/ask` blends
 > BM25-style relevance over name, signature and body with Personalized PageRank

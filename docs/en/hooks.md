@@ -263,9 +263,9 @@ compares each symbol's body hash with the graph's nodes of the same path:
   types, so silence would read as "nothing depends on this". When a seed is a
   `struct`, `interface` or `type`, the context ends with
   `[graph] Modified struct/interface/type: type coupling not wired in graph v1 (check references via grep)`.
-- **It is silent** without a graph, on a graph from another extractor version
-  or schema, when the file cannot be read or does not parse (an edit half
-  done), when no symbol changed (also when the graph is already fresh), and
+- **It is silent** without a graph, on a graph of another schema or one that
+  no build with this binary's Go extractor wrote, when the file cannot be
+  read or does not parse (an edit half done), when no symbol changed (also when the graph is already fresh), and
   when the only callers are in the edited file itself. It never exits 1 and
   never blocks; neither the freshness probe nor `graph check` runs in the hook.
 - **A red lane comes first.** When a lane is red the hook exits 2 with the
@@ -275,6 +275,12 @@ compares each symbol's body hash with the graph's nodes of the same path:
   the next `graph build`, a query that refreshes it, or the pre-commit gate's
   `graph-fresh`; every further edit to the same file names the same seeds
   again. There is no memory per file.
+- **Go only.** An edit to a `.py` file gets no blast context: every such
+  edit would pay a grammar load and a parse of the file, against the
+  monitor's own-time target of under 100 ms, and a single large file alone
+  can take more than a second to parse. The graph stays stale until the next
+  build renews it. `internal/hooks` does not import the tree-sitter runtime,
+  and `TestHooksNeverReachTreeSitter` keeps it so.
 - **Cost**: 24.7 ms on this repository's 7.07 MiB graph, growing by about
   4 ms per MiB of `wiring.json`
   ([benchmarks, 2026-09-23 22:55](benchmarks.md#2026-09-23-2255--post-edit-on-a-go-file-with-the-blast-monitor)).

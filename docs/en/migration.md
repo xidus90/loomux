@@ -11,8 +11,9 @@ and this plan follows it.
 ## Stages
 
 Loomux is executing a staged fusion plan. A second track — the code graph —
-runs **alongside** it rather than after it, because neither of its finished
-stages pulls in a dependency. *Priority* orders the open rows by three rules in turn:
+runs **alongside** it rather than after it, because none of its stages waits on
+a fusion stage (G5a added the one dependency so far, the pure-Go tree-sitter
+runtime `gotreesitter`). *Priority* orders the open rows by three rules in turn:
 what its dependencies already allow, what loomux uses on itself, then size. The
 [fusion spec](../.superpowers/specs/2026-09-14-loomux-fusion-design.md) sets it under "Reihenfolge der offenen Stufen".
 
@@ -41,7 +42,10 @@ what its dependencies already allow, what loomux uses on itself, then size. The
 | **G4a** | ✅ | new | Navigation palette (`callers`, `skeleton`, `grep`, `map`, `stats`) and 4 MCP tools (`graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`) with fail-closed privacy | G3 ✅ | — |
 | **G4b** | ✅ 2026-09-23 | new | Git-diff blast radius (`blast.Radius`, `graph blast`, MCP `graph_blast`), `check graph-fresh` and `check blast-audit`, the verify kind `graph` (in the profile default `precommit`, `not-applicable` without a graph), and the post-edit blast monitor | G4a ✅ | — |
 | **G4c** | open | new | The stop hook with blast logic: a working-tree-against-HEAD form that knows it runs at the turn end; until then `graph` in a `stop` profile is `not-applicable` | G4b ✅ | 2 |
-| **G5** | open | new | Multi-language extraction via `wazero` | G4b ✅ | 6 |
+| **G5a** | ✅ 2026-09-26 (accepted on `iam_backend` and `ultra-brain`, `docs/.superpowers/parity/code-g5.md`; pulled forward by the user on 2026-09-26) | new | The extractor interface (`extract.Language`, the fixed list in `extract/all`) and a shared tree-sitter core on `gotreesitter`, a Tree-sitter runtime in pure Go, so the binary stays CGo-free (`CGO_ENABLED=0` build in the gate); Python: modules, classes, functions and methods, imports, base classes, calls through `self`/`cls` and the bases, constructor calls to `__init__`, in a name index of its own; an extract cache per file and `graph build --no-reuse`; parse errors counted per language instead of failing the build; Python test paths for `blast`; one graph lane per run, with a Python preset | G4b ✅ | 6 |
+| **G5b** | open | new | TypeScript/TSX on the same core | G5a | 6 |
+| **G5c** | open | new | GDScript | G5b | 6 |
+| **G5d** | open | new | C++, only after a recall check of `gotreesitter` against the C runtime | G5c | 6 |
 | **Flow** | open | ultraloom | Follow-up project: the ulflow runtime, journal, resume and replay, `verify_until_green` as a data flow; agent flows over Gemini and Claude after ultraloom's multi-provider spec (fusion spec #22) | ulflow M1 (branch `feature/agent-harness`, not merged) | 4 |
 | **W1 – W5** | open | ultra-brain + new | Web OS: shell (W1), the brain web app (W2), graph visualizer (W3), skill suites and review (W4), flow editor and Kanban (W5) | W1 on 1b-2 ✅; W2 on W1; W3 on W1 and G4a ✅; W4 on G4b ✅ and 4; W5 on W1 and Flow | 5 |
 
@@ -73,7 +77,10 @@ flowchart TD
         g4a["G4a navigation palette"]:::done
         g4b["G4b diff blast, graph kind, edit monitor"]:::done
         g4c["G4c stop hook with blast logic · P2"]:::planned
-        g5["G5 multi-language via wazero · P6"]:::planned
+        g5a["G5a extractor interface, Python on gotreesitter"]:::done
+        g5b["G5b TypeScript/TSX · P6"]:::planned
+        g5c["G5c GDScript · P6"]:::planned
+        g5d["G5d C++ after a recall check · P6"]:::planned
     end
 
     subgraph WebOS["Web OS · P5"]
@@ -99,7 +106,10 @@ flowchart TD
     g3 --> g4a
     g4a --> g4b
     g4b --> g4c
-    g4b --> g5
+    g4b --> g5a
+    g5a --> g5b
+    g5b --> g5c
+    g5c --> g5d
     ulflow --> flow
     s1b2 --> w1
     w1 --> w2
@@ -139,12 +149,12 @@ Where each capability stands:
 | **1. Hooks & Guard** | | | |
 | Unified Pre-Tool Guard | ultraloom + ultra-brain | Single-pass validation of write barriers, path protections, and forbidden commands (<35ms budget; 32–34ms measured on predecessor; a write in a linked worktree measured 34.6 ms warm (2026-09-16)). Linked git worktrees of a registered workspace are writable without a registry entry of their own. Registry and area declarations are read through the same checks as the brain commands; a broken entry refuses every write. | ✅ **Implemented** (Stage 1a) |
 | Post-Tool Check Lanes | ultraloom | The `edit` profile of `[verify]` on the file that was just edited, for its stack and in its area — `go vet` and `gofmt` of the one file, the in-process wiki lint, ruff/mypy, eslint/tsc, stylelint and the rest, from the same presets `loomux check` runs. Commands start as argv, without a shell. A failing lane exits 2; lanes skipped for a missing tool or a spent budget (`--budget`, default 50 s) are named back to the model. | ✅ **Implemented** (Stage 1a; lanes from `[verify]` since 2a) |
-| Post-Tool Blast Monitor | new | After a `.go` edit with no red lane, the post-edit hook re-extracts the file, compares each symbol's body hash with the graph on disk, and names the direct callers in other files of what changed or went missing (at most ten), plus a note for a changed type, whose coupling the graph does not wire. Silent without a graph, on a foreign graph or a parse error; never blocks. Costs 24.7 ms on this repository's 7.07 MiB graph (2026-09-23). | ✅ **Implemented** (Stage G4b) |
+| Post-Tool Blast Monitor | new | After a `.go` edit with no red lane, the post-edit hook re-extracts the file, compares each symbol's body hash with the graph on disk, and names the direct callers in other files of what changed or went missing (at most ten), plus a note for a changed type, whose coupling the graph does not wire. Silent without a graph, on a graph of another schema or one that no build with this binary's Go extractor wrote, or on a parse error; never blocks. Costs 24.7 ms on this repository's 7.07 MiB graph (2026-09-23). | ✅ **Implemented** (Stage G4b) |
 | Stop-Hook Blast Audit | new | The blast audit at the turn end, working tree against `HEAD`, for the stop gate. | 💡 **Planned** (Stage G4c) |
 | Session Start | ultraloom | Records the commit a session starts on and warns when the binary in the project is older than `go.mod`, `go.sum` or a `.go` file under `cmd/` or `internal/`. Announces only; never blocks a turn. | ✅ **Implemented** (Stage 1a) |
 | Subagent Drift & Stop Gate | ultraloom | `loomux hook stop` runs the `stop` profile (by default `lint`, `types`, `test` and `coverage`, within a 270 s budget; `graph` stays out, see Stage G4c) at every turn end with new content, holds the turn with exit 2 on a red lane and gives up after 3 blocks in a row; a turn end with nothing new costs 169.5 ms on this repository. `subagent-start` and `subagent-stop` snapshot `origin`, the local branches and `HEAD`, and park what moved for the main agent's stop gate. Host adapters implemented for Claude Code and Antigravity. | ✅ **Implemented** (Stage 2c) |
 | Check Commands | ultraloom | `loomux check commit-msg` (the language of every line, the Conventional Commits header, `--language`, `--calibrate` and `[commit]`), `check gofmt` (formatting, with the exit code `gofmt -l` does not give), `check gocover` (100% per function against a profile, or a total with `--floor`), and the two halves of the graph lane, `check graph-fresh` (rebuild on drift, red only on a failed rebuild, a probe error or a held lock) and `check blast-audit` (red when a changed area with enough callers has no changed test). `dev covergate` is gone. | ✅ **Implemented** (Stage 1a; `gocover` 2a; `commit-msg` 2b; `graph-fresh`, `blast-audit` G4b) |
-| Check Chain Table | ultraloom | One `[verify]` table drives `loomux check <profile>` and the post-edit hook: presets per stack that work without any config, one lane per kind, stack and area, `after` edges instead of stages, a verdict per kind, and `--show` to print what runs. A lane can name files it `needs`: the C++ lanes on the build tree wait for `build/CMakeCache.txt` and are `unready` until the build is configured, while an edit still runs `clang-format` on the file. Child process trees are killed whole on a timeout (a Job Object on Windows). | ✅ **Implemented** (Stage 2a) |
+| Check Chain Table | ultraloom | One `[verify]` table drives `loomux check <profile>` and the post-edit hook: presets per stack that work without any config, one lane per kind, stack and area (the `graph` kind runs once per run, in the root, carried by the first stack with a graph command), `after` edges instead of stages, a verdict per kind, and `--show` to print what runs. A lane can name files it `needs`: the C++ lanes on the build tree wait for `build/CMakeCache.txt` and are `unready` until the build is configured, while an edit still runs `clang-format` on the file. Child process trees are killed whole on a timeout (a Job Object on Windows). | ✅ **Implemented** (Stage 2a) |
 | Worktree Mirroring | ultraloom | Isolated subagent git worktrees with symlink/junction mirroring and session tracking. | ✅ **Implemented** (Stage 1a) |
 | Configuration and Setup | ultraloom + new | `loomux config` shows every setting of `.loomux/config.toml` with its origin (set, default, preset) and changes it line by line after confirmation; `loomux init` sets a project up in modules (hooks, wiki, graph) and writes the choice to `[modules]`, which applies at runtime. Replaces ulinit, `install.ps1` and the hook half of `brain init`. Built with 4a-1: `loomux config` and `[modules]` with its runtime effect; built with 4a-2: `loomux init` with its parts (binary, configuration, `.gitignore`, `AGENTS.md`, `.mcp.json`, host entries, git hooks, skills, area, merge hook, graph), `--dry-run`, `--detect-only` and `--yes`; since 4c-1 the part `model`, which pulls the local model into Ollama when it is missing. Its runs by a human on a fresh clone and a host are open | 🚧 **In migration** (4a-1 and 4a-2 built, human steps open) |
 | Zone-Free Start Path | new | Go's local time zone stays off the hook path: the TOML parser builds its local zones on first use (`third_party/toml`), and a gate test fails any package init over 500 allocations. `hook pre-tool-use` 7.5 ms warm against 26.5 ms before (measured 2026-09-17). | ✅ **Implemented** (no stage) |
@@ -160,7 +170,7 @@ Where each capability stands:
 | Blast Radius Engine | new | Transitive closure and impact analysis (`In`/`Out`, depth limits, smallest depth wins). `EdgeWalk`, `Resolve`, and `InDegree` power graph navigation; `blast.Radius` takes a git diff to the symbols its hunks touch, what reaches them, a test signal (`changed`, `stale`, `none`, `na`) and quoted evidence, behind `loomux graph blast` and the MCP tool `graph_blast`. | ✅ **Implemented** (Stage G1, extended in G4a and G4b) |
 | Symbol-Coupled Grep | new | Regex search grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). Provided via CLI `loomux graph grep` and MCP tool `graph_find_all` with fail-closed privacy. | ✅ **Implemented** (Stage G4a) |
 | Graph Navigation Palette | new | Complete structural and caller navigation over the deterministic AST graph: `loomux graph callers`, `skeleton`, `map`, and `stats`, plus MCP tools `graph_file_api`, `graph_trace_calls`, and `graph_repo_map` with fail-closed privacy on the cloud channel. | ✅ **Implemented** (Stage G4a) |
-| Multi-Language AST | new | CGo-free Tree-sitter extraction via WebAssembly (`wazero`) with persistent AOT cache. | 💡 **Planned** (Stage G5) |
+| Multi-Language AST | new | CGo-free Tree-sitter extraction on `gotreesitter`, a Tree-sitter runtime in pure Go — no WebAssembly, no C toolchain. Python since G5a: modules, classes, functions and methods with their imports, base classes and calls, resolved in a name index of their own, so no edge crosses languages; a file with syntax errors keeps its file node and is counted in the build report instead of failing the build. `graph build` reuses the extraction of unchanged files from `.loomux/state/graph/cache/extract.json` (`--no-reuse` parses everything). TypeScript/TSX, GDScript and C++ follow in G5b–d; the post-edit blast monitor stays Go-only. | ✅ **Implemented for Python** (Stage G5a); TypeScript/TSX, GDScript and C++ 💡 planned (G5b–d) |
 | MCP Service & stdio Bridge | ultra-brain | `loomux serve` holds two loopback listeners, one per channel, each with its own token, and answers twelve tools over Streamable HTTP — the five `brain_*` tools and, since Stages G3, G4a and G4b, the seven `graph_*` tools (`graph_find_code`, `graph_check_freshness`, `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`, `graph_blast`); `loomux serve status` and `stop [--force]` control it, and `loomux mcp` is the stdio bridge a host starts, which starts and replaces the service itself. Since stage 3c the service catches up on a due `reconcile` itself at start and daily after that, holds every `brain_*` tool for the first pass and appends what it found to the answers. `internal/hooks` links none of it: a gate test reads the import graph. The front is held to the Python reference's own MCP front by a recorded case corpus, which compares the text of each `CallToolResult` and `isError` rather than the envelope two different SDKs negotiate. | ✅ **Implemented** ((Stages 1b-2, G3, G4a, 3c, G4b)) |
 | **4. Second Brain & Wiki** | | | |
 | Local Markdown Wiki | ultra-brain | The bundle itself lives in `docs/wiki/` (area `project/loomux`, moved page by page on 2026-09-16 and released line by line). `loomux lint <file>` checks one page's links and frontmatter, `loomux wiki-gate` checks the bundle's freshness and structure, and the lane `lint/wiki` checks its structure in `loomux check lint` and at every turn end. Identity registers and the topic graph are written by `loomux reindex` from stage 3a, not by the move; the page rules of `brain check` (OKF, house, federation) and the lint over every bundle came with stage 3c. | ✅ **Implemented** (Stages 1b-3, 3a, 3c) |

@@ -2601,3 +2601,95 @@ Dritter Durchgang, 20:28:
 4. **Die Startregel hält**: Von den neuen Paketen hat nur `internal/setup`
    ein Paket-Init (2 Allokationen); `maintenance` und `cli` wachsen um je
    2. Kein neues Init kommt in die Nähe von 500.
+
+## 2026-09-26 17:25 — Python-Extraktion auf gotreesitter: Hook-Pfad, Binär und `graph build`
+
+Worktree `.claude/worktrees/g5-python`, Zweig `feat/graph-python` bei
+`69ce9fde`. `before.exe` ist `master` bei `b5c99cf1`, `after.exe` der Zweig;
+beide mit Go 1.27.0 `windows/amd64`, `CGO_ENABLED=0`, in den Scratchpad der
+Sitzung gebaut. gotreesitter v0.55.0. Maschine: AMD Ryzen 7 9800X3D.
+
+**Ziel.** Der Zweig linkt die Tree-sitter-Laufzeit in reinem Go,
+`github.com/odvcencio/gotreesitter`, ins Binär. Ihr Paket-`init` läuft bei
+jedem Start, auch bei Hooks; Entscheidung E1 nimmt etwa 2 ms davon an und
+nennt einen Auslöser: steigt der warme Median von `hook pre-tool-use` auf
+ruhiger Maschine um 3 ms oder mehr, kommt die gepatchte Kopie unter
+`third_party/` als Ausweg auf den Tisch. Der Blast-Monitor im Post-Edit
+bleibt Go-only, also darf sich `post-tool-use` nicht bewegen.
+
+**Methode.** `dev bench-hooks <fälle> -n 30`, drei Durchgänge, vorher und
+nachher im Wechsel, je Fall ein kalter und 30 warme Läufe, über einem
+Worktree bei `b5c99cf1` (nur Go). Jedes Binär lief gegen einen Graphen, den
+es selbst gebaut hatte, damit der Blast-Monitor seine eigene
+Extraktorkennung sah. Nutzlasten: ein `Edit` der `README.md` dieses
+Worktrees für `pre-tool-use`, ein `Edit` von `internal/code/blast/reach.go`
+für `post-tool-use`. Die Maschine war ruhig: ein Probelauf direkt davor gab
+`before` einen warmen `pre-tool-use`-Median von 9,1 ms. Die Init-Summen
+stammen aus `GODEBUG=inittrace=1 loomux --version`, je fünf Läufe.
+
+| Fall | Durchgang 1 warm Median | Durchgang 2 | Durchgang 3 | warm Min (1/2/3) |
+|---|---:|---:|---:|---:|
+| vorher: hook pre-tool-use | 9,3 ms | 9,7 ms | 10,4 ms | 7,4 / 7,7 / 8,0 ms |
+| nachher: hook pre-tool-use | 11,2 ms | 10,3 ms | 9,4 ms | 8,2 / 8,4 / 8,0 ms |
+| vorher: hook post-tool-use (.go) | 1033,8 ms | 1016,4 ms | 1012,9 ms | 965,8 / 937,0 / 930,4 ms |
+| nachher: hook post-tool-use (.go) | 1017,1 ms | 1012,0 ms | 1028,8 ms | 955,7 / 952,1 / 967,9 ms |
+| vorher: --version | 7,9 ms | 8,9 ms | 8,3 ms | 7,0 / 6,7 / 6,6 ms |
+| nachher: --version | 9,1 ms | 9,2 ms | 9,6 ms | 7,2 / 7,4 / 7,2 ms |
+
+| | vorher | nachher |
+|---|---:|---:|
+| Größe des Binärs | 24.256.000 B | 36.276.736 B |
+| Init-Summe, fünf Läufe | 4,03 / 3,25 / 2,94 / 2,55 / 2,00 ms | 7,27 / 4,56 / 5,57 / 3,02 / 4,09 ms |
+| Pakete mit Init | 141 | 145 |
+
+`graph build` auf Scratch-Klonen zweier Python-Repos (nie auf den
+Originalen):
+
+| Repo | Dateien | kalt | warm (Cache) | `--no-reuse` | `extract.json` |
+|---|---|---:|---:|---:|---:|
+| `iam_backend` (Django) | 399 Python | 3,61 s | 446 ms (0 geparst) | 1,30 s | 11,0 MB |
+| `ultra-brain` | 174 Go + 182 Python | 3,95 s | 478 ms (0 geparst) | 1,36 s | 10,3 MB |
+
+`graph check` auf dem Klon von `ultra-brain`: 232 / 187 / 185 ms mit dem
+Extraktions-Cache, 823 / 762 / 817 ms ohne ihn.
+
+`graph build` nach einer geänderten Datei, am selben Abend später mit dem
+letzten Binär des Zweigs gemessen (`c51378ca` vor dem Umgruppieren),
+während auf der Maschine eine Review lief: `iam_backend` 326 / 327 / 325 ms
+(1 geparst, 398 übernommen), `ultra-brain` 371 / 378 / 447 ms (1 geparst,
+355 übernommen); ein warmer Build ohne Änderung brauchte dort 342–467 ms und
+377–381 ms.
+
+Die Probe, die gotreesitter statt `wazero` wählte (2026-09-25/26, dieselbe
+Maschine, gotreesitter v0.55.0 gegen `web-tree-sitter` 0.25.10 in node mit
+`tree-sitter-cpp` 0.23.4 und `tree-sitter-python` 0.25.0): Python parst auf
+8.556 Dateien ohne Fehlerknoten, mit 0,36–0,68 ms je KB etwa halb so schnell
+wie die C-Laufzeit; C++ meldet in 193 von 397 PrusaSlicer-Dateien
+Fehlerknoten gegen 55 bei der C-Laufzeit und ist 4,7-mal langsamer.
+Einzelheiten im Entwurf
+(`docs/.superpowers/specs/2026-09-26-loomux-code-g5-design.md` §2).
+
+### Lesart
+
+1. **`pre-tool-use` bewegte sich um eine halbe Millisekunde, nicht um drei.**
+   Die warmen Mediane liegen im Mittel bei 9,8 ms vorher und 10,3 ms
+   nachher; die Durchgänge widersprechen sich im Vorzeichen (+1,9, +0,6,
+   −1,0 ms). Die Minima liegen 0,5 ms höher. Der Auslöser aus E1 ist nicht
+   erreicht; die gepatchte Kopie bleibt vom Tisch.
+2. **Der Startboden trägt die Init-Kosten.** `--version` stieg warm um
+   0,9 ms, die Init-Summe um etwa 1,6 ms (Median 2,94 → 4,56 ms). Das ist
+   der Preis, den E1 angenommen hat: gotreesitters `init` läuft bei jedem
+   Start, und keine Importgrenze hält ihn aus einem Binär heraus.
+3. **`post-tool-use` bewegte sich nicht.** Seine Sekunde verbrauchen die
+   Edit-Lanes; der Blast-Monitor bleibt bei `go/parser`, und die neue
+   kombinierte Extraktorkennung lässt ihn den Graphen weiter lesen.
+4. **Das Binär wuchs um 12,0 MB**, fast alles die Tree-sitter-Laufzeit
+   selbst; eine auf drei Grammatiken gestutzte Kopie sparte in der Probe
+   0,5 MB.
+5. **Der Cache lohnt sich bei Python.** Ein warmer Build von `iam_backend`
+   braucht ein Drittel eines Builds mit `--no-reuse`, der ebenfalls jede
+   Datei parst. Der kalte Lauf war der erste Start eines frisch gebauten
+   Binärs auf einem frischen Klon; warum er fast dreimal so lange brauchte
+   wie `--no-reuse`, ist nicht eigens gemessen. Bei reinem Go spart der
+   Cache wenig — 17 MB JSON zu dekodieren kostet fast so viel wie
+   `go/parser` —, aber `graph check` wird viermal schneller.
