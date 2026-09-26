@@ -23,7 +23,9 @@ type RunnerFunc func(argv []string) ([]byte, []byte, int, error)
 // QmdPort executes searches via the qmd CLI tool.
 type QmdPort struct {
 	Executable string
-	Runner     RunnerFunc
+	// Index names the qmd index to address; empty is qmd's default index.
+	Index  string
+	Runner RunnerFunc
 }
 
 // launcherFailure carries an error of Launcher out of DefaultRunner. qmd.py's _invoke turns
@@ -60,6 +62,22 @@ func DefaultRunner(argv []string) ([]byte, []byte, int, error) {
 	return stdoutBuf.Bytes(), stderrBuf.Bytes(), exitCode, err
 }
 
+// command is qmd's argv for one subcommand. A named index goes right behind
+// the program: qmd reads it as a global option, and it separates both the
+// collection list (<name>.yml) and the index (<name>.sqlite) while the
+// models stay shared.
+func (q *QmdPort) command(args ...string) []string {
+	exe := q.Executable
+	if exe == "" {
+		exe = "qmd"
+	}
+	argv := []string{exe}
+	if q.Index != "" {
+		argv = append(argv, "--index", q.Index)
+	}
+	return append(argv, args...)
+}
+
 func (q *QmdPort) getRunner() RunnerFunc {
 	if q.Runner != nil {
 		return q.Runner
@@ -69,11 +87,6 @@ func (q *QmdPort) getRunner() RunnerFunc {
 
 // Search executes query against collections using profile and returns up to n hits.
 func (q *QmdPort) Search(query string, collections []string, profile Profile, n int) ([]SearchHit, error) {
-	exe := q.Executable
-	if exe == "" {
-		exe = "qmd"
-	}
-
 	subcmd := "query"
 	switch profile {
 	case ProfileKeyword:
@@ -84,7 +97,7 @@ func (q *QmdPort) Search(query string, collections []string, profile Profile, n 
 		subcmd = "query"
 	}
 
-	argv := []string{exe, subcmd, query, "--json", "-n", strconv.Itoa(n)}
+	argv := q.command(subcmd, query, "--json", "-n", strconv.Itoa(n))
 	for _, col := range collections {
 		argv = append(argv, "-c", col)
 	}
@@ -93,7 +106,7 @@ func (q *QmdPort) Search(query string, collections []string, profile Profile, n 
 	if err != nil {
 		return nil, err
 	}
-	return parseQmdJSON(stdout)
+	return parseQmdJSON(stdout, q.Index)
 }
 
 type qmdHitRaw struct {
@@ -105,7 +118,10 @@ type qmdHitRaw struct {
 	DocID   *string  `json:"docid"`
 }
 
-func parseQmdJSON(stdout []byte) ([]SearchHit, error) {
+// parseQmdJSON reads qmd's --json hits. Searching a named index, qmd appends
+// ?index=<name> to every file; only that suffix is cut, so a question mark in
+// a file name survives.
+func parseQmdJSON(stdout []byte, index string) ([]SearchHit, error) {
 	var rawHits []qmdHitRaw
 	if err := json.Unmarshal(stdout, &rawHits); err != nil {
 		var obj any
@@ -127,6 +143,9 @@ func parseQmdJSON(stdout []byte) ([]SearchHit, error) {
 		}
 		uriRest := (*raw.File)[len(uriPrefix):]
 		col, rel, _ := strings.Cut(uriRest, "/")
+		if index != "" {
+			rel = strings.TrimSuffix(rel, "?index="+index)
+		}
 
 		if raw.DocID == nil {
 			return nil, errors.New("the hit is missing 'docid'")
@@ -181,11 +200,7 @@ func (q *QmdPort) invoke(argv []string) ([]byte, error) {
 // Indexed returns every relative path the engine holds for collection. Lines and paths are
 // taken as qmd.py takes them: split like str.splitlines, the path kept as written.
 func (q *QmdPort) Indexed(collection string) ([]string, error) {
-	exe := q.Executable
-	if exe == "" {
-		exe = "qmd"
-	}
-	stdout, err := q.invoke([]string{exe, "ls", collection})
+	stdout, err := q.invoke(q.command("ls", collection))
 	if err != nil {
 		return nil, err
 	}
@@ -206,21 +221,13 @@ func (q *QmdPort) Indexed(collection string) ([]string, error) {
 
 // Refresh triggers an update of the search index for collections.
 func (q *QmdPort) Refresh(collections []string) error {
-	exe := q.Executable
-	if exe == "" {
-		exe = "qmd"
-	}
-	_, err := q.invoke([]string{exe, "update"})
+	_, err := q.invoke(q.command("update"))
 	return err
 }
 
 // NotYetSearchable returns the number of documents pending embedding.
 func (q *QmdPort) NotYetSearchable() (int, error) {
-	exe := q.Executable
-	if exe == "" {
-		exe = "qmd"
-	}
-	stdout, err := q.invoke([]string{exe, "status"})
+	stdout, err := q.invoke(q.command("status"))
 	if err != nil {
 		return 0, err
 	}
@@ -234,10 +241,6 @@ func (q *QmdPort) NotYetSearchable() (int, error) {
 
 // Embed triggers embedding generation for pending documents.
 func (q *QmdPort) Embed(collections []string) error {
-	exe := q.Executable
-	if exe == "" {
-		exe = "qmd"
-	}
-	_, err := q.invoke([]string{exe, "embed"})
+	_, err := q.invoke(q.command("embed"))
 	return err
 }
