@@ -206,6 +206,9 @@ eines Bereichs darf nur `[model] enabled` und `roles` setzen, und nur, um
 abzuschalten oder einzuengen, was der Rechner erlaubt. Der Endpunkt muss auf dem
 Loopback bleiben (`127.0.0.1`, `localhost`, `::1`); kein Proxy wird aus der
 Umgebung genommen, keiner Umleitung gefolgt.
+`loomux init` lädt das Modell in Ollama, wenn es fehlt (Teil `model`, an für ein
+`local_only`-Projekt oder mit `[model] enabled = true`), nach einem y wie jede
+andere Änderung; `reconcile` lädt nie ein Modell.
 
 ### Code-Graph
 ```bash

@@ -13,7 +13,7 @@ type Part struct {
 	Module schema.Module
 	// ID is one of "binary", "config", "gitignore", "agents-md", "mcp-json",
 	// "tools", "host-entries", "git-hooks", "verify-skill", "area",
-	// "merge-hook", "brain-skills", "graph-build".
+	// "merge-hook", "brain-skills", "model", "graph-build".
 	ID      string
 	Label   string
 	Default bool
@@ -43,6 +43,10 @@ func Parts(f Facts) []Part {
 		// there that is the tracked .githooks.
 		{schema.Brain, "merge-hook", "the post-merge hook that records merges", git && fresh},
 		{schema.Brain, "brain-skills", "the five brain skills", fresh},
+		// Off unless the model is wanted, so that `init --yes` downloads no
+		// several GB unasked.
+		{schema.Brain, "model", "pull the local model " + f.Model.Name + " into Ollama when it is missing",
+			localOnly(f.Config) || f.Model.Enabled},
 		{schema.Graph, "graph-build", "build the code graph", fresh && len(f.Detect.Stacks) > 0},
 	}
 }

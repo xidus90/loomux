@@ -204,6 +204,9 @@ leaves a manual case. No other area is ever sent to the model. The settings are
 `[model] enabled` and `roles`, and only to switch off or narrow what the machine
 allows. The endpoint must stay on the loopback (`127.0.0.1`, `localhost`, `::1`);
 no proxy is taken from the environment and no redirect is followed.
+`loomux init` pulls the model into Ollama when it is missing (part `model`, on
+for a `local_only` project or with `[model] enabled = true`), after a y like any
+other change; `reconcile` never downloads a model.
 
 ### Code Graph
 ```bash

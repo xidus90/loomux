@@ -17,7 +17,10 @@ func TestACheckoutGetsOnlyWhatItHasCheckedIn(t *testing.T) {
 	want := map[string]bool{
 		"binary": true, "config": true, "gitignore": true, "agents-md": false, "mcp-json": false,
 		"tools": true, "host-entries": true, "git-hooks": true, "verify-skill": false,
-		"area": false, "merge-hook": false, "brain-skills": false, "graph-build": false,
+		"area": false, "merge-hook": false, "brain-skills": false, "model": false, "graph-build": false,
+	}
+	if len(Parts(f)) != len(want) {
+		t.Errorf("%d parts, want %d", len(Parts(f)), len(want))
 	}
 	for _, p := range Parts(f) {
 		if p.Default != want[p.ID] {
