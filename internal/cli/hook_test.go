@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/config"
+	"github.com/xidus90/loomux/internal/flow/runs"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/hooks"
 	"github.com/xidus90/loomux/internal/sessions"
@@ -281,6 +282,26 @@ func TestHookWalksUpToTheRootWhenNoneIsGiven(t *testing.T) {
 	// test binary happens to run in. Exit 0 alone would say nothing about that.
 	if state := sessions.ReadState(root, "s1"); len(state.Base) != 40 {
 		t.Fatalf("the base was not filed under the root that was walked to: %q", state.Base)
+	}
+}
+
+// The hook compares a run's marker with this binary's version in the spelling
+// flow run writes, so a run another binary wrote is named with both.
+func TestHookSessionStartNamesTheVersionFlowRunWrites(t *testing.T) {
+	t.Setenv(config.StateDirEnv, t.TempDir())
+	root := project(t)
+	if err := runs.WriteMarker(runs.MarkerPath(root, "0001"), runs.Marker{Flow: "example", Origin: "bundled", Version: "9.9.9"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runs.JournalPath(root, "0001"), []byte("{not json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, _, errOut := runWith(`{"session_id":"s1"}`, "hook", "session-start", "--host", "claude", "--root", root)
+
+	want := "run 0001 was written by loomux 9.9.9, this is " + bareVersion() + "\n"
+	if code != 0 || !strings.HasSuffix(errOut, want) {
+		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
 

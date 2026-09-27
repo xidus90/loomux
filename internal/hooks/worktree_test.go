@@ -824,7 +824,7 @@ func TestAnUnlinkedSessionThatResumesCountsAgain(t *testing.T) {
 		t.Fatalf("unlink: %d %s", code, stderr)
 	}
 	var stdout, stderr bytes.Buffer
-	if code := SessionStart(strings.NewReader(`{"session_id":"mine","source":"resume"}`), &stdout, &stderr, worktree, "claude"); code != ExitOK {
+	if code := SessionStart(strings.NewReader(`{"session_id":"mine","source":"resume"}`), &stdout, &stderr, worktree, "claude", "3.3.0"); code != ExitOK {
 		t.Fatalf("session-start: %d %q", code, stderr.String())
 	}
 	// The base stays; the row of blocks starts again with the resume.

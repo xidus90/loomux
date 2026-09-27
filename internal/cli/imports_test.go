@@ -46,6 +46,21 @@ func forbiddenMaintenanceForHooks() []string {
 	}
 }
 
+// forbiddenFlowForHooks is the flow runtime. The session-start hook reads run
+// markers and journals and the names of the bundled flows, nothing more: a
+// hook that linked the loader or the runner would pay for them on every start.
+func forbiddenFlowForHooks() []string {
+	return []string{
+		"github.com/xidus90/loomux/internal/flow",
+		"github.com/xidus90/loomux/internal/flow/blocks",
+		"github.com/xidus90/loomux/internal/flow/expr",
+		"github.com/xidus90/loomux/internal/flow/load",
+		"github.com/xidus90/loomux/internal/flow/model",
+		"github.com/xidus90/loomux/internal/flow/runner",
+		"github.com/xidus90/loomux/internal/flow/tmpl",
+	}
+}
+
 // forbiddenConfigUIForHooks is the configuration command's weight: the
 // schema pulls every reader, the editor its text surgery, the interface the
 // terminal. [modules] on the per-edit path is read by config.ReadModules
@@ -116,6 +131,31 @@ func TestHooksNeverImportTheMaintenanceLayer(t *testing.T) {
 		}
 		if !cli[forbidden] {
 			t.Errorf("the command line does not reach %s, so the boundary test proves nothing", forbidden)
+		}
+	}
+}
+
+// TestHooksNeverImportTheFlowRuntime compares whole package paths, so
+// internal/flow keeps the loader out without keeping out internal/flow/runs
+// and internal/flow/journal, which session start reads.
+func TestHooksNeverImportTheFlowRuntime(t *testing.T) {
+	if testing.Short() {
+		t.Skip("asks the go tool for the import graph")
+	}
+	hooks, err := dependencies(hooksPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cli, err := dependencies("github.com/xidus90/loomux/internal/cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range forbiddenFlowForHooks() {
+		if hooks[forbidden] {
+			t.Errorf("%s depends on %s, which puts the flow runtime on the session-start path", hooksPackage, forbidden)
+		}
+		if !cli[forbidden] {
+			t.Errorf("the command line no longer reaches %s; the list is stale", forbidden)
 		}
 	}
 }

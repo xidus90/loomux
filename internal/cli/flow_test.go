@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/xidus90/loomux/flows"
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/flow/load"
 	"github.com/xidus90/loomux/internal/flow/model"
 	"github.com/xidus90/loomux/internal/flow/runs"
@@ -528,3 +531,57 @@ on_error = true
 from = "stop"
 to   = "END"
 `
+
+// The session start speaks of flows in the words the flow commands use: the
+// origin flow run prints, and the warnings load.Find gives for an ignored
+// folder and for a flows folder that is no folder. The hooks may not link the
+// loader, so they keep a copy of its folder and its words; this test holds the
+// copies to the originals.
+func TestTheSessionStartSpeaksOfFlowsAsTheFlowCommandsDo(t *testing.T) {
+	t.Setenv(config.StateDirEnv, t.TempDir())
+
+	overlaid := project(t)
+	flowConfig(t, overlaid, "[flow]\noverrides = [\"example\"]\n")
+	flowWrite(t, overlaid, load.Dir+"/example/questions/approve.md", "Really?\n")
+	h := newFlowHarness(flowDone())
+	if code := h.run(overlaid, "run", "example"); code != flowExitPaused {
+		t.Fatalf("exit %d, stderr %q", code, h.stderr.String())
+	}
+	printed, _, _ := strings.Cut(h.stdout.String(), "\n")
+	announced, found := strings.CutSuffix(printed, ": paused")
+	if !found {
+		t.Fatalf("flow run printed %q", h.stdout.String())
+	}
+	if got := sessionStartContext(t, overlaid); !strings.Contains(got, announced+" is waiting at approve: Really?\n") {
+		t.Errorf("the session start announces\n%s\nand flow run printed %q", got, printed)
+	}
+
+	ignored := project(t)
+	flowWrite(t, ignored, load.Dir+"/example/questions/approve.md", "Really?\n")
+	notAFolder := project(t)
+	flowWrite(t, notAFolder, load.Dir, "not a folder")
+	for _, root := range []string{ignored, notAFolder} {
+		found, err := load.Find(root, flows.FS(), config.FlowSettings{}, "example")
+		if err != nil || len(found.Warnings) != 1 {
+			t.Fatalf("found %+v, err %v", found, err)
+		}
+		if got := sessionStartContext(t, root); !slices.Contains(strings.Split(got, "\n"), found.Warnings[0]) {
+			t.Errorf("the session start says\n%s\nand load.Find warns %q", got, found.Warnings[0])
+		}
+	}
+}
+
+// sessionStartContext is what the session start of root tells Claude Code.
+func sessionStartContext(t *testing.T, root string) string {
+	t.Helper()
+	code, out, errOut := runWith(`{"session_id":"s1"}`, "hook", "session-start", "--host", "claude", "--root", root)
+	var answer struct {
+		HookSpecificOutput struct {
+			AdditionalContext string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal([]byte(out), &answer); code != 0 || err != nil {
+		t.Fatalf("code %d, out %q, err %q: %v", code, out, errOut, err)
+	}
+	return answer.HookSpecificOutput.AdditionalContext
+}
