@@ -40,6 +40,7 @@ G5d, Flow, the Web OS and the Claude Mods adapter — is on the
 | **4c-2** | 🚧 built 2026-09-26; parity ✅ 2026-09-27 (50/50 ranks equal to the reference on `keyword`); self-use done 2026-09-27 (corpus `fast` 40/50 against the baseline 43/50, everyday latency through the service, `hooks` and `repos` with `--out`), everyday quality open (qmd backbone: the index is embedded under CUDA, which crashes on this machine, and the user decided on one machine-wide `[search] backbone` in `<state>/config.toml`, which the daemon and every qmd command line take; left is to embed again under the chosen backbone and measure) | ultra-brain | The search bench: `loomux dev bench search` measures the rank of the expected source per question (a hit at rank ≤ 3) and, with `--latency`, the latency of catalog, read and the three profiles, over an area's question set through the search service or over the checked-in corpus `v1` (`testdata/bench/search/v1`, 100 notes, 50 questions, baseline 43/50) through the qmd command line in a throwaway state and a named index `loomux-bench-<random>`, so the shared `index.yml` is never touched; a lock per name, stale indexes of a crashed run swept. The question set and the corpus are checked before anything is written. The group `dev bench hooks\|repos\|search`, renamed from `dev bench-hooks` and `dev bench` (a major release); all three write one report shape with `--out <dir>`, `.md` and `.json` both or neither, times in milliseconds, and `docs/benchmarks.json` moved to milliseconds. `dev bench repos` loses `--json-out`; its `--out` takes a directory. Fixes a bug already on master: `--timeout` per repository was read and never used. Parity file `parity/stufe-4c-2.md` | 3 ✅ | 3 |
 | **4d** | open | ultra-brain | `loomux convert` and `loomux fetch` over `pdftotext` and `yt-dlp`, with the model roles `describe` and `place` and the judges they need | 4c-1 🚧 (built, self-use open) | 3 |
 | **4e** | open | — | Host switch-over, a checklist a human ticks off in `parity/stufe-4e.md`, and one clean-up pull request: reconcile the machine state by hand, after which `LegacyBrainDirUntilStage3`, `ReadAreaManifestUntilStage4` with the old manifest names and `Manifest.Lanes` go in a pull request of their own; four obligations `parity/stufe-3a.md` had put on the dropped `migrate` (carrying `merge-events.done.tsv` and `qmd-collections.json` over, the read-only areas' declarations, the asides of a killed swap, the `brain reindex`/`brain reconcile` advice) still need a carrier; per host `loomux init` and a smoke test, remove old entries by hand (`ulguard` and `brain guard` entries, which `init` leaves and names). A post-merge hook `brain-mcp` set up shows as `unrecorded`, since the old `hooks.tsv` is not read: `loomux merge-hook install` per host takes it over. `loomux migrate` is dropped (fusion spec, addendum #19) | 4a-2 🚧 (built, human steps open), 4c-1 🚧 (built, self-use open), 4d; a remote for `brain-knowledge`; ultra-brain's branch `feature/artefakte-nach-lebensdauer` read against loomux (fusion spec #20; read on 2026-09-27, no fix needed, six decisions open, `parity/artefakte-nach-lebensdauer.md`) | 3 |
+| **4f** | proposed (fusion spec #24, awaiting sign-off) | — | No reference to the predecessor projects is left in loomux, as the user set on 2026-09-27: the detection of old host entries goes once every host is switched over, comments, package docs and messages are reworded without the names, and whatever stays — the recorded evidence under `testdata/cases/*-source`, the changelog, the working papers under `docs/.superpowers/` — stays only by an explicit decision. The fusion spec lists the classes of references with a proposal each | 4e | — (proposed; the fusion spec ranks it once signed off) |
 | **G1** | ✅ | new | Ranking and blast radius as libraries, held to the reference by ported test vectors | — | — |
 | **G2a** | ✅ | new | The extractor, the resolver, the store, the freshness probe, and `graph build` / `graph check` | — | — |
 | **G2b** | ✅ | new | The query: the lexical seed, the ask sidecar, `loomux graph ask` | — | — |
@@ -71,6 +72,7 @@ flowchart TD
         s4c2["4c-2 search bench · P3"]:::partial
         s4d["4d convert, fetch · P3"]:::planned
         s4e["4e host switch-over · P3"]:::planned
+        s4f["4f no predecessor references · proposed"]:::planned
     end
 
     subgraph Code["Code graph track"]
@@ -105,6 +107,7 @@ flowchart TD
     s4a2 --> s4e
     s4c1 --> s4e
     s4d --> s4e
+    s4e --> s4f
     g3 --> g4a
     g4a --> g4b
     g4b --> g5a
@@ -127,7 +130,8 @@ and `embed` as commands, which had no stage until 2026-09-19 — with 3a. Items 
 (`verify-until-green`), 10 (the generated `AGENTS.md`), 11 (the `.gitignore`
 entries), 15 (the binary at its canonical place) and 16 (`init --detect-only`)
 were built with 4a-2 on 2026-09-24, item 21 (the rules for `.agents/hooks.json`)
-on 2026-09-25. Items 4, 6, 14 and 23 await sign-off.
+on 2026-09-25. Items 4, 6, 14 and 23 await sign-off, and so does item 24 (Stage
+4f), whose goal the user set on 2026-09-27.
 
 Each stage ends green and is handed over on its own, with its own plan and — once
 it is done — its own parity file recording every ruling it made.

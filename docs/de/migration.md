@@ -41,6 +41,7 @@ und G5b bis G5d, Flow, das Web-OS und der Claude-Mods-Adapter —, steht in der
 | **4c-2** | 🚧 gebaut 2026-09-26; Parität ✅ 2026-09-27 (50/50 Ränge gleich der Referenz bei `keyword`); Selbstnutzung erledigt 2026-09-27 (Korpus `fast` 40/50 gegen die Baseline 43/50, Alltagslatenz über den Dienst, `hooks` und `repos` mit `--out`), Alltagsqualität offen (qmd-Backbone: der Index ist unter CUDA eingebettet, das auf diesem Rechner abstürzt, und der Nutzer hat sich für ein rechnerweites `[search] backbone` in `<zustand>/config.toml` entschieden, das der Daemon und jede qmd-Kommandozeile nehmen; offen ist, unter dem gewählten Backbone neu einzubetten und zu messen) | ultra-brain | Die Suchmessung: `loomux dev bench search` misst den Rang der erwarteten Quelle je Frage (Treffer bei Rang ≤ 3) und mit `--latency` die Latenz von Katalog, Lesen und den drei Profilen, über den Fragensatz eines Bereichs über den Suchdienst oder über den eingecheckten Korpus `v1` (`testdata/bench/search/v1`, 100 Notizen, 50 Fragen, Baseline 43/50) über die qmd-Befehlszeile in einem Wegwerf-Zustand und einem benannten Index `loomux-bench-<zufall>`, sodass die geteilte `index.yml` nie angefasst wird; eine Sperre je Name, liegengebliebene Indizes eines abgestürzten Laufs werden geräumt. Fragensatz und Korpus werden geprüft, bevor etwas geschrieben wird. Die Gruppe `dev bench hooks\|repos\|search`, umbenannt aus `dev bench-hooks` und `dev bench` (ein Major-Release); alle drei schreiben mit `--out <verzeichnis>` eine gemeinsame Berichtsform, `.md` und `.json` beide oder keine, Zeiten in Millisekunden, und `docs/benchmarks.json` ist auf Millisekunden umgestellt. `dev bench repos` verliert `--json-out`; sein `--out` nimmt ein Verzeichnis. Behebt einen Fehler, der schon auf master lag: `--timeout` je Repository wurde gelesen und nie benutzt. Paritätsakte `parity/stufe-4c-2.md` | 3 ✅ | 3 |
 | **4d** | offen | ultra-brain | `loomux convert` und `loomux fetch` über `pdftotext` und `yt-dlp`, mit den Modellrollen `describe` und `place` und den Richtern, die sie brauchen | 4c-1 🚧 (gebaut, Selbstnutzung offen) | 3 |
 | **4e** | offen | — | Umstellung der Wirte, eine Checkliste, die ein Mensch in `parity/stufe-4e.md` abhakt, und ein Aufräum-Pull-Request: Abgleich des Maschinenzustands von Hand, danach entfallen `LegacyBrainDirUntilStage3`, `ReadAreaManifestUntilStage4` samt den alten Manifestnamen und `Manifest.Lanes` in einem eigenen Pull Request; vier Auflagen, die `parity/stufe-3a.md` dem weggefallenen `migrate` gab (`merge-events.done.tsv` und `qmd-collections.json` mitnehmen, die Deklarationen der schreibgeschützten Bereiche, die Asides eines erschlagenen Tauschs, die Ratschläge `brain reindex`/`brain reconcile`), brauchen noch einen Träger; je Wirt `loomux init` und Rauchtest, alte Einträge von Hand entfernen (Einträge von `ulguard` und `brain guard`, die `init` stehen lässt und nennt). Ein von `brain-mcp` eingerichteter post-merge-Hook heißt `unrecorded`, weil die alte `hooks.tsv` nicht gelesen wird: `loomux merge-hook install` je Wirt übernimmt ihn. `loomux migrate` fällt weg (Fusions-Spec, Nachtrag #19) | 4a-2 🚧 (gebaut, Schritte des Menschen offen), 4c-1 🚧 (gebaut, Selbstnutzung offen), 4d; ein Remote für `brain-knowledge`; der ultra-brain-Zweig `feature/artefakte-nach-lebensdauer` gegen loomux gelesen (Fusions-Spec #20; gelesen am 2026-09-27, kein Fix nötig, sechs Entscheidungen offen, `parity/artefakte-nach-lebensdauer.md`) | 3 |
+| **4f** | vorgeschlagen (Fusions-Spec #24, wartet auf die Freigabe) | — | In loomux verweist nichts mehr auf die Vorgängerprojekte, wie der Nutzer es am 2026-09-27 festgelegt hat: Die Erkennung alter Host-Einträge entfällt, sobald jeder Wirt umgestellt ist, Kommentare, Paketdoku und Meldungen werden ohne die Namen neu gefasst, und was bleibt — die aufgezeichneten Belege unter `testdata/cases/*-source`, das Changelog, die Arbeitspapiere unter `docs/.superpowers/` — bleibt nur nach einer ausdrücklichen Entscheidung. Die Fusions-Spec führt die Klassen der Verweise mit je einem Vorschlag | 4e | — (vorgeschlagen; die Fusions-Spec setzt sie nach der Freigabe) |
 | **G1** | ✅ | neu | Rang und Blast-Radius als Bibliotheken, an portierten Testvektoren der Referenz belegt | — | — |
 | **G2a** | ✅ | neu | Extraktor, Auflösung, Speicher, Frischesonde sowie `graph build` und `graph check` | — | — |
 | **G2b** | ✅ | neu | Die Abfrage: lexikalische Saat, die Beiakte, `loomux graph ask` | — | — |
@@ -72,6 +73,7 @@ flowchart TD
         s4c2["4c-2 Suchmessung · P3"]:::partial
         s4d["4d convert, fetch · P3"]:::planned
         s4e["4e Umstellung der Wirte · P3"]:::planned
+        s4f["4f keine Verweise auf die Vorgänger · vorgeschlagen"]:::planned
     end
 
     subgraph Code["Code-Graph-Spur"]
@@ -106,6 +108,7 @@ flowchart TD
     s4a2 --> s4e
     s4c1 --> s4e
     s4d --> s4e
+    s4e --> s4f
     g3 --> g4a
     g4a --> g4b
     g4b --> g5a
@@ -129,7 +132,8 @@ merge-hook`), #7 (die Brain-Skills), #8 (`verify-until-green`), #10 (die erzeugt
 `AGENTS.md`), #11 (die `.gitignore`-Einträge), #15 (das Binary am kanonischen
 Ort) und #16 (`init --detect-only`) wurden am 2026-09-24 mit 4a-2 gebaut, #21
 (die Regeln für `.agents/hooks.json`) am 2026-09-25. Auf die Freigabe warten
-#4, #6, #14 und #23.
+#4, #6, #14 und #23, dazu #24 (Stufe 4f), dessen Ziel der Nutzer am 2026-09-27
+gesetzt hat.
 
 Jede Stufe endet grün und wird einzeln übergeben, mit eigenem Plan und — sobald
 sie fertig ist — eigener Paritätsakte, die jede ihrer Verfügungen festhält.

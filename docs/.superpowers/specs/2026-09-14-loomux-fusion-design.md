@@ -18,8 +18,10 @@ am 2026-09-24 in 4a-1, 4a-2, 4c, 4d und den Abschlussschritt 4e geschnitten
 (`2026-09-23-loomux-stufe-4-design.md`), 4c beim Planen am 2026-09-25 in 4c-1
 (Modell) und 4c-2 (Bench); `loomux migrate` fällt weg. 4a-1, 4a-2, 4c-1 und
 4c-2 sind gebaut, alle mit offenen Schritten des Menschen; 4d und 4e sind
-offen. Dreiundzwanzig Stellen, die keine Stufe hatten, stehen unter „Stufen“
-im Abschnitt „Nachgetragen“; ohne Freigabe sind #4, #6, #14 und #23.
+offen. Die Stufe 4f (keine Verweise auf die Altprojekte, Nachtrag #24) ist
+vorgeschlagen. Vierundzwanzig Stellen, die keine Stufe hatten, stehen unter
+„Stufen“ im Abschnitt „Nachgetragen“; ohne Freigabe sind #4, #6, #14, #23 und
+#24.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
 Blast) am 2026-09-17, G2a (Extraktor, Auflösung, Speicher, Frische, die
 Befehle `graph build` und `graph check`) und G2b (die Abfrage) am 2026-09-18,
@@ -578,6 +580,7 @@ geschnitten am 2026-09-24), je mit eigenem Plan und eigener Paritätsakte:
 | **4c-2** Bench | 🚧 gebaut 2026-09-26; Parität ✅ 2026-09-27 (50/50 Ränge gleich der Referenz bei `keyword`); Selbstnutzung erledigt 2026-09-27 (Korpus `fast` 40/50 gegen die Baseline 43/50, Alltagslatenz über den Dienst, `hooks` und `repos` mit `--out`), Alltagsqualität offen (qmd-Backbone: der Index ist unter CUDA eingebettet, das auf diesem Rechner abstürzt; entschieden 2026-09-27: ein rechnerweites `[search] backbone = "cuda" | "vulkan" | "cpu"` in `<zustand>/config.toml`, kein Schlüssel je Projekt, Vorrang Umgebungsvariable des Nutzers > Einstellung > `cuda`, gilt für den Daemon und jede qmd-Kommandozeile; offen ist, neu einzubetten und zu messen); geplant 2026-09-25 (ebenda, „Abweichungen beim Planen von 4c-2“, Plan `2026-09-26-loomux-stufe-4c-2.md`, Akte `parity/stufe-4c-2.md`) | `loomux dev bench search`, die Untergruppe `dev bench hooks\|repos\|search` (bisher `dev bench-hooks` und `dev bench`, darum `release:major`) und ein Berichtsschema für alle drei. Hängt nicht an 4c-1 |
 | **4d** `convert`/`fetch` | offen | Eingang wandeln, Untertitel holen, die Modellrollen `describe` und `place`, die Richter samt Zipf-Tabelle (aus 4c hierher, weil nur `describe` sie braucht) |
 | **4e** Umstellung | offen | Checkliste ohne Code, vom Menschen abgehakt; wartet auf den Remote für `brain-knowledge` |
+| **4f** Altverweise | vorgeschlagen 2026-09-27 (Nachtrag #24, Freigabe offen) | In loomux verweist nichts mehr auf `ultraloom` und `ultra-brain`; die Klassen der Verweise und ihre Behandlung stehen unter „#24 im Einzelnen“. Hängt an 4e |
 
 **Die drei Teilstufen der 1b**, jede mit eigenem Plan und eigener
 Paritätsakte (`parity/stufe-1b-1.md` und `parity/stufe-1b-2.md`, je samt
@@ -703,8 +706,10 @@ am selben Tag die Spec der Stufe 3 (`2026-09-19-loomux-stufe-3-design.md`,
 2026-09-24 die Spec der Stufe 4 (der Wegfall von `migrate`), die zwanzigste
 und einundzwanzigste am 2026-09-24 eine Bestandsliste über alle lokalen
 Zweige beider Repos, nicht nur `master`, die zweiundzwanzigste dieselbe
-Durchsicht unter den ungetrackten Dateien und die dreiundzwanzigste am 2026-09-25
-die Messung von Antigravity beim Bau von 4a-2. Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
+Durchsicht unter den ungetrackten Dateien, die dreiundzwanzigste am 2026-09-25
+die Messung von Antigravity beim Bau von 4a-2 und die vierundzwanzigste am
+2026-09-27 eine Vorgabe des Nutzers samt Inventur der Verweise auf die
+Altprojekte. Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
 der Nutzer, erst dann gilt sie.
 
 | # | Quelle | Stelle | Vorschlag | Begründung | Freigabe |
@@ -732,6 +737,33 @@ der Nutzer, erst dann gilt sie.
 | 21 | ultraloom | Wiki-Flottenstandard Stufe 2, nicht fertig: auf `claude/wiki-stufe-2` liegen nur `560709c` und `be0011d` (`internal/agenthooks/merge.go` mit Tests), Task 2 von 4 des Plans `2026-09-13-wiki-flottenstandard-stufe-2.md` (nur auf ultraloom-`master`, nicht gepusht). Die Regeln: `.agents/hooks.json` ist eine Map benannter Gruppen, der Name ist die Identität; das Werkzeug besitzt genau eine Gruppe und kodiert jede andere byte-treu aus dem gelesenen JSON neu; kein Besitzerfeld im Hook-Objekt, weil ungemessen ist, ob Antigravity ein unbekanntes Feld duldet; eine fremde Gruppe mit demselben Kommando wird gemeldet, nie repariert; eine Wurzel `null` wird abgelehnt wie jede Nicht-Objekt-Wurzel, mit dem Dateinamen in der Meldung. Task 3 (`ulinit` schreibt die Gruppe) und Task 4 (Nachweis) fehlen | Stufe 4a-2: die Regeln in den Abschnitt „Host-Einträge“ der Stufe-4-Spec, der bisher nur „Fremde Einträge bleiben stehen“ sagt; `merge.go` samt Tests zieht als Ausgangspunkt für den Schreiber von `.agents/hooks.json` um, der Gruppenname wird `loomux`-eigen | Die Zeile „Wiki-Flottenstandard“ unter „Laufende Vorhaben“ setzte voraus, dass die Stufe in ultraloom fertig wird; sie ruht seit dem 2026-09-13, und `init` ist der einzige Ort, an dem sie noch landen kann | freigegeben 2026-09-24, Stufe 4a-2; gebaut 2026-09-25 in hostfile (kein Umzug von agenthooks) |
 | 22 | ultraloom | Die Spec `2026-08-24-multi-provider-llm-design.md`, nie committet, nur als ungetrackte Datei im Hauptcheckout von ultraloom; jetzt unverändert unter `specs-ul/`. Agenten-Flows unabhängig vom Anbieter: ein `Model`-Port mit Adaptern für Gemini (`google-genai`) und Claude (`anthropic`), ein eigener Werkzeug-Ausführer (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash`) mit Profilen und dem Schutz von `[verify].tests`, `[agent].provider`/`model`, `--provider`/`--model` | Folgeprojekt Flow, als Eingang seiner Spec | Geschrieben für die Python-Flows von ultraloom, nicht für ulflow. Sie überschneidet sich mit M2 (`claude -p`, `agy -p`), das dieselben zwei Anbieter über ihre CLIs und damit über die Abos anspricht; welcher Weg gilt oder ob beide, entscheidet die Flow-Spec | freigegeben 2026-09-24, Folgeprojekt Flow |
 | 23 | — | Das Antwortprotokoll der Hooks gegenüber Antigravity und die Form von `.agents/hooks.json` | Stufe 4a-2: ein Adapter `hosts.Answer`, den `loomux hook` einmal für jeden Austrittspfad ruft, eine Panik eingeschlossen. Für Antigravity: `pre-tool-use` verweigert mit Exit 2, `post-tool-use` warnt mit Exit 2, ein gehaltener Stop wird `{"decision":"continue","reason":…}` auf stdout mit Exit 0, jeder andere Code ungleich 0 endet mit 0; ein unbekanntes Ereignis bleibt Exit 2. `session-start` auf `PreInvocation` meldet sich beim ersten `invocationNum`, danach nur, wenn eine Sitzung seither ungezählt blieb. `run_command`, `send_command_input` und `manage_task` (Aktion `send_input`, Argument `Input`; `list`, `status` und `kill` gehen ungeprüft durch) laufen durch die Befehlsregeln, ohne erkennbare Befehlszeile wird verweigert. Post-Edit liest die Ziele aus dem `toolCall` des PostToolUse; keine Ablage. `PreInvocation` und `Stop` stehen flach in `.agents/hooks.json` | Gemessen mit agy 1.2.8 und 1.2.11 am 2026-09-25 (`parity/stufe-4a-2.md`): gruppierte `Stop`/`PreInvocation` lassen agy die ganze Datei verwerfen, der Wächter lädt dann nicht; PostToolUse trägt `toolCall` entgegen dem Leitfaden; Exit 2 in PostToolUse bricht nicht ab; `continue` hält den Stop. Nachgemessen am 2026-09-25 mit agy 1.2.11: in einen offenen Befehl tippt agy über `manage_task` mit `send_input` und `Input`, nicht über `send_command_input` (`parity/stufe-4a-2.md`). Ungemessen: der Argumentname von `send_command_input` und ob `invocationNum` bei 0 oder 1 beginnt | vorgeschlagen 2026-09-25, Freigabe offen |
+| 24 | — | Verweise auf die Altprojekte `ultraloom` und `ultra-brain` in loomux: Inventur am 2026-09-27 über `origin/master` (v4.0.0), 3.829 Zeilen in 1.316 Dateien, davon rund 1.000 Aufzeichnungen unter `testdata/cases/*-source` | Neue Teilstufe **4f** nach 4e: jede Klasse unter „#24 im Einzelnen“ verschwindet, wird ohne die Namen neu gefasst oder bleibt nach ausdrücklicher Entscheidung | Vorgabe des Nutzers vom 2026-09-27: „Am Ende der Migration soll in loomux kein Verweis mehr auf die Altprojekte sein.“ Bis 4e tragen einige Verweise Funktion (Lese-Rückfälle, Erkennung alter Host-Einträge), danach keiner mehr. Offen ist, ob „Ende der Migration“ 4e meint oder erst das Ende der Folgeprojekte Flow und Web, die sich noch aus den Altprojekten speisen | Ziel vom Nutzer gesetzt am 2026-09-27; Zuordnung und Behandlung je Klasse: Freigabe offen |
+
+#### #24 im Einzelnen
+
+Die Inventur vom 2026-09-27 suchte nach `ultraloom`, `ultra-brain`, `ulguard`,
+`ulinit`, `ulflow`, `brain-mcp`, `brain guard`, `ultraLoomOwned`,
+`ultraloom-wiki-guard`, `.ultraloom`, `.brain.toml`, `.ultra-brain`, den
+Namen der Rückfälle und der Archivordner. Die Klassen und je ein Vorschlag; die
+Spalte „Entscheidung“ nennt, was der Nutzer festlegen muss, bevor 4f gebaut
+wird.
+
+| Klasse | Umfang, Beispiele | Trägt Funktion bis | Vorschlag | Entscheidung |
+|---|---|---|---|---|
+| (a) Lese-Rückfälle | 14 Dateien: `LegacyBrainDirUntilStage3` samt `LOOMUX_LEGACY_BRAIN_DIR`, `ReadAreaManifestUntilStage4` mit den Manifestnamen `.ultra-brain/config.toml` und `.brain.toml`, `Manifest.Lanes`, der Umzug des Bestands (`internal/brain/apply/stock.go`) | 4e Punkt 2 der Stufe-4-Spec | Der Aufräum-Pull-Request, den 4e ohnehin vorsieht; er zieht die Kommentare mit, die noch `loomux migrate` als Ende nennen (`internal/config/legacy.go`, `artifacts.go`, `internal/cli/index.go`, `internal/brain/graph/read.go`, `internal/brain/index/reindex.go`) | Wer die Deklarationen der schreibgeschützten Bereiche aus `.brain.toml` nach `.loomux/config.toml` umlegt, bevor der Rückfall entfällt (Auflage in `parity/stufe-3a.md`; ihr Träger war `migrate`) |
+| (b) Erkennung alter Host-Einträge | 4 Dateien: die Tabelle der abgelösten Hooks in `internal/hooks/status.go` (`ulguard`, `brain guard`, `ultraloom hook …`, `generate_index.py`), der Schutz von `.ultraloom/vendor` in `internal/hooks/worktree.go`, der Ausschluss `/.ultraloom/` in `internal/cases/gitworld.go` | bis jeder Wirt umgestellt ist (4e Punkt 3) | In 4f löschen | — |
+| (c) Kommentare, Paketdoku, Meldungen | rund 40 Dateien, rund 110 Zeilen: Herkunftsangaben („moved from ultra-brain's …“), Zeilenverweise in die Python-Referenz, die Paketdoku von `internal/gitenv` (nennt `ulinit` und `ulguard` als eigene Programme), die Ausgabe „UltraBrain Wiki:“ von `loomux status` (`internal/hooks/status.go`) | sofort | Ohne die Namen neu fassen („the reference“) oder streichen, wo nur Herkunft steht; `internal/dev/importcases` fällt mit (e) | — |
+| (d) Tests | rund 80 Dateien, die Altnamen als Eingabe benutzen oder die Referenz nennen | mit (a) bis (c) | Mit ihrem Code | — |
+| (e) Aufzeichnungen | rund 1.000 Dateien unter `testdata/cases/*-source`, dazu die Welten und Nutzlasten; per Policy als Beweis geschützt | solange Parität nachzuweisen ist | Behalten als ausdrückliche Ausnahme, oder vor dem Löschen als Tag oder Release-Anhang sichern und die Wiedergabetests auf eigene Erwartungen umstellen | Ob der Paritätsbeweis im Repo bleibt |
+| (f) Nutzerdoku | 28 Dateien: die Herkunftsspalte in `docs/*/migration.md`, `cli-reference`, `configuration`, `getting-started` (die Rückfälle), `benchmarks` (Messungen gegen `ulguard` und `brain guard`), die Roadmap (`ulflow`, `ultra-brain/web`), `docs/wiki` | Referenzdoku mit (a) und (b), Plan und Roadmap mit dem Ende der Migration und der Folgeprojekte | Den Migrationsplan nach dem Ende entfernen oder archivieren; die Referenzdoku mit dem Code bereinigen | Ob `benchmarks.md` als Chronik die Altnamen behält |
+| (g) `AGENTS.md`, `CHANGELOG.md`, `LICENSE.md` | die erste Zeile von `AGENTS.md`; Einträge im Changelog; der Required Notice in `LICENSE.md` zeigt auf `xidus90/ultra-brain` | — | `AGENTS.md` neu fassen; den Notice auf `xidus90/loomux` setzen | Ob der Notice umzieht (Lizenzfrage des Rechteinhabers) und ob alte Changelog-Einträge als Geschichte bleiben |
+| (h) Arbeitspapiere | rund 100 Dateien unter `docs/.superpowers/`, darunter die Archive `specs-ul/`, `specs-ub/`, `plans-ub/`, `bench-ub/` | Flow und Web speisen sich noch aus den Archiven | Die Archive nach den Folgeprojekten aus dem Repo nehmen (Tag oder externes Archiv), vorher die Quellen der Wiki-Seiten umhängen; Specs und Akten behalten | Ob die Arbeitspapiere ausgenommen sind; der Zweig `feat/flow-runtime` legt weitere Altspecs unter `specs-ul/` und ein neues `plans-ul/` an |
+| (i) Konfiguration | ein Kommentar in `.loomux/config.toml`; die Zeilen der Archive in `_identities.tsv` | mit (h) | Den Kommentar ändert ein Mensch; das Register folgt `reindex` | — |
+
+Offen ist außerdem der Zeitpunkt: 4f nach 4e räumt alles, was der Fusion
+gehört. Flow und Web ziehen noch Stoff aus den Altprojekten; der Vorschlag ist,
+dass jedes Folgeprojekt seine Verweise bei seinem Abschluss selbst tilgt und
+bis dahin keine neuen einführt.
 
 ### Offen nach 3b
 
