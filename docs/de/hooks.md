@@ -231,8 +231,9 @@ Datei, relativ zu ihrem Bereich):
   den Lanes eines aktiven Stacks und nur mit `on_file`.
 - **Übersprungen, nicht rot**: eine Lane, deren Werkzeug nicht auf dem `PATH`
   liegt, ein noch nicht importiertes Godot-Projekt und eine Lane, die das
-  Budget (`--budget`, Vorgabe 50 s) nicht mehr erreicht. Der Exit-Code bleibt
-  0, und der Hook nennt die übersprungene Lane in
+  Budget (`--budget`, Vorgabe 50 s) nicht mehr erreicht. Ein Skip blockiert
+  nichts und steht auf `stderr`, das ein Host liest, wenn eine andere Lane
+  rot ist und der Hook mit 2 endet, und, wenn der Hook mit 0 endet, in
   `hookSpecificOutput.additionalContext`; bei einer `.go`-Datei schreibt der
   Blast-Monitor unten in dasselbe Feld.
 - **Prüfungen schreiben nie um.** `clang-format` läuft mit

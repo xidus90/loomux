@@ -89,11 +89,9 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 		if i > 0 && env.Budget > 0 {
 			fileEnv.Budget = start.Add(env.Budget).Sub(env.Now())
 			if fileEnv.Budget <= 0 {
-				// stdout for the model at exit 0; stderr as well, which a
-				// host reads at exit 2 and agy keeps in its log.
-				skipped := verify.BudgetSkipped(raw)
-				notices = append(notices, skipped)
-				fmt.Fprintln(stderr, skipped)
+				// Named like a lane the budget did not reach, on both
+				// streams: which one a host reads depends on the call's code.
+				notices = verify.Skipped(stderr, notices, verify.BudgetSkipped(raw))
 				continue
 			}
 			// Coverage files of their own; CleanCover matches `<runID>-`.

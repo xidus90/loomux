@@ -804,6 +804,34 @@ func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
 	}
 }
 
+// A red lane blocks the edit, and a host then reads only stderr: a lane the
+// edit skipped beside it is named there too, not only on stdout.
+func TestPostEditNamesSkippedLanesWhenRed(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "pyproject.toml"), []byte("[project]\nname = \"x\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seen := []string{}
+	env := editEnv(t, func(s child.Spec) child.Result {
+		if strings.Contains(strings.Join(s.Argv, " "), "ruff check") {
+			return child.Result{Code: 1, Stdout: "a.py:1:1: F401 unused\n"}
+		}
+		return child.Result{}
+	}, &seen)
+	// ruff comes through uvx, mypy through uv: only uv is missing.
+	env.Look = func(name string) (string, error) {
+		if name == "uv" {
+			return "", errors.New("not found")
+		}
+		return name, nil
+	}
+	var so, se bytes.Buffer
+	code := RunPostEdit(strings.NewReader(`{"tool_input":{"file_path":"a.py"}}`), &so, &se, root, env)
+	if code != ExitDenied || !strings.Contains(se.String(), "F401 unused") || !strings.Contains(se.String(), `lane skipped, "uv" is not on PATH`) {
+		t.Fatalf("%d %q", code, se.String())
+	}
+}
+
 // Every file of one call may have lanes to skip; they are said in one JSON
 // document, since a host reads stdout as one.
 func TestPostEditSaysTheSkipsOfEveryFileInOneDocument(t *testing.T) {

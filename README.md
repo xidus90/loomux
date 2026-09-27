@@ -80,7 +80,7 @@ sequenceDiagram
     Agent->>Hook: PostToolUse (stdin)
     Hook->>Verify: edit profile on the edited file (vet, gofmt, wiki lint, ruff, eslint ...)
     alt A lane is red
-        Verify-->>Agent: Exit 2 with the finding
+        Verify-->>Agent: Exit 2 with the finding and the skipped lanes
     else No lane is red
         Hook-->>Agent: Exit 0 — skipped lanes, and for Go the callers of the changed symbols, as context
     end
