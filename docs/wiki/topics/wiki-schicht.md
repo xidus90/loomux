@@ -154,9 +154,9 @@ wurde**, Angebot einer Synthese als Entwurf), `brain:ingest` (der Ablauf oben),
 beschreiten, den ein Mensch am selben Ort nicht auch hätte — er macht Abläufe
 verlässlich, nicht mächtiger.
 
-In loomux liegen die Brain-Skills noch nicht. Stufe 4
-(`docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md`) zählt fünf
-davon, lässt sie von `loomux init` (4a-2) schreiben, auf loomux-Befehle
-umgeschrieben und ins Englische übersetzt, sonst inhaltlich gleich.
+Stufe 4 (`docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md`) zählt
+fünf Brain-Skills. Seit 4a-2 schreibt `loomux init` sie in einen Wirt, auf
+loomux-Befehle umgeschrieben und ins Englische übersetzt, sonst inhaltlich
+gleich; in einem Wirt in Gebrauch ist noch keiner.
 
 Quellen: Architektur-Design ultra-brain; Design von Stufe 3 in loomux.

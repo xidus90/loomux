@@ -61,8 +61,9 @@ eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migra
 | 3b | ✅ | Entscheiden: `cases`, `case`, `approve` |
 | 3c | ✅ | Pflegen: `brain check`, `lint --scope`, `wiki init\|types\|retype` |
 | 4a-1 | 🚧 | Schema und `loomux config`; gebaut, Schritte des Menschen offen |
-| 4a-2 | offen | `loomux init` |
-| 4c | offen | das lokale Modell |
+| 4a-2 | 🚧 | `loomux init`; gebaut, Schritte des Menschen offen |
+| 4c-1 | 🚧 | das lokale Modell; gebaut, Selbstnutzung offen |
+| 4c-2 | 🚧 | die Suchmessung `dev bench search`; gebaut, Alltagsqualität offen |
 | 4d | offen | `convert` und `fetch` |
 | 4e | offen | Umstellung der Wirte, eine Checkliste ohne Code |
 | G1–G4b | ✅ | Rang, Blast-Radius, Extraktor, Abfrage, Navigation, Diff-Blast |
@@ -79,7 +80,7 @@ eigener Spec.
 
 Drei Regeln, der Reihe nach: **zuerst, was seine Abhängigkeiten schon
 zulassen; dann, was loomux an sich selbst benutzt; dann die Größe.** Daraus
-folgt G4c auf Priorität 2, Stufe 4 auf 3 (in sich 4a-1 → 4a-2 → 4c → 4d,
+folgt G4c auf Priorität 2, Stufe 4 auf 3 (in sich 4a-1 → 4a-2 → 4c-1 → 4c-2 → 4d,
 dann 4e), Flow auf 4, W1–W5 auf 5 und G5 auf 6; G5a hat der Nutzer am
 2026-09-26 vorgezogen. Ohne Stufe 4 bleiben die
 alten Repos im Dienst, und die Umstellung der Wirte braucht vorher einen

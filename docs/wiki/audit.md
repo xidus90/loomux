@@ -1,7 +1,7 @@
 # Wartungsprotokoll
 
-> Hier stehen die Wartungsvorgänge über dem Bündel. Gefüllt wird es ab
-> Stufe 3; bis dahin bleibt es leer.
+> Hier stehen die Wartungsvorgänge über dem Bündel, ein Eintrag je Freigabe
+> eines Falls.
 
 ## 2026-09-24T12:22:55.440199+00:00 — topics/scheiben-und-abnahme.md (Fall `loomux-2026-09-24-5565`)
 

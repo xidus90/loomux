@@ -1,7 +1,7 @@
 ---
 type: Entity
 title: Der brain-Daemon
-description: Der langlebige Prozess, der Index und Modelle hält — und warum er unter Windows über WMI startet.
+description: Der langlebige Prozess, der in ultra-brain Index und Modelle hielt — und warum er unter Windows über WMI startete.
 open_conflicts: 0
 realization: implemented
 implemented_in: cba7c8b
@@ -26,6 +26,11 @@ weder über Pipe noch über Socket, sondern beantwortet `search`, `catalog`,
 noch kennt, ist der von [qmd](qmd.md) — angesprochen über HTTP, nicht über eine
 Pipe.
 
+Die Abschnitte „Der Windows-Umweg“, „Zwei Bereitschaftsstufen“ und „Verhalten
+bei Störungen“ beschreiben den Daemon von ultra-brain bis zum Umzug am
+2026-09-16. loomux startet den qmd-Daemon selbst als gelösten Unterprozess
+(`internal/brain/search/daemon.go`), nicht über WMI.
+
 ## Der Windows-Umweg
 
 „Startet ihn" trägt unter Windows nicht ohne Weiteres: Ein MCP-Wirt legt für den
@@ -33,8 +38,8 @@ Front-Prozess ein Job-Objekt an, das am Sitzungsende den **ganzen Baum** beendet
 — also auch den Daemon und den qmd-Daemon darunter. Jede neue Sitzung zahlte
 dann den kalten Modellstart erneut: **16 s statt 0,8 s**. Ein Ausbruch aus dem
 Job hilft nicht, weil das Job-Objekt das dafür nötige Kennzeichen nicht trägt.
-Der Klient startet den Daemon deshalb über WMI — der Prozess wird vom
-WMI-Anbieter erzeugt und gehört keinem Job. Der Grundsatz bleibt unberührt: Der
+Der Klient von ultra-brain startete den Daemon deshalb über WMI — der Prozess
+wurde vom WMI-Anbieter erzeugt und gehörte keinem Job. Der Grundsatz bleibt unberührt: Der
 Daemon entsteht weiterhin auf Zuruf des ersten Klienten und gehört dem
 angemeldeten Benutzer.
 

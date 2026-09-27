@@ -20,8 +20,9 @@ und Aufrufgraphen, ohne Modell und ohne Kosten**: Symbole, Aufrufe,
 Typ-Hierarchien und Importe. Leitsatz: **„Lexik schlägt vor, der Graph
 entscheidet."** Eine Vektordatenbank braucht es dafür nicht.
 
-Vorbild ist `trailhq/Graft`. Übernommen sind Extraktion, Ranking, die
-Frischeprüfung und das Kernlogik-Exzerpt; verworfen sind Laufzeit, Cloud und
+Vorbild ist `trailhq/Graft`. Übernommen sind Extraktion, Ranking und die
+Frischeprüfung; statt Grafts Kernlogik-Exzerpt (Crux) hängt `graph ask
+--source` den eigenen Span des Symbols an, höchstens 80 Zeilen. Verworfen sind Laufzeit, Cloud und
 Telemetrie:
 
 | Graft | loomux |

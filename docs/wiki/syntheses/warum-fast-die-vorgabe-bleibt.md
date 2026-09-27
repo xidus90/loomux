@@ -55,9 +55,10 @@ den Vertrag steht in
 
 ## Was diese Recherche nicht belegt
 
-- **Keine gelesene Stelle im Code oder in der Spec schreibt die Vorgabe fest.**
-  Der Beleg ist ein Messprotokoll, kein Regelwerk; dass `fast` der eingebaute
-  Standard ist, wurde nicht an einer Codestelle nachgewiesen.
+- ~~**Keine gelesene Stelle im Code oder in der Spec schreibt die Vorgabe fest.**~~
+  Beantwortet: **Die Vorgabe steht im Code.** `internal/cli/brainargs.go` setzt
+  `fast` als Rückfall für `--profile`, und das MCP-Werkzeug übernimmt ihn
+  (`internal/serve/brain/tools.go`).
 - **Ob ein Nutzer die Vorgabe dauerhaft auf `full` umstellen kann**, ist nicht
   belegt.
 - **Ob die 24 von `fast` verfehlten Fragen im Alltag überhaupt gestellt werden**,
