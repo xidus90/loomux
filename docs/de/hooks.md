@@ -380,12 +380,30 @@ liefern ihr `command`, Antigravitys `run_command` seine Befehlszeile unter
 `CommandLine` (gemessen mit agy 1.2.11; `commandLine` und `command_line`, die
 anderen Schreibweisen in agy.exe, werden mitgeprüft). In eine von
 `run_command` offen gelassene Aufgabe tippt agy mit `manage_task`, dessen
-Aktion `send_input` die Zeile unter `Input` liefert (gemessen mit agy 1.2.11);
-`list`, `status` und `kill` tragen keine Zeile und laufen durch, jede andere
-Aktion und ein Aufruf ohne Aktion wird geprüft. `send_command_input`, das ältere Werkzeug
-dafür, das agy.exe noch trägt, liefert `Input`, ein ungemessener Name. Ein
-`run_command`, `send_command_input` oder `manage_task` ohne einen seiner Namen
-wird verweigert. Was ein Werkzeug in eine Datei schreibt, wird nicht geprüft.
+Aktion `send_input` das Getippte unter `Input` liefert (gemessen mit agy
+1.2.11); `send_command_input`, das ältere Werkzeug dafür, das agy.exe noch
+trägt, liefert `Input`, ein ungemessener Name. Argumentnamen werden ohne
+Rücksicht auf die Schreibung verglichen, und jeder gefundene Wert wird
+geprüft, ein harmloses `Input` verdeckt also kein verbotenes `input`; ein
+Wert darunter, der kein String ist, wird verweigert (bei `Bash` und
+`PowerShell` übergangen, weil ihr Werkzeug immer einen String schickt), ein
+leerer trägt keine Zeile. Was ein Agent in eine Aufgabe tippt, wird nur als
+ganze Zeilen geprüft: Jeder Wert muss auf ein Zeilenende enden, darf außer
+den Zeilenenden kein Steuerzeichen tragen und keine Zeile auf einen
+Backslash oder einen Backtick enden lassen, mit denen bash und PowerShell in
+der nächsten Zeile fortsetzen; er wird an jedem Zeilenende geteilt, und jede
+Zeile wird für sich geprüft. Ein Bruchstück, eine einzelne Taste, Ctrl-C,
+eine Pfeiltaste, ein Rückschritt, ein Tab oder eine Zeilenfortsetzung wird
+verweigert, weil
+das Terminal die Zeile vollenden, ändern oder ergänzen könnte, nachdem der
+Wächter sie gelesen hat; `kill` beendet eine Aufgabe weiter. `list`, `status`
+und `kill` von `manage_task` tragen keine Zeile und laufen durch, aber nur ein
+Aufruf ohne Zeile: Eine Zeile wird geprüft, gleich welche Aktion der Aufruf
+nennt, und still ist ein Aufruf nur, wenn jeder Schlüssel mit der Schreibung
+`action` eine der drei nennt; jede andere Aktion und ein Aufruf ohne Aktion
+wird geprüft. Ein `run_command`, `send_command_input` oder `manage_task` ohne
+einen seiner Namen wird verweigert. Was ein Werkzeug in eine Datei schreibt,
+wird nicht geprüft.
 
 **Pfade werden relativ zur Wurzel verglichen.** Ein Muster ohne Schrägstrich
 (`*.pem`, `go.sum`) trifft den Dateinamen, eines mit Schrägstrich (`.aws/**`)

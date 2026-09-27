@@ -1325,10 +1325,12 @@ checks this is still pending.
   `--budget 270s` (300 s); `PreToolUse` also matches `send_command_input`
   and `manage_task`. `PreInvocation` and `Stop` are written as a flat list of
   handlers, the tool events as a block with `matcher` and `hooks`: agy 1.2.11
-  refuses the whole file otherwise. A `run_command`, a `send_command_input`
-  and a `manage_task` that sends input to a task are judged by the same
-  command rules as `Bash`; one whose command line the guard cannot find is
-  refused. An entry from before `manage_task` joined the matcher is kept and
+  refuses the whole file otherwise. A `run_command` is judged by the same
+  command rules as `Bash`; what a `send_command_input` or a `manage_task`
+  types into a task is judged the same way, line by line, and only as whole
+  lines without control characters or a line continuation. A call whose
+  command line the guard cannot find is refused; `manage_task`'s `list`,
+  `status` and `kill` pass only while they carry no line. An entry from before `manage_task` joined the matcher is kept and
   named in a note; add `|manage_task` to it by hand. It also gets
   the skills under `.agents/skills/<name>/SKILL.md`, the same texts Claude
   Code gets. agy runs a hook through `cmd.exe` from `.agents/`: it expands

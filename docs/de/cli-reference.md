@@ -1384,10 +1384,12 @@ durch einen Menschen, der das prüft, steht noch aus.
   `send_command_input` und `manage_task`. `PreInvocation` und `Stop` stehen
   als flache Liste von Handlern, die Werkzeug-Ereignisse als Block mit
   `matcher` und `hooks`: agy 1.2.11 verwirft sonst die ganze Datei. Ein
-  `run_command`, ein `send_command_input` und ein `manage_task`, das einer
-  Aufgabe Eingabe schickt, werden nach denselben Befehlsregeln beurteilt wie
-  `Bash`; eines, in dem der Wächter keine Befehlszeile findet, wird
-  verweigert. Ein Eintrag von vor `manage_task` im Matcher bleibt stehen und
+  `run_command` wird nach denselben Befehlsregeln beurteilt wie `Bash`; was
+  ein `send_command_input` oder ein `manage_task` in eine Aufgabe tippt,
+  ebenso, Zeile für Zeile und nur als ganze Zeilen ohne Steuerzeichen und
+  ohne Zeilenfortsetzung. Ein Aufruf, in dem der Wächter keine Befehlszeile
+  findet, wird verweigert; `list`, `status` und `kill` von `manage_task`
+  laufen nur durch, solange sie keine Zeile tragen. Ein Eintrag von vor `manage_task` im Matcher bleibt stehen und
   wird in einer Notiz genannt; `|manage_task` ergänzt man von Hand. Dazu
   kommen die Skills unter
   `.agents/skills/<name>/SKILL.md`, dieselben
