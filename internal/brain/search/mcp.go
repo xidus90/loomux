@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -96,9 +97,22 @@ type QmdMcpPort struct {
 	notice   func(message string)
 	qmdLock  string
 
+	// started is set by the default connect's notice, which fires inside a
+	// Search that already holds mu; a flag of its own keeps it off that lock.
+	started atomic.Bool
+
 	session Session
 	mu      sync.Mutex
 }
+
+// Backbone is the backbone this port starts the daemon on, and runs its
+// maintenance command line on, unless the user set one in the environment.
+func (p *QmdMcpPort) Backbone() Backbone { return p.backbone }
+
+// StartedDaemon says whether this port started the daemon it talks to, and so
+// knows which backbone the daemon runs on. A daemon it found running keeps
+// whatever its starter gave it. A connect of the caller's own never says.
+func (p *QmdMcpPort) StartedDaemon() bool { return p.started.Load() }
 
 // DefaultConnectWith returns a ConnectFunc using the given lock, launcher, spawner, and
 // timeout. Probing and starting happen under qmdLockPath, so that this connect and the one
@@ -151,10 +165,16 @@ func NewQmdMcpPort(opts ...QmdMcpOption) *QmdMcpPort {
 		if p.qmdLock == "" {
 			p.qmdLock = DefaultQmdLockPath()
 		}
-		p.connect = connectDefault(p.qmdLock, p.port, p.notice)
+		notice := p.notice
+		p.connect = connectDefault(p.qmdLock, p.port, func(message string) {
+			p.started.Store(true)
+			if notice != nil {
+				notice(message)
+			}
+		})
 	}
 	if p.cli == nil {
-		p.cli = &QmdPort{Executable: "qmd"}
+		p.cli = &QmdPort{Executable: "qmd", Backbone: p.backbone}
 	}
 	return p
 }

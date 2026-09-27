@@ -2,12 +2,12 @@ package search_test
 
 import (
 	"errors"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/brain/search"
+	"github.com/xidus90/loomux/internal/brain/search/backbonetest"
 )
 
 func TestParseBackbone(t *testing.T) {
@@ -68,17 +68,6 @@ func TestBackboneEnv(t *testing.T) {
 	}
 }
 
-// clearBackbone removes the two backbone variables for one test; t.Setenv restores them.
-func clearBackbone(t *testing.T) {
-	t.Helper()
-	for _, key := range []string{"QMD_LLAMA_GPU", "QMD_FORCE_CPU"} {
-		t.Setenv(key, "")
-		if err := os.Unsetenv(key); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 func TestStartDaemonWith_TheUsersBackboneWins(t *testing.T) {
 	for _, tc := range []struct {
 		key, value string
@@ -90,7 +79,7 @@ func TestStartDaemonWith_TheUsersBackboneWins(t *testing.T) {
 		{"QMD_LLAMA_GPU", "vulkan", map[string]string{"QMD_FORCE_CPU": "1"}, "QMD_FORCE_CPU=1"},
 	} {
 		t.Run(tc.key+"="+tc.value, func(t *testing.T) {
-			clearBackbone(t)
+			backbonetest.Clear(t)
 			t.Setenv(tc.key, tc.value)
 			var captured []string
 			spawner := func(_ []string, env []string) error {
@@ -111,7 +100,7 @@ func TestStartDaemonWith_TheUsersBackboneWins(t *testing.T) {
 }
 
 func TestStartDaemonWith(t *testing.T) {
-	clearBackbone(t)
+	backbonetest.Clear(t)
 	var capturedArgv []string
 	var capturedEnv []string
 

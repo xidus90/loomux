@@ -47,9 +47,10 @@ type Ports struct {
 }
 
 // DefaultPorts are the engines of the running system as the command line
-// wants them: nothing said about the qmd port beyond its own defaults.
+// wants them: the machine's backbone from the state directory of this run,
+// nothing else said about the qmd port beyond its own defaults.
 func DefaultPorts() Ports {
-	return DefaultPortsWith()
+	return DefaultPortsWith(config.StateDir())
 }
 
 // DefaultPortsWith are those engines with the qmd port built to the caller's
@@ -63,17 +64,31 @@ func DefaultPorts() Ports {
 // directory of its own would lock another file than the one it means and start
 // a second daemon beside the running one.
 //
+// Both engines run on the [search] backbone of stateDir's config.toml, read
+// each time a port is built: a daemon that died under a long-lived serve comes
+// back on the backbone the file says now. A file that does not read makes
+// either port Unavailable, so only what asks the engine fails.
+//
 // A function rather than a variable: nothing may hand out a shared value that
 // one caller can write into, and building three closures costs nothing.
-func DefaultPortsWith(opts ...brainsearch.QmdMcpOption) Ports {
+func DefaultPortsWith(stateDir string, opts ...brainsearch.QmdMcpOption) Ports {
 	return Ports{
 		Search: func(notice func(string)) brainsearch.SearchPort {
+			backbone, err := brainsearch.ConfiguredBackbone(stateDir)
+			if err != nil {
+				return brainsearch.Unavailable(err)
+			}
 			return brainsearch.NewQmdMcpPort(append([]brainsearch.QmdMcpOption{
 				brainsearch.WithNotice(notice),
+				brainsearch.WithBackbone(backbone),
 			}, opts...)...)
 		},
 		Status: func() brainsearch.SearchPort {
-			return &brainsearch.QmdPort{Executable: "qmd", Runner: brainsearch.DefaultRunner}
+			backbone, err := brainsearch.ConfiguredBackbone(stateDir)
+			if err != nil {
+				return brainsearch.Unavailable(err)
+			}
+			return &brainsearch.QmdPort{Executable: "qmd", Backbone: backbone}
 		},
 		Now: time.Now,
 	}
@@ -95,12 +110,12 @@ func Run(req Request, registryDir, fallbackDir string, notice func(string)) (str
 }
 
 // RunFor is Run for a caller that has something to say about the qmd port: it
-// gives back an answer function of the shape serve keeps, with the options
-// baked in. The ports are built per call, as Run builds them, so that two
-// answers never share a session.
-func RunFor(opts ...brainsearch.QmdMcpOption) func(Request, string, string, func(string)) (string, []string, error) {
+// gives back an answer function of the shape serve keeps, with its state
+// directory and the options baked in. The ports are built per call, as Run
+// builds them, so that two answers never share a session.
+func RunFor(stateDir string, opts ...brainsearch.QmdMcpOption) func(Request, string, string, func(string)) (string, []string, error) {
 	return func(req Request, registryDir, fallbackDir string, notice func(string)) (string, []string, error) {
-		return RunWith(DefaultPortsWith(opts...), req, registryDir, fallbackDir, notice)
+		return RunWith(DefaultPortsWith(stateDir, opts...), req, registryDir, fallbackDir, notice)
 	}
 }
 

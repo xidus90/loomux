@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/config"
 )
 
 // Backbone names the compute backbone used by the search model.
@@ -80,18 +82,45 @@ func StartDaemonWith(env map[string]string, port int, launcher func(string) ([]s
 	}
 	argv := append(baseCmd, "mcp", "--http", "--daemon", "--port", strconv.Itoa(port))
 	mergedEnv := os.Environ()
-	if !backboneChosenByUser() {
-		for k, v := range env {
-			mergedEnv = append(mergedEnv, fmt.Sprintf("%s=%s", k, v))
-		}
+	vars, _ := resolveVars(env, os.LookupEnv)
+	for k, v := range vars {
+		mergedEnv = append(mergedEnv, fmt.Sprintf("%s=%s", k, v))
 	}
 	return spawner(argv, mergedEnv)
 }
 
+// ResolveBackbone is the backbone's order of precedence for one qmd process: a
+// QMD_LLAMA_GPU or QMD_FORCE_CPU the user set wins, and the process then gets
+// nothing on top of the caller's environment (byUser); otherwise it gets the
+// variables of configured, the machine's [search] backbone or the default.
+func ResolveBackbone(configured Backbone, lookupEnv func(string) (string, bool)) (vars map[string]string, byUser bool) {
+	return resolveVars(BackboneEnv(configured), lookupEnv)
+}
+
+// resolveVars is that order over a backbone's variables already worked out,
+// the form in which a daemon start receives them.
+func resolveVars(vars map[string]string, lookupEnv func(string) (string, bool)) (map[string]string, bool) {
+	if backboneChosenByUser(lookupEnv) {
+		return map[string]string{}, true
+	}
+	return vars, false
+}
+
+// ConfiguredBackbone is the machine's [search] backbone from the global file of
+// stateDir, DefaultBackbone where it says nothing. The reader admits only the
+// three names, so the conversion needs no second check.
+func ConfiguredBackbone(stateDir string) (Backbone, error) {
+	settings, err := config.ReadSearchSettings(stateDir)
+	if err != nil {
+		return "", err
+	}
+	return Backbone(settings.Backbone), nil
+}
+
 // backboneChosenByUser reports whether QMD_LLAMA_GPU or QMD_FORCE_CPU is set at all, an
 // empty value included: both are the user's say over the backbone.
-func backboneChosenByUser() bool {
-	_, gpu := os.LookupEnv("QMD_LLAMA_GPU")
-	_, cpu := os.LookupEnv("QMD_FORCE_CPU")
+func backboneChosenByUser(lookupEnv func(string) (string, bool)) bool {
+	_, gpu := lookupEnv("QMD_LLAMA_GPU")
+	_, cpu := lookupEnv("QMD_FORCE_CPU")
 	return gpu || cpu
 }

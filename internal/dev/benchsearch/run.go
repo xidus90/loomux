@@ -43,8 +43,15 @@ type Deps struct {
 	Clock                 func() time.Time // for timings
 	Random                func() string
 	Warn                  func(string)
-	Getenv                func(string) string // names the qmd backbone of a corpus run
+	// Backbone is what a qmd process this run starts computes on: the user's
+	// QMD_LLAMA_GPU or QMD_FORCE_CPU where one is set, else the machine's
+	// [search] backbone.
+	Backbone string
 }
+
+// daemonStarter is a daemon port that knows whether it started the daemon
+// (search.QmdMcpPort does).
+type daemonStarter interface{ StartedDaemon() bool }
 
 // allAreas is the scope that measures every registered area.
 const allAreas = "all"
@@ -155,11 +162,11 @@ func Bench(o Options, d Deps) (string, error) {
 	}
 	env := benchreport.Current(d.Loomux)
 	env.Qmd, env.Models, env.Profile, env.Port = d.QmdVersion(), d.Models(modelsFrom), string(profile), portName
-	// A running service keeps the backbone of whoever started it; only the
-	// command line inherits this process's environment.
+	// A daemon found running keeps the backbone of whoever started it; the
+	// command line, and a daemon this run started, run on the one resolved here.
 	env.Backbone = "unknown"
-	if prepared != nil {
-		env.Backbone = benchreport.Backbone(d.Getenv)
+	if starter, ok := c.port.(daemonStarter); prepared != nil || ok && starter.StartedDaemon() {
+		env.Backbone = d.Backbone
 	}
 	run := Run{Stamp: stamp, Profile: string(profile), Environment: env, QuestionSet: questionSet,
 		Outcomes: outcomes, Findings: findings, Latency: latency}

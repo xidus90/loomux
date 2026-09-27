@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -26,6 +27,9 @@ type QmdPort struct {
 	// Index names the qmd index to address; empty is qmd's default index.
 	Index  string
 	Runner RunnerFunc
+	// Backbone is what qmd computes on when Runner is nil: the port then runs
+	// through BackboneRunner. Empty is the caller's environment unchanged.
+	Backbone Backbone
 }
 
 // launcherFailure carries an error of Launcher out of DefaultRunner. qmd.py's _invoke turns
@@ -36,9 +40,26 @@ type launcherFailure struct{ err error }
 func (f *launcherFailure) Error() string { return f.err.Error() }
 
 // DefaultRunner starts argv through Launcher, so an npm shim never hands the arguments to
-// cmd.exe, as qmd.py's _default_runner does. The environment is the caller's own: the default
-// backbone CUDA appends nothing, where _default_runner pins QMD_LLAMA_GPU=vulkan.
+// cmd.exe, as qmd.py's _default_runner does. The environment is the caller's own, unchanged;
+// BackboneRunner is the runner that adds a backbone, where _default_runner pinned
+// QMD_LLAMA_GPU=vulkan.
 func DefaultRunner(argv []string) ([]byte, []byte, int, error) {
+	return runWith(argv, nil)
+}
+
+// BackboneRunner is DefaultRunner with backbone's variables on top of the caller's
+// environment, unless the user set one of them (ResolveBackbone); a qmd command line then
+// runs on the same backbone as the daemon. The environment is read at each call.
+func BackboneRunner(backbone Backbone) RunnerFunc {
+	return func(argv []string) ([]byte, []byte, int, error) {
+		vars, _ := ResolveBackbone(backbone, os.LookupEnv)
+		return runWith(argv, vars)
+	}
+}
+
+// runWith runs argv with vars added to the caller's environment; none leaves the
+// environment to the process start, which inherits it.
+func runWith(argv []string, vars map[string]string) ([]byte, []byte, int, error) {
 	if len(argv) == 0 {
 		return nil, nil, 1, errors.New("empty command arguments")
 	}
@@ -47,6 +68,12 @@ func DefaultRunner(argv []string) ([]byte, []byte, int, error) {
 		return nil, nil, 1, &launcherFailure{err: err}
 	}
 	cmd := exec.Command(launched[0], append(launched[1:], argv[1:]...)...)
+	if len(vars) > 0 {
+		cmd.Env = os.Environ()
+		for key, value := range vars {
+			cmd.Env = append(cmd.Env, key+"="+value)
+		}
+	}
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
@@ -82,7 +109,7 @@ func (q *QmdPort) getRunner() RunnerFunc {
 	if q.Runner != nil {
 		return q.Runner
 	}
-	return DefaultRunner
+	return BackboneRunner(q.Backbone)
 }
 
 // Search executes query against collections using profile and returns up to n hits.

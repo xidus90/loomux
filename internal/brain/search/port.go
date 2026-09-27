@@ -32,3 +32,16 @@ type SearchPort interface {
 	NotYetSearchable() (int, error)
 	Embed(collections []string) error
 }
+
+// Unavailable is a port that answers every question with err: the engine that
+// cannot be built, a machine setting that does not read among the reasons. It
+// fails where the engine is asked, so what needs no engine keeps working.
+func Unavailable(err error) SearchPort { return unavailable{err} }
+
+type unavailable struct{ err error }
+
+func (u unavailable) Search(string, []string, Profile, int) ([]SearchHit, error) { return nil, u.err }
+func (u unavailable) Indexed(string) ([]string, error)                           { return nil, u.err }
+func (u unavailable) Refresh([]string) error                                     { return u.err }
+func (u unavailable) NotYetSearchable() (int, error)                             { return 0, u.err }
+func (u unavailable) Embed([]string) error                                       { return u.err }

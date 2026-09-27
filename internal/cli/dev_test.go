@@ -16,6 +16,8 @@ import (
 
 	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/brain/search"
+	"github.com/xidus90/loomux/internal/brain/search/backbonetest"
+	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/benchreport"
@@ -947,6 +949,8 @@ func TestDevImportCasesMergesTheExtraAnswers(t *testing.T) {
 // was asked and answers text or err.
 func stubBenchSearch(t *testing.T, text string, err error) *benchsearch.Options {
 	t.Helper()
+	// The deps read the machine-wide file; never the real one.
+	t.Setenv(config.StateDirEnv, t.TempDir())
 	var asked benchsearch.Options
 	benchSearchRun = func(o benchsearch.Options, _ benchsearch.Deps) (string, error) {
 		asked = o
@@ -1044,19 +1048,41 @@ func TestDevBenchSearchPrintsEveryProblem(t *testing.T) {
 	}
 }
 
-func TestBenchSearchDepsReachTheRealSystem(t *testing.T) {
-	t.Setenv("QMD_LLAMA_GPU", "vulkan")
-	t.Setenv("QMD_FORCE_CPU", "")
-	var stderr strings.Builder
-	d := benchSearchDeps(&stderr)
-	if _, ok := d.Daemon().(*search.QmdMcpPort); !ok {
-		t.Fatal("the daemon is no MCP port")
+// benchState is a state directory of the test's own whose machine-wide
+// config.toml says text.
+func benchState(t *testing.T, text string) string {
+	t.Helper()
+	state := t.TempDir()
+	t.Setenv(config.StateDirEnv, state)
+	if err := os.WriteFile(filepath.Join(state, "config.toml"), []byte(text), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if port, ok := d.CLI("loomux-bench-x").(*search.QmdPort); !ok || port.Index != "loomux-bench-x" || port.Executable != "qmd" {
+	return state
+}
+
+func TestBenchSearchDepsReachTheRealSystem(t *testing.T) {
+	backbonetest.Clear(t)
+	state := benchState(t, "[search]\nbackbone = \"cpu\"\n")
+	var stderr strings.Builder
+	d, err := benchSearchDeps(&stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if port, ok := d.Daemon().(*search.QmdMcpPort); !ok || port.Backbone() != search.BackboneCPU {
+		t.Fatal("the daemon is no MCP port on the machine's backbone")
+	}
+	if port, ok := d.CLI("loomux-bench-x").(*search.QmdPort); !ok || port.Index != "loomux-bench-x" || port.Executable != "qmd" ||
+		port.Backbone != search.BackboneCPU || port.Runner != nil {
 		t.Fatalf("cli = %+v", port)
 	}
-	if backbone := benchreport.Backbone(d.Getenv); backbone != "vulkan" {
-		t.Fatalf("backbone %q", backbone)
+	if d.Backbone != "cpu" || d.StateDir != state {
+		t.Fatalf("backbone %q, state %q", d.Backbone, d.StateDir)
+	}
+	// The user's variable is what qmd runs on, and so what the report names.
+	t.Setenv("QMD_LLAMA_GPU", "vulkan")
+	t.Setenv("QMD_FORCE_CPU", "")
+	if d, _ = benchSearchDeps(&stderr); d.Backbone != "vulkan" {
+		t.Fatalf("backbone %q", d.Backbone)
 	}
 	if first, second := d.Random(), d.Random(); first == "" || first == second || strings.ContainsAny(first, `/\. `) {
 		t.Fatalf("random %q, %q", first, second)
@@ -1064,5 +1090,16 @@ func TestBenchSearchDepsReachTheRealSystem(t *testing.T) {
 	d.Warn("careful")
 	if stderr.String() != "warning: careful\n" || d.Loomux != Version || d.StateDir == "" {
 		t.Fatalf("stderr %q, deps %+v", stderr.String(), d)
+	}
+}
+
+// A [search] block that does not read stops the bench before it measures,
+// naming the file; a report must not name a backbone nobody could read.
+func TestDevBenchSearchRefusesABrokenBackbone(t *testing.T) {
+	asked := stubBenchSearch(t, "unreached", nil)
+	state := benchState(t, "[search]\nbackbone = \"metal\"\n")
+	code, out, errOut := run("dev", "bench", "search")
+	if code != 1 || out != "" || !strings.Contains(errOut, "error: "+filepath.Join(state, "config.toml")) || asked.Scope != "" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
 }

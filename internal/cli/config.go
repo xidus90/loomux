@@ -135,7 +135,7 @@ func configCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 // one itself -- has removed its PID file.
 const backboneHint = "loomux config: a running qmd daemon keeps its backbone until its process ends; " +
 	"stop the process listening on port 8765 (Windows: `Get-NetTCPConnection -LocalPort 8765 -State Listen | " +
-	"ForEach-Object { Stop-Process -Id $_.OwningProcess }`; POSIX: `lsof -ti :8765 | xargs kill`), " +
+	"ForEach-Object { Stop-Process -Id $_.OwningProcess }`; POSIX: `lsof -ti tcp:8765 -sTCP:LISTEN | xargs kill`), " +
 	"since `qmd mcp stop` may answer \"Not running\" after a `qmd status` although the daemon still runs; " +
 	"the next search starts it with the new backbone"
 
