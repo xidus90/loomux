@@ -364,10 +364,24 @@ their `command`, and Antigravity's `run_command` its command line under
 `CommandLine` (measured with agy 1.2.11; `commandLine` and `command_line`,
 the other spellings agy.exe carries, are judged too). agy types into a task
 `run_command` left open with `manage_task`, whose `send_input` action yields
-the line under `Input` (measured with agy 1.2.11); `list`, `status` and
-`kill` carry no line and pass, and any other action, or none, is judged.
+what it types under `Input` (measured with agy 1.2.11);
 `send_command_input`, the older tool for the same that agy.exe still carries,
-yields `Input`, a name that is not measured. A `run_command`,
+yields `Input`, a name that is not measured. Argument names are matched
+without regard to case, and every value found is judged, so a harmless
+`Input` cannot hide a forbidden `input`; a value under one of them that is no
+string is refused (for `Bash` and `PowerShell` it is ignored, since their
+tool always sends a string), and an empty one carries no line. What an agent
+types into a task is judged only as whole lines: each value must end with a
+line end, carry no control character other than the line ends, and end no
+line in a backslash or a backtick, which bash and PowerShell continue on the
+next line; it is split at every line end and each line is judged on its own.
+A fragment, a lone key, Ctrl-C, an arrow key, a backspace, a tab or a line
+continuation is refused, because the terminal could finish, edit or complete
+the line after the guard has read it; `kill` still
+ends a task. `manage_task`'s `list`, `status` and `kill` carry no line and
+pass, but only a call without a line: a line is judged whatever the action
+says, and a call counts as quiet only when every key spelled `action` names
+one of the three; any other action, or none, is judged. A `run_command`,
 `send_command_input` or `manage_task` carrying none of its names is refused.
 What a tool writes into a file is not judged.
 

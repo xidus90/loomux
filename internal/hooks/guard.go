@@ -6,12 +6,14 @@ package hooks
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/xidus90/loomux/internal/brain/guard"
 	"github.com/xidus90/loomux/internal/config"
@@ -168,47 +170,113 @@ func writeSource(name, removed string) string {
 	return `(?i)` + strings.Join(forms, "|")
 }
 
-// commandTools are the tools that run a shell line, each with the argument
-// names that line may stand under; all of them are judged, for WriteTargets'
-// reason. Antigravity's run_command sends CommandLine (measured with agy
-// 1.2.11 on 2026-09-25); the other two are the spellings agy.exe carries.
-// agy 1.2.11 types a line into a task run_command left open with
-// manage_task, Action send_input and the line under Input (measured on
-// 2026-09-25). send_command_input is the older tool for the same, which
-// agy.exe still carries; its argument name is not measured, Input is the
-// guess. A call without its line is refused like a run_command without one.
-var commandTools = map[string][]string{
-	"Bash":               {"command"},
-	"PowerShell":         {"command"},
-	"run_command":        {"CommandLine", "commandLine", "command_line"},
-	"send_command_input": {"Input", "input"},
-	"manage_task":        {"Input"},
+// commandTool says how the guard finds the shell lines in a call to a tool
+// that runs them. Every zero value is the closed case: a tool added with
+// nothing set refuses a call without a line and has what it carries judged
+// as typing, whole lines only.
+//
+// Antigravity's run_command sends CommandLine (measured with agy 1.2.11 on
+// 2026-09-25); command_line is the other spelling agy.exe carries. agy
+// 1.2.11 types a line into a task run_command left open with manage_task,
+// Action send_input and the line under Input (measured on 2026-09-25); the
+// model wrote the line end itself, so Input reaches the terminal as it
+// stands. send_command_input is the older tool for the same, which agy.exe
+// still carries; its argument name is not measured, Input is the guess.
+// manage_task's schema in agy 1.2.11 names list, status, kill and
+// send_input; the first three carry no line.
+type commandTool struct {
+	keys         []string // argument names the line may stand under, matched without case
+	lineOptional bool     // a call without a line passes: Claude's shells, whose tool always carries one
+	whole        bool     // the value is a whole command line, not keystrokes typed into an open terminal
+	quiet        []string // Actions whose calls carry no line
 }
 
-// judgedOrRefused are the command tools whose call is refused when it carries
-// none of its lines: Antigravity's, whose argument names are not all known.
-var judgedOrRefused = map[string]bool{"run_command": true, "send_command_input": true, "manage_task": true}
+// commandTools are the tools that run a shell line; every line found is
+// judged, for WriteTargets' reason.
+var commandTools = map[string]commandTool{
+	"Bash":               {keys: []string{"command"}, lineOptional: true, whole: true},
+	"PowerShell":         {keys: []string{"command"}, lineOptional: true, whole: true},
+	"run_command":        {keys: []string{"CommandLine", "command_line"}, whole: true},
+	"send_command_input": {keys: []string{"Input"}},
+	"manage_task":        {keys: []string{"Input"}, quiet: []string{"list", "status", "kill"}},
+}
 
-// quietActions names, for a tool that does more than run a line, the
-// Actions whose calls carry none: manage_task's schema in agy 1.2.11 names
-// list, status, kill and send_input. Every other Action, one the schema does
-// not name or none at all, is judged, so that a spelling the guard does not
-// know cannot carry a line past it.
-var quietActions = map[string][]string{"manage_task": {"list", "status", "kill"}}
-
-// commandLines is every shell line a call to one of commandTools carries.
-// A call that carries none is answered with ok false: a line the guard
-// cannot find would switch off every command rule without a word.
-func commandLines(tool string, input map[string]any) (lines []string, ok bool) {
-	if action, named := input["Action"].(string); named && slices.Contains(quietActions[tool], action) {
-		return nil, true
-	}
-	for _, key := range commandTools[tool] {
-		if line, present := input[key].(string); present {
-			lines = append(lines, line)
+// commandLines is every non-empty string a call to tool carries under one of
+// its keys, in any case, in the sorted order of the call's keys so that the
+// reasons come out the same on every run. The values are found before the
+// Action is read: a quiet Action does not stop a line it carries from being
+// judged. A call is answered with ok false when a key holds a value that is
+// no string, which might be the line the tool runs, and when it carries none
+// and is not quiet: a line the guard cannot find would switch off every
+// command rule without a word. The strings found are judged either way.
+func commandLines(tool commandTool, input map[string]any) (values []string, ok bool) {
+	readable := true
+	for _, key := range slices.Sorted(maps.Keys(input)) {
+		if !slices.ContainsFunc(tool.keys, func(name string) bool { return strings.EqualFold(name, key) }) {
+			continue
+		}
+		switch value := input[key].(type) {
+		case string:
+			// An empty value types and runs nothing.
+			if value != "" {
+				values = append(values, value)
+			}
+		default:
+			readable = false
 		}
 	}
-	return lines, len(lines) > 0
+	if !readable {
+		return values, false
+	}
+	if len(values) > 0 {
+		return values, true
+	}
+	return nil, quietAction(tool, input)
+}
+
+// quietAction says whether a call names an Action that carries no line.
+// Every key spelled action counts, and each must name a quiet Action as a
+// string: a second spelling with another Action, or a value that is no
+// string, might be the one the tool obeys.
+func quietAction(tool commandTool, input map[string]any) bool {
+	named := false
+	for key, value := range input {
+		if !strings.EqualFold(key, "action") {
+			continue
+		}
+		// A value that is no string reads as "", which no quiet list holds.
+		if action, _ := value.(string); !slices.Contains(tool.quiet, action) {
+			return false
+		}
+		named = true
+	}
+	return named
+}
+
+// typedLines is the lines a terminal would run from what an agent types into
+// an open task, or the reason the guard cannot tell. Only whole lines without
+// control characters can be judged: a fragment may be finished by the next
+// call, and a backspace, an escape sequence, a tab an interactive shell
+// completes at, or another key the terminal binds edits the line after the
+// guard has read it. A line ending in a backslash or a backtick is not whole
+// either: bash and PowerShell continue it on the next line.
+func typedLines(name, value string) (lines []string, refusal string) {
+	const rule = "loomux judges what an agent types into a task only as whole lines without control characters; this "
+	if !strings.HasSuffix(value, "\n") && !strings.HasSuffix(value, "\r") {
+		return nil, rule + name + " input does not end its line, so it refuses"
+	}
+	if strings.ContainsFunc(value, func(r rune) bool { return unicode.IsControl(r) && r != '\n' && r != '\r' }) {
+		return nil, rule + name + " input carries a control character, so it refuses"
+	}
+	lines = strings.FieldsFunc(value, func(r rune) bool { return r == '\n' || r == '\r' })
+	// A backslash or a backtick at a line end continues the line in bash or
+	// PowerShell: the next line finishes it, after the guard has read it.
+	for _, line := range lines {
+		if strings.HasSuffix(line, `\`) || strings.HasSuffix(line, "`") {
+			return nil, rule + name + " input does not end its line, so it refuses"
+		}
+	}
+	return lines, ""
 }
 
 // matchGlob matches a slash-separated path against a glob pattern supporting
@@ -285,29 +353,39 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 			reasons = append(reasons, flowFolderReasons(root, rel)...)
 		}
 	}
-	if _, shell := commandTools[tool]; shell {
-		lines, ok := commandLines(tool, input)
-		if !ok && judgedOrRefused[tool] {
+	if shell, found := commandTools[tool]; found {
+		values, ok := commandLines(shell, input)
+		if !ok && !shell.lineOptional {
 			reasons = append(reasons, "loomux found no command line in this "+tool+" call, so it cannot judge it and refuses")
 		}
-		for _, line := range lines {
-			for _, rule := range append(builtinCommands(), policy.Commands...) {
-				if rule.Regex.MatchString(line) {
-					reasons = append(reasons, rule.Reason)
+		for _, value := range values {
+			lines := []string{value}
+			if !shell.whole {
+				var refusal string
+				if lines, refusal = typedLines(tool, value); refusal != "" {
+					reasons = append(reasons, refusal)
+					continue
 				}
 			}
-			// The flow folder rule reads the config, so only a line that
-			// could name such a folder pays for it.
-			if strings.Contains(strings.ToLower(line), "flows") {
-				if rule, ok := flowFolderCommand(root); ok && rule.Regex.MatchString(line) {
-					reasons = append(reasons, rule.Reason)
+			for _, line := range lines {
+				for _, rule := range append(builtinCommands(), policy.Commands...) {
+					if rule.Regex.MatchString(line) {
+						reasons = append(reasons, rule.Reason)
+					}
 				}
-			}
-			if writesConfiguration(line) {
-				reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, and merge-hook install and remove write executable hooks into repositories; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
-			}
-			if answersAGate(line) {
-				reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
+				// The flow folder rule reads the config, so only a line that
+				// could name such a folder pays for it.
+				if strings.Contains(strings.ToLower(line), "flows") {
+					if rule, ok := flowFolderCommand(root); ok && rule.Regex.MatchString(line) {
+						reasons = append(reasons, rule.Reason)
+					}
+				}
+				if writesConfiguration(line) {
+					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, and merge-hook install and remove write executable hooks into repositories; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
+				}
+				if answersAGate(line) {
+					reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
+				}
 			}
 		}
 	}

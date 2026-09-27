@@ -185,19 +185,43 @@ func TestGitPushIsRefusedOnBashAndPowerShell(t *testing.T) {
 	}
 }
 
-// Antigravity's run_command is judged by the same command rules, under every
-// spelling of its argument that agy.exe carries.
-func TestGitPushIsRefusedOnRunCommand(t *testing.T) {
+// Every command tool is judged by the same command rules, under each of its
+// keys in any case. The loop runs over the table itself, so a tool that joins
+// it is held to the rules without a new test.
+func TestGitPushIsRefusedOnEveryCommandTool(t *testing.T) {
 	root := t.TempDir()
-	for tool, keys := range map[string][]string{
-		"run_command":        {"CommandLine", "commandLine", "command_line"},
-		"send_command_input": {"Input", "input"},
-	} {
-		for _, key := range keys {
-			reasons := checkTool(root, tool, map[string]any{key: "git push origin main"}, config.Policy{})
-			if len(reasons) != 1 || reasons[0] != "Whether commits reach the remote is a human's decision." {
-				t.Fatalf("[%s %s] reasons %v", tool, key, reasons)
+	checked := 0
+	for name, tool := range commandTools {
+		line := "git push origin main"
+		if !tool.whole {
+			line += "\n"
+		}
+		for _, key := range tool.keys {
+			for _, spelling := range []string{key, strings.ToLower(key), strings.ToUpper(key)} {
+				reasons := checkTool(root, name, map[string]any{spelling: line}, config.Policy{})
+				if len(reasons) != 1 || reasons[0] != "Whether commits reach the remote is a human's decision." {
+					t.Fatalf("[%s %s] reasons %v", name, spelling, reasons)
+				}
+				checked++
 			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("commandTools names no key, so nothing was judged")
+	}
+}
+
+// A second spelling of a key is judged beside the first, not in its place:
+// a harmless line under one cannot carry a forbidden one under the other.
+func TestEveryCasingOfALineKeyIsJudged(t *testing.T) {
+	root := t.TempDir()
+	const push = "Whether commits reach the remote is a human's decision."
+	for tool, input := range map[string]map[string]any{
+		"manage_task": {"Action": "send_input", "Input": "echo hi\n", "input": "git push origin main\n"},
+		"run_command": {"CommandLine": "go test ./...", "COMMANDLINE": "git push origin main"},
+	} {
+		if reasons := checkTool(root, tool, input, config.Policy{}); len(reasons) != 1 || reasons[0] != push {
+			t.Fatalf("[%s] reasons %v", tool, reasons)
 		}
 	}
 }
@@ -230,21 +254,163 @@ func TestManageTaskSendInputIsJudgedByTheCommandRules(t *testing.T) {
 			t.Fatalf("%v: reasons %v", input, reasons)
 		}
 	}
-}
-
-// A run_command whose line stands under a name the guard does not know is
-// refused, not waved through; a Bash call without a command stays unjudged,
-// as it was.
-func TestARunCommandWithoutALineIsRefused(t *testing.T) {
-	root := t.TempDir()
-	for _, tool := range []string{"run_command", "send_command_input"} {
-		reasons := checkTool(root, tool, map[string]any{"Cmd": "git push"}, config.Policy{})
-		if len(reasons) != 1 || !strings.Contains(reasons[0], "no command line in this "+tool+" call") {
-			t.Fatalf("[%s] reasons %v", tool, reasons)
+	// Whole lines that break no rule pass, an empty one included.
+	for _, line := range []string{"y\n", "echo hi\r\n", "\n"} {
+		typed := map[string]any{"Action": "send_input", "Input": line, "TaskId": "c/task-6"}
+		if reasons := checkTool(root, "manage_task", typed, config.Policy{}); len(reasons) != 0 {
+			t.Fatalf("%q: reasons %v, want none", line, reasons)
 		}
 	}
-	if reasons := checkTool(root, "Bash", map[string]any{}, config.Policy{}); len(reasons) != 0 {
-		t.Fatalf("Bash reasons %v, want none", reasons)
+}
+
+// The lines a call carries are judged whatever its Action says; a quiet
+// Action only excuses a call that carries none, and only when every key
+// spelled action names a quiet one.
+func TestAQuietActionExcusesOnlyAMissingLine(t *testing.T) {
+	root := t.TempDir()
+	const push = "Whether commits reach the remote is a human's decision."
+	for _, input := range []map[string]any{
+		{"Action": "kill", "Input": "git push origin main\n"},
+		{"Action": "status", "Input": "git push origin main\n"},
+		{"Action": "kill", "action": "send_input", "Input": "git push origin main\n"},
+	} {
+		if reasons := checkTool(root, "manage_task", input, config.Policy{}); len(reasons) != 1 || reasons[0] != push {
+			t.Fatalf("%v: reasons %v", input, reasons)
+		}
+	}
+	for _, input := range []map[string]any{
+		{"Action": "kill", "action": "send_input"},
+		{"Action": "kill", "action": 42},
+		{"Action": 42},
+		// A line the guard cannot read might be the one the tool types, and
+		// an empty one types nothing: neither is a line to judge.
+		{"Action": "kill", "Input": 42},
+		{"Action": "kill", "Input": nil},
+		{"Action": "send_input", "Input": ""},
+	} {
+		reasons := checkTool(root, "manage_task", input, config.Policy{})
+		if len(reasons) != 1 || !strings.Contains(reasons[0], "no command line in this manage_task call") {
+			t.Fatalf("%v: reasons %v", input, reasons)
+		}
+	}
+	for _, input := range []map[string]any{
+		{"Action": "kill", "TaskId": "t"},
+		{"Action": "list"},
+		{"action": "status"},
+		{"Action": "kill", "ACTION": "list"},
+		{"Action": "kill", "Input": ""},
+	} {
+		if reasons := checkTool(root, "manage_task", input, config.Policy{}); len(reasons) != 0 {
+			t.Fatalf("%v: reasons %v, want none", input, reasons)
+		}
+	}
+}
+
+// A value the guard cannot read does not stop the others from being judged:
+// a Bash call, whose line is optional, still has its push found beside it.
+func TestAnUnreadableLineValueHidesNoOther(t *testing.T) {
+	root := t.TempDir()
+	input := map[string]any{"command": 42, "COMMAND": "git push origin main"}
+	if reasons := checkTool(root, "Bash", input, config.Policy{}); len(reasons) != 1 || reasons[0] != "Whether commits reach the remote is a human's decision." {
+		t.Fatalf("reasons %v", reasons)
+	}
+}
+
+// What an agent types into an open task is judged only as whole lines
+// without control characters: a fragment may be finished by the next call,
+// a backspace or an escape sequence edits the line, and a continuation lets
+// the next line finish it, after the guard has read it. All are refused, a
+// quiet Action no excuse for any.
+func TestATypedInputIsJudgedOnlyAsWholeLines(t *testing.T) {
+	root := t.TempDir()
+	const rule = "loomux judges what an agent types into a task only as whole lines without control characters; this "
+	cases := []struct{ input, want string }{
+		{"git pu", "does not end its line, so it refuses"},
+		{"x", "does not end its line, so it refuses"},
+		{"\x03", "does not end its line, so it refuses"},
+		{"\x1b[A\n", "carries a control character, so it refuses"},
+		{"git pusx\bh origin main\n", "carries a control character, so it refuses"},
+		{"ls\x00\n", "carries a control character, so it refuses"},
+		{"ls\x7f\n", "carries a control character, so it refuses"},
+		{"ls\U0000009b2J\n", "carries a control character, so it refuses"},
+		// An interactive shell completes a word at a tab: "git pus<Tab>"
+		// becomes "git push" after the guard has read "git pus".
+		{"git pus\t origin main\n", "carries a control character, so it refuses"},
+		// A backslash or a backtick at a line end continues the line: bash
+		// and PowerShell run "loomux init" from the two lines below.
+		{"loomux \\\ninit\n", "does not end its line, so it refuses"},
+		{"loomux `\ninit\n", "does not end its line, so it refuses"},
+		{"git \\\npush origin main\n", "does not end its line, so it refuses"},
+	}
+	for _, tool := range []string{"manage_task", "send_command_input"} {
+		for _, c := range cases {
+			input := map[string]any{"Action": "send_input", "Input": c.input}
+			reasons := checkTool(root, tool, input, config.Policy{})
+			if len(reasons) != 1 || reasons[0] != rule+tool+" input "+c.want {
+				t.Fatalf("[%s] %q: reasons %v", tool, c.input, reasons)
+			}
+		}
+	}
+	quiet := map[string]any{"Action": "kill", "Input": "x"}
+	if reasons := checkTool(root, "manage_task", quiet, config.Policy{}); len(reasons) != 1 || reasons[0] != rule+"manage_task input does not end its line, so it refuses" {
+		t.Fatalf("kill with a fragment: reasons %v", reasons)
+	}
+	// Each value is judged on its own: a fragment under one spelling does not
+	// stop the whole line under the other from being judged.
+	both := map[string]any{"Action": "send_input", "Input": "git pu", "input": "git push origin main\n"}
+	want := []string{rule + "manage_task input does not end its line, so it refuses", "Whether commits reach the remote is a human's decision."}
+	if reasons := checkTool(root, "manage_task", both, config.Policy{}); !slices.Equal(reasons, want) {
+		t.Fatalf("two values: reasons %v", reasons)
+	}
+	// A whole command line is no typing: run_command ends no line and may
+	// carry what a shell reads as a control character.
+	if reasons := checkTool(root, "run_command", map[string]any{"CommandLine": "printf '\x1b[0m'"}, config.Policy{}); len(reasons) != 0 {
+		t.Fatalf("run_command: reasons %v, want none", reasons)
+	}
+}
+
+// Several lines typed in one call are split at every line end and each is
+// judged on its own, so a rule anchored at the start of a line reaches the
+// second one too. The rule is ^rm\s, not the built-in push rule: its (^|\s)
+// matches a line end, so a push in line 2 would be caught without any
+// splitting and the test could not fail.
+func TestATypedInputIsJudgedLineByLine(t *testing.T) {
+	root := t.TempDir()
+	policy := config.Policy{Commands: []config.CommandRule{{
+		Regex: regexp.MustCompile(`^rm\s`), Source: `^rm\s`, Reason: "no rm at the start of a line",
+	}}}
+	for _, typed := range []string{"echo hi\nrm -rf x\n", "echo hi\r\nrm -rf x\r\n", "echo hi\rrm -rf x\r"} {
+		for _, tool := range []string{"manage_task", "send_command_input"} {
+			reasons := checkTool(root, tool, map[string]any{"Action": "send_input", "Input": typed}, policy)
+			if len(reasons) != 1 || reasons[0] != "no rm at the start of a line" {
+				t.Fatalf("[%s] %q: reasons %v", tool, typed, reasons)
+			}
+		}
+	}
+}
+
+// A tool whose line is not optional is refused when the guard finds no line
+// under any of its keys, not waved through; a Bash or PowerShell call without
+// a command stays unjudged, as it was. The loop runs over the table, so the
+// closed default reaches a tool that joins it.
+func TestEveryCommandToolWithoutALineIsRefused(t *testing.T) {
+	root := t.TempDir()
+	checked := 0
+	for name, tool := range commandTools {
+		if tool.lineOptional {
+			if reasons := checkTool(root, name, map[string]any{}, config.Policy{}); len(reasons) != 0 {
+				t.Fatalf("[%s] reasons %v, want none", name, reasons)
+			}
+			continue
+		}
+		reasons := checkTool(root, name, map[string]any{"Cmd": "git push"}, config.Policy{})
+		if len(reasons) != 1 || reasons[0] != "loomux found no command line in this "+name+" call, so it cannot judge it and refuses" {
+			t.Fatalf("[%s] reasons %v", name, reasons)
+		}
+		checked++
+	}
+	if checked == 0 {
+		t.Fatal("no command tool in the table refuses a call without a line")
 	}
 }
 
