@@ -646,8 +646,9 @@ func TestMergeNamesAStaleOwnEntry(t *testing.T) {
 	}
 }
 
-// A block that holds a command of its own beside a hooks list runs both; our
-// entry in the list is found, and none is added beside it.
+// A block that holds a command of its own beside a hooks list: which of the
+// two a host runs is not measured, so both are read. Our entry in the list
+// is found, and none is added beside it.
 func TestMergeFindsAnEntryInTheListOfABlockWithACommand(t *testing.T) {
 	entry := Entry{Event: "Stop", Command: Canonical + " hook stop --host claude"}
 	existing := []byte(`{"hooks":{"Stop":[{"command":"echo x","hooks":[{"type":"command","command":` +
