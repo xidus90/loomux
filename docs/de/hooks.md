@@ -545,6 +545,8 @@ zählt eine Sitzung wieder mit, die worktree unlink abgemeldet hat. Nichts
 meldet eine agy-Unterhaltung zwischen zwei Modellaufrufen ab, denn unlink ist
 nur für Claude verdrahtet. Ein späterer nennt nur die Flow-Läufe, die noch an
 einem Tor warten, und die übergangenen Flow-Ordner, wie jeder Start.
+`invocationNum` wird als Zahl oder als Dezimal-String gelesen, protojsons
+Schreibweise einer 64-Bit-Ganzzahl.
 `subagent-start` und
 `subagent-stop` sind für Antigravity nicht verdrahtet: seine Nutzlasten tragen
 keine `agent_id`.
