@@ -5,6 +5,7 @@
 **Status:** Umgesetzt (gemergt, Stufe 4a-2; Akte `parity/stufe-4a-2.md`)  
 **Bezug:** Fusions-Spec Nachtrag #21 und #23, `specs-ul/2026-09-10-antigravity-hook-messung.md`, Stufe 4a-2 / 4e  
 **Überarbeitet:** 2026-09-25 nach drei Reviews und der Probe mit agy 1.2.11: Antwort an den Wirt als ein Adapter, `run_command` und `send_command_input`, Post-Edit aus `toolCall`, flache `Stop`/`PreInvocation`  
+**Nachgetragen:** 2026-09-27 nach dem Code-Review: `manage_task` im Matcher und in den Befehlsregeln, Zeilen vor der `Action`, Tipp-Eingaben nur als ganze Zeilen, ein Aufruf ohne Werkzeugnamen verweigert, `session-start` still bei einem späteren `invocationNum`, post-edit über `hosts.WriteContext`  
 
 ---
 
@@ -61,8 +62,14 @@ Gemessen mit agy 1.2.8 und 1.2.11 am 2026-09-25 (`parity/stufe-4a-2.md`):
 * **Antigravity, `pre-tool-use`:** unverändert, Exit 2 mit `denyEnvelope`
   verweigert den Aufruf.
 * **Antigravity, `post-tool-use`:** Exit 2 bleibt: agy gibt stderr dem Modell
-  als Warnung und bricht nicht ab. stdout fällt weg (agy erwartet `{}`, und
-  Claudes `additionalContext` liest es nicht); Exit 1 wird 0.
+  als Warnung und bricht nicht ab. stdout fällt weg (agy erwartet `{}`); Exit 1
+  wird 0. Nachtrag 2026-09-27: post-edit schreibt seinen Kontext bei Exit 0
+  über `hosts.WriteContext` als `injectSteps`, `hosts.Answer` verwirft ihn;
+  ob agy `injectSteps` auf PostToolUse liest, ist ungemessen. Bei Exit ≠ 0
+  schreibt post-edit nichts auf stdout, und jeder Hinweis auf eine
+  übersprungene Lane oder Datei steht auf stderr. Codex: `hosts.WriteContext`
+  antwortet `ErrNoAdapter`, `post-tool-use --host codex` endet bei Code 0
+  mit 1, sobald der Aufruf eine Datei nennt.
 * **Antigravity, `stop` mit Code 2:** Exit 0 und
   `{"decision":"continue","reason":"<stderr des Tors>"}`; agy tritt erneut in
   die Schleife ein. `MaxBlocks` beendet mit Code 0 und damit ohne `continue`.
@@ -74,24 +81,46 @@ Gemessen mit agy 1.2.8 und 1.2.11 am 2026-09-25 (`parity/stufe-4a-2.md`):
 
 `session-start` läuft auf `PreInvocation`, das vor jedem Modellaufruf feuert
 und die Aufrufe in `invocationNum` zählt; `hosts.Payload.Repeat` ist gesetzt ab
-`invocationNum > 1`, und dann schreibt `session-start` keinen Kontext. Ob die
-Zählung bei 0 oder 1 beginnt, ist ungemessen; schlimmstenfalls meldet es sich
-einmal zu oft. Einen `SessionStart`-Hook kennt `hooks.json` nicht.
+`invocationNum > 0`, als Zahl oder als Dezimal-String gelesen (protojson kann
+64-Bit-Zähler als String schicken). Gemessen am 2026-09-27 mit agy 1.2.11
+(`parity/stufe-4a-2.md`): `PreInvocation` trägt `invocationNum` als JSON-Zahl,
+0, 1, 2, 3 je Modellaufruf; die Zählung beginnt bei 0. Ungemessen bleiben die
+String-Form eines 64-Bit-Zählers und die Breite des Felds.
+Bei `Repeat` schreibt `session-start` keinen Kontext und belebt die Sitzung
+nicht wieder: `sessions.Revive` läuft nur beim ersten Aufruf (Nachtrag
+2026-09-27). Ein unlesbarer oder fehlender Wert gilt als erster Aufruf und
+wiederholt nur Ankündigungen. Einen `SessionStart`-Hook kennt `hooks.json`
+nicht.
 
-### 2.3 `run_command` und `send_command_input` (`internal/hooks/guard.go`)
-
-`commandTools` ordnet jedem Shell-Werkzeug die Argumentnamen seiner
-Befehlszeile zu: `Bash` und `PowerShell` `command`, `run_command`
-`CommandLine` (gemessen) sowie `commandLine` und `command_line`,
-`send_command_input` `Input` und `input` (ungemessen). Jede vorhandene wird
-geprüft; ein Aufruf eines der beiden agy-Werkzeuge ohne eine davon wird
-verweigert. Beide stehen im Matcher von `PreToolUse`.
+### 2.3 `run_command`, `send_command_input` und `manage_task` (`internal/hooks/guard.go`)
 
 Nachgemessen am 2026-09-25 mit agy 1.2.11: agy tippt eine Eingabe nicht über
 `send_command_input`, sondern über `manage_task` mit `Action` `send_input` und
-`Input`. `manage_task` steht im Matcher; `list`, `status` und `kill` laufen
-durch, jede andere Aktion und ein Aufruf ohne `Action` wird geprüft
-(`parity/stufe-4a-2.md`, `internal/hooks/guard.go`).
+`Input` (`parity/stufe-4a-2.md`).
+
+Stand 2026-09-27 (Nachtrag nach dem Code-Review): `commandTools` ist eine
+Tabelle je Werkzeug mit den Argumentnamen seiner Zeile, ob ein Aufruf ohne
+Zeile durchgeht, ob der Wert eine ganze Befehlszeile ist und welche `Action`
+keine Zeile trägt: `Bash` und `PowerShell` `command`, `run_command`
+`CommandLine` (gemessen) und `command_line`, `send_command_input` `Input`
+(ungemessen), `manage_task` `Input` (gemessen mit agy 1.2.11) mit den stillen
+Aktionen `list`, `status` und `kill`. Die Argumentnamen gelten ohne Rücksicht
+auf die Schreibung, und jeder Treffer wird geprüft, gleich welche `Action` der
+Aufruf nennt; eine stille `Action` entschuldigt nur das Fehlen einer Zeile, und
+nur, wenn jeder Schlüssel `action` in jeder Schreibung einen stillen String
+trägt. Ohne Zeile verweigert der Guard jeden Aufruf außer bei `Bash` und
+`PowerShell`. Was `send_command_input` und `manage_task` tippen, geht nur als
+ganze Zeilen durch: Der Wert endet auf `\n` oder `\r`, trägt kein
+Steuerzeichen außer `\n` und `\r`, auch keinen Tab, und keine seiner Zeilen
+endet auf `\` oder `` ` ``, mit denen bash und PowerShell fortsetzen; jede
+nicht leere Zeile läuft durch die Befehlsregeln. Ein Wert unter einem
+Zeilenschlüssel, der kein String ist, macht den Aufruf unprüfbar und wird
+verweigert, außer bei `Bash` und `PowerShell`; ein leerer String trägt keine
+Zeile. Ein Aufruf ohne Werkzeugnamen wird verweigert. Die drei agy-Werkzeuge
+stehen im Matcher von `PreToolUse` (`internal/setup/hostfile/table.go`); die
+Befehlsregeln stehen in `internal/hooks/guard.go`,
+`TestEveryCommandToolIsInAPreToolUseMatcher` in
+`internal/hooks/matcher_test.go` bindet beides aneinander.
 
 ### 2.4 Post-Edit liest den Aufruf (`internal/hooks/post_edit.go`)
 
@@ -112,7 +141,7 @@ case hosts.HostAntigravity:
     }
     return []Entry{
         {Event: "PreInvocation", Command: hook("session-start"), Timeout: 20, Flat: true},
-        {Event: "PreToolUse", Matcher: writers + "|run_command|send_command_input", Command: hook("pre-tool-use"), Timeout: 15},
+        {Event: "PreToolUse", Matcher: writers + "|run_command|send_command_input|manage_task", Command: hook("pre-tool-use"), Timeout: 15},
         {Event: "PostToolUse", Matcher: writers, Command: hook("post-tool-use"), Timeout: 60},
         {Event: "Stop", Command: hook("stop") + " --budget 270s", Timeout: 300, Flat: true},
     }
@@ -134,8 +163,9 @@ eigenen, damit ein zweiter Lauf nichts doppelt einträgt.
 | `hooks = false`, unlesbare Konfiguration, `nothing was verified`, Panik | Code 0 oder 1 aus dem Hook, für Antigravity Exit 0; der Grund steht auf stderr. |
 | Pfad mit Leerzeichen oder `cmd.exe`-Syntax in `%LOCALAPPDATA%` | `plan.go` schreibt keine Einträge und sagt es. |
 | Gescheiterter Aufruf (`error` gesetzt) | Post-Edit prüft nichts. |
-| `run_command`/`send_command_input` ohne bekannte Befehlszeile | Verweigert mit Exit 2. |
-| Wiederholtes `PreInvocation` | `session-start` schreibt keinen Kontext. |
+| `run_command`/`send_command_input`/`manage_task` ohne erkennbare Zeile (bei `manage_task` außer `list`, `status`, `kill`), eine Tipp-Eingabe ohne Zeilenende, mit Steuerzeichen oder mit einer Zeile, die auf `\` oder `` ` `` endet, ein Aufruf ohne Werkzeugnamen | Verweigert mit Exit 2. |
+| Wiederholtes `PreInvocation` | `session-start` schreibt keinen Kontext und belebt die Sitzung nicht wieder. |
+| `post-tool-use --host codex`, Aufruf nennt eine Datei (auch eine mit ignorierter Endung) | Exit 1 mit dem Adapterfehler (`ErrNoAdapter`); ohne Datei Exit 0 (Nachtrag 2026-09-27). |
 | 3 aufeinanderfolgende Stop-Blockaden | `RunStop` gibt auf, leert den Zähler und beendet mit Exit 0, ohne `continue`. |
 
 ---
@@ -145,11 +175,16 @@ eigenen, damit ein zweiter Lauf nichts doppelt einträgt.
 Gemäß der Regel aus `AGENTS.md` („Coverage is 100% per function“):
 1. **`internal/hosts/`**: `writeAntigravityContext`; `Answer` für jeden Wirt,
    jedes Ereignis und jeden Code, dazu ein stdout, das nicht schreibt;
-   `Repeat` aus `invocationNum`.
-2. **`internal/hooks/`**: `checkTool` mit beiden agy-Werkzeugen unter jeder
-   Schreibweise und ohne Befehlszeile; `editedFiles` mit `toolCall`, `error`
-   und ohne Ziel; Budget und runID über mehrere Dateien; `session-start` bei
-   einem späteren `invocationNum`.
+   `Repeat` aus `invocationNum` als Zahl und als Dezimal-String.
+2. **`internal/hooks/`**: `checkTool` tabellengetrieben über `commandTools`
+   (jedes Werkzeug verweigert einen Push, jedes außer `Bash` und `PowerShell`
+   einen Aufruf ohne Zeile), Argumentnamen in jeder Schreibung, eine stille
+   `Action` mit Zeile, Tipp-Eingaben ohne Zeilenende, mit Steuerzeichen oder
+   mit einer Zeilenfortsetzung,
+   ein Aufruf ohne Werkzeugnamen; `editedFiles` mit `toolCall`, `error` und
+   ohne Ziel; Budget und runID über mehrere Dateien; `session-start` bei einem
+   späteren `invocationNum` schreibt nichts und belebt die Sitzung nicht
+   wieder.
 3. **`internal/cli/`**: relatives `--root`, fehlerhafte Aufrufe, unbekanntes
    Ereignis, Panik, gehaltener Stop.
 4. **`internal/setup/hostfile/`**: die 4 Einträge, die flache Form beim

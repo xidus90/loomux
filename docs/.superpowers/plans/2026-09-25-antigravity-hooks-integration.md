@@ -142,3 +142,26 @@ Das Review fand an Task 2 und 3 Lücken; Task 2 ist dabei ersetzt worden.
 - [x] **Step 5: `session-start` meldet sich nur beim ersten `invocationNum`**
 - [x] **Step 6: Budget 0 bleibt unbegrenzt**
 - [x] **Step 7: Doku, Gate**
+
+**Nachtrag 2026-09-27 (Code-Review):** Step 4 und Step 5 beschreiben den Stand
+vom 2026-09-25. Seither steht auch `manage_task` im Matcher von `PreToolUse`
+(`writers + "|run_command|send_command_input|manage_task"`) und in den
+Befehlsregeln; jede gefundene Zeile wird geprüft, gleich welche `Action` der
+Aufruf nennt, die Argumentnamen ohne Rücksicht auf die Schreibung, und was
+`send_command_input` und `manage_task` tippen, geht nur als ganze Zeilen ohne
+Steuerzeichen und ohne Zeilenfortsetzung durch; ein Wert unter einem
+Zeilenschlüssel, der kein String ist, macht den Aufruf unprüfbar und wird
+verweigert; ein leerer String trägt keine Zeile; ein Aufruf ohne
+Werkzeugnamen wird verweigert.
+`session-start` sagt bei einem späteren `invocationNum` (Zahl oder
+Dezimal-String) nichts und belebt die Sitzung nicht wieder. Gemessen am
+2026-09-27 mit agy 1.2.11: `invocationNum` kommt als JSON-Zahl und beginnt bei
+0 (0, 1, 2, 3 je Modellaufruf), ein späterer Aufruf ist also
+`invocationNum > 0`; ungemessen bleiben nur die String-Form eines
+64-Bit-Zählers und die Breite des Felds. post-edit schreibt
+seinen Kontext bei Exit 0 über `hosts.WriteContext`, für agy als
+`injectSteps`, das `hosts.Answer` verwirft (ob agy es auf PostToolUse liest,
+ist ungemessen); bei Exit ≠ 0 schreibt es nichts auf stdout. Die Aussage unter
+„Architecture“, Antigravity bekomme Kontext als `injectSteps` auf stdout, gilt
+damit nur für `session-start`. Stand der Regeln: `parity/stufe-4a-2.md`,
+„Nachtrag nach dem Code-Review, 2026-09-27“.
