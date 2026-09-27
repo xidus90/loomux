@@ -1330,8 +1330,12 @@ checks this is still pending.
   types into a task is judged the same way, line by line, and only as whole
   lines without control characters or a line continuation. A call whose
   command line the guard cannot find is refused; `manage_task`'s `list`,
-  `status` and `kill` pass only while they carry no line. An entry from before `manage_task` joined the matcher is kept and
-  named in a note; add `|manage_task` to it by hand. It also gets
+  `status` and `kill` pass only while they carry no line. An entry from
+  before `manage_task` joined the matcher is kept, and init appends a block
+  for `manage_task` beside it with the current loomux command and a note; a
+  Claude Code entry of ours under ulinit's matcher gets one for `MultiEdit`
+  the same way. An entry under a matcher that is no plain list of tool names,
+  such as `.*`, is only named, and what it lacks is added by hand. It also gets
   the skills under `.agents/skills/<name>/SKILL.md`, the same texts Claude
   Code gets. agy runs a hook through `cmd.exe` from `.agents/`: it expands
   `%LOCALAPPDATA%` but leaves `${LOCALAPPDATA}` as it stands, and it breaks a

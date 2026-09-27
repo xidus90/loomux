@@ -4,9 +4,12 @@
 // An entry is ours when its command calls a loomux binary (Owned); nothing
 // else marks it. An entry of ours already on its event and matcher is kept
 // as it is, whatever its command says, and a hook of the project on the
-// same slot is reported and left alone. Nothing is rewritten and nothing
-// removed: where the merge has nothing to add, the file comes back byte for
-// byte.
+// same slot is reported and left alone. An entry of ours under an older
+// matcher is kept and named too; where it and the wanted matcher are flat
+// lists of tool names, a block for the tools it lacks is appended beside
+// it, so an upgrade guards a tool that joined the matcher since. Nothing is
+// rewritten and nothing removed: where the merge has nothing to add, the
+// file comes back byte for byte.
 //
 // Antigravity's .agents/hooks.json is a map of named groups, and the name is
 // the identity: the group loomux is ours, every other group is carried over
@@ -46,7 +49,8 @@ type Result struct {
 	Added   []string // an entry of ours appended
 	Kept    []string // an entry of ours already there
 	Foreign []string // someone else's hook on the same event and matcher, kept
-	// Notes names an entry of ours kept under another matcher and, in
+	// Notes names an entry of ours kept under another matcher, with the
+	// tools a block was appended for, and, in
 	// Antigravity's file, another group that already runs one of our
 	// commands.
 	Notes []string
@@ -99,8 +103,25 @@ func Merge(host hosts.Host, existing []byte, wanted []Entry) (Result, error) {
 			result.Notes = append(result.Notes, slot+": kept an own entry that runs "+stale+
 				" instead of "+entry.Command+"; update it by hand")
 		}
-		if !own && elsewhere != "" {
-			result.Notes = append(result.Notes, entry.Event+": kept an own entry under matcher "+elsewhere)
+		if !own && len(elsewhere) > 0 {
+			// A block without a matcher key runs for every tool; the note
+			// names it so rather than with an empty name.
+			matchers := slices.Clone(elsewhere)
+			for i, m := range matchers {
+				if m == "" {
+					matchers[i] = "(none)"
+				}
+			}
+			kept := entry.Event + ": kept an own entry under matcher " + strings.Join(matchers, ", ")
+			if missing, counted := missingTools(entry.Matcher, elsewhere); counted && len(missing) > 0 {
+				rest := entry
+				rest.Matcher = strings.Join(missing, "|")
+				hooks[entry.Event] = append(list, blockFor(rest))
+				result.Added = append(result.Added, entry.Event+"/"+rest.Matcher)
+				result.Notes = append(result.Notes, kept+"; added one for "+rest.Matcher)
+				continue
+			}
+			result.Notes = append(result.Notes, kept)
 			own = true
 		}
 		if own {
@@ -200,13 +221,16 @@ func BinaryOf(host hosts.Host, existing []byte) string {
 
 // find looks at the blocks of list for entry: own when a block on its
 // matcher calls loomux in any of its commands, foreign when a block there
-// does not. elsewhere is the matcher of an own block under another matcher
-// that runs the same hook -- an entry from before the matcher changed, such
-// as ulinit's -- or "" when there is none; it counts as own too, so the hook
-// never runs twice. stale is the first loomux command of an own block on the
-// matcher when none of them is entry's command -- an old binary or an old
-// subcommand, kept but not current -- and "" otherwise.
-func find(list []any, entry Entry) (own, foreign bool, elsewhere, stale string) {
+// does not. elsewhere is the matcher of every own block under another
+// matcher that runs the same hook, in file order -- an entry from before the
+// matcher changed, such as one of ours under ulinit's, and a block Merge
+// appended beside it for the tools it lacked -- and empty when there is
+// none; Merge counts what they cover, so no tool runs the hook twice. A
+// block without a matcher key counts as "". stale is the first
+// loomux command of an own block on the matcher when none of them is
+// entry's command -- an old binary or an old subcommand, kept but not
+// current -- and "" otherwise.
+func find(list []any, entry Entry) (own, foreign bool, elsewhere []string, stale string) {
 	event := hookEventOf(entry.Command)
 	current := false
 	for _, raw := range list {
@@ -231,14 +255,55 @@ func find(list []any, entry Entry) (own, foreign bool, elsewhere, stale string) 
 			}
 		case matcherOf(item) == entry.Matcher:
 			foreign = true
-		case sameHook && elsewhere == "":
-			elsewhere = matcherOf(item)
+		case sameHook:
+			elsewhere = append(elsewhere, matcherOf(item))
 		}
 	}
 	if current {
 		stale = ""
 	}
 	return own, foreign, elsewhere, stale
+}
+
+// missingTools is the names of want that none of have names, in the order
+// of want. counted is false when a matcher is no flat list of names -- a
+// regular expression, an empty one: what it covers cannot be counted, so
+// nothing is added beside it.
+func missingTools(want string, have []string) (missing []string, counted bool) {
+	names, counted := toolNames(want)
+	if !counted {
+		return nil, false
+	}
+	covered := map[string]bool{}
+	for _, matcher := range have {
+		got, counted := toolNames(matcher)
+		if !counted {
+			return nil, false
+		}
+		for _, name := range got {
+			covered[name] = true
+		}
+	}
+	for _, name := range names {
+		if !covered[name] {
+			missing = append(missing, name)
+		}
+	}
+	return missing, true
+}
+
+// toolNames splits a flat matcher at | into its names, each of ASCII
+// letters, digits and underscores; ok is false for anything else.
+func toolNames(matcher string) (names []string, ok bool) {
+	names = strings.Split(matcher, "|")
+	for _, name := range names {
+		if name == "" || strings.ContainsFunc(name, func(r rune) bool {
+			return r != '_' && (r < '0' || r > '9') && (r < 'a' || r > 'z') && (r < 'A' || r > 'Z')
+		}) {
+			return nil, false
+		}
+	}
+	return names, true
 }
 
 // commandsOf is every command of a block, in order: a flat handler's own

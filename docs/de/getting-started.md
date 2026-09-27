@@ -260,7 +260,7 @@ Für Antigravity werden die Hooks in `.agents/hooks.json` eingetragen:
   }
 }
 ```
-`loomux init` schreibt diese Gruppe; agy führt sie über `cmd.exe` aus `.agents/` aus, daher `%LOCALAPPDATA%` und `--root ..`. Wie die Hooks Antigravity antworten, steht in der CLI-Referenz.
+`loomux init` schreibt diese Gruppe; agy führt sie über `cmd.exe` aus `.agents/` aus, daher `%LOCALAPPDATA%` und `--root ..`. Nach einem Upgrade `loomux init` erneut ausführen: Ein eigener Eintrag unter einem älteren Matcher bleibt, wie er ist, und `init` hängt einen Block für die fehlenden Werkzeuge an, etwa `manage_task`. Wie die Hooks Antigravity antworten, steht in der CLI-Referenz.
 
 ### Cursor & MCP-Clients
 Starte den lokalen MCP-Dienst:

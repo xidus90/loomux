@@ -257,7 +257,7 @@ For Antigravity, hooks are registered in `.agents/hooks.json`:
   }
 }
 ```
-`loomux init` writes this group; agy runs it through `cmd.exe` from `.agents/`, hence `%LOCALAPPDATA%` and `--root ..`. The CLI reference explains how the hooks answer Antigravity.
+`loomux init` writes this group; agy runs it through `cmd.exe` from `.agents/`, hence `%LOCALAPPDATA%` and `--root ..`. Run `loomux init` again after an upgrade: an entry of ours under an older matcher stays as it is, and init appends a block for the tools it lacks, such as `manage_task`. The CLI reference explains how the hooks answer Antigravity.
 
 ### Cursor & MCP Clients
 Start the local MCP service:
