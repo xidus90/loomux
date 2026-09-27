@@ -225,3 +225,23 @@ func TestTheDefaultAnswerTakesThisServicesQmdLock(t *testing.T) {
 		t.Errorf("the answer took the global lock %s instead: %v", QmdLockPath(global), err)
 	}
 }
+
+// TestTheDefaultAnswerReadsThisServicesBackbone: the backbone comes from the
+// service's own state directory, as its lock does. A [search] there that does
+// not read is the answer's error, naming that file, and the global state
+// directory is never read.
+func TestTheDefaultAnswerReadsThisServicesBackbone(t *testing.T) {
+	global := t.TempDir()
+	t.Setenv(config.StateDirEnv, global)
+	service, registryDir, legacyDir := t.TempDir(), t.TempDir(), t.TempDir()
+	writeRegistryWithOneArea(t, registryDir)
+	if err := os.WriteFile(filepath.Join(service, "config.toml"), []byte("[search]\nbackbone = \"metal\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := (Options{StateDir: service}).answerFunc()(answer.Request{
+		Command: "search", Query: "q", Scope: "all", Profile: string(search.ProfileFast), Count: 1, Channel: privacy.ChannelLocal,
+	}, registryDir, legacyDir, nil)
+	if err == nil || !strings.Contains(err.Error(), filepath.Join(service, "config.toml")) {
+		t.Fatalf("got %v", err)
+	}
+}

@@ -252,6 +252,17 @@ Umgebung genommen, keiner Umleitung gefolgt.
 `local_only`-Projekt oder mit `[model] enabled = true`), nach einem y wie jede
 andere Änderung; `reconcile` lädt nie ein Modell.
 
+Das Backbone der Suchmaschine ist `[search] backbone` in derselben Datei:
+`cuda` (die Vorgabe), `vulkan` oder `cpu`, gesetzt mit
+`loomux config --global set search.backbone vulkan`. Es gilt für den
+qmd-Daemon, den loomux startet, und für jede qmd-Kommandozeile, die es aufruft;
+ein `QMD_LLAMA_GPU` oder `QMD_FORCE_CPU` in der Umgebung gewinnt. Ein Daemon,
+der schon läuft, behält sein Backbone, bis sein Prozess endet: den Prozess
+beenden, der auf Port 8765 lauscht (den Befehl nennt `brain search` in der
+CLI-Referenz; `qmd mcp stop` kann nach einem `qmd status` „Not running“
+antworten, obwohl der Daemon noch läuft), und die nächste Suche startet ihn mit
+dem neuen Backbone.
+
 ### Code-Graph
 ```bash
 loomux graph build [--root <pfad>] [--no-reuse]  # Extrahiert Go und Python, löst auf und schreibt .loomux/state/graph/wiring.json; unveränderte Dateien kommen aus dem Extraktions-Cache

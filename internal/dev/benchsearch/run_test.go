@@ -85,7 +85,7 @@ func depsWith(t *testing.T) Deps {
 		Clock:       tick(time.Millisecond),
 		Random:      fixed("a1"),
 		Warn:        logTo(t),
-		Getenv:      func(key string) string { return map[string]string{"QMD_LLAMA_GPU": "vulkan"}[key] },
+		Backbone:    "vulkan",
 	}
 }
 
@@ -600,5 +600,31 @@ func TestEverydayRefusals(t *testing.T) {
 				t.Fatalf("err = %v, want %q", err, c.want)
 			}
 		})
+	}
+}
+
+// starting is a daemon port that says whether it started the daemon.
+type starting struct {
+	*search.FakePort
+	started bool
+}
+
+func (s starting) StartedDaemon() bool { return s.started }
+
+// TestEverydayRunNamesTheBackboneOnlyOfADaemonItStarted: a daemon this run
+// started runs on the backbone the run resolved; one it found running keeps
+// whatever its starter gave it, which nobody here knows.
+func TestEverydayRunNamesTheBackboneOnlyOfADaemonItStarted(t *testing.T) {
+	for started, want := range map[bool]string{true: "vulkan", false: "unknown"} {
+		d := depsWith(t)
+		everyday(t, d, "knowledge")
+		d.Daemon = daemon(starting{answering("knowledge", 50), started})
+		md, err := Bench(Options{}, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(md, "- qmd backbone: "+want+"\n") {
+			t.Fatalf("started %v:\n%s", started, md)
+		}
 	}
 }

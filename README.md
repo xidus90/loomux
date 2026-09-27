@@ -249,6 +249,16 @@ no proxy is taken from the environment and no redirect is followed.
 for a `local_only` project or with `[model] enabled = true`), after a y like any
 other change; `reconcile` never downloads a model.
 
+The search engine's backbone is `[search] backbone` in the same file: `cuda`
+(the default), `vulkan` or `cpu`, set with
+`loomux config --global set search.backbone vulkan`. It applies to the qmd
+daemon loomux starts and to every qmd command line it runs; a `QMD_LLAMA_GPU`
+or `QMD_FORCE_CPU` in the environment wins. A daemon that is already running
+keeps its backbone until its process ends: stop the process listening on port
+8765 (see `brain search` in the CLI reference for the command; `qmd mcp stop`
+may answer "Not running" after a `qmd status` although the daemon still runs),
+and the next search starts it with the new backbone.
+
 ### Code Graph
 ```bash
 loomux graph build [--root <path>] [--no-reuse]  # extract Go and Python, resolve and write .loomux/state/graph/wiring.json; unchanged files come from the extract cache

@@ -653,25 +653,45 @@ func benchQmdVersion() string {
 	return "unknown"
 }
 
-// benchSearchDeps are the search bench's reach into the running system.
-func benchSearchDeps(stderr io.Writer) benchsearch.Deps {
+// benchSearchDeps are the search bench's reach into the running system. Both
+// engines run on the machine's backbone, read from the real state directory
+// even where a corpus run registers in a throwaway one.
+func benchSearchDeps(stderr io.Writer) (benchsearch.Deps, error) {
+	stateDir := config.StateDir()
+	backbone, err := search.ConfiguredBackbone(stateDir)
+	if err != nil {
+		return benchsearch.Deps{}, err
+	}
 	return benchsearch.Deps{
-		StateDir:    config.StateDir(),
+		StateDir:    stateDir,
 		FallbackDir: config.LegacyBrainDirUntilStage3(),
 		Daemon: func() search.SearchPort {
-			return search.NewQmdMcpPort(search.WithNotice(prefixedLine(stderr, "note")))
+			return search.NewQmdMcpPort(search.WithNotice(prefixedLine(stderr, "note")), search.WithBackbone(backbone))
 		},
-		CLI:        func(name string) search.SearchPort { return &search.QmdPort{Executable: "qmd", Index: name} },
+		CLI: func(name string) search.SearchPort {
+			return &search.QmdPort{Executable: "qmd", Index: name, Backbone: backbone}
+		},
 		QmdVersion: benchQmdVersion,
 		Models:     index.Models,
 		Loomux:     Version,
 		Now:        benchClock,
 		Clock:      time.Now,
 		// Lower case, so the index name reads alike on every file system.
-		Random: func() string { return strings.ToLower(rand.Text()) },
-		Warn:   prefixedLine(stderr, "warning"),
-		Getenv: os.Getenv,
+		Random:   func() string { return strings.ToLower(rand.Text()) },
+		Warn:     prefixedLine(stderr, "warning"),
+		Backbone: benchBackbone(backbone),
+	}, nil
+}
+
+// benchBackbone is the report's name for what a qmd process started now runs
+// on: the user's variable read as benchreport reads it where one is set,
+// otherwise the machine's backbone -- "cuda" too, although it adds nothing to
+// the environment.
+func benchBackbone(configured search.Backbone) string {
+	if _, byUser := search.ResolveBackbone(configured, os.LookupEnv); byUser {
+		return benchreport.Backbone(os.Getenv)
 	}
+	return string(configured)
 }
 
 // prefixedLine writes each message as one line behind its kind.
@@ -732,7 +752,11 @@ func devBenchSearch(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		}
 		o.Corpus = stand
 	}
-	text, err := benchSearchRun(o, benchSearchDeps(stderr))
+	deps, err := benchSearchDeps(stderr)
+	text := ""
+	if err == nil {
+		text, err = benchSearchRun(o, deps)
+	}
 	if err != nil {
 		// Problems joins its findings by line, and qmd's stderr arrives
 		// inside an error: every line is one error line of its own.

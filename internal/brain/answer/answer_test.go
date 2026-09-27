@@ -90,7 +90,7 @@ func TestDefaultPortsWithHandsTheOptionsToTheQmdPort(t *testing.T) {
 	t.Setenv(config.StateDirEnv, global)
 	mine := filepath.Join(t.TempDir(), "qmd.lock")
 
-	ports := answer.DefaultPortsWith(search.WithQmdLock(mine), search.WithPort(64994))
+	ports := answer.DefaultPortsWith(global, search.WithQmdLock(mine), search.WithPort(64994))
 	if _, err := ports.Search(nil).Search("q", []string{"c"}, search.ProfileFast, 1); err == nil {
 		t.Fatal("a search without qmd on PATH answered")
 	}
@@ -107,9 +107,57 @@ func TestDefaultPortsWithHandsTheOptionsToTheQmdPort(t *testing.T) {
 // what makes it safe to ask here.
 func TestRunForAnswersLikeRun(t *testing.T) {
 	dir := t.TempDir()
-	run := answer.RunFor(search.WithQmdLock(filepath.Join(dir, "qmd.lock")))
+	run := answer.RunFor(dir, search.WithQmdLock(filepath.Join(dir, "qmd.lock")))
 	_, _, err := run(answer.Request{Command: "nonesuch"}, dir, dir, nil)
 	if err == nil || !strings.Contains(err.Error(), "nonesuch") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+// globalState is a state directory whose machine-wide config.toml says text.
+func globalState(t *testing.T, text string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// TestThePortsRunOnTheMachinesBackbone: the search and the status engine both
+// take [search] backbone from the state directory they are built for, and a
+// caller's own option still has the last word.
+func TestThePortsRunOnTheMachinesBackbone(t *testing.T) {
+	state := globalState(t, "[search]\nbackbone = \"vulkan\"\n")
+	ports := answer.DefaultPortsWith(state)
+	if port, ok := ports.Search(nil).(*search.QmdMcpPort); !ok || port.Backbone() != search.BackboneVulkan {
+		t.Fatalf("search %+v", ports.Search(nil))
+	}
+	if port, ok := ports.Status().(*search.QmdPort); !ok || port.Backbone != search.BackboneVulkan || port.Runner != nil {
+		t.Fatalf("status %+v", ports.Status())
+	}
+	mine := answer.DefaultPortsWith(state, search.WithBackbone(search.BackboneCPU))
+	if port := mine.Search(nil).(*search.QmdMcpPort); port.Backbone() != search.BackboneCPU {
+		t.Fatalf("the caller's option was overridden: %q", port.Backbone())
+	}
+	// The command line's ports read the state directory of the environment.
+	t.Setenv(config.StateDirEnv, globalState(t, "[search]\nbackbone = \"cpu\"\n"))
+	if port := answer.DefaultPorts().Search(nil).(*search.QmdMcpPort); port.Backbone() != search.BackboneCPU {
+		t.Fatalf("default ports %q", port.Backbone())
+	}
+}
+
+// TestABrokenBackboneStopsOnlyTheEngine: a [search] block that does not read
+// is the answer of every engine question, naming the file; the ports are
+// still built, so a command that asks no engine answers.
+func TestABrokenBackboneStopsOnlyTheEngine(t *testing.T) {
+	state := globalState(t, "[search]\nbackbone = \"metal\"\n")
+	path := filepath.Join(state, "config.toml")
+	ports := answer.DefaultPortsWith(state)
+	if _, err := ports.Search(nil).Search("q", nil, search.ProfileFast, 1); err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("search: %v", err)
+	}
+	if _, err := ports.Status().NotYetSearchable(); err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("status: %v", err)
 	}
 }

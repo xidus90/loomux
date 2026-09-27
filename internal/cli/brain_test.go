@@ -12,6 +12,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/brain/answer"
 	"github.com/xidus90/loomux/internal/brain/search"
+	"github.com/xidus90/loomux/internal/config"
 )
 
 // brainWorldDirs are the three directories of a brain test world.
@@ -127,11 +128,14 @@ func TestBrainUsageErrorsNameTheParserThatRefused(t *testing.T) {
 }
 
 func TestBrainDefaultPortsAreTheQmdPorts(t *testing.T) {
+	// Both ports read the machine-wide file; never the real one.
+	t.Setenv(config.StateDirEnv, t.TempDir())
 	if _, ok := brainPorts().Search(func(string) {}).(*search.QmdMcpPort); !ok {
 		t.Fatal("brain search must ask the qmd daemon")
 	}
+	// No runner of its own: the port runs qmd on its backbone.
 	port, ok := brainPorts().Status().(*search.QmdPort)
-	if !ok || port.Executable != "qmd" || port.Runner == nil {
+	if !ok || port.Executable != "qmd" || port.Runner != nil || port.Backbone != search.DefaultBackbone {
 		t.Fatalf("brain status must ask the qmd command line, got %#v", port)
 	}
 }

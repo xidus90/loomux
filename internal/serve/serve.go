@@ -77,7 +77,7 @@ func (o Options) answerFunc() func(answer.Request, string, string, func(string))
 	if o.Answer != nil {
 		return o.Answer
 	}
-	return answer.RunFor(qmdOptions(o.StateDir)...)
+	return answer.RunFor(o.StateDir, qmdOptions(o.StateDir)...)
 }
 
 // qmdAttempts is one try and exactly one retry, the rule of this stage for the

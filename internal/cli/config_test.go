@@ -482,7 +482,7 @@ func TestConfigGlobalSetsTheSearchBackbone(t *testing.T) {
 	}
 	// The hint names what ends the daemon for sure: its process on the port.
 	// qmd mcp stop loses the daemon once a qmd status removed its PID file.
-	for _, part := range []string{"8765", "Stop-Process", "lsof -ti :8765", `"Not running"`, "next search"} {
+	for _, part := range []string{"8765", "Stop-Process", "lsof -ti tcp:8765 -sTCP:LISTEN", `"Not running"`, "next search"} {
 		if !strings.Contains(backboneHint, part) {
 			t.Errorf("the hint does not say %q", part)
 		}
