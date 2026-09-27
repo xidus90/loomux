@@ -103,6 +103,93 @@ func TestConfigGet(t *testing.T) {
 	}
 }
 
+// A role binding and a model's provider sit under names the project chooses;
+// set, get and unset reach them by the ID with the name filled in.
+func TestConfigReachesANamedKeyByItsName(t *testing.T) {
+	root := configRoot(t, "")
+	for _, args := range [][]string{
+		{"set", "agent.models.gemini.provider", "agy"},
+		{"set", "agent.roles.reviewer", "gemini"},
+	} {
+		if code, _, errOut := runConfig(t, "", append(args, "--yes", "--root", root)...); code != 0 {
+			t.Fatalf("%v: %d %s", args, code, errOut)
+		}
+	}
+	const both = "[agent.models.gemini]\nprovider = \"agy\"\n\n[agent.roles]\nreviewer = \"gemini\"\n"
+	if got := readConfig(t, root); got != both {
+		t.Fatalf("file:\n%s", got)
+	}
+	if code, out, _ := runConfig(t, "", "get", "agent.roles.reviewer", "--root", root); code != 0 || out != "\"gemini\"\n" {
+		t.Fatalf("get: %d %q", code, out)
+	}
+	// A name the file does not hold is unset, the way any other key is.
+	if code, out, _ := runConfig(t, "", "get", "agent.roles.planner", "--root", root); code != 0 || out != "\n" {
+		t.Fatalf("get of an absent name: %d %q", code, out)
+	}
+	// The [agent] reader judges the binding like any other value.
+	if code, _, errOut := runConfig(t, "", "set", "agent.roles.reviewer", "nothing", "--yes", "--root", root); code != 1 || !strings.Contains(errOut, "not under [agent.models]") {
+		t.Fatalf("binding to no model: %d %s", code, errOut)
+	}
+	if got := readConfig(t, root); got != both {
+		t.Fatalf("file after a refusal:\n%s", got)
+	}
+	if code, _, errOut := runConfig(t, "", "unset", "agent.roles.reviewer", "--yes", "--root", root); code != 0 {
+		t.Fatalf("unset: %d %s", code, errOut)
+	}
+	if got := readConfig(t, root); got != "[agent.models.gemini]\nprovider = \"agy\"\n" {
+		t.Fatalf("file after unset:\n%s", got)
+	}
+}
+
+// The star only spells a family in the list; no line is written for it.
+func TestConfigRefusesTheWildcardOfANamedKey(t *testing.T) {
+	root := configRoot(t, "")
+	code, _, errOut := runConfig(t, "", "set", "agent.roles.*", "x", "--root", root)
+	if code != 1 || !strings.Contains(errOut, `unknown key "agent.roles.*"`) || readConfig(t, root) != "" {
+		t.Fatalf("%d %s", code, errOut)
+	}
+}
+
+func TestConfigProposesANamedKey(t *testing.T) {
+	const text = "[agent.models.gemini]\nprovider = \"agy\"\n"
+	root := configRoot(t, text)
+	code, out, errOut := runConfig(t, "", "set", "agent.roles.reviewer", "gemini", "--propose", "--root", root)
+	if code != 0 || !strings.Contains(out, "+ reviewer = \"gemini\"") {
+		t.Fatalf("%d %s\n%s", code, errOut, out)
+	}
+	if names := proposalFiles(t, proposalDir(root)); len(names) != 1 {
+		t.Fatalf("files %v", names)
+	}
+	if got := readConfig(t, root); got != text {
+		t.Fatalf("file written:\n%s", got)
+	}
+}
+
+// The list shows one row per name the file holds, and one unset row for a
+// family it holds no name of, so the spelling of its IDs is still in sight.
+func TestConfigListShowsANamedKeyPerName(t *testing.T) {
+	rowOf := func(out, id string) []string {
+		for _, line := range strings.Split(out, "\n") {
+			if fields := strings.Fields(line); len(fields) > 1 && fields[1] == id {
+				return fields
+			}
+		}
+		return nil
+	}
+	_, out, _ := runConfig(t, "", "list", "--root", configRoot(t, ""))
+	if row := rowOf(out, "agent.roles.*"); len(row) != 3 || row[2] != "unset" {
+		t.Fatalf("empty family row %v:\n%s", row, out)
+	}
+	root := configRoot(t, "[agent.models.gemini]\nprovider = \"agy\"\n\n[agent.roles]\nreviewer = \"gemini\"\n")
+	_, out, _ = runConfig(t, "", "list", "--root", root)
+	if row := rowOf(out, "agent.roles.reviewer"); len(row) != 4 || row[2] != `"gemini"` || row[3] != "set" {
+		t.Fatalf("role row %v:\n%s", row, out)
+	}
+	if rowOf(out, "agent.roles.*") != nil {
+		t.Fatalf("a family with a name still shows its wildcard:\n%s", out)
+	}
+}
+
 // A file that is there but cannot be read, or is no TOML, is an error for
 // every form rather than an empty configuration.
 func TestConfigReportsAnUnreadableFile(t *testing.T) {

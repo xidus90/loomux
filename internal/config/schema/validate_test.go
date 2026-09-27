@@ -81,3 +81,19 @@ func TestValidateReportsAScratchDirectoryThatCannotBeMade(t *testing.T) {
 		t.Fatalf("want the scratch directory's error, got %v", err)
 	}
 }
+
+func TestValidateAsksTheAgentAndFlowReaders(t *testing.T) {
+	t.Chdir(t.TempDir())
+	for text, want := range map[string]string{
+		"[agent]\ndefault = \"w\"\n":  "not under [agent.models]",
+		"[flow]\ndefault = \"Dev\"\n": "[flow] default must be a flow name",
+	} {
+		err := Validate(text)
+		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), ".loomux/config.toml") {
+			t.Errorf("Validate(%q) = %v, want %q named against .loomux/config.toml", text, err, want)
+		}
+	}
+	if err := Validate("[agent.models.w]\nprovider = \"claude\"\n[agent.roles]\nreviewer = \"w\"\n[flow]\noverrides = [\"example\"]\n"); err != nil {
+		t.Fatalf("a sound file: %v", err)
+	}
+}

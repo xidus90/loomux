@@ -189,12 +189,7 @@ func (t configTarget) entries(text string) ([]schema.Entry, error) {
 }
 
 func (t configTarget) lookup(id string) (schema.Key, bool) {
-	for _, k := range t.keys {
-		if k.ID() == id {
-			return k, true
-		}
-	}
-	return schema.Key{}, false
+	return schema.Match(t.keys, id)
 }
 
 // shownValue is what a human reads for an entry. A preset row has no value
@@ -271,20 +266,22 @@ func (t configTarget) readEntries() ([]schema.Entry, error) {
 }
 
 func configGet(t configTarget, id string, stdout, stderr io.Writer) int {
-	if _, ok := t.lookup(id); !ok {
+	key, ok := t.lookup(id)
+	if !ok {
 		fmt.Fprintf(stderr, "loomux config: unknown key %q\n", id)
 		return 1
 	}
+	// Only the key asked for: the full list has no row for a name the file
+	// does not hold, and that name is unset like any other key.
+	t.keys = []schema.Key{key}
 	entries, err := t.readEntries()
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
 		return 1
 	}
-	for _, e := range entries {
-		if e.Key.ID() == id {
-			fmt.Fprintln(stdout, shownValue(e))
-		}
-	}
+	// Exactly one entry: Match hands back a key with its name filled in,
+	// never a family, and CurrentOf gives a key that is no family one entry.
+	fmt.Fprintln(stdout, shownValue(entries[0]))
 	return 0
 }
 

@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/xidus90/loomux/internal/config"
 )
@@ -72,6 +73,13 @@ func Keys() []Key {
 		{Section: "policy.paths.rules", Kind: TableList, Module: Base, Doc: "Paths no agent may write, each with a match and a reason."},
 		{Section: "policy.commands.rules", Kind: TableList, Module: Base, Doc: "Shell commands no agent may run, each with a regex and a reason."},
 		{Section: "worktree", Name: "mirror", Kind: StringList, Default: "[]", Module: Base, Doc: "Directories a worktree links to the main checkout instead of owning."},
+		{Section: "agent", Name: "default", Kind: String, Module: Base, Doc: "The model every flow role without a binding runs on; a name under agent.models."},
+		{Section: "agent", Name: "mcp_servers", Kind: StringList, Default: "[]", Module: Base, Doc: "The MCP servers a flow node with the mcp tool profile may use."},
+		{Section: "agent.models.*", Name: "provider", Kind: String, Module: Base, Doc: "Who answers for this model name, e.g. claude or agy."},
+		{Section: "agent.models.*", Name: "model", Kind: String, Module: Base, Doc: "The provider's model; unset, the provider CLI's own default."},
+		{Section: "agent.roles", Name: "*", Kind: String, Module: Base, Doc: "The model name a flow role runs on."},
+		{Section: "flow", Name: "default", Kind: String, Module: Base, Doc: "The flow `loomux flow run` starts without a name."},
+		{Section: "flow", Name: "overrides", Kind: StringList, Default: "[]", Module: Base, Doc: "Bundled flows a project flow of the same name may hide or overlay."},
 		{Section: "verify", Name: "max_parallel", Kind: Int, Module: Hooks, Doc: "How many lanes run at once; the number of CPUs when unset."},
 		// The reader counts whole seconds as an integer; a duration string
 		// such as "600s" is refused there.
@@ -107,14 +115,78 @@ func moduleOrder(m Module) int {
 	return slices.Index([]Module{Base, Hooks, Brain, Graph}, m)
 }
 
-// Lookup finds a key by its ID.
+// Lookup finds a key by its ID, a named key by an ID that fills its name.
 func Lookup(id string) (Key, bool) {
-	for _, k := range Keys() {
-		if k.ID() == id {
+	return Match(Keys(), id)
+}
+
+// Wildcard stands for a name in a key: agent.roles.* is every role,
+// agent.models.*.provider every model's provider.
+const Wildcard = "*"
+
+// Named reports whether the key stands for a family of keys, one per name.
+func (k Key) Named() bool {
+	return strings.Contains(k.Section, Wildcard) || k.Name == Wildcard
+}
+
+// withName is the member of a named key's family that name picks.
+func (k Key) withName(name string) Key {
+	k.Section = strings.Replace(k.Section, Wildcard, name, 1)
+	if k.Name == Wildcard {
+		k.Name = name
+	}
+	return k
+}
+
+// parent is the path of the table that holds a named key's names: the
+// segments of its ID before the wildcard.
+func (k Key) parent() []string {
+	segments := strings.Split(k.ID(), ".")
+	return segments[:slices.Index(segments, Wildcard)]
+}
+
+// Match finds the key id names among keys: an exact ID first, then a named key
+// whose wildcard id fills with a name. The key comes back as id spells it, so
+// an editor writes [agent.roles] reviewer and never a star.
+func Match(keys []Key, id string) (Key, bool) {
+	for _, k := range keys {
+		if !k.Named() && k.ID() == id {
 			return k, true
 		}
 	}
+	parts := strings.Split(id, ".")
+	for _, k := range keys {
+		if !k.Named() {
+			continue
+		}
+		pattern := strings.Split(k.ID(), ".")
+		if len(pattern) != len(parts) {
+			continue
+		}
+		if name, ok := fill(pattern, parts); ok {
+			return k.withName(name), true
+		}
+	}
 	return Key{}, false
+}
+
+// fill is the name that turns pattern into parts, when one does: every other
+// segment equal, and the name a valid one.
+func fill(pattern, parts []string) (string, bool) {
+	name := ""
+	for i, segment := range pattern {
+		if segment == Wildcard {
+			if !config.IsIdentifier(parts[i]) {
+				return "", false
+			}
+			name = parts[i]
+			continue
+		}
+		if segment != parts[i] {
+			return "", false
+		}
+	}
+	return name, name != ""
 }
 
 // GlobalKeys are the keys of the per-user file `<state>/config.toml`: the

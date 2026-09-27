@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/config"
@@ -24,6 +25,37 @@ func ids(section string) []string {
 
 func sorted(s []string) []string { c := slices.Clone(s); slices.Sort(c); return c }
 
+// segments are the keys directly under section as a reader sees them: a key's
+// own name, or the first segment of a table below the section.
+func segments(section string) []string {
+	var out []string
+	for _, k := range Keys() {
+		switch rest, below := strings.CutPrefix(k.Section, section+"."); {
+		case k.Section == section:
+			out = append(out, k.Name)
+		case below:
+			first, _, _ := strings.Cut(rest, ".")
+			out = append(out, first)
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// A named key stands for one key per name, and Match fills exactly one name:
+// every key with a star has one, as a whole segment of its ID. A star glued
+// to a name would be neither a name nor a key Named sees.
+func TestEveryNamedKeyHasOneWholeSegmentStar(t *testing.T) {
+	for _, k := range Keys() {
+		if !strings.Contains(k.ID(), Wildcard) {
+			continue
+		}
+		if strings.Count(k.ID(), Wildcard) != 1 || strings.Count("."+k.ID()+".", "."+Wildcard+".") != 1 {
+			t.Errorf("%s: want one %s as a whole segment", k.ID(), Wildcard)
+		}
+	}
+}
+
 func TestTheSchemaKnowsEveryKeyTheReadersRead(t *testing.T) {
 	for section, keys := range config.DeclarationKeys() {
 		if got := ids(section); !slices.Equal(got, sorted(keys)) {
@@ -41,6 +73,16 @@ func TestTheSchemaKnowsEveryKeyTheReadersRead(t *testing.T) {
 	}
 	if got := ids("worktree"); !slices.Equal(got, []string{"mirror"}) {
 		t.Errorf("[worktree]: %v", got)
+	}
+	if got := ids("flow"); !slices.Equal(got, sorted(config.FlowKeys())) {
+		t.Errorf("[flow]: schema %v, reader %v", got, config.FlowKeys())
+	}
+	// [agent] holds two of its keys as tables of their own, one row per name.
+	if got := segments("agent"); !slices.Equal(got, sorted(config.AgentKeys())) {
+		t.Errorf("[agent]: schema %v, reader %v", got, config.AgentKeys())
+	}
+	if got := ids("agent.models.*"); !slices.Equal(got, sorted(config.ModelSpecKeys())) {
+		t.Errorf("[agent.models.*]: schema %v, reader %v", got, config.ModelSpecKeys())
 	}
 	for _, list := range []string{"commit.allow", "policy.paths.rules", "policy.commands.rules"} {
 		k, ok := Lookup(list)
@@ -68,6 +110,44 @@ func TestLookupFindsByID(t *testing.T) {
 	}
 	if _, ok := Lookup("commit.nope"); ok {
 		t.Fatal("unknown id found")
+	}
+}
+
+func TestMatchFillsANamedKey(t *testing.T) {
+	keys := Keys()
+	for id, want := range map[string][2]string{
+		"agent.roles.reviewer":         {"agent.roles", "reviewer"},
+		"agent.models.gemini.provider": {"agent.models.gemini", "provider"},
+		"agent.models.gemini.model":    {"agent.models.gemini", "model"},
+		"agent.default":                {"agent", "default"},
+		"flow.overrides":               {"flow", "overrides"},
+	} {
+		k, ok := Match(keys, id)
+		if !ok || k.Section != want[0] || k.Name != want[1] || k.Named() {
+			t.Errorf("Match(%q) = %+v, %v", id, k, ok)
+		}
+	}
+	for _, id := range []string{"agent.roles.*", "agent.roles.a-b", "agent.roles", "agent.models.gemini", "agent.models.gemini.size", "agent.roles.x.y"} {
+		if k, ok := Match(keys, id); ok {
+			t.Errorf("Match(%q) = %+v, want no key", id, k)
+		}
+	}
+}
+
+func TestEveryNewKeyIsBase(t *testing.T) {
+	for _, id := range []string{"agent.default", "agent.mcp_servers", "agent.models.*.provider", "agent.models.*.model", "agent.roles.*", "flow.default", "flow.overrides"} {
+		found := false
+		for _, k := range Keys() {
+			if k.ID() == id {
+				found = true
+				if k.Module != Base {
+					t.Errorf("%s is in module %s", id, k.Module)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("no key %s", id)
+		}
 	}
 }
 

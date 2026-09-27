@@ -1,13 +1,9 @@
 package config
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"sort"
-
-	"github.com/BurntSushi/toml"
 )
 
 // Modules is the [modules] table: which parts of loomux run in a project.
@@ -31,16 +27,12 @@ func ModuleKeys() []string { return []string{"brain", "graph", "hooks"} }
 // nothing but this table.
 func ReadModules(root string) (Modules, error) {
 	path := ManifestPath(root)
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return AllModules(), nil
-	}
+	doc, err := manifestDocument(path)
 	if err != nil {
-		return Modules{}, fmt.Errorf("%s: %w", path, err)
+		return Modules{}, err
 	}
-	doc := map[string]any{}
-	if err := toml.Unmarshal(data, &doc); err != nil {
-		return Modules{}, fmt.Errorf("%s: not valid TOML: %w", path, err)
+	if doc == nil {
+		return AllModules(), nil
 	}
 	return ParseModules(path, doc)
 }
