@@ -1,7 +1,7 @@
 # loomux — ultraloom und ultra-brain in einem Go-Binary
 
 **Datum:** 2026-09-14
-**Stand:** teilweise umgesetzt (2026-09-23).
+**Stand:** teilweise umgesetzt (2026-09-27).
 **Fusions-Stufen:** 1a, 1b-1, 1b-2 (`serve`, MCP, Brücke), 1b-3 (Wiki- und
 Doku-Umzug) und 2a (Prüfkette `[verify]`, `loomux check <profil>`,
 `check gocover`), 2b (commit-msg mit `[commit]`, `--calibrate`, `--language`) und
@@ -15,9 +15,11 @@ fertig (2026-09-23), samt Selbstnutzung über die echte Registry. 3c (`brain che
 `lint --scope`, `wiki init|types|retype`, die Aufholung in `serve`) ist fertig
 (2026-09-23), die lesenden Befehle samt Selbstnutzung. Stufe 4 ist offen und
 am 2026-09-24 in 4a-1, 4a-2, 4c, 4d und den Abschlussschritt 4e geschnitten
-(`2026-09-23-loomux-stufe-4-design.md`); `loomux migrate` fällt weg. Siebzehn
-Stellen der Quellrepos, die bis 2026-09-19 keine Stufe hatten, stehen unter
-„Stufen“ im Abschnitt „Nachgetragen“; #1, #2, #3 und #17 sind freigegeben.
+(`2026-09-23-loomux-stufe-4-design.md`), 4c beim Planen am 2026-09-25 in 4c-1
+(Modell) und 4c-2 (Bench); `loomux migrate` fällt weg. 4a-1, 4a-2, 4c-1 und
+4c-2 sind gebaut, alle mit offenen Schritten des Menschen; 4d und 4e sind
+offen. Dreiundzwanzig Stellen, die keine Stufe hatten, stehen unter „Stufen“
+im Abschnitt „Nachgetragen“; ohne Freigabe sind #4, #6, #14 und #23.
 **Säule 3 (Code-Graph), vorgezogen und parallel gebaut:** G1 (Modell, PageRank,
 Blast) am 2026-09-17, G2a (Extraktor, Auflösung, Speicher, Frische, die
 Befehle `graph build` und `graph check`) und G2b (die Abfrage) am 2026-09-18,
@@ -26,14 +28,14 @@ die Art `graph`, der Edit-Monitor) am 2026-09-23 abgeschlossen; G4c offen, G5a a
 ziehen keine Abhängigkeit ein, und die Messung, die die alte Reihenfolge
 begründete, gehört zu G3
 (`2026-09-14-loomux-code-graph-design.md` §10, `2026-09-16-loomux-code-g1-delta.md` §1)
-**Ort:** vorläufig im `ultraloom`-Worktree `claude/ultra-loom-brain-fusion-a5bb17`,
-weil das Zielrepo `xidus90/loomux` noch nicht existiert. Zieht mit Stufe 1a um.
+**Ort:** `docs/.superpowers/specs/` in `xidus90/loomux`; bis Stufe 1a lag die
+Spec vorläufig in einem Worktree von `ultraloom`.
 **Löst ab:** ulflow M4–M6
 (`docs/.superpowers/specs/2026-09-11-ulflow-laufzeit-design.md`, liegt nur auf
 `feature/agent-harness`),
-[Go-Hooks für drei Hosts](2026-09-10-go-hooks-drei-hosts-design.md), Stufen 2–5,
-[Wiki-Flottenstandard](2026-09-10-wiki-flottenstandard-design.md), Stufen 3–5.
-**Messgrundlage:** `docs/benchmarks.md`, Eintrag 2026-09-14 16:05.
+[Go-Hooks für drei Hosts](../specs-ul/2026-09-10-go-hooks-drei-hosts-design.md), Stufen 2–5,
+[Wiki-Flottenstandard](../specs-ul/2026-09-10-wiki-flottenstandard-design.md), Stufen 3–5.
+**Messgrundlage:** `docs/de/benchmarks.md`, Eintrag 2026-09-14 16:05.
 
 ## Ziel
 
@@ -83,7 +85,7 @@ Python-Wirte wie `iam_backend` behalten ihre ruff-, dmypy- und pyright-Lanes.
 `feature/agent-harness` trägt zusätzlich ulflow M1: 61 Commits, 142 Dateien,
 +23.213 Zeilen, nicht gemergt, nicht gepusht.
 
-### Messungen (warm, Median, `docs/benchmarks.md`)
+### Messungen (warm, Median, `docs/de/benchmarks.md`)
 
 | Fall | Zeit |
 |---|---:|
@@ -160,7 +162,7 @@ Aus der Abdeckungskarte vom 2026-09-14, gegen den Code gelesen:
 |---|---|---|
 | ulflow (`feature/agent-harness`) | M1 abgeschlossen, laufende Welle wird fertig. M2 (`claude -p`/`agy -p`) und M3 (`verify_until_green` als Daten-Flow) gehören zum Flow-Folgeprojekt | M4 (Prüfkette, Hooks), M5 (Commit-Sprache), M6 (Schnitt) sind die Stufen 2 und 4 dieser Spec |
 | Go-Hooks für drei Hosts | Stufe 1 (`hostio`, `session-start`) ist umgesetzt | Stufen 2–5; Hostmatrix, Exit-1-Disziplin des Stop-Tors, die Reparatur an `stop.py:141-146` und die Messpunkte aus Stufe 0 |
-| Wiki-Flottenstandard | Stufe 2 (`internal/agenthooks`) wird fertig. Nachtrag 2026-09-24: sie wurde es nicht, Task 2 von 4 liegt ungemergt auf `claude/wiki-stufe-2` (Lückentabelle #21) | Stufen 3–5 gehen in `loomux init` auf; der Grundsatz „Projektdoku im Projekt, Übergreifendes in `brain-knowledge`" bleibt |
+| Wiki-Flottenstandard | Stufe 2 (`internal/agenthooks`) wird fertig. Nachtrag 2026-09-24: sie wurde es nicht, Task 2 von 4 liegt ungemergt auf `claude/wiki-stufe-2` (Lückentabelle #21). Nachtrag 2026-09-27: die Regeln sind am 2026-09-25 mit 4a-2 in `internal/setup/hostfile` gebaut (#21), `agenthooks` zog nicht um; in ultraloom bleibt nichts zu tun | Stufen 3–5 gehen in `loomux init` auf; der Grundsatz „Projektdoku im Projekt, Übergreifendes in `brain-knowledge`" bleibt |
 
 ## Architektur
 
@@ -185,6 +187,7 @@ Alle unter `internal/`; es gibt keine öffentliche Go-API.
 | `verify` | Eine `[verify]`-Tabelle, Lanes, Profile, Coverage-Tor, commit-msg | `checks.py`, `config.py`, `commit/*`, `hooks/coverage-check.py`, `ultraloom/internal/{verify,coverage,commit}` |
 | `brain/index`, `brain/graph`, `brain/reader`, `brain/catalog`, `brain/privacy`, `brain/search`, `brain/guard`, `brain/check`, `brain/wiki`, `brain/maintenance`, `brain/cases` | Die vorhandenen Nahtstellen von ultra-brain | `ultra-brain/pkg/*` |
 | `brain/convert`, `brain/model`, `brain/bench` | Neu in Go | `src/brain/{convert,model,bench}` |
+| *Nachtrag 2026-09-27* | Gegen `ls internal` gelesen: `cases` liegt unter `internal/cases`, nicht unter `brain/`; `brain/bench` wurde `dev/bench{corpus,hooks,report,search}`; `brain/convert` kommt mit 4d; `install` heißt `setup`; `journal` gibt es nicht, der Sitzungszustand liegt in `sessions`, der Laufzustand der Flows kommt mit dem Flow-Folgeprojekt. Dazu kamen `code/*` (Säule 3), `bridge` (stdio-Brücke), `mcptools`, `tui`, `lock`, `gitwork`, `release`, `dev`, `pathkey`, `conventional`, `detect`, `gitenv`, `shellwords`, `testlock` | |
 | `worktree` | Worktree-Spiegel | `ultraloom/internal/{worktreetopo,junction,mirrorcfg,gitwork}` |
 | `serve` | MCP-Dienst, Upkeep, stdio-Brücke | `src/brain/{daemon,ipc,client,mcp}`, `ultra-brain/pkg/mcp` |
 | `selfupdate`, `swap` | Update des maschinenweiten Binarys aus dem Release; Tausch eines laufenden Binarys (Nachtrag 2026-09-23, `swap` war `dev/swap`) | neu |
@@ -200,7 +203,12 @@ weil brain kein fremdes Programm mehr ist.
 - Jedes Paket darf `config` benutzen.
 - `hooks` → `verify`, `brain/guard`, `brain/wiki`, `hosts`, `journal`, `worktree`.
   Die Wiki-Lane baut `hooks`: ein `verify.Job` mit einer Funktion (`Fn`), die
-  `wiki.LintReport` im Prozess ruft.
+  `wiki.LintReport` im Prozess ruft. (Nachtrag 2026-09-27, gegen `go list -deps`
+  gerechnet: `hooks` → `verify`, `brain/guard`, `brain/wiki`, `brain/check`,
+  `code/*` für den Blast-Monitor aus G4b, `hosts`, `sessions`, `selfupdate`,
+  `worktree`; `journal` gibt es nicht. `internal/cli/imports_test.go` verbietet
+  `hooks` außerdem die Pflegeschicht von `brain` und die Oberfläche von
+  `loomux config`.)
 - `verify` → `child`, `detect`, `shellwords`; `child` → `gitenv`. `verify`
   importiert nie `hooks` und kein `brain/*`. (Nachtrag 2026-09-19, gegen
   `go list` gerechnet: Hier stand `verify` → `child`, `brain/check`; die
@@ -208,9 +216,10 @@ weil brain kein fremdes Programm mehr ist.
   über `child`.)
 - `serve` → `brain/*`.
 - `install` → `hosts`, `config`, `verify` (Presets).
-- `serve`, `hooks` und `cli` → `selfupdate` → `swap`, `config`. `selfupdate`
+- `serve`, `hooks` und `cli` → `selfupdate` → `swap`, `lock`. `selfupdate`
   importiert keins der drei; die laufende Version reicht der Aufrufer herein.
-  (Nachtrag 2026-09-23.)
+  (Nachtrag 2026-09-23; `lock` statt `config` berichtigt am 2026-09-27 nach
+  `go list -deps ./internal/selfupdate`.)
 - **`hooks` importiert nie `serve`.** Der Pfad an jedem Edit hängt nicht an
   einem laufenden Dienst.
 
@@ -222,7 +231,7 @@ Pakets läuft bei jedem `loomux hook pre-tool-use`. Deshalb:
 - Kein `init()` und keine Paketvariable parst eingebettete Daten
   (wordfreq-Tabelle, Presets, Schemas). Geladen wird beim ersten Gebrauch.
 - Nachweis mit `GODEBUG=inittrace=1 loomux --version` ab dem ersten Gerüst;
-  der Befund steht in `docs/benchmarks.md`.
+  der Befund steht in `docs/de/benchmarks.md` und `docs/en/benchmarks.md`.
 
 ### Externe Programme zur Laufzeit
 
@@ -242,7 +251,9 @@ Sitzungsstart meldet das.
   an; der Wächter prüft immer) und `[model]` (das lokale Modell, global und je
   Bereich, aus schlägt an). Geschrieben wird die Datei von einem Menschen,
   auch über `loomux config` und `loomux init`, die jede Änderung einzeln
-  bestätigen lassen und einem Agenten verweigert werden.
+  bestätigen lassen und einem Agenten verweigert werden. (Nachtrag 2026-09-27,
+  gegen `internal/config/schema` gelesen: `[project]` liest kein Leser; dazu
+  kamen `[wiki]`, `[maintenance]` und `[privacy]` der Bereichsdeklaration.)
 - **`.loomux/state/`**, nur maschinengeschrieben: Antworten des Installers,
   installierte Hookstände, Sitzungszustand, Blockzähler. Wo es geht
   git-ignoriert.
@@ -310,7 +321,9 @@ Tore selbst.
 
 ### Git-Hooks
 
-- Pre-Commit und Pre-Push: `loomux check <profil>`.
+- Pre-Commit: `loomux check <profil>`. (Berichtigt am 2026-09-27: hier stand
+  „Pre-Commit und Pre-Push“; `.githooks/pre-push` fährt keine Prüfkette, es
+  verweigert nur einen Push nach `master`.)
 - commit-msg: `loomux check commit-msg <datei>`.
 - Beide lesen dieselbe `[verify]`-Tabelle wie post-edit. Die heutige
   Doppelung — Lanes fest in `post_edit.go`, Lanes aus der Konfiguration in
@@ -483,14 +496,16 @@ Schreibschranke freigegeben.**
   Runde über die Entscheidungspakete (Wächter, Lanes, Locking); überlebende
   Mutanten stehen in der Paritätsdatei, mit Begründung oder nachgereichtem
   Test.
-- **Messwerkzeug:** `loomux dev bench-hooks` — der Harness vom 2026-09-14 als
-  Unterbefehl, damit jede Stufe ihre Zielwerte mit demselben Werkzeug misst.
-- **Tore von loomux selbst:** Pre-Commit und Pre-Push fahren
-  `loomux check precommit` — `gofmt`, `go vet`, `go test` mit 100 % Coverage;
-  commit-msg prüft englisch.
+- **Messwerkzeug:** `loomux dev bench hooks` (bis 4c-2 `dev bench-hooks`) —
+  der Harness vom 2026-09-14 als Unterbefehl, damit jede Stufe ihre Zielwerte
+  mit demselben Werkzeug misst.
+- **Tore von loomux selbst:** Pre-Commit fährt `loomux check precommit` —
+  `gofmt`, `go vet`, `go test` mit 100 % Coverage; commit-msg prüft englisch;
+  Pre-Push verweigert nur einen Push nach `master`.
 - **Pilotbinary:** die Hooks im loomux-Repo rufen `bin/loomux.exe`; die
   Pre-Commit-Lane baut es neu; `session-start` warnt, wenn das Binary älter
-  als HEAD ist.
+  ist als die jüngste Go-Quelldatei (siehe „Sitzungshooks“; hier stand „älter
+  als HEAD“).
 
 ## Datenumzug
 
@@ -518,6 +533,9 @@ Schreibschranke freigegeben.**
 3. **qmd:** Collections werden mit den neuen Ignore-Mustern neu konfiguriert.
    Ob die Vektoren wiederverwendet werden, wird bei der Umstellung gemessen;
    wenn nicht, ist der Preis `reindex` + `embed` einmal je Bereich.
+   Unabhängig davon verlangt ein Wechsel des Backbones (CUDA, Vulkan) ein neues
+   `embed`: Unter Vulkan liefert ein unter CUDA eingebetteter Index 0/50
+   (`parity/stufe-4c-2.md`, Nachtrag 2026-09-27).
 4. **Wirtsprojekte:** Kein Übersetzer (korrigiert am 2026-09-24, Nachtrag
    #19). `loomux init` richtet jeden der vier Wirte neu ein und fragt ab, was
    `.ultraloom/*.toml` und `.brain.toml` hielten; die alten Dateien entfernt
@@ -546,7 +564,7 @@ nicht nach ihnen: 3 hängt an keiner der beiden.
 | **1a** | ✅ | Repo-Gerüst, Lizenz, Tore, Startzeit-Nachweis. Umzug der Go-Pakete, die 1a benutzt, mit Tests, auf 100 % gehoben; jedes übrige Paket zieht mit der Stufe um, die es zuerst braucht. `config`, `hosts`, vereinter Wächter, post-edit mit Wiki-Lane im Prozess, `session-start`, `lint`, `wiki-gate`. `dev bench-hooks`. Pilot: das loomux-Repo nutzt sich selbst |
 | **1b** | ➗ in drei Teilstufen zerfallen, siehe darunter | `search`, `status`, `catalog`, `read`, `neighbors` mit Parität zur Python-Referenz — neuer Go-Code, kein Umzug (Identitäten in der Suche, `status` vollständig). `serve` mit MCP und Brücke. `dev mutants`. Wiki- und Doku-Umzug |
 | **2** | ➗ in drei Teilstufen zerfallen, siehe darunter | `child`, vollständige Prüfkette `[verify]`, `loomux check <profil>`, Coverage-Tor, commit-msg mit `--language`/`--calibrate`/`[commit]`, Hooks `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter vollständig |
-| **3** | ➗ in drei Teilstufen zerfallen, siehe darunter | Brain-Pflege: `reconcile` (auch als Durchgang vor `reindex`), `apply`/`approve`/`cases`/`evidence`/`vcs`, Bereichs-Onboarding, das Ereignisprotokoll, `wiki types`/`retype`/`census`/`scaffold`, Upkeep in `serve`. Korrigiert am 2026-09-22 nach der Spec der Stufe 3: „Locking“ stand hier, aber `internal/lock` ist seit 1a die Portierung von `locking.py`, fehlend war nur `ReplaceText`; und „`merge-events`“ ist kein Befehl, sondern das Ereignisprotokoll, das `reconcile` liest und ablegt — der Befehl ist `hook install\|status\|remove` und steht als Nachtrag #5 bei Stufe 4 |
+| **3** | ➗ in drei Teilstufen zerfallen, siehe darunter | Brain-Pflege: `reconcile` (auch als Durchgang vor `reindex`), `apply`/`approve`/`cases`/`evidence`/`vcs`, Bereichs-Onboarding, das Ereignisprotokoll, `wiki types`/`retype`/`census`/`scaffold`, Upkeep in `serve`. Korrigiert am 2026-09-22 nach der Spec der Stufe 3: „Locking“ stand hier, aber `internal/lock` ist seit 1a die Portierung von `locking.py`, fehlend war nur `ReplaceText`; und „`merge-events`“ ist kein Befehl, sondern das Ereignisprotokoll, das `reconcile` liest und ablegt — der Befehl ist `hook install\|status\|remove` und steht als Nachtrag #5 bei Stufe 4; in loomux heißt er seit 4a-2 `loomux merge-hook install\|status\|remove\|record` |
 | **4** | ➗ in Teilstufen zerfallen, siehe darunter | `convert`/`fetch` über `pdftotext`/`yt-dlp`, lokales Modell (Ollama über `net/http`, deutsche Zipf-Tabelle eingebettet), `bench`. `loomux init` vollständig für alle Hosts. Umstellung der Wirte. `loomux migrate` fällt weg (Nachtrag #19) |
 
 **Die Teilstufen der 4** (Spec `2026-09-23-loomux-stufe-4-design.md`,
@@ -555,7 +573,7 @@ geschnitten am 2026-09-24), je mit eigenem Plan und eigener Paritätsakte:
 | Teilstufe | Stand | Inhalt |
 |---|---|---|
 | **4a-1** Schema und `config` | 🚧 gebaut; Schritte des Menschen offen (Messung des MCP-Arbeitsverzeichnisses, Prüfung in drei Terminals, ein `config set` durch den Menschen) | Schlüsselschema, Zeileneditor, Oberfläche auf `x/term`, `loomux config` (auch `--global`), `[modules]` mit Laufzeitwirkung, der Modulfilter in `loomux mcp`, die Wächterregel gegen schreibende `init`/`config`/`area add` |
-| **4a-2** `init` | 🚧 gebaut 2026-09-24 (Plan `2026-09-24-loomux-stufe-4a-2.md`, Akte `parity/stufe-4a-2.md`; 14 Fälle für `merge-hook`, elf ohne Unterschied); Messung von Task 1 am 2026-09-24 gemacht (Hookdatei und Skill-Ort von Antigravity, `${LOCALAPPDATA}` in `.mcp.json` und in einem Git-Hook), Antigravity-Einträge und -Skills gemessen, nicht gebaut; Schritte des Menschen offen (Freigabe einer Projekt-`.mcp.json`; Selbstnutzung von Task 15: `init --yes` auf einem frischen Klon, ein Wirt interaktiv) | Umzug von ulinit auf das Schema, Module mit alles/einzeln/nichts, Host-Einträge über `${LOCALAPPDATA}`, Git-Hooks und post-merge, Skills, `AGENTS.md`, `.gitignore`, `.mcp.json`, das neueste Release an den kanonischen Ort, `--detect-only`. Hängt an 4a-1 und an `feat/self-update` |
+| **4a-2** `init` | 🚧 gebaut 2026-09-24 (Plan `2026-09-24-loomux-stufe-4a-2.md`, Akte `parity/stufe-4a-2.md`; 14 Fälle für `merge-hook`, elf ohne Unterschied); Messung von Task 1 am 2026-09-24 gemacht (Hookdatei und Skill-Ort von Antigravity, `${LOCALAPPDATA}` in `.mcp.json` und in einem Git-Hook), Antigravity-Einträge und -Skills gemessen und am 2026-09-25 gebaut (#21; #23 wartet auf die Freigabe); Schritte des Menschen offen (Freigabe einer Projekt-`.mcp.json`; Selbstnutzung von Task 15: `init --yes` auf einem frischen Klon, ein Wirt interaktiv) | Umzug von ulinit auf das Schema, Module mit alles/einzeln/nichts, Host-Einträge über `${LOCALAPPDATA}`, Git-Hooks und post-merge, Skills, `AGENTS.md`, `.gitignore`, `.mcp.json`, das neueste Release an den kanonischen Ort, `--detect-only`. Hängt an 4a-1 und an `feat/self-update` |
 | **4c-1** Modell | 🚧 gebaut 2026-09-26; Selbstnutzung offen (Schritte des Menschen: Wikiseite in obsidian-ai, `pktmon`-Mitschnitt, Messung gegen das echte Modell); geplant 2026-09-25 (Stufe-4-Spec, „Abweichungen beim Planen von 4c“, Plan `2026-09-25-loomux-stufe-4c-1.md`, Akte `parity/stufe-4c-1.md`) | Ollama-Client, Tor, Prompts, `[model]` global und je Bereich, `propose` in `reconcile`; Heilung von „Offen nach 3b“ #1 und #4 |
 | **4c-2** Bench | 🚧 gebaut 2026-09-26; Parität ✅ 2026-09-27 (50/50 Ränge gleich der Referenz bei `keyword`); Selbstnutzung erledigt 2026-09-27 (Korpus `fast` 40/50 gegen die Baseline 43/50, Alltagslatenz über den Dienst, `hooks` und `repos` mit `--out`), Alltagsqualität offen (qmd-Backbone: der Index ist unter CUDA eingebettet, das auf diesem Rechner abstürzt; entschieden 2026-09-27: ein rechnerweites `[search] backbone = "cuda" | "vulkan" | "cpu"` in `<zustand>/config.toml`, kein Schlüssel je Projekt, Vorrang Umgebungsvariable des Nutzers > Einstellung > `cuda`, gilt für den Daemon und jede qmd-Kommandozeile; offen ist, neu einzubetten und zu messen); geplant 2026-09-25 (ebenda, „Abweichungen beim Planen von 4c-2“, Plan `2026-09-26-loomux-stufe-4c-2.md`, Akte `parity/stufe-4c-2.md`) | `loomux dev bench search`, die Untergruppe `dev bench hooks\|repos\|search` (bisher `dev bench-hooks` und `dev bench`, darum `release:major`) und ein Berichtsschema für alle drei. Hängt nicht an 4c-1 |
 | **4d** `convert`/`fetch` | offen | Eingang wandeln, Untertitel holen, die Modellrollen `describe` und `place`, die Richter samt Zipf-Tabelle (aus 4c hierher, weil nur `describe` sie braucht) |
@@ -665,8 +683,8 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 | Prio | Stufe | Hängt ab von | Warum hier |
 |---|---|---|---|
 | — | **2c** `stop`, `subagent-*`, Antigravity-Adapter | 2a ✅ | ✅ Fertig (2026-09-22). Die Claude-Seite bringt den Lint des Wiki-Bündels als Lane `lint/wiki` ans Rundenende, die Drift-Regel bleibt bei `loomux wiki-gate`. Antigravity-Messung durchgeführt und Adapter implementiert. Voraussetzung für `init` in Stufe 4 |
-| — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). `migrate` in Stufe 4 überträgt `[project].commit_language` nach `[commit].language` (Nachtrag #13) |
-| 1 | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c ist fertig (2026-09-23), der Upkeep ruft `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
+| — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). Statt `migrate`, das wegfällt (#19), fragt `init` in Stufe 4 die Commit-Sprache ab und schreibt `[commit].language` (Nachtrag #13) |
+| — | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | ✅ Fertig (3a 2026-09-22, 3b und 3c 2026-09-23); bis dahin Prio 1. Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c ist fertig (2026-09-23), der Upkeep ruft `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | — | **G4a** Navigation, **G4b** Diff-Blast, Art `graph`, Edit-Monitor | G3 ✅; G4b an G4a ✅ | ✅ Fertig (G4a 2026-09-22, G4b 2026-09-23). W3 wartete auf G4a, W4 auf G4b |
 | 2 | **G4c** Stop-Hook mit Blast-Logik | G4b ✅ | Sofort baubar, neben der Fusion; loomux prüft sich an jedem Rundenende selbst und bekäme den Blast dort. Nichts wartet darauf |
 | 3 | **4** `config`, `init`, Modell, `convert`/`fetch` | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. In sich 4a-1 → 4a-2 → 4c-1 → 4d, dann 4e; 4c-2 daneben, ohne dass etwas auf sie wartet, nach Regel 2 (Selbstnutzung). 4a-1, 4a-2, 4c-1 und 4c-2 sind gebaut, alle mit offenen Schritten des Menschen; `feat/self-update` ist gemergt. Die Umstellung der Wirte braucht einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
@@ -681,10 +699,12 @@ Doku, fand sechzehn Stellen, die weder in loomux gebaut noch in dieser Spec
 oder einer Paritätsakte genannt waren — gegen den Grundsatz unter „Ziel“, dass
 nichts ersatzlos wegfällt, ohne in einer Liste zu stehen. Eine siebzehnte fand
 am selben Tag die Spec der Stufe 3 (`2026-09-19-loomux-stufe-3-design.md`,
-„Befunde“), eine achtzehnte am 2026-09-23 der Plan von 3c, die zwanzigste
+„Befunde“), eine achtzehnte am 2026-09-23 der Plan von 3c, die neunzehnte am
+2026-09-24 die Spec der Stufe 4 (der Wegfall von `migrate`), die zwanzigste
 und einundzwanzigste am 2026-09-24 eine Bestandsliste über alle lokalen
 Zweige beider Repos, nicht nur `master`, die zweiundzwanzigste dieselbe
-Durchsicht unter den ungetrackten Dateien. Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
+Durchsicht unter den ungetrackten Dateien und die dreiundzwanzigste am 2026-09-25
+die Messung von Antigravity beim Bau von 4a-2. Die Zuordnung ist ein **Vorschlag**; die Spalte „Freigabe“ füllt
 der Nutzer, erst dann gilt sie.
 
 | # | Quelle | Stelle | Vorschlag | Begründung | Freigabe |
@@ -708,10 +728,10 @@ der Nutzer, erst dann gilt sie.
 | 17 | ultra-brain | `reindex` und `embed` als Befehle (`ultra-brain/pkg/index`, `src/brain/cli.py:463,467`); `embed` allein ist #3 | Stufe 3a | Der Auffangdurchgang koppelt `reconcile` an `reindex` („`reconcile` auch als Durchgang vor `reindex`“ nennt einen Befehl, den es in loomux nicht gab), und `embed` ist ohne `reindex` gegenstandslos | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 |
 | 18 | ultra-brain | `brain check code` (`pkg/check/code`, die Lanes aus `[check].lanes`) | Wegfall | Die Prüfkette aus 2a (`[verify]`, Presets je Stack, `loomux check`) fährt dieselben Lanes samt Reihenfolge und Coverage-Tor; eine zweite Lane-Konfiguration stünde daneben. `Manifest.Lanes` bleibt geparst, bis `loomux migrate` (Stufe 4) es nach `[verify]` überträgt. Gefunden beim Planen von 3c | freigegeben 2026-09-23. Da `migrate` wegfällt (#19), wird `Manifest.Lanes` in 4e gelöscht statt übertragen; `[check].lanes` steht nur in `ultra-brain` |
 | 19 | — | `loomux migrate`, der einmalige Übersetzer für Maschinenzustand und Wirtskonfiguration (Punkte 2 und 4 unter „Datenumzug“) | Wegfall | Die alten Werkzeuge hat nur der Nutzer benutzt, auf einem Rechner und in vier Wirten. Der Maschinenzustand liegt durch die Selbstnutzung seit 3a schon in `%LOCALAPPDATA%\loomux`; die Wirte richtet `init` neu ein. Was bleibt, ist die Checkliste von 4e | freigegeben 2026-09-24 |
-| 20 | ultra-brain | Der nie gemergte Zweig `feature/artefakte-nach-lebensdauer` (44 Commits vor `master`, Stand 2026-09-12; Spec `2026-09-11-artefakte-nach-lebensdauer-design.md` auf `docs/artefakte-nach-lebensdauer`): `graph.json` und `layout.json` ins Zustandsverzeichnis, nur der Wurzelkatalog, ein Register mit Aliasen, in das ein Indexlauf nur Geburten und Umbenennungen schreibt, die Auflösung eines Bereichs aus einem verknüpften Worktree, dazu Fehlerbehebungen am Indexlauf (ein Worktree-Lauf schreibt nicht in die Dateien des Hauptcheckouts, ein Bereichspfad mit abschließendem Trenner, frühere Indexausgabe wird aus dem Baum geräumt) | Vor 4e: den Zweig Commit für Commit gegen `internal/brain/index` und die Registerschreibung lesen; was loomux nicht schon anders löst, wird ein Fix-PR oder eine eigene Zeile, der Rest fällt mit Begründung weg | Die Paritätsfälle von 3a sind gegen `master` aufgezeichnet, das Verhalten des Zweigs hat keiner gesehen. 3a hat dasselbe Problem nur mit `[index] include` und einer offenen Versionierungsfrage behandelt (`parity/stufe-3a.md`) | freigegeben 2026-09-24, vor 4e |
+| 20 | ultra-brain | Der nie gemergte Zweig `feature/artefakte-nach-lebensdauer` (44 Commits vor `master`, Stand 2026-09-12; Spec `2026-09-11-artefakte-nach-lebensdauer-design.md` auf `docs/artefakte-nach-lebensdauer`): `graph.json` und `layout.json` ins Zustandsverzeichnis, nur der Wurzelkatalog, ein Register mit Aliasen, in das ein Indexlauf nur Geburten und Umbenennungen schreibt, die Auflösung eines Bereichs aus einem verknüpften Worktree, dazu Fehlerbehebungen am Indexlauf (ein Worktree-Lauf schreibt nicht in die Dateien des Hauptcheckouts, ein Bereichspfad mit abschließendem Trenner, frühere Indexausgabe wird aus dem Baum geräumt) | Vor 4e: den Zweig Commit für Commit gegen `internal/brain/index` und die Registerschreibung lesen; was loomux nicht schon anders löst, wird ein Fix-PR oder eine eigene Zeile, der Rest fällt mit Begründung weg | Die Paritätsfälle von 3a sind gegen `master` aufgezeichnet, das Verhalten des Zweigs hat keiner gesehen. 3a hat dasselbe Problem nur mit `[index] include` und einer offenen Versionierungsfrage behandelt (`parity/stufe-3a.md`). Durchsicht am 2026-09-27 (`parity/artefakte-nach-lebensdauer.md`): zwei Themen löst loomux schon, eines fällt weg, keines braucht einen Fix-PR, sechs brauchen eine Entscheidung des Nutzers | freigegeben 2026-09-24, vor 4e |
 | 21 | ultraloom | Wiki-Flottenstandard Stufe 2, nicht fertig: auf `claude/wiki-stufe-2` liegen nur `560709c` und `be0011d` (`internal/agenthooks/merge.go` mit Tests), Task 2 von 4 des Plans `2026-09-13-wiki-flottenstandard-stufe-2.md` (nur auf ultraloom-`master`, nicht gepusht). Die Regeln: `.agents/hooks.json` ist eine Map benannter Gruppen, der Name ist die Identität; das Werkzeug besitzt genau eine Gruppe und kodiert jede andere byte-treu aus dem gelesenen JSON neu; kein Besitzerfeld im Hook-Objekt, weil ungemessen ist, ob Antigravity ein unbekanntes Feld duldet; eine fremde Gruppe mit demselben Kommando wird gemeldet, nie repariert; eine Wurzel `null` wird abgelehnt wie jede Nicht-Objekt-Wurzel, mit dem Dateinamen in der Meldung. Task 3 (`ulinit` schreibt die Gruppe) und Task 4 (Nachweis) fehlen | Stufe 4a-2: die Regeln in den Abschnitt „Host-Einträge“ der Stufe-4-Spec, der bisher nur „Fremde Einträge bleiben stehen“ sagt; `merge.go` samt Tests zieht als Ausgangspunkt für den Schreiber von `.agents/hooks.json` um, der Gruppenname wird `loomux`-eigen | Die Zeile „Wiki-Flottenstandard“ unter „Laufende Vorhaben“ setzte voraus, dass die Stufe in ultraloom fertig wird; sie ruht seit dem 2026-09-13, und `init` ist der einzige Ort, an dem sie noch landen kann | freigegeben 2026-09-24, Stufe 4a-2; gebaut 2026-09-25 in hostfile (kein Umzug von agenthooks) |
 | 22 | ultraloom | Die Spec `2026-08-24-multi-provider-llm-design.md`, nie committet, nur als ungetrackte Datei im Hauptcheckout von ultraloom; jetzt unverändert unter `specs-ul/`. Agenten-Flows unabhängig vom Anbieter: ein `Model`-Port mit Adaptern für Gemini (`google-genai`) und Claude (`anthropic`), ein eigener Werkzeug-Ausführer (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash`) mit Profilen und dem Schutz von `[verify].tests`, `[agent].provider`/`model`, `--provider`/`--model` | Folgeprojekt Flow, als Eingang seiner Spec | Geschrieben für die Python-Flows von ultraloom, nicht für ulflow. Sie überschneidet sich mit M2 (`claude -p`, `agy -p`), das dieselben zwei Anbieter über ihre CLIs und damit über die Abos anspricht; welcher Weg gilt oder ob beide, entscheidet die Flow-Spec | freigegeben 2026-09-24, Folgeprojekt Flow |
-| 23 | — | Das Antwortprotokoll der Hooks gegenüber Antigravity und die Form von `.agents/hooks.json` | Stufe 4a-2: ein Adapter `hosts.Answer`, den `loomux hook` einmal für jeden Austrittspfad ruft, eine Panik eingeschlossen. Für Antigravity: `pre-tool-use` verweigert mit Exit 2, `post-tool-use` warnt mit Exit 2, ein gehaltener Stop wird `{"decision":"continue","reason":…}` auf stdout mit Exit 0, jeder andere Code ungleich 0 endet mit 0; ein unbekanntes Ereignis bleibt Exit 2. `session-start` auf `PreInvocation` meldet sich nur beim ersten `invocationNum`. `run_command` und `send_command_input` laufen durch die Befehlsregeln, ohne erkennbare Befehlszeile wird verweigert. Post-Edit liest die Ziele aus dem `toolCall` des PostToolUse; keine Ablage. `PreInvocation` und `Stop` stehen flach in `.agents/hooks.json` | Gemessen mit agy 1.2.8 und 1.2.11 am 2026-09-25 (`parity/stufe-4a-2.md`): gruppierte `Stop`/`PreInvocation` lassen agy die ganze Datei verwerfen, der Wächter lädt dann nicht; PostToolUse trägt `toolCall` entgegen dem Leitfaden; Exit 2 in PostToolUse bricht nicht ab; `continue` hält den Stop. Ungemessen: der Argumentname von `send_command_input` und ob `invocationNum` bei 0 oder 1 beginnt | vorgeschlagen 2026-09-25, Freigabe offen |
+| 23 | — | Das Antwortprotokoll der Hooks gegenüber Antigravity und die Form von `.agents/hooks.json` | Stufe 4a-2: ein Adapter `hosts.Answer`, den `loomux hook` einmal für jeden Austrittspfad ruft, eine Panik eingeschlossen. Für Antigravity: `pre-tool-use` verweigert mit Exit 2, `post-tool-use` warnt mit Exit 2, ein gehaltener Stop wird `{"decision":"continue","reason":…}` auf stdout mit Exit 0, jeder andere Code ungleich 0 endet mit 0; ein unbekanntes Ereignis bleibt Exit 2. `session-start` auf `PreInvocation` meldet sich beim ersten `invocationNum`, danach nur, wenn eine Sitzung seither ungezählt blieb. `run_command`, `send_command_input` und `manage_task` (Aktion `send_input`, Argument `Input`; `list`, `status` und `kill` gehen ungeprüft durch) laufen durch die Befehlsregeln, ohne erkennbare Befehlszeile wird verweigert. Post-Edit liest die Ziele aus dem `toolCall` des PostToolUse; keine Ablage. `PreInvocation` und `Stop` stehen flach in `.agents/hooks.json` | Gemessen mit agy 1.2.8 und 1.2.11 am 2026-09-25 (`parity/stufe-4a-2.md`): gruppierte `Stop`/`PreInvocation` lassen agy die ganze Datei verwerfen, der Wächter lädt dann nicht; PostToolUse trägt `toolCall` entgegen dem Leitfaden; Exit 2 in PostToolUse bricht nicht ab; `continue` hält den Stop. Nachgemessen am 2026-09-25 mit agy 1.2.11: in einen offenen Befehl tippt agy über `manage_task` mit `send_input` und `Input`, nicht über `send_command_input` (`parity/stufe-4a-2.md`). Ungemessen: der Argumentname von `send_command_input` und ob `invocationNum` bei 0 oder 1 beginnt | vorgeschlagen 2026-09-25, Freigabe offen |
 
 ### Offen nach 3b
 
@@ -736,12 +756,21 @@ sie geheilt werden. Die Belegstellen stehen in
    Referenz sind sich über diese Zeile uneinig; geschrieben wird dann nur
    `generated` und `verified`. Akte, Abschnitt „Geerbt“, zweiter Absatz, und
    Zeile „Zwei Frontmatter-Muster“ der Abweichungsliste (Golden
-   `s13-closing-blanks`).
+   `s13-closing-blanks`). Am 2026-09-27 gegen den Code bestätigt: `advanceBlock`
+   und `documentBlock` in `internal/brain/apply/frontmatter.go` lesen die
+   schließende Zeile verschieden; `--reject` weicht seit 4c-1 über
+   `AdvanceSources` aus und lässt die Seite unberührt. Die kleinste Heilung wäre,
+   `documentBlock` dieselbe schließende Zeile `---[ \t]*` zu geben; das Golden
+   `s13-closing-blanks` änderte sich mit.
 3. **Versteckte Auszeichnung (`%%`, `<!--`, Bidi-Steuerzeichen) auf einer
    Überschriftenzeile eines Vorschlags wird keinem Abschnitt angelastet.**
    Akte, Abschnitt „Überlebende Mutanten“, Absatz „Geerbt, festgehalten und
    nicht geheilt“; `TestHiddenMarkupOnAHeadingLineIsChargedToNoSection` hält
-   das Verhalten fest.
+   das Verhalten fest. Am 2026-09-27 gegen den Code bestätigt; die Prüfung
+   liegt in `internal/brain/evidence/evidence.go` (`hiddenMarkup`), nicht in
+   `apply`. Die kleinste Heilung wäre, `hiddenMarkup` auch auf die
+   Überschriftenzeile anzuwenden und den Treffer dem Abschnitt anzulasten, den
+   sie eröffnet.
 4. **Geheilt in 4c-1 (2026-09-26):** `reindex` und `approve` teilen jetzt
    eine Sperre je Bereich, `<zustand>/areas/<scope>.lock` (`fix(index)`,
    Akte `parity/stufe-4c-1.md`, Abweichungsliste). Der Befund, wie er nach
@@ -800,14 +829,30 @@ Die alten Repos werden archiviert, wenn beide Migrationen fertig sind.
 
 ## Offen und vor dem Bau zu messen
 
-- **Wohin gehen die ~40 ms von `brain guard`** über seinem Startboden? (Stufe 1a,
-  vor dem Zielwert für Stufe 2.)
-- **Antigravity:** ob die JSON-Hülle auf stdout gelesen wird oder nur der
+Stand am 2026-09-27: drei der vier Punkte sind beantwortet; offen bleibt nur die
+Vektorwiederverwendung, die mit 4e gemessen wird.
+
+- ~~**Wohin gehen die ~40 ms von `brain guard`** über seinem Startboden? (Stufe 1a,
+  vor dem Zielwert für Stufe 2.)~~ Beantwortet in Stufe 1a (`docs/de/benchmarks.md`,
+  Eintrag 1a, Lesart): Auf einem registrierten Bereich braucht dasselbe
+  `brain.exe` 26,7 ms warm gegen seinen Boden von 24,3 ms; die 72 ms der
+  Grundlinie stammen von einer kälteren Maschine, und vom Boden sind ~19 ms das
+  Zeitzonen-`init` von BurntSushi/toml, das `third_party/toml` seither beim
+  ersten Gebrauch auflöst.
+- ~~**Antigravity:** ob die JSON-Hülle auf stdout gelesen wird oder nur der
   Exit-Code; ob `PreInvocation` Kontext ins Modell schreiben kann; ob Stop eine
-  harte Zeitgrenze unter 300 s hat. Ergebnisse der Messung vom 2026-09-10
-  (`2026-09-10-antigravity-hook-messung.md`) werden in Stufe 1a gegen diese drei
-  Fragen gelesen, fehlende nachgemessen.
+  harte Zeitgrenze unter 300 s hat.~~ Beantwortet (`specs-ul/2026-09-10-antigravity-hook-messung.md`,
+  Nachmessung 2c; `parity/stufe-4a-2.md`, Probe 2026-09-25): stdout wird gelesen,
+  `{"decision":"continue"}` hält den Stop (gemessen mit agy 1.2.11);
+  `PreInvocation` speist Kontext über `injectSteps` ein; die Frist eines
+  Command-Hooks ist 30 s und je Hook mit `"timeout"` in `hooks.json`
+  einstellbar (aus dem Binary gelesen, nicht live gemessen), `loomux init`
+  schreibt für `Stop` 300 s.
 - **Vektorwiederverwendung in qmd** nach geänderten Ignore-Mustern (bei der
-  Umstellung).
-- **Go-Suche:** woher die abweichende Rangfolge gegenüber Python kommt — der
-  erste Paritätsfall von Stufe 1b.
+  Umstellung, 4e).
+- ~~**Go-Suche:** woher die abweichende Rangfolge gegenüber Python kommt — der
+  erste Paritätsfall von Stufe 1b.~~ Beantwortet und freigegeben in 1b-1
+  (`parity/stufe-1b-1.md`, Fälle `brain-search/fast` und `keyword`,
+  2026-09-16): Die Referenz erweitert die Anfrage per LLM, führt per Maximum
+  zusammen und schneidet unter 0,3; loomux sucht `vec` ohne Erweiterung und
+  Rerank. Bei `keyword` sind die Ränge seit 4c-2 gleich (50/50).

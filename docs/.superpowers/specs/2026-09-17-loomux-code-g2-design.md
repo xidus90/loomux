@@ -960,3 +960,8 @@ Fremdabhängigkeit bricht. Gleiche Messung.
 - **Die Inittrace-Messung** mit dem MCP-SDK: G3.
 - **Die `check`-Lanes** `graph-freshness` und `blast-audit` und die Hook-Anbindung: G4.
 - **Mehrsprachigkeit** über `wazero`: G5. Mit ihr kommt das CGo-Freiheitstor.
+
+**Stand 2026-09-27:** Unterformen in G4a ✅, Lanes `graph-fresh` (statt `graph-freshness`) und
+`blast-audit` samt Monitor in G4b ✅, Inittrace gemessen am 2026-09-17, Mehrsprachigkeit über
+`gotreesitter` statt `wazero` (G5a ✅, G5-Delta). `--lsp`, `FileCard` und `confidence`-Rangfolge
+bleiben offen.

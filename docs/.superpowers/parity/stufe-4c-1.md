@@ -186,3 +186,12 @@ ein Mutant hat einen Test mit relativem Prüfzentrum ins Paketverzeichnis
 schreiben lassen. Das Verzeichnis ist entfernt, nicht committet. Welcher
 Mutant es war, ist nicht nachgegangen; `dev mutants` isoliert das
 Arbeitsverzeichnis der Tests nicht.
+
+## Selbstnutzung — offen (Mensch)
+
+- Eine Wikiseite in obsidian-ai mit Vorschlag des lokalen Modells.
+- Der `pktmon`-Mitschnitt: kein Paket verlässt Loopback.
+- Die Messung gegen das echte Modell.
+
+Verfahren: Plan `2026-09-25-loomux-stufe-4c-1.md`. Ergebnisse mit Datum hier
+eintragen.

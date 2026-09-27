@@ -4,9 +4,11 @@
 sind gelaufen (`7f10923` bis `58e42d0`, Nacharbeiten bis `083a3a0`); alle 183
 Zeilen von `docs/.superpowers/parity/umzug-wiki-doku.md` sind freigegeben,
 `docs/wiki` trägt 33 Dateien, `loomux wiki-gate` meldet OK und `brain read`
-beantwortet `project/loomux`. **`brain neighbors` beantwortet den Bereich nicht:**
+beantwortet `project/loomux`. ~~**`brain neighbors` beantwortet den Bereich nicht:**
 `loomux brain neighbors docs/wiki/entities/qmd.md --scope project/loomux` endet
-am 2026-09-17 mit Exit 1 und „never indexed; run `brain reindex`“. Die Annahme in
+am 2026-09-17 mit Exit 1 und „never indexed; run `brain reindex`“.~~
+**Erledigt 2026-09-27:** derselbe Aufruf endet mit Exit 0 und nennt je drei
+eingehende und ausgehende Kanten. Die Annahme in
 Task 6 Step 6b, dass `neighbors` kein Artefakt braucht, ist falsch; der Befehl wartet auf `reindex`
 wie `catalog --scope`. **Die Kästchen sind nie gepflegt worden und sagen nichts
 über den Fortschritt.**

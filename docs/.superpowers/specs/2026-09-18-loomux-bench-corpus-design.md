@@ -1,7 +1,7 @@
 # loomux dev bench — Benchmark-Harness, Stack-Installation und Lücken-Audit
 
 **Datum:** 2026-09-18  
-**Status:** Überarbeitet nach Review (2026-09-18)  
+**Status:** Überarbeitet nach Review (2026-09-18); umgesetzt, seit `6369f93b` als `loomux dev bench repos`. Abweichend von §2: `--cache-dir` ist `.cache/benchcorpus`, `--timeout` gilt je Repository (5m), `--component-timeout` je Befehl (1m), `--out` ist ein Verzeichnis für Markdown und JSON, `--json-out` gibt es nicht.  
 **Ort:** `internal/dev/benchcorpus/`, `internal/cli/dev.go`, `internal/hooks/`  
 **Bezug:** `docs/open_source_matrix.json`, `docs/en/benchmarks.md`, `docs/de/benchmarks.md`, `internal/dev/benchhooks`
 

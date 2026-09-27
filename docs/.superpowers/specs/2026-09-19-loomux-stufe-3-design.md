@@ -1,9 +1,11 @@
 # Stufe 3: Brain-Pflege — `reindex`, `reconcile`, das Prüfzentrum, die Wiki-Werkzeuge
 
 **Datum:** 2026-09-19
+**Stand:** umgesetzt: 3a, 3b und 3c abgeschlossen (Akten `parity/stufe-3a.md`,
+`stufe-3b.md`, `stufe-3c.md`).
 **Deckt ab:** die ganze Stufe 3 der Fusions-Spec
 (`2026-09-14-loomux-fusion-design.md`), geschnitten in **3a**, **3b** und
-**3c**. Ein Implementierungsplan entsteht in diesem Zug nur für **3a**.
+**3c**. Ursprünglich entstand in diesem Zug nur für **3a** ein Implementierungsplan; 3b und 3c folgten.
 **Ort:** eigener Worktree von `master`. Stufe 3 läuft **parallel** zu 2b
 (`claude/2b-planung-4d6dcc`) und 2c (`sdd-2c`); keine der drei wartet auf eine
 andere.
@@ -652,9 +654,9 @@ eingetragen** (`b9c1a7e`), nachdem beide gemergt waren:
 
 ## Offen und vor dem Bau zu messen
 
-- Ob `tools/cases.py` ein `.git` in `world/` unverändert durchreicht
+- ~~Ob `tools/cases.py` ein `.git` in `world/` unverändert durchreicht
   (Task 0). Wenn nicht, braucht der Rekorder eine kleine Ergänzung, und die
-  gehört vor Task 7.
+  gehört vor Task 7.~~ Ja (`parity/stufe-3a.md`, Task 0).
 - Ob die qmd-Vektoren des Altbestands wiederverwendbar sind oder `reindex` +
   `embed` je Bereich einmal fällig wird. Die Fusions-Spec stellt die Frage
   beim Datenumzug; 3a kann sie zum ersten Mal beantworten.

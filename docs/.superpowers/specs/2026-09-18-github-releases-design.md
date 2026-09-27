@@ -1,7 +1,8 @@
 # Versionierung, Releases und CI
 
-Stand 2026-09-18. Heute gibt es kein `.github/`, keinen Versions-Tag, und das
-Gate läuft nur lokal in `.githooks/pre-commit`. `internal/cli.Version` steht
+Stand 2026-09-18 (Entwurf); **umgesetzt**, Releases seit v1.0.0 aus `release.yml`, die
+Release-Commits heißen `chore(release): v*`. Zum Entwurf gab es kein `.github/`, keinen Versions-Tag, und das
+Gate lief nur lokal in `.githooks/pre-commit`. `internal/cli.Version` stand
 auf `0.0.0-dev` und ist für `-ldflags -X` vorbereitet. Umgesetzt wird GitHub;
 der Aufbau lässt einen GitLab-Ableger zu, ohne die Logik zu kopieren.
 
@@ -239,7 +240,7 @@ Umschalten nicht bricht.
 Autor und Committer des Release-Commits ist `loomux-release[bot]`.
 `AGENTS.md` fordert den Menschen als Autor jedes Commits und verbietet Pushes
 außer durch Menschen; beide Regeln bekommen genau eine Ausnahme:
-`Release v*`-Commits und `v*`-Tags aus `release.yml`. Für Agenten ändert sich
+`chore(release): v*`-Commits und `v*`-Tags aus `release.yml`. Für Agenten ändert sich
 nichts.
 
 App, Secrets, die vier Labels, die Variable `RELEASE_CHANNEL=beta` und später

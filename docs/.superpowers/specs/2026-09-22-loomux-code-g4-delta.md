@@ -2,7 +2,8 @@
 
 **Datum:** 2026-09-22  
 **Stand:** entworfen und vom Nutzer freigegeben am 2026-09-22. Die vier Entscheidungen sind
-getroffen (§9); der Plan folgt in zwei Phasen: G4a (Navigation & MCP) und G4b (Blast, Hooks & Verify).  
+getroffen (§9); der Plan folgt in zwei Phasen: G4a (Navigation & MCP) und G4b (Blast, Hooks & Verify). **G4a und G4b umgesetzt** (G4b 2026-09-23,
+nach dem G4b-Nachtrag). Offen: G4c (Stop-Hook mit Blast-Logik, siehe Roadmap).  
 **Berichtigt und für G4b ergänzt durch** [`2026-09-23-loomux-code-g4b-delta.md`](2026-09-23-loomux-code-g4b-delta.md).  
 **Ergänzt:** [`2026-09-14-loomux-code-graph-design.md`](2026-09-14-loomux-code-graph-design.md),
 [`2026-09-16-loomux-code-g1-delta.md`](2026-09-16-loomux-code-g1-delta.md),
@@ -341,6 +342,8 @@ Die Lane wird rot (Exit 1), wenn ein geänderter Bereich das Testsignal `none` o
 **und** mindestens ein Seed dieses Bereichs mindestens $N$ eingehende Walk-Kanten besitzt (`inDegree >= N`).
 Standardwert ist $N = 3$ im Go-Preset, konfigurierbar in `.loomux/config.toml` unter
 `[verify.project.blast_audit] threshold = N`. Fehlt HEAD oder ist der Index leer, bleibt die Lane `na`.
+**Überholt durch E2′ im G4b-Nachtrag:** kein Konfigurationsschlüssel; das Go-Preset ruft
+`check blast-audit --cached --threshold 5` (entschieden 2026-09-23 nach der Messung).
 
 **E3 — Paketname in `Resolve`: Go-spezifischer Paketfilter aktiviert.**
 Enthält `query` einen Punkt (`<pkg>.<symbol>`), prüft `Resolve` zuerst, ob `<pkg>` dem Paketnamen oder

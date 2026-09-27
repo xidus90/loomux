@@ -284,3 +284,7 @@ die Hooks dort ein Binary finden.
   `internal/serve` das SDK ein. Im Stufenplan der Säule-3-Spec (§10) steht sie
   in der Zeile G1 und ist dort fehl am Platz.
 - `FileCard`, `confidence`-Rangfolge, LSP-Anreicherung: mit ihren Erzeugern.
+
+**Stand 2026-09-27:** lexikalische Saat in G2b, Extraktor, Frische und CLI in G2a,
+Inittrace gemessen am 2026-09-17 in 1b-2 (nicht G3). Offen: `FileCard`, `confidence`-Rangfolge,
+LSP-Anreicherung (siehe G2 §15).

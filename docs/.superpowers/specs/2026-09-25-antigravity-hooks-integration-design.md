@@ -2,7 +2,7 @@
 
 **Datum:** 2026-09-25  
 **Verfasser:** Antigravity / Gemini  
-**Status:** Genehmigt  
+**Status:** Umgesetzt (gemergt, Stufe 4a-2; Akte `parity/stufe-4a-2.md`)  
 **Bezug:** Fusions-Spec Nachtrag #21 und #23, `specs-ul/2026-09-10-antigravity-hook-messung.md`, Stufe 4a-2 / 4e  
 **Überarbeitet:** 2026-09-25 nach drei Reviews und der Probe mit agy 1.2.11: Antwort an den Wirt als ein Adapter, `run_command` und `send_command_input`, Post-Edit aus `toolCall`, flache `Stop`/`PreInvocation`  
 
@@ -86,6 +86,12 @@ Befehlszeile zu: `Bash` und `PowerShell` `command`, `run_command`
 `send_command_input` `Input` und `input` (ungemessen). Jede vorhandene wird
 geprüft; ein Aufruf eines der beiden agy-Werkzeuge ohne eine davon wird
 verweigert. Beide stehen im Matcher von `PreToolUse`.
+
+Nachgemessen am 2026-09-25 mit agy 1.2.11: agy tippt eine Eingabe nicht über
+`send_command_input`, sondern über `manage_task` mit `Action` `send_input` und
+`Input`. `manage_task` steht im Matcher; `list`, `status` und `kill` laufen
+durch, jede andere Aktion und ein Aufruf ohne `Action` wird geprüft
+(`parity/stufe-4a-2.md`, `internal/hooks/guard.go`).
 
 ### 2.4 Post-Edit liest den Aufruf (`internal/hooks/post_edit.go`)
 
