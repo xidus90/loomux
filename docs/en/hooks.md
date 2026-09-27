@@ -226,9 +226,10 @@ relative to its area):
   active stack, and only with `on_file`.
 - **Skipped, not failed**: a lane whose tool is not on the `PATH`, a Godot
   project not yet imported, and a lane the budget (`--budget`, default 50 s)
-  did not reach. The exit code stays 0, and the hook names the skipped lane in
-  `hookSpecificOutput.additionalContext`; for a `.go` file the blast monitor
-  below writes into the same field.
+  did not reach. A skip blocks nothing and is named on `stderr`, which is
+  what a host reads when another lane is red and the hook exits 2, and, when
+  the hook exits 0, in `hookSpecificOutput.additionalContext`; for a `.go`
+  file the blast monitor below writes into the same field.
 - **Checks never rewrite.** `clang-format` runs with `--dry-run --Werror`; an
   edit is judged, the file stays as the agent wrote it.
 - **`gofmt` checks the edited file only**: an unformatted file elsewhere is not

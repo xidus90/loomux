@@ -409,9 +409,9 @@ profile never walks the tree.
   not green. Otherwise exit 0 when no lane is red, 1 when one is. A load error
   exits 1, a malformed call 2.
 - **Verdict of the post-edit hook:** a red lane exits 2 with its output on
-  `stderr`; lanes it skipped are named in `hookSpecificOutput.additionalContext`
-  on `stdout`, exit 0. A file whose ending no active stack claims gets no
-  lanes and exits 0.
+  `stderr`. A lane it skipped blocks nothing and is named on `stderr` as well,
+  and at exit 0 in `hookSpecificOutput.additionalContext` on `stdout`. A file
+  whose ending no active stack claims gets no lanes and exits 0.
 - **Verdict of the stop gate:** the profile `stop` in the check scope, so the
   states read as in the `loomux check` column. A red lane exits 2 and holds the
   turn, with only the red lanes on `stderr`; a lane the budget did not reach,

@@ -77,12 +77,21 @@ func BudgetSkipped(name string) string {
 	return skipPrefix + "the edit budget ran out: " + name
 }
 
+// Skipped says notice, a lane or a file post-edit did not run, on stderr and
+// adds it to notices. A host reads stderr at exit 2 and the notices at exit
+// 0, so a skip is heard whatever the call ends with. It never writes stdout:
+// the notices go there once, when the call's code is known.
+func Skipped(stderr io.Writer, notices []string, notice string) []string {
+	fmt.Fprintln(stderr, notice)
+	return append(notices, notice)
+}
+
 // EditReport reports the lanes of one edited file: red lanes on stderr,
-// which blocks the edit, and as notices for the model the lanes it had to
-// skip and whatever else the hook has to say, one line each. The aside is
-// dropped when a lane is red: the finding matters more, and stderr stays the
-// finding's. The notices of every file of a call go to WriteNotices together,
-// because a host reads stdout as one document.
+// which blocks the edit, and every lane it had to skip through Skipped, in
+// lane order, then whatever else the hook has to say, one notice a line. The
+// aside is dropped when a lane is red: the finding matters more, and stderr
+// stays the finding's. The notices of every file of a call go to WriteNotices
+// together, because a host reads stdout as one document.
 func EditReport(stderr io.Writer, outs []Outcome, aside string) (red bool, notices []string) {
 	for _, o := range outs {
 		switch {
@@ -93,9 +102,9 @@ func EditReport(stderr io.Writer, outs []Outcome, aside string) (red bool, notic
 				fmt.Fprintf(stderr, "%s\n", strings.TrimSuffix(o.Output, "\n"))
 			}
 		case o.State == StateBudget:
-			notices = append(notices, BudgetSkipped(o.Job.Name))
+			notices = Skipped(stderr, notices, BudgetSkipped(o.Job.Name))
 		case o.State == StateMissingTool, o.State == StateUnready:
-			notices = append(notices, skipPrefix+o.Output)
+			notices = Skipped(stderr, notices, skipPrefix+o.Output)
 		}
 	}
 	if aside != "" && !red {

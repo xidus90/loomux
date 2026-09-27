@@ -80,7 +80,7 @@ sequenceDiagram
     Agent->>Hook: PostToolUse (stdin)
     Hook->>Verify: Profil edit über die geänderte Datei (vet, gofmt, Wiki-Lint, ruff, eslint ...)
     alt Eine Lane ist rot
-        Verify-->>Agent: Exit 2 mit dem Befund
+        Verify-->>Agent: Exit 2 mit dem Befund und den übersprungenen Lanes
     else Keine Lane ist rot
         Hook-->>Agent: Exit 0 — übersprungene Lanes und bei Go die Aufrufer der geänderten Symbole als Kontext
     end

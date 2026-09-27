@@ -107,10 +107,12 @@ func TestBudgetSkippedIsTheDocumentedSentence(t *testing.T) {
 	}
 }
 
-func TestEditReportSkipsQuietlyAndBlocksOnRed(t *testing.T) {
+// A skipped lane passes the edit and is said on both streams: stdout for the
+// model at exit 0, stderr for a host that reads it at exit 2.
+func TestEditReportSkipsOutLoudAndBlocksOnRed(t *testing.T) {
 	var so, se strings.Builder
 	skip := Outcome{Job: Job{Name: "lint/python"}, State: StateMissingTool, Output: `"ruff" is not on PATH: ruff check .`}
-	if code := writeEdit(&so, &se, []Outcome{skip}, ""); code != 0 || se.Len() != 0 {
+	if code := writeEdit(&so, &se, []Outcome{skip}, ""); code != 0 || se.String() != skipPrefix+`"ruff" is not on PATH: ruff check .`+"\n" {
 		t.Fatalf("%d %q", code, se.String())
 	}
 	if !strings.Contains(so.String(), `lane skipped, \"ruff\" is not on PATH`) || !strings.Contains(so.String(), `"hookEventName":"PostToolUse"`) {
@@ -135,13 +137,40 @@ func TestEditReportNamesEverySkipAndEveryRed(t *testing.T) {
 	if code := writeEdit(&so, &se, outs, ""); code != 2 {
 		t.Fatalf("red lanes block the edit: %d", code)
 	}
-	if se.String() != "lint/go: failed\nvet: x\nlint/sql: blocked\n" {
+	wantErr := "loomux hook post-tool-use: lane skipped, the edit budget ran out: test/go\n" +
+		"loomux hook post-tool-use: lane skipped, run the Godot editor once to import the project\n" +
+		"lint/go: failed\nvet: x\nlint/sql: blocked\n"
+	if se.String() != wantErr {
 		t.Fatalf("%q", se.String())
 	}
 	want := `{"hookSpecificOutput":{"additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: test/go\n` +
 		`loomux hook post-tool-use: lane skipped, run the Godot editor once to import the project","hookEventName":"PostToolUse"}}` + "\n"
 	if so.String() != want {
 		t.Fatalf("%q", so.String())
+	}
+}
+
+// A red lane blocks the edit and a host reads stderr alone: the lane the
+// edit could not check is named there beside the finding.
+func TestEditReportNamesASkippedLaneOnStderr(t *testing.T) {
+	var se strings.Builder
+	outs := []Outcome{
+		{Job: Job{Name: "lint/python"}, State: StateFailed, Output: "E1 bad"},
+		{Job: Job{Name: "types/python"}, State: StateMissingTool, Output: `"uv" is not on PATH: uv run mypy`},
+	}
+	red, _ := EditReport(&se, outs, "")
+	if !red || !strings.Contains(se.String(), skipPrefix+`"uv" is not on PATH: uv run mypy`+"\n") || !strings.Contains(se.String(), "E1 bad") {
+		t.Fatalf("%v %q", red, se.String())
+	}
+}
+
+// The helper both streams go through: stderr gets the line, the notices get
+// it appended, and nothing else is written.
+func TestSkippedSaysTheNoticeOnStderrAndKeepsIt(t *testing.T) {
+	var se strings.Builder
+	notices := Skipped(&se, []string{"first"}, "second")
+	if se.String() != "second\n" || len(notices) != 2 || notices[1] != "second" {
+		t.Fatalf("%q %q", se.String(), notices)
 	}
 }
 

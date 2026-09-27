@@ -417,10 +417,10 @@ Profil `edit` läuft also nie durch den Baum.
   prüft, ist nicht grün. Sonst Exit 0, wenn keine Lane rot ist, und 1, wenn
   eine rot ist. Ein Ladefehler endet mit 1, ein fehlerhafter Aufruf mit 2.
 - **Urteil des post-edit-Hooks:** Eine rote Lane endet mit Exit 2 und ihrer
-  Ausgabe auf `stderr`; übersprungene Lanes nennt er in
-  `hookSpecificOutput.additionalContext` auf `stdout`, Exit 0. Eine Datei,
-  deren Endung kein aktiver Stack beansprucht, bekommt keine Lanes und endet
-  mit 0.
+  Ausgabe auf `stderr`. Eine übersprungene Lane blockiert nichts und steht
+  ebenfalls auf `stderr`, bei Exit 0 außerdem in
+  `hookSpecificOutput.additionalContext` auf `stdout`. Eine Datei, deren
+  Endung kein aktiver Stack beansprucht, bekommt keine Lanes und endet mit 0.
 - **Urteil des Stop-Tors:** das Profil `stop` im Check-Scope, die Zustände
   gelten also wie in der Spalte `loomux check`. Eine rote Lane endet mit Exit 2
   und hält die Runde an, nur die roten Lanes auf `stderr`; eine Lane, die das
