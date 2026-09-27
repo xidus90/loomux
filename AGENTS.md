@@ -103,6 +103,9 @@ are German and never translated.
   its dependents are re-read, a capability's status follows its stage, a new
   gap gets a row. A decision (a new stage, a removal, a changed order) goes
   into the fusion spec first; the plan follows it and never contradicts it.
+  `internal/plancheck` holds the stage table and diagram of both files to
+  each other and to the spec's stage tables and its order of the open stages;
+  a done or only proposed stage carries `—` as its priority.
 - The roadmap is the section `Roadmap` in `README.md` and `README.de.md`: open
   work beyond the migration (follow-up projects, the open code-graph stages,
   optional features), split into "Coming" and "Maybe", each row with its stage,
