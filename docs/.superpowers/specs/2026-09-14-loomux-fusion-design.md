@@ -678,7 +678,12 @@ kann parallel laufen. **Nachtrag 2026-09-22:** 3 lief tatsächlich parallel zu
 größte Stufe ist. 2b und 2c sind fertig, und die Zeilen unter Prio 3 sind
 lückenlos nachnummeriert — die Reihenfolge ist dieselbe. **Nachtrag 2026-09-23:** G4 zerfiel in
 G4a und G4b, beide fertig; der Stop-Hook mit Blast-Logik, den der G4b-Nachtrag aus G4b herausnahm
-(E4′), ist die neue Stufe G4c und erbt Prio 2.
+(E4′), ist die neue Stufe G4c und erbt Prio 2. **Nachtrag 2026-09-26:** Flow
+ist eine eigene Spur neben der Fusion, wie der Code-Graph: Teil A (Umzug der
+Laufzeit, siehe `2026-09-26-loomux-flow-a-design.md`) zieht nichts aus 4c, 4d
+oder 4e ein, und 4e wartet ohnehin auf einen Remote für `brain-knowledge`. Die
+Prios der übrigen Zeilen bleiben; Flow behält 4 als Rang unter den offenen
+Folgeprojekten, beginnt aber jetzt.
 
 Wörtlich steht in dieser Spec nur „2c hängt an 2a“. Jede andere Abhängigkeit
 ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
@@ -691,7 +696,7 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 | — | **G4a** Navigation, **G4b** Diff-Blast, Art `graph`, Edit-Monitor | G3 ✅; G4b an G4a ✅ | ✅ Fertig (G4a 2026-09-22, G4b 2026-09-23). W3 wartete auf G4a, W4 auf G4b |
 | 2 | **G4c** Stop-Hook mit Blast-Logik | G4b ✅ | Sofort baubar, neben der Fusion; loomux prüft sich an jedem Rundenende selbst und bekäme den Blast dort. Nichts wartet darauf |
 | 3 | **4** `config`, `init`, Modell, `convert`/`fetch` | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. In sich 4a-1 → 4a-2 → 4c-1 → 4d, dann 4e; 4c-2 daneben, ohne dass etwas auf sie wartet, nach Regel 2 (Selbstnutzung). 4a-1, 4a-2, 4c-1 und 4c-2 sind gebaut, alle mit offenen Schritten des Menschen; `feat/self-update` ist gemergt. Die Umstellung der Wirte braucht einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
-| 4 | Folgeprojekt **Flow** | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“) |
+| 4 | Folgeprojekt **Flow**, eigene Spur neben der Fusion (Nachtrag 2026-09-26), zerlegt in A (Umzug der Laufzeit), A2 (Flows über MCP), B (Modellzugang), C (Bausteine), D (Entwicklungszyklus als Default-Flow) | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“); A hängt an keiner offenen Stufe und beginnt deshalb neben Stufe 4 |
 | 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4a ✅; W4 an G4b ✅ und 4; W5 an W1 und Flow | Folgeprojekt |
 | 6 | **G5** Mehrsprachigkeit (G5a → G5b → G5c → G5d) | G4b ✅; jede Teilstufe an der vorigen | Nichts wartet darauf; der Nutzer zog G5a am 2026-09-26 vor, neben die übrigen Prios |
 
@@ -727,7 +732,7 @@ der Nutzer, erst dann gilt sie.
 | 11 | ultraloom | `.gitignore`-Einträge des Installers (`cmd/init/run.go:381`) | Stufe 4 (`loomux init`) | Mit den Pfaden von loomux: `.loomux/state/` statt `.ultraloom/hooks/` | freigegeben 2026-09-23, Stufe 4a-2; gebaut 2026-09-24 mit 4a-2 |
 | 12 | ultraloom | `[relevance]` (`internal/render/templates/config.toml.tmpl:22`, `cmd/init/run.go:678`) | Wegfall | Der Installer schreibt ihn, aber kein Hook liest ihn, schon in ultraloom nicht. Die Presets je Stack decken die Absicht ab. `loomux migrate` lässt ihn fallen und sagt es | freigegeben 2026-09-23; da `migrate` wegfällt (#19), kennt `init` ihn einfach nicht |
 | 13 | ultraloom | `[project].commit_language` (`cmd/init/run.go:507`) | Stufe 2b, `migrate` in Stufe 4 | Nur `ulinit` liest ihn als Antwortvorgabe; die Prüfung liest `[commit].language`. `migrate` übersetzt ihn dorthin | freigegeben 2026-09-23, Stufe 4a-2: statt `migrate` fragt `init` die Commit-Sprache ab |
-| 14 | ultraloom | `[agent].settings`, `[agent].mcp_servers` (`config.py:219`) | Folgeprojekt 1 (Flow-Migration) | Sie steuern den Aufruf von `claude -p` in Flows. Die Tabelle „Wegfall aus dem alten Schema“ der 2a-Spec streicht nur `cli_path` | |
+| 14 | ultraloom | `[agent].settings`, `[agent].mcp_servers` (`config.py:219`) | Folgeprojekt 1 (Flow-Migration) | Sie steuern den Aufruf von `claude -p` in Flows. Die Tabelle „Wegfall aus dem alten Schema“ der 2a-Spec streicht nur `cli_path` | freigegeben 2026-09-26: `mcp_servers` mit Flow A, `settings` mit Flow B (`2026-09-26-loomux-flow-a-design.md`) |
 | 15 | ultraloom | `scripts/install.ps1` und `install.sh`: Bauen in `~/go/bin` | Stufe 4 (`loomux init`) | Release-Archive gibt es, aber keinen Weg, das Binary auf den `PATH` zu legen | freigegeben 2026-09-24, Stufe 4a-2: `init` holt das neueste Release an den kanonischen Ort `%LOCALAPPDATA%\loomux\bin\loomux.exe` der Self-Update-Spec; die Einträge rufen es über `${LOCALAPPDATA}`, nicht über den `PATH`; gebaut 2026-09-24 mit 4a-2 |
 | 16 | ultraloom | `ulinit --detect-only` (`cmd/init/main.go:44`) | Stufe 4, als `loomux init --detect-only` | `internal/detect` ist da, nur ohne Befehl | freigegeben 2026-09-23, Stufe 4a-2; gebaut 2026-09-24 mit 4a-2 |
 | 17 | ultra-brain | `reindex` und `embed` als Befehle (`ultra-brain/pkg/index`, `src/brain/cli.py:463,467`); `embed` allein ist #3 | Stufe 3a | Der Auffangdurchgang koppelt `reconcile` an `reindex` („`reconcile` auch als Durchgang vor `reindex`“ nennt einen Befehl, den es in loomux nicht gab), und `embed` ist ohne `reindex` gegenstandslos | freigegeben 2026-09-19, Stufe 3a; gebaut 2026-09-22 |
