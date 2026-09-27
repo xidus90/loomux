@@ -417,8 +417,32 @@ Die eingebauten Regeln (`internal/hooks/guard.go`):
 |---|---|---|
 | Pfad | zehn Geheimnismuster, darunter `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `credentials.json` und `.aws/**` | secrets are not written by an agent |
 | Pfad | `.loomux/no-verify`, `.loomux/state/hooks/**` | the stop gate's own controls are not written by the party it gates |
+| Pfad | `.loomux/state/runs/**`, Journale und Marken der [Flow-Läufe](flows.md#2-einen-flow-fahren) | a flow's journal and marker are written by loomux, not by the party the gates ask |
+| Pfad | `.loomux/flows/<name>/` und alles darin, für jeden Flow im Katalog dieses Binarys und jeden Namen in `[flow] overrides`; ein Flow unter eigenem Namen bleibt frei | a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `<name>` |
 | Pfad | sieben Lockdateien, darunter `go.sum`, `package-lock.json` und `Cargo.lock` | lock files are written by their package manager, not by hand |
 | Befehl | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
+| Befehl | ein Schreiben per Shell auf `.loomux/state/runs` oder eine Datei darin (`>`, `tee`, `sed -i`, `Set-Content`, `cp`/`mv` darauf und mehr) und ein Löschen (`rm`, `Remove-Item`, `git rm`, …) davon, von `.loomux/state` darüber oder eines Globs an seiner Stelle | a flow's journal and marker are written by loomux, not by the party the gates ask |
+| Befehl | dieselben Formen auf den Ordner eines geschützten Flows unter `.loomux/flows/` oder auf einen Glob an der Stelle eines Flows (`cp x .loomux/flows/ex*/…`) und ein Löschen davon oder von `.loomux/flows` darüber | der Grund der Pfadregel, mit jedem geschützten Namen |
+| Befehl | `loomux flow resume … --answer` in jeder Schreibweise, die die Regel für `loomux config` liest (ein Pfad zum Binary, Anführungszeichen, verkettete Befehle, `--answer text`, `--answer=text`), und jedes `Start-Process` von loomux, dessen Argumente der Wächter nicht sieht | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
+
+**Die eingebauten Pfadregeln treffen in jeder Schreibweise**: Windows und
+macOS halten `.LOOMUX/State/Runs` und `.loomux/state/runs` als einen Ordner,
+darum wird die Regel kleingeschrieben mit einem kleingeschriebenen Ziel
+verglichen, und die Regel für Flow-Ordner vergleicht den Namen des Ordners
+ebenso. Die eigenen `[policy]`-Regeln eines Projekts treffen so, wie das
+Projekt sie schrieb. Die Regel für Flow-Ordner liest `[flow]` der
+`.loomux/config.toml`, und nur für ein Ziel unter `.loomux/flows` oder eine
+Shell-Zeile, die `flows` enthält; ein `[flow]`, das sich nicht lesen lässt,
+verweigert jedes Schreiben dort (`loomux cannot read [flow] of
+.loomux/config.toml, so it refuses writes under .loomux/flows: …`). Warum die
+Tore bewacht sind und was einem Agenten offen bleibt, steht in
+[Flows](flows.md#6-tore-gehören-einem-menschen).
+
+**Die Regeln zu loomux' eigenen Befehlen erkennen das Programm an seinem
+Dateinamen**: `loomux` oder `loomux.exe` unter jedem Pfad, oder `go run` von
+`cmd/loomux`. Ein kopiertes oder umbenanntes Binary (`cp bin/loomux.exe x.exe`,
+dann `x.exe flow resume … --answer yes`) kommt an jeder von ihnen vorbei; die
+Pfadregeln oben gelten weiter.
 
 Die Schreibschranke nach der Policy entscheidet nur über schreibende Werkzeuge
 mit Ziel: sie löst jedes Ziel auf und lehnt ein Schreiben außerhalb jedes
@@ -436,7 +460,7 @@ laufen:
 
 | Ereignis in Claude Code | loomux-Hook | Stufe | Was er feststellt |
 |---|---|---|---|
-| `SessionStart` | `session-start` | 1a, läuft | Den Commit, auf dem die Sitzung beginnt; eine Warnung, wenn das Pilot-Binary älter ist als seine Quellen |
+| `SessionStart` | `session-start` | 1a, läuft; Flow-Läufe seit Flow A | Den Commit, auf dem die Sitzung beginnt; eine Warnung, wenn das Pilot-Binary älter ist als seine Quellen; die Flow-Läufe, die an einem Tor warten |
 | `PostToolUse` | `post-tool-use` | 1a, läuft; Lanes aus `[verify]` seit 2a | Die Lanes aus Abschnitt 5 für die bearbeitete Datei |
 | `SubagentStart` | `subagent-start` | 2c, läuft | Wo `origin`, die lokalen Branches und `HEAD` vor einem Subagenten standen |
 | `SubagentStop` | `subagent-stop` | 2c, läuft | Jeden Ref von `origin` und jeden lokalen Branch, der sich bewegt hat, dazukam oder verschwand, und die Commits, die `HEAD` und die bewegten Branches gewonnen haben — geparkt für das `stop` des Hauptagenten |
@@ -464,8 +488,10 @@ Exit 0, worauf agy erneut in seine Schleife eintritt; der Grund ist, was das
 Tor nach stderr geschrieben hat. Jeder andere Code ungleich 0 endet mit 0.
 Ein unbekanntes Ereignis bleibt auf jedem Wirt Exit 2. `session-start` läuft
 auf `PreInvocation`, das vor jedem Modellaufruf feuert und sie in
-`invocationNum` zählt; nur der erste meldet sich, ein späterer nur, um zu
-sagen, dass die Sitzung für worktree unlink nicht wieder mitzählt.
+`invocationNum` zählt; nur der erste warnt vor Binary und Self-Update. Ein
+späterer nennt die Flow-Läufe, die noch an einem Tor warten, und die
+übergangenen Flow-Ordner, wie jeder Start, und sagt, wenn die Sitzung für
+worktree unlink nicht wieder mitzählt.
 `subagent-start` und
 `subagent-stop` sind für Antigravity nicht verdrahtet: seine Nutzlasten tragen
 keine `agent_id`.
@@ -521,14 +547,45 @@ loomux hook session-start --host claude --root <projekt>   # Nutzlast auf stdin
   Sitzungs-ID trägt (nirgends abzulegen) oder die Wurzel kein Git-Repo ist
   (nichts abzulegen). Ein Schreiben, das scheitert, ist Exit 1.
 - **Warnt vor einem veralteten Binary.** Liegt das laufende Binary im Projekt
-  und ist älter als die jüngste von `go.mod`, `go.sum` und den `.go`-Dateien
-  unter `cmd/` und `internal/`, sagt der Hook das in
+  und ist älter als die jüngste von `go.mod`, `go.sum`, den `.go`-Dateien
+  unter `cmd/` und `internal/` und jeder Datei unter `flows/`, deren Pfad kein
+  Glied mit `_` oder `.` vorne hat (der Go-Quelltext des Pakets samt seinen
+  Tests und der Katalog, den es einbettet), sagt der Hook das in
   `hookSpecificOutput.additionalContext`, mit dem Befehl zum Neubauen.
   Verglichen wird mit den Quellen, nicht mit `HEAD`: das Pre-Commit-Tor baut
   `bin/loomux.exe`, bevor der Commit existiert. Gibt es nichts zu sagen,
   schreibt der Hook nichts.
-- **Meldet keine wartenden Flow-Läufe.** Das kommt mit der Flow-Migration
-  zurück.
+- **Meldet die Flow-Läufe, die an einem Tor warten**, bei jedem Start, auch
+  einem wiederholten: Eine Frage bleibt offen, bis ein Mensch sie beantwortet,
+  und eine Sitzung, die sie einmal hörte, hat sie womöglich inzwischen aus
+  ihrem Kontext verloren. Eine Kontextzeile je Lauf, in der Reihenfolge der
+  Läufe, mit dem Flow und seiner Herkunft (bei einem Overlay mit den ersetzten
+  Dateien) und dem Befehl, mit dem ein Mensch antwortet, gebaut aus dem Pfad,
+  aus dem der Hook läuft (`os.Executable`, mit Schrägstrichen, in doppelten
+  Anführungszeichen, wenn er Leerraum oder ein anderes Zeichen enthält, das
+  eine Shell liest), denn loomux liegt nicht auf jedem `PATH`:
+
+  ```
+  run 0001 (ship, project) is waiting at confirm: Ship it?
+    a human answers it with: C:/Users/me/project/bin/loomux.exe flow resume 0001 --answer "your answer"
+  ```
+
+  Einen Laufordner, der sich nicht auflisten lässt, nennt der Hook auf
+  `stderr` (`.loomux/state/runs cannot be read as a folder of runs: …`) und
+  meldet nichts. Ein Journal oder eine Marke, die sich nicht lesen lässt,
+  nennt der Hook mit Grund auf `stderr`, ohne zu blockieren, und sie verbirgt
+  nur ihren eigenen Lauf. Lässt sich das Journal nicht lesen und sagt die Marke, dass eine
+  andere loomux-Version den Lauf schrieb, nennt der Hook stattdessen beide
+  Versionen (`run 0001 was written by loomux 0.0.0-dev, this is …`); welche
+  neuer ist, rät er nicht, denn ein Checkout-Build nennt sich `0.0.0-dev`.
+- **Nennt übergangene Flow-Ordner.** Ein Eintrag unter `.loomux/flows/`, der
+  den Namen eines mitgelieferten Flows trägt, während `[flow] overrides` ihn
+  nicht nennt, bekommt die Zeile `.loomux/flows/<name> is ignored: [flow]
+  overrides does not name it`: Es fährt der mitgelieferte Flow, nicht die
+  Dateien des Projekts. `[flow]` wird nur gelesen, wenn es einen solchen
+  Eintrag gibt. Ein `.loomux/flows`, das sich nicht auflisten lässt, bekommt
+  `.loomux/flows cannot be read as a folder of flows: …`, die Warnung, die
+  `loomux flow` dafür gibt.
 - **Exit 0 oder 1, nie 2.** Er ist eine Ankündigung und hat keine Runde
   anzuhalten. Ein fehlendes oder unbekanntes `--host`, ein stdin, das kein
   JSON-Objekt ist, und — ohne `--root` — keine `.loomux/config.toml` oberhalb

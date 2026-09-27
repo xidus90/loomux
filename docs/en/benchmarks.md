@@ -2672,3 +2672,62 @@ worktree, sample file `cmd/loomux/main.go`; one cold and three warm runs.
 2. **The renamed commands write the shared envelope**: the `repos` JSON
    carries `schema` 1, `command` `repos` and a payload with `repos` and
    `skipped`.
+
+## 2026-09-27 16:18 — The Flow Runtime: `session-start` With Waiting Runs, and the Guard's Flow Rules
+
+Worktree `.worktrees/flow-a`, branch `feat/flow-runtime`. `before.exe` is
+`fa1e83dc`, the branch's merge base at the time, built from `git archive` into
+the scratchpad; `after.exe` is the branch head `0e39521d`, before the branch
+was rebased onto `a7805df8`. Both built with Go 1.27.0 `windows/amd64`.
+Machine: AMD Ryzen 7 9800X3D, Windows 11 Pro.
+
+**Goal.** The flow runtime adds two things to the hook path: `session-start`
+reads `.loomux/state/runs/` and announces a run waiting at a gate, and
+`pre-tool-use` gains the built-in rules for run files, bundled flow folders
+and gate answers. Neither may cost measurable time. ultraloom's flow runtime
+(ulflow M1) measured +2.1 ms warm for its session start, within the noise.
+
+**Method.** `after.exe dev bench-hooks <cases> -n 30` (the command was then
+spelled with a hyphen), three passes from 16:18:28 to 16:18:40, before and
+after alternating, the binary in `argv` swapped per pass. Case file
+`testdata/bench/flow-hooks.json`; its stdin payloads lay under `%TEMP%` and
+are not committed. Five cases: `pre-tool-use` with an `Edit` of
+`internal/hooks/guard.go` (outside `.loomux/`), with an `Edit` of
+`.loomux/flows/mine/flow.toml` (the guard reads `[flow]` of this worktree's
+`.loomux/config.toml` for it), and with a `Bash` `git status`; `session-start`
+against a small git world without runs, and against one whose single run
+waits at a gate (marker and the first two journal lines of the `example`
+flow's golden journal; `after` announces it, `before` knows no runs). Both
+worlds hold one commit and no `.loomux/config.toml`. The real state directory
+and registry. "Cold" is the first run of a case, not a cold file cache. The
+table gives the median of the three pass medians, warm over 30 runs each, the
+smallest minimum of the three passes, and cold as the median of the three
+first runs. Every run ended with exit 0. The case file runs unchanged under
+today's `loomux dev bench hooks` (probed 2026-09-27 16:52, exit 0).
+
+| case | before cold | after cold | before warm median | after warm median | before warm min | after warm min |
+|---|---:|---:|---:|---:|---:|---:|
+| pre-tool-use Edit outside `.loomux/` | 16.5 ms | 14.5 ms | 13.8 ms | 12.5 ms | 11.5 ms | 10.5 ms |
+| pre-tool-use Edit under `.loomux/flows/mine/` | 14.5 ms | 13.0 ms | 13.5 ms | 12.5 ms | 11.5 ms | 10.9 ms |
+| pre-tool-use Bash `git status` | 11.0 ms | 10.0 ms | 10.5 ms | 9.7 ms | 9.0 ms | 8.0 ms |
+| session-start, a project without runs | 12.0 ms | 11.5 ms | 11.0 ms | 9.3 ms | 9.0 ms | 8.0 ms |
+| session-start, one run waiting at a gate | 12.5 ms | 11.0 ms | 11.0 ms | 10.0 ms | 9.5 ms | 8.1 ms |
+
+| binary | size |
+|---|---:|
+| before (`fa1e83dc`) | 36,457,472 bytes |
+| after (`0e39521d`) | 37,006,336 bytes (+548,864, +1.5 %; the whole branch, not only the rules) |
+
+### Reading
+
+1. **The new rules cost no measurable time.** `after` is about 1 ms ahead of
+   `before` in every case, also in those the new rules barely touch (`Bash`
+   `git status`, the session start without runs). The lead therefore does not
+   come from this change; the build (`before` from `git archive`, without
+   `.git` and so without a VCS stamp) or the order in each pass (`before` ran
+   first) are the likely causes. It lies within the spread (warm maxima up to
+   26 ms).
+2. **Reading `[flow]` for an edit under `.loomux/flows/` costs nothing
+   visible**: after, that case runs level with the edit outside `.loomux/`.
+3. **The waiting run** costs `after` 0.7 ms warm against the project without
+   runs, less than the spread of either case.

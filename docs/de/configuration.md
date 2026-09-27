@@ -621,6 +621,99 @@ never = [
 
 ---
 
+### `[agent]` (Modelle für die Rollen eines Flows)
+
+Bindet die Rollen, die ein [Flow](flows.md#3-rollen-und-modelle) nennt, an
+Modelle. Ein Flow nennt selbst nie ein Modell, ein mitgelieferter Flow lädt
+also in jedem Projekt; das Projekt entscheidet, wer jede Rolle beantwortet.
+Jeder Befehl von `loomux flow`, der einen Flow lädt, liest die Tabelle
+vorher.
+
+```toml
+[agent]
+default     = "sonnet"     # das Modell jeder Rolle ohne Bindung
+mcp_servers = ["loomux"]   # was das Werkzeugprofil mcp nutzen darf
+
+[agent.models.sonnet]
+provider = "claude"
+model    = "sonnet"
+
+[agent.models.gemini]
+provider = "agy"           # ohne model: die Vorgabe der CLI des Anbieters
+
+[agent.roles]
+reviewer = "gemini"
+writer   = "sonnet"
+```
+
+| Schlüssel | Typ | Bedeutung |
+|---|---|---|
+| `[agent] default` | String | Der Modellname, auf dem jede Rolle ohne Bindung läuft, und ein Agentenknoten ohne Rolle. Muss ein Name unter `[agent.models]` sein. |
+| `[agent] mcp_servers` | Array von Strings | Die Server, die ein Knoten mit dem Werkzeugprofil `mcp` nutzen darf, je einer als `mcp__<server>`; jeder Eintrag ein nicht leerer String. Vorgabe `[]`. |
+| `[agent.models.<name>] provider` | String, **Pflicht** | Wer für diesen Modellnamen antwortet, etwa `claude` oder `agy`. Noch nicht gegen eine Liste geprüft: Die kommt mit den Modelladaptern. |
+| `[agent.models.<name>] model` | String | Das Modell des Anbieters. Fehlt es, wählt die CLI des Anbieters ihre Vorgabe; steht es da, darf es nicht leer sein. |
+| `[agent.roles] <rolle>` | String | Der Modellname, auf dem die Rolle läuft. Muss ein Name unter `[agent.models]` sein. |
+
+- **Namen** von Modellen und Rollen folgen `[A-Za-z_][A-Za-z0-9_]*`.
+- **Jeder Befund auf einmal.** Ein unbekannter Schlüssel unter `[agent]` oder
+  `[agent.models.<name>]` wird mit den bekannten abgelehnt, ebenso ein
+  Default oder eine Bindung, die kein Modell nennt: `[agent.roles] reviewer
+  names "gemini", which is not under [agent.models]; known: none`. Ein Flow
+  erfährt also nie erst am ersten bezahlten Knoten, dass eine Rolle nirgends
+  läuft. `[agent] settings` ist noch unbekannt; es kommt mit den Adaptern.
+- **Die Auflösung** des Modells eines Knotens — Rolle des Knotens, Rolle des
+  Flows, Bindung, `[agent] default`, die Vorgabe der claude-CLI — steht in
+  [Flows](flows.md#3-rollen-und-modelle); `loomux flow show <flow>` druckt sie
+  je Knoten.
+- **Mit `loomux config`** heißen die benannten Schlüssel
+  `agent.roles.<rolle>`, `agent.models.<name>.provider` und
+  `agent.models.<name>.model`; `config list` zeigt eine Zeile je Name, den die
+  Datei hält, und `agent.roles.*` (oder `agent.models.*.provider`, `…model`)
+  als ungesetzte Zeile, solange sie keinen hält. Das Modell kommt zuerst:
+  `loomux config set agent.roles.reviewer gemini` gelingt erst, wenn
+  `agent.models.gemini.provider` gesetzt ist, denn der Leser lehnt eine
+  Bindung an ein unbekanntes Modell ab (Exit `1`, die Datei bleibt, wie sie
+  war). Ein Agent schlägt eine Bindung mit `loomux config set
+  agent.roles.reviewer gemini --propose` vor.
+
+**`[agent]` ist nicht `[model]`.** `[model]` ist das lokale Ollama-Modell des
+Brains, gesetzt in der maschinenweiten `config.toml` (ein Bereich schaltet es
+nur ab oder engt es ein), mit seinen eigenen Rollen `describe`, `place` und
+`propose` (siehe
+[`loomux config --global`](cli-reference.md#10-konfiguration-loomux-config)).
+`[agent]` bindet die Rollen eines Flows an die Modelle der CLI eines
+Anbieters.
+
+---
+
+### `[flow]` (Welcher Flow läuft)
+
+```toml
+[flow]
+default   = "example"      # was `loomux flow run` ohne Namen startet
+overrides = ["example"]    # mitgelieferte Flows, die ein Projekt-Flow gleichen Namens verdecken oder überlagern darf
+```
+
+| Schlüssel | Typ | Bedeutung |
+|---|---|---|
+| `default` | String | Der Flow, den `loomux flow run` ohne Namen startet; ein Flow-Name (`[a-z][a-z0-9-]*`). Ohne ihn lehnt `run` ohne Namen ab und nennt die Flows, die es kennt. |
+| `overrides` | Array von Strings | Die mitgelieferten Flows, die `.loomux/flows/<name>/` verdecken (mit eigener `flow.toml`) oder überlagern (einzelne Dateien unter `instructions/` und `questions/`) darf; jeder ein Flow-Name, keiner doppelt. Vorgabe `[]`. |
+
+- **Ein unbekannter Schlüssel** wird mit den bekannten abgelehnt.
+- **Ob ein Name ein Flow ist,** fragt dieser Leser nicht: Er liest keine
+  Flows. Ein `default`, der keinen Flow nennt, lässt `loomux flow list` und
+  ein `loomux flow run` ohne Namen scheitern; `list` warnt vor einem Namen in
+  `overrides`, den der Katalog nicht ausliefert.
+- **Die Freigabe schreibt nur ein Mensch.** Ohne `overrides` wird ein
+  Projektordner mit dem Namen eines mitgelieferten Flows mit einer Warnung
+  übergangen, und der mitgelieferte Flow fährt; der Wächter verweigert einem
+  Agenten jedes Schreiben in den Ordner eines mitgelieferten Flows oder eines
+  Namens aus `overrides` (siehe
+  [Flows](flows.md#6-tore-gehören-einem-menschen)). Ein Agent schlägt eine
+  Freigabe mit `loomux config set flow.overrides example --propose` vor.
+
+---
+
 ## 3. Vollständiges kommentiertes Muster (`config.toml`)
 
 ```toml
@@ -675,6 +768,20 @@ mirror = [
 [privacy]
 mode = "manual_cloud"
 never = [".env*", "*.key", "credentials.json"]
+
+# --- Flows: die Modelle ihrer Rollen und welcher Flow läuft -----------------
+[agent]
+default = "sonnet"
+
+[agent.models.sonnet]
+provider = "claude"
+model = "sonnet"
+
+[agent.roles]
+reviewer = "sonnet"
+
+[flow]
+default = "example"
 ```
 
 ---
@@ -695,6 +802,8 @@ never = [".env*", "*.key", "credentials.json"]
 | Sitzungszustand der Hooks (`base`, `blocks`, `green`) | `<projekt>\.loomux\state\hooks\<session_id>.json` |
 | Schnappschüsse und Befunde der Subagenten | `<projekt>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
 | Der Marker, der das Stop-Tor abschaltet | `<projekt>\.loomux\no-verify` |
+| Eigene Flows und Overlays eines Projekts | `<projekt>\.loomux\flows\<name>\` |
+| Flow-Läufe: Journal und Marke | `<projekt>\.loomux\state\runs\<id>.jsonl`, `<id>.flow` |
 
 `LOOMUX_STATE_DIR` überschreibt das Zustandsverzeichnis,
 `LOOMUX_LEGACY_BRAIN_DIR` das Verzeichnis von ultra-brain; einen

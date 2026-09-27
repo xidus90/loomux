@@ -350,13 +350,15 @@ Wird ausgeführt, nachdem ein Agent eine Datei bearbeitet hat.
 - **Exit-Codes**: `0` (alle Lanes grün, übersprungen oder nichts zu fahren), `1` (fehlerhafter Aufruf, etwa ein fehlendes `--host`, oder ein `[verify]`, das sich nicht laden lässt), `2` (eine Lane ist gescheitert, abgelaufen oder blockiert; ihre Ausgabe auf `stderr`).
 
 ### `loomux hook session-start`
-Hält den Commit fest, auf dem die Sitzung beginnt.
+Hält den Commit fest, auf dem die Sitzung beginnt, und meldet die Flow-Läufe, die auf einen Menschen warten.
 
 - **Flags**: `--host <h>` (Pflichtfeld; `claude` und `antigravity` haben Adapter), `--root <r>`.
 - **Verhalten**:
   - Schreibt `HEAD` als `base` in `.loomux/state/hooks/<session_id>.json`.
   - Belebt eine Sitzung wieder, die `worktree unlink` als beendet markiert hat: entfernt `<session_id>.ended` und schreibt die Datei mit zurückgesetzter Blockreihe zurück, sodass die Sitzung wieder zählt; bei einer nie als beendet markierten Sitzung wird die Datei nur verjüngt. Eine Marke, die sich nicht entfernen lässt, oder eine Datei, die sich nicht zurückschreiben lässt, steht im Kontext, mit Exit 0.
-  - Warnt in `hookSpecificOutput.additionalContext`, wenn das Binary im Projekt älter ist als seine Go-Quellen.
+  - Warnt in `hookSpecificOutput.additionalContext`, wenn das Binary im Projekt älter ist als seine Go-Quellen, `go.mod`, `go.sum` oder eine Datei unter `flows/`, deren Pfad kein Glied mit `_` oder `.` vorne hat (`_test/` eines Flows zählt nicht).
+  - Meldet jeden Lauf unter `.loomux/state/runs/`, der an einem Tor wartet, bei jedem Start, auch bei einem wiederholten unter Antigravity: `run <id> (<flow>, <herkunft>) is waiting at <tor>: <frage>`, dann `a human answers it with: <binary> flow resume <id> --answer "your answer"`; `<binary>` ist der Pfad, aus dem der Hook läuft, mit Schrägstrichen, in doppelten Anführungszeichen, wenn er Leerraum oder ein anderes Zeichen enthält, das eine Shell liest. Einen Laufordner, der sich nicht auflisten lässt, nennt er auf `stderr` (`.loomux/state/runs cannot be read as a folder of runs: …`), ebenso ein Journal oder eine Marke, die sich nicht lesen lässt; sie verbirgt nur ihren eigenen Lauf; sagt die Marke, dass eine andere loomux-Version den Lauf schrieb, nennt die Zeile beide (`run 0001 was written by loomux 0.0.0-dev, this is …`). Siehe [Flows](flows.md#6-tore-gehören-einem-menschen).
+  - Nennt jeden Eintrag unter `.loomux/flows/`, der den Namen eines mitgelieferten Flows trägt, solange `[flow] overrides` ihn nicht nennt: `.loomux/flows/<name> is ignored: [flow] overrides does not name it`. Ein `.loomux/flows`, das sich nicht auflisten lässt, bekommt `.loomux/flows cannot be read as a folder of flows: …`, mit den Worten, mit denen `loomux flow` warnt.
   - Liest außerdem `<Zustandsverzeichnis>/update.json` und warnt, wenn unter Windows ein Durchlauf von `serve` ein anderes Binary als `<Zustandsverzeichnis>/bin/loomux.exe` als sein eigenes verzeichnet hat, oder wenn der letzte Self-Update-Durchlauf gescheitert ist, gleich wer ihn fuhr.
   - Legt keine Worktree-Junctions an; das tut `loomux worktree link`. Siehe [Hooks](hooks.md#8-sitzungshooks).
 - **Exit-Codes**: `0` (Erfolg), `1` (fehlender oder unbekannter Host, kein Adapter für den Host, unlesbare Nutzlast, gescheitertes Schreiben).
@@ -1102,6 +1104,14 @@ loomux config reject <id>|--all
   `brain`. Aufgeführt ist jeder Schlüssel, den die Leser der Datei annehmen,
   und kein anderer, außer den Tabellen je Stack `[verify.<stack>.<art>]`
   (siehe `list`).
+- **Benannte Schlüssel** tragen einen Namen, den das Projekt wählt:
+  `agent.roles.<rolle>`, `agent.models.<name>.provider` und
+  `agent.models.<name>.model` (siehe
+  [`[agent]`](configuration.md#agent-modelle-für-die-rollen-eines-flows)).
+  `list` zeigt eine Zeile je Name, den die Datei hält, und die Familie mit `*`
+  an der Stelle des Namens als ungesetzte Zeile, solange sie keinen hält;
+  `set`, `unset` und `get` nehmen den Schlüssel mit eingesetztem Namen, nie
+  den `*`.
 - **Herkunft**: `set` (in der Datei), `default` (die Vorgabe des Lesers, als
   Wert gezeigt), `preset` (`verify.profiles`, von den Presets gefüllt; gezeigt
   wird der eingebaute Wert) und `unset` (kein Wert und keine Vorgabe).
@@ -1146,8 +1156,10 @@ fragt `write these changes? [y/N]` und schreibt nur bei `y` oder `yes`.
   spätere Änderung der Vorgabe fest.
 - **Geprüft von den echten Lesern**: Der neue Text geht an jeden Leser, der
   im Betrieb läuft (Bereichsdeklaration, `[modules]`, Policy, `[verify]`,
-  Commit-Policy, Worktree-Spiegel), und wird erst geschrieben, wenn alle ihn
-  annehmen.
+  Commit-Policy, `[agent]`, `[flow]`, Worktree-Spiegel), und wird erst
+  geschrieben, wenn alle ihn annehmen. Eine Rollenbindung braucht darum zuerst
+  ihr Modell: `set agent.roles.reviewer gemini` wird abgelehnt, bis
+  `agent.models.gemini.provider` gesetzt ist.
 - **Brain-Schlüssel brauchen `[area]`**: Ohne liest das Brain nichts; jeder
   Brain-Schlüssel außer `area.scope` wird darum mit `set area.scope first`
   abgewiesen.
@@ -1453,5 +1465,225 @@ ablehnen, eine Host-Datei oder `.mcp.json`, die kein JSON ist, deren Wurzel
 die der Plan nicht lesen kann), und ein Lauf, der fragen muss und kein
 Terminal hat (`init asks questions; run it in a terminal, or pass --yes or
 --dry-run`).
+
+---
+
+## 12. Flows (`loomux flow`)
+
+Fährt einen Flow, hält ihn an einem Tor an, setzt fort, spielt nach, zeigt und
+listet Flows: den Katalog, den das Binary mitbringt, und die eigenen des
+Projekts unter `.loomux/flows/`. Format, Rollen, Overlays und Katalog stehen
+in [Flows](flows.md). Agentenknoten warten auf die Modelladapter: Ein Flow mit
+einem solchen Knoten lehnt den Start ab.
+
+```bash
+loomux flow run [<flow>] [--option name=wert]... [--root ordner]
+loomux flow resume <lauf> [--answer text] [--root ordner]
+loomux flow replay <lauf> [--root ordner]
+loomux flow show <lauf|flow> [--root ordner]
+loomux flow list [--root ordner]
+```
+
+- **Das Projekt** ist `--root`, sonst die nächste `.loomux/config.toml`
+  oberhalb des Arbeitsverzeichnisses, sonst das Arbeitsverzeichnis selbst.
+- **Erst der Name, dann die Flags**: Flow oder Laufnummer stehen vor den
+  Flags. `-h` druckt die Flags und endet mit `0`.
+- **Jeder Befehl, der einen Flow lädt, liest vorher `[agent]` und `[flow]`**
+  und hält mit Exit `1` an einer Tabelle, die ihr Leser ablehnt (siehe
+  [Konfiguration](configuration.md#agent-modelle-für-die-rollen-eines-flows)).
+  `resume` und `replay` sehen zuerst Journal und Marke des Laufs an; die
+  Ablehnungen, die von seinem offenen Tor abhängen, kommen, nachdem der Flow
+  gefunden und geladen ist. `show <lauf>` liest nur das Journal.
+- **Kein `stdin`**: Kein Befehl liest es; ein Lauf hält alles, was von ihm
+  bleibt, in Journal und Marke, jeder Aufrufer fährt ihn also gleich.
+- **Warnungen** gehen als `warning: …` nach `stderr` und ändern den Exit-Code
+  nicht: ein Projektordner, den ein mitgelieferter Flow übergeht, Overlays,
+  die sich seit dem Start eines Laufs geändert haben, ein Knoten, der auf einer
+  inzwischen geänderten Definition lief.
+- **Ablehnungen** gehen mit Exit `1` nach `stderr`; ein Flow, der nicht lädt,
+  wird mit jedem Befund seiner Ladestufe abgelehnt, eine Zeile je Befund.
+- **Der Wächter** verweigert einem Agenten `resume … --answer`; jede andere
+  Form steht ihm offen (siehe [Flows](flows.md#6-tore-gehören-einem-menschen)).
+
+### Exit-Codes
+
+| Code | Bedeutung |
+|---|---|
+| `0` | der Lauf ist fertig; `show` und `list` gelingen; `-h` |
+| `1` | ein Fehler oder eine Ablehnung: ein Flow, der nicht lädt, ein gescheiterter Lauf (ein Knoten scheiterte ohne Fehlerkante, keine Kante trifft zu, ein Besuchsdeckel), eine Antwort, die keine Wahl trifft, ein Replay eines Laufs, der an einem Ausgangsknoten endete |
+| `2` | ein Aufruffehler: kein oder ein unbekannter Unterbefehl, ein fehlender Name oder eine fehlende Laufnummer, eine Laufnummer, die nicht nur aus Ziffern besteht, ein übriges Argument, ein unbekanntes Flag, ein `--option` ohne `=` oder doppelt |
+| `3` | der Lauf ist an einem Tor pausiert |
+| andere | der Code des Ausgangsknotens, an dem der Lauf endete |
+
+### `loomux flow run [<flow>] [--option name=wert]... [--root ordner]`
+Startet einen neuen Lauf und fährt ihn, bis er fertig ist, an einem Tor
+pausiert oder scheitert.
+
+- **Ohne Namen** fährt `[flow] default`. Ist es nicht gesetzt, lehnt der
+  Befehl mit `no flow named and [flow] default is unset; known flows: example,
+  ship` ab; ein Default, der keinen Flow nennt, mit `[flow] default names "x",
+  which is no flow here`.
+- **`--option name=wert`** setzt einen Parameter; wiederholbar. Der Text wird
+  als Typ des Parameters gelesen: ein `int` dezimal, ein `bool` als `true` oder
+  `false`, eine `list[string]` als JSON-Liste von Strings (`'["a","b"]'`), ein
+  `string`, wie er steht. Jede Option, die kein Parameter ist oder sich nicht
+  als ihr Typ lesen lässt, wird auf einmal genannt (`option x is no parameter
+  of flow "ship"; known parameters: none`).
+- **Abgelehnt, bevor es einen Lauf gibt**, Exit `1`: ein Name, der kein
+  Flow-Name ist (`"Bad" is not a flow name; a flow name is [a-z][a-z0-9-]*`),
+  kein Flow dieses Namens (`no flow named "nope"; known flows: example,
+  ship`), ein Ladebefund, ein Anbieter ohne Adapter (`no adapter for provider
+  claude yet`, heute jeder Flow mit einem Agentenknoten), Agentenknoten, die
+  auf zwei Anbieter auflösen.
+- **Ein Lauf** nimmt die nächste Nummer unter `.loomux/state/runs/`, schreibt
+  seine Marke mit den Optionen, der Herkunft und, wenn Git antwortet, `HEAD`
+  und den geänderten Dateien, und journalisiert jeden Schritt. Ein Lauf, den
+  der Runner vor seinem ersten Schritt ablehnt, gibt seine Nummer zurück; einer,
+  der später scheitert, behält seine Dateien, und die Meldung nennt den Lauf
+  (`run 0003: …`).
+- **Ausgabe** auf `stdout`: `run <id> (<flow>, <herkunft>): <status>` mit dem
+  Status `done`, `paused` oder `error`, dann die Frage des Tors oder der Grund,
+  aus dem der Lauf endete.
+
+```
+$ loomux flow run ship
+run 0001 (ship, project): paused
+Ship it?
+$ loomux flow run quick        # ein Flow, dessen Start ein Ausgangsknoten mit Code 5 ist
+run 0002 (quick, project): error
+stopped at once
+$ echo $?
+5
+```
+
+### `loomux flow resume <lauf> [--answer text] [--root ordner]`
+Setzt einen Lauf fort, der an einem Tor wartet.
+
+- **Ohne `--answer`** fragt das Tor erneut, und nichts wird geschrieben;
+  Exit `3`.
+- **Mit `--answer`** nimmt das Tor die Antwort, und der Lauf geht weiter:
+  Exit `0`, wenn er fertig ist, `3` am nächsten Tor, der Code eines
+  Ausgangsknotens. Eine Antwort ist eine Wahl, oder eine Wahl, Leerraum oder
+  `:` und eine Begründung. Auch `--answer ""` ist eine Antwort. Eine Antwort,
+  die keine Wahl trifft, wird abgelehnt (`the answer matches none of the
+  choices; the choices are yes, no`, Exit `1`), und das Tor bleibt offen.
+
+  ```
+  $ loomux flow resume 0001 --answer "no: too thin"   # das mitgelieferte example, in seinem Test
+  run 0001 (example, bundled): error
+  rejected after 2 rounds
+  $ echo $?
+  4
+  ```
+- **Abgelehnt als Aufruffehler**, Exit `2`, bevor etwas gelesen wird: eine
+  Laufnummer, die nicht nur aus Ziffern besteht, wie `loomux flow run` sie
+  vergibt (`loomux flow resume: "../x" is no run number; a run number is
+  digits, as loomux flow run hands them out`). Die Nummer wird Teil eines
+  Pfads; ein `../`, ein Trenner oder ein Laufwerk läse Journal und Marke
+  anderswo.
+- **Abgelehnt**, Exit `1`: ein Lauf, den es nicht gibt (`no run "0009" under
+  …`, mit dem Laufordner in Schrägstrichen), ein Lauf ohne
+  Marke (`run "0001" does not say which flow it belongs to`) oder mit einer,
+  die sich nicht lesen lässt (eine leere: `…0001.flow: says nothing -- not even
+  which flow it belongs to`), ein
+  Lauf, der an keinem Tor wartet (``run 0002 is not waiting at a gate; there
+  is nothing to answer. Use `loomux flow replay` to re-derive it, or `loomux
+  flow run` to start a new one``), ein Flow, dessen `flow.toml` inzwischen aus
+  der anderen Quelle kommt, und ein Anbieter ohne Adapter.
+- **Die Quelle des Flows** wird mit der Marke verglichen, bevor der Flow
+  lädt. Der Projektordner (`project`, `project (hides bundled)`) und der
+  Katalog (`bundled`, `bundled+overlay`) sind zwei Quellen; ein Wechsel
+  zwischen ihnen wird mit beiden Herkünften abgelehnt (`run 0001 started on
+  project (hides bundled) and example now resolves to bundled, another
+  flow.toml; start a new run with loomux flow run example`). Innerhalb einer
+  Quelle läuft der Lauf weiter; eine andere Menge Overlay-Dateien ist eine
+  Warnung (`warning: run 0001 started with overlays questions/approve.md and
+  now has instructions/draft.md, questions/approve.md`).
+- **Nur ein Mensch antwortet.** Der Wächter verweigert `--answer` einem Agenten
+  in jeder Schreibweise; `resume` ohne steht offen.
+
+### `loomux flow replay <lauf> [--root ordner]`
+Leitet einen beendeten Lauf aus seinem Journal neu her. Es führt keinen
+Knoten aus und fragt kein Modell, geht also auch ohne Adapter.
+
+- **Exit** ist der des Laufs, wie er verzeichnet ist: `0` für fertig, `1` für
+  einen Fehler. Das Journal hält die Meldung eines Ausgangsknotens, aber nicht
+  seinen Code; ein Lauf, der an einem endete, spielt sich also mit seiner
+  Meldung und Exit `1` nach.
+- **Abgelehnt als Aufruffehler**, Exit `2`: eine Laufnummer, die nicht nur
+  aus Ziffern besteht (wie bei `resume`).
+- **Abgelehnt**, Exit `1`: ein Lauf, der an einem Tor wartet (``run 0001
+  never finished: it is waiting at gate "confirm"; answer it with `loomux flow
+  resume` before replaying``), ein Lauf, den es nicht gibt, ein Lauf ohne
+  Marke oder mit einer, die sich nicht lesen lässt, ein Flow, dessen
+  `flow.toml` inzwischen aus der anderen Quelle kommt (wie bei `resume`).
+
+```
+$ loomux flow replay 0002      # Lauf 0002 von quick endete an seinem Ausgangsknoten mit Code 5
+run 0002 (quick, project): error
+stopped at once
+$ echo $?
+1
+$ loomux flow replay 0001      # Lauf 0001 von ship wartet an seinem Tor
+run 0001 never finished: it is waiting at gate "confirm"; answer it with `loomux flow resume` before replaying
+$ echo $?
+1
+```
+
+### `loomux flow show <lauf|flow> [--root ordner]`
+Eine Laufnummer besteht aus Ziffern, ein Flow-Name beginnt mit einem
+Buchstaben; verwechseln lassen sich beide nicht.
+
+- **Ein Lauf**: eine Zeile je Journaleintrag, in Spalten: Knoten, Art,
+  Ausgang, Tokens, Sekunden, Werkzeugprofil (`-`, wo keines ist).
+
+  ```
+  $ loomux flow show 0001
+  confirm                  gate   paused        0 tok    0.00s -
+  ```
+- **Ein Flow**, wie ein Lauf ihn laden würde: seine Herkunft, seine Knoten
+  (ein Agentenknoten mit seiner Rolle, dem Modell, auf das sie auflöst, und
+  woher) und seine Kanten mit der Bedingung, unter der jede genommen wird,
+  `[on error]` für eine Fehlerkante.
+
+  ```
+  $ loomux flow show example
+  example (bundled)
+  nodes:
+    draft    agent  writer  claude:cli-default  role writer (node), the CLI's own default
+    approve  gate
+    stop     exit
+  edges:
+    draft -> approve [verdict == "done"]
+    draft -> draft
+    approve -> END [answer == "yes"]
+    approve -> stop
+    stop -> END
+  ```
+
+### `loomux flow list [--root ordner]`
+Jeder Flow, den das Projekt nennen kann, sortiert: Name, Herkunft (`project`,
+`bundled`, `bundled+overlay`, `project (hides bundled)`) und `ok` oder die
+Befunde, die ihn am Laden hindern, eine Zeile je Befund; `(default)` markiert
+`[flow] default`. Ein Flow, der nicht lädt, steht mit seinem Grund in der
+Liste, statt wegzufallen, ebenso eine Datei direkt unter `.loomux/flows/`
+(`… is a file; a flow is a folder with flow.toml`) und ein Link dort,
+symbolisch oder eine Junction (`… is a link; a flow is a folder with
+flow.toml`).
+
+```
+$ loomux flow list
+broken   project  .loomux/flows/broken/flow.toml: schema_version 7 is unknown; loomux knows version 1
+    .loomux/flows/broken/flow.toml: [flow] is missing
+example  bundled  ok
+ship     project  ok
+```
+
+- **Warnungen** auf `stderr`: ein Projektordner, den ein mitgelieferter Flow
+  übergeht (`warning: .loomux/flows/example is ignored: [flow] overrides does
+  not name it`), und ein Name in `[flow] overrides`, den kein mitgelieferter
+  Flow hat (`warning: [flow] overrides names "ghost", which no bundled flow
+  has`).
+- **Exit** `0`; `1` nach der Liste, wenn `[flow] default` keinen Flow nennt.
 
 

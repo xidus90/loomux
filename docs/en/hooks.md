@@ -400,8 +400,30 @@ The built-in rules (`internal/hooks/guard.go`):
 |---|---|---|
 | Path | ten secret patterns, among them `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `credentials.json` and `.aws/**` | secrets are not written by an agent |
 | Path | `.loomux/no-verify`, `.loomux/state/hooks/**` | the stop gate's own controls are not written by the party it gates |
+| Path | `.loomux/state/runs/**`, the journals and markers of [flow runs](flows.md#2-running-a-flow) | a flow's journal and marker are written by loomux, not by the party the gates ask |
+| Path | `.loomux/flows/<name>/` and everything in it, for every flow of this binary's catalog and every name in `[flow] overrides`; a flow under a name of its own stays free | a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `<name>` |
 | Path | seven lock files, among them `go.sum`, `package-lock.json` and `Cargo.lock` | lock files are written by their package manager, not by hand |
 | Command | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
+| Command | a shell write onto `.loomux/state/runs` or a file in it (`>`, `tee`, `sed -i`, `Set-Content`, `cp`/`mv` onto it, and more), and a removal (`rm`, `Remove-Item`, `git rm`, …) of it, of `.loomux/state` above it or of a glob in its place | a flow's journal and marker are written by loomux, not by the party the gates ask |
+| Command | the same forms onto the folder of a protected flow under `.loomux/flows/` or onto a glob in a flow's place (`cp x .loomux/flows/ex*/…`), and a removal of it or of `.loomux/flows` above it | the reason of the path rule, with every protected name |
+| Command | `loomux flow resume … --answer` in every spelling the rule for `loomux config` reads (a path to the binary, quotes, chained commands, `--answer text`, `--answer=text`), and any `Start-Process` of loomux, whose arguments the guard cannot see | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
+
+**The built-in path rules match in any case**: Windows and macOS keep
+`.LOOMUX/State/Runs` and `.loomux/state/runs` as one folder, so the rule is
+compared in lower case against a target in lower case, and the flow folder
+rule compares the folder's name the same way. A project's own `[policy]`
+rules match as the project spelled them. The flow folder rule reads `[flow]`
+of `.loomux/config.toml`, and only for a target under `.loomux/flows` or a
+shell line that holds `flows`; a `[flow]` that does not read refuses every
+write there
+(`loomux cannot read [flow] of .loomux/config.toml, so it refuses writes under
+.loomux/flows: …`). Why the gates are guarded, and what stays open to an
+agent, is in [Flows](flows.md#6-gates-are-a-humans).
+
+**The rules on loomux's own commands know the program by its file name**:
+`loomux` or `loomux.exe` under any path, or `go run` of `cmd/loomux`. A copied
+or renamed binary (`cp bin/loomux.exe x.exe`, then `x.exe flow resume …
+--answer yes`) passes every one of them; the path rules above still hold.
 
 The write barrier after the policy decides only about writing tools with a
 target: it resolves each target and refuses a write outside every writable
@@ -417,7 +439,7 @@ afterwards what happened. The design names five of them, and all five run:
 
 | Claude Code event | loomux hook | Stage | What it establishes |
 |---|---|---|---|
-| `SessionStart` | `session-start` | 1a, runs | The commit the session starts on; a warning when the pilot binary is older than its sources |
+| `SessionStart` | `session-start` | 1a, runs; flow runs since Flow A | The commit the session starts on; a warning when the pilot binary is older than its sources; the flow runs waiting at a gate |
 | `PostToolUse` | `post-tool-use` | 1a, runs; lanes from `[verify]` since 2a | The lanes of section 5 for the edited file |
 | `SubagentStart` | `subagent-start` | 2c, runs | Where `origin`, the local branches and `HEAD` stood before a subagent |
 | `SubagentStop` | `subagent-stop` | 2c, runs | Every ref of `origin` and every local branch that moved, appeared or vanished, and the commits `HEAD` and the moved branches gained — parked for the main agent's `stop` |
@@ -443,9 +465,10 @@ the model as a warning without aborting, and a held stop becomes
 re-enters its loop; the reason is what the gate wrote to stderr. Every other
 non-zero code ends with 0. An unknown event stays exit 2 on every host.
 `session-start` runs on `PreInvocation`, which fires before every model call
-and counts them in `invocationNum`; only the first one announces, and a
-later one speaks only to say that the session could not be counted again
-for worktree unlink.
+and counts them in `invocationNum`; only the first one warns about the
+binary and the self-update. A later one names the flow runs that still wait
+at a gate and the ignored flow folders, as every start does, and says when
+the session could not be counted again for worktree unlink.
 `subagent-start` and `subagent-stop` are not wired for Antigravity: its
 payloads carry no `agent_id`.
 
@@ -500,14 +523,43 @@ loomux hook session-start --host claude --root <project>   # payload on stdin
   no session id (nowhere to file it) or the root is no git repository (nothing
   to file). A write that fails is exit 1.
 - **Warns about a stale binary.** When the running binary lies inside the
-  project and is older than the newest of `go.mod`, `go.sum` and the `.go`
-  files under `cmd/` and `internal/`, the hook says so in
+  project and is older than the newest of `go.mod`, `go.sum`, the `.go`
+  files under `cmd/` and `internal/`, and every file under `flows/` whose
+  path has no element starting with `_` or `.` (the package's Go source,
+  its tests included, and the catalog it embeds), the hook says so in
   `hookSpecificOutput.additionalContext`, with the rebuild command. Compared
   against the sources and not against `HEAD`: the pre-commit gate builds
   `bin/loomux.exe` before the commit exists. With nothing to say, the hook
   writes nothing.
-- **Does not announce paused flow runs.** That comes back with the flow
-  migration.
+- **Announces the flow runs waiting at a gate**, at every start, a repeated
+  one included: a question stays open until a human answers it, and a
+  session that heard it once may have dropped it from its context since. One
+  context line per run, in run order, with the flow and its origin (for an
+  overlay with the files it replaced) and the command a human answers with,
+  built from the path the hook runs from (`os.Executable`, with forward
+  slashes, in double quotes when it holds a blank or another character a
+  shell reads), since loomux is not on every `PATH`:
+
+  ```
+  run 0001 (ship, project) is waiting at confirm: Ship it?
+    a human answers it with: C:/Users/me/project/bin/loomux.exe flow resume 0001 --answer "your answer"
+  ```
+
+  A runs folder that cannot be listed is named on `stderr`
+  (`.loomux/state/runs cannot be read as a folder of runs: …`) and announces
+  nothing. A journal or a marker that does not read is named on `stderr` with
+  its reason and hides only its own run, without blocking. When the journal does
+  not read and the marker says another loomux version wrote the run, the hook
+  names both versions instead (`run 0001 was written by loomux 0.0.0-dev,
+  this is …`); it does not guess which is newer, since a checkout build calls
+  itself `0.0.0-dev`.
+- **Names ignored flow folders.** An entry under `.loomux/flows/` that carries
+  the name of a bundled flow while `[flow] overrides` does not name it gets
+  the line `.loomux/flows/<name> is ignored: [flow] overrides does not name
+  it`: the bundled flow runs, not the project's files. `[flow]` is read only
+  when such an entry exists. A `.loomux/flows` that cannot be listed gets
+  `.loomux/flows cannot be read as a folder of flows: …`, the warning
+  `loomux flow` gives for it.
 - **Exit 0 or 1, never 2.** It is an announcement and has no turn to hold. A
   missing or unknown `--host`, stdin that is no JSON object, and — without
   `--root` — no `.loomux/config.toml` above the working directory are exit 1.

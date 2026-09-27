@@ -330,13 +330,15 @@ Fires after an agent has edited a file.
 - **Exit Codes**: `0` (all lanes passed, skipped, or nothing to run), `1` (malformed call, such as a missing `--host`, or a `[verify]` that cannot be loaded), `2` (a lane failed, timed out or is blocked; its output on `stderr`).
 
 ### `loomux hook session-start`
-Records the commit the session starts on.
+Records the commit the session starts on and announces the flow runs waiting for a human.
 
 - **Flags**: `--host <h>` (required; `claude` and `antigravity` have adapters), `--root <r>`.
 - **Behavior**:
   - Writes `HEAD` as `base` into `.loomux/state/hooks/<session_id>.json`.
   - Revives a session `worktree unlink` marked ended: removes `<session_id>.ended` and writes the file back with its row of blocks reset, so the session counts again; a session never marked ended only has its file made young. A marker it cannot remove, or a file it cannot write back, is said in the context, with exit 0.
-  - Warns in `hookSpecificOutput.additionalContext` when the binary inside the project is older than its Go sources.
+  - Warns in `hookSpecificOutput.additionalContext` when the binary inside the project is older than its Go sources, `go.mod`, `go.sum` or a file under `flows/` whose path has no element starting with `_` or `.` (a flow's `_test/` does not count).
+  - Announces every run under `.loomux/state/runs/` that waits at a gate, at every start, a repeated one on Antigravity included: `run <id> (<flow>, <origin>) is waiting at <gate>: <question>`, then `a human answers it with: <binary> flow resume <id> --answer "your answer"`, where `<binary>` is the path the hook runs from, with forward slashes, in double quotes when it holds a blank or another character a shell reads. A runs folder that cannot be listed is named on `stderr` (`.loomux/state/runs cannot be read as a folder of runs: …`), and so is a journal or marker that does not read, which hides only its own run; when the marker says another loomux version wrote the run, the line names both (`run 0001 was written by loomux 0.0.0-dev, this is …`). See [Flows](flows.md#6-gates-are-a-humans).
+  - Names each entry under `.loomux/flows/` that carries a bundled flow's name while `[flow] overrides` does not name it: `.loomux/flows/<name> is ignored: [flow] overrides does not name it`. A `.loomux/flows` that cannot be listed gets `.loomux/flows cannot be read as a folder of flows: …`, the words `loomux flow` warns with.
   - Also reads `<state dir>/update.json` and warns when, on Windows, a pass `serve` ran recorded another binary than `<state dir>/bin/loomux.exe` as its own, or when the last self-update pass failed, whoever ran it.
   - Makes no worktree junctions; that is `loomux worktree link`. See [Hooks](hooks.md#8-session-hooks).
 - **Exit Codes**: `0` (Success), `1` (missing or unknown host, no adapter for the host, unreadable payload, failed write).
@@ -1068,6 +1070,12 @@ loomux config reject <id>|--all
   `verify.timeout`), grouped by module: `base`, `hooks`, `brain`. Every key
   the readers of the file accept is listed, and no other, except the
   per-stack tables `[verify.<stack>.<kind>]` (see `list`).
+- **Named keys** carry a name the project chooses: `agent.roles.<role>`,
+  `agent.models.<name>.provider` and `agent.models.<name>.model` (see
+  [`[agent]`](configuration.md#agent-models-for-flow-roles)). `list` shows
+  one row per name the file holds, and the family with `*` in the name's
+  place as an unset row while it holds none; `set`, `unset` and `get` take
+  the key with the name filled in, never the `*`.
 - **Origins**: `set` (in the file), `default` (the reader's default, shown as
   its value), `preset` (`verify.profiles`, filled by the presets; the value
   shown is the built-in one) and `unset` (no value and no default).
@@ -1108,8 +1116,10 @@ Computes the new file, prints the change as a line diff on `stderr`, asks
   default would pin it against a later change of the default.
 - **Checked by the real readers**: the new text is handed to every reader
   that runs in operation (area declaration, `[modules]`, policy, `[verify]`,
-  commit policy, worktree mirrors) and written only when all of them accept
-  it.
+  commit policy, `[agent]`, `[flow]`, worktree mirrors) and written only when
+  all of them accept it. A role binding therefore needs its model first:
+  `set agent.roles.reviewer gemini` is refused until
+  `agent.models.gemini.provider` is set.
 - **Brain keys need `[area]`**: without it the brain reads nothing, so every
   brain key but `area.scope` is refused with `set area.scope first`.
 - **Refused as tables**: `model.roles`, `verify.profiles` and the lists of
@@ -1386,5 +1396,216 @@ readers refuse, a host file or `.mcp.json` that is no JSON, whose root is
 cannot read), and a run
 that has to ask without a terminal (`init asks questions; run it
 in a terminal, or pass --yes or --dry-run`).
+
+---
+
+## 12. Flows (`loomux flow`)
+
+Runs a flow, pauses it at a gate, resumes, replays, shows and lists flows: the
+catalog the binary ships and the project's own under `.loomux/flows/`. The
+format, the roles, overlays and the catalog are in [Flows](flows.md). Agent
+nodes wait for the model adapters: a flow with one refuses to start.
+
+```bash
+loomux flow run [<flow>] [--option name=value]... [--root dir]
+loomux flow resume <run> [--answer text] [--root dir]
+loomux flow replay <run> [--root dir]
+loomux flow show <run|flow> [--root dir]
+loomux flow list [--root dir]
+```
+
+- **The project** is `--root`, else the nearest `.loomux/config.toml` above
+  the working directory, else the working directory itself.
+- **Name first, flags after**: the flow or the run number comes before the
+  flags. `-h` prints the flags and exits `0`.
+- **Every command that loads a flow reads `[agent]` and `[flow]`** before
+  it, and stops with exit `1` at a table its reader refuses (see
+  [Configuration](configuration.md#agent-models-for-flow-roles)). `resume`
+  and `replay` look at the run's journal and marker first; the refusals that
+  depend on its open gate come after the flow is found and loaded. `show
+  <run>` reads only the journal.
+- **No `stdin`**: no command reads it; a run keeps everything it is left
+  with in its journal and its marker, so any caller drives it the same way.
+- **Warnings** go to `stderr` as `warning: …` and do not change the exit code:
+  a project folder a bundled flow ignored, overlays that changed since a run
+  started, a node that ran on a definition that has changed since.
+- **Refusals** go to `stderr` with exit `1`; a flow that does not load is
+  refused with every finding of its load stage, one line each.
+- **The guard** refuses an agent `resume … --answer`; every other form is open
+  to it (see [Flows](flows.md#6-gates-are-a-humans)).
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | the run is done; `show` and `list` succeeded; `-h` |
+| `1` | an error or a refusal: a flow that does not load, a run that failed (a node that failed without an error edge, no edge that applies, a visit ceiling), an answer no choice matches, a replay of a run that ended at an exit node |
+| `2` | a usage error: no subcommand or an unknown one, a missing name or run number, a run number that is not all digits, an argument left over, an unknown flag, an `--option` without `=` or given twice |
+| `3` | the run is paused at a gate |
+| other | the code of the exit node the run ended at |
+
+### `loomux flow run [<flow>] [--option name=value]... [--root dir]`
+Starts a new run and walks it until it is done, pauses at a gate or fails.
+
+- **Without a name** `[flow] default` runs. Unset, the command refuses with
+  `no flow named and [flow] default is unset; known flows: example, ship`; a
+  default that names no flow with `[flow] default names "x", which is no flow
+  here`.
+- **`--option name=value`** sets a parameter; repeatable. The text is read
+  as the parameter's type: an `int` in decimal, a `bool` as `true` or `false`,
+  a `list[string]` as a JSON list of strings (`'["a","b"]'`), a `string` as
+  it stands. Every option that is no parameter or does not read as its type is
+  named at once (`option x is no parameter of flow "ship"; known parameters:
+  none`).
+- **Refused before a run exists**, exit `1`: a name that is no flow name
+  (`"Bad" is not a flow name; a flow name is [a-z][a-z0-9-]*`), no flow of
+  that name (`no flow named "nope"; known flows: example, ship`), a load
+  finding, a provider without an adapter (`no adapter for provider claude
+  yet`, today every flow with an agent node), agent nodes that resolve to two
+  providers.
+- **A run** takes the next number under `.loomux/state/runs/`, writes its
+  marker with the options, the origin and, when git answers, `HEAD` and the
+  changed files, and journals every step. A run the runner refuses before its
+  first step gives its number back; one that fails later keeps its files, and
+  the message names the run (`run 0003: …`).
+- **Output** on `stdout`: `run <id> (<flow>, <origin>): <status>` with the
+  status `done`, `paused` or `error`, then the gate's question or the reason
+  the run ended.
+
+```
+$ loomux flow run ship
+run 0001 (ship, project): paused
+Ship it?
+$ loomux flow run quick        # a flow whose start is an exit node with code 5
+run 0002 (quick, project): error
+stopped at once
+$ echo $?
+5
+```
+
+### `loomux flow resume <run> [--answer text] [--root dir]`
+Carries on a run that waits at a gate.
+
+- **Without `--answer`** the gate asks again and nothing is written; exit
+  `3`.
+- **With `--answer`** the gate takes the answer and the run walks on: exit
+  `0` when it is done, `3` at the next gate, an exit node's code. An answer is
+  a choice, or a choice, a blank or `:` and a reason. `--answer ""` is an
+  answer too. An answer no choice matches is refused (`the answer matches none
+  of the choices; the choices are yes, no`, exit `1`), and the gate stays
+  open.
+
+  ```
+  $ loomux flow resume 0001 --answer "no: too thin"   # the bundled example, in its test
+  run 0001 (example, bundled): error
+  rejected after 2 rounds
+  $ echo $?
+  4
+  ```
+- **Refused as a usage error**, exit `2`, before anything is read: a run
+  number that is not all digits, as `loomux flow run` hands them out
+  (`loomux flow resume: "../x" is no run number; a run number is digits, as
+  loomux flow run hands them out`). The number becomes part of a path, so a
+  `../`, a separator or a drive would read a journal and marker elsewhere.
+- **Refused**, exit `1`: a run that is not there (`no run "0009" under …`,
+  with the runs folder in forward slashes), a run without a marker
+  (`run "0001" does not say which flow it belongs to`) or with one that does
+  not read (an empty one: `…0001.flow: says nothing -- not even which flow it
+  belongs to`), a run not
+  waiting at a gate (``run 0002 is not waiting at a gate; there is nothing to
+  answer. Use `loomux flow replay` to re-derive it, or `loomux flow run` to
+  start a new one``), a flow whose `flow.toml` now comes from the other
+  source, and a provider without an adapter.
+- **The source of the flow** is compared with the marker before the flow is
+  loaded. The project folder (`project`, `project (hides bundled)`) and the
+  catalog (`bundled`, `bundled+overlay`) are two sources; a change between
+  them is refused with both origins (`run 0001 started on project (hides
+  bundled) and example now resolves to bundled, another flow.toml; start a
+  new run with loomux flow run example`). Within one source the run goes on;
+  a different set of overlay files is a warning (`warning: run 0001 started
+  with overlays questions/approve.md and now has instructions/draft.md,
+  questions/approve.md`).
+- **Only a human answers.** The guard refuses `--answer` to an agent in every
+  spelling; `resume` without it is open.
+
+### `loomux flow replay <run> [--root dir]`
+Re-derives a finished run from its journal. It executes no node and asks no
+model, so it works without an adapter.
+
+- **Exit** is that of the run as recorded: `0` for done, `1` for an error.
+  The journal keeps an exit node's message but not its code, so a run that
+  ended at one replays with its message and exit `1`.
+- **Refused as a usage error**, exit `2`: a run number that is not all
+  digits (as for `resume`).
+- **Refused**, exit `1`: a run waiting at a gate (``run 0001 never finished:
+  it is waiting at gate "confirm"; answer it with `loomux flow resume` before
+  replaying``), a run that is not there, a run without a marker or with one
+  that does not read, a flow whose `flow.toml` now comes from the other source
+  (as for `resume`).
+
+```
+$ loomux flow replay 0002      # run 0002 of quick ended at its exit node with code 5
+run 0002 (quick, project): error
+stopped at once
+$ echo $?
+1
+$ loomux flow replay 0001      # run 0001 of ship waits at its gate
+run 0001 never finished: it is waiting at gate "confirm"; answer it with `loomux flow resume` before replaying
+$ echo $?
+1
+```
+
+### `loomux flow show <run|flow> [--root dir]`
+A run number is digits, a flow name starts with a letter, so the two cannot be
+mistaken.
+
+- **A run**: one line per journal entry, in columns: node, kind, outcome,
+  tokens, seconds, tool profile (`-` where there is none).
+
+  ```
+  $ loomux flow show 0001
+  confirm                  gate   paused        0 tok    0.00s -
+  ```
+- **A flow**, as a run would load it: its origin, its nodes (an agent node
+  with its role, the model it resolves to and how) and its edges with the
+  condition each is taken on, `[on error]` for an error edge.
+
+  ```
+  $ loomux flow show example
+  example (bundled)
+  nodes:
+    draft    agent  writer  claude:cli-default  role writer (node), the CLI's own default
+    approve  gate
+    stop     exit
+  edges:
+    draft -> approve [verdict == "done"]
+    draft -> draft
+    approve -> END [answer == "yes"]
+    approve -> stop
+    stop -> END
+  ```
+
+### `loomux flow list [--root dir]`
+Every flow the project can name, sorted: name, origin (`project`, `bundled`,
+`bundled+overlay`, `project (hides bundled)`) and `ok`, or the findings that
+keep it from loading, one line each; `(default)` marks `[flow] default`. A
+flow that does not load is listed with its reason, not left out, and so is a
+file directly under `.loomux/flows/` (`… is a file; a flow is a folder with
+flow.toml`) and a link there, symbolic or a junction (`… is a link; a flow is
+a folder with flow.toml`).
+
+```
+$ loomux flow list
+broken   project  .loomux/flows/broken/flow.toml: schema_version 7 is unknown; loomux knows version 1
+    .loomux/flows/broken/flow.toml: [flow] is missing
+example  bundled  ok
+ship     project  ok
+```
+
+- **Warnings** on `stderr`: a project folder a bundled flow ignored
+  (`warning: .loomux/flows/example is ignored: [flow] overrides does not name
+  it`), and a name in `[flow] overrides` no bundled flow has (`warning: [flow]
+  overrides names "ghost", which no bundled flow has`).
+- **Exit** `0`; `1` after the list when `[flow] default` names no flow.
 
 
