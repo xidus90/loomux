@@ -557,24 +557,30 @@ func TestMergeRecognisesLoomuxEntriesWhereverTheyStand(t *testing.T) {
 		return strings.Join(blocks, ", ") + ", " + skip
 	}
 	pre := `"${LOCALAPPDATA}/loomux/bin/loomux.exe" hook pre-tool-use --host claude --root x`
-	for name, block := range map[string]string{
-		// ulinit's matcher, from before MultiEdit joined it.
-		"old matcher": `"PreToolUse": [{"matcher": "Write|Edit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command", "command": ` + strconvQuote(pre) + `}]}]`,
-		// Ours second in a block of the project on our matcher.
-		"second": `"PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command", "command": "echo x"}, {"type": "command", "command": ` + strconvQuote(pre) + `}]}]`,
-	} {
-		existing := []byte(`{"hooks": {` + all(block) + `}}`)
-		got, err := Merge(claude, existing, Entries(claude, b))
-		if err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		if len(got.Added) != 0 || !bytes.Equal(got.Merged, existing) {
-			t.Errorf("%s: added %v\n%s", name, got.Added, got.Merged)
-		}
-		if note := "PreToolUse: kept an own entry under matcher Write|Edit|NotebookEdit|Bash|PowerShell"; name == "old matcher" &&
-			(len(got.Notes) != 1 || got.Notes[0] != note) {
-			t.Errorf("%s: notes %v", name, got.Notes)
-		}
+	// Ours second in a block of the project on our matcher.
+	second := `"PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command", "command": "echo x"}, {"type": "command", "command": ` + strconvQuote(pre) + `}]}]`
+	existing := []byte(`{"hooks": {` + all(second) + `}}`)
+	got, err := Merge(claude, existing, Entries(claude, b))
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if len(got.Added) != 0 || !bytes.Equal(got.Merged, existing) {
+		t.Errorf("second: added %v\n%s", got.Added, got.Merged)
+	}
+	// A command of ours under ulinit's matcher, from before MultiEdit joined
+	// it, stays and gets a block for MultiEdit beside it.
+	ulinit := `"PreToolUse": [{"matcher": "Write|Edit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command", "command": ` + strconvQuote(pre) + `}]}]`
+	got, err = Merge(claude, []byte(`{"hooks": {`+all(ulinit)+`}}`), Entries(claude, b))
+	if err != nil {
+		t.Fatalf("old matcher: %v", err)
+	}
+	note := "PreToolUse: kept an own entry under matcher Write|Edit|NotebookEdit|Bash|PowerShell; added one for MultiEdit"
+	if !reflect.DeepEqual(got.Added, []string{"PreToolUse/MultiEdit"}) || !reflect.DeepEqual(got.Notes, []string{note}) {
+		t.Errorf("old matcher: added %v, notes %v", got.Added, got.Notes)
+	}
+	wantPre := []string{pre, Entries(claude, b)[1].Command}
+	if prePre := commands(t, got.Merged, "hooks", "PreToolUse"); !reflect.DeepEqual(prePre, wantPre) {
+		t.Errorf("old matcher: PreToolUse = %q, want %q", prePre, wantPre)
 	}
 	// Another hook of ours under another matcher is no stand-in.
 	other := `{"hooks": {"PreToolUse": [{"matcher": "Read", "hooks": [{"type": "command", "command": "loomux hook post-tool-use"}, "x"]}]}}`
@@ -678,5 +684,143 @@ func TestTheRepositorysOwnSettingsNeedNoChange(t *testing.T) {
 	got, err := Merge(claude, own, Entries(claude, BinaryOf(claude, own)))
 	if err != nil || len(got.Added) != 0 || len(got.Notes) != 0 || !bytes.Equal(got.Merged, own) {
 		t.Fatalf("added %v, notes %v, err %v; init would change .claude/settings.json", got.Added, got.Notes, err)
+	}
+}
+
+// antigravityWithMatcher is the file init writes for Antigravity, its
+// PreToolUse block under matcher instead of the one Entries wants.
+func antigravityWithMatcher(t *testing.T, matcher string) []byte {
+	t.Helper()
+	fresh, err := Merge(hosts.HostAntigravity, nil, Entries(hosts.HostAntigravity, Canonical))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `"matcher": ` + strconvQuote(Entries(hosts.HostAntigravity, Canonical)[1].Matcher)
+	if !bytes.Contains(fresh.Merged, []byte(want)) {
+		t.Fatalf("no PreToolUse matcher to replace in\n%s", fresh.Merged)
+	}
+	return bytes.Replace(fresh.Merged, []byte(want), []byte(`"matcher": `+strconvQuote(matcher)), 1)
+}
+
+// An own block from before a tool joined the matcher gets a block for that
+// tool beside it, with the same command; the old block stays as it is.
+func TestMergeAddsABlockForTheToolsAnOldMatcherLacks(t *testing.T) {
+	old := "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input"
+	existing := antigravityWithMatcher(t, old)
+	wanted := Entries(hosts.HostAntigravity, Canonical)
+	got, err := Merge(hosts.HostAntigravity, existing, wanted)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if !reflect.DeepEqual(got.Added, []string{"PreToolUse/manage_task"}) {
+		t.Fatalf("added %v, want the block for manage_task", got.Added)
+	}
+	note := "PreToolUse: kept an own entry under matcher " + old + "; added one for manage_task"
+	if !reflect.DeepEqual(got.Notes, []string{note}) {
+		t.Fatalf("notes %v, want %q", got.Notes, note)
+	}
+	var root map[string]map[string][]map[string]any
+	if err := json.Unmarshal(got.Merged, &root); err != nil {
+		t.Fatalf("result: %v\n%s", err, got.Merged)
+	}
+	pre := root["loomux"]["PreToolUse"]
+	if len(pre) != 2 || pre[0]["matcher"] != old || pre[1]["matcher"] != "manage_task" ||
+		firstCommand(pre[0]) != firstCommand(pre[1]) || firstCommand(pre[1]) != wanted[1].Command {
+		t.Fatalf("PreToolUse = %v, want the old block and one for manage_task with the same command", pre)
+	}
+}
+
+// The appended block and the old one together cover the matcher, so the
+// next run finds both, adds nothing and names both.
+func TestMergeAddsNothingTwiceForASplitMatcher(t *testing.T) {
+	old := "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input"
+	wanted := Entries(hosts.HostAntigravity, Canonical)
+	first, err := Merge(hosts.HostAntigravity, antigravityWithMatcher(t, old), wanted)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	again, err := Merge(hosts.HostAntigravity, first.Merged, wanted)
+	if err != nil {
+		t.Fatalf("second Merge: %v", err)
+	}
+	if len(again.Added) != 0 || !bytes.Equal(again.Merged, first.Merged) {
+		t.Fatalf("second merge added %v\n%s", again.Added, again.Merged)
+	}
+	note := "PreToolUse: kept an own entry under matcher " + old + ", manage_task"
+	if !reflect.DeepEqual(again.Notes, []string{note}) {
+		t.Fatalf("notes %v, want %q", again.Notes, note)
+	}
+}
+
+// Two old blocks of ours whose matchers together cover the wanted one leave
+// nothing to add.
+func TestMergeAddsNothingWhereTwoOldBlocksCoverTheMatcher(t *testing.T) {
+	wanted := []Entry{{Event: "PreToolUse", Matcher: "Write|Edit|Bash", Command: "loomux hook pre-tool-use"}}
+	existing := []byte(`{"hooks":{"PreToolUse":[` +
+		`{"matcher":"Write|Edit","hooks":[{"type":"command","command":"loomux hook pre-tool-use"}]},` +
+		`{"matcher":"Bash","hooks":[{"type":"command","command":"loomux hook pre-tool-use --old"}]}]}}`)
+	got, err := Merge(claude, existing, wanted)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if len(got.Added) != 0 || !bytes.Equal(got.Merged, existing) ||
+		!reflect.DeepEqual(got.Notes, []string{"PreToolUse: kept an own entry under matcher Write|Edit, Bash"}) {
+		t.Fatalf("added %v, notes %v", got.Added, got.Notes)
+	}
+}
+
+// Only a flat list of names can be counted. An own matcher that is a regular
+// expression, or a wanted one that is, gets the note alone, and so does one
+// that already names every wanted tool and more.
+func TestMergeOnlyNotesAnOldMatcherItCannotCountOrThatLacksNothing(t *testing.T) {
+	for _, tc := range []struct{ have, want string }{
+		{".*", "Write|Bash"},
+		{"Write|Ba.*", "Write|Bash"},
+		{"Write||Bash", "Write|Bash|Read"},
+		{"Write", "Write|Ba.*"},
+		{"Write|Bash|Read", "Write|Bash"},
+	} {
+		wanted := []Entry{{Event: "PreToolUse", Matcher: tc.want, Command: "loomux hook pre-tool-use"}}
+		existing := []byte(`{"hooks":{"PreToolUse":[{"matcher":` + strconvQuote(tc.have) +
+			`,"hooks":[{"type":"command","command":"loomux hook pre-tool-use"}]}]}}`)
+		got, err := Merge(claude, existing, wanted)
+		if err != nil {
+			t.Fatalf("%s over %s: %v", tc.want, tc.have, err)
+		}
+		note := "PreToolUse: kept an own entry under matcher " + tc.have
+		if len(got.Added) != 0 || !bytes.Equal(got.Merged, existing) || !reflect.DeepEqual(got.Notes, []string{note}) {
+			t.Errorf("%s over %s: added %v, notes %v", tc.want, tc.have, got.Added, got.Notes)
+		}
+	}
+}
+
+// An entry without a matcher is no flat list either: a Stop of ours under a
+// matcher it does not want is kept with the note. So is a PreToolUse block
+// of ours without a matcher key, which Claude Code runs for every tool; the
+// note names its matcher (none).
+func TestMergeOnlyNotesAMatcherlessEntryKeptUnderAMatcher(t *testing.T) {
+	for _, tc := range []struct {
+		existing string
+		wanted   Entry
+		note     string
+	}{
+		{
+			`{"hooks":{"Stop":[{"matcher":"x","hooks":[{"type":"command","command":"loomux hook stop"}]}]}}`,
+			Entry{Event: "Stop", Command: "loomux hook stop"},
+			"Stop: kept an own entry under matcher x",
+		},
+		{
+			`{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"loomux hook pre-tool-use"}]}]}}`,
+			Entry{Event: "PreToolUse", Matcher: "Write|Edit|Bash", Command: "loomux hook pre-tool-use"},
+			"PreToolUse: kept an own entry under matcher (none)",
+		},
+	} {
+		got, err := Merge(claude, []byte(tc.existing), []Entry{tc.wanted})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.wanted.Event, err)
+		}
+		if len(got.Added) != 0 || !bytes.Equal(got.Merged, []byte(tc.existing)) || !reflect.DeepEqual(got.Notes, []string{tc.note}) {
+			t.Fatalf("%s: added %v, notes %v", tc.wanted.Event, got.Added, got.Notes)
+		}
 	}
 }

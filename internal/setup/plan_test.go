@@ -677,14 +677,14 @@ func TestThePartAreaNamesTheWikiAreaAddWillUse(t *testing.T) {
 	}
 }
 
-func TestAnOwnEntryUnderAnOldMatcherIsNamed(t *testing.T) {
+func TestAnOwnEntryUnderAnOldMatcherGetsABlockForTheToolItLacks(t *testing.T) {
 	settings := `{"hooks": {"PreToolUse": [{"matcher": "Write|Edit|NotebookEdit|Bash|PowerShell", "hooks": ` +
 		`[{"type": "command", "command": "loomux hook pre-tool-use --host claude"}]}]}}`
 	root := world(t, map[string]string{".claude/settings.json": settings})
 	p := plan(t, gather(t, root, ""))
 	c, _ := changeOf(p, ".claude/settings.json")
-	if strings.Count(c.After, "hook pre-tool-use") != 1 ||
-		!hasNote(p, ".claude/settings.json: PreToolUse: kept an own entry under matcher Write|Edit|NotebookEdit|Bash|PowerShell") {
+	if strings.Count(c.After, "hook pre-tool-use") != 2 || !strings.Contains(c.After, `"matcher": "MultiEdit"`) ||
+		!hasNote(p, ".claude/settings.json: PreToolUse: kept an own entry under matcher Write|Edit|NotebookEdit|Bash|PowerShell; added one for MultiEdit") {
 		t.Errorf("settings =\n%s\nnotes = %v", c.After, p.Notes)
 	}
 }

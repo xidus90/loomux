@@ -418,6 +418,21 @@ Schreiben fällt, beantwortet die Schreibschranke. Ohne `--root` sucht loomux
 aufwärts nach einer `.loomux/config.toml`; findet es keine, gelten nur die
 eingebauten Regeln.
 
+**Ein älterer Matcher bekommt einen Block daneben.** `loomux init` schreibt
+einen eigenen Hook-Eintrag nie um. Steht einer unserer Einträge unter einem
+Matcher, den ihm ein früheres Release oder eine Handänderung gab — ein
+loomux-Befehl, der ulinits unter `Write|Edit|NotebookEdit|Bash|PowerShell` in
+`.claude/settings.json` ersetzt hat, oder eine Antigravity-Gruppe von vor
+`manage_task` in `PreToolUse` —, lässt `init` ihn stehen, hängt für die
+fehlenden Werkzeuge (`MultiEdit`, `manage_task`) einen zweiten Block mit
+dem aktuellen loomux-Befehl an und sagt es in einer Notiz. Das geht nur, wo beide
+Matcher schlichte Listen von Werkzeugnamen mit `|` dazwischen sind; ein
+Eintrag unter einem regulären Ausdruck wie `.*` oder ohne Matcher bleibt
+stehen und wird genannt, und was ihm fehlt, ergänzt man von Hand. Ein zweiter
+Lauf zählt beide Blöcke und fügt nichts hinzu. Ein Eintrag, der noch
+`ulguard` ruft, ist nicht unserer: `init` fügt den ganzen loomux-Block
+daneben ein und überlässt ulguard dir.
+
 **Jeder Grund, nicht der erste.** Erst kommen die eingebauten Regeln, dann die
 des Projekts in der Reihenfolge der Datei, und jede treffende Regel fügt ihren
 Grund hinzu; die Ablehnung nennt alle. Sonst räumte der Agent einen Grund weg,

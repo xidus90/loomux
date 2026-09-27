@@ -1389,8 +1389,13 @@ durch einen Menschen, der das prüft, steht noch aus.
   ebenso, Zeile für Zeile und nur als ganze Zeilen ohne Steuerzeichen und
   ohne Zeilenfortsetzung. Ein Aufruf, in dem der Wächter keine Befehlszeile
   findet, wird verweigert; `list`, `status` und `kill` von `manage_task`
-  laufen nur durch, solange sie keine Zeile tragen. Ein Eintrag von vor `manage_task` im Matcher bleibt stehen und
-  wird in einer Notiz genannt; `|manage_task` ergänzt man von Hand. Dazu
+  laufen nur durch, solange sie keine Zeile tragen. Ein Eintrag von vor
+  `manage_task` im Matcher bleibt stehen, und `init` hängt mit dem aktuellen
+  loomux-Befehl und einer Notiz einen Block für `manage_task` daneben; ein
+  eigener Eintrag von Claude Code unter ulinits Matcher bekommt ebenso einen
+  für `MultiEdit`. Ein Eintrag unter einem Matcher, der keine schlichte Liste
+  von Werkzeugnamen ist, etwa `.*`, wird nur genannt, und was ihm fehlt,
+  ergänzt man von Hand. Dazu
   kommen die Skills unter
   `.agents/skills/<name>/SKILL.md`, dieselben
   Texte wie Claude Code. agy führt einen Hook über `cmd.exe` aus
