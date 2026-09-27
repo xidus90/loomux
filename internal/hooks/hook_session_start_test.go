@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/config"
+	"github.com/xidus90/loomux/internal/flow/runs"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/sessions"
@@ -26,7 +27,7 @@ func TestHookSessionStartIsSilentWithNothingWaiting(t *testing.T) {
 	root := project(t)
 
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude")
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude", "3.3.0")
 
 	if code != ExitOK || stdout.Len() != 0 {
 		t.Fatalf("expected exit 0 and no output, got %d and %q", code, stdout.String())
@@ -44,7 +45,7 @@ func TestHookSessionStartRecordsTheBaseCommit(t *testing.T) {
 	gitInit(t, root)
 
 	var stdout, stderr bytes.Buffer
-	SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude")
+	SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude", "3.3.0")
 
 	if state := sessions.ReadState(root, "s1"); len(state.Base) != 40 {
 		t.Fatalf("expected a full sha as the base, got %q", state.Base)
@@ -61,7 +62,7 @@ func TestHookSessionStartRecordsNoBaseWithoutARepository(t *testing.T) {
 	root := project(t)
 
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude")
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude", "3.3.0")
 
 	if code != ExitOK {
 		t.Fatalf("a checkout that is not a repository is not a failure, got %d", code)
@@ -76,7 +77,7 @@ func TestHookSessionStartRecordsNoBaseWithoutASessionID(t *testing.T) {
 	gitInit(t, root)
 
 	var stdout, stderr bytes.Buffer
-	SessionStart(strings.NewReader(`{"hook_event_name":"SessionStart"}`), &stdout, &stderr, root, "claude")
+	SessionStart(strings.NewReader(`{"hook_event_name":"SessionStart"}`), &stdout, &stderr, root, "claude", "3.3.0")
 
 	dir := filepath.Join(root, filepath.FromSlash(sessions.StateDir))
 	if entries, err := os.ReadDir(dir); err == nil && len(entries) > 0 {
@@ -102,7 +103,7 @@ func TestHookSessionStartReportsABaseItCannotWrite(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude")
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude", "3.3.0")
 
 	if code != ExitInternal {
 		t.Fatalf("expected exit 1, got %d", code)
@@ -116,7 +117,7 @@ func TestHookSessionStartReportsABaseItCannotWrite(t *testing.T) {
 // hook is an announcement and has nothing to block.
 func TestHookSessionStartOnABadPayload(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader("{not json"), &stdout, &stderr, project(t), "claude")
+	code := SessionStart(strings.NewReader("{not json"), &stdout, &stderr, project(t), "claude", "3.3.0")
 
 	if code != ExitInternal {
 		t.Fatalf("expected exit 1, got %d", code)
@@ -128,7 +129,7 @@ func TestHookSessionStartOnABadPayload(t *testing.T) {
 
 func TestHookSessionStartOnAnUnknownHost(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, project(t), "gemini-cli")
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, project(t), "gemini-cli", "3.3.0")
 
 	if code != ExitInternal {
 		t.Fatalf("an unknown host is refused, got %d", code)
@@ -140,7 +141,7 @@ func TestHookSessionStartOnAnUnknownHost(t *testing.T) {
 func TestHookSessionStartOnAHostWithoutAnAdapter(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root, _ := pilot(t, time.Hour, 2*time.Hour)
-	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "codex")
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "codex", "3.3.0")
 
 	if code != ExitInternal {
 		t.Fatalf("expected exit 1, got %d", code)
@@ -157,7 +158,7 @@ func TestHookSessionStartOnAntigravity(t *testing.T) {
 	runningAs(t, binary)
 
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"conversationId":"s1"}`), &stdout, &stderr, root, "antigravity")
+	code := SessionStart(strings.NewReader(`{"conversationId":"s1"}`), &stdout, &stderr, root, "antigravity", "3.3.0")
 
 	if code != ExitOK {
 		t.Fatalf("expected exit 0, got %d; stderr: %s", code, stderr.String())
@@ -168,7 +169,7 @@ func TestHookSessionStartOnAntigravity(t *testing.T) {
 
 	// PreInvocation fires before every model call; only the first announces.
 	stdout.Reset()
-	code = SessionStart(strings.NewReader(`{"conversationId":"s1","invocationNum":2}`), &stdout, &stderr, root, "antigravity")
+	code = SessionStart(strings.NewReader(`{"conversationId":"s1","invocationNum":2}`), &stdout, &stderr, root, "antigravity", "3.3.0")
 	if code != ExitOK || stdout.Len() != 0 {
 		t.Fatalf("a later invocation: %d %q", code, stdout.String())
 	}
@@ -251,8 +252,8 @@ func TestSessionStartIsQuietWhenTheBinaryIsNewest(t *testing.T) {
 	}
 }
 
-// Only what is compiled into the binary counts: a .go file outside cmd/ and
-// internal/ never reached the build.
+// Only what is compiled into the binary counts: a .go file outside cmd/,
+// internal/ and flows/ never reached the build.
 func TestSessionStartIgnoresGoFilesOutsideTheBuiltDirectories(t *testing.T) {
 	root := t.TempDir()
 	binary := filepath.Join(root, "bin", "loomux.exe")
@@ -362,7 +363,7 @@ func TestHookSessionStartReportsAWarningItCannotWrite(t *testing.T) {
 	runningAs(t, binary)
 
 	var stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), refusingWriter{}, &stderr, root, "claude")
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), refusingWriter{}, &stderr, root, "claude", "3.3.0")
 
 	if code != ExitInternal {
 		t.Fatalf("expected exit 1, got %d", code)
@@ -386,13 +387,59 @@ func TestHookSessionStartAnnouncesAStaleBinary(t *testing.T) {
 	runningAs(t, binary)
 
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude")
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude", "3.3.0")
 
 	if code != ExitOK {
 		t.Fatalf("a warning does not fail the hook, got %d (%s)", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "internal/cli/cli.go") {
 		t.Fatalf("the session is told which source is newer, got %q", stdout.String())
+	}
+}
+
+// A waiting run is news on every start, not only the first: the question stays
+// open until a human answers it. agy's later invocations are the starts the
+// hook otherwise keeps quiet on.
+func TestHookSessionStartAnnouncesAWaitingRunOnARepeatedStart(t *testing.T) {
+	root := project(t)
+	writeRun(t, root, "0001", runs.Marker{Flow: "example", Origin: "bundled"}, pausedLine("approve", "Ship it?"))
+	flowFolder(t, root, "example/flow.toml")
+	for _, payload := range []string{`{"conversationId":"s1"}`, `{"conversationId":"s1","invocationNum":2}`} {
+		var stdout, stderr bytes.Buffer
+		code := SessionStart(strings.NewReader(payload), &stdout, &stderr, root, "antigravity", "3.3.0")
+		if code != ExitOK || !strings.Contains(stdout.String(), "run 0001 (example, bundled) is waiting at approve: Ship it?") ||
+			!strings.Contains(stdout.String(), ".loomux/flows/example is ignored") {
+			t.Fatalf("%s: %d %q %q", payload, code, stdout.String(), stderr.String())
+		}
+	}
+}
+
+// The binary compiles flows/ and embeds its catalog, so a flow edited after the
+// build is as stale as a Go source.
+func TestSessionStartWarnsWhenACatalogFileIsNewer(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, 3*time.Hour)
+	write(t, filepath.Join(root, "flows", "catalog", "example", "flow.toml"), time.Minute)
+	runningAs(t, binary)
+
+	lines := staleBinary(root)
+
+	if len(lines) != 1 || !strings.Contains(lines[0], "flows/catalog/example/flow.toml") {
+		t.Fatalf("expected one line naming the catalog file, got %v", lines)
+	}
+}
+
+// The embed directive leaves out every name that starts with "_" or ".", and
+// with it a flow's _test/ folder: its script and golden journal never reach
+// the binary.
+func TestSessionStartIgnoresWhatTheCatalogDoesNotEmbed(t *testing.T) {
+	root, binary := pilot(t, 2*time.Hour, 3*time.Hour)
+	write(t, filepath.Join(root, "flows", "catalog", "example", "flow.toml"), 3*time.Hour)
+	write(t, filepath.Join(root, "flows", "catalog", "example", "_test", "journal.jsonl"), time.Minute)
+	write(t, filepath.Join(root, "flows", "catalog", "example", ".draft.toml"), time.Minute)
+	runningAs(t, binary)
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
 	}
 }
 
@@ -449,7 +496,7 @@ func TestHookSessionStartKeepsABaseTheSessionAlreadyHas(t *testing.T) {
 	base := stateOf(t, root).Base
 
 	var stdout, stderr bytes.Buffer
-	if code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"compact"}`), &stdout, &stderr, root, "claude"); code != ExitOK {
+	if code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"compact"}`), &stdout, &stderr, root, "claude", "3.3.0"); code != ExitOK {
 		t.Fatalf("%d %q", code, stderr.String())
 	}
 
@@ -472,7 +519,7 @@ func TestHookSessionStartSaysAMarkerItCannotRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"resume"}`), &stdout, &stderr, root, "claude")
+	code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"resume"}`), &stdout, &stderr, root, "claude", "3.3.0")
 	if code != ExitOK || !strings.Contains(stdout.String(), "may not count for worktree unlink") || !strings.Contains(stdout.String(), "reviving ") {
 		t.Fatalf("%d %q %q", code, stdout.String(), stderr.String())
 	}
@@ -489,7 +536,7 @@ func TestHookSessionStartSaysAMarkerItCannotRemoveOnALaterInvocation(t *testing.
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"conversationId":"s1","invocationNum":2}`), &stdout, &stderr, root, "antigravity")
+	code := SessionStart(strings.NewReader(`{"conversationId":"s1","invocationNum":2}`), &stdout, &stderr, root, "antigravity", "3.3.0")
 	if code != ExitOK || !strings.Contains(stdout.String(), "injectSteps") || !strings.Contains(stdout.String(), "may not count for worktree unlink") {
 		t.Fatalf("%d %q %q", code, stdout.String(), stderr.String())
 	}
@@ -509,7 +556,7 @@ func TestHookSessionStartRevivesARetiredSession(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"resume"}`), &stdout, &stderr, root, "claude"); code != ExitOK {
+	if code := SessionStart(strings.NewReader(`{"session_id":"s1","source":"resume"}`), &stdout, &stderr, root, "claude", "3.3.0"); code != ExitOK {
 		t.Fatalf("%d %q", code, stderr.String())
 	}
 	if n, err := sessions.Others(root, "s2", time.Hour); err != nil || n != 1 {

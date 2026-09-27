@@ -29,15 +29,14 @@ var (
 	walkDir    = filepath.WalkDir
 )
 
-// SessionStart writes down the commit the session starts on.
+// SessionStart writes down the commit the session starts on and announces the
+// flow runs that wait for an answer. version is this binary's, spelled as flow
+// run writes it into a run's marker.
 //
 // Never blocks. This is an announcement, so the only codes it can leave with
 // are 0 and 1 -- exit 2 in payload.py's protocol (payload.py:13-15) means
 // blocked, and there is nothing here to hold a turn over.
-//
-// Waiting flow runs are not announced here: internal/journal does not move in
-// stage 1a, so the report comes back with the flow migration.
-func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName string) int {
+func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName, version string) int {
 	host, err := hosts.ParseHost(hostName)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)
@@ -71,6 +70,11 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName stri
 		lines = append(lines, staleBinary(root)...)
 		lines = append(lines, updateWarnings(config.StateDir(), runtime.GOOS)...)
 	}
+	// What the project's flows say is said at every start, a repeated one
+	// included: a waiting question stays open until a human answers it, and a
+	// session that heard it once may since have dropped it from its context.
+	lines = append(lines, waitingRuns(root, version, stderr)...)
+	lines = append(lines, ignoredFlowFolders(root)...)
 
 	if err := hosts.WriteContext(host, "SessionStart", stdout, lines); err != nil {
 		fmt.Fprintf(stderr, "loomux hook session-start: %v\n", err)
@@ -192,8 +196,12 @@ func updateWarnings(stateDir, goos string) []string {
 	return lines
 }
 
-// newestSource is the latest modification among go.mod, go.sum and the .go
-// files under cmd/ and internal/, with that file's slash-separated path.
+// newestSource is the latest modification among what goes into the build, with
+// that file's slash-separated path: go.mod, go.sum, the .go files under cmd/
+// and internal/, and every file under flows/, which holds Go source and the
+// catalog the binary embeds. Under flows/ a name starting with "_" or "." is
+// left out with everything below it, as go:embed leaves it out -- a flow's
+// _test/ folder never reaches the binary.
 func newestSource(root string) (time.Time, string, error) {
 	var newest time.Time
 	var name string
@@ -209,7 +217,7 @@ func newestSource(root string) (time.Time, string, error) {
 			consider(filepath.Join(root, file), info)
 		}
 	}
-	for _, dir := range []string{"cmd", "internal"} {
+	for _, dir := range []string{"cmd", "internal", "flows"} {
 		err := walkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
 			if errors.Is(err, fs.ErrNotExist) && path == filepath.Join(root, dir) {
 				return filepath.SkipDir
@@ -217,7 +225,14 @@ func newestSource(root string) (time.Time, string, error) {
 			if err != nil {
 				return err
 			}
-			if entry.IsDir() || filepath.Ext(path) != ".go" {
+			embedded := dir == "flows"
+			if embedded && (strings.HasPrefix(entry.Name(), "_") || strings.HasPrefix(entry.Name(), ".")) {
+				if entry.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if entry.IsDir() || (!embedded && filepath.Ext(path) != ".go") {
 				return nil
 			}
 			info, err := entry.Info()

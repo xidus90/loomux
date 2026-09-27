@@ -152,7 +152,7 @@ func runHook(event, root, host string, budget time.Duration, failure int, stdin 
 	case "subagent-stop":
 		return hooks.SubagentStop(stdin, stderr, resolved, host)
 	default:
-		return hooks.SessionStart(stdin, stdout, stderr, resolved, host)
+		return hooks.SessionStart(stdin, stdout, stderr, resolved, host, bareVersion())
 	}
 }
 
