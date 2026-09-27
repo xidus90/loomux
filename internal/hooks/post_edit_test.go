@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -651,12 +653,7 @@ func TestPostEditNamesTheCallersOfAChangedSymbol(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("%d %q", code, se)
 	}
-	var said map[string]any
-	if err := json.Unmarshal([]byte(so), &said); err != nil {
-		t.Fatalf("stdout has to be one JSON document, got %q: %v", so, err)
-	}
-	specific, _ := said["hookSpecificOutput"].(map[string]any)
-	context, _ := specific["additionalContext"].(string)
+	context := editContextOf(t, so)
 	if !strings.HasPrefix(context, "[graph] calc/calc.go: changed Add; callers in other files:") || !strings.Contains(context, "main (main.go)") {
 		t.Fatalf("%q", so)
 	}
@@ -826,18 +823,72 @@ func TestPostEditSaysTheSkipsOfEveryFileInOneDocument(t *testing.T) {
 }
 
 // editContextOf is the additionalContext of the one JSON document stdout
-// holds.
-func editContextOf(t *testing.T, stdout string) string {
+// holds, walked by the exact keys a host reads: a struct decoding would match
+// them regardless of case and pass an envelope no host reads.
+func editContextOf(t testing.TB, stdout string) string {
 	t.Helper()
-	var said struct {
-		HookSpecificOutput struct {
-			AdditionalContext string `json:"additionalContext"`
-		} `json:"hookSpecificOutput"`
-	}
-	if err := json.Unmarshal([]byte(stdout), &said); err != nil {
+	decoder := json.NewDecoder(strings.NewReader(stdout))
+	var said map[string]any
+	if err := decoder.Decode(&said); err != nil {
 		t.Fatalf("stdout has to be one JSON document, got %q: %v", stdout, err)
 	}
-	return said.HookSpecificOutput.AdditionalContext
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		t.Fatalf("stdout has to be one JSON document, got more: %q", stdout)
+	}
+	specific, ok := said["hookSpecificOutput"].(map[string]any)
+	if !ok {
+		t.Fatalf("stdout has no hookSpecificOutput object: %q", stdout)
+	}
+	context, ok := specific["additionalContext"].(string)
+	if !ok {
+		t.Fatalf("stdout has no hookSpecificOutput.additionalContext string: %q", stdout)
+	}
+	return context
+}
+
+// failRecorder is a testing.TB whose Fatalf records the failure and ends its
+// goroutine, as the real one does, so that a helper's refusal can be tested.
+type failRecorder struct {
+	testing.TB
+	failed bool
+}
+
+func (r *failRecorder) Helper() {}
+
+func (r *failRecorder) Fatalf(string, ...any) {
+	r.failed = true
+	runtime.Goexit()
+}
+
+// refuses says whether editContextOf fails the test on stdout.
+func refuses(stdout string) bool {
+	r := &failRecorder{}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		editContextOf(r, stdout)
+	}()
+	<-done
+	return r.failed
+}
+
+// The helper reads the context as a host does, by its exact keys and from
+// one document; a key in another case, a missing key and a second document
+// all fail the test that uses it.
+func TestEditContextOfReadsOnlyTheKeysAHostReads(t *testing.T) {
+	for _, stdout := range []string{
+		`{"HookSpecificOutput":{"AdditionalContext":"x"}}`,
+		`{"hookSpecificOutput":{}}`,
+		`{"hookSpecificOutput":{"additionalContext":"x"}}` + "\n" + `{"hookSpecificOutput":{"additionalContext":"y"}}`,
+		``,
+	} {
+		if !refuses(stdout) {
+			t.Errorf("the helper passed %q", stdout)
+		}
+	}
+	if got := editContextOf(t, `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"x"}}`+"\n"); got != "x" {
+		t.Fatalf("%q", got)
+	}
 }
 
 // Each file of one call measures into coverage files of its own.
