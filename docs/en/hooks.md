@@ -336,7 +336,8 @@ flowchart TD
     flags -->|yes| stdin{"stdin readable?"}
     stdin -->|no| deny
     stdin -->|yes| named{"JSON object<br/>with a tool name?"}
-    named -->|no| barrier
+    named -->|"no object"| barrier
+    named -->|"an object without a tool name"| deny
     named -->|yes| config{".loomux/config.toml"}
     config -->|"broken"| deny
     config -->|"absent: built-in rules only"| rules
@@ -349,11 +350,14 @@ flowchart TD
 
 **Never exit 1.** A host reads 1 as a non-blocking error and runs the tool
 anyway. So every way this hook can fail — a missing or unknown `--host`, stdin
-that cannot be read, a payload that is no JSON object, a broken
-`.loomux/config.toml`, a panic — refuses with 2 (`internal/cli/hook.go`,
-`internal/hooks/pretool.go`). A policy that waved calls through as soon as its
-own configuration is unreadable would be exactly the barrier one believes to be
-there and which is not.
+that cannot be read, a payload that is no JSON object, an object that names no
+tool, a broken `.loomux/config.toml`, a panic — refuses with 2
+(`internal/cli/hook.go`, `internal/hooks/pretool.go`). A policy that waved
+calls through as soon as its own configuration is unreadable would be exactly
+the barrier one believes to be there and which is not. A call without a tool
+name is refused by the policy before the configuration is read, since no rule
+can be matched against it; a payload that is no object is left to the write
+barrier, which refuses it in its own words.
 
 **Paths and command lines, not content.** A writing tool — `Write`, `Edit`,
 `MultiEdit`, `NotebookEdit`, and Antigravity's `write_to_file`,

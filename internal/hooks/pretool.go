@@ -41,12 +41,17 @@ func PreToolUse(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string
 }
 
 // policyReasons judges the call against the policy. A payload that did not
-// decode arrives as nil and yields no reasons: refusing it is the barrier's job, with the
-// barrier's wording, one step later.
+// decode arrives as nil and yields no reasons: refusing it is the barrier's
+// job, with the barrier's wording, one step later. An object that names no
+// tool is refused here, before the policy file is read: no rule can be
+// matched against it, and a call nobody judged does not pass.
 func policyReasons(object map[string]any, root string) ([]string, error) {
+	if object == nil {
+		return nil, nil
+	}
 	tool, input := guard.Call(object)
 	if tool == "" {
-		return nil, nil
+		return []string{"loomux found no tool name in this call, so it cannot judge it and refuses"}, nil
 	}
 	policy, err := readPolicy(root)
 	if err != nil {
