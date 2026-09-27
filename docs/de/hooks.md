@@ -540,10 +540,11 @@ Blast-Monitors, wird nicht an agy weitergegeben, denn ob agy die
 `injectSteps` eines PostToolUse liest, ist ungemessen; ein Skip bleibt auf
 stderr, das das Modell nur bei Exit 2 erreicht. `session-start` läuft
 auf `PreInvocation`, das vor jedem Modellaufruf feuert und sie in
-`invocationNum` zählt; nur der erste warnt vor Binary und Self-Update. Ein
-späterer nennt die Flow-Läufe, die noch an einem Tor warten, und die
-übergangenen Flow-Ordner, wie jeder Start, und sagt, wenn die Sitzung für
-worktree unlink nicht wieder mitzählt.
+`invocationNum` zählt; nur der erste warnt vor Binary und Self-Update und
+zählt eine Sitzung wieder mit, die worktree unlink abgemeldet hat. Nichts
+meldet eine agy-Unterhaltung zwischen zwei Modellaufrufen ab, denn unlink ist
+nur für Claude verdrahtet. Ein späterer nennt nur die Flow-Läufe, die noch an
+einem Tor warten, und die übergangenen Flow-Ordner, wie jeder Start.
 `subagent-start` und
 `subagent-stop` sind für Antigravity nicht verdrahtet: seine Nutzlasten tragen
 keine `agent_id`.

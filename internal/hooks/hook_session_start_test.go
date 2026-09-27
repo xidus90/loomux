@@ -525,20 +525,64 @@ func TestHookSessionStartSaysAMarkerItCannotRemove(t *testing.T) {
 	}
 }
 
-// A later PreInvocation announces nothing again, but a marker it cannot take
-// away is new, and is said: worktree unlink may have retired the session
-// between two model calls.
-func TestHookSessionStartSaysAMarkerItCannotRemoveOnALaterInvocation(t *testing.T) {
+// Only the first PreInvocation revives, so only it says a marker it cannot
+// take away: nothing retires an agy conversation between two model calls, and
+// the first invocation already said it. invocationNum is 0 on the first model
+// call; 2 is a later one whichever count the host keeps.
+func TestHookSessionStartSaysAMarkerItCannotRemoveOnlyOnTheFirstInvocation(t *testing.T) {
+	for _, tc := range []struct {
+		name, payload string
+		said          bool
+	}{
+		{"first", `{"conversationId":"s1","invocationNum":0}`, true},
+		{"later", `{"conversationId":"s1","invocationNum":2}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(config.StateDirEnv, t.TempDir())
+			root := gitWorld(t, twoCommitsOnly, `{"base":"{{COMMIT:1}}","green":"`+goneSHA+`","blocks":0}`)
+			busy := filepath.Join(root, filepath.FromSlash(sessions.StateDir), "s1.ended", "inside")
+			if err := os.MkdirAll(busy, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			code := SessionStart(strings.NewReader(tc.payload), &stdout, &stderr, root, "antigravity", "3.3.0")
+			said := strings.Contains(stdout.String(), "injectSteps") && strings.Contains(stdout.String(), "may not count for worktree unlink")
+			if code != ExitOK || said != tc.said || (!tc.said && stdout.Len() != 0) {
+				t.Fatalf("%d %q %q", code, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
+// The session counts again before its base is filed, so a base that cannot be
+// written leaves it counted all the same. A directory where the session's file
+// belongs makes the write fail; Revive's own touch of that path still lands,
+// and it is how the order shows.
+func TestHookSessionStartRevivesBeforeABaseItCannotWrite(t *testing.T) {
 	t.Setenv(config.StateDirEnv, t.TempDir())
-	root := gitWorld(t, twoCommitsOnly, `{"base":"{{COMMIT:1}}","green":"`+goneSHA+`","blocks":0}`)
-	busy := filepath.Join(root, filepath.FromSlash(sessions.StateDir), "s1.ended", "inside")
-	if err := os.MkdirAll(busy, 0o755); err != nil {
+	root := project(t)
+	gitInit(t, root)
+	file := filepath.Join(root, filepath.FromSlash(sessions.StateDir), "s1.json")
+	if err := os.MkdirAll(file, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(file, old, old); err != nil {
+		t.Fatal(err)
+	}
+
 	var stdout, stderr bytes.Buffer
-	code := SessionStart(strings.NewReader(`{"conversationId":"s1","invocationNum":2}`), &stdout, &stderr, root, "antigravity", "3.3.0")
-	if code != ExitOK || !strings.Contains(stdout.String(), "injectSteps") || !strings.Contains(stdout.String(), "may not count for worktree unlink") {
-		t.Fatalf("%d %q %q", code, stdout.String(), stderr.String())
+	code := SessionStart(strings.NewReader(`{"session_id":"s1"}`), &stdout, &stderr, root, "claude", "3.3.0")
+
+	if code != ExitInternal {
+		t.Fatalf("expected exit 1, got %d; stderr: %s", code, stderr.String())
+	}
+	info, err := os.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.ModTime().Before(time.Now().Add(-time.Hour)) {
+		t.Fatalf("the session was not made young before the base failed: %s", info.ModTime())
 	}
 }
 

@@ -510,9 +510,10 @@ PostToolUse's `injectSteps` is unmeasured; a skip stays on stderr, which
 reaches the model only at exit 2.
 `session-start` runs on `PreInvocation`, which fires before every model call
 and counts them in `invocationNum`; only the first one warns about the
-binary and the self-update. A later one names the flow runs that still wait
-at a gate and the ignored flow folders, as every start does, and says when
-the session could not be counted again for worktree unlink.
+binary and the self-update and revives a session that worktree unlink
+retired. Nothing retires an agy conversation between two model calls, since
+unlink is wired for Claude alone. A later one names only the flow runs that
+still wait at a gate and the ignored flow folders, as every start does.
 `subagent-start` and `subagent-stop` are not wired for Antigravity: its
 payloads carry no `agent_id`.
 
