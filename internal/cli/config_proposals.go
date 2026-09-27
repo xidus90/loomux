@@ -416,6 +416,9 @@ func applyOne(t configTarget, id string, yes bool, answers *bufio.Reader, stderr
 		return false
 	}
 	say(stderr, "loomux config: wrote %s\n", t.path)
+	if hint := writtenHint(t, p.Key); hint != "" {
+		fmt.Fprintln(stderr, hint)
+	}
 	if err := removeProposalFile(t.proposalFile(id)); err != nil {
 		say(stderr, "loomux config: the change is written, but the proposal file could not be removed: %v; remove it with `loomux config reject %s`\n", err, id)
 		return false

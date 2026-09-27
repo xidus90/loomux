@@ -466,6 +466,76 @@ func TestConfigGlobalEditsTheModelBlock(t *testing.T) {
 	}
 }
 
+// The backbone is a global key like the model's: listed with its default,
+// judged by its reader before it is written, and followed by one line that
+// says a running daemon keeps the backbone it started with -- but only when
+// something was written.
+func TestConfigGlobalSetsTheSearchBackbone(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", state)
+	path := filepath.Join(state, "config.toml")
+	if code, out, _ := runConfig(t, "", "list", "--global"); code != 0 || !strings.Contains(out, "search.backbone") || !strings.Contains(out, `"cuda"`) {
+		t.Fatalf("%d %q", code, out)
+	}
+	if code, out, _ := runConfig(t, "", "get", "search.backbone", "--global"); code != 0 || out != "\"cuda\"\n" {
+		t.Fatalf("%d %q", code, out)
+	}
+	// The hint names what ends the daemon for sure: its process on the port.
+	// qmd mcp stop loses the daemon once a qmd status removed its PID file.
+	for _, part := range []string{"8765", "Stop-Process", "lsof -ti :8765", `"Not running"`, "next search"} {
+		if !strings.Contains(backboneHint, part) {
+			t.Errorf("the hint does not say %q", part)
+		}
+	}
+	code, _, errOut := runConfig(t, "", "set", "search.backbone", "vulkan", "--yes", "--global")
+	if code != 0 || strings.Count(errOut, backboneHint) != 1 {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if data, _ := os.ReadFile(path); string(data) != "[search]\nbackbone = \"vulkan\"\n" {
+		t.Fatalf("%q", data)
+	}
+	if code, out, _ := runConfig(t, "", "get", "search.backbone", "--global"); code != 0 || out != "\"vulkan\"\n" {
+		t.Fatalf("%d %q", code, out)
+	}
+	// Nothing written, nothing to hint at.
+	if code, _, errOut := runConfig(t, "", "set", "search.backbone", "vulkan", "--yes", "--global"); code != 0 || strings.Contains(errOut, backboneHint) {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if code, _, errOut := runConfig(t, "n\n", "set", "search.backbone", "cpu", "--global"); code != 0 || strings.Contains(errOut, backboneHint) {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	// Another global key changes no backbone.
+	if code, _, errOut := runConfig(t, "", "set", "model.enabled", "true", "--yes", "--global"); code != 0 || strings.Contains(errOut, backboneHint) {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	// An unknown backbone is refused with the file and the key named.
+	code, _, errOut = runConfig(t, "", "set", "search.backbone", "metal", "--yes", "--global")
+	if code != 1 || !strings.Contains(errOut, path) || !strings.Contains(errOut, "[search] backbone must be cuda, vulkan or cpu") {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	// Taking it back to the default changes the backbone too.
+	if code, _, errOut := runConfig(t, "", "unset", "search.backbone", "--yes", "--global"); code != 0 || strings.Count(errOut, backboneHint) != 1 {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "backbone") {
+		t.Fatalf("%q", data)
+	}
+}
+
+// A [search] block the reader refuses keeps every other global key from
+// being written, as a broken [model] does: the file would stay broken.
+func TestConfigGlobalRefusesAWriteBesideABrokenBackbone(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", state)
+	if err := os.WriteFile(filepath.Join(state, "config.toml"), []byte("[search]\nbackbone = \"metal\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := runConfig(t, "", "set", "model.enabled", "true", "--yes", "--global")
+	if code != 1 || !strings.Contains(errOut, "[search] backbone") {
+		t.Fatalf("%d %s", code, errOut)
+	}
+}
+
 // The global file is guarded like the client it feeds: an address off the
 // loopback is refused before it is written, not only when a pass reads it.
 func TestConfigGlobalRefusesAnEndpointOffTheLoopback(t *testing.T) {

@@ -617,3 +617,23 @@ func TestConfigProposalUsage(t *testing.T) {
 		}
 	}
 }
+
+// Applying an agent's proposal of search.backbone is the human's write of
+// it, and says what set says after it; a proposal of another key does not.
+func TestConfigApplyOfTheBackboneHints(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", state)
+	dir := filepath.Join(state, "config", "proposals")
+	forgeProposal(t, dir, proposal{ID: "g-1", Op: "set", Key: "search.backbone", Input: "vulkan", Target: "global"})
+	code, _, errOut := runConfig(t, "", "apply", "g-1", "--yes", "--global")
+	if code != 0 || strings.Count(errOut, backboneHint) != 1 {
+		t.Fatalf("%d %q", code, errOut)
+	}
+	if data, _ := os.ReadFile(filepath.Join(state, "config.toml")); string(data) != "[search]\nbackbone = \"vulkan\"\n" {
+		t.Fatalf("%q", data)
+	}
+	forgeProposal(t, dir, proposal{ID: "g-2", Op: "set", Key: "model.enabled", Input: "true", Target: "global"})
+	if code, _, errOut := runConfig(t, "", "apply", "g-2", "--yes", "--global"); code != 0 || strings.Contains(errOut, backboneHint) {
+		t.Fatalf("%d %q", code, errOut)
+	}
+}

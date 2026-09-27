@@ -982,9 +982,16 @@ loomux config reject <id>|--all
     `model.endpoint` (default `http://127.0.0.1:11434`, loopback only),
     `model.name` (the Ollama model), `model.temperature` (a number from 0
     to 2, default `0.0`) and `model.roles` (a table, edited by hand; once
-    set, every role it does not name is off). A new text is checked by the
-    reader of `[model]` and by the client's loopback guard: an endpoint off
-    the loopback is refused (exit `1`) and the file stays as it was. A file
+    set, every role it does not name is off), and the search engine's
+    `search.backbone` (`cuda`, `vulkan` or `cpu`, default `cuda`; see
+    `brain search`), which exists only here. A new text is checked by the
+    reader of `[model]`, by the client's loopback guard and by the reader of
+    `[search]`: an endpoint off the loopback or another backbone is refused
+    (exit `1`, naming the file and the key) and the file stays as it was.
+    After writing `search.backbone`, `set`, `unset` and `apply` print one
+    more line: a running qmd daemon keeps its backbone until its process
+    ends, so stop the process listening on port 8765 (see the backbone of
+    `brain search`); the next search starts it with the new backbone. A file
     that is no TOML is named by its own path. An area's `.loomux/config.toml` knows only
     `model.enabled` and `model.roles`, and can only switch off or narrow.
     `--global` together with `--root` is a usage error.
