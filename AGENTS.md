@@ -44,8 +44,9 @@ are German and never translated.
 - No `init()` and no package-level variable parses embedded data; load on first use.
 - Nobody works on `master`. Every change starts on a branch and reaches
   `master` only as a merged pull request. `.githooks/pre-commit` refuses a
-  commit on `master` and `.githooks/pre-push` a push to it; the ruleset on
-  GitHub is the barrier that holds regardless.
+  commit on `master` and `.githooks/pre-push` a push to it. These two hooks are
+  the barrier today; a ruleset on GitHub, which holds regardless, comes once
+  the repository is public.
 - Before a pull request is opened, and again before it is merged, its commits
   are grouped by theme: one commit per change. A later correction of something
   the same branch introduced (review fix, typo, follow-up) is folded into the
@@ -126,7 +127,9 @@ go build -o bin/loomux.exe ./cmd/loomux
 replace them. Until a human has run it once on a fresh clone and found
 `git status` empty afterwards, the two commands above stay the way.
 
-- Gate: `sh ci/gate.sh`; `.githooks/pre-commit` runs it, then rebuilds the pilot binary.
+- Gate: `sh ci/gate.sh` (a CGo-free build, then `check precommit`);
+  `.githooks/pre-commit` refuses a commit whose gate inputs differ from the
+  index, runs the gate, then rebuilds the pilot binary.
 - The gate is `go run ./cmd/loomux check precommit`: the `[verify]` lanes of
   `.loomux/config.toml` over the presets. `check lint`, `check test` or
   `check coverage` run one kind; `check precommit --show` prints what runs.

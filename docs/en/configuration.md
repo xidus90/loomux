@@ -10,7 +10,7 @@ This document provides a comprehensive reference for `.loomux/config.toml`, the 
    > [!IMPORTANT]
    > `.loomux/config.toml` is **never modified by an AI agent**. The write barrier strictly forbids agent writes to `.loomux/config.toml`, and the guard refuses an agent the commands that write it (`loomux init`, a writing `loomux config`, `loomux area add`). Propose changes; a human writes and commits them, by hand or with `loomux config` (see the [CLI reference](cli-reference.md#10-configuration-loomux-config)).
 2. **Deterministic & Strict**:
-   All regular expressions and path globs are compiled on first use. If any rule contains an invalid regex or missing reason, Loomux refuses startup immediately with a clear error naming the exact line.
+   All regular expressions and path globs are checked when the policy is read. A rule with a missing or empty `match`, a malformed glob, a missing or non-compiling `regex` or a missing `reason` is an error naming the file and the rule's number (`[[policy.commands.rules]] #2 needs a reason`), and the guard refuses the tool call instead of judging it.
 3. **Separation of Config and State**:
    - `.loomux/config.toml`: Committed human-authored policies and check chains.
    - `.loomux/state/`: Ephemeral, machine-written state (session files, journal, caches). Always git-ignored.
@@ -31,14 +31,16 @@ agents = ["claude", "antigravity", "cursor"]
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Project identifier used for scoped collections and registries. |
-| `version` | string | Optional project version string. |
+| `name` | string | Not read by loomux; the scope comes from `[area] scope`. |
+| `version` | string | Not read by loomux. |
 | `agents` | array of strings | Not read by loomux. `loomux init` keeps the hosts it set up in `.loomux/state/answers.toml`, not here. |
 
 ---
 
 ### `[policy.paths]` (Path Protection Rules)
 Defines path patterns that AI agents are forbidden from writing to or editing.
+
+Built in, with no entry here: `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `*.p12`, `.npmrc`, `.pypirc`, `credentials.json` and `.aws/**` (secrets); `.loomux/no-verify` and `.loomux/state/hooks/**` (the stop gate's own controls); `uv.lock`, `poetry.lock`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock` and `go.sum` (lock files). A project's rules come on top of these and cannot remove them.
 
 ```toml
 [policy.paths]
@@ -53,7 +55,7 @@ rules = [
 | Field | Type | Description |
 |---|---|---|
 | `rules` | array of tables | List of path inspection rules. |
-| `rules[].match` | string or array of strings | Glob patterns supporting `**` (e.g., `.aws/**`, `*.key`). |
+| `rules[].match` | string or array of strings | Globs relative to the project root, in `path.Match` syntax. A pattern without `/` is matched against the file name alone (`*.key`, `.env.*`); a pattern with `/` against the whole relative path, where `*` does not cross a `/`. `**` means any depth only as the ending `/**` (`.aws/**`); anywhere else it is a plain `*`. |
 | `rules[].reason` | string (**Required**) | Explanatory message displayed to the agent upon refusal. |
 
 ---
@@ -531,19 +533,52 @@ the manual once sketched one.
 
 ---
 
-### `[skills]` (Curated Best-Practice Suites)
-Configures language-specific review skills and synchronization destinations.
+### The Area Declaration: `[area]`, `[layout]`, `[wiki]`, `[index]`, `[maintenance]`, `[model]`
+
+These tables, with `[privacy]` below, declare a knowledge area; the brain
+module reads them. A file without `[area]` declares no area. A value of the
+wrong type is an error that names the table and the key.
 
 ```toml
-[skills]
-suites = ["review-go", "review-security", "review-typescript"]
-sync = [".claude/skills", ".agents/skills"]
+[area]
+scope = "project/loomux"
+
+[layout]
+wiki = "wiki"
+
+[wiki]
+untouched_days = 180
+
+[maintenance]
+on_merge = true
+branch = "master"
+
+[model]
+enabled = true
+roles = { describe = true, place = false, propose = true }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `suites` | array of strings | Active review skill suites bundled in the Loomux binary. |
-| `sync` | array of strings | Directories where `SKILL.md` bundles are provisioned. |
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `area.scope` | string (**Required**) | — | The scope this project is registered under, e.g. `project/loomux`. |
+| `layout.wiki` | string | — | Where the wiki bundle lives, relative to the root. |
+| `layout.hub` | string | — | Where the hub pages live. |
+| `layout.review` | string | — | Where review cases are filed. |
+| `layout.inbox` | string | — | Where files wait to be converted; an absolute path is refused. |
+| `wiki.types` | array of strings | — | Page types this area declares beyond the known ones. |
+| `wiki.untouched_days` | integer ≥ 1 | `180` | After how many days a page counts as untouched. |
+| `index.include` | array of strings | — | Globs of the files the index reads. |
+| `index.exclude` | array of strings | — | Globs the index skips. |
+| `index.unsearched` | array of strings | — | Globs that are registered but never given to qmd. |
+| `maintenance.on_merge` | boolean | `false` | Record merges for reconciliation. |
+| `maintenance.branch` | string | `"main"` | The branch whose merges count. |
+| `model.enabled` | boolean | — | `false` switches the local model off for this area. |
+| `model.roles` | table of booleans | — | Which of `describe`, `place` and `propose` the model takes here; an unknown role is an error. |
+
+`[model]` in an area can only narrow the machine-wide settings (see
+[below](#machine-wide-settings-configtoml-in-the-state-directory)): `enabled`
+switches the model off, never on, and `roles` keeps only the roles both
+files switch on.
 
 ---
 
@@ -618,11 +653,6 @@ mirror = [
   "bin"
 ]
 
-# --- Curated Language Review Skills ------------------------------------------
-[skills]
-suites = ["review-go", "review-security"]
-sync = [".claude/skills", ".agents/skills"]
-
 # --- Privacy Boundaries ------------------------------------------------------
 [privacy]
 mode = "manual_cloud"
@@ -636,21 +666,45 @@ never = [".env*", "*.key", "credentials.json"]
 | | Location |
 |---|---|
 | State directory | on Windows `%LOCALAPPDATA%\loomux`, else `~\AppData\Local\loomux`; elsewhere `$XDG_STATE_HOME/loomux`, else `~/.local/state/loomux` |
-| Area registry | `<state directory>\registry.toml` |
+| Area registry (`[[area]]` entries: `scope` and `path` required, `wiki` optional, and the booleans `readonly`, `signpost`, `shared`, `workspace`; see [Getting Started](getting-started.md)) | `<state directory>\registry.toml` |
+| Machine-wide settings (local model) | `<state directory>\config.toml` |
 | Single files the write barrier keeps open | `<state directory>\open.toml` |
 | Manifest of a writable area | `<area path>\.loomux\config.toml` |
 | Manifest of a read-only area, as the write barrier reads it | `<state directory>\areas\<scope>\.loomux\config.toml` |
-| Artefacts of a read-only area (`index.md`, `graph.json`, `_identities.tsv`) and its manifest, as `loomux brain` reads them | `%LOCALAPPDATA%\brain\areas\<scope>\` until stage 3 |
+| Artefacts of a read-only area (`index.md`, `graph.json`, `_identities.tsv`) and its manifest, as `loomux brain` reads them | `<state directory>\areas\<scope>\`; falls back to `%LOCALAPPDATA%\brain\areas\<scope>\` for reading until stage 4e |
 | Artefacts of a writable area | its `path` |
-| Last reconcile stamp | `%LOCALAPPDATA%\brain\maintenance\last-run.txt` until stage 3 |
+| Last reconcile stamp | `<state directory>\maintenance\last-run.txt`; falls back to `%LOCALAPPDATA%\brain\maintenance\last-run.txt` for reading until stage 4e |
 | Session state of the hooks (`base`, `blocks`, `green`) | `<project>\.loomux\state\hooks\<session_id>.json` |
 | Snapshots and findings of subagents | `<project>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
 | The marker that switches the stop gate off | `<project>\.loomux\no-verify` |
 
 `LOOMUX_STATE_DIR` overrides the state directory and
 `LOOMUX_LEGACY_BRAIN_DIR` the ultra-brain directory; there is no command-line
-flag for either. The legacy directory exists because ultra-brain still writes
-those artefacts: loomux has no indexer of its own before stage 3.
+flag for either. Since stage 3a the legacy directory is only a read fallback
+for artefacts ultra-brain wrote: loomux reads its own state directory first
+and never writes here. With stage 4e a human reconciles the machine state by
+hand; after that the fallback, the directory and the variable go away.
+
+### Machine-wide settings: `config.toml` in the state directory
+
+`<state directory>\config.toml` holds the local model's settings for every
+project on the machine. A human writes it.
+
+```toml
+[model]
+enabled = true
+roles = { describe = true, place = true, propose = false }
+```
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `model.enabled` | boolean | `false` | Let the local model be asked at all; an area can only switch it off. |
+| `model.endpoint` | string | `"http://127.0.0.1:11434"` | Where Ollama listens; it must stay on the loopback. |
+| `model.name` | string | `"hf.co/unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL"` | The Ollama model that is asked. |
+| `model.roles` | table of booleans | `{ describe = true, place = true, propose = true }` | Which roles the model takes; once set, an unnamed role is off. |
+| `model.temperature` | float | `0.0` | The sampling temperature, between 0 and 2. |
+
+An area's `[model]` may only narrow `enabled` and `roles`.
 
 `<scope>` is the scope flattened into one directory name: every run of
 characters other than `A-Z a-z 0-9 _ . -` becomes one `-`, and dashes at both

@@ -10,7 +10,7 @@ Dieses Dokument bietet eine vollständige Referenz für `.loomux/config.toml`, d
    > [!IMPORTANT]
    > `.loomux/config.toml` wird **niemals von einem KI-Agenten bearbeitet**. Die Schreibschranke blockiert jeden Schreibversuch eines Agenten auf `.loomux/config.toml`, und der Wächter verweigert einem Agenten die Befehle, die sie schreiben (`loomux init`, ein schreibendes `loomux config`, `loomux area add`). Änderungen werden vorgeschlagen; ein Mensch schreibt und committet sie, von Hand oder mit `loomux config` (siehe die [CLI-Referenz](cli-reference.md#10-konfiguration-loomux-config)).
 2. **Deterministisch & Strikt**:
-   Alle regulären Ausdrücke und Pfad-Globs werden beim ersten Gebrauch kompiliert. Enthält eine Regel einen ungültigen Regex oder fehlt eine Begründung (`reason`), bricht Loomux sofort mit einer präzisen Fehlermeldung unter Nennung der exakten Zeile ab.
+   Alle regulären Ausdrücke und Pfad-Globs werden beim Lesen der Policy geprüft. Eine Regel mit fehlendem oder leerem `match`, einem fehlerhaften Glob, fehlendem oder nicht kompilierbarem `regex` oder fehlender Begründung (`reason`) ist ein Fehler, der die Datei und die Nummer der Regel nennt (`[[policy.commands.rules]] #2 needs a reason`), und der Wächter verweigert dann den Werkzeugaufruf, statt ihn zu beurteilen.
 3. **Trennung von Konfiguration und Zustand**:
    - `.loomux/config.toml`: Versionierte, von Menschen definierte Richtlinien und Prüfketten.
    - `.loomux/state/`: Flüchtiger, maschinengeschriebener Zustand (Sitzungsdaten, Journal, Caches). Stets in `.gitignore`.
@@ -31,14 +31,16 @@ agents = ["claude", "antigravity", "cursor"]
 
 | Feld | Typ | Beschreibung |
 |---|---|---|
-| `name` | String | Projekt-Bezeichner für Namensräume und Registrierungen. |
-| `version` | String | Optionale Versionsnummer. |
+| `name` | String | Von loomux nicht gelesen; der Namensraum kommt aus `[area] scope`. |
+| `version` | String | Von loomux nicht gelesen. |
 | `agents` | Array von Strings | Von loomux nicht gelesen. `loomux init` hält die eingerichteten Wirte in `.loomux/state/answers.toml`, nicht hier. |
 
 ---
 
 ### `[policy.paths]` (Pfad-Schutzregeln)
 Definiert Pfadmuster, die Coding-Agenten weder erstellen noch bearbeiten dürfen.
+
+Eingebaut, ohne Eintrag hier: `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `*.p12`, `.npmrc`, `.pypirc`, `credentials.json` und `.aws/**` (Geheimnisse); `.loomux/no-verify` und `.loomux/state/hooks/**` (die Steuerung des Stop-Tors); `uv.lock`, `poetry.lock`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock` und `go.sum` (Lockfiles). Die Regeln eines Projekts kommen hinzu und können diese nicht aufheben.
 
 ```toml
 [policy.paths]
@@ -53,7 +55,7 @@ rules = [
 | Feld | Typ | Beschreibung |
 |---|---|---|
 | `rules` | Array von Tabellen | Liste der Pfad-Inspektionsregeln. |
-| `rules[].match` | String oder Array von Strings | Glob-Muster mit `**`-Unterstützung (z. B. `.aws/**`, `*.key`). |
+| `rules[].match` | String oder Array von Strings | Globs relativ zum Projektwurzelverzeichnis, in der Syntax von `path.Match`. Ein Muster ohne `/` wird nur mit dem Dateinamen verglichen (`*.key`, `.env.*`), eines mit `/` mit dem ganzen relativen Pfad, wobei `*` keinen `/` überspringt. `**` steht nur als Endung `/**` für beliebige Tiefe (`.aws/**`); an jeder anderen Stelle ist es ein einfaches `*`. |
 | `rules[].reason` | String (**Pflichtfeld**) | Begründung, die dem Agenten bei einer Ablehnung angezeigt wird. |
 
 ---
@@ -548,19 +550,53 @@ hatte.
 
 ---
 
-### `[skills]` (Kuratierte Best-Practice-Suiten)
-Konfiguriert sprachspezifische Review-Regeln und Synchronisationsziele.
+### Die Bereichsdeklaration: `[area]`, `[layout]`, `[wiki]`, `[index]`, `[maintenance]`, `[model]`
+
+Diese Tabellen erklären, zusammen mit `[privacy]` unten, einen
+Wissensbereich; das Brain-Modul liest sie. Eine Datei ohne `[area]` erklärt
+keinen Bereich. Ein Wert vom falschen Typ ist ein Fehler, der Tabelle und
+Schlüssel nennt.
 
 ```toml
-[skills]
-suites = ["review-go", "review-security", "review-typescript"]
-sync = [".claude/skills", ".agents/skills"]
+[area]
+scope = "project/loomux"
+
+[layout]
+wiki = "wiki"
+
+[wiki]
+untouched_days = 180
+
+[maintenance]
+on_merge = true
+branch = "master"
+
+[model]
+enabled = true
+roles = { describe = true, place = false, propose = true }
 ```
 
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `suites` | Array von Strings | Aktive Review-Suiten, die im Loomux-Binary mitgeliefert werden. |
-| `sync` | Array von Strings | Zielordner, in die `SKILL.md`-Dateien abgelegt werden. |
+| Schlüssel | Typ | Vorgabe | Beschreibung |
+|---|---|---|---|
+| `area.scope` | String (**Pflichtfeld**) | — | Der Scope, unter dem das Projekt registriert ist, z. B. `project/loomux`. |
+| `layout.wiki` | String | — | Wo das Wiki-Bündel liegt, relativ zur Wurzel. |
+| `layout.hub` | String | — | Wo die Hub-Seiten liegen. |
+| `layout.review` | String | — | Wo Review-Fälle abgelegt werden. |
+| `layout.inbox` | String | — | Wo Dateien auf die Umwandlung warten; ein absoluter Pfad wird abgelehnt. |
+| `wiki.types` | Array von Strings | — | Seitentypen, die der Bereich über die bekannten hinaus erklärt. |
+| `wiki.untouched_days` | Ganzzahl ≥ 1 | `180` | Nach wie vielen Tagen eine Seite als unberührt gilt. |
+| `index.include` | Array von Strings | — | Globs der Dateien, die der Index liest. |
+| `index.exclude` | Array von Strings | — | Globs, die der Index überspringt. |
+| `index.unsearched` | Array von Strings | — | Globs, die registriert, aber nie an qmd gegeben werden. |
+| `maintenance.on_merge` | Boolean | `false` | Merges für den Abgleich festhalten. |
+| `maintenance.branch` | String | `"main"` | Der Zweig, dessen Merges zählen. |
+| `model.enabled` | Boolean | — | `false` schaltet das lokale Modell für diesen Bereich ab. |
+| `model.roles` | Tabelle von Booleans | — | Welche von `describe`, `place` und `propose` das Modell hier übernimmt; eine unbekannte Rolle ist ein Fehler. |
+
+`[model]` in einem Bereich kann die maschinenweiten Einstellungen nur
+einengen (siehe [unten](#maschinenweite-einstellungen-configtoml-im-zustandsverzeichnis)):
+`enabled` schaltet das Modell ab, nie an, und `roles` behält nur die Rollen,
+die beide Dateien einschalten.
 
 ---
 
@@ -635,11 +671,6 @@ mirror = [
   "bin"
 ]
 
-# --- Kuratierte Sprach-Review-Suiten -----------------------------------------
-[skills]
-suites = ["review-go", "review-security"]
-sync = [".claude/skills", ".agents/skills"]
-
 # --- Datenschutz-Schranken ---------------------------------------------------
 [privacy]
 mode = "manual_cloud"
@@ -653,22 +684,46 @@ never = [".env*", "*.key", "credentials.json"]
 | | Ort |
 |---|---|
 | Zustandsverzeichnis | unter Windows `%LOCALAPPDATA%\loomux`, sonst `~\AppData\Local\loomux`; auf anderen Systemen `$XDG_STATE_HOME/loomux`, sonst `~/.local/state/loomux` |
-| Bereichsregistry | `<Zustandsverzeichnis>\registry.toml` |
+| Bereichsregistry (Einträge `[[area]]`: `scope` und `path` Pflicht, `wiki` optional, dazu die Wahrheitswerte `readonly`, `signpost`, `shared`, `workspace`; siehe [Erste Schritte](getting-started.md)) | `<Zustandsverzeichnis>\registry.toml` |
+| Maschinenweite Einstellungen (lokales Modell) | `<Zustandsverzeichnis>\config.toml` |
 | Einzelne Dateien, die die Schreibschranke offen hält | `<Zustandsverzeichnis>\open.toml` |
 | Manifest eines beschreibbaren Bereichs | `<Bereichspfad>\.loomux\config.toml` |
 | Manifest eines lesenden Bereichs, wie die Schreibschranke es liest | `<Zustandsverzeichnis>\areas\<scope>\.loomux\config.toml` |
-| Artefakte eines lesenden Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und sein Manifest, wie `loomux brain` sie liest | `%LOCALAPPDATA%\brain\areas\<scope>\` bis Stufe 3 |
+| Artefakte eines lesenden Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und sein Manifest, wie `loomux brain` sie liest | `<Zustandsverzeichnis>\areas\<scope>\`; Rückfall zum Lesen auf `%LOCALAPPDATA%\brain\areas\<scope>\` bis Stufe 4e |
 | Artefakte eines beschreibbaren Bereichs | sein `path` |
-| Stempel des letzten Reconcile | `%LOCALAPPDATA%\brain\maintenance\last-run.txt` bis Stufe 3 |
+| Stempel des letzten Reconcile | `<Zustandsverzeichnis>\maintenance\last-run.txt`; Rückfall zum Lesen auf `%LOCALAPPDATA%\brain\maintenance\last-run.txt` bis Stufe 4e |
 | Sitzungszustand der Hooks (`base`, `blocks`, `green`) | `<projekt>\.loomux\state\hooks\<session_id>.json` |
 | Schnappschüsse und Befunde der Subagenten | `<projekt>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
 | Der Marker, der das Stop-Tor abschaltet | `<projekt>\.loomux\no-verify` |
 
 `LOOMUX_STATE_DIR` überschreibt das Zustandsverzeichnis,
 `LOOMUX_LEGACY_BRAIN_DIR` das Verzeichnis von ultra-brain; einen
-Kommandozeilenschalter gibt es für keines von beiden. Das Altverzeichnis gibt
-es, weil ultra-brain diese Artefakte noch schreibt: vor Stufe 3 hat loomux
-keinen eigenen Indexer.
+Kommandozeilenschalter gibt es für keines von beiden. Seit Stufe 3a ist das
+Altverzeichnis nur noch ein Rückfall zum Lesen für Artefakte, die ultra-brain
+geschrieben hat: loomux liest zuerst sein eigenes Zustandsverzeichnis und
+schreibt nie hierher. Mit Stufe 4e gleicht ein Mensch den Maschinenzustand von
+Hand ab; danach entfallen Rückfall, Verzeichnis und Variable.
+
+### Maschinenweite Einstellungen: `config.toml` im Zustandsverzeichnis
+
+`<Zustandsverzeichnis>\config.toml` hält die Einstellungen des lokalen Modells
+für alle Projekte der Maschine. Die Datei schreibt ein Mensch.
+
+```toml
+[model]
+enabled = true
+roles = { describe = true, place = true, propose = false }
+```
+
+| Schlüssel | Typ | Vorgabe | Beschreibung |
+|---|---|---|---|
+| `model.enabled` | Boolean | `false` | Ob das lokale Modell überhaupt gefragt wird; ein Bereich kann es nur abschalten. |
+| `model.endpoint` | String | `"http://127.0.0.1:11434"` | Wo Ollama lauscht; die Adresse muss auf dem Loopback bleiben. |
+| `model.name` | String | `"hf.co/unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL"` | Das Ollama-Modell, das gefragt wird. |
+| `model.roles` | Tabelle von Booleans | `{ describe = true, place = true, propose = true }` | Welche Rollen das Modell übernimmt; ist die Tabelle gesetzt, ist eine nicht genannte Rolle aus. |
+| `model.temperature` | Gleitkommazahl | `0.0` | Die Sampling-Temperatur, zwischen 0 und 2. |
+
+Das `[model]` eines Bereichs darf `enabled` und `roles` nur einengen.
 
 `<scope>` ist der Scope, zu einem Verzeichnisnamen geplättet: jede Folge von
 Zeichen außer `A-Z a-z 0-9 _ . -` wird zu einem `-`, und Striche an beiden Enden
