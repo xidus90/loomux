@@ -53,8 +53,14 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName, ver
 	// cannot be written does not leave it uncounted. A session that stays
 	// uncounted is told in its context, the one channel a host reads at exit
 	// 0: exit 1 would drop the context lines with it.
+	//
+	// Only at the first start: nothing retires an agy conversation between
+	// two of its model calls (Retire is reached only through worktree unlink,
+	// which is wired for Claude alone), so a later PreInvocation has nothing
+	// to revive and a marker it cannot remove is not news. Should unlink ever
+	// be wired for agy, this is to be decided again.
 	var lines []string
-	if payload.SessionID != "" {
+	if payload.SessionID != "" && !payload.Repeat {
 		if err := sessions.Revive(root, payload.SessionID); err != nil {
 			lines = append(lines, "loomux: this session may not count for worktree unlink, so another session ending here may remove its junctions: "+err.Error())
 		}
@@ -64,8 +70,7 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName, ver
 		return ExitInternal
 	}
 
-	// The base is filed and the warnings were said at the first start; only a
-	// session left uncounted since then is news.
+	// The base is filed and the warnings were said at the first start.
 	if !payload.Repeat {
 		lines = append(lines, staleBinary(root)...)
 		lines = append(lines, updateWarnings(config.StateDir(), runtime.GOOS)...)
