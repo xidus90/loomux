@@ -4,6 +4,15 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [4.1.0] - 2026-09-27
+
+<https://github.com/xidus90/loomux/pull/48>
+
+### Added
+- `loomux config set --global search.backbone cuda|vulkan|cpu` chooses the compute backbone qmd runs on, for the search daemon and the qmd command line; `QMD_LLAMA_GPU` and `QMD_FORCE_CPU` still take precedence.
+### Changed
+- `dev bench search` reports now name the qmd backbone for everyday runs that started the search daemon.
+
 ## [4.0.0] - 2026-09-27
 
 <https://github.com/xidus90/loomux/pull/47>
