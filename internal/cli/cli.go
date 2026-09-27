@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 )
 
 // Version and Channel are what `loomux version` answers. A plain `go build`
@@ -24,6 +25,12 @@ func versionLine() string {
 		return "loomux " + Version
 	}
 	return "loomux " + Version + " (" + Channel + ")"
+}
+
+// bareVersion is versionLine without the program's name: what flow run writes
+// into a run's marker and what the session start compares it with.
+func bareVersion() string {
+	return strings.TrimPrefix(versionLine(), "loomux ")
 }
 
 type command func(args []string, stdin io.Reader, stdout, stderr io.Writer) int

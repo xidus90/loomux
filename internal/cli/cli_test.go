@@ -36,6 +36,18 @@ func TestVersionNamesAChannelOtherThanStable(t *testing.T) {
 	}
 }
 
+// A run's marker and the session start compare the version without the
+// program's name, channel included.
+func TestTheBareVersionIsTheVersionLineWithoutTheName(t *testing.T) {
+	defer func(v, c string) { Version, Channel = v, c }(Version, Channel)
+	for channel, want := range map[string]string{"": "1.2.3", "beta": "1.2.3 (beta)"} {
+		Version, Channel = "1.2.3", channel
+		if got := bareVersion(); got != want {
+			t.Fatalf("channel %q: %q, want %q", channel, got, want)
+		}
+	}
+}
+
 func TestHelpGoesToStdoutAndSucceeds(t *testing.T) {
 	code, out, _ := run("help")
 	if code != 0 || !strings.Contains(out, "Usage: loomux <command>") {

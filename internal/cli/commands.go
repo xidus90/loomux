@@ -13,6 +13,7 @@ var commands = map[string]command{
 	"doctor":      statusCommand,
 	"embed":       embedCommand,
 	"explain":     statusCommand,
+	"flow":        flowCommand,
 	"graph":       graphCommand,
 	"hook":        hookCommand,
 	"init":        initCommand,
