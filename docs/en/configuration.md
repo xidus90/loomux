@@ -603,6 +603,94 @@ never = [
 
 ---
 
+### `[agent]` (Models for Flow Roles)
+
+Binds the roles a [flow](flows.md#3-roles-and-models) names to models. A flow
+never names a model itself, so a bundled flow loads in every project; the
+project decides who answers each role. Every `loomux flow` command that
+loads a flow reads the table first.
+
+```toml
+[agent]
+default     = "sonnet"     # the model of every role without a binding
+mcp_servers = ["loomux"]   # what the mcp tool profile may use
+
+[agent.models.sonnet]
+provider = "claude"
+model    = "sonnet"
+
+[agent.models.gemini]
+provider = "agy"           # no model: the provider CLI's own default
+
+[agent.roles]
+reviewer = "gemini"
+writer   = "sonnet"
+```
+
+| Key | Type | Meaning |
+|---|---|---|
+| `[agent] default` | string | The model name every role without a binding runs on, and an agent node without a role. Must be a name under `[agent.models]`. |
+| `[agent] mcp_servers` | array of strings | The servers a node with the tool profile `mcp` may use, one `mcp__<server>` each; every entry a non-empty string. Default `[]`. |
+| `[agent.models.<name>] provider` | string, **required** | Who answers for this model name, e.g. `claude` or `agy`. Not yet checked against a list: that comes with the model adapters. |
+| `[agent.models.<name>] model` | string | The provider's model. Absent, the provider's CLI picks its own default; present, it may not be empty. |
+| `[agent.roles] <role>` | string | The model name the role runs on. Must be a name under `[agent.models]`. |
+
+- **Names** of models and roles follow `[A-Za-z_][A-Za-z0-9_]*`.
+- **Every finding at once.** An unknown key under `[agent]` or
+  `[agent.models.<name>]` is refused with the known ones, and so is a default
+  or a binding that names no model: `[agent.roles] reviewer names "gemini",
+  which is not under [agent.models]; known: none`. A flow therefore never
+  learns at its first paid node that a role runs nowhere. `[agent] settings`
+  is not known yet; it arrives with the adapters.
+- **Resolution** of a node's model — node role, flow role, binding,
+  `[agent] default`, the claude CLI's own default — is in
+  [Flows](flows.md#3-roles-and-models); `loomux flow show <flow>` prints it
+  per node.
+- **With `loomux config`** the named keys are `agent.roles.<role>`,
+  `agent.models.<name>.provider` and `agent.models.<name>.model`; `config
+  list` shows one row per name the file holds, and `agent.roles.*` (or
+  `agent.models.*.provider`, `…model`) as an unset row while it holds none. The
+  model comes first: `loomux config set agent.roles.reviewer gemini` succeeds
+  only once `agent.models.gemini.provider` is set, because the reader refuses
+  a binding to an unknown model (exit `1`, the file unchanged). An agent
+  proposes a binding with `loomux config set agent.roles.reviewer gemini
+  --propose`.
+
+**`[agent]` is not `[model]`.** `[model]` is the brain's local Ollama model,
+set in the machine-wide `config.toml` (an area only switches it off or narrows
+it), with its own roles `describe`, `place` and `propose` (see
+[`loomux config --global`](cli-reference.md#10-configuration-loomux-config)).
+`[agent]` binds the roles of a flow to the models of a provider's CLI.
+
+---
+
+### `[flow]` (Which Flow Runs)
+
+```toml
+[flow]
+default   = "example"      # what `loomux flow run` starts without a name
+overrides = ["example"]    # bundled flows a project flow of the same name may hide or overlay
+```
+
+| Key | Type | Meaning |
+|---|---|---|
+| `default` | string | The flow `loomux flow run` starts without a name; a flow name (`[a-z][a-z0-9-]*`). Unset, `run` without a name refuses and names the flows it knows. |
+| `overrides` | array of strings | The bundled flows that `.loomux/flows/<name>/` may hide (a `flow.toml` of its own) or overlay (single `instructions/` and `questions/` files); each a flow name, none twice. Default `[]`. |
+
+- **An unknown key** is refused with the known ones.
+- **Whether a name is a flow** is not asked here: this reader reads no flows.
+  A `default` that names no flow fails `loomux flow list` and a `loomux flow
+  run` without a name; `list` warns about a name in `overrides` the catalog
+  does not ship.
+- **Only a human grants an override.** Without `overrides`, a project folder
+  named like a bundled flow is ignored with a warning and the bundled flow
+  runs; the guard refuses an agent every write into the folder of a bundled
+  flow or of a name in `overrides` (see
+  [Flows](flows.md#6-gates-are-a-humans)). An agent proposes one with
+  `loomux config set flow.overrides example --propose`.
+
+---
+
 ## 3. Complete Annotated Example (`config.toml`)
 
 ```toml
@@ -657,6 +745,20 @@ mirror = [
 [privacy]
 mode = "manual_cloud"
 never = [".env*", "*.key", "credentials.json"]
+
+# --- Flows: the models of their roles, and which flow runs ------------------
+[agent]
+default = "sonnet"
+
+[agent.models.sonnet]
+provider = "claude"
+model = "sonnet"
+
+[agent.roles]
+reviewer = "sonnet"
+
+[flow]
+default = "example"
 ```
 
 ---
@@ -677,6 +779,8 @@ never = [".env*", "*.key", "credentials.json"]
 | Session state of the hooks (`base`, `blocks`, `green`) | `<project>\.loomux\state\hooks\<session_id>.json` |
 | Snapshots and findings of subagents | `<project>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
 | The marker that switches the stop gate off | `<project>\.loomux\no-verify` |
+| A project's own flows and overlays | `<project>\.loomux\flows\<name>\` |
+| Flow runs: journal and marker | `<project>\.loomux\state\runs\<id>.jsonl`, `<id>.flow` |
 
 `LOOMUX_STATE_DIR` overrides the state directory and
 `LOOMUX_LEGACY_BRAIN_DIR` the ultra-brain directory; there is no command-line

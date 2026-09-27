@@ -2788,3 +2788,65 @@ kalter und drei warme Läufe.
 2. **Die umbenannten Befehle schreiben die gemeinsame Hülle**: das JSON von
    `repos` trägt `schema` 1, `command` `repos` und eine `payload` mit
    `repos` und `skipped`.
+
+## 2026-09-27 16:18 — Die Flow-Laufzeit: `session-start` mit wartenden Läufen und die Flow-Regeln des Wächters
+
+Worktree `.worktrees/flow-a`, Zweig `feat/flow-runtime`. `before.exe` ist
+`fa1e83dc`, die damalige Merge-Basis des Zweigs, gebaut aus `git archive` im
+Scratchpad; `after.exe` ist der Kopf des Zweigs `0e39521d`, bevor der Zweig
+auf `a7805df8` rebased wurde. Beide gebaut mit Go 1.27.0 `windows/amd64`.
+Maschine: AMD Ryzen 7 9800X3D, Windows 11 Pro.
+
+**Ziel.** Die Flow-Laufzeit bringt zweierlei auf den Hook-Pfad:
+`session-start` liest `.loomux/state/runs/` und meldet einen Lauf, der an
+einem Tor wartet, und `pre-tool-use` bekommt die eingebauten Regeln für
+Laufdateien, Ordner mitgelieferter Flows und Torantworten. Beides darf keine
+messbare Zeit kosten. Die Flow-Laufzeit von ultraloom (ulflow M1) maß für
+ihren Session-Start +2,1 ms warm, innerhalb der Streuung.
+
+**Methode.** `after.exe dev bench-hooks <fälle> -n 30` (der Befehl hieß damals
+mit Bindestrich), drei Durchgänge von 16:18:28 bis 16:18:40, before und after
+abwechselnd, das Binary in `argv` je Durchgang getauscht. Falldatei
+`testdata/bench/flow-hooks.json`; ihre stdin-Nutzlasten lagen unter `%TEMP%`
+und sind nicht eingecheckt. Fünf Fälle: `pre-tool-use` mit einem `Edit` von
+`internal/hooks/guard.go` (außerhalb von `.loomux/`), mit einem `Edit` von
+`.loomux/flows/mine/flow.toml` (der Wächter liest dafür `[flow]` aus der
+`.loomux/config.toml` dieses Worktrees) und mit einem `Bash` `git status`;
+`session-start` gegen eine kleine Git-Welt ohne Läufe und gegen eine, deren
+einziger Lauf an einem Tor wartet (Marke und die ersten zwei Journalzeilen
+aus dem Golden-Journal des Flows `example`; `after` meldet ihn, `before`
+kennt keine Läufe). Beide Welten haben einen Commit und keine
+`.loomux/config.toml`. Echter Zustandsordner und echte Registry. „Kalt“ ist
+der erste Lauf eines Falls, nicht ein kalter Datei-Cache. Die Tabelle nennt
+den Median der drei Durchgangs-Mediane, warm über je 30 Läufe, das kleinste
+Minimum der drei Durchgänge und kalt als Median der drei ersten Läufe. Alle
+Läufe endeten mit Exit 0. Die Falldatei läuft unverändert unter dem heutigen
+`loomux dev bench hooks` (geprüft am 2026-09-27 um 16:52, Exit 0).
+
+| Fall | before kalt | after kalt | before warm Median | after warm Median | before warm Min | after warm Min |
+|---|---:|---:|---:|---:|---:|---:|
+| pre-tool-use Edit außerhalb `.loomux/` | 16,5 ms | 14,5 ms | 13,8 ms | 12,5 ms | 11,5 ms | 10,5 ms |
+| pre-tool-use Edit unter `.loomux/flows/mine/` | 14,5 ms | 13,0 ms | 13,5 ms | 12,5 ms | 11,5 ms | 10,9 ms |
+| pre-tool-use Bash `git status` | 11,0 ms | 10,0 ms | 10,5 ms | 9,7 ms | 9,0 ms | 8,0 ms |
+| session-start, Projekt ohne Läufe | 12,0 ms | 11,5 ms | 11,0 ms | 9,3 ms | 9,0 ms | 8,0 ms |
+| session-start, ein wartender Lauf | 12,5 ms | 11,0 ms | 11,0 ms | 10,0 ms | 9,5 ms | 8,1 ms |
+
+| Binary | Größe |
+|---|---:|
+| before (`fa1e83dc`) | 36.457.472 Byte |
+| after (`0e39521d`) | 37.006.336 Byte (+548.864, +1,5 %; der ganze Zweig, nicht nur die Regeln) |
+
+### Lesart
+
+1. **Die neuen Regeln kosten keine messbare Zeit.** `after` liegt in jedem
+   Fall rund 1 ms vor `before`, auch in den Fällen, die die neuen Regeln kaum
+   berühren (`Bash` `git status`, der Session-Start ohne Läufe). Der
+   Vorsprung kommt also nicht von dieser Änderung; naheliegend sind der Build
+   (`before` aus `git archive`, ohne `.git` und damit ohne VCS-Stempel) oder
+   die Reihenfolge im Durchgang (`before` lief jeweils zuerst). Er liegt
+   innerhalb der Streuung (warme Maxima bis 26 ms).
+2. **`[flow]` zu lesen kostet bei einem Edit unter `.loomux/flows/` nichts
+   Sichtbares**: after liegt dieser Fall gleichauf mit dem Edit außerhalb von
+   `.loomux/`.
+3. **Der wartende Lauf** kostet `after` warm 0,7 ms gegenüber dem Projekt
+   ohne Läufe, weniger als die Streuung jedes der beiden Fälle.

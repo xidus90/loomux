@@ -160,9 +160,10 @@ under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
 | Feature | What it brings | Stage | Depends on | Priority |
 |---|---|---|---|---|
 | **Stop-hook blast audit** | The blast audit at the turn end, working tree against `HEAD`, for the stop gate; until then `graph` in a `stop` profile is `not-applicable` | G4c | G4b ✅ | 2 |
-| **Flow runtime** | Flows as data: a graph of nodes in TOML, run, paused at a gate for a human's answer, resumed and replayed from a journal (`loomux flow`). Starts from ulflow M1, built on ultraloom's unmerged branch `feature/agent-harness`; agent nodes over Claude and Gemini (through their CLIs, their APIs or both, which the Flow spec decides); `verify_until_green` as a data flow | Flow | ulflow M1 | 4 |
-| **Development cycle as the default flow** | From planning to the pull request: clarification, spec and plan, each checked by a fan of reviewer lenses, then per task research, test first, build, check chain, code review and rework, then docs, final review and commit. A human answers at fixed gates and whenever a model is stuck, and pushes | Flow | Flow runtime | 4 |
-| **Community flows** | The development cycle is only the default. A project runs flows of its own; flows contributed by pull request land in the repository as examples and ship with the binary. `.loomux/config.toml` picks the flow, and a project overrides single instructions and models without copying it | Flow | Flow runtime | 4 |
+| **Flow runtime** | Flows as data: a graph of nodes in TOML, run, paused at a gate for a human's answer, resumed and replayed from a journal. Built: the folder format with its load check, the catalog, roles bound to models in `[agent]`, overlays, `[flow] default` and `overrides`, the guard rules for gate answers, run files and bundled flows, `loomux flow run\|resume\|replay\|show\|list` and the session-start notice of waiting runs ([Flows](docs/en/flows.md)). Gate and exit nodes run; agent nodes wait for the model adapters for Claude and Gemini (through their CLIs, their APIs or both, which stage B decides), and `verify-until-green` as a data flow for the building blocks of stage C | Flow B, C | Flow A ✅ | 4 |
+| **Flows over MCP** | `flow_list`, `flow_show`, `flow_run` (a run in a child process `serve` detaches, answering at once with the run number) and `flow_status` on the local channel, with a status file per run so that a cut-off run is seen and carried on; no tool answers a gate | Flow A2 | Flow A ✅ | 4 |
+| **Development cycle as the default flow** | From planning to the pull request: clarification, spec and plan, each checked by a fan of reviewer lenses, then per task research, test first, build, check chain, code review and rework, then docs, final review and commit. A human answers at fixed gates and whenever a model is stuck, and pushes | Flow D | Flow B, C | 4 |
+| **Community flows** | The development cycle is only the default. Built: the catalog under `flows/catalog/` with its contribution test (`go test ./flows` against a golden journal), `[flow] default` to pick the flow, overlays of single instructions and questions, and roles a project binds to its own models. Real runs of contributed flows with agent nodes wait for the model adapters | Flow B | Flow A ✅ | 4 |
 | **Web OS shell** | A React/Vite app embedded with `go:embed` and served by `loomux serve` on `127.0.0.1`: event bus, layout, command palette | W1 | 1b-2 ✅ | 5 |
 | **Brain web app** | The second brain in the browser: markdown editor, ADR catalog, knowledge graph (components from `ultra-brain/web`) | W2 | W1 | 5 |
 | **Graph visualizer** | An interactive code graph with edge chips, type filters and blast overlays; code symbols linked to ADRs and design docs | W3 | W1, G4a ✅ | 5 |
@@ -195,10 +196,15 @@ loomux check commit-msg <file>      # validate a commit message: Conventional Co
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files
 loomux hook pre-tool-use            # run policy and global write barrier against stdin payload
 loomux hook post-tool-use           # run the edit profile's lanes against the file just edited, then name the callers of changed Go symbols (--budget, default 50s)
-loomux hook session-start           # record the session's base commit; warn about a stale binary, a serve outside the install location and a failed self-update
+loomux hook session-start           # record the session's base commit; warn about a stale binary, a serve outside the install location and a failed self-update; announce flow runs waiting at a gate and ignored flow folders
 loomux hook stop                    # the turn-end gate: the stop profile over new content, subagent findings (--budget, default 270s)
 loomux hook subagent-start|subagent-stop  # snapshot origin, branches and HEAD around a subagent; park what moved for stop
 loomux hook <event> --host antigravity    # the same hooks for agy: a held stop continues with JSON on stdout; pre-tool-use refuses and post-tool-use warns with 2
+loomux flow run [<flow>]            # start a run of a flow, [flow] default without a name (--option name=value); exit 3 when it pauses at a gate; agent nodes wait for the model adapters
+loomux flow resume <run>            # carry a paused run on; --answer is a human's, the guard refuses it to an agent
+loomux flow replay <run>            # re-derive a finished run from its journal, executing nothing
+loomux flow show <run|flow>         # a run's journal, or a flow's nodes, roles with the models they resolve to, and edges
+loomux flow list                    # every flow of the catalog and the project, with its origin, the default, and why one does not load
 loomux status|doctor|explain        # inspect hook setup, verification lanes, and active harnesses (three names, one code path)
 loomux worktree link|unlink|remove  # manage isolated worktree mirrors and junction paths
 loomux dev swap-binary              # atomically swap running binary with new compilation
@@ -322,7 +328,8 @@ Exhaustive guides and technical manuals are organized under [`docs/en/`](docs/en
 |---|---|
 | 🚀 **[Getting Started](docs/en/getting-started.md)** | Installation, 3-minute quickstart, and agent harness wiring (hooks for Claude Code and Antigravity, MCP for Cursor). |
 | 🏛️ **[Architecture & Concepts](docs/en/architecture.md)** | Deep dive into Andrej Karpathy's LLM OS, Google Knowledge Items (KI), Graft AST GraphRank, and the Write Barrier Kernel. |
-| ⚙️ **[Configuration Reference](docs/en/configuration.md)** | Complete reference for `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`). |
+| ⚙️ **[Configuration Reference](docs/en/configuration.md)** | Complete reference for `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`, `[agent]`, `[flow]`). |
+| 🔀 **[Flows](docs/en/flows.md)** | Flows as data: the folder format, roles and models, the catalog and overrides, contributing a flow, and why a gate is a human's. |
 | 📖 **[CLI Reference Manual](docs/en/cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |
 | 🪝 **[Hook Lifecycle & Integration](docs/en/hooks.md)** | Technical specification of the 4-phase hook lifecycle, host payload formats, and decoupled SSE event streaming. |
 | 🗺️ **[Migration Plan](docs/en/migration.md)** | Every migration stage and every capability carried over or built during the fusion: origin, status, dependencies and priority. What comes after it is on the [roadmap](#roadmap). |

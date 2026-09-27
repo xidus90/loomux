@@ -10,7 +10,8 @@ Welcome to the Loomux documentation suite. Loomux is an all-in-one developer ope
 |---|---|
 | 🚀 **[Getting Started](getting-started.md)** | Installation, 3-minute quickstart, and agent harness wiring (Claude Code, Antigravity, Cursor). |
 | 🏛️ **[Architecture & Concepts](architecture.md)** | Deep dive into Andrej Karpathy's LLM OS, Google Knowledge Items (KI), Graft AST GraphRank, and the Write Barrier Kernel. |
-| ⚙️ **[Configuration Reference](configuration.md)** | Complete reference for `.loomux/config.toml` (`[modules]`, `[verify]`, `[policy]`, `[commit]`, `[worktree]`, `[area]`, `[index]`, `[privacy]`, `[wiki]`). |
+| ⚙️ **[Configuration Reference](configuration.md)** | Complete reference for `.loomux/config.toml` (`[modules]`, `[verify]`, `[policy]`, `[commit]`, `[worktree]`, `[area]`, `[index]`, `[privacy]`, `[wiki]`, `[agent]`, `[flow]`). |
+| 🔀 **[Flows](flows.md)** | Flows as data: the folder format, roles and models, the catalog and overrides, contributing a flow, and why a gate is a human's. |
 | 📖 **[CLI Reference Manual](cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |
 | 🪝 **[Hook Lifecycle & Integration](hooks.md)** | Technical specification of the 4-phase hook lifecycle, host payload formats, and decoupled SSE event streaming. |
 | 🗺️ **[Migration Plan](migration.md)** | Every migration stage and every capability carried over or built during the fusion: origin, status, dependencies and priority. What comes after it is on the [roadmap](../../README.md#roadmap). |

@@ -160,9 +160,10 @@ Migrationsstufen 4a-1 bis 4e haben Priorität 3.
 | Funktion | Was sie bringt | Stufe | Hängt ab von | Priorität |
 |---|---|---|---|---|
 | **Blast-Audit im Stop-Hook** | Der Blast-Audit am Rundenende, Arbeitsbaum gegen `HEAD`, für das Stop-Tor; bis dahin ist `graph` in einem Profil `stop` `not-applicable` | G4c | G4b ✅ | 2 |
-| **Flow-Laufzeit** | Flows als Daten: ein Graph aus Knoten in TOML, der läuft, an einem Tor auf die Antwort eines Menschen wartet und sich aus einem Journal fortsetzen und wiedergeben lässt (`loomux flow`). Ausgangspunkt ist ulflow M1, gebaut auf dem ungemergten ultraloom-Zweig `feature/agent-harness`; Agentenknoten über Claude und Gemini (über deren CLIs, deren APIs oder beides, was die Flow-Spec entscheidet); `verify_until_green` als Daten-Flow | Flow | ulflow M1 | 4 |
-| **Entwicklungszyklus als Default-Flow** | Von der Planung bis zum Pull Request: Klärung, Spec und Plan, jeweils von einem Fächer aus Prüflinsen geprüft, dann je Aufgabe Recherche, Test zuerst, Bau, Prüfkette, Codereview und Nacharbeit, zum Schluss Doku, Abschlussreview und Commit. Ein Mensch antwortet an festen Toren und immer dann, wenn ein Modell nicht weiterkommt, und pusht | Flow | Flow-Laufzeit | 4 |
-| **Community-Flows** | Der Entwicklungszyklus ist nur die Vorgabe. Ein Projekt fährt eigene Flows; per Pull Request beigetragene Flows landen als Beispiele im Repository und werden mit dem Binary ausgeliefert. `.loomux/config.toml` wählt den Flow, und ein Projekt überschreibt einzelne Anweisungen und Modelle, ohne ihn zu kopieren | Flow | Flow-Laufzeit | 4 |
+| **Flow-Laufzeit** | Flows als Daten: ein Graph aus Knoten in TOML, der läuft, an einem Tor auf die Antwort eines Menschen wartet und sich aus einem Journal fortsetzen und wiedergeben lässt. Gebaut: das Ordnerformat mit seiner Ladeprüfung, der Katalog, Rollen, die `[agent]` an Modelle bindet, Overlays, `[flow] default` und `overrides`, die Wächterregeln für Torantworten, Laufdateien und mitgelieferte Flows, `loomux flow run\|resume\|replay\|show\|list` und der Hinweis des Session-Starts auf wartende Läufe ([Flows](docs/de/flows.md)). Tor- und Ausgangsknoten laufen; Agentenknoten warten auf die Modelladapter für Claude und Gemini (über deren CLIs, deren APIs oder beides, was Stufe B entscheidet), und `verify-until-green` als Daten-Flow auf die Bausteine der Stufe C | Flow B, C | Flow A ✅ | 4 |
+| **Flows über MCP** | `flow_list`, `flow_show`, `flow_run` (ein Lauf in einem Kindprozess, den `serve` ablöst, mit sofortiger Antwort der Laufnummer) und `flow_status` auf dem lokalen Kanal, mit einer Statusdatei je Lauf, damit ein abgebrochener Lauf erkannt und fortgesetzt wird; kein Werkzeug beantwortet ein Tor | Flow A2 | Flow A ✅ | 4 |
+| **Entwicklungszyklus als Default-Flow** | Von der Planung bis zum Pull Request: Klärung, Spec und Plan, jeweils von einem Fächer aus Prüflinsen geprüft, dann je Aufgabe Recherche, Test zuerst, Bau, Prüfkette, Codereview und Nacharbeit, zum Schluss Doku, Abschlussreview und Commit. Ein Mensch antwortet an festen Toren und immer dann, wenn ein Modell nicht weiterkommt, und pusht | Flow D | Flow B, C | 4 |
+| **Community-Flows** | Der Entwicklungszyklus ist nur die Vorgabe. Gebaut: der Katalog unter `flows/catalog/` mit seinem Beitragstest (`go test ./flows` gegen ein Golden-Journal), `[flow] default` zur Wahl des Flows, Overlays einzelner Anweisungen und Fragen und Rollen, die ein Projekt an eigene Modelle bindet. Echte Läufe beigetragener Flows mit Agentenknoten warten auf die Modelladapter | Flow B | Flow A ✅ | 4 |
 | **Web-OS-Shell** | Eine React/Vite-App, per `go:embed` eingebettet und von `loomux serve` auf `127.0.0.1` ausgeliefert: Eventbus, Layout, Command-Palette | W1 | 1b-2 ✅ | 5 |
 | **Brain-Web-App** | Das Second Brain im Browser: Markdown-Editor, ADR-Katalog, Wissensgraph (Komponenten aus `ultra-brain/web`) | W2 | W1 | 5 |
 | **Graph-Visualizer** | Ein interaktiver Code-Graph mit Kanten-Chips, Typfiltern und Blast-Overlays; Code-Symbole verknüpft mit ADRs und Entwurfsdoku | W3 | W1, G4a ✅ | 5 |
@@ -196,10 +197,15 @@ loomux check commit-msg <datei>     # Prüft eine Commit-Nachricht: Kopf nach Co
 loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
 loomux hook pre-tool-use            # Prüft Policy und globale Schreibschranke gegen stdin
 loomux hook post-tool-use           # Fährt die Lanes des Profils edit gegen die eben geänderte Datei und nennt dann die Aufrufer geänderter Go-Symbole (--budget, Vorgabe 50s)
-loomux hook session-start           # Hält den Basis-Commit der Sitzung fest; warnt bei veraltetem Binary, bei einem serve außerhalb des Installationsorts und bei gescheitertem Self-Update
+loomux hook session-start           # Hält den Basis-Commit der Sitzung fest; warnt bei veraltetem Binary, bei einem serve außerhalb des Installationsorts und bei gescheitertem Self-Update; meldet Flow-Läufe, die an einem Tor warten, und übergangene Flow-Ordner
 loomux hook stop                    # Tor am Rundenende: Profil stop über neuen Inhalt, Befunde der Subagenten (--budget, Vorgabe 270s)
 loomux hook subagent-start|subagent-stop  # Schnappschuss von origin, Branches und HEAD um einen Subagenten; parkt, was sich bewegt hat, für stop
 loomux hook <event> --host antigravity    # dieselben Hooks für agy: ein gehaltener Stop läuft mit JSON auf stdout weiter; pre-tool-use verweigert und post-tool-use warnt mit 2
+loomux flow run [<flow>]            # Startet einen Lauf eines Flows, ohne Namen [flow] default (--option name=wert); Exit 3, wenn er an einem Tor pausiert; Agentenknoten warten auf die Modelladapter
+loomux flow resume <lauf>           # Setzt einen pausierten Lauf fort; --answer gibt ein Mensch, der Wächter verweigert es einem Agenten
+loomux flow replay <lauf>           # Leitet einen beendeten Lauf aus seinem Journal neu her und führt nichts aus
+loomux flow show <lauf|flow>        # Das Journal eines Laufs, oder Knoten, Rollen mit ihren aufgelösten Modellen und Kanten eines Flows
+loomux flow list                    # Jeder Flow aus Katalog und Projekt, mit Herkunft, Default und dem Grund, warum einer nicht lädt
 loomux status|doctor|explain        # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses (drei Namen, ein Codeweg)
 loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel und Junction-Pfade
 loomux dev swap-binary              # Tauscht laufendes Binary atomar gegen Neubau aus
@@ -326,7 +332,8 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 |---|---|
 | 🚀 **[Erste Schritte](docs/de/getting-started.md)** | Installation, 3-Minuten-Schnellstart und Anbindung an Agenten-Harnesses (Hooks für Claude Code und Antigravity, MCP für Cursor). |
 | 🏛️ **[Architektur & Konzepte](docs/de/architecture.md)** | Das theoretische Fundament: Andrej Karpathys LLM OS, Googles Knowledge Items (KI), Grafts AST-GraphRank und der Schreibschranken-Kernel. |
-| ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`). |
+| ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`, `[agent]`, `[flow]`). |
+| 🔀 **[Flows](docs/de/flows.md)** | Flows als Daten: das Ordnerformat, Rollen und Modelle, der Katalog und das Überschreiben, einen Flow beitragen und warum ein Tor einem Menschen gehört. |
 | 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
 | 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
 | 🗺️ **[Migrationsplan](docs/de/migration.md)** | Jede Migrationsstufe und jede in der Fusion übernommene oder gebaute Funktion: Herkunft, Stand, Abhängigkeiten und Priorität. Was danach kommt, steht in der [Roadmap](#roadmap). |

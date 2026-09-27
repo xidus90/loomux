@@ -9,6 +9,11 @@ that `ultraloom` and `ultra-brain` provided separately. Design:
 - `cmd/loomux` is the entry point and nothing else; every command lives under `internal/`.
 - Specs, plans and parity lists live under `docs/.superpowers/`.
 - Recorded behaviour of the old tools lives under `testdata/cases/`.
+- `flows/catalog/<name>/` is the catalog of flows loomux ships. A
+  contribution is data only: `flow.toml`, `instructions/`, `questions/`, a
+  `README.md` and `_test/` with `script.toml` and the golden
+  `journal.jsonl` that `go test ./flows` replays. A flow that needs a block
+  the runtime lacks is a separate pull request with Go code.
 - `third_party/toml` is `github.com/BurntSushi/toml` v1.6.0, pruned to what
   builds, with the local time zone resolved on first use instead of at start
   (see `internal/tz.go` there). `go.mod` replaces the module with it; it is
@@ -146,8 +151,9 @@ stands here:
 - Subagents never push; after a subagent run read `git log -1 --format='%an <%ae>'`.
 - The hooks in `.claude/settings.json` call `bin/loomux.exe`, which the
   pre-commit gate rebuilds. If session-start warns that the binary is older
-  than a Go source under `cmd/` or `internal/` (or `go.mod`/`go.sum`), rebuild
-  before trusting a refusal.
+  than a Go source under `cmd/` or `internal/`, a file under `flows/` whose
+  path has no element starting with `_` or `.` (its tests included), or
+  `go.mod`/`go.sum`, rebuild before trusting a refusal.
 - Use the `release-pr` skill for every pull request against `master`, opening
   or updating, and before every push of a branch: it groups the commits,
   checks label, body and commits with `parse-body`, and names the push
