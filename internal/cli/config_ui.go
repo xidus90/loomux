@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/xidus90/loomux/internal/config/edit"
 	"github.com/xidus90/loomux/internal/config/schema"
@@ -87,6 +88,13 @@ func configUI(term tui.Terminal, target configTarget) error {
 }
 
 func changeOne(term tui.Terminal, target configTarget, text string, e schema.Entry) error {
+	// A family row has no line of its own; like a table row it is shown, and
+	// the dialog names the command that sets one member.
+	if e.Key.Named() {
+		hint := fmt.Sprintf("%s stands for one key per name; set one with `loomux config set %s <value>`. Back?", e.Key.ID(), strings.Replace(e.Key.ID(), schema.Wildcard, "<name>", 1))
+		_, err := tui.Confirm(term, e.Key.Doc, hint)
+		return err
+	}
 	if e.Key.Kind == schema.Table || e.Key.Kind == schema.TableList {
 		body := shownValue(e)
 		// The row only counts the blocks; the dialog is where they are read.

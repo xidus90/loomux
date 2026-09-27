@@ -2,8 +2,25 @@ package edit
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
+
+func TestSetAddsANamedTableThatIsNotThereYet(t *testing.T) {
+	text := "[agent]\ndefault = \"w\"\n\n[agent.models.w]\nprovider = \"claude\"\n"
+	got, err := Set(text, "agent.models.gemini", "provider", `"agy"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := text + "\n[agent.models.gemini]\nprovider = \"agy\"\n"
+	if got != want {
+		t.Fatalf("got %q\nwant %q", got, want)
+	}
+	got, err = Set(got, "agent.roles", "reviewer", `"gemini"`)
+	if err != nil || !strings.HasSuffix(got, "[agent.roles]\nreviewer = \"gemini\"\n") {
+		t.Fatalf("got %q, %v", got, err)
+	}
+}
 
 func TestSetReplacesAValueAndKeepsItsComment(t *testing.T) {
 	in := "# head\n[commit]\nlanguage = \"en\"  # prose is German\nthreshold = 2\n"

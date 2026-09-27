@@ -64,6 +64,12 @@ func readAll(root, path string) error {
 	if _, err := commit.ReadPolicy(root); err != nil {
 		return err
 	}
+	if _, err := config.ReadAgent(root); err != nil {
+		return err
+	}
+	if _, err := config.ReadFlowSettings(root); err != nil {
+		return err
+	}
 	_, err := mirror.Mirror(root)
 	return err
 }

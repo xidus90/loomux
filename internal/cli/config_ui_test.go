@@ -122,7 +122,7 @@ func TestConfigUIWritesNothingWhenDeclinedOrUnchanged(t *testing.T) {
 	root, target := projectTarget(t, text)
 	// Once declined at the diff, once confirmed without a change.
 	keys := keysTo(t, target, text, "commit.language", "enter", "tab", "enter", "n")
-	keys = append(keys, tui.Keys("enter", "enter", "q")...)
+	keys = append(keys, keysTo(t, target, text, "commit.conventional", "enter", "enter", "q")...)
 	term := tui.Script(100, 60, keys...)
 	if err := configUI(term, target); err != nil {
 		t.Fatal(err)
@@ -145,6 +145,29 @@ func TestConfigUITablesAreShownNotEdited(t *testing.T) {
 	// A preset row shows the default the presets mirror, as `config list` does.
 	if !strings.Contains(out, `precommit = ["lint"`) {
 		t.Fatal(out)
+	}
+}
+
+// A family row has no line of its own to write; like a table row, it opens a
+// dialog that names the command setting one member, with the name to fill in
+// where the star stands, and the form goes on.
+func TestConfigUIShowsAFamilyRowsHint(t *testing.T) {
+	root, target := projectTarget(t, "")
+	for id, command := range map[string]string{
+		"agent.roles.*":           "agent.roles.<name>",
+		"agent.models.*.provider": "agent.models.<name>.provider",
+	} {
+		term := tui.Script(100, 60, keysTo(t, target, "", id, "enter", "n", "q")...)
+		if err := configUI(term, target); err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		want := id + " stands for one key per name; set one with `loomux config set " + command + " <value>`"
+		if out := term.Output(); !strings.Contains(out, want) {
+			t.Errorf("%s: no %q in\n%s", id, want, out)
+		}
+	}
+	if got := readConfig(t, root); got != "" {
+		t.Fatalf("file:\n%s", got)
 	}
 }
 

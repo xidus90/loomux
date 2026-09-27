@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -98,6 +99,52 @@ func TestAValueWhereATableBelongsLeavesItsKeysUnfound(t *testing.T) {
 	got := byID(t, "commit = 1\n")
 	if e := got["commit.language"]; e.Origin != Default {
 		t.Errorf("language %+v", e)
+	}
+}
+
+func TestCurrentListsEveryMemberOfANamedKey(t *testing.T) {
+	entries, err := Current("[agent.models.w]\nprovider = \"claude\"\n\n[agent.models.g]\nprovider = \"agy\"\nmodel = \"gemini-3\"\n\n[agent.roles]\nreviewer = \"g\"\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Key.ID(), "agent.") {
+			got[e.Key.ID()] = string(e.Origin) + " " + e.Value
+		}
+	}
+	want := map[string]string{
+		"agent.default":           "unset ",
+		"agent.mcp_servers":       "default []",
+		"agent.models.g.provider": `set "agy"`,
+		"agent.models.g.model":    `set "gemini-3"`,
+		"agent.models.w.provider": `set "claude"`,
+		"agent.models.w.model":    "unset ",
+		"agent.roles.reviewer":    `set "g"`,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v\nwant %v", got, want)
+	}
+}
+
+func TestCurrentShowsAnEmptyNamedKeyOnceAsUnset(t *testing.T) {
+	entries, err := Current("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"agent.roles.*", "agent.models.*.provider", "agent.models.*.model"} {
+		n := 0
+		for _, e := range entries {
+			if e.Key.ID() == id {
+				n++
+				if e.Origin != Unset {
+					t.Errorf("%s is %s", id, e.Origin)
+				}
+			}
+		}
+		if n != 1 {
+			t.Errorf("%s shown %d times", id, n)
+		}
 	}
 }
 
