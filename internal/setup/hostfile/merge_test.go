@@ -687,6 +687,21 @@ func TestTheRepositorysOwnSettingsNeedNoChange(t *testing.T) {
 	}
 }
 
+// The tracked .agents/hooks.json drifts the same way: its matcher stayed
+// behind Entries when manage_task joined it. This holds it to what init
+// would write, as the test above holds .claude/settings.json.
+func TestTheRepositorysOwnAntigravityHooksNeedNoChange(t *testing.T) {
+	own, err := os.ReadFile("../../../.agents/hooks.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := hosts.HostAntigravity
+	got, err := Merge(host, own, Entries(host, BinaryOf(host, own)))
+	if err != nil || len(got.Added) != 0 || len(got.Notes) != 0 || !bytes.Equal(got.Merged, own) {
+		t.Fatalf("added %v, notes %v, err %v; init would change .agents/hooks.json", got.Added, got.Notes, err)
+	}
+}
+
 // antigravityWithMatcher is the file init writes for Antigravity, its
 // PreToolUse block under matcher instead of the one Entries wants.
 func antigravityWithMatcher(t *testing.T, matcher string) []byte {
