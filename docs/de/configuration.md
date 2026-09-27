@@ -418,9 +418,13 @@ Profil `edit` läuft also nie durch den Baum.
   eine rot ist. Ein Ladefehler endet mit 1, ein fehlerhafter Aufruf mit 2.
 - **Urteil des post-edit-Hooks:** Eine rote Lane endet mit Exit 2 und ihrer
   Ausgabe auf `stderr`. Eine übersprungene Lane blockiert nichts und steht
-  ebenfalls auf `stderr`, bei Exit 0 außerdem in
-  `hookSpecificOutput.additionalContext` auf `stdout`. Eine Datei, deren
-  Endung kein aktiver Stack beansprucht, bekommt keine Lanes und endet mit 0.
+  ebenfalls auf `stderr`, bei Exit 0 außerdem im Kontext des Hosts auf
+  `stdout`, für Claude Code `hookSpecificOutput.additionalContext`; unter
+  `--host antigravity` wird dieses `stdout` nicht weitergegeben, denn ob agy
+  den Kontext eines PostToolUse liest, ist ungemessen. Eine Datei, deren
+  Endung kein aktiver Stack beansprucht, bekommt keine Lanes und endet mit 0;
+  unter `--host codex` endet der Aufruf mit 1, sobald die Nutzlast eine Datei
+  nennt, denn die Codex-Naht hat keinen Adapter.
 - **Urteil des Stop-Tors:** das Profil `stop` im Check-Scope, die Zustände
   gelten also wie in der Spalte `loomux check`. Eine rote Lane endet mit Exit 2
   und hält die Runde an, nur die roten Lanes auf `stderr`; eine Lane, die das

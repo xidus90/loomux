@@ -222,14 +222,20 @@ relative to its area):
   A project's own workspace scripts (`npm run typecheck`) are not guessed; a
   project that wants them names them in `[verify.typescript]`.
 - **Any other extension**, or one whose stack is not active, gets no lanes: the
-  hook exits 0. `[verify.project]` lanes run only beside the lanes of an
-  active stack, and only with `on_file`.
+  hook exits 0; under `--host codex` the call ends with 1 as soon as the
+  payload names a file, since the Codex seam has no adapter.
+  `[verify.project]` lanes run only beside the lanes of an active stack, and
+  only with `on_file`.
 - **Skipped, not failed**: a lane whose tool is not on the `PATH`, a Godot
   project not yet imported, and a lane the budget (`--budget`, default 50 s)
   did not reach. A skip blocks nothing and is named on `stderr`, which is
   what a host reads when another lane is red and the hook exits 2, and, when
-  the hook exits 0, in `hookSpecificOutput.additionalContext`; for a `.go`
-  file the blast monitor below writes into the same field.
+  the hook exits 0, in the host's context: `hookSpecificOutput.additionalContext`
+  for Claude Code; for a `.go` file the blast monitor below writes into the
+  same field. At any other exit code the hook writes nothing to `stdout`.
+  Under `--host antigravity` that context is not passed on, since whether agy
+  reads a PostToolUse's context is unmeasured: there a skip reaches the model
+  only at exit 2, and the blast monitor's callers not at all.
 - **Checks never rewrite.** `clang-format` runs with `--dry-run --Werror`; an
   edit is judged, the file stays as the agent wrote it.
 - **`gofmt` checks the edited file only**: an unformatted file elsewhere is not
@@ -237,10 +243,11 @@ relative to its area):
 
 ### The blast monitor
 
-After the lanes of a `.go` edit, and only when none of them is red, the hook
-tells the model who calls what the edit just changed. It reads the graph on
-disk (`.loomux/state/graph/wiring.json`), extracts the edited file again and
-compares each symbol's body hash with the graph's nodes of the same path:
+After the lanes of a `.go` edit, and only when no lane of the call is red,
+the hook tells the model who calls what the edit just changed. It reads the
+graph on disk (`.loomux/state/graph/wiring.json`), extracts the edited file
+again and compares each symbol's body hash with the graph's nodes of the
+same path:
 
 - **Seeds** are the symbols the graph has and the file no longer does
   (removed, named first: their callers break for sure), then those whose body
@@ -269,9 +276,10 @@ compares each symbol's body hash with the graph's nodes of the same path:
   read or does not parse (an edit half done), when no symbol changed (also when the graph is already fresh), and
   when the only callers are in the edited file itself. It never exits 1 and
   never blocks; neither the freshness probe nor `graph check` runs in the hook.
-- **A red lane comes first.** When a lane is red the hook exits 2 with the
-  finding on `stderr` and writes no blast context: the finding matters more,
-  and `stdout` stays valid JSON or empty.
+- **A red lane comes first.** When a lane of the call is red, in any of the
+  files it names, the hook exits 2 with the finding on `stderr` and writes
+  nothing to `stdout`, the blast context of a green file included: the
+  finding matters more, and a host reads only `stderr` at exit 2.
 - **It repeats until the graph is rebuilt.** The graph stays as it was until
   the next `graph build`, a query that refreshes it, or the pre-commit gate's
   `graph-fresh`; every further edit to the same file names the same seeds
@@ -496,6 +504,10 @@ the model as a warning without aborting, and a held stop becomes
 `{"decision":"continue","reason":…}` on stdout with exit 0, after which agy
 re-enters its loop; the reason is what the gate wrote to stderr. Every other
 non-zero code ends with 0. An unknown event stays exit 2 on every host.
+What `post-tool-use` writes on stdout at exit 0, the skipped lanes and the
+blast monitor's callers, is not passed to agy, since whether agy reads a
+PostToolUse's `injectSteps` is unmeasured; a skip stays on stderr, which
+reaches the model only at exit 2.
 `session-start` runs on `PreInvocation`, which fires before every model call
 and counts them in `invocationNum`; only the first one warns about the
 binary and the self-update. A later one names the flow runs that still wait

@@ -329,7 +329,7 @@ func TestHookPostToolUsePassesTheBudgetOn(t *testing.T) {
 	saved := postToolUse
 	t.Cleanup(func() { postToolUse = saved })
 	var got time.Duration
-	postToolUse = func(_ io.Reader, _, _ io.Writer, _ string, budget time.Duration) int {
+	postToolUse = func(_ io.Reader, _, _ io.Writer, _, _ string, budget time.Duration) int {
 		got = budget
 		return 0
 	}
@@ -339,6 +339,20 @@ func TestHookPostToolUsePassesTheBudgetOn(t *testing.T) {
 	}
 	if code, _, errOut := runWith(`{}`, "hook", "post-tool-use", "--host", "claude", "--root", root); code != 0 || got != hooks.DefaultBudget {
 		t.Fatalf("code %d, budget %v, err %q", code, got, errOut)
+	}
+}
+
+// --host reaches post-edit as given, so its answer takes that host's shape.
+func TestHookPostToolUsePassesTheHostOn(t *testing.T) {
+	saved := postToolUse
+	t.Cleanup(func() { postToolUse = saved })
+	var got string
+	postToolUse = func(_ io.Reader, _, _ io.Writer, _, host string, _ time.Duration) int {
+		got = host
+		return 0
+	}
+	if code, _, errOut := runWith(`{}`, "hook", "post-tool-use", "--host", "antigravity", "--root", t.TempDir()); code != 0 || got != "antigravity" {
+		t.Fatalf("code %d, host %q, err %q", code, got, errOut)
 	}
 }
 
@@ -443,7 +457,7 @@ func TestHookEndsAtOnceWhenTheHooksModuleIsOff(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[modules]\nhooks = false\n")
 	called := false
 	restore := postToolUse
-	postToolUse = func(io.Reader, io.Writer, io.Writer, string, time.Duration) int { called = true; return 2 }
+	postToolUse = func(io.Reader, io.Writer, io.Writer, string, string, time.Duration) int { called = true; return 2 }
 	t.Cleanup(func() { postToolUse = restore })
 	var out, errOut bytes.Buffer
 	code := Run([]string{"hook", "post-tool-use", "--host", "claude", "--root", root}, strings.NewReader("{}"), &out, &errOut)

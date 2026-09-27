@@ -410,8 +410,12 @@ profile never walks the tree.
   exits 1, a malformed call 2.
 - **Verdict of the post-edit hook:** a red lane exits 2 with its output on
   `stderr`. A lane it skipped blocks nothing and is named on `stderr` as well,
-  and at exit 0 in `hookSpecificOutput.additionalContext` on `stdout`. A file
-  whose ending no active stack claims gets no lanes and exits 0.
+  and at exit 0 in the host's context on `stdout`, for Claude Code
+  `hookSpecificOutput.additionalContext`; under `--host antigravity` that
+  `stdout` is not passed on, since whether agy reads a PostToolUse's context
+  is unmeasured. A file whose ending no active stack claims gets no lanes and
+  exits 0; under `--host codex` the call ends with 1 as soon as the payload
+  names a file, since the Codex seam has no adapter.
 - **Verdict of the stop gate:** the profile `stop` in the check scope, so the
   states read as in the `loomux check` column. A red lane exits 2 and holds the
   turn, with only the red lanes on `stderr`; a lane the budget did not reach,

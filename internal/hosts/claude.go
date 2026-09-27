@@ -66,8 +66,8 @@ func readClaude(r io.Reader) (Payload, error) {
 }
 
 // writeClaudeContext puts lines where the model will read them, as the
-// answer to event: it serves any event the caller names, though session-start
-// is the only hook that calls it today.
+// answer to event: it serves any event the caller names, today SessionStart
+// and PostToolUse.
 //
 // `hookSpecificOutput.additionalContext` is the field Claude Code documents
 // for a hook's added context, and the field the superpowers port table

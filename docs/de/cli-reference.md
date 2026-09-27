@@ -21,7 +21,11 @@ von `post-tool-use` gibt stderr als Warnung an das Modell, ohne abzubrechen.
 Ein gehaltener Stop wird zu `{"decision":"continue","reason":"…"}` auf
 stdout mit Exit `0`, der Grund ist, was das Tor nach stderr geschrieben hat;
 agy tritt dann erneut in seine Schleife ein. Jeder andere Code ungleich 0
-endet mit `0`, seine Meldung auf stderr.
+endet mit `0`, seine Meldung auf stderr. Was `post-tool-use` bei Exit `0` auf
+stdout schreibt, die übersprungenen Lanes und die Aufrufer des
+Blast-Monitors, wird nicht an agy weitergegeben, denn ob agy die
+`injectSteps` eines PostToolUse liest, ist ungemessen; ein Skip bleibt auf
+stderr, das das Modell nur bei Exit `2` erreicht.
 
 ### Globale Flags & Umgebung
 - `--root <pfad>`: Explizite Angabe der Projektwurzel. Wird dieses Flag weggelassen, wandert Loomux im Verzeichnisbaum aufwärts, bis es die erste `.loomux/config.toml` findet.
@@ -345,9 +349,9 @@ Wird ausgeführt, nachdem ein Agent eine Datei bearbeitet hat.
 - **Standard-Input (stdin)**: Name des Werkzeugs und Eingabe-Payload; der bearbeitete Pfad kommt aus `file_path`, sonst aus `notebook_path`.
 - **Flags**: `--host <h>` (Pflicht), `--root <r>`, `--budget <dauer>` — wie lange die Lanes zusammen dauern dürfen (Go-Dauer, Vorgabe `50s`, unter der Hook-Frist des Hosts von 60 s). Jeder Befehl bekommt das Kleinere aus seinem eigenen `timeout` und dem Rest des Budgets.
 - **Verhalten**: Fährt die Lanes des Profils `edit` (vorgegeben `lint` und `types`) für den Stack der bearbeiteten Datei, in dem Bereich, der die Datei enthält, so wie [`[verify]`](configuration.md#verify-prüfketten--quality-gates) und die Presets sie auslegen, mit `on_file`, wo eine Lane es hat; siehe [Hooks](hooks.md#5-die-post-edit-lanes-je-sprachstack).
-- **Übersprungene Lanes**: Eine Lane, deren Werkzeug nicht auf dem `PATH` liegt, ein noch nicht importiertes Godot-Projekt und jede Lane, die das Budget nicht mehr erreicht, werden übersprungen, nicht rot. Jede steht auf `stderr`, und bei Exit 0 auf `stdout` als `{"hookSpecificOutput":{"additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go","hookEventName":"PostToolUse"}}`. Eine Datei eines Aufrufs, die das Budget nicht mehr erreicht, steht dort ebenso.
-- **Blast-Monitor**: Nach einem Edit an einer `.go`-Datei ohne rote Lane folgen den übersprungenen Lanes im selben `additionalContext` die direkten Aufrufer in anderen Dateien jedes Symbols, das der Edit gegenüber dem Graphen auf der Platte geändert oder entfernt hat. Ohne Graph schweigt er, und ein Befund ist er nie; siehe [Hooks](hooks.md#der-blast-monitor).
-- **Exit-Codes**: `0` (alle Lanes grün, übersprungen oder nichts zu fahren), `1` (fehlerhafter Aufruf, etwa ein fehlendes `--host`, oder ein `[verify]`, das sich nicht laden lässt), `2` (eine Lane ist gescheitert, abgelaufen oder blockiert; ihre Ausgabe auf `stderr`).
+- **Übersprungene Lanes**: Eine Lane, deren Werkzeug nicht auf dem `PATH` liegt, ein noch nicht importiertes Godot-Projekt und jede Lane, die das Budget nicht mehr erreicht, werden übersprungen, nicht rot. Jede steht auf `stderr`, und bei Exit 0 auf `stdout` in der Form des Hosts, für Claude Code als `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go"}}`, `<`, `>` und `&` unverändert. Eine Datei eines Aufrufs, die das Budget nicht mehr erreicht, steht dort ebenso. Bei jedem anderen Exit-Code schreibt der Hook nichts auf `stdout`. Unter `--host antigravity` wird dieses `stdout` nicht weitergegeben, denn ob agy den Kontext eines PostToolUse liest, ist ungemessen: Dort erreicht ein Skip das Modell nur bei Exit 2, auf `stderr`, und die Aufrufer des Blast-Monitors gar nicht.
+- **Blast-Monitor**: Nach einem Edit an einer `.go`-Datei, wenn keine Lane des Aufrufs rot ist, folgen den übersprungenen Lanes im selben `additionalContext` die direkten Aufrufer in anderen Dateien jedes Symbols, das der Edit gegenüber dem Graphen auf der Platte geändert oder entfernt hat. Ohne Graph schweigt er, und ein Befund ist er nie; siehe [Hooks](hooks.md#der-blast-monitor).
+- **Exit-Codes**: `0` (alle Lanes grün, übersprungen oder nichts zu fahren), `1` (fehlerhafter Aufruf, etwa ein fehlendes oder unbekanntes `--host`, ein `[verify]`, das sich nicht laden lässt, oder `--host codex`, sobald der Aufruf eine Datei nennt: Codex hat noch keinen Adapter, der Hook verweigert also, statt in der Form eines anderen Hosts zu antworten), `2` (eine Lane ist gescheitert, abgelaufen oder blockiert; ihre Ausgabe auf `stderr`).
 
 ### `loomux hook session-start`
 Hält den Commit fest, auf dem die Sitzung beginnt, und meldet die Flow-Läufe, die auf einen Menschen warten.

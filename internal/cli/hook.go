@@ -144,7 +144,7 @@ func runHook(event, root, host string, budget time.Duration, failure int, stdin 
 	case "pre-tool-use":
 		return hooks.PreToolUse(stdin, stdout, stderr, resolved, config.StateDir())
 	case "post-tool-use":
-		return postToolUse(stdin, stdout, stderr, resolved, budget)
+		return postToolUse(stdin, stdout, stderr, resolved, host, budget)
 	case "stop":
 		return stopHook(stdin, stderr, resolved, host, budget)
 	case "subagent-start":

@@ -18,7 +18,7 @@ import (
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/detect"
-
+	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/verify"
 )
 
@@ -26,6 +26,7 @@ func editEnv(t *testing.T, answer func(child.Spec) child.Result, seen *[]string)
 	t.Helper()
 	var mu sync.Mutex
 	return EditEnv{
+		Host: hosts.HostClaude,
 		Start: func(s child.Spec) child.Result {
 			mu.Lock()
 			*seen = append(*seen, s.Dir+"|"+strings.Join(s.Argv, " "))
@@ -346,7 +347,7 @@ func TestPostToolUseRunsTheGoLaneThroughRealTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	var so, se bytes.Buffer
-	if code := PostToolUse(strings.NewReader(`{"tool_name":"Edit","tool_input":{"file_path":"sample.go"}}`), &so, &se, root, DefaultBudget); code != ExitOK {
+	if code := PostToolUse(strings.NewReader(`{"tool_name":"Edit","tool_input":{"file_path":"sample.go"}}`), &so, &se, root, "claude", DefaultBudget); code != ExitOK {
 		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, se.String())
 	}
 	// A skipped lane says so on stdout, so silence tells a lane that ran and
@@ -362,7 +363,7 @@ func TestPostToolUseFallsBackToTheCommandName(t *testing.T) {
 	t.Cleanup(func() { editExecutable = executable })
 	editExecutable = func() (string, error) { return "", errors.New("no path") }
 	var so, se bytes.Buffer
-	if code := PostToolUse(strings.NewReader(`{"tool_input":{"file_path":"data.json"}}`), &so, &se, t.TempDir(), DefaultBudget); code != ExitOK {
+	if code := PostToolUse(strings.NewReader(`{"tool_input":{"file_path":"data.json"}}`), &so, &se, t.TempDir(), "claude", DefaultBudget); code != ExitOK {
 		t.Fatalf("%d %q", code, se.String())
 	}
 }
@@ -499,7 +500,7 @@ func TestTheLayoutWikiAddsTheWikiStack(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	input := `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, page) + `}}`
-	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root, DefaultBudget); code != ExitDenied {
+	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root, "claude", DefaultBudget); code != ExitDenied {
 		t.Fatalf("code %d, err %q", code, stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "page.md") {
@@ -527,7 +528,7 @@ func TestTheDeclaredWikiOutranksTheDetectedOne(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	input := `{"tool_name":"Edit","tool_input":{"file_path":` + asJSON(t, page) + `}}`
-	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root, DefaultBudget); code != ExitDenied {
+	if code := PostToolUse(strings.NewReader(input), &stdout, &stderr, root, "claude", DefaultBudget); code != ExitDenied {
 		t.Fatalf("code %d, err %q: the lane read the detected wiki, not the declared one", code, stderr.String())
 	}
 }
@@ -772,6 +773,7 @@ func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
 		now := time.Now()
 		var seen []string
 		env := EditEnv{
+			Host: hosts.HostClaude,
 			Start: func(s child.Spec) child.Result {
 				mu.Lock()
 				defer mu.Unlock()
@@ -805,7 +807,7 @@ func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
 }
 
 // A red lane blocks the edit, and a host then reads only stderr: a lane the
-// edit skipped beside it is named there too, not only on stdout.
+// edit skipped beside it is named there too.
 func TestPostEditNamesSkippedLanesWhenRed(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "pyproject.toml"), []byte("[project]\nname = \"x\"\n"), 0o644); err != nil {
@@ -829,6 +831,109 @@ func TestPostEditNamesSkippedLanesWhenRed(t *testing.T) {
 	code := RunPostEdit(strings.NewReader(`{"tool_input":{"file_path":"a.py"}}`), &so, &se, root, env)
 	if code != ExitDenied || !strings.Contains(se.String(), "F401 unused") || !strings.Contains(se.String(), `lane skipped, "uv" is not on PATH`) {
 		t.Fatalf("%d %q", code, se.String())
+	}
+}
+
+// Notices reach stdout through the host's adapter, Claude's encoder, which
+// names the event first and leaves markup as it is. The second file is out of
+// budget and never read, so its name may hold what no file name on Windows may.
+func TestPostEditWritesTheContextThroughTheHostAdapter(t *testing.T) {
+	root := goProject(t)
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package m\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	odd := filepath.ToSlash(filepath.Join(root, "<b>.go"))
+	args, _ := json.Marshal(map[string]string{"TargetFile": filepath.ToSlash(filepath.Join(root, "a.go")), "target_file": odd})
+	payload := `{"conversationId":"c1","toolCall":{"name":"write_to_file","args":` + string(args) + `}}`
+	now := time.Now()
+	env := editEnv(t, func(child.Spec) child.Result {
+		now = now.Add(DefaultBudget)
+		return child.Result{}
+	}, &[]string{})
+	env.Now = func() time.Time { return now }
+	var so, se bytes.Buffer
+	if code := RunPostEdit(strings.NewReader(payload), &so, &se, root, env); code != ExitOK {
+		t.Fatalf("%d %q", code, se.String())
+	}
+	if !strings.HasPrefix(so.String(), `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":`) || !strings.Contains(so.String(), "<b>.go") {
+		t.Fatalf("%q", so.String())
+	}
+	if got := editContextOf(t, so.String()); !strings.HasSuffix(got, verify.BudgetSkipped(odd)) {
+		t.Fatalf("%q", got)
+	}
+}
+
+// A host reads stdout only at exit 0. A red call writes nothing there; the
+// file the budget did not reach is named on stderr beside the finding.
+func TestPostEditWritesNoStdoutWhenRed(t *testing.T) {
+	root := goProject(t)
+	now := time.Now()
+	env := editEnv(t, func(child.Spec) child.Result {
+		now = now.Add(DefaultBudget)
+		return child.Result{Code: 1, Stdout: "vet: bad\n"}
+	}, &[]string{})
+	env.Now = func() time.Time { return now }
+	var so, se bytes.Buffer
+	code := RunPostEdit(strings.NewReader(agyCall(t, root, "a.go", "b.go")), &so, &se, root, env)
+	if code != ExitDenied || so.Len() != 0 {
+		t.Fatalf("%d %q", code, so.String())
+	}
+	if !strings.Contains(se.String(), "vet: bad") || !strings.Contains(se.String(), verify.BudgetSkipped(filepath.ToSlash(filepath.Join(root, "b.go")))) {
+		t.Fatalf("%q", se.String())
+	}
+}
+
+// The aside of a green file goes when another file of the same call is red:
+// the call's finding matters more than who calls the green one.
+func TestPostEditDropsEveryAsideWhenAnyFileIsRed(t *testing.T) {
+	root := graphRepo(t)
+	writeRepoFile(t, root, "calc/calc.go", calcHead+strings.Replace(addSource, "a + b", "b + a", 1)+"\n"+subSource)
+	args, _ := json.Marshal(map[string]string{
+		"TargetFile":  filepath.ToSlash(filepath.Join(root, "calc", "calc.go")),
+		"target_file": filepath.ToSlash(filepath.Join(root, "main.go")),
+	})
+	payload := `{"conversationId":"c1","toolCall":{"name":"write_to_file","args":` + string(args) + `}}`
+	code, so, se, _ := postEdit(t, root, payload, func(s child.Spec) child.Result {
+		if strings.Contains(strings.Join(s.Argv, " "), "gofmt main.go") {
+			return child.Result{Code: 1, Stdout: "main.go\n"}
+		}
+		return child.Result{}
+	})
+	if code != ExitDenied || so != "" {
+		t.Fatalf("%d %q %q", code, so, se)
+	}
+}
+
+// Codex has no adapter yet: a call that checked a file ends with the seam's
+// refusal instead of an answer in another host's shape, and a call naming no
+// file ends before anything is written, as it does for every host.
+func TestPostEditAnswersCodexWithItsMissingAdapter(t *testing.T) {
+	root := goProject(t)
+	env := editEnv(t, passing, &[]string{})
+	env.Host = hosts.HostCodex
+	var so, se bytes.Buffer
+	if code := RunPostEdit(strings.NewReader(`{"tool_input":{"file_path":"a.go"}}`), &so, &se, root, env); code != ExitInternal || so.Len() != 0 || !strings.Contains(se.String(), "no adapter for this host") {
+		t.Fatalf("%d %q %q", code, so.String(), se.String())
+	}
+	so.Reset()
+	se.Reset()
+	// A file whose ending the presets ignore is named all the same.
+	if code := RunPostEdit(strings.NewReader(`{"tool_input":{"file_path":"data.json"}}`), &so, &se, root, env); code != ExitInternal || so.Len() != 0 {
+		t.Fatalf("%d %q %q", code, so.String(), se.String())
+	}
+	so.Reset()
+	se.Reset()
+	if code := RunPostEdit(strings.NewReader(`{"conversationId":"c1"}`), &so, &se, root, env); code != ExitOK || so.Len() != 0 || se.Len() != 0 {
+		t.Fatalf("%d %q %q", code, so.String(), se.String())
+	}
+}
+
+// A host nobody knows is refused before any lane runs: stderr carries that
+// refusal alone, and answering in the wrong shape is worse than not answering.
+func TestPostToolUseRefusesAnUnknownHost(t *testing.T) {
+	var so, se bytes.Buffer
+	if code := PostToolUse(strings.NewReader(`{"tool_input":{"file_path":"data.json"}}`), &so, &se, t.TempDir(), "vim", DefaultBudget); code != ExitInternal || so.Len() != 0 || se.String() != "loomux hook post-tool-use: unknown host \"vim\": expected claude, antigravity or codex\n" {
+		t.Fatalf("%d %q %q", code, so.String(), se.String())
 	}
 }
 

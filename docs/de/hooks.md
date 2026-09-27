@@ -227,15 +227,21 @@ Datei, relativ zu ihrem Bereich):
   (`npm run typecheck`) werden nicht erraten; wer sie will, nennt sie in
   `[verify.typescript]`.
 - **Jede andere Endung**, oder eine, deren Stack nicht aktiv ist, bekommt keine
-  Lanes: Der Hook endet mit 0. Lanes aus `[verify.project]` laufen nur neben
-  den Lanes eines aktiven Stacks und nur mit `on_file`.
+  Lanes: Der Hook endet mit 0; unter `--host codex` endet der Aufruf mit 1,
+  sobald die Nutzlast eine Datei nennt, denn die Codex-Naht hat keinen
+  Adapter. Lanes aus `[verify.project]` laufen nur neben den Lanes eines
+  aktiven Stacks und nur mit `on_file`.
 - **Übersprungen, nicht rot**: eine Lane, deren Werkzeug nicht auf dem `PATH`
   liegt, ein noch nicht importiertes Godot-Projekt und eine Lane, die das
   Budget (`--budget`, Vorgabe 50 s) nicht mehr erreicht. Ein Skip blockiert
   nichts und steht auf `stderr`, das ein Host liest, wenn eine andere Lane
-  rot ist und der Hook mit 2 endet, und, wenn der Hook mit 0 endet, in
-  `hookSpecificOutput.additionalContext`; bei einer `.go`-Datei schreibt der
-  Blast-Monitor unten in dasselbe Feld.
+  rot ist und der Hook mit 2 endet, und, wenn der Hook mit 0 endet, im
+  Kontext des Hosts: `hookSpecificOutput.additionalContext` für Claude Code;
+  bei einer `.go`-Datei schreibt der Blast-Monitor unten in dasselbe Feld. Bei
+  jedem anderen Exit-Code schreibt der Hook nichts auf `stdout`. Unter
+  `--host antigravity` wird dieser Kontext nicht weitergegeben, denn ob agy
+  den Kontext eines PostToolUse liest, ist ungemessen: Dort erreicht ein Skip
+  das Modell nur bei Exit 2, und die Aufrufer des Blast-Monitors gar nicht.
 - **Prüfungen schreiben nie um.** `clang-format` läuft mit
   `--dry-run --Werror`; eine Bearbeitung wird beurteilt, die Datei bleibt, wie
   der Agent sie schrieb.
@@ -245,11 +251,12 @@ Datei, relativ zu ihrem Bereich):
 
 ### Der Blast-Monitor
 
-Nach den Lanes eines Edits an einer `.go`-Datei, und nur wenn keine davon rot
-ist, sagt der Hook dem Modell, wer aufruft, was der Edit gerade geändert hat.
-Er liest den Graphen auf der Platte (`.loomux/state/graph/wiring.json`),
-extrahiert die bearbeitete Datei neu und vergleicht den Rumpf-Hash jedes
-Symbols mit den Knoten desselben Pfads im Graphen:
+Nach den Lanes eines Edits an einer `.go`-Datei, und nur wenn keine Lane des
+Aufrufs rot ist, sagt der Hook dem Modell, wer aufruft, was der Edit gerade
+geändert hat. Er liest den Graphen auf der Platte
+(`.loomux/state/graph/wiring.json`), extrahiert die bearbeitete Datei neu und
+vergleicht den Rumpf-Hash jedes Symbols mit den Knoten desselben Pfads im
+Graphen:
 
 - **Seeds** sind die Symbole, die der Graph hat und die Datei nicht mehr
   (entfernt, zuerst genannt: ihre Aufrufer brechen sicher), dann die, deren
@@ -280,9 +287,11 @@ Symbols mit den Knoten desselben Pfads im Graphen:
   Symbol geändert hat (auch bei schon frischem Graphen) und wenn die einzigen
   Aufrufer in der bearbeiteten Datei selbst liegen. Er endet nie mit Exit 1
   und blockiert nie; weder die Frischeprobe noch `graph check` läuft im Hook.
-- **Eine rote Lane geht vor.** Ist eine Lane rot, endet der Hook mit Exit 2
-  und dem Befund auf `stderr` und schreibt keinen Blast-Kontext: der Befund
-  ist wichtiger, und `stdout` bleibt gültiges JSON oder leer.
+- **Eine rote Lane geht vor.** Ist eine Lane des Aufrufs rot, in welcher
+  seiner Dateien auch immer, endet der Hook mit Exit 2 und dem Befund auf
+  `stderr` und schreibt nichts auf `stdout`, auch nicht den Blast-Kontext
+  einer grünen Datei: der Befund ist wichtiger, und ein Host liest bei Exit 2
+  nur `stderr`.
 - **Er wiederholt sich bis zum Neubau.** Der Graph bleibt, wie er war, bis
   zum nächsten `graph build`, einer Abfrage, die ihn auffrischt, oder dem
   `graph-fresh` des Pre-Commit-Tors; jeder weitere Edit an derselben Datei
@@ -525,7 +534,11 @@ Exit 2 von `pre-tool-use` verweigert den Aufruf, der Exit 2 von
 gehaltener Stop wird zu `{"decision":"continue","reason":…}` auf stdout mit
 Exit 0, worauf agy erneut in seine Schleife eintritt; der Grund ist, was das
 Tor nach stderr geschrieben hat. Jeder andere Code ungleich 0 endet mit 0.
-Ein unbekanntes Ereignis bleibt auf jedem Wirt Exit 2. `session-start` läuft
+Ein unbekanntes Ereignis bleibt auf jedem Wirt Exit 2. Was `post-tool-use`
+bei Exit 0 auf stdout schreibt, die übersprungenen Lanes und die Aufrufer des
+Blast-Monitors, wird nicht an agy weitergegeben, denn ob agy die
+`injectSteps` eines PostToolUse liest, ist ungemessen; ein Skip bleibt auf
+stderr, das das Modell nur bei Exit 2 erreicht. `session-start` läuft
 auf `PreInvocation`, das vor jedem Modellaufruf feuert und sie in
 `invocationNum` zählt; nur der erste warnt vor Binary und Self-Update. Ein
 späterer nennt die Flow-Läufe, die noch an einem Tor warten, und die

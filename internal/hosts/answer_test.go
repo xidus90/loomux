@@ -43,9 +43,9 @@ func TestAnswerTurnsAntigravitysHeldStopIntoContinue(t *testing.T) {
 }
 
 // A red post-edit lane keeps its exit 2, which agy hands the model as a
-// warning, and the Claude-shaped stdout beside it is dropped.
+// warning, and whatever stdout came beside it is dropped.
 func TestAnswerKeepsAntigravitysRedEdit(t *testing.T) {
-	got, out := answer(hosts.HostAntigravity, "post-tool-use", 2, `{"hookSpecificOutput":{}}`, "gofmt: red\n")
+	got, out := answer(hosts.HostAntigravity, "post-tool-use", 2, `{"injectSteps":[]}`, "gofmt: red\n")
 	if got != 2 || out != "" {
 		t.Fatalf("code %d, out %q", got, out)
 	}
@@ -63,11 +63,11 @@ func TestAnswerEndsAntigravitysOtherCodesWithZero(t *testing.T) {
 }
 
 // A passed or unjudged edit on Antigravity ends with 0 and drops the
-// Claude-shaped notices; the empty stdout left is an answer agy 1.2.11
-// takes without a hook error.
+// notices post-edit wrote as injectSteps; the empty stdout left is an answer
+// agy 1.2.11 takes without a hook error.
 func TestAnswerDropsAntigravitysPostEditNotices(t *testing.T) {
 	for _, code := range []int{0, 1} {
-		got, out := answer(hosts.HostAntigravity, "post-tool-use", code, `{"hookSpecificOutput":{}}`, "")
+		got, out := answer(hosts.HostAntigravity, "post-tool-use", code, `{"injectSteps":[{"ephemeralMessage":"x"}]}`, "")
 		if got != 0 || out != "" {
 			t.Fatalf("[%d] code %d, out %q", code, got, out)
 		}
