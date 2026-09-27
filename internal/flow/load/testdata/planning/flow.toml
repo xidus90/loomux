@@ -1,0 +1,189 @@
+schema_version = 1
+
+[flow]
+start = "intake"
+
+[params]
+max_rounds = { type = "int", default = 3 }
+
+[state]
+verdict     = { type = "string",       default = "" }
+answer      = { type = "string",       default = "" }
+answer_text = { type = "string",       default = "" }
+notes       = { type = "list[string]", default = [] }
+
+[[node]]
+name        = "intake"
+kind        = "agent"
+instruction = "instructions/intake.md"
+tools       = "edit"
+reply       = { verdict = "string" }
+
+[[node]]
+name        = "clarify"
+kind        = "agent"
+instruction = "instructions/clarify.md"
+tools       = "read_only"
+max_visits  = "max_rounds + 1"
+reply       = { verdict = "string" }
+
+[[node]]
+name       = "gate_clarify"
+kind       = "gate"
+question   = "questions/clarify.md"
+choices    = ["yes", "no"]
+answer     = "answer"
+max_visits = "max_rounds + 1"
+
+[[node]]
+name        = "spec"
+kind        = "agent"
+instruction = "instructions/spec.md"
+tools       = "edit"
+max_visits  = "max_rounds + 1"
+reply       = { verdict = "string" }
+
+[[node]]
+name        = "check_spec"
+kind        = "agent"
+instruction = "instructions/check-spec.md"
+tools       = "read_only"
+max_visits  = "max_rounds + 1"
+reply       = { verdict = "string" }
+
+[[node]]
+name       = "gate_spec"
+kind       = "gate"
+question   = "questions/spec.md"
+choices    = ["yes", "no"]
+answer     = "answer"
+max_visits = "max_rounds + 1"
+
+[[node]]
+name        = "tagger"
+kind        = "agent"
+instruction = "instructions/tagger.md"
+tools       = "read_only"
+reply       = { verdict = "string" }
+
+[[node]]
+name        = "plan"
+kind        = "agent"
+instruction = "instructions/plan.md"
+tools       = "edit"
+max_visits  = "max_rounds + 1"
+reply       = { verdict = "string" }
+
+[[node]]
+name        = "check_plan"
+kind        = "agent"
+instruction = "instructions/check-plan.md"
+tools       = "read_only"
+max_visits  = "max_rounds + 1"
+reply       = { verdict = "string" }
+
+[[node]]
+name       = "gate_plan"
+kind       = "gate"
+question   = "questions/plan.md"
+choices    = ["yes", "no"]
+answer     = "answer"
+max_visits = "max_rounds + 1"
+
+[[node]]
+name        = "clarify_plan"
+kind        = "agent"
+instruction = "instructions/clarify-plan.md"
+tools       = "read_only"
+max_visits  = "max_rounds + 1"
+reply       = { verdict = "string" }
+
+[[node]]
+name        = "board"
+kind        = "agent"
+instruction = "instructions/board.md"
+tools       = "edit"
+reply       = { verdict = "string" }
+
+[[edge]]
+from = "intake"
+to   = "clarify"
+
+[[edge]]
+from = "clarify"
+to   = "gate_clarify"
+
+[[edge]]
+from = "gate_clarify"
+to   = "spec"
+when = "answer == \"yes\""
+
+[[edge]]
+from = "gate_clarify"
+to   = "clarify"
+
+[[edge]]
+from = "spec"
+to   = "check_spec"
+
+[[edge]]
+from = "check_spec"
+to   = "clarify"
+when = "verdict == \"open\""
+
+[[edge]]
+from = "check_spec"
+to   = "gate_spec"
+when = "verdict == \"clean\""
+
+[[edge]]
+from = "check_spec"
+to   = "spec"
+
+[[edge]]
+from = "gate_spec"
+to   = "tagger"
+when = "answer == \"yes\""
+
+[[edge]]
+from = "gate_spec"
+to   = "clarify"
+
+[[edge]]
+from = "tagger"
+to   = "plan"
+
+[[edge]]
+from = "plan"
+to   = "check_plan"
+
+[[edge]]
+from = "check_plan"
+to   = "clarify_plan"
+when = "verdict == \"open\""
+
+[[edge]]
+from = "check_plan"
+to   = "gate_plan"
+when = "verdict == \"clean\""
+
+[[edge]]
+from = "check_plan"
+to   = "plan"
+
+[[edge]]
+from = "gate_plan"
+to   = "board"
+when = "answer == \"yes\""
+
+[[edge]]
+from = "gate_plan"
+to   = "clarify_plan"
+
+[[edge]]
+from = "clarify_plan"
+to   = "plan"
+
+[[edge]]
+from = "board"
+to   = "END"

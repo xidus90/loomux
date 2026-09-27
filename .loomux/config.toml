@@ -82,7 +82,7 @@ reason = "Recordings of the old tools are evidence; re-record them, never edit t
 # A table, not a list: a list would replace the whole lane and drop the
 # preset's on_file, and post-edit would gofmt the whole tree again.
 [verify.go.lint]
-commands = ["{loomux} check gofmt cmd internal", "go vet ./..."]
+commands = ["{loomux} check gofmt cmd internal flows", "go vet ./..."]
 
 # Tables merge onto the preset: commands stay, only the measuring forms change.
 # -coverpkg because a function exercised only by another package's tests would

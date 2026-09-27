@@ -292,3 +292,72 @@ func keepMtime(src, dst string) {
 		_ = os.Chtimes(dst, info.ModTime(), info.ModTime())
 	}
 }
+
+// ChangedFiles is worktree.py's changed_files: every path git reports as
+// changed, added or untracked below root, spelled relative to root with
+// forward slashes, as git spells them on every platform.
+//
+// `status` and not `diff`, because an untracked file is invisible to diff.
+// `-z`, because a non-ASCII path comes back quoted otherwise, and `-uall`,
+// because the default collapses an untracked directory into one entry that is
+// no file's path. git answers relative to the repository root whatever the
+// working directory, so root's prefix is cut off and anything outside root is
+// dropped: it is not this project's change.
+//
+// The prefix is asked before the status, unlike worktree.py, which spares that
+// process when nothing changed. The order gives every failure a test: outside a
+// repository the prefix fails, with a damaged index only the status does.
+func ChangedFiles(root string) ([]string, error) {
+	if ignored(root) {
+		return nil, fmt.Errorf("%s: %w -- run loomux in a working tree of its own", root, ErrIgnoredRoot)
+	}
+	prefix, err := git(root, "rev-parse", "--show-prefix")
+	if err != nil {
+		return nil, err
+	}
+	status, err := git(root, "status", "--porcelain", "-z", "-uall")
+	if err != nil {
+		return nil, err
+	}
+	// Only the line ending is cut: a directory whose name begins with a space
+	// keeps that space in git's prefix, and a prefix trimmed of it matches no
+	// path.
+	prefix = strings.TrimRight(prefix, "\r\n")
+	var paths []string
+	for _, path := range parseStatus(status) {
+		if relative, below := strings.CutPrefix(path, prefix); below {
+			paths = append(paths, relative)
+		}
+	}
+	return paths, nil
+}
+
+// parseStatus reads the paths out of a `--porcelain -z` answer, field by field.
+//
+// Most fields are "XY path". A rename or a copy is two fields, and only the
+// first carries the three-character prefix; cutting it off the second too
+// would turn "tests/test_cli.py" into "ts/test_cli.py", and a path shorter than
+// three bytes would not survive the cut at all.
+//
+// Either status column can mark one. X speaks for the index, where a staged
+// rename reads "R  new". Y speaks for the worktree, where a new path that is
+// only intent-to-add (`git add -N`) beside its vanished original reads " R new"
+// -- measured on 2026-09-11 with git 2.54. worktree.py asks X alone.
+func parseStatus(output string) []string {
+	var fields []string
+	for _, field := range strings.Split(output, "\x00") {
+		if field != "" {
+			fields = append(fields, field)
+		}
+	}
+	var paths []string
+	for index := 0; index < len(fields); index++ {
+		field := fields[index]
+		paths = append(paths, field[3:])
+		if strings.ContainsAny(field[:2], "RC") && index+1 < len(fields) {
+			index++
+			paths = append(paths, fields[index])
+		}
+	}
+	return paths
+}

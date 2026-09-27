@@ -1,0 +1,31 @@
+schema_version = 1
+
+[flow]
+start = "draft"
+
+[params]
+max_rounds = { type = "int", default = 3 }
+
+[state]
+verdict = { type = "string", default = "" }
+
+[[node]]
+name        = "draft"
+kind        = "agent"
+instruction = "instructions/draft.md"
+max_visits  = "rounds + 1"
+reply       = { verdict = "string" }
+
+[[node]]
+name    = "approve"
+kind    = "exit"
+message = "done"
+
+[[edge]]
+from = "draft"
+to   = "approve"
+when = "verdit == \"done\""
+
+[[edge]]
+from = "approve"
+to   = "END"

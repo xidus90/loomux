@@ -1,0 +1,36 @@
+schema_version = 1
+
+[flow]
+start = "draft"
+
+[state]
+verdict = { type = "string", default = "" }
+
+[[node]]
+name    = "draft"
+kind    = "exit"
+message = "done"
+
+[[node]]
+name    = "fix"
+kind    = "exit"
+message = "done"
+
+[[node]]
+name    = "approve"
+kind    = "exit"
+message = "done"
+
+[[edge]]
+from     = "draft"
+to       = "fix"
+when     = "verdict == \"open\""
+on_error = true
+
+[[edge]]
+from = "draft"
+to   = "approve"
+when = ""
+
+[[edge]]
+from = "approve"

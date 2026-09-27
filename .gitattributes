@@ -1,5 +1,8 @@
 * text=auto eol=lf
 
+# A catalog flow's golden journal is compared byte for byte.
+flows/catalog/*/_test/** text eol=lf
+
 # The recordings of the old tools are evidence, not text this repository owns:
 # no line-ending normalisation, so a case stays byte for byte what was recorded.
 testdata/cases/1a-source/** -text

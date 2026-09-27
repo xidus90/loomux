@@ -1,0 +1,13 @@
+schema_version = 1
+
+[flow]
+start = "stop"
+
+[[node]]
+name    = "stop"
+kind    = "exit"
+message = "done"
+
+[[edge]]
+from = "stop"
+to   = "END"

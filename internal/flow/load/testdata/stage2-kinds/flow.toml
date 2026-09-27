@@ -1,0 +1,31 @@
+schema_version = 1
+
+[flow]
+start = "run"
+
+[[node]]
+name = "run"
+kind = "command"
+run  = ["true"]
+
+[[node]]
+name = "w"
+kind = "widget"
+
+[[node]]
+name    = "stop"
+kind    = "exit"
+code    = 3
+message = "done"
+
+[[edge]]
+from = "run"
+to   = "w"
+
+[[edge]]
+from = "w"
+to   = "stop"
+
+[[edge]]
+from = "stop"
+to   = "END"

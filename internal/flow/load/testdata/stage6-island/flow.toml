@@ -1,0 +1,27 @@
+schema_version = 1
+
+[flow]
+start = "a"
+
+[[node]]
+name    = "a"
+kind    = "exit"
+message = "done"
+
+[[node]]
+name    = "island"
+kind    = "exit"
+message = "done"
+
+[[node]]
+name    = "stop"
+kind    = "exit"
+message = "done"
+
+[[edge]]
+from = "a"
+to   = "stop"
+
+[[edge]]
+from = "island"
+to   = "a"
