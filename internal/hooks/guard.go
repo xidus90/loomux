@@ -47,6 +47,8 @@ var builtinPathRules = []config.PathRule{
 	// The literal below is the second copy of sessions.StateDir; a rule is a
 	// verbatim glob here, so the two are kept in step by hand.
 	{Match: []string{".loomux/state/hooks/**"}, Reason: "the stop gate's own controls are not written by the party it gates"},
+	// The second copy of runs.Dir, kept in step by hand like the one above.
+	{Match: []string{".loomux/state/runs/**"}, Reason: runFilesReason},
 	{Match: []string{"uv.lock"}, Reason: "lock files are written by their package manager, not by hand"},
 	{Match: []string{"poetry.lock"}, Reason: "lock files are written by their package manager, not by hand"},
 	{Match: []string{"package-lock.json"}, Reason: "lock files are written by their package manager, not by hand"},
@@ -60,7 +62,17 @@ var builtinPathRules = []config.PathRule{
 // on every tool call, and a package variable would pay for the expression in
 // runs that never look at a command line.
 var builtinCommands = sync.OnceValue(func() []config.CommandRule {
-	manifest := manifestWriteSource()
+	const (
+		// The manifest as one shell word: quoted or not, under any directory,
+		// or glued to a parameter (`of=`, `-FilePath:`); either slash, any case.
+		manifestName = `['"]?(?:[^\s;|&'"<>]*[/\\=:])?\.loomux[/\\]+config\.toml['"]?`
+		// The runs folder or any file in it, as the same kind of word.
+		runsName = `['"]?(?:[^\s;|&'"<>]*[/\\=:])?\.loomux[/\\]+state[/\\]+runs(?:[/\\][^\s;|&'"<>]*)?['"]?`
+		// What a removal may name to take the runs with it: the state
+		// folder above them, or a glob in their place.
+		runsGone = `['"]?(?:[^\s;|&'"<>]*[/\\=:])?\.loomux[/\\]+state(?:[/\\]+(?:runs|` + globName + `)(?:[/\\][^\s;|&'"<>]*)?)?[/\\]*['"]?`
+	)
+	manifest, runFiles := writeSource(manifestName, manifestName), writeSource(runsName, runsGone)
 	return []config.CommandRule{{
 		Regex:  regexp.MustCompile(`(^|\s)git\s+push(\s|$)`),
 		Source: `(^|\s)git\s+push(\s|$)`,
@@ -69,37 +81,63 @@ var builtinCommands = sync.OnceValue(func() []config.CommandRule {
 		Regex:  regexp.MustCompile(manifest),
 		Source: manifest,
 		Reason: ".loomux/config.toml: the manifest is where the barrier reads its own limits, so no shell command may write it",
+	}, {
+		Regex:  regexp.MustCompile(runFiles),
+		Source: runFiles,
+		Reason: runFilesReason,
 	}}
 })
 
-// manifestWriteSource is the expression for a shell line that writes the
-// manifest: the barrier refuses it to every writing tool, and a shell line is
-// the same write by another road.
+// globName is one folder name that holds a glob character, and so may stand
+// for any name in its place.
+const globName = `[^\s;|&'"<>/\\]*[*?\[][^\s;|&'"<>/\\]*`
+
+// writeSource is the expression for a shell line that writes or removes the
+// file or folder the expression name spells as one shell word: the manifest,
+// which the barrier refuses to every writing tool, and the files a path rule
+// keeps from an agent. A shell line is the same write by another road.
+//
+// removed is the wider word the removing verbs are read against -- rm, del,
+// erase, Remove-Item and its aliases, rmdir, rd, git rm, git clean and
+// [IO.Directory]::Delete: it adds what takes name with it, the folder above
+// or a glob in its place. Every other verb reads name alone, so that an agent
+// may still put a flow of its own under .loomux/flows.
 //
 // It reads command text, not a file system, so it is a net with known holes
 // rather than a proof: a path held in a variable (`> "$M"`), a program that
 // opens the file itself (`python -c …`) and a command spelled through an alias
-// the list does not know all pass. It errs the other way where it cannot tell:
-// a `>` inside a quoted string, or the manifest named as the source of a
-// `mv` or an `Out-File -InputObject`, is refused. One rule rather than one per
-// form, because `checkTool` names a reason once per matching rule and a line
-// like `tee M > M` would otherwise say the same thing twice.
+// the list does not know all pass. So do, by that choice, a copy or a move
+// into the folder above that overwrites a kept folder (`cp -r x/example
+// .loomux/flows/`, `mv x/example .loomux/flows/`, `cp -r x/runs
+// .loomux/state/`) and a mv of the folder above itself; a removal of .loomux
+// (`rm -rf .loomux`), which takes the manifest as well, or of a glob one
+// level up (`rm -r .loomux/*`, `rm -r .loomux/flow*`, `rm -r .loomux/state*`);
+// a git clean without a path (`git clean -fdX`), which takes ignored run
+// files; and a glob in a fixed segment of the path, which the shell expands
+// onto the kept file (`.loomux/sta*/runs/…`, `.loomux/state/r*/…` in a
+// write, `.loomux/config.tom?`) -- a glob is read only in a flow's own
+// segment under .loomux/flows and in a removal in place of the runs folder.
+// .loomux/state/hooks has no shell rule of its own; a removal of
+// .loomux/state is refused only for the runs in it. It errs the other way
+// where it cannot tell: a `>` inside a quoted string, the file named as the
+// source of a `mv` or an `Out-File -InputObject`, or a glob that would miss
+// it, is refused. One rule rather than one per form, because `checkTool`
+// names a reason once per matching rule and a line like `tee M > M` would
+// otherwise say the same thing twice.
 //
 // Every form stays inside one segment of the line -- nothing between the
-// command and the manifest crosses `;`, `|`, `&` or a line break -- so a write
-// elsewhere on the line and a read of the manifest do not add up to a refusal.
-func manifestWriteSource() string {
+// command and the file crosses `;`, `|`, `&` or a line break -- so a write
+// elsewhere on the line and a read of the file do not add up to a refusal.
+func writeSource(name, removed string) string {
+	word := name + `(?:[\s;|&),]|$)`
+	last := name + `\s*(?:[;|&\n)]|$)`
+	gone := removed + `(?:[\s;|&),]|$)`
 	const (
-		// The manifest as one shell word: quoted or not, under any directory,
-		// or glued to a parameter (`of=`, `-FilePath:`); either slash, any case.
-		name = `['"]?(?:[^\s;|&'"<>]*[/\\=:])?\.loomux[/\\]+config\.toml['"]?`
-		word = name + `(?:[\s;|&),]|$)`
-		last = name + `\s*(?:[;|&\n)]|$)`
 		// A command at the head of a segment, behind `sudo` and friends and
 		// under any directory; `$(` opens a segment as well.
 		head = `(?:^|[;|&({\n])\s*(?:(?:sudo|command|exec|nohup)\s+)*(?:[^\s;|&]*[/\\])?`
 		exe  = `(?:\.exe)?\s`
-		// The rest of the segment up to the word that names the manifest.
+		// The rest of the segment up to the word that names the file.
 		rest = `(?:[^;|&\n]*[\s(,])?`
 		// `sed -i`, `-i.bak`, `-Ei`, `--in-place`; case-sensitive, because
 		// `perl -I` is an include path.
@@ -108,20 +146,24 @@ func manifestWriteSource() string {
 	forms := []string{
 		// A redirect into it: `>`, `>>`, `>|`, `2>`, `&>`.
 		`>[>|!]?\s*` + word,
-		// Commands that write or remove every file they name.
+		// Commands that write every file they name.
 		head + `(?:tee|tee-object|set-content|add-content|out-file|clear-content|ac|` +
-			`mv|move|move-item|mi|rename-item|ren|rni|rm|del|erase|remove-item|ri|truncate)` +
-			exe + rest + word,
+			`mv|move|move-item|mi|rename-item|ren|rni|truncate)` + exe + rest + word,
+		// Commands that remove every file or folder they name, a folder with
+		// all it holds.
+		head + `(?:rm|del|erase|remove-item|ri|rmdir|rd)` + exe + rest + gone,
 		// Commands that write only their destination.
 		head + `(?:cp|copy|copy-item|cpi|install)` + exe + rest + last,
 		head + `(?:cp|copy|copy-item|cpi|install)` + exe + `(?:[^;|&\n]*\s)?-dest\w*[:\s]\s*` + word,
 		head + `dd` + exe + `(?:[^;|&\n]*\s)?of=` + word,
-		head + `git\s+(?:-\S+\s+)*(?:mv|rm|checkout|restore)\s` + rest + word,
+		head + `git\s+(?:-\S+\s+)*(?:mv|checkout|restore)\s` + rest + word,
+		head + `git\s+(?:-\S+\s+)*(?:rm|clean)\s` + rest + gone,
 		// An in-place edit, with the flag before or after the file.
 		head + `(?:sed|perl)` + exe + `(?:[^;|&\n]*\s)?` + inPlace + `\s` + rest + word,
 		head + `(?:sed|perl)` + exe + rest + word + `(?:[^;|&\n]*\s)?` + inPlace,
 		// .NET from PowerShell.
-		`\[(?:system\.)?io\.file\]::(?:write|append|create|delete|move|replace)\w*\s*\(` + rest + word,
+		`\[(?:system\.)?io\.(?:file|directory)\]::(?:write|append|create|delete|move|replace)\w*\s*\(` + rest + word,
+		`\[(?:system\.)?io\.directory\]::delete\w*\s*\(` + rest + gone,
 	}
 	return `(?i)` + strings.Join(forms, "|")
 }
@@ -240,6 +282,7 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 			// project spelled them.
 			reasons = append(reasons, pathReasons(builtinPathRules, rel, true)...)
 			reasons = append(reasons, pathReasons(policy.Paths, rel, false)...)
+			reasons = append(reasons, flowFolderReasons(root, rel)...)
 		}
 	}
 	if _, shell := commandTools[tool]; shell {
@@ -253,8 +296,18 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 					reasons = append(reasons, rule.Reason)
 				}
 			}
+			// The flow folder rule reads the config, so only a line that
+			// could name such a folder pays for it.
+			if strings.Contains(strings.ToLower(line), "flows") {
+				if rule, ok := flowFolderCommand(root); ok && rule.Regex.MatchString(line) {
+					reasons = append(reasons, rule.Reason)
+				}
+			}
 			if writesConfiguration(line) {
 				reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, and merge-hook install and remove write executable hooks into repositories; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
+			}
+			if answersAGate(line) {
+				reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
 			}
 		}
 	}
@@ -448,18 +501,8 @@ func wordsWriteConfiguration(words []string, plain bool) bool {
 		return false
 	}
 	exempt := plain && len(words) == head
-	switch baseName(words[0]) {
-	case "start-process", "start", "saps":
-		// The arguments travel as one PowerShell list the words cannot
-		// judge, and the program may stand behind any parameter, so loomux
-		// anywhere after the cmdlet counts as writing.
-		return slices.ContainsFunc(words[1:], func(w string) bool {
-			// -FilePath:loomux.exe carries the program behind the colon.
-			if strings.HasPrefix(w, "-") {
-				w = w[strings.IndexByte(w, ':')+1:]
-			}
-			return isLoomux(strings.Trim(w, `"'`))
-		})
+	if startsLoomux(words) {
+		return true
 	}
 	found, ok := loomuxArgs(words)
 	if !ok || len(found) == 0 {
@@ -495,6 +538,24 @@ func wordsWriteConfiguration(words []string, plain bool) bool {
 		// install and remove put executable hooks into other repositories;
 		// status reads and record is what the installed hook itself calls.
 		return len(args) > 1 && (args[1] == "install" || args[1] == "remove")
+	}
+	return false
+}
+
+// startsLoomux says whether words run Start-Process, start or saps with
+// loomux anywhere among the arguments. The arguments travel as one
+// PowerShell list the words cannot judge, and the program may stand behind
+// any parameter, so such a call counts as every call a rule looks for.
+func startsLoomux(words []string) bool {
+	switch baseName(words[0]) {
+	case "start-process", "start", "saps":
+		return slices.ContainsFunc(words[1:], func(w string) bool {
+			// -FilePath:loomux.exe carries the program behind the colon.
+			if strings.HasPrefix(w, "-") {
+				w = w[strings.IndexByte(w, ':')+1:]
+			}
+			return isLoomux(strings.Trim(w, `"'`))
+		})
 	}
 	return false
 }
