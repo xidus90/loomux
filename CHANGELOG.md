@@ -4,6 +4,19 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [4.0.0] - 2026-09-27
+
+<https://github.com/xidus90/loomux/pull/47>
+
+### Added
+- `loomux dev bench search` measures the rank of search hits and the search chain's latency over a question set or the checked-in corpus `v1`.
+- `dev bench hooks` and `dev bench repos` write a markdown and a JSON report into a directory with `--out <dir>`.
+### Changed
+- **Breaking:** `loomux dev bench-hooks` is now `loomux dev bench hooks` and `loomux dev bench` is now `loomux dev bench repos`; `loomux dev bench` alone prints the group's help.
+- **Breaking:** `dev bench repos` takes `--out <dir>` instead of `--out <file>` and `--json-out <file>`, and its JSON report and `docs/benchmarks.json` carry milliseconds instead of nanoseconds.
+### Fixed
+- `dev bench repos --timeout` now limits the time spent on each repository; it was ignored.
+
 ## [3.3.0] - 2026-09-26
 
 <https://github.com/xidus90/loomux/pull/44>
