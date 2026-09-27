@@ -1,0 +1,57 @@
+[
+  {
+    "name": "pre-tool-use Edit outside .loomux (this worktree)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/edit-outside.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a/bin/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a"]
+      }
+    ]
+  },
+  {
+    "name": "pre-tool-use Edit under .loomux/flows/mine (this worktree)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/edit-flows.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a/bin/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a"]
+      }
+    ]
+  },
+  {
+    "name": "pre-tool-use Bash git status (this worktree)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/bash.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a/bin/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a"]
+      }
+    ]
+  },
+  {
+    "name": "session-start (small world, no runs)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/norun",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/session.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a/bin/loomux.exe", "hook", "session-start", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/norun"]
+      }
+    ]
+  },
+  {
+    "name": "session-start (small world, one run waiting at a gate)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/waiting",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/session.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/Documents/#GIT/loomux/.worktrees/flow-a/bin/loomux.exe", "hook", "session-start", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/loomux-flowa-bench/waiting"]
+      }
+    ]
+  }
+]

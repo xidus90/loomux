@@ -44,6 +44,8 @@ func TestProtectedBuiltinPathsCarryTheirReason(t *testing.T) {
 		{"no-verify in capitals", ".LOOMUX/No-Verify", "the stop gate's own controls are not written by the party it gates"},
 		{"env file in capitals", ".ENV", "secrets are not written by an agent"},
 		{"go sum in capitals", "GO.SUM", "lock files are written by their package manager, not by hand"},
+		{"run journal", ".loomux/state/runs/0001.jsonl", "a flow's journal and marker are written by loomux, not by the party the gates ask"},
+		{"run journal in capitals", ".LOOMUX/State/runs/0001.jsonl", "a flow's journal and marker are written by loomux, not by the party the gates ask"},
 		{"uv lock", "uv.lock", "lock files are written by their package manager, not by hand"},
 		{"poetry lock", "poetry.lock", "lock files are written by their package manager, not by hand"},
 		{"npm lock", "package-lock.json", "lock files are written by their package manager, not by hand"},
@@ -367,26 +369,16 @@ func TestRelativePathHelper(t *testing.T) {
 	}
 }
 
-func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
-	refused := []string{
+// loomuxSpellings are ways to write a loomux call that a reader of the
+// line has to see through: paths to the binary, quotes, prefixes, wrappers,
+// blocks, continuations and escapes. Each row is a configuration write
+// writesConfiguration refuses; the gate rule reads the same rows with its
+// own command in place of the row's, so the two lists cannot drift apart.
+func loomuxSpellings() []string {
+	return []string{
 		"loomux init",
-		"loomux init --yes",
 		"bin/loomux.exe init --hooks=all",
 		`"${LOCALAPPDATA}/loomux/bin/loomux.exe" config`,
-		"loomux config set commit.language de --yes",
-		"loomux config --global",
-		"loomux config set model.enabled true --global",
-		// config takes its flags before the subcommand too; a write that
-		// names them first is still a write.
-		"loomux config --root . set commit.language en",
-		"loomux config --global unset model.enabled",
-		"loomux config --root . set commit.language en --propose=false",
-		"loomux config --root .",
-		"loomux config --global",
-		"loomux config --root",
-		"loomux config --root . apply x",
-		"loomux config --yes list",
-		"loomux area add --path .",
 		"go run ./cmd/loomux config set commit.language de",
 		"cd x && loomux config",
 		"LOOMUX_STATE_DIR=x loomux area add",
@@ -446,9 +438,6 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"loom\\\nux init",
 		"loomux `\nconfig set a b",
 		"loomux `\r\ninit",
-		// A PowerShell line-end continuation is no bash one: PowerShell
-		// runs the first line on its own.
-		"loomux init \\\n--dry-run",
 		// Backtick substitution, and a PowerShell backtick escape.
 		"echo `loomux config set a b`",
 		"x=\"`loomux init`\"",
@@ -472,18 +461,6 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"2>&1 loomux init",
 		">&2 loomux init",
 		"&>out loomux init",
-		"Start-Process loomux -ArgumentList 'config','set','a','b'",
-		"Start-Process -FilePath loomux.exe -ArgumentList 'init'",
-		`saps .\bin\loomux.exe`,
-		// A false refusal kept on purpose: Start-Process hides the
-		// arguments from the words.
-		"start loomux config list",
-		// loomux anywhere among Start-Process's arguments.
-		"Start-Process -NoNewWindow loomux init",
-		"Start-Process -Wait -FilePath loomux.exe -ArgumentList init",
-		"Start-Process -ArgumentList 'init' -FilePath loomux.exe",
-		`start "" loomux init`,
-		"start /b loomux init",
 		// Every cmd switch before /c or /k.
 		"cmd /v:on /c loomux init",
 		"cmd /d /s /c loomux init",
@@ -502,11 +479,6 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"nice -10 loomux init",
 		// A false refusal kept on purpose: -v only looks the name up.
 		"command -v loomux init",
-		// A PowerShell parameter glued to its value with a colon.
-		"Start-Process -FilePath:loomux.exe -ArgumentList init",
-		"Start-Process -FilePath:loomux init",
-		"Start-Process -FilePath:'loomux.exe' -ArgumentList init",
-		`Start-Process -FilePath:"C:\x\loomux.exe"`,
 		// Braces glued to the words around them.
 		"try{ loomux init }catch{}",
 		"try {loomux init} catch {}",
@@ -523,12 +495,10 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		// nice with -n N and then more flags or --.
 		"nice -n 10 -- loomux init",
 		"nice -n 10 -x loomux init",
-		// False refusals kept on purpose: a word after a lone brace, and
-		// loomux as an argument of another program Start-Process runs.
+		// False refusals kept on purpose: a word after a lone brace.
 		"awk '{ print }' loomux init",
 		"echo } loomux config set a b",
 		"echo ${X} loomux init",
-		"Start-Process code -ArgumentList loomux",
 		// go run with build flags, a file, a module path or no ./.
 		"go run -race ./cmd/loomux config set a b",
 		"go run -tags x ./cmd/loomux init",
@@ -538,6 +508,69 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"go run github.com/xidus90/loomux/cmd/loomux config set a b",
 		"go run github.com/xidus90/loomux/cmd/loomux@latest init",
 		"go run cmd/loomux init",
+		// Start-Process hands its arguments on as one list, so loomux
+		// anywhere behind it counts, whatever the command.
+		"Start-Process loomux -ArgumentList 'config','set','a','b'",
+		"Start-Process -FilePath loomux.exe -ArgumentList 'init'",
+		`saps .\bin\loomux.exe`,
+		"Start-Process loomux init",
+		"Start-Process cmd '/c loomux init'",
+		// A false refusal kept on purpose: Start-Process hides the
+		// arguments from the words.
+		"start loomux config list",
+		// loomux anywhere among Start-Process's arguments.
+		"Start-Process -NoNewWindow loomux init",
+		"Start-Process -Wait -FilePath loomux.exe -ArgumentList init",
+		"Start-Process -ArgumentList 'init' -FilePath loomux.exe",
+		`start "" loomux init`,
+		"start /b loomux init",
+		// A PowerShell parameter glued to its value with a colon.
+		"Start-Process -FilePath:loomux.exe -ArgumentList init",
+		"Start-Process -FilePath:loomux init",
+		"Start-Process -FilePath:'loomux.exe' -ArgumentList init",
+		`Start-Process -FilePath:"C:\x\loomux.exe"`,
+		// A false refusal kept on purpose: loomux as an argument of another
+		// program Start-Process runs.
+		"Start-Process code -ArgumentList loomux",
+		// A wrapper's quoted inner command, which the quote-blind cut breaks
+		// at the break inside the quotes.
+		"cmd /c 'echo; loomux init'",
+		"cmd /c 'x&loomux config set a b'",
+		"cmd /c 'x|loomux init'",
+		"cmd /c 'x (loomux init)'",
+		"& cmd /c 'x; loomux init'",
+		"sh -c 'true\nloomux init'",
+		"sh -c 'x `loomux init` y'",
+		"pwsh -c 'x\nloomux config set a b'",
+		// A lone & is PowerShell's call operator or a background job.
+		"& loomux init",
+		"& 'loomux' config set a b",
+		"sleep 1 & loomux config set a b",
+	}
+}
+
+func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
+	// The spellings, then what makes init, config, area and merge-hook
+	// write in them.
+	refused := append(loomuxSpellings(),
+		"loomux init --yes",
+		"loomux config set commit.language de --yes",
+		"loomux config --global",
+		"loomux config set model.enabled true --global",
+		// config takes its flags before the subcommand too; a write that
+		// names them first is still a write.
+		"loomux config --root . set commit.language en",
+		"loomux config --global unset model.enabled",
+		"loomux config --root . set commit.language en --propose=false",
+		"loomux config --root .",
+		"loomux config --global",
+		"loomux config --root",
+		"loomux config --root . apply x",
+		"loomux config --yes list",
+		"loomux area add --path .",
+		// A PowerShell line-end continuation is no bash one: PowerShell
+		// runs the first line on its own.
+		"loomux init \\\n--dry-run",
 		// Only list, get, proposals and a lone --help or -h read.
 		"loomux config ''",
 		"loomux config unset commit.language",
@@ -693,7 +726,7 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		`& "C:\x\loomux.exe" merge-hook remove`,
 		"{ loomux merge-hook install; }",
 		"cd x && loomux merge-hook remove",
-	}
+	)
 	// Known holes, pinned so that closing one shows up here and the readings
 	// comment and both cli-references are corrected with it.
 	holes := []string{
