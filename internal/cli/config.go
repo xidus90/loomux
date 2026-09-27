@@ -115,16 +115,36 @@ func configCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 		}
 		return configPropose(target, p, stdout, stderr)
 	}
+	after := writtenHint(target, positional[0])
 	switch sub {
 	case "unset":
 		return configWrite(target, func(text string) (string, error) {
 			return proposeUnset(target, text, positional[0])
-		}, *yes, stdin, stderr)
+		}, after, *yes, stdin, stderr)
 	default:
 		return configWrite(target, func(text string) (string, error) {
 			return proposeChange(target, text, positional[0], positional[1])
-		}, *yes, stdin, stderr)
+		}, after, *yes, stdin, stderr)
 	}
+}
+
+// backboneHint follows a written search.backbone: the qmd daemon is a process
+// of its own that outlives every loomux command, loomux serve included, and it
+// reads its backbone once, when it starts. It names the port rather than
+// `qmd mcp stop`, which loses the daemon once a `qmd status` -- loomux runs
+// one itself -- has removed its PID file.
+const backboneHint = "loomux config: a running qmd daemon keeps its backbone until its process ends; " +
+	"stop the process listening on port 8765 (Windows: `Get-NetTCPConnection -LocalPort 8765 -State Listen | " +
+	"ForEach-Object { Stop-Process -Id $_.OwningProcess }`; POSIX: `lsof -ti :8765 | xargs kill`), " +
+	"since `qmd mcp stop` may answer \"Not running\" after a `qmd status` although the daemon still runs; " +
+	"the next search starts it with the new backbone"
+
+// writtenHint is the line a write of key prints after it, or "".
+func writtenHint(t configTarget, key string) string {
+	if t.global && key == "search.backbone" {
+		return backboneHint
+	}
+	return ""
 }
 
 // namesPropose says whether an argument is any spelling of the propose flag.
@@ -332,9 +352,10 @@ func proposeUnset(t configTarget, text, id string) (string, error) {
 }
 
 // validated hands a new text to the reader that runs in operation: the
-// declaration readers for a project file, the model reader and the client's
-// loopback guard for the global one. The guard runs here too so that the
-// file never holds an address the next pass would refuse.
+// declaration readers for a project file, the model reader, the client's
+// loopback guard and the search reader for the global one. The guard runs
+// here too so that the file never holds an address the next pass would
+// refuse.
 func (t configTarget) validated(next string) (string, error) {
 	if t.global {
 		settings, err := config.ParseModelSettings(t.path, next)
@@ -343,6 +364,9 @@ func (t configTarget) validated(next string) (string, error) {
 		}
 		if err := model.GuardEndpoint(settings.Endpoint); err != nil {
 			return "", fmt.Errorf("%s: %w", t.path, err)
+		}
+		if _, err := config.ParseSearchSettings(t.path, next); err != nil {
+			return "", err
 		}
 		return next, nil
 	}
@@ -363,7 +387,8 @@ func declaresArea(text string) (bool, error) {
 
 // configWrite is set and unset after the argument check: propose, show the
 // diff, confirm, write.
-func configWrite(t configTarget, propose func(text string) (string, error), yes bool, stdin io.Reader, stderr io.Writer) int {
+// after, when not empty, is one more line once the file is written.
+func configWrite(t configTarget, propose func(text string) (string, error), after string, yes bool, stdin io.Reader, stderr io.Writer) int {
 	text, err := t.read()
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux config: %v\n", err)
@@ -393,6 +418,9 @@ func configWrite(t configTarget, propose func(text string) (string, error), yes 
 		return 1
 	}
 	fmt.Fprintf(stderr, "loomux config: wrote %s\n", t.path)
+	if after != "" {
+		fmt.Fprintln(stderr, after)
+	}
 	return 0
 }
 

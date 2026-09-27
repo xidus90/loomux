@@ -1013,9 +1013,17 @@ loomux config reject <id>|--all
     Loopback), `model.name` (das Ollama-Modell), `model.temperature` (eine
     Zahl von 0 bis 2, Vorgabe `0.0`) und `model.roles` (eine Tabelle, von
     Hand bearbeitet; einmal gesetzt, ist jede Rolle aus, die sie nicht
-    nennt). Ein neuer Text wird vom Leser von `[model]` und von der
-    Loopback-Wache des Clients geprüft: ein Endpunkt außerhalb des Loopbacks
-    wird verweigert (Exit `1`), und die Datei bleibt, wie sie war. Eine Datei,
+    nennt), dazu `search.backbone` der Suchmaschine (`cuda`, `vulkan` oder
+    `cpu`, Vorgabe `cuda`; siehe `brain search`), den es nur hier gibt. Ein
+    neuer Text wird vom Leser von `[model]`, von der Loopback-Wache des
+    Clients und vom Leser von `[search]` geprüft: ein Endpunkt außerhalb des
+    Loopbacks oder ein anderes Backbone wird verweigert (Exit `1`, mit Datei
+    und Schlüssel), und die Datei bleibt, wie sie war. Nach dem Schreiben von
+    `search.backbone` geben `set`, `unset` und `apply` eine Zeile mehr aus:
+    ein laufender qmd-Daemon behält sein Backbone, bis sein Prozess endet;
+    also den Prozess beenden, der auf Port 8765 lauscht (siehe das Backbone
+    von `brain search`); die nächste Suche startet ihn mit dem neuen
+    Backbone. Eine Datei,
     die kein TOML ist, wird mit ihrem eigenen Pfad genannt. Die
     `.loomux/config.toml` eines Bereichs kennt nur `model.enabled` und
     `model.roles` und kann nur abschalten oder einengen. `--global`

@@ -71,25 +71,32 @@ func TestLookupFindsByID(t *testing.T) {
 	}
 }
 
-func TestTheGlobalKeysAreTheModelReadersKeys(t *testing.T) {
-	var got []string
+func TestTheGlobalKeysAreTheirReadersKeys(t *testing.T) {
+	got := map[string][]string{}
 	for _, k := range GlobalKeys() {
-		if k.Section != "model" || k.Module != Brain || k.Doc == "" {
+		if k.Module != Brain || k.Doc == "" {
 			t.Errorf("%+v", k)
 		}
-		got = append(got, k.Name)
+		got[k.Section] = append(got[k.Section], k.Name)
 	}
-	if !slices.Equal(sorted(got), sorted(config.GlobalModelKeys())) {
-		t.Fatalf("schema %v, reader %v", got, config.GlobalModelKeys())
+	readers := map[string][]string{"model": config.GlobalModelKeys(), "search": config.GlobalSearchKeys()}
+	if len(got) != len(readers) {
+		t.Fatalf("sections %v", got)
+	}
+	for section, keys := range readers {
+		if !slices.Equal(sorted(got[section]), sorted(keys)) {
+			t.Fatalf("[%s]: schema %v, reader %v", section, got[section], keys)
+		}
 	}
 	defaults := map[string]string{}
 	for _, k := range GlobalKeys() {
-		defaults[k.Name] = k.Default
+		defaults[k.ID()] = k.Default
 	}
-	if defaults["enabled"] != "false" || defaults["temperature"] != "0.0" ||
-		defaults["endpoint"] != strconv.Quote(config.DefaultModelEndpoint) ||
-		defaults["name"] != strconv.Quote(config.DefaultModelName) ||
-		defaults["roles"] != "{ describe = true, place = true, propose = true }" {
+	if defaults["model.enabled"] != "false" || defaults["model.temperature"] != "0.0" ||
+		defaults["model.endpoint"] != strconv.Quote(config.DefaultModelEndpoint) ||
+		defaults["model.name"] != strconv.Quote(config.DefaultModelName) ||
+		defaults["model.roles"] != "{ describe = true, place = true, propose = true }" ||
+		defaults["search.backbone"] != strconv.Quote(config.DefaultSearchBackbone) {
 		t.Fatalf("%v", defaults)
 	}
 }
