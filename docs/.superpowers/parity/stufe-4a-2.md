@@ -688,6 +688,75 @@ Gemessen mit dem Aufbau oben.
 - Offen: eine erneute Probe mit diesem Stand (flache Datei geladen, Wächter
   sperrt, Post-Edit prüft aus `toolCall`).
 
+### Nachtrag nach dem Code-Review, 2026-09-27
+
+Die Zeilen oben geben den Stand vom 2026-09-25; wo sie davon abweichen, gilt:
+
+- `manage_task` steht im Matcher von `PreToolUse` und in den Befehlsregeln,
+  Argument `Input` (gemessen mit agy 1.2.11, siehe oben). Die Werkzeuge
+  stehen in einer Tabelle `commandTools`; deren Nullwerte sind der
+  geschlossene Fall.
+- Die Argumentnamen gelten ohne Rücksicht auf die Schreibung, und jeder
+  Treffer wird geprüft. Eine gefundene Zeile wird immer geprüft, gleich
+  welche `Action` der Aufruf nennt: `{"Action":"kill","Input":"git push
+  origin main\n"}` wird als Push verweigert. `list`, `status` und `kill`
+  entschuldigen nur das Fehlen einer Zeile, und nur, wenn jeder Schlüssel
+  `action` in jeder Schreibung einen dieser drei Strings trägt. „Die ersten
+  drei laufen durch“ oben gilt also nur für einen Aufruf ohne Zeile.
+- Was `send_command_input` und `manage_task` tippen, geht nur als ganze
+  Zeilen durch: Der Wert endet auf `\n` oder `\r` und trägt kein
+  Steuerzeichen außer `\n` und `\r` (kein C0, also auch kein Tab, an dem eine
+  interaktive Shell ein Wort vervollständigt, kein DEL, kein C1, also auch
+  kein U+009B), und keine seiner Zeilen endet auf `\` oder `` ` ``, mit denen
+  bash und PowerShell die Zeile in der nächsten fortsetzen. Jede nicht leere
+  Zeile läuft durch die Befehlsregeln. Ein Wert unter einem Zeilenschlüssel,
+  der kein String ist, wird verweigert, ein leerer trägt keine Zeile.
+  Ein Fragment, Ctrl-C, eine Pfeiltaste, ein Tab, ein Backspace oder eine
+  Zeilenfortsetzung wird verweigert; eine Aufgabe beendet `kill`.
+- Ein dekodierter Aufruf ohne Werkzeugnamen wird verweigert („loomux found
+  no tool name in this call, so it cannot judge it and refuses“); bis hier
+  ließ ihn die Policy durch.
+- Ein wiederholtes `PreInvocation` sagt nichts: `sessions.Revive` läuft nur
+  beim ersten Aufruf, eine seither beendete Sitzung wird dort also nicht
+  wieder gezählt und nicht gemeldet. Nichts beendet eine agy-Unterhaltung
+  zwischen zwei Modellaufrufen (nur `WorktreeUnlink` ruft `Retire`, und es
+  ist nur für Claude verdrahtet); wird unlink je für agy verdrahtet, ist das neu
+  zu entscheiden.
+- `invocationNum` wird als Zahl oder als Dezimal-String gelesen. Gemessen am
+  2026-09-27 mit agy 1.2.11: `PreInvocation` trägt `invocationNum` als
+  JSON-Zahl, 0, 1, 2, 3 bei den vier Modellaufrufen eines Laufs, dazu
+  `initialNumSteps` 1, 3, 5, 7 und kein `stepIdx`. Die Zählung beginnt also
+  bei 0, und `Repeat` gilt ab `invocationNum > 0`. Ungemessen bleiben nur die
+  String-Form eines 64-Bit-Zählers und die Breite des Felds. Ein unlesbarer
+  oder fehlender Wert gilt als erster Aufruf und wiederholt nur
+  Ankündigungen.
+- post-edit schreibt seinen Kontext bei Exit 0 über `hosts.WriteContext`,
+  für agy als `injectSteps`; `hosts.Answer` verwirft post-tool-use-stdout
+  weiter. agy liest `injectSteps` auf PostToolUse: ungemessen. Bei Exit ≠ 0
+  schreibt post-edit nichts auf stdout, und jeder Hinweis auf eine
+  übersprungene Lane oder Datei steht auf stderr.
+- Messung zu `init` mit zwei eigenen Blöcken unter `PreToolUse`: siehe die
+  nächste Zeile.
+- Gemessen am 2026-09-27 mit agy 1.2.11: Eine `hooks.json`, deren Gruppe
+  `loomux` unter `PreToolUse` zwei Blöcke mit verschiedenen Matchern trägt,
+  lädt ohne Parse-Fehler im Log, und agy ruft den Hook für ein Werkzeug des
+  zweiten Blocks. `init` hängt deshalb für einen eigenen Block mit älterem,
+  flachem Matcher einen Block mit den fehlenden Werkzeugen an.
+  Aufbau: Block 1 mit dem Matcher `write_to_file|replace_file_content|
+  multi_replace_file_content|run_command|send_command_input`, Block 2 mit
+  `manage_task`, `PreInvocation` flach. `write_to_file` und `run_command`
+  kamen nur an Block 1, `manage_task` mit `kill` nur an Block 2. Das Log
+  trägt eine Zeile `loaded 3 named hooks from 3 hooks.json file(s)`; das
+  Probeverzeichnis stand schon beim Anlegen des Servers in `workspaceDirs`
+  und ist darin mitgezählt. Die Parse-Fehler im Log nennen weder das
+  Probeverzeichnis noch `loomux`.
+- Nachmessung am 2026-09-28 mit agy 1.2.12 (agy hatte sich über Nacht selbst
+  aktualisiert), gleicher Aufbau und gleicher Prompt: dasselbe Ergebnis. Eine
+  Zeile `loaded 3 named hooks from 3 hooks.json file(s)`, `write_to_file` und
+  `run_command` nur an Block 1, `manage_task` mit `kill` nur an Block 2,
+  `invocationNum` 0, 1, 2, 3, kein Parse-Fehler für das Probeverzeichnis
+  oder `loomux`.
+
 ## Offen
 
 - **Task 1 ist gelaufen, bis auf einen Schritt.** Am 2026-09-24 vom Agenten

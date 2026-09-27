@@ -52,7 +52,7 @@ func world(t *testing.T, files map[string]string) string {
 
 // localAppData is an empty directory for LOCALAPPDATA whose path cmdSplits
 // passes. t.TempDir() is one unless the temp directory or the test's name
-// carries a space, & or a parenthesis (C:\Users\Jane Doe\…); then the
+// carries a character cmdSplits rejects (C:\Users\Jane Doe\…); then the
 // directory is made at the root of the same volume instead and removed
 // afterwards.
 func localAppData(t *testing.T) string {
