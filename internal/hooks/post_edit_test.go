@@ -798,7 +798,7 @@ func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
 	// Named for the model on stdout, and on stderr, which a host reads at
 	// exit 2 and agy logs.
 	seen, stdout, stderr := run(DefaultBudget)
-	skipped := "the edit budget ran out: " + filepath.ToSlash(filepath.Join(root, "b.go"))
+	skipped := verify.BudgetSkipped(filepath.ToSlash(filepath.Join(root, "b.go")))
 	if strings.Contains(strings.Join(seen, "\n"), "b.go") || !strings.Contains(editContextOf(t, stdout), skipped) || !strings.Contains(stderr, skipped) {
 		t.Fatalf("seen %v, stdout %q, stderr %q", seen, stdout, stderr)
 	}
@@ -820,7 +820,7 @@ func TestPostEditSaysTheSkipsOfEveryFileInOneDocument(t *testing.T) {
 	}
 	// One skipped lane per file.
 	said := editContextOf(t, so.String())
-	if strings.Count(said, verify.SkipPrefix) != 2 {
+	if strings.Count(said, "lane skipped, ") != 2 {
 		t.Fatalf("%q", said)
 	}
 }
