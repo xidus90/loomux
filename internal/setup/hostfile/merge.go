@@ -307,8 +307,9 @@ func toolNames(matcher string) (names []string, ok bool) {
 }
 
 // commandsOf is every command of a block, in order: a flat handler's own
-// command first, then those of its hooks list. A block may hold both, and a
-// command of ours in either makes it ours.
+// command first, then those of its hooks list. loomux never writes a block
+// with both, and whether a host runs one of them or both is not measured, so
+// both are read, and a command of ours in either makes the block ours.
 func commandsOf(item map[string]any) []string {
 	var out []string
 	if command, ok := item["command"].(string); ok {
