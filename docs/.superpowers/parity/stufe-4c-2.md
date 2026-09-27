@@ -317,6 +317,11 @@ Läufe schrieben beide Dateien.
   funktionierenden CUDA-Weg auf diesem Rechner oder einen Index, der unter
   demselben Backbone eingebettet ist, unter dem gesucht wird (also eine neue
   Einbettung).
-- **Backbone in `QmdPort`.** loomux gibt qmd kein Backbone mit; die Referenz
+- ~~**Backbone in `QmdPort`.** loomux gibt qmd kein Backbone mit; die Referenz
   setzte `QMD_LLAMA_GPU=vulkan` fest. Ob loomux das übernimmt, entscheidet der
-  Nutzer.
+  Nutzer.~~ Entschieden und gebaut am 2026-09-27: ein rechnerweites
+  `[search] backbone` (`cuda`, `vulkan` oder `cpu`, Vorgabe `cuda`) in der
+  `config.toml` des Zustandsverzeichnisses; der Dienst und jede qmd-Befehlszeile
+  übernehmen es, ein gesetztes `QMD_LLAMA_GPU` oder `QMD_FORCE_CPU` des Nutzers
+  gewinnt (`search.ResolveBackbone`). Offen bleibt die saubere Qualitätszahl
+  darüber.
