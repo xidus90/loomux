@@ -82,7 +82,7 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 	start := env.Now()
 	runID := verify.NewRunID(start, os.Getpid())
 	code := ExitOK
-	var notices strings.Builder
+	var notices []string
 	for i, raw := range files {
 		fileEnv, id := env, runID
 		// A budget of 0 is none, and stays none for every file.
@@ -91,9 +91,9 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 			if fileEnv.Budget <= 0 {
 				// stdout for the model at exit 0; stderr as well, which a
 				// host reads at exit 2 and agy keeps in its log.
-				skipped := verify.SkipPrefix + "the edit budget ran out: " + raw + "\n"
-				notices.WriteString(skipped)
-				fmt.Fprint(stderr, skipped)
+				skipped := verify.BudgetSkipped(raw)
+				notices = append(notices, skipped)
+				fmt.Fprintln(stderr, skipped)
 				continue
 			}
 			// Coverage files of their own; CleanCover matches `<runID>-`.
@@ -101,22 +101,22 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 		}
 		fileCode, said := checkEdit(stderr, root, raw, id, eff, facts, fileEnv)
 		code = max(code, fileCode)
-		notices.WriteString(said)
+		notices = append(notices, said...)
 	}
-	verify.WriteNotices(stdout, notices.String())
+	verify.WriteNotices(stdout, strings.Join(notices, "\n"))
 	return code
 }
 
 // checkEdit runs the lanes for one edited file, and answers its code with
 // what it has to tell the model.
-func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv) (int, string) {
-	fail := func(err error) (int, string) {
+func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv) (int, []string) {
+	fail := func(err error) (int, []string) {
 		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
-		return ExitInternal, ""
+		return ExitInternal, nil
 	}
 	ext := strings.ToLower(filepath.Ext(raw))
 	if slices.Contains(eff.Ignored, ext) {
-		return ExitOK, ""
+		return ExitOK, nil
 	}
 	var jobs []verify.Job
 	var err error
@@ -142,7 +142,7 @@ func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, 
 	}
 	code := ExitOK
 	red, notices := verify.EditReport(stderr, outs, aside)
-	if red != 0 {
+	if red {
 		code = ExitDenied
 	}
 	// The same rule as a check: a red edit keeps its files for whoever looks

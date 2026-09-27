@@ -68,37 +68,40 @@ func CheckVerdict(kinds []string, outs []Outcome) (code int, notes []string) {
 	return code, notes
 }
 
-// SkipPrefix begins every notice of a lane post-edit did not run.
-const SkipPrefix = "loomux hook post-tool-use: lane skipped, "
+// skipPrefix begins every notice of a lane or a file post-edit did not run.
+const skipPrefix = "loomux hook post-tool-use: lane skipped, "
+
+// BudgetSkipped is the notice for a lane or a file the edit budget did not
+// reach, named by name: one sentence for both, so the model reads one form.
+func BudgetSkipped(name string) string {
+	return skipPrefix + "the edit budget ran out: " + name
+}
 
 // EditReport reports the lanes of one edited file: red lanes on stderr,
-// which blocks the edit with 2, and as notices for the model the lanes it had
-// to skip and whatever else the hook has to say. The aside is dropped when a
-// lane is red: the finding matters more, and stderr stays the finding's. The
-// notices of every file of a call go to WriteNotices together, because a host
-// reads stdout as one document.
-func EditReport(stderr io.Writer, outs []Outcome, aside string) (int, string) {
-	code := 0
-	var skipped strings.Builder
+// which blocks the edit, and as notices for the model the lanes it had to
+// skip and whatever else the hook has to say, one line each. The aside is
+// dropped when a lane is red: the finding matters more, and stderr stays the
+// finding's. The notices of every file of a call go to WriteNotices together,
+// because a host reads stdout as one document.
+func EditReport(stderr io.Writer, outs []Outcome, aside string) (red bool, notices []string) {
 	for _, o := range outs {
 		switch {
 		case Red(o.State, ScopeEdit):
-			code = 2
+			red = true
 			fmt.Fprintf(stderr, "%s: %s\n", o.Job.Name, o.State)
 			if o.Output != "" {
 				fmt.Fprintf(stderr, "%s\n", strings.TrimSuffix(o.Output, "\n"))
 			}
 		case o.State == StateBudget:
-			skipped.WriteString(SkipPrefix + "the edit budget ran out: " + o.Job.Name + "\n")
+			notices = append(notices, BudgetSkipped(o.Job.Name))
 		case o.State == StateMissingTool, o.State == StateUnready:
-			skipped.WriteString(SkipPrefix + o.Output + "\n")
+			notices = append(notices, skipPrefix+o.Output)
 		}
 	}
-	notices := skipped.String()
-	if aside != "" && code == 0 {
-		notices += aside + "\n"
+	if aside != "" && !red {
+		notices = append(notices, aside)
 	}
-	return code, notices
+	return red, notices
 }
 
 // WriteNotices puts the dropped lanes where a PostToolUse hook exiting 0 is

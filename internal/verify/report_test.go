@@ -90,9 +90,21 @@ func TestCheckVerdictPerKind(t *testing.T) {
 // writeEdit reports one file's lanes the way post-edit does for a call that
 // names only that file.
 func writeEdit(stdout, stderr io.Writer, outs []Outcome, aside string) int {
-	code, notices := EditReport(stderr, outs, aside)
-	WriteNotices(stdout, notices)
-	return code
+	red, notices := EditReport(stderr, outs, aside)
+	WriteNotices(stdout, strings.Join(notices, "\n"))
+	if red {
+		return 2
+	}
+	return 0
+}
+
+// The budget's notice is the one cli-reference.md shows, for a lane and for
+// a file alike.
+func TestBudgetSkippedIsTheDocumentedSentence(t *testing.T) {
+	want := "loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go"
+	if got := BudgetSkipped("lint/go"); got != want {
+		t.Fatalf("%q", got)
+	}
 }
 
 func TestEditReportSkipsQuietlyAndBlocksOnRed(t *testing.T) {
