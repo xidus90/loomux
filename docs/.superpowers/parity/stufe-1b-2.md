@@ -417,5 +417,7 @@ Tabelle ist das, was der Mensch abzeichnet. „Alt" ist die Python-Referenz
   `brain_search` aus Claude Code über die Brücke, ein zweiter Wirt parallel, ein
   Commit dazwischen. Erst er zeigt, ob „neuer gewinnt" und die Eine-Wiederholung
   im Betrieb tragen; kein Test dieser Stufe misst zwei echte Wirte.
-- **Die `.mcp.json` der Wirte** muss ein Mensch auf `loomux mcp --channel local`
-  zeigen lassen. `loomux init` übernimmt das erst in Stufe 4.
+- ~~**Die `.mcp.json` der Wirte** muss ein Mensch auf `loomux mcp --channel local`
+  zeigen lassen. `loomux init` übernimmt das erst in Stufe 4.~~ Den Eintrag
+  schreibt seit 4a-2 `loomux init` (`internal/setup/mcpjson.go`); je Wirt läuft
+  das mit der Umstellung in 4e.

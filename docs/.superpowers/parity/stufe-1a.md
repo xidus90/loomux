@@ -16,7 +16,7 @@
 | hook-session-start | meldet wartende Läufe aus `.ultraloom/runs` | meldet sie nicht; warnt vor veraltetem Pilot-Binary | Flow-Migration ist Folgeprojekt | freigegeben 2026-09-15 |
 | `lint --root` | nicht vorhanden | neues Flag, ohne Flag wie bisher | Fallsuite braucht einen festen Projektort | freigegeben 2026-09-15 |
 | Shell-Schreibzugriff auf `.loomux/config.toml` | ulguard/brain guard: Bash und PowerShell ungeprüft, `cat >>`, `sed -i`, `tee`, `Set-Content`, `cp`/`mv` darauf gehen durch | eingebaute Befehlsregel verweigert Umleitung, In-place-Edit, schreibende und löschende Befehle/Cmdlets, Kopie auf das Manifest; Lesen bleibt erlaubt; kein aufgezeichneter Fall ändert sich | Befund 2026-09-19; AGENTS.md: das Manifest schreibt kein Agent | offen |
-| Antigravity `run_command` | brain guard: kein Schreibwerkzeug | Policy prüft es nicht | Argumentschlüssel ungemessen; Stufe 2 | freigegeben 2026-09-15 |
+| Antigravity `run_command` | brain guard: kein Schreibwerkzeug | Policy prüft es nicht | Argumentschlüssel ungemessen; Stufe 2. Überholt mit 4a-2: `run_command` (`CommandLine`, gemessen) läuft durch die Befehlsregeln (stufe-4a-2.md) | freigegeben 2026-09-15 |
 | `SRC_UB/pkg/gitenv/gitenv_test.go` | liest `vcs.py` | entfällt | kein Python im Produkt | freigegeben 2026-09-15 |
 | status, worktree link/unlink/remove | — | keine Fälle, umgezogene Tests | brauchen echte Worktrees und Junctions | freigegeben 2026-09-15 |
 | Mutationsrunde | — | in Stufe 1b | `dev mutants` entsteht dort | freigegeben 2026-09-15 |

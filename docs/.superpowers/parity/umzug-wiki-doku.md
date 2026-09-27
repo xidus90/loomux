@@ -69,8 +69,9 @@ in `docs/.superpowers/bench-ub/`. Loomux' eigene Pläne bleiben unvermischt.
 **B — die Kataloge.** Entschieden: Kataloge, Register, Audit und Protokoll
 ziehen nicht mit (siehe oben). Damit kollidiert nichts mehr, und vom
 ul-Bundle bleibt nichts übrig — es besteht nur aus diesen fünf Dateien.
-Offen bleibt allein `_schema.md`: es ist keine erzeugte Datei, sondern das
-Regelwerk des Bundles, und loomux braucht eines.
+~~Offen bleibt allein `_schema.md`: es ist keine erzeugte Datei, sondern das
+Regelwerk des Bundles, und loomux braucht eines.~~ Erledigt:
+`docs/wiki/_schema.md` ist das Regelwerk des Bundles.
 
 **Berichtigung der Spec:** sie nennt „`_identities.tsv` (10 und 1)". Beide
 Register enthalten nur die Kopfzeile. Die `doc_id`s in der Frontmatter der

@@ -951,11 +951,17 @@ freigegeben, 100 % Coverage je Funktion, Mutationsrunde mit dokumentierten
 ## Offen und vor dem Bau zu messen
 
 - Ob die VT-Verarbeitung der Windows-Konsole in Windows Terminal, conhost und
-  dem Terminal der Claude-App gleich wirkt (4a-1, vor dem Bau der Oberfläche).
-- Wie Antigravity Skills eines Projekts findet (4a-2).
-- Ob Antigravity `${LOCALAPPDATA}` im Hook-Befehl auflöst wie Claude Code
-  (4a-2). Wenn nicht, schreibt `init` für Antigravity die Form, die es
-  auflöst, und prüft beim Schreiben, dass die Datei dort liegt.
+  dem Terminal der Claude-App gleich wirkt (4a-1). Die Oberfläche ist ohne diese
+  Prüfung gebaut; sie bleibt ein Schritt des Menschen (`parity/stufe-4a-1.md`:
+  Pfeiltasten, `/`, ESC allein, Enter; Stand 2026-09-27).
+- ~~Wie Antigravity Skills eines Projekts findet (4a-2).~~ Gemessen am
+  2026-09-24 mit agy 1.2.8: unter `.agents/skills/<name>/SKILL.md`
+  (`parity/stufe-4a-2.md`, „Antigravity-Einträge“).
+- ~~Ob Antigravity `${LOCALAPPDATA}` im Hook-Befehl auflöst wie Claude Code
+  (4a-2).~~ Gemessen am 2026-09-24 mit agy 1.2.8: nein, agy führt Hooks über
+  `cmd.exe` aus; `init` schreibt `%LOCALAPPDATA%/loomux/bin/loomux.exe` ohne
+  Anführungszeichen und nur, wenn das installierte Binary dort liegt;
+  Durchstich am 2026-09-25 (`parity/stufe-4a-2.md`, „Antigravity-Einträge“).
 - Welches Arbeitsverzeichnis ein stdio-MCP-Server aus dem Nutzerbereich
   bekommt (erste Aufgabe des Plans von 4a-1).
 - Ob `qmd` nach geänderten Ignore-Mustern die Vektoren wiederverwendet (4e).

@@ -2,7 +2,7 @@
 
 **Stand:** 2026-09-19, umgesetzt (100 % Testabdeckung, Paritätsfälle 2b, vollständige Dokumentation). Rahmen:
 `2026-09-14-loomux-fusion-design.md`, Stufe 2; Geschwister:
-`2026-09-19-loomux-stufe-2a-design.md` (umgesetzt), 2c (offen). 2b hängt an
+`2026-09-19-loomux-stufe-2a-design.md` (umgesetzt), 2c (umgesetzt). 2b hängt an
 nichts aus 2a außer `child.Run` für `git log`.
 
 2b portiert `ultraloom commit-msg` (`src/ultraloom/commit/*.py`, 1.444 Zeilen

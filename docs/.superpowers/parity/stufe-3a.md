@@ -112,6 +112,18 @@ den Inhalt des Repos — der Grund, aus dem die Merge-Fälle geparkt waren, bis
 
 ## Auflagen an spätere Stufen
 
+**Nachtrag 2026-09-27:** `loomux migrate` fällt weg (Fusions-Spec, Nachtrag
+#19). Vier Auflagen unten hatten ihn als Träger und haben seitdem keinen: das
+Mitnehmen von `merge-events.done.tsv` und `qmd-collections.json` (die
+Checkliste von 4e vergleicht `maintenance/`, nennt `qmd-collections.json` aber
+nicht), die Deklarationen der read-only-Bereiche unter `.loomux/config.toml`,
+das Fegen der Asides nach einem erschlagenen Tausch (Möglichkeit 2 dort) und —
+ohne `migrate`, aber mit dem Umstieg — die Ratschläge `brain reindex` und
+`brain reconcile`. Wer sie übernimmt (die Checkliste von 4e, ein Pull Request
+vor ihr oder der Aufräum-Pull-Request, der die Rückfälle entfernt), entscheidet
+der Nutzer; bis dahin gelten die Texte unten mit „`migrate`“ als dem Schritt,
+der vor dem Wegfall des Rückfalls liegen muss.
+
 ### Umstieg: `project/loomux` braucht ein `[index]`, bevor der erste echte `reindex` läuft (S3)
 
 **Ruling 2026-09-22.** `.loomux/config.toml` dieses Repos hat kein `[index]`,

@@ -208,3 +208,5 @@ Die Umsetzung schließt an die Fusions-Spec und die Code-Graph-Spec an:
 - **Graph-Rendering-Performance**: Benchmarking der D3-Force-Engine bei Repositories mit > 10.000 Symbolen (Evaluierung des Wechsels zu WebGL/Canvas ab Schwellenwert).
 - **Skill-Host-Kompatibilität**: Testen der generierten Skill-Markdown-Dateien auf allen Ziel-Hosts (Claude Code, Antigravity, Cursor) auf identische Regelauslegung.
 - **Kanban-Sync-Robustheit**: Sicherstellen, dass das Tailing des Journals `.loomux/state/journal/events.jsonl` auch bei intensiven Dateioperationen und parallelen Subagenten absolut verzugsfrei bleibt.
+
+**Stand 2026-09-27:** alle vier offen, W1 ist nicht gebaut. Das Journal `.loomux/state/journal/events.jsonl` gibt es noch nicht; heute existiert nur `maintenance/merge-events.tsv`.

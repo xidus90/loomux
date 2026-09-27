@@ -1,7 +1,7 @@
 # Spezifikation: Benchmark-Persistierung & Templates (Detailseiten & Matrix)
 
 - **Datum:** 2026-09-18
-- **Status:** Entwurf
+- **Status:** Umgesetzt; seit `6369f93b` als `loomux dev bench repos --save` (§1, §4.3 und §5 nennen noch `loomux dev bench --save`).
 - **Arbeitszweig:** `open-source-matrix`
 
 ---

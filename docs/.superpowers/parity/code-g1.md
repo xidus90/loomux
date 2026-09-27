@@ -123,3 +123,7 @@ harmlos, weil kein Erzeuger außerhalb der Tests einen Graphen schreibt; sobald
   Ende ist nur auf der Zielseite einer `imports`-Kante vorgesehen; eine
   erfundene Quelle taucht in `blast` trotzdem als Treffer mit `Node == nil` auf
   und ist dort von einem echten unaufgelösten Import nicht zu unterscheiden.
+
+**Erledigt:** `model.Validate` weist beide Fälle ab
+(`internal/code/model/decode.go`), die kalte Dangling-Zahl steht in
+`benchmarks.md` (6,35 ms gegen 3,87 s), CLI und Doku kamen mit G2a.

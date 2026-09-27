@@ -292,13 +292,18 @@ Für G2b und G4, damit sie es nicht suchen müssen:
   ist eine Datei mitten in einer Bearbeitung der Normalfall, und dort ließe
   dieses Verhalten sowohl `build` als auch `check` an ihr scheitern. Die Spec
   schweigt dazu. G4 entscheidet bewusst — überspringen und zählen, oder
-  abbrechen wie hier.
+  abbrechen wie hier. **Entschieden in G5a:** Parse-Fehler werden je Sprache
+  gezählt und im Baubericht genannt, der Bau bricht nicht ab
+  (`internal/cli/graph.go`).
 - **964 doppelte Kantentupel** im echten Graphen dieses Repos (gleiche Quelle,
   Relation, Ziel und Konfidenz, eine je Aufrufstelle). Das ist das Verhalten der
   Referenz und die Spec sagt nichts dazu, aber **G2b erbt es**: `pagerank`
   gewichtet einen mehrfach vorkommenden Aufruf entsprechend stärker, und
   `blast` liefert denselben Treffer mehrfach. Auch das ist dort zu entscheiden
-  und nicht zu übernehmen.
+  und nicht zu übernehmen. **Für `blast` entschieden** in der G4-Delta-Spec
+  (§3.1, Zeile „doppelte Kante zum selben Nachbarn“): auf Tiefe 1 zwei
+  Treffer, ab Tiefe > 1 einer (`internal/code/blast/edgewalk.go`). Die
+  Mehrfachgewichtung in `pagerank` ist damit nicht entschieden.
 
 Beide letzten Punkte stehen hier, weil sie sonst nur im Ausführungs-Ledger
 stünden, und das ist Wegwerf-Arbeitsverzeichnis: eine Verfügung, die mit dem

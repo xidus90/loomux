@@ -255,15 +255,15 @@ beide keine Abhängigkeit einziehen; die Messung gehört zu G3, wo
 | Stufe | Stand | Inhalt |
 |---|---|---|
 | **G1** | ✅ 2026-09-17 | Paket `internal/graph/model`, `pagerank`, `blast` in Pure Go. 100 % Unit-Tests mit deterministischer Tie-Ordnung. Inittrace-Messung mit `go-sdk`. |
-| **G2** | 🔶 G2a ✅ 2026-09-18, G2b offen | Nativer Go-Extraktor (`extract/golang`), Frische-Check (`freshness`), Speicherung unter `.loomux/state/graph/`. CLI-Befehle `loomux graph build` und `loomux graph check`. |
-| **G3** | offen | MCP-Integration: Verschachteltes Gateway in `internal/serve`, Handler `internal/serve/graph/`, Kanaltrennung mit Privacy-Schutz. Bereitstellung der 6 MCP-Tools: `graph_find_code`, `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`, `graph_check_freshness`. |
-| **G4** | offen | Vollständige CLI-Palette: `loomux graph ask`, `callers`, `blast`, `grep`, `skeleton`, `map`, `stats`. Post-Edit-Hook-Anbindung (informativer Blast-Radius). Verknüpfung von Code-Symbolen mit Second-Brain-Seiten (`internal/brain/wiki`). |
+| **G2** | ✅ G2a 2026-09-18, G2b ✅ | Nativer Go-Extraktor (`extract/golang`), Frische-Check (`freshness`), Speicherung unter `.loomux/state/graph/`. CLI-Befehle `loomux graph build` und `loomux graph check`. |
+| **G3** | ✅ 2026-09-19 | MCP-Integration: Verschachteltes Gateway in `internal/serve`, Handler `internal/serve/graph/`, Kanaltrennung mit Privacy-Schutz. Bereitstellung der 6 MCP-Tools: `graph_find_code`, `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map`, `graph_check_freshness`. |
+| **G4** | 🔶 G4a ✅ 2026-09-22, G4b ✅ 2026-09-23, G4c offen (Stop-Hook mit Blast-Logik) | Vollständige CLI-Palette: `loomux graph ask`, `callers`, `blast`, `grep`, `skeleton`, `map`, `stats`. Post-Edit-Hook-Anbindung (informativer Blast-Radius). Verknüpfung von Code-Symbolen mit Second-Brain-Seiten (`internal/brain/wiki`). |
 | **G5** | offen | Multi-Language-Support: WASM-Tree-sitter via `wazero` für TypeScript und Python. Graph-Visualisierung `loomux graph viz` angebunden an `loomux/web`. **Überholt** durch das G5-Delta (2026-09-26): `gotreesitter` statt `wazero`, G5a–d, `graph viz` bei W3. |
 
 ---
 
 ## 11. Offene Messpunkte vor dem Bau
 
-- **Inittrace mit `go-sdk` und `wazero`**: Sobald Stufe 1b das Go-MCP-SDK einzieht, misst `GODEBUG=inittrace=1 loomux --version` die Auswirkungen auf den Startboden (32 ms).
-- **WASI-Kompilierung von Tree-sitter**: Verifikation, dass `tree-sitter-typescript` unter `wasi-sdk` ohne JS-Host-Imports als sauberes Standalone-WASM läuft.
-- **Speicherbedarf von `wiring.json`**: Vermessung der Graphgröße auf echten Repositories und Validierung des Pro-Datei-Karten-Ansatzes.
+- ~~**Inittrace mit `go-sdk` und `wazero`**: Sobald Stufe 1b das Go-MCP-SDK einzieht, misst `GODEBUG=inittrace=1 loomux --version` die Auswirkungen auf den Startboden (32 ms).~~ Für `go-sdk` gemessen am 2026-09-17 (docs/*/benchmarks.md, „The Start Floor With the MCP SDK Linked“): warm 7,4 → 7,6 ms. `wazero` entfällt mit dem G5-Delta.
+- ~~**WASI-Kompilierung von Tree-sitter**: Verifikation, dass `tree-sitter-typescript` unter `wasi-sdk` ohne JS-Host-Imports als sauberes Standalone-WASM läuft.~~ Hinfällig durch das G5-Delta (2026-09-26): `gotreesitter` statt `wazero`.
+- **Speicherbedarf von `wiring.json`**: Vermessung der Graphgröße auf echten Repositories und Validierung des Pro-Datei-Karten-Ansatzes. Graphgröße gemessen am 2026-09-23 (docs/*/benchmarks.md, „Post-edit on a .go file, with the blast monitor“): 7,07 MiB auf loomux, Decode ~4 ms/MiB, Monitor über 100 ms ab ~25 MiB. Pro-Datei-Karten offen, siehe G4-Delta §8.

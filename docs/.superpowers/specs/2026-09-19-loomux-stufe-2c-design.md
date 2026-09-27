@@ -1,8 +1,8 @@
 # Stufe 2c: `stop`, `subagent-start`, `subagent-stop`, Antigravity-Adapter
 
 **Stand:** 2026-09-22, umgesetzt für Claude Code, auch der Eintrag in der
-eingecheckten `.claude/settings.json` (Task 16). Offen ist der
-Antigravity-Adapter (Tasks 14 und 15 des Plans). Was bei Planung und Umsetzung
+eingecheckten `.claude/settings.json` (Task 16), und für Antigravity
+(Tasks 14 und 15, Nachtrag 21). Was bei Planung und Umsetzung
 vom Entwurf abwich, steht unter „Nachträge“ am Ende; wo Text und Nachtrag sich
 widersprechen, gilt der Nachtrag. Rahmen:
 `2026-09-14-loomux-fusion-design.md`, Stufe 2, Teilstufe 2c; Vorgänger
@@ -47,7 +47,8 @@ Gelesen und gemessen am 2026-09-19.
 - **Hooks eines Ereignisses laufen parallel.** Zwei Subagenten, die in einer
   Nachricht starten, schreiben gleichzeitig. Python hielt alle Snapshots in der
   einen Sitzungsdatei und verlor dabei einen.
-- **Antigravity ist ungemessen.** Nie wurde eine agy-Nutzlast für `Stop` oder
+- **Antigravity ist ungemessen.** (Zum Entwurf; gemessen am 2026-09-22 an agy
+  1.2.2, Nachtrag 21, und am 2026-09-25 an 1.2.11, `parity/stufe-4a-2.md`.) Nie wurde eine agy-Nutzlast für `Stop` oder
   `PreInvocation` mitgeschnitten; im Print-Modus feuern beide nicht
   (`specs-ul/2026-09-10-antigravity-hook-messung.md`). Einen `SubagentStop` hat
   agy nicht. Die Aussage „sofort baubar“ der Fusions-Spec gilt nur für den
@@ -106,7 +107,8 @@ Gelesen und gemessen am 2026-09-19.
   - `Forget` entfernt auch `<session>/` mit `RemoveAll`. `Others` überspringt
     Verzeichnisse schon (`sessions.go:48`).
   - Die Paketdoku („die Python-Seite schreibt“) wird berichtigt.
-- **`internal/verify`**: eingebautes Profil `stop` = `precommit`; ein Profil
+- **`internal/verify`**: eingebautes Profil `stop` = `precommit` ohne `graph` (die Graph-Lane liest
+  den Index, der am Rundenende leer ist); ein Profil
   darf `stop` heißen, es ist kein reservierter Name. Der Stack `wiki` hat im
   Check-Scope die Lane `lint`, die `hooks` als `Fn`-Job einsetzt.
 - **`internal/gitwork`**: `ContentTree(root)` (Fingerabdruck), `LsRemote(root,
@@ -492,7 +494,7 @@ und `internal/gitwork`; jede Abweichung gegen Python steht mit Begründung in
     schreibt den neuen Snapshot neben einen geparkten Befund, statt die Datei
     zu ersetzen; `subagent-stop` hängt seine Zeilen hinten an, ältester Lauf
     zuerst, ohne Entdoppelung; `stop` räumt genau die zugestellten Zeilen weg,
-    entschieden gegen ein erneutes Lesen unmittelbar vor dem Schreiben, und
+    liest die Agent-Datei dafür unmittelbar vor dem Schreiben erneut, und
     lässt eine Datei mit Snapshot stehen. Grund: ein Controller, der einen
     Subagenten unter derselben ID fortsetzt, darf nicht verlieren, was dessen
     letzter Lauf an `origin` getan hat. Ein Schreiben genau zwischen erneutem
@@ -550,7 +552,7 @@ und `internal/gitwork`; jede Abweichung gegen Python steht mit Begründung in
     Die Nachmessung an `agy` 1.2.2 beantwortete die vier Fragen: Exit 2 hält in
     Antigravity keine Runde an (nur Exit 0 mit `{"decision":"continue"}`);
     `PreInvocation` unterstützt kein `additionalContext`, sondern `injectSteps`
-    (`writeAntigravityContext` bleibt `ErrNoAdapter`); `PostToolUse` liefert keine
+    (`writeAntigravityContext` blieb zunächst `ErrNoAdapter`; seit `ad88ff1b` schreibt es `injectSteps`); `PostToolUse` liefert keine
     `agent_id`, daher verweigern `subagent-start` und `-stop` mit Exit 1
     (AgentID bleibt leer); Frist für Command-Hooks ist 30 s. `readAntigravity`
     liegt in `internal/hosts/antigravity.go`, Eintrag 16 der Abweichungsliste

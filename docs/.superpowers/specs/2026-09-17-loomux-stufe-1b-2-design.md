@@ -1,7 +1,7 @@
 # Stufe 1b-2: `serve`, MCP über Streamable HTTP, stdio-Brücke
 
-**Stand:** 2026-09-17. Vorgänger: `2026-09-15-loomux-stufe-1b-1-design.md` (die fünf
-Datenbefehle, abgeschlossen). Nachfolger: 1b-3 (Wiki- und Doku-Umzug).
+**Stand:** 2026-09-17, umgesetzt und abgeschlossen 2026-09-18 (Akte `parity/stufe-1b-2.md`). Vorgänger: `2026-09-15-loomux-stufe-1b-1-design.md` (die fünf
+Datenbefehle, abgeschlossen). Nachfolger: 1b-3 (Wiki- und Doku-Umzug, umgesetzt).
 Rahmen: `2026-09-14-loomux-fusion-design.md`, Abschnitt `loomux serve`.
 
 1b-1 hat die fünf lesenden Befehle gebaut und mit `brainRun` einen Einstieg

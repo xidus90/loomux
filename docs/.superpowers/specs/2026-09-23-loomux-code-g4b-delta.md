@@ -215,7 +215,7 @@ letzten 50 Commits dieses Repos nach (je Commit `<c>~1...<c>`, gegen den Graphen
 Lane nach `graph-fresh` sieht; die Messung zeigte, dass der Graph des Elternstands neue Dateien nicht
 kennt und die Tests desselben Commits nicht enthält) und meldet die
 Rot-Quote für N = 3, 5 und 10, mit und ohne Testaufrufer im inDegree. Mit diesen Zahlen entscheidet
-der Nutzer Schwelle und Zählweise; bis dahin gilt E2 als vorläufig. Die Messung geht in die
+der Nutzer Schwelle und Zählweise; ~~bis dahin gilt E2 als vorläufig~~ (entschieden, siehe den nächsten Satz). Die Messung geht in die
 Benchmarks. Entschieden am 2026-09-23 nach der Messung in docs/*/benchmarks.md: N = 5, alle Aufrufer (--skip-test-callers änderte nichts).
 
 **Kosten.** Ein Neubau je Commit mit Drift, dazu der Blast und höchstens zwei git-Aufrufe im Plan
