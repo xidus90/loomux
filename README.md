@@ -4,7 +4,7 @@
 
 **The unified autonomous developer runtime in a single Go binary: Hooks, Skills, Code Graph, Second Brain & LLM OS.**
 
-Loomux gives AI coding agents (Claude Code, Antigravity, Cursor, Codex) deep codebase understanding, deterministic graph retrieval, impenetrable write barriers, and automated verification loops — with zero external runtime dependencies.
+Loomux gives AI coding agents (hooks for Claude Code and Antigravity today; Cursor only as an MCP client; Codex is not wired yet) deep codebase understanding, deterministic graph retrieval, impenetrable write barriers, and automated verification loops — with zero external runtime dependencies.
 
 - **Zero Python. Zero Node.js.** A single, self-contained Go binary (`loomux.exe` / `loomux`).
 - **Sub-35ms cold start.** Lightweight execution that fits strictly within agent tool-call budgets.
@@ -29,7 +29,7 @@ flowchart TD
         Serve["loomux serve<br/><b>MCP gateway</b>"]
     end
 
-    Agents["Coding agents<br/>(Claude Code / Antigravity / Cursor)"]
+    Agents["Coding agents<br/>(Claude Code / Antigravity)"]
     Human["Developer / team"]
 
     Agents <--> |"hooks: stdin, exit code"| P1
@@ -153,7 +153,7 @@ What loomux will gain beyond the migration. *Priority* is the same order the
 migration plan uses, set in the
 [fusion spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
 under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
-4c-1 to 4e hold priority 3.
+4a-1 to 4e hold priority 3.
 
 ### Coming
 
@@ -320,9 +320,9 @@ Exhaustive guides and technical manuals are organized under [`docs/en/`](docs/en
 
 | Guide | Description |
 |---|---|
-| 🚀 **[Getting Started](docs/en/getting-started.md)** | Installation, 3-minute quickstart, and agent harness wiring (Claude Code, Antigravity, Cursor). |
+| 🚀 **[Getting Started](docs/en/getting-started.md)** | Installation, 3-minute quickstart, and agent harness wiring (hooks for Claude Code and Antigravity, MCP for Cursor). |
 | 🏛️ **[Architecture & Concepts](docs/en/architecture.md)** | Deep dive into Andrej Karpathy's LLM OS, Google Knowledge Items (KI), Graft AST GraphRank, and the Write Barrier Kernel. |
-| ⚙️ **[Configuration Reference](docs/en/configuration.md)** | Complete reference for `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
+| ⚙️ **[Configuration Reference](docs/en/configuration.md)** | Complete reference for `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`). |
 | 📖 **[CLI Reference Manual](docs/en/cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |
 | 🪝 **[Hook Lifecycle & Integration](docs/en/hooks.md)** | Technical specification of the 4-phase hook lifecycle, host payload formats, and decoupled SSE event streaming. |
 | 🗺️ **[Migration Plan](docs/en/migration.md)** | Every migration stage and every capability carried over or built during the fusion: origin, status, dependencies and priority. What comes after it is on the [roadmap](#roadmap). |

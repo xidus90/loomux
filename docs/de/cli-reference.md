@@ -27,6 +27,7 @@ endet mit `0`, seine Meldung auf stderr.
 - `--root <pfad>`: Explizite Angabe der Projektwurzel. Wird dieses Flag weggelassen, wandert Loomux im Verzeichnisbaum aufwärts, bis es die erste `.loomux/config.toml` findet.
 - `LOOMUX_STATE_DIR`: Überschreibt das globale Zustandsverzeichnis (Standard: `%LOCALAPPDATA%\loomux` unter Windows, `~/.local/state/loomux` unter POSIX).
 - `LOOMUX_LEGACY_BRAIN_DIR`: Das Zustandsverzeichnis von ultra-brain, als Rückfall für brain-Artefakte gelesen und nie beschrieben (siehe Abschnitt 7).
+- `loomux version` (auch `--version`, `-v`): gibt `loomux <version>` auf `stdout` aus und endet mit `0`; ein Entwicklungsbuild nennt `0.0.0-dev`.
 
 ---
 
@@ -155,7 +156,7 @@ Prüft eine Git-Commit-Nachricht auf Sprache und Einhaltung der Formatregeln ode
 Überprüft Go-Quelldateien auf Formatierungskonformität, ohne sie zu verändern.
 
 - **Argumente**: Optionale Verzeichnisse oder Dateipfade (Standard: Arbeitsverzeichnis).
-- **Exit-Codes**: `0` (Korrekt formatiert), `1` (Unformatierte Dateien auf `stdout` gelistet).
+- **Exit-Codes**: `0` (Korrekt formatiert), `1` (Unformatierte Dateien auf `stdout` gelistet, oder ein Pfad, der sich nicht lesen lässt, gemeldet als `loomux check gofmt: <grund>` auf `stderr`).
 
 ### `loomux check graph-fresh [--root <pfad>] [--wait <dauer>]`
 Die erste Hälfte der Graph-Lane: bringt den Graphen auf der Platte auf den
@@ -202,7 +203,7 @@ Aufrufern keinen geänderten Test hat, der ihn erreicht.
 
 ## 3. Agenten-Harness-Hooks (`loomux hook`)
 
-Hook-Einstiegspunkte werden von Coding-Agenten synchron bei Werkzeugaufrufen gestartet.
+Hook-Einstiegspunkte werden von Coding-Agenten synchron bei Werkzeugaufrufen gestartet. Jedes Ereignis außer `pre-tool-use` endet ohne Wirkung mit `0`, wenn `[modules] hooks = false` gilt, und mit `1`, wenn kein `--root` angegeben ist und aufwärts keine `.loomux/config.toml` gefunden wird. Ein unbekanntes Ereignis endet auf jedem Host mit `2`.
 
 ```bash
 loomux hook <event> --host <claude|antigravity|codex> [--root <pfad>]
@@ -397,12 +398,10 @@ loomux status
 ```
 - **Aliase**: `loomux explain`, `loomux doctor`.
 - **Ausgabe-Details**:
-  - Pfad der Projektwurzel und deklarierte Bereiche.
-  - Aktive Agenten-Harnesses (`.claude/`, `.agents/`, `.cursor/`).
-  - Status der Schreibschranke und Anzahl der aktiven Policy-Regeln.
+  - Pfad der Projektwurzel, erkannte Stacks und ob das Wiki-Bündel aktiv ist (mit seinem Verzeichnis).
   - Die Lanes, die der post-edit-Hook je aktivem Stack fährt: das Profil `edit`, wie `[verify]` und die Presets es auslegen, jede mit ihrer Herkunft, und welche ihrer Werkzeuge auf dem `PATH` fehlen.
   - Den einzutragenden `Stop`-Eintrag (`loomux hook stop`, Profil `stop`, das Wiki-Bündel als `lint/wiki`), und für jedes der sechs Ereignisse `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, `SubagentStart` und `SubagentStop`, ob `.claude/settings.json` seinen `loomux hook` ruft (`[OK]`) oder nicht (`[INFO]`), dazu Alt-Hooks, die er ersetzt.
-- **Exit-Codes**: `0` (Bereit), `1` (Konfigurationsfehler).
+- **Exit-Codes**: `0` (Bericht ausgegeben, auch wenn er einen Konfigurationsfehler nennt), `1` (unbekanntes Flag).
 
 ---
 
@@ -456,51 +455,60 @@ Sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen
 - **Ausgabe**: Rangliste der Treffer im Format:
   `N. <id>  <pfad>:<span-oder-zeile>  (<score> lex <lexical> graph <graph>)`
   gefolgt von der Signatur und bei `--source` dem mit `|` eingerückten Quelltextblock. Passt kein Symbol zur Anfrage, wird ein Hinweis ausgegeben und mit Code 0 beendet.
-- **Exit-Codes**: `0` bei Erfolg (auch wenn keine Symbole matchen); `1` bei Fehlern (noch kein Graph, unlesbarer Graph, fehlerhafter Neubau); `2` bei Aufruffehlern (fehlende Anfrage, negatives Limit).
+- **Exit-Codes**: `0` bei Erfolg (auch wenn keine Symbole matchen; ein `--limit` von null oder darunter fällt auf `8` zurück); `1` bei Fehlern (noch kein Graph, unlesbarer Graph, fehlerhafter Neubau, Syntaxfehler in einer Datei beim Neubau); `2` bei Aufruffehlern (keine oder mehr als eine Anfrage, unbekanntes Flag).
 
-### `loomux graph callers <symbol> [--direction in|out] [-d <tiefe>] [--in <präfix>] [--json]`
+### `loomux graph callers <symbol> [--root <pfad>] [--direction in|out] [-d <tiefe>] [--in <präfix>] [--no-refresh] [--json]`
 Zeigt, wer ein Symbol aufruft, importiert oder referenziert (`--direction in`, Standard), oder was das Symbol selbst aufruft (`--direction out`).
 
 - **Flags**:
+  - `--root <pfad>`: Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
+  - `--no-refresh`: Antwortet aus dem Graphen auf der Platte, baut nie neu.
   - `--direction <in|out>`: Verfolgt eingehende Aufrufer (`in`) oder ausgehende Aufrufe (`out`).
-  - `-d <tiefe>`: Transitive Tiefe (Standard `1`; `-d all` oder `-d full` für die vollständige transitive Hülle).
+  - `-d`, `--depth <tiefe>`: Transitive Tiefe (Standard `1`; `-d all` oder `-d full` für die vollständige transitive Hülle).
   - `--in <präfix>`: Filtert Symbole vor der Auflösung nach Pfadpräfix.
   - Jeder direkte Treffer (Tiefe 1) trägt die erste Zeile im Span des Aufrufers, die den Aufgerufenen nennt. Bei `--direction out` liegt diese Zeile in der Datei des Startsymbols und wird mit ihrem Pfad ausgegeben.
   - `--json`: Gibt maschinenlesbares JSON aus (`query.CallersAnswer`).
 - **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem/unlesbarem Graph oder unbekanntem Symbol; `2` bei Aufruffehlern.
 
-### `loomux graph skeleton <datei> [--json]`
+### `loomux graph skeleton <datei> [--root <pfad>] [--no-refresh] [--json]`
 Gibt alle Funktions-, Typ-, Interface- und Methodensignaturen sowie Zeilenspannen einer Datei ohne Rümpfe aus (~10x Token-Ersparnis).
 
 - **Flags**:
+  - `--root <pfad>`: Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
+  - `--no-refresh`: Antwortet aus dem Graphen auf der Platte, baut nie neu.
   - `--json`: Gibt maschinenlesbares JSON aus (`skeleton.FileSkeleton`).
 - **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem Graph oder Datei nicht im Graph; `2` bei Aufruffehlern.
 
-### `loomux graph grep <muster> [-i] [--fixed] [--in <präfix>] [--max-hits <n>] [--json]`
+### `loomux graph grep <muster> [--root <pfad>] [-i] [--fixed] [--in <präfix>] [--max-hits <n>] [--no-refresh] [--json]`
 Regex-Suche über indizierte Dateien, gruppiert nach umschließendem Symbol und sortiert nach Kopplungsgrad (`inDegree`).
 
 - **Flags**:
-  - `-i`: Regex-Suche ohne Beachtung von Groß-/Kleinschreibung.
+  - `--root <pfad>`: Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
+  - `--no-refresh`: Antwortet aus dem Graphen auf der Platte, baut nie neu.
+  - `-i`, `--ignore-case`: Regex-Suche ohne Beachtung von Groß-/Kleinschreibung.
   - `--fixed`: Behandelt das Muster als reinen Text (ohne Regex-Syntax).
   - `--in <präfix>`: Begrenzt die Suche auf Dateien unterhalb des Pfadpräfix.
   - `--max-hits <n>`: Maximale Anzahl von Zeilentreffern (Standard `300`); weitere Treffer werden nur gezählt.
   - `--json`: Gibt maschinenlesbares JSON aus (`grep.Result`).
 - **Exit-Codes**: `0` bei Erfolg (auch bei 0 Treffern); `1` bei fehlendem/unlesbarem Graph oder ungültigem Regex; `2` bei Aufruffehlern.
 
-### `loomux graph map [--max-dirs <n>] [--hubs-per-dir <n>] [--hotspots <n>] [--json]`
+### `loomux graph map [--root <pfad>] [--max-dirs <n>] [--hubs-per-dir <n>] [--hotspots <n>] [--no-refresh] [--json]`
 Zeigt token-budgetierte Verzeichnis-Cluster, lokale Hubs und globale Codebasis-Hotspots gerankt nach Kanten-Kopplung.
 
 - **Flags**:
+  - `--root <pfad>`: Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
+  - `--no-refresh`: Antwortet aus dem Graphen auf der Platte, baut nie neu.
   - `--max-dirs <n>`: Maximale Anzahl von Verzeichnis-Clustern (Standard `16`).
   - `--hubs-per-dir <n>`: Höchstzahl der Hubs je Verzeichnis (Standard `3`).
   - `--hotspots <n>`: Höchstzahl der Hotspots im ganzen Repository (Standard `12`).
   - `--json`: Gibt maschinenlesbares JSON aus (`repomap.RepoMap`).
 - **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem oder unlesbarem Graph; `2` bei Aufruffehlern.
 
-### `loomux graph stats [--json]`
+### `loomux graph stats [--root <pfad>] [--json]`
 Gibt strukturelle Codebasis-Kennzahlen aus `.loomux/state/graph/wiring.json` aus: Knotenzahl, Kantenzahl gruppiert nach Relation, indizierte Dateien, Sprachen und Dateigröße.
 
 - **Flags**:
+  - `--root <pfad>`: Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
   - `--json`: Gibt maschinenlesbares JSON aus (`query.StatsAnswer`).
 - **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem oder unlesbarem Graph; `2` bei Aufruffehlern.
 
@@ -534,7 +542,7 @@ Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.
 
 ## 7. Second Brain & Wiki (`loomux brain`)
 
-Die fünf Datenbefehle lesen die Bereiche der einen Registry (`registry.toml` in `LOOMUX_STATE_DIR` oder dessen Plattformvorgabe) und antworten wie `brain-mcp` von ultra-brain; ein aufgezeichneter Fallkorpus (`testdata/cases/1b-1`) hält sie daran. Die Artefakte eines schreibgeschützten Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und der Reconcile-Stempel werden zuerst aus dem Zustandsverzeichnis von loomux gelesen, wohin Stufe 3a sie schreibt, und aus dem Zustandsverzeichnis von ultra-brain, solange am neuen Ort nichts liegt: `LOOMUX_LEGACY_BRAIN_DIR`, Standard `%LOCALAPPDATA%\brain` unter Windows und `$XDG_STATE_HOME/brain` oder `~/.local/state/brain` unter POSIX. Es entscheidet das ganze Bereichsverzeichnis, nie eine einzelne Datei; `loomux migrate` (Stufe 4) zieht den Rest um. Bis Stufe 4 wird ein Bereichsverzeichnis, dessen `.loomux/config.toml` fehlt oder keine `[area]`-Tabelle trägt, über `.ultra-brain/config.toml` oder `.brain.toml` gelesen.
+Die fünf Datenbefehle lesen die Bereiche der einen Registry (`registry.toml` in `LOOMUX_STATE_DIR` oder dessen Plattformvorgabe) und antworten wie `brain-mcp` von ultra-brain; ein aufgezeichneter Fallkorpus (`testdata/cases/1b-1`) hält sie daran. Die Artefakte eines schreibgeschützten Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und der Reconcile-Stempel werden zuerst aus dem Zustandsverzeichnis von loomux gelesen, wohin Stufe 3a sie schreibt, und aus dem Zustandsverzeichnis von ultra-brain, solange am neuen Ort nichts liegt: `LOOMUX_LEGACY_BRAIN_DIR`, Standard `%LOCALAPPDATA%\brain` unter Windows und `$XDG_STATE_HOME/brain` oder `~/.local/state/brain` unter POSIX. Es entscheidet das ganze Bereichsverzeichnis, nie eine einzelne Datei; den Rest kopiert ein Mensch beim Abgleich des Maschinenzustands in Stufe 4e, danach entfernt ein Aufräum-Pull-Request den Rückfall. Bis dahin wird ein Bereichsverzeichnis, dessen `.loomux/config.toml` fehlt oder keine `[area]`-Tabelle trägt, über `.ultra-brain/config.toml` oder `.brain.toml` gelesen.
 
 - **Kanal**: Jeder Befehl nimmt `--channel local|cloud` (Standard `local`). Ein Bereich mit `[privacy] mode = "local_only"` existiert im Kanal `cloud` nicht; `[privacy] never`-Globs gelten in jedem Kanal.
 - **Usage-Fehler** (Exit `2`): die Usage-Zeile, dann `loomux brain <befehl>: error: <grund>` bei fehlendem Argument, ungültiger Wahl oder `-n` kleiner 1, und `loomux brain: error: <grund>`, wenn der Befehl fehlt oder unbekannt ist oder Argumente übrig bleiben.
@@ -595,6 +603,13 @@ Ohne Datei der Lint über die registrierten Bereiche nach den zwölf Regeln von 
 - **Regeln**, in der Reihenfolge der Ausgabe: `broken-frontmatter`/`missing-type`, `no-sources`, `orphan`, `unlisted-area`, `dead-link`, `outside-area` (Warnung), `wrong-direction`, `conflict-count`, `untouched` (Warnung), `stale`, `implemented-without-commit`, `long-planned` (Warnung). Die letzten beiden nur in Bereichen der Familie `project/`; `unlisted-area` nur im Wegweiser.
 - **Weigerungen** (Exit `1`, `error: <grund>`, nichts auf `stdout`): ein unbekannter Scope, ein Bereich ohne Wiki-Pfad, ein Wiki-Pfad, der kein Verzeichnis ist (``… run `loomux wiki init --scope <scope>` first``, auch im Lauf über alle), eine Registry, die sich nicht lesen lässt. Eine Erklärung, die sich nicht lesen lässt, beendet den Lauf dort, wo er steht.
 - **Exit-Codes**: `0` ohne Fehler-Befund, auch mit Warnungen; `1` mit mindestens einem Fehler-Befund oder einer Weigerung; `2` bei einem Usage-Fehler.
+
+#### `loomux wiki-gate [--root <pfad>]`
+Das Wiki-Tor eines Projekts mit aktivem Wiki-Bündel. Es meldet `wiki-drift`, wenn `git status` geänderten Code zeigt, im Wiki aber nichts geändert ist, und jeden Fehler-Befund des Bündel-Lints als `wiki-lint:<regel>`. Ein Projekt ohne Wiki-Bündel besteht.
+
+- **Flags**: `--root <pfad>` — Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
+- **Ausgabe**: `OK: Wiki Gate passed. …` auf `stdout`, oder die Verstöße als `  • [<name>] <meldung>` auf `stderr`, gefolgt von `Found <n> violation(s).`
+- **Exit-Codes**: `0` ohne Verstoß; `1` mit mindestens einem Verstoß, oder wenn sich das Arbeitsverzeichnis nicht lesen lässt; `2` bei einem unbekannten Flag.
 
 #### `loomux wiki init --scope <scope>`
 Legt das Gerüst des Wiki-Bündels eines Bereichs an (`_schema.md`, `index.md`, `log.md`, `audit.md`, `_identities.tsv`) und nennt jede geschriebene Datei. Eine vorhandene Datei bleibt, wie sie ist. Exit `1` bei einem unbekannten Scope, einem Bereich ohne Wiki-Pfad oder einem schreibgeschützten Bereich.
@@ -908,15 +923,18 @@ gemessen; bis dahin kann ein Wirt `loomux` über den `PATH` von Hand nennen.
 ## 9. Entwickler-Prüftore (`loomux dev`)
 
 ### `loomux dev mutants <paket>... [--only <name>] [--family a1|a2|a3|a4] [--workers <n>]`
-Mutiert die Go-Entscheidungen jedes Pakets und meldet, welche Mutanten seine Testsuite nicht bemerkt — ein Port von ultra-brains `tools/go_mutants.py`.
+Mutiert die Go-Entscheidungen jedes Pakets und meldet, welche Mutanten seine Testsuite nicht bemerkt.
 
 - **Familien**: `a1` die ganze `if`-Bedingung als `true` und als `false`; `a2` jeder Operand eines `&&` oder `||` auf oberster Ebene für sich; `a3` jeder Vergleichsoperator gekippt (`==`/`!=`, jede Ordnung gegen ihren Nachbarn), nicht in Kommentaren oder Zeichenketten; `a4` die Bedingung negiert. `for`-Bedingungen werden nie mutiert.
 - **Mechanik**: Jeder Mutant erreicht `go test -overlay <json> -count=1 -failfast -timeout 60s ./<paket>/` über ein Overlay in einem temporären Verzeichnis; der Arbeitsbaum wird nie beschrieben. Jedes Overlay-Verzeichnis wird nach seinem Lauf entfernt, auch nach einem Fehler oder Strg+C. `--workers` fährt so viele Läufe gleichzeitig (Vorgabe: die Hälfte der Prozessoren, mindestens 1). `--only` behält Dateien, deren Name den Text enthält.
 - **Bericht**: je Mutant eine Zeile — `killed`, `SURVIVED` oder `no mutant` (kompiliert nicht oder ändert nichts) — dann die Summen und die Überlebenden. Ein Lauf, der die Zeitgrenze reißt, gilt als getötet.
 - **Exit-Codes**: `0` nach einer vollständigen Runde, auch mit Überlebenden; `2` bei einem Usage-Fehler, einem Paket ohne Quelldateien oder einer Suite, die vor dem ersten Mutanten nicht grün ist; `1`, wenn ein Lauf nicht gestartet werden kann oder die Runde mit Strg+C abgebrochen wird.
 
-### `loomux dev swap-binary --dir <bin>`
+### `loomux dev swap-binary [--dir <verz>]`
 Tauscht das laufende `loomux.exe`-Binary atomar gegen `loomux.new.exe` aus (löst Windows Dateisperren-Konflikte). Das abgelöste bleibt als `loomux.old.exe` liegen, oder als erstes freies `loomux.old.<n>.exe` daneben, wenn ein Prozess aus einem früheren Tausch — ein `loomux serve` oder eine Brücke — diesen Namen noch hält; jeder Platz, dessen Prozess beendet ist, wird beim nächsten Tausch geräumt, es bleiben also höchstens 16 Generationen liegen. Zwei Fälle scheitern weiterhin, und beide lassen die Binaries dort, wo sie waren: alle 16 Plätze gleichzeitig gehalten, und ein `loomux.exe`, das etwas so hält, dass es sich gar nicht umbenennen lässt — ein laufendes `loomux.exe` ist dieser Halter nicht, denn Windows lässt ein laufendes Abbild umbenennen.
+
+- **Flags**: `--dir <verz>` — Verzeichnis mit `loomux.new.exe` (Standard: `bin`).
+- **Exit-Codes**: `0` nach dem Tausch; `1` wenn der Tausch scheitert (`loomux dev swap-binary: <grund>` auf `stderr`); `2` bei einem unbekannten Flag.
 
 ### `loomux dev bench <hooks|repos|search> [flags]`
 Drei Messungen unter einer Gruppe. `loomux dev bench` allein nennt die drei Unterbefehle und endet mit `2`; ein unbekannter Unterbefehl ebenso. Die Gruppe ersetzt `dev bench-hooks` (jetzt `dev bench hooks`) und `dev bench` (jetzt `dev bench repos`).
@@ -970,6 +988,48 @@ Misst, wie gut die Suche eine Notiz findet: für jede Frage eines Fragensatzes d
   - `--latency-query <q>`: Die Anfrage der Latenzsuchen (Standard: `latenz`).
   - `--repeat <n>`: Warme Läufe je gemessener Operation, nach einem kalten (Standard: `10`, mindestens `1`).
 - **Exit-Codes**: `0` nach einer Messung; `2` bei einem unbekannten Flag, einem überzähligen Argument, einem unbekannten Profil oder Kanal oder `--repeat` unter 1; `1` mit einer Zeile `error: <problem>` je Problem auf stderr für alles andere (eine verweigerte Flag-Kombination, `--corpus v1` außerhalb eines Checkouts, ein fehlerhafter Fragensatz oder Stand, ein fehlendes Verzeichnis oder eine schon vorhandene Berichtsdatei, ein leerer Index, ein Fehler der Suchmaschine).
+
+### `loomux dev release <next-version|parse-body|changelog-insert|build> [flags]`
+Die Release-Regeln hinter `.github/workflows/release.yml` und der Prüfung von `release-pr`. Ohne Unterbefehl oder mit einem unbekannten endet es mit `2`. Jeder Fehler wird als `loomux dev release <unterbefehl>: <grund>` auf `stderr` gemeldet.
+
+- **`next-version --bump major|minor|patch [--tags <datei>]`**: liest je Zeile einen Tag (Standard `-`, stdin) und gibt die nächste Version aus. Exit `0`; `2` bei einem unbekannten Flag, einer unlesbaren Tag-Datei oder einem ungültigen Bump.
+- **`parse-body [--labels <a,b>] [--body <datei>] [--commits <datei>]`**: prüft das Release-Label und den Rumpf des Pull Requests (Standard `-`, stdin) und, mit `--commits` (ein JSON-Array der Commit-Nachrichten), dass kein Commit ein höheres Label verlangt. Gibt den gelesenen Rumpf als JSON auf `stdout` aus. Exit `0`; `1` mit einer Zeile je Problem; `2` bei einem unbekannten Flag oder einer unlesbaren Rumpf- oder Commit-Datei.
+- **`changelog-insert --version <v> --date <JJJJ-MM-TT> --link <url> [--notes <datei>] [--file <pfad>]`**: fügt den Changelog-Block (Standard `-`, stdin) als Abschnitt des Releases in `--file` ein (Standard `CHANGELOG.md`, fehlt sie, wird sie angelegt). `--version` steht ohne `v`. Exit `0`; `1`, wenn die Version schon im Changelog steht; `2`, wenn ein Pflicht-Flag fehlt oder die Datei sich nicht lesen oder schreiben lässt.
+- **`build --version <v> [--channel <name>] [--out <verz>]`**: baut die Release-Binaries für alle Zielplattformen nach `--out` (Standard `dist`) und nennt jede Datei auf `stdout`. Exit `0`; `1`, wenn ein Bau scheitert; `2` bei einem unbekannten Flag oder ohne `--version`.
+
+### `loomux dev record-case --exe <altes-binary>|--argv <programm> --cmd <zeile> --world <verz> --out <verz> [flags]`
+Zeichnet einen Fall eines alten Werkzeugs unter `testdata/cases/` auf: legt `--world` an, fährt die Befehlszeile `--cmd` (mit `{{WORLD}}` für das angelegte Verzeichnis) und schreibt, was es beobachtet hat, in das Fallverzeichnis `--out`.
+
+- **Flags**:
+  - `--exe <pfad>`: Das alte Binary; `--argv <programm und argumente>` setzt stattdessen ein Programm und seine führenden Argumente an die Stelle des ersten Worts des Befehls. Die beiden schließen einander aus.
+  - `--env KEY=VALUE`: Umgebung des aufgezeichneten Prozesses, `{{WORLD}}` erlaubt; wiederholbar.
+  - `--path-prepend <verz>`: Verzeichnis, das dem `PATH` des aufgezeichneten Prozesses vorangestellt wird.
+  - `--stdin <datei>`: Datei mit der Nutzlast.
+  - `--notes <text>`: Text für `notes.md`.
+  - `--compare <art>`: Leer (die Daten vergleichen) oder `message`.
+  - `--git-after`: Hält den Commit, den der Lauf gemacht hat, in `git.after` des Repositorys der Git-Welt fest.
+- **Exit-Codes**: `0` nach der Aufzeichnung; `1`, wenn sie scheitert; `2` bei einem unbekannten Flag, `--exe` zusammen mit `--argv` oder einem fehlenden Pflicht-Flag.
+
+### `loomux dev record-mcp-case --argv <programm> --tool <name> --world <verz> --out <verz> [flags]`
+Zeichnet einen Aufruf der MCP-Front der Referenz als Fall auf: einen Werkzeugaufruf und sein `CallToolResult`, keine Befehlszeile.
+
+- **Flags**:
+  - `--argv <programm und argumente>`: Das Programm der Referenz und seine führenden Argumente.
+  - `--tool <name>`: Das aufzurufende Werkzeug; `--arguments <json>` seine Argumente als JSON-Objekt, `{{WORLD}}` erlaubt.
+  - `--channel <name>`: Der Kanal, den der Fall aufzeichnet.
+  - `--env KEY=VALUE`, `--path-prepend <verz>`, `--notes <text>`: Wie bei `record-case`.
+  - `--compare <art>`: Leer (den Text vergleichen) oder `outcome`.
+- **Exit-Codes**: `0` nach der Aufzeichnung; `1`, wenn sie scheitert; `2` bei einem unbekannten Flag, einem fehlenden Pflicht-Flag oder einem anderen `--compare`.
+
+### `loomux dev import-cases --map <datei> --from <verz> --to <verz> [--mcp] [--merge-fixture <datei>]`
+Übersetzt aufgezeichnete Fälle aus `--from` nach `--to` nach den `[[command]]`-Regeln (mit `--mcp`, für Aufzeichnungen von MCP-Aufrufen, den `[[tool]]`-Regeln) der TOML-Datei `--map`. `--merge-fixture` hängt die Antworten einer faketool-Fixture an jede übersetzte Welt an.
+
+- **Exit-Codes**: `0` nach dem Import; `1`, wenn sich die Zuordnung nicht dekodieren lässt oder Import oder Zusammenführung scheitern; `2` bei einem unbekannten Flag oder einem fehlenden Pflicht-Flag.
+
+### `loomux dev fake-ollama --fixture <datei> [--addr <host:port>] [--log <datei>]`
+Beantwortet jede Anfrage an einen Ollama-Endpunkt mit der einen Antwort der JSON-Datei `--fixture`, bis Strg+C. Es lauscht auf `--addr` (Standard `127.0.0.1:11435`) und hängt die Anfragezeilen an `--log` an, ohne `--log` an `stderr`.
+
+- **Exit-Codes**: `0` nach Strg+C; `1`, wenn sich Fixture oder Log nicht öffnen lassen oder die Adresse nicht bedient werden kann; `2` bei einem unbekannten Flag oder ohne `--fixture`.
 
 ---
 

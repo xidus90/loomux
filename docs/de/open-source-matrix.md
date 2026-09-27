@@ -1,6 +1,6 @@
 # Open-Source-Matrix: 25 Programmiersprachen × 10 Frameworks × 4 Sterne-Kategorien
 
-> Systematische Erfassung von 1.000 Open-Source-Projekten auf GitHub (25 Sprachen × 10 Frameworks), skaliert über 4 Sterne-Klassen (bis 100.000+ Stars) und mit Nachweis genutzter LLMs (Claude, ChatGPT/OpenAI, Gemini, Open-Weight wie Llama/Mistral/DeepSeek).
+> Systematische Erfassung von 993 Open-Source-Projekten auf GitHub (25 Sprachen × 10 Frameworks), skaliert über 4 Sterne-Klassen (bis 100.000+ Stars) und mit Nachweis genutzter LLMs (Claude, ChatGPT/OpenAI, Gemini, Open-Weight wie Llama/Mistral/DeepSeek).
 
 ## Inhaltsverzeichnis
 
@@ -8,10 +8,10 @@
 - [JavaScript](#javascript)
 - [TypeScript](#typescript)
 - [Java](#java)
-- [C#](#csharp)
-- [C++](#cplusplus)
+- [C#](#c)
+- [C++](#c-1)
 - [PHP](#php)
-- [C](#c)
+- [C](#c-2)
 - [Go](#go)
 - [Rust](#rust)
 - [Kotlin](#kotlin)

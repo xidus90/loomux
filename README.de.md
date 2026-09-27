@@ -4,7 +4,7 @@
 
 **Die vereinte autonome Entwickler-Plattform in einem einzigen Go-Binary: Hooks, Skills, Code-Graph, Second Brain & LLM OS.**
 
-Loomux gibt KI-Coding-Agenten (Claude Code, Antigravity, Cursor, Codex) tiefes Codebase-Verständnis, deterministisches Graph-Retrieval, undurchdringliche Schreibschranken und automatisierte Prüfketten — vollständig autark und ohne externe Laufzeit-Abhängigkeiten.
+Loomux gibt KI-Coding-Agenten (heute Hooks für Claude Code und Antigravity; Cursor nur als MCP-Client; Codex ist noch nicht angebunden) tiefes Codebase-Verständnis, deterministisches Graph-Retrieval, undurchdringliche Schreibschranken und automatisierte Prüfketten — vollständig autark und ohne externe Laufzeit-Abhängigkeiten.
 
 - **Kein Python. Kein Node.js.** Ein einziges, in sich geschlossenes Go-Binary (`loomux.exe` / `loomux`).
 - **Kaltstart unter 35 ms.** Federleichte Ausführung, die sich strikt in die Latenz-Budgets von Agenten-Toolcalls einfügt.
@@ -29,7 +29,7 @@ flowchart TD
         Serve["loomux serve<br/><b>MCP-Gateway</b>"]
     end
 
-    Agents["Coding-Agenten<br/>(Claude Code / Antigravity / Cursor)"]
+    Agents["Coding-Agenten<br/>(Claude Code / Antigravity)"]
     Human["Entwickler / Team"]
 
     Agents <--> |"Hooks: stdin, Exitcode"| P1
@@ -153,7 +153,7 @@ Was loomux über die Migration hinaus bekommt. *Priorität* ist dieselbe
 Reihenfolge wie im Migrationsplan, festgelegt in der
 [Fusions-Spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
 unter „Reihenfolge der offenen Stufen“ (1 zuerst); die offenen
-Migrationsstufen 4c-1 bis 4e haben Priorität 3.
+Migrationsstufen 4a-1 bis 4e haben Priorität 3.
 
 ### Kommt
 
@@ -324,9 +324,9 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 
 | Handbuch | Beschreibung |
 |---|---|
-| 🚀 **[Erste Schritte](docs/de/getting-started.md)** | Installation, 3-Minuten-Schnellstart und Anbindung an Agenten-Harnesses (Claude Code, Antigravity, Cursor). |
+| 🚀 **[Erste Schritte](docs/de/getting-started.md)** | Installation, 3-Minuten-Schnellstart und Anbindung an Agenten-Harnesses (Hooks für Claude Code und Antigravity, MCP für Cursor). |
 | 🏛️ **[Architektur & Konzepte](docs/de/architecture.md)** | Das theoretische Fundament: Andrej Karpathys LLM OS, Googles Knowledge Items (KI), Grafts AST-GraphRank und der Schreibschranken-Kernel. |
-| ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[worktree]`, `[graph]`, `[skills]`, `[privacy]`). |
+| ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`). |
 | 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
 | 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
 | 🗺️ **[Migrationsplan](docs/de/migration.md)** | Jede Migrationsstufe und jede in der Fusion übernommene oder gebaute Funktion: Herkunft, Stand, Abhängigkeiten und Priorität. Was danach kommt, steht in der [Roadmap](#roadmap). |

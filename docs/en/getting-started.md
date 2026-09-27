@@ -6,7 +6,7 @@ This guide walks you through installing Loomux, initializing a repository, and w
 
 ## 1. Prerequisites
 
-- **Go**: Version 1.25 or newer (for building from source or using `go install`).
+- **Go**: Version 1.26 or newer (the module's toolchain is go1.27.0; for building from source or using `go install`).
 - **Git**: Version 2.30 or newer.
 - **Operating System**:
   - **Windows (x64)**: First-class native support (NTFS junctions, Windows Job Objects).
@@ -32,7 +32,8 @@ go build -o bin/loomux.exe ./cmd/loomux
 Verify your installation:
 ```bash
 loomux --version
-# Output: loomux 0.1.0-fusion
+# Output: loomux 4.0.0 (a stable release), loomux 4.0.0 (beta) (the beta channel)
+# or loomux 0.0.0-dev (built from source)
 ```
 
 ---
@@ -61,9 +62,6 @@ Open `.loomux/config.toml`. A minimal starter configuration looks like this:
 
 ```toml
 # .loomux/config.toml
-
-[project]
-name = "my-project"
 
 [policy.paths]
 # Protect sensitive files from accidental agent modification
@@ -185,8 +183,7 @@ never = ["private/**"]
   wiki beside the repository.
 - **`[index] include`** — the search engine knows one pattern per collection
   and sees only the first glob; `loomux brain status` names the others.
-- **`[index] exclude`** is carried for the indexer, which arrives in stage 3;
-  today loomux only checks that it is a list of strings.
+- **`[index] exclude`** names paths `loomux reindex` leaves out of the index.
 - **`[index] unsearched`** declares what is readable but never searched. qmd
   does not enter dot directories, so `docs/.superpowers/**` is reachable
   through `brain read` and `brain neighbors` but not through `brain search`.
@@ -201,8 +198,9 @@ never = ["private/**"]
 - **Every `loomux brain` command fails with `no manifest found`.** The commands
   read the manifest of every registered area before they look at `--scope`, so
   one area without a declaration fails calls about all the others. A
-  `.loomux/config.toml` without `[area]` counts as none; until stage 4 the
-  commands also accept `.ultra-brain/config.toml` and `.brain.toml`. The write
+  `.loomux/config.toml` without `[area]` counts as none; the commands also
+  accept the legacy manifests `.ultra-brain/config.toml` and `.brain.toml`
+  until the clean-up pull request of stage 4e removes them. The write
   barrier does not mind: registering an area before its manifest exists is
   normal there.
 - **Every write is refused with `loomux cannot read the registry, so it
@@ -264,25 +262,28 @@ For Antigravity, hooks are registered in `.agents/hooks.json`:
 ### Cursor & MCP Clients
 Start the local MCP service:
 ```bash
-loomux serve --port 8080
+loomux serve
 ```
 Or use the stdio bridge directly in your Cursor MCP configuration:
 ```json
 {
   "mcpServers": {
     "loomux": {
-      "command": "loomux",
-      "args": ["mcp"]
+      "command": "C:/Users/<you>/AppData/Local/loomux/bin/loomux.exe",
+      "args": ["mcp", "--channel", "local"]
     }
   }
 }
 ```
+For Claude Code, `loomux init` writes this entry into `.mcp.json` as
+`${LOCALAPPDATA}/loomux/bin/loomux.exe`, which Claude Code expands; for another
+client, give the path in the form that client reads.
 
 ---
 
 ## 6. Next Steps
 
-- **[Configuration Reference](configuration.md)**: Deep dive into all configuration sections (`[policy]`, `[verify]`, `[worktree]`, `[graph]`).
+- **[Configuration Reference](configuration.md)**: Deep dive into all configuration sections (`[modules]`, `[policy]`, `[verify]`, `[worktree]`).
 - **[CLI Reference](cli-reference.md)**: Explore the complete command manual with all flags, options, and exit codes.
 - **[Architecture & Concepts](architecture.md)**: Learn about Karpathy's LLM OS, Google Knowledge Items, and Graft's AST GraphRank.
 - **[Hook Lifecycle](hooks.md)**: Understand the pre-tool write barrier, post-tool blast monitor, and event stream.

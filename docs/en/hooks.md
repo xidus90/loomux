@@ -4,9 +4,9 @@ This document details the hook execution lifecycle, payload specifications for d
 
 ---
 
-## 1. The 4-Phase Hook Lifecycle
+## 1. The Hook Lifecycle
 
-Loomux hooks intercept agent interactions at four critical phases:
+Loomux hooks intercept agent interactions before a tool, after it, and at the end of a turn (session and subagent hooks: section 8):
 
 ```mermaid
 sequenceDiagram
@@ -202,10 +202,10 @@ relative to its area):
 | Stack | Extensions | `lint` | `types` |
 |---|---|---|---|
 | Go | `.go` | `go vet ./...`, `loomux check gofmt {file}` | — |
-| Python | `.py` | `uvx ruff check . --output-format=concise` | `uv run mypy --no-error-summary --no-pretty`; `uv run pyright` where `pyrightconfig.json` or `[tool.pyright]` exists |
+| Python | `.py` | `uvx ruff check . --output-format=concise` | `uv run mypy --no-error-summary --no-pretty`; instead `uv run pyright` where `pyrightconfig.json` or `[tool.pyright]` exists |
 | GDScript | `.gd` | `uvx gdlint {file}` | — |
 | C / C++ | `.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hpp` | `clang-format --dry-run --Werror {file}` | `cmake --build build --parallel` |
-| TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx eslint --cache {file}`; `npx biome check {file}` where `biome.json` exists | `npx tsc --noEmit` |
+| TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx eslint --cache {file}`; instead `npx biome check {file}` where `biome.json` exists | `npx tsc --noEmit` |
 | Vue | `.vue` | — | `npx vue-tsc --noEmit` |
 | Svelte | `.svelte` | — | `npx svelte-check` |
 | CSS | `.css`, `.scss`, `.sass`, `.less` | `npx stylelint {file}` | — |
@@ -466,7 +466,26 @@ reports which of the six events are installed):
 | `SubagentStop` | `loomux hook subagent-stop --host claude --root "${CLAUDE_PROJECT_DIR}"` | 30 |
 
 This repository runs them through its tracked `.claude/settings.json`,
-next to its other three hooks.
+next to its other five hook commands: `session-start` and `worktree link` on
+`SessionStart`, `worktree unlink` on `SessionEnd` (section 9),
+`pre-tool-use` and `post-tool-use`.
+
+`loomux init` writes Antigravity's `.agents/hooks.json` as:
+
+| Event | Matcher | Command | Timeout |
+|---|---|---|---|
+| `PreInvocation` | — | `session-start` | 20 |
+| `PreToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content\|run_command\|send_command_input\|manage_task` | `pre-tool-use` | 15 |
+| `PostToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content` | `post-tool-use` | 60 |
+| `Stop` | — | `stop --budget 270s` | 300 |
+
+Each calls `%LOCALAPPDATA%/loomux/bin/loomux.exe hook <event> --host antigravity --root ..`,
+unquoted and with forward slashes, because agy runs it through cmd.exe, which
+expands `%LOCALAPPDATA%` but not `${LOCALAPPDATA}`, and breaks a quoted
+program path; `..` is the project root, since agy runs a hook from
+`.agents/`. `PreInvocation` and `Stop` take a flat list of handlers: agy
+1.2.11 refuses the whole file when either holds a `{"hooks": […]}` block
+(`internal/setup/hostfile/table.go`).
 
 ### `session-start`
 
@@ -696,9 +715,12 @@ The paths come from `[worktree] mirror` (see
 [Configuration](configuration.md)), and all three read them from the
 `.loomux/config.toml` of the **main checkout**, not of the working directory.
 Junctions exist only on Windows: elsewhere, `link` ends with exit 1 at the
-first path it would have to create. Nothing in this repository wires the two hook forms
-— `.claude/settings.json` calls neither, and its own `.loomux/config.toml`
-declares no `[worktree]` table — so the mechanism is inert here.
+first path it would have to create. `loomux init` does not install the two
+hook forms; a project that wants them adds `worktree link` under
+`SessionStart` and `worktree unlink` under `SessionEnd` itself. This
+repository's tracked `.claude/settings.json` does, but its own
+`.loomux/config.toml` declares no `[worktree]` table (only a commented
+example), so both exit 0 without doing anything here.
 
 ```mermaid
 flowchart TD
@@ -856,10 +878,12 @@ mirror could not be made should be told so, not stopped.
 In addition to coding agent harness hooks, loomux integrates with standard Git client hooks (configured via `git config core.hooksPath .githooks`):
 
 ### `.githooks/commit-msg`
-Triggered by Git when preparing a commit. Runs:
+Triggered by Git when preparing a commit. Runs from the repository root:
 ```bash
-loomux check commit-msg "$1"
+bin/loomux.exe check commit-msg "$1"
 ```
+or `go run ./cmd/loomux check commit-msg "$1"` while the pilot binary is not
+built. By hand the check also takes `--language en|de` and `--calibrate N`.
 
 - **Validation Checks**:
   - **Language & Vocabulary**: Scans message lines for foreign-language stop words (Variant B). In the default `en` mode, a word carrying an umlaut counts as a hit, and 82 German developer words are a fourth word source.
@@ -868,3 +892,13 @@ loomux check commit-msg "$1"
   - **Allowed Exceptions**: Words or phrases matching patterns in `[[commit.allow]]` are excluded.
   - **Conventional Commits**: When `[commit].conventional = true` (default), verifies the header format `<type>[(<scope>)][!]: <description>`.
 - **Exit Codes**: Exits `0` on success. On violation, exits `1` and prints refusal diagnostics with offending lines and hit tokens to `stderr`, aborting the commit.
+
+### `.githooks/pre-commit`
+Refuses a commit on `master`; refuses when a gate input (`*.go`, `*.toml`,
+`go.mod`, `go.sum`, `testdata`, `.githooks`, `ci`, `.loomux`) differs from the
+index or is untracked; then runs `sh ci/gate.sh` and rebuilds
+`bin/loomux.exe` through `loomux dev swap-binary`.
+
+### `.githooks/pre-push`
+Refuses any push whose target is `refs/heads/master`. `--no-verify` skips it;
+once the repository is public, a ruleset on GitHub holds regardless.

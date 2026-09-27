@@ -28,7 +28,7 @@ flowchart TD
 
     subgraph LoomuxSupervised["Loomux-Supervised Agent (Deterministic Retrieval)"]
         direction TB
-        Task2["Task received"] --> GraphRank["graph_ask 'handleAuth'<br/>(Personalized PageRank)"]
+        Task2["Task received"] --> GraphRank["graph_find_code 'handleAuth'<br/>(Personalized PageRank)"]
         GraphRank --> Spans["Inline source spans<br/>(--source, $0 AST)"]
         Spans --> Blast["graph_blast traces callers"]
         Blast --> SafeEdit["Safe edit + ADR verification<br/>(15 seconds, 2,500 tokens)"]
@@ -96,7 +96,7 @@ A Knowledge Item is not a raw file dump. It is a structured markdown document co
 Code evolves. An architectural note written three months ago must never override the active code without verification:
 1. The agent reads the Wiki ADR to understand the original intent and architectural boundary.
 2. The agent verifies the claim against the live AST Code Graph (`loomux graph ask` / `callers`).
-3. If drift is detected, the agent reconciles the documentation via `loomux lint` and `loomux wiki-gate`.
+3. If drift is detected, `loomux reconcile` records it as a review case, the agent updates the page, and `loomux lint` and `loomux wiki-gate` check the result.
 
 ### 3. Typology & Taxonomies
 Loomux enforces strict knowledge categorization:
@@ -110,6 +110,7 @@ Loomux enforces strict knowledge categorization:
   - `Data Model`: Schemas, structs, database entities, and invariants.
   - `Metric`: Performance benchmarks, latency targets, and SLAs.
   - `Runbook`: Operational procedures, failover instructions, deployment guides.
+  - `Glossary Entry`: Definitions of project terms.
 - **`ORIGIN_TYPES`**:
   - `Source`: Raw external references and citations.
   - `Topic`: Domain concepts and high-level conceptual groupings.
@@ -210,16 +211,13 @@ Agent harnesses invoke hooks synchronously on every single tool call. If a pre-t
 Loomux executes as a single compiled Go binary with a **sub-35ms execution budget**:
 
 ```
-Hook Lifecycle Timing Breakdown (warm, start floor measured 2026-09-17):
-├── Process Startup (Go binary, no runtime):     5.5 ms
-├── Config & Registry Parse (sync.Once):          1 ms
-├── RE2 Command & Glob Path Validation:         0.5 ms
-├── Exit Decision (Exit 0 or Exit 2):           0.1 ms
-└── Total Roundtrip:                            ~7.5 ms
+Hook timing (warm medians, see benchmarks, 2026-09-18):
+├── Start floor (`loomux version`, SDK linked):  6.4 ms
+└── `hook pre-tool-use`, Edit on README.md:     9.0 ms
 ```
 
 ### Absolute Isolation:
-- **Hooks never talk to HTTP servers**: `loomux hook pre-tool-use` never calls an API or socket. It reads `stdin`, evaluates policy, appends an event to `.loomux/state/journal/events.jsonl` in `<0.2ms`, and exits.
+- **Hooks never talk to HTTP servers**: `loomux hook pre-tool-use` never calls an API or socket. It reads `stdin`, evaluates policy and exits; it writes no journal (an event journal under `.loomux/state/journal/` is planned with the Web OS, stage W1).
 - **Deterministic Deny (Exit Code 2)**: Any write outside registered project areas or violating `.loomux/config.toml` is rejected instantly with an actionable explanation on `stderr`.
 
 ---
