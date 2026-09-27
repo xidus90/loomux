@@ -131,6 +131,10 @@ func repo(t *testing.T) string {
 	run(t, root, "init")
 	run(t, root, "config", "user.email", "t@example.invalid")
 	run(t, root, "config", "user.name", "Test")
+	// Pinned locally: under a global status.renames=false, git status reports a
+	// rename as an addition and a deletion, and the rename tests would pass
+	// without ever reaching parseStatus's rename branch.
+	run(t, root, "config", "status.renames", "true")
 	return root
 }
 

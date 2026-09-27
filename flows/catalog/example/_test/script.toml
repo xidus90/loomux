@@ -1,0 +1,9 @@
+# The run drafts once, asks, and is rejected.
+[[step]]
+node = "draft"
+reply = { verdict = "done", count = 2 }
+tokens = 120
+
+[[step]]
+node = "approve"
+answer = "no: too thin"

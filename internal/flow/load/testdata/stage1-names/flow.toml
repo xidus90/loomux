@@ -1,0 +1,26 @@
+schema_version = 1
+
+[flow]
+start = "draft"
+
+[params]
+count = { type = "int", default = 0 }
+
+[state]
+count      = { type = "int", default = "x" }
+max-rounds = { type = "int", default = 0 }
+
+[[node]]
+name    = "END"
+kind    = "exit"
+message = "done"
+
+[[node]]
+name       = "draft"
+kind       = "exit"
+message    = "done"
+max_visits = "rounds + 1"
+
+[[edge]]
+from = "draft"
+to   = "END"

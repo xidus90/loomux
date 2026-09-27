@@ -1,0 +1,58 @@
+schema_version = 1
+
+[flow]
+start = "draft"
+
+[params]
+max_rounds = { type = "int", default = 5 }
+
+[state]
+verdict     = { type = "string", default = "" }
+count       = { type = "int", default = 0 }
+answer      = { type = "string", default = "" }
+answer_text = { type = "string", default = "" }
+
+[[node]]
+name        = "draft"
+kind        = "agent"
+role        = "writer"
+instruction = "instructions/draft.md"
+effort      = "high"
+tools       = "edit"
+max_visits  = "max_rounds + 1"
+reply       = { verdict = "string", count = "int" }
+
+[[node]]
+name     = "approve"
+kind     = "gate"
+question = "questions/approve.md"
+choices  = ["yes", "no"]
+answer   = "answer"
+
+[[node]]
+name    = "stop"
+kind    = "exit"
+code    = 4
+message = "rejected after {{count}} rounds"
+
+[[edge]]
+from = "draft"
+to   = "approve"
+when = "verdict == \"done\""
+
+[[edge]]
+from = "draft"
+to   = "draft"
+
+[[edge]]
+from = "approve"
+to   = "END"
+when = "answer == \"yes\""
+
+[[edge]]
+from = "approve"
+to   = "stop"
+
+[[edge]]
+from = "stop"
+to   = "END"

@@ -1,0 +1,29 @@
+schema_version = 1
+
+[flow]
+start = "draft"
+
+[state]
+verdict     = { type = "string", default = "" }
+choice_text = { type = "string", default = "" }
+
+[[node]]
+name        = "draft"
+kind        = "agent"
+instruction = "instructions/draft.md"
+reply       = { verdict = "int" }
+
+[[node]]
+name     = "approve"
+kind     = "gate"
+question = "questions/ask.md"
+choices  = ["yes", "no"]
+answer   = "choice"
+
+[[edge]]
+from = "draft"
+to   = "approve"
+
+[[edge]]
+from = "approve"
+to   = "END"
