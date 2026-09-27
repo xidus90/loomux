@@ -30,10 +30,11 @@ anderem die Aufholung in `loomux serve`). Alle drei sind gebaut. Das Ziel der
 Stufe: Es gibt keinen Pfad mehr, auf dem loomux Wissen indiziert, ohne den Fall
 vorher zu öffnen — oder laut zu sagen, dass keiner aufgehen konnte.
 
-**Offen ist, was Stufe 3 ausdrücklich an Stufe 4 abgibt:** das lokale Modell,
-das für einen `local_only`-Bereich den Prüfvorschlag schreibt, und der
-`post-merge`-Hook, der den zweiten Auslöser protokolliert. Sein Protokoll
-liest `reconcile` schon; geschrieben wird es noch von niemandem. Einen Wächter
+**Was Stufe 3 an Stufe 4 abgab, ist gebaut:** das lokale Modell (4c-1), das
+für einen `local_only`-Bereich den Prüfvorschlag schreibt, und der
+`post-merge`-Hook (4a-2, `loomux merge-hook`), der den zweiten Auslöser über
+`merge-hook record` protokolliert. Offen sind nur ihre Läufe durch einen
+Menschen. Einen Wächter
 gibt es nicht.
 
 ## Zwei Arten von Aktualität
@@ -103,8 +104,9 @@ jede Fallakte legt es ein Analysepaket. Eine unlesbare Quelle bricht nichts
 ab; sie steht im Bericht.
 
 Die Architektur sah danach einen Prüfvorschlag des Modells vor, der nichts
-schreibt. In Stufe 3 **fragt `reconcile` niemanden**: Ein `local_only`-Bereich
-bekäme seinen Vorschlag vom lokalen Modell, und das steht in Stufe 4. Trifft
+schreibt. In Stufe 3 **fragte `reconcile` niemanden**; seit 4c-1 bekommt ein
+`local_only`-Bereich seinen Vorschlag vom lokalen Modell, wenn es
+eingeschaltet ist. Trifft
 `reconcile` einen solchen Bereich, öffnet es den Fall mit `manual = true` und
 einer Notiz, statt zu scheitern — ein Fall ohne Vorschlag bleibt ein Fall, den
 ein Mensch entscheiden kann. Auch außerhalb von `local_only` legt `reconcile`
@@ -156,11 +158,10 @@ entschieden ist.
 
 Die Leseseite gibt es seit 3a: `reconcile` liest das Ereignisprotokoll unter
 `<state>/maintenance/` und legt verarbeitete Ereignisse ab. Den Schreiber, den
-Git-Hook, bringt Stufe 4. Aktiviert wird er je Repo, nie global — ein
-Werkzeug, das ungefragt in fremde Git-Hooks schreibt, wird einmal benutzt. Die
-Einwilligung steht als `[maintenance]` (`on_merge`, `branch`) in der
-Erklärung des Bereichs; in Stufe 3 liest sie niemand, erst die
-Hook-Verwaltung aus Stufe 4.
+Git-Hook, bringt seit 4a-2 `loomux merge-hook install`. Aktiviert wird er je
+Repo, nie global — ein Werkzeug, das ungefragt in fremde Git-Hooks schreibt,
+wird einmal benutzt. Die Einwilligung steht als `[maintenance]` (`on_merge`,
+`branch`) in der Erklärung des Bereichs; `loomux merge-hook` liest sie.
 
 ## Protokolle
 
