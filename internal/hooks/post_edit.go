@@ -17,6 +17,7 @@ import (
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/detect"
+	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/verify"
 )
 
@@ -24,10 +25,12 @@ import (
 // has not reached go: an edit waits for its checks, but not forever.
 const DefaultBudget = 50 * time.Second
 
-// EditEnv is what a post-edit run needs from outside: what starts a tool and
-// finds it on the PATH, which binary {loomux} names, the budget, the clock,
-// and whether Godot has imported a project. A nil ImportReady asks the disk.
+// EditEnv is what a post-edit run needs from outside: the host it answers,
+// what starts a tool and finds it on the PATH, which binary {loomux} names,
+// the budget, the clock, and whether Godot has imported a project. A nil
+// ImportReady asks the disk.
 type EditEnv struct {
+	Host        hosts.Host
 	Start       func(child.Spec) child.Result
 	Look        func(string) (string, error)
 	Loomux      string
@@ -44,14 +47,20 @@ var (
 	editExecutable = os.Executable
 )
 
-// PostToolUse checks the file an edit touched, with the real tools.
-func PostToolUse(stdin io.Reader, stdout, stderr io.Writer, root string, budget time.Duration) int {
+// PostToolUse checks the files an edit touched, with the real tools, and
+// answers the host hostName names in that host's shape.
+func PostToolUse(stdin io.Reader, stdout, stderr io.Writer, root, hostName string, budget time.Duration) int {
+	host, err := hosts.ParseHost(hostName)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
+		return ExitInternal
+	}
 	loomux, err := editExecutable()
 	if err != nil {
 		loomux = "loomux"
 	}
 	return RunPostEdit(stdin, stdout, stderr, root, EditEnv{
-		Start: child.Run, Look: exec.LookPath, Loomux: loomux, Budget: budget, Now: time.Now, ImportReady: verify.ImportReady,
+		Host: host, Start: child.Run, Look: exec.LookPath, Loomux: loomux, Budget: budget, Now: time.Now, ImportReady: verify.ImportReady,
 	})
 }
 
@@ -60,7 +69,8 @@ func PostToolUse(stdin io.Reader, stdout, stderr io.Writer, root string, budget 
 // wiki page. A red lane blocks the edit with 2; a config it cannot read ends
 // with 1, which shows the error and blocks nothing. A call that names several
 // files checks each, within one budget for them all, and ends with the worst
-// of their codes.
+// of their codes. What it has to tell the model goes out once, through the
+// host's adapter, and only when that code is 0.
 func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env EditEnv) int {
 	files := editedFiles(stdin)
 	if len(files) == 0 {
@@ -101,8 +111,17 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 		code = max(code, fileCode)
 		notices = append(notices, said...)
 	}
-	verify.WriteNotices(stdout, strings.Join(notices, "\n"))
-	return code
+	// A host reads stdout only at exit 0. At any other code it reads stderr,
+	// which already holds every finding and every skip, so an aside of a
+	// green file in a red call goes with the rest.
+	if code != ExitOK {
+		return code
+	}
+	if err := hosts.WriteContext(env.Host, "PostToolUse", stdout, notices); err != nil {
+		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
+		return ExitInternal
+	}
+	return ExitOK
 }
 
 // checkEdit runs the lanes for one edited file, and answers its code with

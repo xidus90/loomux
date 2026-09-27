@@ -21,7 +21,10 @@ Under `--host antigravity` (measured with agy 1.2.8 and 1.2.11, 2026-09-25):
 aborting. A held stop becomes `{"decision":"continue","reason":"…"}` on
 stdout with exit `0`, the reason being what the gate wrote to stderr; agy
 then re-enters its loop. Every other non-zero code ends with `0`, its
-message on stderr.
+message on stderr. What `post-tool-use` writes on stdout at exit `0`, the
+skipped lanes and the blast monitor's callers, is not passed to agy, since
+whether agy reads a PostToolUse's `injectSteps` is unmeasured; a skip stays
+on stderr, which reaches the model only at exit `2`.
 
 ### Global Flags & Environment
 - `--root <path>`: Explicit project root directory. If omitted, Loomux walks upwards from the current working directory until it locates `.loomux/config.toml`.
@@ -325,9 +328,9 @@ Fires after an agent has edited a file.
 - **Standard Input**: Tool name and input payload; the edited path comes from `file_path`, else `notebook_path`.
 - **Flags**: `--host <h>` (required), `--root <r>`, `--budget <duration>` — how long the lanes may take in all (Go duration, default `50s`, below the host's hook timeout of 60 s). Each command gets the smaller of its own `timeout` and what is left of the budget.
 - **Behavior**: Runs the lanes of the `edit` profile (by default `lint` and `types`) for the edited file's stack, in the area that holds the file, as [`[verify]`](configuration.md#verify-check-chains--quality-gates) and the presets lay them out, with `on_file` where a lane has it; see [Hooks](hooks.md#5-the-post-edit-lanes-by-stack).
-- **Skipped lanes**: a lane whose tool is not on the `PATH`, a Godot project not yet imported, and every lane the budget did not reach are skipped, not failed. Each is named on `stderr`, and at exit 0 on `stdout` as `{"hookSpecificOutput":{"additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go","hookEventName":"PostToolUse"}}`. A file of a call the budget did not reach is named the same way.
-- **Blast monitor**: after a `.go` edit with no red lane, the direct callers in other files of every symbol the edit changed or removed, measured against the graph on disk, follow the skipped lanes in the same `additionalContext`. Silent without a graph and never a finding; see [Hooks](hooks.md#the-blast-monitor).
-- **Exit Codes**: `0` (all lanes passed, skipped, or nothing to run), `1` (malformed call, such as a missing `--host`, or a `[verify]` that cannot be loaded), `2` (a lane failed, timed out or is blocked; its output on `stderr`).
+- **Skipped lanes**: a lane whose tool is not on the `PATH`, a Godot project not yet imported, and every lane the budget did not reach are skipped, not failed. Each is named on `stderr`, and at exit 0 on `stdout` in the host's shape, for Claude Code as `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go"}}`, with `<`, `>` and `&` left as they are. A file of a call the budget did not reach is named the same way. At any other exit code nothing is written to `stdout`. Under `--host antigravity` that `stdout` is not passed on, since whether agy reads a PostToolUse's context is unmeasured: there a skip reaches the model only at exit 2, on `stderr`, and the blast monitor's callers not at all.
+- **Blast monitor**: after a `.go` edit, when no lane of the call is red, the direct callers in other files of every symbol the edit changed or removed, measured against the graph on disk, follow the skipped lanes in the same `additionalContext`. Silent without a graph and never a finding; see [Hooks](hooks.md#the-blast-monitor).
+- **Exit Codes**: `0` (all lanes passed, skipped, or nothing to run), `1` (malformed call, such as a missing or unknown `--host`, a `[verify]` that cannot be loaded, or `--host codex` once the call names a file: Codex has no adapter yet, so the hook refuses rather than answer in another host's shape), `2` (a lane failed, timed out or is blocked; its output on `stderr`).
 
 ### `loomux hook session-start`
 Records the commit the session starts on and announces the flow runs waiting for a human.

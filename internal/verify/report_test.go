@@ -1,9 +1,8 @@
 package verify
 
 import (
-	"encoding/json"
 	"errors"
-	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -87,17 +86,6 @@ func TestCheckVerdictPerKind(t *testing.T) {
 	}
 }
 
-// writeEdit reports one file's lanes the way post-edit does for a call that
-// names only that file.
-func writeEdit(stdout, stderr io.Writer, outs []Outcome, aside string) int {
-	red, notices := EditReport(stderr, outs, aside)
-	WriteNotices(stdout, strings.Join(notices, "\n"))
-	if red {
-		return 2
-	}
-	return 0
-}
-
 // The budget's notice is the one cli-reference.md shows, for a lane and for
 // a file alike.
 func TestBudgetSkippedIsTheDocumentedSentence(t *testing.T) {
@@ -107,26 +95,25 @@ func TestBudgetSkippedIsTheDocumentedSentence(t *testing.T) {
 	}
 }
 
-// A skipped lane passes the edit and is said on both streams: stdout for the
-// model at exit 0, stderr for a host that reads it at exit 2.
+// A skipped lane passes the edit and is said twice: as a notice for the
+// model at exit 0, and on stderr for a host that reads it at exit 2.
 func TestEditReportSkipsOutLoudAndBlocksOnRed(t *testing.T) {
-	var so, se strings.Builder
+	var se strings.Builder
 	skip := Outcome{Job: Job{Name: "lint/python"}, State: StateMissingTool, Output: `"ruff" is not on PATH: ruff check .`}
-	if code := writeEdit(&so, &se, []Outcome{skip}, ""); code != 0 || se.String() != skipPrefix+`"ruff" is not on PATH: ruff check .`+"\n" {
-		t.Fatalf("%d %q", code, se.String())
+	said := skipPrefix + `"ruff" is not on PATH: ruff check .`
+	red, notices := EditReport(&se, []Outcome{skip}, "")
+	if red || se.String() != said+"\n" || !slices.Equal(notices, []string{said}) {
+		t.Fatalf("%v %q %q", red, se.String(), notices)
 	}
-	if !strings.Contains(so.String(), `lane skipped, \"ruff\" is not on PATH`) || !strings.Contains(so.String(), `"hookEventName":"PostToolUse"`) {
-		t.Fatalf("%q", so.String())
-	}
-	so.Reset()
-	red := Outcome{Job: Job{Name: "lint/go"}, State: StateFailed, Output: "vet: x\n"}
-	if code := writeEdit(&so, &se, []Outcome{red}, ""); code != 2 || !strings.Contains(se.String(), "vet: x") {
-		t.Fatalf("%d %q", code, se.String())
+	se.Reset()
+	failed := Outcome{Job: Job{Name: "lint/go"}, State: StateFailed, Output: "vet: x\n"}
+	if red, _ := EditReport(&se, []Outcome{failed}, ""); !red || !strings.Contains(se.String(), "vet: x") {
+		t.Fatalf("%v %q", red, se.String())
 	}
 }
 
 func TestEditReportNamesEverySkipAndEveryRed(t *testing.T) {
-	var so, se strings.Builder
+	var se strings.Builder
 	outs := []Outcome{
 		{Job: Job{Name: "types/go"}, State: StateOK, Output: "fine\n"},
 		{Job: Job{Name: "test/go"}, State: StateBudget, Output: "part"},
@@ -134,8 +121,9 @@ func TestEditReportNamesEverySkipAndEveryRed(t *testing.T) {
 		{Job: Job{Name: "lint/go"}, State: StateFailed, Output: "vet: x"},
 		{Job: Job{Name: "lint/sql"}, State: StateBlocked, BlockedBy: "x"},
 	}
-	if code := writeEdit(&so, &se, outs, ""); code != 2 {
-		t.Fatalf("red lanes block the edit: %d", code)
+	red, notices := EditReport(&se, outs, "")
+	if !red {
+		t.Fatal("red lanes block the edit")
 	}
 	wantErr := "loomux hook post-tool-use: lane skipped, the edit budget ran out: test/go\n" +
 		"loomux hook post-tool-use: lane skipped, run the Godot editor once to import the project\n" +
@@ -143,10 +131,12 @@ func TestEditReportNamesEverySkipAndEveryRed(t *testing.T) {
 	if se.String() != wantErr {
 		t.Fatalf("%q", se.String())
 	}
-	want := `{"hookSpecificOutput":{"additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: test/go\n` +
-		`loomux hook post-tool-use: lane skipped, run the Godot editor once to import the project","hookEventName":"PostToolUse"}}` + "\n"
-	if so.String() != want {
-		t.Fatalf("%q", so.String())
+	want := []string{
+		"loomux hook post-tool-use: lane skipped, the edit budget ran out: test/go",
+		"loomux hook post-tool-use: lane skipped, run the Godot editor once to import the project",
+	}
+	if !slices.Equal(notices, want) {
+		t.Fatalf("%q", notices)
 	}
 }
 
@@ -174,78 +164,44 @@ func TestSkippedSaysTheNoticeOnStderrAndKeepsIt(t *testing.T) {
 	}
 }
 
-// Stdout that is not valid JSON turns a passed hook into a hook-error notice,
-// so a run with nothing skipped leaves it empty.
+// A run with nothing skipped and nothing to add has nothing to say.
 func TestEditReportGreenIsSilent(t *testing.T) {
-	var so, se strings.Builder
-	if code := writeEdit(&so, &se, []Outcome{{Job: Job{Name: "lint/go"}, State: StateOK}}, ""); code != 0 || so.Len() != 0 || se.Len() != 0 {
-		t.Fatalf("%d %q %q", code, so.String(), se.String())
+	var se strings.Builder
+	if red, notices := EditReport(&se, []Outcome{{Job: Job{Name: "lint/go"}, State: StateOK}}, ""); red || notices != nil || se.Len() != 0 {
+		t.Fatalf("%v %q %q", red, notices, se.String())
 	}
-}
-
-// editContext is the additionalContext of the one JSON document on stdout.
-func editContext(t *testing.T, stdout string) string {
-	t.Helper()
-	var said map[string]any
-	if err := json.Unmarshal([]byte(stdout), &said); err != nil {
-		t.Fatalf("stdout has to be one JSON document, got %q: %v", stdout, err)
-	}
-	specific, _ := said["hookSpecificOutput"].(map[string]any)
-	context, _ := specific["additionalContext"].(string)
-	return context
 }
 
 func TestEditReportCarriesTheAsideOnAGreenRun(t *testing.T) {
-	var so, se strings.Builder
+	var se strings.Builder
 	aside := "[graph] a.go: changed F; callers in other files:\n  G (b.go)"
-	if code := writeEdit(&so, &se, []Outcome{{Job: Job{Name: "lint/go"}, State: StateOK}}, aside); code != 0 || se.Len() != 0 {
-		t.Fatalf("%d %q", code, se.String())
-	}
-	if got := editContext(t, so.String()); got != aside {
-		t.Fatalf("%q", got)
+	red, notices := EditReport(&se, []Outcome{{Job: Job{Name: "lint/go"}, State: StateOK}}, aside)
+	if red || se.Len() != 0 || !slices.Equal(notices, []string{aside}) {
+		t.Fatalf("%v %q %q", red, se.String(), notices)
 	}
 }
 
 func TestEditReportPutsTheAsideAfterTheSkips(t *testing.T) {
-	var so, se strings.Builder
+	var se strings.Builder
 	skip := Outcome{Job: Job{Name: "test/go"}, State: StateBudget}
-	if code := writeEdit(&so, &se, []Outcome{skip}, "[graph] x"); code != 0 {
-		t.Fatalf("%d", code)
-	}
-	want := "loomux hook post-tool-use: lane skipped, the edit budget ran out: test/go\n[graph] x"
-	if got := editContext(t, so.String()); got != want {
-		t.Fatalf("%q", got)
+	red, notices := EditReport(&se, []Outcome{skip}, "[graph] x")
+	want := []string{"loomux hook post-tool-use: lane skipped, the edit budget ran out: test/go", "[graph] x"}
+	if red || !slices.Equal(notices, want) {
+		t.Fatalf("%v %q", red, notices)
 	}
 }
 
 // A red lane matters more than who calls the edited code; the aside goes,
 // the skips of another lane stay as they were.
 func TestEditReportDropsTheAsideOnRed(t *testing.T) {
-	var so, se strings.Builder
-	red := Outcome{Job: Job{Name: "lint/go"}, State: StateFailed, Output: "vet: x"}
-	if code := writeEdit(&so, &se, []Outcome{red}, "[graph] x"); code != 2 || so.Len() != 0 {
-		t.Fatalf("%d %q", code, so.String())
+	var se strings.Builder
+	failed := Outcome{Job: Job{Name: "lint/go"}, State: StateFailed, Output: "vet: x"}
+	if red, notices := EditReport(&se, []Outcome{failed}, "[graph] x"); !red || notices != nil {
+		t.Fatalf("%v %q", red, notices)
 	}
 	skip := Outcome{Job: Job{Name: "test/go"}, State: StateBudget}
-	so.Reset()
-	if code := writeEdit(&so, &se, []Outcome{red, skip}, "[graph] x"); code != 2 {
-		t.Fatalf("%d", code)
-	}
-	if got := editContext(t, so.String()); strings.Contains(got, "[graph]") || !strings.Contains(got, "test/go") {
-		t.Fatalf("%q", got)
-	}
-}
-
-func TestWriteNotices(t *testing.T) {
-	var b strings.Builder
-	WriteNotices(&b, "")
-	if b.Len() != 0 {
-		t.Fatalf("nothing skipped, nothing written: %q", b.String())
-	}
-	WriteNotices(&b, "a <b>\nc\n")
-	// Marshal escapes markup, as the notice it replaces did.
-	want := `{"hookSpecificOutput":{"additionalContext":"a ` + "\\u003cb\\u003e" + `\nc","hookEventName":"PostToolUse"}}` + "\n"
-	if b.String() != want {
-		t.Fatalf("%q", b.String())
+	red, notices := EditReport(&se, []Outcome{failed, skip}, "[graph] x")
+	if !red || !slices.Equal(notices, []string{BudgetSkipped("test/go")}) {
+		t.Fatalf("%v %q", red, notices)
 	}
 }

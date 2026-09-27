@@ -1,7 +1,6 @@
 package verify
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"slices"
@@ -90,8 +89,9 @@ func Skipped(stderr io.Writer, notices []string, notice string) []string {
 // which blocks the edit, and every lane it had to skip through Skipped, in
 // lane order, then whatever else the hook has to say, one notice a line. The
 // aside is dropped when a lane is red: the finding matters more, and stderr
-// stays the finding's. The notices of every file of a call go to WriteNotices
-// together, because a host reads stdout as one document.
+// stays the finding's. The caller hands the notices of every file of a call
+// to the host's adapter together, because a host reads stdout as one
+// document, and only when the call ends with 0.
 func EditReport(stderr io.Writer, outs []Outcome, aside string) (red bool, notices []string) {
 	for _, o := range outs {
 		switch {
@@ -111,24 +111,4 @@ func EditReport(stderr io.Writer, outs []Outcome, aside string) (red bool, notic
 		notices = append(notices, aside)
 	}
 	return red, notices
-}
-
-// WriteNotices puts the dropped lanes where a PostToolUse hook exiting 0 is
-// read: `hookSpecificOutput.additionalContext`, the field the Claude adapter
-// writes for the model. Nothing is written when nothing was skipped, because
-// stdout that is not valid JSON turns a passed hook into a hook-error notice.
-func WriteNotices(stdout io.Writer, notices string) {
-	if notices == "" {
-		return
-	}
-	type specific struct {
-		AdditionalContext string `json:"additionalContext"`
-		HookEventName     string `json:"hookEventName"`
-	}
-	document := struct {
-		HookSpecificOutput specific `json:"hookSpecificOutput"`
-	}{specific{strings.TrimRight(notices, "\n"), "PostToolUse"}}
-	// A struct of strings always encodes; there is no error to report.
-	encoded, _ := json.Marshal(document)
-	fmt.Fprintf(stdout, "%s\n", encoded)
 }

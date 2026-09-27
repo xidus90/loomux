@@ -2,7 +2,10 @@
 //
 // One normalised payload in, one normalised answer out. The core packages see
 // these two types and never a JSON envelope, so a second host costs an adapter
-// and not a second copy of the hook.
+// and not a second copy of the hook. The tool events take their call another
+// way in: pre-tool-use and post-tool-use read it through guard.Call, which
+// knows each host's shape. Their answer goes out here like every other,
+// post-tool-use's context through WriteContext.
 //
 // The host arrives as a flag and is not guessed from the payload. Guessing was
 // the first design -- `tool_input.file_path` for Claude against `TargetFile`
@@ -107,7 +110,8 @@ func Read(host Host, r io.Reader) (Payload, error) {
 	return Payload{}, fmt.Errorf("unknown host %q", host)
 }
 
-// WriteContext hands lines back for the model to read.
+// WriteContext hands lines back for the model to read. session-start and
+// post-tool-use answer through it, post-tool-use only at exit 0.
 //
 // Nothing to say writes nothing at all, and that test sits inside the Claude
 // arm: ahead of the adapter, behind the switch. Behind it on purpose, because
