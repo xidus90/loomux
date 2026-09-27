@@ -352,7 +352,8 @@ flowchart TD
     flags -->|ja| stdin{"stdin lesbar?"}
     stdin -->|nein| deny
     stdin -->|ja| named{"JSON-Objekt<br/>mit Werkzeugnamen?"}
-    named -->|nein| barrier
+    named -->|"kein Objekt"| barrier
+    named -->|"Objekt ohne Werkzeugnamen"| deny
     named -->|ja| config{".loomux/config.toml"}
     config -->|"kaputt"| deny
     config -->|"fehlt: nur eingebaute Regeln"| rules
@@ -366,10 +367,14 @@ flowchart TD
 **Nie Exit 1.** Ein Host liest 1 als nicht blockierenden Fehler und führt das
 Werkzeug trotzdem aus. Darum lehnt jeder Weg, auf dem dieser Hook scheitern
 kann, mit 2 ab — ein fehlendes oder unbekanntes `--host`, ein unlesbares stdin,
-eine Nutzlast, die kein JSON-Objekt ist, eine kaputte `.loomux/config.toml`,
-eine Panik (`internal/cli/hook.go`, `internal/hooks/pretool.go`). Eine Policy,
-die Aufrufe durchwinkt, sobald ihre eigene Konfiguration unlesbar ist, wäre
-genau die Schranke, die man für vorhanden hält und die es nicht ist.
+eine Nutzlast, die kein JSON-Objekt ist, ein Objekt ohne Werkzeugnamen, eine
+kaputte `.loomux/config.toml`, eine Panik (`internal/cli/hook.go`,
+`internal/hooks/pretool.go`). Eine Policy, die Aufrufe durchwinkt, sobald ihre
+eigene Konfiguration unlesbar ist, wäre genau die Schranke, die man für
+vorhanden hält und die es nicht ist. Einen Aufruf ohne Werkzeugnamen verweigert
+die Policy, bevor sie die Konfiguration liest, weil keine Regel auf ihn passen
+kann; eine Nutzlast, die kein Objekt ist, bleibt der Schreibschranke, die sie
+mit ihrem eigenen Wortlaut ablehnt.
 
 **Pfade und Befehlszeilen, kein Inhalt.** Ein schreibendes Werkzeug — `Write`,
 `Edit`, `MultiEdit`, `NotebookEdit` und Antigravitys `write_to_file`,

@@ -101,13 +101,38 @@ func TestAnUnreadablePayloadIsRefusedNotPassed(t *testing.T) {
 	}
 }
 
-// A payload that decodes but names no tool is nothing the policy can judge: it
-// reaches no rule and no policy file, and the barrier has the last word on it.
-// The barrier finds no write in it either, so the call passes.
-func TestAPayloadWithoutAToolNameReachesTheBarrier(t *testing.T) {
+// A payload that decodes but names no tool is nothing the policy can judge,
+// and a call nobody judged does not pass: a host that spells its tool name
+// under another key would otherwise run every call past every rule. The
+// refusal comes before the policy file is read, so a broken one does not
+// change its wording.
+func TestACallWithoutAToolNameIsRefused(t *testing.T) {
 	root, state := world(t, "[[policy.paths.rules]\n")
-	if code, _, errOut := call(t, root, state, `{"tool_input":{"file_path":"main.go"}}`); code != 0 {
-		t.Fatalf("code %d, err %q: the broken policy was never read", code, errOut)
+	const want = "loomux found no tool name in this call, so it cannot judge it and refuses"
+	for _, input := range []string{
+		`{"tool_input":{"file_path":"main.go"}}`,
+		`{"tool_input":{"command":"git push"}}`,
+		`{"toolCall":{"args":{"CommandLine":"git push"}}}`,
+		`{"toolCall":"x"}`,
+		`{"tool_name":42,"tool_input":{"command":"git push"}}`,
+		`{}`,
+	} {
+		if code, _, errOut := call(t, root, state, input); code != 2 || !strings.Contains(errOut, want) {
+			t.Fatalf("%s: code %d, err %q", input, code, errOut)
+		}
+	}
+}
+
+// A payload that is no object is the barrier's to refuse, in the barrier's
+// words: the policy never sees it.
+func TestAPayloadThatIsNoObjectKeepsTheBarriersWording(t *testing.T) {
+	root, state := world(t, "")
+	// null decodes into a nil map, and the barrier refuses it as no object.
+	for _, input := range []string{"not json", "[]", `"x"`, "null"} {
+		code, _, errOut := call(t, root, state, input)
+		if code != 2 || strings.Contains(errOut, "no tool name") || strings.Contains(errOut, "loomux policy refused") {
+			t.Fatalf("%s: code %d, err %q", input, code, errOut)
+		}
 	}
 }
 
