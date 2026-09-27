@@ -54,6 +54,9 @@ func Entries(host hosts.Host, binary string) []Entry {
 		// PreInvocation and Stop take a flat list of handlers: agy 1.2.11
 		// refuses the whole file when either holds a {"hooks": [...]} block
 		// (measured 2026-09-25), which would leave the guard unloaded.
+		// The matchers are kept by hand; tests in internal/hooks and
+		// internal/brain/guard hold them to the guard's command tools and
+		// the barrier's writing tools, so a tool dropped here fails them.
 		writers := "write_to_file|replace_file_content|multi_replace_file_content"
 		hook := func(name string) string {
 			return AntigravityBinary + " hook " + name + " --host antigravity --root .."
