@@ -5,14 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
 // readAntigravity decodes an Antigravity hook payload.
 //
 // Antigravity (agy 1.2.2) emits protojson payloads for command hooks.
-// The session identifier is delivered in `conversationId` (standard protojson camelCase)
-// or `conversation_id`.
+// invocationNum was measured 2026-09-27 on agy 1.2.11: present on
+// PreInvocation as a JSON number, 0 on the first model call, +1 per call.
+// protojson writes a 64-bit integer as a decimal string and a 32-bit one as a
+// number; the field's width, and with it the string form, stay unmeasured, so
+// invocationOf takes both. The session identifier is delivered in
+// `conversationId` (standard protojson camelCase) or `conversation_id`.
 //
 // Like readClaude, it refuses what is not an object (non-JSON, array, string, number, null).
 // Fields are read by type assertion so mistyped values read as absent ("").
@@ -41,8 +46,27 @@ func readAntigravity(r io.Reader) (Payload, error) {
 	if sessionID == "" {
 		sessionID, _ = payload["conversation_id"].(string)
 	}
-	invocation, _ := payload["invocationNum"].(float64)
-	return Payload{SessionID: sessionID, Repeat: invocation > 1}, nil
+	return Payload{SessionID: sessionID, Repeat: invocationOf(payload["invocationNum"]) > 0}, nil
+}
+
+// invocationOf reads invocationNum in either of protojson's spellings: a JSON
+// number, or a decimal string, which is how it writes a 64-bit integer. Any
+// other value, and a string that is no whole number or overflows 64 bits, is
+// 0; a Repeat read false by mistake only does the first start's work once
+// more: its announcements, and sessions.Revive, harmless on a conversation
+// nothing retired.
+func invocationOf(v any) int64 {
+	switch v := v.(type) {
+	case float64:
+		return int64(v)
+	case string:
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0
+		}
+		return n
+	}
+	return 0
 }
 
 type antigravityAnswer struct {

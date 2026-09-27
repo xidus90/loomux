@@ -514,6 +514,8 @@ binary and the self-update and revives a session that worktree unlink
 retired. Nothing retires an agy conversation between two model calls, since
 unlink is wired for Claude alone. A later one names only the flow runs that
 still wait at a gate and the ignored flow folders, as every start does.
+`invocationNum` is read as a number or as a decimal string, protojson's
+spelling of a 64-bit integer.
 `subagent-start` and `subagent-stop` are not wired for Antigravity: its
 payloads carry no `agent_id`.
 

@@ -123,6 +123,38 @@ func TestReadAntigravityAcceptsAMistypedOrMissingSessionID(t *testing.T) {
 	}
 }
 
+// agy sends invocationNum as a JSON number, 0 on the first model call;
+// protojson writes a 64-bit counter as a decimal string, so that spelling
+// counts too. Anything else, and a string that is no whole number or does not
+// fit 64 bits, reads as the first invocation.
+func TestReadAntigravityReadsTheInvocationAsANumberOrADecimalString(t *testing.T) {
+	for body, repeat := range map[string]bool{
+		`{"conversationId":"s1","invocationNum":1}`:                      true,
+		`{"conversationId":"s1","invocationNum":"1"}`:                    true,
+		`{"conversationId":"s1","invocationNum":2}`:                      true,
+		`{"conversationId":"s1","invocationNum":"2"}`:                    true,
+		`{"conversationId":"s1","invocationNum":"12"}`:                   true,
+		`{"conversationId":"s1","invocationNum":0}`:                      false,
+		`{"conversationId":"s1","invocationNum":"0"}`:                    false,
+		`{"conversationId":"s1","invocationNum":"x"}`:                    false,
+		`{"conversationId":"s1","invocationNum":"2.0"}`:                  false,
+		`{"conversationId":"s1","invocationNum":""}`:                     false,
+		`{"conversationId":"s1","invocationNum":"99999999999999999999"}`: false,
+		`{"conversationId":"s1","invocationNum":true}`:                   false,
+		`{"conversationId":"s1","invocationNum":null}`:                   false,
+		`{"conversationId":"s1","invocationNum":[2]}`:                    false,
+		`{"conversationId":"s1"}`:                                        false,
+	} {
+		got, err := hosts.Read(hosts.HostAntigravity, strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("%s: %v", body, err)
+		}
+		if got.Repeat != repeat {
+			t.Errorf("%s: Repeat = %v, want %v", body, got.Repeat, repeat)
+		}
+	}
+}
+
 // TestWriteAntigravityContext verifies that writeAntigravityContext encodes lines
 // as protojson injectSteps with ephemeralMessage.
 func TestWriteAntigravityContext(t *testing.T) {
