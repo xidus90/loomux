@@ -234,23 +234,12 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 	if guard.IsWritingTool(tool) {
 		for _, target := range guard.WriteTargets(input) {
 			rel := relativePath(target, root)
-			for _, rule := range append(builtinPathRules, policy.Paths...) {
-				for _, glob := range rule.Match {
-					matched, err := matchGlob(glob, rel)
-					if err != nil {
-						// A rule nobody can evaluate is a rule nobody can trust,
-						// and the call it would have judged goes no further.
-						reasons = append(reasons, fmt.Sprintf(
-							"loomux cannot read the glob %q of the rule %q, so it refuses: %v",
-							glob, rule.Reason, err))
-						break
-					}
-					if matched {
-						reasons = append(reasons, rule.Reason)
-						break
-					}
-				}
-			}
+			// loomux's own rules fold case, as the barrier does for the
+			// manifest: Windows and macOS keep .LOOMUX/State/hooks and
+			// .loomux/state/hooks as one folder. A project's rules match as the
+			// project spelled them.
+			reasons = append(reasons, pathReasons(builtinPathRules, rel, true)...)
+			reasons = append(reasons, pathReasons(policy.Paths, rel, false)...)
 		}
 	}
 	if _, shell := commandTools[tool]; shell {
@@ -266,6 +255,36 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 			}
 			if writesConfiguration(line) {
 				reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, and merge-hook install and remove write executable hooks into repositories; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
+			}
+		}
+	}
+	return reasons
+}
+
+// pathReasons is the reason of every rule that matches rel, with the rule and
+// rel both in lower case when fold is set.
+func pathReasons(rules []config.PathRule, rel string, fold bool) []string {
+	if fold {
+		rel = strings.ToLower(rel)
+	}
+	var reasons []string
+	for _, rule := range rules {
+		for _, glob := range rule.Match {
+			if fold {
+				glob = strings.ToLower(glob)
+			}
+			matched, err := matchGlob(glob, rel)
+			if err != nil {
+				// A rule nobody can evaluate is a rule nobody can trust,
+				// and the call it would have judged goes no further.
+				reasons = append(reasons, fmt.Sprintf(
+					"loomux cannot read the glob %q of the rule %q, so it refuses: %v",
+					glob, rule.Reason, err))
+				break
+			}
+			if matched {
+				reasons = append(reasons, rule.Reason)
+				break
 			}
 		}
 	}

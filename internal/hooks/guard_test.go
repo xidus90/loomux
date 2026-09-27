@@ -38,6 +38,12 @@ func TestProtectedBuiltinPathsCarryTheirReason(t *testing.T) {
 		{"aws secret", ".aws/credentials", "secrets are not written by an agent"},
 		{"no-verify", ".loomux/no-verify", "the stop gate's own controls are not written by the party it gates"},
 		{"hook script", ".loomux/state/hooks/stop.py", "the stop gate's own controls are not written by the party it gates"},
+		// loomux's own rules fold case, as the barrier does for the manifest:
+		// Windows and macOS keep one file under both spellings.
+		{"hook script in capitals", ".LOOMUX/State/hooks/stop.py", "the stop gate's own controls are not written by the party it gates"},
+		{"no-verify in capitals", ".LOOMUX/No-Verify", "the stop gate's own controls are not written by the party it gates"},
+		{"env file in capitals", ".ENV", "secrets are not written by an agent"},
+		{"go sum in capitals", "GO.SUM", "lock files are written by their package manager, not by hand"},
 		{"uv lock", "uv.lock", "lock files are written by their package manager, not by hand"},
 		{"poetry lock", "poetry.lock", "lock files are written by their package manager, not by hand"},
 		{"npm lock", "package-lock.json", "lock files are written by their package manager, not by hand"},
