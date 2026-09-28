@@ -82,6 +82,29 @@ rules = [
 
 ---
 
+### `[guard]` (How Hard the Guard Reads)
+
+```toml
+[guard]
+mode = "default"   # or "strict"
+```
+
+`default` holds against an agent that errs or takes a shortcut: the common
+writing and removing commands, their wrappers, globs, brace expansion and the
+folders above a kept path. `strict` also holds against one that means to get
+round it: every target is resolved by the file system (trailing dots and
+blanks, 8.3 short names, case, junctions), loomux's own commands are known by
+their arguments rather than the program's name, a program the guard does not
+know is refused on a protected path, and so is a write whose path holds an
+expansion (`$X`, `$(…)`, a backtick, `%X%`) that may land on one. Without the
+key the mode is `default`; any other value is an error, and the guard then
+refuses every call as for a broken configuration. Strict mode refuses more
+than a project may like: in this repository it refuses `go build -o
+bin/loomux.exe`, because `bin/*` is a protected path and `go` is no verb the
+guard knows. See [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
+
+---
+
 ### `[verify]` (Check Chains & Quality Gates)
 Says what `loomux check` and the post-edit hook run. **Without any `[verify]`
 the built-in presets apply** to every stack detection finds; the section only
@@ -746,6 +769,10 @@ rules = [
   { regex = '(^|\s)git\s+push(\s|$)', reason = "Whether commits reach the remote is a human decision" },
   { regex = '(^|\s)rm\s+-rf\s+/', reason = "Root filesystem removal is prohibited" }
 ]
+
+# --- Guard Mode: default, or strict against an agent that means to get round it
+# [guard]
+# mode = "default"
 
 # --- Check Chain: loomux check and post-edit; everything else is preset ------
 [verify.go.lint]

@@ -164,3 +164,14 @@ func TestAPanicInThePolicyStepRefuses(t *testing.T) {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
+
+// A guard mode the reader refuses refuses every call, as a broken
+// configuration does.
+func TestAGuardModeTheReaderRefusesRefusesTheCall(t *testing.T) {
+	root := project(t)
+	manifest(t, root, "[guard]\nmode = \"hard\"\n")
+	payload := map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": "git status"}}
+	if _, err := policyReasons(payload, root); err == nil || !strings.Contains(err.Error(), "[guard] mode must be one of") {
+		t.Fatalf("err %v", err)
+	}
+}

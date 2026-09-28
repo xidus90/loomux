@@ -72,6 +72,7 @@ func Keys() []Key {
 		{Section: "commit.allow", Kind: TableList, Module: Base, Doc: "Lines the language check lets through, each with a regex and a reason."},
 		{Section: "policy.paths.rules", Kind: TableList, Module: Base, Doc: "Paths no agent may write, each with a match and a reason."},
 		{Section: "policy.commands.rules", Kind: TableList, Module: Base, Doc: "Shell commands no agent may run, each with a regex and a reason."},
+		{Section: "guard", Name: "mode", Kind: Enum, Choices: config.GuardModes(), Default: `"default"`, Module: Base, Doc: "How hard the guard reads a shell line: default against an agent that errs, strict also against one that means to get round it."},
 		{Section: "worktree", Name: "mirror", Kind: StringList, Default: "[]", Module: Base, Doc: "Directories a worktree links to the main checkout instead of owning."},
 		{Section: "agent", Name: "default", Kind: String, Module: Base, Doc: "The model every flow role without a binding runs on; a name under agent.models."},
 		{Section: "agent", Name: "mcp_servers", Kind: StringList, Default: "[]", Module: Base, Doc: "The MCP servers a flow node with the mcp tool profile may use."},
