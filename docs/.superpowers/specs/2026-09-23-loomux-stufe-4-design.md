@@ -819,7 +819,8 @@ Abschnitt „4c-2 im Einzelnen“ oder den Abschnitt davor widerspricht, gilt er
 ## 4d im Einzelnen
 
 - **`loomux convert [datei]`** geht den Eingang jedes Bereichs durch, oder die
-  eine Datei. Das Format wird am Anfang erkannt, nicht an der Endung. PDF über
+  eine Datei. Das Format wird an der Endung erkannt und bei einer `.txt` am
+  Anfang (berichtigt beim Planen von 4d, siehe dort). PDF über
   `pdftotext -layout` mit zusammengeschobenem Leerraum; Transkripte werden an
   einer festen Zeichenschwelle zu Absätzen gefügt, ohne ein Wort zu ändern.
   Jede gewandelte Datei bekommt den Herkunftskopf aus vier Zeilen, darunter
@@ -831,14 +832,105 @@ Abschnitt „4c-2 im Einzelnen“ oder den Abschnitt davor widerspricht, gilt er
   (Zielbereich einer Datei aus dem Eingang), mit den Rückfällen der Referenz.
 - **Die Richter** (seit dem Planen von 4c hier, siehe dort): `is_german`,
   `chopped_words`, `is_one_sentence`, `word_count`. `chopped_words` braucht
-  deutsche Zipf-Frequenzen aus `wordfreq`; Größe und Lizenz einer
-  eingebetteten Tabelle klärt der Plan von 4d, bevor er baut.
+  deutsche Zipf-Frequenzen aus `wordfreq`; Größe und Lizenz der
+  eingebetteten Tabelle sind beim Planen von 4d entschieden (siehe dort).
 - **Modul Brain:** Bei `brain = false` verweigern beide.
 - **Externe Programme:** Fehlt `pdftotext` oder `yt-dlp`, nennt die Meldung
   Programm und Installationsbefehl, Exit ungleich 0. In den Tests vertreten
   Attrappen nach dem Muster von `internal/dev/faketool` die Programme.
 - Beide stehen auf oberster Ebene wie `reindex` und `reconcile`: Sie schreiben
   in einen Bereich. Unter `brain` stehen die lesenden Befehle.
+
+### Abweichungen beim Planen von 4d
+
+Beim Planen (2026-09-26) gegen `master` (v3.3.0, 4c-1 gemergt) und gegen die
+Referenz am Tag `loomux-3-source` gelesen: `src/brain/convert/`,
+`src/brain/model/local.py` und `judge.py`, `cli.py:549-560` und
+`1519-1559`. Beide Verzeichnisse sind seit dem Tag unverändert. Der Text oben
+gilt, wo er nicht widerspricht.
+
+**Korrekturen, die Code und Referenz erzwingen:**
+
+- **Die Referenz ruft `pdftotext` nicht.** Sie liest PDFs im eigenen Prozess
+  mit `pypdf` (`extraction_mode="layout"`, `pdf.py:43`), Seite für Seite, und
+  die Scan-Schwelle von 100 Zeichen je Seite ist an dieser Ausgabe gemessen.
+  Eine Attrappe für `pdftotext` bildet die Referenz darum nicht ab; siehe die
+  Entscheidung „PDF“.
+- **Das `pdftotext` auf dem Pfad von Git Bash ist xpdf 4.06**
+  (`/mingw64/bin`), nicht Poppler, das `init` nennt
+  (`internal/setup/tools.go`). Beide kennen `-layout` und `-enc`; welche
+  Kodierung xpdf ohne `-enc` schreibt, ist ungemessen. loomux ruft darum
+  immer `pdftotext -layout -enc UTF-8 -eol unix <pdf> -` und trennt die Seiten am
+  Seitenvorschub `\f`. Zwei Builds auf einem Rechner brächen den zweiten
+  Lauf; siehe Vorschlag 12.
+- **Erkannt wird zuerst an der Endung** (`detect.py:38-53`): `.pdf` ist PDF,
+  ohne Blick in die Datei; alles außer `.txt` ist nicht wandelbar; eine `.txt`
+  wird an ihren ersten 8192 Zeichen als Transkript mit Klammermarke
+  (`[mm:ss]`, `[hh:mm:ss]`) oder mit Bereichszeile (`hh:mm:ss - hh:mm:ss`)
+  erkannt, sonst ist sie nicht wandelbar. Der Satz „am Anfang, nicht an der
+  Endung“ galt nur den Transkripten und ist oben berichtigt.
+- **`fetch` benutzt `yt-dlp` als Bibliothek** und holt die json3-Spur selbst
+  über `urllib` (`fetch.py:92-125`): erst die manuellen Spuren, dann die
+  automatischen, je `de` vor `en`, nur `ext == "json3"`. Eine leere Spur
+  scheitert mit „no subtitle track to fetch, and this system does no ASR“.
+  Der Dateiname kommt aus dem Titel, ohne die Zeichen, die Windows nicht
+  duldet, und ohne Steuerzeichen, höchstens 150 Zeichen, sonst `video`; bei
+  einer YouTube-Adresse folgt die elfstellige Id in Klammern. Die Marken
+  stehen als `[hh:mm:ss]`. Siehe die Entscheidung „fetch“.
+- **`fetch` prüft `readonly` nicht** (`cli.py:1548-1559`), während `convert`
+  einen `readonly`-Bereich überspringt (`run.py:210-222`). Siehe Vorschlag 2.
+- **Kein Befehl, der in einen Bereich schreibt, fragt heute `[modules]`.**
+  `reindex` und `reconcile` laufen unabhängig davon; die Tabelle lesen nur
+  `loomux mcp`, die Hooks (`config.ReadModules`) und die Prüfkette für die
+  Lane `lint/wiki`. Siehe Vorschlag 3.
+- **`Client.Ask` aus 4c-1 kann kein Ausgabeschema senden.** `place` braucht
+  eines: Die Referenz setzt `format` auf `{scope, grund}` (`local.py:42-46`,
+  `client.py:157`).
+- **Die Richter lassen sich nicht wörtlich übertragen.** In RE2 sind `\w` und
+  `\b` ASCII, in Python Unicode; `\b[\wÄÖÜäöüß]+(?:-…)+\b` fände in Go ein
+  Wort mit Umlaut am Rand nicht. wordfreq faltet die Schreibung (`Straße`
+  wird `strasse`) und behandelt Ziffern eigens; `strings.ToLower` tut beides
+  nicht, `pytext.CaseFold` und `pytext.NFC` gibt es. `_reads_back` prüft mit
+  PyYAML (YAML 1.1), loomux hat `yaml.v3`.
+- **Die Rollen im Einzelnen** (`local.py`, `run.py`). `describe` bekommt die
+  ersten 1800 Zeichen des gewandelten Textes und besteht fünf Regeln: ein
+  Satz, höchstens 22 Wörter, deutsch, keine zerhackten Wörter, und der Satz
+  liest sich aus dem Kopf unverändert zurück. Ein Kopf ohne Satz wird bei
+  jedem Lauf neu gefragt, ein stehender Satz nie. `place` bekommt dieselben
+  1800 Zeichen und die Bereiche, die nicht `readonly` sind und nicht offener
+  als der Eingang (`local_only` vor `manual_cloud` vor `automatic_cloud`; ein
+  Bereich ohne Deklaration zählt als `manual_cloud`). Gefragt wird nur für
+  eine Datei, die dieser Lauf geschrieben hat; das Ergebnis ist eine Zeile
+  `suggested:`, verschoben wird nichts.
+
+**Mit dem Nutzer entschieden (2026-09-26):**
+
+| Frage | Entscheidung |
+|---|---|
+| PDF | `pdftotext` (Poppler), wie die Fusions-Spec. Die Naht liegt bei den Seiten: Für die Test-PDFs der Referenz zeichnet ein Orakel den Seitentext auf, den `pypdf` dort liefert, und die Attrappe nach dem Muster von `internal/dev/faketool` gibt ihn mit `\f` getrennt aus. Waschen, Scan-Schwelle, Kopf, zweiter Lauf und Meldungen werden so an der Referenz gemessen; die Zeile `converter:` wird dabei als freigegebene Abweichung angeglichen (Vorschlag 8). Freigegebene Abweichungen außerdem: der Extraktor selbst und die Meldung für eine PDF, die sich nicht lesen lässt. Diese Fälle sind die Hälfte der Parität. Die andere Hälfte ist das echte Werkzeug: Je Test-PDF zeichnet ein Mensch einmal auf, was Poppler mit den Schaltern von loomux ausgibt, samt Exit-Code und dem `\f` nach der letzten Seite, und ein Go-Golden spielt es über die Attrappe ab, wie die Fusions-Spec es für externe Programme verlangt („Externe Programme“). Die Schwelle 100 wird bei der Selbstnutzung an echtem Poppler nachgemessen |
+| Zipf-Tabelle | Eingebettet, mit eigener Lizenz. Die Tabelle trägt, was die zwei Signale von `chopped_words` fragen: jedes Wort mit Zipf ≥ 2,5, gemessen 85.034 Wörter, davon 39.858 ab 3,0, rund 285 KB gzip (wordfreq 3.1.1, `large_de`), dazu die rohe Frequenz der Schlüssel mit Ziffern. Die zuerst gemessene Beschränkung auf Wörter bis fünf Zeichen (46.505 Wörter, 135 KB) trägt nicht: Der Richter zählt die Länge eines Teils, wie er geschrieben steht, die Tabelle ihren gefalteten Schlüssel, und `Grüße` (fünf Zeichen) ist dort `grüsse` (sechs) — berichtigt beim Planen, 2026-09-26. Sie liegt in einem eigenen Verzeichnis mit Hinweis auf CC BY-SA 4.0 und der Quellenangabe von wordfreq, getrennt von der Lizenz von loomux wie der Korpus von 4c-2. Ein eingechecktes PEP-723-Skript mit `wordfreq==3.1.1` erzeugt sie über `uv run --script`, ein Test hält ihre Prüfsumme fest, entpackt wird beim ersten Gebrauch. Wie der Hinweis den Empfänger eines Releases erreicht, steht in Vorschlag 13 |
+| fetch | `yt-dlp` schreibt die Untertitel selbst, loomux spricht nie ins Netz: ein Aufruf mit `--ignore-config --no-playlist --no-progress --skip-download --write-subs --write-auto-subs --sub-langs de,en --sub-format json3 --write-info-json --ignore-errors -o v` in ein Wegwerfverzeichnis (beim Planen ergänzt: `--ignore-config`, damit eine Nutzerkonfiguration weder Namen noch Ort ändert, `--no-playlist`, damit eine Adresse mit `&list=` nur das Video holt, das feste `-o v`, siehe „Offen und vor dem Bau zu messen“). `--ignore-errors`, weil eine scheiternde Spur yt-dlp sonst beendet, bevor es die Info-JSON schreibt: gemessen am 2026-09-26 an `mHSOsy_usAg`, die automatisch übersetzte Spur `en` antwortete mit 429, yt-dlp endete mit 1 und hinterließ nur `v.de.json3`; mit dem Schalter wird der Fehler eine Warnung, Exit 0, die Info-JSON steht da (`parity/stufe-4d.md`). loomux liest aus der Info-JSON, welche Sprache eine manuelle Spur hat, und wählt unter den geschriebenen Dateien in der Reihenfolge der Referenz. Abweichungen: der Randfall einer manuellen Spur ohne json3, die YouTube heute nicht anbietet, und die Spur innerhalb einer Sprache (Zeile „fetch: Spur einer Sprache“) |
+| fetch: Spur einer Sprache | YouTube kann unter `automatic_captions.<lang>` mehrere json3-Spuren nennen; für `mHSOsy_usAg` unter `de` zuerst eine Übersetzung (`tlang=de` aus der Spracherkennung `en-US`), dann die deutsche Spracherkennung selbst. Die Befehlszeile von yt-dlp nimmt die letzte passende (`YoutubeDL.process_subtitles`, `matches[-1]`, yt-dlp 2026.08.19), die Referenz nahm die erste. loomux behält die Wahl von yt-dlp, für dieses Video die Spracherkennung in der Originalsprache. Freigegebene Abweichung |
+| Selbstnutzung | Am echten Eingang `brain-knowledge/00 Eingang` (Bereich `knowledge`, `manual_cloud`): Der Mensch legt eine PDF und ein Transkript hinein und führt `loomux convert` mit installiertem Poppler aus |
+| `NOTICE.md` | Trägt jedes fremde Stück im Binary, nicht nur die Zipf-Tabelle: die Standardbibliothek von Go, jedes gelinkte Modul (am 2026-09-26 vierzehn), jede Grammatik von tree-sitter, deren Paket loomux importiert, und den Hinweis der Zipf-Tabelle. `loomux dev notices` erzeugt die Datei, ein Test hält sie aktuell. Gemessen am 2026-09-26: `gotreesitter/grammars/grammar_blobs` bettet 206 Grammatiken ein, nach dem Linken steht nur `python` (MIT) im Binary; eine copyleft-Grammatik bricht den Erzeuger ab, weil ihre Bedingungen das ganze Binary bänden. Poppler 25.07.0 ist installiert (winget, `%LOCALAPPDATA%\Microsoft\WinGet\Packages\oschwartz10612.Poppler_…\poppler-25.07.0\Library\bin`) |
+
+**Vorgeschlagen und mit der Spec freigegeben (2026-09-26):**
+
+| # | Frage | Vorschlag |
+|---|---|---|
+| 1 | Formaterkennung | Wie die Referenz, siehe „Korrekturen“ |
+| 2 | `fetch` in einen `readonly`-Bereich | Verweigert, mit Meldung und Exit ungleich 0. Die geerbte Lücke wird geheilt und eine freigegebene Abweichung |
+| 3 | `[modules].brain` | Maßgeblich ist das Projekt, das die Suche nach oben vom Arbeitsverzeichnis findet, wie bei `loomux mcp`; außerhalb eines Projekts laufen beide. Die Meldung nennt `[modules] brain` und die Datei |
+| 4 | Wächter | Der Wächter verweigert einem Agenten `convert` und `fetch`; erlaubt bleibt ein alleinstehendes `--help` oder `-h`. Gemessen am 2026-09-26: Ein Write eines Agenten in loomux nach `brain-knowledge/00 Eingang/x.md` verweigert die Schreibschranke mit Exit 2, denn der Eingang liegt in keinem beschreibbaren Baum. Ein erlaubtes `convert` schriebe dorthin, was die Schranke dem Agenten verbietet, und `fetch` legte, was der generische Extraktor von `yt-dlp` unter einer beliebigen Adresse findet, in den Tresor. Kein Skill ruft einen der beiden, die Regel kostet also heute nichts. Sie steht neben `area add` in der Wächterregel |
+| 5 | Ausgabeschema | `Client` bekommt ein optionales `format`, gesendet nur, wenn gesetzt; `propose` bleibt ohne |
+| 6 | Funktionswortliste | Die 72 Wörter liegen einmal in `internal/brain/model`. Ob 4c-2 oder 4d zuerst gemergt wird: diese Stufe legt sie dort an, die andere benutzt sie |
+| 7 | `convert <datei>` | Ohne `describe` und `place`, wie in der Referenz: Die Datei gehört zu keinem Bereich, und der nächste Durchgang über die Eingänge füllt den Satz nach |
+| 8 | Kennung des PDF-Wandlers | `converter: brain-pdf/2` statt `/1`. Die Referenz zählt hoch, wenn sich die Ausgabe ändert (`header.py:11-17`), und `pdftotext` liefert einen anderen Text als `pypdf`. `brain-transcript/1` bleibt, denn Transkripte werden gleich gewandelt. In den Fällen über die Naht wird die Zeile angeglichen, siehe „PDF“ |
+| 9 | Fehlendes Programm | Fehlt `pdftotext` oder ist es kein Poppler (Vorschlag 12), wird jede PDF des Laufs eine Zeile `skipped:` mit dem gefundenen Programm und dem Installationsbefehl aus `internal/programs` (beim Planen aus `internal/setup/tools.go` dorthin verlegt, damit `init` und `convert` eine Liste lesen), und der Lauf endet mit 1; ein Eingang ohne PDF braucht das Programm nicht. Fehlt `yt-dlp`, endet `fetch` mit derselben Meldung und Exit ungleich 0 |
+| 10 | Parität | Aufgezeichnet vom Tag `loomux-3-source`: `convert` mit Transkripten, nicht wandelbaren Dateien, Zieldateien von Hand, zweitem Lauf und `readonly`-Bereich; PDFs über die Naht aus „PDF“; `describe` und `place` über `loomux dev fake-ollama` aus 4c-1. `fetch` nur als Go-Golden gegen eine `yt-dlp`-Attrappe, weil die Referenz dafür das Netz braucht, dazu die Vektoren aus `tests/convert/test_fetch.py`. Die Richter an den Fällen aus `tests/model/test_judge.py` und an einer Wortliste mit Umlauten, ß, Großbuchstaben, Ziffern und Unterstrichen, deren Urteile die Referenz einmal aufzeichnet; `_reads_back` an einer Reihe von Randsätzen gegen PyYAML |
+| 11 | Vor dem Bau zu messen | Erste Aufgabe des Plans, siehe „Offen und vor dem Bau zu messen“ |
+| 12 | Nur Poppler | loomux liest einmal je Lauf, sobald eine PDF ansteht, `pdftotext -v` und nimmt nur Poppler an; xpdf wird wie ein fehlendes Programm behandelt (Vorschlag 9). Grund: Git Bash findet xpdf 4.06, PowerShell nach der Installation Poppler; beide schrieben unter derselben Kennung `brain-pdf/2` einen anderen Text, und jeder Lauf aus der anderen Shell schriebe jede PDF-Zieldatei neu, gegen „ein zweiter Lauf ändert nichts“ |
+| 13 | Weg des Lizenzhinweises | Folge der Entscheidung „Zipf-Tabelle“: Die Tabelle geht mit jedem Release hinaus, anders als der Korpus von 4c-2, der in `testdata/` bleibt. Der Hinweis erreicht den Empfänger darum als eigene Datei des Releases: `release.Build` legt `NOTICE.md` neben die Binaries und in `SHA256SUMS`. Für die Tabelle steht darin CC BY-SA 4.0, die Quellenangabe von wordfreq und dessen ganzer Abschnitt über die Datenquellen (Google Books Ngrams, Leeds Internet Corpus, die Bedingungen der Twitter-Daten und die übrigen), wörtlich aus wordfreq 3.1.1; derselbe Hinweis liegt im Verzeichnis der Tabelle. Mit dem Nutzer erweitert (2026-09-26) auf alle fremden Teile, siehe `NOTICE.md` oben. Das ist ein Weg, kein rechtliches Urteil |
 
 ## 4e: Umstellung der Wirte
 
@@ -866,7 +958,7 @@ Eine Checkliste, abgehakt vom Menschen, festgehalten in
 | 4a-1 | keine (neu) | Golden-Tests für `config list`, `get`, `set` und das Tastenprotokoll der Oberfläche; Fälle gegen die Wächterregel |
 | 4a-2 | ulinit-Go (Tests ziehen mit); `ultra-brain` für post-merge | Die umgezogenen Tests; für `merge-hook` aufgezeichnete Fälle gegen `brain hook install|status|remove` über `gitworld` |
 | 4c | `ultra-brain` (Python) | Aufgezeichnete Fälle für `reconcile` mit Vorschlag gegen eine Ollama-Attrappe über HTTP; `dev bench search` gegen `brain bench` auf demselben Korpus. #1 und #4 als freigegebene Abweichungen |
-| 4d | `ultra-brain` (Python) | Aufgezeichnete Fälle für `convert` und `fetch` mit Attrappen für `pdftotext` und `yt-dlp` |
+| 4d | `ultra-brain` (Python) | Aufgezeichnete Fälle für `convert`, PDFs über die Naht bei den Seiten; `fetch` als Go-Golden gegen eine `yt-dlp`-Attrappe (siehe „Abweichungen beim Planen von 4d“) |
 
 Aufzeichnungsgrundlage ist der Tag `loomux-3-source` auf `ultra-brain`; setzt
 das Repo sich bis dahin fort, setzt ein Mensch einen neuen Tag.
@@ -896,7 +988,9 @@ das Repo sich bis dahin fort, setzt ein Mensch einen neuen Tag.
   `.claude/settings.json`, `.githooks/` und `.loomux/config.toml`.
 - **4c:** Ein `local_only`-Bereich dieses Rechners öffnet einen Fall mit
   Vorschlag; `dev bench search` läuft über den Korpus.
-- **4d:** Eine PDF und ein Transkript gehen durch den Eingang eines Bereichs.
+- **4d:** Eine PDF und ein Transkript gehen durch den Eingang eines Bereichs:
+  `brain-knowledge/00 Eingang`, vom Menschen, mit Poppler (entschieden
+  2026-09-26).
 
 ## Messen
 
@@ -965,3 +1059,22 @@ freigegeben, 100 % Coverage je Funktion, Mutationsrunde mit dokumentierten
 - Welches Arbeitsverzeichnis ein stdio-MCP-Server aus dem Nutzerbereich
   bekommt (erste Aufgabe des Plans von 4a-1).
 - Ob `qmd` nach geänderten Ignore-Mustern die Vektoren wiederverwendet (4e).
+- Was `yt-dlp` mit den Schaltern der Entscheidung „fetch“ schreibt (4d,
+  erste Aufgabe des Plans, über `uvx yt-dlp` an einem echten Video), mit
+  festem `-o v` in einem kurzen Wegwerfverzeichnis (MAX_PATH) — nicht
+  `-o %(id)s`, denn die Id eines fremden Extraktors ist beliebig lang:
+  Dateinamen, Form der Info-JSON, was ohne json3-Spur geschieht (`--sub-format`
+  fällt auf ein anderes Format zurück, darum prüft loomux die Endung `.json3`,
+  bevor es liest), und Exit-Code samt übrig gebliebenen Dateien, wenn eine
+  der beiden Spuren scheitert (automatisch übersetzte Spuren antworten oft
+  mit 429). Gewählt wird nach Info-JSON und Dateien, nicht nach dem
+  Exit-Code. Gemessen am 2026-09-26 (`parity/stufe-4d.md`): Ohne
+  `--ignore-errors` beendet die scheiternde Spur — hier 429 auf der
+  automatisch übersetzten Spur `en` — yt-dlp mit Exit 1, bevor es die
+  Info-JSON schreibt; mit dem Schalter wird der Fehler eine Warnung, Exit 0,
+  die Info-JSON steht da. Die Entscheidung „fetch“ trägt den Schalter darum.
+- Was `pdftotext -v` ausgibt, an xpdf 4.06 und an Poppler (4d, ebenda), als
+  Grundlage von Vorschlag 12. Poppler misst der Mensch, sobald es installiert
+  ist, und zeichnet dabei die Goldens der Test-PDFs auf (Entscheidung „PDF“):
+  Seitentrenner, Exit-Codes einer kaputten und einer verschlüsselten PDF, ein
+  Pfad mit Umlaut.
