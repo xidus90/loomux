@@ -1,9 +1,13 @@
 package hooks
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/config"
 )
 
 // spelled is how a test reads targets: w: for a write, rm: for a removal, the
@@ -15,7 +19,11 @@ func spelled(targets []shellTarget) []string {
 		if t.removes {
 			kind = "rm:"
 		}
-		out = append(out, kind+strings.ReplaceAll(t.path, `\`, "/"))
+		spelling := kind + strings.ReplaceAll(t.path, `\`, "/")
+		for _, f := range t.filters {
+			spelling += " where " + f.glob
+		}
+		out = append(out, spelling)
 	}
 	slices.Sort(out)
 	return slices.Compact(out)
@@ -28,47 +36,54 @@ func TestShellWritesReadsTheTargetsOfEveryVerb(t *testing.T) {
 	root := t.TempDir()
 	mkfile(t, root, "notes.txt")
 	for line, want := range map[string][]string{
-		"echo x > .loomux/config.toml":                                     {"w:.loomux/config.toml"},
-		"echo x>.loomux/config.toml":                                       {"w:.loomux/config.toml"},
-		"echo x &> .loomux/config.toml":                                    {"w:.loomux/config.toml"},
-		"echo x 2>>.loomux/config.toml":                                    {"w:.loomux/config.toml"},
-		"echo x >| .loomux/config.toml":                                    {"w:.loomux/config.toml"},
-		"'x' *> .loomux/config.toml":                                       {"w:.loomux/config.toml"},
-		"tee -a .loomux/config.toml":                                       {"w:.loomux/config.toml"},
-		"Set-Content -Path .loomux/config.toml -Value x":                   {"w:.loomux/config.toml"},
-		`Out-File -FilePath:.loomux\config.toml`:                           {"w:.loomux/config.toml"},
-		"touch .loomux/state/runs/0001.flow":                               {"w:.loomux/state/runs/0001.flow"},
-		"rm -rf .loomux":                                                   {"rm:.loomux"},
-		"rm -- -x .loomux/config.toml":                                     {"rm:-x", "rm:.loomux/config.toml"},
-		`rmdir /s /q .loomux\state\runs`:                                   {"rm:.loomux/state/runs"},
-		"mv .loomux/flows elsewhere":                                       {"rm:.loomux/flows", "w:elsewhere"},
-		"Move-Item x -Destination .loomux/config.toml":                     {"rm:x", "w:.loomux/config.toml"},
-		`Rename-Item .loomux\x config.toml`:                                {"rm:.loomux/x", "w:.loomux/config.toml"},
-		"cp -r mine .loomux/flows/":                                        {"w:.loomux/flows/"},
-		"cp -t .loomux/flows/example x":                                    {"w:.loomux/flows/example"},
-		`Copy-Item x.toml -Dest .loomux\config.toml`:                       {"w:.loomux/config.toml"},
-		"install -m 644 x .loomux/config.toml":                             {"w:.loomux/config.toml"},
-		"rsync -a src/ .loomux/flows/example/":                             {"w:.loomux/flows/example/"},
-		"ln -s evil .loomux/config.toml":                                   {"w:.loomux/config.toml"},
-		"dd if=x of=.loomux/config.toml":                                   {"w:.loomux/config.toml"},
-		"tar -xf evil.tar -C .loomux/flows/example":                        {"w:.loomux/flows/example"},
-		"tar --extract --file evil.tar --directory=.loomux/flows/example":  {"w:.loomux/flows/example"},
-		"tar -czf .loomux/config.toml src":                                 {"w:.loomux/config.toml"},
-		"tar cf .loomux/config.toml src":                                   {"w:.loomux/config.toml"},
-		"tar --create --file=.loomux/config.toml src":                      {"w:.loomux/config.toml"},
-		"unzip evil.zip -d .loomux/flows/example":                          {"w:.loomux/flows/example"},
-		`Expand-Archive evil.zip -DestinationPath .loomux\flows\example`:   {"w:.loomux/flows/example"},
-		`robocopy evil .loomux\flows\example /MIR`:                         {"w:.loomux/flows/example"},
-		`xcopy evil .loomux\flows\example /E /I`:                           {"w:.loomux/flows/example"},
-		"New-Item -Path .loomux/config.toml -Force":                        {"w:.loomux/config.toml"},
-		"New-Item -Path .loomux -Name config.toml":                         {"w:.loomux/config.toml"},
-		"ni .loomux/state/runs/0002.flow":                                  {"w:.loomux/state/runs/0002.flow"},
-		"curl -o .loomux/config.toml https://example.invalid/x":            {"w:.loomux/config.toml"},
-		"curl -sSLo .loomux/config.toml https://example.invalid/x":         {"w:.loomux/config.toml"},
-		"curl --output=.loomux/config.toml https://example.invalid/x":      {"w:.loomux/config.toml"},
-		"wget -O .loomux/config.toml https://example.invalid/x":            {"w:.loomux/config.toml"},
-		"Invoke-WebRequest https://example.invalid/x -OutFile .loomux/c.t": {"w:.loomux/c.t"},
-		"find .loomux/state -name '*.jsonl' -delete":                       {"rm:.loomux/state"},
+		"echo x > .loomux/config.toml":                                      {"w:.loomux/config.toml"},
+		"echo x>.loomux/config.toml":                                        {"w:.loomux/config.toml"},
+		"echo x &> .loomux/config.toml":                                     {"w:.loomux/config.toml"},
+		"echo x 2>>.loomux/config.toml":                                     {"w:.loomux/config.toml"},
+		"echo x >| .loomux/config.toml":                                     {"w:.loomux/config.toml"},
+		"'x' *> .loomux/config.toml":                                        {"w:.loomux/config.toml"},
+		"tee -a .loomux/config.toml":                                        {"w:.loomux/config.toml"},
+		"Set-Content -Path .loomux/config.toml -Value x":                    {"w:.loomux/config.toml"},
+		`Out-File -FilePath:.loomux\config.toml`:                            {"w:.loomux/config.toml"},
+		"touch .loomux/state/runs/0001.flow":                                {"w:.loomux/state/runs/0001.flow"},
+		"rm -rf .loomux":                                                    {"rm:.loomux"},
+		"rm -- -x .loomux/config.toml":                                      {"rm:-x", "rm:.loomux/config.toml"},
+		`rmdir /s /q .loomux\state\runs`:                                    {"rm:.loomux/state/runs"},
+		"mv .loomux/flows elsewhere":                                        {"rm:.loomux/flows", "w:elsewhere"},
+		"Move-Item x -Destination .loomux/config.toml":                      {"rm:x", "w:.loomux/config.toml"},
+		`Rename-Item .loomux\x config.toml`:                                 {"rm:.loomux/x", "w:.loomux/config.toml"},
+		"cp -r mine .loomux/flows/":                                         {"w:.loomux/flows/"},
+		"cp -t .loomux/flows/example x":                                     {"w:.loomux/flows/example"},
+		`Copy-Item x.toml -Dest .loomux\config.toml`:                        {"w:.loomux/config.toml"},
+		"install -m 644 x .loomux/config.toml":                              {"w:.loomux/config.toml"},
+		"rsync -a src/ .loomux/flows/example/":                              {"w:.loomux/flows/example/"},
+		"ln -s evil .loomux/config.toml":                                    {"w:.loomux/config.toml"},
+		"dd if=x of=.loomux/config.toml":                                    {"w:.loomux/config.toml"},
+		"tar -xf evil.tar -C .loomux/flows/example":                         {"w:.loomux/flows/example"},
+		"tar --extract --file evil.tar --directory=.loomux/flows/example":   {"w:.loomux/flows/example"},
+		"tar -czf .loomux/config.toml src":                                  {"w:.loomux/config.toml"},
+		"tar cf .loomux/config.toml src":                                    {"w:.loomux/config.toml"},
+		"tar --create --file=.loomux/config.toml src":                       {"w:.loomux/config.toml"},
+		"unzip evil.zip -d .loomux/flows/example":                           {"w:.loomux/flows/example"},
+		`Expand-Archive evil.zip -DestinationPath .loomux\flows\example`:    {"w:.loomux/flows/example"},
+		`robocopy evil .loomux\flows\example /MIR`:                          {"w:.loomux/flows/example"},
+		`xcopy evil .loomux\flows\example /E /I`:                            {"w:.loomux/flows/example"},
+		"New-Item -Path .loomux/config.toml -Force":                         {"w:.loomux/config.toml"},
+		"New-Item -Path .loomux -Name config.toml":                          {"w:.loomux/config.toml"},
+		"ni .loomux/state/runs/0002.flow":                                   {"w:.loomux/state/runs/0002.flow"},
+		"curl -o .loomux/config.toml https://example.invalid/x":             {"w:.loomux/config.toml"},
+		"curl -sSLo .loomux/config.toml https://example.invalid/x":          {"w:.loomux/config.toml"},
+		"curl --output=.loomux/config.toml https://example.invalid/x":       {"w:.loomux/config.toml"},
+		"wget -O .loomux/config.toml https://example.invalid/x":             {"w:.loomux/config.toml"},
+		"Invoke-WebRequest https://example.invalid/x -OutFile .loomux/c.t":  {"w:.loomux/c.t"},
+		"find .loomux/state -name '*.jsonl' -delete":                        {"rm:.loomux/state where *.jsonl"},
+		"find . -iname '*.JSONL' -exec rm {} +":                             {"rm:. where *.JSONL"},
+		"find . -path './.loomux/*/0001.*' -name x -delete":                 {"rm:. where ./.loomux/*/0001.* where x"},
+		"curl --output-dir .loomux --remote-name-all https://x/config.toml": {"w:.loomux/config.toml"},
+		"eval rm .loomux/config.toml":                                       {"rm:.loomux/config.toml"},
+		"x=1 eval 'rm .loomux/config.toml'":                                 {"rm:.loomux/config.toml"},
+		"echo x > $(pwd)/.loomux/config.toml":                               {"w:$_/.loomux/config.toml"},
+		"Set-Content -Path (Join-Path $PWD '.loomux/config.toml')":          {"w:./.loomux/config.toml"},
 		"find -delete": {"rm:."},
 		"find .loomux/flows/example -exec rm {} +":                   {"rm:.loomux/flows/example"},
 		"sed -i s/a/b/ .loomux/config.toml":                          {"w:.loomux/config.toml"},
@@ -117,7 +132,9 @@ func TestShellWritesReadsTheTargetsOfEveryVerb(t *testing.T) {
 		"wget --directory-prefix=.loomux https://x/config.toml":      {"w:.loomux/config.toml"},
 		"cd .loomux && wget https://x/config.toml":                   {"w:.loomux/config.toml"},
 		"git clean -fdxe keep":                                       {"rm:."},
-		"find .loomux/state -name '*.jsonl' | xargs rm":              {"rm:.loomux/state"},
+		"find .loomux/state -name '*.jsonl' | xargs rm":              {"rm:.loomux/state where *.jsonl"},
+		"gci .loomux -Recurse -Filter *.jsonl | ri":                  {"rm:.loomux where *.jsonl"},
+		"find .loomux/state | xargs rm":                              {"rm:.loomux/state"},
 		"ls .loomux/state/runs/* | xargs rm -f":                      {"rm:.loomux/state/runs/*"},
 		"Get-ChildItem .loomux/state -Recurse | Remove-Item":         {"rm:.loomux/state"},
 		`gci .loomux\state\runs | ri -Force`:                         {"rm:.loomux/state/runs"},
@@ -137,6 +154,63 @@ func TestShellWritesReadsTheTargetsOfEveryVerb(t *testing.T) {
 			if !slices.Contains(got, w) {
 				t.Errorf("%q: targets %q, want %q among them", line, got, w)
 			}
+		}
+	}
+}
+
+// A name filter is matched as find matches it, and a listing past its limit
+// is taken for the removal of its start paths.
+func TestAFilteredListingKeepsWhatItsPatternMatches(t *testing.T) {
+	for _, row := range []struct {
+		glob, s string
+		want    bool
+	}{
+		{"*.orig", "a.orig", true}, {"*.orig", "a.origx", false}, {"a/*/c", "a/b/x/c", true},
+		{"?.go", "a.go", true}, {"?.go", ".go", false}, {"[ab].go", "b.go", true},
+		{"[!ab].go", "b.go", false}, {"[^ab].go", "c.go", true}, {"[a-c]x", "bx", true},
+		{"[a-c]x", "dx", false}, {"[x", "[x", true}, {"[]x", "x", false}, {"ab", "a", false},
+	} {
+		if got := fnmatch(row.glob, row.s); got != row.want {
+			t.Errorf("fnmatch(%q, %q) = %v", row.glob, row.s, got)
+		}
+	}
+	for line, want := range map[string]string{
+		"a $(b $(c)) d": "a $_ d", "a $(b": "a $(b", "a `b` c `d": "a $_ c `d",
+	} {
+		if got := foldSubstitutions(line); got != want {
+			t.Errorf("foldSubstitutions(%q) = %q", line, got)
+		}
+	}
+	root := t.TempDir()
+	mkfile(t, root, "a/x.orig")
+	mkfile(t, root, "a/y.orig")
+	j := newJudge(root, config.Policy{})
+	target := shellTarget{filters: []nameFilter{{glob: "*.orig"}}}
+	for _, rel := range []string{"a", filepath.Join(root, "a")} {
+		if got, ok := j.listing(rel, target, 10); !ok || len(got) != 2 {
+			t.Errorf("%q within the limit: %q %v", rel, got, ok)
+		}
+	}
+	if got, ok := j.listing("missing", target, 10); !ok || len(got) != 0 {
+		t.Errorf("a missing start: %q %v", got, ok)
+	}
+	if _, ok := newJudge(root, config.Policy{}).listing("a", target, 2); ok {
+		t.Error("past the limit: listed")
+	}
+	if got := newJudge(root, config.Policy{}).filteredReasons(".", target, 2); !slices.Contains(got, manifestReason) {
+		t.Errorf("past the limit the removal of the start: %q", got)
+	}
+	for args, want := range map[string]string{
+		"-Path src -Include *.tmp,*.bak":  "[src] 2",
+		"-LiteralPath src -Filter *.orig": "[src] 1",
+		"src -Filter *.orig":              "[src] 1",
+		"-Recurse -Include *.tmp":         "[.] 1",
+		"-Include *,*.tmp":                "[] 0",
+		"-Recurse":                        "[.] 0",
+	} {
+		starts, filters := childItemFilters(strings.Fields(args))
+		if got := fmt.Sprint(starts, " ", len(filters)); got != want {
+			t.Errorf("childItemFilters(%q) = %s, want %s", args, got, want)
 		}
 	}
 }
