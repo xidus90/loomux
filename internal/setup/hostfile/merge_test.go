@@ -840,3 +840,87 @@ func TestMergeOnlyNotesAMatcherlessEntryKeptUnderAMatcher(t *testing.T) {
 		}
 	}
 }
+
+// Claude Code's settings have no hook groups outside "hooks": a command of
+// ours under another top-level key is not a group that runs the hook twice,
+// so the Antigravity note stays away.
+func TestMergeNamesNoOtherGroupForClaude(t *testing.T) {
+	existing := []byte(`{"statusLine":{"type":"command","command":"loomux hook stop"}}`)
+	got, err := Merge(claude, existing, []Entry{{Event: "Stop", Command: "loomux hook stop"}})
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if len(got.Notes) != 0 || !slices.Equal(got.Added, []string{"Stop/"}) {
+		t.Fatalf("added %v, notes %v; want the entry added without a note", got.Added, got.Notes)
+	}
+}
+
+// An own block on the wanted matcher settles the slot; another own block of
+// the same hook under another matcher neither gets a note nor a block for
+// the tools it lacks.
+func TestMergeLooksNoFurtherThanAnOwnBlockOnTheMatcher(t *testing.T) {
+	wanted := []Entry{{Event: "PreToolUse", Matcher: "Write|Edit|Bash", Command: "loomux hook pre-tool-use"}}
+	existing := []byte(`{"hooks":{"PreToolUse":[` +
+		`{"matcher":"Write|Edit|Bash","hooks":[{"type":"command","command":"loomux hook pre-tool-use"}]},` +
+		`{"matcher":"Read","hooks":[{"type":"command","command":"loomux hook pre-tool-use"}]}]}}`)
+	got, err := Merge(claude, existing, wanted)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if len(got.Added) != 0 || len(got.Notes) != 0 || !slices.Equal(got.Kept, []string{"PreToolUse/Write|Edit|Bash"}) ||
+		!bytes.Equal(got.Merged, existing) {
+		t.Fatalf("added %v, kept %v, notes %v\n%s", got.Added, got.Kept, got.Notes, got.Merged)
+	}
+}
+
+// Of two stale own blocks on the slot, the note names the first one's
+// command, as find promises.
+func TestMergeNamesTheFirstOfTwoStaleOwnEntries(t *testing.T) {
+	existing := []byte(`{"hooks":{"Stop":[` +
+		`{"hooks":[{"type":"command","command":"C:/old/loomux.exe hook stop"}]},` +
+		`{"hooks":[{"type":"command","command":"C:/older/loomux.exe hook stop"}]}]}}`)
+	got, err := Merge(claude, existing, []Entry{{Event: "Stop", Command: Canonical + " hook stop"}})
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if len(got.Notes) != 1 || !strings.Contains(got.Notes[0], "C:/old/loomux.exe") ||
+		strings.Contains(got.Notes[0], "C:/older/") {
+		t.Fatalf("notes %v, want one naming the first stale command", got.Notes)
+	}
+}
+
+// A wanted matcher that is no flat list cannot be counted, whatever the old
+// matchers are. Merge alone cannot see this: with nothing counted missing it
+// adds nothing either way.
+func TestMissingToolsCountsNothingForAWantedMatcherThatIsNoList(t *testing.T) {
+	for _, want := range []string{"Write|Ba.*", ""} {
+		if missing, counted := missingTools(want, []string{"Write"}); counted || missing != nil {
+			t.Errorf("missingTools(%q) = %v, %v; want nil, false", want, missing, counted)
+		}
+	}
+}
+
+// A name is ASCII letters, digits and underscores, the first and last of
+// each range included; the characters just outside each range are not.
+func TestToolNamesTakeEveryRangeToItsEnds(t *testing.T) {
+	for _, name := range []string{"A", "Z", "a", "z", "0", "9", "_", "A0z9Z_a"} {
+		if names, ok := toolNames(name); !ok || !slices.Equal(names, []string{name}) {
+			t.Errorf("toolNames(%q) = %v, %v; want it as one name", name, names, ok)
+		}
+	}
+	for _, name := range []string{"/", ":", "@", "[", "`", "{", "Write-Edit"} {
+		if names, ok := toolNames("Write|" + name); ok {
+			t.Errorf("toolNames(%q) = %v, true; want false", name, names)
+		}
+	}
+}
+
+// A flat block -- a handler of Antigravity's without a hooks list -- is
+// written in a command's key order, not sorted like a block's other keys.
+func TestFormatBlockWritesAFlatBlockAsACommand(t *testing.T) {
+	got := formatBlock(map[string]any{"type": "command", "command": "x", "timeout": 15}, "")
+	want := "{\n  \"type\": \"command\",\n  \"command\": \"x\",\n  \"timeout\": 15\n}"
+	if got != want {
+		t.Fatalf("formatBlock = %q, want %q", got, want)
+	}
+}
