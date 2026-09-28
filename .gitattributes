@@ -68,3 +68,11 @@ testdata/cases/4c1/** -text
 # The search corpus is held by checksums over its raw bytes: manifest.json
 # names the sha256 of every note, and a fold of any kind would break them.
 testdata/bench/search/** -text
+
+# The stage-4d fixtures are evidence: PDFs built by hand, a recorded yt-dlp
+# run, recordings of the reference and of Poppler. No fold of any kind.
+testdata/convert/** -text
+testdata/cases/4d-worlds/** -text
+testdata/cases/4d-source/** -text
+testdata/cases/4d/** -text
+internal/brain/model/zipf/** -text
