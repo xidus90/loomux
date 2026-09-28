@@ -706,7 +706,7 @@ func devBenchSearch(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("dev bench search", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var o benchsearch.Options
-	fs.StringVar(&o.Scope, "scope", "knowledge", "the area to measure, or all")
+	fs.StringVar(&o.Scope, "scope", "knowledge", "the area to measure, or all; default the areas the expect paths lie in (knowledge only finds the question set)")
 	profile := fs.String("profile", string(search.ProfileFast), "keyword, fast or full")
 	channel := fs.String("channel", string(privacy.ChannelLocal), "local or cloud")
 	fs.StringVar(&o.Out, "out", "", "directory for the report; default <area>/98 Messung")

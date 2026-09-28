@@ -6,6 +6,7 @@
 - system: windows/amd64, Test CPU
 - loomux: 1.2.3
 - search path: daemon
+- scope: knowledge
 - indexed documents: 12
 - question set: C:/sets/questions.yaml
 - corpus: v1

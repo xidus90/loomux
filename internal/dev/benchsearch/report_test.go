@@ -17,6 +17,7 @@ import (
 func sampleRun(latency bool) Run {
 	r := Run{
 		Stamp:   "2026-09-26-1200",
+		Scope:   "knowledge",
 		Profile: "fast",
 		Environment: benchreport.Environment{
 			OS: "windows", Arch: "amd64", CPU: "Test CPU", Go: "go1.26.0", Loomux: "1.2.3",
