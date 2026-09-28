@@ -2850,3 +2850,36 @@ Läufe endeten mit Exit 0. Die Falldatei läuft unverändert unter dem heutigen
    `.loomux/`.
 3. **Der wartende Lauf** kostet `after` warm 0,7 ms gegenüber dem Projekt
    ohne Läufe, weniger als die Streuung jedes der beiden Fälle.
+
+## 2026-09-28 09:25 — Alltagsqualität der Suche: das qmd-Backbone und `fast` über mehrere Bereiche
+
+Was: `loomux dev bench search` über den Alltags-Fragensatz von
+`brain-knowledge` (50 Fragen), loomux 4.2.0 gegen den Fix dieses Zweigs,
+qmd 2.8.3, `--repeat 10`. Der Fragensatz lief aus einer Kopie, in der 27
+`expect`-Pfade von `space/wiki/` nach `space/docs/wiki/` umgesetzt sind (das
+Wiki ist am 2026-09-07 umgezogen). Jeder Index wurde unter dem Backbone, unter
+dem gesucht wurde, vollständig neu eingebettet (`qmd embed -f --timeout 0`).
+
+| Lauf | Vulkan | CUDA |
+|---|---:|---:|
+| volle Einbettung, 587 Dokumente, 2 986 Abschnitte | 2 min 51 s, nichts ausstehend | 3 min 0 s, nichts ausstehend |
+| `keyword`, `--scope all` | 8/50, Median 15 ms | 8/50, Median 13 ms |
+| `fast`, `--scope project/space` | 19/50, Median 93 ms | 20/50, Median 117 ms |
+| `fast`, `--scope all`, loomux 4.2.0 | 0/50 | 0/50 |
+| `fast`, `--scope all`, dieser Fix | 31/50 (exakt 9/13, umschreibung 5/13, gemischt 7/10), Median 92 ms | — |
+
+### Lesart
+
+1. **CUDA lief diesmal sauber.** Am 2026-09-27 lief die Einbettung unter CUDA
+   40 min und ließ 94 % der Dokumente ohne Vektor, und der Dienst stürzte bei
+   der ersten Frage ab. Heute lief sie auf demselben Rechner in 3 min durch.
+   Ein sauberer Lauf gegen einen Absturz; der Unterschied zwischen den beiden
+   Backbones (19 zu 20, 93 zu 117 ms) liegt in der Streuung.
+2. **`fast` über mehrere Bereiche fand nichts, gleich unter welchem Backbone.**
+   qmd verschmilzt eine Rangliste je genannter Sammlung und gewichtet die erste
+   doppelt; so kommt der beste Treffer jeder Sammlung in der Reihenfolge
+   zurück, in der die Sammlungen genannt wurden (Werte 1, ½, ⅓ …). Eine Suche
+   ohne genannte Sammlung ordnet den ganzen Index auf einmal; loomux fragt jetzt
+   so und behält die Treffer der gefragten Bereiche.
+3. **`keyword` bleibt, wie es ist.** Auf dieselbe Weise gefragt, kam es auf
+   7/50 gegen 8/50; das ist Rauschen, kein Gewinn.
