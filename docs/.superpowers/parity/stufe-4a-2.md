@@ -415,14 +415,45 @@ notes:
   `cd "<worktree>" && bin/loomux.exe init --dry-run`, ohne `$` hinter den
   Flags; der Pfad enthält `#`. Siehe „Offen“.
 
-### Mensch — offen
+### Mensch
 
-Noch nicht gelaufen (Plan, Task 15, Schritte 2 bis 4): ein frischer Klon mit
-`init` und `--yes`, danach `git config core.hooksPath`, `ls bin/loomux.exe`,
-ein zweites `init --dry-run` ohne Änderung und ein leeres
-`git status --porcelain`; dann ein Wirt nach Wahl mit `loomux init`
+**Frischer Klon, erledigt am 2026-09-28** (Plan, Task 15, Schritte 2 und
+3). Ein Klon von `origin/master` (`a588ac9`) im Scratchpad, `git status`
+leer. Vorher hat ein Agent `--detect-only` und `--dry-run` mit dem Release
+5.2.1 und dem Entwicklungs-Build gefahren: beide planen nur `binary-build`
+und `hooks-path`. Dann der Mensch, über den `!`-Präfix in Git Bash:
+
+```text
+$ go run ./cmd/loomux init --yes; echo "init exit $?"; git status --short; echo "(ende)"
+actions:
+  binary-build: build bin/loomux.exe from this checkout
+  hooks-path: git config core.hooksPath .githooks
+notes:
+  antigravity: .agents/hooks.json loads only in a folder agy trusts (trustedWorkspaces)
+  yt-dlp is not on PATH; install it with: winget install --id yt-dlp.yt-dlp -e
+  antigravity: no entries; this init is the development build 0.0.0-dev, and no installed loomux can be compared with it; run a released loomux init
+  .githooks/commit-msg: kept; it runs a gate already
+  .githooks/pre-commit: kept; it runs a gate already
+  .githooks/pre-push: kept; a hook of the project is already there
+  ollama is not running at http://127.0.0.1:11434; start it and run init again, or run: ollama pull hf.co/unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL
+written: binary-build
+written: hooks-path
+init exit 0
+(ende)
+```
+
+Danach (Agent): `git config core.hooksPath` ist `.githooks`,
+`bin/loomux.exe` steht, `git status --short --ignored` nennt nur `bin/` und
+`.loomux/state/` als ignoriert, und ein zweites `init --dry-run` mit dem
+eben gebauten Binär meldet `nothing to change`. AGENTS.md, die READMEs und
+`getting-started.md` nennen seitdem `init --yes` als den Weg eines frischen
+Klons.
+
+**Offen** (Task 15, Schritt 4): ein Wirt nach Wahl mit `loomux init`
 interaktiv, in dem `pre-tool-use` in einer neuen Claude-Code-Sitzung einen
-Push verweigert. Ergebnisse mit Datum hier eintragen.
+Push verweigert. Die Freigabe einer Projekt-`.mcp.json` ist auf dem Rechner
+des Nutzers nicht erreichbar, solange sein Nutzerbereich in Claude Code
+einen Server `loomux` hat: `init` legt dann keine an (Abweichung E5).
 
 ## Mutationsrunde
 

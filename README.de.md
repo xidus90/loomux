@@ -448,7 +448,8 @@ steht. Was sich geändert hat, steht in [`CHANGELOG.md`](CHANGELOG.md).
 
 Auf `master` wird nie direkt committet; jede Änderung läuft über einen Pull
 Request. Die Hooks in `.githooks` lehnen einen Commit auf `master` und einen
-Push dorthin ab, sobald `git config core.hooksPath .githooks` gesetzt ist. Mit
+Push dorthin ab, sobald `go run ./cmd/loomux init --yes` einen frischen Klon
+eingerichtet hat (von Hand: `git config core.hooksPath .githooks`). Mit
 einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
 
 1. Commits thematisch gruppieren, ein Commit pro Änderung. Eine spätere

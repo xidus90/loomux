@@ -1293,8 +1293,9 @@ Sets a project up for loomux: it reads what the project is, asks per module
 what to set up, shows every change as a diff and every action by name, and
 writes only what a human approves. It replaces ultraloom's `ulinit`,
 `scripts/install.ps1` and the hook half of `brain init`. Built with stage
-4a-2; running it on a fresh clone of this repository and on a host project is
-still to be done by a human (see the [migration plan](migration.md)).
+4a-2; a human ran it on a fresh clone of this repository on 2026-09-28, and
+running it in a host project is still to be done (see the
+[migration plan](migration.md)).
 
 ```bash
 loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]
@@ -1350,8 +1351,9 @@ blanks joined by `-`, and `project/root` where the name leaves nothing.
 
 A checkout of loomux (its `go.mod` declares `github.com/xidus90/loomux`) gets
 on by default only what its tracked files already have, so that `init --yes`
-on a fresh clone is meant to leave `git status` empty; a human run that
-checks this is still pending.
+on a fresh clone leaves `git status` empty; a human run on 2026-09-28 built
+the binary, set `core.hooksPath` and found it so, and a second run had
+nothing to change.
 
 ### What it writes, and what it leaves
 - **Never overwrite, report instead.** A new file is created exclusively; a

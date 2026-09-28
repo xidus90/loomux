@@ -26,7 +26,7 @@ Make sure your `$GOPATH/bin` (or `%USERPROFILE%\go\bin`) is in your system `PATH
 ```bash
 git clone https://github.com/xidus90/loomux.git
 cd loomux
-go build -o bin/loomux.exe ./cmd/loomux
+go run ./cmd/loomux init --yes   # builds bin/loomux.exe and arms the git hooks
 ```
 
 Verify your installation:

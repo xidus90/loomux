@@ -1342,9 +1342,9 @@ Richtet ein Projekt für loomux ein: Es liest, was das Projekt ist, fragt je
 Modul, was einzurichten ist, zeigt jede Änderung als Diff und jede Handlung
 beim Namen und schreibt nur, was ein Mensch bestätigt. Es ersetzt `ulinit`
 aus ultraloom, `scripts/install.ps1` und die Hook-Hälfte von `brain init`.
-Gebaut mit Stufe 4a-2; der Lauf auf einem frischen Klon dieses Repositorys
-und in einem Wirtsprojekt steht für einen Menschen noch aus (siehe den
-[Migrationsplan](migration.md)).
+Gebaut mit Stufe 4a-2; auf einem frischen Klon dieses Repositorys hat ein
+Mensch es am 2026-09-28 laufen lassen, der Lauf in einem Wirtsprojekt steht
+noch aus (siehe den [Migrationsplan](migration.md)).
 
 ```bash
 loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]
@@ -1402,7 +1402,8 @@ ersetzt, und `project/root`, wo vom Namen nichts bleibt.
 Ein Checkout von loomux (sein `go.mod` erklärt `github.com/xidus90/loomux`)
 bekommt als Vorgabe nur an, was seine eingecheckten Dateien schon haben,
 damit `init --yes` auf einem frischen Klon `git status` leer lässt; ein Lauf
-durch einen Menschen, der das prüft, steht noch aus.
+durch einen Menschen am 2026-09-28 baute das Binary, setzte
+`core.hooksPath` und fand es so, und ein zweiter Lauf hatte nichts zu ändern.
 
 ### Was es schreibt und was es stehen lässt
 - **Nie überschreiben, stattdessen melden.** Eine neue Datei entsteht
