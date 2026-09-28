@@ -4,6 +4,20 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [4.2.0] - 2026-09-28
+
+<https://github.com/xidus90/loomux/pull/50>
+
+### Added
+- `loomux flow run`, `resume`, `replay`, `show` and `list` start a flow, answer a paused run's gate, replay a finished run, show a run or a flow's graph, and list every flow a project can name.
+- A catalog of flows shipped with the binary, with an `example` flow; a project can overlay a bundled flow's instructions and questions when `[flow] overrides` names it.
+- `[agent]` configuration keys bind a flow's roles to models (`agent.roles.<role>`, `agent.models.<name>.provider|model`, `agent.default`), and `[flow]` keys set the default flow and the overrides; `loomux config get|set|unset` and the interactive form reach them.
+- Session start names every flow run waiting at a gate, with the command a human answers it with.
+- The guard refuses an agent's answer to a flow gate and its writes to run files and to bundled flow folders.
+
+### Fixed
+- The guard's built-in path rules match a path in any case, so `.ENV`, `GO.SUM` or `.LOOMUX/No-Verify` are protected on Windows and macOS too.
+
 ## [4.1.0] - 2026-09-27
 
 <https://github.com/xidus90/loomux/pull/48>
