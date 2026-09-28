@@ -17,11 +17,13 @@ import (
 	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/brain/search"
 	"github.com/xidus90/loomux/internal/brain/search/backbonetest"
+	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/benchreport"
 	"github.com/xidus90/loomux/internal/dev/benchsearch"
+	"github.com/xidus90/loomux/internal/dev/faketool"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 	"github.com/xidus90/loomux/internal/notices"
 )
@@ -1145,5 +1147,69 @@ func TestDevNoticesReportsWhatGoCannotList(t *testing.T) {
 	}
 	if _, err := os.Stat(out); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("a failed render wrote %s: %v", out, err)
+	}
+}
+
+// The recording must replay: pdftotext.extract asks with the PDF's directory
+// as working directory and the bare name, so the recorder asks the same, and
+// the answer it writes is the one faketool finds for that very argv.
+func TestDevRecordPopplerWritesOneAnswerPerPDF(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "a.pdf"), "%PDF")
+	writeFile(t, filepath.Join(dir, "b.PDF"), "%PDF")
+	writeFile(t, filepath.Join(dir, "c.txt"), "x")
+	saved := popplerRun
+	t.Cleanup(func() { popplerRun = saved })
+	var specs []child.Spec
+	popplerRun = func(spec child.Spec) child.Result {
+		specs = append(specs, spec)
+		if spec.Argv[1] == "-v" {
+			return child.Result{Stdout: "banner\n", Stderr: "pdftotext version 25.07.0\n"}
+		}
+		return child.Result{Code: len(specs), Stdout: "Text of " + spec.Argv[len(spec.Argv)-2] + "\f", Stderr: "Syntax Error\r\n"}
+	}
+	exe := filepath.Join(t.TempDir(), "bin", "pdftotext.exe")
+	out := filepath.Join(t.TempDir(), "faketool.json")
+	code, stdout, _ := run("dev", "record-poppler", "--exe", exe, "--dir", dir, "--out", out)
+	fixture, err := faketool.Load(out)
+	if code != 0 || err != nil || len(fixture.Answers) != 3 || len(specs) != 3 {
+		t.Fatalf("%d %v %+v %d", code, err, fixture, len(specs))
+	}
+	if specs[0].Argv[0] != exe || specs[0].Argv[1] != "-v" || len(specs[0].Argv) != 2 {
+		t.Errorf("-v asked %q", specs[0].Argv)
+	}
+	version, ok := fixture.Match([]string{"pdftotext", "-v"})
+	if !ok || version.Stdout != "banner\npdftotext version 25.07.0\n" || version.Exit != 0 {
+		t.Errorf("-v recorded as %+v %v", version, ok)
+	}
+	for i, name := range []string{"a.pdf", "b.PDF"} {
+		spec := specs[i+1]
+		want := []string{exe, "-layout", "-enc", "UTF-8", "-eol", "unix", name, "-"}
+		if spec.Dir != dir || strings.Join(spec.Argv, "|") != strings.Join(want, "|") {
+			t.Errorf("%s asked %q in %q", name, spec.Argv, spec.Dir)
+		}
+		answer, ok := fixture.Match(spec.Argv)
+		if !ok || answer.Stdout != "Text of "+name+"\f" || answer.Exit != i+2 {
+			t.Errorf("%s replays as %+v %v", name, answer, ok)
+		}
+	}
+	if strings.Count(stdout, "\n") != 2 || !strings.Contains(stdout, `b.PDF: exit 3, 14 bytes, stderr "Syntax Error"`) {
+		t.Errorf("stdout %q", stdout)
+	}
+	for _, args := range [][]string{
+		{"dev", "record-poppler", "--dir", dir, "--out", out},
+		{"dev", "record-poppler", "--exe", "x", "--out", out},
+		{"dev", "record-poppler", "--exe", "x", "--dir", dir},
+		{"dev", "record-poppler", "--nope"},
+	} {
+		if code, _, _ := run(args...); code != 2 {
+			t.Errorf("%q: %d", args, code)
+		}
+	}
+	if code, _, _ := run("dev", "record-poppler", "--exe", "x", "--dir", filepath.Join(dir, "gone"), "--out", out); code != 1 {
+		t.Errorf("an unreadable --dir: %d", code)
+	}
+	if code, _, _ := run("dev", "record-poppler", "--exe", "x", "--dir", dir, "--out", filepath.Join(dir, "gone", "f.json")); code != 1 {
+		t.Errorf("an unwritable --out: %d", code)
 	}
 }

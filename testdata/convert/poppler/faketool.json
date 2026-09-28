@@ -1,0 +1,54 @@
+{
+ "answers": [
+  {
+   "prefix": "pdftotext -v",
+   "exit": 0,
+   "stdout": "pdftotext version 25.07.0\nCopyright 2005-2025 The Poppler Developers - http://poppler.freedesktop.org\nCopyright 1996-2011, 2022 Glyph \u0026 Cog, LLC\n"
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix Bericht März.pdf -",
+   "exit": 0,
+   "stdout": "Hallo aus dem Pruefbestand. Diese Zeile testet die Extraktion aus einer von Hand geschriebenen PDF-Datei, ohne Texterkennung und ohne fremde Erzeugerbibliothek im Testbestand. Der Inhalt bleibt frei erfunden und dient allein dazu, die Schwelle von hundert Zeichen je Seite sicher zu ueberschreiten, damit die Datei nicht faelschlich als Scan gilt und der Test etwas Sinnvolles pruefen kann.\n\f"
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix allscan.pdf -",
+   "exit": 0,
+   "stdout": "\f\f"
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix blank.pdf -",
+   "exit": 0,
+   "stdout": "\f"
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix corrupt.pdf -",
+   "exit": 1,
+   "stdout": ""
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix encrypted.pdf -",
+   "exit": 1,
+   "stdout": ""
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix mixed.pdf -",
+   "exit": 0,
+   "stdout": "Hallo aus dem Pruefbestand. Diese Zeile testet die Extraktion aus einer von Hand geschriebenen PDF-Datei, ohne Texterkennung und ohne fremde Erzeugerbibliothek im Testbestand. Der Inhalt bleibt frei erfunden und dient allein dazu, die Schwelle von hundert Zeichen je Seite sicher zu ueberschreiten, damit die Datei nicht faelschlich als Scan gilt und der Test etwas Sinnvolles pruefen kann.\n\fHallo aus dem Pruefbestand. Diese Zeile testet die Extraktion aus einer von Hand geschriebenen PDF-Datei, ohne Texterkennung und ohne fremde Erzeugerbibliothek im Testbestand. Der Inhalt bleibt frei erfunden und dient allein dazu, die Schwelle von hundert Zeichen je Seite sicher zu ueberschreiten, damit die Datei nicht faelschlich als Scan gilt und der Test etwas Sinnvolles pruefen kann.\n\fHallo aus dem Pruefbestand. Diese Zeile testet die Extraktion aus einer von Hand geschriebenen PDF-Datei, ohne Texterkennung und ohne fremde Erzeugerbibliothek im Testbestand. Der Inhalt bleibt frei erfunden und dient allein dazu, die Schwelle von hundert Zeichen je Seite sicher zu ueberschreiten, damit die Datei nicht faelschlich als Scan gilt und der Test etwas Sinnvolles pruefen kann.\n\f\f\f\f\f\f\f\f"
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix pageless.pdf -",
+   "exit": 99,
+   "stdout": ""
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix paragraphs.pdf -",
+   "exit": 0,
+   "stdout": "Hallo aus dem Pruefbestand. Diese Zeile testet die Extraktion aus einer von Hand geschriebenen PDF-Datei, ohne Texterkennung und ohne fremde Erzeugerbibliothek im Testbestand. Der Inhalt bleibt frei erfunden und dient allein dazu, die Schwelle von hundert Zeichen je Seite sicher zu ueberschreiten, damit die Datei nicht faelschlich als Scan gilt und der Test etwas Sinnvolles pruefen kann.Hallo aus dem Pruefbestand. Diese Zeile testet die Extraktion aus einer von Hand geschriebenen PDF-Datei, ohne Texterkennung und ohne fremde Erzeugerbibliothek im Testbestand. Der Inhalt bleibt frei erfunden und dient allein dazu, die Schwelle von hundert Zeichen je Seite sicher zu ueberschreiten, damit die Datei nicht faelschlich als Scan gilt und der Test etwas Sinnvolles pruefen kann.\n\f"
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix text.pdf -",
+   "exit": 0,
+   "stdout": "Hallo aus dem Pruefbestand. Diese Zeile testet die Extraktion aus einer von Hand geschriebenen PDF-Datei, ohne Texterkennung und ohne fremde Erzeugerbibliothek im Testbestand. Der Inhalt bleibt frei erfunden und dient allein dazu, die Schwelle von hundert Zeichen je Seite sicher zu ueberschreiten, damit die Datei nicht faelschlich als Scan gilt und der Test etwas Sinnvolles pruefen kann.\n\f"
+  }
+ ]
+}
