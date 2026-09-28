@@ -64,7 +64,7 @@ func (k Key) ID() string {
 func Keys() []Key {
 	keys := []Key{
 		{Section: "modules", Name: "hooks", Kind: Bool, Default: "true", Module: Base, Doc: "Run the session hooks: post-edit, stop, session-start and subagent. The guard always runs."},
-		{Section: "modules", Name: "brain", Kind: Bool, Default: "true", Module: Base, Doc: "Run the brain module: its MCP tools and the wiki lane."},
+		{Section: "modules", Name: "brain", Kind: Bool, Default: "true", Module: Base, Doc: "Run the brain module: its MCP tools, the wiki lane, convert and fetch."},
 		{Section: "modules", Name: "graph", Kind: Bool, Default: "true", Module: Base, Doc: "Offer the code graph's MCP tools."},
 		{Section: "commit", Name: "language", Kind: Enum, Choices: []string{"en", "de"}, Default: `"en"`, Module: Base, Doc: "The language commit messages are written in."},
 		{Section: "commit", Name: "conventional", Kind: Bool, Default: "true", Module: Base, Doc: "Check the header against Conventional Commits."},
@@ -99,7 +99,7 @@ func Keys() []Key {
 		{Section: "privacy", Name: "never", Kind: StringList, Default: "[]", Module: Brain, Doc: "Globs that never leave the machine."},
 		{Section: "maintenance", Name: "on_merge", Kind: Bool, Module: Brain, Doc: "Record merges for reconciliation."},
 		{Section: "maintenance", Name: "branch", Kind: String, Module: Brain, Doc: "The branch whose merges count."},
-		{Section: "model", Name: "enabled", Kind: Bool, Module: Brain, Doc: "Let the local model write proposals for this area."},
+		{Section: "model", Name: "enabled", Kind: Bool, Module: Brain, Doc: "Let the local model be asked for this area."},
 		{Section: "model", Name: "roles", Kind: Table, Module: Brain, Doc: "Which roles the local model takes: describe, place and propose, each true or false."},
 	}
 	slices.SortStableFunc(keys, func(a, b Key) int {

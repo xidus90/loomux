@@ -25,9 +25,9 @@ PDF-Escape im Textoperator, also die Bytes `5c 6e`, nicht Zeilenumbrüche),
 `blank.pdf`, `pageless.pdf`, `mixed.pdf` (drei Textseiten, sieben leere),
 `allscan.pdf`, `corrupt.pdf` (nur `%PDF-1.4\n`), dazu `Bericht März.pdf`
 (gleicher Inhalt wie `text.pdf`) und `encrypted.pdf` (pypdf, RC4-128,
-Benutzer- und Eigentümerkennwort `geheim`). `encrypted.pdf` trägt eine
-Zufallskennung von pypdf; sie ist einmal erzeugt und eingecheckt, ein neuer
-Lauf des Skripts ändert sie.
+Benutzer- und Eigentümerkennwort `geheim`). `encrypted.pdf` trägt keine
+Zufallskennung: pypdf bildet die `/ID` aus einer Prüfsumme des Inhalts, und
+ein neuer Lauf des Skripts erzeugt die Datei Byte für Byte gleich.
 
 **Eine Abweichung von der Referenz: die Seite ist 5000 pt breit**
 (`/MediaBox [0 0 5000 842]` statt `[0 0 595 842]`). Grund ist die erste
@@ -272,8 +272,13 @@ Folge oben.
 3. **`pageless.pdf`:** Poppler endet mit 99 und einer Fehlermeldung, xpdf mit
    0 ohne Ausgabe; die Referenz sieht „keine Seiten“. Unter Poppler wird der
    Fall eine PDF, die sich nicht lesen lässt, nicht eine ohne Seiten.
+   Entschieden: freigegebene Abweichung, nur stderr lautet anders (Zeile
+   „Eine PDF ohne Seiten unter echtem Poppler“ unter „Abweichungen“).
 4. **`-v` von xpdf endet mit 99** und schreibt auf stdout. Die Erkennung aus
-   E6 hält, wenn `-v` unabhängig vom Exit-Code gelesen wird.
+   E6 hält, wenn `-v` unabhängig vom Exit-Code gelesen wird. Entschieden so:
+   `pdf.go` (`resolve`) sucht `Poppler` in dem, was `-v` auf stdout und
+   stderr schreibt, gleich welcher Exit-Code; ein `-v` ohne Ausgabe nennt
+   den Exit-Code nur in seiner Meldung.
 5. **Eine andere Spur als die Referenz** — entschieden vom Nutzer: loomux
    behält die Wahl von yt-dlp (letzte `json3` einer Sprache); freigegebene
    Abweichung in der Spec. Das Orakel von Task 9 verdeckt den Unterschied,
@@ -307,7 +312,10 @@ Pythons `re \w` nimmt), je in den Umgebungen `a·b`, `1·2`, allein, `ab·`,
 `·ab`: `zipfTokens` gegen `tokenize(…, "de")`. Abweichungen gibt es nur in
 den Schriften ohne Leerzeichen (Zeile 4); in Latein, Griechisch und
 Kyrillisch keine, und jedes No-Zeichen außer elf aus Khmer und New Tai Lue
-liest der Nachbau wie wordfreq. Das Skript lag im Scratchpad (`split_check.py`,
+liest der Nachbau in diesen Umgebungen wie wordfreq. Das gilt nur dort: Ein
+Buchstabe der Klasse Prepend (UAX #29) davor, etwa U+0D4E oder U+111C2, zieht
+ein No-Zeichen in wordfreqs Token (`tokenize` behält U+0D4E mit `²` als ein
+Token), loomux lässt es weg. Das Skript lag im Scratchpad (`split_check.py`,
 `split_scripts.py`), nicht im Repo.
 
 1. **Mehrere Token** (`several tokens`). wordfreq verbindet die Token eines
@@ -356,9 +364,10 @@ liest der Nachbau wie wordfreq. Das Skript lag im Scratchpad (`split_check.py`,
    eine Ziffernfolge einer anderen Schrift (etwa arabisch-indisch) in einem
    Teil, rechnet wordfreq mit dem geglätteten Schlüssel und `digit_freq`,
    loomux schlägt den Token ungeglättet nach und findet ihn nicht (Band 0).
-   Der einzige Schlüssel der Tabelle mit einer Nicht-ASCII-Ziffer ist U+0E51
-   (Thai-Eins), eine einzelne Ziffer ohne Folge, die beide ungeglättet
-   nachschlagen.
+   U+0E51 (Thai-Eins) ist ein Schlüssel von `large_de` mit Zipf 1,09, eine
+   einzelne Ziffer ohne Folge, die beide ungeglättet nachschlagen. Die
+   eingebettete Tabelle trägt ihn nicht, sie hält nur Schlüssel ab Zipf 2,5;
+   für den Richter liegt er so bei beiden unter 2,5.
 
 ## Die Richter: `internal/brain/model/judge.go`
 
@@ -372,8 +381,10 @@ am 2026-09-27; die Batterie ist `internal/brain/model/testdata/judge-battery.jso
 Referenz selbst: `is_german`, `chopped_words`, `is_one_sentence`,
 `word_count`, `_reads_back`.
 
-Die 72 Funktionswörter stehen in `judge.go`, weil 4c-2 (`feat/bench-search`)
-nicht gemergt ist; `FunctionWords()` gibt eine Kopie heraus.
+Die 72 Funktionswörter stehen in `judge.go`, und nur dort: 4c-2 ist gemergt
+und erkennt die Richtung einer Frage an eigenen Listen
+(`internal/dev/benchsearch/corpus.go`), braucht diese also nicht.
+`FunctionWords()` gibt eine Kopie heraus.
 
 **Teile, die wordfreq an einer hoch- oder tiefgestellten Ziffer teilt.** Vier
 Sätze prüfen den Weg von `zipfTokens` durch den Richter; alle vier urteilen
@@ -630,7 +641,7 @@ Auf allen 72 Sätzen der Batterie urteilen `IsGerman`, `ChoppedWords`,
 
 | Abweichung | Art | Begründung |
 |---|---|---|
-| `readsBack` auf nackten Skalaren, die YAML 1.1 anders auflöst als yaml.v3 | yaml.v3 statt PyYAML (E4), unerreichbar | Gemessen am 2026-09-27 mit `_reads_back` der Referenz (PyYAML 6.0.3), Fund des Reviews. PyYAML `false`, loomux `true`: `yes`, `on`, `no`, `off`, `Yes`, `NO` (PyYAML: bool), `1:20` (PyYAML: int 80), `1:20.` (PyYAML: float 80.0), `=` und `<<` (PyYAML: ConstructorError). PyYAML `true`, loomux `false`: `0o17`, `1e3`, `-.5` (yaml.v3: Zahlen). Jedes dieser Muster füllt einen ganzen Skalar ohne zwei getrennte Wörter; `IsGerman` verlangt zwei verschiedene Funktionswörter und weist alle 13 ab (die Referenz ebenso), und `describe` nimmt einen Satz nur, wenn alle Richter ihn durchlassen. Die Abweichung erreicht `describe` also nie. Test: `TestABareScalarPartsFromPyYAMLOnlyWhereIsGermanRefuses` (hält beide Urteile, `IsGerman` falsch, und liest die zehn, die loomux durchlässt, über `index.ParseFrontmatter` zurück) |
+| `readsBack` auf nackten Skalaren, die YAML 1.1 anders auflöst als yaml.v3 | yaml.v3 statt PyYAML (E4), unerreichbar | Gemessen am 2026-09-27 mit `_reads_back` der Referenz (PyYAML 6.0.3), Fund des Reviews. Die Liste ist nicht vollständig, sie nennt Beispiele. PyYAML `false`, loomux `true`: z. B. `yes`, `on`, `no`, `off`, `Yes`, `NO` (PyYAML: bool), `1:20` (PyYAML: int 80), `1:20.` (PyYAML: float 80.0), `=` und `<<` (PyYAML: ConstructorError), außerhalb des Tests auch `2001-12-14 21:59:43.10 -5` (PyYAML: datetime). PyYAML `true`, loomux `false`: z. B. `0o17`, `1e3`, `-.5` (yaml.v3: Zahlen), außerhalb des Tests auch `1.5e3`. Jedes dieser Muster füllt einen ganzen Skalar ohne zwei getrennte Wörter; `IsGerman` verlangt zwei verschiedene Funktionswörter und weist die 13 des Tests ab wie die beiden übrigen (die Referenz ebenso; gemessen am 2026-09-27), und `describe` nimmt einen Satz nur, wenn alle Richter ihn durchlassen. Die Abweichung erreicht `describe` also nie. Test: `TestABareScalarPartsFromPyYAMLOnlyWhereIsGermanRefuses` (hält beide Urteile, `IsGerman` falsch, und liest die zehn, die loomux durchlässt, über `index.ParseFrontmatter` zurück) |
 | Ziffern nur ASCII: Zeitmarken und Zipf-Glättung | ASCII-Ziffern statt Pythons `\d`, entschieden im Plan | Dieselbe Regel an zwei Stellen. In der Zipf-Tabelle glättet loomux nur `[0-9]`, wordfreq jede Dezimalziffer (Abschnitt „Die Zipf-Tabelle“, Zeile 5, `digits only ASCII`); eine Ziffernfolge einer anderen Schrift in einem Teil eines Satzes von `describe` ist kein Fall, den ein Eingang trifft. In den Zeitmarken der Transkripte, gemessen am 2026-09-27 mit `convert_detect.py`: `[٠٠:٠٥] Hallo.` (arabisch-indische Ziffern) ist in der Referenz `transcript-bracket` und wird `[00:05] Hallo.`, weil `int()` jede Dezimalziffer liest; loomux nennt die Datei `unsupported`. Steht eine solche Marke in einem Transkript mit ASCII-Marken, schneidet die Referenz sie als Marke heraus: Ihr Text entfällt, und Anker wird sie nur, wo an ihr ein Absatz beginnt. loomux lässt sie als Text im vorigen Fragment stehen, und Absatzgrenzen können sich verschieben. Gemessen an `[00:00] Eins.\n[٠٠:٠٥] Zwei.\n[00:09] Drei.\n`: Referenz `[00:00] Eins. Zwei. Drei.`, mit Schwelle 1 `[00:00] Eins.\n\n[00:05] Zwei.\n\n[00:09] Drei.`; loomux `[00:00] Eins. [٠٠:٠٥] Zwei. Drei.`, mit Schwelle 1 `[00:00] Eins. [٠٠:٠٥] Zwei.\n\n[00:09] Drei.`. Tests: `TestDetectTakesASCIIDigitsOnly`, `TestAMarkInOtherDigitsStaysText` |
 | Ein kaputtes Byte kurz hinter den ersten 8192 Zeichen | Implementierungsdetail von CPython, nicht nachgebaut | `TextIOWrapper.read(8192)` dekodiert ganze Blöcke (der erste 8192 Bytes, jeder weitere so groß wie die noch fehlenden Zeichen mal Bytes je Zeichen des vorigen Blocks, mindestens 8192) und scheitert an jedem kaputten Byte darin, auch hinter dem 8192. Zeichen; loomux liest genau 8192 Zeichen. Gemessen am 2026-09-27 mit `convert_detect.py`: `[00:00] ` + 4092 × `ä` (zusammen 8192 Bytes) + 4102 × `x` + `\xff` ist in der Referenz `unsupported`, in loomux `transcript-bracket`. Die Blockgröße ist mitgemessen: Nach `[00:00] ` + 2046 × U+1F600 (8192 Bytes, 2054 Zeichen) liest der zweite Block int(8192 / 2054 × 6138) = 24 480 Bytes; ein kaputtes Byte 10 000 oder 24 479 Bytes nach dem ersten Block macht die Datei `unsupported` (feste Blöcke von 8192 Bytes hätten es nie gelesen), eines 24 480 Bytes danach nicht mehr. Die Grenze kann nur fallen, wenn die ersten 8192 Zeichen mehr als 8192 Bytes brauchen (Umlaute, CRLF). Der Ausgang bleibt derselbe: Nichts wird geschrieben, und der Lauf meldet die Datei; nur der Grund lautet anders (Referenz „no converter knows this format“, loomux der Fehler des vollen Lesens oder, wenn die Zieldatei schon steht, deren Meldung). Test: `TestDetectReadsNoFurtherThanTheHead` |
 | PDF über `pdftotext` statt pypdf | freigegeben 2026-09-26 | Entscheidung „PDF“ der Spec. Die Fälle messen über die Naht bei den Seiten (`faketool.json` aus `pypdf_pages.py`, „Fallsatz 4d“), die Poppler-Goldens (Task 13) das echte Werkzeug. Ein Unterschied des Extraktors ist gemessen: In `paragraphs.pdf` liefert pypdf zwei Absätze, `pdftotext` einen („Widersprüche zum Plan“, 2) |
@@ -645,6 +656,7 @@ Auf allen 72 Sätzen der Batterie urteilen `IsGerman`, `ChoppedWords`,
 | `fetch` über das Programm `yt-dlp`, das die Datei schreibt | freigegeben 2026-09-26 | Entscheidung „fetch“; Randfall einer manuellen Spur ohne json3 |
 | `fetch`: innerhalb einer Sprache die letzte json3-Spur (Wahl von yt-dlp), die Referenz nahm die erste | freigegeben 2026-09-26 | Zeile „fetch: Spur einer Sprache“ der Spec; für `mHSOsy_usAg` die deutsche Spracherkennung statt der Übersetzung aus `en-US`. Das Orakel von Task 9 verdeckt es, weil es die aufgenommene Datei an die Stelle des Downloads setzt |
 | `fetch` mit `--no-playlist`, `--ignore-config` und `--ignore-errors` | Entscheidung „fetch“, E7 | Eine Adresse mit `&list=` holt nur das Video; eine scheiternde Spur (429) beendet yt-dlp nicht vor der Info-JSON. Test: `TestYtdlpIsCalledOnceInAFreshDirectory` |
+| `fetch` verweigert eine URL, die nur eine Playlist nennt | Entscheidung des Nutzers 2026-09-28 | `--no-playlist` grenzt nur eine Watch-URL mit `&list=` auf ihr Video ein; die Playlist-Seite (`/playlist` auf `youtube.com`, `www.`, `m.`, `music.youtube.com`) grenzt es nicht ein, yt-dlp liefe jeden Eintrag in dieselben Namen `v.*`. Dasselbe gilt für `/watch` mit `list=` ohne (oder mit leerem) `v=`: yt-dlp 2026.08.19 leitet sie in `YoutubeTabIE._real_extract` (`extractor/youtube/_tab.py`, „Common mistake: https://www.youtube.com/watch?list=playlist_id“) auf `/playlist?list=…` um, bevor `_yes_playlist` `--no-playlist` fragt. loomux endet mit Exit 2, bevor ein Werkzeug gesucht ist; Watch-URL mit `v=` und `list=` und `youtu.be/<id>?list=` gehen weiter; `v` und `list` zählen wie in yt-dlps `parse_qs` erst mit einem nicht leeren Wert (`watch?v=&v=<id>&list=…` geht weiter, `watch?list=&list=…` nicht), und ein Schema zählt nur am Anfang (`youtube.com/watch?list=…&next=https://x` wird als https gelesen). Nicht verweigert, obwohl yt-dlp sie ebenfalls als Playlist liest: eine nackte Playlist-ID (`YoutubePlaylistIE`, `_tab.py:2445` ff., `_VALID_URL` mit optionalem Host-Teil bis `:2455`), ein anderer `youtube.com`-Pfad mit `list=` ohne `v=` wie `/embed/videoseries` (dieselbe `_VALID_URL`, `/.*?\?.*?\blist=`), eine andere Subdomain von `youtube.com` und `youtubekids.com` (`YoutubeTabIE._VALID_URL`, `(?:\w+\.)?youtube(?:kids)?\.com`, `_tab.py:1071` ff., `playlist|watch` in `:1082`). Entscheidung 2026-09-28: Diese Formen werden nicht verweigert, nur in der CLI-Referenz benannt. Die Referenz ruft `extract_info(url, download=False)` ohne `noplaylist` (`fetch.py:107-108`, aus dem Code gelesen, nicht gemessen): Sie löst die Einträge auf, das Playlist-Wörterbuch trägt oben keine `subtitles`, und sie endet mit `<url>: no subtitle track to fetch, and this system does no ASR`. Tests: `TestFetchRefusesAURLThatNamesOnlyAPlaylist`, `TestFetchTakesAVideoURLThatAlsoNamesAPlaylist` |
 | `fetch` in einen `readonly`-Bereich verweigert | freigegeben 2026-09-26 | Vorschlag 2, geheilte Lücke. Test: `TestFetchRefusesAnAreaItCannotWriteInto` |
 | `convert` und `fetch` verweigern bei `[modules] brain = false` | Spec, Vorschlag 3, E10 | Modul Brain. Tests: `TestConvertRefusesWhereTheProjectSwitchedTheBrainOff`, `TestFetchRefusesWhereTheProjectSwitchedTheBrainOff` |
 | Frist für `pdftotext` (2 min) und `yt-dlp` (10 min) | Plan E6, E7 | Die Referenz hatte keine. Tests: `TestPdftotextGetsTheNameAndTheInbox`, `TestYtdlpIsCalledOnceInAFreshDirectory` |
@@ -687,7 +699,7 @@ Zweiter Lauf: `convert` 7, `model` 5, `programs` 0 überleben, alle äquivalent:
 |---|---|---|
 | `convert/detect.go:85` | `if err != nil` (nach `os.Open`) → `if false` | `os.Open` gibt bei einem Fehler ein `nil`-`*os.File`; `Read` darauf gibt `os.ErrInvalid`, `Close` ebenso ohne Panik. `readHead` endet dann in Zeile 91 mit `false`, wie die Abkürzung. |
 | `convert/detect.go:91` | `if err != nil && …` → `if false` | Einen anderen Lesefehler als `EOF` liefert eine lokale Datei nur, bevor sie ein Byte gab (ein Verzeichnis): Der Kopf ist dann leer, trägt keine Marke, und `Detect`, der einzige Aufrufer, sagt `Unsupported` wie bei `false`. |
-| `convert/detect.go:91` | `err != io.EOF` → `err == io.EOF` | `io.ReadFull` gibt `io.EOF` nur, wenn es kein Byte las (leere Datei); der leere Kopf trägt keine Marke, `Detect` sagt `Unsupported` so oder so. |
+| `convert/detect.go:91` | `err != io.EOF` → `err == io.EOF` | `io.ReadFull` gibt `io.EOF` nur, wenn es kein Byte las (leere Datei); der leere Kopf trägt keine Marke, `Detect` sagt `Unsupported` so oder so. Einen anderen Lesefehler, den die Mutante nun durchlässt, liefert eine lokale Datei nur, bevor sie ein Byte gab (ein Verzeichnis), wie in der Zeile darüber: Auch dann ist der Kopf leer, und `Detect` sagt `Unsupported`. |
 | `convert/header.go:77` | `if end == -1` → `if false` | Der Kopf wäre `text[:2]`, also `--`; weder `^converter:` noch `^description:` trifft darin, `headLine` gibt `false` wie die Abkürzung. |
 | `convert/pdf.go:150` | `if out == ""` → `if false` | `strings.Split("", "\f")` ist `[""]`, die leere letzte Seite fällt weg: eine leere Liste statt `nil`, gleich für `len` und `range`. |
 | `convert/run.go:108` | `if settings.Enabled` → `if true` | `ProposerFor` fragt `RoleOn`, und `Narrowed` hält `Enabled` nur, wo es die Maschine setzt: Ohne es gibt jede Rolle `nil, nil`, die Karten bleiben leer. |
@@ -697,3 +709,61 @@ Zweiter Lauf: `convert` 7, `model` 5, `programs` 0 überleben, alle äquivalent:
 | `model/zipf.go:223` | `r >= '0'` → `r > '0'` | `0` wird zu `0`, mit oder ohne Ersetzung. |
 | `model/zipf.go:257` | `year <= referenceYear` → `<` | Bei 2019 gibt der erste Zweig `yearLogPeak − 0,0083 · 0`, der zweite `yearLogPeak`: dieselbe Zahl. |
 | `model/zipf.go:259` | `year <= referenceYear+plateauWidth` → `<` | Bei 2039 gibt der Zweig danach `yearLogPeak − 0,2 · 0`, also wieder `yearLogPeak`. |
+
+## Selbstnutzung
+
+Am 2026-09-27 durch den Menschen, in PowerShell mit `bin\loomux.exe convert`,
+am echten Eingang `brain-knowledge/00 Eingang` (Bereich `knowledge`,
+`manual_cloud`), Poppler 25.07.0, Modell aus. Die Namen der Dateien sind
+privat und stehen hier nicht; `<scan>` und `<teilweise>` vertreten sie.
+
+**Der Eingang.** Zwei eigene PDFs (Angebote), eine ganz gescannt, eine
+teilweise; die Transkripte kamen am 2026-09-28 dazu (Abschnitt
+„Transkripte“ unten).
+
+| PDF | Seiten | Zeichen je Seite nach `pytext.Strip` | Ergebnis |
+|---|---:|---|---|
+| `<scan>.pdf` | 5 | jede 0 | nichts geschrieben: `skipped: <scan>.pdf: no extractable text, looks like a scan` |
+| `<teilweise>.pdf` | 41 | 7 Scanseiten je 0; 34 Textseiten, kleinste 142, größte 18 528 | `<teilweise>.pdf.md` geschrieben, dazu `skipped: <teilweise>.pdf: 7 page(s) skipped as scanned` |
+
+**Die Scan-Schwelle 100 trägt an echtem Poppler.** Keine Textseite liegt
+darunter (die kleinste hat 142 Zeichen), keine Scanseite darüber (alle 0).
+Der Plan musste nicht anhalten; die Schwelle bleibt (Entscheidung „PDF“).
+
+**Der Kopf** von `<teilweise>.pdf.md`: `converter: brain-pdf/2`,
+`retrieved: 2025-09-11` (das Änderungsdatum der Quelle), `asr: false`, keine
+Zeile `description` (Modell aus). Die Zieldatei behält oder löscht der
+Mensch; kein Agent hat im Eingang geschrieben.
+
+**Der erste Lauf** gab das Ziel auf stdout und die beiden `skipped:`-Zeilen
+auf stderr aus, Exit 1. **Jeder weitere Lauf** wiederholt die beiden
+`skipped:`-Zeilen mit Exit 1 und schreibt nichts neu. Der Plan erwartete für
+den zweiten Lauf keine Ausgabe und Exit 0; das gilt nur für einen Eingang
+ohne Scan. Eine Scanseite bleibt im Eingang liegen und wird bei jedem Lauf
+gemeldet, in der Referenz ebenso (`convert/pdf-scan` und `convert/pdf-partial`
+unter „Fallsatz 4d“ zeigen die Zeilen und Exit 1 auf beiden Seiten). Keine
+Abweichung.
+
+**Die Zeit** von `convert` über diesen Eingang (zwei PDFs und ein Ziel,
+nichts Neues) steht in `docs/de/benchmarks.md`, Eintrag vom 2026-09-27:
+kalt 556,8 ms, warm im Median 437,1 ms.
+
+**Transkripte** (2026-09-28, durch den Menschen, in Git Bash mit
+`bin/loomux.exe convert`, Modell aus). In den Eingang kopiert: die beiden
+eingecheckten Transkripte von ultra-brain,
+`Transkript_Video1_Second-Brain-Bauanleitung (mHSOsy_usAg).txt` (50 KB) und
+`Transkript_Video3_Brain-Maintenance (uI1Z-KJI1Tg).txt` (13 KB), beide in
+Klammerform. Der erste Lauf schrieb beide Ziele (`….txt.md`); ihr Kopf:
+`source_url: https://www.youtube.com/watch?v=<id>` aus der Id im Namen,
+`retrieved: 2026-09-28` (die Kopie setzte das Änderungsdatum), `converter:
+brain-transcript/1`, `asr: true`, keine `description`; der Rumpf beginnt mit
+`[00:00] …`-Absätzen. Der zweite Lauf schrieb nichts neu.
+
+Git Bash findet `/mingw64/bin/pdftotext` (xpdf 4.06) vor Poppler. Beide
+Läufe meldeten darum je PDF `skipped: <name>.pdf: C:\Program
+Files\Git\mingw64\bin\pdftotext.exe is not Poppler's pdftotext (pdftotext
+version 4.06 [www.xpdfreader.com]); install Poppler with: winget install --id
+oschwartz10612.Poppler -e` und wandelten die Transkripte daneben trotzdem —
+der Prüfpunkt „Git Bash findet xpdf“ am echten Eingang, wie
+`TestXpdfLeavesThePDFsAndTheTranscriptGoes` ihn hält. Die Ziele der PDFs aus
+dem Lauf vom 2026-09-27 blieben unberührt.

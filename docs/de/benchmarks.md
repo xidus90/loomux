@@ -2851,6 +2851,65 @@ Läufe endeten mit Exit 0. Die Falldatei läuft unverändert unter dem heutigen
 3. **Der wartende Lauf** kostet `after` warm 0,7 ms gegenüber dem Projekt
    ohne Läufe, weniger als die Streuung jedes der beiden Fälle.
 
+## 2026-09-27 21:04 — Stufe 4d: der Startaufwand der eingebetteten Tabelle und `convert` über einen echten Eingang
+
+Windows 11 Pro 10.0.26200, Go 1.27.0.
+
+**Startaufwand.** `GODEBUG=inittrace=1 <binär> --version`, je Binär sechs
+Läufe hintereinander, alle zwölf in 21:04:43 +0200. Basis: `origin/master`
+`9428f0af`, in einem Scratch-Worktree gebaut mit `go build -o
+<scratch>/base.exe ./cmd/loomux`. Änderung: `feat/convert-fetch` auf
+`c5477e58`, ebenso gebaut. Der erste Lauf jedes Binärs folgt seinem Bau, der
+Cache des Systems ist also warm: Einen echten Kaltlauf gibt es nicht. Die
+Tabelle summiert alle `init`-Zeilen eines Laufs.
+
+| Lauf | Pakete mit init | Allokationen | Bytes | Uhr (Summe) |
+|---|---:|---:|---:|---:|
+| Basis, erster Lauf | 146 | 14.538 | 1.521.336 | 3,48 ms |
+| Basis, warm (5) | 146 | 14.534 bis 14.541 | 1.520.696 bis 1.521.816 | Median 2,48 ms |
+| Änderung, erster Lauf | 149 | 14.573 | 1.523.096 | 2,98 ms |
+| Änderung, warm (5) | 149 | 14.569 bis 14.582 | 1.522.456 bis 1.524.536 | Median 2,98 ms |
+
+Größe des Binärs: Basis 36.687.872 Bytes, Änderung 37.185.024 Bytes
+(+497.152; davon die gzip-Zipf-Tabelle 288.299, `NOTICE.md` 48.428, der
+eigene Hinweis der Tabelle 6.191).
+
+**`convert` über einen echten Eingang.** Gemessen vom Menschen nach der
+Selbstnutzung am selben Abend (die Uhrzeit ist nicht festgehalten), in
+PowerShell mit
+`1..6 | ForEach-Object { (Measure-Command { bin\loomux.exe convert }).TotalMilliseconds }`,
+über den Eingang des Bereichs `knowledge`: zwei PDFs und das eine Ziel, das
+ein früherer Lauf schrieb, nichts Neues zu wandeln (eine PDF ist ganz
+gescannt, eine behält sieben Scanseiten, jeder Lauf gibt darum zwei
+`skipped:`-Zeilen aus und endet mit 1). Modell aus, Poppler 25.07.0.
+`convert` ist neu; es gibt keine Basis, gegen die es sich stellen ließe.
+
+| Befehl | kalt (1. Lauf) | warm Median | warm Min | warm Max |
+|---|---:|---:|---:|---:|
+| `loomux convert` (2 PDFs, 1 Ziel, nichts Neues) | 556,8 ms | 437,1 ms | 413,6 ms | 526,1 ms |
+
+Warme Läufe: 452,0, 526,1, 413,6, 437,1, 434,1 ms.
+
+### Lesart
+
+1. **Die eingebettete Tabelle kostet beim Start nichts.** Drei Pakete
+   bekommen ein `init` — `internal/brain/model` (10 Allokationen,
+   360 Bytes), `internal/brain/convert` (18, 832) und `internal/dev/notices`
+   (4, 144) —, und `internal/cli` wächst von 14 auf 16 Allokationen:
+   zusammen etwa 35 Allokationen und 1,6 KB, 0,24 %. Die Zipf-Tabelle
+   (`zipf/de.txt.gz`, beim ersten Gebrauch hinter `sync.OnceValue`
+   entpackt) und beide Hinweisdateien sind Byte-Slices und Zeichenketten aus
+   `//go:embed` und allokieren beim Start nichts. Das größte init bleibt in
+   beiden Builds `gotreesitter/grammars/runtime` (784.832 Bytes, 10.180
+   Allokationen).
+2. **Die Uhrspalte ist Rauschen.** Windows meldet jedes Paket-init mit 0
+   oder etwa 0,5 ms, Timer-Ticks; beide Summen springen darum gleich in
+   Schritten von 0,5 ms. Das Maß ist die Zahl der Allokationen.
+3. **Ein Lauf ohne Neues wandelt trotzdem jede PDF.** Er startet `pdftotext`
+   über beide PDFs (46 Seiten), um zu erfahren, dass sich nichts änderte,
+   denn verglichen wird der Text des Ziels, nicht die Zeit der Quelle.
+   Welchen Teil der 0,44 s das kostet, trennt dieser Lauf nicht.
+
 ## 2026-09-28 09:25 — Alltagsqualität der Suche: das qmd-Backbone und `fast` über mehrere Bereiche
 
 Was: `loomux dev bench search` über den Alltags-Fragensatz von

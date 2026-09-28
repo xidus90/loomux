@@ -2732,6 +2732,62 @@ today's `loomux dev bench hooks` (probed 2026-09-27 16:52, exit 0).
 3. **The waiting run** costs `after` 0.7 ms warm against the project without
    runs, less than the spread of either case.
 
+## 2026-09-27 21:04 — Stage 4d: the start cost of the embedded table, and `convert` over a real inbox
+
+Windows 11 Pro 10.0.26200, Go 1.27.0.
+
+**Start cost.** `GODEBUG=inittrace=1 <binary> --version`, six runs in a row
+of each binary, all twelve within 21:04:43 +0200. Base: `origin/master`
+`9428f0af`, built in a scratch worktree with `go build -o <scratch>/base.exe
+./cmd/loomux`. Change: `feat/convert-fetch` at `c5477e58`, built the same
+way. The first run of each follows its build, so the OS cache is warm: there
+is no true cold run. The table sums every `init` line of a run.
+
+| run | packages with init | allocations | bytes | clock (sum) |
+|---|---:|---:|---:|---:|
+| base, first run | 146 | 14,538 | 1,521,336 | 3.48 ms |
+| base, warm (5) | 146 | 14,534 to 14,541 | 1,520,696 to 1,521,816 | median 2.48 ms |
+| change, first run | 149 | 14,573 | 1,523,096 | 2.98 ms |
+| change, warm (5) | 149 | 14,569 to 14,582 | 1,522,456 to 1,524,536 | median 2.98 ms |
+
+Binary size: base 36,687,872 bytes, change 37,185,024 bytes (+497,152; the
+gzip Zipf table is 288,299 of it, `NOTICE.md` 48,428, the table's own notice
+6,191).
+
+**`convert` over a real inbox.** Measured by the human after the self-use on
+the same evening (the time of day was not recorded), in PowerShell with
+`1..6 | ForEach-Object { (Measure-Command { bin\loomux.exe convert }).TotalMilliseconds }`,
+over the inbox of the area `knowledge`: two PDFs and the one target an
+earlier run wrote, nothing new to convert (one PDF is all scans and one
+keeps seven scan pages, so each run prints two `skipped:` lines and exits 1).
+Model off, Poppler 25.07.0. `convert` is new; there is no base to set
+against it.
+
+| command | cold (1st run) | warm median | warm min | warm max |
+|---|---:|---:|---:|---:|
+| `loomux convert` (2 PDFs, 1 target, nothing new) | 556.8 ms | 437.1 ms | 413.6 ms | 526.1 ms |
+
+Warm runs: 452.0, 526.1, 413.6, 437.1, 434.1 ms.
+
+### Reading
+
+1. **The embedded table costs nothing at start.** Three packages gain an
+   `init` — `internal/brain/model` (10 allocations, 360 bytes),
+   `internal/brain/convert` (18, 832) and `internal/dev/notices` (4, 144) —
+   and `internal/cli` grows from 14 to 16 allocations: about 35 allocations
+   and 1.6 KB in all, 0.24 %. The Zipf table (`zipf/de.txt.gz`, unpacked on
+   first use behind `sync.OnceValue`) and both notice files are `//go:embed`
+   byte slices and strings and allocate nothing at start. The largest init
+   stays `gotreesitter/grammars/runtime` (784,832 bytes, 10,180 allocations)
+   in both builds.
+2. **The clock column is noise.** Windows reports each package init as 0 or
+   about 0.5 ms, timer ticks, so both sums move in 0.5 ms steps alike; the
+   allocation count is the measure.
+3. **A run with nothing new still extracts every PDF.** It runs `pdftotext`
+   over both PDFs (46 pages) to learn that nothing changed, since the
+   target's text is compared, not the source's time. How much of the
+   0.44 s that takes, this run does not separate.
+
 ## 2026-09-28 09:25 — Everyday search quality: the qmd backbone, and `fast` across areas
 
 What: `loomux dev bench search` over the everyday question set of

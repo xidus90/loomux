@@ -253,11 +253,20 @@ func TestDefaultsFollowTheReaders(t *testing.T) {
 	}
 }
 
-// The switch says what it gates today; convert and fetch do not exist yet,
-// and a doc that names them promises a switch over nothing.
+// The switch says what it gates today: brain = false also makes convert and
+// fetch refuse, and a doc without them would hide that.
 func TestTheBrainSwitchNamesWhatItGatesToday(t *testing.T) {
 	k, _ := Lookup("modules.brain")
-	if k.Doc != "Run the brain module: its MCP tools and the wiki lane." {
+	if k.Doc != "Run the brain module: its MCP tools, the wiki lane, convert and fetch." {
+		t.Fatalf("doc %q", k.Doc)
+	}
+}
+
+// model.enabled gates every role, describe and place as well as propose,
+// so its doc names no single one.
+func TestTheModelSwitchNamesNoSingleRole(t *testing.T) {
+	k, _ := Lookup("model.enabled")
+	if k.Doc != "Let the local model be asked for this area." {
 		t.Fatalf("doc %q", k.Doc)
 	}
 }

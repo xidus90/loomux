@@ -221,15 +221,18 @@ Evaluates the project policy and global write barrier before an agent executes a
 - **Not a module**: `[modules]` is not read here. The write barrier is global
   and protects other repositories' read-only areas, so `hooks = false` leaves
   the guard running.
-- **Commands that write the configuration**: a `Bash` or `PowerShell` line
-  that runs `loomux init` (without an exempting `--dry-run` or
-  `--detect-only`), any
-  `loomux config` but `config list …`, `config get …`, `config proposals …`,
-  a lone `config --help` or `config -h`, and `config set …` or
-  `config unset …` with an exempting `--propose`,
-  `loomux area add`, `loomux merge-hook install` or `remove` (`status`
-  and `record` pass), or `loomux convert` or `loomux fetch` (but a lone
-  `--help` or `-h`) is refused with ``loomux init, config and area add write
+- **Commands a human runs**: a `Bash` or `PowerShell` line that runs any of
+  these is refused:
+  - `loomux init`, unless an exempting `--dry-run` or `--detect-only` stands
+    beside it;
+  - `loomux config`, except `config list …`, `config get …`,
+    `config proposals …`, a lone `config --help` or `config -h`, and
+    `config set …` or `config unset …` with an exempting `--propose`;
+  - `loomux area add`;
+  - `loomux merge-hook install` or `remove` (`status` and `record` pass);
+  - `loomux convert` or `loomux fetch`, except with a lone `--help` or `-h`.
+
+  The refusal reads ``loomux init, config and area add write
   the configuration the guard reads, merge-hook install and remove write
   executable hooks into repositories, and convert and fetch write into an
   area's inbox, which the write barrier keeps from agents; a human runs them.
@@ -281,8 +284,9 @@ Evaluates the project policy and global write barrier before an agent executes a
     --propose`), and an exempt command must stand on its own, not in a
     block (`try { … }`) or behind a program path that expands (`${X}/loomux`).
 
-  These commands write `.loomux/config.toml` from inside
-  their own process, where no path rule sees the write. The program is
+  These commands write from inside their own process — `.loomux/config.toml`,
+  a git hook in another repository, a file in an area's inbox — where no path
+  rule sees the write. The program is
   recognised as `loomux`, `loomux.exe` or a path ending in either (quoted or
   not, `\` or `/`), and as `go run` of `cmd/loomux` or `cmd/loomux/main.go`
   (with or without `./`, under a module path, at any `@version`, behind build
@@ -317,8 +321,12 @@ Evaluates the project policy and global write barrier before an agent executes a
     `echo ${X} loomux init`), `loomux init \` followed by
     `--dry-run` on the next line (PowerShell would run the first line alone),
     and `config` with any flag but `--root <dir>`, `--root=<dir>` or
-    `--global` before its subcommand (`loomux config --json list`). So is a line that carries such text only
-    as data, such as a heredoc holding `loomux config set …`.
+    `--global` before its subcommand (`loomux config --json list`), and
+    `convert` or `fetch` with help in any form but a lone `--help` or `-h`
+    (`convert -help`, `convert --help=true`, `convert --help x`,
+    `fetch --scope x --help`), which only print the help. So is a line that
+    carries such text only as data, such as a heredoc holding
+    `loomux config set …`.
 - **Standard Output / Error**:
   - On Refusal: JSON refusal envelope on `stdout`, human-readable reason on `stderr`.
 - **Exit Codes**:
@@ -650,6 +658,47 @@ Registers a repository as an area and prepares it: the registry entry (written u
 - **A kept configuration**: an existing `.loomux/config.toml` is kept byte for byte, with a warning when it declares no `[area]` or another scope. One the declaration reader refuses ends the command with nothing registered.
 - **Differences from `brain init`**: no `.mcp.json` and no agent hooks (`loomux init`, stage 4); the index run really happens unless `--no-reindex` is given; the branch is written as `[maintenance] branch`, not `merge_branch`; `--privacy` is checked; the first area of a machine needs no registry file prepared by hand. `-y`/`--yes` is accepted and changes nothing.
 - **Exit codes**: `0`, or the exit code of the index run; `1` for a path that is not a directory, an invalid scope, a relative `--wiki`, a refused registry entry, an unreadable file or a failed write; `2` for a usage error, a missing or unknown subcommand (with the usage line) or an unknown `--privacy`.
+
+### Intake: `loomux convert`, `loomux fetch`
+
+Two commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 4d; a recorded case corpus (`testdata/cases/4d`, 29 cases) holds `convert` to the Python reference, and a recording of Poppler's own output holds the PDF path to the real tool. Both write into an area's inbox, the directory its manifest names as `[layout] inbox`, relative to the area's path.
+
+- **A human's commands**: the guard refuses both to an agent, since a write there is one the write barrier keeps from agents (see [`hook pre-tool-use`](#loomux-hook-pre-tool-use)); only a lone `--help` or `-h` passes.
+- **Brain module**: with `[modules] brain = false` in the project found upward from the working directory, both print `loomux <command>: the brain module is off in <file> ([modules] brain = false)` and exit `1` before anything is read. Outside a project nothing is switched off.
+- **Environment**: the registry and the area declarations come from `LOOMUX_STATE_DIR`, with `LOOMUX_LEGACY_BRAIN_DIR` as the fallback, as for [upkeep](#upkeep-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add). `--state-dir` and `--channel`, which the reference accepts and does not use, are unknown flags (exit `2`).
+- **External programs**: both are looked up on `PATH` and never installed: `pdftotext` from Poppler (`winget install --id oschwartz10612.Poppler -e`) and `yt-dlp` (`winget install --id yt-dlp.yt-dlp -e`). A missing one is named with that command.
+
+#### `loomux convert [<file>]`
+Goes through the inbox of every area in registry order, skipping an area that is read-only, declares no inbox or whose inbox is no directory, and converts each regular file in it but `*.md`, in name order (lower case on Windows, as Python sorts paths there). With a `<file>` it converts that file alone, wherever it lies, and never asks the model. Each result is written beside its source as `<name>.<ext>.md` — `doku.pdf` and `doku.txt` become `doku.pdf.md` and `doku.txt.md`.
+
+- **Formats**: a `.pdf`, and a `.txt` whose first 8192 characters hold a transcript mark at a line start: the bracket form `[mm:ss]` or `[hh:mm:ss]`, or the range form `hh:mm:ss - hh:mm:ss` alone on its line. Fragments are joined, without changing a word, into paragraphs of about 1200 characters, each opened by the mark of its first fragment. Anything else is left: `skipped: <name>: no converter knows this format`.
+- **PDFs**: through `pdftotext -layout -enc UTF-8 -eol unix <name> -`, run in the inbox, at most 2 minutes per file. Before the first PDF of a run, `pdftotext -v` must name Poppler; xpdf ships a `pdftotext` too and writes another text, so it is refused like a missing program, and every PDF of the run is left with `skipped: <name>: <program> is not Poppler's pdftotext (…); install Poppler with: …`. A run without a PDF never needs the program. Each page is held on its own to the scan threshold: a page with fewer than 100 characters counts as a scan and is left out (`skipped: <name>: <n> page(s) skipped as scanned`, the target still written); a PDF of scans alone writes nothing (`no extractable text, looks like a scan`), one without pages neither (`no pages to extract`), and one `pdftotext` refuses is `cannot be read as a PDF (pdftotext exited <n>: <its first line>)`.
+- **The provenance head**: YAML frontmatter, then a blank line and the text:
+  ```yaml
+  ---
+  source_url: https://www.youtube.com/watch?v=<id>
+  retrieved: 2026-09-27
+  converter: brain-pdf/2
+  asr: false
+  description: <one German sentence>
+  ---
+  ```
+  `source_url` is read from an eleven-character run in parentheses in the file name (a YouTube id; empty without one); `retrieved` is the UTC date the source was last modified; `converter` is `brain-pdf/2` or `brain-transcript/1`; `asr` is `true` for a transcript, so its text never counts as a verbatim quote; `description` stands only when the model gave a sentence.
+- **Second run**: a target is rewritten only when its text would change, so an untouched one keeps its time and is not printed. A target whose head names no converter was written by a person and is never overwritten (`skipped: <target>: not written by us, left untouched`). A sentence a head already carries is kept and never asked for again; a head without one is asked on every run.
+- **The local model** (`[model]` of the machine-wide `config.toml`, narrowed by the area's own `[model]`, see [`loomux config`](#10-configuration-loomux-config)): whatever the area's privacy mode, with the model and a role on, `convert` sends the first 1800 characters of the converted text to the local model. Role `describe` asks for the head's one sentence, kept only when it is one German sentence of at most 22 words that no judge refuses (chopped words, measured against an embedded German word-frequency table under CC BY-SA 4.0; a sentence that YAML would not read back); otherwise the head keeps four lines. Role `place` asks, for a file this run wrote, which area it belongs in, offering only the areas that are not read-only and no more open than the inbox's own (`local_only` < `manual_cloud` < `automatic_cloud`); a known answer is a line `suggested: <target>: belongs in <scope>, left in the inbox` on `stdout`, and nothing is moved. No answer, an outage or a refused sentence is no finding. The settings are read before the first file: a `[model]` that does not read, or an endpoint off the loopback while a role is on for an inbox, stops the run with nothing converted.
+- **Output**: on `stdout` each target written, then the `suggested:` lines; on `stderr` one `skipped: <reason>` line for each file left for a person, and `error: <reason>` for a failure that stops the run (a registry or declaration that does not read, an inbox that cannot be listed — what earlier inboxes wrote is printed first).
+- **Exit codes**: `0` when nothing was left; `1` as soon as one `skipped:` line was printed, for an error that stopped the run, and with the brain module off; `2` for a usage error (an unknown flag, more than one file). A scan that stays in an inbox repeats its `skipped:` line and exit `1` on every run, as in the reference.
+
+#### `loomux fetch <url> [--scope <scope>]`
+Has `yt-dlp` write a video's subtitles into a fresh temporary directory and files them in the inbox of the area `--scope` (default `knowledge`) as a transcript in bracket form, one fragment per paragraph (`[hh:mm:ss] text`), ready for `convert`. loomux itself never speaks to the network.
+
+- **The call**: `yt-dlp --ignore-config --no-playlist --no-progress --skip-download --write-subs --write-auto-subs --sub-langs de,en --sub-format json3 --write-info-json --ignore-errors -o v <url>`, at most 10 minutes. `--ignore-config` keeps a user configuration from changing name or place, `--no-playlist` fetches only the video of an address with `&list=`, `--ignore-errors` keeps a failing track (a 429 on an auto-translated one) from ending yt-dlp before it writes the info JSON. The exit code of yt-dlp decides nothing; what it wrote does.
+- **The track**: manual subtitles before automatic ones, `de` before `en` within each; within a language yt-dlp picks the track. A video without one ends with `<url>: no subtitle track to fetch, and this system does no ASR`.
+- **The file**: `<title> (<id>).txt` for an address with a YouTube id, else `<title>.txt`; the title loses what Windows forbids in a name and every control character and is cut to 150 characters, `video` when nothing is left. The inbox is created when missing; a file of the same name is replaced.
+- **Refused**: a URL that begins with `-` (yt-dlp would read it as an option, `--` or not: `loomux fetch: a URL does not begin with '-': <url>`, exit `2`); a URL that names only a playlist on `youtube.com`, `www.`, `m.` or `music.youtube.com` (the playlist page `/playlist`, or `/watch` with `list=` but no `v=`, which yt-dlp sends to the playlist page), since `--no-playlist` does not narrow it to one video (`loomux fetch: a URL that names only a playlist is not fetched, give the URL of one video: <url>`, exit `2`; a watch URL with `&list=` is taken); no URL or more than one (exit `2`); a scope the registry does not know, an area that declares no inbox, a read-only area (exit `1`, `error: …`).
+- **Not refused, though yt-dlp reads them as a playlist too**: a bare playlist ID (`PL…`); another `youtube.com` path with `list=` but no `v=` (such as `/embed/videoseries?list=…`); the same pages on another subdomain of `youtube.com` or on `youtubekids.com`. yt-dlp then walks every entry of the playlist; pass the URL of one video instead.
+- **Output**: the path of the file written on `stdout`; `error: <reason>` on `stderr`.
+- **Exit codes**: `0` for a file written; `1` for a missing `yt-dlp`, a refused area, a fetch that brought no track or an unreadable answer, and with the brain module off; `2` for a usage error.
 
 ### The post-merge hook: `loomux merge-hook install|status|remove|record`
 The hook that tells `reconcile` a merge has landed, in every repository of an area whose manifest says `[maintenance] on_merge = true`. ultra-brain's `brain-mcp hook` under a new name, since `hook` is the namespace of the host hooks here; a recorded case corpus (`testdata/cases/4a2`, 14 cases, eleven without a difference) holds it to the reference. `loomux init` runs `merge-hook install` as its part `merge-hook` (off in a checkout of loomux, whose hook directory is the tracked `.githooks`).
@@ -1010,6 +1059,17 @@ Translates recorded cases from `--from` into `--to` by the `[[command]]` rules (
 Answers every request to an Ollama endpoint with the one answer of the JSON file `--fixture`, until Ctrl+C. It listens on `--addr` (default `127.0.0.1:11435`) and appends the request lines to `--log`, or to `stderr` without it.
 
 - **Exit codes**: `0` after Ctrl+C; `1` when the fixture or log cannot be opened or the address cannot be served; `2` for an unknown flag or without `--fixture`.
+
+### `loomux dev notices [--out <file>]`
+Writes `NOTICE.md` (default `internal/notices/NOTICE.md`) from what the binary built from the checkout in the working directory links: the licence of Go's standard library, of each module and of each tree-sitter grammar whose package is imported, verbatim, and the notice of the embedded word-frequency table. It asks the `go` command for the build graph without cgo, as the release builds, and refuses a copyleft grammar, whose terms would reach the whole binary. A test holds the committed file to what this renders, so a new dependency cannot ship without its notice; the release writes the same text beside the binaries and into `SHA256SUMS`.
+
+- **Output**: the path written on `stdout`.
+- **Exit codes**: `0` on success; `1` when `go` fails, a licence file does not read, a grammar is copyleft or the file cannot be written; `2` for an unknown flag.
+
+### `loomux dev record-poppler --exe <pdftotext> --dir <dir> --out <file>`
+Records Poppler for the golden test of `convert`: runs `<pdftotext> -v` once and `<pdftotext> -layout -enc UTF-8 -eol unix <name> -` for every `*.pdf` in `--dir`, from that directory and by bare name as `convert` asks, and writes the answers (exit code and output; `-v` with its `stderr` folded into the output) as a fixture of `internal/dev/faketool` to `--out`. A human runs it once with Poppler installed; the fixture has no place for `stderr`, so each PDF's exit code, size and `stderr` go to `stdout` for the parity notes.
+
+- **Exit codes**: `0` on success; `1` when `--dir` cannot be read or the fixture cannot be written; `2` for an unknown flag or a missing `--exe`, `--dir` or `--out`.
 
 ---
 
