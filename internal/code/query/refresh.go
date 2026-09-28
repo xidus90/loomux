@@ -39,7 +39,7 @@ func RefreshGraph(root string, wait time.Duration, notice func(string)) (ask.Sta
 
 // inProgress are the files and directories git keeps while an operation that
 // fills the index with another commit's changes waits for the user, each with
-// the note GraphReady gives. A rebase comes before a cherry-pick: it replays
+// the note GraphPrereq gives (and GraphReady passes on). A rebase comes before a cherry-pick: it replays
 // commits by picking them.
 var inProgress = []struct{ path, note string }{
 	{"MERGE_HEAD", "a merge is in progress"},
@@ -49,10 +49,10 @@ var inProgress = []struct{ path, note string }{
 	{"REVERT_HEAD", "a revert is in progress"},
 }
 
-// GraphReady is the plan-time probe of the graph lane: a graph to read, a HEAD
-// to diff against, no merge, rebase, cherry-pick or revert in progress, and
-// something staged.
-func GraphReady(root string) (bool, string) {
+// GraphPrereq says whether the graph lane can run at root at all: a graph to
+// read, a HEAD to diff against, and no merge, rebase, cherry-pick or revert in
+// progress. It leaves the index alone, so a probe after the commit can use it.
+func GraphPrereq(root string) (bool, string) {
 	if _, err := os.Stat(store.WiringPath(root)); err != nil {
 		return false, "no graph at .loomux/state/graph/wiring.json"
 	}
@@ -77,7 +77,16 @@ func GraphReady(root string) (bool, string) {
 			return false, inProgress[i].note
 		}
 	}
-	_, err = gitOutput(root, "diff", "--cached", "--quiet")
+	return true, ""
+}
+
+// GraphReady is the plan-time probe of the graph lane: GraphPrereq, and
+// something staged for the lane to diff.
+func GraphReady(root string) (bool, string) {
+	if ok, note := GraphPrereq(root); !ok {
+		return false, note
+	}
+	_, err := gitOutput(root, "diff", "--cached", "--quiet")
 	var exit *exec.ExitError
 	switch {
 	case err == nil:

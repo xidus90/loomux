@@ -227,6 +227,17 @@ func TestGraphReadyWithNothingStaged(t *testing.T) {
 	}
 }
 
+// The stop gate asks after the commit, when nothing is staged any more.
+func TestGraphPrereqIgnoresTheIndex(t *testing.T) {
+	root := gitRepo(t)
+	if ok, note := GraphPrereq(root); !ok || note != "" {
+		t.Fatalf("GraphPrereq: %v %q", ok, note)
+	}
+	if ok, note := GraphReady(root); ok || note != "nothing staged" {
+		t.Fatalf("GraphReady: %v %q", ok, note)
+	}
+}
+
 func TestGraphReadyWithAStagedChange(t *testing.T) {
 	if ok, note := GraphReady(stagedAdd(t)); !ok || note != "" {
 		t.Fatalf("%v %q", ok, note)
