@@ -343,7 +343,7 @@ loomux dev record-poppler --exe P --dir D --out F  # record what Poppler's pdfto
 1. **Deterministic by Default**: Code graph construction, blast radius traversal, and write barriers never invoke external LLM APIs by default. They run locally, deterministically, and cost $0.
 2. **Start-Time Discipline**: `loomux` measures its start floor (5.5 ms warm, 2026-09-17) continuously. No package-level variable or `init()` function may parse embedded data or perform network I/O.
 3. **Strict Isolation**: Hook paths execute in-process and never depend on a running `serve` daemon.
-4. **Agent-Safe Configuration**: `.loomux/config.toml` declares trust barriers and policies; it is human-maintained and write-protected from agent edits, by writing tools and by shell commands alike (`>`, `sed -i`, `tee`, `Set-Content`, `cp`/`mv` onto it). Runtime state lives in `.loomux/state/` (git-ignored).
+4. **Agent-Safe Configuration**: `.loomux/config.toml` declares trust barriers and policies; it is human-maintained and write-protected from agent edits, by writing tools and by shell commands alike (every write or removal the guard reads from a shell line — redirections, `sed -i`, `tee`, `Set-Content`, `cp`/`mv`, `ln`, `tar`, `curl -o` and more — with braces and globs unfolded as a shell does), under any directory; a project's own path rules hold for the shell the same way. Runtime state lives in `.loomux/state/` (git-ignored).
 
 ---
 

@@ -2980,6 +2980,101 @@ dem Edit), warm 0,7, 0,2, 0,2, 0,3, 0,3 s (keine Drift).
    verschiedenen Wegen (Exit 2 gegen einen grünen Durchgang, der die Basis
    vorrückt); beide fahren vorher die ganze Kette.
 
+## 2026-09-28 15:53 — Der Wächter liest Schreibziele einer Shell-Zeile als Pfade
+
+Worktree `.worktrees/guard-shell`, Zweig `fix/guard-shell-paths`.
+`before.exe` ist `24f12d2c`, die Merge-Basis des Zweigs mit `origin/master`,
+gebaut aus `git archive` im Scratchpad; `after.exe` ist der Code des Zweigs
+bei `45902725`. Beide gebaut mit Go 1.27.0 `windows/amd64`. Maschine: AMD Ryzen 7
+9800X3D, Windows 11 Pro.
+
+**Ziel.** `pre-tool-use` liest eine Shell-Zeile jetzt anhand einer Tabelle
+von Verben und Wrappern, faltet Braces auf, gleicht Globs gegen die Platte ab
+und fragt bei einem Löschen, was unter dem gelöschten Ordner liegt; jedes Ziel
+geht danach durch dieselben Pfadregeln wie das Ziel eines schreibenden
+Werkzeugs. Die Verbtabelle, Brace- und Glob-Auflösung und die
+Vorfahrenprüfung dürfen `pre-tool-use` nicht über 35 ms warm heben.
+
+**Methode.** `after.exe dev bench hooks <fälle> -n 30 --out <ordner>`, drei
+Durchgänge von 15:53:51 bis 15:54:09, before und after abwechselnd, das
+jeweilige Binary vor jedem Durchgang auf das Binary kopiert, das `argv` nennt.
+Falldatei `testdata/bench/guard-shell-hooks.json`:
+die fünf Fälle aus `testdata/bench/flow-hooks.json` gegen diesen Worktree und
+dieselben zwei Welten, dazu ein sechster, eine `Bash`-Zeile mit Wrappern,
+Braces und Globs:
+
+```sh
+cd docs && sudo -u root env X=1 timeout -s KILL 60 cp -r notes/{a,b,c}/*.md build/out/ ; tee -a build/log.txt < in.txt | xargs -n 1 echo && rm -rf build/tmp/* 2>&1 ; git status
+```
+
+`after` liest `cd docs` und prüft `docs/build/out/`, `docs/build/log.txt` und
+`docs/build/tmp/*` (das auf der Platte nichts trifft und so stehen bleibt,
+wie es geschrieben ist); keines der beiden Binaries verweigert sie. Die
+stdin-Nutzlasten und die Welten lagen im Scratchpad der Sitzung und sind nicht
+eingecheckt; die Falldatei nennt diesen Pfad und läuft darum wie ihre
+Vorgängerin nur auf dieser Maschine. Echter Zustandsordner und echte
+Registry. „Kalt“ ist der erste Lauf eines Falls, nicht ein kalter
+Datei-Cache. Die Tabelle nennt den Median der drei Durchgangs-Mediane, warm
+über je 30 Läufe, das kleinste Minimum der drei Durchgänge und kalt als Median
+der drei ersten Läufe. Alle Läufe endeten mit Exit 0.
+
+| Fall | before kalt | after kalt | before warm Median | after warm Median | before warm Min | after warm Min |
+|---|---:|---:|---:|---:|---:|---:|
+| pre-tool-use Edit außerhalb `.loomux/` | 74,0 ms | 83,9 ms | 14,0 ms | 14,0 ms | 11,5 ms | 12,0 ms |
+| pre-tool-use Edit unter `.loomux/flows/mine/` | 15,5 ms | 15,0 ms | 14,7 ms | 15,0 ms | 12,0 ms | 12,3 ms |
+| pre-tool-use Bash `git status` | 10,0 ms | 11,0 ms | 12,0 ms | 11,5 ms | 10,0 ms | 9,5 ms |
+| pre-tool-use Bash, die lange Zeile oben | 11,0 ms | 12,0 ms | 12,3 ms | 12,0 ms | 10,0 ms | 10,0 ms |
+| session-start, Projekt ohne Läufe | 21,5 ms | 13,0 ms | 12,2 ms | 11,5 ms | 9,8 ms | 9,5 ms |
+| session-start, ein wartender Lauf | 18,5 ms | 14,5 ms | 12,2 ms | 12,1 ms | 10,5 ms | 10,5 ms |
+
+| Binary | Größe |
+|---|---:|
+| before (`24f12d2c`) | 37.279.744 Byte |
+| after (`45902725`) | 37.410.304 Byte (+130.560, +0,35 %) |
+
+**Der strikte Modus** (`[guard] mode = "strict"`) ist im Prozess gemessen,
+nicht als Hook: eine Welt dafür braucht eine `.loomux/config.toml`, die der
+Wächter der messenden Sitzung einem Agenten unter jedem Ordner zu Recht
+verweigert. `BenchmarkCheckTool` (`internal/hooks/guardstrict_bench_test.go`)
+prüft eine lange Zeile in einem temporären Projekt mit einer Pfadregel
+`bin/*`, in beiden Modi:
+
+```sh
+sudo -u root env X=1 timeout -s KILL 60 frob --out bin/app.exe src/notes/{a,b,c}/*.md ; tee -a build/log.txt < in.txt | xargs -n 1 echo && rm -rf build/tmp/* 2>&1 ; git status
+```
+
+`frob` ist kein Programm, das der Wächter kennt, und nennt das geschützte
+`bin/app.exe`: der strikte Modus verweigert die Zeile, nachdem er jedes Ziel
+über das Dateisystem aufgelöst hat, der Standardmodus lässt sie durch. `go
+test ./internal/hooks/ -run '^$' -bench CheckTool -benchtime 200x -count 3`,
+`45902725` plus der Benchmark:
+
+| `checkTool`, die Zeile oben | Lauf 1 | Lauf 2 | Lauf 3 |
+|---|---:|---:|---:|
+| Standardmodus | 0,76 ms | 0,81 ms | 1,35 ms |
+| strikter Modus | 5,36 ms | 4,28 ms | 4,62 ms |
+
+### Lesart
+
+1. **Das neue Lesen kostet keine messbare Zeit.** Jeder warme Median von
+   `after` liegt innerhalb von 0,7 ms um `before`, in beide Richtungen, und
+   weit unter dem Budget von 35 ms; die lange Zeile läuft gleichauf mit `git
+   status`. Die warmen Maxima reichen bis 50 ms (before) und 44 ms (after),
+   ein Unterschied unter 1 ms ist also Rauschen.
+2. **Der strikte Modus kostet je Zeile rund 4 ms mehr** als der
+   Standardmodus, im Prozess: jedes Ziel samt seiner Brace- und
+   Glob-Varianten wird über das Dateisystem aufgelöst. Zu den 12 ms warm des
+   Standard-Hooks addiert bleibt das unter 35 ms, eine Schätzung aus zwei
+   Messungen, kein Hook-Lauf.
+3. **Der kalte Lauf des ersten Falls** (74 und 84 ms) ist wahrscheinlich der
+   erste Start eines frisch kopierten Binarys in jedem Durchgang, nicht der
+   Wächter: der zweite Fall, der dasselbe Binary gleich danach startet, ist
+   kalt bei 15 ms.
+4. **Ein Glob kostet einen Verzeichnislauf nur, wo ein Ziel einen trägt**:
+   das Glob-Ziel `build/tmp/*` der langen Zeile trifft nichts und kostet
+   gegenüber `git status` nichts Sichtbares (die Globs in den Quellen von
+   `cp` werden gelesen, nicht geschrieben, und gar nicht aufgelöst).
+
 ## 2026-09-28 16:09 — Der Leerweg des Stop-Tors mit der Graph-Lane
 
 Ein abgelöster Scratch-Worktree dieses Repositorys am Kopf des Zweigs
@@ -3023,3 +3118,35 @@ Lauf endete mit Exit 0.
 3. **Das Repository hat sich seit dem 2026-09-20 verdoppelt** (7.341 auf
    15.138 Dateien); der Leerweg wuchs mit ihm von 169,5 ms auf rund 237 ms,
    das meiste davon der Fingerabdruck über den größeren Index.
+
+## 2026-09-28 17:29 — Der Wächter geht ein `find` mit Namensfilter durch
+
+Ein `find`, das unter einem Namensfilter löscht, wird jetzt an dem geprüft,
+was es auf der Platte nimmt: der Wächter geht die Startpfade einmal je Aufruf
+durch (bis 50000 Einträge) und prüft jeden treffenden Eintrag. Gemessen als
+Hook im Worktree dieses Repos (21392 Einträge, 19163 davon unter
+`testdata/`), je sechs Läufe hintereinander, der erste als kalt gezählt, mit
+dem Binary aus `4f385ebd` (vorher) und aus `dbd96590` (nachher):
+
+```sh
+find . -type d -name __pycache__ -exec rm -rf {} +
+```
+
+| `hook pre-tool-use` | kalt | warm, Läufe 2–6 | Urteil |
+|---|---:|---|---|
+| vorher, die Zeile oben | 99 ms | 35, 35, 35, 42, 36 ms | verweigert (der Startpfad `.` als ganzes Projekt genommen) |
+| nachher, die Zeile oben | 348 ms | 351, 335, 351, 343, 340 ms | erlaubt |
+| vorher, `ls src` | 35 ms | 34, 35, 34, 36, 56 ms | erlaubt |
+| nachher, `ls src` | 35 ms | 42, 50, 41, 58, 36 ms | erlaubt |
+
+### Lesart
+
+1. **Das Durchgehen kostet rund 300 ms in einem Baum von 21000 Einträgen**,
+   weit über dem Budget von 35 ms, und nur für ein `find` oder
+   `Get-ChildItem`, das unter einem Namensfilter löscht; jede andere Zeile
+   zahlt nichts (`ls src` bleibt gleich). Die Zeile wurde vorher verweigert,
+   der Preis kauft also eine Zeile, die durchkommt.
+2. **Über einen großen Baum entscheidet die Grenze.** Mit 20000 Einträgen als
+   Grenze hielt ein erster Bau diesen Worktree für zu groß und verweigerte die
+   Zeile nach 330 ms; 50000 lässt sie durch. Ein Baum über der Grenze wird wie
+   vorher verweigert, nachdem bis zur Grenze gelesen wurde.

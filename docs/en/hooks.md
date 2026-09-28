@@ -400,9 +400,12 @@ What a tool writes into a file is not judged.
 
 **Paths are compared relative to the root.** A pattern without a slash
 (`*.pem`, `go.sum`) matches the base name; a pattern with one (`.aws/**`)
-matches from the root. A target outside the root keeps its absolute path, so
-only slash-free patterns can still reach it; where such a write lands is the
-write barrier's question. Without `--root`, loomux searches upwards for a
+matches from the root; a leading `**/` stands for any directory, the root
+included. A target outside the root keeps its absolute path, so only
+slash-free patterns can still reach it, and every rule under `**/` (the
+built-in ones among them, which keep loomux's own files under any directory,
+a sibling worktree's `.loomux/config.toml` among them); where such a write lands is the write
+barrier's question. Without `--root`, loomux searches upwards for a
 `.loomux/config.toml`; where it finds none, only the built-in rules apply.
 
 **An older matcher gets a block beside it.** `loomux init` never rewrites a
@@ -439,13 +442,12 @@ The built-in rules (`internal/hooks/guard.go`):
 | Kind | Matches | Reason |
 |---|---|---|
 | Path | ten secret patterns, among them `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `credentials.json` and `.aws/**` | secrets are not written by an agent |
-| Path | `.loomux/no-verify`, `.loomux/state/hooks/**` | the stop gate's own controls are not written by the party it gates |
-| Path | `.loomux/state/runs/**`, the journals and markers of [flow runs](flows.md#2-running-a-flow) | a flow's journal and marker are written by loomux, not by the party the gates ask |
-| Path | `.loomux/flows/<name>/` and everything in it, for every flow of this binary's catalog and every name in `[flow] overrides`; a flow under a name of its own stays free | a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `<name>` |
+| Path | `**/.loomux/config.toml` | .loomux/config.toml: the manifest is where the barrier reads its own limits, so no agent may write it |
+| Path | `.loomux/no-verify`, `**/.loomux/state/hooks/**` | the stop gate's own controls are not written by the party it gates |
+| Path | `**/.loomux/state/runs/**`, the journals and markers of [flow runs](flows.md#2-running-a-flow) | a flow's journal and marker are written by loomux, not by the party the gates ask |
+| Path | `.loomux/flows/<name>/` under any directory and everything in it, for every flow of this binary's catalog and every name in `[flow] overrides`; every `.loomux/flows` folder in a path counts, a nested one too; a flow under a name of its own stays free | a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `<name>` |
 | Path | seven lock files, among them `go.sum`, `package-lock.json` and `Cargo.lock` | lock files are written by their package manager, not by hand |
 | Command | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
-| Command | a shell write onto `.loomux/state/runs` or a file in it (`>`, `tee`, `sed -i`, `Set-Content`, `cp`/`mv` onto it, and more), and a removal (`rm`, `Remove-Item`, `git rm`, …) of it, of `.loomux/state` above it or of a glob in its place | a flow's journal and marker are written by loomux, not by the party the gates ask |
-| Command | the same forms onto the folder of a protected flow under `.loomux/flows/` or onto a glob in a flow's place (`cp x .loomux/flows/ex*/…`), and a removal of it or of `.loomux/flows` above it | the reason of the path rule, with every protected name |
 | Command | `loomux flow resume … --answer` in every spelling the rule for `loomux config` reads (a path to the binary, quotes, chained commands, `--answer text`, `--answer=text`), and any `Start-Process` of loomux, whose arguments the guard cannot see | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
 
 **The built-in path rules match in any case**: Windows and macOS keep
@@ -453,9 +455,10 @@ The built-in rules (`internal/hooks/guard.go`):
 compared in lower case against a target in lower case, and the flow folder
 rule compares the folder's name the same way. A project's own `[policy]`
 rules match as the project spelled them. The flow folder rule reads `[flow]`
-of `.loomux/config.toml`, and only for a target under `.loomux/flows` or a
-shell line that holds `flows`; a `[flow]` that does not read refuses every
-write there
+of `.loomux/config.toml` once per call, and only for a target under a
+`.loomux/flows` folder or a removal (in strict mode also for a path with an
+expansion); a `[flow]` that does not read refuses
+every write there
 (`loomux cannot read [flow] of .loomux/config.toml, so it refuses writes under
 .loomux/flows: …`). Why the gates are guarded, and what stays open to an
 agent, is in [Flows](flows.md#6-gates-are-a-humans).
@@ -463,7 +466,148 @@ agent, is in [Flows](flows.md#6-gates-are-a-humans).
 **The rules on loomux's own commands know the program by its file name**:
 `loomux` or `loomux.exe` under any path, or `go run` of `cmd/loomux`. A copied
 or renamed binary (`cp bin/loomux.exe x.exe`, then `x.exe flow resume …
---answer yes`) passes every one of them; the path rules above still hold.
+--answer yes`) passes every one of them; the path rules above still hold. In
+strict mode they know it by its arguments instead: every program that is
+neither in the verb table below nor a known tool (`git`, `gh`, `go`, `npm`,
+`cargo`, `uv`, `docker`, `terraform`, `make` and a few more, by their bare
+name) counts as loomux.
+
+**One check for both roads.** A shell line is read for the paths it writes or
+removes, and those go through the same path rules as a writing tool's target:
+the built-in ones, the project's `[policy.paths]` and the flow folders. Since
+this change a project's path rules hold for the shell too: in this repository,
+whose `[policy.paths]` keeps `coverage.out`, `bin/*` and `.loomux/state/**`,
+`rm coverage.out`, `mv bin/loomux.exe x.exe`, `rm -rf bin`, `rm -rf
+.loomux/state/…` and `git clean -fdx` are refused. A refusal names each reason
+once per call, however many targets or rules brought it.
+
+**The verbs it reads** (`internal/hooks/shellwrites.go`), by the program's
+base name in any case, without `.exe`:
+
+- every file named is written: `tee`, `Tee-Object`, `Set-Content`,
+  `Add-Content`, `Out-File`, `Clear-Content`, `truncate`, `touch`;
+- every file or folder named is removed: `rm`, `del`, `erase`, `Remove-Item`,
+  `rd`, `rmdir`, `unlink`, `shred`;
+- only the destination is written (`-Destination`, `-t`/`--target-directory`
+  for all but `rsync`, else the last argument): `cp`, `copy`, `Copy-Item`, `install`, `rsync`,
+  `ln`; a move (`mv`, `move`, `Move-Item`, `git mv`) removes its sources as
+  well, a rename (`Rename-Item`, `ren`, `rename`) removes the item and writes
+  its new name beside it;
+- the target a flag names: `dd of=`, `tar -C`/`--directory` and, when it
+  creates, `-f`/`--file`; `unzip -d`, `Expand-Archive -DestinationPath`,
+  `robocopy`/`xcopy` (the second path), `New-Item -Path`/`-Name`; downloads
+  by `curl -o`/`--output`, `curl -O`, `--remote-name` or `--remote-name-all`
+  (the URL's name under `--output-dir`), `wget -O`, `wget` without it (the
+  URL's name under `-P`), `-OutFile`;
+- `find` with `-delete`, or `-exec`, `-execdir`, `-ok`, `-okdir` running a
+  removing verb, removes its start paths (the working folder without one),
+  and with a name filter (`-name`, `-iname`, `-path`, `-ipath`) only what
+  lies at or below them on disk and matches it;
+- in place: `sed -i`, `perl -i` (with a suffix, in a bundle, `--in-place`),
+  every file but the script;
+- git: `rm` and `mv` (their paths, as the verbs above), `checkout` and
+  `restore` (the paths after `--`, or else each argument that exists on disk;
+  `restore --staged` without `--worktree` writes nothing), `clean` (its paths, or the root without one;
+  `-n` and `--dry-run` only list);
+- .NET: `[IO.File]::Write*`, `Append*`, `Create*`, `Copy*`, `Replace*`,
+  `Delete`, `Move`, `[IO.Directory]::CreateDirectory`, `Delete`, `Move`;
+- redirections `>`, `>>`, `>|`, `2>`, `&>`, `*>`, also glued to a word
+  (`echo x>f`); a `>` inside quotes is none (`grep '=>'
+  .loomux/config.toml` reads);
+- a removing verb fed by a pipe without a path of its own (`find … | xargs
+  rm`, `gci … | ri`) removes the paths of the segment before the pipe, or,
+  when that is `find` with a name filter or `Get-ChildItem` with `-Include`
+  or `-Filter`, what the filter keeps on disk.
+
+In front of the program it skips `VAR=x`, the shell's reserved words and the
+wrappers `sudo`, `env`, `xargs`, `timeout` (with the separate value of their
+flags that take one: `sudo -u root`, `xargs -n 1`, `timeout -s KILL 60`),
+`nice`, `command`, `exec`, `nohup`, `time` and `cmd /c`. The string after
+`sh`, `bash`, `zsh` or `dash -c` (also `-lc`), `pwsh` or `powershell -c` or
+`-Command`, and `cmd /c` or `/k` is read as a line of its own, up to three
+shells deep, and so are the words after `eval`. A substitution `$(…)` or
+`` `…` `` counts as one word of unknown content as well, so a path that goes
+on after it keeps its fixed tail (`$(pwd)/.loomux/config.toml`), and a
+PowerShell `(Join-Path A B …)` is read as the path `A/B/…` (`$PWD` as the
+working folder). `cd`, `Set-Location` and `pushd` move the place later relative
+paths start from, `popd` goes back to the root. A segment whose quotes do not
+close is read word by word: each word that looks like a path counts as
+written.
+
+**How a path is spelled.** A target is spelled the way a shell expands it
+(`internal/hooks/pathspell.go`): braces unfold (`{a,b}`, `{1..3}`, `{01..03}`,
+`{a..c}`, nested), up to 64 variants; past that the call is refused. A glob in
+any part of a path (`*`, `?`, `[`) is matched against the disk with bash's
+dot rule, so `*` does not match `.loomux`; a glob that matches nothing stays
+as written. An NTFS stream name is cut off after the volume
+(`config.toml:backup` writes `config.toml`, behind `\\?\` and `\\.\` too). A
+removal, or the source of a move, of a folder above a protected path is
+refused (`rm -rf .loomux`, `rm -rf src/.loomux`); a copy into such a folder
+is not. `git clean` without a path counts as the removal of the root, and
+`find … -delete` as the removal of its start paths when no name filter
+narrows it (or one that matches every name, `-regex`, a negation, `-o`, a
+name test after the action, which find runs first, or a `-Filter` of
+`Get-ChildItem` with a three-letter extension or a `~`, which also matches
+8.3 short names, widens it again). A pattern is read with find's escapes
+(`config\.toml` is `config.toml`). With a name filter the guard walks the start paths once
+per call and judges each entry that matches as removed, so `find . -name
+'*.orig' -delete` passes and `find . -name '*.jsonl' -delete` is refused
+while a run file lies there; past 50000 entries it takes the start paths
+whole.
+
+**Modes.** [`[guard] mode`](configuration.md#guard-how-hard-the-guard-reads)
+is `default` or `strict`. Strict mode also resolves every target through the
+file system (trailing dots and blanks, 8.3 short names, case, junctions) and
+judges it as written and as resolved, knows loomux's own commands by their
+arguments, refuses a program outside the verb table (the known tools
+included) that names a protected path or
+a folder above one (``in strict mode loomux refuses `<program>` on <path>: it
+does not know whether the program writes there``), its relative paths counted
+from where a `cd` moved, and refuses a write whose
+path holds an expansion (`$X`, `$(…)`, a backtick, `%X%`) whose fixed part may
+lead to a protected path; braces unfold first, and a brace or glob character
+before the expansion ends the fixed part as well (`.loomux/c?n$X`). A shell
+that runs a string (`bash -c`, `powershell -Command`, `eval`) is no unknown
+program: the line inside is judged, its programs included, and so are the
+words after the string, which reach it as `$0`, `$1`, …. A form of a word
+that is the working folder itself (`./...` resolved on Windows, the `:` of
+`cut -d:`) is not taken for a removal of the root. A human turns it on with `loomux config set
+guard.mode strict --propose`, then `loomux config proposals` and `loomux
+config apply <id>`. This repository stays on `default`: strict mode would
+refuse `go build -o bin/loomux.exe ./cmd/loomux`.
+
+**Limits in the default mode.** The guard reads words, not a shell. It
+passes: a path in a variable (`F=.loomux/config.toml; echo x > $F`); a
+program that opens the file itself (`python -c …`, a build tool); an alias,
+or a verb under another name; trailing dots or blanks and 8.3 short names
+(`cp x .loomux/config.toml.`); an archive, whose content is unknown (`tar -x`
+without `-C`, `unzip a.zip -d .loomux`); `git -C <dir>`, whose paths still
+count from the working folder; `git checkout -f` without a path, and
+`git checkout .`, `git restore .`, `git checkout -- .loomux`, `git stash` and
+`git reset --hard`, which overwrite tracked files from the index or a commit;
+a PowerShell expression in parentheses other than `(Join-Path …)`
+(`Remove-Item ('.loomux/' + 'config.toml')`); a name filter of `find` or
+`Get-ChildItem` that matches nothing on disk when the call is judged, and
+what `find -L` reaches through a symbolic link, which the guard's walk does
+not follow;
+`bash -o pipefail -c '…'`, whose
+option value hides the `-c`; `cmd /c"…"` and `env -S'…'` glued to their
+string; `find … | sh -c "xargs rm"`, `xargs -I{} rm {}` and `gci … | % {
+Remove-Item $_ }`, which lose the start path; and `--root` pointed at a copy
+of the project. It refuses more than a shell would do: a write verb after
+`;`, `|`, `&` or `(` inside quotes (`git commit -m "fix; rm
+.loomux/config.toml"`); a heredoc body, whose lines are read as commands
+(`cat > notes.md <<'EOF'` … `rm -rf .loomux`); braces PowerShell
+does not fold and globs it does not expand; and a removal with braces after a
+folder (`rm -rf .loomux/flows/{mine,zz}`), which is also read as the removal
+of the folder.
+
+**Limits in strict mode.** A protected glob that begins with a glob character
+(`*.pem`, `*.key`) has no fixed part, so no expansion reaches it: `echo x >
+src/$X` passes. The resolution through a junction is not tested. And some
+programs that are not loomux get the refusal of loomux's configuration
+commands because they are not in the list of known tools: `az config …`,
+`gcloud config …`, `pulumi config set`, `bun init`, `deno init`, `tofu init`.
 
 The write barrier after the policy decides only about writing tools with a
 target: it resolves each target and refuses a write outside every writable

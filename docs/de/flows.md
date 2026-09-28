@@ -368,15 +368,17 @@ hält die Antwort und alles, was sie ersetzen könnte, von einem Agenten fern:
   Agenten offen. `resume` und `replay` nehmen nur eine Laufnummer aus
   Ziffern; Journal und Marke, die ein Agent anderswo im Projekt fälscht
   (`resume ../../mine/x`), können keinen Lauf vertreten.
-- **Die Laufdateien.** `.loomux/state/runs/**` ist eine eingebaute Pfadregel
-  und eine Shell-Regel: Ein `answered`-Eintrag, den ein Agent ins Journal
-  schriebe, gäbe dem nächsten Fortsetzen ein beantwortetes Tor. Ein Löschen
-  über den Ordner darüber oder über einen Glob zählt als Schreiben.
+- **Die Laufdateien.** `.loomux/state/runs/**` unter jedem Ordner halten die
+  Pfadregeln, für ein schreibendes Werkzeug und eine Shell-Zeile gleichermaßen:
+  Ein `answered`-Eintrag, den ein Agent ins Journal schriebe, gäbe dem
+  nächsten Fortsetzen ein beantwortetes Tor. Ein Löschen eines Ordners darüber
+  und ein Glob, der sie auf der Platte trifft, zählen als Schreiben.
 - **Die mitgelieferten Flows.** Ein Schreiben unter `.loomux/flows/<name>/`,
-  per schreibendem Werkzeug oder per Shell, wird verweigert, wenn `<name>` ein
-  Flow im Katalog dieses Binarys ist oder in `[flow] overrides` steht, in
-  jeder Groß- und Kleinschreibung des Namens. Ein Glob an der Stelle des
-  Namens zählt bei jedem Schreiben (`cp x .loomux/flows/ex*/…`), ein Löschen
+  unter jedem Ordner, verweigern die Pfadregeln, für ein schreibendes Werkzeug
+  und eine Shell-Zeile gleichermaßen, wenn `<name>` ein Flow im Katalog dieses
+  Binarys ist oder in `[flow] overrides` steht, in jeder Groß- und
+  Kleinschreibung des Namens. Ein Glob an der Stelle des Namens zählt, wo er
+  auf der Platte einen solchen Ordner trifft (`cp x .loomux/flows/ex*/`), ein Löschen
   dieses Ordners oder von `.loomux/flows` darüber zählt auch; ein Agent, der
   einen eigenen Flow schreibt, schreibt dessen Namen aus. Einen
   Flow unter eigenem Namen darf ein Agent schreiben und fahren; zum Default

@@ -55,7 +55,7 @@ rules = [
 | Feld | Typ | Beschreibung |
 |---|---|---|
 | `rules` | Array von Tabellen | Liste der Pfad-Inspektionsregeln. |
-| `rules[].match` | String oder Array von Strings | Globs relativ zum Projektwurzelverzeichnis, in der Syntax von `path.Match`. Ein Muster ohne `/` wird nur mit dem Dateinamen verglichen (`*.key`, `.env.*`), eines mit `/` mit dem ganzen relativen Pfad, wobei `*` keinen `/` überspringt. `**` steht nur als Endung `/**` für beliebige Tiefe (`.aws/**`); an jeder anderen Stelle ist es ein einfaches `*`. |
+| `rules[].match` | String oder Array von Strings | Globs relativ zum Projektwurzelverzeichnis, in der Syntax von `path.Match`. Ein Muster ohne `/` wird nur mit dem Dateinamen verglichen (`*.key`, `.env.*`), eines mit `/` mit dem ganzen relativen Pfad, wobei `*` keinen `/` überspringt. `**` steht für beliebige Tiefe als Endung `/**` (`.aws/**`) und als führendes `**/`, das jeden Ordner meint, die Wurzel eingeschlossen (`**/secrets/*.txt`); an jeder anderen Stelle ist es ein einfaches `*`. Eine Regel gilt für das Ziel eines schreibenden Werkzeugs und für jeden Pfad, den eine Shell-Zeile schreibt oder löscht, gleichermaßen. |
 | `rules[].reason` | String (**Pflichtfeld**) | Begründung, die dem Agenten bei einer Ablehnung angezeigt wird. |
 
 ---
@@ -63,7 +63,7 @@ rules = [
 ### `[policy.commands]` (Befehlsausführungs-Regeln)
 Definiert Muster für Shell-Befehle (`Bash`, `PowerShell`), die blockiert werden müssen.
 
-Zwei Befehlsregeln sind eingebaut und brauchen hier keinen Eintrag: `git push` und jede Shell-Zeile, die `.loomux/config.toml` schreibt — eine Umleitung hinein, `sed -i`/`perl -i`, `tee`, `Set-Content`/`Add-Content`/`Out-File`, `cp`/`mv`/`Copy-Item` darauf oder das Löschen der Datei. Lesen (`cat`, `grep`, `Get-Content`) bleibt erlaubt. Die Regel liest den Befehlstext; ein Pfad in einer Variablen entgeht ihr.
+Eine Befehlsregel ist eingebaut und braucht hier keinen Eintrag: `git push`. Auch `.loomux/config.toml` braucht keinen: sie ist eine eingebaute Pfadregel unter jedem Ordner, und die Pfadregeln prüfen jeden Pfad, den eine Shell-Zeile schreibt oder löscht, ebenso wie das Ziel eines schreibenden Werkzeugs — eine Umleitung hinein, `sed -i`/`perl -i`, `tee`, `Set-Content`/`Add-Content`/`Out-File`, `cp`/`mv`/`Copy-Item` darauf, das Löschen der Datei oder eines Ordners darüber. Lesen (`cat`, `grep`, `Get-Content`) bleibt erlaubt. Der Wächter liest die Wörter des Befehls; im Standardmodus entgeht ihm darum ein Pfad in einer Variablen, der strikte Modus verweigert ein Schreiben, dessen Expansion auf einem geschützten Pfad landen kann. Siehe [Hooks](hooks.md#7-der-entscheidungsweg-von-pre-tool-use).
 
 ```toml
 [policy.commands]

@@ -1,0 +1,68 @@
+[
+  {
+    "name": "pre-tool-use Edit outside .loomux (this worktree)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.worktrees/guard-shell",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/edit-outside.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.worktrees/guard-shell"]
+      }
+    ]
+  },
+  {
+    "name": "pre-tool-use Edit under .loomux/flows/mine (this worktree)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.worktrees/guard-shell",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/edit-flows.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.worktrees/guard-shell"]
+      }
+    ]
+  },
+  {
+    "name": "pre-tool-use Bash git status (this worktree)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.worktrees/guard-shell",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/bash.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.worktrees/guard-shell"]
+      }
+    ]
+  },
+  {
+    "name": "session-start (small world, no runs)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/norun",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/session.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/loomux.exe", "hook", "session-start", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/norun"]
+      }
+    ]
+  },
+  {
+    "name": "session-start (small world, one run waiting at a gate)",
+    "dir": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/waiting",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/session.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/loomux.exe", "hook", "session-start", "--host", "claude", "--root", "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/waiting"]
+      }
+    ]
+  },
+  {
+    "name": "pre-tool-use Bash, a long line with wrappers, braces and a glob (this worktree)",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.worktrees/guard-shell",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/bash-long.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/a5b96a9f-9a55-40a6-93b2-7eedda28a454/scratchpad/gs/bench/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.worktrees/guard-shell"]
+      }
+    ]
+  }
+]
