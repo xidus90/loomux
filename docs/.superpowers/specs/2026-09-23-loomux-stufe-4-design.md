@@ -33,7 +33,7 @@ Alle am 2026-09-23 mit dem Nutzer getroffen.
 |---|---|
 | Schnitt | 4a-1 Schema und `config`, 4a-2 `init`, 4c Modell und `dev bench search`, 4d `convert`/`fetch`; 4e Umstellung der Wirte als Abschlussschritt |
 | Reihenfolge | 4a-1 → 4a-2 → 4c → 4d, danach 4e. Nach Regel 2 der Fusions-Spec (Selbstnutzung): `init` benutzt loomux bei jedem Klon, das Modell ändert das Prüfzentrum, `convert` braucht loomux selbst kaum. 4a-1 vor 4a-2, weil `init` über Schema und Oberfläche aus 4a-1 fragt |
-| 4e | Kein Code und kein grünes Stufenende: er wartet auf einen Remote für `brain-knowledge`, den nur der Mensch anlegt. Er hält die übrigen Teilstufen nicht auf |
+| 4e | Kein Code (Nachtrag 2026-09-28: bis auf den lesenden Befehl `loomux area check`, Fusions-Spec #24) und kein grünes Stufenende: er wartet auf einen Remote für `brain-knowledge`, den nur der Mensch anlegt. Er hält die übrigen Teilstufen nicht auf |
 | `migrate` | **Fällt weg.** Die alten Werkzeuge hat nur der Nutzer benutzt, auf einem Rechner und in vier Wirten. Der Maschinenzustand ist durch die Selbstnutzung seit 3a schon im neuen Verzeichnis (Befunde). Was bleibt, ist ein Punkt der Checkliste von 4e |
 | `init` | Ein interaktiver Ablauf, der **alles** einrichtet und installiert, gegliedert in Module. Jedes Modul fragt: alles, jeden Teil einzeln, nichts. `--yes` nimmt überall die Vorgabe |
 | Module | Basis (immer), Hooks, Wiki (Brain), Graph; OS kommt mit W1 |
@@ -133,7 +133,7 @@ Gegen Code und Rechner gelesen am 2026-09-23.
 | **4c-1** Modell | Ollama-Client, Tor, Prompts, `[model]` global und je Bereich, die Rolle `propose` in `reconcile`; Heilung von #1 und #4 (geschnitten beim Planen von 4c, siehe dort) | 4a-1 (`[model]` im Schema), 3 ✅ |
 | **4c-2** Bench | `dev bench search`, die Untergruppe `dev bench hooks\|repos\|search` und das gemeinsame Berichtsschema | 3 ✅ |
 | **4d** `convert`/`fetch` | Eingang wandeln, Untertitel holen, die Rollen `describe` und `place`, die Richter | 4c-1 |
-| **4e** Umstellung | Checkliste, kein Code | 4a-2, 4c-1, 4d; Remote für `brain-knowledge` |
+| **4e** Umstellung | Checkliste; als Code nur `loomux area check` (Nachtrag 2026-09-28, Fusions-Spec #24) | 4a-2, 4c-1, 4d; Remote für `brain-knowledge` |
 
 ## 4a-1 im Einzelnen
 
