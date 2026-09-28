@@ -16,16 +16,16 @@ import (
 // the real one reaches GitHub.
 var selfUpdateRun = selfupdate.Run
 
-// selfUpdateCommand is `loomux self-update`: one pass by hand, the same one
+// upgradeCommand is `loomux upgrade`: one pass by hand, the same one
 // serve runs daily.
-func selfUpdateCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+func upgradeCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 0 {
-		fmt.Fprintln(stderr, "usage: loomux self-update")
+		fmt.Fprintln(stderr, "usage: loomux upgrade")
 		return 2
 	}
 	res := selfUpdateRun(context.Background(), selfUpdateOptions(selfupdate.SourceCLI))
 	if res.StatusErr != nil {
-		fmt.Fprintf(stderr, "loomux self-update: record update.json: %v\n", res.StatusErr)
+		fmt.Fprintf(stderr, "loomux upgrade: record update.json: %v\n", res.StatusErr)
 	}
 	switch res.Outcome {
 	case selfupdate.Current:
@@ -35,10 +35,10 @@ func selfUpdateCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int
 		fmt.Fprintf(stdout, "updated to v%s; serve switches on the next bridge\n", res.Version)
 		return 0
 	case selfupdate.Skipped:
-		fmt.Fprintf(stderr, "loomux self-update: skipped: %v\n", res.Err)
+		fmt.Fprintf(stderr, "loomux upgrade: skipped: %v\n", res.Err)
 		return 2
 	}
-	fmt.Fprintf(stderr, "loomux self-update: %v\n", res.Err)
+	fmt.Fprintf(stderr, "loomux upgrade: %v\n", res.Err)
 	return 1
 }
 

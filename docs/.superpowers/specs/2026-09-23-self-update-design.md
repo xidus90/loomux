@@ -1,6 +1,8 @@
 # loomux hält sein maschinenweites Binary selbst aktuell
 
-Stand 2026-09-23, **umgesetzt** (`internal/selfupdate`, `loomux self-update`). Entscheidung in der Fusion-Spec
+Stand 2026-09-23, **umgesetzt** (`internal/selfupdate`, `loomux self-update`,
+seit 2026-09-28 `loomux upgrade`; die Abschnitte unten nennen den alten
+Namen). Entscheidung in der Fusion-Spec
 (`2026-09-14-loomux-fusion-design.md`, Tabelle „Entscheidungen“ und Abschnitt
 `loomux serve`).
 

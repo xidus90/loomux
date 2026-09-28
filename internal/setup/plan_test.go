@@ -470,7 +470,7 @@ func TestAntigravityEntriesWaitForTheInstalledBinary(t *testing.T) {
 	if _, ok := changeOf(p, ".agents/hooks.json"); ok || f.CanonicalThere {
 		t.Error("entries planned without the installed binary")
 	}
-	want := "antigravity: no entries; they call %LOCALAPPDATA%/loomux/bin/loomux.exe, which is not installed; run loomux self-update"
+	want := "antigravity: no entries; they call %LOCALAPPDATA%/loomux/bin/loomux.exe, which is not installed; run loomux upgrade"
 	if !slices.Contains(p.Notes, want) || !hasNote(p, agyTrust) {
 		t.Errorf("notes = %v", p.Notes)
 	}
@@ -493,8 +493,8 @@ func TestAntigravityEntriesWaitForTheInstalledBinary(t *testing.T) {
 // the same run brings the newest release, at least a released init.
 func TestAntigravityEntriesWaitForAnInstalledBinaryAsNewAsInit(t *testing.T) {
 	root := world(t, map[string]string{".agents/skills/": "", "go.mod": goMod})
-	const older = "antigravity: no entries; the installed loomux 2.11.1 is older than this init 2.13.0; run loomux self-update"
-	const unnamed = "antigravity: no entries; the installed loomux names no version; run loomux self-update"
+	const older = "antigravity: no entries; the installed loomux 2.11.1 is older than this init 2.13.0; run loomux upgrade"
+	const unnamed = "antigravity: no entries; the installed loomux names no version; run loomux upgrade"
 	const dev = "antigravity: no entries; this init is the development build 0.0.0-dev, and no installed loomux can be compared with it; run a released loomux init"
 	for _, c := range []struct {
 		name, init, installed string

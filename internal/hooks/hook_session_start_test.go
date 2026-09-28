@@ -654,10 +654,10 @@ func TestUpdateWarnings(t *testing.T) {
 		}, nil},
 		{"a failed pass", "windows", false, func(dir string) *selfupdate.Status {
 			return &selfupdate.Status{Executable: selfupdate.Canonical(dir), Result: selfupdate.Failed, CheckedAt: at, Error: "gh not found"}
-		}, []string{"loomux self-update failed at 2026-09-24T08:00:00Z: gh not found"}},
+		}, []string{"updating loomux failed at 2026-09-24T08:00:00Z: gh not found; run loomux upgrade to retry"}},
 		{"a failed pass off Windows", "linux", false, func(string) *selfupdate.Status {
 			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: "/usr/local/bin/loomux", Result: selfupdate.Failed, CheckedAt: at, Error: "gh not found"}
-		}, []string{"loomux self-update failed at 2026-09-24T08:00:00Z: gh not found"}},
+		}, []string{"updating loomux failed at 2026-09-24T08:00:00Z: gh not found; run loomux upgrade to retry"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if c.windowsOnly && runtime.GOOS != "windows" {
@@ -688,7 +688,7 @@ func TestUpdateWarningsNamesAnUnreadableStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := updateWarnings(dir, "windows")
-	if len(got) != 1 || !strings.HasPrefix(got[0], "loomux cannot read the self-update status: ") {
+	if len(got) != 1 || !strings.HasPrefix(got[0], "loomux cannot read the update status: ") {
 		t.Fatalf("updateWarnings = %v", got)
 	}
 }

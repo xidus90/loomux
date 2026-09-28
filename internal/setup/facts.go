@@ -51,7 +51,7 @@ type Facts struct {
 	Binary       string // hostfile.Canonical or hostfile.Checkout
 	// BinaryThere says whether the binary Binary names stands where
 	// BinaryPath puts it. Keeping an installed one current is serve's and
-	// self-update's work, not init's.
+	// upgrade's work, not init's.
 	BinaryThere bool
 	// CanonicalThere says whether the installed binary stands under
 	// LOCALAPPDATA, the one the post-merge hook calls in every project.

@@ -169,7 +169,7 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 		// The hook is installed for areas that consent.
 		switch {
 		case !installed:
-			b.note("merge-hook: skipped; the hook calls ${LOCALAPPDATA}/loomux/bin/loomux.exe, which is not installed; run loomux self-update")
+			b.note("merge-hook: skipped; the hook calls ${LOCALAPPDATA}/loomux/bin/loomux.exe, which is not installed; run loomux upgrade")
 		case f.HookWanted() || declares:
 			b.action("merge-hook", "merge-hook", "install the post-merge hook of this project")
 		case f.OnMerge:
@@ -208,11 +208,11 @@ func antigravityGap(f Facts, installing bool) string {
 	case installing:
 		return ""
 	case !f.CanonicalThere:
-		return "they call " + hostfile.AntigravityBinary + ", which is not installed; run loomux self-update"
+		return "they call " + hostfile.AntigravityBinary + ", which is not installed; run loomux upgrade"
 	case f.Installed == "":
-		return "the installed loomux names no version; run loomux self-update"
+		return "the installed loomux names no version; run loomux upgrade"
 	case !selfupdate.AtLeast(f.Installed, f.Version):
-		return "the installed loomux " + f.Installed + " is older than this init " + f.Version + "; run loomux self-update"
+		return "the installed loomux " + f.Installed + " is older than this init " + f.Version + "; run loomux upgrade"
 	}
 	return ""
 }

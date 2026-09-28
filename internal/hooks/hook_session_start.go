@@ -180,7 +180,7 @@ func staleBinary(root string) []string {
 func updateWarnings(stateDir, goos string) []string {
 	st, err := selfupdate.ReadStatus(stateDir)
 	if err != nil {
-		return []string{fmt.Sprintf("loomux cannot read the self-update status: %v", err)}
+		return []string{fmt.Sprintf("loomux cannot read the update status: %v", err)}
 	}
 	if st == nil {
 		return nil
@@ -195,7 +195,7 @@ func updateWarnings(stateDir, goos string) []string {
 			st.Executable, canonical, canonical))
 	}
 	if st.Result == selfupdate.Failed {
-		lines = append(lines, fmt.Sprintf("loomux self-update failed at %s: %s",
+		lines = append(lines, fmt.Sprintf("updating loomux failed at %s: %s; run loomux upgrade to retry",
 			st.CheckedAt.UTC().Format(time.RFC3339), st.Error))
 	}
 	return lines
