@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"unicode"
 )
@@ -20,6 +21,17 @@ func TestIsSpaceIsPythonsSetOverTheWholeRange(t *testing.T) {
 	for r := rune(0); r <= unicode.MaxRune; r++ {
 		if IsSpace(r) != python[r] {
 			t.Errorf("IsSpace(U+%04X) = %v, Python says %v", r, IsSpace(r), python[r])
+		}
+	}
+}
+
+func TestTheSpaceClassesHoldWhatIsSpaceHolds(t *testing.T) {
+	space := regexp.MustCompile(`^` + SpaceClass + `$`)
+	nonSpace := regexp.MustCompile(`^` + NonSpaceClass + `$`)
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		s := string(r)
+		if space.MatchString(s) != IsSpace(r) || nonSpace.MatchString(s) == IsSpace(r) {
+			t.Errorf("U+%04X: SpaceClass %v, NonSpaceClass %v, IsSpace %v", r, space.MatchString(s), nonSpace.MatchString(s), IsSpace(r))
 		}
 	}
 }

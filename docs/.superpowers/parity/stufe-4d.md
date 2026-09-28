@@ -410,6 +410,66 @@ schreibt jeden der 53 Sätze der Batterie, die `readsBack` durchlässt, als
 Mit umgedrehtem Vergleich meldet der Test 63 Zeilen (die 53 Sätze und die zehn
 nackten Skalare unten, die loomux durchlässt).
 
+## Erkennen, Absätze und Kopf: `internal/brain/convert`
+
+**Referenz:** `src/brain/convert/{detect,transcript,header}.py`, gerufen mit
+dem Python der Referenz-venv (Python 3.14.7) über
+`docs/.superpowers/parity/stufe-4d-orakel/convert_detect.py`. **loomux:** Go
+1.27.0. Gemessen am 2026-09-27.
+
+**Zwei Befunde gegen den Plan, beide nach der Messung umgesetzt:**
+
+1. **`Path.suffix` von Python 3.14** (`pathlib/__init__.py:461`) streift
+   zuerst die führenden Punkte ab und schneidet dann ab dem letzten Punkt:
+   `a.` → `.`, `..x` → leer, `a..` → `.`, `x.txt.` → `.`, `a. ` → `. `,
+   `.txt`, `.` und `..` → leer. Der Plan rechnete mit der Regel älterer
+   Versionen („der letzte Punkt, nicht am Anfang, nicht am Ende“: `a.` →
+   leer, `..x` → `.x`). Folge: `..txt` mit einer Zeitmarke und `..pdf` sind
+   in der Referenz `unsupported`, nach dem Plan wären sie Transkript und PDF
+   gewesen, und das `.md`-Kriterium des Laufs hätte `..md` getroffen.
+   `pySuffix` folgt 3.14. Tests: `TestPySuffixIsPathSuffix`, die Zeilen
+   `..txt` und `..pdf` in `TestDetectReadsTheEndingAndThenTheHead`.
+2. **`\s` und `\S` der Referenz sind Pythons Leerraum** (die 29 Zeichen von
+   `str.isspace()`), Gos `\s` ist `[\t\n\f\r ]`. Gemessen: Eine Bereichszeile
+   mit U+00A0, `\v`, `\x1c`, U+0085 oder U+3000 vor dem Zeilenende ist in der
+   Referenz `transcript-range` und wird `[00:00] Hallo.`;
+   `description:` + U+00A0 + `Satz.`, `description: Satz.` + U+00A0 und
+   `description: Satz.` + U+3000 lesen sich als `Satz.`,
+   `converter:` + U+3000 + `brain-pdf/1` und `converter: brain-pdf/1` +
+   U+00A0 als `brain-pdf/1`; `\s*` überquert in beiden Sprachen einen
+   Zeilenumbruch (`converter:\nfoo` → `foo`). Mit den ASCII-Klassen des Plans
+   wäre die Bereichszeile `unsupported` gewesen und das U+00A0 Teil des
+   Werts. `rangeMark`, `converterLine` und `descriptionLine` bauen auf
+   `pytext.SpaceClass` und `pytext.NonSpaceClass`, die neu exportiert sind;
+   `internal/brain/evidence` hält noch eine eigene Kopie (`pySpace`). Tests:
+   die Zeilen `nbsp.txt` bis `ideo.txt` in
+   `TestDetectReadsTheEndingAndThenTheHead`, `TestARangeLineEndsInPythonsSpace`,
+   `TestTheHeadLinesReadPythonsSpace`, `TestTheSpaceClassesHoldWhatIsSpaceHolds`.
+
+**Die Prüfung gegen `DescriptionOf`,** aus der Richter-Prüfung hierher
+vertagt: `TestAnAcceptedSentenceComesBackOutOfTheHead` schreibt jeden der 53
+Sätze der Batterie mit `reads_back: true` über `Head{…}.String()` in einen
+Kopf und verlangt ihn unverändert aus `index.ParseFrontmatter(…, true)` und
+aus `DescriptionOf` zurück. Alle 53 kommen aus beiden zurück; `readsBack`
+bleibt, wie es ist. `description_of` der Referenz gibt dieselben 53 ebenfalls
+unverändert zurück.
+
+**Der Kopf Byte für Byte:** `header()` der Referenz schreibt mit leerer URL,
+`retrieved` 2026-08-24, `brain-pdf/2`, `asr` falsch und ohne Satz
+`---\nsource_url:\nretrieved: 2026-08-24\nconverter: brain-pdf/2\nasr: false\n---\n\n`,
+mit dem Satz `Der Bericht beschreibt die Abnahme.` (2026-09-07, `pdf`) die
+fünfte Zeile `description: Der Bericht beschreibt die Abnahme.` vor dem
+Schlusszaun; `TestTheHeadHasFourLinesAndAFifthForADescription` vergleicht
+beide ganz. Ein leerer String als Satz ergibt in der Referenz eine Zeile
+`description: ` (nur `None` lässt sie weg), in loomux keine; kein Aufrufer
+reicht einen: `describe` und `description_of` geben einen nicht leeren Satz
+oder `None`.
+
+**CRLF ist im Kopf ein Zeichen:** 3000 Zeilen `a\r\n` und dann `[00:00]
+Hallo.\r\n` sind in der Referenz `transcript-bracket` (die Marke steht beim
+Zeichen 6000); zählte `\r\n` als zwei, stünde sie bei 9000, jenseits der 8192.
+Zeile `crlf-far.txt` in `TestDetectReadsTheEndingAndThenTheHead`.
+
 ## Abweichungen
 
 Auf allen 72 Sätzen der Batterie urteilen `IsGerman`, `ChoppedWords`,
@@ -418,3 +478,5 @@ Auf allen 72 Sätzen der Batterie urteilen `IsGerman`, `ChoppedWords`,
 | Abweichung | Art | Begründung |
 |---|---|---|
 | `readsBack` auf nackten Skalaren, die YAML 1.1 anders auflöst als yaml.v3 | yaml.v3 statt PyYAML (E4), unerreichbar | Gemessen am 2026-09-27 mit `_reads_back` der Referenz (PyYAML 6.0.3), Fund des Reviews. PyYAML `false`, loomux `true`: `yes`, `on`, `no`, `off`, `Yes`, `NO` (PyYAML: bool), `1:20` (PyYAML: int 80), `1:20.` (PyYAML: float 80.0), `=` und `<<` (PyYAML: ConstructorError). PyYAML `true`, loomux `false`: `0o17`, `1e3`, `-.5` (yaml.v3: Zahlen). Jedes dieser Muster füllt einen ganzen Skalar ohne zwei getrennte Wörter; `IsGerman` verlangt zwei verschiedene Funktionswörter und weist alle 13 ab (die Referenz ebenso), und `describe` nimmt einen Satz nur, wenn alle Richter ihn durchlassen. Die Abweichung erreicht `describe` also nie. Test: `TestABareScalarPartsFromPyYAMLOnlyWhereIsGermanRefuses` (hält beide Urteile, `IsGerman` falsch, und liest die zehn, die loomux durchlässt, über `index.ParseFrontmatter` zurück) |
+| Zeitmarken mit Ziffern anderer Schriften | ASCII-Ziffern statt Pythons `\d`, entschieden im Plan | Gemessen am 2026-09-27 mit `convert_detect.py`: `[٠٠:٠٥] Hallo.` (arabisch-indische Ziffern) ist in der Referenz `transcript-bracket` und wird `[00:05] Hallo.`, weil `int()` jede Dezimalziffer liest; loomux nennt die Datei `unsupported`. Steht eine solche Marke in einem Transkript mit ASCII-Marken, schneidet die Referenz sie als Marke heraus: Ihr Text entfällt, und Anker wird sie nur, wo an ihr ein Absatz beginnt. loomux lässt sie als Text im vorigen Fragment stehen, und Absatzgrenzen können sich verschieben. Gemessen an `[00:00] Eins.\n[٠٠:٠٥] Zwei.\n[00:09] Drei.\n`: Referenz `[00:00] Eins. Zwei. Drei.`, mit Schwelle 1 `[00:00] Eins.\n\n[00:05] Zwei.\n\n[00:09] Drei.`; loomux `[00:00] Eins. [٠٠:٠٥] Zwei. Drei.`, mit Schwelle 1 `[00:00] Eins. [٠٠:٠٥] Zwei.\n\n[00:09] Drei.`. Tests: `TestDetectTakesASCIIDigitsOnly`, `TestAMarkInOtherDigitsStaysText` |
+| Ein kaputtes Byte kurz hinter den ersten 8192 Zeichen | Implementierungsdetail von CPython, nicht nachgebaut | `TextIOWrapper.read(8192)` dekodiert ganze Blöcke (der erste 8192 Bytes, jeder weitere so groß wie die noch fehlenden Zeichen mal Bytes je Zeichen des vorigen Blocks, mindestens 8192) und scheitert an jedem kaputten Byte darin, auch hinter dem 8192. Zeichen; loomux liest genau 8192 Zeichen. Gemessen am 2026-09-27 mit `convert_detect.py`: `[00:00] ` + 4092 × `ä` (zusammen 8192 Bytes) + 4102 × `x` + `\xff` ist in der Referenz `unsupported`, in loomux `transcript-bracket`. Die Blockgröße ist mitgemessen: Nach `[00:00] ` + 2046 × U+1F600 (8192 Bytes, 2054 Zeichen) liest der zweite Block int(8192 / 2054 × 6138) = 24 480 Bytes; ein kaputtes Byte 10 000 oder 24 479 Bytes nach dem ersten Block macht die Datei `unsupported` (feste Blöcke von 8192 Bytes hätten es nie gelesen), eines 24 480 Bytes danach nicht mehr. Die Grenze kann nur fallen, wenn die ersten 8192 Zeichen mehr als 8192 Bytes brauchen (Umlaute, CRLF). Der Ausgang bleibt derselbe: Nichts wird geschrieben, und der Lauf meldet die Datei; nur der Grund lautet anders (Referenz „no converter knows this format“, loomux der Fehler des vollen Lesens oder, wenn die Zieldatei schon steht, deren Meldung). Test: `TestDetectReadsNoFurtherThanTheHead` |
