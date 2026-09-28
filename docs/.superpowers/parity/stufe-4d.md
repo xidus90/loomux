@@ -330,3 +330,91 @@ liest der Nachbau wie wordfreq. Das Skript lag im Scratchpad (`split_check.py`,
    Der einzige Schlüssel der Tabelle mit einer Nicht-ASCII-Ziffer ist U+0E51
    (Thai-Eins), eine einzelne Ziffer ohne Folge, die beide ungeglättet
    nachschlagen.
+
+## Die Richter: `internal/brain/model/judge.go`
+
+**Referenz:** `src/brain/model/judge.py` und `local._reads_back`, gerufen mit
+dem Python der Referenz-venv (Python 3.14.7, wordfreq 3.1.1, PyYAML 6.0.3,
+regex 2026.9.3). **loomux:** Go 1.27.0, `gopkg.in/yaml.v3` v3.0.1. Gemessen
+am 2026-09-27; die Batterie ist `internal/brain/model/testdata/judge-battery.json`
+(72 Sätze), geschrieben von
+`docs/.superpowers/parity/stufe-4d-orakel/judge_battery.py`, der Test
+`TestTheJudgesAgreeWithTheReference`. Die Batterie fragt die Richter der
+Referenz selbst: `is_german`, `chopped_words`, `is_one_sentence`,
+`word_count`, `_reads_back`.
+
+Die 72 Funktionswörter stehen in `judge.go`, weil 4c-2 (`feat/bench-search`)
+nicht gemergt ist; `FunctionWords()` gibt eine Kopie heraus.
+
+**Teile, die wordfreq an einer hoch- oder tiefgestellten Ziffer teilt.** Vier
+Sätze prüfen den Weg von `zipfTokens` durch den Richter; alle vier urteilen
+wie die Referenz.
+
+| Satz | Referenz | loomux | Weg |
+|---|---|---|---|
+| `Die CO₂-Bilanz ist in der Liste.` | nicht zerhackt | nicht zerhackt | Signal 2: `CO₂` → Token `co` (4,93), kein Fragment; `Bilanz` ist länger als fünf Zeichen. Bevor `band` wie wordfreqs Tokenizer schnitt, hätte loomux `CO₂` Band 0 gegeben und den Satz gemeldet |
+| `Das Werk ist CO₂-neutral und billig.` | **zerhackt** | **zerhackt** | Signal 1: nur der erste Teil groß, `CO₂neutral` → Token `co`, `neutral`, zusammen über 3,0; in loomux ist das niedrigste Band beider Token 2 |
+| `Der Euro-m²-Preis ist in der Liste.` | nicht zerhackt | nicht zerhackt | Signal 2: `m²` → Token `m` (5,6), kein Fragment |
+| `Der Preis pro m² ist hoch.` | — | — | kein Bindestrich; nur `WordCount` (`²` ist No, also `re \w`, `m²` ein Wort) und `IsGerman` |
+
+`CO₂-neutral` ist ein Fehlalarm der Referenz: Signal 1 hält das Wort für
+zerschnitten, weil `co` und `neutral` zusammen häufig genug sind. loomux
+übernimmt ihn (Parität). Die Näherung „niedrigstes Band“ (Zipf-Abschnitt,
+Zeile 1) wirkt je Signal in eine andere Richtung: Bei Signal 2 (Fragment,
+Band 0) kann loomux nur nachsichtiger sein als die Referenz, bei Signal 1
+(`commonEnough` des zusammengeschobenen Wortes) nur strenger. Die Batterie
+trifft keinen dieser Fälle.
+
+**Probe über jedes Zeichen.** Für jede Rune, die Pythons `[\wÄÖÜäöüß]`
+nimmt, `c.isupper()` und `c.lower()` gegen `startsUpper` und
+`strings.ToLower`, dazu `re \w` gegen `[\p{L}\p{N}_]` über alle Code Points.
+Die Skripte lagen im Scratchpad (`judge_probe.py`, `judgeprobe/main.go`,
+`judge_probe_check.py`), nicht im Repo.
+
+1. **`re \w` gegen `[\p{L}\p{N}_]`:** 4 657 Unterschiede, alle an Zeichen,
+   die Python 3.14 (Unicode 16) nicht kennt und Go (Unicode 17) schon. Sonst
+   gleich, auch an Marken: `naïve-Idee` zerfällt in beiden in `nai` und
+   `ve-Idee`.
+2. **`isupper()` gegen `unicode.IsUpper`:** Python liest die Eigenschaft
+   Uppercase (Lu und Other_Uppercase), `unicode.IsUpper` nur Lu. Unter den
+   Wortzeichen trennt das die römischen Zahlzeichen U+2160 bis U+216F (Nl).
+   **Behoben:** `startsUpper` liest Lu und Other_Uppercase. Vorher meldete
+   loomux `Ⅻ-jekt` nicht, die Referenz schon (Batteriesatz
+   `Das Ⅻ-jekt steht bereit.`). Dazu 28 Zeichen aus Unicode 17.
+3. **`lower()` gegen `strings.ToLower`:** Python bildet klein mit der vollen
+   Abbildung, Go mit der einfachen; unter den Zeichen, die Python kennt,
+   trennt das nur U+0130 (`İ`): Python `i` mit U+0307, Go `i`. **Behoben:**
+   `pyLower`. Vorher zählte `İN` als Funktionswort `in` (Batteriesatz
+   `İN DER Stadt.`: Referenz nicht deutsch, loomux deutsch). Dazu 28 Zeichen
+   aus Unicode 17. Pythons Schluss-Sigma hängt vom Kontext ab und steht in
+   keiner Einzelzeichenprobe; `pyLower` bildet es nicht nach, weil kein
+   Funktionswort ein Sigma enthält.
+
+**`readsBack` und der Tab.** Die Batterie fand einen Satz, an dem yaml.v3
+und PyYAML auseinandergehen: `Der Tabulator\tist im Satz.` PyYAML trennt
+Token nur mit Leerzeichen und weist einen Tab im Plain Scalar ab („found
+character '\t' that cannot start any token“, gemessen am Anfang, mitten im
+Satz, vor einem Leerzeichen und am Ende); yaml.v3 nimmt ihn mitten im Satz
+als Text, und `index.ParseFrontmatter` gäbe den Satz unverändert zurück. Der
+PyYAML-Nachbau in `apply` (`pyyaml_tabs.go`) weist einen solchen Kopf aber ab.
+Entschieden vom Controller (2026-09-27): `readsBack` weist jeden Satz mit Tab
+ab, bevor yaml.v3 ihn liest (`TestASentenceWithATabNeverReadsBack`). Damit
+urteilt es auf allen Sätzen der Batterie wie PyYAML, und loomux schreibt nie
+einen Kopf mit Tab, den der Nachbau abweist. Wo die beiden sonst noch
+auseinandergehen, steht unter „Abweichungen“.
+
+**Die Prämisse von E4 ist geprüft.** `TestEverySentenceTheJudgeReadsBackComesBackOutOfAHead`
+schreibt jeden der 53 Sätze der Batterie, die `readsBack` durchlässt, als
+`description:` in einen Kopf und verlangt ihn unverändert aus
+`index.ParseFrontmatter(…, true)` zurück; alle 53 kommen zurück. Gegenprobe:
+Mit umgedrehtem Vergleich meldet der Test 63 Zeilen (die 53 Sätze und die zehn
+nackten Skalare unten, die loomux durchlässt).
+
+## Abweichungen
+
+Auf allen 72 Sätzen der Batterie urteilen `IsGerman`, `ChoppedWords`,
+`IsOneSentence`, `WordCount` und `readsBack` wie die Referenz.
+
+| Abweichung | Art | Begründung |
+|---|---|---|
+| `readsBack` auf nackten Skalaren, die YAML 1.1 anders auflöst als yaml.v3 | yaml.v3 statt PyYAML (E4), unerreichbar | Gemessen am 2026-09-27 mit `_reads_back` der Referenz (PyYAML 6.0.3), Fund des Reviews. PyYAML `false`, loomux `true`: `yes`, `on`, `no`, `off`, `Yes`, `NO` (PyYAML: bool), `1:20` (PyYAML: int 80), `1:20.` (PyYAML: float 80.0), `=` und `<<` (PyYAML: ConstructorError). PyYAML `true`, loomux `false`: `0o17`, `1e3`, `-.5` (yaml.v3: Zahlen). Jedes dieser Muster füllt einen ganzen Skalar ohne zwei getrennte Wörter; `IsGerman` verlangt zwei verschiedene Funktionswörter und weist alle 13 ab (die Referenz ebenso), und `describe` nimmt einen Satz nur, wenn alle Richter ihn durchlassen. Die Abweichung erreicht `describe` also nie. Test: `TestABareScalarPartsFromPyYAMLOnlyWhereIsGermanRefuses` (hält beide Urteile, `IsGerman` falsch, und liest die zehn, die loomux durchlässt, über `index.ParseFrontmatter` zurück) |
