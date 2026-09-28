@@ -169,6 +169,8 @@ func TestAChosenTrackYtdlpDidNotWriteNamesWhy(t *testing.T) {
 		{"WARNING: No supported JavaScript runtime\r\n" + de + "\r\n" + en + "\r\n", 0, "https://x: yt-dlp wrote no v.de.json3 (exit 0): " + de},
 		{"ERROR: something\nWARNING: the last line\n", 1, "https://x: yt-dlp wrote no v.de.json3 (exit 1): WARNING: the last line"},
 		{"", 0, "https://x: yt-dlp wrote no v.de.json3 (exit 0)"},
+		// The line about the language can be the first one yt-dlp wrote.
+		{de + "\nWARNING: the last line\n", 0, "https://x: yt-dlp wrote no v.de.json3 (exit 0): " + de},
 	} {
 		y := &ytdlp{exit: c.exit, stderr: c.stderr, files: map[string]string{"v.info.json": info("x")}}
 		if _, err := Fetch(y.tools(), "https://x"); err == nil || err.Error() != c.want {
@@ -299,6 +301,8 @@ func TestTheTitleBecomesAUsableName(t *testing.T) {
 		{"x", "https://www.youtube.com/shorts/mHSOsy_usAg", "x (mHSOsy_usAg).txt"},
 		{"x", "https://www.youtube.com/live/mHSOsy_usAg", "x (mHSOsy_usAg).txt"},
 		{"x", "https://vimeo.com/123", "x.txt"},
+		// Only what Windows refuses goes: "=" stays, "<" and ">" do not.
+		{"a=b <c>", "https://vimeo.com/123", "a=b c.txt"},
 		{strings.Repeat("\U000000e4", 300), "https://vimeo.com/1", strings.Repeat("\U000000e4", 150) + ".txt"},
 	} {
 		path, err := ToInbox(Subtitles{Title: c.title, Fragments: one}, c.url, inbox)

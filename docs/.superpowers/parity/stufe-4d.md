@@ -653,3 +653,47 @@ Auf allen 72 Sätzen der Batterie urteilen `IsGerman`, `ChoppedWords`,
 abweicht, steht in der ersten Zeile oben (nackte Skalare, unerreichbar über
 `IsGerman`); der Tab ist behoben („Die Richter“). Die Stichprobe der Erkennung
 ist die Zeile „Ein kaputtes Byte kurz hinter den ersten 8192 Zeichen“.
+
+## Mutanten
+
+`bin/loomux.exe dev mutants ./internal/brain/convert ./internal/brain/model ./internal/programs`
+am 2026-09-27, 21:05 bis 21:08, auf c5477e58. Erster Lauf: `convert` 356 Mutanten, davon 56
+nicht übersetzbar, 19 von 300 überlebten; `model` 236, 55, 12 von 181; `programs` 4, 0, 0 von 4.
+`pull.go` in `model` stammt von `master` (vor 4d), seine fünf Überlebenden sind trotzdem hier
+behandelt, weil der Lauf das ganze Paket nimmt.
+
+Getötet durch neue oder geschärfte Tests (19):
+
+| Stelle | Mutante | Test |
+|---|---|---|
+| `convert/detect.go:96` | `count < headChars` → `<=` | `TestTheHeadEndsAtItsLastCharacter` (Marke endet auf Zeichen 8192 bzw. 8193) |
+| `convert/detect.go:98` | `if false`; `size <= 1` → `size < 1` | `TestABrokenByteInTheHeadIsNoTextButAReplacementCharacterIs` (kaputtes Byte hinter einer Marke) |
+| `convert/detect.go:98` | `r == utf8.RuneError && size <= 1` → `r == utf8.RuneError` | ebenda (ein ausgeschriebenes U+FFFD ist ein Zeichen) |
+| `convert/fetch.go:38` | `[<>…]` → `[<=>…]` | `TestTheTitleBecomesAUsableName`, Fall `a=b <c>` |
+| `convert/fetch.go:162` | `i >= 0` → `i > 0` | `TestAChosenTrackYtdlpDidNotWriteNamesWhy`, Fall mit der Sprachzeile als erster Zeile |
+| `convert/header.go:73` | `if !HasPrefix(text, "---\n")` → `if false` | `TestConvertedByKnowsOurOwnFileOnly`, Fall `converter: …\n---\n` ohne Kopf |
+| `convert/run.go:49` | `if rel != ""` → `if true` | `TestAreasWithoutAWritableInboxAreLeftAlone` (ein Transkript im Bereich ohne `[layout] inbox`) |
+| `convert/run.go:111` | `if err != nil` → `if false` | `TestAnEndpointOffTheLoopbackStopsTheRunWhenOnlyDescribeIsOn` |
+| `convert/run.go:229` | `e.skipped > 0` → `true`, `>= 0` | `TestTwoSourcesWithTheSameStemBothSurvive` (eine PDF ohne Scanseite hinterlässt keine Zeile) |
+| `convert/transcript.go:36` | `size(current) > limit` → `>=` | `TestAParagraphAtTheThresholdStaysOpen` |
+| `model/pull.go:30`, `:90` | `StatusCode > 299` → `>= 299` | `TestOnlyA2xxStatusIsAnAnswer` (299 ist eine Antwort) |
+| `model/pull.go:30`, `:90` | `StatusCode < 200 \|\| …` → nur `> 299` | ebenda (101 über einen gekaperten Server, der einzige Status unter 200, den Gos Client als Antwort zurückgibt) |
+| `model/pull.go:93` | `… == nil && answer.Error != ""` → `… == nil` | `TestAPullRefusalWithAnEmptyErrorNamesTheStatusOnly` |
+| `model/zipf.go:163`, `:165` | `zipf >= 3.0` → `>`, `zipf >= 2.5` → `>` | `TestBandOfTakesEachThresholdIntoTheBandAbove` |
+
+Zweiter Lauf: `convert` 7, `model` 5, `programs` 0 überleben, alle äquivalent:
+
+| Stelle | Mutante | Warum äquivalent |
+|---|---|---|
+| `convert/detect.go:85` | `if err != nil` (nach `os.Open`) → `if false` | `os.Open` gibt bei einem Fehler ein `nil`-`*os.File`; `Read` darauf gibt `os.ErrInvalid`, `Close` ebenso ohne Panik. `readHead` endet dann in Zeile 91 mit `false`, wie die Abkürzung. |
+| `convert/detect.go:91` | `if err != nil && …` → `if false` | Einen anderen Lesefehler als `EOF` liefert eine lokale Datei nur, bevor sie ein Byte gab (ein Verzeichnis): Der Kopf ist dann leer, trägt keine Marke, und `Detect`, der einzige Aufrufer, sagt `Unsupported` wie bei `false`. |
+| `convert/detect.go:91` | `err != io.EOF` → `err == io.EOF` | `io.ReadFull` gibt `io.EOF` nur, wenn es kein Byte las (leere Datei); der leere Kopf trägt keine Marke, `Detect` sagt `Unsupported` so oder so. |
+| `convert/header.go:77` | `if end == -1` → `if false` | Der Kopf wäre `text[:2]`, also `--`; weder `^converter:` noch `^description:` trifft darin, `headLine` gibt `false` wie die Abkürzung. |
+| `convert/pdf.go:150` | `if out == ""` → `if false` | `strings.Split("", "\f")` ist `[""]`, die leere letzte Seite fällt weg: eine leere Liste statt `nil`, gleich für `len` und `range`. |
+| `convert/run.go:108` | `if settings.Enabled` → `if true` | `ProposerFor` fragt `RoleOn`, und `Narrowed` hält `Enabled` nur, wo es die Maschine setzt: Ohne es gibt jede Rolle `nil, nil`, die Karten bleiben leer. |
+| `convert/run.go:138` | `if pl != nil` → `if true` | Die Liste `scopes` erreicht nur `Place`, und `one` ruft es nur mit einem `placer`; ohne ihn endet `one` vorher. |
+| `model/judge.go:99` | `if tightened == ""` → `if false` | Für `""` ist die Zahl der Satzenden 0, der erste Teil des `&&` falsch, und der Index `len-1` wird nie gelesen. |
+| `model/zipf.go:223` | `r >= '0' && r <= '9'` → `r >= '0'` | `multiDigit` lässt nur Ziffern, `.` und `,` in einen Lauf; `.` (0x2E) und `,` (0x2C) liegen unter `0`. |
+| `model/zipf.go:223` | `r >= '0'` → `r > '0'` | `0` wird zu `0`, mit oder ohne Ersetzung. |
+| `model/zipf.go:257` | `year <= referenceYear` → `<` | Bei 2019 gibt der erste Zweig `yearLogPeak − 0,0083 · 0`, der zweite `yearLogPeak`: dieselbe Zahl. |
+| `model/zipf.go:259` | `year <= referenceYear+plateauWidth` → `<` | Bei 2039 gibt der Zweig danach `yearLogPeak − 0,2 · 0`, also wieder `yearLogPeak`. |
