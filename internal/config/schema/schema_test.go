@@ -253,6 +253,30 @@ func TestDefaultsFollowTheReaders(t *testing.T) {
 	}
 }
 
+// The profiles `config get` prints are the ones the gates run: the default
+// string is spelled by hand, and it once lacked a kind the gate ran.
+func TestProfilesDefaultFollowsTheGates(t *testing.T) {
+	cfg, err := verify.ReadConfig(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parts []string
+	for _, name := range []string{"edit", "precommit", "stop"} {
+		kinds := make([]string, len(cfg.Profiles[name]))
+		for i, kind := range cfg.Profiles[name] {
+			kinds[i] = strconv.Quote(kind)
+		}
+		parts = append(parts, name+" = ["+strings.Join(kinds, ", ")+"]")
+	}
+	if len(cfg.Profiles) != len(parts) {
+		t.Fatalf("the gates know profiles %v", cfg.Profiles)
+	}
+	want := "{ " + strings.Join(parts, ", ") + " }"
+	if k, _ := Lookup("verify.profiles"); k.Default != want {
+		t.Fatalf("default %s, the gates run %s", k.Default, want)
+	}
+}
+
 // The switch says what it gates today: brain = false also makes convert and
 // fetch refuse, and a doc without them would hide that.
 func TestTheBrainSwitchNamesWhatItGatesToday(t *testing.T) {
