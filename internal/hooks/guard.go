@@ -31,7 +31,12 @@ type HookPayload struct {
 	ToolInput map[string]any `json:"tool_input"`
 }
 
-// Built-in rules that protect secrets, stop gate controls, and lock files.
+// manifestReason refuses an agent the manifest, to a writing tool and to a
+// shell line alike.
+const manifestReason = ".loomux/config.toml: the manifest is where the barrier reads its own limits, so no agent may write it"
+
+// Built-in rules that protect secrets, the manifest, the stop gate's controls,
+// the run files and lock files.
 var builtinPathRules = []config.PathRule{
 	{Match: []string{".env"}, Reason: "secrets are not written by an agent"},
 	{Match: []string{".env.*"}, Reason: "secrets are not written by an agent"},
@@ -46,11 +51,15 @@ var builtinPathRules = []config.PathRule{
 	// The constant the gate itself stats (stop.go), not a second copy of the
 	// path: a marker the guard spelled differently would be an open door.
 	{Match: []string{NoVerifyMarker}, Reason: "the stop gate's own controls are not written by the party it gates"},
+	// loomux's own files under any directory: a write into a sibling
+	// worktree's .loomux, or one named by its absolute path, is the same
+	// write as into this project's.
+	{Match: []string{"**/.loomux/config.toml"}, Reason: manifestReason},
 	// The literal below is the second copy of sessions.StateDir; a rule is a
 	// verbatim glob here, so the two are kept in step by hand.
-	{Match: []string{".loomux/state/hooks/**"}, Reason: "the stop gate's own controls are not written by the party it gates"},
+	{Match: []string{"**/.loomux/state/hooks/**"}, Reason: "the stop gate's own controls are not written by the party it gates"},
 	// The second copy of runs.Dir, kept in step by hand like the one above.
-	{Match: []string{".loomux/state/runs/**"}, Reason: runFilesReason},
+	{Match: []string{"**/.loomux/state/runs/**"}, Reason: runFilesReason},
 	{Match: []string{"uv.lock"}, Reason: "lock files are written by their package manager, not by hand"},
 	{Match: []string{"poetry.lock"}, Reason: "lock files are written by their package manager, not by hand"},
 	{Match: []string{"package-lock.json"}, Reason: "lock files are written by their package manager, not by hand"},
@@ -280,7 +289,8 @@ func typedLines(name, value string) (lines []string, refusal string) {
 }
 
 // matchGlob matches a slash-separated path against a glob pattern supporting
-// `**`, and answers an error for a pattern it cannot read.
+// `**`, and answers an error for a pattern it cannot read. A leading `**/`
+// stands for any directory, the root included.
 //
 // It is `path.Match`, not `filepath.Match`: the path is slash-separated on
 // every platform, and on Windows `filepath.Match` separates on `\` only, so a
@@ -293,6 +303,21 @@ func typedLines(name, value string) (lines []string, refusal string) {
 // made the rule protect nothing without a word; the caller turns it into a
 // refusal instead.
 func matchGlob(pattern, name string) (bool, error) {
+	// A leading **/ is any directory, the root included: the rest is tried
+	// against the name and against every tail of it that starts after a
+	// slash, so an element is matched whole.
+	if rest, anywhere := strings.CutPrefix(pattern, "**/"); anywhere {
+		for {
+			if matched, err := matchGlob(rest, name); err != nil || matched {
+				return matched, err
+			}
+			slash := strings.IndexByte(name, '/')
+			if slash < 0 {
+				return false, nil
+			}
+			name = name[slash+1:]
+		}
+	}
 	if pattern == name {
 		return true, nil
 	}
@@ -319,7 +344,8 @@ func matchGlob(pattern, name string) (bool, error) {
 // half-answer rather than a fallback that works. Every rule carrying a slash
 // (`.aws/**`, `.loomux/no-verify`) stops matching such a target, because the
 // absolute path does not begin where the rule does; only the rules without a
-// slash, which are matched against the base name, still reach it. Those
+// slash, which are matched against the base name, still reach it -- and the
+// rules under `**/`, which match loomux's own files under any directory. Those
 // targets are the write barrier's to decide, and it does: it resolves the path
 // and compares it with the registered trees, which is the question "is this
 // file even in this project" asked properly. The policy is about paths in the
