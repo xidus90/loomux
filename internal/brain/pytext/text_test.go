@@ -44,6 +44,23 @@ func TestStripAndRStripLikePython(t *testing.T) {
 	}
 }
 
+func TestFirstRunesIsPythonsSliceOfCharacters(t *testing.T) {
+	for _, c := range []struct {
+		s    string
+		n    int
+		want string
+	}{
+		{"äöü", 2, "äö"},
+		{"ab", 5, "ab"},
+		{"ab", 0, ""},
+		{"", 3, ""},
+	} {
+		if got := FirstRunes(c.s, c.n); got != c.want {
+			t.Errorf("FirstRunes(%q, %d) = %q, want %q", c.s, c.n, got, c.want)
+		}
+	}
+}
+
 func TestReadTextFoldsCROnlyAndKeepsTheBOM(t *testing.T) {
 	// Path.read_text(encoding="utf-8") of the same bytes on Python 3.14.7.
 	cases := []struct{ name, bytes, want string }{

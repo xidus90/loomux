@@ -29,6 +29,17 @@ func RStrip(s string) string {
 	return strings.TrimRightFunc(s, IsSpace)
 }
 
+// FirstRunes is `s[:n]` for n >= 0: the first n characters, not bytes.
+func FirstRunes(s string, n int) string {
+	for i := range s {
+		if n == 0 {
+			return s[:i]
+		}
+		n--
+	}
+	return s
+}
+
 // ReadText is `Path(path).read_text(encoding="utf-8")`: strict UTF-8, and
 // universal newlines, which turn `\r\n` and a lone `\r` into `\n` and leave
 // every other boundary alone. A byte order mark stays, because "utf-8" is

@@ -20,7 +20,8 @@ const ProposeVersion = "vorschlag-v4"
 //go:embed prompts/vorschlag-v4.md
 var proposePrompt string
 
-// Proposer is the local model in the role `propose`.
+// Proposer is the local model in its roles `propose`, `describe` and
+// `place`; the gate hands one out per role.
 type Proposer struct {
 	client *Client
 }

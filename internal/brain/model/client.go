@@ -1,5 +1,6 @@
 // Package model is the local model: a client that never leaves the loopback,
-// the gate in front of it, and the role `propose`. It follows
+// the gate in front of it, the roles `propose`, `describe` and `place`, and
+// the judges a sentence of `describe` has to pass. It follows
 // `src/brain/model/` of the reference.
 //
 // Two kinds of failure are kept strictly apart. A misconfiguration -- an
@@ -110,6 +111,9 @@ type generateRequest struct {
 	Stream  bool            `json:"stream"`
 	Think   bool            `json:"think"`
 	Options generateOptions `json:"options"`
+	// Format is the output schema the endpoint enforces (`place` only); it
+	// stands behind options, where the reference's payload appends it.
+	Format any `json:"format,omitempty"`
 }
 
 type generateOptions struct {
@@ -117,16 +121,24 @@ type generateOptions struct {
 	NumCtx      int     `json:"num_ctx"`
 }
 
-// Ask is one question to the model. false stands for every outage: no
-// connection, a timeout, a status that is not 2xx (a redirect included), a
-// body that is not a JSON object with a string `response`. An empty string
-// is an answer; the role judges it.
+// Ask is AskFormat without a schema.
 func (c *Client) Ask(ctx context.Context, prompt string) (string, bool) {
-	// A struct of strings, bools and numbers always marshals, and the URL
-	// passed the guard, so neither of the next two calls can fail.
+	return c.AskFormat(ctx, prompt, nil)
+}
+
+// AskFormat is one question to the model; a format other than nil goes out
+// as the schema the endpoint holds the answer to. false stands for every
+// outage: no connection, a timeout, a status that is not 2xx (a redirect
+// included), a body that is not a JSON object with a string `response`. An
+// empty string is an answer; the role judges it.
+func (c *Client) AskFormat(ctx context.Context, prompt string, format any) (string, bool) {
+	// A struct of strings, bools, numbers and a schema of maps and slices
+	// always marshals, and the URL passed the guard, so neither of the next
+	// two calls can fail.
 	body, _ := json.Marshal(generateRequest{
 		Model: c.settings.Name, Prompt: prompt,
 		Options: generateOptions{Temperature: c.settings.Temperature, NumCtx: numCtx},
+		Format:  format,
 	})
 	request, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
