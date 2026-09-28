@@ -84,6 +84,12 @@ func TestTheSchemaKnowsEveryKeyTheReadersRead(t *testing.T) {
 	if got := ids("agent.models.*"); !slices.Equal(got, sorted(config.ModelSpecKeys())) {
 		t.Errorf("[agent.models.*]: schema %v, reader %v", got, config.ModelSpecKeys())
 	}
+	if got := ids("guard"); !slices.Equal(got, sorted(config.GuardKeys())) {
+		t.Errorf("[guard]: schema %v, reader %v", got, config.GuardKeys())
+	}
+	if k, ok := Lookup("guard.mode"); !ok || k.Kind != Enum || !slices.Equal(k.Choices, config.GuardModes()) || k.Default != `"default"` {
+		t.Errorf("guard.mode: %+v %v", k, ok)
+	}
 	for _, list := range []string{"commit.allow", "policy.paths.rules", "policy.commands.rules"} {
 		k, ok := Lookup(list)
 		if !ok || k.Kind != TableList {
@@ -135,7 +141,7 @@ func TestMatchFillsANamedKey(t *testing.T) {
 }
 
 func TestEveryNewKeyIsBase(t *testing.T) {
-	for _, id := range []string{"agent.default", "agent.mcp_servers", "agent.models.*.provider", "agent.models.*.model", "agent.roles.*", "flow.default", "flow.overrides"} {
+	for _, id := range []string{"agent.default", "agent.mcp_servers", "agent.models.*.provider", "agent.models.*.model", "agent.roles.*", "flow.default", "flow.overrides", "guard.mode"} {
 		found := false
 		for _, k := range Keys() {
 			if k.ID() == id {

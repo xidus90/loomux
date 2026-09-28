@@ -24,10 +24,14 @@ type CommandRule struct {
 	Reason string
 }
 
-// Policy is the [policy] table of .loomux/config.toml.
+// Policy is the [policy] table of .loomux/config.toml, and from [guard] how
+// hard the guard reads a shell line.
 type Policy struct {
 	Paths    []PathRule
 	Commands []CommandRule
+	// Strict is [guard] mode = "strict": the guard also holds against an
+	// agent that means to get round it. The zero value is the default mode.
+	Strict bool
 }
 
 // ManifestPath is where a project's one configuration file lives.
@@ -59,6 +63,7 @@ type policyFile struct {
 			} `toml:"rules"`
 		} `toml:"commands"`
 	} `toml:"policy"`
+	Guard any `toml:"guard"`
 }
 
 // ReadPolicy reads the policy of the project at root. A missing file is an
@@ -104,6 +109,11 @@ func ReadPolicy(root string) (Policy, error) {
 		}
 		policy.Commands = append(policy.Commands, CommandRule{Regex: compiled, Source: rule.Regex, Reason: rule.Reason})
 	}
+	strict, err := parseGuard(path, file.Guard)
+	if err != nil {
+		return Policy{}, err
+	}
+	policy.Strict = strict
 	return policy, nil
 }
 

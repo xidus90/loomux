@@ -82,6 +82,30 @@ rules = [
 
 ---
 
+### `[guard]` (Wie genau der Wächter liest)
+
+```toml
+[guard]
+mode = "default"   # oder "strict"
+```
+
+`default` hält gegen einen Agenten, der sich irrt oder bequem ist: die
+gängigen Schreib- und Löschbefehle, ihre Wrapper, Globs, Brace-Expansion und
+die Ordner über einem geschützten Pfad. `strict` hält zusätzlich gegen einen,
+der gezielt umgehen will: jedes Ziel wird vom Dateisystem aufgelöst (Punkte
+und Leerzeichen am Ende, 8.3-Kurznamen, Groß-/Kleinschreibung, Junctions),
+loomux' eigene Befehle werden an ihren Argumenten erkannt statt am
+Programmnamen, ein Programm, das der Wächter nicht kennt, wird auf einem
+geschützten Pfad verweigert, ebenso eine Schreibung, deren Pfad eine Expansion
+(`$X`, `$(…)`, Backtick, `%X%`) trägt, die dort landen kann. Ohne den
+Schlüssel gilt `default`; jeder andere Wert ist ein Fehler, und der Wächter
+verweigert dann jeden Aufruf wie bei kaputter Konfiguration. Der strikte Modus
+verweigert mehr, als einem Projekt lieb sein mag: in diesem Repo verweigert er
+`go build -o bin/loomux.exe`, weil `bin/*` geschützt ist und `go` kein Verb,
+das der Wächter kennt. Siehe [Hooks](hooks.md#7-der-entscheidungsweg-von-pre-tool-use).
+
+---
+
 ### `[verify]` (Prüfketten & Quality-Gates)
 Sagt, was `loomux check` und der post-edit-Hook fahren. **Ohne jedes
 `[verify]` gelten die eingebauten Presets** für jeden Stack, den die Erkennung
@@ -770,6 +794,10 @@ rules = [
   { regex = '(^|\s)git\s+push(\s|$)', reason = "Pushen zum Remote erfordert eine menschliche Entscheidung" },
   { regex = '(^|\s)rm\s+-rf\s+/', reason = "Löschung des System-Wurzelverzeichnisses ist verboten" }
 ]
+
+# --- Wächtermodus: default, oder strict gegen einen, der gezielt umgehen will
+# [guard]
+# mode = "default"
 
 # --- Prüfkette: loomux check und post-edit; alles Übrige ist Preset ---------
 [verify.go.lint]
