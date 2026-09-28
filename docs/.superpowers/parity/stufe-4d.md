@@ -123,6 +123,35 @@ in diesem Git Bash aus zwei gemessenen Gründen nicht verlässlich.
    findet es auch ohne `-U`. Ein CRLF, das die Prüfung finden soll, sieht
    `grep -c $'\r'` also auch in der richtigen Form nicht.
 
+### Messungen: Poppler, die Aufnahme des Menschen
+
+`testdata/convert/poppler/faketool.json` (3993 Bytes), vom Menschen mit
+`loomux dev record-poppler` gegen Poppler 25.07.0 aufgenommen (`-v`: `pdftotext
+version 25.07.0` / `Copyright 2005-2025 The Poppler Developers - …` /
+`Copyright 1996-2011, 2022 Glyph & Cog, LLC`; der Aufzeichner legt stderr von
+`-v` in `stdout` der Antwort, und zwar mit LF). Die Aufnahme deckt sich mit
+der Messung oben: dieselben Exit-Codes (`corrupt.pdf` und `encrypted.pdf` 1,
+`pageless.pdf` 99, sonst 0), `text.pdf` und `Bericht März.pdf` je eine Zeile
+von 390 Zeichen, `paragraphs.pdf` eine Zeile von 780 Zeichen ohne etwas an der
+Naht (`…pruefen kann.Hallo aus dem…`), `mixed.pdf` drei Textseiten und
+siebenmal `\f`, `blank.pdf` `\f`, `allscan.pdf` `\f\f`. Die Version ist
+dieselbe; der Plan musste nicht anhalten.
+
+`TestPopplersOwnOutputConvertsAsTheSeamSays` (`internal/brain/convert/poppler_test.go`)
+spielt sie durch `extract` ab: `text.pdf` und `Bericht März.pdf` eine Seite,
+390 Zeichen; `paragraphs.pdf` eine Seite, ein Absatz, 780 Zeichen, zweimal
+`Pruefbestand` (die Abweichung zu pypdf aus „Widersprüche zum Plan“, 2);
+`mixed.pdf` zehn Seiten, sieben übersprungen, drei Absätze; `blank.pdf` eine,
+`allscan.pdf` zwei Seiten, alle übersprungen, Text leer; `corrupt.pdf`,
+`encrypted.pdf` und `pageless.pdf` ein Fehler.
+
+Die Aufnahme hat kein Feld für stderr (`faketool.Answer` kennt keins). Beim
+Abspielen lautet der Fehler darum `pdftotext exited 1 and said nothing` bzw.
+`exited 99 and said nothing`, nicht `exited 99: Syntax Error: Invalid page
+count 0` wie unter echtem Poppler (Zeile „Eine PDF ohne Seiten unter echtem
+Poppler“ unter „Abweichungen“). Der Zweig mit stderr-Zeile hält darum
+`TestAPagelessPDFUnderPopplerIsUnreadable`, nicht dieser Golden.
+
 ### `yt-dlp` 2026.08.19
 
 `uvx yt-dlp --version` ergab `2026.08.19` (uvx 0.12.16). Die venv der

@@ -23,12 +23,14 @@ import (
 	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/brain/search"
 	"github.com/xidus90/loomux/internal/cases"
+	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/dev/benchcorpus"
 	"github.com/xidus90/loomux/internal/dev/benchhooks"
 	"github.com/xidus90/loomux/internal/dev/benchreport"
 	"github.com/xidus90/loomux/internal/dev/benchsearch"
 	"github.com/xidus90/loomux/internal/dev/fakeollama"
+	"github.com/xidus90/loomux/internal/dev/faketool"
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/mutants"
 	devnotices "github.com/xidus90/loomux/internal/dev/notices"
@@ -63,6 +65,7 @@ var devCommands = map[string]command{
 	"notices":         devNotices,
 	"record-case":     devRecordCase,
 	"record-mcp-case": devRecordMCPCase,
+	"record-poppler":  devRecordPoppler,
 	"release":         devRelease,
 	"swap-binary":     devSwapBinary,
 }
@@ -457,6 +460,45 @@ func devNotices(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	fmt.Fprintln(stdout, *out)
 	return 0
 }
+
+// devRecordPoppler runs pdftotext -v and pdftotext -layout -enc UTF-8 -eol unix <name> -
+// for every PDF in --dir and writes the answers as a faketool fixture. A
+// human runs it once, with Poppler installed, to record the real tool. Each
+// PDF is asked the way the converter asks it, from its own directory by its
+// bare name, so the recording replays for exactly that command line; stderr
+// has no place in a fixture and goes to stdout for the parity notes instead.
+func devRecordPoppler(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev record-poppler", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	exe := fs.String("exe", "", "Poppler's pdftotext")
+	dir := fs.String("dir", "", "the directory of the PDFs")
+	out := fs.String("out", "", "the fixture to write")
+	if err := fs.Parse(args); err != nil || *exe == "" || *dir == "" || *out == "" {
+		return 2
+	}
+	entries, err := os.ReadDir(*dir)
+	if err != nil {
+		return reportReconcileError(stderr, err)
+	}
+	version := popplerRun(child.Spec{Argv: []string{*exe, "-v"}})
+	answers := []faketool.Answer{{Prefix: "pdftotext -v", Exit: version.Code, Stdout: version.Stdout + version.Stderr}}
+	for _, e := range entries {
+		if !strings.EqualFold(filepath.Ext(e.Name()), ".pdf") {
+			continue
+		}
+		res := popplerRun(child.Spec{Argv: []string{*exe, "-layout", "-enc", "UTF-8", "-eol", "unix", e.Name(), "-"}, Dir: *dir})
+		answers = append(answers, faketool.Answer{Prefix: "pdftotext -layout -enc UTF-8 -eol unix " + e.Name() + " -", Exit: res.Code, Stdout: res.Stdout})
+		fmt.Fprintf(stdout, "%s: exit %d, %d bytes, stderr %q\n", e.Name(), res.Code, len(res.Stdout), strings.TrimSpace(res.Stderr))
+	}
+	data, _ := json.MarshalIndent(faketool.Fixture{Answers: answers}, "", " ")
+	if err := os.WriteFile(*out, append(data, '\n'), 0o644); err != nil {
+		return reportReconcileError(stderr, err)
+	}
+	return 0
+}
+
+// popplerRun is the seam a test replaces to record without Poppler.
+var popplerRun = child.Run
 
 func devSwapBinary(args []string, _ io.Reader, _, stderr io.Writer) int {
 	fs := flag.NewFlagSet("dev swap-binary", flag.ContinueOnError)
