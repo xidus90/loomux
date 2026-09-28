@@ -3150,3 +3150,42 @@ find . -type d -name __pycache__ -exec rm -rf {} +
    Grenze hielt ein erster Bau diesen Worktree für zu groß und verweigerte die
    Zeile nach 330 ms; 50000 lässt sie durch. Ein Baum über der Grenze wird wie
    vorher verweigert, nachdem bis zur Grenze gelesen wurde.
+
+## 2026-09-28 20:20 — `reconcile` mit dem echten lokalen Modell gegen ohne
+
+**Ziel.** Die Zeit je Vorschlag des lokalen Modells (Kriterium der Referenz:
+unter zwei Sekunden, dort 563 bis 1 314 ms), wie Schritt 2 des Plans von 4c-1
+sie verlangt: `reconcile` mit Modell gegen ohne, kalt und warm.
+
+**Methode.** `bin/loomux.exe` aus `origin/master` (`85f06f66`), Ollama 0.34.0
+auf `127.0.0.1:11434` mit CUDA (22,8 GiB frei), Modell
+`hf.co/unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL` (die Vorgabe,
+`temperature` 0). Je Lauf eine frische Kopie der Welt
+`testdata/cases/4c1/reconcile/proposal-kept` (ein `local_only`-Bereich, eine
+geänderte Quelle, eine zitierende Seite) im Scratchpad, `LOOMUX_STATE_DIR`,
+`LOOMUX_LEGACY_BRAIN_DIR` und `XDG_CONFIG_HOME` in der Welt, `[model]` dort
+`enabled = true` oder `false`. Gemessen wurde die Wanduhr um den ganzen
+Prozess.
+
+| Fall | Läufe | Zeit | Ergebnis |
+|---|---|---:|---|
+| Modell aus, kalt | 1 | 239 ms | manueller Fall |
+| Modell aus, warm | 5 | Median 209 ms (184–217) | manueller Fall |
+| Modell an, kalt (Modell nicht geladen) | 1 | 30 348 ms | manueller Fall: Frist von 30 s abgelaufen |
+| Modell an, erste Frage nach dem Laden | 1 | 28 307 ms | Vorschlag, `vorschlag-v4` |
+| Modell an, warm | 4 | Median 793 ms (584–1 036) | Vorschlag, `vorschlag-v4` |
+
+Ollama selbst meldete für die vier warmen Fragen 350 bis 798 ms.
+
+### Wichtigste Befunde
+1. **Warm hält das Kriterium.** Warm mit Modell minus warm ohne ergibt rund
+   580 ms je Vorschlag, im Band der Referenz.
+2. **Kalt liegt die erste Frage an der Frist von 30 s.** Beim ersten Lauf lud
+   Ollama das Modell noch, als loomux nach 30 s abbrach; Ollama verwarf daraufhin
+   das halb geladene Modell (`client connection closed before llama-server
+   finished loading, aborting load`), und der Fall öffnete ohne Vorschlag. Ein
+   von Hand vorgeladenes Modell half nicht: loomux fragt mit eigenem `num_ctx`
+   (`internal/brain/model/client.go`), Ollama lud das Modell dafür neu (3,4 s), und die erste Auswertung des
+   Prompts brauchte 20,4 s für 1 289 Token, die folgenden unter einer Sekunde.
+   Die Frist ist eine Entscheidung der Spec („30 s insgesamt für eine Frage“);
+   ob die erste Frage nach dem Laden mehr Zeit bekommt, entscheidet der Nutzer.

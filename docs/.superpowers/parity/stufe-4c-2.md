@@ -21,7 +21,8 @@ Korpusmodus über die qmd-CLI mit eigenem Indexnamen (`QmdPort`,
 |---|---|
 | Bau (`dev bench hooks\|repos\|search`, Hülle, Korpus `v1`) | gebaut 2026-09-26 |
 | Paritätslauf gegen das echte qmd | ✅ 2026-09-27: 50/50 Ränge gleich, 37/37 Befunde |
-| Selbstnutzung | erledigt 2026-09-27 (Korpusqualität, Alltagslatenz, `hooks` und `repos` mit `--out`), bis auf eine saubere Alltagsqualität (qmd-Backbone), siehe unten |
+| Selbstnutzung | erledigt 2026-09-27 (Korpusqualität, Alltagslatenz, `hooks` und `repos` mit `--out`); Alltagsqualität gemessen 2026-09-28, siehe unten |
+| Mutationsrunde | **offen:** gefahren 2026-09-28, 33 Überlebende auf Zeilen der Stufe, 20 davon ohne Test (siehe „Überlebende Mutanten“) |
 
 Beide Teile fassen den geteilten qmd-Index des Nutzers an (die Referenz
 schreibt ihre Sammlung in die echte `index.yml`) und liefen deshalb von Hand,
@@ -328,10 +329,12 @@ Läufe schrieben beide Dateien.
   leerer Sammlungsliste (der Dienst sucht dann im ganzen Index als eine
   Rangliste) und behält die Treffer der gefragten Sammlungen; danach 31/50.
   `keyword` bleibt bei der alten Form (7/50 gegen 8/50 in der Probe).
-- **Befunde am Rande, nicht behoben:** (a) 27 `expect`-Pfade im Fragensatz von
+- **Befunde am Rande, nicht behoben** (bis auf (b)): (a) 27 `expect`-Pfade im Fragensatz von
   `brain-knowledge` zeigen noch auf `space/wiki/` (Umzug am 2026-09-07); das
-  Repo gehört dem Nutzer. (b) `dev bench search` ohne `--scope` misst nur
-  `knowledge`; mit diesem Fragensatz ergibt das still 0/50 auch bei `keyword`.
+  Repo gehört dem Nutzer. (b) ~~`dev bench search` ohne `--scope` misst nur
+  `knowledge`; mit diesem Fragensatz ergibt das still 0/50 auch bei `keyword`.~~
+  Behoben am 2026-09-28 (`e193bfac`): ohne `--scope` misst der Befehl die
+  Bereiche, auf die die `expect`-Pfade des Fragensatzes zeigen.
   (c) Der qmd-Index führt veraltete Doppel (`space`, `iam-wiki`,
   `obsidian-ai` neben den `project-`-Sammlungen), die loomux nicht mehr
   kennt; das gehört zu den Pflichten des weggefallenen `migrate`
@@ -345,3 +348,60 @@ Läufe schrieben beide Dateien.
   übernehmen es, ein gesetztes `QMD_LLAMA_GPU` oder `QMD_FORCE_CPU` des Nutzers
   gewinnt (`search.ResolveBackbone`). Offen bleibt die saubere Qualitätszahl
   darüber.
+
+## Überlebende Mutanten
+
+**Die Runde mit `loomux dev mutants` (2026-09-28, nachgeholt).** Bis zum
+2026-09-28 fehlte sie; Bedingung 3 unter „Eine Stufe ist fertig, wenn“ der
+Fusions-Spec war darum offen, obwohl alle anderen Teile der Stufe erledigt
+waren. Gefahren von einem Agenten mit `bin/loomux.exe`, gebaut aus
+`origin/master` (`85f06f66`), Vorgabezahl der Arbeiter:
+
+```
+bin/loomux.exe dev mutants ./internal/dev/benchsearch ./internal/dev/benchcorpus ./internal/dev/benchreport ./internal/brain/search
+```
+
+| Paket | erzeugt | nicht übersetzbar | getötet | überlebt | davon auf Zeilen von 4c-2 |
+|---|---:|---:|---:|---:|---:|
+| `internal/dev/benchsearch` | 530 | 131 | 380 | 19 | 19 |
+| `internal/dev/benchcorpus` | 763 | 84 | 569 | 110 | 8 |
+| `internal/dev/benchreport` | 54 | 21 | 30 | 3 | 3 |
+| `internal/brain/search` | 471 | 67 | 385 | 19 | 3 |
+
+„Auf Zeilen von 4c-2“ heißt: `git blame` der Zeile nennt einen der Commits
+der Stufe (`cefbb4ea`, `d4d5d95e`, `6369f93b`, `cd1e21fe`, `e24c9118`,
+`b183ea69`, `53c4735a`, `997066ae`, `c4230b68`, `486dc3be`, `e193bfac`).
+Die übrigen 118 liegen in älterem Code von `dev bench repos` und der Suche;
+sie gehören nicht zu dieser Stufe und sind hier nicht eingeordnet.
+
+**Die 33 Überlebenden der Stufe, erste Einordnung** (ein Agent, noch ohne
+Test und ohne Freigabe; jeder bekommt einen Test oder eine Begründung, bevor
+4c-2 ✅ wird):
+
+| Stelle | Mutation | Einordnung |
+|---|---|---|
+| `benchsearch/quality.go:41` | `rank <= top` → `rank < top` | **Test fehlt:** kein Fall mit einem Treffer genau auf Rang `top` (3). Die Grenze der Kennzahl selbst ist ungeprüft |
+| `benchsearch/run.go:78` (vier Formen) | `c.channel == ""` umgekehrt, `true`, `false` | **Test fehlt:** kein Lauf gibt einen Kanal mit und prüft ihn; der Kanal geht an `search.ExecuteSearch` und entscheidet, ob ein `local_only`-Bereich antwortet |
+| `benchsearch/run.go:248` | `scope != allAreas && len(areas) == 0` → `len(areas) == 0` | **Test fehlt:** `all` über eine leere Registry |
+| `benchsearch/run.go:133` | `prepared == nil && !o.ScopeSet` → `!o.ScopeSet` | **Offen, Probe nötig:** Korpusmodus ohne `--scope`; ob die Suche nach dem Bereich dort etwas ändert, ist nicht geprüft |
+| `benchsearch/corpus.go:99` | `HasSuffix(".md")` → `true` | **Test fehlt:** ein Korpus mit einer Nicht-Markdown-Datei unter `notes/` |
+| `benchsearch/corpus.go:152` | `!ok` → `false` | **Test fehlt:** ein Eintrag ohne `sha256`, die Befundliste genau geprüft |
+| `benchsearch/corpus.go:227` (zwei Formen) | `claimed[note] == 0` umgekehrt | **Test fehlt:** eine Notiz in zwei Themen, die Reihenfolge geprüft |
+| `benchsearch/corpus.go:322` | `reverse < reverseMinimum` → `<=` | **Test fehlt:** genau `reverseMinimum` Rückfragen |
+| `benchsearch/latency.go:19` | `repeat < 1` → `<= 1` | **Test fehlt:** `repeat = 1` |
+| `benchsearch/quality.go:62` | `GOOS == "windows"` → `!=` | **Test fehlt (nur Windows):** zwei nicht lesbare Pfade, die sich nur in der Schreibung unterscheiden; für lesbare Pfade antwortet `os.SameFile` gleich |
+| `benchsearch/run.go:275` | `d > depth` → `d >= depth` | **Test fehlt:** nur zwei Bereiche mit demselben Pfad trennen die Formen (der erste gegen den letzten gewinnt), und die Registry lehnt nur doppelte Scopes ab (`internal/config/registry.go:138`), keine doppelten Pfade |
+| `benchsearch/run.go:279` | `depth < 0` → `depth <= 0` | **Äquivalent:** `depth` ist die Länge eines bereinigten Pfads, mindestens 1 (`filepath.Clean("")` ist `.`) |
+| `benchsearch/run.go:75` | `c.scope == "" && !o.ScopeSet` → `!o.ScopeSet` | **Äquivalent über die Befehlszeile:** `ScopeSet` ist falsch nur ohne `--scope`, dann ist `Scope` leer (`internal/cli/dev.go`, `fs.Visit`) |
+| `benchsearch/run.go:90`, `questions.go:59` | `err == nil` → `true` nach `filepath.Abs` | **Praktisch unerreichbar:** `filepath.Abs` scheitert nur, wenn das Arbeitsverzeichnis nicht lesbar ist |
+| `benchcorpus/benchcorpus.go:100` | `left <= 0` → `left < 0` | **Test fehlt:** Uhr genau auf der Frist |
+| `benchcorpus/benchcorpus.go:192` (zwei Formen) | `len(claudeWarmMS) > 0` → `true`, `>= 0` | **Äquivalent:** `benchreport.Median` einer leeren Liste ist 0, `Speedup` bleibt 0 |
+| `benchcorpus/benchcorpus.go:232` | `cold` → `!cold` | **Test fehlt:** kalter und warmer Lauf mit verschiedenen Zeiten, beide geprüft |
+| `benchcorpus/report.go:39`, `template.go:132` | `Applicable != nil && !*Applicable` → `Applicable != nil` | **Test fehlt:** eine Komponente mit `Applicable` = wahr (Zeiger, nicht `nil`) |
+| `benchcorpus/status.go:40` (zwei Formen) | `Applicable == nil \|\| *Applicable` → `true`, `Applicable == nil` | **Test fehlt:** `allRuns` mit `Applicable` wahr und falsch |
+| `benchreport/environment.go:40`, `:43`, `:45` | Bedingungen in `processorName` umgekehrt | **Begründet:** die Funktion ist `//coverage:exempt`, sie liest den Prozessor des Rechners |
+| `search/qmd.go:71` (zwei Formen) | `len(vars) > 0` → `true`, `>= 0` | **Äquivalent:** `cmd.Env = os.Environ()` ohne Zusatz erbt dieselbe Umgebung wie `nil` |
+| `search/qmd.go:173` | `index != ""` → `true` | **Äquivalent in der Praxis:** mit leerem Index schneidet `TrimSuffix` nur ein wörtliches `?index=` am Ende ab, das qmd ohne Index nicht schreibt |
+
+Zusammen: 20 mit fehlendem Test (davon einer nur unter Windows), einer offen
+bis zu einer Probe, 12 äquivalent, unerreichbar oder begründet.

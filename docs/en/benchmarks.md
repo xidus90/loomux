@@ -3021,3 +3021,43 @@ find . -type d -name __pycache__ -exec rm -rf {} +
    a first build took this worktree for too large and refused the line in
    330 ms; 50000 lets it through. A tree past the limit is refused as
    before, after walking up to the limit.
+
+## 2026-09-28 20:20 — `reconcile` With the Real Local Model Against Without
+
+**Goal.** The time per proposal of the local model (the reference's
+criterion: under two seconds, 563 to 1,314 ms there), as step 2 of the 4c-1
+plan asks: `reconcile` with the model against without, cold and warm.
+
+**Method.** `bin/loomux.exe` from `origin/master` (`85f06f66`), Ollama 0.34.0
+on `127.0.0.1:11434` with CUDA (22.8 GiB free), model
+`hf.co/unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL` (the default,
+`temperature` 0). Each run on a fresh copy of the world
+`testdata/cases/4c1/reconcile/proposal-kept` (one `local_only` area, one
+changed source, one page citing it) in the scratchpad, with
+`LOOMUX_STATE_DIR`, `LOOMUX_LEGACY_BRAIN_DIR` and `XDG_CONFIG_HOME` inside the
+world and `[model]` there set to `enabled = true` or `false`. Wall clock
+around the whole process.
+
+| Case | Runs | Time | Result |
+|---|---|---:|---|
+| Model off, cold | 1 | 239 ms | manual case |
+| Model off, warm | 5 | median 209 ms (184–217) | manual case |
+| Model on, cold (model not loaded) | 1 | 30,348 ms | manual case: the 30 s limit ran out |
+| Model on, first question after the load | 1 | 28,307 ms | proposal, `vorschlag-v4` |
+| Model on, warm | 4 | median 793 ms (584–1,036) | proposal, `vorschlag-v4` |
+
+Ollama itself reported 350 to 798 ms for the four warm questions.
+
+### Key Findings
+1. **Warm, the criterion holds.** Warm with the model minus warm without
+   comes to about 580 ms per proposal, within the reference's band.
+2. **Cold, the first question sits at the 30 s limit.** On the first run
+   Ollama was still loading the model when loomux gave up after 30 s; Ollama
+   then dropped the half-loaded model (`client connection closed before
+   llama-server finished loading, aborting load`), and the case opened
+   without a proposal. Preloading the model by hand did not help: loomux asks
+   with a `num_ctx` of its own (`internal/brain/model/client.go`), Ollama loaded the model again for them (3.4 s),
+   and the first prompt evaluation took 20.4 s for 1,289 tokens, the ones
+   after it under a second. The limit is a decision of the spec ("30 s in all
+   for a question"); whether the first question after a load gets more time
+   is the user's call.
