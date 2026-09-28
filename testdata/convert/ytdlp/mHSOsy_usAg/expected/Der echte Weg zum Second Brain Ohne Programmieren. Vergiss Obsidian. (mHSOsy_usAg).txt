@@ -1,0 +1,2577 @@
+[00:00:00] Hallo zusammen, das hier ist mein Second
+
+[00:00:02] Brain. Fast 2000 Notizen, über 4000
+
+[00:00:04] Dateien und ich finde relevante
+
+[00:00:06] Informationen innerhalb von wenigen
+
+[00:00:07] Sekunden. Viele von euch haben unter dem
+
+[00:00:09] letzten Video gefragt, wie baut man
+
+[00:00:11] sowas? Genau das zeige ich euch heute,
+
+[00:00:13] den kompletten Weg Schritt für Schritt
+
+[00:00:16] mit allen Referenzen und allen Fehlern,
+
+[00:00:17] die ich gemacht habe. Aber eins vorweg,
+
+[00:00:19] um diese Optik geht es erst später und
+
+[00:00:21] das ist Absicht, denn die schöne Galaxie
+
+[00:00:23] oder die anderen strukturierten
+
+[00:00:24] Ansichten des gesamten bestehenden
+
+[00:00:26] Systems, das war nämlich der einfachste
+
+[00:00:28] Teil und gleichzeitig aber auch der
+
+[00:00:29] Teil, bei dem ich Stunden verloren habe.
+
+[00:00:32] Und warum und welchen Fehler ich gemacht
+
+[00:00:33] habe, das seht ihr dann. Und der Vorteil
+
+[00:00:36] ist natürlich für euch, dass ihr diesen
+
+[00:00:37] Fehler einfach nicht machen müsst und
+
+[00:00:38] euch Stunden an potenzieller
+
+[00:00:40] Verzweiflung sparen könnt. Vorher bauen
+
+[00:00:42] wir aber das, was wirklich zählt,
+
+[00:00:43] nämlich ein System, dem du vertrauen
+
+[00:00:45] kannst und fangen wir da an, wo jeder
+
+[00:00:47] von uns steht. Du sammelst Notizen in
+
+[00:00:48] Obsidian, in Notion, egal wo und
+
+[00:00:51] sammeln, das ist total einfach. Jeder
+
+[00:00:53] Artikel, jede Idee, jedes Meeting,
+
+[00:00:55] einfach rein damit. Und das hier ist
+
+[00:00:56] mein V. So heißt in Obsidian der Ordner
+
+[00:00:58] mit allen Notizen. Und so sieht das nach
+
+[00:01:00] ein paar Monaten aus. Sieht ja
+
+[00:01:01] eigentlich ganz cool und beeindruckend
+
+[00:01:02] aus, ist es aber nicht, weil es ist halt
+
+[00:01:05] einfach nur ein Harball. Und ich zeige
+
+[00:01:06] dir jetzt, was dieses Bild wirklich
+
+[00:01:08] bedeutet. Erstens, ich finde nicht
+
+[00:01:09] wieder, was ich gesammelt habe. Die
+
+[00:01:11] Standardsuche arbeitet mit Wörtern und
+
+[00:01:13] nicht mit Bedeutung. Das heißt, wenn ich
+
+[00:01:15] nicht mehr weiß, welche Begriffe ich
+
+[00:01:16] damals verwendet habe, wird die richtige
+
+[00:01:18] Notiz quasi unsichtbar. Zweitens, und
+
+[00:01:21] das ist viel schlimmer, ich kann dem,
+
+[00:01:22] was ich finde, gar nicht vertrauen. Und
+
+[00:01:24] ich zeige das an einem Beispiel aus
+
+[00:01:25] meinem WT. In einem Strategiedokument
+
+[00:01:27] steht ein Ziel für meine Videos. In
+
+[00:01:29] einer anderen Notiz stehen aber die
+
+[00:01:31] echten Auswertungen und die sagen etwas
+
+[00:01:33] völlig anderes. Beide lagen quasi
+
+[00:01:35] monatelang friedlich nebeneinander und
+
+[00:01:37] ich habe es nicht gemerkt. Und jetzt der
+
+[00:01:39] entscheidende Punkt. In der
+
+[00:01:40] Standardvariante kann ich das nicht
+
+[00:01:42] einmal überprüfen. Obsidian gibt mir
+
+[00:01:44] Links und eine Suche, aber es sagt mir
+
+[00:01:46] nicht, wo sich meine Notizen
+
+[00:01:47] widersprechen, was doppelt ist und was
+
+[00:01:49] vielleicht veraltet ist. Das müsste ich
+
+[00:01:51] alles selbst im Kopf behalten. Und bei
+
+[00:01:52] 2000 Notizen ist es einfach unmöglich.
+
+[00:01:55] Es gibt aber mittlerweile Lösung dafür
+
+[00:01:56] und genau diese erläutere ich auch in
+
+[00:01:58] diesem Video. Wie viele solcher
+
+[00:02:00] Konflikte am Ende wirklich in meinem W
+
+[00:02:03] stecken, zeige ich euch später mit den
+
+[00:02:04] echten Zahlen. Und Wissen sammeln ist
+
+[00:02:07] leicht. Wissen wiederfinden und ihm
+
+[00:02:09] vertrauen können, das ist das
+
+[00:02:11] eigentliche Problem. Deshalb stand am
+
+[00:02:13] Anfang dieses Projekts keine
+
+[00:02:14] Technikentscheidung, sondern eine Frage,
+
+[00:02:17] nämlich die hier. Wie wird aus
+
+[00:02:19] gesammeltem Wissen ein System, dem ich
+
+[00:02:21] vertrauen kann, statt ein wachsender
+
+[00:02:23] Müllhaufen? Und diese Frage hat zwei
+
+[00:02:25] Hälften. Erstens die Aufindbarkeit. Ich
+
+[00:02:28] will jede Information wiederfinden, auch
+
+[00:02:30] wenn ich nur noch ungefähr weiß, worum
+
+[00:02:32] es ging. Und zweitens, Vertrauen,
+
+[00:02:35] Duplikate, Widersprüche und veraltete
+
+[00:02:38] Stände sollen auffallen und nicht
+
+[00:02:40] stillschweigend herumliegen. Und jetzt
+
+[00:02:42] schaut auf diese Frage. Da steht nichts
+
+[00:02:44] von einem Grafen, nichts von einer
+
+[00:02:46] schönen Ansicht. Mit der Optik hat das
+
+[00:02:48] alles erstmal noch gar nichts zu tun.
+
+[00:02:50] Und wenn du nur eine Sache aus diesem
+
+[00:02:52] Video mitnimmst, dann die bau zuerst das
+
+[00:02:54] System, das diese Frage beantwortet. Die
+
+[00:02:57] Optik ist quasi nur ein Fenster und ein
+
+[00:03:00] Fenster, das kannst du zum Schluss
+
+[00:03:01] bauen. Und wenn die Frage klar ist,
+
+[00:03:04] kommt der nächste Schritt aufschreiben,
+
+[00:03:07] was das System können muss, um sie zu
+
+[00:03:08] beantworten. Das hier ist die komplette
+
+[00:03:10] Übersicht, durch die ich Schritt für
+
+[00:03:11] Schritt durchgehe. Ich erkläre die
+
+[00:03:13] Herangehensweise, ich erkläre die
+
+[00:03:15] Funktion dahinter, sodass ihr das ganze
+
+[00:03:17] System versteht. Und wenn ihr dieses
+
+[00:03:19] Video komplett durchschaut und ihr die
+
+[00:03:21] Informationen, die ich euch mitteile,
+
+[00:03:22] alle versteht, könnt ihr danach dieses
+
+[00:03:24] System komplett nachbauen. Ich habe
+
+[00:03:26] nachher im Video auch noch ein Goodie
+
+[00:03:27] für alle, die die durchhalten. Es wird
+
+[00:03:29] teilweise sehr technisch und das Video
+
+[00:03:31] wird sehr lang, aber damit habt ihr
+
+[00:03:33] alles, was ihr braucht. So, jetzt erst
+
+[00:03:34] einmal, was es eigentlich können soll.
+
+[00:03:36] An dieser Stelle machen die meisten und
+
+[00:03:38] ich auch früher den komplett gleichen
+
+[00:03:40] Fehler. Sie springen direkt zum
+
+[00:03:41] Werkzeug. Das heißt, welches Tool,
+
+[00:03:43] welches Plugin, welche App. Wir haben es
+
+[00:03:45] andersrum gemacht. Und wenn ich von wir
+
+[00:03:47] rede, dann meine ich Cloud und ich.
+
+[00:03:49] Bevor auch nur eine einzige Zeile Code
+
+[00:03:52] entstanden ist, haben wir
+
+[00:03:53] aufgeschrieben, was das System können
+
+[00:03:55] muss, um die Frage vom Anfang zu
+
+[00:03:57] beantworten, was es braucht, damit ich
+
+[00:04:00] jede Information wiederfinde und damit
+
+[00:04:02] ich dem Bestand auch vertrauen kann.
+
+[00:04:04] Keine Features, keine Tools, sondern
+
+[00:04:06] Fähigkeiten. Bei mir sind es genau vier
+
+[00:04:08] und merkt sie euch gut, denn jede dieser
+
+[00:04:11] vier Fähigkeiten findet später in der
+
+[00:04:13] Architektur ihr zu Hause. Erstens finden
+
+[00:04:16] relevante Informationen in Sekunden und
+
+[00:04:19] zwar auch dann, wenn ich das genaue Wort
+
+[00:04:21] nicht mehr weiß. Ich will fragen können,
+
+[00:04:23] wie war noch mal unser Untertitelstil
+
+[00:04:26] und die richtige Notiz bekommen, ohne
+
+[00:04:28] den Dateinamen zu kennen. Das heißt, die
+
+[00:04:31] Suche muss Bedeutung verstehen und nicht
+
+[00:04:33] nur Buchstaben vergleichen. Zweitens,
+
+[00:04:36] lesen. Wenn ich etwas gefunden habe,
+
+[00:04:38] will ich es direkt öffnen und lesen
+
+[00:04:39] können. Imselben System ohne Appwechsel.
+
+[00:04:42] Klingt banal, ist aber ein Unterschied
+
+[00:04:45] zwischen einem Werkzeug und einem
+
+[00:04:46] Sprungbrett zurück ins Chaos. Drittens,
+
+[00:04:49] und das ist die Antwort auf die
+
+[00:04:51] Vertrauenshälfte unserer Frage, sauber
+
+[00:04:53] bleiben. Das System soll selbst
+
+[00:04:55] erkennen, wo sich mein Wissen
+
+[00:04:57] widerspricht, wo Duplikate liegen, wo
+
+[00:05:00] Stände veraltet sind und es soll Wissen
+
+[00:05:02] verdichten, statt es einfach nur zu
+
+[00:05:04] stapeln. Und das kann keine Suche der
+
+[00:05:06] Welt. Dafür braucht es später einen
+
+[00:05:08] eigenen Mechanismus. Und viertens,
+
+[00:05:10] Überblick, das ganze System auf einen
+
+[00:05:13] Blick. Ja, und hier an dieser Stelle
+
+[00:05:15] kommt irgendwann der Graf ins Spiel,
+
+[00:05:16] aber schaut es einfach genau an. Es
+
+[00:05:18] steht hier als Fähigkeit auf der Liste,
+
+[00:05:21] als eine von vieren und nicht an erster
+
+[00:05:23] Stelle. Dazu kommt eine Randbedingung,
+
+[00:05:25] die mehrere Technikentscheidungen prägt.
+
+[00:05:27] Meine Wissensbasis, der Index, der Graf
+
+[00:05:31] und die Suche liegen und laufen komplett
+
+[00:05:33] lokal auf meinem Rechner. Es gibt keine
+
+[00:05:35] zusätzliche Clouddatenbank und keine
+
+[00:05:38] externen Suchdienste. Meine Notizen sind
+
+[00:05:40] mein Leben, Projekte, Finanzen,
+
+[00:05:42] persönliches und so weiter. Nur wenn
+
+[00:05:44] Cloud Inhalte analysiert oder das Wiki
+
+[00:05:46] pflegt, werden die dafür ausgewählten
+
+[00:05:49] Ausschnitte an das Modell übertragen.
+
+[00:05:50] Und hier kommt der erste Punkt, den du
+
+[00:05:52] direkt übernehmen kannst. Bevor du
+
+[00:05:54] irgendein Tool installierst, nimm dir 10
+
+[00:05:57] Minuten und schreib deine eigene Liste.
+
+[00:05:59] Was muss dein System können, damit du
+
+[00:06:00] ihm vertraust? drei bis fünf Punkte und
+
+[00:06:03] jeder so konkret, dass du am Ende prüfen
+
+[00:06:05] kannst, ob er erfüllt ist. Fähigkeiten
+
+[00:06:07] zuerst, Werkzeuge später und jetzt haben
+
+[00:06:10] wir eine Frage und eine Liste von
+
+[00:06:12] Fähigkeiten. Und jetzt natürlich die
+
+[00:06:14] Frage, wie kommt man dann von so einer
+
+[00:06:16] Liste zu einem fertigen System, ohne
+
+[00:06:18] sich komplett zu verzetteln? Und dafür
+
+[00:06:20] gibt es ein Prozess. Der Prozess hat
+
+[00:06:22] sechs Schritte und das hier ist der
+
+[00:06:24] Prozess, mit dem aus der Frage ein
+
+[00:06:25] fertiges System wurde. Diese sechs
+
+[00:06:27] Schritte und ich sag's gleich, die
+
+[00:06:29] eigentliche Bauarbeit, also das was man
+
+[00:06:32] sich unter mit KI ein Systembuen
+
+[00:06:34] vorstellt, ist nur Schritt 5 von sechs.
+
+[00:06:36] Vier [schnauben] der sechs Schritte
+
+[00:06:38] passieren, bevor die erste Zeile Code
+
+[00:06:40] entsteht. Und genau das ist der Grund,
+
+[00:06:42] warum es auch am Ende funktioniert hat.
+
+[00:06:44] Und eine Sache sage ich euch gleich
+
+[00:06:45] dazu. Diesen Prozess habe ich mir nicht
+
+[00:06:47] selbst ausgedacht. Die Schritte 2 bis 5
+
+[00:06:50] kommen aus einem fertigen Skillpaket für
+
+[00:06:52] Cloud Code. Es heißt Superpers. Ein
+
+[00:06:55] Skill ist dabei nichts anderes als eine
+
+[00:06:57] Arbeitsanweisung, die man Cloud einmal
+
+[00:06:59] mitgibt und die dann bei jedem Projekt
+
+[00:07:01] gilt. Im Kern macht Superpowers genau
+
+[00:07:04] eine Sache. Es zwingt die KI in einen
+
+[00:07:07] Ingenieursprozess. Clord darf nicht
+
+[00:07:09] einfach loslegen und Code schreiben. Es
+
+[00:07:12] muss erst Fragen stellen, eine nach der
+
+[00:07:14] anderen. Es muss die Entscheidungen in
+
+[00:07:16] ein Dokument schreiben. Es muss daraus
+
+[00:07:19] einen Plan mit kleinen testbaren
+
+[00:07:21] Aufgaben machen und erst dann wird
+
+[00:07:23] gebaut. Und an jedem dieser Übergänge
+
+[00:07:25] sitzt du als Kontrollpunkt. Ohne deine
+
+[00:07:27] Freigabe geht's einfach nicht weiter.
+
+[00:07:30] Wenn du mehr über Skills erfahren
+
+[00:07:31] willst, wo du sie herbekommst und wie du
+
+[00:07:33] sie installieren kannst, dann verlinke
+
+[00:07:35] ich dir ein passendes Video in der
+
+[00:07:36] Beschreibung. Warum ist der Prozessor
+
+[00:07:37] wertvoll? Das größte Risiko bei KI
+
+[00:07:40] Projekten ist nicht schlechter Code. Es
+
+[00:07:42] ist, dass die KI mit voller
+
+[00:07:43] Geschwindigkeit das falsche baut
+
+[00:07:45] stundenlang überzeugend und komplett am
+
+[00:07:47] Ziel vorbei. Und genau davor schützt
+
+[00:07:49] diese Struktur. Du musst kein
+
+[00:07:51] Projektmanagement können und kein
+
+[00:07:53] Software Team geführt haben. Der Skill
+
+[00:07:55] bringt diese Disziplin mit und du
+
+[00:07:57] bringst die Entscheidungen. Ihr werdet
+
+[00:07:58] in den nächsten Minuten sehen, was ich
+
+[00:08:00] meine. Schritt 1 hat mit KI noch gar
+
+[00:08:02] nichts zu tun und es ist trotzdem der
+
+[00:08:03] wichtigste, die Datenbasis ordnen. Bevor
+
+[00:08:06] irgendwas gebaut wurde, habe ich meinen
+
+[00:08:08] Vote komplett neu aufgestellt. Eine
+
+[00:08:09] klare Klusterstruktur, Workflow Ordner
+
+[00:08:12] für Inbox, Daily Notes und Vorlagen und
+
+[00:08:14] Themenkluster für Content, Business,
+
+[00:08:16] Community, Persönliches und Wissen. Jede
+
+[00:08:19] Notiz hat seitdem einen eindeutigen
+
+[00:08:21] Platz. Und warum das ganz zuerst? Ganz
+
+[00:08:24] einfach. Die beste Suche der Welt findet
+
+[00:08:26] in einem Chaosv auch einfach nur dein
+
+[00:08:28] Chaos schneller. Und wenn Thema an fünf
+
+[00:08:31] Stellen liegt, kann kein System der Welt
+
+[00:08:33] daraus Vertrauen bauen. Ordnung in den
+
+[00:08:35] Daten ist kein Nebenschritt. Es ist das
+
+[00:08:37] Fundament, auf dem alles andere steht.
+
+[00:08:39] Und diesen Schritt kannst du heute auch
+
+[00:08:41] einfach noch machen. Verwende dazu
+
+[00:08:43] einfach Claud Code, lass deinen
+
+[00:08:44] Workspace durchsuchen und ordne alles
+
+[00:08:47] gemeinsam mit ihm neu. Cloud schlägt die
+
+[00:08:49] Klaster vor. Du entscheidest, was wohin
+
+[00:08:51] gehört. Schritt Nummer 2: Brainstorming.
+
+[00:08:53] Und hier dreht sich die Rollenverteilung
+
+[00:08:55] um, die die meisten vielleicht von KI
+
+[00:08:57] erwarten. Ich habe Claud nicht gesagt,
+
+[00:08:58] bau mir ein Second Brain. Stattdessen
+
+[00:09:00] stellt Cloud mir Fragen, eine nach der
+
+[00:09:02] anderen. Was ist der Zweck? Was ist die
+
+[00:09:05] Datenbasis? Was muss es können? Was soll
+
+[00:09:07] es ausdrücklich nicht können?
+
+[00:09:09] Das hier sind beispielsweise die echten
+
+[00:09:11] Fragen von damals und am Ende schlägt
+
+[00:09:13] Cloud zwei, drei Ansätze vor mit vor und
+
+[00:09:15] Nachteilen und ich entscheide. Die
+
+[00:09:17] wichtigste Entscheidung damals, das
+
+[00:09:18] System arbeitet auf meinem kompletten
+
+[00:09:21] Workspace, so wie er ist. Keine
+
+[00:09:23] Migration, kein neues Format, kein erst
+
+[00:09:26] einmal alles umziehen. Und wichtig
+
+[00:09:28] hierbei, in diesem ganzen Schritt
+
+[00:09:30] entsteht kein Code, kein einziges Pil.
+
+[00:09:33] Schritt 3: Alles was entschieden wurde
+
+[00:09:35] kommt schriftlich in ein Designdokument.
+
+[00:09:38] die Spezifikation Abschnitt für
+
+[00:09:40] Abschnitt von mir freigegeben und das
+
+[00:09:42] hier ist das Original von damals. Und
+
+[00:09:44] diese Spezifikation ist quasi der
+
+[00:09:45] Vertrag. Wenn später beim Bauen eine
+
+[00:09:47] Streitfrage auftaucht, was gilt dann?
+
+[00:09:50] Nicht meine Erinnerung, nicht die
+
+[00:09:52] Interpretation der KI. Es gilt was in
+
+[00:09:54] der Spezifikation steht. Und das klingt
+
+[00:09:56] vielleicht bürokratisch, spart aber
+
+[00:09:58] genau die Diskussion, die sonst Stunden
+
+[00:10:01] kostet. Und damit ihr ein Gefühl für das
+
+[00:10:03] Tempo bekommt, von der ersten
+
+[00:10:05] Brainstorming Frage bis zum Bauchstart
+
+[00:10:07] vergingen ungefähr 30 Minuten. Und
+
+[00:10:09] dieser Prozess ist kein bürokratischer
+
+[00:10:11] Bremsklotz. Er ist eigentlich der Turbo
+
+[00:10:13] für dein Projekt, weil alles flüssiger
+
+[00:10:15] läuft. Schritt 4: Aus der Spezifikation
+
+[00:10:17] wird ein Plan. Cloud zerlegt das Ganze
+
+[00:10:20] in kleine Aufgaben. Bei mir waren es
+
+[00:10:21] insgesamt 14 Kernaufgaben und jede
+
+[00:10:24] Aufgabe hat zwei Dinge: Einen Test und
+
+[00:10:26] ein ganz klares Fertigkriterium. nicht
+
+[00:10:29] mach die Suche, sondern die Suche
+
+[00:10:31] liefert zu dieser Beispielfrage diese
+
+[00:10:33] Datei. Vorher ist die Aufgabe nicht
+
+[00:10:35] fertig. Schritt 5: Bauen und zwar
+
+[00:10:38] Schritt für Schritt. Für jede Aufgabe
+
+[00:10:40] wird ein frischer Subagent eingesetzt,
+
+[00:10:43] eine eigene Cloud Instanz, die genau
+
+[00:10:45] diese eine Aufgabe und den dafür nötigen
+
+[00:10:47] Kontext bekommt und sonst nichts. Danach
+
+[00:10:50] wird das Ergebnis geprüft. Erst dann
+
+[00:10:51] kommt die nächste Aufgabe und meine
+
+[00:10:53] Rolle dabei. Ich lese keinen Code. Ich
+
+[00:10:55] schaue Ergebnisse an, läuft der Test,
+
+[00:10:58] tut es, was das Kriterium sagt und die
+
+[00:11:00] KI schreibt jede einzelne Zeile und ich
+
+[00:11:02] nehme das Ganze ab. Schritt 6: testen.
+
+[00:11:05] Was du nicht testest, kannst du dir sehr
+
+[00:11:07] leicht schön reden und wie der Test
+
+[00:11:08] aussah und wie er ausging, das kommt in
+
+[00:11:11] Kapitel 6 mit echten Zahlen. Und falls
+
+[00:11:13] ihr das nachbauen wollt, der komplette
+
+[00:11:14] Ablauf, den ihr gerade gesehen habt,
+
+[00:11:16] Brainstorming, Spezifikation, Plan, Task
+
+[00:11:19] für Task, das war Superpers von Anfang
+
+[00:11:21] bis Ende. Ein Skillpaket einmal
+
+[00:11:24] installiert und Cloud Code arbeitet so
+
+[00:11:26] bei jedem Projekt. Noch einmal, den Link
+
+[00:11:28] findet ihr in der Beschreibung und
+
+[00:11:30] selbst wenn ihr ein anderes Werkzeug
+
+[00:11:31] nutzt, das Muster bleibt übertragbar.
+
+[00:11:33] erst entscheiden, dann schriftlich
+
+[00:11:34] festhalten und dann in kleinen Schritten
+
+[00:11:36] bauen lassen. Eine Sache, die ich noch
+
+[00:11:38] nicht erwähnt habe, woher wusste Clud
+
+[00:11:40] jetzt eigentlich in Brainstorming, was
+
+[00:11:42] gut aussieht und was technisch
+
+[00:11:43] funktioniert? Und die Antwort ist der
+
+[00:11:45] wichtigste Teil dieses gesamten Videos,
+
+[00:11:48] nämlich Referenzen. Und zwar nicht so,
+
+[00:11:50] wie die meisten sie benutzen. Ich habe
+
+[00:11:52] dafür drei Rollen vergeben. Und was
+
+[00:11:53] heißt das jetzt die Referenzen?
+
+[00:11:55] Referenzen sammeln heißt nicht
+
+[00:11:57] zwangsläufig Links kopieren und sagen,
+
+[00:11:59] bau mir das nach. Das wäre einfach nur
+
+[00:12:00] eine Kopiervorlage und die Ergebnisse
+
+[00:12:02] davon sind fast immer schlecht, weil
+
+[00:12:04] fremde Lösungen fremde Probleme lösen
+
+[00:12:06] und nicht deine eigenen. Und bei mir
+
+[00:12:08] hatte jede Referenz eine klar definierte
+
+[00:12:10] Rolle. Es gibt genau drei davon und
+
+[00:12:12] diese drei Rollen sind das
+
+[00:12:14] übertragbarste an dem gesamten Video.
+
+[00:12:16] Egal was du mit KI baust. Diese drei
+
+[00:12:18] Fragen kannst du eigentlich immer
+
+[00:12:19] stellen. Rolle 1: Der Baustein. Etwas,
+
+[00:12:22] das fertig existiert und direkt
+
+[00:12:24] eingebaut werden kann, ohne es neu zu
+
+[00:12:26] erfinden. Bei mir ist das das QMD, eine
+
+[00:12:28] lokale Hybridsuche von Tobi Lütke, dem
+
+[00:12:30] Shopify Gründer. QMD kombiniert die
+
+[00:12:32] klassische Stichwortsuche mit einer
+
+[00:12:34] Bedeutungssuche und läuft vollständig
+
+[00:12:37] auf meinem Rechner. Erinnert ihr euch an
+
+[00:12:39] die Fähigkeit Nummer 1 Fen ohne das
+
+[00:12:42] exakte Wort. Genau das liefert QMD als
+
+[00:12:45] Plugin installiert, eingebunden,
+
+[00:12:47] einsatzbereit. Und wie diese Suche im
+
+[00:12:49] Detail arbeitet, das zeige ich euch
+
+[00:12:51] gleich bei der Architektur. Aber die
+
+[00:12:53] Lehre dahinter, bauen nichts selbst, was
+
+[00:12:56] es als gepflegtes, fertiges Teil bereits
+
+[00:12:58] gibt. Jede Stunde, die du nicht in eine
+
+[00:13:00] eigene Suche steckst, steckst du in das,
+
+[00:13:03] was dein System besonders macht. Rolle
+
+[00:13:05] 2: Das Muster. Hier übernimmst du keine
+
+[00:13:07] Software, sondern eine Idee und setzt
+
+[00:13:09] sie selbst um, passend zu deinem System.
+
+[00:13:11] Und mein Muster kommt von Andre Kapaty,
+
+[00:13:14] einem der bekanntesten KI Forscher
+
+[00:13:16] überhaupt und er hat beschrieben, wie
+
+[00:13:17] eine KI ein eigenes Wissenswik pflegen
+
+[00:13:19] kann. Die KI schreibt und aktualisiert
+
+[00:13:22] Markdown Seiten, es gibt einen kleinen
+
+[00:13:24] Index, der zuerst gelesen wird und es
+
+[00:13:26] gibt Prüfregeln gegen Widersprüche und
+
+[00:13:28] verweiste Seiten. Und das Bemerkenswerte
+
+[00:13:30] daran, diese Referenz ist kein Programm
+
+[00:13:32] und kein fertiges Werkzeug. Es ist
+
+[00:13:34] einfach nur ein kurzer Text, in dem
+
+[00:13:35] Kapaty beschreibt, wie er arbeitet. Ein
+
+[00:13:38] paar Absätze, mehr nicht. Aber die Idee
+
+[00:13:40] darin, die KI pflegt das Wissen selbst
+
+[00:13:43] nach festen Regeln, ist eins zu eins die
+
+[00:13:46] Antwort auf unsere Fähigkeit Nummer 3:
+
+[00:13:48] Sauber bleiben. Die Umsetzung haben wir
+
+[00:13:51] komplett selbst gebaut, passend zu
+
+[00:13:53] meinem Vot. Wie das konkret aussieht,
+
+[00:13:55] seht ihr in Kapitel 6 mit echten
+
+[00:13:57] Ergebnissen. Rolle 3, die Messlatte.
+
+[00:13:59] eine Referenz, aus der du weder Code
+
+[00:14:01] noch Konzept übernimmst, sondern die
+
+[00:14:03] festlegt, wie gut das Ergebnis aussehen
+
+[00:14:05] muss. Und meine Messlatte war kein
+
+[00:14:07] fremdes Produkt, sondern Bilder, MOG-ups
+
+[00:14:09] meiner Zieloptik generiert mit KI.
+
+[00:14:11] Getrennte Wissenswelten, jede mit
+
+[00:14:13] eigener Farbe, die sich nicht
+
+[00:14:14] vermischen. Klare Hierarchie,
+
+[00:14:16] Übersichtlichkeit. Verbindungen
+
+[00:14:18] erscheinen erst, wenn man einen Knoten
+
+[00:14:19] auswählt. Diese Bilder nicht wage Worte
+
+[00:14:22] bekam Cloud Code als visuelles soll
+
+[00:14:25] nicht im Prompt geschrieben. Mach es
+
+[00:14:27] schön, sondern so sieht es fertig aus.
+
+[00:14:30] Und wie es zu diesen Bildern gekommen
+
+[00:14:31] ist und welcher sehr teure Fehler davor
+
+[00:14:34] lag, das erzähle ich dir im Optikkanal.
+
+[00:14:36] Und nur so viel dazu. Behalte diese
+
+[00:14:38] MOGups im Hinterkopf. Sie spielen am
+
+[00:14:40] Ende die Hauptrolle. Und dann steht da
+
+[00:14:42] unten noch eine Zeile, die fast
+
+[00:14:43] wichtiger ist als die drei Karten. Ich
+
+[00:14:45] habe mir noch zwei weitere Projekte
+
+[00:14:46] angesehen, nämlich Gbrain und Graphify.
+
+[00:14:49] Code habe ich von beiden keinen
+
+[00:14:50] übernommen, aber ihr Muster Markdown als
+
+[00:14:53] einzige Wahrheit. Der Graf nur ein
+
+[00:14:55] abgeleiteter Zwischenstand hat eine der
+
+[00:14:58] wichtigsten Architekturentscheidungen
+
+[00:14:59] abgesichert. Und wo genau seht ihr bei
+
+[00:15:01] der Architektur? Zu wissen, was du nicht
+
+[00:15:04] brauchst, gibt dir außerdem die
+
+[00:15:05] Sicherheit beim eigenen Ansatz zu
+
+[00:15:07] bleiben, wenn es später schwierig wird.
+
+[00:15:09] Auch verwerfen ist ein
+
+[00:15:10] Rechercheergebnis. Also deine drei
+
+[00:15:13] Fragen für jedes eigene Projekt. Was
+
+[00:15:15] übernehme ich fertig? Welche Muster
+
+[00:15:17] adaptiere ich? Und woran messe ich
+
+[00:15:19] eigentlich, ob das Ergebnis gut genug
+
+[00:15:21] ist? Baustein, Muster, Messlatte. Damit
+
+[00:15:24] habt ihr alle vier Punkte, die in das
+
+[00:15:26] System hineingeflossen sind. die
+
+[00:15:27] zentrale Frage, die vier Fähigkeiten,
+
+[00:15:30] der Prozess, die Referenzen. Jetzt zeige
+
+[00:15:33] ich euch, was daraus geworden ist und
+
+[00:15:35] wie das System aufgebaut ist, die
+
+[00:15:37] Architektur. Und keine Sorge, es sind
+
+[00:15:39] nur fünf Bausteine und die habe ich
+
+[00:15:41] eigentlich schon alle erwähnt. So und
+
+[00:15:42] hier ist die komplette Architektur. Und
+
+[00:15:44] bevor ihr denkt zu technisch, es sind
+
+[00:15:46] genau fünf Bausteine und jeder der vier
+
+[00:15:49] Fähigkeiten von vorhin findet hier sein
+
+[00:15:51] Zuhause. Das Wichtigste an diesem Bild
+
+[00:15:53] sind aber nicht die Kästen, sondern es
+
+[00:15:55] sind die Farben. Orange heißt deine
+
+[00:15:57] Daten, grün heißt normaler Code,
+
+[00:16:00] deterministisch, läuft immer gleich,
+
+[00:16:02] kostet nichts. Und lila heißt KI. Und
+
+[00:16:05] jetzt schau dir einmal an, wie wenig
+
+[00:16:06] Lila in diesem Bild ist. Das ist eine
+
+[00:16:08] der wichtigsten Designentscheidungen im
+
+[00:16:10] gesamten System. KI wird nur da
+
+[00:16:13] eingesetzt, wo wirklich Verstehen nötig
+
+[00:16:15] ist. Alles, was eine Maschine stur und
+
+[00:16:18] zuverlässig erledigen kann, macht
+
+[00:16:20] normaler Code. Das spart Geld, ist
+
+[00:16:22] schneller und es ist nachvollziehbar.
+
+[00:16:24] Baustein 1, ganz links, dein Workspace.
+
+[00:16:26] Das ist der Vold, den wir in Schritt 1
+
+[00:16:28] geordnet haben. In meinem Fall fast 2000
+
+[00:16:31] Notizen, insgesamt über 4000 Dateien
+
+[00:16:33] plus die Ordner drumherum. Codeprojekte,
+
+[00:16:36] die Skills, Cloud Anweisungen, das
+
+[00:16:38] Memory, das was Cloud sich über mich und
+
+[00:16:41] meine Projekte gemerkt hat und die
+
+[00:16:43] Connectors, also die Anbindungen an
+
+[00:16:45] andere Programme. Und hier seht ihr
+
+[00:16:47] vielleicht den wichtigsten Satz des
+
+[00:16:48] gesamten Boards. Markdown ist die
+
+[00:16:50] einzige Wahrheit. Alles Wissen liegt als
+
+[00:16:52] einfache Textdatei auf meiner Platte.
+
+[00:16:54] Keine Datenbank, kein eigenes Format,
+
+[00:16:56] kein System, das mich irgendwie
+
+[00:16:57] einsperren kann. Jedes andere Teil der
+
+[00:16:59] Architektur ist einfach nur eine
+
+[00:17:01] abgeleitete Sicht auf diese Dateien und
+
+[00:17:03] kann jederzeit weggeworfen und neu
+
+[00:17:05] gebaut werden, ohne dass ein einziges
+
+[00:17:07] Stück Wissen verloren geht. Merkt euch
+
+[00:17:09] den Ordner 09 Wiki da drin, der spielt
+
+[00:17:11] gleich noch eine sehr besondere Rolle.
+
+[00:17:13] Baustein Nummer 2, der Indexer. Klingt
+
+[00:17:15] technisch, ist aber die einfachste Idee
+
+[00:17:17] im gesamten System. Stellt euch einen
+
+[00:17:20] Bibliothekar vor, der einmal durch die
+
+[00:17:22] Regale geht. Er liest die Bücher nicht,
+
+[00:17:24] er registriert sie nur. Was gibt es? Wo
+
+[00:17:26] steht es und welche Bücher verweisen
+
+[00:17:29] aufeinander? Und genau das macht der
+
+[00:17:31] Indexer mit meinem Workspace. Ein
+
+[00:17:32] kleines Programm läuft durch alle Ordner
+
+[00:17:34] und notiert für jede Datei drei Dinge.
+
+[00:17:37] Was ist das? Titel, Ort, Größe? Wie
+
+[00:17:39] hängt es zusammen? Welche Notiz verlinkt
+
+[00:17:42] auf welche? Welche Text hat sie? Und zu
+
+[00:17:45] welchem Wissenskluster gehört sie. Und
+
+[00:17:47] daraus schreibt er zwei Dateien.
+
+[00:17:49] Erstens, eine Landkartendatei. Jeder
+
+[00:17:51] Punkt, jede Verbindung fertig zum
+
+[00:17:53] Anzeigen. Die füttert später die
+
+[00:17:55] Grafansicht. Und zweitens die
+
+[00:17:57] index.mdatei. Einen Katalog, eine Zeile
+
+[00:18:00] pro Bereich und wichtiger Datei. Nicht
+
+[00:18:02] für jede einzelne Notiz, sonst wäre der
+
+[00:18:04] Katalog selbst wieder ein Buch. Den
+
+[00:18:07] liest Claud als allererstes, wenn ich
+
+[00:18:09] etwas frage. Und das Wichtigste, darin
+
+[00:18:11] steckt keine KI. Und warum ist das gut?
+
+[00:18:14] Jeder Lauf ist exakt gleich. Jeder Lauf
+
+[00:18:16] dauert Sekunden. Jeder Lauf kostet
+
+[00:18:18] nichts. Hätte eine KI das gemacht, wäre
+
+[00:18:21] jeder Lauf teurer, langsamer und jedes
+
+[00:18:24] Mal ein bisschen anders.
+
+[00:18:25] Deterministischer Code vor dem Modell.
+
+[00:18:27] Und wie kommt man jetzt genau zu einem
+
+[00:18:29] solchen Indexer? Das machst du in drei
+
+[00:18:31] Schritten und die könnt ihr für euer
+
+[00:18:33] eigenes System genauso übernehmen.
+
+[00:18:35] Schritt 1, das Muster festlegen. Mains
+
+[00:18:38] stammt aus den beiden Referenzprojekten
+
+[00:18:40] Gbrain und Graphify und besteht aus drei
+
+[00:18:42] Regeln. Regel Nummer 1: Die Markdown
+
+[00:18:44] Dateien sind die einzige Wahrheit. Regel
+
+[00:18:47] Nummer 2: Die Landkartendatei ist nur
+
+[00:18:50] ein abgeleiteter Zwischenstand bei jedem
+
+[00:18:53] Lauf neu erzeugt, nie von Hand gepflegt.
+
+[00:18:56] Und Regel Nummer 3: Das auslesen ist
+
+[00:18:59] strickt getrennt vom Anzeigen. Schritt
+
+[00:19:01] 2: Die Spezifikation schreiben. Da
+
+[00:19:03] stehen genau diese drei Regeln drin und
+
+[00:19:05] dazu ganz konkret, welche Ordner
+
+[00:19:07] gescannt werden, welche ignoriert werden
+
+[00:19:10] und wie die zwei Ausgabedateien aussehen
+
+[00:19:12] sollen. Das alles stand fest bevor
+
+[00:19:15] gebaut wurde und Schritt 3 bauen lassen.
+
+[00:19:18] Cloud Code hat den Indexer aus der
+
+[00:19:20] Spezifikation in vier kleinen Aufgaben
+
+[00:19:22] gebaut, jede mit einem Test. Das heißt
+
+[00:19:24] für euch, ihr müsst der KI nur das
+
+[00:19:26] Muster sagen. Schreibt mir ein Script
+
+[00:19:28] ohne KI, das durch alle meine Notizen
+
+[00:19:30] geht, Titel, Links und Tags einsammelt
+
+[00:19:33] und daraus eine Landkarte und einen
+
+[00:19:35] Katalog schreibt. Der Rest ist genau der
+
+[00:19:37] Prozess aus Kapitel 3. Baustein Nummer
+
+[00:19:39] 3, die Suche, unser fertiger Baustein
+
+[00:19:42] QMD. Und wie versprochen, hier ist das
+
+[00:19:44] Funktionsprinzip. QMD kombiniert zwei
+
+[00:19:47] Suchkarten, die sich perfekt ergänzen.
+
+[00:19:49] Die erste stellt die klassische
+
+[00:19:51] Stichwortsuche. Schnell, exakt findet
+
+[00:19:53] jedes Wort, das wirklich im Text steht.
+
+[00:19:55] Ihre Schwäche kennt ihr natürlich. Wenn
+
+[00:19:57] du das exakte Wort einfach nicht mehr
+
+[00:19:59] weißt, was du suchst, dann findest du
+
+[00:20:01] auch nichts. Deshalb gibt's die zweite,
+
+[00:20:03] die Bedeutungssuche. Die erkläre ich
+
+[00:20:05] euch mit einem Bild. Stellt euch eine
+
+[00:20:07] riesige Landkarte vor. Nur liegen darauf
+
+[00:20:09] keine Städte, sondern Bedeutungen. Ein
+
+[00:20:11] kleines KI Modell. liest jede Notiz und
+
+[00:20:14] trägt sie auf dieser Karte ein. Der
+
+[00:20:16] Inhalt bestimmt die Position. Notizen,
+
+[00:20:18] die vom gleichen handeln, landen nah
+
+[00:20:20] beieinander, auch wenn sie völlig
+
+[00:20:23] verschiedene Wörter benutzen. Und jetzt
+
+[00:20:25] die Frage, woher weiß das Modell, was
+
+[00:20:27] zusammengehört? Es hat beim Training
+
+[00:20:29] riesige Textmengen gelesen und dabei
+
+[00:20:31] gelernt, welche Begriffe in denselben
+
+[00:20:32] Zusammenhängen auftauchen. Und jetzt
+
+[00:20:34] kommt der eigentliche Trick. Wenn ich
+
+[00:20:35] suche, wird meine Frage in genau
+
+[00:20:37] dieselbe Karte eingetragen. Auch sie
+
+[00:20:39] bekommt eine Position. Und damit wird
+
+[00:20:41] aus der schweren Frage, welche Notiz
+
+[00:20:43] passt zu meiner Frage, eine ganz
+
+[00:20:45] einfach. Welche Notizen liegen auf der
+
+[00:20:48] Karte am nächsten an meiner Frage? Und
+
+[00:20:50] genau diese nächsten Nachbarn sind die
+
+[00:20:52] Treffer und dafür muss kein einziges
+
+[00:20:54] Wort übereinstimmen. Ich frage nach
+
+[00:20:56] Untertiteln und bekomme die Notiz, in
+
+[00:20:58] der vielleicht nur Captions steht.
+
+[00:21:01] verschiedene Wörter, gleiche Bedeutung,
+
+[00:21:03] direkt nebeneinander auf der Karte und
+
+[00:21:05] gebaut wird diese Karte von drei kleinen
+
+[00:21:07] KI Modellen, die QMD bei der Einrichtung
+
+[00:21:09] automatisch heruntergeladen hat und die
+
+[00:21:11] komplett lokal auf meinem Rechner
+
+[00:21:12] laufen. Zusammen keine 3 GB. Eins
+
+[00:21:16] versteht meine Frage und ergänzt
+
+[00:21:17] verwandte Begriffe. Ein sortiert die
+
+[00:21:20] Notizen und Fragen auf der Karte ein.
+
+[00:21:23] Und ein weiteres schaut sich die Treffer
+
+[00:21:26] zum Schluss noch einmal an und stellt
+
+[00:21:27] die besten nach vorne. Und das sind
+
+[00:21:29] keine Chatgiganten, das sind [räuspern]
+
+[00:21:31] kleine Spezialisten für eine einzige
+
+[00:21:32] Aufgabe. Und auf meinem Mac laufen diese
+
+[00:21:35] Modelle komplett problemlos lokal. Und
+
+[00:21:37] hier ein kleines Beispiel. Ich suche
+
+[00:21:38] etwas absichtlich schwammig und da ist
+
+[00:21:40] die direkte richtige Datei innerhalb von
+
+[00:21:42] wenigen Sekunden, ohne dass irgendetwas
+
+[00:21:44] meinen Rechner verlassen hat. Und wo
+
+[00:21:46] kannst du diese Suche im Alltag jetzt
+
+[00:21:48] nutzen? Das kannst du eigentlich an drei
+
+[00:21:49] Stellen machen. Erstens, du kannst es
+
+[00:21:52] direkt im Terminal machen. Zweitens,
+
+[00:21:54] viel häufiger, gar nicht ich selbst.
+
+[00:21:57] Cloud benutzt sie für mich als eine
+
+[00:21:58] Stufe seiner Suchleiter und dazu gleich
+
+[00:22:00] mehr. Und drittens direkt in meiner Graf
+
+[00:22:04] Webapp. Wie das zeige ich euch im
+
+[00:22:06] Optikkapitel noch mal im Detail.
+
+[00:22:08] Baustein Nummer 4, das einzige große
+
+[00:22:11] Lila im Bild, Clord selbst. Und hier ist
+
+[00:22:13] der Punkt, den fast jeder unterschätzt.
+
+[00:22:15] Das Entscheidende ist nicht die KI, es
+
+[00:22:17] ist ihr Regelwerk. Also die Clud MDE,
+
+[00:22:19] eine Textdatei, die Cloud bei jedem
+
+[00:22:22] Start liest und die festlegt, wie es mit
+
+[00:22:24] meinem Wissen arbeitet. Das Herzstück
+
+[00:22:26] darin ist die Suchleiter. Ich nenne
+
+[00:22:28] dieses Regelwerk Brain First. Wenn ich
+
+[00:22:31] Cloud etwas frage, darf es nicht einfach
+
+[00:22:33] wild darauf lossuchen oder schlimmer
+
+[00:22:35] noch den halben Volt einlesen. Es muss
+
+[00:22:38] die Leiter absteigen. Stufe 1, die Index
+
+[00:22:40] MD lesen. Der kleine Katalog, ein paar
+
+[00:22:43] hundert Zeilen. Stufe Nummer 2, im Wiki
+
+[00:22:46] nachsehen, ob das Wissen dort überhaupt
+
+[00:22:48] schon verdichtet liegt. und Stufe 3 die
+
+[00:22:51] QMD Suche. Stufe 4 dann genau eine Datei
+
+[00:22:55] öffnen, nämlich die beste. Und dann
+
+[00:22:57] gibt's noch Stufe 5 Antworten. Das
+
+[00:23:00] beantwortet übrigens auch eine Frage,
+
+[00:23:02] die unter dem letzten Video kam. Wie
+
+[00:23:04] bekommt man den ganzen Volt eigentlich
+
+[00:23:06] ins Kontextfenster? Und kurz übersetzt,
+
+[00:23:08] das Kontextfenster ist das
+
+[00:23:10] Kurzzeitgedächtnis der KI und Token sind
+
+[00:23:13] die Häppchen, in denen sie Text liest.
+
+[00:23:15] Und je mehr Token, desto voller,
+
+[00:23:17] langsamer und teurer. Und die Antwort
+
+[00:23:20] auf diese Frage gar nicht. Die Größe des
+
+[00:23:22] Walls bestimmt nicht automatisch, wie
+
+[00:23:24] viel davon im Kontext landet. Cloud lädt
+
+[00:23:27] pro Frage nur den Katalog und die
+
+[00:23:30] wenigen relevanten Dateien, ein paar
+
+[00:23:32] tausend Token vielleicht. Der Trick ist
+
+[00:23:33] kein größeres Kontextfenster. Der Trick
+
+[00:23:36] ist ein System, das gar keins braucht.
+
+[00:23:38] Und seht ihr hier den Pfeil, der von
+
+[00:23:40] Cloud zurück in den Vigt? Das ist der
+
+[00:23:43] Rückkanal. Clud liest nicht nur, es
+
+[00:23:46] schreibt auch, es pflegt dein Wiki
+
+[00:23:48] Ordner im Vathy
+
+[00:23:51] Muster. Und wie genau das funktioniert
+
+[00:23:53] und was dabei herauskam, ist das nächste
+
+[00:23:55] Kapitel, Baustein Nummer 5, die Webapp.
+
+[00:23:58] Und fällt euch irgendwas auf, sie hängt
+
+[00:24:00] hier in diesem Diagramm ganz am Rand.
+
+[00:24:02] Das ist kein Zufall, denn sie macht
+
+[00:24:03] genau drei Dinge. Erstens, sie liest die
+
+[00:24:06] Landkartendatei vom Indexer und malt
+
+[00:24:08] daraus den Grafen. Zweitens, sie öffnet
+
+[00:24:11] jede Notiz, die ich anklicke, direkt
+
+[00:24:13] daneben. Damit hat Fähigkeit Nummer 2,
+
+[00:24:15] das Lesen hier ihr zu Hause. Und
+
+[00:24:18] drittens, sie trägt die Suchbox, die
+
+[00:24:20] dritte Stelle von gerade eben, an der
+
+[00:24:23] die QMD Suche arbeitet. Mehr nicht. Sie
+
+[00:24:26] schreibt nie, sie entscheidet nie und
+
+[00:24:28] kein anderes Teil des Systems braucht
+
+[00:24:30] sie eigentlich. Und das hier ist die
+
+[00:24:31] wichtigste Erkenntnis für alle, die
+
+[00:24:32] mitbauen wollen. Baustein 1 bis 4, Volt,
+
+[00:24:36] Indexer, Suche, Regelwerk. Das ist das
+
+[00:24:38] System und dafür müsst ihr nicht
+
+[00:24:40] programmieren können. Der Volt ist
+
+[00:24:42] ordnen, QMD ist installieren. Das
+
+[00:24:45] Regelwerk ist eine Textdatei und den
+
+[00:24:47] einzigen echten Code, den Indexer,
+
+[00:24:49] schreibt euch Cloud. Die App ist nur das
+
+[00:24:52] Fenster und erst muss das System
+
+[00:24:55] beweisen, dass es das Fenster auch
+
+[00:24:56] verdient hat. Ein System kann auf dem
+
+[00:24:58] Papier noch so gut aussehen, aber die
+
+[00:25:01] Frage ist doch, hält es das im echten
+
+[00:25:03] Betrieb? Und jetzt schauen wir uns das
+
+[00:25:05] Ganze mal im Praxistest an. Und dabei
+
+[00:25:07] kommt eine Zahl ans Licht, bei der ich
+
+[00:25:09] ganz kurz an meinem eigenen V gezweifelt
+
+[00:25:11] habe. Mein alter Vold und bis hierhin
+
+[00:25:14] klingt ja alles erstmal gut, aber klingt
+
+[00:25:15] gut ist genau der Zustand, in dem die
+
+[00:25:18] meisten Systeme einfach sterben. Man
+
+[00:25:20] baut sie, ist stolz und drei Wochen
+
+[00:25:22] später benutzt man sie nicht mehr, weil
+
+[00:25:24] sie im Alltag einfach gar nichts
+
+[00:25:25] bringen. Deshalb musste sich das System
+
+[00:25:27] von Anfang an in einem Praxisvergleich
+
+[00:25:29] bewähren. Schritt sechs im Prozess und
+
+[00:25:31] zwar zweifach. Erstens ist es wirklich
+
+[00:25:33] schneller und das klärt einen Messtest
+
+[00:25:36] und zweitens, das ist mir wichtiger,
+
+[00:25:38] kann ich dem Wissen darin wirklich
+
+[00:25:40] vertrauen und das klärt die Wikischicht
+
+[00:25:42] und fangen wir mit genau dieser an, denn
+
+[00:25:44] das ist das Herzstück. Erinnert ihr euch
+
+[00:25:46] an das Kapat Muster von den Referenzen?
+
+[00:25:49] Die KI pflegt das Wissen selbst. Hier
+
+[00:25:51] ist es umgesetzt. In meinem Vol gibt es
+
+[00:25:54] einen Ordner 09 Wiki und für den gilt
+
+[00:25:56] eine harte Regel. Ich fasse ihn nicht
+
+[00:25:59] an. Kein einziger Text darin ist von
+
+[00:26:01] mir. Er wird ausschließlich von Clord
+
+[00:26:03] gepflegt. Und das läuft nach festen
+
+[00:26:04] Regeln. Die stehen in einer Schemadatei,
+
+[00:26:07] einer ganz normalen Textdatei, die im
+
+[00:26:09] Wiki Ordner selbst liegt. Sie ist Clouds
+
+[00:26:12] Arbeitsanweisung fürs Wiki. Vor jeder
+
+[00:26:14] Wikiarbeit liest Cloud genau diese Datei
+
+[00:26:17] und hält sich an das, was drin steht.
+
+[00:26:19] Z.B. Welche Seitentypen es gibt,
+
+[00:26:22] Zusammenfassen von Quellen,
+
+[00:26:23] Themenseiten, Seiten zu Personen und
+
+[00:26:25] Projekten und Syntheseseiten, die Wissen
+
+[00:26:28] aus mehreren Quellen verdichten. Alles
+
+[00:26:30] ist quervernetzt und der Effekt daraus,
+
+[00:26:33] egal welche Cloud Sitzung gerade
+
+[00:26:35] arbeitet, im Wiki gelten immer genau
+
+[00:26:37] dieselben Regeln. Und der wichtigste
+
+[00:26:39] Vorgang dazu heißt ingest einarbeiten.
+
+[00:26:43] Ich gebe Claud eine neue Quelle, ein
+
+[00:26:45] Transkript, einen Artikel, eine Notiz.
+
+[00:26:47] Clud liest dabei die Quelle und
+
+[00:26:49] ermittelt über das Seitenverzeichnis des
+
+[00:26:51] Wikis, welche Seiten das Thema bereits
+
+[00:26:53] berühren. Nur diese werden geöffnet und
+
+[00:26:55] nicht das ganze Wiki. Dann wird
+
+[00:26:58] eingearbeitet, betroffene Seiten werden
+
+[00:27:00] aktualisiert, fehlende werden neu
+
+[00:27:02] angelegt, Verweise gesetzt und das
+
+[00:27:04] Entscheidendste passiert genau dabei,
+
+[00:27:07] nämlich auf jeder dieser Seite wird
+
+[00:27:10] geprüft von Cloud, ob diese Information,
+
+[00:27:13] also die neue Information dem
+
+[00:27:15] widerspricht, was bereits schon dort
+
+[00:27:17] steht. Und das Wichtigste für alle, die
+
+[00:27:19] noch volle Konzentration haben, dieses
+
+[00:27:21] Wiki braucht keine besondere Technik. Es
+
+[00:27:24] sind ganz normale Markdown Dateien in
+
+[00:27:26] meinem Volt. Ein Ordner, eine Regeldatei
+
+[00:27:29] und die Pflege macht Cloud Code. Öffnen
+
+[00:27:32] kann jeder Texteditor. Ich lese sie z.B.
+
+[00:27:34] in Obsidian oder direkt in meiner
+
+[00:27:36] Grafapp. Beide machen aus den
+
+[00:27:38] Querverweisen klickbare Links und aus
+
+[00:27:41] den Warnhinweisen farbige Kästen. Der
+
+[00:27:43] Texteditor ist quasi das Regal und Cloud
+
+[00:27:46] ist der Bibliothekar. Und diesen
+
+[00:27:48] Bibliothekar könnt ihr an drei Orten
+
+[00:27:50] rufen. Im Terminal, in der Cloud Code
+
+[00:27:53] App oder direkt auch in Obsidian mit
+
+[00:27:55] einem Plugin wie Claudian
+
+[00:27:56] beispielsweise, das Cloud Code als
+
+[00:27:58] Seitenleiste einbettet. Dann passiert
+
+[00:28:00] alles in einem Fenster. Nur eines macht
+
+[00:28:03] der Injest nie. Er läuft nicht in meiner
+
+[00:28:05] Webapp. Und warum? Das ist eine bewusste
+
+[00:28:07] Entscheidung. Die seht ihr im nächsten
+
+[00:28:09] Kapitel. Und jetzt vielleicht noch eine
+
+[00:28:10] Zwischenfrage an euch. Würde es euch
+
+[00:28:12] denn einen Mehrwert bringen, wenn Cloud
+
+[00:28:14] direkt in der Webapp steckt als
+
+[00:28:16] Chatfenster, dass eure Fragen
+
+[00:28:17] beantwortet und ihr dabei gleich zur
+
+[00:28:19] Quelle im Grafen fliegt? Schreibt es mir
+
+[00:28:21] gerne in die Kommentare und wenn genug
+
+[00:28:23] Interesse zusammenkommt, dann schaue ich
+
+[00:28:24] mir einmal an, wie umfangreich das Ganze
+
+[00:28:26] ist, also die Implementierung und mach
+
+[00:28:27] dazu ein eigenes Video. Soweit das
+
+[00:28:29] Prinzip, aber glauben müsst ihr mir das
+
+[00:28:31] nicht. Ich habe aber eine Falle
+
+[00:28:32] vorbereitet und das hier ist eine ganz
+
+[00:28:34] normale Notiz, wie sie bei mir jeden Tag
+
+[00:28:36] in der Inbox landen könnte. Ein paar
+
+[00:28:38] Stichpunkte zum Second Brain Setup.
+
+[00:28:40] Sieht sehr harmlos aus, aber ich habe
+
+[00:28:41] verschiedene Fehler darin versteckt.
+
+[00:28:43] Drei Aussagen, die dem widersprechen,
+
+[00:28:45] was ihr heute schon mal gelernt habt.
+
+[00:28:47] Vielleicht habt ihr sie beim Mitlesen
+
+[00:28:49] bereits entdeckt. Jetzt arbeite ich
+
+[00:28:51] diese Notiz ganz normal ins Wiki ein.
+
+[00:28:53] Mal sehen, wie viele Fehler das System
+
+[00:28:54] fängt. Und hier ist das Ergebnis. Alle
+
+[00:28:57] drei gefangen und markiert, manche
+
+[00:28:59] gleich auf mehreren Seiten, denn ein
+
+[00:29:00] Widerspruch wird überall dort markiert,
+
+[00:29:02] wo er auftaucht. Die Behauptung, die
+
+[00:29:05] Bedeutungssuche, schicke meine Notizen
+
+[00:29:07] an einen Clouddienst markiert auf der
+
+[00:29:09] QMD Seite mit Verweis auf die
+
+[00:29:11] dokumentierte lokale Architektur. Die
+
+[00:29:14] Behauptung, der Messtest hätte nichts
+
+[00:29:16] gebracht, markiert mit den Zahlen aus
+
+[00:29:18] meinem Praxisvergleich als Gegenbeleg.
+
+[00:29:21] Und die Empfehlung, das Wiki von Hand zu
+
+[00:29:23] pflegen, markiert auf gleich zwei
+
+[00:29:25] Seiten, weil sie die Grundregel des
+
+[00:29:27] ganzen Wikimusters trifft. Und ein
+
+[00:29:29] Detail zeigt, dass das System nicht
+
+[00:29:31] einfach auf alles anschlägt. In der
+
+[00:29:33] Notiz steckte auch eine vierte Aussage:
+
+[00:29:35] mehr Quellenarbeiten, völlig harmlos.
+
+[00:29:37] Die wurde nicht markiert, sondern als
+
+[00:29:39] Bestätigung eines offenen Punkts in die
+
+[00:29:41] passende Seite eingearbeitet. Das System
+
+[00:29:43] unterscheidet also, was passt, wird
+
+[00:29:46] eingearbeitet, was widerspricht, wird
+
+[00:29:48] markiert. Und jetzt schaut ganz genau
+
+[00:29:50] hin, denn das ist das wichtigste oder
+
+[00:29:53] die wichtigste Eigenschaft des ganzen
+
+[00:29:54] Systems. Es hat nichts überschrieben. Es
+
+[00:29:57] hat nicht einfach entschieden, wer recht
+
+[00:29:59] hat. Beide Aussagen stehen da, jede mit
+
+[00:30:03] ihrer Quelle und darunter der Satz quasi
+
+[00:30:05] Patrick entscheidet. Die KI findet die
+
+[00:30:07] Konflikte, aber welcher Stand gilt, das
+
+[00:30:10] entscheide ich. Und das war eine
+
+[00:30:12] präparierte Falle. Aber das Verrückte,
+
+[00:30:14] als dass Wiki meinen echten Bestand
+
+[00:30:17] eingearbeitet hat, meine Notizen, meine
+
+[00:30:19] Strategiedokumente, meine
+
+[00:30:20] Projektdateien, hat es 52
+
+[00:30:23] Konfliktstellen markiert, Aussagen, die
+
+[00:30:26] nicht eindeutig zusammenpassten, 52 in
+
+[00:30:28] meinem eigenen Wissen, darunter echte
+
+[00:30:30] Widersprüche, veraltete Stände und Fälle
+
+[00:30:32] wie dieser hier, bei denen soll und ist
+
+[00:30:35] nicht sauber getrennt waren. Und ein
+
+[00:30:37] Beispiel kennt ihr schon, die zwei
+
+[00:30:38] Dateien vom Anfang des Videos. Genau,
+
+[00:30:40] die hat das System gefunden. In meiner
+
+[00:30:42] Kanalstrategie stand ein Ziel: Die
+
+[00:30:45] Zuschauer sollen im Schnitt mindestens
+
+[00:30:47] die Hälfte jedes Videos schauen. Das
+
+[00:30:49] klingt hervorragend, habe ich so
+
+[00:30:50] irgendwann aufgeschrieben. In einer
+
+[00:30:52] anderen Notiz lagen aber die echten
+
+[00:30:55] Auswertungen und die tatsächlichen Werte
+
+[00:30:57] waren da drunter und beide Aussagen
+
+[00:31:00] existierten quasi wochenlang friedlich
+
+[00:31:02] nebeneinander in zwei Dateien, die ich
+
+[00:31:05] nie gleichzeitig offen hatte. Ich habe
+
+[00:31:07] es dann auch am Anfang ganz kurz
+
+[00:31:09] erwähnt, aber nicht erklärt. Das System
+
+[00:31:12] hat es von selbst markiert und genau das
+
+[00:31:14] ist der Punkt. Diese Unklarheiten und
+
+[00:31:16] Konflikte waren die ganze Zeit da.
+
+[00:31:19] Sichtbar wurden sie erst, als eine
+
+[00:31:20] Maschine alles gleichzeitig gelesen und
+
+[00:31:22] verdichtet hat. Und jetzt die Frage, was
+
+[00:31:24] mache ich mit so einem Fund? Der Kasten
+
+[00:31:25] ist kein Endzustand. Er ist eine Aufgabe
+
+[00:31:27] an mich. In diesem Fall lautet die
+
+[00:31:29] Entscheidung, das Ziel bleibt. 50% sind
+
+[00:31:31] meine Ambition. Die echten Zahlen sagen
+
+[00:31:33] mir nicht, dass das Ziel falsch ist,
+
+[00:31:34] sondern in diesem Fall sagen sie mir
+
+[00:31:36] einfach, dass ich besser werden muss,
+
+[00:31:37] bzw. ihr müsst länger meine Videos
+
+[00:31:39] schauen. Also präzisiere ich die Quelle.
+
+[00:31:41] Im Strategiedokument steht jetzt ganz
+
+[00:31:43] klar, das ist der Zielwert und daneben
+
+[00:31:45] der aktuelle Stand. Wichtig ist dabei
+
+[00:31:47] die Reihenfolge. Ich repariere die
+
+[00:31:49] Quelle, nicht den Warnhinweis. Würde ich
+
+[00:31:51] einfach nur den Kasten löschen, würde
+
+[00:31:54] der nächste Durchlauf genau denselben
+
+[00:31:55] Konflikt sofort wiederfinden und die
+
+[00:31:57] Dateien widersprechen sich ja weiterhin.
+
+[00:32:00] Erst wenn die Quelle klar ist, sage ich
+
+[00:32:01] Cloud entschieden. So gilt es. Das Wiki
+
+[00:32:04] zit nach, der Kasten verschwindet, die
+
+[00:32:06] Entscheidung steht im Protokoll und aus
+
+[00:32:08] dem versteckten Widerspruch ist ein
+
+[00:32:10] sichtbarer Arbeitsauftrag geworden. Dazu
+
+[00:32:12] kommt jeder einzelne Durchlauf wird
+
+[00:32:15] protokolliert. Wann lief der Inest?
+
+[00:32:17] Welche Quelle kam rein? Welche Seiten
+
+[00:32:19] wurden geändert? Das klingt
+
+[00:32:21] unspektakulär, aber das ist der
+
+[00:32:22] Unterschied zwischen einem System, den
+
+[00:32:24] man glauben muss und einem System, dass
+
+[00:32:26] man überprüfen kann, bleibt der zweite
+
+[00:32:29] Test die Geschwindigkeit. Der Test lief
+
+[00:32:32] zweimal mit denselben fünf echten Fragen
+
+[00:32:34] aus meinem Arbeitsalltag. Einmal cla
+
+[00:32:37] ohne mein System und am nächsten Morgen
+
+[00:32:40] noch einmal mit Brain. Dazwischen lag
+
+[00:32:42] nur die Installation der Suche und das
+
+[00:32:45] Regelwerk. gemessen wurden Token, Zeit
+
+[00:32:48] und ob die Antwort stimmt. Und das
+
+[00:32:50] Ergebnis in diesem Vergleich mit fünf
+
+[00:32:52] Fragen brauchte die Brainvariante rund
+
+[00:32:55] 50% weniger Token und etwa 40% weniger
+
+[00:32:58] Zeit bei fünf von fünf richtigen
+
+[00:33:01] Antworten in beiden Durchläufen. Und das
+
+[00:33:02] ist keine wissenschaftliche Studie
+
+[00:33:04] natürlich, sondern ein Praxisvergleich
+
+[00:33:06] mit meinen eigenen Arbeitsfragen. Und
+
+[00:33:08] für meinen Workflow war der Unterschied
+
+[00:33:10] einfach deutlich. Und die teuerste Frage
+
+[00:33:12] zeigt, warum ein Einzeiler über einen
+
+[00:33:16] Fix in meinem Projekt hat ohne Brain
+
+[00:33:18] über eine halbe Million Token gekostet.
+
+[00:33:20] Und versteht mich hier richtig, der
+
+[00:33:22] Tokenverbrauch, der kommt nicht von der
+
+[00:33:24] Frage, er kommt vom Suchen. Jeder
+
+[00:33:27] Suchschritt liest den kompletten
+
+[00:33:29] bisherigen Verlauf neu ein. Ohne System
+
+[00:33:32] sucht Cloud lange und jede Runde wird
+
+[00:33:34] teurer als die davor. Und mit System war
+
+[00:33:37] die Suche nach zwei Schritten vorbei und
+
+[00:33:39] deshalb kostet die Frage nur noch ein
+
+[00:33:41] Drittel. Wenn ihr tiefer verstehen
+
+[00:33:43] wollt, wie Token und der Tokenizer
+
+[00:33:45] funktionieren, dazu habe ich auch ein
+
+[00:33:47] separates Video, das blende ich hier ein
+
+[00:33:49] und der Link ist in der Beschreibung.
+
+[00:33:50] Bei einfachen Fragen, Dingen, die
+
+[00:33:52] sowieso im geladenen Kontext bereits
+
+[00:33:53] liegen, da gewinnt die normale Session
+
+[00:33:55] genauso. Da gibt's auch nichts, wo du
+
+[00:33:56] irgendwie Token sparen kannst. Und das
+
+[00:33:58] Brain gewinnt da, wo es wirklich
+
+[00:33:59] relevant ist. Bei Wissen, das tief
+
+[00:34:01] vergraben ist und bei Fragen, deren
+
+[00:34:03] Antwort in mehreren Dateien steckt. Und
+
+[00:34:05] der Test, der am Ende doch wirklich
+
+[00:34:07] zählt, ist der Alltag. Ich arbeite jeden
+
+[00:34:09] Tag damit, nicht weil ich es gebaut
+
+[00:34:10] habe, sondern weil es schneller ist, als
+
+[00:34:12] selbst zu suchen. Und das ist die
+
+[00:34:13] Messlatte, an der jedes System hängt.
+
+[00:34:15] Benutzt du es noch, wenn die
+
+[00:34:16] Begeisterung weg ist? Und damit ist das
+
+[00:34:18] System komplett. Es findet in Sekunden,
+
+[00:34:21] es liest, es hält sich sauber und es hat
+
+[00:34:23] sich in meinem Test und im Alltag
+
+[00:34:25] bewährt. Jetzt ist die Zeit gekommen für
+
+[00:34:27] den letzten Schritt, die Optik und für
+
+[00:34:29] den größten Fehler des ganzen Projekts.
+
+[00:34:30] Ich löse das Versprechen aus dem Intro
+
+[00:34:32] ein. Der Fehler, der uns Stunden
+
+[00:34:34] gekostet hat. Ich sage euch direkt, was
+
+[00:34:36] ihr nicht machen solltet, denn genau das
+
+[00:34:39] habe ich gemacht und das war der Fehler.
+
+[00:34:41] Ich habe in Text beschrieben, was ich
+
+[00:34:43] will und die KI bauen lassen. Mach es
+
+[00:34:46] dichter, 3D, mehr Tiefe, weniger Glow
+
+[00:34:50] und Claud hat geliefert, aber irgendwas
+
+[00:34:53] und dann war ich einfach nur so, nein,
+
+[00:34:55] mach das so und so wieder irgendwas
+
+[00:34:57] anderes, bis ich dann irgendwann echt
+
+[00:34:58] genervt war und nicht weitergekommen
+
+[00:35:00] bin. Das Problem war natürlich nicht die
+
+[00:35:03] KI, sondern meine Beschreibungen, die
+
+[00:35:05] waren einfach nicht gut. Es ist ein
+
+[00:35:07] Ratespiel für die KI. Und dann kam die
+
+[00:35:09] Erkenntnis, die alles gedreht hat. Cloud
+
+[00:35:12] ist nämlich extrem gut darin mit
+
+[00:35:14] Referenzen umzugehen, etwas ganz
+
+[00:35:16] konkretes nachzubauen, aber es kann halt
+
+[00:35:18] nicht erraten, wie es in meinem Kopf
+
+[00:35:20] aussieht. Also brauchte ich etwas ganz
+
+[00:35:22] konkretes, nämlich Bilder. Deshalb der
+
+[00:35:24] Wechsel. Ich habe Chat GPT geöffnet.
+
+[00:35:26] Dort gibt's nämlich eine richtig gute
+
+[00:35:27] Buildengine und habe mir dort zuerst den
+
+[00:35:30] Zielzustand der Optik generieren lassen.
+
+[00:35:32] Und das zeige ich euch jetzt komplett
+
+[00:35:34] den echten Verlauf mit meinen Prompts.
+
+[00:35:36] Mein Einstiegsprompt, ihr seht ihn hier
+
+[00:35:38] komplett im Bild und der war im Kern.
+
+[00:35:41] Ich brauche eine Grafenansicht für mein
+
+[00:35:43] Second Brain. Bis zu zehn Hauptkluster,
+
+[00:35:45] jedes mit eigener Farbe. Klar getrennt
+
+[00:35:47] und optisch hochwertiger als der
+
+[00:35:49] Obsidian Graph. Chat GPT lieferte zuerst
+
+[00:35:51] ein Konzept und daraus habe ich
+
+[00:35:53] verschiedene Ideen direkt übernommen.
+
+[00:35:55] Erstens, die Klaster bleiben räumlich
+
+[00:35:56] getrennt, damit sich die Inhalte nicht
+
+[00:35:58] vermischen. Zweitens, Verbindungen sind
+
+[00:36:00] nicht dauerhaft sichtbar, sondern
+
+[00:36:02] erscheinen erst, wenn man mit der Maus
+
+[00:36:04] darüber fährt, sonst wird der Graf
+
+[00:36:05] unruhig. Und genau daher kommt das
+
+[00:36:08] Hoverhalten aus meiner App. Und je mehr
+
+[00:36:11] Wissen in meinem Ordner steckt, desto
+
+[00:36:13] größer die Kugel. Dann kam das Zielbild
+
+[00:36:15] Nummer 1, der Globus mit getrennten
+
+[00:36:17] Wissenswelten. Zielbild Nummer 2, die
+
+[00:36:19] Klusteransicht. Ein Prompt, direkt ein
+
+[00:36:21] Ergebnis. Als Ergänzung habe ich noch
+
+[00:36:24] gesagt, setzt das Code Maskottchen als
+
+[00:36:27] zentrales Element in die Mitte. Und ihr
+
+[00:36:29] seht, die Richtung saß einfach sofort.
+
+[00:36:32] Und Zielbild Nummer 3, ich wollte nicht
+
+[00:36:34] nur meine Notizen sehen, sondern mein
+
+[00:36:36] komplettes KI Syystem, die Cloud MD als
+
+[00:36:38] zentrales Steuerelement, dazu Memories,
+
+[00:36:41] aktive Skills, Plugins und Connectors.
+
+[00:36:43] Chat GPT schlug dafür eine Ringstruktur
+
+[00:36:46] vor. Innen der Systemkern, darum die
+
+[00:36:49] Wissens und Projektstruktur. ganz außen
+
+[00:36:51] die externen Dienste optisch ganz klar
+
+[00:36:54] getrennt und aus demselben Vorschlag
+
+[00:36:57] stammt noch eine Idee, die er aus meiner
+
+[00:36:59] App kennt, nämlich das Detailfenster,
+
+[00:37:01] das sich beim Anklicken eines Elements
+
+[00:37:03] ruhig an der Seite öffnet. Nach ein zwei
+
+[00:37:06] weiteren Runden stand das Ergebnis. Vor
+
+[00:37:08] ein paar Tagen habe ich dann noch eine
+
+[00:37:09] weitere Darstellung ergänzt, die
+
+[00:37:11] Ebenenansicht. Ein einziger Prompt und
+
+[00:37:13] die Grundidee saß direkt. Diese Bilder
+
+[00:37:16] wurden zur visuellen Spezifikation für
+
+[00:37:18] Cloud Code und damit entstanden die
+
+[00:37:20] Ansichten innerhalb von wenigen Minuten.
+
+[00:37:22] Und das Verrückte dabei ist, genau diese
+
+[00:37:24] Ansichten sind das, was die Leute am
+
+[00:37:25] meisten beeindruckt. Dabei ist es
+
+[00:37:27] eigentlich der Teil, der am schnellsten
+
+[00:37:28] geht, wenn man einmal den richtigen Weg
+
+[00:37:30] kennt. Und noch ein Tipp am Rande: Wenn
+
+[00:37:32] ihr visuelle Anregungen sucht, lohnt
+
+[00:37:34] sich auch einen Blick zu Pinterest.
+
+[00:37:36] Suchbegriffe wie Wissensgraf oder Big
+
+[00:37:38] Data Cloud liefern echt coole
+
+[00:37:40] Referenzbilder. Erinnert ihr euch noch
+
+[00:37:42] an das Versprechen aus dem
+
+[00:37:42] Referenzkapitel? Behalte die MOKups im
+
+[00:37:45] Hinterkopf. Sie spielen am Ende die
+
+[00:37:47] Hauptrolle. Genau da ist es jetzt. Die
+
+[00:37:49] Bilder wurden von der Messlatte zur
+
+[00:37:51] Bauvorlage. Ich habe sie Cloud Code als
+
+[00:37:54] Referenz gegeben und gebaut wurde nach
+
+[00:37:56] einer einzigen Regel. Cloud setzt einen
+
+[00:37:58] Schritt um. Ich schaue im Browser nach,
+
+[00:38:01] ob das Ergebnis dem Zielbild entspricht
+
+[00:38:03] und erst nach meiner Abnahme kommt der
+
+[00:38:05] nächste Schritt. Und das beste Beispiel
+
+[00:38:07] ist die Ebenenansicht. Das Bild aus dem
+
+[00:38:08] Chat GPT Verlauf als Referenz, ein
+
+[00:38:10] Umsetzungsschritt, ein Blick in den
+
+[00:38:12] Browser, Abnahme, fertig. Und hier ist
+
+[00:38:14] das Ergebnis. Mein Wissen als Graf in
+
+[00:38:16] verschiedenen Versionen. Ich hatte
+
+[00:38:18] gesagt, das System muss erst beweisen,
+
+[00:38:21] dass es das Fenster verdient und das hat
+
+[00:38:23] es. Jetzt darf es auch schön sein. Und
+
+[00:38:26] jetzt natürlich die berechtigte Frage,
+
+[00:38:27] wenn Suche, Wiki und Lesen auch in
+
+[00:38:30] Obsidian mit Cloud Code funktionieren,
+
+[00:38:32] wozu dann überhaupt eine eigene App? Und
+
+[00:38:34] dazu habe ich drei Antworten. Erstens,
+
+[00:38:36] Obsidian sieht nur meine Notizen. Mein
+
+[00:38:38] System ist größer. Cloud Projekte,
+
+[00:38:40] Skills, Memory, Connectors, diese
+
+[00:38:42] Schichten zeigt kein Obsidianf an. Die
+
+[00:38:44] App ist das einzige Fenster, das alles
+
+[00:38:46] zeigt. Zweitens, der Gesundheitsblick.
+
+[00:38:49] Welche Klaster wachsen? Was liegt
+
+[00:38:50] verweist herum? Das sehe ich hier auf
+
+[00:38:53] einen Blick, statt im Hball irgendwo zu
+
+[00:38:55] raten, wo irgendwas liegt. Und drittens,
+
+[00:38:57] ich kann im Grafen lesen und
+
+[00:38:58] weiterklicken. Jede Datei öffnet sich
+
+[00:39:00] direkt hier, auch die außerhalb des
+
+[00:39:02] Walls. Und das ist der Test, ob eine
+
+[00:39:05] Visualisierung ein Werkzeug ist oder
+
+[00:39:07] eigentlich nur ein Poster. Wenn die
+
+[00:39:08] Obsidian dafür reicht, perfekt, spart
+
+[00:39:10] ihr die App. Sie ist die Kühe und sieht
+
+[00:39:12] eigentlich auch ganz cool aus und man
+
+[00:39:13] kann sich auch einfach ausprobieren und
+
+[00:39:15] bei solchen Projekten lernt man extrem
+
+[00:39:17] viel im Umgang mit KI. Und eine Sache
+
+[00:39:19] ist neu dazu gekommen, die genau diese
+
+[00:39:21] Frage noch besser beantwortet. Die
+
+[00:39:23] Suchbox der App kann jetzt auch
+
+[00:39:25] Bedeutungssuche. Ich tippe also eine
+
+[00:39:26] Frage ein. Wie war unser Stil für die
+
+[00:39:29] Untertitel? Drücke Enter und die App
+
+[00:39:32] liefert die passende Notiz, obwohl das
+
+[00:39:34] Wort so nirgendwo drin steht. Ein Klick
+
+[00:39:37] und der Graf fliegt zu genau dieser
+
+[00:39:39] Datei und öffnet sie. Und jetzt der
+
+[00:39:41] Punkt, den viele überraschen wird,
+
+[00:39:43] nämlich was das eigentlich für KI und
+
+[00:39:45] für Token bedeutet. Bei diesem Enter
+
+[00:39:47] passiert folgendes. Die App reicht die
+
+[00:39:49] Frage an QMD weiter und zwar an die
+
+[00:39:51] schnelle Variante der Suche. Der
+
+[00:39:54] Frageversteher erweitert die Anfrage um
+
+[00:39:56] verwandte Begriffe. Das Mbedding Modell
+
+[00:39:59] setzt sie auf die Bedeutungslandkarte
+
+[00:40:01] und vergleicht zwei der drei lokalen
+
+[00:40:03] Modelle. Also, das heißt, der
+
+[00:40:04] Feinsortierer bleibt hier außen vor. Den
+
+[00:40:07] nutzt nur die vollständige Hybridsuche,
+
+[00:40:09] mit der Cloud Code über die Suchleiter
+
+[00:40:11] arbeitet. Das alles läuft komplett auf
+
+[00:40:13] meinem Mac. Es wird nichts an
+
+[00:40:15] irgendeinen Anbieter geschickt, kein
+
+[00:40:16] einziger API Token verbraucht, nichts
+
+[00:40:18] von meinem Cloud Contingent angefasst.
+
+[00:40:21] Die Kosten sind reine Rechenzeit, etwa 2
+
+[00:40:23] Sekunden Prozessorarbeit pro Suche,
+
+[00:40:26] sonst nichts. Ich kann 100 mal am Tag
+
+[00:40:28] suchen, ohne dass pro Suche API Kosten
+
+[00:40:30] entstehen und es funktioniert auch
+
+[00:40:31] offline. Die App nutzt damit lokale KI,
+
+[00:40:34] aber keine Cloud KI und sie verursacht
+
+[00:40:36] keine nutzsabhängigen API Kosten. Sie
+
+[00:40:38] borgt sich für die Suche die lokalen
+
+[00:40:40] Spezialisten von QMD, bleibt aber eine
+
+[00:40:43] reine Leseoberfläche. Sie findet und
+
+[00:40:45] zeigt, aber sie schreibt nie. Token
+
+[00:40:48] verbrauche ich in diesem ganzen System
+
+[00:40:50] nur an einer einzigen Stelle, wenn Cloud
+
+[00:40:52] wirklich für mich denkt. Zum Schluss
+
+[00:40:54] wechsel ich noch einmal in die Ansicht,
+
+[00:40:55] die Ebenenansicht. Sie ist der Beweis,
+
+[00:40:58] dass die Optik austauschbar ist. Das
+
+[00:41:00] System darunter, Index, Suche, Wiki,
+
+[00:41:02] Regelwerk, das bleibt exakt dasselbe,
+
+[00:41:05] egal welches Fenster du davoretzt. Das
+
+[00:41:08] Fenster ist einfach nur Geschmackssache.
+
+[00:41:10] Das Fundament ist Pflicht. Die Lehre aus
+
+[00:41:13] diesem Kapitel in einem Satz: Beschreibt
+
+[00:41:15] der KI nicht in Worten, wie es aussehen
+
+[00:41:17] soll. Lass dir erst Bilder vom
+
+[00:41:19] Zielzustand generieren und die gibst du
+
+[00:41:21] als Referenz rein. Zwei KI ist klare
+
+[00:41:24] Arbeitsteilung. Z.B. Chatt erstellt das
+
+[00:41:27] Zielbild. Claud Code baut es nach. Seit
+
+[00:41:29] ich so arbeite, ist schön, kein
+
+[00:41:32] Ratespiel mehr. Es ist einfach ein
+
+[00:41:34] Auftrag mit Vorlage. Und jetzt bleibt
+
+[00:41:35] die Frage, die wichtigste im ganzen
+
+[00:41:37] Video eigentlich: Was davon baust du
+
+[00:41:40] jetzt nach und womit fängst du heute an?
+
+[00:41:42] kommen wir zu deinem Einstieg und fassen
+
+[00:41:43] wir das Ganze noch mal zusammen, was wir
+
+[00:41:45] jetzt in diesem Projekt gelernt und was
+
+[00:41:47] das Projekt gelernt hat. Sieben
+
+[00:41:48] Lektionen und ihr habt jede davon heute
+
+[00:41:50] in Aktion gesehen. Eins, Referenzen
+
+[00:41:53] schlagen Beschreibungen immer bei der
+
+[00:41:55] Technik wie bei der Optik. Zwei kleine
+
+[00:41:58] Schritte mit Abnahme, nie alles auf
+
+[00:42:00] einmal. Das hat das Fundament gebaut und
+
+[00:42:02] die Optik gerettet. Schritt Nummer 3:
+
+[00:42:05] Entscheiden vorbauen. Die Spezifikation
+
+[00:42:08] ist der Vertrag. Wer erst baut und dann
+
+[00:42:10] entscheidet, baut zweimal. Punkt Nummer
+
+[00:42:12] 4: Deterministisch, wo es geht. KI nur
+
+[00:42:15] da einsetzen, wo wirklich Verstehen
+
+[00:42:17] nötig ist. Deshalb kostet mein Indexer
+
+[00:42:19] nichts und läuft in Sekunden. Fünf.
+
+[00:42:21] Markdown bleibt die einzige Wahrheit.
+
+[00:42:24] Keine Datenbank, kein Formatgefängnis.
+
+[00:42:27] Alles andere ist nur eine Sicht auf
+
+[00:42:29] deine Dateien und ist jederzeit
+
+[00:42:30] ersetzbar. Sechs. Jede Behauptung
+
+[00:42:32] braucht einen Prüfpunkt. Ohne den
+
+[00:42:34] Benchmark wüsste ich bis heute nicht, ob
+
+[00:42:36] sich das alles überhaupt lohnt. Ich
+
+[00:42:37] würde es einfach nur glauben. Und
+
+[00:42:39] sieben, die wichtigste, der Mensch
+
+[00:42:41] entscheidet, die KI liefert. Bei jeder
+
+[00:42:43] Brainstorming Frage, bei jedem
+
+[00:42:45] Widerspruch im Wiki, bei jedem
+
+[00:42:47] Optikschritt in diesem ganzen Projekt
+
+[00:42:49] hat die KI nicht eine einzige
+
+[00:42:51] Entscheidung getroffen. Sie hat sie nur
+
+[00:42:53] möglich gemacht. Und jetzt zu dir. Du
+
+[00:42:55] musst nicht das komplette System
+
+[00:42:57] nachbauen, um davon zu profitieren. Der
+
+[00:42:59] Kern finden und Vertrauen geht komplett
+
+[00:43:02] ohne, dass du selbst Code schreiben
+
+[00:43:04] können musst. Vier Schritte zusammen,
+
+[00:43:07] ungefähr eine Stunde und aus meiner
+
+[00:43:09] Sicht hast du damit schon den größten
+
+[00:43:11] Teil des praktischen Nutzens. Schritt 1:
+
+[00:43:13] Ordne deine Notizen in Themenkluster.
+
+[00:43:15] Nimm dir Cloud Code dazu, lass deinen
+
+[00:43:17] Bestand durchsuchen und sortiere
+
+[00:43:19] gemeinsam mit ihm neu. Das ist das
+
+[00:43:20] Fundament. Es kostet nichts, außer
+
+[00:43:23] vielleicht der Stunde. Schritt Nummer 2:
+
+[00:43:26] leg eine Indexdatei an, einen Katalog,
+
+[00:43:28] eine Zeile pro Thema, was es ist, wo es
+
+[00:43:30] liegt. Auch das tippt Cloud Code für
+
+[00:43:33] dich. Sag ihm, es soll durch deine
+
+[00:43:35] Ordner gehen und den Katalog schreiben.
+
+[00:43:37] Es ist die erste Stufe der Leiter.
+
+[00:43:39] Schritt 3: Installiere und initialisiere
+
+[00:43:42] QMD. Nach wenigen Terminalbefehlen hast
+
+[00:43:45] du eine lokale Hybridsuche über all
+
+[00:43:47] deine Notizen. Der Link ist in der
+
+[00:43:48] Beschreibung. Schritt 4: Schreib die
+
+[00:43:51] Brain First Regeln in deine Cloud MD.
+
+[00:43:54] Erster Katalog, dann die Suche, dann
+
+[00:43:56] genau eine Datei. Die Regeln zum
+
+[00:43:58] Kopieren findest du in meinem PDF
+
+[00:44:00] Giveaway zum Download in meiner
+
+[00:44:02] kostenfreien School Community, wo sich
+
+[00:44:04] alles um KI dreht und wo viele weitere
+
+[00:44:06] KI Interessierte bereits drin sind und
+
+[00:44:07] sich über verschiedene Themen
+
+[00:44:09] austauschen. Das ist alles. Kein Graf,
+
+[00:44:11] keine App, kein Wiki. Das ist die Kühe,
+
+[00:44:14] die kommt, wenn das Fundament sich
+
+[00:44:16] bewertet. Und wenn du dir von diesem
+
+[00:44:17] ganzen Video nur einen Satz merkst, dann
+
+[00:44:19] den hier unter dem Board. Die KI
+
+[00:44:21] schreibt den Code: "Du kuratierst die
+
+[00:44:22] Referenzen und du entscheidest und du
+
+[00:44:25] nimmst jeden Schritt ab." Weil mir die
+
+[00:44:26] Oberfläche selbst gehört, kann ich sie
+
+[00:44:27] später weiter ausbauen und erweitern.
+
+[00:44:29] Z.B. hier meine eigenen
+
+[00:44:31] Videobearbeitungs, die ich erstellt
+
+[00:44:32] habe, automatisches Cutting meiner Lang
+
+[00:44:35] Videos und aus dem fertigen Video in
+
+[00:44:37] wenigen Sekunden kann ich direkt Shorts
+
+[00:44:38] exportieren. Alles lokal, kein Abo,
+
+[00:44:40] keine Kosten. Das ist aber ein eigenes
+
+[00:44:42] Kapitel. Für das Second Brain bleibt
+
+[00:44:44] entscheidend. Das System darunter
+
+[00:44:46] funktioniert unabhängig von dieser
+
+[00:44:47] Oberfläche. Alle Links findest du in der
+
+[00:44:49] Beschreibung. Dort ist auch mein
+
+[00:44:50] kostenloses Startdokument verlinkt. Und
+
+[00:44:52] jetzt interessiert mich natürlich eine
+
+[00:44:53] Frage. Was soll ich als nächstes zeigen?
+
+[00:44:55] Cloud direkt in der App oder vielleicht
+
+[00:44:57] eine Cloud Variante? Schreib mir einfach
+
+[00:44:58] Chat oder Cloud in die Kommentare oder
+
+[00:45:01] vielleicht auch irgendwas anderes, was
+
+[00:45:02] interessiert. Und wenn dir dieser Deep
+
+[00:45:04] Dive auch wenn extrem lange gewesen ist
+
+[00:45:07] und vielleicht sehr technisch gewesen
+
+[00:45:08] ist, geholfen hat und Mehrwert geliefert
+
+[00:45:10] hat und dieses Format gut für dich ist,
+
+[00:45:12] freue ich mich über ein Abo und ein
+
+[00:45:13] Kommentar. Und jetzt bau dein Fundament
+
+[00:45:15] und wir sehen uns im nächsten Video.

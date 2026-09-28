@@ -217,3 +217,215 @@ func TestConvertNamesWhereAWrittenFileBelongs(t *testing.T) {
 		t.Fatalf("%d %q %q", code, out, errOut)
 	}
 }
+
+// fakeYtdlp stands for a yt-dlp that leaves the given files in its working
+// directory and exits with 0.
+func fakeYtdlp(t *testing.T, files map[string]string) {
+	t.Helper()
+	saved := convertTools
+	t.Cleanup(func() { convertTools = saved })
+	convertTools = convert.Tools{
+		Look: func(name string) (string, error) { return name, nil },
+		Run: func(spec child.Spec) child.Result {
+			for name, text := range files {
+				writeFile(t, filepath.Join(spec.Dir, name), text)
+			}
+			return child.Result{}
+		},
+	}
+}
+
+func TestFetchWritesIntoTheScopedInbox(t *testing.T) {
+	_, inbox := convertWorld(t)
+	fakeYtdlp(t, map[string]string{
+		"v.info.json": `{"title": "Der echte Weg", "subtitles": {"de": [{"ext": "json3"}]}}`,
+		"v.de.json3":  `{"events": [{"tStartMs": 0, "segs": [{"utf8": "Hallo."}]}]}`,
+	})
+	code, out, errOut := run("fetch", "https://www.youtube.com/watch?v=mHSOsy_usAg", "--scope", "knowledge")
+	want := filepath.Join(inbox, "Der echte Weg (mHSOsy_usAg).txt")
+	if code != 0 || out != want+"\n" || errOut != "" {
+		t.Fatalf("%d %q %q", code, out, errOut)
+	}
+}
+
+func TestFetchRefusesAnAreaItCannotWriteInto(t *testing.T) {
+	state, _ := convertWorld(t)
+	bare := t.TempDir()
+	corpus := t.TempDir()
+	os.MkdirAll(filepath.Join(state, "areas", "corpus", ".loomux"), 0o755)
+	writeFile(t, filepath.Join(state, "areas", "corpus", ".loomux", "config.toml"), "[area]\nscope = \"corpus\"\n\n[layout]\ninbox = \"00 Eingang\"\n")
+	registry := filepath.Join(state, "registry.toml")
+	data, _ := os.ReadFile(registry)
+	// archive is read-only and declares no inbox: read-only is the answer
+	// that holds whatever its manifest says, so it comes first.
+	archive := t.TempDir()
+	writeFile(t, registry, string(data)+"\n[[area]]\nscope = \"project/x\"\npath = \""+filepath.ToSlash(bare)+"\"\n\n[[area]]\nscope = \"corpus\"\npath = \""+filepath.ToSlash(corpus)+"\"\nreadonly = true\n\n[[area]]\nscope = \"archive\"\npath = \""+filepath.ToSlash(archive)+"\"\nreadonly = true\n")
+	fakeYtdlp(t, nil)
+	for scope, want := range map[string]string{
+		"knowledge2": "no area named 'knowledge2' in the registry",
+		"project/x":  "area 'project/x' declares no inbox",
+		"corpus":     "area 'corpus' is read-only",
+		"archive":    "area 'archive' is read-only",
+	} {
+		if code, _, errOut := run("fetch", "https://x", "--scope", scope); code != 1 || !strings.Contains(errOut, want) {
+			t.Errorf("%s: %d %q", scope, code, errOut)
+		}
+	}
+}
+
+// noYtdlp stands for a machine whose yt-dlp is never asked.
+func noYtdlp(t *testing.T) {
+	t.Helper()
+	saved := convertTools
+	t.Cleanup(func() { convertTools = saved })
+	convertTools = convert.Tools{
+		Look: func(string) (string, error) { t.Fatal("yt-dlp was looked up"); return "", nil },
+		Run:  func(child.Spec) child.Result { t.Fatal("yt-dlp was started"); return child.Result{} },
+	}
+}
+
+// The usage errors speak argparse's words, as the reference's do, and end
+// before anything is looked up or started.
+func TestFetchNeedsExactlyOneURL(t *testing.T) {
+	convertWorld(t)
+	noYtdlp(t)
+	for args, want := range map[string]string{
+		"fetch":             "loomux fetch: the following arguments are required: url\n",
+		"fetch a b c":       "loomux fetch: unrecognized arguments: b c\n",
+		"fetch --nope a":    "flag provided but not defined: -nope",
+		"fetch -- --plugin": "loomux fetch: a URL does not begin with '-': --plugin\n",
+		"fetch -":           "loomux fetch: a URL does not begin with '-': -\n",
+	} {
+		if code, _, errOut := run(strings.Fields(args)...); code != 2 || !strings.HasPrefix(errOut, want) {
+			t.Errorf("%q: %d %q", args, code, errOut)
+		}
+	}
+}
+
+// A URL that begins with a dash would reach yt-dlp as an option, after the
+// terminator too: `--` ends loomux's flags, not yt-dlp's.
+func TestFetchPassesNoOptionToYtdlp(t *testing.T) {
+	_, inbox := convertWorld(t)
+	noYtdlp(t)
+	if code, out, errOut := run("fetch", "--", "--plugin-dirs=x"); code != 2 || out != "" || errOut != "loomux fetch: a URL does not begin with '-': --plugin-dirs=x\n" {
+		t.Fatalf("%d %q %q", code, out, errOut)
+	}
+	if entries, err := os.ReadDir(inbox); err != nil || len(entries) != 0 {
+		t.Fatalf("%v %v", entries, err)
+	}
+}
+
+// `--no-playlist` narrows a watch URL that carries `list=` to its video; a
+// URL that names only a playlist it does not narrow, and yt-dlp would walk
+// every entry into the same names. Such a URL ends before yt-dlp is looked
+// up, on every host YouTube serves the playlist page from. A watch URL with
+// `list=` and no video is one too: yt-dlp sends it to the playlist page.
+func TestFetchRefusesAURLThatNamesOnlyAPlaylist(t *testing.T) {
+	_, inbox := convertWorld(t)
+	noYtdlp(t)
+	for _, url := range []string{
+		"https://www.youtube.com/playlist?list=PLx",
+		"https://youtube.com/playlist?list=PLx",
+		"https://m.youtube.com/playlist?list=PLx",
+		"https://music.youtube.com/playlist?list=PLx",
+		"http://WWW.YouTube.com:443/playlist/?list=PLx",
+		"www.youtube.com/playlist?list=PLx",
+		"https://www.youtube.com/watch?list=PLx",
+		"https://m.youtube.com/watch/?feature=share&list=PLx",
+		"https://www.youtube.com/watch?v=&list=PLx",
+		"https://www.youtube.com/watch?list=&list=PLx",
+		"youtube.com/watch?list=PLx&next=https://x",
+	} {
+		want := "loomux fetch: a URL that names only a playlist is not fetched, give the URL of one video: " + url + "\n"
+		if code, out, errOut := run("fetch", url); code != 2 || out != "" || errOut != want {
+			t.Errorf("%s: %d %q %q", url, code, out, errOut)
+		}
+	}
+	if entries, err := os.ReadDir(inbox); err != nil || len(entries) != 0 {
+		t.Fatalf("%v %v", entries, err)
+	}
+}
+
+// What `--no-playlist` narrows to one video goes on to yt-dlp, and so does a
+// playlist page on a host that is not YouTube's. A watch URL without a
+// playlist is yt-dlp's to refuse.
+func TestFetchTakesAVideoURLThatAlsoNamesAPlaylist(t *testing.T) {
+	_, inbox := convertWorld(t)
+	fakeYtdlp(t, map[string]string{
+		"v.info.json": `{"title": "Der echte Weg", "subtitles": {"de": [{"ext": "json3"}]}}`,
+		"v.de.json3":  `{"events": [{"tStartMs": 0, "segs": [{"utf8": "Hallo."}]}]}`,
+	})
+	for _, url := range []string{
+		"https://www.youtube.com/watch?v=mHSOsy_usAg&list=PLx",
+		"https://www.youtube.com/watch?list=PLx&v=mHSOsy_usAg",
+		"https://www.youtube.com/watch?v=mHSOsy_usAg&list=",
+		"https://www.youtube.com/watch?v=&v=mHSOsy_usAg&list=PLx",
+		"https://example.com/watch?list=PLx",
+		"https://www.youtube.com/watch?feature=share",
+		"https://youtu.be/mHSOsy_usAg?list=PLx",
+		"https://example.com/playlist?list=PLx",
+		"https://www.youtube.com/playlists?list=PLx",
+		"https://[youtube.com/playlist?list=PLx",
+	} {
+		if code, out, errOut := run("fetch", url); code != 0 || !strings.HasPrefix(out, inbox) || errOut != "" {
+			t.Errorf("%s: %d %q %q", url, code, out, errOut)
+		}
+	}
+}
+
+func TestFetchReportsWhatYtdlpCouldNotDo(t *testing.T) {
+	_, inbox := convertWorld(t)
+	fakeYtdlp(t, map[string]string{})
+	if code, _, errOut := run("fetch", "https://x"); code != 1 || !strings.Contains(errOut, "yt-dlp found no video") {
+		t.Fatalf("%d %q", code, errOut)
+	}
+	if entries, err := os.ReadDir(inbox); err != nil || len(entries) != 0 {
+		t.Fatalf("the failed fetch left %v in the inbox (%v)", entries, err)
+	}
+}
+
+func TestFetchRefusesWhereTheProjectSwitchedTheBrainOff(t *testing.T) {
+	convertWorld(t)
+	project := t.TempDir()
+	writeFile(t, filepath.Join(project, ".loomux", "config.toml"), "[modules]\nbrain = false\n")
+	t.Chdir(project)
+	fakeYtdlp(t, nil)
+	if code, _, errOut := run("fetch", "https://x"); code != 1 || !strings.Contains(errOut, "loomux fetch: the brain module is off") {
+		t.Fatalf("%d %q", code, errOut)
+	}
+}
+
+func TestFetchWithoutARegistryIsOneErrorLine(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", dir)
+	t.Chdir(dir)
+	fakeYtdlp(t, nil)
+	if code, _, errOut := run("fetch", "https://x"); code != 1 || !strings.HasPrefix(errOut, "error: ") {
+		t.Fatalf("%d %q", code, errOut)
+	}
+}
+
+func TestFetchStopsAtABrokenDeclaration(t *testing.T) {
+	_, inbox := convertWorld(t)
+	writeFile(t, filepath.Join(filepath.Dir(inbox), ".loomux", "config.toml"), "[area]\nscope = \"knowledge\"\n\n[privacy]\nmode = \"cloud\"\n")
+	fakeYtdlp(t, nil)
+	if code, _, errOut := run("fetch", "https://x"); code != 1 || !strings.Contains(errOut, "mode") {
+		t.Fatalf("%d %q", code, errOut)
+	}
+}
+
+// A file where the inbox should be: ToInbox cannot make the directory.
+func TestFetchReportsAnInboxItCannotWriteInto(t *testing.T) {
+	_, inbox := convertWorld(t)
+	if err := os.RemoveAll(inbox); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, inbox, "not a directory\n")
+	fakeYtdlp(t, map[string]string{
+		"v.info.json": `{"title": "Der echte Weg", "subtitles": {"de": [{"ext": "json3"}]}}`,
+		"v.de.json3":  `{"events": [{"tStartMs": 0, "segs": [{"utf8": "Hallo."}]}]}`,
+	})
+	if code, out, errOut := run("fetch", "https://www.youtube.com/watch?v=mHSOsy_usAg"); code != 1 || out != "" || !strings.HasPrefix(errOut, "error: ") {
+		t.Fatalf("%d %q %q", code, out, errOut)
+	}
+}
