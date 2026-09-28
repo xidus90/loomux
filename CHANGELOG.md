@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [4.2.3] - 2026-09-28
+
+<https://github.com/xidus90/loomux/pull/54>
+
+### Fixed
+- `loomux dev bench search` without `--scope` measures the areas its question set points at instead of only `knowledge`, and refuses an expected page that lies in no registered area.
+
 ## [4.2.2] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/53>
