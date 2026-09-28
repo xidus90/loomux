@@ -32,11 +32,11 @@ func probeModule(t *testing.T) string {
 func TestGoTestRunsARoundThroughOverlays(t *testing.T) {
 	root := probeModule(t)
 	var out strings.Builder
-	sum, err := Round(Options{Packages: []string{"p"}, Root: root, Workers: 2}, GoTest(context.Background(), root), &out)
+	sum, err := Round(Options{Packages: []string{"p"}, Root: root, Workers: 2, Now: func() time.Time { return time.Time{} }}, GoTest(context.Background(), root), &out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "[1/4] SURVIVED  (a1) p.go:4  if a > 0 {  ->  if true {\n" +
+	want := floor("p") + "[1/4] SURVIVED  (a1) p.go:4  if a > 0 {  ->  if true {\n" +
 		"[2/4] killed    (a1) p.go:4  if a > 0 {  ->  if false {\n" +
 		"[3/4] killed    (a4) p.go:4  if a > 0 {  ->  if !(a > 0) {\n" +
 		"[4/4] SURVIVED  (a3) p.go:4  if a > 0 {  ->  if a >= 0 {\n" +
@@ -62,7 +62,7 @@ func TestGoTestTellsABuildFailureFromAFailure(t *testing.T) {
 	if err := os.WriteFile(overlay, overlayJSON(filepath.Join(root, "p", "p.go"), broken), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := GoTest(context.Background(), root)("p", overlay); err != nil || outcome != BuildFailed {
+	if outcome, err := GoTest(context.Background(), root)("p", overlay, time.Minute); err != nil || outcome != BuildFailed {
 		t.Fatalf("outcome %d, err %v", outcome, err)
 	}
 }
@@ -70,13 +70,13 @@ func TestGoTestTellsABuildFailureFromAFailure(t *testing.T) {
 func TestGoTestReportsAGoCommandThatDoesNotStart(t *testing.T) {
 	root := probeModule(t)
 	t.Setenv("PATH", "")
-	if _, err := GoTest(context.Background(), root)("p", ""); err == nil {
+	if _, err := GoTest(context.Background(), root)("p", "", time.Minute); err == nil {
 		t.Fatal("a go command that cannot be found must be an error")
 	}
 }
 
-// sleepingModule is a probe module whose only test outlasts both the go
-// command's own bound and the patience above it.
+// sleepingModule is a probe module whose only test sleeps for five minutes,
+// longer than the bounds the tests below give it and the patience above them.
 func sleepingModule(t *testing.T) string {
 	t.Helper()
 	if _, err := exec.LookPath("go"); err != nil {
@@ -93,7 +93,7 @@ func sleepingModule(t *testing.T) string {
 
 // Every run hangs under the context GoTest was given, not under one of its
 // own: a cancelled round ends its runs at once instead of leaving each go
-// test to the minute of goTimeout and the two of patience. Under a context
+// test to its bound and the patience above it. Under a context
 // that is already done no process starts at all, so the run comes back in
 // less time than the suite of the probe module would need to sleep.
 func TestGoTestRunsUnderTheContextItWasGiven(t *testing.T) {
@@ -101,8 +101,20 @@ func TestGoTestRunsUnderTheContextItWasGiven(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	started := time.Now()
-	outcome, err := GoTest(ctx, root)("p", "")
+	outcome, err := GoTest(ctx, root)("p", "", time.Minute)
 	if took := time.Since(started); err != nil || outcome != TimedOut || took > 10*time.Second {
+		t.Fatalf("outcome %d after %s, err %v", outcome, took, err)
+	}
+}
+
+// The bound reaches the test binary as its -timeout: the binary panics at it
+// and exits red, and its panic makes the run TimedOut long before the
+// patience above the bound runs out.
+func TestGoTestBoundsTheSuiteByTheBoundItIsGiven(t *testing.T) {
+	root := sleepingModule(t)
+	started := time.Now()
+	outcome, err := GoTest(context.Background(), root)("p", "", 2*time.Second)
+	if took := time.Since(started); err != nil || outcome != TimedOut || took > 30*time.Second {
 		t.Fatalf("outcome %d after %s, err %v", outcome, took, err)
 	}
 }

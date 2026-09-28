@@ -53,17 +53,13 @@ const (
 )
 
 // TestFunc runs the suite of pkg; an empty overlay runs the tree as it stands.
-type TestFunc func(pkg, overlay string) (Outcome, error)
+// bound is the suite's own time limit on the run.
+type TestFunc func(pkg, overlay string, bound time.Duration) (Outcome, error)
 
-// goTimeout is the suite's own bound on one run. A mutant that strikes out a
-// cycle guard turns a walk into an endless one, and without a bound each such
-// mutant costs the toolchain's ten-minute default.
-const goTimeout = "60s"
-
-// patience is the backstop above goTimeout, the script's PATIENCE["go"]. The
-// test binary's bound fires first and cleanly; this one ends a go command
+// patience is how long the backstop waits above a run's bound. The test
+// binary's -timeout fires first and cleanly; the backstop ends a go command
 // that does not come back at all.
-const patience = 120 * time.Second
+const patience = time.Minute
 
 // GoTest runs `go test` in root with the script's flags. A go command that
 // does not start is an error; a run that ends, however it ends, is an Outcome.
@@ -71,13 +67,13 @@ const patience = 120 * time.Second
 // round has started instead of leaving them to run out the patience above
 // them.
 func GoTest(ctx context.Context, root string) TestFunc {
-	return func(pkg, overlay string) (Outcome, error) {
+	return func(pkg, overlay string, bound time.Duration) (Outcome, error) {
 		args := []string{"test"}
 		if overlay != "" {
 			args = append(args, "-overlay", overlay)
 		}
-		args = append(args, "-count=1", "-failfast", "-timeout", goTimeout, "./"+pkg+"/")
-		run, cancel := context.WithTimeout(ctx, patience)
+		args = append(args, "-count=1", "-failfast", "-timeout", bound.String(), "./"+pkg+"/")
+		run, cancel := context.WithTimeout(ctx, bound+patience)
 		defer cancel()
 		cmd := exec.CommandContext(run, "go", args...)
 		cmd.Dir = root
@@ -115,12 +111,13 @@ func finishedRun(err error, timedOut bool) bool {
 }
 
 // classify reads a finished run the way the script's _run does: a run cut off
-// by patience compiled and did not pass; "[build failed]" (compiler or vet)
+// by patience, or ended by the test binary's own -timeout (which exits like a
+// failure), compiled and did not answer; "[build failed]" (compiler or vet)
 // or a line opening with "# " (the compiler's package header) means the
 // mutant did not build; otherwise the exit status decides.
 func classify(printed string, passed, timedOut bool) Outcome {
 	switch {
-	case timedOut:
+	case timedOut || strings.Contains(printed, "panic: test timed out after"):
 		return TimedOut
 	case strings.Contains(printed, "[build failed]") || strings.Contains(printed, "\n# "):
 		return BuildFailed

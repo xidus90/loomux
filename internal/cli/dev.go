@@ -147,12 +147,12 @@ func devMutants(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 // through stop: while it stands, a second Ctrl+C is swallowed, and the user
 // has no way out of the drain.
 func untilInterrupted(ctx context.Context, stop func(), test mutants.TestFunc) mutants.TestFunc {
-	return func(pkg, overlay string) (mutants.Outcome, error) {
+	return func(pkg, overlay string, bound time.Duration) (mutants.Outcome, error) {
 		if err := ctx.Err(); err != nil {
 			stop()
 			return 0, err
 		}
-		outcome, err := test(pkg, overlay)
+		outcome, err := test(pkg, overlay, bound)
 		if interrupted := ctx.Err(); interrupted != nil {
 			stop()
 			return 0, interrupted

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 const signSource = "package p\n\nfunc Sign(a int) int {\n\tif a > 0 {\n\t\treturn 1\n\t}\n\treturn 0\n}\n"
@@ -34,21 +35,32 @@ func writePackage(t *testing.T, root, pkg string, files map[string]string) {
 // call is one run the fake suite was asked for.
 type call struct {
 	pkg, overlay string
+	bound        time.Duration     // the time limit the run was given
 	line         string            // the line the replacement changes; "" for a baseline
 	replace      map[string]string // the overlay's Replace; nil for a baseline
 }
 
 // fakeSuite is a TestFunc that starts nothing. It reads the overlay go test
 // would get, finds the line the replacement changes, and answers from it.
+// Its clock stands still except while a baseline runs, which moves it on by
+// took[pkg]; handed to Round as Options.Now, it times the unchanged suite.
 type fakeSuite struct {
 	mu       sync.Mutex
 	calls    []call
 	baseline func(pkg string) (Outcome, error)
 	mutant   func(line string) (Outcome, error)
+	took     map[string]time.Duration
+	clock    time.Time
 }
 
-func (f *fakeSuite) test(pkg, overlay string) (Outcome, error) {
-	c := call{pkg: pkg, overlay: overlay}
+func (f *fakeSuite) now() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.clock
+}
+
+func (f *fakeSuite) test(pkg, overlay string, bound time.Duration) (Outcome, error) {
+	c := call{pkg: pkg, overlay: overlay, bound: bound}
 	if overlay != "" {
 		var o struct{ Replace map[string]string }
 		data, err := os.ReadFile(overlay)
@@ -65,6 +77,9 @@ func (f *fakeSuite) test(pkg, overlay string) (Outcome, error) {
 	}
 	f.mu.Lock()
 	f.calls = append(f.calls, c)
+	if overlay == "" {
+		f.clock = f.clock.Add(f.took[pkg])
+	}
 	f.mu.Unlock()
 	if overlay == "" {
 		return f.baseline(pkg)
@@ -98,6 +113,12 @@ func changedLine(source, replacement string) string {
 
 func green(string) (Outcome, error) { return Passed, nil }
 
+// floor is the report's bound line for a package whose unchanged suite took
+// no time on a clock that stands still.
+func floor(pkg string) string {
+	return pkg + ": each mutant run is bounded at 1m0s, the floor (3 × the unchanged suite's 0s does not exceed it)\n"
+}
+
 func TestRoundReportsEveryVerdictInGenerationOrder(t *testing.T) {
 	root := t.TempDir()
 	writePackage(t, root, "p", map[string]string{
@@ -123,23 +144,24 @@ func TestRoundReportsEveryVerdictInGenerationOrder(t *testing.T) {
 		return 0, fmt.Errorf("unexpected mutated line %q", line)
 	}}
 	var out strings.Builder
-	sum, err := Round(Options{Packages: []string{"p"}, Root: root, Workers: 4}, suite.test, &out)
+	sum, err := Round(Options{Packages: []string{"p"}, Root: root, Workers: 4, Now: suite.now}, suite.test, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "[1/4] SURVIVED  (a1) p.go:4  if a > 0 {  ->  if true {\n" +
+	want := floor("p") + "[1/4] SURVIVED  (a1) p.go:4  if a > 0 {  ->  if true {\n" +
 		"[2/4] killed    (a1) p.go:4  if a > 0 {  ->  if false {\n" +
 		"[3/4] no mutant (a4) p.go:4  if a > 0 {  ->  if !(a > 0) {\n" +
-		"[4/4] killed    (a3) p.go:4  if a > 0 {  ->  if a >= 0 {\n" +
+		"[4/4] timed out (a3) p.go:4  if a > 0 {  ->  if a >= 0 {\n" +
 		"\n" +
 		"4 mutants over p, oracle go\n" +
 		"1 do not compile and are no mutants\n" +
+		"1 of the killed ran into its bound; a timeout is a kill only where the suite would never have finished\n" +
 		"1 survived:\n" +
 		"  (a1) p.go:4  if a > 0 {  ->  if true {\n"
 	if out.String() != want {
 		t.Fatalf("report:\n%s", out.String())
 	}
-	if sum.Killed != 2 || sum.Survived != 1 || sum.NotCompiled != 1 || sum.NoMutant != 0 ||
+	if sum.Killed != 2 || sum.TimedOut != 1 || sum.Survived != 1 || sum.NotCompiled != 1 || sum.NoMutant != 0 ||
 		len(sum.Survivors) != 1 || sum.Survivors[0].Now != "\tif true {" {
 		t.Fatalf("summary %+v", sum)
 	}
@@ -229,11 +251,11 @@ func TestRoundFiltersByFileNameAndFamily(t *testing.T) {
 	writePackage(t, root, "p", map[string]string{"sign.go": signSource, "one.go": oneSource})
 	suite := &fakeSuite{baseline: green, mutant: func(string) (Outcome, error) { return Failed, nil }}
 	var out strings.Builder
-	sum, err := Round(Options{Packages: []string{"p"}, Root: root, Only: "on", Family: "a3", Workers: 1}, suite.test, &out)
+	sum, err := Round(Options{Packages: []string{"p"}, Root: root, Only: "on", Family: "a3", Workers: 1, Now: suite.now}, suite.test, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "[1/1] killed    (a3) one.go:4  if x == 1 {  ->  if x != 1 {\n" +
+	want := floor("p") + "[1/1] killed    (a3) one.go:4  if x == 1 {  ->  if x != 1 {\n" +
 		"\n" +
 		"1 mutants over p, oracle go\n" +
 		"0 do not compile and are no mutants\n" +
@@ -248,11 +270,11 @@ func TestRoundCountsAnUnchangedLineAsNoMutant(t *testing.T) {
 	writePackage(t, root, "p", map[string]string{"t.go": "package p\n\nfunc T() int {\n\tif true {\n\t\treturn 1\n\t}\n\treturn 0\n}\n"})
 	suite := &fakeSuite{baseline: green, mutant: func(string) (Outcome, error) { return Failed, nil }}
 	var out strings.Builder
-	sum, err := Round(Options{Packages: []string{"p"}, Root: root, Workers: 1}, suite.test, &out)
+	sum, err := Round(Options{Packages: []string{"p"}, Root: root, Workers: 1, Now: suite.now}, suite.test, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "[1/3] no mutant (a1) t.go:4  if true {  ->  if true {\n" +
+	want := floor("p") + "[1/3] no mutant (a1) t.go:4  if true {  ->  if true {\n" +
 		"[2/3] killed    (a1) t.go:4  if true {  ->  if false {\n" +
 		"[3/3] killed    (a4) t.go:4  if true {  ->  if !(true) {\n" +
 		"\n" +
@@ -276,8 +298,8 @@ func TestRoundStopsAtTheFirstErrorAndLeavesNoOverlay(t *testing.T) {
 		return 0, errors.New("go vanished")
 	}
 	var out strings.Builder
-	_, err := Round(Options{Packages: []string{"p"}, Root: root, Workers: 1}, suite.test, &out)
-	if err == nil || err.Error() != "go vanished" || out.Len() != 0 {
+	_, err := Round(Options{Packages: []string{"p"}, Root: root, Workers: 1, Now: suite.now}, suite.test, &out)
+	if err == nil || err.Error() != "go vanished" || out.String() != floor("p") {
 		t.Fatalf("%v, report %q", err, out.String())
 	}
 	calls := suite.mutantCalls()
@@ -323,17 +345,17 @@ func TestRoundAddsUpEveryPackage(t *testing.T) {
 	writePackage(t, root, "q", map[string]string{"q.go": oneSource})
 	suite := &fakeSuite{baseline: green, mutant: func(string) (Outcome, error) { return Passed, nil }}
 	var out strings.Builder
-	sum, err := Round(Options{Packages: []string{"p", "q"}, Root: root, Family: "a3"}, suite.test, &out)
+	sum, err := Round(Options{Packages: []string{"p", "q"}, Root: root, Family: "a3", Now: suite.now}, suite.test, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "[1/1] SURVIVED  (a3) p.go:4  if a > 0 {  ->  if a >= 0 {\n" +
+	want := floor("p") + "[1/1] SURVIVED  (a3) p.go:4  if a > 0 {  ->  if a >= 0 {\n" +
 		"\n" +
 		"1 mutants over p, oracle go\n" +
 		"0 do not compile and are no mutants\n" +
 		"1 survived:\n" +
 		"  (a3) p.go:4  if a > 0 {  ->  if a >= 0 {\n" +
-		"[1/1] SURVIVED  (a3) q.go:4  if x == 1 {  ->  if x != 1 {\n" +
+		floor("q") + "[1/1] SURVIVED  (a3) q.go:4  if x == 1 {  ->  if x != 1 {\n" +
 		"\n" +
 		"1 mutants over q, oracle go\n" +
 		"0 do not compile and are no mutants\n" +
@@ -341,6 +363,80 @@ func TestRoundAddsUpEveryPackage(t *testing.T) {
 		"  (a3) q.go:4  if x == 1 {  ->  if x != 1 {\n"
 	if out.String() != want || sum.Survived != 2 || len(sum.Survivors) != 2 {
 		t.Fatalf("summary %+v, report:\n%s", sum, out.String())
+	}
+}
+
+// The timeouts of every package add up like the kills they are counted in.
+func TestRoundAddsUpTheTimeoutsOfEveryPackage(t *testing.T) {
+	root := t.TempDir()
+	writePackage(t, root, "p", map[string]string{"p.go": signSource})
+	writePackage(t, root, "q", map[string]string{"q.go": oneSource})
+	suite := &fakeSuite{baseline: green, mutant: func(string) (Outcome, error) { return TimedOut, nil }}
+	var out strings.Builder
+	sum, err := Round(Options{Packages: []string{"p", "q"}, Root: root, Family: "a3", Now: suite.now}, suite.test, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Killed != 2 || sum.TimedOut != 2 || sum.Survived != 0 {
+		t.Fatalf("summary %+v, report:\n%s", sum, out.String())
+	}
+}
+
+// A fixed bound on every run turns a mutant the suite does not notice into a
+// kill wherever the unchanged suite needs nearly that long; the bound follows
+// each package's own baseline instead, and the baseline is not cut short.
+func TestRoundBoundsEachMutantRunByThreeTimesItsUnchangedSuite(t *testing.T) {
+	root := t.TempDir()
+	writePackage(t, root, "p", map[string]string{"p.go": signSource})
+	writePackage(t, root, "q", map[string]string{"q.go": oneSource})
+	suite := &fakeSuite{
+		baseline: green,
+		mutant:   func(string) (Outcome, error) { return Failed, nil },
+		took:     map[string]time.Duration{"p": 50 * time.Second, "q": 5 * time.Second},
+	}
+	var out strings.Builder
+	_, err := Round(Options{Packages: []string{"p", "q"}, Root: root, Family: "a3", Now: suite.now}, suite.test, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "p: each mutant run is bounded at 2m30s (3 × the unchanged suite's 50s)\n" +
+		"[1/1] killed    (a3) p.go:4  if a > 0 {  ->  if a >= 0 {\n" +
+		"\n" +
+		"1 mutants over p, oracle go\n" +
+		"0 do not compile and are no mutants\n" +
+		"0 survived:\n" +
+		"q: each mutant run is bounded at 1m0s, the floor (3 × the unchanged suite's 5s does not exceed it)\n" +
+		"[1/1] killed    (a3) q.go:4  if x == 1 {  ->  if x != 1 {\n" +
+		"\n" +
+		"1 mutants over q, oracle go\n" +
+		"0 do not compile and are no mutants\n" +
+		"0 survived:\n"
+	bounds := map[string]time.Duration{"p": 150 * time.Second, "q": 60 * time.Second}
+	for _, c := range suite.calls {
+		bound := bounds[c.pkg]
+		if c.overlay == "" {
+			bound = 10 * time.Minute
+		}
+		if c.bound != bound {
+			t.Errorf("%s, overlay %q: bound %s, want %s", c.pkg, c.overlay, c.bound, bound)
+		}
+	}
+	if len(suite.calls) != 4 || out.String() != want {
+		t.Fatalf("calls %+v, report:\n%s", suite.calls, out.String())
+	}
+}
+
+func TestBoundForIsThreeTimesTheBaselineInWholeSecondsAndAtLeastAMinute(t *testing.T) {
+	for _, c := range []struct{ took, want time.Duration }{
+		{0, time.Minute},
+		{20 * time.Second, time.Minute},
+		{20*time.Second + 100*time.Millisecond, 61 * time.Second},
+		{50 * time.Second, 150 * time.Second},
+		{58*time.Second + 300*time.Millisecond, 175 * time.Second},
+	} {
+		if got := boundFor(c.took); got != c.want {
+			t.Errorf("baseline %s: bound %s, want %s", c.took, got, c.want)
+		}
 	}
 }
 
