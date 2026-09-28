@@ -84,7 +84,7 @@ func Keys() []Key {
 		// The reader counts whole seconds as an integer; a duration string
 		// such as "600s" is refused there.
 		{Section: "verify", Name: "timeout", Kind: Int, Default: "600", Module: Hooks, Doc: "How many seconds one command may run."},
-		{Section: "verify", Name: "profiles", Kind: Table, Default: `{ edit = ["lint", "types"], precommit = ["lint", "types", "test", "coverage", "graph"], stop = ["lint", "types", "test", "coverage"] }`, Module: Hooks, Doc: "Which kinds each profile runs: edit, precommit, stop."},
+		{Section: "verify", Name: "profiles", Kind: Table, Default: `{ edit = ["lint", "types"], precommit = ["lint", "types", "test", "coverage", "graph"], stop = ["lint", "types", "test", "coverage", "graph"] }`, Module: Hooks, Doc: "Which kinds each profile runs: edit, precommit, stop."},
 		{Section: "area", Name: "scope", Kind: String, Module: Brain, Doc: "The scope this project is registered under, e.g. project/loomux."},
 		{Section: "layout", Name: "wiki", Kind: String, Module: Brain, Doc: "Where the wiki bundle lives, relative to the root."},
 		{Section: "layout", Name: "hub", Kind: String, Module: Brain, Doc: "Where the hub pages live."},

@@ -264,14 +264,14 @@ func TestDefaultsHoldAStopProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.Profiles["stop"], []string{"lint", "types", "test", "coverage"}) {
+	if !slices.Equal(cfg.Profiles["stop"], []string{"lint", "types", "test", "coverage", "graph"}) {
 		t.Fatalf("stop = %v", cfg.Profiles["stop"])
 	}
 }
 
-// Only precommit takes the graph kind by default: an edit never rebuilds the
-// graph, and a turn end is no commit whose staged change the lane could read.
-func TestDefaultsPutTheGraphKindIntoPrecommitOnly(t *testing.T) {
+// The graph kind stays out of the edit profile by default: an edit never
+// rebuilds the graph. Precommit takes it, and so does stop (see above).
+func TestDefaultsKeepTheGraphKindOutOfEdit(t *testing.T) {
 	cfg, err := ParseConfig("", map[string]any{})
 	if err != nil {
 		t.Fatal(err)

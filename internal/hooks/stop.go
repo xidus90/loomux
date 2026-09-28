@@ -69,7 +69,7 @@ func Stop(stdin io.Reader, stderr io.Writer, root, hostName string, budget time.
 
 // RunStop is the stop gate: 0 lets the turn end, 2 holds it with the reason
 // on stderr, 1 is a gate that could not judge and holds nothing. The order is
-// payload, findings of the subagents, counter, marker, tree, config, chain.
+// payload, findings of the subagents, counter, marker, config, tree, chain.
 func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopEnv) int {
 	say := func(format string, a ...any) { fmt.Fprintf(stderr, "loomux hook stop: "+format+"\n", a...) }
 	host, err := hosts.ParseHost(hostName)
@@ -152,14 +152,29 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 		return end(ExitOK)
 	}
 
-	head, tree, err := stopTrees(stderr, root, state)
+	facts := detect.Detect(os.DirFS(root))
+	eff, err := editLoad(root, facts)
+	if err != nil {
+		say("%v", err)
+		return end(ExitInternal)
+	}
+	// Built in: a config can replace the stop profile but not remove it.
+	kinds, _ := verify.ExpandProfile(eff.Config, "stop")
+	// The kinds come before the tree: only a graph lane keeps the copy of the
+	// index the tree is written through.
+	head, tree, idx, err := stopTrees(stderr, root, state, kinds)
+	defer idx.Close()
+	// The graph lane judges against HEAD, so for it a tree is green only
+	// under the HEAD it was found green at, which a green pass keeps as the
+	// base. A commit inside the turn moves HEAD and leaves the tree alone.
+	headMoved := idx != nil && state.Base != "" && head != state.Base
 	switch {
 	case errors.Is(err, errNoRepository):
 	case err != nil:
 		say("%v", err)
 		countBlock()
 		return ExitDenied
-	case tree == state.Green:
+	case tree == state.Green && !headMoved:
 		// A tree found green before is a green pass, and ends a row of
 		// blocks as a green chain does. Written only when that changes
 		// something: the no-op turn end stays one that writes nothing.
@@ -169,14 +184,6 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 		return end(ExitOK)
 	}
 
-	facts := detect.Detect(os.DirFS(root))
-	eff, err := editLoad(root, facts)
-	if err != nil {
-		say("%v", err)
-		return end(ExitInternal)
-	}
-	// Built in: a config can replace the stop profile but not remove it.
-	kinds, _ := verify.ExpandProfile(eff.Config, "stop")
 	runID := verify.NewRunID(env.Now(), os.Getpid())
 	ready := env.ImportReady
 	if ready == nil {
@@ -184,6 +191,7 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	}
 	jobs, err := stopPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeCheck}, verify.PlanEnv{
 		Root: root, Loomux: env.Loomux, RunID: runID, HasTests: verify.HasTests, ImportReady: ready,
+		GraphReady: idx.Ready, GraphEnv: idx.Env,
 	})
 	if err != nil {
 		say("%v", err)
@@ -215,13 +223,17 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 
 // stopTrees answers where HEAD stands and what tree the work is, or
 // errNoRepository. A tree equal to the base's is nothing new; it is returned
-// as the green tree's twin so the caller has one comparison to make.
-func stopTrees(stderr io.Writer, root string, state sessions.SessionState) (head, tree string, err error) {
+// as the green tree's twin so the caller has one comparison to make. Where
+// kinds ask for a graph lane the project can run, the tree is written through
+// a copy of the index that lane reads, returned for the caller to close;
+// otherwise, or where there is no HEAD to judge against, the copy is gone
+// before the answer.
+func stopTrees(stderr io.Writer, root string, state sessions.SessionState, kinds []string) (head, tree string, idx *StopIndex, err error) {
 	// Every refusal gitwork.Head has is one of the two -- a root git ignores
 	// and a root no working tree covers -- and both mean the same here: there
 	// is no tree to measure, so the chain runs every time.
 	if head, err = gitwork.Head(root); err != nil {
-		return "", "", errNoRepository
+		return "", "", nil, errNoRepository
 	}
 	base := state.Base
 	if base == "" && head != "" {
@@ -238,18 +250,25 @@ func stopTrees(stderr io.Writer, root string, state sessions.SessionState) (head
 			baseTree = headTree(root, head)
 		}
 	}
-	// The copied index goes to the system's temp directory, not to the state:
-	// a state directory that cannot be written must not become a git failure
-	// that holds every turn.
-	tree, err = stopTree(root, os.TempDir())
-	if err != nil {
-		return "", "", err
+	// HEAD is asked once above; the copy is built against it.
+	if head != "" && wantsStopIndex(root, kinds) {
+		if idx, err = keepStopIndex(root, head); err != nil {
+			return "", "", nil, err
+		}
+	}
+	// Without a kept index, the one-off copy goes to the system's temp
+	// directory, not to the state: a state directory that cannot be written
+	// must not become a git failure that holds every turn.
+	if idx != nil {
+		tree = idx.Tree
+	} else if tree, err = stopTree(root, os.TempDir()); err != nil {
+		return "", "", nil, err
 	}
 	if tree == baseTree {
 		// Nothing since the base: the same answer as a green tree.
-		return head, state.Green, nil
+		return head, state.Green, idx, nil
 	}
-	return head, tree, nil
+	return head, tree, idx, nil
 }
 
 // headTree is the tree HEAD holds, and the empty tree where there is no
