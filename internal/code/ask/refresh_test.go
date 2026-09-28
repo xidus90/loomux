@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -169,7 +170,7 @@ func TestEnsureFreshSkipsWhenAnotherRunHoldsTheLock(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(ask.LockPath(root)), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(ask.LockPath(root), []byte("999999"), 0o644); err != nil {
+	if err := os.WriteFile(ask.LockPath(root), []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	built := 0
@@ -202,7 +203,8 @@ func TestEnsureFreshBreaksAStaleLock(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(ask.LockPath(root)), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(ask.LockPath(root), []byte("1"), 0o644); err != nil {
+	// A live holder: only the age may break this lock.
+	if err := os.WriteFile(ask.LockPath(root), []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	old := time.Now().Add(-2 * time.Hour)
@@ -216,6 +218,60 @@ func TestEnsureFreshBreaksAStaleLock(t *testing.T) {
 	// rule, the graph would never refresh again on that checkout.
 	if built != 1 {
 		t.Fatalf("built %d times, want 1: a stale lock must not be forever", built)
+	}
+}
+
+// A run killed mid-rebuild leaves a young lock with its number in it. Once
+// that process is gone the lock guards nothing, whatever its age: waiting out
+// the hour would hold every gate that refreshes the graph until then.
+func TestEnsureFreshBreaksALockWhoseHolderIsGone(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	holdLockFor(t, root, time.Now(), goneProcess(t))
+	built := 0
+
+	ask.EnsureFresh(root, "go/1", func() error { built++; return nil }, nil)
+	if built != 1 {
+		t.Fatalf("built %d times, want 1: the lock's process is gone", built)
+	}
+}
+
+// A live holder keeps its lock however young, and a lock whose content names
+// no process falls back to its age.
+func TestEnsureFreshKeepsALockWithoutAGoneHolder(t *testing.T) {
+	for name, content := range map[string]string{
+		"live":      strconv.Itoa(os.Getpid()),
+		"no number": "",
+		"garbage":   "other",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			holdLockFor(t, root, time.Now(), content)
+			built := 0
+			ask.EnsureFresh(root, "go/1", func() error { built++; return nil }, nil)
+			if built != 0 {
+				t.Fatalf("built %d times while the lock was held", built)
+			}
+		})
+	}
+}
+
+// The takeover asks its claim the same question: a claim that names a gone
+// process is stale however young.
+func TestTakeOverBreaksALockWhoseHolderIsGone(t *testing.T) {
+	root := t.TempDir()
+	path := ask.LockPath(root)
+	holdLockFor(t, root, time.Now(), goneProcess(t))
+	if !ask.TakeOver(path) {
+		t.Fatal("left a lock whose process is gone")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the lock is still there: %v", err)
 	}
 }
 
@@ -366,18 +422,36 @@ func cleanTree(t *testing.T) string {
 	return root
 }
 
-// holdLock puts a lock at root that another run holds, modified at mtime.
-func holdLock(t *testing.T, root string, mtime time.Time) {
+// goneProcess is the number of a process that ran and was reaped: the test
+// binary itself, told to run no test.
+func goneProcess(t *testing.T) string {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	return strconv.Itoa(cmd.Process.Pid)
+}
+
+// holdLockFor puts a lock at root with content in it, modified at mtime.
+func holdLockFor(t *testing.T, root string, mtime time.Time, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(ask.LockPath(root)), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(ask.LockPath(root), []byte("999999"), 0o644); err != nil {
+	if err := os.WriteFile(ask.LockPath(root), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chtimes(ask.LockPath(root), mtime, mtime); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// holdLock puts a lock at root that another run holds, modified at mtime: one
+// that names a live process, this one.
+func holdLock(t *testing.T, root string, mtime time.Time) {
+	t.Helper()
+	holdLockFor(t, root, mtime, strconv.Itoa(os.Getpid()))
 }
 
 func TestRefreshIsCleanOnACleanTree(t *testing.T) {
