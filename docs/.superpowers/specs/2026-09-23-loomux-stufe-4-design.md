@@ -306,7 +306,9 @@ Ende falsch ist, mit Exit 2 ab (2026-09-24). `area add`
 zu verweigern (freigegeben 2026-09-24) schließt (die Lücke seit 3a, siehe Befunde). Das
 ändert einen ausgelieferten Befehl; Anweisungen an Agenten, `area add` zu
 rufen, gibt es heute nur in Plänen, Akten und der Befehlsreferenz, nicht in
-AGENTS.md, `.claude/` oder den READMEs. Erkannt
+AGENTS.md, `.claude/` oder den READMEs. Seit 4d verweigert der Wächter auch
+`convert` und `fetch`, außer allein mit `--help` oder `-h` (Vorschlag 4 in
+„Abweichungen beim Planen von 4d“). Erkannt
 wird der Aufruf an jedem Befehlsbeginn einer Zeile, mit dem Programmnamen
 `loomux`, `loomux.exe` oder einem Pfad darauf und mit `go run` des Pakets
 `cmd/loomux` in seinen Schreibweisen, hinter Zuweisungen, Umleitungen,

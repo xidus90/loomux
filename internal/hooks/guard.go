@@ -381,7 +381,7 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 					}
 				}
 				if writesConfiguration(line) {
-					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, and merge-hook install and remove write executable hooks into repositories; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
+					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, and convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
 				}
 				if answersAGate(line) {
 					reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
@@ -423,11 +423,11 @@ func pathReasons(rules []config.PathRule, rel string, fold bool) []string {
 }
 
 // writesConfiguration says whether a shell line runs a loomux command that
-// writes .loomux/config.toml or the global config in-process, past every path
-// rule. It is a function rather than a CommandRule because "init without
-// --dry-run" needs a lookahead that RE2 lacks. It reads words, not a file
-// system, so it is a net with holes; readings states what it guarantees and
-// what passes.
+// writes .loomux/config.toml or the global config in-process, or an area's
+// inbox, past every path rule. It is a function rather than a CommandRule
+// because "init without --dry-run" needs a lookahead that RE2 lacks. It
+// reads words, not a file system, so it is a net with holes; readings states
+// what it guarantees and what passes.
 func writesConfiguration(line string) bool {
 	// Judged on the line as written, before any rewrite: a continuation or
 	// an escape the rewrites resolve is already no plain line.
@@ -609,6 +609,10 @@ func wordsWriteConfiguration(words []string, plain bool) bool {
 				return !exempt || !onlyProposes(args[2:])
 			}
 		}
+		return len(args) != 2 || (args[1] != "--help" && args[1] != "-h")
+	case "convert", "fetch":
+		// Both write into an area's inbox, which the write barrier keeps
+		// from agents; a lone --help or -h only reads.
 		return len(args) != 2 || (args[1] != "--help" && args[1] != "-h")
 	case "area":
 		return len(args) > 1 && args[1] == "add"

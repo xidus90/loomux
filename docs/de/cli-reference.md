@@ -234,12 +234,14 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   `--detect-only`), jedes `loomux config` außer `config list …`,
   `config get …`, `config proposals …`, einem alleinstehenden
   `config --help` oder `config -h` und `config set …` oder `config unset …`
-  mit befreiendem `--propose`, `loomux area add` oder
+  mit befreiendem `--propose`, `loomux area add`,
   `loomux merge-hook install` oder `remove` (`status` und `record` gehen
-  durch) ausführt, wird verweigert mit ``loomux init, config and area add
-  write the configuration the guard reads, and merge-hook install and remove
-  write executable hooks into repositories; a human runs them. An agent
-  proposes a change with
+  durch) oder `loomux convert` oder `loomux fetch` (außer allein mit
+  `--help` oder `-h`) ausführt, wird verweigert mit ``loomux init, config and
+  area add write the configuration the guard reads, merge-hook install and
+  remove write executable hooks into repositories, and convert and fetch
+  write into an area's inbox, which the write barrier keeps from agents; a
+  human runs them. An agent proposes a change with
   `loomux config set|unset … --propose`, which a human applies``.
   `config apply` und `config reject` bleiben verweigert.
   - **Wann ein Flag befreit** — eine Positivliste, geprüft an der Zeile, wie
