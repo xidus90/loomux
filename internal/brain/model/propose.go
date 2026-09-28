@@ -29,8 +29,9 @@ type Proposer struct {
 // ProposerFor is the gate: a proposer for this area and role, or none. No
 // client -- no address set up -- exists unless the role is on after the
 // area's word; only then is the endpoint judged. The privacy mode is not
-// asked here: it decides what happens to a proposal, and the caller hands
-// out proposers only for closed areas.
+// asked here: the caller decides by it. Reconcile asks for proposers only in
+// local_only areas; convert asks in every writable inbox whatever its mode,
+// because the client never leaves loopback.
 func ProposerFor(s config.ModelSettings, m *config.Manifest, role string) (*Proposer, error) {
 	narrow := s.Narrowed(m)
 	if !narrow.RoleOn(role) {
