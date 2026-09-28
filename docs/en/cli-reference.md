@@ -226,12 +226,15 @@ Evaluates the project policy and global write barrier before an agent executes a
   `--detect-only`), any
   `loomux config` but `config list …`, `config get …`, `config proposals …`,
   a lone `config --help` or `config -h`, and `config set …` or
-  `config unset …` with an exempting `--propose`, or
-  `loomux area add`, or `loomux merge-hook install` or `remove` (`status`
-  and `record` pass) is refused with ``loomux init, config and area add write
-  the configuration the guard reads, and merge-hook install and remove write
-  executable hooks into repositories; a human runs them. An agent proposes a
-  change with `loomux config set|unset … --propose`, which a human applies``.
+  `config unset …` with an exempting `--propose`,
+  `loomux area add`, `loomux merge-hook install` or `remove` (`status`
+  and `record` pass), or `loomux convert` or `loomux fetch` (but a lone
+  `--help` or `-h`) is refused with ``loomux init, config and area add write
+  the configuration the guard reads, merge-hook install and remove write
+  executable hooks into repositories, and convert and fetch write into an
+  area's inbox, which the write barrier keeps from agents; a human runs them.
+  An agent proposes a change with `loomux config set|unset … --propose`,
+  which a human applies``.
   `config apply` and `config reject` stay refused.
   - **When a flag exempts** — an allowlist, judged on the line as written
     before any rewriting. The flag exempts only when all three hold:

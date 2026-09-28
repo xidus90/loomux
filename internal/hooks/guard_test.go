@@ -892,6 +892,15 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		`& "C:\x\loomux.exe" merge-hook remove`,
 		"{ loomux merge-hook install; }",
 		"cd x && loomux merge-hook remove",
+		// convert and fetch write into an area's inbox, which the write
+		// barrier keeps from agents.
+		"loomux convert",
+		"loomux convert x.pdf",
+		`loomux convert "C:\vault\00 Eingang\x.pdf"`,
+		"loomux fetch https://www.youtube.com/watch?v=mHSOsy_usAg --scope knowledge",
+		"go run ./cmd/loomux convert",
+		`& "$env:LOCALAPPDATA\loomux\bin\loomux.exe" fetch https://x`,
+		"loomux convert --help x",
 	)
 	// Known holes, pinned so that closing one shows up here and the readings
 	// comment and both cli-references are corrected with it.
@@ -997,6 +1006,10 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"sudo loomux merge-hook status",
 		"cmd /c loomux merge-hook record",
 		"go run ./cmd/loomux merge-hook status",
+		"loomux convert --help",
+		"loomux convert -h",
+		"loomux fetch --help",
+		"loomux fetch -h",
 		// A # inside double quotes is a byte of the word to both shells.
 		`cd "C:/x/#GIT/loomux" && loomux init --dry-run`,
 		`Set-Location "C:/x/#GIT/loomux"; loomux init --dry-run`,
@@ -1031,6 +1044,10 @@ func TestCheckToolNamesTheConfigurationReason(t *testing.T) {
 	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux merge-hook install"}, config.Policy{})
 	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "merge-hook install and remove") }) {
 		t.Fatalf("merge-hook reasons %v", got)
+	}
+	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux convert"}, config.Policy{})
+	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "convert and fetch write into an area's inbox") }) {
+		t.Fatalf("convert reasons %v", got)
 	}
 	if got := checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux config list"}, config.Policy{}); len(got) != 0 {
 		t.Fatalf("reasons %v", got)
