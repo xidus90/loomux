@@ -110,6 +110,12 @@ func TestSetKeepsMixedLineEndings(t *testing.T) {
 	if err != nil || got != "[commit]\r\nlanguage = \"en\"\r\n" {
 		t.Fatalf("Remove = %q, %v", got, err)
 	}
+	// A last line that ends in \n votes like any other: the file is mixed,
+	// and the changed line keeps its \n.
+	got, err = Set("[commit]\r\nthreshold = 2\n", "commit", "threshold", "3")
+	if err != nil || got != "[commit]\r\nthreshold = 3\n" {
+		t.Fatalf("Set = %q, %v", got, err)
+	}
 }
 
 // Notepad saves a CRLF file without an ending after the last line; that line
@@ -350,6 +356,23 @@ func TestRemoveKeepsTheLineBeforeAnEmptiedSection(t *testing.T) {
 	got, err := Remove("[area]\nscope = \"s\"\n[modules]\ngraph = false\n", "modules", "graph")
 	if err != nil || got != "[area]\nscope = \"s\"\n" {
 		t.Fatalf("got %q, %v", got, err)
+	}
+}
+
+// TestRemoveDropsTheBlankLineAboveAnEmptiedSection: the blank line above an
+// emptied section goes with its header; one inside the section stays only
+// where a next header follows it.
+func TestRemoveDropsTheBlankLineAboveAnEmptiedSection(t *testing.T) {
+	for in, want := range map[string]string{
+		// The next header follows the emptied one directly.
+		"[area]\nscope = \"s\"\n\n[modules]\ngraph = false\n[commit]\nlanguage = \"de\"\n": "[area]\nscope = \"s\"\n[commit]\nlanguage = \"de\"\n",
+		// The emptied section is the last, with a blank line inside.
+		"[area]\nscope = \"s\"\n\n[modules]\n\ngraph = false\n": "[area]\nscope = \"s\"\n",
+	} {
+		got, err := Remove(in, "modules", "graph")
+		if err != nil || got != want {
+			t.Errorf("Remove(%q) = %q, %v; want %q", in, got, err, want)
+		}
 	}
 }
 
