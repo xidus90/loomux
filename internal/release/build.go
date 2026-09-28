@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/notices"
 )
 
 // Target is one platform a release ships a binary for.
@@ -32,8 +34,8 @@ func ExecGoBuild(env []string, args ...string) error {
 	return nil
 }
 
-// Build cross-compiles every target into out and writes SHA256SUMS next to
-// them. It returns the file names in asset order.
+// Build cross-compiles every target into out and writes NOTICE.md and
+// SHA256SUMS next to them. It returns the file names in asset order.
 func Build(version, channel, out string, run GoBuild) ([]string, error) {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return nil, err
@@ -59,6 +61,15 @@ func Build(version, channel, out string, run GoBuild) ([]string, error) {
 		fmt.Fprintf(&sums, "%s  %s\n", hex.EncodeToString(sum[:]), name)
 		names = append(names, name)
 	}
+	// Every third-party license the binary carries goes out beside it; a
+	// notice in the source tree never reaches whoever downloads a release.
+	notice := []byte(notices.Text())
+	if err := os.WriteFile(filepath.Join(out, "NOTICE.md"), notice, 0o644); err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(notice)
+	fmt.Fprintf(&sums, "%s  %s\n", hex.EncodeToString(sum[:]), "NOTICE.md")
+	names = append(names, "NOTICE.md")
 	if err := os.WriteFile(filepath.Join(out, "SHA256SUMS"), []byte(sums.String()), 0o644); err != nil {
 		return nil, err
 	}

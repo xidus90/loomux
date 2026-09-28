@@ -31,6 +31,7 @@ import (
 	"github.com/xidus90/loomux/internal/dev/fakeollama"
 	"github.com/xidus90/loomux/internal/dev/importcases"
 	"github.com/xidus90/loomux/internal/dev/mutants"
+	devnotices "github.com/xidus90/loomux/internal/dev/notices"
 	"github.com/xidus90/loomux/internal/dev/recordcase"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/swap"
@@ -59,6 +60,7 @@ var devCommands = map[string]command{
 	"fake-ollama":     devFakeOllama,
 	"import-cases":    devImportCases,
 	"mutants":         devMutants,
+	"notices":         devNotices,
 	"record-case":     devRecordCase,
 	"record-mcp-case": devRecordMCPCase,
 	"release":         devRelease,
@@ -433,6 +435,26 @@ func devImportCases(args []string, _ io.Reader, _, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "loomux dev import-cases: %v\n", err)
 		return 1
 	}
+	return 0
+}
+
+// devNotices writes NOTICE.md from the modules and grammars the binary
+// links. Whether the committed file is current, a test says.
+func devNotices(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev notices", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	out := fs.String("out", filepath.Join("internal", "notices", "NOTICE.md"), "the file to write")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	text, err := devnotices.Render(".", devnotices.GoCommand)
+	if err != nil {
+		return reportReconcileError(stderr, err)
+	}
+	if err := os.WriteFile(*out, []byte(text), 0o644); err != nil {
+		return reportReconcileError(stderr, err)
+	}
+	fmt.Fprintln(stdout, *out)
 	return 0
 }
 
