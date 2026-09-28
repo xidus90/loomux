@@ -1,6 +1,8 @@
 package maintenance_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -590,16 +592,25 @@ func TestInstallFailsWhereTheHooksDirectoryCannotBeMade(t *testing.T) {
 		}
 		return realGit(dir, args...)
 	}
-	if _, err := maintenance.InstallHooks(areas, lookup, git); err == nil {
-		t.Error("InstallHooks succeeded without a hooks directory")
+	_, err := maintenance.InstallHooks(areas, lookup, git)
+	// The directory that could not be made is the cause worth naming, not
+	// the temporary file that then has nowhere to go.
+	if !failedToMakeADirectory(err) {
+		t.Errorf("InstallHooks without a hooks directory = %v, want the mkdir failure", err)
 	}
+}
+
+// failedToMakeADirectory says whether err carries a failed mkdir.
+func failedToMakeADirectory(err error) bool {
+	var failed *fs.PathError
+	return errors.As(err, &failed) && failed.Op == "mkdir"
 }
 
 func TestInstallFailsWhereTheRecordCannotBeWritten(t *testing.T) {
 	lookup, areas, _ := consenting(t, "main")
 	writeFile(t, filepath.Join(lookup.Primary, "maintenance"), "a file, not a directory\n")
-	if _, err := maintenance.InstallHooks(areas, lookup, realGit); err == nil {
-		t.Error("InstallHooks succeeded without writing its record")
+	if _, err := maintenance.InstallHooks(areas, lookup, realGit); !failedToMakeADirectory(err) {
+		t.Errorf("InstallHooks without a record directory = %v, want the mkdir failure", err)
 	}
 }
 

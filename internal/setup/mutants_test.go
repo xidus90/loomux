@@ -6,6 +6,7 @@ package setup
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/brain/maintenance"
 	"github.com/xidus90/loomux/internal/config/schema"
+	"github.com/xidus90/loomux/internal/selfupdate"
 )
 
 // linkDir points link at target, by a symlink or, where the account may not
@@ -212,5 +214,93 @@ func TestTheStateIsNotWrittenThroughALink(t *testing.T) {
 	}
 	if exists(outside, "answers.toml") {
 		t.Error("answers.toml landed behind the link")
+	}
+}
+
+// redone is a Redo that marks what it made, so a test sees whether Apply
+// called it.
+func redone(current string) (string, error) { return current + "redone\n", nil }
+
+func TestAnUnchangedFileTakesThePlannedTextNotARedo(t *testing.T) {
+	root := world(t, map[string]string{"notes.txt": "old\n"})
+	p := Plan{Changes: []Change{{Part: "x", Path: "notes.txt", Before: "old\n", After: "planned\n", Exists: true, Redo: redone}}}
+	if _, err := Apply(root, p, Choice{}, all, nil, there, "1", applyTime); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, root, "notes.txt"); got != "planned\n" {
+		t.Errorf("notes.txt = %q, want the planned text", got)
+	}
+}
+
+func TestAChangedFileIsRedoneNotRefused(t *testing.T) {
+	root := world(t, map[string]string{"notes.txt": "theirs\n"})
+	p := Plan{Changes: []Change{{Part: "x", Path: "notes.txt", Before: "old\n", After: "planned\n", Exists: true, Redo: redone}}}
+	if _, err := Apply(root, p, Choice{}, all, nil, there, "1", applyTime); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, root, "notes.txt"); got != "theirs\nredone\n" {
+		t.Errorf("notes.txt = %q, want the redo over their text", got)
+	}
+}
+
+// A directory where the change expects a file cannot be read; that is an
+// error, neither a missing file to create nor a changed one.
+func TestAFileThatCannotBeReadStopsTheChange(t *testing.T) {
+	for name, redo := range map[string]func(string) (string, error){"redo": redone, "no redo": nil} {
+		t.Run(name, func(t *testing.T) {
+			root := world(t, map[string]string{"notes.txt/": ""})
+			p := Plan{Changes: []Change{{Part: "x", Path: "notes.txt", Before: "old\n", After: "planned\n", Exists: true, Redo: redo}}}
+			_, err := Apply(root, p, Choice{}, all, nil, there, "1", applyTime)
+			var pathErr *fs.PathError
+			if !errors.As(err, &pathErr) {
+				t.Errorf("err = %v, want the read error", err)
+			}
+		})
+	}
+}
+
+// Outside a repository nothing about git hooks is looked at: git is not
+// asked for its hook directory, and no hook is read from the working
+// directory, where an empty hook directory would resolve.
+func TestGatherOutsideARepositoryLooksAtNoHooks(t *testing.T) {
+	root := world(t, map[string]string{})
+	cwd := t.TempDir()
+	writeFile(t, cwd, "pre-commit", "#!/bin/sh\n")
+	writeFile(t, cwd, "post-merge", maintenance.HookText())
+	t.Chdir(cwd)
+	f, err := Gather(root, t.TempDir(), tested, func(_ string, argv ...string) (string, error) {
+		if slices.Contains(argv, "rev-parse") {
+			return "", errors.New("not a git repository")
+		}
+		return "", nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.GitHooksLive || f.MergeHook {
+		t.Errorf("GitHooksLive = %v, MergeHook = %v outside a repository", f.GitHooksLive, f.MergeHook)
+	}
+}
+
+func TestADevelopmentBuildStillPlansClaudesEntries(t *testing.T) {
+	f := gather(t, world(t, map[string]string{".claude/": ""}), "")
+	f.Version = selfupdate.DevVersion
+	p := plan(t, f)
+	if _, ok := changeOf(p, ".claude/settings.json"); !ok || hasNote(p, "antigravity: no entries") {
+		t.Errorf("paths = %v, notes = %v", paths(p), p.Notes)
+	}
+}
+
+func TestTheModelPartOffLooksAtNoModel(t *testing.T) {
+	f := gather(t, world(t, map[string]string{}), "")
+	f.ModelProblem = "broken settings"
+	c := DefaultChoice(f, Answers{})
+	c.Parts["model"] = false
+	p, err := Build(f, c, reader(f.Root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasNote(p, "model: skipped") {
+		t.Errorf("notes = %v", p.Notes)
 	}
 }

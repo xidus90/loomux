@@ -9,6 +9,20 @@ import (
 
 const claudeRoot = `--root "${CLAUDE_PROJECT_DIR}"`
 
+// The hook is the word after "hook" wherever it stands, and a command
+// without that word runs none.
+func TestHookEventOfReadsTheWordAfterHook(t *testing.T) {
+	for command, want := range map[string]string{
+		"loomux --root . hook stop": "stop",
+		"loomux hook pre-tool-use":  "pre-tool-use",
+		"loomux run stop":           "",
+	} {
+		if got := hookEventOf(command); got != want {
+			t.Errorf("hookEventOf(%q) = %q, want %q", command, got, want)
+		}
+	}
+}
+
 func TestEntriesMatchTheTable(t *testing.T) {
 	b := Canonical
 	want := []Entry{
