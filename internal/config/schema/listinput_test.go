@@ -2,6 +2,7 @@ package schema
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -39,6 +40,10 @@ func TestSplitListRefusesABrokenQuote(t *testing.T) {
 			t.Errorf("SplitList(%q) = %q, want an error", in, got)
 		}
 	}
+	// A quote left open says so, not that the item is malformed.
+	if _, err := SplitList(`a, "b`); err == nil || !strings.Contains(err.Error(), "a quoted item is not closed") {
+		t.Errorf("SplitList of an open quote: %v", err)
+	}
 }
 
 // What JoinList shows, typed back, is the same list: the interactive form
@@ -54,6 +59,7 @@ func TestJoinListRoundTrips(t *testing.T) {
 		{`back\slash`, "a, {b"},
 		{"x}, y{"},
 		{"x{", "y"},
+		{"x}{", "y"},
 		{"a{b", "c}", "d"},
 	}
 	for _, k := range Keys() {
