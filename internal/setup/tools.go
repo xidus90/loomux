@@ -1,23 +1,23 @@
 package setup
 
-import "os/exec"
+import (
+	"os/exec"
+
+	"github.com/xidus90/loomux/internal/programs"
+)
 
 // tool is a program loomux calls and the command that installs it. init
 // never runs the command; it names it.
 type tool struct{ name, install string }
 
-// tools are checked on every run. The winget ids were each confirmed with
-// `winget search` on 2026-09-24; pdftotext comes with Poppler.
+// tools are checked on every run; the list lives in internal/programs,
+// which convert reads as well.
 func tools() []tool {
-	return []tool{
-		{"git", "winget install --id Git.Git -e"},
-		// winget has no qmd; the command is the one of the project's README,
-		// https://github.com/tobi/qmd (read 2026-09-24).
-		{"qmd", "npm install -g @tobilu/qmd"},
-		{"pdftotext", "winget install --id oschwartz10612.Poppler -e"},
-		{"yt-dlp", "winget install --id yt-dlp.yt-dlp -e"},
-		{"ollama", "winget install --id Ollama.Ollama -e"},
+	var out []tool
+	for _, p := range programs.All() {
+		out = append(out, tool{p.Name, p.Install})
 	}
+	return out
 }
 
 // lookPath finds a program on the PATH; tests replace it so no result
