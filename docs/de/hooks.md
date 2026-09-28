@@ -676,21 +676,34 @@ dieser Reihenfolge
    mit Befunden 2 — der Marker überspringt die Kette, nicht die Befunde. Nur
    ein Mensch setzt ihn; die Policy verweigert einem Agenten den Pfad
    (Abschnitt 7). Der Marker zählt nicht und setzt den Zähler nicht zurück.
-5. **Fingerabdruck.** `gitwork.ContentTree` nimmt den Arbeitsbaum in eine
-   Kopie des Index auf (im Temp-Verzeichnis des Systems, nicht im Zustand),
-   streicht `.loomux/state` daraus und schreibt einen Baum: einen Hash des
-   Inhalts, wie Git ihn committen würde, untracked Dateien eingeschlossen,
-   ignorierte nicht. Ist dieser Baum gleich dem des letzten grünen Laufs
-   (`green`) oder dem Baum der Basis, ist nichts neu: Exit 0 (mit Befunden 2),
-   und kein Werkzeug startet. Das ist ein grüner Durchgang: ein Zähler über 0
-   geht auf 0, sonst wird nichts geschrieben.
-6. **Profil.** Die Kette fährt die Arten des Profils `stop` — vorgegeben
-   `lint`, `types`, `test`, `coverage`, dieselben wie `precommit` — im
-   Check-Scope, wie `loomux check` es täte, dazu die Lane `lint/wiki` über das
-   Wiki-Bündel, wenn das Profil `lint` hat, das Projekt ein Wiki hat und
-   `[verify.wiki] lint = false` sie nicht abschaltet. Diese Lane prüft nur die
-   Struktur des Bündels; die Drift-Regel bleibt bei `loomux wiki-gate`.
-7. **Kette.** Jede Lane läuft innerhalb von `--budget` (Vorgabe 270 s, unter
+5. **Profil.** Das Tor legt `[verify]` über die Presets und liest die Arten
+   des Profils `stop` — vorgegeben `lint`, `types`, `test`, `coverage`,
+   `graph`, dieselben wie `precommit`. Es kommt vor dem Fingerabdruck, weil
+   der Fingerabdruck davon abhängt (unten). Ein `[verify]`, das sich nicht
+   laden lässt, beendet das Tor hier mit Exit 1, auch bei unverändertem Baum.
+6. **Fingerabdruck.** `gitwork.ContentTree` nimmt den Arbeitsbaum in eine
+   Kopie des Index auf, streicht `.loomux/state` daraus und schreibt einen
+   Baum: einen Hash des Inhalts, wie Git ihn committen würde, untracked
+   Dateien eingeschlossen, ignorierte nicht. Die Kopie liegt im
+   Temp-Verzeichnis des Systems, nicht im Zustand, und ist sofort wieder weg —
+   außer das Profil hat `graph` und das Projekt einen Graphen: Dann ist sie
+   `loomux-stop-index-<pid>` im Git-Verzeichnis und bleibt für die Graph-Lane
+   liegen, bis die Kette durch ist (eine Kopie, die ein abgebrochener Prozess
+   dort ließ, wird vorher entfernt). Ist der Baum gleich dem des letzten
+   grünen Laufs (`green`) oder dem Baum der Basis, ist nichts neu: Exit 0 (mit
+   Befunden 2), und kein Werkzeug startet. Das ist ein grüner Durchgang: ein
+   Zähler über 0 geht auf 0, sonst wird nichts geschrieben. Mit der
+   Graph-Lane gilt ein Baum nur unter dem `HEAD` als gesehen, unter dem er
+   grün war, denn diese Lane urteilt gegen `HEAD`: Nach einem Commit
+   innerhalb der Runde läuft die Kette.
+7. **Arten.** Die Kette fährt diese Arten im Check-Scope, wie `loomux check`
+   es täte (die Lane `graph` liest die behaltene Kopie und urteilt so über die
+   Runde gegen `HEAD`; siehe [Konfiguration](configuration.md#die-art-graph)),
+   dazu die Lane `lint/wiki` über das Wiki-Bündel, wenn das Profil `lint`
+   hat, das Projekt ein Wiki hat und `[verify.wiki] lint = false` sie nicht
+   abschaltet. Diese Lane prüft nur die Struktur des Bündels; die Drift-Regel
+   bleibt bei `loomux wiki-gate`.
+8. **Kette.** Jede Lane läuft innerhalb von `--budget` (Vorgabe 270 s, unter
    den 300 s seines Settings-Eintrags); jeder Befehl bekommt das Kleinere aus
    seinem eigenen `timeout` und dem Rest des Budgets.
 
@@ -746,9 +759,11 @@ messen, also läuft die Kette an jedem Rundenende, ohne Abkürzung. Ein grüner
 Lauf schreibt `base` und `green` dann leer.
 
 **Was es kostet.** Ein Rundenende ohne neuen Inhalt braucht auf diesem
-Repository (7.341 Dateien) 169,5 ms warm, davon rund 110 ms der Fingerabdruck;
-in einer Welt mit drei Dateien 121,3 ms. Die Kette selbst kostet, was ihre
-Werkzeuge kosten ([Benchmarks](benchmarks.md), Eintrag vom 2026-09-20).
+Repository (15.138 Dateien) rund 237 ms warm, das meiste davon der
+Fingerabdruck, und mit Graph, dessen Kopie liegen bleibt, rund 20 ms mehr; in
+einer Welt mit drei Dateien 121,3 ms. Die Kette selbst kostet, was ihre
+Werkzeuge kosten ([Benchmarks](benchmarks.md), Einträge vom 2026-09-20 und
+2026-09-28 16:09).
 
 ### `subagent-start` und `subagent-stop`
 

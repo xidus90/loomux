@@ -94,10 +94,10 @@ druckt die wirksame Tabelle (siehe
 max_parallel = 8        # Prozesse gleichzeitig; Vorgabe: Zahl der CPUs
 timeout      = 600      # Sekunden je Befehl; Vorgabe 600, keine Obergrenze
 
-[verify.profiles]       # eingebaut: edit = [lint, types], precommit = alle fünf, stop = alle außer graph
+[verify.profiles]       # eingebaut: edit = [lint, types], precommit = alle fünf, stop = alle fünf
 edit      = ["lint", "types"]
 precommit = ["lint", "types", "test", "coverage", "graph"]
-stop      = ["lint", "types", "test", "coverage"]   # was das Stop-Tor am Rundenende fährt
+stop      = ["lint", "types", "test", "coverage", "graph"]   # was das Stop-Tor am Rundenende fährt
 
 [verify.go]             # je Stack; nicht genannte Stacks behalten ihr Preset
 lint     = ["go vet ./...", "{loomux} check gofmt cmd internal"]
@@ -340,9 +340,34 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   manuellen `loomux check precommit` ohne gestagte Änderungen, bei
   `commit --amend` ohne neue Änderungen, während eines Merges und beim
   Root-Commit. Sie läuft nur, wo jemand den Graphen gebaut hat.
-- **Das Stop-Tor hat keine Prüfung.** `stop` enthält `graph` nicht; ein
-  Projekt, das es einträgt, bekommt an jedem Rundenende `not-applicable`
-  („graph lanes need a graph probe“).
+- **Am Stop-Tor urteilt die Lane über die Runde gegen HEAD.** `stop`
+  enthält `graph` als Vorgabe. Am Rundenende ist der Index meist leer; der
+  Stop-Hook schreibt die Arbeit darum über eine Kopie des Index
+  (`loomux-stop-index-<pid>` im Git-Verzeichnis, mit `add -A`, unversionierte
+  Dateien eingeschlossen, `.loomux/state` ausgenommen) und gibt nur der
+  Graph-Lane diese Kopie als `GIT_INDEX_FILE`; `blast-audit --cached`
+  vergleicht dann alles, was git nicht ignoriert, mit `HEAD`. Die Kopie wird
+  nach der Kette gelöscht, gleich mit welchem Urteil; eine, die ein während
+  der Kette abgebrochener Prozess zurückließ, löscht das nächste Rundenende.
+  Ihre Prüfung fragt, ob der Graph existiert, ob es ein `HEAD` gibt, ob kein
+  Merge, Rebase, Cherry-Pick oder Revert läuft und ob sich die Arbeit von
+  `HEAD` unterscheidet („nothing changed against HEAD“). Eine rote Lane hält
+  die Runde (Exit 2) wie jede andere. Ohne Graph entsteht keine Kopie, und
+  die Lane ist `not-applicable`. Weil die Lane gegen `HEAD` urteilt, gilt ein
+  schon grün befundener Baum nur unter demselben `HEAD` wieder als grün:
+  Nach einem Commit innerhalb der Runde läuft die Kette erneut.
+  Der Befund trägt die Überschrift `blast audit: index against HEAD`, und
+  „index“ ist die Kopie: Der gedruckte Befehl, von Hand gegen den echten,
+  meist leeren Index gestartet, findet nichts. `loomux check stop` baut
+  dieselbe Kopie und fährt dieselben Lanes; das Tor um sie herum — die Marke
+  `.loomux/no-verify`, ein schon grün befundener Baum, die Befunde der
+  Subagenten, der Blockadezähler — hat nur der Hook. Ein Projekt, das `stop`
+  in `[verify.profiles]` selbst definiert, bekommt die Lane erst, wenn es
+  `graph` einträgt. **Grenze:** Das Urteil gegen `HEAD` setzt voraus, dass
+  das pre-commit-Tor jeden Commit geprüft hat. Ein Commit an ihm vorbei
+  innerhalb der Runde (`git commit --no-verify`, ein Cherry-Pick oder Merge,
+  ein Klon ohne scharfe Hooks) gehört am Rundenende zu `HEAD` und wird nie
+  geprüft.
 - **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
   zu ersetzen, der die Lane trägt (`[verify.go.graph]`, in einem reinen
   Python-Repository `[verify.python.graph]`), **beide** Einträge; eine Lane,

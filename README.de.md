@@ -103,7 +103,7 @@ Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrenne
 
 Der Graph umfasst Go, gelesen mit `go/parser`, und Python, gelesen auf `gotreesitter`, einer Tree-sitter-Laufzeit in reinem Go, sodass das Binary CGo-frei bleibt. `loomux graph build` parst nur die Dateien, die sich seit dem letzten Build geändert haben, und nimmt den Rest aus seinem Extraktions-Cache; `--no-reuse` parst jede Datei.
 
-`loomux graph ask` rankt Code-Symbole nach BM25-artiger lexikalischer Relevanz verschmolzen mit Personalized PageRank (alpha=0.25), baut einen driftenden Graphen vor der Antwort neu (nie einen ersten) und blendet mit `--source` den Span jedes Treffers ein. `loomux graph blast` zeigt über dieselben Kanten, was ein Git-Diff erreicht; die Prüfart `graph` prüft die gestagte Änderung in `loomux check precommit` genauso, wo immer ein Graph gebaut wurde ([Konfiguration](docs/de/configuration.md#die-art-graph)).
+`loomux graph ask` rankt Code-Symbole nach BM25-artiger lexikalischer Relevanz verschmolzen mit Personalized PageRank (alpha=0.25), baut einen driftenden Graphen vor der Antwort neu (nie einen ersten) und blendet mit `--source` den Span jedes Treffers ein. `loomux graph blast` zeigt über dieselben Kanten, was ein Git-Diff erreicht; die Prüfart `graph` prüft die gestagte Änderung in `loomux check precommit` genauso und am Stop-Tor die ganze Runde gegen `HEAD`, wo immer ein Graph gebaut wurde ([Konfiguration](docs/de/configuration.md#die-art-graph)).
 
 > **„Lexik schlägt vor, der Graph entscheidet“**: Keywords finden potenzielle Kandidaten; der strukturelle Aufrufgraph konzentriert die Masse auf die tatsächlich relevanten Kernkomponenten und filtert isolierten oder toten Code heraus.
 
@@ -159,7 +159,6 @@ Migrationsstufen 4a-1, 4a-2, 4c-1, 4c-2 und 4e haben Priorität 3.
 
 | Funktion | Was sie bringt | Stufe | Hängt ab von | Priorität |
 |---|---|---|---|---|
-| **Blast-Audit im Stop-Hook** | Der Blast-Audit am Rundenende, Arbeitsbaum gegen `HEAD`, für das Stop-Tor; bis dahin ist `graph` in einem Profil `stop` `not-applicable` | G4c | G4b ✅ | 2 |
 | **Flow-Laufzeit** | Flows als Daten: ein Graph aus Knoten in TOML, der läuft, an einem Tor auf die Antwort eines Menschen wartet und sich aus einem Journal fortsetzen und wiedergeben lässt. Gebaut: das Ordnerformat mit seiner Ladeprüfung, der Katalog, Rollen, die `[agent]` an Modelle bindet, Overlays, `[flow] default` und `overrides`, die Wächterregeln für Torantworten, Laufdateien und mitgelieferte Flows, `loomux flow run\|resume\|replay\|show\|list` und der Hinweis des Session-Starts auf wartende Läufe ([Flows](docs/de/flows.md)). Tor- und Ausgangsknoten laufen; Agentenknoten warten auf die Modelladapter für Claude und Gemini (über deren CLIs, deren APIs oder beides, was Stufe B entscheidet), und `verify-until-green` als Daten-Flow auf die Bausteine der Stufe C | Flow B, C | Flow A ✅ | 4 |
 | **Flows über MCP** | `flow_list`, `flow_show`, `flow_run` (ein Lauf in einem Kindprozess, den `serve` ablöst, mit sofortiger Antwort der Laufnummer) und `flow_status` auf dem lokalen Kanal, mit einer Statusdatei je Lauf, damit ein abgebrochener Lauf erkannt und fortgesetzt wird; kein Werkzeug beantwortet ein Tor | Flow A2 | Flow A ✅ | 4 |
 | **Entwicklungszyklus als Default-Flow** | Von der Planung bis zum Pull Request: Klärung, Spec und Plan, jeweils von einem Fächer aus Prüflinsen geprüft, dann je Aufgabe Recherche, Test zuerst, Bau, Prüfkette, Codereview und Nacharbeit, zum Schluss Doku, Abschlussreview und Commit. Ein Mensch antwortet an festen Toren und immer dann, wenn ein Modell nicht weiterkommt, und pusht | Flow D | Flow B, C | 4 |
@@ -198,7 +197,7 @@ loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderung
 loomux hook pre-tool-use            # Prüft Policy und globale Schreibschranke gegen stdin
 loomux hook post-tool-use           # Fährt die Lanes des Profils edit gegen die eben geänderte Datei und nennt dann die Aufrufer geänderter Go-Symbole (--budget, Vorgabe 50s)
 loomux hook session-start           # Hält den Basis-Commit der Sitzung fest; warnt bei veraltetem Binary, bei einem serve außerhalb des Installationsorts und bei gescheitertem Self-Update; meldet Flow-Läufe, die an einem Tor warten, und übergangene Flow-Ordner
-loomux hook stop                    # Tor am Rundenende: Profil stop über neuen Inhalt, Befunde der Subagenten (--budget, Vorgabe 270s)
+loomux hook stop                    # Tor am Rundenende: Profil stop (lint, types, test, coverage, graph) über neuen Inhalt, Befunde der Subagenten (--budget, Vorgabe 270s)
 loomux hook subagent-start|subagent-stop  # Schnappschuss von origin, Branches und HEAD um einen Subagenten; parkt, was sich bewegt hat, für stop
 loomux hook <event> --host antigravity    # dieselben Hooks für agy: ein gehaltener Stop läuft mit JSON auf stdout weiter; pre-tool-use verweigert und post-tool-use warnt mit 2
 loomux flow run [<flow>]            # Startet einen Lauf eines Flows, ohne Namen [flow] default (--option name=wert); Exit 3, wenn er an einem Tor pausiert; Agentenknoten warten auf die Modelladapter

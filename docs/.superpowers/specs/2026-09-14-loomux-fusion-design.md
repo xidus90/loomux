@@ -26,7 +26,7 @@ vorgeschlagen. Vierundzwanzig Stellen, die keine Stufe hatten, stehen unter
 Blast) am 2026-09-17, G2a (Extraktor, Auflösung, Speicher, Frische, die
 Befehle `graph build` und `graph check`) und G2b (die Abfrage) am 2026-09-18,
 G3 (die Abfrage über MCP) am 2026-09-19, G4a (die Navigation) am 2026-09-22 und G4b (Diff-Blast,
-die Art `graph`, der Edit-Monitor) am 2026-09-23 abgeschlossen; G4c offen, G5a abgeschlossen am 2026-09-26, G5b–d offen. Die Vorziehung war Absicht: beide Stufen
+die Art `graph`, der Edit-Monitor) am 2026-09-23 und G4c (der Stop-Hook mit Blast-Logik) am 2026-09-28 abgeschlossen; G5a abgeschlossen am 2026-09-26, G5b–d offen. Die Vorziehung war Absicht: beide Stufen
 ziehen keine Abhängigkeit ein, und die Messung, die die alte Reihenfolge
 begründete, gehört zu G3
 (`2026-09-14-loomux-code-graph-design.md` §10, `2026-09-16-loomux-code-g1-delta.md` §1)
@@ -654,7 +654,7 @@ steht hier, weil sie neben den Fusions-Stufen läuft und nicht hinter ihnen:
 | **G3** | ✅ 2026-09-19 | `graph_find_code` und `graph_check_freshness` am MCP-Gateway von 1b-2 |
 | **G4a** | ✅ 2026-09-22 | Die Navigation: `graph callers`, `skeleton`, `grep`, `map`, `stats` und die MCP-Werkzeuge `graph_file_api`, `graph_trace_calls`, `graph_find_all`, `graph_repo_map` (`2026-09-22-loomux-code-g4-delta.md`, Paritätsakte `parity/code-g4.md`) |
 | **G4b** | ✅ 2026-09-23 | Der Blast-Radius eines git-Diffs: `internal/code/diff`, `blast.Radius`, `graph blast` und `graph_blast`, `check graph-fresh` und `check blast-audit`, die Art `graph` in `[verify]` (Profilvorgabe `precommit`), der Blast-Monitor im Post-Edit-Hook (`2026-09-23-loomux-code-g4b-delta.md`, Paritätsakte `parity/code-g4.md` §4) |
-| **G4c** | offen (entworfen 2026-09-25) | Der Stop-Hook mit Blast-Logik: `graph` in der Profilvorgabe `stop`, der Bereich „alles, was git nicht ignoriert, gegen HEAD“ über eine Indexkopie mit `add -A`, die die Lane als `GIT_INDEX_FILE` bekommt; ein Befund hält die Runde wie einen Commit (`2026-09-25-loomux-code-g4c-delta.md`, E9–E11) |
+| **G4c** | ✅ 2026-09-28 | Der Stop-Hook mit Blast-Logik: `graph` in der Profilvorgabe `stop`, der Bereich „alles, was git nicht ignoriert, gegen HEAD“ über eine Indexkopie mit `add -A`, die die Lane als `GIT_INDEX_FILE` bekommt; ein Befund hält die Runde wie einen Commit (`2026-09-25-loomux-code-g4c-delta.md`, E9–E11) |
 | **G5a** | ✅ 2026-09-26 (Spec `2026-09-26-loomux-code-g5-design.md`, Akte `parity/code-g5.md`) | Extraktor-Schnittstelle, gemeinsamer Tree-sitter-Kern auf `gotreesitter` (reines Go) statt `wazero`, Cache je Datei, CGo-Freiheitstor; dazu Python |
 | **G5b** | offen | TypeScript/TSX |
 | **G5c** | offen | GDScript |
@@ -698,7 +698,7 @@ ist aus Spec und Code abgeleitet, der Grund steht in der Zeile.
 | — | **2b** commit-msg | keine genannt | ✅ Fertig (2026-09-19). Statt `migrate`, das wegfällt (#19), fragt `init` in Stufe 4 die Commit-Sprache ab und schreibt `[commit].language` (Nachtrag #13) |
 | — | **3** Brain-Pflege (3a, 3b, 3c) | 1b-1 ✅, 1b-2 ✅ | ✅ Fertig (3a 2026-09-22, 3b und 3c 2026-09-23); bis dahin Prio 1. Die größte Stufe, und sie hängt weder an 2b noch an 2c — darum lief sie parallel zu beiden. 3a ist fertig (2026-09-22); 3b ist fertig (2026-09-23), samt Selbstnutzung; 3c ist fertig (2026-09-23), der Upkeep ruft `reconcile` aus 3a. Upkeep läuft in `serve`; die Brain-Skills aus Stufe 4 rufen `brain check` (Nachtrag #1, #7) |
 | — | **G4a** Navigation, **G4b** Diff-Blast, Art `graph`, Edit-Monitor | G3 ✅; G4b an G4a ✅ | ✅ Fertig (G4a 2026-09-22, G4b 2026-09-23). W3 wartete auf G4a, W4 auf G4b |
-| 2 | **G4c** Stop-Hook mit Blast-Logik | G4b ✅ | Sofort baubar, neben der Fusion; loomux prüft sich an jedem Rundenende selbst und bekäme den Blast dort. Nichts wartet darauf |
+| — | **G4c** Stop-Hook mit Blast-Logik | G4b ✅ | ✅ Fertig (2026-09-28). Neben der Fusion gebaut; loomux prüft sich an jedem Rundenende selbst und bekommt den Blast dort. Nichts wartet darauf |
 | 3 | **4** `config`, `init`, Modell, `convert`/`fetch` | 2b ✅, 2c ✅, 3 ✅ (3a, 3b, 3c) | Ohne Stufe 4 bleiben die alten Repos im Dienst. In sich 4a-1 → 4a-2 → 4c-1 → 4d, dann 4e; 4c-2 daneben, ohne dass etwas auf sie wartet, nach Regel 2 (Selbstnutzung). 4a-1, 4a-2, 4c-1 und 4c-2 sind gebaut, alle mit offenen Schritten des Menschen; 4d ist fertig (2026-09-27); `feat/self-update` ist gemergt. Die Umstellung der Wirte braucht einen Remote für `brain-knowledge` (siehe „Umstellung der Wirte nach Stufe 4“) |
 | 4 | Folgeprojekt **Flow**, eigene Spur neben der Fusion (Nachtrag 2026-09-26), zerlegt in A (Umzug der Laufzeit), A2 (Flows über MCP), B (Modellzugang), C (Bausteine), D (Entwicklungszyklus als Default-Flow) | ulflow M1 (Zweig `feature/agent-harness`, nicht gemergt) | Kein Wirt nutzt heute Flows (siehe „Befunde“); A hängt an keiner offenen Stufe und beginnt deshalb neben Stufe 4 |
 | 5 | **W1–W5** (Web-OS-Spec) | W1 an 1b-2 ✅; W2 an W1; W3 an W1 und G4a ✅; W4 an G4b ✅ und 4; W5 an W1 und Flow | Folgeprojekt |

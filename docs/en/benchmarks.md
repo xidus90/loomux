@@ -2820,3 +2820,82 @@ moved on 2026-09-07). Every index was embedded again in full (`qmd embed -f
    keeps the hits of the areas it was asked about.
 3. **`keyword` stays as it is.** Asked the same way it scored 7/50 against
    8/50; that is noise, not a gain.
+## 2026-09-28 11:58 — The stop gate with the graph lane
+
+Binary built from `feat/g4c-stop-blast` at `2ffa19ac`, before the branch was
+rebased onto `849ac5eb`, in a detached scratch
+worktree of this repository (711 files, graph built with `loomux graph build`
+in 968 ms). Each run: a one-line edit inside `gitenv.Environ` (in-degree 58,
+no test changed), then `loomux hook stop --host claude` with a fresh session
+id (no base, so it measures against `HEAD`), timed from the shell. "Cold" is
+the first hook after the edit, "warm" a second hook on the same tree. Five
+edits per case.
+
+"Five kinds" is the new default `stop` (lint, types, test, coverage, graph).
+"Four kinds" is the same hook with `.loomux/state/graph` moved aside: without
+`wiring.json` no index copy is kept and the graph lane is `not-applicable`, so
+the chain is the old four kinds. (A `[verify.profiles] stop` override in the
+scratch clone was refused by the write barrier, which guards every
+`.loomux/config.toml`.)
+
+| case | cold runs (ms) | cold median | warm runs (ms) | warm median | exit |
+|---|---|---:|---|---:|---|
+| four kinds (no graph), 12:17 | 110523, 103169, 108144, 154151, 123440 | 110.5 s | 111804, 122729, 100235, 122478, 115371 | 115.4 s | 0 |
+| five kinds, 11:58 | 119908, 130246, 93726, 94839, 108384 | 108.4 s | 141636, 137273, 92550, 111495, 109087 | 111.5 s | 2 |
+
+The `graph/go` lane as the hook reported it (always red, `gitenv.go [stale]:
+Environ in-degree 58`): cold 1.4, 1.3, 1.5, 1.7, 1.0 s (rebuild after the
+edit), warm 0.7, 0.2, 0.2, 0.3, 0.3 s (no drift).
+
+### Reading
+
+1. **The lane costs 1.0–1.7 s cold and 0.2–0.7 s warm**, run in parallel
+   with `test` and `coverage`, which take the rest of the ~100 s.
+2. **The whole hook does not measurably move.** The spread within one case
+   (93–154 s) is far wider than the lane; the five-kind medians are even
+   lower than the four-kind ones, which is noise of the test lanes.
+3. The red five-kind runs and the green four-kind runs end on different
+   paths (exit 2 against a green pass that moves the base); both run the
+   whole chain first.
+
+## 2026-09-28 16:09 — The stop gate's no-op path with the graph lane
+
+A detached scratch worktree of this repository at the branch head
+`feat/g4c-stop-blast` (15,138 tracked files). `before.exe` is the branch's
+merge base `849ac5eb`, `after.exe` the branch with its review fixes; both
+built with Go 1.27.0 `windows/amd64` into the scratch directory. Machine:
+AMD Ryzen 7 9800X3D, Windows 11 Pro.
+
+**Goal.** The branch loads the config before the content fingerprint and,
+with a graph, writes the fingerprint through a copy kept in the git
+directory. Neither may make the turn end with nothing new noticeably dearer.
+
+**Method.** `after.exe dev bench hooks -n 20` over a case file with both
+binaries on one stdin payload (`{"session_id":"bench","hook_event_name":"Stop"}`)
+and one session state whose `base` is `HEAD` and whose `green` is
+`HEAD^{tree}`, so both take the no-op path. Two passes without a graph, then
+`graph build` in the worktree and two passes with one. Every run exited 0.
+
+| case | cold (1st run) | warm median | warm min | warm max |
+|---|---:|---:|---:|---:|
+| before, no graph, pass 1 | 252.6 ms | 245.2 ms | 221.0 ms | 295.4 ms |
+| after, no graph, pass 1 | 265.2 ms | 266.6 ms | 238.5 ms | 464.0 ms |
+| before, no graph, pass 2 | 320.9 ms | 238.5 ms | 211.6 ms | 633.3 ms |
+| after, no graph, pass 2 | 225.5 ms | 238.6 ms | 218.0 ms | 291.9 ms |
+| before, graph, pass 1 | 229.9 ms | 235.7 ms | 215.5 ms | 298.0 ms |
+| after, graph, pass 1 | 241.6 ms | 256.1 ms | 238.3 ms | 407.6 ms |
+| before, graph, pass 2 | 237.6 ms | 236.9 ms | 216.3 ms | 276.2 ms |
+| after, graph, pass 2 | 250.9 ms | 256.4 ms | 239.8 ms | 274.8 ms |
+
+### Reading
+
+1. **Without a graph the no-op path does not move.** The two passes disagree
+   (+21 ms, then +0.1 ms); the config that now loads first costs less than
+   the spread.
+2. **With a graph it costs about 20 ms more**, in both passes: the copy is
+   written into the git directory and kept, and `HEAD`'s tree is asked once
+   more for the lane's probe. `before` has no graph kind in `stop` and takes
+   the plain path.
+3. **The repository doubled since 2026-09-20** (7,341 to 15,138 files); the
+   no-op path grew from 169.5 ms to about 237 ms with it, most of it the
+   fingerprint over the larger index.

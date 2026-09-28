@@ -108,6 +108,10 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
   `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter
   `tests/` oder `test/`.
+- **Stop-Hook mit Blast-Logik:** `graph` steht auch im Profil `stop`. Am
+  Rundenende prüft `blast-audit --cached` über eine Kopie des Index, die den
+  ganzen Arbeitsbaum samt unversionierter Dateien trägt, alles gegen `HEAD`;
+  ein Befund hält die Runde mit Exit 2 an wie ein roter Test.
 
 ## Was bewusst fehlt
 
@@ -117,8 +121,6 @@ das Binary kommt über die üblichen Wege.
 
 ## Was offen ist
 
-- **Stop-Hook mit Blast-Logik** (G4c): der Audit am Rundenende, Arbeitsbaum
-  gegen `HEAD`; bis dahin bleibt `graph` im Profil `stop` außen vor.
 - **Mehrsprachige Extraktion** (G5): G5a — die Schnittstelle, der Kern auf
   `gotreesitter`, Python und der Cache — ist fertig und an zwei Python-Repos
   abgenommen (`docs/.superpowers/parity/code-g5.md`). Offen sind G5b (TypeScript/TSX), G5c (GDScript) und

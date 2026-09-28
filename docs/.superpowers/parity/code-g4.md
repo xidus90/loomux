@@ -88,7 +88,7 @@ G4-Delta dort, wo der Nachtrag nichts sagt. Graft-Stellen nach `src/blast/blast.
 | **Status `U`** | — | ein nicht zusammengeführter Eintrag in `--name-status` ist ein eigener Fehler, `unresolved conflict in <pfad>` (`diff.ErrUnmerged`); andere unbekannte Buchstaben bleiben ein Parsefehler | **Absicht** | Ein ungelöster Konflikt hat keinen eindeutigen Stand, dessen Zeilen ein Radius lesen könnte. `U` entsteht nicht nur im Merge: auch ein angehaltener Cherry-Pick, Revert oder Rebase lässt Konflikte im Index (`blast --cached` sieht sie). Die Lane ist in allen vier Fällen `not-applicable`: `GraphReady` prüft `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge` und `rebase-apply` über `git rev-parse --git-path` in einem Aufruf. |
 | **`GIT_INDEX_FILE`** | — | die git-Zeiger eines umgebenden Hooks werden entfernt (`gitenv`); `GIT_INDEX_FILE` wird nur durchgereicht, wenn es absolut ist und im absoluten git-Verzeichnis des Repos der Wurzel liegt, nicht dieses Verzeichnis selbst ist und im Hauptarbeitsbaum nicht unter `worktrees/` liegt; die Kindprozesse der Lane (`graph-fresh`, `blast-audit`) bekommen es über `PlanEnv.GraphEnv` zurück, weil `child` ihre Umgebung mit `gitenv.Clean` baut | **Absicht** | Unter `git commit -a` oder `git commit <pfad>` gibt git dem Hook einen temporären Index, und nur der hält, was committet wird; ein fremder Index, der eines verknüpften Arbeitsbaums oder ein relativer Pfad bleibt draußen. Ohne die Rückgabe an die Kinder las `blast-audit` `.git/index` und die Lane war unter `git commit -a` grün (Test mit echtem Hook in `internal/cli/check_hook_test.go`). |
 | **Zählungen unter `never`** | — | `Seed.InDegree` und das Testsignal zählen Aufrufer und Tests auch in verweigerten Pfaden mit; eine verweigerte geänderte Datei bleibt für das Signal im Diff (`withheld` in `blast.Radius`), ein verweigerter Test, der mit seinem Bereich geändert wurde, ergibt also `changed` | **Grenze** | Wie `Hidden`: eine Zahl verrät höchstens, dass es dort etwas gibt, nie einen Pfad. |
-| **Kein Stop-Hook mit Blast** | — | die Art `graph` steht nicht im Profil `stop`; `hooks/stop.go` setzt kein `GraphReady`, ein Projekt, das `graph` in `stop` einträgt, bekommt `not-applicable` („graph lanes need a graph probe“) | **Offen (Stufe G4c)** | E4′: am Zugende ist der Index fast immer leer; ein Stop-Hook mit Blast-Logik braucht eine Form Arbeitsbaum gegen HEAD und ist eine eigene Stufe. |
+| **Stop-Hook mit Blast** | — | `graph` steht in der Profilvorgabe `stop`; `hooks/stop.go` schreibt den Baum über eine behaltene Indexkopie `loomux-stop-index-<pid>` im Git-Verzeichnis (`add -A`, ohne `.loomux/state`) und gibt sie nur der Graph-Lane als `GIT_INDEX_FILE`; die Prüfung nennt fehlenden Graphen, fehlendes HEAD, laufende Operation und „nothing changed against HEAD“; `check stop` baut dieselbe Kopie | **Gebaut (Stufe G4c, 2026-09-28)** | G4c-Delta §2: `blast-audit` ohne `--cached` sähe keine unversionierten Tests und fiele bei sauberem Baum auf `HEAD~1` zurück. Selbstnutzung siehe unten. |
 | **Art `graph` im Edit-Scope** | — | im `ScopeEdit` plant `Plan` für `graph` keinen Job, wie für eine Lane ohne Befehl | **Absicht** | Ein Neubau des Graphen gehört nicht in einen Edit. |
 | **`graph_blast` als Text** | — | derselbe Textbericht wie `graph blast` ohne `--json` | **Festlegung** | Wie die übrigen Graph-Werkzeuge (`CallersReport` & Co.); ein Modell liest Text, `--json` bleibt der CLI. |
 | **`graph_blast`, Privacy** | — | eine geänderte Datei, ein Treffer oder ein Testpfad unter `never` wird gezählt (`Hidden`), weder gewalkt noch genannt; auf dem Cloud-Kanal keine Refresh-Hinweise | **Sicherheit** | Belege sind rohe Diff-Zeilen, dasselbe Risiko wie `graph_find_all`; auch ein Testpfad kann einen verborgenen Pfad nennen. |
@@ -115,3 +115,47 @@ G4-Delta dort, wo der Nachtrag nichts sagt. Graft-Stellen nach `src/blast/blast.
 | `grep/grep.go:173` | `if x != nil` → `if true` | `Index.InDegree` gibt für einen `nil`-Index 0 zurück. |
 | `grep/grep.go:199` | `>` → `>=` | Der Vergleich läuft nur, wenn die beiden inDegrees verschieden sind. |
 | `grep/grep.go:202` | `<` → `<=` | Ebenso nur bei verschiedenen Pfaden. |
+
+## 5. G4c: Selbstnutzung
+
+Am 2026-09-28 in einem abgelösten Scratch-Worktree dieses Repositorys bei
+`2ffa19ac` (vor dem Rebase auf `849ac5eb`), Binary `bin/loomux.exe` aus
+demselben Stand, Graph gebaut. Hub:
+`gitenv.Environ`, Eingangsgrad 58 (`graph callers`, Tiefe 1). Payload
+`{"session_id":"…","hook_event_name":"Stop"}` über `< datei`, neue
+Sitzung je Lauf (keine Basis, gegen `HEAD`).
+
+| Runde | Hook | Ergebnis |
+|---|---|---|
+| Kommentarzeile in `Environ`, kein Test | `bin/loomux.exe hook stop --host claude` | **Exit 2**; stderr: `graph/go: failed [preset] 1.5s`, `graph rebuilt`, `blast audit: index against HEAD, threshold 5`, `internal/gitenv/gitenv.go [stale]: Environ in-degree 58` |
+| dieselbe Änderung, dazu neuer **unversionierter** `internal/gitenv/selftest_new_test.go`, der `Environ` ruft | derselbe | **Exit 0**, nur die Notiz „no base commit for this session“; danach keine `loomux-stop-index-*` im Git-Verzeichnis |
+
+Die zehn Messläufe mit fünf Arten (siehe `benchmarks.md`, 2026-09-28 11:58)
+endeten ebenfalls alle mit Exit 2 und demselben Befund.
+
+### Mutanten (G4c)
+
+Am 2026-09-28 über den Endstand des Zweigs, auf die geänderten Dateien beschränkt:
+`loomux dev mutants -only alive internal/child`, `-only refresh internal/code/ask`,
+`-only refresh internal/code/query` und `-only gitwork.go internal/gitwork`. Über
+`internal/hooks` und `internal/cli` läuft `dev mutants` nicht: Ihre Suiten brauchen länger als
+die 60 s, die es einem Lauf gibt (`goTimeout`), und es verweigert die Runde, weil schon der
+Grundlauf als rot gilt. Dort lief eine Handrunde über jede geänderte Bedingung in
+`hooks/stopgraph.go`, `hooks/stop.go` und `cli/check.go`, je Mutante ein `-overlay`, die Tests
+auf `-run 'Stop|OpenStopIndex'` bzw. `'CheckStop|CheckPrecommit|CheckGraph'` begrenzt.
+
+Erster Lauf: `child` 8 Mutanten, 3 überlebten; `ask` 69, davon 23 nicht übersetzbar, 3 von 46;
+`query` 25, 6, keiner von 19; `gitwork` 125, 27, 5 von 98; Handrunde 19, davon 2 ungültig, einer
+von 17. Drei neue Tests töten die echten: `TestAliveForgetsAnEndedProcessSomeoneStillHolds`
+(ein beendeter Prozess, den ein offenes Handle hält), `TestEnsureFreshBreaksAStaleLock` mit einem
+lebenden Halter (vorher brach die tote PID 1 den Lock, das Alter wurde nie geprüft) und
+`TestStopWithoutABaseAndNothingNewRunsNothing`. Es überleben:
+
+| Stelle | Mutante | Warum sie bleibt |
+|---|---|---|
+| `child/alive.go:9` | `pid > 0` → `pid >= 0` | Unter Windows gleichwertig: PID 0 lässt sich nicht öffnen. Unter POSIX erreichte ein Signal an 0 die Prozessgruppe; dort tötet `TestAliveRefusesNumbersThatAreNoProcess` im Linux-Lauf von `ci.yml`. |
+| `child/alive_other.go:18` | `err == nil` → `err != nil` | Die Datei wird unter Windows nicht gebaut; der Linux-Lauf deckt sie. |
+| `ask/refresh.go:205` | `>= lockStale` → `> lockStale` | Die Uhr trifft die Stunde nicht auf die Nanosekunde. |
+| `ask/refresh.go:157` | `err == nil \|\| notice == nil` → `notice == nil` | Stand auf master; nicht Teil der Stufe. |
+| `gitwork/gitwork.go:203` | `if err != nil` → `if false` (nach `--absolute-git-dir`) | Außerhalb eines Repositorys scheitert dann `add -A` mit Git's eigenem Fehler; Ergebnis, Pfad und Aufräumen sind dieselben. |
+| `gitwork/gitwork.go:277, 373, 415` (vier) | Fehlerzweige in `LocalBranches` und `ChangedFiles`, eine Grenze in `parseStatus` | Stand auf master; nicht Teil der Stufe. |
