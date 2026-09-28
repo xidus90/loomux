@@ -71,6 +71,29 @@ func TestAskPostsTheReferencesPayload(t *testing.T) {
 	}
 }
 
+func TestAskFormatSendsTheSchemaAndAskSendsNone(t *testing.T) {
+	var bodies []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var got map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		bodies = append(bodies, got)
+		_ = json.NewEncoder(w).Encode(map[string]string{"response": "x"})
+	}))
+	defer server.Close()
+	client, err := NewClient(settingsFor(server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.Ask(context.Background(), "p")
+	client.AskFormat(context.Background(), "p", map[string]any{"type": "object"})
+	if _, present := bodies[0]["format"]; present {
+		t.Fatal("Ask sent a format")
+	}
+	if format, _ := bodies[1]["format"].(map[string]any); format["type"] != "object" {
+		t.Fatalf("AskFormat sent %v", bodies[1]["format"])
+	}
+}
+
 func TestAskCountsEveryOutageAsNoAnswer(t *testing.T) {
 	for name, handler := range map[string]http.HandlerFunc{
 		"500":         func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(500) },
