@@ -10,10 +10,20 @@ die Mutationsrunde fest statt eines Fallkorpus.
 
 | Messpunkt | Stand | Wer |
 |---|---|---|
-| Arbeitsverzeichnis eines stdio-MCP-Servers aus dem Nutzerbereich (Task 1: CLI `claude -p` in `…\loomux\internal` und Desktop-App auf einem Worktree) | **offen** | Mensch |
+| Arbeitsverzeichnis eines stdio-MCP-Servers aus dem Nutzerbereich (Task 1: CLI `claude -p` in `…\loomux\internal` und Desktop-App auf einem Worktree) | erledigt 2026-09-28 | Mensch |
 | Oberfläche von Hand in Windows Terminal, conhost und dem Terminal der Claude-App (Task 13, Step 11: Pfeiltasten, `/`, ESC allein, Enter) | **offen** | Mensch |
 
-**Arbeitsverzeichnis.** Nicht gemessen. Die Brücke ist darum nach Zweig A
+**Task 1, gemessen am 2026-09-28 (Claude Code Desktop, CLI 2.1.283):** In der
+Desktop-App startet jeder `loomux mcp`-Prozess im Verzeichnis seiner
+Sitzung, bei einer Sitzung auf einem Worktree also im Worktree (gelesen per
+`psutil` an sieben laufenden Servern; auch agy startet ihn im
+Projektverzeichnis). `claude -p` aus `internal/` startet einen stdio-Server
+in `…\internal`. Die CLI-Probe lief über `--mcp-config
+--strict-mcp-config`, nicht über den Nutzerbereich; die
+Nutzerkonfiguration blieb unberührt. Die Annahme der Spec trägt: die
+Brücke sucht vom Startverzeichnis aufwärts.
+
+**Arbeitsverzeichnis.** Vor dem Bau nicht gemessen (Messung oben). Die Brücke ist darum nach Zweig A
 gebaut (Entscheidung H unten): Sie sucht vom Arbeitsverzeichnis aus nach oben
 nach `.loomux/config.toml`, und `--root` nennt das Projekt ausdrücklich.
 Startet der Wirt sie außerhalb jedes Projekts, bietet sie jedes Werkzeug an —
@@ -246,7 +256,7 @@ verunreinigen.
   maskierte `\"` oder `\'` auf der Zeile“ formulieren und
   `echo "a \" b"; "C:\R&D Tools\loomux.exe" init` als bekanntes Loch führen.
   Erledigt im Abschlussfix.
-- **Menschenschritte:** Task 1 (Arbeitsverzeichnis), Task 13 Step 11 (drei
+- **Menschenschritte:** Task 1 (Arbeitsverzeichnis, erledigt 2026-09-28), Task 13 Step 11 (drei
   Terminals), Task 16 Step 4 (`config set` mit `n`).
 - **Nebenwirkung der Mutationsrunde:** Der Mutant `scratch`,
   `validate.go:34` (`if err != nil` → `false` nach `os.MkdirTemp`) schreibt
