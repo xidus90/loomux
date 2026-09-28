@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/code/freshness"
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/store"
@@ -185,13 +187,28 @@ func lock(root string) bool {
 	}
 	// Held. Stale?
 	info, statErr := os.Stat(path)
-	if statErr != nil || time.Since(info.ModTime()) < lockStale {
+	if statErr != nil || !stale(path, info) {
 		return false
 	}
 	if !takeOver(path) {
 		return false
 	}
 	return lock(root)
+}
+
+// stale says whether the lock at path guards nothing any more: older than
+// lockStale, or written by a process that is gone. lock writes its number
+// right after the create, so a lock without one is a young one or not ours,
+// and only its age can tell. A reused number keeps a dead holder's lock alive;
+// the age still ends it.
+func stale(path string, info fs.FileInfo) bool {
+	if time.Since(info.ModTime()) >= lockStale {
+		return true
+	}
+	// A lock gone before the read has no number either.
+	b, _ := os.ReadFile(path)
+	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	return err == nil && !child.Alive(pid)
 }
 
 // takeOver breaks a stale lock, and never a live one.
@@ -227,7 +244,7 @@ func takeOver(path string) bool {
 		return false
 	}
 	got, err := os.Stat(claim)
-	if err != nil || time.Since(got.ModTime()) < lockStale {
+	if err != nil || !stale(claim, got) {
 		if err := linkFile(claim, path); err == nil || errors.Is(err, fs.ErrExist) {
 			_ = os.Remove(claim)
 			return false

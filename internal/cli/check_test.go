@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -747,7 +748,8 @@ func TestCheckGraphFreshIsRedOnAHeldLock(t *testing.T) {
 	root := builtRepo(t)
 	moveFile(t, root)
 	lock := ask.LockPath(root)
-	if err := os.WriteFile(lock, []byte("999999"), 0o644); err != nil {
+	// This process: a lock whose holder is gone would be broken at once.
+	if err := os.WriteFile(lock, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	code, _, errOut := graphFresh("--root", root, "--wait", "0s")
