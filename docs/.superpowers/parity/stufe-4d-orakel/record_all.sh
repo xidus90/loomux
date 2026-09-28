@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Zeichnet alle Fälle von 4d auf, einen nach dem anderen; record.sh beendet
+# die Ollama-Attrappe vor dem nächsten.
+set -uo pipefail
+S="$(cd "$(dirname "$0")" && pwd)"
+R() { bash "$S/record.sh" "$@"; }
+C="brain-mcp convert"
+
+R convert/transcript-bracket transcript-bracket "" "a bracket transcript with a YouTube id in its name" "$C"
+R convert/transcript-range-lead-in transcript-range-lead-in "" "a range transcript with a lead-in and a mark past the hour" "$C"
+R convert/crlf-transcript crlf-transcript "" "a transcript saved with CRLF" "$C"
+R convert/mixed-case-order mixed-case-order "" "B.txt, a.txt and _z.txt: the order of the written paths" "$C"
+R convert/same-stem same-stem "" "doku.pdf and doku.txt both survive" "$C"
+R convert/unsupported-and-good unsupported-and-good "" "prose is left behind, the transcript beside it converts" "$C"
+R convert/hand-written-target hand-written-target "" "a target without a converter line is never overwritten" "$C"
+R convert/broken-utf8-source broken-utf8-source "" "broken bytes past the sample fail the read, not the run" "$C"
+R convert/broken-utf8-target broken-utf8-target "" "a target that is no UTF-8 is left untouched" "$C"
+R convert/pdf-text pdf-text "" "a text PDF converts" "$C"
+R convert/pdf-umlaut-name pdf-umlaut-name "" "a PDF with an umlaut and a space in its name" "$C"
+R convert/pdf-scan pdf-scan "" "a scan is left behind, the transcript converts" "$C"
+R convert/pdf-pageless pdf-pageless "" "a PDF without pages gets its own message" "$C"
+R convert/pdf-partial pdf-partial "" "three text pages convert, seven scans are reported" "$C"
+R convert/pdf-corrupt pdf-corrupt "" "a PDF that does not parse is left behind" "$C"
+R convert/no-inbox no-inbox "" "an area without an inbox is skipped silently" "$C"
+R convert/readonly-area readonly-area "" "a readonly area is never written into" "$C"
+R convert/single-file single-file "" "one named file, no sweep over the registry" "$C \"{{WORLD}}/vault/00 Eingang/video.txt\""
+R convert/no-registry no-registry "" "no registry is one error line" "$C"
+R convert/broken-manifest broken-manifest "" "a broken declaration stops the run before a file is written" "$C"
+R convert/describe-kept describe-kept "" "the model's sentence lands in the head" "$C"
+R convert/describe-refused describe-refused "" "an English sentence is refused, the head keeps four lines" "$C"
+R convert/second-run second-run "" "a second run: the target is ours, its sentence stands and the model is not asked" "$C"
+R convert/place-suggested place-suggested "" "the suggestion names project/x and moves nothing" "$C"
+R convert/place-unknown-scope place-unknown-scope "" "a scope the register does not know is no suggestion" "$C"
+R convert/model-unreachable model-unreachable "" "nobody listens on the endpoint: no sentence, exit 0" "$C"
+R convert/model-off-in-area model-off-in-area "" "the area switched the model off: nobody is asked" "$C"
+R convert/broken-model-block broken-model-block "" "a [model] enabled that is no boolean stops the run" "$C"
+R convert/endpoint-off-loopback endpoint-off-loopback "" "an endpoint off the loopback stops the run before a file is written" "$C"

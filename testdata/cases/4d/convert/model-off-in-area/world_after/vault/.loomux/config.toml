@@ -1,0 +1,8 @@
+[area]
+scope = "knowledge"
+
+[layout]
+inbox = "00 Eingang"
+
+[model]
+enabled = false

@@ -1,0 +1,14 @@
+{
+ "answers": [
+  {
+   "prefix": "pdftotext -v",
+   "exit": 0,
+   "stdout": "pdftotext version 25.07.0 (seam: the reference reads with pypdf 6.16.2)\nThe Poppler Developers\n"
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix doku.pdf -",
+   "exit": 0,
+   "stdout": "Hallo aus dem Pruefbestand. Diese Zeile testet die Extraktion aus einer von Hand geschriebenen PDF-Datei, ohne Texterkennung und ohne fremde Erzeugerbibliothek im Testbestand. Der Inhalt bleibt frei erfunden und dient allein dazu, die Schwelle von hundert Zeichen je Seite sicher zu ueberschreiten, damit die Datei nicht faelschlich als Scan gilt und der Test etwas Sinnvolles pruefen kann.\f"
+  }
+ ]
+}

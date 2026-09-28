@@ -1,0 +1,1 @@
+error: [model] endpoint must stay on the loopback (127.0.0.1, ::1, localhost), found 'http://192.0.2.1:11434'

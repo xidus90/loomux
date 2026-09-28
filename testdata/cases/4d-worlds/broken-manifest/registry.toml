@@ -1,0 +1,7 @@
+[[area]]
+scope = "knowledge"
+path = "{{WORLD}}/vault"
+
+[[area]]
+scope = "project/x"
+path = "{{WORLD}}/x"
