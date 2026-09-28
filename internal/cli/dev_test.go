@@ -449,7 +449,7 @@ func mutantsWorld(t *testing.T, test mutants.TestFunc) {
 }
 
 // killEveryMutant is a suite that is green alone and red under any overlay.
-func killEveryMutant(_, overlay string) (mutants.Outcome, error) {
+func killEveryMutant(_, overlay string, _ time.Duration) (mutants.Outcome, error) {
 	if overlay == "" {
 		return mutants.Passed, nil
 	}
@@ -459,7 +459,8 @@ func killEveryMutant(_, overlay string) (mutants.Outcome, error) {
 func TestDevMutantsRunsARound(t *testing.T) {
 	mutantsWorld(t, killEveryMutant)
 	code, out, errOut := run("dev", "mutants", "p", "--workers", "2")
-	if code != 0 || !strings.Contains(out, "[1/4] killed    (a1) p.go:4  if a > 0 {  ->  if true {\n") ||
+	if code != 0 || !strings.HasPrefix(out, "p: each mutant run is bounded at 1m0s, the floor ") ||
+		!strings.Contains(out, ")\n[1/4] killed    (a1) p.go:4  if a > 0 {  ->  if true {\n") ||
 		!strings.Contains(out, "\n4 mutants over p, oracle go\n0 do not compile and are no mutants\n0 survived:\n") {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
@@ -503,7 +504,7 @@ func TestDevMutantsReportsAMissingWorkingDirectory(t *testing.T) {
 }
 
 func TestDevMutantsRefusesARedSuiteAndAnEmptyPackage(t *testing.T) {
-	mutantsWorld(t, func(string, string) (mutants.Outcome, error) { return mutants.Failed, nil })
+	mutantsWorld(t, func(string, string, time.Duration) (mutants.Outcome, error) { return mutants.Failed, nil })
 	code, out, errOut := run("dev", "mutants", "p")
 	if code != 2 || out != "" || errOut != "loomux dev mutants: p: the suite is not green before the round\n" {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
@@ -515,7 +516,7 @@ func TestDevMutantsRefusesARedSuiteAndAnEmptyPackage(t *testing.T) {
 }
 
 func TestDevMutantsReportsABrokenRun(t *testing.T) {
-	mutantsWorld(t, func(string, string) (mutants.Outcome, error) { return 0, errors.New("go: not found") })
+	mutantsWorld(t, func(string, string, time.Duration) (mutants.Outcome, error) { return 0, errors.New("go: not found") })
 	code, _, errOut := run("dev", "mutants", "p")
 	if code != 1 || errOut != "loomux dev mutants: go: not found\n" {
 		t.Fatalf("code %d, err %q", code, errOut)
@@ -537,7 +538,7 @@ func TestDevMutantsCleansUpAnInterruptedRound(t *testing.T) {
 		return ctx, func() { stops++; cancel() }
 	}
 	t.Cleanup(func() { mutantsNotify = signal.NotifyContext })
-	mutantsWorld(t, func(_, overlay string) (mutants.Outcome, error) {
+	mutantsWorld(t, func(_, overlay string, _ time.Duration) (mutants.Outcome, error) {
 		if overlay != "" {
 			if entries, err := os.ReadDir(tmp); err != nil || len(entries) != 1 {
 				t.Errorf("while the mutant runs: %v, %v", entries, err)
@@ -547,7 +548,9 @@ func TestDevMutantsCleansUpAnInterruptedRound(t *testing.T) {
 		return mutants.Passed, nil
 	})
 	code, out, errOut := run("dev", "mutants", "p", "--workers", "1")
-	if code != 1 || out != "" || errOut != "loomux dev mutants: context canceled\n" {
+	// The bound line comes before the first mutant runs, the verdicts do not.
+	if code != 1 || !strings.HasPrefix(out, "p: each mutant run is bounded at 1m0s, the floor ") ||
+		strings.Count(out, "\n") != 1 || errOut != "loomux dev mutants: context canceled\n" {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
 	if entries, err := os.ReadDir(tmp); err != nil || len(entries) != 0 {
@@ -624,15 +627,26 @@ func TestDevFakeOllamaReportsWhatKeepsItFromServing(t *testing.T) {
 	}
 }
 
+func TestUntilInterruptedHandsTheBoundToTheSuite(t *testing.T) {
+	var got time.Duration
+	test := untilInterrupted(context.Background(), func() {}, func(_, _ string, bound time.Duration) (mutants.Outcome, error) {
+		got = bound
+		return mutants.Failed, nil
+	})
+	if outcome, err := test("p", "", 150*time.Second); err != nil || outcome != mutants.Failed || got != 150*time.Second {
+		t.Fatalf("outcome %d, err %v, bound %s", outcome, err, got)
+	}
+}
+
 func TestUntilInterruptedStartsNoRunAfterTheInterrupt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	started, stopped := false, false
-	test := untilInterrupted(ctx, func() { stopped = true }, func(string, string) (mutants.Outcome, error) {
+	test := untilInterrupted(ctx, func() { stopped = true }, func(string, string, time.Duration) (mutants.Outcome, error) {
 		started = true
 		return mutants.Passed, nil
 	})
-	if _, err := test("p", ""); !errors.Is(err, context.Canceled) || started || !stopped {
+	if _, err := test("p", "", time.Minute); !errors.Is(err, context.Canceled) || started || !stopped {
 		t.Fatalf("err %v, started %t, stopped %t", err, started, stopped)
 	}
 }
@@ -643,11 +657,11 @@ func TestUntilInterruptedStartsNoRunAfterTheInterrupt(t *testing.T) {
 func TestUntilInterruptedStopsTheSignalRegistrationOfARunningSuite(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	stopped := false
-	test := untilInterrupted(ctx, func() { stopped = true }, func(string, string) (mutants.Outcome, error) {
+	test := untilInterrupted(ctx, func() { stopped = true }, func(string, string, time.Duration) (mutants.Outcome, error) {
 		cancel()
 		return mutants.Passed, nil
 	})
-	if _, err := test("p", ""); !errors.Is(err, context.Canceled) || !stopped {
+	if _, err := test("p", "", time.Minute); !errors.Is(err, context.Canceled) || !stopped {
 		t.Fatalf("err %v, stopped %t", err, stopped)
 	}
 }
