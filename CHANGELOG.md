@@ -4,6 +4,18 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [5.1.0] - 2026-09-28
+
+<https://github.com/xidus90/loomux/pull/55>
+
+### Added
+- `loomux convert` converts the PDFs (through Poppler's `pdftotext`) and transcripts in every writable area's inbox, or one named file, into Markdown with a provenance head, and reports what it skipped.
+- `loomux convert` asks the local model, when it is enabled, for one sentence for the head and for a suggested target area.
+- `loomux fetch <url>` puts a video's subtitles into an area's inbox through `yt-dlp`, and refuses a URL that names only a playlist.
+- Releases ship `NOTICE.md` with the licenses of every third-party piece in the binary; `loomux dev notices` writes it.
+- `loomux dev record-poppler` records Poppler's output for the test PDFs.
+- The guard refuses `loomux convert` and `loomux fetch` to an agent, and `[modules] brain = false` refuses both commands.
+
 ## [5.0.0] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/56>
