@@ -2731,3 +2731,36 @@ today's `loomux dev bench hooks` (probed 2026-09-27 16:52, exit 0).
    visible**: after, that case runs level with the edit outside `.loomux/`.
 3. **The waiting run** costs `after` 0.7 ms warm against the project without
    runs, less than the spread of either case.
+
+## 2026-09-28 09:25 — Everyday search quality: the qmd backbone, and `fast` across areas
+
+What: `loomux dev bench search` over the everyday question set of
+`brain-knowledge` (50 questions), loomux 4.2.0 against the fix on this branch,
+qmd 2.8.3, `--repeat 10`. The question set was used from a copy whose 27
+`expect` paths were moved from `space/wiki/` to `space/docs/wiki/` (the wiki
+moved on 2026-09-07). Every index was embedded again in full (`qmd embed -f
+--timeout 0`) under the backbone it was searched with.
+
+| run | Vulkan | CUDA |
+|---|---:|---:|
+| full embed, 587 documents, 2,986 chunks | 2 min 51 s, nothing pending | 3 min 0 s, nothing pending |
+| `keyword`, `--scope all` | 8/50, median 15 ms | 8/50, median 13 ms |
+| `fast`, `--scope project/space` | 19/50, median 93 ms | 20/50, median 117 ms |
+| `fast`, `--scope all`, loomux 4.2.0 | 0/50 | 0/50 |
+| `fast`, `--scope all`, this fix | 31/50 (exakt 9/13, umschreibung 5/13, gemischt 7/10), median 92 ms | — |
+
+### Reading
+
+1. **CUDA ran cleanly this time.** On 2026-09-27 the embed under CUDA ran
+   40 min and left 94 % of the documents without a vector, and the daemon
+   crashed on its first question. Today, same machine, it ran through in
+   3 min. One clean run against one crash; the difference between the two
+   backbones (19 against 20, 93 against 117 ms) is within the spread.
+2. **`fast` across several areas found nothing, whatever the backbone.** qmd
+   fuses one ranked list per named collection and weighs the first list
+   double, so each collection's best hit comes back in the order the
+   collections were named (scores 1, ½, ⅓ …). A search over no named
+   collection ranks the whole index at once; loomux now asks that way and
+   keeps the hits of the areas it was asked about.
+3. **`keyword` stays as it is.** Asked the same way it scored 7/50 against
+   8/50; that is noise, not a gain.
