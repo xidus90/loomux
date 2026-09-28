@@ -73,7 +73,7 @@ func Run(ctx context.Context, o Options) Result {
 // run decides and acts. A failure anywhere leaves loomux.exe where it was.
 func run(ctx context.Context, o Options) Result {
 	if o.GOOS != "windows" {
-		return Result{Outcome: Skipped, Err: errors.New("self-update runs on Windows only")}
+		return Result{Outcome: Skipped, Err: errors.New("updating runs on Windows only")}
 	}
 	dev := o.Version == DevVersion
 	canonical := Canonical(o.StateDir)

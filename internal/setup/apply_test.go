@@ -367,7 +367,7 @@ func TestTheMergeHookNeedsTheInstalledBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 	if f.CanonicalThere || slices.Contains(actions(p), "merge-hook") ||
-		!hasNote(p, "merge-hook: skipped; the hook calls ${LOCALAPPDATA}/loomux/bin/loomux.exe, which is not installed; run loomux self-update") {
+		!hasNote(p, "merge-hook: skipped; the hook calls ${LOCALAPPDATA}/loomux/bin/loomux.exe, which is not installed; run loomux upgrade") {
 		t.Errorf("actions = %v, notes = %v", actions(p), p.Notes)
 	}
 	// Apply drops it too while the installed binary is missing, whatever

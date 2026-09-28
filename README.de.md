@@ -225,7 +225,7 @@ loomux brain status                 # Was man wissen muss, bevor man einer Antwo
 loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dienst, abgekoppelt oder hier; holt einen fälligen reconcile täglich nach
 loomux serve status                 # Was serve.json sagt und ob der Listener antwortet
 loomux serve stop [--force]         # Beendet den Dienst über seinen Endpunkt oder über seine PID
-loomux self-update                  # Ersetzt das maschinenweite Binary durch das neueste Release seines Kanals; serve tut das täglich
+loomux upgrade                      # Ersetzt das maschinenweite Binary durch das neueste Release seines Kanals; serve tut das täglich
 loomux mcp [--channel local|cloud] [--root D]  # stdio-Brücke, die ein MCP-Wirt startet; bietet die Werkzeuge der [modules] des Projekts an und startet den Dienst selbst
 loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph, Identitätsregister und qmd-Sammlungen jedes Bereichs neu bauen
 loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
@@ -385,7 +385,7 @@ claude mcp add loomux -s user -- "$env:LOCALAPPDATA\loomux\bin\loomux.exe" mcp -
 Danach hält `serve` es aktuell: eine Minute nach dem Start und danach täglich
 holt es über `gh` das höchste Release des eigenen Kanals, prüft es gegen
 `SHA256SUMS` und seine `--version` und tauscht die Datei. Die nächste Brücke
-ersetzt den laufenden Dienst. `loomux self-update` tut dasselbe von Hand. Was
+ersetzt den laufenden Dienst. `loomux upgrade` tut dasselbe von Hand. Was
 der letzte Durchlauf fand, steht in `update.json` im Zustandsverzeichnis; der
 Sitzungsstart warnt, wenn `serve` woanders läuft oder der Durchlauf
 gescheitert ist. Vorerst nur unter Windows.

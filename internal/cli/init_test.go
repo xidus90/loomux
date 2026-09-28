@@ -314,7 +314,7 @@ func TestInitWritesNoHookEntryWhenTheBinaryIsMissing(t *testing.T) {
 	if !there(root, "AGENTS.md") {
 		t.Error("no AGENTS.md")
 	}
-	if !strings.Contains(errOut, "gh auth login") || !strings.Contains(errOut, "loomux self-update") {
+	if !strings.Contains(errOut, "gh auth login") || !strings.Contains(errOut, "loomux upgrade") {
 		t.Errorf("stderr: %s", errOut)
 	}
 	if !strings.Contains(out, "failed: binary-install") {

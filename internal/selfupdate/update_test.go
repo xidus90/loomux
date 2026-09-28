@@ -228,7 +228,7 @@ func TestRunSkips(t *testing.T) {
 		bend func(o *Options)
 		want string
 	}{
-		{"off Windows", func(o *Options) { o.GOOS = "linux" }, "self-update runs on Windows only"},
+		{"off Windows", func(o *Options) { o.GOOS = "linux" }, "updating runs on Windows only"},
 		{"a development build elsewhere", func(o *Options) {
 			o.Version = DevVersion
 			o.Executable = filepath.Join(o.StateDir, "elsewhere.exe")

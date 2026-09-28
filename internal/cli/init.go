@@ -551,7 +551,7 @@ func installStep() error {
 	case selfupdate.Current, selfupdate.Updated:
 		return nil
 	case selfupdate.Failed:
-		return fmt.Errorf("installing loomux: %v; run `gh auth login`, then `loomux self-update`", res.Err)
+		return fmt.Errorf("installing loomux: %v; run `gh auth login`, then `loomux upgrade`", res.Err)
 	}
 	return fmt.Errorf("installing loomux: %s: %v", res.Outcome, res.Err)
 }

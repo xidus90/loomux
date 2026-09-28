@@ -759,9 +759,9 @@ Ends the service through its own endpoint. `--force` kills it by the PID in
 - **Exit codes**: `0` stopped, and also when nothing was running; `1` the stop
   failed; `2` an unrecognized argument.
 
-### `loomux self-update`
+### `loomux upgrade`
 
-One self-update pass by hand; `serve` runs the same pass a minute after it
+One update pass by hand; `serve` runs the same pass a minute after it
 starts and every 24 hours after that. It acts only on the machine-wide
 binary, `<state dir>/bin/loomux.exe`, when that is the running binary. A
 development build (`0.0.0-dev`) there is replaced by the newest release; one
@@ -1314,7 +1314,7 @@ checks this is still pending.
   and says so in a note.
 - **An action is planned only while its result is missing**: `binary-install`
   without the installed binary (updates stay with `serve` and
-  `loomux self-update`), `binary-build` without `bin/loomux.exe`,
+  `loomux upgrade`), `binary-build` without `bin/loomux.exe`,
   `merge-hook` without our `post-merge`, `graph-build` without a graph.
 - **Live hooks keep their directory**: with no `core.hooksPath` and a live
   `pre-commit`, `pre-push` or `commit-msg` in `.git/hooks`, init writes only

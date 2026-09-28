@@ -373,6 +373,10 @@ Tore selbst.
   über `gh`, prüft `SHA256SUMS` und tauscht die Datei. Aktiv wird das neue
   Binary über die vorhandene Regel „neueres Binary ersetzt `serve`“. Das
   Ergebnis steht in `update.json`; der Sitzungsstart liest nur diese Datei.
+  Von Hand stößt `loomux upgrade` denselben Durchlauf an (Nachtrag
+  2026-09-28: vorher `loomux self-update`, umbenannt ohne Alias, weil „self“
+  ungenau war — der Befehl ersetzt das maschinenweite Binary, nicht das
+  laufende).
   Siehe `2026-09-23-self-update-design.md`.
 
 ## Fehlerverhalten

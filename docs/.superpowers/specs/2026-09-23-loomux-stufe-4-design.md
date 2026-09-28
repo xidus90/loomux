@@ -458,7 +458,7 @@ geholt über `selfupdate` — nie eine Kopie des laufenden `init`, auch nicht,
 wenn es selbst ein Release ist. So bleibt die Regel der Self-Update-Spec
 unberührt: am kanonischen Ort liegt nie ein Checkout-Build. Fehlt `gh` oder
 scheitert der Abruf, fällt nur dieser Schritt aus, und `init` nennt
-`gh auth login` und `loomux self-update`.
+`gh auth login` und `loomux upgrade`.
 
 Ob die Warnung des Sitzungsstarts aus `update.json` ein veraltetes Binary in
 Wirten schon abdeckt, wird mit dem Self-Update-Zweig abgestimmt.
@@ -943,7 +943,7 @@ freigegeben, 100 % Coverage je Funktion, Mutationsrunde mit dokumentierten
    2026-09-24: `init` holt immer das neueste Release über `selfupdate`, auch
    wenn es selbst ein Release ist; es kopiert nie sich selbst dorthin. Fehlt
    `gh` oder scheitert der Abruf, fällt der Schritt aus, und `init` nennt
-   `gh auth login` und `loomux self-update`. Ein Checkout wie loomux, dessen
+   `gh auth login` und `loomux upgrade`. Ein Checkout wie loomux, dessen
    Einträge `bin/loomux.exe` rufen, bekommt sein Binary weiter aus dem Build.
 6. ~~Hook-Einträge und `PATH`~~ — entschieden 2026-09-24: fester Pfad über
    `${LOCALAPPDATA}` (siehe „Host-Einträge“).

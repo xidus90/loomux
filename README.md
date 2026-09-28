@@ -224,7 +224,7 @@ loomux brain status                 # what to know before trusting an answer
 loomux serve [--foreground]         # start the long-lived localhost MCP service, detached or here; catches up on a due reconcile daily
 loomux serve status                 # what serve.json says and whether the listener answers
 loomux serve stop [--force]         # end the service through its own endpoint, or by its PID
-loomux self-update                  # replace the machine-wide binary with the newest release of its channel; serve does this daily
+loomux upgrade                      # replace the machine-wide binary with the newest release of its channel; serve does this daily
 loomux mcp [--channel local|cloud] [--root D]  # stdio bridge an MCP host starts; offers the tools of the project's [modules] and starts the service itself
 loomux reindex [--registry P]       # reconcile first, then rebuild every area's catalogs, link graph, identity register and qmd collections
 loomux embed [--registry P]         # generate the vectors reindex leaves pending (needs qmd on PATH)
@@ -381,7 +381,7 @@ claude mcp add loomux -s user -- "$env:LOCALAPPDATA\loomux\bin\loomux.exe" mcp -
 From then on `serve` keeps it current: a minute after it starts and daily
 after that it takes the highest release of the binary's own channel through
 `gh`, checks it against `SHA256SUMS` and its `--version`, and swaps the file.
-The next bridge replaces the running service. `loomux self-update` does the
+The next bridge replaces the running service. `loomux upgrade` does the
 same by hand. What the last pass found is in `update.json` beside the binary's
 directory; session start warns when `serve` runs from anywhere else or the
 pass failed. Windows only for now.

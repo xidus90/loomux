@@ -784,9 +784,9 @@ PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet. Erfolg ist still.
 - **Exit-Codes**: `0` beendet, und ebenso, wenn nichts lief; `1` der Stopp ist
   gescheitert; `2` ein unbekanntes Argument.
 
-### `loomux self-update`
+### `loomux upgrade`
 
-Ein Self-Update-Durchlauf von Hand; `serve` fährt denselben eine Minute nach
+Ein Update-Durchlauf von Hand; `serve` fährt denselben eine Minute nach
 dem Start und danach alle 24 Stunden. Er wirkt nur auf das maschinenweite
 Binary, `<Zustandsverzeichnis>/bin/loomux.exe`, wenn das das laufende Binary
 ist. Ein Entwicklungs-Build (`0.0.0-dev`) dort wird durch das neueste Release
@@ -1372,7 +1372,7 @@ durch einen Menschen, der das prüft, steht noch aus.
   und sagt das in einer Notiz.
 - **Eine Handlung wird nur geplant, solange ihr Ergebnis fehlt**:
   `binary-install` ohne installiertes Binary (Updates bleiben bei `serve` und
-  `loomux self-update`), `binary-build` ohne `bin/loomux.exe`, `merge-hook`
+  `loomux upgrade`), `binary-build` ohne `bin/loomux.exe`, `merge-hook`
   ohne eigenen `post-merge`, `graph-build` ohne Graph.
 - **Lebende Hooks behalten ihr Verzeichnis**: Ist kein `core.hooksPath`
   gesetzt und liegt in `.git/hooks` ein lebender `pre-commit`, `pre-push`

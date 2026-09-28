@@ -17,7 +17,7 @@ import (
 // build at that place would be replaced by the next update anyway, and until
 // then every host would run someone's work in progress.
 //
-// update.json stays serve's and self-update's record; an install says nothing
+// update.json stays serve's and upgrade's record; an install says nothing
 // about the last update pass.
 func Install(ctx context.Context, o Options) Result {
 	if o.GOOS != "windows" {
