@@ -19,6 +19,16 @@ func IsSpace(r rune) bool {
 	return r >= 0x2000 && r <= 0x200a
 }
 
+// SpaceClass and NonSpaceClass are Python's `\s` and `\S` in a str pattern
+// as RE2 character classes: the characters IsSpace lists, and the rest. Go's
+// `\s` is `[\t\n\f\r ]`, not even `\v`, so a pattern copied with `\s` reads a
+// line ending in a no-break space otherwise than the reference.
+const (
+	pySpace       = `\t\n\v\f\r\x1c-\x1f \x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
+	SpaceClass    = `[` + pySpace + `]`
+	NonSpaceClass = `[^` + pySpace + `]`
+)
+
 // Strip is `s.strip()` without arguments.
 func Strip(s string) string {
 	return strings.TrimFunc(s, IsSpace)
