@@ -62,13 +62,14 @@ func TestAnswerEndsAntigravitysOtherCodesWithZero(t *testing.T) {
 	}
 }
 
-// A passed or unjudged edit on Antigravity ends with 0 and drops the
-// notices post-edit wrote as injectSteps; the empty stdout left is an answer
-// agy 1.2.11 takes without a hook error.
-func TestAnswerDropsAntigravitysPostEditNotices(t *testing.T) {
+// A passed or unjudged edit on Antigravity ends with 0 and hands on the
+// notices post-edit wrote as injectSteps: agy 1.2.12 shows them to the model
+// after a PostToolUse.
+func TestAnswerPassesAntigravitysPostEditNotices(t *testing.T) {
+	const notices = `{"injectSteps":[{"ephemeralMessage":"x"}]}`
 	for _, code := range []int{0, 1} {
-		got, out := answer(hosts.HostAntigravity, "post-tool-use", code, `{"injectSteps":[{"ephemeralMessage":"x"}]}`, "")
-		if got != 0 || out != "" {
+		got, out := answer(hosts.HostAntigravity, "post-tool-use", code, notices, "")
+		if got != 0 || out != notices {
 			t.Fatalf("[%d] code %d, out %q", code, got, out)
 		}
 	}

@@ -24,7 +24,9 @@ const (
 // warning without aborting, so both stay as they are. A stop is held by
 // `continue` on stdout with exit 0. Every other non-zero code ends with 0,
 // its message on stderr for agy's log: 1 is a hook that could not judge and
-// holds nothing.
+// holds nothing. Any other stdout passes: session-start's and post-edit's
+// context as injectSteps, which agy 1.2.12 shows the model after a
+// PreInvocation and after a PostToolUse (measured 2026-09-28).
 //
 // A stdout that cannot be written leaves the code alone: the host sees what
 // it would have seen of a hook that wrote its answer itself and lost it.
@@ -34,16 +36,10 @@ func Answer(host Host, event string, w io.Writer, code int, out []byte, reason s
 		return code
 	}
 	switch {
-	case event == "post-tool-use":
-		// What post-edit writes on stdout is the host's context, for agy
-		// injectSteps, and whether agy reads them after a PostToolUse is
-		// unmeasured. Its guide names {} as a PostToolUse's answer, and an
-		// empty stdout passes as well (measured with agy 1.2.11 on
-		// 2026-09-25, no hook error in its log).
-		if code == exitDenied {
-			return exitDenied
-		}
-		return exitOK
+	case code == exitDenied && event == "post-tool-use":
+		// A red lane's warning is on stderr; post-edit writes no stdout
+		// beside it.
+		return exitDenied
 	case code == exitDenied && event == "stop":
 		encoder := json.NewEncoder(w)
 		encoder.SetEscapeHTML(false)

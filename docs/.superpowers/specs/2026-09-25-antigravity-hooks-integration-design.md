@@ -65,7 +65,9 @@ Gemessen mit agy 1.2.8 und 1.2.11 am 2026-09-25 (`parity/stufe-4a-2.md`):
   als Warnung und bricht nicht ab. stdout fällt weg (agy erwartet `{}`); Exit 1
   wird 0. Nachtrag 2026-09-27: post-edit schreibt seinen Kontext bei Exit 0
   über `hosts.WriteContext` als `injectSteps`, `hosts.Answer` verwirft ihn;
-  ob agy `injectSteps` auf PostToolUse liest, ist ungemessen. Bei Exit ≠ 0
+  ob agy `injectSteps` auf PostToolUse liest, ist ungemessen. Nachtrag
+  2026-09-28: agy 1.2.12 liest sie (`parity/stufe-4a-2.md`), `hosts.Answer`
+  reicht post-tool-use-stdout bei Exit 0 seither durch. Bei Exit ≠ 0
   schreibt post-edit nichts auf stdout, und jeder Hinweis auf eine
   übersprungene Lane oder Datei steht auf stderr. Codex: `hosts.WriteContext`
   antwortet `ErrNoAdapter`, `post-tool-use --host codex` endet bei Code 0

@@ -35,6 +35,8 @@ Dokufix erledigt. Danach gilt:
 2. **C2 Bestand:** `init` hängt einen Block für die fehlenden Werkzeuge an.
 3. **C13 Antigravity bei Exit 0:** stdout bleibt verworfen wie heute; ob agy
    `injectSteps` auf PostToolUse liest, bleibt als ungemessen vermerkt.
+   Nachtrag 2026-09-28: agy 1.2.12 liest sie; `hosts.Answer` reicht
+   post-tool-use-stdout bei Exit 0 seither durch (`parity/stufe-4a-2.md`).
 4. **C21 Changelog:** der Fixed-Eintrag berichtigt die Aussage von v2.14.2
    ausdrücklich.
 
@@ -300,7 +302,8 @@ weiter im Kontext.
   Claude-Encoder ist `writeClaudeContext` (ohne HTML-Escaping,
   `hookEventName` zuerst); die Beispiele in `cli-reference.md` folgen.
 - Antigravity: `WriteContext` schreibt `injectSteps`, `hosts.Answer`
-  verwirft post-tool-use-stdout weiter (Entscheidung 3). Der Kommentar in
+  verwirft post-tool-use-stdout weiter (Entscheidung 3; seit dem
+  2026-09-28 überholt, siehe dort). Der Kommentar in
   `answer.go` sagt „the host's context“ statt „Claude's additionalContext“.
 - Codex: `WriteContext` antwortet `ErrNoAdapter`, also endet
   `post-tool-use --host codex` bei Code 0 mit 1, wie es `hooks.md` für die

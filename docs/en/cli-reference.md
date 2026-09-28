@@ -22,9 +22,9 @@ aborting. A held stop becomes `{"decision":"continue","reason":"…"}` on
 stdout with exit `0`, the reason being what the gate wrote to stderr; agy
 then re-enters its loop. Every other non-zero code ends with `0`, its
 message on stderr. What `post-tool-use` writes on stdout at exit `0`, the
-skipped lanes and the blast monitor's callers, is not passed to agy, since
-whether agy reads a PostToolUse's `injectSteps` is unmeasured; a skip stays
-on stderr, which reaches the model only at exit `2`.
+skipped lanes and the blast monitor's callers, reaches agy as
+`injectSteps`, which it shows the model after a PostToolUse (measured with
+agy 1.2.12, 2026-09-28).
 
 ### Global Flags & Environment
 - `--root <path>`: Explicit project root directory. If omitted, Loomux walks upwards from the current working directory until it locates `.loomux/config.toml`.

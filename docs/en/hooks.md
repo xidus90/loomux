@@ -233,9 +233,9 @@ relative to its area):
   the hook exits 0, in the host's context: `hookSpecificOutput.additionalContext`
   for Claude Code; for a `.go` file the blast monitor below writes into the
   same field. At any other exit code the hook writes nothing to `stdout`.
-  Under `--host antigravity` that context is not passed on, since whether agy
-  reads a PostToolUse's context is unmeasured: there a skip reaches the model
-  only at exit 2, and the blast monitor's callers not at all.
+  Under `--host antigravity` the same context goes out as `injectSteps`,
+  which agy shows the model after the tool call (measured with agy 1.2.12,
+  2026-09-28).
 - **Checks never rewrite.** `clang-format` runs with `--dry-run --Werror`; an
   edit is judged, the file stays as the agent wrote it.
 - **`gofmt` checks the edited file only**: an unformatted file elsewhere is not
@@ -505,9 +505,8 @@ the model as a warning without aborting, and a held stop becomes
 re-enters its loop; the reason is what the gate wrote to stderr. Every other
 non-zero code ends with 0. An unknown event stays exit 2 on every host.
 What `post-tool-use` writes on stdout at exit 0, the skipped lanes and the
-blast monitor's callers, is not passed to agy, since whether agy reads a
-PostToolUse's `injectSteps` is unmeasured; a skip stays on stderr, which
-reaches the model only at exit 2.
+blast monitor's callers, reaches agy as `injectSteps`, which it shows the
+model after a PostToolUse (measured with agy 1.2.12, 2026-09-28).
 `session-start` runs on `PreInvocation`, which fires before every model call
 and counts them in `invocationNum`; only the first one warns about the
 binary and the self-update and revives a session that worktree unlink
