@@ -16,8 +16,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 
+	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/gitenv"
 )
 
@@ -173,6 +175,50 @@ func ContentTree(root, scratch string) (string, error) {
 	}
 	index := filepath.Join(scratch, fmt.Sprintf("index-%d", os.Getpid()))
 	defer os.Remove(index)
+	return writeContentTree(root, real, index)
+}
+
+// KeptIndexPrefix begins the name of every kept copy of the index; the
+// process that made one follows it.
+const KeptIndexPrefix = "loomux-stop-index-"
+
+// KeptContentTree is ContentTree with its copy of the index kept inside the
+// git directory, the only place a graph lane accepts an inherited index
+// from. The caller removes index. The real index is the git directory's own:
+// git strips the GIT_INDEX_FILE that could name another.
+func KeptContentTree(root string) (tree, index string, err error) {
+	out, err := git(root, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return "", "", err
+	}
+	dir := strings.TrimSpace(out)
+	dropGoneCopies(dir)
+	index = filepath.Join(dir, KeptIndexPrefix+strconv.Itoa(os.Getpid()))
+	tree, err = writeContentTree(root, filepath.Join(dir, "index"), index)
+	if err != nil {
+		os.Remove(index)
+		return "", "", err
+	}
+	return tree, index, nil
+}
+
+// dropGoneCopies removes the copies in dir whose process is gone: one killed
+// during its chain runs no defer, and its copy would stay for good. A copy
+// whose name carries no number is not one of ours to judge. Read, not
+// globbed: a bracket in the repository's path would make it a pattern.
+func dropGoneCopies(dir string) {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		pid, err := strconv.Atoi(strings.TrimPrefix(e.Name(), KeptIndexPrefix))
+		if strings.HasPrefix(e.Name(), KeptIndexPrefix) && err == nil && !child.Alive(pid) {
+			os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+}
+
+// writeContentTree copies the index at real to index and writes the content
+// tree through that copy. Removing the copy is the caller's.
+func writeContentTree(root, real, index string) (string, error) {
 	data, err := os.ReadFile(real)
 	switch {
 	case err == nil:
