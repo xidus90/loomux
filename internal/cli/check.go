@@ -193,9 +193,21 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 	runID := verify.NewRunID(checkNow(), os.Getpid())
 	env := verify.PlanEnv{Root: root, Loomux: loomux, RunID: runID, HasTests: verify.HasTests,
 		ImportReady: verify.ImportReady, GraphReady: query.GraphReady, GraphEnv: query.GraphEnv}
+	// The table asks no probe, so it needs no copy of the index.
 	if *show {
 		verify.WriteShow(stdout, eff, kinds, env)
 		return 0
+	}
+	// check stop replays the stop gate, which judges the working tree against
+	// HEAD through a copy of the index; every other request keeps the real one.
+	if request == "stop" {
+		idx, err := hooks.OpenStopIndex(root, kinds)
+		if err != nil {
+			return fail(err)
+		}
+		defer idx.Close()
+		// Without a copy too: the hook asks the same nil view.
+		env.GraphReady, env.GraphEnv = idx.Ready, idx.Env
 	}
 	if err := verify.PrepareCover(root); err != nil {
 		return fail(err)
