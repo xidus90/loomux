@@ -63,6 +63,12 @@ urteilt über sie.
   Lint über das Wiki-Bündel, der in diesem Prozess läuft, wo `lint` angefragt
   ist und das Projekt ein Wiki hat: er kommt zuletzt. Er prüft nur die Struktur
   des Bündels; die Drift-Regel bleibt bei `loomux wiki-gate`.
+- **Graph-Lane**: `check stop` beurteilt die `graph`-Lane wie der Stop-Hook —
+  den Arbeitsbaum samt ungetrackter Dateien gegen `HEAD`, über eine Kopie des
+  Index im Git-Verzeichnis. Es fährt nur die Lanes; das Tor um sie herum (der
+  Marker, ein schon grün befundener Baum, die Befunde der Subagenten, der
+  Blockzähler) bleibt beim Hook. `check precommit` und eine Liste von Arten
+  lesen den echten Index.
 - **Ausgabe** (alles auf `stdout`): eine Zeile je Lane,
   `<art>/<stack>[@<bereich>]: <zustand> [<herkunft>]`, dahinter die Dauer bei
   einer Lane, die gestartet ist, `by <lane>` bei einer blockierten oder der
@@ -382,9 +388,9 @@ Das Tor am Rundenende: stellt zu, was Subagenten hinterlassen haben, und fährt 
 
 - **Flags**: `--host <h>` (Pflicht; `claude` und `antigravity` haben Adapter), `--root <r>`, `--budget <dauer>` — wie lange die Lanes zusammen dauern dürfen (Go-Dauer, Vorgabe `270s`, unter den 300 s, die sein Settings-Eintrag gewährt). Jeder Befehl bekommt das Kleinere aus seinem eigenen `timeout` und dem Rest des Budgets.
 - **Standard-Input (stdin)**: die `Stop`-Nutzlast des Hosts; gelesen wird nur `session_id`.
-- **Verhalten**: in dieser Reihenfolge — die Befunde der Subagenten auf `stderr`, der Blockzähler (nach 3 Blockaden in Folge gibt er für eine Runde auf und lässt die Befunde für die nächste liegen), der Marker `.loomux/no-verify` (er überspringt die Kette, nicht die Befunde), der Fingerabdruck des Inhalts (nichts Neues seit dem letzten grünen Lauf oder der Basis: kein Werkzeug startet), dann die Arten des Profils `stop` (vorgegeben `lint`, `types`, `test`, `coverage`) im Check-Scope, dazu `lint/wiki`, wo `lint` angefragt ist und es ein Wiki gibt. Ein grüner Lauf rückt `base` auf `HEAD` vor und merkt sich den Baum. Siehe [Hooks](hooks.md#stop).
+- **Verhalten**: in dieser Reihenfolge — die Befunde der Subagenten auf `stderr`, der Blockzähler (nach 3 Blockaden in Folge gibt er für eine Runde auf und lässt die Befunde für die nächste liegen), der Marker `.loomux/no-verify` (er überspringt die Kette, nicht die Befunde), die Konfiguration und ihr Profil `stop` (ein `[verify]`, das sich nicht lesen lässt, beendet das Tor mit Exit 1, der nichts anhält), der Fingerabdruck des Inhalts (nichts Neues seit dem letzten grünen Lauf oder der Basis: kein Werkzeug startet; mit einer Graph-Lane nur unter demselben `HEAD`), dann die Arten des Profils `stop` (vorgegeben `lint`, `types`, `test`, `coverage`, `graph`; die Lane `graph` liest eine Kopie des Index, die den ganzen Baum trägt, und urteilt über die Runde gegen `HEAD`) im Check-Scope, dazu `lint/wiki`, wo `lint` angefragt ist und es ein Wiki gibt. Ein grüner Lauf rückt `base` auf `HEAD` vor und merkt sich den Baum. Siehe [Hooks](hooks.md#stop).
 - **Standard-Fehler (stderr)**: zugestellte Befunde als `subagent <agent_id>: <zeile>`, danach nur die roten Lanes, im Format von `loomux check`.
-- **Exit-Codes**: `0` (die Runde endet: grün, nichts Neues, der Marker, oder der Zähler hat aufgegeben), `2` (die Runde wird angehalten: eine rote Lane, ein Git-Fehler, oder zugestellte Befunde — mit Befunden wird selbst ein Exit 1 zu 2), `1` (das Tor konnte nicht urteilen: eine unlesbare Nutzlast oder eine ohne `session_id`, das Budget war aufgebraucht, eine angefragte Art hatte nichts, was lief, `[verify]` lässt sich nicht laden, der Plan scheitert, das Coverage-Verzeichnis lässt sich nicht vorbereiten (`verify.PrepareCover`), oder ein fehlerhafter Aufruf; die Runde endet).
+- **Exit-Codes**: `0` (die Runde endet: grün, nichts Neues, der Marker, oder der Zähler hat aufgegeben), `2` (die Runde wird angehalten: eine rote Lane, ein Git-Fehler, oder zugestellte Befunde — mit Befunden wird selbst ein Exit 1 zu 2), `1` (das Tor konnte nicht urteilen: eine unlesbare Nutzlast oder eine ohne `session_id`, das Budget war aufgebraucht, eine angefragte Art hatte nichts, was lief, `[verify]` lässt sich nicht laden — die Konfiguration wird vor dem Baum gelesen, daher endet das mit 1, auch wenn der Baum schon als grün bekannt war —, der Plan scheitert, das Coverage-Verzeichnis lässt sich nicht vorbereiten (`verify.PrepareCover`), oder ein fehlerhafter Aufruf; die Runde endet).
 
 ### `loomux hook subagent-start`
 Hält fest, wo `origin`, die lokalen Branches und `HEAD` stehen, bevor ein Subagent läuft.

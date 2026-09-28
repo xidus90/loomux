@@ -60,6 +60,12 @@ judges them.
   that runs in this process wherever `lint` is requested and the project has a
   wiki: it comes last. It checks the bundle's structure only; the drift rule
   stays with `loomux wiki-gate`.
+- **Graph lane**: `check stop` judges the `graph` lane as the stop hook does —
+  the working tree, untracked files included, against `HEAD`, through a copy
+  of the index in the git directory. It runs the lanes only; the gate around
+  them (the marker, a tree already found green, the subagents' findings, the
+  block counter) stays the hook's. `check precommit` and a list of kinds read
+  the real index.
 - **Output** (all on `stdout`): one line per lane,
   `<kind>/<stack>[@<area>]: <state> [<origin>]`, followed by the duration for
   a lane that started, `by <lane>` for a blocked one, or the reason for one
@@ -362,9 +368,9 @@ The gate at the end of a turn: delivers what subagents left, then runs the `stop
 
 - **Flags**: `--host <h>` (required; `claude` and `antigravity` have adapters), `--root <r>`, `--budget <duration>` — how long the lanes may take in all (Go duration, default `270s`, below the 300 s its settings entry grants). Each command gets the smaller of its own `timeout` and what is left of the budget.
 - **Standard Input**: the host's `Stop` payload; only `session_id` is read.
-- **Behavior**: in this order — the subagents' findings to `stderr`, the block counter (after 3 blocks in a row it gives up for one turn and leaves the findings on disk for the next), the marker `.loomux/no-verify` (it skips the chain, not the findings), the content fingerprint (nothing new since the last green run or the base: no tool starts), then the kinds of the `stop` profile (by default `lint`, `types`, `test`, `coverage`) in the check scope, plus `lint/wiki` where `lint` is asked for and there is a wiki. A green run moves `base` to `HEAD` and remembers the tree. See [Hooks](hooks.md#stop).
+- **Behavior**: in this order — the subagents' findings to `stderr`, the block counter (after 3 blocks in a row it gives up for one turn and leaves the findings on disk for the next), the marker `.loomux/no-verify` (it skips the chain, not the findings), the config and its `stop` profile (a `[verify]` that cannot be read ends the gate with exit 1, which holds nothing), the content fingerprint (nothing new since the last green run or the base: no tool starts; with a graph lane only under the same `HEAD`), then the kinds of the `stop` profile (by default `lint`, `types`, `test`, `coverage`, `graph`; the `graph` lane reads a copy of the index holding the whole tree and judges the turn against `HEAD`) in the check scope, plus `lint/wiki` where `lint` is asked for and there is a wiki. A green run moves `base` to `HEAD` and remembers the tree. See [Hooks](hooks.md#stop).
 - **Standard Error**: delivered findings as `subagent <agent_id>: <line>`, then only the red lanes, in the format of `loomux check`.
-- **Exit Codes**: `0` (the turn ends: green, nothing new, the marker, or the counter gave up), `2` (the turn is held: a red lane, a git failure, or findings delivered — with findings even an exit 1 becomes 2), `1` (the gate could not judge: an unreadable payload or one without `session_id`, the budget ran out, a requested kind had nothing that ran, `[verify]` cannot be loaded, the plan fails, the coverage directory cannot be prepared (`verify.PrepareCover`), or a malformed call; the turn ends).
+- **Exit Codes**: `0` (the turn ends: green, nothing new, the marker, or the counter gave up), `2` (the turn is held: a red lane, a git failure, or findings delivered — with findings even an exit 1 becomes 2), `1` (the gate could not judge: an unreadable payload or one without `session_id`, the budget ran out, a requested kind had nothing that ran, `[verify]` cannot be loaded — the config is read before the tree, so this exits 1 even when the tree was already found green —, the plan fails, the coverage directory cannot be prepared (`verify.PrepareCover`), or a malformed call; the turn ends).
 
 ### `loomux hook subagent-start`
 Writes down where `origin`, the local branches and `HEAD` stand before a subagent runs.

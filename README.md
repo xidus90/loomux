@@ -103,7 +103,7 @@ Most coding agents re-explore codebases from scratch every session, burning toke
 
 The graph covers Go, read with `go/parser`, and Python, read on `gotreesitter`, a Tree-sitter runtime in pure Go, so the binary stays CGo-free. `loomux graph build` parses only the files that changed since the last build and takes the rest from its extract cache; `--no-reuse` parses every file.
 
-`loomux graph ask` ranks code symbols by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25), rebuilds a drifted graph before it answers (never a first one), and with `--source` inlines each hit's span. `loomux graph blast` shows what a git diff reaches over the same edges; the verify kind `graph` audits the staged change the same way in `loomux check precommit`, wherever a graph was built ([configuration](docs/en/configuration.md#the-graph-kind)).
+`loomux graph ask` ranks code symbols by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25), rebuilds a drifted graph before it answers (never a first one), and with `--source` inlines each hit's span. `loomux graph blast` shows what a git diff reaches over the same edges; the verify kind `graph` audits the staged change the same way in `loomux check precommit`, and the whole turn against `HEAD` at the stop gate, wherever a graph was built ([configuration](docs/en/configuration.md#the-graph-kind)).
 
 > **"Lexical proposes, graph disposes"**: Keywords find candidate symbols; the structural call graph concentrates mass on the components that actually matter, filtering out dead or isolated hits.
 
@@ -159,7 +159,6 @@ under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
 
 | Feature | What it brings | Stage | Depends on | Priority |
 |---|---|---|---|---|
-| **Stop-hook blast audit** | The blast audit at the turn end, working tree against `HEAD`, for the stop gate; until then `graph` in a `stop` profile is `not-applicable` | G4c | G4b ✅ | 2 |
 | **Flow runtime** | Flows as data: a graph of nodes in TOML, run, paused at a gate for a human's answer, resumed and replayed from a journal. Built: the folder format with its load check, the catalog, roles bound to models in `[agent]`, overlays, `[flow] default` and `overrides`, the guard rules for gate answers, run files and bundled flows, `loomux flow run\|resume\|replay\|show\|list` and the session-start notice of waiting runs ([Flows](docs/en/flows.md)). Gate and exit nodes run; agent nodes wait for the model adapters for Claude and Gemini (through their CLIs, their APIs or both, which stage B decides), and `verify-until-green` as a data flow for the building blocks of stage C | Flow B, C | Flow A ✅ | 4 |
 | **Flows over MCP** | `flow_list`, `flow_show`, `flow_run` (a run in a child process `serve` detaches, answering at once with the run number) and `flow_status` on the local channel, with a status file per run so that a cut-off run is seen and carried on; no tool answers a gate | Flow A2 | Flow A ✅ | 4 |
 | **Development cycle as the default flow** | From planning to the pull request: clarification, spec and plan, each checked by a fan of reviewer lenses, then per task research, test first, build, check chain, code review and rework, then docs, final review and commit. A human answers at fixed gates and whenever a model is stuck, and pushes | Flow D | Flow B, C | 4 |
@@ -197,7 +196,7 @@ loomux check gofmt [paths...]       # inspect Go file formatting without modifyi
 loomux hook pre-tool-use            # run policy and global write barrier against stdin payload
 loomux hook post-tool-use           # run the edit profile's lanes against the file just edited, then name the callers of changed Go symbols (--budget, default 50s)
 loomux hook session-start           # record the session's base commit; warn about a stale binary, a serve outside the install location and a failed self-update; announce flow runs waiting at a gate and ignored flow folders
-loomux hook stop                    # the turn-end gate: the stop profile over new content, subagent findings (--budget, default 270s)
+loomux hook stop                    # the turn-end gate: the stop profile (lint, types, test, coverage, graph) over new content, subagent findings (--budget, default 270s)
 loomux hook subagent-start|subagent-stop  # snapshot origin, branches and HEAD around a subagent; park what moved for stop
 loomux hook <event> --host antigravity    # the same hooks for agy: a held stop continues with JSON on stdout; pre-tool-use refuses and post-tool-use warns with 2
 loomux flow run [<flow>]            # start a run of a flow, [flow] default without a name (--option name=value); exit 3 when it pauses at a gate; agent nodes wait for the model adapters

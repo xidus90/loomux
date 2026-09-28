@@ -9,8 +9,9 @@ gelten die beiden jüngeren Dokumente. G2b umgesetzt; **G3 umgesetzt 2026-09-19*
 Widerspruch das jüngere Dokument. G4 entworfen in
 [`2026-09-22-loomux-code-g4-delta.md`](2026-09-22-loomux-code-g4-delta.md) (berichtigt §7.1 und
 §8), **G4a umgesetzt 2026-09-22**, **G4b umgesetzt 2026-09-23** nach
-[`2026-09-23-loomux-code-g4b-delta.md`](2026-09-23-loomux-code-g4b-delta.md); G4c (Stop-Hook mit
-Blast-Logik) offen. G5 entworfen in
+[`2026-09-23-loomux-code-g4b-delta.md`](2026-09-23-loomux-code-g4b-delta.md), **G4c (Stop-Hook
+mit Blast-Logik) umgesetzt 2026-09-28** nach
+[`2026-09-25-loomux-code-g4c-delta.md`](2026-09-25-loomux-code-g4c-delta.md). G5 entworfen in
 [`2026-09-26-loomux-code-g5-design.md`](2026-09-26-loomux-code-g5-design.md) — ersetzt §3.2
 (Lazy Loading von `wazero`), §6.2 und die Zeile G5 in §10: `gotreesitter` in reinem Go statt
 `wazero`, Sprachen Python, TypeScript/TSX, GDScript, C++; G5a umgesetzt 2026-09-26  

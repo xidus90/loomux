@@ -639,20 +639,32 @@ this order
    or 2 with findings — the marker skips the chain, not the findings. Only a
    human sets it; the policy refuses the path to an agent (section 7). The
    marker neither counts nor resets the counter.
-5. **Fingerprint.** `gitwork.ContentTree` stages the working tree into a copy
-   of the index (in the system's temp directory, not in the state), drops
-   `.loomux/state` from it and writes a tree: a hash of the content as git
-   would commit it, untracked files included, ignored ones not. When that tree
-   equals the one the last green run saw (`green`) or the base's tree, nothing
-   is new: exit 0 (2 with findings) and no tool starts. That is a green pass: a
-   counter above 0 goes back to 0, and otherwise nothing is written.
-6. **Profile.** The chain runs the kinds of the profile `stop` —
-   by default `lint`, `types`, `test`, `coverage`, the same as `precommit` —
-   in the check scope, as `loomux check` would, plus the lane `lint/wiki` over
-   the wiki bundle when the profile has `lint`, the project has a wiki, and
-   `[verify.wiki] lint = false` does not switch it off. That lane checks the
-   bundle's structure only; the drift rule stays with `loomux wiki-gate`.
-7. **Chain.** Every lane runs within `--budget` (default 270 s, under the
+5. **Profile.** The gate lays `[verify]` over the presets and reads the kinds
+   of the profile `stop` — by default `lint`, `types`, `test`, `coverage`,
+   `graph`, the same as `precommit`. It comes before the fingerprint because
+   the fingerprint depends on it (below). A `[verify]` that cannot be loaded
+   ends the gate here with exit 1, on an unchanged tree as well.
+6. **Fingerprint.** `gitwork.ContentTree` stages the working tree into a copy
+   of the index, drops `.loomux/state` from it and writes a tree: a hash of
+   the content as git would commit it, untracked files included, ignored ones
+   not. The copy lies in the system's temp directory, not in the state, and
+   is gone at once — unless the profile has `graph` and the project has a
+   graph: then it is `loomux-stop-index-<pid>` in the git directory and stays
+   for the graph lane until the chain is done (a copy a killed process left
+   there is removed first). When the tree equals the one the last green run
+   saw (`green`) or the base's tree, nothing is new: exit 0 (2 with findings)
+   and no tool starts. That is a green pass: a counter above 0 goes back to 0,
+   and otherwise nothing is written. With the graph lane a tree counts as seen
+   only under the `HEAD` it was green at, since that lane judges against
+   `HEAD`: after a commit inside the turn the chain runs.
+7. **Kinds.** The chain runs those kinds in the check scope, as `loomux check`
+   would (the `graph` lane reads the kept copy, so it judges the turn against
+   `HEAD`; see [configuration](configuration.md#the-graph-kind)), plus the
+   lane `lint/wiki` over the wiki bundle when the profile has `lint`, the
+   project has a wiki, and `[verify.wiki] lint = false` does not switch it
+   off. That lane checks the bundle's structure only; the drift rule stays
+   with `loomux wiki-gate`.
+8. **Chain.** Every lane runs within `--budget` (default 270 s, under the
    300 s of its settings entry); each command gets the smaller of its own
    `timeout` and what is left of the budget.
 
@@ -703,10 +715,11 @@ a new base. In a repository without a commit the base is the empty tree.
 chain runs at every turn end, without a shortcut. A green run then writes
 `base` and `green` empty.
 
-**What it costs.** A turn end with nothing new is 169.5 ms warm on this
-repository (7,341 files), about 110 ms of it the fingerprint; in a
-three-file world 121.3 ms. The chain itself costs what its tools cost
-([Benchmarks](benchmarks.md), entry of 2026-09-20).
+**What it costs.** A turn end with nothing new is about 237 ms warm on this
+repository (15,138 files), most of it the fingerprint, and about 20 ms more
+with a graph, whose copy is kept; in a three-file world 121.3 ms. The chain
+itself costs what its tools cost ([Benchmarks](benchmarks.md), entries of
+2026-09-20 and 2026-09-28 16:09).
 
 ### `subagent-start` and `subagent-stop`
 

@@ -67,7 +67,7 @@ eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migra
 | 4d | ✅ | `convert` und `fetch`, die Modellrollen `describe` und `place`; Selbstnutzung am echten Eingang |
 | 4e | offen | Umstellung der Wirte, eine Checkliste ohne Code |
 | G1–G4b | ✅ | Rang, Blast-Radius, Extraktor, Abfrage, Navigation, Diff-Blast |
-| G4c | offen | Stop-Hook mit Blast-Logik |
+| G4c | ✅ | Stop-Hook mit Blast-Logik |
 | G5a | ✅ | Extraktor-Schnittstelle, Tree-sitter-Kern auf `gotreesitter`, Python; abgenommen an `iam_backend` und `ultra-brain` |
 | G5b–G5d | offen | TypeScript/TSX, GDScript, C++ |
 
@@ -80,7 +80,7 @@ eigener Spec.
 
 Drei Regeln, der Reihe nach: **zuerst, was seine Abhängigkeiten schon
 zulassen; dann, was loomux an sich selbst benutzt; dann die Größe.** Daraus
-folgt G4c auf Priorität 2, Stufe 4 auf 3 (in sich 4a-1 → 4a-2 → 4c-1 → 4c-2 → 4d,
+folgt G4c auf Priorität 2 (fertig 2026-09-28), Stufe 4 auf 3 (in sich 4a-1 → 4a-2 → 4c-1 → 4c-2 → 4d,
 dann 4e), Flow auf 4, W1–W5 auf 5 und G5 auf 6; G5a hat der Nutzer am
 2026-09-26 vorgezogen. Ohne Stufe 4 bleiben die
 alten Repos im Dienst, und die Umstellung der Wirte braucht vorher einen

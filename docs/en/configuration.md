@@ -93,10 +93,10 @@ in effect (see [CLI Reference](cli-reference.md#loomux-check-request---root-path
 max_parallel = 8        # processes at once; default: the number of CPUs
 timeout      = 600      # seconds per command; default 600, no upper limit
 
-[verify.profiles]       # built in: edit = [lint, types], precommit = all five, stop = all but graph
+[verify.profiles]       # built in: edit = [lint, types], precommit = all five, stop = all five
 edit      = ["lint", "types"]
 precommit = ["lint", "types", "test", "coverage", "graph"]
-stop      = ["lint", "types", "test", "coverage"]   # what the stop gate runs at a turn end
+stop      = ["lint", "types", "test", "coverage", "graph"]   # what the stop gate runs at a turn end
 
 [verify.go]             # per stack; stacks not named keep their preset
 lint     = ["go vet ./...", "{loomux} check gofmt cmd internal"]
@@ -334,9 +334,33 @@ The commands run one after the other, and `blast-audit` runs even after a red
   manual `loomux check precommit` with nothing staged, in a `commit --amend`
   without new changes, during a merge and at the root commit. It runs only
   where someone built the graph.
-- **The stop gate has no probe.** `stop` does not include `graph` by default;
-  a project that adds it gets `not-applicable` ("graph lanes need a graph
-  probe") at every turn end.
+- **At the stop gate the lane judges the turn against HEAD.** `stop`
+  includes `graph` by default. At a turn end the index is usually empty, so
+  the stop hook writes the work through a copy of the index
+  (`loomux-stop-index-<pid>` in the git directory, with `add -A`, untracked
+  files included, `.loomux/state` left out) and hands only the graph lane
+  that copy as `GIT_INDEX_FILE`; `blast-audit --cached` then compares
+  everything git does not ignore against `HEAD`. The copy is removed after
+  the chain, whatever its verdict; one left by a process killed during the
+  chain is removed at the next turn end. Its probe asks whether the graph
+  exists, whether there is a `HEAD`, whether no merge, rebase, cherry-pick
+  or revert is in progress, and whether the work differs from `HEAD`
+  ("nothing changed against HEAD"). A red lane holds the turn (exit 2) like
+  any other. Without a graph no copy is kept and the lane is
+  `not-applicable`. Because the lane judges against `HEAD`, a tree found
+  green before counts as green again only under the same `HEAD`: after a
+  commit inside the turn the chain runs again.
+  The finding is headed `blast audit: index against HEAD`, and "index" is
+  the copy: the printed command, run by hand against the real index, which
+  is usually empty, finds nothing. `loomux check stop` builds the same copy
+  and runs the same lanes; the gate around them — the marker
+  `.loomux/no-verify`, a tree already found green, the subagents' findings,
+  the block counter — is the hook's alone. A project that defines `stop` in
+  `[verify.profiles]` itself gets the lane only once it lists `graph`.
+  **Limit:** judging against `HEAD` presumes the pre-commit gate audited
+  every commit. A commit made past it inside the turn (`git commit
+  --no-verify`, a cherry-pick or merge, a clone without armed hooks) is part
+  of `HEAD` by the turn end and is never audited.
 - **Changing the threshold** means replacing `commands` in the table of the
   stack that carries the lane (`[verify.go.graph]`, in a Python-only
   repository `[verify.python.graph]`), **both** entries; a lane that names

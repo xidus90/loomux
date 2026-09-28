@@ -2942,3 +2942,84 @@ dem gesucht wurde, vollständig neu eingebettet (`qmd embed -f --timeout 0`).
    so und behält die Treffer der gefragten Bereiche.
 3. **`keyword` bleibt, wie es ist.** Auf dieselbe Weise gefragt, kam es auf
    7/50 gegen 8/50; das ist Rauschen, kein Gewinn.
+## 2026-09-28 11:58 — Das Stopp-Tor mit der Graph-Lane
+
+Binary aus `feat/g4c-stop-blast` bei `2ffa19ac`, bevor der Zweig auf
+`849ac5eb` rebased wurde, in einem abgelösten
+Scratch-Worktree dieses Repositorys (711 Dateien, Graph mit
+`loomux graph build` in 968 ms gebaut). Jeder Lauf: eine Zeile Änderung in
+`gitenv.Environ` (Eingangsgrad 58, kein Test geändert), dann
+`loomux hook stop --host claude` mit neuer Sitzungskennung (keine Basis, also
+gegen `HEAD`), von der Shell gestoppt. „Kalt“ ist der erste Hook nach dem
+Edit, „warm“ ein zweiter auf demselben Baum. Fünf Edits je Fall.
+
+„Fünf Arten“ ist die neue Vorgabe `stop` (lint, types, test, coverage,
+graph). „Vier Arten“ ist derselbe Hook mit beiseitegelegtem
+`.loomux/state/graph`: ohne `wiring.json` entsteht keine Indexkopie und die
+Graph-Lane ist `not-applicable`, die Kette sind also die alten vier Arten.
+(Ein Profil `[verify.profiles] stop` im Scratch-Klon verweigerte die
+Schreibschranke, die jede `.loomux/config.toml` schützt.)
+
+| Fall | kalte Läufe (ms) | kalt Median | warme Läufe (ms) | warm Median | Exit |
+|---|---|---:|---|---:|---|
+| vier Arten (ohne Graph), 12:17 | 110523, 103169, 108144, 154151, 123440 | 110,5 s | 111804, 122729, 100235, 122478, 115371 | 115,4 s | 0 |
+| fünf Arten, 11:58 | 119908, 130246, 93726, 94839, 108384 | 108,4 s | 141636, 137273, 92550, 111495, 109087 | 111,5 s | 2 |
+
+Die Lane `graph/go`, wie der Hook sie meldete (immer rot, `gitenv.go
+[stale]: Environ in-degree 58`): kalt 1,4, 1,3, 1,5, 1,7, 1,0 s (Neubau nach
+dem Edit), warm 0,7, 0,2, 0,2, 0,3, 0,3 s (keine Drift).
+
+### Lesart
+
+1. **Die Lane kostet kalt 1,0–1,7 s und warm 0,2–0,7 s** und läuft parallel
+   zu `test` und `coverage`, die den Rest der ~100 s tragen.
+2. **Der ganze Hook bewegt sich nicht messbar.** Die Streuung innerhalb
+   eines Falls (93–154 s) ist weit größer als die Lane; die Mediane mit fünf
+   Arten liegen sogar unter denen mit vier, das ist Rauschen der Testlanes.
+3. Die roten Läufe mit fünf Arten und die grünen mit vier enden auf
+   verschiedenen Wegen (Exit 2 gegen einen grünen Durchgang, der die Basis
+   vorrückt); beide fahren vorher die ganze Kette.
+
+## 2026-09-28 16:09 — Der Leerweg des Stop-Tors mit der Graph-Lane
+
+Ein abgelöster Scratch-Worktree dieses Repositorys am Kopf des Zweigs
+`feat/g4c-stop-blast` (15.138 versionierte Dateien). `before.exe` ist der
+Merge-Base des Zweigs, `849ac5eb`, `after.exe` der Zweig mit seinen
+Review-Korrekturen; beide mit Go 1.27.0 `windows/amd64` ins
+Scratch-Verzeichnis gebaut. Rechner: AMD Ryzen 7 9800X3D, Windows 11 Pro.
+
+**Ziel.** Der Zweig lädt die Konfiguration vor dem Fingerabdruck des Inhalts
+und schreibt den Fingerabdruck mit Graph über eine Kopie, die im
+Git-Verzeichnis liegen bleibt. Beides darf das Rundenende ohne Neues nicht
+spürbar teurer machen.
+
+**Methode.** `after.exe dev bench hooks -n 20` über eine Falldatei mit beiden
+Binaries, einer stdin-Nutzlast (`{"session_id":"bench","hook_event_name":"Stop"}`)
+und einem Sitzungszustand, dessen `base` `HEAD` und dessen `green`
+`HEAD^{tree}` ist, sodass beide den Leerweg nehmen. Zwei Durchgänge ohne
+Graph, dann `graph build` im Worktree und zwei Durchgänge mit Graph. Jeder
+Lauf endete mit Exit 0.
+
+| Fall | kalt (1. Lauf) | warm Median | warm Min | warm Max |
+|---|---:|---:|---:|---:|
+| before, ohne Graph, Durchgang 1 | 252,6 ms | 245,2 ms | 221,0 ms | 295,4 ms |
+| after, ohne Graph, Durchgang 1 | 265,2 ms | 266,6 ms | 238,5 ms | 464,0 ms |
+| before, ohne Graph, Durchgang 2 | 320,9 ms | 238,5 ms | 211,6 ms | 633,3 ms |
+| after, ohne Graph, Durchgang 2 | 225,5 ms | 238,6 ms | 218,0 ms | 291,9 ms |
+| before, mit Graph, Durchgang 1 | 229,9 ms | 235,7 ms | 215,5 ms | 298,0 ms |
+| after, mit Graph, Durchgang 1 | 241,6 ms | 256,1 ms | 238,3 ms | 407,6 ms |
+| before, mit Graph, Durchgang 2 | 237,6 ms | 236,9 ms | 216,3 ms | 276,2 ms |
+| after, mit Graph, Durchgang 2 | 250,9 ms | 256,4 ms | 239,8 ms | 274,8 ms |
+
+### Lesart
+
+1. **Ohne Graph bewegt sich der Leerweg nicht.** Die beiden Durchgänge sind
+   uneins (+21 ms, dann +0,1 ms); die Konfiguration, die jetzt zuerst lädt,
+   kostet weniger als die Streuung.
+2. **Mit Graph kostet er rund 20 ms mehr**, in beiden Durchgängen: Die Kopie
+   wird ins Git-Verzeichnis geschrieben und behalten, und der Baum von `HEAD`
+   wird für die Prüfung der Lane einmal mehr erfragt. `before` hat keine Art
+   `graph` in `stop` und nimmt den einfachen Weg.
+3. **Das Repository hat sich seit dem 2026-09-20 verdoppelt** (7.341 auf
+   15.138 Dateien); der Leerweg wuchs mit ihm von 169,5 ms auf rund 237 ms,
+   das meiste davon der Fingerabdruck über den größeren Index.
