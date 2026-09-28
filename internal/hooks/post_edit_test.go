@@ -769,10 +769,15 @@ func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
 	root := goProject(t)
 	payload := agyCall(t, root, "a.go", "b.go")
 	run := func(budget time.Duration) ([]string, string, string) {
+		// The lanes of a file start in goroutines of their own, so the clock
+		// and the list they share are held under one lock.
+		var mu sync.Mutex
 		now := time.Now()
 		var seen []string
 		env := EditEnv{
 			Start: func(s child.Spec) child.Result {
+				mu.Lock()
+				defer mu.Unlock()
 				seen = append(seen, strings.Join(s.Argv, " "))
 				now = now.Add(DefaultBudget)
 				return child.Result{}
@@ -780,7 +785,11 @@ func TestPostEditSharesOneBudgetAcrossTheFiles(t *testing.T) {
 			Look:   func(s string) (string, error) { return s, nil },
 			Loomux: "loomux",
 			Budget: budget,
-			Now:    func() time.Time { return now },
+			Now: func() time.Time {
+				mu.Lock()
+				defer mu.Unlock()
+				return now
+			},
 		}
 		var so, se bytes.Buffer
 		RunPostEdit(strings.NewReader(payload), &so, &se, root, env)
