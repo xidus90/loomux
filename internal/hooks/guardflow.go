@@ -95,24 +95,47 @@ func unreadableFlowsReason(err error) string {
 	return "loomux cannot read [flow] of .loomux/config.toml, so it refuses writes under .loomux/flows: " + err.Error()
 }
 
-// flowFolderReasons judges a write to rel, a path relative to the project,
-// against the protected flows. The folder name is compared in lower case:
-// Windows and macOS keep Example and example as one folder. The config is
-// read only for a path under .loomux/flows, as ignoredFlowFolders reads it.
+// flowFolderReasons judges a write to rel against the protected flows: rel
+// under a .loomux/flows folder, the project's or one under any directory, the
+// way the built-in rules keep .loomux. Every such folder in rel counts, the
+// outer and the inner alike, and each protected flow among them is named once.
+// The folder name is compared in lower case: Windows and macOS keep Example
+// and example as one folder. The config is read only for such a path.
 func flowFolderReasons(root, rel string) []string {
-	rest, under := strings.CutPrefix(strings.ToLower(rel), flowsDir+"/")
-	if !under {
+	names := flowFolderName(rel)
+	if len(names) == 0 {
 		return nil
 	}
-	name, _, _ := strings.Cut(rest, "/")
 	protected, err := protectedFlows(root)
 	if err != nil {
 		return []string{unreadableFlowsReason(err)}
 	}
-	if at := slices.IndexFunc(protected, func(p string) bool { return strings.ToLower(p) == name }); at >= 0 {
-		return []string{bundledFlowReason(protected[at])}
+	var reasons []string
+	for _, name := range names {
+		at := slices.IndexFunc(protected, func(p string) bool { return strings.ToLower(p) == name })
+		if at >= 0 && !slices.Contains(reasons, bundledFlowReason(protected[at])) {
+			reasons = append(reasons, bundledFlowReason(protected[at]))
+		}
 	}
-	return nil
+	return reasons
+}
+
+// flowFolderName is, in path order and lower case, the element right below
+// every .loomux/flows folder in rel; none when rel lies below no such folder.
+func flowFolderName(rel string) []string {
+	var names []string
+	rest := "/" + strings.ToLower(rel)
+	for {
+		at := strings.Index(rest, "/"+flowsDir+"/")
+		if at < 0 {
+			return names
+		}
+		// The search goes on from the slash that closes this flows folder,
+		// so a flows folder right inside the flow is found as well.
+		rest = rest[at+len(flowsDir)+1:]
+		name, _, _ := strings.Cut(rest[1:], "/")
+		names = append(names, name)
+	}
 }
 
 // flowFolderCommand is the rule for a shell line that writes or removes a

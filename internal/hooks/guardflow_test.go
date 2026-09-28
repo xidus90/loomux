@@ -219,17 +219,26 @@ func TestAWritingToolMayNotTouchABundledFlowFolder(t *testing.T) {
 		{filepath.Join(root, ".loomux", "flows", "example", "instructions", "draft.md"), "example"},
 		{".loomux/flows/review/questions/q.md", "review"},
 		{".LOOMUX/Flows/REVIEW/questions/q.md", "review"},
+		{"docs/.loomux/flows/example/flow.toml", "example"},
+		{"../sibling/.loomux/flows/review/flow.toml", "review"},
+		// Every .loomux/flows in the path counts, the outer and the inner.
+		{".loomux/flows/example/.loomux/flows/mine/x.md", "example"},
+		{"docs/.loomux/flows/x/.loomux/flows/example/f.md", "example"},
+		{".loomux/flows/example/.loomux/flows/Example/f.md", "example"},
 	} {
 		got := checkTool(root, "Write", map[string]any{"file_path": row.path}, config.Policy{})
 		if len(got) != 1 || got[0] != bundledWant(row.name) {
 			t.Errorf("%s: reasons %q, want %q", row.path, got, bundledWant(row.name))
 		}
 	}
+	both := ".loomux/flows/example/.loomux/flows/review/x.md"
+	if got := checkTool(root, "Write", map[string]any{"file_path": both}, config.Policy{}); !slices.Equal(got, []string{bundledWant("example"), bundledWant("review")}) {
+		t.Errorf("%s: reasons %q, want example and review", both, got)
+	}
 	for _, path := range []string{
 		".loomux/flows/mine/flow.toml",
 		".loomux/flows/example2/flow.toml",
 		".loomux/flows",
-		"docs/.loomux/flows/example/flow.toml",
 	} {
 		if got := checkTool(root, "Edit", map[string]any{"file_path": path}, config.Policy{}); len(got) != 0 {
 			t.Errorf("%s: reasons %q, want none", path, got)
