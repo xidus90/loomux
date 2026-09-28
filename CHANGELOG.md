@@ -4,6 +4,14 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [5.0.0] - 2026-09-28
+
+<https://github.com/xidus90/loomux/pull/56>
+
+### Changed
+- `loomux self-update` is renamed to `loomux upgrade`; the old name is gone.
+- The session-start warning about a failed update of the machine-wide binary now says "updating loomux failed at …" and names `loomux upgrade` to retry.
+
 ## [4.2.3] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/54>
