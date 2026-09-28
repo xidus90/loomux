@@ -191,7 +191,15 @@ Arbeitsverzeichnis der Tests nicht.
 
 - Eine Wikiseite in obsidian-ai mit Vorschlag des lokalen Modells.
 - Der `pktmon`-Mitschnitt: kein Paket verlässt Loopback.
-- Die Messung gegen das echte Modell.
+- ~~Die Messung gegen das echte Modell.~~ Erledigt am 2026-09-28 (Agent, in
+  einer Kopie der Welt `reconcile/proposal-kept`, nicht an obsidian-ai):
+  Ollama 0.34.0, CUDA, Vorgabemodell; warm mit Modell Median 793 ms gegen
+  209 ms ohne, rund 580 ms je Vorschlag, jeder warme Lauf mit Vorschlag
+  `vorschlag-v4`. Kalt lief die erste Frage in die Frist von 30 s (manueller
+  Fall, Ollama verwarf das halb geladene Modell), die erste nach dem Laden
+  brauchte 28,3 s, fast ganz für die erste Auswertung des Prompts
+  (`benchmarks.md`, 2026-09-28 20:20). Ob die erste Frage nach dem Laden mehr
+  Zeit bekommt, ist eine Frage an den Nutzer.
 
 Verfahren: Plan `2026-09-25-loomux-stufe-4c-1.md`. Ergebnisse mit Datum hier
 eintragen.
