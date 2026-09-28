@@ -4,6 +4,17 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [5.2.0] - 2026-09-28
+
+<https://github.com/xidus90/loomux/pull/58>
+
+### Added
+- The stop gate runs the `graph` lane by default: at a turn end the blast audit checks the whole working tree against `HEAD` and holds the turn when a widely called function changed without a changed test.
+- `loomux check stop` judges the `graph` lane the way the stop gate does.
+### Fixed
+- A graph rebuild lock left by a process that is no longer running is broken at once instead of blocking graph refreshes for up to an hour.
+- `loomux config get` and `loomux config list` show `graph` in the default `precommit` profile.
+
 ## [5.1.0] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/55>
