@@ -153,7 +153,7 @@ Was loomux über die Migration hinaus bekommt. *Priorität* ist dieselbe
 Reihenfolge wie im Migrationsplan, festgelegt in der
 [Fusions-Spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
 unter „Reihenfolge der offenen Stufen“ (1 zuerst); die offenen
-Migrationsstufen 4a-1 bis 4e haben Priorität 3.
+Migrationsstufen 4a-1, 4a-2, 4c-1, 4c-2 und 4e haben Priorität 3.
 
 ### Kommt
 
@@ -235,17 +235,46 @@ loomux merge-hook install|status|remove  # Der post-merge-Hook jedes Bereichs, d
 loomux cases                        # Listet die Fälle, die im Prüfzentrum warten; ein Fall ist kein Fehlschlag
 loomux case <id> [--package]        # Zeigt einen Fall mit Paket und Vorschlag; bei local_only zurückgehalten bis --package
 loomux approve <id>                 # Entscheidet einen Fall: wendet den belegten Vorschlag an und committet ihn (--amend D, --reject, --defer)
+loomux convert [datei]              # Wandelt die PDFs und Transkripte jedes beschreibbaren Eingangs, oder eine Datei, in <name>.<endung>.md mit Herkunftskopf; Exit 1, wenn etwas liegen bleibt (ein Befehl des Menschen, der Wächter verweigert ihn einem Agenten)
+loomux fetch <url> [--scope S]      # Lässt yt-dlp die Untertitel eines Videos in den Eingang eines Bereichs legen, Vorgabe knowledge (ein Befehl des Menschen, der Wächter verweigert ihn einem Agenten)
 loomux config [list|get K|set K V]  # zeigt jeden Schlüssel von .loomux/config.toml mit Herkunft, ändert eine Zeile nach Diff und y; ohne Unterbefehl Vollbild (--root, --global, --yes, --json; ein Befehl für Menschen, der Wächter verweigert ihn einem Agenten)
 loomux config set|unset … --propose # der Weg eines Agenten: die geprüfte Änderung als Vorschlag ablegen; ein Mensch ruft `config proposals`, dann `config apply <id>|--all` oder `config reject`
 loomux init                         # Richtet ein Projekt in Modulen ein (hooks, brain, graph): Binary, Konfiguration, Host-Einträge, Git-Hooks, Merge-Hook, Skills; jede Änderung als Diff, geschrieben nach einem y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; ein Befehl des Menschen; seine ersten Läufe auf einem frischen Klon und in einem Wirt stehen aus)
 ```
 
+**Der Eingang.** Ein Bereich, dessen Manifest `[layout] inbox` nennt, nimmt
+dort Dateien für das Wiki an. `loomux convert` wandelt jede PDF und jedes
+Transkript darin in `<name>.<endung>.md` neben der Quelle, mit einem
+Herkunftskopf (Quell-URL, das Datum der Datei, der Wandler, ob
+Spracherkennung den Text machte); ein zweiter Lauf schreibt kein Ziel neu,
+dessen Text gleich bliebe, und ein Ziel, dessen Kopf kein Wandler schrieb,
+wird nie überschrieben. PDFs gehen über `pdftotext` von Poppler, und nur über
+das von Poppler (xpdf schreibt unter demselben Namen einen anderen Text); eine
+Seite unter 100 Zeichen gilt als Scan und fällt weg, eine PDF nur aus Scans
+bleibt für einen Menschen liegen. `loomux fetch <url>` lässt `yt-dlp` die
+Untertitel eines Videos schreiben und legt sie als Transkript in den Eingang;
+loomux selbst spricht nie ins Netz. Beide Programme werden auf dem `PATH`
+gesucht und von Hand installiert (`winget install --id oschwartz10612.Poppler -e`,
+`winget install --id yt-dlp.yt-dlp -e`); ein fehlendes wird mit diesem Befehl
+genannt. Das Binary bettet eine deutsche Worthäufigkeitstabelle unter
+CC BY-SA 4.0 für die Satzprüfung des Modells ein; ihre Lizenz und jede andere
+fremde Lizenz im Binary stehen in `NOTICE.md` neben jedem Release.
+
 **Das lokale Modell.** Für einen Bereich, dessen Manifest `[privacy] mode = "local_only"`
 sagt, fragt `loomux reconcile` ein lokales Ollama nach einem Vorschlag zu jedem
 Fall, den es eröffnet. Ein Vorschlag, dessen Behauptungen alle die Belegbindung
 bestehen, landet als `proposal.md` neben dem Fall; alles andere — keine Antwort,
-eine Behauptung ohne wörtliches Zitat — hinterlässt einen manuellen Fall. Kein
-anderer Bereich geht je an das Modell. Die Einstellungen stehen in `[model]` der
+eine Behauptung ohne wörtliches Zitat — hinterlässt einen manuellen Fall;
+`reconcile` schickt keinen anderen Bereich an das Modell. `loomux convert`
+schon, gleich welcher Datenschutzmodus: Mit eingeschaltetem Modell schickt es
+die ersten 1800 Zeichen jeder Datei, die es in einem Eingang wandelt, und
+fragt nach dem einen Satz des Kopfs (Rolle `describe`) und, für eine neu
+geschriebene Datei, nach dem Bereich, in den sie gehört (Rolle `place`; zur
+Wahl stehen nur Bereiche, die nicht offener sind als der des Eingangs; ein
+Vorschlag ist eine Zeile auf stdout, die Datei bleibt liegen). Alle drei
+Rollen sind vorgegeben an, `enabled = true` allein schaltet also beide für
+jeden Eingang ein; `roles` engt sie ein. `convert <datei>` fragt das Modell
+nie. Die Einstellungen stehen in `[model]` der
 rechnerweiten `config.toml` im Zustandsverzeichnis (Vorgabe
 `%LOCALAPPDATA%\loomux\config.toml`): `enabled` (vorgegeben aus), `endpoint`,
 `name`, `temperature` und `roles`, angezeigt und geändert mit
@@ -295,6 +324,8 @@ loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter
 loomux dev record-mcp-case --out <dir> # Zeichnet einen MCP-Werkzeugaufruf eines Referenzdienstes als Fall auf
 loomux dev fake-ollama --fixture <f>  # Ein Ollama-Ersatz, der jede Anfrage mit der Fixture beantwortet, zum Aufzeichnen und Abspielen von Fällen (--addr, Vorgabe 127.0.0.1:11435; --log)
 loomux dev release <unterbefehl>    # Release-Regeln für die CI: next-version, parse-body, changelog-insert, build
+loomux dev notices [--out D]        # Schreibt NOTICE.md aus den Modulen und Grammatiken, die das Binary linkt; ein Test hält die eingecheckte Datei aktuell
+loomux dev record-poppler --exe P --dir V --out D  # Zeichnet auf, was pdftotext von Poppler für jede PDF in V ausgibt, als Fixture für das Go-Golden
 ```
 
 ---
@@ -361,6 +392,11 @@ Binaries gibt es auf der [Releases-Seite](https://github.com/xidus90/loomux/rele
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
 ```
+
+Neben ihnen trägt jedes Release `NOTICE.md`, ebenfalls in `SHA256SUMS`
+geführt: die Lizenz jedes fremden Teils im Binary — die Standardbibliothek
+von Go, jedes gelinkte Modul, jede gelinkte Grammatik von tree-sitter und die
+deutsche Worthäufigkeitstabelle unter CC BY-SA 4.0 samt ihren Quellen.
 
 ### Das maschinenweite Binary installieren
 

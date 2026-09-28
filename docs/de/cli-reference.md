@@ -229,15 +229,19 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
 - **Kein Modul**: `[modules]` wird hier nicht gelesen. Die Schreibschranke ist
   global und schützt die schreibgeschützten Bereiche anderer Repositories;
   `hooks = false` lässt den Wächter darum laufen.
-- **Befehle, die die Konfiguration schreiben**: Eine `Bash`- oder
-  `PowerShell`-Zeile, die `loomux init` (ohne befreiendes `--dry-run` oder
-  `--detect-only`), jedes `loomux config` außer `config list …`,
-  `config get …`, `config proposals …`, einem alleinstehenden
-  `config --help` oder `config -h` und `config set …` oder `config unset …`
-  mit befreiendem `--propose`, `loomux area add`,
-  `loomux merge-hook install` oder `remove` (`status` und `record` gehen
-  durch) oder `loomux convert` oder `loomux fetch` (außer allein mit
-  `--help` oder `-h`) ausführt, wird verweigert mit ``loomux init, config and
+- **Befehle, die ein Mensch ausführt**: Eine `Bash`- oder `PowerShell`-Zeile,
+  die einen dieser Befehle ausführt, wird verweigert:
+  - `loomux init`, außer mit befreiendem `--dry-run` oder `--detect-only`;
+  - `loomux config`, außer `config list …`, `config get …`,
+    `config proposals …`, einem alleinstehenden `config --help` oder
+    `config -h` und `config set …` oder `config unset …` mit befreiendem
+    `--propose`;
+  - `loomux area add`;
+  - `loomux merge-hook install` oder `remove` (`status` und `record` gehen
+    durch);
+  - `loomux convert` oder `loomux fetch`, außer allein mit `--help` oder `-h`.
+
+  Die Ablehnung lautet ``loomux init, config and
   area add write the configuration the guard reads, merge-hook install and
   remove write executable hooks into repositories, and convert and fetch
   write into an area's inbox, which the write barrier keeps from agents; a
@@ -295,8 +299,9 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
     stehen, nicht in einem Block (`try { … }`) und nicht hinter einem
     Programmpfad, der expandiert (`${X}/loomux`).
 
-  Diese Befehle schreiben `.loomux/config.toml` aus ihrem eigenen Prozess, wo
-  keine Pfadregel den Schreibvorgang sieht. Erkannt wird das Programm als
+  Diese Befehle schreiben aus ihrem eigenen Prozess — `.loomux/config.toml`,
+  einen Git-Hook in einem anderen Repository, eine Datei im Eingang eines
+  Bereichs —, wo keine Pfadregel den Schreibvorgang sieht. Erkannt wird das Programm als
   `loomux`, `loomux.exe` oder ein Pfad, der auf eines von beiden endet (mit
   oder ohne Anführungszeichen, `\` oder `/`), und als `go run` von
   `cmd/loomux` oder `cmd/loomux/main.go` (mit oder ohne `./`, unter einem
@@ -336,7 +341,10 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
     mit `--dry-run` auf der nächsten Zeile (PowerShell führte die erste Zeile
     allein aus) und `config` mit einem anderen Flag als `--root <verz>`,
     `--root=<verz>` oder `--global` vor dem Unterbefehl
-    (`loomux config --json list`). Ebenso eine Zeile,
+    (`loomux config --json list`) sowie `convert` oder `fetch` mit der Hilfe
+    in jeder Form außer einem alleinstehenden `--help` oder `-h`
+    (`convert -help`, `convert --help=true`, `convert --help x`,
+    `fetch --scope x --help`), die nur die Hilfe ausgeben. Ebenso eine Zeile,
     die solchen Text nur als Daten trägt, etwa ein Heredoc mit
     `loomux config set …`.
 - **Standard-Output / Fehler**:
@@ -670,6 +678,47 @@ Meldet ein Repository als Bereich an und richtet es ein: der Registry-Eintrag (u
 - **Eine behaltene Konfiguration**: Eine vorhandene `.loomux/config.toml` bleibt Byte für Byte stehen, mit einer Warnung, wenn sie kein `[area]` oder einen anderen Scope erklärt. Eine, die der Deklarationsleser ablehnt, beendet den Befehl, ohne dass etwas registriert ist.
 - **Unterschiede zu `brain init`**: kein `.mcp.json` und keine Agenten-Hooks (`loomux init`, Stufe 4); der Indexlauf findet wirklich statt, außer mit `--no-reindex`; der Branch wird als `[maintenance] branch` geschrieben, nicht als `merge_branch`; `--privacy` wird geprüft; der erste Bereich einer Maschine braucht keine von Hand angelegte Registry-Datei. `-y`/`--yes` wird angenommen und ändert nichts.
 - **Exit-Codes**: `0` oder der Exit-Code des Indexlaufs; `1` bei einem Pfad, der kein Verzeichnis ist, einem ungültigen Scope, einem relativen `--wiki`, einem abgelehnten Registry-Eintrag, einer unlesbaren Datei oder einem fehlgeschlagenen Schreiben; `2` bei einem Usage-Fehler, einem fehlenden oder unbekannten Unterbefehl (mit der Usage-Zeile) oder einem unbekannten `--privacy`.
+
+### Eingang: `loomux convert`, `loomux fetch`
+
+Zwei Befehle der `brain`-CLI von ultra-brain, seit Stufe 4d Befehle der obersten Ebene von loomux; ein aufgezeichneter Fallsatz (`testdata/cases/4d`, 29 Fälle) hält `convert` an der Python-Referenz, und eine Aufnahme der eigenen Ausgabe von Poppler hält den PDF-Weg am echten Werkzeug. Beide schreiben in den Eingang eines Bereichs, das Verzeichnis, das sein Manifest als `[layout] inbox` nennt, relativ zum Pfad des Bereichs.
+
+- **Befehle des Menschen**: Der Wächter verweigert beide einem Agenten, denn dorthin verbietet die Schreibschranke Agenten das Schreiben (siehe [`hook pre-tool-use`](#loomux-hook-pre-tool-use)); nur ein alleinstehendes `--help` oder `-h` geht durch.
+- **Modul Brain**: Mit `[modules] brain = false` im Projekt, das die Suche vom Arbeitsverzeichnis nach oben findet, geben beide `loomux <befehl>: the brain module is off in <datei> ([modules] brain = false)` aus und enden mit `1`, bevor etwas gelesen ist. Außerhalb eines Projekts ist nichts abgeschaltet.
+- **Umgebung**: Registry und Bereichsdeklarationen kommen aus `LOOMUX_STATE_DIR`, mit `LOOMUX_LEGACY_BRAIN_DIR` als Rückfall, wie bei der [Pflege](#pflege-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add). `--state-dir` und `--channel`, die die Referenz annimmt und nicht nutzt, sind unbekannte Flags (Exit `2`).
+- **Externe Programme**: Beide werden auf dem `PATH` gesucht und nie installiert: `pdftotext` von Poppler (`winget install --id oschwartz10612.Poppler -e`) und `yt-dlp` (`winget install --id yt-dlp.yt-dlp -e`). Ein fehlendes wird mit diesem Befehl genannt.
+
+#### `loomux convert [<datei>]`
+Geht in der Reihenfolge der Registry durch den Eingang jedes Bereichs, lässt einen Bereich aus, der schreibgeschützt ist, keinen Eingang nennt oder dessen Eingang kein Verzeichnis ist, und wandelt darin jede reguläre Datei außer `*.md`, nach Namen sortiert (unter Windows in Kleinschreibung, wie Python dort Pfade sortiert). Mit einer `<datei>` wandelt es nur diese, wo immer sie liegt, und fragt nie das Modell. Jedes Ergebnis wird neben seiner Quelle als `<name>.<endung>.md` geschrieben — aus `doku.pdf` und `doku.txt` werden `doku.pdf.md` und `doku.txt.md`.
+
+- **Formate**: eine `.pdf` und eine `.txt`, deren erste 8192 Zeichen eine Transkriptmarke am Zeilenanfang tragen: die Klammerform `[mm:ss]` oder `[hh:mm:ss]` oder die Bereichsform `hh:mm:ss - hh:mm:ss` allein auf ihrer Zeile. Die Fragmente werden, ohne ein Wort zu ändern, zu Absätzen von etwa 1200 Zeichen verbunden, jeder mit der Marke seines ersten Fragments. Alles andere bleibt liegen: `skipped: <name>: no converter knows this format`.
+- **PDFs**: über `pdftotext -layout -enc UTF-8 -eol unix <name> -`, im Eingang gestartet, höchstens 2 Minuten je Datei. Vor der ersten PDF eines Laufs muss `pdftotext -v` Poppler nennen; auch xpdf bringt ein `pdftotext` mit und schreibt einen anderen Text, es wird darum wie ein fehlendes Programm abgewiesen, und jede PDF des Laufs bleibt mit `skipped: <name>: <programm> is not Poppler's pdftotext (…); install Poppler with: …` liegen. Ein Lauf ohne PDF braucht das Programm nie. Jede Seite wird für sich an der Scan-Schwelle gemessen: Eine Seite mit weniger als 100 Zeichen gilt als Scan und fällt weg (`skipped: <name>: <n> page(s) skipped as scanned`, das Ziel wird trotzdem geschrieben); eine PDF nur aus Scans schreibt nichts (`no extractable text, looks like a scan`), eine ohne Seiten ebenso (`no pages to extract`), und eine, die `pdftotext` ablehnt, heißt `cannot be read as a PDF (pdftotext exited <n>: <seine erste Zeile>)`.
+- **Der Herkunftskopf**: YAML-Frontmatter, dann eine Leerzeile und der Text:
+  ```yaml
+  ---
+  source_url: https://www.youtube.com/watch?v=<id>
+  retrieved: 2026-09-27
+  converter: brain-pdf/2
+  asr: false
+  description: <ein deutscher Satz>
+  ---
+  ```
+  `source_url` wird aus einem elf Zeichen langen Lauf in Klammern im Dateinamen gelesen (eine YouTube-ID; leer ohne sie); `retrieved` ist das UTC-Datum, an dem die Quelle zuletzt geändert wurde; `converter` ist `brain-pdf/2` oder `brain-transcript/1`; `asr` ist `true` für ein Transkript, damit sein Text nie als wörtliches Zitat zählt; `description` steht nur, wenn das Modell einen Satz gab.
+- **Zweiter Lauf**: Ein Ziel wird nur neu geschrieben, wenn sich sein Text ändern würde; ein unberührtes behält seine Zeit und wird nicht ausgegeben. Ein Ziel, dessen Kopf keinen Wandler nennt, hat ein Mensch geschrieben, und es wird nie überschrieben (`skipped: <ziel>: not written by us, left untouched`). Einen Satz, den ein Kopf schon trägt, behält es und fragt nie neu; ein Kopf ohne Satz wird bei jedem Lauf gefragt.
+- **Das lokale Modell** (`[model]` der rechnerweiten `config.toml`, eingeengt durch das `[model]` des Bereichs, siehe [`loomux config`](#10-konfiguration-loomux-config)): Gleich welcher Datenschutzmodus des Bereichs, mit eingeschaltetem Modell und eingeschalteter Rolle schickt `convert` die ersten 1800 Zeichen des gewandelten Texts an das lokale Modell. Die Rolle `describe` fragt nach dem einen Satz des Kopfs, behalten nur, wenn er ein deutscher Satz von höchstens 22 Wörtern ist, den kein Richter abweist (zerhackte Wörter, gemessen an einer eingebetteten deutschen Worthäufigkeitstabelle unter CC BY-SA 4.0; ein Satz, den YAML nicht zurückliest); sonst behält der Kopf vier Zeilen. Die Rolle `place` fragt für eine Datei, die dieser Lauf schrieb, in welchen Bereich sie gehört, und bietet nur Bereiche an, die nicht schreibgeschützt und nicht offener sind als der des Eingangs (`local_only` < `manual_cloud` < `automatic_cloud`); eine bekannte Antwort ist eine Zeile `suggested: <ziel>: belongs in <scope>, left in the inbox` auf `stdout`, und nichts wird verschoben. Keine Antwort, ein Ausfall oder ein abgewiesener Satz ist kein Befund. Die Einstellungen werden vor der ersten Datei gelesen: Ein `[model]`, das sich nicht lesen lässt, oder ein Endpunkt außerhalb des Loopbacks, während eine Rolle für einen Eingang an ist, beendet den Lauf, ohne dass etwas gewandelt ist.
+- **Ausgabe**: Auf `stdout` jedes geschriebene Ziel, dann die `suggested:`-Zeilen; auf `stderr` eine Zeile `skipped: <grund>` für jede Datei, die für einen Menschen liegen bleibt, und `error: <grund>` für einen Fehler, der den Lauf beendet (eine Registry oder Deklaration, die sich nicht lesen lässt, ein Eingang, der sich nicht auflisten lässt — was frühere Eingänge schrieben, steht dann schon da).
+- **Exit-Codes**: `0`, wenn nichts liegen blieb; `1`, sobald eine `skipped:`-Zeile ausgegeben wurde, bei einem Fehler, der den Lauf beendete, und bei abgeschaltetem Modul Brain; `2` bei einem Usage-Fehler (ein unbekanntes Flag, mehr als eine Datei). Ein Scan, der im Eingang liegen bleibt, wiederholt seine `skipped:`-Zeile und Exit `1` bei jedem Lauf, wie in der Referenz.
+
+#### `loomux fetch <url> [--scope <scope>]`
+Lässt `yt-dlp` die Untertitel eines Videos in ein frisches temporäres Verzeichnis schreiben und legt sie im Eingang des Bereichs `--scope` (Vorgabe `knowledge`) als Transkript in Klammerform ab, ein Fragment je Absatz (`[hh:mm:ss] text`), bereit für `convert`. loomux selbst spricht nie ins Netz.
+
+- **Der Aufruf**: `yt-dlp --ignore-config --no-playlist --no-progress --skip-download --write-subs --write-auto-subs --sub-langs de,en --sub-format json3 --write-info-json --ignore-errors -o v <url>`, höchstens 10 Minuten. `--ignore-config` hält eine Nutzerkonfiguration davon ab, Name oder Ort zu ändern, `--no-playlist` holt bei einer Adresse mit `&list=` nur das Video, `--ignore-errors` hält eine scheiternde Spur (ein 429 auf einer automatisch übersetzten) davon ab, yt-dlp zu beenden, bevor es die Info-JSON schreibt. Der Exit-Code von yt-dlp entscheidet nichts; was es schrieb, entscheidet.
+- **Die Spur**: manuelle Untertitel vor automatischen, `de` vor `en` innerhalb jeder Art; innerhalb einer Sprache wählt yt-dlp die Spur. Ein Video ohne Spur endet mit `<url>: no subtitle track to fetch, and this system does no ASR`.
+- **Die Datei**: `<titel> (<id>).txt` für eine Adresse mit YouTube-ID, sonst `<titel>.txt`; der Titel verliert, was Windows in einem Namen verbietet, und jedes Steuerzeichen und wird auf 150 Zeichen gekürzt, `video`, wenn nichts bleibt. Der Eingang wird angelegt, wenn er fehlt; eine gleichnamige Datei wird ersetzt.
+- **Verweigert**: eine URL, die mit `-` beginnt (yt-dlp läse sie als Option, mit `--` oder ohne: `loomux fetch: a URL does not begin with '-': <url>`, Exit `2`); eine URL, die auf `youtube.com`, `www.`, `m.` oder `music.youtube.com` nur eine Playlist nennt (die Playlist-Seite `/playlist`, oder `/watch` mit `list=`, aber ohne `v=`, die yt-dlp auf die Playlist-Seite umleitet), denn `--no-playlist` grenzt sie nicht auf ein Video ein (`loomux fetch: a URL that names only a playlist is not fetched, give the URL of one video: <url>`, Exit `2`; eine Watch-URL mit `&list=` wird genommen); keine oder mehr als eine URL (Exit `2`); ein Scope, den die Registry nicht kennt, ein Bereich ohne Eingang, ein schreibgeschützter Bereich (Exit `1`, `error: …`).
+- **Nicht verweigert, obwohl yt-dlp sie ebenfalls als Playlist liest**: eine nackte Playlist-ID (`PL…`); ein anderer Pfad auf `youtube.com` mit `list=`, aber ohne `v=` (etwa `/embed/videoseries?list=…`); dieselben Seiten auf einer anderen Subdomain von `youtube.com` oder auf `youtubekids.com`. yt-dlp läuft dann durch jeden Eintrag der Playlist; stattdessen die URL eines Videos angeben.
+- **Ausgabe**: der Pfad der geschriebenen Datei auf `stdout`; `error: <grund>` auf `stderr`.
+- **Exit-Codes**: `0` für eine geschriebene Datei; `1` bei fehlendem `yt-dlp`, einem verweigerten Bereich, einem Abruf ohne Spur oder einer unlesbaren Antwort und bei abgeschaltetem Modul Brain; `2` bei einem Usage-Fehler.
 
 ### Der post-merge-Hook: `loomux merge-hook install|status|remove|record`
 Der Hook, der `reconcile` einen gelandeten Merge meldet, in jedem Repository eines Bereichs, dessen Manifest `[maintenance] on_merge = true` sagt. `brain-mcp hook` von ultra-brain unter neuem Namen, weil `hook` hier der Namensraum der Host-Hooks ist; ein aufgenommener Fallkorpus (`testdata/cases/4a2`, 14 Fälle, elf ohne Unterschied) hält ihn an der Referenz. `loomux init` ruft `merge-hook install` als seinen Teil `merge-hook` (aus in einem Checkout von loomux, dessen Hookverzeichnis das eingecheckte `.githooks` ist).
@@ -1038,6 +1087,17 @@ Zeichnet einen Aufruf der MCP-Front der Referenz als Fall auf: einen Werkzeugauf
 Beantwortet jede Anfrage an einen Ollama-Endpunkt mit der einen Antwort der JSON-Datei `--fixture`, bis Strg+C. Es lauscht auf `--addr` (Standard `127.0.0.1:11435`) und hängt die Anfragezeilen an `--log` an, ohne `--log` an `stderr`.
 
 - **Exit-Codes**: `0` nach Strg+C; `1`, wenn sich Fixture oder Log nicht öffnen lassen oder die Adresse nicht bedient werden kann; `2` bei einem unbekannten Flag oder ohne `--fixture`.
+
+### `loomux dev notices [--out <datei>]`
+Schreibt `NOTICE.md` (Vorgabe `internal/notices/NOTICE.md`) aus dem, was das Binary linkt, das aus dem Checkout im Arbeitsverzeichnis gebaut wird: die Lizenz der Standardbibliothek von Go, jedes Moduls und jeder tree-sitter-Grammatik, deren Paket importiert ist, wörtlich, dazu der Hinweis der eingebetteten Worthäufigkeitstabelle. Den Build-Graphen fragt es beim `go`-Befehl ohne cgo ab, wie das Release baut, und weist eine copyleft-Grammatik ab, deren Bedingungen das ganze Binary bänden. Ein Test hält die eingecheckte Datei an dem, was dies erzeugt, damit keine neue Abhängigkeit ohne ihren Hinweis ausgeliefert wird; das Release schreibt denselben Text neben die Binaries und in `SHA256SUMS`.
+
+- **Ausgabe**: der geschriebene Pfad auf `stdout`.
+- **Exit-Codes**: `0` bei Erfolg; `1`, wenn `go` scheitert, eine Lizenzdatei sich nicht lesen lässt, eine Grammatik copyleft ist oder die Datei sich nicht schreiben lässt; `2` bei einem unbekannten Flag.
+
+### `loomux dev record-poppler --exe <pdftotext> --dir <verz> --out <datei>`
+Zeichnet Poppler für den Golden-Test von `convert` auf: startet einmal `<pdftotext> -v` und für jede `*.pdf` in `--dir` `<pdftotext> -layout -enc UTF-8 -eol unix <name> -`, aus diesem Verzeichnis und mit dem bloßen Namen, wie `convert` fragt, und schreibt die Antworten (Exit-Code und Ausgabe; bei `-v` samt `stderr` in der Ausgabe) als Fixture von `internal/dev/faketool` nach `--out`. Ein Mensch ruft es einmal mit installiertem Poppler auf; die Fixture hat keinen Platz für `stderr`, darum gehen Exit-Code, Größe und `stderr` jeder PDF für die Paritätsnotizen auf `stdout`.
+
+- **Exit-Codes**: `0` bei Erfolg; `1`, wenn sich `--dir` nicht lesen oder die Fixture sich nicht schreiben lässt; `2` bei einem unbekannten Flag oder fehlendem `--exe`, `--dir` oder `--out`.
 
 ---
 

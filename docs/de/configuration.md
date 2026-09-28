@@ -449,14 +449,14 @@ es zu sein.
 ```toml
 [modules]
 hooks = true   # post-edit, stop, session-start, subagent-start/-stop
-brain = true   # die Wiki-Lane und die MCP-Werkzeuge brain_*
+brain = true   # die Wiki-Lane, die MCP-Werkzeuge brain_*, convert und fetch
 graph = false  # die MCP-Werkzeuge graph_*
 ```
 
 | Schlüssel | Typ | Vorgabe | Aus heißt |
 |---|---|---|---|
 | `hooks` | Boolean | `true` | `loomux hook post-tool-use`, `stop`, `session-start`, `subagent-start` und `subagent-stop` enden sofort mit 0 und tun nichts. |
-| `brain` | Boolean | `true` | Die Lane `lint/wiki` ist überall aus — Edit-Lane, `loomux check` und Stop-Gate —, genau so, wie `[verify.wiki] lint = false` sie abschaltet; `loomux mcp` bietet kein `brain_*`-Werkzeug an. |
+| `brain` | Boolean | `true` | Die Lane `lint/wiki` ist überall aus — Edit-Lane, `loomux check` und Stop-Gate —, genau so, wie `[verify.wiki] lint = false` sie abschaltet; `loomux mcp` bietet kein `brain_*`-Werkzeug an; `loomux convert` und `loomux fetch`, in diesem Projekt aufgerufen, verweigern mit Exit 1. |
 | `graph` | Boolean | `true` | `loomux mcp` bietet kein `graph_*`-Werkzeug an. |
 
 - **Der Wächter läuft immer.** `hook pre-tool-use` liest `[modules]` nicht:

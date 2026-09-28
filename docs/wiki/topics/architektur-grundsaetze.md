@@ -73,8 +73,8 @@ Ablagevorschlag beim Import und Ein-Satz-Beschreibungen für Kataloge.
 
 **In loomux ist das lokale Modell seit 4c-1 gebaut, die Selbstnutzung steht
 aus.** Vorschläge für `local_only`-Fälle in `reconcile` kommen über Ollama auf
-Loopback, `convert` und `fetch` samt den Modellrollen `describe` und `place`
-mit 4d; ohne eingeschaltetes Modell öffnet ein `local_only`-Bereich seinen
+Loopback, seit 4d auch der Kopfsatz (`describe`) und der Ablagevorschlag
+(`place`) in `convert`; ohne eingeschaltetes Modell öffnet ein `local_only`-Bereich seinen
 Fall ohne Vorschlag. Ein Ausfall des Modells soll
 zu einem Fall ohne Vorschlag führen, nie in die Cloud.
 

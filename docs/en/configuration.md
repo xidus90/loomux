@@ -438,14 +438,14 @@ cannot look configured and not be.
 ```toml
 [modules]
 hooks = true   # post-edit, stop, session-start, subagent-start/-stop
-brain = true   # the wiki lane and the brain_* MCP tools
+brain = true   # the wiki lane, the brain_* MCP tools, convert and fetch
 graph = false  # the graph_* MCP tools
 ```
 
 | Key | Type | Default | Off means |
 |---|---|---|---|
 | `hooks` | boolean | `true` | `loomux hook post-tool-use`, `stop`, `session-start`, `subagent-start` and `subagent-stop` exit 0 at once and do nothing. |
-| `brain` | boolean | `true` | The lane `lint/wiki` is off everywhere — edit lane, `loomux check` and the stop gate — exactly as `[verify.wiki] lint = false` would turn it off; `loomux mcp` offers no `brain_*` tool. |
+| `brain` | boolean | `true` | The lane `lint/wiki` is off everywhere — edit lane, `loomux check` and the stop gate — exactly as `[verify.wiki] lint = false` would turn it off; `loomux mcp` offers no `brain_*` tool; `loomux convert` and `loomux fetch`, run in this project, refuse with exit 1. |
 | `graph` | boolean | `true` | `loomux mcp` offers no `graph_*` tool. |
 
 - **The guard always runs.** `hook pre-tool-use` does not read `[modules]`:

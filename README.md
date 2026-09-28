@@ -153,7 +153,7 @@ What loomux will gain beyond the migration. *Priority* is the same order the
 migration plan uses, set in the
 [fusion spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
 under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
-4a-1 to 4e hold priority 3.
+4a-1, 4a-2, 4c-1, 4c-2 and 4e hold priority 3.
 
 ### Coming
 
@@ -234,16 +234,42 @@ loomux merge-hook install|status|remove  # the post-merge hook of every area who
 loomux cases                        # list the cases waiting in the review centre; a case is not a failure
 loomux case <id> [--package]        # show a case with its package and proposal; withheld for local_only until --package
 loomux approve <id>                 # decide a case: apply the evidence-bound proposal and commit it (--amend F, --reject, --defer)
+loomux convert [file]               # turn the PDFs and transcripts of every writable inbox, or one file, into <name>.<ext>.md with a provenance head; exit 1 when anything is left (a human's command, the guard refuses an agent)
+loomux fetch <url> [--scope S]      # have yt-dlp put a video's subtitles into an area's inbox, knowledge by default (a human's command, the guard refuses an agent)
 loomux config [list|get K|set K V]  # show every key of .loomux/config.toml with its origin, change one line after a diff and a y; bare: full-screen (--root, --global, --yes, --json; a human's command, the guard refuses an agent)
 loomux config set|unset … --propose # an agent's way: store the checked change as a proposal; a human runs `config proposals`, then `config apply <id>|--all` or `config reject`
 loomux init                         # set a project up in modules (hooks, brain, graph): binary, config, host entries, git hooks, merge hook, skills; every change as a diff, written after a y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; a human's command; its first runs on a fresh clone and a host are pending)
 ```
 
+**The inbox.** An area whose manifest names `[layout] inbox` takes files for
+the wiki there. `loomux convert` turns each PDF and transcript in it into
+`<name>.<ext>.md` beside the source, with a provenance head (source URL, the
+file's date, the converter, whether speech recognition made the text); a
+second run rewrites no target whose text would stay the same, and a target
+whose head no converter wrote is never overwritten. PDFs go through `pdftotext` from
+Poppler, and only Poppler's (xpdf writes another text under the same name);
+a page under 100 characters counts as a scan and is left out, a PDF of scans
+alone is left for a person. `loomux fetch <url>` has `yt-dlp` write a
+video's subtitles and files them in the inbox as a transcript; loomux itself
+never speaks to the network. Both programs are found on the `PATH` and
+installed by hand (`winget install --id oschwartz10612.Poppler -e`,
+`winget install --id yt-dlp.yt-dlp -e`); a missing one is named with that
+command. The binary embeds a German word-frequency table under CC BY-SA 4.0
+for the model's sentence check; its licence and every other third-party
+licence the binary carries are in `NOTICE.md` beside every release.
+
 **The local model.** For an area whose manifest says `[privacy] mode = "local_only"`,
 `loomux reconcile` asks a local Ollama for a proposal on each case it opens. A
 proposal whose every claim passes the evidence binding lands beside the case as
 `proposal.md`; anything else — no answer, a claim without a verbatim quote —
-leaves a manual case. No other area is ever sent to the model. The settings are
+leaves a manual case; `reconcile` sends no other area to the model. `loomux
+convert` does, whatever the area's privacy mode: with the model on, it sends
+the first 1800 characters of each file it converts in an inbox to ask for the
+head's one sentence (role `describe`) and, for a file it newly wrote, for the
+area it belongs in (role `place`, offered only the areas no more open than
+the inbox's own; a suggestion is a line on stdout, the file stays). All three
+roles are on by default, so `enabled = true` alone turns both on for every
+inbox; `roles` narrows them. `convert <file>` never asks the model. The settings are
 `[model]` in the machine-wide `config.toml` of the state directory (by default
 `%LOCALAPPDATA%\loomux\config.toml`): `enabled` (off by default), `endpoint`,
 `name`, `temperature` and `roles`, shown and changed with `loomux config --global`
@@ -291,6 +317,8 @@ loomux dev import-cases --map <f>   # translate a directory of recorded cases in
 loomux dev record-mcp-case --out <dir> # record one MCP tool call of a reference service as a case
 loomux dev fake-ollama --fixture <f>  # a stand-in Ollama that answers every request with the fixture, for recording and replaying cases (--addr, default 127.0.0.1:11435; --log)
 loomux dev release <sub>            # release rules for CI: next-version, parse-body, changelog-insert, build
+loomux dev notices [--out F]        # write NOTICE.md from the modules and grammars the binary links; a test holds the committed file current
+loomux dev record-poppler --exe P --dir D --out F  # record what Poppler's pdftotext prints for each PDF in D as a fixture for the Go golden
 ```
 
 ---
@@ -357,6 +385,11 @@ Download a binary from the [Releases page](https://github.com/xidus90/loomux/rel
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
 ```
+
+Beside them every release carries `NOTICE.md`, listed in `SHA256SUMS` as
+well: the licence of every third-party part the binary carries — Go's
+standard library, each linked module, each tree-sitter grammar it links, and
+the German word-frequency table under CC BY-SA 4.0 with its sources.
 
 ### Installing the machine-wide binary
 

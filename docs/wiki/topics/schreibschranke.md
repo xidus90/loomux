@@ -37,7 +37,8 @@ Die Tabelle `[policy]` in `.loomux/config.toml` trägt zwei Regellisten:
 Pfadregeln mit Globs gegen schreibende Werkzeuge und Befehlsregeln mit
 regulären Ausdrücken gegen `Bash` und `PowerShell`. Eingebaute Regeln gehen
 immer mit: Geheimnisse (`.env`, `*.pem`, `*.key` und andere) schreibt kein
-Agent, und `loomux init`, `config` und `area add` führt ein Mensch aus. Eine
+Agent, und `loomux init`, `config`, `area add`, `merge-hook install|remove`,
+`convert` und `fetch` führt ein Mensch aus. Eine
 Regel, deren Glob sich nicht lesen lässt, verweigert.
 
 ## Wie die Schranke entscheidet
