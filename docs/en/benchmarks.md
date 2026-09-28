@@ -2858,6 +2858,97 @@ edit), warm 0.7, 0.2, 0.2, 0.3, 0.3 s (no drift).
    paths (exit 2 against a green pass that moves the base); both run the
    whole chain first.
 
+## 2026-09-28 15:53 — The Guard Reads Shell Write Targets as Paths
+
+Worktree `.worktrees/guard-shell`, branch `fix/guard-shell-paths`.
+`before.exe` is `24f12d2c`, the branch's merge base with `origin/master`,
+built from `git archive` into the scratchpad; `after.exe` is the branch's
+code at `45902725`. Both built with Go 1.27.0 `windows/amd64`. Machine: AMD Ryzen 7
+9800X3D, Windows 11 Pro.
+
+**Goal.** `pre-tool-use` now reads a shell line by a table of verbs and
+wrappers, unfolds braces, matches globs against the disk and, for a removal,
+asks what lies below the removed folder; every target then goes through the
+path rules a writing tool's target goes through. The verb table, brace and
+glob expansion and the ancestor check may not lift `pre-tool-use` above 35 ms
+warm.
+
+**Method.** `after.exe dev bench hooks <cases> -n 30 --out <dir>`, three
+passes from 15:53:51 to 15:54:09, before and after alternating, each binary
+copied onto the binary `argv` names before each pass. Case file
+`testdata/bench/guard-shell-hooks.json`:
+the five cases of `testdata/bench/flow-hooks.json` against this worktree and
+the same two worlds, and a sixth, a `Bash` line with wrappers, braces and
+globs:
+
+```sh
+cd docs && sudo -u root env X=1 timeout -s KILL 60 cp -r notes/{a,b,c}/*.md build/out/ ; tee -a build/log.txt < in.txt | xargs -n 1 echo && rm -rf build/tmp/* 2>&1 ; git status
+```
+
+`after` reads `cd docs` and judges `docs/build/out/`, `docs/build/log.txt`
+and `docs/build/tmp/*` (which match nothing on disk and stay as written);
+neither binary refuses it. The stdin payloads and the worlds lay in the
+session's scratchpad and are not committed; the case file names that path,
+so it runs only on this machine, like the one before it. The real state
+directory and registry. "Cold" is the first run of a case, not a cold file
+cache. The table gives the median of the three pass medians, warm over 30
+runs each, the smallest minimum of the three passes, and cold as the median
+of the three first runs. Every run ended with exit 0.
+
+| case | before cold | after cold | before warm median | after warm median | before warm min | after warm min |
+|---|---:|---:|---:|---:|---:|---:|
+| pre-tool-use Edit outside `.loomux/` | 74.0 ms | 83.9 ms | 14.0 ms | 14.0 ms | 11.5 ms | 12.0 ms |
+| pre-tool-use Edit under `.loomux/flows/mine/` | 15.5 ms | 15.0 ms | 14.7 ms | 15.0 ms | 12.0 ms | 12.3 ms |
+| pre-tool-use Bash `git status` | 10.0 ms | 11.0 ms | 12.0 ms | 11.5 ms | 10.0 ms | 9.5 ms |
+| pre-tool-use Bash, the long line above | 11.0 ms | 12.0 ms | 12.3 ms | 12.0 ms | 10.0 ms | 10.0 ms |
+| session-start, a project without runs | 21.5 ms | 13.0 ms | 12.2 ms | 11.5 ms | 9.8 ms | 9.5 ms |
+| session-start, one run waiting at a gate | 18.5 ms | 14.5 ms | 12.2 ms | 12.1 ms | 10.5 ms | 10.5 ms |
+
+| binary | size |
+|---|---:|
+| before (`24f12d2c`) | 37,279,744 bytes |
+| after (`45902725`) | 37,410,304 bytes (+130,560, +0.35 %) |
+
+**Strict mode** (`[guard] mode = "strict"`) is measured in process, not as a
+hook: a world for it needs a `.loomux/config.toml`, which the guard of the
+measuring session rightly refuses an agent under any directory.
+`BenchmarkCheckTool` (`internal/hooks/guardstrict_bench_test.go`) judges one
+long line in a temporary project with a `bin/*` path rule, in both modes:
+
+```sh
+sudo -u root env X=1 timeout -s KILL 60 frob --out bin/app.exe src/notes/{a,b,c}/*.md ; tee -a build/log.txt < in.txt | xargs -n 1 echo && rm -rf build/tmp/* 2>&1 ; git status
+```
+
+`frob` is no program the guard knows and names the protected
+`bin/app.exe`: strict mode refuses the line after resolving every target
+through the file system, the default mode lets it pass. `go test
+./internal/hooks/ -run '^$' -bench CheckTool -benchtime 200x -count 3`,
+`45902725` plus the benchmark:
+
+| `checkTool`, the line above | run 1 | run 2 | run 3 |
+|---|---:|---:|---:|
+| default mode | 0.76 ms | 0.81 ms | 1.35 ms |
+| strict mode | 5.36 ms | 4.28 ms | 4.62 ms |
+
+### Reading
+
+1. **The new reading costs no measurable time.** Every warm median of
+   `after` lies within 0.7 ms of `before`, in both directions, and far below
+   the 35 ms budget; the long line runs level with `git status`. The warm
+   maxima reach 50 ms (before) and 44 ms (after), so a difference below 1 ms
+   is noise.
+2. **Strict mode costs about 4 ms more per line** than the default mode,
+   in process: resolving every target, its brace and glob variants included,
+   through the file system. Added to the 12 ms warm of the default hook this
+   stays below 35 ms, as an estimate from two measurements, not a hook run.
+3. **The cold run of the first case** (74 and 84 ms) is the first start of a
+   freshly copied binary in each pass, most likely, not the guard: the second case, which
+   runs the same binary right after it, is cold at 15 ms.
+4. **A glob costs a directory read only where a target holds one**: the long
+   line's globbed target `build/tmp/*` matches nothing and costs nothing
+   visible against `git status` (the globs in `cp`'s sources are read, not
+   written, and are not expanded at all).
+
 ## 2026-09-28 16:09 — The stop gate's no-op path with the graph lane
 
 A detached scratch worktree of this repository at the branch head
@@ -2899,3 +2990,34 @@ and one session state whose `base` is `HEAD` and whose `green` is
 3. **The repository doubled since 2026-09-20** (7,341 to 15,138 files); the
    no-op path grew from 169.5 ms to about 237 ms with it, most of it the
    fingerprint over the larger index.
+
+## 2026-09-28 17:29 — The Guard Walks a `find` With a Name Filter
+
+A `find` that deletes under a name filter is now judged by what it takes on
+disk: the guard walks the start paths once per call (up to 50000 entries)
+and judges each entry that matches. Measured as a hook in this repository's
+worktree (21392 entries, 19163 of them under `testdata/`), six runs in a row
+each, the first counted cold, with the binary built from `4f385ebd` (before)
+and from `dbd96590` (after):
+
+```sh
+find . -type d -name __pycache__ -exec rm -rf {} +
+```
+
+| `hook pre-tool-use` | cold | warm, runs 2–6 | verdict |
+|---|---:|---|---|
+| before, the line above | 99 ms | 35, 35, 35, 42, 36 ms | refused (the start path `.` taken for the whole project) |
+| after, the line above | 348 ms | 351, 335, 351, 343, 340 ms | allowed |
+| before, `ls src` | 35 ms | 34, 35, 34, 36, 56 ms | allowed |
+| after, `ls src` | 35 ms | 42, 50, 41, 58, 36 ms | allowed |
+
+### Reading
+
+1. **The walk costs about 300 ms in a tree of 21000 entries**, far above the
+   35 ms budget, and only for a `find` or `Get-ChildItem` that deletes under a
+   name filter; every other line pays nothing (`ls src` stays level). The
+   line was refused before, so the price buys a line that passes.
+2. **The limit decides over a large tree.** With 20000 entries as the limit,
+   a first build took this worktree for too large and refused the line in
+   330 ms; 50000 lets it through. A tree past the limit is refused as
+   before, after walking up to the limit.

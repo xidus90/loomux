@@ -346,14 +346,16 @@ answer and everything that could replace it away from an agent:
   an agent. `resume` and `replay` take only a run number of digits, so a
   journal and marker an agent forged elsewhere in the project (`resume
   ../../mine/x`) cannot stand in for a run.
-- **The run files.** `.loomux/state/runs/**` is a built-in path rule and a
-  shell rule: an `answered` entry an agent wrote into a journal would hand the
-  next resume an answered gate. A removal by the folder above or by a glob
-  counts as a write.
-- **The bundled flows.** A write under `.loomux/flows/<name>/`, by a writing
-  tool or by the shell, is refused when `<name>` is a flow of this binary's
-  catalog or is named in `[flow] overrides`, in any case of the name. A glob
-  in the name's place counts for every write (`cp x .loomux/flows/ex*/…`),
+- **The run files.** `.loomux/state/runs/**` under any directory is held by
+  the path rules, for a writing tool and a shell line alike: an `answered`
+  entry an agent wrote into a journal would hand the next resume an answered
+  gate. A removal of a folder above it, and a glob that matches it on disk,
+  count as a write.
+- **The bundled flows.** A write under `.loomux/flows/<name>/`, under any
+  directory, is refused by the path rules, for a writing tool and a shell line
+  alike, when `<name>` is a flow of this binary's catalog or is named in
+  `[flow] overrides`, in any case of the name. A glob in the name's place
+  counts where it matches such a folder on disk (`cp x .loomux/flows/ex*/`),
   and a removal of that folder or of `.loomux/flows` above it counts too; an
   agent writing a flow of its own spells its name. A flow under a name of its
   own an agent may write and run; it

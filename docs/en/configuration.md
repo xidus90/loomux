@@ -55,7 +55,7 @@ rules = [
 | Field | Type | Description |
 |---|---|---|
 | `rules` | array of tables | List of path inspection rules. |
-| `rules[].match` | string or array of strings | Globs relative to the project root, in `path.Match` syntax. A pattern without `/` is matched against the file name alone (`*.key`, `.env.*`); a pattern with `/` against the whole relative path, where `*` does not cross a `/`. `**` means any depth only as the ending `/**` (`.aws/**`); anywhere else it is a plain `*`. |
+| `rules[].match` | string or array of strings | Globs relative to the project root, in `path.Match` syntax. A pattern without `/` is matched against the file name alone (`*.key`, `.env.*`); a pattern with `/` against the whole relative path, where `*` does not cross a `/`. `**` means any depth as the ending `/**` (`.aws/**`) and as a leading `**/`, which stands for any directory, the root included (`**/secrets/*.txt`); anywhere else it is a plain `*`. A rule holds for a writing tool's target and for every path a shell line writes or removes alike. |
 | `rules[].reason` | string (**Required**) | Explanatory message displayed to the agent upon refusal. |
 
 ---
@@ -63,7 +63,7 @@ rules = [
 ### `[policy.commands]` (Command Execution Rules)
 Defines shell command patterns executed in `Bash` or `PowerShell` tools that must be blocked.
 
-Two command rules are built in and need no entry here: `git push`, and any shell line that writes `.loomux/config.toml` — a redirect into it, `sed -i`/`perl -i`, `tee`, `Set-Content`/`Add-Content`/`Out-File`, `cp`/`mv`/`Copy-Item` onto it, or removing it. Reading it (`cat`, `grep`, `Get-Content`) stays allowed. The rule reads command text, so a path held in a variable is not caught.
+One command rule is built in and needs no entry here: `git push`. `.loomux/config.toml` needs none either: it is a built-in path rule under any directory, and the path rules judge every path a shell line writes or removes as well as a writing tool's target — a redirect into it, `sed -i`/`perl -i`, `tee`, `Set-Content`/`Add-Content`/`Out-File`, `cp`/`mv`/`Copy-Item` onto it, removing it or a folder above it. Reading it (`cat`, `grep`, `Get-Content`) stays allowed. The guard reads the command's words, so in the default mode a path held in a variable is not caught; strict mode refuses a write whose expansion may land on a protected path. See [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
 
 ```toml
 [policy.commands]
