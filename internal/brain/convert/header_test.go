@@ -50,6 +50,8 @@ func TestConvertedByKnowsOurOwnFileOnly(t *testing.T) {
 		"---\ntitle: Meine Notiz\n---\n\nText.\n",
 		"Einfach Text.\n",
 		"---\nconverter: brain-pdf/1\nasr: false\n",
+		// A rule further down opens no head: the file must start with one.
+		"converter: brain-pdf/1\n---\n\nText.\n",
 	} {
 		if _, ok := ConvertedBy(text); ok {
 			t.Errorf("%q counted as ours", text)

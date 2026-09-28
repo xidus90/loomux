@@ -219,6 +219,16 @@ func TestPyRoundRoundsLikePython(t *testing.T) {
 	}
 }
 
+// Both thresholds belong to the band above them (judge.py:45-51). zipfOf
+// rounds to two decimals, so a digit token can land on either exactly.
+func TestBandOfTakesEachThresholdIntoTheBandAbove(t *testing.T) {
+	for zipf, want := range map[float64]int{3.0: 2, 2.99: 1, 2.5: 1, 2.49: 0} {
+		if got := bandOf(zipf); got != want {
+			t.Errorf("bandOf(%v) = %d, want %d", zipf, got, want)
+		}
+	}
+}
+
 func TestSmashNumbersZeroesRunsAndLeavesSingleDigits(t *testing.T) {
 	for in, want := range map[string]string{"2026": "0000", "g4": "g4", "3,5": "0,0", "x86": "x00", "a1b": "a1b"} {
 		if got := smashNumbers(in); got != want {

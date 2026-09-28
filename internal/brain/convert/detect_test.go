@@ -90,6 +90,32 @@ func TestDetectReadsNoFurtherThanTheHead(t *testing.T) {
 	}
 }
 
+// The head is exactly headChars characters: a mark whose closing bracket is
+// the last of them counts, one whose bracket is the next does not.
+func TestTheHeadEndsAtItsLastCharacter(t *testing.T) {
+	// "[00:00]" is seven characters; a newline before it starts its line.
+	inside := strings.Repeat("x", headChars-8) + "\n[00:00] Hallo.\n"
+	if got := Detect(file(t, "innen.txt", inside)); got != TranscriptBracket {
+		t.Fatalf("a mark ending at character %d: %v", headChars, got)
+	}
+	outside := strings.Repeat("x", headChars-7) + "\n[00:00] Hallo.\n"
+	if got := Detect(file(t, "aussen.txt", outside)); got != Unsupported {
+		t.Fatalf("a mark ending at character %d: %v", headChars+1, got)
+	}
+}
+
+// A broken byte inside the head makes the file unreadable text, a mark
+// before it notwithstanding; U+FFFD written out in UTF-8 is a character
+// like any other.
+func TestABrokenByteInTheHeadIsNoTextButAReplacementCharacterIs(t *testing.T) {
+	if got := Detect(file(t, "kaputt.txt", "[00:00] Hallo.\n\xff\n")); got != Unsupported {
+		t.Fatalf("a broken byte after a mark: %v", got)
+	}
+	if got := Detect(file(t, "ersatz.txt", "[00:00] Hallo \xef\xbf\xbd.\n")); got != TranscriptBracket {
+		t.Fatalf("an encoded U+FFFD after a mark: %v", got)
+	}
+}
+
 // Python's \d takes Arabic-Indic digits, and the reference calls this file a
 // bracket transcript; loomux's marks are ASCII digits only. A row of the
 // parity list.

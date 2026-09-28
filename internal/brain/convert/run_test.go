@@ -165,7 +165,8 @@ func TestTwoSourcesWithTheSameStemBothSurvive(t *testing.T) {
 	w.tools = poppler(map[string]child.Result{"doku.pdf": ok(longText + "\f")}).tools()
 	put(t, inbox, "doku.pdf", "%PDF-1.4\n")
 	put(t, inbox, "doku.txt", "[00:00] Aus dem Transkript.\n")
-	if out, err := w.run(); err != nil || len(out.Written) != 2 {
+	// A PDF without a scanned page leaves no line behind.
+	if out, err := w.run(); err != nil || len(out.Written) != 2 || len(out.Skipped) != 0 {
 		t.Fatalf("%+v %v", out, err)
 	}
 	pdf := read(t, filepath.Join(inbox, "doku.pdf.md"))
@@ -291,7 +292,10 @@ func TestAnUnreadableTimestampIsReported(t *testing.T) {
 func TestAreasWithoutAWritableInboxAreLeftAlone(t *testing.T) {
 	w := newWorld(t)
 	w.area("project/x", "", false)
-	w.area("project/y", "[area]\nscope = \"project/y\"\n", false)
+	// A declaration without [layout] inbox names no inbox: the area's own
+	// directory is none, and the transcript in it stays alone.
+	declaredOnly := w.area("project/y", "[area]\nscope = \"project/y\"\n", false)
+	put(t, declaredOnly, "video.txt", "[00:00] Hallo.\n")
 	// A readonly area's declaration lies where ResolvedAreaDir reads it,
 	// under the state directory; in the area it would leave corpus without
 	// an inbox, and the test would pass for that reason.

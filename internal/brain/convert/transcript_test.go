@@ -108,6 +108,14 @@ func TestAMarkInOtherDigitsStaysText(t *testing.T) {
 	}
 }
 
+// A paragraph closes only past the threshold: "abc" plus one is exactly 4,
+// and "d" still joins it.
+func TestAParagraphAtTheThresholdStaysOpen(t *testing.T) {
+	if got := toParagraphs("[00:00] abc\n[00:01] d\n[00:02] e\n", TranscriptBracket, 4); got != "[00:00] abc d\n\n[00:02] e" {
+		t.Fatalf("%q", got)
+	}
+}
+
 // The threshold counts characters, not bytes.
 func TestTheThresholdCountsCharacters(t *testing.T) {
 	text := "[00:00] " + strings.Repeat("ä", 700) + "\n[00:01] " + strings.Repeat("ö", 400) + "\n[00:02] x\n"

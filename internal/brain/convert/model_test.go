@@ -197,6 +197,21 @@ func TestAnEndpointOffTheLoopbackStopsTheRunWhenOnlyPlaceIsOn(t *testing.T) {
 	}
 }
 
+// With place off, describe is where the run stops: no later question about
+// the same endpoint stops it instead.
+func TestAnEndpointOffTheLoopbackStopsTheRunWhenOnlyDescribeIsOn(t *testing.T) {
+	w := newWorld(t)
+	inbox := w.inbox("knowledge", roles(true, false))
+	put(t, w.state, "config.toml", "[model]\nenabled = true\nendpoint = \"http://192.168.0.10:11434\"\n")
+	put(t, inbox, "video.txt", "[00:00] Hallo.\n")
+	if _, err := w.run(); err == nil || !strings.Contains(err.Error(), "must stay on the loopback") {
+		t.Fatal(err)
+	}
+	if entries, _ := os.ReadDir(inbox); len(entries) != 1 {
+		t.Fatal("something was written")
+	}
+}
+
 func TestTheSuggestionNamesTheScopeAndMovesNothing(t *testing.T) {
 	w := newWorld(t)
 	inbox := w.inbox("knowledge", roles(false, true))
