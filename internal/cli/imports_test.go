@@ -74,6 +74,19 @@ func forbiddenConfigUIForHooks() []string {
 	}
 }
 
+// forbiddenConvertForHooks is the converter behind `loomux convert` and the
+// local model's client it brings with it: the converter starts pdftotext and
+// writes into inboxes, the client talks HTTP to the model. An edit never
+// converts anything nor asks the model, so none of it belongs on the per-edit
+// path. The client is listed on its own, because a direct import of it would
+// not pass through the converter.
+func forbiddenConvertForHooks() []string {
+	return []string{
+		"github.com/xidus90/loomux/internal/brain/convert",
+		"github.com/xidus90/loomux/internal/brain/model",
+	}
+}
+
 // dependencies is the import graph of one package as a set of whole lines.
 // Both directions ask through it: a check by substring would read
 // `.../internal/serve/brain` as `.../internal/serve`, and a go list that
@@ -178,6 +191,28 @@ func TestHooksNeverImportTheConfigurationCommand(t *testing.T) {
 		}
 		if !cli[forbidden] {
 			t.Errorf("the command line no longer reaches %s; the list is stale", forbidden)
+		}
+	}
+}
+
+func TestHooksNeverImportTheConverter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("asks the go tool for the import graph")
+	}
+	hooks, err := dependencies(hooksPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cli, err := dependencies("github.com/xidus90/loomux/internal/cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range forbiddenConvertForHooks() {
+		if hooks[forbidden] {
+			t.Errorf("%s depends on %s, which puts the converter or the model client on the per-edit path", hooksPackage, forbidden)
+		}
+		if !cli[forbidden] {
+			t.Errorf("the command line does not reach %s, so the boundary test proves nothing", forbidden)
 		}
 	}
 }
