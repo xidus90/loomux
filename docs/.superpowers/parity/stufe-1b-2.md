@@ -350,6 +350,22 @@ nichts, und `internal/dev/importcases.ImportMCP` schreibt nichts anderes um.
   `n: 0` bleibt unverändert durchgereicht — das Verhalten der Referenz dort ist
   nicht aufgenommen, siehe `count-below-one` in §2.1.
 
+### 6.1 Nachtrag vom 2026-09-28: die Flags des Dienststarts
+
+Die Referenz startet ihren Dienst mit `daemon start|run --backbone`,
+`--no-local` und `--no-cloud` (`src/brain/cli.py:673`). `loomux serve` kennt
+nur `--foreground` (`internal/cli/serve.go`). Das ist eine gewollte
+Abweichung, freigegeben als Wegfall (Fusions-Spec, Nachtrag #6):
+
+- Das Backbone ist kein Flag, sondern `[search] backbone` der rechnerweiten
+  `config.toml`, Vorgabe `cuda` (`internal/config/searchsettings.go`,
+  `internal/brain/search/daemon.go`). Ein `QMD_LLAMA_GPU` oder
+  `QMD_FORCE_CPU` des Nutzers gewinnt; der Dienst hängt dann seine eigenen
+  Variablen nicht an.
+- `serve` hält immer beide Kanäle, je mit eigenem Listener und Token. Einen
+  Kanal abzuschalten, wofür `--no-local` und `--no-cloud` da waren, ist nicht
+  vorgesehen.
+
 ---
 
 ## 7. Eine Eigenheit der Aufnahme, die jeder Nachaufnehmer braucht
