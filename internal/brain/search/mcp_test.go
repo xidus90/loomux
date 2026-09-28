@@ -132,6 +132,57 @@ func TestQmdMcpPort_ProfileMapping(t *testing.T) {
 	}
 }
 
+// qmd fuses one ranked list per named collection and weighs the first list double, so
+// a fast search over several named collections returns every collection's best hit in
+// the order the collections were named, whatever their similarity. Only a search over
+// no named collection ranks all documents in one list.
+func TestQmdMcpPort_FastSearchOverSeveralAreasRanksThemTogether(t *testing.T) {
+	var captured map[string]any
+	session := &mockSession{
+		callFunc: func(name string, args map[string]any) (map[string]any, error) {
+			captured = args
+			if cols, _ := args["collections"].([]string); len(cols) > 0 {
+				return map[string]any{"structuredContent": map[string]any{"results": []any{
+					map[string]any{"file": "a/audit.md", "score": 1.0},
+					map[string]any{"file": "b/audit.md", "score": 0.5},
+					map[string]any{"file": "c/target.md", "score": 0.33},
+				}}}, nil
+			}
+			return map[string]any{"structuredContent": map[string]any{"results": []any{
+				map[string]any{"file": "stale/target.md", "score": 1.0},
+				map[string]any{"file": "c/target.md", "score": 0.5},
+				map[string]any{"file": "a/near.md", "score": 0.33},
+				map[string]any{"file": "b/far.md", "score": 0.25},
+			}}}, nil
+		},
+	}
+	port := search.NewQmdMcpPort(search.WithConnect(func(map[string]string) (search.Session, error) {
+		return session, nil
+	}))
+
+	hits, err := port.Search("q", []string{"a", "b", "c"}, search.ProfileFast, 2)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	var got []string
+	for _, h := range hits {
+		got = append(got, h.Collection+"/"+h.Relative)
+	}
+	if want := []string{"c/target.md", "a/near.md"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("hits = %v, want %v", got, want)
+	}
+	if limit, _ := captured["limit"].(int); limit <= 2 {
+		t.Errorf("limit = %v, want room for the hits of other collections", captured["limit"])
+	}
+
+	if _, err := port.Search("q", []string{"a"}, search.ProfileFast, 2); err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if cols, _ := captured["collections"].([]string); !reflect.DeepEqual(cols, []string{"a"}) {
+		t.Errorf("one area: collections = %v, want [a]", captured["collections"])
+	}
+}
+
 func TestQmdMcpPort_ResponseTranslation(t *testing.T) {
 	session := &mockSession{
 		callFunc: func(name string, args map[string]any) (map[string]any, error) {

@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -182,6 +183,15 @@ func NewQmdMcpPort(opts ...QmdMcpOption) *QmdMcpPort {
 // Search executes a search query.
 func (p *QmdMcpPort) Search(query string, collections []string, profile Profile, n int) ([]SearchHit, error) {
 	args := formatArguments(query, collections, profile, n)
+	together := profile == ProfileFast && len(collections) > 1
+	if together {
+		// qmd fuses one ranked list per named collection and weighs the first double,
+		// so naming several puts each one's best hit first in the order they were named.
+		// An empty list searches the whole index as one ranking; the other collections'
+		// hits are dropped here, which is why more are asked for than returned.
+		args["collections"] = []string{}
+		args["limit"] = max(n, togetherCandidates)
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -189,7 +199,32 @@ func (p *QmdMcpPort) Search(query string, collections []string, profile Profile,
 	if err != nil {
 		return nil, err
 	}
+	if together {
+		reply = onlyNamed(reply, collections, n)
+	}
 	return translateReply(reply, collections), nil
+}
+
+// togetherCandidates is qmd's own candidate limit (RERANK_CANDIDATE_LIMIT): a
+// search over the whole index yields no more than that, reranked or not.
+const togetherCandidates = 40
+
+// onlyNamed keeps the first n results that lie in one of collections.
+func onlyNamed(reply map[string]any, collections []string, n int) map[string]any {
+	sc, _ := reply["structuredContent"].(map[string]any)
+	results, _ := sc["results"].([]any)
+	kept := make([]any, 0, n)
+	for _, res := range results {
+		if len(kept) == n {
+			break
+		}
+		file, _ := res.(map[string]any)["file"].(string)
+		head, _, _ := strings.Cut(file, "/")
+		if slices.Contains(collections, head) {
+			kept = append(kept, res)
+		}
+	}
+	return map[string]any{"structuredContent": map[string]any{"results": kept}}
 }
 
 func (p *QmdMcpPort) ask(args map[string]any) (map[string]any, error) {

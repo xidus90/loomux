@@ -313,10 +313,30 @@ Läufe schrieben beide Dateien.
 
 **Offen:**
 
-- **Eine saubere Qualitätszahl im Alltag.** Sie braucht entweder einen
+- ~~**Eine saubere Qualitätszahl im Alltag.** Sie braucht entweder einen
   funktionierenden CUDA-Weg auf diesem Rechner oder einen Index, der unter
   demselben Backbone eingebettet ist, unter dem gesucht wird (also eine neue
-  Einbettung).
+  Einbettung).~~ Gemessen am 2026-09-28 (`benchmarks.md`, gleicher Tag):
+  Neueinbettung unter Vulkan 2:51 min, unter CUDA 3:00 min, beide vollständig;
+  CUDA stürzte diesmal nicht ab. `keyword` über alle Bereiche 8/50 unter
+  beiden, `fast` über `project/space` 19/50 (Vulkan) und 20/50 (CUDA). `fast`
+  über alle Bereiche stand unter beiden auf 0/50: qmd verschmilzt eine
+  Rangliste je genannter Sammlung (`structuredSearch`, `store.js`) und
+  gewichtet die erste doppelt — der Kommentar dort meint die Reihenfolge der
+  Suchen, die Schleife legt aber die Sammlungen hinein. Behoben in
+  `QmdMcpPort.Search`: bei `fast` über mehr als eine Sammlung fragt loomux mit
+  leerer Sammlungsliste (der Dienst sucht dann im ganzen Index als eine
+  Rangliste) und behält die Treffer der gefragten Sammlungen; danach 31/50.
+  `keyword` bleibt bei der alten Form (7/50 gegen 8/50 in der Probe).
+- **Befunde am Rande, nicht behoben:** (a) 27 `expect`-Pfade im Fragensatz von
+  `brain-knowledge` zeigen noch auf `space/wiki/` (Umzug am 2026-09-07); das
+  Repo gehört dem Nutzer. (b) `dev bench search` ohne `--scope` misst nur
+  `knowledge`; mit diesem Fragensatz ergibt das still 0/50 auch bei `keyword`.
+  (c) Der qmd-Index führt veraltete Doppel (`space`, `iam-wiki`,
+  `obsidian-ai` neben den `project-`-Sammlungen), die loomux nicht mehr
+  kennt; das gehört zu den Pflichten des weggefallenen `migrate`
+  (`qmd-collections.json`). (d) Die Gewichtung in qmd ist ein Fehler
+  flussaufwärts; ob er gemeldet wird, entscheidet der Nutzer.
 - ~~**Backbone in `QmdPort`.** loomux gibt qmd kein Backbone mit; die Referenz
   setzte `QMD_LLAMA_GPU=vulkan` fest. Ob loomux das übernimmt, entscheidet der
   Nutzer.~~ Entschieden und gebaut am 2026-09-27: ein rechnerweites
