@@ -122,18 +122,21 @@ are German and never translated.
 
 ## Commands
 
-A fresh clone arms itself with two commands. Until the second one has run,
-every hook in `.claude/settings.json` calls a binary that is not there and
-does nothing:
+A fresh clone arms itself with one command, run by a human. Until it has
+run, every hook in `.claude/settings.json` calls a binary that is not there
+and does nothing:
+
+```sh
+go run ./cmd/loomux init --yes
+```
+
+It sets `core.hooksPath` to `.githooks` and builds `bin/loomux.exe`, and
+leaves `git status` empty. Its two steps by hand, where `init` cannot run:
 
 ```sh
 git config core.hooksPath .githooks
 go build -o bin/loomux.exe ./cmd/loomux
 ```
-
-`go run ./cmd/loomux init --yes`, run by a human, does both and is meant to
-replace them. Until a human has run it once on a fresh clone and found
-`git status` empty afterwards, the two commands above stay the way.
 
 - Gate: `sh ci/gate.sh` (a CGo-free build, then `check precommit`);
   `.githooks/pre-commit` refuses a commit whose gate inputs differ from the

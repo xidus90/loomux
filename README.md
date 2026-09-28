@@ -440,7 +440,8 @@ Every release is a beta pre-release until `RELEASE_CHANNEL` is set to
 
 Nobody commits to `master`; every change goes through a pull request. The
 hooks in `.githooks` refuse a commit on `master` and a push to it once
-`git config core.hooksPath .githooks` is set. With an LLM, the `release-pr`
+`go run ./cmd/loomux init --yes` has armed a fresh clone (by hand:
+`git config core.hooksPath .githooks`). With an LLM, the `release-pr`
 skill does the steps below; by hand:
 
 1. Group the commits by theme, one commit per change. Fold a later
