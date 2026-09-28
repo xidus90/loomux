@@ -239,9 +239,9 @@ Datei, relativ zu ihrem Bereich):
   Kontext des Hosts: `hookSpecificOutput.additionalContext` für Claude Code;
   bei einer `.go`-Datei schreibt der Blast-Monitor unten in dasselbe Feld. Bei
   jedem anderen Exit-Code schreibt der Hook nichts auf `stdout`. Unter
-  `--host antigravity` wird dieser Kontext nicht weitergegeben, denn ob agy
-  den Kontext eines PostToolUse liest, ist ungemessen: Dort erreicht ein Skip
-  das Modell nur bei Exit 2, und die Aufrufer des Blast-Monitors gar nicht.
+  `--host antigravity` geht derselbe Kontext als `injectSteps` hinaus, die agy
+  dem Modell nach dem Werkzeugaufruf zeigt (gemessen mit agy 1.2.12,
+  2026-09-28).
 - **Prüfungen schreiben nie um.** `clang-format` läuft mit
   `--dry-run --Werror`; eine Bearbeitung wird beurteilt, die Datei bleibt, wie
   der Agent sie schrieb.
@@ -536,9 +536,8 @@ Exit 0, worauf agy erneut in seine Schleife eintritt; der Grund ist, was das
 Tor nach stderr geschrieben hat. Jeder andere Code ungleich 0 endet mit 0.
 Ein unbekanntes Ereignis bleibt auf jedem Wirt Exit 2. Was `post-tool-use`
 bei Exit 0 auf stdout schreibt, die übersprungenen Lanes und die Aufrufer des
-Blast-Monitors, wird nicht an agy weitergegeben, denn ob agy die
-`injectSteps` eines PostToolUse liest, ist ungemessen; ein Skip bleibt auf
-stderr, das das Modell nur bei Exit 2 erreicht. `session-start` läuft
+Blast-Monitors, erreicht agy als `injectSteps`, die es dem Modell nach einem
+PostToolUse zeigt (gemessen mit agy 1.2.12, 2026-09-28). `session-start` läuft
 auf `PreInvocation`, das vor jedem Modellaufruf feuert und sie in
 `invocationNum` zählt; nur der erste warnt vor Binary und Self-Update und
 zählt eine Sitzung wieder mit, die worktree unlink abgemeldet hat. Nichts

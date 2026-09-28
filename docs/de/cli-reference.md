@@ -23,9 +23,8 @@ stdout mit Exit `0`, der Grund ist, was das Tor nach stderr geschrieben hat;
 agy tritt dann erneut in seine Schleife ein. Jeder andere Code ungleich 0
 endet mit `0`, seine Meldung auf stderr. Was `post-tool-use` bei Exit `0` auf
 stdout schreibt, die übersprungenen Lanes und die Aufrufer des
-Blast-Monitors, wird nicht an agy weitergegeben, denn ob agy die
-`injectSteps` eines PostToolUse liest, ist ungemessen; ein Skip bleibt auf
-stderr, das das Modell nur bei Exit `2` erreicht.
+Blast-Monitors, erreicht agy als `injectSteps`, die es dem Modell nach einem
+PostToolUse zeigt (gemessen mit agy 1.2.12, 2026-09-28).
 
 ### Globale Flags & Umgebung
 - `--root <pfad>`: Explizite Angabe der Projektwurzel. Wird dieses Flag weggelassen, wandert Loomux im Verzeichnisbaum aufwärts, bis es die erste `.loomux/config.toml` findet.
