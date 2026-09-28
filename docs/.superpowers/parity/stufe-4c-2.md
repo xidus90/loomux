@@ -22,7 +22,7 @@ Korpusmodus über die qmd-CLI mit eigenem Indexnamen (`QmdPort`,
 | Bau (`dev bench hooks\|repos\|search`, Hülle, Korpus `v1`) | gebaut 2026-09-26 |
 | Paritätslauf gegen das echte qmd | ✅ 2026-09-27: 50/50 Ränge gleich, 37/37 Befunde |
 | Selbstnutzung | erledigt 2026-09-27 (Korpusqualität, Alltagslatenz, `hooks` und `repos` mit `--out`); Alltagsqualität gemessen 2026-09-28, siehe unten |
-| Mutationsrunde | **offen:** gefahren 2026-09-28, 33 Überlebende auf Zeilen der Stufe, 20 davon ohne Test (siehe „Überlebende Mutanten“) |
+| Mutationsrunde | ✅ 2026-09-28: gefahren, jeder Überlebende getötet oder begründet (siehe „Überlebende Mutanten“) |
 
 Beide Teile fassen den geteilten qmd-Index des Nutzers an (die Referenz
 schreibt ihre Sammlung in die echte `index.yml`) und liefen deshalb von Hand,
@@ -372,36 +372,70 @@ bin/loomux.exe dev mutants ./internal/dev/benchsearch ./internal/dev/benchcorpus
 der Stufe (`cefbb4ea`, `d4d5d95e`, `6369f93b`, `cd1e21fe`, `e24c9118`,
 `b183ea69`, `53c4735a`, `997066ae`, `c4230b68`, `486dc3be`, `e193bfac`).
 Die übrigen 118 liegen in älterem Code von `dev bench repos` und der Suche;
-sie gehören nicht zu dieser Stufe und sind hier nicht eingeordnet.
+sie gehören nicht zu dieser Stufe und wurden trotzdem mit abgearbeitet.
 
-**Die 33 Überlebenden der Stufe, erste Einordnung** (ein Agent, noch ohne
-Test und ohne Freigabe; jeder bekommt einen Test oder eine Begründung, bevor
-4c-2 ✅ wird):
+**Abgearbeitet am 2026-09-28**, alle 151 Überlebenden, nicht nur die 33
+der Stufe: drei Subagenten je Paket, jede Tötung durch eine gezielte
+Runde (`--only <datei>`) nachgewiesen, die Einordnungen vom Controller
+nachgelesen. Die Berichte liegen im Scratchpad der Sitzung
+(`mut/report-*.md`). Commits: `test: kill the surviving mutants of the
+benchmarks and the search client`, dazu zwei Fehlerbehebungen (unten).
 
-| Stelle | Mutation | Einordnung |
+| Paket | überlebt | getötet durch Tests | stehen, begründet |
+|---|---:|---:|---:|
+| `internal/dev/benchsearch` | 19 | 16 | 3 (einer davon äquivalent erst durch den Korpus-Fix) |
+| `internal/dev/benchcorpus` | 110 | 98 | 12 (einer, `:383`, starb vorher nur am Absturz, den der Matrix-Fix behebt) |
+| `internal/dev/benchreport` | 3 | 1 | 2 |
+| `internal/brain/search` | 19 | 8 | 11 |
+
+Die erste Einordnung, die bis zu diesem Stand hier stand, war in sechs Punkten falsch, alle von den
+Subagenten per Probe widerlegt: `run.go:90` und `questions.go:59` sind
+erreichbar (ein NUL-Byte lässt `filepath.Abs` unter Windows scheitern);
+`run.go:75` ist über die Befehlszeile äquivalent, weil die Vorgabe von
+`--scope` `"knowledge"` ist, nicht weil `Scope` leer wäre; `run.go:275`
+trennt zwei Bereiche auf demselben Verzeichnis (jetzt getestet, der erste
+gewinnt); `benchreport/environment.go:40` lässt sich über
+`PROCESSOR_IDENTIFIER` prüfen; `search/qmd.go:173` trennt ein
+`?index=` im Namen einer Notiz. `status.go:40` braucht zusätzlich eine
+nicht anwendbare Komponente mit Exit-Codes.
+
+**Was steht, mit Begründung** (alle Pakete):
+
+| Stelle | Mutation | Begründung |
 |---|---|---|
-| `benchsearch/quality.go:41` | `rank <= top` → `rank < top` | **Test fehlt:** kein Fall mit einem Treffer genau auf Rang `top` (3). Die Grenze der Kennzahl selbst ist ungeprüft |
-| `benchsearch/run.go:78` (vier Formen) | `c.channel == ""` umgekehrt, `true`, `false` | **Test fehlt:** kein Lauf gibt einen Kanal mit und prüft ihn; der Kanal geht an `search.ExecuteSearch` und entscheidet, ob ein `local_only`-Bereich antwortet |
-| `benchsearch/run.go:248` | `scope != allAreas && len(areas) == 0` → `len(areas) == 0` | **Test fehlt:** `all` über eine leere Registry |
-| `benchsearch/run.go:133` | `prepared == nil && !o.ScopeSet` → `!o.ScopeSet` | **Offen, Probe nötig:** Korpusmodus ohne `--scope`; ob die Suche nach dem Bereich dort etwas ändert, ist nicht geprüft |
-| `benchsearch/corpus.go:99` | `HasSuffix(".md")` → `true` | **Test fehlt:** ein Korpus mit einer Nicht-Markdown-Datei unter `notes/` |
-| `benchsearch/corpus.go:152` | `!ok` → `false` | **Test fehlt:** ein Eintrag ohne `sha256`, die Befundliste genau geprüft |
-| `benchsearch/corpus.go:227` (zwei Formen) | `claimed[note] == 0` umgekehrt | **Test fehlt:** eine Notiz in zwei Themen, die Reihenfolge geprüft |
-| `benchsearch/corpus.go:322` | `reverse < reverseMinimum` → `<=` | **Test fehlt:** genau `reverseMinimum` Rückfragen |
-| `benchsearch/latency.go:19` | `repeat < 1` → `<= 1` | **Test fehlt:** `repeat = 1` |
-| `benchsearch/quality.go:62` | `GOOS == "windows"` → `!=` | **Test fehlt (nur Windows):** zwei nicht lesbare Pfade, die sich nur in der Schreibung unterscheiden; für lesbare Pfade antwortet `os.SameFile` gleich |
-| `benchsearch/run.go:275` | `d > depth` → `d >= depth` | **Test fehlt:** nur zwei Bereiche mit demselben Pfad trennen die Formen (der erste gegen den letzten gewinnt), und die Registry lehnt nur doppelte Scopes ab (`internal/config/registry.go:138`), keine doppelten Pfade |
-| `benchsearch/run.go:279` | `depth < 0` → `depth <= 0` | **Äquivalent:** `depth` ist die Länge eines bereinigten Pfads, mindestens 1 (`filepath.Clean("")` ist `.`) |
-| `benchsearch/run.go:75` | `c.scope == "" && !o.ScopeSet` → `!o.ScopeSet` | **Äquivalent über die Befehlszeile:** `ScopeSet` ist falsch nur ohne `--scope`, dann ist `Scope` leer (`internal/cli/dev.go`, `fs.Visit`) |
-| `benchsearch/run.go:90`, `questions.go:59` | `err == nil` → `true` nach `filepath.Abs` | **Praktisch unerreichbar:** `filepath.Abs` scheitert nur, wenn das Arbeitsverzeichnis nicht lesbar ist |
-| `benchcorpus/benchcorpus.go:100` | `left <= 0` → `left < 0` | **Test fehlt:** Uhr genau auf der Frist |
-| `benchcorpus/benchcorpus.go:192` (zwei Formen) | `len(claudeWarmMS) > 0` → `true`, `>= 0` | **Äquivalent:** `benchreport.Median` einer leeren Liste ist 0, `Speedup` bleibt 0 |
-| `benchcorpus/benchcorpus.go:232` | `cold` → `!cold` | **Test fehlt:** kalter und warmer Lauf mit verschiedenen Zeiten, beide geprüft |
-| `benchcorpus/report.go:39`, `template.go:132` | `Applicable != nil && !*Applicable` → `Applicable != nil` | **Test fehlt:** eine Komponente mit `Applicable` = wahr (Zeiger, nicht `nil`) |
-| `benchcorpus/status.go:40` (zwei Formen) | `Applicable == nil \|\| *Applicable` → `true`, `Applicable == nil` | **Test fehlt:** `allRuns` mit `Applicable` wahr und falsch |
-| `benchreport/environment.go:40`, `:43`, `:45` | Bedingungen in `processorName` umgekehrt | **Begründet:** die Funktion ist `//coverage:exempt`, sie liest den Prozessor des Rechners |
-| `search/qmd.go:71` (zwei Formen) | `len(vars) > 0` → `true`, `>= 0` | **Äquivalent:** `cmd.Env = os.Environ()` ohne Zusatz erbt dieselbe Umgebung wie `nil` |
-| `search/qmd.go:173` | `index != ""` → `true` | **Äquivalent in der Praxis:** mit leerem Index schneidet `TrimSuffix` nur ein wörtliches `?index=` am Ende ab, das qmd ohne Index nicht schreibt |
+| `benchsearch/run.go:78` | `c.channel == ""` → `false` | Äquivalent: jeder Verbraucher vergleicht nur mit `ChannelCloud` (`privacy/channel.go:69`), ein leerer Kanal wirkt wie `local` |
+| `benchsearch/run.go:133` | `prepared == nil &&` entfernt | Äquivalent seit `fix(dev): refuse a corpus question whose expect lies outside the notes`: der Korpusbereich ist `notes/` (`corpusrun.go:77`), jedes `expect` liegt darunter, `pointedScope` liefert also den Korpusbereich |
+| `benchsearch/run.go:281` | `depth < 0` → `<= 0` | Äquivalent: `depth` ist -1 oder die Länge eines bereinigten Pfads, mindestens 1 |
+| `benchcorpus/benchcorpus.go:167`, `:192` (je zwei Formen) | Längenprüfung → `true`, `>= 0` | Äquivalent: `benchreport.Median(nil)` ist 0, `Speedup` bleibt 0 |
+| `benchcorpus/benchcorpus.go:367` | `len > max` → `>=` | Äquivalent: bei Gleichheit enthält `languageList[:max]` die ganze Liste |
+| `benchcorpus/benchcorpus.go:383` | nur `HasPrefix("\|")` | Äquivalent: ohne `http` passt `linkRegex` (`https?://`) nie |
+| `benchcorpus/template.go:24` (drei Formen) | Zweig entfernt | Toter Zweig: `filepath.Base("")` und `Base(".")` sind `"."`, Zeile 28 fängt beides |
+| `benchcorpus/template.go:68` | nur `Contains` | Äquivalent: `sLower == k` impliziert `Contains` |
+| `benchcorpus/matrix.go:91` (zwei Formen) | `> 0` → `true`, `>= 0` | Äquivalent: `NaN` besteht `avgSpeedup > 0` nicht |
+| `benchreport/environment.go:43`, `:45` | Bedingungen umgekehrt | Plattform: `/proc/cpuinfo` ist fest verdrahtet, trennbar nur unter Linux; die Funktion ist `//coverage:exempt` |
+| `search/http.go:72` | `port == 0` → `false` | Nur über den festen Port 8765 prüfbar (`DefaultPort` ist eine Konstante); ein solcher Test wurde geschrieben und auf Entscheidung des Nutzers gestrichen, weil feste Ports Tests wackeln lassen |
+| `search/http.go:159` (zwei Formen) | `timeout > 0` → `true`, `>= 0` | Toter Zweig: `postWithTimeout` wird nur mit den Konstanten `HandshakeTimeout` und `QueryTimeout` gerufen |
+| `search/http.go:211` | `data == ""` → `false` | Äquivalent: `json.Unmarshal("")` scheitert, derselbe `continue` |
+| `search/mcp.go:328`, `:347`, `:356` | je eine Form | Äquivalent: nil-Map, `null` trifft keinen Typ-Fall, 1 auf 1 |
+| `search/qmd.go:71` (zwei Formen) | `len(vars) > 0` → `true`, `>= 0` | Äquivalent: `os/exec` erbt ohne `Env` dieselbe Umgebung (`exec.go` ab Zeile 1211) |
+| `search/qmd.go:83` | `err != nil` → `true` | Äquivalent: die Typzusicherung auf nil scheitert |
+| `search/fake.go:92` | `err != nil` → `true` | Äquivalent: `return err` mit nil gleicht dem `return nil` danach |
+| `search/search.go:163` | `len > n` → `>= n` | Äquivalent: derselbe Ausschnitt |
 
-Zusammen: 20 mit fehlendem Test (davon einer nur unter Windows), einer offen
-bis zu einer Probe, 12 äquivalent, unerreichbar oder begründet.
+**Gefunden und behoben** (je ein eigener Commit, weil der Fehler schon
+auf master lag):
+
+- `fix(dev): refuse a corpus question whose expect lies outside the
+  notes` — `CheckCorpus` nahm eine Frage an, deren `expect` eine andere
+  Datei des Standes nennt (probiert mit `HERKUNFT.md`: 42/50 statt einer
+  Ablehnung).
+- `fix(dev): skip a matrix line with a link but no repository column` —
+  `parseMatrix` (`dev bench repos`) brach bei `| see https://…` mit
+  `index out of range` ab.
+
+**Gefunden, nicht geändert:** die Registry lehnt zwei Bereiche auf
+demselben Verzeichnis nicht ab; `dev bench search` gibt eine Notiz dann
+dem zuerst registrierten, so steht es jetzt im Kommentar von
+`pointedScope`. `TestHTTPSession_DefaultSession` spricht wie bisher den
+Dienst auf `localhost:8765` an, wenn einer läuft. Die zwei toten Zweige
+(`template.go:24`, `http.go:159`) bleiben stehen.
