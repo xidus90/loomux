@@ -51,33 +51,68 @@ func (l *callLog) String() string {
 	return l.buf.String()
 }
 
-// serveFakeOllama puts the fake on the fixed port the world's config.toml
-// names and hands back the lines it logged. The server closes with t, so the
-// next case can take the port.
-func serveFakeOllama(t *testing.T, world string) *callLog {
+// recordedOllama is the address the recordings' config.toml names, the one
+// the reference's fake listened on.
+const recordedOllama = "127.0.0.1:11435"
+
+// serveFakeOllama puts the fake on a free port, points the staged world's
+// config.toml at it and hands back the lines it logged and the address. A
+// fixed port would be shared by every test process on the machine, and a
+// second gate running at the same time would find it taken. The server closes
+// with t.
+func serveFakeOllama(t *testing.T, world string) (*callLog, string) {
 	t.Helper()
 	calls := &callLog{}
 	path := filepath.Join(world, "ollama-fixture.json")
 	if _, err := os.Stat(path); err != nil {
-		return calls
+		return calls, ""
 	}
 	fixture, err := fakeollama.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	listener, err := net.Listen("tcp", "127.0.0.1:11435")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("the fixed port of the fake Ollama is taken: %v", err)
+		t.Fatal(err)
+	}
+	addr := listener.Addr().String()
+	config := filepath.Join(world, "config.toml")
+	data, err := os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte(recordedOllama)) {
+		t.Fatalf("%s names no %s for the fake to stand in for", config, recordedOllama)
+	}
+	if err := os.WriteFile(config, bytes.ReplaceAll(data, []byte(recordedOllama), []byte(addr)), 0o644); err != nil {
+		t.Fatal(err)
 	}
 	server := &http.Server{Handler: fixture.Handler(calls)}
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(func() { _ = server.Close() })
-	return calls
+	return calls, addr
+}
+
+// foldOllama is NormalizeState that also writes the fake's address back as
+// the recorded one, on either side, so the world_after comparison does not see
+// the port the run happened to get.
+func foldOllama(addr *string) cases.Normalizer {
+	return func(world, tree map[string][]byte) map[string][]byte {
+		if *addr != "" {
+			folded := make(map[string][]byte, len(tree))
+			for name, data := range tree {
+				folded[name] = bytes.ReplaceAll(data, []byte(*addr), []byte(recordedOllama))
+			}
+			tree = folded
+		}
+		return cases.NormalizeState(world, tree)
+	}
 }
 
 // TestCases4c1 replays the recordings of brain-mcp's reconcile over areas
 // that ask the local model, with the same fake Ollama answering both sides.
-// The cases run one after another, never in parallel: they share the port.
+// The cases run one after another, never in parallel: they share the
+// environment the run sets.
 func TestCases4c1(t *testing.T) {
 	corpus, err := filepath.Abs(filepath.Join("..", "..", "testdata", "cases", "4c1"))
 	if err != nil {
@@ -94,6 +129,7 @@ func TestCases4c1(t *testing.T) {
 		name := c.Verb + "/" + c.Name
 		t.Run(name, func(t *testing.T) {
 			var calls *callLog
+			var addr string
 			outcome, err := cases.RunCaseWith(c, func(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int {
 				t.Chdir(dir)
 				t.Setenv("LOOMUX_STATE_DIR", dir)
@@ -104,9 +140,9 @@ func TestCases4c1(t *testing.T) {
 					t.Setenv(key, value)
 				}
 				useRecordedEngine(t, dir)
-				calls = serveFakeOllama(t, dir)
+				calls, addr = serveFakeOllama(t, dir)
 				return Run(args, stdin, stdout, stderr)
-			}, cases.NormalizeState)
+			}, foldOllama(&addr))
 			if err != nil {
 				t.Fatal(err)
 			}
