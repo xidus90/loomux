@@ -678,6 +678,17 @@ func loomuxSpellings() []string {
 		"2>&1 loomux init",
 		">&2 loomux init",
 		"&>out loomux init",
+		// Wrapper flags that take a value.
+		"sudo -u root loomux init",
+		"xargs -n 1 loomux init",
+		"timeout -s KILL 60 loomux init",
+		"env -u HOME loomux init",
+		"sudo -- loomux init",
+		"sudo -R /srv loomux init",
+		"sudo --chroot /srv loomux init",
+		// env -S takes the command line itself as its value.
+		"env -S loomux init",
+		"env -S 'loomux init'",
 		// Every cmd switch before /c or /k.
 		"cmd /v:on /c loomux init",
 		"cmd /d /s /c loomux init",
@@ -960,10 +971,6 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		// its last break character holds a blank.
 		`echo "a \" b"; "C:\R&D Tools\loomux.exe" init`,
 		`echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`,
-		// Wrapper flags that take a value.
-		"sudo -u root loomux init",
-		"xargs -n 1 loomux init",
-		"timeout -s KILL 60 loomux init",
 		// A command inside a string, an alias, a program in a variable.
 		`sh -c "loomux init"`,
 		`pwsh -c "loomux init"`,

@@ -525,11 +525,10 @@ func lineVariants(line string) []string {
 // a path ending in either, quoted or not, with any bytes in the quoted path,
 // is read as the program of some segment, and an unclosed quote or a stray
 // escape never makes a segment pass. Not guaranteed: an alias, a program held
-// in a variable, a wrapper flag with a separate value (sudo -u root), a
-// command inside a string (sh -c "loomux init", pwsh -c ...), and, after any
-// earlier escaped \" or \' on the line, a quoted program path whose part after
-// its last break character ( ) & ; | holds a blank: the field reading then
-// starts that segment inside the path, as in
+// in a variable, a command inside a string (sh -c "loomux init", pwsh -c
+// ...), and, after any earlier escaped \" or \' on the line, a quoted program
+// path whose part after its last break character ( ) & ; | holds a blank: the
+// field reading then starts that segment inside the path, as in
 // `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.
 func readings(segment string) [][]string {
 	var out [][]string
@@ -877,9 +876,11 @@ func splitSegments(line string, quoteAware bool) []string {
 			}
 		case quoteAware && (c == '"' || c == '\''):
 			quote = c
-		case c == '&' && i > 0 && (line[i-1] == '>' || line[i-1] == '<'):
-			// >& and <& duplicate a descriptor; cutting there would leave
-			// the 1 of 2>&1 in front of the program.
+		case c == '&' && i > 0 && (line[i-1] == '>' || line[i-1] == '<'),
+			c == '|' && i > 0 && line[i-1] == '>':
+			// >& and <& duplicate a descriptor, and >| writes over a file
+			// noclobber keeps; cutting there would leave the 1 of 2>&1 in
+			// front of the program, or the target of >| as a program.
 		case strings.IndexByte(";|&\n()`", c) >= 0:
 			out = append(out, line[start:i])
 			start = i + 1
@@ -891,8 +892,8 @@ func splitSegments(line string, quoteAware bool) []string {
 // dropPrefixes strips what runs in front of the real program: the VAR=value
 // assignments a shell applies to its environment, redirections with their
 // target, the shell's reserved words, the { that opens a group, and the
-// wrappers that run the word after them -- with their flags, as long as a
-// flag carries no separate value.
+// wrappers that run the word after them -- with their flags, and the separate
+// value of the flags wrapperTakesValue names.
 func dropPrefixes(words []string) []string {
 	for len(words) > 0 {
 		w := words[0]
@@ -910,8 +911,9 @@ func dropPrefixes(words []string) []string {
 		case base == "function":
 			// The name, then the body.
 			n = 2
-		case base == "sudo" || base == "command" || base == "exec" || base == "nohup" ||
-			base == "env" || base == "time" || base == "xargs":
+		case base == "sudo" || base == "env" || base == "xargs":
+			n += wrapperFlags(base, words[1:])
+		case base == "command" || base == "exec" || base == "nohup" || base == "time":
 			n += flagCount(words[1:])
 		case base == "nice":
 			if len(words) > 2 && words[1] == "-n" {
@@ -921,7 +923,7 @@ func dropPrefixes(words []string) []string {
 			}
 		case base == "timeout":
 			// The duration comes before the program.
-			n += flagCount(words[1:]) + 1
+			n += wrapperFlags(base, words[1:]) + 1
 		case base == "cmd" || base == "cmd.exe":
 			// Every switch up to /c or /k, which the command follows.
 			for n < len(words) && len(words[n]) > 1 && words[n][0] == '/' {
@@ -945,6 +947,40 @@ func flagCount(words []string) int {
 		n++
 	}
 	return n
+}
+
+// wrapperFlags is how many words at the head of words are the wrapper's
+// flags, a flag's separate value included; -- ends them and counts.
+func wrapperFlags(wrapper string, words []string) int {
+	n := 0
+	for n < len(words) && len(words[n]) > 1 && words[n][0] == '-' {
+		if words[n] == "--" {
+			return n + 1
+		}
+		if wrapperTakesValue(wrapper, words[n]) {
+			n++
+		}
+		n++
+	}
+	return min(n, len(words))
+}
+
+// wrapperTakesValue names the flags of sudo, env, xargs and timeout whose
+// value is the next word.
+func wrapperTakesValue(wrapper, flag string) bool {
+	switch wrapper {
+	case "sudo":
+		return slices.Contains([]string{"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-R", "-t", "-U", "-T",
+			"--user", "--group", "--close-from", "--chdir", "--chroot", "--host", "--prompt", "--role",
+			"--type", "--other-user", "--command-timeout"}, flag)
+	case "env":
+		// -S is left out: its value is the command line itself.
+		return slices.Contains([]string{"-u", "-C", "--unset", "--chdir"}, flag)
+	case "xargs":
+		return slices.Contains([]string{"-n", "-L", "-P", "-s", "-I", "-d", "-E", "-a",
+			"--max-args", "--max-lines", "--max-procs", "--max-chars", "--delimiter", "--arg-file"}, flag)
+	}
+	return slices.Contains([]string{"-s", "-k", "--signal", "--kill-after"}, flag)
 }
 
 // redirection says whether w is a redirection (>out, 2>/dev/null, <, 2>&1)
