@@ -313,6 +313,18 @@ func questionProblems(stand string) []string {
 	if err != nil {
 		return []string{err.Error()}
 	}
+	// The run searches the notes alone; an expect elsewhere in the stand
+	// would be a miss on every run, never a finding.
+	notes := filepath.Join(stand, "notes")
+	for _, q := range questions {
+		if !inside(q.Expect, notes) {
+			rel, _ := filepath.Rel(stand, q.Expect)
+			p = append(p, fmt.Sprintf("%s: expect %s lies outside notes/", q.ID, filepath.ToSlash(rel)))
+		}
+	}
+	if len(p) > 0 {
+		return p
+	}
 	reverse := 0
 	for _, q := range questions {
 		if isReverse(q) {

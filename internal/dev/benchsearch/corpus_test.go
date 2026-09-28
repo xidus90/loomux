@@ -238,6 +238,19 @@ func TestCheckCorpusReportsQuestionProblems(t *testing.T) {
 	}
 }
 
+// TestCheckCorpusRefusesAnExpectOutsideTheNotes: the corpus run searches
+// the notes alone, so a question expecting another file of the stand would
+// be missed in silence on every run.
+func TestCheckCorpusRefusesAnExpectOutsideTheNotes(t *testing.T) {
+	stand := copyCorpus(t)
+	questions := filepath.Join(stand, "questions.yaml")
+	edit(t, questions, `expect: "notes/baustatik-04.md"`, `expect: "HERKUNFT.md"`)
+	edit(t, questions, `beleg: "Es gibt insgesamt 58 Teilnormen."`, `beleg: "Der Text wurde nicht umgeschrieben"`)
+	if p := corpusProblems(t, stand); !slices.Equal(p, Problems{"c01: expect HERKUNFT.md lies outside notes/"}) {
+		t.Fatalf("problems = %q", p)
+	}
+}
+
 func TestCheckCorpusNamesAnUnreadableQuestionSet(t *testing.T) {
 	stand := copyCorpus(t)
 	questions := filepath.Join(stand, "questions.yaml")
