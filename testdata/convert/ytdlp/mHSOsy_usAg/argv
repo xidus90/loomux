@@ -1,0 +1,1 @@
+yt-dlp --ignore-config --no-playlist --no-progress --skip-download --write-subs --write-auto-subs --sub-langs de,en --sub-format json3 --write-info-json --ignore-errors -o v https://www.youtube.com/watch?v=mHSOsy_usAg
