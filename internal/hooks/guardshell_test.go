@@ -424,6 +424,8 @@ func TestBelowFindsTheFolderAboveAKeptPath(t *testing.T) {
 		{".", "*.pem", true, false},
 		{".loomux", "**/.loomux/config.toml", true, true},
 		{"x/.loomux", "**/.loomux/config.toml", true, true},
+		// The kept file itself, under any directory, is no folder above it.
+		{"x/.loomux/config.toml", "**/.loomux/config.toml", true, false},
 		{"../sib/.loomux/state", "**/.loomux/state/runs/**", true, true},
 		// The folder whose content the rule keeps is above that content.
 		{".loomux/state/runs", "**/.loomux/state/runs/**", true, true},

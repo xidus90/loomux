@@ -297,13 +297,21 @@ func TestShellWritesNamesExactlyTheTargetsOfAVerb(t *testing.T) {
 // with its arguments; a quote-blind fragment of quoted text is never one.
 func TestShellWritesNamesTheProgramsItDoesNotKnow(t *testing.T) {
 	root := t.TempDir()
-	_, unknown := shellWrites(root, "frob .loomux/config.toml")
-	if !slices.ContainsFunc(unknown, func(args []string) bool {
-		return slices.Equal(args, []string{"frob", ".loomux/config.toml"})
-	}) {
-		t.Fatalf("frob: unknown %q", unknown)
+	for line, want := range map[string]unknownCall{
+		"frob .loomux/config.toml":              {"", []string{"frob", ".loomux/config.toml"}},
+		"cd src && frob x":                      {"src", []string{"frob", "x"}},
+		`cd src && sh -c "cd a && frob x"`:      {"src/a", []string{"frob", "x"}},
+		`cd src && sh -c "cd /abs/x && frob x"`: {"/abs/x", []string{"frob", "x"}},
+		`sh -c "frob x"`:                        {"", []string{"frob", "x"}},
+	} {
+		_, unknown := shellWrites(root, line)
+		if !slices.ContainsFunc(unknown, func(c unknownCall) bool {
+			return c.base == want.base && slices.Equal(c.args, want.args)
+		}) {
+			t.Errorf("%q: unknown %q, want %q", line, unknown, want)
+		}
 	}
-	for _, line := range []string{"git stash push x", "loomux flow run x", `sh -c "rm x"`, "go vet .", "loomux init"} {
+	for _, line := range []string{"git stash push x", "loomux flow run x", `sh -c "frob x"`, "go vet .", "loomux init"} {
 		if _, unknown := shellWrites(root, line); len(unknown) == 0 {
 			t.Errorf("%q: nothing unknown", line)
 		}

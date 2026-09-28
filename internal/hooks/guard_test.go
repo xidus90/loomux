@@ -999,17 +999,17 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		`loomux init --dry-run --root "C:/x/#GIT/loomux"`,
 	}
 	for _, line := range refused {
-		if !writesConfiguration(line) {
+		if !writesConfiguration(line, false) {
 			t.Errorf("must refuse %q", line)
 		}
 	}
 	for _, line := range allowed {
-		if writesConfiguration(line) {
+		if writesConfiguration(line, false) {
 			t.Errorf("must allow %q", line)
 		}
 	}
 	for _, line := range holes {
-		if writesConfiguration(line) {
+		if writesConfiguration(line, false) {
 			t.Errorf("hole %q is closed: move it to refused and correct the readings comment", line)
 		}
 	}

@@ -42,14 +42,26 @@ var (
 		"stat", "file", "jq", "ls", "dir", "get-childitem", "gci", "grep", "rg", "select-string",
 		"sls", "diff", "echo", "printf", "write-output", "cd", "set-location", "sl", "pushd",
 		"popd", "test-path"}
+	// otherWriteVerbs are the verbs verbWrites reads one by one, for
+	// knownProgram; git stands in knownTools.
+	otherWriteVerbs = []string{"dd", "tar", "unzip", "expand-archive", "robocopy", "xcopy", "new-item",
+		"ni", "curl", "wget", "invoke-webrequest", "iwr", "find", "sed", "perl"}
 	// changeDirectory move the place relative paths after them start from.
 	changeDirectory = []string{"cd", "set-location", "sl", "pushd"}
 )
 
+// unknownCall is a program the verb table does not know, with its
+// arguments, and the place an earlier cd moved its relative paths to.
+type unknownCall struct {
+	base string
+	args []string
+}
+
 // shellWrites reads a shell line for the paths it writes or removes, by a
 // table of verbs rather than an expression per path. unknown holds, for every
 // reading of a trusted segment whose program is in neither the table nor
-// readVerbs, that program and its arguments; strict mode judges those.
+// readVerbs, that program and its arguments, those of a line a shell runs
+// from a string among them; strict mode judges those.
 //
 // Every variant of the line (lineVariants, and the line with each
 // substitution folded to one word, foldSubstitutions) and both cuts of each
@@ -64,7 +76,7 @@ var (
 // a removing verb fed by a pipe removes what the segment before it names
 // (pipedRemovals). The string a shell runs (sh -c, pwsh -Command, cmd /c) is
 // read as a line of its own (innerLine).
-func shellWrites(root, line string) (targets []shellTarget, unknown [][]string) {
+func shellWrites(root, line string) (targets []shellTarget, unknown []unknownCall) {
 	return shellWritesAt(root, line, 0)
 }
 
@@ -74,7 +86,7 @@ const maxInnerDepth = 3
 
 // shellWritesAt is shellWrites for a line depth shells inside the one the
 // call runs.
-func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown [][]string) {
+func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown []unknownCall) {
 	variants := lineVariants(line)
 	if folded := foldSubstitutions(joinPaths(line)); !slices.Contains(variants, folded) {
 		variants = append(variants, folded)
@@ -99,13 +111,20 @@ func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown
 				all := readings(maskQuotedRedirects(segment))
 				var place []string
 				for i, words := range all {
-					found, args, known := segmentWrites(joinPlace(root, base), words, depth)
+					// The field reading honours no quote, so the words after a
+					// shell's string are only its $0, $1, … in the others.
+					found, args, known, inner := segmentWrites(joinPlace(root, base), words, depth, i < len(all)-1)
 					targets = append(targets, under(base, found)...)
 					if piped && trusted {
 						targets = append(targets, under(base, pipedRemovals(prev, args))...)
 					}
 					if !known && trusted {
-						unknown = append(unknown, args)
+						unknown = append(unknown, unknownCall{base, args})
+					}
+					for _, call := range inner {
+						if trusted {
+							unknown = append(unknown, unknownCall{followed(base, call.base), call.args})
+						}
 					}
 					// The tolerant reading keeps a PowerShell path whole.
 					if i == len(all)-2 {
@@ -278,9 +297,12 @@ func quotedAt(s string, esc byte) []bool {
 // whether the program is in the verb table or readVerbs. dir is where
 // relative paths start, for git checkout's question whether a path exists.
 // words come from a masked segment; args and targets carry each > again. The
-// line a shell among args runs from a string adds its targets, up to
-// maxInnerDepth shells deep.
-func segmentWrites(dir string, words []string, depth int) (targets []shellTarget, args []string, known bool) {
+// line a shell among args runs from a string adds its targets and its
+// unknown programs (inner), up to maxInnerDepth shells deep; a shell that is
+// the program then counts as known, for the line it runs is judged, and the
+// words after its string, when the reading grouped its quotes, are an unknown
+// call of their own.
+func segmentWrites(dir string, words []string, depth int, grouped bool) (targets []shellTarget, args []string, known bool, inner []unknownCall) {
 	unmasked := func(w string) string { return strings.ReplaceAll(w, quotedRedirect, ">") }
 	for i := 0; i < len(words); i++ {
 		w := words[i]
@@ -305,50 +327,64 @@ func segmentWrites(dir string, words []string, depth int) (targets []shellTarget
 			targets = append(targets, shellTarget{path: target, shell: true})
 		}
 	}
-	if line, ok := innerLine(args); ok && depth < maxInnerDepth {
-		inner, _ := shellWritesAt(dir, line, depth+1)
-		targets = append(targets, inner...)
+	line, after, ok := innerLine(args)
+	ran := ok && depth < maxInnerDepth
+	if ran {
+		found, calls := shellWritesAt(dir, line, depth+1)
+		targets, inner = append(targets, found...), calls
 	}
 	args = dropPrefixes(args)
 	if len(args) == 0 {
-		return targets, nil, true
+		return targets, nil, true, inner
 	}
 	found, known := verbWrites(dir, args)
-	return append(targets, found...), args, known
+	if ran && slices.Contains(stringShells, verbOf(args[0])) {
+		known = true
+		// The words after the string reach the script as $0, $1, …, where
+		// any command in it may take them for a path.
+		if len(after) > 0 && grouped {
+			inner = append(inner, unknownCall{"", append([]string{args[0]}, after...)})
+		}
+	}
+	return append(targets, found...), args, known, inner
 }
+
+// stringShells are the programs innerLine reads a string of; cmd /c is a
+// prefix dropPrefixes strips.
+var stringShells = []string{"sh", "bash", "zsh", "dash", "pwsh", "powershell", "eval"}
 
 // innerLine is the command line a shell among args runs from a string: the
 // word after -c of sh, bash, zsh or dash (also in a bundle, -lc), and every
 // word after -c or -Command of pwsh or powershell, abbreviated or not, and
 // after /c or /k of cmd; and the words after eval, joined, when eval is the
-// program.
-func innerLine(args []string) (string, bool) {
+// program. after are the words that follow the string of sh -c, its $0, $1, ….
+func innerLine(args []string) (line string, after []string, ok bool) {
 	if program := dropPrefixes(args); len(program) > 0 && verbOf(program[0]) == "eval" {
-		return strings.Join(program[1:], " "), true
+		return strings.Join(program[1:], " "), nil, true
 	}
 	for i, a := range args {
 		switch verbOf(a) {
 		case "sh", "bash", "zsh", "dash":
 			for j := i + 1; j+1 < len(args) && strings.HasPrefix(args[j], "-"); j++ {
 				if letters(args[j][1:]) && strings.ContainsRune(args[j], 'c') {
-					return args[j+1], true
+					return args[j+1], args[j+2:], true
 				}
 			}
 		case "pwsh", "powershell":
 			for j := i + 1; j < len(args); j++ {
 				if f := strings.ToLower(args[j]); len(f) > 1 && strings.HasPrefix("-command", f) {
-					return strings.Join(args[j+1:], " "), true
+					return strings.Join(args[j+1:], " "), nil, true
 				}
 			}
 		case "cmd":
 			for j := i + 1; j < len(args); j++ {
 				if f := strings.ToLower(args[j]); f == "/c" || f == "/k" {
-					return strings.Join(args[j+1:], " "), true
+					return strings.Join(args[j+1:], " "), nil, true
 				}
 			}
 		}
 	}
-	return "", false
+	return "", nil, false
 }
 
 // redirectTarget reads w as a redirection: whether it is one, whether it
@@ -1202,8 +1238,17 @@ func changedDirectory(base string, args []string) string {
 	if len(words) == 0 {
 		return "~"
 	}
-	next := filepath.ToSlash(words[len(words)-1])
-	if rooted(next) || base == "" {
+	return followed(base, words[len(words)-1])
+}
+
+// followed is base after a move to next, relative to it unless rooted; an
+// empty next stays at base.
+func followed(base, next string) string {
+	next = filepath.ToSlash(next)
+	switch {
+	case next == "":
+		return base
+	case rooted(next) || base == "":
 		return next
 	}
 	return base + "/" + next

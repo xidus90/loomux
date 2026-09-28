@@ -20,12 +20,13 @@ var bundledFlows = flows.Names
 // answersAGate says whether a shell line runs `loomux flow resume` with an
 // answer. A gate asks a human; an agent that answered its own gates would
 // approve its own plan and its own push. The line is read the way
-// writesConfiguration reads it, and has the same holes.
-func answersAGate(line string) bool {
+// writesConfiguration reads it, and has the same holes; with anyProgram, in
+// strict mode, every program knownProgram does not name counts as loomux.
+func answersAGate(line string, anyProgram bool) bool {
 	for _, variant := range lineVariants(line) {
 		for _, segment := range segments(variant) {
 			for _, words := range readings(segment) {
-				if readingAnswers(words) {
+				if readingAnswers(words, anyProgram) {
 					return true
 				}
 			}
@@ -36,19 +37,19 @@ func answersAGate(line string) bool {
 
 // readingAnswers judges one reading from its head and from every word after
 // a lone { or }, for readingWrites' reason: a block opens a command.
-func readingAnswers(words []string) bool {
+func readingAnswers(words []string, anyProgram bool) bool {
 	for i, w := range words {
-		if (w == "{" || w == "}") && wordsAnswer(words[i+1:]) {
+		if (w == "{" || w == "}") && wordsAnswer(words[i+1:], anyProgram) {
 			return true
 		}
 	}
-	return wordsAnswer(words)
+	return wordsAnswer(words, anyProgram)
 }
 
 // wordsAnswer says whether one reading, past what runs in front of the
 // program, is loomux flow resume with an answer, or a Start-Process of
 // loomux, whose arguments the words cannot see.
-func wordsAnswer(words []string) bool {
+func wordsAnswer(words []string, anyProgram bool) bool {
 	words = dropPrefixes(words)
 	if len(words) == 0 {
 		return false
@@ -56,7 +57,7 @@ func wordsAnswer(words []string) bool {
 	if startsLoomux(words) {
 		return true
 	}
-	args, ok := loomuxArgs(words)
+	args, ok := programArgs(words, anyProgram)
 	return ok && len(args) > 1 && args[0] == "flow" && args[1] == "resume" && namesAnswer(args[2:])
 }
 
