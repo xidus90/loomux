@@ -41,6 +41,14 @@ func TestRepoSlug(t *testing.T) {
 			audit: &RepoAudit{Dir: "/"},
 			want:  "loomux",
 		},
+		{
+			audit: &RepoAudit{Dir: "./"},
+			want:  "loomux",
+		},
+		{
+			audit: &RepoAudit{Dir: "x/."},
+			want:  "loomux",
+		},
 	}
 
 	for _, tt := range tests {
@@ -81,6 +89,7 @@ func TestLanguageSlug(t *testing.T) {
 		{"Elixir", nil, "elixir"},
 		{"", []string{"go"}, "go"},
 		{"", []string{"unknown", "rust"}, "rust"},
+		{"", []string{"typescript-react"}, "typescript"},
 		{"", nil, "other"},
 	}
 
@@ -207,4 +216,49 @@ func TestFormatDetailMarkdown(t *testing.T) {
 			t.Errorf("expected single part URL title, got: %s", out)
 		}
 	})
+}
+
+func TestFormatDetailMarkdownTitlesATwoPartURL(t *testing.T) {
+	var buf bytes.Buffer
+	if err := FormatDetailMarkdown(&RepoAudit{RepoURL: "https://example.com/solo"}, "en", &buf); err != nil {
+		t.Fatal(err)
+	}
+	if out := buf.String(); !strings.Contains(out, "# Benchmark & Gap Audit: [example.com/solo](https://example.com/solo)\n") {
+		t.Errorf("title missing:\n%s", out)
+	}
+}
+
+func TestFormatDetailMarkdownNamesLanguageOrTierAlone(t *testing.T) {
+	cases := []struct {
+		audit *RepoAudit
+		lang  string
+		want  string
+	}{
+		{&RepoAudit{Dir: "/r", Language: "Go"}, "en", "- **Language:** Go | **Framework:**  | **Tier:** \n"},
+		{&RepoAudit{Dir: "/r", Tier: "T1"}, "en", "- **Language:**  | **Framework:**  | **Tier:** T1\n"},
+		{&RepoAudit{Dir: "/r", Language: "Go"}, "de", "- **Sprache:** Go | **Framework:**  | **Tier:** \n"},
+		{&RepoAudit{Dir: "/r", Tier: "T1"}, "de", "- **Sprache:**  | **Framework:**  | **Tier:** T1\n"},
+	}
+	for _, c := range cases {
+		var buf bytes.Buffer
+		if err := FormatDetailMarkdown(c.audit, c.lang, &buf); err != nil {
+			t.Fatal(err)
+		}
+		if out := buf.String(); !strings.Contains(out, c.want) {
+			t.Errorf("%s: lacks %q:\n%s", c.lang, c.want, out)
+		}
+	}
+}
+
+func TestFormatDetailMarkdownMeasuresAComponentMarkedApplicable(t *testing.T) {
+	yes := true
+	measured := comp("graph build", 10, 8)
+	measured.Applicable = &yes
+	var buf bytes.Buffer
+	if err := FormatDetailMarkdown(&RepoAudit{Dir: "/r", Timings: timings(benchreport.Timing{}, measured)}, "en", &buf); err != nil {
+		t.Fatal(err)
+	}
+	if out := buf.String(); !strings.Contains(out, "| **graph build** | 10.0 ms | 8.0 ms | 8.0 ms | 8.0 ms | [0] |\n") {
+		t.Errorf("applicable component not measured:\n%s", out)
+	}
 }

@@ -269,7 +269,9 @@ func pointedScope(registered []config.Area, questions []Question) (string, error
 	pointed := map[string]bool{}
 	for _, q := range questions {
 		// Areas nest (a craft inside the knowledge area): the deepest one
-		// holding the note owns it, whatever the registry's order.
+		// holding the note owns it, whatever the registry's order. Two
+		// areas on one directory are equally deep; the registry allows
+		// them, and the first registered owns the note.
 		owner, depth := "", -1
 		for _, area := range registered {
 			if d := len(filepath.Clean(area.Path)); d > depth && inside(q.Expect, area.Path) {

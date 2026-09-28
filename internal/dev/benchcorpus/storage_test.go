@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/dev/benchreport"
 )
@@ -89,6 +90,7 @@ func sampleAudits() []*RepoAudit {
 }
 
 func TestSaveReport_SuccessAndMerge(t *testing.T) {
+	t.Chdir(t.TempDir()) // see TestSaveReport_DefaultOps
 	mock := newMockStorage()
 	ops := mock.toOps()
 
@@ -168,6 +170,7 @@ func TestSaveReport_SuccessAndMerge(t *testing.T) {
 }
 
 func TestSaveReport_SingleRepoKeepsCorpusMetadata(t *testing.T) {
+	t.Chdir(t.TempDir()) // see TestSaveReport_DefaultOps
 	tempDir := t.TempDir()
 	corpus := &RepoAudit{
 		RepoURL:        "https://github.com/gin-gonic/gin",
@@ -221,6 +224,7 @@ func TestSaveReport_SingleRepoKeepsCorpusMetadata(t *testing.T) {
 }
 
 func TestSaveReport_SkippedPersistsAcrossRuns(t *testing.T) {
+	t.Chdir(t.TempDir()) // see TestSaveReport_DefaultOps
 	tempDir := t.TempDir()
 	membrane := "https://github.com/membraneframework/membrane_core"
 	matrix := func() string {
@@ -258,6 +262,7 @@ func TestSaveReport_SkippedPersistsAcrossRuns(t *testing.T) {
 }
 
 func TestSaveReport_CorruptedSkippedFile(t *testing.T) {
+	t.Chdir(t.TempDir()) // see TestSaveReport_DefaultOps
 	tempDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tempDir, "benchmarks-skipped.json"), []byte("{broken"), 0o644); err != nil {
 		t.Fatal(err)
@@ -268,6 +273,10 @@ func TestSaveReport_CorruptedSkippedFile(t *testing.T) {
 }
 
 func TestSaveReport_DefaultOps(t *testing.T) {
+	// A mutant that forces docsDir to "docs" or swaps a mock for the real
+	// filesystem writes relative to the working directory; every SaveReport
+	// test runs in a temporary one to keep that out of the package.
+	t.Chdir(t.TempDir())
 	tempDir := t.TempDir()
 	report := &BenchmarkReport{
 		Repos: sampleAudits()[:1],
@@ -290,6 +299,7 @@ func TestSaveReport_DefaultOps(t *testing.T) {
 }
 
 func TestSaveReport_Errors(t *testing.T) {
+	t.Chdir(t.TempDir()) // see TestSaveReport_DefaultOps
 	report := &BenchmarkReport{
 		Repos: sampleAudits(),
 	}
@@ -379,6 +389,7 @@ func TestSaveReport_Errors(t *testing.T) {
 }
 
 func TestSaveReport_CorruptedDataFile(t *testing.T) {
+	t.Chdir(t.TempDir()) // see TestSaveReport_DefaultOps
 	mock := newMockStorage()
 	mock.files["docs/benchmarks.json"] = []byte("corrupted json {")
 
@@ -411,5 +422,47 @@ func TestMergeSkipped_SortsByLanguageThenURL(t *testing.T) {
 		if s.RepoURL != want[i] {
 			t.Fatalf("mergeSkipped order = %+v, want %v", got, want)
 		}
+	}
+}
+
+func TestSaveReportStampsTheMatrixOnlyWithoutATimestamp(t *testing.T) {
+	t.Chdir(t.TempDir()) // see TestSaveReport_DefaultOps
+	stamp := func(report *BenchmarkReport) string {
+		mock := newMockStorage()
+		if err := SaveReport(report, "out", mock.toOps()); err != nil {
+			t.Fatal(err)
+		}
+		matrix := string(mock.files["out/en/benchmarks/matrix.md"])
+		_, rest, ok := strings.Cut(matrix, "- **Last Updated:** ")
+		if !ok {
+			t.Fatalf("no timestamp line:\n%s", matrix)
+		}
+		line, _, _ := strings.Cut(rest, "\n")
+		return line
+	}
+	if got := stamp(&BenchmarkReport{Timestamp: "2026-01-02T03:04:05Z"}); got != "2026-01-02T03:04:05Z" {
+		t.Errorf("given timestamp became %q", got)
+	}
+	if got := stamp(&BenchmarkReport{}); got == "" {
+		t.Error("a report without a timestamp got none")
+	} else if _, err := time.Parse(time.RFC3339, got); err != nil {
+		t.Errorf("stamped %q: %v", got, err)
+	}
+}
+
+func TestMergeSkippedSortsByLanguageBeforeURL(t *testing.T) {
+	// URL order contradicts language order here.
+	report := &BenchmarkReport{Skipped: []SkippedRepo{
+		{RepoURL: "https://github.com/a/w", Language: "Zig"},
+		{RepoURL: "https://github.com/b/y", Language: "Elixir"},
+		{RepoURL: "https://github.com/b/x", Language: "Elixir"},
+	}}
+	var got []string
+	for _, s := range mergeSkipped(nil, report) {
+		got = append(got, s.RepoURL)
+	}
+	want := []string{"https://github.com/b/x", "https://github.com/b/y", "https://github.com/a/w"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("mergeSkipped order = %v, want %v", got, want)
 	}
 }

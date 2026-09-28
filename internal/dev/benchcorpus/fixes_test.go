@@ -72,6 +72,22 @@ func TestTotalStatusSkipsInapplicableAndBaseline(t *testing.T) {
 	}
 }
 
+func TestAllRunsTakesExactlyTheApplicableComponents(t *testing.T) {
+	yes := true
+	marked := comp("marked", 1, 1)
+	marked.Applicable = &yes
+	skipped := notApplicable("skipped")
+	skipped.ExitCodes = []int{7}
+	audit := &RepoAudit{Timings: timings(benchreport.Timing{}, comp("unmarked", 1, 1), marked, skipped)}
+	var names []string
+	for _, r := range allRuns(audit) {
+		names = append(names, r.Name)
+	}
+	if strings.Join(names, ",") != "unmarked,marked" {
+		t.Errorf("allRuns = %v, want unmarked and marked", names)
+	}
+}
+
 func TestPickSampleFilePrefersPrimaryLanguage(t *testing.T) {
 	root := fstest.MapFS{
 		"a.sh":      &fstest.MapFile{Data: []byte("echo\n")},

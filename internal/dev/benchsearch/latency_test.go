@@ -18,6 +18,15 @@ func TestMeasureLatencyRunsColdThenRepeatWarm(t *testing.T) {
 	}
 }
 
+func TestMeasureLatencyTakesRepeatOne(t *testing.T) {
+	calls := 0
+	ops := []Operation{{Name: "read", Call: func() error { calls++; return nil }}}
+	got, err := MeasureLatency(ops, 1, tick(time.Millisecond))
+	if err != nil || calls != 2 || len(got) != 1 || len(got[0].WarmMS) != 1 {
+		t.Fatalf("got %+v calls=%d err=%v", got, calls, err)
+	}
+}
+
 func TestMeasureLatencyRefusesRepeatBelowOne(t *testing.T) {
 	if _, err := MeasureLatency(nil, 0, tick(0)); err == nil || err.Error() != "repeat must be at least 1, got 0" {
 		t.Fatalf("err = %v", err)

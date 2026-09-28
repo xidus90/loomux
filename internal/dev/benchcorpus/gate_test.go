@@ -41,6 +41,21 @@ func TestGateLanes(t *testing.T) {
 		}
 	})
 
+	t.Run("follows only a sh or dot line with exactly one argument", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			".githooks/pre-commit": &fstest.MapFile{
+				Data: []byte("make\ncat ci/env.sh\nsh ci/gate.sh --fast\n"),
+			},
+			"ci/env.sh":  &fstest.MapFile{Data: []byte("export A=1\n")},
+			"ci/gate.sh": &fstest.MapFile{Data: []byte("go vet ./...\n")},
+		}
+		got := gateLanes(fsys)
+		want := []string{"make", "cat ci/env.sh", "sh ci/gate.sh --fast"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("gateLanes() = %v, want %v", got, want)
+		}
+	})
+
 	t.Run("follows scripts the hook runs one level deep", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			".githooks/pre-commit": &fstest.MapFile{

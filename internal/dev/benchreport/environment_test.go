@@ -21,6 +21,15 @@ func TestCurrentTakesTheProcessorFromTheSeam(t *testing.T) {
 	}
 }
 
+func TestProcessorNameIsWhatWindowsHandsOut(t *testing.T) {
+	// Windows names the processor in PROCESSOR_IDENTIFIER; where that is
+	// set, it is the name, whatever else the machine offers.
+	t.Setenv("PROCESSOR_IDENTIFIER", "Test Family 6 Model 1")
+	if got := processorName(); got != "Test Family 6 Model 1" {
+		t.Fatalf("processorName() = %q", got)
+	}
+}
+
 func TestBackboneIsWhatQmdIsToldToRunOn(t *testing.T) {
 	for _, c := range []struct {
 		gpu, cpu, want string

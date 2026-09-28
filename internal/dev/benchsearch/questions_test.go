@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -172,6 +173,15 @@ func TestLoadQuestionsReadsMappingsWithOtherKeys(t *testing.T) {
 func TestLoadQuestionsReportsAMissingFile(t *testing.T) {
 	_, err := LoadQuestions(filepath.Join(t.TempDir(), "questions.yaml"), DefaultShape())
 	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// A NUL byte is refused by filepath.Abs on Windows and by open elsewhere;
+// either way the refusal is the answer, not a read of some other path.
+func TestLoadQuestionsReportsAPathNoSystemTakes(t *testing.T) {
+	_, err := LoadQuestions("questions\x00.yaml", DefaultShape())
+	if !errors.Is(err, syscall.EINVAL) {
 		t.Fatalf("err = %v", err)
 	}
 }

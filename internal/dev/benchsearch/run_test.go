@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/xidus90/loomux/internal/brain/index"
+	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/brain/search"
 	"github.com/xidus90/loomux/internal/dev/fakeqmd"
 )
@@ -390,6 +393,40 @@ func TestANamedQuestionSetAndOutAreTaken(t *testing.T) {
 		t.Fatal(err)
 	}
 	present(t, filepath.Join(out, "bench-2026-09-26-1234-full.md"))
+}
+
+// The channel reaches the search chain: on the cloud channel a local_only
+// area is not there to be asked.
+func TestTheCloudChannelDoesNotSeeALocalOnlyArea(t *testing.T) {
+	d := depsWith(t)
+	w := everyday(t, d, "knowledge")
+	writeFile(t, filepath.Join(w.area, ".loomux", "config.toml"),
+		"[area]\nscope = \"knowledge\"\n\n[privacy]\nmode = \"local_only\"\n")
+	port := answering("knowledge", 50)
+	d.Daemon = daemon(port)
+	_, err := Bench(Options{Channel: privacy.ChannelCloud}, d)
+	if err == nil || !strings.Contains(err.Error(), "unknown scope 'knowledge'") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(port.Calls) != 0 {
+		t.Fatalf("searched: %+v", port.Calls)
+	}
+}
+
+// filepath.Abs refuses a NUL byte on Windows, and that refusal is the answer;
+// elsewhere Abs takes it, and the stand check names the missing files.
+func TestACorpusPathAbsCannotResolveIsRefusedAsSuch(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows' filepath.Abs refuses a NUL byte")
+	}
+	d := depsWith(t)
+	_, err := Bench(Options{Corpus: "v1\x00", Out: t.TempDir()}, d)
+	if !errors.Is(err, syscall.EINVAL) {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(d.StateDir, "bench")); err == nil {
+		t.Fatal("the lock folder was made")
+	}
 }
 
 func TestAnEmptyIndexIsNoMeasurement(t *testing.T) {

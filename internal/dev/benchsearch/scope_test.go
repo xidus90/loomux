@@ -120,6 +120,40 @@ func TestAGivenScopeIsNeverDerived(t *testing.T) {
 	}
 }
 
+// The registry refuses a second entry of one scope, not of one path. Of two
+// areas on the same directory the first registered owns the note.
+func TestOfTwoAreasOnOneDirectoryTheFirstOwnsTheExpect(t *testing.T) {
+	dir := t.TempDir()
+	registered := []config.Area{{Scope: "first", Path: dir}, {Scope: "second", Path: dir}}
+	scope, err := pointedScope(registered, []Question{{ID: "q01", Expect: filepath.Join(dir, "a.md")}})
+	if err != nil || scope != "first" {
+		t.Fatalf("scope %q, err %v", scope, err)
+	}
+}
+
+func TestAllOverAnEmptyRegistryIsNoUnknownScope(t *testing.T) {
+	areas, err := benchAreas(nil, allAreas)
+	if err != nil || len(areas) != 0 {
+		t.Fatalf("areas %v, err %v", areas, err)
+	}
+}
+
+// A scope given without ScopeSet is the default's place: it finds the
+// question set, and is not replaced by knowledge.
+func TestAScopeWithoutScopeSetFindsTheQuestionSet(t *testing.T) {
+	d := depsWith(t)
+	everyday(t, d, "craft")
+	port := answering("craft", 50)
+	d.Daemon = daemon(port)
+	md, err := Bench(Options{Scope: "craft"}, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(md, "| total | 50/50 |") || !strings.Contains(md, "- scope: craft\n") {
+		t.Fatalf("markdown:\n%s", md)
+	}
+}
+
 func TestInsideTellsAPathUnderADirectory(t *testing.T) {
 	dir := t.TempDir()
 	for path, want := range map[string]bool{

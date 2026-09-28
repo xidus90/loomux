@@ -277,6 +277,55 @@ minversion = "6.0"
 	})
 }
 
+// Each marker file yields exactly its own language and tools, no more.
+func TestInspectToolsAndLanguagesPerMarker(t *testing.T) {
+	cases := []struct {
+		name, file, data string
+		tools, languages []string
+	}{
+		{"go module", "go.mod", "module x\n", []string{"go-vet", "go-test"}, []string{"go"}},
+		{"pyproject without tools", "pyproject.toml", "[project]\nname = \"x\"\n", nil, []string{"python"}},
+		{"tsconfig", "tsconfig.json", "{}", []string{"tsc"}, []string{"typescript"}},
+		{"golangci yaml", ".golangci.yaml", "linters: {}\n", []string{"golangci-lint"}, nil},
+		{"solution", "app.sln", "\n", []string{"dotnet-test"}, []string{"csharp"}},
+		{"Gemfile without tools", "Gemfile", "gem 'rails'\n", nil, []string{"ruby"}},
+		{"composer without tools", "composer.json", `{"require":{"laravel/framework":"^11"}}`, nil, []string{"php"}},
+		{"shellcheckrc", ".shellcheckrc", "\n", []string{"shellcheck"}, []string{"shell"}},
+		{"package.json without tools", "package.json", `{"scripts":{"start":"node index.js"}}`, nil, []string{"javascript"}},
+		{"package.json with the typescript package", "package.json", `{"devDependencies":{"typescript":"^5"}}`, nil, []string{"javascript", "typescript"}},
+		{"package.json with a tsc script", "package.json", `{"scripts":{"build":"tsc -p ."}}`, []string{"tsc"}, []string{"javascript", "typescript"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			tools, languages := inspectToolsAndLanguages(fstest.MapFS{c.file: &fstest.MapFile{Data: []byte(c.data)}})
+			var names []string
+			for _, tool := range tools {
+				names = append(names, tool.Tool)
+			}
+			if !slices.Equal(names, c.tools) || !slices.Equal(languages, c.languages) {
+				t.Errorf("tools %v, languages %v; want %v, %v", names, languages, c.tools, c.languages)
+			}
+		})
+	}
+}
+
+func TestInspectClaudeKeepsOnlyCommandHooksWithACommand(t *testing.T) {
+	root := fstest.MapFS{".claude/settings.json": &fstest.MapFile{Data: []byte(`{"hooks":{"Stop":[{"hooks":[
+		{"type":"prompt","command":"not-a-command"},
+		{"type":"command","command":""},
+		{"type":"command","command":"kept"}]}]}}`)}}
+	has, hooks := inspectClaude(root)
+	if !has || !slices.Equal(hooks, []ClaudeHook{{Event: "Stop", Command: "kept"}}) {
+		t.Errorf("inspectClaude = %v, %v", has, hooks)
+	}
+}
+
+func TestInspectGitHooksIgnoresAnEmptyHooksDirectory(t *testing.T) {
+	if inspectGitHooks(fstest.MapFS{".git/hooks": &fstest.MapFile{Mode: fs.ModeDir}}) {
+		t.Error("an empty .git/hooks counts as git hooks")
+	}
+}
+
 type errFS struct{}
 
 func (errFS) Open(name string) (fs.File, error) {
