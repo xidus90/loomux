@@ -303,21 +303,22 @@ Evaluates the project policy and global write barrier before an agent executes a
   (the body of a block, function or script block: `try{`, `{loomux …}`),
   and behind the wrappers `sudo`, `command`, `exec`, `nohup`, `env`, `time`,
   `xargs`, `nice` (also `nice -n N`), `timeout <duration>` and `cmd` with
-  every switch up to `/c` or `/k`, together with their flags that take no
-  separate value (and `--`). `Start-Process`, `start` or `saps` is refused
-  when loomux is any of its arguments, also as the value of a parameter
-  written with a colon (`-FilePath:loomux.exe`), whatever the others. Every
+  every switch up to `/c` or `/k`, together with their flags (and `--`); the
+  separate value of a flag of `sudo`, `env`, `xargs` or `timeout` that takes
+  one (`sudo -u root`, `xargs -n 1`, `timeout -s KILL`) is skipped as well.
+  `Start-Process`, `start` or `saps` is refused when loomux is any of its
+  arguments, also as the value of a parameter written with a colon
+  (`-FilePath:loomux.exe`), whatever the others. Every
   segment of the line counts (`;`, `|`, `&`, `&&`, `||`, a line break, `(`,
   `)`, `$(`, a backtick), and a line continuation (`\` or a backtick at the
   line end) is joined first; a backtick escape inside a word
   (``loomux con`fig``) is read as PowerShell does.
   - **Known holes** — the rule reads words, not a shell, so it passes: an
-    alias; a program held in a variable; a wrapper flag with a separate value
-    (`sudo -u root loomux init`, `xargs -n 1 …`, `timeout -s KILL 60 …`); a
-    command inside a string (`sh -c "loomux init"`, `pwsh -c …`); `go run .`
-    inside `cmd/loomux`; and, after an earlier escaped `\"` or `\'` on the
-    same line, a quoted program path whose part after its last break
-    character (`(`, `)`, `&`, `;`, `|`) holds a blank, such as
+    alias; a program held in a variable; a command inside a string (`sh -c
+    "loomux init"`, `pwsh -c …`); `go run .` inside `cmd/loomux`; and, after
+    an earlier escaped `\"` or `\'` on the same line, a quoted program path
+    whose part after its last break character (`(`, `)`, `&`, `;`, `|`)
+    holds a blank, such as
     `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.
   - **Known false refusals** — it errs toward refusing: `echo "x; loomux
     init"`, `start loomux config list`, `Start-Process code -ArgumentList

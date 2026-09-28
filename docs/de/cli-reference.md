@@ -319,7 +319,9 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   `{loomux …}`), sowie hinter den Wrappern `sudo`, `command`, `exec`,
   `nohup`, `env`, `time`, `xargs`, `nice` (auch `nice -n N`),
   `timeout <dauer>` und `cmd` mit jedem Schalter bis `/c` oder `/k`, samt
-  ihren Flags ohne eigenen Wert (und `--`). `Start-Process`, `start` oder
+  ihren Flags (und `--`), bei `sudo`, `env`, `xargs` und `timeout` auch
+  hinter dem eigenen Wert eines Flags, das einen nimmt (`sudo -u root`,
+  `xargs -n 1`, `timeout -s KILL`). `Start-Process`, `start` oder
   `saps` wird verweigert, wenn loomux eines seiner Argumente ist, auch als
   Wert eines Parameters mit Doppelpunkt (`-FilePath:loomux.exe`), gleich
   welche die übrigen sind. Jeder Abschnitt der Zeile zählt
@@ -328,10 +330,8 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   vorher zusammengefügt; ein Backtick-Escape in einem Wort
   (``loomux con`fig``) wird gelesen, wie PowerShell ihn liest.
   - **Bekannte Lücken** — die Regel liest Wörter, keine Shell, und lässt
-    darum durch: einen Alias; ein Programm in einer Variablen; ein
-    Wrapper-Flag mit eigenem Wert (`sudo -u root loomux init`,
-    `xargs -n 1 …`, `timeout -s KILL 60 …`); einen Befehl in einer
-    Zeichenkette (`sh -c "loomux init"`, `pwsh -c …`); `go run .` in
+    darum durch: einen Alias; ein Programm in einer Variablen; einen Befehl
+    in einer Zeichenkette (`sh -c "loomux init"`, `pwsh -c …`); `go run .` in
     `cmd/loomux`; und, nach einem früheren maskierten `\"` oder `\'` auf
     derselben Zeile, einen Programmpfad in Anführungszeichen, dessen Teil
     hinter seinem letzten Trennzeichen (`(`, `)`, `&`, `;`, `|`) ein
