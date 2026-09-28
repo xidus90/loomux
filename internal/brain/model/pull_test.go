@@ -160,6 +160,53 @@ func TestPullFailsWithoutSuccess(t *testing.T) {
 	}
 }
 
+// switchingServer answers every request with 101, the one status below 200
+// that Go's client hands back as an answer, and hangs up.
+func switchingServer(t *testing.T) string {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		conn, buf, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.Close()
+		_, _ = buf.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: x\r\n\r\n")
+		_ = buf.Flush()
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
+}
+
+// 2xx is the whole range: 299 is an answer, 101 below it is not.
+func TestOnlyA2xxStatusIsAnAnswer(t *testing.T) {
+	if got, err := clientAt(t, tagsServer(t, 299, tags)).Has(context.Background(), "gemma3"); err != nil || !got {
+		t.Errorf("Has at 299: %v %v", got, err)
+	}
+	endpoint, _ := pullServer(t, 299, `{"status":"success"}`)
+	if err := clientAt(t, endpoint).Pull(context.Background(), "gemma3", func(string, int64, int64) {}); err != nil {
+		t.Errorf("Pull at 299: %v", err)
+	}
+	switching := switchingServer(t)
+	if _, err := clientAt(t, switching).Has(context.Background(), "gemma3"); err == nil || !strings.Contains(err.Error(), "GET /api/tags answered 101") {
+		t.Errorf("Has at 101: %v", err)
+	}
+	if err := clientAt(t, switching).Pull(context.Background(), "gemma3", func(string, int64, int64) {}); err == nil || !strings.Contains(err.Error(), "POST /api/pull answered 101") {
+		t.Errorf("Pull at 101: %v", err)
+	}
+}
+
+// A JSON body without an error says nothing either: no colon, no empty
+// reason after the status.
+func TestAPullRefusalWithAnEmptyErrorNamesTheStatusOnly(t *testing.T) {
+	endpoint, _ := pullServer(t, 500, `{}`)
+	err := clientAt(t, endpoint).Pull(context.Background(), "gemma3", func(string, int64, int64) {})
+	if err == nil || err.Error() != "POST /api/pull answered 500 Internal Server Error" {
+		t.Fatalf("%v", err)
+	}
+}
+
 func TestPullFailsAtAClosedPort(t *testing.T) {
 	server := httptest.NewServer(http.NotFoundHandler())
 	endpoint := server.URL
