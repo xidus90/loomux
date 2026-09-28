@@ -156,6 +156,27 @@ func TestConvertTakesOnePathAtMost(t *testing.T) {
 	}
 }
 
+// The reference's convert and fetch take --channel and --state-dir from
+// _add_common (cli.py:450-452); loomux takes neither, a row of the parity
+// list: neither command hands anything out, and the state comes from
+// LOOMUX_STATE_DIR. Both end before anything is looked up or started.
+func TestConvertAndFetchTakeNoChannelAndNoStateDir(t *testing.T) {
+	convertWorld(t)
+	noYtdlp(t)
+	url := "https://www.youtube.com/watch?v=mHSOsy_usAg"
+	for _, args := range [][]string{
+		{"convert", "--channel", "local"},
+		{"convert", "--state-dir", "x"},
+		{"fetch", "--channel", "local", url},
+		{"fetch", "--state-dir", "x", url},
+	} {
+		want := "flag provided but not defined: " + strings.TrimPrefix(args[1], "-")
+		if code, out, errOut := run(args...); code != 2 || out != "" || !strings.HasPrefix(errOut, want) {
+			t.Errorf("%q: %d %q %q", args, code, out, errOut)
+		}
+	}
+}
+
 func TestConvertRefusesWhereTheProjectSwitchedTheBrainOff(t *testing.T) {
 	convertWorld(t)
 	project := t.TempDir()

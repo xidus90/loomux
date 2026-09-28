@@ -1,0 +1,14 @@
+{
+ "answers": [
+  {
+   "prefix": "pdftotext -v",
+   "exit": 0,
+   "stdout": "pdftotext version 25.07.0 (seam: the reference reads with pypdf 6.16.2)\nThe Poppler Developers\n"
+  },
+  {
+   "prefix": "pdftotext -layout -enc UTF-8 -eol unix leer.pdf -",
+   "exit": 0,
+   "stdout": ""
+  }
+ ]
+}

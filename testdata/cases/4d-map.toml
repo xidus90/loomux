@@ -1,0 +1,6 @@
+# convert's cases; a recorded manifest is moved, not decoded and encoded again.
+manifests = "verbatim"
+
+[[command]]
+from = "brain-mcp convert"
+to   = "loomux convert"

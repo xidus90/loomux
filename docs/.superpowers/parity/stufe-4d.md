@@ -470,6 +470,130 @@ Hallo.\r\n` sind in der Referenz `transcript-bracket` (die Marke steht beim
 Zeichen 6000); zählte `\r\n` als zwei, stünde sie bei 9000, jenseits der 8192.
 Zeile `crlf-far.txt` in `TestDetectReadsTheEndingAndThenTheHead`.
 
+## Fallsatz 4d, aufgezeichnet am 2026-09-27
+
+Neunundzwanzig Fälle `convert/…`, aufgezeichnet am 2026-09-27 zwischen 18:33
+und 18:34 UTC mit `stufe-4d-orakel/record_all.sh` gegen `brain-mcp.exe` am
+Tag `loomux-3-source` (vorher geprüft: `HEAD` von ultra-brain ist `3cc72d2`),
+übersetzt mit `testdata/cases/4d-map.toml` (`manifests = "verbatim"`),
+abgespielt von `TestCases4d` (`internal/cli/cases_4d_test.go`). Aufgenommen
+aus Git Bash; das Arbeitsverzeichnis der Aufnahme war `%LOCALAPPDATA%\Temp\r4d`
+mit `bin/loomux.exe` und `fakeqmd/qmd.exe`, gebaut aus diesem Baum (`21f556c4`).
+Go 1.27.0, uv 0.12.16.
+
+**Welten.** `stufe-4d-orakel/make_worlds.py` legt je Fall eine Welt unter
+`testdata/cases/4d-worlds/` an: `registry.toml` in der Weltwurzel (für beide
+Seiten der Zustand), ein Bereich `knowledge` unter `vault/` mit `.brain.toml`
+(`[layout] inbox = "00 Eingang"`), die Dateien des Falls im Eingang, PDFs aus
+`testdata/convert/pdf/`. Die Transkripte sind die der Referenztests
+(`tests/convert/test_cli_convert.py`), die Sätze der Fixtures die von
+`test_local_describe.py` und `test_local_place.py`. `readonly-area` legt die
+Deklaration nach `areas/knowledge/.brain.toml` des Zustands, wo beide Seiten
+sie für einen `readonly`-Bereich lesen, und keine unter `vault/`: Ohne sie
+hätte der Bereich keinen Eingang, und der Fall bestünde aus diesem Grund. Der
+Import legt jede `.brain.toml` Byte für Byte nach `.loomux/config.toml`, auch
+die unter `areas/knowledge/`. `.gitattributes` hält `4d-worlds`, `4d-source`
+und `4d` als `-text`; `git ls-files --eol` zeigt für die fünf Kopien des
+CRLF-Transkripts `i/crlf`. Das leere `00 Eingang` von `no-inbox` hält git
+nicht fest; die Welt nennt keinen Eingang, es wirkt also nicht.
+
+**Die Naht für `pdftotext`.** Die Referenz liest PDFs selbst mit pypdf, loomux
+ruft `pdftotext`. `stufe-4d-orakel/pypdf_pages.py` (pypdf 6.16.2, die Version
+der Referenz-venv) schreibt in jede der sieben Welten mit PDF eine
+`faketool.json`: je PDF die Antwort auf `pdftotext -layout -enc UTF-8 -eol unix
+<name> -` mit dem Text, den pypdf der Referenz liest, Seite für Seite mit `\f`
+danach, und auf `pdftotext -v` eine Zeile mit `Poppler`. `corrupt.pdf`, an dem
+pypdf mit `PyPdfError` scheitert, antwortet mit Exit 1 ohne Ausgabe,
+`pageless.pdf` (keine Seite) mit Exit 0 ohne Ausgabe. Beim Abspielen zeigt
+`convertTools` auf diese Antworten (`useFakePdftotext`); eine Welt ohne PDF hat
+keine, und `Look` meldet `pdftotext` als fehlend. Damit stimmt der Kommentar an
+`convertTools` in `internal/cli/convert.go`. `faketool.json` liegt auf beiden
+Seiten in der Welt; die Referenz liest sie nicht.
+
+**Attrappe.** Wie in 4c-1: `loomux dev fake-ollama` auf `127.0.0.1:11435` mit
+der `ollama-fixture.json` der Welt, das Log außerhalb der Welt, beim Abspielen
+`serveFakeOllama`. Die Zahl der Anfragen muss `wantOllamaCalls4d` treffen, die
+aus den Notizen der Aufnahme stammt.
+
+**Normalisierung.** `normalize4d` hält beide Seiten an zwei Stellen gleich:
+`retrieved: JJJJ-MM-TT` wird `retrieved: {{DAY}}` (die gestellte Welt behält
+keine Änderungszeit, `retrieved:` ist auf beiden Seiten der Tag des Laufs; B8,
+E11), und `converter: brain-pdf/1` wird `brain-pdf/2` (Vorschlag 8). stderr
+vergleicht der Fallsatz nicht (wie 3b und 4c-1), stdout und die ganze Welt
+schon. „Gleich“ heißt unten: null Abweichungen außerhalb von stderr nach
+`normalize4d`; `expected4d` ist leer.
+
+| Fall | Eingang | Exit | Aufrufe | Ergebnis der Referenz | Abspielen |
+|---|---|---|---|---|---|
+| `transcript-bracket` | `video (mHSOsy_usAg).txt`, Klammermarken | 0 | 0 | `video (mHSOsy_usAg).txt.md`, `source_url: https://www.youtube.com/watch?v=mHSOsy_usAg`, ein Absatz `[00:00] …` | gleich |
+| `transcript-range-lead-in` | `export.txt`: Titelzeile, Bereichszeilen | 0 | 0 | Vorspann `Titel des Videos` als eigener Absatz, dann `[01:05] Hallo zusammen. Spät im Video.`; die Marke `01:02:03` fällt heraus und wird kein Anker, weil der Absatz unter der Schwelle weiterläuft (die Umrechnung zu `[62:03]` hält `TestMarksBecomeMinutes`) | gleich |
+| `crlf-transcript` | `video.txt` mit CRLF | 0 | 0 | `[00:00] Hallo zusammen. Und weiter.`, kein `\r` im Ziel | gleich |
+| `mixed-case-order` | `B.txt`, `a.txt`, `_z.txt` | 0 | 0 | stdout in der Folge `_z.txt.md`, `a.txt.md`, `B.txt.md` (B4) | gleich |
+| `same-stem` | `doku.pdf` (`text.pdf`), `doku.txt` | 0 | 0 | `doku.pdf.md` und `doku.txt.md` | gleich |
+| `unsupported-and-good` | `notiz.txt` (Prosa), `video.txt` | 1 | 0 | `video.txt.md`; `skipped: notiz.txt: no converter knows this format` | gleich |
+| `hand-written-target` | `video.txt`, `video.txt.md` von Hand | 1 | 0 | nichts geschrieben; `skipped: video.txt.md: not written by us, left untouched` | gleich |
+| `broken-utf8-source` | `kaputt.txt` (8 328 saubere Bytes, dann `\xff\xfe`), `video.txt` | 1 | 0 | `video.txt.md`; `skipped: kaputt.txt: cannot be read as UTF-8 text` — erkannt als Transkript, erst das volle Lesen scheitert | gleich |
+| `broken-utf8-target` | `video.txt`, `video.txt.md` aus `\xff\xfe` | 1 | 0 | nichts geschrieben; `skipped: video.txt.md: cannot be read as UTF-8 text` | gleich |
+| `pdf-text` | `buch.pdf` (`text.pdf`) | 0 | 0 | `buch.pdf.md`, `converter: brain-pdf/1` | gleich |
+| `pdf-umlaut-name` | `Bericht März.pdf` | 0 | 0 | `Bericht März.pdf.md` | gleich |
+| `pdf-scan` | `scan.pdf` (`blank.pdf`), `video.txt` | 1 | 0 | `video.txt.md`; `skipped: scan.pdf: no extractable text, looks like a scan` | gleich |
+| `pdf-pageless` | `leer.pdf` (`pageless.pdf`) | 1 | 0 | nichts; `skipped: leer.pdf: no pages to extract` | gleich über die Naht; unter echtem Poppler eine andere Meldung, siehe „Abweichungen“ |
+| `pdf-partial` | `buch.pdf` (`mixed.pdf`) | 1 | 0 | `buch.pdf.md` mit den drei Textseiten; `skipped: buch.pdf: 7 page(s) skipped as scanned` | gleich |
+| `pdf-corrupt` | `buch.pdf` (`corrupt.pdf`), `video.txt` | 1 | 0 | `video.txt.md`; `skipped: buch.pdf: cannot be read as a PDF (Stream has ended unexpectedly)`, davor pypdfs Warnung `EOF marker not found` | gleich; loomux sagt `… (pdftotext exited 1 and said nothing)` |
+| `no-inbox` | — (Bereich ohne `[layout] inbox`) | 0 | 0 | nichts, keine Zeile | gleich |
+| `readonly-area` | `video.txt`, `readonly = true` | 0 | 0 | nichts, obwohl die Deklaration einen Eingang nennt | gleich |
+| `single-file` | `video.txt`, Befehl mit dem Pfad | 0 | 0 | `video.txt.md` | gleich |
+| `no-registry` | `video.txt`, keine `registry.toml` | 1 | 0 | nichts; `error: [Errno 2] No such file or directory: '…\\registry.toml'` | gleich; loomux sagt `error: open …\registry.toml: Das System kann die angegebene Datei nicht finden.` |
+| `broken-manifest` | `video.txt`, zweiter Bereich mit `mode = "cloud"` | 1 | 0 | nichts geschrieben; `error: …\x\.brain.toml: [privacy] mode must be one of automatic_cloud, local_only, manual_cloud, found 'cloud'` | gleich; loomux nennt `…\x\.loomux\config.toml` und `"cloud"` |
+| `describe-kept` | `video.txt`, `describe` an | 0 | 1 | Kopf mit `description: Der Bericht beschreibt die Abnahme der zweiten Scheibe.` | gleich |
+| `describe-refused` | wie oben, englischer Satz | 0 | 1 | Satz verworfen, Kopf mit vier Zeilen | gleich |
+| `second-run` | `video.txt`, `video.txt.md` eines ersten Laufs | 0 | 0 | Ziel neu geschrieben und auf stdout, `retrieved:` der Tag des Laufs, der stehende Satz bleibt; die Attrappe wird nicht gefragt | gleich |
+| `place-suggested` | `video.txt`, `place` an, zweiter Bereich `project/x` | 0 | 1 | `video.txt.md` und `suggested: video.txt.md: belongs in project/x, left in the inbox` auf stdout; nichts bewegt | gleich |
+| `place-unknown-scope` | wie oben, Fixture `project/erfunden` | 0 | 1 | `video.txt.md`, kein Vorschlag | gleich |
+| `model-unreachable` | `video.txt`, Endpunkt `:11436` | 0 | 0 | Kopf mit vier Zeilen | gleich |
+| `model-off-in-area` | `video.txt`, im Bereich `[model] enabled = false` | 0 | 0 | Kopf mit vier Zeilen; die Attrappe lauscht und wird nicht gefragt | gleich |
+| `broken-model-block` | `video.txt`, `[model] enabled = 5` | 1 | 0 | nichts; `error: …\config.toml: [model] enabled must be a boolean, found 5` | gleich; loomux sagt `found integer` |
+| `endpoint-off-loopback` | `video.txt`, Endpunkt `http://192.0.2.1:11434` | 1 | 0 | nichts; `error: [model] endpoint must stay on the loopback (127.0.0.1, ::1, localhost), found 'http://192.0.2.1:11434'` | gleich, auch stderr Wort für Wort |
+
+**`second-run`** ist der „zweite Lauf“ aus Vorschlag 10, so weit eine gestellte
+Welt ihn trägt. Sie behält keine Änderungszeit (B8), `retrieved:` ist auf
+beiden Seiten der Tag des Laufs, und der feste Tag `2020-01-01` im Ziel lässt
+beide den Kopf neu schreiben; stdout nennt auf beiden Seiten die Zieldatei.
+Ein vergangener Tag, nicht der Tag der Aufnahme: Sonst schriebe die Referenz
+nichts und ein späteres Abspielen doch. Was der Fall an der Referenz misst:
+Das Ziel gilt als eigenes, der stehende Satz bleibt, und das Modell wird nicht
+gefragt (`ollama calls: 0`), obwohl `describe` an ist und die Fixture einen
+anderen Satz hätte. Dass ein zweiter Lauf gar nichts schreibt, halten die
+Go-Tests (`TestTheSecondRunWritesNothing`, `TestAStandingSentenceIsNeverAskedFor`,
+`TestConvertNamesWhatItWroteAndExitsZero`).
+
+**Keine Welt macht ein Ziel unschreibbar.** Eine Zeile `cannot be written`
+trüge einen `*os.LinkError` mit dem zufälligen Namen der Zwischendatei
+(`<ziel>.<ziffern>.tmp`); kein Fall trifft sie, und eine Normalisierung dafür
+braucht der Fallsatz nicht.
+
+**Was der Fallsatz unterscheidet.** Je Regel ein Mutant über `go test
+-overlay`, der Baum blieb unberührt; die Skripte lagen im Scratchpad
+(`mut4d/make_mutants.py`, `run_mutants.sh`), nicht im Repo.
+
+| Mutant | rot |
+|---|---|
+| `sortedOn` nach Bytes statt klein geschrieben | `mixed-case-order` |
+| `Look` der Naht meldet immer „fehlt“ | `pdf-partial`, `pdf-text`, `pdf-umlaut-name`, `same-stem` (die Naht wird benutzt) |
+| `normalize4d` ohne Angleichung von `brain-pdf/1` | dieselben vier (die Angleichung wirkt) |
+| `normalize4d` ohne Angleichung von `retrieved:` | keiner — Aufnahme und Abspielen am selben Tag |
+| jede Datei der gestellten Welt auf den 2001-02-03 datiert, Angleichung von `retrieved:` bleibt | keiner (ein anderer Tag besteht) |
+| dasselbe ohne Angleichung von `retrieved:` | die 20 Fälle, die eine Datei schreiben |
+| Quelle roh gelesen (`os.ReadFile` statt `pytext.ReadText`) | `broken-utf8-source`; `crlf-transcript` bleibt grün, weil `split` jedes `\r` als Leerraum schluckt |
+| Quelle roh gelesen und `split` trennt nur an Leerzeichen und `\n` | `broken-utf8-source`, `crlf-transcript` (ein `\r` im Ziel fällt auf) |
+| `readonly` beim Eingang nicht geprüft | `readonly-area` |
+| stehender Satz nicht übernommen | `second-run` |
+| `Place` nimmt jeden nicht leeren Bereich | `place-unknown-scope` |
+| Exit 0 trotz `skipped:` | die acht Fälle mit Exit 1 aus `skipped:` |
+
+Die Batterien der Richter und der Zipf-Tabelle stehen oben („Die
+Zipf-Tabelle“, „Die Richter“), mit ihren Ausnahmen.
+
 ## Abweichungen
 
 Auf allen 72 Sätzen der Batterie urteilen `IsGerman`, `ChoppedWords`,
@@ -478,5 +602,25 @@ Auf allen 72 Sätzen der Batterie urteilen `IsGerman`, `ChoppedWords`,
 | Abweichung | Art | Begründung |
 |---|---|---|
 | `readsBack` auf nackten Skalaren, die YAML 1.1 anders auflöst als yaml.v3 | yaml.v3 statt PyYAML (E4), unerreichbar | Gemessen am 2026-09-27 mit `_reads_back` der Referenz (PyYAML 6.0.3), Fund des Reviews. PyYAML `false`, loomux `true`: `yes`, `on`, `no`, `off`, `Yes`, `NO` (PyYAML: bool), `1:20` (PyYAML: int 80), `1:20.` (PyYAML: float 80.0), `=` und `<<` (PyYAML: ConstructorError). PyYAML `true`, loomux `false`: `0o17`, `1e3`, `-.5` (yaml.v3: Zahlen). Jedes dieser Muster füllt einen ganzen Skalar ohne zwei getrennte Wörter; `IsGerman` verlangt zwei verschiedene Funktionswörter und weist alle 13 ab (die Referenz ebenso), und `describe` nimmt einen Satz nur, wenn alle Richter ihn durchlassen. Die Abweichung erreicht `describe` also nie. Test: `TestABareScalarPartsFromPyYAMLOnlyWhereIsGermanRefuses` (hält beide Urteile, `IsGerman` falsch, und liest die zehn, die loomux durchlässt, über `index.ParseFrontmatter` zurück) |
-| Zeitmarken mit Ziffern anderer Schriften | ASCII-Ziffern statt Pythons `\d`, entschieden im Plan | Gemessen am 2026-09-27 mit `convert_detect.py`: `[٠٠:٠٥] Hallo.` (arabisch-indische Ziffern) ist in der Referenz `transcript-bracket` und wird `[00:05] Hallo.`, weil `int()` jede Dezimalziffer liest; loomux nennt die Datei `unsupported`. Steht eine solche Marke in einem Transkript mit ASCII-Marken, schneidet die Referenz sie als Marke heraus: Ihr Text entfällt, und Anker wird sie nur, wo an ihr ein Absatz beginnt. loomux lässt sie als Text im vorigen Fragment stehen, und Absatzgrenzen können sich verschieben. Gemessen an `[00:00] Eins.\n[٠٠:٠٥] Zwei.\n[00:09] Drei.\n`: Referenz `[00:00] Eins. Zwei. Drei.`, mit Schwelle 1 `[00:00] Eins.\n\n[00:05] Zwei.\n\n[00:09] Drei.`; loomux `[00:00] Eins. [٠٠:٠٥] Zwei. Drei.`, mit Schwelle 1 `[00:00] Eins. [٠٠:٠٥] Zwei.\n\n[00:09] Drei.`. Tests: `TestDetectTakesASCIIDigitsOnly`, `TestAMarkInOtherDigitsStaysText` |
+| Ziffern nur ASCII: Zeitmarken und Zipf-Glättung | ASCII-Ziffern statt Pythons `\d`, entschieden im Plan | Dieselbe Regel an zwei Stellen. In der Zipf-Tabelle glättet loomux nur `[0-9]`, wordfreq jede Dezimalziffer (Abschnitt „Die Zipf-Tabelle“, Zeile 5, `digits only ASCII`); eine Ziffernfolge einer anderen Schrift in einem Teil eines Satzes von `describe` ist kein Fall, den ein Eingang trifft. In den Zeitmarken der Transkripte, gemessen am 2026-09-27 mit `convert_detect.py`: `[٠٠:٠٥] Hallo.` (arabisch-indische Ziffern) ist in der Referenz `transcript-bracket` und wird `[00:05] Hallo.`, weil `int()` jede Dezimalziffer liest; loomux nennt die Datei `unsupported`. Steht eine solche Marke in einem Transkript mit ASCII-Marken, schneidet die Referenz sie als Marke heraus: Ihr Text entfällt, und Anker wird sie nur, wo an ihr ein Absatz beginnt. loomux lässt sie als Text im vorigen Fragment stehen, und Absatzgrenzen können sich verschieben. Gemessen an `[00:00] Eins.\n[٠٠:٠٥] Zwei.\n[00:09] Drei.\n`: Referenz `[00:00] Eins. Zwei. Drei.`, mit Schwelle 1 `[00:00] Eins.\n\n[00:05] Zwei.\n\n[00:09] Drei.`; loomux `[00:00] Eins. [٠٠:٠٥] Zwei. Drei.`, mit Schwelle 1 `[00:00] Eins. [٠٠:٠٥] Zwei.\n\n[00:09] Drei.`. Tests: `TestDetectTakesASCIIDigitsOnly`, `TestAMarkInOtherDigitsStaysText` |
 | Ein kaputtes Byte kurz hinter den ersten 8192 Zeichen | Implementierungsdetail von CPython, nicht nachgebaut | `TextIOWrapper.read(8192)` dekodiert ganze Blöcke (der erste 8192 Bytes, jeder weitere so groß wie die noch fehlenden Zeichen mal Bytes je Zeichen des vorigen Blocks, mindestens 8192) und scheitert an jedem kaputten Byte darin, auch hinter dem 8192. Zeichen; loomux liest genau 8192 Zeichen. Gemessen am 2026-09-27 mit `convert_detect.py`: `[00:00] ` + 4092 × `ä` (zusammen 8192 Bytes) + 4102 × `x` + `\xff` ist in der Referenz `unsupported`, in loomux `transcript-bracket`. Die Blockgröße ist mitgemessen: Nach `[00:00] ` + 2046 × U+1F600 (8192 Bytes, 2054 Zeichen) liest der zweite Block int(8192 / 2054 × 6138) = 24 480 Bytes; ein kaputtes Byte 10 000 oder 24 479 Bytes nach dem ersten Block macht die Datei `unsupported` (feste Blöcke von 8192 Bytes hätten es nie gelesen), eines 24 480 Bytes danach nicht mehr. Die Grenze kann nur fallen, wenn die ersten 8192 Zeichen mehr als 8192 Bytes brauchen (Umlaute, CRLF). Der Ausgang bleibt derselbe: Nichts wird geschrieben, und der Lauf meldet die Datei; nur der Grund lautet anders (Referenz „no converter knows this format“, loomux der Fehler des vollen Lesens oder, wenn die Zieldatei schon steht, deren Meldung). Test: `TestDetectReadsNoFurtherThanTheHead` |
+| PDF über `pdftotext` statt pypdf | freigegeben 2026-09-26 | Entscheidung „PDF“ der Spec. Die Fälle messen über die Naht bei den Seiten (`faketool.json` aus `pypdf_pages.py`, „Fallsatz 4d“), die Poppler-Goldens (Task 13) das echte Werkzeug. Ein Unterschied des Extraktors ist gemessen: In `paragraphs.pdf` liefert pypdf zwei Absätze, `pdftotext` einen („Widersprüche zum Plan“, 2) |
+| `converter: brain-pdf/2` | freigegeben 2026-09-26 | Vorschlag 8; in den Fällen angeglichen (`normalize4d`). Tests: `TestTheHeadHasFourLinesAndAFifthForADescription`, `TestTwoSourcesWithTheSameStemBothSurvive` |
+| Meldung für eine unlesbare PDF | Meldungstext | Die Referenz nennt die Ausnahme von pypdf (an `corrupt.pdf`: `buch.pdf: cannot be read as a PDF (Stream has ended unexpectedly)`, davor pypdfs Warnung `EOF marker not found` auf stderr), loomux `pdftotext exited <n>: <erste Zeile von stderr>`, über die Naht `pdftotext exited 1 and said nothing`. Der Ausgang ist gleich (übersprungen, nichts geschrieben, Exit 1); stderr wird nicht verglichen. Fall `convert/pdf-corrupt`, Test `TestAPDFPdftotextRefusesIsUnreadable` |
+| Eine PDF ohne Seiten unter echtem Poppler | Folge der Entscheidung „PDF“, gemessen am 2026-09-26 | Poppler 25.07.0 endet an `pageless.pdf` mit 99 und `Syntax Error: Invalid page count 0` („Messungen“); loomux meldet `leer.pdf: cannot be read as a PDF (pdftotext exited 99: Syntax Error: Invalid page count 0)`, die Referenz `leer.pdf: no pages to extract`. Der Ausgang ist gleich: übersprungen, nichts geschrieben, Exit 1; nur stderr lautet anders. Über die Naht (pypdf findet keine Seite, also Exit 0 ohne Ausgabe) sagen beide „no pages“, darum hält der Fall `convert/pdf-pageless` den Unterschied nicht fest. xpdf endet dort mit 0 ohne Ausgabe, wird aber vorher abgewiesen („Nur Poppler“). Test: `TestAPagelessPDFUnderPopplerIsUnreadable` |
+| Nur Poppler | freigegeben 2026-09-26 | Vorschlag 12; xpdf wird wie ein fehlendes Programm behandelt (Vorschlag 9), jede PDF des Laufs eine Zeile `skipped:`. Tests: `TestOnlyPopplerIsTaken`, `TestXpdfLeavesThePDFsAndTheTranscriptGoes` |
+| `place`: Antworten, die nur Pythons `json` liest | `encoding/json` statt `json.loads`; erreichbar nur, wenn ein Endpunkt das Schema nicht einhält | Gemessen am 2026-09-27 mit dem Python der Referenz-venv (3.14.7; das Skript `place_json_probe.py` lag im Scratchpad), `json.loads` wie in `LocalProposer.place` (`local.py:121-145`, `json.loads` in Zeile 137), Antwort `{"scope": "project/x", "grund": …}`: Mit `NaN`, `Infinity`, `-Infinity` oder `1e400` (Python: `inf`) liest die Referenz das Objekt und legt nach `project/x` ab; `encoding/json` weist alle vier ab, loomux legt nichts ab. Verschachtelung: `encoding/json` nimmt höchstens 10 000 Ebenen, das Objekt und 9 999 Listen darin gehen, 10 000 nicht; Python liest tiefer und legt ab, bis `json.loads` an der Stapeltiefe mit `RecursionError` scheitert — gemessen ab 11 324 Listen im Objekt, aus einer flachen Aufrufkette (im Lauf von `convert` steht der Aufruf tiefer im Stapel, die Grenze also eher darunter; sie hängt am Stapel, nicht an einer Zahl). `local.py:138` fängt nur `JSONDecodeError`: Der `RecursionError` beendet den ganzen Lauf der Referenz, loomux läuft ohne Ablage weiter. Das Schema in `format` verlangt für `grund` eine Zeichenkette, ein Ollama, das es einhält, schickt keine dieser Antworten. Test: `TestPlaceRefusesWhatOnlyPythonsJSONReads` (mit der Gegenprobe bei 10 000 Ebenen) |
+| Leerer Satz im Kopf | unerreichbar | `header(description="")` der Referenz schreibt eine Zeile `description: ` (nur `None` lässt sie weg), loomux schreibt für `""` keine („Der Kopf Byte für Byte“). Kein Aufrufer reicht einen leeren Satz: `describe` gibt einen nicht leeren Satz oder `None`, `description_of` ebenso, auf beiden Seiten. Test: `TestTheHeadHasFourLinesAndAFifthForADescription` (der Kopf ohne Satz hat vier Zeilen) |
+| `--channel` und `--state-dir` an `convert` und `fetch` | Flags | Die Referenz nimmt beide über `_add_common` (`cli.py:450-452`) an beiden Befehlen an; `--channel` (`local` oder `cloud`) wirkt dort bei keinem der beiden, denn `_convert` und `_fetch` bekommen es nicht. loomux kennt keines und endet mit Exit 2 (`flag provided but not defined`), bevor etwas gesucht oder gestartet ist. `--state-dir` folgt der in 1b-1 freigegebenen Abweichung: Der Zustand kommt aus `LOOMUX_STATE_DIR` und `LOOMUX_LEGACY_BRAIN_DIR`. Test: `TestConvertAndFetchTakeNoChannelAndNoStateDir` |
+| Fehlermeldungen in der Form von loomux | Meldungstext | stderr wird nicht verglichen. Gemessen in den Fällen: `[model] enabled` nennt die Referenz mit dem Wert (`found 5`), loomux mit dem Typ (`found integer`); `[privacy] mode` setzt die Referenz in einfache, loomux in doppelte Anführungszeichen, und loomux nennt die übersetzte Datei `.loomux\config.toml`; eine fehlende Registry meldet die Referenz als `[Errno 2] No such file or directory: '…'`, loomux mit der Meldung des Systems. `endpoint-off-loopback` ist Wort für Wort gleich |
+| `fetch` über das Programm `yt-dlp`, das die Datei schreibt | freigegeben 2026-09-26 | Entscheidung „fetch“; Randfall einer manuellen Spur ohne json3 |
+| `fetch`: innerhalb einer Sprache die letzte json3-Spur (Wahl von yt-dlp), die Referenz nahm die erste | freigegeben 2026-09-26 | Zeile „fetch: Spur einer Sprache“ der Spec; für `mHSOsy_usAg` die deutsche Spracherkennung statt der Übersetzung aus `en-US`. Das Orakel von Task 9 verdeckt es, weil es die aufgenommene Datei an die Stelle des Downloads setzt |
+| `fetch` mit `--no-playlist`, `--ignore-config` und `--ignore-errors` | Entscheidung „fetch“, E7 | Eine Adresse mit `&list=` holt nur das Video; eine scheiternde Spur (429) beendet yt-dlp nicht vor der Info-JSON. Test: `TestYtdlpIsCalledOnceInAFreshDirectory` |
+| `fetch` in einen `readonly`-Bereich verweigert | freigegeben 2026-09-26 | Vorschlag 2, geheilte Lücke. Test: `TestFetchRefusesAnAreaItCannotWriteInto` |
+| `convert` und `fetch` verweigern bei `[modules] brain = false` | Spec, Vorschlag 3, E10 | Modul Brain. Tests: `TestConvertRefusesWhereTheProjectSwitchedTheBrainOff`, `TestFetchRefusesWhereTheProjectSwitchedTheBrainOff` |
+| Frist für `pdftotext` (2 min) und `yt-dlp` (10 min) | Plan E6, E7 | Die Referenz hatte keine. Tests: `TestPdftotextGetsTheNameAndTheInbox`, `TestYtdlpIsCalledOnceInAFreshDirectory` |
+
+`readsBack` über yaml.v3 (Plan E4) hat keine eigene Zeile: Wo es von PyYAML
+abweicht, steht in der ersten Zeile oben (nackte Skalare, unerreichbar über
+`IsGerman`); der Tab ist behoben („Die Richter“). Die Stichprobe der Erkennung
+ist die Zeile „Ein kaputtes Byte kurz hinter den ersten 8192 Zeichen“.

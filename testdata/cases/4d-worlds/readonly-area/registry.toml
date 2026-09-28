@@ -1,0 +1,4 @@
+[[area]]
+scope = "knowledge"
+path = "{{WORLD}}/vault"
+readonly = true

@@ -48,6 +48,24 @@ func TestPlaceDropsWhatIsNoKnownScope(t *testing.T) {
 	}
 }
 
+// Python's json.loads reads NaN, Infinity and a number past float64, and
+// nests as deep as the stack allows; the reference places such an answer,
+// encoding/json refuses it, and loomux places nothing. Only an endpoint that
+// ignores the format schema sends one; a row of the parity list. The object
+// and 9 999 lists inside it are encoding/json's 10 000 levels, and still read.
+func TestPlaceRefusesWhatOnlyPythonsJSONReads(t *testing.T) {
+	nested := func(n int) string { return strings.Repeat("[", n) + strings.Repeat("]", n) }
+	answer := func(grund string) string { return `{"scope": "project/ultra-brain", "grund": ` + grund + `}` }
+	if got, ok := place(t, answer(nested(9999)), "project/ultra-brain"); !ok || got != "project/ultra-brain" {
+		t.Fatalf("10 000 levels: %q %v", got, ok)
+	}
+	for _, grund := range []string{"NaN", "Infinity", "-Infinity", "1e400", nested(10000)} {
+		if got, ok := place(t, answer(grund), "project/ultra-brain"); ok {
+			t.Errorf("%.12s passed as %q", grund, got)
+		}
+	}
+}
+
 func TestTheSchemaGoesOutAsTheFormat(t *testing.T) {
 	var bodies []map[string]any
 	allRoles(t, placeAnswer, &bodies).Place(context.Background(), "text", []string{"project/ultra-brain"})
