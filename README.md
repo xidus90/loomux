@@ -153,7 +153,7 @@ What loomux will gain beyond the migration. *Priority* is the same order the
 migration plan uses, set in the
 [fusion spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
 under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
-4a-1, 4a-2, 4c-1, 4c-2 and 4e hold priority 3.
+4a-2, 4c-1, 4c-2, 4e and 4f hold priority 3.
 
 ### Coming
 

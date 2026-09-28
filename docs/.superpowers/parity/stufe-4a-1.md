@@ -11,7 +11,7 @@ die Mutationsrunde fest statt eines Fallkorpus.
 | Messpunkt | Stand | Wer |
 |---|---|---|
 | Arbeitsverzeichnis eines stdio-MCP-Servers aus dem Nutzerbereich (Task 1: CLI `claude -p` in `…\loomux\internal` und Desktop-App auf einem Worktree) | erledigt 2026-09-28 | Mensch |
-| Oberfläche von Hand in Windows Terminal, conhost und dem Terminal der Claude-App (Task 13, Step 11: Pfeiltasten, `/`, ESC allein, Enter) | **offen** | Mensch |
+| Oberfläche von Hand in Windows Terminal, conhost und dem Terminal der Claude-App (Task 13, Step 11: Pfeiltasten, `/`, ESC allein, Enter) | erledigt 2026-09-28 | Mensch |
 
 **Task 1, gemessen am 2026-09-28 (Claude Code Desktop, CLI 2.1.283):** In der
 Desktop-App startet jeder `loomux mcp`-Prozess im Verzeichnis seiner
@@ -30,7 +30,14 @@ Startet der Wirt sie außerhalb jedes Projekts, bietet sie jedes Werkzeug an —
 das ist Zweig B ohne dessen Hinweiszeile auf stderr. Trägt die Messung die
 Annahme nicht, fehlt genau diese Zeile; ein falsches Ergebnis entsteht nicht.
 
-**Drei Terminals.** Nicht geprüft. Die Widgets sind über `tui.Scripted`
+**Drei Terminals, geprüft am 2026-09-28.** Der Mensch rief
+`bin\loomux.exe config` (die interaktive Form, Stand `origin/master`
+`85f06f66`) in Windows Terminal, in conhost und im Terminal der Claude-App
+und prüfte Pfeiltasten, den Filter mit `/` samt Backspace, ESC im Filter,
+Enter in den Dialog und ESC dort, ESC allein in der Liste. Rückmeldung:
+„passt“, in allen drei Terminals wie erwartet. Den Grenzfall ESC mit
+sofort folgender Taste hat er nicht eigens beschrieben; er bleibt ohne
+eigene Beobachtung. Vorher stand hier: Die Widgets sind über `tui.Scripted`
 getestet; `Open`, `Size` und `enableVT` brauchen eine echte Konsole und sind
 von der Abdeckung ausgenommen (siehe Mutationsrunde). Offen dabei vor allem:
 ESC allein gegen ESC gefolgt von einer schnell getippten Taste (die Grenze
@@ -117,10 +124,22 @@ auf rund 140 Zeichen gezogen, sodass jede Zeile umbricht, wo das Terminal schmal
 ist; und `config get commit.threshold` antwortet `2`.
 
 **Mensch: `bin/loomux.exe config set commit.threshold 3`, mit `n` bestätigt.**
-**Offen** — dieser Schritt gehört dem Menschen. Erwartet: ein Diff mit
-`+ threshold = 3` in einer neuen Sektion `[commit]`, die Frage
-`write these changes? [y/N]`, dann `loomux config: declined; nothing written`
-und Exit 0.
+**Erledigt am 2026-09-28** (der Mensch, über den `!`-Präfix in Git Bash,
+darum die Antwort `n` per Pipe; im Worktree auf `origin/master` `85f06f66`):
+
+```text
+$ echo n | ./bin/loomux.exe config set commit.threshold 3; echo "exit $?"
+  reason = "Recordings of the old tools are evidence; re-record them, never edit them."
++ 
++ [commit]
++ threshold = 3
+write these changes? [y/N] loomux config: declined; nothing written
+exit 0
+```
+
+Wie erwartet: ein Diff mit `+ threshold = 3` in einer neuen Sektion
+`[commit]`, die Frage, `declined; nothing written`, Exit 0; `git status`
+danach leer.
 
 **Agent: `bin/loomux.exe config set commit.threshold 3 --yes` über Bash.**
 Vom Wächter verweigert, wie erwartet:
@@ -240,12 +259,77 @@ verunreinigen.
 | `schema` | `lookup`, `current.go:74`: `if !ok` → `false` | **Äquivalent.** Ist der Knoten keine Tabelle, ist `table` die leere Map; das Lesen daraus liefert `ok == false`, und die nächste Zeile gibt dasselbe `nil, false` zurück. |
 | `tui` | `List`, `list.go:56`: `cursor < len(visible)-1` → `<=` | **Äquivalent.** Der Cursor läuft eins über das Ende; die Klemme am Anfang der nächsten Schleifenrunde (`:31`) holt ihn zurück, bevor gezeichnet oder gewählt wird. |
 | `tui` | `fit`, `list.go:141`: `len(rs) > width` → `>=` | **Äquivalent.** Bei gleicher Länge ist `rs[:width]` die Zeichenkette selbst. |
-| `tui` | `Size`, `raw.go:25` (zwei Formen); `Open`, `raw.go:37` (vier); `enableVT`, `raw_windows.go:18` (vier) | **Brauchen eine echte Konsole**, von der Abdeckung ausgenommen (`//coverage:exempt`). Geprüft wird das von Hand in drei Terminals (Task 13, Step 11, offen). |
+| `tui` | `Size`, `raw.go:25` (zwei Formen); `Open`, `raw.go:37` (vier); `enableVT`, `raw_windows.go:18` (vier) | **Brauchen eine echte Konsole**, von der Abdeckung ausgenommen (`//coverage:exempt`). Geprüft wird das von Hand in drei Terminals (Task 13, Step 11, erledigt 2026-09-28). |
 | `cli` | `openConsole`, `config_ui.go:23` (fünf Formen) | **Braucht eine echte Konsole**, ausgenommen; der Test ersetzt `openTerminal`. |
 | `cli` | `proposeChange`, `config.go:226`: `if !t.global` → `true` | **Heute nicht erreichbar.** `GlobalKeys()` ist leer, also scheitert jeder globale Schlüssel schon an `lookup`. Wird beobachtbar, sobald `[model]` in die globale Datei zieht (4c). |
 | `cli` | `configSet`, `config.go:245`: Lesefehler ignoriert | **Im Exit-Code nicht beobachtbar.** Ein Pfad, der sich nicht lesen lässt (ein Verzeichnis), lässt sich auch nicht schreiben: `lock.ReplaceText` scheitert, Exit 1 bleibt. Nur die Meldung ändert sich. |
 | `cli` | `configSet`, `config.go:269`; `changeOne`, `config_ui.go:105`: Fehler von `MkdirAll` ignoriert | **Äquivalent im Ergebnis.** Kann das Verzeichnis nicht angelegt werden, scheitert `lock.ReplaceText` daran. |
 | `cli` | `configUI`, `config_ui.go:67`, `:93`, `:101`: `err != nil \|\|` entfernt | **Äquivalent.** `List` gibt bei einem Fehler `-1`, `Input` und `Confirm` geben `false` zurück; der verbleibende Operand trifft denselben Zweig, und `err` wird dort zurückgegeben. |
+
+**Die Runde über den Stand vom 2026-09-28.** Nach der Runde oben kamen
+rund fünfzehn Commits auf denselben Code (die Kleinigkeiten vom
+2026-09-25, `Pick` in `tui`, `config --global`, benannte Schlüssel von
+`[agent]` und `[flow]`, `[guard] mode`). Darum lief die Runde vor der
+Abnahme noch einmal, mit einer Kopie des Binärs aus `origin/master`
+(`85f06f66`), gleicher Umfang:
+
+| Paket | erzeugt | nicht übersetzbar | überlebt | nach den neuen Tests: stehen |
+|---|---:|---:|---:|---:|
+| `internal/config/edit` | 234 | 15 | 8 | 3 |
+| `internal/config/schema` | 170 | 54 | 4 | 2 |
+| `internal/tui` | 180 | 16 | 11 | 11 |
+| `internal/cli` (`--only config`) | 512 | 71 | 34 (dazu 7 Zeitüberschreitungen) | 13 |
+
+- **Getötet durch neue Tests** (`test(config): pin line-ending votes, …`):
+  `edit.go:59` (eine gemischte Datei, deren einzige LF-Zeile die letzte
+  ist, in `TestSetKeepsMixedLineEndings`), `edit.go:347` in vier Formen
+  (`TestRemoveDropsTheBlankLineAboveAnEmptiedSection`: der nächste Kopf
+  folgt direkt, oder der geleerte Abschnitt ist der letzte),
+  `listinput.go:50` (die Meldung eines offenen Anführungszeichens, die
+  `listItem` sonst verdeckte, in `TestSplitListRefusesABrokenQuote`),
+  `listinput.go:98` (ein `}` vor seinem `{`, `"x}{"` in
+  `TestJoinListRoundTrips`). Eine gezielte Runde über `edit.go` und
+  `listinput.go` bestätigte es.
+- **Stehen, äquivalent:** `edit.go:229` ist `edit.go:205` oben, nur
+  verschoben; `schema/current.go:126` ist `current.go:74` oben, nur
+  verschoben; `tui` wie oben (`list.go:58` ist `list.go:56`, dazu die zehn
+  Mutanten, die eine echte Konsole brauchen — die Konsole hat der Mensch am
+  2026-09-28 geprüft). Neu: `edit.go:278` (`cut < len(old)` → `<=`): eine
+  Schlüsselzeile, die die Leser angenommen haben, trägt hinter dem `=`
+  immer einen Wert, also erreicht `cut` das Zeilenende nie; `edit.go:325`
+  (`keys == 0 &&` entfernt): `dropEmptySection` prüft die Leere selbst noch
+  einmal und gibt einen Abschnitt mit einer nicht leeren Zeile unverändert
+  zurück; `schema.go:160` (`!k.Named()` → `false` in der zweiten Schleife):
+  ein Schlüssel ohne Platzhalter passt über `fill` nur bei exakter
+  Gleichheit, und die gibt schon die erste Schleife zurück.
+- `cli`: Eine erste Fahrt am 2026-09-28 meldete keinen Überlebenden. Das
+  war falsch: `dev mutants` gab jedem Lauf fest 60 s, die Suite von
+  `internal/cli` braucht allein 58 s, und ein Lauf über der Grenze zählte
+  als getötet (behoben in `fix(dev): bound each mutant run by the time its
+  unchanged suite takes`, das seitdem auch Zeitüberschreitungen gesondert
+  ausweist). Die Runde lief am 2026-09-29 noch einmal, allein, mit vier
+  Arbeitern und der Grenze 2m57s (3 × 58,9 s): 34 Überlebende, 7
+  Zeitüberschreitungen. Die sieben sind echte Tötungen: die Mutanten an
+  `config_proposals.go:100`, `:176` (vier Formen) und `:183` (zwei) machen
+  eine Zähl- oder Wiederholschleife endlos. Die 34 arbeiteten drei
+  Subagenten ab, je eine Datei in einem eigenen Worktree, jede Tötung per
+  `go test -overlay` einzeln belegt (Commit `test(cli): kill the surviving
+  mutants of loomux config`):
+  - `config.go`: 8 überlebt, 7 getötet; stehen bleibt `:144`
+    (`t.global &&` entfernt) — äquivalent: `search.backbone` gibt es nur in
+    der globalen Datei, für ein Projekt scheitert jeder Aufruf vorher an
+    `editableKey`. Getötet wurde auch `:443` (Fehler von `MkdirAll`
+    übergangen), in der Tabelle oben noch „äquivalent im Ergebnis“: der
+    Test verlangt den `mkdir`-Fehler statt des Fehlers der Temp-Datei; er
+    trennt die Formen nur unter Windows, wo die Testkette läuft.
+  - `config_proposals.go`: 14 überlebt, 10 getötet; stehen bleiben
+    `:199`, `:202` (`false`), `:218` und `:221` — sie unterscheiden sich
+    nur, wenn das Schreiben in eine frisch angelegte Temp-Datei scheitert,
+    und sind damit das Gegenstück zum `//coverage:exempt` an
+    `writeTemporaryProposal` und `createExclusive`.
+  - `config_ui.go`: 12 überlebt, 4 getötet; stehen bleiben die fünf
+    Formen an `openConsole` (braucht eine echte Konsole) und `:81`, `:131`,
+    `:139` (`err != nil ||` entfernt, äquivalent) wie in der Tabelle oben.
 
 ## Offene Punkte
 
@@ -256,8 +340,9 @@ verunreinigen.
   maskierte `\"` oder `\'` auf der Zeile“ formulieren und
   `echo "a \" b"; "C:\R&D Tools\loomux.exe" init` als bekanntes Loch führen.
   Erledigt im Abschlussfix.
-- **Menschenschritte:** Task 1 (Arbeitsverzeichnis, erledigt 2026-09-28), Task 13 Step 11 (drei
-  Terminals), Task 16 Step 4 (`config set` mit `n`).
+- **Menschenschritte:** Task 1 (Arbeitsverzeichnis), Task 13 Step 11 (drei
+  Terminals) und Task 16 Step 4 (`config set` mit `n`), alle erledigt
+  2026-09-28.
 - **Nebenwirkung der Mutationsrunde:** Der Mutant `scratch`,
   `validate.go:34` (`if err != nil` → `false` nach `os.MkdirTemp`) schreibt
   unter `TestValidateReportsAScratchDirectoryThatCannotBeMade` eine
