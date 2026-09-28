@@ -3,11 +3,13 @@ package gitwork
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -360,6 +362,148 @@ func TestContentTreeReportsWhatItCannotCopy(t *testing.T) {
 	})
 }
 
+func TestKeptContentTreeLiesInTheGitDir(t *testing.T) {
+	root := repoWithCommit(t)
+	if err := os.WriteFile(filepath.Join(root, "new.go"), []byte("package x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".loomux", "state"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".loomux", "state", "x"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tree, index, err := KeptContentTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(index)
+
+	sameDir(t, filepath.Dir(index), mustGit(t, root, "rev-parse", "--absolute-git-dir"))
+	// The name the leak checks look for: a check that finds nothing proves
+	// nothing unless it would find the copy while it is there.
+	if left := keptCopies(t, root); len(left) != 1 || !strings.HasPrefix(filepath.Base(index), KeptIndexPrefix) {
+		t.Fatalf("copy %s, found %v", index, left)
+	}
+	files := strings.Fields(mustGitWith(t, root, []string{"GIT_INDEX_FILE=" + index}, "ls-files"))
+	if !slices.Contains(files, "new.go") || slices.Contains(files, ".loomux/state/x") {
+		t.Fatalf("the kept index holds %v", files)
+	}
+	want, err := ContentTree(root, t.TempDir())
+	if err != nil || tree != want {
+		t.Fatalf("tree %s, ContentTree %s, %v", tree, want, err)
+	}
+}
+
+func TestKeptContentTreeInALinkedWorktree(t *testing.T) {
+	main := repoWithCommit(t)
+	linked := filepath.Join(t.TempDir(), "wt")
+	mustGit(t, main, "worktree", "add", "-q", linked)
+
+	tree, index, err := KeptContentTree(linked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(index)
+
+	sameDir(t, filepath.Dir(index), filepath.Join(main, ".git", "worktrees", "wt"))
+	if want := mustGit(t, linked, "rev-parse", "HEAD^{tree}"); tree != want {
+		t.Fatalf("tree %s, want %s", tree, want)
+	}
+}
+
+func TestKeptContentTreeLeavesNothingOnFailure(t *testing.T) {
+	if _, index, err := KeptContentTree(t.TempDir()); err == nil || index != "" {
+		t.Fatalf("index %q, %v", index, err)
+	}
+	// Failing after the copy was made: an index git cannot read.
+	root := repoWithCommit(t)
+	if err := os.WriteFile(filepath.Join(root, ".git", "index"), []byte("not an index"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, index, err := KeptContentTree(root)
+	if err == nil || index != "" {
+		t.Fatalf("index %q, %v", index, err)
+	}
+	if left := keptCopies(t, root); len(left) != 0 {
+		t.Fatalf("left behind: %v", left)
+	}
+}
+
+// A process killed during the chain never removes its copy. The next one
+// drops every copy whose process is gone, and leaves a running one's alone:
+// two sessions in one repository share its git directory.
+func TestKeptContentTreeDropsTheCopiesOfGoneProcesses(t *testing.T) {
+	root := repoWithCommit(t)
+	dir := mustGit(t, root, "rev-parse", "--absolute-git-dir")
+	gone := filepath.Join(dir, KeptIndexPrefix+goneProcess(t))
+	live := filepath.Join(dir, KeptIndexPrefix+strconv.Itoa(os.Getppid()))
+	odd := filepath.Join(dir, KeptIndexPrefix+"x")
+	for _, p := range []string{gone, live, odd} {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, index, err := KeptContentTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(index)
+	if _, err := os.Stat(gone); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the copy of a gone process stayed: %v", err)
+	}
+	for _, p := range []string{live, odd} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("%s was dropped: %v", p, err)
+		}
+	}
+}
+
+// keptCopies lists the kept copies of the index in the git directory of root.
+func keptCopies(t *testing.T, root string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(mustGit(t, root, "rev-parse", "--absolute-git-dir"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found []string
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), KeptIndexPrefix) {
+			found = append(found, e.Name())
+		}
+	}
+	return found
+}
+
+// goneProcess is the number of a process that ran and was reaped: the test
+// binary itself, told to run no test.
+func goneProcess(t *testing.T) string {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	return strconv.Itoa(cmd.Process.Pid)
+}
+
+// sameDir compares by identity: git and t.TempDir may spell one directory
+// differently on Windows (8.3 names, case).
+func sameDir(t *testing.T, got, want string) {
+	t.Helper()
+	a, err := os.Stat(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.Stat(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(a, b) {
+		t.Fatalf("%s is not %s", got, want)
+	}
+}
+
 func TestLocalHeadsAndLog(t *testing.T) {
 	root := repoWithCommit(t)
 	first := mustGit(t, root, "rev-parse", "HEAD")
@@ -440,9 +584,15 @@ func TestLocalHeadsAndLogOutsideARepository(t *testing.T) {
 // repository on every developer's box.
 func mustGit(t *testing.T, root string, args ...string) string {
 	t.Helper()
+	return mustGitWith(t, root, nil, args...)
+}
+
+// mustGitWith is mustGit with extra KEY=VALUE entries in git's environment.
+func mustGitWith(t *testing.T, root string, env []string, args ...string) string {
+	t.Helper()
 	command := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
 	command.Dir = root
-	command.Env = append(gitenv.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
+	command.Env = append(append(gitenv.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull), env...)
 	// stdout alone: git's warnings go to stderr, and folded in they would
 	// travel on as part of a SHA or of an empty answer.
 	out, err := command.Output()
