@@ -81,6 +81,14 @@ func TestCheckCorpusCountsTheNotes(t *testing.T) {
 	}
 }
 
+func TestCheckCorpusCountsOnlyMarkdownAsNotes(t *testing.T) {
+	stand := copyCorpus(t)
+	writeFile(t, filepath.Join(stand, "notes", "README.txt"), "x")
+	if err := CheckCorpus(stand); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCheckCorpusHoldsHerkunftBothWays(t *testing.T) {
 	stand := copyCorpus(t)
 	herkunft := filepath.Join(stand, "HERKUNFT.md")
@@ -136,6 +144,10 @@ func TestCheckCorpusWantsProvenanceFields(t *testing.T) {
 	if !slices.Equal(p[:3], want) {
 		t.Fatalf("problems:\n%s", strings.Join(p, "\n"))
 	}
+	// Without a sha256 there is nothing to compare the note against.
+	if slices.ContainsFunc(p, func(s string) bool { return strings.Contains(s, "checksum") }) {
+		t.Fatalf("problems:\n%s", strings.Join(p, "\n"))
+	}
 }
 
 func TestCheckCorpusNamesABrokenManifest(t *testing.T) {
@@ -171,6 +183,22 @@ func TestCheckCorpusHoldsThePartition(t *testing.T) {
 		"baustoffe: geist.md is not among the notes",
 		"baustatik-01.md: claimed by two themes",
 		"baustatik-10.md: claimed by no theme",
+	}
+	if !slices.Equal(p, want) {
+		t.Fatalf("problems:\n%s", strings.Join(p, "\n"))
+	}
+}
+
+func TestCheckCorpusNamesANoteClaimedThriceOnce(t *testing.T) {
+	stand := copyCorpus(t)
+	themes := filepath.Join(stand, "themes.yaml")
+	edit(t, themes, "    - baustoffe-01.md\n", "    - baustoffe-01.md\n    - baustatik-01.md\n")
+	edit(t, themes, "    - gesellschaftsrecht-01.md\n", "    - gesellschaftsrecht-01.md\n    - baustatik-01.md\n")
+	p := corpusProblems(t, stand)
+	want := []string{
+		"baustoffe: 11 notes, expected 10",
+		"gesellschaftsrecht: 11 notes, expected 10",
+		"baustatik-01.md: claimed by two themes",
 	}
 	if !slices.Equal(p, want) {
 		t.Fatalf("problems:\n%s", strings.Join(p, "\n"))
@@ -232,6 +260,16 @@ func TestCheckCorpusWantsFiveReverseQuestions(t *testing.T) {
 	}
 	if p := corpusProblems(t, stand); !slices.Equal(p, Problems{"4 questions in the reverse direction, expected at least 5"}) {
 		t.Fatalf("problems = %q", p)
+	}
+}
+
+func TestCheckCorpusTakesExactlyFiveReverseQuestions(t *testing.T) {
+	stand := copyCorpus(t)
+	// Of the six English questions one turns German: five remain.
+	edit(t, filepath.Join(stand, "questions.yaml"), `query: "How long`,
+		`query: "Was sagt der die das und von dem den zu mit der die das und von dem den`)
+	if err := CheckCorpus(stand); err != nil {
+		t.Fatal(err)
 	}
 }
 

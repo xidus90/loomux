@@ -116,6 +116,64 @@ func TestFormatMarkdown(t *testing.T) {
 	})
 }
 
+func TestFormatMarkdownSingleRepositoryRows(t *testing.T) {
+	yes := true
+	measured := comp("pre-tool-use", 10, 8)
+	measured.Applicable = &yes
+	report := &BenchmarkReport{WarmRuns: 1, Repos: []*RepoAudit{{
+		Dir: "/repo",
+		Audit: []CheckAudit{
+			{Tool: "ruff", Category: "lint", Native: "pyproject.toml", Lane: "ruff check .", OnPath: true},
+			{Tool: "mypy", Category: "typecheck", Native: "pyproject.toml", Lane: "mypy .", OnPath: false},
+			{Tool: "pytest", Category: "test", Native: "pytest.ini", Lane: "", OnPath: true},
+		},
+		MissingGaps: []string{"pytest has no lane"},
+		Timings:     timings(benchreport.Summarize("", 10, []float64{8}), measured),
+	}}}
+	var buf bytes.Buffer
+	if err := FormatMarkdown(report, &buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"| `ruff` | lint | `pyproject.toml` | `ruff check .` | Ja | ✅ Aktiv |\n",
+		"| `mypy` | typecheck | `pyproject.toml` | `mypy .` | Nein | ❌ Nicht im PATH |\n",
+		"| `pytest` | test | `pytest.ini` | `*keine*` | Ja | ⚠️ Fehlt in Loomux |\n",
+		"| **pre-tool-use** | 10.0 ms | 8.0 ms | 8.0 ms | 8.0 ms | [0] |\n",
+		"- **Identifizierte Lücken (Gaps):**\n  - ⚠️ pytest has no lane\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("lacks %q:\n%s", want, out)
+		}
+	}
+	for _, unwanted := range []string{"## Repository #", "**Beispieldatei:**"} {
+		if strings.Contains(out, unwanted) {
+			t.Errorf("carries %q:\n%s", unwanted, out)
+		}
+	}
+}
+
+func TestFormatMarkdownCorpusHeadersOnlyWhatARepositoryHas(t *testing.T) {
+	report := &BenchmarkReport{WarmRuns: 1, Repos: []*RepoAudit{
+		{RepoURL: "https://github.com/foo/repo1", Language: "Go", Tier: "Sehr viel", CommitSHA: "abc1234",
+			Timings: timings(benchreport.Summarize("", 1, []float64{1}))},
+		{Dir: "/local/repo2", Timings: timings(benchreport.Summarize("", 1, []float64{1}))},
+	}}
+	var buf bytes.Buffer
+	if err := FormatMarkdown(report, &buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "- **Sprache:** Go | **Tier:** Sehr viel\n") {
+		t.Errorf("language line missing:\n%s", out)
+	}
+	for label, want := range map[string]int{"**Sprache:**": 1, "**Commit:**": 1, "| Werkzeug |": 0, "Identifizierte Lücken": 0} {
+		if got := strings.Count(out, label); got != want {
+			t.Errorf("%q appears %d times, want %d:\n%s", label, got, want, out)
+		}
+	}
+}
+
 // The JSON of a run is the shared report: each repository's total under the
 // name its markdown section carries, the rows themselves in the payload.
 func TestReportJSONIsTheSharedReport(t *testing.T) {

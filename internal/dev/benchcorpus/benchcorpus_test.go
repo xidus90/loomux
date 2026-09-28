@@ -798,3 +798,169 @@ func TestBenchmarkRepoWithoutComponentTimeoutUsesTheRepositoryBudget(t *testing.
 		t.Fatalf("budgets = %v, want %v", *budgets, want)
 	}
 }
+
+func TestBenchmarkRepoStopsWhenTheDeadlineIsReachedExactly(t *testing.T) {
+	// Three runs of 40 s spend 120 s: the fourth command finds nothing left
+	// and must not start with a budget of zero.
+	runner, clock, budgets := budgetRecorder()
+	opts := Options{WarmRuns: 3, Timeout: 120 * time.Second, ComponentTimeout: 60 * time.Second}
+	_, err := BenchmarkRepo(".", opts, runner, clock, goRepoFS, noLookPath)
+	if !errors.Is(err, ErrRepoTimeout) {
+		t.Fatalf("err = %v, want ErrRepoTimeout", err)
+	}
+	want := []time.Duration{60 * time.Second, 60 * time.Second, 40 * time.Second}
+	if !slices.Equal(*budgets, want) {
+		t.Fatalf("budgets = %v, want %v", *budgets, want)
+	}
+}
+
+func TestBenchmarkRepoKeepsTheColdRunApartFromTheWarmOnes(t *testing.T) {
+	// The cold pass (three commands) takes 30 ms per command, every later
+	// command 10 ms.
+	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	calls := 0
+	runner := func(string, []string, []byte, time.Duration) (string, int, bool, error) {
+		calls++
+		if calls <= 3 {
+			now = now.Add(30 * time.Millisecond)
+		} else {
+			now = now.Add(10 * time.Millisecond)
+		}
+		return "", 0, false, nil
+	}
+	audit, err := BenchmarkRepo(".", Options{WarmRuns: 1}, runner, func() time.Time { return now }, goRepoFS, noLookPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	pre, _ := audit.Timing("pre-tool-use")
+	if pre.ColdMS != 30 || !slices.Equal(pre.WarmMS, []float64{10}) {
+		t.Errorf("pre-tool-use = %+v, want cold 30 and warm [10]", pre)
+	}
+}
+
+func TestBenchmarkRepoLeavesTheSpeedupOutWhenTheHooksTakeNoTime(t *testing.T) {
+	// A clock that never moves makes every run 0 ms: there is no loomux time
+	// to divide by, so no speedup (and no NaN, which JSON cannot carry).
+	mockFS := fstest.MapFS{
+		"main.go": &fstest.MapFile{Data: []byte("package main\n")},
+		"go.mod":  &fstest.MapFile{Data: []byte("module foo\n")},
+		".claude/settings.json": &fstest.MapFile{
+			Data: []byte(`{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"check"}]}]}}`),
+		},
+	}
+	openFS := func(string) (fs.FS, error) { return mockFS, nil }
+	runner := func(string, []string, []byte, time.Duration) (string, int, bool, error) { return "", 0, false, nil }
+	still := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	audit, err := BenchmarkRepo("/repo/still", Options{WarmRuns: 2}, runner, func() time.Time { return still }, openFS, noLookPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, measured := audit.Timing(BaselineTiming("claude PreToolUse")); !measured {
+		t.Fatalf("baseline not measured: %+v", audit.Timings)
+	}
+	if audit.HookWarmMedian != 0 || audit.Speedup != 0 {
+		t.Errorf("hook median %v, speedup %v, want both 0", audit.HookWarmMedian, audit.Speedup)
+	}
+}
+
+func TestPickSampleFileOnARootThatCannotBeOpened(t *testing.T) {
+	// fs.WalkDir hands the callback a nil entry when the root itself fails.
+	if got := pickSampleFile(errFS{}, []string{"go"}); got != "" {
+		t.Errorf("pickSampleFile = %q, want nothing", got)
+	}
+}
+
+func TestParseMatrixSkipsItsOwnSections(t *testing.T) {
+	data := []byte(`## Python
+| Top | [p/a](https://github.com/p/a) |
+## Table of Contents
+| Top | [p/b](https://github.com/p/b) |
+## Inhaltsverzeichnis
+| Top | [p/c](https://github.com/p/c) |
+## Key Metrics
+| Top | [p/d](https://github.com/p/d) |
+## Gesamtkennzahlen
+| Top | [p/e](https://github.com/p/e) |
+## Star Categories
+| Top | [p/f](https://github.com/p/f) |
+## Sterne-Kategorien
+| Top | [p/g](https://github.com/p/g) |
+## Open Source Matrix
+| Top | [p/h](https://github.com/p/h) |
+`)
+	entries := parseMatrix(data, 0, "")
+	if len(entries) != 8 {
+		t.Fatalf("got %d entries, want 8: %+v", len(entries), entries)
+	}
+	for _, e := range entries {
+		if e.Language != "Python" {
+			t.Errorf("%s filed under %q, want Python", e.RepoURL, e.Language)
+		}
+	}
+}
+
+func TestParseMatrixLanguageLimitCountsEachLanguageOnce(t *testing.T) {
+	// Go comes back after Python; a repeated heading is no new language.
+	data := []byte(`## Go
+| Top | [g/a](https://github.com/g/a) |
+## Go
+| Top | [g/b](https://github.com/g/b) |
+## Python
+| Top | [p/c](https://github.com/p/c) |
+## Go
+| Top | [g/d](https://github.com/g/d) |
+`)
+	urls := func(entries []matrixEntry) []string {
+		var out []string
+		for _, e := range entries {
+			out = append(out, strings.TrimPrefix(e.RepoURL, "https://github.com/"))
+		}
+		return out
+	}
+	if got := urls(parseMatrix(data, 2, "")); !slices.Equal(got, []string{"g/a", "g/b", "p/c", "g/d"}) {
+		t.Errorf("two languages = %v", got)
+	}
+	if got := urls(parseMatrix(data, 1, "")); !slices.Equal(got, []string{"g/a", "g/b", "g/d"}) {
+		t.Errorf("one language = %v", got)
+	}
+}
+
+func TestParseMatrixToleratesStrayLines(t *testing.T) {
+	// A framework heading before any language keeps its text; prose with a
+	// link, a pipe line without one and a row with a bare URL are no entries.
+	data := []byte(`### + Bare
+| Top | [b/a](https://github.com/b/a) |
+See https://github.com/b/prose for more.
+| note
+| Top | https://github.com/b/bare |
+`)
+	entries := parseMatrix(data, 0, "")
+	if len(entries) != 1 || entries[0].Framework != "+ Bare" || entries[0].RepoURL != "https://github.com/b/a" {
+		t.Errorf("entries = %+v", entries)
+	}
+}
+
+func TestBenchmarkCorpusNamesTheFirstFailure(t *testing.T) {
+	matrix := []byte("## Go\n| Top | [a/one](https://github.com/a/one) |\n| Top | [a/two](https://github.com/a/two) |\n")
+	cloner := func(string, string) (string, error) { return "sha", nil }
+	benchFail := func(dir string, _ Options) (*RepoAudit, error) {
+		return nil, errors.New("broken " + filepath.Base(dir))
+	}
+	report, err := BenchmarkCorpus(matrix, Options{WarmRuns: 1}, cloner, benchFail)
+	if report != nil || err == nil || !strings.HasSuffix(err.Error(), "first: broken a_one") {
+		t.Fatalf("report %+v, err %v", report, err)
+	}
+}
+
+func TestBenchmarkCorpusWithoutEntriesIsAnEmptyReport(t *testing.T) {
+	report, err := BenchmarkCorpus([]byte("# nothing here\n"), Options{WarmRuns: 1}, nil, nil)
+	if err != nil || report == nil || len(report.Repos) != 0 || len(report.Skipped) != 0 {
+		t.Fatalf("report %+v, err %v", report, err)
+	}
+}
+
+func TestSummarizeReasonKeepsTheFirstLineWithoutGitErrors(t *testing.T) {
+	if got := summarizeReason(errors.New("  boom  \nmore detail")); got != "boom" {
+		t.Errorf("summarizeReason = %q, want boom", got)
+	}
+}

@@ -3,11 +3,14 @@ package search_test
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/brain/search"
 )
@@ -113,11 +116,95 @@ func TestAClosedProbeAddressMeansUnreachable(t *testing.T) {
 		t.Fatal("a session whose probe address is unroutable must not be reachable")
 	}
 	// The other half of the same decision: a session that names no host
-	// probes `DefaultHost`, where the server is. An empty host left in the
-	// dial address names no machine and would never be open.
+	// probes `DefaultHost`, where the server is.
 	unsaid := &search.HTTPSession{URL: ts.URL, Port: port}
 	if !unsaid.Reachable() {
 		t.Fatal("a session without a host must probe the default one, where the server is")
+	}
+}
+
+func TestASessionWithoutAHostProbesLocalhostAlsoOnItsIPv6Address(t *testing.T) {
+	// An empty host left in the dial address is not refused outright: Go
+	// dials `:port` as the local system, which reaches a listener on
+	// 127.0.0.1 -- so a server there cannot tell `DefaultHost` from no host
+	// at all. `localhost` also names ::1, and the unspecified address does
+	// not: a daemon that listens on the IPv6 loopback alone is open to the
+	// first probe and closed to the second.
+	listener, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("no IPv6 loopback to listen on: %v", err)
+	}
+	ts := httptest.NewUnstartedServer(answering(t).Config.Handler)
+	ts.Listener = listener
+	ts.Start()
+	t.Cleanup(ts.Close)
+	_, port := addressOf(t, ts)
+	s := &search.HTTPSession{URL: ts.URL, Port: port}
+	if !s.Reachable() {
+		t.Fatal("a session without a host must probe localhost, which names the IPv6 loopback too")
+	}
+}
+
+// countingTransport fails every request and counts them, so a test can see
+// how often a waiting session asked.
+type countingTransport struct{ calls atomic.Int64 }
+
+func (c *countingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	c.calls.Add(1)
+	return nil, errors.New("not yet")
+}
+
+// waitingAttempts is how many handshakes WaitUntilReachable tried within
+// timeout against a port that is open but a daemon that never answers.
+func waitingAttempts(t *testing.T, interval, timeout time.Duration) int64 {
+	t.Helper()
+	ts := answering(t)
+	host, port := addressOf(t, ts)
+	counter := &countingTransport{}
+	s := &search.HTTPSession{Host: host, Port: port, URL: ts.URL,
+		HTTPClient: &http.Client{Transport: counter}, PollInterval: interval}
+	if err := s.WaitUntilReachable(timeout); err == nil {
+		t.Fatal("a daemon that never answers must not count as reached")
+	}
+	return counter.calls.Load()
+}
+
+func TestAWaitingSessionAsksAgainAfterItsOwnPollInterval(t *testing.T) {
+	// A caller that sets `PollInterval` wants to be asked that often. 10 ms
+	// within 200 ms is about twenty attempts; the default of 250 ms in its
+	// place would allow two.
+	if got := waitingAttempts(t, 10*time.Millisecond, 200*time.Millisecond); got < 4 {
+		t.Fatalf("attempts = %d, want the session to follow its 10 ms interval", got)
+	}
+}
+
+func TestAWaitingSessionWithoutAPollIntervalWaitsAQuarterSecond(t *testing.T) {
+	// No interval is not "ask without pause": the session waits 250 ms
+	// between attempts, so within 50 ms it asks once and, after the pause,
+	// once more. Without the default it would spin on the daemon.
+	if got := waitingAttempts(t, 0, 50*time.Millisecond); got > 2 {
+		t.Fatalf("attempts = %d, want at most two with the 250 ms default", got)
+	}
+}
+
+// statusTransport answers every request with the given status and a body
+// that would be a perfectly good reply.
+type statusTransport struct{ status int }
+
+func (s statusTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: s.status, Header: http.Header{},
+		Body: io.NopCloser(strings.NewReader(`{"jsonrpc":"2.0","id":1,"result":{}}`))}, nil
+}
+
+func TestAStatusBelowTwoHundredIsNotASuccessfulStatus(t *testing.T) {
+	// Success is the 2xx band from below as well: 199 is informational, not
+	// an answer. An httptest server cannot send it as the final status (Go
+	// turns it into an interim line and answers 200), so a transport hands
+	// it over.
+	s := &search.HTTPSession{URL: "http://daemon/mcp", HTTPClient: &http.Client{Transport: statusTransport{status: 199}}}
+	_, err := s.Call("query", nil)
+	if err == nil || !strings.Contains(err.Error(), "server returned status 199") {
+		t.Fatalf("err = %v, want the refused status", err)
 	}
 }
 

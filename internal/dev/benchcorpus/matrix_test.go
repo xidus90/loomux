@@ -211,3 +211,36 @@ func TestFormatMatrixMarkdown(t *testing.T) {
 		}
 	})
 }
+
+func TestMergeAuditsKeepsWhatTheIncomingAuditSays(t *testing.T) {
+	stored := &RepoAudit{RepoURL: "https://github.com/gin-gonic/gin", Language: "Go", Framework: "Gin", CommitSHA: "old"}
+	incoming := &RepoAudit{RepoURL: "https://github.com/gin-gonic/gin", CommitSHA: "new"}
+	merged := MergeAudits([]*RepoAudit{stored}, incoming)
+	if len(merged) != 1 || merged[0].CommitSHA != "new" || merged[0].Framework != "Gin" || merged[0].Language != "Go" {
+		t.Errorf("merged = %+v", merged[0])
+	}
+}
+
+func TestSortAuditsOrdersEqualFrameworksBySlug(t *testing.T) {
+	audits := []*RepoAudit{
+		{RepoURL: "https://github.com/b/zeta", Language: "Go", Framework: "Gin"},
+		{RepoURL: "https://github.com/a/alpha", Language: "Go", Framework: "Gin"},
+	}
+	sortAudits(audits)
+	if RepoSlug(audits[0]) != "a_alpha" || RepoSlug(audits[1]) != "b_zeta" {
+		t.Errorf("order = %s, %s", RepoSlug(audits[0]), RepoSlug(audits[1]))
+	}
+}
+
+func TestFormatMatrixMarkdownLeavesOutASpeedupNobodyMeasured(t *testing.T) {
+	report := &BenchmarkReport{Repos: []*RepoAudit{{Dir: "/r", CoverageRate: 50}}}
+	for _, lang := range []string{"en", "de"} {
+		var buf bytes.Buffer
+		if err := FormatMatrixMarkdown(report, lang, &buf); err != nil {
+			t.Fatal(err)
+		}
+		if out := buf.String(); strings.Contains(out, "Speedup:**") {
+			t.Errorf("%s: speedup line without a speedup:\n%s", lang, out)
+		}
+	}
+}

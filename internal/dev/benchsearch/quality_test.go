@@ -55,6 +55,29 @@ func TestAMissBeyondTheTopThreeKeepsItsRank(t *testing.T) {
 	}
 }
 
+func TestTheThirdRankIsStillAHit(t *testing.T) {
+	dir := t.TempDir()
+	var ranked []string
+	for _, name := range []string{"a.md", "b.md", "c.md"} {
+		ranked = append(ranked, touch(t, dir, name))
+	}
+	out, err := RunQuality([]Question{{Kind: Exact, Expect: ranked[2]}},
+		func(string) ([]string, error) { return ranked, nil }, tick(0))
+	if err != nil || out[0].Rank != top || !out[0].Hit {
+		t.Fatalf("%+v %v", out, err)
+	}
+}
+
+// On Windows the spelling alone settles two paths that differ only in case,
+// before the file system is asked: neither file needs to exist.
+func TestCaseAloneMatchesOnlyOnWindows(t *testing.T) {
+	dir := t.TempDir()
+	got := rankOf(filepath.Join(dir, "Gone.md"), []string{filepath.Join(dir, "gone.md")})
+	if want := map[bool]int{true: 1, false: 0}[runtime.GOOS == "windows"]; got != want {
+		t.Fatalf("rank = %d, want %d", got, want)
+	}
+}
+
 func TestNotFoundIsRankZero(t *testing.T) {
 	dir := t.TempDir()
 	a := touch(t, dir, "a.md")

@@ -412,3 +412,14 @@ func TestQmdPortWithoutIndexKeepsAQuestionMarkInTheName(t *testing.T) {
 		t.Fatalf("relative = %q", hits[0].Relative)
 	}
 }
+
+func TestQmdPortWithoutIndexKeepsAnEmptyIndexMarkerInTheName(t *testing.T) {
+	// Only a named index is cut from the URI. Without one there is nothing
+	// qmd appended, so a name that happens to end in "?index=" (legal on
+	// POSIX) stays whole.
+	out := `[{"file":"qmd://c/note?index=","docid":"#1"}]`
+	hits, _ := (&search.QmdPort{Runner: stdoutOf(out)}).Search("q", nil, search.ProfileKeyword, 5)
+	if hits[0].Relative != "note?index=" {
+		t.Fatalf("relative = %q", hits[0].Relative)
+	}
+}
