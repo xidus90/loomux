@@ -24,6 +24,7 @@ type Latency struct {
 // and without the head nobody can tell a year later.
 type Run struct {
 	Stamp       string
+	Scope       string
 	Profile     string
 	Environment benchreport.Environment
 	Documents   int
@@ -61,6 +62,7 @@ func Markdown(r Run) string {
 		fmt.Sprintf("- system: %s/%s, %s", env.OS, env.Arch, env.CPU),
 		"- loomux: " + env.Loomux,
 		"- search path: " + env.Port,
+		"- scope: " + r.Scope,
 		fmt.Sprintf("- indexed documents: %d", r.Documents),
 		"- question set: " + r.QuestionSet,
 	}

@@ -103,7 +103,11 @@ func Bench(o Options, d Deps) (string, error) {
 		prepared = p
 		c.scope, c.stateDir, c.fallback = p.Scope, p.StateDir, ""
 	}
-	areas, err := benchAreas(c.stateDir, c.scope)
+	registered, err := config.ReadRegistry(c.stateDir)
+	if err != nil {
+		return "", err
+	}
+	areas, err := benchAreas(registered, c.scope)
 	if err != nil {
 		return "", err
 	}
@@ -125,6 +129,14 @@ func Bench(o Options, d Deps) (string, error) {
 	questions, err := LoadQuestions(questionSet, DefaultShape())
 	if err != nil {
 		return "", err
+	}
+	if prepared == nil && !o.ScopeSet {
+		// The default scope only finds the question set; what is measured is
+		// where its answers lie.
+		if c.scope, err = pointedScope(registered, questions); err != nil {
+			return "", err
+		}
+		areas = selectAreas(registered, c.scope)
 	}
 	portName, modelsFrom := "daemon", index.QmdConfigPath()
 	if prepared != nil {
@@ -168,7 +180,7 @@ func Bench(o Options, d Deps) (string, error) {
 	if starter, ok := c.port.(daemonStarter); prepared != nil || ok && starter.StartedDaemon() {
 		env.Backbone = d.Backbone
 	}
-	run := Run{Stamp: stamp, Profile: string(profile), Environment: env, QuestionSet: questionSet,
+	run := Run{Stamp: stamp, Scope: c.scope, Profile: string(profile), Environment: env, QuestionSet: questionSet,
 		Outcomes: outcomes, Findings: findings, Latency: latency}
 	for _, paths := range listings {
 		run.Documents += len(paths)
@@ -231,21 +243,61 @@ func refuseATwiceToldCorpus(o Options) error {
 
 // benchAreas is every measured area's directory by scope. With "all" the
 // hits of one run come from several areas, and each resolves against its own.
-func benchAreas(stateDir, scope string) (map[string]string, error) {
-	registered, err := config.ReadRegistry(stateDir)
-	if err != nil {
-		return nil, err
+func benchAreas(registered []config.Area, scope string) (map[string]string, error) {
+	areas := selectAreas(registered, scope)
+	if scope != allAreas && len(areas) == 0 {
+		return nil, fmt.Errorf("no area named %q in the registry", scope)
 	}
+	return areas, nil
+}
+
+// selectAreas is the directory by scope of every registered area scope names.
+func selectAreas(registered []config.Area, scope string) map[string]string {
 	areas := map[string]string{}
 	for _, area := range registered {
 		if scope == allAreas || area.Scope == scope {
 			areas[area.Scope] = area.Path
 		}
 	}
-	if scope != allAreas && len(areas) == 0 {
-		return nil, fmt.Errorf("no area named %q in the registry", scope)
+	return areas
+}
+
+// pointedScope is the one area every expect of the questions lies in, or
+// all when they lie in several. An expect outside every area could never be
+// found, and the run would report a silent miss.
+func pointedScope(registered []config.Area, questions []Question) (string, error) {
+	pointed := map[string]bool{}
+	for _, q := range questions {
+		// Areas nest (a craft inside the knowledge area): the deepest one
+		// holding the note owns it, whatever the registry's order.
+		owner, depth := "", -1
+		for _, area := range registered {
+			if d := len(filepath.Clean(area.Path)); d > depth && inside(q.Expect, area.Path) {
+				owner, depth = area.Scope, d
+			}
+		}
+		if depth < 0 {
+			return "", fmt.Errorf("question %s expects %s, which lies in no registered area; name the area with --scope", q.ID, q.Expect)
+		}
+		pointed[owner] = true
 	}
-	return areas, nil
+	if len(pointed) != 1 {
+		return allAreas, nil
+	}
+	return slices.Collect(maps.Keys(pointed))[0], nil
+}
+
+// inside tells whether path is dir or lies below it, each step compared the
+// way the engine's answers are.
+func inside(path, dir string) bool {
+	for p := filepath.Clean(path); ; p = filepath.Dir(p) {
+		if sameFile(p, dir) {
+			return true
+		}
+		if filepath.Dir(p) == p {
+			return false
+		}
+	}
 }
 
 // benchOut is the measurement folder. The default exists only where one
