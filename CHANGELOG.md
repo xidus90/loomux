@@ -4,6 +4,21 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [4.2.2] - 2026-09-28
+
+<https://github.com/xidus90/loomux/pull/53>
+
+### Security
+- Antigravity: `loomux hook pre-tool-use` judges every argument name of a command tool regardless of case, judges a line a `manage_task` call carries whatever its `Action` says, and refuses a value under such a name that is no string.
+- Antigravity: what an agent types into a task with `manage_task` or `send_command_input` passes only as whole lines without control characters, and a line ending in a backslash or a backtick, which bash and PowerShell continue on the next line, is refused, so a command split across calls or lines, edited with a backspace or completed at a tab no longer slips past the command rules. A single keystroke without Enter, Ctrl-C and arrow keys can no longer be sent to a task; `kill` still ends one.
+- `loomux init` appends a block for the tools an own hook entry under an older matcher lacks, `manage_task` for Antigravity and `MultiEdit` for a Claude Code entry of ours under ulinit's matcher, so an upgrade guards them without a hand edit.
+- `loomux hook pre-tool-use` refuses a call that names no tool instead of letting it pass.
+### Fixed
+- `loomux hook post-tool-use` names every lane it skipped, and every file of a call the shared budget did not reach, on stderr as well, so the model hears them when the edit is blocked. This corrects the v2.14.2 entry: the notices of an edit naming several files reached no host until now, because Antigravity does not read post-tool-use's stdout and Claude Code's edits name one file; they now arrive on stderr.
+- `loomux hook post-tool-use` writes nothing to stdout unless it exits 0, so the callers of a green file no longer follow a red file of the same call, and with `--host claude` its context keeps `<`, `>` and `&` as they are. With `--host codex` it ends with exit 1 once the call names a file, as the Codex seam does elsewhere, instead of answering in Claude Code's shape.
+- Antigravity: `loomux hook session-start` treats only the first model call of a conversation as its start. agy counts `invocationNum` from 0, so the second call was taken for a first one and repeated the binary and update warnings; and a session is revived only at the first call, so a marker it cannot remove is no longer repeated before every later one.
+- Antigravity: `invocationNum` is also read as a decimal string, protojson's spelling of a 64-bit integer.
+
 ## [4.2.1] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/52>
