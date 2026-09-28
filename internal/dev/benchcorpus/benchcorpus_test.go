@@ -940,6 +940,27 @@ See https://github.com/b/prose for more.
 	}
 }
 
+// TestParseMatrixSkipsAPipeLineWithALinkButNoRepositoryColumn: a line that
+// starts with a pipe and mentions a link, but has no third cell, is no row;
+// reading its repository column used to end the run with a panic. A row
+// without its closing pipe still has both columns, and a line that does not
+// start with a pipe is no row at all, whatever cells it has.
+func TestParseMatrixSkipsAPipeLineWithALinkButNoRepositoryColumn(t *testing.T) {
+	data := []byte("## Go\n" +
+		"| see https://github.com/b/short\n" +
+		"x | Top | [b/x](https://github.com/b/x) |\n" +
+		"| Top | [b/a](https://github.com/b/a) |\n" +
+		"| Top | [b/c](https://github.com/b/c)\n")
+	entries := parseMatrix(data, 0, "")
+	var urls []string
+	for _, e := range entries {
+		urls = append(urls, e.RepoURL)
+	}
+	if !slices.Equal(urls, []string{"https://github.com/b/a", "https://github.com/b/c"}) {
+		t.Errorf("entries = %q", urls)
+	}
+}
+
 func TestBenchmarkCorpusNamesTheFirstFailure(t *testing.T) {
 	matrix := []byte("## Go\n| Top | [a/one](https://github.com/a/one) |\n| Top | [a/two](https://github.com/a/two) |\n")
 	cloner := func(string, string) (string, error) { return "sha", nil }

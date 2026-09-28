@@ -382,6 +382,11 @@ func parseMatrix(matrixData []byte, maxLanguages int, tierFilter string) []matri
 
 		if strings.HasPrefix(line, "|") && strings.Contains(line, "http") {
 			parts := strings.Split(line, "|")
+			// A row has a tier and a repository column; a pipe line with a
+			// link but fewer cells is prose that happens to start with |.
+			if len(parts) < 3 {
+				continue
+			}
 			rawTier := strings.TrimSpace(parts[1])
 			cleanTier := strings.Trim(rawTier, "* ")
 			if idx := strings.Index(cleanTier, "("); idx != -1 {
