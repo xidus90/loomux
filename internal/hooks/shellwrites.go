@@ -17,6 +17,11 @@ type shellTarget struct {
 	path    string
 	removes bool // a removal, or the source of a move: what lies below it counts too
 	shell   bool // spelled by a shell: braces and globs are still to unfold
+	// filters, when there are any, narrow a removal to what lies at and
+	// below path and one of them matches; start is path as the line wrote
+	// it, which find prints in front of each match.
+	filters []nameFilter
+	start   string
 }
 
 // The verb table, by base name in lower case without .exe (verbOf).
@@ -46,7 +51,8 @@ var (
 // reading of a trusted segment whose program is in neither the table nor
 // readVerbs, that program and its arguments; strict mode judges those.
 //
-// Every variant of the line (lineVariants) and both cuts of each
+// Every variant of the line (lineVariants, and the line with each
+// substitution folded to one word, foldSubstitutions) and both cuts of each
 // (splitSegments) are read, and every reading adds targets, never removes
 // one: a misread quote costs a false refusal, not a pass. The quote-blind cut
 // also breaks inside quoted text, so the guesses for a segment no strict split
@@ -69,7 +75,11 @@ const maxInnerDepth = 3
 // shellWritesAt is shellWrites for a line depth shells inside the one the
 // call runs.
 func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown [][]string) {
-	for _, variant := range lineVariants(line) {
+	variants := lineVariants(line)
+	if folded := foldSubstitutions(joinPaths(line)); !slices.Contains(variants, folded) {
+		variants = append(variants, folded)
+	}
+	for _, variant := range variants {
 		targets = append(targets, dotNetTargets(variant)...)
 		cuts := [][]string{splitSegments(variant, false)}
 		if strings.ContainsAny(variant, `"'`) {
@@ -111,16 +121,113 @@ func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown
 
 // pipedRemovals are the removals of a removing verb (rm, Remove-Item, also
 // behind xargs) that names no path of its own and reads its paths from a
-// pipe: the words of the segment before the pipe that look like a path.
+// pipe: what the segment before the pipe lists (listingRemovals).
 func pipedRemovals(prev string, args []string) []shellTarget {
 	if len(args) == 0 || !slices.Contains(everyFileRemoves, verbOf(args[0])) || len(positional(args[1:])) > 0 {
 		return nil
+	}
+	var out []shellTarget
+	var read [][]string
+	for _, words := range readings(prev) {
+		// The readings mostly agree.
+		words = dropPrefixes(words)
+		if slices.ContainsFunc(read, func(r []string) bool { return slices.Equal(r, words) }) {
+			continue
+		}
+		read = append(read, words)
+		out = append(out, listingRemovals(prev, words)...)
+	}
+	return out
+}
+
+// listingRemovals are the paths a listing prints into a pipe, each taken for
+// removed: what find or Get-ChildItem keeps under a name filter (filtered),
+// else every word of the segment that looks like a path.
+func listingRemovals(prev string, words []string) []shellTarget {
+	if len(words) > 0 {
+		switch verbOf(words[0]) {
+		case "find":
+			if filters := findFilters(words[1:]); filters != nil {
+				return filtered(findStarts(words[1:]), filters)
+			}
+		case "get-childitem", "gci", "ls", "dir":
+			if starts, filters := childItemFilters(words[1:]); filters != nil {
+				return filtered(starts, filters)
+			}
+		}
 	}
 	out := guessedTargets(prev)
 	for i := range out {
 		out[i].removes = true
 	}
 	return out
+}
+
+// foldSubstitutions folds each balanced $(…) and each pair of backticks in
+// line into the one word $_, so that a path which goes on after a
+// substitution ($(pwd)/.loomux/config.toml) keeps its fixed tail; the cuts
+// break a substitution apart and would lose it. The line as written still
+// reads the command inside.
+func foldSubstitutions(line string) string {
+	var b strings.Builder
+	for i := 0; i < len(line); i++ {
+		end := -1
+		switch {
+		case strings.HasPrefix(line[i:], "$("):
+			end = closingParen(line, i+1)
+		case line[i] == '`':
+			if next := strings.IndexByte(line[i+1:], '`'); next >= 0 {
+				end = i + 1 + next
+			}
+		}
+		if end < 0 {
+			b.WriteByte(line[i])
+			continue
+		}
+		b.WriteString("$_")
+		i = end
+	}
+	return b.String()
+}
+
+// closingParen is the index of the ) that closes the ( at open, or -1.
+func closingParen(s string, open int) int {
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			if depth--; depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// joinPathCall finds a PowerShell (Join-Path …) and the arguments inside it.
+var joinPathCall = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`(?i)\(\s*join-path\s+([^()]*)\)`)
+})
+
+// joinPaths writes each (Join-Path A B …) of line as the path A/B/… it
+// builds: parameter names dropped, quotes stripped, $PWD as the working
+// folder. The cuts break the call apart at its parentheses.
+func joinPaths(line string) string {
+	return joinPathCall().ReplaceAllStringFunc(line, func(call string) string {
+		var parts []string
+		for _, w := range tolerantWords(joinPathCall().FindStringSubmatch(call)[1]) {
+			switch {
+			case strings.HasPrefix(w, "-"):
+			case strings.EqualFold(w, "$pwd"):
+				parts = append(parts, ".")
+			default:
+				parts = append(parts, w)
+			}
+		}
+		return strings.Join(parts, "/")
+	})
 }
 
 // quotedRedirect stands in a masked segment for a > inside quotes.
@@ -213,8 +320,12 @@ func segmentWrites(dir string, words []string, depth int) (targets []shellTarget
 // innerLine is the command line a shell among args runs from a string: the
 // word after -c of sh, bash, zsh or dash (also in a bundle, -lc), and every
 // word after -c or -Command of pwsh or powershell, abbreviated or not, and
-// after /c or /k of cmd.
+// after /c or /k of cmd; and the words after eval, joined, when eval is the
+// program.
 func innerLine(args []string) (string, bool) {
+	if program := dropPrefixes(args); len(program) > 0 && verbOf(program[0]) == "eval" {
+		return strings.Join(program[1:], " "), true
+	}
 	for i, a := range args {
 		switch verbOf(a) {
 		case "sh", "bash", "zsh", "dash":
@@ -544,13 +655,13 @@ func downloads(verb string, args []string) []shellTarget {
 }
 
 // remoteName says whether curl names its file after the URL: -O alone or in
-// a bundle, or --remote-name, before any --.
+// a bundle, --remote-name or --remote-name-all, before any --.
 func remoteName(args []string) bool {
 	for _, a := range args {
 		switch {
 		case a == "--":
 			return false
-		case a == "--remote-name":
+		case a == "--remote-name" || a == "--remote-name-all":
 			return true
 		case len(a) > 1 && a[0] == '-' && letters(a[1:]) && strings.ContainsRune(a, 'O'):
 			return true
@@ -582,11 +693,25 @@ func fetchedNames(args, dirs []string) []string {
 	return out
 }
 
-// findRemoves are find's start paths when it deletes what it finds: with
-// -delete, or -exec, -execdir, -ok or -okdir running a removing verb. The
-// tests in between are not judged, so every start path counts as removed;
-// without one find starts at the working folder.
+// findRemoves are what find deletes when it deletes -- with -delete, or
+// -exec, -execdir, -ok or -okdir running a removing verb: what its name
+// filters keep below its start paths (filtered), or the start paths whole.
 func findRemoves(args []string) []shellTarget {
+	for i, a := range args {
+		switch a {
+		case "-delete":
+			return filtered(findStarts(args), findFilters(args))
+		case "-exec", "-execdir", "-ok", "-okdir":
+			if i+1 < len(args) && slices.Contains(everyFileRemoves, verbOf(args[i+1])) {
+				return filtered(findStarts(args), findFilters(args))
+			}
+		}
+	}
+	return nil
+}
+
+// findStarts are find's start paths, the working folder without one.
+func findStarts(args []string) []string {
 	var starts []string
 	for _, a := range args {
 		if strings.HasPrefix(a, "-") || a == "(" || a == "!" {
@@ -597,17 +722,172 @@ func findRemoves(args []string) []shellTarget {
 	if len(starts) == 0 {
 		starts = []string{"."}
 	}
-	for i, a := range args {
-		switch a {
-		case "-delete":
-			return targetsOf(starts, true)
-		case "-exec", "-execdir", "-ok", "-okdir":
-			if i+1 < len(args) && slices.Contains(everyFileRemoves, verbOf(args[i+1])) {
-				return targetsOf(starts, true)
+	return starts
+}
+
+// nameFilter is one test of a listing that keeps what glob matches: the base
+// name, or with path the whole path as find prints it; fold matches in any
+// case.
+type nameFilter struct {
+	glob       string
+	fold, path bool
+}
+
+// findFilters are find's name tests -- -name, -iname, -path, -ipath -- when
+// they narrow what it keeps, nil when any other test may keep more: no name
+// test, one that matches every name, -regex, a negation, an -o, or a name
+// test after the first action, which find runs on every entry before the
+// test. Only an and of name tests is left, so what matches one of them is a
+// superset. A pattern is read with find's escapes (unescapeFind).
+func findFilters(args []string) []nameFilter {
+	var out []nameFilter
+	acted := false
+	for i := 0; i < len(args); i++ {
+		switch a := args[i]; a {
+		case "-name", "-iname", "-path", "-ipath":
+			if acted || i+1 == len(args) {
+				return nil
+			}
+			i++
+			glob, ok := unescapeFind(args[i])
+			if !ok || strings.Trim(glob, "*") == "" {
+				return nil
+			}
+			out = append(out, nameFilter{glob: glob, fold: a[1] == 'i', path: strings.HasSuffix(a, "path")})
+		case "-regex", "-iregex", "!", "-not", "-o", "-or", ",":
+			return nil
+		case "-delete", "-exec", "-execdir", "-ok", "-okdir":
+			acted = true
+		}
+	}
+	return out
+}
+
+// unescapeFind reads a find pattern's escapes: \x stands for x. The escaped
+// byte then counts as a pattern character again, which only matches more; a
+// lone \ at the end is no pattern find reads (false).
+func unescapeFind(glob string) (string, bool) {
+	var b strings.Builder
+	for i := 0; i < len(glob); i++ {
+		if glob[i] == '\\' {
+			if i++; i == len(glob) {
+				return "", false
+			}
+		}
+		b.WriteByte(glob[i])
+	}
+	return b.String(), true
+}
+
+// childItemFilters are the start paths of Get-ChildItem -- -Path,
+// -LiteralPath, or each positional argument that is no filter, the working
+// folder without one -- and its -Include and -Filter patterns, split at
+// commas and matched in any case; nil filters when it names none, one that
+// matches every name, or a -Filter the file system may match against an 8.3
+// short name: one with a three-letter extension (*.tom keeps config.toml,
+// CONFIG~1.TOM) or a ~.
+func childItemFilters(args []string) ([]string, []nameFilter) {
+	shortNamed := psValues(args, "filter")
+	for _, glob := range shortNamed {
+		if dot := strings.LastIndexByte(glob, '.'); dot >= 0 && len(glob)-dot-1 == 3 || strings.Contains(glob, "~") {
+			return nil, nil
+		}
+	}
+	values := append(psValues(args, "include"), shortNamed...)
+	var filters []nameFilter
+	for _, v := range values {
+		for _, glob := range strings.Split(v, ",") {
+			if strings.Trim(glob, "*") == "" {
+				return nil, nil
+			}
+			filters = append(filters, nameFilter{glob: glob, fold: true})
+		}
+	}
+	starts := append(psValues(args, "path"), psValues(args, "literalpath")...)
+	if len(starts) == 0 {
+		for _, w := range positional(args) {
+			if !slices.Contains(values, w) {
+				starts = append(starts, w)
 			}
 		}
 	}
-	return nil
+	if len(starts) == 0 {
+		starts = []string{"."}
+	}
+	return starts, filters
+}
+
+// filtered are the removals of a listing whose name filters keep what they
+// match below starts: each start path with the filters, which the judge
+// matches against the disk, or the start paths whole without a filter.
+func filtered(starts []string, filters []nameFilter) []shellTarget {
+	out := targetsOf(starts, true)
+	for i := range out {
+		out[i].filters, out[i].start = filters, out[i].path
+	}
+	return out
+}
+
+// matches says whether the filter keeps a path find prints as printed.
+func (f nameFilter) matches(printed string) bool {
+	subject, glob := printed, f.glob
+	if !f.path {
+		subject = path.Base(printed)
+	}
+	if f.fold {
+		subject, glob = strings.ToLower(subject), strings.ToLower(glob)
+	}
+	return fnmatch(glob, subject)
+}
+
+// fnmatch matches s against a find pattern: * any run of bytes, a slash
+// among them, ? one byte, [...] one byte of a class (! or ^ negates it, a-z
+// a range), any other byte itself. A [ without its ] is a byte of its own.
+func fnmatch(glob, s string) bool {
+	for glob != "" {
+		switch c := glob[0]; {
+		case c == '*':
+			for i := len(s); i >= 0; i-- {
+				if fnmatch(glob[1:], s[i:]) {
+					return true
+				}
+			}
+			return false
+		case s == "":
+			return false
+		case c == '?':
+		case c == '[' && strings.IndexByte(glob[1:], ']') >= 0:
+			end := strings.IndexByte(glob[1:], ']') + 1
+			class := glob[1:end]
+			negate := strings.HasPrefix(class, "!") || strings.HasPrefix(class, "^")
+			if negate {
+				class = class[1:]
+			}
+			if inClass(class, s[0]) == negate {
+				return false
+			}
+			glob = glob[end:]
+		case c != s[0]:
+			return false
+		}
+		glob, s = glob[1:], s[1:]
+	}
+	return s == ""
+}
+
+// inClass says whether c is one of a class's bytes or ranges.
+func inClass(class string, c byte) bool {
+	for i := 0; i < len(class); i++ {
+		if i+2 < len(class) && class[i+1] == '-' {
+			if class[i] <= c && c <= class[i+2] {
+				return true
+			}
+			i += 2
+		} else if class[i] == c {
+			return true
+		}
+	}
+	return false
 }
 
 // inPlace are the files sed -i or perl -i edits in place: every positional

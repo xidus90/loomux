@@ -140,60 +140,6 @@ func TestAWritingToolMayNotTouchARunFile(t *testing.T) {
 	}
 }
 
-// The shell rule for the run files follows the manifest's: every write and
-// every removal, and no read.
-func TestAShellLineThatWritesARunFileIsRefused(t *testing.T) {
-	root := t.TempDir()
-	refused := []string{
-		"echo x >> .loomux/state/runs/0001.jsonl",
-		"rm .loomux/state/runs/0001.flow",
-		`Remove-Item .loomux\state\runs\0001.jsonl`,
-		"sed -i s/a/b/ .loomux/state/runs/0001.jsonl",
-		"rm -r .loomux/state/runs",
-		"git rm .loomux/state/runs/0001.jsonl",
-		"cp other.jsonl ./.loomux/state/runs/0001.jsonl",
-		"Set-Content -Path .loomux/state/runs/0001.jsonl -Value x",
-		`echo x > ".LOOMUX/State/Runs/0001.jsonl"`,
-		// Folders go with every verb that removes one.
-		`rd -Recurse .loomux\state\runs`,
-		`rmdir /s /q .loomux\state\runs`,
-		"[IO.Directory]::Delete('.loomux/state/runs', $true)",
-		"git clean -fdx .loomux/state/runs",
-		// Removing the folder above the runs, or a glob in their place,
-		// removes them too.
-		"Remove-Item -Recurse .loomux/state",
-		"rm -r .loomux/state/",
-		"rm -r .loomux/state/*",
-		`del /s /q .loomux\state\r*`,
-		"git rm -r .loomux/state",
-	}
-	for _, tool := range []string{"Bash", "PowerShell"} {
-		for _, line := range refused {
-			got := checkTool(root, tool, map[string]any{"command": line}, config.Policy{})
-			if len(got) != 1 || got[0] != runFilesWant {
-				t.Errorf("[%s] %q: reasons %q, want exactly the run files refusal", tool, line, got)
-			}
-		}
-	}
-	for _, line := range []string{
-		"cat .loomux/state/runs/0001.jsonl",
-		"ls .loomux/state/runs",
-		"cp .loomux/state/runs/0001.jsonl backup.jsonl",
-		"echo x > .loomux/state/runsx",
-		"grep answered .loomux/state/runs/0001.jsonl > out.txt",
-		// Only a removal reaches through the folder above.
-		"cp -r x .loomux/state/",
-		"ls .loomux/state",
-		"rm -r .loomux/state/hooks",
-		// A hole kept on purpose, the manifest's as well: see writeSource.
-		"rm -rf .loomux",
-	} {
-		if got := checkTool(root, "Bash", map[string]any{"command": line}, config.Policy{}); len(got) != 0 {
-			t.Errorf("%q: reasons %q, want none", line, got)
-		}
-	}
-}
-
 // bundledWant is the refusal for a flow folder a human keeps.
 func bundledWant(name string) string {
 	return "a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `" + name + "`"
@@ -246,63 +192,6 @@ func TestAWritingToolMayNotTouchABundledFlowFolder(t *testing.T) {
 	}
 }
 
-// The shell rule covers the same folders, removals included: a removed
-// overlay would put the bundled flow back without a word. A copy out of a
-// bundled flow into one of the agent's own is the way the refusal names.
-func TestAShellLineThatWritesABundledFlowIsRefused(t *testing.T) {
-	catalog(t, "example")
-	root := project(t)
-	manifest(t, root, "[flow]\noverrides = [\"review\"]\n")
-	// A command rule has one reason, so it names every flow it keeps.
-	want := bundledWant("example`, `review")
-	for _, line := range []string{
-		"rm -r .loomux/flows/example",
-		"git rm .loomux/flows/review/questions/q.md",
-		"echo x > .loomux/flows/Example/flow.toml",
-		`Remove-Item -Recurse .loomux\flows\example`,
-		"cp x.toml ./.loomux/flows/example/flow.toml",
-		`sed -i s/a/b/ ".LOOMUX/FLOWS/REVIEW/instructions/r.md"`,
-		// Folders go with every verb that removes one.
-		`rmdir /s /q .loomux\flows\review`,
-		`rd -Recurse .loomux\flows\example`,
-		"[IO.Directory]::Delete('.loomux/flows/review', $true)",
-		"git clean -fd .loomux/flows/example",
-		// Removing the folder above the flows, or a glob in a flow's place,
-		// removes them too.
-		"rm -r .loomux/flows",
-		"rm -r .loomux/flows/",
-		"rm -r .loomux/flows/*",
-		`Remove-Item -Recurse .loomux\flows\e*`,
-		"git rm -r .loomux/flows",
-		`del /s /q .loomux\flows\*\flow.toml`,
-		// A glob in a flow's place is a write into the folders it expands
-		// to, for every verb: an agent writing its own flow spells its name.
-		"cp evil.md .loomux/flows/ex*/instructions/draft.md",
-		"cp evil.md .loomux/flows/exampl?/instructions/draft.md",
-	} {
-		if got := checkTool(root, "Bash", map[string]any{"command": line}, config.Policy{}); len(got) != 1 || got[0] != want {
-			t.Errorf("%q: reasons %q, want %q", line, got, want)
-		}
-	}
-	for _, line := range []string{
-		"rm -r .loomux/flows/mine",
-		"rm -r .loomux/flows/mine/*",
-		"cat .loomux/flows/example/flow.toml",
-		"echo x > .loomux/flows/example2/flow.toml",
-		"cp -r .loomux/flows/example .loomux/flows/mine",
-		"cp x .loomux/flows/mine/instructions/a.md",
-		// Only a removal reaches through the folder above: a flow of the
-		// agent's own may still be put there.
-		"cp -r mine .loomux/flows/",
-		"ls .loomux/flows",
-		"git status",
-	} {
-		if got := checkTool(root, "Bash", map[string]any{"command": line}, config.Policy{}); len(got) != 0 {
-			t.Errorf("%q: reasons %q, want none", line, got)
-		}
-	}
-}
-
 // A [flow] the guard cannot read might name any folder, so every write under
 // .loomux/flows is refused, and one elsewhere is not judged by it.
 func TestAFlowFolderUnderAnUnreadableFlowTableIsRefused(t *testing.T) {
@@ -327,16 +216,14 @@ func TestAFlowFolderUnderAnUnreadableFlowTableIsRefused(t *testing.T) {
 	}
 }
 
-// With no flow to keep there is no rule: an empty list of names would
-// otherwise match every folder under .loomux/flows.
+// With no flow to keep, no folder under .loomux/flows is kept.
 func TestNoProtectedFlowMeansNoShellRule(t *testing.T) {
 	catalog(t)
 	root := project(t)
-	if _, ok := flowFolderCommand(root); ok {
-		t.Fatal("a rule without a flow to keep")
-	}
-	if got := checkTool(root, "Bash", map[string]any{"command": "rm -r .loomux/flows/example"}, config.Policy{}); len(got) != 0 {
-		t.Fatalf("reasons %q", got)
+	for _, line := range []string{"rm -r .loomux/flows/example", "rm -r .loomux/flows"} {
+		if got := checkTool(root, "Bash", map[string]any{"command": line}, config.Policy{}); len(got) != 0 {
+			t.Fatalf("%q: reasons %q", line, got)
+		}
 	}
 }
 

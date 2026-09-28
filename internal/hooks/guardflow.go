@@ -1,7 +1,6 @@
 package hooks
 
 import (
-	"regexp"
 	"slices"
 	"strings"
 
@@ -100,13 +99,13 @@ func unreadableFlowsReason(err error) string {
 // way the built-in rules keep .loomux. Every such folder in rel counts, the
 // outer and the inner alike, and each protected flow among them is named once.
 // The folder name is compared in lower case: Windows and macOS keep Example
-// and example as one folder. The config is read only for such a path.
-func flowFolderReasons(root, rel string) []string {
+// and example as one folder. The flows are asked for only for such a path.
+func flowFolderReasons(rel string, flows func() ([]string, error)) []string {
 	names := flowFolderName(rel)
 	if len(names) == 0 {
 		return nil
 	}
-	protected, err := protectedFlows(root)
+	protected, err := flows()
 	if err != nil {
 		return []string{unreadableFlowsReason(err)}
 	}
@@ -136,38 +135,4 @@ func flowFolderName(rel string) []string {
 		name, _, _ := strings.Cut(rest[1:], "/")
 		names = append(names, name)
 	}
-}
-
-// flowFolderCommand is the rule for a shell line that writes or removes a
-// protected flow's folder or a file in it, in writeSource's forms and so in
-// any case. It is built per call, since the names depend on the project's
-// config, and answers false when no flow is protected: an empty list of
-// names would match every folder under .loomux/flows.
-//
-// A config that will not read gives a rule over every name, with that
-// reason, as flowFolderReasons refuses every path.
-func flowFolderCommand(root string) (config.CommandRule, bool) {
-	protected, err := protectedFlows(root)
-	names, reason := `[^\s;|&'"<>/\\]+`, ""
-	switch {
-	case err != nil:
-		reason = unreadableFlowsReason(err)
-	case len(protected) == 0:
-		return config.CommandRule{}, false
-	default:
-		quoted := make([]string, len(protected))
-		for i, name := range protected {
-			quoted[i] = regexp.QuoteMeta(name)
-		}
-		names = strings.Join(quoted, "|")
-		reason = bundledFlowReason(strings.Join(protected, "`, `"))
-	}
-	// A glob in a flow's place reaches the flows for every verb: the shell
-	// expands it onto their folders, and an agent writing a flow of its own
-	// spells its name. A removal also reaches them through .loomux/flows
-	// itself, so that a copy into it stays open.
-	source := writeSource(
-		`['"]?(?:[^\s;|&'"<>]*[/\\=:])?\.loomux[/\\]+flows[/\\]+(?:`+names+`|`+globName+`)(?:[/\\][^\s;|&'"<>]*)?['"]?`,
-		`['"]?(?:[^\s;|&'"<>]*[/\\=:])?\.loomux[/\\]+flows(?:[/\\]+(?:`+names+`|`+globName+`)(?:[/\\][^\s;|&'"<>]*)?)?[/\\]*['"]?`)
-	return config.CommandRule{Regex: regexp.MustCompile(source), Source: source, Reason: reason}, true
 }
