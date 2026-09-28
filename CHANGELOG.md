@@ -4,6 +4,20 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [5.3.0] - 2026-09-28
+
+<https://github.com/xidus90/loomux/pull/59>
+
+### Added
+- `[guard] mode = "strict"`: every write target is also resolved by the file system (8.3 short names, trailing dots and blanks, junctions), loomux's commands are recognised under any program name, a program the guard does not know is refused on a protected path, and so is a write whose path holds an expansion before a protected prefix.
+### Changed
+- `[policy] paths` rules now also hold for shell lines; in this repository `rm coverage.out`, `mv bin/…`, `rm -rf .loomux/state/…` and `git clean -fdx` are refused.
+- The manifest `.loomux/config.toml` is refused with one reason on both roads, a writing tool and a shell line.
+- loomux's own files (the manifest, the run files, the stop gate's state) are protected under any directory for Write and Edit too, so a sibling worktree's `.loomux` is kept like this project's.
+- `find . -delete` and `find … -exec rm` without a name filter, and a removal of `.loomux` or a folder above it, are refused.
+### Fixed
+- Shell spellings that passed the guard before are refused: `ln`, `tar`, `unzip`, `Expand-Archive`, `New-Item`, `touch`, `robocopy`, `xcopy`, `rsync`, `find -delete` with a protected name, `curl`/`wget` downloads, globs and braces in fixed path segments, wrapper flags with a value, `$(…)` before a protected path, `eval`, `Join-Path`, removals fed by a pipe, verbs inside `sh -c` / `pwsh -Command` / `cmd /c` strings, and NTFS stream suffixes.
+
 ## [5.2.1] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/57>
