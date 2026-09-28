@@ -4,10 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/notices"
 )
 
 // fakeGo writes the -o target with content naming its GOOS/GOARCH, so the
@@ -33,7 +36,7 @@ func TestBuildWritesAllTargetsAndSums(t *testing.T) {
 	}
 	want := []string{
 		"loomux_1.2.3_windows_amd64.exe", "loomux_1.2.3_linux_amd64", "loomux_1.2.3_linux_arm64",
-		"loomux_1.2.3_darwin_amd64", "loomux_1.2.3_darwin_arm64", "SHA256SUMS",
+		"loomux_1.2.3_darwin_amd64", "loomux_1.2.3_darwin_arm64", "NOTICE.md", "SHA256SUMS",
 	}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Fatalf("names %v", names)
@@ -89,6 +92,49 @@ func TestBuildReportsUnwritableSums(t *testing.T) {
 	}
 	if _, err := Build("1.0.0", "", out, blockSums); err == nil {
 		t.Fatal("want error when SHA256SUMS cannot be written")
+	}
+}
+
+func TestBuildShipsTheNoticeBesideTheBinaries(t *testing.T) {
+	out := t.TempDir()
+	names, err := Build("1.2.3", "", out, func(env []string, args ...string) error {
+		return os.WriteFile(args[len(args)-2], []byte("binary"), 0o644)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names[len(names)-2] != "NOTICE.md" || names[len(names)-1] != "SHA256SUMS" {
+		t.Fatalf("%q", names)
+	}
+	notice, err := os.ReadFile(filepath.Join(out, "NOTICE.md"))
+	if err != nil || string(notice) != notices.Text() {
+		t.Fatal("NOTICE.md is not the embedded notice")
+	}
+	sums, err := os.ReadFile(filepath.Join(out, "SHA256SUMS"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(notice)
+	if !strings.Contains(string(sums), hex.EncodeToString(sum[:])+"  NOTICE.md\n") {
+		t.Fatalf("SHA256SUMS: %s", sums)
+	}
+}
+
+func TestBuildStopsWhenTheNoticeCannotBeWritten(t *testing.T) {
+	out := t.TempDir()
+	notice := filepath.Join(out, "NOTICE.md")
+	_, err := Build("1.2.3", "", out, func(env []string, args ...string) error {
+		if err := os.MkdirAll(notice, 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(args[len(args)-2], []byte("binary"), 0o644)
+	})
+	var pathErr *fs.PathError
+	if !errors.As(err, &pathErr) || pathErr.Path != notice {
+		t.Fatalf("want the failed write of %s, got %v", notice, err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "SHA256SUMS")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("SHA256SUMS written without the notice: %v", err)
 	}
 }
 

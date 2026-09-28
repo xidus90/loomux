@@ -23,6 +23,7 @@ import (
 	"github.com/xidus90/loomux/internal/dev/benchreport"
 	"github.com/xidus90/loomux/internal/dev/benchsearch"
 	"github.com/xidus90/loomux/internal/dev/mutants"
+	"github.com/xidus90/loomux/internal/notices"
 )
 
 func TestDevNeedsASubcommand(t *testing.T) {
@@ -1101,5 +1102,48 @@ func TestDevBenchSearchRefusesABrokenBackbone(t *testing.T) {
 	code, out, errOut := run("dev", "bench", "search")
 	if code != 1 || out != "" || !strings.Contains(errOut, "error: "+filepath.Join(state, "config.toml")) || asked.Scope != "" {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+// The notice tests run from the repository's root, where go list finds
+// ./cmd/loomux, and write to a temporary --out: a test run never rewrites the
+// committed NOTICE.md.
+func TestDevNoticesWritesTheEmbeddedNotice(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "NOTICE.md")
+	t.Chdir("../..")
+	code, stdout, errOut := run("dev", "notices", "--out", out)
+	if code != 0 || stdout != out+"\n" {
+		t.Fatalf("code %d, out %q, err %q", code, stdout, errOut)
+	}
+	written, err := os.ReadFile(out)
+	if err != nil || string(written) != notices.Text() {
+		t.Fatalf("the written notice is not the embedded one (%v); run loomux dev notices", err)
+	}
+}
+
+func TestDevNoticesReportsAnUnwritableOut(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "missing", "NOTICE.md")
+	t.Chdir("../..")
+	code, stdout, errOut := run("dev", "notices", "--out", out)
+	if code != 1 || stdout != "" || !strings.HasPrefix(errOut, "error: ") {
+		t.Fatalf("code %d, out %q, err %q", code, stdout, errOut)
+	}
+}
+
+func TestDevNoticesRefusesAnUnknownFlag(t *testing.T) {
+	if code, _, errOut := run("dev", "notices", "--frobnicate"); code != 2 || !strings.Contains(errOut, "frobnicate") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestDevNoticesReportsWhatGoCannotList(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "NOTICE.md")
+	t.Chdir(t.TempDir())
+	code, _, errOut := run("dev", "notices", "--out", out)
+	if code != 1 || !strings.Contains(errOut, "go list: ") || !strings.Contains(errOut, "go.mod") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	if _, err := os.Stat(out); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("a failed render wrote %s: %v", out, err)
 	}
 }
