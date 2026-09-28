@@ -1,0 +1,596 @@
+[
+ {
+  "text": "Der Bau ist in acht Scheiben zerlegt.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": true
+ },
+ {
+  "text": "Die Scheiben definieren Fertigkriterien für verschiedene Bauabschnitte.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": true
+ },
+ {
+  "text": "Die Scheiben definieren Fertigkriterien fuer verschiedene Bauabschnitte.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": true
+ },
+ {
+  "text": "Die Scheiben erfordern durch Prüfkriterien die Ferti-Stellung um das Pro-jekt fort-zu-set-zen",
+  "is_german": true,
+  "chopped": [
+   "Ferti-Stellung",
+   "Pro-jekt",
+   "fort-zu-set-zen"
+  ],
+  "one_sentence": false,
+  "word_count": 16,
+  "reads_back": true
+ },
+ {
+  "text": "The build is split into eight slices.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": true
+ },
+ {
+  "text": "De bouw is in acht plakken verdeeld.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": true
+ },
+ {
+  "text": "Data in tables",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 3,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit Pro-jekt darin.",
+  "is_german": true,
+  "chopped": [
+   "Pro-jekt"
+  ],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit fort-zu-set-zen darin.",
+  "is_german": true,
+  "chopped": [
+   "fort-zu-set-zen"
+  ],
+  "one_sentence": true,
+  "word_count": 8,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit Ferti-Stellung darin.",
+  "is_german": true,
+  "chopped": [
+   "Ferti-Stellung"
+  ],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit E-Mail darin.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit qmd-Profil darin.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit Python-nach-Go-Migration darin.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 8,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit Know-how darin.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit Fertig-Kriterium darin.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit Ende-Zustand darin.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz mit Ende-zu-Ende-Verschlüsselung darin.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 8,
+  "reads_back": true
+ },
+ {
+  "text": "Das Teilsystem-Scheiben steht bereit.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": true
+ },
+ {
+  "text": "Das Wiki-Suchkette steht bereit.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 2,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz. Noch einer.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 4,
+  "reads_back": true
+ },
+ {
+  "text": "Ein Satz. Und Text danach",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 5,
+  "reads_back": true
+ },
+ {
+  "text": "Kein Ende",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 2,
+  "reads_back": true
+ },
+ {
+  "text": "   ",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 0,
+  "reads_back": false
+ },
+ {
+  "text": "Für größere Bereiche gilt das auch.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Der Bericht beschreibt die Abnahme der zweiten Scheibe.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 8,
+  "reads_back": true
+ },
+ {
+  "text": "Der Bericht nennt die Regel \"Aus schlägt An\" und ihre Grenzen.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 11,
+  "reads_back": true
+ },
+ {
+  "text": "[Der Bericht] beschreibt die Abnahme der zweiten Scheibe.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 8,
+  "reads_back": false
+ },
+ {
+  "text": "Der Bericht: die Abnahme der zweiten Scheibe.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": false
+ },
+ {
+  "text": "Der Bericht ist in #1 der Reihe.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": false
+ },
+ {
+  "text": "Der Bericht beschreibt\ndie Abnahme der Scheibe.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": false
+ },
+ {
+  "text": "Die Über-Prüfung ist für das Pro-jekt nötig.",
+  "is_german": true,
+  "chopped": [
+   "Pro-jekt"
+  ],
+  "one_sentence": true,
+  "word_count": 9,
+  "reads_back": true
+ },
+ {
+  "text": "Der Ärger-Faktor ist bei der Straßen-Planung hoch.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 9,
+  "reads_back": true
+ },
+ {
+  "text": "Die E-Mail-Adresse ist in der Liste.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 8,
+  "reads_back": true
+ },
+ {
+  "text": "Die Python-3-Migration ist in der Stufe G4-Plan.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 10,
+  "reads_back": true
+ },
+ {
+  "text": "Das Win-11-Update ist für die x86-Rechner.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 9,
+  "reads_back": true
+ },
+ {
+  "text": "Die naïve-Idee ist in der Mappe.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 8,
+  "reads_back": true
+ },
+ {
+  "text": "Das _-Zeichen ist in der Regel ohne Be-deu-tung.",
+  "is_german": true,
+  "chopped": [
+   "Be-deu-tung"
+  ],
+  "one_sentence": true,
+  "word_count": 11,
+  "reads_back": true
+ },
+ {
+  "text": "Die CO₂-Bilanz ist in der Liste.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": true
+ },
+ {
+  "text": "Das Werk ist CO₂-neutral und billig.",
+  "is_german": true,
+  "chopped": [
+   "CO₂-neutral"
+  ],
+  "one_sentence": true,
+  "word_count": 7,
+  "reads_back": true
+ },
+ {
+  "text": "Der Euro-m²-Preis ist in der Liste.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 8,
+  "reads_back": true
+ },
+ {
+  "text": "Der Preis pro m² ist hoch.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "İN DER Stadt.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 3,
+  "reads_back": true
+ },
+ {
+  "text": "Das Ⅻ-jekt steht bereit.",
+  "is_german": false,
+  "chopped": [
+   "Ⅻ-jekt"
+  ],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": true
+ },
+ {
+  "text": "Ja.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 1,
+  "reads_back": true
+ },
+ {
+  "text": "yes.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 1,
+  "reads_back": true
+ },
+ {
+  "text": "on.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 1,
+  "reads_back": true
+ },
+ {
+  "text": "Der Wert ist 1.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": true
+ },
+ {
+  "text": "- Die Liste ist hier.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": false
+ },
+ {
+  "text": "* Der Stern ist hier.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": false
+ },
+ {
+  "text": "'Das Zitat' steht am Anfang.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": false
+ },
+ {
+  "text": "\"Das Zitat\" steht am Anfang.",
+  "is_german": false,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": false
+ },
+ {
+  "text": "Der Wert ist %x.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": true
+ },
+ {
+  "text": "Der Bericht & der Anhang sind da.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "! Der Ausruf ist da.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 4,
+  "reads_back": false
+ },
+ {
+  "text": "? Die Frage ist da.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 4,
+  "reads_back": false
+ },
+ {
+  "text": "Der Bericht ist @heute da.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": true
+ },
+ {
+  "text": "{Die Klammer} ist im Satz.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": false
+ },
+ {
+  "text": "Der Bericht | die Pipe.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": true
+ },
+ {
+  "text": "> Das Zitat ist da.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": false
+ },
+ {
+  "text": "Der Tabulator\tist im Satz.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": false
+ },
+ {
+  "text": "Der Satz endet mit Doppelpunkt:",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 5,
+  "reads_back": false
+ },
+ {
+  "text": "Der Satz hat: einen Doppelpunkt.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": false
+ },
+ {
+  "text": "Der Satz hat:einen Doppelpunkt.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 5,
+  "reads_back": true
+ },
+ {
+  "text": "Der Satz hat ein # im Text.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": false
+ },
+ {
+  "text": "Der Satz hat ein#im Text.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "Der Satz ist ~ da.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": true
+ },
+ {
+  "text": "Der Satz ist null.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": true
+ },
+ {
+  "text": "Der Satz ist 2026-09-26.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ },
+ {
+  "text": "&Anker ist im Satz.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 4,
+  "reads_back": false
+ },
+ {
+  "text": "!Tag ist im Satz.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": false,
+  "word_count": 4,
+  "reads_back": false
+ },
+ {
+  "text": "Der Satz trägt ein … am Ende.",
+  "is_german": true,
+  "chopped": [],
+  "one_sentence": true,
+  "word_count": 6,
+  "reads_back": true
+ }
+]
