@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -16,7 +15,7 @@ import (
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/query"
-	"github.com/xidus90/loomux/internal/gitenv"
+	"github.com/xidus90/loomux/internal/hooks"
 	"github.com/xidus90/loomux/internal/verify"
 	"github.com/xidus90/loomux/internal/verify/commit"
 )
@@ -792,23 +791,8 @@ func blastAudit(args ...string) (int, string, string) {
 // main and TestRun call Run, and the test did not change with it.
 func stagedRun(t *testing.T) string {
 	t.Helper()
-	root := builtRepo(t)
-	gitIn := func(args ...string) {
-		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
-		cmd.Env = gitenv.Environ()
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	for _, args := range [][]string{
-		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
-		{"config", "core.autocrlf", "false"}, {"config", "commit.gpgsign", "false"},
-		{"add", "go.mod", "main.go", "lib"}, {"commit", "-qm", "init"},
-	} {
-		gitIn(args...)
-	}
-	moveFile(t, root)
-	gitIn("add", "lib")
+	root := committedRun(t, false)
+	gitIn(t, root, "add", "lib")
 	return root
 }
 
@@ -854,6 +838,172 @@ func TestCheckBlastAuditFailsWhenTheRootCannotBeFound(t *testing.T) {
 	code, _, errOut := blastAudit()
 	if code != 1 || !strings.HasPrefix(errOut, "loomux check blast-audit: ") {
 		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// committedRun is builtRepo committed, with Run's body changed in the working
+// tree and nothing staged: what a turn end sees.
+func committedRun(t *testing.T, withTest bool) string {
+	t.Helper()
+	root := builtRepo(t)
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
+		{"config", "core.autocrlf", "false"}, {"config", "commit.gpgsign", "false"},
+		{"add", "go.mod", "main.go", "lib"}, {"commit", "-qm", "init"},
+	} {
+		gitIn(t, root, args...)
+	}
+	moveFile(t, root)
+	if withTest {
+		body := "package lib\n\nimport \"testing\"\n\nfunc TestNew(t *testing.T) { Run() }\n"
+		if err := os.WriteFile(filepath.Join(root, "lib", "new_test.go"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+// stopEnvMu guards GIT_INDEX_FILE: lanes run in goroutines, and the stub
+// sets it for the in-process blast audit.
+var stopEnvMu sync.Mutex
+
+// stopStub answers every lane green and runs the blast audit in the process,
+// with the lane's environment and a threshold the sample reaches.
+func stopStub(t *testing.T, root string) {
+	t.Helper()
+	stubCheck(t, func(s child.Spec) child.Result {
+		if len(s.Argv) < 3 {
+			return green(s)
+		}
+		if s.Argv[2] == "graph-fresh" {
+			code, out, errOut := graphFresh("--root", root)
+			return child.Result{Code: code, Stdout: out, Stderr: errOut}
+		}
+		if s.Argv[2] != "blast-audit" {
+			return green(s)
+		}
+		stopEnvMu.Lock()
+		defer stopEnvMu.Unlock()
+		old, had := os.LookupEnv("GIT_INDEX_FILE")
+		for _, kv := range s.Env {
+			if v, ok := strings.CutPrefix(kv, "GIT_INDEX_FILE="); ok {
+				os.Setenv("GIT_INDEX_FILE", v)
+			}
+		}
+		defer func() {
+			if had {
+				os.Setenv("GIT_INDEX_FILE", old)
+			} else {
+				os.Unsetenv("GIT_INDEX_FILE")
+			}
+		}()
+		args := append(append([]string{}, s.Argv[3:]...), "--threshold", "2", "--root", root)
+		code, out, errOut := blastAudit(args...)
+		return child.Result{Code: code, Stdout: out, Stderr: errOut}
+	})
+}
+
+// noIndexCopy fails when a lane left a copy of the index in the git directory.
+func noIndexCopy(t *testing.T, root string) {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(root, ".git"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() != "index" && strings.Contains(e.Name(), "index") {
+			t.Fatalf("left behind: %s", e.Name())
+		}
+	}
+}
+
+// check stop judges the working tree against HEAD as the stop gate does:
+// an unstaged change with a new test beside it is green.
+func TestCheckStopJudgesTheWorkingTreeLikeTheHook(t *testing.T) {
+	root := committedRun(t, true)
+	stopStub(t, root)
+	code, out, errOut := run("check", "stop", "--root", root)
+	if code != 0 || !strings.Contains(out, "graph/go: ok") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	noIndexCopy(t, root)
+}
+
+func TestCheckStopFindsAnUntestedChange(t *testing.T) {
+	root := committedRun(t, false)
+	stopStub(t, root)
+	code, out, errOut := run("check", "stop", "-v", "--root", root)
+	if code != 1 || !strings.Contains(out, "lib/lib.go [stale]") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	noIndexCopy(t, root)
+}
+
+// check precommit keeps the real index, where nothing is staged.
+func TestCheckPrecommitKeepsTheRealIndex(t *testing.T) {
+	root := committedRun(t, true)
+	stopStub(t, root)
+	code, out, errOut := run("check", "precommit", "--root", root)
+	if code != 0 || !strings.Contains(out, "graph/go: not-applicable") || !strings.Contains(out, "nothing staged") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	noIndexCopy(t, root)
+}
+
+// A copy that cannot be made fails the check before any lane runs.
+func TestCheckStopFailsWhenTheCopyCannotBeMade(t *testing.T) {
+	root := committedRun(t, true)
+	if err := os.WriteFile(filepath.Join(root, ".git", "index"), []byte("broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seen := stubCheck(t, green)
+	code, _, errOut := run("check", "stop", "--root", root)
+	if code != 1 || !strings.HasPrefix(errOut, "loomux check: ") || len(*seen) != 0 {
+		t.Fatalf("code %d, err %q, ran %q", code, errOut, *seen)
+	}
+}
+
+// The table runs nothing and asks no probe, so it makes no copy of the index
+// either: a broken index does not stop it.
+func TestCheckStopShowMakesNoCopy(t *testing.T) {
+	root := committedRun(t, true)
+	if err := os.WriteFile(filepath.Join(root, ".git", "index"), []byte("broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seen := stubCheck(t, green)
+	code, out, errOut := run("check", "stop", "--show", "--root", root)
+	if code != 0 || !strings.Contains(out, "graph") || len(*seen) != 0 {
+		t.Fatalf("code %d, out %q, err %q, ran %q", code, out, errOut, *seen)
+	}
+	noIndexCopy(t, root)
+}
+
+// check stop and the stop hook give one verdict over one world: green passes
+// both, an untested change fails the check and holds the hook.
+func TestCheckStopGivesTheHooksVerdict(t *testing.T) {
+	for name, c := range map[string]struct {
+		withTest    bool
+		check, hook int
+	}{
+		"green": {true, 0, hooks.ExitOK},
+		"red":   {false, 1, hooks.ExitDenied},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := committedRun(t, c.withTest)
+			stopStub(t, root)
+			code, out, errOut := run("check", "stop", "--root", root)
+			if code != c.check {
+				t.Fatalf("check stop: code %d, out %q, err %q", code, out, errOut)
+			}
+			var hookErr bytes.Buffer
+			hook := hooks.RunStop(strings.NewReader(`{"session_id":"s1"}`), &hookErr, root, "claude", hooks.StopEnv{
+				Start: checkStart, Look: checkLook, Loomux: "loomux", Budget: time.Minute, Now: time.Now,
+			})
+			if hook != c.hook {
+				t.Fatalf("hook stop: code %d, err %q", hook, hookErr.String())
+			}
+			noIndexCopy(t, root)
+		})
 	}
 }
 
