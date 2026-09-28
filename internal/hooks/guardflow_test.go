@@ -31,7 +31,7 @@ func TestAnAgentMayNotAnswerAGate(t *testing.T) {
 		`loomux flow resume 0001 --answer "no; thin"`,
 		"loomux flow res`ume 0001 --answer yes",
 	} {
-		if !answersAGate(line) {
+		if !answersAGate(line, false) {
 			t.Errorf("%q passes", line)
 		}
 	}
@@ -49,7 +49,7 @@ func TestAnAgentMayNotAnswerAGate(t *testing.T) {
 		// writesConfiguration lets `echo loomux config set` pass.
 		`echo "loomux flow resume 0001 --answer yes"`,
 	} {
-		if answersAGate(line) {
+		if answersAGate(line, false) {
 			t.Errorf("%q is refused", line)
 		}
 	}
@@ -60,7 +60,7 @@ func TestAnAgentMayNotAnswerAGate(t *testing.T) {
 // writesConfiguration's, with the gate's command in place of theirs.
 func TestAnAgentMayNotAnswerAGateInAnySpelling(t *testing.T) {
 	for _, row := range loomuxSpellings() {
-		if line := asGateAnswer(t, row); !answersAGate(line) {
+		if line := asGateAnswer(t, row); !answersAGate(line, false) {
 			t.Errorf("%q passes (from %q)", line, row)
 		}
 	}

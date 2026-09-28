@@ -272,6 +272,7 @@ func relativePath(raw, root string) string {
 func checkTool(root, tool string, input map[string]any, policy config.Policy) []string {
 	var reasons []string
 	var targets []shellTarget
+	j := newJudge(root, policy)
 	if guard.IsWritingTool(tool) {
 		for _, target := range guard.WriteTargets(input) {
 			targets = append(targets, shellTarget{path: target})
@@ -297,18 +298,21 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 						reasons = append(reasons, rule.Reason)
 					}
 				}
-				found, _ := shellWrites(root, line)
+				found, unknown := shellWrites(root, line)
 				targets = append(targets, found...)
-				if writesConfiguration(line) {
+				if policy.Strict {
+					reasons = append(reasons, j.strictReasons(found, unknown)...)
+				}
+				if writesConfiguration(line, policy.Strict) {
 					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, and convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
 				}
-				if answersAGate(line) {
+				if answersAGate(line, policy.Strict) {
 					reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
 				}
 			}
 		}
 	}
-	reasons = append(reasons, newJudge(root, policy).reasons(targets)...)
+	reasons = append(reasons, j.reasons(targets)...)
 	return uniqueReasons(reasons)
 }
 
@@ -347,8 +351,9 @@ func pathReasons(rules []config.PathRule, rel string, fold bool) []string {
 // inbox, past every path rule. It is a function rather than a CommandRule
 // because "init without --dry-run" needs a lookahead that RE2 lacks. It
 // reads words, not a file system, so it is a net with holes; readings states
-// what it guarantees and what passes.
-func writesConfiguration(line string) bool {
+// what it guarantees and what passes in the default mode. With anyProgram, in
+// strict mode, every program knownProgram does not name counts as loomux.
+func writesConfiguration(line string, anyProgram bool) bool {
 	// Judged on the line as written, before any rewrite: a continuation or
 	// an escape the rewrites resolve is already no plain line.
 	plain := plainLine(line)
@@ -361,7 +366,7 @@ func writesConfiguration(line string) bool {
 		for _, segment := range segments(variant) {
 			exempt := plain && slices.Contains(aware, segment)
 			for _, words := range readings(segment) {
-				if readingWrites(words, exempt) {
+				if readingWrites(words, exempt, anyProgram) {
 					return true
 				}
 			}
@@ -473,13 +478,13 @@ func tolerantWords(s string) []string {
 // word after a lone { or }. Braces are no segment breaks, because ${VAR}
 // holds them, yet a block opens a command: the body of try { … } catch { … }
 // or of a function sits there, behind a word no break precedes.
-func readingWrites(words []string, plain bool) bool {
-	if wordsWriteConfiguration(words, plain) {
+func readingWrites(words []string, plain, anyProgram bool) bool {
+	if wordsWriteConfiguration(words, plain, anyProgram) {
 		return true
 	}
 	// A call behind a brace is no direct call, so its flag exempts nothing.
 	for i, w := range words {
-		if (w == "{" || w == "}") && wordsWriteConfiguration(words[i+1:], false) {
+		if (w == "{" || w == "}") && wordsWriteConfiguration(words[i+1:], false, anyProgram) {
 			return true
 		}
 	}
@@ -491,7 +496,7 @@ func readingWrites(words []string, plain bool) bool {
 // word: a wrapper may read the words once more (cmd resolves ^, %X%, !X! and
 // " inside what the shell passed on as one quoted word), and the guard does
 // not model that second reading.
-func wordsWriteConfiguration(words []string, plain bool) bool {
+func wordsWriteConfiguration(words []string, plain, anyProgram bool) bool {
 	head := len(words)
 	words = dropPrefixes(words)
 	if len(words) == 0 {
@@ -501,7 +506,7 @@ func wordsWriteConfiguration(words []string, plain bool) bool {
 	if startsLoomux(words) {
 		return true
 	}
-	found, ok := loomuxArgs(words)
+	found, ok := programArgs(words, anyProgram)
 	if !ok || len(found) == 0 {
 		return false
 	}
@@ -928,6 +933,41 @@ func loomuxArgs(words []string) ([]string, bool) {
 		return rest[1:], true
 	}
 	return nil, false
+}
+
+// knownTools are programs whose subcommands share loomux's names (git
+// config set, gh config set, npm init, terraform init). With the verb table
+// and readVerbs they are the programs strict mode does not take for a renamed
+// loomux, by their bare name only: a path to a file of that name may be
+// anything.
+var knownTools = []string{"git", "gh", "go", "npm", "npx", "pnpm", "yarn", "cargo", "uv", "uvx",
+	"poetry", "pip", "pip3", "docker", "dotnet", "terraform", "kubectl", "helm", "make", "cmake"}
+
+// knownProgram says whether word is the bare name of a program strict mode
+// leaves to its name.
+func knownProgram(word string) bool {
+	if strings.ContainsAny(word, `/\`) {
+		return false
+	}
+	name := verbOf(word)
+	for _, list := range [][]string{knownTools, readVerbs, everyFileWrites, everyFileRemoves,
+		moveVerbs, renameVerbs, copyVerbs, otherWriteVerbs} {
+		if slices.Contains(list, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// programArgs are the arguments loomux would get from words: loomuxArgs,
+// and in strict mode the arguments of every program knownProgram does not
+// name -- a copied or renamed binary (doc.exe flow resume … --answer) is
+// loomux by what it is told, not by what it is called.
+func programArgs(words []string, anyProgram bool) ([]string, bool) {
+	if args, ok := loomuxArgs(words); ok || !anyProgram || knownProgram(words[0]) {
+		return args, ok
+	}
+	return words[1:], true
 }
 
 // goFlagTakesValue names the build flags of go run whose value is the next
