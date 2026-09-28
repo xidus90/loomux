@@ -53,7 +53,8 @@ measure = "go test ./... -count=1 -covermode=set -coverprofile={coverprofile}"
 after = "test"
 
 # The graph lane is local by nature: it runs only where a graph was built,
-# and a plan-time probe makes it not-applicable in CI and with nothing staged.
+# and a plan-time probe makes it not-applicable in CI, with nothing staged at
+# a commit, and at a turn end with nothing changed against HEAD.
 # The threshold counts every caller, tests among them.
 [stack.go.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]

@@ -28,6 +28,18 @@ import (
 // surrounding repository's HEAD, which is the wrong tree to measure against.
 var ErrIgnoredRoot = errors.New("git ignores this root, so it can never report a change there")
 
+// InProgress are the files and directories git keeps in a worktree's own git
+// directory while an operation that fills the index with another commit's
+// changes waits for the user, each with the note the graph probes give. A
+// rebase comes before a cherry-pick: it replays commits by picking them.
+var InProgress = []struct{ Path, Note string }{
+	{"MERGE_HEAD", "a merge is in progress"},
+	{"rebase-merge", "a rebase is in progress"},
+	{"rebase-apply", "a rebase is in progress"},
+	{"CHERRY_PICK_HEAD", "a cherry-pick is in progress"},
+	{"REVERT_HEAD", "a revert is in progress"},
+}
+
 // HeadCommit is worktree.py's `head_commit`: the commit a run starts on, as
 // git spells it.
 //

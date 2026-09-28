@@ -77,11 +77,11 @@ func defaults() Config {
 		Profiles: map[string][]string{
 			"edit":      {"lint", "types"},
 			"precommit": {"lint", "types", "test", "coverage", "graph"},
-			// What the stop gate runs at every turn end. The four kinds that
-			// check code, without graph: its lane reads the index, which is
-			// empty at a turn end. A project whose suite is too slow for
-			// every turn end narrows it here and keeps a gate that moves.
-			"stop": {"lint", "types", "test", "coverage"},
+			// The kinds of precommit: graph judges the working tree against
+			// HEAD through a copy of the index (hooks.StopIndex). A project
+			// whose suite is too slow for every turn end narrows it here and
+			// keeps a gate that moves.
+			"stop": {"lint", "types", "test", "coverage", "graph"},
 		},
 		Stacks:      map[string]map[string]Override{},
 		ImportCheck: true,
