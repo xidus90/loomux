@@ -60,7 +60,7 @@ eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migra
 | 3a | ✅ | Erkennen: `reindex`, `embed`, `reconcile`, `area add` |
 | 3b | ✅ | Entscheiden: `cases`, `case`, `approve` |
 | 3c | ✅ | Pflegen: `brain check`, `lint --scope`, `wiki init\|types\|retype` |
-| 4a-1 | 🚧 | Schema und `loomux config`; gebaut, Schritte des Menschen offen |
+| 4a-1 | ✅ | Schema und `loomux config`; drei Terminals und `config set` vom Menschen geprüft |
 | 4a-2 | 🚧 | `loomux init`; gebaut, Schritte des Menschen offen |
 | 4c-1 | 🚧 | das lokale Modell; gebaut und gegen das echte Modell gemessen, Selbstnutzung offen |
 | 4c-2 | 🚧 | die Suchmessung `dev bench search`; gebaut und selbst genutzt, Überlebende der Mutationsrunde offen |
