@@ -249,3 +249,84 @@ Folge oben.
    behält die Wahl von yt-dlp (letzte `json3` einer Sprache); freigegebene
    Abweichung in der Spec. Das Orakel von Task 9 verdeckt den Unterschied,
    weil es die aufgenommene Datei an die Stelle des Downloads setzt.
+
+## Die Zipf-Tabelle: `internal/brain/model/zipf.go`
+
+**Referenz:** wordfreq 3.1.1 (`zipf_frequency(wort, "de")`, `tokenize`,
+`wordfreq/tokens.py`, `wordfreq/numbers.py`), mit `regex` 2026.9.10 unter
+Python 3.14.7 (unidata 16.0.0). **loomux:** Go 1.27.0, Unicode 17.0.0.
+Gemessen am 2026-09-27; die Batterie ist
+`internal/brain/model/testdata/zipf-battery.json` (205 Wörter), die Tests
+`TestTheTableAnswersWhatWordfreqAnswers` und
+`TestTheSplitIsWordfreqsTokenizer`.
+
+Der Richter der Referenz schneidet seine Teile mit Pythons `re`
+(`[\wÄÖÜäöüß]+`, `judge.py`); dort ist `\w` `str.isalnum()` oder `_`:
+Buchstaben, alle Zahlzeichen (Nd, No, Nl) und der Unterstrich, keine Marken,
+keine Satzzeichen. wordfreq liest einen solchen Teil mit seinem eigenen
+Tokenizer: `\w` des Moduls `regex` (Alphabetic, Mark, Nd, Pc, Join_Control),
+Wortgrenzen nach UAX #29, dazu Fall 1 von `TOKEN_RE` für Schriften ohne
+Leerzeichen. `zipfTokens` bildet ihn nach, soweit ein Teil ihn erreichen
+kann: `casefold(NFC(wort))`, geschnitten an jeder Rune außerhalb von
+`[\p{L}\p{Nl}\p{M}\p{Nd}\p{Pc}\x{200C}\x{200D}]`. Hoch- und tiefgestellte
+Ziffern und Brüche (No) fallen dabei weg, wie bei wordfreq: `CO₂` → `co`
+(4,93), `m²` → `m` (5,6), `1½` → `1` (6,18), `H₂O` → `h`, `o` (4,96). Vorher
+gab loomux all diesen Band 0, und der Richter hätte `CO₂-Bilanz` gemeldet.
+
+**Probe über jedes Zeichen, das in einem Teil stehen kann** (jedes, das
+Pythons `re \w` nimmt), je in den Umgebungen `a·b`, `1·2`, allein, `ab·`,
+`·ab`: `zipfTokens` gegen `tokenize(…, "de")`. Abweichungen gibt es nur in
+den Schriften ohne Leerzeichen (Zeile 4); in Latein, Griechisch und
+Kyrillisch keine, und jedes No-Zeichen außer elf aus Khmer und New Tai Lue
+liest der Nachbau wie wordfreq. Das Skript lag im Scratchpad (`split_check.py`,
+`split_scripts.py`), nicht im Repo.
+
+1. **Mehrere Token** (`several tokens`). wordfreq verbindet die Token eines
+   Wortes über `1/f = 1/f1 + 1/f2 + …` und rundet dann; fehlt ein Token,
+   antwortet es mit dem Minimum (Zipf 0). loomux nimmt das niedrigste Band
+   der Token; fehlt eines, Band 0 — das ist exakt. Die kombinierte Frequenz
+   liegt unter jeder einzelnen, das wahre Band also höchstens beim
+   niedrigsten; genau wäre es nur mit den rohen Frequenzen, die die Tabelle
+   für Wörter ohne Ziffernfolge nicht trägt (nur das Band). Es unterscheidet
+   sich, wenn alle Token im selben Band nahe an dessen Untergrenze liegen:
+   zwei Token mit je Zipf 3,1 ergeben etwa 2,8 (Band 1), loomux sagt Band 2.
+   Das kommt nur bei Teilen mit No-Zeichen vor, denn nur dort zerfällt ein
+   Teil in mehrere Token. In der Batterie stimmen `H₂O`, `CO₂qmd` (0,0) und
+   `m²Adonis` (2,96). Entschieden vom Controller (T2-R1).
+2. **Alphabetic als L, Nl und M.** Das `\w` des Moduls `regex` enthält
+   Alphabetic (L, Nl und Other_Alphabetic); loomux nimmt L, Nl und M. Über
+   alle Code Points gegen `regex` verglichen: Außerhalb von M liegen in
+   Other_Alphabetic 130 Zeichen der Kategorie So, die eingekreisten und
+   eingerahmten Buchstaben (ab U+24B6 und U+1F130). Sie sind kein `re \w` und
+   stehen in keinem Teil. Dazu kommen 4 699 Zeichen, die Python 3.14
+   (Unicode 16) noch nicht kennt, `regex` und Go (Unicode 17) schon; dort
+   folgt loomux `regex`. Ohne Wirkung auf den Richter.
+3. **Satzzeichen zwischen Ziffern oder Buchstaben.** UAX #29 hält `,` `.`
+   `;` zwischen Ziffern in einem Token (WB11/12: `3,5`, `1.000`, geglättet
+   `0,0`, `0.000`) und `:` `·` `'` `.` zwischen Buchstaben (WB6/7:
+   `won't`, `z.b`). `zipfTokens` schneidet dort. Ein Teil des Richters
+   enthält nie ein Satzzeichen. In der Batterie stimmen `3,5` und `0,0,0` im
+   Band zufällig, `1.000` nicht (wordfreq 0,58, loomux Band 2, weil `1` und
+   `000` je Band 2 haben); alle drei stehen in `splitExceptions`, `1.000`
+   auch in `bandExceptions`. Ohne Wirkung auf den Richter.
+4. **Schriften ohne Leerzeichen.** Fall 1 von `TOKEN_RE` macht Folgen aus
+   Ideogrammen und den Schriften in `SPACELESS_SCRIPTS` (Hiragana, Katakana,
+   Thai, Khmer, Lao, Myanmar, Tai Le, Tai Lü, Lanna) zu eigenen Token; Tai
+   Viet und die Kana-Wiederholungszeichen U+3031 bis U+3035 trennt UAX #29
+   ab. loomux hält eine Folge von Wortzeichen zusammen. Es unterscheidet
+   sich, sobald ein Teil Latein mit einer dieser Schriften mischt, auch bei
+   den elf No-Zeichen U+17F0 bis U+17F9 (Khmer) und U+19DA (New Tai Lue), die
+   wordfreq als Token behält und loomux weglässt. Die Probe fand 107 713 solche Zeichen, davon CJK
+   98 682, ohne Namen in unidata 16 6 145, Tangut 768, Khitan 471, Nushu 396,
+   Hentaigana 285, Myanmar und Tai je 170, Katakana 131, Hiragana 95, New Tai
+   Lue 81, Khmer 74, Thai 67, Lao 66 und kleinere Gruppen. Kein deutscher
+   Text; ohne Wirkung auf den Richter.
+5. **Ziffern nur ASCII** (`digits only ASCII`). `MULTI_DIGIT_RE` und
+   `DIGIT_RE` nehmen mit `\d` die Ziffern jeder Schrift, glätten sie zu `0`,
+   und `digit_freq` liest sie mit `int()`. loomux glättet nur `[0-9]`. Steht
+   eine Ziffernfolge einer anderen Schrift (etwa arabisch-indisch) in einem
+   Teil, rechnet wordfreq mit dem geglätteten Schlüssel und `digit_freq`,
+   loomux schlägt den Token ungeglättet nach und findet ihn nicht (Band 0).
+   Der einzige Schlüssel der Tabelle mit einer Nicht-ASCII-Ziffer ist U+0E51
+   (Thai-Eins), eine einzelne Ziffer ohne Folge, die beide ungeglättet
+   nachschlagen.

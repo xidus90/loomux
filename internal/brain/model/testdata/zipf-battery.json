@@ -1,0 +1,1449 @@
+{
+ "words": [
+  {
+   "word": "Projekt",
+   "zipf": 4.97,
+   "tokens": [
+    "projekt"
+   ]
+  },
+  {
+   "word": "fortzusetzen",
+   "zipf": 3.55,
+   "tokens": [
+    "fortzusetzen"
+   ]
+  },
+  {
+   "word": "Fertistellung",
+   "zipf": 0.0,
+   "tokens": [
+    "fertistellung"
+   ]
+  },
+  {
+   "word": "Fertigkriterium",
+   "zipf": 0.0,
+   "tokens": [
+    "fertigkriterium"
+   ]
+  },
+  {
+   "word": "Ferti",
+   "zipf": 1.54,
+   "tokens": [
+    "ferti"
+   ]
+  },
+  {
+   "word": "jekt",
+   "zipf": 0.0,
+   "tokens": [
+    "jekt"
+   ]
+  },
+  {
+   "word": "Mess",
+   "zipf": 3.33,
+   "tokens": [
+    "mess"
+   ]
+  },
+  {
+   "word": "Know",
+   "zipf": 4.17,
+   "tokens": [
+    "know"
+   ]
+  },
+  {
+   "word": "EMail",
+   "zipf": 4.01,
+   "tokens": [
+    "email"
+   ]
+  },
+  {
+   "word": "Teilsystem",
+   "zipf": 1.79,
+   "tokens": [
+    "teilsystem"
+   ]
+  },
+  {
+   "word": "Suchkette",
+   "zipf": 0.0,
+   "tokens": [
+    "suchkette"
+   ]
+  },
+  {
+   "word": "Pro",
+   "zipf": 5.32,
+   "tokens": [
+    "pro"
+   ]
+  },
+  {
+   "word": "Stellung",
+   "zipf": 4.48,
+   "tokens": [
+    "stellung"
+   ]
+  },
+  {
+   "word": "fort",
+   "zipf": 4.78,
+   "tokens": [
+    "fort"
+   ]
+  },
+  {
+   "word": "zu",
+   "zipf": 7.01,
+   "tokens": [
+    "zu"
+   ]
+  },
+  {
+   "word": "set",
+   "zipf": 4.3,
+   "tokens": [
+    "set"
+   ]
+  },
+  {
+   "word": "zen",
+   "zipf": 3.62,
+   "tokens": [
+    "zen"
+   ]
+  },
+  {
+   "word": "Mail",
+   "zipf": 4.67,
+   "tokens": [
+    "mail"
+   ]
+  },
+  {
+   "word": "qmd",
+   "zipf": 0.0,
+   "tokens": [
+    "qmd"
+   ]
+  },
+  {
+   "word": "Profil",
+   "zipf": 4.49,
+   "tokens": [
+    "profil"
+   ]
+  },
+  {
+   "word": "Python",
+   "zipf": 3.45,
+   "tokens": [
+    "python"
+   ]
+  },
+  {
+   "word": "nach",
+   "zipf": 6.56,
+   "tokens": [
+    "nach"
+   ]
+  },
+  {
+   "word": "Go",
+   "zipf": 4.41,
+   "tokens": [
+    "go"
+   ]
+  },
+  {
+   "word": "Migration",
+   "zipf": 4.09,
+   "tokens": [
+    "migration"
+   ]
+  },
+  {
+   "word": "how",
+   "zipf": 4.19,
+   "tokens": [
+    "how"
+   ]
+  },
+  {
+   "word": "Fertig",
+   "zipf": 5.02,
+   "tokens": [
+    "fertig"
+   ]
+  },
+  {
+   "word": "Kriterium",
+   "zipf": 3.82,
+   "tokens": [
+    "kriterium"
+   ]
+  },
+  {
+   "word": "Ende",
+   "zipf": 5.67,
+   "tokens": [
+    "ende"
+   ]
+  },
+  {
+   "word": "Zustand",
+   "zipf": 4.79,
+   "tokens": [
+    "zustand"
+   ]
+  },
+  {
+   "word": "Verschlüsselung",
+   "zipf": 3.67,
+   "tokens": [
+    "verschlüsselung"
+   ]
+  },
+  {
+   "word": "Scheiben",
+   "zipf": 3.92,
+   "tokens": [
+    "scheiben"
+   ]
+  },
+  {
+   "word": "Wiki",
+   "zipf": 3.78,
+   "tokens": [
+    "wiki"
+   ]
+  },
+  {
+   "word": "Straße",
+   "zipf": 5.27,
+   "tokens": [
+    "strasse"
+   ]
+  },
+  {
+   "word": "STRASSE",
+   "zipf": 5.27,
+   "tokens": [
+    "strasse"
+   ]
+  },
+  {
+   "word": "Äpfel",
+   "zipf": 3.86,
+   "tokens": [
+    "äpfel"
+   ]
+  },
+  {
+   "word": "ÄRGER",
+   "zipf": 4.37,
+   "tokens": [
+    "ärger"
+   ]
+  },
+  {
+   "word": "über",
+   "zipf": 6.39,
+   "tokens": [
+    "über"
+   ]
+  },
+  {
+   "word": "Über",
+   "zipf": 6.39,
+   "tokens": [
+    "über"
+   ]
+  },
+  {
+   "word": "naïve",
+   "zipf": 1.09,
+   "tokens": [
+    "naïve"
+   ]
+  },
+  {
+   "word": "naïve",
+   "zipf": 1.09,
+   "tokens": [
+    "naïve"
+   ]
+  },
+  {
+   "word": "ẞ",
+   "zipf": 4.41,
+   "tokens": [
+    "ss"
+   ]
+  },
+  {
+   "word": "Maß",
+   "zipf": 4.49,
+   "tokens": [
+    "mass"
+   ]
+  },
+  {
+   "word": "Fuß",
+   "zipf": 4.81,
+   "tokens": [
+    "fuss"
+   ]
+  },
+  {
+   "word": "Grüße",
+   "zipf": 4.32,
+   "tokens": [
+    "grüsse"
+   ]
+  },
+  {
+   "word": "Buße",
+   "zipf": 4.19,
+   "tokens": [
+    "busse"
+   ]
+  },
+  {
+   "word": "Soße",
+   "zipf": 3.74,
+   "tokens": [
+    "sosse"
+   ]
+  },
+  {
+   "word": "ẞoße",
+   "zipf": 0.0,
+   "tokens": [
+    "ssosse"
+   ]
+  },
+  {
+   "word": "Füße",
+   "zipf": 4.43,
+   "tokens": [
+    "füsse"
+   ]
+  },
+  {
+   "word": "über",
+   "zipf": 6.39,
+   "tokens": [
+    "über"
+   ]
+  },
+  {
+   "word": "3",
+   "zipf": 6.05,
+   "tokens": [
+    "3"
+   ]
+  },
+  {
+   "word": "7",
+   "zipf": 5.52,
+   "tokens": [
+    "7"
+   ]
+  },
+  {
+   "word": "G4",
+   "zipf": 2.95,
+   "tokens": [
+    "g4"
+   ]
+  },
+  {
+   "word": "x86",
+   "zipf": 1.14,
+   "tokens": [
+    "x86"
+   ]
+  },
+  {
+   "word": "2026",
+   "zipf": 4.72,
+   "tokens": [
+    "2026"
+   ]
+  },
+  {
+   "word": "1990",
+   "zipf": 4.48,
+   "tokens": [
+    "1990"
+   ]
+  },
+  {
+   "word": "1990er",
+   "zipf": 2.4,
+   "tokens": [
+    "1990er"
+   ]
+  },
+  {
+   "word": "100",
+   "zipf": 3.96,
+   "tokens": [
+    "100"
+   ]
+  },
+  {
+   "word": "3,5",
+   "zipf": 3.53,
+   "tokens": [
+    "3,5"
+   ]
+  },
+  {
+   "word": "1.000",
+   "zipf": 0.58,
+   "tokens": [
+    "1.000"
+   ]
+  },
+  {
+   "word": "H2O",
+   "zipf": 3.12,
+   "tokens": [
+    "h2o"
+   ]
+  },
+  {
+   "word": "Win11",
+   "zipf": 1.34,
+   "tokens": [
+    "win11"
+   ]
+  },
+  {
+   "word": "0815",
+   "zipf": 0.59,
+   "tokens": [
+    "0815"
+   ]
+  },
+  {
+   "word": "abc12345xyz",
+   "zipf": 0.0,
+   "tokens": [
+    "abc12345xyz"
+   ]
+  },
+  {
+   "word": "U10",
+   "zipf": 2.91,
+   "tokens": [
+    "u10"
+   ]
+  },
+  {
+   "word": "10h",
+   "zipf": 2.57,
+   "tokens": [
+    "10h"
+   ]
+  },
+  {
+   "word": "E_Mail",
+   "zipf": 0.0,
+   "tokens": [
+    "e_mail"
+   ]
+  },
+  {
+   "word": "_",
+   "zipf": 3.66,
+   "tokens": [
+    "_"
+   ]
+  },
+  {
+   "word": "a_b",
+   "zipf": 0.0,
+   "tokens": [
+    "a_b"
+   ]
+  },
+  {
+   "word": "ſ",
+   "zipf": 5.74,
+   "tokens": [
+    "s"
+   ]
+  },
+  {
+   "word": "ǅ",
+   "zipf": 0.0,
+   "tokens": [
+    "ǆ"
+   ]
+  },
+  {
+   "word": "Ⅻ",
+   "zipf": 0.0,
+   "tokens": [
+    "ⅻ"
+   ]
+  },
+  {
+   "word": "ﬁnden",
+   "zipf": 5.6,
+   "tokens": [
+    "finden"
+   ]
+  },
+  {
+   "word": "CO₂",
+   "zipf": 4.93,
+   "tokens": [
+    "co"
+   ]
+  },
+  {
+   "word": "m²",
+   "zipf": 5.6,
+   "tokens": [
+    "m"
+   ]
+  },
+  {
+   "word": "km²",
+   "zipf": 5.05,
+   "tokens": [
+    "km"
+   ]
+  },
+  {
+   "word": "cm³",
+   "zipf": 4.91,
+   "tokens": [
+    "cm"
+   ]
+  },
+  {
+   "word": "x²",
+   "zipf": 5.13,
+   "tokens": [
+    "x"
+   ]
+  },
+  {
+   "word": "1½",
+   "zipf": 6.18,
+   "tokens": [
+    "1"
+   ]
+  },
+  {
+   "word": "H₂O",
+   "zipf": 4.96,
+   "tokens": [
+    "h",
+    "o"
+   ]
+  },
+  {
+   "word": "²",
+   "zipf": 0.0,
+   "tokens": []
+  },
+  {
+   "word": "½",
+   "zipf": 0.0,
+   "tokens": []
+  },
+  {
+   "word": "CO₂qmd",
+   "zipf": 0.0,
+   "tokens": [
+    "co",
+    "qmd"
+   ]
+  },
+  {
+   "word": "m²Adonis",
+   "zipf": 2.96,
+   "tokens": [
+    "m",
+    "adonis"
+   ]
+  },
+  {
+   "word": "0,0,0",
+   "zipf": 3.1,
+   "tokens": [
+    "0,0,0"
+   ]
+  },
+  {
+   "word": "adonis",
+   "zipf": 2.96,
+   "tokens": [
+    "adonis"
+   ]
+  },
+  {
+   "word": "amann",
+   "zipf": 2.91,
+   "tokens": [
+    "amann"
+   ]
+  },
+  {
+   "word": "arrays",
+   "zipf": 2.61,
+   "tokens": [
+    "arrays"
+   ]
+  },
+  {
+   "word": "baird",
+   "zipf": 2.68,
+   "tokens": [
+    "baird"
+   ]
+  },
+  {
+   "word": "behalt",
+   "zipf": 2.96,
+   "tokens": [
+    "behalt"
+   ]
+  },
+  {
+   "word": "bisch",
+   "zipf": 2.91,
+   "tokens": [
+    "bisch"
+   ]
+  },
+  {
+   "word": "boysen",
+   "zipf": 2.52,
+   "tokens": [
+    "boysen"
+   ]
+  },
+  {
+   "word": "burner",
+   "zipf": 2.73,
+   "tokens": [
+    "burner"
+   ]
+  },
+  {
+   "word": "caught",
+   "zipf": 2.47,
+   "tokens": [
+    "caught"
+   ]
+  },
+  {
+   "word": "coil",
+   "zipf": 2.65,
+   "tokens": [
+    "coil"
+   ]
+  },
+  {
+   "word": "dahlke",
+   "zipf": 2.5,
+   "tokens": [
+    "dahlke"
+   ]
+  },
+  {
+   "word": "diadem",
+   "zipf": 2.75,
+   "tokens": [
+    "diadem"
+   ]
+  },
+  {
+   "word": "drift",
+   "zipf": 3.03,
+   "tokens": [
+    "drift"
+   ]
+  },
+  {
+   "word": "efeu",
+   "zipf": 2.87,
+   "tokens": [
+    "efeu"
+   ]
+  },
+  {
+   "word": "epen",
+   "zipf": 2.57,
+   "tokens": [
+    "epen"
+   ]
+  },
+  {
+   "word": "famous",
+   "zipf": 2.97,
+   "tokens": [
+    "famous"
+   ]
+  },
+  {
+   "word": "flake",
+   "zipf": 2.45,
+   "tokens": [
+    "flake"
+   ]
+  },
+  {
+   "word": "fung",
+   "zipf": 2.83,
+   "tokens": [
+    "fung"
+   ]
+  },
+  {
+   "word": "gelee",
+   "zipf": 2.8,
+   "tokens": [
+    "gelee"
+   ]
+  },
+  {
+   "word": "goar",
+   "zipf": 2.59,
+   "tokens": [
+    "goar"
+   ]
+  },
+  {
+   "word": "guad",
+   "zipf": 2.49,
+   "tokens": [
+    "guad"
+   ]
+  },
+  {
+   "word": "hanni",
+   "zipf": 3.06,
+   "tokens": [
+    "hanni"
+   ]
+  },
+  {
+   "word": "hepp",
+   "zipf": 2.93,
+   "tokens": [
+    "hepp"
+   ]
+  },
+  {
+   "word": "hornig",
+   "zipf": 2.53,
+   "tokens": [
+    "hornig"
+   ]
+  },
+  {
+   "word": "ifsg",
+   "zipf": 2.44,
+   "tokens": [
+    "ifsg"
+   ]
+  },
+  {
+   "word": "jako",
+   "zipf": 2.62,
+   "tokens": [
+    "jako"
+   ]
+  },
+  {
+   "word": "jäckel",
+   "zipf": 2.51,
+   "tokens": [
+    "jäckel"
+   ]
+  },
+  {
+   "word": "kerben",
+   "zipf": 2.63,
+   "tokens": [
+    "kerben"
+   ]
+  },
+  {
+   "word": "kobe",
+   "zipf": 2.99,
+   "tokens": [
+    "kobe"
+   ]
+  },
+  {
+   "word": "kulti",
+   "zipf": 2.78,
+   "tokens": [
+    "kulti"
+   ]
+  },
+  {
+   "word": "laugen",
+   "zipf": 2.56,
+   "tokens": [
+    "laugen"
+   ]
+  },
+  {
+   "word": "liked",
+   "zipf": 2.62,
+   "tokens": [
+    "liked"
+   ]
+  },
+  {
+   "word": "luth",
+   "zipf": 2.79,
+   "tokens": [
+    "luth"
+   ]
+  },
+  {
+   "word": "manie",
+   "zipf": 2.76,
+   "tokens": [
+    "manie"
+   ]
+  },
+  {
+   "word": "meisen",
+   "zipf": 2.64,
+   "tokens": [
+    "meisen"
+   ]
+  },
+  {
+   "word": "mmmh",
+   "zipf": 2.76,
+   "tokens": [
+    "mmmh"
+   ]
+  },
+  {
+   "word": "muscle",
+   "zipf": 2.88,
+   "tokens": [
+    "muscle"
+   ]
+  },
+  {
+   "word": "nervte",
+   "zipf": 2.59,
+   "tokens": [
+    "nervte"
+   ]
+  },
+  {
+   "word": "obszön",
+   "zipf": 2.71,
+   "tokens": [
+    "obszön"
+   ]
+  },
+  {
+   "word": "pads",
+   "zipf": 2.72,
+   "tokens": [
+    "pads"
+   ]
+  },
+  {
+   "word": "phat",
+   "zipf": 2.49,
+   "tokens": [
+    "phat"
+   ]
+  },
+  {
+   "word": "posch",
+   "zipf": 2.74,
+   "tokens": [
+    "posch"
+   ]
+  },
+  {
+   "word": "quillt",
+   "zipf": 2.77,
+   "tokens": [
+    "quillt"
+   ]
+  },
+  {
+   "word": "reeder",
+   "zipf": 2.93,
+   "tokens": [
+    "reeder"
+   ]
+  },
+  {
+   "word": "rioja",
+   "zipf": 2.55,
+   "tokens": [
+    "rioja"
+   ]
+  },
+  {
+   "word": "rächte",
+   "zipf": 2.57,
+   "tokens": [
+    "rächte"
+   ]
+  },
+  {
+   "word": "saurer",
+   "zipf": 2.99,
+   "tokens": [
+    "saurer"
+   ]
+  },
+  {
+   "word": "senn",
+   "zipf": 2.82,
+   "tokens": [
+    "senn"
+   ]
+  },
+  {
+   "word": "sive",
+   "zipf": 2.74,
+   "tokens": [
+    "sive"
+   ]
+  },
+  {
+   "word": "spind",
+   "zipf": 2.79,
+   "tokens": [
+    "spind"
+   ]
+  },
+  {
+   "word": "stroud",
+   "zipf": 2.49,
+   "tokens": [
+    "stroud"
+   ]
+  },
+  {
+   "word": "tails",
+   "zipf": 2.57,
+   "tokens": [
+    "tails"
+   ]
+  },
+  {
+   "word": "thrill",
+   "zipf": 2.6,
+   "tokens": [
+    "thrill"
+   ]
+  },
+  {
+   "word": "traums",
+   "zipf": 2.81,
+   "tokens": [
+    "traums"
+   ]
+  },
+  {
+   "word": "udine",
+   "zipf": 2.57,
+   "tokens": [
+    "udine"
+   ]
+  },
+  {
+   "word": "venlo",
+   "zipf": 2.81,
+   "tokens": [
+    "venlo"
+   ]
+  },
+  {
+   "word": "wahrte",
+   "zipf": 2.46,
+   "tokens": [
+    "wahrte"
+   ]
+  },
+  {
+   "word": "wick",
+   "zipf": 3.07,
+   "tokens": [
+    "wick"
+   ]
+  },
+  {
+   "word": "xanax",
+   "zipf": 2.43,
+   "tokens": [
+    "xanax"
+   ]
+  },
+  {
+   "word": "zorc",
+   "zipf": 2.85,
+   "tokens": [
+    "zorc"
+   ]
+  },
+  {
+   "word": "0,0,0",
+   "zipf": 3.1,
+   "tokens": [
+    "0,0,0"
+   ]
+  },
+  {
+   "word": "Adonis",
+   "zipf": 2.96,
+   "tokens": [
+    "adonis"
+   ]
+  },
+  {
+   "word": "Amann",
+   "zipf": 2.91,
+   "tokens": [
+    "amann"
+   ]
+  },
+  {
+   "word": "Arrays",
+   "zipf": 2.61,
+   "tokens": [
+    "arrays"
+   ]
+  },
+  {
+   "word": "Baird",
+   "zipf": 2.68,
+   "tokens": [
+    "baird"
+   ]
+  },
+  {
+   "word": "Behalt",
+   "zipf": 2.96,
+   "tokens": [
+    "behalt"
+   ]
+  },
+  {
+   "word": "Bisch",
+   "zipf": 2.91,
+   "tokens": [
+    "bisch"
+   ]
+  },
+  {
+   "word": "Boysen",
+   "zipf": 2.52,
+   "tokens": [
+    "boysen"
+   ]
+  },
+  {
+   "word": "Burner",
+   "zipf": 2.73,
+   "tokens": [
+    "burner"
+   ]
+  },
+  {
+   "word": "Caught",
+   "zipf": 2.47,
+   "tokens": [
+    "caught"
+   ]
+  },
+  {
+   "word": "Coil",
+   "zipf": 2.65,
+   "tokens": [
+    "coil"
+   ]
+  },
+  {
+   "word": "Dahlke",
+   "zipf": 2.5,
+   "tokens": [
+    "dahlke"
+   ]
+  },
+  {
+   "word": "Diadem",
+   "zipf": 2.75,
+   "tokens": [
+    "diadem"
+   ]
+  },
+  {
+   "word": "Drift",
+   "zipf": 3.03,
+   "tokens": [
+    "drift"
+   ]
+  },
+  {
+   "word": "Efeu",
+   "zipf": 2.87,
+   "tokens": [
+    "efeu"
+   ]
+  },
+  {
+   "word": "Epen",
+   "zipf": 2.57,
+   "tokens": [
+    "epen"
+   ]
+  },
+  {
+   "word": "Famous",
+   "zipf": 2.97,
+   "tokens": [
+    "famous"
+   ]
+  },
+  {
+   "word": "Flake",
+   "zipf": 2.45,
+   "tokens": [
+    "flake"
+   ]
+  },
+  {
+   "word": "Fung",
+   "zipf": 2.83,
+   "tokens": [
+    "fung"
+   ]
+  },
+  {
+   "word": "Gelee",
+   "zipf": 2.8,
+   "tokens": [
+    "gelee"
+   ]
+  },
+  {
+   "word": "Goar",
+   "zipf": 2.59,
+   "tokens": [
+    "goar"
+   ]
+  },
+  {
+   "word": "Guad",
+   "zipf": 2.49,
+   "tokens": [
+    "guad"
+   ]
+  },
+  {
+   "word": "Hanni",
+   "zipf": 3.06,
+   "tokens": [
+    "hanni"
+   ]
+  },
+  {
+   "word": "Hepp",
+   "zipf": 2.93,
+   "tokens": [
+    "hepp"
+   ]
+  },
+  {
+   "word": "Hornig",
+   "zipf": 2.53,
+   "tokens": [
+    "hornig"
+   ]
+  },
+  {
+   "word": "Ifsg",
+   "zipf": 2.44,
+   "tokens": [
+    "ifsg"
+   ]
+  },
+  {
+   "word": "Jako",
+   "zipf": 2.62,
+   "tokens": [
+    "jako"
+   ]
+  },
+  {
+   "word": "Jäckel",
+   "zipf": 2.51,
+   "tokens": [
+    "jäckel"
+   ]
+  },
+  {
+   "word": "Kerben",
+   "zipf": 2.63,
+   "tokens": [
+    "kerben"
+   ]
+  },
+  {
+   "word": "Kobe",
+   "zipf": 2.99,
+   "tokens": [
+    "kobe"
+   ]
+  },
+  {
+   "word": "Kulti",
+   "zipf": 2.78,
+   "tokens": [
+    "kulti"
+   ]
+  },
+  {
+   "word": "Laugen",
+   "zipf": 2.56,
+   "tokens": [
+    "laugen"
+   ]
+  },
+  {
+   "word": "Liked",
+   "zipf": 2.62,
+   "tokens": [
+    "liked"
+   ]
+  },
+  {
+   "word": "Luth",
+   "zipf": 2.79,
+   "tokens": [
+    "luth"
+   ]
+  },
+  {
+   "word": "Manie",
+   "zipf": 2.76,
+   "tokens": [
+    "manie"
+   ]
+  },
+  {
+   "word": "Meisen",
+   "zipf": 2.64,
+   "tokens": [
+    "meisen"
+   ]
+  },
+  {
+   "word": "Mmmh",
+   "zipf": 2.76,
+   "tokens": [
+    "mmmh"
+   ]
+  },
+  {
+   "word": "Muscle",
+   "zipf": 2.88,
+   "tokens": [
+    "muscle"
+   ]
+  },
+  {
+   "word": "Nervte",
+   "zipf": 2.59,
+   "tokens": [
+    "nervte"
+   ]
+  },
+  {
+   "word": "Obszön",
+   "zipf": 2.71,
+   "tokens": [
+    "obszön"
+   ]
+  },
+  {
+   "word": "Pads",
+   "zipf": 2.72,
+   "tokens": [
+    "pads"
+   ]
+  },
+  {
+   "word": "Phat",
+   "zipf": 2.49,
+   "tokens": [
+    "phat"
+   ]
+  },
+  {
+   "word": "Posch",
+   "zipf": 2.74,
+   "tokens": [
+    "posch"
+   ]
+  },
+  {
+   "word": "Quillt",
+   "zipf": 2.77,
+   "tokens": [
+    "quillt"
+   ]
+  },
+  {
+   "word": "Reeder",
+   "zipf": 2.93,
+   "tokens": [
+    "reeder"
+   ]
+  },
+  {
+   "word": "Rioja",
+   "zipf": 2.55,
+   "tokens": [
+    "rioja"
+   ]
+  },
+  {
+   "word": "Rächte",
+   "zipf": 2.57,
+   "tokens": [
+    "rächte"
+   ]
+  },
+  {
+   "word": "Saurer",
+   "zipf": 2.99,
+   "tokens": [
+    "saurer"
+   ]
+  },
+  {
+   "word": "Senn",
+   "zipf": 2.82,
+   "tokens": [
+    "senn"
+   ]
+  },
+  {
+   "word": "Sive",
+   "zipf": 2.74,
+   "tokens": [
+    "sive"
+   ]
+  },
+  {
+   "word": "Spind",
+   "zipf": 2.79,
+   "tokens": [
+    "spind"
+   ]
+  },
+  {
+   "word": "Stroud",
+   "zipf": 2.49,
+   "tokens": [
+    "stroud"
+   ]
+  },
+  {
+   "word": "Tails",
+   "zipf": 2.57,
+   "tokens": [
+    "tails"
+   ]
+  },
+  {
+   "word": "Thrill",
+   "zipf": 2.6,
+   "tokens": [
+    "thrill"
+   ]
+  },
+  {
+   "word": "Traums",
+   "zipf": 2.81,
+   "tokens": [
+    "traums"
+   ]
+  },
+  {
+   "word": "Udine",
+   "zipf": 2.57,
+   "tokens": [
+    "udine"
+   ]
+  },
+  {
+   "word": "Venlo",
+   "zipf": 2.81,
+   "tokens": [
+    "venlo"
+   ]
+  },
+  {
+   "word": "Wahrte",
+   "zipf": 2.46,
+   "tokens": [
+    "wahrte"
+   ]
+  },
+  {
+   "word": "Wick",
+   "zipf": 3.07,
+   "tokens": [
+    "wick"
+   ]
+  },
+  {
+   "word": "Xanax",
+   "zipf": 2.43,
+   "tokens": [
+    "xanax"
+   ]
+  },
+  {
+   "word": "Zorc",
+   "zipf": 2.85,
+   "tokens": [
+    "zorc"
+   ]
+  }
+ ],
+ "digit_freq": {
+  "20": 0.017499999999999998,
+  "100": 0.003,
+  "007": 8.999999999999999e-05,
+  "1990": 0.00696106545149936,
+  "2026": 0.012081740881970011,
+  "2045": 0.0007787021390057183,
+  "3,5": 0.009672,
+  "1.000": 2.6999999999999996e-05,
+  "12345": 2.9999999999999997e-05
+ }
+}
