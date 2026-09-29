@@ -198,8 +198,13 @@ Arbeitsverzeichnis der Tests nicht.
   `vorschlag-v4`. Kalt lief die erste Frage in die Frist von 30 s (manueller
   Fall, Ollama verwarf das halb geladene Modell), die erste nach dem Laden
   brauchte 28,3 s, fast ganz für die erste Auswertung des Prompts
-  (`benchmarks.md`, 2026-09-28 20:20). Ob die erste Frage nach dem Laden mehr
-  Zeit bekommt, ist eine Frage an den Nutzer.
+  (`benchmarks.md`, 2026-09-28 20:20). Entschieden vom Nutzer am 2026-09-29:
+  erst laden, dann fragen (`fix(model): load and warm the local model before
+  the first question`). Nachgemessen am 2026-09-29: kalt 17,3 s mit
+  Vorschlag, davon 14,6 s Aufwärmen (12,6 s Start des llama-server) und
+  2,3 s die Frage; die erste Auswertung des Prompts danach 0,55 s statt
+  20,4 s. Warm kostet das Aufwärmen 0,1–0,2 s je Client (`benchmarks.md`,
+  2026-09-29 08:56).
 
 Verfahren: Plan `2026-09-25-loomux-stufe-4c-1.md`. Ergebnisse mit Datum hier
 eintragen.

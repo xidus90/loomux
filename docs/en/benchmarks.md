@@ -3061,3 +3061,36 @@ Ollama itself reported 350 to 798 ms for the four warm questions.
    after it under a second. The limit is a decision of the spec ("30 s in all
    for a question"); whether the first question after a load gets more time
    is the user's call.
+
+## 2026-09-29 08:56 — `reconcile` With the Local Model Warmed Up
+
+**Goal.** Check whether warming the model before a client's first question
+solves the 30 s limit found on 2026-09-28 20:20.
+
+**Method.** As on 2026-09-28: a fresh copy of the world
+`testdata/cases/4c1/reconcile/proposal-kept` per run, `[model] enabled =
+true`, the default model, Ollama 0.34.0 with CUDA, freshly started with no
+model loaded (`/api/ps` empty). Binary from the branch with
+`fix(model): load and warm the local model before the first question`.
+Times per request from Ollama's log.
+
+| Case | Time | Result |
+|---|---:|---|
+| cold, whole run | 17,297 ms | proposal, `vorschlag-v4` |
+| cold, warm-up | 14,643 ms | of it 12.6 s starting the llama-server; prompt evaluation 0.37 s for 13 tokens |
+| cold, the question | 2,298 ms | prompt evaluation 0.55 s for 1,289 tokens |
+| warm, whole run (5) | 1,867–3,053 ms | a proposal in every run |
+| warm, warm-up | 104–211 ms | |
+| warm, the question | 1,230–2,319 ms | |
+
+### Key Findings
+1. **The limit holds again.** The first prompt evaluation, 20.4 s
+   yesterday, takes 0.55 s after the warm-up; cold, the proposal comes after
+   17 s instead of not at all.
+2. **Warm, the warm-up costs 0.1–0.2 s per client.**
+3. **The questions themselves were slower than yesterday** (54 instead of
+   107 tokens per second generating): a foreign process kept the GPU at
+   100 % load and 20 GB of memory during the run, and after Ollama was
+   stopped too. The time per proposal here is therefore no comparison with
+   the reference's criterion (under 2 s); the run of 2026-09-28 20:20
+   recorded that.
