@@ -641,7 +641,7 @@ Zählt die Seitentypen über alle Bereiche mit Wiki: je Typ `<typ> [<rang>]: <su
 #### `loomux wiki retype --scope <scope> --from <alt> --to <neu>`
 Benennt einen Seitentyp in einem Bündel um und nennt jede geschriebene Seite. Geändert wird nur die Zeile `type:` des Frontmatters; eine geschriebene Seite wird ganz auf LF gefaltet. Übersprungen werden Gerüstdateien, kaputtes Frontmatter (auch ein doppelter Schlüssel), Bytes, die kein UTF-8 sind, und ein gequoteter oder gefalteter Wert. Ein Zieltyp, den kein Rang kennt, ergibt eine Warnung auf `stderr`, der Lauf geht weiter. Exit `1` bei einem unbekannten Scope, einem Bereich ohne Wiki-Pfad oder einem schreibgeschützten Bereich.
 
-### Pflege: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
+### Pflege: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`, `loomux area check`
 
 Vier Befehle der `brain`-CLI von ultra-brain, seit Stufe 3a Befehle auf oberster Ebene von loomux; ein aufgezeichneter Fallkorpus (`testdata/cases/3a`) hält sie an der Python-Referenz. Sie schreiben nur ins Zustandsverzeichnis von loomux und lesen das alte als den oben beschriebenen Rückfall.
 
@@ -685,13 +685,20 @@ Meldet ein Repository als Bereich an und richtet es ein: der Registry-Eintrag (u
 - **Unterschiede zu `brain init`**: kein `.mcp.json` und keine Agenten-Hooks (`loomux init`, Stufe 4); der Indexlauf findet wirklich statt, außer mit `--no-reindex`; der Branch wird als `[maintenance] branch` geschrieben, nicht als `merge_branch`; `--privacy` wird geprüft; der erste Bereich einer Maschine braucht keine von Hand angelegte Registry-Datei. `-y`/`--yes` wird angenommen und ändert nichts.
 - **Exit-Codes**: `0` oder der Exit-Code des Indexlaufs; `1` bei einem Pfad, der kein Verzeichnis ist, einem ungültigen Scope, einem relativen `--wiki`, einem abgelehnten Registry-Eintrag, einer unlesbaren Datei oder einem fehlgeschlagenen Schreiben; `2` bei einem Usage-Fehler, einem fehlenden oder unbekannten Unterbefehl (mit der Usage-Zeile) oder einem unbekannten `--privacy`.
 
+#### `loomux area check <pfad>`
+Ein Bericht über die Bereichsmanifeste eines Verzeichnisses, für den, der den Inhalt einer alten `.ultra-brain/config.toml` oder `.brain.toml` nach `.loomux/config.toml` überträgt: bei einer Umstellung der Agent, der die neue Konfiguration vorbereitet, vor dem Umzug, und wer das Ergebnis prüft, danach. Nur lesend: er schreibt nichts, und er entfällt in Stufe 4f, nach dem Aufräum-Pull-Request, der die Rückfälle auf die alten Namen entfernt.
+
+- **Dateien**: `.loomux/config.toml`, `.ultra-brain/config.toml` und `.brain.toml`, in der Reihenfolge, in der der Leser sie probiert; ein Name, der keine reguläre Datei ist, wird übergangen.
+- **Ausgabe** auf `stdout`: je Datei eine Zeile je Schlüssel, `<datei>: <abschnitt.schlüssel>  <klasse>  <hinweis>`. Die Klasse ist `read` (der Deklarationsleser liest den Schlüssel), `elsewhere` (ein anderer Leser derselben Datei liest ihn, etwa `[commit]` oder `[verify]`) oder `ignored` (kein Leser liest ihn, die Datei unverändert zu übernehmen ließe ihn ohne ein Wort fallen; der Hinweis nennt, wohin er heute gehört, wo bekannt). Eine Datei, die der Deklarationsleser ablehnt, ergibt `<datei>: refused: <grund>`, eine, die kein TOML ist, `<datei>: refused: not valid TOML: …`, und eine `.loomux/config.toml` ohne `[area]` (nur Richtlinie) `<datei>: no [area], policy only`; das ist kein Befund. Dann `chosen: <datei>`, die Datei, die der Leser heute nimmt (`chosen: none`, wenn es keine gibt), und `<datei>: shadowed` für jede andere Datei, die ein `[area]` trägt.
+- **Exit-Codes**: `0`, wenn jeder Schlüssel `read` oder `elsewhere` ist und keine Datei abgelehnt wird; `1` bei einem ignorierten Schlüssel, einer abgelehnten Datei oder ganz ohne Manifest; `2` bei einem Usage-Fehler (kein Pfad, mehr als einer oder ein Pfad, der kein Verzeichnis ist).
+
 ### Eingang: `loomux convert`, `loomux fetch`
 
 Zwei Befehle der `brain`-CLI von ultra-brain, seit Stufe 4d Befehle der obersten Ebene von loomux; ein aufgezeichneter Fallsatz (`testdata/cases/4d`, 29 Fälle) hält `convert` an der Python-Referenz, und eine Aufnahme der eigenen Ausgabe von Poppler hält den PDF-Weg am echten Werkzeug. Beide schreiben in den Eingang eines Bereichs, das Verzeichnis, das sein Manifest als `[layout] inbox` nennt, relativ zum Pfad des Bereichs.
 
 - **Befehle des Menschen**: Der Wächter verweigert beide einem Agenten, denn dorthin verbietet die Schreibschranke Agenten das Schreiben (siehe [`hook pre-tool-use`](#loomux-hook-pre-tool-use)); nur ein alleinstehendes `--help` oder `-h` geht durch.
 - **Modul Brain**: Mit `[modules] brain = false` im Projekt, das die Suche vom Arbeitsverzeichnis nach oben findet, geben beide `loomux <befehl>: the brain module is off in <datei> ([modules] brain = false)` aus und enden mit `1`, bevor etwas gelesen ist. Außerhalb eines Projekts ist nichts abgeschaltet.
-- **Umgebung**: Registry und Bereichsdeklarationen kommen aus `LOOMUX_STATE_DIR`, mit `LOOMUX_LEGACY_BRAIN_DIR` als Rückfall, wie bei der [Pflege](#pflege-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add). `--state-dir` und `--channel`, die die Referenz annimmt und nicht nutzt, sind unbekannte Flags (Exit `2`).
+- **Umgebung**: Registry und Bereichsdeklarationen kommen aus `LOOMUX_STATE_DIR`, mit `LOOMUX_LEGACY_BRAIN_DIR` als Rückfall, wie bei der [Pflege](#pflege-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add-loomux-area-check). `--state-dir` und `--channel`, die die Referenz annimmt und nicht nutzt, sind unbekannte Flags (Exit `2`).
 - **Externe Programme**: Beide werden auf dem `PATH` gesucht und nie installiert: `pdftotext` von Poppler (`winget install --id oschwartz10612.Poppler -e`) und `yt-dlp` (`winget install --id yt-dlp.yt-dlp -e`). Ein fehlendes wird mit diesem Befehl genannt.
 
 #### `loomux convert [<datei>]`
