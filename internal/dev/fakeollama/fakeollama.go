@@ -47,21 +47,29 @@ type request struct {
 	Options struct {
 		Temperature float64 `json:"temperature"`
 		NumCtx      int     `json:"num_ctx"`
+		NumPredict  *int    `json:"num_predict"`
 	} `json:"options"`
 }
 
 // Handler answers every request from the fixture and writes one line per
 // request to log, prompt left out: the prompt carries the case id and the
-// day, and the lines must read alike in the recording and the replay.
+// day, and the lines must read alike in the recording and the replay. A
+// request that caps its answer -- loomux's warm-up, which the reference never
+// sends -- ends its line with the cap, so the reference's lines stay as they
+// were recorded.
 func (f *Fixture) Handler(log io.Writer) http.Handler {
 	var mu sync.Mutex
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var got request
 		_ = json.NewDecoder(r.Body).Decode(&got)
 		mu.Lock()
-		fmt.Fprintf(log, "%s %s model=%s temperature=%s num_ctx=%d stream=%t think=%t\n",
+		capped := ""
+		if got.Options.NumPredict != nil {
+			capped = fmt.Sprintf(" num_predict=%d", *got.Options.NumPredict)
+		}
+		fmt.Fprintf(log, "%s %s model=%s temperature=%s num_ctx=%d stream=%t think=%t%s\n",
 			r.Method, r.URL.Path, got.Model, strconv.FormatFloat(got.Options.Temperature, 'g', -1, 64),
-			got.Options.NumCtx, got.Stream, got.Think)
+			got.Options.NumCtx, got.Stream, got.Think, capped)
 		mu.Unlock()
 		w.WriteHeader(f.Status)
 		if f.Response != nil {

@@ -45,6 +45,17 @@ func TestTheFakeAnswersAndLogsWithoutThePrompt(t *testing.T) {
 	}
 }
 
+// loomux warms the model with a request capped by num_predict; the line
+// names the cap, so a replay can tell the warm-up from the questions the
+// reference sent, whose lines stay as they were.
+func TestTheFakeLogsTheCapOfAWarmUp(t *testing.T) {
+	var log bytes.Buffer
+	post(t, fixture(t, `{"response":"hallo"}`).Handler(&log), `{"model":"m","prompt":"p","stream":false,"think":false,"options":{"temperature":0,"num_ctx":8192,"num_predict":1}}`)
+	if log.String() != "POST /api/generate model=m temperature=0 num_ctx=8192 stream=false think=false num_predict=1\n" {
+		t.Fatalf("%q", log.String())
+	}
+}
+
 func TestTheFakeCanAnswerNonsense(t *testing.T) {
 	w := post(t, fixture(t, `{"status":500,"body":"<html>"}`).Handler(&bytes.Buffer{}), `{}`)
 	if w.Code != 500 || w.Body.String() != "<html>" {

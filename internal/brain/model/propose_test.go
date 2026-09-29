@@ -35,7 +35,7 @@ func answering(t *testing.T, answer string, prompts *[]string) config.ModelSetti
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var got map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&got)
-		if prompts != nil {
+		if prompts != nil && !isWarmUp(got) {
 			*prompts = append(*prompts, got["prompt"].(string))
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"response": answer})

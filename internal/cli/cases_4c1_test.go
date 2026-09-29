@@ -21,10 +21,35 @@ import (
 const wantCases4c1 = 7
 
 // wantOllamaCalls4c1 are the requests the reference sent in each recording
-// (notes.md, "ollama calls"); a case not named sent none.
+// (notes.md, "ollama calls"); a case not named sent none. loomux sends the
+// same questions and, before a client's first one, a warm-up the reference
+// does not know; checkOllamaCalls holds both.
 var wantOllamaCalls4c1 = map[string]int{
 	"reconcile/proposal-kept":     1,
 	"reconcile/proposal-invented": 1,
+}
+
+// checkOllamaCalls holds the fake's log to the reference's count of
+// questions, and to one warm-up in front of them when there are any: every
+// recorded case asks through a single client, and a client warms the model
+// once, before its first question and only if it asks one.
+func checkOllamaCalls(t *testing.T, log string, questions int) {
+	t.Helper()
+	var lines []string
+	if log != "" {
+		lines = strings.Split(strings.TrimSuffix(log, "\n"), "\n")
+	}
+	warm := 0
+	for _, line := range lines {
+		if strings.HasSuffix(line, " num_predict=1") {
+			warm++
+		}
+	}
+	wantWarm := min(questions, 1)
+	if len(lines)-warm != questions || warm != wantWarm || (warm > 0 && !strings.HasSuffix(lines[0], " num_predict=1")) {
+		t.Fatalf("the fake Ollama got %d questions and %d warm-ups; the reference sent %d questions, and loomux warms %d times before them:\n%s",
+			len(lines)-warm, warm, questions, wantWarm, log)
+	}
 }
 
 // expected4c1 are the mismatches a replay has to report, exactly, per case; a
@@ -157,10 +182,7 @@ func TestCases4c1(t *testing.T) {
 				t.Fatalf("mismatches differ from the expected ones\ngot:\n%s\nwant:\n%s\nstdout:\n%s",
 					strings.Join(got, "\n"), strings.Join(wanted, "\n"), outcome.ActualStdout)
 			}
-			if n := strings.Count(calls.String(), "\n"); n != wantOllamaCalls4c1[name] {
-				t.Fatalf("the fake Ollama got %d requests, the reference sent %d:\n%s",
-					n, wantOllamaCalls4c1[name], calls.String())
-			}
+			checkOllamaCalls(t, calls.String(), wantOllamaCalls4c1[name])
 		})
 	}
 }
