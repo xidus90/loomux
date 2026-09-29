@@ -3189,3 +3189,36 @@ Ollama selbst meldete für die vier warmen Fragen 350 bis 798 ms.
    Prompts brauchte 20,4 s für 1 289 Token, die folgenden unter einer Sekunde.
    Die Frist ist eine Entscheidung der Spec („30 s insgesamt für eine Frage“);
    ob die erste Frage nach dem Laden mehr Zeit bekommt, entscheidet der Nutzer.
+
+## 2026-09-29 08:56 — `reconcile` mit dem Aufwärmen des lokalen Modells
+
+**Ziel.** Prüfen, ob das Aufwärmen vor der ersten Frage eines Clients die
+Frist von 30 s aus der Messung vom 2026-09-28 20:20 löst.
+
+**Methode.** Wie am 2026-09-28: frische Kopie der Welt
+`testdata/cases/4c1/reconcile/proposal-kept` je Lauf, `[model] enabled =
+true`, Vorgabemodell, Ollama 0.34.0 mit CUDA, frisch gestartet und ohne
+geladenes Modell (`/api/ps` leer). Binär aus dem Zweig mit
+`fix(model): load and warm the local model before the first question`.
+Zeiten je Anfrage aus dem Log von Ollama.
+
+| Fall | Zeit | Ergebnis |
+|---|---:|---|
+| kalt, ganzer Lauf | 17 297 ms | Vorschlag, `vorschlag-v4` |
+| kalt, Aufwärmen | 14 643 ms | davon 12,6 s Start des llama-server; Auswertung des Prompts 0,37 s für 13 Token |
+| kalt, die Frage | 2 298 ms | Auswertung des Prompts 0,55 s für 1 289 Token |
+| warm, ganzer Lauf (5) | 1 867–3 053 ms | Vorschlag in jedem Lauf |
+| warm, Aufwärmen | 104–211 ms | |
+| warm, die Frage | 1 230–2 319 ms | |
+
+### Wichtigste Befunde
+1. **Die Frist trägt wieder.** Die erste Auswertung des Prompts, gestern
+   20,4 s, dauert nach dem Aufwärmen 0,55 s; kalt kommt der Vorschlag nach
+   17 s statt gar nicht.
+2. **Warm kostet das Aufwärmen 0,1–0,2 s je Client.**
+3. **Die Fragen selbst waren heute langsamer als gestern** (54 statt 107
+   Token je Sekunde beim Erzeugen): Die GPU stand während der Messung durch
+   einen fremden Prozess auf 100 % Auslastung und 20 GB Speicher, auch nach
+   dem Beenden von Ollama. Die Zeit je Vorschlag ist darum hier kein Vergleich
+   mit dem Kriterium der Referenz (unter 2 s); das hielt die Messung vom
+   2026-09-28 20:20 fest.

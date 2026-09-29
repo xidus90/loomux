@@ -580,7 +580,12 @@ Request. 4d hängt nur an 4c-1.
   <endpoint>/api/generate` mit `model`, `prompt`, `stream:false`,
   `think:false`, `options{temperature, num_ctx:8192}`; kein Proxy aus der
   Umgebung (`trust_env=False`), keine Weiterleitung (eine 3xx ist ein
-  Ausfall), 2 s für den Verbindungsaufbau, 30 s insgesamt. Jeder Ausfall ist
+  Ausfall), 2 s für den Verbindungsaufbau, 30 s insgesamt je Frage. Vor der
+  ersten Frage eines Clients lädt und wärmt loomux das Modell mit denselben
+  Optionen und einer Antwort von einem Token, ohne Gesamtlimit; scheitert
+  das, gilt das Modell für diesen Client als ausgefallen (Nachtrag
+  2026-09-29, entschieden vom Nutzer nach der Messung vom 2026-09-28: die
+  erste Frage nach dem Laden lief in die 30 s). Jeder Ausfall ist
   „keine Antwort“; ein leerer `response` ist eine Antwort. Der Request hängt
   am Kontext des Aufrufers, damit `serve` einen laufenden Aufruf beim Beenden
   abbricht. Loopback heißt: Host als Zeichenkette gleich `127.0.0.1`,
@@ -601,7 +606,8 @@ Request. 4d hängt nur an 4c-1.
   stehender Fall wird nicht erneut gefragt.
 - **Wo das Modell läuft:** in `reconcile`, im Abgleich vor `reindex`, nach
   `approve` und im Upkeep von `serve`; auf keinem Hook-Pfad. Im schlimmsten
-  Fall kostet ein Fall 30 s, wie in der Referenz.
+  Fall kostet ein Fall 30 s, wie in der Referenz, dazu einmal je Client das
+  Laden des Modells.
 - **Die Sperre von #4 liegt neben dem Bereichsverzeichnis**, nicht darin:
   `<zustand>/areas/<scope>.lock` (flach geschrieben wie das Verzeichnis).
   `ReplaceDir` tauscht `<zustand>/areas/<scope>` als Ganzes, und eine offene
