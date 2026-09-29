@@ -24,6 +24,9 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+          # The self-hosted runners keep Go's caches between runs; saving
+          # them as an Actions cache would pack the whole local build cache.
+          cache: false
       - run: sh ci/gate.sh
       - run: go build -o bin/loomux.exe ./cmd/loomux
       - run: sh ci/smoke.sh bin/loomux.exe
@@ -38,6 +41,9 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+          # The self-hosted runners keep Go's caches between runs; saving
+          # them as an Actions cache would pack the whole local build cache.
+          cache: false
       - run: go vet ./...
       - run: go test ./internal/child/...
       - run: go build -o bin/loomux.exe ./cmd/loomux

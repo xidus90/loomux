@@ -38,6 +38,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          # The self-hosted runners keep Go's caches between runs; saving
+          # them as an Actions cache would pack the whole local build cache.
+          cache: false
       - run: go build -o "$RUNNER_TEMP/loomux" ./cmd/loomux
       - run: bash .github/scripts/release.sh
         env:
