@@ -229,6 +229,7 @@ loomux reindex [--registry P]       # reconcile first, then rebuild every area's
 loomux embed [--registry P]         # generate the vectors reindex leaves pending (needs qmd on PATH)
 loomux reconcile                    # open review cases for changed sources and landed merges; a case is not a failure
 loomux area add [--path P] [--scope S]  # register a repository as an area, scaffold its wiki and index it (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
+loomux area check <path>                # read-only: what the readers do with each key of an old area manifest
 loomux merge-hook install|status|remove  # the post-merge hook of every area whose manifest says [maintenance] on_merge = true; it calls `loomux merge-hook record`, which notes the merge for reconcile; not yet in use on a host
 loomux cases                        # list the cases waiting in the review centre; a case is not a failure
 loomux case <id> [--package]        # show a case with its package and proposal; withheld for local_only until --package
