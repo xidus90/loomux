@@ -21,7 +21,7 @@ const oldSettings = `{
 
 func TestBuildMakesOneCasePerEventInFixedOrder(t *testing.T) {
 	root := "C:/Users/me/Documents/#GIT/my project"
-	cases, payloads, err := Build([]byte(oldSettings), root, root+"/README.md", "C:/out")
+	cases, payloads, err := Build([]byte(oldSettings), root, root+"/README.md", "C:/out", noEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestBuildMakesOneCasePerEventInFixedOrder(t *testing.T) {
 
 func TestBuildIgnoresTheMatcherOfAnEventWithoutTools(t *testing.T) {
 	// The Stop group carries the matcher "wiki", which matches no tool.
-	cases, _, err := Build([]byte(oldSettings), "/r", "/r/a.md", "/o")
+	cases, _, err := Build([]byte(oldSettings), "/r", "/r/a.md", "/o", noEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestMatchesToolAnchorsTheWholeNameAndKnowsTheTwoWildcards(t *testing.T) {
 
 func TestBuildCountsAStarMatcherAsEveryTool(t *testing.T) {
 	settings := `{"hooks": {"PreToolUse": [{"matcher": "*", "hooks": [{"command": "a"}]}, {"hooks": [{"command": "b"}]}]}}`
-	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o")
+	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o", noEnv)
 	if err != nil || len(cases) != 1 || len(cases[0].Steps) != 2 {
 		t.Fatalf("cases = %+v, err %v; want one case with both steps", cases, err)
 	}
@@ -184,7 +184,7 @@ func TestBuildRefusesWhatItCannotMeasure(t *testing.T) {
 		"not json":         {`{`, "not valid JSON"},
 	}
 	for name, c := range cases {
-		_, _, err := Build([]byte(c.settings), "/r", "/r/a.md", "/o")
+		_, _, err := Build([]byte(c.settings), "/r", "/r/a.md", "/o", noEnv)
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: err = %v, want one naming %q", name, err, c.want)
 		}
@@ -201,7 +201,7 @@ func TestBuildWalksEveryEventInOrderAndNamesThem(t *testing.T) {
 		"SessionStart": [{"hooks": [{"command": "a"}]}],
 		"Unknown": [{"hooks": [{"command": "u"}]}]
 	}}`
-	cases, payloads, err := Build([]byte(settings), "/r", "/r/docs/a.md", "/o")
+	cases, payloads, err := Build([]byte(settings), "/r", "/r/docs/a.md", "/o", noEnv)
 	if err != nil || len(cases) != 6 || len(payloads) != 6 {
 		t.Fatalf("cases = %d, payloads = %d, err %v; want six each", len(cases), len(payloads), err)
 	}
@@ -234,7 +234,7 @@ func TestBuildWalksEveryEventInOrderAndNamesThem(t *testing.T) {
 
 func TestBuildStartsSeveralHooksOfOneGroupTogether(t *testing.T) {
 	settings := `{"hooks": {"Stop": [{"hooks": [{"command": "a"}, {"command": "b"}]}], "SessionStart": [{"hooks": [{"command": "c"}]}]}}`
-	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o")
+	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o", noEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestBuildStartsSeveralHooksOfOneGroupTogether(t *testing.T) {
 
 func TestBuildFillsTheProjectDirectoryEverywhere(t *testing.T) {
 	settings := `{"hooks": {"Stop": [{"hooks": [{"command": "x ${CLAUDE_PROJECT_DIR}/a ${CLAUDE_PROJECT_DIR}/b"}]}]}}`
-	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o")
+	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o", noEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestBuildFillsTheProjectDirectoryEverywhere(t *testing.T) {
 
 func TestBuildSkipsATooleventWhoseGroupsAllMissTheEdit(t *testing.T) {
 	settings := `{"hooks": {"PostToolUse": [{"matcher": "Bash", "hooks": [{"command": "x"}]}], "Stop": [{"hooks": [{"command": "y"}]}]}}`
-	cases, payloads, err := Build([]byte(settings), "/r", "/r/a.md", "/o")
+	cases, payloads, err := Build([]byte(settings), "/r", "/r/a.md", "/o", noEnv)
 	if err != nil || len(cases) != 1 || cases[0].Name != "Stop" || len(payloads) != 1 {
 		t.Errorf("cases = %+v, payloads = %d, err %v", cases, len(payloads), err)
 	}
@@ -303,5 +303,56 @@ func TestSplitKeepsQuotedWordsWhole(t *testing.T) {
 		if _, err := split(in); err == nil || !strings.Contains(err.Error(), "unterminated "+quote+" quote") {
 			t.Errorf("split(%q): an open quote must be an error naming %s, got %v", in, quote, err)
 		}
+	}
+}
+
+// noEnv is a lookup with no variable set.
+func noEnv(string) (string, bool) { return "", false }
+
+func envOf(m map[string]string) func(string) (string, bool) {
+	return func(k string) (string, bool) { v, ok := m[k]; return v, ok }
+}
+
+func TestBuildExpandsEnvironmentVariablesInACommand(t *testing.T) {
+	settings := `{"hooks": {"Stop": [{"hooks": [{"command": "\"${LOCALAPPDATA}/loomux/bin/loomux.exe\" hook stop ${OTHER} ${low_9}"}]}]}}`
+	env := envOf(map[string]string{"LOCALAPPDATA": "C:/Users/A B/AppData/Local", "OTHER": "", "low_9": "v"})
+	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o", env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"C:/Users/A B/AppData/Local/loomux/bin/loomux.exe", "hook", "stop", "v"}
+	if got := cases[0].Steps[0].Argv; !reflect.DeepEqual(got, want) {
+		t.Errorf("argv = %q, want %q", got, want)
+	}
+}
+
+func TestBuildTakesTheProjectDirFromTheRootNotTheEnvironment(t *testing.T) {
+	settings := `{"hooks": {"Stop": [{"hooks": [{"command": "x ${CLAUDE_PROJECT_DIR}"}]}]}}`
+	env := envOf(map[string]string{"CLAUDE_PROJECT_DIR": "/elsewhere"})
+	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o", env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cases[0].Steps[0].Argv; !reflect.DeepEqual(got, []string{"x", "/r"}) {
+		t.Errorf("argv = %q", got)
+	}
+}
+
+func TestBuildRefusesAnUnsetVariableByName(t *testing.T) {
+	settings := `{"hooks": {"Stop": [{"hooks": [{"command": "${NOPE}/x ${NOPE2}"}]}]}}`
+	_, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o", noEnv)
+	if err == nil || !strings.Contains(err.Error(), "${NOPE},") || strings.Contains(err.Error(), "NOPE2") || !strings.Contains(err.Error(), "Stop") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestBuildLeavesOtherDollarFormsAlone(t *testing.T) {
+	settings := `{"hooks": {"Stop": [{"hooks": [{"command": "x $HOME ${A:-b} ${}"}]}]}}`
+	cases, _, err := Build([]byte(settings), "/r", "/r/a.md", "/o", envOf(map[string]string{"HOME": "h"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cases[0].Steps[0].Argv; !reflect.DeepEqual(got, []string{"x", "$HOME", "${A:-b}", "${}"}) {
+		t.Errorf("argv = %q", got)
 	}
 }

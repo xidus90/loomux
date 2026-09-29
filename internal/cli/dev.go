@@ -162,15 +162,19 @@ func untilInterrupted(ctx context.Context, stop func(), test mutants.TestFunc) m
 }
 
 var benchCommands = map[string]command{
-	"hooks":  devBenchHooks,
-	"repos":  devBenchRepos,
-	"search": devBenchSearch,
+	"hooks":   devBenchHooks,
+	"repos":   devBenchRepos,
+	"search":  devBenchSearch,
+	"compare": devBenchCompare,
+	"cases":   devBenchCases,
 }
 
-const benchUsage = `usage: loomux dev bench <hooks|repos|search> [flags]
+const benchUsage = `usage: loomux dev bench <hooks|repos|search|compare|cases> [flags]
   hooks   time the hook commands of a case file
   repos   time the hooks on repositories and audit their lanes
   search  measure the rank of search hits and the chain's latency
+  compare set two hook runs side by side (faster, new, dropped)
+  cases   build the case file of a project's hooks from its settings
 `
 
 func devBenchGroup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
