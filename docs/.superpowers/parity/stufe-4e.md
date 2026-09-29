@@ -371,6 +371,56 @@ Nutzer je Datei, sonst bricht Schritt 3 des Skripts mit `differs:` ab.
 Nicht gemessen: ob sich `_identities.tsv` des Vaults und die des
 Zustandsverzeichnisses nur in `doc_id` unterscheiden oder in mehr.
 
+### 8. Pilot `ecoflow` (2026-09-29)
+
+Umgestellt mit dem gerenderten `apply.sh` (ecoflow-Commit `7cd2597`),
+gemessen mit `dev bench hooks -n 5` gegen die Baseline aus Messung 7. Der
+Vergleich steht in `bench-4e-ecoflow.md`.
+
+**Ablauf der Umstellung.**
+
+- `apply.sh` gab in der PowerShell des Nutzers keine Ausgabe aus. Die
+  Wirkungen sind trotzdem nachgeprüft: neue `.claude/settings.json` mit den
+  sechs loomux-Hooks, `.loomux/config.toml`, geänderter `wiki`-Pfad in der
+  Registry.
+- Das pre-commit-Tor von ecoflow verweigerte den Umstellungs-Commit aus drei
+  Gründen: ruff meldet 83 Befunde, die schon vorher im Code standen; das
+  mypy-Preset lief ohne Ziel; `coverage` war keine Abhängigkeit des Projekts.
+  Die letzten beiden behebt `b111e14d` auf diesem Zweig. Der Nutzer hat mit
+  `--no-verify` committet.
+- Das zweite `apply.sh --check` nach der Umstellung ist noch nicht gelaufen.
+
+**Messung.** Die neuen Fälle entstehen aus der neuen `settings.json` mit
+derselben `--file` (`README.md`) und denselben Namen der Zusatzfälle
+(`status`, `search (fast)`, `wiki lint`), jetzt über `loomux brain …`; neu
+dazu `graph stats` und `graph check`. `dev bench cases` setzt
+`${CLAUDE_PROJECT_DIR}` ein, `${LOCALAPPDATA}` aber nicht; der erste Lauf
+brach mit `fork/exec ${LOCALAPPDATA}/loomux/bin/loomux.exe` ab. Die Variable
+ist in `cases.json` von Hand durch `C:/Users/micro/AppData/Local` ersetzt.
+Gemessen wurde die installierte Binary `loomux 5.3.0 (beta)`.
+
+- Der Stop-Hook endet mit Exit 2: er fährt das Tor von ecoflow, und das fällt
+  an den 83 ruff-Befunden. Das ist erwartet und kein Befund der Umstellung.
+- `status` braucht warm 5,2 s gegen 43 ms bei `brain status` des Altstands,
+  weil `loomux brain status` qmd abfragt. `wiki lint` braucht 158 statt
+  49 ms, `search (fast)` warm 122 statt 236 ms, kalt 2,7 s, weil der erste
+  Aufruf den Suchdienst anläuft.
+- `git status --porcelain --untracked-files=all` von ecoflow war vor und nach
+  der Messung gleich. Die uncommitteten Dateien des Nutzers (`auth.py`,
+  `endpoints.py`, `_identities.tsv`, `docs/index.md`, `graph.json`,
+  `layout.json`) blieben unberührt; kein Hook schrieb eine Datei, die git
+  sieht.
+
+**Was der Pilot beweist.** Das Skript stellt ein Projekt ohne alte Hooks
+um, Registry und Deklaration lesen sich danach, und alle sechs Hooks laufen
+im Projekt mit Exit 0 bis auf den Stop-Hook, der am Vorbestand fällt.
+
+**Was er nicht beweist.** ecoflow hatte keine `settings.json` und keine alten
+Hooks. Nicht geprüft sind darum das Entfernen alter Hook-Einträge, das
+Bereinigen einer bestehenden `settings.json` und ein Vergleich alter gegen
+neue Hooks desselben Ereignisses; im Vergleich erscheinen alle Hooks als
+„neu“. Das leisten erst die Ziele mit alten Hooks.
+
 ## Checkliste
 
 **Stand 2026-09-29:** Block 4 (Deklarationen von Hand) und Block 5 (`init`, alte Einträge) sind durch den Ablauf der Spec `2026-09-29-loomux-stufe-4e-umstellung-vorbereitet-design.md` abgelöst: das LLM bereitet vor, ein `apply.sh` schreibt. Block 1 bis 3 und der Rauchtest (Block 6) gelten weiter.
