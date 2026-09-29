@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   gate-windows:
-    runs-on: windows-latest
+    runs-on: [self-hosted, windows-latest]
     defaults:
       run:
         shell: bash
@@ -28,7 +28,7 @@ jobs:
   # This leg keeps the Linux build honest with vet, a build and the smoke test.
   # child's process group arm only runs here, so its tests run here too.
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

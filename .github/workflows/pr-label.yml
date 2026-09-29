@@ -8,7 +8,7 @@ permissions:
   pull-requests: read
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest]
     steps:
       # Built from master, not from the pull request: a fork could otherwise
       # change the rules so that its own body always passes.
