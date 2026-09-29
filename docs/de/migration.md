@@ -137,7 +137,9 @@ merge-hook`), #7 (die Brain-Skills), #8 (`verify-until-green`), #10 (die erzeugt
 `AGENTS.md`), #11 (die `.gitignore`-Einträge), #15 (das Binary am kanonischen
 Ort) und #16 (`init --detect-only`) wurden am 2026-09-24 mit 4a-2 gebaut, #21
 (die Regeln für `.agents/hooks.json`) am 2026-09-25. #24 (Stufe 4f), dessen
-Ziel der Nutzer am 2026-09-27 gesetzt hat, ist am 2026-09-28 freigegeben.
+Ziel der Nutzer am 2026-09-27 gesetzt hat, ist am 2026-09-28 freigegeben. #25
+und #26 (Stufe 4e: ihre drei Stücke und die Umstellung, die ein Agent
+vorbereitet und ein Mensch aufruft) sind am 2026-09-30 freigegeben.
 
 Jede Stufe endet grün und wird einzeln übergeben, mit eigenem Plan und — sobald
 sie fertig ist — eigener Paritätsakte, die jede ihrer Verfügungen festhält.

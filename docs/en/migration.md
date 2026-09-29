@@ -136,7 +136,8 @@ and `embed` as commands, which had no stage until 2026-09-19 — with 3a. Items 
 entries), 15 (the binary at its canonical place) and 16 (`init --detect-only`)
 were built with 4a-2 on 2026-09-24, item 21 (the rules for `.agents/hooks.json`)
 on 2026-09-25. Item 24 (Stage 4f), whose goal the user set on 2026-09-27, was
-signed off on 2026-09-28.
+signed off on 2026-09-28. Items 25 and 26 (Stage 4e: its three pieces, and the
+switch-over an agent prepares and a human runs) were signed off on 2026-09-30.
 
 Each stage ends green and is handed over on its own, with its own plan and — once
 it is done — its own parity file recording every ruling it made.
