@@ -71,8 +71,8 @@ Hashfortschreiben und Protokollieren sind Code; Entscheiden ist Mensch. Ist das
 lokale Modell eingeschaltet, kommen zwei folgenlose Stellen dazu —
 Ablagevorschlag beim Import und Ein-Satz-Beschreibungen für Kataloge.
 
-**In loomux ist das lokale Modell seit 4c-1 gebaut, die Selbstnutzung steht
-aus.** Vorschläge für `local_only`-Fälle in `reconcile` kommen über Ollama auf
+**In loomux ist das lokale Modell seit 4c-1 gebaut und selbst genutzt
+(2026-09-29).** Vorschläge für `local_only`-Fälle in `reconcile` kommen über Ollama auf
 Loopback, seit 4d auch der Kopfsatz (`describe`) und der Ablagevorschlag
 (`place`) in `convert`; ohne eingeschaltetes Modell öffnet ein `local_only`-Bereich seinen
 Fall ohne Vorschlag. Ein Ausfall des Modells soll

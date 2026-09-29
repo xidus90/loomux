@@ -33,8 +33,9 @@ vorher zu öffnen — oder laut zu sagen, dass keiner aufgehen konnte.
 **Was Stufe 3 an Stufe 4 abgab, ist gebaut:** das lokale Modell (4c-1), das
 für einen `local_only`-Bereich den Prüfvorschlag schreibt, und der
 `post-merge`-Hook (4a-2, `loomux merge-hook`), der den zweiten Auslöser über
-`merge-hook record` protokolliert. Offen sind nur ihre Läufe durch einen
-Menschen. Einen Wächter
+`merge-hook record` protokolliert. Das Modell hat seit 2026-09-29 einen
+Fall am echten Rechner vorgeschlagen; im Checkout von loomux selbst ist der
+Hook aus und wird nur im Dialog von `init` angeschaltet. Einen Wächter
 gibt es nicht.
 
 ## Zwei Arten von Aktualität

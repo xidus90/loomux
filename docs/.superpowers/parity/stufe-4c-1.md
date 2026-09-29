@@ -187,10 +187,126 @@ schreiben lassen. Das Verzeichnis ist entfernt, nicht committet. Welcher
 Mutant es war, ist nicht nachgegangen; `dev mutants` isoliert das
 Arbeitsverzeichnis der Tests nicht.
 
-## Selbstnutzung — offen (Mensch)
+**Die Runde über den Stand vom 2026-09-29.** Seit der Runde oben kamen die
+Rollen `describe` und `place` von 4d (Richter, Zipf-Tabelle) und das
+Aufwärmen vor der ersten Frage in `internal/brain/model`. Darum lief die
+Runde vor der Abnahme noch einmal, gleicher Umfang, allein, mit vier
+Arbeitern und der Grenze, die `dev mutants` jetzt aus der Dauer der Suite
+nimmt; keine Zeitüberschreitung.
 
-- Eine Wikiseite in obsidian-ai mit Vorschlag des lokalen Modells.
-- Der `pktmon`-Mitschnitt: kein Paket verlässt Loopback.
+| Paket (Datei) | erzeugt | überlebt | danach: stehen |
+|---|---:|---:|---:|
+| `internal/brain/model` | 245 | 6 | 5 |
+| `internal/config` (`modelsettings`) | 85 | 0 | 0 |
+| `internal/config` (`arealock`) | 8 | 0 | 0 |
+| `internal/brain/maintenance` (`reconcile`) | 362 | 3 | 3 |
+| `internal/brain/apply` (`reject`) | 67 | 0 | 0 |
+| `internal/brain/apply` (`frontmatter`) | 60 | 1 | 1 |
+
+- **Getötet:** `client.go:212` (`<= 299` → `< 299` im Aufwärmen): kein
+  Test hatte dem Aufwärmen je einen Status 299 gegeben;
+  `TestAWarmUpAnsweredWith299IsWarm` im Commit des Aufwärmens hält es fest.
+- **Stehen, wie begründet:** in `model` `judge.go:99`, `zipf.go:223` (zwei
+  Formen), `:257`, `:259` — dieselben Begründungen wie in
+  `parity/stufe-4d.md`; in `reconcile` `reconcile.go:527`, `:580`, `:734`
+  und in `apply` `frontmatter.go:121` — genau die vier der Tabelle oben,
+  auf denselben Zeilen.
+
+**Die Runde über den Datenschutz-Fix vom 2026-09-29.** Der Fix aus der
+Selbstnutzung unten (ein `local_only`-Bereich bleibt verborgen, wenn ein
+umschließender gefragt wird) berührt Pakete außerhalb der Runde oben. Über
+die geänderten Dateien lebten 42 Mutanten; jeder ist einzeln geprüft:
+
+| Paket | überlebt | danach: stehen |
+|---|---:|---:|
+| `internal/brain/privacy` | 9 | 9 |
+| `internal/brain/reader` | 1 | 0 |
+| `internal/brain/catalog` (`withhold`) | 3 | 0 |
+| `internal/brain/search` | 1 | 1 |
+| `internal/brain/answer` | 13 | 0 |
+| `internal/brain/maintenance` (`derive`) | 5 | 4 |
+| `internal/brain/maintenance` (`reconcile`) | 3 | 3 |
+| `internal/serve/graph` (`tools`) | 7 | 2 |
+
+- **Getötet** mit Tests im Fix und im Commit `test: kill the surviving
+  mutants of the brain answers and the graph tools`: `read.go:25`, die drei
+  in `withhold.go`, alle 13 in `answer.go` (siehe den Nachtrag in
+  `stufe-1b-2-geparkte-mutanten.md`), `derive.go:99`, in `tools.go` `:99`,
+  `:129`, `:168` und beide Formen von `:209`.
+- **Stehen, äquivalent:** in `privacy` die acht Formen in
+  `containment.go:44`, `glob.go` und `readable.go:72` und in `search`
+  `search.go:162` — dieselben Stellen und Begründungen wie in der Runde von
+  1b-1 (dort `readable.go:42` und `search.go:156`); neu `nesting.go:21` (ohne verborgene Pfade liefert die Schleife
+  danach ohnehin `false`). In `derive` `:119` (ohne herausgeschnittene Pfade
+  läuft der Filter leer durch) und die drei Formen von `:133` (den eigenen
+  Wiki-Ordner überspringt `walkPages` vor dem Ausschneiden, und ein leerer
+  Pfad lässt sich nicht öffnen, schneidet also nichts aus). In `tools.go` `:201` (fehlt der Scope, meldet `resolve`
+  dieselbe Ablehnung) und `:433` (`n = 1` und
+  der Vorgabewert ergeben dieselbe Tiefe).
+- **Stehen, wie begründet:** in `reconcile` `:530`, `:583`, `:737` — die
+  drei der Runde oben, vom Fix um drei Zeilen verschoben.
+
+## Selbstnutzung
+
+**Stand 2026-09-29, und zwei Datenschutzfehler, die der erste Versuch
+fand.** Das Identitätsregister von `project/obsidian-ai` lag im
+Zustandsverzeichnis (der Bereich ist schreibgeschützt); die Seite
+`sources/iam-docs-wissensarchitektur.md` hat der Mensch eingesetzt, weil die
+Schranke dem Agenten das schreibgeschützte Wiki verweigert (Text vom Agenten
+nach `brain-ingest`, Katalogzeile und Protokolleintrag per Skript). Nach
+einer Änderung der Quellnotiz öffnete `reconcile` zwei Fälle, beide ohne
+Vorschlag:
+
+1. **Die Deklaration des Bereichs hatte `local_only` verloren.** Für einen
+   schreibgeschützten Bereich liest loomux die Deklaration aus
+   `<zustand>/areas/project-obsidian-ai/.brain.toml`, und diese Kopie aus dem
+   Zustand von ultra-brain trug nur `scope`, `readonly` und
+   `include = ["**/*.md"]` — kein `[privacy]`, also `manual_cloud`
+   (`declaration.go:156`), und den weiten Index. Der Bereich war damit im
+   Cloud-Kanal sichtbar und bekam kein Modell. Der Mensch hat am
+   2026-09-29 die Kopie durch die Abschnitte `[index]` und `[privacy]` aus
+   der `.brain.toml` des Vaults ersetzt; danach antwortete
+   `brain read --scope project/obsidian-ai --channel cloud` mit „unknown
+   scope“. Das ist die 4e-Auflage „Deklarationen der schreibgeschützten
+   Bereiche von Hand umziehen“; `project/space` und `project/iam-wiki`
+   sind in ihren Repos `manual_cloud`, dort fehlen in der Kopie nur
+   Ausschlüsse im Index.
+2. **Ein umschließender Bereich gab das `local_only`-Wiki frei.** Das Wiki
+   von `hub` umschließt das von obsidian-ai; `brain read` über
+   `--scope hub --channel cloud` lieferte die Seite, und `reconcile` öffnete
+   einen zweiten Fall in `hub` samt dem Diff der Quelle. Behoben in
+   `fix(brain): keep a local-only area hidden when an enclosing area is
+   asked`; die Probe am echten Rechner antwortet danach über `hub` wie für
+   eine fehlende Datei.
+
+Beide Fälle wurden verworfen und der Versuch mit dem Binär des Zweigs
+wiederholt (erster Punkt unten).
+
+- ~~Eine Wikiseite in obsidian-ai mit Vorschlag des lokalen Modells.~~
+  Erledigt am 2026-09-29 mit dem Binär des Zweigs (beide Fixes oben): nach
+  der geänderten Quellnotiz öffnete `reconcile` genau einen Fall,
+  `obsidian-ai-2026-09-29-4694`, nur in `project/obsidian-ai`, in 31 s bei
+  kaltem Ollama und paralleler Last, mit `proposal.md`,
+  `local_only = true` und `prompt_version = "vorschlag-v4"`. Der Vorschlag
+  bestand die Belegbindung, lag aber inhaltlich daneben (er behauptete, das
+  Wiki erwähne „alles auf Deutsch“ nicht; W4 sagt es). Der Mensch hat ihn mit
+  `approve --reject` verworfen; Seite und Register wurden vorgeschoben,
+  „entschieden, aber nicht committet“, weil der Fallordner im Tresor nicht
+  versioniert war. **Befunde:** (a) Der Vault ist nicht versioniert, das
+  Paket hat keinen Vorzustand („ohne verifizierten Vorzustand: das Paket
+  führt nur den neuen Stand“), und das Modell sieht die ganze Datei statt
+  der Änderung — die Güte der Vorschläge leidet dort grundsätzlich; ein
+  gespeicherter Vorzustand je Quelle würde helfen. (b) `approve` entfernt
+  einen unversionierten Fallordner nicht und meldet deshalb „nicht
+  committet“, obwohl der Tresor ein Git-Repository ist.
+- ~~Der `pktmon`-Mitschnitt: kein Paket verlässt Loopback.~~ Gefahren am
+  2026-09-29 (12:45–12:49, 364 MB Text), aber **nicht aussagekräftig**:
+  `pktmon` sieht keinen Loopback-Verkehr und ordnet kein Paket einem Prozess
+  zu, und im Fenster des Laufs lief auf dem Rechner das Hundertfache des
+  Verkehrs davor (ein Download über Fastly, 29 neue Ziele von Browser und
+  anderen Sitzungen). Entschieden vom Nutzer am 2026-09-29: als Nachweis gilt
+  die Garantie des Codes — `GuardEndpoint` lässt nur Loopback zu, kein Proxy
+  aus der Umgebung, keine Weiterleitung, alles durch Tests gehalten.
 - ~~Die Messung gegen das echte Modell.~~ Erledigt am 2026-09-28 (Agent, in
   einer Kopie der Welt `reconcile/proposal-kept`, nicht an obsidian-ai):
   Ollama 0.34.0, CUDA, Vorgabemodell; warm mit Modell Median 793 ms gegen

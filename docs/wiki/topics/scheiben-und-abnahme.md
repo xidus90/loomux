@@ -62,7 +62,7 @@ eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migra
 | 3c | ✅ | Pflegen: `brain check`, `lint --scope`, `wiki init\|types\|retype` |
 | 4a-1 | ✅ | Schema und `loomux config`; drei Terminals und `config set` vom Menschen geprüft |
 | 4a-2 | ✅ | `loomux init`; frischer Klon, ein Wirt und eine Projekt-`.mcp.json` vom Menschen geprüft |
-| 4c-1 | 🚧 | das lokale Modell; gebaut und gegen das echte Modell gemessen, Selbstnutzung offen |
+| 4c-1 | ✅ | das lokale Modell; ein Fall mit Vorschlag in obsidian-ai, gegen das echte Modell gemessen |
 | 4c-2 | ✅ | die Suchmessung `dev bench search`; selbst genutzt, Mutationsrunde abgearbeitet |
 | 4d | ✅ | `convert` und `fetch`, die Modellrollen `describe` und `place`; Selbstnutzung am echten Eingang |
 | 4e | offen | Umstellung der Wirte, eine Checkliste ohne Code |
