@@ -14,7 +14,10 @@ jobs:
     runs-on: [self-hosted, windows-latest]
     defaults:
       run:
-        shell: bash
+        # Git Bash by its path: a bare `bash` on a self-hosted runner can
+        # resolve to WSL's System32 launcher, which cannot open the script
+        # the runner hands it under a Windows path.
+        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
