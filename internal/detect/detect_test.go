@@ -406,6 +406,29 @@ func TestPyprojectWithPyrightSectionNamesPyright(t *testing.T) {
 	}
 }
 
+// mypy is named where a file configures it, and only there: its
+// configuration may choose the files to check.
+func TestAMypyConfigurationNamesMypy(t *testing.T) {
+	for name, data := range map[string]string{
+		"pyproject.toml": "[project]\nname=\"x\"\n\n[tool.mypy]\nfiles = [\"src\"]\n",
+		"mypy.ini":       "[mypy]\n",
+		".mypy.ini":      "[mypy]\n",
+		"setup.cfg":      "[metadata]\nname = x\n\n[mypy]\nfiles = src\n",
+	} {
+		if facts := Detect(fstest.MapFS{name: {Data: []byte(data)}}); !has(facts.Stacks, "mypy") {
+			t.Errorf("%s: stacks = %v, want mypy", name, facts.Stacks)
+		}
+	}
+	for name, data := range map[string]string{
+		"pyproject.toml": "[project]\nname=\"x\"\n",
+		"setup.cfg":      "[metadata]\nname = x\n",
+	} {
+		if facts := Detect(fstest.MapFS{name: {Data: []byte(data)}}); has(facts.Stacks, "mypy") {
+			t.Errorf("%s without a mypy section: stacks = %v", name, facts.Stacks)
+		}
+	}
+}
+
 func TestDetectRecordsEveryAreaAStackIsFoundIn(t *testing.T) {
 	root := fstest.MapFS{
 		"go.mod":              {Data: []byte("module x\n")},

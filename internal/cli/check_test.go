@@ -122,7 +122,7 @@ func TestCheckPythonCoverageMeasuresItselfBesideATestOverride(t *testing.T) {
 		return child.Result{}
 	})
 	code, out, errOut := run("check", "test,coverage", "--root", root)
-	if code != 0 || !strings.Contains(out, "coverage/python: ok") || !slices.Contains(*seen, "uv run coverage run -m pytest -q --tb=short --no-header") {
+	if code != 0 || !strings.Contains(out, "coverage/python: ok") || !slices.Contains(*seen, "uv run --with coverage --with pytest coverage run -m pytest -q --tb=short --no-header") {
 		t.Fatalf("code %d, out %q, err %q, ran %v", code, out, errOut, *seen)
 	}
 }

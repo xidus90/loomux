@@ -66,23 +66,37 @@ tests_when = ["tests/", "test_*.py", "pyproject.toml:[tool.pytest"]
 commands = ["uvx ruff check . --output-format=concise"]
 
 # `uv run`, not `uvx`: a type checker has to see the project's dependencies.
+# `--with` lays the tool over the project's environment, so it still sees
+# them, and a project that pins the tool keeps its pin; one that does not
+# declare it gets it anyway instead of "Failed to spawn". Without mypy
+# configuration there is no `files`, so the default names the root: mypy
+# skips dot directories such as .venv, and --exclude-gitignore skips a venv
+# the project ignores under another name.
 [stack.python.types]
-commands = ["uv run mypy --no-error-summary --no-pretty"]
+commands = ["uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore ."]
 
+# The first detected variant wins: with both configured, pyright checks.
 [[stack.python.variant]]
 when = "pyright"
 [stack.python.variant.types]
 commands = ["uv run pyright"]
 
+# A project that configures mypy chooses its files there; a target on the
+# command line would override them. Its configuration has to set `files`.
+[[stack.python.variant]]
+when = "mypy"
+[stack.python.variant.types]
+commands = ["uv run mypy --no-error-summary --no-pretty"]
+
 [stack.python.test]
-commands = ["uv run pytest -q --tb=short --no-header"]
-measuring = "uv run coverage run -m pytest -q --tb=short --no-header"
+commands = ["uv run --with pytest pytest -q --tb=short --no-header"]
+measuring = "uv run --with coverage --with pytest coverage run -m pytest -q --tb=short --no-header"
 
 # --skip-covered --skip-empty: the files at 100 % are the ones nobody reads;
 # -m names the missing lines, which saves the repairer a round.
 [stack.python.coverage]
-commands = ["uv run coverage report --skip-covered --skip-empty -m"]
-measure = "uv run coverage run -m pytest -q --tb=short --no-header"
+commands = ["uv run --with coverage coverage report --skip-covered --skip-empty -m"]
+measure = "uv run --with coverage --with pytest coverage run -m pytest -q --tb=short --no-header"
 after = "test"
 
 # The graph belongs to the root, not to a stack: the same commands as Go's,

@@ -265,7 +265,7 @@ then `[verify.<stack>]`.
 | Stack | `lint` | `types` | `test` | `coverage` |
 |---|---|---|---|---|
 | go | `go vet ./...`, `{loomux} check gofmt .` (threaded) | — | `go test ./... -count=1` | `{loomux} check gocover --profile {coverprofile}` |
-| python | `uvx ruff check . --output-format=concise` | `uv run mypy --no-error-summary --no-pretty`; with `pyright`: `uv run pyright` | `uv run pytest -q --tb=short --no-header` | `uv run coverage report --skip-covered --skip-empty -m` |
+| python | `uvx ruff check . --output-format=concise` | `uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore .`; with `pyright`: `uv run pyright`; with `mypy`: `uv run mypy --no-error-summary --no-pretty` | `uv run --with pytest pytest -q --tb=short --no-header` | `uv run --with coverage coverage report --skip-covered --skip-empty -m` |
 | typescript | `npx eslint .`; with `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run` | `npx vitest run --coverage` |
 | vue | — | `npx vue-tsc --noEmit` | — | — |
 | svelte | — | `npx svelte-check` | — | — |
@@ -277,6 +277,17 @@ then `[verify.<stack>]`.
 | sql | `sqlfluff lint .` | — | — | — |
 | rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
 
+- The Python lanes bring their tools with `uv run --with`: a project that
+  does not declare mypy, pytest or coverage as dependencies still runs them,
+  inside its own environment, and one that pins them keeps its pins. Without
+  mypy configuration mypy checks the root; it skips dot directories such as
+  `.venv` and whatever `.gitignore` names. The flag for that,
+  `--exclude-gitignore`, exists from mypy 1.16 on: a project that pins an
+  older mypy sets `[verify.python.types]` itself, or configures mypy and gets
+  the variant. The `mypy` variant applies where
+  `[tool.mypy]` in `pyproject.toml`, `mypy.ini`, `.mypy.ini` or `[mypy]` in
+  `setup.cfg` exists: it names no target, so that configuration has to set
+  `files`. With both `pyright` and `mypy`, pyright checks.
 - The `on_file` forms: go `go vet ./...` and `{loomux} check gofmt {file}`
   (an edit formats only its own file), gdscript `uvx gdlint {file}`, cpp
   `clang-format --dry-run --Werror {file}` (checks, never rewrites),
@@ -292,7 +303,7 @@ then `[verify.<stack>]`.
   loomux does not guess a configure step.
 - **Measuring.** `test` measures only when `coverage` is in the same run
   (go: `-covermode=set -coverprofile={coverprofile}`, python:
-  `uv run coverage run -m pytest …`); on its own it stays the fast path.
+  `uv run --with coverage --with pytest coverage run -m pytest …`); on its own it stays the fast path.
   `coverage` runs `after = "test"`, but waits for `test` only when the test
   lane, as planned for this run, writes a file `coverage` reads: it runs its
   `measuring` form, or its command names the `{coverprofile}` or `{coverdata}`

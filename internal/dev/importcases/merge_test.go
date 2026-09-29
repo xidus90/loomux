@@ -76,3 +76,66 @@ func TestMergeFixtureReportsWhatItCannotRead(t *testing.T) {
 		t.Error("want an error for a fixture that is a directory")
 	}
 }
+
+// A Same entry copies the world's recorded answer to another command line, so
+// a red world stays red; a world that never recorded it gets nothing.
+func TestMergeFixtureGivesACommandTheAnswerOfAnother(t *testing.T) {
+	to := t.TempDir()
+	red := buildCase(t, to, "check", "red", "loomux check test", "")
+	writeFile(t, filepath.Join(red, "world", faketool.FixtureName), `{"answers": [{"prefix": "uv run pytest", "exit": 1, "stdout": "failed\n"}]}`)
+	none := buildCase(t, to, "check", "none", "loomux check test", "")
+	extra := filepath.Join(t.TempDir(), "extra.json")
+	writeFile(t, extra, `{"answers": [], "same": [{"prefix": "uv run --with pytest pytest", "as": "uv run pytest"}]}`)
+
+	if err := MergeFixture(to, extra); err != nil {
+		t.Fatal(err)
+	}
+
+	for dir, want := range map[string][]faketool.Answer{
+		red:  {{Prefix: "uv run pytest", Exit: 1, Stdout: "failed\n"}, {Prefix: "uv run --with pytest pytest", Exit: 1, Stdout: "failed\n"}},
+		none: nil,
+	} {
+		got, err := faketool.Load(filepath.Join(dir, "world", faketool.FixtureName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got.Answers, want) {
+			t.Errorf("%s: %+v", dir, got.Answers)
+		}
+	}
+}
+
+// Same copies what the world recorded, not what the extra file adds: an extra
+// answer under the `as` prefix is no recording. A world that recorded the
+// prefix twice gets one copy, of the later answer, since that is the one the
+// fixture gives on a tie.
+func TestMergeFixtureCopiesTheOneRecordedAnswerTheFixtureWouldGive(t *testing.T) {
+	to := t.TempDir()
+	unrecorded := buildCase(t, to, "check", "unrecorded", "loomux check test", "")
+	writeFile(t, filepath.Join(unrecorded, "world", faketool.FixtureName), `{"answers": [{"prefix": "ruff", "exit": 0}]}`)
+	twice := buildCase(t, to, "check", "twice", "loomux check test", "")
+	writeFile(t, filepath.Join(twice, "world", faketool.FixtureName),
+		`{"answers": [{"prefix": "uv run pytest", "exit": 0, "stdout": "first\n"}, {"prefix": "uv run pytest", "exit": 1, "stdout": "second\n"}, {"prefix": "ruff", "exit": 0}]}`)
+	extra := filepath.Join(t.TempDir(), "extra.json")
+	writeFile(t, extra, `{"answers": [{"prefix": "uv run pytest", "exit": 0, "stdout": "extra\n"}],
+		"same": [{"prefix": "uv run --with pytest pytest", "as": "uv run pytest"}]}`)
+
+	if err := MergeFixture(to, extra); err != nil {
+		t.Fatal(err)
+	}
+
+	added := faketool.Answer{Prefix: "uv run pytest", Stdout: "extra\n"}
+	for dir, want := range map[string][]faketool.Answer{
+		unrecorded: {{Prefix: "ruff"}, added},
+		twice: {{Prefix: "uv run pytest", Stdout: "first\n"}, {Prefix: "uv run pytest", Exit: 1, Stdout: "second\n"}, {Prefix: "ruff"}, added,
+			{Prefix: "uv run --with pytest pytest", Exit: 1, Stdout: "second\n"}},
+	} {
+		got, err := faketool.Load(filepath.Join(dir, "world", faketool.FixtureName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got.Answers, want) {
+			t.Errorf("%s: %+v", dir, got.Answers)
+		}
+	}
+}

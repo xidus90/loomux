@@ -1121,7 +1121,7 @@ Records one call of the reference's MCP front as a case: a tool call and its `Ca
 - **Exit codes**: `0` after the recording; `1` when it fails; `2` for an unknown flag, a missing required flag or another `--compare`.
 
 ### `loomux dev import-cases --map <file> --from <dir> --to <dir> [--mcp] [--merge-fixture <file>]`
-Translates recorded cases from `--from` into `--to` by the `[[command]]` rules (or `[[tool]]` rules with `--mcp`, for recordings of MCP calls) of the TOML file `--map`. `--merge-fixture` appends the answers of a faketool fixture to every translated world.
+Translates recorded cases from `--from` into `--to` by the `[[command]]` rules (or `[[tool]]` rules with `--mcp`, for recordings of MCP calls) of the TOML file `--map`. `--merge-fixture` names a JSON file with two lists and merges it into the `faketool.json` of every translated world, behind what the world recorded: first the `answers`, as they stand, then one copy for every entry `{"prefix": …, "as": …}` of `same` whose `as` the world recorded, which is that recorded answer under the new `prefix` (of two recordings with that prefix the later one, the one the fixture gives). So a command line only loomux asks gets a fixed answer, or the answer the world gave the old command line: a world that recorded a failing `uv run pytest` fails `uv run --with pytest pytest` the same way. A world that did not record `as` gets no copy, and one without a fixture gets one.
 
 - **Exit codes**: `0` after the import; `1` when the map cannot be decoded or the import or merge fails; `2` for an unknown flag or a missing required flag.
 
