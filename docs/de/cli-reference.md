@@ -1342,9 +1342,9 @@ Richtet ein Projekt für loomux ein: Es liest, was das Projekt ist, fragt je
 Modul, was einzurichten ist, zeigt jede Änderung als Diff und jede Handlung
 beim Namen und schreibt nur, was ein Mensch bestätigt. Es ersetzt `ulinit`
 aus ultraloom, `scripts/install.ps1` und die Hook-Hälfte von `brain init`.
-Gebaut mit Stufe 4a-2; auf einem frischen Klon dieses Repositorys hat ein
-Mensch es am 2026-09-28 laufen lassen, der Lauf in einem Wirtsprojekt steht
-noch aus (siehe den [Migrationsplan](migration.md)).
+Gebaut mit Stufe 4a-2; am 2026-09-28 hat ein Mensch es auf einem frischen
+Klon dieses Repositorys und interaktiv in einem Wirtsprojekt laufen lassen
+(siehe den [Migrationsplan](migration.md)).
 
 ```bash
 loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]
