@@ -289,6 +289,9 @@ aufgenommen wird, entscheidet der Controller.
 
 ## Checkliste
 
+**Stand 2026-09-29:** Block 4 (Deklarationen von Hand) und Block 5 (`init`, alte Einträge) sind durch den Ablauf der Spec `2026-09-29-loomux-stufe-4e-umstellung-vorbereitet-design.md` abgelöst: das LLM bereitet vor, ein `apply.sh` schreibt. Block 1 bis 3 und der Rauchtest (Block 6) gelten weiter.
+
+
 Der Mensch hakt ab, kein Agent. Die Blöcke gelten in dieser Reihenfolge.
 Befehle sind für den `!`-Präfix in Git Bash geschrieben (Vorwärtsschrägstriche,
 `/c/…`-Pfade); eine nötige Antwort steht per Pipe davor (`echo n | …`). Ein
