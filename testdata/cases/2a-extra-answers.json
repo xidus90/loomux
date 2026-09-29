@@ -36,5 +36,11 @@
         }
       ]
     }
+  ],
+  "same": [
+    {"prefix": "uv run --with mypy mypy", "as": "uv run mypy"},
+    {"prefix": "uv run --with pytest pytest", "as": "uv run pytest"},
+    {"prefix": "uv run --with coverage --with pytest coverage run", "as": "uv run coverage run"},
+    {"prefix": "uv run --with coverage coverage report", "as": "uv run coverage report"}
   ]
 }

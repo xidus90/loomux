@@ -272,7 +272,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | Stack | `lint` | `types` | `test` | `coverage` |
 |---|---|---|---|---|
 | go | `go vet ./...`, `{loomux} check gofmt .` (parallel) | — | `go test ./... -count=1` | `{loomux} check gocover --profile {coverprofile}` |
-| python | `uvx ruff check . --output-format=concise` | `uv run mypy --no-error-summary --no-pretty`; mit `pyright`: `uv run pyright` | `uv run pytest -q --tb=short --no-header` | `uv run coverage report --skip-covered --skip-empty -m` |
+| python | `uvx ruff check . --output-format=concise` | `uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore .`; mit `pyright`: `uv run pyright`; mit `mypy`: `uv run mypy --no-error-summary --no-pretty` | `uv run --with pytest pytest -q --tb=short --no-header` | `uv run --with coverage coverage report --skip-covered --skip-empty -m` |
 | typescript | `npx eslint .`; mit `biome`: `npx biome check .` | `npx tsc --noEmit` | `npx vitest run` | `npx vitest run --coverage` |
 | vue | — | `npx vue-tsc --noEmit` | — | — |
 | svelte | — | `npx svelte-check` | — | — |
@@ -284,6 +284,17 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | sql | `sqlfluff lint .` | — | — | — |
 | rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
 
+- Die Python-Lanes bringen ihre Werkzeuge mit `uv run --with` mit: Ein
+  Projekt, das mypy, pytest oder coverage nicht als Abhängigkeit führt, fährt
+  sie trotzdem, in seiner eigenen Umgebung, und eines, das sie pinnt, behält
+  seine Pins. Ohne mypy-Konfiguration prüft mypy die Wurzel; Punktordner wie
+  `.venv` und was `.gitignore` nennt, lässt es aus. Das Flag dafür,
+  `--exclude-gitignore`, gibt es ab mypy 1.16: Ein Projekt, das ein älteres
+  mypy pinnt, setzt `[verify.python.types]` selbst oder konfiguriert mypy und
+  bekommt damit die Variante. Die Variante `mypy` greift,
+  wo `[tool.mypy]` in `pyproject.toml`, `mypy.ini`, `.mypy.ini` oder `[mypy]`
+  in `setup.cfg` steht: Sie nennt kein Ziel, also muss diese Konfiguration
+  `files` setzen. Mit `pyright` und `mypy` zugleich prüft pyright.
 - Die `on_file`-Formen: go `go vet ./...` und `{loomux} check gofmt {file}`
   (ein Edit formatiert nur seine eigene Datei), gdscript `uvx gdlint {file}`,
   cpp `clang-format --dry-run --Werror {file}` (prüft, schreibt nie um),
@@ -298,7 +309,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   Toolchain), loomux rät keinen Konfigurationsschritt.
 - **Messen.** `test` misst nur, wenn `coverage` im selben Lauf steht (go:
   `-covermode=set -coverprofile={coverprofile}`, python:
-  `uv run coverage run -m pytest …`); allein bleibt es der schnelle Weg.
+  `uv run --with coverage --with pytest coverage run -m pytest …`); allein bleibt es der schnelle Weg.
   `coverage` läuft `after = "test"`, wartet aber nur dann auf `test`, wenn die
   Test-Lane, wie sie für diesen Lauf geplant ist, eine Datei schreibt, die
   `coverage` liest: Sie läuft in ihrer Form `measuring`, oder ihr Befehl nennt

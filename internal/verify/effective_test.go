@@ -116,7 +116,7 @@ after = "lint"
 		t.Fatalf("false switches off: %+v", types)
 	}
 	pycov := eff.Stacks["python"]["coverage"].Lane
-	if pycov.After != "lint" || pycov.Measure != "uv run coverage run -m pytest" || pycov.Commands[0] != "uv run coverage report --skip-covered --skip-empty -m" {
+	if pycov.After != "lint" || pycov.Measure != "uv run coverage run -m pytest" || pycov.Commands[0] != "uv run --with coverage coverage report --skip-covered --skip-empty -m" {
 		t.Fatalf("%+v", pycov)
 	}
 	if !eff.Configured["go"] || eff.Configured["python"] {

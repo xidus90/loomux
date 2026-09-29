@@ -80,6 +80,39 @@ func TestParsePresetsRefuses(t *testing.T) {
 	}
 }
 
+// A Python project that declares neither mypy's files nor coverage and
+// pytest as dependencies still gets lanes that run: mypy is handed a target,
+// and the tools come in through uv's --with. Where mypy is configured, the
+// variant keeps the command that lets its configuration pick the files.
+func TestThePythonLanesRunWithoutAMypyTargetOrToolDependencies(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	py := p.Stacks["python"]
+	measure := "uv run --with coverage --with pytest coverage run -m pytest -q --tb=short --no-header"
+	want := map[string][]string{
+		"types":    {"uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore ."},
+		"test":     {"uv run --with pytest pytest -q --tb=short --no-header"},
+		"coverage": {"uv run --with coverage coverage report --skip-covered --skip-empty -m"},
+	}
+	for kind, cmds := range want {
+		if got := py.Lanes[kind].Commands; !slices.Equal(got, cmds) {
+			t.Errorf("%s = %q, want %q", kind, got, cmds)
+		}
+	}
+	if py.Lanes["test"].Measuring != measure || py.Lanes["coverage"].Measure != measure {
+		t.Errorf("measuring %q, measure %q", py.Lanes["test"].Measuring, py.Lanes["coverage"].Measure)
+	}
+	i := slices.IndexFunc(py.Variants, func(v Variant) bool { return v.When == "mypy" })
+	if i < 0 || !slices.Equal(py.Variants[i].Lanes["types"].Commands, []string{"uv run mypy --no-error-summary --no-pretty"}) {
+		t.Fatalf("mypy variant: %+v", py.Variants)
+	}
+	if i < slices.IndexFunc(py.Variants, func(v Variant) bool { return v.When == "pyright" }) {
+		t.Fatal("pyright must come first: the first detected variant wins")
+	}
+}
+
 func TestAVariantInheritsTheLanesItDoesNotName(t *testing.T) {
 	src := "[stack.go.test]\nmeasuring = \"go test -coverprofile={coverprofile}\"\n" +
 		"[[stack.go.variant]]\nwhen = \"biome\"\n[stack.go.variant.coverage]\ncommands=[\"x {coverprofile}\"]\n"

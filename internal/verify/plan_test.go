@@ -476,14 +476,16 @@ func TestPlanPythonCoverageWithoutCoveragePyReadsNothing(t *testing.T) {
 
 func TestReportsWithCoveragePy(t *testing.T) {
 	for argv, want := range map[string]bool{
-		"uv run coverage report -m":        true,
-		"coverage xml":                     true,
-		"python -m coverage json -o x":     true,
-		"coverage html":                    true,
-		"coverage lcov":                    true,
-		"uv run pytest --cov=src":          false,
-		"report coverage":                  false,
-		"uv run coverage run -m pytest -q": false,
+		"uv run coverage report -m":                 true,
+		"coverage xml":                              true,
+		"python -m coverage json -o x":              true,
+		"coverage html":                             true,
+		"coverage lcov":                             true,
+		"uv run pytest --cov=src":                   false,
+		"report coverage":                           false,
+		"uv run coverage run -m pytest -q":          false,
+		"uv run --with coverage coverage report -m": true,
+		"uv run --with coverage --with pytest coverage run -m pytest": false,
 	} {
 		if got := reportsWithCoveragePy([][]string{strings.Fields(argv)}); got != want {
 			t.Errorf("%q: %v", argv, got)

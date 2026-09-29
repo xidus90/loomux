@@ -56,7 +56,7 @@ func TestRunStatus(t *testing.T) {
 	// their own.
 	for _, want := range []string{
 		"     * python (*.py) lint: uvx ruff check . --output-format=concise [preset]\n",
-		"     * python (*.py) types: uv run mypy --no-error-summary --no-pretty [preset]\n",
+		"     * python (*.py) types: uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore . [preset]\n",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected %q in output, got %s", want, out)
@@ -345,7 +345,7 @@ func TestRunStatusPlainPythonAndGo(t *testing.T) {
 
 	out := stdout.String()
 	for _, want := range []string{
-		"python (*.py) types: uv run mypy --no-error-summary --no-pretty [preset]",
+		"python (*.py) types: uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore . [preset]",
 		"go (*.go) lint: go vet ./... ; {loomux} check gofmt {file} [preset, parallel]",
 	} {
 		if !strings.Contains(out, want) {

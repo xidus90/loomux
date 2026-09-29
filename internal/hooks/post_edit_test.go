@@ -578,7 +578,7 @@ func TestPresetAnswersForTheBenchCorpus(t *testing.T) {
 		"go vet ./...",
 		"loomux check gofmt {file}",
 		"uvx ruff check . --output-format=concise",
-		"uv run mypy --no-error-summary --no-pretty",
+		"uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore .",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("EditLaneCommands = %q, want %q", got, want)
