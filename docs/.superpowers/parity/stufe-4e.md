@@ -287,6 +287,90 @@ Leser. Ein Gegenstück in loomux gibt es nicht; ein Hinweis „in der alten Spec
 genannt, von keinem Leser gelesen“ wäre die ehrliche Fassung. Ob er
 aufgenommen wird, entscheidet der Controller.
 
+### 7. Die offenen Messungen der Umstellung (2026-09-29)
+
+Binary `bin/loomux.exe` aus dem Arbeitsbaum (Stand `90a0e7a4`), uv 0.12.16.
+Jeder Aufruf als schlichte Einzelzeile. Mit Umleitung in eine Datei hat der
+Wächter `init --dry-run` verweigert, ohne Umleitung ließ er es durch.
+
+**`init --dry-run` zeigt die `settings.json` als Diff, nicht als ganze
+Datei.** Die Ausgabe ist ein Zeilendiff je Datei (`--- <pfad>`, `-`/`+`/`  `).
+Bei `iam_backend` stehen die alten Befehle (`ulguard`, `ulguard post-edit`,
+`uv run … ultraloom hook subagent-start|stop`, `brain wiki-gate`) als `-` und
+dann wieder als `+`, jeweils neben dem neuen `loomux.exe hook …`. Der Diff
+richtet die Zeilen neu aus, entfernt wird nichts. Die Hinweise sagen es
+ausdrücklich: „SessionStart/ keeps a hook of the project beside ours“, dasselbe
+für SubagentStart und SubagentStop. `init` lässt die alten Einträge also
+stehen, und Schritt 6 des Skripts (`dev switchover prune-hooks`) wird
+gebraucht. `ecoflow` hat keine `settings.json`; der Trockenlauf legt dort nur
+`.loomux/config.toml` (eine `pip`-Regel), `.gitignore` und `AGENTS.md` an.
+
+**Module und Guard-Modus von `init --yes`.** Laut Trockenlauf von `iam_backend`
+laufen die Aktionen `area-add` (`--scope project/iam_backend`, Wiki
+`docs/wiki`), `merge-hook` und `graph-build`, dazu die Hooks für Claude Code
+und Antigravity. Ein Abschnitt `[guard]` wird nicht geschrieben. Nach
+`internal/config/guardsettings.go` (`GuardModes`, der Default steht zuerst)
+gilt damit `default`, wie vom Nutzer vorgegeben. Nebenbefunde: Antigravity
+bekommt aus einem Dev-Build (`0.0.0-dev`) keine Einträge („run a released
+loomux init“); ollama lief nicht, `yt-dlp` fehlt im PATH.
+
+**`area add` ändert keinen vorhandenen Bereich.** `config.AddArea`
+(`internal/config/registrywrite.go`) lehnt einen schon registrierten Scope mit
+„scope … is already registered“ ab, und `planArea` setzt `Workspace: true`
+fest. `readonly`, `wiki` oder `workspace` eines registrierten Bereichs ändert
+es nicht. Für `space`, `iam_wiki`, `ecoflow`, `ultra-brain` und `ultraloom`
+braucht es also die Registry-Datei aus Schritt 2 des Skripts.
+
+**Session-Hooks der `iam_*`.** `uv run --project <projekt>/.ultraloom/vendor/ultraloom ultraloom --help`:
+
+| Projekt | Ergebnis |
+|---|---|
+| `iam_backend` | **nicht messbar:** `.ultraloom/vendor` fehlt, uv meldet „Project directory … does not exist“ (Exit 2). Die `settings.json` ruft den Pfad trotzdem auf, die Session-Hooks laufen dort heute also ins Leere |
+| `iam_frontend` | läuft. Das vendorte Submodul hat schon vorher Änderungen in sieben Dateien (`cmd/guard/post_edit.go`, `src/ultraloom/cli.py`, `commit/*.py`, `process.py`); gemessen wird also dieser Stand, nicht ein Release |
+| `iam_workers` | läuft. Der erste Aufruf hat `.venv` im Vendor-Ordner angelegt (45 Pakete). Die ist ignoriert, `git status` bleibt leer. **Der Schritt war nicht rein lesend** |
+
+**Wikis: Inhalt und Überschneidung** (Python-Skript, `filecmp` byteweise; `.git` ausgenommen):
+
+| Ziel | Vault `91 Projekte/…` | Zustandsverzeichnis | Projekt `docs/wiki` | Projekt `wiki` | gleiche Namen, abweichend |
+|---|---|---|---|---|---|
+| `ecoflow` | 5 (Gerüst) | fehlt | 4, versioniert seit `ee1616d` (2026-09-06) | fehlt | Vault∩Projekt 4 gleich benannt, abweichend: `index.md` |
+| `space` | 5 (Gerüst) | 72 (68 md) | 217 (204 md) | fehlt | Vault∩Projekt: `index.md`, `log.md`; Vault∩Zustand: `_identities.tsv`, `index.md`; Zustand∩Projekt: `index.md` |
+| `iam_wiki` | 5 (Gerüst) | 31 (27 md), **nur erzeugte Ordner-`index.md`** (`architecture/`, `projects/backend/apis/` …) ohne eigene Seite | 4, versioniert seit `5a116cc` (2026-09-06) | fehlt | Vault∩Projekt: `index.md`; Vault∩Zustand: `_identities.tsv`, `index.md` |
+| `ultra-brain` | fehlt | fehlt | 33 (32 md) | fehlt | — |
+| `ultraloom` | 5 (Gerüst) | fehlt | 10 (4 md), versioniert seit `9106da8` | fehlt | Vault∩Projekt 5 gleich benannt, 4 abweichend: `_identities.tsv`, `_schema.md`, `audit.md`, `index.md` |
+
+Nachmessung am selben Tag, weil das Skript Pfade ab der Wurzel jedes Orts
+verglich und die Unterbäume `wiki/` und `docs/wiki/` des Zustandsverzeichnisses
+so nie namentlich gegen das Projekt hielt:
+
+- `space`: `project-space/wiki` (11 Dateien) und `project-space/docs/wiki`
+  (11) tragen nur `index.md`-Kataloge je Ordner, dieselben 11 Ordner, die
+  `space/docs/wiki` hat. Die beiden Kataloge unterscheiden sich untereinander
+  (`cmp`, Zeile 1). Es ist keine eigene Seite darunter.
+- `iam_wiki`: Die 27 Markdown-Dateien im Zustandsverzeichnis sind erzeugte
+  Kataloge (`## Dateien` mit Links, z. B. `projects/backend/decisions/index.md`,
+  422 Bytes). Die Seiten, auf die sie zeigen, liegen **im Wurzelverzeichnis des
+  Projekts** (`iam_wiki/projects/backend/decisions/api-permission-discrepancies.md`):
+  106 Markdown-Dateien außerhalb von `docs/`, davon 80 versioniert; die übrigen
+  26 sind ignorierte Arbeitspapiere unter `.superpowers/`. Das Wiki von
+  `iam_wiki` ist also das Projekt selbst, nicht `docs/wiki`.
+
+Befund gegen die Spec: Die Spec-Tabelle sagt „`iam_wiki` … **nein**“ (kein Wiki
+im Projekt) und für `ecoflow` „ein Ordner `wiki` fehlt“. Beide Projekte haben
+aber seit dem 2026-09-06 ein versioniertes `docs/wiki`-Gerüst. In **keinem**
+Vault-Ordner und in keinem Zustandsverzeichnis liegt eine Seite, die im Projekt
+fehlt und kein Gerüst ist: Die einzige echte Wikisammlung ist `space/docs/wiki`,
+und die liegt schon im Projekt; bei `iam_wiki` liegen die Seiten im
+Wurzelverzeichnis des Projekts. `WikiDst` ist `<projekt>/docs/wiki` für
+`ecoflow`, `space`, `ultra-brain` und `ultraloom`; für `iam_wiki` entscheidet
+der Nutzer zwischen Wurzelverzeichnis und `docs/wiki`. `WikiSrcs` trägt je Ziel höchstens das Vault-Gerüst.
+Dessen einzige Datei, die im Projekt fehlt, ist `_identities.tsv` (bei
+`ecoflow`, `space` und `iam_wiki`). Die abweichenden Gerüstdateien (`index.md`,
+`log.md`, bei `ultraloom` auch `_schema.md` und `audit.md`) entscheidet der
+Nutzer je Datei, sonst bricht Schritt 3 des Skripts mit `differs:` ab.
+Nicht gemessen: ob sich `_identities.tsv` des Vaults und die des
+Zustandsverzeichnisses nur in `doc_id` unterscheiden oder in mehr.
+
 ## Checkliste
 
 **Stand 2026-09-29:** Block 4 (Deklarationen von Hand) und Block 5 (`init`, alte Einträge) sind durch den Ablauf der Spec `2026-09-29-loomux-stufe-4e-umstellung-vorbereitet-design.md` abgelöst: das LLM bereitet vor, ein `apply.sh` schreibt. Block 1 bis 3 und der Rauchtest (Block 6) gelten weiter.
