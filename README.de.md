@@ -318,6 +318,8 @@ loomux check blast-audit [--cached|--base B] [--threshold 3]  # Exit 1, wenn ein
 loomux dev bench hooks <fälle>      # Misst die Hook-Befehle eines Fallsatzes gegen die Grundlinie von < 35 ms (-n, --out <dir>)
 loomux dev bench repos [--dir <dir>] [--save] # Misst die Hooks an einem Repo oder am Open-Source-Matrix-Korpus mit Lücken-Audit; --save sichert in docs/
 loomux dev bench search [--corpus v1 --out <dir>] # Misst den Trefferrang der Suche über einen Fragensatz oder den Korpus v1 (--profile, --latency, --out <dir>)
+loomux dev bench compare --before <bericht> --after <bericht> # Stellt zwei Hook-Berichte nebeneinander: schneller, langsamer, neu, weggefallen (--title, --lang de|en, --out <dir>)
+loomux dev bench cases --root <dir> --file <md> --out <dir> # Baut die Falldatei der Hooks eines Projekts aus seiner settings.json (--settings, --extras)
 loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus
 loomux dev record-case --out <dir>  # Zeichnet einen Lauf eines Referenz-Binaries als Fall auf
 loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter Fälle in loomux-Fälle
