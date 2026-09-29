@@ -41,7 +41,9 @@ type settingsFile struct {
 
 // Build makes one case per event that has a command for the sample edit.
 // Commands of one event run together (mode par), as a host starts them.
-func Build(settings []byte, root, file, dir string) ([]benchhooks.Case, []Payload, error) {
+// lookup reads the environment for the ${NAME} references of a command; it is
+// a parameter so that a caller, and a test, decide what the environment is.
+func Build(settings []byte, root, file, dir string, lookup func(string) (string, bool)) ([]benchhooks.Case, []Payload, error) {
 	var parsed settingsFile
 	if err := json.Unmarshal(settings, &parsed); err != nil {
 		return nil, nil, fmt.Errorf("settings: not valid JSON: %w", err)
@@ -61,7 +63,11 @@ func Build(settings []byte, root, file, dir string) ([]benchhooks.Case, []Payloa
 				}
 			}
 			for _, h := range group.Hooks {
-				argv, err := split(strings.ReplaceAll(h.Command, "${CLAUDE_PROJECT_DIR}", root))
+				command, err := expand(h.Command, root, lookup)
+				if err != nil {
+					return nil, nil, fmt.Errorf("%s: %w", event, err)
+				}
+				argv, err := split(command)
 				if err != nil {
 					return nil, nil, fmt.Errorf("%s: %w", event, err)
 				}
@@ -90,6 +96,36 @@ func Build(settings []byte, root, file, dir string) ([]benchhooks.Case, []Payloa
 		return nil, nil, fmt.Errorf("settings: no hook of any event applies to an edit")
 	}
 	return cases, payloads, nil
+}
+
+// envRef is the ${NAME} form of a variable reference, the one hook
+// configurations use; $NAME and ${NAME:-default} are left as they stand.
+var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// expand replaces every ${NAME} of a command line: CLAUDE_PROJECT_DIR by root,
+// which a host sets itself, any other name by its value in the environment.
+// A host's shell would turn a variable that is not set into nothing; a path
+// that silently loses its first element is worse than no case, so it is an
+// error naming the variable. A variable that is set to the empty string is
+// expanded to it. The command line is expanded as text, before split reads
+// its quotes: unlike a shell, a ${NAME} inside single quotes is expanded too.
+func expand(command, root string, lookup func(string) (string, bool)) (string, error) {
+	var missing string
+	out := envRef.ReplaceAllStringFunc(command, func(ref string) string {
+		name := ref[2 : len(ref)-1]
+		if name == "CLAUDE_PROJECT_DIR" {
+			return root
+		}
+		value, ok := lookup(name)
+		if !ok && missing == "" {
+			missing = ref
+		}
+		return value
+	})
+	if missing != "" {
+		return "", fmt.Errorf("the command uses %s, which is not set", missing)
+	}
+	return out, nil
 }
 
 // matchesTool applies a hook matcher to a tool name: an empty matcher and "*"

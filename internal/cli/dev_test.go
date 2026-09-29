@@ -309,8 +309,10 @@ func TestDevBenchWithoutSubcommandPrintsTheGroupsHelp(t *testing.T) {
 	if code != 2 || out != "" {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
-	for _, want := range []string{"usage: loomux dev bench <hooks|repos|search>", "hooks", "repos",
-		"  search  measure the rank of search hits and the chain's latency"} {
+	for _, want := range []string{"usage: loomux dev bench <hooks|repos|search|compare|cases>", "hooks", "repos",
+		"  search  measure the rank of search hits and the chain's latency",
+		"  compare set two hook runs side by side (faster, new, dropped)",
+		"  cases   build the case file of a project's hooks from its settings"} {
 		if !strings.Contains(errOut, want) {
 			t.Fatalf("help lacks %q:\n%s", want, errOut)
 		}
@@ -324,7 +326,7 @@ func TestTheOldBenchNamesAreGone(t *testing.T) {
 	}
 	code, _, errOut = run("dev", "bench", "--dir", ".")
 	if code != 2 || !strings.Contains(errOut, `loomux dev bench: unknown subcommand "--dir"`) ||
-		!strings.Contains(errOut, "usage: loomux dev bench <hooks|repos|search>") {
+		!strings.Contains(errOut, "usage: loomux dev bench <hooks|repos|search|compare|cases>") {
 		t.Fatalf("bench --dir: code %d, stderr %q", code, errOut)
 	}
 }
