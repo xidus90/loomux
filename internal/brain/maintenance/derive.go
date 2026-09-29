@@ -6,11 +6,13 @@ package maintenance
 
 import (
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/xidus90/loomux/internal/brain/wiki"
+	"github.com/xidus90/loomux/internal/config"
 )
 
 // Dependents is the backward index source -> pages, rebuilt from the pages
@@ -33,9 +35,12 @@ import (
 // A map and not a sorted slice of pairs: the one caller looks a doc id up and
 // never walks the keys, and the ordering Python promises there lives in the
 // sorted value slices.
-func Dependents(wikiPath string) (map[string][]string, error) {
+//
+// nested are the wikis of the other registered areas. One that lies inside
+// wikiPath is not walked: its pages belong to its own area (see walkPages).
+func Dependents(wikiPath string, nested []string) (map[string][]string, error) {
 	edges := map[string][]string{}
-	err := walkPages(wikiPath, func(page *wiki.WikiPage) error {
+	err := walkPages(wikiPath, nested, func(page *wiki.WikiPage) error {
 		for _, source := range page.Sources {
 			if !slices.Contains(edges[source.DocID], page.Relative) {
 				edges[source.DocID] = append(edges[source.DocID], page.Relative)
@@ -61,7 +66,26 @@ func Dependents(wikiPath string) (map[string][]string, error) {
 // and the open-page candidates a merge case is raised over. Both need the same
 // two exclusions, and a second copy of them would be the second place a
 // scaffold name has to reach.
-func walkPages(wikiPath string, visit func(*wiki.WikiPage) error) error {
+//
+// A page belongs to the deepest registered area whose wiki holds it, so a
+// directory that is the wiki of another area is not entered. Areas nest: on
+// this machine the wiki of "hub" holds the wikis of four projects, one of them
+// `local_only`, and a walk that entered them raised every case of those pages
+// twice -- once in the project and once in the hub, whose package then
+// carried a `local_only` diff into a `manual_cloud` area (found 2026-09-29).
+// The rule is general rather than one for `local_only`: a second case for the
+// same page is noise in every area, and the inner area is the one whose
+// declaration, proposer and privacy the page answers to. It is the carving
+// the indexer applies to the same trees (`index.nestedAreas`), decided here by
+// identity, so a nested wiki spelt as an 8.3 name or reached through a
+// junction is recognised.
+func walkPages(wikiPath string, nested []string, visit func(*wiki.WikiPage) error) error {
+	var carved []os.FileInfo
+	for _, dir := range nested {
+		if info, err := os.Stat(dir); err == nil {
+			carved = append(carved, info)
+		}
+	}
 	return filepath.WalkDir(wikiPath, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -71,6 +95,9 @@ func walkPages(wikiPath string, visit func(*wiki.WikiPage) error) error {
 		// called `wiki.md` would be read as its own first page.
 		if path == wikiPath {
 			return nil
+		}
+		if entry.IsDir() && anyIsDir(carved, path) {
+			return fs.SkipDir
 		}
 		// The name and not the mode: `rglob("*.md")` hands a directory called
 		// `a.md` to the reader as well, and the read then fails. Skipping it
@@ -84,4 +111,28 @@ func walkPages(wikiPath string, visit func(*wiki.WikiPage) error) error {
 		}
 		return visit(page)
 	})
+}
+
+// anyIsDir says whether path is one of the directories carved names, by
+// identity and not by spelling. A path that does not stat is none of them.
+func anyIsDir(carved []os.FileInfo, path string) bool {
+	if len(carved) == 0 {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && slices.ContainsFunc(carved, func(dir os.FileInfo) bool {
+		return os.SameFile(info, dir)
+	})
+}
+
+// otherWikis are the wikis of every registered area but area. walkPages
+// enters none of them that lies inside area's wiki.
+func otherWikis(area config.Area, areas []config.Area) []string {
+	var wikis []string
+	for _, other := range areas {
+		if other.Scope != area.Scope && other.WikiPath != "" {
+			wikis = append(wikis, other.WikiPath)
+		}
+	}
+	return wikis
 }

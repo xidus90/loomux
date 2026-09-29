@@ -130,7 +130,7 @@ flowchart TD
 
 *A dashed line is specified and not built.* The channel is the address: each
 listener has its own token, and the cloud channel never sees an area kept
-local. `loomux mcp` defaults to `--channel local`, offers only the tools of the modules `[modules]` leaves on, starts and replaces the
+local, not even where its wiki lies inside another area's tree. `loomux mcp` defaults to `--channel local`, offers only the tools of the modules `[modules]` leaves on, starts and replaces the
 service itself, and the per-edit hook path links none of it, which an
 import-graph test holds. Every tool with its arguments: [CLI reference §8](docs/en/cli-reference.md#8-mcp-service--stdio-bridge-loomux-serve--loomux-mcp).
 

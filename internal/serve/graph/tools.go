@@ -19,7 +19,6 @@ import (
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/query"
-	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/mcptools"
 )
 
@@ -74,7 +73,7 @@ func findCode(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 		}
 		answer, notes, err := deps.Ask(area.Area.Path, question, query.AskOptions{
 			Limit: limit(args), In: str(args, "in"), Source: true, Full: flag(args, "full"),
-			Keep: readable(area.Manifest),
+			Keep: readable(area),
 		})
 		if channel == privacy.ChannelCloud {
 			// A refresh note counts every file the refresh saw, those under
@@ -108,7 +107,7 @@ func fileApi(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 			return refusal, nil
 		}
 		answer, notes, err := deps.Skeleton(area.Area.Path, file, query.SkeletonOptions{
-			Keep: readable(area.Manifest),
+			Keep: readable(area),
 		})
 		if channel == privacy.ChannelCloud {
 			notes = nil
@@ -147,7 +146,7 @@ func traceCalls(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 			Direction: dir,
 			Depth:     parseDepth(args["depth"]),
 			In:        str(args, "in"),
-			Keep:      readable(area.Manifest),
+			Keep:      readable(area),
 		})
 		if channel == privacy.ChannelCloud {
 			notes = nil
@@ -180,7 +179,7 @@ func findAll(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 			In:         str(args, "in"),
 			IgnoreCase: flag(args, "ignore_case"),
 			Fixed:      flag(args, "fixed"),
-			Keep:       readable(area.Manifest),
+			Keep:       readable(area),
 		})
 		if channel == privacy.ChannelCloud {
 			notes = nil
@@ -212,7 +211,7 @@ func repoMap(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 		}
 		answer, notes, err := deps.Map(area.Area.Path, query.MapOptions{
 			MaxDirs: maxDirs,
-			Keep:    readable(area.Manifest),
+			Keep:    readable(area),
 		})
 		if channel == privacy.ChannelCloud {
 			notes = nil
@@ -241,7 +240,7 @@ func graphBlast(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 		answer, notes, err := deps.Blast(area.Area.Path, query.BlastOptions{
 			Base:  str(args, "base"),
 			Depth: parseDepth(args["depth"]),
-			Keep:  readable(area.Manifest),
+			Keep:  readable(area),
 		})
 		if channel == privacy.ChannelCloud {
 			notes = nil
@@ -269,7 +268,7 @@ func checkFreshness(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 		if err != nil {
 			return failure(errorText(channel, err)), nil
 		}
-		drift = drift.Only(readable(area.Manifest))
+		drift = drift.Only(readable(area))
 		if channel == privacy.ChannelCloud {
 			// The count alone tells a remote model that something under the
 			// never globs changed. Locally that is the user's own business;
@@ -328,9 +327,13 @@ func errorText(channel privacy.Channel, err error) string {
 	return cloudFailure
 }
 
-// readable is the area's never globs as the predicate query takes.
-func readable(manifest *config.Manifest) func(string) bool {
-	return func(path string) bool { return privacy.IsReadable(manifest, path) }
+// readable is the predicate query takes: the area's never globs, and on the
+// cloud channel no file inside a tree it hides. The tools read under the
+// area's path, and a local_only area nested in it stays hidden there too.
+func readable(area privacy.VisibleArea) func(string) bool {
+	return func(path string) bool {
+		return privacy.IsReadable(area.Manifest, path) && !area.Conceals(path)
+	}
 }
 
 // withNotes puts the notes in front of the text, as the reference does

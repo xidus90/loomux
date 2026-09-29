@@ -649,7 +649,7 @@ never = [
 
 | Field | Type | Description |
 |---|---|---|
-| `mode` | string | `"local_only"`, `"manual_cloud"` (default) or `"automatic_cloud"`; any other value is refused. A `local_only` area does not exist on the cloud channel. |
+| `mode` | string | `"local_only"`, `"manual_cloud"` (default) or `"automatic_cloud"`; any other value is refused. A `local_only` area does not exist on the cloud channel, and nesting does not lift that: a path inside its wiki or source tree stays hidden there even when another area's tree holds it. |
 | `never` | array of strings | Glob patterns of paths that no channel reaches. |
 
 ---

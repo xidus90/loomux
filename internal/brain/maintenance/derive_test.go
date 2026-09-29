@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/brain/maintenance"
@@ -33,7 +34,7 @@ func page(docIDs ...string) string {
 
 func dependents(t *testing.T, root string) map[string][]string {
 	t.Helper()
-	index, err := maintenance.Dependents(root)
+	index, err := maintenance.Dependents(root, nil)
 	if err != nil {
 		t.Fatalf("Dependents: %v", err)
 	}
@@ -118,7 +119,7 @@ func TestDependentsAnswersAPageItCannotRead(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "a.md"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if _, err := maintenance.Dependents(root); err == nil {
+	if _, err := maintenance.Dependents(root, nil); err == nil {
 		t.Fatal("Dependents read a directory as a page")
 	}
 }
@@ -139,7 +140,29 @@ func TestDependentsIsNoPageOfItself(t *testing.T) {
 // one reads as "no page cites anything", which would leave every source
 // looking unused.
 func TestDependentsAnswersAMissingWiki(t *testing.T) {
-	if _, err := maintenance.Dependents(filepath.Join(t.TempDir(), "absent")); err == nil {
+	if _, err := maintenance.Dependents(filepath.Join(t.TempDir(), "absent"), nil); err == nil {
 		t.Fatal("Dependents walked a wiki that is not there")
+	}
+}
+
+// A wiki nested inside this one belongs to its own area and is not walked;
+// the nested wiki is recognised by identity, so a junction naming it counts,
+// and a registered wiki that is not there carves nothing.
+func TestDependentsLeavesANestedWikiToItsArea(t *testing.T) {
+	root := t.TempDir()
+	writePage(t, root, "a.md", page("doc-1"))
+	writePage(t, root, "inner/b.md", page("doc-1"))
+	writePage(t, root, "inner-neu/c.md", page("doc-1"))
+	nested := filepath.Join(root, "inner")
+	if runtime.GOOS == "windows" {
+		nested = filepath.Join(t.TempDir(), "link")
+		junction(t, nested, filepath.Join(root, "inner"))
+	}
+	index, err := maintenance.Dependents(root, []string{filepath.Join(t.TempDir(), "absent"), nested})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string][]string{"doc-1": {"a.md", "inner-neu/c.md"}}; !reflect.DeepEqual(index, want) {
+		t.Fatalf("index is %v, want %v", index, want)
 	}
 }

@@ -408,7 +408,7 @@ func sourceCases(
 		if manifest == nil || !isDirectory(area.WikiPath) {
 			continue
 		}
-		index, err := Dependents(area.WikiPath)
+		index, err := Dependents(area.WikiPath, otherWikis(area, areas))
 		if err != nil {
 			return nil, err
 		}
@@ -501,6 +501,9 @@ func mergeCases(
 type repositoryArea struct {
 	area     config.Area
 	manifest *config.Manifest
+	// nested are the wikis of the other areas, which the candidate walk
+	// does not enter.
+	nested []string
 }
 
 // byRepository is the areas keyed by the git directory their working tree
@@ -528,7 +531,7 @@ func byRepository(
 			continue
 		}
 		if _, taken := found[common]; !taken {
-			found[common] = repositoryArea{area: area, manifest: manifest}
+			found[common] = repositoryArea{area: area, manifest: manifest, nested: otherWikis(area, areas)}
 		}
 	}
 	return found
@@ -629,7 +632,7 @@ func landMerge(
 	proposer *model.Proposer,
 ) (bool, error) {
 	scope := search.CollectionName(found.area.Scope)
-	targets, err := candidates(found.area)
+	targets, err := candidates(found.area, found.nested)
 	if err != nil {
 		return false, err
 	}
@@ -712,9 +715,9 @@ func absorbable(directory string, standing *Case, evidence []string) bool {
 // themselves. The two disagree exactly where Dependents records they do -- `-`
 // sorts below `/` -- and here the order decides nothing: every candidate gets
 // its own case, and each case's id is taken from its own target.
-func candidates(area config.Area) ([]string, error) {
+func candidates(area config.Area, nested []string) ([]string, error) {
 	var open []string
-	err := walkPages(area.WikiPath, func(page *wiki.WikiPage) error {
+	err := walkPages(area.WikiPath, nested, func(page *wiki.WikiPage) error {
 		if page.Realization != nil && slices.Contains(openRealizations, *page.Realization) {
 			open = append(open, page.Relative)
 		}

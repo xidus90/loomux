@@ -179,7 +179,13 @@ func catalog(scope string, channel privacy.Channel, registryDir, fallbackDir str
 	if err != nil {
 		return "", err
 	}
-	return braincatalog.ReadAreaCatalog(area.Area, registryDir, fallbackDir)
+	text, err := braincatalog.ReadAreaCatalog(area.Area, registryDir, fallbackDir)
+	if err != nil {
+		return "", err
+	}
+	// The catalog of an area whose tree holds a hidden one names it; that
+	// line does not reach a channel the inner area is hidden from.
+	return braincatalog.Withhold(text, area.Conceals), nil
 }
 
 // area is the one visible area a read or a neighbour query names; every area
@@ -198,7 +204,7 @@ func read(relative, scope, section string, channel privacy.Channel, registryDir,
 	if err != nil {
 		return "", err
 	}
-	return reader.ReadDocument(found.Area, found.Manifest, relative, section, channel)
+	return reader.ReadVisible(found, relative, section, channel)
 }
 
 // neighbors is core.neighbors plus render_neighbors: containment before the
@@ -217,8 +223,25 @@ func neighbors(relative, scope string, channel privacy.Channel, registryDir, fal
 	if err != nil {
 		return "", err
 	}
+	if found.Conceals(inside) {
+		// What a page unknown to the graph answers: no neighbours.
+		return graph.RenderNeighbors(nil, nil), nil
+	}
 	incoming, outgoing := graph.Neighbors(g, inside)
-	return graph.RenderNeighbors(incoming, outgoing), nil
+	return graph.RenderNeighbors(unconcealed(found, incoming), unconcealed(found, outgoing)), nil
+}
+
+// unconcealed is paths without those inside a tree the channel hides: the
+// graph of an area whose tree holds a hidden wiki has edges into it, and the
+// names at their far end are what the channel must not read.
+func unconcealed(found privacy.VisibleArea, paths []string) []string {
+	var kept []string
+	for _, path := range paths {
+		if !found.Conceals(path) {
+			kept = append(kept, path)
+		}
+	}
+	return kept
 }
 
 // status is core.status plus _print_status: one line each.

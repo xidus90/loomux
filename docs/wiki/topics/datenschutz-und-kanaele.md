@@ -36,6 +36,20 @@ mit CLI, Oberfläche und lokalem Modell gearbeitet.
 offenen Bereichs. `local_only` schließt einen **ganzen Bereich** gegenüber der
 Cloud.
 
+## Verschachtelung hebt `local_only` nicht auf
+
+Bereiche können ineinander liegen: Das Wiki eines Hubs kann die Wikis mehrerer
+Projekte enthalten. Solange nur der Scope entschied, las der Cloud-Kanal über
+den umschließenden Bereich die Seiten eines `local_only`-Projekts, und
+`reconcile` eröffnete für dieselbe Seite einen zweiten Fall im Hub, dessen
+Paket den Diff der `local_only`-Quelle trug (gefunden 2026-09-29). Seitdem
+gilt: Jeder Pfad im Wiki oder Quellbaum eines verborgenen Bereichs bleibt auf
+dem Cloud-Kanal verborgen, gleich über welchen Scope er erreicht wird — `read`
+antwortet wie bei einer fehlenden Datei, Treffer, Katalogzeilen und Nachbarn
+darunter fallen weg. Ob ein Pfad darin liegt, entscheidet das Dateisystem,
+nicht die Schreibweise. Und eine Seite gehört dem tiefsten Bereich, dessen
+Wiki sie enthält; nur dort entsteht ihr Fall.
+
 ## Der Kanal gehört dem Kern
 
 Jede der fünf Werkzeugfunktionen nimmt den Kanal (`local` oder `cloud`) entgegen,
