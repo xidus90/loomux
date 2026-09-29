@@ -1,0 +1,287 @@
+#!/bin/sh
+# apply.sh for @NAME@: written by the agent, run by the human.
+#   sh apply.sh --check   shows what would happen and writes nothing
+#   sh apply.sh           does it; running it again changes nothing
+# It stops with exit 3 and a line "abort: ..." on stderr where a human has to
+# decide, and before it writes anything when a precondition does not hold.
+set -euf
+
+# Started from outside Git Bash, the tools of Windows come first on PATH, and
+# the find of Windows lists nothing: the wiki would pass as copied.
+PATH=/usr/bin:$PATH
+export PATH
+
+PROJECT=@PROJECT@
+LOOMUX=@LOOMUX@
+CONFIG_NEW=@CONFIG_NEW@
+REGISTRY=@REGISTRY@
+REGISTRY_NEW=@REGISTRY_NEW@
+REGISTRY_SUM=@REGISTRY_SUM@
+WIKI_SRCS=@WIKI_SRCS@
+WIKI_DST=@WIKI_DST@
+VAULT=@VAULT@
+VAULT_OLD=@VAULT_OLD@
+# The entry of WIKI_SRCS that is the vault's folder, spelt as it is there.
+VAULT_SRC=@VAULT_SRC@
+STATE_AREA=@STATE_AREA@
+OLD_FILES=@OLD_FILES@
+OLD_HOOKS=@OLD_HOOKS@
+INIT_ARGS=@INIT_ARGS@
+
+case "$#:${1:-}" in
+  0:) CHECK=0 ;;
+  1:--check) CHECK=1 ;;
+  *) printf 'usage: sh apply.sh [--check]\n' >&2; exit 2 ;;
+esac
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'abort: %s\n' "$*" >&2; exit 3; }
+run() { if [ "$CHECK" = 1 ]; then say "would run: $*"; else "$@"; fi; }
+# step names what a step did, or what it would do under --check.
+step() { if [ "$CHECK" = 1 ]; then say "$1: would be $2"; else say "$1: $2"; fi; }
+# clean fails for a directory that is no repository as well: git prints
+# nothing on stdout then.
+clean() { out=$(git -C "$1" status --porcelain) && [ -z "$out" ]; }
+# staged lists the files of the staging directory, one per line.
+staged() { (cd "$STAGING" && find . -type f | LC_ALL=C sort); }
+# tracked lists what git holds of the vault's folder: the folder counts with
+# these files only, not with the empty directories and ignored files that
+# stay behind a git rm.
+tracked() { git -c core.quotepath=off -C "$VAULT" --literal-pathspecs ls-files -- "$VAULT_OLD"; }
+# filled tells whether a source of the wiki holds a file that counts.
+filled() {
+  if [ "$1" = "$VAULT_SRC" ]; then
+    [ -n "$(tracked)" ]
+  else
+    [ -n "$(find "$1" -type f 2>/dev/null | head -n 1)" ]
+  fi
+}
+
+STAGING=
+REGTMP=
+# However the script ends, what it staged goes. Under --check it stages
+# nothing, and nothing is removed.
+cleanup() {
+  if [ -n "$STAGING" ]; then rm -rf "$STAGING"; fi
+  if [ -n "$REGTMP" ]; then rm -f "$REGTMP"; fi
+}
+if [ "$CHECK" = 0 ]; then
+  trap cleanup EXIT
+  trap 'exit 130' INT TERM
+fi
+
+# 1. Nothing is written before these hold.
+clean "$PROJECT" || die "$PROJECT is no repository or has uncommitted changes"
+if [ -n "$VAULT_OLD" ]; then
+  clean "$VAULT" || die "$VAULT is no repository or has uncommitted changes"
+  git -C "$VAULT" rev-parse --verify -q HEAD >/dev/null || die "$VAULT has no commit"
+  remotes=$(git -C "$VAULT" remote) || die "$VAULT has no remote"
+  [ -n "$remotes" ] || die "$VAULT has no remote"
+  # A disk of Windows finds the folder in any case, git only as it holds it:
+  # spelt otherwise, the folder would count as moved and removed.
+  if [ -z "$(tracked)" ] &&
+    [ -n "$(git -C "$VAULT" ls-files -- ":(literal,icase)$VAULT_OLD")" ]; then
+    die "git holds $VAULT_OLD of $VAULT in another spelling; write vault_old as git does"
+  fi
+fi
+command -v "$LOOMUX" >/dev/null 2>&1 || die "$LOOMUX is no program"
+# A loomux built before the switchover group would fail at step 6, after the
+# registry, the wiki and init; its answer then names no prune-hooks.
+if [ -n "$OLD_HOOKS" ]; then
+  usage=$("$LOOMUX" dev switchover 2>&1) || true
+  case "$usage" in
+    *prune-hooks*) ;;
+    *) die "$LOOMUX does not know dev switchover prune-hooks; build it first" ;;
+  esac
+fi
+if [ ! -e "$PROJECT/.loomux/config.toml" ] && [ ! -f "$CONFIG_NEW" ]; then
+  die "$CONFIG_NEW does not exist"
+fi
+if [ -n "$REGISTRY_NEW" ] && [ ! -f "$REGISTRY_NEW" ]; then
+  die "$REGISTRY_NEW does not exist"
+fi
+
+# The wiki is laid over one staging directory before anything is written, so
+# that a file that differs stops the script before the registry changes.
+# Every source goes over it in the order given (a later one wins); the
+# destination only gains the files it lacks.
+WIKI=none
+MOVED=0
+if [ -n "$WIKI_SRCS" ]; then
+  have=0
+  OLD_IFS=$IFS; IFS='|'
+  for s in $WIKI_SRCS; do
+    if filled "$s"; then have=1; fi
+  done
+  IFS=$OLD_IFS
+  if [ "$have" = 0 ]; then
+    [ -d "$WIKI_DST" ] || die "no source of the wiki is left and $WIKI_DST does not exist"
+    WIKI=gone
+  else
+    WIKI=merge
+    if [ "$CHECK" = 0 ]; then
+      STAGING="$WIKI_DST.staging"
+      rm -rf "$STAGING"
+      mkdir -p "$STAGING"
+      OLD_IFS=$IFS; IFS='|'
+      for s in $WIKI_SRCS; do
+        if [ "$s" = "$VAULT_SRC" ]; then
+          # Of the vault only what git holds: an ignored file stays there.
+          IFS=$OLD_IFS
+          tracked | while IFS= read -r f; do
+            rel=${f#"$VAULT_OLD"/}
+            mkdir -p "$(dirname "$STAGING/$rel")" || exit 1
+            cp "$VAULT/$f" "$STAGING/$rel" || exit 1
+          done || die "staging the files of $VAULT_OLD failed"
+          IFS='|'
+        elif [ -d "$s" ]; then
+          cp -R "$s/." "$STAGING/" || die "staging $s failed"
+        fi
+      done
+      IFS=$OLD_IFS
+      [ -n "$(staged)" ] || die "the sources of the wiki hold no file"
+      differs=$(staged | while IFS= read -r f; do
+        if [ -e "$WIKI_DST/$f" ] && ! cmp -s "$STAGING/$f" "$WIKI_DST/$f"; then printf '%s\n' "$f"; fi
+      done)
+      if [ -n "$differs" ]; then
+        printf '%s\n' "$differs" | while IFS= read -r f; do printf 'differs: %s\n' "$f" >&2; done
+        die "a file of the wiki differs from the one at $WIKI_DST"
+      fi
+    fi
+  fi
+fi
+
+# 2. The registry, only if it is still the one this script was prepared against.
+if [ -z "$REGISTRY_NEW" ]; then
+  say "registry: kept, this switch-over leaves it alone"
+elif cmp -s "$REGISTRY" "$REGISTRY_NEW"; then
+  say "registry: already replaced"
+else
+  # Read from stdin: sha256sum escapes a file name with a backslash, and the
+  # sum would then begin with one. A registry that is gone sums to nothing.
+  sum=
+  if [ -f "$REGISTRY" ]; then sum=$(sha256sum < "$REGISTRY" | cut -d' ' -f1); fi
+  [ "$sum" = "$REGISTRY_SUM" ] || die "the registry changed since this script was prepared"
+  # The backup holds the registry before the first switch-over; a later
+  # script leaves it.
+  if [ -e "$REGISTRY.bak" ]; then
+    say "registry: backup kept, $REGISTRY.bak exists"
+  else
+    run cp "$REGISTRY" "$REGISTRY.bak"
+  fi
+  # Running sessions read the registry: it is swapped whole, never written
+  # into.
+  REGTMP="$REGISTRY.new.$$"
+  run cp "$REGISTRY_NEW" "$REGTMP"
+  run mv "$REGTMP" "$REGISTRY"
+  REGTMP=
+  step registry "replaced, the old one is $REGISTRY.bak"
+fi
+
+# 3. The wiki, from the staging directory; then every file of it has to be
+#    the same at the destination.
+case "$WIKI" in
+  none) say "wiki: kept, this switch-over moves none" ;;
+  gone) say "wiki: already moved" ;;
+  merge)
+    if [ "$CHECK" = 1 ]; then
+      say "would run: merge $WIKI_SRCS into $WIKI_DST"
+      say "wiki: would be merged into $WIKI_DST; --check compares nothing, a file there that differs stops the real run"
+    else
+      staged | while IFS= read -r f; do
+        if [ ! -e "$WIKI_DST/$f" ]; then
+          mkdir -p "$(dirname "$WIKI_DST/$f")" || exit 1
+          cp "$STAGING/$f" "$WIKI_DST/$f" || exit 1
+        fi
+      done || die "copying the wiki to $WIKI_DST failed"
+      missed=$(staged | while IFS= read -r f; do
+        cmp -s "$STAGING/$f" "$WIKI_DST/$f" || printf '%s\n' "$f"
+      done)
+      [ -z "$missed" ] || die "the copy of the wiki at $WIKI_DST does not match its sources"
+      rm -rf "$STAGING"
+      say "wiki: merged into $WIKI_DST"
+    fi
+    MOVED=1
+    ;;
+esac
+
+# 4. The configuration, never over an existing one.
+if [ -e "$PROJECT/.loomux/config.toml" ]; then
+  say "config: kept, $PROJECT/.loomux/config.toml exists"
+else
+  run mkdir -p "$PROJECT/.loomux"
+  run cp "$CONFIG_NEW" "$PROJECT/.loomux/config.toml"
+  step config "written"
+fi
+
+# 5. Hooks, guards and the area, as init does them.
+# INIT_ARGS splits on purpose: Render lets only single module choices in.
+# shellcheck disable=SC2086
+run "$LOOMUX" init --yes $INIT_ARGS --root "$PROJECT"
+if [ "$CHECK" = 1 ]; then say "init: would be run"; else say "init: ran (idempotent)"; fi
+
+# 6. What init leaves standing: the old hook entries, then the old files.
+SETTINGS="$PROJECT/.claude/settings.json"
+if [ -z "$OLD_HOOKS" ]; then
+  say "hooks: kept, no old hook is named"
+elif [ "$CHECK" = 0 ] && [ ! -f "$SETTINGS" ]; then
+  say "hooks: kept, $SETTINGS does not exist"
+else
+  set --
+  OLD_IFS=$IFS; IFS='|'
+  for m in $OLD_HOOKS; do set -- "$@" --match "$m"; done
+  IFS=$OLD_IFS
+  if [ "$CHECK" = 1 ]; then
+    run "$LOOMUX" dev switchover prune-hooks --file "$SETTINGS" "$@"
+    step hooks "pruned"
+  else
+    pruned=$("$LOOMUX" dev switchover prune-hooks --file "$SETTINGS" "$@")
+    if [ -n "$pruned" ]; then say "$pruned"; fi
+    # prune-hooks opens with this line when no group went.
+    case "$pruned" in
+      "removed nothing"*) say "hooks: already pruned" ;;
+      *) say "hooks: pruned" ;;
+    esac
+  fi
+fi
+if [ -z "$OLD_FILES" ]; then
+  say "files: kept, no old file is named"
+else
+  removed=0
+  for f in $OLD_FILES; do
+    if [ -e "$PROJECT/$f" ]; then
+      run rm -rf "$PROJECT/$f"
+      step files "removed $f"
+      removed=1
+    fi
+  done
+  if [ "$removed" = 0 ]; then say "files: already removed"; fi
+fi
+
+# 7. Only after the copy was proven: the old wiki leaves the vault, the old
+#    state directory is renamed, not deleted.
+if [ -z "$VAULT_OLD" ]; then
+  say "vault: kept, this switch-over leaves it alone"
+elif [ -z "$(git -C "$VAULT" --literal-pathspecs ls-files -- "$VAULT_OLD")" ]; then
+  say "vault: already removed $VAULT_OLD"
+elif [ "$MOVED" = 1 ]; then
+  # Literal: a * or : in the folder's name must not widen what goes.
+  run git -C "$VAULT" --literal-pathspecs rm -r -q -- "$VAULT_OLD"
+  run git -C "$VAULT" commit -q -m "chore: move the wiki $VAULT_OLD into its project"
+  step vault "removed $VAULT_OLD and committed"
+else
+  say "vault: kept $VAULT_OLD, its wiki was not merged"
+fi
+if [ -z "$STATE_AREA" ]; then
+  say "state: kept, none is named"
+elif [ -e "$STATE_AREA" ] && [ -e "$STATE_AREA.alt" ]; then
+  say "state: kept, $STATE_AREA and $STATE_AREA.alt both exist"
+elif [ -e "$STATE_AREA" ]; then
+  run mv "$STATE_AREA" "$STATE_AREA.alt"
+  step state "renamed to $STATE_AREA.alt"
+elif [ -e "$STATE_AREA.alt" ]; then
+  say "state: already renamed"
+else
+  say "state: kept, $STATE_AREA does not exist"
+fi
+say "done: $PROJECT"
