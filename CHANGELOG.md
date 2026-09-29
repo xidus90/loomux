@@ -4,6 +4,18 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [5.3.1] - 2026-09-29
+
+<https://github.com/xidus90/loomux/pull/60>
+
+### Fixed
+- The local model is loaded and warmed up before the first question; a cold model no longer leaves the first case without a proposal.
+- `loomux dev mutants` no longer counts a mutant as killed when the test suite merely ran longer than a fixed 60 s; the bound follows the suite's own duration and timeouts are reported separately.
+- `loomux dev bench search` refuses a corpus whose question expects a file outside `notes/` instead of missing it on every run.
+- `loomux dev bench repos` no longer panics on a matrix line that starts with `|` and mentions a link but has no repository column.
+### Security
+- A `local_only` area whose wiki lies inside another area's wiki is no longer readable on the cloud channel through the enclosing area.
+
 ## [5.3.0] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/59>
