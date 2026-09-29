@@ -669,7 +669,7 @@ never = [
 
 | Feld | Typ | Beschreibung |
 |---|---|---|
-| `mode` | String | `"local_only"`, `"manual_cloud"` (Vorgabe) oder `"automatic_cloud"`; jeder andere Wert wird abgelehnt. Ein `local_only`-Bereich existiert auf dem Cloud-Kanal nicht. |
+| `mode` | String | `"local_only"`, `"manual_cloud"` (Vorgabe) oder `"automatic_cloud"`; jeder andere Wert wird abgelehnt. Ein `local_only`-Bereich existiert auf dem Cloud-Kanal nicht, und Verschachtelung hebt das nicht auf: Ein Pfad in seinem Wiki oder Quellbaum bleibt dort verborgen, auch wenn der Baum eines anderen Bereichs ihn enthält. |
 | `never` | Array von Strings | Glob-Muster der Pfade, die kein Kanal erreicht. |
 
 ---

@@ -110,7 +110,10 @@ func askTwice(port SearchPort, query string, collections []string, profile Profi
 // A hit from a collection this channel has no area for, or under `[privacy] never`, is only
 // counted: a path under `never` is the one whose name may not leave the machine, so it must
 // not reach a finding either -- which is why both reasons share the single count and why the
-// check comes before the register is so much as looked at. Every kept hit is checked against
+// check comes before the register is so much as looked at. A hit inside the tree of an area
+// the channel hides -- a `local_only` wiki nested in the collection's area -- joins that count
+// for the same reason: asking the enclosing collection cannot be avoided, naming the hit can.
+// The wording stays the reference's. Every kept hit is checked against
 // its register, and the list is cut to n only at the end.
 //
 // The first of the two reasons waits for a port that reports a collection nobody asked for.
@@ -119,13 +122,9 @@ func askTwice(port SearchPort, query string, collections []string, profile Profi
 // _split does), so such a hit arrives under a scope this channel does have -- and is then
 // held against that scope's `never` globs. The arm guards the ports that do not relabel.
 func assemble(hits []SearchHit, areas []privacy.VisibleArea, stateDir, fallbackDir string, n int) (*SearchAnswer, error) {
-	type declared struct {
-		scope    string
-		manifest *config.Manifest
-	}
-	byCollection := make(map[string]declared, len(areas))
+	byCollection := make(map[string]privacy.VisibleArea, len(areas))
 	for _, visible := range areas {
-		byCollection[CollectionName(visible.Area.Scope)] = declared{scope: visible.Area.Scope, manifest: visible.Manifest}
+		byCollection[CollectionName(visible.Area.Scope)] = visible
 	}
 	registers := make(map[string]map[string]identity.Identity, len(areas))
 	for _, visible := range areas {
@@ -141,14 +140,14 @@ func assemble(hits []SearchHit, areas []privacy.VisibleArea, stateDir, fallbackD
 	dropped := 0
 	for _, hit := range hits {
 		area, known := byCollection[hit.Collection]
-		if !known || !privacy.IsReadable(area.manifest, hit.Relative) {
+		if !known || !privacy.IsReadable(area.Manifest, hit.Relative) || area.Conceals(hit.Relative) {
 			dropped++
 			continue
 		}
 		if _, listed := registers[hit.Collection][hit.Relative]; !listed {
-			findings = append(findings, fmt.Sprintf("%s/%s: hit is not in the register; reindex to catch up", area.scope, hit.Relative))
+			findings = append(findings, fmt.Sprintf("%s/%s: hit is not in the register; reindex to catch up", area.Area.Scope, hit.Relative))
 		}
-		hit.Scope = area.scope
+		hit.Scope = area.Area.Scope
 		ordered = append(ordered, hit)
 	}
 

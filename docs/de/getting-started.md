@@ -193,7 +193,8 @@ never = ["privat/**"]
 - **`[privacy] mode`** ist `local_only`, `manual_cloud` (Vorgabe) oder
   `automatic_cloud`; jeder andere Wert wird abgelehnt. Auf dem Cloud-Kanal
   existiert ein `local_only`-Bereich nicht: keine Treffer, keine Inhalte, und
-  sein Scope gilt als unbekannt.
+  sein Scope gilt als unbekannt. Verschachtelung hebt das nicht auf: Sein Wiki
+  im Baum eines anderen Bereichs bleibt auch über dessen Scope verborgen.
 - **`[privacy] never`** nennt Pfade, die kein Kanal erreicht.
 
 ### Was schiefgeht

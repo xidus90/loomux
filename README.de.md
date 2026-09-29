@@ -130,7 +130,7 @@ flowchart TD
 
 *Eine gestrichelte Linie ist spezifiziert und nicht gebaut.* Der Kanal ist die
 Adresse: jeder Listener hat sein eigenes Token, und der Cloud-Kanal sieht nie
-einen Bereich, der lokal bleibt. `loomux mcp` fällt auf `--channel local` zurück, bietet nur die Werkzeuge der Module an, die `[modules]` eingeschaltet lässt, startet und ersetzt den Dienst selbst,
+einen Bereich, der lokal bleibt, auch nicht, wo sein Wiki im Baum eines anderen Bereichs liegt. `loomux mcp` fällt auf `--channel local` zurück, bietet nur die Werkzeuge der Module an, die `[modules]` eingeschaltet lässt, startet und ersetzt den Dienst selbst,
 und der Pro-Edit-Hook-Pfad verlinkt nichts davon, was ein Test über den Importgraphen
 festhält. Jedes Werkzeug mit seinen Argumenten: [CLI-Referenz §8](docs/de/cli-reference.md).
 

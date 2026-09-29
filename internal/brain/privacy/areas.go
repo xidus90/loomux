@@ -14,6 +14,13 @@ import (
 type VisibleArea struct {
 	Area     config.Area
 	Manifest *config.Manifest
+
+	// Hidden are the trees of every area this channel may not see: the
+	// source tree and the wiki of each. Areas nest -- a hub's wiki can hold
+	// the wiki of a `local_only` project -- and a path inside such a tree
+	// stays hidden whichever visible area it is reached through; Conceals
+	// asks it. Empty on the local channel, which hides no area.
+	Hidden []string
 }
 
 // VisibleAreas answers the areas the caller may see, resolved before anything
@@ -38,6 +45,7 @@ func VisibleAreas(registryDir, fallbackDir, scope string, ch Channel) ([]Visible
 		return nil, err
 	}
 	var visible []VisibleArea
+	var hidden []string
 	for _, area := range areas {
 		manifest, seen, err := VisibleManifest(config.ResolvedAreaDir(area, registryDir, fallbackDir), ch)
 		if err != nil {
@@ -48,7 +56,17 @@ func VisibleAreas(registryDir, fallbackDir, scope string, ch Channel) ([]Visible
 		}
 		if seen {
 			visible = append(visible, VisibleArea{Area: area, Manifest: manifest})
+			continue
 		}
+		hidden = append(hidden, area.Path)
+		if area.WikiPath != "" {
+			hidden = append(hidden, area.WikiPath)
+		}
+	}
+	// One shared slice, read and never written: every visible area is asked
+	// about the same hidden trees.
+	for i := range visible {
+		visible[i].Hidden = hidden
 	}
 	if scope == "all" {
 		return visible, nil

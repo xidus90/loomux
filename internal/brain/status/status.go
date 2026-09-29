@@ -128,7 +128,9 @@ func registerPath(area config.Area, stateDir, fallbackDir string) string {
 // unfindable and stay out of both counts. The engine is asked even for an
 // empty register, and an engine that does not answer is a line, not an
 // abort. sort.Strings orders valid UTF-8 by code point, as Python's sorted
-// orders str.
+// orders str. A path inside the tree of an area the channel hides is neither
+// counted nor named: the register of an area whose tree holds a `local_only`
+// wiki lists that wiki's pages as well.
 func unfindable(visible privacy.VisibleArea, port search.SearchPort, stateDir, fallbackDir string) ([]string, error) {
 	area, manifest := visible.Area, visible.Manifest
 	register, err := identity.ReadIdentities(registerPath(area, stateDir, fallbackDir))
@@ -137,7 +139,8 @@ func unfindable(visible privacy.VisibleArea, port search.SearchPort, stateDir, f
 	}
 	ours := make([]string, 0, len(register))
 	for relative := range register {
-		if privacy.IsReadable(manifest, relative) && !privacy.MatchesGlobs(manifest.IndexUnsearched, relative) {
+		if privacy.IsReadable(manifest, relative) && !privacy.MatchesGlobs(manifest.IndexUnsearched, relative) &&
+			!visible.Conceals(relative) {
 			ours = append(ours, relative)
 		}
 	}
@@ -173,7 +176,9 @@ func unfindable(visible privacy.VisibleArea, port search.SearchPort, stateDir, f
 // sharedHashes is `_shared_hashes`: identical bytes under several paths,
 // looked for across every visible area, the skipped ones included. A path
 // under `never` is counted but never named, so a pair that lost one half to
-// it names the survivor alone. Lines follow the hash string, the paths inside
+// it names the survivor alone. A path inside the tree of an area the channel
+// hides is not even counted: the survivor's line would tell that a hidden
+// twin exists, which is what hiding the area keeps back. Lines follow the hash string, the paths inside
 // a line their own order.
 func sharedHashes(areas []privacy.VisibleArea, stateDir, fallbackDir string) ([]string, error) {
 	byHash := map[string][]string{}
@@ -184,6 +189,9 @@ func sharedHashes(areas []privacy.VisibleArea, stateDir, fallbackDir string) ([]
 			return nil, err
 		}
 		for _, entry := range register {
+			if visible.Conceals(entry.Relative) {
+				continue
+			}
 			if !privacy.IsReadable(visible.Manifest, entry.Relative) {
 				withheld[entry.ContentHash]++
 				continue

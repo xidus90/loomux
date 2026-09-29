@@ -191,7 +191,8 @@ never = ["private/**"]
 - **`[privacy] mode`** is `local_only`, `manual_cloud` (the default) or
   `automatic_cloud`; any other value is refused. On the cloud channel a
   `local_only` area does not exist: no hits, no contents, and its scope is
-  answered as unknown.
+  answered as unknown. Nesting does not lift that: its wiki inside another
+  area's tree stays hidden through that area's scope as well.
 - **`[privacy] never`** names paths no channel reaches.
 
 ### What goes wrong
