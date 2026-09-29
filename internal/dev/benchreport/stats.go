@@ -31,6 +31,20 @@ func Median(ms []float64) float64 {
 	return (s[half-1] + s[half]) / 2
 }
 
+// Mean is the average of the warm runs. The median stays the figure the
+// tables of earlier measurements carry; the mean is what a series of a few
+// runs is compared by.
+func Mean(ms []float64) float64 {
+	if len(ms) == 0 {
+		return 0
+	}
+	var sum float64
+	for _, v := range ms {
+		sum += v
+	}
+	return sum / float64(len(ms))
+}
+
 // Summarize keeps the cold run apart: folded into the median it would hide
 // both itself and the warm spread.
 func Summarize(name string, coldMS float64, warmMS []float64) Timing {
