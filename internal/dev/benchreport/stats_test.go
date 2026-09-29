@@ -30,6 +30,28 @@ func TestMedianOfNothingIsZeroAndLeavesTheInputUnsorted(t *testing.T) {
 	}
 }
 
+func TestMeanAveragesEveryValueAndTakesZeroForNone(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []float64
+		want float64
+	}{
+		{"none", nil, 0},
+		{"one", []float64{7}, 7},
+		// Unsorted input: the order of the runs does not change the mean.
+		{"spread", []float64{10, 0, 5}, 5},
+		{"even", []float64{1, 2, 3, 4}, 2.5},
+		// The case that tells the mean from the median: a skewed series has
+		// the mean 4 and the median 2.
+		{"skewed", []float64{1, 2, 9}, 4},
+	}
+	for _, c := range cases {
+		if got := Mean(c.in); got != c.want {
+			t.Errorf("%s: Mean(%v) = %v, want %v", c.name, c.in, got, c.want)
+		}
+	}
+}
+
 func TestMSIsTheDivisionTheOldRendererDid(t *testing.T) {
 	d := 89138123 * time.Nanosecond
 	if MS(d) != float64(d)/float64(time.Millisecond) {
