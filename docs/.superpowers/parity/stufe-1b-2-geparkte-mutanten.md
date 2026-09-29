@@ -293,6 +293,15 @@ und es gibt nichts zu sagen.
   (a1,a4,a3) answer.go:156  if scope == "all" {
 ```
 
+**Nachtrag 2026-09-29: erledigt.** Eine Runde über den Stand mit dem
+Datenschutz-Fix (`fix(brain): keep a local-only area hidden when an
+enclosing area is asked`) ließ in `answer.go` noch 13 Mutanten leben, alle
+„anderswo gedeckt“. Das Paket hat seitdem eigene Tests dafür (Commit `test:
+kill the surviving mutants of the brain answers and the graph tools`); die
+eigene Deckung stieg von 84 % auf 98,8 %, und die Runde über `answer.go`
+lässt keinen Mutanten mehr leben. Der Rest dieses Abschnitts beschreibt den
+Stand vom 2026-09-21.
+
 **Alle 41 sind „anderswo gedeckt", und das ist die ganze Geschichte.**
 `go test ./internal/brain/answer/` deckt **27,7 % der Anweisungen** des Pakets;
 der Rest kommt aus `internal/cli` (die 71 Kommandozeilenfälle von 1b-1 und die
