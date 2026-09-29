@@ -21,12 +21,19 @@ type fakeModel struct {
 	sentence string
 	describe []string
 	place    []string
+	warmUps  int
 }
 
 func (m *fakeModel) prompts() (describe, place []string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return slices.Clone(m.describe), slices.Clone(m.place)
+}
+
+func (m *fakeModel) warmed() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.warmUps
 }
 
 // serveModel switches the model on for the machine and answers from a
@@ -39,9 +46,14 @@ func serveModel(t *testing.T, w *world, scope string) *fakeModel {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		prompt, _ := body["prompt"].(string)
 		_, format := body["format"]
+		options, _ := body["options"].(map[string]any)
+		_, capped := options["num_predict"]
 		m.mu.Lock()
 		answer := ""
 		switch {
+		case capped && !format:
+			// The warm-up a client sends before its first question.
+			m.warmUps++
 		case strings.HasPrefix(prompt, "<!-- version: ablage-v1\n") && format:
 			m.place = append(m.place, prompt)
 			answer = fmt.Sprintf(`{"scope": %q, "grund": "Es passt."}`, m.scope)
@@ -110,6 +122,12 @@ func TestAStandingSentenceIsNeverAskedFor(t *testing.T) {
 	describe, place := m.prompts()
 	if len(out.Written)+len(out.Suggested) != 0 || len(describe) != 1 || len(place) != 1 || read(t, filepath.Join(inbox, "video.txt.md")) != first {
 		t.Fatalf("%+v %d %d", out, len(describe), len(place))
+	}
+	// Each role asks through a client of its own, and each client warms the
+	// model once before its first question; the second run asks nothing and
+	// so warms nothing.
+	if n := m.warmed(); n != 2 {
+		t.Fatalf("%d warm-ups, want one per role that asked", n)
 	}
 }
 

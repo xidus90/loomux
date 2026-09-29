@@ -15,13 +15,14 @@ import (
 
 const goodSentence = "Der Bericht beschreibt die Abnahme der zweiten Scheibe."
 
-// allRoles is answering with every role on, and every request body kept.
+// allRoles is answering with every role on, and every question's body kept
+// (the warm-up's is not).
 func allRoles(t *testing.T, answer string, bodies *[]map[string]any) *Proposer {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var got map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&got)
-		if bodies != nil {
+		if bodies != nil && !isWarmUp(got) {
 			*bodies = append(*bodies, got)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"response": answer})

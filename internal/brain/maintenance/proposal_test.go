@@ -21,12 +21,20 @@ import (
 const rejectedNote = "manual review: the local proposer returned no usable proposal (slice-6 spec §3)"
 const localOnlyNote = "manual review: this area is local_only, so no skill path is offered (spec 5)"
 
-// ollama answers every request with answer and counts the requests.
+// ollama answers every request with answer and counts the questions. The
+// warm-up a client sends before its first question, the one request that
+// caps its answer with num_predict, is answered but not counted.
 func ollama(t *testing.T, answer string) (string, *atomic.Int32) {
 	t.Helper()
 	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls.Add(1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Options map[string]any `json:"options"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if _, warmUp := body.Options["num_predict"]; !warmUp {
+			calls.Add(1)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"response": answer})
 	}))
 	t.Cleanup(server.Close)

@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,29 @@ import (
 
 func settingsFor(endpoint string) config.ModelSettings {
 	return config.ModelSettings{Enabled: true, Endpoint: endpoint, Name: "m", Temperature: 0.2, Roles: map[string]bool{"propose": true}}
+}
+
+// isWarmUp tells the warm-up from a question: only the warm-up caps the
+// answer with num_predict.
+func isWarmUp(body map[string]any) bool {
+	options, _ := body["options"].(map[string]any)
+	_, capped := options["num_predict"]
+	return capped
+}
+
+// afterWarm answers the client's first request, its warm-up, and hands every
+// later one, the questions, to h: a test of how a question fails must not
+// fail at the warm-up instead.
+func afterWarm(h http.HandlerFunc) http.HandlerFunc {
+	var seen atomic.Int32
+	return func(w http.ResponseWriter, r *http.Request) {
+		if seen.Add(1) == 1 {
+			_, _ = io.Copy(io.Discard, r.Body)
+			_, _ = w.Write([]byte(`{"response":""}`))
+			return
+		}
+		h(w, r)
+	}
 }
 
 func TestGuardEndpointRefusesAnythingOffTheLoopback(t *testing.T) {
@@ -86,11 +110,136 @@ func TestAskFormatSendsTheSchemaAndAskSendsNone(t *testing.T) {
 	}
 	client.Ask(context.Background(), "p")
 	client.AskFormat(context.Background(), "p", map[string]any{"type": "object"})
-	if _, present := bodies[0]["format"]; present {
+	if len(bodies) != 3 {
+		t.Fatalf("%d requests, want the warm-up and two questions", len(bodies))
+	}
+	if _, present := bodies[1]["format"]; present {
 		t.Fatal("Ask sent a format")
 	}
-	if format, _ := bodies[1]["format"].(map[string]any); format["type"] != "object" {
-		t.Fatalf("AskFormat sent %v", bodies[1]["format"])
+	if format, _ := bodies[2]["format"].(map[string]any); format["type"] != "object" {
+		t.Fatalf("AskFormat sent %v", bodies[2]["format"])
+	}
+}
+
+// Ollama loads a model on the first request that names it, and reloads it
+// when num_ctx differs from how it was loaded; that took 28-30 s on the first
+// question and ran into the question's limit. So the first question is
+// preceded by a request that loads the model with the questions' own options
+// and asks for a single token.
+func TestTheFirstQuestionWarmsTheModelFirst(t *testing.T) {
+	var bodies []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var got map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		bodies = append(bodies, got)
+		_, _ = w.Write([]byte(`{"response":"answer"}`))
+	}))
+	defer server.Close()
+	client, _ := NewClient(settingsFor(server.URL))
+	if text, ok := client.Ask(context.Background(), "frage"); !ok || text != "answer" {
+		t.Fatalf("%q %v", text, ok)
+	}
+	if len(bodies) != 2 {
+		t.Fatalf("%d requests, want the warm-up and the question", len(bodies))
+	}
+	warm, question := bodies[0], bodies[1]
+	options, _ := warm["options"].(map[string]any)
+	if warm["model"] != "m" || warm["stream"] != false || warm["think"] != false || warm["prompt"] == "frage" ||
+		options["temperature"] != 0.2 || options["num_ctx"] != float64(8192) || options["num_predict"] != float64(1) ||
+		len(options) != 3 || len(warm) != 5 {
+		t.Fatalf("warm-up %v", warm)
+	}
+	if prompt, _ := warm["prompt"].(string); prompt == "" || len(prompt) > 40 {
+		t.Fatalf("warm-up prompt %q", prompt)
+	}
+	if isWarmUp(question) || question["prompt"] != "frage" {
+		t.Fatalf("question %v", question)
+	}
+}
+
+func TestASecondQuestionSendsNoSecondWarmUp(t *testing.T) {
+	var warmUps, questions atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var got map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		if isWarmUp(got) {
+			warmUps.Add(1)
+		} else {
+			questions.Add(1)
+		}
+		_, _ = w.Write([]byte(`{"response":"x"}`))
+	}))
+	defer server.Close()
+	client, _ := NewClient(settingsFor(server.URL))
+	client.Ask(context.Background(), "p")
+	client.AskFormat(context.Background(), "p", map[string]any{"type": "object"})
+	if warmUps.Load() != 1 || questions.Load() != 2 {
+		t.Fatalf("%d warm-ups, %d questions", warmUps.Load(), questions.Load())
+	}
+}
+
+// Loading can outlast the question's limit; the warm-up has none of its own.
+// As Ollama does, the server spends the load on whichever request comes
+// first.
+func TestAWarmUpLongerThanTheQuestionLimitDoesNotFailTheQuestion(t *testing.T) {
+	var seen atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		if seen.Add(1) == 1 {
+			time.Sleep(time.Second)
+		}
+		_, _ = w.Write([]byte(`{"response":"answer"}`))
+	}))
+	defer server.Close()
+	client, _ := NewClient(settingsFor(server.URL))
+	client.http.Timeout = 300 * time.Millisecond
+	if text, ok := client.Ask(context.Background(), "p"); !ok || text != "answer" {
+		t.Fatalf("%q %v", text, ok)
+	}
+}
+
+// A failed warm-up is an outage: the question is not sent, and it is not
+// tried again on this client, so a dead Ollama costs one attempt per client
+// rather than one per question.
+func TestAFailedWarmUpSendsNoQuestionAndIsNotRetried(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.WriteHeader(500)
+		_, _ = w.Write([]byte(`{"response":"x"}`))
+	}))
+	defer server.Close()
+	client, _ := NewClient(settingsFor(server.URL))
+	for range 2 {
+		if text, ok := client.Ask(context.Background(), "p"); ok || text != "" {
+			t.Fatalf("%q %v", text, ok)
+		}
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("%d requests, want the one warm-up", requests.Load())
+	}
+}
+
+// Without a limit of its own the warm-up ends with the caller's context.
+func TestTheCallersContextEndsAWarmUp(t *testing.T) {
+	var questions atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var got map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		if !isWarmUp(got) {
+			questions.Add(1)
+			_, _ = w.Write([]byte(`{"response":"x"}`))
+			return
+		}
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	client, _ := NewClient(settingsFor(server.URL))
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, ok := client.Ask(ctx, "p"); ok || questions.Load() != 0 {
+		t.Fatalf("answered %v after %d questions", ok, questions.Load())
 	}
 }
 
@@ -102,7 +251,7 @@ func TestAskCountsEveryOutageAsNoAnswer(t *testing.T) {
 		"no response": func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"done":true}`)) },
 		"not string":  func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"response":3}`)) },
 	} {
-		server := httptest.NewServer(handler)
+		server := httptest.NewServer(afterWarm(handler))
 		client, _ := NewClient(settingsFor(server.URL))
 		if text, ok := client.Ask(context.Background(), "p"); ok || text != "" {
 			t.Errorf("%s: %q %v", name, text, ok)
@@ -115,7 +264,7 @@ func TestAskCountsEveryOutageAsNoAnswer(t *testing.T) {
 // otherwise be an answer, and 299 is still 2xx, as urllib counts it.
 func TestTheStatusDecidesAgainstAnAnswerInTheBody(t *testing.T) {
 	for status, want := range map[int]bool{200: true, 299: true, 300: false, 500: false} {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		server := httptest.NewServer(afterWarm(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(status)
 			_, _ = w.Write([]byte(`{"response":"x"}`))
 		}))
@@ -130,7 +279,7 @@ func TestTheStatusDecidesAgainstAnAnswerInTheBody(t *testing.T) {
 // A 101 is the one status below 200 Go's client hands back as final; its
 // body is the connection, which here carries an answer.
 func TestASwitchOfProtocolsIsNoAnswer(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(afterWarm(func(w http.ResponseWriter, _ *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
 		_, _ = conn.Write([]byte("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: x\r\n\r\n{\"response\":\"x\"}"))
 		_ = conn.Close()
@@ -161,7 +310,7 @@ func TestARedirectIsNoAnswerAndNoSecondRequest(t *testing.T) {
 		_, _ = w.Write([]byte(`{"response":"leaked"}`))
 	}))
 	defer elsewhere.Close()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(afterWarm(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, elsewhere.URL+"/api/generate", http.StatusFound)
 	}))
 	defer server.Close()
@@ -191,7 +340,7 @@ func TestTheClientKeepsNoIdleConnection(t *testing.T) {
 }
 
 func TestABodyCutShortIsNoAnswer(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(afterWarm(func(w http.ResponseWriter, _ *http.Request) {
 		// Raw on the hijacked connection: a body that promises 100 bytes
 		// and ends after a whole JSON object, so only the short read can
 		// refuse it.
@@ -206,9 +355,28 @@ func TestABodyCutShortIsNoAnswer(t *testing.T) {
 	}
 }
 
+// The warm-up leaves the redirect rule as it found it: a 302 is a failed
+// warm-up, and the address it names is never asked.
+func TestARedirectedWarmUpFollowsNothing(t *testing.T) {
+	var foreign atomic.Int32
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		foreign.Add(1)
+		_, _ = w.Write([]byte(`{"response":"leaked"}`))
+	}))
+	defer elsewhere.Close()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+"/api/generate", http.StatusFound)
+	}))
+	defer server.Close()
+	client, _ := NewClient(settingsFor(server.URL))
+	if _, ok := client.Ask(context.Background(), "p"); ok || foreign.Load() != 0 {
+		t.Fatalf("ok %v, foreign %d", ok, foreign.Load())
+	}
+}
+
 func TestAskGivesUpAfterItsTimeout(t *testing.T) {
 	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { <-release }))
+	server := httptest.NewServer(afterWarm(func(w http.ResponseWriter, _ *http.Request) { <-release }))
 	defer server.Close()
 	defer close(release)
 	client, _ := NewClient(settingsFor(server.URL))

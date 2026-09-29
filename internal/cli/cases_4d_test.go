@@ -22,7 +22,8 @@ import (
 const wantCases4d = 29
 
 // wantOllamaCalls4d are the requests the reference sent in each recording
-// (notes.md, "ollama calls"); a case not named sent none.
+// (notes.md, "ollama calls"); a case not named sent none. The warm-up loomux
+// sends in front of them is held by checkOllamaCalls.
 var wantOllamaCalls4d = map[string]int{
 	"convert/describe-kept":       1,
 	"convert/describe-refused":    1,
@@ -133,9 +134,7 @@ func TestCases4d(t *testing.T) {
 				t.Fatalf("mismatches differ from the expected ones\ngot:\n%s\nwant:\n%s\nstdout:\n%s\nstderr:\n%s",
 					strings.Join(got, "\n"), strings.Join(wanted, "\n"), outcome.ActualStdout, outcome.ActualStderr)
 			}
-			if n := strings.Count(calls.String(), "\n"); n != wantOllamaCalls4d[name] {
-				t.Fatalf("the fake Ollama got %d requests, the reference sent %d:\n%s", n, wantOllamaCalls4d[name], calls.String())
-			}
+			checkOllamaCalls(t, calls.String(), wantOllamaCalls4d[name])
 		})
 	}
 }
