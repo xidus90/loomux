@@ -153,7 +153,7 @@ Was loomux über die Migration hinaus bekommt. *Priorität* ist dieselbe
 Reihenfolge wie im Migrationsplan, festgelegt in der
 [Fusions-Spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
 unter „Reihenfolge der offenen Stufen“ (1 zuerst); die offenen
-Migrationsstufen 4a-2, 4c-1, 4e und 4f haben Priorität 3.
+Migrationsstufen 4c-1, 4e und 4f haben Priorität 3.
 
 ### Kommt
 

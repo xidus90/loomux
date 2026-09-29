@@ -449,11 +449,29 @@ eben gebauten Binär meldet `nothing to change`. AGENTS.md, die READMEs und
 `getting-started.md` nennen seitdem `init --yes` als den Weg eines frischen
 Klons.
 
-**Offen** (Task 15, Schritt 4): ein Wirt nach Wahl mit `loomux init`
-interaktiv, in dem `pre-tool-use` in einer neuen Claude-Code-Sitzung einen
-Push verweigert. Die Freigabe einer Projekt-`.mcp.json` ist auf dem Rechner
-des Nutzers nicht erreichbar, solange sein Nutzerbereich in Claude Code
-einen Server `loomux` hat: `init` legt dann keine an (Abweichung E5).
+**Wirt interaktiv und Projekt-`.mcp.json`, erledigt am 2026-09-28** (Task
+15, Schritt 4). Wirt war ein leeres Go-Projekt im Scratchpad (`initprobe`,
+ein Commit, `git status` leer). `init` legt eine Projekt-`.mcp.json` nur an,
+wenn der Nutzerbereich von Claude Code keinen Server `loomux` hat
+(Abweichung E5), und liest das über `~/.claude.json` aus
+`os.UserHomeDir()`, unter Windows `%USERPROFILE%`. Auf dem Rechner des
+Nutzers steht dort einer; darum setzte der Mensch `USERPROFILE` nur für den
+einen Aufruf auf ein leeres Verzeichnis und ließ in seinem eigenen
+PowerShell-Fenster `loomux init --root <initprobe>` (Release 5.2.1)
+interaktiv laufen, die Brain-Teile `area` und `brain-skills` abgewählt.
+Geschrieben (laut `.loomux/state/installed.toml`): `.gitignore`,
+`AGENTS.md`, `.mcp.json` (`${LOCALAPPDATA}/loomux/bin/loomux.exe mcp
+--channel local`), `.claude/settings.json`, die drei Git-Hooks,
+`verify-until-green`; Aktionen `hooks-path` und `graph-build`. Keine
+`.loomux/config.toml`, weil alle Werte auf der Vorgabe stehen;
+`project/initprobe` steht nicht in der Registry; der Merge-Hook blieb aus,
+weil das Projekt kein `on_merge` erklärt. Danach startete der Mensch Claude
+Code im Projekt: Claude Code fragte nach der Freigabe des Projekt-Servers
+`loomux`, der Mensch gab ihn frei, und die Werkzeuge `brain_*` und `graph_*`
+standen in der Sitzung. Ein `git push` in dieser Sitzung verweigerte der
+Wächter vor dem Lauf („Whether commits reach the remote is a human's
+decision.“); das Probe-Repo hat keinen Remote, ohne Wächter hätte git mit
+„origin does not appear to be a git repository“ abgebrochen.
 
 ## Mutationsrunde
 
@@ -549,6 +567,48 @@ Verzeichnis, die dritte Runde ließ nichts liegen) und
 `internal/setup/gitfiles/=` (der `>=&2`-Mutant; der Test lässt das Skript
 jetzt in einem eigenen Verzeichnis laufen). Beide nach der Runde von Hand
 entfernt.
+
+**Die Runde über den Stand vom 2026-09-28.** Seit der Runde oben kamen die
+Antigravity-Einträge, `init --hosts`, `.mcp.json`-Regeln und die Kleinigkeiten
+vom 2026-09-25 auf denselben Code. Darum lief die Runde vor der Abnahme noch
+einmal, gleicher Umfang, mit einer Kopie des Binärs aus dem Baum von
+`85f06f66` (im geprüften Code gleich `709266ee`, das nur CI und Changelog
+änderte). Die Zahl „stehen“ für `setup` ist gemessen, nachdem der
+Kelvin-Test gestrichen war. Die Überlebenden arbeiteten drei Subagenten je Paket ab; ihre
+Tests stehen im Commit `test: kill the surviving mutants of init, the host
+file merge and the merge hook`. Weil parallele Runden eine Zeitüberschreitung
+als getötet zählten (siehe `fix(dev): bound each mutant run by the time its
+unchanged suite takes`), lief die Nachprüfung danach allein; ihr Ergebnis
+deckt sich mit den Berichten.
+
+| Paket | erzeugt | nicht übersetzbar | überlebt | nach den neuen Tests: stehen |
+|---|---:|---:|---:|---:|
+| `internal/setup` | 572 | 92 | 19 | 7 |
+| `internal/setup/hostfile` | 264 | 82 | 13 | 2 |
+| `internal/setup/gitfiles` | 30 | 2 | 0 | 0 |
+| `internal/brain/maintenance` (`mergehook.go`) | 167 | 30 | 4 | 2 |
+| `internal/selfupdate` (`install.go`) | 8 | 3 | 0 | 0 |
+
+- **Getötet:** in `setup` `apply.go:173` (fünf Formen), `:191`, `:236`,
+  `facts.go:158`, `:163`, `:193`, `plan.go:132`, `:184`; in `hostfile`
+  `merge.go:88`, `:106`, `:253`, `:274`, `:301` (fünf Randformen), `:545`,
+  `table.go:110`; in `maintenance` `mergehook.go:385` und `:440`. Die zwei
+  Zeilen der Tabelle oben zu `writeHook` `:364` und `writeRecords` `:419`
+  („äquivalent im Ergebnis“) sind damit überholt: Der Test verlangt jetzt
+  einen `*fs.PathError` mit `Op == "mkdir"`, und der Mutant meldete statt
+  der Ursache den Fehler der Temp-Datei.
+- **Stehen wie oben, nur verschoben:** `merge.go:176` ist jetzt `:356`,
+  `:203` jetzt `:383`; `mergehook.go:242` jetzt `:253`, `:367` jetzt `:388`;
+  `parts.go:92` jetzt `:110`; `configtext.go:59`, `:68`, `:106` unverändert.
+- **Neu, äquivalent:** `facts.go:124` (`<>` → `<=>` in der Zeichenmenge):
+  `=` steht schon in der Menge, `ContainsRune` antwortet gleich.
+- **Neu, äquivalent außer bei abweichender Faltung:** `facts.go:315`
+  (`os.Stat` des verschwundenen Registry-Pfads → `true`). Trennbar ist er
+  nur über einen Pfad, den `strings.EqualFold` weiter faltet als NTFS (das
+  Kelvin-Zeichen U+212A wird zu `k`). Ein Test, der das festhielt, ist auf
+  Entscheidung des Nutzers gestrichen: er hätte eine Eigenheit festgeschrieben.
+  **Befund, nicht geändert:** `samePath` hält einen verschwundenen, so
+  geschriebenen Registry-Pfad für dieses Projekt.
 
 ## Antigravity-Einträge, 2026-09-25
 
