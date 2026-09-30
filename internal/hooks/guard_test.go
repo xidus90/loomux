@@ -879,6 +879,28 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		`& "C:\x\loomux.exe" merge-hook remove`,
 		"{ loomux merge-hook install; }",
 		"cd x && loomux merge-hook remove",
+		// dev switchover prune-hooks rewrites any settings.json it is
+		// pointed at, the guard's own hook entries in a project the write
+		// barrier closes included; no flag makes it read.
+		"loomux dev switchover prune-hooks",
+		"loomux dev switchover prune-hooks --file .claude/settings.json --match loomux",
+		"loomux dev switchover prune-hooks --help",
+		"loomux dev switchover prune-hooks --root . --file x --match y",
+		`loomux "dev" 'switchover' "prune-hooks" --file x --match y`,
+		"loomux dev switchover prune-ho`oks --file x --match y",
+		`loomux dev switchover prune-ho\oks --file x --match y`,
+		"sudo loomux dev switchover prune-hooks --file x --match y",
+		"cmd /c loomux dev switchover prune-hooks --file x --match y",
+		"go run ./cmd/loomux dev switchover prune-hooks --file x --match y",
+		`& "C:\x\loomux.exe" dev switchover prune-hooks --file x --match y`,
+		"{ loomux dev switchover prune-hooks --file x --match y; }",
+		"try { loomux dev switchover prune-hooks --file x --match y}",
+		"echo a; loomux dev switchover prune-hooks --file x --match y",
+		"cd x && loomux dev switchover prune-hooks --file x --match y",
+		"cat x | loomux dev switchover prune-hooks --file x --match y",
+		"echo $(loomux dev switchover prune-hooks --file x --match y)",
+		"Start-Process loomux -ArgumentList 'dev','switchover','prune-hooks'",
+		"sh -c 'true; loomux dev switchover prune-hooks --file x --match y'",
 		// convert and fetch write into an area's inbox, which the write
 		// barrier keeps from agents.
 		"loomux convert",
@@ -903,6 +925,10 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"M=loomux; $M init",
 		// go run of a package that names no cmd/loomux.
 		"cd cmd/loomux && go run . init",
+		// The same holes for the hook pruner, and the script that calls it.
+		`sh -c "loomux dev switchover prune-hooks --file x --match y"`,
+		"sh -c 'loomux dev switchover prune-hooks --file x --match y'",
+		"sh apply.sh",
 	}
 	allowed := []string{
 		"loomux init --dry-run",
@@ -989,6 +1015,27 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"sudo loomux merge-hook status",
 		"cmd /c loomux merge-hook record",
 		"go run ./cmd/loomux merge-hook status",
+		// Of the dev commands only the hook pruner is refused: render writes
+		// one new file the write barrier judges, the others measure.
+		"loomux dev",
+		"loomux dev switchover",
+		"loomux dev switchover render --params p.json --out apply.sh",
+		"loomux dev switchover prune-hook",
+		"loomux dev prune-hooks",
+		"loomux switchover prune-hooks",
+		"loomux dev x switchover prune-hooks",
+		"loomux dev bench prune-hooks",
+		// No group takes a flag before its subcommand, so these end with
+		// exit 2 before anything is pruned.
+		"loomux dev switchover --root . prune-hooks --file x --match y",
+		"loomux dev --root . switchover prune-hooks --file x --match y",
+		"loomux dev bench cases --settings s --root . --file README.md --out o",
+		"loomux dev bench compare --before a.json --after b.json",
+		"loomux dev bench hooks --cases c.json",
+		"loomux dev mutants ./internal/switchover",
+		"go run ./cmd/loomux dev switchover render --params p.json --out apply.sh",
+		"cmd /c loomux dev bench hooks",
+		"grep 'dev switchover prune-hooks' docs/en/cli-reference.md",
 		"loomux convert --help",
 		"loomux convert -h",
 		"loomux fetch --help",
@@ -1027,6 +1074,12 @@ func TestCheckToolNamesTheConfigurationReason(t *testing.T) {
 	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux merge-hook install"}, config.Policy{})
 	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "merge-hook install and remove") }) {
 		t.Fatalf("merge-hook reasons %v", got)
+	}
+	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux dev switchover prune-hooks --file x --match y"}, config.Policy{})
+	if !slices.ContainsFunc(got, func(r string) bool {
+		return strings.Contains(r, "dev switchover prune-hooks removes hook entries from a settings file")
+	}) {
+		t.Fatalf("prune-hooks reasons %v", got)
 	}
 	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux convert"}, config.Policy{})
 	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "convert and fetch write into an area's inbox") }) {

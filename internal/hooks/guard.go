@@ -304,7 +304,7 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 					reasons = append(reasons, j.strictReasons(found, unknown)...)
 				}
 				if writesConfiguration(line, policy.Strict) {
-					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, and convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
+					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, dev switchover prune-hooks removes hook entries from a settings file, and convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
 				}
 				if answersAGate(line, policy.Strict) {
 					reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
@@ -348,7 +348,8 @@ func pathReasons(rules []config.PathRule, rel string, fold bool) []string {
 
 // writesConfiguration says whether a shell line runs a loomux command that
 // writes .loomux/config.toml or the global config in-process, or an area's
-// inbox, past every path rule. It is a function rather than a CommandRule
+// inbox, a repository's hooks or a settings file's hook entries, past every
+// path rule. It is a function rather than a CommandRule
 // because "init without --dry-run" needs a lookahead that RE2 lacks. It
 // reads words, not a file system, so it is a net with holes; readings states
 // what it guarantees and what passes in the default mode. With anyProgram, in
@@ -544,6 +545,13 @@ func wordsWriteConfiguration(words []string, plain, anyProgram bool) bool {
 		// install and remove put executable hooks into other repositories;
 		// status reads and record is what the installed hook itself calls.
 		return len(args) > 1 && (args[1] == "install" || args[1] == "remove")
+	case "dev":
+		// switchover prune-hooks rewrites the settings file it is pointed at
+		// in-process, past every path rule: it would take the guard's own
+		// hook entries out of a project the write barrier closes. It has no
+		// reading form, so no flag exempts it. The script a human runs calls
+		// it; every other dev command passes.
+		return len(args) > 2 && args[1] == "switchover" && args[2] == "prune-hooks"
 	}
 	return false
 }

@@ -321,7 +321,7 @@ loomux dev bench search [--corpus v1 --out <dir>] # Misst den Trefferrang der Su
 loomux dev bench compare --before <bericht> --after <bericht> # Stellt zwei Hook-Berichte nebeneinander: schneller, langsamer, neu, weggefallen (--title, --lang de|en, --out <dir>)
 loomux dev bench cases --root <dir> --file <md> --out <dir> # Baut die Falldatei der Hooks eines Projekts aus seiner settings.json (--settings, --extras)
 loomux dev switchover render --params <json> --out <datei> # Schreibt das apply.sh eines Projekts für die Umstellung von den alten Werkzeugen (sh apply.sh --check zeigt, was es täte)
-loomux dev switchover prune-hooks --file <settings.json> --match <s> # Entfernt die Hook-Gruppen der alten Werkzeuge aus einer settings.json (--match wiederholbar)
+loomux dev switchover prune-hooks --file <settings.json> --match <s> # Entfernt die Hook-Gruppen der alten Werkzeuge aus einer settings.json (--match wiederholbar); ein Mensch führt es aus, einem Agenten verweigert es der Wächter
 loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus
 loomux dev record-case --out <dir>  # Zeichnet einen Lauf eines Referenz-Binaries als Fall auf
 loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter Fälle in loomux-Fälle

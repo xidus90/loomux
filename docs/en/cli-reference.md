@@ -236,11 +236,14 @@ Evaluates the project policy and global write barrier before an agent executes a
     `config set …` or `config unset …` with an exempting `--propose`;
   - `loomux area add`;
   - `loomux merge-hook install` or `remove` (`status` and `record` pass);
+  - `loomux dev switchover prune-hooks`, with whatever follows it, `--help`
+    included (every other `dev` command passes, `dev switchover render` too);
   - `loomux convert` or `loomux fetch`, except with a lone `--help` or `-h`.
 
   The refusal reads ``loomux init, config and area add write
   the configuration the guard reads, merge-hook install and remove write
-  executable hooks into repositories, and convert and fetch write into an
+  executable hooks into repositories, dev switchover prune-hooks removes hook
+  entries from a settings file, and convert and fetch write into an
   area's inbox, which the write barrier keeps from agents; a human runs them.
   An agent proposes a change with `loomux config set|unset … --propose`,
   which a human applies``.
@@ -291,8 +294,9 @@ Evaluates the project policy and global write barrier before an agent executes a
     block (`try { … }`) or behind a program path that expands (`${X}/loomux`).
 
   These commands write from inside their own process — `.loomux/config.toml`,
-  a git hook in another repository, a file in an area's inbox — where no path
-  rule sees the write. The program is
+  a git hook in another repository, the `settings.json` that holds a
+  project's hook entries (the guard's own among them), a file in an area's
+  inbox — where no path rule sees the write. The program is
   recognised as `loomux`, `loomux.exe` or a path ending in either (quoted or
   not, `\` or `/`), and as `go run` of `cmd/loomux` or `cmd/loomux/main.go`
   (with or without `./`, under a module path, at any `@version`, behind build
@@ -1085,6 +1089,8 @@ Writes the `apply.sh` of one project: a POSIX `sh` script, run in Git Bash, that
 
 #### `loomux dev switchover prune-hooks --file <settings.json> --match <text> [--match <text>...]`
 Removes from a Claude `settings.json` the hook groups a switch-over replaces: a group goes when every one of its commands contains one of the `--match` texts, and an event left without a group goes with it. A group that mixes such a command with others stays. It prints `removed: <event>: <commands>` for each group that went and `kept: <event>: <command>` for each mixed one, or `removed nothing`. Nothing outside `hooks` changes, the new value keeps the file's indent and line endings, and the file is written only when a group goes, so a second run leaves it as it is, down to its modification time. A `--match` text is a plain substring: a short one also takes a group of someone else's that happens to contain it.
+
+A human runs it, as a rule through `apply.sh`: the guard refuses the command to an agent in every form (see "Commands a human runs" under `loomux hook pre-tool-use`), because it rewrites whichever settings file it is pointed at from inside its own process, and would take the guard's own hook entries out of a project the write barrier closes to the agent.
 
 - **Exit codes**: `0` after pruning, also when nothing matched; `2` for an unknown flag, an extra argument, or a missing `--file` or `--match`; `1` when the file cannot be read, is not a JSON object, or cannot be written.
 
