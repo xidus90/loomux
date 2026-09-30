@@ -244,11 +244,14 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   - `loomux area add`;
   - `loomux merge-hook install` oder `remove` (`status` und `record` gehen
     durch);
+  - `loomux dev switchover prune-hooks`, mit allem, was folgt, auch `--help`
+    (jeder andere `dev`-Befehl geht durch, auch `dev switchover render`);
   - `loomux convert` oder `loomux fetch`, außer allein mit `--help` oder `-h`.
 
   Die Ablehnung lautet ``loomux init, config and
   area add write the configuration the guard reads, merge-hook install and
-  remove write executable hooks into repositories, and convert and fetch
+  remove write executable hooks into repositories, dev switchover prune-hooks
+  removes hook entries from a settings file, and convert and fetch
   write into an area's inbox, which the write barrier keeps from agents; a
   human runs them. An agent proposes a change with
   `loomux config set|unset … --propose`, which a human applies``.
@@ -305,8 +308,9 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
     Programmpfad, der expandiert (`${X}/loomux`).
 
   Diese Befehle schreiben aus ihrem eigenen Prozess — `.loomux/config.toml`,
-  einen Git-Hook in einem anderen Repository, eine Datei im Eingang eines
-  Bereichs —, wo keine Pfadregel den Schreibvorgang sieht. Erkannt wird das Programm als
+  einen Git-Hook in einem anderen Repository, die `settings.json` mit den
+  Hook-Einträgen eines Projekts (darunter die des Wächters selbst), eine Datei
+  im Eingang eines Bereichs —, wo keine Pfadregel den Schreibvorgang sieht. Erkannt wird das Programm als
   `loomux`, `loomux.exe` oder ein Pfad, der auf eines von beiden endet (mit
   oder ohne Anführungszeichen, `\` oder `/`), und als `go run` von
   `cmd/loomux` oder `cmd/loomux/main.go` (mit oder ohne `./`, unter einem
@@ -1111,6 +1115,8 @@ Schreibt das `apply.sh` eines Projekts: ein POSIX-`sh`-Skript für Git Bash, das
 
 #### `loomux dev switchover prune-hooks --file <settings.json> --match <text> [--match <text>...]`
 Entfernt aus einer Claude-`settings.json` die Hook-Gruppen, die eine Umstellung ablöst: eine Gruppe geht, wenn jeder ihrer Befehle einen der `--match`-Texte enthält, und ein Ereignis ohne verbleibende Gruppe geht mit. Eine Gruppe, die einen solchen Befehl mit anderen mischt, bleibt. Der Befehl gibt `removed: <ereignis>: <befehle>` je entfernter Gruppe und `kept: <ereignis>: <befehl>` je gemischter aus, oder `removed nothing`. Außerhalb von `hooks` ändert sich nichts, der neue Wert behält Einrückung und Zeilenenden der Datei, und die Datei wird nur geschrieben, wenn eine Gruppe geht; ein zweiter Lauf lässt sie also, wie sie ist, bis zur Änderungszeit. Ein `--match`-Text ist ein schlichter Teilstring: ein kurzer trifft auch eine fremde Gruppe, die ihn zufällig enthält.
+
+Ein Mensch führt den Befehl aus, in der Regel über das `apply.sh`: Der Wächter verweigert ihn einem Agenten in jeder Form (siehe „Befehle, die ein Mensch ausführt“ unter `loomux hook pre-tool-use`), weil er die Einstellungsdatei, auf die er zeigt, aus dem eigenen Prozess umschreibt und so die Hook-Einträge des Wächters aus einem Projekt nähme, das die Schreibschranke dem Agenten verschließt.
 
 - **Exit-Codes**: `0` nach dem Entfernen, auch wenn nichts passte; `2` bei einem unbekannten Flag, einem überzähligen Argument oder fehlendem `--file` oder `--match`; `1`, wenn die Datei nicht gelesen werden kann, kein JSON-Objekt ist oder nicht geschrieben werden kann.
 

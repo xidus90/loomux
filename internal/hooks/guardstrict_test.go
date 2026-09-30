@@ -30,6 +30,7 @@ func TestStrictModeKnowsLoomuxByItsArguments(t *testing.T) {
 		"doc.exe init":                              "a human runs them",
 		"doc.exe area add":                          "a human runs them",
 		"doc.exe merge-hook install":                "a human runs them",
+		"doc.exe dev switchover prune-hooks":        "a human runs them",
 	} {
 		if got := checkTool(root, "Bash", command(line), strictPolicy); !has(got, part) {
 			t.Errorf("strict %q: reasons %q, want %q", line, got, part)
