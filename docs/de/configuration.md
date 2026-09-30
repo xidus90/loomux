@@ -145,7 +145,7 @@ lint = "make lint"
 | `timeout` | positive Ganzzahl | Sekunden, die jeder Befehl laufen darf. Vorgabe 600, keine Obergrenze. Der post-edit-Hook und das Stop-Tor haben zusätzlich ein Budget für den ganzen Lauf (`--budget`, Vorgabe 50 s bzw. 270 s); `loomux check` hat keins. |
 | `profiles.<name>` | Liste von Arten | Eine benannte Menge von Arten. `edit` (post-edit), `precommit` (das Pre-Commit-Tor) und `stop` (das Stop-Tor am Rundenende) sind eingebaut und überschreibbar, aber nicht zu entfernen. Eine leere Liste, eine unbekannte Art oder ein reservierter Name ist ein Ladefehler. |
 | `<stack>.<art>` | String, Liste, `false` oder Tabelle | Wie eine Art für einen Stack läuft; siehe unten. |
-| `gdscript.import_check` | Boolean | Vorgabe `true`: `test` und `coverage` von GDScript sind `unready`, bis der Godot-Editor das Projekt importiert hat (`.godot/global_script_class_cache.cfg`). |
+| `gdscript.import_check` | Boolean | Vorgabe `true`: Eine `test`- oder `coverage`-Lane, die das Projekt für GDScript konfiguriert, ist `unready`, bis der Godot-Editor das Projekt importiert hat (`.godot/global_script_class_cache.cfg`). |
 
 Jeder andere Schlüssel ist ein Ladefehler, der Datei und Schlüssel nennt, auf
 jeder Ebene: `[verify]`, `[verify.<stack>]` und `[verify.<stack>.<art>]`.
@@ -278,7 +278,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx --from gdtoolkit gdlint .` | — | `godot --headless --quit` | — |
+| gdscript | `uvx --from gdtoolkit gdlint .` | — | — | — |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -297,23 +297,28 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   `files` setzen. Mit `pyright` und `mypy` zugleich prüft pyright.
 - Das gdscript-`lint` holt `gdlint` aus dem Paket `gdtoolkit`, in dem es
   ausgeliefert wird; ein Paket `gdlint` kennt die Registry nicht.
-- Das gdscript-`test` startet `godot`, das unter genau diesem Namen auf dem
-  `PATH` liegen muss. Wo nicht, ist die Lane `missing-tool`: rot für
-  `loomux check` und den Stop-Hook. Ein Projekt, dessen Binary anders heißt
-  (ein Download heißt `Godot_v4.7.1-stable_win64.exe`), nennt es:
+- gdscript hat kein `test`-Preset: Die Lane ist `not-applicable`, bis das
+  Projekt einen Befehl nennt. Das Projekt nur hochzufahren
+  (`godot --headless --quit`) ist kein Test, denn Godot endet mit 0, auch
+  wenn ein Skript nicht parst (eine Messung, mit Godot 4.7.1 unter Windows,
+  auf keiner anderen Version und keinem anderen System wiederholt), und ein
+  Download
+  heißt `Godot_v4.7.1-stable_win64.exe`, nicht `godot`; die Lane wäre auf den
+  meisten Rechnern `missing-tool` und rot. Ein Projekt mit Tests nennt, was
+  sie fährt, in der Regel sein eigenes Testskript:
 
   ```toml
   [verify.gdscript.test]
-  commands = ["'C:/Tools/Godot/Godot_v4.7.1-stable_win64_console.exe' --headless --quit"]
+  commands = ["'C:/Tools/Godot/Godot_v4.7.1-stable_win64_console.exe' --headless --script tests/run_tests.gd"]
   ```
 
-  Die Tabellenform ersetzt nur den Befehl; `import_check` gilt weiter. Der
-  Pfad steht mit Vorwärtsschrägstrichen, in einfachen Anführungszeichen, wenn
-  er ein Leerzeichen enthält: Außerhalb einfacher Anführungszeichen ist ein
-  Backslash ein Escape-Zeichen. Der Befehl fährt das Projekt ohne Fenster hoch
-  und beendet es. Er ist ein Rauchtest: Godot endet mit 0, auch wenn ein
-  Skript nicht parst (gemessen mit Godot 4.7.1); ein Projekt mit einem
-  Test-Runner nennt hier stattdessen dessen Befehl.
+  Das Skript muss mit einem Code ungleich 0 enden, wenn ein Test scheitert.
+  `import_check` gilt für die Lane, sobald sie einen Befehl hat. Der Pfad
+  steht mit Vorwärtsschrägstrichen, in einfachen Anführungszeichen, wenn er
+  ein Leerzeichen enthält: Außerhalb einfacher Anführungszeichen ist ein
+  Backslash ein Escape-Zeichen. Ein hier genanntes Werkzeug muss auf dem
+  `PATH` liegen oder mit seinem Pfad stehen, sonst ist die Lane
+  `missing-tool`: rot für `loomux check` und den Stop-Hook.
 - Die `on_file`-Formen: go `go vet ./...` und `{loomux} check gofmt {file}`
   (ein Edit formatiert nur seine eigene Datei), gdscript
   `uvx --from gdtoolkit gdlint {file}`,

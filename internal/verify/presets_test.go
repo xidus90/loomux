@@ -127,8 +127,19 @@ func TestTheGdscriptLintTakesGdlintFromGdtoolkit(t *testing.T) {
 	if got := gd["lint"].OnFile; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint {file}"}) {
 		t.Errorf("on_file = %q", got)
 	}
-	if got := gd["test"].Commands; !slices.Equal(got, []string{"godot --headless --quit"}) {
-		t.Errorf("test = %q", got)
+}
+
+// Booting Godot is no test: it exits 0 on a script that does not parse, and
+// its binary is seldom on the PATH as `godot`. Lint is all the preset runs;
+// a project names its own test command.
+func TestTheGdscriptPresetHasOnlyALintLane(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gd := p.Stacks["gdscript"].Lanes
+	if _, ok := gd["lint"]; !ok || len(gd) != 1 {
+		t.Errorf("lanes = %+v", gd)
 	}
 }
 

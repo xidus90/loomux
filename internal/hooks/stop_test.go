@@ -656,7 +656,8 @@ func TestStopReportsABadConfig(t *testing.T) {
 // The plan is where ImportReady lands, so the plan is where the fallback can
 // be read off: a stop that was given none hands on verify's own, and one that
 // was given one hands on exactly that one. Without the fallback the plan
-// would be handed nil, and verify.Plan calls it in a Godot project.
+// would be handed nil, and verify.Plan calls it in a Godot project that names
+// a test command.
 func TestStopHandsThePlanAnImportReady(t *testing.T) {
 	var seen func(string) bool
 	plan := stopPlan

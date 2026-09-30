@@ -109,11 +109,9 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 commands = ["uvx --from gdtoolkit gdlint ."]
 on_file = ["uvx --from gdtoolkit gdlint {file}"]
 
-# Boots the project without a window and quits: a smoke test, not a test
-# runner. A project whose binary is not called godot names it in
-# [verify.gdscript.test].
-[stack.gdscript.test]
-commands = ["godot --headless --quit"]
+# No test lane: booting the project (`godot --headless --quit`) exits 0 on a
+# script that does not parse, and the binary is seldom on the PATH under that
+# name. A project names its own test command in [verify.gdscript.test].
 
 [stack.cpp]
 tests_when = ["CMakeLists.txt:enable_testing("]

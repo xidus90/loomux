@@ -225,16 +225,38 @@ func TestPlanMarksGodotUnready(t *testing.T) {
 	e := env(root)
 	var asked string
 	e.ImportReady = func(dir string) bool { asked = dir; return false }
-	jobs, _ := Plan(effFor(t, "", facts), Request{Kinds: []string{"lint", "test"}}, e)
-	if jobs[0].Pre != "" || jobs[1].Pre != StateUnready || jobs[1].Note != "run the Godot editor once to import the project" {
+	src := "[verify.gdscript]\ntest = \"sh run_tests.sh\"\n"
+	jobs, _ := Plan(effFor(t, src, facts), Request{Kinds: []string{"lint", "test"}}, e)
+	if names(jobs) != "lint/gdscript test/gdscript" || jobs[0].Pre != "" || jobs[1].Pre != StateUnready || jobs[1].Note != "run the Godot editor once to import the project" {
 		t.Fatalf("%+v", jobs)
 	}
 	if asked != filepath.Join(root, "game") {
 		t.Fatalf("asked %q", asked)
 	}
-	jobs, _ = Plan(effFor(t, "[verify.gdscript]\nimport_check = false\n", facts), Request{Kinds: []string{"test"}}, e)
+	jobs, _ = Plan(effFor(t, src+"import_check = false\n", facts), Request{Kinds: []string{"test"}}, e)
 	if jobs[0].Pre != "" {
 		t.Fatalf("%+v", jobs)
+	}
+}
+
+// No preset tests GDScript: a Godot project that names no test command has
+// nothing to import for, so a project that was never imported is not held.
+func TestPlanHasNoGodotTestLaneUntilAProjectNamesOne(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+	e := env(t.TempDir())
+	asked := false
+	e.ImportReady = func(string) bool { asked = true; return false }
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"test", "coverage"}}, e)
+	if err != nil || names(jobs) != "test/gdscript coverage/gdscript" {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+	for _, j := range jobs {
+		if j.Pre != StateNotApplicable || j.Note != "no command" || len(j.Argvs) != 0 {
+			t.Errorf("%s: %q %q %v", j.Name, j.Pre, j.Note, j.Argvs)
+		}
+	}
+	if asked {
+		t.Error("the import was asked for without a lane to run")
 	}
 }
 
