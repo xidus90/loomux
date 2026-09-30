@@ -143,7 +143,7 @@ lint = "make lint"
 | `timeout` | positive integer | Seconds each command may run. Default 600; no upper limit. The post-edit hook and the stop gate also have a budget for the whole run (`--budget`, default 50 s and 270 s); `loomux check` has none. |
 | `profiles.<name>` | list of kinds | A named set of kinds. `edit` (post-edit), `precommit` (the pre-commit gate) and `stop` (the stop gate at a turn end) are built in and can be overridden, but not removed. An empty list, an unknown kind or a reserved name is a load error. |
 | `<stack>.<kind>` | string, list, `false` or table | How one kind runs for one stack; see below. |
-| `gdscript.import_check` | boolean | Default `true`: `test` and `coverage` of GDScript are `unready` until the Godot editor has imported the project (`.godot/global_script_class_cache.cfg`). |
+| `gdscript.import_check` | boolean | Default `true`: a `test` or `coverage` lane the project configures for GDScript is `unready` until the Godot editor has imported the project (`.godot/global_script_class_cache.cfg`). |
 
 Every other key is a load error that names the file and the key, on every
 level: `[verify]`, `[verify.<stack>]` and `[verify.<stack>.<kind>]`. So is
@@ -271,7 +271,7 @@ then `[verify.<stack>]`.
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx --from gdtoolkit gdlint .` | — | `godot --headless --quit` | — |
+| gdscript | `uvx --from gdtoolkit gdlint .` | — | — | — |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | only `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -290,22 +290,26 @@ then `[verify.<stack>]`.
   `files`. With both `pyright` and `mypy`, pyright checks.
 - The gdscript `lint` takes `gdlint` from the package `gdtoolkit`, which is
   where it ships; the registry has no package `gdlint`.
-- The gdscript `test` starts `godot`, which has to be on the `PATH` under
-  exactly that name. Where it is not, the lane is `missing-tool`: red for
-  `loomux check` and the stop hook. A project whose binary carries another
-  name (a download is called `Godot_v4.7.1-stable_win64.exe`) names it:
+- gdscript has no `test` preset: the lane is `not-applicable` until the
+  project names a command. Booting the project (`godot --headless --quit`)
+  is no test, since Godot exits 0 even when a script does not parse (one
+  measurement, with Godot 4.7.1 on Windows, not repeated on another version
+  or system), and a download is called
+  `Godot_v4.7.1-stable_win64.exe`, not `godot`, so the lane would be
+  `missing-tool` and red on most machines. A project with tests names what
+  runs them, typically its own test script:
 
   ```toml
   [verify.gdscript.test]
-  commands = ["'C:/Tools/Godot/Godot_v4.7.1-stable_win64_console.exe' --headless --quit"]
+  commands = ["'C:/Tools/Godot/Godot_v4.7.1-stable_win64_console.exe' --headless --script tests/run_tests.gd"]
   ```
 
-  The table form replaces only the command; `import_check` still applies.
-  Write the path with forward slashes, in single quotes when it holds a
-  space: outside single quotes a backslash is an escape character. The
-  command boots the project without a window and quits. It is a smoke test:
-  Godot exits 0 even when a script does not parse (measured with Godot
-  4.7.1), so a project with a test runner names that command here instead.
+  The script has to exit non-zero when a test fails. `import_check` applies
+  to the lane once it has a command. Write the path with forward slashes, in
+  single quotes when it holds a space: outside single quotes a backslash is
+  an escape character. A tool named here has to be on the `PATH` or given by
+  its path, else the lane is `missing-tool`: red for `loomux check` and the
+  stop hook.
 - The `on_file` forms: go `go vet ./...` and `{loomux} check gofmt {file}`
   (an edit formats only its own file), gdscript
   `uvx --from gdtoolkit gdlint {file}`, cpp

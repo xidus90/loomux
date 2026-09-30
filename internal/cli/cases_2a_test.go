@@ -26,12 +26,15 @@ var approved2a = map[string]string{
 	"check/cpp-all":   "1: types ran cmake --build and passed where the old chain raised KeyError",
 	"check/cpp-types": "1: types ran cmake --build and passed where the old chain raised KeyError",
 	// 10: unavailable was red; a kind no stack defines is neutral now.
-	"check/godot-no-coverage-all":      "10: GDScript has no types or coverage lane: neutral, no longer red",
+	"check/godot-no-coverage-all":      "10, 20: GDScript has no types, test or coverage lane: neutral, no longer red or ok",
 	"check/godot-no-coverage-coverage": "10: GDScript has no coverage lane: not-applicable exits 0",
 	"check/godot-no-coverage-types":    "10: GDScript has no types lane: not-applicable exits 0",
-	"check/godot-unready-all":          "10: GDScript has no types or coverage lane: neutral, no longer red",
+	"check/godot-unready-all":          "10, 20: GDScript has no types, test or coverage lane: neutral, exits 0",
 	"check/godot-unready-coverage":     "10: GDScript has no coverage lane: not-applicable exits 0",
 	"check/godot-unready-types":        "10: GDScript has no types lane: not-applicable exits 0",
+	// 20: no preset boots godot; GDScript has a test lane only where a project names a command.
+	"check/godot-no-coverage-test": "20: GDScript has no test lane: not-applicable, where the old chain ran godot and passed",
+	"check/godot-unready-test":     "20: GDScript has no test lane: not-applicable exits 0, where the old chain was unready",
 	// 16: the old chain had no Go preset; the Go lanes run now.
 	"check/go-only-all":      "16: the Go lanes run and pass where the old chain found no preset",
 	"check/go-only-coverage": "16: the Go coverage lane runs gocover and passes",
