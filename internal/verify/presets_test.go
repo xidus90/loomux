@@ -113,6 +113,25 @@ func TestThePythonLanesRunWithoutAMypyTargetOrToolDependencies(t *testing.T) {
 	}
 }
 
+// gdlint is a command of the package gdtoolkit; no package of its own name
+// exists, so uvx has to be told where the command comes from.
+func TestTheGdscriptLintTakesGdlintFromGdtoolkit(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gd := p.Stacks["gdscript"].Lanes
+	if got := gd["lint"].Commands; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint ."}) {
+		t.Errorf("commands = %q", got)
+	}
+	if got := gd["lint"].OnFile; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint {file}"}) {
+		t.Errorf("on_file = %q", got)
+	}
+	if got := gd["test"].Commands; !slices.Equal(got, []string{"godot --headless --quit"}) {
+		t.Errorf("test = %q", got)
+	}
+}
+
 func TestAVariantInheritsTheLanesItDoesNotName(t *testing.T) {
 	src := "[stack.go.test]\nmeasuring = \"go test -coverprofile={coverprofile}\"\n" +
 		"[[stack.go.variant]]\nwhen = \"biome\"\n[stack.go.variant.coverage]\ncommands=[\"x {coverprofile}\"]\n"

@@ -21,6 +21,11 @@
       "stdout": "faketool: vitest run --coverage\nAll files 100\n"
     },
     {
+      "prefix": "uvx --from gdtoolkit gdlint",
+      "exit": 0,
+      "stdout": "faketool: uvx gdlint\n"
+    },
+    {
       "prefix": "npx eslint",
       "exit": 0,
       "stdout": "faketool: npx eslint\n"

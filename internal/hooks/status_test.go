@@ -134,7 +134,7 @@ func TestRunStatusAllStacksAndNoLegacy(t *testing.T) {
 	// Each lane in the form post-edit runs it: the on-file command where the
 	// preset has one.
 	for _, expected := range []string{
-		"gdscript (*.gd) lint: uvx gdlint {file} [preset]",
+		"gdscript (*.gd) lint: uvx --from gdtoolkit gdlint {file} [preset]",
 		"cpp (*.c, *.cc, *.cpp, *.cxx, *.h, *.hpp) lint: clang-format --dry-run --Werror {file} [preset]",
 		"cpp (*.c, *.cc, *.cpp, *.cxx, *.h, *.hpp) types: cmake --build build --parallel [preset]",
 		"typescript (*.js, *.jsx, *.ts, *.tsx) lint: npx eslint --cache {file} [preset]",

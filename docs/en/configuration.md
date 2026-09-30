@@ -271,7 +271,7 @@ then `[verify.<stack>]`.
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx gdlint .` | — | `godot --headless --quit` | — |
+| gdscript | `uvx --from gdtoolkit gdlint .` | — | `godot --headless --quit` | — |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | only `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -288,8 +288,27 @@ then `[verify.<stack>]`.
   `[tool.mypy]` in `pyproject.toml`, `mypy.ini`, `.mypy.ini` or `[mypy]` in
   `setup.cfg` exists: it names no target, so that configuration has to set
   `files`. With both `pyright` and `mypy`, pyright checks.
+- The gdscript `lint` takes `gdlint` from the package `gdtoolkit`, which is
+  where it ships; the registry has no package `gdlint`.
+- The gdscript `test` starts `godot`, which has to be on the `PATH` under
+  exactly that name. Where it is not, the lane is `missing-tool`: red for
+  `loomux check` and the stop hook. A project whose binary carries another
+  name (a download is called `Godot_v4.7.1-stable_win64.exe`) names it:
+
+  ```toml
+  [verify.gdscript.test]
+  commands = ["'C:/Tools/Godot/Godot_v4.7.1-stable_win64_console.exe' --headless --quit"]
+  ```
+
+  The table form replaces only the command; `import_check` still applies.
+  Write the path with forward slashes, in single quotes when it holds a
+  space: outside single quotes a backslash is an escape character. The
+  command boots the project without a window and quits. It is a smoke test:
+  Godot exits 0 even when a script does not parse (measured with Godot
+  4.7.1), so a project with a test runner names that command here instead.
 - The `on_file` forms: go `go vet ./...` and `{loomux} check gofmt {file}`
-  (an edit formats only its own file), gdscript `uvx gdlint {file}`, cpp
+  (an edit formats only its own file), gdscript
+  `uvx --from gdtoolkit gdlint {file}`, cpp
   `clang-format --dry-run --Werror {file}` (checks, never rewrites),
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
   css `npx stylelint {file}`, html `npx htmlhint {file}`, shell
