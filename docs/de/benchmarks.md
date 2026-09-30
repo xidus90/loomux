@@ -3222,3 +3222,125 @@ Zeiten je Anfrage aus dem Log von Ollama.
    dem Beenden von Ollama. Die Zeit je Vorschlag ist darum hier kein Vergleich
    mit dem Kriterium der Referenz (unter 2 s); das hielt die Messung vom
    2026-09-28 20:20 fest.
+
+## 2026-09-30 08:10 — Zwei Projekte auf loomux umgestellt, vorher gegen nachher
+
+**Ziel.** Was die Hooks und die Wissensbefehle eines Projekts vor und nach
+seiner Umstellung von den alten Werkzeugen auf loomux kosten: alles Alte,
+alles Neue und alles Weggefallene, für die beiden Pilotprojekte der
+Umstellung.
+
+**Methode.** Zwei Projekte des Nutzers, anonymisiert. Beispielprojekt 1 ist
+ein Python-Projekt, das keine `.claude/settings.json` und damit keine alten
+Hooks hatte; Beispielprojekt 2 ist ein Godot-Projekt, das die Hooks beider
+alten Werkzeuge trug. Je Projekt und Seite baute `loomux dev bench cases` die
+Fälle aus der `.claude/settings.json` des Projekts und einer Datei mit
+Zusatzfällen für die Befehle neben den Hooks, `loomux dev bench hooks -n 5`
+maß sie (ein Kaltlauf, danach fünf Warmläufe; frühere Einträge nutzen 20,
+die fünf sind die Wahl des Nutzers für die Umstellung), und
+`loomux dev bench compare` paarte die beiden Berichte nach Fallnamen. Die
+Tabellen sind dessen Ausgabe: kalt, Mittelwert und Median der Warmläufe, ein
+Faktor über 1, wo die neue Seite schneller ist, und die Exit-Codes, mit
+denen ein Fall endete.
+
+Die alte Seite sind die alten Werkzeuge, wie sie installiert waren, gemessen
+am 2026-09-29 gegen 21:00, bevor eines der Projekte angefasst wurde. Für
+Beispielprojekt 2 stammen die drei Sitzungshooks (`SubagentStart`,
+`SubagentStop`, `Stop`) aus einer Nachmessung eine halbe Stunde später: Die
+ersten Nutzlasten trugen keine `session_id`, und diese Hooks lehnten sie ab,
+bevor sie arbeiteten. Die neue Seite ist das installierte loomux, das die
+Hooks des Projekts nach der Umstellung rufen: 5.3.0 (beta) für
+Beispielprojekt 1, gemessen am 2026-09-29 gegen 22:40, und 5.3.1 (beta) für
+Beispielprojekt 2, gemessen am 2026-09-30 gegen 08:09. Am zweiten Tag lief
+der qmd-Dienst nicht, der während der ganzen Baseline lief; stattdessen
+liefen ein `loomux serve --foreground` und die `loomux mcp` von fünf offenen
+Sitzungen.
+
+**Beispielprojekt 1, verglichen**
+
+| Fall | kalt alt | kalt neu | × | warm Ø alt | warm Ø neu | × | Median alt | Median neu | Exit alt | Exit neu |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| status | 49,5 ms | 6 308,6 ms | 0,01× | 67,6 ms | 5 196,1 ms | 0,01× | 43,0 ms | 5 238,4 ms | [0] | [0] |
+| search (fast) | 206,4 ms | 2 739,9 ms | 0,08× | 250,7 ms | 145,6 ms | 1,72× | 236,0 ms | 121,7 ms | [0] | [0] |
+| wiki lint | 47,0 ms | 156,4 ms | 0,30× | 49,5 ms | 162,4 ms | 0,30× | 48,5 ms | 158,3 ms | [0] | [0] |
+
+**Beispielprojekt 1, neu**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| SessionStart | 213,5 ms | 13,3 ms | 13,0 ms |
+| PreToolUse (Edit on README.md) | 27,5 ms | 45,2 ms | 19,5 ms |
+| PostToolUse (Edit on README.md) | 22,0 ms | 45,6 ms | 21,8 ms |
+| SubagentStart | 292,5 ms | 678,4 ms | 568,9 ms |
+| SubagentStop | 292,5 ms | 13,0 ms | 13,0 ms |
+| Stop | 806,3 ms | 1 042,5 ms | 827,1 ms |
+| graph stats | 123,3 ms | 218,0 ms | 134,0 ms |
+| graph check | 28,0 ms | 24,0 ms | 23,5 ms |
+
+**Beispielprojekt 2, verglichen**
+
+| Fall | kalt alt | kalt neu | × | warm Ø alt | warm Ø neu | × | Median alt | Median neu | Exit alt | Exit neu |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| SessionStart | 683,9 ms | 553,7 ms | 1,24× | 552,6 ms | 253,0 ms | 2,18× | 456,8 ms | 251,4 ms | [0] | [0 0] |
+| PreToolUse (Edit on AGENTS.md) | 54,0 ms | 12,4 ms | 4,35× | 48,8 ms | 9,8 ms | 4,98× | 48,4 ms | 9,6 ms | [0 0] | [0] |
+| PostToolUse (Edit on AGENTS.md) | 52,4 ms | 18,8 ms | 2,79× | 67,5 ms | 13,7 ms | 4,92× | 52,2 ms | 13,2 ms | [0] | [0] |
+| SubagentStart | 2 093,3 ms | 1 735,5 ms | 1,21× | 1 837,0 ms | 1 127,5 ms | 1,63× | 1 765,4 ms | 1 112,6 ms | [0] | [0] |
+| SubagentStop | 1 935,8 ms | 1 088,9 ms | 1,78× | 1 866,0 ms | 8,1 ms | 230,60× | 1 820,6 ms | 8,0 ms | [0] | [0] |
+| Stop | 618,9 ms | 1 099,8 ms | 0,56× | 664,2 ms | 336,7 ms | 1,97× | 608,8 ms | 408,3 ms | [1 1] | [2] |
+| commit-msg | 603,2 ms | 355,8 ms | 1,70× | 587,6 ms | 261,8 ms | 2,24× | 488,1 ms | 262,1 ms | [0] | [0] |
+| status | 201,6 ms | 2 336,0 ms | 0,09× | 206,7 ms | 2 143,4 ms | 0,10× | 208,1 ms | 2 113,9 ms | [0] | [0] |
+| search (fast) | 267,7 ms | 11 506,8 ms | 0,02× | 232,4 ms | 76,1 ms | 3,05× | 197,6 ms | 76,1 ms | [0] | [0] |
+| wiki lint | 45,5 ms | 173,6 ms | 0,26× | 47,4 ms | 169,8 ms | 0,28× | 47,8 ms | 169,0 ms | [0] | [1] |
+
+**Beispielprojekt 2, neu**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| graph stats | 10,0 ms | 7,5 ms | 7,5 ms |
+| graph check | 84,5 ms | 37,0 ms | 36,5 ms |
+
+**Beispielprojekt 2, weggefallen**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| python entry (ultraloom --help) | 247,1 ms | 119,1 ms | 116,9 ms |
+
+### Wichtigste Befunde
+1. **Zwei Messtage sind ohne Kontrollfall nicht vergleichbar.** `commit-msg`
+   von Beispielprojekt 2 ist auf beiden Seiten derselbe Hook des Projekts und
+   lief am zweiten Tag trotzdem schneller (Median 488,1 → 262,1 ms, 2,24× im
+   warmen Mittel). Ein Faktor bis etwa 2 belegt hier also nichts;
+   `SessionStart` (2,18×) liegt in diesem Rauschen, und dort laufen jetzt
+   zwei Befehle nebeneinander statt einem.
+2. **Die Hooks an jedem Edit sind über dieses Rauschen hinaus schneller.** In
+   Beispielprojekt 2 ging `PreToolUse` von 48,4 auf 9,6 ms und `PostToolUse`
+   von 52,2 auf 13,2 ms (Median warm): ein loomux-Prozess statt der beiden
+   alten Wächter.
+3. **Regression: `status`.** Median warm 43,0 → 5 238,4 ms in
+   Beispielprojekt 1 und 208,1 → 2 113,9 ms in Beispielprojekt 2. Der neue
+   Befehl fragt qmd ab, der alte tat es nicht. Offen; nichts auf diesem Zweig
+   ändert es.
+4. **Regression: `wiki lint`.** Median warm 48,5 → 158,3 ms und 47,8 →
+   169,0 ms (0,30× und 0,28× im warmen Mittel). In Beispielprojekt 2 endet es
+   außerdem mit Exit 1 statt 0: Die neue Prüfung meldet Befunde, die die alte
+   still durchließ.
+5. **`search (fast)` ist warm schneller und kalt langsamer.** Median warm
+   236,0 → 121,7 ms und 197,6 → 76,1 ms; der Kaltlauf braucht 2 739,9 ms in
+   Beispielprojekt 1, wo der erste Aufruf den Suchdienst anläuft, und
+   11 506,8 ms in Beispielprojekt 2, gemessen ohne laufenden qmd-Dienst.
+6. **Die Sitzungshooks vergleichen zwei Arten zu scheitern.** `Stop` von
+   Beispielprojekt 2 endete vorher mit `[1 1]` und nachher mit `[2]`; keine
+   Seite hat eine Prüfkette bis zum Ende gefahren, und das neue Stop-Tor gibt
+   nach drei Blockaden in Folge einmal auf, seine fünf Warmläufe sind also
+   gemischt. `SubagentStop` fiel warm von 1 820,6 auf 8,0 ms, braucht kalt
+   aber 1 088,9 ms: Nur der erste Lauf arbeitet sichtbar, der warme Wert ist
+   darum kein Maß für den Hook. `Stop` von Beispielprojekt 1, dort neu, endet
+   ebenfalls mit Exit 2: Es fährt das Tor des Projekts, und das fällt an
+   Lint-Befunden, die schon vor der Umstellung dastanden.
+7. **Nicht gemessen: das pre-commit-Tor der Projekte**, auf keiner Seite.
+   Eine Probe lief in die Zeitgrenze der Testsuite eines Projekts, und die
+   Tore anderer Projekte brauchen Werkzeuge, die nicht bereitstanden (Docker,
+   Godot); das Tor bleibt darum vorher wie nachher draußen.
+8. **Beispielprojekt 1 vergleicht nur die Wissensbefehle.** Es hatte keine
+   alten Hooks, alle sechs Hooks erscheinen darum als neu; was eine
+   Umstellung mit alten Hooks tut, zeigt allein Beispielprojekt 2.
