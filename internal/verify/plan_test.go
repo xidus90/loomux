@@ -238,6 +238,25 @@ func TestPlanMarksGodotUnready(t *testing.T) {
 	}
 }
 
+// A project whose Godot binary is not called `godot` names it in its own
+// configuration: the table form replaces the command and keeps the rest of
+// the lane, the import check included.
+func TestPlanRunsTheGodotBinaryAProjectNames(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+	src := "[verify.gdscript.test]\ncommands = [\"'C:/Program Files/Godot/Godot_v4.7.1-stable_mono_win64.exe' --headless --quit\"]\n"
+	e := env(t.TempDir())
+	jobs, err := Plan(effFor(t, src, facts), Request{Kinds: []string{"test"}}, e)
+	want := []string{"C:/Program Files/Godot/Godot_v4.7.1-stable_mono_win64.exe", "--headless", "--quit"}
+	if err != nil || len(jobs) != 1 || jobs[0].Pre != "" || jobs[0].Origin != "config" || !slices.Equal(jobs[0].Argvs[0], want) {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+	e.ImportReady = func(string) bool { return false }
+	jobs, _ = Plan(effFor(t, src, facts), Request{Kinds: []string{"test"}}, e)
+	if jobs[0].Pre != StateUnready {
+		t.Fatalf("%+v", jobs)
+	}
+}
+
 func TestPlanGivesPythonItsOwnCoverageFile(t *testing.T) {
 	facts := detect.Facts{Stacks: []string{"go", "python"}, Areas: map[string][]string{"python": {"py"}}}
 	root := t.TempDir()

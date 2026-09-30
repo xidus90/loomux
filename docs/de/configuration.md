@@ -278,7 +278,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx gdlint .` | — | `godot --headless --quit` | — |
+| gdscript | `uvx --from gdtoolkit gdlint .` | — | `godot --headless --quit` | — |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -295,8 +295,28 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   wo `[tool.mypy]` in `pyproject.toml`, `mypy.ini`, `.mypy.ini` oder `[mypy]`
   in `setup.cfg` steht: Sie nennt kein Ziel, also muss diese Konfiguration
   `files` setzen. Mit `pyright` und `mypy` zugleich prüft pyright.
+- Das gdscript-`lint` holt `gdlint` aus dem Paket `gdtoolkit`, in dem es
+  ausgeliefert wird; ein Paket `gdlint` kennt die Registry nicht.
+- Das gdscript-`test` startet `godot`, das unter genau diesem Namen auf dem
+  `PATH` liegen muss. Wo nicht, ist die Lane `missing-tool`: rot für
+  `loomux check` und den Stop-Hook. Ein Projekt, dessen Binary anders heißt
+  (ein Download heißt `Godot_v4.7.1-stable_win64.exe`), nennt es:
+
+  ```toml
+  [verify.gdscript.test]
+  commands = ["'C:/Tools/Godot/Godot_v4.7.1-stable_win64_console.exe' --headless --quit"]
+  ```
+
+  Die Tabellenform ersetzt nur den Befehl; `import_check` gilt weiter. Der
+  Pfad steht mit Vorwärtsschrägstrichen, in einfachen Anführungszeichen, wenn
+  er ein Leerzeichen enthält: Außerhalb einfacher Anführungszeichen ist ein
+  Backslash ein Escape-Zeichen. Der Befehl fährt das Projekt ohne Fenster hoch
+  und beendet es. Er ist ein Rauchtest: Godot endet mit 0, auch wenn ein
+  Skript nicht parst (gemessen mit Godot 4.7.1); ein Projekt mit einem
+  Test-Runner nennt hier stattdessen dessen Befehl.
 - Die `on_file`-Formen: go `go vet ./...` und `{loomux} check gofmt {file}`
-  (ein Edit formatiert nur seine eigene Datei), gdscript `uvx gdlint {file}`,
+  (ein Edit formatiert nur seine eigene Datei), gdscript
+  `uvx --from gdtoolkit gdlint {file}`,
   cpp `clang-format --dry-run --Werror {file}` (prüft, schreibt nie um),
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
   css `npx stylelint {file}`, html `npx htmlhint {file}`, shell

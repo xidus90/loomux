@@ -104,10 +104,14 @@ after = "test"
 [stack.python.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
+# gdlint ships in the package gdtoolkit; the registry has no package gdlint.
 [stack.gdscript.lint]
-commands = ["uvx gdlint ."]
-on_file = ["uvx gdlint {file}"]
+commands = ["uvx --from gdtoolkit gdlint ."]
+on_file = ["uvx --from gdtoolkit gdlint {file}"]
 
+# Boots the project without a window and quits: a smoke test, not a test
+# runner. A project whose binary is not called godot names it in
+# [verify.gdscript.test].
 [stack.gdscript.test]
 commands = ["godot --headless --quit"]
 

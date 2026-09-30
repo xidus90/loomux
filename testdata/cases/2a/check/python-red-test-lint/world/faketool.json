@@ -11,17 +11,7 @@
       "stdout": "faketool: uv run mypy\n"
     },
     {
-      "prefix": "uv run --with mypy mypy",
-      "exit": 0,
-      "stdout": "faketool: uv run mypy\n"
-    },
-    {
       "prefix": "uv run pytest",
-      "exit": 1,
-      "stdout": "faketool: uv run pytest\nFAILED tests/test_a.py::test_a\n1 failed\n"
-    },
-    {
-      "prefix": "uv run --with pytest pytest",
       "exit": 1,
       "stdout": "faketool: uv run pytest\nFAILED tests/test_a.py::test_a\n1 failed\n"
     },
@@ -31,19 +21,14 @@
       "stdout": "faketool: uv run coverage run\nFAILED tests/test_a.py::test_a\n1 failed\n"
     },
     {
-      "prefix": "uv run --with coverage --with pytest coverage run",
-      "exit": 1,
-      "stdout": "faketool: uv run coverage run\nFAILED tests/test_a.py::test_a\n1 failed\n"
-    },
-    {
       "prefix": "uv run coverage report",
       "exit": 0,
       "stdout": "faketool: uv run coverage report\nTOTAL 1 0 100%\n"
     },
     {
-      "prefix": "uv run --with coverage coverage report",
+      "prefix": "uvx --from gdtoolkit gdlint",
       "exit": 0,
-      "stdout": "faketool: uv run coverage report\nTOTAL 1 0 100%\n"
+      "stdout": "faketool: uvx gdlint\n"
     },
     {
       "prefix": "npx eslint",
@@ -80,6 +65,26 @@
           "content": "mode: set\nexample.com/world/a.go:3.16,3.26 1 1\n"
         }
       ]
+    },
+    {
+      "prefix": "uv run --with mypy mypy",
+      "exit": 0,
+      "stdout": "faketool: uv run mypy\n"
+    },
+    {
+      "prefix": "uv run --with pytest pytest",
+      "exit": 1,
+      "stdout": "faketool: uv run pytest\nFAILED tests/test_a.py::test_a\n1 failed\n"
+    },
+    {
+      "prefix": "uv run --with coverage --with pytest coverage run",
+      "exit": 1,
+      "stdout": "faketool: uv run coverage run\nFAILED tests/test_a.py::test_a\n1 failed\n"
+    },
+    {
+      "prefix": "uv run --with coverage coverage report",
+      "exit": 0,
+      "stdout": "faketool: uv run coverage report\nTOTAL 1 0 100%\n"
     }
   ]
 }
