@@ -421,6 +421,156 @@ Bereinigen einer bestehenden `settings.json` und ein Vergleich alter gegen
 neue Hooks desselben Ereignisses; im Vergleich erscheinen alle Hooks als
 „neu“. Das leisten erst die Ziele mit alten Hooks.
 
+### 9. Pilot `space` (2026-09-30)
+
+Umgestellt mit dem gerenderten `apply.sh` (space-Commit `46e04b9f`), gemessen
+am 2026-09-30 mit `dev bench hooks -n 5` gegen die Baseline vom 2026-09-29
+(Messung 7). Der Vergleich steht in `bench-4e-space.md`.
+
+**Ablauf der Umstellung.**
+
+- Die Ausgabe von `apply.sh` war im PowerShell-Fenster des Nutzers
+  abgeschnitten. Die Wirkungen hat der Controller nachgeprüft, nicht die
+  Ausgabe gelesen.
+- space behält sein eigenes `.githooks/pre-commit`; es hat den
+  Umstellungs-Commit `46e04b9f` angenommen, ohne `--no-verify`.
+- Das zweite `apply.sh --check` zeigte nur `already` und `kept`, dazu für
+  `init` und `prune-hooks` „would be run“.
+- `graph build` fand 0 Dateien, weil GDScript nicht indiziert wird;
+  `graph stats` meldet 0 Dateien, 0 Symbole, 0 Kanten.
+
+**Was der Pilot über ecoflow hinaus beweist.**
+
+- Die alten Hooks sind entfernt: `prune-hooks` nahm 7 Gruppen aus der
+  `settings.json` (`ulguard`, `brain guard`, `brain wiki-gate`,
+  `ultraloom hook …`). Übrig ist neben den sechs loomux-Hooks nur space'
+  eigener `run.sh session_start.py`.
+- Eine bestehende `settings.json` ist bereinigt, nicht neu geschrieben.
+- Alte und neue Hooks desselben Ereignisses stehen nebeneinander (unten).
+- Das Bereichsverzeichnis im Zustand heißt jetzt `project-space.alt`.
+- `readonly` ist aus dem Registry-Eintrag gefallen, `workspace` blieb.
+
+**Messung.** Die neuen Fälle entstehen aus der neuen `settings.json` mit
+derselben `--file` (`AGENTS.md`) und denselben Namen der Zusatzfälle
+(`commit-msg`, `status`, `search (fast)`, `wiki lint`), die drei letzten
+jetzt über `loomux brain …`; neu dazu `graph stats` und `graph check`;
+`python entry (ultraloom --help)` fällt weg. `dev bench cases` aus HEAD
+(`2c637567`) setzt `${LOCALAPPDATA}` jetzt selbst ein, `cases.json` ist
+unverändert gemessen. Gemessen wurde die installierte Binary
+`loomux 5.3.1 (beta)` (ecoflow: 5.3.0), seriell, ein Lauf von 41 s
+(08:08:58–08:09:39 Ortszeit).
+
+Die Alt-Seite des Vergleichs ist eine zusammengesetzte Datei
+(`before-merged.json`): die erste Baseline (`bench-2026-09-29-1901`), darin
+die drei Fälle `SubagentStart`, `SubagentStop` und `Stop` durch die Einträge
+der Nachmessung ersetzt (`baseline-2`, `bench-2026-09-29-1931`), weil die
+erste dort nur den Ablehnungspfad maß. Kein Wert ist gerechnet oder
+geschätzt, jeder Eintrag ist ganz aus einer der beiden Dateien übernommen.
+
+Umgebung, anders als am Vortag: Der qmd-Dienst auf Port 8765 lief nicht
+(Baseline: lief die ganze Zeit); stattdessen lief ein
+`loomux serve --foreground` und fünf `loomux mcp` offener Sitzungen.
+
+| Fall | Median alt | Median neu | Exit alt | Exit neu |
+|---|---:|---:|---|---|
+| SessionStart | 456,8 ms | 251,4 ms | [0] | [0 0] |
+| PreToolUse | 48,4 ms | 9,6 ms | [0 0] | [0] |
+| PostToolUse | 52,2 ms | 13,2 ms | [0] | [0] |
+| SubagentStart | 1765,4 ms | 1112,6 ms | [0] | [0] |
+| SubagentStop | 1820,6 ms | 8,0 ms | [0] | [0] |
+| Stop | 608,8 ms | 408,3 ms | [1 1] | [2] |
+| commit-msg | 488,1 ms | 262,1 ms | [0] | [0] |
+| status | 208,1 ms | 2113,9 ms | [0] | [0] |
+| search (fast) | 197,6 ms | 76,1 ms | [0] | [0] |
+| wiki lint | 47,8 ms | 169,0 ms | [0] | [1] |
+
+- **`commit-msg` ist die Kontrolle.** Der Hook ist auf beiden Seiten
+  derselbe (`.githooks/commit-msg` von space, `commit_language.py`) und
+  läuft doch 1,9-mal so schnell. Der Rechner war am zweiten Tag also
+  schneller oder ruhiger; ein Faktor bis etwa 2 belegt für sich nichts.
+  `SessionStart` (2,2-fach) liegt in diesem Rauschen, zumal dort jetzt zwei
+  Befehle nebeneinander laufen (`run.sh session_start.py` und
+  `loomux hook session-start`) statt einem.
+- **`PreToolUse` 48 → 10 ms, `PostToolUse` 52 → 13 ms** (Faktor 5 und 4,
+  über dem Rauschen): ein loomux-Prozess statt `ulguard` plus `brain guard`.
+- **`SubagentStop` 1821 → 8 ms warm, kalt 1089 ms.** Nur der erste Lauf
+  arbeitet sichtbar; ob die warmen Läufe abkürzen, weil der Schnappschuss
+  schon verbraucht ist, ist nicht nachgestellt. Der warme Wert ist darum
+  kein Maß für die Arbeit des Hooks; der kalte ist es eher.
+- **`Stop` Exit 2**, einmal von Hand nachgestellt: `lint/gdscript` fällt,
+  weil `uvx gdlint .` kein Paket `gdlint` findet („gdlint was not found in
+  the package registry“; das Werkzeug liegt im Paket `gdtoolkit`);
+  `test/gdscript` meldet `missing-tool`, weil `godot` nicht auf dem PATH
+  steht (dort liegt nur `Godot_v4.7.1-stable_mono_win64.exe`); `lint/wiki`
+  meldet denselben einen Befund wie das alte `brain wiki-gate`
+  (`open-questions/renderbudget-ungemessen.md` ohne `type`). Zwei der drei
+  Ursachen sind also Befunde der Umstellung (das Preset), die dritte
+  Vorbestand. Beide Befunde des Presets sind auf diesem Zweig behoben, siehe
+  Punkt 2 unten. Der alte Stop fiel mit `[1 1]` an fehlenden `[verify]`-Spuren
+  und demselben Wiki-Befund; keine Seite hat eine Prüfkette wirklich
+  gefahren, die Zeiten vergleichen zwei Arten zu scheitern.
+  Einer der fünf warmen Läufe dauerte 10 ms: nach drei Blockaden in Folge
+  (`MaxBlocks`) gibt der Hook einmal auf. Der Bericht hält nur `[2]` fest.
+- **`wiki lint` Exit 1 statt 0:** `loomux brain check bundle --scope
+  project/space` meldet 790 Fehler (370 `house/source-incomplete`, 323
+  `house/dead-link`, 92 `house/unknown-type`, 3 `house/no-sources`, je 1
+  `okf/catalog-malformed` und `okf/frontmatter-unparsable`); das alte
+  `brain check bundle` gab am selben Stand still Exit 0. Viele tote Links
+  zeigen auf `docs/.superpowers/…` und werden relativ zur Seite aufgelöst.
+- **`status` 208 → 2114 ms**, wie bei ecoflow. Es meldet außerdem
+  „project/space: never indexed; run `brain reindex`“.
+- **`search (fast)`** warm 76 statt 198 ms, kalt 11,5 s.
+- **Was die Hooks schrieben:** `git status --porcelain
+  --untracked-files=all` von space war vor und nach der Messung gleich (nur
+  `?? export_presets.cfg` des Nutzers, unberührt). Neu und ignoriert:
+  `.loomux/state/hooks/loomux-bench.json` (Basis `46e04b9f`, `blocks: 3`).
+  Unter `%LOCALAPPDATA%\loomux` und in `brain-knowledge` änderte sich nichts.
+
+**Was space gelehrt hat** (vor der Welle zu ändern, je als eigener Task mit
+Test):
+
+1. `apply.sh --check` kann nicht sagen, ob `init` und `prune-hooks` etwas
+   ändern würden; es sagt nur „would be run“. Ein zweiter Lauf ist damit
+   nicht als leer zu erkennen.
+2. Das GDScript-Preset lief auf diesem Rechner in keiner Spur: `uvx gdlint`
+   findet kein Paket dieses Namens (das Werkzeug liegt im Paket `gdtoolkit`),
+   und `godot` heißt auf dem PATH anders. Der Stop-Hook blockierte damit jede
+   Sitzung in space bis zur dritten Blockade. Beides ist auf diesem Zweig
+   behoben: `4b5854f8` lässt die Lint-Spur `uvx --from gdtoolkit gdlint`
+   fahren, und `35509182` streicht das Test-Preset für GDScript; die Spur
+   `test/gdscript` gilt als nicht anwendbar, bis ein Projekt
+   `[verify.gdscript.test]` selbst setzt. Für space bleibt: das installierte
+   loomux 5.3.1 hat beide Fehler noch, bis ein Release mit den Korrekturen
+   installiert ist. Bis dahin schweigt die Stop-Sperre nur mit der Marke
+   `.loomux/no-verify`, die der Mensch setzt.
+3. Vier Stücke der alten Konfiguration haben keinen Platz im Schema:
+   `[relevance]` (Markdown-Änderungen liefen leer durch), die
+   Coverage-Schwelle, `[gates]` (`tests_in_stop`, `types_in_stop`,
+   `[gates.wiki]`) und `docs_language`. Das Skript verliert sie still.
+4. `wiki lint` wechselt mit der Umstellung von Exit 0 auf 790 Fehler. Vor
+   der Welle ist zu klären, welche Hausregeln für ein Projekt-Wiki gelten
+   und wie die Auflösung relativer Links gemeint ist; sonst sieht jedes
+   umgestellte Wiki kaputt aus.
+5. Nach der Umstellung ist der Bereich „never indexed“; das Skript fährt
+   kein `reindex`. Ob der `reindex` von `hub` gelaufen ist, hat diese
+   Messung nicht geprüft.
+6. `graph build` indiziert GDScript nicht; `init` schaltet `graph` trotzdem
+   ein und der Graph bleibt leer. `init` sollte das sagen oder das Modul
+   auslassen.
+7. Die Ausgabe von `apply.sh` ging im PowerShell-Fenster zum zweiten Mal
+   verloren (ecoflow: gar keine, space: abgeschnitten). Das Skript sollte
+   sein Protokoll zusätzlich in eine Datei schreiben.
+8. Der Bericht von `dev bench hooks` hält je Fall eine Liste von Exit-Codes,
+   nicht je Lauf; ein Lauf, der anders endet (das Aufgeben des Stop-Hooks),
+   ist nur an der Zeit zu erkennen. Und ein Stop-Fall mit fünf Läufen läuft
+   in die Schleifensperre, misst also gemischt.
+9. `compare` paart einen unveränderten Fall (`commit-msg`) mit Faktor 1,9:
+   zwei Messtage sind ohne Kontrollfall nicht vergleichbar. Die Welle sollte
+   je Ziel einen unveränderten Kontrollfall mitführen oder Vorher und
+   Nachher am selben Tag messen.
+10. `.gitignore` von space behält die toten Zeilen `.ultraloom/hooks/` und
+    `.ultraloom/vendor/`; das Skript räumt sie nicht auf.
+
 ## Checkliste
 
 **Stand 2026-09-29:** Block 4 (Deklarationen von Hand) und Block 5 (`init`, alte Einträge) sind durch den Ablauf der Spec `2026-09-29-loomux-stufe-4e-umstellung-vorbereitet-design.md` abgelöst: das LLM bereitet vor, ein `apply.sh` schreibt. Block 1 bis 3 und der Rauchtest (Block 6) gelten weiter.
