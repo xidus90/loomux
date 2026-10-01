@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/xidus90/loomux/internal/child"
@@ -24,8 +25,9 @@ import (
 const DefaultStopBudget = 270 * time.Second
 
 // MaxBlocks is how many turn ends in a row the gate holds before it lets one
-// go. It guards against a loop, and a loop is blocks in a row: a green run in
-// between ends the row.
+// go. It guards against a loop, and a loop is blocks in a row: a turn end
+// that goes through in between -- green, or red only in lanes in probation --
+// ends the row.
 const MaxBlocks = 3
 
 // NoVerifyMarker is the file a human sets to let turns end unchecked. The
@@ -70,6 +72,9 @@ func Stop(stdin io.Reader, stderr io.Writer, root, hostName string, budget time.
 // RunStop is the stop gate: 0 lets the turn end, 2 holds it with the reason
 // on stderr, 1 is a gate that could not judge and holds nothing. The order is
 // payload, findings of the subagents, counter, marker, config, tree, chain.
+// A chain red only in lanes in probation ends the turn with 0 as well and
+// ends a row of blocks, without moving the base, and is remembered by its
+// tree, its HEAD and the lanes that were armed.
 func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopEnv) int {
 	say := func(format string, a ...any) { fmt.Fprintf(stderr, "loomux hook stop: "+format+"\n", a...) }
 	host, err := hosts.ParseHost(hostName)
@@ -130,8 +135,10 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 			save()
 		}
 	}
-	// A green pass ends a row of blocks -- but not a row of turn ends held by
-	// a finding the gate cannot clear away, which the lanes say nothing about.
+	// A turn end that goes through -- a green pass, or a chain red only in
+	// lanes in probation -- ends a row of blocks; but not a row of turn ends
+	// held by a finding the gate cannot clear away, which the lanes say
+	// nothing about.
 	passed := func() {
 		if !stuck {
 			state.Blocks = 0
@@ -168,6 +175,10 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	// under the HEAD it was found green at, which a green pass keeps as the
 	// base. A commit inside the turn moves HEAD and leaves the tree alone.
 	headMoved := idx != nil && state.Base != "" && head != state.Base
+	// Read before the tree is judged: the stand below holds only under the
+	// lanes that were armed when it was taken. What is wrong with the file
+	// is said where a chain runs, not at a turn end that starts none.
+	armed, armedErr := verify.ReadArmed(root)
 	switch {
 	case errors.Is(err, errNoRepository):
 	case err != nil:
@@ -182,6 +193,25 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 			passed()
 		}
 		return end(ExitOK)
+	case state.Seen != nil && tree == state.Seen.Tree && head == state.Seen.Head &&
+		armed.Exists && slices.Equal(state.Seen.Armed, armed.Keys):
+		// The same tree under the same HEAD, with the same lanes armed, was
+		// red only in lanes in probation: no tool starts, and what they found
+		// is said again. The armed lanes are asked by themselves, because a
+		// project that ignores .loomux keeps the file out of the tree; a file
+		// that is gone or does not read arms every lane and ends the stand. Not a
+		// green pass -- the base stays -- but the turn end goes through, and
+		// that ends a row of blocks. Written only when that changes something,
+		// as the green arm above.
+		fmt.Fprint(stderr, state.Seen.Report)
+		if !stuck && state.Blocks != 0 {
+			passed()
+		}
+		return end(ExitOK)
+	}
+	// A file that does not read arms every lane, and every chain says so.
+	if armedErr != nil {
+		say("%v", armedErr)
 	}
 
 	runID := verify.NewRunID(env.Now(), os.Getpid())
@@ -204,18 +234,28 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	}
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeCheck, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
-		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now,
+		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
 	})
-	code := stopVerdict(stderr, kinds, outs)
-	if err := verify.CleanCover(root, runID, code == ExitOK); err != nil {
+	code, warned := stopVerdict(stderr, kinds, outs, armed.Arms)
+	// A chain with findings keeps its coverage files for whoever looks into
+	// it, in probation or not.
+	if err := verify.CleanCover(root, runID, code == ExitOK && warned == ""); err != nil {
 		say("cleaning coverage files: %v", err)
 	}
-	switch code {
-	case ExitDenied:
+	switch {
+	case code == ExitDenied:
 		countBlock()
 		return ExitDenied
-	case ExitOK:
-		state.Base, state.Green = head, tree
+	case code == ExitOK && warned != "":
+		// Not green: the base and the green tree stay. The turn end goes
+		// through all the same, which ends a row of blocks as a green pass
+		// does. Outside a repository there is no tree to remember it by.
+		if tree != "" {
+			state.Seen = &sessions.Seen{Tree: tree, Head: head, Armed: slices.Clone(armed.Keys), Report: warned, At: env.Now()}
+		}
+		passed()
+	case code == ExitOK:
+		state.Base, state.Green, state.Seen = head, tree, nil
 		passed()
 	}
 	return end(code)
@@ -286,34 +326,46 @@ func headTree(root, head string) string {
 	return tree
 }
 
-// stopVerdict writes the red lanes and says what they mean for the turn:
-// red holds it, a budget that ran out or a kind with nothing to check leaves
-// it unjudged, anything else passes.
-func stopVerdict(stderr io.Writer, kinds []string, outs []verify.Outcome) int {
-	var red []verify.Outcome
+// stopVerdict writes the lanes that fail the run and says what they mean for
+// the turn: red holds it, a budget that ran out or a kind with nothing to
+// check leaves it unjudged, anything else passes. A chain red only in lanes
+// in probation passes too, and warned is what those lanes reported: the
+// caller neither moves the base over it nor counts a block.
+func stopVerdict(stderr io.Writer, kinds []string, outs []verify.Outcome, armed func(verify.Job) bool) (code int, warned string) {
+	var red, held []verify.Outcome
 	for _, o := range outs {
-		if verify.Red(o.State, verify.ScopeCheck) {
+		switch {
+		case verify.Fails(o, verify.ScopeCheck):
 			red = append(red, o)
+		case verify.Red(o.State, verify.ScopeCheck):
+			held = append(held, o)
 		}
 	}
 	if len(red) > 0 {
-		// Only the red lanes: what reaches the agent's context is what it
-		// has to fix.
+		// Only the lanes that fail: what reaches the agent's context is what
+		// it has to fix.
 		verify.WriteCheck(stderr, red, false)
-		return ExitDenied
+		return ExitDenied, ""
 	}
 	if slices.ContainsFunc(outs, func(o verify.Outcome) bool { return o.State == verify.StateBudget }) {
 		fmt.Fprintln(stderr, "loomux hook stop: not everything was verified; raise --budget or shrink the stop profile")
-		return ExitInternal
+		return ExitInternal, ""
 	}
 	if _, notes := verify.CheckVerdict(kinds, outs); len(notes) > 0 {
 		for _, note := range notes {
 			fmt.Fprintf(stderr, "loomux hook stop: %s\n", note)
 		}
 		fmt.Fprintln(stderr, "loomux hook stop: nothing was verified for these kinds; the base stays")
-		return ExitInternal
+		return ExitInternal, ""
 	}
-	return ExitOK
+	if len(held) > 0 {
+		var report strings.Builder
+		verify.WriteCheck(&report, held, false)
+		fmt.Fprintln(&report, verify.ProbationLine(outs, armed))
+		fmt.Fprint(stderr, report.String())
+		return ExitOK, report.String()
+	}
+	return ExitOK, ""
 }
 
 // printFindings writes what stopped subagents left, prefixed with each

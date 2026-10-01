@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 // SessionState is what one session carries between two calls of the stop
@@ -14,10 +16,57 @@ import (
 // Base is a string and not a pointer: the empty string is never a commit,
 // so both absences are one, and an absent base is written as JSON null.
 // Green is the tree SHA of the last green run, or "" before the first.
+// Seen is the last tree found red only in lanes in probation, nil without one.
 type SessionState struct {
 	Blocks int
 	Base   string
 	Green  string
+	Seen   *Seen
+}
+
+// Seen is a tree the stop gate found red only in lanes in probation: not
+// green, so the base stays, and no block. It is kept so that the same tree
+// under the same HEAD starts no tool again and only says Report again. HEAD
+// is part of it because the graph lane judges against HEAD. Armed is the
+// armed lanes the chain ran under: a project that ignores .loomux keeps the
+// file out of the tree, so a lane armed by hand changes no tree and has to
+// end the stand by itself. At is when the chain ran, which is how the newest
+// stand of several sessions is told.
+type Seen struct {
+	Tree   string    `json:"tree"`
+	Head   string    `json:"head"`
+	Armed  []string  `json:"armed"`
+	Report string    `json:"report"`
+	At     time.Time `json:"at"`
+}
+
+// LastSeen is the newest stand any session of root left behind, by the time
+// its chain ran. Session start reads it for a session that has no state of
+// its own yet. A file that does not read is passed by, as ReadState passes
+// it: no JSON, or no block counter.
+func LastSeen(root string) (Seen, bool) {
+	dir := filepath.Join(root, filepath.FromSlash(StateDir))
+	entries, _ := os.ReadDir(dir)
+	var newest Seen
+	found := false
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		// A directory named like a session file fails here and is passed by.
+		raw, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		var file stateFile
+		if json.Unmarshal(raw, &file) != nil || file.Blocks == nil || file.Seen == nil {
+			continue
+		}
+		if !found || file.Seen.At.After(newest.At) {
+			newest, found = *file.Seen, true
+		}
+	}
+	return newest, found
 }
 
 // stateFile is the shape on disk. Pointers, because a missing key and a
@@ -37,6 +86,7 @@ type stateFile struct {
 	Base   *string `json:"base"`
 	Blocks *int    `json:"blocks"`
 	Green  string  `json:"green,omitempty"`
+	Seen   *Seen   `json:"seen,omitempty"`
 }
 
 // ReadState is what this session left behind, or an empty state. Every
@@ -54,7 +104,7 @@ func ReadState(root, sessionID string) SessionState {
 	if err := json.Unmarshal(raw, &file); err != nil || file.Blocks == nil {
 		return SessionState{}
 	}
-	state := SessionState{Blocks: *file.Blocks, Green: file.Green}
+	state := SessionState{Blocks: *file.Blocks, Green: file.Green, Seen: file.Seen}
 	if file.Base != nil {
 		state.Base = *file.Base
 	}
@@ -62,22 +112,19 @@ func ReadState(root, sessionID string) SessionState {
 }
 
 // WriteState keeps this state for the next call.
-//
-//coverage:exempt the json.Marshal err arm needs a stateFile field that does not encode; an int and strings always do
 func WriteState(root, sessionID string, state SessionState) error {
 	path := statePath(root, sessionID)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("creating the directory for %s: %w", path, err)
 	}
-	file := stateFile{Blocks: &state.Blocks, Green: state.Green}
+	file := stateFile{Blocks: &state.Blocks, Green: state.Green, Seen: state.Seen}
 	if state.Base != "" {
 		base := state.Base
 		file.Base = &base
 	}
 	body, err := json.Marshal(file)
 	if err != nil {
-		// Unreachable: an int and strings all encode. Kept because dropping
-		// the error would hide a later field that does not.
+		// The time of a seen stand encodes only within the years 0 to 9999.
 		return fmt.Errorf("encoding the state of session %s: %w", sessionID, err)
 	}
 	if err := os.WriteFile(path, body, 0o644); err != nil {

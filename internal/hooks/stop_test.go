@@ -518,20 +518,26 @@ func TestStopClearsAFindingFileThatShrankWhileItDelivered(t *testing.T) {
 }
 
 // Green takes this run's profiles away; red leaves them, because the agent
-// has to be able to read what the lane measured. The clock stands still, so
-// the test can name the run the gate is about to make.
+// has to be able to read what the lane measured -- red in probation as well,
+// though the turn ends. The clock stands still, so the test can name the run
+// the gate is about to make.
 func TestStopKeepsThisRunsCoverageOnlyWhenItHolds(t *testing.T) {
 	for _, c := range []struct {
-		name string
-		env  func() StopEnv
-		code int
-		kept bool
+		name  string
+		armed string
+		env   func() StopEnv
+		code  int
+		kept  bool
 	}{
-		{"a pass takes them away", greenTools, ExitOK, false},
-		{"a hold leaves them", redVet, ExitDenied, true},
+		{"a pass takes them away", "", greenTools, ExitOK, false},
+		{"a hold leaves them", "", redVet, ExitDenied, true},
+		{"a warning in probation leaves them", probing, redVet, ExitOK, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			root := gitWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+			if c.armed != "" {
+				writeWorldFile(t, root, ".loomux/armed.toml", c.armed)
+			}
 			env := c.env()
 			now := time.Now()
 			env.Now = func() time.Time { return now }
@@ -913,5 +919,305 @@ func TestStopKeepsTheCounterOfAStuckFindingOnAGreenTree(t *testing.T) {
 	}
 	if state := stateOf(t, root); state.Blocks != 2 {
 		t.Fatalf("%+v", state)
+	}
+}
+
+const probing = "armed = []\n"
+
+// probationWorld is stopWorld with the file; blocks is the counter the
+// session starts with.
+func probationWorld(t *testing.T, armed string, blocks string) string {
+	t.Helper()
+	root := gitWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":`+blocks+`}`)
+	writeWorldFile(t, root, ".loomux/armed.toml", armed)
+	return root
+}
+
+// A chain red only in lanes in probation is not green and not a block: the
+// turn ends, the base and the green tree stay where they are, the tree is
+// remembered, and the row of blocks is over, because the turn end went
+// through.
+func TestStopEndsTheTurnOnAChainRedOnlyInProbation(t *testing.T) {
+	root := probationWorld(t, probing, "2")
+	base := stateOf(t, root).Base
+	at := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	env := redVet()
+	env.Now = func() time.Time { return at }
+	code, se := runStop(t, root, s1, env)
+	if code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	for _, want := range []string{"lint/go: failed (probation) [preset]", "go vet", "probation: lint/go@., test/go@. (warn only until a green commit arms them)\n"} {
+		if !strings.Contains(se, want) {
+			t.Errorf("missing %q in %q", want, se)
+		}
+	}
+	tree, err := gitwork.ContentTree(root, os.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := stateOf(t, root)
+	if state.Base != base || state.Green != "" || state.Blocks != 0 {
+		t.Fatalf("the run counted as green, or the row of blocks went on: %+v", state)
+	}
+	if state.Seen == nil || state.Seen.Tree != tree || state.Seen.Head != headOf(t, root) || state.Seen.Report != se {
+		t.Fatalf("seen %+v, want tree %s head %s", state.Seen, tree, headOf(t, root))
+	}
+	// When the chain ran, and which lanes were armed then: none.
+	if !state.Seen.At.Equal(at) || len(state.Seen.Armed) != 0 {
+		t.Fatalf("seen at %v with %v armed, want %v and none", state.Seen.At, state.Seen.Armed, at)
+	}
+}
+
+// A row of two blocks, then a turn that ends red only in probation, then a
+// block: the counter reads 1, not 3. The gate gives up after three blocks in
+// a row, and a turn end that went through is what ends a row.
+func TestAProbationOnlyTurnEndsTheRowOfBlocks(t *testing.T) {
+	root := probationWorld(t, probing, "2")
+	if code, se := runStop(t, root, s1, redVet()); code != ExitOK || stateOf(t, root).Blocks != 0 {
+		t.Fatalf("%d %q %+v", code, se, stateOf(t, root))
+	}
+	// The lane is armed now and the tree has changed: the next turn end is held.
+	writeWorldFile(t, root, ".loomux/armed.toml", "armed = [\"lint/go@.\"]\n")
+	writeWorldFile(t, root, "a.go", "package a\n\nfunc A() int { return 4444 }\n")
+	code, se := runStop(t, root, s1, redVet())
+	if code != ExitDenied || stateOf(t, root).Blocks != 1 {
+		t.Fatalf("%d %q: blocks %d, want 1", code, se, stateOf(t, root).Blocks)
+	}
+}
+
+// The same holds for a turn end that only says again what it has seen: a
+// counter left over from before is back at 0 afterwards.
+func TestSayingTheSeenStandAgainEndsTheRowOfBlocks(t *testing.T) {
+	root := probationWorld(t, probing, "0")
+	runStop(t, root, s1, redVet())
+	state := stateOf(t, root)
+	state.Blocks = 2
+	if err := sessions.WriteState(root, "s1", state); err != nil {
+		t.Fatal(err)
+	}
+	env, started := countTools(redVet())
+	if code, se := runStop(t, root, s1, env); code != ExitOK || started.Load() != 0 || stateOf(t, root).Blocks != 0 || stateOf(t, root).Seen == nil {
+		t.Fatalf("%d %q, %d tools, %+v", code, se, started.Load(), stateOf(t, root))
+	}
+}
+
+// A project that ignores .loomux keeps the file out of the tree: arming a
+// lane there changes no tree. The stand remembers which lanes were armed,
+// so the turn end after a `gate arm` runs the chain and holds. The bench's
+// repository is such a project: it excludes all of .loomux.
+func TestArmingBetweenTwoTurnEndsRunsTheChainAgain(t *testing.T) {
+	root := probationWorld(t, probing, "0")
+	before, err := gitwork.ContentTree(root, os.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, se := runStop(t, root, s1, redVet()); code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	writeWorldFile(t, root, ".loomux/armed.toml", "armed = [\"lint/go@.\"]\n")
+	if after, _ := gitwork.ContentTree(root, os.TempDir()); after != before {
+		t.Fatalf("the world must keep the file out of the tree: %s %s", before, after)
+	}
+	env, started := countTools(redVet())
+	code, se := runStop(t, root, s1, env)
+	if code != ExitDenied || started.Load() == 0 || !strings.Contains(se, "lint/go: failed [preset]") {
+		t.Fatalf("%d, %d tools, %q", code, started.Load(), se)
+	}
+}
+
+// A file that is gone arms every lane, and one that does not read does too:
+// neither lets the turn end on what was seen while lanes were in probation.
+func TestLosingTheFileRunsTheChainAgain(t *testing.T) {
+	for name, write := range map[string]func(root string){
+		"gone":       func(root string) { os.Remove(filepath.Join(root, ".loomux", "armed.toml")) },
+		"unreadable": func(root string) { writeWorldFile(t, root, ".loomux/armed.toml", "armed = 1\n") },
+	} {
+		root := probationWorld(t, probing, "0")
+		runStop(t, root, s1, redVet())
+		write(root)
+		env, started := countTools(redVet())
+		if code, se := runStop(t, root, s1, env); code != ExitDenied || started.Load() == 0 {
+			t.Errorf("%s: %d, %d tools, %q", name, code, started.Load(), se)
+		}
+	}
+}
+
+// The nearest wrong neighbour: the same red lane, armed. It holds the turn
+// and counts, with or without other lanes in probation beside it.
+func TestStopStillHoldsAnArmedRedLane(t *testing.T) {
+	root := probationWorld(t, "armed = [\"lint/go@.\"]\n", "1")
+	code, se := runStop(t, root, s1, redVet())
+	if code != ExitDenied || !strings.Contains(se, "lint/go: failed [preset]") || strings.Contains(se, "probation") {
+		t.Fatalf("%d %q", code, se)
+	}
+	if state := stateOf(t, root); state.Blocks != 2 || state.Seen != nil {
+		t.Fatalf("%+v", state)
+	}
+}
+
+func TestStopStartsNoToolOnATreeItHasSeen(t *testing.T) {
+	root := probationWorld(t, probing, "0")
+	_, first := runStop(t, root, s1, redVet())
+	env, started := countTools(redVet())
+	code, again := runStop(t, root, s1, env)
+	if code != ExitOK || started.Load() != 0 || again != first {
+		t.Fatalf("%d, %d tools, %q against %q", code, started.Load(), again, first)
+	}
+	// Still not green: the third turn end says it again.
+	if code, third := runStop(t, root, s1, env); code != ExitOK || third != first || stateOf(t, root).Green != "" {
+		t.Fatalf("%d %q", code, third)
+	}
+	// The same with a lane armed beside the one in probation: the stand holds
+	// the lanes it was taken under, and they are the ones the file names now.
+	root = probationWorld(t, "armed = [\"test/go@.\"]\n", "0")
+	runStop(t, root, s1, redVet())
+	if seen := stateOf(t, root).Seen; seen == nil || !slices.Equal(seen.Armed, []string{"test/go@."}) {
+		t.Fatalf("seen %+v", seen)
+	}
+	env, started = countTools(redVet())
+	if code, se := runStop(t, root, s1, env); code != ExitOK || started.Load() != 0 {
+		t.Fatalf("with a lane armed: %d, %d tools, %q", code, started.Load(), se)
+	}
+}
+
+func TestStopRunsTheChainAgainWhenTheTreeChanged(t *testing.T) {
+	root := probationWorld(t, probing, "0")
+	runStop(t, root, s1, redVet())
+	writeWorldFile(t, root, "a.go", "package a\n\nfunc A() int { return 4444 }\n")
+	env, started := countTools(redVet())
+	if code, _ := runStop(t, root, s1, env); code != ExitOK || started.Load() == 0 {
+		t.Fatalf("%d, %d tools", code, started.Load())
+	}
+}
+
+// The tree alone is not the key: the graph lane judges against HEAD, so a
+// commit inside the session that leaves the tree alone runs the chain again.
+func TestStopRunsTheChainAgainWhenHeadMoved(t *testing.T) {
+	root := probationWorld(t, probing, "0")
+	runStop(t, root, s1, redVet())
+	seen := stateOf(t, root).Seen
+	if seen == nil {
+		t.Fatal("the first turn end remembered nothing")
+	}
+	git(t, root, "add", "a.go")
+	// The identity on the command line: the bench's repository carries none.
+	git(t, root, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", "commit", "-q", "--no-verify", "-m", "third")
+	if tree, _ := gitwork.ContentTree(root, os.TempDir()); tree != seen.Tree || headOf(t, root) == seen.Head {
+		t.Fatalf("the world must move HEAD and keep the tree: %s %s", tree, headOf(t, root))
+	}
+	env, started := countTools(redVet())
+	if code, _ := runStop(t, root, s1, env); code != ExitOK || started.Load() == 0 {
+		t.Fatalf("%d, %d tools", code, started.Load())
+	}
+}
+
+// .loomux/armed.toml is part of the tree the gate measures -- everything git
+// does not ignore, less .loomux/state. A colleague's pull that arms the red
+// lane changes the tree, so the remembered stand does not let the turn end.
+func TestStopRunsTheChainAgainWhenOnlyTheArmedFileChanged(t *testing.T) {
+	root := probationWorld(t, probing, "0")
+	// The test bench excludes all of .loomux; a project ignores only its state.
+	writeWorldFile(t, root, ".git/info/exclude", "/git.toml\n/faketool.json\n/.loomux/state/\n")
+	if code, se := runStop(t, root, s1, redVet()); code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	// The run itself leaves nothing in the tree; only the file moves it.
+	before, err := gitwork.ContentTree(root, os.TempDir())
+	if seen := stateOf(t, root).Seen; err != nil || seen == nil || before != seen.Tree {
+		t.Fatalf("the run left something in the tree: %s %+v %v", before, seen, err)
+	}
+	writeWorldFile(t, root, ".loomux/armed.toml", "armed = [\"lint/go@.\"]\n")
+	after, err := gitwork.ContentTree(root, os.TempDir())
+	if err != nil || after == before {
+		t.Fatalf("the file is not part of the tree: %s %s %v", before, after, err)
+	}
+	env, started := countTools(redVet())
+	code, se := runStop(t, root, s1, env)
+	if code != ExitDenied || started.Load() == 0 || !strings.Contains(se, "lint/go: failed [preset]") {
+		t.Fatalf("%d, %d tools, %q", code, started.Load(), se)
+	}
+}
+
+func TestAGreenRunForgetsWhatWasSeen(t *testing.T) {
+	root := probationWorld(t, probing, "0")
+	runStop(t, root, s1, redVet())
+	writeWorldFile(t, root, "a.go", "package a\n\nfunc A() int { return 4444 }\n")
+	code, se := runStop(t, root, s1, greenTools())
+	state := stateOf(t, root)
+	if code != ExitOK || state.Seen != nil || state.Base != headOf(t, root) || state.Green == "" || strings.Contains(se, "probation") {
+		t.Fatalf("%d %q %+v", code, se, state)
+	}
+}
+
+// Without the file the state file gains no key.
+func TestStopWithoutTheFileWritesTheStateOfToday(t *testing.T) {
+	root := gitWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+	if code, se := runStop(t, root, s1, greenTools()); code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, ".loomux", "state", "hooks", "s1.json"))
+	if err != nil || strings.Contains(string(raw), "seen") {
+		t.Fatalf("%s %v", raw, err)
+	}
+}
+
+func TestStopSaysAnUnreadableArmedFile(t *testing.T) {
+	root := probationWorld(t, "<<<<<<< HEAD\n", "0")
+	code, se := runStop(t, root, s1, redVet())
+	if code != ExitDenied || !strings.Contains(se, "loomux hook stop: .loomux/armed.toml is no TOML") || !strings.Contains(se, "every lane is armed") {
+		t.Fatalf("%d %q", code, se)
+	}
+}
+
+// Outside a repository there is no tree to remember: the chain runs at every
+// turn end, as it does today.
+func TestStopRemembersNothingOutsideARepository(t *testing.T) {
+	root := gitWorld(t, "", `{"blocks":0}`)
+	writeWorldFile(t, root, ".loomux/armed.toml", probing)
+	if code, se := runStop(t, root, s1, redVet()); code != ExitOK || stateOf(t, root).Seen != nil {
+		t.Fatalf("%d %q %+v", code, se, stateOf(t, root).Seen)
+	}
+	env, started := countTools(redVet())
+	if code, _ := runStop(t, root, s1, env); code != ExitOK || started.Load() == 0 {
+		t.Fatalf("%d, %d tools", code, started.Load())
+	}
+}
+
+// The verdict's order, on outcomes laid out by hand: an armed red lane holds
+// whatever else happened; a budget that ran out and a kind with nothing to
+// check leave the turn unjudged, and then nothing is remembered, whatever
+// stands in probation beside them.
+func TestTheVerdictRemembersOnlyAChainItJudgedWhole(t *testing.T) {
+	lane := func(kind string, s verify.State, probation bool) verify.Outcome {
+		return verify.Outcome{Job: verify.Job{Name: kind + "/go", Kind: kind, Stack: "go", Area: ".", Origin: "preset"},
+			State: s, Output: kind + " said\n", Probation: probation}
+	}
+	none := func(verify.Job) bool { return false }
+	for name, c := range map[string]struct {
+		kinds  []string
+		outs   []verify.Outcome
+		code   int
+		warned bool
+	}{
+		"red only in probation":           {[]string{"lint"}, []verify.Outcome{lane("lint", verify.StateFailed, true)}, ExitOK, true},
+		"an armed red lane beside it":     {[]string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true), lane("test", verify.StateFailed, false)}, ExitDenied, false},
+		"a budget that ran out beside it": {[]string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true), lane("test", verify.StateBudget, true)}, ExitInternal, false},
+		"a kind with nothing to check":    {[]string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true)}, ExitInternal, false},
+		"all green in probation":          {[]string{"lint"}, []verify.Outcome{lane("lint", verify.StateOK, true)}, ExitOK, false},
+	} {
+		var se strings.Builder
+		code, warned := stopVerdict(&se, c.kinds, c.outs, none)
+		if code != c.code || (warned != "") != c.warned {
+			t.Errorf("%s: code %d, warned %q, stderr %q", name, code, warned, se.String())
+		}
+		// Held by an armed lane: only that lane is said. What stands in
+		// probation beside it is not the agent's to fix before the turn ends.
+		if c.code == ExitDenied && (!strings.Contains(se.String(), "test/go: failed [preset]") || strings.Contains(se.String(), "lint/go") || strings.Contains(se.String(), "probation")) {
+			t.Errorf("%s: stderr %q", name, se.String())
+		}
+		if c.warned && (warned != se.String() || !strings.Contains(warned, "lint/go: failed (probation) [preset]") || !strings.Contains(warned, "probation: lint/go@. (")) {
+			t.Errorf("%s: warned %q, stderr %q", name, warned, se.String())
+		}
 	}
 }
