@@ -296,7 +296,7 @@ func (j judge) strictReasons(found []shellTarget, unknown []unknownCall) []strin
 	}
 	lands := func(p string) bool {
 		fixed, expands := beforeExpansion(p)
-		return expands && j.mayReach(fixed)
+		return expands && (j.mayReach(fixed) || j.tailMayReach(afterExpansion(p)))
 	}
 	for _, target := range found {
 		// The fixed part is weighed with its braces unfolded, as written and
@@ -378,6 +378,80 @@ func beforeExpansion(p string) (string, bool) {
 		at = glob
 	}
 	return p[:at], true
+}
+
+// afterExpansion is the text of p after its last expansion -- $X, $env:X,
+// ${…}, $(…), a pair of backticks, cmd's %X% -- or "" when p holds none or
+// one that does not close.
+func afterExpansion(p string) string {
+	end := -1
+	for i := 0; i < len(p); i++ {
+		next := -1
+		switch {
+		case strings.HasPrefix(p[i:], "${"):
+			if j := strings.IndexByte(p[i:], '}'); j >= 0 {
+				next = i + j + 1
+			}
+		case strings.HasPrefix(p[i:], "$("):
+			if j := closingParen(p, i+1); j >= 0 {
+				next = j + 1
+			}
+		case p[i] == '$':
+			next = i + 1
+			if strings.EqualFold(p[next:min(next+4, len(p))], "env:") {
+				next += 4
+			}
+			for next < len(p) && identifierByte(p[next]) {
+				next++
+			}
+		case p[i] == '`' || p[i] == '%':
+			if j := strings.IndexByte(p[i+1:], p[i]); j >= 0 {
+				next = i + j + 2
+			}
+		default:
+			continue
+		}
+		if next < 0 {
+			return ""
+		}
+		end, i = next, next-1
+	}
+	if end < 0 {
+		return ""
+	}
+	return p[end:]
+}
+
+// tailMayReach says whether a path whose last expansion is followed by tail
+// may be a protected one: some leading part of a protected glob's fixed
+// part, put in the expansion's place, makes it match, and the tail spells
+// the rest of that fixed part. An expansion that may hold all of it, the
+// protected folder itself, is any path's; that stays the barrier's
+// question, or $D/x would be refused for D=.loomux/state/hooks. Only a tail
+// that starts a new element counts; one glued to the expansion
+// (${X}fig.toml, $X.txt) is weighed by the fixed part before it alone.
+func (j judge) tailMayReach(tail string) bool {
+	// A backslash is a slash in the reading that keeps PowerShell paths,
+	// which every shell target has.
+	if !strings.HasPrefix(tail, "/") {
+		return false
+	}
+	for _, g := range j.protectedGlobs() {
+		glob, candidate := strings.TrimPrefix(g.glob, "**/"), tail
+		if g.fold {
+			candidate = strings.ToLower(candidate)
+		}
+		literal := literalPrefix(glob)
+		for n := 0; n < len(literal); n++ {
+			// A protected folder (a flow's) keeps what lies below it too.
+			on, _ := matchGlob(glob, literal[:n]+candidate)
+			under, _ := matchGlob(glob+"/**", literal[:n]+candidate)
+			if on || under {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // protectedGlob is one glob the guard keeps, and whether it matches in any case.
