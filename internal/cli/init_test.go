@@ -26,6 +26,7 @@ import (
 	"github.com/xidus90/loomux/internal/setup"
 	"github.com/xidus90/loomux/internal/setup/hostfile"
 	"github.com/xidus90/loomux/internal/tui"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 // initSeams records what init handed to its seams.
@@ -234,7 +235,7 @@ func TestInitDryRunShowsEveryChangeAndWritesNothing(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("%v: code %d: %s", args, code, errOut)
 		}
-		for _, want := range []string{"--- .claude/settings.json", "--- .githooks/pre-commit", "binary-install", "+"} {
+		for _, want := range []string{"--- .claude/settings.json", "--- .githooks/pre-commit", "--- .loomux/armed.toml", "binary-install", "+"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("%v: no %q in\n%s", args, want, out)
 			}
@@ -267,6 +268,7 @@ func TestInitYesSetsUpAFreshRepository(t *testing.T) {
 	for _, rel := range []string{
 		// No .loomux/config.toml: the defaults leave nothing to write there.
 		".gitignore", "AGENTS.md", ".mcp.json", ".claude/settings.json",
+		".loomux/armed.toml",
 		".githooks/pre-commit", ".githooks/pre-push", ".githooks/commit-msg",
 		".claude/skills/verify-until-green/SKILL.md", ".claude/skills/brain-ingest/SKILL.md",
 		".loomux/state/answers.toml", ".loomux/state/installed.toml",
@@ -1070,5 +1072,34 @@ func TestInitOnTheCheckoutSkipsAMergeHookWithoutTheInstalledBinary(t *testing.T)
 	if code != 0 || strings.Contains(out, "merge-hook: install") || there(root, ".githooks/post-merge") ||
 		!strings.Contains(out, "merge-hook: skipped; the hook calls ${LOCALAPPDATA}/loomux/bin/loomux.exe, which is not installed") {
 		t.Fatalf("code %d: %s\n%s", code, errOut, out)
+	}
+}
+
+// A project loomux is set up in for the first time starts in probation, and
+// only then: the second run finds a configuration, the file and its own
+// hook, and leaves what a commit or a human armed since.
+func TestInitStartsANewProjectInProbationOnce(t *testing.T) {
+	root, _ := initWorld(t)
+	if code, out, errOut := run("init", "--root", root, "--yes"); code != 0 {
+		t.Fatalf("code %d: %s\n%s", code, errOut, out)
+	}
+	if got := readAt(t, root, ".loomux/armed.toml"); got != (verify.ArmedSet{Exists: true}).Text() {
+		t.Fatalf("armed.toml %q", got)
+	}
+	if !verify.HookArms(readAt(t, root, ".githooks/pre-commit")) {
+		t.Fatalf("the hook init wrote does not arm:\n%s", readAt(t, root, ".githooks/pre-commit"))
+	}
+	const armed = "armed = [\"lint/go@.\"]\n"
+	writeAt(t, filepath.Join(root, ".loomux", "armed.toml"), armed)
+	if code, out, errOut := run("init", "--root", root, "--yes"); code != 0 || readAt(t, root, ".loomux/armed.toml") != armed {
+		t.Fatalf("second run: code %d, armed.toml %q: %s\n%s", code, readAt(t, root, ".loomux/armed.toml"), errOut, out)
+	}
+	// Taking the file away does not bring the probation back: the project
+	// is set up, and without the file every lane is armed.
+	if err := os.Remove(filepath.Join(root, ".loomux", "armed.toml")); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, errOut := run("init", "--root", root, "--yes"); code != 0 || there(root, ".loomux/armed.toml") {
+		t.Fatalf("third run: code %d, the file is back: %s", code, errOut)
 	}
 }

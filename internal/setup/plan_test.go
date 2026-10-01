@@ -13,7 +13,9 @@ import (
 
 	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/selfupdate"
+	"github.com/xidus90/loomux/internal/setup/gitfiles"
 	"github.com/xidus90/loomux/internal/setup/hostfile"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 func TestSelfUseChangesNothing(t *testing.T) {
@@ -104,6 +106,7 @@ func TestAFreshRepositoryGetsEveryPart(t *testing.T) {
 	}
 	p := plan(t, f)
 	want := []string{
+		".loomux/armed.toml",
 		".gitignore", "AGENTS.md", ".mcp.json", ".claude/settings.json",
 		".githooks/commit-msg", ".githooks/pre-commit", ".githooks/pre-push",
 		".claude/skills/verify-until-green/SKILL.md",
@@ -129,7 +132,7 @@ func TestAFreshRepositoryGetsEveryPart(t *testing.T) {
 		t.Errorf(".mcp.json =\n%s", mcp.After)
 	}
 	hook, _ := changeOf(p, ".githooks/pre-commit")
-	if !strings.Contains(hook.After, `exec "${LOCALAPPDATA}/loomux/bin/loomux.exe" check precommit`) {
+	if !strings.Contains(hook.After, `exec "${LOCALAPPDATA}/loomux/bin/loomux.exe" check precommit --arm`) {
 		t.Errorf("pre-commit =\n%s", hook.After)
 	}
 	if len(p.Notes) != 0 {
@@ -359,7 +362,7 @@ func TestACheckoutWithoutHooksCallsItsBinaryFromTheTree(t *testing.T) {
 	c := DefaultChoice(f, Answers{})
 	p, _ := Build(f, c, reader(root))
 	hook, _ := changeOf(p, ".githooks/pre-commit")
-	if !strings.Contains(hook.After, `exec "./bin/loomux.exe" check precommit`) {
+	if !strings.Contains(hook.After, `exec "./bin/loomux.exe" check precommit --arm`) {
 		t.Errorf("pre-commit =\n%s", hook.After)
 	}
 }
@@ -708,5 +711,223 @@ func TestAChangeNamesTheBinaryItsFileCalls(t *testing.T) {
 		if ch.Binary != want {
 			t.Errorf("%s: Binary = %q, want %q", path, ch.Binary, want)
 		}
+	}
+}
+
+const oldPreCommit = "#!/bin/sh\n# loomux pre-commit hook: the check chain of .loomux/config.toml.\nexec \"${LOCALAPPDATA}/loomux/bin/loomux.exe\" check precommit\n"
+
+// withoutArea is the default choice with the area part off: a run that
+// writes no configuration at all into a plain Go project.
+func withoutArea(t *testing.T, root string) Plan {
+	t.Helper()
+	f := gather(t, root, "")
+	c := DefaultChoice(f, Answers{})
+	c.Parts["area"] = false
+	p, err := Build(f, c, reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// A project that had neither a configuration, nor the file, nor a pre-commit
+// hook of loomux before the run starts in probation -- whether or not the
+// run writes a configuration. In a plain Go project init writes none
+// itself; area add does, or nobody.
+func TestAProjectWithoutAConfigurationStartsInProbation(t *testing.T) {
+	empty := verify.ArmedSet{Exists: true}.Text()
+	// area add writes the configuration.
+	root := world(t, map[string]string{"go.mod": goMod, ".git/": ""})
+	p := plan(t, gather(t, root, ""))
+	if _, ok := changeOf(p, configPath); ok || !slices.Contains(actions(p), "area-add") {
+		t.Fatalf("the world must leave the configuration to area add: %v %v", paths(p), actions(p))
+	}
+	if ch, ok := changeOf(p, armedPath); !ok || ch.After != empty || ch.Exists || ch.Part != "config" {
+		t.Fatalf("beside area add: %+v %v", ch, ok)
+	}
+	// Nobody writes one: the file is planned all the same.
+	p = withoutArea(t, root)
+	if _, ok := changeOf(p, configPath); ok || slices.Contains(actions(p), "area-add") {
+		t.Fatalf("the world must write no configuration: %v %v", paths(p), actions(p))
+	}
+	if ch, ok := changeOf(p, armedPath); !ok || ch.After != empty {
+		t.Fatalf("without any configuration: %+v %v", ch, ok)
+	}
+	// init writes one itself: a uv project gets a rule.
+	root = world(t, map[string]string{"uv.lock": "", ".git/": ""})
+	p = plan(t, gather(t, root, ""))
+	if _, ok := changeOf(p, configPath); !ok {
+		t.Fatalf("the world must plan a configuration: %v", paths(p))
+	}
+	if ch, ok := changeOf(p, armedPath); !ok || ch.After != empty {
+		t.Fatalf("beside init's own configuration: %+v %v", ch, ok)
+	}
+}
+
+// A pre-commit hook of loomux says the project was set up before: a Go
+// project that has run loomux for months without a configuration keeps its
+// armed gate when init renews its hook. The old one-liner counts, the new
+// form counts, and so does a hook a human added a line to; a foreign hook
+// does not, and neither does a loomux hook where git does not look. The
+// hook directory is the one init reads and writes: core.hooksPath where it
+// is set, git's own where hooks live there, .githooks otherwise.
+func TestALoomuxHookMeansTheProjectWasSetUp(t *testing.T) {
+	newForm := gitfiles.Hooks("/opt/loomux")["pre-commit"]
+	for name, c := range map[string]struct {
+		files     map[string]string
+		hooksPath string
+		starts    bool
+	}{
+		"nothing":                            {map[string]string{}, "", true},
+		"the old loomux hook":                {map[string]string{".githooks/pre-commit": oldPreCommit}, ".githooks", false},
+		"the new loomux hook":                {map[string]string{".githooks/pre-commit": newForm}, ".githooks", false},
+		"a loomux hook with a line more":     {map[string]string{".githooks/pre-commit": oldPreCommit + "echo done\n"}, ".githooks", false},
+		"a fresh clone, no hooksPath yet":    {map[string]string{".githooks/pre-commit": oldPreCommit}, "", false},
+		"a loomux hook under core.hooksPath": {map[string]string{"tools/hooks/pre-commit": oldPreCommit}, "tools/hooks", false},
+		"a loomux hook in git's own":         {map[string]string{".git/hooks/pre-commit": oldPreCommit}, "", false},
+		"a foreign hook":                     {map[string]string{".githooks/pre-commit": "#!/bin/sh\nsh ci/gate.sh\n"}, ".githooks", true},
+		"a loomux hook git does not run":     {map[string]string{"old-hooks/pre-commit": oldPreCommit}, ".githooks", true},
+		"git's own beside core.hooksPath":    {map[string]string{".git/hooks/pre-commit": oldPreCommit}, ".githooks", true},
+	} {
+		files := map[string]string{"go.mod": goMod, ".git/": ""}
+		for path, text := range c.files {
+			files[path] = text
+		}
+		root := world(t, files)
+		if _, ok := changeOf(plan(t, gather(t, root, c.hooksPath)), armedPath); ok != c.starts {
+			t.Errorf("%s: armed.toml planned %v, want %v", name, ok, c.starts)
+		}
+	}
+	// A hook directory outside the project -- an absolute core.hooksPath, or
+	// the common .git/hooks of a linked worktree -- is read where it lies:
+	// init writes no hook there, but git runs the one it finds. A loomux hook
+	// there says the project was set up; a foreign one does not, nor does a
+	// file of that name at the root, where no hook directory is.
+	outside := t.TempDir()
+	writeFile(t, outside, "pre-commit", oldPreCommit)
+	root := world(t, map[string]string{"go.mod": goMod, ".git/": "", "pre-commit": "#!/bin/sh\nsh ci/gate.sh\n"})
+	if _, ok := changeOf(plan(t, gather(t, root, outside)), armedPath); ok {
+		t.Error("a loomux hook in a hook directory outside the project put it into probation")
+	}
+	writeFile(t, outside, "pre-commit", "#!/bin/sh\nsh ci/gate.sh\n")
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", "pre-commit": oldPreCommit})
+	if _, ok := changeOf(plan(t, gather(t, root, outside)), armedPath); !ok {
+		t.Error("a foreign hook outside the project kept the project out of probation")
+	}
+	// git's own hook directory outside the project, as in a linked worktree:
+	// the facts carry its pre-commit hook, which the plan cannot read itself.
+	f := gather(t, root, "")
+	f.GitHooksDir, f.GitHooksLive, f.HookPreCommit = outside, true, oldPreCommit
+	if _, ok := changeOf(plan(t, f), armedPath); ok {
+		t.Error("a loomux hook in the common hook directory put a linked worktree into probation")
+	}
+	f.HookPreCommit = "#!/bin/sh\nsh ci/gate.sh\n"
+	if _, ok := changeOf(plan(t, f), armedPath); !ok {
+		t.Error("a foreign hook in the common hook directory kept a linked worktree out of probation")
+	}
+}
+
+// A project that has a configuration is not put into probation behind its
+// back, a file that stands is left as it is, and the file goes with the
+// config part.
+func TestAProjectThatIsSetUpGetsNoProbation(t *testing.T) {
+	root := world(t, map[string]string{"go.mod": goMod, ".git/": "", configPath: "[commit]\nlanguage = \"de\"\n"})
+	if _, ok := changeOf(plan(t, gather(t, root, "")), armedPath); ok {
+		t.Fatal("armed.toml planned over a standing configuration")
+	}
+	// The file without a configuration: a human's `gate disarm --all`, or a
+	// run of init before area add was chosen. It is not written over.
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", armedPath: "armed = [\"lint/go@.\"]\n"})
+	for name, p := range map[string]Plan{"with area add": plan(t, gather(t, root, "")), "without": withoutArea(t, root)} {
+		if _, ok := changeOf(p, armedPath); ok {
+			t.Errorf("%s: a standing armed.toml is planned over: %v", name, paths(p))
+		}
+	}
+	// The config part deselected: nothing of it is written, the file included.
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": ""})
+	f := gather(t, root, "")
+	c := DefaultChoice(f, Answers{})
+	c.Parts["config"] = false
+	p, err := Build(f, c, reader(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := changeOf(p, armedPath); ok {
+		t.Fatalf("armed.toml planned without the config part: %v", paths(p))
+	}
+}
+
+func TestOurOwnOlderPreCommitHookIsReplaced(t *testing.T) {
+	root := world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-commit": oldPreCommit})
+	p := plan(t, gather(t, root, ".githooks"))
+	ch, ok := changeOf(p, ".githooks/pre-commit")
+	if !ok || !ch.Exists || ch.Before != oldPreCommit || !verify.HookArms(ch.After) || ch.Binary != "" {
+		t.Fatalf("%+v %v", ch, ok)
+	}
+	if hasNote(p, ".githooks/pre-commit: kept") || hasNote(p, "does not arm lanes") {
+		t.Fatalf("notes %v", p.Notes)
+	}
+	// Renewing the hook starts no probation: the hook says loomux was here.
+	if _, ok := changeOf(p, armedPath); ok {
+		t.Fatalf("armed.toml planned beside the renewed hook: %v", paths(p))
+	}
+	// The hook keeps the binary it called, not the one this run would call.
+	moved := strings.Replace(oldPreCommit, "${LOCALAPPDATA}/loomux/bin/loomux.exe", "./bin/loomux.exe", 1)
+	other := world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-commit": moved})
+	if mc, ok := changeOf(plan(t, gather(t, other, ".githooks")), ".githooks/pre-commit"); !ok || mc.After != gitfiles.Hooks("./bin/loomux.exe")["pre-commit"] {
+		t.Fatalf("another binary: %q %v", mc.After, ok)
+	}
+	// Replaced once: the new form plans nothing and is named as kept.
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-commit": ch.After, configPath: "[commit]\nlanguage = \"de\"\n"})
+	p = plan(t, gather(t, root, ".githooks"))
+	if _, ok := changeOf(p, ".githooks/pre-commit"); ok || !hasNote(p, ".githooks/pre-commit: kept; it runs a gate already") || hasNote(p, "does not arm lanes") {
+		t.Fatalf("%v %v", paths(p), p.Notes)
+	}
+	// Only the pre-commit hook is replaced: the same text under another name
+	// is a hook of the project.
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/commit-msg": oldPreCommit})
+	p = plan(t, gather(t, root, ".githooks"))
+	if _, ok := changeOf(p, ".githooks/commit-msg"); ok || !hasNote(p, ".githooks/commit-msg: kept") {
+		t.Fatalf("another hook: %v %v", paths(p), p.Notes)
+	}
+}
+
+// A hook init did not write stays, and where the project has or gets the
+// file, the plan says that this hook arms nothing.
+func TestAForeignPreCommitHookIsKeptAndNamed(t *testing.T) {
+	const foreign = "#!/bin/sh\nsh ci/gate.sh\n"
+	const note = ".githooks/pre-commit: does not arm lanes; call `loomux check precommit --arm` there, or arm by hand with `loomux gate arm`"
+	// The hint is the one the session start and the status report give.
+	if !strings.HasSuffix(note, ": does not arm lanes; "+verify.HowToArm) {
+		t.Fatalf("the hint differs from verify.HowToArm %q", verify.HowToArm)
+	}
+	root := world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-commit": foreign})
+	p := plan(t, gather(t, root, ".githooks"))
+	if _, ok := changeOf(p, ".githooks/pre-commit"); ok || !hasNote(p, ".githooks/pre-commit: kept; it runs a gate already") || !hasNote(p, note) {
+		t.Fatalf("a new project: %v %v", paths(p), p.Notes)
+	}
+	// Without the file, now or after this run, there is nothing to arm.
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-commit": foreign, configPath: "[commit]\nlanguage = \"de\"\n"})
+	if p = plan(t, gather(t, root, ".githooks")); hasNote(p, "does not arm lanes") {
+		t.Fatalf("no file: %v", p.Notes)
+	}
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-commit": foreign, configPath: "[commit]\nlanguage = \"de\"\n", armedPath: "armed = []\n"})
+	if p = plan(t, gather(t, root, ".githooks")); !hasNote(p, note) {
+		t.Fatalf("a project in probation: %v", p.Notes)
+	}
+	// A foreign hook that arms is not named.
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-commit": "#!/bin/sh\nloomux check precommit --arm\n", armedPath: "armed = []\n", configPath: "[commit]\nlanguage = \"de\"\n"})
+	if p = plan(t, gather(t, root, ".githooks")); hasNote(p, "does not arm lanes") {
+		t.Fatalf("a hook that arms: %v", p.Notes)
+	}
+	// A hook that runs no gate at all is named as well.
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-commit": "#!/bin/sh\nnpm test\n", armedPath: "armed = []\n", configPath: "[commit]\nlanguage = \"de\"\n"})
+	if p = plan(t, gather(t, root, ".githooks")); !hasNote(p, note) || !hasNote(p, ".githooks/pre-commit: kept; a hook of the project is already there") {
+		t.Fatalf("a hook without a gate: %v", p.Notes)
+	}
+	// Only a pre-commit hook arms: a kept hook of another name is not named.
+	root = world(t, map[string]string{"go.mod": goMod, ".git/": "", ".githooks/pre-push": foreign, armedPath: "armed = []\n", configPath: "[commit]\nlanguage = \"de\"\n"})
+	if p = plan(t, gather(t, root, ".githooks")); hasNote(p, "does not arm lanes") || !hasNote(p, ".githooks/pre-push: kept") {
+		t.Fatalf("another hook: %v", p.Notes)
 	}
 }

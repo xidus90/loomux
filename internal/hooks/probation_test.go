@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/sessions"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 // probationProject is a Go project loomux recognises as a root, committed,
@@ -220,7 +221,7 @@ func TestStatusCarriesTheProbationSection(t *testing.T) {
 	out.Reset()
 	Status(&out, &errOut, root)
 	section := strings.Index(out.String(), " Lane Probation (.loomux/armed.toml)\n")
-	if section < 0 || section < strings.Index(out.String(), " Lane Tools On This Machine\n") || !strings.HasSuffix(out.String(), howToArm+"\n"+strings.Repeat("=", 80)+"\n") {
+	if section < 0 || section < strings.Index(out.String(), " Lane Tools On This Machine\n") || !strings.HasSuffix(out.String(), verify.HowToArm+"\n"+strings.Repeat("=", 80)+"\n") {
 		t.Fatalf("%q", out.String())
 	}
 }

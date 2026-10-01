@@ -879,6 +879,19 @@ Die Zeilen oben geben den Stand vom 2026-09-25; wo sie davon abweichen, gilt:
     wie als getippte Zeile über `manage_task` („Whether commits reach the
     remote is a human's decision.“).
 
+## Schonfrist je Lane, 2026-09-30
+
+`init` hat keine aufgezeichnete Referenz (siehe „Referenzen“); die folgenden
+Änderungen halten darum Einheits- und Weltentests, keine genehmigte Liste.
+
+| Was sich ändert | Vorher | Nachher | Test |
+|---|---|---|---|
+| pre-commit-Hook eines Wirts | `exec "<binary>" check precommit` | `exec "<binary>" check precommit --arm`; der Befehl schreibt und stagt `.loomux/armed.toml` selbst, außer bei einem Teilcommit | `TestThePreCommitHookArms`, `TestTheHookArmsTheGreenLanesIntoTheSameCommit` |
+| eigener älterer Hook | blieb stehen („kept; it runs a gate already“) | wird ersetzt, mit Diff und Sicherung unter `.loomux/state/backup/` | `TestOurOwnOlderPreCommitHookIsReplaced`, `TestUpgradeKnowsOnlyTheHookInitWroteBefore` |
+| fremder Hook | blieb stehen | bleibt stehen; wo das Projekt `.loomux/armed.toml` hat oder bekommt, nennt der Plan, dass er nicht scharf stellt | `TestAForeignPreCommitHookIsKeptAndNamed` |
+| `.loomux/armed.toml` | gab es nicht | entsteht leer, wenn vor dem Lauf weder sie noch `.loomux/config.toml` noch ein pre-commit-Hook von loomux stand und der Teil `config` gewählt ist | `TestAProjectWithoutAConfigurationStartsInProbation`, `TestALoomuxHookMeansTheProjectWasSetUp`, `TestAProjectThatIsSetUpGetsNoProbation`, `TestInitStartsANewProjectInProbationOnce` |
+| Modus einer ersetzten Datei, jeder, nicht nur eines Hooks | der der temporären Datei (0600 auf POSIX) | die Rechte, die die Datei vorher hatte; ein Skript bekommt dazu die Ausführungsbits einer neu angelegten (aus 0644 wird 0755), eine `.mcp.json` oder `settings.json` mit 0600 bleibt 0600. Eine neu angelegte Datei bekommt wie bisher 0755 für ein Skript, sonst 0644 | `TestAReplacedFileKeepsItsModeAndAScriptGainsItsExecBit` |
+
 ## Offen
 
 - **Task 1 ist gelaufen, bis auf einen Schritt.** Am 2026-09-24 vom Agenten
