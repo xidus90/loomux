@@ -16,6 +16,7 @@ var commands = map[string]command{
 	"explain":    statusCommand,
 	"fetch":      fetchCommand,
 	"flow":       flowCommand,
+	"gate":       gateCommand,
 	"graph":      graphCommand,
 	"hook":       hookCommand,
 	"init":       initCommand,

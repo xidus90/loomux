@@ -74,6 +74,40 @@ func TestHeadCommitOutsideARepository(t *testing.T) {
 	}
 }
 
+// From a subdirectory the top level is the repository's, without the line
+// end git prints; outside any repository there is none.
+func TestTopLevelOfASubdirectory(t *testing.T) {
+	root := repo(t)
+	sub := filepath.Join(root, "a", "b")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, err := TopLevel(sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotInfo, err := os.Stat(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootInfo, _ := os.Stat(root)
+	if !os.SameFile(gotInfo, rootInfo) {
+		t.Fatalf("TopLevel = %q, want %q", got, root)
+	}
+	if top, err := TopLevel(t.TempDir()); err == nil || top != "" {
+		t.Fatalf("outside a repository: %q, %v", top, err)
+	}
+	if prefix, err := Prefix(sub); err != nil || prefix != "a/b/" {
+		t.Fatalf("Prefix = %q, %v", prefix, err)
+	}
+	if prefix, err := Prefix(root); err != nil || prefix != "" {
+		t.Fatalf("Prefix at the top = %q, %v", prefix, err)
+	}
+	if prefix, err := Prefix(t.TempDir()); err == nil || prefix != "" {
+		t.Fatalf("Prefix outside a repository: %q, %v", prefix, err)
+	}
+}
+
 // A root that is not there never reaches an exit code: the spawn itself fails.
 // Same answer as a non-zero one -- an error, never an empty string a caller
 // could mistake for a commit.
@@ -669,5 +703,32 @@ func TestContentTreeSeesARacyChange(t *testing.T) {
 	}
 	if tree == head {
 		t.Fatal("a same-size change within the index's second reads as no change")
+	}
+}
+
+func TestIgnoredPathAsksGitAboutOnePath(t *testing.T) {
+	root := repo(t)
+	os.MkdirAll(filepath.Join(root, ".loomux", "state"), 0o755)
+	os.WriteFile(filepath.Join(root, ".loomux", "armed.toml"), []byte("armed = []\n"), 0o644)
+	if IgnoredPath(root, ".loomux/armed.toml") {
+		t.Fatal("nothing is ignored yet")
+	}
+	os.WriteFile(filepath.Join(root, ".gitignore"), []byte("/.loomux/state/\n"), 0o644)
+	if IgnoredPath(root, ".loomux/armed.toml") || !IgnoredPath(root, ".loomux/state/x") {
+		t.Fatal("only the state directory is ignored")
+	}
+	os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".loomux/\n"), 0o644)
+	if !IgnoredPath(root, ".loomux/armed.toml") {
+		t.Fatal("an ignored folder takes the file with it")
+	}
+	// A file git already holds is not ignored, whatever .gitignore says: it
+	// reaches every commit.
+	run(t, root, "add", "-f", ".loomux/armed.toml")
+	run(t, root, "commit", "-m", "hold the file")
+	if IgnoredPath(root, ".loomux/armed.toml") {
+		t.Fatal("a tracked file counts as ignored")
+	}
+	if IgnoredPath(t.TempDir(), ".loomux/armed.toml") {
+		t.Fatal("outside a repository a path counts as ignored")
 	}
 }
