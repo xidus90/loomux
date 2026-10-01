@@ -464,7 +464,8 @@ every write there
 agent, is in [Flows](flows.md#6-gates-are-a-humans).
 
 **The rules on loomux's own commands know the program by its file name**:
-`loomux` or `loomux.exe` under any path, or `go run` of `cmd/loomux`. A copied
+`loomux` or `loomux.exe` under any path, or `go run` of `cmd/loomux`, also
+behind a program they do not know (`taskset 0x1 loomux init`). A copied
 or renamed binary (`cp bin/loomux.exe x.exe`, then `x.exe flow resume …
 --answer yes`) passes every one of them; the path rules above still hold. In
 strict mode they know it by its arguments instead: every program that is

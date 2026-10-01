@@ -491,7 +491,8 @@ Tore bewacht sind und was einem Agenten offen bleibt, steht in
 
 **Die Regeln zu loomux' eigenen Befehlen erkennen das Programm an seinem
 Dateinamen**: `loomux` oder `loomux.exe` unter jedem Pfad, oder `go run` von
-`cmd/loomux`. Ein kopiertes oder umbenanntes Binary (`cp bin/loomux.exe x.exe`,
+`cmd/loomux`, auch hinter einem Programm, das sie nicht kennen
+(`taskset 0x1 loomux init`). Ein kopiertes oder umbenanntes Binary (`cp bin/loomux.exe x.exe`,
 dann `x.exe flow resume … --answer yes`) kommt an jeder von ihnen vorbei; die
 Pfadregeln oben gelten weiter. Im strikten Modus erkennen sie es stattdessen
 an seinen Argumenten: jedes Programm, das weder in der Verbtabelle unten

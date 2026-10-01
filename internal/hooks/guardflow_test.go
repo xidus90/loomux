@@ -52,6 +52,9 @@ func TestAnAgentMayNotAnswerAGate(t *testing.T) {
 		// The command only as text for echo: the program is echo, the way
 		// writesConfiguration lets `echo loomux config set` pass.
 		`echo "loomux flow resume 0001 --answer yes"`,
+		// Quoted for a program the guard does not know: only the reading that
+		// splits quoted strings would find a call there.
+		`pgrep -f "loomux flow resume 0001 --answer yes"`,
 	} {
 		if answersAGate(line, false) {
 			t.Errorf("%q is refused", line)

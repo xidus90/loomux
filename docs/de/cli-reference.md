@@ -349,13 +349,20 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   (``loomux con`fig``) wird gelesen, wie PowerShell ihn liest.
   - **Bekannte Lücken** — die Regel liest Wörter, keine Shell, und lässt
     darum durch: einen Alias; ein Programm in einer Variablen; einen Befehl
-    in einer Zeichenkette (`sh -c "loomux init"`, `pwsh -c …`); `go run .` in
-    `cmd/loomux`; und, nach einem früheren maskierten `\"` oder `\'` auf
+    in einer Zeichenkette (`sh -c "loomux init"`, `pwsh -c …`,
+    `script -c …`); ein Programm, das ein bekanntes Werkzeug startet
+    (`uv run loomux init`, `npx loomux init`, `find … -exec loomux …`);
+    `go run .` in `cmd/loomux`; und, nach einem früheren maskierten `\"` oder `\'` auf
     derselben Zeile, einen Programmpfad in Anführungszeichen, dessen Teil
     hinter seinem letzten Trennzeichen (`(`, `)`, `&`, `;`, `|`) ein
     Leerzeichen enthält, etwa
     `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.
-  - **Bekannte Fehlverweigerungen** — im Zweifel verweigert sie:
+  - **Bekannte Fehlverweigerungen** — im Zweifel verweigert sie: Hinter
+    einem Programm, das sie nicht kennt, zählt ein späteres loomux-Wort als
+    Aufruf, gleich was das Programm damit tut (`ssh host loomux init`,
+    `gdb --args loomux init`, `zip -r loomux.zip loomux config`; ein Programm,
+    das nur einen Namen nachschlägt oder sein Handbuch zeigt, `man`, `tldr`,
+    `which`, ist ausgenommen);
     `echo "x; loomux init"`, `start loomux config list`,
     `Start-Process code -ArgumentList loomux`, `command -v loomux init` (das
     den Namen nur nachschlägt), ein loomux-Wort direkt hinter einer Klammer,
