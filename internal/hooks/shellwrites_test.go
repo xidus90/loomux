@@ -297,10 +297,65 @@ func TestShellWritesFindsNoTargetInAReadingLine(t *testing.T) {
 	if targets, _ := shellWritesAt(root, "bash <<< 'rm x'", maxInnerDepth-1); !slices.Equal(spelled(targets), []string{"rm:x"}) {
 		t.Errorf("a here-string within the depth: targets %q, want rm:x", spelled(targets))
 	}
-	// A copy into the folder above a kept one writes that folder, it removes nothing.
+	// A copy into the folder above a kept one writes that folder and may
+	// overwrite only where the copy lands, not the folder itself.
 	targets, _ := shellWrites(root, "cp -r mine .loomux/flows/")
-	if got := spelled(targets); !slices.Equal(got, []string{"w:.loomux/flows/"}) {
+	if got := spelled(targets); !slices.Equal(got, []string{"rm:.loomux/flows/mine", "w:.loomux/flows/"}) {
 		t.Fatalf("cp into the folder above: %q", got)
+	}
+}
+
+// A copy or move into a folder lands under the source's name there: the
+// destination names a folder when it ends in a slash, comes from -t, takes
+// several sources or is a folder on disk. A copy of a tree may overwrite what
+// lies below where it lands, which counts like a removal; a source ending in
+// /. (and rsync's trailing slash) lands its content in the folder itself.
+func TestACopyIntoAFolderLandsUnderTheSourceName(t *testing.T) {
+	root := t.TempDir()
+	mkfile(t, root, ".loomux/config.toml")
+	mkfile(t, root, "docs/a.md")
+	mkfile(t, root, "b.txt")
+	for line, want := range map[string][]string{
+		"cp /tmp/config.toml .loomux/":     {"w:.loomux/", "w:.loomux/config.toml"},
+		"cp /tmp/config.toml .loomux":      {"w:.loomux", "w:.loomux/config.toml"},
+		"cp a b.txt":                       {"w:b.txt"},
+		"cp a newname":                     {"w:newname"},
+		"cp a/config.toml b/x.toml newdir": {"w:newdir", "w:newdir/config.toml", "w:newdir/x.toml"},
+		"cp -t .loomux /tmp/config.toml":   {"w:.loomux", "w:.loomux/config.toml"},
+		"cp -t newdir x":                   {"w:newdir", "w:newdir/x"},
+		"cp ar docs":                       {"w:docs", "w:docs/ar"},
+		`Copy-Item x newdir\`:              {"w:newdir/", "w:newdir/x"},
+		// The bash reading of a backslash path adds a name of its own.
+		`Copy-Item C:\tmp\config.toml .loomux`:               {"w:.loomux", "w:.loomux/C:tmpconfig.toml", "w:.loomux/config.toml"},
+		"Copy-Item -Path x/config.toml -Destination .loomux": {"w:.loomux", "w:.loomux/config.toml"},
+		"cp -r /tmp/x/.loomux .":                             {"rm:.loomux", "w:."},
+		"cp -r /tmp/tpl/. .":                                 {"rm:.", "w:."},
+		"cp -R src docs/":                                    {"rm:docs/src", "w:docs/"},
+		"cp -av src docs":                                    {"rm:docs/src", "w:docs"},
+		"cp --recursive src docs":                            {"rm:docs/src", "w:docs"},
+		"Copy-Item -Recurse src docs":                        {"rm:docs/src", "w:docs"},
+		"copy -rec src docs":                                 {"rm:docs/src", "w:docs"},
+		"rsync -a /tmp/tpl/ .":                               {"rm:.", "w:."},
+		"rsync -t a docs":                                    {"rm:docs/a", "w:docs"},
+		"mv /tmp/config.toml .loomux/":                       {"rm:/tmp/config.toml", "w:.loomux/", "w:.loomux/config.toml"},
+		"Move-Item x/config.toml .loomux":                    {"rm:x/config.toml", "w:.loomux", "w:.loomux/config.toml"},
+		"mv -t .loomux x/config.toml":                        {"rm:x/config.toml", "w:.loomux", "w:.loomux/config.toml"},
+		"mv a b.txt":                                         {"rm:a", "w:b.txt"},
+		"git mv x/config.toml .loomux":                       {"rm:x/config.toml", "w:.loomux", "w:.loomux/config.toml"},
+		`robocopy C:\tmp .loomux config.toml`:                {"w:.loomux", "w:.loomux/config.toml"},
+		`robocopy C:\tmp .loomux /E`:                         {"rm:.loomux", "w:.loomux"},
+		`robocopy C:\tmp docs`:                               {"w:docs"},
+		// A segment no strict split reads counts each path-like word written.
+		`xcopy C:\tmp\config.toml .loomux\`: {"w:.loomux/", "w:.loomux/config.toml", "w:C:/tmp/config.toml"},
+		`xcopy C:\tmp\config.toml .loomux`:  {"w:.loomux", "w:.loomux/C:tmpconfig.toml", "w:.loomux/config.toml"},
+		`xcopy C:\tmp\tpl docs /E`:          {"rm:docs", "w:docs"},
+		`xcopy a b.txt`:                     {"w:b.txt"},
+		"ln -s a docs":                      {"w:docs", "w:docs/a"},
+	} {
+		targets, _ := shellWrites(root, line)
+		if got := spelled(targets); !slices.Equal(got, want) {
+			t.Errorf("%q: targets %q, want %q", line, got, want)
+		}
 	}
 }
 
@@ -310,7 +365,7 @@ func TestShellWritesNamesExactlyTheTargetsOfAVerb(t *testing.T) {
 	root := t.TempDir()
 	for line, want := range map[string][]string{
 		"git clean -fdxe keep":                        {"rm:."},
-		"mv -t .loomux/flows src":                     {"rm:src", "w:.loomux/flows"},
+		"mv -t .loomux/flows src":                     {"rm:src", "w:.loomux/flows", "w:.loomux/flows/src"},
 		"cd .loomux && curl -O https://x/config.toml": {"w:.loomux/config.toml"},
 		"grep '>' notes.txt > out":                    {"w:out"},
 		"ls .loomux | rm x":                           {"rm:x"},

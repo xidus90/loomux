@@ -90,7 +90,8 @@ func guardedStringShellLines() []string {
 	return lines
 }
 
-// folderCopyLines copy or move into a folder, and copies beside one.
+// folderCopyLines copy or move into a folder, and copies beside one; the
+// first fourteen reach the manifest or the flows, the rest do not.
 func folderCopyLines() []string {
 	return []string{
 		"cp /tmp/config.toml .loomux/",
@@ -106,6 +107,7 @@ func folderCopyLines() []string {
 		"rsync -a /tmp/tpl/ .",
 		`xcopy C:\tmp\config.toml .loomux\`,
 		`robocopy C:\tmp .loomux config.toml`,
+		"cp -r /tmp/flows .loomux/",
 		"cp a b",
 		"cp -r src dst",
 		"cp x.txt docs/",
@@ -113,7 +115,6 @@ func folderCopyLines() []string {
 		"install -m 644 a b",
 		"ln -s a b",
 		"cp /tmp/notes.md .loomux/",
-		"cp -r /tmp/flows .loomux/",
 	}
 }
 
@@ -210,7 +211,7 @@ func holesBattery() []string {
 // both modes; a line among them it refused before already is no flip, and
 // the differential test does not ask it to be one.
 func refusedAfter() []string {
-	return guardedStringShellLines()
+	return slices.Concat(guardedStringShellLines(), folderCopyLines()[:14])
 }
 
 // holesFlips are the lines the fix turns from a pass into a refusal in the
