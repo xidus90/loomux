@@ -472,9 +472,15 @@ func directLines(line string) []string {
 // Each rewrite applies to every variant made before it, so every combination
 // is judged -- a backtick escape inside a block with glued braces as well as
 // either alone. A rewrite that changes nothing adds no variant, which keeps a
-// plain line at one.
+// plain line at one. The line with the variables and aliases it sets put in
+// (substituted) comes before the rewrites, which apply to it as well.
 func lineVariants(line string) []string {
 	out := []string{line}
+	for _, s := range substituted(line) {
+		if !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
 	rewrites := []*strings.Replacer{
 		strings.NewReplacer("\\\r\n", "", "\\\n", "", "`\r\n", " ", "`\n", " "),
 		strings.NewReplacer("`", ""),
@@ -515,11 +521,12 @@ func lineVariants(line string) []string {
 // escape never makes a segment pass; behind a program the guard does not
 // know, a later loomux word counts as a call (behindUnknown). A command
 // inside a string (sh -c "loomux init", iex '…', echo '…' | sh) is no
-// segment of this line; the rules read it as a line of its own (anyRunLine).
-// Not guaranteed: an alias, a program held in a variable, a command inside
-// script -c ..., a program a known tool runs (uv run loomux init, npx loomux
-// init, find -exec loomux), and, after any earlier escaped \" or \' on the
-// line, a quoted program
+// segment of this line; the rules read it as a line of its own (anyRunLine),
+// and a variable or alias the line sets is put in (lineVariants). Not
+// guaranteed: an alias, or a program held in a variable, set elsewhere than
+// on the line, a command inside script -c ..., a program a known tool runs
+// (uv run loomux init, npx loomux init, find -exec loomux), and, after any
+// earlier escaped \" or \' on the line, a quoted program
 // path whose part after its last break character ( ) & ; | holds a blank: the
 // field reading then starts that segment inside the path, as in
 // `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.

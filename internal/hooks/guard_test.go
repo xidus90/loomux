@@ -827,6 +827,9 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 	// The spellings, then what makes init, config, area and merge-hook
 	// write in them.
 	refused := append(loomuxSpellings(),
+		// An alias or a variable the line sets itself is put in.
+		"alias l=loomux; l init",
+		"M=loomux; $M init",
 		`sh -c "loomux dev switchover prune-hooks --file x --match y"`,
 		"sh -c 'loomux dev switchover prune-hooks --file x --match y'",
 		"loomux init --yes",
@@ -1041,9 +1044,9 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		// its last break character holds a blank.
 		`echo "a \" b"; "C:\R&D Tools\loomux.exe" init`,
 		`echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`,
-		// An alias, a program in a variable.
-		"alias l=loomux; l init",
-		"M=loomux; $M init",
+		// An alias or a program in a variable set elsewhere than on the line.
+		"l init",
+		"$M init",
 		// go run of a package that names no cmd/loomux.
 		"cd cmd/loomux && go run . init",
 		// The script that calls the hook pruner.
