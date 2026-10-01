@@ -520,9 +520,11 @@ base name in any case, without `.exe`:
   or `-Filter`, what the filter keeps on disk.
 
 In front of the program it skips `VAR=x`, the shell's reserved words and the
-wrappers `sudo`, `env`, `xargs`, `timeout` (with the separate value of their
-flags that take one: `sudo -u root`, `xargs -n 1`, `timeout -s KILL 60`),
-`nice`, `command`, `exec`, `nohup`, `time` and `cmd /c`. The string after
+wrappers `sudo`, `env`, `xargs`, `nice`, `timeout`, `exec`, `time` (with the
+separate value of their flags that take one, read the way getopt reads it,
+also last in a bundle or as a cut long option: `sudo -Hu root`,
+`xargs -n 1`, `nice --adj 5`, `timeout -s KILL 60`, `exec -a NAME`,
+`time -o FILE`), `command`, `nohup` and `cmd /c`. The string after
 `sh`, `bash`, `zsh` or `dash -c` (also `-lc`), `pwsh` or `powershell -c` or
 `-Command`, and `cmd /c` or `/k` is read as a line of its own, up to three
 shells deep, and so are the words after `eval`. A substitution `$(…)` or

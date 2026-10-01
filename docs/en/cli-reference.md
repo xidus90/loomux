@@ -306,10 +306,15 @@ Evaluates the project policy and global write barrier before an agent executes a
   `finally`, after every `{` or `}` on the line, alone or glued to a word
   (the body of a block, function or script block: `try{`, `{loomux …}`),
   and behind the wrappers `sudo`, `command`, `exec`, `nohup`, `env`, `time`,
-  `xargs`, `nice` (also `nice -n N`), `timeout <duration>` and `cmd` with
-  every switch up to `/c` or `/k`, together with their flags (and `--`); the
-  separate value of a flag of `sudo`, `env`, `xargs` or `timeout` that takes
-  one (`sudo -u root`, `xargs -n 1`, `timeout -s KILL`) is skipped as well.
+  `xargs`, `nice`, `timeout <duration>` and `cmd` with every switch up to
+  `/c` or `/k`, together with their flags (and `--`, and `env`'s lone `-`).
+  The flags are read the way getopt reads them: the separate value of a flag
+  of `sudo`, `env`, `xargs`, `nice`, `timeout`, `exec` or `time` that takes
+  one is skipped (`sudo -u root`, `xargs -n 1`, `nice -n 10`,
+  `timeout -s KILL`, `exec -a NAME`, GNU `time -o FILE`), also when the flag
+  is the last of a bundle (`sudo -Hu root`) or a long option cut to a prefix
+  (`timeout --sig KILL`), and a redirection between a flag and its value is
+  no value. `sudo run` (Sudo for Windows) is read like `sudo`.
   `Start-Process`, `start` or `saps` is refused when loomux is any of its
   arguments, also as the value of a parameter written with a colon
   (`-FilePath:loomux.exe`), whatever the others. Every
