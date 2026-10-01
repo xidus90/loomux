@@ -405,8 +405,11 @@ func innerLine(args []string) (line string, after []string, ok bool) {
 				}
 			}
 		case "cmd":
-			for j := i + 1; j < len(args); j++ {
-				if f := strings.ToLower(args[j]); f == "/c" || f == "/k" {
+			// A command glued to the switch (/cdel) is exposed by
+			// dropPrefixes, so only the string after a clean /c, /k or /r is
+			// read here.
+			for j := i + 1; j < len(args) && len(args[j]) > 1 && args[j][0] == '/'; j++ {
+				if f := strings.ToLower(args[j]); f == "/c" || f == "/k" || f == "/r" {
 					return strings.Join(args[j+1:], " "), nil, true
 				}
 			}

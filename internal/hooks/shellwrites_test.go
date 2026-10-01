@@ -39,6 +39,8 @@ func TestShellWritesReadsTheTargetsOfEveryVerb(t *testing.T) {
 	for line, want := range map[string][]string{
 		"env -C sub git checkout HEAD kept.txt":                             {"w:sub/kept.txt"},
 		"cmd /c cd sub & rm x":                                              {"rm:x"},
+		`cmd /cdel .loomux\config.toml`:                                     {"rm:.loomux/config.toml"},
+		`cmd.exe /d/cdel .loomux\config.toml`:                               {"rm:.loomux/config.toml"},
 		"echo x > .loomux/config.toml":                                      {"w:.loomux/config.toml"},
 		"echo x>.loomux/config.toml":                                        {"w:.loomux/config.toml"},
 		"echo x &> .loomux/config.toml":                                     {"w:.loomux/config.toml"},

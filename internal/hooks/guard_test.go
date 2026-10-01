@@ -614,10 +614,17 @@ func loomuxSpellings() []string {
 		// env -S takes the command line itself as its value.
 		"env -S loomux init",
 		"env -S 'loomux init'",
-		// Every cmd switch before /c or /k.
+		// Every cmd switch before /c or /k, also /r, and the command glued
+		// to it; a caret escape cmd resolves.
 		"cmd /v:on /c loomux init",
 		"cmd /d /s /c loomux init",
 		"CMD /E:ON /K loomux init",
+		"cmd /cloomux init",
+		"cmd.exe /d/cloomux init",
+		"cmd /rloomux init",
+		"cmd /c loomux con^fig set a b",
+		"cmd /c lo^omux init",
+		"cmd /c loomux init ^",
 		// Function bodies, coprocesses and PowerShell's try, catch, finally.
 		"function f { loomux init; }",
 		"function f { loomux init }",

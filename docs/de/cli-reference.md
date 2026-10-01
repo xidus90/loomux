@@ -324,7 +324,9 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   Rumpf eines Blocks, einer Funktion oder eines Skriptblocks: `try{`,
   `{loomux …}`), sowie hinter den Wrappern `sudo`, `command`, `exec`,
   `nohup`, `env`, `time`, `xargs`, `nice`, `timeout <dauer>` und `cmd` mit
-  jedem Schalter bis `/c` oder `/k`, samt ihren Flags (und `--` und dem
+  jedem Schalter bis `/c`, `/k` oder `/r` (der Befehl darf daran geklebt
+  sein, `/cloomux`), eine aufgelöste Caret-Maskierung von cmd (`con^fig`),
+  samt ihren Flags (und `--` und dem
   einzelnen `-` von `env`). Die Flags liest er, wie getopt sie liest: Der
   eigene Wert eines Flags von `sudo`, `env`, `xargs`, `nice`, `timeout`,
   `exec` oder `time`, das einen nimmt, wird übersprungen (`sudo -u root`,

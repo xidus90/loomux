@@ -76,7 +76,7 @@ func TestAnAgentMayNotAnswerAGateInAnySpelling(t *testing.T) {
 func asGateAnswer(t *testing.T, row string) string {
 	t.Helper()
 	tick := "`"
-	command := regexp.MustCompile(`(^|[\s"'{(])(con\\fig|con` + tick + `fig|merge-hook (?:install|remove)|area add|config|init)($|[\s"'` + tick + `;})])`)
+	command := regexp.MustCompile(`(^|[\s"'{(])(con\\fig|con` + tick + `fig|con\^fig|merge-hook (?:install|remove)|area add|config|init)($|[\s"'` + tick + `;})])`)
 	answer := "flow resume 0001 --answer yes"
 	at := command.FindStringSubmatchIndex(row)
 	if at == nil {
@@ -90,6 +90,8 @@ func asGateAnswer(t *testing.T, row string) string {
 		answer = `flow res\ume 0001 --answer yes`
 	case "con" + tick + "fig":
 		answer = "flow res" + tick + "ume 0001 --answer yes"
+	case `con^fig`:
+		answer = `flow res^ume 0001 --answer yes`
 	}
 	return row[:at[4]] + answer + row[at[5]:]
 }
