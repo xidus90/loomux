@@ -317,9 +317,10 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   Modulpfad, in jeder `@version`, hinter Build-Flags). Gefunden wird es
   hinter `VAR=wert`, Umleitungen (`2>/dev/null`, `> out`, `2>&1`), den
   reservierten Wörtern `if`, `then`, `else`, `elif`, `while`, `until`, `do`,
-  `!`, `{`, `coproc`, `function <name>`, `try`, `catch` und `finally`
-  (jedes nur als das Wort selbst: eine Datei dieses Namens, `./do`, ist ein
-  Programm),
+  `!`, `{`, `coproc`, `function <name>`, `try`, `catch`, `finally` und
+  PowerShells Dot-Source `.`
+  (jedes reservierte Wort nur als das Wort selbst: eine Datei dieses Namens,
+  `./do`, ist ein Programm),
   hinter jedem `{` oder `}` der Zeile, allein oder an ein Wort geklebt (dem
   Rumpf eines Blocks, einer Funktion oder eines Skriptblocks: `try{`,
   `{loomux …}`), sowie hinter den Wrappern `sudo`, `command`, `exec`,

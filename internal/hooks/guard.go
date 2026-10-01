@@ -875,7 +875,9 @@ func readPrefixes(words []string) (read prefixes) {
 		case strings.Contains(w, "=") && !strings.HasPrefix(w, "-"):
 		case base == "{" || base == "!" || base == "if" || base == "then" || base == "else" ||
 			base == "elif" || base == "while" || base == "until" || base == "do" ||
-			base == "coproc" || base == "try" || base == "catch" || base == "finally":
+			base == "coproc" || base == "try" || base == "catch" || base == "finally" ||
+			w == ".":
+			// A lone . is PowerShell's dot-source operator, a sibling of &.
 		case base == "function":
 			// The name, then the body.
 			n = 2
