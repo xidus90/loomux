@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [6.0.1] - 2026-10-01
+
+<https://github.com/xidus90/loomux/pull/62>
+
+### Fixed
+- The guard now recognises loomux commands and protected-path writes behind `winpty`, `stdbuf`, `ionice`, `setsid`, `chronic` and `unbuffer` (each also as `<name>.exe`) and behind any program it does not know, reads every wrapper's value flags the way getopt does (bundles, abbreviated long options, redirections, `env -`, `exec -a`, GNU `time -o`), no longer lets a `cd`/`env -C`/`sudo -D` behind a wrapper mislead the folder it judges, treats a file named like a shell word as a program, and reads `cmd`'s glued command and caret escape, PowerShell's dot-source `.`, `go.exe run` and a piped removal behind `xargs -I{}`.
+
 ## [6.0.0] - 2026-10-01
 
 <https://github.com/xidus90/loomux/pull/61>
