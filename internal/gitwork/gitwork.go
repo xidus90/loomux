@@ -65,6 +65,27 @@ func HeadCommit(root string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+// TopLevel is the top directory of the working tree dir lies in, as git
+// spells it: forward slashes on every platform.
+func TopLevel(dir string) (string, error) {
+	out, err := git(dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// Prefix is where dir lies below TopLevel, as git spells it: forward
+// slashes, a trailing one, and "" at the top. git names it by the real
+// directory, so a path reached through a junction or a link is no detour.
+func Prefix(dir string) (string, error) {
+	out, err := git(dir, "rev-parse", "--show-prefix")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
 // ignored is worktree.py's `_refuse_if_ignored`, and it reads the outcome of
 // the call itself rather than going through `git` below: `check-ignore` exits 1
 // for a path it does not ignore, which is the ordinary case and no failure at
@@ -80,6 +101,19 @@ func HeadCommit(root string) (string, error) {
 // compares the return code against 0.
 func ignored(root string) bool {
 	command := exec.Command("git", "check-ignore", "-q", ".")
+	command.Dir = root
+	command.Env = gitenv.Environ()
+	return command.Run() == nil
+}
+
+// IgnoredPath says whether git ignores rel in root. Only exit 0 of
+// check-ignore means ignored, as for ignored above: exit 1 is a path git does
+// not ignore -- a file it already holds among them, whatever .gitignore says
+// -- and everything else (no repository, no git) is no answer, read as not
+// ignored. The caller warns about a file that reaches no commit, and a wrong
+// warning is worse than none.
+func IgnoredPath(root, rel string) bool {
+	command := exec.Command("git", "check-ignore", "-q", "--", rel)
 	command.Dir = root
 	command.Env = gitenv.Environ()
 	return command.Run() == nil
