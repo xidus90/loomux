@@ -40,6 +40,10 @@ func newJudge(root string, policy config.Policy) judge {
 func (j judge) reasons(targets []shellTarget) []string {
 	var reasons []string
 	for _, target := range targets {
+		if target.refusal != "" {
+			reasons = append(reasons, target.refusal)
+			continue
+		}
 		rels, err := j.rels(target)
 		if err != nil {
 			reasons = append(reasons, err.Error())

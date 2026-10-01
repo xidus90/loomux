@@ -22,6 +22,9 @@ type shellTarget struct {
 	// it, which find prints in front of each match.
 	filters []nameFilter
 	start   string
+	// refusal, when set, is the reason the guard cannot tell what the call
+	// writes; the target names no path.
+	refusal string
 }
 
 // The verb table, by base name in lower case without .exe (verbOf).
@@ -45,7 +48,7 @@ var (
 	// otherWriteVerbs are the verbs verbWrites reads one by one, for
 	// knownProgram; git stands in knownTools.
 	otherWriteVerbs = []string{"dd", "tar", "unzip", "expand-archive", "robocopy", "xcopy", "new-item",
-		"ni", "curl", "wget", "invoke-webrequest", "iwr", "find", "sed", "perl"}
+		"ni", "curl", "wget", "invoke-webrequest", "iwr", "find", "sed", "perl", "patch"}
 	// changeDirectory move the place relative paths after them start from.
 	changeDirectory = []string{"cd", "set-location", "sl", "pushd"}
 )
@@ -87,6 +90,7 @@ const maxInnerDepth = 3
 // shellWritesAt is shellWrites for a line depth shells inside the one the
 // call runs.
 func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown []unknownCall) {
+	targets = heredocPatches(line)
 	variants := lineVariants(line)
 	if folded := foldSubstitutions(joinPaths(line)); !slices.Contains(variants, folded) {
 		variants = append(variants, folded)
@@ -338,9 +342,18 @@ func segmentWrites(dir string, words []string, depth int, grouped bool) segmentR
 	var args []string
 	var inner []unknownCall
 	unmasked := func(w string) string { return strings.ReplaceAll(w, quotedRedirect, ">") }
+	// input is the file a < hands the program, for the verbs that read what
+	// they write from it.
+	var input string
 	for i := 0; i < len(words); i++ {
 		w := words[i]
 		redirect, writes, bare, target := redirectTarget(w)
+		if op := strings.TrimLeft(w, "0123456789"); redirect && strings.HasPrefix(op, "<") && !strings.HasPrefix(op, "<<") {
+			input = op[1:]
+			if bare && i+1 < len(words) {
+				input = words[i+1]
+			}
+		}
 		if !redirect {
 			op := strings.IndexByte(w, '>')
 			if op < 0 {
@@ -373,7 +386,7 @@ func segmentWrites(dir string, words []string, depth int, grouped bool) segmentR
 		read.targets = targets
 		return read
 	}
-	found, known := verbWrites(joinPlace(dir, pre.dir), read.args)
+	found, known := verbWrites(joinPlace(dir, pre.dir), read.args, input)
 	if ran && slices.Contains(stringShells, verbOf(read.args[0])) {
 		known = true
 		// The words after the string reach the script as $0, $1, …, where
@@ -413,8 +426,9 @@ func redirectTarget(w string) (redirect, writes, bare bool, target string) {
 	return true, true, rest == "", rest
 }
 
-// verbWrites is what a program does to its arguments, by the verb table.
-func verbWrites(dir string, args []string) ([]shellTarget, bool) {
+// verbWrites is what a program does to its arguments, by the verb table;
+// input is the file a < redirection hands it, or "".
+func verbWrites(dir string, args []string, input string) ([]shellTarget, bool) {
 	verb := verbOf(args[0])
 	rest := args[1:]
 	switch {
@@ -456,8 +470,10 @@ func verbWrites(dir string, args []string) ([]shellTarget, bool) {
 		return inPlace(rest, "ef"), true
 	case "perl":
 		return inPlace(rest, "eE"), true
+	case "patch":
+		return patchWrites(dir, rest, input), true
 	case "git":
-		return gitWrites(dir, rest)
+		return gitWrites(dir, rest, input)
 	}
 	return nil, reads(args)
 }
@@ -1077,12 +1093,15 @@ func inPlace(args []string, scriptFlags string) []shellTarget {
 }
 
 // gitWrites is what a git subcommand writes: mv and rm their paths, checkout
-// and restore the paths checkedOut names, clean what cleaned names. diff,
-// log, show, status, blame, add and commit read; every other subcommand is
-// unknown.
-func gitWrites(dir string, args []string) ([]shellTarget, bool) {
+// and restore the paths checkedOut names, clean what cleaned names, apply
+// and am the files their patches change (input is the file a < hands
+// them). diff, log, show, status, blame, add and commit read; every other
+// subcommand is unknown.
+func gitWrites(dir string, args []string, input string) ([]shellTarget, bool) {
 	sub, rest := gitSubcommand(args)
 	switch sub {
+	case "apply", "am":
+		return gitPatchWrites(dir, rest, input), true
 	case "mv":
 		return moved(dir, rest), true
 	case "rm":
