@@ -499,11 +499,19 @@ func readingWrites(words []string, plain, anyProgram bool) bool {
 // not model that second reading.
 func wordsWriteConfiguration(words []string, plain, anyProgram bool) bool {
 	head := len(words)
-	words = dropPrefixes(words)
-	if len(words) == 0 {
+	read := readPrefixes(words)
+	if anyProgram && slices.ContainsFunc(read.named, func(call []string) bool { return programWrites(call, false, true) }) {
+		return true
+	}
+	if len(read.program) == 0 {
 		return false
 	}
-	exempt := plain && len(words) == head
+	return programWrites(read.program, plain && len(read.program) == head, anyProgram)
+}
+
+// programWrites is wordsWriteConfiguration for words that start with the
+// program, exempt when a reading flag may exempt the call.
+func programWrites(words []string, exempt, anyProgram bool) bool {
 	if startsLoomux(words) {
 		return true
 	}
@@ -815,6 +823,17 @@ type prefixes struct {
 	// dir is the folder env -C or sudo -D runs the program in, relative to
 	// the shell's; "" for the shell's own.
 	dir string
+	// named are the words from each wrapper named by a path on: a file there
+	// may be any program, a copied loomux too, which strict mode judges.
+	named [][]string
+}
+
+// note keeps words as a call of their own when the wrapper at their head is
+// named by a path.
+func (p *prefixes) note(words []string) {
+	if strings.ContainsAny(words[0], `/\`) {
+		p.named = append(p.named, words)
+	}
 }
 
 // wrapped reads the flags of the wrapper name at the head of words, notes
@@ -854,9 +873,11 @@ func readPrefixes(words []string) (read prefixes) {
 			// The name, then the body.
 			n = 2
 		case base == "timeout":
+			read.note(words)
 			// The duration comes before the program.
 			n += read.wrapped(base, words[1:], false) + 1
 		case wrapperValues[base] != nil:
+			read.note(words)
 			n += read.wrapped(base, words[1:], builtin)
 			if base == "sudo" && n < len(words) && words[n] == "run" {
 				// Sudo for Windows runs what follows its run, after flags
@@ -865,9 +886,11 @@ func readPrefixes(words []string) (read prefixes) {
 				n += read.wrapped(base, words[n:], false)
 			}
 		case base == "command" || base == "nohup":
+			read.note(words)
 			read.spawns = read.spawns || base == "nohup"
 			n += flagCount(words[1:])
 		case base == "cmd" || base == "cmd.exe":
+			read.note(words)
 			read.spawns = true
 			// Every switch up to /c or /k, which the command follows.
 			for n < len(words) && len(words[n]) > 1 && words[n][0] == '/' {

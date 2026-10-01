@@ -121,6 +121,11 @@ func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown
 					if !read.known && trusted {
 						unknown = append(unknown, unknownCall{followed(base, read.dir), read.args})
 					}
+					for _, call := range read.named {
+						if trusted {
+							unknown = append(unknown, unknownCall{base, call})
+						}
+					}
 					for _, call := range read.inner {
 						if trusted {
 							unknown = append(unknown, unknownCall{followed(base, call.base), call.args})
@@ -303,9 +308,10 @@ type segmentRead struct {
 	known bool
 	// inner are the unknown programs of a line a shell among args runs.
 	inner []unknownCall
-	// dir and spawns are those of the prefixes (prefixes).
+	// dir, spawns and named are those of the prefixes (prefixes).
 	dir    string
 	spawns bool
+	named  [][]string
 }
 
 // segmentWrites is what one reading of one segment writes: its redirections
@@ -352,7 +358,7 @@ func segmentWrites(dir string, words []string, depth int, grouped bool) segmentR
 		targets, inner = append(targets, found...), calls
 	}
 	pre := readPrefixes(args)
-	read := segmentRead{args: pre.program, known: true, inner: inner, dir: pre.dir, spawns: pre.spawns}
+	read := segmentRead{args: pre.program, known: true, inner: inner, dir: pre.dir, spawns: pre.spawns, named: pre.named}
 	if len(read.args) == 0 {
 		read.targets = targets
 		return read
