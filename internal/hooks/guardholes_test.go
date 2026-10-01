@@ -118,7 +118,8 @@ func folderCopyLines() []string {
 	}
 }
 
-// patchLines apply a patch, by name or from a redirection.
+// patchLines apply a patch, by name or from a redirection; the first eleven
+// change the manifest or name a patch that is not there.
 func patchLines() []string {
 	return []string{
 		"patch .loomux/config.toml < p.diff",
@@ -211,7 +212,7 @@ func holesBattery() []string {
 // both modes; a line among them it refused before already is no flip, and
 // the differential test does not ask it to be one.
 func refusedAfter() []string {
-	return slices.Concat(guardedStringShellLines(), folderCopyLines()[:14])
+	return slices.Concat(guardedStringShellLines(), folderCopyLines()[:14], patchLines()[:11])
 }
 
 // holesFlips are the lines the fix turns from a pass into a refusal in the
@@ -436,7 +437,7 @@ func holesWorld(t *testing.T) string {
 		".loomux/config.toml": "x\n",
 		"p.diff":              toManifest,
 		"p.patch":             "From 1 Mon Sep 17 00:00:00 2001\nSubject: [PATCH] x\n\n---\n" + toManifest,
-		"q.diff":              "--- config.toml\n+++ config.toml\n@@ -1 +1 @@\n-x\n+y\n",
+		"q.diff":              "--- a/config.toml\n+++ b/config.toml\n@@ -1 +1 @@\n-x\n+y\n",
 		"ok.diff":             "diff --git a/src/a.go b/src/a.go\n--- a/src/a.go\n+++ b/src/a.go\n@@ -1 +1 @@\n-x\n+y\n",
 	}
 	for name, body := range files {
