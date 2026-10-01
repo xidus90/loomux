@@ -160,6 +160,69 @@ func TestStrictModeRefusesAnExpansionThatMayLandOnAProtectedPath(t *testing.T) {
 	}
 }
 
+// A path that goes on after its last expansion with a slash is refused in
+// strict mode when some leading elements in the expansion's place make it a
+// protected path: the expansion may hold the protected folder itself. A tail
+// glued to the expansion is weighed only before it, or build/$X.txt would
+// be refused for X=.env.
+func TestStrictModeRefusesAnExpansionInFrontOfAProtectedTail(t *testing.T) {
+	catalog(t, "example")
+	root := project(t)
+	for _, line := range []string{
+		"echo x > $D/config.toml",
+		"echo x > ${D}/config.toml",
+		"echo x > $(pwd)/config.toml",
+		"echo x > `pwd`/state/hooks/x",
+		"echo x > %D%\\config.toml",
+		"echo x > $env:D/state/runs/1.jsonl",
+		"echo x > $D/flows/example/flow.toml",
+		"echo x > $A/$B/config.toml",
+		"echo x > $D/CONFIG.toml",
+	} {
+		got := checkTool(root, "Bash", command(line), strictPolicy)
+		if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "the expansion may land on a protected path") }) {
+			t.Errorf("strict %q: reasons %q", line, got)
+		}
+	}
+	for _, line := range []string{
+		"echo x > $D", "echo x > $D/notes.md", "echo x > ${D}fig.toml", "echo x > $D/config.toml.bak",
+		"echo x > $D/flows/mine/flow.toml", "echo x > $X.txt",
+	} {
+		if got := checkTool(root, "Bash", command(line), strictPolicy); len(got) != 0 {
+			t.Errorf("strict %q: reasons %q, want none", line, got)
+		}
+	}
+}
+
+// afterExpansion is the text after the last expansion of a path.
+func TestAfterExpansionIsTheTextAfterTheLastExpansion(t *testing.T) {
+	for p, want := range map[string]string{
+		"$D/x":       "/x",
+		"${D}x":      "x",
+		"$(pwd)/x":   "/x",
+		"$(a (b))/x": "/x",
+		"`pwd`/x":    "/x",
+		"%D%/x":      "/x",
+		"$env:D/x":   "/x",
+		"$ENV:D/x":   "/x",
+		"a/$D":       "",
+		"$A/$B/x":    "/x",
+		"a/x":        "",
+		"${D":        "",
+		"$(pwd":      "",
+		"`pwd":       "",
+		"$A/${B":     "",
+		"$A/$(b":     "",
+		"$A/`b":      "",
+		"50%/x":      "",
+		"$/x":        "/x",
+	} {
+		if got := afterExpansion(p); got != want {
+			t.Errorf("%q: %q, want %q", p, got, want)
+		}
+	}
+}
+
 // The globs an expansion may reach are the project's too, as it spelled
 // them, and every flow folder while [flow] does not read.
 func TestStrictModeWeighsAnExpansionAgainstEveryProtectedGlob(t *testing.T) {

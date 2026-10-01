@@ -227,9 +227,14 @@ func holesFlips() map[string]bool {
 }
 
 // holesFlipsStrict are the lines the fix turns from a pass into a refusal
-// in strict mode.
+// in strict mode: the default mode's, and a variable in front of a
+// protected tail.
 func holesFlipsStrict() map[string]bool {
-	return holesFlips()
+	flips := holesFlips()
+	for _, line := range []string{"echo x > $D/config.toml", "echo x > $D/state/hooks/x"} {
+		flips[line] = true
+	}
+	return flips
 }
 
 // A loomux command or a write inside a string a shell runs is refused like
