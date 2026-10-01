@@ -307,14 +307,17 @@ Evaluates the project policy and global write barrier before an agent executes a
   program), after every `{` or `}` on the line, alone or glued to a word
   (the body of a block, function or script block: `try{`, `{loomux …}`),
   and behind the wrappers `sudo`, `command`, `exec`, `nohup`, `env`, `time`,
-  `xargs`, `nice`, `timeout <duration>` and `cmd` with every switch up to
+  `xargs`, `nice`, `ionice`, `stdbuf`, `winpty`, `setsid`, `chronic`,
+  `unbuffer`, `timeout <duration>` and `cmd` with every switch up to
   `/c`, `/k` or `/r` (the command may be glued to it, `/cloomux`), a caret
-  escape of cmd resolved (`con^fig`), together with their flags (and `--`,
-  and `env`'s lone `-`).
+  escape of cmd resolved (`con^fig`), each external one also as `<name>.exe`,
+  together with their flags (and `--`, and `env`'s lone `-`).
   The flags are read the way getopt reads them: the separate value of a flag
-  of `sudo`, `env`, `xargs`, `nice`, `timeout`, `exec` or `time` that takes
-  one is skipped (`sudo -u root`, `xargs -n 1`, `nice -n 10`,
-  `timeout -s KILL`, `exec -a NAME`, GNU `time -o FILE`), also when the flag
+  of `sudo`, `env`, `xargs`, `nice`, `ionice`, `stdbuf`, `timeout`, `exec`,
+  `time` or `unbuffer` that takes
+  one is skipped (`sudo -u root`, `xargs -n 1`, `nice -n 10`, `ionice -c 3`,
+  `stdbuf -o 0`, `timeout -s KILL`, `exec -a NAME`, GNU `time -o FILE`,
+  `unbuffer -ignore HUP`), also when the flag
   is the last of a bundle (`sudo -Hu root`) or a long option cut to a prefix
   (`timeout --sig KILL`), and a redirection between a flag and its value is
   no value. `sudo run` (Sudo for Windows) is read like `sudo`.

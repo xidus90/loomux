@@ -35,13 +35,17 @@ func TestStrictModeKnowsLoomuxByItsArguments(t *testing.T) {
 		"./if config set a b":                 "a human runs them",
 		"./do init":                           "a human runs them",
 		"/x/exec init":                        "a human runs them",
+		"exec.exe init":                       "a human runs them",
 		"./command config set a b":            "a human runs them",
 		"./function flow resume 1 --answer y": "a flow's gate asks a human",
 		// A wrapper named by a path may be any program as well.
-		"./nohup init":                   "a human runs them",
-		"/x/sudo config set a b":         "a human runs them",
-		"./env flow resume 1 --answer y": "a flow's gate asks a human",
-		"./timeout area add":             "a human runs them",
+		"./nohup init":                            "a human runs them",
+		"/x/sudo config set a b":                  "a human runs them",
+		"./env flow resume 1 --answer y":          "a flow's gate asks a human",
+		"./timeout area add":                      "a human runs them",
+		"winpty doc.exe init":                     "a human runs them",
+		"stdbuf -o 0 doc.exe config set a b":      "a human runs them",
+		"winpty doc.exe flow resume 1 --answer y": "a flow's gate asks a human",
 	} {
 		if got := checkTool(root, "Bash", command(line), strictPolicy); !has(got, part) {
 			t.Errorf("strict %q: reasons %q, want %q", line, got, part)
@@ -53,6 +57,7 @@ func TestStrictModeKnowsLoomuxByItsArguments(t *testing.T) {
 	for _, line := range []string{
 		"git config set user.name x", "gh config set editor vim", "npm init -y", "terraform init",
 		"cat config", "echo config set a b", "ls init", "go mod init x",
+		"winpty git status", "stdbuf -o0 go test ./...", "chronic go test ./...",
 	} {
 		if got := checkTool(root, "Bash", command(line), strictPolicy); len(got) != 0 {
 			t.Errorf("strict %q: reasons %q, want none", line, got)

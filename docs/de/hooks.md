@@ -549,11 +549,13 @@ des Programms in jeder Schreibweise, ohne `.exe`:
   `-Include` oder `-Filter` ist, was der Filter auf der Platte behält.
 
 Vor dem Programm überspringt er `VAR=x`, die reservierten Wörter der Shell und
-die Wrapper `sudo`, `env`, `xargs`, `nice`, `timeout`, `exec`, `time` (mit
-dem eigenen Wert ihrer Flags, die einen nehmen, gelesen wie getopt ihn liest,
-auch als letztes Flag eines Bündels oder als gekürzte Langoption:
-`sudo -Hu root`, `xargs -n 1`, `nice --adj 5`, `timeout -s KILL 60`,
-`exec -a NAME`, `time -o DATEI`), `command`, `nohup` und `cmd /c`. Die
+die Wrapper `sudo`, `env`, `xargs`, `nice`, `ionice`, `stdbuf`, `timeout`,
+`exec`, `time`, `unbuffer` (mit dem eigenen Wert ihrer Flags, die einen
+nehmen, gelesen wie getopt ihn liest, auch als letztes Flag eines Bündels
+oder als gekürzte Langoption: `sudo -Hu root`, `xargs -n 1`, `nice --adj 5`,
+`ionice -c 3`, `stdbuf -o 0`, `timeout -s KILL 60`, `exec -a NAME`,
+`time -o DATEI`, `unbuffer -ignore HUP`), `command`, `nohup`, `winpty`,
+`setsid`, `chronic` und `cmd /c`, jeder externe auch als `<name>.exe`. Die
 Zeichenkette nach
 `sh`, `bash`, `zsh` oder `dash -c` (auch `-lc`), `pwsh` oder `powershell -c`
 oder `-Command` und `cmd /c` oder `/k` wird als eigene Zeile gelesen, bis drei
