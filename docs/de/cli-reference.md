@@ -43,7 +43,7 @@ Prüfbefehle unten. Was jede Art je Stack fährt, legen
 [`[verify]`](configuration.md#verify-prüfketten--quality-gates) und die Presets
 fest.
 
-### `loomux check <anfrage> [--root <pfad>] [--show] [-v]`
+### `loomux check <anfrage> [--root <pfad>] [--show] [-v] [--arm]`
 Fährt die Lanes der angefragten Arten für jeden aktiven Stack und Bereich und
 urteilt über sie.
 
@@ -55,6 +55,24 @@ urteilt über sie.
   - `--show` — nichts fahren; die wirksamen Lanes als `[verify]`-Tabellen
     drucken.
   - `-v` — auch die Ausgabe grüner Lanes drucken.
+  - `--arm` — nur beim Profil `precommit`, sonst Exit `2`. Nach einem Lauf,
+    der insgesamt grün endet, schreibt es jede Lane, die `ok` endete, in
+    `.loomux/armed.toml` und stagt die Datei mit `git add` in den Index des
+    Commits, der gerade läuft. Es schreibt nur, wo die Datei existiert: ohne
+    sie ist jede Lane ohnehin scharf. Bei einem Teilcommit (`git commit
+    <pfad>`, `--only`) schreibt und stagt es nichts und druckt `not armed:
+    this commit takes only some paths; the next whole commit arms the lanes`.
+    Die Zeile `armed: <schlüssel>` nennt, was es eingetragen hat. Eine Datei,
+    die sich nicht schreiben oder stagen lässt, steht auf `stderr` und ändert
+    den Exit-Code nicht.
+- **Lanes in Probe**: Mit einer `.loomux/armed.toml` (siehe
+  [Konfiguration](configuration.md#schonfrist-je-lane-loomuxarmedtoml)) läuft
+  eine Lane, die die Datei nicht nennt, trotzdem. Eine rote liest sich
+  `<zustand> (probation)` und lässt nichts scheitern, eine grüne oder
+  übersprungene liest sich wie zuvor, und der Bericht jedes Laufs mit einer
+  solchen Lane endet mit `probation: <schlüssel> (warn only until a green
+  commit arms them)`. Eine Datei, die sich nicht lesen lässt, stellt jede Lane scharf, und
+  `stderr` sagt warum.
 - **Reihenfolge**: Eine Lane startet, sobald die Lane, auf die sie wartet
   (`after`), fertig ist, mit höchstens `max_parallel` Prozessen gleichzeitig.
   Der Bericht kommt am Ende, nie verzahnt: Arten in Anfrage-Reihenfolge, darin
@@ -88,8 +106,8 @@ urteilt über sie.
   das `check` und der post-edit-Hook selbst anlegen.
   Ein grüner Lauf löscht seine eigenen Dateien, ein roter behält sie; Dateien
   anderer Läufe gehen, sobald sie 24 Stunden alt sind.
-- **Exit-Codes**: `0` (keine Lane rot, und jede angefragte Art hatte eine
-  Lane, die lief, oder ist irgendwo `not-applicable`), `1` (eine Lane ist rot,
+- **Exit-Codes**: `0` (keine scharfe Lane rot, und jede angefragte Art hatte
+  eine Lane, die lief, oder ist irgendwo `not-applicable`), `1` (eine scharfe Lane ist rot,
   eine Art hatte nichts zu prüfen, oder `[verify]` bzw. die Anfrage lässt sich
   nicht laden; ein Ladefehler ist eine Zeile auf `stderr`), `2` (fehlerhafter
   Aufruf: keine Anfrage, ein Flag vor der Anfrage, ein unbekanntes Flag, eine
@@ -246,6 +264,9 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
     durch);
   - `loomux dev switchover prune-hooks`, mit allem, was folgt, auch `--help`
     (jeder andere `dev`-Befehl geht durch, auch `dev switchover render`);
+  - `loomux gate arm` und `loomux gate disarm` (`gate status` geht durch); die
+    Ablehnung sagt, dass arm und disarm entscheiden, welche Lanes das Tor
+    scheitern lassen, und dass `loomux gate status` sie zeigt;
   - `loomux convert` oder `loomux fetch`, außer allein mit `--help` oder `-h`.
 
   Die Ablehnung lautet ``loomux init, config and
@@ -400,7 +421,7 @@ Wird ausgeführt, nachdem ein Agent eine Datei bearbeitet hat.
 - **Verhalten**: Fährt die Lanes des Profils `edit` (vorgegeben `lint` und `types`) für den Stack der bearbeiteten Datei, in dem Bereich, der die Datei enthält, so wie [`[verify]`](configuration.md#verify-prüfketten--quality-gates) und die Presets sie auslegen, mit `on_file`, wo eine Lane es hat; siehe [Hooks](hooks.md#5-die-post-edit-lanes-je-sprachstack).
 - **Übersprungene Lanes**: Eine Lane, deren Werkzeug nicht auf dem `PATH` liegt, ein noch nicht importiertes Godot-Projekt und jede Lane, die das Budget nicht mehr erreicht, werden übersprungen, nicht rot. Jede steht auf `stderr`, und bei Exit 0 auf `stdout` in der Form des Hosts, für Claude Code als `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"loomux hook post-tool-use: lane skipped, the edit budget ran out: lint/go"}}`, `<`, `>` und `&` unverändert. Eine Datei eines Aufrufs, die das Budget nicht mehr erreicht, steht dort ebenso. Bei jedem anderen Exit-Code schreibt der Hook nichts auf `stdout`. Unter `--host antigravity` wird dieses `stdout` nicht weitergegeben, denn ob agy den Kontext eines PostToolUse liest, ist ungemessen: Dort erreicht ein Skip das Modell nur bei Exit 2, auf `stderr`, und die Aufrufer des Blast-Monitors gar nicht.
 - **Blast-Monitor**: Nach einem Edit an einer `.go`-Datei, wenn keine Lane des Aufrufs rot ist, folgen den übersprungenen Lanes im selben `additionalContext` die direkten Aufrufer in anderen Dateien jedes Symbols, das der Edit gegenüber dem Graphen auf der Platte geändert oder entfernt hat. Ohne Graph schweigt er, und ein Befund ist er nie; siehe [Hooks](hooks.md#der-blast-monitor).
-- **Exit-Codes**: `0` (alle Lanes grün, übersprungen oder nichts zu fahren), `1` (fehlerhafter Aufruf, etwa ein fehlendes oder unbekanntes `--host`, ein `[verify]`, das sich nicht laden lässt, oder `--host codex`, sobald der Aufruf eine Datei nennt: Codex hat noch keinen Adapter, der Hook verweigert also, statt in der Form eines anderen Hosts zu antworten), `2` (eine Lane ist gescheitert, abgelaufen oder blockiert; ihre Ausgabe auf `stderr`).
+- **Exit-Codes**: `0` (alle Lanes grün, übersprungen oder nichts zu fahren), `1` (fehlerhafter Aufruf, etwa ein fehlendes oder unbekanntes `--host`, ein `[verify]`, das sich nicht laden lässt, oder `--host codex`, sobald der Aufruf eine Datei nennt: Codex hat noch keinen Adapter, der Hook verweigert also, statt in der Form eines anderen Hosts zu antworten), `2` (eine scharfe Lane ist gescheitert, abgelaufen oder blockiert; ihre Ausgabe auf `stderr`). Eine rote Lane in Probe endet mit Exit 0, und ihr Befund geht, mit `(probation)` gekennzeichnet, wie eine übersprungene Lane in den Kontext des Wirts.
 
 ### `loomux hook session-start`
 Hält den Commit fest, auf dem die Sitzung beginnt, und meldet die Flow-Läufe, die auf einen Menschen warten.
@@ -413,6 +434,7 @@ Hält den Commit fest, auf dem die Sitzung beginnt, und meldet die Flow-Läufe, 
   - Meldet jeden Lauf unter `.loomux/state/runs/`, der an einem Tor wartet, bei jedem Start, auch bei einem wiederholten unter Antigravity: `run <id> (<flow>, <herkunft>) is waiting at <tor>: <frage>`, dann `a human answers it with: <binary> flow resume <id> --answer "your answer"`; `<binary>` ist der Pfad, aus dem der Hook läuft, mit Schrägstrichen, in doppelten Anführungszeichen, wenn er Leerraum oder ein anderes Zeichen enthält, das eine Shell liest. Einen Laufordner, der sich nicht auflisten lässt, nennt er auf `stderr` (`.loomux/state/runs cannot be read as a folder of runs: …`), ebenso ein Journal oder eine Marke, die sich nicht lesen lässt; sie verbirgt nur ihren eigenen Lauf; sagt die Marke, dass eine andere loomux-Version den Lauf schrieb, nennt die Zeile beide (`run 0001 was written by loomux 0.0.0-dev, this is …`). Siehe [Flows](flows.md#6-tore-gehören-einem-menschen).
   - Nennt jeden Eintrag unter `.loomux/flows/`, der den Namen eines mitgelieferten Flows trägt, solange `[flow] overrides` ihn nicht nennt: `.loomux/flows/<name> is ignored: [flow] overrides does not name it`. Ein `.loomux/flows`, das sich nicht auflisten lässt, bekommt `.loomux/flows cannot be read as a folder of flows: …`, mit den Worten, mit denen `loomux flow` warnt.
   - Liest außerdem `<Zustandsverzeichnis>/update.json` und warnt, wenn unter Windows ein Durchlauf von `serve` ein anderes Binary als `<Zustandsverzeichnis>/bin/loomux.exe` als sein eigenes verzeichnet hat, oder wenn der letzte Self-Update-Durchlauf gescheitert ist, gleich wer ihn fuhr.
+  - Nennt beim ersten Start einer Sitzung die Lanes in Probe aus `.loomux/armed.toml` (je eine Kontextzeile) und den Bericht, den der Stop-Hook zuletzt für diesen `HEAD` unter den jetzt scharfen Lanes gemerkt hat, auf 40 Zeilen gekürzt. Eine Datei, die sich nicht lesen lässt, ist eine Zeile `loomux: <fehler>`.
   - Legt keine Worktree-Junctions an; das tut `loomux worktree link`. Siehe [Hooks](hooks.md#8-sitzungshooks).
 - **Exit-Codes**: `0` (Erfolg), `1` (fehlender oder unbekannter Host, kein Adapter für den Host, unlesbare Nutzlast, gescheitertes Schreiben).
 
@@ -421,9 +443,9 @@ Das Tor am Rundenende: stellt zu, was Subagenten hinterlassen haben, und fährt 
 
 - **Flags**: `--host <h>` (Pflicht; `claude` und `antigravity` haben Adapter), `--root <r>`, `--budget <dauer>` — wie lange die Lanes zusammen dauern dürfen (Go-Dauer, Vorgabe `270s`, unter den 300 s, die sein Settings-Eintrag gewährt). Jeder Befehl bekommt das Kleinere aus seinem eigenen `timeout` und dem Rest des Budgets.
 - **Standard-Input (stdin)**: die `Stop`-Nutzlast des Hosts; gelesen wird nur `session_id`.
-- **Verhalten**: in dieser Reihenfolge — die Befunde der Subagenten auf `stderr`, der Blockzähler (nach 3 Blockaden in Folge gibt er für eine Runde auf und lässt die Befunde für die nächste liegen), der Marker `.loomux/no-verify` (er überspringt die Kette, nicht die Befunde), die Konfiguration und ihr Profil `stop` (ein `[verify]`, das sich nicht lesen lässt, beendet das Tor mit Exit 1, der nichts anhält), der Fingerabdruck des Inhalts (nichts Neues seit dem letzten grünen Lauf oder der Basis: kein Werkzeug startet; mit einer Graph-Lane nur unter demselben `HEAD`), dann die Arten des Profils `stop` (vorgegeben `lint`, `types`, `test`, `coverage`, `graph`; die Lane `graph` liest eine Kopie des Index, die den ganzen Baum trägt, und urteilt über die Runde gegen `HEAD`) im Check-Scope, dazu `lint/wiki`, wo `lint` angefragt ist und es ein Wiki gibt. Ein grüner Lauf rückt `base` auf `HEAD` vor und merkt sich den Baum. Siehe [Hooks](hooks.md#stop).
-- **Standard-Fehler (stderr)**: zugestellte Befunde als `subagent <agent_id>: <zeile>`, danach nur die roten Lanes, im Format von `loomux check`.
-- **Exit-Codes**: `0` (die Runde endet: grün, nichts Neues, der Marker, oder der Zähler hat aufgegeben), `2` (die Runde wird angehalten: eine rote Lane, ein Git-Fehler, oder zugestellte Befunde — mit Befunden wird selbst ein Exit 1 zu 2), `1` (das Tor konnte nicht urteilen: eine unlesbare Nutzlast oder eine ohne `session_id`, das Budget war aufgebraucht, eine angefragte Art hatte nichts, was lief, `[verify]` lässt sich nicht laden — die Konfiguration wird vor dem Baum gelesen, daher endet das mit 1, auch wenn der Baum schon als grün bekannt war —, der Plan scheitert, das Coverage-Verzeichnis lässt sich nicht vorbereiten (`verify.PrepareCover`), oder ein fehlerhafter Aufruf; die Runde endet).
+- **Verhalten**: in dieser Reihenfolge — die Befunde der Subagenten auf `stderr`, der Blockzähler (nach 3 Blockaden in Folge gibt er für eine Runde auf und lässt die Befunde für die nächste liegen), der Marker `.loomux/no-verify` (er überspringt die Kette, nicht die Befunde), die Konfiguration und ihr Profil `stop` (ein `[verify]`, das sich nicht lesen lässt, beendet das Tor mit Exit 1, der nichts anhält), der Fingerabdruck des Inhalts (nichts Neues seit dem letzten grünen Lauf oder der Basis: kein Werkzeug startet; mit einer Graph-Lane nur unter demselben `HEAD`), dann die Arten des Profils `stop` (vorgegeben `lint`, `types`, `test`, `coverage`, `graph`; die Lane `graph` liest eine Kopie des Index, die den ganzen Baum trägt, und urteilt über die Runde gegen `HEAD`) im Check-Scope, dazu `lint/wiki`, wo `lint` angefragt ist und es ein Wiki gibt. Ein grüner Lauf rückt `base` auf `HEAD` vor und merkt sich den Baum. Ein Lauf, der nur in Lanes in Probe rot ist, lässt `base` stehen und merkt sich seinen Baum, `HEAD`, die scharfen Lanes und seinen Bericht; ein späteres Rundenende über denselben Baum, unter demselben `HEAD` und mit denselben scharfen Lanes startet kein Werkzeug und sagt diesen Bericht noch einmal. Siehe [Hooks](hooks.md#stop).
+- **Standard-Fehler (stderr)**: zugestellte Befunde als `subagent <agent_id>: <zeile>`, danach nur die roten Lanes, im Format von `loomux check`. Bei Exit 0 mit einer roten Lane in Probe der Bericht dieser Lanes, der mit der Zeile `probation: <schlüssel>` endet; `stderr` zeigt bei Exit 0 kein Host, darum gibt ihn die nächste Sitzungseröffnung weiter.
+- **Exit-Codes**: `0` (die Runde endet: grün, nur in Lanes in Probe rot, nichts Neues, der Marker, oder der Zähler hat aufgegeben), `2` (die Runde wird angehalten: eine scharfe rote Lane, ein Git-Fehler, oder zugestellte Befunde — mit Befunden wird selbst ein Exit 1 zu 2), `1` (das Tor konnte nicht urteilen: eine unlesbare Nutzlast oder eine ohne `session_id`, das Budget war aufgebraucht, eine angefragte Art hatte nichts, was lief, `[verify]` lässt sich nicht laden — die Konfiguration wird vor dem Baum gelesen, daher endet das mit 1, auch wenn der Baum schon als grün bekannt war —, der Plan scheitert, das Coverage-Verzeichnis lässt sich nicht vorbereiten (`verify.PrepareCover`), oder ein fehlerhafter Aufruf; die Runde endet).
 
 ### `loomux hook subagent-start`
 Hält fest, wo `origin`, die lokalen Branches und `HEAD` stehen, bevor ein Subagent läuft.
@@ -456,6 +478,7 @@ loomux status
   - Pfad der Projektwurzel, erkannte Stacks und ob das Wiki-Bündel aktiv ist (mit seinem Verzeichnis).
   - Die Lanes, die der post-edit-Hook je aktivem Stack fährt: das Profil `edit`, wie `[verify]` und die Presets es auslegen, jede mit ihrer Herkunft, und welche ihrer Werkzeuge auf dem `PATH` fehlen.
   - Den einzutragenden `Stop`-Eintrag (`loomux hook stop`, Profil `stop`, das Wiki-Bündel als `lint/wiki`), und für jedes der sechs Ereignisse `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, `SubagentStart` und `SubagentStop`, ob `.claude/settings.json` seinen `loomux hook` ruft (`[OK]`) oder nicht (`[INFO]`), dazu Alt-Hooks, die er ersetzt.
+  - Einen Abschnitt „Lane Probation“, wenn das Projekt `.loomux/armed.toml` hat: jede Lane als `[ARMED]` oder `[PROBATION]`, einen Eintrag, dem keine Lane antwortet, als `[ORPHAN]`, ein `[WARN]` für einen pre-commit-Hook, der keine Lanes scharf stellt, und eines, wenn es gar keinen pre-commit-Hook gibt (beide mit dem Hinweis, dort `loomux check precommit --arm` zu rufen oder von Hand mit `loomux gate arm` scharf zu stellen), und ein `[WARN]`, wenn git die Datei ignoriert. Eine Datei, die sich nicht lesen lässt, ist ein `[WARN]` mit ihrem Grund. Ohne die Datei fehlt der Abschnitt.
 - **Exit-Codes**: `0` (Bericht ausgegeben, auch wenn er einen Konfigurationsfehler nennt), `1` (unbekanntes Flag).
 
 ---
@@ -1132,12 +1155,12 @@ Schreibt das `apply.sh` eines Projekts: ein POSIX-`sh`-Skript für Git Bash, das
   - `old_hooks`: die Texte, an denen ein alter Hook-Befehl zu erkennen ist, für `prune-hooks`; keiner darf `|` enthalten.
   - `init_args`: Modulwahlen, die `init` hinter `--yes` bekommt, jede in der Form `--hooks|brain|graph=all|each|none` (`--brain=none` für ein Projekt, dessen Wiki in einem anderen Bereich liegt); alles andere wird abgelehnt.
   - Kein Wert darf einen Zeilenumbruch enthalten; ein CR fällt weg.
-- **Das Skript**: `sh apply.sh --check` zeigt, was es täte (`would run: …`), und schreibt nichts; `sh apply.sh` tut es. Jedes andere Argument wird mit Exit `2` abgelehnt. Es gibt je Schritt eine Zeile aus (`registry:`, `wiki:`, `config:`, `init:`, `hooks:`, `files:`, `vault:`, `state:`), mit `already` oder `kept`, wo nichts zu tun ist, und endet mit `done: <projekt>`. Wo ein Mensch entscheiden muss, hält es mit `abort: <grund>` auf `stderr` und Exit `3`; ein Befehl, der sonst scheitert, beendet es mit dessen Code. Es stellt `/usr/bin` an den Anfang von `PATH`, weil sonst `find` und `sort` von Windows antworten würden. Der Reihe nach:
+- **Das Skript**: `sh apply.sh --check` zeigt, was es täte (`would run: …`), und schreibt nichts; `sh apply.sh` tut es. Jedes andere Argument wird mit Exit `2` abgelehnt. Es gibt je Schritt eine Zeile aus (`registry:`, `wiki:`, `config:`, `probation:`, `init:`, `hooks:`, `files:`, `vault:`, `state:`), mit `already` oder `kept`, wo nichts zu tun ist, und endet mit `done: <projekt>`. Wo ein Mensch entscheiden muss, hält es mit `abort: <grund>` auf `stderr` und Exit `3`; ein Befehl, der sonst scheitert, beendet es mit dessen Code. Es stellt `/usr/bin` an den Anfang von `PATH`, weil sonst `find` und `sort` von Windows antworten würden. Der Reihe nach:
   1. Es hält vor jeder Schreibaktion, wenn das Projekt kein Repository ist oder ungesicherte Änderungen hat; mit `vault_old`, wenn der Vault ungesicherte Änderungen, keinen Commit oder keinen Remote hat, oder wenn git unter `vault_old` in dieser Schreibweise nichts verfolgt, in anderer Groß-/Kleinschreibung aber schon (so schreiben, wie git es tut); wenn `loomux`, `config_new` (außer das Projekt hat schon eine Konfiguration) oder `registry_new` fehlt; mit `old_hooks`, wenn `loomux` `dev switchover prune-hooks` nicht kennt (ein Binary, älter als diese Befehle; auch `--check` fragt es).
   2. Es legt jede Quelle des Wikis, die eine Datei enthält, über `<wiki_dst>.staging`, vom Ordner des Vaults nur die Dateien, die git verfolgt, und vergleicht: eine Datei, die in `wiki_dst` schon liegt und abweicht, hält es an, mit einer Zeile `differs: ./<datei>` je solcher Datei auf `stderr`; eine Quelle, die sich nicht ins Staging legen lässt, hält es ebenso an. Das Staging-Verzeichnis wird entfernt, wie auch immer das Skript endet, auch wenn es angehalten wird (Exit `130`). Ist keine Quelle mit einer Datei mehr da, gilt das Wiki als umgezogen, wenn `wiki_dst` existiert; sonst hält es. `--check` legt kein Staging-Verzeichnis an und vergleicht nichts; eine abweichende Datei hält also erst den echten Lauf an.
   3. Es ersetzt die Registry nur, wenn die lebende noch `registry_sum` hat, über eine neue Datei, die ihren Namen übernimmt, damit eine Sitzung, die sie liest, die alte oder die neue ganz sieht. Die erste Ersetzung behält die alte als `<registry>.bak`; eine spätere lässt diese Sicherung stehen (`registry: backup kept`). Eine Registry, die `registry_new` gleicht, gilt als ersetzt, eine mit anderer Prüfsumme hält es an.
   4. Es kopiert die Dateien, die in `wiki_dst` fehlen, und vergleicht danach jede Datei des Zusammenlegens mit ihrer Kopie; die vorhandenen bleiben unberührt.
-  5. Es kopiert `config_new` nach `.loomux/config.toml`, nie über eine vorhandene.
+  5. Es kopiert `config_new` nach `.loomux/config.toml`, nie über eine vorhandene. Wo es die Konfiguration schreibt, legt es vorher eine leere `.loomux/armed.toml` an, damit keine Lane eines Projekts, das nie eine hatte, das Tor scheitern lässt, bevor ein grüner Commit sie scharf stellt, und druckt `probation: started, .loomux/armed.toml written` (`--check`: `probation: would be started, …`). Eine `.loomux/armed.toml`, die schon steht — ein Projekt, das `init` eingerichtet hat, oder ein Lauf, der nach dieser Datei angehalten wurde —, bleibt, wie sie ist, mit `probation: kept, .loomux/armed.toml stands` (`--check`: `probation: would be kept, …`). Eine vorhandene Konfiguration bekommt weder die Datei noch die Zeile. `init` läuft nach diesem Schritt, findet die Konfiguration vor und beginnt keine eigene Schonfrist.
   6. Es ruft `<loomux> init --yes [init_args] --root <projekt>` (`init: ran (idempotent)`), dann `<loomux> dev switchover prune-hooks` mit einem `--match` je Eintrag von `old_hooks` auf der `.claude/settings.json` des Projekts, gibt dessen Ausgabe weiter und `hooks: already pruned`, wenn keine Gruppe ging, dann entfernt es die vorhandenen `old_files`.
   7. Nach bestandenem Zusammenlegen entfernt es `vault_old` mit `git rm` und einem Commit aus dem Vault; dann benennt es `state_area` um, außer `<state_area>.alt` existiert.
   Ist das Projekt committet, ändert ein zweiter Lauf nichts; vor diesem Commit hält er in Schritt 1 (Exit `3`), weil der erste Lauf Änderungen im Projekt hinterlassen hat.
@@ -1484,13 +1507,13 @@ ersetzt, und `project/root`, wo vom Namen nichts bleibt.
 | Modul | Teil | Was er tut | Vorgabe |
 |---|---|---|---|
 | base | `binary` | das Binary, das die Einträge rufen: `binary-install` legt das neueste Release nach `${LOCALAPPDATA}/loomux/bin/loomux.exe` (über `gh`, geprüft gegen `SHA256SUMS` und sein `--version`); in einem Checkout von loomux baut `binary-build` `bin/loomux.exe` | an |
-| base | `config` | `.loomux/config.toml`: `[modules]`, wo ein Modul aus ist, `[commit] language`, wo sie nicht `en` ist, und die noch fehlenden Policy-Regeln der erkannten Stacks; `[verify]` bleibt den Presets. Der Text muss die eigenen Leser der Konfiguration bestehen | an |
+| base | `config` | `.loomux/config.toml`: `[modules]`, wo ein Modul aus ist, `[commit] language`, wo sie nicht `en` ist, und die noch fehlenden Policy-Regeln der erkannten Stacks; `[verify]` bleibt den Presets. Der Text muss die eigenen Leser der Konfiguration bestehen. Dazu eine leere `.loomux/armed.toml`, nur wo vor dem Lauf weder sie noch eine Konfiguration noch ein pre-commit-Hook von loomux stand (siehe unten) | an |
 | base | `gitignore` | `.gitignore`: `/.loomux/state/` | an |
 | base | `agents-md` | `AGENTS.md`, nur wenn das Projekt keine hat | an, aus in einem Checkout |
 | base | `mcp-json` | `.mcp.json` mit dem Server `loomux` (siehe [Die `.mcp.json` eines Wirts](#die-mcpjson-eines-wirts)) | an, aus in einem Checkout |
 | base | `tools` | sucht `git`, `qmd`, `pdftotext`, `yt-dlp` und `ollama` auf dem `PATH` und nennt für ein fehlendes den Installationsbefehl; installiert nichts | an |
 | hooks | `host-entries` | die Hook-Einträge jedes Wirts (`.claude/settings.json`, bei Antigravity `.agents/hooks.json`) | an |
-| hooks | `git-hooks` | `pre-commit`, `pre-push` (verweigert einen Push nach `main` oder `master`) und `commit-msg` unter `.githooks`, dazu `git config core.hooksPath .githooks` | an in einem Repository |
+| hooks | `git-hooks` | `pre-commit` (er fährt `check precommit --arm`), `pre-push` (verweigert einen Push nach `main` oder `master`) und `commit-msg` unter `.githooks`, dazu `git config core.hooksPath .githooks` | an in einem Repository |
 | hooks | `verify-skill` | der Skill `verify-until-green` | an, aus in einem Checkout |
 | brain | `area` | `loomux area add --scope <scope>`, ohne `--wiki`, also mit dem vorgegebenen Wiki von area add | an, aus in einem Checkout oder bei einem schon erklärten oder registrierten Bereich |
 | brain | `merge-hook` | der post-merge-Hook von `loomux merge-hook install`, nur für die Bereiche an dieser Wurzel: Ein veralteter Bereich oder ein fremder Hook anderswo in der Registry hält `init` nicht auf. Geplant nur, wenn hier ein Bereich der Registry dieses Rechners steht und die Erklärung hier `[maintenance] on_merge = true` sagt, oder wenn `area` im selben Lauf in einem Projekt ohne `.loomux/config.toml` läuft (area add schreibt die Zustimmung nur in eine neue), und nur, wo `${LOCALAPPDATA}/loomux/bin/loomux.exe`, das der Hook ruft, installiert ist oder `binary-install` läuft, auch in einem Checkout; ohne eine Zeile für diese Wurzel scheitert die Handlung | an in einem Repository, aus in einem Checkout |
@@ -1517,6 +1540,24 @@ durch einen Menschen am 2026-09-28 baute das Binary, setzte
   Kopie nach `.loomux/state/backup/<pfad>.bak` — außer
   `.loomux/config.toml`, die im Ganzen ersetzt wird, sobald ihre Leser den
   neuen Text annehmen.
+- **Schonfrist je Lane.** `init` schreibt eine leere `.loomux/armed.toml` nur,
+  wo vor dem Lauf weder diese Datei noch `.loomux/config.toml` noch ein
+  pre-commit-Hook von loomux stand und der Teil `config` gewählt ist: Keine
+  Lane eines Projekts, in dem loomux nie eingerichtet war, lässt das Tor
+  scheitern, bevor ein grüner Commit sie scharf stellt. Ein Projekt, das schon
+  eingerichtet ist, bekommt die Schonfrist nur durch `loomux gate disarm
+  --all`, von einem Menschen ausgeführt; `init` legt dort nichts an, auch
+  nicht, wenn es den Hook erneuert. Der pre-commit-Hook, den es schreibt, fährt
+  `exec "<binary>" check precommit --arm`. Den eigenen älteren pre-commit-Hook
+  (Shebang, Markerzeile und der eine Aufruf `check precommit`, sonst nichts)
+  ersetzt es durch den heutigen, mit einer Kopie unter
+  `.loomux/state/backup/`. Eine Datei, die `init` ersetzt, behält ihre
+  Rechtebits, und ein Skript bekommt nur das Ausführungsbit dazu, damit der
+  Hook ausführbar bleibt. Ein pre-commit-Hook des Projekts bleibt, wie er ist;
+  hat das Projekt die Datei oder bekommt es sie in diesem Lauf und stellt
+  dieser Hook nichts scharf, nennt ihn eine Notiz mit dem Hinweis, dort
+  `loomux check precommit --arm` zu rufen oder von Hand mit `loomux gate arm`
+  scharf zu stellen.
 - **Einträge rufen das Binary an seinem Ort**: Die Einträge von Claude Code
   rufen in einem Wirtsprojekt `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`, in
   einem Checkout `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"`; die Git-Hooks
@@ -1864,4 +1905,71 @@ ship     project  ok
   has`).
 - **Exit** `0`; `1` nach der Liste, wenn `[flow] default` keinen Flow nennt.
 
+---
+
+## 13. Das Tor (`loomux gate`)
+
+Was ein Mensch dazu sagt, welche Lanes das Tor scheitern lassen: die Befehle
+für [`.loomux/armed.toml`](configuration.md#schonfrist-je-lane-loomuxarmedtoml).
+Eine eigene Gruppe und nicht unter `check`, wo jedes erste Wort ein Profil oder
+eine Art ist. Eine Lane heißt nach ihrem Schlüssel, `<art>/<stack>@<bereich>`,
+mit `/` geschrieben (`lint/go@sub/dir`, `lint/go@.` für die Wurzel); ein mit
+`\` getippter Schlüssel wird mit `/` gelesen. Jeder Befehl nimmt `--root
+<ordner>`, das Projekt. Ohne Angabe wird es aufwärts vom Arbeitsverzeichnis
+gesucht: das Verzeichnis mit `.loomux/config.toml`, zuerst und ohne Grenze
+gesucht, wie `check` es sucht; sonst das nächste mit `.loomux/armed.toml`,
+eine Suche, die an der obersten Ebene des git-Repositorys endet; sonst diese
+oberste Ebene. Außerhalb eines Repositorys gibt es keine Suche nach
+`.loomux/armed.toml`, und ohne Konfiguration ist das Arbeitsverzeichnis das
+Projekt. So findet sich ein Projekt in Probe ohne Konfiguration aus jedem
+seiner Unterverzeichnisse, und die Datei wird dort nie daneben geschrieben. Ein Agent führt nur `loomux gate status` aus: Der
+Wächter verweigert `arm` und `disarm` einem Agenten.
+
+### `loomux gate status [--root <ordner>]`
+Druckt jede Lane des Tors des Projekts und jeden Eintrag, dem keine Lane
+antwortet, je eine Zeile `<schlüssel>: <zustand>`, nach Schlüssel sortiert; der
+Zustand ist `armed`, `probation` oder `orphan` (ein Eintrag, dessen Stack
+wegfiel oder dessen Bereich umbenannt wurde). Die Lanes sind die, die ein
+Profil fahren kann: Eine Lane ohne etwas zu prüfen (`not-applicable`,
+`unavailable`) steht nicht dort, `missing-tool` und `unready` schon.
+
+- **Die drei Zustände der Datei.** Ohne sie druckt der Befehl `no
+  .loomux/armed.toml: every lane is armed` und plant keine Lane. Mit ihr die
+  Liste unten. Eine Datei, die sich nicht lesen lässt, ist ein Fehler (Exit
+  `1`), der sagt, warum und dass jede Lane scharf ist.
+- **Eine Datei, die git ignoriert,** steht in der Liste, wie sie ist, und
+  `stderr` warnt, dass sie keinen Commit erreicht und nur auf diesem Rechner
+  gilt.
+
+```text
+$ loomux gate status
+coverage/go@.: probation
+coverage/python@web: probation
+lint/go@.: armed
+lint/python@web: probation
+lint/typescript@old: orphan
+test/go@.: probation
+test/python@web: probation
+types/python@web: probation
+```
+
+### `loomux gate arm <lane>... [--root <ordner>]`
+Trägt die Lanes in die Datei ein, auch eine rote: Von nun an zählen sie. Es
+druckt `armed: <schlüssel>`. Ein Schlüssel, dem keine Lane antwortet, ist
+zuerst ein Fehler, mit der Datei und ohne sie, und nichts wird geschrieben.
+Ohne die Datei wird ebenfalls nichts geschrieben, weil ohnehin jede Lane scharf
+ist: Der Befehl druckt die Zeile `no .loomux/armed.toml: every lane is armed`.
+
+### `loomux gate disarm <lane>...|--all [--root <ordner>]`
+Nimmt Einträge aus der Datei, auch einen verwaisten, und druckt `probation:
+<schlüssel>`; einen Schlüssel, den die Datei nicht hielt, nennt es `<schlüssel>:
+was not armed`. Ohne die Datei legt es eine an, die jede andere Lane als scharf
+nennt (ein Schlüssel, der keine Lane ist, ist zuerst ein Fehler). `--all`
+legt die Datei ohne Eintrag an oder leert sie und druckt `probation: every
+lane`: **der Weg, einem schon eingerichteten Projekt die Schonfrist zu geben.**
+
+- **Exit-Codes**: `0`; `1` für eine Datei oder Lanes, die sich nicht lesen oder
+  schreiben lassen, und für einen unbekannten Schlüssel; `2` für einen
+  falschen Aufruf (kein Unterbefehl, ein unbekannter, `arm` ohne Lane,
+  `disarm` ohne Lane und ohne `--all` oder mit beidem).
 

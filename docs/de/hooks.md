@@ -41,16 +41,16 @@ sequenceDiagram
     Post->>Post: Lanes des Profils edit über die geänderte Datei fahren (Budget 50 s)
     Post->>Post: Blast-Monitor: direkte Aufrufer geänderter Go-Symbole, nur wenn keine Lane rot ist (Abschnitt 5)
     Post--)Journal: Geplant (W1): Ereignis anhängen
-    Post-->>Host: Exit 0, oder Exit 2, wenn eine Lane scheitert (Abschnitt 5)
+    Post-->>Host: Exit 0, oder Exit 2, wenn eine scharfe Lane scheitert; eine Lane in Probe nie (Abschnitt 5)
     end
 
     rect rgb(245, 255, 245)
     Note over Host,Stop: Phase 3: Rundenende-Verifikation (Abschnitt 8)
     Host->>Stop: Runde beendet (stdin)
     Stop->>Stop: Befunde der Subagenten zustellen, dann das Profil stop über das Geänderte fahren
-    alt Eine Lane rot, oder Befunde von Subagenten zugestellt
+    alt Eine scharfe Lane rot, oder Befunde von Subagenten zugestellt
         Stop-->>Host: Exit 2 + rote Lanes und Befunde auf stderr (Runde anhalten)
-    else Nichts Neues, oder alle Lanes grün
+    else Nichts Neues, alle Lanes grün, oder nur Lanes in Probe rot
         Stop-->>Host: Exit 0 (Runde endet)
     else Das Tor konnte nicht urteilen (Budget aufgebraucht, nichts geprüft, Ladefehler)
         Stop-->>Host: Exit 1 (Runde endet, Grund auf stderr)
@@ -198,7 +198,15 @@ und `[verify]`, wie die
 beschreibt; hat eine Lane eine `on_file`-Form, läuft diese, sonst ihre
 `commands`. Die Lanes laufen nebeneinander, jeder Befehl als argv ohne Shell.
 Eine scheiternde Lane beendet den Hook mit Exit 2 und ihrer Ausgabe auf
-stderr.
+stderr, es sei denn, die Lane ist in Probe (unten).
+
+Mit einer `.loomux/armed.toml` (siehe
+[Konfiguration](configuration.md#schonfrist-je-lane-loomuxarmedtoml)) hält
+eine rote Lane in Probe die Bearbeitung nicht an: Der Hook endet mit Exit 0.
+Ihr Befund, mit `(probation)` gekennzeichnet, geht über den Kontextkanal des
+Wirts an den Agenten — bei Claude Code `hookSpecificOutput.additionalContext`,
+bei Antigravity `injectSteps` —, weil bei Exit 0 niemand `stderr` liest. Eine
+scharfe rote Lane blockiert wie bisher.
 
 Die Presets, wie `loomux status` sie auflistet (`{file}` ist die bearbeitete
 Datei, relativ zu ihrem Bereich):
@@ -287,7 +295,7 @@ Graphen:
   Symbol geändert hat (auch bei schon frischem Graphen) und wenn die einzigen
   Aufrufer in der bearbeiteten Datei selbst liegen. Er endet nie mit Exit 1
   und blockiert nie; weder die Frischeprobe noch `graph check` läuft im Hook.
-- **Eine rote Lane geht vor.** Ist eine Lane des Aufrufs rot, in welcher
+- **Eine rote Lane geht vor.** Ist eine scharfe Lane des Aufrufs rot, in welcher
   seiner Dateien auch immer, endet der Hook mit Exit 2 und dem Befund auf
   `stderr` und schreibt nichts auf `stdout`, auch nicht den Blast-Kontext
   einer grünen Datei: der Befund ist wichtiger, und ein Host liest bei Exit 2
@@ -468,12 +476,20 @@ Die eingebauten Regeln (`internal/hooks/guard.go`):
 |---|---|---|
 | Pfad | zehn Geheimnismuster, darunter `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `credentials.json` und `.aws/**` | secrets are not written by an agent |
 | Pfad | `**/.loomux/config.toml` | .loomux/config.toml: the manifest is where the barrier reads its own limits, so no agent may write it |
+| Pfad | `**/.loomux/armed.toml` | .loomux/armed.toml: which lanes fail the gate is a human's decision; an agent arms a lane only through a green `loomux check precommit --arm` |
 | Pfad | `.loomux/no-verify`, `**/.loomux/state/hooks/**` | the stop gate's own controls are not written by the party it gates |
 | Pfad | `**/.loomux/state/runs/**`, Journale und Marken der [Flow-Läufe](flows.md#2-einen-flow-fahren) | a flow's journal and marker are written by loomux, not by the party the gates ask |
 | Pfad | `.loomux/flows/<name>/` unter jedem Ordner und alles darin, für jeden Flow im Katalog dieses Binarys und jeden Namen in `[flow] overrides`; jeder `.loomux/flows`-Ordner in einem Pfad zählt, auch ein verschachtelter; ein Flow unter eigenem Namen bleibt frei | a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `<name>` |
 | Pfad | sieben Lockdateien, darunter `go.sum`, `package-lock.json` und `Cargo.lock` | lock files are written by their package manager, not by hand |
 | Befehl | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
 | Befehl | `loomux flow resume … --answer` in jeder Schreibweise, die die Regel für `loomux config` liest (ein Pfad zum Binary, Anführungszeichen, verkettete Befehle, `--answer text`, `--answer=text`), und jedes `Start-Process` von loomux, dessen Argumente der Wächter nicht sieht | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
+| Befehl | `loomux gate` mit jedem Unterbefehl außer `status`, in denselben Schreibweisen | loomux gate arm and disarm decide which lanes fail the gate; a human runs them, and an agent arms a lane only through a green `loomux check precommit --arm`. `loomux gate status` shows the lanes |
+
+**Die scharfen Lanes haben benannte Lücken**, die sie mit dem Manifest teilen
+und die nicht geschlossen sind: `git checkout <rev> -- .loomux`,
+`git checkout <rev> -- .`, `git restore -s <rev> .`, `git stash`,
+`git reset --hard` und `git switch` gehen durch und können Lanes entschärfen. Die Ablehnung von `rm -rf .loomux` nennt
+wegen der Datei einen Grund mehr, auch in einem Projekt ohne sie.
 
 **Die eingebauten Pfadregeln treffen in jeder Schreibweise**: Windows und
 macOS halten `.LOOMUX/State/Runs` und `.loomux/state/runs` als einen Ordner,
@@ -725,7 +741,7 @@ laufen:
 | `PostToolUse` | `post-tool-use` | 1a, läuft; Lanes aus `[verify]` seit 2a | Die Lanes aus Abschnitt 5 für die bearbeitete Datei |
 | `SubagentStart` | `subagent-start` | 2c, läuft | Wo `origin`, die lokalen Branches und `HEAD` vor einem Subagenten standen |
 | `SubagentStop` | `subagent-stop` | 2c, läuft | Jeden Ref von `origin` und jeden lokalen Branch, der sich bewegt hat, dazukam oder verschwand, und die Commits, die `HEAD` und die bewegten Branches gewonnen haben — geparkt für das `stop` des Hauptagenten |
-| `Stop` | `stop` | 2c, läuft | Ob alles seit dem letzten grünen Durchlauf grün ist — der einzige, der eine Runde anhalten kann |
+| `Stop` | `stop` | 2c, läuft | Ob alles seit dem letzten grünen Durchlauf grün ist — der einzige, der eine Runde anhalten kann, und nur für eine scharfe Lane (siehe [Konfiguration](configuration.md#schonfrist-je-lane-loomuxarmedtoml)) |
 
 `loomux hook` kennt sechs Ereignisse: `pre-tool-use`, `post-tool-use`,
 `session-start`, `stop`, `subagent-start` und `subagent-stop`; jeder andere
@@ -853,6 +869,14 @@ loomux hook session-start --host claude --root <projekt>   # Nutzlast auf stdin
   Eintrag gibt. Ein `.loomux/flows`, das sich nicht auflisten lässt, bekommt
   `.loomux/flows cannot be read as a folder of flows: …`, die Warnung, die
   `loomux flow` dafür gibt.
+- **Nennt die Lanes in Probe.** Eine Kontextzeile je Lane in der Probe von
+  `.loomux/armed.toml`, dazu der Bericht, den der Stop-Hook zuletzt für diesen
+  `HEAD` unter den jetzt scharfen Lanes gemerkt hat, auf 40 Zeilen gekürzt.
+  Nur beim ersten Start einer Sitzung, und nichts ohne die Datei oder ohne
+  Lane in Probe. Eine Datei, die sich nicht lesen lässt, ist eine Zeile
+  `loomux: <fehler>`, die sagt, dass jede Lane scharf ist. Das ist der
+  Kanal für das, was ein durchgehendes Rundenende sagt: `stderr` bei Exit 0
+  erreicht den Agenten nirgends.
 - **Exit 0 oder 1, nie 2.** Er ist eine Ankündigung und hat keine Runde
   anzuhalten. Ein fehlendes oder unbekanntes `--host`, ein stdin, das kein
   JSON-Objekt ist, und — ohne `--root` — keine `.loomux/config.toml` oberhalb
@@ -877,7 +901,9 @@ dieser Reihenfolge
    `.loomux/state/hooks/<session_id>/agents/` hinterlassen hat, geht zuerst
    auf stderr, jede Zeile mit dem Präfix `subagent <agent_id>: `.
    Zugestellte Befunde halten die Runde an (Exit 2) — siehe unten.
-3. **Zähler.** Nach **3 Blockaden in Folge** gibt das Tor für eine Runde auf:
+3. **Zähler.** Ein Rundenende, das durchgeht — ein grüner Durchgang oder eine
+   Kette, die nur in Lanes in Probe rot ist —, beendet eine Reihe von
+   Blockaden. Nach **3 Blockaden in Folge** gibt das Tor für eine Runde auf:
    `gave up after 3 consecutive blocks; base stays at <sha>. Fix the lanes or
    set .loomux/no-verify.`, der Zähler geht auf 0, Exit 0. Die in Schritt 2
    geschriebenen Befunde bleiben in ihren Dateien — stderr bei Exit 0 liest
@@ -925,7 +951,8 @@ Was der Lauf entscheidet:
 |---|---|---|---|
 | Nichts neu seit dem letzten grünen Lauf oder der Basis | 0 | auf 0 | unverändert |
 | Jede Lane grün | 0 | auf 0 | `base` = `HEAD`, `green` = der Baum |
-| Eine Lane rot (`failed`, `timed-out`, `blocked`, `missing-tool`, `unready`) | 2, die **roten** Lanes mit ihrer Ausgabe auf stderr | + 1 | unverändert |
+| Eine scharfe Lane rot (`failed`, `timed-out`, `blocked`, `missing-tool`, `unready`) | 2, die **roten** Lanes mit ihrer Ausgabe auf stderr | + 1 | unverändert |
+| Nur in Lanes in Probe rot | 0, der Bericht auf stderr (niemand liest ihn) | auf 0 | unverändert; der Stand bleibt in `seen` |
 | Ein Git-Befehl scheitert in einem Repo | 2, der Fehler auf stderr | + 1 | unverändert |
 | Das Budget war aufgebraucht, bevor jede Lane geurteilt hatte | 1: `not everything was verified; raise --budget or shrink the stop profile` | unverändert | unverändert |
 | Eine angefragte Art hatte keine Lane, die lief | 1: die Notizen, dann `nothing was verified for these kinds; the base stays` | unverändert | unverändert |
@@ -936,6 +963,17 @@ Tor konnte nicht urteilen — es lässt die Runde enden und sagt das. Nur rote
 Lanes kommen auf stderr; grüne sind im Kontext des Agenten Rauschen. Die
 Coverage-Dateien behandelt es wie `loomux check`: ein grüner Lauf löscht seine
 eigenen, ein roter lässt sie liegen, damit der Agent sie lesen kann.
+
+**Eine Kette, die nur in Lanes in Probe rot ist.** Die Runde endet mit 0, und
+der Blockzähler geht auf 0, weil das Rundenende durchging. `base` und `green`
+bleiben: Der Lauf ist nicht grün. Der Hook merkt sich Baum, `HEAD`, die
+scharfen Lanes und den Bericht in der Sitzungsdatei (`seen`); derselbe Baum
+unter demselben `HEAD`, mit denselben scharfen Lanes, startet kein Werkzeug
+und wiederholt den Bericht. Ein
+geänderter Baum, ein bewegter `HEAD` oder eine geänderte `armed.toml` (sie
+gehört zum Baum) lassen die Kette neu laufen. `stderr` bei Exit 0 erreicht den
+Agenten nicht; darum ist `session-start` der Kanal für das, was die Lanes in
+Probe gefunden haben.
 
 **Befunde halten die Runde an, und selbst eine 1 wird zur 2.** Die
 Befunddateien sind nach dem Zustellen weg; nur eine angehaltene Runde sorgt
@@ -951,7 +989,8 @@ jedem Rundenende wieder und hielte jedes an, und der Marker hilft nicht, weil
 er Befunde nicht überspringt. Also zählt er, und die Aufgeben-Regel beendet die
 Reihe wie die einer roten Kette: drei Runden angehalten, die vierte
 durchgelassen, mit dem Befund geschrieben und weiter auf der Platte. Solange
-ein Befund feststeckt, setzt auch eine grüne Kette den Zähler nicht zurück.
+ein Befund feststeckt, setzt auch eine grüne Kette, oder eine, die nur in
+Lanes in Probe rot ist, den Zähler nicht zurück.
 Ein Rundenende ist eine Blockade: eine rote Kette oder ein Git-Fehler neben
 einem feststeckenden Befund zählt nicht ein zweites Mal.
 
@@ -968,7 +1007,9 @@ Baum.
 
 **Kein Repo, oder eine Wurzel, die Git ignoriert:** es gibt keinen Baum zu
 messen, also läuft die Kette an jedem Rundenende, ohne Abkürzung. Ein grüner
-Lauf schreibt `base` und `green` dann leer.
+Lauf schreibt `base` und `green` dann leer; ein Lauf, der nur in Lanes in
+Probe rot ist, merkt sich nichts, weil es keinen Baum gibt, unter dem er sich
+merken ließe.
 
 **Was es kostet.** Ein Rundenende ohne neuen Inhalt braucht auf diesem
 Repository (15.138 Dateien) rund 237 ms warm, das meiste davon der
@@ -1059,7 +1100,12 @@ Eintrag vom 2026-09-20).
 ### Der Sitzungszustand
 
 Eine Datei je Sitzung unter `.loomux/state/hooks/` mit `base`, `blocks` und
-`green` — die letzten beiden schreibt nur `stop`. Daneben ein Verzeichnis
+`green` — die letzten beiden schreibt nur `stop` — und, nach einer Kette, die
+nur in Lanes in Probe rot war, `seen` mit fünf Feldern: `tree`, `head`,
+`armed` (die scharfen Lanes, unter denen die Kette lief), `report` und `at`.
+Die scharfen Lanes gehören dazu, weil ein Projekt, das `.loomux/` ignoriert,
+die `armed.toml` aus dem Baum hält: Eine von Hand scharf gestellte Lane
+ändert keinen Baum und muss den Stand darum selbst beenden. Daneben ein Verzeichnis
 `<session_id>/agents/` mit einer Datei je Subagent (`snapshot`, `finding`).
 Eine Datei aus der Zeit vor Stufe 2c liest sich weiter; ihr Schlüssel
 `snapshots` wird übergangen. Die Sitzungs-ID kommt von außen und darf nicht
@@ -1282,6 +1328,14 @@ Verweigert einen Commit auf `master`; verweigert, wenn eine Eingabe des Tors
 (`*.go`, `*.toml`, `go.mod`, `go.sum`, `testdata`, `.githooks`, `ci`,
 `.loomux`) vom Index abweicht oder unversioniert ist; fährt dann
 `sh ci/gate.sh` und baut `bin/loomux.exe` über `loomux dev swap-binary` neu.
+
+Der Hook, den `loomux init` in ein Wirtsprojekt schreibt, ist ein anderer,
+kürzerer: `exec "<binary>" check precommit --arm`. Die scharfen Lanes zu
+schreiben und die Datei zu stagen ist Sache des Befehls, nicht des Skripts,
+und ein Teilcommit stellt nichts scharf (siehe
+[Konfiguration](configuration.md#schonfrist-je-lane-loomuxarmedtoml)). Das
+`.githooks/pre-commit` und `ci/gate.sh` von loomux selbst sind unverändert:
+loomux hat keine `armed.toml`, also ist jede Lane seines Tors scharf.
 
 ### `.githooks/pre-push`
 Verweigert jeden Push, dessen Ziel `refs/heads/master` ist. `--no-verify`

@@ -41,16 +41,16 @@ sequenceDiagram
     Post->>Post: Run the edit profile's lanes on the edited file (budget 50 s)
     Post->>Post: Blast monitor: direct callers of changed Go symbols, only when no lane is red (section 5)
     Post--)Journal: Planned (W1): append event
-    Post-->>Host: Exit 0, or Exit 2 when a lane fails (section 5)
+    Post-->>Host: Exit 0, or Exit 2 when an armed lane fails; a lane in probation never does (section 5)
     end
 
     rect rgb(245, 255, 245)
     Note over Host,Stop: Phase 3: Turn Completion Verification (section 8)
     Host->>Stop: Turn Finished Payload (stdin)
     Stop->>Stop: Deliver subagent findings, then run the stop profile over what changed
-    alt A lane is red, or subagent findings were delivered
+    alt An armed lane is red, or subagent findings were delivered
         Stop-->>Host: Exit 2 + red lanes and findings on stderr (Halt turn)
-    else Nothing new, or all lanes pass
+    else Nothing new, all lanes pass, or only lanes in probation are red
         Stop-->>Host: Exit 0 (Turn ends)
     else The gate could not judge (budget spent, nothing checked, config error)
         Stop-->>Host: Exit 1 (Turn ends, reason on stderr)
@@ -194,7 +194,16 @@ marker files (`go.mod`, `pyproject.toml`, `Cargo.toml`, `project.godot`,
 [Configuration](configuration.md#verify-check-chains--quality-gates)
 describes; a lane's `on_file` form runs where it has one, else its `commands`.
 Lanes run side by side, each command as argv without a shell. A failing lane
-ends the hook with exit 2 and its output on stderr.
+ends the hook with exit 2 and its output on stderr, unless the lane is in
+probation (below).
+
+With a `.loomux/armed.toml` (see
+[Configuration](configuration.md#lane-probation-loomuxarmedtoml)) a red lane
+in probation does not hold the edit: the hook exits 0. Its finding, marked
+`(probation)`, goes to the agent through the host's context channel — for
+Claude Code `hookSpecificOutput.additionalContext`, for Antigravity
+`injectSteps` — because nobody reads `stderr` at exit 0. An armed red lane
+blocks as before.
 
 The presets, as `loomux status` lists them (`{file}` is the edited file,
 relative to its area):
@@ -276,7 +285,7 @@ same path:
   read or does not parse (an edit half done), when no symbol changed (also when the graph is already fresh), and
   when the only callers are in the edited file itself. It never exits 1 and
   never blocks; neither the freshness probe nor `graph check` runs in the hook.
-- **A red lane comes first.** When a lane of the call is red, in any of the
+- **A red lane comes first.** When an armed lane of the call is red, in any of the
   files it names, the hook exits 2 with the finding on `stderr` and writes
   nothing to `stdout`, the blast context of a green file included: the
   finding matters more, and a host reads only `stderr` at exit 2.
@@ -443,12 +452,21 @@ The built-in rules (`internal/hooks/guard.go`):
 |---|---|---|
 | Path | ten secret patterns, among them `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `credentials.json` and `.aws/**` | secrets are not written by an agent |
 | Path | `**/.loomux/config.toml` | .loomux/config.toml: the manifest is where the barrier reads its own limits, so no agent may write it |
+| Path | `**/.loomux/armed.toml` | .loomux/armed.toml: which lanes fail the gate is a human's decision; an agent arms a lane only through a green `loomux check precommit --arm` |
 | Path | `.loomux/no-verify`, `**/.loomux/state/hooks/**` | the stop gate's own controls are not written by the party it gates |
 | Path | `**/.loomux/state/runs/**`, the journals and markers of [flow runs](flows.md#2-running-a-flow) | a flow's journal and marker are written by loomux, not by the party the gates ask |
 | Path | `.loomux/flows/<name>/` under any directory and everything in it, for every flow of this binary's catalog and every name in `[flow] overrides`; every `.loomux/flows` folder in a path counts, a nested one too; a flow under a name of its own stays free | a bundled flow's gates and instructions are a human's to change; give your flow a name of its own, or ask the user to hide or overlay `<name>` |
 | Path | seven lock files, among them `go.sum`, `package-lock.json` and `Cargo.lock` | lock files are written by their package manager, not by hand |
 | Command | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
 | Command | `loomux flow resume … --answer` in every spelling the rule for `loomux config` reads (a path to the binary, quotes, chained commands, `--answer text`, `--answer=text`), and any `Start-Process` of loomux, whose arguments the guard cannot see | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
+| Command | `loomux gate` with any subcommand but `status`, in the same spellings | loomux gate arm and disarm decide which lanes fail the gate; a human runs them, and an agent arms a lane only through a green `loomux check precommit --arm`. `loomux gate status` shows the lanes |
+
+**The armed lanes have named gaps**, shared with the manifest and not closed:
+`git checkout <rev> -- .loomux`, `git checkout <rev> -- .`,
+`git restore -s <rev> .`, `git stash`, `git reset --hard` and `git switch`
+pass and can disarm lanes. The refusal of
+`rm -rf .loomux` names one reason more because of the file, in a project
+without it as well.
 
 **The built-in path rules match in any case**: Windows and macOS keep
 `.LOOMUX/State/Runs` and `.loomux/state/runs` as one folder, so the rule is
@@ -682,7 +700,7 @@ afterwards what happened. The design names five of them, and all five run:
 | `PostToolUse` | `post-tool-use` | 1a, runs; lanes from `[verify]` since 2a | The lanes of section 5 for the edited file |
 | `SubagentStart` | `subagent-start` | 2c, runs | Where `origin`, the local branches and `HEAD` stood before a subagent |
 | `SubagentStop` | `subagent-stop` | 2c, runs | Every ref of `origin` and every local branch that moved, appeared or vanished, and the commits `HEAD` and the moved branches gained — parked for the main agent's `stop` |
-| `Stop` | `stop` | 2c, runs | Whether everything since the last green pass is green — the only one that can hold a turn |
+| `Stop` | `stop` | 2c, runs | Whether everything since the last green pass is green — the only one that can hold a turn, and only for a lane that is armed (see [Configuration](configuration.md#lane-probation-loomuxarmedtoml)) |
 
 `loomux hook` knows six events: `pre-tool-use`, `post-tool-use`,
 `session-start`, `stop`, `subagent-start` and `subagent-stop`; any other name
@@ -805,6 +823,14 @@ loomux hook session-start --host claude --root <project>   # payload on stdin
   when such an entry exists. A `.loomux/flows` that cannot be listed gets
   `.loomux/flows cannot be read as a folder of flows: …`, the warning
   `loomux flow` gives for it.
+- **Names the lanes in probation.** One context line per lane in
+  `.loomux/armed.toml`'s probation, then the report the stop hook last kept
+  for this `HEAD` under the lanes armed now, cut to 40 lines. Only at the
+  first start of a session, and nothing without the file or without a lane
+  in probation. A file that does not read is one line `loomux: <error>`,
+  which says that every lane is armed. This is the
+  channel for what a turn end that goes through says: `stderr` at exit 0
+  reaches the agent nowhere.
 - **Exit 0 or 1, never 2.** It is an announcement and has no turn to hold. A
   missing or unknown `--host`, stdin that is no JSON object, and — without
   `--root` — no `.loomux/config.toml` above the working directory are exit 1.
@@ -827,7 +853,9 @@ this order
    `.loomux/state/hooks/<session_id>/agents/` goes to stderr first, each line
    prefixed `subagent <agent_id>: `. Delivered findings hold the turn
    (exit 2) — see below.
-3. **Counter.** After **3 blocks in a row** the gate gives up for one turn:
+3. **Counter.** A turn end that goes through — a green pass, or a chain red
+   only in lanes in probation — ends a row of blocks. After **3 blocks in a
+   row** the gate gives up for one turn:
    `gave up after 3 consecutive blocks; base stays at <sha>. Fix the lanes or
    set .loomux/no-verify.`, the counter goes back to 0, exit 0. The findings
    printed in step 2 stay in their files — stderr at exit 0 reaches nobody —
@@ -872,7 +900,8 @@ What the run decides:
 |---|---|---|---|
 | Nothing new since the last green run or the base | 0 | reset to 0 | unchanged |
 | Every lane green | 0 | reset to 0 | `base` = `HEAD`, `green` = the tree |
-| A lane red (`failed`, `timed-out`, `blocked`, `missing-tool`, `unready`) | 2, the **red** lanes and their output on stderr | + 1 | unchanged |
+| An armed lane red (`failed`, `timed-out`, `blocked`, `missing-tool`, `unready`) | 2, the **red** lanes and their output on stderr | + 1 | unchanged |
+| Red only in lanes in probation | 0, the report on stderr (nobody reads it) | reset to 0 | unchanged; the stand is kept in `seen` |
 | A git command fails in a repository | 2, the error on stderr | + 1 | unchanged |
 | The budget ran out before every lane was judged | 1: `not everything was verified; raise --budget or shrink the stop profile` | unchanged | unchanged |
 | A requested kind had no lane that ran | 1: the notes, then `nothing was verified for these kinds; the base stays` | unchanged | unchanged |
@@ -883,6 +912,16 @@ could not judge — it ends the turn and says so. Only red lanes reach stderr;
 green ones are noise in the agent's context. The coverage files are handled
 as by `loomux check`: a green run deletes its own, a red one keeps them for the
 agent to read.
+
+**A chain red only in lanes in probation.** The turn ends with 0, and the
+block counter goes back to 0, because the turn end went through. `base` and
+`green` stay: the run is not green. The hook remembers the tree, `HEAD`, the
+armed lanes and the report in the session file (`seen`); the same tree under
+the same `HEAD`, with the same lanes armed, starts no tool and repeats the
+report. A changed tree, a moved
+`HEAD` or a changed `armed.toml` (it belongs to the tree) run the chain again.
+`stderr` at exit 0 does not reach the agent, which is why `session-start` is
+the channel for what the lanes in probation found.
 
 **Findings hold the turn, and even a 1 becomes a 2.** The finding files are
 gone once delivered; only a held turn makes sure the main agent reads them. So
@@ -896,8 +935,8 @@ cannot be removed after delivery, it would arrive again at every turn end and
 hold every one, and the marker cannot help because it does not skip
 findings. So it counts, and the give-up rule ends the row as it ends a red
 chain's: three turns held, the fourth let go, with the finding printed and
-still on disk. A green chain does not reset the counter while a finding is
-stuck. One turn end is one block: a red chain or a git failure beside a stuck
+still on disk. A green chain, or one red only in lanes in probation, does not reset the
+counter while a finding is stuck. One turn end is one block: a red chain or a git failure beside a stuck
 finding does not count a second time.
 
 **Where the base comes from.** `session-start` writes it, once: a session
@@ -911,7 +950,8 @@ a new base. In a repository without a commit the base is the empty tree.
 
 **No repository, or a root git ignores:** there is no tree to measure, so the
 chain runs at every turn end, without a shortcut. A green run then writes
-`base` and `green` empty.
+`base` and `green` empty; a run red only in lanes in probation remembers
+nothing, there being no tree to remember it by.
 
 **What it costs.** A turn end with nothing new is about 237 ms warm on this
 repository (15,138 files), most of it the fingerprint, and about 20 ms more
@@ -996,7 +1036,12 @@ together 201.6 ms and 2,068.6 ms ([Benchmarks](benchmarks.md), entry of
 ### The session state
 
 One file per session under `.loomux/state/hooks/`, holding `base`, `blocks`
-and `green` — the last two written by `stop` alone. Beside it a directory
+and `green` — the last two written by `stop` alone — and, after a chain red only
+in lanes in probation, `seen` with five fields: `tree`, `head`, `armed` (the
+armed lanes the chain ran under), `report` and `at`. The armed lanes belong
+to it because a project that ignores `.loomux/` keeps `armed.toml` out of the
+tree: a lane armed by hand changes no tree and has to end the stand by itself.
+Beside it a directory
 `<session_id>/agents/` with one file per subagent (`snapshot`, `finding`). A
 file written before stage 2c still reads; its `snapshots` key is ignored. The
 session id comes from outside and may not decide where the file lands: only
@@ -1208,6 +1253,14 @@ Refuses a commit on `master`; refuses when a gate input (`*.go`, `*.toml`,
 `go.mod`, `go.sum`, `testdata`, `.githooks`, `ci`, `.loomux`) differs from the
 index or is untracked; then runs `sh ci/gate.sh` and rebuilds
 `bin/loomux.exe` through `loomux dev swap-binary`.
+
+The hook `loomux init` writes into a host project is a different, shorter
+one: `exec "<binary>" check precommit --arm`. Writing the armed lanes and
+staging the file is the command's work, not the script's, and a commit of
+paths arms nothing (see
+[Configuration](configuration.md#lane-probation-loomuxarmedtoml)). The
+`.githooks/pre-commit` and `ci/gate.sh` of loomux itself are unchanged:
+loomux has no `armed.toml`, so every lane of its gate is armed.
 
 ### `.githooks/pre-push`
 Refuses any push whose target is `refs/heads/master`. `--no-verify` skips it;

@@ -403,7 +403,8 @@ The commands run one after the other, and `blast-audit` runs even after a red
   exists, whether there is a `HEAD`, whether no merge, rebase, cherry-pick
   or revert is in progress, and whether the work differs from `HEAD`
   ("nothing changed against HEAD"). A red lane holds the turn (exit 2) like
-  any other. Without a graph no copy is kept and the lane is
+  any other, unless it is in probation (see [Lane
+  probation](#lane-probation-loomuxarmedtoml)). Without a graph no copy is kept and the lane is
   `not-applicable`. Because the lane judges against `HEAD`, a tree found
   green before counts as green again only under the same `HEAD`: after a
   commit inside the turn the chain runs again.
@@ -473,7 +474,7 @@ profile never walks the tree.
 | `failed` | exit ≠ 0, start error, output abandoned, coverage file missing | red | red, exit 2 |
 | `timed-out` | its own `timeout` | red | red, exit 2 |
 | `budget` | the run's budget was spent | — | skipped, named |
-| `blocked` | the lane it waits for (`after`) is red | red | red, exit 2 |
+| `blocked` | the lane it waits for (`after`) is red; behind a lane in probation it is in probation itself | red, or in probation | red, exit 2, or in probation |
 | `missing-tool` | a tool is not on the `PATH` | red | skipped, named |
 | `unready` | Godot has not imported the project, or a file in `needs` is missing | red | skipped, named |
 | `unavailable` | the kind is defined but cannot run (no tests found) | neutral, counts as "nothing ran" | not shown |
@@ -488,9 +489,11 @@ profile never walks the tree.
   and the kind is `not-applicable` nowhere, the check prints
   ``nothing to check for `<kind>` `` and exits 1: a gate that checks nothing is
   not green. Otherwise exit 0 when no lane is red, 1 when one is. A load error
-  exits 1, a malformed call 2.
-- **Verdict of the post-edit hook:** a red lane exits 2 with its output on
-  `stderr`. A lane it skipped blocks nothing and is named on `stderr` as well,
+  exits 1, a malformed call 2. A red lane in probation fails nothing and
+  counts as not red here.
+- **Verdict of the post-edit hook:** an armed red lane exits 2 with its
+  output on `stderr`; a red lane in probation exits 0 and its finding goes
+  into the host's context with `(probation)`. A lane it skipped blocks nothing and is named on `stderr` as well,
   and at exit 0 in the host's context on `stdout`, for Claude Code
   `hookSpecificOutput.additionalContext`; under `--host antigravity` that
   `stdout` is not passed on, since whether agy reads a PostToolUse's context
@@ -498,14 +501,87 @@ profile never walks the tree.
   exits 0; under `--host codex` the call ends with 1 as soon as the payload
   names a file, since the Codex seam has no adapter.
 - **Verdict of the stop gate:** the profile `stop` in the check scope, so the
-  states read as in the `loomux check` column. A red lane exits 2 and holds the
-  turn, with only the red lanes on `stderr`; a lane the budget did not reach,
+  states read as in the `loomux check` column. An armed red lane exits 2 and
+  holds the turn, with only the red lanes on `stderr`; a chain red only in
+  lanes in probation lets the turn end with 0; a lane the budget did not reach,
   or a requested kind with nothing that ran, exits 1 — the gate could not
   judge, and the turn ends. See [Hooks](hooks.md#stop).
 - **The marker `.loomux/no-verify`.** While it exists, the stop gate lets
   every turn end without running the chain. Findings of subagents are still
   delivered, and still hold the turn. A human creates and removes it; the policy refuses the path to
   an agent.
+
+### Lane probation: `.loomux/armed.toml`
+
+A lane that has never been green in a project warns instead of failing.
+`.loomux/armed.toml` names the lanes that are armed: a red run of one of them
+fails the gate. It is versioned, so every contributor and the CI read the same
+lanes.
+
+```toml
+# Lanes that are armed: a red run of one of them fails the gate.
+# Written by the pre-commit gate; a human edits it through `loomux gate`.
+armed = [
+  "lint/go@.",
+  "test/go@.",
+]
+```
+
+| The file | What it means |
+|---|---|
+| none | every lane is armed; every output reads as it did before the feature |
+| there | every lane it does not name is in probation, a lane that comes later included |
+| unreadable (no TOML, conflict markers, empty, an unknown key, the wrong type) | every lane is armed, and every run says so on `stderr` |
+
+- **The key** is `<kind>/<stack>@<area>`, the area with forward slashes and
+  `.` for the root. It always carries the area, unlike the name in a report:
+  `lint/go` turns into `lint/go@.` in the report as soon as a second area
+  joins, and the key stays `lint/go@.`. The project-wide lanes are
+  `lint/wiki@.` and `<kind>/project@.`. On the command line the same keys
+  are written with `/` (`lint/go@sub/dir`).
+- **In probation** means the lane runs and shows its findings, and fails
+  nothing. Only a red state carries `(probation)` (`lint/go: failed
+  (probation)`); a green or skipped one reads as before. `loomux check` and
+  the pre-commit gate end every run with a lane in probation with
+  `probation: <keys> (warn only until a green commit arms them)`. The stop
+  hook ends its report with that line only when a lane in probation is red;
+  the post-edit hook writes no such line and marks each red lane in
+  probation with `(probation)` instead. A lane that is `blocked` behind a
+  lane in probation is in probation itself and not red; behind an armed lane
+  it is red. Lanes with nothing to check (`not-applicable`, `unavailable`)
+  stand neither in that line nor in `loomux gate status`; `missing-tool` and
+  `unready` do. The probation holds alike for `loomux check`, the pre-commit
+  gate, the stop hook, the post-edit hook and the CI.
+- **A lane becomes armed** only through `loomux check precommit --arm`, and
+  only when the run as a whole ends green. The command writes the file and
+  puts it into the index of the commit itself; the hook `init` writes calls
+  it. A commit with `--no-verify`, a hook of your own without the call and
+  the CI arm nothing. By hand: `loomux gate arm`.
+- **A commit of paths arms nothing.** On `git commit <path>` and
+  `git commit --only <path>` the run neither arms, nor writes, and says
+  `not armed: this commit takes only some paths; the next whole commit arms
+  the lanes`. Git hands the hook an index there that does not become the real
+  one after the commit. A file staged into it would go into the commit, but
+  stand in the real index as a staged revert. `git commit`, `git commit -a`,
+  `--include` and `--amend` arm.
+- **Who creates the file.** `init` does, when before the run there was
+  neither `.loomux/config.toml`, nor `.loomux/armed.toml`, nor a pre-commit
+  hook of loomux (and the part `config` is chosen); the switchover script
+  does in its configuration step, and keeps a file that stands there
+  (`probation: kept, .loomux/armed.toml stands`). **A project in which loomux is set up
+  already, one with a configuration or the pre-commit hook of loomux, gets
+  the probation only through `loomux gate disarm --all`, run by a human.**
+  `init` creates nothing there, not even when it renews the hook.
+- **A merge conflict.** One key a line, sorted; keep both sides. While
+  conflict markers stand, the file counts as unreadable, so every lane is
+  armed. `merge=union` is not set, since it would bring back a line removed
+  with `gate disarm`.
+- **Two warnings.** The file must not be ignored (`init` ignores only
+  `/.loomux/state/`): if the project ignores `.loomux/` or the file, it never
+  reaches a commit and holds on this machine only; `loomux gate status` and
+  `loomux status` warn of it. An agent never writes the file: the guard
+  refuses it, and an agent arms a lane only through a green
+  `loomux check precommit --arm`.
 
 ---
 
@@ -865,7 +941,8 @@ default = "example"
 | Artefacts of a read-only area (`index.md`, `graph.json`, `_identities.tsv`) and its manifest, as `loomux brain` reads them | `<state directory>\areas\<scope>\`; falls back to `%LOCALAPPDATA%\brain\areas\<scope>\` for reading until stage 4e |
 | Artefacts of a writable area | its `path` |
 | Last reconcile stamp | `<state directory>\maintenance\last-run.txt`; falls back to `%LOCALAPPDATA%\brain\maintenance\last-run.txt` for reading until stage 4e |
-| Session state of the hooks (`base`, `blocks`, `green`) | `<project>\.loomux\state\hooks\<session_id>.json` |
+| The armed lanes (versioned; written by the pre-commit gate and by `loomux gate`) | `<project>\.loomux\armed.toml` |
+| Session state of the hooks (`base`, `blocks`, `green`, `seen`) | `<project>\.loomux\state\hooks\<session_id>.json` |
 | Snapshots and findings of subagents | `<project>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
 | The marker that switches the stop gate off | `<project>\.loomux\no-verify` |
 | A project's own flows and overlays | `<project>\.loomux\flows\<name>\` |

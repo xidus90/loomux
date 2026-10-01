@@ -412,7 +412,8 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   Ihre Prüfung fragt, ob der Graph existiert, ob es ein `HEAD` gibt, ob kein
   Merge, Rebase, Cherry-Pick oder Revert läuft und ob sich die Arbeit von
   `HEAD` unterscheidet („nothing changed against HEAD“). Eine rote Lane hält
-  die Runde (Exit 2) wie jede andere. Ohne Graph entsteht keine Kopie, und
+  die Runde (Exit 2) wie jede andere, es sei denn, sie ist in Probe (siehe
+  [Schonfrist je Lane](#schonfrist-je-lane-loomuxarmedtoml)). Ohne Graph entsteht keine Kopie, und
   die Lane ist `not-applicable`. Weil die Lane gegen `HEAD` urteilt, gilt ein
   schon grün befundener Baum nur unter demselben `HEAD` wieder als grün:
   Nach einem Commit innerhalb der Runde läuft die Kette erneut.
@@ -485,7 +486,7 @@ Profil `edit` läuft also nie durch den Baum.
 | `failed` | Exit ≠ 0, Startfehler, Ausgabe abgebrochen, Coverage-Datei fehlt | rot | rot, Exit 2 |
 | `timed-out` | eigenes `timeout` | rot | rot, Exit 2 |
 | `budget` | Laufbudget erschöpft | – | übersprungen, genannt |
-| `blocked` | die Lane, auf die sie wartet (`after`), ist rot | rot | rot, Exit 2 |
+| `blocked` | die Lane, auf die sie wartet (`after`), ist rot; hinter einer Lane in Probe ist sie selbst in Probe | rot, oder in Probe | rot, Exit 2, oder in Probe |
 | `missing-tool` | ein Werkzeug liegt nicht auf dem `PATH` | rot | übersprungen, genannt |
 | `unready` | Godot hat das Projekt nicht importiert, oder eine Datei aus `needs` fehlt | rot | übersprungen, genannt |
 | `unavailable` | Art definiert, kann nicht laufen (keine Tests gefunden) | neutral, zählt als „nichts lief" | nicht angezeigt |
@@ -501,8 +502,10 @@ Profil `edit` läuft also nie durch den Baum.
   ``nothing to check for `<art>` `` und endet mit Exit 1: Ein Tor, das nichts
   prüft, ist nicht grün. Sonst Exit 0, wenn keine Lane rot ist, und 1, wenn
   eine rot ist. Ein Ladefehler endet mit 1, ein fehlerhafter Aufruf mit 2.
-- **Urteil des post-edit-Hooks:** Eine rote Lane endet mit Exit 2 und ihrer
-  Ausgabe auf `stderr`. Eine übersprungene Lane blockiert nichts und steht
+  Eine rote Lane in Probe lässt nichts scheitern und zählt hier nicht als rot.
+- **Urteil des post-edit-Hooks:** Eine scharfe rote Lane endet mit Exit 2 und
+  ihrer Ausgabe auf `stderr`; eine rote Lane in Probe endet mit Exit 0, und
+  ihr Befund geht mit `(probation)` in den Kontext des Hosts. Eine übersprungene Lane blockiert nichts und steht
   ebenfalls auf `stderr`, bei Exit 0 außerdem im Kontext des Hosts auf
   `stdout`, für Claude Code `hookSpecificOutput.additionalContext`; unter
   `--host antigravity` wird dieses `stdout` nicht weitergegeben, denn ob agy
@@ -511,8 +514,9 @@ Profil `edit` läuft also nie durch den Baum.
   unter `--host codex` endet der Aufruf mit 1, sobald die Nutzlast eine Datei
   nennt, denn die Codex-Naht hat keinen Adapter.
 - **Urteil des Stop-Tors:** das Profil `stop` im Check-Scope, die Zustände
-  gelten also wie in der Spalte `loomux check`. Eine rote Lane endet mit Exit 2
-  und hält die Runde an, nur die roten Lanes auf `stderr`; eine Lane, die das
+  gelten also wie in der Spalte `loomux check`. Eine scharfe rote Lane endet mit
+  Exit 2 und hält die Runde an, nur die roten Lanes auf `stderr`; eine Kette,
+  die nur in Lanes in Probe rot ist, lässt die Runde mit 0 enden; eine Lane, die das
   Budget nicht mehr erreichte, oder eine angefragte Art ohne etwas, das lief,
   endet mit Exit 1 — das Tor konnte nicht urteilen, und die Runde endet. Siehe
   [Hooks](hooks.md#stop).
@@ -520,6 +524,81 @@ Profil `edit` läuft also nie durch den Baum.
   jede Runde enden, ohne die Kette zu fahren. Befunde von Subagenten werden
   trotzdem zugestellt und halten die Runde weiter an. Ein Mensch legt ihn an und entfernt ihn; die Policy
   verweigert einem Agenten den Pfad.
+
+### Schonfrist je Lane: `.loomux/armed.toml`
+
+Eine Lane, die in einem Projekt noch nie grün war, warnt, statt zu scheitern.
+`.loomux/armed.toml` nennt die Lanes, die scharf sind: Ein roter Lauf einer
+von ihnen lässt das Tor scheitern. Die Datei ist versioniert, damit jeder
+Mitwirkende und das CI dieselben Lanes lesen.
+
+```toml
+# Lanes that are armed: a red run of one of them fails the gate.
+# Written by the pre-commit gate; a human edits it through `loomux gate`.
+armed = [
+  "lint/go@.",
+  "test/go@.",
+]
+```
+
+| Die Datei | Was es heißt |
+|---|---|
+| keine | jede Lane ist scharf; jede Ausgabe liest sich wie vor der Funktion |
+| vorhanden | jede Lane, die nicht darin steht, ist in Probe, auch eine, die später dazukommt |
+| unlesbar (kein TOML, Konfliktmarken, leer, ein unbekannter Schlüssel, falscher Typ) | jede Lane ist scharf, und jeder Lauf sagt es auf `stderr` |
+
+- **Der Schlüssel** lautet `<art>/<stack>@<bereich>`, der Bereich mit
+  Vorwärtsschrägstrichen und `.` für die Wurzel. Er trägt den Bereich immer,
+  anders als der Name im Bericht: `lint/go` wird im Bericht zu `lint/go@.`,
+  sobald ein zweiter Bereich dazukommt, und der Schlüssel bleibt `lint/go@.`.
+  Die projektweiten Lanes heißen `lint/wiki@.` und `<art>/project@.`. Auf der
+  Befehlszeile werden dieselben Schlüssel mit `/` geschrieben
+  (`lint/go@sub/dir`).
+- **In Probe** heißt: Die Lane läuft und zeigt ihre Befunde und lässt nichts
+  scheitern. Nur ein roter Zustand trägt `(probation)` (`lint/go: failed
+  (probation)`); ein grüner oder übersprungener liest sich wie zuvor.
+  `loomux check` und das pre-commit-Tor enden bei jedem Lauf mit einer Lane in
+  Probe mit `probation: <schlüssel> (warn only until a green commit arms
+  them)`. Der Stop-Hook schließt seinen Bericht nur dann mit dieser Zeile,
+  wenn eine Lane in Probe rot ist; der Post-Edit-Hook schreibt keine solche
+  Zeile und markiert stattdessen jede rote Lane in Probe mit `(probation)`.
+  Eine Lane, die hinter einer Lane in Probe `blocked` ist, ist selbst in Probe
+  und nicht rot; hinter einer scharfen ist sie rot. Lanes ohne etwas zu prüfen
+  (`not-applicable`, `unavailable`) stehen weder in dieser Zeile noch in
+  `loomux gate status`; `missing-tool` und `unready` stehen dort. Die
+  Schonfrist gilt gleich für `loomux check`, das pre-commit-Tor, den
+  Stop-Hook, den Post-Edit-Hook und das CI.
+- **Scharf wird eine Lane** nur durch `loomux check precommit --arm`, und nur,
+  wenn der Lauf insgesamt grün endet. Der Befehl schreibt die Datei und legt
+  sie selbst in den Index des Commits; der Hook, den `init` schreibt, ruft ihn.
+  Ein Commit mit `--no-verify`, ein eigener Hook ohne den Aufruf und das CI
+  stellen nichts scharf. Von Hand: `loomux gate arm`.
+- **Ein Teilcommit stellt nichts scharf.** Bei `git commit <pfad>` und
+  `git commit --only <pfad>` stellt der Lauf nichts scharf, schreibt nichts
+  und sagt `not armed: this commit takes only some paths; the next whole
+  commit arms the lanes`. Git gibt dem Hook dort einen Index, der nach dem
+  Commit nicht der echte wird. Eine dort gestagte Datei käme in den Commit,
+  stünde im echten Index aber als gestagte Rücknahme. `git commit`,
+  `git commit -a`, `--include` und `--amend` stellen scharf.
+- **Wer die Datei anlegt.** `init`, wenn vor dem Lauf weder
+  `.loomux/config.toml` noch `.loomux/armed.toml` noch ein pre-commit-Hook von
+  loomux stand (und der Teil `config` gewählt ist); das Umstellungsskript in
+  seinem Konfigurationsschritt, wobei es eine dort stehende Datei behält
+  (`probation: kept, .loomux/armed.toml stands`). **Ein Projekt, in dem loomux schon
+  eingerichtet ist, mit einer Konfiguration oder dem pre-commit-Hook von
+  loomux, bekommt die Schonfrist nur durch `loomux gate disarm --all`, von
+  einem Menschen ausgeführt.** `init` legt dort nichts an, auch nicht, wenn es
+  den Hook erneuert.
+- **Ein Merge-Konflikt.** Ein Schlüssel je Zeile, sortiert; beide Seiten
+  behalten. Solange Konfliktmarken stehen, gilt die Datei als unlesbar, also
+  ist alles scharf. `merge=union` wird nicht gesetzt, weil es eine mit `gate
+  disarm` entfernte Zeile zurückholte.
+- **Zwei Warnhinweise.** Die Datei darf nicht ignoriert sein (`init` ignoriert
+  nur `/.loomux/state/`): Ignoriert das Projekt `.loomux/` oder die Datei,
+  erreicht sie nie einen Commit und gilt nur auf diesem Rechner; `loomux gate
+  status` und `loomux status` warnen davor. Ein Agent schreibt die Datei nie
+  selbst: Der Wächter verweigert es, und scharf stellt er nur über ein grünes
+  `loomux check precommit --arm`.
 
 ---
 
@@ -892,7 +971,8 @@ default = "example"
 | Artefakte eines lesenden Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und sein Manifest, wie `loomux brain` sie liest | `<Zustandsverzeichnis>\areas\<scope>\`; Rückfall zum Lesen auf `%LOCALAPPDATA%\brain\areas\<scope>\` bis Stufe 4e |
 | Artefakte eines beschreibbaren Bereichs | sein `path` |
 | Stempel des letzten Reconcile | `<Zustandsverzeichnis>\maintenance\last-run.txt`; Rückfall zum Lesen auf `%LOCALAPPDATA%\brain\maintenance\last-run.txt` bis Stufe 4e |
-| Sitzungszustand der Hooks (`base`, `blocks`, `green`) | `<projekt>\.loomux\state\hooks\<session_id>.json` |
+| Die scharfen Lanes (versioniert; vom pre-commit-Tor und von `loomux gate` geschrieben) | `<projekt>\.loomux\armed.toml` |
+| Sitzungszustand der Hooks (`base`, `blocks`, `green`, `seen`) | `<projekt>\.loomux\state\hooks\<session_id>.json` |
 | Schnappschüsse und Befunde der Subagenten | `<projekt>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
 | Der Marker, der das Stop-Tor abschaltet | `<projekt>\.loomux\no-verify` |
 | Eigene Flows und Overlays eines Projekts | `<projekt>\.loomux\flows\<name>\` |
