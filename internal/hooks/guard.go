@@ -1107,7 +1107,7 @@ func loomuxArgs(words []string) ([]string, bool) {
 	if isLoomux(words[0]) {
 		return words[1:], true
 	}
-	if baseName(words[0]) != "go" || len(words) < 2 || words[1] != "run" {
+	if verbOf(words[0]) != "go" || len(words) < 2 || words[1] != "run" {
 		return nil, false
 	}
 	rest := words[2:]
