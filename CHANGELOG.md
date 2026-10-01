@@ -4,6 +4,29 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [6.0.0] - 2026-10-01
+
+<https://github.com/xidus90/loomux/pull/61>
+
+### Added
+- `loomux area check <path>`: a read-only report on an old area manifest, per key what the readers accept, read elsewhere or ignore, and which file they refuse.
+- `loomux dev bench cases`: builds the case file and the payloads of a project's hooks from its `.claude/settings.json`, with `${NAME}` in a command replaced from the environment.
+- `loomux dev bench compare`: compares two hook benchmark runs of the same cases and names what got faster, slower, new or dropped.
+- `loomux dev switchover render`: writes the `apply.sh` that switches one project over, from a parameter file; it refuses parameters the script could act on wrongly.
+- `loomux dev switchover prune-hooks`: removes the hook groups of the old tools from a `.claude/settings.json` and keeps every other byte of the file. A human runs it; the guard refuses it to an agent, as it refuses `merge-hook install` and `remove`.
+- Hook benchmark reports carry the mean of the warm runs beside the median.
+- The detection of a project names `mypy` when the project configures it.
+
+### Changed
+- The Python presets bring their tools with `uv run --with`; without mypy configuration the types lane checks the project root and needs mypy 1.16 or newer.
+
+### Removed
+- The GDScript `test` preset (`godot --headless --quit`). `loomux check test`, `check all` and the stop hook no longer fail on a GDScript project where `godot` is not on PATH; the lane is `not-applicable` until the project names a command in `[verify.gdscript.test]`.
+
+### Fixed
+- The Python types lane no longer fails with "Missing target module" on a project without mypy configuration, and the test and coverage lanes no longer fail with "Failed to spawn" where pytest or coverage are not dependencies of the project.
+- The GDScript lint lane runs `gdlint` from the package `gdtoolkit`; `uvx gdlint` named a package that does not exist.
+
 ## [5.3.1] - 2026-09-29
 
 <https://github.com/xidus90/loomux/pull/60>
