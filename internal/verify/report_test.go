@@ -205,3 +205,120 @@ func TestEditReportDropsTheAsideOnRed(t *testing.T) {
 		t.Fatalf("%v %q", red, notices)
 	}
 }
+
+func TestFailsIsRedOutsideProbation(t *testing.T) {
+	for _, s := range []State{StateOK, StateFailed, StateTimedOut, StateBudget, StateBlocked, StateMissingTool, StateUnready, StateUnavailable, StateNotApplicable} {
+		for _, scope := range []Scope{ScopeCheck, ScopeEdit} {
+			if got := Fails(Outcome{State: s}, scope); got != Red(s, scope) {
+				t.Errorf("%s armed: fails %v, red %v", s, got, Red(s, scope))
+			}
+			if Fails(Outcome{State: s, Probation: true}, scope) {
+				t.Errorf("%s in probation fails", s)
+			}
+		}
+	}
+}
+
+func probing(name, key string, s State, output string) Outcome {
+	kind, rest, _ := strings.Cut(key, "/")
+	stack, area, _ := strings.Cut(rest, "@")
+	return Outcome{Job: Job{Name: name, Kind: kind, Stack: stack, Area: area, Origin: "preset"},
+		State: s, Output: output, Duration: 800 * time.Millisecond, Probation: true}
+}
+
+// The state stays the real one; the header says that it does not count. A
+// green lane in probation reads like any green lane.
+func TestWriteCheckMarksARedLaneInProbation(t *testing.T) {
+	blocked := probing("coverage/go", "coverage/go@.", StateBlocked, "")
+	blocked.BlockedBy = "test/go"
+	outs := []Outcome{
+		probing("lint/python", "lint/python@.", StateFailed, "E1 bad\n"),
+		probing("lint/go", "lint/go@.", StateOK, ""),
+		probing("types/python", "types/python@.", StateMissingTool, `"mypy" is not on PATH: mypy .`),
+		blocked,
+		probing("types/go", "types/go@.", StateNotApplicable, "no command"),
+	}
+	var b strings.Builder
+	WriteCheck(&b, outs, false)
+	want := "lint/python: failed (probation) [preset] 0.8s\nE1 bad\n" +
+		"lint/go: ok [preset] 0.8s\n" +
+		"types/python: missing-tool (probation) [preset] \"mypy\" is not on PATH: mypy .\n" +
+		"coverage/go: blocked (probation) [preset] by test/go\n" +
+		"types/go: not-applicable [preset] no command\n"
+	if b.String() != want {
+		t.Fatalf("%q", b.String())
+	}
+}
+
+func TestCheckVerdictPassesARunRedOnlyInProbation(t *testing.T) {
+	red := probing("lint/go", "lint/go@.", StateFailed, "x\n")
+	if code, notes := CheckVerdict([]string{"lint"}, []Outcome{red}); code != 0 || len(notes) != 0 {
+		t.Fatalf("probation alone: %d %v", code, notes)
+	}
+	armed := red
+	armed.Probation = false
+	if code, _ := CheckVerdict([]string{"lint"}, []Outcome{red, armed}); code != 1 {
+		t.Fatalf("an armed red lane beside it: %d", code)
+	}
+	// The second rule is untouched: a kind with nothing to check is red
+	// whatever the file says.
+	if code, notes := CheckVerdict([]string{"lint", "test"}, []Outcome{red}); code != 1 || len(notes) != 1 {
+		t.Fatalf("nothing to check for test: %d %v", code, notes)
+	}
+}
+
+func TestEditReportSaysARedLaneInProbationWithoutHoldingTheEdit(t *testing.T) {
+	var se strings.Builder
+	red, notices := EditReport(&se, []Outcome{probing("lint/go", "lint/go@.", StateFailed, "a.go:1: bad\n")}, "aside")
+	want := "lint/go: failed (probation)\na.go:1: bad"
+	if red || !slices.Equal(notices, []string{want, "aside"}) || se.String() != want+"\n" {
+		t.Fatalf("red %v, notices %q, stderr %q", red, notices, se.String())
+	}
+	se.Reset()
+	armed := probing("lint/go", "lint/go@.", StateFailed, "a.go:1: bad\n")
+	armed.Probation = false
+	red, notices = EditReport(&se, []Outcome{armed}, "aside")
+	if !red || len(notices) != 0 || se.String() != "lint/go: failed\na.go:1: bad\n" {
+		t.Fatalf("armed: red %v, notices %q, stderr %q", red, notices, se.String())
+	}
+}
+
+func TestProbationLineNamesTheLanesThatHaveSomethingToCheck(t *testing.T) {
+	// The file arms the test lane and nothing else.
+	armsOnlyTests := func(j Job) bool { return j.Kind == "test" }
+	outs := []Outcome{
+		probing("lint/python", "lint/python@.", StateFailed, ""),
+		probing("lint/go", "lint/go@.", StateOK, ""),
+		probing("types/python", "types/python@.", StateMissingTool, ""),
+		probing("types/go", "types/go@.", StateNotApplicable, ""),
+		probing("coverage/go", "coverage/go@.", StateUnavailable, ""),
+		probing("test/go", "test/go@.", StateFailed, ""),
+		probing("lint/go@tools", "lint/go@tools", StateOK, ""),
+		// A second job of the same lane names it once.
+		probing("lint/python", "lint/python@.", StateFailed, ""),
+	}
+	want := "probation: lint/go@., lint/go@tools, lint/python@., types/python@. (warn only until a green commit arms them)"
+	if got := ProbationLine(outs, armsOnlyTests); got != want {
+		t.Fatalf("%q", got)
+	}
+	if got := ProbationLine(outs, nil); got != "" {
+		t.Fatalf("no set: %q", got)
+	}
+	if got := ProbationLine(outs, func(Job) bool { return true }); got != "" {
+		t.Fatalf("every lane armed: %q", got)
+	}
+}
+
+func TestGreenKeysAreTheLanesThatEndedOK(t *testing.T) {
+	outs := []Outcome{
+		probing("test/go", "test/go@.", StateOK, ""),
+		probing("lint/go", "lint/go@.", StateOK, ""),
+		probing("lint/python", "lint/python@.", StateFailed, ""),
+		probing("types/go", "types/go@.", StateNotApplicable, ""),
+		probing("coverage/go", "coverage/go@.", StateBudget, ""),
+		probing("test/go", "test/go@.", StateOK, ""),
+	}
+	if got := GreenKeys(outs); !slices.Equal(got, []string{"lint/go@.", "test/go@."}) {
+		t.Fatalf("%v", got)
+	}
+}
