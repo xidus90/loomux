@@ -522,10 +522,19 @@ des Programms in jeder Schreibweise, ohne `.exe`:
   außer bei `rsync`, sonst das letzte Argument): `cp`, `copy`, `Copy-Item`, `install`, `rsync`,
   `ln`; ein Verschieben (`mv`, `move`, `Move-Item`, `git mv`) löscht dazu
   seine Quellen, ein Umbenennen (`Rename-Item`, `ren`, `rename`) löscht das
-  Element und schreibt seinen neuen Namen daneben;
+  Element und schreibt seinen neuen Namen daneben; ein Kopieren oder
+  Verschieben in einen Ordner (ein Ziel, das auf einen Schrägstrich endet, aus
+  `-t` stammt, mehrere Quellen nimmt oder auf der Platte ein Ordner ist)
+  schreibt dazu jede Quelle unter ihrem Namen dort (`cp x/config.toml
+  .loomux/`), und ein Kopieren eines Baums (`cp -r`/`-a`, `Copy-Item
+  -Recurse`, `rsync`) zählt diesen Ort als gelöscht, bei einer Quelle auf
+  `/.` und dem Schrägstrich am Ende bei rsync das Ziel selbst (`cp -r
+  /tmp/x/.loomux .`);
 - das Ziel, das ein Flag nennt: `dd of=`, `tar -C`/`--directory` und beim
   Erzeugen `-f`/`--file`; `unzip -d`, `Expand-Archive -DestinationPath`,
-  `robocopy`/`xcopy` (der zweite Pfad), `New-Item -Path`/`-Name`; Downloads
+  `robocopy`/`xcopy` (der zweite Pfad, die Dateinamen von robocopy darunter,
+  die Quelle von xcopy unter ihrem Namen in einem Ordner, und der zweite
+  Pfad als gelöscht bei `/E`, `/S` oder `/MIR`), `New-Item -Path`/`-Name`; Downloads
   per `curl -o`/`--output`, `curl -O`, `--remote-name` oder
   `--remote-name-all` (der Name aus der URL unter `--output-dir`), `wget -O`,
   `wget` ohne (der Name aus der URL unter `-P`), `-OutFile`;
@@ -539,6 +548,14 @@ des Programms in jeder Schreibweise, ohne `.exe`:
   `restore` (die Pfade nach `--`, sonst jedes Argument, das auf der Platte
   existiert; `restore --staged` ohne `--worktree` schreibt nichts), `clean` (seine Pfade, ohne einen die Wurzel;
   `-n` und `--dry-run` listen nur);
+- Patches: `patch` schreibt die Datei, die es nennt, und seine `-o`- und
+  `-r`-Dateien; ohne genannte Datei, und bei `git apply` und `git am`, jede
+  Datei, die die Kopfzeilen `diff --git`, `---`, `+++`, `rename` und `copy
+  to` des Patches nennen, von der Platte gelesen (`-i`, die Wörter von `git
+  apply`/`am`, eine Umleitung `<`) oder aus einem Heredoc in der Zeile, mit
+  `-p` (bei git Vorgabe 1; `patch` ohne `-p` auf jeder Stufe) und
+  `-d`/`--directory`; ein Patch, den der Wächter nicht lesen kann, wird
+  verweigert;
 - .NET: `[IO.File]::Write*`, `Append*`, `Create*`, `Copy*`, `Replace*`,
   `Delete`, `Move`, `[IO.Directory]::CreateDirectory`, `Delete`, `Move`;
 - Umleitungen `>`, `>>`, `>|`, `2>`, `&>`, `*>`, auch an ein Wort geklebt
@@ -559,9 +576,24 @@ oder als gekürzte Langoption: `sudo -Hu root`, `xargs -n 1`, `nice --adj 5`,
 `time -o DATEI`, `unbuffer -ignore HUP`), `command`, `nohup`, `winpty`,
 `setsid`, `chronic` und `cmd /c`, jeder externe auch als `<name>.exe`. Die
 Zeichenkette nach
-`sh`, `bash`, `zsh` oder `dash -c` (auch `-lc`), `pwsh` oder `powershell -c`
-oder `-Command` und `cmd /c` oder `/k` wird als eigene Zeile gelesen, bis drei
-Shells tief, ebenso die Wörter nach `eval`. Eine Ersetzung `$(…)` oder
+`sh`, `bash`, `zsh` oder `dash -c` (auch `-lc`, und hinter `-o`/`-O` mit
+seinem Wert), `pwsh` oder `powershell -c` oder `-Command`, die entschlüsselte
+Zeichenkette von `-EncodedCommand`, `cmd /c` oder `/k` (auch angeklebt, `cmd
+/c"…"`) und `env -S` wird als eigene Zeile gelesen, ebenso die Wörter nach
+`eval`, `iex` und `Invoke-Expression`. Eine Shell, die ihr Skript von stdin
+liest (`sh`, `bash -s`, `pwsh -Command -`, `cmd` ohne `/c`, `iex` ohne
+Argument), wird mit der Zeile gelesen, die das Segment vor ihrer Pipe
+ausgibt (`echo`, `printf`, `Write-Output`, eine bloße Zeichenkette: `echo "…"
+| sh`, `'…' | iex`), und mit einem Here-String (`bash <<< '…'`). Solche
+Zeilen werden bis drei Shells tief gelesen; eine tiefere wird verweigert. Die
+Befehlsregeln lesen sie ebenso, loomux' eigene Befehle und die Antwort auf
+ein Flow-Tor eingeschlossen, und in einer solchen Zeile befreit kein
+`--dry-run` und kein `--propose`. Eine Variable oder ein Alias, den die Zeile
+selbst setzt (`D=.loomux`, auch hinter `export`, `declare`, `local`,
+`readonly`, `typeset` und cmds `set`; `$D = '…'`, `${D}=…`, `$env:D = …`,
+`Set-Variable`, `alias`, `Set-Alias`), wird dort eingesetzt, wo die Zeile
+ihn nutzt (`$D`, `${D}`, `$env:D`, `%D%`, ein Alias als Befehlswort), eine
+Zeile je Wert, höchstens 16. Eine Ersetzung `$(…)` oder
 `` `…` `` zählt außerdem als ein Wort unbekannten Inhalts, so behält ein Pfad,
 der nach ihr weitergeht, seinen festen Rest (`$(pwd)/.loomux/config.toml`),
 und ein PowerShell-`(Join-Path A B …)` wird als der Pfad `A/B/…` gelesen
@@ -580,7 +612,12 @@ der Aufruf verweigert. Ein Glob in jedem Teil eines Pfads (`*`, `?`, `[`) wird
 mit der Punkt-Regel von bash gegen die Platte abgeglichen, `*` trifft also
 nicht `.loomux`; ein Glob ohne Treffer bleibt, wie er geschrieben ist. Ein
 NTFS-Streamname wird nach dem Laufwerk abgeschnitten (`config.toml:backup`
-schreibt `config.toml`, auch hinter `\\?\` und `\\.\`). Ein Löschen oder die
+schreibt `config.toml`, auch hinter `\\?\` und `\\.\`). Jedes Element wird
+außerdem gelesen, wie Windows es öffnet, ohne das Dateisystem zu fragen und
+darum auch im Standardmodus: ohne Punkte und Leerzeichen am Ende
+(`.loomux/config.toml.`), und, wenn es ein 8.3-Alias eines festen Elements
+eines geschützten Globs ist (`LOOMUX~1`, `CONFIG~1.TOM`, auch die Hash-Form
+`LO1A2B~1`), als dieses Element. Ein Löschen oder die
 Quelle eines Verschiebens eines Ordners über einem geschützten Pfad wird
 verweigert (`rm -rf .loomux`, `rm -rf src/.loomux`); ein Kopieren in einen
 solchen Ordner nicht. `git clean` ohne Pfad gilt als Löschen der Wurzel und
@@ -607,7 +644,13 @@ gezählt, an den ein `cd` ging, und verweigert ein Schreiben,
 dessen Pfad eine Expansion trägt (`$X`, `$(…)`, Backtick, `%X%`), deren fester
 Teil zu einem geschützten Pfad führen kann; Braces falten sich vorher auf, und
 ein Brace- oder Glob-Zeichen vor der Expansion beendet den festen Teil
-ebenfalls (`.loomux/c?n$X`). Eine Shell, die eine Zeichenkette ausführt
+ebenfalls (`.loomux/c?n$X`). Er verweigert auch ein Schreiben, dessen Pfad
+nach seiner letzten Expansion mit einem Schrägstrich weitergeht, wenn ein
+vorderer Teil eines geschützten Pfads an der Stelle der Expansion ihn
+geschützt macht (`$D/config.toml`, `$D/state/hooks/x`). Die Wörter eines
+unbekannten Programms werden außerdem an Leerzeichen und Anführungszeichen
+geschnitten, so zählt ein Pfad in den Zeichenkettenliteralen von Code
+(`python -c "open('.loomux/config.toml','w')"`). Eine Shell, die eine Zeichenkette ausführt
 (`bash -c`, `powershell -Command`, `eval`), ist kein unbekanntes Programm: die
 Zeile darin wird geprüft, ihre Programme eingeschlossen, ebenso die Wörter
 nach der Zeichenkette, die sie als `$0`, `$1`, … erreichen. Eine Form eines
@@ -618,10 +661,14 @@ proposals` und `loomux config apply <id>`. Dieses Repo bleibt auf `default`:
 der strikte Modus verweigerte `go build -o bin/loomux.exe ./cmd/loomux`.
 
 **Grenzen im Standardmodus.** Der Wächter liest Wörter, keine Shell. Er lässt
-durch: einen Pfad in einer Variablen (`F=.loomux/config.toml; echo x > $F`);
-ein Programm, das die Datei selbst öffnet (`python -c …`, ein
-Build-Werkzeug); einen Alias oder ein Verb unter anderem Namen; Punkte oder
-Leerzeichen am Pfadende und 8.3-Kurznamen (`cp x .loomux/config.toml.`); ein
+durch: einen Pfad oder ein Programm in einer Variablen oder einem Alias, die
+anderswo als in der Zeile gesetzt sind (`echo x > $F`), und eine Funktion,
+die die Zeile definiert (`function l { loomux $args }; l config apply`); ein
+Programm, das die Datei selbst öffnet (`python -c "open(…)"`, ein Skript des
+Agenten, ein Build-Werkzeug); ein Verb unter anderem Namen; einen Patch aus
+einer Pipe (`cat p.diff | git apply`) und einen, der sich zwischen dem Lesen
+des Wächters und dem Lauf ändert; `find … -exec loomux …` und `xargs
+loomux` mit seinen Argumenten von stdin; ein
 Archiv, dessen Inhalt unbekannt ist (`tar -x` ohne `-C`, `unzip a.zip -d
 .loomux`); `git -C <ordner>`, dessen Pfade weiter ab dem Arbeitsordner
 zählen; `git checkout -f` ohne Pfad sowie `git checkout .`, `git restore .`,
@@ -631,9 +678,7 @@ PowerShell-Ausdruck in Klammern außer `(Join-Path …)` (`Remove-Item
 ('.loomux/' + 'config.toml')`); einen Namensfilter von `find` oder
 `Get-ChildItem`, der beim Prüfen des Aufrufs auf der Platte nichts trifft,
 und was `find -L` über einen symbolischen Link erreicht, dem das Durchgehen
-des Wächters nicht folgt;
-`bash -o pipefail -c '…'`, dessen Optionswert das `-c`
-verdeckt; `cmd /c"…"` und `env -S'…'`, an ihre Zeichenkette geklebt; `find … |
+des Wächters nicht folgt; `find … |
 sh -c "xargs rm"` und `gci … | % { Remove-Item $_ }`, die
 den Startpfad verlieren; und `--root` auf einer Kopie des Projekts. Er
 verweigert mehr, als eine Shell täte: ein Schreibverb nach `;`, `|`, `&` oder
@@ -642,11 +687,19 @@ einen Heredoc-Körper, dessen Zeilen als Befehle gelesen werden (`cat >
 notes.md <<'EOF'` … `rm -rf .loomux`); Braces,
 die PowerShell nicht auffaltet, und Globs, die es nicht auflöst; und ein
 Löschen mit Braces nach einem Ordner (`rm -rf .loomux/flows/{mine,zz}`), das
-auch als Löschen des Ordners gelesen wird.
+auch als Löschen des Ordners gelesen wird; ein Flag in einer Zeichenkette
+(`sh -c 'loomux init --dry-run'`); und, unter einem echten Ordner, der wie
+ein 8.3-Alias eines geschützten Namens heißt, einen geschützten Namen oder
+das Löschen des Ordners (`echo x > LOOMUX~1/config.toml`, `rm -rf
+LOOMUX~1`, während `LOOMUX~1/notes.md` durchgeht).
 
 **Grenzen im strikten Modus.** Ein geschützter Glob, der mit einem
 Glob-Zeichen beginnt (`*.pem`, `*.key`), hat keinen festen Teil, darum
-erreicht ihn keine Expansion: `echo x > src/$X` kommt durch. Die Auflösung
+erreicht ihn keine Expansion: `echo x > src/$X` kommt durch. Eine Expansion,
+die einen ganzen geschützten Ordner halten könnte (`echo x > $D/x`,
+D=.loomux/state/hooks), und ein Rest, der an der Expansion klebt (`echo x >
+${D}fig.toml`), kommen ebenfalls durch, sonst wäre jeder solche Pfad
+verweigert. Die Auflösung
 über eine Junction ist nicht getestet. Und manche Programme, die nicht loomux
 sind, bekommen die Ablehnung für loomux' Konfigurationsbefehle, weil sie
 nicht in der Liste bekannter Werkzeuge stehen: `az config …`, `gcloud config

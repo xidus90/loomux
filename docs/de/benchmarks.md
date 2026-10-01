@@ -3344,3 +3344,34 @@ Sitzungen.
 8. **Beispielprojekt 1 vergleicht nur die Wissensbefehle.** Es hatte keine
    alten Hooks, alle sechs Hooks erscheinen darum als neu; was eine
    Umstellung mit alten Hooks tut, zeigt allein Beispielprojekt 2.
+
+## 2026-10-01 14:45 — Der Wächter nach dem Lesen von Zeichenketten, Ordnern, Variablen und Patches
+
+**Ziel.** Prüfen, was es den Wächter je Aufruf kostet, die Zeilen zu lesen,
+die eine Shell aus einer Zeichenkette oder einer Pipe ausführt, die
+Variablen, die eine Zeile setzt, den Ordner, in dem eine Kopie landet,
+Patch-Dateien und 8.3-Namen.
+
+**Methode.** `go test -bench BenchmarkCheckTool -count=10 ./internal/hooks`
+(`internal/hooks/guardstrict_bench_test.go`: eine lange Zeile mit Wrappern,
+Braces und Globs, in einem Projekt mit Manifest), Go 1.27.0 unter Windows 11,
+dieselbe Maschine direkt hintereinander: Ausgangsstand master bei `e6c21eed`,
+Änderung der Zweig `fix/guard-wrapper-holes` bei `ac9a4a73`. Warm, im
+Prozess; der Start der Binärdatei gehört nicht dazu. Median, Minimum und
+Maximum aus zehn Läufen.
+
+| Modus | Ausgangsstand | Änderung |
+|---|---:|---:|
+| default | 483 µs (453–530) | 681 µs (549–731) |
+| strict | 4,68 ms (3,87–5,17) | 4,59 ms (4,44–4,93) |
+
+### Wichtigste Erkenntnisse
+1. **Der Standardmodus kostet 0,2 ms mehr je Aufruf** (+41 %): Jede Zeile
+   wird noch einmal auf die Zeilen gelesen, die sie aus Zeichenketten
+   ausführt, und mit den Variablen, die sie setzt, und jedes Ziel bekommt
+   seine lexikalischen Schreibweisen.
+2. **Der strikte Modus ändert sich nicht messbar**: Die Auflösung über das
+   Dateisystem bestimmt ihn, und das neue Lesen liegt in seiner Streuung.
+3. **Die geschützten Elemente werden einmal je Aufruf berechnet**: Ein
+   früherer Stand tat es je Ziel, und die Testsuite der Hooks brauchte 135 s
+   statt 80 s (nicht mit dem Benchmark gemessen).

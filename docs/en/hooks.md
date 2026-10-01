@@ -494,10 +494,18 @@ base name in any case, without `.exe`:
   for all but `rsync`, else the last argument): `cp`, `copy`, `Copy-Item`, `install`, `rsync`,
   `ln`; a move (`mv`, `move`, `Move-Item`, `git mv`) removes its sources as
   well, a rename (`Rename-Item`, `ren`, `rename`) removes the item and writes
-  its new name beside it;
+  its new name beside it; a copy or move into a folder (a destination that
+  ends in a slash, comes from `-t`, takes several sources or is a folder on
+  disk) also writes each source under its name there (`cp x/config.toml
+  .loomux/`), and a copy of a tree (`cp -r`/`-a`, `Copy-Item -Recurse`,
+  `rsync`) counts that place as removed, or the destination itself for a
+  source ending in `/.` and rsync's trailing slash (`cp -r /tmp/x/.loomux
+  .`);
 - the target a flag names: `dd of=`, `tar -C`/`--directory` and, when it
   creates, `-f`/`--file`; `unzip -d`, `Expand-Archive -DestinationPath`,
-  `robocopy`/`xcopy` (the second path), `New-Item -Path`/`-Name`; downloads
+  `robocopy`/`xcopy` (the second path, robocopy's file names under it,
+  xcopy's source under its name in a folder, and the second path as removed
+  with `/E`, `/S` or `/MIR`), `New-Item -Path`/`-Name`; downloads
   by `curl -o`/`--output`, `curl -O`, `--remote-name` or `--remote-name-all`
   (the URL's name under `--output-dir`), `wget -O`, `wget` without it (the
   URL's name under `-P`), `-OutFile`;
@@ -511,6 +519,13 @@ base name in any case, without `.exe`:
   `restore` (the paths after `--`, or else each argument that exists on disk;
   `restore --staged` without `--worktree` writes nothing), `clean` (its paths, or the root without one;
   `-n` and `--dry-run` only list);
+- patches: `patch` writes the file it names and its `-o` and `-r` files;
+  without a named file, and for `git apply` and `git am`, every file the
+  patch's `diff --git`, `---`, `+++`, `rename` and `copy to` headers name,
+  read from disk (`-i`, the words of `git apply`/`am`, a `<` redirection) or
+  from a heredoc on the line, with `-p` (git's default 1; `patch` without
+  `-p` at every level) and `-d`/`--directory` applied; a patch the guard
+  cannot read is refused;
 - .NET: `[IO.File]::Write*`, `Append*`, `Create*`, `Copy*`, `Replace*`,
   `Delete`, `Move`, `[IO.Directory]::CreateDirectory`, `Delete`, `Move`;
 - redirections `>`, `>>`, `>|`, `2>`, `&>`, `*>`, also glued to a word
@@ -530,9 +545,23 @@ option: `sudo -Hu root`, `xargs -n 1`, `nice --adj 5`, `ionice -c 3`,
 `stdbuf -o 0`, `timeout -s KILL 60`, `exec -a NAME`, `time -o FILE`,
 `unbuffer -ignore HUP`), `command`, `nohup`, `winpty`, `setsid`, `chronic`
 and `cmd /c`, each external one also as `<name>.exe`. The string after
-`sh`, `bash`, `zsh` or `dash -c` (also `-lc`), `pwsh` or `powershell -c` or
-`-Command`, and `cmd /c` or `/k` is read as a line of its own, up to three
-shells deep, and so are the words after `eval`. A substitution `$(…)` or
+`sh`, `bash`, `zsh` or `dash -c` (also `-lc`, and behind `-o`/`-O` with its
+value), `pwsh` or `powershell -c` or `-Command`, the decoded string of
+`-EncodedCommand`, `cmd /c` or `/k` (also glued, `cmd /c"…"`) and `env -S`
+is read as a line of its own, and so are the words after `eval`, `iex` and
+`Invoke-Expression`. A shell that reads its script from stdin (`sh`, `bash
+-s`, `pwsh -Command -`, `cmd` without `/c`, `iex` without an argument) is
+read with the line the segment before its pipe prints (`echo`, `printf`,
+`Write-Output`, a bare string: `echo "…" | sh`, `'…' | iex`), and with a
+here-string (`bash <<< '…'`). Such lines are read up to three shells deep;
+a line that goes deeper is refused. The command rules read them as well,
+loomux's own commands and a flow's gate answer included, and in such a line
+no `--dry-run` or `--propose` exempts. A variable or alias the line sets
+itself (`D=.loomux`, also behind `export`, `declare`, `local`, `readonly`,
+`typeset` and cmd's `set`; `$D = '…'`, `${D}=…`, `$env:D = …`,
+`Set-Variable`, `alias`, `Set-Alias`) is put in where the line uses it
+(`$D`, `${D}`, `$env:D`, `%D%`, an alias as a command word), one line per
+value, at most 16. A substitution `$(…)` or
 `` `…` `` counts as one word of unknown content as well, so a path that goes
 on after it keeps its fixed tail (`$(pwd)/.loomux/config.toml`), and a
 PowerShell `(Join-Path A B …)` is read as the path `A/B/…` (`$PWD` as the
@@ -549,7 +578,12 @@ written.
 any part of a path (`*`, `?`, `[`) is matched against the disk with bash's
 dot rule, so `*` does not match `.loomux`; a glob that matches nothing stays
 as written. An NTFS stream name is cut off after the volume
-(`config.toml:backup` writes `config.toml`, behind `\\?\` and `\\.\` too). A
+(`config.toml:backup` writes `config.toml`, behind `\\?\` and `\\.\` too).
+Each element is also read as Windows opens it, without asking the file
+system and so in the default mode too: without its trailing dots and
+blanks (`.loomux/config.toml.`), and, when it is an 8.3 alias of a literal
+element of a protected glob (`LOOMUX~1`, `CONFIG~1.TOM`, also the hash form
+`LO1A2B~1`), as that element. A
 removal, or the source of a move, of a folder above a protected path is
 refused (`rm -rf .loomux`, `rm -rf src/.loomux`); a copy into such a folder
 is not. `git clean` without a path counts as the removal of the root, and
@@ -575,7 +609,12 @@ does not know whether the program writes there``), its relative paths counted
 from where a `cd` moved, and refuses a write whose
 path holds an expansion (`$X`, `$(…)`, a backtick, `%X%`) whose fixed part may
 lead to a protected path; braces unfold first, and a brace or glob character
-before the expansion ends the fixed part as well (`.loomux/c?n$X`). A shell
+before the expansion ends the fixed part as well (`.loomux/c?n$X`). It also
+refuses a write whose path goes on after its last expansion with a slash
+when a leading part of a protected path in the expansion's place makes it
+protected (`$D/config.toml`, `$D/state/hooks/x`). The words of an unknown
+program are also cut at blanks and quotes, so a path in the string literals
+of code counts (`python -c "open('.loomux/config.toml','w')"`). A shell
 that runs a string (`bash -c`, `powershell -Command`, `eval`) is no unknown
 program: the line inside is judged, its programs included, and so are the
 words after the string, which reach it as `$0`, `$1`, …. A form of a word
@@ -586,10 +625,14 @@ config apply <id>`. This repository stays on `default`: strict mode would
 refuse `go build -o bin/loomux.exe ./cmd/loomux`.
 
 **Limits in the default mode.** The guard reads words, not a shell. It
-passes: a path in a variable (`F=.loomux/config.toml; echo x > $F`); a
-program that opens the file itself (`python -c …`, a build tool); an alias,
-or a verb under another name; trailing dots or blanks and 8.3 short names
-(`cp x .loomux/config.toml.`); an archive, whose content is unknown (`tar -x`
+passes: a path or program in a variable or alias set elsewhere than on the
+line (`echo x > $F`), and a function the line defines (`function l {
+loomux $args }; l config apply`); a program that opens the file itself
+(`python -c "open(…)"`, a script the agent wrote, a build tool); a verb
+under another name; a patch fed through a pipe (`cat p.diff | git
+apply`), and one that changes between the guard's reading and the run;
+`find … -exec loomux …` and `xargs loomux` with its arguments from stdin;
+an archive, whose content is unknown (`tar -x`
 without `-C`, `unzip a.zip -d .loomux`); `git -C <dir>`, whose paths still
 count from the working folder; `git checkout -f` without a path, and
 `git checkout .`, `git restore .`, `git checkout -- .loomux`, `git stash` and
@@ -598,10 +641,7 @@ a PowerShell expression in parentheses other than `(Join-Path …)`
 (`Remove-Item ('.loomux/' + 'config.toml')`); a name filter of `find` or
 `Get-ChildItem` that matches nothing on disk when the call is judged, and
 what `find -L` reaches through a symbolic link, which the guard's walk does
-not follow;
-`bash -o pipefail -c '…'`, whose
-option value hides the `-c`; `cmd /c"…"` and `env -S'…'` glued to their
-string; `find … | sh -c "xargs rm"` and `gci … | % {
+not follow; `find … | sh -c "xargs rm"` and `gci … | % {
 Remove-Item $_ }`, which lose the start path; and `--root` pointed at a copy
 of the project. It refuses more than a shell would do: a write verb after
 `;`, `|`, `&` or `(` inside quotes (`git commit -m "fix; rm
@@ -609,11 +649,17 @@ of the project. It refuses more than a shell would do: a write verb after
 (`cat > notes.md <<'EOF'` … `rm -rf .loomux`); braces PowerShell
 does not fold and globs it does not expand; and a removal with braces after a
 folder (`rm -rf .loomux/flows/{mine,zz}`), which is also read as the removal
-of the folder.
+of the folder; a flag inside a string (`sh -c 'loomux init --dry-run'`);
+and, under a real folder named like an 8.3 alias of a protected name, a
+protected name or the folder's removal (`echo x > LOOMUX~1/config.toml`,
+`rm -rf LOOMUX~1`, while `LOOMUX~1/notes.md` passes).
 
 **Limits in strict mode.** A protected glob that begins with a glob character
 (`*.pem`, `*.key`) has no fixed part, so no expansion reaches it: `echo x >
-src/$X` passes. The resolution through a junction is not tested. And some
+src/$X` passes. An expansion that may hold a whole protected folder (`echo x
+> $D/x`, D=.loomux/state/hooks) and a tail glued to the expansion (`echo x >
+${D}fig.toml`) pass as well, or every such path would be refused. The
+resolution through a junction is not tested. And some
 programs that are not loomux get the refusal of loomux's configuration
 commands because they are not in the list of known tools: `az config …`,
 `gcloud config …`, `pulumi config set`, `bun init`, `deno init`, `tofu init`.
