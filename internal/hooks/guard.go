@@ -35,8 +35,18 @@ type HookPayload struct {
 // shell line alike.
 const manifestReason = ".loomux/config.toml: the manifest is where the barrier reads its own limits, so no agent may write it"
 
-// Built-in rules that protect secrets, the manifest, the stop gate's controls,
-// the run files and lock files.
+// armedReason refuses an agent the armed lanes, to a writing tool and to a
+// shell line alike. A line taken out disarms, and a file removed arms every
+// lane for everybody: both are a human's to decide.
+//
+// Named gaps, shared with the manifest and not closed here; each can disarm
+// a lane and passes: git checkout <rev> -- .loomux, git checkout <rev> -- .,
+// git restore -s <rev> ., git stash, git reset --hard and git switch. The
+// battery of the guard's tests holds them as recorded passes (knownGaps).
+const armedReason = ".loomux/armed.toml: which lanes fail the gate is a human's decision; an agent arms a lane only through a green `loomux check precommit --arm`"
+
+// Built-in rules that protect secrets, the manifest, the armed lanes, the
+// stop gate's controls, the run files and lock files.
 var builtinPathRules = []config.PathRule{
 	{Match: []string{".env"}, Reason: "secrets are not written by an agent"},
 	{Match: []string{".env.*"}, Reason: "secrets are not written by an agent"},
@@ -55,6 +65,9 @@ var builtinPathRules = []config.PathRule{
 	// worktree's .loomux, or one named by its absolute path, is the same
 	// write as into this project's.
 	{Match: []string{"**/.loomux/config.toml"}, Reason: manifestReason},
+	// The second copy of verify.ArmedFile: a rule is a verbatim glob here.
+	// TestTheArmedRuleKeepsTheFileTheGateReads holds the two in step.
+	{Match: []string{"**/.loomux/armed.toml"}, Reason: armedReason},
 	// The literal below is the second copy of sessions.StateDir; a rule is a
 	// verbatim glob here, so the two are kept in step by hand.
 	{Match: []string{"**/.loomux/state/hooks/**"}, Reason: "the stop gate's own controls are not written by the party it gates"},
@@ -308,6 +321,9 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 				}
 				if answersAGate(line, policy.Strict) {
 					reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
+				}
+				if armsOrDisarms(line, policy.Strict) {
+					reasons = append(reasons, gateReason)
 				}
 				if _, tooDeep := ranLines(line); tooDeep {
 					reasons = append(reasons, fmt.Sprintf("loomux reads a command inside a string only %d shells deep; this line goes deeper, so it refuses", maxInnerDepth))
