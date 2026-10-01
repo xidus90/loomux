@@ -4,6 +4,22 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [6.1.0] - 2026-10-01
+
+<https://github.com/xidus90/loomux/pull/64>
+
+### Added
+- `.loomux/armed.toml`: lanes that have never been green warn instead of failing until a green commit arms them; a project without the file keeps every lane armed.
+- `loomux check precommit --arm`, which arms the lanes of a green whole commit and stages the file into it.
+- `loomux gate status`, `loomux gate arm` and `loomux gate disarm` to show and change the armed lanes by hand; `gate disarm --all` puts a set-up project on probation.
+- Session start and `loomux status` name the lanes on probation, the last findings of the stop hook and a pre-commit hook that does not arm.
+- The guard refuses agents writes to `.loomux/armed.toml` and `loomux gate arm|disarm`.
+### Changed
+- The pre-commit hook `init` writes calls `loomux check precommit --arm`; `init` replaces its own older hook and keeps a backup.
+- `init` and `dev switchover` start a project without a configuration on probation with an empty `.loomux/armed.toml`.
+- A file `init` replaces keeps its permissions; a hook gains its exec bit.
+- With `.loomux/armed.toml`, a post-edit run red only in lanes on probation ends with 0 (1 on a host without a context channel, such as Codex) instead of 2, and a turn end red only on probation ends with 0 and resets the block counter.
+
 ## [6.0.2] - 2026-10-01
 
 <https://github.com/xidus90/loomux/pull/63>
