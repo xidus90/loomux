@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/xidus90/loomux/internal/brain/guard"
 	"github.com/xidus90/loomux/internal/config"
@@ -347,8 +348,9 @@ func (j judge) unknownReaches(base, word string) (bool, error) {
 
 // namedPaths are the paths a program's arguments may name: each word, the
 // value of a flag glued with = or :, the value glued to a one-letter flag
-// (-o.loomux/config.toml), and each field of a word that holds a blank --
-// the string of python -c "…" among them.
+// (-o.loomux/config.toml), and each piece of a word cut at blanks and
+// quotes -- the string literals in the code of python -c "open('…')"
+// among them.
 func namedPaths(words []string) []string {
 	var out []string
 	for _, w := range words {
@@ -362,10 +364,10 @@ func namedPaths(words []string) []string {
 			continue
 		}
 		out = append(out, w)
-		if strings.ContainsAny(w, " \t") {
-			for _, field := range strings.Fields(w) {
-				out = append(out, strings.Trim(field, `"'`))
-			}
+		if strings.ContainsAny(w, " \t\"'") {
+			out = append(out, strings.FieldsFunc(w, func(r rune) bool {
+				return unicode.IsSpace(r) || r == '"' || r == '\''
+			})...)
 		}
 	}
 	return out

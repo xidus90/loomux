@@ -194,6 +194,35 @@ func TestStrictModeRefusesAnExpansionInFrontOfAProtectedTail(t *testing.T) {
 	}
 }
 
+// Code an unknown program gets names its paths in string literals; strict
+// mode looks for them there too.
+func TestStrictModeFindsAPathInsideCode(t *testing.T) {
+	root := project(t)
+	for _, line := range []string{
+		`python -c "open('.loomux/config.toml','w')"`,
+		`node -e "require('fs').writeFileSync('.loomux/config.toml','')"`,
+		`ruby -e 'File.write(".loomux/config.toml", "")'`,
+		`python -c "import os;os.remove([r'.loomux/config.toml'][0])"`,
+		`node -e "fs.rmSync({p:'.loomux'}.p)"`,
+		`frob "x .loomux/config.toml"`,
+	} {
+		if got := checkTool(root, "Bash", command(line), strictPolicy); len(got) == 0 {
+			t.Errorf("strict %q: no reason", line)
+		}
+		if got := checkTool(root, "Bash", command(line), config.Policy{}); len(got) != 0 {
+			t.Errorf("default %q: reasons %q, a named limit", line, got)
+		}
+	}
+	if got := checkTool(root, "Bash", command(`python -c "print(open('notes.md').read())"`), strictPolicy); len(got) != 0 {
+		t.Errorf("strict, a path nothing keeps: reasons %q", got)
+	}
+	for _, word := range []string{"open('.loomux/config.toml','w')", "x .loomux/config.toml", "x\t.loomux/config.toml"} {
+		if got := namedPaths([]string{word}); !slices.Contains(got, ".loomux/config.toml") {
+			t.Errorf("namedPaths(%q): %q", word, got)
+		}
+	}
+}
+
 // afterExpansion is the text after the last expansion of a path.
 func TestAfterExpansionIsTheTextAfterTheLastExpansion(t *testing.T) {
 	for p, want := range map[string]string{
