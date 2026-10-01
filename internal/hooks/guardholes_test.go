@@ -43,7 +43,26 @@ func guardedInside() []string {
 // stringShellLines run a line from a string, each around every guarded
 // line, and the lines around them that only read.
 func stringShellLines() []string {
-	var lines []string
+	return append(guardedStringShellLines(),
+		"sh -c \"loomux config list\"",
+		"iex 'loomux config get a'",
+		"sh -c \"cd x && cat y\"",
+		"bash -c 'frob \"$1\"' _ x",
+		"pwsh -c pwsh -c pwsh -c rm x",
+		"pwsh -enc "+encodedCommand("Get-ChildItem"),
+		"bash -o pipefail -c 'go test ./...'",
+		"env -S 'go vet ./...'",
+		"echo hi | sh -c 'cat'",
+		"cat notes.txt | sh script.sh",
+		"ls | iex",
+		"echo 'go test ./...' | sh",
+	)
+}
+
+// guardedStringShellLines are the lines of stringShellLines that run a
+// guarded line, and a string nested deeper than the guard reads.
+func guardedStringShellLines() []string {
+	lines := []string{"pwsh -c pwsh -c pwsh -c pwsh -c loomux init"}
 	for _, inner := range guardedInside() {
 		lines = append(lines,
 			"sh -c \""+inner+"\"",
@@ -68,21 +87,7 @@ func stringShellLines() []string {
 			"bash <<< '"+inner+"'",
 		)
 	}
-	return append(lines,
-		"pwsh -c pwsh -c pwsh -c pwsh -c loomux init",
-		"sh -c \"loomux config list\"",
-		"iex 'loomux config get a'",
-		"sh -c \"cd x && cat y\"",
-		"bash -c 'frob \"$1\"' _ x",
-		"pwsh -c pwsh -c pwsh -c rm x",
-		"pwsh -enc "+encodedCommand("Get-ChildItem"),
-		"bash -o pipefail -c 'go test ./...'",
-		"env -S 'go vet ./...'",
-		"echo hi | sh -c 'cat'",
-		"cat notes.txt | sh script.sh",
-		"ls | iex",
-		"echo 'go test ./...' | sh",
-	)
+	return lines
 }
 
 // folderCopyLines copy or move into a folder, and copies beside one.
@@ -201,16 +206,222 @@ func holesBattery() []string {
 	return slices.Compact(lines)
 }
 
+// refusedAfter are the battery's lines the guard refuses after the fix in
+// both modes; a line among them it refused before already is no flip, and
+// the differential test does not ask it to be one.
+func refusedAfter() []string {
+	return guardedStringShellLines()
+}
+
 // holesFlips are the lines the fix turns from a pass into a refusal in the
 // default mode.
 func holesFlips() map[string]bool {
-	return map[string]bool{}
+	flips := map[string]bool{}
+	for _, line := range refusedAfter() {
+		flips[line] = true
+	}
+	return flips
 }
 
 // holesFlipsStrict are the lines the fix turns from a pass into a refusal
 // in strict mode.
 func holesFlipsStrict() map[string]bool {
-	return map[string]bool{}
+	return holesFlips()
+}
+
+// A loomux command or a write inside a string a shell runs is refused like
+// the line itself, by Bash and PowerShell alike, and with the reason the
+// line itself gets.
+func TestALineInsideAStringIsJudgedLikeTheLine(t *testing.T) {
+	root := holesWorld(t)
+	for _, inner := range guardedInside() {
+		want := shellReasons(t, root, inner, config.Policy{})
+		if len(want) == 0 {
+			t.Fatalf("%q: the line itself is not refused", inner)
+		}
+		for _, line := range guardedStringShellLines()[1:] {
+			if !strings.Contains(line, inner) && !strings.Contains(line, encodedCommand(inner)) {
+				continue
+			}
+			got := shellReasons(t, root, line, config.Policy{})
+			for _, w := range want {
+				if !slices.Contains(got, w) {
+					t.Errorf("%q: reasons %q, want %q among them", line, got, w)
+				}
+			}
+		}
+	}
+}
+
+// A command inside a string is no direct call, so its flag exempts nothing:
+// the guard does not read the string the way the shell does.
+func TestAFlagInsideAStringExemptsNothing(t *testing.T) {
+	for _, line := range []string{
+		"sh -c 'loomux init --dry-run'",
+		`pwsh -c "loomux config set a b --propose"`,
+		"echo 'loomux init --dry-run' | sh",
+	} {
+		if !writesConfiguration(line, false) {
+			t.Errorf("must refuse %q", line)
+		}
+	}
+	for _, line := range []string{"sh -c 'loomux config list'", "iex 'loomux config proposals'"} {
+		if writesConfiguration(line, false) {
+			t.Errorf("must allow %q", line)
+		}
+	}
+}
+
+// A string nested deeper than the guard reads is refused with a reason of
+// its own; one level less is read through.
+func TestAStringNestedTooDeepRefuses(t *testing.T) {
+	root := t.TempDir()
+	got := checkTool(root, "Bash", command("pwsh -c pwsh -c pwsh -c pwsh -c echo hi"), config.Policy{})
+	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "shells deep") }) {
+		t.Fatalf("reasons %q, want the depth reason", got)
+	}
+	if got := checkTool(root, "Bash", command("pwsh -c pwsh -c pwsh -c echo hi"), config.Policy{}); len(got) != 0 {
+		t.Fatalf("three shells deep: reasons %q, want none", got)
+	}
+}
+
+// innerLine finds the string every shell runs.
+func TestInnerLineReadsEveryStringShell(t *testing.T) {
+	for args, want := range map[string]string{
+		"iex|a b":                            "a b",
+		"Invoke-Expression|-Command|a b":     "a b",
+		"x=1|iex|a|b":                        "a b",
+		"pwsh|-enc|" + encodedCommand("a b"): "a b",
+		"powershell|-EncodedCommand|" + encodedCommand("a"): "a",
+		"pwsh|-e|" + encodedCommand("c d"):                  "c d",
+		"bash|-o|pipefail|-c|a":                             "a",
+		"bash|+o|posix|-c|a":                                "a",
+		"bash|-eo|pipefail|-c|a":                            "a",
+		"cmd|/c\"a b\"":                                     "\"a b\"",
+		"cmd|/ca|b":                                         "a b",
+		"env|-S|a b":                                        "a b",
+		"env|-Sa b":                                         "a b",
+		"env|--split-string=a b":                            "a b",
+		"env|--split-string|a b":                            "a b",
+		"env|-i|-S|a":                                       "a",
+		"bash|--norc|-c|a":                                  "a",
+		"cmd|/k|a":                                          "a",
+		"env|-S|a|b":                                        "a b",
+	} {
+		line, _, ok := innerLine(strings.Split(args, "|"))
+		if !ok || line != want {
+			t.Errorf("%q: line %q, %v; want %q", args, line, ok, want)
+		}
+	}
+	for _, args := range []string{
+		"pwsh|-enc|!!", "pwsh|-enc|" + base64.StdEncoding.EncodeToString([]byte{1}), "pwsh|-enc",
+		"env|a", "env|-S", "env|-i", "bash|+c|a", "bash|-o", "bash|-o|pipefail", "cmd|/q", "iex",
+	} {
+		if line, _, ok := innerLine(strings.Split(args, "|")); ok {
+			t.Errorf("%q: line %q, want none", args, line)
+		}
+	}
+}
+
+// pipedLine is the line a shell reads from the segment before its pipe.
+func TestPipedLineReadsWhatTheSegmentBeforePrints(t *testing.T) {
+	for _, row := range []struct{ prev, args, want string }{
+		{`echo "a b"`, "sh", "a b"},
+		{"echo a b", "bash|-s", "a b"},
+		{`printf '%s\n' 'a b'`, "bash|-s|x", "a b"},
+		{`printf 'a b'`, "zsh", "a b"},
+		{"'a b'", "iex", "a b"},
+		{`"a b"`, "Invoke-Expression", "a b"},
+		{"Write-Output 'a b'", "pwsh|-Command|-", "a b"},
+		{"echo a", "pwsh", "a"},
+		{"echo a", "powershell|-c|-", "a"},
+		{"echo a", "cmd", "a"},
+		{"echo a", "cmd|/q", "a"},
+		{"  echo a", "dash", "a"},
+		{"echo -e a b", "sh", "a b"},
+		{"echo a", "bash|--norc", "a"},
+		{"echo a", "bash|-o|pipefail", "a"},
+		{"echo a", "pwsh|-File|-", "a"},
+		{"echo a", "pwsh|-NoProfile", "a"},
+	} {
+		line, ok := pipedLine(row.prev, strings.Split(row.args, "|"))
+		if !ok || line != row.want {
+			t.Errorf("%q | %q: line %q, %v; want %q", row.prev, row.args, line, ok, row.want)
+		}
+	}
+	for _, row := range []struct{ prev, args string }{
+		{"echo a", "sh|-c|cat"},
+		{"cat f", "sh"},
+		{"echo a", "sh|script.sh"},
+		{"ls", "iex"},
+		{"echo a", "iex|b"},
+		{"echo a", "pwsh|-File|x.ps1"},
+		{"echo a", "cmd|/c|x"},
+		{"echo a", "cat"},
+		{"", "sh"},
+		{"echo a", ""},
+		{"echo -n", "sh"},
+		{"echo a", "pwsh|-Command|ls"},
+		{"echo a", "pwsh|-Command"},
+		{"printf", "sh"},
+	} {
+		args := strings.Split(row.args, "|")
+		if row.args == "" {
+			args = nil
+		}
+		if line, ok := pipedLine(row.prev, args); ok {
+			t.Errorf("%q | %q: line %q, want none", row.prev, row.args, line)
+		}
+	}
+}
+
+// Only a pipe feeds a shell what the segment before prints: after ; or &&
+// the shell reads the terminal, and the echo only prints.
+func TestOnlyAPipeFeedsAShell(t *testing.T) {
+	if got := fedLines("echo 'a b'", []string{"sh"}, false); len(got) != 0 {
+		t.Fatalf("no pipe: %q", got)
+	}
+	root := t.TempDir()
+	for _, line := range []string{
+		"echo 'loomux config apply'; sh",
+		"echo 'echo x > .loomux/config.toml' && sh",
+		"echo 'loomux init'; iex",
+	} {
+		if got := shellReasons(t, root, line, config.Policy{}); len(got) != 0 {
+			t.Errorf("%q: reasons %q, want none", line, got)
+		}
+	}
+}
+
+// A shell named by a quoted path that holds a parenthesis is fed as well:
+// only the cut that honours quotes keeps such a path whole.
+func TestAQuotedShellPathIsFedToo(t *testing.T) {
+	for _, line := range []string{
+		`echo "loomux init" | "C:\Program Files (x86)\Git\bin\bash.exe"`,
+		`echo 'loomux config apply' | "C:\Program Files (x86)\PowerShell\pwsh.exe" -Command -`,
+	} {
+		if !writesConfiguration(line, false) {
+			t.Errorf("must refuse %q", line)
+		}
+	}
+}
+
+// hereString is the line a shell reads from <<<.
+func TestHereStringIsTheLineAShellReads(t *testing.T) {
+	for args, want := range map[string]string{
+		"bash|<<<|a b": "a b",
+		"bash|<<<a b":  "a b",
+		"sh|-s|<<<|a":  "a",
+	} {
+		if line, ok := hereString(strings.Split(args, "|")); !ok || line != want {
+			t.Errorf("%q: %q, %v; want %q", args, line, ok, want)
+		}
+	}
+	for _, args := range []string{"cat|<<<|a", "bash|<<<", "bash|-c|x|<<<|a", "bash"} {
+		if line, ok := hereString(strings.Split(args, "|")); ok {
+			t.Errorf("%q: %q, want none", args, line)
+		}
+	}
 }
 
 // holesWorld is the project the battery is judged in: the manifest, and

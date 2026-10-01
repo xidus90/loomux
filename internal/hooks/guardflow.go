@@ -23,6 +23,12 @@ var bundledFlows = flows.Names
 // writesConfiguration reads it, and has the same holes; with anyProgram, in
 // strict mode, every program knownProgram does not name counts as loomux.
 func answersAGate(line string, anyProgram bool) bool {
+	return anyRunLine(line, func(l string, _ bool) bool { return lineAnswersAGate(l, anyProgram) })
+}
+
+// lineAnswersAGate is answersAGate for one line, without the lines it runs
+// from a string; no flag exempts here, so a nested line reads alike.
+func lineAnswersAGate(line string, anyProgram bool) bool {
 	for _, variant := range lineVariants(line) {
 		for _, segment := range segments(variant) {
 			all := readings(segment)

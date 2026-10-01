@@ -309,6 +309,9 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 				if answersAGate(line, policy.Strict) {
 					reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
 				}
+				if _, tooDeep := ranLines(line); tooDeep {
+					reasons = append(reasons, fmt.Sprintf("loomux reads a command inside a string only %d shells deep; this line goes deeper, so it refuses", maxInnerDepth))
+				}
 			}
 		}
 	}
@@ -355,9 +358,18 @@ func pathReasons(rules []config.PathRule, rel string, fold bool) []string {
 // what it guarantees and what passes in the default mode. With anyProgram, in
 // strict mode, every program knownProgram does not name counts as loomux.
 func writesConfiguration(line string, anyProgram bool) bool {
+	return anyRunLine(line, func(l string, nested bool) bool {
+		return lineWritesConfiguration(l, anyProgram, nested)
+	})
+}
+
+// lineWritesConfiguration is writesConfiguration for one line, without the
+// lines it runs from a string. A nested line is one of those: its words are
+// not the ones the guard read, so no flag in it exempts.
+func lineWritesConfiguration(line string, anyProgram, nested bool) bool {
 	// Judged on the line as written, before any rewrite: a continuation or
 	// an escape the rewrites resolve is already no plain line.
-	plain := plainLine(line)
+	plain := !nested && plainLine(line)
 	for _, variant := range lineVariants(line) {
 		// The quote-blind cut also breaks inside a wrapper's quoted inner
 		// command and puts its loomux at the head of a segment, while the
@@ -377,6 +389,76 @@ func writesConfiguration(line string, anyProgram bool) bool {
 		}
 	}
 	return false
+}
+
+// anyRunLine says whether judge holds for line, or for a line it runs from a
+// string (ranLines), which judge gets as nested. A command rule asks it, so
+// that sh -c "…", iex '…' and echo '…' | sh hide no command.
+func anyRunLine(line string, judge func(line string, nested bool) bool) bool {
+	if judge(line, false) {
+		return true
+	}
+	inner, _ := ranLines(line)
+	return slices.ContainsFunc(inner, func(l string) bool { return judge(l, true) })
+}
+
+// ranLines are the lines a line runs from strings, up to maxInnerDepth
+// shells deep, each once; tooDeep says that the deepest level read still
+// runs a string, which the guard has not read.
+func ranLines(line string) (lines []string, tooDeep bool) {
+	level := []string{line}
+	for depth := 0; ; depth++ {
+		var next []string
+		for _, l := range level {
+			for _, inner := range directLines(l) {
+				if !slices.Contains(lines, inner) && !slices.Contains(next, inner) {
+					next = append(next, inner)
+				}
+			}
+		}
+		if len(next) == 0 {
+			return lines, false
+		}
+		if depth == maxInnerDepth {
+			return lines, true
+		}
+		lines, level = append(lines, next...), next
+	}
+}
+
+// directLines are the lines one line runs from a string, read the way
+// shellWrites reads them: in every variant, cut and reading, the string of a
+// shell (innerLine), and what a shell that reads stdin is fed (fedLines).
+func directLines(line string) []string {
+	var out []string
+	add := func(l string, ok bool) {
+		if ok && !slices.Contains(out, l) {
+			out = append(out, l)
+		}
+	}
+	for _, variant := range lineVariants(line) {
+		cuts := [][]string{splitSegments(variant, false)}
+		if strings.ContainsAny(variant, `"'`) {
+			cuts = append(cuts, splitSegments(variant, true))
+		}
+		for _, cut := range cuts {
+			prev, at := "", 0
+			for _, segment := range cut {
+				// The segments are contiguous, each after a one-byte break.
+				piped := at > 0 && variant[at-1] == '|'
+				at += len(segment) + 1
+				for _, words := range readings(segment) {
+					l, _, ok := innerLine(words)
+					add(l, ok)
+					for _, fed := range fedLines(prev, words, piped) {
+						add(fed, true)
+					}
+				}
+				prev = segment
+			}
+		}
+	}
+	return out
 }
 
 // lineVariants are the line as written and the line as each shell would join
@@ -431,10 +513,13 @@ func lineVariants(line string) []string {
 // a path ending in either, quoted or not, with any bytes in the quoted path,
 // is read as the program of some segment, and an unclosed quote or a stray
 // escape never makes a segment pass; behind a program the guard does not
-// know, a later loomux word counts as a call (behindUnknown). Not guaranteed:
-// an alias, a program held in a variable, a command inside a string (sh -c
-// "loomux init", pwsh -c ..., script -c ...), a program a known tool runs
-// (uv run loomux init, npx loomux init, find -exec loomux), and, after any earlier escaped \" or \' on the line, a quoted program
+// know, a later loomux word counts as a call (behindUnknown). A command
+// inside a string (sh -c "loomux init", iex '…', echo '…' | sh) is no
+// segment of this line; the rules read it as a line of its own (anyRunLine).
+// Not guaranteed: an alias, a program held in a variable, a command inside
+// script -c ..., a program a known tool runs (uv run loomux init, npx loomux
+// init, find -exec loomux), and, after any earlier escaped \" or \' on the
+// line, a quoted program
 // path whose part after its last break character ( ) & ; | holds a blank: the
 // field reading then starts that segment inside the path, as in
 // `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.
