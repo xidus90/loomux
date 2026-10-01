@@ -4,6 +4,17 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [6.0.2] - 2026-10-01
+
+<https://github.com/xidus90/loomux/pull/63>
+
+### Security
+- The guard refuses loomux's configuration commands and flow gate answers inside a string a shell runs (`sh -c`, `pwsh -c`, `-EncodedCommand`, `iex`, `Invoke-Expression`, `eval`, `env -S`) or reads from a pipe or here-string, and no `--dry-run` or `--propose` exempts there.
+- The guard refuses a copy or move into `.loomux/` by the name the file lands under, and a copy of a tree that would overwrite protected files.
+- The guard refuses `patch`, `git apply` and `git am` when their patch changes a protected file, and a patch it cannot read.
+- The guard reads a variable or alias set on the same line, 8.3 short names and trailing dots in the default mode as well.
+- Strict mode refuses a variable in front of a protected path tail and a protected path inside the code an unknown program gets.
+
 ## [6.0.1] - 2026-10-01
 
 <https://github.com/xidus90/loomux/pull/62>
