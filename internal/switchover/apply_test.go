@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/gitenv"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 // templateUnderTest is the template the world runs: the embedded one, or the
@@ -305,9 +306,68 @@ func TestApplyCheckWritesNothing(t *testing.T) {
 			t.Errorf("stdout lacks %q:\n%s", want, out)
 		}
 	}
+	if !strings.Contains(out, "config: would be written\nprobation: would be started, .loomux/armed.toml written\n") {
+		t.Errorf("stdout lacks the probation it would start:\n%s", out)
+	}
 	w.sameAs(before)
 	if calls := w.calls(); calls != nil {
 		t.Fatalf("--check ran loomux: %q", calls)
+	}
+}
+
+// Step 4 starts the probation where it writes the configuration: init runs
+// after it, finds a configuration and would start none.
+func TestApplyStartsTheProbationWhereItWritesTheConfiguration(t *testing.T) {
+	w := newWorld(t)
+	out := w.full()
+	if got := w.read(w.project + "/.loomux/armed.toml"); got != (verify.ArmedSet{Exists: true}).Text() {
+		t.Fatalf("armed.toml %q, want the text init writes", got)
+	}
+	if !strings.Contains(out, "config: written\nprobation: started, .loomux/armed.toml written\n") {
+		t.Fatalf("stdout:\n%s", out)
+	}
+	// A second run finds the configuration and leaves the lanes a human or a
+	// commit armed since.
+	w.write(w.project+"/.loomux/armed.toml", "armed = [\"lint/go@.\"]\n")
+	w.commitAll(w.project, "switch over")
+	before := w.snapshot()
+	code, out, errOut := w.run()
+	if code != 0 || strings.Contains(out, "probation:") {
+		t.Fatalf("code %d:\n%s\n%s", code, out, errOut)
+	}
+	w.sameAs(before)
+}
+
+// A project that has armed lanes and no configuration -- a Go project init
+// set up, or a run stopped after the lanes -- keeps them: the script writes
+// the configuration and leaves the file as it stands.
+func TestApplyKeepsStandingArmedLanes(t *testing.T) {
+	const armed = "armed = [\"lint/go@.\"]\n"
+	w := newWorld(t)
+	w.write(w.project+"/.loomux/armed.toml", armed)
+	w.commitAll(w.project, "armed lanes")
+	code, out, errOut := w.run("--check")
+	if code != 0 || !strings.Contains(out, "config: would be written\nprobation: would be kept, .loomux/armed.toml stands\n") {
+		t.Fatalf("--check: code %d\n%s\n%s", code, out, errOut)
+	}
+	out = w.full()
+	if got := w.read(w.project + "/.loomux/armed.toml"); got != armed {
+		t.Fatalf("armed.toml %q, want it kept", got)
+	}
+	if !exists(w.project+"/.loomux/config.toml") || strings.Contains(out, "probation: started") ||
+		!strings.Contains(out, "config: written\nprobation: kept, .loomux/armed.toml stands\n") {
+		t.Fatalf("stdout:\n%s", out)
+	}
+}
+
+// A project that has a configuration is not put into probation by the script.
+func TestApplyStartsNoProbationOverAStandingConfiguration(t *testing.T) {
+	w := newWorld(t)
+	w.write(w.project+"/.loomux/config.toml", "[area]\nname = \"mine\"\n")
+	w.commitAll(w.project, "own config")
+	out := w.full()
+	if exists(w.project+"/.loomux/armed.toml") || strings.Contains(out, "probation:") {
+		t.Fatalf("armed.toml written over a standing configuration:\n%s", out)
 	}
 }
 
@@ -692,8 +752,9 @@ func TestApplyWithOnlyTheRequiredParts(t *testing.T) {
 	after := w.snapshot()
 	delete(after, "/proj's/.loomux")
 	delete(after, "/proj's/.loomux/config.toml")
+	delete(after, "/proj's/.loomux/armed.toml")
 	if !reflect.DeepEqual(after, before) {
-		t.Error("more than the configuration changed")
+		t.Error("more than the configuration and the armed lanes changed")
 	}
 }
 
@@ -1023,6 +1084,31 @@ func TestApplyCleansUpWhenItIsStopped(t *testing.T) {
 	}
 	if w.read(w.registry) != "old registry\n" {
 		t.Error("the registry was replaced")
+	}
+}
+
+// A run that ends before the configuration is in place has started the
+// probation already: a configuration left without the armed lanes would be
+// kept by the next run, and the project would never get them.
+func TestApplyWritesTheArmedLanesBeforeTheConfiguration(t *testing.T) {
+	w := newWorld(t)
+	// The configuration lies in the staging directory, which git ignores: it
+	// is there for the checks of step 1 and gone once the staging begins, so
+	// that the copy of step 4 fails.
+	w.write(w.project+"/.gitignore", "docs/wiki.staging/\n")
+	w.commitAll(w.project, "ignore the staging")
+	w.p.ConfigNew = w.project + "/docs/wiki.staging/config.toml.new"
+	w.write(w.p.ConfigNew, "[area]\nname = \"x\"\n")
+	code, out, errOut := w.run()
+	// The copy names its source when it fails; the wiki is merged by then.
+	if code == 0 || !strings.Contains(errOut, "config.toml.new") || !strings.Contains(out, "wiki: merged") {
+		t.Fatalf("code %d, want the copy of the configuration to fail:\n%s\n%s", code, out, errOut)
+	}
+	if exists(w.project + "/.loomux/config.toml") {
+		t.Error("config.toml was written")
+	}
+	if got := w.read(w.project + "/.loomux/armed.toml"); got != (verify.ArmedSet{Exists: true}).Text() {
+		t.Errorf("armed.toml %q, want the text init writes", got)
 	}
 }
 
