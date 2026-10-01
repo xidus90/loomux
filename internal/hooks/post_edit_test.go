@@ -1042,3 +1042,79 @@ func TestPostEditGivesEachFileItsOwnRunID(t *testing.T) {
 		t.Fatalf("profiles %v", profiles)
 	}
 }
+
+// redTool answers every tool with a finding.
+func redTool(child.Spec) child.Result { return child.Result{Code: 1, Stdout: "a.go:1: bad\n"} }
+
+func editedGoFile(t *testing.T, armed string) (root, payload string) {
+	t.Helper()
+	root = goProject(t)
+	writeWorldFile(t, root, "a.go", "package m\n")
+	if armed != "" {
+		writeWorldFile(t, root, ".loomux/armed.toml", armed)
+	}
+	return root, filePayload(t, filepath.Join(root, "a.go"))
+}
+
+// The key an edit's lane has is the key the check's lane has: what a green
+// commit armed holds for the edit of a file in that area too.
+func TestAnEditIsHeldOnlyByAnArmedLane(t *testing.T) {
+	root, payload := editedGoFile(t, "")
+	if code, _, se, _ := postEdit(t, root, payload, redTool); code != ExitDenied || strings.Contains(se, "probation") {
+		t.Fatalf("no file: %d %q", code, se)
+	}
+
+	root, payload = editedGoFile(t, "armed = []\n")
+	code, so, se, _ := postEdit(t, root, payload, redTool)
+	if code != ExitOK || !strings.Contains(se, "lint/go: failed (probation)\n") || !strings.Contains(se, "a.go:1: bad") {
+		t.Fatalf("probation: %d %q", code, se)
+	}
+	if said := editContextOf(t, so); !strings.Contains(said, "lint/go: failed (probation)") || !strings.Contains(said, "a.go:1: bad") {
+		t.Fatalf("the model is told nothing: %q", said)
+	}
+
+	root, payload = editedGoFile(t, "armed = [\"lint/go@.\"]\n")
+	code, so, se, _ = postEdit(t, root, payload, redTool)
+	if code != ExitDenied || !strings.Contains(se, "lint/go: failed\n") || so != "" {
+		t.Fatalf("armed: %d %q %q", code, so, se)
+	}
+}
+
+func TestPostEditSaysAnUnreadableArmedFileAndHolds(t *testing.T) {
+	root, payload := editedGoFile(t, "armed = 1\n")
+	code, _, se, _ := postEdit(t, root, payload, redTool)
+	if code != ExitDenied || !strings.Contains(se, "loomux hook post-tool-use: .loomux/armed.toml") || !strings.Contains(se, "every lane is armed") {
+		t.Fatalf("%d %q", code, se)
+	}
+}
+
+// Antigravity reads a hook's stdout at exit 0 as injectSteps: the warning is
+// in the message it shows the model, and the adapter hands it on as it is.
+func TestAntigravityHearsALaneInProbation(t *testing.T) {
+	root := goProject(t)
+	writeWorldFile(t, root, ".loomux/armed.toml", "armed = []\n")
+	seen := []string{}
+	env := editEnv(t, redTool, &seen)
+	env.Host = hosts.HostAntigravity
+	var so, se bytes.Buffer
+	code := RunPostEdit(strings.NewReader(agyCall(t, root, "a.go")), &so, &se, root, env)
+	if code != ExitOK {
+		t.Fatalf("%d %q", code, se.String())
+	}
+	var said struct {
+		InjectSteps []struct {
+			EphemeralMessage string `json:"ephemeralMessage"`
+		} `json:"injectSteps"`
+	}
+	if err := json.Unmarshal(so.Bytes(), &said); err != nil || len(said.InjectSteps) != 1 {
+		t.Fatalf("stdout is no injectSteps document: %q %v", so.String(), err)
+	}
+	if msg := said.InjectSteps[0].EphemeralMessage; !strings.Contains(msg, "lint/go: failed (probation)") || !strings.Contains(msg, "a.go:1: bad") {
+		t.Fatalf("the warning is not in the message: %q", msg)
+	}
+	// What `loomux hook` does with it: exit 0, stdout untouched.
+	var out bytes.Buffer
+	if got := hosts.Answer(hosts.HostAntigravity, "post-tool-use", &out, code, so.Bytes(), se.String()); got != 0 || out.String() != so.String() {
+		t.Fatalf("the adapter changed the answer: %d %q", got, out.String())
+	}
+}
