@@ -229,11 +229,11 @@ func holesFlips() map[string]bool {
 }
 
 // holesFlipsStrict are the lines the fix turns from a pass into a refusal
-// in strict mode: the default mode's, and a variable in front of a
-// protected tail.
+// in strict mode: the default mode's, a variable in front of a protected
+// tail, and a path inside the code an unknown program gets.
 func holesFlipsStrict() map[string]bool {
 	flips := holesFlips()
-	for _, line := range []string{"echo x > $D/config.toml", "echo x > $D/state/hooks/x"} {
+	for _, line := range slices.Concat([]string{"echo x > $D/config.toml", "echo x > $D/state/hooks/x"}, codeStringLines()[:2]) {
 		flips[line] = true
 	}
 	return flips
