@@ -332,12 +332,18 @@ Evaluates the project policy and global write barrier before an agent executes a
   (``loomux con`fig``) is read as PowerShell does.
   - **Known holes** — the rule reads words, not a shell, so it passes: an
     alias; a program held in a variable; a command inside a string (`sh -c
-    "loomux init"`, `pwsh -c …`); `go run .` inside `cmd/loomux`; and, after
+    "loomux init"`, `pwsh -c …`, `script -c …`); a program a known tool
+    runs (`uv run loomux init`, `npx loomux init`, `find … -exec loomux …`);
+    `go run .` inside `cmd/loomux`; and, after
     an earlier escaped `\"` or `\'` on the same line, a quoted program path
     whose part after its last break character (`(`, `)`, `&`, `;`, `|`)
     holds a blank, such as
     `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.
-  - **Known false refusals** — it errs toward refusing: `echo "x; loomux
+  - **Known false refusals** — it errs toward refusing: behind a program
+    it does not know, a later loomux word counts as a call, whatever the
+    program does with it (`ssh host loomux init`, `gdb --args loomux init`,
+    `zip -r loomux.zip loomux config`; a program that only looks a name up
+    or shows its manual, `man`, `tldr`, `which`, is exempt); `echo "x; loomux
     init"`, `start loomux config list`, `Start-Process code -ArgumentList
     loomux`, `command -v loomux init` (which only looks the name up), a
     loomux word right after a brace that opens no block

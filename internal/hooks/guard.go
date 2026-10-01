@@ -366,8 +366,11 @@ func writesConfiguration(line string, anyProgram bool) bool {
 		aware := splitSegments(variant, true)
 		for _, segment := range segments(variant) {
 			exempt := plain && slices.Contains(aware, segment)
-			for _, words := range readings(segment) {
-				if readingWrites(words, exempt, anyProgram) {
+			all := readings(segment)
+			for k, words := range all {
+				// The field reading, the last, splits quoted strings: a
+				// loomux inside one is no program behind an unknown one.
+				if readingWrites(words, exempt, anyProgram, k < len(all)-1) {
 					return true
 				}
 			}
@@ -427,9 +430,11 @@ func lineVariants(line string) []string {
 // Guaranteed, together with segments: a program named loomux, loomux.exe or
 // a path ending in either, quoted or not, with any bytes in the quoted path,
 // is read as the program of some segment, and an unclosed quote or a stray
-// escape never makes a segment pass. Not guaranteed: an alias, a program held
-// in a variable, a command inside a string (sh -c "loomux init", pwsh -c
-// ...), and, after any earlier escaped \" or \' on the line, a quoted program
+// escape never makes a segment pass; behind a program the guard does not
+// know, a later loomux word counts as a call (behindUnknown). Not guaranteed:
+// an alias, a program held in a variable, a command inside a string (sh -c
+// "loomux init", pwsh -c ..., script -c ...), a program a known tool runs
+// (uv run loomux init, npx loomux init, find -exec loomux), and, after any earlier escaped \" or \' on the line, a quoted program
 // path whose part after its last break character ( ) & ; | holds a blank: the
 // field reading then starts that segment inside the path, as in
 // `echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`.
@@ -482,13 +487,13 @@ func tolerantWords(s string) []string {
 // word after a lone { or }. Braces are no segment breaks, because ${VAR}
 // holds them, yet a block opens a command: the body of try { … } catch { … }
 // or of a function sits there, behind a word no break precedes.
-func readingWrites(words []string, plain, anyProgram bool) bool {
-	if wordsWriteConfiguration(words, plain, anyProgram) {
+func readingWrites(words []string, plain, anyProgram, scan bool) bool {
+	if wordsWriteConfiguration(words, plain, anyProgram, scan) {
 		return true
 	}
 	// A call behind a brace is no direct call, so its flag exempts nothing.
 	for i, w := range words {
-		if (w == "{" || w == "}") && wordsWriteConfiguration(words[i+1:], false, anyProgram) {
+		if (w == "{" || w == "}") && wordsWriteConfiguration(words[i+1:], false, anyProgram, scan) {
 			return true
 		}
 	}
@@ -500,7 +505,7 @@ func readingWrites(words []string, plain, anyProgram bool) bool {
 // word: a wrapper may read the words once more (cmd resolves ^, %X%, !X! and
 // " inside what the shell passed on as one quoted word), and the guard does
 // not model that second reading.
-func wordsWriteConfiguration(words []string, plain, anyProgram bool) bool {
+func wordsWriteConfiguration(words []string, plain, anyProgram, scan bool) bool {
 	head := len(words)
 	read := readPrefixes(words)
 	if anyProgram && slices.ContainsFunc(read.named, func(call []string) bool { return programWrites(call, false, true) }) {
@@ -509,8 +514,33 @@ func wordsWriteConfiguration(words []string, plain, anyProgram bool) bool {
 	if len(read.program) == 0 {
 		return false
 	}
-	return programWrites(read.program, plain && len(read.program) == head, anyProgram)
+	if programWrites(read.program, plain && len(read.program) == head, anyProgram) {
+		return true
+	}
+	return scan && behindUnknown(read.program, func(rest []string) bool { return programWrites(rest, false, false) })
 }
+
+// behindUnknown says whether judge holds for the words from a later loomux
+// word on, when the program in front of them is one the guard does not know:
+// such a program may run the words after it (taskset 0x1 loomux init, flock f
+// loomux init, doas loomux init). A program the guard knows by its name, or
+// one that only looks a name up, is left to its name; loomux itself has been
+// judged already.
+func behindUnknown(words []string, judge func([]string) bool) bool {
+	if _, ok := loomuxArgs(words); ok || knownName(words[0]) || slices.Contains(lookupVerbs, verbOf(words[0])) {
+		return false
+	}
+	for i := 1; i < len(words); i++ {
+		if _, ok := loomuxArgs(words[i:]); ok && judge(words[i:]) {
+			return true
+		}
+	}
+	return false
+}
+
+// lookupVerbs only look a program up or show its manual; they run nothing.
+var lookupVerbs = []string{"man", "tldr", "apropos", "whatis", "info", "help", "which", "where",
+	"whereis", "get-help", "get-command", "gcm"}
 
 // programWrites is wordsWriteConfiguration for words that start with the
 // program, exempt when a reading flag may exempt the call.
@@ -1139,9 +1169,12 @@ var knownTools = []string{"git", "gh", "go", "npm", "npx", "pnpm", "yarn", "carg
 // knownProgram says whether word is the bare name of a program strict mode
 // leaves to its name.
 func knownProgram(word string) bool {
-	if strings.ContainsAny(word, `/\`) {
-		return false
-	}
+	return !strings.ContainsAny(word, `/\`) && knownName(word)
+}
+
+// knownName says whether word names, by its base name, a program the guard
+// knows: a known tool or a verb of the table.
+func knownName(word string) bool {
 	name := verbOf(word)
 	for _, list := range [][]string{knownTools, readVerbs, everyFileWrites, everyFileRemoves,
 		moveVerbs, renameVerbs, copyVerbs, otherWriteVerbs} {

@@ -25,8 +25,11 @@ var bundledFlows = flows.Names
 func answersAGate(line string, anyProgram bool) bool {
 	for _, variant := range lineVariants(line) {
 		for _, segment := range segments(variant) {
-			for _, words := range readings(segment) {
-				if readingAnswers(words, anyProgram) {
+			all := readings(segment)
+			for k, words := range all {
+				// The field reading, the last, splits quoted strings
+				// (writesConfiguration).
+				if readingAnswers(words, anyProgram, k < len(all)-1) {
 					return true
 				}
 			}
@@ -37,24 +40,28 @@ func answersAGate(line string, anyProgram bool) bool {
 
 // readingAnswers judges one reading from its head and from every word after
 // a lone { or }, for readingWrites' reason: a block opens a command.
-func readingAnswers(words []string, anyProgram bool) bool {
+func readingAnswers(words []string, anyProgram, scan bool) bool {
 	for i, w := range words {
-		if (w == "{" || w == "}") && wordsAnswer(words[i+1:], anyProgram) {
+		if (w == "{" || w == "}") && wordsAnswer(words[i+1:], anyProgram, scan) {
 			return true
 		}
 	}
-	return wordsAnswer(words, anyProgram)
+	return wordsAnswer(words, anyProgram, scan)
 }
 
 // wordsAnswer says whether one reading, past what runs in front of the
 // program, is loomux flow resume with an answer, or a Start-Process of
 // loomux, whose arguments the words cannot see.
-func wordsAnswer(words []string, anyProgram bool) bool {
+func wordsAnswer(words []string, anyProgram, scan bool) bool {
 	read := readPrefixes(words)
 	if anyProgram && slices.ContainsFunc(read.named, func(call []string) bool { return programAnswers(call, true) }) {
 		return true
 	}
-	return len(read.program) > 0 && programAnswers(read.program, anyProgram)
+	if len(read.program) == 0 {
+		return false
+	}
+	return programAnswers(read.program, anyProgram) ||
+		scan && behindUnknown(read.program, func(rest []string) bool { return programAnswers(rest, false) })
 }
 
 // programAnswers is wordsAnswer for words that start with the program.

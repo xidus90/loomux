@@ -749,6 +749,23 @@ func loomuxSpellings() []string {
 		// PowerShell's dot-source operator runs the command like &.
 		". loomux init",
 		". winpty loomux config set a b",
+		// Behind a program the guard does not know, a later loomux word is a
+		// call: the program may run the words after it.
+		"taskset 0x1 loomux init",
+		"taskset 0x1 go run ./cmd/loomux init",
+		"flock /tmp/x loomux config set a b",
+		"doas loomux init",
+		"gsudo.exe loomux area add",
+		"rlwrap loomux init",
+		"strace -o /dev/null loomux init",
+		"watch -n 1 loomux init",
+		"cross-env A=1 loomux init",
+		"mintty -e bin/loomux.exe merge-hook install",
+		"taskset 0x1 loomux init --dry-run",
+		// False refusals kept on purpose: loomux on another host, or under a
+		// debugger that does not run it.
+		"ssh host loomux init",
+		"gdb --args loomux init",
 		// False refusals kept on purpose: a word after a lone brace.
 		"awk '{ print }' loomux init",
 		"echo } loomux config set a b",
@@ -1030,6 +1047,13 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		`sh -c "loomux dev switchover prune-hooks --file x --match y"`,
 		"sh -c 'loomux dev switchover prune-hooks --file x --match y'",
 		"sh apply.sh",
+		// script -c holds its command in a string, as sh -c does.
+		`script -c "loomux init"`,
+		`script -qc "loomux config set a b" /dev/null`,
+		// A known tool that runs a program is left to its name.
+		"uv run loomux init",
+		"npx loomux init",
+		"find . -maxdepth 0 -exec loomux init {} +",
 	}
 	allowed := []string{
 		"loomux init --dry-run",
@@ -1072,6 +1096,23 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"loomux check precommit",
 		"echo loomux config set",
 		"grep 'loomux init' docs",
+		// A program that only looks a name up or shows its manual, and loomux
+		// named inside a quoted argument of a program the guard does not know.
+		"man loomux init",
+		"tldr loomux init",
+		"apropos loomux",
+		"which loomux",
+		"where loomux",
+		"Get-Help loomux init",
+		`git commit -m "loomux init"`,
+		`pgrep -f "loomux init"`,
+		`Write-Host "next: loomux init --yes"`,
+		`hyperfine "loomux init --dry-run"`,
+		`gh pr create --title "loomux init x"`,
+		`findstr /s "loomux init" *.md`,
+		"taskset 0x1 loomux config list",
+		// loomux's own arguments are not searched for another call.
+		"loomux config get loomux init",
 		"loomux",
 		"loomux area list",
 		"loomux area",
