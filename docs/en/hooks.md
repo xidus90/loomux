@@ -470,7 +470,8 @@ or renamed binary (`cp bin/loomux.exe x.exe`, then `x.exe flow resume …
 strict mode they know it by its arguments instead: every program that is
 neither in the verb table below nor a known tool (`git`, `gh`, `go`, `npm`,
 `cargo`, `uv`, `docker`, `terraform`, `make` and a few more, by their bare
-name) counts as loomux.
+name) counts as loomux, and so does a wrapper called by a path (`./nohup`),
+which the rules otherwise look behind.
 
 **One check for both roads.** A shell line is read for the paths it writes or
 removes, and those go through the same path rules as a writing tool's target:

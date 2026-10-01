@@ -50,10 +50,15 @@ func readingAnswers(words []string, anyProgram bool) bool {
 // program, is loomux flow resume with an answer, or a Start-Process of
 // loomux, whose arguments the words cannot see.
 func wordsAnswer(words []string, anyProgram bool) bool {
-	words = dropPrefixes(words)
-	if len(words) == 0 {
-		return false
+	read := readPrefixes(words)
+	if anyProgram && slices.ContainsFunc(read.named, func(call []string) bool { return programAnswers(call, true) }) {
+		return true
 	}
+	return len(read.program) > 0 && programAnswers(read.program, anyProgram)
+}
+
+// programAnswers is wordsAnswer for words that start with the program.
+func programAnswers(words []string, anyProgram bool) bool {
 	if startsLoomux(words) {
 		return true
 	}

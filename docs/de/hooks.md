@@ -497,7 +497,8 @@ Pfadregeln oben gelten weiter. Im strikten Modus erkennen sie es stattdessen
 an seinen Argumenten: jedes Programm, das weder in der Verbtabelle unten
 steht noch ein bekanntes Werkzeug ist (`git`, `gh`, `go`, `npm`, `cargo`,
 `uv`, `docker`, `terraform`, `make` und einige mehr, am bloßen Namen), zählt
-als loomux.
+als loomux, ebenso ein über einen Pfad gerufener Wrapper (`./nohup`), hinter
+den die Regeln sonst schauen.
 
 **Eine Prüfung für beide Wege.** Eine Shell-Zeile wird nach den Pfaden
 gelesen, die sie schreibt oder löscht, und diese gehen durch dieselben

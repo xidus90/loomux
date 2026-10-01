@@ -656,6 +656,9 @@ func loomuxSpellings() []string {
 		"nice --adj 5 loomux init",
 		"sudo -Hu root loomux init",
 		"sudo -uroot loomux init",
+		// A wrapper named by a path is still the wrapper.
+		"/usr/bin/nohup loomux init",
+		"/usr/bin/env -u X loomux init",
 		"timeout --sig=KILL 5 loomux init",
 		"xargs -tn 1 loomux init",
 		"xargs -0n 1 loomux init",
