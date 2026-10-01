@@ -11,17 +11,21 @@ import (
 )
 
 // Outcome is how one job ended. BlockedBy names the predecessor whose red
-// kept it from starting.
+// kept it from starting. Probation says its red does not fail the run: for a
+// blocked lane it is the answer of the lane that blocks it, whatever its own
+// arming; for every other lane, that the lane is not armed.
 type Outcome struct {
 	Job       Job
 	State     State
 	Output    string
 	Duration  time.Duration
 	BlockedBy string
+	Probation bool
 }
 
 // RunOptions is what a run needs from outside. Timeout caps each process, 0
 // meaning none; Budget, when positive, caps the whole run from its start.
+// Armed says whether a lane's red fails the run; nil arms every lane.
 type RunOptions struct {
 	Scope           Scope
 	MaxParallel     int
@@ -29,6 +33,7 @@ type RunOptions struct {
 	Start           func(child.Spec) child.Result
 	Look            func(string) (string, error)
 	Now             func() time.Time
+	Armed           func(Job) bool
 }
 
 const abandoned = "output abandoned: a process the tool started kept its pipe open"
@@ -85,6 +90,7 @@ func Run(jobs []Job, opt RunOptions) []Outcome {
 			start := opt.Now()
 			o := r.lane(job)
 			o.Duration = opt.Now().Sub(start)
+			o.Probation = r.probation(job)
 			out[i] = o
 		}()
 	}
@@ -95,20 +101,27 @@ func Run(jobs []Job, opt RunOptions) []Outcome {
 }
 
 // inherit decides a job by its predecessor: a red one blocks it, and one that
-// could not judge leaves it unable to judge as well.
+// could not judge leaves it unable to judge as well. The predecessor blocks
+// whether or not it is armed -- what it should have written is missing either
+// way -- but a block counts as red only where the lane that blocks does.
 func (r *runner) inherit(job Job, pred Outcome) (Outcome, bool) {
 	if Red(pred.State, r.opt.Scope) {
-		return Outcome{Job: job, State: StateBlocked, BlockedBy: pred.Job.Name}, true
+		return Outcome{Job: job, State: StateBlocked, BlockedBy: pred.Job.Name, Probation: pred.Probation}, true
 	}
 	switch pred.State {
 	case StateUnavailable, StateNotApplicable:
-		return Outcome{Job: job, State: pred.State}, true
+		return Outcome{Job: job, State: pred.State, Probation: r.probation(job)}, true
 	case StateBudget, StateMissingTool, StateUnready:
 		if r.opt.Scope == ScopeEdit {
-			return Outcome{Job: job, State: pred.State}, true
+			return Outcome{Job: job, State: pred.State, Probation: r.probation(job)}, true
 		}
 	}
 	return Outcome{}, false
+}
+
+// probation says whether job's lane is not armed.
+func (r *runner) probation(job Job) bool {
+	return r.opt.Armed != nil && !r.opt.Armed(job)
 }
 
 // lane runs one job whose predecessor let it: a planned state, an in-process

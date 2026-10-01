@@ -488,3 +488,95 @@ func TestRedDependsOnTheScope(t *testing.T) {
 		}
 	}
 }
+
+// lane is job with the fields a key is built from.
+func lane(kind string, after int, argv string) Job {
+	j := job(kind+"/go", after, argv)
+	j.Kind, j.Stack, j.Area = kind, "go", "."
+	return j
+}
+
+// Coverage waits for a test that fails. Whether the blocked lane is red is
+// decided by the lane that blocks it, not by its own place in the file.
+func TestBlockedIsRedOnlyBehindAnArmedLane(t *testing.T) {
+	f := &fakeStart{answer: func(s child.Spec) child.Result {
+		if s.Argv[0] == "test" {
+			return child.Result{Code: 1}
+		}
+		return child.Result{}
+	}}
+	jobs := []Job{lane("test", -1, "test run"), lane("coverage", 0, "cover run")}
+	for name, c := range map[string]struct {
+		armed               func(Job) bool
+		testProb, coverProb bool
+	}{
+		"no set":                        {nil, false, false},
+		"the test is in probation":      {func(j Job) bool { return j.Kind != "test" }, true, true},
+		"only coverage is in probation": {func(j Job) bool { return j.Kind == "test" }, false, false},
+		"both are in probation":         {func(Job) bool { return false }, true, true},
+	} {
+		o := opts(f)
+		o.Armed = c.armed
+		outs := Run(jobs, o)
+		if outs[0].State != StateFailed || outs[1].State != StateBlocked || outs[1].BlockedBy != "test/go" {
+			t.Fatalf("%s: states %s, %s by %q", name, outs[0].State, outs[1].State, outs[1].BlockedBy)
+		}
+		if outs[0].Probation != c.testProb || outs[1].Probation != c.coverProb {
+			t.Errorf("%s: probation %v, %v; want %v, %v", name, outs[0].Probation, outs[1].Probation, c.testProb, c.coverProb)
+		}
+		if Fails(outs[1], ScopeCheck) == c.coverProb {
+			t.Errorf("%s: blocked fails = %v", name, Fails(outs[1], ScopeCheck))
+		}
+	}
+}
+
+// A block passes down a chain with the answer of the lane that failed, not of
+// the blocked lane in between: behind a test in probation nothing is red,
+// behind an armed test everything is, whatever the middle lane's arming.
+func TestABlockCarriesTheAnswerOfTheLaneThatFailed(t *testing.T) {
+	f := &fakeStart{answer: func(s child.Spec) child.Result {
+		if s.Argv[0] == "test" {
+			return child.Result{Code: 1}
+		}
+		return child.Result{}
+	}}
+	jobs := []Job{lane("test", -1, "test run"), lane("coverage", 0, "cover run"), lane("lint", 1, "lint run")}
+	for name, c := range map[string]struct {
+		armed     func(Job) bool
+		probation bool
+		code      int
+	}{
+		"the test is in probation, the rest armed": {func(j Job) bool { return j.Kind != "test" }, true, 0},
+		"the test is armed, the middle is not":     {func(j Job) bool { return j.Kind != "coverage" }, false, 1},
+	} {
+		o := opts(f)
+		o.Armed = c.armed
+		outs := Run(jobs, o)
+		for i, by := range map[int]string{1: "test/go", 2: "coverage/go"} {
+			if outs[i].State != StateBlocked || outs[i].BlockedBy != by || outs[i].Probation != c.probation {
+				t.Errorf("%s: lane %d %s by %q, probation %v", name, i, outs[i].State, outs[i].BlockedBy, outs[i].Probation)
+			}
+		}
+		if code, _ := CheckVerdict(nil, outs); code != c.code {
+			t.Errorf("%s: code %d, want %d", name, code, c.code)
+		}
+	}
+}
+
+// A lane that ran, and one that inherits "cannot judge", carry the answer for
+// their own lane.
+func TestEveryOutcomeSaysWhetherItsLaneIsInProbation(t *testing.T) {
+	f := &fakeStart{answer: ok}
+	pre := lane("test", -1, "test run")
+	pre.Pre, pre.Note = StateUnavailable, "no tests found"
+	jobs := []Job{pre, lane("coverage", 0, "cover run"), lane("lint", -1, "lint run")}
+	o := opts(f)
+	o.Armed = func(j Job) bool { return j.Kind == "lint" }
+	outs := Run(jobs, o)
+	if !outs[0].Probation || !outs[1].Probation || outs[2].Probation {
+		t.Fatalf("probation %v %v %v", outs[0].Probation, outs[1].Probation, outs[2].Probation)
+	}
+	if outs[1].State != StateUnavailable {
+		t.Fatalf("coverage %s", outs[1].State)
+	}
+}

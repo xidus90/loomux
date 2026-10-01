@@ -21,7 +21,11 @@ func WriteCheck(w io.Writer, outs []Outcome, verbose bool) {
 		if o.Job.Fn != nil {
 			origin = "in-process"
 		}
-		head := fmt.Sprintf("%s: %s [%s] ", o.Job.Name, o.State, origin)
+		state := string(o.State)
+		if o.Probation && Red(o.State, ScopeCheck) {
+			state += " (probation)"
+		}
+		head := fmt.Sprintf("%s: %s [%s] ", o.Job.Name, state, origin)
 		switch {
 		case timed(o.State):
 			fmt.Fprintf(w, "%s%.1fs\n", head, o.Duration.Seconds())
@@ -61,10 +65,50 @@ func CheckVerdict(kinds []string, outs []Outcome) (code int, notes []string) {
 			code = 1
 		}
 	}
-	if slices.ContainsFunc(outs, func(o Outcome) bool { return Red(o.State, ScopeCheck) }) {
+	if slices.ContainsFunc(outs, func(o Outcome) bool { return Fails(o, ScopeCheck) }) {
 		code = 1
 	}
 	return code, notes
+}
+
+// Fails says whether an outcome fails a run: a red state of a lane that is
+// not in probation.
+func Fails(o Outcome, scope Scope) bool {
+	return Red(o.State, scope) && !o.Probation
+}
+
+// ProbationLine ends the report of a run with a lane in probation: the keys
+// of the lanes armed does not arm, sorted. A lane with nothing to check here
+// -- no command, no tests -- is left out: it cannot turn green, so it would
+// stand in the line for good. "" without such a lane, and with a nil armed.
+func ProbationLine(outs []Outcome, armed func(Job) bool) string {
+	if armed == nil {
+		return ""
+	}
+	var keys []string
+	for _, o := range outs {
+		if o.State != StateNotApplicable && o.State != StateUnavailable && !armed(o.Job) {
+			keys = append(keys, LaneKey(o.Job))
+		}
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	slices.Sort(keys)
+	return "probation: " + strings.Join(slices.Compact(keys), ", ") + " (warn only until a green commit arms them)"
+}
+
+// GreenKeys are the keys of the lanes that ended ok, sorted, each once: what
+// a green run may arm.
+func GreenKeys(outs []Outcome) []string {
+	var keys []string
+	for _, o := range outs {
+		if o.State == StateOK {
+			keys = append(keys, LaneKey(o.Job))
+		}
+	}
+	slices.Sort(keys)
+	return slices.Compact(keys)
 }
 
 // skipPrefix begins every notice of a lane or a file post-edit did not run.
@@ -85,22 +129,30 @@ func Skipped(stderr io.Writer, notices []string, notice string) []string {
 	return append(notices, notice)
 }
 
-// EditReport reports the lanes of one edited file: red lanes on stderr,
-// which blocks the edit, and every lane it had to skip through Skipped, in
-// lane order, then whatever else the hook has to say, one notice a line. The
-// aside is dropped when a lane is red: the finding matters more, and stderr
+// EditReport reports the lanes of one edited file: an armed red lane on
+// stderr, which blocks the edit; a red lane in probation, marked so, and
+// every lane it had to skip through Skipped, in lane order, without blocking;
+// then whatever else the hook has to say, one notice a line. The aside is
+// dropped when an armed lane is red: the finding matters more, and stderr
 // stays the finding's. The caller hands the notices of every file of a call
 // to the host's adapter together, because a host reads stdout as one
 // document, and only when the call ends with 0.
 func EditReport(stderr io.Writer, outs []Outcome, aside string) (red bool, notices []string) {
 	for _, o := range outs {
 		switch {
-		case Red(o.State, ScopeEdit):
+		case Fails(o, ScopeEdit):
 			red = true
 			fmt.Fprintf(stderr, "%s: %s\n", o.Job.Name, o.State)
 			if o.Output != "" {
 				fmt.Fprintf(stderr, "%s\n", strings.TrimSuffix(o.Output, "\n"))
 			}
+		case Red(o.State, ScopeEdit):
+			// In probation: said on both streams like a skip, and the edit stands.
+			said := fmt.Sprintf("%s: %s (probation)", o.Job.Name, o.State)
+			if o.Output != "" {
+				said += "\n" + strings.TrimSuffix(o.Output, "\n")
+			}
+			notices = Skipped(stderr, notices, said)
 		case o.State == StateBudget:
 			notices = Skipped(stderr, notices, BudgetSkipped(o.Job.Name))
 		case o.State == StateMissingTool, o.State == StateUnready:
