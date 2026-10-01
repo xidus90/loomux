@@ -515,10 +515,11 @@ base name in any case, without `.exe`:
 - redirections `>`, `>>`, `>|`, `2>`, `&>`, `*>`, also glued to a word
   (`echo x>f`); a `>` inside quotes is none (`grep '=>'
   .loomux/config.toml` reads);
-- a removing verb fed by a pipe without a path of its own (`find … | xargs
-  rm`, `gci … | ri`) removes the paths of the segment before the pipe, or,
-  when that is `find` with a name filter or `Get-ChildItem` with `-Include`
-  or `-Filter`, what the filter keeps on disk.
+- a removing verb fed by a pipe (`find … | xargs rm`, `gci … | ri`, and
+  behind `xargs` even with a path or `-I{}` template of its own,
+  `find … | xargs -I{} rm {}`) removes the paths of the segment before the
+  pipe, or, when that is `find` with a name filter or `Get-ChildItem` with
+  `-Include` or `-Filter`, what the filter keeps on disk.
 
 In front of the program it skips `VAR=x`, the shell's reserved words and the
 wrappers `sudo`, `env`, `xargs`, `nice`, `ionice`, `stdbuf`, `timeout`,
@@ -599,7 +600,7 @@ what `find -L` reaches through a symbolic link, which the guard's walk does
 not follow;
 `bash -o pipefail -c '…'`, whose
 option value hides the `-c`; `cmd /c"…"` and `env -S'…'` glued to their
-string; `find … | sh -c "xargs rm"`, `xargs -I{} rm {}` and `gci … | % {
+string; `find … | sh -c "xargs rm"` and `gci … | % {
 Remove-Item $_ }`, which lose the start path; and `--root` pointed at a copy
 of the project. It refuses more than a shell would do: a write verb after
 `;`, `|`, `&` or `(` inside quotes (`git commit -m "fix; rm

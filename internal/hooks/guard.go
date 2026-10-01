@@ -826,6 +826,9 @@ type prefixes struct {
 	// dir is the folder env -C or sudo -D runs the program in, relative to
 	// the shell's; "" for the shell's own.
 	dir string
+	// viaXargs is whether xargs is among the stripped prefixes: its program
+	// then reads the piped paths even when it names some of its own.
+	viaXargs bool
 	// named are the words from each wrapper named by a path on: a file there
 	// may be any program, a copied loomux too, which strict mode judges.
 	named [][]string
@@ -899,6 +902,7 @@ func readPrefixes(words []string) (read prefixes) {
 			// setsid, chronic, nohup, which have none. All run the program.
 			read.note(words)
 			read.spawns = true
+			read.viaXargs = read.viaXargs || name == "xargs"
 			n += read.wrapped(name, words[1:], false)
 			if name == "sudo" && n < len(words) && words[n] == "run" {
 				// Sudo for Windows runs what follows its run, after flags
