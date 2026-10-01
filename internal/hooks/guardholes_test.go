@@ -140,7 +140,8 @@ func patchLines() []string {
 	}
 }
 
-// assignmentLines set a variable or alias and use it on the same line.
+// assignmentLines set a variable or alias and use it on the same line; the
+// first fifteen reach the manifest or a loomux command.
 func assignmentLines() []string {
 	return []string{
 		"D=.loomux; echo x > $D/config.toml",
@@ -212,7 +213,7 @@ func holesBattery() []string {
 // both modes; a line among them it refused before already is no flip, and
 // the differential test does not ask it to be one.
 func refusedAfter() []string {
-	return slices.Concat(guardedStringShellLines(), folderCopyLines()[:14], patchLines()[:11])
+	return slices.Concat(guardedStringShellLines(), folderCopyLines()[:14], patchLines()[:11], assignmentLines()[:15])
 }
 
 // holesFlips are the lines the fix turns from a pass into a refusal in the
