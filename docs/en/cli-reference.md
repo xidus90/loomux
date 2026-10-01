@@ -298,7 +298,8 @@ Evaluates the project policy and global write barrier before an agent executes a
   project's hook entries (the guard's own among them), a file in an area's
   inbox — where no path rule sees the write. The program is
   recognised as `loomux`, `loomux.exe` or a path ending in either (quoted or
-  not, `\` or `/`), and as `go run` of `cmd/loomux` or `cmd/loomux/main.go`
+  not, `\` or `/`), and as `go` (or `go.exe`) `run` of `cmd/loomux` or
+  `cmd/loomux/main.go`
   (with or without `./`, under a module path, at any `@version`, behind build
   flags). It is found behind `VAR=value`, redirections (`2>/dev/null`,
   `> out`, `2>&1`), the reserved words `if`, `then`, `else`, `elif`, `while`,

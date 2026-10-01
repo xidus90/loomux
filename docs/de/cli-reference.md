@@ -312,8 +312,8 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   Hook-Einträgen eines Projekts (darunter die des Wächters selbst), eine Datei
   im Eingang eines Bereichs —, wo keine Pfadregel den Schreibvorgang sieht. Erkannt wird das Programm als
   `loomux`, `loomux.exe` oder ein Pfad, der auf eines von beiden endet (mit
-  oder ohne Anführungszeichen, `\` oder `/`), und als `go run` von
-  `cmd/loomux` oder `cmd/loomux/main.go` (mit oder ohne `./`, unter einem
+  oder ohne Anführungszeichen, `\` oder `/`), und als `go` (oder `go.exe`)
+  `run` von `cmd/loomux` oder `cmd/loomux/main.go` (mit oder ohne `./`, unter einem
   Modulpfad, in jeder `@version`, hinter Build-Flags). Gefunden wird es
   hinter `VAR=wert`, Umleitungen (`2>/dev/null`, `> out`, `2>&1`), den
   reservierten Wörtern `if`, `then`, `else`, `elif`, `while`, `until`, `do`,
