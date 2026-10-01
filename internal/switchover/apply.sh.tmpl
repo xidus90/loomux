@@ -205,13 +205,31 @@ case "$WIKI" in
     ;;
 esac
 
-# 4. The configuration, never over an existing one.
+# 4. The configuration, never over an existing one. With it the armed lanes,
+#    empty: no lane fails the gate of a project that never had one before a
+#    green commit armed it. init runs after this step, finds a configuration
+#    and starts no probation of its own; the text is the one init writes.
+#    The lanes come first: a run stopped between the two leaves no
+#    configuration, and the next run writes it beside the lanes. Lanes that
+#    stand are kept: a commit or a human armed them.
 if [ -e "$PROJECT/.loomux/config.toml" ]; then
   say "config: kept, $PROJECT/.loomux/config.toml exists"
 else
   run mkdir -p "$PROJECT/.loomux"
+  if [ -e "$PROJECT/.loomux/armed.toml" ]; then
+    PROBATION="kept, .loomux/armed.toml stands"
+  else
+    PROBATION="started, .loomux/armed.toml written"
+    if [ "$CHECK" = 0 ]; then
+      printf '%s\n' \
+        '# Lanes that are armed: a red run of one of them fails the gate.' \
+        '# Written by the pre-commit gate; a human edits it through `loomux gate`.' \
+        'armed = []' > "$PROJECT/.loomux/armed.toml"
+    fi
+  fi
   run cp "$CONFIG_NEW" "$PROJECT/.loomux/config.toml"
   step config "written"
+  step probation "$PROBATION"
 fi
 
 # 5. Hooks, guards and the area, as init does them.
