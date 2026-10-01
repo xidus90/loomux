@@ -66,10 +66,11 @@ func PostToolUse(stdin io.Reader, stdout, stderr io.Writer, root, hostName strin
 
 // RunPostEdit runs the lanes of the `edit` profile for the edited file's
 // stack, as [verify] and the presets lay them out, or the wiki lint for a
-// wiki page. A red lane blocks the edit with 2; a config it cannot read ends
-// with 1, which shows the error and blocks nothing. A call that names several
-// files checks each, within one budget for them all, and ends with the worst
-// of their codes. What it has to tell the model goes out once, through the
+// wiki page. A red armed lane blocks the edit with 2; a red lane in
+// probation is said and blocks nothing. A config it cannot read ends with 1,
+// which shows the error and blocks nothing. A call that names several files
+// checks each, within one budget for them all, and ends with the worst of
+// their codes. What it has to tell the model goes out once, through the
 // host's adapter, and only when that code is 0.
 func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env EditEnv) int {
 	files := editedFiles(stdin)
@@ -85,6 +86,12 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
 		return ExitInternal
+	}
+	// A file that does not read arms every lane; stderr is where a host
+	// looks when the edit is then held.
+	armed, err := verify.ReadArmed(root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
 	}
 	// One budget for the call: a host's timeout is per hook, not per file.
 	// The first file runs as a single edit always has; each later one gets
@@ -107,7 +114,7 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 			// Coverage files of their own; CleanCover matches `<runID>-`.
 			id += "." + strconv.Itoa(i)
 		}
-		fileCode, said := checkEdit(stderr, root, raw, id, eff, facts, fileEnv)
+		fileCode, said := checkEdit(stderr, root, raw, id, eff, facts, fileEnv, armed)
 		code = max(code, fileCode)
 		notices = append(notices, said...)
 	}
@@ -126,7 +133,7 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 
 // checkEdit runs the lanes for one edited file, and answers its code with
 // what it has to tell the model.
-func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv) (int, []string) {
+func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv, armed verify.ArmedSet) (int, []string) {
 	fail := func(err error) (int, []string) {
 		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
 		return ExitInternal, nil
@@ -147,7 +154,7 @@ func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, 
 	}
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeEdit, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
-		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now,
+		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
 	})
 	aside := ""
 	if eff.Extensions[ext] == "go" && !slices.ContainsFunc(outs, func(o verify.Outcome) bool { return verify.Red(o.State, verify.ScopeEdit) }) {
