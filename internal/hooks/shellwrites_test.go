@@ -155,6 +155,8 @@ func TestShellWritesReadsTheTargetsOfEveryVerb(t *testing.T) {
 		"ionice -c 3 rm .loomux/config.toml":                         {"rm:.loomux/config.toml"},
 		"setsid rm .loomux/config.toml":                              {"rm:.loomux/config.toml"},
 		"unbuffer -ignore HUP rm .loomux/config.toml":                {"rm:.loomux/config.toml"},
+		". rm .loomux/config.toml":                                   {"rm:.loomux/config.toml"},
+		". Remove-Item .loomux/config.toml":                          {"rm:.loomux/config.toml"},
 		`sh -c "echo x > .loomux/config.toml"`:                       {"w:.loomux/config.toml"},
 		"bash -c 'echo x > .loomux/config.toml'":                     {"w:.loomux/config.toml"},
 		`cmd /c "echo x > .loomux\config.toml"`:                      {"w:.loomux/config.toml"},

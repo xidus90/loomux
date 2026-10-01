@@ -743,6 +743,9 @@ func loomuxSpellings() []string {
 		// unbuffer's spawn flags take a value.
 		"unbuffer -ignore HUP loomux init",
 		"unbuffer -leaveopen 3 loomux init",
+		// PowerShell's dot-source operator runs the command like &.
+		". loomux init",
+		". winpty loomux config set a b",
 		// False refusals kept on purpose: a word after a lone brace.
 		"awk '{ print }' loomux init",
 		"echo } loomux config set a b",
