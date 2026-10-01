@@ -3,8 +3,98 @@ package sessions
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestTheSeenStateGoesThroughTheFile(t *testing.T) {
+	root := t.TempDir()
+	at := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	in := SessionState{Blocks: 2, Base: "abc", Green: "g", Seen: &Seen{Tree: "t1", Head: "h1", Armed: []string{"test/go@."}, Report: "lint/go: failed (probation)\n", At: at}}
+	if err := WriteState(root, "s1", in); err != nil {
+		t.Fatal(err)
+	}
+	out := ReadState(root, "s1")
+	if out.Blocks != 2 || out.Base != "abc" || out.Green != "g" || out.Seen == nil {
+		t.Fatalf("%+v %+v", out, out.Seen)
+	}
+	got, want := *out.Seen, *in.Seen
+	if got.Tree != want.Tree || got.Head != want.Head || got.Report != want.Report || !got.At.Equal(want.At) || !slices.Equal(got.Armed, want.Armed) {
+		t.Fatalf("seen %+v, want %+v", got, want)
+	}
+	raw, _ := os.ReadFile(filepath.Join(root, ".loomux", "state", "hooks", "s1.json"))
+	if !strings.HasPrefix(string(raw), `{"base":"abc","blocks":2,"green":"g","seen":{"tree":"t1","head":"h1",`) {
+		t.Fatalf("key order: %s", raw)
+	}
+}
+
+// A time JSON cannot hold is refused before anything is written: the file of
+// the turn before stays.
+func TestWriteStateRefusesAStandItCannotEncode(t *testing.T) {
+	root := t.TempDir()
+	if err := WriteState(root, "s1", SessionState{Blocks: 1}); err != nil {
+		t.Fatal(err)
+	}
+	err := WriteState(root, "s1", SessionState{Blocks: 2, Seen: &Seen{At: time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)}})
+	if err == nil || !strings.Contains(err.Error(), "encoding the state of session s1") {
+		t.Fatalf("%v", err)
+	}
+	if got := ReadState(root, "s1"); got.Blocks != 1 {
+		t.Fatalf("%+v", got)
+	}
+}
+
+// A state without the seen stand is the file of today, byte for byte, and a
+// file written before the stand existed still reads.
+func TestAStateWithoutSeenIsTheFileOfToday(t *testing.T) {
+	root := t.TempDir()
+	if err := WriteState(root, "s1", SessionState{Blocks: 1, Base: "abc", Green: "g"}); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(root, ".loomux", "state", "hooks", "s1.json"))
+	if string(raw) != `{"base":"abc","blocks":1,"green":"g"}` {
+		t.Fatalf("%s", raw)
+	}
+	if got := ReadState(root, "s1"); got.Seen != nil {
+		t.Fatalf("%+v", got.Seen)
+	}
+}
+
+// The newest stand is told by when its chain ran, not by where its file
+// stands in the directory: the newest here is neither the first nor the last
+// file that holds one.
+func TestLastSeenIsTheNewestStandOfAnySession(t *testing.T) {
+	root := t.TempDir()
+	if _, found := LastSeen(root); found {
+		t.Fatal("found a stand where no session wrote")
+	}
+	t0 := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	write := func(id string, seen *Seen) {
+		t.Helper()
+		if err := WriteState(root, id, SessionState{Seen: seen}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("a", &Seen{Tree: "t-a", Head: "h", Report: "a\n", At: t0})
+	write("b", &Seen{Tree: "t-b", Head: "h", Report: "b\n", At: t0.Add(2 * time.Hour)})
+	write("c", &Seen{Tree: "t-c", Head: "h", Report: "c\n", At: t0.Add(time.Hour)})
+	write("green", nil)
+	// What is no session file is passed by: an end marker, a session's agent
+	// directory, a directory named like a file, a file that is no JSON, and
+	// one without the block counter, which ReadState reads as damaged.
+	dir := filepath.Join(root, ".loomux", "state", "hooks")
+	os.WriteFile(filepath.Join(dir, "a.ended"), nil, 0o644)
+	os.MkdirAll(filepath.Join(dir, "a", "agents"), 0o755)
+	os.MkdirAll(filepath.Join(dir, "dir.json"), 0o755)
+	os.WriteFile(filepath.Join(dir, "broken.json"), []byte("{"), 0o644)
+	os.WriteFile(filepath.Join(dir, "damaged.json"), []byte(`{"seen":{"tree":"t-damaged","head":"h","armed":null,"report":"damaged\n","at":"2026-09-30T20:00:00Z"}}`), 0o644)
+	got, found := LastSeen(root)
+	if !found || got.Tree != "t-b" || got.Report != "b\n" {
+		t.Fatalf("%+v %v", got, found)
+	}
+}
 
 // A file that cannot be read counts as empty, exactly as state.py decides:
 // raising would end every turn with an internal error over a counter whose
