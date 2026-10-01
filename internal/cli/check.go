@@ -17,6 +17,7 @@ import (
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/detect"
+	"github.com/xidus90/loomux/internal/gitwork"
 	"github.com/xidus90/loomux/internal/hooks"
 	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/verify"
@@ -41,15 +42,20 @@ func runCoverFunc(dir, profile string) ([]byte, error) {
 }
 
 // The seams of a check: what starts a tool, finds it on the PATH, names this
-// binary for {loomux} and tells the time. The last two stand in for what no
-// world can provoke: presets that fail to load and a plan that fails.
+// binary for {loomux} and tells the time. The others stand in for what no
+// world can provoke: presets that fail to load, a plan that fails, a file
+// that cannot be written, and the index a commit hook is handed, which no
+// test process has.
 var (
-	checkStart      = child.Run
-	checkLook       = exec.LookPath
-	checkExecutable = os.Executable
-	checkNow        = time.Now
-	checkPresets    = verify.LoadPresets
-	checkPlan       = verify.Plan
+	checkStart       = child.Run
+	checkLook        = exec.LookPath
+	checkExecutable  = os.Executable
+	checkNow         = time.Now
+	checkPresets     = verify.LoadPresets
+	checkPlan        = verify.Plan
+	checkWriteArmed  = verify.WriteArmed
+	checkCommitIndex = gitwork.CommitIndex
+	checkStage       = gitwork.Stage
 )
 
 func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
@@ -163,11 +169,18 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 	rootFlag := fs.String("root", "", "path to the project root; found upwards when empty")
 	verbose := fs.Bool("v", false, "print the output of green lanes too")
 	show := fs.Bool("show", false, "print what would run as a [verify] table and run nothing")
+	arm := fs.Bool("arm", false, "after a green run, write every lane that ended ok into .loomux/armed.toml and stage it")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
 	if fs.NArg() > 0 {
 		fmt.Fprintf(stderr, "loomux check: one profile or list of kinds only, got also %q\n", fs.Args())
+		return 2
+	}
+	// Only the pre-commit run arms: what the file holds comes from a commit
+	// that went through, and no other profile is one.
+	if *arm && request != "precommit" {
+		fmt.Fprintln(stderr, "loomux check: --arm belongs to the precommit profile")
 		return 2
 	}
 	root := *rootFlag
@@ -219,20 +232,59 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 	// The wiki's lane is built by the hooks, like its edit lane; appended
 	// behind the plan, because a job's After is an index into it.
 	jobs = append(jobs, hooks.WikiGateJobs(eff, facts, root, kinds)...)
+	// A file that does not read arms every lane, and every run says so.
+	armed, err := verify.ReadArmed(root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check: %v\n", err)
+	}
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeCheck, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
-		Start: checkStart, Look: checkLook, Now: checkNow,
+		Start: checkStart, Look: checkLook, Now: checkNow, Armed: armed.Arms,
 	})
 	verify.WriteCheck(stdout, outs, *verbose)
 	code, notes := verify.CheckVerdict(kinds, outs)
 	for _, note := range notes {
 		fmt.Fprintln(stdout, note)
 	}
+	// Armed only by a run that ends green as a whole, and only where the
+	// project has the file: without it every lane is armed already.
+	if added := armed.Missing(verify.GreenKeys(outs)); *arm && code == 0 && armed.Exists && len(added) > 0 {
+		armed = checkArm(root, armed, added, stdout, stderr)
+	}
+	if line := verify.ProbationLine(outs, armed.Arms); line != "" {
+		fmt.Fprintln(stdout, line)
+	}
 	// A file left behind costs disk, not correctness: the verdict stands.
 	if err := verify.CleanCover(root, runID, code == 0); err != nil {
 		fmt.Fprintf(stderr, "loomux check: cleaning coverage files: %v\n", err)
 	}
 	return code
+}
+
+// checkArm enters the lanes a green pre-commit run found ok, and lays the
+// file into the commit under way; it answers the set that holds afterwards.
+// Writing and staging sit here and not in the hook's script, so that one
+// place knows a commit of paths and then does neither: staged into the index
+// such a commit hands its hook, the file would be committed while the real
+// index kept the old entry as a staged revert. The commit hangs on nothing
+// here: a file that cannot be written or staged is said, and the verdict
+// stands.
+func checkArm(root string, armed verify.ArmedSet, added []string, stdout, stderr io.Writer) verify.ArmedSet {
+	index, whole := checkCommitIndex(root, os.Getenv("GIT_INDEX_FILE"))
+	if !whole {
+		fmt.Fprintln(stdout, "not armed: this commit takes only some paths; the next whole commit arms the lanes")
+		return armed
+	}
+	next := armed.With(added...)
+	if err := checkWriteArmed(root, next); err != nil {
+		fmt.Fprintf(stderr, "loomux check: %s not written: %v\n", verify.ArmedFile, err)
+		return armed
+	}
+	fmt.Fprintf(stdout, "armed: %s\n", strings.Join(added, ", "))
+	if err := checkStage(root, index, verify.ArmedFile); err != nil {
+		fmt.Fprintf(stderr, "loomux check: %s not staged, commit it by hand: %v\n", verify.ArmedFile, err)
+	}
+	return next
 }
 
 // checkLoad lays the project's config over the presets for what root holds,
