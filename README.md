@@ -79,9 +79,9 @@ sequenceDiagram
 
     Agent->>Hook: PostToolUse (stdin)
     Hook->>Verify: edit profile on the edited file (vet, gofmt, wiki lint, ruff, eslint ...)
-    alt A lane is red
+    alt An armed lane is red
         Verify-->>Agent: Exit 2 with the finding and the skipped lanes
-    else No lane is red
+    else No armed lane is red
         Hook-->>Agent: Exit 0 — skipped lanes, and for Go the callers of the changed symbols, as context
     end
 
@@ -96,6 +96,8 @@ sequenceDiagram
 ```
 
 Every phase with its payloads, exit codes and budgets: [hook lifecycle](docs/en/hooks.md).
+
+A lane that has never been green in a project warns instead of failing. `.loomux/armed.toml` names the lanes that are armed; a lane it does not name is in probation, runs and reports, and fails neither an edit, a turn end nor the gate. The hook that `loomux init` writes calls `loomux check precommit --arm`, which arms a lane when a whole commit passes green; `loomux gate status|arm|disarm` shows and sets the lanes by hand. Without the file every lane is armed. Details: [lane probation](docs/en/configuration.md#lane-probation-loomuxarmedtoml).
 
 ### 2. Deterministic Code Graph Retrieval ("GraphRank")
 
@@ -189,7 +191,8 @@ The commands that are built, one line each; every flag and exit code is in the [
 
 ### Commands
 ```bash
-loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or kinds of lint,types,test,coverage,graph (--root, --show, -v)
+loomux check <profile|kinds>        # run the [verify] lanes: edit, precommit, all, or kinds of lint,types,test,coverage,graph (--root, --show, -v, --arm)
+loomux gate status|arm|disarm       # which lanes fail the gate and which are in probation: .loomux/armed.toml (arm and disarm are a human's)
 loomux check gocover --profile <p>  # 100% per function, or a total with --floor N
 loomux check commit-msg <file>      # validate a commit message: Conventional Commits header and its language ([commit], --language, --calibrate N)
 loomux check gofmt [paths...]       # inspect Go file formatting without modifying files

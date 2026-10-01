@@ -79,9 +79,9 @@ sequenceDiagram
 
     Agent->>Hook: PostToolUse (stdin)
     Hook->>Verify: Profil edit über die geänderte Datei (vet, gofmt, Wiki-Lint, ruff, eslint ...)
-    alt Eine Lane ist rot
+    alt Eine scharfe Lane ist rot
         Verify-->>Agent: Exit 2 mit dem Befund und den übersprungenen Lanes
-    else Keine Lane ist rot
+    else Keine scharfe Lane ist rot
         Hook-->>Agent: Exit 0 — übersprungene Lanes und bei Go die Aufrufer der geänderten Symbole als Kontext
     end
 
@@ -96,6 +96,8 @@ sequenceDiagram
 ```
 
 Jede Phase mit Nutzlast, Exitcodes und Budgets: [Hook-Lebenszyklus](docs/de/hooks.md).
+
+Eine Lane, die in einem Projekt noch nie grün war, warnt, statt zu scheitern. `.loomux/armed.toml` nennt die Lanes, die scharf sind; eine Lane, die dort fehlt, ist in Probe, läuft und berichtet, lässt aber weder eine Bearbeitung noch ein Rundenende noch das Tor scheitern. Der Hook, den `loomux init` schreibt, ruft `loomux check precommit --arm`, das eine Lane scharf stellt, wenn ein ganzer Commit grün durchgeht; `loomux gate status|arm|disarm` zeigt und setzt die Lanes von Hand. Ohne die Datei ist jede Lane scharf. Einzelheiten: [Schonfrist je Lane](docs/de/configuration.md#schonfrist-je-lane-loomuxarmedtoml).
 
 ### 2. Deterministisches Code-Graph-Retrieval ("GraphRank")
 
@@ -190,7 +192,8 @@ Die gebauten Befehle, je eine Zeile; jedes Flag und jeden Exitcode beschreibt di
 
 ### Befehle
 ```bash
-loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder Arten aus lint,types,test,coverage,graph (--root, --show, -v)
+loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder Arten aus lint,types,test,coverage,graph (--root, --show, -v, --arm)
+loomux gate status|arm|disarm       # Welche Lanes das Tor scheitern lassen und welche in Probe sind: .loomux/armed.toml (arm und disarm führt ein Mensch aus)
 loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
 loomux check commit-msg <datei>     # Prüft eine Commit-Nachricht: Kopf nach Conventional Commits und Sprache ([commit], --language, --calibrate N)
 loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
