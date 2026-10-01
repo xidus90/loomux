@@ -323,15 +323,18 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   hinter jedem `{` oder `}` der Zeile, allein oder an ein Wort geklebt (dem
   Rumpf eines Blocks, einer Funktion oder eines Skriptblocks: `try{`,
   `{loomux …}`), sowie hinter den Wrappern `sudo`, `command`, `exec`,
-  `nohup`, `env`, `time`, `xargs`, `nice`, `timeout <dauer>` und `cmd` mit
+  `nohup`, `env`, `time`, `xargs`, `nice`, `ionice`, `stdbuf`, `winpty`,
+  `setsid`, `chronic`, `unbuffer`, `timeout <dauer>` und `cmd` mit
   jedem Schalter bis `/c`, `/k` oder `/r` (der Befehl darf daran geklebt
   sein, `/cloomux`), eine aufgelöste Caret-Maskierung von cmd (`con^fig`),
+  jeder externe auch als `<name>.exe`,
   samt ihren Flags (und `--` und dem
   einzelnen `-` von `env`). Die Flags liest er, wie getopt sie liest: Der
-  eigene Wert eines Flags von `sudo`, `env`, `xargs`, `nice`, `timeout`,
-  `exec` oder `time`, das einen nimmt, wird übersprungen (`sudo -u root`,
-  `xargs -n 1`, `nice -n 10`, `timeout -s KILL`, `exec -a NAME`, GNU
-  `time -o DATEI`), auch wenn das Flag das letzte eines Bündels ist
+  eigene Wert eines Flags von `sudo`, `env`, `xargs`, `nice`, `ionice`,
+  `stdbuf`, `timeout`, `exec`, `time` oder `unbuffer`, das einen nimmt, wird
+  übersprungen (`sudo -u root`, `xargs -n 1`, `nice -n 10`, `ionice -c 3`,
+  `stdbuf -o 0`, `timeout -s KILL`, `exec -a NAME`, GNU `time -o DATEI`,
+  `unbuffer -ignore HUP`), auch wenn das Flag das letzte eines Bündels ist
   (`sudo -Hu root`) oder eine auf einen Anfang gekürzte Langoption
   (`timeout --sig KILL`), und eine Umleitung zwischen einem Flag und seinem
   Wert ist kein Wert. `sudo run` (Sudo für Windows) wird wie `sudo`

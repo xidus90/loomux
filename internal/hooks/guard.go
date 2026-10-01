@@ -855,14 +855,18 @@ func readPrefixes(words []string) (read prefixes) {
 		w := words[0]
 		n := 1
 		isRedirect, bare := redirection(w)
-		// The shell's own exec and time; /usr/bin/time is GNU's.
-		builtin := strings.ToLower(w) == "exec" || strings.ToLower(w) == "time"
+		// base matches the shell's own words by the exact word, never a path
+		// to a file of that name; name matches an external wrapper, which
+		// several come as <name>.exe (Git for Windows ships env, xargs,
+		// nice, stdbuf, nohup, winpty and timeout; Windows has sudo.exe,
+		// cmd.exe and timeout.exe), and trimming .exe off a name is safe.
 		base := baseName(w)
 		if slices.Contains(shellWords, base) && base != strings.ToLower(w) {
 			// A file named like a word of the shell is a program like any
 			// other, a copied loomux too.
 			base = ""
 		}
+		name := verbOf(w)
 		switch {
 		case isRedirect:
 			if bare {
@@ -875,24 +879,32 @@ func readPrefixes(words []string) (read prefixes) {
 		case base == "function":
 			// The name, then the body.
 			n = 2
-		case base == "timeout":
+		case base == "command":
+			// The shell builtin, by the exact word; its -p, -v take no value.
+			n += flagCount(words[1:])
+		case base == "exec" || base == "time":
+			// The shell's own builtins, by the exact word; /usr/bin/time is
+			// GNU's, exec -a and time -o take a value.
+			n += read.wrapped(base, words[1:], true)
+		case name == "timeout":
 			read.note(words)
 			// The duration comes before the program.
-			n += read.wrapped(base, words[1:], false) + 1
-		case wrapperValues[base] != nil:
+			n += read.wrapped(name, words[1:], false) + 1
+		case name != "exec" && wrapperValues[name] != nil || slices.Contains(spawnNoValueWrappers, name):
+			// exec is only the shell's: a file named exec, exec.exe, is a
+			// program.
+			// The external wrappers: those with value flags, and winpty,
+			// setsid, chronic, nohup, which have none. All run the program.
 			read.note(words)
-			n += read.wrapped(base, words[1:], builtin)
-			if base == "sudo" && n < len(words) && words[n] == "run" {
+			read.spawns = true
+			n += read.wrapped(name, words[1:], false)
+			if name == "sudo" && n < len(words) && words[n] == "run" {
 				// Sudo for Windows runs what follows its run, after flags
 				// of its own.
 				n++
-				n += read.wrapped(base, words[n:], false)
+				n += read.wrapped(name, words[n:], false)
 			}
-		case base == "command" || base == "nohup":
-			read.note(words)
-			read.spawns = read.spawns || base == "nohup"
-			n += flagCount(words[1:])
-		case base == "cmd" || base == "cmd.exe":
+		case name == "cmd":
 			read.note(words)
 			read.spawns = true
 			// Every switch up to /c, /k or /r, which the command follows,
@@ -938,7 +950,7 @@ func cmdRunTail(word string) (tail string, isRun bool) {
 // shellWords are the reserved words and builtins dropPrefixes skips: the
 // shell reads them only as the word itself, never as a path to a file.
 var shellWords = []string{"{", "!", "if", "then", "else", "elif", "while", "until", "do", "coproc",
-	"try", "catch", "finally", "function", "command", "exec"}
+	"try", "catch", "finally", "function", "command", "exec", "time"}
 
 // flagCount is how many words at the head of words are flags of a wrapper
 // none of whose flags takes a value, a redirection among them included.
@@ -967,7 +979,16 @@ var wrapperValues = map[string][]string{
 	"timeout": {"-s", "-k", "--signal", "--kill-after"},
 	"exec":    {"-a"},
 	"time":    {"-f", "-o", "--format", "--output"},
+	"stdbuf":  {"-i", "-o", "-e", "--input", "--output", "--error"},
+	"ionice":  {"-c", "-n", "-p", "-P", "-u", "--class", "--classdata", "--pid", "--pgid", "--uid"},
+	// unbuffer passes its arguments to Expect's spawn, whose -ignore, -open
+	// and -leaveopen take the next word; -p takes none.
+	"unbuffer": {"-ignore", "-open", "-leaveopen"},
 }
+
+// spawnNoValueWrappers are the external wrappers that run the program and
+// whose own flags take no value: winpty, setsid, chronic and nohup.
+var spawnNoValueWrappers = []string{"winpty", "setsid", "chronic", "nohup"}
 
 // chdirFlags are the flags that set the folder a wrapper runs its program in.
 var chdirFlags = map[string][]string{"env": {"-C", "--chdir"}, "sudo": {"-D", "--chdir"}}

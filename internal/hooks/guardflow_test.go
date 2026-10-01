@@ -25,6 +25,10 @@ func TestAnAgentMayNotAnswerAGate(t *testing.T) {
 		`go run ./cmd/loomux flow resume 0001 --answer yes`,
 		// Behind the prefixes a shell or wrapper puts before the program.
 		`sudo loomux flow resume 0001 --answer yes`,
+		`winpty loomux flow resume 0001 --answer yes`,
+		`stdbuf -o 0 loomux flow resume 0001 --answer yes`,
+		`nohup.exe loomux flow resume 0001 --answer yes`,
+		`unbuffer -ignore HUP loomux flow resume 0001 --answer yes`,
 		`LOOMUX_STATE_DIR=x loomux flow resume 0001 --answer yes`,
 		`try { loomux flow resume 0001 --answer yes } catch {}`,
 		`1..3 | ForEach-Object { loomux flow resume 0001 --answer yes }`,
