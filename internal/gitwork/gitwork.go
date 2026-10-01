@@ -119,6 +119,17 @@ func IgnoredPath(root, rel string) bool {
 	return command.Run() == nil
 }
 
+// HooksDir is the directory git runs root's hooks from, absolute:
+// core.hooksPath where it is set, expanded as git expands it, and git's own
+// hook directory otherwise.
+func HooksDir(root string) (string, error) {
+	out, err := git(root, "rev-parse", "--path-format=absolute", "--git-path", "hooks")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
 func git(root string, arguments ...string) (string, error) {
 	return gitWith(root, nil, arguments...)
 }

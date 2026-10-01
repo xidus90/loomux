@@ -192,6 +192,7 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 		}
 	}
 	renderLaneTools(stdout, unavailableLanes(eff, exec.LookPath))
+	renderProbation(stdout, root)
 
 	fmt.Fprintln(stdout, "================================================================================")
 

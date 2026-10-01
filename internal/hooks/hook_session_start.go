@@ -70,10 +70,14 @@ func SessionStart(stdin io.Reader, stdout, stderr io.Writer, root, hostName, ver
 		return ExitInternal
 	}
 
-	// The base is filed and the warnings were said at the first start.
+	// The base is filed and the warnings were said at the first start, and
+	// the lanes in probation are named once: agy's PreInvocation comes before
+	// every model call, and planning the lanes each time would cost every one
+	// of them.
 	if !payload.Repeat {
 		lines = append(lines, staleBinary(root)...)
 		lines = append(lines, updateWarnings(config.StateDir(), runtime.GOOS)...)
+		lines = append(lines, probationLines(root)...)
 	}
 	// What the project's flows say is said at every start, a repeated one
 	// included: a waiting question stays open until a human answers it, and a

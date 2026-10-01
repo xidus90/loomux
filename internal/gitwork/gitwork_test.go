@@ -732,3 +732,41 @@ func TestIgnoredPathAsksGitAboutOnePath(t *testing.T) {
 		t.Fatal("outside a repository a path counts as ignored")
 	}
 }
+
+// The hook directory is git's answer, never a join of root and ".git/hooks":
+// core.hooksPath moves it, a relative one counts from the worktree's top, and
+// a linked worktree runs the hooks of the repository it belongs to.
+func TestHooksDirIsWhereGitRunsHooksFrom(t *testing.T) {
+	hooksDir := func(root string) string {
+		t.Helper()
+		dir, err := HooksDir(root)
+		if err != nil || !filepath.IsAbs(dir) {
+			t.Fatalf("HooksDir(%s) = %q, %v; want an absolute path", root, dir, err)
+		}
+		// Stat needs the directory; git names it whether it is there or not.
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	main := repoWithCommit(t)
+	sameDir(t, hooksDir(main), filepath.Join(main, ".git", "hooks"))
+
+	linked := filepath.Join(t.TempDir(), "linked")
+	mustGit(t, main, "worktree", "add", "-q", linked)
+	sameDir(t, hooksDir(linked), filepath.Join(main, ".git", "hooks"))
+
+	run(t, main, "config", "core.hooksPath", ".githooks")
+	sameDir(t, hooksDir(main), filepath.Join(main, ".githooks"))
+	// Relative to the top of the worktree git runs the hook in, not to the
+	// repository that holds the setting.
+	sameDir(t, hooksDir(linked), filepath.Join(linked, ".githooks"))
+
+	elsewhere := t.TempDir()
+	run(t, main, "config", "core.hooksPath", filepath.ToSlash(elsewhere))
+	sameDir(t, hooksDir(main), elsewhere)
+
+	if _, err := HooksDir(t.TempDir()); err == nil {
+		t.Fatal("a directory that is no repository went through")
+	}
+}
