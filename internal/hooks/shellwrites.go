@@ -115,6 +115,15 @@ func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown
 					// shell's string are only its $0, $1, … in the others.
 					read := segmentWrites(joinPlace(root, base), words, depth, i < len(all)-1)
 					targets = append(targets, under(base, read.targets)...)
+					// A here-string or the segment before a pipe hands a shell
+					// that reads stdin its line.
+					for _, fed := range fedLines(prev, words, piped) {
+						if depth < maxInnerDepth {
+							f, calls := shellWritesAt(joinPlace(root, base), fed, depth+1)
+							targets = append(targets, under(base, f)...)
+							read.inner = append(read.inner, calls...)
+						}
+					}
 					if piped && trusted {
 						targets = append(targets, under(base, pipedRemovals(prev, read.args, read.viaXargs))...)
 					}
@@ -376,47 +385,6 @@ func segmentWrites(dir string, words []string, depth int, grouped bool) segmentR
 	read.known = known
 	read.targets = append(targets, under(filepath.ToSlash(pre.dir), found)...)
 	return read
-}
-
-// stringShells are the programs innerLine reads a string of; cmd /c is a
-// prefix dropPrefixes strips.
-var stringShells = []string{"sh", "bash", "zsh", "dash", "pwsh", "powershell", "eval"}
-
-// innerLine is the command line a shell among args runs from a string: the
-// word after -c of sh, bash, zsh or dash (also in a bundle, -lc), and every
-// word after -c or -Command of pwsh or powershell, abbreviated or not, and
-// after /c or /k of cmd; and the words after eval, joined, when eval is the
-// program. after are the words that follow the string of sh -c, its $0, $1, ….
-func innerLine(args []string) (line string, after []string, ok bool) {
-	if program := dropPrefixes(args); len(program) > 0 && verbOf(program[0]) == "eval" {
-		return strings.Join(program[1:], " "), nil, true
-	}
-	for i, a := range args {
-		switch verbOf(a) {
-		case "sh", "bash", "zsh", "dash":
-			for j := i + 1; j+1 < len(args) && strings.HasPrefix(args[j], "-"); j++ {
-				if letters(args[j][1:]) && strings.ContainsRune(args[j], 'c') {
-					return args[j+1], args[j+2:], true
-				}
-			}
-		case "pwsh", "powershell":
-			for j := i + 1; j < len(args); j++ {
-				if f := strings.ToLower(args[j]); len(f) > 1 && strings.HasPrefix("-command", f) {
-					return strings.Join(args[j+1:], " "), nil, true
-				}
-			}
-		case "cmd":
-			// A command glued to the switch (/cdel) is exposed by
-			// dropPrefixes, so only the string after a clean /c, /k or /r is
-			// read here.
-			for j := i + 1; j < len(args) && len(args[j]) > 1 && args[j][0] == '/'; j++ {
-				if f := strings.ToLower(args[j]); f == "/c" || f == "/k" || f == "/r" {
-					return strings.Join(args[j+1:], " "), nil, true
-				}
-			}
-		}
-	}
-	return "", nil, false
 }
 
 // redirectTarget reads w as a redirection: whether it is one, whether it

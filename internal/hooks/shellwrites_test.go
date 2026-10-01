@@ -284,10 +284,18 @@ func TestShellWritesFindsNoTargetInAReadingLine(t *testing.T) {
 		"cmd /c",
 		// A command nested deeper than three shells is not read: a named limit.
 		"pwsh -c pwsh -c pwsh -c pwsh -c rm x",
+		"pwsh -c pwsh -c pwsh -c 'echo rm x | sh'",
 	} {
 		if targets, _ := shellWrites(root, line); len(targets) != 0 {
 			t.Errorf("%q: targets %q, want none", line, spelled(targets))
 		}
+	}
+	// At the deepest level read, what a shell is fed is not read either.
+	if targets, _ := shellWritesAt(root, "bash <<< 'rm x'", maxInnerDepth); len(targets) != 0 {
+		t.Errorf("a here-string past the depth: targets %q, want none", spelled(targets))
+	}
+	if targets, _ := shellWritesAt(root, "bash <<< 'rm x'", maxInnerDepth-1); !slices.Equal(spelled(targets), []string{"rm:x"}) {
+		t.Errorf("a here-string within the depth: targets %q, want rm:x", spelled(targets))
 	}
 	// A copy into the folder above a kept one writes that folder, it removes nothing.
 	targets, _ := shellWrites(root, "cp -r mine .loomux/flows/")

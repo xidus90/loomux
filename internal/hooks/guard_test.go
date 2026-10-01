@@ -813,6 +813,9 @@ func loomuxSpellings() []string {
 		"sh -c 'true\nloomux init'",
 		"sh -c 'x `loomux init` y'",
 		"pwsh -c 'x\nloomux config set a b'",
+		// A command inside a string is read as a line of its own.
+		`sh -c "loomux init"`,
+		`pwsh -c "loomux init"`,
 		// A lone & is PowerShell's call operator or a background job.
 		"& loomux init",
 		"& 'loomux' config set a b",
@@ -824,6 +827,8 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 	// The spellings, then what makes init, config, area and merge-hook
 	// write in them.
 	refused := append(loomuxSpellings(),
+		`sh -c "loomux dev switchover prune-hooks --file x --match y"`,
+		"sh -c 'loomux dev switchover prune-hooks --file x --match y'",
 		"loomux init --yes",
 		"loomux config set commit.language de --yes",
 		"loomux config --global",
@@ -1036,16 +1041,12 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		// its last break character holds a blank.
 		`echo "a \" b"; "C:\R&D Tools\loomux.exe" init`,
 		`echo "a \" b"; "C:\Program Files (x86)\My Tools\loomux.exe" init`,
-		// A command inside a string, an alias, a program in a variable.
-		`sh -c "loomux init"`,
-		`pwsh -c "loomux init"`,
+		// An alias, a program in a variable.
 		"alias l=loomux; l init",
 		"M=loomux; $M init",
 		// go run of a package that names no cmd/loomux.
 		"cd cmd/loomux && go run . init",
-		// The same holes for the hook pruner, and the script that calls it.
-		`sh -c "loomux dev switchover prune-hooks --file x --match y"`,
-		"sh -c 'loomux dev switchover prune-hooks --file x --match y'",
+		// The script that calls the hook pruner.
 		"sh apply.sh",
 		// script -c holds its command in a string, as sh -c does.
 		`script -c "loomux init"`,
