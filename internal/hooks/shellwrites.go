@@ -116,7 +116,7 @@ func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown
 					read := segmentWrites(joinPlace(root, base), words, depth, i < len(all)-1)
 					targets = append(targets, under(base, read.targets)...)
 					if piped && trusted {
-						targets = append(targets, under(base, pipedRemovals(prev, read.args))...)
+						targets = append(targets, under(base, pipedRemovals(prev, read.args, read.viaXargs))...)
 					}
 					if !read.known && trusted {
 						unknown = append(unknown, unknownCall{followed(base, read.dir), read.args})
@@ -147,8 +147,8 @@ func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown
 // pipedRemovals are the removals of a removing verb (rm, Remove-Item, also
 // behind xargs) that names no path of its own and reads its paths from a
 // pipe: what the segment before the pipe lists (listingRemovals).
-func pipedRemovals(prev string, args []string) []shellTarget {
-	if len(args) == 0 || !slices.Contains(everyFileRemoves, verbOf(args[0])) || len(positional(args[1:])) > 0 {
+func pipedRemovals(prev string, args []string, viaXargs bool) []shellTarget {
+	if len(args) == 0 || !slices.Contains(everyFileRemoves, verbOf(args[0])) || (!viaXargs && len(positional(args[1:])) > 0) {
 		return nil
 	}
 	var out []shellTarget
@@ -309,9 +309,10 @@ type segmentRead struct {
 	// inner are the unknown programs of a line a shell among args runs.
 	inner []unknownCall
 	// dir, spawns and named are those of the prefixes (prefixes).
-	dir    string
-	spawns bool
-	named  [][]string
+	dir      string
+	spawns   bool
+	viaXargs bool
+	named    [][]string
 }
 
 // segmentWrites is what one reading of one segment writes: its redirections
@@ -358,7 +359,7 @@ func segmentWrites(dir string, words []string, depth int, grouped bool) segmentR
 		targets, inner = append(targets, found...), calls
 	}
 	pre := readPrefixes(args)
-	read := segmentRead{args: pre.program, known: true, inner: inner, dir: pre.dir, spawns: pre.spawns, named: pre.named}
+	read := segmentRead{args: pre.program, known: true, inner: inner, dir: pre.dir, spawns: pre.spawns, viaXargs: pre.viaXargs, named: pre.named}
 	if len(read.args) == 0 {
 		read.targets = targets
 		return read

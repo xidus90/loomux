@@ -543,8 +543,9 @@ des Programms in jeder Schreibweise, ohne `.exe`:
 - Umleitungen `>`, `>>`, `>|`, `2>`, `&>`, `*>`, auch an ein Wort geklebt
   (`echo x>f`); ein `>` in Anführungszeichen ist keine (`grep '=>'
   .loomux/config.toml` liest);
-- ein löschendes Verb, das aus einer Pipe liest und keinen eigenen Pfad nennt
-  (`find … | xargs rm`, `gci … | ri`), löscht die Pfade des Segments vor der
+- ein löschendes Verb, das aus einer Pipe liest (`find … | xargs rm`,
+  `gci … | ri`, und hinter `xargs` auch mit eigenem Pfad oder `-I{}`-Vorlage,
+  `find … | xargs -I{} rm {}`), löscht die Pfade des Segments vor der
   Pipe, oder, wenn das `find` mit Namensfilter oder `Get-ChildItem` mit
   `-Include` oder `-Filter` ist, was der Filter auf der Platte behält.
 
@@ -632,7 +633,7 @@ und was `find -L` über einen symbolischen Link erreicht, dem das Durchgehen
 des Wächters nicht folgt;
 `bash -o pipefail -c '…'`, dessen Optionswert das `-c`
 verdeckt; `cmd /c"…"` und `env -S'…'`, an ihre Zeichenkette geklebt; `find … |
-sh -c "xargs rm"`, `xargs -I{} rm {}` und `gci … | % { Remove-Item $_ }`, die
+sh -c "xargs rm"` und `gci … | % { Remove-Item $_ }`, die
 den Startpfad verlieren; und `--root` auf einer Kopie des Projekts. Er
 verweigert mehr, als eine Shell täte: ein Schreibverb nach `;`, `|`, `&` oder
 `(` in Anführungszeichen (`git commit -m "fix; rm .loomux/config.toml"`);
