@@ -2,6 +2,7 @@ package setup
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -490,5 +491,74 @@ func TestACheckoutFileIsJudgedByTheCheckoutBinary(t *testing.T) {
 	}
 	if _, err := Apply(root, p, Choice{}, all, nil, there, "1", applyTime); err != nil || !exists(root, ".claude/settings.json") {
 		t.Errorf("err %v; want the entries written beside bin/loomux.exe", err)
+	}
+}
+
+// modeInfo is a file that stands with a mode, for the stat seam: Windows
+// keeps no POSIX permissions to read back.
+type modeInfo fs.FileMode
+
+func (m modeInfo) Name() string       { return "" }
+func (m modeInfo) Size() int64        { return 0 }
+func (m modeInfo) Mode() fs.FileMode  { return fs.FileMode(m) }
+func (m modeInfo) ModTime() time.Time { return time.Time{} }
+func (m modeInfo) IsDir() bool        { return false }
+func (m modeInfo) Sys() any           { return nil }
+
+// A replaced file keeps the permissions it had -- a .mcp.json or
+// settings.json a human closed to 0600 may hold tokens -- and a replaced
+// script gains the execute bit a new one would have: the swap goes through a
+// temporary file whose mode is neither. A new file is not asked: it gets the
+// mode of its text when it is created.
+func TestAReplacedFileKeepsItsModeAndAScriptGainsItsExecBit(t *testing.T) {
+	root := world(t, map[string]string{
+		".githooks/pre-commit": "#!/bin/sh\nold\n", ".githooks/pre-push": "#!/bin/sh\nold\n",
+		"secret.json": "{}\n", "open.json": "{}\n",
+	})
+	modes := map[string]fs.FileMode{
+		"/.githooks/pre-commit": 0o644, "/.githooks/pre-push": 0o755,
+		"/secret.json": 0o600, "/open.json": 0o644,
+	}
+	rel := func(path string) string { return filepath.ToSlash(strings.TrimPrefix(path, root)) }
+	oldStat := stat
+	stat = func(path string) (fs.FileInfo, error) { return modeInfo(modes[rel(path)]), nil }
+	t.Cleanup(func() { stat = oldStat })
+	var got []string
+	oldChmod := chmod
+	chmod = func(path string, mode fs.FileMode) error {
+		got = append(got, rel(path)+" "+mode.String())
+		return nil
+	}
+	t.Cleanup(func() { chmod = oldChmod })
+	p := Plan{Changes: []Change{
+		{Part: "git-hooks", Path: ".githooks/pre-commit", Before: "#!/bin/sh\nold\n", After: "#!/bin/sh\nnew\n", Exists: true},
+		{Part: "git-hooks", Path: ".githooks/pre-push", Before: "#!/bin/sh\nold\n", After: "#!/bin/sh\nnew\n", Exists: true},
+		{Part: "git-hooks", Path: ".githooks/commit-msg", After: "#!/bin/sh\nnew\n"},
+		{Part: "mcp-json", Path: "secret.json", Before: "{}\n", After: "{\"a\":1}\n", Exists: true},
+		{Part: "mcp-json", Path: "open.json", Before: "{}\n", After: "{\"a\":1}\n", Exists: true},
+	}}
+	if _, err := Apply(root, p, Choice{}, all, func(Action) error { return nil }, there, "1.0.0", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"/.githooks/pre-commit -rwxr-xr-x", "/.githooks/pre-push -rwxr-xr-x",
+		"/secret.json -rw-------", "/open.json -rw-r--r--",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("chmod %v, want %v", got, want)
+	}
+	chmod = func(string, fs.FileMode) error { return errors.New("no chmod") }
+	p.Changes[0].Before, p.Changes[0].After = "#!/bin/sh\nnew\n", "#!/bin/sh\nnewer\n"
+	if _, err := Apply(root, Plan{Changes: p.Changes[:1]}, Choice{}, all, func(Action) error { return nil }, there, "1.0.0", time.Now()); err == nil || !strings.Contains(err.Error(), ".githooks/pre-commit") {
+		t.Fatalf("a chmod that fails: %v", err)
+	}
+	// A file whose mode cannot be read is not replaced.
+	stat = func(string) (fs.FileInfo, error) { return nil, errors.New("no stat") }
+	p.Changes[0].Before, p.Changes[0].After = "#!/bin/sh\nnewer\n", "#!/bin/sh\nnewest\n"
+	if _, err := Apply(root, Plan{Changes: p.Changes[:1]}, Choice{}, all, func(Action) error { return nil }, there, "1.0.0", time.Now()); err == nil || !strings.Contains(err.Error(), ".githooks/pre-commit: no stat") {
+		t.Fatalf("a stat that fails: %v", err)
+	}
+	if text := read(t, root, ".githooks/pre-commit"); text != "#!/bin/sh\nnewer\n" {
+		t.Fatalf("replaced without its mode: %q", text)
 	}
 }

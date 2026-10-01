@@ -17,9 +17,6 @@ import (
 // passes on: enough to say what is wrong, not a context of findings.
 const maxSeenLines = 40
 
-// howToArm is what both reports tell a project whose hook arms nothing.
-const howToArm = "call `loomux check precommit --arm` there, or arm by hand with `loomux gate arm`"
-
 // probationLines are what session start tells an agent about the gate: one
 // line per lane in probation, and what the stop gate last found in them while
 // HEAD and the armed lanes are what they were then. The stop gate ends a turn over such findings
@@ -97,9 +94,9 @@ func renderProbation(w io.Writer, root string) {
 	}
 	switch path, text, found := preCommitHook(root); {
 	case !found:
-		fmt.Fprintf(w, " [WARN] no pre-commit hook arms lanes: %s\n", howToArm)
+		fmt.Fprintf(w, " [WARN] no pre-commit hook arms lanes: %s\n", verify.HowToArm)
 	case !verify.HookArms(text):
-		fmt.Fprintf(w, " [WARN] %s does not arm lanes: %s\n", path, howToArm)
+		fmt.Fprintf(w, " [WARN] %s does not arm lanes: %s\n", path, verify.HowToArm)
 	}
 	if states.Ignored {
 		fmt.Fprintf(w, " [WARN] %s is ignored by git: it reaches no commit and holds on this machine only\n", verify.ArmedFile)

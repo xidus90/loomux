@@ -32,14 +32,59 @@ func Hooks(binary string) map[string]string {
 		b = b[1 : len(b)-1]
 	}
 	return map[string]string{
-		"pre-commit": "#!/bin/sh\n" +
-			"# loomux pre-commit hook: the check chain of .loomux/config.toml.\n" +
-			`exec "` + b + `" check precommit` + "\n",
+		"pre-commit": preCommit(b),
 		"commit-msg": "#!/bin/sh\n" +
 			"# loomux commit-msg hook: the commit rules of [commit].\n" +
 			`exec "` + b + `" check commit-msg "$1"` + "\n",
 		"pre-push": prePush,
 	}
+}
+
+// preCommitMarker opens the comment line of the pre-commit hook init writes;
+// Upgrade knows its own older hook by it.
+const preCommitMarker = "# loomux pre-commit hook:"
+
+// preCommit is the pre-commit hook of a host project for the binary b: the
+// gate with --arm, which enters the lanes a green run found ok and stages the
+// file itself. The script stages nothing: only the command knows whether the
+// commit takes the whole index, and a `git add` here would pull the file
+// into a commit of paths.
+func preCommit(b string) string {
+	return "#!/bin/sh\n" +
+		preCommitMarker + " the check chain of .loomux/config.toml.\n" +
+		`exec "` + b + `" check precommit --arm` + "\n"
+}
+
+// Upgrade is the pre-commit hook init wrote before lanes could be armed --
+// the shebang, the marker line and the one call `exec "<binary>" check
+// precommit`, nothing else -- in today's form for the same binary. False for
+// every other text: a hook with a line of its own is the project's.
+func Upgrade(text string) (string, bool) {
+	lines := strings.Split(strings.TrimSuffix(strings.ReplaceAll(text, "\r\n", "\n"), "\n"), "\n")
+	if len(lines) != 3 || lines[0] != "#!/bin/sh" || !strings.HasPrefix(lines[1], preCommitMarker) {
+		return "", false
+	}
+	b, ok := strings.CutPrefix(lines[2], `exec "`)
+	if !ok {
+		return "", false
+	}
+	b, ok = strings.CutSuffix(b, `" check precommit`)
+	if !ok {
+		return "", false
+	}
+	return preCommit(b), true
+}
+
+// IsLoomuxPreCommit says whether a hook's text carries the marker line of the
+// pre-commit hook init writes, in the old form or today's, with or without
+// lines a human added: the sign that loomux was set up in this project.
+func IsLoomuxPreCommit(text string) bool {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, preCommitMarker) {
+			return true
+		}
+	}
+	return false
 }
 
 // RunsAGate says whether an existing hook already runs a check chain: a

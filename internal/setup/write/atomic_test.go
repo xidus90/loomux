@@ -336,8 +336,8 @@ func TestAScriptIsWrittenExecutableWhereverItLies(t *testing.T) {
 		{"AGENTS.md", "# loomux\n", 0o644},
 		{".mcp.json", "{}\n", 0o644},
 	} {
-		if got := mode(tc.name, tc.body); got != tc.want {
-			t.Errorf("mode(%s) = %o, want %o", tc.name, got, tc.want)
+		if got := Mode(tc.name, tc.body); got != tc.want {
+			t.Errorf("Mode(%s) = %o, want %o", tc.name, got, tc.want)
 		}
 	}
 }

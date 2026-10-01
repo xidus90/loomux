@@ -15,6 +15,7 @@ import (
 	"github.com/xidus90/loomux/internal/setup/gitfiles"
 	"github.com/xidus90/loomux/internal/setup/hostfile"
 	"github.com/xidus90/loomux/internal/setup/templates"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 // Change is one file init writes, with the text before and after.
@@ -63,6 +64,8 @@ type builder struct {
 	read func(rel string) ([]byte, bool, error)
 	plan Plan
 	err  error
+	// unarming is the pre-commit hook that stays and does not arm, by path.
+	unarming string
 }
 
 // Build plans what c does to the project f describes; read gives the
@@ -104,6 +107,20 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 		after, err := redo(string(before))
 		b.fail(err)
 		b.redoable("config", configPath, before, exists, after, redo)
+	}
+	// A project loomux was not set up in before this run starts in
+	// probation: no lane fails its gate before a green commit armed it. Set
+	// up means a configuration, the armed lanes, or a pre-commit hook of
+	// loomux: a Go project can run loomux for months without a configuration,
+	// and the run that renews its hook must not drop its armed gate into
+	// probation. Whether this run writes a configuration does not matter --
+	// in a plain Go project area add does, or nobody. A file that stands is
+	// left as it is.
+	_, configThere := b.file(configPath)
+	_, armedThere := b.file(armedPath)
+	starts := on("config") && !configThere && !armedThere && !b.loomuxHookThere()
+	if starts {
+		b.change("config", armedPath, nil, false, verify.ArmedSet{Exists: true}.Text())
 	}
 	if on("gitignore") {
 		before, exists := b.file(".gitignore")
@@ -186,6 +203,9 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 	}
 	if on("graph-build") && !f.Graph {
 		b.action("graph-build", "graph-build", "loomux graph build")
+	}
+	if b.unarming != "" && (starts || armedThere) {
+		b.note(b.unarming + ": does not arm lanes; " + verify.HowToArm)
 	}
 	if b.err != nil {
 		return Plan{}, b.err
@@ -369,15 +389,61 @@ func (b *builder) gitHooks() {
 	for _, name := range names {
 		path := dir + "/" + name
 		existing, exists := b.file(path)
+		upgraded, ours := gitfiles.Upgrade(string(existing))
 		switch {
+		case exists && name == "pre-commit" && ours:
+			// Our own hook from before lanes could be armed: the same call
+			// for the same binary, in today's form. It calls no binary it
+			// did not call before, so nothing about it can be missing.
+			b.add(Change{Part: "git-hooks", Path: path, Before: string(existing), After: upgraded, Exists: true})
 		case exists && gitfiles.RunsAGate(string(existing)):
 			b.note(path + ": kept; it runs a gate already")
+			b.keptHook(name, path, string(existing))
 		case exists:
 			b.note(path + ": kept; a hook of the project is already there")
+			b.keptHook(name, path, string(existing))
 		default:
 			b.add(Change{Part: "git-hooks", Path: path, After: hooks[name], Binary: b.f.Binary})
 		}
 	}
+}
+
+// keptHook remembers a pre-commit hook that stays as it is and does not arm;
+// Build names it once it knows whether the project has lanes to arm.
+func (b *builder) keptHook(name, path, text string) {
+	if name == "pre-commit" && !verify.HookArms(text) {
+		b.unarming = path
+	}
+}
+
+// standingHookDir is hookDir's answer without its notes and its action: the
+// directory, relative to the root, that init looks for the project's hooks
+// in, "" where that lies outside the project. It is asked whether or not
+// the git-hooks part is chosen, and may plan nothing.
+func (b *builder) standingHookDir() string {
+	switch {
+	case b.f.HooksPath != "":
+		rel, _ := within(b.f.Root, b.f.HooksPath)
+		return rel
+	case b.f.GitHooksLive:
+		rel, _ := within(b.f.Root, b.f.GitHooksDir)
+		return rel
+	}
+	return ".githooks"
+}
+
+// loomuxHookThere says whether the project has a pre-commit hook loomux
+// wrote, in the old form or today's: the sign that loomux was set up here
+// before this run, configuration or not.
+func (b *builder) loomuxHookThere() bool {
+	dir := b.standingHookDir()
+	if dir == "" {
+		// Outside the project, where the plan reads nothing: the hook as
+		// Gather found it in the directory git runs hooks from.
+		return gitfiles.IsLoomuxPreCommit(b.f.HookPreCommit)
+	}
+	text, _ := b.file(dir + "/pre-commit")
+	return gitfiles.IsLoomuxPreCommit(string(text))
 }
 
 // mergeHookThere says whether our post-merge hook stands where git will run

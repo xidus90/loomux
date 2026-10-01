@@ -2,7 +2,9 @@ package setup
 
 import (
 	"fmt"
+	"io/fs"
 	"maps"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -13,6 +15,14 @@ import (
 
 // backupDir keeps the first text of every project file init rewrote.
 const backupDir = ".loomux/state/backup"
+
+// chmod sets the mode of a replaced file; replaced by tests: Windows has no
+// execute bit to read back.
+var chmod = os.Chmod
+
+// stat reads the mode a file had before it is replaced; replaced by tests:
+// Windows keeps no POSIX permissions to read back.
+var stat = os.Stat
 
 // Runner runs one action of a plan.
 type Runner func(a Action) error
@@ -217,8 +227,20 @@ func (a *applier) change(ch Change) error {
 		}
 	}
 	err = write.CheckParents(a.root, ch.Path)
+	full := filepath.Join(a.root, filepath.FromSlash(ch.Path))
+	var info fs.FileInfo
 	if err == nil {
-		err = lock.ReplaceText(filepath.Join(a.root, filepath.FromSlash(ch.Path)), ch.After)
+		info, err = stat(full)
+	}
+	if err == nil {
+		err = lock.ReplaceText(full, ch.After)
+	}
+	if err == nil {
+		// The swap goes through a temporary file of its own mode. The file
+		// keeps the permissions it had -- a .mcp.json closed to 0600 may hold
+		// tokens -- and a script gains the execute bits a new one would have,
+		// so a replaced hook stays executable.
+		err = chmod(full, info.Mode().Perm()|write.Mode(ch.Path, ch.After)&0o111)
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %w", ch.Path, err)

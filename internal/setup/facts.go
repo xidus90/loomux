@@ -21,10 +21,15 @@ import (
 	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/setup/gitfiles"
 	"github.com/xidus90/loomux/internal/setup/hostfile"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 // configPath is the project configuration, relative to the root.
 const configPath = ".loomux/config.toml"
+
+// armedPath holds the armed lanes, relative to the root; init plans it
+// empty for a project loomux was not set up in before.
+const armedPath = verify.ArmedFile
 
 // checkoutModule is the module path that makes a project a checkout of
 // loomux itself.
@@ -44,11 +49,16 @@ type Facts struct {
 	// GitHooksLive says whether GitHooksDir holds a pre-commit, pre-push or
 	// commit-msg; the *.sample files git puts there are no hooks.
 	GitHooksLive bool
-	Config       string // .loomux/config.toml, "" when missing
-	UserMCP      bool   // ~/.claude.json names an mcpServers entry "loomux"
-	Registered   bool   // a registry area's Path is Root (config.ReadRegistry(config.StateDir()))
-	Checkout     bool   // go.mod declares github.com/xidus90/loomux
-	Binary       string // hostfile.Canonical or hostfile.Checkout
+	// HookPreCommit is the pre-commit hook in the directory git runs hooks
+	// from now, "" when there is none. The plan reads a hook inside the
+	// project itself; this one is for a directory outside it -- an absolute
+	// core.hooksPath, the common hook directory of a linked worktree.
+	HookPreCommit string
+	Config        string // .loomux/config.toml, "" when missing
+	UserMCP       bool   // ~/.claude.json names an mcpServers entry "loomux"
+	Registered    bool   // a registry area's Path is Root (config.ReadRegistry(config.StateDir()))
+	Checkout      bool   // go.mod declares github.com/xidus90/loomux
+	Binary        string // hostfile.Canonical or hostfile.Checkout
 	// BinaryThere says whether the binary Binary names stands where
 	// BinaryPath puts it. Keeping an installed one current is serve's and
 	// upgrade's work, not init's.
@@ -193,6 +203,10 @@ func Gather(root, home string, running Running, git detect.Runner) (Facts, error
 	if hooksNow != "" {
 		data, err := os.ReadFile(filepath.Join(hooksNow, "post-merge"))
 		f.MergeHook = err == nil && maintenance.OwnsHook(data)
+		// A hook that does not read is none: the project then starts in
+		// probation, which arms nothing it had armed before.
+		preCommit, _ := os.ReadFile(filepath.Join(hooksNow, "pre-commit"))
+		f.HookPreCommit = string(preCommit)
 	}
 	// A declaration that does not read consents to nothing; Build refuses
 	// the configuration on its own when the part config is on.

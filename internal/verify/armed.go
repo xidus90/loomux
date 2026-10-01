@@ -136,6 +136,10 @@ func WriteArmed(root string, a ArmedSet) error {
 	return lock.ReplaceText(path, a.Text())
 }
 
+// HowToArm is what loomux tells a project whose pre-commit hook arms nothing:
+// the session start, the status report and the plan of init.
+const HowToArm = "call `loomux check precommit --arm` there, or arm by hand with `loomux gate arm`"
+
 // HookArms says whether a pre-commit hook's text runs the gate with --arm.
 // A hook that mentions the call is not one that makes it: comments do not
 // count, nor does a quoted string, which is one word. precommit and --arm
