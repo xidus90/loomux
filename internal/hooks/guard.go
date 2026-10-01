@@ -835,7 +835,13 @@ func readPrefixes(words []string) (read prefixes) {
 		isRedirect, bare := redirection(w)
 		// The shell's own exec and time; /usr/bin/time is GNU's.
 		builtin := strings.ToLower(w) == "exec" || strings.ToLower(w) == "time"
-		switch base := baseName(w); {
+		base := baseName(w)
+		if slices.Contains(shellWords, base) && base != strings.ToLower(w) {
+			// A file named like a word of the shell is a program like any
+			// other, a copied loomux too.
+			base = ""
+		}
+		switch {
 		case isRedirect:
 			if bare {
 				n = 2
@@ -879,6 +885,11 @@ func readPrefixes(words []string) (read prefixes) {
 	read.program = words
 	return read
 }
+
+// shellWords are the reserved words and builtins dropPrefixes skips: the
+// shell reads them only as the word itself, never as a path to a file.
+var shellWords = []string{"{", "!", "if", "then", "else", "elif", "while", "until", "do", "coproc",
+	"try", "catch", "finally", "function", "command", "exec"}
 
 // flagCount is how many words at the head of words are flags of a wrapper
 // none of whose flags takes a value, a redirection among them included.

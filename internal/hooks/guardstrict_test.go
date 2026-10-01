@@ -31,6 +31,12 @@ func TestStrictModeKnowsLoomuxByItsArguments(t *testing.T) {
 		"doc.exe area add":                          "a human runs them",
 		"doc.exe merge-hook install":                "a human runs them",
 		"doc.exe dev switchover prune-hooks":        "a human runs them",
+		// A file named like a word of the shell is a program like any other.
+		"./if config set a b":                 "a human runs them",
+		"./do init":                           "a human runs them",
+		"/x/exec init":                        "a human runs them",
+		"./command config set a b":            "a human runs them",
+		"./function flow resume 1 --answer y": "a flow's gate asks a human",
 	} {
 		if got := checkTool(root, "Bash", command(line), strictPolicy); !has(got, part) {
 			t.Errorf("strict %q: reasons %q, want %q", line, got, part)
@@ -65,6 +71,9 @@ func TestStrictModeRefusesAnUnknownProgramOnAProtectedPath(t *testing.T) {
 		`sh -c 'frob "$0"' .loomux/config.toml`,
 		"git stash push .loomux/config.toml",
 		"python edit.py .loomux/state/runs/0001.jsonl",
+		// A file named like a word of the shell is a program like any other.
+		"./function rm .loomux/config.toml",
+		"./do .loomux/config.toml",
 	} {
 		if got := checkTool(root, "Bash", command(line), strictPolicy); !slices.ContainsFunc(got, isStrict) {
 			t.Errorf("strict %q: reasons %q", line, got)

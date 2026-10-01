@@ -303,7 +303,8 @@ Evaluates the project policy and global write barrier before an agent executes a
   flags). It is found behind `VAR=value`, redirections (`2>/dev/null`,
   `> out`, `2>&1`), the reserved words `if`, `then`, `else`, `elif`, `while`,
   `until`, `do`, `!`, `{`, `coproc`, `function <name>`, `try`, `catch` and
-  `finally`, after every `{` or `}` on the line, alone or glued to a word
+  `finally` (each only as the word itself: a file of that name, `./do`, is a
+  program), after every `{` or `}` on the line, alone or glued to a word
   (the body of a block, function or script block: `try{`, `{loomux …}`),
   and behind the wrappers `sudo`, `command`, `exec`, `nohup`, `env`, `time`,
   `xargs`, `nice`, `timeout <duration>` and `cmd` with every switch up to
