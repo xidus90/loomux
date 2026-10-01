@@ -308,7 +308,9 @@ Evaluates the project policy and global write barrier before an agent executes a
   (the body of a block, function or script block: `try{`, `{loomux …}`),
   and behind the wrappers `sudo`, `command`, `exec`, `nohup`, `env`, `time`,
   `xargs`, `nice`, `timeout <duration>` and `cmd` with every switch up to
-  `/c` or `/k`, together with their flags (and `--`, and `env`'s lone `-`).
+  `/c`, `/k` or `/r` (the command may be glued to it, `/cloomux`), a caret
+  escape of cmd resolved (`con^fig`), together with their flags (and `--`,
+  and `env`'s lone `-`).
   The flags are read the way getopt reads them: the separate value of a flag
   of `sudo`, `env`, `xargs`, `nice`, `timeout`, `exec` or `time` that takes
   one is skipped (`sudo -u root`, `xargs -n 1`, `nice -n 10`,

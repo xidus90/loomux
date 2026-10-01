@@ -393,6 +393,9 @@ func lineVariants(line string) []string {
 	rewrites := []*strings.Replacer{
 		strings.NewReplacer("\\\r\n", "", "\\\n", "", "`\r\n", " ", "`\n", " "),
 		strings.NewReplacer("`", ""),
+		// A caret escapes the next character for cmd (con^fig); dropping it
+		// adds the reading cmd runs, and never removes a refusal.
+		strings.NewReplacer("^", ""),
 		// A brace glued to a word ({loomux init}, try{) still opens or
 		// closes a block; set apart, it becomes the lone word readingWrites
 		// looks behind.
@@ -892,10 +895,16 @@ func readPrefixes(words []string) (read prefixes) {
 		case base == "cmd" || base == "cmd.exe":
 			read.note(words)
 			read.spawns = true
-			// Every switch up to /c or /k, which the command follows.
+			// Every switch up to /c, /k or /r, which the command follows,
+			// glued to the switch (/cDIR) or the next word.
 			for n < len(words) && len(words[n]) > 1 && words[n][0] == '/' {
+				tail, isRun := cmdRunTail(words[n])
 				n++
-				if f := strings.ToLower(words[n-1]); f == "/c" || f == "/k" {
+				if isRun {
+					if tail != "" {
+						words = append([]string{tail}, words[n:]...)
+						n = 0
+					}
 					break
 				}
 			}
@@ -907,6 +916,23 @@ func readPrefixes(words []string) (read prefixes) {
 	}
 	read.program = words
 	return read
+}
+
+// cmdRunTail reads a cmd switch word: isRun whether it carries the run switch
+// /c, /k or /r (also behind earlier glued switches, /d/c), and tail the
+// command glued after it, "" when the command is the next word.
+func cmdRunTail(word string) (tail string, isRun bool) {
+	lower := strings.ToLower(word)
+	best := -1
+	for _, s := range []string{"/c", "/k", "/r"} {
+		if at := strings.Index(lower, s); at >= 0 && (best < 0 || at < best) {
+			best = at
+		}
+	}
+	if best < 0 {
+		return "", false
+	}
+	return word[best+2:], true
 }
 
 // shellWords are the reserved words and builtins dropPrefixes skips: the
