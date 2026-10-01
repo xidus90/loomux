@@ -74,33 +74,46 @@ func TestAnAgentMayNotAnswerAGateInAnySpelling(t *testing.T) {
 }
 
 // asGateAnswer puts flow resume with an answer where a spelling row has its
-// command, the first init, config, area add or merge-hook install or remove
-// that stands as a word. An escape inside the command stays an escape inside
-// the new one, since the escape is what such a row spells. A row that names
-// no command must be a Start-Process spelling, refused whatever it runs; the
-// answer goes after it. Any other such row is a new spelling this helper
-// cannot place the answer in, and fails the test rather than pass untested.
+// command (see inPlaceOfCommand).
 func asGateAnswer(t *testing.T, row string) string {
 	t.Helper()
 	tick := "`"
+	return inPlaceOfCommand(t, row, "flow resume 0001 --answer yes", `flow res\ume 0001 --answer yes`, "flow res"+tick+"ume 0001 --answer yes", `flow res^ume 0001 --answer yes`)
+}
+
+// inPlaceOfCommand puts a command where a spelling row has its own, the first
+// init, config, area add or merge-hook install or remove that stands as a
+// word: plain, or slashed, ticked and careted where the row spells its command
+// with an escape, since the escape is what such a row spells. A row that names
+// no command must be a Start-Process spelling, refused whatever it runs; the
+// command goes after it. Any other such row is a new spelling this helper
+// cannot place a command in, and fails the test rather than pass untested;
+// with a nil t it panics, for a caller that builds a list outside a test.
+func inPlaceOfCommand(t *testing.T, row, plain, slashed, ticked, careted string) string {
+	if t != nil {
+		t.Helper()
+	}
+	tick := "`"
 	command := regexp.MustCompile(`(^|[\s"'{(])(con\\fig|con` + tick + `fig|con\^fig|merge-hook (?:install|remove)|area add|config|init)($|[\s"'` + tick + `;})])`)
-	answer := "flow resume 0001 --answer yes"
 	at := command.FindStringSubmatchIndex(row)
 	if at == nil {
 		if head := strings.ToLower(strings.Fields(row)[0]); head != "start-process" && head != "start" && head != "saps" {
-			t.Fatalf("%q names no command to put the answer in place of, and is no Start-Process spelling", row)
+			if t == nil {
+				panic(row + " names no command and is no Start-Process spelling")
+			}
+			t.Fatalf("%q names no command to put another in place of, and is no Start-Process spelling", row)
 		}
-		return row + " " + answer
+		return row + " " + plain
 	}
 	switch row[at[4]:at[5]] {
 	case `con\fig`:
-		answer = `flow res\ume 0001 --answer yes`
+		plain = slashed
 	case "con" + tick + "fig":
-		answer = "flow res" + tick + "ume 0001 --answer yes"
+		plain = ticked
 	case `con^fig`:
-		answer = `flow res^ume 0001 --answer yes`
+		plain = careted
 	}
-	return row[:at[4]] + answer + row[at[5]:]
+	return row[:at[4]] + plain + row[at[5]:]
 }
 
 // The refusal names the way a human answers: the reason is its own, not the

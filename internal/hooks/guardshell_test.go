@@ -149,8 +149,9 @@ func runFileShellWrites() map[string][]string {
 		"git rm -r .loomux/state":    state,
 		// Flip: removing the hooks folder was allowed.
 		"rm -r .loomux/state/hooks": {stopGateWant},
-		// Flip: removing .loomux was a hole.
-		"rm -rf .loomux": {stopGateWant, manifestReason, runFilesWant},
+		// Flip: removing .loomux was a hole. The armed lanes go with the
+		// folder, so their reason stands beside the manifest's.
+		"rm -rf .loomux": {stopGateWant, manifestReason, armedReason, runFilesWant},
 	}
 }
 
