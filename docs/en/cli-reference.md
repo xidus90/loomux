@@ -330,11 +330,19 @@ Evaluates the project policy and global write barrier before an agent executes a
   `)`, `$(`, a backtick), and a line continuation (`\` or a backtick at the
   line end) is joined first; a backtick escape inside a word
   (``loomux con`fig``) is read as PowerShell does.
+  - **Read inside strings** — a command a shell runs from a string (`sh -c
+    "loomux init"`, `pwsh -c …`, `pwsh -EncodedCommand …`, `iex '…'`,
+    `eval`, `env -S`) or reads from a pipe or here-string (`echo "…" | sh`,
+    `'…' | iex`, `bash <<< '…'`) is judged as a line of its own, up to three
+    shells deep (deeper is refused), and no flag exempts there. A variable
+    or alias the line sets itself is put in (`M=loomux; $M init`, `alias
+    l=loomux; l init`).
   - **Known holes** — the rule reads words, not a shell, so it passes: an
-    alias; a program held in a variable; a command inside a string (`sh -c
-    "loomux init"`, `pwsh -c …`, `script -c …`); a program a known tool
-    runs (`uv run loomux init`, `npx loomux init`, `find … -exec loomux …`);
-    `go run .` inside `cmd/loomux`; and, after
+    alias or a program held in a variable set elsewhere than on the line; a
+    function the line defines; a command inside `script -c …`; a program a
+    known tool runs (`uv run loomux init`, `npx loomux init`, `find … -exec
+    loomux …`); `xargs loomux` with its arguments from stdin; `go run .`
+    inside `cmd/loomux`; and, after
     an earlier escaped `\"` or `\'` on the same line, a quoted program path
     whose part after its last break character (`(`, `)`, `&`, `;`, `|`)
     holds a blank, such as

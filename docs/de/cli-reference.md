@@ -347,11 +347,20 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   und eine Zeilenfortsetzung (`\` oder ein Backtick am Zeilenende) wird
   vorher zusammengefügt; ein Backtick-Escape in einem Wort
   (``loomux con`fig``) wird gelesen, wie PowerShell ihn liest.
+  - **In Zeichenketten gelesen** — ein Befehl, den eine Shell aus einer
+    Zeichenkette ausführt (`sh -c "loomux init"`, `pwsh -c …`, `pwsh
+    -EncodedCommand …`, `iex '…'`, `eval`, `env -S`) oder aus einer Pipe
+    oder einem Here-String liest (`echo "…" | sh`, `'…' | iex`, `bash <<<
+    '…'`), wird als eigene Zeile geprüft, bis drei Shells tief (tiefer wird
+    verweigert), und dort befreit kein Flag. Eine Variable oder ein Alias,
+    den die Zeile selbst setzt, wird eingesetzt (`M=loomux; $M init`, `alias
+    l=loomux; l init`).
   - **Bekannte Lücken** — die Regel liest Wörter, keine Shell, und lässt
-    darum durch: einen Alias; ein Programm in einer Variablen; einen Befehl
-    in einer Zeichenkette (`sh -c "loomux init"`, `pwsh -c …`,
-    `script -c …`); ein Programm, das ein bekanntes Werkzeug startet
-    (`uv run loomux init`, `npx loomux init`, `find … -exec loomux …`);
+    darum durch: einen Alias oder ein Programm in einer Variablen, die
+    anderswo als in der Zeile gesetzt sind; eine Funktion, die die Zeile
+    definiert; einen Befehl in `script -c …`; ein Programm, das ein
+    bekanntes Werkzeug startet (`uv run loomux init`, `npx loomux init`,
+    `find … -exec loomux …`); `xargs loomux` mit seinen Argumenten von stdin;
     `go run .` in `cmd/loomux`; und, nach einem früheren maskierten `\"` oder `\'` auf
     derselben Zeile, einen Programmpfad in Anführungszeichen, dessen Teil
     hinter seinem letzten Trennzeichen (`(`, `)`, `&`, `;`, `|`) ein

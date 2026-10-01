@@ -3213,3 +3213,31 @@ open sessions ran instead.
 8. **Example project 1 compares only the knowledge commands.** It had no old
    hooks, so all six hooks appear as new; what a switch-over does to old
    hooks shows in example project 2 alone.
+
+## 2026-10-01 14:45 — The Guard After Reading Strings, Folders, Variables and Patches
+
+**Goal.** Check what reading the lines a shell runs from a string or a
+pipe, the variables a line sets, the folder a copy lands in, patch files
+and 8.3 names costs the guard per call.
+
+**Method.** `go test -bench BenchmarkCheckTool -count=10 ./internal/hooks`
+(`internal/hooks/guardstrict_bench_test.go`: a long line with wrappers,
+braces and globs, in a project with a manifest), Go 1.27.0 on Windows 11,
+the same machine back to back: baseline master at `e6c21eed`, change the
+branch `fix/guard-wrapper-holes` at `ac9a4a73`. Warm, in-process; the start
+of the binary is not part of it. Median, minimum and maximum of ten runs.
+
+| Mode | Baseline | Change |
+|---|---:|---:|
+| default | 483 µs (453–530) | 681 µs (549–731) |
+| strict | 4.68 ms (3.87–5.17) | 4.59 ms (4.44–4.93) |
+
+### Key Findings
+1. **The default mode costs 0.2 ms more per call** (+41 %): every line is
+   read once more for the lines it runs from strings and with the variables
+   it sets, and every target gets its lexical spellings.
+2. **Strict mode does not change measurably**: the file system resolution
+   dominates it, and the new readings fall within its spread.
+3. **The protected elements are worked out once per call**: an earlier
+   draft did it per target, and the hooks test suite took 135 s instead of
+   80 s (not measured with the benchmark).
