@@ -548,9 +548,12 @@ des Programms in jeder Schreibweise, ohne `.exe`:
   `-Include` oder `-Filter` ist, was der Filter auf der Platte behält.
 
 Vor dem Programm überspringt er `VAR=x`, die reservierten Wörter der Shell und
-die Wrapper `sudo`, `env`, `xargs`, `timeout` (mit dem eigenen Wert ihrer
-Flags, die einen nehmen: `sudo -u root`, `xargs -n 1`, `timeout -s KILL 60`),
-`nice`, `command`, `exec`, `nohup`, `time` und `cmd /c`. Die Zeichenkette nach
+die Wrapper `sudo`, `env`, `xargs`, `nice`, `timeout`, `exec`, `time` (mit
+dem eigenen Wert ihrer Flags, die einen nehmen, gelesen wie getopt ihn liest,
+auch als letztes Flag eines Bündels oder als gekürzte Langoption:
+`sudo -Hu root`, `xargs -n 1`, `nice --adj 5`, `timeout -s KILL 60`,
+`exec -a NAME`, `time -o DATEI`), `command`, `nohup` und `cmd /c`. Die
+Zeichenkette nach
 `sh`, `bash`, `zsh` oder `dash -c` (auch `-lc`), `pwsh` oder `powershell -c`
 oder `-Command` und `cmd /c` oder `/k` wird als eigene Zeile gelesen, bis drei
 Shells tief, ebenso die Wörter nach `eval`. Eine Ersetzung `$(…)` oder

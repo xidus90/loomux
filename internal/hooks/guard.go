@@ -799,8 +799,8 @@ func splitSegments(line string, quoteAware bool) []string {
 // dropPrefixes strips what runs in front of the real program: the VAR=value
 // assignments a shell applies to its environment, redirections with their
 // target, the shell's reserved words, the { that opens a group, and the
-// wrappers that run the word after them -- with their flags, and the separate
-// value of the flags wrapperTakesValue names.
+// wrappers that run the word after them -- with their flags, read as
+// wrapperFlags reads them.
 func dropPrefixes(words []string) []string {
 	for len(words) > 0 {
 		w := words[0]
@@ -818,19 +818,19 @@ func dropPrefixes(words []string) []string {
 		case base == "function":
 			// The name, then the body.
 			n = 2
-		case base == "sudo" || base == "env" || base == "xargs":
-			n += wrapperFlags(base, words[1:])
-		case base == "command" || base == "exec" || base == "nohup" || base == "time":
-			n += flagCount(words[1:])
-		case base == "nice":
-			if len(words) > 2 && words[1] == "-n" {
-				n = 3 + flagCount(words[3:])
-			} else {
-				n += flagCount(words[1:])
-			}
 		case base == "timeout":
 			// The duration comes before the program.
 			n += wrapperFlags(base, words[1:]) + 1
+		case wrapperValues[base] != nil:
+			n += wrapperFlags(base, words[1:])
+			if base == "sudo" && n < len(words) && words[n] == "run" {
+				// Sudo for Windows runs what follows its run, after flags
+				// of its own.
+				n++
+				n += wrapperFlags(base, words[n:])
+			}
+		case base == "command" || base == "nohup":
+			n += flagCount(words[1:])
 		case base == "cmd" || base == "cmd.exe":
 			// Every switch up to /c or /k, which the command follows.
 			for n < len(words) && len(words[n]) > 1 && words[n][0] == '/' {
@@ -847,47 +847,94 @@ func dropPrefixes(words []string) []string {
 	return words
 }
 
-// flagCount is how many words at the head of words are flags.
+// flagCount is how many words at the head of words are flags of a wrapper
+// none of whose flags takes a value, a redirection among them included.
 func flagCount(words []string) int {
-	n := 0
+	n := pastRedirections(words, 0)
 	for n < len(words) && len(words[n]) > 1 && words[n][0] == '-' {
-		n++
-	}
-	return n
-}
-
-// wrapperFlags is how many words at the head of words are the wrapper's
-// flags, a flag's separate value included; -- ends them and counts.
-func wrapperFlags(wrapper string, words []string) int {
-	n := 0
-	for n < len(words) && len(words[n]) > 1 && words[n][0] == '-' {
-		if words[n] == "--" {
-			return n + 1
-		}
-		if wrapperTakesValue(wrapper, words[n]) {
-			n++
-		}
-		n++
+		n = pastRedirections(words, n+1)
 	}
 	return min(n, len(words))
 }
 
-// wrapperTakesValue names the flags of sudo, env, xargs and timeout whose
-// value is the next word.
-func wrapperTakesValue(wrapper, flag string) bool {
-	switch wrapper {
-	case "sudo":
-		return slices.Contains([]string{"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-R", "-t", "-U", "-T",
-			"--user", "--group", "--close-from", "--chdir", "--chroot", "--host", "--prompt", "--role",
-			"--type", "--other-user", "--command-timeout"}, flag)
-	case "env":
-		// -S is left out: its value is the command line itself.
-		return slices.Contains([]string{"-u", "-C", "--unset", "--chdir"}, flag)
-	case "xargs":
-		return slices.Contains([]string{"-n", "-L", "-P", "-s", "-I", "-d", "-E", "-a",
-			"--max-args", "--max-lines", "--max-procs", "--max-chars", "--delimiter", "--arg-file"}, flag)
+// wrapperValues names, for each wrapper whose flags dropPrefixes reads with
+// wrapperFlags, the flags that take a value: bash's exec -a, GNU time's format
+// and output file, and the coreutils, findutils and sudo flags.
+var wrapperValues = map[string][]string{
+	"sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-R", "-t", "-U", "-T",
+		"--user", "--group", "--close-from", "--chdir", "--chroot", "--host", "--prompt", "--role",
+		"--type", "--other-user", "--command-timeout"},
+	// -S is left out: its value is the command line itself.
+	"env": {"-u", "-C", "-a", "--unset", "--chdir", "--argv0"},
+	// -l, -i and -e, --max-lines, --replace and --eof take a value only
+	// glued to them.
+	"xargs": {"-n", "-L", "-P", "-s", "-I", "-d", "-E", "-a",
+		"--max-args", "--max-procs", "--max-chars", "--delimiter", "--arg-file", "--process-slot-var"},
+	"nice":    {"-n", "--adjustment"},
+	"timeout": {"-s", "-k", "--signal", "--kill-after"},
+	"exec":    {"-a"},
+	"time":    {"-f", "-o", "--format", "--output"},
+}
+
+// wrapperFlags is how many words at the head of words are the wrapper's
+// flags, a flag's separate value included (takesNextWord). A redirection
+// among them counts as well, also between a flag and its value: the shell
+// takes it out of the words before the wrapper reads them. -- ends them and
+// counts; env's lone - is its -i.
+func wrapperFlags(wrapper string, words []string) int {
+	n := pastRedirections(words, 0)
+	for n < len(words) {
+		w := words[n]
+		if w == "--" {
+			return n + 1
+		}
+		if (len(w) < 2 || w[0] != '-') && (wrapper != "env" || w != "-") {
+			break
+		}
+		n++
+		if takesNextWord(wrapper, w) {
+			n = pastRedirections(words, n) + 1
+		}
+		n = pastRedirections(words, n)
 	}
-	return slices.Contains([]string{"-s", "-k", "--signal", "--kill-after"}, flag)
+	return min(n, len(words))
+}
+
+// takesNextWord says whether the word after flag is its value, read the way
+// getopt reads the wrapper's flags: a long option by its name or by any
+// prefix of it (--sig for --signal), but not with its value glued (--sig=x);
+// a short one alone or last in a bundle (-Hu root), where a letter before
+// the last that takes a value has the rest of the word for it (-uroot).
+func takesNextWord(wrapper, flag string) bool {
+	values := wrapperValues[wrapper]
+	if slices.Contains(values, flag) {
+		return true
+	}
+	if strings.HasPrefix(flag, "--") {
+		return slices.ContainsFunc(values, func(v string) bool { return strings.HasPrefix(v, flag) })
+	}
+	for i := 1; i < len(flag); i++ {
+		if slices.Contains(values, "-"+flag[i:i+1]) {
+			return i == len(flag)-1
+		}
+	}
+	return false
+}
+
+// pastRedirections is the index of the first word from n on that is no
+// redirection or the target of a bare one.
+func pastRedirections(words []string, n int) int {
+	for n < len(words) {
+		isRedirect, bare := redirection(words[n])
+		if !isRedirect {
+			return n
+		}
+		n++
+		if bare {
+			n++
+		}
+	}
+	return n
 }
 
 // redirection says whether w is a redirection (>out, 2>/dev/null, <, 2>&1)

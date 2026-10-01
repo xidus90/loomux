@@ -321,11 +321,17 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   hinter jedem `{` oder `}` der Zeile, allein oder an ein Wort geklebt (dem
   Rumpf eines Blocks, einer Funktion oder eines Skriptblocks: `try{`,
   `{loomux …}`), sowie hinter den Wrappern `sudo`, `command`, `exec`,
-  `nohup`, `env`, `time`, `xargs`, `nice` (auch `nice -n N`),
-  `timeout <dauer>` und `cmd` mit jedem Schalter bis `/c` oder `/k`, samt
-  ihren Flags (und `--`), bei `sudo`, `env`, `xargs` und `timeout` auch
-  hinter dem eigenen Wert eines Flags, das einen nimmt (`sudo -u root`,
-  `xargs -n 1`, `timeout -s KILL`). `Start-Process`, `start` oder
+  `nohup`, `env`, `time`, `xargs`, `nice`, `timeout <dauer>` und `cmd` mit
+  jedem Schalter bis `/c` oder `/k`, samt ihren Flags (und `--` und dem
+  einzelnen `-` von `env`). Die Flags liest er, wie getopt sie liest: Der
+  eigene Wert eines Flags von `sudo`, `env`, `xargs`, `nice`, `timeout`,
+  `exec` oder `time`, das einen nimmt, wird übersprungen (`sudo -u root`,
+  `xargs -n 1`, `nice -n 10`, `timeout -s KILL`, `exec -a NAME`, GNU
+  `time -o DATEI`), auch wenn das Flag das letzte eines Bündels ist
+  (`sudo -Hu root`) oder eine auf einen Anfang gekürzte Langoption
+  (`timeout --sig KILL`), und eine Umleitung zwischen einem Flag und seinem
+  Wert ist kein Wert. `sudo run` (Sudo für Windows) wird wie `sudo`
+  gelesen. `Start-Process`, `start` oder
   `saps` wird verweigert, wenn loomux eines seiner Argumente ist, auch als
   Wert eines Parameters mit Doppelpunkt (`-FilePath:loomux.exe`), gleich
   welche die übrigen sind. Jeder Abschnitt der Zeile zählt

@@ -648,6 +648,54 @@ func loomuxSpellings() []string {
 		// nice with -n N and then more flags or --.
 		"nice -n 10 -- loomux init",
 		"nice -n 10 -x loomux init",
+		// Flags read the way getopt reads them: a bundle whose last letter
+		// takes a value, a long option cut to a unique prefix, a value as a
+		// word of its own or glued.
+		"nice -x -n 10 loomux init",
+		"nice --adjustment 5 loomux init",
+		"nice --adj 5 loomux init",
+		"sudo -Hu root loomux init",
+		"sudo -uroot loomux init",
+		"timeout --sig=KILL 5 loomux init",
+		"xargs -tn 1 loomux init",
+		"xargs -0n 1 loomux init",
+		"xargs --max-a 1 loomux init",
+		"timeout -vs KILL 5 loomux init",
+		"timeout --sig KILL 5 loomux init",
+		"timeout -k 5 60 loomux init",
+		"timeout --signal KILL 60 loomux init",
+		"timeout --kill-after 5 60 loomux init",
+		"env -iu X loomux init",
+		"env --un X loomux init",
+		"env -a x loomux init",
+		"env --argv0 x loomux init",
+		// xargs takes --max-lines only glued; --process-slot-var takes a word.
+		"xargs --max-lines loomux init",
+		"xargs --process-slot-var V loomux init",
+		// env reads a lone - as -i.
+		"env - PATH=/usr/bin loomux init",
+		"env -u X - loomux init",
+		// exec -a NAME, and GNU time's format and output file.
+		"exec -a x loomux init",
+		"/usr/bin/time -f %e loomux init",
+		"/usr/bin/time -o out.txt loomux init",
+		"/usr/bin/time --output out.txt loomux init",
+		"time --format=%e loomux init",
+		// A redirection between a flag and its value is no value: the shell
+		// takes it out of the words before the wrapper reads them.
+		"sudo -u >x root loomux init",
+		"env -u 2>/dev/null X loomux init",
+		"env -u 2> err X loomux init",
+		"xargs -n >x 1 loomux init",
+		"nice -n 2>/dev/null 10 loomux init",
+		"timeout >x 60 loomux init",
+		"timeout -s >x KILL 60 loomux init",
+		"timeout -k 5 >x 60 loomux init",
+		"command >x -p loomux init",
+		"command -p >x -p loomux init",
+		// Sudo for Windows runs the words after its run.
+		"sudo run loomux init",
+		"sudo run -D . loomux config set a b",
 		// False refusals kept on purpose: a word after a lone brace.
 		"awk '{ print }' loomux init",
 		"echo } loomux config set a b",
@@ -999,6 +1047,7 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"function f { loomux config list; }",
 		"nice -n 10 loomux config get a",
 		"nice -n",
+		"nice -n >x",
 		"function",
 		"}",
 		"try{ loomux config list }catch{}",
