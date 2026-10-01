@@ -561,7 +561,10 @@ Shells tief, ebenso die Wörter nach `eval`. Eine Ersetzung `$(…)` oder
 der nach ihr weitergeht, seinen festen Rest (`$(pwd)/.loomux/config.toml`),
 und ein PowerShell-`(Join-Path A B …)` wird als der Pfad `A/B/…` gelesen
 (`$PWD` als Arbeitsordner). `cd`, `Set-Location` und `pushd` verschieben den Ort, ab dem
-spätere relative Pfade zählen, `popd` kehrt zur Wurzel zurück. Ein Segment,
+spätere relative Pfade zählen, `popd` kehrt zur Wurzel zurück; hinter einem
+Wrapper, der sie als eigenes Programm startet (`nohup cd x`), verschieben sie
+nichts, und `env -C` oder `sudo -D` lässt nur sein Programm in dem Ordner
+laufen, den es nennt. Ein Segment,
 dessen Anführungszeichen sich nicht schließen, wird Wort für Wort gelesen:
 jedes Wort, das wie ein Pfad aussieht, gilt als geschrieben.
 

@@ -35,7 +35,10 @@ func spelled(targets []shellTarget) []string {
 func TestShellWritesReadsTheTargetsOfEveryVerb(t *testing.T) {
 	root := t.TempDir()
 	mkfile(t, root, "notes.txt")
+	mkfile(t, root, "sub/kept.txt")
 	for line, want := range map[string][]string{
+		"env -C sub git checkout HEAD kept.txt":                             {"w:sub/kept.txt"},
+		"cmd /c cd sub & rm x":                                              {"rm:x"},
 		"echo x > .loomux/config.toml":                                      {"w:.loomux/config.toml"},
 		"echo x>.loomux/config.toml":                                        {"w:.loomux/config.toml"},
 		"echo x &> .loomux/config.toml":                                     {"w:.loomux/config.toml"},
@@ -290,6 +293,30 @@ func TestShellWritesNamesExactlyTheTargetsOfAVerb(t *testing.T) {
 		"grep '>' notes.txt > out":                    {"w:out"},
 		"ls .loomux | rm x":                           {"rm:x"},
 		"curl -o.loomux/config.toml https://x/y":      {"w:.loomux/config.toml"},
+		// A wrapper runs cd, pushd or popd in a process of its own, or fails
+		// to: the shell stays where it was.
+		"nohup cd sub; touch .loomux/no-verify":  {"w:.loomux/no-verify"},
+		"cd .loomux; nohup popd; rm config.toml": {"rm:.loomux/config.toml"},
+		"sudo pushd sub && rm x":                 {"rm:x"},
+		"/usr/bin/time cd sub; rm x":             {"rm:x"},
+		"env -C .loomux cd flows; rm x":          {"rm:x"},
+		// The shell's own time, command and an assignment keep it moving.
+		"time cd sub; rm x":    {"rm:sub/x"},
+		"command cd sub; rm x": {"rm:sub/x"},
+		"X=1 cd sub; rm x":     {"rm:sub/x"},
+		// env -C and sudo -D run the program in another folder; a
+		// redirection is still the shell's.
+		"env -C .loomux rm config.toml":         {"rm:.loomux/config.toml"},
+		"env -C.loomux rm config.toml":          {"rm:.loomux/config.toml"},
+		"env --chdir=.loomux rm config.toml":    {"rm:.loomux/config.toml"},
+		"env --chdir .loomux rm config.toml":    {"rm:.loomux/config.toml"},
+		"env --ch .loomux rm config.toml":       {"rm:.loomux/config.toml"},
+		"env -iC .loomux rm config.toml":        {"rm:.loomux/config.toml"},
+		"sudo -D .loomux rm config.toml":        {"rm:.loomux/config.toml"},
+		"sudo --chdir=.loomux rm config.toml":   {"rm:.loomux/config.toml"},
+		"cd x && env -C .loomux rm config.toml": {"rm:x/.loomux/config.toml"},
+		"env -C /abs rm y":                      {"rm:/abs/y"},
+		"env -C .loomux rm config.toml > out":   {"rm:.loomux/config.toml", "w:out"},
 	} {
 		targets, _ := shellWrites(root, line)
 		if got := spelled(targets); !slices.Equal(got, want) {
@@ -308,6 +335,8 @@ func TestShellWritesNamesTheProgramsItDoesNotKnow(t *testing.T) {
 		`cd src && sh -c "cd a && frob x"`:      {"src/a", []string{"frob", "x"}},
 		`cd src && sh -c "cd /abs/x && frob x"`: {"/abs/x", []string{"frob", "x"}},
 		`sh -c "frob x"`:                        {"", []string{"frob", "x"}},
+		"env -C src frob x":                     {"src", []string{"frob", "x"}},
+		"cd a && sudo -D b frob x":              {"a/b", []string{"frob", "x"}},
 	} {
 		_, unknown := shellWrites(root, line)
 		if !slices.ContainsFunc(unknown, func(c unknownCall) bool {

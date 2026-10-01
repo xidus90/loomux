@@ -113,22 +113,23 @@ func shellWritesAt(root, line string, depth int) (targets []shellTarget, unknown
 				for i, words := range all {
 					// The field reading honours no quote, so the words after a
 					// shell's string are only its $0, $1, … in the others.
-					found, args, known, inner := segmentWrites(joinPlace(root, base), words, depth, i < len(all)-1)
-					targets = append(targets, under(base, found)...)
+					read := segmentWrites(joinPlace(root, base), words, depth, i < len(all)-1)
+					targets = append(targets, under(base, read.targets)...)
 					if piped && trusted {
-						targets = append(targets, under(base, pipedRemovals(prev, args))...)
+						targets = append(targets, under(base, pipedRemovals(prev, read.args))...)
 					}
-					if !known && trusted {
-						unknown = append(unknown, unknownCall{base, args})
+					if !read.known && trusted {
+						unknown = append(unknown, unknownCall{followed(base, read.dir), read.args})
 					}
-					for _, call := range inner {
+					for _, call := range read.inner {
 						if trusted {
 							unknown = append(unknown, unknownCall{followed(base, call.base), call.args})
 						}
 					}
-					// The tolerant reading keeps a PowerShell path whole.
-					if i == len(all)-2 {
-						place = args
+					// The tolerant reading keeps a PowerShell path whole. A
+					// cd a wrapper runs moves no shell.
+					if i == len(all)-2 && !read.spawns {
+						place = read.args
 					}
 				}
 				base, prev = changedDirectory(base, place), segment
@@ -291,18 +292,35 @@ func quotedAt(s string, esc byte) []bool {
 	return in
 }
 
+// segmentRead is what segmentWrites reads from one reading of one segment.
+type segmentRead struct {
+	// targets are what it writes, relative to the shell's folder.
+	targets []shellTarget
+	// args are the program and its arguments without prefixes and
+	// redirections; known says whether the program is in the verb table or
+	// readVerbs.
+	args  []string
+	known bool
+	// inner are the unknown programs of a line a shell among args runs.
+	inner []unknownCall
+	// dir and spawns are those of the prefixes (prefixes).
+	dir    string
+	spawns bool
+}
+
 // segmentWrites is what one reading of one segment writes: its redirections
-// wherever they stand, then what its program does to its arguments. args are
-// the program and its arguments without prefixes and redirections; known says
-// whether the program is in the verb table or readVerbs. dir is where
-// relative paths start, for git checkout's question whether a path exists.
-// words come from a masked segment; args and targets carry each > again. The
-// line a shell among args runs from a string adds its targets and its
-// unknown programs (inner), up to maxInnerDepth shells deep; a shell that is
-// the program then counts as known, for the line it runs is judged, and the
-// words after its string, when the reading grouped its quotes, are an unknown
-// call of their own.
-func segmentWrites(dir string, words []string, depth int, grouped bool) (targets []shellTarget, args []string, known bool, inner []unknownCall) {
+// wherever they stand, then what its program does to its arguments, in the
+// folder env -C or sudo -D runs it in. dir is where relative paths start, for
+// git checkout's question whether a path exists. words come from a masked
+// segment; args and targets carry each > again. The line a shell among args
+// runs from a string adds its targets and its unknown programs (inner), up to
+// maxInnerDepth shells deep; a shell that is the program then counts as
+// known, for the line it runs is judged, and the words after its string, when
+// the reading grouped its quotes, are an unknown call of their own.
+func segmentWrites(dir string, words []string, depth int, grouped bool) segmentRead {
+	var targets []shellTarget
+	var args []string
+	var inner []unknownCall
 	unmasked := func(w string) string { return strings.ReplaceAll(w, quotedRedirect, ">") }
 	for i := 0; i < len(words); i++ {
 		w := words[i]
@@ -333,20 +351,24 @@ func segmentWrites(dir string, words []string, depth int, grouped bool) (targets
 		found, calls := shellWritesAt(dir, line, depth+1)
 		targets, inner = append(targets, found...), calls
 	}
-	args = dropPrefixes(args)
-	if len(args) == 0 {
-		return targets, nil, true, inner
+	pre := readPrefixes(args)
+	read := segmentRead{args: pre.program, known: true, inner: inner, dir: pre.dir, spawns: pre.spawns}
+	if len(read.args) == 0 {
+		read.targets = targets
+		return read
 	}
-	found, known := verbWrites(dir, args)
-	if ran && slices.Contains(stringShells, verbOf(args[0])) {
+	found, known := verbWrites(joinPlace(dir, pre.dir), read.args)
+	if ran && slices.Contains(stringShells, verbOf(read.args[0])) {
 		known = true
 		// The words after the string reach the script as $0, $1, …, where
 		// any command in it may take them for a path.
 		if len(after) > 0 && grouped {
-			inner = append(inner, unknownCall{"", append([]string{args[0]}, after...)})
+			read.inner = append(read.inner, unknownCall{"", append([]string{read.args[0]}, after...)})
 		}
 	}
-	return append(targets, found...), args, known, inner
+	read.known = known
+	read.targets = append(targets, under(filepath.ToSlash(pre.dir), found)...)
+	return read
 }
 
 // stringShells are the programs innerLine reads a string of; cmd /c is a
