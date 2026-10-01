@@ -532,7 +532,9 @@ shells deep, and so are the words after `eval`. A substitution `$(…)` or
 on after it keeps its fixed tail (`$(pwd)/.loomux/config.toml`), and a
 PowerShell `(Join-Path A B …)` is read as the path `A/B/…` (`$PWD` as the
 working folder). `cd`, `Set-Location` and `pushd` move the place later relative
-paths start from, `popd` goes back to the root. A segment whose quotes do not
+paths start from, `popd` goes back to the root; behind a wrapper that runs
+them as a program of its own (`nohup cd x`) they move nothing, and `env -C`
+or `sudo -D` runs only its program in the folder it names. A segment whose quotes do not
 close is read word by word: each word that looks like a path counts as
 written.
 
