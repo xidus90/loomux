@@ -423,12 +423,11 @@ func verbWrites(dir string, args []string) ([]shellTarget, bool) {
 	case slices.Contains(everyFileRemoves, verb):
 		return targetsOf(positional(rest), true), true
 	case slices.Contains(moveVerbs, verb):
-		return moved(rest), true
+		return moved(dir, rest), true
 	case slices.Contains(renameVerbs, verb):
 		return renamed(rest), true
 	case slices.Contains(copyVerbs, verb):
-		// rsync's -t keeps times; cp, install and ln take a target folder with it.
-		return destination(rest, verb != "rsync"), true
+		return destination(dir, verb, rest), true
 	}
 	switch verb {
 	case "dd":
@@ -446,10 +445,7 @@ func verbWrites(dir string, args []string) ([]shellTarget, bool) {
 	case "expand-archive":
 		return targetsOf(psValues(rest, "destinationpath"), false), true
 	case "robocopy", "xcopy":
-		if words := positional(rest); len(words) > 1 {
-			return targetsOf(words[1:2], false), true
-		}
-		return nil, true
+		return mirrored(dir, verb, rest), true
 	case "new-item", "ni":
 		return newItem(rest), true
 	case "curl", "wget", "invoke-webrequest", "iwr":
@@ -567,20 +563,63 @@ func posixValues(args []string, short, long string) []string {
 
 // moved is a move: the destination -- -Destination, -t or
 // --target-directory, or else the last positional argument -- is written,
-// and every other positional argument, a source, is removed.
-func moved(args []string) []shellTarget {
+// and every other positional argument, a source, is removed. A source moved
+// into a folder is written there under its name (landed).
+func moved(dir string, args []string) []shellTarget {
 	words := positional(args)
-	dest := append(psValues(args, "destination"), posixValues(args, "-t", "--target-directory")...)
+	folders := posixValues(args, "-t", "--target-directory")
+	dest := append(psValues(args, "destination"), folders...)
 	if len(dest) == 0 && len(words) > 1 {
 		dest = words[len(words)-1:]
 	}
-	var sources []string
+	sources := without(words, dest)
+	out := append(targetsOf(sources, true), targetsOf(dest, false)...)
+	return append(out, landed(dir, sources, dest, len(folders) > 0, false)...)
+}
+
+// without is words without the ones in drop.
+func without(words, drop []string) []string {
+	var out []string
 	for _, w := range words {
-		if !slices.Contains(dest, w) {
-			sources = append(sources, w)
+		if !slices.Contains(drop, w) {
+			out = append(out, w)
 		}
 	}
-	return append(targetsOf(sources, true), targetsOf(dest, false)...)
+	return out
+}
+
+// landed are the places sources land in when a copy or move puts them into
+// a folder: each under its own name in each destination. A destination is a
+// folder when it ends in a slash, when intoFolder says so (it came from -t),
+// when there are several sources, or when it is a folder on disk under dir.
+// A copy of a tree (tree) may overwrite anything below where it lands, so
+// that place counts as removed; a source ending in /. lands in the folder
+// itself, which then counts so.
+func landed(dir string, sources, dests []string, intoFolder, tree bool) []shellTarget {
+	var out []shellTarget
+	for _, d := range dests {
+		// A trailing backslash is a slash in the reading that keeps
+		// PowerShell paths, which shellWrites always reads as well.
+		folder := intoFolder || len(sources) > 1 || strings.HasSuffix(d, "/") || isFolder(dir, d)
+		if !folder {
+			continue
+		}
+		for _, s := range sources {
+			name := path.Base(strings.ReplaceAll(s, `\`, "/"))
+			out = append(out, shellTarget{path: path.Join(strings.ReplaceAll(d, `\`, "/"), name), removes: tree, shell: true})
+		}
+	}
+	return out
+}
+
+// isFolder says whether p, relative to dir unless absolute, is a folder on
+// disk.
+func isFolder(dir, p string) bool {
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(dir, p)
+	}
+	info, err := os.Stat(p)
+	return err == nil && info.IsDir()
 }
 
 // renamed is Rename-Item and ren: the item is removed, and its new name,
@@ -607,17 +646,83 @@ func renamed(args []string) []shellTarget {
 }
 
 // destination is where a copy lands: -Destination (PowerShell), -t or
-// --target-directory where the verb takes one, else the last positional
-// argument.
-func destination(args []string, targetFlag bool) []shellTarget {
+// --target-directory where the verb takes one (rsync's -t keeps times),
+// else the last positional argument; and each source under its name when
+// that is a folder (landed). rsync copies the content of a source that ends
+// in a slash into the destination itself, which then counts as removed.
+func destination(dir, verb string, args []string) []shellTarget {
 	dest := psValues(args, "destination")
-	if targetFlag {
-		dest = append(dest, posixValues(args, "-t", "--target-directory")...)
+	var folders []string
+	if verb != "rsync" {
+		folders = posixValues(args, "-t", "--target-directory")
 	}
-	if words := positional(args); len(dest) == 0 && len(words) > 0 {
+	dest = append(dest, folders...)
+	words := positional(args)
+	if len(dest) == 0 && len(words) > 0 {
 		dest = words[len(words)-1:]
 	}
-	return targetsOf(dest, false)
+	var sources, contents []string
+	for _, s := range without(words, dest) {
+		if verb == "rsync" && strings.HasSuffix(s, "/") {
+			contents = append(contents, s)
+		} else {
+			sources = append(sources, s)
+		}
+	}
+	out := append(targetsOf(dest, false), landed(dir, sources, dest, len(folders) > 0, copiesTrees(verb, args))...)
+	if len(contents) > 0 {
+		out = append(out, targetsOf(dest, true)...)
+	}
+	return out
+}
+
+// copiesTrees says whether a copy takes folders with all they hold: cp
+// with -r, -R, -a (alone or in a bundle), --recursive or --archive,
+// Copy-Item and its aliases with -Recurse, and rsync always, whose -r a
+// script may leave out while -a brings it in.
+func copiesTrees(verb string, args []string) bool {
+	switch verb {
+	case "rsync":
+		return true
+	case "cp":
+		return slices.ContainsFunc(args, func(a string) bool {
+			bundle, dashed := strings.CutPrefix(a, "-")
+			return a == "--recursive" || a == "--archive" ||
+				dashed && letters(bundle) && strings.ContainsAny(bundle, "rRa")
+		})
+	case "copy-item", "cpi", "copy":
+		return slices.ContainsFunc(args, func(a string) bool { return isParameter(a, "recurse") })
+	}
+	return false
+}
+
+// mirrored is where robocopy and xcopy write: the destination, the files
+// robocopy names after it there, and for xcopy the source under its name
+// when the destination is a folder. With /E, /S or /MIR the content of the
+// source folder lands in the destination, which then counts as removed.
+func mirrored(dir, verb string, args []string) []shellTarget {
+	words := positional(args)
+	if len(words) < 2 {
+		return nil
+	}
+	dest := words[1:2]
+	out := targetsOf(dest, false)
+	if slices.ContainsFunc(args, func(a string) bool {
+		switch strings.ToLower(a) {
+		case "/e", "/s", "/mir":
+			return true
+		}
+		return false
+	}) {
+		return append(out, targetsOf(dest, true)...)
+	}
+	if verb == "robocopy" {
+		for _, file := range words[2:] {
+			out = append(out, shellTarget{path: path.Join(strings.ReplaceAll(dest[0], `\`, "/"), file), shell: true})
+		}
+		return out
+	}
+	return append(out, landed(dir, words[:1], dest, false, false)...)
 }
 
 // tarWrites are where tar writes: the folder it extracts into (-C,
@@ -979,7 +1084,7 @@ func gitWrites(dir string, args []string) ([]shellTarget, bool) {
 	sub, rest := gitSubcommand(args)
 	switch sub {
 	case "mv":
-		return moved(rest), true
+		return moved(dir, rest), true
 	case "rm":
 		return targetsOf(positional(rest), true), true
 	case "checkout", "restore":
