@@ -21,16 +21,19 @@ type judge struct {
 	policy   config.Policy
 	flows    func() ([]string, error)
 	base     func() (string, error)
+	elements func() []string
 	listings map[string]walked
 }
 
 // newJudge is the judge of one call at root.
 func newJudge(root string, policy config.Policy) judge {
-	return judge{root: root, policy: policy, flows: sync.OnceValues(func() ([]string, error) {
+	j := judge{root: root, policy: policy, flows: sync.OnceValues(func() ([]string, error) {
 		return protectedFlows(root)
 	}), base: sync.OnceValues(func() (string, error) {
 		return guard.ResolvePath(root)
 	}), listings: map[string]walked{}}
+	j.elements = sync.OnceValue(j.protectedElements)
+	return j
 }
 
 // reasons judges every target of a call, a writing tool's and a shell
@@ -73,14 +76,20 @@ func (j judge) rels(target shellTarget) ([]string, error) {
 		}
 		rels = spelled
 	}
+	// The lexical forms are added after the resolution: they may name paths
+	// that do not exist, which strict mode would refuse to resolve.
+	var lexical []string
+	for _, rel := range rels {
+		lexical = append(lexical, lexicalSpellings(rel, j.elements())...)
+	}
 	if !j.policy.Strict {
-		return rels, nil
+		return append(rels, lexical...), nil
 	}
 	resolved, err := j.resolvedSpellings(rels)
 	if err != nil {
 		return nil, err
 	}
-	return append(rels, resolved...), nil
+	return slices.Concat(rels, resolved, lexical), nil
 }
 
 // maxListed is how many entries a filtered removal reads before the guard
