@@ -165,7 +165,8 @@ func assignmentLines() []string {
 	}
 }
 
-// spellingLines name the manifest by a short name or a trailing dot.
+// spellingLines name the manifest by a short name or a trailing dot; the
+// first six reach it, the rest name something else.
 func spellingLines() []string {
 	return []string{
 		"echo x > LOOMUX~1/config.toml",
@@ -213,7 +214,8 @@ func holesBattery() []string {
 // both modes; a line among them it refused before already is no flip, and
 // the differential test does not ask it to be one.
 func refusedAfter() []string {
-	return slices.Concat(guardedStringShellLines(), folderCopyLines()[:14], patchLines()[:11], assignmentLines()[:15])
+	return slices.Concat(guardedStringShellLines(), folderCopyLines()[:14], patchLines()[:11], assignmentLines()[:15],
+		spellingLines()[:6])
 }
 
 // holesFlips are the lines the fix turns from a pass into a refusal in the

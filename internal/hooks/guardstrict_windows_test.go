@@ -34,14 +34,14 @@ func shortName(t *testing.T, path string) string {
 }
 
 // Windows opens example. as example; strict mode resolves it, the default
-// mode does not.
+// mode drops the dot without asking the file system.
 func TestStrictModeResolvesATrailingDot(t *testing.T) {
 	catalog(t, "example")
 	root := project(t)
 	mkfile(t, root, ".loomux/flows/example/flow.toml")
 	line := "echo x > .loomux/flows/example./flow.toml"
-	if got := checkTool(root, "Bash", command(line), config.Policy{}); len(got) != 0 {
-		t.Fatalf("default: reasons %q, a named limit", got)
+	if got := checkTool(root, "Bash", command(line), config.Policy{}); !slices.Equal(got, []string{bundledWant("example")}) {
+		t.Fatalf("default: reasons %q", got)
 	}
 	if got := checkTool(root, "Bash", command(line), strictPolicy); !slices.Equal(got, []string{bundledWant("example")}) {
 		t.Fatalf("strict: reasons %q", got)
@@ -78,9 +78,10 @@ func TestStrictModeResolvesAShortName(t *testing.T) {
 	if short == "" {
 		t.Skip("this volume keeps no 8.3 names")
 	}
+	// The default mode reads the alias without the file system.
 	line := "echo x > " + filepath.Base(short) + "/config.toml"
-	if got := checkTool(root, "Bash", command(line), config.Policy{}); len(got) != 0 {
-		t.Fatalf("default: reasons %q, a named limit", got)
+	if got := checkTool(root, "Bash", command(line), config.Policy{}); !slices.Equal(got, []string{manifestReason}) {
+		t.Fatalf("default: reasons %q", got)
 	}
 	if got := checkTool(root, "Bash", command(line), strictPolicy); !slices.Equal(got, []string{manifestReason}) {
 		t.Fatalf("strict: reasons %q", got)
