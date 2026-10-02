@@ -423,6 +423,16 @@ func TestPruneHooksIndentsAValueWhoseLineStartsAtTheFileStart(t *testing.T) {
 	}
 }
 
+func TestPruneHooksSeesTheCRLFOfTheVeryFirstLine(t *testing.T) {
+	// The value's line is the second one, and the first is nothing but its
+	// CRLF: the earliest place a CR can stand.
+	in := "\r\n  " + `{"hooks": {"S": [{"hooks": [{"command": "old"}]}, {"hooks": [{"command": "own"}]}]}}`
+	out, removed, _ := run(t, in, []string{"old"})
+	if len(removed) != 1 || strings.Count(out, "\n") < 3 || strings.Count(out, "\n") != strings.Count(out, "\r\n") {
+		t.Errorf("removed %q, the block does not use CRLF: %q", removed, out)
+	}
+}
+
 func TestPruneHooksDoesNotAddCRToAnLFFile(t *testing.T) {
 	out, _, _ := run(t, fixtureSettings, fixtureNeedles)
 	if strings.Contains(out, "\r") {
