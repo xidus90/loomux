@@ -143,7 +143,26 @@ func TestDevBenchCompareReportsUnreadableReports(t *testing.T) {
 		if !strings.Contains(errOut, bad) {
 			t.Fatalf("%s: err %q does not name %s", name, errOut, bad)
 		}
+		// The reason is the one of the read or of the parse, not a later
+		// complaint about what an empty or broken file decodes to.
+		reason := "unexpected end of JSON input"
+		if bad == gone {
+			reason = readError(t, gone)
+		}
+		if !strings.Contains(errOut, reason) {
+			t.Fatalf("%s: err %q does not give the reason %q", name, errOut, reason)
+		}
 	}
+}
+
+// readError is the text of the error os.ReadFile gives for path.
+func readError(t *testing.T, path string) string {
+	t.Helper()
+	_, err := os.ReadFile(path)
+	if err == nil {
+		t.Fatalf("%s can be read", path)
+	}
+	return err.Error()
 }
 
 func TestDevBenchCompareRefusesAReportOfAnotherSchema(t *testing.T) {
@@ -160,6 +179,15 @@ func TestDevBenchCompareRefusesAReportOfAnotherSchema(t *testing.T) {
 		if code != 1 || !strings.Contains(errOut, "schema 99") || !strings.Contains(errOut, other) {
 			t.Fatalf("%s: code %d, err %q", name, code, errOut)
 		}
+	}
+	// An older schema is another one too.
+	older := filepath.Join(t.TempDir(), "older.json")
+	if err := os.WriteFile(older, []byte(`{"schema": 0, "timings": []}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := run("dev", "bench", "compare", "--before", older, "--after", good)
+	if code != 1 || !strings.Contains(errOut, "schema 0") {
+		t.Fatalf("older: code %d, err %q", code, errOut)
 	}
 }
 
@@ -536,7 +564,7 @@ func TestDevBenchCasesReportsUnreadableInputs(t *testing.T) {
 		"settings missing": {[]string{"--settings", gone}, gone},
 		"settings bad":     {[]string{"--settings", badSettings}, "settings: not valid JSON"},
 		"no hook applies":  {[]string{"--settings", noHook}, "no hook of any event applies"},
-		"extras missing":   {[]string{"--settings", w.settings, "--extras", gone}, gone},
+		"extras missing":   {[]string{"--settings", w.settings, "--extras", gone}, readError(t, gone)},
 		"extras bad":       {[]string{"--settings", w.settings, "--extras", notJSON}, notJSON},
 	} {
 		code, _, errOut := run(append([]string{"dev", "bench", "cases", "--root", w.root, "--file", w.file, "--out", w.out}, c.args...)...)
@@ -546,6 +574,22 @@ func TestDevBenchCasesReportsUnreadableInputs(t *testing.T) {
 		if got := dirNames(t, w.out); len(got) != 0 {
 			t.Fatalf("%s: files left behind: %v", name, got)
 		}
+	}
+}
+
+func TestDevBenchCasesReadsTheEnvironmentForAHook(t *testing.T) {
+	w := newCasesWorld(t)
+	t.Setenv("LOOMUX_BENCH_TEST_TOOL", "/opt/tool")
+	settings := `{"hooks": {"Stop": [{"hooks": [{"command": "${LOOMUX_BENCH_TEST_TOOL}/run stop"}]}]}}`
+	if err := os.WriteFile(w.settings, []byte(settings), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, errOut := run(w.args()...); code != 0 {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	data, err := os.ReadFile(filepath.Join(w.out, "cases.json"))
+	if err != nil || !strings.Contains(string(data), `"/opt/tool/run"`) {
+		t.Fatalf("cases.json %s, %v", data, err)
 	}
 }
 

@@ -172,11 +172,16 @@ func TestDevSwitchoverRenderRefusesParametersItCannotUse(t *testing.T) {
 		}
 	}
 	dir := t.TempDir()
-	code, _, errOut := run("dev", "switchover", "render", "--params", filepath.Join(dir, "gone.json"), "--out", filepath.Join(dir, "a.sh"))
-	if code != 1 || !strings.Contains(errOut, "loomux dev switchover render: ") {
+	gone := filepath.Join(dir, "gone.json")
+	code, _, errOut := run("dev", "switchover", "render", "--params", gone, "--out", filepath.Join(dir, "a.sh"))
+	if code != 1 || !strings.Contains(errOut, "loomux dev switchover render: "+readError(t, gone)) {
 		t.Errorf("missing file: code %d, stderr %q", code, errOut)
 	}
 	params := filepath.Join(dir, "params.json")
+	os.WriteFile(params, []byte(`{"name": "x",`), 0o644)
+	if _, _, errOut = run("dev", "switchover", "render", "--params", params, "--out", filepath.Join(dir, "a.sh")); !strings.Contains(errOut, "render: "+params+": ") {
+		t.Errorf("the broken file is not named: %q", errOut)
+	}
 	os.WriteFile(params, []byte(`{"name": "x", "project": "/p", "loomux": "l"}`), 0o644)
 	_, _, errOut = run("dev", "switchover", "render", "--params", params, "--out", filepath.Join(dir, "a.sh"))
 	if !strings.Contains(errOut, "config_new is required") {
@@ -314,6 +319,11 @@ func TestDevSwitchoverPruneHooksReportsWhatFails(t *testing.T) {
 		if code != 1 || !strings.Contains(errOut, "loomux dev switchover prune-hooks: ") {
 			t.Errorf("%s: code %d, stderr %q", name, code, errOut)
 		}
+	}
+	// A file that cannot be read is reported with the reason of the read.
+	gone := filepath.Join(dir, "gone.json")
+	if _, _, errOut := run("dev", "switchover", "prune-hooks", "--file", gone, "--match", "ulguard"); !strings.Contains(errOut, "prune-hooks: "+readError(t, gone)) {
+		t.Errorf("missing: stderr %q", errOut)
 	}
 	path, _ := switchoverSettingsFile(t, switchoverSettings)
 	orig := switchoverWriteFile
