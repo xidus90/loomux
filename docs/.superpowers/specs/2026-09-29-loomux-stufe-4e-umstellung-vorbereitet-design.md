@@ -2,8 +2,8 @@
 
 **Stand:** Entwurf vom 2026-09-29, gegen `origin/master` 709266ee (v5.3.0), vom Nutzer
 freigegeben am 2026-09-30; seit dem Entwurf umgesetzt bis zu den Piloten: Die Werkzeuge sind gebaut, `ecoflow` (2026-09-29) und `space`
-(2026-09-30) sind umgestellt und gemessen, die Welle wartet auf die Lane-Probation
-(Entscheidung vom 2026-09-30, Fusions-Spec Nachtrag #26).
+(2026-09-30) sind umgestellt und gemessen; die Welle lief nach der Lane-Probation am
+2026-10-01/02 über fünf Ziele (siehe „Entschieden und berichtigt in der Welle“).
 **Bezug:** löst Stück B und ändert Stück C der Spec `2026-09-28-loomux-stufe-4e-design.md`
 (dort A `area check`, B Checkliste, C Aufräum-PR); Fusions-Spec Nachtrag #19, #24,
 #25 und der neue #26.
@@ -229,6 +229,44 @@ Quasi-Kennungen; der Nutzer nimmt das in Kauf.
   Projekte umgestellt sind. `lock.Recover` im Schreibpfad von `approve` bleibt, bis
   `moveStock` mit seinem Rückfall entfällt.
 - **Stück A (`area check`)** bleibt unverändert; es dient der Diagnose in Schritt 2.
+
+## Entschieden und berichtigt in der Welle (2026-10-01/02)
+
+Die Welle ist gelaufen; Ablauf und Messung stehen in `parity/stufe-4e.md`,
+Messung 10. Was dabei von dieser Spec abwich:
+
+- **`ultra-brain` und `ultraloom` werden nicht umgestellt** (Entscheidung des
+  Nutzers vom 2026-10-01): Beide Repos werden nach der Migration gelöscht. Die
+  Welle umfasste `iam_backend`, `iam_frontend`, `iam_workers`, `iam_wiki` und
+  den Vault; „acht Projekte und der Vault“ oben und „alle neun Ziele“ unter
+  „Benchmarks“ gelten mit dieser Einschränkung (sieben Ziele samt Piloten).
+- **`--brain=none` registriert keinen Bereich und installiert keinen
+  Merge-Hook.** Der Satz „`init --yes --brain none`, Hooks, Guards und Graph
+  wie bei allen anderen“ stimmt für Hooks, Guards und Graph; Bereich und
+  Merge-Hook gehören zum Brain-Modul und entfallen. Folge: Die
+  Schreibschranke verweigert in den drei Code-Projekten jeden Edit (gemessen
+  am 2026-10-02). Folgepunkt unten.
+- **Die `iam_*` trugen vendorte ultraloom-Formen** in ihren eigenen Git-Hooks
+  (`uv run ultraloom check all`, `ulinit`). `iam_backend` und `iam_workers`:
+  Variante A, das Skript entfernt die alten Git-Hooks, ein zweites `init`
+  legt die von loomux an. `iam_frontend`: husky weicht `.githooks` (H2).
+- **`iam_wiki` ist das gemeinsame Wiki der drei Code-Projekte, kein eigenes
+  Projekt:** nur ein Wiki-Bereich, mit eigenem Skript (die Vorlage kann `init`
+  nicht auslassen), Registry-Eintrag `wiki` auf die Wurzel, `readonly`
+  entfällt, kein `init`, keine Hooks, keine Lanes; die `doc_id` sind
+  übernommen. `[layout] wiki` lehnt die Wurzel ab, die Wurzel ist nur über die
+  Registry das Wiki: **kein Wiki-Lint** dort (Folgepunkt).
+- **Der Vault bekommt ein pre-commit-Profil nur mit Lint:** Eine Art, für die
+  es nichts zu prüfen gibt, lässt das Tor mit Exit 1 fallen, und ohne Code
+  hat der Vault nur Lint. `verify.profiles` ist über `config set` nicht
+  setzbar; der Mensch hat es von Hand eingetragen. Das Stop-Profil hat
+  dieselbe Lücke (gemessen: Exit 1).
+
+**Folgepunkte für loomux** (ohne Stufe in der Fusions-Spec; Liste in der
+Akte): eine Art ohne Prüfgegenstand darf ein Profil nicht fallen lassen;
+`verify.profiles` über `config set`; ein Bereich (oder ein Schreibrecht) für
+Projekte unter `--brain=none`; ein Wiki im Wurzelverzeichnis eines Repos;
+`dev bench cases` ohne Hook.
 
 ## Entschieden am 2026-09-30 (Nutzer)
 
