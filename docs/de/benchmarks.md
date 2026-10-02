@@ -3375,3 +3375,183 @@ Maximum aus zehn Läufen.
 3. **Die geschützten Elemente werden einmal je Aufruf berechnet**: Ein
    früherer Stand tat es je Ziel, und die Testsuite der Hooks brauchte 135 s
    statt 80 s (nicht mit dem Benchmark gemessen).
+
+## 2026-10-02 12:35 — Fünf weitere Ziele auf loomux umgestellt, vorher gegen nachher
+
+**Ziel.** Wie im Eintrag vom 2026-09-30: was die Hooks und die Wissensbefehle
+vor und nach der Umstellung von den alten Werkzeugen auf loomux kosten, jetzt
+für die Welle nach den beiden Piloten. Die Nummern setzen die des Eintrags vom
+2026-09-30 fort (Beispielprojekt 1 und 2 sind die Piloten).
+
+**Methode.** Fünf Ziele des Nutzers, anonymisiert, in der Reihenfolge der
+Welle: Beispielprojekt 3, 4 und 5 sind Code-Projekte mit den Hooks beider
+alten Werkzeuge, umgestellt ohne eigenes Wissensbündel; Beispielprojekt 6 ist
+ein reines Wiki-Repository ohne Hooks, umgestellt nur als Wiki-Bereich;
+Beispielprojekt 7 ist ein Wissens-Vault, der vorher keine Hooks hatte. Je
+Projekt und Seite baute `loomux dev bench cases` die Fälle aus der
+`.claude/settings.json` und einer Datei mit Zusatzfällen (für
+Beispielprojekt 6 von Hand, weil es keinen Hook hat), `loomux dev bench hooks
+-n 5` maß sie (ein Kaltlauf, danach fünf Warmläufe; berichtet werden
+Mittelwert und Median der Warmläufe), und `loomux dev bench compare` paarte
+die Berichte nach Fallnamen. Ein Faktor über 1 heißt: die neue Seite ist
+schneller.
+
+Die alte Seite ist die Baseline vom 2026-09-29 gegen 21:00, mit dem qmd-Dienst
+laufend. Für Beispielprojekt 3, 4 und 5 stammen die Sitzungshooks
+(`SubagentStart`, `SubagentStop`, `Stop`, soweit vorhanden) aus der
+Nachmessung ohne Last eine Dreiviertelstunde später, wie beim Piloten 2. Die
+neue Seite ist das installierte loomux 6.1.0 (beta), gemessen am 2026-10-02
+zwischen 12:35 und 12:40, seriell, unter Windows 11 Pro auf derselben
+Maschine. Der qmd-Dienst lief auch hier; daneben liefen ein
+`loomux serve --foreground`, die `loomux mcp` von zehn offenen Sitzungen und
+ein fremder Sprachmodell-Server mit rund 45 GB Arbeitsspeicher (CPU-Last vor
+dem ersten Lauf 24 %). Das pre-commit-Tor ist wie am 2026-09-30 auf keiner
+Seite gemessen.
+
+**Beispielprojekt 3, verglichen**
+
+| Fall | kalt alt | kalt neu | × | warm Ø alt | warm Ø neu | × | Median alt | Median neu | Exit alt | Exit neu |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| PreToolUse (Edit on README.md) | 53,5 ms | 16,8 ms | 3,18× | 42,1 ms | 13,3 ms | 3,16× | 41,5 ms | 13,0 ms | [0] | [2] |
+| PostToolUse (Edit on README.md) | 80,0 ms | 33,0 ms | 2,42× | 79,6 ms | 29,2 ms | 2,72× | 64,5 ms | 30,0 ms | [0] | [0] |
+| Stop | 216,7 ms | 201,2 ms | 1,08× | 273,0 ms | 164,8 ms | 1,66× | 260,8 ms | 156,2 ms | [1] | [0] |
+| commit-msg | 569,4 ms | 28,5 ms | 19,95× | 103,0 ms | 24,5 ms | 4,21× | 98,9 ms | 24,1 ms | [0] | [0] |
+| status | 90,1 ms | 5 293,5 ms | 0,02× | 109,0 ms | 3 109,2 ms | 0,04× | 105,1 ms | 3 191,8 ms | [0] | [0] |
+| search (fast) | 226,2 ms | 5 182,6 ms | 0,04× | 236,1 ms | 97,1 ms | 2,43× | 208,0 ms | 97,6 ms | [0] | [0] |
+
+**Beispielprojekt 3, neu**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| SessionStart | 147,2 ms | 103,0 ms | 99,7 ms |
+| SubagentStart | 1 234,0 ms | 1 168,1 ms | 1 178,1 ms |
+| SubagentStop | 1 121,7 ms | 9,7 ms | 9,5 ms |
+| graph stats | 34,5 ms | 33,5 ms | 34,5 ms |
+| graph check | 1 620,3 ms | 117,2 ms | 113,5 ms |
+
+**Beispielprojekt 4, verglichen**
+
+| Fall | kalt alt | kalt neu | × | warm Ø alt | warm Ø neu | × | Median alt | Median neu | Exit alt | Exit neu |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| SessionStart | 558,0 ms | 135,6 ms | 4,12× | 411,0 ms | 82,3 ms | 4,99× | 221,4 ms | 81,0 ms | [0] | [0] |
+| PreToolUse (Edit on AGENTS.md) | 136,1 ms | 16,9 ms | 8,04× | 41,4 ms | 13,3 ms | 3,11× | 41,0 ms | 13,6 ms | [0] | [2] |
+| PostToolUse (Edit on AGENTS.md) | 58,0 ms | 19,0 ms | 3,05× | 47,1 ms | 14,9 ms | 3,16× | 46,9 ms | 15,0 ms | [0] | [0] |
+| SubagentStart | 1 705,2 ms | 1 378,0 ms | 1,24× | 2 033,0 ms | 1 101,4 ms | 1,85× | 2 135,1 ms | 1 098,1 ms | [0] | [0] |
+| SubagentStop | 1 989,5 ms | 1 036,6 ms | 1,92× | 1 909,6 ms | 9,6 ms | 198,48× | 1 898,3 ms | 9,6 ms | [0] | [0] |
+| Stop | 346,9 ms | 27 559,8 ms | 0,01× | 239,8 ms | 182,0 ms | 1,32× | 232,8 ms | 178,7 ms | [1] | [0] |
+| commit-msg | 105,9 ms | 39,0 ms | 2,72× | 120,6 ms | 30,2 ms | 3,99× | 103,7 ms | 29,6 ms | [0] | [0] |
+| status | 119,9 ms | 3 173,5 ms | 0,04× | 118,1 ms | 3 177,2 ms | 0,04× | 101,0 ms | 3 135,5 ms | [0] | [0] |
+| search (fast) | 241,3 ms | 168,0 ms | 1,44× | 253,3 ms | 67,8 ms | 3,74× | 249,0 ms | 67,6 ms | [0] | [0] |
+
+**Beispielprojekt 4, neu**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| graph stats | 10,6 ms | 8,0 ms | 8,0 ms |
+| graph check | 15,0 ms | 13,6 ms | 13,5 ms |
+
+**Beispielprojekt 4, weggefallen**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| python entry (ultraloom --help) | 391,3 ms | 230,3 ms | 223,4 ms |
+
+**Beispielprojekt 5, verglichen**
+
+| Fall | kalt alt | kalt neu | × | warm Ø alt | warm Ø neu | × | Median alt | Median neu | Exit alt | Exit neu |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| SessionStart | 433,3 ms | 113,0 ms | 3,83× | 160,6 ms | 75,0 ms | 2,14× | 147,6 ms | 75,7 ms | [0] | [0] |
+| PreToolUse (Edit on AGENTS.md) | 46,5 ms | 13,5 ms | 3,44× | 65,6 ms | 12,1 ms | 5,42× | 43,0 ms | 12,0 ms | [0] | [2] |
+| PostToolUse (Edit on AGENTS.md) | 49,5 ms | 16,5 ms | 3,00× | 68,3 ms | 12,2 ms | 5,58× | 45,5 ms | 12,0 ms | [0] | [0] |
+| SubagentStart | 2 007,9 ms | 1 218,9 ms | 1,65× | 1 829,0 ms | 1 167,3 ms | 1,57× | 1 844,9 ms | 1 182,1 ms | [0] | [0] |
+| SubagentStop | 1 794,4 ms | 1 072,1 ms | 1,67× | 1 840,9 ms | 8,3 ms | 222,76× | 1 745,2 ms | 8,5 ms | [0] | [0] |
+| commit-msg | 103,9 ms | 31,6 ms | 3,29× | 150,8 ms | 26,3 ms | 5,74× | 101,5 ms | 25,7 ms | [0] | [0] |
+| status | 225,4 ms | 3 602,2 ms | 0,06× | 120,6 ms | 3 266,2 ms | 0,04× | 108,0 ms | 3 307,8 ms | [0] | [0] |
+| search (fast) | 259,6 ms | 92,8 ms | 2,80× | 251,4 ms | 73,9 ms | 3,40× | 206,6 ms | 70,7 ms | [0] | [0] |
+
+**Beispielprojekt 5, neu**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| Stop | 143,8 ms | 160,0 ms | 164,6 ms |
+| graph stats | 11,6 ms | 8,8 ms | 9,0 ms |
+| graph check | 103,4 ms | 13,8 ms | 13,5 ms |
+
+**Beispielprojekt 5, weggefallen**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| python entry (ultraloom --help) | 255,8 ms | 151,6 ms | 135,5 ms |
+
+**Beispielprojekt 6, verglichen**
+
+| Fall | kalt alt | kalt neu | × | warm Ø alt | warm Ø neu | × | Median alt | Median neu | Exit alt | Exit neu |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| status | 51,4 ms | 3 481,7 ms | 0,01× | 68,3 ms | 3 206,6 ms | 0,02× | 42,5 ms | 3 119,7 ms | [0] | [0] |
+| search (fast) | 233,7 ms | 70,8 ms | 3,30× | 198,2 ms | 70,0 ms | 2,83× | 196,7 ms | 68,1 ms | [0] | [0] |
+| wiki lint | 43,1 ms | 675,3 ms | 0,06× | 59,8 ms | 81,5 ms | 0,73× | 47,5 ms | 81,1 ms | [0] | [1] |
+
+**Beispielprojekt 7, verglichen**
+
+| Fall | kalt alt | kalt neu | × | warm Ø alt | warm Ø neu | × | Median alt | Median neu | Exit alt | Exit neu |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| status | 71,4 ms | 3 514,4 ms | 0,02× | 43,8 ms | 3 133,6 ms | 0,01× | 43,0 ms | 3 207,6 ms | [0] | [0] |
+| search (fast) | 213,3 ms | 74,5 ms | 2,86× | 204,8 ms | 81,6 ms | 2,51× | 202,6 ms | 82,4 ms | [0] | [0] |
+| wiki lint | 137,1 ms | 41,4 ms | 3,31× | 46,2 ms | 40,9 ms | 1,13× | 47,0 ms | 41,4 ms | [0] | [1] |
+
+**Beispielprojekt 7, neu**
+
+| Fall | kalt | warm Ø | Median |
+|---|---:|---:|---:|
+| SessionStart | 43,0 ms | 9,0 ms | 9,0 ms |
+| PreToolUse (Edit on AGENTS.md) | 13,5 ms | 12,7 ms | 12,4 ms |
+| PostToolUse (Edit on AGENTS.md) | 22,7 ms | 20,5 ms | 20,4 ms |
+| SubagentStart | 1 219,5 ms | 1 170,2 ms | 1 163,6 ms |
+| SubagentStop | 1 131,2 ms | 10,8 ms | 11,0 ms |
+| Stop | 222,9 ms | 188,4 ms | 189,0 ms |
+| commit-msg | 30,0 ms | 26,2 ms | 25,9 ms |
+
+### Wichtigste Befunde
+1. **Die Hooks an jedem Edit sind drei- bis fünfmal schneller.** Median warm
+   `PreToolUse` 41,5 → 13,0 ms, 41,0 → 13,6 ms und 43,0 → 12,0 ms,
+   `PostToolUse` 64,5 → 30,0 ms, 46,9 → 15,0 ms und 45,5 → 12,0 ms
+   (Beispielprojekt 3, 4, 5): ein loomux-Prozess statt der beiden alten
+   Wächter.
+2. **Aber `PreToolUse` endet in Beispielprojekt 3, 4 und 5 mit Exit 2 statt
+   0:** Der Wächter verweigert den Edit, weil ein Projekt ohne eigenes
+   Wissensbündel keinen Bereich bekommt und damit in keinem beschreibbaren
+   Baum liegt. Die schnellere Zeit ist die einer Ablehnung; das ist ein Befund
+   der Umstellung, kein Messfehler. In Beispielprojekt 7 trifft dieselbe
+   Ablehnung eine Datei neben den beschreibbaren Ordnern und ist erwartet.
+3. **`SessionStart` 221,4 → 81,0 ms und 147,6 → 75,7 ms** (Beispielprojekt 4
+   und 5), über dem Rauschen von etwa Faktor 2: Das alte Python fällt weg.
+   Der Python-Einstieg selbst (Median 223,4 und 135,5 ms) ist weggefallen.
+4. **`SubagentStop` warm 1 898,3 → 9,6 ms und 1 745,2 → 8,5 ms, kalt aber
+   1 036,6 und 1 072,1 ms**, wie beim Piloten 2: Nur der erste Lauf arbeitet
+   sichtbar. `SubagentStart` braucht neu rund 1,1–1,2 s und ist in
+   Beispielprojekt 4 und 5 1,6- bis 1,9-mal schneller.
+5. **`commit-msg` 98,9 → 24,1, 103,7 → 29,6 und 101,5 → 25,7 ms**: Der Hook
+   ist jetzt der von loomux statt eines Python-Skripts. Weil es nicht derselbe
+   Hook ist, gibt es diesmal keinen Kontrollfall, und zwischen den Seiten
+   liegen drei Tage; Faktoren bis etwa 2 belegen für sich nichts.
+6. **Regression: `status`** in allen fünf Zielen, Median warm rund 100 ms
+   (Vault und Wiki: 43 ms) gegen 3,1–3,3 s, kalt bis 5,3 s: Der neue Befehl
+   fragt qmd ab. Weiter offen wie am 2026-09-30.
+7. **`search (fast)` warm 2,4- bis 3,7-mal schneller** (rund 200–250 ms gegen
+   68–98 ms); kalt in Beispielprojekt 3 5 182,6 ms, als erster Suchaufruf der
+   Messung.
+8. **`wiki lint` endet in Beispielprojekt 6 und 7 mit Exit 1 statt 0**: Die
+   neue Prüfung meldet Hausregeln, die die alte still durchließ. In
+   Beispielprojekt 6 ist sie langsamer (47,5 → 81,1 ms), in Beispielprojekt 7
+   etwas schneller (47,0 → 41,4 ms).
+9. **`Stop`**: in Beispielprojekt 3 und 4 vorher Exit 1, nachher Exit 0 in 156–179 ms warm (Median); der Kaltlauf von
+   Beispielprojekt 4 fuhr Lint und Typen über das Projekt (27,6 s), die
+   Warmläufe trafen eine unveränderte Basis. In Beispielprojekt 7 endet der
+   neue Stop-Hook mit Exit 1, weil sein Profil Prüfarten enthält, für die es in
+   einem Vault ohne Code nichts zu prüfen gibt.
+10. **Neu:** `graph stats` und `graph check` in den Code-Projekten (warm
+    8–118 ms), in Beispielprojekt 3 außerdem die Sitzungshooks, die vorher
+    nicht liefen, und in Beispielprojekt 7 alle sechs Hooks und `commit-msg`.
+    **Weggefallen:** der Python-Einstieg der alten Werkzeuge.
+11. **Nicht gemessen:** zwei weitere Ziele der ursprünglichen Planung; sie
+    werden nicht umgestellt.
