@@ -218,6 +218,22 @@ func TestRenderNamesTheSourceThatIsTheVaultFolder(t *testing.T) {
 	if err != nil || out != "S=''\n" {
 		t.Fatalf("without a vault: %q, %v", out, err)
 	}
+	// A vault without a folder of it names no source, not even one that is
+	// the vault itself.
+	p = fullParams()
+	p.VaultOld = ""
+	p.WikiSrcs = []string{"/v"}
+	out, err = render("S=@VAULT_SRC@\n", p)
+	if err != nil || out != "S=''\n" {
+		t.Fatalf("without vault_old: %q, %v", out, err)
+	}
+	// The source has to be spelt as the folder is: the script compares the
+	// two as text.
+	p = fullParams()
+	p.WikiSrcs = []string{"/V/91 projekte/X"}
+	if _, err := render("S=@VAULT_SRC@\n", p); err == nil || !strings.HasPrefix(err.Error(), "vault_old: ") {
+		t.Fatalf("a source in another case: err %v", err)
+	}
 }
 
 func TestRenderKeepsWhatInitWritesOutOfTheOldFiles(t *testing.T) {
@@ -414,7 +430,7 @@ func TestRenderTakesAPathOfThisSystem(t *testing.T) {
 }
 
 func TestRenderWantsAPlainSHA256(t *testing.T) {
-	for _, sum := range []string{"abc", strings.ToUpper(testSum), testSum + "0", "g" + testSum[1:]} {
+	for _, sum := range []string{"abc", strings.ToUpper(testSum), testSum + "0", testSum[1:], "g" + testSum[1:]} {
 		p := fullParams()
 		p.RegistrySum = sum
 		if _, err := render("#!/bin/sh\n", p); err == nil || err.Error() != "registry_sum: not a SHA-256 in lower-case hex" {
@@ -425,7 +441,7 @@ func TestRenderWantsAPlainSHA256(t *testing.T) {
 
 func TestRenderRefusesAnOldFileOutsideTheProject(t *testing.T) {
 	for _, f := range []string{"", ".", "..", "./", "a/../..", "a/..", "../x", "/abs", "C:/x", "c:x",
-		"a b", "a\tb", `a\b`, ".git", ".git/hooks", "./.git"} {
+		"a b", "a\tb", " a", "a\U000000a0b", `a\b`, ".git", ".git/hooks", "./.git"} {
 		p := fullParams()
 		p.OldFiles = []string{".ultraloom", f}
 		_, err := render("#!/bin/sh\n", p)
