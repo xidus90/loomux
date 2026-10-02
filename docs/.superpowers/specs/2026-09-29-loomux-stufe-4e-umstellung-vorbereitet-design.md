@@ -353,3 +353,18 @@ Projekte unter `--brain=none`; ein Wiki im Wurzelverzeichnis eines Repos;
   ergeben.
 - 100 % Coverage je Funktion gilt für jeden neuen Go-Code (die Vorlagenprüfung, falls sie
   im Go-Baum liegt); die Mutationsrunde der Stufe gilt für ihn.
+
+## Nachtrag 2026-10-02: „kein eigener Bereich“ heißt „kein Brain-Bereich“
+
+Der Abschnitt „Entschieden am 2026-09-29“ sagt für `iam_backend`, `iam_frontend` und
+`iam_workers` „keinen eigenen Bereich und kein Wiki“ und zugleich „Hooks, Guards und Graph
+wie bei allen anderen“. Beides zugleich ging mit `init` bis 6.1.0 nicht: Ohne
+Registry-Eintrag verweigert der Schreibwächter jeden Write im Projekt (gemessen am
+2026-10-02). Gemeint ist **kein Brain-Bereich**: kein Wiki, keine Erklärung `[area]`, kein
+Merge-Hook, aber ein Registry-Eintrag mit `path` und `workspace = true` ohne `wiki`.
+
+Die drei Projekte haben diesen Eintrag seit dem 2026-10-02, von Hand eingetragen. Künftig
+schreibt ihn `init --yes --brain=none` selbst (Teil `workspace`, Spec
+`2026-10-02-loomux-brain-none-workspace-design.md`); an einer Wurzel mit Eintrag lässt `init`
+ihn unberührt und nennt den Grund als Notiz. Der Reindex überspringt die drei Bereiche,
+weil sie kein `[area]` erklären, und meldet bei jedem Lauf `skipping project/<name>: …`.
