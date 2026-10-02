@@ -12,8 +12,8 @@ import (
 type Part struct {
 	Module schema.Module
 	// ID is one of "binary", "config", "gitignore", "agents-md", "mcp-json",
-	// "tools", "host-entries", "git-hooks", "verify-skill", "area",
-	// "merge-hook", "brain-skills", "model", "graph-build".
+	// "tools", "host-entries", "git-hooks", "verify-skill", "workspace",
+	// "area", "merge-hook", "brain-skills", "model", "graph-build".
 	ID      string
 	Label   string
 	Default bool
@@ -38,6 +38,11 @@ func Parts(f Facts) []Part {
 		{schema.Hooks, "host-entries", "the hook entries of each host", true},
 		{schema.Hooks, "git-hooks", "the git hooks pre-commit, pre-push and commit-msg", git},
 		{schema.Hooks, "verify-skill", "the skill verify-until-green", fresh},
+		// The write barrier opens only trees the registry names; without
+		// the brain module no area is registered, so this part registers
+		// the project as a workspace without a wiki instead.
+		{schema.Hooks, "workspace", "register the project as a workspace without wiki, when the brain module is off",
+			fresh && !hasArea(f.Config) && !f.Registered},
 		{schema.Brain, "area", "register the project as an area with area add's default wiki, " + areaWiki(f.Root), fresh && !hasArea(f.Config) && !f.Registered},
 		// Off in a checkout: the hook goes where core.hooksPath points, and
 		// there that is the tracked .githooks.
