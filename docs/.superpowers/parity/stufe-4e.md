@@ -571,6 +571,131 @@ Test):
 10. `.gitignore` von space behält die toten Zeilen `.ultraloom/hooks/` und
     `.ultraloom/vendor/`; das Skript räumt sie nicht auf.
 
+### 10. Die Welle (2026-10-01/02)
+
+**Ziele und Abweichungen vom Plan.**
+
+- **`ultra-brain` und `ultraloom` sind nicht umgestellt.** Entscheidung des
+  Nutzers vom 2026-10-01: beide Repos werden nach der Migration gelöscht. Ihre
+  Baselines vom 2026-09-29 bleiben unter `.superpowers/switchover/` liegen,
+  ohne Nachmessung. Die Welle umfasste damit `iam_backend`, `iam_frontend`,
+  `iam_workers`, `iam_wiki` und `brain-knowledge`.
+- **`--brain=none` registriert keinen Bereich und installiert keinen
+  Merge-Hook.** Der Plan (Task 11) ging davon aus, dass `init` die `iam_*`
+  registriert; unter `--brain=none` gehören Bereich und Merge-Hook zum
+  Brain-Modul und entfallen. Folge, gemessen am 2026-10-02: Die Schreibschranke
+  verweigert jeden Edit in `iam_backend`, `iam_frontend` und `iam_workers`
+  („lies outside every writable tree“, Exit 2), siehe unten.
+- **Vendorte ultraloom-Formen.** Die eigenen `.githooks` der `iam_*` riefen
+  `uv run ultraloom check all` und `ulinit`. `iam_backend` und `iam_workers`:
+  Variante A, `apply.sh` entfernt die beiden alten Git-Hooks, ein zweites
+  `init` (vom Menschen, der Wächter verweigerte es dem Agenten) legt die von
+  loomux an. `iam_frontend`: husky wich `.githooks` (H2): `core.hooksPath`
+  `.githooks`, `scripts.prepare` und husky entfernte der Mensch per `npm`.
+  Das vendorte Submodul trug sieben ungesicherte Änderungen; sie sind als
+  Patch gesichert und verworfen.
+- **`iam_wiki` ist das gemeinsame Wiki der drei `iam_*`-Code-Projekte**, kein
+  eigenes Projekt. Umgestellt nur als Wiki-Bereich mit eigenem Skript
+  `apply-wiki.sh` (die Vorlage kann `init` nicht auslassen): Registry-Eintrag
+  `wiki` auf die Wurzel, `readonly` entfällt (sonst Sperrzone), minimale
+  `.loomux/config.toml`, `_identities.tsv` aus dem Zustand übernommen
+  (byte-gleich, 94 `doc_id`), `.brain.toml` entfernt, Zustandsbereich `.alt`;
+  kein `init`, keine Hooks, keine Lanes. `[layout] wiki` lehnt die Wurzel ab,
+  darum gibt es dort **keine Wiki-Lane** (Folgepunkt).
+- **Der Vault** (`brain-knowledge`): vier Deklarationen, `init`,
+  `on_merge = true`, eigenes Skript `apply-vault.sh`. Der erste Commit fiel am
+  neuen pre-commit: die Arten `types`, `test`, `coverage`, `graph` des Profils
+  `precommit` haben im Vault „nothing to check“ und enden mit Exit 1. Der
+  Mensch setzte `[verify.profiles] precommit = ["lint"]` von Hand, weil
+  `config set verify.profiles.precommit` den Schlüssel nicht kennt. Danach
+  entfernte ein zweiter PR die Gerüste
+  `91 Projekte/{ecoflow,space,iam-wiki,ultraloom}`.
+- Die Piloten `ecoflow` und `space` bekamen `gate disarm --all` und einen
+  pre-commit-Hook mit `--arm` (vom Menschen).
+
+**Nachmessung** am 2026-10-02, 12:35–12:40, seriell, mit der installierten
+Binary `loomux 6.1.0 (beta)` für Hooks und `dev bench`. Fälle aus der neuen
+`settings.json` mit derselben `--file` wie in der Baseline (`README.md` bei
+`iam_backend`, sonst `AGENTS.md`), Zusatzfälle mit denselben Namen.
+Umgebung: qmd-Dienst auf 8765 lief (wie bei der Baseline), dazu
+`loomux serve` und zehn `loomux mcp`; ein `strata.exe --serve` hielt rund
+45 GB, CPU-Last 24 %. Berichte: `bench-4e-<ziel>.md`. Die Alt-Seite der
+`iam_*` ist wie bei `space` zusammengesetzt (`before-merged.json`), die
+übernommenen Fälle nennt der jeweilige Bericht.
+
+| Ziel | Fall | Median alt | Median neu | Exit alt → neu |
+|---|---|---:|---:|---|
+| `iam_backend` | PreToolUse | 41,5 ms | 13,0 ms | [0] → [2] |
+| `iam_backend` | PostToolUse | 64,5 ms | 30,0 ms | [0] → [0] |
+| `iam_backend` | commit-msg | 98,9 ms | 24,1 ms | [0] → [0] |
+| `iam_backend` | status | 105,1 ms | 3 191,8 ms | [0] → [0] |
+| `iam_frontend` | SessionStart | 221,4 ms | 81,0 ms | [0] → [0] |
+| `iam_frontend` | SubagentStop | 1 898,3 ms | 9,6 ms | [0] → [0] |
+| `iam_frontend` | Stop | 232,8 ms | 178,7 ms | [1] → [0] |
+| `iam_workers` | PreToolUse | 43,0 ms | 12,0 ms | [0] → [2] |
+| `iam_workers` | search (fast) | 206,6 ms | 70,7 ms | [0] → [0] |
+| `iam_wiki` | wiki lint | 47,5 ms | 81,1 ms | [0] → [1] |
+| `brain-knowledge` | wiki lint | 47,0 ms | 41,4 ms | [0] → [1] |
+
+- **`PreToolUse` Exit 2 in allen drei `iam_*`-Code-Projekten:** der Wächter
+  verweigert den Edit, weil `--brain=none` keinen Bereich registriert und die
+  Wurzel damit in keinem beschreibbaren Baum liegt. Einzeln nachgestellt
+  (`hook pre-tool-use` mit der Nutzlast). Das ist ein Befund der Umstellung,
+  kein Rauschen: Ein Agent kann in diesen Projekten heute nicht schreiben.
+- **`PreToolUse` Exit 2 im Vault** auf `AGENTS.md`: Die Wurzel des Vaults ist
+  kein beschreibbarer Baum, nur die vier Bereichsordner; `AGENTS.md` liegt
+  daneben. Erwartet.
+- **`Stop` Exit 1 im Vault:** dieselbe Ursache wie beim Commit („nothing to
+  check for `types`, `test`, `coverage`, `graph`“), diesmal im Stop-Profil,
+  das keine Überschreibung hat.
+- **`Stop` von `iam_frontend`:** kalt 27,6 s (Lint und Typen über das Projekt),
+  warm 179 ms: die Warmläufe treffen eine unveränderte Basis.
+- **`wiki lint` Exit 1:** `iam_wiki` meldet Hausregeln (`unknown-type`,
+  `source-incomplete`, `no-sources`), der Vault `house/unlisted-area` für die
+  Bereiche, auf die `knowledge/index.md` nicht verweist. Die alte Prüfung gab
+  an beiden Ständen Exit 0.
+- **`status` ist überall um den Faktor 30 bis 70 langsamer** (rund 3,1–3,3 s
+  warm), wie bei den Piloten: es fragt qmd ab.
+- **Kein Kontrollfall.** `commit-msg` ist in den `iam_*` nicht mehr derselbe
+  Hook (loomux statt des alten Skripts); zwischen Baseline und Nachmessung
+  liegen drei Tage. Faktoren bis etwa 2 belegen für sich nichts (Messung 9,
+  Punkt 9).
+- **Nicht gemessen:** das pre-commit-Tor (Ruling 4, auf keiner Seite);
+  `ultra-brain` und `ultraloom` (nicht umgestellt).
+- **Was die Messung in den Projekten schrieb:** `git status --porcelain
+  --untracked-files=all` war in allen fünf Zielen vor und nach der Messung
+  gleich. Vorbestand, unberührt: `iam_frontend` `?? .eslintcache`,
+  `?? .ultraloom/` (die Bench-Datei der Baseline), `iam_wiki`
+  ` M _identities.tsv`, ` M graph.json`, `brain-knowledge`
+  ` M .loomux/config.toml` (nur das Zeilenende hinter
+  `precommit = ["lint"]`). Neu und ignoriert:
+  `.loomux/state/hooks/loomux-bench.json` in `iam_backend`, `iam_frontend`,
+  `iam_workers` und `brain-knowledge`.
+
+**Zuordnung für den anonymisierten Bericht** (`docs/*/benchmarks.md`; nur
+hier): Beispielprojekt 1 `ecoflow`, 2 `space`, 3 `iam_backend`,
+4 `iam_frontend`, 5 `iam_workers`, 6 `iam_wiki`, 7 `brain-knowledge`.
+
+**Befunde für loomux (Folgepunkte, ohne Stufe in der Fusions-Spec):**
+
+1. Eine Art eines Profils, für die es nichts zu prüfen gibt, lässt
+   `check precommit` und den Stop-Hook mit Exit 1 fallen; ein Projekt ohne
+   Code (der Vault) kann so nie committen und keine Sitzung beenden, ohne das
+   Profil von Hand zu kürzen.
+2. `verify.profiles` ist über `config set` nicht setzbar (unbekannter
+   Schlüssel); der Vorschlagsweg aus AGENTS.md greift dafür nicht.
+3. `init --brain=none` lässt ein Projekt ohne Bereich; die Schreibschranke
+   verweigert dann jeden Edit darin. Für die `iam_*` fehlt ein Bereich
+   (oder ein `workspace`-Eintrag ohne Bündel).
+4. `[layout] wiki` lehnt die Wurzel eines Repos ab; ein Wiki-Repo wie
+   `iam_wiki` hat damit keine Wiki-Lane.
+5. `dev bench cases` lehnt eine `settings.json` ohne Hook ab, statt nur die
+   Zusatzfälle zu schreiben.
+
+**Offen in 4e:** die Mutationsrunde der neuen Pakete und der CLI-Funktionen
+(Plan Task 12 Schritt 4) ist nicht gelaufen; der Abschnitt „Überlebende
+Mutanten“ unten deckt bisher nur `area check`.
+
 ## Checkliste
 
 **Stand 2026-09-29:** Block 4 (Deklarationen von Hand) und Block 5 (`init`, alte Einträge) sind durch den Ablauf der Spec `2026-09-29-loomux-stufe-4e-umstellung-vorbereitet-design.md` abgelöst: das LLM bereitet vor, ein `apply.sh` schreibt. Block 1 bis 3 und der Rauchtest (Block 6) gelten weiter.
