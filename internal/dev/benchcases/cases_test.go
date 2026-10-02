@@ -180,7 +180,7 @@ func TestBuildRefusesWhatItCannotMeasure(t *testing.T) {
 		"bad post matcher": {`{"hooks": {"PostToolUse": [{"matcher": "(", "hooks": [{"command": "x"}]}]}}`, "PostToolUse"},
 		"empty command":    {`{"hooks": {"Stop": [{"hooks": [{"command": ""}]}]}}`, "Stop"},
 		"blank command":    {`{"hooks": {"SubagentStop": [{"hooks": [{"command": " \t "}]}]}}`, "SubagentStop"},
-		"open quote":       {`{"hooks": {"Stop": [{"hooks": [{"command": "x \"y"}]}]}}`, "Stop"},
+		"open quote":       {`{"hooks": {"Stop": [{"hooks": [{"command": "x \"y"}]}]}}`, "Stop: unterminated"},
 		"not json":         {`{`, "not valid JSON"},
 	}
 	for name, c := range cases {
