@@ -1098,3 +1098,110 @@ von `areacheck.go` stehen weiter bei 100 % Coverage.
 | Mutant | Warum er dasselbe tut |
 |---|---|
 | `flattenKeys`: das `continue` nach `ids = append(ids, name)` gestrichen | Fällt die Schleife durch, ist `table` bei einem Nicht-Table-Wert `nil` und bei einer leeren Tabelle leer; `for key := range table` läuft dann null Mal, es entsteht keine weitere ID. Das `continue` spart nur die Schleife, es ändert nichts an der Ausgabe |
+
+**Die Runde für Vergleich, Fallbau und Umstellung (2026-10-02).** Sie deckt
+`internal/dev/benchcompare`, `internal/dev/benchcases`, `internal/switchover`
+(`prune.go`, `render.go`, `apply.sh.tmpl`) und die CLI-Funktionen von
+`dev bench compare`, `dev bench cases` und `dev switchover render|prune-hooks`
+in `internal/cli/benchcompare.go` und `internal/cli/switchover.go`. Gemessen
+gegen **12726817**; die Tests, die sie nachlegt, stehen in 3c176b97,
+d85956ba, cc5a02ce und 2452afdc. Binary: `loomux 0.0.0-dev`, gebaut aus
+12726817 (`git describe`: v6.1.0-3-g12726817; ein Build aus dem Baum trägt
+keine Versionsnummer).
+
+**Frühere Runden.** Das Ledger nennt Runden der Implementierer (Task 2: 80
+Mutanten, Task 3: 101, Task 4: 87, Task 5: 88, Task 6: 119 und nach Fixrunde 1
+151), gefahren gegen die Commits vor dem Rebase (738798d4, 8b97ee74,
+1e2bd82d/b89646b2, f0321c5b, ee498614/b85d4ff8). Keine davon steht in dieser
+Akte, und `apply.sh.tmpl` hat seither Schritt 4 (armed.toml) bekommen; die
+Runde ist darum ganz wiederholt, nicht nur nachgeprüft.
+
+**Zeiten der unveränderten Suiten** (Ausgabe je in eine Datei):
+`benchcompare` 0,2 s, `benchcases` 0,2 s, `switchover` 68 s (davon
+`TestApply` 64 s, `TestPruneHooks` 0,2 s, `TestRender|TestTheScript` 0,3 s),
+`internal/cli` gezielt (`TestDevBench|TestBench|TestWriteAndClose|TestWriteNewFile|TestDevSwitchover`)
+0,4 s.
+
+**Methode.** `loomux dev mutants` setzt heute die Grenze je Mutant auf das
+Dreifache der unveränderten Suite, mindestens 60 s (`boundFor`, `minBound` in
+`internal/dev/mutants/round.go`), weist Zeitüberläufe gesondert aus und zählt
+einen Mutanten, der nicht übersetzt, als „no mutant“. Es erzeugt aber nur die
+Familien a1–a4 (Bedingung eines `if` gestrichen oder verneint, Operanden von
+`&&`/`||`, Vergleichsoperatoren). Darum: `dev mutants` für a1–a4 bei den
+beiden kurzen Paketen (8 Arbeiter × 0,2 s weit unter der Grenze; kein
+Zeitüberlauf), eine Handrunde für alle übrigen Arten (Rückgabewerte,
+Exit-Codes 0/1/2, `continue`/`break`, Anfangswerte, Ausgabetexte,
+Tabelleneinträge, jede Teilbedingung einzeln) und für `switchover` und die
+CLI-Funktionen ganz von Hand: `switchover` braucht 68 s, also lief jeder
+Mutant als `go test -overlay` gegen die gezielten Tests (Overlay-Pfade in der
+Form `C:/…`). Die Mutanten der Vorlage liefen über `LOOMUX_SWITCHOVER_TEMPLATE`
+auf Kopien im Scratchpad gegen `TestApply`; eine unveränderte Kopie überlebte
+wie erwartet, 53 getötete Mutanten belegen, dass die Kopie gelesen wird.
+Überlebte ein `render.go`-Mutant die gezielten Tests, lief er noch gegen
+`TestApply`, also gegen die ganze Suite des Pakets. Ein Mutant, der nicht
+übersetzte, wurde umgeschrieben, bis er übersetzte (`_ = x`, `&& false`,
+`true ||`), und nie als getötet gezählt. Nie liefen zwei Runden zugleich.
+
+| Paket oder Datei | Mutanten | getötet | äquivalent oder begründet | umgeschrieben, damit sie übersetzen |
+|---|---:|---:|---:|---:|
+| `benchcompare` (`dev mutants` 37 übersetzbar + Hand 64) | 101 | 100 | 1 | 9 |
+| `benchcases` (`dev mutants` 79 übersetzbar + Hand 89) | 168 | 168 | 0 | 11 |
+| `switchover/prune.go` | 85 | 81 | 4 | 3 |
+| `switchover/render.go` | 151 | 146 | 5 | 4 |
+| `switchover/apply.sh.tmpl` | 55 | 53 | 2 | 0 |
+| `cli/benchcompare.go` | 91 | 91 | 0 | 1 |
+| `cli/switchover.go` | 49 | 47 | 2 | 1 |
+| **zusammen** | **700** | **686** | **14** | **29** |
+
+Drei `render.go`-Mutanten (`VaultOld` immer bereinigt, `INIT_ARGS` mit `|`
+oder leer) überlebten die Render-Tests und fielen erst in `TestApply`; sie
+zählen als getötet. Zwei Blöcke der Mutantenliste mit leerem Ersatztext hatte
+das Skript zunächst verschmolzen; sie sind mit `// dropped` als Ersatz neu
+gefahren, das Skript prüft seither, dass jeder Kopf geparst wird.
+
+**Echte Lücken, je mit einem Test, der gegen den Mutanten rot läuft (Beleg
+per Overlay) und auf dem Code grün ist:**
+
+| Mutant | Lücke | Test, der ihn tötet | Commit |
+|---|---|---|---|
+| `benchcases.Build`: Fehler von `split` übergangen | Der Fall fiel trotzdem, nur als „a hook names no command“; der Test fragte nur nach dem Ereignis | `TestBuildRefusesWhatItCannotMeasure` (verlangt `Stop: unterminated`) | 3c176b97 |
+| `format`: `lineStart >= 2` zu `> 2` | Eine Datei, deren erste Zeile nur ihr CRLF ist, bekäme LF | `TestPruneHooksSeesTheCRLFOfTheVeryFirstLine` | d85956ba |
+| `check`: `{64}` zu `{63,64}` | Eine Summe mit 63 Stellen ging durch | `TestRenderWantsAPlainSHA256` (Fall `testSum[1:]`) | d85956ba |
+| `check`: `IndexFunc(…) >= 0` zu `> 0` | Leerraum nur am Anfang ging durch | `TestRenderRefusesAnOldFileOutsideTheProject` (Fall `" a"`) | d85956ba |
+| `check`: `unicode.IsSpace` zu Leerzeichen und Tab | Ein geschütztes Leerzeichen ging durch | dieselbe (Fall `a\u00a0b`) | d85956ba |
+| `vaultSource`: Abfrage `VaultOld == ""` gestrichen | Ein Tresor ohne `vault_old` nannte eine Quelle, die der Tresor selbst ist | `TestRenderNamesTheSourceThatIsTheVaultFolder` | d85956ba |
+| `vaultSource`: Vergleich ohne Groß-/Kleinschreibung | Eine Quelle in anderer Schreibung als der Ordner galt als dieselbe; das Skript vergleicht als Text | dieselbe | d85956ba |
+| `benchLoadReport`, `benchReadExtras`, `switchoverReadParams`, `devSwitchoverPruneHooks`: Lesefehler übergangen (4 Mutanten) | Die Datei fiel trotzdem, aber mit einer späteren Klage über leere Daten; die Tests fragten nur nach Exit-Code und Pfad | `TestDevBenchCompareReportsUnreadableReports`, `TestDevBenchCasesReportsUnreadableInputs`, `TestDevSwitchoverRenderRefusesParametersItCannotUse`, `TestDevSwitchoverPruneHooksReportsWhatFails` (verlangen den Text von `os.ReadFile`) | cc5a02ce |
+| `benchLoadReport`: JSON-Fehler übergangen | Ein kaputter Bericht fiel nur am Schema | `TestDevBenchCompareReportsUnreadableReports` | cc5a02ce |
+| `benchLoadReport`: `!=` zu `>` beim Schema | Ein älteres Schema ging durch | `TestDevBenchCompareRefusesAReportOfAnotherSchema` (Schema 0) | cc5a02ce |
+| `switchoverReadParams`: Pfad fehlt in der Meldung | Eine kaputte Parameterdatei hieß nicht beim Namen | `TestDevSwitchoverRenderRefusesParametersItCannotUse` | cc5a02ce |
+| `benchCaseFiles`: `os.LookupEnv` durch eine leere Umgebung ersetzt | Kein CLI-Test las eine Variable | `TestDevBenchCasesReadsTheEnvironmentForAHook` | cc5a02ce |
+| `apply.sh.tmpl` Schritt 1: Ausnahme „config.toml steht“ gestrichen | Ohne `config_new`-Datei neben einer stehenden Konfiguration bräche das Skript ab | `TestApplyNeedsNoNewConfigurationWhereOneStands` | 2452afdc |
+| `apply.sh.tmpl` Schritt 6: `removed=1` zu `removed=0` | Ein erster Lauf meldete zusätzlich „files: already removed“ | `TestApplyMovesTheWikiIntoTheProject` | 2452afdc |
+
+**Bleibt stehen.**
+
+| Mutant | Warum |
+|---|---|
+| `benchcompare.Factor`: `before <= 0` zu `before < 0` | Bei `before == 0` und `after > 0` ergibt `before / after` ebenfalls 0, die Rückgabe für „keine Zeit“ |
+| `readObject`: Fehler des Schlüssel-`Token` übergangen | Scheitert `Token` an einem Schlüssel, steht der Decoder in `tokenObjectKey`, und `Decode` lehnt den Wert dort selbst ab (`tokenValueAllowed`); mit 17 kaputten Eingaben gegengeprobt |
+| `readObject`: Fehler von `Decode` übergangen | `readValue` setzt den Fehler fest (`dec.err`) oder die Eingabe ist zu Ende, und das schließende `Token` meldet ihn; das Ergebnis wird bei einem Fehler verworfen; mit derselben Probe gegengeprüft |
+| `event.prune`: Fehler von `json.Unmarshal` in `[]RawMessage` übergangen | Für jeden Wert, der keine Liste ist, bleibt `groups` leer, `left` und `groups` sind gleich lang, die Funktion gibt nichts zurück wie zuvor |
+| `event.prune`: Gruppen mit `", "` statt `","` verbunden | `format` schickt jeden Block durch `json.Indent` oder `json.Compact`, die Leerraum zwischen Werten verwerfen |
+| `written`: `.claude` aus `keep` gestrichen | `.claude` fällt weiter über `HasPrefix(".claude/settings.json", ".claude/")` |
+| `written`: `p.WikiDst != ""` gestrichen, `&&` zu `||` | Bei leerem `WikiDst` ist `wiki` gleich `.`, das nie mit `<projekt>/` beginnt; beide Bedingungen sind dann falsch |
+| `written`: `HasPrefix(wiki, project+"/")` gestrichen oder ohne `/` | Ein Wiki außerhalb des Projekts bleibt nach `TrimPrefix` ein absoluter Pfad, und eine alte Datei ist immer relativ (`inside`), sie gleicht ihm nie und beginnt nie mit ihm |
+| `matchFlags.String` gibt `""` | `flag` ruft `String` nur für die Hilfe, um einen Vorgabewert zu erkennen; beide Werte zeigen keinen |
+| `devSwitchoverPruneHooks`: `err == nil` vor dem Schreiben gestrichen | Bei einem Fehler ist `removed` immer `nil` (Lesefehler: nie gesetzt; `PruneHooks`: gibt bei einem Fehler `nil` zurück) |
+| `apply.sh.tmpl` Schritt 3: Abbruch bei `missed` gestrichen | Nicht erreichbar ohne ein `cp`, das falsch kopiert und Erfolg meldet: abweichende Dateien hält schon die Staging-Prüfung auf, und `PATH` beginnt mit `/usr/bin`, ein Test kann `cp` nicht ersetzen. Eine Wache gegen das Werkzeug, kein Verhalten des Skripts |
+| `apply.sh.tmpl` Schritt 7: `MOVED = 1` zu `true` | Hält git noch Dateien von `VAULT_OLD`, ist die Quelle gefüllt (`filled`), also `WIKI=merge` und `MOVED=1`; ein `VAULT_OLD` ohne Quelle in `WIKI_SRCS` lehnt `Render` ab |
+
+**Code-Befunde.** Kein Fehler im Code. Die beiden Punkte, die das Ledger für
+Task 4 offen hielt, sind behoben: `writeAndClose` ist die Naht für Schreib-
+und Schließfehler (die beiden Mutanten dazu fielen), und `dev bench cases`
+macht `--out` absolut (`benchAbs`). Beim Fahren der Runde schrieb ein
+CLI-Mutant `cases.json` und drei Payloads ins Paketverzeichnis
+`internal/cli`; sie gingen versehentlich in einen Commit und sind vor dem
+Weitermachen wieder herausgenommen.
+
+Alle Funktionen der Pakete stehen weiter bei 100 % Coverage.
