@@ -46,9 +46,11 @@ type applier struct {
 }
 
 // Apply writes the approved changes and runs the actions in this order:
-// binary, area-add, files, hooks-path, merge-hook, model-pull, graph-build,
+// binary, area-add or workspace-add, files, hooks-path, merge-hook, model-pull, graph-build,
 // answers, installed. A failed model-pull is a note and the run goes on,
-// as the next plan asks Ollama again. area-add goes before the files because it writes the
+// as the next plan asks Ollama again. Both registering actions go before
+// the files: a refused registration then leaves no hook entries behind
+// that arm a write barrier with no tree to open. area-add also writes the
 // declaration only into a configuration that is not there yet; a change
 // with a Redo is then made again over what it left. A change whose file
 // calls a binary that is not there (Change.Binary) is dropped and reported
@@ -65,7 +67,7 @@ func Apply(root string, p Plan, c Choice, approve func(Change) bool, run Runner,
 	for _, act := range p.Actions {
 		switch act.ID {
 		case "binary-install", "binary-build":
-		case "area-add":
+		case "area-add", "workspace-add":
 			first = append(first, act)
 			continue
 		default:

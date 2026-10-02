@@ -39,8 +39,8 @@ type Change struct {
 func (c Change) Empty() bool { return c.Before == c.After }
 
 // Action is one step init runs rather than writes; ID is one of
-// "binary-install", "binary-build", "hooks-path", "area-add", "merge-hook",
-// "model-pull", "graph-build".
+// "binary-install", "binary-build", "hooks-path", "workspace-add", "area-add",
+// "merge-hook", "model-pull", "graph-build".
 type Action struct{ Part, ID, Describe string }
 
 // Plan is everything a run of init would do, for a human to read first.
@@ -161,6 +161,24 @@ func Build(f Facts, c Choice, read func(rel string) ([]byte, bool, error)) (Plan
 	}
 	if on("verify-skill") {
 		b.skills("verify-skill", "hooks", targets)
+	}
+	// With the brain module on, area registers the project and brings the
+	// wiki; workspace would register it a second time.
+	// A registered root is named whatever the choice, as the part is off by
+	// default there; the choice note only where the part would have
+	// registered the project.
+	if c.moduleOn(schema.Hooks) && !c.moduleOn(schema.Brain) {
+		chosen := c.Parts["workspace"]
+		switch {
+		case chosen && hasArea(f.Config):
+			b.note("workspace: skipped; .loomux/config.toml declares [area] already")
+		case f.Registered:
+			b.note("workspace: skipped; the registry has an area at this root already")
+		case chosen:
+			b.action("workspace", "workspace-add", "register "+c.Scope+" as a workspace without wiki in the registry")
+		case !f.Checkout && !hasArea(f.Config):
+			b.note("workspace: skipped by choice; the write barrier opens no tree in this project until a human registers one")
+		}
 	}
 	// declares says whether area add will write the declaration, and with
 	// it the consent on_merge = true: it does so only into a configuration

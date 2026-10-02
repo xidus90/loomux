@@ -489,6 +489,9 @@ func (r *initRun) action(a setup.Action) error {
 		return err
 	case "area-add":
 		return r.sub("area", "add", "--path", r.root, "--scope", r.scope, "--yes")
+	case "workspace-add":
+		// Not through area add, which always gives the area a wiki.
+		return config.AddArea(config.StateDir(), config.Area{Scope: r.scope, Path: filepath.ToSlash(r.root), Workspace: true})
 	case "merge-hook":
 		return r.mergeHook()
 	case "model-pull":
