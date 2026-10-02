@@ -459,6 +459,17 @@ func TestApplyRefusesAMissingConfiguration(t *testing.T) {
 	w.sameAs(before)
 }
 
+func TestApplyNeedsNoNewConfigurationWhereOneStands(t *testing.T) {
+	w := newWorld(t)
+	w.write(w.project+"/.loomux/config.toml", "[area]\nname = \"mine\"\n")
+	w.commitAll(w.project, "own config")
+	w.p.ConfigNew = w.base + "/prep/gone.toml"
+	code, out, errOut := w.run()
+	if code != 0 || !strings.Contains(out, "config: kept") {
+		t.Fatalf("code %d:\n%s\n%s", code, out, errOut)
+	}
+}
+
 func TestApplyRefusesAMissingNewRegistry(t *testing.T) {
 	w := newWorld(t)
 	w.p.RegistryNew = w.base + "/prep/gone.toml"
@@ -557,6 +568,9 @@ func TestApplyMovesTheWikiIntoTheProject(t *testing.T) {
 		if !strings.Contains(out, want+"\n") {
 			t.Errorf("stdout lacks %q:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "files: already removed") {
+		t.Errorf("a run that removed files calls them already removed:\n%s", out)
 	}
 	if strings.Contains(out, "would run") {
 		t.Errorf("a real run speaks of what it would do:\n%s", out)
