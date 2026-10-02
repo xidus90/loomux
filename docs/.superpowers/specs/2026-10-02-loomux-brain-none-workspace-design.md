@@ -53,12 +53,17 @@ eingetragen; danach lässt der Wächter dort Writes durch (Exit 0, gemessen).
 
 ## Was ein Bereich ohne Wiki sonst bewirkt
 
-Gelesen im Code von `origin/master` am 2026-10-02: Ein Bereich ohne `wiki`
-wird von Index, Wartung und Prüfung übersprungen (`internal/brain/index/walk.go`
-`OwnWikiPrefix` gibt nil, `check/run/run.go` und `check/run/targets.go`,
-`check/house/federation.go`, `apply/resolve.go`). Der Plan hält das mit einem
-Test fest (Reindex legt für den Bereich keine Sammlung an), statt sich auf das
-Lesen zu verlassen.
+Gelesen im Code von `origin/master` am 2026-10-02 und beim Planen per Test geprüft: Ein
+Bereich ohne `wiki` wird vom Index **nicht** übersprungen, weil das Wiki fehlt.
+`OwnWikiPrefix` gibt nil und weitet den Lauf damit auf den ganzen `path`
+(`TestReindexSkippingMissingAreaAndManifest` indiziert den Bereich `valid` ohne `wiki`).
+Der Workspace, den `init` schreibt, bekommt keine Sammlung, weil das Projekt kein `[area]`
+erklärt: `ReadAreaManifestUntilStage4` scheitert, `indexArea` meldet
+`skipping <scope>: …` und überspringt ihn, bei jedem Reindex. Bekommt das Projekt später
+eine Erklärung, wird jedes `**/*.md` unter `path` seine Sammlung. Der Plan hält das
+heutige Verhalten mit einem Test fest (Reindex legt für den Bereich keine Sammlung an).
+Wartung und Prüfung (`check/run/run.go`, `check/run/targets.go`,
+`check/house/federation.go`, `apply/resolve.go`) sind nur gelesen, nicht geprobt.
 
 ## Tests
 

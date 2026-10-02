@@ -1020,7 +1020,12 @@ Obsidian-Vault unter Git. loomux hält keine Kopie davon.
 ## 5. Die Schreibschranke und das Memory der Agenten
 
 Die Schreibschranke (`loomux hook pre-tool-use`) lässt Werkzeuge schreiben, wo
-die Registry einen Bereich erklärt. Ein verknüpfter Git-Worktree eines Bereichs
+die Registry einen Bereich erklärt: in seinem Wiki, wenn er nicht
+schreibgeschützt ist, und in seinem `path`, wenn er `workspace = true` hat. Ein
+Workspace (`workspace = true`) ohne `wiki` öffnet nur `path`; `loomux init --brain=none` registriert
+ein Projekt so. Der Index überspringt einen solchen Bereich, solange das
+Projekt kein `[area]` erklärt; mit einer Erklärung wird jedes `**/*.md` unter
+`path` seine Sammlung. Ein verknüpfter Git-Worktree eines Bereichs
 mit `workspace = true` gehört dazu und braucht keinen eigenen Eintrag: Er ist
 dasselbe Repo ein zweites Mal ausgecheckt, und die Schranke erkennt ihn an Gits
 eigenen Worktree-Dateien. Darüber hinaus ist immer an drei Orten offen —

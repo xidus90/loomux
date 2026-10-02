@@ -241,7 +241,7 @@ loomux convert [file]               # turn the PDFs and transcripts of every wri
 loomux fetch <url> [--scope S]      # have yt-dlp put a video's subtitles into an area's inbox, knowledge by default (a human's command, the guard refuses an agent)
 loomux config [list|get K|set K V]  # show every key of .loomux/config.toml with its origin, change one line after a diff and a y; bare: full-screen (--root, --global, --yes, --json; a human's command, the guard refuses an agent)
 loomux config set|unset … --propose # an agent's way: store the checked change as a proposal; a human runs `config proposals`, then `config apply <id>|--all` or `config reject`
-loomux init                         # set a project up in modules (hooks, brain, graph): binary, config, host entries, git hooks, merge hook, skills; every change as a diff, written after a y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; a human's command; its first runs on a fresh clone and a host are pending)
+loomux init                         # set a project up in modules (hooks, brain, graph): binary, config, host entries, git hooks, merge hook, skills, and the registry entry the write barrier needs (with --brain=none a workspace without wiki); every change as a diff, written after a y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; a human's command; its first runs on a fresh clone and a host are pending)
 ```
 
 **The inbox.** An area whose manifest names `[layout] inbox` takes files for

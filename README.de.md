@@ -242,7 +242,7 @@ loomux convert [datei]              # Wandelt die PDFs und Transkripte jedes bes
 loomux fetch <url> [--scope S]      # Lässt yt-dlp die Untertitel eines Videos in den Eingang eines Bereichs legen, Vorgabe knowledge (ein Befehl des Menschen, der Wächter verweigert ihn einem Agenten)
 loomux config [list|get K|set K V]  # zeigt jeden Schlüssel von .loomux/config.toml mit Herkunft, ändert eine Zeile nach Diff und y; ohne Unterbefehl Vollbild (--root, --global, --yes, --json; ein Befehl für Menschen, der Wächter verweigert ihn einem Agenten)
 loomux config set|unset … --propose # der Weg eines Agenten: die geprüfte Änderung als Vorschlag ablegen; ein Mensch ruft `config proposals`, dann `config apply <id>|--all` oder `config reject`
-loomux init                         # Richtet ein Projekt in Modulen ein (hooks, brain, graph): Binary, Konfiguration, Host-Einträge, Git-Hooks, Merge-Hook, Skills; jede Änderung als Diff, geschrieben nach einem y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; ein Befehl des Menschen; seine ersten Läufe auf einem frischen Klon und in einem Wirt stehen aus)
+loomux init                         # Richtet ein Projekt in Modulen ein (hooks, brain, graph): Binary, Konfiguration, Host-Einträge, Git-Hooks, Merge-Hook, Skills, dazu den Registry-Eintrag, den die Schreibschranke braucht (mit --brain=none ein Workspace ohne Wiki); jede Änderung als Diff, geschrieben nach einem y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; ein Befehl des Menschen; seine ersten Läufe auf einem frischen Klon und in einem Wirt stehen aus)
 ```
 
 **Der Eingang.** Ein Bereich, dessen Manifest `[layout] inbox` nennt, nimmt
