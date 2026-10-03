@@ -83,7 +83,7 @@ func TestLintStopsAtADeclarationItCannotRead(t *testing.T) {
 	_, a := checkedArea(t, base, "project/a", "")
 	_, b := checkedArea(t, base, "project/b", "")
 	checkWorld(t, a, b)
-	writeFile(t, filepath.Join(base, "project-b", ".brain.toml"), "[area\n")
+	writeFile(t, filepath.Join(base, "project-b", ".loomux", "config.toml"), "[area\n")
 	code, out, errOut := run("lint")
 	if code != 1 || out != "project/a\n  no findings\n" || !strings.HasPrefix(errOut, "error: ") {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
@@ -107,7 +107,7 @@ func TestLintTakesTheAreasDeclaration(t *testing.T) {
 	base := t.TempDir()
 	wiki, a := checkedArea(t, base, "project/a", "")
 	checkWorld(t, a)
-	writeFile(t, filepath.Join(base, "project-a", ".brain.toml"),
+	writeFile(t, filepath.Join(base, "project-a", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/a\"\n\n[wiki]\ntypes = [\"Balancing Rule\"]\nuntouched_days = 1\n")
 	page := writeFile(t, filepath.Join(wiki, "a.md"), strings.Replace(checkedPage("a"), "type: Topic",
 		"type: Balancing Rule\nrealization: planned", 1)+"\n[b](b.md)\n")
@@ -128,7 +128,7 @@ func TestLintAsksTheSignpostToNameEveryArea(t *testing.T) {
 	_, post := checkedArea(t, base, "knowledge", "signpost = true\n")
 	_, a := checkedArea(t, base, "project/a", "")
 	checkWorld(t, post, a)
-	writeFile(t, filepath.Join(base, "knowledge", ".brain.toml"), "[area]\nscope = \"knowledge\"\n\n[layout]\nhub = \"Hub\"\n")
+	writeFile(t, filepath.Join(base, "knowledge", ".loomux", "config.toml"), "[area]\nscope = \"knowledge\"\n\n[layout]\nhub = \"Hub\"\n")
 	code, out, _ := run("lint", "--scope", "knowledge")
 	want := "  index.md:unlisted-area: the signpost does not link to area 'project/a'; expected one of: " +
 		filepath.Join(base, "project-a", "wiki") + ", " + filepath.Join(base, "knowledge", "Hub", "a.md") + "\n"
@@ -147,7 +147,7 @@ func TestLintRefusesAHubItCannotUse(t *testing.T) {
 	base := t.TempDir()
 	_, post := checkedArea(t, base, "knowledge", "signpost = true\n")
 	checkWorld(t, post)
-	writeFile(t, filepath.Join(base, "knowledge", ".brain.toml"), "[area]\nscope = \"knowledge\"\n\n[layout]\nhub = \"../out\"\n")
+	writeFile(t, filepath.Join(base, "knowledge", ".loomux", "config.toml"), "[area]\nscope = \"knowledge\"\n\n[layout]\nhub = \"../out\"\n")
 	if code, out, errOut := run("lint"); code != 1 || out != "" || !strings.HasPrefix(errOut, "error: ") {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}

@@ -62,10 +62,10 @@ func areaEntry(scope, path string) string {
 func writeArea(t *testing.T, root, scope, manifest string, registered ...string) string {
 	t.Helper()
 	dir := filepath.Join(root, search.CollectionName(scope))
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".loomux"), 0o750); err != nil {
 		t.Fatalf("failed to create area dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".brain.toml"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".loomux", "config.toml"), []byte(manifest), 0o600); err != nil {
 		t.Fatalf("failed to write manifest: %v", err)
 	}
 	if len(registered) > 0 {

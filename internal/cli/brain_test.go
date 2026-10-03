@@ -458,7 +458,7 @@ func TestBrainReadersStillRefuseAnAreaWithoutDeclaration(t *testing.T) {
 	stubBrainStatusPort(t, search.NewFakePort())
 	for _, args := range [][]string{{"status"}, {"catalog", "--scope", "all"}} {
 		code, out, errOut := run(append([]string{"brain"}, args...)...)
-		if code != 1 || out != "" || !strings.Contains(errOut, "no manifest found") {
+		if code != 1 || out != "" || !strings.Contains(errOut, "declares no [area]") {
 			t.Fatalf("%v: code %d\nout %q\nerr %q", args, code, out, errOut)
 		}
 	}
@@ -484,5 +484,21 @@ func TestBrainRuntimeErrorsWriteOnlyTheErrorLine(t *testing.T) {
 			!strings.Contains(errOut, "registry.toml: not valid TOML") || !strings.HasSuffix(errOut, "\n") {
 			t.Fatalf("%q: code %d\nout %q\nerr %q", args, code, out, errOut)
 		}
+	}
+}
+
+// A registered area that still carries only an old manifest is refused with
+// the new reader's error, and the error says where the old one lies and which
+// command shows what to carry over.
+func TestBrainNamesAnOldManifestBesideTheMissingOne(t *testing.T) {
+	w := brainWorld(t, "", map[string]string{"index.md": "# project/a\n"})
+	if err := os.Remove(filepath.Join(w.area, ".loomux", "config.toml")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(w.area, ".brain.toml"), "[area]\nscope = \"project/a\"\n")
+	code, out, errOut := run("brain", "catalog", "--scope", "all")
+	want := "an old manifest lies there (.brain.toml): `loomux area check " + filepath.ToSlash(w.area) + "` shows what to carry over"
+	if code != 1 || out != "" || !strings.Contains(errOut, want) {
+		t.Fatalf("code %d\nout %q\nerr %q", code, out, errOut)
 	}
 }

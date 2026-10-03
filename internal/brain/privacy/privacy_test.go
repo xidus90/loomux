@@ -60,9 +60,8 @@ func TestIsVisible(t *testing.T) {
 // is an error, the absent declaration included: `_visible_areas` lets
 // `read_manifest` raise for each registered area, so an area without a usable
 // declaration stops the whole call instead of being served or hidden. The
-// names are read in the order config.ReadAreaManifestUntilStage4 gives them:
-// the first one that exists as a file is the declaration, readable or not,
-// except a .loomux/config.toml without an [area] table, which declares nothing.
+// declaration is `.loomux/config.toml` alone, readable or not; one without an
+// [area] table declares nothing.
 func TestVisibleManifest(t *testing.T) {
 	const open = "[area]\nscope = \"k\"\n\n[privacy]\nmode = \"manual_cloud\"\n"
 	const closed = "[area]\nscope = \"k\"\n\n[privacy]\nmode = \"local_only\"\n"
@@ -75,33 +74,22 @@ func TestVisibleManifest(t *testing.T) {
 	}{
 		{"no manifest", func(t *testing.T, dir string) {}, false, false, false, true},
 		{"open", func(t *testing.T, dir string) {
-			writeFile(t, filepath.Join(dir, ".brain.toml"), open)
+			writeFile(t, filepath.Join(dir, ".loomux", "config.toml"), open)
 		}, true, true, true, false},
 		{"local_only", func(t *testing.T, dir string) {
-			writeFile(t, filepath.Join(dir, ".brain.toml"), closed)
+			writeFile(t, filepath.Join(dir, ".loomux", "config.toml"), closed)
 		}, true, false, true, false},
 		{"not TOML", func(t *testing.T, dir string) {
-			writeFile(t, filepath.Join(dir, ".brain.toml"), "[area\n")
+			writeFile(t, filepath.Join(dir, ".loomux", "config.toml"), "[area\n")
 		}, false, false, false, true},
 		{"misspelt mode", func(t *testing.T, dir string) {
-			writeFile(t, filepath.Join(dir, ".brain.toml"), "[area]\nscope = \"k\"\n\n[privacy]\nmode = \"lokal_only\"\n")
+			writeFile(t, filepath.Join(dir, ".loomux", "config.toml"), "[area]\nscope = \"k\"\n\n[privacy]\nmode = \"lokal_only\"\n")
 		}, false, false, false, true},
-		{"closed config.toml that cannot be read beside an open .brain.toml", func(t *testing.T, dir string) {
-			writeFile(t, filepath.Join(dir, ".brain.toml"), open)
-			path := filepath.Join(dir, ".ultra-brain", "config.toml")
-			writeFile(t, path, closed)
-			testlock.Lock(t, path)
-		}, false, false, false, true},
-		{"closed .loomux/config.toml that cannot be read beside an open .brain.toml", func(t *testing.T, dir string) {
-			writeFile(t, filepath.Join(dir, ".brain.toml"), open)
+		{"a .loomux/config.toml that cannot be read", func(t *testing.T, dir string) {
 			path := filepath.Join(dir, ".loomux", "config.toml")
 			writeFile(t, path, closed)
 			testlock.Lock(t, path)
 		}, false, false, false, true},
-		{"the loomux name before an open .brain.toml", func(t *testing.T, dir string) {
-			writeFile(t, filepath.Join(dir, ".brain.toml"), open)
-			writeFile(t, filepath.Join(dir, ".loomux", "config.toml"), closed)
-		}, true, false, true, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

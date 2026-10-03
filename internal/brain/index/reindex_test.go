@@ -28,10 +28,10 @@ func writeTestRegistry(t *testing.T, dir string, content string) string {
 
 func setupTestArea(t *testing.T, areaDir string, manifestContent string) {
 	t.Helper()
-	if err := os.MkdirAll(areaDir, 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(areaDir, ".loomux"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	manifestPath := filepath.Join(areaDir, ".brain.toml")
+	manifestPath := filepath.Join(areaDir, ".loomux", "config.toml")
 	if err := os.WriteFile(manifestPath, []byte(manifestContent), 0o644); err != nil {
 		t.Fatal(err)
 	}

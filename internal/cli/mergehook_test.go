@@ -44,7 +44,7 @@ func consentingRepo(t *testing.T, state string) string {
 	repo := t.TempDir()
 	mustRunGit(t, repo, "init", "-q", "-b", "main")
 	mustRunGit(t, repo, "-c", "user.name=t", "-c", "user.email=t@t.invalid", "commit", "-q", "--allow-empty", "-m", "base")
-	writeFile(t, filepath.Join(repo, ".brain.toml"),
+	writeFile(t, filepath.Join(repo, ".loomux", "config.toml"),
 		"[area]\nscope = \"project/a\"\n\n[maintenance]\non_merge = true\nbranch = \"main\"\n")
 	writeFile(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"project/a\"\npath = \""+filepath.ToSlash(repo)+"\"\n")

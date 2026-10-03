@@ -302,7 +302,7 @@ func TestAreaCheckRefusesAnEmptyManifest(t *testing.T) {
 
 // The reader stops at the first regular file among the old names and refuses
 // it without a scope, so a later .brain.toml with an [area] is neither chosen
-// nor shadowed: this pins that behaviour of ReadAreaManifestUntilStage4.
+// nor shadowed: this pins that behaviour of chosenManifest.
 func TestAreaCheckStopsAtAnOldNameWithoutAScope(t *testing.T) {
 	root := t.TempDir()
 	writeManifest(t, root, ".ultra-brain/config.toml", "[commit]\nlanguage = \"en\"\n")

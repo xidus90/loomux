@@ -21,7 +21,6 @@
 package run
 
 import (
-	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -325,18 +324,14 @@ func readBundle(root string) []wiki.WikiPage {
 // gap is named in the report rather than papered over.
 //
 // A manifest that exists and cannot be opened is `manifest-unreadable`,
-// not "nothing declared": `config.ReadAreaManifestUntilStage4` stops at the
-// first name that is a regular file and answers its read error, so a
-// locked declaration never reads as absent. The case is pinned in
-// `run_test.go`.
+// not "nothing declared": `config.ReadAreaDeclaration` answers the read
+// error of a `.loomux/config.toml` that is a regular file, so a locked
+// declaration never reads as absent. The case is pinned in `run_test.go`.
 //
-// That reader and not `config.ReadManifest`, because the areas on this
-// machine still declare themselves as `.brain.toml` or
-// `.ultra-brain/config.toml`, the two names the reference reads, and
-// `config.ReadManifest` knows only `.loomux/config.toml`. It is also
-// stricter than the reference: it refuses an old-named declaration
-// without `[area] scope` and any declaration whose known keys carry the
-// wrong type, and both arrive here as `manifest-unreadable`.
+// The reader is `config.ReadAreaDeclaration`, stricter than
+// `config.ReadManifest`: it refuses `[area]` without `scope` and any
+// declaration whose known keys carry the wrong type, and both arrive here
+// as `manifest-unreadable`.
 //
 // The layout values are asked even where this run does not use them: the
 // `hub` value only matters to a signpost, and the `wiki` value only to
@@ -346,9 +341,9 @@ func readBundle(root string) []wiki.WikiPage {
 func areaManifest(
 	area config.Area, lookup config.ArtifactLookup,
 ) (*config.Manifest, []check.Finding) {
-	manifest, err := config.ReadAreaManifestUntilStage4(
+	manifest, err := config.ReadAreaDeclaration(
 		config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
-	if errors.Is(err, config.ErrNoManifest) {
+	if config.IsUndeclared(err) {
 		// Not a defect: an area may declare nothing, and the caller then
 		// falls back to the defaults (`config.DefaultUntouchedDays`).
 		return nil, nil
@@ -375,7 +370,7 @@ func areaManifest(
 //
 // `Relative` therefore names no file. The parentheses are what say so --
 // no page is called that -- and the message carries the manifest's own
-// path, which `config.ReadAreaManifestUntilStage4` puts into every error it answers
+// path, which `config.ReadAreaDeclaration` puts into every error it answers
 // with. The alternative was to put the finding on the bundle's
 // `index.md`, the way `house/unlisted-area` does, and it is wrong here
 // for the reason that rule gives for its own choice: the repair is a
@@ -462,7 +457,7 @@ func declaredTypes(manifest *config.Manifest) map[string]bool {
 func fileRoot(path string, lookup config.ArtifactLookup) (string, *config.Manifest) {
 	dir := filepath.Dir(path)
 	for at := dir; ; {
-		if manifest, err := config.ReadAreaManifestUntilStage4(at); err == nil {
+		if manifest, err := config.ReadAreaDeclaration(at); err == nil {
 			if place, err := manifest.WikiLayout(); err == nil &&
 				place != "" {
 				// No FromSlash: `filepath.Join` cleans what it
@@ -500,7 +495,7 @@ func fileRoot(path string, lookup config.ArtifactLookup) (string, *config.Manife
 		at = parent
 	}
 	if root, area, ok := registeredRoot(path, lookup); ok {
-		manifest, err := config.ReadAreaManifestUntilStage4(
+		manifest, err := config.ReadAreaDeclaration(
 			config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
 		if err != nil {
 			// The bundle root is still the right one; only the

@@ -35,7 +35,7 @@ func nestedVault(t *testing.T) string {
 	hub := filepath.Join(root, "hub")
 	innerWiki := filepath.Join(hub, "inner")
 	innerPath := filepath.Join(root, "inner-src")
-	put(filepath.Join(hub, ".brain.toml"), "[area]\nscope = \"hub\"\n\n[privacy]\nmode = \"manual_cloud\"\n")
+	put(filepath.Join(hub, ".loomux", "config.toml"), "[area]\nscope = \"hub\"\n\n[privacy]\nmode = \"manual_cloud\"\n")
 	put(filepath.Join(hub, "top.md"), "# Top\n")
 	put(filepath.Join(hub, "index.md"), "# hub\n\n## Bereiche\n\n* [inner](inner/)\n* [other](other/)\n\n## Dateien\n\n* [Top](top.md)\n")
 	put(filepath.Join(hub, "graph.json"), `{"scope": "hub", "nodes": [], "edges": [`+
@@ -44,7 +44,7 @@ func nestedVault(t *testing.T) string {
 		`"links": {"total": 0, "resolved": 0, "dropped": {}}}`+"\n")
 	put(filepath.Join(innerWiki, "page.md"), "# Page\n\nlocal only\n")
 	put(filepath.Join(innerPath, "source.md"), "# Source\n")
-	put(filepath.Join(root, "areas", "project-inner", ".brain.toml"), "[area]\nscope = \"project/inner\"\n\n[privacy]\nmode = \"local_only\"\n")
+	put(filepath.Join(root, "areas", "project-inner", ".loomux", "config.toml"), "[area]\nscope = \"project/inner\"\n\n[privacy]\nmode = \"local_only\"\n")
 	put(filepath.Join(root, "registry.toml"),
 		"[[area]]\nscope = \"hub\"\npath = \""+filepath.ToSlash(hub)+"\"\nwiki = \""+filepath.ToSlash(hub)+"\"\n\n"+
 			"[[area]]\nscope = \"project/inner\"\npath = \""+filepath.ToSlash(innerPath)+"\"\nwiki = \""+filepath.ToSlash(innerWiki)+"\"\nreadonly = true\n")

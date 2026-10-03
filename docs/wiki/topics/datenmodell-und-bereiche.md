@@ -50,10 +50,10 @@ Scope, Ein- und Ausschlüsse, Datenschutzmodus, `readonly`. Wo etwas liegt, wei�
 allein die zentrale Registrierung im Zustandsverzeichnis; sie ist die einzige
 Stelle, die Bereichsnamen auf Pfade abbildet.
 
-`.brain.toml` ist der Name bis zum Umzug am 2026-09-16. loomux liest
-`.loomux/config.toml` vor den beiden Altnamen `.ultra-brain/config.toml` und
-`.brain.toml` — bis Stufe 4 und nur, wenn die neue Datei eine `[area]`-Tabelle
-trägt, sonst gilt weiter das Altmanifest —, hält die Registrierung unter
+`.brain.toml` ist der Name bis zum Umzug am 2026-09-16. loomux liest seit dem
+Aufräum-PR nur `.loomux/config.toml`; eine Datei ohne `[area]` deklariert
+keinen Bereich, ein danebenliegendes Altmanifest nennt die Fehlermeldung samt
+`loomux area check`. loomux hält die Registrierung unter
 `LOOMUX_STATE_DIR` (`%LOCALAPPDATA%\loomux`) und lässt Artefakte und
 Reconcile-Stempel bis Stufe 3 unter `LOOMUX_LEGACY_BRAIN_DIR`.
 

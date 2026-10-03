@@ -2,7 +2,6 @@ package wiki
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -133,8 +132,8 @@ func RenderCensus(counts []TypeCount) string {
 // DeclaredTypesIn is `_declared_types`: the types the declaration in dir names
 // beyond the built-in ones, or none when dir holds no declaration.
 func DeclaredTypesIn(dir string) (map[string]bool, error) {
-	manifest, err := config.ReadAreaManifestUntilStage4(dir)
-	if errors.Is(err, config.ErrNoManifest) {
+	manifest, err := config.ReadAreaDeclaration(dir)
+	if config.IsUndeclared(err) {
 		return nil, nil
 	}
 	if err != nil {

@@ -62,7 +62,7 @@ func (w *world) register(scope, path string, readonly bool) {
 func (w *world) writable(scope, name, manifest string) string {
 	dir := filepath.Join(w.repos, name)
 	w.register(scope, dir, false)
-	w.write(filepath.Join(dir, ".brain.toml"), fmt.Sprintf("[area]\nscope = '%s'\n%s", scope, manifest))
+	w.write(filepath.Join(dir, ".loomux", "config.toml"), fmt.Sprintf("[area]\nscope = '%s'\n%s", scope, manifest))
 	return dir
 }
 
@@ -72,7 +72,7 @@ func (w *world) writable(scope, name, manifest string) string {
 func (w *world) readOnly(scope, flat, path, manifest string) string {
 	dir := filepath.Join(w.legacy, "areas", flat)
 	w.register(scope, path, true)
-	w.write(filepath.Join(dir, ".brain.toml"), fmt.Sprintf("[area]\nscope = '%s'\n%s", scope, manifest))
+	w.write(filepath.Join(dir, ".loomux", "config.toml"), fmt.Sprintf("[area]\nscope = '%s'\n%s", scope, manifest))
 	return dir
 }
 

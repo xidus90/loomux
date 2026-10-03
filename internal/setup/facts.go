@@ -210,7 +210,7 @@ func Gather(root, home string, running Running, git detect.Runner) (Facts, error
 	}
 	// A declaration that does not read consents to nothing; Build refuses
 	// the configuration on its own when the part config is on.
-	declared, err := config.ReadAreaManifestUntilStage4(root)
+	declared, err := config.ReadAreaDeclaration(root)
 	f.OnMerge = err == nil && declared.OnMerge
 	if f.Model, err = config.ReadModelSettings(config.StateDir()); err != nil {
 		f.ModelProblem = err.Error()

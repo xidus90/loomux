@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,6 +105,17 @@ func TestReadAreaDeclarationNamesAnOldManifestBesideTheMissingOne(t *testing.T) 
 		if !errors.Is(err, ErrNoManifest) || err.Error() != want {
 			t.Fatalf("%v: got %v\nwant %s", tc.names, err, want)
 		}
+		if !errors.Is(err, ErrOldManifest) || IsUndeclared(err) {
+			t.Fatalf("%v: %v must be ErrOldManifest and not undeclared", tc.names, err)
+		}
+	}
+}
+
+// Without an old name beside it the missing file is no ErrOldManifest.
+func TestReadAreaDeclarationWithoutAnOldNameIsNoOldManifest(t *testing.T) {
+	_, err := ReadAreaDeclaration(t.TempDir())
+	if errors.Is(err, ErrOldManifest) || !IsUndeclared(err) {
+		t.Fatalf("got %v; want a plain absence", err)
 	}
 }
 
@@ -161,6 +173,7 @@ func TestIsUndeclaredTakesExactlyTheTwoAbsences(t *testing.T) {
 	}{
 		{ErrNoManifest, true},
 		{ErrNoArea, true},
+		{oldManifestError{fmt.Errorf("x: %w", ErrNoManifest)}, false},
 		{errors.New("x: " + ErrNoManifest.Error()), false},
 		{errors.New("not valid TOML"), false},
 		{nil, false},

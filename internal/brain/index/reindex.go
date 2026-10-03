@@ -164,7 +164,7 @@ func indexArea(
 	// written where it belongs tomorrow. For a writable area the two are one
 	// directory; for a read-only one they part until `loomux migrate` runs.
 	source := config.ResolvedAreaDir(area, stateDir, fallbackDir)
-	manifest, err := config.ReadAreaManifestUntilStage4(source)
+	manifest, err := config.ReadAreaDeclaration(source)
 	if err != nil {
 		fmt.Fprintf(stderr, "skipping %s: %v\n", area.Scope, err)
 		return indexedArea{}, true, nil

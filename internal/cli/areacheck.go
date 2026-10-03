@@ -18,12 +18,31 @@ import (
 // readManifest is a variable so that a test can make the read fail.
 var readManifest = os.ReadFile
 
-// manifestNames are the files an area declaration may live in, in the order
-// the reader tries them.
-var manifestNames = []string{
-	filepath.Join(".loomux", "config.toml"),
-	filepath.Join(".ultra-brain", "config.toml"),
-	".brain.toml",
+// manifestNames are the files this command reports on: loomux's one name,
+// then ultra-brain's two in the order its reader asked them.
+var manifestNames = append([]string{filepath.Join(".loomux", "config.toml")}, config.OldManifestNames()...)
+
+// chosenManifest is the name a reader that still knew the old names took:
+// the first regular file that declares an area. A `.loomux/config.toml`
+// without [area] gives way to the next name; an old name without [area], or
+// any name that does not read, chooses none. loomux reads only the first
+// name; this line tells which file carried the declaration before.
+func chosenManifest(root string) string {
+	for _, name := range manifestNames {
+		path := filepath.Join(root, name)
+		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		_, err := config.ReadDeclaration(path)
+		if errors.Is(err, config.ErrNoArea) && name == manifestNames[0] {
+			continue
+		}
+		if err != nil {
+			return ""
+		}
+		return name
+	}
+	return ""
 }
 
 const areaCheckUsage = "usage: loomux area check <path>"
@@ -40,10 +59,7 @@ func areaCheck(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, areaCheckUsage)
 		return 2
 	}
-	chosen := ""
-	if manifest, err := config.ReadAreaManifestUntilStage4(root); err == nil {
-		chosen, _ = filepath.Rel(root, manifest.Path)
-	}
+	chosen := chosenManifest(root)
 	needsHand := false
 	found := false
 	for _, name := range manifestNames {

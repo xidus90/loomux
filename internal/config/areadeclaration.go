@@ -29,8 +29,8 @@ func ReadAreaDeclaration(dir string) (*Manifest, error) {
 	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
 		for _, old := range OldManifestNames() {
 			if info, err := os.Stat(filepath.Join(dir, old)); err == nil && info.Mode().IsRegular() {
-				return nil, fmt.Errorf("%s: %w (%s); an old manifest lies there (%s): `loomux area check %s` shows what to carry over",
-					dir, ErrNoManifest, name, old, dir)
+				return nil, oldManifestError{fmt.Errorf("%s: %w (%s); an old manifest lies there (%s): `loomux area check %s` shows what to carry over",
+					dir, ErrNoManifest, name, old, dir)}
 			}
 		}
 		return nil, fmt.Errorf("%s: %w (%s)", dir, ErrNoManifest, name)
@@ -38,9 +38,27 @@ func ReadAreaDeclaration(dir string) (*Manifest, error) {
 	return ReadDeclaration(path)
 }
 
+// ErrOldManifest marks the ErrNoManifest of a directory that still carries an
+// old manifest. It is ErrNoManifest too, but no reader may take it as "no
+// area here": the area was declared, only under a name loomux no longer reads.
+var ErrOldManifest = errors.New("an old manifest lies there")
+
+// oldManifestError carries the hint text unchanged and answers to both
+// ErrNoManifest, through the wrapped error, and ErrOldManifest.
+type oldManifestError struct{ err error }
+
+func (e oldManifestError) Error() string        { return e.err.Error() }
+func (e oldManifestError) Unwrap() error        { return e.err }
+func (e oldManifestError) Is(target error) bool { return target == ErrOldManifest }
+
 // IsUndeclared says that err is one of the two answers of ReadAreaDeclaration
 // that mean "this directory declares no area": no manifest, or one without
-// [area]. Every other error is a declaration that is there and does not read.
+// [area]. An old manifest beside the missing one is not among them, so the
+// readers that tolerate an undeclared area still refuse it with the hint.
+// Every other error is a declaration that is there and does not read.
 func IsUndeclared(err error) bool {
+	if errors.Is(err, ErrOldManifest) {
+		return false
+	}
 	return errors.Is(err, ErrNoManifest) || errors.Is(err, ErrNoArea)
 }

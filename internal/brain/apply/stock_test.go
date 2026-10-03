@@ -18,7 +18,7 @@ func legacyArea(t *testing.T) (config.Area, config.ArtifactLookup, string) {
 	ro := config.Area{Scope: "project/ro", Path: t.TempDir(), ReadOnly: true}
 	lookup := config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()}
 	old := config.ManifestDir(ro, lookup.Fallback)
-	writeFile(t, filepath.Join(old, ".brain.toml"), "[area]\nscope = \"project/ro\"\n")
+	writeFile(t, filepath.Join(old, ".loomux", "config.toml"), "[area]\nscope = \"project/ro\"\n")
 	writeRegister(t, old, row("A", "docs/a.md"))
 	writeFile(t, filepath.Join(old, "catalog", "notes.md"), "# notes\n")
 	return ro, lookup, old
@@ -47,12 +47,12 @@ func TestMoveStockMovesALegacyAreaWhole(t *testing.T) {
 	if got := config.ResolvedAreaDir(ro, lookup.Primary, lookup.Fallback); got != target {
 		t.Fatalf("area resolves to %s, want %s", got, target)
 	}
-	for _, name := range []string{".brain.toml", registerName, filepath.Join("catalog", "notes.md")} {
+	for _, name := range []string{filepath.Join(".loomux", "config.toml"), registerName, filepath.Join("catalog", "notes.md")} {
 		if !isFile(filepath.Join(target, name)) {
 			t.Fatalf("%s did not move", name)
 		}
 	}
-	if _, err := config.ReadAreaManifestUntilStage4(target); err != nil {
+	if _, err := config.ReadAreaDeclaration(target); err != nil {
 		t.Fatalf("the declaration no longer reads: %v", err)
 	}
 	noStaging(t, target)

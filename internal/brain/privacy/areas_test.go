@@ -56,8 +56,8 @@ func scopesOf(areas []privacy.VisibleArea) string {
 // local_only, so its manifest can only be found through the legacy directory.
 func twoAreas(t *testing.T) (registryDir, legacyDir string) {
 	return buildWorld(t,
-		registered{scope: "zeta", mode: "manual_cloud", manifestName: ".ultra-brain/config.toml"},
-		registered{scope: "project/alpha", mode: "local_only", manifestName: ".brain.toml", readOnly: true},
+		registered{scope: "zeta", mode: "manual_cloud", manifestName: ".loomux/config.toml"},
+		registered{scope: "project/alpha", mode: "local_only", manifestName: ".loomux/config.toml", readOnly: true},
 	)
 }
 
@@ -117,7 +117,7 @@ func TestVisibleAreasRefusesAnUnknownScopeNamingTheVisibleOnes(t *testing.T) {
 // scope, so an area without a declaration fails a call about another area.
 func TestVisibleAreasStopsAtTheFirstUnusableManifest(t *testing.T) {
 	registryDir, legacyDir := buildWorld(t,
-		registered{scope: "a", mode: "manual_cloud", manifestName: ".brain.toml"},
+		registered{scope: "a", mode: "manual_cloud", manifestName: ".loomux/config.toml"},
 		registered{scope: "b"},
 	)
 	got, err := privacy.VisibleAreas(registryDir, legacyDir, "a", privacy.ChannelLocal)
@@ -179,8 +179,8 @@ func TestUnknownScopeQuotesLikePython(t *testing.T) {
 
 func TestVisibleAreasRefusesADuplicateScope(t *testing.T) {
 	registryDir, legacyDir := buildWorld(t,
-		registered{scope: "a", mode: "manual_cloud", manifestName: ".brain.toml"},
-		registered{scope: "a", mode: "local_only", manifestName: ".brain.toml"},
+		registered{scope: "a", mode: "manual_cloud", manifestName: ".loomux/config.toml"},
+		registered{scope: "a", mode: "local_only", manifestName: ".loomux/config.toml"},
 	)
 	got, err := privacy.VisibleAreas(registryDir, legacyDir, "a", privacy.ChannelLocal)
 	if err == nil || got != nil || !strings.HasSuffix(err.Error(), `[[area]] #2: duplicate scope "a" (first at #1)`) {
@@ -197,7 +197,7 @@ func TestVisibleAreasRefusesAnAbsoluteInboxEvenOfAHiddenArea(t *testing.T) {
 	inbox := filepath.ToSlash(filepath.Join(root, "in"))
 	writeFile(t, filepath.Join(root, "state", "registry.toml"),
 		fmt.Sprintf("[[area]]\nscope = \"closed\"\npath = %q\n", filepath.ToSlash(area)))
-	writeFile(t, filepath.Join(area, ".brain.toml"),
+	writeFile(t, filepath.Join(area, ".loomux", "config.toml"),
 		fmt.Sprintf("[area]\nscope = \"closed\"\n\n[privacy]\nmode = \"local_only\"\n\n[layout]\ninbox = %q\n", inbox))
 	got, err := privacy.VisibleAreas(filepath.Join(root, "state"), filepath.Join(root, "legacy"), "all", privacy.ChannelCloud)
 	if err == nil || got != nil || !strings.Contains(err.Error(), "[layout] inbox must be relative to the area") {
@@ -244,8 +244,8 @@ func TestVisibleAreasLeavesOutAWorkspaceWithoutADeclaration(t *testing.T) {
 func TestVisibleAreasStillRefusesAnEntryWithoutDeclarationThatIsNoWorkspace(t *testing.T) {
 	registryDir, legacyDir := workspaceWorld(t, false, "[verify]\n")
 	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
-	if !errors.Is(err, config.ErrNoManifest) || got != nil {
-		t.Fatalf("got %v, %v; want config.ErrNoManifest", got, err)
+	if !errors.Is(err, config.ErrNoArea) || got != nil {
+		t.Fatalf("got %v, %v; want config.ErrNoArea", got, err)
 	}
 }
 
@@ -254,5 +254,34 @@ func TestVisibleAreasStillRefusesABrokenDeclarationOfAWorkspace(t *testing.T) {
 	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
 	if err == nil || errors.Is(err, config.ErrNoManifest) || got != nil {
 		t.Fatalf("got %v, %v; want the parse error", got, err)
+	}
+}
+
+// A workspace without any config file is left out the same way: both
+// answers of "no declaration here" mean no brain area.
+func TestVisibleAreasLeavesOutAWorkspaceWithoutAnyConfigFile(t *testing.T) {
+	registryDir, legacyDir := workspaceWorld(t, true, "[verify]")
+	ws := filepath.Join(filepath.Dir(registryDir), "workspace")
+	if err := os.Remove(filepath.Join(ws, ".loomux", "config.toml")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	if err != nil || scopesOf(got) != "project/a" {
+		t.Fatalf("got %q, %v", scopesOf(got), err)
+	}
+}
+
+// A workspace that still carries only an old manifest is no silent skip: the
+// call stops with the hint, as for any other area.
+func TestVisibleAreasRefusesAWorkspaceWithOnlyAnOldManifest(t *testing.T) {
+	registryDir, legacyDir := workspaceWorld(t, true, "[verify]")
+	ws := filepath.Join(filepath.Dir(registryDir), "workspace")
+	if err := os.Remove(filepath.Join(ws, ".loomux", "config.toml")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(ws, ".brain.toml"), "[area]\nscope = \"project/ws\"\n")
+	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") || got != nil {
+		t.Fatalf("got %q, %v; want the old-manifest hint", scopesOf(got), err)
 	}
 }
