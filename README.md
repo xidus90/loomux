@@ -173,6 +173,12 @@ under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
 | **TypeScript/TSX in the code graph** | Extraction on the same pure-Go Tree-sitter core (`gotreesitter`) that reads Python since G5a | G5b | G5a ✅ | 6 |
 | **GDScript in the code graph** | The same core for Godot's GDScript | G5c | G5b | 6 |
 | **C++ in the code graph** | The same core for C++, once a recall check of `gotreesitter` against the C runtime holds | G5d | G5c | 6 |
+| **Workspaces without `[area]` in the upkeep commands** | `maintenance`, `lint`, `convert` and `reconcile` skip a workspace that declares no `[area]`, as the readers of the brain do; today they take it as an area that declares nothing | 4e follow-up | — | — |
+| **Profile kinds with nothing to check** | A kind in a profile (`lint`, `types`, `test`, `coverage`, `graph`) that has nothing to check in a project ends `check precommit` and the stop hook red; a project without code, such as a vault, cannot commit or end a session without trimming the profile by hand | 4e follow-up | — | — |
+| **`verify.profiles` through `config set`** | `loomux config set verify.profiles… --propose` refuses the key as unknown, so the proposal path of this repository does not reach it | 4e follow-up | — | — |
+| **A repository root as the wiki** | `[layout] wiki` refuses the root of a repository, so a wiki repository such as a pure wiki project has no wiki lane | 4e follow-up | — | — |
+| **`dev bench cases` without a hook** | `dev bench cases` refuses a `settings.json` without hooks instead of writing only the extra cases | 4e follow-up | — | — |
+| **Atomic world swap in `dev import-cases`** | A re-import replaces a recorded world in two steps; a lock error on Windows between them leaves a half-staged world (the source manifest there, `.loomux/config.toml` missing) until the next run | 4e follow-up | — | — |
 
 ### Maybe
 

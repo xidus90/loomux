@@ -173,6 +173,12 @@ Migrationsstufen 4e und 4f haben Priorität 3.
 | **TypeScript/TSX im Code-Graphen** | Extraktion auf demselben Tree-sitter-Kern in reinem Go (`gotreesitter`), der seit G5a Python liest | G5b | G5a ✅ | 6 |
 | **GDScript im Code-Graphen** | Derselbe Kern für GDScript aus Godot | G5c | G5b | 6 |
 | **C++ im Code-Graphen** | Derselbe Kern für C++, sobald eine Recall-Prüfung von `gotreesitter` gegen die C-Laufzeit trägt | G5d | G5c | 6 |
+| **Arbeitsbereiche ohne `[area]` in den Pflegebefehlen** | `maintenance`, `lint`, `convert` und `reconcile` lassen einen Arbeitsbereich aus, der kein `[area]` deklariert, wie es die Leser des Brain tun; heute nehmen sie ihn als Bereich, der nichts deklariert | 4e-Folge | — | — |
+| **Profilarten ohne Prüfgegenstand** | Eine Art in einem Profil (`lint`, `types`, `test`, `coverage`, `graph`), für die ein Projekt nichts zu prüfen hat, lässt `check precommit` und den Stop-Hook rot enden; ein Projekt ohne Code wie ein Vault kann so nicht committen und keine Sitzung beenden, ohne das Profil von Hand zu kürzen | 4e-Folge | — | — |
+| **`verify.profiles` über `config set`** | `loomux config set verify.profiles… --propose` lehnt den Schlüssel als unbekannt ab; der Vorschlagsweg dieses Repositorys erreicht ihn nicht | 4e-Folge | — | — |
+| **Eine Repo-Wurzel als Wiki** | `[layout] wiki` lehnt die Wurzel eines Repositorys ab; ein Wiki-Repository wie ein reines Wiki-Projekt hat so keine Wiki-Lane | 4e-Folge | — | — |
+| **`dev bench cases` ohne Hook** | `dev bench cases` lehnt eine `settings.json` ohne Hook ab, statt nur die Zusatzfälle zu schreiben | 4e-Folge | — | — |
+| **Atomarer Welttausch in `dev import-cases`** | Ein Re-Import ersetzt eine aufgezeichnete Welt in zwei Schritten; ein Sperrfehler unter Windows dazwischen lässt eine halb bestückte Welt liegen (die Quelldeklaration da, `.loomux/config.toml` fehlt), bis der nächste Lauf sie heilt | 4e-Folge | — | — |
 
 ### Vielleicht
 

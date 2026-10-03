@@ -36,6 +36,7 @@ oder an der zweiten.
 
 ## Offen
 
-Die sechs Entscheidungen (#1, #2, #3, #6, #8, #9) trifft der Nutzer. Keine
-davon hält 4e auf, außer der Nutzer will das Register vor der Umstellung der
-Wirte versioniert und mehrzweigig machen (#3).
+Die sechs Entscheidungen (#1, #2, #3, #6, #8, #9) trifft der Nutzer. Sie
+blockieren 4e ✅ (Entscheidung des Nutzers, 2026-10-03: „Ja, sie blockieren“);
+vorher galt, dass keine davon 4e aufhält, außer der Nutzer wollte das Register
+vor der Umstellung der Wirte versioniert und mehrzweigig machen (#3).
