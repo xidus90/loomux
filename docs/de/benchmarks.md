@@ -3555,3 +3555,48 @@ Seite gemessen.
     **Weggefallen:** der Python-Einstieg der alten Werkzeuge.
 11. **Nicht gemessen:** zwei weitere Ziele der ursprünglichen Planung; sie
     werden nicht umgestellt.
+
+## 2026-10-03 23:58 — Lesen ohne das alte Zustandsverzeichnis
+
+**Ziel.** Was die Brain-Leser kosten, nachdem sie das alte
+Zustandsverzeichnis nicht mehr ansehen, gegen den Stand davor.
+
+**Methode.** Drei Benchmarks aus `internal/brain/search` gegen die echte
+Registry unter `%LOCALAPPDATA%\loomux`, nur lesend:
+`VisibleAreasOfTheRealRegistry`, `RegistersOfTheRealRegistry` (10 Register)
+und `ExecuteSearchWithoutTheEngine`. Basis ist `0517ea75` (`origin/master`),
+gemessen in einem losgelösten Worktree am 2026-10-03 um 22:03; die Änderung ist
+der Zweig `refactor/stage-4e-cleanup` bei `82eadb95`, gemessen um 23:58. Je
+Seite ein Kaltlauf (`-benchtime=1x -count=1`), danach fünf Warmläufe
+(`-count=5`, berichtet wird der Median), nacheinander, auf einem AMD Ryzen 7
+9800X3D unter Windows 11 Pro. Auf keiner Seite wurde ein Benchmark übersprungen.
+
+| Benchmark | Kalt vorher | Kalt nachher | Warm vorher (Median) | Warm nachher (Median) | Warm-Änderung |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `VisibleAreasOfTheRealRegistry` | 1,560 ms | 1,102 ms | 1,523 ms | 1,282 ms | -15,8 % |
+| `RegistersOfTheRealRegistry` | 0,814 ms | 0,943 ms | 0,789 ms | 0,697 ms | -11,7 % |
+| `ExecuteSearchWithoutTheEngine` | 2,338 ms | 1,864 ms | 2,468 ms | 2,017 ms | -18,3 % |
+
+Warm-Spannen (schnellster bis langsamster von fünf): `VisibleAreas`
+1,464–1,673 ms vorher, 1,142–1,454 ms nachher; `Registers` 0,751–0,877 ms
+vorher, 0,683–0,770 ms nachher; `ExecuteSearch` 2,363–2,614 ms vorher,
+1,978–2,030 ms nachher.
+
+**Kernbefunde**
+
+1. **Nach dem Registry-Schritt bleibt in der Registry kein read-only-Bereich
+   übrig**, darum liefert `VisibleAreas` auf beiden Seiten dieselben Bereiche;
+   die Änderung liegt nicht in dem, was es zurückgibt.
+2. **Gespart ist wohl das zusätzliche `os.Stat` in `Resolve` für den
+   Stempel und die Sammlungsliste**, der Blick ins alte Zustandsverzeichnis
+   (der entfernte Code prüfte den Primärpfad und bei einem Fehlschlag den
+   Rückfall; keine eigene Messung isoliert es). Die Warm-Mediane sinken um
+   12 bis 18 %.
+3. **`VisibleAreas` und `ExecuteSearch` sind über das Rauschen hinaus
+   schneller:** ihre Warm-Spannen vorher und nachher überlappen sich nicht.
+   **`Registers` überlappt** (0,770 ms nachher gegen 0,751 ms vorher) und
+   liegt im Rauschen; sein kalter Einzellauf ist 16 % langsamer (0,814 →
+   0,943 ms), eine einzelne Probe, die für sich nichts aussagt.
+4. **Die Kalt-Einzelläufe** sind je eine Probe: 1,560 → 1,102 ms und 2,338 →
+   1,864 ms sind ebenfalls schneller als die Warmläufe; als Beleg taugen sie
+   nicht für sich.
