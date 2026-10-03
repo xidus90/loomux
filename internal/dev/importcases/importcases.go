@@ -130,14 +130,6 @@ func Import(from, to string, m Mapping) error {
 	}
 	for _, c := range found {
 		out := filepath.Join(to, c.Verb, c.Name)
-		// The worlds are staged afresh: a file an earlier import added there,
-		// such as a merged fixture the recording never had, would otherwise
-		// outlive it and be merged into again.
-		for _, world := range []string{"world", "world_after"} {
-			if err := os.RemoveAll(filepath.Join(out, world)); err != nil {
-				return fmt.Errorf("clearing %s: %w", filepath.Join(out, world), err)
-			}
-		}
 		if err := dropUnbacked(c.Path, out); err != nil {
 			return err
 		}
@@ -146,7 +138,7 @@ func Import(from, to string, m Mapping) error {
 		mapped := mapExit(c.ExitCode, m.Exits)
 		stdout := rewriteStdout(c.Stdout, m.Stdout)
 		rewritten := string(stdout) != string(c.Stdout)
-		skip := map[string]bool{"cmd": true, "stdin": len(c.Stdin) > 0, "exit": mapped != c.ExitCode, "stdout": rewritten}
+		skip := map[string]bool{"cmd": true, "stdin": len(c.Stdin) > 0, "exit": mapped != c.ExitCode, "stdout": rewritten, "world": true, "world_after": true}
 		if err := copyTree(c.Path, out, skip); err != nil {
 			return err
 		}
@@ -174,14 +166,58 @@ func Import(from, to string, m Mapping) error {
 			}
 		}
 		for _, world := range []string{"world", "world_after"} {
-			dir := filepath.Join(out, world)
-			if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-				continue
-			}
-			if err := translateWorld(dir, m); err != nil {
+			if err := stageWorld(filepath.Join(c.Path, world), filepath.Join(out, world), m); err != nil {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// stageWorld puts the translation of the recorded world src at dst.
+//
+// The world is staged afresh: a file an earlier import added there, such as a
+// merged fixture the recording never had, would otherwise outlive it and be
+// merged into again. It is built and translated beside dst and swapped in only
+// once the translation succeeded, so a copy or translation that fails halfway
+// -- a file Windows holds open for a moment -- leaves the old world as it was
+// instead of a half-translated one.
+func stageWorld(src, dst string, m Mapping) error {
+	if info, err := os.Stat(src); err != nil || !info.IsDir() {
+		// The recording has no such world, so neither has the corpus.
+		if err := os.RemoveAll(dst); err != nil {
+			return fmt.Errorf("clearing %s: %w", dst, err)
+		}
+		return nil
+	}
+	staged, err := mkdirTemp(filepath.Dir(dst), "."+filepath.Base(dst)+"-staged-")
+	if err != nil {
+		return err
+	}
+	// After a successful swap staged is gone and this removes nothing.
+	defer os.RemoveAll(staged)
+	if err := copyTree(src, staged, nil); err != nil {
+		return err
+	}
+	if err := translate(staged, m); err != nil {
+		return err
+	}
+	return replaceDir(staged, dst)
+}
+
+// replaceDir moves staged to dst. An old dst is moved aside first and only
+// removed once staged is in its place; a swap that fails puts it back.
+func replaceDir(staged, dst string) error {
+	old := staged + "-old"
+	if err := rename(dst, old); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("clearing %s: %w", dst, err)
+	}
+	if err := rename(staged, dst); err != nil {
+		_ = rename(old, dst)
+		return fmt.Errorf("replacing %s: %w", dst, err)
+	}
+	if err := os.RemoveAll(old); err != nil {
+		return fmt.Errorf("clearing %s: %w", old, err)
 	}
 	return nil
 }
@@ -274,6 +310,14 @@ func rewritePaths(s string) string {
 func TranslateWorld(dir string) error {
 	return translateWorld(dir, Mapping{})
 }
+
+// translate, rename and mkdirTemp are the seams through which the tests fail a world
+// halfway; the functions they name are what an import calls.
+var (
+	translate = translateWorld
+	rename    = os.Rename
+	mkdirTemp = os.MkdirTemp
+)
 
 // translateWorld is TranslateWorld under the manifest rules of m.
 func translateWorld(dir string, m Mapping) error {
@@ -525,7 +569,13 @@ func copyTree(src, dst string, skip map[string]bool) error {
 		if err != nil {
 			return err
 		}
-		if rel == "." || skip[rel] {
+		if rel == "." {
+			return nil
+		}
+		if skip[rel] {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		target := filepath.Join(dst, rel)
