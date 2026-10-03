@@ -472,57 +472,19 @@ func TestAScopeIsFlattenedTheWayTheStateDirectoryIsNamed(t *testing.T) {
 	}
 }
 
-func TestReadManifestCheckLanes(t *testing.T) {
-	dir := t.TempDir()
-	tomlContent := `
-[area]
-scope = "project/test"
-
-[check]
-lanes = ["gofmt", "pytest"]
-`
-	if err := os.WriteFile(manifestIn(t, dir), []byte(tomlContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	m, err := ReadManifest(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(m.Lanes) != 2 {
-		t.Fatalf("expected 2 lanes, got %d", len(m.Lanes))
-	}
-	if m.Lanes[0].Name != "gofmt" || m.Lanes[1].Name != "pytest" {
-		t.Errorf("unexpected lanes: %+v", m.Lanes)
-	}
-}
-
-func TestReadManifestCheckLanesTable(t *testing.T) {
-	dir := t.TempDir()
-	tomlContent := `
-[area]
-scope = "project/test"
-
-[check.lanes]
-gofmt = "gofmt -l ."
-ruff = "uv run ruff check"
-`
-	if err := os.WriteFile(manifestIn(t, dir), []byte(tomlContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	m, err := ReadManifest(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(m.Lanes) != 2 {
-		t.Fatalf("expected 2 lanes, got %d", len(m.Lanes))
-	}
-	if m.Lanes[0].Name != "gofmt" || m.Lanes[0].Command != "gofmt -l ." {
-		t.Errorf("unexpected lane 0: %+v", m.Lanes[0])
-	}
-	if m.Lanes[1].Name != "ruff" || m.Lanes[1].Command != "uv run ruff check" {
-		t.Errorf("unexpected lane 1: %+v", m.Lanes[1])
+// `[check] lanes` is read by nobody, and a manifest that still carries it --
+// as a list or as a table -- reads as one that does not: unknown keys are not
+// judged here. `area check` names the key as ignored.
+func TestReadManifestPassesOverAnOldCheckLanesKey(t *testing.T) {
+	for _, lanes := range []string{"[check]\nlanes = [\"gofmt\"]\n", "[check.lanes]\ngofmt = \"gofmt -l .\"\n"} {
+		dir := t.TempDir()
+		if err := os.WriteFile(manifestIn(t, dir), []byte("[area]\nscope = \"project/test\"\n\n"+lanes), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		m, err := ReadManifest(dir)
+		if err != nil || m.Scope != "project/test" {
+			t.Fatalf("%q: got %+v, %v", lanes, m, err)
+		}
 	}
 }
 

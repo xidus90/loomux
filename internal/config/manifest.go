@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -84,12 +83,6 @@ var knownTypes = map[string]bool{
 	"Synthesis": true,
 }
 
-// LaneConfig describes one verification lane declared under [check] lanes.
-type LaneConfig struct {
-	Name    string
-	Command string
-}
-
 // Manifest holds the part of an area's declaration the Go checks read.
 type Manifest struct {
 	// Path is the file the declaration was read from; refusals name it.
@@ -101,7 +94,6 @@ type Manifest struct {
 	LayoutHub       string
 	LayoutReview    string
 	LayoutInbox     string
-	Lanes           []LaneConfig
 	PrivacyMode     string
 	NeverGlobs      []string
 	IndexInclude    []string
@@ -147,9 +139,6 @@ type manifestFile struct {
 		Hub    string `toml:"hub"`
 		Review string `toml:"review"`
 	} `toml:"layout"`
-	Check struct {
-		Lanes toml.Primitive `toml:"lanes"`
-	} `toml:"check"`
 	Privacy struct {
 		Mode  string   `toml:"mode"`
 		Never []string `toml:"never"`
@@ -204,30 +193,11 @@ func readManifestAmong(dir string, names []string) (*Manifest, error) {
 		// so an unsaid `untouched_days` keeps this value.
 		file.Wiki.UntouchedDays = DefaultUntouchedDays
 		file.Privacy.Mode = "manual_cloud"
-		meta, err := toml.Decode(string(data), &file)
-		if err != nil {
+		if _, err := toml.Decode(string(data), &file); err != nil {
 			return nil, fmt.Errorf("%s: not valid TOML: %w", path, err)
 		}
 		if file.Privacy.Mode != "local_only" && file.Privacy.Mode != "manual_cloud" && file.Privacy.Mode != "automatic_cloud" {
 			return nil, fmt.Errorf("%s: [privacy] mode must be one of automatic_cloud, local_only, manual_cloud, found %q", path, file.Privacy.Mode)
-		}
-
-		var lanes []LaneConfig
-		var list []string
-		if err := meta.PrimitiveDecode(file.Check.Lanes, &list); err == nil {
-			for _, name := range list {
-				lanes = append(lanes, LaneConfig{Name: name})
-			}
-		} else {
-			var table map[string]string
-			if err := meta.PrimitiveDecode(file.Check.Lanes, &table); err == nil {
-				for name, cmd := range table {
-					lanes = append(lanes, LaneConfig{Name: name, Command: cmd})
-				}
-				sort.Slice(lanes, func(i, j int) bool {
-					return lanes[i].Name < lanes[j].Name
-				})
-			}
 		}
 
 		return &Manifest{
@@ -238,7 +208,6 @@ func readManifestAmong(dir string, names []string) (*Manifest, error) {
 			LayoutWiki:      file.Layout.Wiki,
 			LayoutHub:       file.Layout.Hub,
 			LayoutReview:    file.Layout.Review,
-			Lanes:           lanes,
 			PrivacyMode:     file.Privacy.Mode,
 			NeverGlobs:      file.Privacy.Never,
 			IndexInclude:    file.Index.Include,

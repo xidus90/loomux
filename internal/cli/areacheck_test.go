@@ -79,8 +79,8 @@ func TestClassifyKeysKnowsTheVerifyTablesTheSchemaDoesNotName(t *testing.T) {
 }
 
 func TestClassifyKeysCallsALanesTableIgnoredWithAHint(t *testing.T) {
-	// ReadManifest decodes [check] lanes into Manifest.Lanes, which nothing
-	// uses: a move by hand loses nothing, but no reader acts on it either.
+	// No reader decodes [check] lanes: a move by hand loses nothing, but no
+	// reader acts on it either.
 	reports := classifyKeys(map[string]any{"check": map[string]any{"lanes": []any{}}})
 	if len(reports) != 1 || reports[0].Class != classIgnored || reports[0].Hint == "" {
 		t.Fatalf("got %+v", reports)
