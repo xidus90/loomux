@@ -601,7 +601,7 @@ The five data commands read the areas of the one registry (`registry.toml` in `L
 - **Channel**: every command takes `--channel local|cloud` (default `local`). An area with `[privacy] mode = "local_only"` does not exist on `cloud`; `[privacy] never` globs apply on every channel. Nesting does not lift `local_only`: where the tree of another area holds the wiki or the source tree of a `local_only` area, every path inside it stays hidden on `cloud` through that scope too — `brain read` answers it as a missing file, and search hits, catalog lines, neighbours and `brain status` findings under it are left out. The `local` channel is unchanged.
 - **Usage errors** (exit `2`): the usage line, then `loomux brain <command>: error: <reason>` for a missing argument, an invalid choice or `-n` below 1, and `loomux brain: error: <reason>` when the command is missing or unknown or arguments are left over.
 - **Runtime errors** (exit `1`): `error: <reason>` on `stderr` and nothing on `stdout` — an unknown scope, a refusal, a missing section, a broken `graph.json` or identity register, a missing or unreadable manifest of any registered area, a missing or broken registry, a search engine that cannot be reached.
-- **Advice**: the messages still name `brain reindex`, `brain reconcile` and `brain embed`, the commands of ultra-brain, because the recorded cases of 1b-1 and 1b-2 hold that wording; they move to `loomux reindex`, `loomux reconcile` and `loomux embed` with the switch-over.
+- **Advice**: the messages name loomux's own commands, `loomux reindex`, `loomux reconcile` and `loomux embed`; the recorded cases of 1b-1 and 1b-2 carry the reference's wording through rewrite rules of their import maps.
 
 ### `loomux brain search <query> [--scope <scope>] [--profile fast|full|keyword] [-n <n>] [--channel local|cloud]`
 Searches the visible areas (`--scope all` by default) through the qmd MCP daemon at `http://localhost:8765/mcp`.
@@ -630,12 +630,12 @@ Prints one file of an area, or one section of it.
 Prints the links into and out of one page, read from the area's `graph.json`.
 
 - **Output**: `incoming: <a>, <b>` and `outgoing: <c>`, each list sorted, `-` for a direction without links.
-- **Exit codes**: `0`; `1` for a refusal, an area without `graph.json` (``<scope>: never indexed; run `brain reindex` ``) or another runtime error; `2` for a usage error.
+- **Exit codes**: `0`; `1` for a refusal, an area without `graph.json` (``<scope>: never indexed; run `loomux reindex` ``) or another runtime error; `2` for a usage error.
 
 ### `loomux brain status [--channel local|cloud]`
 Prints what to know before trusting an answer, one line per finding.
 
-- **Lines, in this order**: always the last reconciliation (``last reconcile: never; run `brain reconcile` ``, ``last reconcile: <iso>; older than 24 h, run `brain reconcile` `` or `last reconcile: <iso>`); per visible area in registry order, include globs the search engine does not see, a path that does not exist, an area never indexed, fewer than half of its links resolved, and indexed documents the search engine does not know; across all visible areas, the same content under several paths; once, documents indexed but not yet searchable.
+- **Lines, in this order**: always the last reconciliation (``last reconcile: never; run `loomux reconcile` ``, ``last reconcile: <iso>; older than 24 h, run `loomux reconcile` `` or `last reconcile: <iso>`); per visible area in registry order, include globs the search engine does not see, a path that does not exist, an area never indexed, fewer than half of its links resolved, and indexed documents the search engine does not know; across all visible areas, the same content under several paths; once, documents indexed but not yet searchable.
 - **Search engine**: two lines ask the qmd CLI (`qmd ls <collection>`, `qmd status`); when it does not answer, the line says so and the command goes on.
 - **Exit codes**: `0`; `1` for a runtime error (registry, manifest, stamp, `graph.json`, identity register); `2` for a usage error.
 

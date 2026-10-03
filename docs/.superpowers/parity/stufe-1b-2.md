@@ -405,6 +405,7 @@ Tabelle ist das, was der Mensch abzeichnet. „Alt" ist die Python-Referenz
 | Die 15 Fälle mit der Note `outcome` | Meldungen der Referenz bzw. Ausfallsatz nach abgerissener Verbindung | eigene Meldungen, jede Ablehnung des Kerns als Fehlerergebnis statt als Protokollfehler | §4: `isError` stimmt bei allen 15; der Wortlaut ist loomux' eigener und in `loomuxWording` festgenagelt. Bei acht Fällen verliert die Referenz die Sitzung, loomux nicht — kein Rückbau | **offen** |
 | Sechs Lücken am Go-Code, in dieser Stufe behoben | — | Vorgabewerte für `scope` und `profile`, Ablehnung fehlender Pflichtargumente und unbekannter Profile, Zeilenabschluss aus dem Werkzeugergebnis, Befunde im Text | §3.1 bis §3.5: Lücken gegenüber dem, was auf der Kommandozeile der Argumentparser erledigt. §3.2a, §3.5 und die Hälfte von §3.6 ruhen auf Lektüre und Unittests, nicht auf einem Fall | **offen** |
 | Der Vorgabe-Spawner der Brücke (`bridge.Options.Spawn == nil` → der echte, entkoppelte Start) | — | Entscheidung des Menschen: die Brücke startet den Dienst selbst, statt sich einen Spawner reichen zu lassen | Im Betrieb richtig und hier nicht in Frage gestellt. **Der Preis ist im Test fällig:** ein Mutant auf `connect.go:122` lässt das Testbinary sich selbst als entkoppelten Dienst starten, der die Suite erneut fährt — eine Gabelbombe, 8.783 Waisen am 2026-09-18, drei abgebrochene Mutationsläufe. **Vorschlag, keine Änderung dieser Aufgabe:** ein `TestMain` in `internal/bridge`, das sofort endet, wenn `os.Args` das Element `serve` enthält. Das Kind stirbt beim Start, der Elternlauf scheitert weiterhin (sein Spawner wurde nicht gerufen), der Mutant wird getötet, und die 21 fehlenden Mutanten sind mit dem heutigen Werkzeug erreichbar — **ohne** den zweiten Bauplatz, den die Entscheidung gerade vermeiden wollte. Belege in [`stufe-1b-2-geparkte-mutanten.md`](stufe-1b-2-geparkte-mutanten.md) | **offen** |
+| Ratschläge nennen loomux (`brain-neighbors/{broken-graph,never-indexed}`, `brain-status/{backlog,broken-graph,never-indexed,vault-cloud}`) | ``run `brain reindex` ``, ``run `brain embed` `` | ``run `loomux reindex` ``, ``run `loomux embed` `` | Die Befehle von ultra-brain gibt es nach der Umstellung nicht mehr; der Ratschlag nennt den Befehl, der ihn erfüllt. Getragen von drei `[[result]]`-Regeln in `1b-2-map.toml` (die für `brain reconcile` trifft in 1b-2 keinen Fall), beim Re-Import reproduzierbar; Abschnitt 9 | Spec Aufräum-PR, 2026-10-03 |
 
 ## 9. Was zu dieser Stufe sonst noch gehört
 
@@ -424,6 +425,16 @@ Tabelle ist das, was der Mensch abzeichnet. „Alt" ist die Python-Referenz
   `TestTheLocalBridgeCallsTheLocalAddress` nachgerüstet wird — er tötet den
   einzigen Überlebenden, der die Kanaltrennung berührt (`bridge.go:47`, immer
   die cloud-Adresse).
+- **Ratschläge nennen loomux** (nachgetragen 2026-10-03 mit dem Aufräum-PR).
+  Sechs Fälle tragen einen Ratschlag der Referenz:
+  `brain-neighbors/{broken-graph,never-indexed}` und
+  `brain-status/{backlog,broken-graph,never-indexed,vault-cloud}`. loomux nennt
+  seine eigenen Befehle, `loomux reindex`, `loomux reconcile` und
+  `loomux embed`; drei `[[result]]`-Regeln in `testdata/cases/1b-2-map.toml`
+  schreiben das aufgezeichnete Ergebnis beim Import um, ein Re-Import ist
+  byte-gleich. `brain-status/backlog` trägt den `brain embed`-Ratschlag, den die
+  Spec des Aufräum-PR nicht aufzählt. Die Zeile zur Freigabe steht in
+  Abschnitt 8.
 - **Die Messvorrichtung ist nicht ortsfest.** `testdata/bench/1b-2-hooks.json`
   und `testdata/bench/edit-readme-1b-2.json` tragen die absoluten Pfade des
   Worktrees, in dem gemessen wurde, wie es `1a-hooks.json` seit Stufe 1a tut.

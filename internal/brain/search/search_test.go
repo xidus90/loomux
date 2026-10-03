@@ -48,7 +48,7 @@ const (
 	twiceEmptyFast = "the search engine answered empty twice in a row on profile fast; an empty answer to a meaning search is practically unreachable, so this is more likely a silent failure of the engine than an absence of matches (spec 16.14)"
 	withheldOne    = "1 of the engine's hits were withheld -- excluded by [privacy] never, or from a collection this channel has no area for; the list is that many places shorter than it could have been"
 	withheldTwo    = "2 of the engine's hits were withheld -- excluded by [privacy] never, or from a collection this channel has no area for; the list is that many places shorter than it could have been"
-	agedStamp      = "the last full reconciliation was 2000-01-01T00:00:00+00:00, more than 24 hours ago: a source may have changed without this answer knowing (run `brain reconcile`)"
+	agedStamp      = "the last full reconciliation was 2000-01-01T00:00:00+00:00, more than 24 hours ago: a source may have changed without this answer knowing (run `loomux reconcile`)"
 )
 
 // areaEntry is one registry table for an area at path.

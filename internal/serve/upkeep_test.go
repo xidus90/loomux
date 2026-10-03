@@ -185,7 +185,7 @@ func TestTheTrailerOfEachTool(t *testing.T) {
 		},
 	}
 	stale := "! the last full reconciliation was 2026-09-21T12:00:00+00:00, more than 24 hours ago: " +
-		"a source may have changed without this answer knowing (run `brain reconcile`)"
+		"a source may have changed without this answer knowing (run `loomux reconcile`)"
 	for _, c := range []struct {
 		cmd  string
 		ch   privacy.Channel

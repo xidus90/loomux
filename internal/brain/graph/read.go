@@ -20,7 +20,7 @@ import (
 // message is the whole suffix of the error ReadGraph builds, so naming the
 // state costs nothing at the reader's end -- the sentence on screen is the
 // one that stood here before the sentinel existed.
-var ErrNotIndexed = errors.New("never indexed; run `brain reindex`")
+var ErrNotIndexed = errors.New("never indexed; run `loomux reindex`")
 
 // ReadGraph loads and validates graph.json for the specified area. A
 // read-only area keeps it in stateDir.
@@ -47,7 +47,7 @@ func ReadGraph(area config.Area, stateDir string) (*Graph, error) {
 func ParseGraph(data []byte, path string) (*Graph, error) {
 	loaded, err := decodeKeepingNumbers(data)
 	if err != nil {
-		return nil, fmt.Errorf("%s: graph is not valid JSON (%v); delete it and run `brain reindex`", path, err)
+		return nil, fmt.Errorf("%s: graph is not valid JSON (%v); delete it and run `loomux reindex`", path, err)
 	}
 
 	// A root that is not an object has neither key, as a nil map has none.
@@ -60,7 +60,7 @@ func ParseGraph(data []byte, path string) (*Graph, error) {
 		missing = append(missing, "links")
 	}
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("%s: graph is missing %s; delete it and run `brain reindex`", path, strings.Join(missing, ", "))
+		return nil, fmt.Errorf("%s: graph is missing %s; delete it and run `loomux reindex`", path, strings.Join(missing, ", "))
 	}
 
 	if err := checkShape(raw, path); err != nil {
@@ -93,24 +93,24 @@ func decodeKeepingNumbers(data []byte) (any, error) {
 func checkShape(raw map[string]any, path string) error {
 	edgesRaw, ok := raw["edges"].([]any)
 	if !ok {
-		return fmt.Errorf("%s: edges is not a list of from/to entries; delete it and run `brain reindex`", path)
+		return fmt.Errorf("%s: edges is not a list of from/to entries; delete it and run `loomux reindex`", path)
 	}
 	for _, edgeItem := range edgesRaw {
 		edgeMap, ok := edgeItem.(map[string]any)
 		if !ok {
-			return fmt.Errorf("%s: edges is not a list of from/to entries; delete it and run `brain reindex`", path)
+			return fmt.Errorf("%s: edges is not a list of from/to entries; delete it and run `loomux reindex`", path)
 		}
 		if _, hasFrom := edgeMap["from"]; !hasFrom {
-			return fmt.Errorf("%s: edges is not a list of from/to entries; delete it and run `brain reindex`", path)
+			return fmt.Errorf("%s: edges is not a list of from/to entries; delete it and run `loomux reindex`", path)
 		}
 		if _, hasTo := edgeMap["to"]; !hasTo {
-			return fmt.Errorf("%s: edges is not a list of from/to entries; delete it and run `brain reindex`", path)
+			return fmt.Errorf("%s: edges is not a list of from/to entries; delete it and run `loomux reindex`", path)
 		}
 	}
 
 	linksRaw, ok := raw["links"].(map[string]any)
 	if !ok {
-		return fmt.Errorf("%s: links is not a total/resolved/dropped record; delete it and run `brain reindex`", path)
+		return fmt.Errorf("%s: links is not a total/resolved/dropped record; delete it and run `loomux reindex`", path)
 	}
 
 	totalVal, hasTotal := linksRaw["total"]
@@ -118,21 +118,21 @@ func checkShape(raw map[string]any, path string) error {
 	droppedVal, hasDropped := linksRaw["dropped"]
 
 	if !hasTotal || !hasResolved || !hasDropped {
-		return fmt.Errorf("%s: links is not a total/resolved/dropped record; delete it and run `brain reindex`", path)
+		return fmt.Errorf("%s: links is not a total/resolved/dropped record; delete it and run `loomux reindex`", path)
 	}
 
 	droppedMap, ok := droppedVal.(map[string]any)
 	if !ok {
-		return fmt.Errorf("%s: links.dropped is not a table of reasons; delete it and run `brain reindex`", path)
+		return fmt.Errorf("%s: links.dropped is not a table of reasons; delete it and run `loomux reindex`", path)
 	}
 
 	if !isNumber(totalVal) || !isNumber(resolvedVal) {
-		return fmt.Errorf("%s: the link counts are not numbers; delete it and run `brain reindex`", path)
+		return fmt.Errorf("%s: the link counts are not numbers; delete it and run `loomux reindex`", path)
 	}
 
 	for _, countVal := range droppedMap {
 		if !isNumber(countVal) {
-			return fmt.Errorf("%s: the link counts are not numbers; delete it and run `brain reindex`", path)
+			return fmt.Errorf("%s: the link counts are not numbers; delete it and run `loomux reindex`", path)
 		}
 	}
 

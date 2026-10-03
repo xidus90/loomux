@@ -24,11 +24,13 @@ func stampWorld(t *testing.T, content string) string {
 	return dir
 }
 
-func TestReconcileConstantsAreThePythonOnes(t *testing.T) {
+// The interval is the reference's; the advice is loomux's own and names its
+// own command (deviation in parity/stufe-1b-1.md).
+func TestReconcileConstants(t *testing.T) {
 	if search.ReconcileInterval != 24*time.Hour {
 		t.Errorf("interval %v", search.ReconcileInterval)
 	}
-	if search.ReconcileAdvice != "run `brain reconcile`" {
+	if search.ReconcileAdvice != "run `loomux reconcile`" {
 		t.Errorf("advice %q", search.ReconcileAdvice)
 	}
 }
@@ -106,7 +108,7 @@ func TestStaleReconcileNamesAnAgedStampOnly(t *testing.T) {
 		want []string
 	}{
 		{"aged", stampWorld(t, "2000-01-01T00:00:00+00:00\n"), []string{
-			"the last full reconciliation was 2000-01-01T00:00:00+00:00, more than 24 hours ago: a source may have changed without this answer knowing (run `brain reconcile`)",
+			"the last full reconciliation was 2000-01-01T00:00:00+00:00, more than 24 hours ago: a source may have changed without this answer knowing (run `loomux reconcile`)",
 		}},
 		{"fresh", stampWorld(t, "2999-01-01T00:00:00+00:00\n"), nil},
 		{"naive and aged", stampWorld(t, "2000-01-01T00:00:00\n"), nil},

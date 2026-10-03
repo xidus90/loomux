@@ -94,7 +94,7 @@ func TestReadGraph_NeverIndexed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	want := "project/missing: never indexed; run `brain reindex`"
+	want := "project/missing: never indexed; run `loomux reindex`"
 	if err.Error() != want {
 		t.Errorf("got %q, want %q", err.Error(), want)
 	}
@@ -106,7 +106,7 @@ func TestParseGraph_InvalidJSON(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !strings.HasPrefix(err.Error(), path+": graph is not valid JSON") || !strings.HasSuffix(err.Error(), "; delete it and run `brain reindex`") {
+	if !strings.HasPrefix(err.Error(), path+": graph is not valid JSON") || !strings.HasSuffix(err.Error(), "; delete it and run `loomux reindex`") {
 		t.Errorf("unexpected error message: %q", err.Error())
 	}
 }
@@ -118,9 +118,9 @@ func TestParseGraph_MissingKeys(t *testing.T) {
 		json string
 		want string
 	}{
-		{`{}`, path + ": graph is missing edges, links; delete it and run `brain reindex`"},
-		{`{"links": {}}`, path + ": graph is missing edges; delete it and run `brain reindex`"},
-		{`{"edges": []}`, path + ": graph is missing links; delete it and run `brain reindex`"},
+		{`{}`, path + ": graph is missing edges, links; delete it and run `loomux reindex`"},
+		{`{"links": {}}`, path + ": graph is missing edges; delete it and run `loomux reindex`"},
+		{`{"edges": []}`, path + ": graph is missing links; delete it and run `loomux reindex`"},
 	}
 
 	for _, tc := range tests {
@@ -144,48 +144,48 @@ func TestParseGraph_InvalidShape(t *testing.T) {
 		// Edges not a list
 		{
 			`{"edges": "not a list", "links": {"total": 0, "resolved": 0, "dropped": {}}}`,
-			path + ": edges is not a list of from/to entries; delete it and run `brain reindex`",
+			path + ": edges is not a list of from/to entries; delete it and run `loomux reindex`",
 		},
 		// Edge element not dict or missing from/to
 		{
 			`{"edges": [1], "links": {"total": 0, "resolved": 0, "dropped": {}}}`,
-			path + ": edges is not a list of from/to entries; delete it and run `brain reindex`",
+			path + ": edges is not a list of from/to entries; delete it and run `loomux reindex`",
 		},
 		{
 			`{"edges": [{"from": "a"}], "links": {"total": 0, "resolved": 0, "dropped": {}}}`,
-			path + ": edges is not a list of from/to entries; delete it and run `brain reindex`",
+			path + ": edges is not a list of from/to entries; delete it and run `loomux reindex`",
 		},
 		{
 			`{"edges": [{"to": "b"}], "links": {"total": 0, "resolved": 0, "dropped": {}}}`,
-			path + ": edges is not a list of from/to entries; delete it and run `brain reindex`",
+			path + ": edges is not a list of from/to entries; delete it and run `loomux reindex`",
 		},
 		// Links not dict
 		{
 			`{"edges": [], "links": "not a dict"}`,
-			path + ": links is not a total/resolved/dropped record; delete it and run `brain reindex`",
+			path + ": links is not a total/resolved/dropped record; delete it and run `loomux reindex`",
 		},
 		// Links missing total, resolved, or dropped
 		{
 			`{"edges": [], "links": {"total": 0, "resolved": 0}}`,
-			path + ": links is not a total/resolved/dropped record; delete it and run `brain reindex`",
+			path + ": links is not a total/resolved/dropped record; delete it and run `loomux reindex`",
 		},
 		// Links.dropped not dict
 		{
 			`{"edges": [], "links": {"total": 0, "resolved": 0, "dropped": []}}`,
-			path + ": links.dropped is not a table of reasons; delete it and run `brain reindex`",
+			path + ": links.dropped is not a table of reasons; delete it and run `loomux reindex`",
 		},
 		// Link counts not numbers
 		{
 			`{"edges": [], "links": {"total": "not-int", "resolved": 0, "dropped": {}}}`,
-			path + ": the link counts are not numbers; delete it and run `brain reindex`",
+			path + ": the link counts are not numbers; delete it and run `loomux reindex`",
 		},
 		{
 			`{"edges": [], "links": {"total": 0, "resolved": "not-int", "dropped": {}}}`,
-			path + ": the link counts are not numbers; delete it and run `brain reindex`",
+			path + ": the link counts are not numbers; delete it and run `loomux reindex`",
 		},
 		{
 			`{"edges": [], "links": {"total": 0, "resolved": 0, "dropped": {"external": "one"}}}`,
-			path + ": the link counts are not numbers; delete it and run `brain reindex`",
+			path + ": the link counts are not numbers; delete it and run `loomux reindex`",
 		},
 	}
 

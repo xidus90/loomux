@@ -16,7 +16,7 @@ import (
 )
 
 // neverReconciled is the first line of every world without a usable stamp.
-const neverReconciled = "last reconcile: never; run `brain reconcile`"
+const neverReconciled = "last reconcile: never; run `loomux reconcile`"
 
 // asked is the moment every test asks at: the stale stamps lie before it and
 // the fresh ones after, as in the recorded worlds.
@@ -146,9 +146,9 @@ func TestLinesNameTheStampAndWhetherItIsADayOld(t *testing.T) {
 	// now - stamp >= timedelta(hours=24) with now = 2026-09-15T12:00:00+00:00.
 	for _, c := range []struct{ stamp, line string }{
 		{"2000-01-01T00:00:00\n", neverReconciled},
-		{"2000-01-01T00:00:00+00:00\n", "last reconcile: 2000-01-01T00:00:00+00:00; older than 24 h, run `brain reconcile`"},
-		{"2000-01-01T00:00:00Z\n", "last reconcile: 2000-01-01T00:00:00+00:00; older than 24 h, run `brain reconcile`"},
-		{"2026-09-14T12:00:00+00:00\n", "last reconcile: 2026-09-14T12:00:00+00:00; older than 24 h, run `brain reconcile`"},
+		{"2000-01-01T00:00:00+00:00\n", "last reconcile: 2000-01-01T00:00:00+00:00; older than 24 h, run `loomux reconcile`"},
+		{"2000-01-01T00:00:00Z\n", "last reconcile: 2000-01-01T00:00:00+00:00; older than 24 h, run `loomux reconcile`"},
+		{"2026-09-14T12:00:00+00:00\n", "last reconcile: 2026-09-14T12:00:00+00:00; older than 24 h, run `loomux reconcile`"},
 		{"2026-09-14T12:00:00.000001+00:00\n", "last reconcile: 2026-09-14T12:00:00.000001+00:00"},
 		{"2999-01-01T00:00:00.255+02:00\n", "last reconcile: 2999-01-01T00:00:00.255000+02:00"},
 	} {
@@ -189,7 +189,7 @@ func TestLinesCountTheBacklogOnce(t *testing.T) {
 		pending search.ScriptedPending
 		want    []string
 	}{
-		{search.ScriptedPending{Count: 7}, []string{"7 documents are indexed but not yet searchable; run `brain embed`"}},
+		{search.ScriptedPending{Count: 7}, []string{"7 documents are indexed but not yet searchable; run `loomux embed`"}},
 		{search.ScriptedPending{Err: errors.New("qmd exited with 1: boom")},
 			[]string{"the search engine did not answer (qmd exited with 1: boom); the backlog was not counted"}},
 		{search.ScriptedPending{Count: 0}, nil},
@@ -251,8 +251,8 @@ func TestLinesSkipAnAreaThatWasNeverIndexed(t *testing.T) {
 	port.Listings["kept"] = listing()
 	got, err := w.lines(privacy.ChannelLocal, port)
 	expect(t, got, err, neverReconciled,
-		"gamma: never indexed; run `brain reindex`",
-		"bare: never indexed; run `brain reindex`")
+		"gamma: never indexed; run `loomux reindex`",
+		"bare: never indexed; run `loomux reindex`")
 }
 
 func TestLinesReportLinksResolvedForLessThanHalf(t *testing.T) {
@@ -287,7 +287,7 @@ func TestLinesAbortOnABrokenGraphBeforeAnyRegister(t *testing.T) {
 	port.Listings["two"] = listing()
 	got, err := w.lines(privacy.ChannelLocal, port)
 	err = refused(t, got, err, port)
-	if want := filepath.Join(two, "graph.json") + ": graph is missing links; delete it and run `brain reindex`"; err.Error() != want {
+	if want := filepath.Join(two, "graph.json") + ": graph is missing links; delete it and run `loomux reindex`"; err.Error() != want {
 		t.Fatalf("error\n got %q\nwant %q", err, want)
 	}
 }
@@ -384,7 +384,7 @@ func TestLinesNameContentKeptUnderSeveralPaths(t *testing.T) {
 	got, err := w.lines(privacy.ChannelLocal, port)
 	expect(t, got, err, neverReconciled,
 		"project/beta: "+filepath.Join(w.repos, "gone")+" does not exist; skipped",
-		"gamma: never indexed; run `brain reindex`",
+		"gamma: never indexed; run `loomux reindex`",
 		"same content hash under 2 paths: alpha/b.md, project/beta/z.md",
 		"alpha/a.md: same content hash as a path excluded by [privacy] never",
 		"same content hash under 3 paths: alpha/c.md, delta/a2.md, gamma/g.md")
@@ -447,19 +447,19 @@ func TestLinesMatchTheMeasuredWorlds(t *testing.T) {
 		port.Pending = []search.ScriptedPending{{Count: 7}}
 		got, err := w.lines(ch, port)
 		expect(t, got, err,
-			"last reconcile: 2000-01-01T00:00:00+00:00; older than 24 h, run `brain reconcile`",
+			"last reconcile: 2000-01-01T00:00:00+00:00; older than 24 h, run `loomux reconcile`",
 			"alpha: the search engine sees only docs/**/*.md; also declared: README*.md, notes/*.md",
 			"alpha: only 2 of 5 links resolved (external=1, unknown_target=2)",
 			"alpha: 4 of 6 indexed documents are unknown to the search engine, so `brain search` can never return them; e.g. a.md, c.md, d.md, "+ellipsis,
 			"project/beta: the search engine sees only *.md; also declared: extra/*.md",
 			"project/beta: "+filepath.Join(w.repos, "gone", "beta")+" does not exist; skipped",
-			"gamma: never indexed; run `brain reindex`",
+			"gamma: never indexed; run `loomux reindex`",
 			"delta: only 1 of 4 links resolved ()",
 			"delta: the search engine did not answer ("+collectionNotFound+"); its index was not compared",
 			"same content hash under 2 paths: alpha/b.md, project/beta/z.md",
 			"alpha/a.md: same content hash as a path excluded by [privacy] never",
 			"same content hash under 3 paths: alpha/c.md, delta/a2.md, gamma/g.md",
-			"7 documents are indexed but not yet searchable; run `brain embed`")
+			"7 documents are indexed but not yet searchable; run `loomux embed`")
 		if !reflect.DeepEqual(port.Listed, listed) {
 			t.Fatalf("engine asked for %q, want %q", port.Listed, listed)
 		}
