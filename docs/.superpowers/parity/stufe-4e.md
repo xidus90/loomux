@@ -692,9 +692,35 @@ hier): Beispielprojekt 1 `ecoflow`, 2 `space`, 3 `iam_backend`,
 5. `dev bench cases` lehnt eine `settings.json` ohne Hook ab, statt nur die
    Zusatzfälle zu schreiben.
 
-**Offen in 4e:** die Mutationsrunde der neuen Pakete und der CLI-Funktionen
-(Plan Task 12 Schritt 4) ist nicht gelaufen; der Abschnitt „Überlebende
-Mutanten“ unten deckt bisher nur `area check`.
+**Stand der Mutationsrunden:** die der neuen Pakete und CLI-Funktionen der
+Welle lief am 2026-10-02, die des Aufräum-PR am 2026-10-04; beide stehen im
+Abschnitt „Überlebende Mutanten“ unten (siehe auch Abschnitt 11).
+
+### 11. Der Aufräum-PR (2026-10-04)
+
+Gezählt am 2026-10-03 in zwei Scratch-Worktrees auf `714d4b27`, vor dem
+Schreiben des Plans:
+
+- **Altmanifeste in den Lauf-Bäumen:** in allen zwölf Fallsuiten genau
+  **zwei** (`3a/area-add/known-scope/world_after/repo-new/.ultra-brain/config.toml`,
+  eine erwartete Datei, die loomux nicht schreibt; und
+  `4d/convert/no-registry/world/vault/.brain.toml`, ein Fall, der vor dem Lesen
+  eines Manifests endet). Die `*-worlds`-Bäume sind Aufnahmequellen, nicht
+  Lauf-Bäume.
+- **Übersetzer beim Bereitstellen:** 0 Fälle. **Freigegebene Abweichungen:**
+  0 Fälle. Mit nur `.loomux/config.toml` und ohne Altverzeichnis laufen alle
+  Fallsuiten (`TestRecordedCasesOfStage1a`, `…1b1`,
+  `TestRecordedMCPCasesOfStage1b2`, `TestCases2a` bis `4d`) grün.
+- **Ratschlagsfälle:** **12**, nicht zehn: neben den zehn der Spec trägt
+  `brain-status/backlog` in 1b-1 und 1b-2 den Ratschlag `brain embed`. Nach dem
+  Re-Import mit den neuen Karten ändern sich genau 6 + 6 Dateien.
+- **Ausgang der Auflagen aus `stufe-3a.md`:** Ratschläge getragen; Asides und
+  read-only-Deklarationen entfallen; `merge-events.done.tsv` und
+  `qmd-collections.json` fallengelassen (Nutzer, 2026-10-03).
+
+Die Zeiten der Leser ohne das Altverzeichnis stehen im Eintrag
+„Reading Without the Old State Directory“ von `docs/en/benchmarks.md` und
+`docs/de/benchmarks.md`.
 
 ## Checkliste
 
@@ -1031,9 +1057,8 @@ Je Wirt (`space`, `iam_backend`, `ecoflow`, `brain-knowledge`):
 **Die Runde für `loomux area check` (2026-09-29).** Sie deckt nur Stück A,
 `internal/cli/areacheck.go` (`areaCheck`, `fileDeclaresArea`,
 `checkOneManifest`, `flattenKeys`, `classifyKeys`, `schemaKnows` und die
-Tabellen `manifestNames` und `legacyHints`). Die Runde für den Aufräum-PR
-(Stück C) steht noch aus und kommt in denselben Abschnitt, wenn dessen Code
-steht.
+Tabellen `manifestNames` und `legacyHints`). Die Runde des Aufräum-PR (Stück
+C, 2026-10-03/04) steht unten im Unterabschnitt „Die Runde des Aufräum-PR“.
 
 **Warum nicht `loomux dev mutants`.** Das Werkzeug gibt jedem Mutanten eine
 feste Grenze (`goTimeout = "60s"`, `internal/dev/mutants/mutants.go:61`), lässt
@@ -1205,3 +1230,41 @@ CLI-Mutant `cases.json` und drei Payloads ins Paketverzeichnis
 Weitermachen wieder herausgenommen.
 
 Alle Funktionen der Pakete stehen weiter bei 100 % Coverage.
+
+### Die Runde des Aufräum-PR (2026-10-04)
+
+**Methode.** Handrunde per `go test -overlay` (Windows-Pfade `C:/…`), je
+Mutant eine Kopie der Datei mit genau einer Änderung, gegen die gezielten
+`-run`-Tests und, wo das Urteil an einer Fallsuite hängt, gegen diese. Je Task
+lief zuerst ein unveränderter Kontrollmutant, der überleben musste. Ein
+Mutant, der nicht übersetzt, hätte als BADMUTANT gezählt und wurde so
+geschrieben, dass er baut; BADMUTANT am Ende: 0. Task 4 (nur Entfernen von
+`Manifest.Lanes`) hat keine Runde, weil dort kein neuer Regelcode steht.
+
+| Funktion | Mutanten | getötet | überlebt | BADMUTANT |
+|---|---:|---:|---:|---:|
+| `ReadAreaDeclaration`, `IsUndeclared`, Hinweistext (`internal/config`) | 8 | 8 | 0 | 0 |
+| Aufrufer von `IsUndeclared` in `apply`, `check/house`, `check/run`, `convert`, `maintenance`, `wiki`, `cli/lintsweep`, `privacy` | 8 | 8 (6 erst nach einem neuen Test) | 0 | 0 |
+| `areaCheck`, Wahl des Manifests (`chosenManifest`) | 4 | 4 | 0 | 0 |
+| `recoverStock`, `registerOf`, `ArtifactLookup`, `ManifestDir` (Entfernen des Rückfalls) | 8 | 8 | 0 | 0 |
+| `ImportMCP` und `[[result]]` (`internal/dev/importcases`) | 3 | 2 | 1 | 0 |
+| Ratschlagszeilen in `graph/read.go`, `status/status.go`, `search/stamp.go` | 18 | 18 | 0 | 0 |
+| **zusammen** | **49** | **48** | **1** | **0** |
+
+Die erste Runde der Aufrufer von `IsUndeclared` ließ sechs Mutanten leben (die
+Stellen in `check/house/federation.go`, `check/run/run.go`, `convert/run.go`,
+`maintenance/reconcile.go`, `wiki/census.go`, `cli/lintsweep.go`): ihre Tests
+trugen keine Policy-Datei ohne `[area]`. Je ein neuer Test mit einer solchen
+Datei tötet sie (`undeclared_test.go` in `house`, `run`, `convert`,
+`maintenance`, `wiki`, `internal/cli/lintsweep_undeclared_test.go`); in der
+Tabelle zählen sie als getötet.
+
+**Überlebender Mutant.**
+
+| Funktion | Mutant | Entscheidung |
+|---|---|---|
+| `ImportMCP`, `internal/dev/importcases` | `"result": true` aus der Skip-Liste von `copyTree` gestrichen (m2) | **Äquivalent, stehengelassen.** Ohne Skip kopiert `copyTree` die Datei `result` zuerst, der eigene Schreiber überschreibt sie danach mit demselben Ziel. Dass genau ein Schreiber je Datei schreibt, ist eine Konvention, kein beobachtbares Verhalten. |
+
+Alle Funktionen der berührten Pakete stehen weiter bei 100 % Coverage (je
+Funktion; `copyTree` und `foldHookState` tragen ihre bestehende
+`//coverage:exempt`).
