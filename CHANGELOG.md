@@ -4,6 +4,19 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [7.0.0] - 2026-10-03
+
+<https://github.com/xidus90/loomux/pull/68>
+
+### Removed
+- Area declarations are read from `.loomux/config.toml` alone; `.brain.toml` and `.ultra-brain/config.toml` are no longer read. An area that still carries only an old manifest is refused with a pointer to `loomux area check`, which shows what to carry over.
+- Indexes, stamps and other artefacts are read from loomux's state directory alone; the old state directory is no longer read as a fallback, and `LOOMUX_LEGACY_BRAIN_DIR` is gone.
+- The unread `[check] lanes` table of an area manifest is no longer decoded.
+### Fixed
+- `brain status` and the graph reader name loomux's own commands (`loomux reindex`, `loomux reconcile`, `loomux embed`) in their advice instead of the old `brain …` commands.
+### Added
+- `loomux dev import-cases` rewrites a recorded MCP result by `[[result]]` rules on import.
+
 ## [6.2.1] - 2026-10-03
 
 <https://github.com/xidus90/loomux/pull/67>
