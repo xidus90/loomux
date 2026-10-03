@@ -148,7 +148,7 @@ type keyReport struct {
 var legacyHints = map[string]string{
 	"llm.local":                    "the local model is [model] enabled and roles",
 	"layout.sources":               "written by `area add`, read by no reader",
-	"check.lanes":                  "read into a field nothing uses; lanes live under [verify]",
+	"check.lanes":                  "read by nothing; lanes live under [verify]",
 	"area.wiki":                    "written by `area add`, read by no reader; the wiki place is [layout] wiki",
 	"area.readonly":                "a registry property, not a manifest key; the registry flag readonly carries it",
 	"maintenance.merge_branch":     "written by ultra-brain, read by no reader; loomux reads [maintenance] branch",
