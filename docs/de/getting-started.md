@@ -201,7 +201,8 @@ never = ["privat/**"]
 - **Jeder `loomux brain`-Befehl scheitert mit `no manifest found`.** Die Befehle
   lesen das Manifest jedes registrierten Bereichs, bevor sie `--scope` ansehen;
   ein Bereich ohne Erklärung lässt also auch Aufrufe über alle anderen
-  scheitern. Eine `.loomux/config.toml` ohne `[area]` zählt als keine; die Befehle
+  scheitern; nur ein Eintrag mit `workspace = true` ohne Erklärung wird still
+  übersprungen. Eine `.loomux/config.toml` ohne `[area]` zählt als keine; die Befehle
   nehmen auch die Alt-Manifeste `.ultra-brain/config.toml` und `.brain.toml`,
   bis der Aufräum-Pull-Request der Stufe 4e sie entfernt.
   Die Schreibschranke stört das nicht: dort ist es normal, einen Bereich vor

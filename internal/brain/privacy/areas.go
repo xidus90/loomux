@@ -1,6 +1,7 @@
 package privacy
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -34,7 +35,8 @@ type VisibleArea struct {
 // fallbackDir -- ultra-brain's -- as the fallback. Every registered area's
 // declaration is read and its inbox checked before scope and visibility are
 // asked, so the first registry or declaration error ends the call, whichever
-// area it belongs to -- a hidden area included.
+// area it belongs to -- a hidden area included. The one exception is a
+// workspace entry without a declaration, which is left out silently.
 //
 // scope "all" answers every visible area in registry order. Any other scope
 // answers the visible areas of that name, or the UnknownScope error when there
@@ -48,6 +50,11 @@ func VisibleAreas(registryDir, fallbackDir, scope string, ch Channel) ([]Visible
 	var hidden []string
 	for _, area := range areas {
 		manifest, seen, err := VisibleManifest(config.ResolvedAreaDir(area, registryDir, fallbackDir), ch)
+		if area.Workspace && errors.Is(err, config.ErrNoManifest) {
+			// A workspace that declares no [area] is no brain area: there is
+			// nothing to see in it and nothing to hide.
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
