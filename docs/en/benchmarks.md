@@ -3418,3 +3418,47 @@ holding about 45 GB of memory (CPU load 24 % before the first run). As on
     **Dropped:** the Python entry point of the old tools.
 11. **Not measured:** two further targets of the original plan; they are not
     switched over.
+
+## 2026-10-03 23:58 — Reading Without the Old State Directory
+
+**Goal.** What the brain readers cost after they stopped looking at the old
+state directory, against the state before.
+
+**Method.** Three benchmarks of `internal/brain/search` against the real
+registry under `%LOCALAPPDATA%\loomux`, read only: `VisibleAreasOfTheRealRegistry`,
+`RegistersOfTheRealRegistry` (10 registers) and
+`ExecuteSearchWithoutTheEngine`. Baseline is `0517ea75` (`origin/master`),
+measured in a detached worktree on 2026-10-03 at 22:03; the change is the
+branch `refactor/stage-4e-cleanup` at `82eadb95`, measured at 23:58. Per side
+one cold run (`-benchtime=1x -count=1`), then five warm runs
+(`-count=5`, median reported), serially, on an AMD Ryzen 7 9800X3D under
+Windows 11 Pro. No benchmark was skipped on either side.
+
+| Benchmark | Cold before | Cold after | Warm before (median) | Warm after (median) | Warm change |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `VisibleAreasOfTheRealRegistry` | 1.560 ms | 1.102 ms | 1.523 ms | 1.282 ms | -15.8 % |
+| `RegistersOfTheRealRegistry` | 0.814 ms | 0.943 ms | 0.789 ms | 0.697 ms | -11.7 % |
+| `ExecuteSearchWithoutTheEngine` | 2.338 ms | 1.864 ms | 2.468 ms | 2.017 ms | -18.3 % |
+
+Warm ranges (fastest to slowest of five): `VisibleAreas` 1.464–1.673 ms
+before, 1.142–1.454 ms after; `Registers` 0.751–0.877 ms before, 0.683–0.770 ms
+after; `ExecuteSearch` 2.363–2.614 ms before, 1.978–2.030 ms after.
+
+**Key Findings**
+
+1. **No read-only area is left in the registry after the registry step**, so
+   `VisibleAreas` returns the same areas on both sides; the change is not in
+   what it returns.
+2. **What is saved is most likely the extra `os.Stat` in `Resolve` for the
+   stamp and the collection list**, the lookup in the old state directory (the
+   removed code stat'ed the primary path and, on a miss, the fallback; no
+   separate measurement isolates it). The warm medians
+   fall by 12 to 18 %.
+3. **`VisibleAreas` and `ExecuteSearch` are faster beyond the noise:** their
+   warm ranges before and after do not overlap. **`Registers` overlaps**
+   (0.770 ms after against 0.751 ms before) and is within the noise; its cold
+   single run is 16 % slower (0.814 → 0.943 ms), a single sample that says
+   nothing on its own.
+4. **The cold single runs** are one sample each: 1.560 → 1.102 ms and 2.338 →
+   1.864 ms are faster, as the warm runs are; they are not evidence by
+   themselves.
