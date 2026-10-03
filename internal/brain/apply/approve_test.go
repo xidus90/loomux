@@ -1127,46 +1127,74 @@ func TestARegisterOutsideTheVaultIsAdvancedButNotStaged(t *testing.T) {
 	}
 }
 
-// addReadOnlyArea registers a read-only area whose stock still lies in
-// ultra-brain's state directory, and adds its one source to the case.
-// registered is the hash the old register holds; it returns the old
-// register, the new one and the source's hash.
-func (v *appVault) addReadOnlyArea(t *testing.T, registered string) (old, next, digest string) {
+// addReadOnlyArea registers a read-only area whose stock lies in the state
+// directory -- a register and a catalog beside it -- and adds its one source
+// to the case. registered is the hash the register holds; it returns the
+// register and the source's hash.
+func (v *appVault) addReadOnlyArea(t *testing.T, registered string) (register, digest string) {
 	t.Helper()
 	code := filepath.Join(v.base, "ro")
 	source := filepath.Join(code, "doc.md")
 	writeFile(t, source, "Text\n")
 	digest = hashOf(t, source)
-	legacy := filepath.Join(v.base, "legacy")
 	ro := config.Area{Scope: "project/ro", Path: code, ReadOnly: true}
-	old = writeRegister(t, config.ManifestDir(ro, legacy), identity.Identity{DocID: "01RO", Relative: "doc.md", ContentHash: registered, Revision: 4})
-	writeFile(t, filepath.Join(config.ManifestDir(ro, legacy), "catalog.tsv"), "stock\n")
-	v.lookup.Fallback = legacy
+	stock := config.ManifestDir(ro, v.lookup.Primary)
+	register = writeRegister(t, stock, identity.Identity{DocID: "01RO", Relative: "doc.md", ContentHash: registered, Revision: 4})
+	writeFile(t, filepath.Join(stock, "catalog.tsv"), "stock\n")
 	v.areas = append(v.areas, ro)
 	v.editCase(t, func(c *maintenance.Case) {
 		c.Sources = append(c.Sources, maintenance.SourceState{DocID: "01RO", Revision: 4, ContentHash: digest})
 	})
-	return old, filepath.Join(config.ManifestDir(ro, v.lookup.Primary), registerName), digest
+	return register, digest
 }
 
-// A read-only area still read from ultra-brain's state directory: its stock
-// moves to loomux's before the register is written there, and the old
-// place is left as it was.
-func TestAReadOnlyAreasRegisterIsWrittenToTheNewPlace(t *testing.T) {
+// A read-only area's register is advanced where it lies, in the state
+// directory, and the rest of its stock stays beside it.
+func TestAReadOnlyAreasRegisterIsAdvancedInTheStateDirectory(t *testing.T) {
 	v := newAppVault(t)
-	old, next, digest := v.addReadOnlyArea(t, "sha256:old")
-	registered := readFile(t, old)
+	register, digest := v.addReadOnlyArea(t, "sha256:old")
 	v.mustApprove(t)
-	identities, err := identity.ReadIdentities(next)
+	identities, err := identity.ReadIdentities(register)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := identities["doc.md"]; got.Revision != 5 || got.ContentHash != digest {
 		t.Fatalf("register row = %+v", got)
 	}
-	if readFile(t, filepath.Join(filepath.Dir(next), "catalog.tsv")) != "stock\n" || readFile(t, old) != registered {
-		t.Fatal("the stock did not move whole, or the old place changed")
+	if readFile(t, filepath.Join(filepath.Dir(register), "catalog.tsv")) != "stock\n" {
+		t.Fatal("the stock beside the register changed")
 	}
+}
+
+// An `index` killed mid-swap after this approval read the register leaves
+// the stock aside and no target. The approval puts it back before it
+// advances the register: the register is advanced inside the whole stock,
+// and the aside is not left for a later Recover to delete.
+func TestApprovePutsAnAsideStockBackBeforeItAdvancesTheRegister(t *testing.T) {
+	v := newAppVault(t)
+	register, digest := v.addReadOnlyArea(t, "sha256:old")
+	stock := filepath.Dir(register)
+	write := replaceText
+	seam(t, &replaceText, func(path, text string) error {
+		if filepath.Base(path) == filepath.Base(appTarget) {
+			if err := os.Rename(stock, stock+lock.AsideSuffix); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return write(path, text)
+	})
+	v.mustApprove(t)
+	identities, err := identity.ReadIdentities(register)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := identities["doc.md"]; got.Revision != 5 || got.ContentHash != digest {
+		t.Fatalf("register row = %+v", got)
+	}
+	if readFile(t, filepath.Join(stock, "catalog.tsv")) != "stock\n" {
+		t.Fatal("the stock that lay aside is lost")
+	}
+	absent(t, stock+lock.AsideSuffix)
 }
 
 // A reindex reads a register and writes it back later; the approval's
@@ -1180,7 +1208,7 @@ func TestTheRegisterIsAdvancedUnderTheAreasLock(t *testing.T) {
 	advance := advanceRegister
 	seam(t, &advanceRegister, func(register string, rows map[string]identity.Identity) (string, error) {
 		for _, area := range v.areas {
-			if registerWrite(area, v.lookup) != register {
+			if registerOf(area, v.lookup) != register {
 				continue
 			}
 			handle, free, err := lock.TryAcquire(config.AreaLockPath(area, v.lookup.Primary))
@@ -1242,9 +1270,9 @@ func TestAFailureMidWayReportsWhatWasWritten(t *testing.T) {
 		{"page", func(t *testing.T, v *appVault) {
 			seam(t, &replaceText, failOn("thema.md", broken, replaceText))
 		}, func(appVault) []string { return []string{page} }},
-		{"move stock", func(t *testing.T, v *appVault) {
+		{"recover stock", func(t *testing.T, v *appVault) {
 			v.addReadOnlyArea(t, "sha256:old")
-			seam(t, &stagingDir, func(string) (string, error) { return "", broken })
+			seam(t, &recoverDir, func(string) error { return broken })
 		}, func(appVault) []string { return []string{page, registerName} }},
 		{"register advance", func(t *testing.T, v *appVault) {
 			seam(t, &advanceRegister, func(string, map[string]identity.Identity) (string, error) { return "", broken })

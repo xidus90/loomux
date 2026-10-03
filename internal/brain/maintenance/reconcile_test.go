@@ -163,7 +163,7 @@ func TestReconcileRaisesACaseForAChangedSource(t *testing.T) {
 	if report.Checked != 2 || report.Hashed != 2 {
 		t.Fatalf("checked, hashed = %d, %d; want 2, 2", report.Checked, report.Hashed)
 	}
-	if stamp, ok, err := search.ReadLastRun(w.StateDir, w.Fallback); err != nil || !ok || !stamp.Equal(w.Now()) {
+	if stamp, ok, err := search.ReadLastRun(w.StateDir); err != nil || !ok || !stamp.Equal(w.Now()) {
 		t.Fatalf("last run = %v, %v, %v; want %v", stamp, ok, err, w.Now())
 	}
 	directory := caseDirOf(w, raised)
@@ -686,7 +686,7 @@ func TestReconcileWritesTheLastRunOnlyWhenItMoves(t *testing.T) {
 	mustReconcile(t, w, w.Now())
 	later := w.Now().Add(time.Hour)
 	mustReconcile(t, w, later)
-	if got, ok, err := search.ReadLastRun(w.StateDir, w.Fallback); err != nil || !ok || !got.Equal(later) {
+	if got, ok, err := search.ReadLastRun(w.StateDir); err != nil || !ok || !got.Equal(later) {
 		t.Fatalf("ReadLastRun = %v, %v, %v; want the later pass %v", got, ok, err, later)
 	}
 
@@ -719,7 +719,7 @@ func docIDOf(w *world, scope, relative string) string {
 		if area.Scope != scope {
 			continue
 		}
-		register := filepath.Join(config.ResolvedAreaDir(area, w.StateDir, w.Fallback), "_identities.tsv")
+		register := filepath.Join(config.ManifestDir(area, w.StateDir), "_identities.tsv")
 		data, err := os.ReadFile(register)
 		if err != nil {
 			panic(err)
@@ -802,7 +802,7 @@ func TestReconcileFailsWhenTheStampCannotBeWritten(t *testing.T) {
 //
 // The area under test carries a declaration **nowhere else**, which is what
 // makes the case say something: reading `area.Path` instead of
-// `config.ResolvedAreaDir` would find nothing, skip the area without a word,
+// `config.ManifestDir` would find nothing, skip the area without a word,
 // and report a vault in order. That failure is silent in both directions, and
 // nothing else in this suite saw it.
 func TestReconcileReadsAReadOnlyAreaDeclaredInTheStateDirectory(t *testing.T) {
@@ -930,7 +930,7 @@ func TestReconcileContextStopsBeforeItWritesWhenCancelled(t *testing.T) {
 	if _, err := maintenance.ReconcileContext(ctx, w.Areas, w.Lookup(), w.Now()); !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
-	if _, ok, err := search.ReadLastRun(w.StateDir, w.Fallback); ok || err != nil {
+	if _, ok, err := search.ReadLastRun(w.StateDir); ok || err != nil {
 		t.Fatalf("a cancelled pass left a stamp (ok %v, err %v)", ok, err)
 	}
 }

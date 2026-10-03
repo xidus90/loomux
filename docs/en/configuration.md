@@ -938,9 +938,9 @@ default = "example"
 | Single files the write barrier keeps open | `<state directory>\open.toml` |
 | Manifest of a writable area | `<area path>\.loomux\config.toml` |
 | Manifest of a read-only area, as the write barrier reads it | `<state directory>\areas\<scope>\.loomux\config.toml` |
-| Artefacts of a read-only area (`index.md`, `graph.json`, `_identities.tsv`) and its manifest, as `loomux brain` reads them | `<state directory>\areas\<scope>\`; falls back to `%LOCALAPPDATA%\brain\areas\<scope>\` for reading until stage 4e |
+| Artefacts of a read-only area (`index.md`, `graph.json`, `_identities.tsv`) and its manifest, as `loomux brain` reads them | `<state directory>\areas\<scope>\` |
 | Artefacts of a writable area | its `path` |
-| Last reconcile stamp | `<state directory>\maintenance\last-run.txt`; falls back to `%LOCALAPPDATA%\brain\maintenance\last-run.txt` for reading until stage 4e |
+| Last reconcile stamp | `<state directory>\maintenance\last-run.txt` |
 | The armed lanes (versioned; written by the pre-commit gate and by `loomux gate`) | `<project>\.loomux\armed.toml` |
 | Session state of the hooks (`base`, `blocks`, `green`, `seen`) | `<project>\.loomux\state\hooks\<session_id>.json` |
 | Snapshots and findings of subagents | `<project>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
@@ -948,12 +948,8 @@ default = "example"
 | A project's own flows and overlays | `<project>\.loomux\flows\<name>\` |
 | Flow runs: journal and marker | `<project>\.loomux\state\runs\<id>.jsonl`, `<id>.flow` |
 
-`LOOMUX_STATE_DIR` overrides the state directory and
-`LOOMUX_LEGACY_BRAIN_DIR` the ultra-brain directory; there is no command-line
-flag for either. Since stage 3a the legacy directory is only a read fallback
-for artefacts ultra-brain wrote: loomux reads its own state directory first
-and never writes here. With stage 4e a human reconciles the machine state by
-hand; after that the fallback, the directory and the variable go away.
+`LOOMUX_STATE_DIR` overrides the state directory; there is no command-line
+flag for it.
 
 ### Machine-wide settings: `config.toml` in the state directory
 

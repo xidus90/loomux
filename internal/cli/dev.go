@@ -732,8 +732,7 @@ func benchSearchDeps(stderr io.Writer) (benchsearch.Deps, error) {
 		return benchsearch.Deps{}, err
 	}
 	return benchsearch.Deps{
-		StateDir:    stateDir,
-		FallbackDir: config.LegacyBrainDirUntilStage3(),
+		StateDir: stateDir,
 		Daemon: func() search.SearchPort {
 			return search.NewQmdMcpPort(search.WithNotice(prefixedLine(stderr, "note")), search.WithBackbone(backbone))
 		},

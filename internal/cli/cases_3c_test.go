@@ -51,7 +51,6 @@ func TestCases3c(t *testing.T) {
 			outcome, err := cases.RunCase(c, func(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int {
 				t.Chdir(dir)
 				t.Setenv("LOOMUX_STATE_DIR", dir)
-				t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", dir)
 				t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
 				return Run(args, stdin, stdout, stderr)
 			})

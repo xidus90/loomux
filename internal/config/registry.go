@@ -33,9 +33,8 @@ type Area struct {
 	Signpost bool
 	Shared   bool
 
-	// Workspace is independent of ReadOnly, not derived from it: in the
-	// registry on this machine `project/space` sets both, `project/ecoflow`
-	// only workspace, and `project/iam-wiki` only readonly.
+	// Workspace is independent of ReadOnly, not derived from it: an entry
+	// may set either, both or neither.
 	//
 	// No rule of either check axis reads it, and that is deliberate rather
 	// than an oversight: this reader's job is to carry what the file says,

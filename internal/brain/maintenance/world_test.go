@@ -17,8 +17,7 @@ import (
 )
 
 // world is the ground a maintenance test stands on: the state directory
-// everything is written to, the fallback directory the old stock is still read
-// from, and the areas registered in them.
+// everything is read from and written to, and the areas registered in it.
 //
 // It is written for several areas from the first test that needs one, because
 // Reconcile works on a whole vault: a second helper beside this one would mean
@@ -26,7 +25,6 @@ import (
 // drift the moment one of them learned a new key.
 type world struct {
 	StateDir string
-	Fallback string
 
 	// Root is the directory the areas hang off, so a test can add a second
 	// one beside the first without inventing a place for it.
@@ -120,13 +118,12 @@ type areaOptions struct {
 	BrokenManifest bool
 }
 
-// newWorld is an empty vault: two directories and no area yet.
+// newWorld is an empty vault: a state directory and no area yet.
 func newWorld(t *testing.T) *world {
 	t.Helper()
 	root := t.TempDir()
 	return &world{
 		StateDir:  filepath.Join(root, "state"),
-		Fallback:  filepath.Join(root, "legacy"),
 		Root:      filepath.Join(root, "areas"),
 		Manifests: map[string]*config.Manifest{},
 	}
@@ -179,15 +176,15 @@ func (w *world) addArea(t *testing.T, opts areaOptions) (config.Area, *config.Ma
 		writeUnder(t, path, page, citingPage(page, opts.Cites[page], ids, opts.Realizations[page]))
 	}
 
-	// Where the declaration goes is `ResolvedAreaDir` and not the area: a
+	// Where the declaration goes is `ManifestDir` and not the area: a
 	// read-only area keeps every artefact -- the declaration among them -- in
 	// the state directory, and a helper that always wrote it into the tree
 	// would let a reader that looks in the wrong place pass. Measured: with
 	// the declaration in the tree, a reconcile that reads `area.Path` skips
 	// every read-only area **without a word**, and nothing in this suite says
 	// so.
-	declarationDir := config.ResolvedAreaDir(
-		config.Area{Scope: scope, Path: path, ReadOnly: opts.ReadOnly}, w.StateDir, w.Fallback)
+	declarationDir := config.ManifestDir(
+		config.Area{Scope: scope, Path: path, ReadOnly: opts.ReadOnly}, w.StateDir)
 	switch {
 	case opts.NoManifest:
 	case opts.BrokenManifest:
@@ -361,11 +358,10 @@ func (w *world) Change(t *testing.T, scope, relative, content string) {
 	writeUnder(t, filepath.Join(w.Root, filepath.FromSlash(scope)), relative, content)
 }
 
-// Lookup is the pair of directories every reader of this stage is handed:
-// written to the first, read from the first and, as long as nothing lies
-// there, from the second.
+// Lookup is the state directory every reader is handed, read from and
+// written to alike.
 func (w *world) Lookup() config.ArtifactLookup {
-	return config.ArtifactLookup{Primary: w.StateDir, Fallback: w.Fallback}
+	return config.ArtifactLookup{Primary: w.StateDir}
 }
 
 // Now is the point in time the tests reconcile at. Fixed and not the clock: a
@@ -376,12 +372,12 @@ func (w *world) Now() time.Time {
 }
 
 // writeRegisterText puts a register where this area's artefacts live --
-// `ResolvedAreaDir`, not the area, because a read-only area keeps them in the
+// `ManifestDir`, not the area, because a read-only area keeps them in the
 // state directory and a test that wrote them into the tree would prove the
 // wrong thing.
 func (w *world) writeRegisterText(t *testing.T, area config.Area, text string) {
 	t.Helper()
-	dir := config.ResolvedAreaDir(area, w.StateDir, w.Fallback)
+	dir := config.ManifestDir(area, w.StateDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

@@ -364,12 +364,12 @@ func missingFromSignpost(
 //
 // The manifest is read where `manifest_path` looks for it
 // (`src/brain/registry.py:129`): at the area's path, or for a read-only
-// area out of the state directory -- `config.ResolvedAreaDir`, the same
+// area out of the state directory -- `config.ManifestDir`, the same
 // answer `run.areaManifest` and the sweep take for every other value of
 // that file.
 func hubFolder(signpost config.Area, lookup config.ArtifactLookup) (string, bool) {
 	manifest, err := config.ReadAreaDeclaration(
-		config.ResolvedAreaDir(signpost, lookup.Primary, lookup.Fallback))
+		config.ManifestDir(signpost, lookup.Primary))
 	if config.IsUndeclared(err) {
 		return "", true
 	}

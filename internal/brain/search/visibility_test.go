@@ -13,10 +13,10 @@ import (
 )
 
 // closedWorld registers, beside the open area "alpha", the read-only "zz-lent" whose
-// manifest is the `local_only` one in the legacy state directory while its checkout
+// manifest is the `local_only` one in the state directory while its checkout
 // carries an open `.loomux/config.toml`. With sealed it adds "zz-sealed", whose
 // `local_only` `.loomux/config.toml` cannot be read.
-// It returns the directory that holds the registry and the legacy state both.
+// It returns the state directory, which holds the registry and that manifest both.
 func closedWorld(t *testing.T, sealed bool) string {
 	t.Helper()
 	root := t.TempDir()
@@ -52,7 +52,7 @@ func closedWorld(t *testing.T, sealed bool) string {
 // N3 of the scheibe-6 merge re-review, on the surface where it matters most:
 // the engine must not be asked about a closed area at all, because the
 // question is already the disclosure. A read-only area's own declaration is the
-// one in the legacy state directory, not the one in its checkout.
+// one in the state directory, not the one in its checkout.
 func TestExecuteSearch_AClosedDeclarationIsNotAsked(t *testing.T) {
 	stateDir := closedWorld(t, false)
 	for _, tc := range []struct {
@@ -69,7 +69,7 @@ func TestExecuteSearch_AClosedDeclarationIsNotAsked(t *testing.T) {
 				return nil, nil
 			},
 		}
-		if _, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, tc.channel, port, stateDir, stateDir, searchNow); err != nil {
+		if _, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, tc.channel, port, stateDir, searchNow); err != nil {
 			t.Fatalf("%s: %v", tc.channel, err)
 		}
 		if !reflect.DeepEqual(requested, tc.want) {
@@ -78,7 +78,7 @@ func TestExecuteSearch_AClosedDeclarationIsNotAsked(t *testing.T) {
 	}
 
 	port := &mockSearchPort{}
-	_, err := search.ExecuteSearch("q", "zz-lent", search.ProfileFast, 5, privacy.ChannelCloud, port, stateDir, stateDir, searchNow)
+	_, err := search.ExecuteSearch("q", "zz-lent", search.ProfileFast, 5, privacy.ChannelCloud, port, stateDir, searchNow)
 	if err == nil || !strings.Contains(err.Error(), "unknown scope") {
 		t.Errorf("cloud search of zz-lent: err = %v, want the unknown-scope refusal", err)
 	}
@@ -94,7 +94,7 @@ func TestExecuteSearch_AnUnreadableDeclarationFailsTheWholeSearch(t *testing.T) 
 	stateDir := closedWorld(t, true)
 	for _, channel := range []privacy.Channel{privacy.ChannelCloud, privacy.ChannelLocal} {
 		port := &mockSearchPort{}
-		if _, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, channel, port, stateDir, stateDir, searchNow); err == nil {
+		if _, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, channel, port, stateDir, searchNow); err == nil {
 			t.Errorf("%s: expected the unreadable declaration to fail the search", channel)
 		}
 		if port.calls != 0 {

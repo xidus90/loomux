@@ -31,9 +31,8 @@ func readOnlyArea(path string) config.Area {
 }
 
 // A read-only area's stock lands under the state directory, and it lands
-// whole: the declaration that still lay in the old state directory comes
-// along, because every read of the area -- the declaration included --
-// switches to the new place the instant anything lies there.
+// whole: the declaration that lay there before comes along with the new
+// catalog, graph and register.
 func TestReindexWritesAReadOnlyAreaWholeIntoTheStateDirectory(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmp)
@@ -41,15 +40,13 @@ func TestReindexWritesAReadOnlyAreaWholeIntoTheStateDirectory(t *testing.T) {
 	areaDir := filepath.Join(tmp, "notes")
 	writeFile(t, filepath.Join(areaDir, "one.md"), "---\ntitle: One\n---\n# One\n")
 
-	legacyDir := filepath.Join(tmp, "legacy")
-	writeFile(t, filepath.Join(legacyDir, "areas", "read-only", ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
-
 	stateDir := filepath.Join(tmp, "state")
+	writeFile(t, filepath.Join(stateDir, "areas", "read-only", ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
 	registry := "[[area]]\nscope = \"read/only\"\npath = \"" + filepath.ToSlash(areaDir) + "\"\nreadonly = true\n"
 	regPath := writeTestRegistry(t, stateDir, registry)
 
 	var stderr bytes.Buffer
-	code, err := ReindexWithOutput(regPath, stateDir, legacyDir, search.NewFakePort(), &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("Reindex = %d, %v; stderr: %s", code, err, stderr.String())
 	}
@@ -91,7 +88,7 @@ func TestReindexLeavesTheOldStockWholeWhenAWriteBreaks(t *testing.T) {
 	regPath := writeTestRegistry(t, stateDir, registry)
 
 	var stderr bytes.Buffer
-	code, err := ReindexWithOutput(regPath, stateDir, "", search.NewFakePort(), &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), &stderr)
 	if err == nil || code != 1 {
 		t.Fatalf("Reindex = %d, %v; want the empty intro to end the run", code, err)
 	}
@@ -204,8 +201,8 @@ func TestCopyFileReportsASourceItCannotRead(t *testing.T) {
 }
 
 // A swap a killed run left half-done is finished before this run reads
-// anything of the area -- not at the end, where the stock it carried forward
-// would already have come from the wrong place.
+// anything of the area -- not at the end, by which time the read would have
+// found no declaration where the aside should have been put back.
 func TestReindexFinishesAnInterruptedSwapBeforeItReads(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmp)
@@ -219,17 +216,11 @@ func TestReindexFinishesAnInterruptedSwapBeforeItReads(t *testing.T) {
 	writeFile(t, filepath.Join(aside, ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
 	writeFile(t, filepath.Join(aside, identitiesName), identity.IdentitiesHeader+"\n")
 
-	// The old state directory holds a stock of its own. Were the recovery to
-	// wait until the swap, this run would read that one and undo what the
-	// killed run had already replaced.
-	legacyDir := filepath.Join(tmp, "legacy")
-	writeFile(t, filepath.Join(legacyDir, "areas", "read-only", ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n[index]\ninclude = [\"nothing/*.md\"]\n")
-
 	registry := "[[area]]\nscope = \"read/only\"\npath = \"" + filepath.ToSlash(areaDir) + "\"\nreadonly = true\n"
 	regPath := writeTestRegistry(t, stateDir, registry)
 
 	var stderr bytes.Buffer
-	code, err := ReindexWithOutput(regPath, stateDir, legacyDir, search.NewFakePort(), &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("Reindex = %d, %v; stderr: %s", code, err, stderr.String())
 	}
@@ -241,7 +232,7 @@ func TestReindexFinishesAnInterruptedSwapBeforeItReads(t *testing.T) {
 		t.Fatalf("ReadFile: %v", err)
 	}
 	if !strings.Contains(string(catalog), "one.md") {
-		t.Errorf("catalog = %q, want the recovered declaration's include, not the old state directory's", catalog)
+		t.Errorf("catalog = %q, want the catalog of the recovered declaration", catalog)
 	}
 }
 
@@ -266,7 +257,7 @@ func TestReindexStopsWhenAnInterruptedSwapCannotBeFinished(t *testing.T) {
 	defer func() { recoverStockFn = previous }()
 
 	var stderr bytes.Buffer
-	code, err := ReindexWithOutput(regPath, stateDir, "", search.NewFakePort(), &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), &stderr)
 	if !errors.Is(err, refused) || code != 1 {
 		t.Fatalf("Reindex = %d, %v; want it to wrap %v", code, err, refused)
 	}
@@ -310,7 +301,7 @@ func TestReindexLeavesTheOldStockWholeWhenTheSwapBreaks(t *testing.T) {
 	defer func() { replaceDirFn = previous }()
 
 	var stderr bytes.Buffer
-	code, err := ReindexWithOutput(regPath, stateDir, "", search.NewFakePort(), &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), &stderr)
 	if !errors.Is(err, refused) || code != 1 {
 		t.Fatalf("Reindex = %d, %v; want it to wrap %v", code, err, refused)
 	}

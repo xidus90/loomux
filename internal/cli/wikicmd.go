@@ -175,9 +175,9 @@ func wikiRetype(args []string, stdout, stderr io.Writer) int {
 }
 
 // manifestDirOf is where an area's declaration lies: in its own tree, or for a
-// read-only area under the state directory, new place first.
+// read-only area under the state directory.
 func manifestDirOf(lookup config.ArtifactLookup) func(config.Area) string {
 	return func(area config.Area) string {
-		return config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback)
+		return config.ManifestDir(area, lookup.Primary)
 	}
 }

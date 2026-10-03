@@ -165,7 +165,6 @@ type recorder struct {
 func (r *recorder) deps(registryDir string) servegraph.Deps {
 	return servegraph.Deps{
 		RegistryDir: registryDir,
-		LegacyDir:   registryDir,
 		Ask: func(root, question string, opts query.AskOptions) (ask.Answer, []string, error) {
 			if r.askPanic != nil {
 				panic(r.askPanic)
@@ -636,7 +635,7 @@ func hashRepo(t *testing.T) (servegraph.Deps, string) {
 	if _, _, err := query.Build(root, func(string) {}); err != nil {
 		t.Fatal(err)
 	}
-	return servegraph.Deps{RegistryDir: dir, LegacyDir: dir, Ask: query.Ask, Check: query.Check}, root
+	return servegraph.Deps{RegistryDir: dir, Ask: query.Ask, Check: query.Check}, root
 }
 
 func TestANeverGlobHidesAFileWhoseNameStartsWithAHashEndToEnd(t *testing.T) {

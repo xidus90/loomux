@@ -121,7 +121,7 @@ func scanErr(t *testing.T) error {
 	if err := os.WriteFile(filepath.Join(area.Path, identitiesName), []byte(register), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	_, _, _, err := Scan(area, nil, filepath.Join(root, "state"), "")
+	_, _, _, err := Scan(area, nil, filepath.Join(root, "state"))
 	return err
 }
 

@@ -121,7 +121,7 @@ func TestCollectionName(t *testing.T) {
 func TestExecuteSearch_RegistryNotFound(t *testing.T) {
 	nonexistent := filepath.Join(t.TempDir(), "nonexistent")
 	port := &mockSearchPort{}
-	_, err := search.ExecuteSearch("query", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, nonexistent, nonexistent, searchNow)
+	_, err := search.ExecuteSearch("query", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, nonexistent, searchNow)
 	if err == nil {
 		t.Fatal("expected error for nonexistent registry, got nil")
 	}
@@ -136,7 +136,7 @@ func TestExecuteSearch_EmptyRegistry(t *testing.T) {
 	writeStamp(t, dir, "2000-01-01T00:00:00+00:00\n")
 
 	port := &mockSearchPort{}
-	answer, err := search.ExecuteSearch("query", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("query", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestExecuteSearch_AnAreaWithoutADeclarationFailsTheSearch(t *testing.T) {
 	writeRegistry(t, dir, areaEntry("bare", bare))
 
 	port := &mockSearchPort{}
-	if _, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow); err == nil {
+	if _, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow); err == nil {
 		t.Fatal("expected an error for an area without a manifest")
 	}
 	if port.calls != 0 {
@@ -174,7 +174,7 @@ func TestExecuteSearch_UnknownScope(t *testing.T) {
 	writeRegistry(t, dir, areaEntry("knowledge", knowledge)+areaEntry("project/ultra-brain", ub))
 
 	port := &mockSearchPort{}
-	_, err := search.ExecuteSearch("query", "project/missing", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	_, err := search.ExecuteSearch("query", "project/missing", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	want := "unknown scope 'project/missing'; known scopes are: knowledge, project/ultra-brain"
 	if err == nil || err.Error() != want {
 		t.Fatalf("got %v, want %q", err, want)
@@ -201,7 +201,7 @@ func TestExecuteSearch_AllScope(t *testing.T) {
 		},
 	}
 
-	answer, err := search.ExecuteSearch("arch", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("arch", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestExecuteSearch_SpecificScope(t *testing.T) {
 		},
 	}
 
-	answer, err := search.ExecuteSearch("hello", "project/ultra-brain", search.ProfileFull, 3, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("hello", "project/ultra-brain", search.ProfileFull, 3, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestExecuteSearch_PortError(t *testing.T) {
 		},
 	}
 
-	_, err := search.ExecuteSearch("query", "all", search.ProfileKeyword, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	_, err := search.ExecuteSearch("query", "all", search.ProfileKeyword, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("expected error %v, got %v", expectedErr, err)
 	}
@@ -286,7 +286,7 @@ func TestExecuteSearch_EmptyRetrySuccess(t *testing.T) {
 		},
 	}
 
-	answer, err := search.ExecuteSearch("retry query", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("retry query", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestExecuteSearch_EmptyRetryError(t *testing.T) {
 		},
 	}
 
-	_, err := search.ExecuteSearch("retry err", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	_, err := search.ExecuteSearch("retry err", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if !errors.Is(err, retryErr) {
 		t.Fatalf("expected error %v, got %v", retryErr, err)
 	}
@@ -329,7 +329,7 @@ func TestExecuteSearch_EmptyRetryTwiceGivesFinding(t *testing.T) {
 	writeRegistry(t, dir, areaEntry("knowledge", knowledge))
 
 	port := &mockSearchPort{}
-	answer, err := search.ExecuteSearch("nothing", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("nothing", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestExecuteSearch_WithheldHits(t *testing.T) {
 		},
 	}
 
-	answer, err := search.ExecuteSearch("mix", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("mix", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestExecuteSearch_RegisterFindingsCoverEveryKeptHitBeforeTheCut(t *testing.
 		}, nil
 	}}
 
-	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 2, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 2, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -425,7 +425,7 @@ func TestExecuteSearch_LimitsHitsToN(t *testing.T) {
 		},
 	}
 
-	answer, err := search.ExecuteSearch("limit", "all", search.ProfileFast, 2, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("limit", "all", search.ProfileFast, 2, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -448,31 +448,10 @@ func TestExecuteSearch_ABrokenRegisterFailsEvenWithoutItsHits(t *testing.T) {
 	port := &mockSearchPort{searchFunc: func(string, []string, search.Profile, int) ([]search.SearchHit, error) {
 		return []search.SearchHit{{Collection: "a", Relative: "x.md"}}, nil
 	}}
-	_, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	_, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	want := filepath.Join(b, "_identities.tsv") + ": line 2: expected 4 tab-separated fields, found 2"
 	if err == nil || err.Error() != want {
 		t.Fatalf("got %v, want %q", err, want)
-	}
-}
-
-// A read-only area keeps manifest and register in the legacy state directory, the registry
-// lives elsewhere: the register that counts is the legacy one, not the checkout's.
-func TestExecuteSearch_AReadOnlyAreaReadsItsRegisterFromTheLegacyDirectory(t *testing.T) {
-	registryDir := t.TempDir()
-	legacyDir := t.TempDir()
-	checkout := writeArea(t, t.TempDir(), "lent", manifestOf("lent"))
-	writeArea(t, filepath.Join(legacyDir, "areas"), "lent", manifestOf("lent"), "doc.md")
-	writeRegistry(t, registryDir, areaEntry("lent", checkout)+"readonly = true\n")
-
-	port := &mockSearchPort{searchFunc: func(string, []string, search.Profile, int) ([]search.SearchHit, error) {
-		return []search.SearchHit{{Collection: "lent", Relative: "doc.md"}}, nil
-	}}
-	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, registryDir, legacyDir, searchNow)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(answer.Hits) != 1 || len(answer.Findings) != 0 {
-		t.Fatalf("hits %+v, findings %q", answer.Hits, answer.Findings)
 	}
 }
 
@@ -483,7 +462,7 @@ func TestExecuteSearch_FindingsComeInPythonsOrder(t *testing.T) {
 	writeStamp(t, dir, "2000-01-01T00:00:00+00:00\n")
 
 	t.Run("twice empty, then the stamp", func(t *testing.T) {
-		answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, &mockSearchPort{}, dir, dir, searchNow)
+		answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, &mockSearchPort{}, dir, searchNow)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -495,7 +474,7 @@ func TestExecuteSearch_FindingsComeInPythonsOrder(t *testing.T) {
 		port := &mockSearchPort{searchFunc: func(string, []string, search.Profile, int) ([]search.SearchHit, error) {
 			return []search.SearchHit{{Collection: "stranger", Relative: "b.md"}, {Collection: "knowledge", Relative: "n1.md"}}, nil
 		}}
-		answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+		answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -513,7 +492,7 @@ func TestExecuteSearch_NoVisibleAreaCarriesNoStaleFinding(t *testing.T) {
 	writeRegistry(t, dir, areaEntry("project/secret", closed))
 	writeStamp(t, dir, "2000-01-01T00:00:00+00:00\n")
 
-	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelCloud, &mockSearchPort{}, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelCloud, &mockSearchPort{}, dir, searchNow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +509,7 @@ func TestExecuteSearch_AStampThatCannotBeReadFailsTheSearch(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := &mockSearchPort{}
-	if _, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow); err == nil {
+	if _, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow); err == nil {
 		t.Fatal("expected the unreadable stamp to fail the search")
 	}
 	if port.calls != 2 {
@@ -624,7 +603,7 @@ func TestExecuteSearch_LocalOnlyAreaIsNotAskedOnCloud(t *testing.T) {
 	}
 
 	_, err := search.ExecuteSearch(
-		"q", "all", search.ProfileFast, 5, privacy.ChannelCloud, port, dir, dir, searchNow)
+		"q", "all", search.ProfileFast, 5, privacy.ChannelCloud, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -657,7 +636,7 @@ func TestExecuteSearch_LocalOnlyAreaIsAskedOnLocal(t *testing.T) {
 	}
 
 	if _, err := search.ExecuteSearch(
-		"q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow); err != nil {
+		"q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -681,10 +660,10 @@ func TestExecuteSearch_InvisibleScopeIsRefusedLikeAnAbsentOne(t *testing.T) {
 
 	invisible := &mockSearchPort{}
 	_, errInvisible := search.ExecuteSearch(
-		"q", "project/secret", search.ProfileFast, 5, privacy.ChannelCloud, invisible, dir, dir, searchNow)
+		"q", "project/secret", search.ProfileFast, 5, privacy.ChannelCloud, invisible, dir, searchNow)
 	absent := &mockSearchPort{}
 	_, errAbsent := search.ExecuteSearch(
-		"q", "project/does-not-exist", search.ProfileFast, 5, privacy.ChannelCloud, absent, dir, dir, searchNow)
+		"q", "project/does-not-exist", search.ProfileFast, 5, privacy.ChannelCloud, absent, dir, searchNow)
 
 	if errInvisible == nil || errAbsent == nil {
 		t.Fatalf("expected both to be refused; invisible=%v absent=%v", errInvisible, errAbsent)
@@ -717,7 +696,7 @@ func TestExecuteSearch_NoVisibleAreaAsksNothing(t *testing.T) {
 
 	port := &mockSearchPort{}
 	answer, err := search.ExecuteSearch(
-		"q", "all", search.ProfileFast, 5, privacy.ChannelCloud, port, dir, dir, searchNow)
+		"q", "all", search.ProfileFast, 5, privacy.ChannelCloud, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -745,7 +724,7 @@ func TestExecuteSearch_NeverPathIsDroppedOnItsOwnChannel(t *testing.T) {
 		}, nil
 	}}
 
-	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("ExecuteSearch returned an error: %v", err)
 	}
@@ -783,7 +762,7 @@ func TestExecuteSearch_NeverAndUnknownCollectionShareOneCount(t *testing.T) {
 		}, nil
 	}}
 
-	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("ExecuteSearch returned an error: %v", err)
 	}
@@ -809,7 +788,7 @@ func TestExecuteSearch_WithoutNeverEveryHitSurvives(t *testing.T) {
 		}, nil
 	}}
 
-	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, dir, searchNow)
+	answer, err := search.ExecuteSearch("q", "all", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("ExecuteSearch returned an error: %v", err)
 	}

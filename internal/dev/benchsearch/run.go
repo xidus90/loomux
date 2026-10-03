@@ -33,16 +33,16 @@ type Options struct {
 
 // Deps are what a run reaches outside itself.
 type Deps struct {
-	StateDir, FallbackDir string                                    // the real state
-	Daemon                func() search.SearchPort                  // everyday: the service
-	CLI                   func(index string) search.SearchPort      // corpus: QmdPort with --index
-	QmdVersion            func() string                             // never fails: "unknown" instead
-	Models                func(configPath string) map[string]string // index.Models
-	Loomux                string
-	Now                   func() time.Time // the stamp and the reconcile clock
-	Clock                 func() time.Time // for timings
-	Random                func() string
-	Warn                  func(string)
+	StateDir   string                                    // the real state
+	Daemon     func() search.SearchPort                  // everyday: the service
+	CLI        func(index string) search.SearchPort      // corpus: QmdPort with --index
+	QmdVersion func() string                             // never fails: "unknown" instead
+	Models     func(configPath string) map[string]string // index.Models
+	Loomux     string
+	Now        func() time.Time // the stamp and the reconcile clock
+	Clock      func() time.Time // for timings
+	Random     func() string
+	Warn       func(string)
 	// Backbone is what a qmd process this run starts computes on: the user's
 	// QMD_LLAMA_GPU or QMD_FORCE_CPU where one is set, else the machine's
 	// [search] backbone.
@@ -71,7 +71,7 @@ func Bench(o Options, d Deps) (string, error) {
 	// Once per run: taken again for the head, the report could name a minute
 	// its file name does not.
 	stamp := benchreport.Stamp(d.Now())
-	c := chain{scope: o.Scope, channel: o.Channel, stateDir: d.StateDir, fallback: d.FallbackDir, now: d.Now}
+	c := chain{scope: o.Scope, channel: o.Channel, stateDir: d.StateDir, now: d.Now}
 	if c.scope == "" && !o.ScopeSet {
 		c.scope = "knowledge"
 	}
@@ -101,7 +101,7 @@ func Bench(o Options, d Deps) (string, error) {
 			return "", err
 		}
 		prepared = p
-		c.scope, c.stateDir, c.fallback = p.Scope, p.StateDir, ""
+		c.scope, c.stateDir = p.Scope, p.StateDir
 	}
 	registered, err := config.ReadRegistry(c.stateDir)
 	if err != nil {
@@ -346,15 +346,15 @@ func firstDocument(listings map[string][]string) (string, string, bool) {
 // chain is the search chain above the port as everyday use asks it: with
 // the privacy filter, the register and the reconcile stamp.
 type chain struct {
-	port               search.SearchPort
-	scope              string
-	channel            privacy.Channel
-	stateDir, fallback string
-	now                func() time.Time
+	port     search.SearchPort
+	scope    string
+	channel  privacy.Channel
+	stateDir string
+	now      func() time.Time
 }
 
 func (c chain) search(query string, profile search.Profile, n int) (*search.SearchAnswer, error) {
-	return search.ExecuteSearch(query, c.scope, profile, n, c.channel, c.port, c.stateDir, c.fallback, c.now())
+	return search.ExecuteSearch(query, c.scope, profile, n, c.channel, c.port, c.stateDir, c.now())
 }
 
 // ask reduces the chain to ranked absolute paths among the first ten. What
@@ -393,7 +393,7 @@ func (c chain) latency(readScope, relative, query string, repeat int, clock func
 	answering := func(req answer.Request) func() error {
 		req.Channel = c.channel
 		return func() error {
-			_, _, err := answer.RunWith(answer.Ports{}, req, c.stateDir, c.fallback, nil)
+			_, _, err := answer.RunWith(answer.Ports{}, req, c.stateDir, nil)
 			return err
 		}
 	}

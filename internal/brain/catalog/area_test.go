@@ -26,7 +26,7 @@ func TestReadAreaCatalog(t *testing.T) {
 		ReadOnly: false,
 	}
 
-	got, err := catalog.ReadAreaCatalog(writableArea, tmp, "")
+	got, err := catalog.ReadAreaCatalog(writableArea, tmp)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestReadAreaCatalog(t *testing.T) {
 		ReadOnly: true,
 	}
 
-	got, err = catalog.ReadAreaCatalog(readonlyArea, stateDir, "")
+	got, err = catalog.ReadAreaCatalog(readonlyArea, stateDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestReadAreaCatalog(t *testing.T) {
 		Path:     filepath.Join(tmp, "nonexistent"),
 		ReadOnly: false,
 	}
-	_, err = catalog.ReadAreaCatalog(missingArea, stateDir, "")
+	_, err = catalog.ReadAreaCatalog(missingArea, stateDir)
 	if err == nil {
 		t.Fatal("expected error for missing index.md, got nil")
 	}

@@ -22,20 +22,19 @@ const neverReconciled = "last reconcile: never; run `brain reconcile`"
 // the fresh ones after, as in the recorded worlds.
 func asked() time.Time { return time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC) }
 
-// world keeps the registry, the legacy state directory and the writable
-// areas in three temporary directories of their own, so a test notices when
-// Lines reads one of them in place of another.
+// world keeps the state directory, which holds the registry, and the
+// writable areas in two temporary directories of their own, so a test
+// notices when Lines reads one of them in place of the other.
 type world struct {
 	t        *testing.T
 	registry string
-	legacy   string
 	repos    string
 	entries  strings.Builder
 }
 
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	return &world{t: t, registry: t.TempDir(), legacy: t.TempDir(), repos: t.TempDir()}
+	return &world{t: t, registry: t.TempDir(), repos: t.TempDir()}
 }
 
 // write puts content at path and creates the directories above it.
@@ -67,17 +66,17 @@ func (w *world) writable(scope, name, manifest string) string {
 }
 
 // readOnly registers scope as a read-only area at path, writes its manifest
-// into legacy/areas/<flat> and returns that directory, which holds its
+// into <state>/areas/<flat> and returns that directory, which holds its
 // artefacts too.
 func (w *world) readOnly(scope, flat, path, manifest string) string {
-	dir := filepath.Join(w.legacy, "areas", flat)
+	dir := filepath.Join(w.registry, "areas", flat)
 	w.register(scope, path, true)
 	w.write(filepath.Join(dir, ".loomux", "config.toml"), fmt.Sprintf("[area]\nscope = '%s'\n%s", scope, manifest))
 	return dir
 }
 
 func (w *world) stamp(content string) {
-	w.write(filepath.Join(w.legacy, "maintenance", "last-run.txt"), content)
+	w.write(filepath.Join(w.registry, "maintenance", "last-run.txt"), content)
 }
 
 // graph writes a graph.json without edges; dropped is the inside of the
@@ -100,7 +99,7 @@ func row(docID, relative, hash string) string {
 func (w *world) lines(ch privacy.Channel, port search.SearchPort) ([]string, error) {
 	w.t.Helper()
 	w.write(filepath.Join(w.registry, "registry.toml"), w.entries.String())
-	return Lines(ch, port, w.registry, w.legacy, asked())
+	return Lines(ch, port, w.registry, asked())
 }
 
 func listing(paths ...string) search.ScriptedIndexed {
@@ -163,7 +162,7 @@ func TestLinesNameTheStampAndWhetherItIsADayOld(t *testing.T) {
 func TestLinesAbortWhenTheStampCannotBeRead(t *testing.T) {
 	w := newWorld(t)
 	w.stamp("2000-01-01T00:00:00+00:00\n")
-	testlock.Lock(t, filepath.Join(w.legacy, "maintenance", "last-run.txt"))
+	testlock.Lock(t, filepath.Join(w.registry, "maintenance", "last-run.txt"))
 	port := search.NewFakePort()
 	got, err := w.lines(privacy.ChannelLocal, port)
 	refused(t, got, err, port)
@@ -171,7 +170,7 @@ func TestLinesAbortWhenTheStampCannotBeRead(t *testing.T) {
 
 func TestLinesAbortWithoutARegistry(t *testing.T) {
 	port := search.NewFakePort()
-	got, err := Lines(privacy.ChannelLocal, port, t.TempDir(), t.TempDir(), asked())
+	got, err := Lines(privacy.ChannelLocal, port, t.TempDir(), asked())
 	refused(t, got, err, port)
 }
 
@@ -240,7 +239,7 @@ func TestLinesSkipAReadOnlyAreaWhosePathIsGone(t *testing.T) {
 }
 
 func TestLinesSkipAnAreaThatWasNeverIndexed(t *testing.T) {
-	// A read-only area's graph lies in the legacy directory: `kept` has one
+	// A read-only area's graph lies in the state directory: `kept` has one
 	// there and none in the area, `bare` one in the area and none there. Only
 	// `kept` has a listing scripted; an unscripted listing would add a line.
 	w := newWorld(t)

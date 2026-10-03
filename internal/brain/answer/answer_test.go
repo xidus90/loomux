@@ -41,7 +41,7 @@ func TestRunStatusAnswersWithoutANotice(t *testing.T) {
 	text, notes, err := answer.RunWith(stubbedStatusPort(), answer.Request{
 		Command: "status",
 		Channel: privacy.ChannelLocal,
-	}, dir, dir, func(m string) { heard = append(heard, m) })
+	}, dir, func(m string) { heard = append(heard, m) })
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestRunStatusAnswersWithoutANotice(t *testing.T) {
 
 func TestRunRefusesAnUnknownCommand(t *testing.T) {
 	dir := t.TempDir()
-	_, _, err := answer.Run(answer.Request{Command: "nonesuch"}, dir, dir, func(string) {})
+	_, _, err := answer.Run(answer.Request{Command: "nonesuch"}, dir, func(string) {})
 	if err == nil {
 		t.Fatal("expected an error for an unknown command")
 	}
@@ -74,7 +74,7 @@ func TestRunToleratesANilNotice(t *testing.T) {
 	if _, _, err := answer.RunWith(stubbedStatusPort(), answer.Request{
 		Command: "status",
 		Channel: privacy.ChannelLocal,
-	}, dir, dir, nil); err != nil {
+	}, dir, nil); err != nil {
 		t.Fatalf("Run with nil notice: %v", err)
 	}
 }
@@ -108,7 +108,7 @@ func TestDefaultPortsWithHandsTheOptionsToTheQmdPort(t *testing.T) {
 func TestRunForAnswersLikeRun(t *testing.T) {
 	dir := t.TempDir()
 	run := answer.RunFor(dir, search.WithQmdLock(filepath.Join(dir, "qmd.lock")))
-	_, _, err := run(answer.Request{Command: "nonesuch"}, dir, dir, nil)
+	_, _, err := run(answer.Request{Command: "nonesuch"}, dir, nil)
 	if err == nil || !strings.Contains(err.Error(), "nonesuch") {
 		t.Fatalf("got %v", err)
 	}

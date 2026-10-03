@@ -88,7 +88,7 @@ func TestPrepareCorpusWritesStateAndANamedConfig(t *testing.T) {
 	if len(areas) != 1 || !areas[0].ReadOnly || areas[0].Path != filepath.ToSlash(filepath.Join(p.Stand, "notes")) {
 		t.Fatalf("areas = %+v", areas)
 	}
-	visible, err := privacy.VisibleAreas(p.StateDir, "", CorpusScope, privacy.ChannelLocal)
+	visible, err := privacy.VisibleAreas(p.StateDir, CorpusScope, privacy.ChannelLocal)
 	if err != nil || len(visible) != 1 {
 		t.Fatalf("visible = %+v, %v", visible, err)
 	}

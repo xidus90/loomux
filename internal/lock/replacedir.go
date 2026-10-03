@@ -32,7 +32,7 @@ func realDirs() dirOps {
 // ReplaceDir puts staging in the place of target, whole or not at all.
 //
 // The state directory resolves an area by its directory, not by the single
-// file (config.ResolvedAreaDir), and privacy.VisibleAreas gives up on the
+// file (config.ManifestDir), and privacy.VisibleAreas gives up on the
 // first missing declaration for every area at once. A target written file by
 // file therefore has a window in which the area exists but is incomplete, and
 // in that window the whole vault answers nothing. Writing beside it and
@@ -43,11 +43,9 @@ func realDirs() dirOps {
 // answer rather than the true one. For a registered read-only area an absent
 // directory is a missing declaration, and privacy.VisibleAreas gives up on the
 // first of those for every area at once -- the very refusal this movement
-// exists to prevent. It is tolerable only because config.ResolvedAreaDir still
-// falls back to ultra-brain's state directory and answers the old stock whole
-// from there. That fallback ends with stage 4, and the note in
-// docs/.superpowers/parity/stufe-3a.md says what has to be decided before it
-// does.
+// exists to prevent. An absent target is a missing declaration for a
+// read-only area, and every brain reader refuses it; Recover, which `index`
+// calls before it reads and `approve` before it writes, closes that window.
 //
 // Neither rename is atomic against the other, so a process killed between
 // them leaves the old stock under target+AsideSuffix and no target. Recover

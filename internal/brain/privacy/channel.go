@@ -45,9 +45,8 @@ func ParseChannel(s string) (Channel, error) {
 // The file is `.loomux/config.toml` alone, read by config.ReadAreaDeclaration.
 //
 // dir is where the manifest lies, which is not always the area: a read-only
-// area keeps it in the state directory, so callers pass config.ResolvedAreaDir
-// -- the directory `registry.manifest_path` reads on the Python side, with the
-// legacy directory as the fallback.
+// area keeps it in the state directory, so callers pass config.ManifestDir
+// -- the directory `registry.manifest_path` reads on the Python side.
 func VisibleManifest(dir string, ch Channel) (*config.Manifest, bool, error) {
 	manifest, err := config.ReadAreaDeclaration(dir)
 	if err != nil {

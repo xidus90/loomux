@@ -194,6 +194,33 @@ func manifestIn(t *testing.T, dir string) string {
 	return filepath.Join(dir, manifestNames[0])
 }
 
+func TestReadManifestStillKnowsOnlyTheLoomuxName(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, ".brain.toml"), "[area]\nscope = \"brain\"\n")
+	if err := os.MkdirAll(filepath.Join(dir, ".ultra-brain"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(dir, ".ultra-brain", "config.toml"), "[area]\nscope = \"ultra-brain\"\n")
+	_, err := ReadManifest(dir)
+	if !errors.Is(err, ErrNoManifest) {
+		t.Fatalf("ReadManifest err = %v, want ErrNoManifest", err)
+	}
+	if want := dir + ": no manifest found (" + filepath.Join(".loomux", "config.toml") + ")"; err.Error() != want {
+		t.Errorf("err = %q, want %q", err, want)
+	}
+}
+
+func TestReadManifestStillAcceptsAManifestWithoutAScope(t *testing.T) {
+	// The scope rule belongs to the brain reader alone; the check chain read
+	// such a manifest before this stage and still does.
+	dir := t.TempDir()
+	write(t, manifestIn(t, dir), "[privacy]\nmode = \"local_only\"\n")
+	m, err := ReadManifest(dir)
+	if err != nil || m.Scope != "" || m.PrivacyMode != "local_only" {
+		t.Fatalf("ReadManifest = %+v, %v", m, err)
+	}
+}
+
 func TestAMissingManifestIsToldFromABrokenOne(t *testing.T) {
 	// The two errors have to be distinguishable without reading their
 	// text. `house/unlisted-area` runs on an area that never declared a

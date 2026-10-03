@@ -671,7 +671,7 @@ func TestRecordAppendsOneEventForAMergeOnTheConsentingBranch(t *testing.T) {
 	if err != nil || !recorded {
 		t.Fatalf("RecordMerge = %v, %v", recorded, err)
 	}
-	events, err := maintenance.ReadEvents(lookup.Primary, "")
+	events, err := maintenance.ReadEvents(lookup.Primary)
 	if err != nil || len(events) != 1 {
 		t.Fatalf("ReadEvents = %+v, %v", events, err)
 	}
@@ -684,7 +684,7 @@ func TestRecordAppendsOneEventForAMergeOnTheConsentingBranch(t *testing.T) {
 	if !e.At.Equal(someTime.Truncate(time.Second)) {
 		t.Errorf("At = %v, want %v", e.At, someTime.Truncate(time.Second))
 	}
-	if line := readText(t, maintenance.EventsPath(lookup.Primary, "")); !strings.HasSuffix(line, "\tmain\t2026-09-24T12:30:15Z\n") {
+	if line := readText(t, maintenance.EventsPath(lookup.Primary)); !strings.HasSuffix(line, "\tmain\t2026-09-24T12:30:15Z\n") {
 		t.Errorf("line = %q", line)
 	}
 }
@@ -696,7 +696,7 @@ func TestRecordIsSilentOnAnotherBranch(t *testing.T) {
 	if err != nil || recorded {
 		t.Errorf("RecordMerge = %v, %v", recorded, err)
 	}
-	if exists(maintenance.EventsPath(lookup.Primary, "")) {
+	if exists(maintenance.EventsPath(lookup.Primary)) {
 		t.Error("an event file was written for another branch")
 	}
 }
@@ -739,7 +739,7 @@ func TestRecordCountsAMergeInAWorktreeOfTheArea(t *testing.T) {
 	if err != nil || !recorded {
 		t.Fatalf("RecordMerge = %v, %v", recorded, err)
 	}
-	events, err := maintenance.ReadEvents(lookup.Primary, "")
+	events, err := maintenance.ReadEvents(lookup.Primary)
 	if err != nil || len(events) != 1 || events[0].Repo != mustGit(t, worktree, "rev-parse", "--show-toplevel") {
 		t.Errorf("events = %+v, %v", events, err)
 	}
@@ -774,7 +774,7 @@ func TestRecordWritesOneLineWhenTwoAreasShareTheRepository(t *testing.T) {
 	if err != nil || !recorded {
 		t.Fatalf("RecordMerge = %v, %v", recorded, err)
 	}
-	if n := strings.Count(readText(t, maintenance.EventsPath(lookup.Primary, "")), "\n"); n != 1 {
+	if n := strings.Count(readText(t, maintenance.EventsPath(lookup.Primary)), "\n"); n != 1 {
 		t.Errorf("%d lines, want 1", n)
 	}
 }
@@ -784,7 +784,7 @@ func TestRecordCreatesTheMaintenanceDirectory(t *testing.T) {
 	lookup := config.ArtifactLookup{Primary: filepath.Join(t.TempDir(), "not", "yet")}
 	merge(t, repo)
 	recorded, err := maintenance.RecordMerge(repo, areas, lookup, realGit, someTime)
-	if err != nil || !recorded || !exists(maintenance.EventsPath(lookup.Primary, "")) {
+	if err != nil || !recorded || !exists(maintenance.EventsPath(lookup.Primary)) {
 		t.Errorf("RecordMerge = %v, %v", recorded, err)
 	}
 }
@@ -795,7 +795,7 @@ func TestRecordWithoutORIGHEADWritesNothing(t *testing.T) {
 	if err != nil || recorded {
 		t.Errorf("RecordMerge = %v, %v", recorded, err)
 	}
-	if exists(maintenance.EventsPath(lookup.Primary, "")) {
+	if exists(maintenance.EventsPath(lookup.Primary)) {
 		t.Error("an event file was written without a merge")
 	}
 }

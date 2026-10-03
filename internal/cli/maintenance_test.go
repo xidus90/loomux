@@ -51,7 +51,6 @@ func newReconcileWorld(t *testing.T, opts reconcileOptions) reconcileWorld {
 	state := filepath.Join(tmp, "state")
 	area := filepath.Join(tmp, "area")
 	t.Setenv("LOOMUX_STATE_DIR", state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", filepath.Join(tmp, "legacy"))
 	// Without this a case would rewrite the real qmd configuration of whoever
 	// runs the suite -- a trap this suite has walked into once.
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))

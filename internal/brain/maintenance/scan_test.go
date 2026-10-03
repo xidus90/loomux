@@ -16,7 +16,7 @@ import (
 // scan is Scan over the one area of a one-area world.
 func scan(t *testing.T, w areaWorld) (int, int, map[string]maintenance.Changed) {
 	t.Helper()
-	checked, hashed, changed, err := maintenance.Scan(w.Area, w.Manifest, w.StateDir, w.Fallback)
+	checked, hashed, changed, err := maintenance.Scan(w.Area, w.Manifest, w.StateDir)
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestTheWorldGivesEveryAreaItsOwnDocIDs(t *testing.T) {
 		area     config.Area
 		manifest *config.Manifest
 	}{{first, firstManifest}, {second, secondManifest}} {
-		_, _, changed, err := maintenance.Scan(item.area, item.manifest, w.StateDir, w.Fallback)
+		_, _, changed, err := maintenance.Scan(item.area, item.manifest, w.StateDir)
 		if err != nil {
 			t.Fatalf("Scan %s: %v", item.area.Scope, err)
 		}
@@ -426,7 +426,7 @@ func TestScanRefusesABrokenRegister(t *testing.T) {
 	w := newArea(t, map[string]string{"a.md": "first\n"})
 	w.writeRegisterText(t, w.Area, "doc_id\tpfad\tcontent_hash\trevision\nonly\ttwo\n")
 
-	_, _, _, err := maintenance.Scan(w.Area, w.Manifest, w.StateDir, w.Fallback)
+	_, _, _, err := maintenance.Scan(w.Area, w.Manifest, w.StateDir)
 
 	if err == nil {
 		t.Fatal("Scan accepted a broken register")
@@ -440,7 +440,7 @@ func TestScanRefusesAnAreaThatIsGone(t *testing.T) {
 	area := w.Area
 	area.Path = filepath.Join(area.Path, "gone")
 
-	_, _, _, err := maintenance.Scan(area, w.Manifest, w.StateDir, w.Fallback)
+	_, _, _, err := maintenance.Scan(area, w.Manifest, w.StateDir)
 
 	if err == nil {
 		t.Fatal("Scan accepted an area that is gone")
@@ -460,7 +460,7 @@ func TestScanRefusesWhenTheStatsDirectoryCannotBeMade(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	_, _, _, err := maintenance.Scan(w.Area, w.Manifest, w.StateDir, w.Fallback)
+	_, _, _, err := maintenance.Scan(w.Area, w.Manifest, w.StateDir)
 
 	if err == nil {
 		t.Fatal("Scan wrote its cache over a file")
@@ -475,7 +475,7 @@ func TestScanRefusesWhenTheStatsFileCannotBeWritten(t *testing.T) {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
-	_, _, _, err := maintenance.Scan(w.Area, w.Manifest, w.StateDir, w.Fallback)
+	_, _, _, err := maintenance.Scan(w.Area, w.Manifest, w.StateDir)
 
 	if err == nil {
 		t.Fatal("Scan wrote its cache over a directory")

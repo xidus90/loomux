@@ -86,7 +86,6 @@ func runServe(t *testing.T, brokeAway bool) string {
 		done <- serve.Run(ctx, serve.Options{
 			StateDir:    dir,
 			RegistryDir: dir,
-			LegacyDir:   dir,
 			BrokeAway:   brokeAway,
 		})
 	}()

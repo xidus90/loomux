@@ -21,7 +21,7 @@ import (
 // start runs serve in the background and waits for serve.json to appear.
 func start(t *testing.T, dir string) (*serve.State, context.CancelFunc) {
 	t.Helper()
-	state, cancel, _ := startWith(t, dir, serve.Options{StateDir: dir, RegistryDir: dir, LegacyDir: dir})
+	state, cancel, _ := startWith(t, dir, serve.Options{StateDir: dir, RegistryDir: dir})
 	return state, cancel
 }
 
@@ -112,7 +112,7 @@ func connect(t *testing.T, endpoint serve.Endpoint, opts *mcp.ClientOptions) *mc
 // noticeAnswer is an answer that says something while it works. The notice has
 // to happen before the answer returns: only inside a running request does a
 // stateless server have a way back to the client.
-func noticeAnswer(_ answer.Request, _, _ string, notice func(string)) (string, []string, error) {
+func noticeAnswer(_ answer.Request, _ string, notice func(string)) (string, []string, error) {
 	notice("warming the engine")
 	return "ok", nil, nil
 }
@@ -123,7 +123,7 @@ func giveUp(t *testing.T, dir string) error {
 	t.Helper()
 	done := make(chan error, 1)
 	go func() {
-		done <- serve.Run(context.Background(), serve.Options{StateDir: dir, RegistryDir: dir, LegacyDir: dir})
+		done <- serve.Run(context.Background(), serve.Options{StateDir: dir, RegistryDir: dir})
 	}()
 	select {
 	case err := <-done:
@@ -168,7 +168,7 @@ func TestRunGivesUpTheLockWhenTheStateCannotBeWritten(t *testing.T) {
 	// A serve that kept the lock here would refuse every later start.
 	second := make(chan error, 1)
 	go func() {
-		second <- serve.Run(context.Background(), serve.Options{StateDir: dir, RegistryDir: dir, LegacyDir: dir})
+		second <- serve.Run(context.Background(), serve.Options{StateDir: dir, RegistryDir: dir})
 	}()
 	select {
 	case err := <-second:
@@ -233,7 +233,7 @@ func TestASecondServeRefusesToStart(t *testing.T) {
 	// implementation that blocks here and passes the test is wrong.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := serve.Run(ctx, serve.Options{StateDir: dir, RegistryDir: dir, LegacyDir: dir})
+	err := serve.Run(ctx, serve.Options{StateDir: dir, RegistryDir: dir})
 	if !errors.Is(err, serve.ErrAlreadyRunning) {
 		t.Errorf("second Run returned %v, want ErrAlreadyRunning", err)
 	}
@@ -252,7 +252,7 @@ func TestStateCarriesTheRunningBuild(t *testing.T) {
 
 func TestStateRecordsWhetherTheServiceBrokeAway(t *testing.T) {
 	dir := t.TempDir()
-	state, _, _ := startWith(t, dir, serve.Options{StateDir: dir, RegistryDir: dir, LegacyDir: dir, BrokeAway: true})
+	state, _, _ := startWith(t, dir, serve.Options{StateDir: dir, RegistryDir: dir, BrokeAway: true})
 	if !state.BrokeAway {
 		t.Error("a service that broke away must say so in its state")
 	}
@@ -279,7 +279,7 @@ func TestGetIsRefusedInStatelessMode(t *testing.T) {
 
 func TestAStopRequestEndsTheServiceInOrder(t *testing.T) {
 	dir := t.TempDir()
-	state, _, done := startWith(t, dir, serve.Options{StateDir: dir, RegistryDir: dir, LegacyDir: dir})
+	state, _, done := startWith(t, dir, serve.Options{StateDir: dir, RegistryDir: dir})
 
 	res := request(t, http.MethodPost, serve.StopURL(state.Local.URL), state.Local.Token)
 	if res.StatusCode != http.StatusNoContent {
@@ -332,7 +332,7 @@ func TestTheToolListCarriesItsCacheHints(t *testing.T) {
 func TestAProgressNotificationReachesTheClientOverHTTP(t *testing.T) {
 	dir := t.TempDir()
 	state, _, _ := startWith(t, dir, serve.Options{
-		StateDir: dir, RegistryDir: dir, LegacyDir: dir, Answer: noticeAnswer,
+		StateDir: dir, RegistryDir: dir, Answer: noticeAnswer,
 	})
 
 	heard := make(chan string, 4)
@@ -360,8 +360,8 @@ func TestAProgressNotificationReachesTheClientOverHTTP(t *testing.T) {
 func TestTheCloudListenerAnswersOnItsOwnChannel(t *testing.T) {
 	dir := t.TempDir()
 	state, _, _ := startWith(t, dir, serve.Options{
-		StateDir: dir, RegistryDir: dir, LegacyDir: dir,
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		StateDir: dir, RegistryDir: dir,
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			return string(req.Channel), nil, nil
 		},
 	})

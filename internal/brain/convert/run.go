@@ -31,11 +31,11 @@ type Area struct {
 // Areas reads every area's declaration before a file is touched: one broken
 // declaration stops the run, as reading the registry stops the reference's.
 // An area without a declaration has no inbox and counts as manual_cloud.
-func Areas(areas []config.Area, stateDir, fallbackDir string) ([]Area, error) {
+func Areas(areas []config.Area, stateDir string) ([]Area, error) {
 	out := make([]Area, 0, len(areas))
 	for _, a := range areas {
 		entry := Area{Area: a, Mode: "manual_cloud"}
-		manifest, err := config.ReadAreaDeclaration(config.ResolvedAreaDir(a, stateDir, fallbackDir))
+		manifest, err := config.ReadAreaDeclaration(config.ManifestDir(a, stateDir))
 		switch {
 		case config.IsUndeclared(err):
 		case err != nil:

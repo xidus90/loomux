@@ -26,7 +26,6 @@ import (
 // tree; serve passes query's functions.
 type Deps struct {
 	RegistryDir string
-	LegacyDir   string
 	Ask         func(root, question string, opts query.AskOptions) (ask.Answer, []string, error)
 	Check       func(root string) (query.Drift, error)
 	Callers     func(root, symbol string, opts query.CallersOptions) (query.CallersAnswer, []string, error)
@@ -296,7 +295,7 @@ func resolve(tool string, channel privacy.Channel, deps Deps, scope string) (pri
 	if scope == "" {
 		return privacy.VisibleArea{}, failure(tool + " requires a scope")
 	}
-	areas, err := privacy.VisibleAreas(deps.RegistryDir, deps.LegacyDir, "all", channel)
+	areas, err := privacy.VisibleAreas(deps.RegistryDir, "all", channel)
 	if err != nil {
 		return privacy.VisibleArea{}, failure(errorText(channel, err))
 	}

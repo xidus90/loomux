@@ -8,11 +8,10 @@ import (
 )
 
 // ReadAreaCatalog reads index.md for the given area from its artifact
-// directory. config.ResolvedAreaDir names that directory: a writable area
-// keeps it in its own tree, a read-only one in stateDir with fallbackDir --
-// ultra-brain's -- as the fallback.
-func ReadAreaCatalog(area config.Area, stateDir, fallbackDir string) (string, error) {
-	catalogPath := filepath.Join(config.ResolvedAreaDir(area, stateDir, fallbackDir), "index.md")
+// directory. config.ManifestDir names that directory: a writable area
+// keeps it in its own tree, a read-only one in stateDir.
+func ReadAreaCatalog(area config.Area, stateDir string) (string, error) {
+	catalogPath := filepath.Join(config.ManifestDir(area, stateDir), "index.md")
 	// Path.read_text(encoding="utf-8") in core.catalog: strict UTF-8 and
 	// universal newlines, so a CRLF index answers with LF like the reference.
 	text, err := pytext.ReadText(catalogPath)

@@ -104,7 +104,6 @@ func TestCases4d(t *testing.T) {
 			outcome, err := cases.RunCaseWith(c, func(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int {
 				t.Chdir(dir)
 				t.Setenv("LOOMUX_STATE_DIR", dir)
-				t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", dir)
 				t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
 				useFakePdftotext(t, dir)
 				calls, addr = serveFakeOllama(t, dir)

@@ -97,9 +97,6 @@ func TestServeInTheForegroundRunsTheServiceHere(t *testing.T) {
 	if seen.StateDir != dir || seen.RegistryDir != dir {
 		t.Errorf("the service got %q and %q, want the state directory %q", seen.StateDir, seen.RegistryDir, dir)
 	}
-	if seen.LegacyDir != config.LegacyBrainDirUntilStage3() {
-		t.Errorf("the service got legacy directory %q", seen.LegacyDir)
-	}
 	// The flag is what tells the service it is not the detached child, and it
 	// is the only thing that gives serve.Options.Foreground a meaning.
 	if !seen.Foreground {

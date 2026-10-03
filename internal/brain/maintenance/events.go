@@ -60,14 +60,13 @@ func (e MergeEvent) Key() [3]string {
 	return [3]string{e.Repo, e.First, e.Last}
 }
 
-// EventsPath is where the log is read from: stateDir first and, as long as
-// nothing lies there, fallbackDir -- ultra-brain's, whose hook writes into it.
+// EventsPath is where the log is read from: stateDir.
 //
-// Both directories are arguments and neither is read from the environment, so
-// that a caller's state directory is the only one this reads (internal/serve's
+// It is an argument and not read from the environment, so that a caller's
+// state directory is the only one this reads (internal/serve's
 // promise, and the shape `search.ReadLastRun` takes for the stamp next door).
-func EventsPath(stateDir, fallbackDir string) string {
-	return config.ArtifactLookup{Primary: stateDir, Fallback: fallbackDir}.Resolve(eventsRelative)
+func EventsPath(stateDir string) string {
+	return config.ArtifactLookup{Primary: stateDir}.Resolve(eventsRelative)
 }
 
 // ReadEvents is every merge still waiting for a case, each range only once.
@@ -83,12 +82,12 @@ func EventsPath(stateDir, fallbackDir string) string {
 // merge into a lost run. Bytes that are not UTF-8 are the one failure that
 // does come back as an error: Python ends in a UnicodeDecodeError there, and
 // answering "no merge ever happened" would be the worse lie.
-func ReadEvents(stateDir, fallbackDir string) ([]MergeEvent, error) {
-	seen, err := dropped(stateDir, fallbackDir)
+func ReadEvents(stateDir string) ([]MergeEvent, error) {
+	seen, err := dropped(stateDir)
 	if err != nil {
 		return nil, err
 	}
-	lines, err := readLines(EventsPath(stateDir, fallbackDir))
+	lines, err := readLines(EventsPath(stateDir))
 	if err != nil {
 		return nil, err
 	}
@@ -124,12 +123,7 @@ func ReadEvents(stateDir, fallbackDir string) ([]MergeEvent, error) {
 // are noise a reviewer rejects; a forgotten merge is knowledge nobody gets
 // back, so the noisy direction is the chosen one.
 //
-// No fallbackDir: writing happens only to the new place. The reading pair of
-// this stage then prefers it, so the drops a Python `brain reconcile` wrote
-// into the old directory stop counting from the first drop here on -- every
-// merge it had already handled resurfaces once and is dropped again. Stage 4's
-// `migrate` carries the file over; until then that is the self-healing
-// direction of the two.
+// It writes to stateDir, the one place the log is read from.
 func DropEvent(stateDir string, event MergeEvent) error {
 	key := event.Key()
 	path := config.ArtifactLookup{Primary: stateDir}.WritePath(droppedRelative)
@@ -148,8 +142,8 @@ func AppendEvent(stateDir string, e MergeEvent) error {
 
 // dropped is the set of ranges whose case exists (`_dropped`). A line that is
 // no triple is ignored, for the reason a malformed log line is.
-func dropped(stateDir, fallbackDir string) (map[[3]string]bool, error) {
-	path := config.ArtifactLookup{Primary: stateDir, Fallback: fallbackDir}.Resolve(droppedRelative)
+func dropped(stateDir string) (map[[3]string]bool, error) {
+	path := config.ArtifactLookup{Primary: stateDir}.Resolve(droppedRelative)
 	lines, err := readLines(path)
 	if err != nil {
 		return nil, err

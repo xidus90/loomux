@@ -53,7 +53,7 @@ func refuseBindAfter(t *testing.T, refuseFrom int) *[]string {
 func runUntilItReturns(t *testing.T, dir string) error {
 	t.Helper()
 	done := make(chan error, 1)
-	go func() { done <- Run(context.Background(), Options{StateDir: dir, RegistryDir: dir, LegacyDir: dir}) }()
+	go func() { done <- Run(context.Background(), Options{StateDir: dir, RegistryDir: dir}) }()
 	select {
 	case err := <-done:
 		return err
@@ -203,7 +203,7 @@ func TestTheDefaultAnswerTakesThisServicesQmdLock(t *testing.T) {
 	root := t.TempDir()
 	global, service := filepath.Join(root, "global"), filepath.Join(root, "service")
 	t.Setenv(config.StateDirEnv, global)
-	registryDir, legacyDir := t.TempDir(), t.TempDir()
+	registryDir := t.TempDir()
 	writeRegistryWithOneArea(t, registryDir)
 
 	_, _, err := (Options{StateDir: service}).answerFunc()(answer.Request{
@@ -213,7 +213,7 @@ func TestTheDefaultAnswerTakesThisServicesQmdLock(t *testing.T) {
 		Profile: string(search.ProfileFast),
 		Count:   1,
 		Channel: privacy.ChannelLocal,
-	}, registryDir, legacyDir, nil)
+	}, registryDir, nil)
 
 	if err == nil {
 		t.Fatal("the answer succeeded although no state directory exists")
@@ -233,14 +233,14 @@ func TestTheDefaultAnswerTakesThisServicesQmdLock(t *testing.T) {
 func TestTheDefaultAnswerReadsThisServicesBackbone(t *testing.T) {
 	global := t.TempDir()
 	t.Setenv(config.StateDirEnv, global)
-	service, registryDir, legacyDir := t.TempDir(), t.TempDir(), t.TempDir()
+	service, registryDir := t.TempDir(), t.TempDir()
 	writeRegistryWithOneArea(t, registryDir)
 	if err := os.WriteFile(filepath.Join(service, "config.toml"), []byte("[search]\nbackbone = \"metal\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_, _, err := (Options{StateDir: service}).answerFunc()(answer.Request{
 		Command: "search", Query: "q", Scope: "all", Profile: string(search.ProfileFast), Count: 1, Channel: privacy.ChannelLocal,
-	}, registryDir, legacyDir, nil)
+	}, registryDir, nil)
 	if err == nil || !strings.Contains(err.Error(), filepath.Join(service, "config.toml")) {
 		t.Fatalf("got %v", err)
 	}

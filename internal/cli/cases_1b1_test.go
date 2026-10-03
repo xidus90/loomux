@@ -31,7 +31,6 @@ func TestRecordedCasesOfStage1b1(t *testing.T) {
 		t.Run(c.Verb+"/"+c.Name, func(t *testing.T) {
 			outcome, err := cases.RunCase(c, func(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int {
 				t.Setenv("LOOMUX_STATE_DIR", dir)
-				t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", dir)
 				useRecordedQmd(t, dir)
 				return Run(args, stdin, stdout, stderr)
 			})

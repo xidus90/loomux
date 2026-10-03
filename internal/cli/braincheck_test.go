@@ -41,7 +41,6 @@ func checkWorld(t *testing.T, entries ...string) {
 	tmp := t.TempDir()
 	state := filepath.Join(tmp, "state")
 	t.Setenv("LOOMUX_STATE_DIR", state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", filepath.Join(tmp, "legacy"))
 	writeFile(t, filepath.Join(state, "registry.toml"), strings.Join(entries, "\n"))
 }
 

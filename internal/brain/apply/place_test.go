@@ -680,27 +680,13 @@ func TestNoWritePrimitiveIsCalledOutsideTheBarrier(t *testing.T) {
 	} {
 		primitives[call] = below
 	}
-	// The third tier writes below the state directory and never into the
-	// vault or a wiki, which is all the gate measures: moveStock moves a
-	// read-only area's stock to loomux's state directory before a register
-	// is written there, and derives its target itself. copyStock writes
-	// wherever it is pointed, so it is a primitive in its own right, callable
-	// from moveStock alone -- as replaceIfChanged is from the gated methods.
-	// Each of the two gets exactly the disk calls it makes.
-	primitives["copyStock"] = map[string]bool{"moveStock": true}
-	for _, call := range []string{"recoverDir", "stagingDir", "swapDir", "lock.Recover", "lock.StagingDir"} {
-		primitives[call] = map[string]bool{"moveStock": true}
+	// The third tier renames below the state directory and never into the
+	// vault or a wiki, which is all the gate measures: recoverStock puts a
+	// read-only area's stock back from aside before a register is written
+	// there, and derives its target itself.
+	for _, call := range []string{"recoverDir", "lock.Recover"} {
+		primitives[call] = map[string]bool{"recoverStock": true}
 	}
-	widen := func(call, caller string) {
-		allowed := map[string]bool{caller: true}
-		for existing := range below {
-			allowed[existing] = true
-		}
-		primitives[call] = allowed
-	}
-	widen("os.RemoveAll", "moveStock")
-	widen("os.MkdirAll", "copyStock")
-	widen("os.WriteFile", "copyStock")
 	offenders := primitiveCallsOutside(t, primitives)
 	if len(offenders) != 0 {
 		t.Fatalf("write primitives outside the barrier:\n%s", strings.Join(offenders, "\n"))

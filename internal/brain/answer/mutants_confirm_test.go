@@ -39,7 +39,7 @@ func TestTheWarmingHintReachesTheCallersNotice(t *testing.T) {
 	dir := nestedVault(t)
 	req := answer.Request{Command: "search", Query: "q", Scope: "hub", Count: 5, Profile: "fast", Channel: privacy.ChannelLocal}
 	var heard []string
-	if _, _, err := answer.RunWith(warmingPorts(), req, dir, dir, func(m string) { heard = append(heard, m) }); err != nil {
+	if _, _, err := answer.RunWith(warmingPorts(), req, dir, func(m string) { heard = append(heard, m) }); err != nil {
 		t.Fatalf("search: %v", err)
 	}
 	if len(heard) != 1 || heard[0] != "warming" {
@@ -51,7 +51,7 @@ func TestTheWarmingHintReachesTheCallersNotice(t *testing.T) {
 				t.Errorf("a nil notice crashed the answer: %v", r)
 			}
 		}()
-		if _, _, err := answer.RunWith(warmingPorts(), req, dir, dir, nil); err != nil {
+		if _, _, err := answer.RunWith(warmingPorts(), req, dir, nil); err != nil {
 			t.Errorf("search with a nil notice: %v", err)
 		}
 	}()
@@ -74,7 +74,7 @@ func TestAFailingSearchEngineIsTheAnswersError(t *testing.T) {
 				t.Errorf("a failing engine crashed the answer: %v", r)
 			}
 		}()
-		text, _, err = answer.RunWith(ports, answer.Request{Command: "search", Query: "q", Scope: "hub", Count: 5, Profile: "fast", Channel: privacy.ChannelLocal}, dir, dir, nil)
+		text, _, err = answer.RunWith(ports, answer.Request{Command: "search", Query: "q", Scope: "hub", Count: 5, Profile: "fast", Channel: privacy.ChannelLocal}, dir, nil)
 	}()
 	if !errors.Is(err, broken) || text != "" {
 		t.Errorf("got %q, %v; want the engine's error", text, err)

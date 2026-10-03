@@ -37,7 +37,6 @@ type SearchAnswer struct {
 //
 // The registry comes from registryDir, which is also the state directory the manifest
 // and the register of read-only areas and the reconcile stamp are read from.
-// fallbackDir -- ultra-brain's -- is asked only as long as nothing lies there.
 // Scope can be "all" to query all visible areas, or a specific area scope; an unknown one
 // -- or one invisible on this channel, which for the caller is the same thing -- is
 // privacy.VisibleAreas' refusal.
@@ -50,8 +49,8 @@ type SearchAnswer struct {
 //
 // Findings come in core.search's order: the twice-empty answer, the register findings in hit
 // order, the withheld count, the aged stamp.
-func ExecuteSearch(query, scope string, profile Profile, n int, channel privacy.Channel, port SearchPort, registryDir, fallbackDir string, now time.Time) (*SearchAnswer, error) {
-	areas, err := privacy.VisibleAreas(registryDir, fallbackDir, scope, channel)
+func ExecuteSearch(query, scope string, profile Profile, n int, channel privacy.Channel, port SearchPort, registryDir string, now time.Time) (*SearchAnswer, error) {
+	areas, err := privacy.VisibleAreas(registryDir, scope, channel)
 	if err != nil {
 		return nil, err
 	}
@@ -72,11 +71,11 @@ func ExecuteSearch(query, scope string, profile Profile, n int, channel privacy.
 	if err != nil {
 		return nil, err
 	}
-	answer, err := assemble(hits, areas, registryDir, fallbackDir, n)
+	answer, err := assemble(hits, areas, registryDir, n)
 	if err != nil {
 		return nil, err
 	}
-	stale, err := StaleReconcile(registryDir, fallbackDir, now)
+	stale, err := StaleReconcile(registryDir, now)
 	if err != nil {
 		return nil, err
 	}
@@ -121,14 +120,14 @@ func askTwice(port SearchPort, query string, collections []string, profile Profi
 // whose path begins with no asked collection as the first one asked (as the reference's
 // _split does), so such a hit arrives under a scope this channel does have -- and is then
 // held against that scope's `never` globs. The arm guards the ports that do not relabel.
-func assemble(hits []SearchHit, areas []privacy.VisibleArea, stateDir, fallbackDir string, n int) (*SearchAnswer, error) {
+func assemble(hits []SearchHit, areas []privacy.VisibleArea, stateDir string, n int) (*SearchAnswer, error) {
 	byCollection := make(map[string]privacy.VisibleArea, len(areas))
 	for _, visible := range areas {
 		byCollection[CollectionName(visible.Area.Scope)] = visible
 	}
 	registers := make(map[string]map[string]identity.Identity, len(areas))
 	for _, visible := range areas {
-		register, err := identity.ReadIdentities(filepath.Join(config.ResolvedAreaDir(visible.Area, stateDir, fallbackDir), "_identities.tsv"))
+		register, err := identity.ReadIdentities(filepath.Join(config.ManifestDir(visible.Area, stateDir), "_identities.tsv"))
 		if err != nil {
 			return nil, err
 		}

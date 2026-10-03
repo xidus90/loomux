@@ -78,7 +78,7 @@ func TestReindexFullWorkflow(t *testing.T) {
 	port := search.NewFakePort()
 	var stderr bytes.Buffer
 
-	code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil {
 		t.Fatalf("Reindex failed: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestReindexFullWorkflow(t *testing.T) {
 
 	// Second run: no file changed, revision stays same, port refreshed
 	stderr.Reset()
-	code, err = ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err = ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("second Reindex failed: %v, code %d", err, code)
 	}
@@ -150,7 +150,7 @@ func TestReindexFullWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	code, err = ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err = ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("reindex after edit failed: %v, code %d", err, code)
 	}
@@ -167,7 +167,7 @@ func TestReindexFullWorkflow(t *testing.T) {
 	if err := os.Rename(filepath.Join(areaDir, "doc2.md"), filepath.Join(areaDir, "doc2_renamed.md")); err != nil {
 		t.Fatal(err)
 	}
-	code, err = ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err = ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("reindex after rename failed: %v, code %d", err, code)
 	}
@@ -203,7 +203,7 @@ func TestReindexReadOnlyArea(t *testing.T) {
 	port := search.NewFakePort()
 	var stderr bytes.Buffer
 
-	code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("Reindex read-only area failed: %v, code %d", err, code)
 	}
@@ -242,7 +242,7 @@ func TestReindexSkippingMissingAreaAndManifest(t *testing.T) {
 	port := search.NewFakePort()
 	var stderr bytes.Buffer
 
-	code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil {
 		t.Fatalf("Reindex failed: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestReindexCollisionRefused(t *testing.T) {
 	port := search.NewFakePort()
 	var stderr bytes.Buffer
 
-	code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestReindexSearchPortError(t *testing.T) {
 	port.Refreshes = []error{errors.New("connection failed")}
 	var stderr bytes.Buffer
 
-	code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err == nil {
 		t.Fatal("expected error on port refresh failure")
 	}
@@ -327,7 +327,7 @@ func TestReindexRegistryError(t *testing.T) {
 	var stderr bytes.Buffer
 
 	// Invalid registry path
-	code, err := ReindexWithOutput(filepath.Join(tmp, "nonexistent_reg.toml"), tmp, "", port, &stderr)
+	code, err := ReindexWithOutput(filepath.Join(tmp, "nonexistent_reg.toml"), tmp, port, &stderr)
 	if err == nil {
 		t.Fatal("expected error on non-existent registry")
 	}
@@ -346,7 +346,7 @@ func TestReindexTakesTheRegistryFromTheStateDirectory(t *testing.T) {
 	writeTestRegistry(t, tmp, "")
 	port := search.NewFakePort()
 
-	code, err := Reindex("", tmp, "", port)
+	code, err := Reindex("", tmp, port)
 	if err != nil || code != 0 {
 		t.Errorf("expected Reindex with an empty registry path to succeed: %v, code %d", err, code)
 	}
@@ -437,7 +437,7 @@ func TestReindexNestedAreas(t *testing.T) {
 	regPath := writeTestRegistry(t, stateDir, regContent)
 
 	port := search.NewFakePort()
-	code, err := Reindex(regPath, stateDir, "", port)
+	code, err := Reindex(regPath, stateDir, port)
 	if err != nil || code != 0 {
 		t.Fatalf("reindex nested areas failed: %v, code %d", err, code)
 	}
@@ -456,7 +456,7 @@ func TestReindexNilStderrAndEmptyRegistryPath(t *testing.T) {
 
 	port := search.NewFakePort()
 	// Pass empty registryPath and nil stderr
-	code, err := ReindexWithOutput("", stateDir, "", port, nil)
+	code, err := ReindexWithOutput("", stateDir, port, nil)
 	if err != nil || code != 0 {
 		t.Errorf("expected success with empty registryPath and nil stderr: %v, code %d", err, code)
 	}
@@ -481,7 +481,7 @@ func TestReindexDroppedCollectionsOutput(t *testing.T) {
 
 	port := search.NewFakePort()
 	var stderr bytes.Buffer
-	code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("reindex failed: %v, code %d", err, code)
 	}
@@ -501,7 +501,7 @@ func TestReindexErrorBranches(t *testing.T) {
 		setupTestArea(t, areaDir, "[area]\nscope = \"bad\"\n[layout]\nreview = \".\"\n")
 		regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"bad\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
 		var stderr bytes.Buffer
-		code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+		code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 		if err == nil || code != 1 {
 			t.Errorf("expected error on root review layout, got %v, code %d", err, code)
 		}
@@ -518,7 +518,7 @@ func TestReindexErrorBranches(t *testing.T) {
 
 		regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"blocked\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
 		var stderr bytes.Buffer
-		code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+		code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 		if err == nil || code != 1 {
 			t.Errorf("expected error on blocked catalog target, got %v, code %d", err, code)
 		}
@@ -536,7 +536,7 @@ func TestReindexErrorBranches(t *testing.T) {
 
 		regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"sync-err\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
 		var stderr bytes.Buffer
-		code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+		code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 		if err == nil || code != 1 {
 			t.Errorf("expected error on broken qmd config, got %v, code %d", err, code)
 		}
@@ -555,7 +555,7 @@ func TestReindexErrorBranches(t *testing.T) {
 
 		regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"prune-err\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
 		var stderr bytes.Buffer
-		code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+		code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 		if err == nil || code != 1 {
 			t.Errorf("expected error on pruneCollectionsFn failure, got %v, code %d", err, code)
 		}
@@ -574,7 +574,7 @@ func TestReindexErrorBranches(t *testing.T) {
 
 		regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"readdoc-err\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
 		var stderr bytes.Buffer
-		code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+		code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 		if err == nil || code != 1 {
 			t.Errorf("expected error on readDocFn failure, got %v, code %d", err, code)
 		}
@@ -593,7 +593,7 @@ func TestReindexErrorBranches(t *testing.T) {
 
 		regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"hash-err\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
 		var stderr bytes.Buffer
-		code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+		code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 		if err == nil || code != 1 {
 			t.Errorf("expected error on contentHashFn failure, got %v, code %d", err, code)
 		}
@@ -608,63 +608,13 @@ func TestReindexErrorBranches(t *testing.T) {
 	})
 }
 
-// The collections the reference manages are listed in qmd-collections.json of
-// its own state directory, and qmd's index.yml carries them. A first loomux
-// run that read only the new directory took every one of them for someone
-// else's, refused all and ended red without ever updating qmd. The record is
-// read new first and else old, like every other artefact of the stage, and
-// written only to the new place.
-func TestReindexReadsTheCollectionRecordFromTheLegacyDirectory(t *testing.T) {
-	tmp := t.TempDir()
-	stateDir := filepath.Join(tmp, "state")
-	legacyDir := filepath.Join(tmp, "legacy")
-	t.Setenv("XDG_CONFIG_HOME", tmp)
-
-	areaDir := filepath.Join(tmp, "area")
-	setupTestArea(t, areaDir, "[area]\nscope = \"knowledge\"\n")
-	_ = os.WriteFile(filepath.Join(areaDir, "a.md"), []byte("# A\n"), 0o644)
-	regPath := writeTestRegistry(t, stateDir, "[[area]]\nscope = \"knowledge\"\npath = \""+filepath.ToSlash(areaDir)+"\"\n")
-
-	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	legacyRecord := []byte("[\n \"knowledge\"\n]")
-	if err := os.WriteFile(filepath.Join(legacyDir, "qmd-collections.json"), legacyRecord, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	qmdConfigDir := filepath.Join(tmp, "qmd")
-	_ = os.MkdirAll(qmdConfigDir, 0o755)
-	_ = os.WriteFile(filepath.Join(qmdConfigDir, "index.yml"),
-		[]byte("collections:\n  knowledge:\n    path: C:/old/place\n    pattern: '**/*.md'\n    ignore: []\n"), 0o644)
-
-	var stderr bytes.Buffer
-	code, err := ReindexWithOutput(regPath, stateDir, legacyDir, search.NewFakePort(), &stderr)
-	if err != nil || code != 0 {
-		t.Fatalf("expected exit 0, got %d, %v\n%s", code, err, stderr.String())
-	}
-	if strings.Contains(stderr.String(), "already exists") {
-		t.Fatalf("the reference's collection was refused:\n%s", stderr.String())
-	}
-	written, err := os.ReadFile(filepath.Join(stateDir, "qmd-collections.json"))
-	if err != nil {
-		t.Fatalf("the record was not written to the new directory: %v", err)
-	}
-	if string(written) != "[\n \"knowledge\"\n]\n" {
-		t.Errorf("new record = %q", written)
-	}
-	if kept, _ := os.ReadFile(filepath.Join(legacyDir, "qmd-collections.json")); !bytes.Equal(kept, legacyRecord) {
-		t.Errorf("the legacy record was touched: %q", kept)
-	}
-}
-
 // The prune after the sync must read the record the sync has just written.
-// Resolved once for both, the prune would read the legacy list, which does
-// not name the collection this run created, and write it over the new one:
-// the next run would refuse that collection as someone else's.
+// Read once for both, the prune would read the list from before the sync,
+// which does not name the collection this run created, and write it over the
+// new one: the next run would refuse that collection as someone else's.
 func TestReindexPrunesFromTheRecordTheSyncJustWrote(t *testing.T) {
 	tmp := t.TempDir()
 	stateDir := filepath.Join(tmp, "state")
-	legacyDir := filepath.Join(tmp, "legacy")
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 
 	registry := ""
@@ -676,10 +626,7 @@ func TestReindexPrunesFromTheRecordTheSyncJustWrote(t *testing.T) {
 	}
 	regPath := writeTestRegistry(t, stateDir, registry)
 
-	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(legacyDir, "qmd-collections.json"),
+	if err := os.WriteFile(filepath.Join(stateDir, "qmd-collections.json"),
 		[]byte("[\n \"knowledge\",\n \"projekt\"\n]"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -691,7 +638,7 @@ func TestReindexPrunesFromTheRecordTheSyncJustWrote(t *testing.T) {
 
 	for run := 1; run <= 2; run++ {
 		var stderr bytes.Buffer
-		code, err := ReindexWithOutput(regPath, stateDir, legacyDir, search.NewFakePort(), &stderr)
+		code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), &stderr)
 		if err != nil || code != 0 {
 			t.Fatalf("run %d: expected exit 0, got %d, %v\n%s", run, code, err, stderr.String())
 		}
@@ -733,7 +680,7 @@ func TestReindexHoldsTheAreaLockWhileItReadsAndWritesTheRegister(t *testing.T) {
 		}
 		return restore(path, root)
 	}
-	if code, err := ReindexWithOutput(regPath, stateDir, "", search.NewFakePort(), nil); err != nil || code != 0 {
+	if code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), nil); err != nil || code != 0 {
 		t.Fatalf("reindex: %v, code %d", err, code)
 	}
 	if !held {
@@ -758,7 +705,7 @@ func TestReindexStopsWhenTheAreaCannotBeLocked(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(stateDir, "areas"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if code, err := ReindexWithOutput(regPath, stateDir, "", search.NewFakePort(), nil); err == nil || code != 1 {
+	if code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), nil); err == nil || code != 1 {
 		t.Fatalf("expected a refusal, got %v, code %d", err, code)
 	}
 }

@@ -13,25 +13,23 @@ import (
 	"github.com/xidus90/loomux/internal/testlock"
 )
 
-// TestMain points both state places at an empty directory before any test
-// runs. The fixtures below set LOOMUX_STATE_DIR where they register areas;
-// a test that sets nothing would otherwise read this machine's registry,
-// and the old place would be asked whenever the new one holds nothing.
+// TestMain points the state directory at an empty one before any test runs.
+// The fixtures below set LOOMUX_STATE_DIR where they register areas; a test
+// that sets nothing would otherwise read this machine's registry.
 func TestMain(m *testing.M) {
 	empty, err := os.MkdirTemp("", "run-state-")
 	if err != nil {
 		panic(err)
 	}
 	os.Setenv(config.StateDirEnv, empty)
-	os.Setenv("LOOMUX_LEGACY_BRAIN_DIR", empty)
 	code := m.Run()
 	os.RemoveAll(empty)
 	os.Exit(code)
 }
 
-// testLookup is the lookup the CLI builds, without the fallback to the old
-// place: the fixtures write their registration and their read-only
-// declarations under the state directory they set, and nowhere else.
+// testLookup is the lookup the CLI builds: the fixtures write their
+// registration and their read-only declarations under the state directory
+// they set, and nowhere else.
 func testLookup() config.ArtifactLookup {
 	return config.ArtifactLookup{Primary: config.StateDir()}
 }

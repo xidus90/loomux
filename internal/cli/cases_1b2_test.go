@@ -170,7 +170,6 @@ func serveInDir(t *testing.T, dir string) func() {
 		done <- serve.Run(ctx, serve.Options{
 			StateDir:    dir,
 			RegistryDir: dir,
-			LegacyDir:   dir,
 			Foreground:  true,
 			Answer:      answering,
 		})
@@ -219,7 +218,7 @@ func awaitState(dir string) error {
 // answerFrom is the service's answer function, with both search seams pointed
 // at the world's fixture: the MCP port over httptest, the command line port
 // through the Runner seam. No replay starts qmd, exactly as no recording did.
-func answerFrom(t *testing.T, dir string) func(answer.Request, string, string, func(string)) (string, []string, error) {
+func answerFrom(t *testing.T, dir string) func(answer.Request, string, func(string)) (string, []string, error) {
 	t.Helper()
 	fixture, err := fakeqmd.Load(filepath.Join(dir, fakeqmd.FixtureName))
 	if err != nil {
@@ -246,8 +245,8 @@ func answerFrom(t *testing.T, dir string) func(answer.Request, string, string, f
 		Status: func() search.SearchPort { return cli },
 		Now:    time.Now,
 	}
-	return func(req answer.Request, registryDir, legacyDir string, notice func(string)) (string, []string, error) {
-		return answer.RunWith(ports, req, registryDir, legacyDir, notice)
+	return func(req answer.Request, registryDir string, notice func(string)) (string, []string, error) {
+		return answer.RunWith(ports, req, registryDir, notice)
 	}
 }
 

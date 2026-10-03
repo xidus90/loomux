@@ -65,16 +65,15 @@ type Changed struct {
 // Scan is stage one and two over one area's registered sources: which of them
 // still match the register, and what the ones that do not now say.
 //
-// Both directories are arguments and neither is read from the environment, for
-// the reason `config.ResolvedAreaDir` states -- a lookup that asked StateDir()
-// itself would break `internal/serve`'s promise that everything hangs off the
-// state directory it was handed.
+// stateDir is an argument and not read from the environment: a lookup that
+// asked StateDir() itself would break `internal/serve`'s promise that
+// everything hangs off the state directory it was handed.
 func Scan(
 	area config.Area,
 	manifest *config.Manifest,
-	stateDir, fallbackDir string,
+	stateDir string,
 ) (int, int, map[string]Changed, error) {
-	register := filepath.Join(config.ResolvedAreaDir(area, stateDir, fallbackDir), identitiesName)
+	register := filepath.Join(config.ManifestDir(area, stateDir), identitiesName)
 	// Refused, not taken for empty: an unreadable register read as empty would
 	// report an area without a single source, which reads as "all is well".
 	identities, err := identity.ReadIdentities(register)

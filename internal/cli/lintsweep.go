@@ -89,7 +89,7 @@ func sweepContext(area config.Area, areas []config.Area, shared map[string]bool,
 		DeclaredTypes: map[string]bool{},
 		IsProject:     strings.SplitN(area.Scope, "/", 2)[0] == "project",
 	}
-	manifest, err := config.ReadAreaDeclaration(config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
+	manifest, err := config.ReadAreaDeclaration(config.ManifestDir(area, lookup.Primary))
 	switch {
 	case config.IsUndeclared(err):
 		manifest = nil

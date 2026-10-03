@@ -562,7 +562,7 @@ func TestResolveSourcesReadsAReadOnlyAreasRegisterFromTheStateDirectory(t *testi
 	area, state := t.TempDir(), t.TempDir()
 	ro := config.Area{Scope: "project/ro", Path: area, ReadOnly: true}
 	lookup := config.ArtifactLookup{Primary: state}
-	dir := config.ResolvedAreaDir(ro, lookup.Primary, lookup.Fallback)
+	dir := config.ManifestDir(ro, lookup.Primary)
 	register := writeRegister(t, dir, row("A", "docs/a.md"))
 	got, err := resolveSources([]config.Area{ro}, lookup, []string{"A"})
 	if err != nil {
@@ -602,26 +602,5 @@ func TestResolveSourcesPicksDuplicatesInSortedOrder(t *testing.T) {
 		if got["A"].relative != "b.md" {
 			t.Fatalf("resolveSources = %+v, want b.md", got)
 		}
-	}
-}
-
-// A read-only area still read from ultra-brain's state directory: the row
-// is read there, and written -- and admitted by the barrier -- under
-// loomux's state directory only.
-func TestResolveSourcesWritesAFallbackRegisterToTheNewPlace(t *testing.T) {
-	area, primary, fallback := t.TempDir(), t.TempDir(), t.TempDir()
-	ro := config.Area{Scope: "project/ro", Path: area, ReadOnly: true}
-	lookup := config.ArtifactLookup{Primary: primary, Fallback: fallback}
-	old := writeRegister(t, config.ManifestDir(ro, fallback), row("A", "docs/a.md"))
-	next := filepath.Join(config.ManifestDir(ro, primary), registerName)
-	got, err := resolveSources([]config.Area{ro}, lookup, []string{"A"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got["A"].readFrom != old || got["A"].register != next {
-		t.Fatalf("resolveSources = %+v, want read from %s and written to %s", got["A"], old, next)
-	}
-	if registers := registersOf([]config.Area{ro}, lookup); len(registers) != 1 || registers[0] != next {
-		t.Fatalf("registersOf = %v, want [%s]", registers, next)
 	}
 }
