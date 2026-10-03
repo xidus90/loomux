@@ -35,7 +35,7 @@ type ExitRule struct {
 }
 
 // Mapping is the set of rules, read from a file of [[command]], [[tool]],
-// [[exit]] and [[stdout]] tables. A stage brings one command kind or the
+// [[exit]], [[stdout]] and [[result]] tables. A stage brings one command kind or the
 // other: a command line is rewritten at its head, an MCP call at its tool's
 // name.
 type Mapping struct {
@@ -63,6 +63,10 @@ type Mapping struct {
 	// To. Each rule is a deviation of the parity list, where the reference
 	// names itself in what it prints and loomux names itself instead.
 	Stdout []Rule `toml:"stdout"`
+	// Result rewrites the recorded result of an MCP case the way Stdout
+	// rewrites a command's output: every occurrence of From becomes To, in
+	// the file as the recorder wrote it.
+	Result []Rule `toml:"result"`
 }
 
 // rewriteStdout applies every rule, in order, to a recorded stdout.
