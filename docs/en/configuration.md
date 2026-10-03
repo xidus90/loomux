@@ -993,7 +993,9 @@ registry declares an area: in its wiki unless it is read-only, and in its
 `path` when it has `workspace = true`. A workspace (`workspace = true`) without
 `wiki` opens only its `path`; `loomux init --brain=none` registers a project so. The index skips
 such an area as long as the project declares no `[area]`; with one, every
-`**/*.md` under `path` becomes its collection. A linked git worktree of an area registered with
+`**/*.md` under `path` becomes its collection. Without `[area]` the brain
+readers (`brain status`, `catalog`, `search`, `read`, `neighbors` and their MCP
+tools) leave such a workspace out silently, as if it were not registered. A linked git worktree of an area registered with
 `workspace = true` belongs to it and needs no entry of its own: it is the same
 repository checked out a second time, and the barrier recognises it from git's
 own worktree files. Beyond that, three places are always open, for every

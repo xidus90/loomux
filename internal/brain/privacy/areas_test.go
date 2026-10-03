@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -201,5 +202,57 @@ func TestVisibleAreasRefusesAnAbsoluteInboxEvenOfAHiddenArea(t *testing.T) {
 	got, err := privacy.VisibleAreas(filepath.Join(root, "state"), filepath.Join(root, "legacy"), "all", privacy.ChannelCloud)
 	if err == nil || got != nil || !strings.Contains(err.Error(), "[layout] inbox must be relative to the area") {
 		t.Fatalf("got %v, %v; want the inbox refused", got, err)
+	}
+}
+
+// workspaceWorld registers project/a with a declaration, then project/ws,
+// whose own config file holds policyBody -- `init --brain=none` leaves one
+// with policy and no [area] -- and answers the registry and legacy
+// directories.
+func workspaceWorld(t *testing.T, workspace bool, policyBody string) (registryDir, legacyDir string) {
+	t.Helper()
+	registryDir, legacyDir = buildWorld(t,
+		registered{scope: "project/a", mode: "manual_cloud", manifestName: ".loomux/config.toml"})
+	wsPath := filepath.ToSlash(filepath.Join(filepath.Dir(registryDir), "workspace"))
+	writeFile(t, filepath.Join(wsPath, ".loomux", "config.toml"), policyBody)
+	body, err := os.ReadFile(filepath.Join(registryDir, "registry.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := fmt.Sprintf("[[area]]\nscope = \"project/ws\"\npath = %q\nworkspace = %v\n", wsPath, workspace)
+	writeFile(t, filepath.Join(registryDir, "registry.toml"), string(body)+entry)
+	return registryDir, legacyDir
+}
+
+func TestVisibleAreasLeavesOutAWorkspaceWithoutADeclaration(t *testing.T) {
+	registryDir, legacyDir := workspaceWorld(t, true, "[verify]\n")
+	for _, ch := range []privacy.Channel{privacy.ChannelLocal, privacy.ChannelCloud} {
+		got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", ch)
+		if err != nil || scopesOf(got) != "project/a" {
+			t.Fatalf("channel %v: got %q, %v", ch, scopesOf(got), err)
+		}
+		if len(got[0].Hidden) != 0 {
+			t.Fatalf("channel %v: a workspace is no area to hide: %v", ch, got[0].Hidden)
+		}
+	}
+	_, err := privacy.VisibleAreas(registryDir, legacyDir, "project/ws", privacy.ChannelLocal)
+	if err == nil || !strings.Contains(err.Error(), "unknown scope 'project/ws'") {
+		t.Fatalf("got %v; want the unknown scope", err)
+	}
+}
+
+func TestVisibleAreasStillRefusesAnEntryWithoutDeclarationThatIsNoWorkspace(t *testing.T) {
+	registryDir, legacyDir := workspaceWorld(t, false, "[verify]\n")
+	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	if !errors.Is(err, config.ErrNoManifest) || got != nil {
+		t.Fatalf("got %v, %v; want config.ErrNoManifest", got, err)
+	}
+}
+
+func TestVisibleAreasStillRefusesABrokenDeclarationOfAWorkspace(t *testing.T) {
+	registryDir, legacyDir := workspaceWorld(t, true, "[area\n")
+	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	if err == nil || errors.Is(err, config.ErrNoManifest) || got != nil {
+		t.Fatalf("got %v, %v; want the parse error", got, err)
 	}
 }

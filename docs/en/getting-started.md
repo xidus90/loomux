@@ -198,7 +198,8 @@ never = ["private/**"]
 ### What goes wrong
 - **Every `loomux brain` command fails with `no manifest found`.** The commands
   read the manifest of every registered area before they look at `--scope`, so
-  one area without a declaration fails calls about all the others. A
+  one area without a declaration fails calls about all the others; only an
+  entry with `workspace = true` and no declaration is skipped silently. A
   `.loomux/config.toml` without `[area]` counts as none; the commands also
   accept the legacy manifests `.ultra-brain/config.toml` and `.brain.toml`
   until the clean-up pull request of stage 4e removes them. The write

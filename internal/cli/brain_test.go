@@ -409,6 +409,61 @@ func TestBrainStatusOnTheCloudLeavesALocalOnlyAreaOut(t *testing.T) {
 	}
 }
 
+// addBrainWorkspace appends project/ws to the world's registry: an entry
+// without [area] at its path, as `init --brain=none` registers it. workspace
+// false makes it an area that forgot its declaration.
+func addBrainWorkspace(t *testing.T, w brainWorldDirs, workspace bool) {
+	t.Helper()
+	ws := t.TempDir()
+	writeFile(t, filepath.Join(ws, ".loomux", "config.toml"), "[verify]\n")
+	registry := filepath.Join(w.state, "registry.toml")
+	body, err := os.ReadFile(registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, registry, string(body)+"\n[[area]]\nscope = \"project/ws\"\npath = "+
+		strconv.Quote(filepath.ToSlash(ws))+"\nworkspace = "+strconv.FormatBool(workspace)+"\n")
+}
+
+func TestBrainReadersSkipAWorkspaceWithoutAnArea(t *testing.T) {
+	w := brainWorld(t, "", map[string]string{"index.md": "# project/a\n"})
+	addBrainWorkspace(t, w, true)
+	stubBrainNow(t, time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC))
+	stubBrainStatusPort(t, search.NewFakePort())
+	fake := search.NewFakePort()
+	fake.Results = []search.ScriptedSearch{{Hits: []search.SearchHit{
+		{Collection: "project-a", Relative: "index.md", Line: 1, Title: "A", Snippet: "a", Score: 0.5},
+	}}}
+	stubBrainSearchPort(t, fake, "")
+
+	code, out, errOut := run("brain", "status")
+	if code != 0 || out != "last reconcile: never; run `brain reconcile`\nproject/a: never indexed; run `brain reindex`\n" || errOut != "" {
+		t.Fatalf("status: code %d\nout %q\nerr %q", code, out, errOut)
+	}
+	code, out, errOut = run("brain", "catalog", "--scope", "all")
+	if code != 0 || out != "# brain\n\n* [project/a](brain://project/a/)\n" || errOut != "" {
+		t.Fatalf("catalog: code %d\nout %q\nerr %q", code, out, errOut)
+	}
+	if code, out, errOut := run("brain", "search", "what"); code != 0 {
+		t.Fatalf("search: code %d\nout %q\nerr %q", code, out, errOut)
+	}
+	if len(fake.Calls) != 1 || !reflect.DeepEqual(fake.Calls[0].Collections, []string{"project-a"}) {
+		t.Fatalf("search calls %+v", fake.Calls)
+	}
+}
+
+func TestBrainReadersStillRefuseAnAreaWithoutDeclaration(t *testing.T) {
+	w := brainWorld(t, "", map[string]string{"index.md": "# project/a\n"})
+	addBrainWorkspace(t, w, false)
+	stubBrainStatusPort(t, search.NewFakePort())
+	for _, args := range [][]string{{"status"}, {"catalog", "--scope", "all"}} {
+		code, out, errOut := run(append([]string{"brain"}, args...)...)
+		if code != 1 || out != "" || !strings.Contains(errOut, "no manifest found") {
+			t.Fatalf("%v: code %d\nout %q\nerr %q", args, code, out, errOut)
+		}
+	}
+}
+
 func TestBrainRuntimeErrorsWriteOnlyTheErrorLine(t *testing.T) {
 	w := brainWorld(t, "", nil)
 	writeFile(t, filepath.Join(w.state, "registry.toml"), "[[area]\n")
