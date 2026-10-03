@@ -23,9 +23,8 @@ import (
 // There is no fallback to answer.Run here, because a fallback would only be
 // reachable with a registry on disk; the caller that wires serve passes it.
 type Deps struct {
-	Answer      func(answer.Request, string, string, func(string)) (string, []string, error)
+	Answer      func(answer.Request, string, func(string)) (string, []string, error)
 	RegistryDir string
-	LegacyDir   string
 	// Upkeep is the daily reconciliation of the serve process. Nil means no
 	// catch-up behind these tools, which is what a test of one tool wants and
 	// what serve never asks for.
@@ -80,7 +79,7 @@ func handler(name string, channel privacy.Channel, deps Deps) mcp.ToolHandler {
 		}
 		out, notes, err := refuse(args, cmd)
 		if err == nil {
-			out, notes, err = deps.Answer(request, deps.RegistryDir, deps.LegacyDir, notice)
+			out, notes, err = deps.Answer(request, deps.RegistryDir, notice)
 		}
 		if err != nil {
 			// What the core refuses is content for the model, not an outage:

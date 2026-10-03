@@ -23,14 +23,13 @@ import (
 var ErrNotIndexed = errors.New("never indexed; run `brain reindex`")
 
 // ReadGraph loads and validates graph.json for the specified area. A
-// read-only area keeps it in stateDir, with fallbackDir -- ultra-brain's --
-// as the fallback until `loomux migrate` has moved the area.
+// read-only area keeps it in stateDir.
 //
 // Like core._graph (src/brain/core.py:584-588) it asks Path.exists() first,
 // which answers False for any failure to stat, and reads the file as strict
 // UTF-8 with universal newlines. A read error already names the file.
-func ReadGraph(area config.Area, stateDir, fallbackDir string) (*Graph, error) {
-	manifestDir := config.ResolvedAreaDir(area, stateDir, fallbackDir)
+func ReadGraph(area config.Area, stateDir string) (*Graph, error) {
+	manifestDir := config.ManifestDir(area, stateDir)
 	graphPath := filepath.Join(manifestDir, "graph.json")
 
 	if _, err := os.Stat(graphPath); err != nil {

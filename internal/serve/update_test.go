@@ -59,7 +59,7 @@ func TestRunStartsTheUpdateLoop(t *testing.T) {
 		return c
 	}
 	startWith(t, dir, serve.Options{
-		StateDir: dir, RegistryDir: dir, LegacyDir: dir,
+		StateDir: dir, RegistryDir: dir,
 		Update:      func(context.Context) { ran <- struct{}{} },
 		UpdateAfter: after,
 	})
@@ -83,7 +83,7 @@ func TestRunWaitsForTheUpdatePassBeforeItReturns(t *testing.T) {
 		return c
 	}
 	_, cancel, done := startWith(t, dir, serve.Options{
-		StateDir: dir, RegistryDir: dir, LegacyDir: dir,
+		StateDir: dir, RegistryDir: dir,
 		Update: func(ctx context.Context) {
 			close(started)
 			<-ctx.Done()
@@ -119,7 +119,7 @@ func TestRunWaitsForTheUpdatePassBeforeItReturns(t *testing.T) {
 func TestRunUpdatesOnTheRealClockByDefault(t *testing.T) {
 	dir := t.TempDir()
 	_, cancel, done := startWith(t, dir, serve.Options{
-		StateDir: dir, RegistryDir: dir, LegacyDir: dir,
+		StateDir: dir, RegistryDir: dir,
 		Update: func(context.Context) { t.Error("a pass ran before the first minute was out") },
 	})
 	cancel()

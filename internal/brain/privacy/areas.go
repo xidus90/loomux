@@ -30,8 +30,7 @@ type VisibleArea struct {
 //
 // The registry comes from registryDir, which is also the state directory the
 // artefacts of read-only areas are read from. The manifest of each area comes
-// from config.ResolvedAreaDir: a read-only area keeps it there, with
-// fallbackDir -- ultra-brain's -- as the fallback. Every registered area's
+// from config.ManifestDir: a read-only area keeps it there. Every registered area's
 // declaration is read and its inbox checked before scope and visibility are
 // asked, so the first registry or declaration error ends the call, whichever
 // area it belongs to -- a hidden area included. The one exception is a
@@ -40,7 +39,7 @@ type VisibleArea struct {
 // scope "all" answers every visible area in registry order. Any other scope
 // answers the visible areas of that name, or the UnknownScope error when there
 // are none.
-func VisibleAreas(registryDir, fallbackDir, scope string, ch Channel) ([]VisibleArea, error) {
+func VisibleAreas(registryDir, scope string, ch Channel) ([]VisibleArea, error) {
 	areas, err := config.ReadRegistry(registryDir)
 	if err != nil {
 		return nil, err
@@ -48,7 +47,7 @@ func VisibleAreas(registryDir, fallbackDir, scope string, ch Channel) ([]Visible
 	var visible []VisibleArea
 	var hidden []string
 	for _, area := range areas {
-		manifest, seen, err := VisibleManifest(config.ResolvedAreaDir(area, registryDir, fallbackDir), ch)
+		manifest, seen, err := VisibleManifest(config.ManifestDir(area, registryDir), ch)
 		if area.Workspace && config.IsUndeclared(err) {
 			// A workspace that declares no [area] is no brain area: there is
 			// nothing to see in it and nothing to hide.

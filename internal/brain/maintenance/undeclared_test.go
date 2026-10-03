@@ -20,7 +20,7 @@ func TestManifestsLeavesOutAPolicyOnlyConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	areas := []config.Area{{Scope: "project/p", Path: dir}}
-	got, err := Manifests(areas, config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()})
+	got, err := Manifests(areas, config.ArtifactLookup{Primary: t.TempDir()})
 	if err != nil || len(got) != 0 {
 		t.Fatalf("got %v, %v", got, err)
 	}
@@ -34,7 +34,7 @@ func TestManifestsRefusesAnAreaWithOnlyAnOldManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	areas := []config.Area{{Scope: "project/p", Path: dir}}
-	got, err := Manifests(areas, config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()})
+	got, err := Manifests(areas, config.ArtifactLookup{Primary: t.TempDir()})
 	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") {
 		t.Fatalf("got %v, %v; want the old-manifest hint", got, err)
 	}

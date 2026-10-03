@@ -23,7 +23,6 @@ func fenceGit(t *testing.T) string {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	state := t.TempDir()
 	t.Setenv("LOOMUX_STATE_DIR", state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", t.TempDir())
 	return state
 }
 

@@ -46,10 +46,10 @@ type Upkeep struct {
 	report  *maintenance.Report
 }
 
-// NewUpkeep is the upkeep of the registry in registryDir, with the old state
-// directory as the fallback its artefacts are read from.
-func NewUpkeep(registryDir, legacyDir string) *Upkeep {
-	lookup := config.ArtifactLookup{Primary: registryDir, Fallback: legacyDir}
+// NewUpkeep is the upkeep of the registry in registryDir, the state directory
+// its artefacts are read from too.
+func NewUpkeep(registryDir string) *Upkeep {
+	lookup := config.ArtifactLookup{Primary: registryDir}
 	return &Upkeep{
 		lookup: lookup,
 		run: func(ctx context.Context, now time.Time) (*maintenance.Report, error) {
@@ -117,7 +117,7 @@ func (u *Upkeep) catchUp(ctx context.Context) {
 }
 
 func (u *Upkeep) pass(ctx context.Context) (*maintenance.Report, error) {
-	stamp, ok, err := search.ReadLastRun(u.lookup.Primary, u.lookup.Fallback)
+	stamp, ok, err := search.ReadLastRun(u.lookup.Primary)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (u *Upkeep) Trailer(cmd string, ch privacy.Channel) ([]string, error) {
 		return nil, err
 	}
 	if cmd != "search" {
-		stale, err := search.StaleReconcile(u.lookup.Primary, u.lookup.Fallback, u.now())
+		stale, err := search.StaleReconcile(u.lookup.Primary, u.now())
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +209,7 @@ func (u *Upkeep) gated(ch privacy.Channel) (gatedNotes, error) {
 	if quiet {
 		return gatedNotes{}, nil
 	}
-	visible, err := privacy.VisibleAreas(u.lookup.Primary, u.lookup.Fallback, "all", ch)
+	visible, err := privacy.VisibleAreas(u.lookup.Primary, "all", ch)
 	if err != nil {
 		return gatedNotes{}, err
 	}

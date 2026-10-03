@@ -15,7 +15,7 @@ import (
 
 // registered is one [[area]] of a test registry. manifestName "" writes no
 // manifest; otherwise the declaration goes where config.ManifestDir looks for
-// it -- into the area for a writable area, below <legacy>/areas/<flat> for a
+// it -- into the area for a writable area, below <state>/areas/<flat> for a
 // read-only one.
 type registered struct {
 	scope, mode, manifestName string
@@ -23,12 +23,11 @@ type registered struct {
 }
 
 // buildWorld writes a registry into <root>/state and the manifests of its
-// areas, and answers the registry and legacy directories.
-func buildWorld(t *testing.T, areas ...registered) (registryDir, legacyDir string) {
+// areas, and answers the state directory.
+func buildWorld(t *testing.T, areas ...registered) (registryDir string) {
 	t.Helper()
 	root := t.TempDir()
 	registryDir = filepath.Join(root, "state")
-	legacyDir = filepath.Join(root, "legacy")
 	var registry strings.Builder
 	for i, a := range areas {
 		path := filepath.ToSlash(filepath.Join(root, fmt.Sprintf("repo-%d", i)))
@@ -36,11 +35,11 @@ func buildWorld(t *testing.T, areas ...registered) (registryDir, legacyDir strin
 		if a.manifestName == "" {
 			continue
 		}
-		dir := config.ManifestDir(config.Area{Scope: a.scope, Path: path, ReadOnly: a.readOnly}, legacyDir)
+		dir := config.ManifestDir(config.Area{Scope: a.scope, Path: path, ReadOnly: a.readOnly}, registryDir)
 		writeFile(t, filepath.Join(dir, a.manifestName), fmt.Sprintf("[area]\nscope = %q\n\n[privacy]\nmode = %q\n", a.scope, a.mode))
 	}
 	writeFile(t, filepath.Join(registryDir, "registry.toml"), registry.String())
-	return registryDir, legacyDir
+	return registryDir
 }
 
 func scopesOf(areas []privacy.VisibleArea) string {
@@ -53,8 +52,8 @@ func scopesOf(areas []privacy.VisibleArea) string {
 
 // twoAreas lists zeta before project/alpha, the reverse of sorted order, so a
 // test can tell registry order from sorting. project/alpha is read-only and
-// local_only, so its manifest can only be found through the legacy directory.
-func twoAreas(t *testing.T) (registryDir, legacyDir string) {
+// local_only, so its manifest can only be found through the state directory.
+func twoAreas(t *testing.T) (registryDir string) {
 	return buildWorld(t,
 		registered{scope: "zeta", mode: "manual_cloud", manifestName: ".loomux/config.toml"},
 		registered{scope: "project/alpha", mode: "local_only", manifestName: ".loomux/config.toml", readOnly: true},
@@ -62,8 +61,8 @@ func twoAreas(t *testing.T) (registryDir, legacyDir string) {
 }
 
 func TestVisibleAreasKeepsRegistryOrderAndHidesLocalOnlyOnCloud(t *testing.T) {
-	registryDir, legacyDir := twoAreas(t)
-	local, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	registryDir := twoAreas(t)
+	local, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +72,7 @@ func TestVisibleAreasKeepsRegistryOrderAndHidesLocalOnlyOnCloud(t *testing.T) {
 	if m := local[1].Manifest; m == nil || m.PrivacyMode != "local_only" || !local[1].Area.ReadOnly {
 		t.Fatalf("project/alpha: %+v", local[1])
 	}
-	cloud, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelCloud)
+	cloud, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelCloud)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,8 +82,8 @@ func TestVisibleAreasKeepsRegistryOrderAndHidesLocalOnlyOnCloud(t *testing.T) {
 }
 
 func TestVisibleAreasNamesOneScope(t *testing.T) {
-	registryDir, legacyDir := twoAreas(t)
-	got, err := privacy.VisibleAreas(registryDir, legacyDir, "project/alpha", privacy.ChannelLocal)
+	registryDir := twoAreas(t)
+	got, err := privacy.VisibleAreas(registryDir, "project/alpha", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +96,7 @@ func TestVisibleAreasNamesOneScope(t *testing.T) {
 // sees: telling a cloud caller that the area exists would disclose what
 // `local_only` hides (`_unknown_scope`, src/brain/core.py:266-275).
 func TestVisibleAreasRefusesAnUnknownScopeNamingTheVisibleOnes(t *testing.T) {
-	registryDir, legacyDir := twoAreas(t)
+	registryDir := twoAreas(t)
 	for _, tc := range []struct {
 		scope string
 		ch    privacy.Channel
@@ -106,7 +105,7 @@ func TestVisibleAreasRefusesAnUnknownScopeNamingTheVisibleOnes(t *testing.T) {
 		{"zz", privacy.ChannelLocal, "unknown scope 'zz'; known scopes are: project/alpha, zeta"},
 		{"project/alpha", privacy.ChannelCloud, "unknown scope 'project/alpha'; known scopes are: zeta"},
 	} {
-		got, err := privacy.VisibleAreas(registryDir, legacyDir, tc.scope, tc.ch)
+		got, err := privacy.VisibleAreas(registryDir, tc.scope, tc.ch)
 		if err == nil || err.Error() != tc.want || got != nil {
 			t.Errorf("%s on %s: got %v, %v; want %q", tc.scope, tc.ch, got, err, tc.want)
 		}
@@ -116,30 +115,30 @@ func TestVisibleAreasRefusesAnUnknownScopeNamingTheVisibleOnes(t *testing.T) {
 // Python reads the manifest of every registered area before it filters by
 // scope, so an area without a declaration fails a call about another area.
 func TestVisibleAreasStopsAtTheFirstUnusableManifest(t *testing.T) {
-	registryDir, legacyDir := buildWorld(t,
+	registryDir := buildWorld(t,
 		registered{scope: "a", mode: "manual_cloud", manifestName: ".loomux/config.toml"},
 		registered{scope: "b"},
 	)
-	got, err := privacy.VisibleAreas(registryDir, legacyDir, "a", privacy.ChannelLocal)
+	got, err := privacy.VisibleAreas(registryDir, "a", privacy.ChannelLocal)
 	if !errors.Is(err, config.ErrNoManifest) || got != nil {
 		t.Fatalf("got %v, %v; want config.ErrNoManifest", got, err)
 	}
 }
 
 func TestVisibleAreasPassesTheRegistryErrorOn(t *testing.T) {
-	got, err := privacy.VisibleAreas(t.TempDir(), t.TempDir(), "all", privacy.ChannelLocal)
+	got, err := privacy.VisibleAreas(t.TempDir(), "all", privacy.ChannelLocal)
 	if !errors.Is(err, fs.ErrNotExist) || got != nil {
 		t.Fatalf("got %v, %v; want a missing registry", got, err)
 	}
 }
 
 func TestVisibleAreasOfAnEmptyRegistry(t *testing.T) {
-	registryDir, legacyDir := buildWorld(t)
-	all, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	registryDir := buildWorld(t)
+	all, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	if err != nil || len(all) != 0 {
 		t.Fatalf("got %v, %v", all, err)
 	}
-	_, err = privacy.VisibleAreas(registryDir, legacyDir, "x", privacy.ChannelLocal)
+	_, err = privacy.VisibleAreas(registryDir, "x", privacy.ChannelLocal)
 	if want := "unknown scope 'x'; known scopes are: "; err == nil || err.Error() != want {
 		t.Fatalf("got %v, want %q", err, want)
 	}
@@ -178,11 +177,11 @@ func TestUnknownScopeQuotesLikePython(t *testing.T) {
 }
 
 func TestVisibleAreasRefusesADuplicateScope(t *testing.T) {
-	registryDir, legacyDir := buildWorld(t,
+	registryDir := buildWorld(t,
 		registered{scope: "a", mode: "manual_cloud", manifestName: ".loomux/config.toml"},
 		registered{scope: "a", mode: "local_only", manifestName: ".loomux/config.toml"},
 	)
-	got, err := privacy.VisibleAreas(registryDir, legacyDir, "a", privacy.ChannelLocal)
+	got, err := privacy.VisibleAreas(registryDir, "a", privacy.ChannelLocal)
 	if err == nil || got != nil || !strings.HasSuffix(err.Error(), `[[area]] #2: duplicate scope "a" (first at #1)`) {
 		t.Fatalf("got %v, %v; want the duplicate refused", got, err)
 	}
@@ -199,7 +198,7 @@ func TestVisibleAreasRefusesAnAbsoluteInboxEvenOfAHiddenArea(t *testing.T) {
 		fmt.Sprintf("[[area]]\nscope = \"closed\"\npath = %q\n", filepath.ToSlash(area)))
 	writeFile(t, filepath.Join(area, ".loomux", "config.toml"),
 		fmt.Sprintf("[area]\nscope = \"closed\"\n\n[privacy]\nmode = \"local_only\"\n\n[layout]\ninbox = %q\n", inbox))
-	got, err := privacy.VisibleAreas(filepath.Join(root, "state"), filepath.Join(root, "legacy"), "all", privacy.ChannelCloud)
+	got, err := privacy.VisibleAreas(filepath.Join(root, "state"), "all", privacy.ChannelCloud)
 	if err == nil || got != nil || !strings.Contains(err.Error(), "[layout] inbox must be relative to the area") {
 		t.Fatalf("got %v, %v; want the inbox refused", got, err)
 	}
@@ -207,11 +206,10 @@ func TestVisibleAreasRefusesAnAbsoluteInboxEvenOfAHiddenArea(t *testing.T) {
 
 // workspaceWorld registers project/a with a declaration, then project/ws,
 // whose own config file holds policyBody -- `init --brain=none` leaves one
-// with policy and no [area] -- and answers the registry and legacy
-// directories.
-func workspaceWorld(t *testing.T, workspace bool, policyBody string) (registryDir, legacyDir string) {
+// with policy and no [area] -- and answers the state directory.
+func workspaceWorld(t *testing.T, workspace bool, policyBody string) (registryDir string) {
 	t.Helper()
-	registryDir, legacyDir = buildWorld(t,
+	registryDir = buildWorld(t,
 		registered{scope: "project/a", mode: "manual_cloud", manifestName: ".loomux/config.toml"})
 	wsPath := filepath.ToSlash(filepath.Join(filepath.Dir(registryDir), "workspace"))
 	writeFile(t, filepath.Join(wsPath, ".loomux", "config.toml"), policyBody)
@@ -221,13 +219,13 @@ func workspaceWorld(t *testing.T, workspace bool, policyBody string) (registryDi
 	}
 	entry := fmt.Sprintf("[[area]]\nscope = \"project/ws\"\npath = %q\nworkspace = %v\n", wsPath, workspace)
 	writeFile(t, filepath.Join(registryDir, "registry.toml"), string(body)+entry)
-	return registryDir, legacyDir
+	return registryDir
 }
 
 func TestVisibleAreasLeavesOutAWorkspaceWithoutADeclaration(t *testing.T) {
-	registryDir, legacyDir := workspaceWorld(t, true, "[verify]\n")
+	registryDir := workspaceWorld(t, true, "[verify]\n")
 	for _, ch := range []privacy.Channel{privacy.ChannelLocal, privacy.ChannelCloud} {
-		got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", ch)
+		got, err := privacy.VisibleAreas(registryDir, "all", ch)
 		if err != nil || scopesOf(got) != "project/a" {
 			t.Fatalf("channel %v: got %q, %v", ch, scopesOf(got), err)
 		}
@@ -235,23 +233,23 @@ func TestVisibleAreasLeavesOutAWorkspaceWithoutADeclaration(t *testing.T) {
 			t.Fatalf("channel %v: a workspace is no area to hide: %v", ch, got[0].Hidden)
 		}
 	}
-	_, err := privacy.VisibleAreas(registryDir, legacyDir, "project/ws", privacy.ChannelLocal)
+	_, err := privacy.VisibleAreas(registryDir, "project/ws", privacy.ChannelLocal)
 	if err == nil || !strings.Contains(err.Error(), "unknown scope 'project/ws'") {
 		t.Fatalf("got %v; want the unknown scope", err)
 	}
 }
 
 func TestVisibleAreasStillRefusesAnEntryWithoutDeclarationThatIsNoWorkspace(t *testing.T) {
-	registryDir, legacyDir := workspaceWorld(t, false, "[verify]\n")
-	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	registryDir := workspaceWorld(t, false, "[verify]\n")
+	got, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	if !errors.Is(err, config.ErrNoArea) || got != nil {
 		t.Fatalf("got %v, %v; want config.ErrNoArea", got, err)
 	}
 }
 
 func TestVisibleAreasStillRefusesABrokenDeclarationOfAWorkspace(t *testing.T) {
-	registryDir, legacyDir := workspaceWorld(t, true, "[area\n")
-	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	registryDir := workspaceWorld(t, true, "[area\n")
+	got, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	if err == nil || errors.Is(err, config.ErrNoManifest) || got != nil {
 		t.Fatalf("got %v, %v; want the parse error", got, err)
 	}
@@ -260,12 +258,12 @@ func TestVisibleAreasStillRefusesABrokenDeclarationOfAWorkspace(t *testing.T) {
 // A workspace without any config file is left out the same way: both
 // answers of "no declaration here" mean no brain area.
 func TestVisibleAreasLeavesOutAWorkspaceWithoutAnyConfigFile(t *testing.T) {
-	registryDir, legacyDir := workspaceWorld(t, true, "[verify]")
+	registryDir := workspaceWorld(t, true, "[verify]")
 	ws := filepath.Join(filepath.Dir(registryDir), "workspace")
 	if err := os.Remove(filepath.Join(ws, ".loomux", "config.toml")); err != nil {
 		t.Fatal(err)
 	}
-	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	got, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	if err != nil || scopesOf(got) != "project/a" {
 		t.Fatalf("got %q, %v", scopesOf(got), err)
 	}
@@ -274,13 +272,13 @@ func TestVisibleAreasLeavesOutAWorkspaceWithoutAnyConfigFile(t *testing.T) {
 // A workspace that still carries only an old manifest is no silent skip: the
 // call stops with the hint, as for any other area.
 func TestVisibleAreasRefusesAWorkspaceWithOnlyAnOldManifest(t *testing.T) {
-	registryDir, legacyDir := workspaceWorld(t, true, "[verify]")
+	registryDir := workspaceWorld(t, true, "[verify]")
 	ws := filepath.Join(filepath.Dir(registryDir), "workspace")
 	if err := os.Remove(filepath.Join(ws, ".loomux", "config.toml")); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(ws, ".brain.toml"), "[area]\nscope = \"project/ws\"\n")
-	got, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	got, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") || got != nil {
 		t.Fatalf("got %q, %v; want the old-manifest hint", scopesOf(got), err)
 	}

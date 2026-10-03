@@ -29,7 +29,6 @@ PostToolUse zeigt (gemessen mit agy 1.2.12, 2026-09-28).
 ### Globale Flags & Umgebung
 - `--root <pfad>`: Explizite Angabe der Projektwurzel. Wird dieses Flag weggelassen, wandert Loomux im Verzeichnisbaum aufwärts, bis es die erste `.loomux/config.toml` findet.
 - `LOOMUX_STATE_DIR`: Überschreibt das globale Zustandsverzeichnis (Standard: `%LOCALAPPDATA%\loomux` unter Windows, `~/.local/state/loomux` unter POSIX).
-- `LOOMUX_LEGACY_BRAIN_DIR`: Das Zustandsverzeichnis von ultra-brain, als Rückfall für brain-Artefakte gelesen und nie beschrieben (siehe Abschnitt 7).
 - `loomux version` (auch `--version`, `-v`): gibt `loomux <version>` auf `stdout` aus und endet mit `0`; ein Entwicklungsbuild nennt `0.0.0-dev`.
 
 ---
@@ -620,7 +619,7 @@ Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.
 
 ## 7. Second Brain & Wiki (`loomux brain`)
 
-Die fünf Datenbefehle lesen die Bereiche der einen Registry (`registry.toml` in `LOOMUX_STATE_DIR` oder dessen Plattformvorgabe) und antworten wie `brain-mcp` von ultra-brain; ein aufgezeichneter Fallkorpus (`testdata/cases/1b-1`) hält sie daran. Die Artefakte eines schreibgeschützten Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und der Reconcile-Stempel werden zuerst aus dem Zustandsverzeichnis von loomux gelesen, wohin Stufe 3a sie schreibt, und aus dem Zustandsverzeichnis von ultra-brain, solange am neuen Ort nichts liegt: `LOOMUX_LEGACY_BRAIN_DIR`, Standard `%LOCALAPPDATA%\brain` unter Windows und `$XDG_STATE_HOME/brain` oder `~/.local/state/brain` unter POSIX. Es entscheidet das ganze Bereichsverzeichnis, nie eine einzelne Datei; den Rest kopiert ein Mensch beim Abgleich des Maschinenzustands in Stufe 4e, danach entfernt ein Aufräum-Pull-Request den Rückfall. Bis dahin wird ein Bereichsverzeichnis, dessen `.loomux/config.toml` fehlt oder keine `[area]`-Tabelle trägt, über `.ultra-brain/config.toml` oder `.brain.toml` gelesen.
+Die fünf Datenbefehle lesen die Bereiche der einen Registry (`registry.toml` in `LOOMUX_STATE_DIR` oder dessen Plattformvorgabe) und antworten wie `brain-mcp` von ultra-brain; ein aufgezeichneter Fallkorpus (`testdata/cases/1b-1`) hält sie daran. Die Artefakte eines schreibgeschützten Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und der Reconcile-Stempel werden aus dem Zustandsverzeichnis von loomux gelesen, unter `areas/<flacher Scope>` und `maintenance/`; ein Bereichsverzeichnis, dessen `.loomux/config.toml` fehlt oder keine `[area]`-Tabelle trägt, ist nicht deklariert.
 
 - **Kanal**: Jeder Befehl nimmt `--channel local|cloud` (Standard `local`). Ein Bereich mit `[privacy] mode = "local_only"` existiert im Kanal `cloud` nicht; `[privacy] never`-Globs gelten in jedem Kanal. Verschachtelung hebt `local_only` nicht auf: Wo der Baum eines anderen Bereichs das Wiki oder den Quellbaum eines `local_only`-Bereichs enthält, bleibt jeder Pfad darin im Kanal `cloud` auch über diesen Scope verborgen — `brain read` beantwortet ihn wie eine fehlende Datei, und Suchtreffer, Katalogzeilen, Nachbarn und Befunde von `brain status` darunter fallen weg. Der Kanal `local` bleibt unverändert.
 - **Usage-Fehler** (Exit `2`): die Usage-Zeile, dann `loomux brain <befehl>: error: <grund>` bei fehlendem Argument, ungültiger Wahl oder `-n` kleiner 1, und `loomux brain: error: <grund>`, wenn der Befehl fehlt oder unbekannt ist oder Argumente übrig bleiben.
@@ -700,9 +699,9 @@ Benennt einen Seitentyp in einem Bündel um und nennt jede geschriebene Seite. G
 
 ### Pflege: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`, `loomux area check`
 
-Vier Befehle der `brain`-CLI von ultra-brain, seit Stufe 3a Befehle auf oberster Ebene von loomux; ein aufgezeichneter Fallkorpus (`testdata/cases/3a`) hält sie an der Python-Referenz. Sie schreiben nur ins Zustandsverzeichnis von loomux und lesen das alte als den oben beschriebenen Rückfall.
+Vier Befehle der `brain`-CLI von ultra-brain, seit Stufe 3a Befehle auf oberster Ebene von loomux; ein aufgezeichneter Fallkorpus (`testdata/cases/3a`) hält sie an der Python-Referenz. Sie lesen und schreiben allein im Zustandsverzeichnis von loomux.
 
-- **Umgebung**: `LOOMUX_STATE_DIR` hält die Registry, die Artefakte schreibgeschützter Bereiche, `maintenance/` und `qmd-collections.json`; `LOOMUX_LEGACY_BRAIN_DIR` ist der Rückfall und wird nie beschrieben. qmds `index.yml` wird über `XDG_CONFIG_HOME` gefunden, sonst unter `~/.config`.
+- **Umgebung**: `LOOMUX_STATE_DIR` hält die Registry, die Artefakte schreibgeschützter Bereiche, `maintenance/` und `qmd-collections.json`. qmds `index.yml` wird über `XDG_CONFIG_HOME` gefunden, sonst unter `~/.config`.
 - **Kein `--state-dir`**: Die Referenz nimmt es an allen vieren an; loomux lehnt es ab wie jede unbekannte Flagge (Exit `2`). Der Zustand kommt aus der Umgebung, dem einen Zustandsmodell aller loomux-Befehle.
 - **Positionale Argumente** (Exit `2`): Keiner der vier nimmt eines. Ein Wort, das nach den Flaggen übrig bleibt, wird mit `<befehl>: unrecognized arguments: <wörter>` abgelehnt, bevor Umgebung oder qmd gefragt werden.
 - **Meldungen** des Abgleichs sind deutsch, wörtlich die der Referenz.
@@ -755,7 +754,7 @@ Zwei Befehle der `brain`-CLI von ultra-brain, seit Stufe 4d Befehle der obersten
 
 - **Befehle des Menschen**: Der Wächter verweigert beide einem Agenten, denn dorthin verbietet die Schreibschranke Agenten das Schreiben (siehe [`hook pre-tool-use`](#loomux-hook-pre-tool-use)); nur ein alleinstehendes `--help` oder `-h` geht durch.
 - **Modul Brain**: Mit `[modules] brain = false` im Projekt, das die Suche vom Arbeitsverzeichnis nach oben findet, geben beide `loomux <befehl>: the brain module is off in <datei> ([modules] brain = false)` aus und enden mit `1`, bevor etwas gelesen ist. Außerhalb eines Projekts ist nichts abgeschaltet.
-- **Umgebung**: Registry und Bereichsdeklarationen kommen aus `LOOMUX_STATE_DIR`, mit `LOOMUX_LEGACY_BRAIN_DIR` als Rückfall, wie bei der [Pflege](#pflege-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add-loomux-area-check). `--state-dir` und `--channel`, die die Referenz annimmt und nicht nutzt, sind unbekannte Flags (Exit `2`).
+- **Umgebung**: Registry und Bereichsdeklarationen kommen aus `LOOMUX_STATE_DIR`, wie bei der [Pflege](#pflege-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add-loomux-area-check). `--state-dir` und `--channel`, die die Referenz annimmt und nicht nutzt, sind unbekannte Flags (Exit `2`).
 - **Externe Programme**: Beide werden auf dem `PATH` gesucht und nie installiert: `pdftotext` von Poppler (`winget install --id oschwartz10612.Poppler -e`) und `yt-dlp` (`winget install --id yt-dlp.yt-dlp -e`). Ein fehlendes wird mit diesem Befehl genannt.
 
 #### `loomux convert [<datei>]`

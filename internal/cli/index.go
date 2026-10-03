@@ -31,10 +31,8 @@ var indexLook = exec.LookPath
 // which collections exist -- after a reconcile pass over the same areas, for
 // the reason catchUpBeforeIndexing gives.
 //
-// Both places the run needs are resolved here and handed in: the state
-// directory is the one thing written to, the legacy directory the one a
-// read-only area's stock and the record of qmd collections are still read
-// from until `loomux migrate` moves them.
+// The state directory the run needs is resolved here and handed in: the one
+// place it reads from and writes to.
 // This is the composition site, and nothing deeper asks the environment --
 // `internal/serve` promises that everything hangs off the state directory it
 // was handed, and a lookup one layer down would break that promise for every
@@ -75,7 +73,7 @@ func reindexCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 // reindexCommand runs its own first, and `approve` runs one in its own words
 // before it calls this, so neither passes over the vault twice.
 func indexAreas(path string, lookup config.ArtifactLookup, stdout, stderr io.Writer) int {
-	code, _ := index.ReindexWithOutput(path, lookup.Primary, lookup.Fallback, brainPorts().Status(), stderr)
+	code, _ := index.ReindexWithOutput(path, lookup.Primary, brainPorts().Status(), stderr)
 	if code == 0 {
 		fmt.Fprintf(stdout, "indexed the areas of %s\n", path)
 	}

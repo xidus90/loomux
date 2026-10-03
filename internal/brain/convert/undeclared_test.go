@@ -18,7 +18,7 @@ func TestAreasTakesAPolicyOnlyConfigAsNoDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, err := Areas(registered, w.state, filepath.Join(w.root, "legacy"))
+	entries, err := Areas(registered, w.state)
 	if err != nil || len(entries) != 1 || entries[0].Mode != "manual_cloud" || entries[0].Manifest != nil {
 		t.Fatalf("got %+v, %v", entries, err)
 	}
@@ -36,7 +36,7 @@ func TestAreasRefusesAnAreaWithOnlyAnOldManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, err := Areas(registered, w.state, filepath.Join(w.root, "legacy"))
+	entries, err := Areas(registered, w.state)
 	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") {
 		t.Fatalf("got %+v, %v; want the old-manifest hint", entries, err)
 	}

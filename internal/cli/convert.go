@@ -53,7 +53,7 @@ func convertCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		if err != nil {
 			return reportReconcileError(stderr, err)
 		}
-		entries, err := convert.Areas(areas, lookup.Primary, lookup.Fallback)
+		entries, err := convert.Areas(areas, lookup.Primary)
 		if err != nil {
 			return reportReconcileError(stderr, err)
 		}
@@ -117,7 +117,7 @@ func fetchCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		return reportReconcileError(stderr, err)
 	}
-	entries, err := convert.Areas(areas, lookup.Primary, lookup.Fallback)
+	entries, err := convert.Areas(areas, lookup.Primary)
 	if err != nil {
 		return reportReconcileError(stderr, err)
 	}

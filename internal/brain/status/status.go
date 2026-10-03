@@ -24,21 +24,20 @@ import (
 
 // Lines answers `brain status` on one channel. The registry comes from
 // registryDir, which is also the state directory the reconcile stamp and the
-// artefacts and manifests of read-only areas come from; fallbackDir --
-// ultra-brain's -- is asked only as long as nothing lies there.
+// artefacts and manifests of read-only areas come from.
 //
 // The steps run in the order Python evaluates them, and that order decides
 // more than the order of the lines: of two defects, the one the reference
 // meets first is the one that aborts. So the stamp is read before the
 // registry, an area's graph before its register, every register a second
 // time for the shared hashes after the loop, and the backlog is asked last.
-func Lines(ch privacy.Channel, port search.SearchPort, registryDir, fallbackDir string, now time.Time) ([]string, error) {
-	first, err := lastReconcile(registryDir, fallbackDir, now)
+func Lines(ch privacy.Channel, port search.SearchPort, registryDir string, now time.Time) ([]string, error) {
+	first, err := lastReconcile(registryDir, now)
 	if err != nil {
 		return nil, err
 	}
 	lines := []string{first}
-	areas, err := privacy.VisibleAreas(registryDir, fallbackDir, "all", ch)
+	areas, err := privacy.VisibleAreas(registryDir, "all", ch)
 	if err != nil {
 		return nil, err
 	}
@@ -57,11 +56,11 @@ func Lines(ch privacy.Channel, port search.SearchPort, registryDir, fallbackDir 
 				area.Scope, pytext.PathString(runtime.GOOS, area.Path)))
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(config.ResolvedAreaDir(area, registryDir, fallbackDir), "graph.json")); err != nil {
+		if _, err := os.Stat(filepath.Join(config.ManifestDir(area, registryDir), "graph.json")); err != nil {
 			lines = append(lines, fmt.Sprintf("%s: never indexed; run `brain reindex`", area.Scope))
 			continue
 		}
-		g, err := graph.ReadGraph(area, registryDir, fallbackDir)
+		g, err := graph.ReadGraph(area, registryDir)
 		if err != nil {
 			return nil, err
 		}
@@ -69,13 +68,13 @@ func Lines(ch privacy.Channel, port search.SearchPort, registryDir, fallbackDir 
 			lines = append(lines, fmt.Sprintf("%s: only %d of %d links resolved (%s)",
 				area.Scope, links.Resolved, links.Total, dropped(links.Dropped)))
 		}
-		missing, err := unfindable(visible, port, registryDir, fallbackDir)
+		missing, err := unfindable(visible, port, registryDir)
 		if err != nil {
 			return nil, err
 		}
 		lines = append(lines, missing...)
 	}
-	shared, err := sharedHashes(areas, registryDir, fallbackDir)
+	shared, err := sharedHashes(areas, registryDir)
 	if err != nil {
 		return nil, err
 	}
@@ -86,8 +85,8 @@ func Lines(ch privacy.Channel, port search.SearchPort, registryDir, fallbackDir 
 // lastReconcile is `_last_reconcile`: the stamp is named whether or not it
 // is old, because "when was this last checked" has no in-order value to be
 // silent about. A missing, unparsable or naive stamp is one answer.
-func lastReconcile(stateDir, fallbackDir string, now time.Time) (string, error) {
-	stamp, ok, err := search.ReadLastRun(stateDir, fallbackDir)
+func lastReconcile(stateDir string, now time.Time) (string, error) {
+	stamp, ok, err := search.ReadLastRun(stateDir)
 	if err != nil {
 		return "", err
 	}
@@ -119,8 +118,8 @@ func dropped(counts map[string]int) string {
 // registerPath is `area_artifact_dir(area, state_dir) / "_identities.tsv"`
 // spelt as str(Path) spells it: the register names this path in its error
 // messages, and those end up on the reader's screen.
-func registerPath(area config.Area, stateDir, fallbackDir string) string {
-	return pytext.PathString(runtime.GOOS, config.ResolvedAreaDir(area, stateDir, fallbackDir)+"/_identities.tsv")
+func registerPath(area config.Area, stateDir string) string {
+	return pytext.PathString(runtime.GOOS, config.ManifestDir(area, stateDir)+"/_identities.tsv")
 }
 
 // unfindable is `_unfindable`: documents the register holds and the engine
@@ -131,9 +130,9 @@ func registerPath(area config.Area, stateDir, fallbackDir string) string {
 // orders str. A path inside the tree of an area the channel hides is neither
 // counted nor named: the register of an area whose tree holds a `local_only`
 // wiki lists that wiki's pages as well.
-func unfindable(visible privacy.VisibleArea, port search.SearchPort, stateDir, fallbackDir string) ([]string, error) {
+func unfindable(visible privacy.VisibleArea, port search.SearchPort, stateDir string) ([]string, error) {
 	area, manifest := visible.Area, visible.Manifest
-	register, err := identity.ReadIdentities(registerPath(area, stateDir, fallbackDir))
+	register, err := identity.ReadIdentities(registerPath(area, stateDir))
 	if err != nil {
 		return nil, err
 	}
@@ -180,11 +179,11 @@ func unfindable(visible privacy.VisibleArea, port search.SearchPort, stateDir, f
 // hides is not even counted: the survivor's line would tell that a hidden
 // twin exists, which is what hiding the area keeps back. Lines follow the hash string, the paths inside
 // a line their own order.
-func sharedHashes(areas []privacy.VisibleArea, stateDir, fallbackDir string) ([]string, error) {
+func sharedHashes(areas []privacy.VisibleArea, stateDir string) ([]string, error) {
 	byHash := map[string][]string{}
 	withheld := map[string]int{}
 	for _, visible := range areas {
-		register, err := identity.ReadIdentities(registerPath(visible.Area, stateDir, fallbackDir))
+		register, err := identity.ReadIdentities(registerPath(visible.Area, stateDir))
 		if err != nil {
 			return nil, err
 		}

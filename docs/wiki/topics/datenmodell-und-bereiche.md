@@ -54,8 +54,9 @@ Stelle, die Bereichsnamen auf Pfade abbildet.
 Aufräum-PR nur `.loomux/config.toml`; eine Datei ohne `[area]` deklariert
 keinen Bereich, ein danebenliegendes Altmanifest nennt die Fehlermeldung samt
 `loomux area check`. loomux hält die Registrierung unter
-`LOOMUX_STATE_DIR` (`%LOCALAPPDATA%\loomux`) und lässt Artefakte und
-Reconcile-Stempel bis Stufe 3 unter `LOOMUX_LEGACY_BRAIN_DIR`.
+`LOOMUX_STATE_DIR` (`%LOCALAPPDATA%\loomux`); Artefakte und
+Reconcile-Stempel liegen im selben Zustandsverzeichnis; ein zweites liest
+loomux nicht mehr.
 
 Drei Feinheiten mit Messgeschichte:
 

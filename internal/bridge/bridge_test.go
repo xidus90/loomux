@@ -208,7 +208,7 @@ func connectService(t *testing.T) *mcp.ClientSession {
 	t.Helper()
 	server := mcp.NewServer(&mcp.Implementation{Name: "loomux", Version: "1"}, nil)
 	servebrain.Register(server, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+		Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 			return "", nil, nil
 		},
 	})

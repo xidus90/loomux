@@ -77,18 +77,17 @@ var benchNow = time.Date(2026, 9, 26, 12, 34, 0, 0, time.UTC)
 func depsWith(t *testing.T) Deps {
 	t.Helper()
 	return Deps{
-		StateDir:    t.TempDir(),
-		FallbackDir: t.TempDir(),
-		Daemon:      func() search.SearchPort { t.Fatal("the daemon was asked"); return nil },
-		CLI:         func(string) search.SearchPort { t.Fatal("the command line was asked"); return nil },
-		QmdVersion:  func() string { return "qmd 2.8.3" },
-		Models:      func(string) map[string]string { return map[string]string{"embedding": "E"} },
-		Loomux:      "1.2.3",
-		Now:         func() time.Time { return benchNow },
-		Clock:       tick(time.Millisecond),
-		Random:      fixed("a1"),
-		Warn:        logTo(t),
-		Backbone:    "vulkan",
+		StateDir:   t.TempDir(),
+		Daemon:     func() search.SearchPort { t.Fatal("the daemon was asked"); return nil },
+		CLI:        func(string) search.SearchPort { t.Fatal("the command line was asked"); return nil },
+		QmdVersion: func() string { return "qmd 2.8.3" },
+		Models:     func(string) map[string]string { return map[string]string{"embedding": "E"} },
+		Loomux:     "1.2.3",
+		Now:        func() time.Time { return benchNow },
+		Clock:      tick(time.Millisecond),
+		Random:     fixed("a1"),
+		Warn:       logTo(t),
+		Backbone:   "vulkan",
 	}
 }
 

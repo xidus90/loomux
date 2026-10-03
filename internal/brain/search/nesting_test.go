@@ -12,8 +12,8 @@ import (
 
 // nestedWorld registers the open area "hub", whose tree holds the wiki of
 // the read-only `local_only` area "project/inner", as the registry on this
-// machine does. It returns the directory that holds the registry and the
-// legacy state both.
+// machine does. It returns the state directory, which holds the registry and
+// the read-only area's stock both.
 func nestedWorld(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -58,7 +58,7 @@ func TestExecuteSearch_AHitInsideAHiddenTreeIsWithheldOnCloud(t *testing.T) {
 		port := &mockSearchPort{searchFunc: func(string, []string, search.Profile, int) ([]search.SearchHit, error) {
 			return hits, nil
 		}}
-		found, err := search.ExecuteSearch("q", "hub", search.ProfileFast, 5, tc.channel, port, stateDir, stateDir, searchNow)
+		found, err := search.ExecuteSearch("q", "hub", search.ProfileFast, 5, tc.channel, port, stateDir, searchNow)
 		if err != nil {
 			t.Fatalf("%s: %v", tc.channel, err)
 		}

@@ -29,7 +29,6 @@ agy 1.2.12, 2026-09-28).
 ### Global Flags & Environment
 - `--root <path>`: Explicit project root directory. If omitted, Loomux walks upwards from the current working directory until it locates `.loomux/config.toml`.
 - `LOOMUX_STATE_DIR`: Overrides the global state directory (defaults to `%LOCALAPPDATA%\loomux` on Windows or `~/.local/state/loomux` on POSIX).
-- `LOOMUX_LEGACY_BRAIN_DIR`: ultra-brain's state directory, read as the fallback for brain artefacts and never written (see section 7).
 - `loomux version` (also `--version`, `-v`): prints `loomux <version>` on `stdout` and exits `0`; a development build says `0.0.0-dev`.
 
 ---
@@ -597,7 +596,7 @@ Starts the local D3-Force / WebGL interactive graph visualizer.
 
 ## 7. Second Brain & Wiki (`loomux brain`)
 
-The five data commands read the areas of the one registry (`registry.toml` in `LOOMUX_STATE_DIR` or its platform default) and answer as ultra-brain's `brain-mcp` does; a recorded case corpus (`testdata/cases/1b-1`) holds them to it. A read-only area's artefacts (`index.md`, `graph.json`, `_identities.tsv`) and the reconcile stamp are read from loomux's state directory first, where stage 3a writes them, and from ultra-brain's state directory as long as nothing lies in the new place: `LOOMUX_LEGACY_BRAIN_DIR`, defaulting to `%LOCALAPPDATA%\brain` on Windows and to `$XDG_STATE_HOME/brain` or `~/.local/state/brain` on POSIX. The whole area directory decides, never a single file; a human copies the rest when comparing the machine state in stage 4e, after which a clean-up pull request removes the fallback. Until then, an area directory whose `.loomux/config.toml` is missing or has no `[area]` table is read through `.ultra-brain/config.toml` or `.brain.toml`.
+The five data commands read the areas of the one registry (`registry.toml` in `LOOMUX_STATE_DIR` or its platform default) and answer as ultra-brain's `brain-mcp` does; a recorded case corpus (`testdata/cases/1b-1`) holds them to it. A read-only area's artefacts (`index.md`, `graph.json`, `_identities.tsv`) and the reconcile stamp are read from loomux's state directory, under `areas/<flat scope>` and `maintenance/`; an area directory whose `.loomux/config.toml` is missing or has no `[area]` table is not declared.
 
 - **Channel**: every command takes `--channel local|cloud` (default `local`). An area with `[privacy] mode = "local_only"` does not exist on `cloud`; `[privacy] never` globs apply on every channel. Nesting does not lift `local_only`: where the tree of another area holds the wiki or the source tree of a `local_only` area, every path inside it stays hidden on `cloud` through that scope too — `brain read` answers it as a missing file, and search hits, catalog lines, neighbours and `brain status` findings under it are left out. The `local` channel is unchanged.
 - **Usage errors** (exit `2`): the usage line, then `loomux brain <command>: error: <reason>` for a missing argument, an invalid choice or `-n` below 1, and `loomux brain: error: <reason>` when the command is missing or unknown or arguments are left over.
@@ -677,9 +676,9 @@ Renames one page type in one bundle and names every page it wrote. Only the fron
 
 ### Upkeep: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`, `loomux area check`
 
-Four commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 3a; a recorded case corpus (`testdata/cases/3a`) holds them to the Python reference. They write only to loomux's state directory and read the legacy one as the fallback described above.
+Four commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 3a; a recorded case corpus (`testdata/cases/3a`) holds them to the Python reference. They read from and write to loomux's state directory alone.
 
-- **Environment**: `LOOMUX_STATE_DIR` holds the registry, the artefacts of read-only areas, `maintenance/` and `qmd-collections.json`; `LOOMUX_LEGACY_BRAIN_DIR` is the fallback and is never written. qmd's `index.yml` is found through `XDG_CONFIG_HOME`, else `~/.config`.
+- **Environment**: `LOOMUX_STATE_DIR` holds the registry, the artefacts of read-only areas, `maintenance/` and `qmd-collections.json`. qmd's `index.yml` is found through `XDG_CONFIG_HOME`, else `~/.config`.
 - **No `--state-dir`**: the reference accepts it on all four; loomux refuses it like any unknown flag (exit `2`). The state comes from the environment, the one state model of every loomux command.
 - **Positional arguments** (exit `2`): none of the four takes one. A word left after the flags is refused with `<command>: unrecognized arguments: <words>` before the environment or qmd is looked at.
 - **Messages** of the reconcile pass are German, word for word the reference's.
@@ -732,7 +731,7 @@ Two commands of ultra-brain's `brain` CLI, top-level commands of loomux since st
 
 - **A human's commands**: the guard refuses both to an agent, since a write there is one the write barrier keeps from agents (see [`hook pre-tool-use`](#loomux-hook-pre-tool-use)); only a lone `--help` or `-h` passes.
 - **Brain module**: with `[modules] brain = false` in the project found upward from the working directory, both print `loomux <command>: the brain module is off in <file> ([modules] brain = false)` and exit `1` before anything is read. Outside a project nothing is switched off.
-- **Environment**: the registry and the area declarations come from `LOOMUX_STATE_DIR`, with `LOOMUX_LEGACY_BRAIN_DIR` as the fallback, as for [upkeep](#upkeep-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add-loomux-area-check). `--state-dir` and `--channel`, which the reference accepts and does not use, are unknown flags (exit `2`).
+- **Environment**: the registry and the area declarations come from `LOOMUX_STATE_DIR`, as for [upkeep](#upkeep-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add-loomux-area-check). `--state-dir` and `--channel`, which the reference accepts and does not use, are unknown flags (exit `2`).
 - **External programs**: both are looked up on `PATH` and never installed: `pdftotext` from Poppler (`winget install --id oschwartz10612.Poppler -e`) and `yt-dlp` (`winget install --id yt-dlp.yt-dlp -e`). A missing one is named with that command.
 
 #### `loomux convert [<file>]`

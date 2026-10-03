@@ -106,10 +106,10 @@ type Report struct {
 // Reconcile compares every registered source against its register entry and
 // raises the cases the changes call for.
 //
-// Both directories come in through lookup and neither is read from the
-// environment, for the reason config.ResolvedAreaDir states: `internal/serve`
-// promises everything hangs off the state directory it was handed, and a
-// lookup that asked StateDir() itself would break that for every caller.
+// The state directory comes in through lookup and is not read from the
+// environment: `internal/serve` promises everything hangs off the state
+// directory it was handed, and a lookup that asked StateDir() itself would
+// break that for every caller.
 func Reconcile(areas []config.Area, lookup config.ArtifactLookup, now time.Time) (Report, error) {
 	return ReconcileContext(context.Background(), areas, lookup, now)
 }
@@ -134,7 +134,7 @@ func ReconcileContext(ctx context.Context, areas []config.Area, lookup config.Ar
 		if manifest == nil {
 			continue
 		}
-		areaChecked, areaHashed, areaChanged, err := Scan(area, manifest, lookup.Primary, lookup.Fallback)
+		areaChecked, areaHashed, areaChanged, err := Scan(area, manifest, lookup.Primary)
 		if err != nil {
 			return Report{}, err
 		}
@@ -261,14 +261,14 @@ func writeLastRun(lookup config.ArtifactLookup, now time.Time) error {
 // not read is the opposite: reconciling on a guess about which sources an area
 // holds would raise cases for the wrong files.
 //
-// The declaration is looked for under ResolvedAreaDir and not under the area,
+// The declaration is looked for under ManifestDir and not under the area,
 // because a read-only area keeps its artefacts -- the declaration among them
 // -- in the state directory.
 func Manifests(areas []config.Area, lookup config.ArtifactLookup) (map[string]*config.Manifest, error) {
 	found := map[string]*config.Manifest{}
 	for _, area := range areas {
 		manifest, err := config.ReadAreaDeclaration(
-			config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
+			config.ManifestDir(area, lookup.Primary))
 		if config.IsUndeclared(err) {
 			continue
 		}
@@ -459,7 +459,7 @@ func mergeCases(
 	broken *[]string,
 	asking map[string]*model.Proposer,
 ) ([]Case, error) {
-	events, err := ReadEvents(lookup.Primary, lookup.Fallback)
+	events, err := ReadEvents(lookup.Primary)
 	if err != nil {
 		return nil, err
 	}

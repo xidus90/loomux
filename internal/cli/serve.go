@@ -107,7 +107,6 @@ func serveForeground(stderr io.Writer) int {
 	err := serveRun(ctx, serve.Options{
 		StateDir:    config.StateDir(),
 		RegistryDir: config.StateDir(),
-		LegacyDir:   config.LegacyBrainDirUntilStage3(),
 		Foreground:  true,
 		BrokeAway:   serve.BrokeAwayFromEnv(),
 		Update:      func(ctx context.Context) { selfUpdateRun(ctx, selfUpdateOptions(selfupdate.SourceServe)) },

@@ -96,7 +96,7 @@ func brainChoices(choices []string) string {
 
 // brainParserFor answers the argument shape of one subcommand as cli.py:471-501
 // and :542 declare it, without --state-dir: loomux reads its state from
-// config.StateDir and the legacy directory, never from a flag.
+// config.StateDir, never from a flag.
 func brainParserFor(name string) (brainParser, bool) {
 	scope := brainOption{flag: "--scope", metavar: "SCOPE", fallback: "all"}
 	requiredScope := brainOption{flag: "--scope", metavar: "SCOPE", required: true}

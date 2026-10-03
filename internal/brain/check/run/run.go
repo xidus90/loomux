@@ -342,7 +342,7 @@ func areaManifest(
 	area config.Area, lookup config.ArtifactLookup,
 ) (*config.Manifest, []check.Finding) {
 	manifest, err := config.ReadAreaDeclaration(
-		config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
+		config.ManifestDir(area, lookup.Primary))
 	if config.IsUndeclared(err) {
 		// Not a defect: an area may declare nothing, and the caller then
 		// falls back to the defaults (`config.DefaultUntouchedDays`).
@@ -496,7 +496,7 @@ func fileRoot(path string, lookup config.ArtifactLookup) (string, *config.Manife
 	}
 	if root, area, ok := registeredRoot(path, lookup); ok {
 		manifest, err := config.ReadAreaDeclaration(
-			config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
+			config.ManifestDir(area, lookup.Primary))
 		if err != nil {
 			// The bundle root is still the right one; only the
 			// vocabulary is missing, and `unknown-type` then judges by

@@ -15,7 +15,7 @@ const oneLine = "C:/repo\tabc123\tdef456\tmain\t2026-09-19T10:00:00Z\n"
 
 func TestReadEventsParsesFiveFields(t *testing.T) {
 	stateDir := writeEvents(t, oneLine)
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestReadEventsParsesFiveFields(t *testing.T) {
 // a machine that wrote an offset keeps its offset rather than being relabelled.
 func TestReadEventsKeepsTheOffsetOfTheStamp(t *testing.T) {
 	stateDir := writeEvents(t, "C:/repo\tabc\tdef\tmain\t2026-09-19T10:00:00+02:00\n")
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestReadEventsSkipsALineWithoutFiveFields(t *testing.T) {
 	// "too many fields" half of the count check would go untested.
 	stateDir := writeEvents(t, "C:/repo\tabc\n\n"+oneLine+
 		"C:/repo\ta\tb\tc\t2026-09-19T10:00:00Z\te\n")
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestReadEventsSkipsALineWithoutFiveFields(t *testing.T) {
 // and an unreadable stamp is a different line from one with four fields.
 func TestReadEventsSkipsALineWhoseStampDoesNotParse(t *testing.T) {
 	stateDir := writeEvents(t, "C:/repo\tabc\tdef\tmain\tyesterday\n")
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestReadEventsSkipsALineWhoseStampDoesNotParse(t *testing.T) {
 // in the parity list, not relied on.
 func TestReadEventsSkipsAStampWithoutAZone(t *testing.T) {
 	stateDir := writeEvents(t, "C:/repo\tabc\tdef\tmain\t2026-09-19T10:00:00\n")
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestReadEventsSkipsAStampWithoutAZone(t *testing.T) {
 
 // No log is no error: on a machine without the hook there is none.
 func TestReadEventsWithoutAFile(t *testing.T) {
-	got, err := maintenance.ReadEvents(t.TempDir(), "")
+	got, err := maintenance.ReadEvents(t.TempDir())
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -107,10 +107,10 @@ func TestReadEventsWithoutAFile(t *testing.T) {
 // it would turn a strange directory into a lost run.
 func TestReadEventsWhenADirectorySitsAtThePath(t *testing.T) {
 	stateDir := t.TempDir()
-	if err := os.MkdirAll(maintenance.EventsPath(stateDir, ""), 0o755); err != nil {
+	if err := os.MkdirAll(maintenance.EventsPath(stateDir), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestReadEventsWhenADirectorySitsAtThePath(t *testing.T) {
 // worse lie than an error naming the file.
 func TestReadEventsFailsOnBytesThatAreNotUTF8(t *testing.T) {
 	stateDir := writeEvents(t, "C:/repo\tabc\tdef\t\xff\t2026-09-19T10:00:00Z\n")
-	if _, err := maintenance.ReadEvents(stateDir, ""); err == nil {
+	if _, err := maintenance.ReadEvents(stateDir); err == nil {
 		t.Fatal("ReadEvents accepted bytes that are not UTF-8")
 	}
 }
@@ -132,7 +132,7 @@ func TestReadEventsFailsOnBytesThatAreNotUTF8(t *testing.T) {
 func TestReadEventsFailsWhenTheDroppedFileIsNotUTF8(t *testing.T) {
 	stateDir := writeEvents(t, oneLine)
 	writeFile(t, droppedPath(stateDir), "C:/repo\tabc\t\xff\n")
-	if _, err := maintenance.ReadEvents(stateDir, ""); err == nil {
+	if _, err := maintenance.ReadEvents(stateDir); err == nil {
 		t.Fatal("ReadEvents accepted a dropped file that is not UTF-8")
 	}
 }
@@ -142,7 +142,7 @@ func TestReadEventsFailsWhenTheDroppedFileIsNotUTF8(t *testing.T) {
 // is dated when it first landed.
 func TestReadEventsKeepsTheFirstOfTwoLinesWithOneKey(t *testing.T) {
 	stateDir := writeEvents(t, oneLine+"C:/repo\tabc123\tdef456\tmain\t2026-09-20T11:00:00Z\n")
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -157,33 +157,12 @@ func TestReadEventsKeepsTheFirstOfTwoLinesWithOneKey(t *testing.T) {
 // Two different ranges stay two events -- both landed.
 func TestReadEventsKeepsTwoRanges(t *testing.T) {
 	stateDir := writeEvents(t, oneLine+"C:/repo\tdef456\tghi789\tmain\t2026-09-20T11:00:00Z\n")
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("read %d events, want 2", len(got))
-	}
-}
-
-// A hook installed by the Python tool writes into its state directory, which
-// is this stage's fallback.
-func TestReadEventsReadsTheFallbackWhenThePrimaryHasNothing(t *testing.T) {
-	fallbackDir := writeEvents(t, oneLine)
-	got, err := maintenance.ReadEvents(t.TempDir(), fallbackDir)
-	if err != nil {
-		t.Fatalf("ReadEvents: %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("read %d events, want 1", len(got))
-	}
-}
-
-func TestEventsPathPrefersThePrimary(t *testing.T) {
-	stateDir := writeEvents(t, oneLine)
-	fallbackDir := writeEvents(t, oneLine)
-	if got := maintenance.EventsPath(stateDir, fallbackDir); got != eventsPath(stateDir) {
-		t.Fatalf("EventsPath = %q, want %q", got, eventsPath(stateDir))
 	}
 }
 
@@ -199,35 +178,14 @@ func TestKeyIsTheRangeInOneRepository(t *testing.T) {
 // A dropped event does not come back on the next read.
 func TestDropEventHidesIt(t *testing.T) {
 	stateDir := writeEvents(t, oneLine)
-	events, err := maintenance.ReadEvents(stateDir, "")
+	events, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
 	if err := maintenance.DropEvent(stateDir, events[0]); err != nil {
 		t.Fatalf("DropEvent: %v", err)
 	}
-	got, err := maintenance.ReadEvents(stateDir, "")
-	if err != nil {
-		t.Fatalf("ReadEvents: %v", err)
-	}
-	if len(got) != 0 {
-		t.Fatalf("a dropped event came back: %+v", got)
-	}
-}
-
-// The log lives in the old place and the drop goes into the new one: the pair
-// has to work across the two directories, or a migrating machine would raise
-// every merge it already handled.
-func TestDropEventHidesAnEventReadFromTheFallback(t *testing.T) {
-	stateDir, fallbackDir := t.TempDir(), writeEvents(t, oneLine)
-	events, err := maintenance.ReadEvents(stateDir, fallbackDir)
-	if err != nil {
-		t.Fatalf("ReadEvents: %v", err)
-	}
-	if err := maintenance.DropEvent(stateDir, events[0]); err != nil {
-		t.Fatalf("DropEvent: %v", err)
-	}
-	got, err := maintenance.ReadEvents(stateDir, fallbackDir)
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -240,7 +198,7 @@ func TestDropEventHidesAnEventReadFromTheFallback(t *testing.T) {
 // range wrote two different stamps, and both are the one merge.
 func TestDropEventHidesTheRangeWhateverTheStampSays(t *testing.T) {
 	stateDir := writeEvents(t, oneLine)
-	events, err := maintenance.ReadEvents(stateDir, "")
+	events, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -250,7 +208,7 @@ func TestDropEventHidesTheRangeWhateverTheStampSays(t *testing.T) {
 	if err := maintenance.DropEvent(stateDir, later); err != nil {
 		t.Fatalf("DropEvent: %v", err)
 	}
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -263,7 +221,7 @@ func TestDropEventHidesTheRangeWhateverTheStampSays(t *testing.T) {
 // a half-migrated machine may run both tools over the same file.
 func TestDropEventWritesTheTripleAndAppends(t *testing.T) {
 	stateDir := writeEvents(t, oneLine)
-	events, err := maintenance.ReadEvents(stateDir, "")
+	events, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
@@ -288,14 +246,14 @@ func TestDropEventWritesTheTripleAndAppends(t *testing.T) {
 // arrives between the read and the write would otherwise be lost.
 func TestDropEventLeavesTheLogAlone(t *testing.T) {
 	stateDir := writeEvents(t, oneLine)
-	events, err := maintenance.ReadEvents(stateDir, "")
+	events, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}
 	if err := maintenance.DropEvent(stateDir, events[0]); err != nil {
 		t.Fatalf("DropEvent: %v", err)
 	}
-	raw, err := os.ReadFile(maintenance.EventsPath(stateDir, ""))
+	raw, err := os.ReadFile(maintenance.EventsPath(stateDir))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -309,7 +267,7 @@ func TestDropEventLeavesTheLogAlone(t *testing.T) {
 func TestDropEventFileIgnoresALineWithoutThreeFields(t *testing.T) {
 	stateDir := writeEvents(t, oneLine)
 	writeFile(t, droppedPath(stateDir), "C:/repo\tabc123\n")
-	got, err := maintenance.ReadEvents(stateDir, "")
+	got, err := maintenance.ReadEvents(stateDir)
 	if err != nil {
 		t.Fatalf("ReadEvents: %v", err)
 	}

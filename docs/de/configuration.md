@@ -968,9 +968,9 @@ default = "example"
 | Einzelne Dateien, die die Schreibschranke offen hält | `<Zustandsverzeichnis>\open.toml` |
 | Manifest eines beschreibbaren Bereichs | `<Bereichspfad>\.loomux\config.toml` |
 | Manifest eines lesenden Bereichs, wie die Schreibschranke es liest | `<Zustandsverzeichnis>\areas\<scope>\.loomux\config.toml` |
-| Artefakte eines lesenden Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und sein Manifest, wie `loomux brain` sie liest | `<Zustandsverzeichnis>\areas\<scope>\`; Rückfall zum Lesen auf `%LOCALAPPDATA%\brain\areas\<scope>\` bis Stufe 4e |
+| Artefakte eines lesenden Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und sein Manifest, wie `loomux brain` sie liest | `<Zustandsverzeichnis>\areas\<scope>\` |
 | Artefakte eines beschreibbaren Bereichs | sein `path` |
-| Stempel des letzten Reconcile | `<Zustandsverzeichnis>\maintenance\last-run.txt`; Rückfall zum Lesen auf `%LOCALAPPDATA%\brain\maintenance\last-run.txt` bis Stufe 4e |
+| Stempel des letzten Reconcile | `<Zustandsverzeichnis>\maintenance\last-run.txt` |
 | Die scharfen Lanes (versioniert; vom pre-commit-Tor und von `loomux gate` geschrieben) | `<projekt>\.loomux\armed.toml` |
 | Sitzungszustand der Hooks (`base`, `blocks`, `green`, `seen`) | `<projekt>\.loomux\state\hooks\<session_id>.json` |
 | Schnappschüsse und Befunde der Subagenten | `<projekt>\.loomux\state\hooks\<session_id>\agents\<agent_id>.json` |
@@ -978,13 +978,8 @@ default = "example"
 | Eigene Flows und Overlays eines Projekts | `<projekt>\.loomux\flows\<name>\` |
 | Flow-Läufe: Journal und Marke | `<projekt>\.loomux\state\runs\<id>.jsonl`, `<id>.flow` |
 
-`LOOMUX_STATE_DIR` überschreibt das Zustandsverzeichnis,
-`LOOMUX_LEGACY_BRAIN_DIR` das Verzeichnis von ultra-brain; einen
-Kommandozeilenschalter gibt es für keines von beiden. Seit Stufe 3a ist das
-Altverzeichnis nur noch ein Rückfall zum Lesen für Artefakte, die ultra-brain
-geschrieben hat: loomux liest zuerst sein eigenes Zustandsverzeichnis und
-schreibt nie hierher. Mit Stufe 4e gleicht ein Mensch den Maschinenzustand von
-Hand ab; danach entfallen Rückfall, Verzeichnis und Variable.
+`LOOMUX_STATE_DIR` überschreibt das Zustandsverzeichnis; einen
+Kommandozeilenschalter dafür gibt es nicht.
 
 ### Maschinenweite Einstellungen: `config.toml` im Zustandsverzeichnis
 

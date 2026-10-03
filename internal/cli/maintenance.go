@@ -17,13 +17,13 @@ import (
 // against its register entry and opens a case for every wiki page a change
 // reached.
 //
-// Both places the pass needs come in through one lookup built here and are
-// handed down; nothing deeper asks the environment. That is the promise
+// The state directory the pass needs comes in through one lookup built here
+// and is handed down; nothing deeper asks the environment. That is the promise
 // `internal/serve` makes about the state directory it was given, and a lookup
 // one layer down would break it for every caller that is not this command
 // line. It is also why the command takes no directory of its own: the state
-// model of this stage is the environment, `LOOMUX_STATE_DIR` and
-// `LOOMUX_LEGACY_BRAIN_DIR`, and a flag beside it would be a second one.
+// model is the environment, `LOOMUX_STATE_DIR`, and a flag beside it would be
+// a second one.
 //
 // A case is not a failure. The pass ran to the end and the queue it produced
 // is its result, so the exit code is scored by the broken case files alone --
@@ -37,9 +37,8 @@ func reconcileCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int 
 	}
 
 	lookup := config.NewArtifactLookup()
-	// The registry is read from the new place alone, the way `reindex`
-	// resolves it: it is the file this machine's own registration writes, not
-	// an artefact of the pass that the old directory could still hold.
+	// The registry is read from the state directory, the way `reindex`
+	// resolves it: it is the file this machine's own registration writes.
 	areas, err := config.ReadRegistry(lookup.Primary)
 	if err != nil {
 		return reportReconcileError(stderr, err)

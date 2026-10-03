@@ -14,8 +14,8 @@ import (
 	"github.com/xidus90/loomux/internal/gitenv"
 )
 
-// areaWorld is one machine for `area add`: a state directory, a legacy
-// directory and qmd's configuration all under one temporary directory, a
+// areaWorld is one machine for `area add`: a state directory and qmd's
+// configuration all under one temporary directory, a
 // fake search engine, and an empty repository beside them. The working
 // directory is a temporary one too, twice over -- the process's own and the
 // getwd seam -- so a run that forgot `--path` onboards a scratch directory
@@ -29,7 +29,6 @@ func areaWorld(t *testing.T) (state, repo string, port *search.FakePort) {
 		t.Fatal(err)
 	}
 	t.Setenv("LOOMUX_STATE_DIR", state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", filepath.Join(tmp, "legacy"))
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
 	scratch := filepath.Join(tmp, "cwd")
 	if err := os.MkdirAll(scratch, 0o755); err != nil {

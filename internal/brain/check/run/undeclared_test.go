@@ -20,7 +20,7 @@ func TestAreaManifestTakesAPolicyOnlyConfigAsNoDeclaration(t *testing.T) {
 		t.Fatal(err)
 	}
 	area := config.Area{Scope: "project/p", Path: dir}
-	manifest, findings := areaManifest(area, config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()})
+	manifest, findings := areaManifest(area, config.ArtifactLookup{Primary: t.TempDir()})
 	if manifest != nil || len(findings) != 0 {
 		t.Fatalf("got %+v, %v", manifest, findings)
 	}
@@ -34,7 +34,7 @@ func TestAreaManifestReportsAnOldManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	area := config.Area{Scope: "project/p", Path: dir}
-	manifest, findings := areaManifest(area, config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()})
+	manifest, findings := areaManifest(area, config.ArtifactLookup{Primary: t.TempDir()})
 	if manifest != nil || len(findings) != 1 || !strings.Contains(findings[0].Message, "an old manifest lies there") {
 		t.Fatalf("got %+v, %+v; want one finding with the hint", manifest, findings)
 	}

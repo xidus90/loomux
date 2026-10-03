@@ -50,7 +50,7 @@ func TestReadLastRunReadsWhatPythonReads(t *testing.T) {
 		{"not utf-8", "\xff2026-09-13T08:00:00+00:00", "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			stamp, ok, err := search.ReadLastRun(stampWorld(t, tc.content), "")
+			stamp, ok, err := search.ReadLastRun(stampWorld(t, tc.content))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -68,7 +68,7 @@ func TestReadLastRunReadsWhatPythonReads(t *testing.T) {
 }
 
 func TestReadLastRunWithoutAStampIsNoStamp(t *testing.T) {
-	stamp, ok, err := search.ReadLastRun(t.TempDir(), "")
+	stamp, ok, err := search.ReadLastRun(t.TempDir())
 	if err != nil || ok || !stamp.IsZero() {
 		t.Fatalf("got %v %v %v", stamp, ok, err)
 	}
@@ -79,7 +79,7 @@ func TestReadLastRunOfAStampThatCannotBeReadIsAnError(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "maintenance", "last-run.txt"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := search.ReadLastRun(dir, ""); err == nil || ok {
+	if _, ok, err := search.ReadLastRun(dir); err == nil || ok {
 		t.Fatalf("a directory in the stamp's place must be an error, got ok=%v err=%v", ok, err)
 	}
 }
@@ -113,7 +113,7 @@ func TestStaleReconcileNamesAnAgedStampOnly(t *testing.T) {
 		{"missing", t.TempDir(), nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := search.StaleReconcile(tc.dir, "", now)
+			got, err := search.StaleReconcile(tc.dir, now)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -129,7 +129,7 @@ func TestStaleReconcileHandsAReadErrorOn(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "maintenance", "last-run.txt"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := search.StaleReconcile(dir, "", time.Now()); err == nil || got != nil {
+	if got, err := search.StaleReconcile(dir, time.Now()); err == nil || got != nil {
 		t.Fatalf("got %q, %v", got, err)
 	}
 }

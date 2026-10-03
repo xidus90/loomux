@@ -906,7 +906,7 @@ func TestAWikiIsNamedWithoutRegardToCase(t *testing.T) {
 
 func TestAReadOnlySignpostReadsItsHubFromTheStateDirectory(t *testing.T) {
 	// A read-only area keeps its declaration under the state directory
-	// (`config.ResolvedAreaDir`); the one in its own tree is not the one
+	// (`config.ManifestDir`); the one in its own tree is not the one
 	// that counts, and here there is none.
 	areaPath, wikiPath := vault(t)
 	state := t.TempDir()
@@ -920,7 +920,7 @@ func TestAReadOnlySignpostReadsItsHubFromTheStateDirectory(t *testing.T) {
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog(linkTo(wikiPath, filepath.Join(areaPath, "91 P", "ultra-brain.md")))},
 	}
-	lookup := config.ArtifactLookup{Primary: state, Fallback: t.TempDir()}
+	lookup := config.ArtifactLookup{Primary: state}
 	if got := Federation(bundles, areas, lookup); len(got) != 0 {
 		t.Fatalf("the hub of the state directory's declaration was not read: %v", got)
 	}

@@ -56,13 +56,10 @@ func brainCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		Section: parsed.values["--section"],
 		Channel: privacy.Channel(parsed.values["--channel"]),
 	}
-	// The registry is loomux's; artefacts of read-only areas and the stamp are
-	// read from loomux's state directory first and from ultra-brain's, the
-	// fallback, only as long as nothing lies there.
-	registryDir, fallbackDir := config.StateDir(), config.LegacyBrainDirUntilStage3()
+	registryDir := config.StateDir()
 	// Nothing reaches stdout before the answer stands: a failure after half an
 	// answer would leave the reader holding lines that look complete.
-	out, notes, err := answer.RunWith(brainPorts(), req, registryDir, fallbackDir, func(message string) {
+	out, notes, err := answer.RunWith(brainPorts(), req, registryDir, func(message string) {
 		fmt.Fprintf(stderr, "note: %s\n", message)
 	})
 	if err != nil {

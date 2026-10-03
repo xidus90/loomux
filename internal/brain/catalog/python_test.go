@@ -27,7 +27,7 @@ func writableArea(t *testing.T, index string) config.Area {
 
 func TestReadAreaCatalogFoldsNewlinesLikeReadText(t *testing.T) {
 	a := writableArea(t, "# A\r\nb\rc\n")
-	got, err := catalog.ReadAreaCatalog(a, "", "")
+	got, err := catalog.ReadAreaCatalog(a, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestReadAreaCatalogFoldsNewlinesLikeReadText(t *testing.T) {
 
 func TestReadAreaCatalogRefusesInvalidUTF8(t *testing.T) {
 	a := writableArea(t, "# A\n\xff\n")
-	_, err := catalog.ReadAreaCatalog(a, "", "")
+	_, err := catalog.ReadAreaCatalog(a, "")
 	want := filepath.Join(a.Path, "index.md") + ": not valid UTF-8"
 	if err == nil || err.Error() != want {
 		t.Fatalf("expected %q, got %v", want, err)
@@ -47,7 +47,7 @@ func TestReadAreaCatalogRefusesInvalidUTF8(t *testing.T) {
 
 func TestReadAreaCatalogKeepsTheByteOrderMark(t *testing.T) {
 	a := writableArea(t, "\xef\xbb\xbf# A\n")
-	got, err := catalog.ReadAreaCatalog(a, "", "")
+	got, err := catalog.ReadAreaCatalog(a, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestReadAreaCatalogKeepsTheByteOrderMark(t *testing.T) {
 }
 
 func TestReadAreaCatalogHandsOnAMissingIndex(t *testing.T) {
-	_, err := catalog.ReadAreaCatalog(config.Area{Scope: "project/x", Path: t.TempDir()}, "", "")
+	_, err := catalog.ReadAreaCatalog(config.Area{Scope: "project/x", Path: t.TempDir()}, "")
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("expected a not-exist error, got %v", err)
 	}

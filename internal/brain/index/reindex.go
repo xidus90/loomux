@@ -90,19 +90,16 @@ var (
 // Reindex rebuilds directory catalogs, the link graph, and the identity registry,
 // and synchronizes configured collections with qmd.
 //
-// Both directories are arguments: stateDir is the one place anything is
-// written to, fallbackDir the old state directory that a read-only area's
-// stock and the record of qmd collections are still read from until `loomux
-// migrate` moves them. Neither is taken from the environment here, for the
-// reason config.ResolvedAreaDir states -- a lookup
-// that asked StateDir() itself would break `internal/serve`'s promise that
-// everything hangs off the state directory it was handed.
-func Reindex(registryPath, stateDir, fallbackDir string, port search.SearchPort) (int, error) {
-	return ReindexWithOutput(registryPath, stateDir, fallbackDir, port, os.Stderr)
+// stateDir is the one place anything is read from and written to; it is an
+// argument for the reason `internal/serve` gives: everything hangs off the
+// state directory it was handed, and a lookup that asked StateDir() itself
+// would break that promise.
+func Reindex(registryPath, stateDir string, port search.SearchPort) (int, error) {
+	return ReindexWithOutput(registryPath, stateDir, port, os.Stderr)
 }
 
 // ReindexWithOutput is Reindex writing progress and diagnostic messages to custom writer stderr.
-func ReindexWithOutput(registryPath, stateDir, fallbackDir string, port search.SearchPort, stderr io.Writer) (int, error) {
+func ReindexWithOutput(registryPath, stateDir string, port search.SearchPort, stderr io.Writer) (int, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
@@ -118,7 +115,7 @@ func ReindexWithOutput(registryPath, stateDir, fallbackDir string, port search.S
 
 	var indexed []indexedArea
 	for _, area := range areas {
-		item, skipped, err := indexArea(area, areas, stateDir, fallbackDir, stderr)
+		item, skipped, err := indexArea(area, areas, stateDir, stderr)
 		if err != nil {
 			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 1, err
@@ -129,7 +126,7 @@ func ReindexWithOutput(registryPath, stateDir, fallbackDir string, port search.S
 		indexed = append(indexed, item)
 	}
 
-	return syncSearch(areas, indexed, config.ArtifactLookup{Primary: stateDir, Fallback: fallbackDir}, port, stderr)
+	return syncSearch(areas, indexed, config.ArtifactLookup{Primary: stateDir}, port, stderr)
 }
 
 // indexArea rebuilds one area's stock and reports whether it was skipped. An
@@ -139,7 +136,7 @@ func ReindexWithOutput(registryPath, stateDir, fallbackDir string, port search.S
 func indexArea(
 	area config.Area,
 	areas []config.Area,
-	stateDir, fallbackDir string,
+	stateDir string,
 	stderr io.Writer,
 ) (indexedArea, bool, error) {
 	if _, err := os.Stat(area.Path); err != nil {
@@ -160,10 +157,9 @@ func indexArea(
 		return indexedArea{}, false, err
 	}
 
-	// The declaration is read where the stock lies today, the stock is
-	// written where it belongs tomorrow. For a writable area the two are one
-	// directory; for a read-only one they part until `loomux migrate` runs.
-	source := config.ResolvedAreaDir(area, stateDir, fallbackDir)
+	// The declaration is read where the stock lies: the area's tree, or for a
+	// read-only area the state directory.
+	source := config.ManifestDir(area, stateDir)
 	manifest, err := config.ReadAreaDeclaration(source)
 	if err != nil {
 		fmt.Fprintf(stderr, "skipping %s: %v\n", area.Scope, err)
@@ -260,8 +256,8 @@ func carryForward(
 // the state directory.
 const ownedCollectionsName = "qmd-collections.json"
 
-// ownershipRecord resolves the record anew on every call: once the first sync
-// has written it to the new place, the prune after it must read it there.
+// ownershipRecord names the record anew on every call, so that the prune
+// after the first sync reads what that sync has just written.
 func ownershipRecord(state config.ArtifactLookup) OwnershipRecord {
 	return OwnershipRecord{Read: state.Resolve(ownedCollectionsName), Write: state.WritePath(ownedCollectionsName)}
 }

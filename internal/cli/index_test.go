@@ -21,7 +21,6 @@ func indexWorld(t *testing.T) string {
 	state := filepath.Join(tmp, "state")
 	area := filepath.Join(tmp, "area")
 	t.Setenv("LOOMUX_STATE_DIR", state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", filepath.Join(tmp, "legacy"))
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
 	writeFile(t, filepath.Join(state, "registry.toml"),
 		"[[area]]\nscope = \"project/a\"\npath = "+strconv.Quote(filepath.ToSlash(area))+"\n")
@@ -36,7 +35,6 @@ func emptyState(t *testing.T) string {
 	t.Helper()
 	state := t.TempDir()
 	t.Setenv("LOOMUX_STATE_DIR", state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	return state
 }

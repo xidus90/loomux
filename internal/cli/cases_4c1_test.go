@@ -158,7 +158,6 @@ func TestCases4c1(t *testing.T) {
 			outcome, err := cases.RunCaseWith(c, func(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int {
 				t.Chdir(dir)
 				t.Setenv("LOOMUX_STATE_DIR", dir)
-				t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", dir)
 				t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
 				for _, entry := range cases.GitEnv(dir) {
 					key, value, _ := strings.Cut(entry, "=")

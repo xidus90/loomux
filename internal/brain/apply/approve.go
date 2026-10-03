@@ -449,7 +449,7 @@ func (a approval) advanceRegisters(found map[string]sourceFile) ([]string, error
 // so no lock is taken twice here.
 func (a approval) advanceRegisterLocked(register string, rows map[string]identity.Identity) ([]string, error) {
 	for _, area := range a.areas {
-		if registerWrite(area, a.o.Lookup) != register {
+		if registerOf(area, a.o.Lookup) != register {
 			continue
 		}
 		release, err := config.LockArea(area, a.o.Lookup.Primary)
@@ -457,7 +457,7 @@ func (a approval) advanceRegisterLocked(register string, rows map[string]identit
 			return nil, err
 		}
 		defer release()
-		if err := moveStock(area, a.o.Lookup); err != nil {
+		if err := recoverStock(area, a.o.Lookup); err != nil {
 			return nil, err
 		}
 	}

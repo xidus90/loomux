@@ -16,7 +16,7 @@ import (
 // its --root at temporary ones.
 func isolateConfigState(t *testing.T) {
 	t.Helper()
-	for _, name := range []string{"LOOMUX_STATE_DIR", "LOOMUX_LEGACY_BRAIN_DIR", "XDG_CONFIG_HOME", "LOCALAPPDATA"} {
+	for _, name := range []string{"LOOMUX_STATE_DIR", "XDG_CONFIG_HOME", "LOCALAPPDATA"} {
 		t.Setenv(name, t.TempDir())
 	}
 }

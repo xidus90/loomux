@@ -24,9 +24,8 @@ const (
 // of this area is read.
 //
 // Before, and not inside publish, because an aside beside a missing target is
-// invisible to config.ResolvedAreaDir: it would resolve the area to the old
-// state directory, this run would carry that stock forward, and the swap at
-// the end would quietly undo whatever the killed run had already replaced.
+// invisible to config.ManifestDir: the area would read as undeclared, and
+// the swap at the end would never be reached to put the aside back.
 //
 // A writable area has no aside -- nothing is ever swapped into a repository
 // -- and asking after one would be a question about a sibling of somebody's
@@ -46,10 +45,9 @@ func recoverStock(area config.Area, stateDir string) error {
 // another. A read-only area's stock lies under `<state>/areas/<scope>` and is
 // written beside that directory first, then swapped in whole.
 //
-// The difference is not a matter of taste. config.ResolvedAreaDir resolves a
-// read-only area by its directory: the instant anything lies under
-// `areas/<scope>`, every read of that area comes from there -- the
-// declaration included, which privacy.VisibleAreas reads for every registered
+// The difference is not a matter of taste. config.ManifestDir resolves a
+// read-only area by its directory: every read of that area comes from
+// `areas/<scope>` -- the declaration included, which privacy.VisibleAreas reads for every registered
 // area before it answers anything. A stock written file by file therefore has
 // a window in which one unfinished area makes the whole vault answer nothing.
 // Written beside and swapped once, that window does not exist.

@@ -20,7 +20,7 @@ func TestSweepContextTakesAPolicyOnlyConfigAsNoDeclaration(t *testing.T) {
 		t.Fatal(err)
 	}
 	area := config.Area{Scope: "project/p", Path: dir, WikiPath: dir}
-	ctx, err := sweepContext(area, []config.Area{area}, map[string]bool{}, config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()})
+	ctx, err := sweepContext(area, []config.Area{area}, map[string]bool{}, config.ArtifactLookup{Primary: t.TempDir()})
 	if err != nil || ctx.UntouchedDays != config.DefaultUntouchedDays || len(ctx.DeclaredTypes) != 0 {
 		t.Fatalf("got %+v, %v", ctx, err)
 	}
@@ -34,7 +34,7 @@ func TestSweepContextRefusesAnOldManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	area := config.Area{Scope: "project/p", Path: dir, WikiPath: dir}
-	_, err := sweepContext(area, []config.Area{area}, map[string]bool{}, config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()})
+	_, err := sweepContext(area, []config.Area{area}, map[string]bool{}, config.ArtifactLookup{Primary: t.TempDir()})
 	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") {
 		t.Fatalf("got %v; want the old-manifest hint", err)
 	}

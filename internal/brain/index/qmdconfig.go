@@ -25,10 +25,7 @@ type CollectionSpec struct {
 }
 
 // OwnershipRecord is where the list of collections this program made is read
-// from and written to. The two differ while the reference's state directory
-// is the fallback: its qmd-collections.json names the collections qmd already
-// carries, and a run that read only the new place would take every one of
-// them for someone else's and refuse it. Writing goes to the new place alone.
+// from and written to: the same file in the state directory.
 type OwnershipRecord struct {
 	Read  string
 	Write string

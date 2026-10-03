@@ -74,7 +74,7 @@ func (s *progressSink) next(t *testing.T) string {
 
 func TestTheFiveToolsAreListed(t *testing.T) {
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+		Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 			return "", nil, nil
 		},
 	})
@@ -99,7 +99,7 @@ func TestTheFiveToolsAreListed(t *testing.T) {
 func TestTheListenersChannelReachesTheAnswer(t *testing.T) {
 	var seen privacy.Channel
 	session := connect(t, privacy.ChannelCloud, servebrain.Deps{
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			seen = req.Channel
 			return "ok", nil, nil
 		},
@@ -115,7 +115,7 @@ func TestTheListenersChannelReachesTheAnswer(t *testing.T) {
 func TestArgumentsReachTheAnswer(t *testing.T) {
 	var seen answer.Request
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			seen = req
 			return "ok", nil, nil
 		},
@@ -139,20 +139,19 @@ func TestArgumentsReachTheAnswer(t *testing.T) {
 }
 
 func TestTheDirectoriesReachTheAnswer(t *testing.T) {
-	var registryDir, legacyDir string
+	var registryDir string
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
 		RegistryDir: "registry",
-		LegacyDir:   "legacy",
-		Answer: func(_ answer.Request, registry, legacy string, _ func(string)) (string, []string, error) {
-			registryDir, legacyDir = registry, legacy
+		Answer: func(_ answer.Request, registry string, _ func(string)) (string, []string, error) {
+			registryDir = registry
 			return "ok", nil, nil
 		},
 	})
 	if _, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "brain_status"}); err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
-	if registryDir != "registry" || legacyDir != "legacy" {
-		t.Errorf("the answer saw %q and %q", registryDir, legacyDir)
+	if registryDir != "registry" {
+		t.Errorf("the answer saw %q", registryDir)
 	}
 }
 
@@ -161,7 +160,7 @@ func TestTheDirectoriesReachTheAnswer(t *testing.T) {
 func TestACallerCannotNameTheChannel(t *testing.T) {
 	var seen privacy.Channel
 	session := connect(t, privacy.ChannelCloud, servebrain.Deps{
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			seen = req.Channel
 			return "ok", nil, nil
 		},
@@ -183,7 +182,7 @@ func TestACallerCannotNameTheChannel(t *testing.T) {
 func TestTheRelativePathIsThePositional(t *testing.T) {
 	var seen answer.Request
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			seen = req
 			return "ok", nil, nil
 		},
@@ -205,7 +204,7 @@ func TestTheRelativePathIsThePositional(t *testing.T) {
 func TestAStrayQueryDoesNotOverrideTheRelativePath(t *testing.T) {
 	var seen answer.Request
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			seen = req
 			return "ok", nil, nil
 		},
@@ -227,7 +226,7 @@ func TestAStrayQueryDoesNotOverrideTheRelativePath(t *testing.T) {
 func TestArgumentsThatAreNotAnObjectEndEmpty(t *testing.T) {
 	var seen answer.Request
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			seen = req
 			return "ok", nil, nil
 		},
@@ -263,7 +262,7 @@ func TestACallWithoutItsOneRequiredArgumentIsRefused(t *testing.T) {
 		t.Run(tc.tool, func(t *testing.T) {
 			asked := false
 			session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-				Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+				Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 					asked = true
 					return "ok", nil, nil
 				},
@@ -300,7 +299,7 @@ func TestTheStdoutTerminatorIsNotPartOfAToolResult(t *testing.T) {
 	} {
 		t.Run(tc.tool, func(t *testing.T) {
 			session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-				Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+				Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 					return tc.answered, nil, nil
 				},
 			})
@@ -320,7 +319,7 @@ func TestTheStdoutTerminatorIsNotPartOfAToolResult(t *testing.T) {
 
 func TestACoreRefusalIsContentForTheModel(t *testing.T) {
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+		Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 			return "", nil, errors.New("unknown scope: nonesuch")
 		},
 	})
@@ -339,7 +338,7 @@ func TestACoreRefusalIsContentForTheModel(t *testing.T) {
 
 func TestTheAnswerTextComesBackAsTextContent(t *testing.T) {
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+		Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 			return "the catalog", nil, nil
 		},
 	})
@@ -364,7 +363,7 @@ func TestTheAnswerTextComesBackAsTextContent(t *testing.T) {
 func TestBothHintPathsBecomeProgress(t *testing.T) {
 	sink := newProgressSink()
 	session := connectWith(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(_ answer.Request, _, _ string, notice func(string)) (string, []string, error) {
+		Answer: func(_ answer.Request, _ string, notice func(string)) (string, []string, error) {
 			notice("warming the engine")
 			return "hits", []string{"the note"}, nil
 		},
@@ -400,7 +399,7 @@ func TestWithoutAProgressTokenTheHintsLapse(t *testing.T) {
 	// tells whether the first call's hints lapsed, and waiting for a message that
 	// does come beats waiting a while for one that does not.
 	session := connectWith(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(_ answer.Request, _, _ string, notice func(string)) (string, []string, error) {
+		Answer: func(_ answer.Request, _ string, notice func(string)) (string, []string, error) {
 			call++
 			notice("warming " + string(rune('0'+call)))
 			return "hits", []string{"note " + string(rune('0'+call))}, nil
@@ -441,7 +440,7 @@ func TestWithoutAProgressTokenTheHintsLapse(t *testing.T) {
 func TestAProfileTheEngineDoesNotKnowIsRefused(t *testing.T) {
 	asked := false
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+		Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 			asked = true
 			return "ok", nil, nil
 		},
@@ -471,7 +470,7 @@ func TestTheKnownProfilesTravelOn(t *testing.T) {
 		t.Run("profile="+profile, func(t *testing.T) {
 			var seen answer.Request
 			session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-				Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+				Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 					seen = req
 					return "ok", nil, nil
 				},
@@ -497,7 +496,7 @@ func TestTheKnownProfilesTravelOn(t *testing.T) {
 func TestASearchCarriesItsFindingsInTheAnswer(t *testing.T) {
 	sink := newProgressSink()
 	session := connectWith(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+		Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 			return "brain://notes/a.md:1  50%  A\n\n", []string{"the index is stale", "asked twice"}, nil
 		},
 	}, sink.options())
@@ -525,7 +524,7 @@ func TestOnlyASearchPutsItsNotesIntoTheAnswer(t *testing.T) {
 	for _, tool := range []string{"brain_status", "brain_catalog", "brain_read", "brain_neighbors"} {
 		t.Run(tool, func(t *testing.T) {
 			session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-				Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+				Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 					return "the answer", []string{"a note"}, nil
 				},
 			})
@@ -546,7 +545,7 @@ func TestOnlyASearchPutsItsNotesIntoTheAnswer(t *testing.T) {
 // A search without findings gains nothing and loses nothing.
 func TestASearchWithoutFindingsIsTheAnswerAlone(t *testing.T) {
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(answer.Request, string, string, func(string)) (string, []string, error) {
+		Answer: func(answer.Request, string, func(string)) (string, []string, error) {
 			return "no matches\n", nil, nil
 		},
 	})
@@ -572,7 +571,7 @@ func TestASearchWithoutFindingsIsTheAnswerAlone(t *testing.T) {
 func TestASearchWithoutAProfileRunsTheCheapOne(t *testing.T) {
 	var seen answer.Request
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			seen = req
 			return "ok", nil, nil
 		},
@@ -600,7 +599,7 @@ func TestASearchWithoutAProfileRunsTheCheapOne(t *testing.T) {
 func TestSearchWithoutACountAsksForTheReferencesTen(t *testing.T) {
 	var seen answer.Request
 	session := connect(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(req answer.Request, _, _ string, _ func(string)) (string, []string, error) {
+		Answer: func(req answer.Request, _ string, _ func(string)) (string, []string, error) {
 			seen = req
 			return "wiki/a.md:1 first\nwiki/b.md:1 second", nil, nil
 		},

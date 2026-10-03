@@ -23,7 +23,7 @@ var upkeepNow = time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
 func testUpkeep(t *testing.T, dir string, answer func() (*maintenance.Report, error)) (*Upkeep, *int) {
 	t.Helper()
 	calls := 0
-	u := NewUpkeep(dir, filepath.Join(dir, "legacy"))
+	u := NewUpkeep(dir)
 	u.now = func() time.Time { return upkeepNow }
 	u.run = func(_ context.Context, now time.Time) (*maintenance.Report, error) {
 		calls++
@@ -277,7 +277,7 @@ func TestTheRealPassRunsOverTheRegistry(t *testing.T) {
 	// No registry and an empty one are serve's first minute, not a failure;
 	// a registry without a review centre is one.
 	empty := t.TempDir()
-	u := NewUpkeep(empty, filepath.Join(empty, "legacy"))
+	u := NewUpkeep(empty)
 	u.catchUp(context.Background())
 	if u.failed || u.report != nil {
 		t.Fatalf("no registry: failed %v %q, report %v", u.failed, u.failure, u.report)
@@ -290,7 +290,7 @@ func TestTheRealPassRunsOverTheRegistry(t *testing.T) {
 	}
 	dir := t.TempDir()
 	upkeepRegistry(t, dir)
-	lookup := NewUpkeep(dir, filepath.Join(dir, "legacy")).lookup
+	lookup := NewUpkeep(dir).lookup
 	if _, err := reconcileRegistered(context.Background(), lookup, upkeepNow); !errors.Is(err, maintenance.ErrNoReviewCentre) {
 		t.Fatalf("no review centre: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestTheRealPassReportsWhatItFound(t *testing.T) {
 		[]byte("[area]\nscope = \"project/open\"\n\n[layout]\nreview = \"review\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	report, err := reconcileRegistered(context.Background(), NewUpkeep(dir, filepath.Join(dir, "legacy")).lookup, upkeepNow)
+	report, err := reconcileRegistered(context.Background(), NewUpkeep(dir).lookup, upkeepNow)
 	if err != nil || report == nil || len(report.Cases) != 0 {
 		t.Fatalf("report %v, err %v", report, err)
 	}

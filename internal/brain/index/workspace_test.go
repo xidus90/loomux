@@ -39,7 +39,7 @@ func TestReindexGivesAWorkspaceWithoutDeclarationNoCollection(t *testing.T) {
 
 	port := search.NewFakePort()
 	var stderr bytes.Buffer
-	code, err := ReindexWithOutput(regPath, stateDir, "", port, &stderr)
+	code, err := ReindexWithOutput(regPath, stateDir, port, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("code %d, err %v: %s", code, err, stderr.String())
 	}

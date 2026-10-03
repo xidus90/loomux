@@ -19,7 +19,7 @@ func TestHubFolderTakesAPolicyOnlyConfigAsNoDeclaration(t *testing.T) {
 		t.Fatal(err)
 	}
 	signpost := config.Area{Scope: "project/p", Path: dir, Signpost: true}
-	hub, ok := hubFolder(signpost, config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()})
+	hub, ok := hubFolder(signpost, config.ArtifactLookup{Primary: t.TempDir()})
 	if hub != "" || !ok {
 		t.Fatalf("got %q, %v", hub, ok)
 	}
@@ -33,7 +33,7 @@ func TestHubFolderRefusesAnOldManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	signpost := config.Area{Scope: "project/p", Path: dir, Signpost: true}
-	hub, ok := hubFolder(signpost, config.ArtifactLookup{Primary: t.TempDir(), Fallback: t.TempDir()})
+	hub, ok := hubFolder(signpost, config.ArtifactLookup{Primary: t.TempDir()})
 	if hub != "" || ok {
 		t.Fatalf("got %q, %v; want the rule stopped", hub, ok)
 	}

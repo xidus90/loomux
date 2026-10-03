@@ -28,7 +28,6 @@ func convertWorld(t *testing.T) (state, inbox string) {
 	writeFile(t, filepath.Join(area, ".loomux", "config.toml"), "[area]\nscope = \"knowledge\"\n\n[layout]\ninbox = \"00 Eingang\"\n")
 	writeFile(t, filepath.Join(state, "registry.toml"), "[[area]]\nscope = \"knowledge\"\npath = \""+filepath.ToSlash(area)+"\"\n")
 	t.Setenv("LOOMUX_STATE_DIR", state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", filepath.Join(root, "legacy"))
 	t.Chdir(t.TempDir())
 	return state, inbox
 }

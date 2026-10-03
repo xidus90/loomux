@@ -83,7 +83,7 @@ func (w *world) run() (Outcome, error) {
 	if err != nil {
 		return Outcome{}, err
 	}
-	entries, err := Areas(areas, w.state, filepath.Join(w.root, "legacy"))
+	entries, err := Areas(areas, w.state)
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -296,7 +296,7 @@ func TestAreasWithoutAWritableInboxAreLeftAlone(t *testing.T) {
 	// directory is none, and the transcript in it stays alone.
 	declaredOnly := w.area("project/y", "[area]\nscope = \"project/y\"\n", false)
 	put(t, declaredOnly, "video.txt", "[00:00] Hallo.\n")
-	// A readonly area's declaration lies where ResolvedAreaDir reads it,
+	// A readonly area's declaration lies where ManifestDir reads it,
 	// under the state directory; in the area it would leave corpus without
 	// an inbox, and the test would pass for that reason.
 	corpus := w.area("corpus", "", true)
@@ -314,7 +314,7 @@ func TestAreasWithoutAWritableInboxAreLeftAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, err := Areas(registered, w.state, filepath.Join(w.root, "legacy"))
+	entries, err := Areas(registered, w.state)
 	if i := slices.IndexFunc(entries, func(a Area) bool { return a.Scope == "corpus" }); err != nil || i < 0 || entries[i].Inbox == "" {
 		t.Fatalf("corpus has no inbox, so ReadOnly is not what leaves it alone: %+v %v", entries, err)
 	}

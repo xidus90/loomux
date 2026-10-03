@@ -18,38 +18,37 @@ import (
 // with the engine replaced. The spec asks for the register share on its own,
 // because it grows with the areas a machine registers and not with the
 // query. They read the real state directories and never write them; point
-// LOOMUX_BENCH_REGISTRY at loomux's and LOOMUX_BENCH_LEGACY at ultra-brain's,
-// and they skip themselves when nobody did.
-func benchDirs(b *testing.B) (string, string) {
+// LOOMUX_BENCH_REGISTRY at loomux's, and they skip themselves when nobody
+// did.
+func benchDirs(b *testing.B) string {
 	registryDir := os.Getenv("LOOMUX_BENCH_REGISTRY")
-	legacyDir := os.Getenv("LOOMUX_BENCH_LEGACY")
-	if registryDir == "" || legacyDir == "" {
-		b.Skip("set LOOMUX_BENCH_REGISTRY to loomux's state directory and LOOMUX_BENCH_LEGACY to ultra-brain's")
+	if registryDir == "" {
+		b.Skip("set LOOMUX_BENCH_REGISTRY to loomux's state directory")
 	}
-	return registryDir, legacyDir
+	return registryDir
 }
 
 func BenchmarkVisibleAreasOfTheRealRegistry(b *testing.B) {
-	registryDir, legacyDir := benchDirs(b)
+	registryDir := benchDirs(b)
 	// A registry that fails would measure the error path, which returns
 	// after the first broken area and says nothing about the others.
-	if _, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal); err != nil {
+	if _, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal); err != nil {
 		b.Fatal(err)
 	}
 	for b.Loop() {
-		_, _ = privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+		_, _ = privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	}
 }
 
 func BenchmarkRegistersOfTheRealRegistry(b *testing.B) {
-	registryDir, legacyDir := benchDirs(b)
-	areas, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	registryDir := benchDirs(b)
+	areas, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	if err != nil {
 		b.Fatal(err)
 	}
 	paths := make([]string, len(areas))
 	for i, visible := range areas {
-		paths[i] = filepath.Join(config.ResolvedAreaDir(visible.Area, registryDir, legacyDir), "_identities.tsv")
+		paths[i] = filepath.Join(config.ManifestDir(visible.Area, registryDir), "_identities.tsv")
 	}
 	for _, path := range paths {
 		if _, err := identity.ReadIdentities(path); err != nil {
@@ -67,7 +66,7 @@ func BenchmarkRegistersOfTheRealRegistry(b *testing.B) {
 }
 
 func BenchmarkExecuteSearchWithoutTheEngine(b *testing.B) {
-	registryDir, legacyDir := benchDirs(b)
+	registryDir := benchDirs(b)
 	now := time.Now()
 	// One hit from an area the real registry holds, so the register lookup
 	// runs once as it does on a real answer; the engine itself is scripted.
@@ -82,7 +81,7 @@ func BenchmarkExecuteSearchWithoutTheEngine(b *testing.B) {
 		port := search.NewFakePort()
 		port.Results = []search.ScriptedSearch{{Hits: []search.SearchHit{hit}}}
 		_, err := search.ExecuteSearch("latenz", "all", search.ProfileFast, 5,
-			privacy.ChannelLocal, port, registryDir, legacyDir, now)
+			privacy.ChannelLocal, port, registryDir, now)
 		return err
 	}
 	if err := answer(); err != nil {

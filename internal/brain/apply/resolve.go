@@ -248,9 +248,8 @@ func targetParts(target string) ([]string, bool) {
 }
 
 // sourceFile is `_SourceLocation` (apply.py:145-152) as its readers use it:
-// the file to hash, the key of its row and the register the row lives in --
-// twice, because until stage 4 a read-only area may still be read from
-// ultra-brain's state directory while it is written only to loomux's.
+// the file to hash, the key of its row and the register the row is read
+// from and written to.
 type sourceFile struct {
 	docID    string
 	relative string // the row's key, slashed, as the register spells it
@@ -259,18 +258,11 @@ type sourceFile struct {
 	register string // the `_identities.tsv` an advanced row is written to
 }
 
-// registerRead is `area_artifact_dir(area, state_dir) / _REGISTER` as it is
-// read: a read-only area's register lies in the state directory, the new
-// one first and, as long as that holds nothing of the area, the old one.
-func registerRead(area config.Area, lookup config.ArtifactLookup) string {
-	return filepath.Join(config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback), registerName)
-}
-
-// registerWrite is the same register as it is written: always under the new
-// state directory, where `index` publishes a read-only area's stock too.
-// moveStock has to run before the first write into a read-only area that
-// is still read from the old place.
-func registerWrite(area config.Area, lookup config.ArtifactLookup) string {
+// registerOf is `area_artifact_dir(area, state_dir) / _REGISTER`: a writable
+// area's register lies in its tree, a read-only one's in the state
+// directory, where `index` publishes that area's stock too. It is read and
+// written at the same place.
+func registerOf(area config.Area, lookup config.ArtifactLookup) string {
 	return filepath.Join(config.ManifestDir(area, lookup.Primary), registerName)
 }
 
@@ -281,7 +273,7 @@ func registerWrite(area config.Area, lookup config.ArtifactLookup) string {
 func registersOf(areas []config.Area, lookup config.ArtifactLookup) []string {
 	registers := make([]string, 0, len(areas))
 	for _, area := range areas {
-		registers = append(registers, registerWrite(area, lookup))
+		registers = append(registers, registerOf(area, lookup))
 	}
 	return registers
 }
@@ -306,7 +298,7 @@ func resolveSources(areas []config.Area, lookup config.ArtifactLookup, docIDs []
 		if len(needed) == 0 {
 			break
 		}
-		readFrom := registerRead(area, lookup)
+		readFrom := registerOf(area, lookup)
 		if !isFile(readFrom) {
 			continue
 		}
@@ -329,7 +321,7 @@ func resolveSources(areas []config.Area, lookup config.ArtifactLookup, docIDs []
 				relative: relative,
 				path:     filepath.Join(area.Path, filepath.FromSlash(relative)),
 				readFrom: readFrom,
-				register: registerWrite(area, lookup),
+				register: registerOf(area, lookup),
 			}
 			delete(needed, docID)
 		}

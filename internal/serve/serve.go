@@ -46,7 +46,6 @@ const shutdownTimeout = 5 * time.Second
 type Options struct {
 	StateDir    string
 	RegistryDir string
-	LegacyDir   string
 	Foreground  bool
 	// BrokeAway goes straight into serve.json, and only the parent that
 	// spawned this service knows whether the breakaway succeeded. The entry
@@ -57,7 +56,7 @@ type Options struct {
 	// Answer falls back to answer.Run when nil. It is the seam the HTTP
 	// progress test needs, and the same one stage 1b-1 uses for the launcher
 	// and the spawner.
-	Answer func(answer.Request, string, string, func(string)) (string, []string, error)
+	Answer func(answer.Request, string, func(string)) (string, []string, error)
 	// Update is one self-update pass; nil runs none. The command line fills
 	// it, so serve knows nothing of releases.
 	Update func(context.Context)
@@ -73,7 +72,7 @@ type Options struct {
 // answerFunc is the answer this run gives, the real one unless a caller
 // brought its own. The real one asks a qmd port built for this service, not
 // the command line's; qmdOptions says what the difference is.
-func (o Options) answerFunc() func(answer.Request, string, string, func(string)) (string, []string, error) {
+func (o Options) answerFunc() func(answer.Request, string, func(string)) (string, []string, error) {
 	if o.Answer != nil {
 		return o.Answer
 	}
@@ -133,7 +132,7 @@ func Run(ctx context.Context, opts Options) error {
 	// Started before the listeners, so the first request finds the gate; and
 	// ended before the lock is released, so no pass writes behind a serve
 	// that has already let another one start.
-	opts.upkeep = NewUpkeep(opts.RegistryDir, opts.LegacyDir)
+	opts.upkeep = NewUpkeep(opts.RegistryDir)
 	upkeepCtx, endUpkeep := context.WithCancel(ctx)
 	upkeepDone := make(chan struct{})
 	go func() {
@@ -255,7 +254,6 @@ func handlers(name privacy.Channel, opts Options, stop func()) http.Handler {
 	deps := servebrain.Deps{
 		Answer:      opts.answerFunc(),
 		RegistryDir: opts.RegistryDir,
-		LegacyDir:   opts.LegacyDir,
 	}
 	// Only a real upkeep: a nil *Upkeep in the interface would be a non-nil
 	// Upkeep that answers nobody.
@@ -265,7 +263,6 @@ func handlers(name privacy.Channel, opts Options, stop func()) http.Handler {
 	servebrain.Register(server, name, deps)
 	servegraph.Register(server, name, servegraph.Deps{
 		RegistryDir: opts.RegistryDir,
-		LegacyDir:   opts.LegacyDir,
 		Ask:         query.Ask,
 		Check:       query.Check,
 		Callers:     query.Callers,

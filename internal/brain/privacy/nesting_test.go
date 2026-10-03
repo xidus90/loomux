@@ -15,13 +15,12 @@ import (
 // nestedWorld registers the shape found on this machine on 2026-09-29: the
 // open area "hub", whose tree is its own wiki, holds the wiki of the
 // read-only `local_only` area "project/inner", whose source tree lies
-// elsewhere. It answers the registry and legacy directories and the three
+// elsewhere. It answers the state directory and the three
 // trees, spelt as the registry spells them.
-func nestedWorld(t *testing.T) (registryDir, legacyDir, hub, innerPath, innerWiki string) {
+func nestedWorld(t *testing.T) (registryDir, hub, innerPath, innerWiki string) {
 	t.Helper()
 	root := t.TempDir()
 	registryDir = filepath.Join(root, "state")
-	legacyDir = filepath.Join(root, "legacy")
 	hub = filepath.ToSlash(filepath.Join(root, "vault", "hub"))
 	innerWiki = hub + "/inner"
 	innerPath = filepath.ToSlash(filepath.Join(root, "inner-src"))
@@ -29,27 +28,27 @@ func nestedWorld(t *testing.T) (registryDir, legacyDir, hub, innerPath, innerWik
 	writeFile(t, filepath.Join(innerWiki, "page.md"), "# Page\n")
 	writeFile(t, filepath.Join(innerPath, "source.md"), "# Source\n")
 	inner := config.Area{Scope: "project/inner", Path: innerPath, ReadOnly: true}
-	writeFile(t, filepath.Join(config.ManifestDir(inner, legacyDir), ".loomux", "config.toml"),
+	writeFile(t, filepath.Join(config.ManifestDir(inner, registryDir), ".loomux", "config.toml"),
 		"[area]\nscope = \"project/inner\"\n\n[privacy]\nmode = \"local_only\"\n")
 	writeFile(t, filepath.Join(registryDir, "registry.toml"),
 		"[[area]]\nscope = \"project/inner\"\npath = \""+innerPath+"\"\nwiki = \""+innerWiki+"\"\nreadonly = true\n\n"+
 			"[[area]]\nscope = \"hub\"\npath = \""+hub+"\"\nwiki = \""+hub+"\"\n")
-	return registryDir, legacyDir, hub, innerPath, innerWiki
+	return registryDir, hub, innerPath, innerWiki
 }
 
 // A visible area carries the trees of every hidden area, source tree and
 // wiki both, so that a path reached through an enclosing area can be asked
 // about. The local channel hides nothing and carries nothing.
 func TestVisibleAreasCarryTheTreesOfTheHiddenAreas(t *testing.T) {
-	registryDir, legacyDir, _, innerPath, innerWiki := nestedWorld(t)
-	cloud, err := privacy.VisibleAreas(registryDir, legacyDir, "hub", privacy.ChannelCloud)
+	registryDir, _, innerPath, innerWiki := nestedWorld(t)
+	cloud, err := privacy.VisibleAreas(registryDir, "hub", privacy.ChannelCloud)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{innerPath, innerWiki}; !reflect.DeepEqual(cloud[0].Hidden, want) {
 		t.Errorf("cloud: Hidden = %v, want %v", cloud[0].Hidden, want)
 	}
-	local, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelLocal)
+	local, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,8 +62,8 @@ func TestVisibleAreasCarryTheTreesOfTheHiddenAreas(t *testing.T) {
 // A hidden area without a wiki hides its source tree alone; the empty wiki
 // value names no tree and must not become the working directory.
 func TestAHiddenAreaWithoutAWikiHidesItsSourceTree(t *testing.T) {
-	registryDir, legacyDir := twoAreas(t)
-	cloud, err := privacy.VisibleAreas(registryDir, legacyDir, "all", privacy.ChannelCloud)
+	registryDir := twoAreas(t)
+	cloud, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelCloud)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,12 +73,12 @@ func TestAHiddenAreaWithoutAWikiHidesItsSourceTree(t *testing.T) {
 }
 
 func TestConceals(t *testing.T) {
-	registryDir, legacyDir, _, _, _ := nestedWorld(t)
-	cloud, err := privacy.VisibleAreas(registryDir, legacyDir, "hub", privacy.ChannelCloud)
+	registryDir, _, _, _ := nestedWorld(t)
+	cloud, err := privacy.VisibleAreas(registryDir, "hub", privacy.ChannelCloud)
 	if err != nil {
 		t.Fatal(err)
 	}
-	local, err := privacy.VisibleAreas(registryDir, legacyDir, "hub", privacy.ChannelLocal)
+	local, err := privacy.VisibleAreas(registryDir, "hub", privacy.ChannelLocal)
 	if err != nil {
 		t.Fatal(err)
 	}

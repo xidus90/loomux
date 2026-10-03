@@ -15,19 +15,18 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-// brainWorldDirs are the three directories of a brain test world.
+// brainWorldDirs are the two directories of a brain test world.
 type brainWorldDirs struct {
-	state, legacy, area string
+	state, area string
 }
 
 // brainWorld registers one writable area, project/a, whose manifest carries
-// the given body after its [area] table; it points both state variables at the
+// the given body after its [area] table; it points the state variable at the
 // world and writes the files into the area.
 func brainWorld(t *testing.T, manifest string, files map[string]string) brainWorldDirs {
 	t.Helper()
-	w := brainWorldDirs{state: t.TempDir(), legacy: t.TempDir(), area: t.TempDir()}
+	w := brainWorldDirs{state: t.TempDir(), area: t.TempDir()}
 	t.Setenv("LOOMUX_STATE_DIR", w.state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", w.legacy)
 	writeFile(t, filepath.Join(w.state, "registry.toml"),
 		"[[area]]\nscope = \"project/a\"\npath = "+strconv.Quote(filepath.ToSlash(w.area))+"\n")
 	writeFile(t, filepath.Join(w.area, ".loomux", "config.toml"), "[area]\nscope = \"project/a\"\n"+manifest)
@@ -38,15 +37,14 @@ func brainWorld(t *testing.T, manifest string, files map[string]string) brainWor
 }
 
 // brainReadOnlyWorld registers one read-only area, project/r, whose manifest
-// and artefacts lie in the legacy directory under areas/project-r.
+// and artefacts lie in the state directory under areas/project-r.
 func brainReadOnlyWorld(t *testing.T, files map[string]string) brainWorldDirs {
 	t.Helper()
-	w := brainWorldDirs{state: t.TempDir(), legacy: t.TempDir(), area: t.TempDir()}
+	w := brainWorldDirs{state: t.TempDir(), area: t.TempDir()}
 	t.Setenv("LOOMUX_STATE_DIR", w.state)
-	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", w.legacy)
 	writeFile(t, filepath.Join(w.state, "registry.toml"),
 		"[[area]]\nscope = \"project/r\"\npath = "+strconv.Quote(filepath.ToSlash(w.area))+"\nreadonly = true\n")
-	artefacts := filepath.Join(w.legacy, "areas", "project-r")
+	artefacts := filepath.Join(w.state, "areas", "project-r")
 	writeFile(t, filepath.Join(artefacts, ".loomux", "config.toml"), "[area]\nscope = \"project/r\"\n")
 	for name, body := range files {
 		writeFile(t, filepath.Join(artefacts, filepath.FromSlash(name)), body)
@@ -179,11 +177,11 @@ func TestBrainSearchWithoutMatchesSaysSoAndWhy(t *testing.T) {
 	}
 }
 
-func TestBrainSearchJudgesTheLegacyStampAtBrainNow(t *testing.T) {
+func TestBrainSearchJudgesTheStampAtBrainNow(t *testing.T) {
 	w := brainWorld(t, "", map[string]string{
 		"_identities.tsv": "doc_id\tpfad\tcontent_hash\trevision\nd1\tnotes/a.md\tsha256:00\t1\n",
 	})
-	writeFile(t, filepath.Join(w.legacy, "maintenance", "last-run.txt"), "2999-01-01T00:00:00+00:00\n")
+	writeFile(t, filepath.Join(w.state, "maintenance", "last-run.txt"), "2999-01-01T00:00:00+00:00\n")
 	stubBrainNow(t, time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC))
 	fake := search.NewFakePort()
 	fake.Results = []search.ScriptedSearch{{Hits: []search.SearchHit{
@@ -262,7 +260,7 @@ func TestBrainCatalogReportsAMissingIndex(t *testing.T) {
 	}
 }
 
-func TestBrainReadsAReadOnlyAreaFromTheLegacyDirectory(t *testing.T) {
+func TestBrainReadsAReadOnlyAreaFromTheStateDirectory(t *testing.T) {
 	brainReadOnlyWorld(t, map[string]string{"index.md": "# project/r\n", "graph.json": brainGraph})
 
 	if code, out, errOut := run("brain", "catalog", "--scope", "project/r"); code != 0 || out != "# project/r\n" {
@@ -274,27 +272,31 @@ func TestBrainReadsAReadOnlyAreaFromTheLegacyDirectory(t *testing.T) {
 	}
 }
 
-// brainNewGraph is brainGraph with other edges, so that an answer names which
-// of the two directories its graph came from.
-const brainNewGraph = `{"scope":"project/r","nodes":[],"edges":[{"from":"notes/a.md","to":"notes/x.md"},{"from":"notes/y.md","to":"notes/a.md"}],"links":{"total":2,"resolved":2,"dropped":{}}}`
+// ultra-brain's state directory is read no more, whatever
+// LOOMUX_LEGACY_BRAIN_DIR names: not a read-only area's stock, which is then
+// missing, and not the reconcile stamp, which is then never written.
+func TestBrainReadsNothingFromTheOldStateDirectory(t *testing.T) {
+	state, old, area := t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", state)
+	t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", old)
+	writeFile(t, filepath.Join(state, "registry.toml"),
+		"[[area]]\nscope = \"project/r\"\npath = "+strconv.Quote(filepath.ToSlash(area))+"\nreadonly = true\n")
+	stock := filepath.Join(old, "areas", "project-r")
+	writeFile(t, filepath.Join(stock, ".loomux", "config.toml"), "[area]\nscope = \"project/r\"\n")
+	writeFile(t, filepath.Join(stock, "index.md"), "# project/r\n")
+	writeFile(t, filepath.Join(old, "maintenance", "last-run.txt"), "2999-01-01T00:00:00+00:00\n")
 
-// Lies an area under both places, the new one wins. Without this test the move
-// would be unprovable: with an empty state directory the fallback answers
-// exactly what the old fixed grip into the legacy directory answered, and the
-// case suite 1b-1 points both variables at one and the same directory.
-func TestBrainPrefersTheNewStateDirOverTheLegacyOne(t *testing.T) {
-	w := brainReadOnlyWorld(t, map[string]string{"index.md": "# old\n", "graph.json": brainGraph})
-	moved := filepath.Join(w.state, "areas", "project-r")
-	writeFile(t, filepath.Join(moved, ".loomux", "config.toml"), "[area]\nscope = \"project/r\"\n")
-	writeFile(t, filepath.Join(moved, "index.md"), "# new\n")
-	writeFile(t, filepath.Join(moved, "graph.json"), brainNewGraph)
-
-	if code, out, errOut := run("brain", "catalog", "--scope", "project/r"); code != 0 || out != "# new\n" {
-		t.Fatalf("catalog answered from the legacy directory: code %d\nout %q\nerr %q", code, out, errOut)
+	code, out, errOut := run("brain", "catalog", "--scope", "project/r")
+	missing := filepath.Join(state, "areas", "project-r") + ": no manifest found"
+	if code != 1 || out != "" || !strings.Contains(errOut, missing) {
+		t.Fatalf("catalog: code %d\nout %q\nerr %q", code, out, errOut)
 	}
-	code, out, errOut := run("brain", "neighbors", "notes/a.md", "--scope", "project/r")
-	if code != 0 || out != "incoming: notes/y.md\noutgoing: notes/x.md\n" {
-		t.Fatalf("neighbors answered from the legacy directory: code %d\nout %q\nerr %q", code, out, errOut)
+
+	writeFile(t, filepath.Join(state, "registry.toml"), "")
+	stubBrainStatusPort(t, search.NewFakePort())
+	code, out, errOut = run("brain", "status")
+	if code != 0 || !strings.HasPrefix(out, "last reconcile: never;") {
+		t.Fatalf("status: code %d\nout %q\nerr %q", code, out, errOut)
 	}
 }
 
@@ -383,7 +385,7 @@ func TestBrainNeighborsRefusesWithTheReasonAndNoOutput(t *testing.T) {
 
 func TestBrainStatusPrintsEveryLineAtBrainNow(t *testing.T) {
 	w := brainWorld(t, "", nil)
-	writeFile(t, filepath.Join(w.legacy, "maintenance", "last-run.txt"), "2999-01-01T00:00:00+00:00\n")
+	writeFile(t, filepath.Join(w.state, "maintenance", "last-run.txt"), "2999-01-01T00:00:00+00:00\n")
 	stubBrainNow(t, time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC))
 	fake := search.NewFakePort()
 	stubBrainStatusPort(t, fake)

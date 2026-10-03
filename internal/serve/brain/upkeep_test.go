@@ -41,8 +41,8 @@ func (f *fakeUpkeep) Trailer(cmd string, ch privacy.Channel) ([]string, error) {
 	return f.lines, f.err
 }
 
-func answering(text string, err error) func(answer.Request, string, string, func(string)) (string, []string, error) {
-	return func(answer.Request, string, string, func(string)) (string, []string, error) {
+func answering(text string, err error) func(answer.Request, string, func(string)) (string, []string, error) {
+	return func(answer.Request, string, func(string)) (string, []string, error) {
 		return text, nil, err
 	}
 }
@@ -122,7 +122,7 @@ func TestASettledUpkeepSaysNothingBeforeTheAnswer(t *testing.T) {
 	sink := newProgressSink()
 	upkeep := &fakeUpkeep{settled: true}
 	session := connectWith(t, privacy.ChannelLocal, servebrain.Deps{
-		Answer: func(_ answer.Request, _, _ string, notice func(string)) (string, []string, error) {
+		Answer: func(_ answer.Request, _ string, notice func(string)) (string, []string, error) {
 			notice("from the answer")
 			return "page", nil, nil
 		},

@@ -95,7 +95,6 @@ func TestCases4a2(t *testing.T) {
 			outcome, err := cases.RunCaseWith(c, func(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) int {
 				t.Chdir(dir)
 				t.Setenv("LOOMUX_STATE_DIR", dir)
-				t.Setenv("LOOMUX_LEGACY_BRAIN_DIR", dir)
 				t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
 				// The git environment the recorder ran the reference under.
 				for _, entry := range cases.GitEnv(dir) {

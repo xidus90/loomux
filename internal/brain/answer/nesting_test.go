@@ -18,8 +18,8 @@ import (
 // the open area "hub", whose tree is its own wiki, holds the wiki of the
 // read-only `local_only` area "project/inner", whose source tree lies beside
 // it. The hub carries a catalog naming the nested wiki and a graph with edges
-// into it. It answers the directory that holds the registry and the legacy
-// state both.
+// into it. It answers the state directory, which holds the registry and the
+// read-only area's stock both.
 func nestedVault(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -55,7 +55,7 @@ func ask(t *testing.T, dir string, req answer.Request) (string, error) {
 	t.Helper()
 	ports := stubbedStatusPort()
 	ports.Now = func() time.Time { return time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC) }
-	text, _, err := answer.RunWith(ports, req, dir, dir, nil)
+	text, _, err := answer.RunWith(ports, req, dir, nil)
 	return text, err
 }
 
@@ -153,7 +153,7 @@ func TestSearchThroughAnEnclosingScopeHidesTheHiddenPageOnCloud(t *testing.T) {
 		ports := stubbedStatusPort()
 		ports.Search = func(func(string)) search.SearchPort { return port }
 		ports.Now = func() time.Time { return time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC) }
-		text, _, err := answer.RunWith(ports, answer.Request{Command: "search", Query: "q", Scope: "hub", Count: 5, Profile: "fast", Channel: tc.channel}, dir, dir, nil)
+		text, _, err := answer.RunWith(ports, answer.Request{Command: "search", Query: "q", Scope: "hub", Count: 5, Profile: "fast", Channel: tc.channel}, dir, nil)
 		if err != nil {
 			t.Fatalf("%s: %v", tc.channel, err)
 		}
