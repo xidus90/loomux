@@ -1,7 +1,6 @@
 package apply
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -78,17 +77,16 @@ func resolve(casePath string, c maintenance.Case, areas []config.Area) (resolved
 
 // nearestVault walks `directory.parents` for `_MANIFEST` (apply.py:193,
 // :373-376): the case directory itself is not asked, its ancestors are,
-// nearest first. Python's marker is `.brain.toml`; until stage 4 a vault
-// declares itself under any name config.ReadAreaManifestUntilStage4 reads,
-// loomux's `.loomux/config.toml` first. A `.loomux/config.toml` without
+// nearest first. Python's marker is `.brain.toml`; loomux's is
+// `.loomux/config.toml` alone, read by config.ReadAreaDeclaration. One without
 // [area] is policy only and marks no vault, so the walk goes on past it; a
 // declaration that is there and does not read is an error, as
 // `read_manifest` raises one. No manifest and no error: no vault above.
 func nearestVault(directory string) (string, *config.Manifest, error) {
 	for dir := directory; filepath.Dir(dir) != dir; {
 		dir = filepath.Dir(dir)
-		manifest, err := config.ReadAreaManifestUntilStage4(dir)
-		if errors.Is(err, config.ErrNoManifest) {
+		manifest, err := config.ReadAreaDeclaration(dir)
+		if config.IsUndeclared(err) {
 			continue
 		}
 		return dir, manifest, err

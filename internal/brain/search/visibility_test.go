@@ -14,8 +14,8 @@ import (
 
 // closedWorld registers, beside the open area "alpha", the read-only "zz-lent" whose
 // manifest is the `local_only` one in the legacy state directory while its checkout
-// carries an open `.brain.toml`. With sealed it adds "zz-sealed", whose `local_only`
-// `.ultra-brain/config.toml` cannot be read beside a stale `manual_cloud` `.brain.toml`.
+// carries an open `.loomux/config.toml`. With sealed it adds "zz-sealed", whose
+// `local_only` `.loomux/config.toml` cannot be read.
 // It returns the directory that holds the registry and the legacy state both.
 func closedWorld(t *testing.T, sealed bool) string {
 	t.Helper()
@@ -33,15 +33,14 @@ func closedWorld(t *testing.T, sealed bool) string {
 	}
 	alpha := filepath.Join(root, "alpha")
 	lent := filepath.Join(root, "lent")
-	put(filepath.Join(alpha, ".brain.toml"), "[area]\nscope = \"alpha\"\n")
-	put(filepath.Join(lent, ".brain.toml"), "[area]\nscope = \"zz-lent\"\n"+open)
-	put(filepath.Join(root, "areas", "zz-lent", ".brain.toml"), "[area]\nscope = \"zz-lent\"\n"+closed)
+	put(filepath.Join(alpha, ".loomux", "config.toml"), "[area]\nscope = \"alpha\"\n")
+	put(filepath.Join(lent, ".loomux", "config.toml"), "[area]\nscope = \"zz-lent\"\n"+open)
+	put(filepath.Join(root, "areas", "zz-lent", ".loomux", "config.toml"), "[area]\nscope = \"zz-lent\"\n"+closed)
 	registry := "[[area]]\nscope = \"alpha\"\npath = \"" + filepath.ToSlash(alpha) + "\"\n\n" +
 		"[[area]]\nscope = \"zz-lent\"\npath = \"" + filepath.ToSlash(lent) + "\"\nreadonly = true\n\n"
 	if sealed {
 		dir := filepath.Join(root, "sealed")
-		put(filepath.Join(dir, ".brain.toml"), "[area]\nscope = \"zz-sealed\"\n"+open)
-		config := filepath.Join(dir, ".ultra-brain", "config.toml")
+		config := filepath.Join(dir, ".loomux", "config.toml")
 		put(config, "[area]\nscope = \"zz-sealed\"\n"+closed)
 		testlock.Lock(t, config)
 		registry += "[[area]]\nscope = \"zz-sealed\"\npath = \"" + filepath.ToSlash(dir) + "\"\n"

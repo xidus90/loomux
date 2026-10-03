@@ -319,7 +319,7 @@ func TestUntouchedIsMeasuredAgainstTheDeclaredThreshold(t *testing.T) {
 	}
 	// And the threshold comes from the manifest, not from the constant:
 	// a bundle that declares a thousand days has nothing old in it.
-	write(t, filepath.Join(a.Path, ".brain.toml"),
+	write(t, filepath.Join(a.Path, ".loomux", "config.toml"),
 		"[area]\nscope = \"project/p\"\n\n[wiki]\nuntouched_days = 1000\n")
 	if n := countRule(checkBundle(a, []config.Area{a}), "untouched"); n != 0 {
 		t.Fatalf("%d untouched findings under 1000 days, want 0", n)
@@ -366,7 +366,7 @@ func TestTheTypeVocabularyComesFromTheAreaManifest(t *testing.T) {
 	if n := countRule(checkBundle(a, []config.Area{a}), "unknown-type"); n != 1 {
 		t.Fatalf("%d unknown-type findings with no declaration, want 1", n)
 	}
-	write(t, filepath.Join(a.Path, ".brain.toml"),
+	write(t, filepath.Join(a.Path, ".loomux", "config.toml"),
 		"[area]\nscope = \"project/p\"\n\n[wiki]\ntypes = [\"manual\"]\n")
 	if n := countRule(checkBundle(a, []config.Area{a}), "unknown-type"); n != 0 {
 		t.Fatalf("%d unknown-type findings after declaring it, want 0", n)
@@ -381,7 +381,7 @@ func TestADeclarationThatCannotBeOpenedIsReportedToo(t *testing.T) {
 	base := t.TempDir()
 	t.Setenv(config.StateDirEnv, filepath.Join(base, "state"))
 	a := area(t, base, "knowledge")
-	locked := filepath.Join(a.Path, ".brain.toml")
+	locked := filepath.Join(a.Path, ".loomux", "config.toml")
 	write(t, locked, "[area]\nscope = \"knowledge\"\n")
 	testlock.Lock(t, locked)
 
@@ -404,7 +404,7 @@ func TestADeclarationThatStopsARuleIsReported(t *testing.T) {
 	a := area(t, base, "knowledge")
 	a.Signpost = true
 	other := area(t, base, "project/other")
-	broken := filepath.Join(a.Path, ".brain.toml")
+	broken := filepath.Join(a.Path, ".loomux", "config.toml")
 
 	write(t, broken, "[area\nscope = \"knowledge\"\n")
 	found := checkAll([]config.Area{a, other}, []config.Area{a, other})
@@ -463,7 +463,7 @@ func TestASoundDeclarationIsNotReported(t *testing.T) {
 	base := t.TempDir()
 	t.Setenv(config.StateDirEnv, filepath.Join(base, "state"))
 	a := area(t, base, "project/p")
-	write(t, filepath.Join(a.Path, ".brain.toml"),
+	write(t, filepath.Join(a.Path, ".loomux", "config.toml"),
 		"[area]\nscope = \"project/p\"\n\n[layout]\nwiki = \"wiki\"\n"+
 			"hub = \"h\"\n")
 	names := []string{"manifest-unreadable", "manifest-layout-invalid"}
@@ -492,7 +492,7 @@ func TestCheckFileFindsTheBundleRootThroughTheDeclaredLayout(t *testing.T) {
 	// declaration the same way.
 	repo := t.TempDir()
 	t.Setenv(config.StateDirEnv, filepath.Join(repo, "state"))
-	write(t, filepath.Join(repo, ".brain.toml"),
+	write(t, filepath.Join(repo, ".loomux", "config.toml"),
 		"[area]\nscope = \"project/p\"\n\n[layout]\nwiki = \"docs/wiki\"\n")
 	path := filepath.Join(repo, "docs", "wiki", "topics", "x.md")
 	write(t, path, "---\ntitle: x\n---\n\n# x\n")
@@ -571,7 +571,7 @@ func TestCheckFileTakesTheLongestRegisteredWikiPath(t *testing.T) {
 	// A declaration at the inner area that names no place: the chain's
 	// first link finds it, cannot use it, and hands the question on
 	// rather than climbing past it to the enclosing area.
-	write(t, filepath.Join(inner, ".brain.toml"),
+	write(t, filepath.Join(inner, ".loomux", "config.toml"),
 		"[area]\nscope = \"project/space\"\n\n[wiki]\n"+
 			"types = [\"manual\"]\n")
 	path := filepath.Join(inner, "x.md")
@@ -598,7 +598,7 @@ func TestADeclaredLayoutIsIgnoredForAFileOutsideIt(t *testing.T) {
 	// bundle with `../`.
 	repo := t.TempDir()
 	t.Setenv(config.StateDirEnv, filepath.Join(repo, "state"))
-	write(t, filepath.Join(repo, ".brain.toml"),
+	write(t, filepath.Join(repo, ".loomux", "config.toml"),
 		"[area]\nscope = \"project/p\"\n\n[layout]\nwiki = \"docs/wiki\"\n")
 	write(t, filepath.Join(repo, "docs", "wiki", "index.md"), "# c\n")
 	path := filepath.Join(repo, "other", "x.md")
@@ -619,7 +619,7 @@ func TestCheckFileDoesNotClimbPastADeclarationItCannotUse(t *testing.T) {
 	// the file's own directory is the answer.
 	repo := t.TempDir()
 	t.Setenv(config.StateDirEnv, filepath.Join(repo, "state"))
-	write(t, filepath.Join(repo, "inner", ".brain.toml"),
+	write(t, filepath.Join(repo, "inner", ".loomux", "config.toml"),
 		"[area]\nscope = \"project/p\"\n")
 	path := filepath.Join(repo, "inner", "deep", "x.md")
 	write(t, path, "---\ntitle: x\n---\n\n# x\n")
@@ -643,7 +643,7 @@ func TestCheckFileKeepsTheRootWhenTheDeclarationIsBroken(t *testing.T) {
 		"[[area]]\nscope = \"project/space\"\npath = %q\nwiki = %q\n",
 		filepath.ToSlash(inner), filepath.ToSlash(inner)))
 	t.Setenv(config.StateDirEnv, state)
-	write(t, filepath.Join(inner, ".brain.toml"), "[area\n")
+	write(t, filepath.Join(inner, ".loomux", "config.toml"), "[area\n")
 	path := filepath.Join(inner, "deep", "x.md")
 	write(t, path, "---\ntitle: x\ntype: manual\n---\n\n# x\n")
 	found := checkFile(path)
@@ -695,7 +695,7 @@ func TestAnAreaWithoutAWikiIsNotRead(t *testing.T) {
 	// Its declaration is not read either, broken though it is: an area
 	// Python never lints must not be reported by this width over a file
 	// no rule of it would have opened.
-	write(t, filepath.Join(base, ".brain.toml"), "[area\n")
+	write(t, filepath.Join(base, ".loomux", "config.toml"), "[area\n")
 	if found := checkAll([]config.Area{a}, []config.Area{a}); len(found) != 0 {
 		t.Fatalf("%+v for an area with no wiki, want nothing", found)
 	}
@@ -737,9 +737,9 @@ func TestTwoAreasOnOneWikiAreDecidedByTheFirstEntry(t *testing.T) {
 	t.Setenv(config.StateDirEnv, state)
 	// Only the first area declares the type. The second is there to be
 	// wrongly preferred.
-	write(t, filepath.Join(first, ".brain.toml"),
+	write(t, filepath.Join(first, ".loomux", "config.toml"),
 		"[area]\nscope = \"a/one\"\n\n[wiki]\ntypes = [\"manual\"]\n")
-	write(t, filepath.Join(second, ".brain.toml"),
+	write(t, filepath.Join(second, ".loomux", "config.toml"),
 		"[area]\nscope = \"a/two\"\n")
 	path := filepath.Join(wiki, "x.md")
 	write(t, path, "---\ntitle: x\ntype: manual\n---\n\n# x\n")

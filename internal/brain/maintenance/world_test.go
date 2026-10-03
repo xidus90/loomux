@@ -210,9 +210,9 @@ func (w *world) addArea(t *testing.T, opts areaOptions) (config.Area, *config.Ma
 	}
 	var manifest *config.Manifest
 	if !opts.NoManifest && !opts.BrokenManifest {
-		read, err := config.ReadAreaManifestUntilStage4(declarationDir)
+		read, err := config.ReadAreaDeclaration(declarationDir)
 		if err != nil {
-			t.Fatalf("ReadAreaManifestUntilStage4: %v", err)
+			t.Fatalf("ReadAreaDeclaration: %v", err)
 		}
 		manifest = read
 		w.Manifests[scope] = read

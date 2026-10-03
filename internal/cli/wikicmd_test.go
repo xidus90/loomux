@@ -106,7 +106,7 @@ func TestWikiTypesStopsAtABrokenDeclaration(t *testing.T) {
 	base := t.TempDir()
 	_, a := checkedArea(t, base, "project/a", "")
 	checkWorld(t, a)
-	writeFile(t, filepath.Join(base, "project-a", ".brain.toml"), "[area\n")
+	writeFile(t, filepath.Join(base, "project-a", ".loomux", "config.toml"), "[area\n")
 	code, out, errOut := run("wiki", "types")
 	if code != 1 || out != "" || !strings.HasPrefix(errOut, "error: ") {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
@@ -140,7 +140,7 @@ func TestWikiRetypeRefusesWhatItMustNotWrite(t *testing.T) {
 	_, a := checkedArea(t, base, "project/a", "readonly = true\n")
 	_, b := checkedArea(t, base, "project/b", "")
 	checkWorld(t, a, b)
-	writeFile(t, filepath.Join(base, "project-b", ".brain.toml"), "[area\n")
+	writeFile(t, filepath.Join(base, "project-b", ".loomux", "config.toml"), "[area\n")
 	for _, c := range []struct {
 		args []string
 		code int

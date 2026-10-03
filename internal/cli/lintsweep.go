@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -90,9 +89,9 @@ func sweepContext(area config.Area, areas []config.Area, shared map[string]bool,
 		DeclaredTypes: map[string]bool{},
 		IsProject:     strings.SplitN(area.Scope, "/", 2)[0] == "project",
 	}
-	manifest, err := config.ReadAreaManifestUntilStage4(config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
+	manifest, err := config.ReadAreaDeclaration(config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
 	switch {
-	case errors.Is(err, config.ErrNoManifest):
+	case config.IsUndeclared(err):
 		manifest = nil
 	case err != nil:
 		return ctx, err

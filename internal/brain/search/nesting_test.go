@@ -29,10 +29,10 @@ func nestedWorld(t *testing.T) string {
 	hub := filepath.Join(root, "hub")
 	innerWiki := filepath.Join(hub, "inner")
 	innerPath := filepath.Join(root, "inner-src")
-	put(filepath.Join(hub, ".brain.toml"), "[area]\nscope = \"hub\"\n\n[privacy]\nmode = \"manual_cloud\"\n")
+	put(filepath.Join(hub, ".loomux", "config.toml"), "[area]\nscope = \"hub\"\n\n[privacy]\nmode = \"manual_cloud\"\n")
 	put(filepath.Join(innerWiki, "page.md"), "# Page\n")
 	put(filepath.Join(innerPath, "source.md"), "# Source\n")
-	put(filepath.Join(root, "areas", "project-inner", ".brain.toml"), "[area]\nscope = \"project/inner\"\n\n[privacy]\nmode = \"local_only\"\n")
+	put(filepath.Join(root, "areas", "project-inner", ".loomux", "config.toml"), "[area]\nscope = \"project/inner\"\n\n[privacy]\nmode = \"local_only\"\n")
 	writeRegistry(t, root, areaEntry("hub", hub)+
 		"[[area]]\nscope = \"project/inner\"\npath = \""+filepath.ToSlash(innerPath)+"\"\nwiki = \""+filepath.ToSlash(innerWiki)+"\"\nreadonly = true\n")
 	return root

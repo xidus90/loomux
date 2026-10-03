@@ -267,9 +267,9 @@ func writeLastRun(lookup config.ArtifactLookup, now time.Time) error {
 func Manifests(areas []config.Area, lookup config.ArtifactLookup) (map[string]*config.Manifest, error) {
 	found := map[string]*config.Manifest{}
 	for _, area := range areas {
-		manifest, err := config.ReadAreaManifestUntilStage4(
+		manifest, err := config.ReadAreaDeclaration(
 			config.ResolvedAreaDir(area, lookup.Primary, lookup.Fallback))
-		if errors.Is(err, config.ErrNoManifest) {
+		if config.IsUndeclared(err) {
 			continue
 		}
 		if err != nil {

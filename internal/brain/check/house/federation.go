@@ -1,7 +1,6 @@
 package house
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -338,7 +337,7 @@ func missingFromSignpost(
 // the folder empty and the rule runs -- `src/brain/manifest.py:110-112`
 // answers None for an unsaid key the same way, and an area may keep no
 // hub pages at all. A manifest that is not there is the same case,
-// which is why `config.ErrNoManifest` is let through. But a declaration
+// which is why `config.IsUndeclared` is let through. But a declaration
 // this package cannot use stops the rule, because the alternative fails
 // in the wrong direction: without the hub folder every area whose wiki
 // lies outside the vault loses its second name and is reported, so the
@@ -369,9 +368,9 @@ func missingFromSignpost(
 // answer `run.areaManifest` and the sweep take for every other value of
 // that file.
 func hubFolder(signpost config.Area, lookup config.ArtifactLookup) (string, bool) {
-	manifest, err := config.ReadAreaManifestUntilStage4(
+	manifest, err := config.ReadAreaDeclaration(
 		config.ResolvedAreaDir(signpost, lookup.Primary, lookup.Fallback))
-	if errors.Is(err, config.ErrNoManifest) {
+	if config.IsUndeclared(err) {
 		return "", true
 	}
 	if err != nil {

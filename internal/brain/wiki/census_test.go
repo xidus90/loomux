@@ -47,7 +47,7 @@ func censusAreas(t *testing.T) []config.Area {
 	writeCensusPage(t, filepath.Join(alpha, "no-type.md"), "")
 	writeCensusFile(t, filepath.Join(alpha, "index.md"), "# Katalog\n")
 	alphaRepo := filepath.Join(base, "alpha", "repo")
-	writeCensusFile(t, filepath.Join(alphaRepo, ".brain.toml"),
+	writeCensusFile(t, filepath.Join(alphaRepo, ".loomux", "config.toml"),
 		"[area]\nscope = \"alpha\"\n\n[wiki]\ntypes = [\"Balancing Rule\"]\n")
 	beta := filepath.Join(base, "beta", "wiki")
 	writeCensusPage(t, filepath.Join(beta, "architecture.md"), "Architecture")
@@ -164,7 +164,7 @@ func TestTheWorstRankWinsAcrossAreas(t *testing.T) {
 		writeCensusPage(t, filepath.Join(wiki, "rule.md"), "Mystery Type")
 		repo := filepath.Join(base, scope, "repo")
 		if scope != "silent" {
-			writeCensusFile(t, filepath.Join(repo, ".brain.toml"),
+			writeCensusFile(t, filepath.Join(repo, ".loomux", "config.toml"),
 				"[area]\nscope = \""+scope+"\"\n\n[wiki]\ntypes = [\"Mystery Type\"]\n")
 		}
 		areas = append(areas, config.Area{Scope: scope, Path: repo, WikiPath: wiki})
@@ -176,7 +176,7 @@ func TestTheWorstRankWinsAcrossAreas(t *testing.T) {
 
 func TestTheCensusStopsAtADeclarationItCannotRead(t *testing.T) {
 	areas := censusAreas(t)
-	writeCensusFile(t, filepath.Join(areas[0].Path, ".brain.toml"), "[area\n")
+	writeCensusFile(t, filepath.Join(areas[0].Path, ".loomux", "config.toml"), "[area\n")
 	if _, err := Census(areas, areaPath); err == nil {
 		t.Fatal("a broken declaration was taken for none")
 	}

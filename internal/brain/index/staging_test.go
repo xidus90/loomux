@@ -42,7 +42,7 @@ func TestReindexWritesAReadOnlyAreaWholeIntoTheStateDirectory(t *testing.T) {
 	writeFile(t, filepath.Join(areaDir, "one.md"), "---\ntitle: One\n---\n# One\n")
 
 	legacyDir := filepath.Join(tmp, "legacy")
-	writeFile(t, filepath.Join(legacyDir, "areas", "read-only", ".brain.toml"), "[area]\nscope = \"read/only\"\n")
+	writeFile(t, filepath.Join(legacyDir, "areas", "read-only", ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
 
 	stateDir := filepath.Join(tmp, "state")
 	registry := "[[area]]\nscope = \"read/only\"\npath = \"" + filepath.ToSlash(areaDir) + "\"\nreadonly = true\n"
@@ -55,7 +55,7 @@ func TestReindexWritesAReadOnlyAreaWholeIntoTheStateDirectory(t *testing.T) {
 	}
 
 	target := filepath.Join(stateDir, "areas", "read-only")
-	for _, name := range []string{".brain.toml", "index.md", graphName, identitiesName} {
+	for _, name := range []string{filepath.Join(".loomux", "config.toml"), "index.md", graphName, identitiesName} {
 		if _, err := os.Stat(filepath.Join(target, name)); err != nil {
 			t.Errorf("%s missing from the swapped-in stock: %v", name, err)
 		}
@@ -83,7 +83,7 @@ func TestReindexLeavesTheOldStockWholeWhenAWriteBreaks(t *testing.T) {
 
 	stateDir := filepath.Join(tmp, "state")
 	target := filepath.Join(stateDir, "areas", "read-only")
-	writeFile(t, filepath.Join(target, ".brain.toml"), "[area]\nscope = \"read/only\"\n")
+	writeFile(t, filepath.Join(target, ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
 	writeFile(t, filepath.Join(target, "index.md"), "# old\n")
 	writeFile(t, filepath.Join(target, "sub", "index.md"), "# old sub\n")
 
@@ -157,7 +157,7 @@ func TestPublishReportsAStockItCannotWrite(t *testing.T) {
 	areaDir := filepath.Join(tmp, "notes")
 	writeFile(t, filepath.Join(areaDir, "sub", "index.intro.md"), "\n")
 	source := filepath.Join(tmp, "source")
-	writeFile(t, filepath.Join(source, ".brain.toml"), "[area]\nscope = \"read/only\"\n")
+	writeFile(t, filepath.Join(source, ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
 
 	documents := []Document{{Relative: "sub/two.md", Title: "Two"}}
 	err := publish(readOnlyArea(areaDir), documents, map[string]identity.Identity{}, source, filepath.Join(tmp, "state"))
@@ -216,14 +216,14 @@ func TestReindexFinishesAnInterruptedSwapBeforeItReads(t *testing.T) {
 	stateDir := filepath.Join(tmp, "state")
 	target := filepath.Join(stateDir, "areas", "read-only")
 	aside := target + lock.AsideSuffix
-	writeFile(t, filepath.Join(aside, ".brain.toml"), "[area]\nscope = \"read/only\"\n")
+	writeFile(t, filepath.Join(aside, ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
 	writeFile(t, filepath.Join(aside, identitiesName), identity.IdentitiesHeader+"\n")
 
 	// The old state directory holds a stock of its own. Were the recovery to
 	// wait until the swap, this run would read that one and undo what the
 	// killed run had already replaced.
 	legacyDir := filepath.Join(tmp, "legacy")
-	writeFile(t, filepath.Join(legacyDir, "areas", "read-only", ".brain.toml"), "[area]\nscope = \"read/only\"\n[index]\ninclude = [\"nothing/*.md\"]\n")
+	writeFile(t, filepath.Join(legacyDir, "areas", "read-only", ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n[index]\ninclude = [\"nothing/*.md\"]\n")
 
 	registry := "[[area]]\nscope = \"read/only\"\npath = \"" + filepath.ToSlash(areaDir) + "\"\nreadonly = true\n"
 	regPath := writeTestRegistry(t, stateDir, registry)
@@ -289,7 +289,7 @@ func TestReindexLeavesTheOldStockWholeWhenTheSwapBreaks(t *testing.T) {
 
 	stateDir := filepath.Join(tmp, "state")
 	target := filepath.Join(stateDir, "areas", "read-only")
-	writeFile(t, filepath.Join(target, ".brain.toml"), "[area]\nscope = \"read/only\"\n")
+	writeFile(t, filepath.Join(target, ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
 	writeFile(t, filepath.Join(target, "index.md"), "# old\n")
 	writeFile(t, filepath.Join(target, "sub", "index.md"), "# old sub\n")
 
@@ -349,7 +349,7 @@ func TestPublishReplacesTheStockInsteadOfMergingIntoIt(t *testing.T) {
 	writeFile(t, filepath.Join(target, "stale.md"), "# from a stock long gone\n")
 
 	source := filepath.Join(tmp, "source")
-	writeFile(t, filepath.Join(source, ".brain.toml"), "[area]\nscope = \"read/only\"\n")
+	writeFile(t, filepath.Join(source, ".loomux", "config.toml"), "[area]\nscope = \"read/only\"\n")
 
 	areaDir := filepath.Join(tmp, "notes")
 	if err := os.MkdirAll(areaDir, 0o755); err != nil {
@@ -361,7 +361,7 @@ func TestPublishReplacesTheStockInsteadOfMergingIntoIt(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(target, "stale.md")); !os.IsNotExist(err) {
 		t.Errorf("stale.md survived: %v -- the stock was merged into, not replaced", err)
 	}
-	if _, err := os.Stat(filepath.Join(target, ".brain.toml")); err != nil {
+	if _, err := os.Stat(filepath.Join(target, ".loomux", "config.toml")); err != nil {
 		t.Errorf("the declaration did not come along: %v", err)
 	}
 }

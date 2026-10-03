@@ -1,7 +1,6 @@
 package privacy
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -50,7 +49,7 @@ func VisibleAreas(registryDir, fallbackDir, scope string, ch Channel) ([]Visible
 	var hidden []string
 	for _, area := range areas {
 		manifest, seen, err := VisibleManifest(config.ResolvedAreaDir(area, registryDir, fallbackDir), ch)
-		if area.Workspace && errors.Is(err, config.ErrNoManifest) {
+		if area.Workspace && config.IsUndeclared(err) {
 			// A workspace that declares no [area] is no brain area: there is
 			// nothing to see in it and nothing to hide.
 			continue

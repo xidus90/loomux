@@ -25,11 +25,11 @@ func nestedWorld(t *testing.T) (registryDir, legacyDir, hub, innerPath, innerWik
 	hub = filepath.ToSlash(filepath.Join(root, "vault", "hub"))
 	innerWiki = hub + "/inner"
 	innerPath = filepath.ToSlash(filepath.Join(root, "inner-src"))
-	writeFile(t, filepath.Join(hub, ".brain.toml"), "[area]\nscope = \"hub\"\n\n[privacy]\nmode = \"manual_cloud\"\n")
+	writeFile(t, filepath.Join(hub, ".loomux", "config.toml"), "[area]\nscope = \"hub\"\n\n[privacy]\nmode = \"manual_cloud\"\n")
 	writeFile(t, filepath.Join(innerWiki, "page.md"), "# Page\n")
 	writeFile(t, filepath.Join(innerPath, "source.md"), "# Source\n")
 	inner := config.Area{Scope: "project/inner", Path: innerPath, ReadOnly: true}
-	writeFile(t, filepath.Join(config.ManifestDir(inner, legacyDir), ".brain.toml"),
+	writeFile(t, filepath.Join(config.ManifestDir(inner, legacyDir), ".loomux", "config.toml"),
 		"[area]\nscope = \"project/inner\"\n\n[privacy]\nmode = \"local_only\"\n")
 	writeFile(t, filepath.Join(registryDir, "registry.toml"),
 		"[[area]]\nscope = \"project/inner\"\npath = \""+innerPath+"\"\nwiki = \""+innerWiki+"\"\nreadonly = true\n\n"+

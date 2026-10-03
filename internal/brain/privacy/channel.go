@@ -42,15 +42,14 @@ func ParseChannel(s string) (Channel, error) {
 // ultra-brain's Go gate answered an absent declaration as visible and hid the
 // other failures silently; loomux follows the reference.
 //
-// The file is found the way config.ReadAreaManifestUntilStage4 finds it:
-// `.loomux/config.toml`, else ultra-brain's two names until stage 4.
+// The file is `.loomux/config.toml` alone, read by config.ReadAreaDeclaration.
 //
 // dir is where the manifest lies, which is not always the area: a read-only
 // area keeps it in the state directory, so callers pass config.ResolvedAreaDir
 // -- the directory `registry.manifest_path` reads on the Python side, with the
 // legacy directory as the fallback.
 func VisibleManifest(dir string, ch Channel) (*config.Manifest, bool, error) {
-	manifest, err := config.ReadAreaManifestUntilStage4(dir)
+	manifest, err := config.ReadAreaDeclaration(dir)
 	if err != nil {
 		return nil, false, err
 	}

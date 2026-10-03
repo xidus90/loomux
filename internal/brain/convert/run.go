@@ -35,9 +35,9 @@ func Areas(areas []config.Area, stateDir, fallbackDir string) ([]Area, error) {
 	out := make([]Area, 0, len(areas))
 	for _, a := range areas {
 		entry := Area{Area: a, Mode: "manual_cloud"}
-		manifest, err := config.ReadAreaManifestUntilStage4(config.ResolvedAreaDir(a, stateDir, fallbackDir))
+		manifest, err := config.ReadAreaDeclaration(config.ResolvedAreaDir(a, stateDir, fallbackDir))
 		switch {
-		case errors.Is(err, config.ErrNoManifest):
+		case config.IsUndeclared(err):
 		case err != nil:
 			return nil, err
 		default:

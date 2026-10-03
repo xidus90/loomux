@@ -117,47 +117,31 @@ func TestResolveRefusesAnUnreadableManifest(t *testing.T) {
 	}
 }
 
-// Until stage 4 a vault may still declare itself under ultra-brain's names,
-// the ones config.ReadAreaManifestUntilStage4 reads.
-func TestResolveFindsAVaultUnderEveryNameOfTheDeclaration(t *testing.T) {
-	for _, name := range []string{filepath.Join(".ultra-brain", "config.toml"), ".brain.toml"} {
+// A vault declares itself under `.loomux/config.toml` alone: one that still
+// carries only an old name is refused with the hint, not walked past.
+func TestResolveRefusesAVaultUnderAnOldName(t *testing.T) {
+	for _, name := range config.OldManifestNames() {
 		t.Run(name, func(t *testing.T) {
 			vault, casePath, areas := newVault(t)
 			if err := os.RemoveAll(filepath.Join(vault, ".loomux")); err != nil {
 				t.Fatal(err)
 			}
 			writeFile(t, filepath.Join(vault, name), vaultManifest(testReview))
-			got, err := resolve(casePath, caseOf("knowledge"), areas)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got.vault != vault {
-				t.Fatalf("vault = %s, want %s", got.vault, vault)
+			_, err := resolve(casePath, caseOf("knowledge"), areas)
+			if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") {
+				t.Fatalf("got %v; want the old-manifest hint", err)
 			}
 		})
 	}
 }
 
 // A `.loomux/config.toml` without [area] is policy only and marks no vault:
-// the walk goes on past one between the case and the vault, and at the
-// vault root it gives way to the `.brain.toml` beside it.
+// the walk goes on past one between the case and the vault.
 func TestResolveWalksPastAPolicyOnlyConfig(t *testing.T) {
 	policy := "[policy]\nx = 1\n"
 	t.Run("between", func(t *testing.T) {
 		vault, casePath, areas := newVault(t)
 		writeFile(t, filepath.Join(vault, testReview, ".loomux", "config.toml"), policy)
-		got, err := resolve(casePath, caseOf("knowledge"), areas)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got.vault != vault {
-			t.Fatalf("vault = %s, want %s", got.vault, vault)
-		}
-	})
-	t.Run("beside .brain.toml", func(t *testing.T) {
-		vault, casePath, areas := newVault(t)
-		writeFile(t, filepath.Join(vault, ".loomux", "config.toml"), policy)
-		writeFile(t, filepath.Join(vault, ".brain.toml"), vaultManifest(testReview))
 		got, err := resolve(casePath, caseOf("knowledge"), areas)
 		if err != nil {
 			t.Fatal(err)
