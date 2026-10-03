@@ -4,6 +4,15 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [6.2.0] - 2026-10-03
+
+<https://github.com/xidus90/loomux/pull/66>
+
+### Fixed
+- `loomux init --brain=none` registers the project as a workspace without a wiki, so agents can write in it; before, the write barrier refused every write there.
+### Added
+- The init part `workspace`, which registers a project without the Brain module and is named in the plan and the interview.
+
 ## [6.1.0] - 2026-10-01
 
 <https://github.com/xidus90/loomux/pull/64>
