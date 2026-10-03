@@ -8,9 +8,15 @@ import (
 	"github.com/xidus90/loomux/internal/cases"
 )
 
+// readRecorded reads a recorded file the import rewrites, as a variable so
+// that a test can make the read fail.
+var readRecorded = os.ReadFile
+
 // ImportMCP translates every recorded MCP case below from into to.
 //
-// One thing is rewritten and one only: the tool's name. A recording carries
+// The result is rewritten by the [[result]] rules of m, each a deviation of
+// the parity list, the way [[stdout]] rewrites a command's output. Beside that
+// one thing is rewritten: the tool's name. A recording carries
 // the reference's five bare names and loomux serves the same five under the
 // brain_ family, because the protocol has no nested tools and the code graph
 // will put graph_* into the same server -- the prefix is the only family
@@ -29,9 +35,18 @@ func ImportMCP(from, to string, m Mapping) error {
 	}
 	for _, c := range found {
 		out := filepath.Join(to, c.Verb, c.Name)
-		// The one file this import rewrites is not copied first: one writer
+		// The two files this import rewrites are not copied first: one writer
 		// per file keeps the copy from being the one that fails.
-		if err := copyTree(c.Path, out, map[string]bool{"call": true}); err != nil {
+		if err := copyTree(c.Path, out, map[string]bool{"call": true, "result": true}); err != nil {
+			return err
+		}
+		recorded, err := readRecorded(filepath.Join(c.Path, "result"))
+		if err != nil {
+			return err
+		}
+		// As bytes and not decoded: the recorder's indentation and its
+		// escapes stay as they were, as they do for the call's arguments.
+		if err := os.WriteFile(filepath.Join(out, "result"), rewriteStdout(recorded, m.Result), 0o644); err != nil {
 			return err
 		}
 		call, err := renameTool(c, m)
