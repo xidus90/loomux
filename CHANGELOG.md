@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [6.2.1] - 2026-10-03
+
+<https://github.com/xidus90/loomux/pull/67>
+
+### Fixed
+- Brain commands and the MCP brain tools no longer fail with "no manifest found" when the registry holds a workspace without an `[area]` declaration, such as one written by `loomux init --brain=none`.
+
 ## [6.2.0] - 2026-10-03
 
 <https://github.com/xidus90/loomux/pull/66>
