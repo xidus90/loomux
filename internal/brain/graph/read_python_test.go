@@ -13,7 +13,7 @@ import (
 
 func TestParseGraph_RootThatIsNotAnObjectMissesBothKeys(t *testing.T) {
 	path := "/path/to/graph.json"
-	want := path + ": graph is missing edges, links; delete it and run `brain reindex`"
+	want := path + ": graph is missing edges, links; delete it and run `loomux reindex`"
 	for _, data := range []string{`[]`, `"x"`, `3`, `null`, `"edges"`} {
 		_, err := graph.ParseGraph([]byte(data), path)
 		if err == nil || err.Error() != want {
@@ -24,7 +24,7 @@ func TestParseGraph_RootThatIsNotAnObjectMissesBothKeys(t *testing.T) {
 
 func TestParseGraph_CountsAreIntegersAsJSONLoadsGivesThem(t *testing.T) {
 	path := "/path/to/graph.json"
-	want := path + ": the link counts are not numbers; delete it and run `brain reindex`"
+	want := path + ": the link counts are not numbers; delete it and run `loomux reindex`"
 	for _, links := range []string{
 		`{"total": 3.0, "resolved": 0, "dropped": {}}`,
 		`{"total": 0, "resolved": 1.5, "dropped": {}}`,
@@ -62,7 +62,7 @@ func TestParseGraph_InvalidJSONNamesTheDecoderError(t *testing.T) {
 		{`{"edges": [], "links": {"total": NaN}}`, "invalid character 'N' looking for beginning of value"},
 	} {
 		_, err := graph.ParseGraph([]byte(tc.data), path)
-		want := path + ": graph is not valid JSON (" + tc.reason + "); delete it and run `brain reindex`"
+		want := path + ": graph is not valid JSON (" + tc.reason + "); delete it and run `loomux reindex`"
 		if err == nil || err.Error() != want {
 			t.Errorf("%q: got %v, want %q", tc.data, err, want)
 		}
@@ -82,7 +82,7 @@ func TestReadGraph_AnUnstatablePathIsNeverIndexed(t *testing.T) {
 	// Path.exists() answers False for every OSError, a NUL byte included.
 	area := config.Area{Scope: "project/odd", Path: filepath.Join(t.TempDir(), "a\x00b")}
 	_, err := graph.ReadGraph(area, "")
-	if !errors.Is(err, graph.ErrNotIndexed) || err.Error() != "project/odd: never indexed; run `brain reindex`" {
+	if !errors.Is(err, graph.ErrNotIndexed) || err.Error() != "project/odd: never indexed; run `loomux reindex`" {
 		t.Fatalf("got %v", err)
 	}
 }

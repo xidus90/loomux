@@ -191,7 +191,7 @@ func TestBrainSearchJudgesTheStampAtBrainNow(t *testing.T) {
 
 	code, out, errOut := run("brain", "search", "a")
 	wantErr := "note: the last full reconciliation was 2999-01-01T00:00:00+00:00, more than 24 hours ago: " +
-		"a source may have changed without this answer knowing (run `brain reconcile`)\n"
+		"a source may have changed without this answer knowing (run `loomux reconcile`)\n"
 	if code != 0 || out != "brain://project/a/notes/a.md:1  100%  A\n\n" || errOut != wantErr {
 		t.Fatalf("code %d\nout %q\nerr %q", code, out, errOut)
 	}
@@ -372,7 +372,7 @@ func TestBrainNeighborsRefusesWithTheReasonAndNoOutput(t *testing.T) {
 		args   []string
 		stderr string
 	}{
-		{[]string{"notes/a.md", "--scope", "project/a"}, "error: project/a: never indexed; run `brain reindex`\n"},
+		{[]string{"notes/a.md", "--scope", "project/a"}, "error: project/a: never indexed; run `loomux reindex`\n"},
 		{[]string{"../x.md", "--scope", "project/a"}, "error: project/a/../x.md leaves the area\n"},
 		{[]string{"notes/a.md", "--scope", "nope"}, "error: unknown scope 'nope'; known scopes are: project/a\n"},
 	} {
@@ -391,8 +391,8 @@ func TestBrainStatusPrintsEveryLineAtBrainNow(t *testing.T) {
 	stubBrainStatusPort(t, fake)
 
 	code, out, errOut := run("brain", "status")
-	want := "last reconcile: 2999-01-01T00:00:00+00:00; older than 24 h, run `brain reconcile`\n" +
-		"project/a: never indexed; run `brain reindex`\n"
+	want := "last reconcile: 2999-01-01T00:00:00+00:00; older than 24 h, run `loomux reconcile`\n" +
+		"project/a: never indexed; run `loomux reindex`\n"
 	if code != 0 || out != want || errOut != "" {
 		t.Fatalf("code %d\nout %q\nerr %q", code, out, errOut)
 	}
@@ -406,7 +406,7 @@ func TestBrainStatusOnTheCloudLeavesALocalOnlyAreaOut(t *testing.T) {
 	stubBrainStatusPort(t, search.NewFakePort())
 
 	code, out, errOut := run("brain", "status", "--channel", "cloud")
-	if code != 0 || out != "last reconcile: never; run `brain reconcile`\n" || errOut != "" {
+	if code != 0 || out != "last reconcile: never; run `loomux reconcile`\n" || errOut != "" {
 		t.Fatalf("code %d\nout %q\nerr %q", code, out, errOut)
 	}
 }
@@ -439,7 +439,7 @@ func TestBrainReadersSkipAWorkspaceWithoutAnArea(t *testing.T) {
 	stubBrainSearchPort(t, fake, "")
 
 	code, out, errOut := run("brain", "status")
-	if code != 0 || out != "last reconcile: never; run `brain reconcile`\nproject/a: never indexed; run `brain reindex`\n" || errOut != "" {
+	if code != 0 || out != "last reconcile: never; run `loomux reconcile`\nproject/a: never indexed; run `loomux reindex`\n" || errOut != "" {
 		t.Fatalf("status: code %d\nout %q\nerr %q", code, out, errOut)
 	}
 	code, out, errOut = run("brain", "catalog", "--scope", "all")

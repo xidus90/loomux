@@ -1,4 +1,4 @@
 {
   "isError": false,
-  "text": "last reconcile: 2999-01-01T00:00:00+00:00\nproject/a: never indexed; run `brain reindex`"
+  "text": "last reconcile: 2999-01-01T00:00:00+00:00\nproject/a: never indexed; run `loomux reindex`"
 }

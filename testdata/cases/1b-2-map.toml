@@ -22,3 +22,18 @@ to   = "brain_neighbors"
 [[tool]]
 from = "status"
 to   = "brain_status"
+
+# Deviation "Ratschläge nennen loomux" in parity/stufe-1b-2.md: the reference
+# advises its own commands, loomux advises its own. The rules match the
+# recorded result file byte for byte; backticks need no JSON escape.
+[[result]]
+from = "run `brain reindex`"
+to   = "run `loomux reindex`"
+
+[[result]]
+from = "run `brain reconcile`"
+to   = "run `loomux reconcile`"
+
+[[result]]
+from = "run `brain embed`"
+to   = "run `loomux embed`"

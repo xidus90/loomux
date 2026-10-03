@@ -57,7 +57,7 @@ func Lines(ch privacy.Channel, port search.SearchPort, registryDir string, now t
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(config.ManifestDir(area, registryDir), "graph.json")); err != nil {
-			lines = append(lines, fmt.Sprintf("%s: never indexed; run `brain reindex`", area.Scope))
+			lines = append(lines, fmt.Sprintf("%s: never indexed; run `loomux reindex`", area.Scope))
 			continue
 		}
 		g, err := graph.ReadGraph(area, registryDir)
@@ -230,5 +230,5 @@ func notYetSearchable(port search.SearchPort) []string {
 	if pending == 0 {
 		return nil
 	}
-	return []string{fmt.Sprintf("%d documents are indexed but not yet searchable; run `brain embed`", pending)}
+	return []string{fmt.Sprintf("%d documents are indexed but not yet searchable; run `loomux embed`", pending)}
 }

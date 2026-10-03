@@ -1,4 +1,4 @@
 {
   "isError": true,
-  "text": "project/gamma: never indexed; run `brain reindex`"
+  "text": "project/gamma: never indexed; run `loomux reindex`"
 }

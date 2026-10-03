@@ -15,12 +15,10 @@ import (
 // reported by search and by status alike.
 const ReconcileInterval = 24 * time.Hour
 
-// ReconcileAdvice is core._RECONCILE_ADVICE; the backticks belong to the text. It still
-// names the Python command, although `loomux reconcile` exists since stage 3a: the recorded
-// cases of stage 1b-1 hold this text. `brain reconcile` writes only into ultra-brain's
-// directory, which loomux does not read: followed, the advice
-// would never end the warning it comes with. It moves to `loomux reconcile` with the switch.
-const ReconcileAdvice = "run `brain reconcile`"
+// ReconcileAdvice takes the place of core._RECONCILE_ADVICE; the backticks belong to the
+// text. It is loomux's own advice and names the command that ends the warning it comes
+// with. The recorded cases hold it through rewrite rules of their import maps.
+const ReconcileAdvice = "run `loomux reconcile`"
 
 // ReadLastRun reads maintenance/last-run.txt as reconcile.read_last_run does: from
 // stateDir. It is an argument and not read from the environment, so that a caller's state directory is the
