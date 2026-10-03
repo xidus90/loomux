@@ -3,6 +3,7 @@ package importcases
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -552,6 +553,153 @@ func TestImportStagesTheWorldsOfABackedCaseAfresh(t *testing.T) {
 	testlock.Lock(t, locked)
 	if err := Import(from, to, m); err == nil || !strings.Contains(err.Error(), "clearing") {
 		t.Fatalf("want an error about the case it could not clear, got %v", err)
+	}
+}
+
+// readTree maps every file below dir to its content.
+func readTree(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	files := map[string]string{}
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		rel, _ := filepath.Rel(dir, path)
+		files[filepath.ToSlash(rel)] = string(data)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files
+}
+
+// A translation that fails halfway must not leave a half-staged world behind:
+// the world an earlier import wrote stays as it was, and no staging directory
+// is left beside it.
+func TestImportKeepsTheOldWorldWhenTheTranslationFails(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	dir := buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	buildOldWorld(t, filepath.Join(dir, "world"), manifestWithLayout)
+	m := Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}}
+	if err := Import(from, to, m); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(to, "guard", "one")
+	before, beforeEntries := readTree(t, filepath.Join(out, "world")), entries(t, out)
+
+	writeFile(t, filepath.Join(dir, "world", "added.txt"), "new")
+	t.Cleanup(func() { translate = translateWorld })
+	translate = func(dir string, m Mapping) error {
+		// Half done: the old manifest is gone, the new config is not written.
+		_ = os.Remove(filepath.Join(dir, ".brain.toml"))
+		return os.ErrPermission
+	}
+	if err := Import(from, to, m); err == nil {
+		t.Fatal("want the translation error")
+	}
+	if after := readTree(t, filepath.Join(out, "world")); !reflect.DeepEqual(after, before) {
+		t.Errorf("the old world changed:\nbefore %v\nafter  %v", before, after)
+	}
+	if got := entries(t, out); !reflect.DeepEqual(got, beforeEntries) {
+		t.Errorf("entries %v, want %v", got, beforeEntries)
+	}
+}
+
+// A swap that fails after the old world was moved aside puts it back.
+func TestImportPutsTheOldWorldBackWhenTheSwapFails(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	m := Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}}
+	out := filepath.Join(to, "guard", "one")
+	kept := filepath.Join(out, "world", "kept.txt")
+	writeFile(t, kept, "x")
+
+	t.Cleanup(func() { rename = os.Rename })
+	rename = func(from, to string) error {
+		if strings.Contains(filepath.Base(from), "-staged-") && !strings.HasSuffix(from, "-old") {
+			return os.ErrPermission
+		}
+		return os.Rename(from, to)
+	}
+	if err := Import(from, to, m); err == nil || !strings.Contains(err.Error(), "replacing") {
+		t.Fatalf("want an error about the world it could not replace, got %v", err)
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Errorf("the old world was not put back: %v", err)
+	}
+	if got := entries(t, out); strings.Join(got, " ") != "cmd exit notes.md stdin stdout world" {
+		t.Errorf("entries %v", got)
+	}
+}
+
+// TestImportReportsAWorldItCannotStage covers the arms only a filesystem in the
+// way reaches: a world it cannot clear, read, stage beside the old one, or
+// whose old copy it cannot remove once the new one is in place.
+func TestImportReportsAWorldItCannotStage(t *testing.T) {
+	m := Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}}
+
+	// A dropped world_after holds a file that cannot be removed.
+	from, to := t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	held := filepath.Join(to, "guard", "one", "world_after", "x.txt")
+	writeFile(t, held, "x")
+	testlock.Lock(t, held)
+	if err := Import(from, to, m); err == nil || !strings.Contains(err.Error(), "clearing") {
+		t.Fatalf("want an error about the world it could not clear, got %v", err)
+	}
+
+	// The recorded world cannot be read.
+	from, to = t.TempDir(), t.TempDir()
+	dir := buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	writeFile(t, filepath.Join(dir, "world", "x.txt"), "x")
+	testlock.Lock(t, filepath.Join(dir, "world", "x.txt"))
+	if err := Import(from, to, m); err == nil {
+		t.Fatal("want an error for a world that cannot be read")
+	}
+
+	// No staging directory can be made.
+	from, to = t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	t.Cleanup(func() { mkdirTemp = os.MkdirTemp })
+	mkdirTemp = func(string, string) (string, error) { return "", os.ErrPermission }
+	if err := Import(from, to, m); err == nil {
+		t.Fatal("want an error for a world that cannot be staged")
+	}
+	mkdirTemp = os.MkdirTemp
+
+	// The old world, moved aside, holds a file that cannot be removed.
+	from, to = t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	writeFile(t, filepath.Join(to, "guard", "one", "world", "x.txt"), "x")
+	t.Cleanup(func() { rename = os.Rename })
+	rename = func(from, to string) error {
+		if err := os.Rename(from, to); err != nil {
+			return err
+		}
+		if strings.HasSuffix(to, "-old") {
+			testlock.Lock(t, filepath.Join(to, "x.txt"))
+		}
+		return nil
+	}
+	if err := Import(from, to, m); err == nil || !strings.Contains(err.Error(), "-old") {
+		t.Fatalf("want an error about the old world it could not remove, got %v", err)
+	}
+}
+
+// A world the recording no longer has leaves the translated case with it.
+func TestImportDropsAWorldTheRecordingDropped(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	buildCase(t, from, "guard", "one", "ulguard --root {{WORLD}}", "")
+	stale := filepath.Join(to, "guard", "one", "world_after", "x.txt")
+	writeFile(t, stale, "x")
+	m := Mapping{Commands: []Rule{{From: "ulguard", To: "loomux hook pre-tool-use"}}}
+	if err := Import(from, to, m); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Dir(stale)); !os.IsNotExist(err) {
+		t.Fatalf("the dropped world survived: %v", err)
 	}
 }
 
