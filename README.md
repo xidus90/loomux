@@ -184,6 +184,7 @@ under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
 | **Register ids that are never removed** | `_identities.tsv` keeps every `doc_id`: aliases for a path, a tombstone for a file that is gone, `merge=union` for two branches; today a duplicate path is overwritten silently and a deleted file loses its row | 4e follow-up | — | — |
 | **`reindex` from a linked worktree** | `reindex` resolves the area of a linked worktree through the common git directory and writes only that branch's register; today it always indexes the registered path | 4e follow-up | Register ids that are never removed | — |
 | **The write barrier guards the register** | The barrier refuses every write to `_identities.tsv` in a registered area, through Write/Edit and through the shell; today an agent may edit it | 4e follow-up | — | — |
+| **What a project needs at session start** | `hook session-start` warns when `core.hooksPath` does not point at the versioned hooks or the repository is not a work tree, and a project can hang its own steps into it; today a project such as `space` keeps its own session-start script beside loomux for those warnings, a recent-log excerpt and a per-worktree Godot `user://` | 4e follow-up | — | — |
 
 ### Maybe
 
