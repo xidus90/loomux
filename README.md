@@ -181,12 +181,18 @@ under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
 | **Atomic world swap in `dev import-cases`** | A re-import replaces a recorded world in two steps; a lock error on Windows between them leaves a half-staged world (the source manifest there, `.loomux/config.toml` missing) until the next run | 4e follow-up | — | — |
 | **An unreadable area declaration** | `ReadAreaDeclaration` takes any failure to stat `.loomux/config.toml` (a permission error, a directory under that name) as a missing file, so the tolerant readers leave such an area out without a word instead of reporting it | 4e follow-up | — | — |
 | **The hint beside a declaration without `[area]`** | A `.loomux/config.toml` without `[area]` next to an old `.brain.toml` or `.ultra-brain/config.toml` is answered with `ErrNoArea` and no pointer to `loomux area check`, so the declaration left in the old manifest is dropped silently | 4e follow-up | — | — |
+| **Register revisions only from review** | The index run writes only births and renames into `_identities.tsv` and no longer raises the revision on every hash change, so two machines with the same history write the same rows into a versioned register | 4e follow-up | — | — |
+| **Register ids that are never removed** | `_identities.tsv` keeps every `doc_id`: aliases for a path, a tombstone for a file that is gone, `merge=union` for two branches; today a duplicate path is overwritten silently and a deleted file loses its row | 4e follow-up | — | — |
+| **`reindex` from a linked worktree** | `reindex` resolves the area of a linked worktree through the common git directory and writes only that branch's register; today it always indexes the registered path | 4e follow-up | Register ids that are never removed | — |
+| **The write barrier guards the register** | The barrier refuses every write to `_identities.tsv` in a registered area, through Write/Edit and through the shell; today an agent may edit it | 4e follow-up | — | — |
 
 ### Maybe
 
 | Feature | What it brings | Why only maybe |
 |---|---|---|
 | **Claude Mods adapter** | Seats the write barrier in a `tool.check` function hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)) talking to a long-lived loomux over `$.mcp.call`: no spawn per call, an `ask` verdict and a rendered reason | Claude Code only; the exec hook stays the portable path |
+| **Artefacts in the state directory** | A writable area keeps only its root catalog in its tree; `graph.json` and the catalogs per directory move to the state directory, and one step of the move clears the old ones from every area | Nothing asks for it yet, and the catalogs per directory are navigation inside the tree |
+| **`reindex` commits the register** | `reindex` commits a change to the register through `internal/brain/vcs`, as `approve` does | No case asks for it yet; `reindex` writes without committing |
 
 A pull request that starts, finishes, adds or drops roadmap work updates this
 section and its German twin in [`README.de.md`](README.de.md#roadmap).

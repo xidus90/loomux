@@ -40,3 +40,23 @@ Die sechs Entscheidungen (#1, #2, #3, #6, #8, #9) trifft der Nutzer. Sie
 blockieren 4e ✅ (Entscheidung des Nutzers, 2026-10-03: „Ja, sie blockieren“);
 vorher galt, dass keine davon 4e aufhält, außer der Nutzer wollte das Register
 vor der Umstellung der Wirte versioniert und mehrzweigig machen (#3).
+
+**Entschieden 2026-10-04** (Nutzer, einzeln; Fusions-Spec Nachtrag #29):
+keine davon wird vor 4e gebaut, alle werden Roadmap-Zeilen ohne Priorität.
+
+| # | Entscheidung |
+|---|---|
+| 1 | Vielleicht, zusammen mit #8 als ein Umzug |
+| 2 | Kommt |
+| 3 | Kommt |
+| 6 | Kommt, hängt an #3 |
+| 8 | Vielleicht, mit #1 |
+| 9 | (a) Schranke: kommt; (b) Commit durch `reindex`: vielleicht |
+
+Nachgelesen am selben Tag gegen `3934fb5b` (v7.0.1): die Spalte „loomux
+heute“ gilt weiter, mit zwei Nachträgen. Zu #2: `reindex` fährt
+`reconcile` nicht, wenn kein Bereich `[layout] review` erklärt; dann warnt
+es nur (`internal/cli/index.go:110-116`). Zu #6: Wissen über Worktrees steht
+nicht nur in `internal/brain/guard`, sondern auch in
+`internal/brain/maintenance`, `wiki`, `check/run` und `vcs`; `reindex`
+selbst kennt keine.

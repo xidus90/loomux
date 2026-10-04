@@ -181,12 +181,18 @@ Migrationsstufen 4e und 4f haben Priorität 3.
 | **Atomarer Welttausch in `dev import-cases`** | Ein Re-Import ersetzt eine aufgezeichnete Welt in zwei Schritten; ein Sperrfehler unter Windows dazwischen lässt eine halb bestückte Welt liegen (die Quelldeklaration da, `.loomux/config.toml` fehlt), bis der nächste Lauf sie heilt | 4e-Folge | — | — |
 | **Eine unlesbare Bereichsdeklaration** | `ReadAreaDeclaration` nimmt jeden Fehler beim `Stat` von `.loomux/config.toml` (fehlende Rechte, ein Ordner unter dem Namen) wie eine fehlende Datei; die toleranten Leser lassen so einen Bereich wortlos aus, statt ihn zu melden | 4e-Folge | — | — |
 | **Der Hinweis neben einer Deklaration ohne `[area]`** | Eine `.loomux/config.toml` ohne `[area]` neben einer alten `.brain.toml` oder `.ultra-brain/config.toml` bekommt `ErrNoArea` ohne Verweis auf `loomux area check`; die im Altmanifest gebliebene Deklaration geht still verloren | 4e-Folge | — | — |
+| **Registerrevisionen nur aus der Prüfung** | Der Indexlauf schreibt nur Neuanlagen und Umbenennungen in `_identities.tsv` und zählt die Revision nicht mehr bei jeder Hashänderung hoch; zwei Rechner mit derselben Geschichte schreiben so dieselben Zeilen in ein versioniertes Register | 4e-Folge | — | — |
+| **Registerkennungen, die nie entfallen** | `_identities.tsv` behält jede `doc_id`: Aliase für einen Pfad, ein Grabstein für eine verschwundene Datei, `merge=union` für zwei Zweige; heute überschreibt ein doppelter Pfad still, und eine gelöschte Datei verliert ihre Zeile | 4e-Folge | — | — |
+| **`reindex` aus einem verknüpften Worktree** | `reindex` findet den Bereich eines verknüpften Worktrees über das gemeinsame Git-Verzeichnis und schreibt nur das Register dieses Zweigs; heute indexiert es immer den registrierten Pfad | 4e-Folge | Registerkennungen, die nie entfallen | — |
+| **Die Schreibschranke schützt das Register** | Die Schranke verweigert jedes Schreiben auf `_identities.tsv` in einem registrierten Bereich, über Write/Edit und über die Shell; heute darf ein Agent es ändern | 4e-Folge | — | — |
 
 ### Vielleicht
 
 | Funktion | Was sie bringt | Warum nur vielleicht |
 |---|---|---|
 | **Claude-Mods-Adapter** | Setzt die Schreibschranke in einen `tool.check`-Function-Hook ([claude-code#91870](https://github.com/anthropics/claude-code/issues/91870)), der über `$.mcp.call` mit einem langlebigen loomux spricht: kein Spawn je Aufruf, ein `ask`-Urteil und eine gerenderte Begründung | Nur Claude Code; der Exec-Hook bleibt der portable Weg |
+| **Artefakte im Zustandsverzeichnis** | Ein schreibbarer Bereich behält im Baum nur seinen Wurzelkatalog; `graph.json` und die Kataloge je Verzeichnis wandern ins Zustandsverzeichnis, und ein Schritt des Umzugs räumt die alten aus jedem Bereich | Noch verlangt nichts danach, und die Kataloge je Verzeichnis sind Navigation im Baum |
+| **`reindex` committet das Register** | `reindex` committet eine Änderung am Register über `internal/brain/vcs`, wie es `approve` tut | Noch verlangt kein Fall danach; `reindex` schreibt, ohne zu committen |
 
 Ein Pull Request, der Roadmap-Arbeit beginnt, abschließt, hinzufügt oder
 streicht, ändert diesen Abschnitt und sein englisches Gegenstück in
