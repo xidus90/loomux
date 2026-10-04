@@ -184,6 +184,7 @@ Migrationsstufen 4e und 4f haben Priorität 3.
 | **Registerkennungen, die nie entfallen** | `_identities.tsv` behält jede `doc_id`: Aliase für einen Pfad, ein Grabstein für eine verschwundene Datei, `merge=union` für zwei Zweige; heute überschreibt ein doppelter Pfad still, und eine gelöschte Datei verliert ihre Zeile | 4e-Folge | — | — |
 | **`reindex` aus einem verknüpften Worktree** | `reindex` findet den Bereich eines verknüpften Worktrees über das gemeinsame Git-Verzeichnis und schreibt nur das Register dieses Zweigs; heute indexiert es immer den registrierten Pfad | 4e-Folge | Registerkennungen, die nie entfallen | — |
 | **Die Schreibschranke schützt das Register** | Die Schranke verweigert jedes Schreiben auf `_identities.tsv` in einem registrierten Bereich, über Write/Edit und über die Shell; heute darf ein Agent es ändern | 4e-Folge | — | — |
+| **Was ein Projekt beim Sitzungsstart braucht** | `hook session-start` warnt, wenn `core.hooksPath` nicht auf die versionierten Hooks zeigt oder das Repository kein Arbeitsbaum ist, und ein Projekt kann eigene Schritte einhängen; heute behält ein Projekt wie `space` dafür ein eigenes Sitzungsstart-Skript neben loomux, für diese Warnungen, einen Auszug aus dem Log und ein eigenes Godot-`user://` je Worktree | 4e-Folge | — | — |
 
 ### Vielleicht
 

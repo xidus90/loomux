@@ -759,6 +759,20 @@ fährt die eigenen Python-Prüfungen und danach
 `session_start.py` auf loomux umgestellt werden oder als Projekthooks bleiben,
 entscheidet der Nutzer.
 
+**Entschieden am selben Tag.** `commit-msg` ist umgestellt: `space`
+`4cbfed6a` auf `main` ruft `loomux check commit-msg`; `commit_language.py`
+und seine Tests sind entfernt. `session_start.py` bleibt, weil loomux keine
+seiner vier Aufgaben trägt; daraus wird eine Roadmap-Zeile (Fusions-Spec
+Nachtrag #30).
+
+**Suche über MCP (am selben Tag).** `brain_search` mit „commit message
+language gate“ aus einer Claude-Code-Sitzung im loomux-Worktree lieferte zehn
+Treffer, neun davon aus `project/space` (oben `decisions/sprachregel.md`).
+Damit antwortet der MCP-Dienst mit Treffern aus einem umgestellten Wirt;
+gefahren ist es nicht aus einer Sitzung *im* Wirt, wie Block 6 es verlangt.
+Der Index zeigte dabei noch den Stand vor `4cbfed6a` (ohne den Nachtrag in
+`sprachregel.md`).
+
 **Echte Commits durchs pre-commit-Tor (am selben Tag).** Je Wirt ein leerer
 Commit `chore: smoke test` auf einem Wegwerfzweig `smoke-test`, danach zurück
 auf den Ausgangszweig und den Wegwerfzweig gelöscht.
