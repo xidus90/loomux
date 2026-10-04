@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/gitenv"
 )
@@ -16,6 +17,15 @@ import (
 func hookIndex(t *testing.T, root string) string {
 	t.Helper()
 	editAdd(t, root)
+	// editAdd keeps the file's size. Landing in the clock tick of the commit,
+	// the edit would leave the stat data the index recorded unchanged, and
+	// the copy below, newer than the file, switches off git's racy-clean
+	// check: `git add` would skip the file. A later mtime makes it look.
+	src := filepath.Join(root, "calc", "calc.go")
+	later := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(src, later, later); err != nil {
+		t.Fatal(err)
+	}
 	data, err := os.ReadFile(filepath.Join(root, ".git", "index"))
 	if err != nil {
 		t.Fatal(err)
