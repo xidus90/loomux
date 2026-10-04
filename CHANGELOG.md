@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [7.0.1] - 2026-10-04
+
+<https://github.com/xidus90/loomux/pull/69>
+
+### Fixed
+- `loomux dev import-cases` no longer leaves a half-translated world (untranslated `.brain.toml`, missing `.loomux/config.toml`) when a file is briefly locked on Windows; the previous world is kept instead.
+
 ## [7.0.0] - 2026-10-03
 
 <https://github.com/xidus90/loomux/pull/68>
