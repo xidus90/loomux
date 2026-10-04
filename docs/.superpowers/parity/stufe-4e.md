@@ -742,7 +742,8 @@ committen.
 `loomux brain search` von der Befehlszeile lieferte Treffer aus `project/space`
 und `project/loomux`. Nicht lesend probbar und offen für den Menschen: die
 Suche über MCP (`brain_search`) in einer Claude-Code-Sitzung im Wirt und das
-pre-commit-Tor bei einem echten Commit.
+pre-commit-Tor bei einem echten Commit (das Tor ist inzwischen gefahren,
+siehe „Echte Commits“ unten).
 
 **Befund `space`.** Der Wirt läuft beim Commit-Text nicht über loomux:
 `.githooks/commit-msg` ruft das projekteigene
@@ -757,6 +758,25 @@ fährt die eigenen Python-Prüfungen und danach
 `loomux check precommit --arm`, läuft also über loomux. Ob `commit-msg` und
 `session_start.py` auf loomux umgestellt werden oder als Projekthooks bleiben,
 entscheidet der Nutzer.
+
+**Echte Commits durchs pre-commit-Tor (am selben Tag).** Je Wirt ein leerer
+Commit `chore: smoke test` auf einem Wegwerfzweig `smoke-test`, danach zurück
+auf den Ausgangszweig und den Wegwerfzweig gelöscht.
+
+| Wirt | Ergebnis |
+|---|---|
+| `ecoflow` | Commit `cb43685` entstand (vom Nutzer gefahren); die Ausgabe des Tors ist nicht festgehalten |
+| `space` | Commit `ba107d7c` entstand nach dem vollen Tor: Python-Gate übersprungen (nichts gestaged), GDScript-Suite, dann `loomux check precommit --arm`. Ein zweiter, gleichzeitiger Versuch fiel an der Sperre der Suite (`.suite-lock`) ab, ohne etwas zu ändern |
+| `iam_backend` | Commit `97215d0` entstand; `lint/python` ok, `types/python` ok (14,9 s), `test/python` rot nach 1113,4 s, `coverage/python` blockiert — beide nur Warnung, weil sie in der Schonfrist stehen |
+| `brain-knowledge` | Commit `deab81e` entstand; `lint/wiki` ok |
+
+**Befund `iam_backend`.** Alle 3936 Tests von `test/python` scheitern beim
+Aufsetzen an `django.db.utils.OperationalError: connection timeout expired`:
+auf `localhost:5432` lauscht kein PostgreSQL. Der Hook arbeitet richtig; der
+Rechner hat keine Testdatenbank laufen. Solange das so bleibt, wird die Lane
+nie grün, die Schonfrist endet nie, und jeder Commit kostet rund 19 Minuten.
+Ob die Lane eine laufende Datenbank voraussetzt, eine eigene startet oder
+ohne Datenbank laufen soll, entscheidet der Nutzer.
 
 ## Checkliste
 
