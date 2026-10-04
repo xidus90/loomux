@@ -773,6 +773,26 @@ gefahren ist es nicht aus einer Sitzung *im* Wirt, wie Block 6 es verlangt.
 Der Index zeigte dabei noch den Stand vor `4cbfed6a` (ohne den Nachtrag in
 `sprachregel.md`).
 
+**Suche über MCP aus den Wirten (am selben Tag).** Je Wirt eine
+Claude-Code-Sitzung (`claude -p`, Modell haiku), im Wirt gestartet, die nur
+`brain_search` rufen darf. Der Dienst kommt aus der Nutzerkonfiguration
+(`~/.claude.json`, `loomux mcp --channel local`), steht also in jeder Sitzung.
+
+| Wirt | Frage | Ergebnis |
+|---|---|---|
+| `space` | „Godot user dir override per worktree“ | drei Treffer aus `project/space` (`dev-setup.md`, `parallele-arbeitsbereiche.md`, `log.md`) |
+| `ecoflow` | „EcoFlow client authentication“ | drei Treffer aus `project/ecoflow` |
+| `brain-knowledge` | „Python engineering conventions“ | drei Treffer, aus `project/ecoflow` und `project/space`, keiner aus dem Tresor selbst |
+| `iam_backend` | „Django task status view“ | kein `brain_search` in der Sitzung, nur die `graph_*`-Werkzeuge: `[modules] brain = false`, wie bei der Welle mit `init --brain=none` gewollt |
+
+**Befund `space`, `.mcp.json`.** Die versionierte `.mcp.json` von `space`
+trägt weiter einen Server `brain`, der `uv run … --directory
+C:/Users/micro/Documents/#GIT/ultra-brain brain mcp` startet. Er stammt aus
+der Zeit vor der Umstellung; sobald `ultra-brain` gelöscht ist (Entscheidung
+vom 2026-10-01), startet er nicht mehr. `iam_backend` trägt in seiner
+`.mcp.json` nur fremde Server (`postgres`, `context7`), `ecoflow` und
+`brain-knowledge` haben keine.
+
 **Echte Commits durchs pre-commit-Tor (am selben Tag).** Je Wirt ein leerer
 Commit `chore: smoke test` auf einem Wegwerfzweig `smoke-test`, danach zurück
 auf den Ausgangszweig und den Wegwerfzweig gelöscht.
@@ -839,6 +859,16 @@ Anführungszeichen.
 
 ### Block 3: Maschinenzustand
 
+**Abgelöst (Stand 2026-10-04, ohne Häkchen).** Die Umstellung hat den neuen
+Zustand unter `…/Local/loomux` selbst angelegt und fortgeschrieben; das alte
+Verzeichnis `…/Local/brain` bleibt als Sicherung. Ein `diff -rq` beider am
+2026-10-04 zeigte, was danach zu erwarten ist: `project-space` und
+`project-iam-wiki` liegen im neuen nur noch als `.alt`, `project-obsidian-ai`
+weicht ab, `last-run.txt` ist im neuen jünger (2026-10-03), und die
+`merge-events*`-Dateien gibt es nur im neuen. Nichts davon wird
+zurückkopiert. Die Kästchen unten bleiben leer; der Mensch hakt sie ab oder
+streicht sie.
+
 Quelle ist das alte Verzeichnis `/c/Users/micro/AppData/Local/brain`, Ziel das
 neue `/c/Users/micro/AppData/Local/loomux` (beide Verzeichnisse liegen am
 2026-09-29 so vor). Das alte bleibt als Sicherung liegen; nichts darin wird
@@ -879,6 +909,11 @@ Fund notieren.
       und der erste `reindex` verweigert jede Sammlung, die qmd schon führt.
 
 ### Block 4: Deklarationen der zehn Bereiche
+
+**Abgelöst (Stand 2026-10-04, ohne Häkchen).** Seit 2026-09-29 durch den
+Ablauf mit `apply.sh` (siehe den Hinweis über Block 1); die Welle vom
+2026-10-01/02 hat ihn für alle Ziele gefahren (Messung 10), `ultra-brain` und
+`ultraloom` werden nicht umgestellt.
 
 **Welche Bereiche read-only sind.** Die alte Registry
 (`/c/Users/micro/AppData/Local/brain/registry.toml`) setzt `readonly = true` bei
@@ -1057,6 +1092,10 @@ ohne `--dry-run`. Der erste echte Lauf je Wirt ist die Probe; im Irrtumsfall ist
 der Schaden ein von Hand nachzutragender `[area]`-Block.
 
 ### Block 5: Je Wirt
+
+**Abgelöst (Stand 2026-10-04, ohne Häkchen).** Wie Block 4: `apply.sh` fährt
+`init --yes` und `dev switchover prune-hooks` und löscht die alten Dateien;
+`merge-hook install` lief nach dem letzten Ziel am 2026-10-02.
 
 Die Wirte sind `space`, `iam_backend`, `ecoflow` und `brain-knowledge`. Je Wirt:
 
