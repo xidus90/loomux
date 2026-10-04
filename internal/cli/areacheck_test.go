@@ -291,6 +291,32 @@ func TestAreaCheckRefusesALoomuxConfigWhoseAreaIsBroken(t *testing.T) {
 	}
 }
 
+// A broken [area] is no missing one: the old reader stopped at it, so the
+// .brain.toml behind it is not chosen and the broken file shadows nothing.
+func TestAreaCheckChoosesNoneBehindALoomuxConfigWhoseAreaIsBroken(t *testing.T) {
+	root := t.TempDir()
+	writeManifest(t, root, ".loomux/config.toml", "[area]\n")
+	writeManifest(t, root, ".brain.toml", "[area]\nscope = \"x\"\n")
+	_, out, _ := runAreaCheck(t, root)
+	if !strings.Contains(out, "chosen: none") || strings.Contains(out, "shadowed") {
+		t.Fatalf("out %q", out)
+	}
+}
+
+// A directory under the first name is no file: the choice passes over it to
+// the old name behind it instead of stopping.
+func TestAreaCheckChoosesPastADirectoryUnderTheLoomuxName(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".loomux", "config.toml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeManifest(t, root, ".brain.toml", "[area]\nscope = \"x\"\n")
+	code, out, _ := runAreaCheck(t, root)
+	if code != 0 || !strings.Contains(out, "chosen: .brain.toml") {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+}
+
 func TestAreaCheckRefusesAnEmptyManifest(t *testing.T) {
 	root := t.TempDir()
 	writeManifest(t, root, ".brain.toml", "")

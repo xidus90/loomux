@@ -1268,3 +1268,57 @@ Tabelle zählen sie als getötet.
 Alle Funktionen der berührten Pakete stehen weiter bei 100 % Coverage (je
 Funktion; `copyTree` und `foldHookState` tragen ihre bestehende
 `//coverage:exempt`).
+
+### Nachprüfung der drei Runden (2026-10-04)
+
+Jede stehengelassene Begründung der drei Runden oben ist am Code von
+`origin/master` `3934fb5b` (v7.0.1) nachgerechnet, mit dem Gegenfall, den sie
+nicht nennt. Die Tabellen oben bleiben, wie sie geschrieben wurden; was sich
+geändert hat, steht hier.
+
+**Halten am Code:** `flattenKeys` (`continue`); `benchcompare.Factor` (auch
+bei `before == 0, after == 0` greift `after <= 0`, und `-0` zeigt
+`formatFactor` wie `0`); `event.prune` (Unmarshal-Fehler; `", "`, weil beide
+Zweige von `format` durch `json.Compact` oder `json.Indent` gehen);
+`written` (`.claude`; `p.WikiDst != ""` und `&&` zu `||`: `check` verlangt
+für `wiki_dst` einen absoluten Pfad, `inside` lässt in einer alten Datei weder
+`:` noch ein führendes `/` zu, also gleicht `f` nie einem Wiki außerhalb des
+Projekts); `matchFlags.String` (Vorgabe und Nullwert sind beide `[]` im
+Original und beide `""` im Mutanten); `devSwitchoverPruneHooks` (jeder
+Fehlerweg von `PruneHooks` und `os.ReadFile` lässt `removed` leer);
+`apply.sh.tmpl` Schritt 3 (die Staging-Prüfung in Zeile 143–148 hält
+abweichende Dateien vor der Registry auf) und Schritt 7 (`VAULT_OLD` mit
+Dateien in git heißt `filled "$VAULT_SRC"`, also `WIKI=merge` und
+`MOVED=1`).
+
+**`readObject`, neuer Beleg.** Die 17 Eingaben der ersten Probe liegen
+nirgends. Neu gefahren: beide Mutanten neben dem Original als Kopie in einem
+Fuzz-Test, 29 Saateingaben (kaputte Schlüssel `1`, `null`, `true`, `[]`,
+`{}`, fehlende Werte, abgeschnittene Objekte, Rest nach dem Objekt,
+doppelte Schlüssel) und 60 s Fuzzing (3,7 Mio. Eingaben): kein Unterschied
+in Fehler und Besuchen, keine Panik. Ein Kontrollmutant ohne die Prüfung auf
+Rest nach dem Objekt fiel an zwei Saaten auf; die Probe misst also.
+
+**`ImportMCP` (m2), Begründung zu scharf.** Beobachtbar ist der Unterschied
+doch, aber nur nach einem Abbruch: Scheitert `readRecorded`, liegt beim
+Mutanten eine rohe Kopie von `result` im Ziel, beim Original keine. Ein
+vollständiger Import endet gleich. Der Mutant bleibt stehen, weil ein
+abgebrochener Import das Ziel ohnehin halb geschrieben hinterlässt.
+
+**`chosenManifest`, zwei Lücken.** Der Aufräum-PR hat an `areacheck.go` nur
+`manifestNames`, `chosenManifest`, dessen Aufruf und einen Text in
+`legacyHints` geändert; für `checkOneManifest`, `fileDeclaresArea`,
+`flattenKeys`, `classifyKeys` und `schemaKnows` gilt die Runde vom
+2026-09-29 weiter. `chosenManifest` ist neu und hatte oben vier Mutanten.
+Neu gefahren: neun und ein Kontrollmutant (überlebt), gegen
+`-run 'TestAreaCheck|TestClassifyKeys|TestFlattenKeys|TestLegacyHints'`;
+einer musste umgeschrieben werden, damit er baut. Sieben getötet, zwei
+überlebten, beide echte Lücken:
+
+| Mutant | Lücke | Test, der ihn tötet |
+|---|---|---|
+| `!info.Mode().IsRegular()` gestrichen | Ein Ordner `.loomux/config.toml` neben einem `.brain.toml` mit `[area]` hieße `chosen: none` statt `chosen: .brain.toml` | `TestAreaCheckChoosesPastADirectoryUnderTheLoomuxName` |
+| `errors.Is(err, config.ErrNoArea)` zu `err != nil` | Ein kaputtes `[area]` in `.loomux/config.toml` ließe die Wahl zum `.brain.toml` dahinter weitergehen und meldete die kaputte Datei als überdeckt | `TestAreaCheckChoosesNoneBehindALoomuxConfigWhoseAreaIsBroken` |
+
+Beide Tests sind am Code grün und laufen je gegen ihren Mutanten rot (per
+Overlay belegt); gegen den Kontrollmutanten bleiben beide grün.
