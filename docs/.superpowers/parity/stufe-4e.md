@@ -722,6 +722,42 @@ Die Zeiten der Leser ohne das Altverzeichnis stehen im Eintrag
 „Reading Without the Old State Directory“ von `docs/en/benchmarks.md` und
 `docs/de/benchmarks.md`.
 
+### 12. Rauchtest Block 6, lesend geprobt (2026-10-04)
+
+Mit `loomux 7.0.1 (beta)` aus `%LOCALAPPDATA%\loomux\bin` gegen die vier Wirte
+`space`, `iam_backend`, `ecoflow` und `brain-knowledge`. Die Wächterproben
+schicken nur eine Write-Nutzlast an `loomux hook pre-tool-use --host claude
+--root <wirt>`, sie schreiben nichts; die `commit-msg`-Proben rufen
+`.githooks/commit-msg` jedes Wirts mit einer Nachrichtendatei auf, ohne zu
+committen.
+
+| Probe | space | iam_backend | ecoflow | brain-knowledge |
+|---|---|---|---|---|
+| Write auf eine gewöhnliche Datei | Exit 0 | Exit 0 | Exit 0 | Exit 0 unter `91 Projekte`; `README.md` an der Wurzel Exit 2, „outside every writable tree“, wie die Registry es will |
+| Write auf `.loomux/config.toml` | Exit 2 | Exit 2 | Exit 2 | Exit 2 |
+| `commit-msg` „docs: Änderung der Übersicht für die Prüfung“ | abgelehnt | abgelehnt | abgelehnt | abgelehnt |
+| `commit-msg` „kaputte nachricht ohne typ“ | **angenommen** | abgelehnt | abgelehnt | abgelehnt |
+| `commit-msg` „chore: smoke test“ | angenommen | angenommen | angenommen | angenommen |
+
+`loomux brain search` von der Befehlszeile lieferte Treffer aus `project/space`
+und `project/loomux`. Nicht lesend probbar und offen für den Menschen: die
+Suche über MCP (`brain_search`) in einer Claude-Code-Sitzung im Wirt und das
+pre-commit-Tor bei einem echten Commit.
+
+**Befund `space`.** Der Wirt läuft beim Commit-Text nicht über loomux:
+`.githooks/commit-msg` ruft das projekteigene
+`.claude/hooks/commit_language.py` über `run.sh`, nicht `loomux check
+commit-msg`. Es lehnt nur eine deutlich deutsche Nachricht ab; die anderen
+drei Wirte lehnen auch „kaputte nachricht ohne typ“ ab. Der Umstellungscommit
+`46e04b9f` (2026-09-29) hat `.githooks/commit-msg` nicht angefasst, `init`
+lässt einen eigenen Hook stehen. Ebenso startet `.claude/settings.json` von
+`space` neben `loomux hook session-start` weiter
+`bash .claude/hooks/run.sh session_start.py`. Das `pre-commit` von `space`
+fährt die eigenen Python-Prüfungen und danach
+`loomux check precommit --arm`, läuft also über loomux. Ob `commit-msg` und
+`session_start.py` auf loomux umgestellt werden oder als Projekthooks bleiben,
+entscheidet der Nutzer.
+
 ## Checkliste
 
 **Stand 2026-09-29:** Block 4 (Deklarationen von Hand) und Block 5 (`init`, alte Einträge) sind durch den Ablauf der Spec `2026-09-29-loomux-stufe-4e-umstellung-vorbereitet-design.md` abgelöst: das LLM bereitet vor, ein `apply.sh` schreibt. Block 1 bis 3 und der Rauchtest (Block 6) gelten weiter.
