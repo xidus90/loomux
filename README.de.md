@@ -179,6 +179,8 @@ Migrationsstufen 4e und 4f haben Priorität 3.
 | **Eine Repo-Wurzel als Wiki** | `[layout] wiki` lehnt die Wurzel eines Repositorys ab; ein Wiki-Repository wie ein reines Wiki-Projekt hat so keine Wiki-Lane | 4e-Folge | — | — |
 | **`dev bench cases` ohne Hook** | `dev bench cases` lehnt eine `settings.json` ohne Hook ab, statt nur die Zusatzfälle zu schreiben | 4e-Folge | — | — |
 | **Atomarer Welttausch in `dev import-cases`** | Ein Re-Import ersetzt eine aufgezeichnete Welt in zwei Schritten; ein Sperrfehler unter Windows dazwischen lässt eine halb bestückte Welt liegen (die Quelldeklaration da, `.loomux/config.toml` fehlt), bis der nächste Lauf sie heilt | 4e-Folge | — | — |
+| **Eine unlesbare Bereichsdeklaration** | `ReadAreaDeclaration` nimmt jeden Fehler beim `Stat` von `.loomux/config.toml` (fehlende Rechte, ein Ordner unter dem Namen) wie eine fehlende Datei; die toleranten Leser lassen so einen Bereich wortlos aus, statt ihn zu melden | 4e-Folge | — | — |
+| **Der Hinweis neben einer Deklaration ohne `[area]`** | Eine `.loomux/config.toml` ohne `[area]` neben einer alten `.brain.toml` oder `.ultra-brain/config.toml` bekommt `ErrNoArea` ohne Verweis auf `loomux area check`; die im Altmanifest gebliebene Deklaration geht still verloren | 4e-Folge | — | — |
 
 ### Vielleicht
 

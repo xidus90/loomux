@@ -179,6 +179,8 @@ under "Reihenfolge der offenen Stufen" (1 first); the open migration stages
 | **A repository root as the wiki** | `[layout] wiki` refuses the root of a repository, so a wiki repository such as a pure wiki project has no wiki lane | 4e follow-up | — | — |
 | **`dev bench cases` without a hook** | `dev bench cases` refuses a `settings.json` without hooks instead of writing only the extra cases | 4e follow-up | — | — |
 | **Atomic world swap in `dev import-cases`** | A re-import replaces a recorded world in two steps; a lock error on Windows between them leaves a half-staged world (the source manifest there, `.loomux/config.toml` missing) until the next run | 4e follow-up | — | — |
+| **An unreadable area declaration** | `ReadAreaDeclaration` takes any failure to stat `.loomux/config.toml` (a permission error, a directory under that name) as a missing file, so the tolerant readers leave such an area out without a word instead of reporting it | 4e follow-up | — | — |
+| **The hint beside a declaration without `[area]`** | A `.loomux/config.toml` without `[area]` next to an old `.brain.toml` or `.ultra-brain/config.toml` is answered with `ErrNoArea` and no pointer to `loomux area check`, so the declaration left in the old manifest is dropped silently | 4e follow-up | — | — |
 
 ### Maybe
 
