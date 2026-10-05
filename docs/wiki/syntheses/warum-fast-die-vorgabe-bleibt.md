@@ -36,7 +36,7 @@ was die Vorgabe heute trägt, ist allein die Latenz.
 - **Wofür genau gezahlt wird:** *„Der Reranker holt die Treffer. Die
   Frageerweiterung kostet nur Zeit."*
 
-Beleg ist das Messprotokoll zur Entscheidung 46, seit dem Umzug am 2026-09-16
+Beleg ist das Messprotokoll zur Entscheidung 46
 im Bereich `project/loomux` unter
 `docs/.superpowers/bench-ub/entscheidung-46.md`; die Einordnung in
 den Vertrag steht in

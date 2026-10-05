@@ -119,4 +119,4 @@ weiten, soll das Weiten aber benennen.
 Siehe auch [Datenschutz und Kanäle](datenschutz-und-kanaele.md),
 [Die Wiki-Schicht](wiki-schicht.md) und, wie Registry und Manifest beim
 Schreiben gelesen werden, [Die Schreibschranke](schreibschranke.md); Quelle ist
-Architektur-Design ultra-brain.
+das Architektur-Design.

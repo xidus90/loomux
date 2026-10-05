@@ -152,4 +152,4 @@ nachprüft.
 Die Suche im Quelltext statt im Wissen beschreibt
 [Der Code-Graph](code-graph.md).
 
-Quelle: Architektur-Design ultra-brain.
+Quelle: Architektur-Design.

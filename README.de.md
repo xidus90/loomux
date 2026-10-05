@@ -140,7 +140,7 @@ festhält. Jedes Werkzeug mit seinen Argumenten: [CLI-Referenz §8](docs/de/cli-
 
 ## Migrationsplan
 
-Wo jede Migrationsstufe und jede aus ultraloom und ultra-brain übernommene
+Wo jede Migrationsstufe und jede aus den Vorgängerprojekten übernommene
 Funktion steht — Herkunft, Stand, Abhängigkeiten und Priorität, mit einer
 Karte, welche Stufe auf welche wartet —, steht im
 **[Migrationsplan](docs/de/migration.md)**. Diese README beschreibt, was loomux
@@ -392,7 +392,7 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 ## Spezifikationen & Interne Arbeitspapiere
 
 Detailentwürfe und interne Arbeitspapiere liegen unter `docs/.superpowers/specs/`:
-- [Fusions-Design: Ultraloom & Ultra-Brain](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
+- [Fusions-Design](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
 - [Code-Graph Subsystem-Spezifikation](docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md)
 - [Web OS & Skill-System-Spezifikation](docs/.superpowers/specs/2026-09-14-loomux-web-os-design.md)
 

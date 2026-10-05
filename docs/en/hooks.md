@@ -419,7 +419,7 @@ barrier's question. Without `--root`, loomux searches upwards for a
 
 **An older matcher gets a block beside it.** `loomux init` never rewrites a
 hook entry of ours. When one of ours stands under a matcher an earlier release
-or a hand edit gave it — a loomux command that replaced ulinit's under
+or a hand edit gave it — a loomux command under an older matcher such as
 `Write|Edit|NotebookEdit|Bash|PowerShell` in `.claude/settings.json`, or an
 Antigravity group from before `manage_task` joined `PreToolUse` — init keeps
 it, appends a second block with the current loomux command for the tools it
@@ -427,8 +427,8 @@ lacks (`MultiEdit`, `manage_task`), and says so in a note. That works only where
 matchers are plain lists of tool names joined by `|`; an entry under a regular
 expression such as `.*`, or without a matcher, is kept and named, and what it
 misses is added by hand. A second run counts both blocks and adds nothing. An
-entry that still runs `ulguard` is not ours: init adds the whole loomux block
-beside it and leaves ulguard to you.
+entry of another tool is not ours: init adds the whole loomux block beside it
+and leaves the other entry to you.
 
 **Every reason, not the first.** The built-in rules come first, then the
 project's in the order of the file, and each matching rule adds its reason; the

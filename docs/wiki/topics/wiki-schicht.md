@@ -159,4 +159,4 @@ fünf Brain-Skills. Seit 4a-2 schreibt `loomux init` sie in einen Wirt, auf
 loomux-Befehle umgeschrieben und ins Englische übersetzt, sonst inhaltlich
 gleich; in einem Wirt in Gebrauch ist noch keiner.
 
-Quellen: Architektur-Design ultra-brain; Design von Stufe 3 in loomux.
+Quellen: Architektur-Design; Design von Stufe 3 in loomux.

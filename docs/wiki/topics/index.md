@@ -3,7 +3,7 @@
 ## Dateien
 
 * [Was erst die echte Umgebung zeigt](abnahmen-und-echte-umgebung.md) - Das wiederkehrende Muster des Projekts — die schwersten Befunde entstanden nie im Testlauf, sondern beim ersten Gebrauch.
-* [Grundsätze und Vertrauenskette](architektur-grundsaetze.md) - Die sechs Grundsätze aus ultra-brain, die Grundsätze der Fusion, die Arbeitsteilung zwischen Code, KI und Mensch und die vier Fehlerstellen.
+* [Grundsätze und Vertrauenskette](architektur-grundsaetze.md) - Die sechs Grundsätze des Wissenssystems, die Grundsätze der Fusion, die Arbeitsteilung zwischen Code, KI und Mensch und die vier Fehlerstellen.
 * [Brain Maintenance](brain-maintenance.md) - Wie das System merkt, dass eine Quelle sich geändert hat — Erkennung, Prüfzentrum, Evidenzbindung, Merge-Auslöser.
 * [Der Code-Graph](code-graph.md) - Wie loomux Symbole und Kanten ohne Modell aus dem Quelltext zieht, Treffer mit Personalized PageRank ordnet und den Blast-Radius einer Änderung berechnet.
 * [Datenmodell und Bereiche](datenmodell-und-bereiche.md) - Drei Orte für Daten, Manifest und zentrale Registrierung, Identitätsregister, geteilte Bereiche und Scoping.
