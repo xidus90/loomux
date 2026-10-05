@@ -780,8 +780,25 @@ func TestStopReportsABudgetThatRanOut(t *testing.T) {
 	}
 }
 
+// The built-in stop profile leaves out a kind the project has no lane for: a
+// module without tests ends its turn on lint and types.
+func TestStopLeavesOutAKindOfTheBuiltInProfile(t *testing.T) {
+	root := gitWorld(t, noTestWorld, `{"base":"{{COMMIT:1}}","blocks":0}`, "a_test.go")
+	if code, se := runStop(t, root, s1, greenTools()); code != ExitOK || strings.Contains(se, "nothing to check") {
+		t.Fatalf("%d %q", code, se)
+	}
+}
+
+// A stop profile the project sets names its kinds: one with nothing to check
+// holds the turn.
 func TestStopReportsNothingVerified(t *testing.T) {
 	root := gitWorld(t, noTestWorld, `{"base":"{{COMMIT:1}}","blocks":0}`, "a_test.go")
+	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".loomux", "config.toml"), []byte("[verify.profiles]\nstop = [\"lint\", \"types\", \"test\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	base := stateOf(t, root).Base
 	code, se := runStop(t, root, s1, greenTools())
 	if code != ExitInternal || !strings.Contains(se, "nothing to check for `test`") {
@@ -1195,19 +1212,23 @@ func TestTheVerdictRemembersOnlyAChainItJudgedWhole(t *testing.T) {
 	}
 	none := func(verify.Job) bool { return false }
 	for name, c := range map[string]struct {
+		strict bool
 		kinds  []string
 		outs   []verify.Outcome
 		code   int
 		warned bool
 	}{
-		"red only in probation":           {[]string{"lint"}, []verify.Outcome{lane("lint", verify.StateFailed, true)}, ExitOK, true},
-		"an armed red lane beside it":     {[]string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true), lane("test", verify.StateFailed, false)}, ExitDenied, false},
-		"a budget that ran out beside it": {[]string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true), lane("test", verify.StateBudget, true)}, ExitInternal, false},
-		"a kind with nothing to check":    {[]string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true)}, ExitInternal, false},
-		"all green in probation":          {[]string{"lint"}, []verify.Outcome{lane("lint", verify.StateOK, true)}, ExitOK, false},
+		"red only in probation":                {true, []string{"lint"}, []verify.Outcome{lane("lint", verify.StateFailed, true)}, ExitOK, true},
+		"an armed red lane beside it":          {true, []string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true), lane("test", verify.StateFailed, false)}, ExitDenied, false},
+		"a budget that ran out beside it":      {true, []string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true), lane("test", verify.StateBudget, true)}, ExitInternal, false},
+		"a kind with nothing to check":         {true, []string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateFailed, true)}, ExitInternal, false},
+		"all green in probation":               {true, []string{"lint"}, []verify.Outcome{lane("lint", verify.StateOK, true)}, ExitOK, false},
+		"a named kind with nothing to check":   {true, []string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateOK, false)}, ExitInternal, false},
+		"a default kind with nothing to check": {false, []string{"lint", "test"}, []verify.Outcome{lane("lint", verify.StateOK, false)}, ExitOK, false},
+		"a default profile where nothing ran":  {false, []string{"types", "test"}, []verify.Outcome{lane("lint", verify.StateOK, false)}, ExitInternal, false},
 	} {
 		var se strings.Builder
-		code, warned := stopVerdict(&se, c.kinds, c.outs, none)
+		code, warned := stopVerdict(&se, c.kinds, c.strict, c.outs, none)
 		if code != c.code || (warned != "") != c.warned {
 			t.Errorf("%s: code %d, warned %q, stderr %q", name, code, warned, se.String())
 		}

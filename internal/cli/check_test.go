@@ -137,6 +137,25 @@ func TestCheckFailsAKindWithNothingToRun(t *testing.T) {
 	}
 }
 
+// The built-in precommit profile leaves out the kinds a module without tests
+// has no lane for; the same profile set by the project names them.
+func TestCheckLeavesOutAKindOnlyTheBuiltInProfileNames(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module m\n"), 0o644)
+	stubCheck(t, green)
+	var so, se bytes.Buffer
+	if code := Run([]string{"check", "precommit", "--root", root}, nil, &so, &se); code != 0 ||
+		!strings.Contains(so.String(), "no lane for `test` here, left out\n") || strings.Contains(so.String(), "nothing to check") {
+		t.Fatalf("built in: %d %q %q", code, so.String(), se.String())
+	}
+	os.MkdirAll(filepath.Join(root, ".loomux"), 0o755)
+	os.WriteFile(filepath.Join(root, ".loomux", "config.toml"), []byte("[verify.profiles]\nprecommit = [\"lint\", \"test\"]\n"), 0o644)
+	so.Reset()
+	if code := Run([]string{"check", "precommit", "--root", root}, nil, &so, &se); code != 1 || !strings.Contains(so.String(), "nothing to check for `test`\n") {
+		t.Fatalf("set by the project: %d %q", code, so.String())
+	}
+}
+
 func TestCheckRefusesMalformedCalls(t *testing.T) {
 	root := goWorld(t)
 	stubCheck(t, green)

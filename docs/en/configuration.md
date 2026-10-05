@@ -487,8 +487,14 @@ profile never walks the tree.
   measures itself with `measure`.
 - **Verdict of `loomux check`, per requested kind:** if no lane of a kind ran
   and the kind is `not-applicable` nowhere, the check prints
-  ``nothing to check for `<kind>` `` and exits 1: a gate that checks nothing is
-  not green. Otherwise exit 0 when no lane is red, 1 when one is. A load error
+  ``nothing to check for `<kind>` `` and exits 1 when the request named the
+  kind -- a list of kinds, or a profile the project sets in
+  `[verify.profiles]`, a built-in one it replaces included. A kind of `all` or
+  of a built-in profile is left out instead, with
+  ``no lane for `<kind>` here, left out``: a project without code has no test
+  to run. That holds only while a lane of another requested kind ran; when
+  none did, every such kind is ``nothing to check`` and exits 1, since a gate
+  that checks nothing is not green. Otherwise exit 0 when no lane is red, 1 when one is. A load error
   exits 1, a malformed call 2. A red lane in probation fails nothing and
   counts as not red here.
 - **Verdict of the post-edit hook:** an armed red lane exits 2 with its

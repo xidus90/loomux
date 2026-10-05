@@ -390,6 +390,23 @@ func TestExpandProfile(t *testing.T) {
 	}
 }
 
+// A request names its kinds when it lists them or calls a profile the
+// project set itself; a built-in profile and `all` name none.
+func TestStrictMeansAskedForByName(t *testing.T) {
+	cfg, _ := parse(t, "[verify.profiles]\nprecommit = [\"lint\", \"test\"]\nfast = [\"lint\"]\n")
+	for request, want := range map[string]bool{
+		"all": false, "stop": false, "edit": false,
+		"precommit": true, "fast": true, "test": true, "lint,types": true,
+	} {
+		if got := Strict(cfg, request); got != want {
+			t.Errorf("%q: %v, want %v", request, got, want)
+		}
+	}
+	if def, _ := parse(t, ""); Strict(def, "precommit") {
+		t.Error("the built-in precommit profile names its kinds")
+	}
+}
+
 func TestImportReadyAsksForTheClassCache(t *testing.T) {
 	dir := t.TempDir()
 	if ImportReady(dir) {

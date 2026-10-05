@@ -88,7 +88,11 @@ judges them.
   `config` or `in-process`. A red lane prints its output below its line; a
   green one only with `-v`. A lane with several commands prints one block per
   command, headed `$ <argv>`, with `(failed)` on a red one. A kind that had
-  nothing to check ends the report with ``nothing to check for `<kind>` ``.
+  nothing to check ends the report with ``nothing to check for `<kind>` ``
+  when the request named it -- a list of kinds, or a profile the project sets
+  in `[verify.profiles]` -- or when no lane of the request ran at all; a kind
+  of `all` or of a built-in profile beside a lane that ran ends it with
+  ``no lane for `<kind>` here, left out`` instead.
   ```text
   lint/go: ok [preset] 0.2s
   types/go: not-applicable [preset] no command
@@ -101,8 +105,8 @@ judges them.
   run deletes its own files, a red one keeps them; other runs' files go once
   they are 24 hours old.
 - **Exit Codes**: `0` (no armed lane red, and every requested kind had a lane
-  that ran or is `not-applicable` somewhere), `1` (an armed lane is red, a kind had nothing
-  to check, or `[verify]` or the request cannot be loaded; a load error is one
+  that ran or is `not-applicable` somewhere), `1` (an armed lane is red, a named kind had
+  nothing to check, no lane of the request ran, or `[verify]` or the request cannot be loaded; a load error is one
   line on `stderr`), `2` (malformed call: no request, a flag before the
   request, an unknown flag, a second request).
 

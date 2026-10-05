@@ -242,7 +242,7 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 		Start: checkStart, Look: checkLook, Now: checkNow, Armed: armed.Arms,
 	})
 	verify.WriteCheck(stdout, outs, *verbose)
-	code, notes := verify.CheckVerdict(kinds, outs)
+	code, notes := verify.CheckVerdict(kinds, outs, verify.Strict(eff.Config, request))
 	for _, note := range notes {
 		fmt.Fprintln(stdout, note)
 	}

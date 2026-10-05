@@ -557,7 +557,7 @@ func TestABlockCarriesTheAnswerOfTheLaneThatFailed(t *testing.T) {
 				t.Errorf("%s: lane %d %s by %q, probation %v", name, i, outs[i].State, outs[i].BlockedBy, outs[i].Probation)
 			}
 		}
-		if code, _ := CheckVerdict(nil, outs); code != c.code {
+		if code, _ := CheckVerdict(nil, outs, true); code != c.code {
 			t.Errorf("%s: code %d, want %d", name, code, c.code)
 		}
 	}

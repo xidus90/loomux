@@ -904,7 +904,7 @@ What the run decides:
 | Red only in lanes in probation | 0, the report on stderr (nobody reads it) | reset to 0 | unchanged; the stand is kept in `seen` |
 | A git command fails in a repository | 2, the error on stderr | + 1 | unchanged |
 | The budget ran out before every lane was judged | 1: `not everything was verified; raise --budget or shrink the stop profile` | unchanged | unchanged |
-| A requested kind had no lane that ran | 1: the notes, then `nothing was verified for these kinds; the base stays` | unchanged | unchanged |
+| A kind the project's own stop profile names had no lane that ran, or no lane of the built-in one ran at all | 1: the notes, then `nothing was verified for these kinds; the base stays` | unchanged | unchanged |
 | `[verify]` cannot be loaded, or the plan fails | 1, the error on stderr | unchanged | unchanged |
 
 Exit 0 ends the turn, 2 holds it with the reason on stderr, 1 means the gate

@@ -499,8 +499,14 @@ Profil `edit` läuft also nie durch den Baum.
   dann selbst mit `measure`.
 - **Urteil von `loomux check`, je angefragter Art:** Lief keine Lane einer Art
   und ist die Art nirgends `not-applicable`, druckt der Check
-  ``nothing to check for `<art>` `` und endet mit Exit 1: Ein Tor, das nichts
-  prüft, ist nicht grün. Sonst Exit 0, wenn keine Lane rot ist, und 1, wenn
+  ``nothing to check for `<art>` `` und endet mit Exit 1, wenn die Anfrage die
+  Art nannte -- eine Liste von Arten oder ein Profil, das das Projekt in
+  `[verify.profiles]` setzt, auch eines, das ein eingebautes ersetzt. Eine Art
+  aus `all` oder einem eingebauten Profil wird stattdessen mit
+  ``no lane for `<art>` here, left out`` ausgelassen: Ein Projekt ohne Code hat
+  keinen Test. Das gilt nur, solange eine Lane einer anderen angefragten Art
+  lief; lief keine, ist jede solche Art ``nothing to check`` und endet mit
+  Exit 1, denn ein Tor, das nichts prüft, ist nicht grün. Sonst Exit 0, wenn keine Lane rot ist, und 1, wenn
   eine rot ist. Ein Ladefehler endet mit 1, ein fehlerhafter Aufruf mit 2.
   Eine rote Lane in Probe lässt nichts scheitern und zählt hier nicht als rot.
 - **Urteil des post-edit-Hooks:** Eine scharfe rote Lane endet mit Exit 2 und

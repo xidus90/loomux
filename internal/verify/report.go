@@ -43,9 +43,17 @@ func WriteCheck(w io.Writer, outs []Outcome, verbose bool) {
 	}
 }
 
-// CheckVerdict judges a check: each requested kind must have had something
-// to check, and no lane may be red. The notes follow the report on stdout.
-func CheckVerdict(kinds []string, outs []Outcome) (code int, notes []string) {
+// CheckVerdict judges a check: no lane may be red, and each requested kind
+// must have had something to check. The notes follow the report on stdout.
+//
+// Only strict holds every kind to that, for kinds asked for by name (see
+// Strict). Otherwise a kind with nothing to check is left out with a note --
+// a project without code has no test to run -- as long as a lane of another
+// kind ran: a project whose stack went unrecognised is not let through green.
+func CheckVerdict(kinds []string, outs []Outcome, strict bool) (code int, notes []string) {
+	something := slices.ContainsFunc(outs, func(o Outcome) bool {
+		return slices.Contains(kinds, o.Job.Kind) && o.State != StateNotApplicable && o.State != StateUnavailable
+	})
 	for _, kind := range kinds {
 		ran, na := false, false
 		for _, o := range outs {
@@ -60,7 +68,11 @@ func CheckVerdict(kinds []string, outs []Outcome) (code int, notes []string) {
 				ran = true
 			}
 		}
-		if !ran && !na {
+		switch {
+		case ran || na:
+		case !strict && something:
+			notes = append(notes, "no lane for `"+kind+"` here, left out")
+		default:
 			notes = append(notes, "nothing to check for `"+kind+"`")
 			code = 1
 		}

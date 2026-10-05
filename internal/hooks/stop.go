@@ -236,7 +236,7 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 		Scope: verify.ScopeCheck, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
 		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
 	})
-	code, warned := stopVerdict(stderr, kinds, outs, armed.Arms)
+	code, warned := stopVerdict(stderr, kinds, verify.Strict(eff.Config, "stop"), outs, armed.Arms)
 	// A chain with findings keeps its coverage files for whoever looks into
 	// it, in probation or not.
 	if err := verify.CleanCover(root, runID, code == ExitOK && warned == ""); err != nil {
@@ -331,7 +331,7 @@ func headTree(root, head string) string {
 // check leaves it unjudged, anything else passes. A chain red only in lanes
 // in probation passes too, and warned is what those lanes reported: the
 // caller neither moves the base over it nor counts a block.
-func stopVerdict(stderr io.Writer, kinds []string, outs []verify.Outcome, armed func(verify.Job) bool) (code int, warned string) {
+func stopVerdict(stderr io.Writer, kinds []string, strict bool, outs []verify.Outcome, armed func(verify.Job) bool) (code int, warned string) {
 	var red, held []verify.Outcome
 	for _, o := range outs {
 		switch {
@@ -351,7 +351,7 @@ func stopVerdict(stderr io.Writer, kinds []string, outs []verify.Outcome, armed 
 		fmt.Fprintln(stderr, "loomux hook stop: not everything was verified; raise --budget or shrink the stop profile")
 		return ExitInternal, ""
 	}
-	if _, notes := verify.CheckVerdict(kinds, outs); len(notes) > 0 {
+	if code, notes := verify.CheckVerdict(kinds, outs, strict); code != 0 {
 		for _, note := range notes {
 			fmt.Fprintf(stderr, "loomux hook stop: %s\n", note)
 		}
