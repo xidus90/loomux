@@ -140,8 +140,8 @@ import-graph test holds. Every tool with its arguments: [CLI reference §8](docs
 
 ## Migration Plan
 
-Where each migration stage and each capability carried over from ultraloom
-and ultra-brain stands — origin, status, dependencies and priority, with a map
+Where each migration stage and each capability carried over from the
+predecessor projects stands — origin, status, dependencies and priority, with a map
 of which stage waits for which — is in the
 **[migration plan](docs/en/migration.md)**. This README describes what loomux
 is; the plan says how far the migration has got, and the roadmap below what
@@ -385,7 +385,7 @@ Exhaustive guides and technical manuals are organized under [`docs/en/`](docs/en
 ## Specifications & Internal Working Papers
 
 Design documents and internal working papers are located under `docs/.superpowers/specs/`:
-- [Fusion Design: Ultraloom & Ultra-Brain](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
+- [Fusion design](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
 - [Code Graph Subsystem Specification](docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md)
 - [Web OS & Skill System Specification](docs/.superpowers/specs/2026-09-14-loomux-web-os-design.md)
 

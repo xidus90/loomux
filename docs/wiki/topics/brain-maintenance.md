@@ -22,7 +22,7 @@ sources:
     revision: 1
 ---
 
-Die Pflegeschicht von ultra-brain ist mit **Stufe 3** nach loomux gezogen,
+Die Pflegeschicht ist mit **Stufe 3** gebaut,
 geschnitten in drei Teilstufen: **3a Erkennen** (`loomux reindex`,
 `loomux embed`, `loomux reconcile`, `loomux area add`), **3b Entscheiden**
 (`loomux cases`, `loomux case`, `loomux approve`) und **3c Pflegen** (unter
@@ -174,4 +174,4 @@ unter die Überschrift des Tages, neueste zuerst, wie OKF §9 es verlangt;
 `audit.md` wächst nach unten.
 
 Siehe [Die Wiki-Schicht](wiki-schicht.md) für den anderen Schreibweg. Quellen:
-Architektur-Design ultra-brain; Design von Stufe 3 in loomux.
+Architektur-Design; Design von Stufe 3 in loomux.

@@ -1,8 +1,7 @@
 # loomux
 
-One Go binary for the hook path, the check chain and the knowledge system
-that `ultraloom` and `ultra-brain` provided separately. Design:
-`docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`.
+One Go binary for the hook path, the check chain and the knowledge system of
+a project. Design: `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`.
 
 ## Where things live
 

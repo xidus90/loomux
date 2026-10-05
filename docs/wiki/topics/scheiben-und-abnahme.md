@@ -19,10 +19,9 @@ sources:
 
 loomux baut in **Stufen**, und **jede Stufe endet grün und wird einzeln
 übergeben**, mit eigenem Plan und, sobald sie fertig ist, eigener
-Paritätsakte. Die Herkunft: ultra-brain zerlegte seinen Bau in acht
-„Scheiben" (0 bis 7) mit je einem Fertig-Kriterium, das ohne Codelektüre
-prüfbar war; mit dem Umzug nach loomux ersetzen die Stufen der Fusions-Spec
-diese Zerlegung.
+Paritätsakte. Die Herkunft: Der Bau war zuerst in acht
+„Scheiben" (0 bis 7) zerlegt, mit je einem Fertig-Kriterium, das ohne
+Codelektüre prüfbar war; die Stufen der Fusions-Spec ersetzen diese Zerlegung.
 
 ## Eine Stufe ist fertig, wenn
 
@@ -68,7 +67,7 @@ eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migra
 | 4e | offen | Umstellung der Wirte, eine Checkliste ohne Code |
 | G1–G4b | ✅ | Rang, Blast-Radius, Extraktor, Abfrage, Navigation, Diff-Blast |
 | G4c | ✅ | Stop-Hook mit Blast-Logik |
-| G5a | ✅ | Extraktor-Schnittstelle, Tree-sitter-Kern auf `gotreesitter`, Python; abgenommen an `iam_backend` und `ultra-brain` |
+| G5a | ✅ | Extraktor-Schnittstelle, Tree-sitter-Kern auf `gotreesitter`, Python; abgenommen an `iam_backend` und einem zweiten Projekt |
 | G5b–G5d | offen | TypeScript/TSX, GDScript, C++ |
 
 Eine Teilstufe 4b gibt es nicht. `loomux migrate` fällt weg: den
@@ -122,4 +121,4 @@ prüft, nicht im Produkt. Die Tore von loomux selbst fahren
 Siehe auch [Suche, Profile und Messwerte](suche-und-profile.md),
 [Die Wiki-Schicht](wiki-schicht.md) und
 [Grundsätze und Vertrauenskette](architektur-grundsaetze.md); Quellen sind
-die Fusions-Spec und, für die Herkunft, das Architektur-Design ultra-brain.
+die Fusions-Spec und, für die Herkunft, das Architektur-Design.

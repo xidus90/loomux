@@ -597,7 +597,7 @@ Starts the local D3-Force / WebGL interactive graph visualizer.
 
 ## 7. Second Brain & Wiki (`loomux brain`)
 
-The five data commands read the areas of the one registry (`registry.toml` in `LOOMUX_STATE_DIR` or its platform default) and answer as ultra-brain's `brain-mcp` does; a recorded case corpus (`testdata/cases/1b-1`) holds them to it. A read-only area's artefacts (`index.md`, `graph.json`, `_identities.tsv`) and the reconcile stamp are read from loomux's state directory, under `areas/<flat scope>` and `maintenance/`; an area directory whose `.loomux/config.toml` is missing or has no `[area]` table is not declared.
+The five data commands read the areas of the one registry (`registry.toml` in `LOOMUX_STATE_DIR` or its platform default) and answer as the reference does; a recorded case corpus (`testdata/cases/1b-1`) holds them to it. A read-only area's artefacts (`index.md`, `graph.json`, `_identities.tsv`) and the reconcile stamp are read from loomux's state directory, under `areas/<flat scope>` and `maintenance/`; an area directory whose `.loomux/config.toml` is missing or has no `[area]` table is not declared.
 
 - **Channel**: every command takes `--channel local|cloud` (default `local`). An area with `[privacy] mode = "local_only"` does not exist on `cloud`; `[privacy] never` globs apply on every channel. Nesting does not lift `local_only`: where the tree of another area holds the wiki or the source tree of a `local_only` area, every path inside it stays hidden on `cloud` through that scope too — `brain read` answers it as a missing file, and search hits, catalog lines, neighbours and `brain status` findings under it are left out. The `local` channel is unchanged.
 - **Usage errors** (exit `2`): the usage line, then `loomux brain <command>: error: <reason>` for a missing argument, an invalid choice or `-n` below 1, and `loomux brain: error: <reason>` when the command is missing or unknown or arguments are left over.
@@ -642,7 +642,7 @@ Prints what to know before trusting an answer, one line per finding.
 
 ### Wiki upkeep: `loomux brain check`, `loomux lint`, `loomux wiki`
 
-Since stage 3c. A recorded case corpus (`testdata/cases/3c`) holds them to the reference: `brain check` to ultra-brain's Go binary, since there is no Python form, the others to `brain-mcp`. Registry and declarations come from `LOOMUX_STATE_DIR` as for the maintenance commands; until stage 4 an area's declaration is also read under `.ultra-brain/config.toml` and `.brain.toml`. None takes `--state-dir`.
+Since stage 3c. A recorded case corpus (`testdata/cases/3c`) holds them to the reference. Registry and declarations come from `LOOMUX_STATE_DIR` as for the maintenance commands. None takes `--state-dir`.
 
 #### `loomux brain check file <path> | bundle --scope <scope> | all [--notes]`
 Checks pages along the `okf` axis (what a foreign reader of the Open Knowledge Format requires) and the `house` axis (the stricter house rules including the federation: `wrong-direction`, `unlisted-area`).
@@ -677,7 +677,7 @@ Renames one page type in one bundle and names every page it wrote. Only the fron
 
 ### Upkeep: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
 
-Four commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 3a; a recorded case corpus (`testdata/cases/3a`) holds them to the Python reference. They read from and write to loomux's state directory alone.
+Four top-level commands since stage 3a; a recorded case corpus (`testdata/cases/3a`) holds them to the Python reference. They read from and write to loomux's state directory alone.
 
 - **Environment**: `LOOMUX_STATE_DIR` holds the registry, the artefacts of read-only areas, `maintenance/` and `qmd-collections.json`. qmd's `index.yml` is found through `XDG_CONFIG_HOME`, else `~/.config`.
 - **No `--state-dir`**: the reference accepts it on all four; loomux refuses it like any unknown flag (exit `2`). The state comes from the environment, the one state model of every loomux command.
@@ -721,7 +721,7 @@ Registers a repository as an area and prepares it: the registry entry (written u
 
 ### Intake: `loomux convert`, `loomux fetch`
 
-Two commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 4d; a recorded case corpus (`testdata/cases/4d`, 29 cases) holds `convert` to the Python reference, and a recording of Poppler's own output holds the PDF path to the real tool. Both write into an area's inbox, the directory its manifest names as `[layout] inbox`, relative to the area's path.
+Two top-level commands since stage 4d; a recorded case corpus (`testdata/cases/4d`, 29 cases) holds `convert` to the Python reference, and a recording of Poppler's own output holds the PDF path to the real tool. Both write into an area's inbox, the directory its manifest names as `[layout] inbox`, relative to the area's path.
 
 - **A human's commands**: the guard refuses both to an agent, since a write there is one the write barrier keeps from agents (see [`hook pre-tool-use`](#loomux-hook-pre-tool-use)); only a lone `--help` or `-h` passes.
 - **Brain module**: with `[modules] brain = false` in the project found upward from the working directory, both print `loomux <command>: the brain module is off in <file> ([modules] brain = false)` and exit `1` before anything is read. Outside a project nothing is switched off.
@@ -761,11 +761,11 @@ Has `yt-dlp` write a video's subtitles into a fresh temporary directory and file
 - **Exit codes**: `0` for a file written; `1` for a missing `yt-dlp`, a refused area, a fetch that brought no track or an unreadable answer, and with the brain module off; `2` for a usage error.
 
 ### The post-merge hook: `loomux merge-hook install|status|remove|record`
-The hook that tells `reconcile` a merge has landed, in every repository of an area whose manifest says `[maintenance] on_merge = true`. ultra-brain's `brain-mcp hook` under a new name, since `hook` is the namespace of the host hooks here; a recorded case corpus (`testdata/cases/4a2`, 14 cases, eleven without a difference) holds it to the reference. `loomux init` runs `merge-hook install` as its part `merge-hook` (off in a checkout of loomux, whose hook directory is the tracked `.githooks`).
+The hook that tells `reconcile` a merge has landed, in every repository of an area whose manifest says `[maintenance] on_merge = true`. It is `merge-hook` and not `hook`, since `hook` is the namespace of the host hooks; a recorded case corpus (`testdata/cases/4a2`, 14 cases, eleven without a difference) holds it to the reference. `loomux init` runs `merge-hook install` as its part `merge-hook` (off in a checkout of loomux, whose hook directory is the tracked `.githooks`).
 
 - **The hook bakes nothing in**: the file is the same text everywhere, a short `sh` that runs `"${LOCALAPPDATA}/loomux/bin/loomux.exe" merge-hook record` and discards its output. Which repository and branch count is decided at merge time from the registry, so nothing in the file can go stale. It lands where git looks for hooks, `core.hooksPath` included. The installations are remembered in `maintenance/hooks.tsv` under `LOOMUX_STATE_DIR` (three fields, `scope`, `repo`, `hook`; a line of the reference with more is read by its first three).
 - **`install`** writes the hook into each consenting repository and remembers it; a file with the reference's marker `# brain post-merge hook` is the same hook's predecessor and is replaced. A foreign `post-merge` is `refused` and left alone.
-- **`status`** names each repository's state: `installed`, `missing` (remembered, file gone), `moved` (remembered, the file stands, but `core.hooksPath` changed and git looks elsewhere; `install` writes it where git looks now), `not installed` (with `: another hook` after the path when a file of someone else's stands there), `unrecorded` (the file is ours, the record is lost — also a hook `brain-mcp` set up, whose records under the old state directory are not read), `orphaned` (remembered for an area that no longer consents or a repository that moved) and `refused`; every command says `no repository` for a consenting area whose path lies in none.
+- **`status`** names each repository's state: `installed`, `missing` (remembered, file gone), `moved` (remembered, the file stands, but `core.hooksPath` changed and git looks elsewhere; `install` writes it where git looks now), `not installed` (with `: another hook` after the path when a file of someone else's stands there), `unrecorded` (the file is ours, the record is lost), `orphaned` (remembered for an area that no longer consents or a repository that moved) and `refused`; every command says `no repository` for a consenting area whose path lies in none.
 - **`remove`** takes back every hook of ours it remembers, an unrecorded one included; one somebody replaced with their own is `refused` and its record kept.
 - **Output** on `stdout`: one line per repository, `<state>: <scope> — <repo>`, followed by ` [<hook file>]` when there is one. Without a line: `no area consents with [maintenance] on_merge = true, and no hook is installed`.
 - **`record`** is what the hook calls: one event for the merge that just landed in the working directory, if an area wants it. It runs inside the user's `git merge`, so it never prints and always exits `0` — no registry, a broken one, no repository, a state directory it cannot write and extra arguments included.
@@ -774,7 +774,7 @@ The hook that tells `reconcile` a merge has landed, in every repository of an ar
 
 ### Review: `loomux cases`, `loomux case`, `loomux approve`
 
-Three commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 3b; a recorded case corpus (`testdata/cases/3b`) holds them to the Python reference, `approve` together with the files it writes and the commit it makes. They decide the cases `loomux reconcile` leaves in the review centre. A case is addressed by the name of its directory in the review centre, the first column of `loomux cases`.
+Three top-level commands since stage 3b; a recorded case corpus (`testdata/cases/3b`) holds them to the Python reference, `approve` together with the files it writes and the commit it makes. They decide the cases `loomux reconcile` leaves in the review centre. A case is addressed by the name of its directory in the review centre, the first column of `loomux cases`.
 
 - **Environment**: the registry and the review centre come from `LOOMUX_STATE_DIR`, as for the upkeep commands; the review centre is the one directory an area declares under `[layout] review`.
 - **No `--state-dir`**: the reference accepts it on all three; loomux refuses it like any unknown flag (exit `2`).
@@ -1384,8 +1384,7 @@ propose flag but ends with it off — `--propose --propose=false`,
 
 Sets a project up for loomux: it reads what the project is, asks per module
 what to set up, shows every change as a diff and every action by name, and
-writes only what a human approves. It replaces ultraloom's `ulinit`,
-`scripts/install.ps1` and the hook half of `brain init`. Built with stage
+writes only what a human approves. Built with stage
 4a-2; on 2026-09-28 a human ran it on a fresh clone of this repository and
 interactively in a host project (see the [migration plan](migration.md)).
 
@@ -1518,7 +1517,7 @@ nothing to change.
   `status` and `kill` pass only while they carry no line. An entry from
   before `manage_task` joined the matcher is kept, and init appends a block
   for `manage_task` beside it with the current loomux command and a note; a
-  Claude Code entry of ours under ulinit's matcher gets one for `MultiEdit`
+  Claude Code entry of ours under an older matcher gets one for `MultiEdit`
   the same way. An entry under a matcher that is no plain list of tool names,
   such as `.*`, is only named, and what it lacks is added by hand. It also gets
   the skills under `.agents/skills/<name>/SKILL.md`, the same texts Claude

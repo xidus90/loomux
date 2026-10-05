@@ -2,7 +2,7 @@
 
 <https://polyformproject.org/licenses/noncommercial/1.0.0>
 
-Required Notice: Copyright 2026 Christoph Wübbels (https://github.com/xidus90/ultra-brain)
+Required Notice: Copyright 2026 Christoph Wübbels (https://github.com/xidus90/loomux)
 
 ## Acceptance
 

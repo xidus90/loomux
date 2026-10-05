@@ -1,7 +1,7 @@
 ---
 type: Topic
 title: Grundsätze und Vertrauenskette
-description: Die sechs Grundsätze aus ultra-brain, die Grundsätze der Fusion, die Arbeitsteilung zwischen Code, KI und Mensch und die vier Fehlerstellen.
+description: Die sechs Grundsätze des Wissenssystems, die Grundsätze der Fusion, die Arbeitsteilung zwischen Code, KI und Mensch und die vier Fehlerstellen.
 open_conflicts: 0
 realization: in_progress
 sources:
@@ -19,7 +19,7 @@ sources:
 
 ## Sechs Grundsätze
 
-Aus dem Architektur-Design ultra-brain übernommen.
+Aus dem Architektur-Design übernommen.
 
 1. **Markdown ist die einzige Wahrheit.** Index, Graph, Zustandsdatenbank und
    Web-App sind abgeleitete Sichten und jederzeit löschbar.
@@ -112,4 +112,4 @@ Leseschicht über den Notizen, nie ihr Ersatz.
 Wie diese Riegel konkret aussehen, steht unter [Die Wiki-Schicht](wiki-schicht.md)
 und [Brain Maintenance](brain-maintenance.md), die Stufen unter
 [Die Stufen und ihre Abnahme](scheiben-und-abnahme.md); Quellen sind das
-Architektur-Design ultra-brain und die Fusions-Spec.
+Architektur-Design und die Fusions-Spec.

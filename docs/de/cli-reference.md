@@ -620,7 +620,7 @@ Startet die lokale interaktive D3-Force / WebGL Graph-Visualisierung im Browser.
 
 ## 7. Second Brain & Wiki (`loomux brain`)
 
-Die fünf Datenbefehle lesen die Bereiche der einen Registry (`registry.toml` in `LOOMUX_STATE_DIR` oder dessen Plattformvorgabe) und antworten wie `brain-mcp` von ultra-brain; ein aufgezeichneter Fallkorpus (`testdata/cases/1b-1`) hält sie daran. Die Artefakte eines schreibgeschützten Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und der Reconcile-Stempel werden aus dem Zustandsverzeichnis von loomux gelesen, unter `areas/<flacher Scope>` und `maintenance/`; ein Bereichsverzeichnis, dessen `.loomux/config.toml` fehlt oder keine `[area]`-Tabelle trägt, ist nicht deklariert.
+Die fünf Datenbefehle lesen die Bereiche der einen Registry (`registry.toml` in `LOOMUX_STATE_DIR` oder dessen Plattformvorgabe) und antworten wie die Referenz; ein aufgezeichneter Fallkorpus (`testdata/cases/1b-1`) hält sie daran. Die Artefakte eines schreibgeschützten Bereichs (`index.md`, `graph.json`, `_identities.tsv`) und der Reconcile-Stempel werden aus dem Zustandsverzeichnis von loomux gelesen, unter `areas/<flacher Scope>` und `maintenance/`; ein Bereichsverzeichnis, dessen `.loomux/config.toml` fehlt oder keine `[area]`-Tabelle trägt, ist nicht deklariert.
 
 - **Kanal**: Jeder Befehl nimmt `--channel local|cloud` (Standard `local`). Ein Bereich mit `[privacy] mode = "local_only"` existiert im Kanal `cloud` nicht; `[privacy] never`-Globs gelten in jedem Kanal. Verschachtelung hebt `local_only` nicht auf: Wo der Baum eines anderen Bereichs das Wiki oder den Quellbaum eines `local_only`-Bereichs enthält, bleibt jeder Pfad darin im Kanal `cloud` auch über diesen Scope verborgen — `brain read` beantwortet ihn wie eine fehlende Datei, und Suchtreffer, Katalogzeilen, Nachbarn und Befunde von `brain status` darunter fallen weg. Der Kanal `local` bleibt unverändert.
 - **Usage-Fehler** (Exit `2`): die Usage-Zeile, dann `loomux brain <befehl>: error: <grund>` bei fehlendem Argument, ungültiger Wahl oder `-n` kleiner 1, und `loomux brain: error: <grund>`, wenn der Befehl fehlt oder unbekannt ist oder Argumente übrig bleiben.
@@ -665,7 +665,7 @@ Gibt aus, was man wissen muss, bevor man einer Antwort traut, eine Zeile je Befu
 
 ### Wiki-Pflege: `loomux brain check`, `loomux lint`, `loomux wiki`
 
-Seit Stufe 3c. Ein aufgezeichneter Fallkorpus (`testdata/cases/3c`) hält sie an der Referenz: `brain check` am Go-Binär von ultra-brain, denn eine Python-Form gibt es nicht, die übrigen an `brain-mcp`. Registry und Erklärungen kommen wie bei den Pflegebefehlen aus `LOOMUX_STATE_DIR`; die Erklärung eines Bereichs wird bis Stufe 4 auch unter `.ultra-brain/config.toml` und `.brain.toml` gelesen. Keiner nimmt `--state-dir`.
+Seit Stufe 3c. Ein aufgezeichneter Fallkorpus (`testdata/cases/3c`) hält sie an der Referenz. Registry und Erklärungen kommen wie bei den Pflegebefehlen aus `LOOMUX_STATE_DIR`. Keiner nimmt `--state-dir`.
 
 #### `loomux brain check file <pfad> | bundle --scope <scope> | all [--notes]`
 Prüft Seiten nach den Achsen `okf` (was ein fremder Leser des Open Knowledge Format verlangt) und `house` (die strengeren Hausregeln samt Föderation: `wrong-direction`, `unlisted-area`).
@@ -700,7 +700,7 @@ Benennt einen Seitentyp in einem Bündel um und nennt jede geschriebene Seite. G
 
 ### Pflege: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
 
-Vier Befehle der `brain`-CLI von ultra-brain, seit Stufe 3a Befehle auf oberster Ebene von loomux; ein aufgezeichneter Fallkorpus (`testdata/cases/3a`) hält sie an der Python-Referenz. Sie lesen und schreiben allein im Zustandsverzeichnis von loomux.
+Vier Befehle auf oberster Ebene seit Stufe 3a; ein aufgezeichneter Fallkorpus (`testdata/cases/3a`) hält sie an der Python-Referenz. Sie lesen und schreiben allein im Zustandsverzeichnis von loomux.
 
 - **Umgebung**: `LOOMUX_STATE_DIR` hält die Registry, die Artefakte schreibgeschützter Bereiche, `maintenance/` und `qmd-collections.json`. qmds `index.yml` wird über `XDG_CONFIG_HOME` gefunden, sonst unter `~/.config`.
 - **Kein `--state-dir`**: Die Referenz nimmt es an allen vieren an; loomux lehnt es ab wie jede unbekannte Flagge (Exit `2`). Der Zustand kommt aus der Umgebung, dem einen Zustandsmodell aller loomux-Befehle.
@@ -744,7 +744,7 @@ Meldet ein Repository als Bereich an und richtet es ein: der Registry-Eintrag (u
 
 ### Eingang: `loomux convert`, `loomux fetch`
 
-Zwei Befehle der `brain`-CLI von ultra-brain, seit Stufe 4d Befehle der obersten Ebene von loomux; ein aufgezeichneter Fallsatz (`testdata/cases/4d`, 29 Fälle) hält `convert` an der Python-Referenz, und eine Aufnahme der eigenen Ausgabe von Poppler hält den PDF-Weg am echten Werkzeug. Beide schreiben in den Eingang eines Bereichs, das Verzeichnis, das sein Manifest als `[layout] inbox` nennt, relativ zum Pfad des Bereichs.
+Zwei Befehle auf oberster Ebene seit Stufe 4d; ein aufgezeichneter Fallsatz (`testdata/cases/4d`, 29 Fälle) hält `convert` an der Python-Referenz, und eine Aufnahme der eigenen Ausgabe von Poppler hält den PDF-Weg am echten Werkzeug. Beide schreiben in den Eingang eines Bereichs, das Verzeichnis, das sein Manifest als `[layout] inbox` nennt, relativ zum Pfad des Bereichs.
 
 - **Befehle des Menschen**: Der Wächter verweigert beide einem Agenten, denn dorthin verbietet die Schreibschranke Agenten das Schreiben (siehe [`hook pre-tool-use`](#loomux-hook-pre-tool-use)); nur ein alleinstehendes `--help` oder `-h` geht durch.
 - **Modul Brain**: Mit `[modules] brain = false` im Projekt, das die Suche vom Arbeitsverzeichnis nach oben findet, geben beide `loomux <befehl>: the brain module is off in <datei> ([modules] brain = false)` aus und enden mit `1`, bevor etwas gelesen ist. Außerhalb eines Projekts ist nichts abgeschaltet.
@@ -784,11 +784,11 @@ Lässt `yt-dlp` die Untertitel eines Videos in ein frisches temporäres Verzeich
 - **Exit-Codes**: `0` für eine geschriebene Datei; `1` bei fehlendem `yt-dlp`, einem verweigerten Bereich, einem Abruf ohne Spur oder einer unlesbaren Antwort und bei abgeschaltetem Modul Brain; `2` bei einem Usage-Fehler.
 
 ### Der post-merge-Hook: `loomux merge-hook install|status|remove|record`
-Der Hook, der `reconcile` einen gelandeten Merge meldet, in jedem Repository eines Bereichs, dessen Manifest `[maintenance] on_merge = true` sagt. `brain-mcp hook` von ultra-brain unter neuem Namen, weil `hook` hier der Namensraum der Host-Hooks ist; ein aufgenommener Fallkorpus (`testdata/cases/4a2`, 14 Fälle, elf ohne Unterschied) hält ihn an der Referenz. `loomux init` ruft `merge-hook install` als seinen Teil `merge-hook` (aus in einem Checkout von loomux, dessen Hookverzeichnis das eingecheckte `.githooks` ist).
+Der Hook, der `reconcile` einen gelandeten Merge meldet, in jedem Repository eines Bereichs, dessen Manifest `[maintenance] on_merge = true` sagt. Er heißt `merge-hook` und nicht `hook`, weil `hook` der Namensraum der Host-Hooks ist; ein aufgenommener Fallkorpus (`testdata/cases/4a2`, 14 Fälle, elf ohne Unterschied) hält ihn an der Referenz. `loomux init` ruft `merge-hook install` als seinen Teil `merge-hook` (aus in einem Checkout von loomux, dessen Hookverzeichnis das eingecheckte `.githooks` ist).
 
 - **Der Hook backt nichts ein**: Die Datei ist überall derselbe Text, ein kurzes `sh`, das `"${LOCALAPPDATA}/loomux/bin/loomux.exe" merge-hook record` ruft und dessen Ausgabe verwirft. Welches Repository und welcher Zweig zählen, entscheidet die Registry zur Merge-Zeit; nichts in der Datei kann veralten. Sie liegt, wo git Hooks sucht, `core.hooksPath` eingeschlossen. Die Einrichtungen merkt sich `maintenance/hooks.tsv` unter `LOOMUX_STATE_DIR` (drei Felder, `scope`, `repo`, `hook`; eine Zeile der Referenz mit mehr wird über ihre ersten drei gelesen).
 - **`install`** schreibt den Hook in jedes einwilligende Repository und merkt ihn sich; eine Datei mit der Marke der Referenz `# brain post-merge hook` ist der Vorgänger desselben Hooks und wird ersetzt. Ein fremder `post-merge` heißt `refused` und bleibt stehen.
-- **`status`** nennt den Zustand jedes Repositorys: `installed`, `missing` (gemerkt, Datei weg), `moved` (gemerkt, die Datei steht, aber `core.hooksPath` hat sich geändert und git sucht woanders; `install` schreibt ihn dorthin, wo git jetzt sucht), `not installed` (mit `: another hook` hinter dem Pfad, wenn dort eine fremde Datei steht), `unrecorded` (die Datei ist unsere, der Eintrag verloren — auch ein Hook, den `brain-mcp` eingerichtet hat, dessen Einträge unter dem alten Zustandsverzeichnis nicht gelesen werden), `orphaned` (gemerkt für einen Bereich, der nicht mehr einwilligt, oder ein verschobenes Repository) und `refused`; jeder Befehl sagt `no repository` für einen einwilligenden Bereich, dessen Pfad in keinem liegt.
+- **`status`** nennt den Zustand jedes Repositorys: `installed`, `missing` (gemerkt, Datei weg), `moved` (gemerkt, die Datei steht, aber `core.hooksPath` hat sich geändert und git sucht woanders; `install` schreibt ihn dorthin, wo git jetzt sucht), `not installed` (mit `: another hook` hinter dem Pfad, wenn dort eine fremde Datei steht), `unrecorded` (die Datei ist unsere, der Eintrag verloren), `orphaned` (gemerkt für einen Bereich, der nicht mehr einwilligt, oder ein verschobenes Repository) und `refused`; jeder Befehl sagt `no repository` für einen einwilligenden Bereich, dessen Pfad in keinem liegt.
 - **`remove`** nimmt jeden eigenen Hook zurück, den er kennt, einen ohne Eintrag eingeschlossen; einen, den jemand durch einen eigenen ersetzt hat, nennt er `refused` und behält dessen Eintrag.
 - **Ausgabe** auf `stdout`: eine Zeile je Repository, `<zustand>: <scope> — <repo>`, gefolgt von ` [<hookdatei>]`, wenn es eine gibt. Ohne Zeile: `no area consents with [maintenance] on_merge = true, and no hook is installed`.
 - **`record`** ruft der Hook selbst: ein Ereignis für den Merge, der eben im Arbeitsverzeichnis gelandet ist, wenn ein Bereich es will. Es läuft im `git merge` des Nutzers, schreibt darum nie etwas und endet immer mit `0` — keine Registry, eine kaputte, kein Repository, ein nicht schreibbares Zustandsverzeichnis und überzählige Argumente eingeschlossen.
@@ -797,7 +797,7 @@ Der Hook, der `reconcile` einen gelandeten Merge meldet, in jedem Repository ein
 
 ### Prüfzentrum: `loomux cases`, `loomux case`, `loomux approve`
 
-Drei Befehle der `brain`-CLI von ultra-brain, seit Stufe 3b Befehle auf oberster Ebene von loomux; ein aufgezeichneter Fallkorpus (`testdata/cases/3b`) hält sie an der Python-Referenz, `approve` samt den Dateien, die es schreibt, und dem Commit, den es anlegt. Sie entscheiden die Fälle, die `loomux reconcile` ins Prüfzentrum legt. Ein Fall wird über den Namen seines Verzeichnisses im Prüfzentrum angesprochen, die erste Spalte von `loomux cases`.
+Drei Befehle auf oberster Ebene seit Stufe 3b; ein aufgezeichneter Fallkorpus (`testdata/cases/3b`) hält sie an der Python-Referenz, `approve` samt den Dateien, die es schreibt, und dem Commit, den es anlegt. Sie entscheiden die Fälle, die `loomux reconcile` ins Prüfzentrum legt. Ein Fall wird über den Namen seines Verzeichnisses im Prüfzentrum angesprochen, die erste Spalte von `loomux cases`.
 
 - **Umgebung**: Registry und Prüfzentrum kommen aus `LOOMUX_STATE_DIR`, wie bei den Pflegebefehlen; das Prüfzentrum ist das eine Verzeichnis, das ein Bereich unter `[layout] review` erklärt.
 - **Kein `--state-dir`**: Die Referenz nimmt es an allen dreien an; loomux lehnt es ab wie jede unbekannte Flagge (Exit `2`).
@@ -1441,9 +1441,7 @@ genau eines von `<id>` und `--all`) und die interaktive Form ohne Terminal.
 
 Richtet ein Projekt für loomux ein: Es liest, was das Projekt ist, fragt je
 Modul, was einzurichten ist, zeigt jede Änderung als Diff und jede Handlung
-beim Namen und schreibt nur, was ein Mensch bestätigt. Es ersetzt `ulinit`
-aus ultraloom, `scripts/install.ps1` und die Hook-Hälfte von `brain init`.
-Gebaut mit Stufe 4a-2; am 2026-09-28 hat ein Mensch es auf einem frischen
+beim Namen und schreibt nur, was ein Mensch bestätigt. Gebaut mit Stufe 4a-2; am 2026-09-28 hat ein Mensch es auf einem frischen
 Klon dieses Repositorys und interaktiv in einem Wirtsprojekt laufen lassen
 (siehe den [Migrationsplan](migration.md)).
 
@@ -1586,7 +1584,7 @@ durch einen Menschen am 2026-09-28 baute das Binary, setzte
   laufen nur durch, solange sie keine Zeile tragen. Ein Eintrag von vor
   `manage_task` im Matcher bleibt stehen, und `init` hängt mit dem aktuellen
   loomux-Befehl und einer Notiz einen Block für `manage_task` daneben; ein
-  eigener Eintrag von Claude Code unter ulinits Matcher bekommt ebenso einen
+  eigener Eintrag von Claude Code unter einem älteren Matcher bekommt ebenso einen
   für `MultiEdit`. Ein Eintrag unter einem Matcher, der keine schlichte Liste
   von Werkzeugnamen ist, etwa `.*`, wird nur genannt, und was ihm fehlt,
   ergänzt man von Hand. Dazu

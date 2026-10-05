@@ -203,7 +203,7 @@ never = ["privat/**"]
   ein Bereich ohne Erklärung lässt also auch Aufrufe über alle anderen
   scheitern; nur ein Eintrag mit `workspace = true` ohne Erklärung wird still
   übersprungen. Eine `.loomux/config.toml` ohne `[area]` zählt als keine, und ebenso
-  ein Bereich, dessen Verzeichnis keine `.loomux/config.toml` hat, was sonst
+  ein Bereich, dessen Verzeichnis keine `.loomux/config.toml` hat, egal, was sonst
   dort liegt.
   Die Schreibschranke stört das nicht: dort ist es normal, einen Bereich vor
   seinem Manifest zu registrieren.
