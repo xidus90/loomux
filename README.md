@@ -328,10 +328,8 @@ loomux dev bench search [--corpus v1 --out <dir>] # measure the rank of search h
 loomux dev bench compare --before <report> --after <report> # set two hooks reports side by side: faster, slower, new, dropped (--title, --lang de|en, --out <dir>)
 loomux dev bench cases --root <dir> --file <md> --out <dir> # build the case file of a project's hooks from its settings.json (--settings, --extras)
 loomux dev mutants <pkg>            # run mutation test suites across critical decision packages
-loomux dev record-case --out <dir>  # record one run of a reference binary as a case
-loomux dev import-cases --map <f>   # translate a directory of recorded cases into loomux cases
-loomux dev record-mcp-case --out <dir> # record one MCP tool call of a reference service as a case
-loomux dev fake-ollama --fixture <f>  # a stand-in Ollama that answers every request with the fixture, for recording and replaying cases (--addr, default 127.0.0.1:11435; --log)
+# the recordings of the old tools are in the archive release archive/parity-recordings; the replay holds loomux's own cases under testdata/cases/
+loomux dev fake-ollama --fixture <f>  # a stand-in Ollama that answers every request with the fixture, for replaying cases (--addr, default 127.0.0.1:11435; --log)
 loomux dev release <sub>            # release rules for CI: next-version, parse-body, changelog-insert, build
 loomux dev notices [--out F]        # write NOTICE.md from the modules and grammars the binary links; a test holds the committed file current
 loomux dev record-poppler --exe P --dir D --out F  # record what Poppler's pdftotext prints for each PDF in D as a fixture for the Go golden

@@ -7,7 +7,8 @@ a project. Design: `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`.
 
 - `cmd/loomux` is the entry point and nothing else; every command lives under `internal/`.
 - Specs, plans and parity lists live under `docs/.superpowers/`.
-- Recorded behaviour of the old tools lives under `testdata/cases/`.
+- The replay cases of every stage live under `testdata/cases/`; the recordings
+  they came from are in the archive release `archive/parity-recordings`.
 - `flows/catalog/<name>/` is the catalog of flows loomux ships. A
   contribution is data only: `flow.toml`, `instructions/`, `questions/`, a
   `README.md` and `_test/` with `script.toml` and the golden
