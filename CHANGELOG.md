@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [7.1.0] - 2026-10-05
+
+<https://github.com/xidus90/loomux/pull/78>
+
+### Changed
+- `loomux check` and the stop hook leave out a kind of `all` or of a built-in profile that the project has no lane for, with the note `no lane for <kind> here, left out`, instead of failing; a kind named on the command line or in a profile the project sets still fails with `nothing to check for <kind>`, and so does a run in which no lane ran at all.
+
 ## [7.0.2] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/77>
