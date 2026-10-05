@@ -12,7 +12,5 @@ collections:
     - '**/.superpowers/sdd/**'
     - '**/node_modules/**'
     - '**/tests/fixtures/**'
-    - '**/.brain.toml'
-    - '**/.ultra-brain/**'
     path: {{WORLD}}/repo-a
     pattern: '**/*.md'

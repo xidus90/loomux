@@ -126,8 +126,6 @@ func TestFindFiles(t *testing.T) {
 		".superpowers/sdd/run.md",   // ALWAYS_EXCLUDES
 		"node_modules/mod/index.md", // ALWAYS_EXCLUDES
 		"tests/fixtures/sample.md",  // ALWAYS_EXCLUDES
-		".brain.toml",               // ALWAYS_EXCLUDES
-		".ultra-brain/config.toml",  // ALWAYS_EXCLUDES
 		"index.md",                  // OWN_ARTIFACTS (outside wiki)
 		"index.intro.md",            // OWN_ARTIFACTS
 		"graph.json",                // OWN_ARTIFACTS
