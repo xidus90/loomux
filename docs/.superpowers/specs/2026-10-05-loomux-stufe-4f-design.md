@@ -272,6 +272,25 @@ würde ein solcher Bereich still manifestlos.
    `benchmarks.md`.
 6. **Release-Stufe.** `release:none`, falls kein Befehl entfällt. Dabei
    zählt `internal/plancheck` nicht als Befehl.
+7. **Nachtrag #38 (Inventur 2026-10-05) ändert 2, 4, 5 und 6:**
+   - **Wiki-Quellen:** Sie zeigen nicht auf die Seite selbst, sondern auf
+     `docs/de/*.md`, nachdem der Mensch `[index] include` darum ergänzt hat,
+     bei Synthesen auf Wiki-Seiten.
+   - **`docs/wiki/log.md`:** Die Datei wird neu gefasst und ist keine
+     Ausnahme mehr.
+   - **Tor-Test:** Er zieht nach `internal/namecheck`. Die Ausnahmen sind
+     danach:
+     - `docs/{en,de}/benchmarks.md`, `testdata/bench/1a-hooks.json` und
+       `testdata/bench/search/v1/baseline/*`,
+     - die fünf Changelog-Zeilen,
+     - für `graft` `internal/notices/NOTICE.md` und die Datei des Generators
+       mit dem Hinweis,
+     - je eine Ideenzeile in `README.md`, `README.de.md` und
+       `docs/{en,de}/architecture.md`,
+     - die Testdateien selbst.
+
+     Das Muster für `graft` greift nicht hinter `_`.
+   - **Release-Stufe:** `release:minor` wegen `feat(dev)`.
 
 ## Fertig ist 4f, wenn
 
