@@ -68,7 +68,6 @@ var devCommands = map[string]command{
 	"record-poppler":  devRecordPoppler,
 	"release":         devRelease,
 	"swap-binary":     devSwapBinary,
-	"switchover":      devSwitchoverGroup,
 }
 
 func devCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {

@@ -572,9 +572,7 @@ armed = [
   `--include` and `--amend` arm.
 - **Who creates the file.** `init` does, when before the run there was
   neither `.loomux/config.toml`, nor `.loomux/armed.toml`, nor a pre-commit
-  hook of loomux (and the part `config` is chosen); the switchover script
-  does in its configuration step, and keeps a file that stands there
-  (`probation: kept, .loomux/armed.toml stands`). **A project in which loomux is set up
+  hook of loomux (and the part `config` is chosen). **A project in which loomux is set up
   already, one with a configuration or the pre-commit hook of loomux, gets
   the probation only through `loomux gate disarm --all`, run by a human.**
   `init` creates nothing there, not even when it renews the hook.

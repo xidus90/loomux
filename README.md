@@ -327,8 +327,6 @@ loomux dev bench repos [--dir <dir>] [--save] # time the hooks on a repo or the 
 loomux dev bench search [--corpus v1 --out <dir>] # measure the rank of search hits over a question set or the corpus v1 (--profile, --latency, --out <dir>)
 loomux dev bench compare --before <report> --after <report> # set two hooks reports side by side: faster, slower, new, dropped (--title, --lang de|en, --out <dir>)
 loomux dev bench cases --root <dir> --file <md> --out <dir> # build the case file of a project's hooks from its settings.json (--settings, --extras)
-loomux dev switchover render --params <json> --out <file> # write a project's apply.sh for the switch-over from the old tools (sh apply.sh --check shows what it would do)
-loomux dev switchover prune-hooks --file <settings.json> --match <s> # remove the hook groups of the old tools from a settings.json (--match repeatable); a human runs it, the guard refuses it to an agent
 loomux dev mutants <pkg>            # run mutation test suites across critical decision packages
 loomux dev record-case --out <dir>  # record one run of a reference binary as a case
 loomux dev import-cases --map <f>   # translate a directory of recorded cases into loomux cases
