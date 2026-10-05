@@ -24,7 +24,7 @@ func TestReadAntigravityFromTheMeasuredPayloads(t *testing.T) {
 
 	for _, filename := range cases {
 		t.Run(filename, func(t *testing.T) {
-			path := filepath.Join("..", "..", "testdata", "cases", "2c-payloads", filename)
+			path := filepath.Join("testdata", filename)
 			data, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatalf("reading payload file %s: %v", filename, err)
