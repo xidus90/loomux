@@ -102,19 +102,21 @@ func TestRenderNamesEveryLinkedPieceOnce(t *testing.T) {
 		"## github.com/odvcencio/gotreesitter v0.55.0\n", "TS license\n",
 		"## tree-sitter grammar python\n", "https://github.com/tree-sitter/tree-sitter-python@abc", "Copyright (c) 2016 Max Brunsfeld", "MIT text\n", "Python grammar notice\n",
 		"## tree-sitter grammar c\n", "https://github.com/tree-sitter/tree-sitter-c@def",
+		"## Ported sources\n", "1e352a3fbee9ed9a5964ac35332ef0e5c63de49c",
+		"Copyright (c) 2026 Context Graph Engine contributors",
 		"# Third-party notice: German word frequencies",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	if strings.Count(text, "## example.com/a ") != 1 || strings.Contains(text, "not a license") || strings.Contains(text, "copyright_test.go") || strings.Contains(text, "\r") || strings.Contains(text, "grammar gpl") {
+	if strings.Count(text, "## example.com/a ") != 1 || strings.Count(text, "## Ported sources") != 1 || strings.Contains(text, "not a license") || strings.Contains(text, "copyright_test.go") || strings.Contains(text, "\r") || strings.Contains(text, "grammar gpl") {
 		t.Fatal(text)
 	}
 }
 
 // The notice reads the same on every run: Go first, the modules and then the
-// grammars each by name, the word frequencies last.
+// grammars each by name, the ported sources, the word frequencies last.
 func TestRenderOrdersTheSections(t *testing.T) {
 	text, err := Render("repo", world(t).run)
 	if err != nil {
@@ -128,6 +130,7 @@ func TestRenderOrdersTheSections(t *testing.T) {
 		"## github.com/odvcencio/gotreesitter v0.55.0\n",
 		"## tree-sitter grammar c\n",
 		"## tree-sitter grammar python\n",
+		"## Ported sources\n",
 		"# Third-party notice: German word frequencies",
 	} {
 		at := strings.Index(text, heading)
