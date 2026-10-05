@@ -85,10 +85,13 @@ Nachträge in der Fusions-Spec. Kein Code.
   `internal/config/areadeclaration.go`: ein Ordner mit nur `.brain.toml` ist
   danach ein Ordner ohne Manifest und bekommt die Meldung jedes anderen
   (`ErrNoManifest`). Der Aufrufer `IsUndeclared` und jeder tolerante Leser
-  wird mit genau diesem Fall gegen die neue Meldung geprüft.
-- **(b)** Die Tabelle der abgelösten Hooks in `internal/hooks/status.go`, der
-  Schutz von `.ultraloom/vendor` in `internal/hooks/worktree.go` und der
-  Ausschluss `/.ultraloom/` in `internal/cases/gitworld.go` werden gelöscht.
+  wird mit genau diesem Fall gegen die neue Meldung geprüft, einmal als Probe,
+  festgehalten in der Akte (#35).
+- **(b)** Die Tabelle der abgelösten Hooks in `internal/hooks/status.go` und
+  der Ausschluss `/.ultraloom/` in `internal/cases/gitworld.go` werden
+  gelöscht. In `internal/hooks/worktree.go` bekommen die Kommentare und
+  Fixturen zu `.ultraloom/vendor` neutrale Beispiele; die Schutzlogik bleibt
+  (#35).
 - **(c)** Kommentare, Paketdoku und Meldungen ohne die Namen: Herkunft wird
   gestrichen, ein Verweis auf die Python-Referenz wird „the reference“ oder
   fällt, wo nur Herkunft steht. `loomux status` druckt „Wiki:“ statt
@@ -121,8 +124,12 @@ Nachträge in der Fusions-Spec. Kein Code.
     - Die Flow-Zeile nennt `run --no-model` als Eingang.
   - Vor dem Wegfall des Korpus von `claude/scheibe-9b` wird `reconcile` mit
     einem unerwarteten Argument einmal geprobt (Exit 2).
-- **(i)** Den Kommentar in `.loomux/config.toml` ändert der Agent nicht; er
-  legt `loomux config … --propose` vor, ein Mensch wendet an.
+- **(i)** Den Kommentar in `.loomux/config.toml` ändert der Agent nicht; der
+  Plan nennt die neuen Zeilen, ein Mensch ändert sie von Hand, weil
+  `loomux config … --propose` keine Kommentare kennt (#35).
+- **Aus #35:** Die Roadmap-Zeile „The hint beside a declaration without
+  `[area]`“ fällt aus beiden READMEs; die Prosa in `docs/wiki` wird neu gefasst,
+  `sources:`-Zeilen in die Archive und `docs/wiki/log.md` bleiben.
 
 Release-Stufe: `release:major`, weil `loomux area check` als Befehl wegfällt.
 
