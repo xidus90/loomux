@@ -162,13 +162,14 @@ würde ein solcher Bereich still manifestlos.
    (Abschnitt 4, je Suite nachgelesen). Danach gilt:
    - **Nicht verglichen**, die Altnamen werden per Ersetzungstabelle neutral
      gefasst: `notes.md`, `README.md`, jede `stderr` (LoadCase liest sie
-     nie), `stdout` von Meldungs- und Lanes-Fällen, die `.mcp.json` unter
-     `3a/area-add/*/world_after/repo-new/` (nur als „fehlt“ toleriert).
+     nie), `stdout` von Meldungs- und Lanes-Fällen.
    - **Byte-genau verglichen**, die Kommentare in `4a2/hook/*/git.toml`
      ändern sich in `world/` und `world_after/` gleich.
    - **Weltdateien mit Altpfad:**
      `3a/area-add/known-scope/world_after/repo-new/.ultra-brain/config.toml`
-     fällt samt ihrer Toleranzzeile (`cases_3a_test.go`).
+     fällt samt ihrer Toleranzzeile (`cases_3a_test.go`). Ebenso fallen die
+     vier `3a/area-add/*/world_after/repo-new/.mcp.json` mit ihrer
+     Toleranz (bisher nur als „fehlt“ toleriert).
      `4d/convert/no-registry/world/vault/.brain.toml` fällt, wenn der Fall
      sie laut `notes.md` nicht braucht; sonst wird sie umbenannt.
    - `world_after/xdg/qmd/index.yml` zieht PR B mit (#34).

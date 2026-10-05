@@ -335,10 +335,8 @@ loomux dev bench search [--corpus v1 --out <dir>] # Misst den Trefferrang der Su
 loomux dev bench compare --before <bericht> --after <bericht> # Stellt zwei Hook-Berichte nebeneinander: schneller, langsamer, neu, weggefallen (--title, --lang de|en, --out <dir>)
 loomux dev bench cases --root <dir> --file <md> --out <dir> # Baut die Falldatei der Hooks eines Projekts aus seiner settings.json (--settings, --extras)
 loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus
-loomux dev record-case --out <dir>  # Zeichnet einen Lauf eines Referenz-Binaries als Fall auf
-loomux dev import-cases --map <f>   # Übersetzt ein Verzeichnis aufgezeichneter Fälle in loomux-Fälle
-loomux dev record-mcp-case --out <dir> # Zeichnet einen MCP-Werkzeugaufruf eines Referenzdienstes als Fall auf
-loomux dev fake-ollama --fixture <f>  # Ein Ollama-Ersatz, der jede Anfrage mit der Fixture beantwortet, zum Aufzeichnen und Abspielen von Fällen (--addr, Vorgabe 127.0.0.1:11435; --log)
+# die Aufzeichnungen der alten Werkzeuge liegen im Archiv-Release archive/parity-recordings; die Wiedergabe hält die eigenen Fälle von loomux unter testdata/cases/
+loomux dev fake-ollama --fixture <f>  # Ein Ollama-Ersatz, der jede Anfrage mit der Fixture beantwortet, zum Abspielen von Fällen (--addr, Vorgabe 127.0.0.1:11435; --log)
 loomux dev release <unterbefehl>    # Release-Regeln für die CI: next-version, parse-body, changelog-insert, build
 loomux dev notices [--out D]        # Schreibt NOTICE.md aus den Modulen und Grammatiken, die das Binary linkt; ein Test hält die eingecheckte Datei aktuell
 loomux dev record-poppler --exe P --dir V --out D  # Zeichnet auf, was pdftotext von Poppler für jede PDF in V ausgibt, als Fixture für das Go-Golden
