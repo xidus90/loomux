@@ -17,6 +17,14 @@ import (
 // canonical place, where no work in progress belongs.
 const DevVersion = "0.0.0-dev"
 
+// The modes of a pass by hand. A pass in the machine's channel is the
+// default and serve's only mode.
+const (
+	ModeChannel = ""
+	ModeBeta    = "beta"
+	ModeStable  = "stable"
+)
+
 // Options describe the running binary to an update pass. Everything the pass
 // would otherwise ask the process for is a field, so a test can be any
 // platform and any version; the caller passes cli.Version and cli.Channel,
@@ -31,6 +39,9 @@ type Options struct {
 	GOARCH     string
 	Run        Runner
 	Now        func() time.Time
+	// Mode or Pin, set by upgrade; Pin is a version without the v.
+	Mode string
+	Pin  string
 }
 
 // Result is what a pass came to. Version is the release installed, or, when
@@ -90,11 +101,13 @@ func run(ctx context.Context, o Options) Result {
 }
 
 // installLocked is the part of a pass that run and Install share: take the
-// lock, ask gh for the newest release, and put it at canonical unless what is
-// there is at least as new. With byRunning the running version o.Version
-// counts as well: a pass run from the canonical binary is done when that one
-// is current. Install runs from anywhere, so only the file at canonical
-// counts there.
+// lock, choose the release, and put it at canonical unless what is there is
+// at least as new. With byRunning the running version o.Version counts as
+// well: a pass run from the canonical binary is done when that one is
+// current. Install runs from anywhere, so only the file at canonical counts
+// there. A pass that came to current or updated also leaves the channel
+// marker as it asked; a problem with the marker travels in Err beside that
+// outcome.
 func installLocked(ctx context.Context, o Options, canonical string, byRunning bool) Result {
 	handle, held, err := lock.TryAcquire(filepath.Join(o.StateDir, "update.lock"))
 	if err != nil {
@@ -105,20 +118,91 @@ func installLocked(ctx context.Context, o Options, canonical string, byRunning b
 	}
 	defer handle.Release()
 
-	rel, err := latest(ctx, o.Run, o.Channel)
+	running := Reported(o.Version, o.Channel)
+	rel, forced, markerErr, err := choose(ctx, o, running)
 	if err != nil {
 		return Result{Outcome: Failed, Err: err}
 	}
-	if byRunning && !Newer(rel, Reported(o.Version, o.Channel)) {
+	res := place(ctx, o, canonical, byRunning, running, rel, forced)
+	if res.Outcome == Current || res.Outcome == Updated {
+		markerErr = errors.Join(markerErr, settle(o, rel))
+	}
+	if markerErr != nil {
+		res.Err = errors.Join(res.Err, markerErr)
+	}
+	return res
+}
+
+// choose is the release a pass aims at. A pin or --stable aims at one
+// release even when it is older than what runs (forced); --beta and the
+// machine's channel aim at the newest one they take. A marker that cannot
+// be read leaves the machine on stable, and its error travels on.
+func choose(ctx context.Context, o Options, running string) (rel Release, forced bool, markerErr, err error) {
+	switch {
+	case o.Pin != "":
+		rel, err = view(ctx, o.Run, o.Pin)
+		return rel, true, nil, err
+	case o.Mode == ModeStable:
+		rel, err = latest(ctx, o.Run, takesStable)
+		return rel, true, nil, err
+	case o.Mode == ModeBeta:
+		rel, err = latest(ctx, o.Run, takesAll)
+		return rel, false, nil, err
+	}
+	beta, markerErr := ReadChannel(o.StateDir)
+	t := takesStable
+	switch v, ok := parseReported(running); {
+	case beta:
+		t = takesAll
+	case ok && v.old:
+		// Frozen logic of the last old release: it follows its own count and
+		// the first stable one, but no new beta it never asked for.
+		t = takesOld
+	}
+	rel, err = latest(ctx, o.Run, t)
+	return rel, false, markerErr, err
+}
+
+// settle leaves the marker as the pass asked: --beta sets it, --stable
+// clears it, a pin follows the kind of release it pinned, and a pass in the
+// channel leaves it alone.
+func settle(o Options, rel Release) error {
+	switch {
+	case o.Pin != "":
+		v, _ := releaseVersion(rel)
+		return WriteChannel(o.StateDir, v.beta > 0)
+	case o.Mode == ModeBeta:
+		return WriteChannel(o.StateDir, true)
+	case o.Mode == ModeStable:
+		return WriteChannel(o.StateDir, false)
+	}
+	return nil
+}
+
+// place puts rel at canonical unless what runs or what is there already
+// is it (forced) or is at least as new (otherwise).
+func place(ctx context.Context, o Options, canonical string, byRunning bool, running string, rel Release, forced bool) Result {
+	ver := strings.TrimPrefix(rel.Tag, "v")
+	// Forced compares number and beta only, not the count: a 7.1.0 does not
+	// exist after the restart, and before it the same number means the same
+	// release.
+	done := func(have string) bool {
+		if forced {
+			h, ok := parseReported(have)
+			r, _ := releaseVersion(rel)
+			return ok && h.num == r.num && h.beta == r.beta
+		}
+		return !Newer(rel, have)
+	}
+	if byRunning && done(running) {
 		return Result{Outcome: Current, Version: o.Version}
 	}
 	// A serve that installed the release keeps running the version before it
 	// until a bridge replaces it; asked only the running version, every pass
 	// until then would install the same release again.
-	if have, ok := InstalledVersion(ctx, o.Run, canonical); ok && !Newer(rel, have) {
+	if have, ok := InstalledVersion(ctx, o.Run, canonical); ok && done(have) {
 		return Result{Outcome: Current, Version: strings.TrimSuffix(have, " (beta)")}
 	}
-	ver := strings.TrimPrefix(rel.Tag, "v")
 	dir := filepath.Dir(canonical)
 	if err := fetch(ctx, o, rel.Tag, dir); err != nil {
 		return Result{Outcome: Failed, Version: ver, Err: err}

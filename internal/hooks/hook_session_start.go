@@ -202,6 +202,12 @@ func updateWarnings(stateDir, goos string) []string {
 		lines = append(lines, fmt.Sprintf("updating loomux failed at %s: %s; run loomux upgrade to retry",
 			st.CheckedAt.UTC().Format(time.RFC3339), st.Error))
 	}
+	// A pass that kept or replaced the binary but could not read or write the
+	// channel marker leaves the machine quietly on stable.
+	if (st.Result == selfupdate.Current || st.Result == selfupdate.Updated) && st.Error != "" {
+		lines = append(lines, fmt.Sprintf("loomux update channel at %s: %s; run loomux upgrade --beta or --stable to set it",
+			st.CheckedAt.UTC().Format(time.RFC3339), st.Error))
+	}
 	return lines
 }
 

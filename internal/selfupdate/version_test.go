@@ -137,32 +137,33 @@ func TestReported(t *testing.T) {
 	}
 }
 
-// Every release so far is a pre-release: release.sh marks each one so while
-// RELEASE_CHANNEL is unset. A beta binary must still find them.
+// The old count was published as pre-releases only, so a beta machine finds
+// them and a stable one does not; the new count outranks it either way.
 func TestPickFollowsTheChannel(t *testing.T) {
-	all := []Release{
-		{Tag: "v2.6.0", Prerelease: true},
-		{Tag: "v2.10.0", Prerelease: true},
-		{Tag: "v2.7.0", Prerelease: false},
-		{Tag: "nightly", Prerelease: true},
-	}
-	onlyPre := []Release{{Tag: "v2.7.0", Prerelease: true}, {Tag: "v2.6.0", Prerelease: true}}
+	old := []Release{{Tag: "v7.1.0", Prerelease: true}, {Tag: "v7.2.0", Prerelease: true}}
+	restarted := []Release{{Tag: "v7.2.0", Prerelease: true}, {Tag: "v1.0.0"}}
+	bridged := []Release{{Tag: "v7.2.0", Prerelease: true}, {Tag: "v1.0.0"}, {Tag: "v1.1.0-beta.1", Prerelease: true}}
+	later := []Release{{Tag: "v1.2.0-beta.1", Prerelease: true}, {Tag: "v1.1.0"}, {Tag: "v1.1.0-beta.10", Prerelease: true}, {Tag: "v1.1.0-beta.2", Prerelease: true}}
 	for _, c := range []struct {
 		name     string
 		releases []Release
-		channel  string
+		beta     takes
 		want     string
 		found    bool
 	}{
-		{"beta takes the highest of all", all, "beta", "v2.10.0", true},
-		{"stable skips pre-releases", all, "stable", "v2.7.0", true},
-		{"no channel reads as stable", all, "", "v2.7.0", true},
-		{"beta over today's releases", onlyPre, "beta", "v2.7.0", true},
-		{"stable over today's releases", onlyPre, "stable", "", false},
-		{"nothing listed", nil, "beta", "", false},
-		{"no tag is a version", []Release{{Tag: "nightly", Prerelease: true}, {Tag: "v2.8"}}, "beta", "", false},
+		{"beta over the old count", old, takesAll, "v7.2.0", true},
+		{"stable over the old count", old, takesStable, "", false},
+		{"beta: the restart outranks the bridge", restarted, takesAll, "v1.0.0", true},
+		{"stable: the restart", restarted, takesStable, "v1.0.0", true},
+		{"beta takes the newest beta", later, takesAll, "v1.2.0-beta.1", true},
+		{"stable skips betas", later, takesStable, "v1.1.0", true},
+		{"old count binary: the restart over the bridge and a new beta", bridged, takesOld, "v1.0.0", true},
+		{"old count binary: the bridge itself", old, takesOld, "v7.2.0", true},
+		{"marked binary: the new beta", bridged, takesAll, "v1.1.0-beta.1", true},
+		{"nothing listed", nil, takesAll, "", false},
+		{"no tag is a version", []Release{{Tag: "nightly", Prerelease: true}, {Tag: "v2.8"}}, takesAll, "", false},
 	} {
-		got, found := pick(c.releases, c.channel)
+		got, found := pick(c.releases, c.beta)
 		if found != c.found || got.Tag != c.want {
 			t.Errorf("%s: pick = %q, %v; want %q, %v", c.name, got.Tag, found, c.want, c.found)
 		}
