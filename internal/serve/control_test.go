@@ -18,12 +18,21 @@ import (
 // helperEnv turns the test binary into the process a force test kills.
 const helperEnv = "LOOMUX_SERVE_TEST_HELPER"
 
+// helperLockEnv names a lock file the child takes before it waits, the way a
+// service holds serve.lock for as long as it lives.
+const helperLockEnv = "LOOMUX_SERVE_TEST_HELPER_LOCK"
+
 // TestHelperProcess is not a case of its own: it is the body of the child that
 // the force test needs, a process that does nothing but stay alive. It ends by
 // itself after a minute, so that no interrupted run leaves it behind.
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv(helperEnv) != "1" {
 		return
+	}
+	if path := os.Getenv(helperLockEnv); path != "" {
+		if _, err := lock.Acquire(path); err != nil {
+			t.Fatalf("the helper could not take %s: %v", path, err)
+		}
 	}
 	time.Sleep(time.Minute)
 }
@@ -40,8 +49,18 @@ type helper struct {
 // case may kill it or not; either way it is reaped before the case ends.
 func startHelper(t *testing.T) *helper {
 	t.Helper()
+	return startHelperHolding(t, "")
+}
+
+// startHelperHolding is startHelper for a child that holds the lock file at
+// lockPath, and returns once it does.
+func startHelperHolding(t *testing.T, lockPath string) *helper {
+	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=TestHelperProcess")
 	cmd.Env = append(os.Environ(), helperEnv+"=1")
+	if lockPath != "" {
+		cmd.Env = append(cmd.Env, helperLockEnv+"="+lockPath)
+	}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start the helper process: %v", err)
 	}
@@ -58,6 +77,23 @@ func startHelper(t *testing.T) *helper {
 			t.Error("the helper process outlived its case")
 		}
 	})
+	if lockPath != "" {
+		deadline := time.Now().Add(20 * time.Second)
+		for {
+			handle, free, err := lock.TryAcquire(lockPath)
+			if err != nil {
+				t.Fatalf("TryAcquire: %v", err)
+			}
+			if !free {
+				break
+			}
+			_ = handle.Release()
+			if time.Now().After(deadline) {
+				t.Fatalf("the helper did not take %s within 20s", lockPath)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
 	return h
 }
 
@@ -375,21 +411,32 @@ func TestStopWithoutForceDoesNotKill(t *testing.T) {
 
 func TestStopWithForceKillsThePIDFromTheStateFile(t *testing.T) {
 	dir := t.TempDir()
-	h := startHelper(t)
-	holdLock(t, dir)
+	// The child holds serve.lock, as the service the PID names would.
+	h := startHelperHolding(t, serve.LockPath(dir))
 	writeState(t, dir, &serve.State{Local: deadEndpoint(t), PID: h.cmd.Process.Pid})
 
 	if err := serve.Stop(dir, true); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
+	// A kill returns before the system has torn the process down, and the lock
+	// goes with the teardown. A caller that starts the next service straight
+	// after the stop must find it free.
+	handle, free, err := lock.TryAcquire(serve.LockPath(dir))
+	if err != nil {
+		t.Fatalf("TryAcquire: %v", err)
+	}
+	if !free {
+		t.Fatal("Stop returned while the killed process still held serve.lock")
+	}
+	_ = handle.Release()
 	if !h.ended(20 * time.Second) {
 		t.Fatal("--force left the process running")
 	}
-	// The same call again has nothing left to kill. It must say so: a stop
+	// The same call again has nothing left to end. It must say so: a stop
 	// that reports success over a process that is not there would hide a
 	// state file naming a PID that now belongs to somebody else.
-	if err := serve.Stop(dir, true); err == nil {
-		t.Error("Stop reported success although the process is long gone")
+	if err := serve.Stop(dir, true); !errors.Is(err, serve.ErrNotRunning) {
+		t.Errorf("second Stop: %v, want ErrNotRunning", err)
 	}
 }
 

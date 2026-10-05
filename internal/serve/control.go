@@ -138,7 +138,8 @@ var ErrNotRunning = errors.New("nothing is running: no listener answered and " +
 // cannot even be asked. A stop that killed by itself would kill a service that
 // was merely busy; a state file naming a reused PID would kill a stranger; and
 // a free lock says there is no service left to end, which is ErrNotRunning and
-// not something to force.
+// not something to force. Either way Stop returns once the lock is free, so
+// that a caller who starts the next service straight away is not refused.
 func Stop(stateDir string, force bool) error {
 	state, err := ReadState(stateDir)
 	if err != nil {
@@ -149,13 +150,23 @@ func Stop(stateDir string, force bool) error {
 		// it. Nothing holds the service's lock, so nothing is the service,
 		// and the PID in the file belongs to a dead process or to a stranger
 		// that inherited the number.
-		if free, taken := lockFree(stateDir); taken && free {
+		free, taken := lockFree(stateDir)
+		if taken && free {
 			return ErrNotRunning
 		}
 		if !force {
 			return fmt.Errorf("%w; run `loomux serve status` to see what is there, and `loomux serve stop --force` to end it by its PID", err)
 		}
-		return kill(state.PID)
+		// A lock that could not be asked has nothing to wait for either.
+		if err := kill(state.PID); err != nil || !taken {
+			return err
+		}
+		// The kill returns before the system has torn the process down, and
+		// the lock goes with the teardown, not with the kill.
+		if err := lock.WaitFree(LockPath(stateDir), stopTimeout); err != nil {
+			return fmt.Errorf("killed process %d but %s is still held: %w", state.PID, LockPath(stateDir), err)
+		}
+		return nil
 	}
 	// The request is answered before the shutdown begins, so the service is
 	// still holding the lock at this point. A caller that starts the next
