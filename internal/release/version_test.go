@@ -34,3 +34,28 @@ func TestNextVersionSkipsAnOverflowingTag(t *testing.T) {
 		t.Fatalf("got %q, %v", got, err)
 	}
 }
+
+func TestNextBeta(t *testing.T) {
+	for _, c := range []struct {
+		tags []string
+		bump string
+		want string
+	}{
+		{nil, "minor", "1.0.0-beta.1"},
+		{[]string{"v1.0.0"}, "minor", "1.1.0-beta.1"},
+		{[]string{"v1.0.0", "v1.1.0-beta.1", "v1.1.0-beta.2"}, "minor", "1.1.0-beta.3"},
+		{[]string{"v1.0.0", "v1.1.0-beta.3", "v1.1.0-beta.1"}, "minor", "1.1.0-beta.4"},
+		{[]string{"v1.0.0", "v1.1.0-beta.9", "v1.1.0-beta.10"}, "minor", "1.1.0-beta.11"},
+		{[]string{"v1.0.0", "v1.0.1-beta.4"}, "minor", "1.1.0-beta.1"},
+		{[]string{"v1.0.0", "v1.1.0-beta.2", "v1.1.0-beta.99999999999999999999", "v1.1.0-beta.7x", "xv1.1.0-beta.8"}, "minor", "1.1.0-beta.3"},
+		{[]string{"v1.0.0", "v1.1.0-beta.02", "v1.1.0-rc.5", "archive/parity-recordings"}, "minor", "1.1.0-beta.1"},
+	} {
+		got, err := NextBeta(c.tags, c.bump)
+		if err != nil || got != c.want {
+			t.Errorf("NextBeta(%v, %s) = %q, %v; want %q", c.tags, c.bump, got, err, c.want)
+		}
+	}
+	if _, err := NextBeta(nil, "huge"); !errors.Is(err, ErrBump) {
+		t.Fatalf("err = %v", err)
+	}
+}

@@ -1193,10 +1193,11 @@ Ein Mensch führt den Befehl aus, in der Regel über das `apply.sh`: Der Wächte
 
 - **Exit-Codes**: `0` nach dem Entfernen, auch wenn nichts passte; `2` bei einem unbekannten Flag, einem überzähligen Argument oder fehlendem `--file` oder `--match`; `1`, wenn die Datei nicht gelesen werden kann, kein JSON-Objekt ist oder nicht geschrieben werden kann.
 
-### `loomux dev release <next-version|parse-body|changelog-insert|build> [flags]`
+### `loomux dev release <next-version|next-beta|parse-body|changelog-insert|build> [flags]`
 Die Release-Regeln hinter `.github/workflows/release.yml` und der Prüfung von `release-pr`. Ohne Unterbefehl oder mit einem unbekannten endet es mit `2`. Jeder Fehler wird als `loomux dev release <unterbefehl>: <grund>` auf `stderr` gemeldet.
 
 - **`next-version --bump major|minor|patch [--tags <datei>]`**: liest je Zeile einen Tag (Standard `-`, stdin) und gibt die nächste Version aus. Exit `0`; `2` bei einem unbekannten Flag, einer unlesbaren Tag-Datei oder einem ungültigen Bump.
+- **`next-beta --bump major|minor|patch [--tags <datei>]`**: liest die Tags wie `next-version` und gibt `X.Y.Z-beta.N` für die Version aus, die `next-version` schneiden würde; `N` liegt eins über der höchsten Beta dieser Version (`1` ohne eine). Exit `0`; `2` bei einem unbekannten Flag, einer unlesbaren Tag-Datei oder einem ungültigen Bump.
 - **`parse-body [--labels <a,b>] [--body <datei>] [--commits <datei>]`**: prüft das Release-Label und den Rumpf des Pull Requests (Standard `-`, stdin) und, mit `--commits` (ein JSON-Array der Commit-Nachrichten), dass kein Commit ein höheres Label verlangt. Gibt den gelesenen Rumpf als JSON auf `stdout` aus. Exit `0`; `1` mit einer Zeile je Problem; `2` bei einem unbekannten Flag oder einer unlesbaren Rumpf- oder Commit-Datei.
 - **`changelog-insert --version <v> --date <JJJJ-MM-TT> --link <url> [--notes <datei>] [--file <pfad>]`**: fügt den Changelog-Block (Standard `-`, stdin) als Abschnitt des Releases in `--file` ein (Standard `CHANGELOG.md`, fehlt sie, wird sie angelegt). `--version` steht ohne `v`. Exit `0`; `1`, wenn die Version schon im Changelog steht; `2`, wenn ein Pflicht-Flag fehlt oder die Datei sich nicht lesen oder schreiben lässt.
 - **`build --version <v> [--channel <name>] [--out <verz>]`**: baut die Release-Binaries für alle Zielplattformen nach `--out` (Standard `dist`) und nennt jede Datei auf `stdout`. Exit `0`; `1`, wenn ein Bau scheitert; `2` bei einem unbekannten Flag oder ohne `--version`.

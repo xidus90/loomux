@@ -1159,10 +1159,11 @@ A human runs it, as a rule through `apply.sh`: the guard refuses the command to 
 
 - **Exit codes**: `0` after pruning, also when nothing matched; `2` for an unknown flag, an extra argument, or a missing `--file` or `--match`; `1` when the file cannot be read, is not a JSON object, or cannot be written.
 
-### `loomux dev release <next-version|parse-body|changelog-insert|build> [flags]`
+### `loomux dev release <next-version|next-beta|parse-body|changelog-insert|build> [flags]`
 The release rules behind `.github/workflows/release.yml` and the `release-pr` check. Without a subcommand, or with an unknown one, it exits `2`. Every error is named as `loomux dev release <subcommand>: <reason>` on `stderr`.
 
 - **`next-version --bump major|minor|patch [--tags <file>]`**: reads one tag per line (default `-`, stdin) and prints the next version. Exit `0`; `2` for an unknown flag, an unreadable tag file or an invalid bump.
+- **`next-beta --bump major|minor|patch [--tags <file>]`**: reads tags like `next-version` and prints `X.Y.Z-beta.N` for the version `next-version` would cut, `N` one above the highest beta of that version (`1` without one). Exit `0`; `2` for an unknown flag, an unreadable tag file or an invalid bump.
 - **`parse-body [--labels <a,b>] [--body <file>] [--commits <file>]`**: checks the pull request's release label and body (default `-`, stdin) and, with `--commits` (a JSON array of commit messages), that no commit needs a higher label. Prints the parsed body as JSON on `stdout`. Exit `0`; `1` with one line per problem; `2` for an unknown flag or an unreadable body or commit file.
 - **`changelog-insert --version <v> --date <YYYY-MM-DD> --link <url> [--notes <file>] [--file <path>]`**: inserts the changelog block (default `-`, stdin) as the release's section into `--file` (default `CHANGELOG.md`, created when missing). `--version` is given without `v`. Exit `0`; `1` when the version is already in the changelog; `2` when a required flag is missing or the file cannot be read or written.
 - **`build --version <v> [--channel <name>] [--out <dir>]`**: cross-builds the release binaries into `--out` (default `dist`) and names each file on `stdout`. Exit `0`; `1` when a build fails; `2` for an unknown flag or without `--version`.
