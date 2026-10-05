@@ -457,6 +457,17 @@ Every merged pull request to `master` is released according to its label:
 Every release is a beta pre-release until `RELEASE_CHANNEL` is set to
 `stable`. What changed is in [`CHANGELOG.md`](CHANGELOG.md).
 
+A machine follows the beta channel while the file `channel` in its state
+directory holds `beta`: it takes every newer release, beta or stable. Without
+the marker it takes only stable releases. `loomux upgrade --beta` takes the
+newest release including betas and sets the marker; `--stable` takes the
+newest stable release, even if it is older than the running beta, and clears
+it; `--version <x.y.z>` installs exactly that tag, a beta or a downgrade
+included. A downgrade does not hold: `serve` lifts it within 24 hours. A
+binary of the version count before 1.0.0 without the marker takes the
+releases of that count and the stable ones, never a new beta, and ranks below
+every later release.
+
 ### Opening a pull request
 
 Nobody commits to `master`; every change goes through a pull request. The

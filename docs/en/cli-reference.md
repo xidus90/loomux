@@ -892,7 +892,8 @@ anywhere else is never touched.
 1. Lists the releases through `gh release list` and takes the highest version
    in the machine's channel: with the marker `<state dir>/channel` it takes
    betas and stable releases, without it stable releases only. A binary of the
-   count before 1.0.0 counts as marked.
+   count before 1.0.0 without the marker takes the releases of that count and
+   the stable ones, never a new beta.
 2. Downloads the Windows asset and `SHA256SUMS` through `gh release
    download`, checks the checksum and the new binary's `--version`.
 3. Stamps the file with the current time and swaps it in; the old one goes to
@@ -903,7 +904,8 @@ The flags choose the release by hand; at most one at a time:
 
 - `--beta` takes the newest release of either kind and sets the marker
   `<state dir>/channel` (the line `beta`), so that `serve` keeps taking betas.
-- `--stable` takes the newest stable release and removes the marker.
+- `--stable` takes the newest stable release and removes the marker. Before the first stable release of the new count
+  exists it ends with "no release in channel stable" (exit 1).
 - `--version <x.y.z>` takes exactly that version (`v` prefix optional; a beta
   such as `1.1.0-beta.2` is fine). A stable version removes the marker, a beta
   sets it. A downgrade this way does not hold: `serve` lifts the binary again

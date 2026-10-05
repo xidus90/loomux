@@ -919,7 +919,8 @@ ersetzt; einer an jedem anderen Ort bleibt unberührt.
 1. Listet die Releases über `gh release list` und nimmt die höchste Version
    im Kanal der Maschine: mit der Markierung `<Zustandsverzeichnis>/channel`
    Betas und stabile Releases, ohne sie nur stabile. Ein Binary aus der
-   Zählung vor 1.0.0 gilt als markiert.
+   Zählung vor 1.0.0 nimmt ohne die Markierung die Releases dieser Zählung
+   und die stabilen, nie eine neue Beta.
 2. Lädt das Windows-Asset und `SHA256SUMS` über `gh release download`, prüft
    die Prüfsumme und die `--version` des neuen Binarys.
 3. Stempelt die Datei mit der aktuellen Zeit und tauscht sie ein; das alte
@@ -931,7 +932,8 @@ Die Flags wählen das Release von Hand; höchstens eines zugleich:
 - `--beta` nimmt das neueste Release beider Arten und setzt die Markierung
   `<Zustandsverzeichnis>/channel` (die Zeile `beta`), damit `serve` weiter
   Betas nimmt.
-- `--stable` nimmt das neueste stabile Release und entfernt die Markierung.
+- `--stable` nimmt das neueste stabile Release und entfernt die Markierung. Solange es noch kein stabiles Release der neuen
+  Zählung gibt, endet es mit „no release in channel stable“ (Exit 1).
 - `--version <x.y.z>` nimmt genau diese Version (Präfix `v` ist erlaubt; eine
   Beta wie `1.1.0-beta.2` geht auch). Eine stabile Version entfernt die
   Markierung, eine Beta setzt sie. Ein Downgrade auf diesem Weg hält nicht:

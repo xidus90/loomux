@@ -465,6 +465,18 @@ Jeder gemergte Pull Request nach `master` wird nach seinem Label veröffentlicht
 Jedes Release ist ein Beta-Pre-Release, bis `RELEASE_CHANNEL` auf `stable`
 steht. Was sich geändert hat, steht in [`CHANGELOG.md`](CHANGELOG.md).
 
+Eine Maschine folgt dem Beta-Kanal, solange die Datei `channel` in ihrem
+Zustandsverzeichnis `beta` enthält: Sie nimmt jedes neuere Release, Beta oder
+stabil. Ohne die Markierung nimmt sie nur stabile Releases. `loomux upgrade
+--beta` nimmt das neueste Release samt Betas und setzt die Markierung;
+`--stable` nimmt das neueste stabile Release, auch wenn es älter ist als die
+laufende Beta, und löscht sie; `--version <x.y.z>` installiert genau diesen
+Tag, auch eine Beta oder einen Rückschritt. Ein Rückschritt hält nicht:
+`serve` hebt ihn innerhalb von 24 Stunden wieder auf. Ein Binary der
+Versionszählung vor 1.0.0 nimmt ohne die Markierung die Releases dieser
+Zählung und die stabilen, nie eine neue Beta, und steht unter jedem späteren
+Release.
+
 ### Einen Pull Request öffnen
 
 Auf `master` wird nie direkt committet; jede Änderung läuft über einen Pull
