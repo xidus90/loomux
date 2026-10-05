@@ -1,1 +1,1 @@
-loomux-1a-source, ulguard: session-start without a session id
+loomux-1a-source, the reference's guard: session-start without a session id

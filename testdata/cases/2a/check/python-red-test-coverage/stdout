@@ -2,4 +2,4 @@ coverage: failed [preset]
 faketool: uv run coverage run
 FAILED tests/test_a.py::test_a
 1 failed
-note: the configured coverage threshold is 100%; ultraloom does not enforce it — the coverage tool's own settings decide
+note: the configured coverage threshold is 100%; loomux does not enforce it — the coverage tool's own settings decide

@@ -1,1 +1,1 @@
-loomux-1a-source, brain guard: a write inside the workspace is allowed
+loomux-1a-source, the reference's guard: a write inside the workspace is allowed

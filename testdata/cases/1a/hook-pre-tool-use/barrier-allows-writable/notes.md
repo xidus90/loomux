@@ -1,1 +1,1 @@
-loomux-1a-source, brain guard: a write below a writable wiki tree is allowed
+loomux-1a-source, the reference's guard: a write below a writable wiki tree is allowed

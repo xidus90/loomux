@@ -1,1 +1,1 @@
-loomux-1a-source, ulguard: the project's own path rule refuses generated/*
+loomux-1a-source, the reference's guard: the project's own path rule refuses generated/*

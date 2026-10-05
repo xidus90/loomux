@@ -1,1 +1,1 @@
-loomux-3-source (3cc72d2), brain-mcp: one clean bundle
+loomux-3-source (3cc72d2), the reference: one clean bundle

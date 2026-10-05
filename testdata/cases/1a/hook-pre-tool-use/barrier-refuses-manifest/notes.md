@@ -1,1 +1,1 @@
-loomux-1a-source, brain guard: the manifest is not written by the agent it configures
+loomux-1a-source, the reference's guard: the manifest is not written by the agent it configures

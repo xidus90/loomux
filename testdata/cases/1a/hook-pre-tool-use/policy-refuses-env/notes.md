@@ -1,1 +1,1 @@
-loomux-1a-source, ulguard: a builtin path rule refuses .env
+loomux-1a-source, the reference's guard: a builtin path rule refuses .env

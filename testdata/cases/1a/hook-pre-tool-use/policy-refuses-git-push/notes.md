@@ -1,1 +1,1 @@
-loomux-1a-source, ulguard: a builtin command rule refuses git push
+loomux-1a-source, the reference's guard: a builtin command rule refuses git push

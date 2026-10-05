@@ -1,1 +1,1 @@
-a missing reason in [[commit.allow]] is refused; ultraloom exits 1
+a missing reason in [[commit.allow]] is refused; the reference exits 1

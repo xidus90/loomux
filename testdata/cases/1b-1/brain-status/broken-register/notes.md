@@ -1,1 +1,1 @@
-loomux-1a-source (3cc72d2), brain-mcp over fakeqmd: a register row with three fields aborts status
+loomux-1a-source (3cc72d2), the reference over fakeqmd: a register row with three fields aborts status

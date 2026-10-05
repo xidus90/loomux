@@ -7,7 +7,7 @@ dir = "repo-a"
 [[commit]]
 message = "base"
 
-# The reference's own hook, as brain-mcp hook install writes it; no record of it.
+# The reference's own hook, as the reference's hook install writes it; no record of it.
 [worktree]
 ".git/hooks/post-merge" = '''
 #!/bin/sh

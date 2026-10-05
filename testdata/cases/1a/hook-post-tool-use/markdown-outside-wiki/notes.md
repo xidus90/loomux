@@ -1,1 +1,1 @@
-loomux-1a-source, ulguard post-edit: markdown outside the wiki starts no lane
+loomux-1a-source, the reference's post-edit hook: markdown outside the wiki starts no lane
