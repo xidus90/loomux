@@ -14,7 +14,6 @@ Welcome to the Loomux documentation suite. Loomux is an all-in-one developer ope
 | 🔀 **[Flows](flows.md)** | Flows as data: the folder format, roles and models, the catalog and overrides, contributing a flow, and why a gate is a human's. |
 | 📖 **[CLI Reference Manual](cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |
 | 🪝 **[Hook Lifecycle & Integration](hooks.md)** | Technical specification of the 4-phase hook lifecycle, host payload formats, and decoupled SSE event streaming. |
-| 🗺️ **[Migration Plan](migration.md)** | Every migration stage and every capability carried over or built during the fusion: origin, status, dependencies and priority. What comes after it is on the [roadmap](../../README.md#roadmap). |
 | ⏱️ **[Performance Benchmarks](benchmarks.md)** | Measured baseline performance against predecessor binaries and strict execution budgets. |
 | 🌐 **[Open-Source Matrix](open-source-matrix.md)** | A catalogue of open-source GitHub projects by language, framework and star category. |
 

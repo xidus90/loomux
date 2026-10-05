@@ -148,9 +148,8 @@ flowchart LR
 > BM25-style relevance over name, signature and body with Personalized PageRank
 > (alpha=0.25), inlines source spans and runs the locked rebuild. `ask` does not
 > import the extractor: the rebuild arrives as a `Rebuild` function, so the query
-> path stays apart from the parser. Which commands and tools are built is in the
-> [migration plan](migration.md), what is still open (stages G4c and G5b to G5d) on the
-> [roadmap](../../README.md#roadmap); every command is in the
+> path stays apart from the parser. What is still open (stages G4c and G5b to
+> G5d) is on the [roadmap](../../README.md#roadmap); every command is in the
 > [CLI reference](cli-reference.md).
 
 ### 1. "Lexical Proposes, Graph Disposes"
@@ -182,8 +181,7 @@ without a node rather than hide the dependency. A node is reported once, at the
 smallest depth any start reached it at, and a start node is never its own hit.
 
 The blast radius of a whole change starts from git's diff and walks the same
-edges. All of it is built since Stage G4b (its status is in the
-[migration plan](migration.md)):
+edges. All of it is built since Stage G4b:
 
 ```mermaid
 flowchart LR

@@ -44,9 +44,7 @@ flowchart TD
     P5 -.-> Serve
 ```
 
-*Eine gestrichelte Linie ist spezifiziert und nicht gebaut. Was jede
-Migrationsstufe gebaut hat, steht im [Migrationsplan](docs/de/migration.md);
-was danach kommt, in der [Roadmap](#roadmap).*
+*Eine gestrichelte Linie ist spezifiziert und nicht gebaut; was als Nächstes kommt, steht in der [Roadmap](#roadmap).*
 
 ---
 
@@ -138,24 +136,9 @@ festhält. Jedes Werkzeug mit seinen Argumenten: [CLI-Referenz §8](docs/de/cli-
 
 ---
 
-## Migrationsplan
-
-Wo jede Migrationsstufe und jede aus den Vorgängerprojekten übernommene
-Funktion steht — Herkunft, Stand, Abhängigkeiten und Priorität, mit einer
-Karte, welche Stufe auf welche wartet —, steht im
-**[Migrationsplan](docs/de/migration.md)**. Diese README beschreibt, was loomux
-ist; der Plan sagt, wie weit die Migration ist, und die Roadmap darunter, was
-danach kommt.
-
----
-
 ## Roadmap
 
-Was loomux über die Migration hinaus bekommt. *Priorität* ist dieselbe
-Reihenfolge wie im Migrationsplan, festgelegt in der
-[Fusions-Spec](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
-unter „Reihenfolge der offenen Stufen“ (1 zuerst); die offene
-Migrationsstufe 4f hat Priorität 3.
+Was loomux als Nächstes bekommt. *Priorität* ordnet die Zeilen (1 zuerst); die Roadmap legt sie fest, und sie zu ändern ist Entscheidung des Nutzers.
 
 ### Kommt
 
@@ -166,9 +149,9 @@ Migrationsstufe 4f hat Priorität 3.
 | **Entwicklungszyklus als Default-Flow** | Von der Planung bis zum Pull Request: Klärung, Spec und Plan, jeweils von einem Fächer aus Prüflinsen geprüft, dann je Aufgabe Recherche, Test zuerst, Bau, Prüfkette, Codereview und Nacharbeit, zum Schluss Doku, Abschlussreview und Commit. Ein Mensch antwortet an festen Toren und immer dann, wenn ein Modell nicht weiterkommt, und pusht | Flow D | Flow B, C | 4 |
 | **Community-Flows** | Der Entwicklungszyklus ist nur die Vorgabe. Gebaut: der Katalog unter `flows/catalog/` mit seinem Beitragstest (`go test ./flows` gegen ein Golden-Journal), `[flow] default` zur Wahl des Flows, Overlays einzelner Anweisungen und Fragen und Rollen, die ein Projekt an eigene Modelle bindet. Echte Läufe beigetragener Flows mit Agentenknoten warten auf die Modelladapter | Flow B | Flow A ✅ | 4 |
 | **Web-OS-Shell** | Eine React/Vite-App, per `go:embed` eingebettet und von `loomux serve` auf `127.0.0.1` ausgeliefert: Eventbus, Layout, Command-Palette | W1 | 1b-2 ✅ | 5 |
-| **Brain-Web-App** | Das Second Brain im Browser: Markdown-Editor, ADR-Katalog, Wissensgraph (Komponenten aus `ultra-brain/web`), die Kanten über Bereichsgrenzen (`edges-cross.json`) und im Browser ein Seitenleser, die Volltextsuche und das Prüfzentrum | W2 | W1 | 5 |
+| **Brain-Web-App** | Das Second Brain im Browser: Markdown-Editor, ADR-Katalog, Wissensgraph (Komponenten der Web-App des Vorgängers, im Archiv-Release `archive/parity-recordings`), die Kanten über Bereichsgrenzen (`edges-cross.json`) und im Browser ein Seitenleser, die Volltextsuche und das Prüfzentrum | W2 | W1 | 5 |
 | **Graph-Visualizer** | Ein interaktiver Code-Graph mit Kanten-Chips, Typfiltern und Blast-Overlays; Code-Symbole verknüpft mit ADRs und Entwurfsdoku | W3 | W1, G4a ✅ | 5 |
-| **Skill-Suiten und Review** | Eingebettete Best-Practice-Regeln je Sprache (Go, Python, TypeScript, Rust); ein graphgestütztes Review, das `graph_blast` liest und die ADR-Treue prüft; verteilt über `.loomux/config.toml`, Host-Ordner, MCP-Prompts und die Web-Oberfläche | W4 | G4b ✅, Migrationsstufe 4 | 5 |
+| **Skill-Suiten und Review** | Eingebettete Best-Practice-Regeln je Sprache (Go, Python, TypeScript, Rust); ein graphgestütztes Review, das `graph_blast` liest und die ADR-Treue prüft; verteilt über `.loomux/config.toml`, Host-Ordner, MCP-Prompts und die Web-Oberfläche | W4 | G4b ✅ | 5 |
 | **Flow-Editor und Kanban** | Flows als Graph im Web-OS zeichnen, wiedergeben und debuggen, im selben Format wie die Flow-Dateien; ein Kanban-Board, das Agentenschleifen, Prüf-Lanes und Subagenten live verfolgt | W5 | W1, Flow | 5 |
 | **TypeScript/TSX im Code-Graphen** | Extraktion auf demselben Tree-sitter-Kern in reinem Go (`gotreesitter`), der seit G5a Python liest | G5b | G5a ✅ | 6 |
 | **GDScript im Code-Graphen** | Derselbe Kern für GDScript aus Godot | G5c | G5b | 6 |
@@ -199,7 +182,7 @@ streicht, ändert diesen Abschnitt und sein englisches Gegenstück in
 
 ## CLI-Referenz
 
-Die gebauten Befehle, je eine Zeile; jedes Flag und jeden Exitcode beschreibt die [CLI-Referenz](docs/de/cli-reference.md), was spezifiziert und noch nicht gebaut ist, steht im [Migrationsplan](docs/de/migration.md) oder in der [Roadmap](#roadmap).
+Die gebauten Befehle, je eine Zeile; jedes Flag und jeden Exitcode beschreibt die [CLI-Referenz](docs/de/cli-reference.md), was noch nicht gebaut ist, steht in der [Roadmap](#roadmap).
 
 ### Befehle
 ```bash
@@ -383,7 +366,6 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 | 🔀 **[Flows](docs/de/flows.md)** | Flows als Daten: das Ordnerformat, Rollen und Modelle, der Katalog und das Überschreiben, einen Flow beitragen und warum ein Tor einem Menschen gehört. |
 | 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
 | 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
-| 🗺️ **[Migrationsplan](docs/de/migration.md)** | Jede Migrationsstufe und jede in der Fusion übernommene oder gebaute Funktion: Herkunft, Stand, Abhängigkeiten und Priorität. Was danach kommt, steht in der [Roadmap](#roadmap). |
 | ⏱️ **[Leistungs-Benchmarks](docs/de/benchmarks.md)** | Chronologische Messungen gegenüber den Vorläufer-Programmen und verbindliche Latenzbudgets. |
 | 📊 **[Benchmark-Matrix](docs/de/benchmarks/matrix.md)** | Open-Source-Matrix über Top-Sprachen hinweg mit Detailberichten pro Sprache und Repository. |
 

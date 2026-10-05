@@ -1362,7 +1362,7 @@ Sets a project up for loomux: it reads what the project is, asks per module
 what to set up, shows every change as a diff and every action by name, and
 writes only what a human approves. Built with stage
 4a-2; on 2026-09-28 a human ran it on a fresh clone of this repository and
-interactively in a host project (see the [migration plan](migration.md)).
+interactively in a host project.
 
 ```bash
 loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]

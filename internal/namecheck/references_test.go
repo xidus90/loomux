@@ -1,4 +1,4 @@
-package plancheck
+package namecheck
 
 import (
 	"errors"

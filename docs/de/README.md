@@ -14,7 +14,6 @@ Willkommen in der Dokumentations-Suite von Loomux. Loomux ist ein vollwertiges E
 | 🔀 **[Flows](flows.md)** | Flows als Daten: das Ordnerformat, Rollen und Modelle, der Katalog und das Überschreiben, einen Flow beitragen und warum ein Tor einem Menschen gehört. |
 | 📖 **[CLI-Referenzhandbuch](cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
 | 🪝 **[Hook-Lebenszyklus & Integration](hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
-| 🗺️ **[Migrationsplan](migration.md)** | Jede Migrationsstufe und jede in der Fusion übernommene oder gebaute Funktion: Herkunft, Stand, Abhängigkeiten und Priorität. Was danach kommt, steht in der [Roadmap](../../README.de.md#roadmap). |
 | ⏱️ **[Leistungs-Benchmarks](benchmarks.md)** | Chronologische Messungen gegenüber den Vorläufer-Programmen und verbindliche Latenzbudgets. |
 | 🌐 **[Open-Source-Matrix](open-source-matrix.md)** | Ein Katalog quelloffener GitHub-Projekte nach Sprache, Framework und Sterne-Klasse. |
 
