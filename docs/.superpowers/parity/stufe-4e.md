@@ -813,6 +813,23 @@ Aufsetzen an `django.db.utils.OperationalError: connection timeout expired`:
 auf `localhost:5432` lauscht kein PostgreSQL. Der Hook arbeitet richtig; der
 Rechner hat keine Testdatenbank laufen. Solange das so bleibt, wird die Lane
 nie grün, die Schonfrist endet nie, und jeder Commit kostet rund 19 Minuten.
+
+### 13. Selbstnutzungsprobe nach dem Aufräum-PR (2026-10-05)
+
+Die letzte offene Fertig-Bedingung der Aufräum-Spec: `brain catalog` und
+`brain status` an der echten Registry, mit `loomux 7.0.1 (beta)` aus
+`%LOCALAPPDATA%\loomux\bin`, am 2026-10-05 um 11:41.
+
+| Befehl | Exit | Zeit | Ergebnis |
+|---|---|---|---|
+| `loomux brain catalog` | 0 | 0,15 s | zehn Bereiche; die `iam_*`-Arbeitsbereiche ohne `[area]` fehlen, wie es sein soll |
+| `loomux brain status` | 0 | 5,2 s | letzter Abgleich 2026-10-05T08:47Z; nur Inhaltshinweise (Links, nicht eingebettete Seiten, gleiche Inhalte unter mehreren Pfaden), kein Fehler |
+
+Kein Bereich meldet ein Altmanifest oder „no manifest found“. In der Registry
+steht noch der Probebereich `project/loomux-area-probe` unter
+`AppData/Local/Temp`; ihn zu entfernen ist ein Schritt für den Menschen.
+Damit sind alle Fertig-Bedingungen erfüllt, und 4e ist ✅. Die Folgezeilen
+der Roadmap hängen nicht an 4e (Aufräum-Spec, „Nicht Teil davon“).
 Ob die Lane eine laufende Datenbank voraussetzt, eine eigene startet oder
 ohne Datenbank laufen soll, entscheidet der Nutzer.
 
