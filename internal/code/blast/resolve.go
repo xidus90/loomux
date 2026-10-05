@@ -23,7 +23,8 @@ import (
 //
 // An empty or unindexed in prefix produces an error (assertPrefixIndexed).
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/traverse.ts (resolveSymbol).
+// Ported from src/graph/traverse.ts (resolveSymbol) (MIT; origin under "Ported
+// sources" in NOTICE.md).
 func Resolve(g *model.Graph, query, in string) ([]*model.Node, error) {
 	if g == nil || query == "" {
 		return nil, nil

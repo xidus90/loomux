@@ -260,7 +260,7 @@ func TestFindCodeWithoutAQueryIsRefused(t *testing.T) {
 	}
 }
 
-func TestFindCodeReachesTheAreaRootWithGraftsDefaults(t *testing.T) {
+func TestFindCodeReachesTheAreaRootWithTheOriginalsDefaults(t *testing.T) {
 	dir, open, _ := registry(t)
 	r := &recorder{}
 	call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_find_code",

@@ -42,7 +42,7 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// _test.go stays in: Graft does not exclude tests, it de-ranks them at
+	// _test.go stays in: the original does not exclude tests, it de-ranks them at
 	// query time, and "where are the tests" is a fair question of the graph.
 	// A .pyi stub stays out: it repeats every definition of its module.
 	want := []string{"main.go", "pkg/helper.go", "pkg/helper_test.go", "tool/run.py"}

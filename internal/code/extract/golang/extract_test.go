@@ -75,8 +75,8 @@ func TestFileEmitsOneNodePerDefinitionShape(t *testing.T) {
 	if nodeByID(r, "pkg/shapes.go#First") == nil || nodeByID(r, "pkg/shapes.go#Second") == nil {
 		t.Error("a grouped type declaration must yield one node per name")
 	}
-	// No constants, no variables. Graft emits none for Go, and a const block
-	// reaches a query through the file node's residual text instead.
+	// No constants, no variables. The original emits none for Go, and a const
+	// block reaches a query through the file node's residual text instead.
 	for _, n := range r.Nodes {
 		if n.Kind == "const" || n.Kind == "var" {
 			t.Errorf("node %q: this extractor emits no %s nodes", n.ID, n.Kind)
@@ -153,7 +153,7 @@ func TestFileCutsASignatureAtTheHeader(t *testing.T) {
 	cases := map[model.NodeID]string{
 		"pkg/shapes.go#Exported":  "func Exported()",
 		"pkg/shapes.go#User.Save": "func (u *User) Save() error",
-		// Graft's own code would cut a struct down to the bare name here: its
+		// The original's own code would cut a struct down to the bare name here: its
 		// type_spec starts at the name and the header ends at the `struct`
 		// keyword. Its comment says "where the body opens", which is what this
 		// port writes instead -- see 5.2.1 of the spec.

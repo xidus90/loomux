@@ -33,7 +33,7 @@ func TestTokenizeDropsSingleCharactersAndStopWords(t *testing.T) {
 }
 
 func TestTokenizeIsASCIIOnlyByDesign(t *testing.T) {
-	// Byte-for-byte Graft's regex: the camel split is [a-z0-9][A-Z], the
+	// Byte-for-byte the original's regex: the camel split is [a-z0-9][A-Z], the
 	// separator is [^a-z0-9]. unicode.IsUpper would be the nicer Go version and
 	// would produce different tokens than the golden values on an identifier
 	// with an umlaut.

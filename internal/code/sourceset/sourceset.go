@@ -2,18 +2,18 @@
 // metadata a freshness probe needs.
 //
 // It is a package of its own and not a part of the extractor, for the reason
-// Graft gives (src/graph/source-files.ts): the probe has to enumerate exactly
-// the same files as the build, and importing the builder to learn them would
-// tie the hook path to the parser. Two enumerations that can drift are two
-// answers to "did anything change".
+// the original gives (src/graph/source-files.ts): the probe has to enumerate
+// exactly the same files as the build, and importing the builder to learn them
+// would tie the hook path to the parser. Two enumerations that can drift are
+// two answers to "did anything change".
 //
 // The same reason keeps the list of extensions here rather than asking
 // extract/all for it: all imports every language's extractor, and the probe
 // runs on the hook path. The copy cannot drift unnoticed -- all's own test
 // compares its Extensions with this package's.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/source-files.ts and
-// src/ingest/fs.ts.
+// Ported from src/graph/source-files.ts and src/ingest/fs.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package sourceset
 
 import (

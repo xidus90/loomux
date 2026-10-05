@@ -14,7 +14,8 @@ import "github.com/xidus90/loomux/internal/code/model"
 // - start nodes are never reported as hits (even across cycles)
 // - file node start expands to include all symbols contained in that file as seeds
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/traverse.ts (edgeWalk).
+// Ported from src/graph/traverse.ts (edgeWalk) (MIT; origin under "Ported
+// sources" in NOTICE.md).
 func (x *Index) EdgeWalk(start *model.Node, dir Direction, depth Depth) []Hit {
 	if x == nil || start == nil {
 		return nil

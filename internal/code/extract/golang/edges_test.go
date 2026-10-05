@@ -197,7 +197,7 @@ func TestFilePeelsATypeArgumentList(t *testing.T) {
 	}
 }
 
-func TestFileBindsALocalVariableOnlyInTheFourFormsGraftKnows(t *testing.T) {
+func TestFileBindsALocalVariableOnlyInTheFourFormsTheOriginalKnows(t *testing.T) {
 	// var x T, x := T{}, x := &T{}, x := NewT(...) -- and nothing else. The
 	// fourth is a convention, not a resolution. Widening this set widens the
 	// set of call edges and owes its own reason.
@@ -281,7 +281,7 @@ func (i Impl) Read() string { return "" }
 		t.Fatal(err)
 	}
 	// Go has no explicit implements, and an embedded interface is not one
-	// either. Graft emits heritage edges for kind:class and the JVM/Swift
+	// either. The original emits heritage edges for kind:class and the JVM/Swift
 	// types alone, and reference edges only where an import binds a symbol --
 	// a collector it has for TypeScript and PHP, not for Go.
 	for _, e := range r.Edges {
@@ -417,7 +417,7 @@ func TestFileDropsACallOnAComputedReceiver(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Without a receiver type a bare method name says nothing about what it
-	// belongs to. Graft drops it; so does this.
+	// belongs to. The original drops it; so does this.
 	for _, e := range r.Edges {
 		if e.Relation == model.RelationCalls && e.Name == "M" {
 			t.Errorf("a computed receiver must yield no call edge; got %+v", e)

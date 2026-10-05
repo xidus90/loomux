@@ -64,7 +64,7 @@ func (s *scope) lookup(name string) (typ string, ok bool) {
 }
 
 // boundType is the type a right-hand side binds, in exactly the four forms
-// Graft's own Go collector reads (bindings.ts handleGo):
+// the original's own Go collector reads (bindings.ts handleGo):
 //
 //	var x T   /  var x *T   -> T
 //	x := T{}                -> T

@@ -90,10 +90,10 @@ func terms(d Doc) map[string]bool {
 //
 // Recomputing is the whole difference between a filter and a post-filter: a
 // word that is common across the repository and rare inside one subtree has to
-// discriminate inside that subtree. Graft pins this with a test of its own --
-// a term's rank flips relative to another between filtered and unfiltered.
-// The same holds for an area's never globs: a filter applied after scoring
-// would let a refused document shape df and take a place in the limit.
+// discriminate inside that subtree. The original pins this with a test of its
+// own -- a term's rank flips relative to another between filtered and
+// unfiltered. The same holds for an area's never globs: a filter applied after
+// scoring would let a refused document shape df and take a place in the limit.
 //
 // The predicate gets the id and not a path, because a path cannot be cut out
 // of an id: a file may be named "#gen.go" or sit under "dir#1/", and the first

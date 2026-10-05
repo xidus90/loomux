@@ -56,7 +56,7 @@ func TestCollapse(t *testing.T) {
 		t.Error("Collapse(long) must keep the start of the text")
 	}
 	if extract.MaxBodyChars != 5000 {
-		t.Errorf("MaxBodyChars = %d, want Graft's 5000", extract.MaxBodyChars)
+		t.Errorf("MaxBodyChars = %d, want the original's 5000", extract.MaxBodyChars)
 	}
 }
 

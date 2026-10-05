@@ -1,19 +1,20 @@
 // Package resolve turns the raw edges of every extracted file into edges with
 // node ids and a confidence, and drops what stays ambiguous.
 //
-// The two-tier provenance is Graft's (src/graph/resolve.ts):
+// The two-tier provenance is the original's (src/graph/resolve.ts):
 //
 //   - extracted -- the target is certain: a hit in the same file, an import
 //     specifier, structural containment, or a package selector resolved
 //     against the one package it can mean
 //   - inferred  -- a bare name resolved through exactly one match across files
 //
-// Ambiguous means dropped, never guessed. Graft's own header says why: name
-// guessing "halved precision", and one same-named symbol once collected 1040
-// in-edges across 476 files, so every pull request touching it dragged a whole
-// backend into its blast radius.
+// Ambiguous means dropped, never guessed. The original's own header says why:
+// name guessing "halved precision", and one same-named symbol once collected
+// 1040 in-edges across 476 files, so every pull request touching it dragged a
+// whole backend into its blast radius.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/resolve.ts.
+// Ported from src/graph/resolve.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package resolve
 
 import (
@@ -77,7 +78,7 @@ func moduleDirective(body string) (string, bool) {
 // The bool is not decoration: the root package of a root module legitimately
 // lives at "", and "" is also what a caller would use for "not found". Returning
 // both apart is what keeps `import "example.com/repo"` from reading as the
-// standard library. Graft has the same distinction and spells it with a
+// standard library. The original has the same distinction and spells it with a
 // sentinel; in Go the pair is the honest form.
 //
 // The longest module path wins, so a nested module in a monorepo beats its

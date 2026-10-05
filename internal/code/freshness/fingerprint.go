@@ -16,7 +16,8 @@
 // re-extracts and diffs node ids and body hashes. A stat may decide whether a
 // query bothers rebuilding; it may not decide what the rebuild looks at.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/fingerprint.ts.
+// Ported from src/graph/fingerprint.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package freshness
 
 import (
@@ -38,9 +39,10 @@ const recordVersion = 1
 // print is one file's fingerprint: size, modification time in nanoseconds, and
 // the hash of its bytes.
 //
-// mtime is an int64 and stays one all the way through JSON. Graft's field is a
-// JavaScript number and so a double; here that would be a silent loss of
-// precision on a field whose equality decides whether a rebuild happens.
+// mtime is an int64 and stays one all the way through JSON. The original's
+// field is a JavaScript number and so a double; here that would be a silent
+// loss of precision on a field whose equality decides whether a rebuild
+// happens.
 type print struct {
 	Size  int64  `json:"size"`
 	MTime int64  `json:"mtime"`

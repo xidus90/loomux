@@ -98,7 +98,7 @@ func TestGraphBuildWiresACallAcrossPackages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// This is the one place the port goes past Graft, which drops a package
+	// This is the one place the port goes past the original, which drops a package
 	// selector for Go and would leave the call structure to import edges alone.
 	found := false
 	for _, e := range g.Edges {
@@ -266,8 +266,8 @@ func TestGraphCheckReportsAMissingGraphAndPointsAtBuild(t *testing.T) {
 	var out, errOut bytes.Buffer
 
 	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
-	// Graft has no separate code for this, and the pillar-3 spec asks only that
-	// it be reported cleanly as not initialised. A third code would be an
+	// The original has no separate code for this, and the pillar-3 spec asks only
+	// that it be reported cleanly as not initialised. A third code would be an
 	// invention.
 	if code != 1 {
 		t.Fatalf("exit %d, want 1", code)

@@ -4,7 +4,8 @@
 // .gitignore already excludes. The derived sidecars sit beside it in cache/:
 // they are regenerable at any time, the graph is the result.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/write.ts.
+// Ported from src/graph/write.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package store
 
 import (
@@ -35,9 +36,10 @@ func CachePath(root, name string) string {
 // Write serializes the graph, atomically.
 //
 // Temp plus rename, with the pid in the temp name and the temp removed when the
-// write fails. Graft's reasoning holds: a fixed temp name lets a concurrent run
-// write the same scratch file and hand the loser a truncated graph, and a
-// failed rename would leave a full-size orphan nothing ever cleans up.
+// write fails. The original's reasoning holds: a fixed temp name lets a
+// concurrent run write the same scratch file and hand the loser a truncated
+// graph, and a failed rename would leave a full-size orphan nothing ever cleans
+// up.
 //
 // The caller has sorted the graph; this function adds no order of its own, so
 // there is exactly one place where order is decided.

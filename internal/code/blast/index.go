@@ -7,7 +7,8 @@
 // direction, and a callee is no answer to it. Rank asks the other question --
 // understand this area -- and there a callee weighs as much as a caller.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/traverse.ts.
+// Ported from src/graph/traverse.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package blast
 
 import "github.com/xidus90/loomux/internal/code/model"

@@ -3,11 +3,12 @@
 // that work again.
 //
 // Tokenize and Counts live here and not in the asking package, for the reason
-// Graft gives in the same place: the sidecar can only be a correct cache of the
-// query-time arithmetic if both sides call the same function. Two tokenizers
-// that agree today are two tokenizers.
+// the original gives in the same place: the sidecar can only be a correct cache
+// of the query-time arithmetic if both sides call the same function. Two
+// tokenizers that agree today are two tokenizers.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/ask/index-file.ts.
+// Ported from src/ask/index-file.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package lexicon
 
 import (

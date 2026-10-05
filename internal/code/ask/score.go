@@ -5,8 +5,8 @@
 // candidates; the walk over the wiring edges decides which of them the question
 // was actually about, and rescues the helper the question never named.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/ask/ask.ts and
-// src/ask/graphrank.ts.
+// Ported from src/ask/ask.ts and src/ask/graphrank.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package ask
 
 import (

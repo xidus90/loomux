@@ -30,7 +30,7 @@ func danglingGraph(n int) ([]model.NodeID, [][2]int, map[model.NodeID]float64) {
 	return ids, adjPairs, seeds
 }
 
-func graftEdges(ids []model.NodeID, pairs [][2]int) [][3]string {
+func tripleEdges(ids []model.NodeID, pairs [][2]int) [][3]string {
 	edges := make([][3]string, 0, len(pairs))
 	for _, p := range pairs {
 		edges = append(edges, [3]string{string(ids[p[0]]), string(ids[p[1]]), ""})
@@ -42,7 +42,7 @@ func graftEdges(ids []model.NodeID, pairs [][2]int) [][3]string {
 // once per step and handed back to the restart distribution in one pass.
 func BenchmarkDanglingPooled(b *testing.B) {
 	ids, pairs, seeds := danglingGraph(20000)
-	g := graphOf(ids, graftEdges(ids, pairs))
+	g := graphOf(ids, tripleEdges(ids, pairs))
 	topo := pagerank.Prepare(g, nil)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

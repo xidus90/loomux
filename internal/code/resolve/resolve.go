@@ -204,8 +204,8 @@ func (x *repoIndex) resolveEdge(raw extract.RawEdge, mods []Module) (model.Edge,
 // repository.
 //
 // The representative is the lowest id among the package's NON-test files.
-// Graft takes the lowest id outright; in Go that could point an import at
-// `index_test.go`, a file the importer never sees.
+// The original takes the lowest id outright; in Go that could point an import
+// at `index_test.go`, a file the importer never sees.
 func (x *repoIndex) importTarget(spec string, mods []Module) model.NodeID {
 	dir, ok := importDir(spec, mods)
 	if !ok {
@@ -242,11 +242,11 @@ func (x *repoIndex) resolveCall(raw extract.RawEdge, mods []Module) (model.Edge,
 
 // resolveSelector answers `pkg.Fn()` against the one package it can mean.
 //
-// This is where the port goes past Graft, which drops the case for Go. The rule
-// is Graft's own, for a reference with a specifier (resolve.ts:229-237):
-// resolve inside the named target alone, and only when exactly one candidate
-// is there, "so a same-named symbol elsewhere in the repo cannot become a false
-// edge".
+// This is where the port goes past the original, which drops the case for Go.
+// The rule is the original's own, for a reference with a specifier
+// (resolve.ts:229-237): resolve inside the named target alone, and only when
+// exactly one candidate is there, "so a same-named symbol elsewhere in the repo
+// cannot become a false edge".
 //
 // Candidates are functions. A call `pkg.T(x)` on a type is a conversion, and
 // methods are excluded because a package may hold `func New()` and

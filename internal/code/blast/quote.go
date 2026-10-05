@@ -13,7 +13,8 @@ import (
 // Returns the 1-based line number, trimmed line content, and true if found.
 // If the reader fails, target is empty, span is invalid or not found, returns (0, "", false).
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/blast/evidence.ts (referenceLine).
+// Ported from src/blast/evidence.ts (referenceLine) (MIT; origin under "Ported
+// sources" in NOTICE.md).
 func QuoteLine(read func(string) ([]byte, error), path string, span model.Span, targetName string) (int, string, bool) {
 	if read == nil || targetName == "" {
 		return 0, "", false

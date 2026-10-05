@@ -7,8 +7,8 @@ import (
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
-// The walk vectors of this file are ported from trailhq/Graft @ 1e352a3
-// (MIT), test/graph-traverse.test.ts.
+// The walk vectors of this file are ported (see "Ported sources" in NOTICE.md)
+// from test/graph-traverse.test.ts (MIT).
 
 // diamondGraph: A and B both call X, C calls both A and B. Walking incoming
 // edges from X reaches C twice at the same depth.
