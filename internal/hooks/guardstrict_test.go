@@ -30,7 +30,6 @@ func TestStrictModeKnowsLoomuxByItsArguments(t *testing.T) {
 		"doc.exe init":                              "a human runs them",
 		"doc.exe area add":                          "a human runs them",
 		"doc.exe merge-hook install":                "a human runs them",
-		"doc.exe dev switchover prune-hooks":        "a human runs them",
 		// A file named like a word of the shell is a program like any other.
 		"./if config set a b":                 "a human runs them",
 		"./do init":                           "a human runs them",

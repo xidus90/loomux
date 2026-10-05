@@ -588,9 +588,7 @@ armed = [
   `git commit -a`, `--include` und `--amend` stellen scharf.
 - **Wer die Datei anlegt.** `init`, wenn vor dem Lauf weder
   `.loomux/config.toml` noch `.loomux/armed.toml` noch ein pre-commit-Hook von
-  loomux stand (und der Teil `config` gewählt ist); das Umstellungsskript in
-  seinem Konfigurationsschritt, wobei es eine dort stehende Datei behält
-  (`probation: kept, .loomux/armed.toml stands`). **Ein Projekt, in dem loomux schon
+  loomux stand (und der Teil `config` gewählt ist). **Ein Projekt, in dem loomux schon
   eingerichtet ist, mit einer Konfiguration oder dem pre-commit-Hook von
   loomux, bekommt die Schonfrist nur durch `loomux gate disarm --all`, von
   einem Menschen ausgeführt.** `init` legt dort nichts an, auch nicht, wenn es

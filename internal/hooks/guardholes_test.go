@@ -35,7 +35,6 @@ func guardedInside() []string {
 		"loomux config apply",
 		"loomux init",
 		"loomux flow resume 1 --answer y",
-		"loomux dev switchover prune-hooks --file x --match y",
 		"echo x > .loomux/config.toml",
 	}
 }
