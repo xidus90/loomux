@@ -343,10 +343,10 @@ func TestContentTreeInALinkedWorktree(t *testing.T) {
 	}
 }
 
-// The four ways the copy of the index can fail, each made by putting the
+// The three ways the copy of the index can fail, each made by putting the
 // wrong kind of thing where the call expects its own: a file where the
-// scratch directory goes, a directory where the index is read, a directory
-// where the copy is written, and an index of bytes git cannot read.
+// scratch directory goes, a directory where the index is read, and an index
+// of bytes git cannot read.
 func TestContentTreeReportsWhatItCannotCopy(t *testing.T) {
 	t.Run("scratch is a file", func(t *testing.T) {
 		root := repoWithCommit(t)
@@ -374,17 +374,6 @@ func TestContentTreeReportsWhatItCannotCopy(t *testing.T) {
 			t.Fatal("want an error")
 		}
 	})
-	t.Run("the copy is a directory", func(t *testing.T) {
-		root := repoWithCommit(t)
-		scratch := t.TempDir()
-		copied := filepath.Join(scratch, fmt.Sprintf("index-%d", os.Getpid()))
-		if err := os.MkdirAll(copied, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := ContentTree(root, scratch); err == nil {
-			t.Fatal("want an error")
-		}
-	})
 	t.Run("the index is not an index", func(t *testing.T) {
 		root := repoWithCommit(t)
 		if err := os.WriteFile(filepath.Join(root, ".git", "index"), []byte("not an index"), 0o644); err != nil {
@@ -394,6 +383,53 @@ func TestContentTreeReportsWhatItCannotCopy(t *testing.T) {
 			t.Fatal("want an error")
 		}
 	})
+}
+
+// A name of the copy that belongs to one call: a lock git left on the old
+// per-process name, or a copy another call is still using, is not in its way.
+func TestContentTreeKeepsClearOfAnotherCallsCopy(t *testing.T) {
+	root := repoWithCommit(t)
+	scratch := t.TempDir()
+	stale := filepath.Join(scratch, fmt.Sprintf("index-%d.lock", os.Getpid()))
+	if err := os.WriteFile(stale, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tree, err := ContentTree(root, scratch)
+
+	if err != nil {
+		t.Fatalf("ContentTree: %v", err)
+	}
+	if want := mustGit(t, root, "rev-parse", "HEAD^{tree}"); tree != want {
+		t.Fatalf("ContentTree = %q, want %q", tree, want)
+	}
+	left, _ := os.ReadDir(scratch)
+	if len(left) != 1 {
+		t.Fatalf("scratch holds %d entries after the call, want only the stale file", len(left))
+	}
+}
+
+func TestContentTreeReportsAPrivateDirectoryItCannotMake(t *testing.T) {
+	root := repoWithCommit(t)
+	want := errors.New("no room")
+	old := mkdirTemp
+	mkdirTemp = func(string, string) (string, error) { return "", want }
+	defer func() { mkdirTemp = old }()
+
+	if _, err := ContentTree(root, t.TempDir()); !errors.Is(err, want) {
+		t.Fatalf("err = %v, want %v", err, want)
+	}
+}
+
+func TestKeptContentTreeReportsACopyItCannotWrite(t *testing.T) {
+	root := repoWithCommit(t)
+	copied := filepath.Join(root, ".git", fmt.Sprintf("%s%d", KeptIndexPrefix, os.Getpid()))
+	if err := os.MkdirAll(copied, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := KeptContentTree(root); err == nil {
+		t.Fatal("want an error")
+	}
 }
 
 func TestKeptContentTreeLiesInTheGitDir(t *testing.T) {

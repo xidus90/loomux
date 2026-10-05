@@ -230,10 +230,21 @@ func ContentTree(root, scratch string) (string, error) {
 	if err := os.MkdirAll(scratch, 0o755); err != nil {
 		return "", err
 	}
-	index := filepath.Join(scratch, fmt.Sprintf("index-%d", os.Getpid()))
-	defer os.Remove(index)
-	return writeContentTree(root, real, index)
+	// A directory of the call's own, not a name from the process ID: two
+	// calls in one process, or a copy a killed one left, would share it, and
+	// git's lock beside the copy would turn one of them away. Git also
+	// refuses an index file that exists but is empty, so the copy itself is
+	// made inside the directory, never handed over as a created file.
+	dir, err := mkdirTemp(scratch, "loomux-tree-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(dir)
+	return writeContentTree(root, real, filepath.Join(dir, "index"))
 }
+
+// mkdirTemp is the seam a test uses to make the private directory fail.
+var mkdirTemp = os.MkdirTemp
 
 // KeptIndexPrefix begins the name of every kept copy of the index; the
 // process that made one follows it.
