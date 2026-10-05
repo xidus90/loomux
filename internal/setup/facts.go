@@ -79,7 +79,8 @@ type Facts struct {
 	// installed binary as an unquoted %LOCALAPPDATA% path, since agy breaks a
 	// quoted one, and cmd.exe would split that path there.
 	LocalAppDataSpaced bool
-	// Version is the running init's own version, cli.Version.
+	// Version is what the running init reports, cli's bareVersion: the number,
+	// with " (beta)" where its channel is one.
 	Version string
 	// Installed is the version the installed binary names with --version,
 	// "" when it is not there or names none. Antigravity's entries call it,
@@ -95,7 +96,8 @@ type Facts struct {
 
 // Running is what Gather is told about the init that runs it.
 type Running struct {
-	// Version is cli.Version; setup may not import cli.
+	// Version is what the init reports (cli's bareVersion); setup may not
+	// import cli.
 	Version string
 	// VersionOf is what the binary at path names with --version, or "".
 	VersionOf func(path string) string

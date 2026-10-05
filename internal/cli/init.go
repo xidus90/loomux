@@ -203,7 +203,7 @@ func initCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 2
 	}
 	home, _ := os.UserHomeDir()
-	facts, err := setup.Gather(root, home, setup.Running{Version: Version, VersionOf: binaryVersion}, gitFacts)
+	facts, err := setup.Gather(root, home, setup.Running{Version: bareVersion(), VersionOf: binaryVersion}, gitFacts)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux init: %v\n", err)
 		// A file init has to merge and cannot read stops it as a plan

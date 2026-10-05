@@ -2,50 +2,137 @@ package selfupdate
 
 import "testing"
 
-func TestNewer(t *testing.T) {
+func TestParseVersion(t *testing.T) {
 	for _, c := range []struct {
-		tag, running string
-		want         bool
+		in   string
+		want version
+		ok   bool
 	}{
-		{"v2.8.0", "2.7.0", true},
-		{"2.8.0", "2.7.0", true},
-		{"v10.0.0", "9.9.9", true},
-		{"v2.7.0", "2.7.0", false},
-		{"v2.6.9", "2.7.0", false},
-		{"v2.8.0-rc1", "2.7.0", false},
-		{"v2.8", "2.7.0", false},
-		{"v2.08.0", "2.7.0", false},
-		{"v-1.0.0", "0.0.0", false},
-		{"v2.8.0", "0.0.0-dev", false},
+		{"1.2.3", version{num: [3]int{1, 2, 3}}, true},
+		{"v1.2.3", version{num: [3]int{1, 2, 3}}, true},
+		{"1.2.3-beta.4", version{num: [3]int{1, 2, 3}, beta: 4}, true},
+		{"1.2.3-beta.10", version{num: [3]int{1, 2, 3}, beta: 10}, true},
+		{"1.2.3-beta.0", version{}, false},
+		{"1.2.3-beta.-1", version{}, false},
+		{"1.2.3-4", version{}, false},
+		{"1.2.3-beta.04", version{}, false},
+		{"1.2.3-beta", version{}, false},
+		{"1.2.3-rc1", version{}, false},
+		{"0.0.0-dev", version{}, false},
+		{"1.02.3", version{}, false},
+		{"1.2", version{}, false},
+		{"", version{}, false},
 	} {
-		if got := Newer(c.tag, c.running); got != c.want {
-			t.Errorf("Newer(%q, %q) = %v, want %v", c.tag, c.running, got, c.want)
+		got, ok := parseVersion(c.in)
+		if ok != c.ok || (ok && got != c.want) {
+			t.Errorf("parseVersion(%q) = %+v, %v; want %+v, %v", c.in, got, ok, c.want, c.ok)
 		}
 	}
 }
 
-// AtLeast is no negation of Newer: a side that does not parse makes it false
-// as well, so a guess never passes for a version high enough.
+func TestParseReportedKnowsTheOldCount(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want version
+		ok   bool
+	}{
+		{"7.2.0 (beta)", version{old: true, num: [3]int{7, 2, 0}}, true},
+		{"7.2.0", version{num: [3]int{7, 2, 0}}, true},
+		{"1.1.0-beta.1", version{num: [3]int{1, 1, 0}, beta: 1}, true},
+		{"1.1.0-beta.1 (beta)", version{num: [3]int{1, 1, 0}, beta: 1}, true},
+		{"7.2.0 (nightly)", version{}, false},
+		{"7.2.0 (beta) x", version{}, false},
+		{"0.0.0-dev", version{}, false},
+	} {
+		got, ok := parseReported(c.in)
+		if ok != c.ok || (ok && got != c.want) {
+			t.Errorf("parseReported(%q) = %+v, %v; want %+v, %v", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+func TestReleaseVersionReadsTheCountFromThePrereleaseFlag(t *testing.T) {
+	for _, c := range []struct {
+		r    Release
+		want version
+	}{
+		{Release{Tag: "v7.1.0", Prerelease: true}, version{old: true, num: [3]int{7, 1, 0}}},
+		{Release{Tag: "v1.0.0"}, version{num: [3]int{1, 0, 0}}},
+		{Release{Tag: "v1.1.0-beta.2", Prerelease: true}, version{num: [3]int{1, 1, 0}, beta: 2}},
+	} {
+		if got, ok := releaseVersion(c.r); !ok || got != c.want {
+			t.Errorf("releaseVersion(%+v) = %+v, %v; want %+v", c.r, got, ok, c.want)
+		}
+	}
+	if _, ok := releaseVersion(Release{Tag: "nightly"}); ok {
+		t.Error("nightly read as a version")
+	}
+}
+
+func TestLessOrdersBothCounts(t *testing.T) {
+	ordered := []string{"7.1.0 (beta)", "7.2.0 (beta)", "1.0.0", "1.1.0-beta.2", "1.1.0-beta.10", "1.1.0", "1.1.1", "2.0.0"}
+	for i := range ordered {
+		for j := range ordered {
+			a, _ := parseReported(ordered[i])
+			b, _ := parseReported(ordered[j])
+			if got := a.less(b); got != (i < j) {
+				t.Errorf("%s < %s = %v, want %v", ordered[i], ordered[j], got, i < j)
+			}
+		}
+	}
+}
+
+func TestNewer(t *testing.T) {
+	for _, c := range []struct {
+		r       Release
+		running string
+		want    bool
+	}{
+		{Release{Tag: "v2.8.0", Prerelease: true}, "2.7.0 (beta)", true},
+		{Release{Tag: "v2.7.0", Prerelease: true}, "2.7.0 (beta)", false},
+		{Release{Tag: "v1.0.0"}, "7.2.0 (beta)", true},
+		{Release{Tag: "v7.1.0", Prerelease: true}, "1.0.0", false},
+		{Release{Tag: "v1.1.0"}, "1.1.0-beta.3", true},
+		{Release{Tag: "v1.1.0-beta.3", Prerelease: true}, "1.1.0", false},
+		{Release{Tag: "v2.8.0-rc1"}, "2.7.0", false},
+		{Release{Tag: "v2.8.0"}, "0.0.0-dev", false},
+		{Release{Tag: "nightly"}, "7.2.0 (beta)", false},
+	} {
+		if got := Newer(c.r, c.running); got != c.want {
+			t.Errorf("Newer(%+v, %q) = %v, want %v", c.r, c.running, got, c.want)
+		}
+	}
+}
+
 func TestAtLeast(t *testing.T) {
 	for _, c := range []struct {
 		have, want string
 		ok         bool
 	}{
-		{"2.13.0", "2.13.0", true},
-		{"v2.13.1", "2.13.0", true},
-		{"3.0.0", "2.99.99", true},
-		{"2.11.1", "2.13.0", false},
+		{"2.13.0 (beta)", "2.13.0 (beta)", true},
+		{"2.11.1 (beta)", "2.13.0 (beta)", false},
+		{"7.2.0 (beta)", "1.0.0", false},
+		{"1.0.0", "7.2.0 (beta)", true},
+		{"1.1.0-beta.1", "1.1.0", false},
 		{"", "2.13.0", false},
+		{"", "7.2.0 (beta)", false},
 		{"2.13.0", "0.0.0-dev", false},
-		{"2.13.0-rc1", "2.13.0", false},
 	} {
 		if got := AtLeast(c.have, c.want); got != c.ok {
 			t.Errorf("AtLeast(%q, %q) = %v, want %v", c.have, c.want, got, c.ok)
 		}
 	}
-	for s, want := range map[string]bool{"2.13.0": true, "v1.0.0": true, DevVersion: false, "": false} {
+	for s, want := range map[string]bool{"2.13.0": true, "7.2.0 (beta)": true, "1.1.0-beta.1": true, DevVersion: false, "": false} {
 		if got := IsVersion(s); got != want {
 			t.Errorf("IsVersion(%q) = %v, want %v", s, got, want)
+		}
+	}
+}
+
+func TestReported(t *testing.T) {
+	for _, c := range [][3]string{{"7.2.0", "beta", "7.2.0 (beta)"}, {"1.0.0", "", "1.0.0"}, {"1.0.0", "stable", "1.0.0"}} {
+		if got := Reported(c[0], c[1]); got != c[2] {
+			t.Errorf("Reported(%q, %q) = %q, want %q", c[0], c[1], got, c[2])
 		}
 	}
 }
