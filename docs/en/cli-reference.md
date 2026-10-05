@@ -678,7 +678,7 @@ Counts the page types across every area with a wiki: per type `<type> [<rank>]: 
 #### `loomux wiki retype --scope <scope> --from <old> --to <new>`
 Renames one page type in one bundle and names every page it wrote. Only the frontmatter's `type:` line changes; a written page is folded to LF throughout. Skipped are scaffold files, broken frontmatter (a duplicate key included), bytes that are not UTF-8, and a quoted or folded value. A target type no rank knows gives a warning on `stderr`, and the run goes on. Exit `1` for an unknown scope, an area without a wiki path, or a read-only area.
 
-### Upkeep: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`, `loomux area check`
+### Upkeep: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
 
 Four commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 3a; a recorded case corpus (`testdata/cases/3a`) holds them to the Python reference. They read from and write to loomux's state directory alone.
 
@@ -722,20 +722,13 @@ Registers a repository as an area and prepares it: the registry entry (written u
 - **Differences from `brain init`**: no `.mcp.json` and no agent hooks (`loomux init`, stage 4); the index run really happens unless `--no-reindex` is given; the branch is written as `[maintenance] branch`, not `merge_branch`; `--privacy` is checked; the first area of a machine needs no registry file prepared by hand. `-y`/`--yes` is accepted and changes nothing.
 - **Exit codes**: `0`, or the exit code of the index run; `1` for a path that is not a directory, an invalid scope, a relative `--wiki`, a refused registry entry, an unreadable file or a failed write; `2` for a usage error, a missing or unknown subcommand (with the usage line) or an unknown `--privacy`.
 
-#### `loomux area check <path>`
-A report on the area manifests of one directory, for whoever carries the content of an old `.ultra-brain/config.toml` or `.brain.toml` over into `.loomux/config.toml`: in a switch-over the agent that prepares the new configuration, before the move, and whoever checks the result, after it. Read-only: it writes nothing, and it goes away in stage 4f; the fallbacks to the old names are already gone, so the readers of loomux read `.loomux/config.toml` alone.
-
-- **Files**: `.loomux/config.toml`, `.ultra-brain/config.toml` and `.brain.toml`, in the order the report tries them; a name that is not a regular file is skipped.
-- **Output** on `stdout`: per file one line per key, `<file>: <section.key>  <class>  <hint>`. The class is `read` (the declaration reader reads the key), `elsewhere` (another reader of the same file does, such as `[commit]` or `[verify]`) or `ignored` (no reader reads it, so carrying the file over as it is would drop it without a word; the hint names where it belongs today, when known). A file the declaration reader refuses gives `<file>: refused: <reason>`, one that is not TOML `<file>: refused: not valid TOML: …`, and a `.loomux/config.toml` without `[area]` (policy only) `<file>: no [area], policy only`, which is no finding. Then `chosen: <file>`, the file the reader takes today (`chosen: none` when there is none), and `<file>: shadowed` for every other file that carries an `[area]`.
-- **Exit codes**: `0` when every key is read or elsewhere and no file is refused; `1` for an ignored key, a refused file or no manifest at all; `2` for a usage error (no path, more than one, or a path that is not a directory).
-
 ### Intake: `loomux convert`, `loomux fetch`
 
 Two commands of ultra-brain's `brain` CLI, top-level commands of loomux since stage 4d; a recorded case corpus (`testdata/cases/4d`, 29 cases) holds `convert` to the Python reference, and a recording of Poppler's own output holds the PDF path to the real tool. Both write into an area's inbox, the directory its manifest names as `[layout] inbox`, relative to the area's path.
 
 - **A human's commands**: the guard refuses both to an agent, since a write there is one the write barrier keeps from agents (see [`hook pre-tool-use`](#loomux-hook-pre-tool-use)); only a lone `--help` or `-h` passes.
 - **Brain module**: with `[modules] brain = false` in the project found upward from the working directory, both print `loomux <command>: the brain module is off in <file> ([modules] brain = false)` and exit `1` before anything is read. Outside a project nothing is switched off.
-- **Environment**: the registry and the area declarations come from `LOOMUX_STATE_DIR`, as for [upkeep](#upkeep-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add-loomux-area-check). `--state-dir` and `--channel`, which the reference accepts and does not use, are unknown flags (exit `2`).
+- **Environment**: the registry and the area declarations come from `LOOMUX_STATE_DIR`, as for [upkeep](#upkeep-loomux-reindex-loomux-embed-loomux-reconcile-loomux-area-add). `--state-dir` and `--channel`, which the reference accepts and does not use, are unknown flags (exit `2`).
 - **External programs**: both are looked up on `PATH` and never installed: `pdftotext` from Poppler (`winget install --id oschwartz10612.Poppler -e`) and `yt-dlp` (`winget install --id yt-dlp.yt-dlp -e`). A missing one is named with that command.
 
 #### `loomux convert [<file>]`

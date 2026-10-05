@@ -681,3 +681,10 @@ func TestAreaWithoutAKnownSubcommandIsAUsageError(t *testing.T) {
 		}
 	}
 }
+
+func TestAreaCheckIsGone(t *testing.T) {
+	code, out, errOut := run("area", "check", t.TempDir())
+	if code != 2 || out != "" || !strings.HasPrefix(errOut, "usage: loomux area add") || strings.Contains(errOut, "check") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}

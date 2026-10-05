@@ -177,7 +177,6 @@ under "Reihenfolge der offenen Stufen" (1 first); the open migration stage
 | **A repository root as the wiki** | `[layout] wiki` refuses the root of a repository, so a wiki repository such as a pure wiki project has no wiki lane | 4e follow-up | — | — |
 | **`dev bench cases` without a hook** | `dev bench cases` refuses a `settings.json` without hooks instead of writing only the extra cases | 4e follow-up | — | — |
 | **An unreadable area declaration** | `ReadAreaDeclaration` takes any failure to stat `.loomux/config.toml` (a permission error, a directory under that name) as a missing file, so the tolerant readers leave such an area out without a word instead of reporting it | 4e follow-up | — | — |
-| **The hint beside a declaration without `[area]`** | A `.loomux/config.toml` without `[area]` next to an old `.brain.toml` or `.ultra-brain/config.toml` is answered with `ErrNoArea` and no pointer to `loomux area check`, so the declaration left in the old manifest is dropped silently | 4e follow-up | — | — |
 | **Register revisions only from review** | The index run writes only births and renames into `_identities.tsv` and no longer raises the revision on every hash change, so two machines with the same history write the same rows into a versioned register | 4e follow-up | — | — |
 | **Register ids that are never removed** | `_identities.tsv` keeps every `doc_id`: aliases for a path, a tombstone for a file that is gone, `merge=union` for two branches; today a duplicate path is overwritten silently and a deleted file loses its row | 4e follow-up | — | — |
 | **`reindex` from a linked worktree** | `reindex` resolves the area of a linked worktree through the common git directory and writes only that branch's register; today it always indexes the registered path | 4e follow-up | Register ids that are never removed | — |
@@ -245,7 +244,6 @@ loomux reindex [--registry P]       # reconcile first, then rebuild every area's
 loomux embed [--registry P]         # generate the vectors reindex leaves pending (needs qmd on PATH)
 loomux reconcile                    # open review cases for changed sources and landed merges; a case is not a failure
 loomux area add [--path P] [--scope S]  # register a repository as an area, scaffold its wiki and index it (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
-loomux area check <path>                # read-only: what the readers do with each key of an old area manifest
 loomux merge-hook install|status|remove  # the post-merge hook of every area whose manifest says [maintenance] on_merge = true; it calls `loomux merge-hook record`, which notes the merge for reconcile; not yet in use on a host
 loomux cases                        # list the cases waiting in the review centre; a case is not a failure
 loomux case <id> [--package]        # show a case with its package and proposal; withheld for local_only until --package

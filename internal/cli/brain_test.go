@@ -488,19 +488,3 @@ func TestBrainRuntimeErrorsWriteOnlyTheErrorLine(t *testing.T) {
 		}
 	}
 }
-
-// A registered area that still carries only an old manifest is refused with
-// the new reader's error, and the error says where the old one lies and which
-// command shows what to carry over.
-func TestBrainNamesAnOldManifestBesideTheMissingOne(t *testing.T) {
-	w := brainWorld(t, "", map[string]string{"index.md": "# project/a\n"})
-	if err := os.Remove(filepath.Join(w.area, ".loomux", "config.toml")); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, filepath.Join(w.area, ".brain.toml"), "[area]\nscope = \"project/a\"\n")
-	code, out, errOut := run("brain", "catalog", "--scope", "all")
-	want := "an old manifest lies there (.brain.toml): `loomux area check " + filepath.ToSlash(w.area) + "` shows what to carry over"
-	if code != 1 || out != "" || !strings.Contains(errOut, want) {
-		t.Fatalf("code %d\nout %q\nerr %q", code, out, errOut)
-	}
-}

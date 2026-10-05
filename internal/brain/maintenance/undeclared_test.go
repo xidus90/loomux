@@ -3,7 +3,6 @@ package maintenance
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/config"
@@ -43,19 +42,5 @@ func TestManifestsLeavesOutAWorkspaceThatDeclaresNoArea(t *testing.T) {
 	got, err := Manifests(areas, config.ArtifactLookup{Primary: t.TempDir()})
 	if err != nil || len(got) != 1 || got["project/declared"] == nil {
 		t.Fatalf("got %v, %v", got, err)
-	}
-}
-
-// An area that still carries only an old manifest stops Manifests with the
-// hint instead of being left out.
-func TestManifestsRefusesAnAreaWithOnlyAnOldManifest(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".brain.toml"), []byte("[area]\nscope = \"project/p\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	areas := []config.Area{{Scope: "project/p", Path: dir}}
-	got, err := Manifests(areas, config.ArtifactLookup{Primary: t.TempDir()})
-	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") {
-		t.Fatalf("got %v, %v; want the old-manifest hint", got, err)
 	}
 }

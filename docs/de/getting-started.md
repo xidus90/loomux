@@ -202,10 +202,9 @@ never = ["privat/**"]
   lesen das Manifest jedes registrierten Bereichs, bevor sie `--scope` ansehen;
   ein Bereich ohne Erklärung lässt also auch Aufrufe über alle anderen
   scheitern; nur ein Eintrag mit `workspace = true` ohne Erklärung wird still
-  übersprungen. Eine `.loomux/config.toml` ohne `[area]` zählt als keine; ein Bereich, der
-  nur noch `.ultra-brain/config.toml` oder `.brain.toml` trägt, wird abgelehnt,
-  und die Meldung nennt die Altdatei und `loomux area check <pfad>`, das zeigt,
-  was nach `.loomux/config.toml` zu übertragen ist.
+  übersprungen. Eine `.loomux/config.toml` ohne `[area]` zählt als keine, und ebenso
+  ein Bereich, dessen Verzeichnis keine `.loomux/config.toml` hat, was sonst
+  dort liegt.
   Die Schreibschranke stört das nicht: dort ist es normal, einen Bereich vor
   seinem Manifest zu registrieren.
 - **Jeder Schreibaufruf wird mit `loomux cannot read the registry, so it
