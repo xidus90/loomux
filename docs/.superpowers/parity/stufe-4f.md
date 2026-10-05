@@ -262,6 +262,76 @@ Vorschlag: Je Repo ein `git bundle --all` samt einem Archiv der
 ungetrackten Dateien, abgelegt dort, wo #24 (e) die Aufzeichnungen sichert
 (Tag oder Release-Anhang). Das gehört vor jedes Löschen eines Ursprungsrepos.
 
+## 4. Vor PR B
+
+Proben vom 2026-10-05, Zweig `refactor/drop-predecessor-references`, vor dem
+Löschen der Verweise. Sie lesen nur; die Registry ist die echte dieser
+Maschine, geschrieben wird dort nichts.
+
+### Registry
+
+Es gilt `$LOCALAPPDATA/loomux/registry.toml`, also
+`C:\Users\micro\AppData\Local/loomux/registry.toml`: `LOOMUX_STATE_DIR` ist
+nicht gesetzt, und `defaultStateDir` (`internal/config/registry.go:229`) bildet
+unter Windows `%LOCALAPPDATA%\loomux`.
+
+Befehl: `ls -la "$REG"; cat "$REG"` mit
+`REG="${LOOMUX_STATE_DIR:-$LOCALAPPDATA/loomux}/registry.toml"`. Die Datei hat
+1816 Byte und zwölf Einträge `[[area]]`; die Pfade stehen in der Tabelle
+darunter, wie die Registry sie schreibt.
+
+### Bereiche
+
+Befehl: ein Skript, das jede Zeile `path = "…"` der Registry liest und je Pfad
+prüft, ob `.loomux/config.toml` mit einer Zeile `[area]` da ist, ob eine
+`.brain.toml` liegt und ob es einen Ordner `.ultra-brain/` gibt (mit Zahl der
+`*.md` darin; `find "$p/.ultra-brain" -name '*.md' | wc -l`).
+
+| Pfad | `[area]` in `.loomux/config.toml` | `.brain.toml` | `.ultra-brain/` |
+|---|---|---|---|
+| `brain-knowledge/92 Engineering/craft` | ja | nein | nein |
+| `brain-knowledge/92 Engineering/python` | ja | nein | nein |
+| `brain-knowledge/91 Projekte` | ja | nein | nein |
+| `brain-knowledge` | ja | nein | nein |
+| `D:/GitHub/classic-game-bench` | ja | nein | nein |
+| `ecoflow` | ja | nein | nein |
+| `iam_wiki` | ja | nein | nein |
+| `loomux` | ja | nein | nein |
+| `space` | ja | nein | nein |
+| `iam_backend` | nein, Arbeitsbereich (`workspace = true`) | nein | nein |
+| `iam_frontend` | nein, Arbeitsbereich (`workspace = true`) | nein | nein |
+| `iam_workers` | nein, Arbeitsbereich (`workspace = true`) | nein | nein |
+
+(Pfade unter `C:/Users/micro/Documents/#GIT/`, wo nichts anderes steht.)
+
+Die drei Bereiche ohne `[area]` sind genau die drei Einträge der Registry, die
+`workspace = true` tragen und kein `wiki`; ihre `.loomux/config.toml` hat
+`[modules]`, `[guard]`, `[commit]`, `[maintenance]`, `[verify]` (Befehl:
+`grep -n '^\[' <pfad>/.loomux/config.toml`). Die übrigen Arbeitsbereiche
+(`classic-game-bench`, `ecoflow`, `loomux`, `space`) tragen neben
+`workspace = true` ein `wiki` und `[area]`. Kein Bereich hat ein Altmanifest
+ohne `[area]`, keiner eine `.brain.toml`, keiner einen Ordner `.ultra-brain/`.
+Die Vorbedingung der Spec vor dem Merge ist erfüllt: Nach dem Löschen der
+Altmanifest-Leser wird kein registrierter Bereich still manifestlos, und kein
+Bereich bringt `*.md` unter `.ultra-brain/` zum Indexieren mit.
+
+### `reconcile` mit unerwartetem Argument
+
+`reconcileCommand` (`internal/cli/maintenance.go`) prüft mit `refusesArguments`
+vor jedem Zugriff auf den Zustand. Die Probe lief trotzdem gegen einen leeren
+Zustandsordner (`LOOMUX_STATE_DIR` auf einen frischen Scratch-Ordner).
+
+Befehl: `LOOMUX_STATE_DIR="$SCRATCH/t1-state" go run ./cmd/loomux reconcile unexpected-arg`
+gab auf stderr `loomux reconcile: unrecognized arguments: unexpected-arg` und
+`exit status 2`; `go run` selbst meldet dabei Exit 1 und gibt den Code des
+Programms nur als Text weiter. Darum noch einmal mit dem gebauten Programm:
+`go build -o "$SCRATCH/loomux-t1.exe" ./cmd/loomux`, dann
+`LOOMUX_STATE_DIR="$SCRATCH/t1-state" "$SCRATCH/loomux-t1.exe" reconcile unexpected-arg`:
+dieselbe Meldung, Exit 2. `ls -A "$SCRATCH/t1-state" | wc -l` gab 0: der
+Zustandsordner blieb leer. Das gilt für den Fall des Korpus von
+`claude/scheibe-9b` (#32): ein unerwartetes Argument wird verweigert, bevor
+der Zustand berührt wird.
+
 ## Anhang: Commits der Seitenzweige und ihre Zuordnung
 
 Gelesen mit `git log --format="%h %s" master..<zweig>`. Thema für Thema
