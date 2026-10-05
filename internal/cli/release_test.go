@@ -45,6 +45,21 @@ func TestDevReleaseNextVersion(t *testing.T) {
 	}
 }
 
+func TestDevReleaseNextBeta(t *testing.T) {
+	if code, out, _ := runIn("v1.0.0\nv1.1.0-beta.1\n", "dev", "release", "next-beta", "--bump", "minor"); code != 0 || out != "1.1.0-beta.2\n" {
+		t.Fatalf("next-beta = %d %q", code, out)
+	}
+	if code, _, errs := run("dev", "release", "next-beta", "--bump", "none"); code != 2 || !strings.Contains(errs, "loomux dev release next-beta: bump must be major, minor or patch") {
+		t.Fatalf("bad bump = %d %q", code, errs)
+	}
+	if code, _, _ := run("dev", "release", "next-beta", "--bump", "patch", "--tags", filepath.Join(t.TempDir(), "missing")); code != 2 {
+		t.Fatalf("missing tag file = %d", code)
+	}
+	if code, _, errs := run("dev", "release", "next-beta", "--bogus"); code != 2 || !strings.Contains(errs, "dev release next-beta") {
+		t.Fatalf("unknown flag = %d %q", code, errs)
+	}
+}
+
 func TestDevReleaseParseBody(t *testing.T) {
 	body := "## Changelog\n### Fixed\n- x\n"
 	code, out, _ := runIn(body, "dev", "release", "parse-body", "--labels", "release:patch")

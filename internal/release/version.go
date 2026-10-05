@@ -57,6 +57,32 @@ func NextVersion(tags []string, bump string) (string, error) {
 	return fmt.Sprintf("%d.%d.%d", best[0], best[1], best[2]), nil
 }
 
+// betaPattern matches a beta tag of the new count: vX.Y.Z-beta.N, N without
+// a leading zero. Compiled on first use like tagPattern.
+var betaPattern = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`^v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-beta\.([1-9][0-9]*)$`)
+})
+
+// NextBeta is the next beta towards the release NextVersion would cut: its
+// version with -beta.N, N one past the highest beta of that version.
+func NextBeta(tags []string, bump string) (string, error) {
+	base, err := NextVersion(tags, bump)
+	if err != nil {
+		return "", err
+	}
+	n := 0
+	for _, tag := range tags {
+		m := betaPattern().FindStringSubmatch(tag)
+		if m == nil || m[1] != base {
+			continue
+		}
+		if k, err := strconv.Atoi(m[2]); err == nil && k > n {
+			n = k
+		}
+	}
+	return fmt.Sprintf("%s-beta.%d", base, n+1), nil
+}
+
 func less(a, b [3]int) bool {
 	for i := range a {
 		if a[i] != b[i] {

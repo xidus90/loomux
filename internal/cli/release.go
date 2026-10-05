@@ -17,6 +17,7 @@ var releaseGo release.GoBuild = release.ExecGoBuild
 var releaseCommands = map[string]command{
 	"build":            devReleaseBuild,
 	"changelog-insert": devReleaseChangelog,
+	"next-beta":        devReleaseNextBeta,
 	"next-version":     devReleaseNextVersion,
 	"parse-body":       devReleaseParseBody,
 }
@@ -59,6 +60,26 @@ func devReleaseNextVersion(args []string, stdin io.Reader, stdout, stderr io.Wri
 		}
 	}
 	fmt.Fprintf(stderr, "loomux dev release next-version: %v\n", err)
+	return 2
+}
+
+func devReleaseNextBeta(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev release next-beta", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	bump := fs.String("bump", "", "major, minor or patch")
+	tags := fs.String("tags", "-", "file with one tag per line, - for stdin")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	data, err := readInput(*tags, stdin)
+	if err == nil {
+		var v string
+		if v, err = release.NextBeta(strings.Fields(string(data)), *bump); err == nil {
+			fmt.Fprintln(stdout, v)
+			return 0
+		}
+	}
+	fmt.Fprintf(stderr, "loomux dev release next-beta: %v\n", err)
 	return 2
 }
 
