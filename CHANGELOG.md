@@ -4,6 +4,13 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [9.0.0] - 2026-10-05
+
+<https://github.com/xidus90/loomux/pull/83>
+
+### Removed
+- `loomux dev import-cases`, `loomux dev record-case` and `loomux dev record-mcp-case`; the recorded cases they made and translated are in the archive release `archive/parity-recordings`.
+
 ## [8.0.0] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/82>
