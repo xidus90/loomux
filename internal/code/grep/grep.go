@@ -53,7 +53,8 @@ type FileReader func(path string) ([]byte, error)
 // Matches are capped at 160 runes per line, grouped by enclosing symbol
 // (via model.Enclosing), and ranked stably by inDegree descending then path ascending.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/grep.ts.
+// Ported from src/graph/grep.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan, pattern string, opts Options, read FileReader) (Result, error) {
 	if pattern == "" {
 		return Result{}, fmt.Errorf("empty search pattern")

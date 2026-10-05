@@ -84,7 +84,8 @@ func langFromPath(p string) string {
 // Refines monolith directories taking > 60% of files one segment deeper.
 // Ranks hubs and hotspots by inDegree descending, ties by name then path.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/map.ts.
+// Ported from src/graph/map.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 func Build(g *model.Graph, x *blast.Index, opts Options) RepoMap {
 	if g == nil {
 		return RepoMap{}

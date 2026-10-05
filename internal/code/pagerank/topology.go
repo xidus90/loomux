@@ -10,7 +10,8 @@
 // ways along one call. "Who breaks if this changes" is the other question, and
 // that one has a direction.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/ask/graphrank.ts.
+// Ported from src/ask/graphrank.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package pagerank
 
 import "github.com/xidus90/loomux/internal/code/model"

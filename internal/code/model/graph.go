@@ -5,7 +5,8 @@
 // A model of its own rather than decoding into a map: a field the extractor
 // renames would otherwise reach a caller unnoticed.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/types.ts.
+// Ported from src/graph/types.ts (MIT; origin under
+// "Ported sources" in NOTICE.md).
 package model
 
 import (

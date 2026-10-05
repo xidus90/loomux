@@ -37,8 +37,8 @@ func FileSpans(g *Graph) map[string][]SymbolSpan {
 }
 
 // Enclosing returns the symbol whose span contains line. When spans nest, the
-// one with the largest start line wins (Graft grep.ts rule: innermost in
-// enclosing sense).
+// one with the largest start line wins (the original's grep.ts rule: innermost
+// in enclosing sense).
 func Enclosing(spans []SymbolSpan, line int) *Node {
 	var best *Node
 	maxStart := -1
@@ -54,7 +54,7 @@ func Enclosing(spans []SymbolSpan, line int) *Node {
 }
 
 // Innermost returns symbols overlapping [from, to] that contain no other symbol
-// overlapping that range (Graft blast.ts rule).
+// overlapping that range (the original's blast.ts rule).
 func Innermost(spans []SymbolSpan, from, to int) []*Node {
 	var hit []SymbolSpan
 	for _, s := range spans {

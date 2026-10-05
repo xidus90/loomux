@@ -11,11 +11,11 @@ import (
 
 // maxSpanLines caps an inlined excerpt. The reference's figure.
 //
-// There is no crux here, and that is not a gap: Graft's crux is an LLM-chosen
-// excerpt stored on the node (its Tier 2), and this binary has no LLM in the
-// path. The line slice below is Graft's OWN fallback for a node without one,
-// and when a producer for a crux ever exists it takes precedence in exactly
-// this function, with the flags unchanged.
+// There is no crux here, and that is not a gap: the original's crux is an
+// LLM-chosen excerpt stored on the node (its Tier 2), and this binary has no
+// LLM in the path. The line slice below is the original's OWN fallback for a
+// node without one, and when a producer for a crux ever exists it takes
+// precedence in exactly this function, with the flags unchanged.
 const maxSpanLines = 80
 
 // Inline attaches the source of each hit's span.

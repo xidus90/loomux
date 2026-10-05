@@ -37,7 +37,7 @@ func repoRoot(b *testing.B) string {
 // BenchmarkProbe times Probe alone, over this repository's own source files,
 // against a freshness record written for the tree exactly as it stands -- the
 // state right after a `graph build`, where every file is trusted on size and
-// mtime and Probe never has to open one. Reference: trailhq/Graft measures
+// mtime and Probe never has to open one. Reference: the original measures
 // ~3ms for 280 files (src/graph/fingerprint.ts).
 func BenchmarkProbe(b *testing.B) {
 	root := repoRoot(b)

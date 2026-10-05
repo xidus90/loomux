@@ -25,7 +25,7 @@ const (
 	SignalNA Signal = "na"
 )
 
-// The caps on quoted diff lines, Graft's MAX_EVIDENCE and MAX_LINES.
+// The caps on quoted diff lines, the original's MAX_EVIDENCE and MAX_LINES.
 const (
 	MaxEvidence      = 4
 	MaxEvidenceLines = 6
@@ -75,9 +75,9 @@ type Report struct {
 // the report: they count as changed for the test signal and are neither
 // areas, walked nor quoted.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/blast/blast.ts, with the
-// corrections of the G4 delta: the file node is a seed only when no symbol
-// was hit, and it is walked as itself, not expanded.
+// Ported from src/blast/blast.ts (MIT; origin under "Ported sources" in
+// NOTICE.md), with the corrections of the G4 delta: the file node is a seed
+// only when no symbol was hit, and it is walked as itself, not expanded.
 func Radius(g *model.Graph, x *Index, changed []diff.File, withheld []string, depth Depth) Report {
 	spans := model.FileSpans(g)
 	files := map[string]*model.Node{}

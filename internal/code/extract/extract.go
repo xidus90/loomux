@@ -19,8 +19,8 @@ import (
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
-// MaxBodyChars caps the searchable body. Graft's figure; a definition longer
-// than this is findable by its first 5000 characters or not at all.
+// MaxBodyChars caps the searchable body. The original's figure; a definition
+// longer than this is findable by its first 5000 characters or not at all.
 const MaxBodyChars = 5000
 
 // MintID returns base, or base with the lowest free ordinal appended.

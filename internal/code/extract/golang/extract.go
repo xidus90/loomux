@@ -2,13 +2,15 @@
 //
 // Raw, because a call's target is a name here and not yet a node: resolving it
 // needs every file of the repository, and that is internal/code/resolve's job.
-// The split is Graft's (src/graph/extract.ts against src/graph/resolve.ts) and
-// it is what keeps this package free of any knowledge about the repository.
+// The split is the original's (src/graph/extract.ts against
+// src/graph/resolve.ts) and it is what keeps this package free of any
+// knowledge about the repository.
 //
 // go/parser alone, no go/types: cross-package resolution belongs to the
 // optional --lsp stage against gopls. See section 3.5 of the G2 spec.
 //
-// Ported from trailhq/Graft @ 1e352a3 (MIT), src/graph/extract.ts (describeGo).
+// Ported from src/graph/extract.ts (describeGo) (MIT; origin under "Ported
+// sources" in NOTICE.md).
 package golang
 
 import (
@@ -142,7 +144,7 @@ func declNodes(fset *token.FileSet, rel, source string, decl ast.Decl, minted ma
 		return []model.Node{funcNode(fset, rel, source, d, minted)}
 	case *ast.GenDecl:
 		if d.Tok != token.TYPE {
-			// No const and no var nodes: Graft emits none for Go, and a const
+			// No const and no var nodes: the original emits none for Go, and a const
 			// block reaches a query through the file node's residual instead.
 			return nil
 		}
@@ -198,10 +200,11 @@ func funcNode(fset *token.FileSet, rel, source string, d *ast.FuncDecl, minted m
 
 // typeNode is one TypeSpec: a struct, an interface or a named type.
 //
-// The signature deviates from Graft's code and follows Graft's comment. Its
-// type_spec starts at the NAME and its header ends at the `struct` keyword, so
-// its signature for `type Cache struct { ... }` is "type Cache struct" -- a
-// value no test of the reference pins. See 5.2.1 of the G2 spec.
+// The signature deviates from the original's code and follows the original's
+// comment. The original's type_spec starts at the NAME and its header ends at
+// the `struct` keyword, so its signature for `type Cache struct { ... }` is
+// "type Cache struct" -- a value no test of the reference pins. See 5.2.1 of
+// the G2 spec.
 func typeNode(fset *token.FileSet, rel, source string, ts *ast.TypeSpec, minted map[string]bool) model.Node {
 	kind := model.Kind("type")
 	sig := "type " + extract.Collapse(slice(fset, source, ts.Pos(), ts.End()))
@@ -404,7 +407,7 @@ func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (ex
 	case *ast.SelectorExpr:
 		recv, ok := peelIndex(fn.X).(*ast.Ident)
 		if !ok {
-			// A chained or computed receiver -- `a.b().c()`, `m[k].c()`. Graft
+			// A chained or computed receiver -- `a.b().c()`, `m[k].c()`. The original
 			// drops these too: without a receiver type a bare method name says
 			// nothing about what it belongs to.
 			return extract.RawEdge{}, false
