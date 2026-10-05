@@ -22,8 +22,6 @@ var AlwaysExcludes = []string{
 	"**/.superpowers/sdd/**",
 	"**/node_modules/**",
 	"**/tests/fixtures/**",
-	"**/.brain.toml",
-	"**/.ultra-brain/**",
 }
 
 // BundleArtifacts defines generated files inside a wiki bundle that must be

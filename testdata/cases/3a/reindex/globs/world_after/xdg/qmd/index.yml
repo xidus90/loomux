@@ -13,8 +13,6 @@ collections:
     - '**/.superpowers/sdd/**'
     - '**/node_modules/**'
     - '**/tests/fixtures/**'
-    - '**/.brain.toml'
-    - '**/.ultra-brain/**'
     - 95 Prüfzentrum/**
     - 95 Prüfzentrum
     path: {{WORLD}}/repo-a
@@ -32,7 +30,5 @@ collections:
     - '**/.superpowers/sdd/**'
     - '**/node_modules/**'
     - '**/tests/fixtures/**'
-    - '**/.brain.toml'
-    - '**/.ultra-brain/**'
     path: {{WORLD}}/repo-b
     pattern: docs/**/*.md

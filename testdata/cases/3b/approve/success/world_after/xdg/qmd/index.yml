@@ -12,8 +12,6 @@ collections:
     - '**/.superpowers/sdd/**'
     - '**/node_modules/**'
     - '**/tests/fixtures/**'
-    - '**/.brain.toml'
-    - '**/.ultra-brain/**'
     - review/**
     - review
     path: {{WORLD}}/repo-a
