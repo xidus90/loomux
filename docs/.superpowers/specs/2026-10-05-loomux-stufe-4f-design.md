@@ -99,8 +99,28 @@ Nachträge in der Fusions-Spec. Kein Code.
 - **(f)** Referenzdoku in `docs/en`, `docs/de` und `docs/wiki`; `benchmarks.md`
   bleibt unverändert (Ausnahme).
 - **(g)** Der Kopf von `AGENTS.md` wird neu gefasst; der Required Notice in
-  `LICENSE.md` zeigt auf `https://github.com/xidus90/loomux`; die zwei Zeilen im
-  Changelog bleiben (Ausnahme).
+  `LICENSE.md` zeigt auf `https://github.com/xidus90/loomux`; die fünf Zeilen im
+  Changelog bleiben (Ausnahme, #34 Weg (a)), benannt nach ihrem Eintrag statt
+  nach Zeilennummer, weil jedes Release die Nummern verschiebt: je eine Zeile
+  in 7.0.1, 7.0.0, 4.2.2, 2.5.0 und 2.3.0.
+- **Aus #32 und #34 (freigegeben 2026-10-05):**
+  - `loomux dev switchover` fällt weg, samt `internal/switchover`, der
+    Wächterregel zu `dev switchover prune-hooks` und den Abschnitten der
+    CLI-Referenz.
+  - Die Marker `ultraloom`/`ulguard` in `gitfiles.RunsAGate` fallen, ebenso
+    die Ausschlüsse `**/.brain.toml` und `**/.ultra-brain/**` in
+    `index.AlwaysExcludes`. Die übersetzten Fälle mit `index.yml` ziehen mit.
+  - Die Vorlage `brain-review/SKILL.md:86` nennt kein `ultra-brain-…` mehr.
+  - `NeighbourWiki` (`internal/detect/edges.go`) wird samt Tests gelöscht.
+  - #15 nennt die Installationsskripte von ultra-brain.
+  - In der Roadmap beider READMEs:
+    - Die Zeile „Register revisions only from review“ bekommt die Regel aus
+      `cdf5dfd`.
+    - Die Zeile W2 nennt Web 7a-2 (`edges-cross.json`) und 7b
+      (Seitenleser, Volltextsuche, Prüfzentrum).
+    - Die Flow-Zeile nennt `run --no-model` als Eingang.
+  - Vor dem Wegfall des Korpus von `claude/scheibe-9b` wird `reconcile` mit
+    einem unerwarteten Argument einmal geprobt (Exit 2).
 - **(i)** Den Kommentar in `.loomux/config.toml` ändert der Agent nicht; er
   legt `loomux config … --propose` vor, ein Mensch wendet an.
 
@@ -118,14 +138,28 @@ würde ein solcher Bereich still manifestlos.
    übergeht ihn (`tagPattern`), und der Neustart löscht ihn nicht. Gepusht
    wird er vom Menschen.
 2. **Entfernen.** `testdata/cases/*-source`, `*-map.toml`, `*-payloads`,
-   `*-worlds`, `internal/dev/importcases` und `loomux dev import-cases`.
+   `*-worlds`, `internal/dev/importcases` und `loomux dev import-cases`,
+   dazu `internal/dev/recordcase` und `loomux dev record-case` (#34), samt
+   der Aufnahmeskripte unter `parity/stufe-*-orakel/`.
+2a. **Sicherung der Ursprungsrepos (#33).** Je Repo ein `git bundle --all`
+   samt einem Archiv der ungetrackten Dateien, als Anhang am selben Archiv
+   wie die Aufzeichnungen. Vorher kopiert PR C die drei ulflow-Pläne nach
+   `plans-ul/` (#32), und die Wurzelquellen `Bauanleitung_Second-Brain.pdf`
+   und `NoteGPT_Transcript…txt` von ultra-brain werden am Inhalt gegen
+   brain-knowledge gehalten; was dort fehlt, legt der Mensch in dessen
+   Eingang. Das Bündel bereitet der Agent vor, das Hochladen führt der
+   Mensch aus.
 3. **Eigene Erwartungen.** Die übersetzten Fälle bleiben, wie sie sind; nur ihre
    `notes.md` werden ohne die Altnamen neu gefasst. Die Wiedergabetests ändern
    sich nicht.
 4. **Tor-Test.** Ein Go-Test (Paket `internal/plancheck`, er hält schon Doku
    gegen die Spec) liest `git ls-files`, greppt nach der Suchliste aus #24 und
-   lässt nur eine feste Liste zu: `docs/{en,de}/benchmarks.md`, die zwei
-   Changelog-Zeilen, `docs/.superpowers/` außer den Archiven, die Archive
+   lässt nur eine feste Liste zu: `docs/{en,de}/benchmarks.md`, die
+   Messchronik `testdata/bench/1a-hooks.json` und
+   `testdata/bench/search/v1/baseline/*`, die fünf Changelog-Zeilen (nach
+   Eintrag, nicht nach Nummer), die
+   Herkunftsspalte von `docs/*/migration.md`, `docs/.superpowers/` außer den
+   Archiven, die Archive
    `specs-ul/`, `specs-ub/`, `plans-ub/`, `plans-ul/`, `bench-ub/` sowie die
    Roadmap- und Planzeilen der laufenden Folgeprojekte (`ulflow`,
    `ultra-brain/web`) bis zu deren Abschluss, und die Testdatei selbst. Jedes
