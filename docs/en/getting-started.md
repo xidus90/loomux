@@ -200,10 +200,9 @@ never = ["private/**"]
   read the manifest of every registered area before they look at `--scope`, so
   one area without a declaration fails calls about all the others; only an
   entry with `workspace = true` and no declaration is skipped silently. A
-  `.loomux/config.toml` without `[area]` counts as none; an area that still
-  carries only `.ultra-brain/config.toml` or `.brain.toml` is refused, and the
-  message names the old file and `loomux area check <path>`, which shows what
-  to carry over into `.loomux/config.toml`. The write
+  `.loomux/config.toml` without `[area]` counts as none, and so does an area
+  whose directory holds no `.loomux/config.toml`, whatever other files lie
+  there. The write
   barrier does not mind: registering an area before its manifest exists is
   normal there.
 - **Every write is refused with `loomux cannot read the registry, so it

@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/config"
@@ -23,19 +22,5 @@ func TestSweepContextTakesAPolicyOnlyConfigAsNoDeclaration(t *testing.T) {
 	ctx, err := sweepContext(area, []config.Area{area}, map[string]bool{}, config.ArtifactLookup{Primary: t.TempDir()})
 	if err != nil || ctx.UntouchedDays != config.DefaultUntouchedDays || len(ctx.DeclaredTypes) != 0 {
 		t.Fatalf("got %+v, %v", ctx, err)
-	}
-}
-
-// An area that still carries only an old manifest stops the sweep with the
-// hint instead of running on the defaults.
-func TestSweepContextRefusesAnOldManifest(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".brain.toml"), []byte("[area]\nscope = \"project/p\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	area := config.Area{Scope: "project/p", Path: dir, WikiPath: dir}
-	_, err := sweepContext(area, []config.Area{area}, map[string]bool{}, config.ArtifactLookup{Primary: t.TempDir()})
-	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") {
-		t.Fatalf("got %v; want the old-manifest hint", err)
 	}
 }

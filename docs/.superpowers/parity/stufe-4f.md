@@ -332,6 +332,77 @@ Zustandsordner blieb leer. Das gilt für den Fall des Korpus von
 `claude/scheibe-9b` (#32): ein unerwartetes Argument wird verweigert, bevor
 der Zustand berührt wird.
 
+### Ein Altmanifest allein antwortet wie kein Manifest (Unit-Probe)
+
+Elf Tests hielten bis dahin fest, dass ein Verzeichnis mit nur `.brain.toml`
+(oder `.ultra-brain/config.toml`) abgelehnt wird und die Meldung `an old
+manifest lies there` trägt. Sie wurden auf die neue Erwartung umgestellt
+(„dieselbe Antwort wie für ein leeres Verzeichnis“), liefen zuerst gegen den
+alten Leser rot und danach, nach dem Wegfall von `OldManifestNames`,
+`ErrOldManifest` und `oldManifestError`, grün. Danach wurden sie gelöscht: Sie
+wiederholen nur den Fall „kein Manifest“, den die Nachbartests halten
+(`…TakesAPolicyOnlyConfigAsNoDeclaration`, `TestReadAreaDeclarationWithoutAFile…`,
+`TestIsUndeclaredTakesExactlyTheTwoAbsences`).
+
+Befehl (RED, vor der Änderung): `go test ./internal/config/ ./internal/brain/...
+./internal/cli/ -run 'Undeclared|OldManifest|Old'`. Jeder der elf war
+`--- FAIL`. Befehl (grün, nach der Änderung): `go test -v -run '<die elf
+Testnamen>'` über die neun Pakete, alle `--- PASS`.
+
+| Aufrufer | Test (gelöscht) | Antwort mit Altmanifest | Ergebnis |
+|---|---|---|---|
+| `config.ReadAreaDeclaration` | `TestReadAreaDeclarationTakesAnOldManifestAsNone` | `<dir>: no manifest found (.loomux\config.toml)`, `IsUndeclared` | wie ein leeres Verzeichnis, grün |
+| `apply.resolve` (Tresor) | `TestResolveTakesAVaultUnderAnOldNameAsNone` (beide Namen) | gleicher Fehlertext wie ohne Datei | wie ein leeres Verzeichnis, grün |
+| `house.hubFolder` | `TestHubFolderTakesAnOldManifestAsNone` | gleiche Antwort wie ohne Datei | wie ein leeres Verzeichnis, grün |
+| `run.areaManifest` | `TestAreaManifestTakesAnOldManifestAsNone` | kein Manifest, kein Befund | wie ein leeres Verzeichnis, grün |
+| `convert.Areas` | `TestAreasTakesAnAreaWithOnlyAnOldManifestAsNone` | Modus `manual_cloud`, kein Manifest | wie ein leeres Verzeichnis, grün |
+| `maintenance.Manifests` | `TestManifestsLeavesOutAnAreaWithOnlyAnOldManifest` | ausgelassen | wie ein leeres Verzeichnis, grün |
+| `privacy.VisibleAreas` | `TestVisibleAreasLeavesOutAWorkspaceWithOnlyAnOldManifest` | Arbeitsbereich ausgelassen | wie ein leeres Verzeichnis, grün |
+| `wiki.DeclaredTypesIn` | `TestDeclaredTypesInTakesAnOldManifestAsNone` | `nil, nil` | wie ein leeres Verzeichnis, grün |
+| `loomux brain catalog` | `TestBrainTakesAnOldManifestAsNone` | Exit 1, `no manifest found (…)` ohne Hinweis | wie ein leeres Verzeichnis, grün |
+| `loomux lint --scope all` | `TestLintPassesOverAWorkspaceWithOnlyAnOldManifest` | Arbeitsbereich still übergangen | wie ein leeres Verzeichnis, grün |
+| `cli.sweepContext` | `TestSweepContextTakesAnOldManifestAsNone` | Vorgaben des Laufs | wie ein leeres Verzeichnis, grün |
+
+### Ein Altmanifest allein, Ende zu Ende über die CLI
+
+Kein Shell-Lauf (der Wächter verweigert `convert` und `area add` aus Bash, und
+eine echte Registry darf nicht entstehen), sondern eine Wegwerf-Testdatei in
+`internal/cli`, die über `run(...)` zwei Welten fährt, je eine Registry mit
+einem Bereich `project/a` (Wiki, `LOOMUX_STATE_DIR` und `XDG_CONFIG_HOME` in
+einem Scratch-Ordner): in der einen liegt nur eine `.brain.toml`, in der
+anderen nichts. Je Befehl wurden Exit, stdout und stderr verglichen, der
+Scratch-Pfad durch `<base>` ersetzt. Die Testdatei wurde danach gelöscht und
+nicht committet.
+
+Befehl: `go test ./internal/cli/ -run OldManifestProbe -v`.
+
+| Befehl | Exit (alt / leer) | stdout | stderr | gleich |
+|---|---|---|---|---|
+| `brain status` | 1 / 1 | leer | `error: <base>/project-a: no manifest found (.loomux\config.toml)` | ja |
+| `brain catalog --scope all` | 1 / 1 | leer | dieselbe Zeile | ja |
+| `brain catalog --scope project/a` | 1 / 1 | leer | dieselbe Zeile | ja |
+| `lint --scope project/a` | 0 / 0 | `project/a`, `no findings`, `no findings` | leer | ja |
+| `lint --scope all` | 0 / 0 | wie oben | leer | ja |
+| `reconcile` | 1 / 1 | leer | `error: no area declares [layout] review; there is nowhere to put a case` | ja |
+
+`convert` ist über den Unit-Test der ersten Tabelle geprobt. Ein Bereich ohne
+Manifest bleibt für die Brain-Leser ein Fehler (wie vor der Änderung für ein
+Verzeichnis ohne jede Datei); neu ist nur, dass die Altdatei daran nichts mehr
+ändert und nicht mehr genannt wird.
+
+### Mutanten des Lesers
+
+Per `go test -overlay` über `./internal/config/ ./internal/brain/...
+./internal/cli/`, nach dem Löschen der elf Tests. Jeder Mutant baut; ein
+unveränderter Kontrolllauf blieb grün (24 Pakete `ok`).
+
+| Mutant | Tötende Zeile |
+|---|---|
+| `IsUndeclared` ohne `\|\| errors.Is(err, ErrNoArea)` | `areadeclaration_test.go:128` (`IsUndeclared(the configuration declares no [area]) = false`), dazu `TestResolveWalksPastAPolicyOnlyConfig` |
+| `IsUndeclared` ohne `errors.Is(err, ErrNoManifest) \|\|` | `areadeclaration_test.go:128` (`IsUndeclared(no manifest found) = false`), dazu `TestApprove…` |
+| `err != nil &&` statt `err != nil \|\|` | Nullzeiger in `TestReadAreaDeclarationWithoutAFileIsErrNoManifestWithoutAHint` (`areadeclaration_test.go:50`) |
+| Zusatz: `info.Mode().IsRegular()` entfernt | `TestReadAreaDeclarationTakesOnlyRegularFiles` (`areadeclaration_test.go:65`) |
+
 ## Anhang: Commits der Seitenzweige und ihre Zuordnung
 
 Gelesen mit `git log --format="%h %s" master..<zweig>`. Thema für Thema

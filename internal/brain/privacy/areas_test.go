@@ -268,18 +268,3 @@ func TestVisibleAreasLeavesOutAWorkspaceWithoutAnyConfigFile(t *testing.T) {
 		t.Fatalf("got %q, %v", scopesOf(got), err)
 	}
 }
-
-// A workspace that still carries only an old manifest is no silent skip: the
-// call stops with the hint, as for any other area.
-func TestVisibleAreasRefusesAWorkspaceWithOnlyAnOldManifest(t *testing.T) {
-	registryDir := workspaceWorld(t, true, "[verify]")
-	ws := filepath.Join(filepath.Dir(registryDir), "workspace")
-	if err := os.Remove(filepath.Join(ws, ".loomux", "config.toml")); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, filepath.Join(ws, ".brain.toml"), "[area]\nscope = \"project/ws\"\n")
-	got, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelLocal)
-	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") || got != nil {
-		t.Fatalf("got %q, %v; want the old-manifest hint", scopesOf(got), err)
-	}
-}

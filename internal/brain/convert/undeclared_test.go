@@ -24,24 +24,6 @@ func TestAreasTakesAPolicyOnlyConfigAsNoDeclaration(t *testing.T) {
 	}
 }
 
-// An area that still carries only an old manifest stops the run with the
-// hint: taken as undeclared, a local_only area would run as manual_cloud.
-func TestAreasRefusesAnAreaWithOnlyAnOldManifest(t *testing.T) {
-	w := newWorld(t)
-	dir := w.area("project/p", "", false)
-	if err := os.WriteFile(filepath.Join(dir, ".brain.toml"), []byte("[area]\nscope = \"project/p\"\n\n[privacy]\nmode = \"local_only\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	registered, err := config.ReadRegistry(w.state)
-	if err != nil {
-		t.Fatal(err)
-	}
-	entries, err := Areas(registered, w.state)
-	if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") {
-		t.Fatalf("got %+v, %v; want the old-manifest hint", entries, err)
-	}
-}
-
 // A workspace that declares no [area] is no brain area: it has no inbox and is
 // no place a note is filed into, so Areas leaves it out. The same entry
 // without `workspace`, and a workspace that declares itself, stay in.

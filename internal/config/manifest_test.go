@@ -474,7 +474,7 @@ func TestAScopeIsFlattenedTheWayTheStateDirectoryIsNamed(t *testing.T) {
 
 // `[check] lanes` is read by nobody, and a manifest that still carries it --
 // as a list or as a table -- reads as one that does not: unknown keys are not
-// judged here. `area check` names the key as ignored.
+// judged here.
 func TestReadManifestPassesOverAnOldCheckLanesKey(t *testing.T) {
 	for _, lanes := range []string{"[check]\nlanes = [\"gofmt\"]\n", "[check.lanes]\ngofmt = \"gofmt -l .\"\n"} {
 		dir := t.TempDir()

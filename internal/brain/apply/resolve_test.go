@@ -117,24 +117,6 @@ func TestResolveRefusesAnUnreadableManifest(t *testing.T) {
 	}
 }
 
-// A vault declares itself under `.loomux/config.toml` alone: one that still
-// carries only an old name is refused with the hint, not walked past.
-func TestResolveRefusesAVaultUnderAnOldName(t *testing.T) {
-	for _, name := range config.OldManifestNames() {
-		t.Run(name, func(t *testing.T) {
-			vault, casePath, areas := newVault(t)
-			if err := os.RemoveAll(filepath.Join(vault, ".loomux")); err != nil {
-				t.Fatal(err)
-			}
-			writeFile(t, filepath.Join(vault, name), vaultManifest(testReview))
-			_, err := resolve(casePath, caseOf("knowledge"), areas)
-			if err == nil || !strings.Contains(err.Error(), "an old manifest lies there") {
-				t.Fatalf("got %v; want the old-manifest hint", err)
-			}
-		})
-	}
-}
-
 // A `.loomux/config.toml` without [area] is policy only and marks no vault:
 // the walk goes on past one between the case and the vault.
 func TestResolveWalksPastAPolicyOnlyConfig(t *testing.T) {

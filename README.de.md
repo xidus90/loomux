@@ -177,7 +177,6 @@ Migrationsstufe 4f hat Priorität 3.
 | **Eine Repo-Wurzel als Wiki** | `[layout] wiki` lehnt die Wurzel eines Repositorys ab; ein Wiki-Repository wie ein reines Wiki-Projekt hat so keine Wiki-Lane | 4e-Folge | — | — |
 | **`dev bench cases` ohne Hook** | `dev bench cases` lehnt eine `settings.json` ohne Hook ab, statt nur die Zusatzfälle zu schreiben | 4e-Folge | — | — |
 | **Eine unlesbare Bereichsdeklaration** | `ReadAreaDeclaration` nimmt jeden Fehler beim `Stat` von `.loomux/config.toml` (fehlende Rechte, ein Ordner unter dem Namen) wie eine fehlende Datei; die toleranten Leser lassen so einen Bereich wortlos aus, statt ihn zu melden | 4e-Folge | — | — |
-| **Der Hinweis neben einer Deklaration ohne `[area]`** | Eine `.loomux/config.toml` ohne `[area]` neben einer alten `.brain.toml` oder `.ultra-brain/config.toml` bekommt `ErrNoArea` ohne Verweis auf `loomux area check`; die im Altmanifest gebliebene Deklaration geht still verloren | 4e-Folge | — | — |
 | **Registerrevisionen nur aus der Prüfung** | Der Indexlauf schreibt nur Neuanlagen und Umbenennungen in `_identities.tsv` und zählt die Revision nicht mehr bei jeder Hashänderung hoch; zwei Rechner mit derselben Geschichte schreiben so dieselben Zeilen in ein versioniertes Register | 4e-Folge | — | — |
 | **Registerkennungen, die nie entfallen** | `_identities.tsv` behält jede `doc_id`: Aliase für einen Pfad, ein Grabstein für eine verschwundene Datei, `merge=union` für zwei Zweige; heute überschreibt ein doppelter Pfad still, und eine gelöschte Datei verliert ihre Zeile | 4e-Folge | — | — |
 | **`reindex` aus einem verknüpften Worktree** | `reindex` findet den Bereich eines verknüpften Worktrees über das gemeinsame Git-Verzeichnis und schreibt nur das Register dieses Zweigs; heute indexiert es immer den registrierten Pfad | 4e-Folge | Registerkennungen, die nie entfallen | — |
@@ -246,7 +245,6 @@ loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph,
 loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
 loomux reconcile                    # Eröffnet Prüffälle für geänderte Quellen und gelandete Merges; ein Fall ist kein Fehlschlag
 loomux area add [--path P] [--scope S]  # Meldet ein Repository als Bereich an, legt sein Wiki an und indiziert es (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
-loomux area check <pfad>                # Nur lesend: was die Leser mit jedem Schlüssel eines alten Bereichsmanifests tun
 loomux merge-hook install|status|remove  # Der post-merge-Hook jedes Bereichs, dessen Manifest [maintenance] on_merge = true sagt; er ruft `loomux merge-hook record`, das den Merge für reconcile vormerkt; noch in keinem Wirt in Gebrauch
 loomux cases                        # Listet die Fälle, die im Prüfzentrum warten; ein Fall ist kein Fehlschlag
 loomux case <id> [--package]        # Zeigt einen Fall mit Paket und Vorschlag; bei local_only zurückgehalten bis --package

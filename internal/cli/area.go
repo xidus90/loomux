@@ -18,8 +18,7 @@ import (
 )
 
 const areaUsage = "usage: loomux area add [--path P] [--scope S] [--wiki W] [--sources S] " +
-	"[--merge-branch B] [--privacy M] [--no-reindex] [-y|--yes]\n" +
-	"       loomux area check <path>"
+	"[--merge-branch B] [--privacy M] [--no-reindex] [-y|--yes]"
 
 // routingHeading opens the routing rule, and its presence alone decides
 // whether the rule is written: a second copy would read as a second,
@@ -50,12 +49,9 @@ zeigen.
 // the write barrier refuse every edit in the repository.
 var privacyModes = []string{"automatic_cloud", "local_only", "manual_cloud"}
 
-// areaCommand is `loomux area`. It has two subcommands, `add` and `check`; `loomux init`
+// areaCommand is `loomux area`. It has one subcommand, `add`; `loomux init`
 // (stage 4) will call it for the half of onboarding that is not the host's.
 func areaCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) > 0 && args[0] == "check" {
-		return areaCheck(args[1:], stdout, stderr)
-	}
 	if len(args) == 0 || args[0] != "add" {
 		fmt.Fprintln(stderr, areaUsage)
 		return 2

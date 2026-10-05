@@ -54,18 +54,6 @@ func TestLintPassesOverAWorkspaceThatDeclaresNoArea(t *testing.T) {
 	}
 }
 
-// A workspace that keeps only an old manifest is not taken as one without
-// [area]: the sweep stops at it with the hint.
-func TestLintStopsAtAWorkspaceWithOnlyAnOldManifest(t *testing.T) {
-	base := t.TempDir()
-	oldWiki, old := checkedArea(t, base, "project/old", "workspace = true\n")
-	writeFile(t, filepath.Join(oldWiki, "..", ".brain.toml"), "[area]\nscope = \"project/old\"\n")
-	checkWorld(t, old)
-	if code, out, errOut := run("lint", "--scope", "all"); code != 1 || out != "" || !strings.Contains(errOut, "an old manifest lies there") {
-		t.Errorf("code %d, out %q, err %q", code, out, errOut)
-	}
-}
-
 // The signpost is not held to link the wiki of a workspace that declares no
 // [area]; an undeclared area that is no workspace it still is.
 func TestLintSparesTheSignpostAWorkspaceThatDeclaresNoArea(t *testing.T) {
