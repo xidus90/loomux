@@ -3,7 +3,7 @@
 // Its own package because more than one hook asks: session-start records the
 // commit a session begins on, the stop gate measures the content tree against
 // it, and the subagent hooks compare the local branches, the remote's refs and
-// the log of what was added. The Python original is src/ultraloom/worktree.py.
+// the log of what was added.
 package gitwork
 
 import (

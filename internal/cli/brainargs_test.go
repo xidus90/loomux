@@ -98,7 +98,7 @@ func TestBrainParseAcceptsWhatArgparseAccepts(t *testing.T) {
 }
 
 // Every message was measured against the reference, as above; top marks the
-// ones brain-mcp reports from its top-level parser.
+// ones the reference reports from its top-level parser.
 func TestBrainParseRefusesWhatArgparseRefuses(t *testing.T) {
 	const channelChoice = "(choose from 'local', 'cloud')"
 	for _, c := range []struct {

@@ -486,7 +486,7 @@ func TestCheckFileFindsTheBundleRootThroughTheDeclaredLayout(t *testing.T) {
 	// The worktree case, and the reason `[layout] wiki` exists: the
 	// registration holds one absolute path per area and a linked
 	// worktree has another, so the root has to come from the repository
-	// itself. ultra-brain's `pkg/guard/guard.go:293` walks the parents for the
+	// itself. The reference's write barrier walks the parents for the
 	// declaration the same way.
 	repo := t.TempDir()
 	t.Setenv(config.StateDirEnv, filepath.Join(repo, "state"))
@@ -612,7 +612,7 @@ func TestCheckFileDoesNotClimbPastADeclarationItCannotUse(t *testing.T) {
 	// A manifest is the statement of the area one stands in. Climbing
 	// past it because it names no `[layout] wiki` would answer with the
 	// area that encloses it -- the containment the write barrier
-	// insists on at ultra-brain's `pkg/guard/guard.go:334`. With no registration to
+	// insists on in the reference. With no registration to
 	// fall back on,
 	// the file's own directory is the answer.
 	repo := t.TempDir()

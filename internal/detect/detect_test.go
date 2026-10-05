@@ -381,9 +381,9 @@ func TestGodotAtTheRootNamesNoDirectory(t *testing.T) {
 	}
 }
 
-// A .loomux/config.toml without a wiki decides, and an old .brain.toml beside
-// it is never read -- or the manifest and an old leftover would answer the
-// same repository differently.
+// A .loomux/config.toml without a wiki decides, and a leftover manifest of an
+// older name beside it is never read -- or the manifest and the leftover would
+// answer the same repository differently.
 func TestLoomuxConfigWinsOverBrainToml(t *testing.T) {
 	facts := Detect(fstest.MapFS{
 		".loomux/config.toml": {Data: []byte("[area]\nscope = \"project/x\"\n")},

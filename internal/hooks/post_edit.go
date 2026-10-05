@@ -265,9 +265,7 @@ func wikiJobs(eff verify.Effective, facts detect.Facts, root, raw string) []veri
 //
 // The answer comes from the resolver the lint itself uses, wiki.Root: the
 // manifest's [layout] wiki, then docs/wiki, then wiki, then a neighbour
-// bundle. What stood here read `bundle` out of ultraloom's
-// .ultraloom/answers.toml line by line -- a file loomux does not write, and a
-// second opinion about the wiki beside the manifest's own.
+// bundle.
 //
 // Detection still answers where wiki.Root found nothing: a project that
 // declares a wiki it has not created yet keeps the place detection named for

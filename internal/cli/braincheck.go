@@ -15,8 +15,8 @@ import (
 )
 
 // brainCheckCommand is `loomux brain check file|bundle|all`, the three widths
-// of the check run. Its reference is the Go binary of ultra-brain, not the
-// Python form, which has no `check`; that is why it stands beside the argparse
+// of the check run. The reference recorded for `check` is a Go binary,
+// because the Python form has no `check`; that is why it stands beside the argparse
 // emulation of the other brain verbs instead of inside it, and why `code`, the
 // fourth width there, is an unknown width here: the check chain of
 // `loomux check` owns the code lanes.

@@ -6,9 +6,7 @@
 // Outside a fence, the lines a proposal may carry are a whitelist; anything
 // else refuses the section it sits in.
 //
-// Moved from ultra-brain's pkg/maintenance/evidence.go. The original is
-// `src/brain/maintenance/evidence.py`, and where the two differed the Python
-// form holds.
+// The reference is `src/brain/maintenance/evidence.py`.
 package evidence
 
 import (

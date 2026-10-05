@@ -1,7 +1,7 @@
 package evidence_test
 
-// The tests of ultra-brain's tests/maintenance/test_evidence.py that have no
-// counterpart in the moved evidence_test.go, one Go test per Python test,
+// The tests of the reference's tests/maintenance/test_evidence.py that have no
+// counterpart in evidence_test.go, one Go test per Python test,
 // each named with the Python test and its line. Three Python tests are
 // already covered there and are not repeated: test_an_unknown_segment_fails
 // (:39, TestCheckEvidence_UnknownSegment), test_an_empty_quote_is_no_evidence

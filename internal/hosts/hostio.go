@@ -9,7 +9,7 @@
 //
 // The host arrives as a flag and is not guessed from the payload. Guessing was
 // the first design -- `tool_input.file_path` for Claude against `TargetFile`
-// for Antigravity, the way `brain guard` does it -- and it cannot work here:
+// for Antigravity, the way the reference's guard does it -- and it cannot work here:
 // the four events these hooks answer are not tool events at all. SessionStart,
 // Stop and the subagent pair carry no `tool_input`, so there is nothing to
 // recognise. The flag is not a second place for the same truth either, because

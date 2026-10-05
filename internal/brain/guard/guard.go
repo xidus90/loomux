@@ -38,14 +38,11 @@
 // this host a refusal that relied on the envelope was not read at all, and
 // a probe file landed under `10 Rohquellen` while it sat on stdout.
 //
-// This package exists so the barrier has a *name* rather than a path. The
-// Python module was called by file (`uv run --no-sync python
-// hooks/wiki_guard.py`), which bound every host to a checkout of this
-// repository and to its virtual environment; `brain guard` is wired the
-// way `brain lint` and `brain wiki-gate` are. Wrapping the Python module
-// in a subprocess was the other option and was refused for the reason
-// above: a process start is one more place where the barrier can end with
-// the one code that lets a write through.
+// This package exists so the barrier has a *name* rather than a path: a host
+// calls a command, not a script that binds it to a checkout and its virtual
+// environment. Wrapping a script in a subprocess was the other option and was
+// refused for the reason above: a process start is one more place where the
+// barrier can end with the one code that lets a write through.
 package guard
 
 import (

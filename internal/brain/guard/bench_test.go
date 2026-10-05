@@ -7,7 +7,7 @@ import (
 )
 
 // BenchmarkDecideAgainstTheRealRegistry measures what the barrier costs on
-// a registry of real size -- the ~40 ms `brain guard` spent above the Go
+// a registry of real size -- the ~40 ms the reference's guard spent above the Go
 // start floor is decided here, not in the process start. The registry is
 // not in the repository: point LOOMUX_BENCH_REGISTRY at a copy of the
 // state directory (`%LOCALAPPDATA%\brain`) in a temporary place, and the

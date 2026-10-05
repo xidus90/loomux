@@ -1,11 +1,10 @@
 package apply
 
-// frontmatter.go is moved from ultra-brain's pkg/maintenance/frontmatter.go.
-// The original is `_advance` and `_advance_register` in
-// `src/brain/maintenance/apply.py` (:1143-1214). The old Go form rendered
-// through yaml.v3 and wrote `time.RFC3339`; the Python form, which holds,
-// renders through PyYAML's `safe_dump` and writes `datetime.isoformat()`.
-// pyyaml.go (the load) and pyyaml_emit.go (the dump) make the bytes the same.
+// The reference is `_advance` and `_advance_register` in
+// `src/brain/maintenance/apply.py`. It renders through PyYAML's `safe_dump`
+// and writes `datetime.isoformat()`, where yaml.v3 and `time.RFC3339` would
+// differ. pyyaml.go (the load) and pyyaml_emit.go (the dump) make the bytes
+// the same.
 
 import (
 	"errors"

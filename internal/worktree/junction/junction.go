@@ -66,8 +66,8 @@ func Target(link string) (string, error) {
 // `os.Remove` and not `os.RemoveAll`: on a reparse point the first removes the
 // point itself, and the second is the call that would walk into 4.2 GB of
 // somebody else's directory. Measured on 2026-09-07 for the three ordinary
-// delete paths -- none of them reached through the junction -- and this is the
-// one place in ultraloom's own code that could.
+// delete paths -- none of them reached through the junction. Remove is the one
+// function here that is handed the link itself, so it is the one that could.
 func Remove(link string) error {
 	target, err := Target(link)
 	if err != nil {

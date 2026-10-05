@@ -251,8 +251,8 @@ func orphan(pages []wiki.WikiPage) []check.Finding {
 // A directory counts as existing, because Python asks
 // `(context.root / resolved).exists()` (`src/brain/wiki/lint.py:316`),
 // which a directory answers yes to. No stronger claim than that: measured
-// over ultra-brain's `docs/wiki`, not one of the 83 targets that reach this lookup is a
-// directory -- the four directory links of that bundle all stand in its
+// over a real wiki bundle, not one of the 83 targets that reach this lookup
+// is a directory -- the four directory links of that bundle all stand in its
 // root `index.md`, which this rule never judges.
 //
 // The kind is asked before the lookup and not merely for clarity: the

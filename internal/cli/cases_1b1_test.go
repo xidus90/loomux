@@ -13,8 +13,8 @@ import (
 	"github.com/xidus90/loomux/internal/dev/fakeqmd"
 )
 
-// TestRecordedCasesOfStage1b1 replays the recordings of brain-mcp against
-// loomux brain. Every world carries the fixture the recording's fake qmd
+// TestRecordedCasesOfStage1b1 replays the recordings of the reference's brain
+// commands against loomux brain. Every world carries the fixture the recording's fake qmd
 // answered from; the same fixture answers here, over HTTP for the MCP port of
 // search and through the Runner seam for the command line port of status.
 func TestRecordedCasesOfStage1b1(t *testing.T) {

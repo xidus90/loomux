@@ -6,7 +6,6 @@ import (
 )
 
 // bundleDir and manifestName name the one manifest the barrier reads.
-// ultra-brain had a second, legacy spelling; loomux cut it on 2026-09-14.
 const (
 	bundleDir    = ".loomux"
 	manifestName = "config.toml"

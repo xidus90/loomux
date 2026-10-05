@@ -23,8 +23,7 @@ const (
 	testWiki   = "90 Wiki"
 )
 
-// vaultManifest is the vault's declaration; `.loomux/config.toml` stands
-// where Python's fixture writes `.brain.toml`.
+// vaultManifest is the vault's declaration, as `.loomux/config.toml` holds it.
 func vaultManifest(review string) string {
 	return "[area]\nscope = \"knowledge\"\n\n[layout]\nwiki = \"" + testWiki + "\"\nreview = \"" + review + "\"\n"
 }

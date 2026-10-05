@@ -166,8 +166,8 @@ func firstError(errs []error) error {
 }
 
 // Exec is the real process start. A non-zero exit is a reading and not a
-// failure -- `brain guard` ends with 2 on a repository it does not know,
-// and that belongs in the exit-code column; only a process that never
+// failure -- a PreToolUse hook that refuses ends with 2, and that belongs
+// in the exit-code column; only a process that never
 // started aborts the measurement.
 //
 //coverage:exempt starts a real process (exec.Command) and opens Case.Stdin; the timing and the exit code as data are tested through the injected run

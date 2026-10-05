@@ -26,7 +26,7 @@ var ErrNoAdapter = errors.New("no adapter for this host")
 // binary while firing only pre/post-tool and stop.
 //
 // So this refuses. A guessed adapter would look exactly like a working one,
-// and ultra-brain has already paid for that shape once: on 2026-09-06 its
+// and that shape has already been paid for once: on 2026-09-06 a
 // deny envelope went unread on Antigravity and a probe file landed on disk
 // anyway, with only exit 2 having any effect
 // (docs/.superpowers/specs/2026-09-10-go-hooks-drei-hosts-design.md:104-108).

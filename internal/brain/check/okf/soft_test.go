@@ -328,11 +328,10 @@ func TestNoIndexNamesTheRootCatalogWithoutADotSegment(t *testing.T) {
 }
 
 func TestNoIndexCountsAScaffoldFileAsContent(t *testing.T) {
-	// §8 has a catalog enumerate "the directory's contents", and this
-	// repository's own root catalog duly lists `_schema.md`, `audit.md`
-	// and `log.md` (`ultra-brain/docs/wiki/index.md:12-14`). A directory holding
-	// nothing but a scaffold file is therefore still a directory nothing
-	// lists. Reading the skip as `IsScaffoldFile` reverses this case and
+	// §8 has a catalog enumerate "the directory's contents", so a catalog
+	// that lists `_schema.md`, `audit.md` and `log.md` follows it. A directory
+	// holding nothing but a scaffold file is therefore still a directory
+	// nothing lists. Reading the skip as `IsScaffoldFile` reverses this case and
 	// this case alone, so it needs a fixture of its own.
 	dir := t.TempDir()
 	write(t, dir, "index.md", "# c\n\n* [sub](sub/) - d\n")

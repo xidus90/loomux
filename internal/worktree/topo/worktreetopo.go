@@ -3,10 +3,10 @@
 //
 // One git call for both answers, and that call is `git worktree list
 // --porcelain`. Not a comparison of `--git-dir` against `--git-common-dir`:
-// those two are not comparable as text. CLAUDE.md records a directory under
-// `.claude/worktrees/` that shared the main index, where git answered
-// `C:/Users/micro/Documents/#GIT/ultraloom/.git` for the first and
-// `../../../.git` for the second -- one directory in two spellings, which as
+// those two are not comparable as text. A directory under
+// `.claude/worktrees/` that shared the main index showed it: git answered an
+// absolute path (of the form `C:/work/main/.git`) for the first and a
+// relative one (`../../../.git`) for the second -- one directory in two spellings, which as
 // text differ, so the comparison called a shared-index directory a worktree.
 package topo
 

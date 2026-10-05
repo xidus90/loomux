@@ -70,8 +70,8 @@ type policyFile struct {
 // empty policy; every other failure is an error naming the file, because the
 // guard refuses on it and the human who fixes the file needs to find it.
 //
-// Every expression is compiled here. ulguard dropped the compile error and a
-// rule with a lookahead never matched, without a word (spec, 2026-09-14).
+// Every expression is compiled here. A compile error dropped would leave a
+// rule with a lookahead that never matches, without a word (spec, 2026-09-14).
 func ReadPolicy(root string) (Policy, error) {
 	path := ManifestPath(root)
 	data, err := os.ReadFile(path)

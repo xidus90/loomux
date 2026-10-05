@@ -406,7 +406,7 @@ func TestCheckGofmtOnACleanDirectory(t *testing.T) {
 	}
 }
 
-// Without paths the check reads the working directory, as ulinit did.
+// Without paths the check reads the working directory.
 func TestCheckGofmtWithoutPathsChecksTheWorkingDirectory(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "x.go"), []byte("package x\nfunc  F(){}\n"), 0o644)

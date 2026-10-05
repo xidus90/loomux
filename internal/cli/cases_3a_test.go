@@ -178,7 +178,7 @@ var expected3a = map[string]expectation3a{
 	},
 }
 
-// TestCases3a replays the recordings of brain-mcp's reconcile, reindex, embed
+// TestCases3a replays the recordings of the reference's reconcile, reindex, embed
 // and init against loomux, over the normalization of NormalizeState.
 func TestCases3a(t *testing.T) {
 	// Absolute, because every run changes into its staged world and the

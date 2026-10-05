@@ -131,8 +131,8 @@ func federationFinding(
 //
 // The scope is cut from `netloc` plus `path` and not from the netloc
 // alone, for the reason Python states at `:396-398`: scopes carry
-// slashes, so `brain://project/ultra-brain/...` splits into host
-// `project` and path `/ultra-brain/...`. Netloc plus path is everything
+// slashes, so `brain://project/side-notes/...` splits into host
+// `project` and path `/side-notes/...`. Netloc plus path is everything
 // after the scheme, and the `//` that introduces the netloc needs no
 // step of its own: the trim below takes every leading slash anyway, so
 // stripping it first would be a statement no fixture could hold.
@@ -344,10 +344,9 @@ func missingFromSignpost(
 // run goes red at the areas that did nothing wrong instead of at the
 // one line that did. `hub_layout`'s own docstring
 // (`src/brain/manifest.py:97-108`) refuses exactly that, and Python
-// answers it by refusing the value outright. Measured against the real
-// registration in ultra-brain before the repair: a broken `.brain.toml` at the vault
-// root reported `project/ultra-brain`, an area the signpost names
-// correctly.
+// answers it by refusing the value outright. Measured against one area of
+// the real registry before the repair: a broken manifest at the vault
+// root reported that area, which the signpost names correctly.
 //
 // Two ways of being unusable, one answer. The file may fail to parse,
 // and it may parse and state a hub folder that leaves the vault --
@@ -394,7 +393,7 @@ func hubFolder(signpost config.Area, lookup config.ArtifactLookup) (string, bool
 // registration -- `knowledge` is the vault, its wiki is `90 Wiki` inside
 // it -- and the hub pages sit beside that wiki, not under it. The last
 // segment is the name the hub page carries in the vault, which is why
-// `project/ultra-brain` is looked for as `ultra-brain.md`.
+// `project/side-notes` is looked for as `side-notes.md`.
 //
 // Both are cleaned into OS form. The registration spells its paths with
 // forward slashes even on Windows (`config.Area` paths, as `internal/config/registry.go:18-22` says: the

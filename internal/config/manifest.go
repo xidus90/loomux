@@ -38,9 +38,8 @@ const DefaultUntouchedDays = 180
 // wording changes, so the sentinel carries it instead.
 var ErrNoManifest = errors.New("no manifest found")
 
-// The one manifest name. loomux cut the two spellings of ultra-brain
-// (`.ultra-brain/config.toml`, `.brain.toml`) on 2026-09-14;
-// `guard.declarationIn` repeats this name for the write barrier.
+// The one manifest name. `guard.declarationIn` repeats it for the write
+// barrier.
 var manifestNames = []string{filepath.Join(".loomux", "config.toml")}
 
 // knownTypes is the union of CORE_TYPES, CATALOGUE_TYPES and ORIGIN_TYPES in
@@ -432,13 +431,13 @@ func flat(scope string) string {
 // decision 36)" -- and the manifest "follows the artefacts, for the same
 // reason they moved".
 //
-// The effect on this check catalog is nil today and the reader deserves
-// the number rather than the reassurance: of the nine areas in the
-// registration on this machine three are read-only, all three have a
-// `.brain.toml` under `%LOCALAPPDATA%\brain\areas\` (counted by listing
-// that directory), and not one of the three declares `[wiki] types` or
-// `untouched_days` -- so both values it supplies are today the ones an
-// absent manifest would have given anyway. It is built all the same,
+// The effect on this check catalog was nil when measured, and the reader
+// deserves the number rather than the reassurance: on 2026-09-14, in the
+// reference's state directory, three of the nine registered areas were
+// read-only, all three had a manifest in its `areas` folder (counted by
+// listing that folder), and not one of the three declared `[wiki] types` or
+// `untouched_days` -- so both values it supplies were the ones an absent
+// manifest would have given anyway. It is built all the same,
 // because the day one of them declares a type, a reader that looked in
 // the area would report `house/unknown-type` on every page carrying it,
 // and nothing would say why.

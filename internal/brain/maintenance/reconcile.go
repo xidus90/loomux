@@ -312,8 +312,8 @@ func reviewRootOf(areas []config.Area, manifests map[string]*config.Manifest) (s
 
 // declaredReview is one area's review centre, checked before it is believed.
 //
-// This path is the ground of the write barrier's one exemption (`brain guard`,
-// internal/brain/guard), so a value reaching out of the area would make every
+// This path is the ground of the write barrier's one exemption
+// (internal/brain/guard), so a value reaching out of the area would make every
 // file named proposal.md on the disk writable. A workspace area's own
 // declaration lies inside the tree the agent may write, so that value is
 // reachable input.

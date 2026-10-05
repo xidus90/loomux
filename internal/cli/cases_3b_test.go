@@ -95,7 +95,7 @@ var expected3b = map[string]expectation3b{
 	}},
 }
 
-// TestCases3b replays the recordings of brain-mcp's cases, case and approve
+// TestCases3b replays the recordings of the reference's cases, case and approve
 // against loomux, over the normalization of NormalizeState: the commit an
 // approval makes is held through git.after, the files it writes through
 // world_after.

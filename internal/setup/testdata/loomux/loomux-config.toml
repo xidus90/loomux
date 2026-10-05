@@ -55,8 +55,8 @@ reason = "Recordings of the old tools are evidence; re-record them, never edit t
 
 # Befehlsregeln pruefen die Kommandozeile von Bash und PowerShell.
 # Der Ausdruck ist Go-RE2: kein Lookahead, kein Backreference. Er wird beim
-# Laden kompiliert; was nicht kompiliert, ist ein Fehler (in ultraloom fiel
-# genau so eine Regel jahrelang still aus).
+# Laden kompiliert; was nicht kompiliert, ist ein Fehler, damit eine Regel
+# nicht still ausfaellt.
 # Hinweis: `git push` faengt bereits eine eingebaute Regel ab — die Zeile hier
 # ist die ausdrueckliche Fassung im Projekt und kann auch entfallen.
 [[policy.commands.rules]]

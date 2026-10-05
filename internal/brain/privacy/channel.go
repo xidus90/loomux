@@ -39,8 +39,7 @@ func ParseChannel(s string) (Channel, error) {
 // `manifest_path` raises for a file that does not exist, does not read, is not
 // TOML or names no known mode, nothing on the way to the command line catches
 // it, and so one area without a usable declaration stops the whole call.
-// ultra-brain's Go gate answered an absent declaration as visible and hid the
-// other failures silently; loomux follows the reference.
+// loomux follows the reference.
 //
 // The file is `.loomux/config.toml` alone, read by config.ReadAreaDeclaration.
 //

@@ -201,12 +201,12 @@ func writeRegistry(t *testing.T, dir, content string) {
 
 func TestWorkspaceIsReadLikeTheOtherFlags(t *testing.T) {
 	// The fourth flag of `Area` in registry.py, and the one the tests of the
-	// brief never name. Three of the nine areas in the real registry set it
-	// (project/ultra-brain, project/space, project/ecoflow) and one of those
-	// three sets `readonly` beside it, while project/iam-wiki sets `readonly`
-	// alone -- so a reader that answered workspace from readonly would look
-	// right on project/space and wrong on both of its neighbours. Both
-	// directions are asserted for that reason.
+	// brief never name. In the reference's registry on 2026-09-14, three of
+	// the nine areas set it and one of those three set `readonly` beside it,
+	// while a fourth area set `readonly` alone -- so a reader that answered
+	// workspace from readonly would look right on the area that sets both and
+	// wrong on the two others that set workspace and on the one that sets
+	// readonly alone. Both directions are asserted for that reason.
 	dir := t.TempDir()
 	writeRegistry(t, dir,
 		"[[area]]\nscope = \"w\"\npath = \"/w\"\nworkspace = true\n\n"+

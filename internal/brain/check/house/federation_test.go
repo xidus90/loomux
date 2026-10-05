@@ -47,8 +47,7 @@ func signpost(areaPath, wikiPath string) config.Area {
 
 // linkTo spells an absolute path the way a catalog line reaches it: as a
 // target relative to the wiki root, with `/` separators and percent
-// escapes for the blanks the link pattern refuses
-// (`ultra-brain/docs/.superpowers/specs/2026-08-24-wiki-verbund-design.md:167-173`).
+// escapes for the blanks the link pattern refuses.
 func linkTo(wikiPath, target string) string {
 	rel, err := filepath.Rel(wikiPath, target)
 	if err != nil {
@@ -345,9 +344,9 @@ func TestASiblingSpeltBelowAWikiDoesNotNameIt(t *testing.T) {
 }
 
 func TestAHubPointerNamesAnAreaWhoseWikiLiesElsewhere(t *testing.T) {
-	// The case the hub pointer exists for, and the only one in the real
-	// registry: `project/ultra-brain` keeps its wiki in its own
-	// repository, which no link from an Obsidian vault reaches. The
+	// The case the hub pointer exists for, and the only kind in the real
+	// registry: an area that keeps its wiki in its own repository, which no
+	// link from an Obsidian vault reaches. The
 	// pointer is `<signpost.Path>/<layout.hub>/<last scope segment>.md`.
 	areaPath, wikiPath := vault(t)
 	write(t, areaPath, ".loomux/config.toml",
@@ -672,9 +671,9 @@ func TestABrokenManifestSilencesTheSignpost(t *testing.T) {
 	// which is what `hub_layout`'s own docstring refuses
 	// (`src/brain/manifest.py:97-108`).
 	//
-	// Measured against ultra-brain's real registration before this fixture was
-	// written: a broken `.brain.toml` at the vault root reported
-	// `project/ultra-brain`, which the signpost names correctly.
+	// Measured against one area of the real registry before this fixture
+	// was written: a broken manifest at the vault root reported that area,
+	// which the signpost names correctly.
 	//
 	// `TestWithoutAHubTheWikiPathIsTheOnlyName` is the counter-probe: a
 	// manifest that is simply absent leaves the rule running.

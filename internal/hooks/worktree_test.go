@@ -568,7 +568,7 @@ func TestTheSweepReachesANestedPathThroughRealDirectories(t *testing.T) {
 // `<orphan>/.loomux/vendor` with a junction at `<orphan>/.loomux` reads
 // the reparse point of `<main>/.loomux/vendor`. Before the containment
 // check that junction satisfied all three conditions and was removed -- the
-// pinned runtime every other ultraloom hook needs, gone silently, and `link`
+// mirrored directory the main checkout needs, gone silently, and `link`
 // cannot put it back because IsWorktree says false about the main checkout.
 func TestTheSweepDoesNotReachThroughAnIntermediateLink(t *testing.T) {
 	requireWindows(t)
@@ -979,8 +979,8 @@ func TestUnlinkReachesANestedPathThroughRealDirectories(t *testing.T) {
 // `<worktree>/.loomux/vendor` with a junction at `<worktree>/.loomux`
 // reads the reparse point of `<main>/.loomux/vendor`. Without the
 // containment check that junction satisfies both conditions unlink asks about
-// -- a link leading into the main checkout -- and session end would take the
-// pinned runtime every other ultraloom hook needs out of the main checkout.
+// -- a link leading into the main checkout -- and session end would take a
+// mirrored directory out of the main checkout.
 //
 // No state file here: writing one would land in the main checkout's hooks
 // directory through that very junction.

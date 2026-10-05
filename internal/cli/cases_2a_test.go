@@ -43,7 +43,7 @@ var approved2a = map[string]string{
 	"check/go-only-types":    "16: Go has no types lane: not-applicable exits 0",
 }
 
-// TestCases2a replays the recordings of `ultraloom check` against loomux
+// TestCases2a replays the recordings of the reference's `check` against loomux
 // check. The fixture the recording's fake tools answered from answers here
 // too, at the seam every lane starts its processes through.
 func TestCases2a(t *testing.T) {

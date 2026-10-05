@@ -77,8 +77,8 @@ func resolve(casePath string, c maintenance.Case, areas []config.Area) (resolved
 
 // nearestVault walks `directory.parents` for `_MANIFEST` (apply.py:193,
 // :373-376): the case directory itself is not asked, its ancestors are,
-// nearest first. Python's marker is `.brain.toml`; loomux's is
-// `.loomux/config.toml` alone, read by config.ReadAreaDeclaration. One without
+// nearest first. The marker is `.loomux/config.toml` alone, read by
+// config.ReadAreaDeclaration. One without
 // [area] is policy only and marks no vault, so the walk goes on past it; a
 // declaration that is there and does not read is an error, as
 // `read_manifest` raises one. No manifest and no error: no vault above.

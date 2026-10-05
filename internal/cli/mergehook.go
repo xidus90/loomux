@@ -38,7 +38,7 @@ var mergeHookCommands = map[string]func([]config.Area, config.ArtifactLookup, ma
 	"remove":  maintenance.RemoveHooks,
 }
 
-// mergeHookCommand is `loomux merge-hook`, `brain-mcp hook` of the reference
+// mergeHookCommand is `loomux merge-hook`, the reference's `hook`
 // under a new name: `hook` is the namespace of the host hooks here.
 //
 // install, status and remove print a line per repository and fail only when

@@ -74,7 +74,7 @@ func normalize4a2(_, tree map[string][]byte) map[string][]byte {
 	return tree
 }
 
-// TestCases4a2 replays the recorded cases of `brain-mcp hook` against
+// TestCases4a2 replays the recorded cases of the reference's `hook` against
 // `loomux merge-hook`, each in a world whose repository the replay builds as
 // the recording did. stderr is not compared.
 func TestCases4a2(t *testing.T) {

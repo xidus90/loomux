@@ -6,8 +6,6 @@
 // pass, and `subagent-start` and `subagent-stop` keep the subagents' files.
 // `worktree unlink` puts an end marker beside the session file, and
 // `session-start` takes it away when the session resumes.
-// ultraloom is no longer a writer here -- it keeps its own state under
-// `.ultraloom/hooks/`, a different directory.
 package sessions
 
 import (
@@ -27,8 +25,8 @@ const StateDir = ".loomux/state/hooks"
 // Others counts the sessions on `root` that are not `sessionID`.
 //
 // A session marked ended by `Retire` is not counted. Nothing removes a
-// session's file (checked on 2026-09-07: no removal anywhere in
-// src/ultraloom/hooks, and no hook calls `Forget`), so a file older than
+// session's file (checked on 2026-09-07: no hook removes one, and none calls
+// `Forget`), so a file older than
 // `stale` is not counted either: that is a session that ended without a
 // SessionEnd. Without that, one abandoned session would hold a junction for
 // ever, and the fix for the case this whole count exists for -- a second

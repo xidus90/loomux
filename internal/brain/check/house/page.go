@@ -69,7 +69,7 @@ func finding(p wiki.WikiPage, rule, message string) check.Finding {
 // any rule at all (`src/brain/wiki/lint.py:582-585`). The design makes
 // agreement with Python the thing this work has to prove (§9.1), so a
 // rule judging one here would be a divergence by construction. The case is
-// measured, not feared: `ultra-brain/docs/wiki/_schema.md:27` documents the conflict
+// measured, not feared: `docs/wiki/_schema.md` documents the conflict
 // syntax with a `> [!conflict]` example, which `conflictBoxRe`
 // (`internal/brain/wiki/parse.go:45`) counts as a box -- without this line the file
 // that defines the rule is its first violator.
@@ -113,10 +113,7 @@ func noSources(pages []wiki.WikiPage) []check.Finding {
 // differs -- an empty list needs a source, a broken entry needs a field.
 //
 // Three fields and no more. The design calls them "die drei Felder, an
-// denen die Wartung hängt"
-// (`ultra-brain/docs/.superpowers/specs/2026-09-01-pruefkatalog-in-go-design.md:156`),
-// and Scheibe 3 §4 lists the same three
-// (`ultra-brain/docs/.superpowers/specs/2026-08-23-scheibe-3-wiki-schicht-design.md:178`).
+// denen die Wartung hängt", and Scheibe 3 §4 lists the same three.
 //
 // Two fields Python asks for in the same expression
 // (`src/brain/wiki/lint.py:135`) are handed to the okf axis instead,

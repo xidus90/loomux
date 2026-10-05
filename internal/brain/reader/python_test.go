@@ -14,8 +14,7 @@ import (
 )
 
 // Every expected value in this file was measured at the Python reference
-// (brain.core._section and Path.read_text, Python 3.14.7, ultra-brain tag
-// loomux-1a-source) on 2026-09-15.
+// (brain.core._section and Path.read_text, Python 3.14.7) on 2026-09-15.
 
 func TestExtractSectionFollowsPython(t *testing.T) {
 	for _, c := range []struct {
