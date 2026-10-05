@@ -1419,8 +1419,7 @@ genau eines von `<id>` und `--all`) und die interaktive Form ohne Terminal.
 Richtet ein Projekt für loomux ein: Es liest, was das Projekt ist, fragt je
 Modul, was einzurichten ist, zeigt jede Änderung als Diff und jede Handlung
 beim Namen und schreibt nur, was ein Mensch bestätigt. Gebaut mit Stufe 4a-2; am 2026-09-28 hat ein Mensch es auf einem frischen
-Klon dieses Repositorys und interaktiv in einem Wirtsprojekt laufen lassen
-(siehe den [Migrationsplan](migration.md)).
+Klon dieses Repositorys und interaktiv in einem Wirtsprojekt laufen lassen.
 
 ```bash
 loomux init [--root DIR] [--dry-run] [--detect-only] [--yes]

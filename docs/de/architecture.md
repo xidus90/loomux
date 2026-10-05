@@ -148,9 +148,8 @@ flowchart LR
 > verschmilzt BM25-artige Relevanz über Name, Signatur und Rumpf mit Personalized
 > PageRank (alpha=0.25), blendet Quelltext-Spans ein und fährt den gesperrten
 > Neubau. `ask` importiert den Extraktor nicht: der Neubau kommt als
-> `Rebuild`-Funktion herein, so bleibt der Abfragepfad vom Parser getrennt. Welche
-> Befehle und Werkzeuge gebaut sind, steht im [Migrationsplan](migration.md),
-> was noch offen ist (Stufen G4c und G5b bis G5d), in der
+> `Rebuild`-Funktion herein, so bleibt der Abfragepfad vom Parser getrennt. Was
+> noch offen ist (Stufen G4c und G5b bis G5d), steht in der
 > [Roadmap](../../README.de.md#roadmap); jeden Befehl beschreibt die
 > [CLI-Referenz](cli-reference.md).
 
@@ -186,8 +185,7 @@ Tiefe, in der ihn irgendein Startknoten erreicht hat; ein Startknoten ist nie
 sein eigener Treffer.
 
 Der Blast-Radius einer ganzen Änderung beginnt beim Git-Diff und läuft über
-dieselben Kanten. Seit Stufe G4b ist alles davon gebaut (sein Stand steht im
-[Migrationsplan](migration.md)):
+dieselben Kanten. Seit Stufe G4b ist alles davon gebaut:
 
 ```mermaid
 flowchart LR

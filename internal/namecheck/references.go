@@ -1,4 +1,6 @@
-package plancheck
+// Package namecheck holds the repository to one promise: the names of the
+// tools loomux replaced stand only where an exception lets them.
+package namecheck
 
 import (
 	"fmt"
@@ -123,8 +125,6 @@ var exceptions = sync.OnceValue(func() []Exception {
 		{Path: "CHANGELOG.md", Section: "4.2.2", Owner: "history"},
 		{Path: "CHANGELOG.md", Section: "2.5.0", Owner: "history"},
 		{Path: "CHANGELOG.md", Section: "2.3.0", Owner: "history"},
-		{Path: "docs/en/migration.md", Owner: "plan-end"},
-		{Path: "docs/de/migration.md", Owner: "plan-end"},
 		{Path: "docs/.superpowers/specs/", Owner: "working-papers"},
 		{Path: "docs/.superpowers/plans/", Owner: "working-papers"},
 		{Path: "docs/.superpowers/parity/", Owner: "working-papers"},
@@ -139,7 +139,7 @@ var exceptions = sync.OnceValue(func() []Exception {
 		{Path: "_identities.tsv", Line: inTheArchives(), Owner: "archives"},
 		{Path: "README.md", Line: followUps(), Owner: "flow"},
 		{Path: "README.de.md", Line: followUps(), Owner: "flow"},
-		{Path: "internal/plancheck/references.go", Owner: "self"},
-		{Path: "internal/plancheck/references_test.go", Owner: "self"},
+		{Path: "internal/namecheck/references.go", Owner: "self"},
+		{Path: "internal/namecheck/references_test.go", Owner: "self"},
 	}
 })
