@@ -269,9 +269,10 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 // otherwise, or where there is no HEAD to judge against, the copy is gone
 // before the answer.
 func stopTrees(stderr io.Writer, root string, state sessions.SessionState, kinds []string) (head, tree string, idx *StopIndex, err error) {
-	// Every refusal gitwork.Head has is one of the two -- a root git ignores
-	// and a root no working tree covers -- and both mean the same here: there
-	// is no tree to measure, so the chain runs every time.
+	// Every refusal gitwork.Head has -- a root git ignores, a root no working
+	// tree covers, a HEAD that names no commit the repository holds -- means
+	// the same here: there is no tree to measure from, so the chain runs
+	// every time.
 	if head, err = gitwork.Head(root); err != nil {
 		return "", "", nil, errNoRepository
 	}

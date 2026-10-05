@@ -948,7 +948,8 @@ that no longer resolves — after `--amend` or a rebase and a `gc` — is no git
 failure: `base <sha> is gone; measuring from HEAD`, and the next green run sets
 a new base. In a repository without a commit the base is the empty tree.
 
-**No repository, or a root git ignores:** there is no tree to measure, so the
+**No repository, a root git ignores, or a HEAD that names no commit the
+repository holds:** there is no tree to measure, so the
 chain runs at every turn end, without a shortcut. A green run then writes
 `base` and `green` empty; a run red only in lanes in probation remembers
 nothing, there being no tree to remember it by.
