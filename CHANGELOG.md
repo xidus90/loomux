@@ -4,6 +4,21 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [8.0.0] - 2026-10-05
+
+<https://github.com/xidus90/loomux/pull/82>
+
+### Removed
+- `loomux area check`. Run it with loomux 7.x before upgrading if an area still carries an old manifest: loomux no longer reads that file at all, its privacy mode included.
+- `loomux dev switchover render` and `prune-hooks`, together with the guard rule for `prune-hooks`. Hook entries and pre-commit hooks of other tools stay where they are; remove them by hand.
+- `loomux status` no longer lists superseded hook entries of other tools: the `[OK] No obsolete or redundant legacy hooks found.` line is gone and the section heading reads `Hook Audit (.claude/settings.json)`.
+### Changed
+- A directory with only one of the old area manifests that loomux 7.x still refused with a hint now answers like a directory without a manifest: an area stops with "no manifest found", and a workspace entry is left out of brain reads without a word. Carry the declaration over into `.loomux/config.toml` first.
+- The index no longer excludes the old manifest names in every area. The first `reindex` after the upgrade rewrites every collection's entry in qmd's `index.yml` once.
+- `loomux init` takes only a `loomux` or `ci/gate.sh` call in an existing pre-commit hook as a gate; any other hook is still kept and named.
+- `loomux status` prints `Wiki:` for the wiki line.
+- The `brain-review` skill template uses a neutral case id.
+
 ## [7.2.0] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/80>
