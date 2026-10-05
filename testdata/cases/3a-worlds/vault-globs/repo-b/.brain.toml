@@ -1,5 +1,0 @@
-[area]
-scope = "project/b"
-
-[index]
-include = ["docs/**/*.md"]

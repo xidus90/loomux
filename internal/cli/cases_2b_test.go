@@ -14,8 +14,8 @@ import (
 	"github.com/xidus90/loomux/internal/verify/commit"
 )
 
-// wantCases2b is pinned, not merely non-zero: a partial import must not pass
-// as parity. Raise it with the corpus when a case is added.
+// wantCases2b is pinned, not merely non-zero: a case deleted by mistake must not pass
+// unnoticed. Raise it with the corpus when a case is added.
 const wantCases2b = 19
 
 // Every case here must pass. A refusal carries exit 1 and not the 2 its

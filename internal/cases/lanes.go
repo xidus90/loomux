@@ -20,7 +20,7 @@ func KindVerdicts(stdout []byte) map[string]string {
 	// lane in loomux (`test/go: failed [preset] 1.0s`). The old chain wrote
 	// `unavailable` and `blocked` as the source in brackets, so its state word
 	// there is `failed`, which is how Python judged them. Compiled here, not
-	// at start: the binary carries this package for `dev import-cases`.
+	// at start: no package-level variable builds anything before its first use.
 	verdictLine := regexp.MustCompile(`^(lint|types|test|coverage)(/[^:]*)?: ([a-z-]+)`)
 	nothingLine := regexp.MustCompile("^nothing to check for `(lint|types|test|coverage)`$")
 	out := map[string]string{}

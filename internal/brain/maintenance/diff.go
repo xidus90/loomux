@@ -15,8 +15,8 @@ package maintenance
 // "popular" lines from the index (`autojunk`), which moves them again.
 //
 // The port is therefore line for line, and it is pinned: testdata/hunks.golden.json
-// came out of the reference's own `_hunks`, and the script that wrote it is
-// docs/.superpowers/parity/stufe-3a-orakel/hunks_oracle.py.
+// came out of the reference's own `_hunks`; the script that wrote it is in the
+// archive release archive/parity-recordings.
 //
 // What is deliberately **not** ported: `isjunk`. `unified_diff` builds its
 // matcher with `SequenceMatcher(None, a, b)`, so `bjunk` is empty for every

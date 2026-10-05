@@ -1,3 +1,0 @@
-feat: test non-latin script runs
-
-Added 日本語 and 中国語 here.

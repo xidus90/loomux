@@ -1,7 +1,0 @@
-[[area]]
-scope = "project/torn"
-path = "{{WORLD}}/repo-torn"
-
-[[area]]
-scope = "project/garbled"
-path = "{{WORLD}}/repo-garbled"

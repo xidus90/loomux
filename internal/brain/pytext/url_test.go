@@ -73,7 +73,8 @@ func TestUnquoteAnswersWhatUnquoteAnswers(t *testing.T) {
 }
 
 // The boundaries the mutation round of 2026-09-23 asked about, measured with
-// stufe-3c-orakel/boundaries.py against Python 3.14.
+// a script in the archive release archive/parity-recordings against Python
+// 3.14.
 
 func TestSplitURLAtTheEdgesOfASchemeAndANetworkLocation(t *testing.T) {
 	for _, c := range []struct{ in, scheme, netloc, path string }{

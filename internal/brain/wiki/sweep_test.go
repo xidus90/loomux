@@ -25,8 +25,8 @@ func sweepWrite(t *testing.T, root, rel, text string) string {
 	return path
 }
 
-// sweepWorld is the world of `docs/.superpowers/parity/stufe-3c-orakel/sweep.py`,
-// built here file for file: every edge case of the twelve rules in one
+// sweepWorld is the world of a script in the archive release
+// archive/parity-recordings, built here file for file: every edge case of the twelve rules in one
 // bundle, a second wiki to be named, and a hub page.
 func sweepWorld(t *testing.T) (string, SweepContext) {
 	t.Helper()

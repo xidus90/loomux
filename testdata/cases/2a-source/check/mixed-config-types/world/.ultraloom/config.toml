@@ -1,5 +1,0 @@
-[verify.lint]
-commands = ["uvx ruff check .", "go vet ./..."]
-
-[verify.test]
-commands = ["uv run pytest -q"]

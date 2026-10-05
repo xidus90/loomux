@@ -1,3 +1,0 @@
-test: ok [config]
-faketool: uv run pytest
-1 passed

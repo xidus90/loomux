@@ -1,9 +1,0 @@
-[area]
-scope = "project/a"
-
-[layout]
-wiki = "wiki"
-review = "review"
-
-[index]
-include = ["**/*.md"]

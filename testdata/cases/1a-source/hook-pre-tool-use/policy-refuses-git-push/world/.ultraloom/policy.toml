@@ -1,3 +1,0 @@
-[[policy.paths.rules]]
-match = "generated/*"
-reason = "generated files are rebuilt, not edited"

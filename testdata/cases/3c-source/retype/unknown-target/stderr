@@ -1,1 +1,0 @@
-warning: 'Topik' is neither core, catalogue, origin nor declared in area 'project/a''s manifest; `brain lint` will flag it as missing-type

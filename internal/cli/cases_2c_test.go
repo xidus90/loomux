@@ -13,8 +13,8 @@ import (
 	"github.com/xidus90/loomux/internal/hooks"
 )
 
-// wantCases2c is pinned, not merely non-zero: a partial import must not pass
-// as parity. Raise it with the corpus when a case is added.
+// wantCases2c is pinned, not merely non-zero: a case deleted by mistake must not pass
+// unnoticed. Raise it with the corpus when a case is added.
 const wantCases2c = 15
 
 // approved2c names every case whose replay differs from its recording, with

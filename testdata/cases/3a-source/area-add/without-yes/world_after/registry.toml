@@ -1,9 +1,0 @@
-[[area]]
-scope = "project/a"
-path = "{{WORLD}}/repo-a"
-
-[[area]]
-scope = "project/repo-new"
-path = "{{WORLD}}/repo-new"
-wiki = "{{WORLD}}/repo-new/docs/wiki"
-workspace = true

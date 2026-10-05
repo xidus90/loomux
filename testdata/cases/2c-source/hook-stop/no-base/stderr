@@ -1,1 +1,0 @@
-ultraloom hook stop: no base commit for this session, so only the working tree is measured -- anything this session committed is invisible here. Start a session with the session-start hook wired up to close that gap.

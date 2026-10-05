@@ -10,9 +10,9 @@ import (
 )
 
 // goldenHunks are the inputs of testdata/hunks.golden.json, by the same names
-// and in the same shapes the oracle builds them from
-// (docs/.superpowers/parity/stufe-3a-orakel/hunks_oracle.py). Every one of them is there for a rule of `_hunks`, and the comment on
-// each says which.
+// and in the same shapes the oracle builds them from (its script is in the
+// archive release archive/parity-recordings). Every one of them is there for a
+// rule of `_hunks`, and the comment on each says which.
 func goldenHunks() map[string]Changed {
 	ten := repeatLines(1, 10)
 	twenty := repeatLines(1, 20)

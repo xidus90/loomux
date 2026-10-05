@@ -1,5 +1,0 @@
-[area]
-scope = "notes"
-
-[index]
-include = ["**/*.md"]

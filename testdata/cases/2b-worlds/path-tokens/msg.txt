@@ -1,3 +1,0 @@
-feat: test path tokens
-
-Updating path/to/uebersicht.txt and src/loesung.go now.

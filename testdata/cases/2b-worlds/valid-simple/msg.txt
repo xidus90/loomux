@@ -1,3 +1,0 @@
-feat(core): implement commit message checking
-
-This is an English commit message body.

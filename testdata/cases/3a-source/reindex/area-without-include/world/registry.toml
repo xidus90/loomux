@@ -1,9 +1,0 @@
-[[area]]
-scope = "project/a"
-path = "{{WORLD}}/repo-a"
-wiki = "{{WORLD}}/repo-a/wiki"
-
-[[area]]
-scope = "notes"
-path = "{{WORLD}}/sources/notes"
-readonly = true

@@ -1,8 +1,0 @@
-[error] house/dead-link project/a/c.md: target does not exist: gone.md (resolved: gone.md)
-[error] house/no-sources project/a/c.md: sources[] is empty
-[warning] house/outside-area project/a/c.md: target leaves the area and cannot be checked: ../outside.md
-[error] house/stale project/a/c.md: stale_after 2020-01-01 has passed
-[warning] okf/description-missing project/a/c.md: no description; catalogs and search snippets show nothing
-[warning] okf/index-entry-without-description project/a/index.md: catalog entry a.md carries no description
-[warning] okf/index-entry-without-description project/a/index.md: catalog entry b.md carries no description
-[warning] okf/index-entry-without-description project/a/index.md: catalog entry c.md carries no description

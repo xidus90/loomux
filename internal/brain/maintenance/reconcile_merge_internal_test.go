@@ -33,8 +33,8 @@ func mergeGoldenCase() Case {
 }
 
 // mergeGoldenRepository is the repository the reference's oracle built, commit
-// for commit: a commit before the range, then two inside it. The oracle is
-// docs/.superpowers/parity/stufe-3a-orakel/merge_oracle.py.
+// for commit: a commit before the range, then two inside it. The oracle's
+// script is in the archive release archive/parity-recordings.
 //
 // The three are chosen for what they decide. `Zeta.txt` beside `alpha.txt`
 // pins that the path sort folds no case -- `Z` is below `a` in code points and

@@ -1,8 +1,0 @@
-{
-  "tool": "read",
-  "arguments": {
-    "scope": "project/alpha",
-    "relative": "secret/key.md"
-  },
-  "channel": "cloud"
-}

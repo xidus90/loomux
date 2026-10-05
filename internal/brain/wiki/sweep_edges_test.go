@@ -10,7 +10,7 @@ import (
 
 // The edges the mutation round of 2026-09-23 found untested. Each fixture is
 // one bundle; the expected lines are what `lint_bundle` answered for the same
-// fixture, run by docs/.superpowers/parity/stufe-3c-orakel/edges.py.
+// fixture, run by a script in the archive release archive/parity-recordings.
 
 var edgeNow = time.Date(2026, 9, 23, 12, 0, 0, 0, time.Local)
 

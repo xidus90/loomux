@@ -1,8 +1,0 @@
-{
-  "edges": [],
-  "links": {"dropped": {}, "resolved": 0, "total": 0},
-  "nodes": [
-    {"id": "a.md", "tags": [], "title": "a"}
-  ],
-  "scope": "project/a"
-}

@@ -1,4 +1,0 @@
-usage: brain-mcp approve [-h] [--amend AMEND | --reject | --defer]
-                         [--state-dir STATE_DIR]
-                         id
-brain-mcp approve: error: the following arguments are required: id

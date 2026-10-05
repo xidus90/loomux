@@ -1,9 +1,0 @@
-id = "notes-2026-09-19-c3d4"
-area = "project/b"
-target = "topics/notes.md"
-target_hash = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-state = "source_missing"
-trigger = "source_change"
-weight = "change"
-created = 2026-09-20T08:00:00+00:00
-manual = true

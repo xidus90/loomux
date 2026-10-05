@@ -1,6 +1,0 @@
-lint: ok [config]
-$ uvx ruff check .
-faketool: uvx ruff check
-
-$ go vet ./...
-faketool: go vet

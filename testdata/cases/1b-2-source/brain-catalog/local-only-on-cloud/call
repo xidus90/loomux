@@ -1,7 +1,0 @@
-{
-  "tool": "catalog",
-  "arguments": {
-    "scope": "project/beta"
-  },
-  "channel": "cloud"
-}

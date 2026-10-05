@@ -1031,7 +1031,7 @@ danach einen Schnappschuss und legen für den Hauptagenten ab, was sich
 dazwischen bewegt hat. Das ist eine Beobachtung, keine Zuschreibung: pusht eine
 andere Sitzung im selben Zeitraum nach `origin`, liest sich das genauso, und
 nichts hier kann die beiden unterscheiden. Claude Code schickt beide mit der `session_id` des Hauptagenten und derselben
-`agent_id` (gemessen mit Claude Code 2.1.276, `testdata/cases/2c-payloads/`).
+`agent_id` (gemessen mit Claude Code 2.1.276; seine Nutzlasten liegen im Archiv-Release `archive/parity-recordings`, die von Antigravity in `internal/hosts/testdata/`).
 
 - **Der Schnappschuss** hält die Refs von `origin` aus `git ls-remote origin`
   (Frist 10 s, mit `GIT_TERMINAL_PROMPT=0`, damit keine Passwortabfrage auf

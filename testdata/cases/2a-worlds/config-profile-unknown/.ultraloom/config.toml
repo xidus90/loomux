@@ -1,2 +1,0 @@
-[verify.profiles]
-x = ["lint", "style"]

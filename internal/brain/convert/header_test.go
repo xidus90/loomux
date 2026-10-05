@@ -30,7 +30,8 @@ func TestTheHeadHasFourLinesAndAFifthForADescription(t *testing.T) {
 	if four != want {
 		t.Fatalf("%q", four)
 	}
-	// The reference's header() for the same values (stufe-4d-orakel/convert_detect.py).
+	// The reference's header() for the same values (the archive release
+	// archive/parity-recordings holds the script that measured it).
 	empty := Head{Retrieved: day(2026, 8, 24), Converter: PDFConverter}.String()
 	if want := "---\nsource_url:\nretrieved: 2026-08-24\nconverter: brain-pdf/2\nasr: false\n---\n\n"; empty != want {
 		t.Fatalf("%q", empty)
@@ -77,7 +78,8 @@ func TestDescriptionOfReadsTheHeadOnly(t *testing.T) {
 
 // The head lines are read with Python's \s and \S: a no-break or ideographic
 // space around the value is not part of it, and \s crosses a line break as
-// it does in the reference (stufe-4d-orakel/convert_detect.py).
+// it does in the reference (measured by a script in the archive release
+// archive/parity-recordings).
 func TestTheHeadLinesReadPythonsSpace(t *testing.T) {
 	for text, want := range map[string]string{
 		"---\ndescription:\U000000a0Satz.\n---\n":  "Satz.",

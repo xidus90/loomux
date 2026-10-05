@@ -1,1 +1,0 @@
-error: {{WORLD}}\x\.brain.toml: [privacy] mode must be one of automatic_cloud, local_only, manual_cloud, found 'cloud'

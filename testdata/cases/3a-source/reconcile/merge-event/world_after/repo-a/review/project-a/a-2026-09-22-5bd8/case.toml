@@ -1,8 +1,0 @@
-id = "a-2026-09-22-5bd8"
-area = "project/a"
-target = "page.md"
-target_hash = "sha256:afcb279ad87513abd4f48e37f06b53aff273f625ca90a8208e3017ea25864a2c"
-state = "due"
-trigger = "merge"
-weight = "change"
-created = 2026-09-22T11:52:11.120584+00:00

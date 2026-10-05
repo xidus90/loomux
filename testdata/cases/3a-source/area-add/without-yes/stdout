@@ -1,4 +1,0 @@
-manifest: {{WORLD}}\repo-new\.ultra-brain\config.toml
-mcp:      {{WORLD}}\repo-new\.mcp.json
-registry: area 'project/repo-new' added
-wiki:     scaffolded at {{WORLD}}\repo-new\docs\wiki

@@ -14,8 +14,8 @@ import (
 	"github.com/xidus90/loomux/internal/dev/faketool"
 )
 
-// wantCases2a is pinned, not merely non-zero: a partial import must not pass
-// as parity. Raise it with the corpus when a case is added.
+// wantCases2a is pinned, not merely non-zero: a case deleted by mistake must not pass
+// unnoticed. Raise it with the corpus when a case is added.
 const wantCases2a = 53
 
 // approved2a names every case whose replay differs from its recording, with
