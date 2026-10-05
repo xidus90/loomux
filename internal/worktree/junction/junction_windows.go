@@ -138,7 +138,7 @@ func setMountPoint(link, target string) error {
 // would have been: tag, length and reserved make 8, the four name fields
 // another 8, and `PathBuffer` follows -- the 16 of `mountPointHeaderSize`.
 //
-//coverage:exempt CreateFile fails only if the OS removes or locks the path between the attribute query and the open, and DeviceIoControl(FSCTL_GET_REPARSE_POINT) only on a reparse point the filesystem cannot read back
+//coverage:exempt CreateFile fails only if the OS locks the path between the attribute query and the open, and DeviceIoControl(FSCTL_GET_REPARSE_POINT) only on a reparse point the filesystem cannot read back
 func reparseTarget(link string) (string, error) {
 	path, err := windows.UTF16PtrFromString(link)
 	if err != nil {
@@ -146,7 +146,7 @@ func reparseTarget(link string) (string, error) {
 	}
 	attributes, err := windows.GetFileAttributes(path)
 	if err != nil {
-		return "", fmt.Errorf("inspecting %s: %w", link, err)
+		return vanished(link, fmt.Errorf("inspecting %s: %w", link, err))
 	}
 	if attributes&windows.FILE_ATTRIBUTE_REPARSE_POINT == 0 {
 		return "", nil
@@ -164,7 +164,7 @@ func reparseTarget(link string) (string, error) {
 		0,
 	)
 	if err != nil {
-		return "", fmt.Errorf("opening %s: %w", link, err)
+		return vanished(link, fmt.Errorf("opening %s: %w", link, err))
 	}
 	defer windows.CloseHandle(handle)
 
@@ -247,4 +247,15 @@ func decodeUTF16(source []byte) string {
 		units = append(units, get16(source[index:]))
 	}
 	return string(utf16.Decode(units))
+}
+
+// vanished turns a failure on a path that is no longer there into the empty
+// answer Target promises for one; any other failure stays the error it was.
+// It asks Lstat again rather than testing the errno, because Lstat handles
+// long paths and the raw calls do not.
+func vanished(link string, err error) (string, error) {
+	if _, statErr := os.Lstat(link); os.IsNotExist(statErr) {
+		return "", nil
+	}
+	return "", err
 }
