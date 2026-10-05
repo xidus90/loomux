@@ -17,40 +17,14 @@ import (
 	"github.com/xidus90/loomux/internal/verify"
 )
 
-var knownLegacyHooks = []struct {
-	scriptName string
-	reason     string
-}{
-	{"ulguard", "superseded by 'loomux hook pre-tool-use' and 'loomux hook post-tool-use'"},
-	{"brain guard", "merged into 'loomux hook pre-tool-use'"},
-	{"guard_paths.py", "superseded by 'loomux hook pre-tool-use'"},
-	{"format_on_edit.py", "superseded by 'loomux hook post-tool-use'"},
-	{"post_edit.py", "superseded by 'loomux hook post-tool-use'"},
-	{"wiki_gate.py", "superseded by the lint/wiki lane of 'loomux hook stop'"},
-	// The whole command line, not just the event: `ultraloom hook stop` as a
-	// substring would otherwise be missed and `hook stop` would match the
-	// loomux command that replaces it.
-	{"ultraloom hook stop", "superseded by 'loomux hook stop'"},
-	{"ultraloom hook subagent-start", "superseded by 'loomux hook subagent-start'"},
-	{"ultraloom hook subagent-stop", "superseded by 'loomux hook subagent-stop'"},
-	{"generate_index.py", "superseded by ultra-brain catalog/reindex and wiki-gate"},
-	{"lint.py", "superseded by 'loomux lint' and 'loomux hook post-tool-use'"},
-}
-
-type LegacyFinding struct {
-	Event   string
-	Command string
-	Reason  string
-}
-
-// auditSettings reads .claude/settings.json and answers with the legacy hooks
-// it still wires and with the loomux hook events it installs, by the
-// subcommand the command line names.
-func auditSettings(root string) ([]LegacyFinding, map[string]bool) {
+// installedEvents reads .claude/settings.json and answers with the loomux hook
+// events it installs, by the subcommand the command line names. An entry of
+// another tool is not looked at.
+func installedEvents(root string) map[string]bool {
 	settingsPath := filepath.Join(root, ".claude", "settings.json")
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
-		return nil, nil
+		return nil
 	}
 
 	var parsed struct {
@@ -62,7 +36,7 @@ func auditSettings(root string) ([]LegacyFinding, map[string]bool) {
 		} `json:"hooks"`
 	}
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		return nil, nil
+		return nil
 	}
 
 	// hookEvent is the subcommand after `hook`; a word boundary on both sides,
@@ -70,31 +44,17 @@ func auditSettings(root string) ([]LegacyFinding, map[string]bool) {
 	// and not at load: this runs once per report.
 	hookEvent := regexp.MustCompile(`\bhook\s+([a-z-]+)`)
 	installed := map[string]bool{}
-	var findings []LegacyFinding
-
-	// Sorted: the order of the events lands in the findings list that is
-	// printed, and a map hands them out differently every run.
-	for _, event := range slices.Sorted(maps.Keys(parsed.Hooks)) {
-		for _, entry := range parsed.Hooks[event] {
+	for _, entries := range parsed.Hooks {
+		for _, entry := range entries {
 			for _, h := range entry.Hooks {
-				cmd := h.Command
-				if match := hookEvent.FindStringSubmatch(cmd); match != nil && strings.Contains(cmd, "loomux") {
+				if match := hookEvent.FindStringSubmatch(h.Command); match != nil && strings.Contains(h.Command, "loomux") {
 					installed[match[1]] = true
-				}
-				for _, leg := range knownLegacyHooks {
-					if strings.Contains(cmd, leg.scriptName) {
-						findings = append(findings, LegacyFinding{
-							Event:   event,
-							Command: cmd,
-							Reason:  leg.reason,
-						})
-					}
 				}
 			}
 		}
 	}
 
-	return findings, installed
+	return installed
 }
 
 //coverage:exempt filepath.Abs fails only when os.Getwd does, which no test on the platforms this runs on can provoke
@@ -133,9 +93,9 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 	// gone with it; it was "brain" wherever it was set at all and empty for
 	// every wiki the manifest declares, so it distinguished nothing.
 	if hasStack("wiki") {
-		fmt.Fprintf(stdout, "UltraBrain Wiki: Active (Bundle Directory: '%s')\n", wikiDir)
+		fmt.Fprintf(stdout, "Wiki: Active (Bundle Directory: '%s')\n", wikiDir)
 	} else {
-		fmt.Fprintln(stdout, "UltraBrain Wiki: Inactive / Disabled (default)")
+		fmt.Fprintln(stdout, "Wiki: Inactive / Disabled (default)")
 	}
 
 	fmt.Fprintln(stdout, "\n--------------------------------------------------------------------------------")
@@ -166,10 +126,10 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 	fmt.Fprintln(stdout, "  -> loomux hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" (profile `stop`, the wiki gate as lint/wiki)")
 
 	fmt.Fprintln(stdout, "\n--------------------------------------------------------------------------------")
-	fmt.Fprintln(stdout, " Hook Audit & Redundancy Check (.claude/settings.json)")
+	fmt.Fprintln(stdout, " Hook Audit (.claude/settings.json)")
 	fmt.Fprintln(stdout, "--------------------------------------------------------------------------------")
 
-	findings, installed := auditSettings(root)
+	installed := installedEvents(root)
 	// One line per event this binary serves, in the order a session meets
 	// them, so an event that is wired nowhere is visible by its absence.
 	for _, h := range []struct{ event, name string }{
@@ -183,14 +143,6 @@ func Status(stdout io.Writer, stderr io.Writer, root string) int {
 		}
 	}
 
-	if len(findings) == 0 {
-		fmt.Fprintln(stdout, " [OK] No obsolete or redundant legacy hooks found.")
-	} else {
-		fmt.Fprintln(stdout, " [WARNING] Redundant or obsolete legacy hooks detected in .claude/settings.json:")
-		for _, f := range findings {
-			fmt.Fprintf(stdout, "   • [%s] %s\n     Reason: %s\n", f.Event, f.Command, f.Reason)
-		}
-	}
 	renderLaneTools(stdout, unavailableLanes(eff, exec.LookPath))
 	renderProbation(stdout, root)
 

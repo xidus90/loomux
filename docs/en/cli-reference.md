@@ -454,7 +454,7 @@ loomux status
 - **Output Details**:
   - Project root path, detected stacks, and whether the wiki bundle is active (with its directory).
   - The lanes the post-edit hook runs per active stack: the `edit` profile as `[verify]` and the presets lay it out, each with its origin, and which of their tools are missing from the `PATH`.
-  - The `Stop` entry to wire (`loomux hook stop`, profile `stop`, the wiki bundle as `lint/wiki`), and for each of the six events `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, `SubagentStart` and `SubagentStop` whether `.claude/settings.json` calls its `loomux hook` (`[OK]`) or not (`[INFO]`), plus legacy hooks it replaces.
+  - The `Stop` entry to wire (`loomux hook stop`, profile `stop`, the wiki bundle as `lint/wiki`), and for each of the six events `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, `SubagentStart` and `SubagentStop` whether `.claude/settings.json` calls its `loomux hook` (`[OK]`) or not (`[INFO]`). An entry of another tool in that file is not reported.
   - A section "Lane Probation" when the project has `.loomux/armed.toml`: each lane as `[ARMED]` or `[PROBATION]`, an entry no lane answers to as `[ORPHAN]`, a `[WARN]` for a pre-commit hook that does not arm lanes and one when there is no pre-commit hook at all (both with the hint to call `loomux check precommit --arm` there, or arm by hand with `loomux gate arm`), and a `[WARN]` when git ignores the file. A file that does not read is one `[WARN]` with its reason. Without the file the section is absent.
 - **Exit Codes**: `0` (the report was printed, also when it names a configuration error), `1` (an unknown flag).
 
