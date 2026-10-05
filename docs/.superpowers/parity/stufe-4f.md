@@ -460,3 +460,35 @@ Zusammen sind das 44 Commits auf `feature/artefakte-nach-lebensdauer`, 61 auf
 Zweige. Die Berichte der beiden Inventur-Agenten kamen als Rückmeldung in
 die Sitzung und wurden nicht als Datei abgelegt; diese Tabellen geben ihren
 Inhalt je Commit wieder, die Zählungen sind gegen `git log` nachgerechnet.
+
+## 4. Was die Wiedergabe vergleicht (für PR C)
+
+Nachgelesen am 2026-10-05 in `internal/cases` und `internal/cli/cases_*_test.go`
+(Subagent, nur lesend; die tragenden Stellen nachgeprüft).
+
+- `LoadCase` liest `cmd`, `exit`, `stdout`, `stdin`, `notes.md`, `compare` und
+  prüft auf `world_after` (`internal/cases/case.go:70-94`). Eine `stderr`-Datei
+  liest es nie; `runner.go:55` sagt dazu „No case compares it“.
+- `notes.md` geht nur in die Fehlermeldung, `README.md` liest niemand.
+- `compare = data` vergleicht `stdout` byte-genau nach Normalisierung der
+  Weltpfade; `message` überspringt `stdout`; `lanes` vergleicht nur die
+  Urteile je Art; `state` nur `base` und `blocks`; `finding` die sortierten
+  Befundzeilen.
+- Bäume (`world_after`, ohne sie die Ausgangswelt, wo die Suite einen
+  Normalisierer gibt) werden byte-genau verglichen, außer `.git/` und
+  `.origin.git/`. Damit zählen `git.toml` und `.mcp.json`.
+- `xdg/qmd/index.yml` vergleichen 3a und 3b nach dekodiertem Wert.
+- Die `.mcp.json` unter `3a/area-add/*/world_after/repo-new/` und
+  `repo-new/.ultra-brain/config.toml` sind als „missing file in actual“
+  toleriert (`internal/cli/cases_3a_test.go:66`, `:94-95`), ihr Inhalt wird
+  nie verglichen.
+- Kein Go-Code liest `*-source`, `*-worlds` oder `*-map.toml`; einzig
+  `internal/hosts/antigravity_test.go:27` liest `2c-payloads/agy-*.json`.
+  Jeder übersetzte Fall trägt seine eigene `world/`.
+- Einen Schalter, der Erwartungen neu schreibt, gibt es für die Wiedergabe
+  nicht.
+
+Folge für PR C: Altnamen in nicht verglichenen Dateien fallen per
+Ersetzungstabelle; `4a2/hook/*/git.toml` ändert sich in `world/` und
+`world_after/` gleich; die Altpfade in 3a und 4d fallen mit ihrer Toleranz;
+`index.yml` zieht PR B mit.
