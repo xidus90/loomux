@@ -266,10 +266,9 @@ func detectBranch(repo string) string {
 	return name
 }
 
-// renderManifest is `write_manifest`'s text with two changes: every value is
-// quoted as TOML, and the branch goes under `branch`. The reference writes
-// `merge_branch`, which its own reader never reads (`manifest.py:41` asks
-// `maintenance.get("branch", "main")`), and neither does loomux's.
+// renderManifest is the text of a new area manifest. It carries only keys a
+// reader reads: `sources` only chooses what `[index] include` lists. Every
+// value is quoted as TOML, and the branch goes under `branch`.
 func renderManifest(scope, sources, layoutWiki, privacy, branch string) string {
 	includes := config.QuoteTOML("**/*.md")
 	if sources == "docs" {
@@ -280,7 +279,6 @@ func renderManifest(scope, sources, layoutWiki, privacy, branch string) string {
 		"wiki = true\n" +
 		"\n" +
 		"[layout]\n" +
-		"sources = " + config.QuoteTOML(sources) + "\n" +
 		"wiki = " + config.QuoteTOML(layoutWiki) + "\n" +
 		"\n" +
 		"[index]\n" +

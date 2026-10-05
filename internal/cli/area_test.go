@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/BurntSushi/toml"
 	"github.com/xidus90/loomux/internal/brain/search"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/gitenv"
@@ -99,7 +101,6 @@ func TestAreaAddRegistersANewArea(t *testing.T) {
 		"wiki = true\n" +
 		"\n" +
 		"[layout]\n" +
-		"sources = \"docs\"\n" +
 		"wiki = \"docs/wiki\"\n" +
 		"\n" +
 		"[index]\n" +
@@ -388,7 +389,6 @@ func TestAreaAddTakesItsFlags(t *testing.T) {
 		"wiki = true\n" +
 		"\n" +
 		"[layout]\n" +
-		"sources = \"src\"\n" +
 		"wiki = \"wiki\"\n" +
 		"\n" +
 		"[index]\n" +
@@ -686,5 +686,33 @@ func TestAreaCheckIsGone(t *testing.T) {
 	code, out, errOut := run("area", "check", t.TempDir())
 	if code != 2 || out != "" || !strings.HasPrefix(errOut, "usage: loomux area add") || strings.Contains(errOut, "check") {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+// The manifest carries only keys a reader reads: a key nobody reads is a
+// setting that looks adjustable and does nothing.
+func TestAreaAddWritesOnlyKeysAReaderReads(t *testing.T) {
+	_, repo, _ := areaWorld(t)
+	if code, _, errOut := run("area", "add", "--path", repo, "--sources", "src", "-y", "--no-reindex"); code != 0 {
+		t.Fatalf("exit = %d, stderr = %s", code, errOut)
+	}
+	var written map[string]map[string]any
+	if _, err := toml.DecodeFile(filepath.Join(repo, ".loomux", "config.toml"), &written); err != nil {
+		t.Fatal(err)
+	}
+	allowed := config.DeclarationKeys()
+	// detect.declaresWiki reads [area] wiki when it decides what init proposes.
+	allowed["area"] = append(allowed["area"], "wiki")
+	checked := 0
+	for section, keys := range written {
+		for key := range keys {
+			checked++
+			if !slices.Contains(allowed[section], key) {
+				t.Errorf("[%s] %s is written, but no reader reads it", section, key)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("the manifest has no keys to check")
 	}
 }
