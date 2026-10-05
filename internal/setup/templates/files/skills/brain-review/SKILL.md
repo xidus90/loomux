@@ -83,7 +83,7 @@ section of its claim**, never under a heading of its own.
 
 ````markdown
 ---
-case: ultra-brain-2026-08-27-a4f2
+case: notes-2026-08-27-a4f2
 category: fix
 confidence: high
 uncertainty: none

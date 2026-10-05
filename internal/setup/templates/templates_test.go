@@ -144,7 +144,7 @@ func TestSkillNamesPerModule(t *testing.T) {
 func TestNoSkillCallsAnOldCommand(t *testing.T) {
 	bareBrain := regexp.MustCompile("(?m)(^|`)brain ")
 	for path, text := range shipped(t) {
-		for _, old := range []string{"uv run", "brain-mcp", "ultraloom", "ulguard"} {
+		for _, old := range []string{"uv run", "brain-mcp", "ultraloom", "ulguard", "ultra-brain"} {
 			if strings.Contains(text, old) {
 				t.Errorf("%s names %q", path, old)
 			}
