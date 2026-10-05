@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -62,33 +61,20 @@ func TestRunStatus(t *testing.T) {
 			t.Fatalf("expected %q in output, got %s", want, out)
 		}
 	}
-	// The lane is named by the command this binary carries. `brain lint` was a
-	// second binary and a Python environment, and this very report calls the
-	// old guard obsolete two sections down -- naming it as what loomux runs
-	// sent the reader to a tool that is gone.
+	// The lane is named by the command this binary carries.
 	if !strings.Contains(out, "loomux lint") {
 		t.Fatalf("expected the wiki lane to name 'loomux lint', got %s", out)
 	}
 	if strings.Contains(out, "brain lint") || strings.Contains(out, "brain wiki-gate") {
 		t.Fatalf("no line may name a retired binary as what loomux runs, got %s", out)
 	}
-	if !strings.Contains(out, "format_on_edit.py") {
-		t.Fatalf("expected legacy finding for format_on_edit.py, got %s", out)
-	}
-	// The reason a legacy hook is obsolete names the command that replaced it,
-	// and that is a loomux subcommand. `ulguard` is itself listed as superseded
-	// two lines above, so naming it as a successor would send the reader to a
-	// binary this very report calls gone. The fixture configures no `ulguard`
-	// command, so the string can only reach stdout through a reason.
-	if !strings.Contains(out, "Reason: superseded by 'loomux hook post-tool-use'") {
-		t.Fatalf("expected the successor to be named in the reason, got %s", out)
-	}
-	if strings.Contains(out, "ulguard") {
-		t.Fatalf("no reason may name ulguard as a successor, got %s", out)
+	// An entry of another tool is left alone, not reported.
+	if strings.Contains(out, "format_on_edit.py") {
+		t.Fatalf("an entry of another tool is not reported, got %s", out)
 	}
 }
 
-func TestRunStatusAllStacksAndNoLegacy(t *testing.T) {
+func TestRunStatusAllStacks(t *testing.T) {
 	tmp := t.TempDir()
 
 	// Add files for all stacks
@@ -116,7 +102,7 @@ func TestRunStatusAllStacksAndNoLegacy(t *testing.T) {
 		}
 	}
 
-	// Clean settings without legacy hooks and with no Pre/Post
+	// Settings with no hooks wired
 	if err := os.MkdirAll(filepath.Join(tmp, ".claude"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -147,8 +133,7 @@ func TestRunStatusAllStacksAndNoLegacy(t *testing.T) {
 		"rust (*.rs) lint: cargo clippy -- -D warnings ; cargo fmt --check [preset]",
 		"go (*.go) lint: go vet ./... ; {loomux} check gofmt {file} [preset, parallel]",
 		"python (*.py) types: uv run pyright [",
-		"No obsolete or redundant legacy hooks found",
-		"UltraBrain Wiki: Inactive / Disabled",
+		"\nWiki: Inactive / Disabled",
 	} {
 		if !strings.Contains(out, expected) {
 			t.Fatalf("expected output to contain %q, but got:\n%s", expected, out)
@@ -187,61 +172,90 @@ func TestStatusReportsTheDeclaredWikiAsActive(t *testing.T) {
 		t.Fatalf("code %d", code)
 	}
 	out := stdout.String()
-	if strings.Contains(out, "UltraBrain Wiki: Inactive") {
+	if strings.Contains(out, "Wiki: Inactive") {
 		t.Fatalf("the report lists the wiki stack and calls the wiki disabled:\n%s", out)
 	}
-	for _, want := range []string{"UltraBrain Wiki: Active", "'notes'", "*.md (in notes)"} {
+	// At the start of a line: nothing precedes the word.
+	for _, want := range []string{"\nWiki: Active", "'notes'", "*.md (in notes)"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected %q in:\n%s", want, out)
 		}
 	}
 }
 
-func TestAuditSettingsEdgeCases(t *testing.T) {
+// The audit names the loomux hooks the settings wire and nothing else: an
+// entry of another tool is neither listed nor judged.
+func TestStatusReportsOnlyTheLoomuxHooks(t *testing.T) {
+	tmp := t.TempDir()
+	claudeDir := filepath.Join(tmp, ".claude")
+	_ = os.MkdirAll(claudeDir, 0o755)
+	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{
+		"hooks": {
+			"PreToolUse": [{"hooks": [{"command": "loomux hook pre-tool-use --host claude"}]}],
+			"Stop": [{"hooks": [{"command": "loomux hook stop --host claude"}, {"command": "other-tool hook stop"}]}]
+		}
+	}`), 0o644)
+
+	var stdout, stderr bytes.Buffer
+	if code := Status(&stdout, &stderr, tmp); code != ExitOK {
+		t.Fatalf("code %d", code)
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		" [OK] PreToolUse: 'loomux hook pre-tool-use' installed",
+		" [OK] Stop: 'loomux hook stop' installed",
+		" Hook Audit (.claude/settings.json)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in:\n%s", want, out)
+		}
+	}
+	for _, gone := range []string{"legacy", "superseded", "other-tool", "Redundan", "obsolete"} {
+		if strings.Contains(out, gone) {
+			t.Fatalf("the report names %q:\n%s", gone, out)
+		}
+	}
+}
+
+func TestInstalledEventsEdgeCases(t *testing.T) {
 	tmp := t.TempDir()
 
 	// 1. Missing settings file
-	findings, installed := auditSettings(tmp)
-	if len(findings) != 0 || len(installed) != 0 {
-		t.Fatalf("expected empty for missing settings, got findings=%v installed=%v", findings, installed)
+	installed := installedEvents(tmp)
+	if len(installed) != 0 {
+		t.Fatalf("expected empty for missing settings, got installed=%v", installed)
 	}
 
 	// 2. Invalid JSON in settings file
 	claudeDir := filepath.Join(tmp, ".claude")
 	_ = os.MkdirAll(claudeDir, 0o755)
 	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("invalid json"), 0o644)
-	findings, installed = auditSettings(tmp)
-	if len(findings) != 0 || len(installed) != 0 {
-		t.Fatalf("expected empty for invalid json, got findings=%v installed=%v", findings, installed)
+	installed = installedEvents(tmp)
+	if len(installed) != 0 {
+		t.Fatalf("expected empty for invalid json, got installed=%v", installed)
 	}
 
-	// 3. All legacy hooks in settings
-	allLegacyJSON := `{
+	// 3. Entries of other tools install nothing, `hook stop` in their command
+	// line included.
+	otherToolJSON := `{
 		"hooks": {
 			"PreToolUse": [
 				{"hooks": [{"command": "python guard_paths.py"}]}
 			],
-			"PostToolUse": [
-				{"hooks": [{"command": "python post_edit.py"}, {"command": "python generate_index.py"}, {"command": "python lint.py"}]}
-			],
 			"Stop": [
-				{"hooks": [{"command": "python wiki_gate.py"}]}
+				{"hooks": [{"command": "other-tool hook stop"}]}
 			]
 		}
 	}`
-	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(allLegacyJSON), 0o644)
-	findings, installed = auditSettings(tmp)
-	if len(findings) != 5 {
-		t.Fatalf("expected 5 legacy findings, got %d", len(findings))
-	}
+	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(otherToolJSON), 0o644)
+	installed = installedEvents(tmp)
 	if len(installed) != 0 {
 		t.Fatalf("expected no loomux hook installed, got %v", installed)
 	}
 
 	// 4. Five of the events this binary serves, each named once: every one is
-	// reported, an event nobody wired is not, and no legacy entry matches a
-	// loomux command. What this fixture cannot show is which entry `stop` came
-	// from -- fixture 6 pins that.
+	// reported and an event nobody wired is not. What this fixture cannot show
+	// is which entry `stop` came from -- fixture 5 pins that.
 	allLoomuxJSON := `{
 		"hooks": {
 			"PreToolUse": [{"hooks": [{"command": "loomux hook pre-tool-use --host claude"}]}],
@@ -252,10 +266,7 @@ func TestAuditSettingsEdgeCases(t *testing.T) {
 		}
 	}`
 	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(allLoomuxJSON), 0o644)
-	findings, installed = auditSettings(tmp)
-	if len(findings) != 0 {
-		t.Fatalf("a loomux command is no legacy hook, got %v", findings)
-	}
+	installed = installedEvents(tmp)
 	for _, event := range []string{"pre-tool-use", "post-tool-use", "session-start", "stop", "subagent-stop"} {
 		if !installed[event] {
 			t.Fatalf("%s not seen in %v", event, installed)
@@ -265,27 +276,7 @@ func TestAuditSettingsEdgeCases(t *testing.T) {
 		t.Fatalf("subagent-start is not wired here, got %v", installed)
 	}
 
-	// 5. The old Python session hooks are named as superseded, and each is a
-	// finding of its own.
-	legacySessionJSON := `{
-		"hooks": {
-			"Stop": [{"hooks": [{"command": "ultraloom hook stop"}]}],
-			"SubagentStart": [{"hooks": [{"command": "ultraloom hook subagent-start"}]}],
-			"SubagentStop": [{"hooks": [{"command": "ultraloom hook subagent-stop"}]}]
-		}
-	}`
-	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(legacySessionJSON), 0o644)
-	findings, _ = auditSettings(tmp)
-	if len(findings) != 3 {
-		t.Fatalf("expected 3 legacy session findings, got %v", findings)
-	}
-	for _, f := range findings {
-		if !strings.Contains(f.Reason, "superseded by 'loomux hook ") {
-			t.Fatalf("reason %q", f.Reason)
-		}
-	}
-
-	// 6. The word after `hook` is read whole. Only the subagent hook is wired
+	// 5. The word after `hook` is read whole. Only the subagent hook is wired
 	// here, so a matcher that looked for the bare event name -- `stop`
 	// anywhere in the command, or behind a word boundary that `-` satisfies
 	// -- would report a stop gate this project does not have, and the report
@@ -294,34 +285,12 @@ func TestAuditSettingsEdgeCases(t *testing.T) {
 	// does not contain it.
 	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(
 		`{"hooks":{"SubagentStop":[{"hooks":[{"command":"loomux hook subagent-stop --host claude"}]}]}}`), 0o644)
-	_, installed = auditSettings(tmp)
+	installed = installedEvents(tmp)
 	if !installed["subagent-stop"] {
 		t.Fatalf("subagent-stop not seen in %v", installed)
 	}
 	if installed["stop"] {
 		t.Fatalf("`hook stop` was found inside `hook subagent-stop`: %v", installed)
-	}
-}
-
-// The findings are listed in the order of the event names and not in the
-// order a map hands them out.
-func TestAuditSettingsOrdersItsFindingsByEvent(t *testing.T) {
-	tmp := t.TempDir()
-	claudeDir := filepath.Join(tmp, ".claude")
-	_ = os.MkdirAll(claudeDir, 0o755)
-	_ = os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{
-		"hooks": {
-			"SubagentStop": [{"hooks": [{"command": "ultraloom hook subagent-stop"}]}],
-			"PreToolUse": [{"hooks": [{"command": "python guard_paths.py"}]}],
-			"Stop": [{"hooks": [{"command": "ultraloom hook stop"}]}]
-		}
-	}`), 0o644)
-	for i := 0; i < 5; i++ {
-		findings, _ := auditSettings(tmp)
-		got := []string{findings[0].Event, findings[1].Event, findings[2].Event}
-		if !slices.Equal(got, []string{"PreToolUse", "Stop", "SubagentStop"}) {
-			t.Fatalf("order %v", got)
-		}
 	}
 }
 
