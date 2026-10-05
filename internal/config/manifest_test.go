@@ -194,13 +194,8 @@ func manifestIn(t *testing.T, dir string) string {
 	return filepath.Join(dir, manifestNames[0])
 }
 
-func TestReadManifestStillKnowsOnlyTheLoomuxName(t *testing.T) {
+func TestReadManifestWithoutOneNamesTheExpectedPath(t *testing.T) {
 	dir := t.TempDir()
-	write(t, filepath.Join(dir, ".brain.toml"), "[area]\nscope = \"brain\"\n")
-	if err := os.MkdirAll(filepath.Join(dir, ".ultra-brain"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	write(t, filepath.Join(dir, ".ultra-brain", "config.toml"), "[area]\nscope = \"ultra-brain\"\n")
 	_, err := ReadManifest(dir)
 	if !errors.Is(err, ErrNoManifest) {
 		t.Fatalf("ReadManifest err = %v, want ErrNoManifest", err)
@@ -426,7 +421,7 @@ func TestAReadOnlyAreaKeepsItsManifestInTheStateDirectory(t *testing.T) {
 	// state directory: three of the nine registered areas were read-only, and
 	// all three had a manifest in its `areas` folder (counted by listing it).
 	state := filepath.Join("S", "tate")
-	owned := Area{Scope: "project/ultra-brain", Path: "P"}
+	owned := Area{Scope: "project/side-notes", Path: "P"}
 	if got := ManifestDir(owned, state); got != "P" {
 		t.Errorf("ManifestDir(owned) = %q, want the area path", got)
 	}

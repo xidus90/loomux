@@ -77,13 +77,13 @@ func TestCleanFoldsCaseOnWindows(t *testing.T) {
 
 func TestEnvironReadsThisProcess(t *testing.T) {
 	t.Setenv("GIT_DIR", "/repo/.git")
-	t.Setenv("ULTRALOOM_GITENV_PROBE", "1")
+	t.Setenv("LOOMUX_GITENV_PROBE", "1")
 
 	environ := Environ()
 	if slices.Contains(environ, "GIT_DIR=/repo/.git") {
 		t.Fatal("Environ kept GIT_DIR")
 	}
-	if !slices.Contains(environ, "ULTRALOOM_GITENV_PROBE=1") {
+	if !slices.Contains(environ, "LOOMUX_GITENV_PROBE=1") {
 		t.Fatal("Environ dropped a variable that is not git's")
 	}
 	if len(environ) >= len(os.Environ()) {

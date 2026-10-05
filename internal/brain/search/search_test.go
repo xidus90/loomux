@@ -101,7 +101,7 @@ func TestCollectionName(t *testing.T) {
 		expected string
 	}{
 		{"knowledge", "knowledge"},
-		{"project/ultra-brain", "project-ultra-brain"},
+		{"project/side-notes", "project-side-notes"},
 		{"project/deep/nested", "project-deep-nested"},
 		{"-unsafe@scope-", "unsafe-scope"},
 		{"foo--bar", "foo--bar"},
@@ -170,12 +170,12 @@ func TestExecuteSearch_AnAreaWithoutADeclarationFailsTheSearch(t *testing.T) {
 func TestExecuteSearch_UnknownScope(t *testing.T) {
 	dir := t.TempDir()
 	knowledge := writeArea(t, dir, "knowledge", manifestOf("knowledge"))
-	ub := writeArea(t, dir, "project/ultra-brain", manifestOf("project/ultra-brain"))
-	writeRegistry(t, dir, areaEntry("knowledge", knowledge)+areaEntry("project/ultra-brain", ub))
+	ub := writeArea(t, dir, "project/side-notes", manifestOf("project/side-notes"))
+	writeRegistry(t, dir, areaEntry("knowledge", knowledge)+areaEntry("project/side-notes", ub))
 
 	port := &mockSearchPort{}
 	_, err := search.ExecuteSearch("query", "project/missing", search.ProfileFast, 5, privacy.ChannelLocal, port, dir, searchNow)
-	want := "unknown scope 'project/missing'; known scopes are: knowledge, project/ultra-brain"
+	want := "unknown scope 'project/missing'; known scopes are: knowledge, project/side-notes"
 	if err == nil || err.Error() != want {
 		t.Fatalf("got %v, want %q", err, want)
 	}
@@ -186,16 +186,16 @@ func TestExecuteSearch_UnknownScope(t *testing.T) {
 
 func TestExecuteSearch_AllScope(t *testing.T) {
 	dir := t.TempDir()
-	ub := writeArea(t, dir, "project/ultra-brain", manifestOf("project/ultra-brain"), "docs/intro.md")
+	ub := writeArea(t, dir, "project/side-notes", manifestOf("project/side-notes"), "docs/intro.md")
 	knowledge := writeArea(t, dir, "knowledge", manifestOf("knowledge"), "note.md")
-	writeRegistry(t, dir, areaEntry("project/ultra-brain", ub)+areaEntry("knowledge", knowledge))
+	writeRegistry(t, dir, areaEntry("project/side-notes", ub)+areaEntry("knowledge", knowledge))
 
 	var requestedCols []string
 	port := &mockSearchPort{
 		searchFunc: func(query string, collections []string, profile search.Profile, n int) ([]search.SearchHit, error) {
 			requestedCols = collections
 			return []search.SearchHit{
-				{Collection: "project-ultra-brain", Relative: "docs/intro.md", Line: 1, Title: "Introduction", Snippet: "First line\nSecond line", Score: 0.85},
+				{Collection: "project-side-notes", Relative: "docs/intro.md", Line: 1, Title: "Introduction", Snippet: "First line\nSecond line", Score: 0.85},
 				{Collection: "knowledge", Relative: "note.md", Line: 5, Title: "A Note", Snippet: "Note content", Score: 0.72},
 			}, nil
 		},
@@ -205,13 +205,13 @@ func TestExecuteSearch_AllScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !reflect.DeepEqual(requestedCols, []string{"knowledge", "project-ultra-brain"}) {
-		t.Errorf("expected sorted collections [knowledge project-ultra-brain], got %v", requestedCols)
+	if !reflect.DeepEqual(requestedCols, []string{"knowledge", "project-side-notes"}) {
+		t.Errorf("expected sorted collections [knowledge project-side-notes], got %v", requestedCols)
 	}
 	if len(answer.Hits) != 2 {
 		t.Fatalf("expected 2 hits, got %d", len(answer.Hits))
 	}
-	if answer.Hits[0].Scope != "project/ultra-brain" || answer.Hits[1].Scope != "knowledge" {
+	if answer.Hits[0].Scope != "project/side-notes" || answer.Hits[1].Scope != "knowledge" {
 		t.Errorf("scopes %q and %q", answer.Hits[0].Scope, answer.Hits[1].Scope)
 	}
 	if len(answer.Findings) != 0 {
@@ -223,30 +223,30 @@ func TestExecuteSearch_AllScope(t *testing.T) {
 // the other one does not fail the search.
 func TestExecuteSearch_SpecificScope(t *testing.T) {
 	dir := t.TempDir()
-	ub := writeArea(t, dir, "project/ultra-brain", manifestOf("project/ultra-brain"), "docs/intro.md")
+	ub := writeArea(t, dir, "project/side-notes", manifestOf("project/side-notes"), "docs/intro.md")
 	knowledge := writeArea(t, dir, "knowledge", manifestOf("knowledge"))
 	if err := os.WriteFile(filepath.Join(knowledge, "_identities.tsv"), []byte("header\nbroken\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	writeRegistry(t, dir, areaEntry("project/ultra-brain", ub)+areaEntry("knowledge", knowledge))
+	writeRegistry(t, dir, areaEntry("project/side-notes", ub)+areaEntry("knowledge", knowledge))
 
 	var requestedCols []string
 	port := &mockSearchPort{
 		searchFunc: func(query string, collections []string, profile search.Profile, n int) ([]search.SearchHit, error) {
 			requestedCols = collections
-			return []search.SearchHit{{Collection: "project-ultra-brain", Relative: "docs/intro.md", Line: 1, Title: "Introduction", Snippet: "Hello", Score: 0.9}}, nil
+			return []search.SearchHit{{Collection: "project-side-notes", Relative: "docs/intro.md", Line: 1, Title: "Introduction", Snippet: "Hello", Score: 0.9}}, nil
 		},
 	}
 
-	answer, err := search.ExecuteSearch("hello", "project/ultra-brain", search.ProfileFull, 3, privacy.ChannelLocal, port, dir, searchNow)
+	answer, err := search.ExecuteSearch("hello", "project/side-notes", search.ProfileFull, 3, privacy.ChannelLocal, port, dir, searchNow)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !reflect.DeepEqual(requestedCols, []string{"project-ultra-brain"}) {
-		t.Errorf("expected [project-ultra-brain], got %v", requestedCols)
+	if !reflect.DeepEqual(requestedCols, []string{"project-side-notes"}) {
+		t.Errorf("expected [project-side-notes], got %v", requestedCols)
 	}
-	if len(answer.Hits) != 1 || answer.Hits[0].Scope != "project/ultra-brain" || len(answer.Findings) != 0 {
-		t.Errorf("expected 1 hit with scope project/ultra-brain and no findings, got %+v %v", answer.Hits, answer.Findings)
+	if len(answer.Hits) != 1 || answer.Hits[0].Scope != "project/side-notes" || len(answer.Findings) != 0 {
+		t.Errorf("expected 1 hit with scope project/side-notes and no findings, got %+v %v", answer.Hits, answer.Findings)
 	}
 }
 
@@ -529,13 +529,13 @@ func TestFormatSearch(t *testing.T) {
 	t.Run("formatted results with snippet indentation", func(t *testing.T) {
 		ans := &search.SearchAnswer{
 			Hits: []search.SearchHit{
-				{Scope: "project/ultra-brain", Relative: "docs/intro.md", Line: 10, Title: "Introduction", Score: 0.854, Snippet: "@@ -1,3 @@ (header)\n# Introduction\n\nSome detail"},
+				{Scope: "project/side-notes", Relative: "docs/intro.md", Line: 10, Title: "Introduction", Score: 0.854, Snippet: "@@ -1,3 @@ (header)\n# Introduction\n\nSome detail"},
 				{Collection: "knowledge", Scope: "knowledge", Relative: "note.md", Line: 1, Title: "A Note", Score: 0.5, Snippet: "Single line snippet"},
 			},
 		}
 
 		out := search.FormatSearch(ans)
-		expected := "brain://project/ultra-brain/docs/intro.md:10  85%  Introduction\n" +
+		expected := "brain://project/side-notes/docs/intro.md:10  85%  Introduction\n" +
 			"    @@ -1,3 @@ (header)\n" +
 			"    # Introduction\n" +
 			"    \n" +
@@ -549,7 +549,7 @@ func TestFormatSearch(t *testing.T) {
 	})
 
 	// Measured against cli._print_search on 2026-09-15.
-	head := "brain://project/ultra-brain/docs/intro.md:10  85%  Introduction\n"
+	head := "brain://project/side-notes/docs/intro.md:10  85%  Introduction\n"
 	for _, tc := range []struct {
 		name, snippet, want string
 	}{
@@ -559,7 +559,7 @@ func TestFormatSearch(t *testing.T) {
 			head + "    a\n    b\n    c\n    d\n    e\n    f\n    g\n    h\n    i\n    j\n    k\n\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			hit := search.SearchHit{Scope: "project/ultra-brain", Relative: "docs/intro.md", Line: 10, Title: "Introduction", Score: 0.854, Snippet: tc.snippet}
+			hit := search.SearchHit{Scope: "project/side-notes", Relative: "docs/intro.md", Line: 10, Title: "Introduction", Score: 0.854, Snippet: tc.snippet}
 			if got := search.FormatSearch(&search.SearchAnswer{Hits: []search.SearchHit{hit}}); got != tc.want {
 				t.Fatalf("got %q, want %q", got, tc.want)
 			}

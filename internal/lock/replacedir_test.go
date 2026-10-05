@@ -16,7 +16,6 @@ func area(t *testing.T, dir string, mark string) string {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 	for name, text := range map[string]string{
-		".brain.toml":     "[area]\nscope = \"" + mark + "\"\n",
 		"index.md":        "# " + mark + "\n",
 		"graph.json":      "{\"scope\":\"" + mark + "\"}\n",
 		"notes/index.md":  "# notes " + mark + "\n",

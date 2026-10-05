@@ -21,13 +21,13 @@ func write(t *testing.T, root, body string) {
 
 func TestMirrorReadsTheConfiguredPaths(t *testing.T) {
 	root := t.TempDir()
-	write(t, root, "[worktree]\nmirror = [\".tools\", \".ultraloom/vendor\"]\n")
+	write(t, root, "[worktree]\nmirror = [\".tools\", \".tools/vendor\"]\n")
 
 	got, err := Mirror(root)
 	if err != nil {
 		t.Fatalf("Mirror: %v", err)
 	}
-	if !slices.Equal(got, []string{".tools", ".ultraloom/vendor"}) {
+	if !slices.Equal(got, []string{".tools", ".tools/vendor"}) {
 		t.Fatalf("Mirror = %q, want the two configured paths in order", got)
 	}
 }

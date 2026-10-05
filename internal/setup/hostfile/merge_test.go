@@ -50,9 +50,9 @@ func TestMergeLeavesLoomuxsOwnSettingsByteForByte(t *testing.T) {
 func TestMergeAddsBesideOldEntriesAndNamesThem(t *testing.T) {
 	existing := []byte(`{"hooks":{"PreToolUse":[
 		{"matcher":"Write|Edit|NotebookEdit|Bash|PowerShell",
-		 "hooks":[{"type":"command","command":"ulguard --root \"${CLAUDE_PROJECT_DIR}\"","timeout":10}]},
+		 "hooks":[{"type":"command","command":"other-guard --root \"${CLAUDE_PROJECT_DIR}\"","timeout":10}]},
 		{"matcher":"Write|Edit|MultiEdit|NotebookEdit",
-		 "hooks":[{"type":"command","command":"brain guard","timeout":15}]}
+		 "hooks":[{"type":"command","command":"notes-guard","timeout":15}]}
 	]}}`)
 	got, err := Merge(claude, existing, Entries(claude, Canonical))
 	if err != nil {
@@ -71,8 +71,8 @@ func TestMergeAddsBesideOldEntriesAndNamesThem(t *testing.T) {
 	}
 	pre := commands(t, got.Merged, "hooks", "PreToolUse")
 	wantPre := []string{
-		`ulguard --root "${CLAUDE_PROJECT_DIR}"`,
-		"brain guard",
+		`other-guard --root "${CLAUDE_PROJECT_DIR}"`,
+		"notes-guard",
 		Canonical + ` hook pre-tool-use --host claude --root "${CLAUDE_PROJECT_DIR}"`,
 	}
 	if !reflect.DeepEqual(pre, wantPre) {
@@ -162,7 +162,7 @@ func TestMergeKeepsForeignTopLevelKeysInTheirOrder(t *testing.T) {
 }
 
 func TestMergeWritesTheAntigravityGroup(t *testing.T) {
-	existing := []byte(`{"wiki-guard":{"PreToolUse":[{"matcher":"write_to_file","hooks":[{"type":"command","command":"brain guard"}]}]}}`)
+	existing := []byte(`{"wiki-guard":{"PreToolUse":[{"matcher":"write_to_file","hooks":[{"type":"command","command":"notes-guard"}]}]}}`)
 	wanted := Entries(hosts.HostAntigravity, Canonical)
 	got, err := Merge(hosts.HostAntigravity, existing, wanted)
 	if err != nil {
@@ -174,7 +174,7 @@ func TestMergeWritesTheAntigravityGroup(t *testing.T) {
 	if pre := commands(t, got.Merged, "loomux", "PreToolUse"); len(pre) != 1 || !Owned(pre[0]) {
 		t.Fatalf("loomux PreToolUse = %q", pre)
 	}
-	if guard := commands(t, got.Merged, "wiki-guard", "PreToolUse"); !reflect.DeepEqual(guard, []string{"brain guard"}) {
+	if guard := commands(t, got.Merged, "wiki-guard", "PreToolUse"); !reflect.DeepEqual(guard, []string{"notes-guard"}) {
 		t.Fatalf("wiki-guard PreToolUse = %q", guard)
 	}
 	if _, err := Merge(hosts.HostAntigravity, []byte(`{"loomux":[]}`), wanted); err == nil ||
@@ -219,7 +219,7 @@ func TestMergeWritesAntigravitysFlatEventsFlat(t *testing.T) {
 func TestMergeCarriesEveryOtherAntigravityGroupOver(t *testing.T) {
 	indented := "{\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"run_command\",\n" +
 		"        \"hooks\": [\n          {\n            \"type\": \"command\",\n" +
-		"            \"command\": \"brain guard\"\n          }\n        ]\n      }\n    ]\n  }"
+		"            \"command\": \"notes-guard\"\n          }\n        ]\n      }\n    ]\n  }"
 	compact := `{"z":1.0,"a":"x \u0026 y","m":[true,null]}`
 	existing := []byte("{\n  \"indented\": " + indented + ",\n  \"compact\": " + compact + "\n}\n")
 	got, err := Merge(hosts.HostAntigravity, existing, Entries(hosts.HostAntigravity, Canonical))
@@ -566,8 +566,8 @@ func TestMergeRecognisesLoomuxEntriesWhereverTheyStand(t *testing.T) {
 	}
 	// A command of ours under an earlier matcher, from before MultiEdit joined
 	// it, stays and gets a block for MultiEdit beside it.
-	ulinit := `"PreToolUse": [{"matcher": "Write|Edit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command", "command": ` + strconvQuote(pre) + `}]}]`
-	got, err = Merge(claude, []byte(`{"hooks": {`+all(ulinit)+`}}`), Entries(claude, b))
+	olderMatcher := `"PreToolUse": [{"matcher": "Write|Edit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command", "command": ` + strconvQuote(pre) + `}]}]`
+	got, err = Merge(claude, []byte(`{"hooks": {`+all(olderMatcher)+`}}`), Entries(claude, b))
 	if err != nil {
 		t.Fatalf("old matcher: %v", err)
 	}

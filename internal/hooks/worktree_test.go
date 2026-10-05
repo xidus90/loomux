@@ -148,14 +148,14 @@ func TestWorktreeLinkPutsTheConfiguredDirectoriesInPlace(t *testing.T) {
 	main, worktree := worktreeFixture(t)
 	writeConfig(t, main, "[worktree]\nmirror = [\".tools\", \".loomux/vendor\"]\n")
 	mkdirAll(t, filepath.Join(main, ".tools", "godot"))
-	mkdirAll(t, filepath.Join(main, ".loomux", "vendor", "ultraloom"))
+	mkdirAll(t, filepath.Join(main, ".loomux", "vendor", "tool"))
 
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	if code := WorktreeLink(stdout, stderr, worktree); code != ExitOK {
 		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, stderr)
 	}
 
-	for _, relative := range []string{".tools/godot", ".loomux/vendor/ultraloom"} {
+	for _, relative := range []string{".tools/godot", ".loomux/vendor/tool"} {
 		if _, err := os.Stat(filepath.Join(worktree, filepath.FromSlash(relative))); err != nil {
 			t.Fatalf("%s is not reachable from the worktree: %v", relative, err)
 		}
@@ -538,7 +538,7 @@ func TestTheSweepReachesANestedPathThroughRealDirectories(t *testing.T) {
 	requireWindows(t)
 	main, _ := worktreeFixture(t)
 	writeConfig(t, main, "[worktree]\nmirror = [\".loomux/vendor\"]\n")
-	mkdirAll(t, filepath.Join(main, ".loomux", "vendor", "ultraloom"))
+	mkdirAll(t, filepath.Join(main, ".loomux", "vendor", "tool"))
 
 	orphan := filepath.Join(main, ".worktrees", "gone")
 	mkdirAll(t, filepath.Join(orphan, ".loomux"))
@@ -552,7 +552,7 @@ func TestTheSweepReachesANestedPathThroughRealDirectories(t *testing.T) {
 	if _, err := os.Lstat(link); !os.IsNotExist(err) {
 		t.Fatalf("the nested orphaned junction survived: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(main, ".loomux", "vendor", "ultraloom")); err != nil {
+	if _, err := os.Stat(filepath.Join(main, ".loomux", "vendor", "tool")); err != nil {
 		t.Fatalf("the sweep reached through the junction: %v", err)
 	}
 	if stdout.Len() != 0 || stderr.Len() != 0 {
@@ -956,7 +956,7 @@ func TestUnlinkReachesANestedPathThroughRealDirectories(t *testing.T) {
 	requireWindows(t)
 	main, worktree := worktreeFixture(t)
 	writeConfig(t, main, "[worktree]\nmirror = ['.loomux/vendor']\n")
-	mkdirAll(t, filepath.Join(main, ".loomux", "vendor", "ultraloom"))
+	mkdirAll(t, filepath.Join(main, ".loomux", "vendor", "tool"))
 	// A real directory, so that the junction lands in the worktree and the
 	// state file below it does too.
 	mkdirAll(t, filepath.Join(worktree, ".loomux"))
@@ -969,7 +969,7 @@ func TestUnlinkReachesANestedPathThroughRealDirectories(t *testing.T) {
 	if _, err := os.Lstat(filepath.Join(worktree, ".loomux", "vendor")); !os.IsNotExist(err) {
 		t.Fatalf("the nested junction survived: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(main, ".loomux", "vendor", "ultraloom")); err != nil {
+	if _, err := os.Stat(filepath.Join(main, ".loomux", "vendor", "tool")); err != nil {
 		t.Fatalf("unlink reached through the junction: %v", err)
 	}
 }

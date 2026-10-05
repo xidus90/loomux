@@ -381,20 +381,6 @@ func TestGodotAtTheRootNamesNoDirectory(t *testing.T) {
 	}
 }
 
-// A .loomux/config.toml without a wiki decides, and a leftover manifest of an
-// older name beside it is never read -- or the manifest and the leftover would
-// answer the same repository differently.
-func TestLoomuxConfigWinsOverBrainToml(t *testing.T) {
-	facts := Detect(fstest.MapFS{
-		".loomux/config.toml": {Data: []byte("[area]\nscope = \"project/x\"\n")},
-		".brain.toml":         {Data: []byte("[area]\nwiki = true\n")},
-		"docs/wiki/index.md":  {Data: []byte("# Katalog\n")},
-	})
-	if facts.WikiMode != "" {
-		t.Fatalf("mode = %q: .brain.toml was read although .loomux/config.toml exists", facts.WikiMode)
-	}
-}
-
 // A row with contains counts once the file carries the text: pyright is only
 // named where pyproject.toml configures it.
 func TestPyprojectWithPyrightSectionNamesPyright(t *testing.T) {

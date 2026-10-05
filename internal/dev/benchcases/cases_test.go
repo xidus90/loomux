@@ -9,11 +9,11 @@ import (
 
 const oldSettings = `{
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "uv run --project \"${CLAUDE_PROJECT_DIR}/.ultraloom/vendor/ultraloom\" ultraloom hook session-start --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "uv run --project \"${CLAUDE_PROJECT_DIR}/.tools/vendor/other-hooks\" other-hooks hook session-start --root \"${CLAUDE_PROJECT_DIR}\""}]}],
     "PreToolUse": [
-      {"matcher": "Write|Edit|Bash", "hooks": [{"type": "command", "command": "ulguard --root \"${CLAUDE_PROJECT_DIR}\""}]},
+      {"matcher": "Write|Edit|Bash", "hooks": [{"type": "command", "command": "other-guard --root \"${CLAUDE_PROJECT_DIR}\""}]},
       {"matcher": "NotebookEdit", "hooks": [{"type": "command", "command": "never-matches"}]},
-      {"matcher": "", "hooks": [{"type": "command", "command": "brain guard"}]}
+      {"matcher": "", "hooks": [{"type": "command", "command": "notes-guard"}]}
     ],
     "Stop": [{"matcher": "wiki", "hooks": [{"type": "command", "command": "brain wiki-gate --root \"${CLAUDE_PROJECT_DIR}\""}]}]
   }
@@ -39,7 +39,7 @@ func TestBuildMakesOneCasePerEventInFixedOrder(t *testing.T) {
 	if pre.Mode != "par" || len(pre.Steps) != 2 {
 		t.Fatalf("PreToolUse = mode %q with %d steps, want par with 2", pre.Mode, len(pre.Steps))
 	}
-	if got := pre.Steps[0].Argv; !reflect.DeepEqual(got, []string{"ulguard", "--root", root}) {
+	if got := pre.Steps[0].Argv; !reflect.DeepEqual(got, []string{"other-guard", "--root", root}) {
 		t.Errorf("argv = %q, want the root, with its space and #, as one argument", got)
 	}
 	if cases[0].Mode != "single" || cases[0].Dir != root || cases[0].Stdin != "C:/out/payload-SessionStart.json" {

@@ -25,7 +25,7 @@ func TestLoadCase_Valid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	writeCaseFile(t, dir, "cmd", []byte("brain guard write.txt\n"))
+	writeCaseFile(t, dir, "cmd", []byte("notes-guard write.txt\n"))
 	writeCaseFile(t, dir, "exit", []byte("0\n"))
 	writeCaseFile(t, dir, "stdout", []byte("ok\n"))
 	writeCaseFile(t, dir, "stdin", []byte("data\n"))
@@ -42,8 +42,8 @@ func TestLoadCase_Valid(t *testing.T) {
 	if c.Name != "allow-write" {
 		t.Errorf("expected name allow-write, got %s", c.Name)
 	}
-	if c.Cmd != "brain guard write.txt" {
-		t.Errorf("expected cmd 'brain guard write.txt', got %q", c.Cmd)
+	if c.Cmd != "notes-guard write.txt" {
+		t.Errorf("expected cmd 'notes-guard write.txt', got %q", c.Cmd)
 	}
 	if c.ExitCode != 0 {
 		t.Errorf("expected exit code 0, got %d", c.ExitCode)

@@ -1,5 +1,5 @@
 ---
-case: ultra-brain-2026-08-27-a4f2
+case: notes-2026-08-27-a4f2
 category: fix
 confidence: high
 uncertainty: none

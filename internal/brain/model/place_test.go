@@ -11,7 +11,7 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-const placeAnswer = `{"scope": "project/ultra-brain", "grund": "Es geht um den Indexer."}`
+const placeAnswer = `{"scope": "project/side-notes", "grund": "Es geht um den Indexer."}`
 
 func place(t *testing.T, answer string, scopes ...string) (string, bool) {
 	t.Helper()
@@ -29,7 +29,7 @@ func TestThePlacePromptIsTheReferencesByteForByte(t *testing.T) {
 }
 
 func TestAScopeFromTheRegisterComesBack(t *testing.T) {
-	if got, ok := place(t, placeAnswer, "project/ultra-brain", "space"); !ok || got != "project/ultra-brain" {
+	if got, ok := place(t, placeAnswer, "project/side-notes", "space"); !ok || got != "project/side-notes" {
 		t.Fatalf("%q %v", got, ok)
 	}
 }
@@ -37,12 +37,12 @@ func TestAScopeFromTheRegisterComesBack(t *testing.T) {
 func TestPlaceDropsWhatIsNoKnownScope(t *testing.T) {
 	for _, answer := range []string{
 		`{"scope": "project/erfunden", "grund": "..."}`,
-		"project/ultra-brain",
+		"project/side-notes",
 		`{"grund": "weiss nicht"}`,
-		`["project/ultra-brain"]`,
+		`["project/side-notes"]`,
 		`{"scope": 5, "grund": "x"}`,
 	} {
-		if got, ok := place(t, answer, "project/ultra-brain"); ok {
+		if got, ok := place(t, answer, "project/side-notes"); ok {
 			t.Errorf("%q passed as %q", answer, got)
 		}
 	}
@@ -55,12 +55,12 @@ func TestPlaceDropsWhatIsNoKnownScope(t *testing.T) {
 // and 9 999 lists inside it are encoding/json's 10 000 levels, and still read.
 func TestPlaceRefusesWhatOnlyPythonsJSONReads(t *testing.T) {
 	nested := func(n int) string { return strings.Repeat("[", n) + strings.Repeat("]", n) }
-	answer := func(grund string) string { return `{"scope": "project/ultra-brain", "grund": ` + grund + `}` }
-	if got, ok := place(t, answer(nested(9999)), "project/ultra-brain"); !ok || got != "project/ultra-brain" {
+	answer := func(grund string) string { return `{"scope": "project/side-notes", "grund": ` + grund + `}` }
+	if got, ok := place(t, answer(nested(9999)), "project/side-notes"); !ok || got != "project/side-notes" {
 		t.Fatalf("10 000 levels: %q %v", got, ok)
 	}
 	for _, grund := range []string{"NaN", "Infinity", "-Infinity", "1e400", nested(10000)} {
-		if got, ok := place(t, answer(grund), "project/ultra-brain"); ok {
+		if got, ok := place(t, answer(grund), "project/side-notes"); ok {
 			t.Errorf("%.12s passed as %q", grund, got)
 		}
 	}
@@ -68,7 +68,7 @@ func TestPlaceRefusesWhatOnlyPythonsJSONReads(t *testing.T) {
 
 func TestTheSchemaGoesOutAsTheFormat(t *testing.T) {
 	var bodies []map[string]any
-	allRoles(t, placeAnswer, &bodies).Place(context.Background(), "text", []string{"project/ultra-brain"})
+	allRoles(t, placeAnswer, &bodies).Place(context.Background(), "text", []string{"project/side-notes"})
 	want := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -84,9 +84,9 @@ func TestTheSchemaGoesOutAsTheFormat(t *testing.T) {
 
 func TestTheScopesAndTheHeadReachThePlacePrompt(t *testing.T) {
 	var bodies []map[string]any
-	allRoles(t, placeAnswer, &bodies).Place(context.Background(), strings.Repeat("A", 1799)+"B"+strings.Repeat("C", 500), []string{"project/ultra-brain", "space"})
+	allRoles(t, placeAnswer, &bodies).Place(context.Background(), strings.Repeat("A", 1799)+"B"+strings.Repeat("C", 500), []string{"project/side-notes", "space"})
 	prompt := bodies[0]["prompt"].(string)
-	if !strings.Contains(prompt, "\n- project/ultra-brain\n- space\n") {
+	if !strings.Contains(prompt, "\n- project/side-notes\n- space\n") {
 		t.Fatal("the scopes are not in the rig's list form")
 	}
 	if !strings.Contains(prompt, strings.Repeat("A", 1799)+"B") || strings.Contains(prompt, "C") {

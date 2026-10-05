@@ -283,10 +283,10 @@ func TestDevBenchCompareReportsAFailedWrite(t *testing.T) {
 
 const benchOldSettings = `{
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "uv run ultraloom hook session-start --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "uv run other-hooks hook session-start --root \"${CLAUDE_PROJECT_DIR}\""}]}],
     "PreToolUse": [
-      {"matcher": "Write|Edit|Bash", "hooks": [{"type": "command", "command": "ulguard --root \"${CLAUDE_PROJECT_DIR}\""}]},
-      {"matcher": "", "hooks": [{"type": "command", "command": "brain guard"}]}
+      {"matcher": "Write|Edit|Bash", "hooks": [{"type": "command", "command": "other-guard --root \"${CLAUDE_PROJECT_DIR}\""}]},
+      {"matcher": "", "hooks": [{"type": "command", "command": "notes-guard"}]}
     ],
     "Stop": [{"hooks": [{"type": "command", "command": "brain wiki-gate --root \"${CLAUDE_PROJECT_DIR}\""}]}]
   }

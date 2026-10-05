@@ -233,18 +233,18 @@ func TestAnEndpointOffTheLoopbackStopsTheRunWhenOnlyDescribeIsOn(t *testing.T) {
 func TestTheSuggestionNamesTheScopeAndMovesNothing(t *testing.T) {
 	w := newWorld(t)
 	inbox := w.inbox("knowledge", roles(false, true))
-	elsewhere := w.area("project/ultra-brain", "", false)
-	m := serveModel(t, w, "project/ultra-brain")
+	elsewhere := w.area("project/side-notes", "", false)
+	m := serveModel(t, w, "project/side-notes")
 	put(t, inbox, "video.txt", "[00:00] Hallo zusammen.\n")
 	out, _ := w.run()
-	if !slices.Equal(out.Suggested, []string{"video.txt.md: belongs in project/ultra-brain, left in the inbox"}) {
+	if !slices.Equal(out.Suggested, []string{"video.txt.md: belongs in project/side-notes, left in the inbox"}) {
 		t.Fatalf("%q", out.Suggested)
 	}
 	if entries, _ := os.ReadDir(elsewhere); len(entries) != 1 { // only .loomux
 		t.Fatal("something moved")
 	}
 	_, place := m.prompts()
-	if len(place) != 1 || !strings.Contains(place[0], "\n- knowledge\n- project/ultra-brain\n") || !strings.Contains(place[0], "[00:00] Hallo zusammen.") {
+	if len(place) != 1 || !strings.Contains(place[0], "\n- knowledge\n- project/side-notes\n") || !strings.Contains(place[0], "[00:00] Hallo zusammen.") {
 		t.Fatalf("%q", place)
 	}
 }
