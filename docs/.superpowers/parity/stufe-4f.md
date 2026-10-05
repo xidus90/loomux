@@ -492,3 +492,52 @@ Folge für PR C: Altnamen in nicht verglichenen Dateien fallen per
 Ersetzungstabelle; `4a2/hook/*/git.toml` ändert sich in `world/` und
 `world_after/` gleich; die Altpfade in 3a und 4d fallen mit ihrer Toleranz;
 `index.yml` zieht PR B mit.
+
+## 5. Archiv (PR C, Schritt Sichern)
+
+Tag `archive/parity-recordings` auf `348828d6`. Das ist der Kopf von
+`origin/master` nach dem Merge von #81 und der letzte Stand, der die
+Aufzeichnungen unter `testdata/cases/*-source`, `*-worlds`, `*-payloads` und
+`*-map.toml` trägt. Das Release gleichen Namens trägt die Anhänge. Gebaut am
+2026-10-05 nach `git fetch --all` in beiden Ursprungsrepos.
+
+| Datei | Bytes | SHA-256 (Anfang) |
+|---|---|---|
+| `ultraloom.bundle` | 2163300 | `ae0d06a6c5043510…` |
+| `ultra-brain.bundle` | 6249900 | `39998c188699beea…` |
+| `ultraloom-untracked.tar` | 5816320 | `b357c2406afaf714…` |
+| `ultra-brain-untracked.tar` | 81920 | `72a6d53c83c93d3a…` |
+| `ultraloom-modified.patch` | 197 | `6adecf394c5994a8…` |
+| `ultraloom-ignored-keep.tar` | 512000 | `7b103effc9ccf860…` |
+| `ultra-brain-ignored-keep.tar` | 8529920 | `85d3834d5b017290…` |
+
+Dazu `SHA256SUMS` über alle sieben Dateien. ultra-brain hat keine Änderung an
+getrackten Dateien, darum gibt es keinen Patch dafür.
+
+**Belege:**
+- `git bundle verify` ist für beide Bündel grün.
+- `git clone --mirror` aus dem Bündel ergibt dieselbe Liste aus
+  `for-each-ref` (Objekt und Name) wie das Repo: 11 Refs bei ultraloom, 13
+  bei ultra-brain. `git fsck` der Kopie ist sauber.
+- Die Köpfe der elf Worktrees sind Zweigköpfe oder `master`; sie liegen
+  damit im Bündel.
+
+**Übernommen** nach `docs/.superpowers/plans-ul/`, von ultraloom
+`feature/agent-harness`:
+- `2026-09-11-ulflow-welle-0-und-1.md`
+- `2026-09-11-ulflow-welle-2.md`
+- `2026-09-14-ulflow-welle-3.md`
+
+Je Datei ist der Blob-Hash gleich (`git rev-parse <zweig>:<pfad>` gegen
+`git hash-object`).
+
+**Für den Menschen, wenn die Ursprungsrepos gelöscht werden:**
+- **Verwaiste Worktrees:** Zwei Worktrees liegen außerhalb der Repos und
+  blieben verwaist zurück: `C:/Users/micro/orca/workspaces/ultraloom/wentletrap`
+  und `C:/Users/micro/orca/workspaces/ultra-brain/otter`. Sie fallen mit,
+  entweder per `git -C <repo> worktree remove <pfad>` vor dem Löschen oder
+  als Ordner danach.
+- **Wurzelquellen:** `Bauanleitung_Second-Brain.pdf` und
+  `NoteGPT_Transcript_RAG, Hybrid-Suche oder Wiki ….txt` aus ultra-brain
+  gehören nach `brain-knowledge/00 Eingang`. Dort gibt es keine Datei mit
+  gleichem Inhalt.
