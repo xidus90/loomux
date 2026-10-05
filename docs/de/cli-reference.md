@@ -893,7 +893,9 @@ Fehlschlag: der Bericht sagt es, der Exit-Code ist `0`.
 
 ### `loomux serve stop [--force]`
 Beendet den Dienst über seinen eigenen Endpunkt. `--force` tötet ihn über die
-PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet. Erfolg ist still.
+PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet, und kehrt
+zurück, sobald `serve.lock` frei ist; bleibt die Sperre gehalten, scheitert er.
+Erfolg ist still.
 
 - **Exit-Codes**: `0` beendet, und ebenso, wenn nichts lief; `1` der Stopp ist
   gescheitert; `2` ein unbekanntes Argument.

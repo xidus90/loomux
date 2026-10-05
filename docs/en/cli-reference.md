@@ -866,7 +866,8 @@ code is `0`.
 
 ### `loomux serve stop [--force]`
 Ends the service through its own endpoint. `--force` kills it by the PID in
-`serve.json` when the endpoint no longer answers. Success is silent.
+`serve.json` when the endpoint no longer answers, and returns once
+`serve.lock` is free; it fails if the lock stays held. Success is silent.
 
 - **Exit codes**: `0` stopped, and also when nothing was running; `1` the stop
   failed; `2` an unrecognized argument.
