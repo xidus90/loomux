@@ -76,6 +76,64 @@ func TestUpgradeTakesNoArguments(t *testing.T) {
 	}
 }
 
+func TestUpgradePassesTheModeAndThePin(t *testing.T) {
+	for _, c := range []struct {
+		args      []string
+		mode, pin string
+	}{
+		{nil, selfupdate.ModeChannel, ""},
+		{[]string{"--beta"}, selfupdate.ModeBeta, ""},
+		{[]string{"--stable"}, selfupdate.ModeStable, ""},
+		{[]string{"--version", "1.1.0-beta.2"}, selfupdate.ModeChannel, "1.1.0-beta.2"},
+		{[]string{"--version", "v1.0.0"}, selfupdate.ModeChannel, "1.0.0"},
+	} {
+		var got selfupdate.Options
+		selfUpdateRun = func(_ context.Context, o selfupdate.Options) selfupdate.Result {
+			got = o
+			return selfupdate.Result{Outcome: selfupdate.Current, Version: "1.0.0"}
+		}
+		t.Cleanup(func() { selfUpdateRun = selfupdate.Run })
+		var out, errs bytes.Buffer
+		if code := upgradeCommand(c.args, nil, &out, &errs); code != 0 {
+			t.Fatalf("%v: exit %d, %s", c.args, code, errs.String())
+		}
+		if got.Mode != c.mode || got.Pin != c.pin {
+			t.Errorf("%v: mode %q pin %q, want %q %q", c.args, got.Mode, got.Pin, c.mode, c.pin)
+		}
+	}
+}
+
+func TestUpgradeRefusesTwoChoices(t *testing.T) {
+	calls := fakeSelfUpdate(t, selfupdate.Result{Outcome: selfupdate.Current})
+	for _, args := range [][]string{
+		{"--beta", "--stable"},
+		{"--beta", "--version", "1.0.0"},
+		{"--stable", "--version", "1.0.0"},
+		{"--version", "nightly"},
+		{"--version", "1.0.0 (beta)"},
+		{"--version"},
+		{"extra"},
+	} {
+		var out, errs bytes.Buffer
+		if code := upgradeCommand(args, nil, &out, &errs); code != 2 || !strings.Contains(errs.String(), "usage: loomux upgrade") {
+			t.Errorf("%v: exit %d, %q", args, code, errs.String())
+		}
+	}
+	if *calls != 0 {
+		t.Fatalf("a refused call ran a pass")
+	}
+}
+
+func TestUpgradeShowsAMarkerProblemWithoutFailing(t *testing.T) {
+	for _, o := range []selfupdate.Outcome{selfupdate.Updated, selfupdate.Current} {
+		fakeSelfUpdate(t, selfupdate.Result{Outcome: o, Version: "1.2.0-beta.1", Err: errors.New("channel: access denied")})
+		var out, errs bytes.Buffer
+		if code := upgradeCommand([]string{"--beta"}, nil, &out, &errs); code != 0 || !strings.Contains(errs.String(), "channel: access denied") {
+			t.Fatalf("outcome %v: exit %d, %q", o, code, errs.String())
+		}
+	}
+}
+
 func TestSelfUpdateOptionsDescribeThisProcess(t *testing.T) {
 	t.Setenv(config.StateDirEnv, t.TempDir())
 	o := selfUpdateOptions(selfupdate.SourceServe)

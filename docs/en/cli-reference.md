@@ -881,7 +881,7 @@ Ends the service through its own endpoint. `--force` kills it by the PID in
 - **Exit codes**: `0` stopped, and also when nothing was running; `1` the stop
   failed; `2` an unrecognized argument.
 
-### `loomux upgrade`
+### `loomux upgrade [--beta | --stable | --version <x.y.z>]`
 
 One update pass by hand; `serve` runs the same pass a minute after it
 starts and every 24 hours after that. It acts only on the machine-wide
@@ -890,13 +890,27 @@ development build (`0.0.0-dev`) there is replaced by the newest release; one
 anywhere else is never touched.
 
 1. Lists the releases through `gh release list` and takes the highest version
-   of the running binary's channel (`beta` takes pre-releases, `stable` does
-   not).
+   in the machine's channel: with the marker `<state dir>/channel` it takes
+   betas and stable releases, without it stable releases only. A binary of the
+   count before 1.0.0 counts as marked.
 2. Downloads the Windows asset and `SHA256SUMS` through `gh release
    download`, checks the checksum and the new binary's `--version`.
 3. Stamps the file with the current time and swaps it in; the old one goes to
    `loomux.old.exe` or the first free numbered slot. The next bridge replaces
    the running `serve`.
+
+The flags choose the release by hand; at most one at a time:
+
+- `--beta` takes the newest release of either kind and sets the marker
+  `<state dir>/channel` (the line `beta`), so that `serve` keeps taking betas.
+- `--stable` takes the newest stable release and removes the marker.
+- `--version <x.y.z>` takes exactly that version (`v` prefix optional; a beta
+  such as `1.1.0-beta.2` is fine). A stable version removes the marker, a beta
+  sets it. A downgrade this way does not hold: `serve` lifts the binary again
+  within 24 hours.
+
+A problem with the marker alone does not fail the pass: the binary is in
+place, the problem goes to stderr, and session start repeats it.
 
 Writes `<state dir>/update.json` (`source` = `serve` | `cli`, `checked_at`,
 `executable`, `running`, `result` = `current` | `updated` | `skipped` |
@@ -908,7 +922,7 @@ so the record of `serve`'s last pass stays for session start to read.
 |---|---|
 | 0 | `already current (vX)` or `updated to vX` |
 | 1 | the pass failed, or another pass is running |
-| 2 | skipped: not on Windows, or not the machine-wide binary (a development build included); or an unrecognized argument |
+| 2 | skipped: not on Windows, or not the machine-wide binary (a development build included); or an unrecognized argument, two flags at once, or a version that is none |
 
 ### `loomux mcp [--channel local|cloud] [--root <dir>]`
 The stdio bridge an MCP host starts. It offers the twelve tools itself — the

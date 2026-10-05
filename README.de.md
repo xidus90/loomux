@@ -240,6 +240,7 @@ loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dien
 loomux serve status                 # Was serve.json sagt und ob der Listener antwortet
 loomux serve stop [--force]         # Beendet den Dienst über seinen Endpunkt oder über seine PID
 loomux upgrade                      # Ersetzt das maschinenweite Binary durch das neueste Release seines Kanals; serve tut das täglich
+loomux upgrade --beta|--stable      # Wechselt den Kanal und nimmt dessen neuestes Release (oder --version <x.y.z> für eine)
 loomux mcp [--channel local|cloud] [--root D]  # stdio-Brücke, die ein MCP-Wirt startet; bietet die Werkzeuge der [modules] des Projekts an und startet den Dienst selbst
 loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph, Identitätsregister und qmd-Sammlungen jedes Bereichs neu bauen
 loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
