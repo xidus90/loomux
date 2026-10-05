@@ -955,7 +955,7 @@ Was der Lauf entscheidet:
 | Nur in Lanes in Probe rot | 0, der Bericht auf stderr (niemand liest ihn) | auf 0 | unverändert; der Stand bleibt in `seen` |
 | Ein Git-Befehl scheitert in einem Repo | 2, der Fehler auf stderr | + 1 | unverändert |
 | Das Budget war aufgebraucht, bevor jede Lane geurteilt hatte | 1: `not everything was verified; raise --budget or shrink the stop profile` | unverändert | unverändert |
-| Eine angefragte Art hatte keine Lane, die lief | 1: die Notizen, dann `nothing was verified for these kinds; the base stays` | unverändert | unverändert |
+| Eine Art, die das eigene Stop-Profil des Projekts nennt, hatte keine Lane, die lief, oder vom eingebauten lief gar keine | 1: die Notizen, dann `nothing was verified for these kinds; the base stays` | unverändert | unverändert |
 | `[verify]` lässt sich nicht laden, oder der Plan scheitert | 1, der Fehler auf stderr | unverändert | unverändert |
 
 Exit 0 beendet die Runde, 2 hält sie mit dem Grund auf stderr an, 1 heißt: das

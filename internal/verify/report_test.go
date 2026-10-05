@@ -79,9 +79,40 @@ func TestCheckVerdictPerKind(t *testing.T) {
 		{"budget is no finding", []string{"test"}, []Outcome{out("test/go", StateBudget, "p")}, 0, ""},
 	}
 	for _, c := range cases {
-		code, notes := CheckVerdict(c.kinds, c.outs)
+		code, notes := CheckVerdict(c.kinds, c.outs, true)
 		if code != c.code || (c.note == "" && len(notes) != 0) || (c.note != "" && (len(notes) != 1 || notes[0] != c.note)) {
 			t.Errorf("%s: %d %v", c.name, code, notes)
+		}
+	}
+}
+
+// Not asked for by name, a kind the project has no lane for is left out with
+// a note -- as long as one kind of the request had something to check.
+func TestCheckVerdictLeavesOutAKindNobodyNamed(t *testing.T) {
+	cases := []struct {
+		name  string
+		kinds []string
+		outs  []Outcome
+		code  int
+		notes []string
+	}{
+		{"lint alone, as in a vault", []string{"lint", "types", "test", "coverage"}, []Outcome{out("lint/wiki", StateOK, "p")}, 0,
+			[]string{"no lane for `types` here, left out", "no lane for `test` here, left out", "no lane for `coverage` here, left out"}},
+		{"a red lane stays red", []string{"lint", "test"}, []Outcome{out("lint/go", StateFailed, "p")}, 1,
+			[]string{"no lane for `test` here, left out"}},
+		{"a lane that stood aside checked nothing", []string{"graph", "test"}, []Outcome{out("graph/go", StateNotApplicable, "p")}, 1,
+			[]string{"nothing to check for `test`"}},
+		{"a lane that stood aside beside one that ran", []string{"lint", "graph", "test"}, []Outcome{out("lint/wiki", StateOK, "p"), out("graph/go", StateNotApplicable, "p")}, 0,
+			[]string{"no lane for `test` here, left out"}},
+		{"nothing of the request ran", []string{"types", "test"}, []Outcome{out("lint/go", StateOK, "p")}, 1,
+			[]string{"nothing to check for `types`", "nothing to check for `test`"}},
+		{"unavailable alone is nothing", []string{"test", "types"}, []Outcome{out("test/go", StateUnavailable, "p")}, 1,
+			[]string{"nothing to check for `test`", "nothing to check for `types`"}},
+	}
+	for _, c := range cases {
+		code, notes := CheckVerdict(c.kinds, c.outs, false)
+		if code != c.code || !slices.Equal(notes, c.notes) {
+			t.Errorf("%s: %d %q", c.name, code, notes)
 		}
 	}
 }
@@ -252,17 +283,17 @@ func TestWriteCheckMarksARedLaneInProbation(t *testing.T) {
 
 func TestCheckVerdictPassesARunRedOnlyInProbation(t *testing.T) {
 	red := probing("lint/go", "lint/go@.", StateFailed, "x\n")
-	if code, notes := CheckVerdict([]string{"lint"}, []Outcome{red}); code != 0 || len(notes) != 0 {
+	if code, notes := CheckVerdict([]string{"lint"}, []Outcome{red}, true); code != 0 || len(notes) != 0 {
 		t.Fatalf("probation alone: %d %v", code, notes)
 	}
 	armed := red
 	armed.Probation = false
-	if code, _ := CheckVerdict([]string{"lint"}, []Outcome{red, armed}); code != 1 {
+	if code, _ := CheckVerdict([]string{"lint"}, []Outcome{red, armed}, true); code != 1 {
 		t.Fatalf("an armed red lane beside it: %d", code)
 	}
 	// The second rule is untouched: a kind with nothing to check is red
 	// whatever the file says.
-	if code, notes := CheckVerdict([]string{"lint", "test"}, []Outcome{red}); code != 1 || len(notes) != 1 {
+	if code, notes := CheckVerdict([]string{"lint", "test"}, []Outcome{red}, true); code != 1 || len(notes) != 1 {
 		t.Fatalf("nothing to check for test: %d %v", code, notes)
 	}
 }

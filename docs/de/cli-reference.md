@@ -93,7 +93,11 @@ urteilt über sie.
   ihre Ausgabe unter ihre Zeile, eine grüne nur mit `-v`. Eine Lane mit
   mehreren Befehlen druckt einen Block je Befehl mit der Kopfzeile `$ <argv>`,
   bei einem roten mit `(failed)`. Eine Art, die nichts zu prüfen hatte,
-  schließt den Bericht mit ``nothing to check for `<art>` ``.
+  schließt den Bericht mit ``nothing to check for `<art>` ``, wenn die
+  Anfrage sie nannte -- eine Liste von Arten oder ein Profil, das das Projekt
+  in `[verify.profiles]` setzt -- oder wenn gar keine Lane der Anfrage lief;
+  eine Art aus `all` oder einem eingebauten Profil neben einer Lane, die lief,
+  schließt ihn stattdessen mit ``no lane for `<art>` here, left out``.
   ```text
   lint/go: ok [preset] 0.2s
   types/go: not-applicable [preset] no command
@@ -107,7 +111,7 @@ urteilt über sie.
   anderer Läufe gehen, sobald sie 24 Stunden alt sind.
 - **Exit-Codes**: `0` (keine scharfe Lane rot, und jede angefragte Art hatte
   eine Lane, die lief, oder ist irgendwo `not-applicable`), `1` (eine scharfe Lane ist rot,
-  eine Art hatte nichts zu prüfen, oder `[verify]` bzw. die Anfrage lässt sich
+  eine genannte Art hatte nichts zu prüfen, keine Lane der Anfrage lief, oder `[verify]` bzw. die Anfrage lässt sich
   nicht laden; ein Ladefehler ist eine Zeile auf `stderr`), `2` (fehlerhafter
   Aufruf: keine Anfrage, ein Flag vor der Anfrage, ein unbekanntes Flag, eine
   zweite Anfrage).

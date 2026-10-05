@@ -681,7 +681,11 @@ hier): Beispielprojekt 1 `ecoflow`, 2 `space`, 3 `iam_backend`,
 1. Eine Art eines Profils, für die es nichts zu prüfen gibt, lässt
    `check precommit` und den Stop-Hook mit Exit 1 fallen; ein Projekt ohne
    Code (der Vault) kann so nie committen und keine Sitzung beenden, ohne das
-   Profil von Hand zu kürzen.
+   Profil von Hand zu kürzen. **Erledigt am 2026-10-05:** Eine Art aus `all`
+   oder einem eingebauten Profil ohne Lane wird ausgelassen, solange eine
+   Lane einer anderen angefragten Art lief (Fusions-Spec #28, Status). Das
+   von Hand gekürzte Profil des Vaults (`precommit = ["lint"]`) bleibt
+   gültig; ab hier ist es nicht mehr nötig.
 2. `verify.profiles` ist über `config set` nicht setzbar (unbekannter
    Schlüssel); der Vorschlagsweg aus AGENTS.md greift dafür nicht.
 3. `init --brain=none` lässt ein Projekt ohne Bereich; die Schreibschranke

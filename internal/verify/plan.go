@@ -83,6 +83,17 @@ func ImportReady(dir string) bool {
 	return err == nil
 }
 
+// Strict says whether request names its kinds, so that each must have had
+// something to check (CheckVerdict): a list of kinds, or a profile the
+// project's file sets. `all` and a built-in profile name none -- they are
+// what loomux runs, not what the project asked for.
+func Strict(cfg Config, request string) bool {
+	if _, ok := cfg.Profiles[request]; ok {
+		return cfg.SetProfiles[request]
+	}
+	return request != "all"
+}
+
 // ExpandProfile turns what a user asked for into kinds: all of them, a
 // profile, or a comma list of kinds, each named once in the order given.
 func ExpandProfile(cfg Config, request string) ([]string, error) {

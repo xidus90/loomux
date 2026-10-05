@@ -66,6 +66,9 @@ type Config struct {
 	MaxParallel int
 	Timeout     time.Duration
 	Profiles    map[string][]string
+	// SetProfiles are the profiles the project's file sets, a built-in one
+	// it replaces among them.
+	SetProfiles map[string]bool
 	Stacks      map[string]map[string]Override
 	ImportCheck bool
 }
@@ -219,6 +222,10 @@ func parseProfiles(cfg *Config, value any) error {
 			kinds = append(kinds, kind)
 		}
 		cfg.Profiles[name] = kinds
+		if cfg.SetProfiles == nil {
+			cfg.SetProfiles = map[string]bool{}
+		}
+		cfg.SetProfiles[name] = true
 	}
 	return nil
 }
