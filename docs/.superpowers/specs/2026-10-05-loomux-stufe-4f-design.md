@@ -146,7 +146,7 @@ würde ein solcher Bereich still manifestlos.
    wird er vom Menschen.
 2. **Entfernen.** `testdata/cases/*-source`, `*-map.toml`, `*-payloads`,
    `*-worlds`, `internal/dev/importcases` und `loomux dev import-cases`,
-   dazu `internal/dev/recordcase` und `loomux dev record-case` (#34), samt
+   dazu `internal/dev/recordcase`, `loomux dev record-case` und `record-mcp-case` (#34), samt
    der Aufnahmeskripte unter `parity/stufe-*-orakel/`.
 2a. **Sicherung der Ursprungsrepos (#33).** Je Repo ein `git bundle --all`
    samt einem Archiv der ungetrackten Dateien, als Anhang am selben Archiv
@@ -156,28 +156,126 @@ würde ein solcher Bereich still manifestlos.
    brain-knowledge gehalten; was dort fehlt, legt der Mensch in dessen
    Eingang. Das Bündel bereitet der Agent vor, das Hochladen führt der
    Mensch aus.
-3. **Eigene Erwartungen.** Die übersetzten Fälle bleiben, wie sie sind; nur ihre
-   `notes.md` werden ohne die Altnamen neu gefasst. Die Wiedergabetests ändern
-   sich nicht.
-4. **Tor-Test.** Ein Go-Test (Paket `internal/plancheck`, er hält schon Doku
-   gegen die Spec) liest `git ls-files`, greppt nach der Suchliste aus #24 und
-   lässt nur eine feste Liste zu: `docs/{en,de}/benchmarks.md`, die
-   Messchronik `testdata/bench/1a-hooks.json` und
-   `testdata/bench/search/v1/baseline/*`, die fünf Changelog-Zeilen (nach
-   Eintrag, nicht nach Nummer), die
-   Herkunftsspalte von `docs/*/migration.md`, `docs/.superpowers/` außer den
-   Archiven, die Archive
-   `specs-ul/`, `specs-ub/`, `plans-ub/`, `plans-ul/`, `bench-ub/` sowie die
-   Roadmap- und Planzeilen der laufenden Folgeprojekte (`ulflow`,
-   `ultra-brain/web`) bis zu deren Abschluss, und die Testdatei selbst. Jedes
-   Folgeprojekt kürzt die Liste bei seinem Abschluss.
-5. **Release-Stufe.** `release:major`, weil `loomux dev import-cases` wegfällt.
-6. **Plan.** Die Zeile 4f in beiden `migration.md` wird ✅, wenn auch der
+3. **Eigene Erwartungen (#24 (e), präzisiert 2026-10-05).** Die übersetzten
+   Fälle unter `testdata/cases/<stufe>/` werden zu loomux' eigenen
+   Erwartungen. Was die Wiedergabe vergleicht, steht in `parity/stufe-4f.md`
+   (Abschnitt 4, je Suite nachgelesen). Danach gilt:
+   - **Nicht verglichen**, die Altnamen werden per Ersetzungstabelle neutral
+     gefasst: `notes.md`, `README.md`, jede `stderr` (LoadCase liest sie
+     nie), `stdout` von Meldungs- und Lanes-Fällen, die `.mcp.json` unter
+     `3a/area-add/*/world_after/repo-new/` (nur als „fehlt“ toleriert).
+   - **Byte-genau verglichen**, die Kommentare in `4a2/hook/*/git.toml`
+     ändern sich in `world/` und `world_after/` gleich.
+   - **Weltdateien mit Altpfad:**
+     `3a/area-add/known-scope/world_after/repo-new/.ultra-brain/config.toml`
+     fällt samt ihrer Toleranzzeile (`cases_3a_test.go`).
+     `4d/convert/no-registry/world/vault/.brain.toml` fällt, wenn der Fall
+     sie laut `notes.md` nicht braucht; sonst wird sie umbenannt.
+   - `world_after/xdg/qmd/index.yml` zieht PR B mit (#34).
+   - Ein Wiedergabeschalter entsteht nicht. Jede Datei ändert sich nur in
+     Altnamen; das Ersetzungsskript prüft, dass sich der Diff nach dem
+     Maskieren allein durch sie erklärt.
+3a. **Umzug.** `testdata/cases/2c-payloads/agy-*.json` liest
+   `internal/hosts/antigravity_test.go:27`. Die Dateien ziehen zu den
+   Testdaten von `internal/hosts`, statt zu fallen.
+3b. **Policy.** Vier Pfadregeln in `.loomux/config.toml` schützen
+   `1a-source`, `1b-1-source`, `2a-source` und `2b-source`. Ihr Entfernen
+   und der Kommentar aus (i) laufen als `loomux config … --propose`; ein
+   Mensch wendet an, bevor gelöscht wird.
+4. **Tor-Test.** Ein Go-Test im Paket `internal/plancheck` (es hält schon
+   Doku gegen die Spec).
+   - **Bauweise:** eine reine Funktion über Dateiliste und Leser, dazu ein
+     Läufer, der `git ls-files` liest. Die Suchliste ist die aus #24,
+     case-insensitive.
+   - **Ausnahmen:** eine Tabelle aus Pfad oder Muster, erlaubter Zeilenregel
+     und Eigentümer (Flow, Web, Plan-Ende, Geschichte). Sie enthält:
+     - `docs/{en,de}/benchmarks.md` und die Messchronik
+       `testdata/bench/1a-hooks.json` und `testdata/bench/search/v1/baseline/*`,
+     - die fünf Changelog-Zeilen: je genau ein Treffer in den Abschnitten
+       7.0.1, 7.0.0, 4.2.2, 2.5.0 und 2.3.0. Die Überschrift wird auch in der
+       Form `[7.0.1-beta]` erkannt, die Neustart-Schritt 3b einführt,
+     - die Herkunftsspalte von `docs/*/migration.md` bis zum Ende des Plans,
+     - `docs/.superpowers/` außer den Archiven, und die Archive `specs-ul/`,
+       `specs-ub/`, `plans-ub/`, `plans-ul/`, `bench-ub/` eigens gelistet,
+     - die Roadmap-Zeilen der laufenden Folgeprojekte (`ulflow`,
+       `ultra-brain/web`),
+     - die Ausnahmen aus #35 von PR B,
+     - die Testdatei selbst.
+
+     Jedes Folgeprojekt kürzt die Liste bei seinem Abschluss.
+   - **Commit:** Der Tor-Test kommt als letzter Commit. Vorher wäre er rot,
+     und jeder Commit läuft durch das Tor. Er löst die Verbotslisten in
+     `internal/setup/templates/templates_test.go` ab.
+5. **Reihenfolge.**
+   - **Ab #81, ohne B:** Policy, Sichern, Löschen, Umzug, Erwartungen.
+   - **Nach dem Rebase auf `master` mit B:** Doku (CLI-Referenz,
+     READMEs, `AGENTS.md`-Zeile zu `testdata/cases/`) und der Tor-Test.
+6. **Release-Stufe.** `release:major`, weil `loomux dev import-cases`
+   wegfällt. Der Merge wird ein weiteres Pre-Release der alten Zählung.
+7. **Plan.** Die Zeile 4f in beiden `migration.md` wird ✅, wenn auch der
    Neustart der Schwester-Spec durch ist (#31).
+
+## PR D: Abschluss (Nachtrag #36, vor dem Neustart)
+
+1. **Migrationsplan heraus.** Entfernt werden:
+   - `docs/{en,de}/migration.md`,
+   - `internal/plancheck/plancheck.go` samt Test,
+   - die Regeln zum Migrationsplan in `AGENTS.md`,
+   - die Links aus den READMEs.
+
+   Der Tor-Test aus PR C bleibt. Er zieht in ein Paket, dessen Name nicht
+   „plan“ sagt, oder bleibt in `internal/plancheck`, wenn das Paket sonst
+   leer wird; das entscheidet der Plan.
+2. **Arbeitspapiere ins Archiv.** `docs/.superpowers/specs`, `plans`,
+   `parity`, die fünf Archive und alles Übrige unter `docs/.superpowers/`
+   werden als Tarball mit `SHA256SUMS` ein weiterer Anhang des Releases
+   `archive/parity-recordings`. Den lädt der Mensch hoch, danach verlassen
+   die Dateien den Baum. Ausgenommen sind die Papiere des Neustarts, die
+   noch gebraucht werden und keinen Altnamen tragen:
+   `specs/2026-10-05-loomux-release-neustart-design.md`,
+   `plans/2026-10-05-release-bruecke.md` und
+   `plans/2026-10-05-release-neustart.md`. Den Beleg aus Schritt 2 des
+   Neustarts hält dann der PR-Text des Neustarts fest, nicht mehr diese
+   Akte.
+   - **Wiki:** Die `sources:`-Zeilen, die auf sie zeigen, werden auf die
+     Wiki-Seite selbst umgehängt oder fallen. `reindex` bringt
+     `_identities.tsv` nach; geprüft wird das mit `lint` über das Wiki.
+   - **Ablage künftiger Papiere:** Neue Arbeitspapiere (Specs, Pläne)
+     entstehen weiter unter `docs/.superpowers/`. Nur die der Migration
+     gehen.
+3. **Roadmap-Zeile** der Web-App ohne `ultra-brain/web`.
+4. **Tor-Test.** Die Ausnahmen schrumpfen auf `docs/{en,de}/benchmarks.md`,
+   `testdata/bench/1a-hooks.json`, `testdata/bench/search/v1/baseline/*` und
+   die fünf Changelog-Zeilen.
+5. **Graft nur als Idee (Nachtrag #37).** `trailhq/Graft` bleibt an zwei
+   Stellen:
+   - **Lizenz:** Für den portierten Code steht der MIT-Hinweis von Graft
+     (Copyright und Lizenztext, Stand `1e352a3`) in `NOTICE.md`. Der
+     Generator `loomux dev notices` bekommt dafür einen Abschnitt für
+     portierte Quellen.
+   - **Idee:** Je ein Satz in README und `architecture.md` (en/de) sagt, dass
+     Code-Graph, Ranking und Blast-Radius von Graft angeregt sind.
+
+   Überall sonst fällt der Name:
+   - in den Code-Kommentaren von `internal/code/**` und den übrigen
+     Paketen, gezählt 35 Dateien mit 58 Zeilen (aus „Ported from trailhq/Graft …“
+     wird ein Satz zur Herkunft der Testvektoren ohne Namen, oder er
+     entfällt),
+   - auf der Wiki-Seite `code-graph.md`,
+   - in der Vergleichstabelle der READMEs,
+   - in `cli-reference.md` und `getting-started.md`.
+
+   `benchmarks.md` bleibt Chronik. Die Pläne und Specs gehen mit Punkt 2
+   ins Archiv. Der Tor-Test bekommt `graft` mit diesen Ausnahmen:
+   `NOTICE.md` und den Generator, die beiden Ideensätze und
+   `benchmarks.md`.
+6. **Release-Stufe.** `release:none`, falls kein Befehl entfällt. Dabei
+   zählt `internal/plancheck` nicht als Befehl.
 
 ## Fertig ist 4f, wenn
 
 - der Tor-Test grün ist und ein Grep nach der Suchliste nur in seinen
-  Ausnahmen trifft,
-- `parity/stufe-4f.md` jeden Unterschied der Stichprobe mit Entscheidung führt,
+  Ausnahmen trifft, nach PR D nur noch in Changelog und Benchmarks,
+- `parity/stufe-4f.md` jeden Unterschied der Stichprobe mit Entscheidung führt
+  (nach PR D im Archiv),
 - und v1.0.0 nach der Schwester-Spec als stabiles Release veröffentlicht ist.
