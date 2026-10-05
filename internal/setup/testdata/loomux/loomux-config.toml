@@ -44,10 +44,6 @@ unsearched = ["docs/**/**/index.md"]
 match  = ["coverage.out", "bin/*"]
 reason = "Build output belongs to the pre-commit gate, not to an edit."
 
-[[policy.paths.rules]]
-match  = ["testdata/cases/1a-source/**"]
-reason = "Recordings of the old tools are evidence; re-record them, never edit them."
-
 # Eigene Regel nach diesem Muster ergaenzen, z. B. generierter Code:
 # [[policy.paths.rules]]
 # match  = ["internal/**/zz_generated_*.go"]
@@ -75,10 +71,6 @@ reason = "Whether commits reach the remote is a human's decision."
 # [worktree]
 # mirror = [".venv", "node_modules"]
 
-[[policy.paths.rules]]
-match  = ["testdata/cases/1b-1-source/**"]
-reason = "Recordings of the old tools are evidence; re-record them, never edit them."
-
 # A table, not a list: a list would replace the whole lane and drop the
 # preset's on_file, and post-edit would gofmt the whole tree again.
 [verify.go.lint]
@@ -96,11 +88,3 @@ measure = "go test ./... -count=1 -covermode=set -coverpkg=github.com/xidus90/lo
 [[policy.paths.rules]]
 match  = [".loomux/state/**"]
 reason = "Machine state is written by loomux, not by an edit."
-
-[[policy.paths.rules]]
-match  = ["testdata/cases/2a-source/**"]
-reason = "Recordings of the old tools are evidence; re-record them, never edit them."
-
-[[policy.paths.rules]]
-match  = ["testdata/cases/2b-source/**"]
-reason = "Recordings of the old tools are evidence; re-record them, never edit them."

@@ -1,6 +1,6 @@
 ---
 type: Source
-title: Architektur-Design ultra-brain
+title: Architektur-Design
 description: Der Vertrag des Projekts — Zweck, Bausteine, Datenmodell, Scheiben und Entscheidungsprotokoll.
 open_conflicts: 1
 sources:
