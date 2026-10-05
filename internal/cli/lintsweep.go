@@ -9,9 +9,31 @@ import (
 
 	"github.com/xidus90/loomux/internal/brain/check"
 	checkrun "github.com/xidus90/loomux/internal/brain/check/run"
+	"github.com/xidus90/loomux/internal/brain/pytext"
 	"github.com/xidus90/loomux/internal/brain/wiki"
 	"github.com/xidus90/loomux/internal/config"
 )
+
+// withoutUndeclaredWorkspaces is the registry less every workspace that
+// declares no [area], and those workspaces by scope: no brain area, so the
+// sweep over all passes one over and naming one is refused.
+//
+// It is taken out of the registry before anything else reads it, so that a
+// signpost is not held to link the wiki of one either.
+func withoutUndeclaredWorkspaces(areas []config.Area, lookup config.ArtifactLookup) (kept []config.Area, left map[string]bool) {
+	left = map[string]bool{}
+	for _, area := range areas {
+		if area.Workspace {
+			_, err := config.ReadAreaDeclaration(config.ManifestDir(area, lookup.Primary))
+			if config.IsUndeclared(err) {
+				left[area.Scope] = true
+				continue
+			}
+		}
+		kept = append(kept, area)
+	}
+	return kept, left
+}
 
 // lintSweep is `_lint`: the registered areas the scope names, each linted by
 // the rules of `lint.py`, printed under its scope, then one line counting
@@ -25,6 +47,11 @@ func lintSweep(scope string, stdout, stderr io.Writer) int {
 	areas, err := config.ReadRegistry(lookup.Primary)
 	if err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)
+		return 1
+	}
+	areas, left := withoutUndeclaredWorkspaces(areas, lookup)
+	if left[scope] {
+		fmt.Fprintf(stderr, "error: area %s is a workspace that declares no [area]; lint sweeps only a brain area\n", pytext.Repr(scope))
 		return 1
 	}
 	targets, err := checkrun.Targets(areas, scope)

@@ -293,6 +293,30 @@ func TestFetchRefusesAnAreaItCannotWriteInto(t *testing.T) {
 	}
 }
 
+// A workspace that declares no [area] is named as such, not sent to add an
+// inbox to a manifest it is not meant to have; one that declares itself is an
+// area like any other.
+func TestFetchRefusesAWorkspaceThatDeclaresNoArea(t *testing.T) {
+	state, _ := convertWorld(t)
+	code := t.TempDir()
+	declared := t.TempDir()
+	os.MkdirAll(filepath.Join(declared, ".loomux"), 0o755)
+	writeFile(t, filepath.Join(declared, ".loomux", "config.toml"), "[area]\nscope = \"project/declared\"\n")
+	registry := filepath.Join(state, "registry.toml")
+	data, _ := os.ReadFile(registry)
+	writeFile(t, registry, string(data)+"\n[[area]]\nscope = \"project/code\"\npath = \""+filepath.ToSlash(code)+"\"\nworkspace = true\n\n[[area]]\nscope = \"project/declared\"\npath = \""+filepath.ToSlash(declared)+"\"\nworkspace = true\n")
+	fakeYtdlp(t, nil)
+	for scope, want := range map[string]string{
+		"project/none":     "error: no area named 'project/none' in the registry\n",
+		"project/code":     "error: area 'project/code' is a workspace that declares no [area]; fetch files only into a brain area\n",
+		"project/declared": "error: area 'project/declared' declares no inbox; add `[layout] inbox = ...` to its manifest\n",
+	} {
+		if code, _, errOut := run("fetch", "https://x", "--scope", scope); code != 1 || errOut != want {
+			t.Errorf("%s: %d %q", scope, code, errOut)
+		}
+	}
+}
+
 // noYtdlp stands for a machine whose yt-dlp is never asked.
 func noYtdlp(t *testing.T) {
 	t.Helper()

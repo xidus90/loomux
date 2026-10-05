@@ -123,6 +123,10 @@ func fetchCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	i := slices.IndexFunc(entries, func(a convert.Area) bool { return a.Scope == *scope })
 	switch {
+	case i < 0 && slices.ContainsFunc(areas, func(a config.Area) bool { return a.Scope == *scope && a.Workspace }):
+		// Areas left it out for declaring no [area]; that is the answer, not
+		// a scope missing from the registry.
+		return reportReconcileError(stderr, fmt.Errorf("area %s is a workspace that declares no [area]; fetch files only into a brain area", pytext.Repr(*scope)))
 	case i < 0:
 		return reportReconcileError(stderr, fmt.Errorf("no area named %s in the registry", pytext.Repr(*scope)))
 	case entries[i].ReadOnly:

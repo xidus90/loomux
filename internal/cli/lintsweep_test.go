@@ -28,6 +28,61 @@ func TestLintSweepsEveryAreaWithAWiki(t *testing.T) {
 	}
 }
 
+// A workspace that declares no [area] is no brain area: the sweep over all
+// passes it over without a word, and naming it is refused. A workspace that
+// declares itself is swept like any area.
+func TestLintPassesOverAWorkspaceThatDeclaresNoArea(t *testing.T) {
+	base := t.TempDir()
+	_, a := checkedArea(t, base, "project/a", "")
+	codeWiki, code := checkedArea(t, base, "project/code", "workspace = true\n")
+	writeFile(t, filepath.Join(codeWiki, "..", ".loomux", "config.toml"), "[verify]\n")
+	declaredWiki, declared := checkedArea(t, base, "project/declared", "workspace = true\n")
+	writeFile(t, filepath.Join(declaredWiki, "..", ".loomux", "config.toml"), "[area]\nscope = \"project/declared\"\n")
+	// Without a wiki the refusal is still this one, not the advice to add a
+	// wiki path to its entry.
+	bare := wikiEntry("project/bare", t.TempDir(), "", "workspace = true\n")
+	checkWorld(t, a, code, declared, bare)
+	want := "project/a\n  no findings\nproject/declared\n  no findings\nno findings\n"
+	if code, out, errOut := run("lint", "--scope", "all"); code != 0 || out != want || errOut != "" {
+		t.Errorf("all: code %d, out %q, err %q", code, out, errOut)
+	}
+	for _, scope := range []string{"project/code", "project/bare"} {
+		if code, out, errOut := run("lint", "--scope", scope); code != 1 || out != "" ||
+			errOut != "error: area '"+scope+"' is a workspace that declares no [area]; lint sweeps only a brain area\n" {
+			t.Errorf("%s: code %d, out %q, err %q", scope, code, out, errOut)
+		}
+	}
+}
+
+// A workspace that keeps only an old manifest is not taken as one without
+// [area]: the sweep stops at it with the hint.
+func TestLintStopsAtAWorkspaceWithOnlyAnOldManifest(t *testing.T) {
+	base := t.TempDir()
+	oldWiki, old := checkedArea(t, base, "project/old", "workspace = true\n")
+	writeFile(t, filepath.Join(oldWiki, "..", ".brain.toml"), "[area]\nscope = \"project/old\"\n")
+	checkWorld(t, old)
+	if code, out, errOut := run("lint", "--scope", "all"); code != 1 || out != "" || !strings.Contains(errOut, "an old manifest lies there") {
+		t.Errorf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+// The signpost is not held to link the wiki of a workspace that declares no
+// [area]; an undeclared area that is no workspace it still is.
+func TestLintSparesTheSignpostAWorkspaceThatDeclaresNoArea(t *testing.T) {
+	base := t.TempDir()
+	_, post := checkedArea(t, base, "knowledge", "signpost = true\n")
+	codeWiki, code := checkedArea(t, base, "project/code", "workspace = true\n")
+	writeFile(t, filepath.Join(codeWiki, "..", ".loomux", "config.toml"), "[verify]\n")
+	checkWorld(t, post, code)
+	if code, out, errOut := run("lint", "--scope", "knowledge"); code != 0 || out != "knowledge\n  no findings\nno findings\n" || errOut != "" {
+		t.Errorf("workspace: code %d, out %q, err %q", code, out, errOut)
+	}
+	checkWorld(t, post, strings.Replace(code, "workspace = true\n", "", 1))
+	if code, out, _ := run("lint", "--scope", "knowledge"); code != 1 || !strings.Contains(out, "unlisted-area: the signpost does not link to area 'project/code'") {
+		t.Errorf("no workspace: code %d, out %q", code, out)
+	}
+}
+
 func TestLintCountsErrorsAndWarnings(t *testing.T) {
 	base := t.TempDir()
 	wiki, a := checkedArea(t, base, "project/a", "")
