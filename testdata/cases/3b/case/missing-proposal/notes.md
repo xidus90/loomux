@@ -1,1 +1,1 @@
-loomux-3-source (3cc72d2), brain-mcp over fakeqmd: no proposal.md: the file is named as missing
+loomux-3-source (3cc72d2), the reference over fakeqmd: no proposal.md: the file is named as missing

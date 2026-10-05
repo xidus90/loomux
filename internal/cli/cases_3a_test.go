@@ -62,9 +62,6 @@ var areaAddIndexRun = []string{
 	"unexpected extra file in actual: xdg/qmd/index.yml",
 }
 
-// The host half `brain init` writes and `area add` leaves to `loomux init`.
-const noMCPJSON = "missing file in actual: repo-new/.mcp.json"
-
 // The lock file loomux keeps where the reference removes its own.
 const registryLock = "unexpected extra file in actual: registry.lock"
 
@@ -76,23 +73,21 @@ func areaLock(scope string) string {
 
 var expected3a = map[string]expectation3a{
 	"area-add/new-area": {
-		why:    "Wirtsteil; Indexlauf; Sperre; Sperre je Bereich",
-		differ: append([]string{noMCPJSON, registryLock, areaLock("project-repo-new")}, areaAddIndexRun...),
+		why:    "Indexlauf; Sperre; Sperre je Bereich",
+		differ: append([]string{registryLock, areaLock("project-repo-new")}, areaAddIndexRun...),
 	},
 	"area-add/without-yes": {
-		why:    "Wirtsteil; Indexlauf; Sperre; Sperre je Bereich",
-		differ: append([]string{noMCPJSON, registryLock, areaLock("project-repo-new")}, areaAddIndexRun...),
+		why:    "Indexlauf; Sperre; Sperre je Bereich",
+		differ: append([]string{registryLock, areaLock("project-repo-new")}, areaAddIndexRun...),
 	},
 	"area-add/no-reindex": {
-		why:    "Wirtsteil; Sperre",
-		differ: []string{noMCPJSON, registryLock},
+		why:    "Sperre",
+		differ: []string{registryLock},
 	},
 	"area-add/known-scope": {
 		why: "Reihenfolge und doppelter Scope: refused before the repository is written; Sperre",
 		differ: []string{
 			"exit code: expected 0, got 1",
-			"missing file in actual: repo-new/.mcp.json",
-			"missing file in actual: repo-new/.ultra-brain/config.toml",
 			"missing file in actual: repo-new/AGENTS.md",
 			"missing file in actual: repo-new/docs/wiki/_identities.tsv",
 			"missing file in actual: repo-new/docs/wiki/_schema.md",

@@ -1,1 +1,1 @@
-loomux-1a-source, ulinit: a German commit message is refused
+loomux-1a-source, the reference: a German commit message is refused
