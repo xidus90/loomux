@@ -908,7 +908,7 @@ PID aus `serve.json`, wenn der Endpunkt nicht mehr antwortet. Erfolg ist still.
 - **Exit-Codes**: `0` beendet, und ebenso, wenn nichts lief; `1` der Stopp ist
   gescheitert; `2` ein unbekanntes Argument.
 
-### `loomux upgrade`
+### `loomux upgrade [--beta | --stable | --version <x.y.z>]`
 
 Ein Update-Durchlauf von Hand; `serve` fährt denselben eine Minute nach
 dem Start und danach alle 24 Stunden. Er wirkt nur auf das maschinenweite
@@ -917,12 +917,29 @@ ist. Ein Entwicklungs-Build (`0.0.0-dev`) dort wird durch das neueste Release
 ersetzt; einer an jedem anderen Ort bleibt unberührt.
 
 1. Listet die Releases über `gh release list` und nimmt die höchste Version
-   im Kanal des laufenden Binarys (`beta` nimmt Prereleases, `stable` nicht).
+   im Kanal der Maschine: mit der Markierung `<Zustandsverzeichnis>/channel`
+   Betas und stabile Releases, ohne sie nur stabile. Ein Binary aus der
+   Zählung vor 1.0.0 gilt als markiert.
 2. Lädt das Windows-Asset und `SHA256SUMS` über `gh release download`, prüft
    die Prüfsumme und die `--version` des neuen Binarys.
 3. Stempelt die Datei mit der aktuellen Zeit und tauscht sie ein; das alte
    Binary kommt nach `loomux.old.exe` oder in den ersten freien nummerierten
    Platz. Die nächste Brücke ersetzt den laufenden `serve`.
+
+Die Flags wählen das Release von Hand; höchstens eines zugleich:
+
+- `--beta` nimmt das neueste Release beider Arten und setzt die Markierung
+  `<Zustandsverzeichnis>/channel` (die Zeile `beta`), damit `serve` weiter
+  Betas nimmt.
+- `--stable` nimmt das neueste stabile Release und entfernt die Markierung.
+- `--version <x.y.z>` nimmt genau diese Version (Präfix `v` ist erlaubt; eine
+  Beta wie `1.1.0-beta.2` geht auch). Eine stabile Version entfernt die
+  Markierung, eine Beta setzt sie. Ein Downgrade auf diesem Weg hält nicht:
+  `serve` hebt das Binary binnen 24 Stunden wieder an.
+
+Ein Problem allein mit der Markierung lässt den Durchlauf nicht scheitern: das
+Binary liegt an seinem Platz, das Problem geht nach stderr, und der
+Sitzungsstart nennt es erneut.
 
 Schreibt `<Zustandsverzeichnis>/update.json` (`source` = `serve` | `cli`,
 `checked_at`, `executable`, `running`, `result` = `current` | `updated` |
@@ -935,7 +952,7 @@ Durchlauf von `serve` für den Sitzungsstart stehen.
 |---|---|
 | 0 | `already current (vX)` oder `updated to vX` |
 | 1 | der Durchlauf ist gescheitert, oder ein anderer läuft |
-| 2 | ausgelassen: nicht Windows oder nicht das maschinenweite Binary (auch ein Entwicklungs-Build); oder ein unbekanntes Argument |
+| 2 | ausgelassen: nicht Windows oder nicht das maschinenweite Binary (auch ein Entwicklungs-Build); oder ein unbekanntes Argument, zwei Flags zugleich oder eine Version, die keine ist |
 
 ### `loomux mcp [--channel local|cloud] [--root <verz>]`
 Die stdio-Brücke, die ein MCP-Wirt startet. Sie bietet die zwölf Werkzeuge selbst
