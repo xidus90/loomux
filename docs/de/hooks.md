@@ -1005,7 +1005,8 @@ Git-Fehler: `base <sha> is gone; measuring from HEAD`, und der nächste grüne
 Lauf setzt eine neue Basis. In einem Repo ohne Commit ist die Basis der leere
 Baum.
 
-**Kein Repo, oder eine Wurzel, die Git ignoriert:** es gibt keinen Baum zu
+**Kein Repo, eine Wurzel, die Git ignoriert, oder ein HEAD, der auf keinen
+Commit im Repo zeigt:** es gibt keinen Baum zu
 messen, also läuft die Kette an jedem Rundenende, ohne Abkürzung. Ein grüner
 Lauf schreibt `base` und `green` dann leer; ein Lauf, der nur in Lanes in
 Probe rot ist, merkt sich nichts, weil es keinen Baum gibt, unter dem er sich

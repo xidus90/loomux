@@ -182,9 +182,11 @@ const EmptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 // ErrNotRepository marks a root no working tree of git covers.
 var ErrNotRepository = errors.New("not a git working tree")
 
-// Head is the commit HEAD names, and "" without an error when the
+// Head is the commit HEAD names, and "" without an error only when the
 // repository has no commit yet: that is a state to measure from, the empty
-// tree, and not a failure.
+// tree, and not a failure. A HEAD that names no commit the repository holds
+// (a missing object, a blob, a branch ref git cannot read) is an error, so
+// the empty tree never stands in for a state that has a history.
 func Head(root string) (string, error) {
 	if ignored(root) {
 		return "", fmt.Errorf("%s: %w", root, ErrIgnoredRoot)
@@ -192,12 +194,22 @@ func Head(root string) (string, error) {
 	if _, err := git(root, "rev-parse", "--is-inside-work-tree"); err != nil {
 		return "", fmt.Errorf("%s: %w", root, ErrNotRepository)
 	}
-	// --verify -q exits 1 without a word for a HEAD that names no commit.
+	// --verify -q exits 1 without a word for a HEAD that names no commit,
+	// whether it is unborn or broken, so the failure is told apart: without
+	// the peel HEAD still resolves when it names an object that is no
+	// commit, and symbolic-ref succeeds for a branch that does not exist yet
+	// and fails for one whose ref git cannot read.
 	out, err := git(root, "rev-parse", "-q", "--verify", "HEAD^{commit}")
-	if err != nil {
-		return "", nil
+	if err == nil {
+		return strings.TrimSpace(out), nil
 	}
-	return strings.TrimSpace(out), nil
+	if named, err := git(root, "rev-parse", "-q", "--verify", "HEAD"); err == nil {
+		return "", fmt.Errorf("%s: HEAD names %s, which is no commit this repository holds", root, strings.TrimSpace(named))
+	}
+	if _, err := git(root, "symbolic-ref", "-q", "HEAD"); err != nil {
+		return "", err
+	}
+	return "", nil
 }
 
 // TreeOf is the tree a commit holds.

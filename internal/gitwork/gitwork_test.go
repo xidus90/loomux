@@ -225,6 +225,75 @@ func TestHeadOfAnUnbornRepository(t *testing.T) {
 	}
 }
 
+// A HEAD that is broken is not the unborn state: the empty tree is a base to
+// measure from only where there is no commit, and a HEAD naming a missing
+// object or a blob would hide every change behind it.
+func TestHeadOfABrokenHeadIsAnError(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		blob bool // else an id no object has
+		// detached: HEAD itself holds the id; else the branch ref does, and
+		// HEAD stays a name.
+		detached bool
+	}{
+		{"a detached head on a missing object", false, true},
+		{"a detached head on a blob", true, true},
+		{"a branch on a missing object", false, false},
+		{"a branch on a blob", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := repoWithCommit(t)
+			id := "1111111111111111111111111111111111111111"
+			if tc.blob {
+				command := exec.Command("git", "hash-object", "-w", "--stdin")
+				command.Dir = root
+				command.Env = gitenv.Environ()
+				command.Stdin = strings.NewReader("")
+				out, err := command.Output()
+				if err != nil {
+					t.Fatal(err)
+				}
+				id = strings.TrimSpace(string(out))
+			}
+			name := "HEAD"
+			if !tc.detached {
+				name = mustGit(t, root, "symbolic-ref", "HEAD")
+			}
+			file := mustGit(t, root, "rev-parse", "--path-format=absolute", "--git-path", name)
+			if err := os.WriteFile(file, []byte(id+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			head, err := Head(root)
+			if err == nil {
+				t.Fatalf("head %q, no error", head)
+			}
+		})
+	}
+}
+
+// A branch ref git cannot read is a failure too, not a repository without a
+// commit: only a HEAD that names a branch which does not exist yet is unborn.
+func TestHeadOfAnUnreadableBranchIsAnError(t *testing.T) {
+	root := repoWithCommit(t)
+	branch := mustGit(t, root, "symbolic-ref", "HEAD")
+	ref := mustGit(t, root, "rev-parse", "--path-format=absolute", "--git-path", branch)
+	if err := os.WriteFile(ref, []byte("garbage\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Loose ref files are the files backend's; under another one the write
+	// above changed nothing and the test could not tell.
+	probe := exec.Command("git", "rev-parse", "-q", "--verify", "HEAD^{commit}")
+	probe.Dir = root
+	probe.Env = gitenv.Environ()
+	if probe.Run() == nil {
+		t.Skip("the ref backend does not read loose ref files")
+	}
+	head, err := Head(root)
+	if err == nil {
+		t.Fatalf("head %q, no error", head)
+	}
+}
+
 func TestHeadOfARepositoryWithACommit(t *testing.T) {
 	root := repoWithCommit(t)
 	head, err := Head(root)
