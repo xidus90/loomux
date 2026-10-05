@@ -20,12 +20,12 @@ und Aufrufgraphen, ohne Modell und ohne Kosten**: Symbole, Aufrufe,
 Typ-Hierarchien und Importe. Leitsatz: **„Lexik schlägt vor, der Graph
 entscheidet."** Eine Vektordatenbank braucht es dafür nicht.
 
-Vorbild ist `trailhq/Graft`. Übernommen sind Extraktion, Ranking und die
-Frischeprüfung; statt Grafts Kernlogik-Exzerpt (Crux) hängt `graph ask
+Das Vorbild steht in `NOTICE.md` unter „Ported sources“. Übernommen sind Extraktion, Ranking und die
+Frischeprüfung; statt des Kernlogik-Exzerpts (Crux) des Vorbilds hängt `graph ask
 --source` den eigenen Span des Symbols an, höchstens 80 Zeilen. Verworfen sind Laufzeit, Cloud und
 Telemetrie:
 
-| Graft | loomux |
+| Vorbild | loomux |
 |---|---|
 | Node.js mit nativen C++-Bindings | ein Go-Binary, CGo-frei |
 | Symbol-Hashes an eine Cloud-API | Verknüpfung nur lokal, mit dem eigenen Wiki |
@@ -115,7 +115,7 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
 
 ## Was bewusst fehlt
 
-Kein `graft brain`-Pendant, keine Telemetrie, kein `upgrade`-Befehl: das
+Kein Gegenstück zum Cloud-Brain des Vorbilds, keine Telemetrie, kein `upgrade`-Befehl: das
 Wissen ist lokal ([Architektur-Grundsätze](architektur-grundsaetze.md)), und
 das Binary kommt über die üblichen Wege.
 

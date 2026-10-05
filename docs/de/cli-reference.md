@@ -1000,7 +1000,7 @@ weiter, Name zu Name und Argumente zu Argumenten.
 
 `n` ist hier 10 und auf der Kommandozeile 5; das ist Parität mit der
 Python-Referenz, die es genauso hält, und keine Unstimmigkeit. `limit` ist hier
-5 und bei `loomux graph ask` 8, beides Grafts Werte.
+5 und bei `loomux graph ask` 8.
 
 Die sieben `graph_*`-Werkzeuge operieren über das Repository eines registrierten Bereichs:
 

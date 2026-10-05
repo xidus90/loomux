@@ -287,5 +287,5 @@ client, give the path in the form that client reads.
 
 - **[Configuration Reference](configuration.md)**: Deep dive into all configuration sections (`[modules]`, `[policy]`, `[verify]`, `[worktree]`).
 - **[CLI Reference](cli-reference.md)**: Explore the complete command manual with all flags, options, and exit codes.
-- **[Architecture & Concepts](architecture.md)**: Learn about Karpathy's LLM OS, Google Knowledge Items, and Graft's AST GraphRank.
+- **[Architecture & Concepts](architecture.md)**: Learn about Karpathy's LLM OS, Google Knowledge Items, and AST GraphRank.
 - **[Hook Lifecycle](hooks.md)**: Understand the pre-tool write barrier, post-tool blast monitor, and event stream.

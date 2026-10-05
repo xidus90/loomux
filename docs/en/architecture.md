@@ -119,9 +119,9 @@ Loomux enforces strict knowledge categorization:
 
 ---
 
-## 4. Conceptual Pillar III: Structural Graph Intelligence (Graft)
+## 4. Conceptual Pillar III: Structural Graph Intelligence
 
-Text embeddings alone cannot determine whether modifying `function A` breaks `function B`. Loomux incorporates the graph engineering principles of **Graft** (`trailhq/Graft`):
+Text embeddings alone cannot determine whether modifying `function A` breaks `function B`. Loomux applies graph engineering principles inspired by [trailhq/Graft](https://github.com/trailhq/Graft):
 
 ```mermaid
 flowchart LR
@@ -200,7 +200,7 @@ flowchart LR
 ```
 
 ### 3. Span Inlining Instead of a Crux
-Reading an entire 1,000-line file into context just to inspect a 20-line method wastes tokens. `loomux graph ask --source` attaches each hit's own span, at most 80 lines (`--full` lifts the cap), at **$0 token cost** for the lookup. Graft's crux — an excerpt an LLM chose and stored on the node — is left out on purpose: no LLM sits in loomux's path, and the span is Graft's own fallback for a node without a crux (`internal/code/ask/source.go`).
+Reading an entire 1,000-line file into context just to inspect a 20-line method wastes tokens. `loomux graph ask --source` attaches each hit's own span, at most 80 lines (`--full` lifts the cap), at **$0 token cost** for the lookup. The model's crux — an excerpt an LLM chose and stored on the node — is left out on purpose: no LLM sits in loomux's path, and the span is that model's own fallback for a node without a crux (`internal/code/ask/source.go`).
 
 ---
 

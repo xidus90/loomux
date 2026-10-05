@@ -967,7 +967,7 @@ address, name to name and arguments to arguments.
 
 `n` is 10 here and 5 on the command line; that is parity with the Python
 reference, which does the same, not an inconsistency. `limit` is 5 here and 8
-for `loomux graph ask`, both Graft's values.
+for `loomux graph ask`.
 
 The seven `graph_*` tools operate over the repository of one registered area:
 

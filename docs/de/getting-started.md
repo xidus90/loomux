@@ -290,5 +290,5 @@ anderen Client den Pfad in der Form angeben, die er liest.
 
 - **[Konfigurations-Referenz](configuration.md)**: Vollständige Übersicht aller `.loomux/config.toml`-Sektionen (`[modules]`, `[policy]`, `[verify]`, `[worktree]`).
 - **[CLI-Befehlsreferenz](cli-reference.md)**: Das komplette Handbuch aller Befehle, Flags und Exit-Codes.
-- **[Architektur & Konzepte](architecture.md)**: Erfahre mehr über Karpathys LLM OS, Googles Knowledge Items und Grafts GraphRank.
+- **[Architektur & Konzepte](architecture.md)**: Erfahre mehr über Karpathys LLM OS, Googles Knowledge Items und AST-GraphRank.
 - **[Hook-Lebenszyklus](hooks.md)**: Details zur Sub-35ms Schreibschranke, zum Blast-Radius-Monitor und zum Event-Stream.

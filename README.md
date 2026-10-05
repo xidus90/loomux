@@ -109,7 +109,7 @@ The graph covers Go, read with `go/parser`, and Python, read on `gotreesitter`, 
 
 > **"Lexical proposes, graph disposes"**: Keywords find candidate symbols; the structural call graph concentrates mass on the components that actually matter, filtering out dead or isolated hits.
 
-The retrieval path and the blast radius, drawn step by step: [architecture, pillar III](docs/en/architecture.md#4-conceptual-pillar-iii-structural-graph-intelligence-graft). Timings: [benchmarks](docs/en/benchmarks.md).
+The retrieval path and the blast radius, drawn step by step: [architecture, pillar III](docs/en/architecture.md#4-conceptual-pillar-iii-structural-graph-intelligence). Timings: [benchmarks](docs/en/benchmarks.md).
 
 ### 3. Nested MCP Composite Gateway
 
@@ -342,14 +342,16 @@ loomux dev record-poppler --exe P --dir D --out F  # record what Poppler's pdfto
 | Component / Idea | Origin / Inspiration | Decision in Loomux | Rationale |
 |---|---|---|---|
 | **Single Go Binary** | Architecture | ✅ **Core Mandate** | Zero Python, zero Node.js. 7.5 ms warm hook, single executable deployment, 100% test coverage. |
-| **AST Code Graph & PageRank** | `trailhq/Graft` | ✅ **Adopted Natively** | $0 deterministic code graph. Personalized PageRank concentrates mass on structural hubs instead of naive keyword dumps. |
-| **Blast Radius** | `trailhq/Graft` | ✅ **Adopted Natively** | The blast radius of a git diff with a test signal (`graph blast`, `graph_blast`). |
-| **Crux Inlining** | `trailhq/Graft` | ❌ **Left Out** | Graft's crux is an excerpt an LLM chose; no LLM sits in loomux's path. `--source` inlines the span instead (at most 80 lines, `--full` uncapped), Graft's own fallback. |
-| **Symbol-Coupled Grep** | `trailhq/Graft` | ✅ **Adopted Natively** | Regex hits grouped by enclosing symbol and ranked by incoming call edges (`inDegree`). |
+| **AST Code Graph & PageRank** | Code-graph model | ✅ **Adopted Natively** | $0 deterministic code graph. Personalized PageRank concentrates mass on structural hubs instead of naive keyword dumps. |
+| **Blast Radius** | Code-graph model | ✅ **Adopted Natively** | The blast radius of a git diff with a test signal (`graph blast`, `graph_blast`). |
+| **Crux Inlining** | Code-graph model | ❌ **Left Out** | Its crux is an excerpt an LLM chose; no LLM sits in loomux's path. `--source` inlines the span instead (at most 80 lines, `--full` uncapped), the model's own fallback. |
+| **Symbol-Coupled Grep** | Code-graph model | ✅ **Adopted Natively** | Regex hits grouped by enclosing symbol and ranked by incoming call edges (`inDegree`). |
 | **Local Second Brain & Wiki** | Architecture | ✅ **Core Mandate** | Markdown wiki, ADRs, and identity registers stored in-repo. Code symbols directly link to architectural decisions. |
-| **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Rejected** | Graft requires Node.js >=20, `node-gyp`, and MSVC C++ builds. Loomux remains 100% pure Go with zero external compilers. |
-| **Cloud Brain Synchronization** | `trailhq/Graft` | ❌ **Rejected** | Graft syncs symbol hashes to commercial cloud APIs. Loomux keeps all knowledge, rules, and graphs 100% local and offline. |
-| **Telemetry & Usage Tracking** | `trailhq/Graft` | ❌ **Rejected** | Graft includes remote telemetry pings. Loomux has zero telemetry and never calls home. |
+| **Node.js & C++ Toolchain** | Code-graph model | ❌ **Rejected** | Requires Node.js >=20, `node-gyp`, and MSVC C++ builds. Loomux remains 100% pure Go with zero external compilers. |
+| **Cloud Brain Synchronization** | Code-graph model | ❌ **Rejected** | Syncs symbol hashes to commercial cloud APIs. Loomux keeps all knowledge, rules, and graphs 100% local and offline. |
+| **Telemetry & Usage Tracking** | Code-graph model | ❌ **Rejected** | Sends usage statistics to remote servers. Loomux has zero telemetry and never calls home. |
+
+The code graph, its ranking and the blast radius are inspired by [trailhq/Graft](https://github.com/trailhq/Graft); the ported parts and their MIT license are listed in [NOTICE.md](internal/notices/NOTICE.md).
 
 ---
 
@@ -369,7 +371,7 @@ Exhaustive guides and technical manuals are organized under [`docs/en/`](docs/en
 | Guide | Description |
 |---|---|
 | 🚀 **[Getting Started](docs/en/getting-started.md)** | Installation, 3-minute quickstart, and agent harness wiring (hooks for Claude Code and Antigravity, MCP for Cursor). |
-| 🏛️ **[Architecture & Concepts](docs/en/architecture.md)** | Deep dive into Andrej Karpathy's LLM OS, Google Knowledge Items (KI), Graft AST GraphRank, and the Write Barrier Kernel. |
+| 🏛️ **[Architecture & Concepts](docs/en/architecture.md)** | Deep dive into Andrej Karpathy's LLM OS, Google Knowledge Items (KI), AST GraphRank, and the Write Barrier Kernel. |
 | ⚙️ **[Configuration Reference](docs/en/configuration.md)** | Complete reference for `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`, `[agent]`, `[flow]`). |
 | 🔀 **[Flows](docs/en/flows.md)** | Flows as data: the folder format, roles and models, the catalog and overrides, contributing a flow, and why a gate is a human's. |
 | 📖 **[CLI Reference Manual](docs/en/cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |

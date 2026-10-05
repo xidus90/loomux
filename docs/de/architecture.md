@@ -119,9 +119,9 @@ Loomux erzwingt eine klare Wissens-Kategorisierung:
 
 ---
 
-## 4. Säule III: Strukturelle Graph-Intelligenz (Graft)
+## 4. Säule III: Strukturelle Graph-Intelligenz
 
-Reine Text-Embeddings können nicht feststellen, ob eine Änderung an `Funktion A` transitive Aufrufer in `Funktion B` bricht. Loomux übernimmt die Graph-Mechanik aus **Graft** (`trailhq/Graft`):
+Reine Text-Embeddings können nicht feststellen, ob eine Änderung an `Funktion A` transitive Aufrufer in `Funktion B` bricht. Loomux wendet Graph-Prinzipien an, angeregt von [trailhq/Graft](https://github.com/trailhq/Graft):
 
 ```mermaid
 flowchart LR
@@ -204,7 +204,7 @@ flowchart LR
 ```
 
 ### 3. Spans statt einer Crux
-Eine Datei mit 1.000 Zeilen komplett einzulesen, nur um eine 20-zeilige Methode zu prüfen, verschwendet Kontext und Tokens. `loomux graph ask --source` hängt jedem Treffer seinen eigenen Span an, höchstens 80 Zeilen (`--full` hebt die Grenze auf), bei **$0 Tokenkosten** für die Suche. Grafts Crux — ein Ausschnitt, den ein LLM gewählt und am Knoten abgelegt hat — bleibt bewusst weg: in loomux sitzt kein LLM im Pfad, und der Span ist Grafts eigener Rückfall für einen Knoten ohne Crux (`internal/code/ask/source.go`).
+Eine Datei mit 1.000 Zeilen komplett einzulesen, nur um eine 20-zeilige Methode zu prüfen, verschwendet Kontext und Tokens. `loomux graph ask --source` hängt jedem Treffer seinen eigenen Span an, höchstens 80 Zeilen (`--full` hebt die Grenze auf), bei **$0 Tokenkosten** für die Suche. Der Crux des Vorbilds — ein Ausschnitt, den ein LLM gewählt und am Knoten abgelegt hat — bleibt bewusst weg: in loomux sitzt kein LLM im Pfad, und der Span ist der eigene Rückfall des Vorbilds für einen Knoten ohne Crux (`internal/code/ask/source.go`).
 
 ---
 
