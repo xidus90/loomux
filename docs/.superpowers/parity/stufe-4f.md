@@ -78,3 +78,73 @@ umgekehrt:
 `graph.json`, `guard.exe` und `layout.json`. In ultra-brain sind es
 `OFFENE_AUFGABEN.md`, ein Plan, eine Spec, zwei Übergaben sowie
 `scripts/install.ps1` und `scripts/install.sh`. Die Inventur ordnet sie ein.
+
+## 2. Stichprobe der Reproduzierbarkeit
+
+Jede Stufe, für die ein Aufnahmeskript liegt, wurde am 2026-10-05 neu
+aufgenommen. Danach wurde mit `git status`/`git diff` gegen die versionierten
+Aufnahmen verglichen und der Baum zurückgesetzt. Nach jeder Stufe war
+`git status --porcelain testdata/` leer.
+
+**Werkzeuge:**
+- `brain-mcp.exe` aus `ultra-brain/.venv` mit Python 3.14.7.
+- `go1.27.0 windows/amd64`.
+- `loomux dev record-case` aus diesem Baum (`0.0.0-dev`, Stand `f956589a`).
+- `fakeqmd` aus `internal/dev/fakeqmd/_qmd`.
+- Für 3c die Go-Referenz `brain` vom Tag `3cc72d2`. Sie ist in den Scratchpad
+  gebaut, weil das in `record.sh` genannte
+  `C:/Users/micro/Documents/#GIT/brain-3c.exe` nicht mehr auf der Platte
+  liegt.
+- `pdftotext` auf dem PATH ist Xpdf 4.06. Die 4d-Aufnahme nennt Poppler
+  25.07.0 für `dev record-poppler`; die 4d-Fälle unter `4d-source` hängen
+  nicht daran.
+
+**Wie die Unterschiede eingeordnet sind:** Für jede geänderte, neue oder
+gelöschte Datei werden die entfernten und die hinzugefügten Zeilen
+verglichen. Vorher werden flüchtige Werte maskiert: Zeitstempel, Datum
+(auch im Pfad), ULID, SHA-256, Commit-Hash, Epoche und Dauer. Neue Dateien
+gehen vorher per intent-to-add in den Index, damit ein Fallordner, dessen
+Name das Datum trägt, mit seinem alten Gegenstück verglichen wird. Sind die
+Zeilen nach dem Maskieren paarweise gleich, ist die Datei Klasse (b), sonst
+(c). Das Skript liegt im Scratchpad der Sitzung (`classify.py`). Es brauchte
+drei Fassungen:
+- Die erste scheiterte an Pfaden mit Umlauten.
+- Die zweite hielt die Löschungen versehentlich vom Vergleich fern.
+- Die dritte las Inhaltszeilen mit `---` als Diff-Kopf.
+
+Alle Zahlen unten stammen aus der dritten Fassung.
+
+| Stufe | Fälle | Pfade geändert | (a) gleich | (b) nur flüchtig | Binär | (c) Verhalten | Exit des Laufs |
+|---|---|---|---|---|---|---|---|
+| 3a | 28 | 68 | Rest | 54 | 0 | 0, dazu 14 neue `stderr` (siehe unten) | 0 |
+| 3b | 24 | 33 | Rest | 30 | 3 | 0 | 0 |
+| 3c | 35 | 0 | alle | 0 | 0 | 0 | 0 |
+| 4a-2 | 14 | 0 | alle | 0 | 0 | 0 | 0 |
+| 4c-1 | 7 | 21 | Rest | 21 | 0 | 0 | 0 |
+| 4d | 29 | 23 | Rest | 23 | 0 | 0 | 0 |
+
+**Erklärungen:**
+- **3b, Binär:** Die drei Binärdateien sind
+  `approve/{amend,reject,success}/world_after/maintenance/index`, der
+  Git-Index eines Weltrepos. Er trägt Stat-Daten (mtime, inode), ist also
+  flüchtig.
+- **3a, `stderr`:** Die 14 neuen Dateien sind die Standardfehlerausgabe von
+  `area-add/no-registry`, `embed/*`, `reconcile/{no-review-centre,
+  two-review-centres, unreadable-case}` und `reindex/*`. Keine versionierte
+  3a-Aufnahme hat eine `stderr`-Datei: 0 der 100 `stderr`-Dateien unter
+  `testdata/cases` gehören zu 3a, und der Aufnahme-Commit `530de1e4` vom
+  2026-09-22 enthält keine. Der Recorder schrieb sie damals also nicht. Das
+  ist eine Änderung am Recorder, nicht an der Referenz. `stdout`, `exit` und
+  `world_after` derselben Fälle sind (a) oder (b).
+- **3a, Skript:** `stufe-3a-orakel/record.sh` schreibt fest nach
+  `…/worktrees/planung-von-3-c56c81`, einem Worktree, den es nicht mehr gibt.
+  Aufgenommen wurde aus einer Kopie im Scratchpad, in der `WT` auf diesen
+  Worktree zeigt. Die Datei im Baum bleibt, wie sie ist; sie geht mit PR C.
+- **4c-1, 3a, 3b:** Die Prüffälle heißen `a-<datum>-5bd8`. Ihr Ordner zieht
+  bei der Neuaufnahme auf das heutige Datum um. Nach dem Maskieren ist er
+  gleich.
+- **1a bis 2c:** Es gibt kein Aufnahmeskript, also trägt der Beleg aus
+  Abschnitt 1 allein.
+
+**Ergebnis:** Die Aufnahmen sind reproduzierbar. Kein Befund der Klasse (c),
+nichts dem Nutzer zur Entscheidung vorzulegen.
