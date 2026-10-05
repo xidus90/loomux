@@ -4,6 +4,14 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [7.0.2] - 2026-10-05
+
+<https://github.com/xidus90/loomux/pull/77>
+
+### Fixed
+- `loomux convert` no longer suggests filing a note into a workspace that declares no `[area]`.
+- `loomux fetch --scope` and `loomux lint --scope` name a workspace that declares no `[area]` as such, instead of advising an inbox or a wiki path; `loomux lint` over all areas passes it over, and the signpost is not asked to link its wiki.
+
 ## [7.0.1] - 2026-10-04
 
 <https://github.com/xidus90/loomux/pull/69>
