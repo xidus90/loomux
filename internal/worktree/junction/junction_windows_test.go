@@ -86,10 +86,20 @@ func TestSetMountPointReportsALinkThatIsNotThere(t *testing.T) {
 	}
 }
 
-// The same for the read side: Target stats the path before it asks, so only a
-// direct call reaches the attribute query's own failure.
-func TestReparseTargetReportsAPathThatIsNotThere(t *testing.T) {
+// Target stats the path before it asks, so a path that is gone by the time of
+// the attribute query is one that vanished in between: the empty answer, not
+// an error, as Target's contract says. Only a direct call reaches that arm.
+func TestReparseTargetAnswersEmptyForAPathThatIsGone(t *testing.T) {
 	got, err := reparseTarget(filepath.Join(t.TempDir(), "absent"))
+	if got != "" || err != nil {
+		t.Fatalf("got %q, err %v, want the empty answer with no error", got, err)
+	}
+}
+
+// A path the attribute query rejects for another reason than absence is still
+// an error: only a path that is not there is a vanished one.
+func TestReparseTargetStillReportsAnInvalidName(t *testing.T) {
+	got, err := reparseTarget(filepath.Join(t.TempDir(), "a<b"))
 	if err == nil || !strings.Contains(err.Error(), "inspecting") {
 		t.Fatalf("got %q, err %v, want the inspection to be reported", got, err)
 	}
