@@ -121,8 +121,8 @@ func TestInstalledVersionReadsTheBinarysAnswer(t *testing.T) {
 		}
 		return []byte("loomux 2.13.0 (beta)\n"), nil
 	})
-	if got := installedVersion("bin"); got != "2.13.0" {
-		t.Fatalf("installedVersion = %q, want 2.13.0", got)
+	if got := installedVersion("bin"); got != "2.13.0 (beta)" {
+		t.Fatalf("installedVersion = %q, want 2.13.0 (beta)", got)
 	}
 }
 
