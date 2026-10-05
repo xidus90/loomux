@@ -66,9 +66,9 @@ master = 2
 
 func TestBuildGitWorldMakesTheDeclaredRepository(t *testing.T) {
 	dir := writeWorld(t, map[string]string{
-		"git.toml":              twoCommits,
-		"a.txt":                 "one\n",
-		".ultraloom/state.json": `{"base": "{{COMMIT:1}}", "head": "{{COMMIT:2}}"}`,
+		"git.toml":           twoCommits,
+		"a.txt":              "one\n",
+		".loomux/state.json": `{"base": "{{COMMIT:1}}", "head": "{{COMMIT:2}}"}`,
 	})
 	if err := BuildGitWorld(dir); err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestBuildGitWorldMakesTheDeclaredRepository(t *testing.T) {
 	if string(body) != "three\n" {
 		t.Fatalf("worktree a.txt = %q", body)
 	}
-	state, _ := os.ReadFile(filepath.Join(dir, ".ultraloom", "state.json"))
+	state, _ := os.ReadFile(filepath.Join(dir, ".loomux", "state.json"))
 	if want := `{"base": "` + first + `", "head": "` + second + `"}`; string(state) != want {
 		t.Fatalf("tokens: %s", state)
 	}

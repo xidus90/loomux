@@ -57,7 +57,7 @@ var createTemp = defaultCreateTemp
 
 // excluded are the files of the test bench itself: a hook that measures the
 // working tree must not see them as somebody's change.
-var excluded = []string{"/git.toml", "/faketool.json", "/.origin.git/", "/.ultraloom/", "/.loomux/", "/.claude/"}
+var excluded = []string{"/git.toml", "/faketool.json", "/.origin.git/", "/.loomux/", "/.claude/"}
 
 // noGitHome is the home GitEnv names inside a world. Nothing makes it, so git
 // finds no .gitconfig there and nothing lands in the tree a case compares.

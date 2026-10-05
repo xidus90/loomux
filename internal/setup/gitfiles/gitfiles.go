@@ -88,15 +88,15 @@ func IsLoomuxPreCommit(text string) bool {
 }
 
 // RunsAGate says whether an existing hook already runs a check chain: a
-// loomux, ultraloom or ulguard call, or ci/gate.sh. Comment lines do not
-// count, so a hook that merely mentions a chain is not taken for one.
+// loomux call or ci/gate.sh. Comment lines do not count, so a hook that
+// merely mentions a chain is not taken for one.
 func RunsAGate(text string) bool {
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
-		for _, marker := range []string{"loomux", "ultraloom", "ulguard", "ci/gate.sh"} {
+		for _, marker := range []string{"loomux", "ci/gate.sh"} {
 			if strings.Contains(line, marker) {
 				return true
 			}
