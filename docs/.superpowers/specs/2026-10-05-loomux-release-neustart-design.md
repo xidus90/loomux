@@ -1,6 +1,6 @@
 # loomux Release-Neustart und Beta-Kanal — Design
 
-**Stand:** Entwurf 2026-10-05, gegen `origin/master` 80db6bb0.
+**Stand:** Entwurf 2026-10-05, gegen `origin/master` 80db6bb0; vom Nutzer freigegeben am 2026-10-05.
 **Bezug:** Fusions-Spec, Nachtrag #31; Schwester-Spec
 `2026-10-05-loomux-stufe-4f-design.md` (der Neustart schließt 4f ab).
 
@@ -19,7 +19,8 @@ Beta automatisch.
 2. Im Changelog bekommen die alten Einträge eine Beta-Kennung.
 3. Betas sind Releases von einem Zweig, installierbar per `--beta` und per
    `--version x.y.z`.
-4. Eine Beta-Installation bekommt automatisch die nächste Beta.
+4. Eine Beta-Installation bekommt automatisch die nächste Beta, auch nachdem
+   ein stabiles Release sie überholt hat (Variante b: die Markierung bleibt).
 
 ## Gemessene Randbedingungen
 
@@ -67,14 +68,25 @@ Beta automatisch.
   (`cli.Channel`) bzw. an `(beta)` in der `--version`-Ausgabe eines
   installierten. `Newer` und `AtLeast` nutzen denselben Vergleich. Damit gilt
   ein installiertes 7.2.0 vor einem `init` 1.0.0 nicht als neu genug.
-- **Kanal des laufenden Binarys:**
-  - Trägt seine Version `-beta.N` oder gehört sie zur alten Zählung, nimmt
-    das automatische Update stabile Releases und Betas.
-  - Sonst nimmt es nur stabile.
-  - Ein Beta-Binary, das von einem neueren stabilen Release überholt wird,
-    installiert dieses und ist danach stabil. Nach einem stabilen Release
-    gibt es bis zur nächsten Beta keine neuere Beta, und wer weiter Betas
-    will, ruft `--beta`.
+- **Kanal einer Maschine (entschieden 2026-10-05, Variante b):** Der
+  Beta-Kanal ist eine Markierung `<Zustandsverzeichnis>/channel` mit dem
+  Inhalt `beta`.
+  - `upgrade --beta` setzt sie. `upgrade --version <beta>` setzt sie ebenfalls.
+  - `upgrade --stable` und `upgrade --version <stabil>` löschen sie.
+  - Mit Markierung nimmt das automatische Update jedes neuere Release, ob Beta
+    oder stabil. Ein Beta-Binary, das ein stabiles Release überholt, bleibt
+    also im Beta-Kanal und bekommt die nächste Beta.
+  - Ohne Markierung nimmt es nur stabile Releases.
+  - Ein Binary der alten Zählung ohne Datei nimmt die Releases der alten
+    Zählung und die stabilen der neuen, aber keine neue Beta. So findet die
+    Brücke vor dem Neustart ihre Nachfolger unter den alten Pre-Releases und
+    danach v1.0.0. Ein Wirt, der erst nach der ersten Beta wieder online
+    kommt, landet dabei nicht ungefragt auf einer Beta. Mit Datei nimmt es
+    alles, wie jedes markierte Binary. Nach v1.0.0 gilt nur noch die Datei
+    (nachgetragen 2026-10-05 nach dem Abschluss-Review der Brücke).
+  - Eine unlesbare oder fremde Markierung heißt stabil. `update.json` nennt
+    sie im Fehlerfeld, und der Sitzungsstart warnt, auch wenn der Lauf
+    selbst `current` oder `updated` ergab.
 - **Einordnung eines Releases:** Ein Tag allein sagt nicht, welcher Zählung er
   angehört (`v8.0.0` alt gegen `v1.0.0` neu). Darum vergleichen `Newer` und
   `pick` ganze `Release`s (Tag und `isPrerelease`):
@@ -95,10 +107,12 @@ Beta automatisch.
 | Aufruf | Wählt |
 |---|---|
 | `loomux upgrade` | das neueste Release im Kanal des laufenden Binarys (wie `serve`) |
-| `loomux upgrade --beta` | das neueste Release überhaupt, Betas eingeschlossen; danach ist das Binary im Beta-Kanal |
+| `loomux upgrade --beta` | das neueste Release überhaupt, Betas eingeschlossen; setzt die Markierung |
+| `loomux upgrade --stable` | das neueste stabile Release, auch wenn es älter ist als die laufende Beta; löscht die Markierung |
 | `loomux upgrade --version x.y.z` | genau diesen Tag, auch eine Beta, auch ein Downgrade; fehlt er, Exit 1 mit „no release x.y.z“ |
 
-- `--beta` und `--version` schließen sich aus (Exit 2).
+- `--beta`, `--stable` und `--version` schließen sich gegenseitig aus
+  (Exit 2).
 - **Downgrade per `--version`:** hält nicht. `serve` hebt binnen 24 Stunden
   wieder auf das neueste Release seines Kanals. Das steht in der
   CLI-Referenz.
@@ -160,6 +174,22 @@ Beta automatisch.
      `docs/*/getting-started.md` ziehen mit. Derselbe PR bringt die
      Release-Skripte (Abschnitt oben) und entfernt `--channel`. Die
      Repo-Variable `RELEASE_CHANNEL` löscht der Mensch vor dem Merge.
+     Aus dem Abschluss-Review der Brücke (2026-10-05) trägt derselbe PR:
+     - Ein stabiles Release druckt keinen Kanal hinter der Nummer. Der
+       Smoke-Test prüft das am Binary für einen stabilen Tag. Sonst liest
+       `parseReported` v1.0.0 als alte Zählung, und `serve` lädt es jeden
+       Tag neu.
+     - Ein `init` aus einer Beta auf einer Maschine ohne Markierung
+       installiert das stabile Release. `antigravityGap` nimmt dann nicht
+       mehr an, das installierte Binary sei mindestens so neu wie das
+       `init`: Die Ausnahme `installing` gilt nur für ein `init` ohne
+       Beta-Suffix.
+     - `gh release list --limit 30` kann bei vielen Betas das neueste
+       stabile Release verfehlen. Die Liste wird so abgefragt, dass das
+       nicht passiert, etwa mit höherem Limit oder einer eigenen Abfrage
+       nur der stabilen Releases.
+     - Der Beleg aus Schritt 2 liest `running` aus `update.json` von
+       `serve`, nicht `loomux version` der Datei.
    - **c.** Der Merge dieses PR veröffentlicht durch `NextVersion` ohne `v*`-Tag
      v1.0.0 als stabiles Release. Die Brücken-Installationen holen es selbst.
    - **d.** Jeder lokale Klon und jedes Worktree fährt
@@ -173,9 +203,13 @@ Beta automatisch.
   Zählung gegen jede neue Version. `AtLeast` und `Newer` mit denselben Fällen.
 - **`pick`:** Kanal stabil, Beta und alte Zählung, jeweils mit einer Liste, in
   der das erwartete Release nicht an erster Stelle steht.
-- **`upgrade`:** `--beta`, `--version` vorhanden/fehlend/Beta, beide
-  zusammen (Exit 2). Gefahren über den vorhandenen Runner-Fake von
-  `internal/selfupdate`.
+- **`upgrade`:** `--beta`, `--stable`, `--version` vorhanden/fehlend/Beta/
+  stabil, je zwei zusammen (Exit 2). Nach jedem Aufruf wird geprüft, ob die
+  Markierung gesetzt oder gelöscht ist. Gefahren über den vorhandenen
+  Runner-Fake von `internal/selfupdate`.
+- **Markierung:** fehlt, `beta`, fremder Inhalt, unlesbar; ein Binary der
+  alten Zählung ohne Datei; ein Beta-Binary mit Markierung, das ein stabiles
+  Release überholt und danach eine neuere Beta nimmt.
 - **`next-beta`:** ohne Tags, mit stabilen Tags, mit vorhandenen Betas
   derselben und einer anderen Basis.
 - **`release.sh`:** Die Pre-Release-Entscheidung als Funktion von `version`,

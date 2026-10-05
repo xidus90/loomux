@@ -1,6 +1,6 @@
 # loomux Stufe 4f: keine Verweise auf die Vorgänger — Design
 
-**Stand:** Entwurf 2026-10-05, gegen `origin/master` 80db6bb0 (4e ✅).
+**Stand:** Entwurf 2026-10-05, gegen `origin/master` 80db6bb0 (4e ✅); vom Nutzer freigegeben am 2026-10-05.
 **Bezug:** Fusions-Spec, Nachtrag #24 und „#24 im Einzelnen“ (Klassen,
 Ausnahmen, Fertig-Bedingung), Nachtrag #31 (Release-Neustart als Abschluss von
 4f); Schwester-Spec `2026-10-05-loomux-release-neustart-design.md`.
