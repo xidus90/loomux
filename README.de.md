@@ -349,14 +349,16 @@ loomux dev record-poppler --exe P --dir V --out D  # Zeichnet auf, was pdftotext
 | Komponente / Idee | Herkunft / Inspiration | Entscheidung in Loomux | Begründung |
 |---|---|---|---|
 | **Einziges Go-Binary** | Grundarchitektur | ✅ **Kernmandat** | 0 Python, 0 Node.js. 7,5 ms warmer Hook, autarke Auslieferung, 100 % Testabdeckung. |
-| **AST-Code-Graph & PageRank** | `trailhq/Graft` | ✅ **Nativ übernommen** | $0 deterministischer Code-Graph. Personalized PageRank filtert strukturelle Kern-Hubs statt naiver Keyword-Listen. |
-| **Blast Radius** | `trailhq/Graft` | ✅ **Nativ übernommen** | Der Blast-Radius eines Git-Diffs mit Testsignal (`graph blast`, `graph_blast`). |
-| **Crux-Inlining** | `trailhq/Graft` | ❌ **Weggelassen** | Grafts Crux ist ein Ausschnitt, den ein LLM gewählt hat; in loomux sitzt kein LLM im Pfad. `--source` blendet stattdessen den Span ein (höchstens 80 Zeilen, `--full` ohne Grenze), Grafts eigener Rückfall. |
-| **Symbol-gekoppelter Grep** | `trailhq/Graft` | ✅ **Nativ übernommen** | Regex-Treffer gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`). |
+| **AST-Code-Graph & PageRank** | Code-Graph-Vorbild | ✅ **Nativ übernommen** | $0 deterministischer Code-Graph. Personalized PageRank filtert strukturelle Kern-Hubs statt naiver Keyword-Listen. |
+| **Blast Radius** | Code-Graph-Vorbild | ✅ **Nativ übernommen** | Der Blast-Radius eines Git-Diffs mit Testsignal (`graph blast`, `graph_blast`). |
+| **Crux-Inlining** | Code-Graph-Vorbild | ❌ **Weggelassen** | Sein Crux ist ein Ausschnitt, den ein LLM gewählt hat; in loomux sitzt kein LLM im Pfad. `--source` blendet stattdessen den Span ein (höchstens 80 Zeilen, `--full` ohne Grenze), der eigene Rückfall des Vorbilds. |
+| **Symbol-gekoppelter Grep** | Code-Graph-Vorbild | ✅ **Nativ übernommen** | Regex-Treffer gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`). |
 | **Lokales Second Brain & Wiki** | Grundarchitektur | ✅ **Kernmandat** | Markdown-Wiki, ADRs und Identitätsregister direkt im Repo. Code-Symbole verlinken direkt auf Architektur-Entscheidungen. |
-| **Node.js & C++ Toolchain** | `trailhq/Graft` | ❌ **Abgelehnt** | Graft setzt Node.js >=20, `node-gyp` und MSVC voraus. Loomux bleibt 100 % Pure Go ohne C-Compiler-Zwang. |
-| **Cloud-Brain-Synchronisation** | `trailhq/Graft` | ❌ **Abgelehnt** | Graft synchronisiert Symbol-Hashes mit Cloud-APIs. Loomux hält alles Wissen, alle Regeln und Graphen 100 % lokal und offline. |
-| **Telemetrie & Tracking** | `trailhq/Graft` | ❌ **Abgelehnt** | Graft sendet Nutzungsstatistiken an externe Server. Loomux hat null Telemetrie und telefoniert niemals nach Hause. |
+| **Node.js & C++ Toolchain** | Code-Graph-Vorbild | ❌ **Abgelehnt** | Setzt Node.js >=20, `node-gyp` und MSVC voraus. Loomux bleibt 100 % Pure Go ohne C-Compiler-Zwang. |
+| **Cloud-Brain-Synchronisation** | Code-Graph-Vorbild | ❌ **Abgelehnt** | Synchronisiert Symbol-Hashes mit Cloud-APIs. Loomux hält alles Wissen, alle Regeln und Graphen 100 % lokal und offline. |
+| **Telemetrie & Tracking** | Code-Graph-Vorbild | ❌ **Abgelehnt** | Sendet Nutzungsstatistiken an externe Server. Loomux hat null Telemetrie und telefoniert niemals nach Hause. |
+
+Code-Graph, Ranking und Blast-Radius sind angeregt von [trailhq/Graft](https://github.com/trailhq/Graft); die portierten Teile und ihre MIT-Lizenz stehen in [NOTICE.md](internal/notices/NOTICE.md).
 
 ---
 
@@ -376,7 +378,7 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 | Handbuch | Beschreibung |
 |---|---|
 | 🚀 **[Erste Schritte](docs/de/getting-started.md)** | Installation, 3-Minuten-Schnellstart und Anbindung an Agenten-Harnesses (Hooks für Claude Code und Antigravity, MCP für Cursor). |
-| 🏛️ **[Architektur & Konzepte](docs/de/architecture.md)** | Das theoretische Fundament: Andrej Karpathys LLM OS, Googles Knowledge Items (KI), Grafts AST-GraphRank und der Schreibschranken-Kernel. |
+| 🏛️ **[Architektur & Konzepte](docs/de/architecture.md)** | Das theoretische Fundament: Andrej Karpathys LLM OS, Googles Knowledge Items (KI), AST-GraphRank und der Schreibschranken-Kernel. |
 | ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`, `[agent]`, `[flow]`). |
 | 🔀 **[Flows](docs/de/flows.md)** | Flows als Daten: das Ordnerformat, Rollen und Modelle, der Katalog und das Überschreiben, einen Flow beitragen und warum ein Tor einem Menschen gehört. |
 | 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |

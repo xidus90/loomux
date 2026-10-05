@@ -9,7 +9,7 @@ Welcome to the Loomux documentation suite. Loomux is an all-in-one developer ope
 | Guide | Description |
 |---|---|
 | 🚀 **[Getting Started](getting-started.md)** | Installation, 3-minute quickstart, and agent harness wiring (Claude Code, Antigravity, Cursor). |
-| 🏛️ **[Architecture & Concepts](architecture.md)** | Deep dive into Andrej Karpathy's LLM OS, Google Knowledge Items (KI), Graft AST GraphRank, and the Write Barrier Kernel. |
+| 🏛️ **[Architecture & Concepts](architecture.md)** | Deep dive into Andrej Karpathy's LLM OS, Google Knowledge Items (KI), AST GraphRank, and the Write Barrier Kernel. |
 | ⚙️ **[Configuration Reference](configuration.md)** | Complete reference for `.loomux/config.toml` (`[modules]`, `[verify]`, `[policy]`, `[commit]`, `[worktree]`, `[area]`, `[index]`, `[privacy]`, `[wiki]`, `[agent]`, `[flow]`). |
 | 🔀 **[Flows](flows.md)** | Flows as data: the folder format, roles and models, the catalog and overrides, contributing a flow, and why a gate is a human's. |
 | 📖 **[CLI Reference Manual](cli-reference.md)** | Comprehensive UNIX-style manual for all commands, flags, stdin JSON payloads, and exit codes. |
