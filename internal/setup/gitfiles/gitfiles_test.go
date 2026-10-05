@@ -138,7 +138,7 @@ func TestIsLoomuxPreCommitGoesByTheMarkerLine(t *testing.T) {
 	}
 }
 
-func TestRunsAGateKnowsTheOldAndNewChains(t *testing.T) {
+func TestRunsAGateKnowsTheChains(t *testing.T) {
 	own, err := os.ReadFile("../../../.githooks/pre-commit")
 	if err != nil {
 		t.Fatal(err)
@@ -149,8 +149,7 @@ func TestRunsAGateKnowsTheOldAndNewChains(t *testing.T) {
 		want bool
 	}{
 		{"own pre-commit", string(own), true},
-		{"ulguard", "#!/bin/sh\nulguard --root .\n", true},
-		{"ultraloom", "#!/bin/sh\nuv run ultraloom check precommit\n", true},
+		{"foreign", "#!/bin/sh\nother-guard --root .\n", false},
 		{"loomux", "#!/bin/sh\nloomux check precommit\n", true},
 		{"gate script", "#!/bin/sh\nsh ci/gate.sh\n", true},
 		{"empty", "", false},

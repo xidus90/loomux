@@ -161,7 +161,7 @@ func TestAForeignHostEntryIsKeptAndNamed(t *testing.T) {
 func TestAnExistingHookIsKeptAndNamed(t *testing.T) {
 	root := world(t, map[string]string{
 		".git/":                "",
-		".githooks/pre-commit": "#!/bin/sh\nulguard check\n",
+		".githooks/pre-commit": "#!/bin/sh\nother-guard check\n",
 		".githooks/pre-push":   "#!/bin/sh\necho mine\n",
 	})
 	p := plan(t, gather(t, root, ""))
@@ -170,7 +170,7 @@ func TestAnExistingHookIsKeptAndNamed(t *testing.T) {
 			t.Errorf("%s is rewritten", path)
 		}
 	}
-	if !hasNote(p, ".githooks/pre-commit: kept; it runs a gate already") ||
+	if !hasNote(p, ".githooks/pre-commit: kept; a hook of the project is already there") ||
 		!hasNote(p, ".githooks/pre-push: kept; a hook of the project is already there") {
 		t.Errorf("notes = %v", p.Notes)
 	}
