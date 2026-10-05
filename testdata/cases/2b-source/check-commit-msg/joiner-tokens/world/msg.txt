@@ -1,3 +1,0 @@
-feat: test joiners
-
-Using snake_case_uebersicht and kebab-case-loesung in code.

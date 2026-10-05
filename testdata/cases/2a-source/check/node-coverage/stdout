@@ -1,4 +1,0 @@
-coverage: ok [preset]
-faketool: vitest run --coverage
-All files 100
-note: the configured coverage threshold is 100%; ultraloom does not enforce it — the coverage tool's own settings decide

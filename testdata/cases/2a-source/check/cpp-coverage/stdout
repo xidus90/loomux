@@ -1,3 +1,0 @@
-coverage: ok [preset]
-faketool: gcovr
-note: the configured coverage threshold is 100%; ultraloom does not enforce it — the coverage tool's own settings decide

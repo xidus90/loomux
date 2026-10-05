@@ -1,2 +1,0 @@
-types: ok [preset]
-faketool: uv run mypy

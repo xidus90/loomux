@@ -1,5 +1,0 @@
----
-type: [unclosed
----
-
-Text

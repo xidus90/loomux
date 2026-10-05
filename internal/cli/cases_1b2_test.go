@@ -44,8 +44,8 @@ func TestRecordedMCPCasesOfStage1b2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The number is pinned, not merely non-zero: a partial import must not
-	// pass as parity. Raise it with the corpus when a case is added.
+	// The number is pinned, not merely non-zero: a case deleted by mistake must
+	// not pass unnoticed. Raise it with the corpus when a case is added.
 	if len(all) != 54 {
 		t.Fatalf("expected 54 recorded cases, found %d", len(all))
 	}

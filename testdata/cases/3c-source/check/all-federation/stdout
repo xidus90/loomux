@@ -1,6 +1,0 @@
-[error] house/wrong-direction engineering/x/a.md: a shared area must not cite "project/a/topics/y"; promote the page instead (architecture 5.7.4)
-[error] house/wrong-direction engineering/x/b.md: a shared area must not cite "x/y"; promote the page instead (architecture 5.7.4)
-[error] house/wrong-direction knowledge/a.md: a shared area must not cite "x/y"; promote the page instead (architecture 5.7.4)
-[error] house/wrong-direction knowledge/b.md: a shared area must not cite "x/y"; promote the page instead (architecture 5.7.4)
-[error] house/unlisted-area knowledge/index.md: the signpost does not link to area "project/a"; expected one of: {{WORLD}}\repo-a\wiki, {{WORLD}}\repo-k\Hub\a.md
-[error] house/unlisted-area knowledge/index.md: the signpost does not link to area "engineering/x"; expected one of: {{WORLD}}\repo-x\wiki, {{WORLD}}\repo-k\Hub\x.md

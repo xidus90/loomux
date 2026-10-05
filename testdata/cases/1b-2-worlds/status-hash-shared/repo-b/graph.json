@@ -1,9 +1,0 @@
-{
-  "edges": [],
-  "links": {"dropped": {}, "resolved": 0, "total": 0},
-  "nodes": [
-    {"id": "shared.md", "tags": [], "title": "shared"},
-    {"id": "zeta.md", "tags": [], "title": "zeta"}
-  ],
-  "scope": "project/b"
-}

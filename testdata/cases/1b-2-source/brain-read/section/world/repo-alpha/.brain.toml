@@ -1,8 +1,0 @@
-[area]
-scope = "project/alpha"
-
-[privacy]
-never = ["secret/**"]
-
-[layout]
-review = "review"

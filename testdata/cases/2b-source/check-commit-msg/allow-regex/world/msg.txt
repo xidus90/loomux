@@ -1,3 +1,0 @@
-feat: test allow regex
-
-eins zwei drei

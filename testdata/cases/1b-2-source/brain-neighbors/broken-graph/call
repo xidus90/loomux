@@ -1,8 +1,0 @@
-{
-  "tool": "neighbors",
-  "arguments": {
-    "scope": "project/torn",
-    "relative": "a.md"
-  },
-  "channel": "cloud"
-}

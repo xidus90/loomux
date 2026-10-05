@@ -3,10 +3,6 @@
 # A catalog flow's golden journal is compared byte for byte.
 flows/catalog/*/_test/** text eol=lf
 
-# The recordings of the old tools are evidence, not text this repository owns:
-# no line-ending normalisation, so a case stays byte for byte what was recorded.
-testdata/cases/1a-source/** -text
-
 # The rendered package is evidence of the Python format, not text this
 # repository owns: the D3 segment carries a lone carriage return on purpose.
 internal/brain/maintenance/testdata/package.golden.md -text
@@ -43,10 +39,9 @@ internal/brain/maintenance/testdata/merge-case.golden.toml -text
 # reference.
 internal/brain/wiki/testdata/bundle/*.golden -text
 
-# The stage-3a recordings and their translation compare whole file worlds byte
-# for byte -- stat caches, registers, case files, the bytes `brain init` wrote.
-# A fold of any kind would compare with this repository, not with the reference.
-testdata/cases/3a-source/** -text
+# The stage-3a cases compare whole file worlds byte for byte -- stat caches,
+# registers, case files, the bytes `brain init` wrote. A fold of any kind would
+# change what the cases hold.
 testdata/cases/3a/** -text
 
 # The frontmatter goldens are evidence of what `_advance` and PyYAML wrote:
@@ -59,10 +54,8 @@ internal/brain/apply/testdata/frontmatter/** -text
 # sha256. A fold of any kind would send the model a different prompt.
 internal/brain/model/prompts/** -text
 
-# The local model's recordings and their translation are the same kind of
-# evidence as stage 3a's: whole file worlds held byte for byte against the
-# reference, a proposal the model's answer wrote included.
-testdata/cases/4c1-source/** -text
+# The local model's cases are the same kind of evidence as stage 3a's: whole
+# file worlds held byte for byte, a proposal the model's answer wrote included.
 testdata/cases/4c1/** -text
 
 # The search corpus is held by checksums over its raw bytes: manifest.json
@@ -70,9 +63,7 @@ testdata/cases/4c1/** -text
 testdata/bench/search/** -text
 
 # The stage-4d fixtures are evidence: PDFs built by hand, a recorded yt-dlp
-# run, recordings of the reference and of Poppler. No fold of any kind.
+# run, a recording of Poppler. No fold of any kind.
 testdata/convert/** -text
-testdata/cases/4d-worlds/** -text
-testdata/cases/4d-source/** -text
 testdata/cases/4d/** -text
 internal/brain/model/zipf/** -text

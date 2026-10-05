@@ -1,8 +1,0 @@
-[[commit]]
-message = "base"
-paths = ["pyproject.toml", "tests/test_a.py", "a.py"]
-
-[[commit]]
-message = "second"
-[commit.files]
-"a.py" = "x = 2\n"

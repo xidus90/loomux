@@ -1,8 +1,0 @@
-{
-  "tool": "neighbors",
-  "arguments": {
-    "scope": "notes",
-    "relative": "guide.md"
-  },
-  "channel": "cloud"
-}

@@ -5,9 +5,10 @@ import (
 	"testing"
 )
 
-// The old form is copied from the recordings in testdata/cases/2a-source:
-// `unavailable` and `blocked` stand in brackets there, as the source of a
-// failed kind, so the old side reads them as red, as Python judged them.
+// The old form is copied from the original recordings (the archive release
+// archive/parity-recordings): `unavailable` and `blocked` stand in brackets
+// there, as the source of a failed kind, so the old side reads them as red, as
+// Python judged them.
 func TestKindVerdicts(t *testing.T) {
 	old := []byte("lint: ok [config]\ntypes: failed [unavailable]\nno preset\ntest: failed [preset]\nE1\ncoverage: failed [blocked]\n")
 	neu := []byte("lint/go: ok [config] 1.2s\nlint/python: ok [preset] 0.1s\ntypes/go: not-applicable [preset] no command\ntest/go: failed [preset] 3.0s\ncoverage/go: blocked [preset] by test/go\n")

@@ -1,6 +1,0 @@
-[commit]
-language = "en"
-
-[[commit.allow]]
-match  = "WIP*"
-reason = "a glob is refused here"

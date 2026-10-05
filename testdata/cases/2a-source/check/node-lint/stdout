@@ -1,2 +1,0 @@
-lint: ok [preset]
-faketool: eslint

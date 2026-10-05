@@ -1,6 +1,0 @@
-# Stage 2a translates one command prefix: the old check lives under the
-# same verb in loomux.
-
-[[command]]
-from = "ultraloom check "
-to   = "loomux check "

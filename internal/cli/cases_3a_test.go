@@ -19,8 +19,8 @@ import (
 	"github.com/xidus90/loomux/internal/dev/fakeqmd"
 )
 
-// wantCases3a is pinned, not merely non-zero: a partial import must not pass
-// as parity. Raise it with the corpus when a case is added.
+// wantCases3a is pinned, not merely non-zero: a case deleted by mistake must not pass
+// unnoticed. Raise it with the corpus when a case is added.
 const wantCases3a = 28
 
 // expectation3a is how the replay of one case may differ from its recording.

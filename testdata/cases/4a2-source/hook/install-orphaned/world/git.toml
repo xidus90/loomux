@@ -1,8 +1,0 @@
-# The repository is the area, not the state directory around it.
-dir = "repo-a"
-
-# One commit, so HEAD names a branch. The manifest stays untracked: the
-# import moves it under its new name, and a commit naming the old one
-# would not build.
-[[commit]]
-message = "base"

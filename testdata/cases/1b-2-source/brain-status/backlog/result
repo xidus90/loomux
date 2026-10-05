@@ -1,4 +1,0 @@
-{
-  "isError": false,
-  "text": "last reconcile: 2999-01-01T00:00:00+00:00\n7 documents are indexed but not yet searchable; run `brain embed`"
-}

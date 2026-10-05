@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"math"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -56,155 +55,6 @@ func TestDevSwapBinary(t *testing.T) {
 func TestDevSwapBinaryRefusesAnUnknownFlag(t *testing.T) {
 	if code, _, _ := run("dev", "swap-binary", "--bogus"); code != 2 {
 		t.Fatalf("code %d", code)
-	}
-}
-
-func TestDevRecordCaseNeedsItsFlags(t *testing.T) {
-	if code, _, _ := run("dev", "record-case", "--bogus"); code != 2 {
-		t.Fatalf("code %d", code)
-	}
-	code, _, errOut := run("dev", "record-case", "--cmd", "ulguard {{WORLD}}")
-	if code != 2 || !strings.Contains(errOut, "loomux dev record-case: --exe or --argv, --cmd, --world and --out are required") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-func TestDevRecordCaseRecordsABinary(t *testing.T) {
-	goExe, err := exec.LookPath("go")
-	if err != nil {
-		t.Skip("no go binary on PATH")
-	}
-	out := filepath.Join(t.TempDir(), "demo", "version")
-	code, _, errOut := run("dev", "record-case",
-		"--exe", goExe, "--cmd", "go version", "--world", t.TempDir(),
-		"--out", out, "--notes", "the go version", "--compare", "message")
-	if code != 0 {
-		t.Fatalf("code %d: %s", code, errOut)
-	}
-	if _, err := os.Stat(filepath.Join(out, "cmd")); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// The flag reaches the recorder: a world without a repository has no commit
-// for git.after to name.
-func TestDevRecordCasePassesGitAfterOn(t *testing.T) {
-	goExe, err := exec.LookPath("go")
-	if err != nil {
-		t.Skip("no go binary on PATH")
-	}
-	code, _, errOut := run("dev", "record-case", "--git-after",
-		"--exe", goExe, "--cmd", "go version", "--world", t.TempDir(),
-		"--out", filepath.Join(t.TempDir(), "demo", "version"))
-	if code != 1 || !strings.Contains(errOut, "git world") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-func TestDevRecordCaseReportsAFailedRecording(t *testing.T) {
-	code, _, errOut := run("dev", "record-case",
-		"--exe", filepath.Join(t.TempDir(), "gone.exe"), "--cmd", "ulguard x",
-		"--world", t.TempDir(), "--out", filepath.Join(t.TempDir(), "v", "n"))
-	if code != 1 || !strings.Contains(errOut, "loomux dev record-case:") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-func TestDevRecordCaseRefusesExeAndArgvTogether(t *testing.T) {
-	code, _, errOut := run("dev", "record-case", "--exe", "brain.exe", "--argv", "uv run brain-mcp",
-		"--cmd", "brain-mcp status", "--world", t.TempDir(), "--out", t.TempDir())
-	if code != 2 || !strings.Contains(errOut, "loomux dev record-case: --exe and --argv exclude each other") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-func TestDevRecordCaseRefusesAnArgvItCannotSplit(t *testing.T) {
-	code, _, errOut := run("dev", "record-case", "--argv", "'unclosed",
-		"--cmd", "brain-mcp status", "--world", t.TempDir(), "--out", t.TempDir())
-	if code != 2 || !strings.Contains(errOut, "loomux dev record-case: --argv: unclosed quote") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-func TestDevRecordCaseRefusesAnEnvWithoutAValue(t *testing.T) {
-	code, _, errOut := run("dev", "record-case", "--env", "NOVALUE")
-	if code != 2 || !strings.Contains(errOut, `"NOVALUE" is not KEY=VALUE`) {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-// The argv form with a real program: go stands in for uv, "env" for the
-// leading arguments, GOWORK for what the command asks after.
-func TestDevRecordCaseRecordsAProgramWithLeadingArguments(t *testing.T) {
-	if _, err := exec.LookPath("go"); err != nil {
-		t.Skip("no go binary on PATH")
-	}
-	out := filepath.Join(t.TempDir(), "demo", "gowork")
-	code, _, errOut := run("dev", "record-case",
-		"--argv", "go env", "--env", "GOWORK=off", "--env", "LOOMUX_UNUSED={{WORLD}}",
-		"--path-prepend", t.TempDir(), "--cmd", "old GOWORK", "--world", t.TempDir(),
-		"--out", out, "--notes", "the go workspace setting")
-	if code != 0 {
-		t.Fatalf("code %d: %s", code, errOut)
-	}
-	if got, err := os.ReadFile(filepath.Join(out, "stdout")); err != nil || string(got) != "off\n" {
-		t.Fatalf("%v %q", err, got)
-	}
-}
-
-func TestDevImportCasesNeedsItsFlags(t *testing.T) {
-	if code, _, _ := run("dev", "import-cases", "--bogus"); code != 2 {
-		t.Fatalf("code %d", code)
-	}
-	code, _, errOut := run("dev", "import-cases", "--map", "m.toml")
-	if code != 2 || !strings.Contains(errOut, "loomux dev import-cases: --map, --from and --to are required") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-}
-
-func TestDevImportCasesTranslatesACorpus(t *testing.T) {
-	from, to := t.TempDir(), t.TempDir()
-	caseDir := filepath.Join(from, "guard", "one")
-	if err := os.MkdirAll(filepath.Join(caseDir, "world"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for name, content := range map[string]string{"cmd": "ulguard --root {{WORLD}}\n", "exit": "2\n", "stdout": ""} {
-		if err := os.WriteFile(filepath.Join(caseDir, name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	mapFile := filepath.Join(t.TempDir(), "map.toml")
-	if err := os.WriteFile(mapFile, []byte("[[command]]\nfrom = \"ulguard --root {{WORLD}}\"\nto   = \"loomux hook pre-tool-use --host claude --root {{WORLD}}\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	code, _, errOut := run("dev", "import-cases", "--map", mapFile, "--from", from, "--to", to)
-	if code != 0 {
-		t.Fatalf("code %d: %s", code, errOut)
-	}
-	got, err := os.ReadFile(filepath.Join(to, "guard", "one", "cmd"))
-	if err != nil || string(got) != "loomux hook pre-tool-use --host claude --root {{WORLD}}\n" {
-		t.Fatalf("%v %q", err, got)
-	}
-}
-
-func TestDevImportCasesReportsABrokenMapAndAFailedImport(t *testing.T) {
-	broken := filepath.Join(t.TempDir(), "map.toml")
-	if err := os.WriteFile(broken, []byte("[[command\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	code, _, errOut := run("dev", "import-cases", "--map", broken, "--from", t.TempDir(), "--to", t.TempDir())
-	if code != 1 || !strings.Contains(errOut, "loomux dev import-cases:") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
-
-	good := filepath.Join(t.TempDir(), "map.toml")
-	if err := os.WriteFile(good, []byte("[[command]]\nfrom = \"ulguard\"\nto = \"loomux\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	code, _, errOut = run("dev", "import-cases", "--map", good, "--from", filepath.Join(t.TempDir(), "gone"), "--to", t.TempDir())
-	if code != 1 || !strings.Contains(errOut, "loomux dev import-cases:") {
-		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
 
@@ -925,43 +775,6 @@ func TestDevBenchRepos(t *testing.T) {
 			t.Fatalf("expected code 1 with save error, got code=%d err=%s", code, errOut)
 		}
 	})
-}
-
-// --merge-fixture appends the extra answers to every translated world; extra
-// answers it cannot read fail the import after the cases were written.
-func TestDevImportCasesMergesTheExtraAnswers(t *testing.T) {
-	from, to := t.TempDir(), t.TempDir()
-	caseDir := filepath.Join(from, "check", "one")
-	if err := os.MkdirAll(filepath.Join(caseDir, "world"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for name, content := range map[string]string{"cmd": "ultraloom check all --root {{WORLD}}\n", "exit": "1\n", "stdout": ""} {
-		if err := os.WriteFile(filepath.Join(caseDir, name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	mapFile := filepath.Join(t.TempDir(), "map.toml")
-	if err := os.WriteFile(mapFile, []byte("[[command]]\nfrom = \"ultraloom check \"\nto = \"loomux check \"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	extra := filepath.Join(t.TempDir(), "extra.json")
-	if err := os.WriteFile(extra, []byte(`{"answers": [{"prefix": "cmake --build", "exit": 0}]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	code, _, errOut := run("dev", "import-cases", "--map", mapFile, "--from", from, "--to", to, "--merge-fixture", extra)
-	if code != 0 {
-		t.Fatalf("code %d: %s", code, errOut)
-	}
-	got, err := os.ReadFile(filepath.Join(to, "check", "one", "world", "faketool.json"))
-	if err != nil || !strings.Contains(string(got), `"prefix": "cmake --build"`) {
-		t.Fatalf("%v %s", err, got)
-	}
-
-	code, _, errOut = run("dev", "import-cases", "--map", mapFile, "--from", from, "--to", to, "--merge-fixture", filepath.Join(t.TempDir(), "gone.json"))
-	if code != 1 || !strings.Contains(errOut, "loomux dev import-cases: reading the extra answers") {
-		t.Fatalf("code %d, err %q", code, errOut)
-	}
 }
 
 // stubBenchSearch replaces the search bench with one that records what it

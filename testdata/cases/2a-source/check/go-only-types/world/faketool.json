@@ -1,9 +1,0 @@
-{
-  "answers": [
-    {
-      "prefix": "go",
-      "exit": 0,
-      "stdout": "faketool: go\n"
-    }
-  ]
-}

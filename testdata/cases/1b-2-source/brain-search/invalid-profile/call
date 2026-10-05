@@ -1,8 +1,0 @@
-{
-  "tool": "search",
-  "arguments": {
-    "query": "q",
-    "profile": "deep"
-  },
-  "channel": "cloud"
-}

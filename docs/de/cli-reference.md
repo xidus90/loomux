@@ -1061,6 +1061,8 @@ gemessen; bis dahin kann ein Wirt `loomux` über den `PATH` von Hand nennen.
 
 ## 9. Entwickler-Prüftore (`loomux dev`)
 
+Die Befehle, die die Fallkorpora aufgezeichnet und übersetzt haben (`dev record-case`, `dev record-mcp-case`, `dev import-cases`), sind entfallen. Die Aufzeichnungen und die Werkzeuge, die sie erzeugt haben, liegen im Archiv-Release `archive/parity-recordings`.
+
 ### `loomux dev mutants <paket>... [--only <name>] [--family a1|a2|a3|a4] [--workers <n>]`
 Mutiert die Go-Entscheidungen jedes Pakets und meldet, welche Mutanten seine Testsuite nicht bemerkt.
 
@@ -1159,35 +1161,6 @@ Die Release-Regeln hinter `.github/workflows/release.yml` und der Prüfung von `
 - **`parse-body [--labels <a,b>] [--body <datei>] [--commits <datei>]`**: prüft das Release-Label und den Rumpf des Pull Requests (Standard `-`, stdin) und, mit `--commits` (ein JSON-Array der Commit-Nachrichten), dass kein Commit ein höheres Label verlangt. Gibt den gelesenen Rumpf als JSON auf `stdout` aus. Exit `0`; `1` mit einer Zeile je Problem; `2` bei einem unbekannten Flag oder einer unlesbaren Rumpf- oder Commit-Datei.
 - **`changelog-insert --version <v> --date <JJJJ-MM-TT> --link <url> [--notes <datei>] [--file <pfad>]`**: fügt den Changelog-Block (Standard `-`, stdin) als Abschnitt des Releases in `--file` ein (Standard `CHANGELOG.md`, fehlt sie, wird sie angelegt). `--version` steht ohne `v`. Exit `0`; `1`, wenn die Version schon im Changelog steht; `2`, wenn ein Pflicht-Flag fehlt oder die Datei sich nicht lesen oder schreiben lässt.
 - **`build --version <v> [--channel <name>] [--out <verz>]`**: baut die Release-Binaries für alle Zielplattformen nach `--out` (Standard `dist`) und nennt jede Datei auf `stdout`. Exit `0`; `1`, wenn ein Bau scheitert; `2` bei einem unbekannten Flag oder ohne `--version`.
-
-### `loomux dev record-case --exe <altes-binary>|--argv <programm> --cmd <zeile> --world <verz> --out <verz> [flags]`
-Zeichnet einen Fall eines alten Werkzeugs unter `testdata/cases/` auf: legt `--world` an, fährt die Befehlszeile `--cmd` (mit `{{WORLD}}` für das angelegte Verzeichnis) und schreibt, was es beobachtet hat, in das Fallverzeichnis `--out`.
-
-- **Flags**:
-  - `--exe <pfad>`: Das alte Binary; `--argv <programm und argumente>` setzt stattdessen ein Programm und seine führenden Argumente an die Stelle des ersten Worts des Befehls. Die beiden schließen einander aus.
-  - `--env KEY=VALUE`: Umgebung des aufgezeichneten Prozesses, `{{WORLD}}` erlaubt; wiederholbar.
-  - `--path-prepend <verz>`: Verzeichnis, das dem `PATH` des aufgezeichneten Prozesses vorangestellt wird.
-  - `--stdin <datei>`: Datei mit der Nutzlast.
-  - `--notes <text>`: Text für `notes.md`.
-  - `--compare <art>`: Leer (die Daten vergleichen) oder `message`.
-  - `--git-after`: Hält den Commit, den der Lauf gemacht hat, in `git.after` des Repositorys der Git-Welt fest.
-- **Exit-Codes**: `0` nach der Aufzeichnung; `1`, wenn sie scheitert; `2` bei einem unbekannten Flag, `--exe` zusammen mit `--argv` oder einem fehlenden Pflicht-Flag.
-
-### `loomux dev record-mcp-case --argv <programm> --tool <name> --world <verz> --out <verz> [flags]`
-Zeichnet einen Aufruf der MCP-Front der Referenz als Fall auf: einen Werkzeugaufruf und sein `CallToolResult`, keine Befehlszeile.
-
-- **Flags**:
-  - `--argv <programm und argumente>`: Das Programm der Referenz und seine führenden Argumente.
-  - `--tool <name>`: Das aufzurufende Werkzeug; `--arguments <json>` seine Argumente als JSON-Objekt, `{{WORLD}}` erlaubt.
-  - `--channel <name>`: Der Kanal, den der Fall aufzeichnet.
-  - `--env KEY=VALUE`, `--path-prepend <verz>`, `--notes <text>`: Wie bei `record-case`.
-  - `--compare <art>`: Leer (den Text vergleichen) oder `outcome`.
-- **Exit-Codes**: `0` nach der Aufzeichnung; `1`, wenn sie scheitert; `2` bei einem unbekannten Flag, einem fehlenden Pflicht-Flag oder einem anderen `--compare`.
-
-### `loomux dev import-cases --map <datei> --from <verz> --to <verz> [--mcp] [--merge-fixture <datei>]`
-Übersetzt aufgezeichnete Fälle aus `--from` nach `--to` nach den `[[command]]`-Regeln (mit `--mcp`, für Aufzeichnungen von MCP-Aufrufen, den `[[tool]]`-Regeln) der TOML-Datei `--map`. Mit `--mcp` ersetzen `[[result]]`-Regeln `{from, to}` jedes Vorkommen von `from` durch `to` in jedem aufgezeichneten `result`, auf den Bytes, wie aufgezeichnet, so wie `[[stdout]]`-Regeln in der Ausgabe eines Befehls. `--merge-fixture` nennt eine JSON-Datei mit zwei Listen und führt sie in die `faketool.json` jeder übersetzten Welt ein, hinter dem, was die Welt aufgezeichnet hat: zuerst die `answers`, wie sie dastehen, dann je Eintrag `{"prefix": …, "as": …}` von `same`, dessen `as` die Welt aufgezeichnet hat, eine Kopie, nämlich diese aufgezeichnete Antwort unter dem neuen `prefix` (von zwei Aufzeichnungen mit diesem Präfix die spätere, also die, die die Fixture gibt). Eine Befehlszeile, die nur loomux stellt, bekommt so eine feste Antwort oder die Antwort, die die Welt der alten Befehlszeile gab: Eine Welt, die ein scheiterndes `uv run pytest` aufgezeichnet hat, scheitert bei `uv run --with pytest pytest` genauso. Eine Welt, die `as` nicht aufgezeichnet hat, bekommt keine Kopie, und eine ohne Fixture bekommt eine.
-
-- **Exit-Codes**: `0` nach dem Import; `1`, wenn sich die Zuordnung nicht dekodieren lässt oder Import oder Zusammenführung scheitern; `2` bei einem unbekannten Flag oder einem fehlenden Pflicht-Flag.
 
 ### `loomux dev fake-ollama --fixture <datei> [--addr <host:port>] [--log <datei>]`
 Beantwortet jede Anfrage an einen Ollama-Endpunkt mit der einen Antwort der JSON-Datei `--fixture`, bis Strg+C. Es lauscht auf `--addr` (Standard `127.0.0.1:11435`) und hängt die Anfragezeilen an `--log` an, ohne `--log` an `stderr`. Eine Anfrage, die ihre Antwort mit `num_predict` begrenzt (das Vorwärmen von loomux, das die Referenz nie schickt), endet mit `num_predict=<n>`.

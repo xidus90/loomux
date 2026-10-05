@@ -79,11 +79,12 @@ type Payload struct {
 
 	// AgentID and AgentType name the subagent a SubagentStart or
 	// SubagentStop fired for, "" on every other event. Measured with Claude
-	// Code 2.1.276 (stage 2c, ba6bed7; the payloads are in
-	// testdata/cases/2c-payloads/): SubagentStart and SubagentStop carry the
-	// same agent_id, both carry the main agent's session_id -- which files a
-	// subagent's snapshot under the session whose stop gate delivers its
-	// finding -- and both carry agent_type. No hook reads AgentType today.
+	// Code 2.1.276 (its payloads are in the archive release
+	// archive/parity-recordings, the Antigravity payloads in testdata/):
+	// SubagentStart and SubagentStop carry the same agent_id, both carry the
+	// main agent's session_id -- which files a subagent's snapshot under the
+	// session whose stop gate delivers its finding -- and both carry
+	// agent_type. No hook reads AgentType today.
 	AgentID   string
 	AgentType string
 

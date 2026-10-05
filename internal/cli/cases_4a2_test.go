@@ -10,8 +10,8 @@ import (
 	"github.com/xidus90/loomux/internal/cases"
 )
 
-// wantCases4a2 is pinned, not merely non-zero: a partial import must not pass
-// as parity. Raise it with the corpus when a case is added.
+// wantCases4a2 is pinned, not merely non-zero: a case deleted by mistake must not pass
+// unnoticed. Raise it with the corpus when a case is added.
 const wantCases4a2 = 14
 
 // expectation4a2 is how the replay of one case may differ from its recording.

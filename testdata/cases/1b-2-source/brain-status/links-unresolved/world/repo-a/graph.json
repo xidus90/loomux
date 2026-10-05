@@ -1,8 +1,0 @@
-{
-  "edges": [],
-  "links": {"dropped": {"unknown_target": 2, "external": 1}, "resolved": 2, "total": 5},
-  "nodes": [
-    {"id": "a.md", "tags": [], "title": "a"}
-  ],
-  "scope": "project/a"
-}

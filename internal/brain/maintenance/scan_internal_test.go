@@ -125,10 +125,10 @@ func scanErr(t *testing.T) error {
 	return err
 }
 
-// The stats file is read byte for byte by the Python side of this stage, so
-// its bytes are pinned against a golden the reference itself wrote.
+// The stats file is read byte for byte by the Python side, so its bytes are
+// pinned against a golden the reference itself wrote.
 // testdata/stats.golden.tsv came out of `_write_stats`; the script that
-// produced it is docs/.superpowers/parity/stufe-3a-orakel/stats_oracle.py.
+// produced it is in the archive release archive/parity-recordings.
 func TestRenderStatsMatchesThePythonWriter(t *testing.T) {
 	want, err := os.ReadFile(filepath.Join("testdata", "stats.golden.tsv"))
 	if err != nil {

@@ -1,5 +1,0 @@
-[area]
-scope = "project/a"
-
-[privacy]
-never = ["private/**"]

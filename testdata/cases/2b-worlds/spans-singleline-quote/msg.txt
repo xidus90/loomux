@@ -1,3 +1,0 @@
-feat: test singleline quotes
-
-"Hier sind deutsche Woerter" on a single line.

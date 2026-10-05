@@ -42,8 +42,8 @@ func writeCase(t *testing.T, dir string, skip ...string) {
 }
 
 func TestAMissingCmdIsNotAnEmptyOne(t *testing.T) {
-	// A case directory carries `cmd`, `exit`, `stdout` and `world/`; the
-	// recorded corpus has all four in every case (`ls testdata/cases/*/*`).
+	// A command case directory carries `cmd`, `exit`, `stdout` and `world/`; the
+	// corpus has all four in every such case (`ls testdata/cases/*/*`).
 	// The file that is not there and the file that is there and empty are
 	// two different faults, and the reader says which.
 	dir := filepath.Join(t.TempDir(), "c")

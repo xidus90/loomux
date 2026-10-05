@@ -1,8 +1,0 @@
-{
-  "edges": [],
-  "links": {"dropped": {}, "resolved": 0, "total": 0},
-  "nodes": [
-    {"id": "open.md", "tags": [], "title": "open"}
-  ],
-  "scope": "project/a"
-}

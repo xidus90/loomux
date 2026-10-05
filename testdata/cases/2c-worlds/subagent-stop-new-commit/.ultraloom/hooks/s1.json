@@ -1,1 +1,0 @@
-{"base": "{{COMMIT:1}}", "blocks": 0, "snapshots": {"a1": "{{COMMIT:2}}\tHEAD\n{{COMMIT:2}}\trefs/heads/master\nHEAD\t{{COMMIT:1}}\n"}}

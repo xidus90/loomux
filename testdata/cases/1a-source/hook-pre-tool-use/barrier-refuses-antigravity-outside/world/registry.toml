@@ -1,5 +1,0 @@
-[[area]]
-scope = "project/w"
-path = "{{WORLD}}"
-wiki = "{{WORLD}}/docs/wiki"
-workspace = true

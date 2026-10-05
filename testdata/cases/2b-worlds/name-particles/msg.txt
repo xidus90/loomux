@@ -1,3 +1,0 @@
-feat: test name particles
-
-Credit to Guido van Rossum and Ludwig von Beethoven for ideas.

@@ -1,8 +1,0 @@
-id = "Beta-2026-09-20-0002"
-area = "project/a"
-target = "Beta.md"
-target_hash = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-state = "due"
-trigger = "merge"
-weight = "normal"
-created = 2026-09-20T08:00:00+00:00

@@ -971,8 +971,8 @@ would say so. The two hooks take a snapshot before and after and leave what
 moved in between for the main agent. That is an observation, not an
 attribution: another session pushing to `origin` in the same window reads the
 same, and nothing here can tell the two apart. Claude Code sends both with the main agent's
-`session_id` and the same `agent_id` (measured with Claude Code 2.1.276,
-`testdata/cases/2c-payloads/`).
+`session_id` and the same `agent_id` (measured with Claude Code 2.1.276;
+its payloads are in the archive release `archive/parity-recordings`, the Antigravity ones in `internal/hosts/testdata/`).
 
 - **The snapshot** holds the refs of `origin` from `git ls-remote origin`
   (10 s deadline, with `GIT_TERMINAL_PROMPT=0` so no credential prompt waits

@@ -1,8 +1,0 @@
-{
-  "tool": "read",
-  "arguments": {
-    "scope": "project/alpha",
-    "relative": "notes/gone.md"
-  },
-  "channel": "cloud"
-}

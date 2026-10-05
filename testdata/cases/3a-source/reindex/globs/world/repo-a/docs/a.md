@@ -1,3 +1,0 @@
-# a
-
-Directly below docs.

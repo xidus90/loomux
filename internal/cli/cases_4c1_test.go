@@ -16,8 +16,8 @@ import (
 	"github.com/xidus90/loomux/internal/dev/fakeollama"
 )
 
-// wantCases4c1 is pinned, not merely non-zero: a partial import must not pass
-// as parity. Raise it with the corpus when a case is added.
+// wantCases4c1 is pinned, not merely non-zero: a case deleted by mistake must not pass
+// unnoticed. Raise it with the corpus when a case is added.
 const wantCases4c1 = 7
 
 // wantOllamaCalls4c1 are the requests the reference sent in each recording
