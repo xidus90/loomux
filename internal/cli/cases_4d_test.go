@@ -80,7 +80,7 @@ func useFakePdftotext(t *testing.T, world string) {
 	}
 }
 
-// TestCases4d replays the recordings of brain-mcp's convert. The reference
+// TestCases4d replays the recordings of the reference's convert. The reference
 // read each PDF with pypdf; loomux reads it through pdftotext, whose answers
 // here are what pypdf read, page by page. The same fake Ollama answers both
 // sides, and the cases run one after another because they share its port.

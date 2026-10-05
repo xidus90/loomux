@@ -1,10 +1,4 @@
-// Package gitenv keeps git's own environment out of ultraloom's git calls.
-//
-// Its own package because two programs need the same answer: ulinit reads
-// facts about a project, and ulguard will do the same for a worktree. A second
-// copy of the list would drift in exactly the entry that matters. The list is
-// ultra-brain's, because it cuts identity and configuration as well as the
-// repository pointers.
+// Package gitenv keeps git's own environment out of loomux's git calls.
 package gitenv
 
 import (
@@ -29,7 +23,7 @@ import (
 // `pre-receive` and `update`, which this list does not name, and
 // gitnamespaces has GIT_NAMESPACE where a namespace is in use, which it does
 // name -- stripped inside such a hook, the push would leave its namespace.
-// Nothing in ultraloom runs a server-side hook; whoever reuses this list for
+// Nothing in loomux runs a server-side hook; whoever reuses this list for
 // one has to weigh it again.
 //
 // The repository, index and object store entries *outrank* the directory a
@@ -45,7 +39,7 @@ import (
 // and GIT_TRACE are the user's settings and none of our business. Identity and
 // configuration are on it all the same, because a child that inherits them
 // writes as someone else or into a config it was never pointed at: on
-// 2026-08-28 a test's `git config user.name` in ultra-brain landed in the real
+// 2026-08-28 a test's `git config user.name` landed in the real
 // `.git/config` through an inherited GIT_DIR and signed 709 commits.
 var Location = []string{
 	"GIT_DIR",

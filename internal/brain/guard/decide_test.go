@@ -486,9 +486,9 @@ func TestAConfigTomlOutsideTheBundleDirectoryIsOrdinary(t *testing.T) {
 	allow(t, writeCall(target), state)
 }
 
-// loomux reads one manifest. ultra-brain's legacy `.brain.toml` and its
-// `.ultra-brain/config.toml` are ordinary names here, and a barrier that
-// still locked them would refuse writes nothing reads its limits from.
+// loomux reads one manifest, `.loomux/config.toml`. Any other manifest name is
+// ordinary here, and a barrier that locked one would refuse writes nothing
+// reads its limits from.
 func TestTheOldManifestNamesAreOrdinaryFiles(t *testing.T) {
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
@@ -525,20 +525,11 @@ func TestATrailingDotOnTheManifestIsTheManifest(t *testing.T) {
 		"the manifest is where the barrier reads its own limits")
 }
 
-// The barrier used to pin `<bundle>/.ultra-brain/hooks/wiki_guard.py`: the
-// copy of itself that `brain init` installed into a guarded repository,
-// refused because a barrier a writing tool can overwrite is no barrier.
-//
-// There is no such copy any more. `brain init` writes the command
-// `brain guard` and installs no file (src/brain/init.py: "A bare command,
-// and no copy of the barrier beside it"), the Python module went in
-// 6bceba4, and no `.ultra-brain/hooks` directory exists in any registered
-// area on this machine -- checked, not assumed. The rule guarded a path
-// that nothing creates, in a way of building that was abandoned.
-//
-// So the name is ordinary now, in all three of the places the pin used to
-// tell apart. What replaced the installed copy is a binary outside every
-// writable tree, and the geometry keeps that one.
+// `wiki_guard.py` is an ordinary name. No installer puts a copy of the barrier
+// into a guarded repository: the barrier is a binary outside every writable
+// tree, and the geometry keeps that one. A rule pinning such a copy would guard
+// a path nothing creates, so the name is ordinary in all three places a pin
+// could once tell apart.
 func TestTheOldGuardNameIsAnOrdinaryFileEverywhere(t *testing.T) {
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))

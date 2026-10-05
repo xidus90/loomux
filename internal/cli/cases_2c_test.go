@@ -25,7 +25,7 @@ var approved2c = map[string]string{
 	"hook-subagent-stop/no-snapshot": "9: silent without a snapshot; Python printed a line nobody read",
 }
 
-// TestCases2c replays the recordings of ultraloom's session hooks against
+// TestCases2c replays the recordings of the reference's session hooks against
 // loomux hook. The tools of the stop gate answer from the world's fixture,
 // at the seam the gate starts its processes through.
 func TestCases2c(t *testing.T) {

@@ -133,8 +133,8 @@ func descriptionMissing(pages []wiki.WikiPage) []check.Finding {
 // markdown footnote whose label is the `id`, so `[^label]` in the body is
 // what "cites the source" looks like mechanically. Counted over every
 // tracked `.md` whose text holds a line `sources:` at column zero, the OKF
-// spec itself excluded: 39 pages carry such a block -- 24 of them under
-// ultra-brain's `docs/wiki` -- and 0 carry a single footnote marker. A rule
+// spec itself excluded: 39 pages carry such a block -- 24 of them in one
+// wiki bundle -- and 0 carry a single footnote marker. A rule
 // bound to that form would be silent on every page of every bundle here,
 // which is worse than a broad warning -- it would be a rule that cannot
 // fire. Prose names a source without marking it, and that is the case no

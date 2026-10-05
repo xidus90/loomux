@@ -2,8 +2,7 @@ package evidence_test
 
 // Edges of the reader that no test of test_evidence.py reaches. Every
 // expectation below is what the Python reference (`read_proposal`,
-// `read_package` in src/brain/maintenance/evidence.py, ultra-brain 3cc72d2)
-// answers for the same text, measured on 2026-09-23.
+// `read_package` in src/brain/maintenance/evidence.py) answers for the same text, measured on 2026-09-23.
 
 import (
 	"reflect"

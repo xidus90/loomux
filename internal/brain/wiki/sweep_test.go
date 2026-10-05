@@ -88,8 +88,8 @@ func renderSweep(findings []check.Finding) string {
 }
 
 func TestTheSweepAnswersWhatLintPyAnswers(t *testing.T) {
-	// testdata/sweep/python.golden is what `lint_bundle` of ultra-brain at
-	// loomux-3-source printed for this world on 2026-09-23, the base path
+	// testdata/sweep/python.golden is what the reference's `lint_bundle`
+	// printed for this world on 2026-09-23, the base path
 	// replaced by a placeholder. One difference is recorded and carried
 	// here: the text of a YAML error is the parser's, PyYAML's there and
 	// yaml.v3's here.

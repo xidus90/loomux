@@ -148,9 +148,9 @@ func matchesTool(matcher, tool string) (bool, error) {
 // them, which encoding/json always marshals.
 //
 // Every payload names a session, as a host's does: the hooks that keep
-// state per session (stop, subagent-start, subagent-stop of loomux and of
-// ultraloom) reject a payload without session_id before doing any work, and
-// the subagent hooks also need agent_id. The ids are fixed and plainly
+// state per session (stop, subagent-start, subagent-stop) reject a payload
+// without session_id before doing any work, and the subagent hooks also need
+// agent_id. The ids are fixed and plainly
 // synthetic, so the state they leave is recognisable. transcript_path
 // points at a file that does not exist: no hook reads it today, and one
 // that starts to must not read a real transcript.

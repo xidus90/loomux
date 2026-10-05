@@ -1,5 +1,5 @@
 // Package mutants mutates the Go decisions of a package and reports which
-// mutants its suite does not notice. It ports ultra-brain's
+// mutants its suite does not notice. It ports the reference's
 // tools/go_mutants.py with two changes of mechanism: a mutant reaches the
 // suite through `go test -overlay` instead of being written into the tree,
 // and several mutants run at once.

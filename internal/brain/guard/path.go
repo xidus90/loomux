@@ -198,8 +198,7 @@ var errDriveRelative = errors.New(
 	"it names a volume without a root, so it points at that volume's own " +
 		"current directory")
 
-// rejectDriveRelative closes the spelling `D:evil.txt`, inherited verbatim
-// from ultra-brain along with `anchor`.
+// rejectDriveRelative closes the spelling `D:evil.txt`.
 //
 // `filepath.IsAbs` is false for it, so `anchor` joins it onto the working
 // directory -- and `filepath.Join` concatenates, answering

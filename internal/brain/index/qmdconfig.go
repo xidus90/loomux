@@ -335,7 +335,8 @@ func SyncCollections(configPath string, wanted map[string]CollectionSpec, owned 
 	return SyncOutcome{Changed: changed, Refused: refused}, nil
 }
 
-// PruneCollections removes collections created by ultra-brain that are no longer registered.
+// PruneCollections removes the collections this program made, as the ownership
+// record lists them, that are no longer registered.
 func PruneCollections(configPath string, keep []string, owned OwnershipRecord) ([]string, error) {
 	ours, err := readOwned(owned.Read)
 	if err != nil {

@@ -272,7 +272,7 @@ func TestBrainReadsAReadOnlyAreaFromTheStateDirectory(t *testing.T) {
 	}
 }
 
-// ultra-brain's state directory is read no more, whatever
+// The old state directory is read no more, whatever
 // LOOMUX_LEGACY_BRAIN_DIR names: not a read-only area's stock, which is then
 // missing, and not the reconcile stamp, which is then never written.
 func TestBrainReadsNothingFromTheOldStateDirectory(t *testing.T) {

@@ -23,7 +23,7 @@ const wantCases2b = 19
 // docs/.superpowers/parity/stufe-2b.md): a case that merely "must fail" would
 // accept any wrong code, a crash included.
 
-// TestCases2b replays the recordings of `ultraloom commit-msg` against loomux
+// TestCases2b replays the recordings of the reference's `commit-msg` against loomux
 // check commit-msg.
 func TestCases2b(t *testing.T) {
 	all, err := cases.DiscoverCases(filepath.Join("..", "..", "testdata", "cases", "2b"), "")

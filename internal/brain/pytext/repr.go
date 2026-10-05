@@ -1,5 +1,5 @@
 // Package pytext writes and reads text the way Python 3.14 of the
-// ultra-brain reference does: repr, splitlines, strip, read_text,
+// reference does: repr, splitlines, strip, read_text,
 // isoformat and fromisoformat, str(Path), NFC and casefold. Five brain
 // packages print or compare such text, and each must agree with the
 // reference byte for byte.

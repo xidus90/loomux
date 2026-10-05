@@ -181,7 +181,7 @@ func TestANestedCatalogIsAValidReferenceSource(t *testing.T) {
 func TestAnOrdinaryPageRescuesAnotherFromOrphanhood(t *testing.T) {
 	// Half of the trigger, and it was unguarded: a mutant that counted only
 	// catalogs as link sources survived the whole suite and reported all 24
-	// pages of ultra-brain's `docs/wiki`. "Keine andere Seite ... zeigt hierher" is the
+	// pages of a real wiki bundle. "Keine andere Seite ... zeigt hierher" is the
 	// first half of Scheibe 3 §4 line 179, and no catalog names `b.md` here.
 	dir := t.TempDir()
 	writeBundle(t, dir, map[string]string{
@@ -445,10 +445,9 @@ func TestAMalformedEscapeIsReportedRatherThanDropped(t *testing.T) {
 }
 
 func TestADirectoryTargetCountsAsSomethingThatExists(t *testing.T) {
-	// The root catalog of this repository links its subdirectories rather
-	// than the pages inside them (`ultra-brain/docs/wiki/index.md`), and a directory is
-	// something that exists. Asking for a regular file would report every
-	// one of those four lines as dead.
+	// A catalog may link a subdirectory rather than the pages inside it, and
+	// a directory is something that exists. Asking for a regular file would
+	// report the link to `topics/` as dead.
 	dir := t.TempDir()
 	writeBundle(t, dir, map[string]string{
 		"index.md":    "# c\n\n* [t](topics/)\n* [a](topics/a.md)\n",

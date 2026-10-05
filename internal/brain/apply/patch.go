@@ -1,9 +1,8 @@
 // Package apply carries out a reviewed case: it applies the diff a proposal
 // carries to its target page, exactly, or refuses it.
 //
-// patch.go is moved from ultra-brain's pkg/maintenance/patch.go. The original
-// is `_collect`, `_hunks` and `_patch` in `src/brain/maintenance/apply.py`,
-// and where the two differed the Python form holds.
+// The reference is `_collect`, `_hunks` and `_patch` in
+// `src/brain/maintenance/apply.py`.
 package apply
 
 import (

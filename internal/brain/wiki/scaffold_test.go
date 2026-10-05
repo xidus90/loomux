@@ -50,7 +50,7 @@ func TestInitBundleWritesTheFrame(t *testing.T) {
 
 // Every file of the frame is the reference's, byte for byte. The goldens in
 // testdata/bundle were written by an oracle that calls `init_bundle` of
-// src/brain/wiki/scaffold.py at ultra-brain 3cc72d2; the script is
+// src/brain/wiki/scaffold.py; the script is
 // docs/.superpowers/parity/stufe-3a-orakel/bundle_oracle.py.
 func TestInitBundleWritesTheReferenceBytes(t *testing.T) {
 	root := t.TempDir()

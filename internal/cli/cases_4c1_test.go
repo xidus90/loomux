@@ -134,7 +134,7 @@ func foldOllama(addr *string) cases.Normalizer {
 	}
 }
 
-// TestCases4c1 replays the recordings of brain-mcp's reconcile over areas
+// TestCases4c1 replays the recordings of the reference's reconcile over areas
 // that ask the local model, with the same fake Ollama answering both sides.
 // The cases run one after another, never in parallel: they share the
 // environment the run sets.

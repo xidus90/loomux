@@ -235,7 +235,7 @@ func TestForgetTakesTheMarkerWith(t *testing.T) {
 }
 
 // The id comes from outside, so it may not decide which file is read -- the
-// same reasoning as ultraloom/hooks/state.py's own path builder.
+// same reasoning as the reference's own path builder.
 func TestForgetRemovesOnlyThisSessionsFile(t *testing.T) {
 	root := t.TempDir()
 	mine := state(t, root, "mine", 0)

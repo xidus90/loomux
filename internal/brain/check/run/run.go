@@ -427,8 +427,7 @@ func declaredTypes(manifest *config.Manifest) map[string]bool {
 // and it is a chain of three because no single answer covers the stock.
 //
 //  1. **The declaration above it.** Walking the parents for a manifest is
-//     what the write barrier already does (ultra-brain's `pkg/guard/guard.go:293`),
-//     and `[layout] wiki` is the one statement of the root that survives a
+//     what the reference's write barrier does, and `[layout] wiki` is the one statement of the root that survives a
 //     linked worktree -- the manifest of this repository says so in as many
 //     words, and that is why the wiki moved into the repo at all. The
 //     registration cannot answer here: it holds one absolute path per area,
@@ -446,7 +445,7 @@ func declaredTypes(manifest *config.Manifest) map[string]bool {
 // The manifest travels back with the root because the caller needs it for
 // the type vocabulary and the threshold, and finding it twice would be
 // two reads with two chances of a different answer -- the reason
-// the barrier gives for reading it once (ultra-brain's `pkg/guard/guard.go:298-300`).
+// the reference's barrier gives for reading it once.
 //
 // A manifest whose `[layout] wiki` this reader refuses falls through to
 // the next link rather than stopping the run. `CheckFile` has no output
@@ -476,7 +475,7 @@ func fileRoot(path string, lookup config.ArtifactLookup) (string, *config.Manife
 			// looked for above it. A manifest is the statement of the
 			// area one is standing in, and climbing past it would
 			// answer with the area that encloses it -- the containment
-			// the barrier insists on at ultra-brain's `pkg/guard/guard.go:334`.
+			// the reference's barrier insists on.
 			//
 			// Parsable is the word that matters. A manifest that does
 			// not decode never enters this arm at all -- `err == nil`

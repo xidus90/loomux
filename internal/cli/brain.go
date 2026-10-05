@@ -16,8 +16,8 @@ import (
 // is a function, not a call: nothing is built before a brain command runs.
 var brainPorts = answer.DefaultPorts
 
-// brainCommand is `loomux brain`: the five read commands of brain-mcp
-// (cli.py:712-810) with their argument forms, exit codes and error line.
+// brainCommand is `loomux brain`: the five read commands of the reference
+// with their argument forms, exit codes and error line.
 func brainCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		brainRefuse(stderr, brainTopUsage(), "loomux brain", "the following arguments are required: command")

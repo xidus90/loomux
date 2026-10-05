@@ -422,9 +422,9 @@ func TestAReadOnlyAreaKeepsItsManifestInTheStateDirectory(t *testing.T) {
 	// `manifest_path` (src/brain/registry.py:128-134) asks
 	// `area_artifact_dir` (`:120-126`), which answers
 	// `area_state_dir(state_dir, scope)` for a read-only area and
-	// `area.path` for every other. Three of the nine registered areas are
-	// read-only, and all three have a manifest in that directory today --
-	// counted by listing `%LOCALAPPDATA%\brain\areas\*\.brain.toml`.
+	// `area.path` for every other. Measured on 2026-09-14 in the reference's
+	// state directory: three of the nine registered areas were read-only, and
+	// all three had a manifest in its `areas` folder (counted by listing it).
 	state := filepath.Join("S", "tate")
 	owned := Area{Scope: "project/ultra-brain", Path: "P"}
 	if got := ManifestDir(owned, state); got != "P" {

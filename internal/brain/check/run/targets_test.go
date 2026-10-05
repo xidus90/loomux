@@ -8,7 +8,7 @@ import (
 )
 
 // dangling is an area whose registration names a wiki that is not there --
-// the shape the registry is in right now for `project/ultra-brain`, whose
+// the shape a registry has been in for one area, whose
 // wiki path points into a checkout that has no `docs/wiki` on its branch.
 func dangling(t *testing.T) config.Area {
 	t.Helper()

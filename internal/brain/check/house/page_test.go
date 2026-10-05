@@ -474,7 +474,7 @@ func TestAPageThatExpiredYesterdayIsStale(t *testing.T) {
 func TestScaffoldFilesAreNotJudgedByThePageRules(t *testing.T) {
 	// Scheibe 3 §4 exempts the five scaffold files by name, and Python
 	// never hands one to any rule (src/brain/wiki/lint.py:582-585). The
-	// case is not hypothetical: `ultra-brain/docs/wiki/_schema.md:27` documents the
+	// case is not hypothetical: `docs/wiki/_schema.md` documents the
 	// conflict syntax with a `> [!conflict]` example, which the reader
 	// counts as a box -- so without this line the file that defines the
 	// rule would be its first violator.

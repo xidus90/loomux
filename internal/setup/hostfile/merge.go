@@ -223,7 +223,8 @@ func BinaryOf(host hosts.Host, existing []byte) string {
 // matcher calls loomux in any of its commands, foreign when a block there
 // does not. elsewhere is the matcher of every own block under another
 // matcher that runs the same hook, in file order -- an entry from before the
-// matcher changed, such as one of ours under ulinit's, and a block Merge
+// matcher changed, such as one of ours under the matcher from before
+// MultiEdit joined it, and a block Merge
 // appended beside it for the tools it lacked -- and empty when there is
 // none; Merge counts what they cover, so no tool runs the hook twice. A
 // block without a matcher key counts as "". stale is the first

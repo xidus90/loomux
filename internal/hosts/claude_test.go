@@ -33,8 +33,8 @@ func TestReadClaude(t *testing.T) {
 	}
 }
 
-// payload.py's rule: stdin that is not a JSON object is not a hook payload,
-// and the refusal names why. Checked against src/ultraloom/hooks/payload.py --
+// The reference's rule: stdin that is not a JSON object is not a hook payload,
+// and the refusal names why. Checked against the reference --
 // it raises "stdin is not JSON: ..." and "a hook payload is an object", and
 // those two are told apart here as well.
 func TestReadClaudeRefusesWhatIsNotAPayload(t *testing.T) {

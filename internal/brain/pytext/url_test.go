@@ -3,7 +3,7 @@ package pytext
 import "testing"
 
 // The expected values are what Python 3.14's urlsplit and unquote answered
-// for each input on 2026-09-23, run through `uv run python` in ultra-brain.
+// for each input on 2026-09-23, run through `uv run python`.
 
 func TestSplitURLAnswersWhatUrlsplitAnswers(t *testing.T) {
 	for _, c := range []struct{ in, scheme, netloc, path string }{

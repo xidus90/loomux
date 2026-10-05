@@ -20,13 +20,11 @@ import (
 //
 // The bundle and not the drift rule `loomux wiki-gate` also carries: drift is
 // a judgement about whether documentation accompanies code, and a lane that
-// refuses every code-only commit is no gate. ultraloom installed drift only
-// where [wiki] mode = "brain" said so; `loomux wiki-gate` keeps it for whoever
-// wants it. What runs at every turn end is the structure of the bundle.
+// refuses every code-only commit is no gate. `loomux wiki-gate` keeps drift
+// for whoever wants it. What runs at every turn end is the structure of the bundle.
 //
-// In `loomux check` and the stop gate alike: ultraloom ran the gate as a Stop
-// entry of its own, beside the chain, with a count of its own; one lane in one
-// chain is one verdict and one counter.
+// In `loomux check` and the stop gate alike: one lane in one chain is one
+// verdict and one counter.
 //
 // The facts come from the caller, who has them already: a second
 // detect.Detect would be a second walk of the tree.

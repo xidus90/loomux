@@ -75,13 +75,11 @@ func WorktreeLink(stdout, stderr io.Writer, root string) int {
 // How long a session's state file counts for. Nothing deletes these files,
 // and a session that ends without a SessionEnd gets no end marker, so for it
 // the mtime is the only liveness there is to read, and it is as good as the
-// writes: `ulguard hook session-start` writes at session start -- as
-// session_start.py (fa3dd38):59 did before it -- stop.py on every block and
-// every pass (:250, :283), and subagent_start.py on every subagent
-// dispatch (:38) -- the last of those gated on the payload alone and on no
-// configuration at all. So the file is as young as the last turn that ended,
-// or the last subagent dispatched, and only a session that does neither ages
-// past its start.
+// writes: session-start writes at session start, stop on every block and
+// every pass, and subagent-start on every subagent dispatch -- the last of
+// those gated on the payload alone and on no configuration at all. So the
+// file is as young as the last turn that ended, or the last subagent
+// dispatched, and only a session that does neither ages past its start.
 //
 // A day, because the two errors are not the same size. Too long leaves a
 // junction standing, and that costs nothing: it occupies no disk, `link` skips
@@ -279,8 +277,8 @@ func registeredAs(topology topo.Topology, target string) string {
 //
 // standsInside first, for the reason written at that function: without it the
 // candidate is inside the worktree by spelling only, and a junction at
-// `<worktree>/.ultraloom` would make this remove the main checkout's own
-// `.ultraloom/vendor` -- the pinned runtime every other hook needs, taken out
+// `<worktree>/.tools` would make this remove the main checkout's own
+// `.tools/godot` -- a mirrored directory the main checkout needs, taken out
 // at session end by the mechanism that exists to put it there.
 //
 //coverage:exempt junction.Remove fails only when the OS refuses the delete -- an open handle, a virus scanner or an ACL -- and a denied right on the link or its parent still let the removal through when it was measured on 2026-09-14
@@ -411,10 +409,10 @@ func sweep(topology topo.Topology, mirrored []string) error {
 // Without it a caller establishes "inside `dir`" by spelling alone, and a
 // path's spelling does not decide where it goes: an open with
 // FILE_FLAG_OPEN_REPARSE_POINT keeps the *final* component from being
-// followed and nothing else, so a junction at `<dir>/.ultraloom` makes
-// `<dir>/.ultraloom/vendor` read and remove the reparse point of
-// `<main>/.ultraloom/vendor` -- the pinned runtime, taken out by the very
-// mechanism that exists to put it there.
+// followed and nothing else, so a junction at `<dir>/.tools` makes
+// `<dir>/.tools/godot` read and remove the reparse point of
+// `<main>/.tools/godot` -- a mirrored directory the main checkout needs, taken
+// out by the very mechanism that exists to put it there.
 //
 // Mode().IsDir() is the test, and it is false for a junction under both
 // GODEBUG settings this module can be built with; the measurement behind that
@@ -493,7 +491,7 @@ func parentsPlainOrAbsent(dir, relative string) (string, bool) {
 // repository's worktrees already carry.
 //
 // Walking up rather than testing the directory itself, because a configured
-// path is a path and not only a name: `.ultraloom/vendor` names a target two
+// path is a path and not only a name: `.tools/godot` names a target two
 // levels below the main checkout.
 func leadsInto(target, main string) bool {
 	for path := stripNTPrefix(target); ; path = filepath.Dir(path) {

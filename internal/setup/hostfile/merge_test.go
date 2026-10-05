@@ -325,9 +325,6 @@ func TestBinaryOfReadsTheAntigravityGroup(t *testing.T) {
 	}
 }
 
-// Carried over from ulinit's settings merge, where it guarded the same
-// round trip.
-
 func TestAnEmptyFileBecomesOneWithJustOurHook(t *testing.T) {
 	got, err := Merge(claude, nil, []Entry{{Event: "Stop", Command: "ours", Timeout: 60}})
 	if err != nil {
@@ -567,7 +564,7 @@ func TestMergeRecognisesLoomuxEntriesWhereverTheyStand(t *testing.T) {
 	if len(got.Added) != 0 || !bytes.Equal(got.Merged, existing) {
 		t.Errorf("second: added %v\n%s", got.Added, got.Merged)
 	}
-	// A command of ours under ulinit's matcher, from before MultiEdit joined
+	// A command of ours under an earlier matcher, from before MultiEdit joined
 	// it, stays and gets a block for MultiEdit beside it.
 	ulinit := `"PreToolUse": [{"matcher": "Write|Edit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command", "command": ` + strconvQuote(pre) + `}]}]`
 	got, err = Merge(claude, []byte(`{"hooks": {`+all(ulinit)+`}}`), Entries(claude, b))
