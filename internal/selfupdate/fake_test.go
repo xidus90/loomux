@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 )
 
-// fakeGH answers the four calls an update makes: the release list, the
+// fakeGH answers the calls an update makes: the release list, one release by tag (key "view"), the
 // installed binary's --version (key "installed"), the download into --dir,
 // and the downloaded binary's --version (key "--version").
 type fakeGH struct {
 	list      string
+	view      string
 	files     map[string]string
 	installed string
 	version   string
@@ -34,6 +35,8 @@ func (f *fakeGH) run(_ context.Context, name string, args ...string) ([]byte, er
 		return nil, err
 	}
 	switch key {
+	case "view":
+		return []byte(f.view), nil
 	case "list":
 		return []byte(f.list), nil
 	case "download":

@@ -142,20 +142,24 @@ type Release struct {
 	Prerelease bool   `json:"isPrerelease"`
 }
 
+// takes is what a pass lets into the choice of a release.
+type takes int
+
+const (
+	takesStable takes = iota // no pre-release
+	takesOld                 // the old count and stable releases, no new beta: a binary of the old count without the marker
+	takesAll                 // every release: --beta or the marker
+)
+
 // pick is the highest release the channel takes, by version rather than by
-// publication. The stable channel, and a build that names none, takes no
-// pre-release; every other channel takes both.
-func pick(releases []Release, channel string) (Release, bool) {
-	stable := channel == "" || channel == "stable"
+// publication. The count before 1.0.0 ranks below all others.
+func pick(releases []Release, t takes) (Release, bool) {
 	var best Release
 	var bestVersion version
 	found := false
 	for _, r := range releases {
-		if stable && r.Prerelease {
-			continue
-		}
-		v, ok := parseVersion(r.Tag)
-		if !ok {
+		v, ok := releaseVersion(r)
+		if !ok || (t != takesAll && r.Prerelease && !(t == takesOld && v.old)) {
 			continue
 		}
 		if !found || bestVersion.less(v) {

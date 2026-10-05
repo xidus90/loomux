@@ -70,11 +70,11 @@ func call(ctx context.Context, run Runner, name string, args ...string) ([]byte,
 	return nil, err
 }
 
-// latest is the release this binary's channel should run. Not `gh release
+// latest is the newest release the channel takes. Not `gh release
 // view` without a tag: that knows only the release marked latest, and a
 // repository of pre-releases has none (measured 2026-09-23: "release not
 // found").
-func latest(ctx context.Context, run Runner, channel string) (Release, error) {
+func latest(ctx context.Context, run Runner, t takes) (Release, error) {
 	out, err := call(ctx, run, "gh", "release", "list", "--repo", Repo,
 		"--exclude-drafts", "--limit", "30", "--json", "tagName,isPrerelease")
 	if err != nil {
@@ -84,18 +84,33 @@ func latest(ctx context.Context, run Runner, channel string) (Release, error) {
 	if err := json.Unmarshal(out, &releases); err != nil {
 		return Release{}, fmt.Errorf("parse gh release list: %w", err)
 	}
-	rel, ok := pick(releases, channel)
+	rel, ok := pick(releases, t)
 	if !ok {
-		return Release{}, fmt.Errorf("no release in channel %s", channelName(channel))
+		return Release{}, fmt.Errorf("no release in channel %s", channelName(t))
 	}
 	return rel, nil
 }
 
-// channelName is how a build without a channel names its own: stable, as
-// cli.versionLine reads it.
-func channelName(channel string) string {
-	if channel == "" {
-		return "stable"
+// channelName is how an error names the channel a pass searched.
+func channelName(t takes) string {
+	if t != takesStable {
+		return "beta"
 	}
-	return channel
+	return "stable"
+}
+
+// view is the one release a pinned pass asks for.
+func view(ctx context.Context, run Runner, ver string) (Release, error) {
+	out, err := call(ctx, run, "gh", "release", "view", "v"+ver, "--repo", Repo, "--json", "tagName,isPrerelease")
+	if err != nil {
+		return Release{}, fmt.Errorf("no release %s: %w", ver, err)
+	}
+	var r Release
+	if err := json.Unmarshal(out, &r); err != nil {
+		return Release{}, fmt.Errorf("parse gh release view: %w", err)
+	}
+	if _, ok := releaseVersion(r); !ok {
+		return Release{}, fmt.Errorf("no release %s: %s is no version", ver, r.Tag)
+	}
+	return r, nil
 }

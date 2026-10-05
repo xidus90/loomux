@@ -19,7 +19,7 @@ func TestLatestTakesTheHighestReleaseOfTheChannel(t *testing.T) {
 		args = a
 		return f.run(ctx, name, a...)
 	}
-	rel, err := latest(context.Background(), run, "beta")
+	rel, err := latest(context.Background(), run, takesAll)
 	if err != nil || rel.Tag != "v2.10.0" {
 		t.Fatalf("latest = %v, %v; want v2.10.0", rel, err)
 	}
@@ -34,7 +34,7 @@ func TestLatestTakesTheHighestReleaseOfTheChannel(t *testing.T) {
 // before the channel was read, exactly this made every pass say "current".
 func TestLatestFailsWhenTheChannelHasNoRelease(t *testing.T) {
 	f := &fakeGH{list: `[{"tagName":"v2.7.0","isPrerelease":true}]`}
-	_, err := latest(context.Background(), f.run, "")
+	_, err := latest(context.Background(), f.run, takesStable)
 	if err == nil || err.Error() != "no release in channel stable" {
 		t.Fatalf("err = %v", err)
 	}
@@ -42,7 +42,7 @@ func TestLatestFailsWhenTheChannelHasNoRelease(t *testing.T) {
 
 func TestLatestNamesTheChannelItSearched(t *testing.T) {
 	f := &fakeGH{list: `[]`}
-	_, err := latest(context.Background(), f.run, "beta")
+	_, err := latest(context.Background(), f.run, takesAll)
 	if err == nil || err.Error() != "no release in channel beta" {
 		t.Fatalf("err = %v", err)
 	}
@@ -52,7 +52,7 @@ func TestLatestNamesTheChannelItSearched(t *testing.T) {
 // same fault as a channel without releases.
 func TestLatestFailsWhenNoTagIsAVersion(t *testing.T) {
 	f := &fakeGH{list: `[{"tagName":"nightly","isPrerelease":true},{"tagName":"v2.8","isPrerelease":false}]`}
-	_, err := latest(context.Background(), f.run, "beta")
+	_, err := latest(context.Background(), f.run, takesAll)
 	if err == nil || err.Error() != "no release in channel beta" {
 		t.Fatalf("err = %v", err)
 	}
@@ -60,14 +60,14 @@ func TestLatestFailsWhenNoTagIsAVersion(t *testing.T) {
 
 func TestLatestRefusesAnswersItCannotRead(t *testing.T) {
 	f := &fakeGH{list: `not json`}
-	if _, err := latest(context.Background(), f.run, "beta"); err == nil || !strings.Contains(err.Error(), "parse gh release list") {
+	if _, err := latest(context.Background(), f.run, takesAll); err == nil || !strings.Contains(err.Error(), "parse gh release list") {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestLatestNamesAMissingGh(t *testing.T) {
 	f := &fakeGH{fail: map[string]error{"list": fmt.Errorf("gh: %w", exec.ErrNotFound)}}
-	_, err := latest(context.Background(), f.run, "beta")
+	_, err := latest(context.Background(), f.run, takesAll)
 	if err == nil || err.Error() != "gh not found; install GitHub CLI and run gh auth login" {
 		t.Fatalf("err = %v", err)
 	}
@@ -75,7 +75,7 @@ func TestLatestNamesAMissingGh(t *testing.T) {
 
 func TestLatestPassesOtherFailuresOn(t *testing.T) {
 	f := &fakeGH{fail: map[string]error{"list": errors.New("gh: HTTP 404: Not Found")}}
-	if _, err := latest(context.Background(), f.run, "beta"); err == nil || err.Error() != "gh: HTTP 404: Not Found" {
+	if _, err := latest(context.Background(), f.run, takesAll); err == nil || err.Error() != "gh: HTTP 404: Not Found" {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -87,7 +87,7 @@ func TestACallThatOutlivesItsDeadlineSaysSo(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	if _, err := latest(context.Background(), hang, "beta"); err == nil || !strings.Contains(err.Error(), "gh timed out") {
+	if _, err := latest(context.Background(), hang, takesAll); err == nil || !strings.Contains(err.Error(), "gh timed out") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -128,4 +128,39 @@ func TestExecRunner(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+}
+
+func TestViewAsksForOneTag(t *testing.T) {
+	f := &fakeGH{view: `{"tagName":"v1.1.0-beta.2","isPrerelease":true}`}
+	var args []string
+	run := func(ctx context.Context, name string, a ...string) ([]byte, error) {
+		args = a
+		return f.run(ctx, name, a...)
+	}
+	rel, err := view(context.Background(), run, "1.1.0-beta.2")
+	if err != nil || rel != (Release{Tag: "v1.1.0-beta.2", Prerelease: true}) {
+		t.Fatalf("view = %+v, %v", rel, err)
+	}
+	if !slices.Equal(args[:3], []string{"release", "view", "v1.1.0-beta.2"}) || !slices.Contains(args, Repo) {
+		t.Errorf("gh args = %v", args)
+	}
+}
+
+func TestViewNamesAVersionThatIsNotThere(t *testing.T) {
+	f := &fakeGH{fail: map[string]error{"view": errors.New("release not found")}}
+	_, err := view(context.Background(), f.run, "9.9.9")
+	if err == nil || err.Error() != "no release 9.9.9: release not found" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestViewRefusesWhatIsNoVersion(t *testing.T) {
+	f := &fakeGH{view: `{"tagName":"nightly"}`}
+	if _, err := view(context.Background(), f.run, "nightly"); err == nil {
+		t.Fatal("took nightly")
+	}
+	f = &fakeGH{view: `not json`}
+	if _, err := view(context.Background(), f.run, "1.0.0"); err == nil || !strings.Contains(err.Error(), "parse gh release view") {
+		t.Fatal("took a broken answer")
+	}
 }

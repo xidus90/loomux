@@ -14,12 +14,13 @@ import (
 )
 
 // fresh is a state directory with nothing installed, and the options of an
-// init that runs from anywhere.
+// init that runs from anywhere. The releases of these tests are of the old
+// count, so the pass is a beta one: a development build is on no channel.
 func fresh(t *testing.T, f *fakeGH) Options {
 	t.Helper()
 	return Options{
 		StateDir: filepath.Join(t.TempDir(), "state"), Executable: `C:\src\loomux\bin\loomux.exe`,
-		Version: DevVersion, Channel: "beta", GOOS: "windows", GOARCH: "amd64",
+		Version: DevVersion, Channel: "beta", Mode: ModeBeta, GOOS: "windows", GOARCH: "amd64",
 		Run: f.run, Now: func() time.Time { return stamp },
 	}
 }
@@ -171,6 +172,21 @@ func TestInstallFailsWhenEverySlotIsHeld(t *testing.T) {
 		t.Fatalf("Install = %+v", res)
 	}
 	if got := canonicalBody(t, o); got != "old" {
+		t.Fatalf("canonical binary = %q", got)
+	}
+}
+
+// The path init takes: a binary of the old count, no mode, no marker, nothing
+// installed yet. Its own count puts it on the beta channel.
+func TestInstallOfTheOldCountTakesTheHighestPreRelease(t *testing.T) {
+	f := releasesOf("7.3.0", `[{"tagName":"v7.2.0","isPrerelease":true},{"tagName":"v7.3.0","isPrerelease":true}]`)
+	o := fresh(t, f)
+	o.Version, o.Channel, o.Mode = "7.2.0", "beta", ModeChannel
+	res := Install(context.Background(), o)
+	if res.Outcome != Updated || res.Version != "7.3.0" || res.Err != nil {
+		t.Fatalf("Install = %+v", res)
+	}
+	if got := canonicalBody(t, o); got != "binary 7.3.0" {
 		t.Fatalf("canonical binary = %q", got)
 	}
 }

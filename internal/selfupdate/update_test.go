@@ -212,7 +212,7 @@ func TestRunReplacesADevelopmentBuildAtTheCanonicalPlace(t *testing.T) {
 	f := release("2.8.0")
 	f.installed = "loomux 0.0.0-dev\n"
 	o := installed(t, f)
-	o.Version = DevVersion
+	o.Version, o.Mode = DevVersion, ModeBeta
 	res := Run(context.Background(), o)
 	if res.Outcome != Updated || res.Version != "2.8.0" || res.Err != nil {
 		t.Fatalf("Run = %+v", res)
@@ -340,5 +340,185 @@ func TestRunReportsAStatusItCouldNotWrite(t *testing.T) {
 	// The pass itself came to its outcome; only its record is missing.
 	if res.Outcome != Current || res.Err != nil || res.StatusErr == nil {
 		t.Fatalf("Run = %+v", res)
+	}
+}
+
+// releasesOf is release(ver) with a list of its own: ver is the one asset
+// the download serves.
+func releasesOf(ver, list string) *fakeGH {
+	f := release(ver)
+	f.list = list
+	return f
+}
+
+func TestRunTheBridgeTakesTheRestart(t *testing.T) {
+	f := releasesOf("1.0.0", `[{"tagName":"v7.2.0","isPrerelease":true},{"tagName":"v1.0.0","isPrerelease":false}]`)
+	f.version = "loomux 1.0.0\n"
+	o := installed(t, f)
+	o.Version, f.installed = "7.2.0", "loomux 7.2.0 (beta)\n"
+	if res := Run(context.Background(), o); res.Outcome != Updated || res.Version != "1.0.0" {
+		t.Fatalf("res = %+v", res)
+	}
+}
+
+func TestRunTheBridgeStaysOffANewBetaUnlessMarked(t *testing.T) {
+	for _, marked := range []bool{false, true} {
+		want := "1.0.0"
+		if marked {
+			want = "1.1.0-beta.1"
+		}
+		f := releasesOf(want, `[{"tagName":"v7.2.0","isPrerelease":true},{"tagName":"v1.0.0","isPrerelease":false},{"tagName":"v1.1.0-beta.1","isPrerelease":true}]`)
+		f.version = "loomux " + want + "\n"
+		o := installed(t, f)
+		o.Version, f.installed = "7.2.0", "loomux 7.2.0 (beta)\n"
+		if marked {
+			if err := WriteChannel(o.StateDir, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if res := Run(context.Background(), o); res.Outcome != Updated || res.Version != want {
+			t.Fatalf("marked=%v: res = %+v", marked, res)
+		}
+	}
+}
+
+func TestRunANewBinaryLeavesTheOldCountAlone(t *testing.T) {
+	for _, marked := range []bool{false, true} {
+		f := releasesOf("7.1.0", `[{"tagName":"v7.1.0","isPrerelease":true},{"tagName":"v1.0.0","isPrerelease":false}]`)
+		o := installed(t, f)
+		o.Version, o.Channel, f.installed = "1.0.0", "", "loomux 1.0.0\n"
+		if marked {
+			if err := WriteChannel(o.StateDir, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if res := Run(context.Background(), o); res.Outcome != Current || res.Version != "1.0.0" {
+			t.Fatalf("marked=%v: res = %+v", marked, res)
+		}
+	}
+}
+
+func TestRunAMarkedBetaStaysOnBetasAfterAStableRelease(t *testing.T) {
+	f := releasesOf("1.2.0-beta.1", `[{"tagName":"v1.1.0","isPrerelease":false},{"tagName":"v1.2.0-beta.1","isPrerelease":true}]`)
+	f.version = "loomux 1.2.0-beta.1\n"
+	o := installed(t, f)
+	o.Version, o.Channel, f.installed = "1.1.0-beta.2", "", "loomux 1.1.0-beta.2\n"
+	if err := WriteChannel(o.StateDir, true); err != nil {
+		t.Fatal(err)
+	}
+	if res := Run(context.Background(), o); res.Outcome != Updated || res.Version != "1.2.0-beta.1" {
+		t.Fatalf("res = %+v", res)
+	}
+	if beta, _ := ReadChannel(o.StateDir); !beta {
+		t.Fatal("the marker went")
+	}
+}
+
+func TestRunAMarkedBetaTakesTheStableReleaseThatOvertakesIt(t *testing.T) {
+	f := releasesOf("1.1.0", `[{"tagName":"v1.1.0","isPrerelease":false},{"tagName":"v1.1.0-beta.2","isPrerelease":true}]`)
+	f.version = "loomux 1.1.0\n"
+	o := installed(t, f)
+	o.Version, o.Channel, f.installed = "1.1.0-beta.2", "", "loomux 1.1.0-beta.2\n"
+	if err := WriteChannel(o.StateDir, true); err != nil {
+		t.Fatal(err)
+	}
+	if res := Run(context.Background(), o); res.Outcome != Updated || res.Version != "1.1.0" {
+		t.Fatalf("res = %+v", res)
+	}
+	if beta, _ := ReadChannel(o.StateDir); !beta {
+		t.Fatal("the marker went")
+	}
+}
+
+func TestRunUnmarkedNewBinaryTakesNoBeta(t *testing.T) {
+	f := releasesOf("1.2.0-beta.1", `[{"tagName":"v1.1.0","isPrerelease":false},{"tagName":"v1.2.0-beta.1","isPrerelease":true}]`)
+	o := installed(t, f)
+	o.Version, o.Channel, f.installed = "1.1.0", "", "loomux 1.1.0\n"
+	if res := Run(context.Background(), o); res.Outcome != Current {
+		t.Fatalf("res = %+v", res)
+	}
+}
+
+func TestRunRecordsAForeignMarkerAndTakesStable(t *testing.T) {
+	f := releasesOf("1.2.0-beta.1", `[{"tagName":"v1.1.0","isPrerelease":false},{"tagName":"v1.2.0-beta.1","isPrerelease":true}]`)
+	o := installed(t, f)
+	o.Version, o.Channel, f.installed = "1.1.0", "", "loomux 1.1.0\n"
+	if err := os.WriteFile(ChannelPath(o.StateDir), []byte("nightly"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := Run(context.Background(), o)
+	if res.Outcome != Current || !strings.Contains(recorded(t, o).Error, `channel file holds "nightly"`) {
+		t.Fatalf("res = %+v, status = %+v", res, recorded(t, o))
+	}
+}
+
+func TestRunModes(t *testing.T) {
+	list := `[{"tagName":"v1.1.0","isPrerelease":false},{"tagName":"v1.2.0-beta.1","isPrerelease":true},{"tagName":"v1.0.0","isPrerelease":false}]`
+	for _, c := range []struct {
+		name, mode, pin, running, asset string
+		marked                          bool
+		outcome                         Outcome
+		version                         string
+		markerAfter                     bool
+	}{
+		{"beta sets the marker and takes the newest", ModeBeta, "", "1.1.0", "1.2.0-beta.1", false, Updated, "1.2.0-beta.1", true},
+		{"beta when current still sets the marker", ModeBeta, "", "1.2.0-beta.1", "1.2.0-beta.1", false, Current, "1.2.0-beta.1", true},
+		{"stable goes back from a beta", ModeStable, "", "1.2.0-beta.1", "1.1.0", true, Updated, "1.1.0", false},
+		{"pin a beta sets the marker", "", "1.2.0-beta.1", "1.1.0", "1.2.0-beta.1", false, Updated, "1.2.0-beta.1", true},
+		{"pin a stable downgrades and clears", "", "1.0.0", "1.2.0-beta.1", "1.0.0", true, Updated, "1.0.0", false},
+		{"pin what runs is current", "", "1.1.0", "1.1.0", "1.1.0", true, Current, "1.1.0", false},
+		{"pin a stable of another number", "", "1.0.0", "1.1.0", "1.0.0", false, Updated, "1.0.0", false},
+		{"stable over its own beta", ModeStable, "", "1.1.0-beta.2", "1.1.0", true, Updated, "1.1.0", false},
+		{"pin the next beta", "", "1.2.0-beta.2", "1.2.0-beta.1", "1.2.0-beta.2", true, Updated, "1.2.0-beta.2", true},
+		{"pin when what runs says nothing", "", "1.1.0", "garbage", "1.1.0", false, Updated, "1.1.0", false},
+	} {
+		f := releasesOf(c.asset, list)
+		f.view = fmt.Sprintf(`{"tagName":"v%s","isPrerelease":%v}`, c.pin, strings.Contains(c.pin, "-"))
+		f.version = "loomux " + c.asset + "\n"
+		o := installed(t, f)
+		o.Version, o.Channel, f.installed = c.running, "", "loomux "+c.running+"\n"
+		o.Mode, o.Pin = c.mode, c.pin
+		if c.marked {
+			if err := WriteChannel(o.StateDir, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		res := Run(context.Background(), o)
+		if res.Outcome != c.outcome || res.Version != c.version {
+			t.Errorf("%s: res = %+v", c.name, res)
+		}
+		if beta, _ := ReadChannel(o.StateDir); beta != c.markerAfter {
+			t.Errorf("%s: marker = %v, want %v", c.name, beta, c.markerAfter)
+		}
+	}
+}
+
+func TestRunPinOfAMissingVersionFailsAndKeepsTheMarker(t *testing.T) {
+	f := release("1.1.0")
+	f.fail["view"] = errors.New("release not found")
+	o := installed(t, f)
+	o.Pin = "9.9.9"
+	if err := WriteChannel(o.StateDir, true); err != nil {
+		t.Fatal(err)
+	}
+	res := Run(context.Background(), o)
+	if res.Outcome != Failed || res.Err.Error() != "no release 9.9.9: release not found" {
+		t.Fatalf("res = %+v", res)
+	}
+	if beta, _ := ReadChannel(o.StateDir); !beta {
+		t.Fatal("a failed pass changed the marker")
+	}
+}
+
+func TestRunReportsAMarkerItCouldNotWrite(t *testing.T) {
+	f := release("2.8.0")
+	o := installed(t, f)
+	o.Mode = ModeBeta
+	if err := os.MkdirAll(filepath.Join(ChannelPath(o.StateDir), "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	res := Run(context.Background(), o)
+	if res.Outcome != Updated || res.Err == nil || !strings.Contains(res.Err.Error(), "channel") {
+		t.Fatalf("res = %+v", res)
 	}
 }

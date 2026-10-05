@@ -655,6 +655,15 @@ func TestUpdateWarnings(t *testing.T) {
 		{"a failed pass", "windows", false, func(dir string) *selfupdate.Status {
 			return &selfupdate.Status{Executable: selfupdate.Canonical(dir), Result: selfupdate.Failed, CheckedAt: at, Error: "gh not found"}
 		}, []string{"updating loomux failed at 2026-09-24T08:00:00Z: gh not found; run loomux upgrade to retry"}},
+		{"a pass that kept the binary but not the channel", "windows", false, func(dir string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: selfupdate.Canonical(dir), Result: selfupdate.Current, CheckedAt: at, Error: `channel file holds "nightly", not beta`}
+		}, []string{`loomux update channel at 2026-09-24T08:00:00Z: channel file holds "nightly", not beta; run loomux upgrade --beta or --stable to set it`}},
+		{"an updated pass that could not write the channel", "windows", false, func(dir string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: selfupdate.Canonical(dir), Result: selfupdate.Updated, CheckedAt: at, Error: "open channel: denied"}
+		}, []string{"loomux update channel at 2026-09-24T08:00:00Z: open channel: denied; run loomux upgrade --beta or --stable to set it"}},
+		{"a skipped pass says why without a warning", "windows", false, func(dir string) *selfupdate.Status {
+			return &selfupdate.Status{Source: selfupdate.SourceCLI, Executable: `C:\repo\bin\loomux.exe`, Result: selfupdate.Skipped, Error: "running from C:\\repo"}
+		}, nil},
 		{"a failed pass off Windows", "linux", false, func(string) *selfupdate.Status {
 			return &selfupdate.Status{Source: selfupdate.SourceServe, Executable: "/usr/local/bin/loomux", Result: selfupdate.Failed, CheckedAt: at, Error: "gh not found"}
 		}, []string{"updating loomux failed at 2026-09-24T08:00:00Z: gh not found; run loomux upgrade to retry"}},
