@@ -417,7 +417,8 @@ func TestAJSONListThatHoldsNoHitsIsAReadingFailure(t *testing.T) {
 func TestAHitMayCarryNothingButItsFileAndItsDocID(t *testing.T) {
 	// loomux answers a hit without `line` or `score` with 0 where Python
 	// refuses it -- the divergence is recorded in
-	// `docs/.superpowers/parity/stufe-1b-1.md`, row "Parser der CLI-Suche".
+	// `docs/.superpowers/parity/stufe-1b-1.md` in the working papers of the
+	// archive release `archive/parity-recordings`, row "Parser der CLI-Suche".
 	// `title` and `snippet` default in Python too:
 	// `str(row.get("title", ""))` and `str(row.get("snippet", ""))`
 	// (src/brain/search/qmd.py:262-263). Reading any of the four without

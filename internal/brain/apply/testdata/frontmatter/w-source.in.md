@@ -5,7 +5,7 @@ description: Der Vertrag des Projekts — Zweck, Bausteine, Datenmodell, Scheibe
 open_conflicts: 1
 sources:
   - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
+    resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M0QGS594F2KCWTWK9XV07M05
     content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
     revision: 3
@@ -19,7 +19,7 @@ die Fassung, aus der hier verdichtet wurde, trägt Revision 3.
 > [!conflict] Quelle hat sich seit der Verdichtung geändert
 > Diese Seite sagt, sie verdichte `revision: 3` mit `content_hash`
 > `sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff`.
-> Die Datei `docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md`
+> Die Datei `docs/de/architecture.md`
 > sagt am 2026-09-16 den Hash
 > `sha256:2440a49696a1f61737a94fe79d27093fbe48f043fa75d8097a6a809a42b99df3`.
 > Dieselbe veraltete Summe steht in zwölf Seiten dieses Bündels; eine

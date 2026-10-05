@@ -366,10 +366,10 @@ Exhaustive guides and technical manuals are organized under [`docs/en/`](docs/en
 
 ## Specifications & Internal Working Papers
 
-Design documents and internal working papers are located under `docs/.superpowers/specs/`:
-- [Fusion design](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
-- [Code Graph Subsystem Specification](docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md)
-- [Web OS & Skill System Specification](docs/.superpowers/specs/2026-09-14-loomux-web-os-design.md)
+The design papers, plans and parity records of the fusion are in
+`working-papers.tar.gz` of the archive release
+[`archive/parity-recordings`](https://github.com/xidus90/loomux/releases/tag/archive/parity-recordings).
+New working papers live under `docs/.superpowers/`.
 
 ---
 

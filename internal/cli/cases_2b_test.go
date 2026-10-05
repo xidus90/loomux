@@ -20,7 +20,8 @@ const wantCases2b = 19
 
 // Every case here must pass. A refusal carries exit 1 and not the 2 its
 // recording under 2b-source holds (deviation 5 in
-// docs/.superpowers/parity/stufe-2b.md): a case that merely "must fail" would
+// `docs/.superpowers/parity/stufe-2b.md` in the working papers of the archive
+// release `archive/parity-recordings`): a case that merely "must fail" would
 // accept any wrong code, a crash included.
 
 // TestCases2b replays the recordings of the reference's `commit-msg` against loomux

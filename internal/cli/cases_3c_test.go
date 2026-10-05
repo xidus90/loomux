@@ -18,7 +18,8 @@ const wantCases3c = 35
 // The list is exact: a listed case that starts to pass fails as loudly as one
 // that grows a new difference, and a case that is not listed must pass.
 type expectation3c struct {
-	// why names the row of docs/.superpowers/parity/stufe-3c.md the
+	// why names the row of `docs/.superpowers/parity/stufe-3c.md` in the
+	// working papers of the archive release `archive/parity-recordings` the
 	// differences belong to.
 	why    string
 	differ []string

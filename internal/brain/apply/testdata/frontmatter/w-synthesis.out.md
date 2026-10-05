@@ -7,12 +7,12 @@ status: draft
 open_conflicts: 0
 sources:
 - id: entscheidung-46
-  resource: brain://project/loomux/docs/.superpowers/bench-ub/entscheidung-46.md
+  resource: brain://project/loomux/docs/de/configuration.md
   doc_id: 01M0QGS58WEG5TSWKWEJM89E5T
   content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
   revision: 8
 - id: architektur-spec
-  resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
+  resource: brain://project/loomux/docs/de/architecture.md
   doc_id: 01M0QGS594F2KCWTWK9XV07M05
   content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
   revision: 8
@@ -44,7 +44,7 @@ was die Vorgabe heute trägt, ist allein die Latenz.
 
 Beleg ist das Messprotokoll zur Entscheidung 46, seit dem Umzug am 2026-09-16
 im Bereich `project/loomux` unter
-`docs/.superpowers/bench-ub/entscheidung-46.md`; die Einordnung in
+`docs/de/configuration.md`; die Einordnung in
 den Vertrag steht in
 [Suche, Profile und Messwerte](../topics/suche-und-profile.md).
 

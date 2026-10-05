@@ -29,7 +29,8 @@ var ErrNoAdapter = errors.New("no adapter for this host")
 // and that shape has already been paid for once: on 2026-09-06 a
 // deny envelope went unread on Antigravity and a probe file landed on disk
 // anyway, with only exit 2 having any effect
-// (docs/.superpowers/specs/2026-09-10-go-hooks-drei-hosts-design.md:104-108).
+// (`2026-09-10-go-hooks-drei-hosts-design.md:104-108` in the working papers
+// of the archive release `archive/parity-recordings`).
 func readCodex(io.Reader) (Payload, error) {
 	return Payload{}, fmt.Errorf("codex: %w -- its hook contract is unmeasured, see the design", ErrNoAdapter)
 }

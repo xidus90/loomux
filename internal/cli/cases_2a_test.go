@@ -19,7 +19,8 @@ import (
 const wantCases2a = 53
 
 // approved2a names every case whose replay differs from its recording, with
-// the number of the deviation in docs/.superpowers/parity/stufe-2a.md that
+// the number of the deviation in `docs/.superpowers/parity/stufe-2a.md` in the
+// working papers of the archive release `archive/parity-recordings` that
 // explains it. A case missing here must pass; a case listed here must fail.
 var approved2a = map[string]string{
 	// 1: the old chain crashed on CMake types; cmake --build is now cpp's types lane.
