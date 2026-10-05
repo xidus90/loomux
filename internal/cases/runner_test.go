@@ -80,11 +80,11 @@ func TestCompareTrees(t *testing.T) {
 }
 
 func TestSplitCommand(t *testing.T) {
-	tokens, err := cases.SplitCommand(`brain guard "path with spaces" 'single quote'`)
+	tokens, err := cases.SplitCommand(`notes guard "path with spaces" 'single quote'`)
 	if err != nil {
 		t.Fatalf("unexpected error splitting command: %v", err)
 	}
-	expected := []string{"brain", "guard", "path with spaces", "single quote"}
+	expected := []string{"notes", "guard", "path with spaces", "single quote"}
 	if len(tokens) != len(expected) {
 		t.Fatalf("expected %d tokens, got %v", len(expected), tokens)
 	}
@@ -149,7 +149,7 @@ func TestAMessageCaseIgnoresStdout(t *testing.T) {
 }
 
 func TestACommandThatIsNotLoomuxIsRefused(t *testing.T) {
-	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "brain guard"}
+	c := &cases.Case{Verb: "v", Name: "n", Path: t.TempDir(), Cmd: "notes-guard"}
 	os.MkdirAll(filepath.Join(c.Path, "world"), 0o755)
 	if _, err := cases.RunCase(c, nil); err == nil {
 		t.Fatal("want error")

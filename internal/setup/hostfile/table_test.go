@@ -104,8 +104,8 @@ func TestOwnedKnowsEveryLoomuxBinary(t *testing.T) {
 		}
 	}
 	foreign := []string{
-		`ulguard --root "${CLAUDE_PROJECT_DIR}"`,
-		"brain guard",
+		`other-guard --root "${CLAUDE_PROJECT_DIR}"`,
+		"notes-guard",
 		"uv run loomux-ish",
 		`"loomuxer.exe"`,
 		"",

@@ -149,11 +149,11 @@ func TestABrokenSettingsFileStopsThePlan(t *testing.T) {
 }
 
 func TestAForeignHostEntryIsKeptAndNamed(t *testing.T) {
-	settings := `{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "ulguard start"}]}]}}`
+	settings := `{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "other-guard start"}]}]}}`
 	root := world(t, map[string]string{".claude/settings.json": settings})
 	p := plan(t, gather(t, root, ""))
 	c, ok := changeOf(p, ".claude/settings.json")
-	if !ok || !strings.Contains(c.After, "ulguard start") || !hasNote(p, ".claude/settings.json: SessionStart/ keeps a hook of the project") {
+	if !ok || !strings.Contains(c.After, "other-guard start") || !hasNote(p, ".claude/settings.json: SessionStart/ keeps a hook of the project") {
 		t.Errorf("settings =\n%s\nnotes = %v", c.After, p.Notes)
 	}
 }

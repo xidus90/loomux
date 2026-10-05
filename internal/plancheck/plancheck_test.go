@@ -40,9 +40,9 @@ func planDoc(lang string, rows []string, nodes []string) string {
 
 var (
 	rowsOK = []string{
-		"| **1a** | ✅ | ultraloom | pilot | — | — |",
+		"| **1a** | ✅ | alpha | pilot | — | — |",
 		"| **4a** | 🚧 built; human steps open | new | `config list\\|get` | 1a ✅ | 3 |",
-		"| **4d** | open | ultra-brain | convert | 4a | 3 |",
+		"| **4d** | open | beta | convert | 4a | 3 |",
 		"| **4f** | proposed (awaiting sign-off) | — | refs | 4d | — (proposed) |",
 	}
 	nodesOK = []string{

@@ -97,7 +97,7 @@ func TestAWriteOutsideEveryAreaIsRefusedByTheBarrier(t *testing.T) {
 func TestAnUnreadablePayloadIsRefusedNotPassed(t *testing.T) {
 	root, state := world(t, "")
 	if code, _, _ := call(t, root, state, "not json"); code != 2 {
-		t.Fatalf("ulguard answered 1 here; loomux refuses, got %d", code)
+		t.Fatalf("an exit of 1 would let it through here; loomux refuses with 2, got %d", code)
 	}
 }
 

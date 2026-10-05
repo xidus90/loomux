@@ -63,11 +63,11 @@ func TestASharedAreaMustNotCiteAProject(t *testing.T) {
 	areas := []config.Area{
 		{Scope: "engineering/python", Path: "p", WikiPath: "p",
 			Shared: true},
-		{Scope: "project/ultra-brain", Path: "u", WikiPath: "u"},
+		{Scope: "project/side-notes", Path: "u", WikiPath: "u"},
 	}
 	bundles := map[string][]wiki.WikiPage{
 		"engineering/python": {
-			cites("a.md", "brain://project/ultra-brain/topics/y"),
+			cites("a.md", "brain://project/side-notes/topics/y"),
 		},
 	}
 	got := Federation(bundles, areas, config.ArtifactLookup{})
@@ -354,10 +354,10 @@ func TestAHubPointerNamesAnAreaWhoseWikiLiesElsewhere(t *testing.T) {
 	elsewhere := t.TempDir()
 	areas := []config.Area{
 		signpost(areaPath, wikiPath),
-		{Scope: "project/ultra-brain", Path: elsewhere,
+		{Scope: "project/side-notes", Path: elsewhere,
 			WikiPath: filepath.Join(elsewhere, "docs", "wiki")},
 	}
-	hub := filepath.Join(areaPath, "91 P", "ultra-brain.md")
+	hub := filepath.Join(areaPath, "91 P", "side-notes.md")
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog(linkTo(wikiPath, hub))},
 	}
@@ -377,10 +377,10 @@ func TestAHubPointerIsComparedByEquality(t *testing.T) {
 	elsewhere := t.TempDir()
 	areas := []config.Area{
 		signpost(areaPath, wikiPath),
-		{Scope: "project/ultra-brain", Path: elsewhere,
+		{Scope: "project/side-notes", Path: elsewhere,
 			WikiPath: filepath.Join(elsewhere, "docs", "wiki")},
 	}
-	below := filepath.Join(areaPath, "91 P", "ultra-brain.md", "d.md")
+	below := filepath.Join(areaPath, "91 P", "side-notes.md", "d.md")
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog(linkTo(wikiPath, below))},
 	}
@@ -399,10 +399,10 @@ func TestWithoutAHubTheWikiPathIsTheOnlyName(t *testing.T) {
 	elsewhere := t.TempDir()
 	areas := []config.Area{
 		signpost(areaPath, wikiPath),
-		{Scope: "project/ultra-brain", Path: elsewhere,
+		{Scope: "project/side-notes", Path: elsewhere,
 			WikiPath: filepath.Join(elsewhere, "docs", "wiki")},
 	}
-	hub := filepath.Join(areaPath, "91 P", "ultra-brain.md")
+	hub := filepath.Join(areaPath, "91 P", "side-notes.md")
 	bundles := map[string][]wiki.WikiPage{
 		"knowledge": {catalog(linkTo(wikiPath, hub))},
 	}
@@ -410,7 +410,7 @@ func TestWithoutAHubTheWikiPathIsTheOnlyName(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("messages = %v, want one", got)
 	}
-	if strings.Contains(got[0], "ultra-brain.md") {
+	if strings.Contains(got[0], "side-notes.md") {
 		t.Fatalf("a hub pointer was expected without a hub folder: %q",
 			got[0])
 	}
@@ -682,7 +682,7 @@ func TestABrokenManifestSilencesTheSignpost(t *testing.T) {
 	elsewhere := t.TempDir()
 	areas := []config.Area{
 		signpost(areaPath, wikiPath),
-		{Scope: "project/ultra-brain", Path: elsewhere,
+		{Scope: "project/side-notes", Path: elsewhere,
 			WikiPath: filepath.Join(elsewhere, "docs", "wiki")},
 	}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {catalog()}}
@@ -834,7 +834,7 @@ func TestAnUnusableHubSilencesTheSignpostToo(t *testing.T) {
 	elsewhere := t.TempDir()
 	areas := []config.Area{
 		signpost(areaPath, wikiPath),
-		{Scope: "project/ultra-brain", Path: elsewhere,
+		{Scope: "project/side-notes", Path: elsewhere,
 			WikiPath: filepath.Join(elsewhere, "docs", "wiki")},
 	}
 	bundles := map[string][]wiki.WikiPage{"knowledge": {catalog()}}
@@ -914,10 +914,10 @@ func TestAReadOnlySignpostReadsItsHubFromTheStateDirectory(t *testing.T) {
 	elsewhere := t.TempDir()
 	post := signpost(areaPath, wikiPath)
 	post.ReadOnly = true
-	areas := []config.Area{post, {Scope: "project/ultra-brain", Path: elsewhere,
+	areas := []config.Area{post, {Scope: "project/side-notes", Path: elsewhere,
 		WikiPath: filepath.Join(elsewhere, "docs", "wiki")}}
 	bundles := map[string][]wiki.WikiPage{
-		"knowledge": {catalog(linkTo(wikiPath, filepath.Join(areaPath, "91 P", "ultra-brain.md")))},
+		"knowledge": {catalog(linkTo(wikiPath, filepath.Join(areaPath, "91 P", "side-notes.md")))},
 	}
 	lookup := config.ArtifactLookup{Primary: state}
 	if got := Federation(bundles, areas, lookup); len(got) != 0 {

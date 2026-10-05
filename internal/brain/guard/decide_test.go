@@ -486,21 +486,6 @@ func TestAConfigTomlOutsideTheBundleDirectoryIsOrdinary(t *testing.T) {
 	allow(t, writeCall(target), state)
 }
 
-// loomux reads one manifest, `.loomux/config.toml`. Any other manifest name is
-// ordinary here, and a barrier that locked one would refuse writes nothing
-// reads its limits from.
-func TestTheOldManifestNamesAreOrdinaryFiles(t *testing.T) {
-	tmp := t.TempDir()
-	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
-	bundle := filepath.Join(tmp, "vault", "demo")
-	for _, name := range []string{
-		".brain.toml",
-		filepath.Join(".ultra-brain", "config.toml"),
-	} {
-		allow(t, writeCall(filepath.Join(bundle, name)), state)
-	}
-}
-
 func TestTheManifestSpellingsAreEquated(t *testing.T) {
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
@@ -523,27 +508,6 @@ func TestATrailingDotOnTheManifestIsTheManifest(t *testing.T) {
 	target := filepath.Join(tmp, "vault", "demo", ".loomux", "config.toml") + "."
 	deny(t, writeCall(target), state,
 		"the manifest is where the barrier reads its own limits")
-}
-
-// `wiki_guard.py` is an ordinary name. No installer puts a copy of the barrier
-// into a guarded repository: the barrier is a binary outside every writable
-// tree, and the geometry keeps that one. A rule pinning such a copy would guard
-// a path nothing creates, so the name is ordinary in all three places a pin
-// could once tell apart.
-func TestTheOldGuardNameIsAnOrdinaryFileEverywhere(t *testing.T) {
-	tmp := t.TempDir()
-	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
-	bundle := filepath.Join(tmp, "vault", "demo")
-	for _, target := range []string{
-		// The whole installed path, which was the pin itself.
-		filepath.Join(bundle, ".loomux", "hooks", "wiki_guard.py"),
-		// The two the pin already let through, kept so a rule creeping
-		// back in a wider shape is caught as well.
-		filepath.Join(bundle, "hooks", "wiki_guard.py"),
-		filepath.Join(bundle, ".loomux", "wiki_guard.py"),
-	} {
-		allow(t, writeCall(target), state)
-	}
 }
 
 func TestTheManifestIsRefusedBeforeTheRegistryIsRead(t *testing.T) {
