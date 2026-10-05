@@ -373,10 +373,10 @@ Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs
 
 ## Spezifikationen & Interne Arbeitspapiere
 
-Detailentwürfe und interne Arbeitspapiere liegen unter `docs/.superpowers/specs/`:
-- [Fusions-Design](docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md)
-- [Code-Graph Subsystem-Spezifikation](docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md)
-- [Web OS & Skill-System-Spezifikation](docs/.superpowers/specs/2026-09-14-loomux-web-os-design.md)
+Die Entwurfspapiere, Pläne und Paritätsaufzeichnungen der Fusion liegen in
+`working-papers.tar.gz` des Archiv-Release
+[`archive/parity-recordings`](https://github.com/xidus90/loomux/releases/tag/archive/parity-recordings).
+Neue Arbeitspapiere liegen unter `docs/.superpowers/`.
 
 ---
 

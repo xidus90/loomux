@@ -7,12 +7,12 @@ open_conflicts: 0
 realization: in_progress
 sources:
 - id: abnahme-scheibe-2a
-  resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-20-scheibe-2a-abnahme.md
+  resource: brain://project/loomux/docs/de/configuration.md
   doc_id: 01M0QGS5931BKD9QS6B8C2TNCT
   content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
   revision: 8
 - id: plan-scheibe-1
-  resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-19-scheibe-1-indexer.md
+  resource: brain://project/loomux/docs/de/configuration.md
   doc_id: 01M0QGS593D5A8B9E3P0SV6GD9
   content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
   revision: 8

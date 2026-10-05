@@ -18,7 +18,8 @@ import (
 const wantCases2c = 15
 
 // approved2c names every case whose replay differs from its recording, with
-// the number of the deviation in docs/.superpowers/parity/stufe-2c.md that
+// the number of the deviation in `docs/.superpowers/parity/stufe-2c.md` in the
+// working papers of the archive release `archive/parity-recordings` that
 // explains it. A case missing here must pass; a case listed here must fail.
 var approved2c = map[string]string{
 	"hook-stop/gave-up":              "2: the counter counts blocks in a row and giving up resets it to 0; Python kept 3",

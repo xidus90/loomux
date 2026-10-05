@@ -1,7 +1,8 @@
 # loomux
 
 One Go binary for the hook path, the check chain and the knowledge system of
-a project. Design: `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`.
+a project. Design: the fusion design among the working papers of the archive
+release `archive/parity-recordings`.
 
 ## Where things live
 

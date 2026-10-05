@@ -18,7 +18,8 @@ const wantCases4a2 = 14
 // The list is exact: a listed case that starts to pass fails as loudly as one
 // that grows a new difference, and a case that is not listed must pass.
 type expectation4a2 struct {
-	// why names the row of docs/.superpowers/parity/stufe-4a-2.md the
+	// why names the row of `docs/.superpowers/parity/stufe-4a-2.md` in the
+	// working papers of the archive release `archive/parity-recordings` the
 	// differences belong to.
 	why    string
 	differ []string

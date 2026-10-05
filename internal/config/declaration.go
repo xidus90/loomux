@@ -22,7 +22,8 @@ var ErrNoArea = errors.New("the configuration declares no [area]")
 // value loomux reads, or one the Python reference refused, has the wrong type
 // or an unusable value. Unknown keys are not judged: real manifests carry
 // keys of tools that are not loomux. The rules and their order are M1 to M17
-// of docs/.superpowers/specs/2026-09-16-loomux-registry-manifest-pruefungen-design.md.
+// of `docs/.superpowers/specs/2026-09-16-loomux-registry-manifest-pruefungen-design.md`
+// in the working papers of the archive release `archive/parity-recordings`.
 func ReadDeclaration(path string) (*Manifest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

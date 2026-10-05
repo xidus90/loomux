@@ -150,12 +150,13 @@ func WriteContext(host Host, event string, w io.Writer, lines []string) error {
 // Needed because an Antigravity hook runs with its working directory set to
 // the directory holding `hooks.json`, which is `.agents/` and not the project
 // root. Measured on 2026-09-10 against agy 1.1.24 -- see
-// docs/.superpowers/specs/2026-09-10-antigravity-hook-messung.md, finding 2 --
-// and stated the same way in the antigravity-for-claude-code plugin's
-// docs/MIGRATION.md:157. Whether Antigravity sets `${CLAUDE_PROJECT_DIR}` is
-// not part of either finding and is unmeasured here; the working directory
-// alone is reason enough to walk. A `--root` given on the command line
-// outranks this and is handled by the caller.
+// `2026-09-10-antigravity-hook-messung.md`, finding 2, in the working papers
+// of the archive release `archive/parity-recordings` -- and stated the same
+// way in the antigravity-for-claude-code plugin's docs/MIGRATION.md:157.
+// Whether Antigravity sets `${CLAUDE_PROJECT_DIR}` is not part of either
+// finding and is unmeasured here; the working directory alone is reason
+// enough to walk. A `--root` given on the command line outranks this and is
+// handled by the caller.
 func FindRoot(start string) (string, error) {
 	return findRoot(start, filepath.Abs)
 }

@@ -7,7 +7,8 @@
 // knowledge about the repository.
 //
 // go/parser alone, no go/types: cross-package resolution belongs to the
-// optional --lsp stage against gopls. See section 3.5 of the G2 spec.
+// optional --lsp stage against gopls. See section 3.5 of the G2 spec (in the
+// working papers of the archive release `archive/parity-recordings`).
 //
 // Ported from src/graph/extract.ts (describeGo) (MIT; origin under "Ported
 // sources" in NOTICE.md).
@@ -204,7 +205,8 @@ func funcNode(fset *token.FileSet, rel, source string, d *ast.FuncDecl, minted m
 // comment. The original's type_spec starts at the NAME and its header ends at
 // the `struct` keyword, so its signature for `type Cache struct { ... }` is
 // "type Cache struct" -- a value no test of the reference pins. See 5.2.1 of
-// the G2 spec.
+// the G2 spec (in the working papers of the archive release
+// `archive/parity-recordings`).
 func typeNode(fset *token.FileSet, rel, source string, ts *ast.TypeSpec, minted map[string]bool) model.Node {
 	kind := model.Kind("type")
 	sig := "type " + extract.Collapse(slice(fset, source, ts.Pos(), ts.End()))

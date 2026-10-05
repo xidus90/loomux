@@ -24,8 +24,9 @@ const wantCases3b = 24
 // fails as loudly as one that grows a new difference, and a case that is not
 // listed must pass.
 type expectation3b struct {
-	// why names the rows of docs/.superpowers/parity/stufe-3b.md that the
-	// differences belong to.
+	// why names the rows of `docs/.superpowers/parity/stufe-3b.md` in the
+	// working papers of the archive release `archive/parity-recordings` that
+	// the differences belong to.
 	why string
 	// differ are mismatch lines as the runner prints them.
 	differ []string

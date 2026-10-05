@@ -6,7 +6,7 @@ status: draft
 open_conflicts: 0
 sources:
   - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
+    resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M0QGS594F2KCWTWK9XV07M05
     content_hash: "sha256:8cb1d728fb0b4a32a3063677dac4631a856212e695bca6da02da09cae5f8458c"
     revision: 5

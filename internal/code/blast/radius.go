@@ -76,7 +76,8 @@ type Report struct {
 // areas, walked nor quoted.
 //
 // Ported from src/blast/blast.ts (MIT; origin under "Ported sources" in
-// NOTICE.md), with the corrections of the G4 delta: the file node is a seed
+// NOTICE.md), with the corrections of the G4 delta (among the working papers
+// of the archive release `archive/parity-recordings`): the file node is a seed
 // only when no symbol was hit, and it is walked as itself, not expanded.
 func Radius(g *model.Graph, x *Index, changed []diff.File, withheld []string, depth Depth) Report {
 	spans := model.FileSpans(g)

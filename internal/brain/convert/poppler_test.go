@@ -12,6 +12,7 @@ import (
 
 // recordedPoppler answers from what the real Poppler printed for the test
 // PDFs (recorded by a human with loomux dev record-poppler); the fusion spec
+// (in the working papers of the archive release `archive/parity-recordings`)
 // wants every external program replayed from a real run. The recording holds
 // no stderr, so a failing PDF replays as one that said nothing.
 func recordedPoppler(t *testing.T) Tools {

@@ -266,9 +266,10 @@ func TestGraphCheckReportsAMissingGraphAndPointsAtBuild(t *testing.T) {
 	var out, errOut bytes.Buffer
 
 	code := graphCommand([]string{"check", "--root", root}, nil, &out, &errOut)
-	// The original has no separate code for this, and the pillar-3 spec asks only
-	// that it be reported cleanly as not initialised. A third code would be an
-	// invention.
+	// The original has no separate code for this, and the pillar-3 spec (in the
+	// working papers of the archive release `archive/parity-recordings`) asks
+	// only that it be reported cleanly as not initialised. A third code would be
+	// an invention.
 	if code != 1 {
 		t.Fatalf("exit %d, want 1", code)
 	}

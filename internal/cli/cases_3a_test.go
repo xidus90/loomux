@@ -29,8 +29,9 @@ const wantCases3a = 28
 // no more and no fewer, so a listed case that starts to pass fails as loudly
 // as one that grows a new difference. A case that is not listed must pass.
 type expectation3a struct {
-	// why names the rows of docs/.superpowers/parity/stufe-3a.md that the
-	// differences belong to.
+	// why names the rows of `docs/.superpowers/parity/stufe-3a.md` in the
+	// working papers of the archive release `archive/parity-recordings` that
+	// the differences belong to.
 	why string
 	// differ are mismatch lines as the runner prints them.
 	differ []string

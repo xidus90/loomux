@@ -29,8 +29,8 @@ func TestParseHost(t *testing.T) {
 // An Antigravity hook runs with its working directory set to the directory
 // holding hooks.json -- `.agents/`, not the project root -- so the root has to
 // be found by walking up. Measured on 2026-09-10 against agy 1.1.24 and
-// documented in docs/.superpowers/specs/2026-09-10-antigravity-hook-messung.md,
-// finding 2.
+// documented in `2026-09-10-antigravity-hook-messung.md`, finding 2, in the
+// working papers of the archive release `archive/parity-recordings`.
 func TestFindRootWalksUpToTheConfig(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
