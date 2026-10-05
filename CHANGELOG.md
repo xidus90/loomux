@@ -4,6 +4,17 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [7.2.0] - 2026-10-05
+
+<https://github.com/xidus90/loomux/pull/80>
+
+### Added
+- `loomux upgrade --beta`, `--stable` and `--version <x.y.z>` choose the newest beta, the newest stable release or one release by hand; `--beta` and a pinned beta keep the machine on betas, `--stable` and a pinned stable release take it off.
+- `loomux dev release next-beta --bump <major|minor|patch>` prints the next `X.Y.Z-beta.N`.
+### Changed
+- The self-update ranks a coming release 1.0.0 and its betas above every release so far and takes a beta only on a machine whose `<state dir>/channel` holds `beta`.
+- Session start warns when an update pass kept the binary but could not read or write the channel file.
+
 ## [7.1.0] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/78>
