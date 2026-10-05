@@ -3,7 +3,6 @@ scope = "project/repo-new"
 wiki = true
 
 [layout]
-sources = "docs"
 wiki = "docs/wiki"
 
 [index]
