@@ -1,6 +1,9 @@
 package guard
 
 import (
+	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -102,6 +105,31 @@ func TestAnUnreadableOpenTomlOpensNothingAndSaysWhy(t *testing.T) {
 	mkdir(t, filepath.Join(state, openName))
 	deny(t, writeCall(filepath.Join(tmp, "home", ".claude", "AGENT_LEARNINGS.md")), state,
 		filepath.Join(state, openName)+" is ignored: ")
+}
+
+// An entry whose kind cannot be read is not an entry the barrier can vouch
+// for: the file is ignored whole, not told apart from one not yet written.
+func TestAnOpenTomlEntryWhoseKindCannotBeReadOpensNothing(t *testing.T) {
+	tmp := t.TempDir()
+	homeAt(t, filepath.Join(tmp, "home"), "")
+	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
+	learnings := filepath.Join(tmp, "home", ".claude", "AGENT_LEARNINGS.md")
+	kind := filepath.Join(tmp, "elsewhere", "kind.md")
+	openAt(t, state, learnings, kind)
+	old := statEntry
+	t.Cleanup(func() { statEntry = old })
+	statEntry = func(path string) (fs.FileInfo, error) {
+		if filepath.Base(path) == "kind.md" {
+			return nil, fmt.Errorf("stat %s: %w", path, fs.ErrPermission)
+		}
+		return os.Stat(path)
+	}
+	reason := deny(t, writeCall(learnings), state, filepath.Join(state, openName)+" is ignored: ")
+	for _, want := range []string{`files #2 "`, "permission denied"} {
+		if !strings.Contains(reason, want) {
+			t.Fatalf("the refusal does not carry %q: %q", want, reason)
+		}
+	}
 }
 
 // A link cycle is the unelevated way to a path that does not resolve: once as

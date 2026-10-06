@@ -26,11 +26,16 @@ import (
 // openName is the file in the state directory.
 const openName = "open.toml"
 
+// statEntry is the stat of a listed entry; a test swaps it for an error no
+// unprivileged machine produces on demand.
+var statEntry = os.Stat
+
 // openFiles resolves every file open.toml lists, or nil where there is no
 // open.toml. An error means the file is there and ignored; it says why.
 //
 // Only single files open. An entry must be absolute, may not name a
-// directory, and may not lie in the state directory, where the registry and
+// directory (a file not yet written opens; one whose kind cannot be read
+// ignores the file), and may not lie in the state directory, where the registry and
 // this file keep the barrier's own limits.
 func openFiles(stateDir string) ([]string, error) {
 	state, err := ResolvePath(stateDir)
@@ -64,8 +69,12 @@ func openFiles(stateDir string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", numbered, err)
 		}
-		if info, err := os.Stat(resolved); err == nil && info.IsDir() {
+		info, err := statEntry(resolved)
+		if err == nil && info.IsDir() {
 			return nil, fmt.Errorf("%s names a directory; only single files open", numbered)
+		}
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("%s: %w", numbered, err)
 		}
 		if inside(resolved, []string{state}) {
 			return nil, fmt.Errorf("%s lies in the state directory, which keeps the barrier's own limits", numbered)
