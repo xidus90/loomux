@@ -1340,5 +1340,4 @@ loomux hat keine `armed.toml`, also ist jede Lane seines Tors scharf.
 
 ### `.githooks/pre-push`
 Verweigert jeden Push, dessen Ziel `refs/heads/master` ist. `--no-verify`
-überspringt ihn; sobald das Repo öffentlich ist, hält ein Ruleset auf GitHub
-trotzdem.
+überspringt ihn; das Ruleset auf GitHub hält trotzdem.

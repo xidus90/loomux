@@ -1265,4 +1265,4 @@ loomux has no `armed.toml`, so every lane of its gate is armed.
 
 ### `.githooks/pre-push`
 Refuses any push whose target is `refs/heads/master`. `--no-verify` skips it;
-once the repository is public, a ruleset on GitHub holds regardless.
+the ruleset on GitHub holds regardless.
