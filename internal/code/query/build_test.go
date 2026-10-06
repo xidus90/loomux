@@ -245,3 +245,38 @@ func TestGoModPathsWalksARootThatWouldBeSkippedBelowIt(t *testing.T) {
 		t.Errorf("goModPaths = %v, want the root's go.mod", got)
 	}
 }
+
+// A Godot project in a subdirectory: the build reads every file of it, the
+// scene reaches its script and the script its autoload through project.godot.
+func TestBuildReadsAGodotProject(t *testing.T) {
+	root := repo(t, map[string]string{
+		"godot/project.godot":        "[autoload]\nGame=\"*res://autoload/game.gd\"\n",
+		"godot/autoload/game.gd":     "extends Node\n\nfunc start():\n\tpass\n",
+		"godot/main.tscn":            "[gd_scene format=3]\n\n[ext_resource type=\"Script\" path=\"res://main.gd\" id=\"1\"]\n",
+		"godot/main.gd":              "class_name Main\nextends Node\n\nfunc _ready():\n\tGame.start()\n",
+		"godot/autoload/game.gd.uid": "uid://abc\n",
+	})
+	g, stats, err := Build(root, ignore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ls := stats.PerLanguage["gdscript"]; ls.Files != 4 || ls.Parsed != 4 {
+		t.Fatalf("gdscript stats %+v, want 4 files parsed (the .uid is no source)", ls)
+	}
+	want := map[string]bool{
+		"godot/main.tscn imports godot/main.gd":                        false,
+		"godot/project.godot imports godot/autoload/game.gd":           false,
+		"godot/main.gd#Main._ready calls godot/autoload/game.gd#start": false,
+	}
+	for _, e := range g.Edges {
+		k := string(e.Source) + " " + string(e.Relation) + " " + string(e.Target)
+		if _, ok := want[k]; ok {
+			want[k] = true
+		}
+	}
+	for k, found := range want {
+		if !found {
+			t.Errorf("no edge %s", k)
+		}
+	}
+}

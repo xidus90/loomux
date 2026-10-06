@@ -142,8 +142,9 @@ type link struct {
 // Plan lays out the lanes of a run: kinds as requested, stacks in byte
 // order, areas in byte order. Edges come only from after; what cannot run
 // is decided here and carried as Pre. The graph kind runs at most once: the
-// first stack with a graph command carries it, and every later stack with
-// one stands aside with a note naming that stack -- unless one stack's table
+// highest-ranked stack with a graph command (carrierRank) carries it, wherever
+// it stands in the walk, and every other stack with one stands aside with a
+// note naming that stack -- unless one stack's table
 // switches the graph off, which switches it off for the whole project.
 func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 	jobs := []Job{}
@@ -153,7 +154,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 		// kind sets it.
 		carrier, off := "", ""
 		if kind == "graph" {
-			off = graphOff(eff, req)
+			off, carrier = graphOff(eff, req), graphCarrier(eff, req)
 		}
 		for _, t := range targets(eff, req) {
 			areas := t.areas
@@ -167,7 +168,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 				switch {
 				case off != "":
 					note = "graph switched off under [verify." + off + "]"
-				case kind == "graph" && carrier != "" && hasCommand(eff, req, t.stack, kind):
+				case kind == "graph" && carrier != "" && carrier != t.stack && hasCommand(eff, req, t.stack, kind):
 					note = "graph covered by graph/" + carrier
 				}
 				if note != "" {
@@ -185,10 +186,6 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 					jobs = append(jobs, job)
 					links = append(links, l)
 				}
-				// An edit plans no graph job, so it has no carrier either.
-				if kind == "graph" && ok && hasCommand(eff, req, t.stack, kind) {
-					carrier = t.stack
-				}
 			}
 		}
 	}
@@ -198,6 +195,35 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 		}
 	}
 	return jobs, nil
+}
+
+// carrierRank lists the stacks that carry the graph ahead of the others,
+// highest first: the first of them with a graph command carries it. A stack
+// outside the list ranks after all of them, and among those the byte order
+// decides.
+var carrierRank = []string{"go", "python", "gdscript"}
+
+// graphCarrier is the stack whose graph job a check plans: the highest-ranked
+// active stack with a graph command. "" in an edit, which plans no graph job
+// and so has no carrier, and when no stack has a graph command.
+func graphCarrier(eff Effective, req Request) string {
+	if req.Scope != ScopeCheck {
+		return ""
+	}
+	carrier, best := "", len(carrierRank)+1
+	for _, t := range targets(eff, req) {
+		if !hasCommand(eff, req, t.stack, "graph") {
+			continue
+		}
+		rank := slices.Index(carrierRank, t.stack)
+		if rank < 0 {
+			rank = len(carrierRank)
+		}
+		if rank < best {
+			carrier, best = t.stack, rank
+		}
+	}
+	return carrier
 }
 
 // graphOff is the first active stack, in byte order, whose table switches the

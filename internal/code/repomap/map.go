@@ -70,6 +70,8 @@ func langFromPath(p string) string {
 		return "javascript"
 	case ".py":
 		return "python"
+	case ".gd", ".godot", ".tres", ".tscn":
+		return "gdscript"
 	default:
 		clean := strings.TrimPrefix(ext, ".")
 		if clean == "" {

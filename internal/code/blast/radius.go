@@ -236,7 +236,10 @@ func evidence(seeds []evidenceSeed) ([]Evidence, int) {
 // compiles only for tests. Python: test_*.py and *_test.py (pytest's default
 // collection), tests.py (Django's app template, and a name unittest's
 // test*.py finds), conftest.py (pytest's fixtures), and every file under a
-// directory tests/ or test/ (the helpers beside the tests).
+// directory tests/ or test/ (the helpers beside the tests). GDScript: *_test.gd,
+// and every file under a directory test/ or tests/ (gdUnit4's default lookup
+// folder); a scene (.tscn) or resource (.tres) counts under those folders
+// alone, and project.godot never does.
 func IsTestPath(p string) bool {
 	switch path.Ext(p) {
 	case ".go":
@@ -245,6 +248,14 @@ func IsTestPath(p string) bool {
 		base := path.Base(p)
 		return strings.HasPrefix(base, "test_") || strings.HasSuffix(base, "_test.py") ||
 			base == "tests.py" || base == "conftest.py" || underDir(p, "tests") || underDir(p, "test")
+	case ".gd":
+		// gdUnit4 looks for suites under test/ by default; a project that
+		// moves its test_lookup_folder in project.godot is not followed, this
+		// predicate sees a path and no project.
+		return strings.HasSuffix(p, "_test.gd") || underDir(p, "test") || underDir(p, "tests")
+	case ".tscn", ".tres":
+		// A scene or resource under the test folders is a fixture of the suites.
+		return underDir(p, "test") || underDir(p, "tests")
 	}
 	return false
 }

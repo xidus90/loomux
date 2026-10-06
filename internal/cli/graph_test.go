@@ -519,6 +519,10 @@ func TestReportCountsExtendsOnlyWhenThereAreSome(t *testing.T) {
 			"0 files, 0 nodes, 4 edges (1 contains, 2 calls, 1 imports)"},
 		{[]model.Edge{edge(model.RelationContains), edge(model.RelationExtends), edge(model.RelationExtends)},
 			"0 files, 0 nodes, 3 edges (1 contains, 0 calls, 0 imports, 2 extends)"},
+		{[]model.Edge{edge(model.RelationContains), edge(model.RelationReferences), edge(model.RelationReferences)},
+			"0 files, 0 nodes, 3 edges (1 contains, 0 calls, 0 imports, 2 references)"},
+		{[]model.Edge{edge(model.RelationExtends), edge(model.RelationReferences)},
+			"0 files, 0 nodes, 2 edges (0 contains, 0 calls, 0 imports, 1 extends, 1 references)"},
 	} {
 		got, _, _ := strings.Cut(report(&model.Graph{Edges: c.edges}, stats, time.Second), "\n")
 		if got != c.want {

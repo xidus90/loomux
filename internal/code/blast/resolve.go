@@ -164,7 +164,7 @@ func isFileQuery(q string) bool {
 	}
 	ext := strings.ToLower(path.Ext(q))
 	switch ext {
-	case ".go", ".ts", ".tsx", ".js", ".jsx", ".py", ".rs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".java", ".json", ".toml", ".yaml", ".yml", ".md":
+	case ".gd", ".godot", ".tres", ".tscn", ".go", ".ts", ".tsx", ".js", ".jsx", ".py", ".rs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".java", ".json", ".toml", ".yaml", ".yml", ".md":
 		return true
 	default:
 		return false
