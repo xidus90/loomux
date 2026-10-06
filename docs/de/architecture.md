@@ -141,7 +141,7 @@ flowchart LR
 > **Pakete.** Das Lesemodell und die beiden Rechner sind `internal/code/model`,
 > `internal/code/pagerank` und `internal/code/blast`; den Graphen, den sie lesen,
 > erzeugen `sourceset`, die Extraktoren in `extract/all` (`extract/golang` auf
-> `go/parser`, `extract/python` auf dem gemeinsamen Tree-sitter-Kern
+> `go/parser`, `extract/python` und `extract/gdscript` auf dem gemeinsamen Tree-sitter-Kern
 > `extract/treesitter`, der auf `gotreesitter` in reinem Go läuft), `resolve` und
 > `store`, und `freshness` beantwortet, ob er noch zum Baum passt. `internal/code/lexicon` tokenisiert
 > Anfragen und Dokumente und führt die Beiakte `ask-index.json`; `internal/code/ask`
@@ -149,7 +149,7 @@ flowchart LR
 > PageRank (alpha=0.25), blendet Quelltext-Spans ein und fährt den gesperrten
 > Neubau. `ask` importiert den Extraktor nicht: der Neubau kommt als
 > `Rebuild`-Funktion herein, so bleibt der Abfragepfad vom Parser getrennt. Was
-> noch offen ist (Stufen G5b bis G5d), steht in der
+> noch offen ist (Stufen G5b und G5d), steht in der
 > [Roadmap](../../README.de.md#roadmap); jeden Befehl beschreibt die
 > [CLI-Referenz](cli-reference.md).
 

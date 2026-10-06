@@ -50,9 +50,20 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   `CGO_ENABLED=0` im Tor hält das fest. Eine Datei mit Syntaxfehlern bricht
   den Build nicht ab: sie behält ihren Dateiknoten, und der Bericht zählt die
   Fehler.
+- **Godot-Projekte** liest er seit G5c auf demselben Kern
+  (`internal/code/extract/gdscript`): GDScript, Szenen (`.tscn`), Ressourcen
+  (`.tres`) und `project.godot`, als eine Sprache, damit eine Szene ihr Skript
+  erreicht. `project.godot` legt die `res://`-Wurzel und die Autoloads fest;
+  ohne es gibt es keine `res://`-Kante. Ein Pfad ohne Schema gilt bei
+  `preload` ab dem Ordner des Skripts, bei `load` ab `res://` (so liest
+  Godot es), bei einem Autoload ab dem Ordner der `project.godot`. Ein Skript mit `class_name` ist ein
+  Klassenknoten über die ganze Datei.
 
-Jede Sprache löst in einem eigenen Namensindex auf; Kanten über
-Sprachgrenzen gibt es nicht. Unveränderte Dateien nimmt der Build aus dem
+Jede Sprache löst in einem eigenen Namensindex auf. Über eine Sprachgrenze geht
+nur ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest
+(etwa eine `.py`- oder `.go`-Datei): er landet auf deren Dateiknoten. Eine
+Datei, die kein Extraktor liest (eine Textur, heute auch ein `.cs`-Skript),
+ergibt keine Kante. Unveränderte Dateien nimmt der Build aus dem
 Extraktions-Cache (`.loomux/state/graph/cache/extract.json`), statt sie neu zu
 parsen; gelesen und gehasht wird trotzdem jede, und `--no-reuse` parst alle.
 `loomux graph check` extrahiert erneut, vergleicht mit dem Graphen auf der
@@ -107,12 +118,15 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
 - **Prüfart `graph`:** `check graph-fresh` baut bei Drift neu und ist nur rot,
   wenn der Neubau scheitert; `check blast-audit` ist rot, wenn ein geänderter
   Bereich mit genug Aufrufern keinen geänderten Test hat. Die Lane-Namen der
-  Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go und
-  Python; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom ersten
-  Stack mit Graph-Befehl, und `graph = false` unter einem Stack schaltet sie
+  Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go, Python
+  und GDScript; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
+  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript; ein Stack
+  ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
   für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
   `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter
-  `tests/` oder `test/`.
+  `tests/` oder `test/`, für GDScript `*_test.gd` und alles unter `test/`
+  oder `tests/`; Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
+  `project.godot` nie.
 - **Stop-Hook mit Blast-Logik:** `graph` steht auch im Profil `stop`. Am
   Rundenende prüft `blast-audit --cached` über eine Kopie des Index, die den
   ganzen Arbeitsbaum samt unversionierter Dateien trägt, alles gegen `HEAD`;
@@ -129,7 +143,8 @@ das Binary kommt über die üblichen Wege.
 - **Mehrsprachige Extraktion** (G5): G5a — die Schnittstelle, der Kern auf
   `gotreesitter`, Python und der Cache — ist fertig und an zwei Python-Repos
   abgenommen (`docs/.superpowers/parity/code-g5.md` in den Arbeitspapieren des
-  Archiv-Release `archive/parity-recordings`). Offen sind G5b (TypeScript/TSX), G5c (GDScript) und
+  Archiv-Release `archive/parity-recordings`); G5c (GDScript, Szenen,
+  Ressourcen) ist gebaut. Offen sind G5b (TypeScript/TSX) und
   G5d (C++, erst nach einer Recall-Prüfung gegen die C-Laufzeit). Der erste
   Plan, Tree-sitter als WebAssembly über `wazero`, ist verworfen.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als

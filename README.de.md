@@ -103,7 +103,7 @@ Eine Lane, die in einem Projekt noch nie grün war, warnt, statt zu scheitern. `
 
 Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen daraus via **Personalized PageRank**.
 
-Der Graph umfasst Go, gelesen mit `go/parser`, und Python, gelesen auf `gotreesitter`, einer Tree-sitter-Laufzeit in reinem Go, sodass das Binary CGo-frei bleibt. `loomux graph build` parst nur die Dateien, die sich seit dem letzten Build geändert haben, und nimmt den Rest aus seinem Extraktions-Cache; `--no-reuse` parst jede Datei.
+Der Graph umfasst Go, gelesen mit `go/parser`, sowie Python und Godot-Projekte — GDScript, Szenen, Ressourcen und `project.godot` —, gelesen auf `gotreesitter`, einer Tree-sitter-Laufzeit in reinem Go, sodass das Binary CGo-frei bleibt. `loomux graph build` parst nur die Dateien, die sich seit dem letzten Build geändert haben, und nimmt den Rest aus seinem Extraktions-Cache; `--no-reuse` parst jede Datei.
 
 `loomux graph ask` rankt Code-Symbole nach BM25-artiger lexikalischer Relevanz verschmolzen mit Personalized PageRank (alpha=0.25), baut einen driftenden Graphen vor der Antwort neu (nie einen ersten) und blendet mit `--source` den Span jedes Treffers ein. `loomux graph blast` zeigt über dieselben Kanten, was ein Git-Diff erreicht; die Prüfart `graph` prüft die gestagte Änderung in `loomux check precommit` genauso und am Stop-Tor die ganze Runde gegen `HEAD`, wo immer ein Graph gebaut wurde ([Konfiguration](docs/de/configuration.md#die-art-graph)).
 
@@ -156,8 +156,10 @@ Was loomux als Nächstes bekommt. *Priorität* ordnet die Zeilen (1 zuerst); die
 | **Skill-Suiten und Review** | Eingebettete Best-Practice-Regeln je Sprache (Go, Python, TypeScript, Rust); ein graphgestütztes Review, das `graph_blast` liest und die ADR-Treue prüft; verteilt über `.loomux/config.toml`, Host-Ordner, MCP-Prompts und die Web-Oberfläche | W4 | G4b ✅ | 5 |
 | **Flow-Editor und Kanban** | Flows als Graph im Web-OS zeichnen, wiedergeben und debuggen, im selben Format wie die Flow-Dateien; ein Kanban-Board, das Agentenschleifen, Prüf-Lanes und Subagenten live verfolgt | W5 | W1, Flow | 5 |
 | **TypeScript/TSX im Code-Graphen** | Extraktion auf demselben Tree-sitter-Kern in reinem Go (`gotreesitter`), der seit G5a Python liest | G5b | G5a ✅ | 6 |
-| **GDScript im Code-Graphen** | Derselbe Kern für GDScript aus Godot | G5c | G5b | 6 |
-| **C++ im Code-Graphen** | Derselbe Kern für C++, sobald eine Recall-Prüfung von `gotreesitter` gegen die C-Laufzeit trägt | G5d | G5c | 6 |
+| **Python-Quellwurzeln aus einer Projektdatei** | Der Python-Resolver errät, wo absolute Importe beginnen (Repository-Wurzel, der Ordner über jedem Top-Level-Paket, jeder Ordner mit `manage.py`); wo eine Projektdatei die Wurzeln festlegt, soll sie gelesen werden. Ob `pyproject.toml` das tut, ist offen: nur in werkzeugeigenen Formen, wenn überhaupt | G5a-Folge | — | — |
+| **Typisierte Felder im GDScript-Resolver** | Aufrufe und Signale auf einem Feld mit Typannotation (`var _screen: ColonyScreen`, dann `_screen.refresh()` oder `_screen.build_requested.connect(…)`) ergeben heute keine Kante. Der Extraktor hielte den annotierten Typ jedes Felds fest, der Resolver bindet das Feld darüber; lokale Namen und Parameter, die ein Feld verdecken, brauchen Regeln | G5c-Folge | — | — |
+| **Szenen-Autoloads im GDScript-Resolver** | Ein Autoload, der eine Szene ist (`Bus="*res://bus.tscn"`), bindet auf den Dateiknoten der Szene; Aufrufe und Signale über seinen Namen erreichen so kein Skript. Der Extraktor hielte das Wurzelskript jeder Szene fest, der Resolver bindet den Namen darüber | G5c-Folge | — | — |
+| **C++ im Code-Graphen** | Derselbe Kern für C++, sobald eine Recall-Prüfung von `gotreesitter` gegen die C-Laufzeit trägt | G5d | G5c ✅ | 6 |
 | **`verify.profiles` über `config set`** | `loomux config set verify.profiles… --propose` lehnt den Schlüssel als unbekannt ab; der Vorschlagsweg dieses Repositorys erreicht ihn nicht | 4e-Folge | — | — |
 | **Eine Repo-Wurzel als Wiki** | `[layout] wiki` lehnt die Wurzel eines Repositorys ab; ein Wiki-Repository wie ein reines Wiki-Projekt hat so keine Wiki-Lane | 4e-Folge | — | — |
 | **`dev bench cases` ohne Hook** | `dev bench cases` lehnt eine `settings.json` ohne Hook ab, statt nur die Zusatzfälle zu schreiben | 4e-Folge | — | — |
@@ -298,7 +300,7 @@ dem neuen Backbone.
 
 ### Code-Graph
 ```bash
-loomux graph build [--root <pfad>] [--no-reuse]  # Extrahiert Go und Python, löst auf und schreibt .loomux/state/graph/wiring.json; unveränderte Dateien kommen aus dem Extraktions-Cache
+loomux graph build [--root <pfad>] [--no-reuse]  # Extrahiert Go, Python und Godot-Projekte, löst auf und schreibt .loomux/state/graph/wiring.json; unveränderte Dateien kommen aus dem Extraktions-Cache
 loomux graph check [--root <pfad>]  # Extrahiert neu und vergleicht mit Graph auf Platte (Exit 1 bei Drift)
 loomux graph ask "<anfrage>" [flags] # Sucht Symbole gerankt nach lexikalischem Score und Personalized PageRank; baut nie einen ersten Graphen
 loomux graph callers <symbol>       # Zeigt Aufrufer, Aufgerufene (--direction out) oder transitive Hülle (-d all)
