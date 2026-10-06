@@ -43,7 +43,7 @@ func source(fields string) string {
 
 func TestEveryMissingFieldMakesASourceIncomplete(t *testing.T) {
 	full := map[string]string{
-		"id": "id: s", "resource": "resource: https://x.invalid/s", "doc_id": "doc_id: d",
+		"id": "id: s", "resource": "resource: brain://project/x/s.md", "doc_id": "doc_id: d",
 		"content_hash": "content_hash: h", "revision": "revision: 1",
 	}
 	for missing := range full {
@@ -57,6 +57,17 @@ func TestEveryMissingFieldMakesASourceIncomplete(t *testing.T) {
 		if !strings.Contains(got, "a.md:no-sources:error: source entries lack") {
 			t.Errorf("a source without %s passed:\n%s", missing, got)
 		}
+	}
+}
+
+func TestAWebSourceNeedsNoPin(t *testing.T) {
+	page := "---\ntype: Topic\nsources:\n" +
+		"  - { id: web, resource: https://x.invalid/s }\n" +
+		"  - { id: plain, resource: http://x.invalid/s }\n" +
+		"  - { id: local, resource: brain://project/x/s.md }\n---\n"
+	got := edgeSweep(t, SweepContext{}, map[string]string{"a.md": page})
+	if !strings.Contains(got, "a.md:no-sources:error: source entries lack id, resource, doc_id, content_hash or revision: local\n") {
+		t.Fatalf("findings:\n%s", got)
 	}
 }
 

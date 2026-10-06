@@ -115,6 +115,9 @@ func noSources(pages []wiki.WikiPage) []check.Finding {
 // Three fields and no more. The design calls them "die drei Felder, an
 // denen die Wartung hängt", and Scheibe 3 §4 lists the same three.
 //
+// A web source is exempt: nothing in the register can pin it (see
+// `wiki.IsWebResource`).
+//
 // Two fields Python asks for in the same expression
 // (`src/brain/wiki/lint.py:135`) are handed to the okf axis instead,
 // because OKF binds both and reporting them here would put one defect
@@ -140,6 +143,9 @@ func sourceIncomplete(pages []wiki.WikiPage) []check.Finding {
 			continue
 		}
 		for i, s := range p.Sources {
+			if wiki.IsWebResource(s.Resource) {
+				continue
+			}
 			var missing []string
 			if strings.TrimSpace(s.DocID) == "" {
 				missing = append(missing, "doc_id")

@@ -113,7 +113,8 @@ func noSources(pages []sweepPage, _ SweepContext, _ sweepPatterns) []check.Findi
 		}
 		var incomplete []string
 		for _, s := range page.sources {
-			if s.id == "" || s.resource == "" || s.docID == "" || s.contentHash == "" || s.revision == nil {
+			unpinned := !IsWebResource(s.resource) && (s.docID == "" || s.contentHash == "" || s.revision == nil)
+			if s.id == "" || s.resource == "" || unpinned {
 				incomplete = append(incomplete, cmpOr(s.id, "<unnamed>"))
 			}
 		}
@@ -123,6 +124,15 @@ func noSources(pages []sweepPage, _ SweepContext, _ sweepPatterns) []check.Findi
 		}
 	}
 	return out
+}
+
+// IsWebResource reports a source on the web. It has no register entry, so
+// `doc_id`, `content_hash` and `revision` cannot exist for it, and asking for
+// them would make every cited paper or manual a standing error. The Python
+// reference asks for them anyway; loomux departs from it here on purpose.
+func IsWebResource(resource string) bool {
+	r := strings.ToLower(strings.TrimSpace(resource))
+	return strings.HasPrefix(r, "https://") || strings.HasPrefix(r, "http://")
 }
 
 func cmpOr(s, fallback string) string {
