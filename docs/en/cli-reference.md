@@ -895,8 +895,7 @@ The flags choose the release by hand; at most one at a time:
 
 - `--beta` takes the newest release of either kind and sets the marker
   `<state dir>/channel` (the line `beta`), so that `serve` keeps taking betas.
-- `--stable` takes the newest stable release and removes the marker. Before the first stable release of the new count
-  exists it ends with "no release in channel stable" (exit 1).
+- `--stable` takes the newest stable release and removes the marker.
 - `--version <x.y.z>` takes exactly that version (`v` prefix optional; a beta
   such as `1.1.0-beta.2` is fine). A stable version removes the marker, a beta
   sets it. A downgrade this way does not hold: `serve` lifts the binary again

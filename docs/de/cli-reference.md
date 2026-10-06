@@ -924,8 +924,7 @@ Die Flags wählen das Release von Hand; höchstens eines zugleich:
 - `--beta` nimmt das neueste Release beider Arten und setzt die Markierung
   `<Zustandsverzeichnis>/channel` (die Zeile `beta`), damit `serve` weiter
   Betas nimmt.
-- `--stable` nimmt das neueste stabile Release und entfernt die Markierung. Solange es noch kein stabiles Release der neuen
-  Zählung gibt, endet es mit „no release in channel stable“ (Exit 1).
+- `--stable` nimmt das neueste stabile Release und entfernt die Markierung.
 - `--version <x.y.z>` nimmt genau diese Version (Präfix `v` ist erlaubt; eine
   Beta wie `1.1.0-beta.2` geht auch). Eine stabile Version entfernt die
   Markierung, eine Beta setzt sie. Ein Downgrade auf diesem Weg hält nicht:

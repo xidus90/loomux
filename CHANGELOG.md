@@ -4,7 +4,10 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
-## [10.1.0] - 2026-10-06
+Entries marked `-beta` belong to the pre-release count before 1.0.0; their
+tags were deleted when 1.0.0 was released, the pull requests they link stay.
+
+## [10.1.0-beta] - 2026-10-06
 
 <https://github.com/xidus90/loomux/pull/84>
 
@@ -13,7 +16,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Removed
 - The migration plan (`docs/en/migration.md`, `docs/de/migration.md`); open work is on the roadmap in the README.
 
-## [10.0.0] - 2026-10-06
+## [10.0.0-beta] - 2026-10-06
 
 <https://github.com/xidus90/loomux/pull/85>
 
@@ -46,14 +49,14 @@ follow [Semantic Versioning](https://semver.org/).
 - An `open.toml` entry whose kind cannot be read makes the guard ignore the whole file and say why, instead of exempting the entry unchecked.
 - A hand-written catalog line linking `/../<hidden path>` no longer reaches the cloud channel when the target lies in a `local_only` tree.
 
-## [9.0.0] - 2026-10-05
+## [9.0.0-beta] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/83>
 
 ### Removed
 - `loomux dev import-cases`, `loomux dev record-case` and `loomux dev record-mcp-case`; the recorded cases they made and translated are in the archive release `archive/parity-recordings`.
 
-## [8.0.0] - 2026-10-05
+## [8.0.0-beta] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/82>
 
@@ -68,7 +71,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux status` prints `Wiki:` for the wiki line.
 - The `brain-review` skill template uses a neutral case id.
 
-## [7.2.0] - 2026-10-05
+## [7.2.0-beta] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/80>
 
@@ -79,14 +82,14 @@ follow [Semantic Versioning](https://semver.org/).
 - The self-update ranks a coming release 1.0.0 and its betas above every release so far and takes a beta only on a machine whose `<state dir>/channel` holds `beta`.
 - Session start warns when an update pass kept the binary but could not read or write the channel file.
 
-## [7.1.0] - 2026-10-05
+## [7.1.0-beta] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/78>
 
 ### Changed
 - `loomux check` and the stop hook leave out a kind of `all` or of a built-in profile that the project has no lane for, with the note `no lane for <kind> here, left out`, instead of failing; a kind named on the command line or in a profile the project sets still fails with `nothing to check for <kind>`, and so does a run in which no lane ran at all.
 
-## [7.0.2] - 2026-10-05
+## [7.0.2-beta] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/77>
 
@@ -94,14 +97,14 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux convert` no longer suggests filing a note into a workspace that declares no `[area]`.
 - `loomux fetch --scope` and `loomux lint --scope` name a workspace that declares no `[area]` as such, instead of advising an inbox or a wiki path; `loomux lint` over all areas passes it over, and the signpost is not asked to link its wiki.
 
-## [7.0.1] - 2026-10-04
+## [7.0.1-beta] - 2026-10-04
 
 <https://github.com/xidus90/loomux/pull/69>
 
 ### Fixed
 - `loomux dev import-cases` no longer leaves a half-translated world (untranslated `.brain.toml`, missing `.loomux/config.toml`) when a file is briefly locked on Windows; the previous world is kept instead.
 
-## [7.0.0] - 2026-10-03
+## [7.0.0-beta] - 2026-10-03
 
 <https://github.com/xidus90/loomux/pull/68>
 
@@ -114,14 +117,14 @@ follow [Semantic Versioning](https://semver.org/).
 ### Added
 - `loomux dev import-cases` rewrites a recorded MCP result by `[[result]]` rules on import.
 
-## [6.2.1] - 2026-10-03
+## [6.2.1-beta] - 2026-10-03
 
 <https://github.com/xidus90/loomux/pull/67>
 
 ### Fixed
 - Brain commands and the MCP brain tools no longer fail with "no manifest found" when the registry holds a workspace without an `[area]` declaration, such as one written by `loomux init --brain=none`.
 
-## [6.2.0] - 2026-10-03
+## [6.2.0-beta] - 2026-10-03
 
 <https://github.com/xidus90/loomux/pull/66>
 
@@ -130,7 +133,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Added
 - The init part `workspace`, which registers a project without the Brain module and is named in the plan and the interview.
 
-## [6.1.0] - 2026-10-01
+## [6.1.0-beta] - 2026-10-01
 
 <https://github.com/xidus90/loomux/pull/64>
 
@@ -146,7 +149,7 @@ follow [Semantic Versioning](https://semver.org/).
 - A file `init` replaces keeps its permissions; a hook gains its exec bit.
 - With `.loomux/armed.toml`, a post-edit run red only in lanes on probation ends with 0 (1 on a host without a context channel, such as Codex) instead of 2, and a turn end red only on probation ends with 0 and resets the block counter.
 
-## [6.0.2] - 2026-10-01
+## [6.0.2-beta] - 2026-10-01
 
 <https://github.com/xidus90/loomux/pull/63>
 
@@ -157,14 +160,14 @@ follow [Semantic Versioning](https://semver.org/).
 - The guard reads a variable or alias set on the same line, 8.3 short names and trailing dots in the default mode as well.
 - Strict mode refuses a variable in front of a protected path tail and a protected path inside the code an unknown program gets.
 
-## [6.0.1] - 2026-10-01
+## [6.0.1-beta] - 2026-10-01
 
 <https://github.com/xidus90/loomux/pull/62>
 
 ### Fixed
 - The guard now recognises loomux commands and protected-path writes behind `winpty`, `stdbuf`, `ionice`, `setsid`, `chronic` and `unbuffer` (each also as `<name>.exe`) and behind any program it does not know, reads every wrapper's value flags the way getopt does (bundles, abbreviated long options, redirections, `env -`, `exec -a`, GNU `time -o`), no longer lets a `cd`/`env -C`/`sudo -D` behind a wrapper mislead the folder it judges, treats a file named like a shell word as a program, and reads `cmd`'s glued command and caret escape, PowerShell's dot-source `.`, `go.exe run` and a piped removal behind `xargs -I{}`.
 
-## [6.0.0] - 2026-10-01
+## [6.0.0-beta] - 2026-10-01
 
 <https://github.com/xidus90/loomux/pull/61>
 
@@ -187,7 +190,7 @@ follow [Semantic Versioning](https://semver.org/).
 - The Python types lane no longer fails with "Missing target module" on a project without mypy configuration, and the test and coverage lanes no longer fail with "Failed to spawn" where pytest or coverage are not dependencies of the project.
 - The GDScript lint lane runs `gdlint` from the package `gdtoolkit`; `uvx gdlint` named a package that does not exist.
 
-## [5.3.1] - 2026-09-29
+## [5.3.1-beta] - 2026-09-29
 
 <https://github.com/xidus90/loomux/pull/60>
 
@@ -199,7 +202,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Security
 - A `local_only` area whose wiki lies inside another area's wiki is no longer readable on the cloud channel through the enclosing area.
 
-## [5.3.0] - 2026-09-28
+## [5.3.0-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/59>
 
@@ -213,14 +216,14 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Shell spellings that passed the guard before are refused: `ln`, `tar`, `unzip`, `Expand-Archive`, `New-Item`, `touch`, `robocopy`, `xcopy`, `rsync`, `find -delete` with a protected name, `curl`/`wget` downloads, globs and braces in fixed path segments, wrapper flags with a value, `$(…)` before a protected path, `eval`, `Join-Path`, removals fed by a pipe, verbs inside `sh -c` / `pwsh -Command` / `cmd /c` strings, and NTFS stream suffixes.
 
-## [5.2.1] - 2026-09-28
+## [5.2.1-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/57>
 
 ### Fixed
 - Under Antigravity, the post-edit hook's notices (callers the blast monitor found, lanes it skipped) now reach the model after an edit instead of being dropped.
 
-## [5.2.0] - 2026-09-28
+## [5.2.0-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/58>
 
@@ -231,7 +234,7 @@ follow [Semantic Versioning](https://semver.org/).
 - A graph rebuild lock left by a process that is no longer running is broken at once instead of blocking graph refreshes for up to an hour.
 - `loomux config get` and `loomux config list` show `graph` in the default `precommit` profile.
 
-## [5.1.0] - 2026-09-28
+## [5.1.0-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/55>
 
@@ -243,7 +246,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux dev record-poppler` records Poppler's output for the test PDFs.
 - The guard refuses `loomux convert` and `loomux fetch` to an agent, and `[modules] brain = false` refuses both commands.
 
-## [5.0.0] - 2026-09-28
+## [5.0.0-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/56>
 
@@ -251,14 +254,14 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux self-update` is renamed to `loomux upgrade`; the old name is gone.
 - The session-start warning about a failed update of the machine-wide binary now says "updating loomux failed at …" and names `loomux upgrade` to retry.
 
-## [4.2.3] - 2026-09-28
+## [4.2.3-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/54>
 
 ### Fixed
 - `loomux dev bench search` without `--scope` measures the areas its question set points at instead of only `knowledge`, and refuses an expected page that lies in no registered area.
 
-## [4.2.2] - 2026-09-28
+## [4.2.2-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/53>
 
@@ -273,14 +276,14 @@ follow [Semantic Versioning](https://semver.org/).
 - Antigravity: `loomux hook session-start` treats only the first model call of a conversation as its start. agy counts `invocationNum` from 0, so the second call was taken for a first one and repeated the binary and update warnings; and a session is revived only at the first call, so a marker it cannot remove is no longer repeated before every later one.
 - Antigravity: `invocationNum` is also read as a decimal string, protojson's spelling of a 64-bit integer.
 
-## [4.2.1] - 2026-09-28
+## [4.2.1-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/52>
 
 ### Fixed
 - A `fast` search across several areas returned the best hit of each area in the order the areas were named, whatever its similarity; it now ranks all areas together.
 
-## [4.2.0] - 2026-09-28
+## [4.2.0-beta] - 2026-09-28
 
 <https://github.com/xidus90/loomux/pull/50>
 
@@ -294,7 +297,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - The guard's built-in path rules match a path in any case, so `.ENV`, `GO.SUM` or `.LOOMUX/No-Verify` are protected on Windows and macOS too.
 
-## [4.1.0] - 2026-09-27
+## [4.1.0-beta] - 2026-09-27
 
 <https://github.com/xidus90/loomux/pull/48>
 
@@ -303,7 +306,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - `dev bench search` reports now name the qmd backbone for everyday runs that started the search daemon.
 
-## [4.0.0] - 2026-09-27
+## [4.0.0-beta] - 2026-09-27
 
 <https://github.com/xidus90/loomux/pull/47>
 
@@ -316,7 +319,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - `dev bench repos --timeout` now limits the time spent on each repository; it was ignored.
 
-## [3.3.0] - 2026-09-26
+## [3.3.0-beta] - 2026-09-26
 
 <https://github.com/xidus90/loomux/pull/44>
 
@@ -331,14 +334,14 @@ follow [Semantic Versioning](https://semver.org/).
 - A graph built by an earlier loomux is rebuilt once on the next query, because the extractor stamp now names every language.
 - The binary is about 12 MB larger and its start about 1–2 ms slower, the cost of the tree-sitter runtime.
 
-## [3.2.0] - 2026-09-26
+## [3.2.0-beta] - 2026-09-26
 
 <https://github.com/xidus90/loomux/pull/45>
 
 ### Added
 - `loomux init` can pull the local model into Ollama when it is missing (part `model` of the brain module, on by default for `local_only` projects or with `[model] enabled = true`), showing its progress; Ctrl+C ends only the download.
 
-## [3.1.0] - 2026-09-26
+## [3.1.0-beta] - 2026-09-26
 
 <https://github.com/xidus90/loomux/pull/43>
 
@@ -350,7 +353,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux approve --reject` advances the page's sources and the identity register, so the next `reconcile` no longer reopens the rejected case; it halts, like an approval, when a source changed again since the case was opened.
 - `loomux reindex` and `loomux approve` share a lock per area, so a register advanced by an approval is no longer lost to a reindex running at the same time.
 
-## [3.0.0] - 2026-09-25
+## [3.0.0-beta] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/42>
 
@@ -373,7 +376,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux init` on Linux no longer takes a state directory that differs from `$LOCALAPPDATA/loomux` only in case for the place of the installed binary.
 - The guard lets an agent run `loomux config --root <dir> list` and other reads or `--propose` calls that name `--root` or `--global` before the subcommand; writes stay refused.
 
-## [2.14.2] - 2026-09-25
+## [2.14.2-beta] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/41>
 
@@ -385,14 +388,14 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux hook post-tool-use` writes a single JSON document for an edit naming several files, so the host no longer reports a hook error, and a file the shared budget did not reach is named there.
 - `loomux init` recognises its entry inside a hook block that holds both a `command` and a `hooks` list, instead of adding a second entry that made the hook fire twice.
 
-## [2.14.1] - 2026-09-25
+## [2.14.1-beta] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/40>
 
 ### Fixed
 - `loomux self-update` and serve's update pass replace a development build (`0.0.0-dev`) at `%LOCALAPPDATA%\loomux\bin\loomux.exe` with the newest release instead of skipping it on every pass.
 
-## [2.14.0] - 2026-09-25
+## [2.14.0-beta] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/39>
 
@@ -402,7 +405,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - `loomux init` refuses a hook file whose root is `null` instead of reading it as empty.
 
-## [2.13.2] - 2026-09-25
+## [2.13.2-beta] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/37>
 
@@ -418,7 +421,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux merge-hook install` keeps the records of the hooks it wrote before a failure.
 - `loomux merge-hook status` reports a hook git no longer runs after `core.hooksPath` changed as `moved`.
 
-## [2.13.1] - 2026-09-25
+## [2.13.1-beta] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/38>
 
@@ -426,7 +429,7 @@ follow [Semantic Versioning](https://semver.org/).
 - A session resumed in a linked worktree with `[worktree] mirror` keeps its stop-gate base, so the next turn end still checks every commit since the last green run instead of none.
 - A session resumed more than a day after its last turn end counts again for `worktree unlink`, so another session ending in the same worktree no longer removes its junctions.
 
-## [2.13.0] - 2026-09-25
+## [2.13.0-beta] - 2026-09-25
 
 <https://github.com/xidus90/loomux/pull/36>
 
@@ -437,14 +440,14 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - A `core.hooksPath` starting with `~` is now read the way git expands it.
 
-## [2.12.1] - 2026-09-24
+## [2.12.1-beta] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/28>
 
 ### Fixed
 - `loomux approve` writes its line in `log.md` newest first, under one `## YYYY-MM-DD` heading per day as OKF §9 requires, instead of appending it at the end of the file.
 
-## [2.12.0] - 2026-09-24
+## [2.12.0-beta] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/27>
 
@@ -458,7 +461,7 @@ follow [Semantic Versioning](https://semver.org/).
 - The guard refuses an agent `loomux init`, `loomux config set`, `loomux config unset`, `loomux config apply`, `loomux config reject`, the interactive `loomux config` and `loomux area add`; `loomux config list`, `get`, `proposals` and a direct `set|unset … --propose` stay allowed.
 - `loomux mcp` offers only the tools of the modules a project leaves on; a broken `[modules]` table makes it exit 1.
 
-## [2.11.1] - 2026-09-24
+## [2.11.1-beta] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/25>
 
@@ -467,14 +470,14 @@ follow [Semantic Versioning](https://semver.org/).
 - The blast radius no longer counts unchanged symbols between two nearby changes as changed.
 - `graph_blast` reports `changed` instead of `stale` when a test file hidden by a `never` rule changed together with the code it covers.
 
-## [2.11.0] - 2026-09-24
+## [2.11.0-beta] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/21>
 
 ### Added
 - The write barrier reads `open.toml` in the state directory (`files = ["C:/Users/me/.claude/AGENT_LEARNINGS.md"]`) and keeps each single file listed there open to every agent, like the agents' memory. An unusable `open.toml` opens nothing, and the refusal names the reason.
 
-## [2.10.0] - 2026-09-24
+## [2.10.0-beta] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/24>
 
@@ -489,7 +492,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - `graph_trace_calls` treated a depth like 0.5 as zero and returned no callers; it now floors to at least one.
 
-## [2.9.1] - 2026-09-24
+## [2.9.1-beta] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/23>
 
@@ -498,7 +501,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `graph grep` no longer rejects valid patterns such as `\\1` (a literal backslash before a digit) or `\(?=` as unsupported.
 - On Windows, git variables such as `git_dir` spelled in lower or mixed case are no longer passed to loomux's git child processes.
 
-## [2.9.0] - 2026-09-24
+## [2.9.0-beta] - 2026-09-24
 
 <https://github.com/xidus90/loomux/pull/22>
 
@@ -509,7 +512,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - `loomux dev swap-binary` puts the previous binary back when the new one cannot take its place, instead of leaving no `loomux.exe` behind.
 
-## [2.8.0] - 2026-09-23
+## [2.8.0-beta] - 2026-09-23
 
 <https://github.com/xidus90/loomux/pull/20>
 
@@ -522,7 +525,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - `loomux lint` without a file no longer stops with a usage error; it lints every registered bundle.
 
-## [2.7.0] - 2026-09-23
+## [2.7.0-beta] - 2026-09-23
 
 <https://github.com/xidus90/loomux/pull/19>
 
@@ -531,7 +534,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux case <id> [--package]` shows a case with its package and proposal; local-only material is withheld unless `--package` is given.
 - `loomux approve <id>` applies a proposal whose every claim quotes its evidence, and commits the change; `--amend PATH` approves a corrected proposal, `--reject` rejects it, `--defer` leaves the case waiting.
 
-## [2.6.0] - 2026-09-23
+## [2.6.0-beta] - 2026-09-23
 
 <https://github.com/xidus90/loomux/pull/18>
 
@@ -540,7 +543,7 @@ follow [Semantic Versioning](https://semver.org/).
 - Four new MCP tools: `graph_file_api`, `graph_trace_calls`, `graph_find_all`, and `graph_repo_map` with fail-closed privacy redaction on cloud channel
 - Query orchestration and pure algorithmic packages for AST symbol spans, blast resolution/walks, skeleton extraction, symbol-coupled grep, and token-budgeted repo orientation maps
 
-## [2.5.0] - 2026-09-22
+## [2.5.0-beta] - 2026-09-22
 
 <https://github.com/xidus90/loomux/pull/16>
 
@@ -552,7 +555,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - `loomux brain` commands and `loomux serve` read the artefacts of read-only areas and the reconcile stamp from loomux's state directory first and fall back to ultra-brain's directory while nothing lies there.
 
-## [2.4.0] - 2026-09-22
+## [2.4.0-beta] - 2026-09-22
 
 <https://github.com/xidus90/loomux/pull/15>
 
@@ -560,7 +563,7 @@ follow [Semantic Versioning](https://semver.org/).
 - Antigravity host adapter in internal/hosts reading conversationId payloads
 - Normalized hook payload fixtures for Antigravity stop, pre-invocation, pre-tool, and post-tool events
 
-## [2.3.0] - 2026-09-22
+## [2.3.0-beta] - 2026-09-22
 
 <https://github.com/xidus90/loomux/pull/14>
 
@@ -574,7 +577,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux hook session-start` keeps an existing session base on resume and compact instead of moving it to HEAD.
 - `loomux hook status` reports each hook event loomux serves and flags the `ultraloom hook stop` and subagent hooks as superseded.
 
-## [2.2.0] - 2026-09-20
+## [2.2.0-beta] - 2026-09-20
 
 <https://github.com/xidus90/loomux/pull/13>
 
@@ -587,7 +590,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux check commit-msg` reads every line of a message instead of the subject alone, and a line is refused at two hits instead of one. Code spans, quotes, paths, git trailers, the scissors line and `[[commit.allow]]` matches are exempt.
 - A refusal now names each refused line with its line number and the words that count against it, and exits 1 as before.
 
-## [2.1.0] - 2026-09-19
+## [2.1.0-beta] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/10>
 
@@ -604,14 +607,14 @@ follow [Semantic Versioning](https://semver.org/).
 ### Removed
 - `loomux dev covergate`; use `loomux check gocover`.
 
-## [2.0.1] - 2026-09-19
+## [2.0.1-beta] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/9>
 
 ### Fixed
 - The pre-tool-use guard refuses shell commands (Bash and PowerShell) that write, move or delete `.loomux/config.toml`, as it already refused writing tools; reading it stays allowed.
 
-## [2.0.0] - 2026-09-19
+## [2.0.0-beta] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/8>
 
@@ -621,7 +624,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - `loomux graph ask` no longer builds a graph that was never built: without one it exits 1 and points at `loomux graph build`.
 
-## [1.3.0] - 2026-09-19
+## [1.3.0-beta] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/7>
 
@@ -633,7 +636,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - `loomux dev swap-binary` keeps up to sixteen numbered `loomux.old.<n>.exe` slots and sweeps the ones whose process has ended, so a swap no longer fails when a process started from an earlier swap still holds the old name.
 
-## [1.2.1] - 2026-09-19
+## [1.2.1-beta] - 2026-09-19
 
 <https://github.com/xidus90/loomux/pull/5>
 
@@ -642,7 +645,7 @@ follow [Semantic Versioning](https://semver.org/).
 - `graph build` reports a freshness record it could not write and exits 0, instead of exiting 1 for a build whose graph and sidecar are on disk and correct.
 - `graph ask` restores the rebuild lock by hard link and falls back to a rename, instead of deleting its claim unconditionally. On a network share, exFAT or a container bind mount the live lock was removed and two runs rebuilt at the same time.
 
-## [1.2.0] - 2026-09-18
+## [1.2.0-beta] - 2026-09-18
 
 <https://github.com/xidus90/loomux/pull/6>
 
@@ -652,7 +655,7 @@ follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - post-tool-use skips the `cmake --build build` lane with a notice when `build/CMakeCache.txt` is missing, instead of blocking the edit.
 
-## [1.1.0] - 2026-09-18
+## [1.1.0-beta] - 2026-09-18
 
 <https://github.com/xidus90/loomux/pull/3>
 
@@ -660,14 +663,14 @@ follow [Semantic Versioning](https://semver.org/).
 - `loomux graph ask "<question>"` answers from the code graph with ranked definitions and their locations; `--in`, `--limit`, `--source`, `--full`, `--json` and `--no-refresh` shape the answer.
 - `loomux graph build` writes an ask index next to the graph, so a question can match words in function bodies.
 
-## [1.0.1] - 2026-09-18
+## [1.0.1-beta] - 2026-09-18
 
 <https://github.com/xidus90/loomux/pull/4>
 
 ### Fixed
 - The `pr-label` check refuses a pull request containing a commit whose header is not a Conventional Commit.
 
-## [1.0.0] - 2026-09-18
+## [1.0.0-beta] - 2026-09-18
 
 <https://github.com/xidus90/loomux/pull/1>
 

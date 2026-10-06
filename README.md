@@ -432,8 +432,20 @@ Every merged pull request to `master` is released according to its label:
 | `release:patch` | Bug fix or dependency update, compatible | `X.Y.Z+1` |
 | `release:none` | Docs, CI or tests only | no release |
 
-Every release is a beta pre-release until `RELEASE_CHANNEL` is set to
-`stable`. What changed is in [`CHANGELOG.md`](CHANGELOG.md).
+A release without a suffix is stable; one with a suffix (`1.1.0-beta.1`) is a
+pre-release. What changed is in [`CHANGELOG.md`](CHANGELOG.md); an entry is
+written only with a stable release, and the entries marked `-beta` are the
+count before 1.0.0.
+
+A beta is cut by hand from any branch, tag or commit, without a pull request:
+run the `release` workflow with `mode=beta`, `ref` (what to build) and `bump`
+(`major`, `minor` or `patch`, default `minor`), for example
+`gh workflow run release.yml -f mode=beta -f ref=my-branch -f bump=minor`. It
+publishes `vX.Y.Z-beta.N` as a pre-release for the version the next stable
+release would take, `N` one above the highest beta of it. It commits nothing
+and leaves the changelog alone; the tag is its only trace. Install one with
+`loomux upgrade --beta` (the newest release, betas included) or
+`loomux upgrade --version <x.y.z-beta.n>`.
 
 A machine follows the beta channel while the file `channel` in its state
 directory holds `beta`: it takes every newer release, beta or stable. Without
@@ -490,8 +502,7 @@ skill does the steps below; by hand:
    gh label create release:patch --color 1D76DB --description "Bug fix or dependency update"
    gh label create release:none --color CCCCCC --description "No release"
    ```
-2. Channel: `gh variable set RELEASE_CHANNEL --body beta`
-3. GitHub App (Settings → Developer settings → GitHub Apps → New): name
+2. GitHub App (Settings → Developer settings → GitHub Apps → New): name
    `loomux-release`, webhook off, repository permissions `Contents: Read and
    write`, `Pull requests: Read-only`, `Metadata: Read-only`, "Only on this
    account". Generate a private key, install the app only on
@@ -500,7 +511,7 @@ skill does the steps below; by hand:
    gh secret set RELEASE_APP_CLIENT_ID --body <client-id>
    gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
    ```
-4. Rulesets (once the repository is public): one for `master` and one for
+3. Rulesets (once the repository is public): one for `master` and one for
    tags `v*`, each with the `loomux-release` app as the only bypass actor.
    The `master` ruleset also requires the status checks `gate-windows` and
    `build-linux` (workflow `ci`) and `check` (workflow `pr-label`).
