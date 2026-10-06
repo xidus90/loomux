@@ -24,8 +24,8 @@ var commitPaths = vcs.CommitPaths
 // `written` for an approval, `decision recorded` for a rejection, which
 // leaves the page's text as it was and moves only its `sources[]`.
 //
-// scratch is the directory vcs keeps its scratch index in; the caller owns
-// it, as Python's CLI hands over one below the state directory.
+// scratch is the directory vcs builds its scratch indexes in; the caller owns
+// it, and a commit leaves nothing in it.
 func commit(vault, caseID, said, message string, add, remove []string, scratch string) (sha, warning string) {
 	message += "\n"
 	retried := false

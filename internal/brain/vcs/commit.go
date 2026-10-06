@@ -3,7 +3,6 @@ package vcs
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,10 +51,13 @@ var beforeUpdateRef func()
 // and every other process in the tree, and a foreign `index.lock` would fail
 // this call after the wiki is already written. `git commit -- <paths>` is no
 // way out either, because it commits the working-tree state of those paths
-// while the caller's hash guard protects only the target page. The scratch
-// index is `<scratch>/index`, deleted before use: a leftover would stage an
-// earlier run's paths into the first commit of an unborn branch, which has no
-// tree to read over it.
+// while the caller's hash guard protects only the target page. Every call
+// builds its tree in an index of its own, in a fresh directory below scratch
+// that is removed on return: scratch is shared by every vault and every process
+// of the machine, and a shared index file would let one call empty the other's
+// tree -- a commit that deletes every file but its own. A fresh index also never
+// carries an earlier run's staged paths into the first commit of an unborn
+// branch, which has no tree to read over it.
 //
 // `update-ref` gets the old value it expects, so a foreign commit made in
 // between is refused rather than silently lost. Telling a lost swap from any
@@ -104,9 +106,12 @@ func CommitPaths(repo, message string, add, remove []string, scratch string) (*C
 
 	ref := g.currentRef()
 	old := g.resolve(ref)
-	if g.index, err = scratchIndex(scratch); err != nil {
+	index, dir, err := scratchIndex(scratch)
+	if err != nil {
 		return nil, err
 	}
+	defer os.RemoveAll(dir)
+	g.index = index
 	if old != "" {
 		g.must("", "read-tree", old)
 	}
@@ -217,23 +222,23 @@ func refuseOperationInProgress(gitDir string) error {
 	return nil
 }
 
-// scratchIndex is the absolute path of the scratch index below scratch, with
-// any leftover of an earlier run gone. Absolute, because git resolves
-// GIT_INDEX_FILE against the repository it runs in, not against this process.
-func scratchIndex(scratch string) (string, error) {
-	file, err := filepath.Abs(filepath.Join(scratch, "index"))
+// scratchIndex is a fresh directory below scratch and the absolute path of the
+// index inside it. The index file does not exist yet, which git reads as an
+// empty index; a zero-byte file would be refused. Absolute, because git
+// resolves GIT_INDEX_FILE against the repository it runs in, not against this
+// process.
+func scratchIndex(scratch string) (file, dir string, err error) {
+	dir, err = filepath.Abs(scratch)
 	if err == nil {
-		err = os.MkdirAll(scratch, 0o755)
+		err = os.MkdirAll(dir, 0o755)
 	}
 	if err == nil {
-		if err = os.Remove(file); errors.Is(err, fs.ErrNotExist) {
-			err = nil
-		}
+		dir, err = os.MkdirTemp(dir, "index-")
 	}
 	if err != nil {
-		return "", fmt.Errorf("scratch index %s is unusable: %w", file, err)
+		return "", "", fmt.Errorf("scratch index in %s is unusable: %w", scratch, err)
 	}
-	return file, nil
+	return filepath.Join(dir, "index"), dir, nil
 }
 
 // nothing is how an unborn ref's value reads in a message.
