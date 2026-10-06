@@ -111,19 +111,19 @@ func (p *place) recordCase(path string, c maintenance.Case) error {
 	return p.touch(path, func() (bool, error) { return maintenance.WriteCase(path, c) })
 }
 
-// remove is `_remove`: recorded before it runs and never withdrawn, because
-// a deletion that stops half-way has still changed the directory.
+// remove is `_remove`: recorded once the directory is known to be there,
+// before the deletion runs, and never withdrawn, because a deletion that
+// stops half-way has still changed the directory.
 func (p *place) remove(dir string) error {
 	if err := p.gate(dir, false); err != nil {
 		return err
 	}
-	p.touched = append(p.touched, p.relative(dir))
 	// `rmtree` raises on a directory that is not there, and os.RemoveAll
-	// answers nil: without this the record would name a deletion that never
-	// happened.
+	// answers nil: without this a missing directory would pass as deleted.
 	if _, err := os.Lstat(dir); err != nil {
 		return err
 	}
+	p.touched = append(p.touched, p.relative(dir))
 	return removeAll(dir)
 }
 
