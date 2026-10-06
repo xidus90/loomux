@@ -42,7 +42,11 @@ func (a approval) reject() (Result, error) {
 		return Result{}, err
 	}
 	advanced, changed := "", false
-	if isFile(page) {
+	there, err := isFile(page)
+	if err != nil {
+		return Result{}, err
+	}
+	if there {
 		current, err := readPage(page)
 		if err != nil {
 			return Result{}, err
@@ -94,7 +98,11 @@ func (a approval) reject() (Result, error) {
 // audit block. Bytes that are not UTF-8 are replaced, as `read_text(errors=
 // "replace")` does, rather than failing a decision that needs no proposal.
 func claimHeadings(proposal string) ([]string, error) {
-	if !isFile(proposal) {
+	there, err := isFile(proposal)
+	if err != nil {
+		return nil, err
+	}
+	if !there {
 		return nil, nil
 	}
 	claims, err := readClaims(proposal)
@@ -117,7 +125,11 @@ func (p *place) appendProtocol(path, block string) error {
 // the reference appends it like the audit.
 func (p *place) rewriteProtocol(path string, edit func(existing string) string) error {
 	existing := ""
-	if isFile(path) {
+	there, err := isFile(path)
+	if err != nil {
+		return err
+	}
+	if there {
 		data, err := readBytes(path)
 		if err != nil {
 			return err

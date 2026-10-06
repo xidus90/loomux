@@ -291,7 +291,14 @@ func (a approval) guardSources() (map[string]sourceFile, error) {
 	}
 	for _, state := range a.c.Sources {
 		source, ok := found[state.DocID]
-		if !ok || !isFile(source.path) {
+		if !ok {
+			continue
+		}
+		there, err := isFile(source.path)
+		if err != nil {
+			return nil, err
+		}
+		if !there {
 			continue
 		}
 		hash, err := contentHash(source.path)
@@ -351,7 +358,11 @@ func (a approval) claims() ([]evidence.Claim, error) {
 		}
 		source = a.o.Amend
 	}
-	if !isFile(source) {
+	there, err := isFile(source)
+	if err != nil {
+		return nil, err
+	}
+	if !there {
 		return nil, &ApplyError{Msg: source + ": no proposal to approve"}
 	}
 	return readClaims(source)
@@ -520,8 +531,14 @@ func readPage(page string) (string, error) {
 // folded content. A stumble guard against passing the proposal, or a copy
 // of it, as an amendment -- not a lock: one changed byte gets past it.
 func sameFile(one, other string) (bool, error) {
-	if !isFile(one) || !isFile(other) {
-		return false, nil
+	for _, path := range []string{one, other} {
+		there, err := isFile(path)
+		if err != nil {
+			return false, err
+		}
+		if !there {
+			return false, nil
+		}
 	}
 	first, err := contentHash(one)
 	if err != nil {

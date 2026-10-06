@@ -1,10 +1,14 @@
 package apply
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"unicode"
 
 	"github.com/xidus90/loomux/internal/brain/guard"
@@ -68,9 +72,15 @@ func resolve(casePath string, c maintenance.Case, areas []config.Area) (resolved
 	// real bundle, a project area's own repository; every other write then
 	// anchors on the wiki (`anchorFor`). One that is no bundle is refused
 	// here, by name, rather than at the first scaffold write.
-	if !guard.IsRelativeTo(resolvedWiki, resolvedVault) && !isBundle(resolvedWiki) {
-		return resolved{}, refuse("%s: the wiki of area %s is %s, outside the vault %s and not a scaffolded bundle",
-			casePath, pytext.Repr(c.Area), wiki, vault)
+	if !guard.IsRelativeTo(resolvedWiki, resolvedVault) {
+		bundle, err := isBundle(resolvedWiki)
+		if err != nil {
+			return resolved{}, err
+		}
+		if !bundle {
+			return resolved{}, refuse("%s: the wiki of area %s is %s, outside the vault %s and not a scaffolded bundle",
+				casePath, pytext.Repr(c.Area), wiki, vault)
+		}
 	}
 	return resolved{vault: vault, review: review, wiki: wiki, directory: directory, area: area}, nil
 }
@@ -94,10 +104,24 @@ func nearestVault(directory string) (string, *config.Manifest, error) {
 	return "", nil, nil
 }
 
-// isFile is `Path.is_file`: a regular file, links followed.
-func isFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
+// statPath is os.Stat, as a variable so that a test can refuse the inspection
+// of one path the way a denied parent directory does.
+var statPath = os.Stat
+
+// isFile is `Path.is_file`: a regular file, links followed. Only a path that
+// is not there, or that a path through a regular file cannot reach, is "no
+// file" like any other non-file; one the system refuses to inspect (access
+// denied, a malformed name) may well be a file, so it is an error: the
+// decision on it must stop rather than go on as if it were absent.
+func isFile(path string) (bool, error) {
+	info, err := statPath(path)
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("%s: cannot be inspected: %w", path, err)
+	}
+	return info.Mode().IsRegular(), nil
 }
 
 // layoutEntry is `_layout` (apply.py:656-676): one `[layout]` entry,
@@ -148,7 +172,7 @@ func wikiArea(c maintenance.Case, casePath string, areas []config.Area) (config.
 // isBundle is `_is_bundle` (apply.py:437-446): `_schema.md` is written by
 // the scaffold alone, so it tells a real wiki from a tree the registry
 // merely names.
-func isBundle(path string) bool {
+func isBundle(path string) (bool, error) {
 	return isFile(filepath.Join(path, "_schema.md"))
 }
 
@@ -188,7 +212,11 @@ func targetPath(r resolved, target string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !isFile(page) {
+	there, err := isFile(page)
+	if err != nil {
+		return "", err
+	}
+	if !there {
 		return "", refuse("%s: the case's target page is gone", page)
 	}
 	return page, nil
@@ -299,7 +327,14 @@ func resolveSources(areas []config.Area, lookup config.ArtifactLookup, docIDs []
 			break
 		}
 		readFrom := registerOf(area, lookup)
-		if !isFile(readFrom) {
+		// A register that cannot be inspected is no absent one: skipped, its
+		// doc_ids would count as unknown and the source guard would not look
+		// at them.
+		there, err := isFile(readFrom)
+		if err != nil {
+			return nil, err
+		}
+		if !there {
 			continue
 		}
 		identities, err := identity.ReadIdentities(readFrom)
