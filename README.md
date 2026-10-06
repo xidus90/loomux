@@ -503,7 +503,8 @@ skill does the steps below; by hand:
    ```
 2. GitHub App (Settings → Developer settings → GitHub Apps → New): name
    `loomux-release`, webhook off, repository permissions `Contents: Read and
-   write`, `Pull requests: Read-only`, `Metadata: Read-only`, "Only on this
+   write`, `Pull requests: Read-only`, `Metadata: Read-only`,
+   `Administration: Read-only` (lists the runners, see step 4), "Only on this
    account". Generate a private key, install the app only on
    `xidus90/loomux`, then:
    ```sh
@@ -527,7 +528,12 @@ skill does the steps below; by hand:
    gh api repos/xidus90/loomux/rules/branches/master
    ```
    A changed file goes to `gh api -X PUT repos/xidus90/loomux/rulesets/<id>`.
-4. Fork pull requests run on the self-hosted runners, so every run from
+4. Runners: every workflow first runs `pick-runner` on a GitHub-hosted
+   runner, which sends each job to the self-hosted runner of its OS while one
+   is online and to GitHub's otherwise. It lists the runners with the app's
+   token, so without `Administration: Read-only` everything runs on GitHub's;
+   a fork pull request gets no secrets and runs there as well. Its own
+   workflow files can still name the self-hosted runners, so every run from
    outside waits for approval:
    ```sh
    gh api -X PUT repos/xidus90/loomux/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors

@@ -27,15 +27,19 @@ concurrency:
   group: release
   cancel-in-progress: false
 jobs:
-  release:
+  pick:
     # event == push: a pull request from a fork branch named master must not
-    # pass as a merge.
+    # pass as a merge. The release job is skipped with this one.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'master')
-    runs-on: [self-hosted, ubuntu-latest]
+    uses: ./.github/workflows/pick-runner.yml
+    secrets: inherit
+  release:
+    needs: pick
+    runs-on: ${{ fromJSON(needs.pick.outputs.linux) }}
     steps:
       - id: app
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
