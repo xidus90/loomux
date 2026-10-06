@@ -157,6 +157,7 @@ func TestARefusalNamesTheScratchpadTree(t *testing.T) {
 
 func TestARefusalWithoutWritableTreesNamesTheScratchpadToo(t *testing.T) {
 	tmp := t.TempDir()
+	homeAt(t, filepath.Join(tmp, "home"), "")
 	scratchpadAt(t)
 	state := registryOf(t, tmp, "")
 	reason := deny(t, writeCall(filepath.Join(tmp, "out.md")), state,
@@ -171,9 +172,38 @@ func TestARefusalWithoutWritableTreesNamesTheScratchpadToo(t *testing.T) {
 
 func TestARefusalWithoutWritableTreesOrScratchpadNamesOnlyMemory(t *testing.T) {
 	tmp := t.TempDir()
+	homeAt(t, filepath.Join(tmp, "home"), "")
 	tempDir = func() string { return "relative" }
 	defer func() { tempDir = os.TempDir }()
 	state := registryOf(t, tmp, "")
 	deny(t, writeCall(filepath.Join(tmp, "out.md")), state,
 		"so nothing outside the agents' memory may be written")
+}
+
+func TestARefusalWithoutWritableTreesOrMemoryNamesOnlyTheScratchpad(t *testing.T) {
+	tmp := t.TempDir()
+	noHome(t, "")
+	scratchpadAt(t)
+	state := registryOf(t, tmp, "")
+	reason := deny(t, writeCall(filepath.Join(tmp, "out.md")), state,
+		"the registry declares no writable wiki path and no workspace")
+	if strings.Contains(reason, "agents' memory") {
+		t.Fatalf("the refusal offers a memory that does not exist: %q", reason)
+	}
+	if !strings.Contains(reason, "nothing outside the session scratchpad below: ") {
+		t.Fatalf("the refusal does not name the scratchpad alone: %q", reason)
+	}
+}
+
+func TestARefusalWithNothingOpenSaysNothingMayBeWritten(t *testing.T) {
+	tmp := t.TempDir()
+	noHome(t, "")
+	tempDir = func() string { return "relative" }
+	defer func() { tempDir = os.TempDir }()
+	state := registryOf(t, tmp, "")
+	reason := deny(t, writeCall(filepath.Join(tmp, "out.md")), state,
+		"so nothing may be written")
+	if strings.Contains(reason, "agents' memory") {
+		t.Fatalf("the refusal offers a memory that does not exist: %q", reason)
+	}
 }
