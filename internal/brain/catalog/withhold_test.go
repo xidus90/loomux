@@ -29,6 +29,8 @@ func TestWithholdDropsTheLinesThatLinkIntoAHiddenTree(t *testing.T) {
 		"* [Two](top.md), [links](<inner space/q.md>)\n" +
 		"* [Web](https://example.org/inner%20space/)\n" +
 		"* [Rooted](</inner space/r.md>)\n" +
+		"* [RootedUp](</../inner space/v.md>)\n" +
+		"* [RootedTwice](<//../inner space/w.md>)\n" +
 		"* [Up](<../inner space/u.md>)\n" +
 		"* [Broken](inner%zzspace/x.md)\n" +
 		"* [Angled](<a%3Cb%3E.md>)\n\n" +

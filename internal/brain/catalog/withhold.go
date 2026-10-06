@@ -55,7 +55,7 @@ func linksInto(line string, conceals func(string) bool) bool {
 		if cut := strings.IndexAny(destination, "#?"); cut >= 0 {
 			destination = destination[:cut]
 		}
-		if conceals(path.Clean(strings.TrimLeft(destination, "/"))) {
+		if conceals(strings.TrimPrefix(path.Clean(destination), "/")) {
 			return true
 		}
 	}
