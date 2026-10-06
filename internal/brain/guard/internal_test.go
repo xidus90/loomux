@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,6 +70,36 @@ func TestARelativeTargetIsResolvedAgainstTheWorkingDirectory(t *testing.T) {
 	// host may well hand the barrier a relative path.
 	t.Chdir(filepath.Join(tmp, "repo"))
 	deny(t, writeCall("a.py"), state, "lies outside every writable tree")
+}
+
+// withoutWorkingDirectory makes the working directory unreadable for the
+// rest of the test, as it is when the process stands in a removed one.
+func withoutWorkingDirectory(t *testing.T) {
+	t.Helper()
+	old := getwd
+	getwd = func() (string, error) { return "", errors.New("getwd: the directory is gone") }
+	t.Cleanup(func() { getwd = old })
+}
+
+func TestARelativeTargetWithNoWorkingDirectoryHasNoPlace(t *testing.T) {
+	withoutWorkingDirectory(t)
+	// Not absolute, and nothing to make it so: a relative path handed back
+	// as the answer would break what ResolvePath promises.
+	if got, err := ResolvePath("x.md"); err == nil {
+		t.Errorf("ResolvePath(%q) = %q, nil; want an error", "x.md", got)
+	}
+	// An absolute target needs no working directory.
+	abs := filepath.Join(t.TempDir(), "x.md")
+	if _, err := ResolvePath(abs); err != nil {
+		t.Errorf("ResolvePath(%q) = %v; an absolute path needs no working directory", abs, err)
+	}
+}
+
+func TestARelativeTargetWithNoWorkingDirectoryIsRefusedAsUnresolvable(t *testing.T) {
+	tmp := t.TempDir()
+	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
+	withoutWorkingDirectory(t)
+	deny(t, writeCall("a.py"), state, "loomux cannot resolve this path")
 }
 
 func TestResolveKeepsAPathItCannotReachAtAll(t *testing.T) {
