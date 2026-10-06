@@ -214,6 +214,36 @@ func TestAnEmptyRangeIsEmptyAndNotAnError(t *testing.T) {
 	}
 }
 
+// A path is listed as git stores it. Quoted, a name with non-ASCII bytes would
+// come back as an escape no file has; with rename detection on, the old side of
+// a move would not be listed at all, and a merge case would claim one touched
+// path where two changed. Both are forced on here, so the answer does not
+// depend on the git configuration of the machine running the test.
+func TestARangeListsPathsExactlyAndBothSidesOfARename(t *testing.T) {
+	repo := newRepo(t, map[string]string{
+		"old.md": "a body long enough\nfor git to see the same file\nunder its new name\n",
+	})
+	git(t, repo, "config", "core.quotePath", "true")
+	git(t, repo, "config", "diff.renames", "true")
+	first := head(t, repo)
+	write(t, repo, "Übersicht.md", "x\n")
+	write(t, repo, " leading.md", "y\n")
+	add(t, repo, "--all")
+	git(t, repo, "mv", "old.md", "new.md")
+	commit(t, repo, "Move and add")
+	last := head(t, repo)
+
+	paths, err := vcs.ChangedPaths(repo, first, last)
+
+	if err != nil {
+		t.Fatalf("ChangedPaths: %v", err)
+	}
+	want := []string{" leading.md", "new.md", "old.md", "Übersicht.md"}
+	if !reflect.DeepEqual(paths, want) {
+		t.Fatalf("paths = %q, want %q", paths, want)
+	}
+}
+
 func TestARangeFailsWhenTheDirectoryIsGone(t *testing.T) {
 	requireGit(t)
 

@@ -98,6 +98,11 @@ func baseline(out []byte, err error) ([]byte, error) {
 // ChangedPaths is the file paths a commit range touched -- names only, never
 // content.
 //
+// Each name is exactly as git stores it, and a rename lists both its sides:
+// what a commit message or a reader would call "the files that changed" is the
+// set of names that differ between the two trees, not git's guess at which
+// deleted file became which new one.
+//
 // An error for every way the range cannot be read: the work tree is gone (a
 // throwaway worktree that recorded an event and was then removed), the commits
 // were garbage-collected, git is not installed, or an end is not an object
@@ -111,7 +116,21 @@ func ChangedPaths(directory, first, last string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return readLines(directory, "diff", "--name-only", span)
+	arguments := []string{"diff", "--name-only", "--no-renames", "-z", span}
+	out, err := run(directory, arguments...)
+	if err != nil {
+		return nil, fmt.Errorf("git %s in %s failed: %w%s",
+			strings.Join(arguments, " "), directory, err, said(err))
+	}
+	// NUL-separated, which is also what stops git quoting a name that holds
+	// non-ASCII bytes; nothing is trimmed, as a name may begin with a space.
+	paths := []string{}
+	for _, name := range strings.Split(string(out), "\x00") {
+		if name != "" {
+			paths = append(paths, name)
+		}
+	}
+	return paths, nil
 }
 
 // CommitSubjects is the subject of each commit in a range.
