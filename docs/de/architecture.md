@@ -149,7 +149,7 @@ flowchart LR
 > PageRank (alpha=0.25), blendet Quelltext-Spans ein und fährt den gesperrten
 > Neubau. `ask` importiert den Extraktor nicht: der Neubau kommt als
 > `Rebuild`-Funktion herein, so bleibt der Abfragepfad vom Parser getrennt. Was
-> noch offen ist (Stufen G4c und G5b bis G5d), steht in der
+> noch offen ist (Stufen G5b bis G5d), steht in der
 > [Roadmap](../../README.de.md#roadmap); jeden Befehl beschreibt die
 > [CLI-Referenz](cli-reference.md).
 
