@@ -1,5 +1,6 @@
 // Package namecheck holds the repository to one promise: the names of the
-// tools loomux replaced stand only where an exception lets them.
+// tools loomux replaced, and of the project its code graph is ported from,
+// stand only where an exception lets them.
 package namecheck
 
 import (
@@ -10,18 +11,18 @@ import (
 	"sync"
 )
 
-// The names the fusion spec's addendum #24 searched for when it took stock of
-// what loomux still owes its two predecessors; every one that remains has to
-// sit in a named exception.
+// The names of the two tools loomux replaced, and of the project its code
+// graph is ported from: each may stand only in an exception. `graft` after
+// an underscore is git's GIT_GRAFT_FILE, not the project.
 var predecessorNames = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`(?i)ultraloom|ultra-brain|ulguard|ulinit|ulflow|brain-mcp|brain guard|ultraloomowned|\.brain\.toml|\.ultra-brain|specs-u[lb]/|plans-u[lb]/|bench-ub/`)
+	return regexp.MustCompile(`(?i)ultraloom|ultra-brain|ulguard|ulinit|ulflow|brain-mcp|brain guard|ultraloomowned|\.brain\.toml|\.ultra-brain|specs-u[lb]/|plans-u[lb]/|bench-ub/|(?:^|[^_])graft`)
 })
 
 var changelogEntry = sync.OnceValue(func() *regexp.Regexp {
 	return regexp.MustCompile(`^## \[(\d+\.\d+\.\d+)(?:-beta(?:\.\d+)?)?\]`)
 })
 
-// An Exception lets a name stand where the spec says it may: a file, or every
+// An Exception lets a name stand where it may: a file, or every
 // file below a folder when Path ends in "/"; only lines Line matches, when it
 // is set; only one line under the changelog entry Section, when that is set.
 type Exception struct {
@@ -38,7 +39,7 @@ func (e Exception) covers(path string) bool {
 	return path == e.Path
 }
 
-// References names every line of files that carries a predecessor's name and
+// References names every line of files that carries a name from the list and
 // no exception allows, as "<path>:<line>: <text>".
 func References(files []string, read func(string) ([]byte, error), exceptions []Exception) ([]string, error) {
 	var found []string
@@ -95,25 +96,15 @@ func allowed(own []Exception, line, section string, used map[string]bool) bool {
 	return false
 }
 
-// inTheArchives matches the lines that point into the archives of the two
-// predecessors; they stay until the last follow-up project takes them away.
-var inTheArchives = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`specs-ul/|specs-ub/|plans-ul/|plans-ub/|bench-ub/`)
+// ideaLine is the one sentence per README and architecture page that names
+// where the code graph's idea came from.
+var ideaLine = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`(?i)(inspired by|angeregt von) \[?trailhq/Graft`)
 })
 
-// followUps matches the roadmap rows of the follow-up projects still open;
-// prose that names them is not a row.
-var followUps = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`^\|.*(ulflow|ultra-brain/web)`)
-})
-
-// exceptions are the places the fusion spec lets a predecessor's name stand
-// ("Die benannten Ausnahmen", addenda #24, #34, #35). A working-paper folder
-// is a row of its own, so a new folder under docs/.superpowers/ is reported.
-// The archives are rows of Owner "archives": the spec lets both follow-up
-// projects, Flow and Web, draw on them and has the last one to finish take
-// them away, so whoever finishes last removes these rows and the Line rules
-// that point into them.
+// exceptions are the places a name may stand: the measurement chronicle,
+// the five changelog lines that are history, the license notice of the
+// ported code and the sentence that names its idea.
 var exceptions = sync.OnceValue(func() []Exception {
 	return []Exception{
 		{Path: "docs/en/benchmarks.md", Owner: "history"},
@@ -125,20 +116,12 @@ var exceptions = sync.OnceValue(func() []Exception {
 		{Path: "CHANGELOG.md", Section: "4.2.2", Owner: "history"},
 		{Path: "CHANGELOG.md", Section: "2.5.0", Owner: "history"},
 		{Path: "CHANGELOG.md", Section: "2.3.0", Owner: "history"},
-		{Path: "docs/.superpowers/specs/", Owner: "working-papers"},
-		{Path: "docs/.superpowers/plans/", Owner: "working-papers"},
-		{Path: "docs/.superpowers/parity/", Owner: "working-papers"},
-		{Path: "docs/.superpowers/specs-ul/", Owner: "archives"},
-		{Path: "docs/.superpowers/specs-ub/", Owner: "archives"},
-		{Path: "docs/.superpowers/plans-ul/", Owner: "archives"},
-		{Path: "docs/.superpowers/plans-ub/", Owner: "archives"},
-		{Path: "docs/.superpowers/bench-ub/", Owner: "archives"},
-		{Path: "docs/wiki/log.md", Owner: "working-papers"},
-		{Path: "docs/wiki/", Line: inTheArchives(), Owner: "archives"},
-		{Path: "internal/brain/apply/testdata/frontmatter/", Line: inTheArchives(), Owner: "archives"},
-		{Path: "_identities.tsv", Line: inTheArchives(), Owner: "archives"},
-		{Path: "README.md", Line: followUps(), Owner: "flow"},
-		{Path: "README.de.md", Line: followUps(), Owner: "flow"},
+		{Path: "internal/notices/NOTICE.md", Owner: "license"},
+		{Path: "internal/dev/notices/ported.md", Owner: "license"},
+		{Path: "README.md", Line: ideaLine(), Owner: "idea"},
+		{Path: "README.de.md", Line: ideaLine(), Owner: "idea"},
+		{Path: "docs/en/architecture.md", Line: ideaLine(), Owner: "idea"},
+		{Path: "docs/de/architecture.md", Line: ideaLine(), Owner: "idea"},
 		{Path: "internal/namecheck/references.go", Owner: "self"},
 		{Path: "internal/namecheck/references_test.go", Owner: "self"},
 	}
