@@ -2,14 +2,14 @@
 type: Topic
 title: Brain Maintenance
 description: Wie das System merkt, dass eine Quelle sich geändert hat — Erkennung, Prüfzentrum, Evidenzbindung, Merge-Auslöser.
-open_conflicts: 1
+open_conflicts: 0
 realization: in_progress
 sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
-    revision: 1
+    content_hash: "sha256:68797887e50379828f958338511f2c03b36e31a01d9f813304bab6489922995a"
+    revision: 2
 ---
 
 Die Pflegeschicht ist mit **Stufe 3** gebaut,
@@ -114,22 +114,11 @@ Commit. Er geht über einen eigenen Index auf den aktuellen Ref des Tresors;
 einen Zweig legt `approve` nicht an, und der Index des Nutzers bleibt, wie er
 war. Nach einer geschriebenen Freigabe laufen `reconcile` und `reindex`.
 
-Ein geerbter Fehler ist mitgezogen: `--reject` rückt Revision und Hash der
-Seite nicht vor, also eröffnet der nächste Abgleich denselben Fall wieder.
-Eine Heilung ist ein Nachtrag der Fusions-Spec; Stufe 4
-(`docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md` in den
-Arbeitspapieren des Archiv-Release `archive/parity-recordings`) sieht sie für
-das Modell (4c) vor.
-
-> [!conflict] Rückt `--reject` Revision und Hash der Seite vor?
-> Der Absatz oben (verdichtet aus den Arbeitspapieren, vor dem Umzug der
-> Quellen) sagt: `--reject` rückt Revision und Hash der Seite nicht vor, also
-> eröffnet der nächste Abgleich denselben Fall wieder.
-> `docs/de/cli-reference.md`, Abschnitt `loomux approve`, sagt: Eine Ablehnung
-> schiebt `revision` und `content_hash` jedes passenden Eintrags in `sources[]`
-> der Seite und die Identitätsregister vor, damit der nächste `loomux reconcile`
-> denselben Fall nicht wieder eröffnet.
-> Beide Stände bleiben stehen. Entscheidung offen.
+Eine Ablehnung mit `--reject` schiebt `revision` und `content_hash` jedes
+passenden Eintrags in `sources[]` der Seite und die Identitätsregister vor,
+damit der nächste `reconcile` denselben Fall nicht wieder eröffnet. Die
+Referenz tat das nicht, dort öffnete der nächste Abgleich den Fall erneut;
+loomux weicht hier bewusst ab.
 
 ## Die Evidenzbindung als prüfbares Verfahren
 
