@@ -654,6 +654,9 @@ func TestRemoveRefusesADirectoryThatIsNotThere(t *testing.T) {
 	if err := p.remove(filepath.Join(vault, "review", "fehlt")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("want a missing directory to be an error, got %v", err)
 	}
+	if len(p.touched) != 0 {
+		t.Fatalf("a deletion that never ran was recorded: %v", p.touched)
+	}
 }
 
 // test_the_module_calls_no_write_primitive_outside_the_gate
