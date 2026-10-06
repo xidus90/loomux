@@ -3600,3 +3600,87 @@ vorher, 0,683–0,770 ms nachher; `ExecuteSearch` 2,363–2,614 ms vorher,
 4. **Die Kalt-Einzelläufe** sind je eine Probe: 1,560 → 1,102 ms und 2,338 →
    1,864 ms sind ebenfalls schneller als die Warmläufe; als Beleg taugen sie
    nicht für sich.
+
+## 2026-10-08 07:41 — GDScript-Extraktion: graph build auf space
+
+**Ziel.** Was `loomux graph build` von einem Godot-Projekt liest. Vor dieser
+Stufe hielt der Graph 0 Dateien des Godot-Projekts von `space` (kein Extraktor
+beanspruchte `.gd`, `.tscn`, `.tres` oder `.godot`); Ziel war ein Graph mit
+Kanten für extends, imports, calls und references und ohne Parsefehler.
+
+**Methode.** Zweig `feat/graph-gdscript` bei `829a9c14`, Binary gebaut mit
+`go build -o <scratch>/loomux-g5c.exe ./cmd/loomux`. Es lief auf einem frischen
+Klon von `space` beim Commit `92046087` (ein schlichter `git clone` des lokalen
+Repositorys, der echte Checkout blieb unberührt; der Klon wurde danach
+gelöscht). Kalt ist `graph build --no-reuse`, warm der nächste `graph build`
+mit jeder Datei im Extraktions-Cache. Windows 11 Pro, je ein Lauf.
+
+```
+loomux-g5c graph build --root <Klon von space> --no-reuse
+loomux-g5c graph build --root <Klon von space>
+loomux-g5c graph stats --root <Klon von space>
+```
+
+**Rohausgabe, kalt**
+
+```
+706 files, 9385 nodes, 37920 edges (8679 contains, 18436 calls, 199 imports, 322 extends, 10284 references)
+0 unresolved import targets, 55 files without a symbol, 6.021s
+  gdscript: 706 files, 706 parsed, 0 reused, 104 parse errors
+  gdscript parse errors in: godot/addons/gdUnit4/src/core/GdDiffTool.gd, godot/addons/gdUnit4/src/core/parse/GdScriptParser.gd, godot/test/ui/game_root_colony_test.gd
+```
+
+**Rohausgabe, warm**
+
+```
+706 files, 9385 nodes, 37920 edges (8679 contains, 18436 calls, 199 imports, 322 extends, 10284 references)
+0 unresolved import targets, 55 files without a symbol, 670ms
+  gdscript: 706 files, 0 parsed, 706 reused, 104 parse errors
+  gdscript parse errors in: godot/addons/gdUnit4/src/core/GdDiffTool.gd, godot/addons/gdUnit4/src/core/parse/GdScriptParser.gd, godot/test/ui/game_root_colony_test.gd
+```
+
+**`graph stats`**
+
+```
+Code Graph Stats:
+  Files:        706
+  Symbols:      8679
+  Edges:        37920
+  Wiring size:  13534623 bytes
+  Languages:    gd, godot, tres, tscn
+  Relations:
+    calls        18436
+    contains     8679
+    extends      322
+    imports      199
+    references   10284
+```
+
+| Messgröße | Vorher | Nachher |
+| --- | ---: | ---: |
+| Dateien des Godot-Projekts im Graphen | 0 | 706 |
+| Knoten | 0 | 9385 |
+| Kanten | 0 | 37920 |
+| contains / calls / imports / extends / references | 0 | 8679 / 18436 / 199 / 322 / 10284 |
+| Kalter Bau | — | 6,021 s |
+| Warmer Bau | — | 670 ms |
+
+**Kernbefunde**
+
+1. **Der Bau liest alle 706 Godot-Dateien als eine Sprache** und hat Kanten
+   jeder Relation, darunter 10284 `references` (die Klassen, Autoloads und
+   Signale, die eine GDScript-Definition nennt) und 322 `extends`.
+2. **104 Parsefehler in 3 Dateien** (zwei Dateien des Addons `gdUnit4` und
+   `godot/test/ui/game_root_colony_test.gd`); der Build endet mit 0 und jede
+   Datei behält ihren Dateiknoten, aber die drei verlieren Verschiedenes:
+   `addons/gdUnit4/src/core/parse/GdScriptParser.gd` behält nur den
+   Dateiknoten und verliert alle 65 Definitionen und seine `class_name`-Klasse
+   (98 der 104 Fehler), weil eine Kommentarzeile, die tiefer eingerückt ist als
+   die `match`-Zweige darunter, die Grammatik die ganze Datei in einen
+   ERROR-Knoten wickeln lässt, und der Extraktor, wie der Python-Extraktor,
+   steigt nicht in einen ERROR hinab. `GdDiffTool.gd` (5 Fehler, `else: if
+   cond:` in einer Zeile) und `godot/test/ui/game_root_colony_test.gd` (1
+   Fehler, der Variablenname `remote`) verlieren keine Definition. Die Zahl ist
+   eine Untergrenze (siehe `cli-reference.md`).
+3. **Warm ist 9-mal schneller als kalt** (670 ms gegen 6,021 s), alle 706
+   Dateien kommen aus dem Extraktions-Cache.
