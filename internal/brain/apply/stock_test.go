@@ -35,7 +35,7 @@ func TestRecoverStockLeavesAWritableAreaAlone(t *testing.T) {
 	if err := recoverStock(area, lookup); err != nil {
 		t.Fatal(err)
 	}
-	if !isFile(filepath.Join(aside, "kept.md")) {
+	if !isThere(t, filepath.Join(aside, "kept.md")) {
 		t.Fatal("a writable area's neighbour was touched")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,6 +42,21 @@ func seam[T any](t *testing.T, slot *T, value T) {
 	saved := *slot
 	*slot = value
 	t.Cleanup(func() { *slot = saved })
+}
+
+// unstatable makes the inspection of exactly the given paths fail with an
+// error that is no fs.ErrNotExist, as a denied parent directory does, and
+// answers that error. Every other path is inspected as it is.
+func unstatable(t *testing.T, paths ...string) error {
+	t.Helper()
+	denied := errors.New("access denied")
+	seam(t, &statPath, func(path string) (fs.FileInfo, error) {
+		if slices.Contains(paths, path) {
+			return nil, &fs.PathError{Op: "stat", Path: path, Err: denied}
+		}
+		return os.Stat(path)
+	})
+	return denied
 }
 
 // linkNamed makes isLink answer true for every path whose last name is name.

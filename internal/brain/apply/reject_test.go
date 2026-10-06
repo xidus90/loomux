@@ -416,7 +416,7 @@ func TestRejectOnAPageWithoutFrontmatterStillAdvancesTheRegister(t *testing.T) {
 	if readFile(t, page) != "Text\n" || !strings.HasSuffix(strings.TrimSpace(readFile(t, register)), "\t2") {
 		t.Fatal("page changed or register stood")
 	}
-	if isFile(filepath.Join(j.r.directory, "case.toml")) {
+	if isThere(t, filepath.Join(j.r.directory, "case.toml")) {
 		t.Fatal("the case stayed")
 	}
 }
@@ -432,7 +432,7 @@ func TestRejectWithTheTargetPageGoneStillClosesTheCase(t *testing.T) {
 	register := withSource(t, &j)
 	noRepository(t)
 	mustReject(t, j)
-	if isFile(page) || !strings.HasSuffix(strings.TrimSpace(readFile(t, register)), "\t2") || isFile(filepath.Join(j.r.directory, "case.toml")) {
+	if isThere(t, page) || !strings.HasSuffix(strings.TrimSpace(readFile(t, register)), "\t2") || isThere(t, filepath.Join(j.r.directory, "case.toml")) {
 		t.Fatal("a page appeared, the register stood, or the case stayed")
 	}
 }
@@ -447,7 +447,7 @@ func TestRejectHaltsOnASourceThatMovedAgain(t *testing.T) {
 	if !errors.As(err, &moved) {
 		t.Fatalf("%v", err)
 	}
-	if !isFile(filepath.Join(j.r.directory, "case.toml")) || readFile(t, register) != rejectRegister {
+	if !isThere(t, filepath.Join(j.r.directory, "case.toml")) || readFile(t, register) != rejectRegister {
 		t.Fatal("the case went or the register moved although nothing was decided")
 	}
 }
