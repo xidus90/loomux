@@ -39,7 +39,7 @@ import (
 // the version, the extract cache would keep handing out entries the old
 // runtime built, and the graph's meta would look fresh. TestParserMatchesGoMod
 // fails when the pin moves and this constant does not.
-const Parser = "gotreesitter/v0.55.0"
+const Parser = "gotreesitter/v0.55.1"
 
 // Doc is one parsed file. Close releases its tree; no node of it may be used
 // after that.
