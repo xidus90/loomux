@@ -34,6 +34,12 @@ type RunOptions struct {
 	Look            func(string) (string, error)
 	Now             func() time.Time
 	Armed           func(Job) bool
+	// Caller names who runs, for the holder file beside a lock. Waiting is told
+	// once, with who holds it, when a lane has to wait for its lock. Sleep is
+	// what the wait pauses with; nil means time.Sleep.
+	Caller  string
+	Waiting func(Job, string)
+	Sleep   func(time.Duration)
 }
 
 const abandoned = "output abandoned: a process the tool started kept its pipe open"
@@ -68,6 +74,9 @@ type step struct {
 // After names, wherever that sits in the slice. The cap is taken around each
 // process and never while waiting, so a chain cannot hold the slot it needs.
 func Run(jobs []Job, opt RunOptions) []Outcome {
+	if opt.Sleep == nil {
+		opt.Sleep = time.Sleep
+	}
 	r := &runner{opt: opt, sem: make(chan struct{}, max(opt.MaxParallel, 1))}
 	if opt.Budget > 0 {
 		r.deadline = opt.Now().Add(opt.Budget)
@@ -153,8 +162,8 @@ func fnResult(fn func() (string, error)) (State, string) {
 }
 
 // commands runs a lane's processes: every tool looked up before any starts,
-// the measure step, the files it should have left, then every command, even
-// after a red one.
+// the lane's lock taken and held to the end, the measure step, the files it
+// should have left, then every command, even after a red one.
 func (r *runner) commands(job Job) (State, string) {
 	all := job.Argvs
 	if len(job.Measure) > 0 {
@@ -164,6 +173,13 @@ func (r *runner) commands(job Job) (State, string) {
 		if _, err := r.opt.Look(argv[0]); err != nil {
 			return StateMissingTool, `"` + argv[0] + `" is not on PATH: ` + strings.Join(argv, " ")
 		}
+	}
+	if job.Lock != "" {
+		release, state, msg := r.takeLock(job)
+		if release == nil {
+			return state, msg
+		}
+		defer release()
 	}
 	if len(job.Measure) > 0 {
 		// A measure that did not finish leaves nothing to report on; only

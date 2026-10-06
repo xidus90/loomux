@@ -136,3 +136,11 @@ func TestWriteShowPrintsSkipWhenOnly(t *testing.T) {
 		t.Fatalf("%s", out.String())
 	}
 }
+
+func TestWriteShowPrintsLock(t *testing.T) {
+	var out strings.Builder
+	WriteShow(&out, effFor(t, "[verify.go.test]\nlock = true\n", goOnly), []string{"test"}, env(`C:\repo`))
+	if !strings.Contains(out.String(), "lock = true  # config\n") {
+		t.Fatalf("%s", out.String())
+	}
+}

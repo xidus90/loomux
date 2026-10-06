@@ -934,8 +934,11 @@ this order
 8. **Chain.** Every lane runs within `--budget` (default 270 s, under the
    300 s of its settings entry); each command gets the smaller of its own
    `timeout` and what is left of the budget. A lane with `skip_when_only` sits
-   out a turn whose changes, against the last green tree (the base's tree when there is none; with the graph lane, also what a commit inside the turn took since the base's commit), all match one of its
-   globs (see [Configuration](configuration.md)).
+   out a turn whose changes, against the last green tree (the base's tree when
+   there is none; with the graph lane, also what a commit inside the turn took
+   since the base's commit), all match one of its globs (see
+   [Configuration](configuration.md)). The wait of a lane with `lock = true`
+   for a lock another run holds counts against `--budget` too.
 
 What the run decides:
 

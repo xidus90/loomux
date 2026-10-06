@@ -16,6 +16,7 @@ import (
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/hooks"
+	"github.com/xidus90/loomux/internal/lock"
 	"github.com/xidus90/loomux/internal/verify"
 	"github.com/xidus90/loomux/internal/verify/commit"
 )
@@ -1117,5 +1118,28 @@ func TestCheckRunsALaneForACommitThatChangesMoreOrAnIndexThatDoesNotAnswer(t *te
 	run("check", "test", "--root", root)
 	if !startedGoTest(*seen) {
 		t.Fatalf("an index that does not answer runs the lane: %v", *seen)
+	}
+}
+
+func TestCheckSaysWhoHoldsTheLock(t *testing.T) {
+	root := goWorld(t)
+	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	put(t, root, ".loomux/config.toml", "[verify]\ntimeout = 1\n[verify.go]\ncoverage = false\n[verify.go.test]\nlock = true\n")
+	path := verify.LockPath(root, "go", ".")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h, ok, err := lock.TryAcquire(path)
+	if err != nil || !ok {
+		t.Fatalf("%v %v", ok, err)
+	}
+	defer h.Release()
+	stubCheck(t, green)
+	t.Setenv("GIT_INDEX_FILE", "")
+	code, out, errOut := run("check", "test", "--root", root)
+	if code != 1 || !strings.Contains(errOut, "test/go: waiting for the lock (held by another run)") || !strings.Contains(out, "test/go: timed-out") {
+		t.Fatalf("%d\n%s\n%s", code, out, errOut)
 	}
 }

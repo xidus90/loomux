@@ -155,6 +155,7 @@ func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, 
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeEdit, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
 		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
+		Caller: "hook post-tool-use", Waiting: verify.WaitingTo(stderr),
 	})
 	aside := ""
 	if eff.Extensions[ext] == "go" && !slices.ContainsFunc(outs, func(o verify.Outcome) bool { return verify.Red(o.State, verify.ScopeEdit) }) {

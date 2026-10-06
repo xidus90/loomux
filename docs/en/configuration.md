@@ -215,11 +215,13 @@ The keys of the table form:
 | `after` | kind | `test`/`coverage` only. The kind of the same stack this lane waits for. Cycles are load errors that name the ring. |
 | `needs` | list | Files, relative to the lane's directory and inside it, the lane's `commands` cannot mean anything without. A missing one makes the lane `unready`: skipped and named in an edit, red in a check. They do not guard `on_file`: an edit that runs a lane's form for one file runs it either way. |
 | `skip_when_only` | list | Globs, relative to the repository root and in the syntax of `[policy.paths]`, of paths the lane does not care about. At a commit (inside the pre-commit hook, where git hands in `GIT_INDEX_FILE`) and at a turn end (against the last green tree, or against the base's tree when there is none; where a commit inside the turn moved HEAD and the turn end runs the graph lane, the paths that commit took since the base's commit count too), a lane whose every changed path matches one of them is `not-applicable` with the note `only skip_when_only paths changed (…)`. A lane that reads its files (as Go's `coverage` reads the coverage file `test` writes) inherits that, so `[verify.go.test] skip_when_only` keeps `coverage` from measuring the suite itself; one that only orders after it (`after` alone) runs; a run that asks for `coverage` alone needs the key on `coverage`. With no changed path, by hand (`loomux check` without the hook) and in an edit every lane runs. Matching is case-sensitive; a path that differs only in case runs the lane. |
+| `lock` | boolean | Take the lane's stack and area for itself in this checkout while its processes run, `measure` included: a second run of a lane that also sets `lock = true` for the same stack and area waits, holding no `max_parallel` slot, and prints `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)`; a lane without `lock` does not look at the lock. Lanes of one stack and area in the same run take turns the same way, and say `held by another lane of this run`. At a turn end and in an edit the wait counts against the budget and ends as `budget`; in `loomux check` and the pre-commit gate it ends after `[verify].timeout` as `timed-out`. The lock is the operating system's, under `.loomux/state/locks/`, and a dead holder lets it go. For tools that rewrite sources while they measure. |
 
 - **Replace or merge.** A string or a list stands for the lane as written:
-  `measuring`, `measure`, `on_file`, `needs` and `skip_when_only` of the preset no longer
-  apply; only `after` stays. A table changes only the keys it names:
-  `[verify.go.test] measuring = "…"` keeps the preset's `commands`.
+  `measuring`, `measure`, `on_file`, `needs`, `skip_when_only` and `lock` of
+  the preset no longer apply; only `after` stays. A table changes only the
+  keys it names: `[verify.go.test] measuring = "…"` keeps the preset's
+  `commands`.
 - A key is either a value or a table in TOML: `test = "…"` and
   `test.measuring = "…"` in the same table are invalid. Use the table form with
   `commands`.

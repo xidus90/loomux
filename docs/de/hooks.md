@@ -991,9 +991,12 @@ dieser Reihenfolge
 8. **Kette.** Jede Lane läuft innerhalb von `--budget` (Vorgabe 270 s, unter
    den 300 s seines Settings-Eintrags); jeder Befehl bekommt das Kleinere aus
    seinem eigenen `timeout` und dem Rest des Budgets. Eine Lane mit
-   `skip_when_only` setzt ein Turn aus, dessen Änderungen gegen den zuletzt
-   grünen Baum (ohne einen solchen gegen den Baum der Basis; mit der Graph-Lane auch, was ein Commit im Turn seit dem Commit der Basis mitnahm) alle auf einen ihrer Globs passen (siehe
-   [Konfiguration](configuration.md)).
+   `skip_when_only` setzt einen Turn aus, dessen Änderungen gegen den zuletzt
+   grünen Baum (ohne einen solchen gegen den Baum der Basis; mit der Graph-Lane
+   auch, was ein Commit im Turn seit dem Commit der Basis mitnahm) alle auf einen
+   ihrer Globs passen (siehe [Konfiguration](configuration.md)). Die Wartezeit
+   einer Lane mit `lock = true` auf eine Sperre, die ein anderer Lauf hält,
+   zählt ebenfalls gegen `--budget`.
 
 Was der Lauf entscheidet:
 

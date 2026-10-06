@@ -1047,6 +1047,15 @@ func TestPlanKeepsASwitchedOffTestApartFromASkippedOne(t *testing.T) {
 	}
 }
 
+func TestPlanHandsALockedLaneItsLockFile(t *testing.T) {
+	root := t.TempDir()
+	src := "[verify.go.test]\nlock = true\n"
+	jobs, _ := Plan(effFor(t, src, goOnly), Request{Kinds: []string{"lint", "test"}}, env(root))
+	if jobs[0].Lock != "" || jobs[1].Lock != LockPath(root, "go", ".") {
+		t.Fatalf("%q %q", jobs[0].Lock, jobs[1].Lock)
+	}
+}
+
 // A graph lane that sits out carries nothing: the next stack with a graph
 // command still rebuilds the graph instead of standing aside for it.
 func TestPlanASkippedGraphLaneDoesNotCarryTheGraph(t *testing.T) {

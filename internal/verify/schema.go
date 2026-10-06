@@ -54,6 +54,9 @@ type Lane struct {
 	// lane does not care about; a commit or a turn end that changes only such
 	// paths plans the lane as not-applicable.
 	SkipWhenOnly []string
+	// Lock takes the lane's stack and area for itself in this checkout while
+	// its processes run; a second run waits.
+	Lock bool
 }
 
 // Override is one [verify.<stack>].<kind> entry. A string or a list stands
@@ -321,6 +324,12 @@ func parseLaneTable(table, kind string, v map[string]any) (Override, error) {
 			err = laneString(table, key, value, &o.Lane)
 		case "needs":
 			o.Lane.Needs, err = laneNeeds(table, value)
+		case "lock":
+			b, ok := value.(bool)
+			if !ok {
+				return Override{}, fmt.Errorf("%s.lock must be a boolean", table)
+			}
+			o.Lane.Lock = b
 		case "skip_when_only":
 			o.Lane.SkipWhenOnly, err = laneGlobs(table, value)
 		default:
