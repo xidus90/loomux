@@ -121,6 +121,9 @@ func battery() []string {
 	for line := range gateLines() {
 		lines = append(lines, line)
 	}
+	for line := range stdinLines() {
+		lines = append(lines, line)
+	}
 	slices.Sort(lines)
 	return slices.Compact(lines)
 }
@@ -131,17 +134,28 @@ func refusedBy(root, line string) bool {
 }
 
 // TestRecordTheGuardBattery writes what the guard says about every line of
-// the battery. It runs only when asked, once, at the state before a change to
-// the guard; the file it writes is the "before" the differential test reads.
+// the battery the record lacks. It runs only when asked, once, at the state
+// before a change to the guard that adds lines; the file it writes is the
+// "before" the differential test reads. A line already recorded keeps its
+// verdict, so each line's "before" stays the state before the change that
+// brought it.
 func TestRecordTheGuardBattery(t *testing.T) {
 	if os.Getenv("LOOMUX_RECORD_GUARD_BATTERY") != "1" {
 		t.Skip("set LOOMUX_RECORD_GUARD_BATTERY=1 to record the guard's verdicts")
 	}
+	before := map[string]bool{}
+	if _, err := os.Stat(batteryFile); err == nil {
+		before = readBattery(t)
+	}
 	root := t.TempDir()
 	var b strings.Builder
 	for _, line := range battery() {
+		refused, recorded := before[line]
+		if !recorded {
+			refused = refusedBy(root, line)
+		}
 		verdict := "pass"
-		if refusedBy(root, line) {
+		if refused {
 			verdict = "refused"
 		}
 		b.WriteString(verdict + "\t" + strconv.Quote(line) + "\n")
@@ -175,7 +189,10 @@ func readBattery(t *testing.T) map[string]bool {
 
 // The differential probe: no line the guard refused before passes now, and
 // the lines that flipped to a refusal are exactly the writes of the armed
-// lanes and the calls that arm or disarm.
+// lanes, the calls that arm or disarm and the interpreters that read their
+// program from stdin. Each line's verdict dates from before the change that
+// brought it; the armed lanes' lines and the stdin lines are the ones
+// refused since.
 func TestTheGuardOpensNothingItRefusedBefore(t *testing.T) {
 	before := readBattery(t)
 	lines := battery()
@@ -193,6 +210,11 @@ func TestTheGuardOpensNothingItRefusedBefore(t *testing.T) {
 		flips[line] = true
 	}
 	for line, refused := range gateLines() {
+		if refused {
+			flips[line] = true
+		}
+	}
+	for line, refused := range stdinLines() {
 		if refused {
 			flips[line] = true
 		}

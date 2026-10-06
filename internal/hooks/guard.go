@@ -325,6 +325,9 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 				if armsOrDisarms(line, policy.Strict) {
 					reasons = append(reasons, gateReason)
 				}
+				if readsProgramFromStdin(line) {
+					reasons = append(reasons, stdinReason)
+				}
 				if _, tooDeep := ranLines(line); tooDeep {
 					reasons = append(reasons, fmt.Sprintf("loomux reads a command inside a string only %d shells deep; this line goes deeper, so it refuses", maxInnerDepth))
 				}

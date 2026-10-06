@@ -460,6 +460,7 @@ The built-in rules (`internal/hooks/guard.go`):
 | Command | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
 | Command | `loomux flow resume … --answer` in every spelling the rule for `loomux config` reads (a path to the binary, quotes, chained commands, `--answer text`, `--answer=text`), and any `Start-Process` of loomux, whose arguments the guard cannot see | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
 | Command | `loomux gate` with any subcommand but `status`, in the same spellings | loomux gate arm and disarm decide which lanes fail the gate; a human runs them, and an agent arms a lane only through a green `loomux check precommit --arm`. `loomux gate status` shows the lanes |
+| Command | an interpreter (`python`, `python3`, `python3.N`, `py`, `node`, `perl`, `ruby`, also behind `uv run` or `uvx`, and `uv run -` itself) that takes its program from stdin with nothing real on it: a lone `-` or no program, with neither a pipe from a command nor a `<` file; a heredoc or here-string into it, or piped into it, never counts | loomux refuses an interpreter that reads its program from stdin (`python -`, a bare `python`, `uv run -`, a heredoc or here-string into one): with nothing piped in it waits until it is stopped, and a shell may rewrite the backslashes of inline program text. Write the script to a file in the scratchpad with the host's file tool (Write, write_to_file) and run that file. |
 
 **The armed lanes have named gaps**, shared with the manifest and not closed:
 `git checkout <rev> -- .loomux`, `git checkout <rev> -- .`,
@@ -467,6 +468,46 @@ The built-in rules (`internal/hooks/guard.go`):
 pass and can disarm lanes. The refusal of
 `rm -rf .loomux` names one reason more because of the file, in a project
 without it as well.
+
+**Interpreters that read stdin** (`internal/hooks/guardstdin.go`). An agent
+that starts `python -` or a bare `node` with nothing on stdin waits until it
+is stopped, and a program written inline in a heredoc reaches the
+interpreter after the shell may have rewritten its backslashes. The rule
+reads each interpreter's own flags: a flag that carries the program
+(`python -c`/`-m`, `node -e`/`-p`, `perl -e`/`-E`, `ruby -e`) or a word
+after which it reads no program (`python -V`, `perl --version`,
+`node --test`, `py --list`) passes, a flag that takes a value skips it
+(`python -X utf8`, `perl -I lib`, `ruby -E utf-8`), short flags are read as
+a bundle (`-uc`, `-lne`), and the first other word is the script; `-` there,
+or no word at all, is stdin. `perl -c` and `python -E` carry no program.
+`command -v python` names a program and runs none, so it passes. stdin is
+real behind a `<` redirection or a pipe whose left side holds no heredoc,
+a subshell, a group or a `$(…)` in front of the bar included
+(`echo 'print(1)' | python -`, `echo $(date) | python -`,
+`Get-Content x.py | python -`, `python - < x.py`); a heredoc or here-string
+into the interpreter, or piped into it (`cat <<EOF | python -`,
+`@'…'@ | python -`), is not. Unlike the write rules it cuts the line only
+outside quotes, so `git commit -m "fix; python -"` passes; a string a shell
+runs (`sh -c "python -"`) is read as for the other command rules. A
+heredoc's body and a here-string's text are data to this rule alone:
+`cat <<'EOF' > notes.md` with `python -` in its body passes it, while the
+write rules still read such a body as commands. It does not see
+`python -i script.py` (a bare `python -i` is refused), a line ending in
+` @"` or ` @'` that is no PowerShell here-string (`git commit -m "see @"`),
+whose following lines it takes for the here-string's text, an interpreter in
+a variable set elsewhere than on the line, interpreters outside the list (`pypy`, `deno`, `bun`, `php`), a value flag
+of `node` or `uv` it does not know, whose value it takes for the script,
+an interpreter in a heredoc a shell runs (`cat <<'EOF' | sh` with
+`python -` in the body), a `python -` on a line after an arithmetic shift
+(`$((1<<2))`, which it reads as a heredoc), a quoted script argument
+that starts with `<` (`python - "<x"`, which it reads as a `<` file), and a
+heredoc-fed group piped into the interpreter (`{ cat <<'EOF'; } | python -`)
+on a line that also holds a quoted lone brace (`echo ' { '`), which turns
+its brace counting off for the line. It
+refuses more than a shell would: a pipe continued on the next line, `|&`,
+`echo 'python -' | sh`, a
+`<<` in quotes before the pipe (`echo "<<" | python -`), and a heredoc an
+agent types into an Antigravity task line by line.
 
 **The built-in path rules match in any case**: Windows and macOS keep
 `.LOOMUX/State/Runs` and `.loomux/state/runs` as one folder, so the rule is

@@ -95,6 +95,8 @@ sequenceDiagram
 
 Jede Phase mit Nutzlast, Exitcodes und Budgets: [Hook-Lebenszyklus](docs/de/hooks.md).
 
+Neben Pfaden und loomux' eigenen Befehlen verweigert der Wächter einen Interpreter, der sein Programm von stdin lesen würde, ohne dass dort etwas ankommt (`python -`, ein nacktes `node`, `uv run -`, ein Heredoc hinein): so ein Aufruf hängt, bis er gestoppt wird. Ein Agent schreibt das Skript in eine Datei und führt die aus ([Entscheidungsweg](docs/de/hooks.md#7-der-entscheidungsweg-von-pre-tool-use)).
+
 Eine Lane, die in einem Projekt noch nie grün war, warnt, statt zu scheitern. `.loomux/armed.toml` nennt die Lanes, die scharf sind; eine Lane, die dort fehlt, ist in Probe, läuft und berichtet, lässt aber weder eine Bearbeitung noch ein Rundenende noch das Tor scheitern. Der Hook, den `loomux init` schreibt, ruft `loomux check precommit --arm`, das eine Lane scharf stellt, wenn ein ganzer Commit grün durchgeht; `loomux gate status|arm|disarm` zeigt und setzt die Lanes von Hand. Ohne die Datei ist jede Lane scharf. Einzelheiten: [Schonfrist je Lane](docs/de/configuration.md#schonfrist-je-lane-loomuxarmedtoml).
 
 ### 2. Deterministisches Code-Graph-Retrieval ("GraphRank")

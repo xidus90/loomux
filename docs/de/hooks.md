@@ -484,12 +484,59 @@ Die eingebauten Regeln (`internal/hooks/guard.go`):
 | Befehl | `(^\|\s)git\s+push(\s\|$)` | Whether commits reach the remote is a human's decision. |
 | Befehl | `loomux flow resume … --answer` in jeder Schreibweise, die die Regel für `loomux config` liest (ein Pfad zum Binary, Anführungszeichen, verkettete Befehle, `--answer text`, `--answer=text`), und jedes `Start-Process` von loomux, dessen Argumente der Wächter nicht sieht | a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer "…"` themselves |
 | Befehl | `loomux gate` mit jedem Unterbefehl außer `status`, in denselben Schreibweisen | loomux gate arm and disarm decide which lanes fail the gate; a human runs them, and an agent arms a lane only through a green `loomux check precommit --arm`. `loomux gate status` shows the lanes |
+| Befehl | ein Interpreter (`python`, `python3`, `python3.N`, `py`, `node`, `perl`, `ruby`, auch hinter `uv run` oder `uvx`, und `uv run -` selbst), der sein Programm von stdin nimmt, ohne dass dort echter Inhalt ankommt: ein einzelnes `-` oder kein Programm, ohne Pipe aus einem Befehl und ohne `<`-Datei; ein Heredoc oder Here-String hinein, auch über eine Pipe, zählt nie | loomux refuses an interpreter that reads its program from stdin (`python -`, a bare `python`, `uv run -`, a heredoc or here-string into one): with nothing piped in it waits until it is stopped, and a shell may rewrite the backslashes of inline program text. Write the script to a file in the scratchpad with the host's file tool (Write, write_to_file) and run that file. |
 
 **Die scharfen Lanes haben benannte Lücken**, die sie mit dem Manifest teilen
 und die nicht geschlossen sind: `git checkout <rev> -- .loomux`,
 `git checkout <rev> -- .`, `git restore -s <rev> .`, `git stash`,
 `git reset --hard` und `git switch` gehen durch und können Lanes entschärfen. Die Ablehnung von `rm -rf .loomux` nennt
 wegen der Datei einen Grund mehr, auch in einem Projekt ohne sie.
+
+**Interpreter, die von stdin lesen** (`internal/hooks/guardstdin.go`). Ein
+Agent, der `python -` oder ein nacktes `node` ohne Inhalt auf stdin startet,
+wartet, bis er gestoppt wird, und ein Programm, das in einem Heredoc in der
+Zeile steht, erreicht den Interpreter, nachdem die Shell seine Backslashes
+umgeschrieben haben kann. Die Regel liest die Flaggen jedes Interpreters:
+eine Flagge, die das Programm trägt (`python -c`/`-m`, `node -e`/`-p`,
+`perl -e`/`-E`, `ruby -e`), oder ein Wort, nach dem er kein Programm liest
+(`python -V`, `perl --version`, `node --test`, `py --list`), lässt durch,
+eine Flagge mit Wert überspringt ihn (`python -X utf8`, `perl -I lib`,
+`ruby -E utf-8`), kurze Flaggen werden als Bündel gelesen (`-uc`, `-lne`),
+und das erste andere Wort ist das Skript; `-` an dieser Stelle oder gar kein
+Wort heißt stdin. `perl -c` und `python -E` tragen kein Programm.
+`command -v python` nennt ein Programm und führt keines aus und geht darum
+durch. Echtes stdin gibt es hinter
+einer `<`-Umleitung oder einer Pipe, deren linke Seite keinen Heredoc
+enthält, eine Subshell, eine Gruppe oder ein `$(…)` vor dem Strich
+eingeschlossen (`echo 'print(1)' | python -`, `echo $(date) | python -`,
+`Get-Content x.py | python -`, `python - < x.py`); ein Heredoc oder Here-String in den Interpreter, auch
+über eine Pipe (`cat <<EOF | python -`, `@'…'@ | python -`), zählt nicht.
+Anders als die Schreibregeln schneidet sie die Zeile nur außerhalb von
+Anführungszeichen, `git commit -m "fix; python -"` geht also durch; einen
+String, den eine Shell ausführt (`sh -c "python -"`), liest sie wie die
+übrigen Befehlsregeln. Der Rumpf eines Heredocs und der Text eines
+Here-Strings sind nur für diese Regel Daten: `cat <<'EOF' > notes.md` mit
+`python -` im Rumpf lässt sie durch, die Schreibregeln lesen so einen Rumpf
+weiter als Befehle. Sie sieht nicht `python -i script.py` (ein nacktes
+`python -i` wird verweigert), eine Zeile, die auf ` @"` oder ` @'` endet,
+ohne ein PowerShell-Here-String zu sein (`git commit -m "see @"`), und deren
+Folgezeilen sie für dessen Text hält, einen Interpreter in einer Variablen,
+die anderswo als in der Zeile gesetzt ist, Interpreter außerhalb
+der Liste (`pypy`, `deno`, `bun`, `php`), eine Wertflagge von `node` oder
+`uv`, die sie nicht kennt und deren Wert sie für das Skript hält, einen
+Interpreter in einem Heredoc, den eine Shell ausführt (`cat <<'EOF' | sh`
+mit `python -` im Rumpf), ein `python -` in einer Zeile nach einem
+arithmetischen Shift (`$((1<<2))`, den sie als Heredoc liest), ein
+Skriptargument in Anführungszeichen, das mit `<` beginnt (`python - "<x"`,
+das sie als `<`-Datei liest), und eine Gruppe mit Heredoc, die in den
+Interpreter führt (`{ cat <<'EOF'; } | python -`), wenn dieselbe Zeile auch
+eine zitierte, einzeln stehende geschweifte Klammer trägt (`echo ' { '`),
+die das Zählen der Klammern für die Zeile abschaltet. Sie verweigert mehr,
+als eine Shell täte: eine
+Pipe, die erst in der nächsten Zeile weitergeht, `|&`,
+`echo 'python -' | sh`, ein `<<` in
+Anführungszeichen vor der Pipe (`echo "<<" | python -`) und einen Heredoc,
+den ein Agent Zeile für Zeile in einen Antigravity-Task tippt.
 
 **Die eingebauten Pfadregeln treffen in jeder Schreibweise**: Windows und
 macOS halten `.LOOMUX/State/Runs` und `.loomux/state/runs` als einen Ordner,
