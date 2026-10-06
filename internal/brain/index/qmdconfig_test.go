@@ -1045,6 +1045,32 @@ func TestSyncCollectionsErrorPaths(t *testing.T) {
 	})
 }
 
+func TestSyncCollectionsAFailedRecordWriteKeepsTheCollectionOurs(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := filepath.Join(tmp, "xdg", "qmd", "index.yml")
+	owned := filepath.Join(tmp, "state", "qmd-collections.json")
+	wanted := map[string]CollectionSpec{"project_alpha": {Path: "C:/corpus", Pattern: "**/*.md"}}
+
+	block := owned + tempSuffix
+	if err := os.MkdirAll(block, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SyncCollections(cfg, wanted, sameRecord(owned)); err == nil {
+		t.Fatal("expected an error when the ownership record cannot be written")
+	}
+	if err := os.Remove(block); err != nil {
+		t.Fatal(err)
+	}
+
+	outcome, err := SyncCollections(cfg, wanted, sameRecord(owned))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(outcome.Refused) != 0 {
+		t.Fatalf("second run refused its own collection: %v", outcome.Refused)
+	}
+}
+
 func TestPruneCollectionsErrorPaths(t *testing.T) {
 	tmp := t.TempDir()
 

@@ -319,17 +319,9 @@ func SyncCollections(configPath string, wanted map[string]CollectionSpec, owned 
 		return SyncOutcome{}, err
 	}
 
-	for _, name := range changed {
-		collections[name] = entries[name]
-	}
-	doc["collections"] = collections
-
-	yamlData, _ := yaml.Marshal(doc)
-
-	if err := replaceWith(configPath, yamlData); err != nil {
-		return SyncOutcome{}, err
-	}
-
+	// The record goes first: a collection in the config that the record does
+	// not name is refused as foreign on every later run, whereas a record
+	// that names a collection not yet in the config is made good by the next.
 	newOwned := make(map[string]bool, len(ours)+len(mine))
 	for k, v := range ours {
 		newOwned[k] = v
@@ -338,6 +330,17 @@ func SyncCollections(configPath string, wanted map[string]CollectionSpec, owned 
 		newOwned[k] = true
 	}
 	if err := remember(owned.Write, newOwned); err != nil {
+		return SyncOutcome{}, err
+	}
+
+	for _, name := range changed {
+		collections[name] = entries[name]
+	}
+	doc["collections"] = collections
+
+	yamlData, _ := yaml.Marshal(doc)
+
+	if err := replaceWith(configPath, yamlData); err != nil {
 		return SyncOutcome{}, err
 	}
 
