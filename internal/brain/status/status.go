@@ -6,12 +6,14 @@
 package status
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/xidus90/loomux/internal/brain/graph"
@@ -47,20 +49,27 @@ func Lines(ch privacy.Channel, port search.SearchPort, registryDir string, now t
 			lines = append(lines, fmt.Sprintf("%s: the search engine sees only %s; also declared: %s",
 				area.Scope, manifest.IndexInclude[0], strings.Join(manifest.IndexInclude[1:], ", ")))
 		}
-		// Path.exists() is os.path.exists, which calls every failed stat
-		// absent. Only a read-only area gets here with its path gone: a
+		// Only a read-only area gets here with its path gone or unreadable: a
 		// writable one keeps its manifest under that path, and VisibleAreas
-		// has refused it already.
+		// has refused it already. A path that is not there is skipped, and so
+		// is one that cannot be inspected, but the line says which, as
+		// `loomux reindex` does.
 		if _, err := os.Stat(area.Path); err != nil {
-			lines = append(lines, fmt.Sprintf("%s: %s does not exist; skipped",
-				area.Scope, pytext.PathString(runtime.GOOS, area.Path)))
+			shown := pytext.PathString(runtime.GOOS, area.Path)
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+				lines = append(lines, fmt.Sprintf("%s: %s does not exist; skipped", area.Scope, shown))
+			} else {
+				lines = append(lines, fmt.Sprintf("%s: %s cannot be inspected: %v; skipped", area.Scope, shown, err))
+			}
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(config.ManifestDir(area, registryDir), "graph.json")); err != nil {
+		// An area with no graph.json is a state of its own; one whose
+		// graph.json cannot be inspected is a failure, and ReadGraph says so.
+		g, err := graph.ReadGraph(area, registryDir)
+		if errors.Is(err, graph.ErrNotIndexed) {
 			lines = append(lines, fmt.Sprintf("%s: never indexed; run `loomux reindex`", area.Scope))
 			continue
 		}
-		g, err := graph.ReadGraph(area, registryDir)
 		if err != nil {
 			return nil, err
 		}

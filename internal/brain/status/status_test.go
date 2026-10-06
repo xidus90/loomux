@@ -238,6 +238,31 @@ func TestLinesSkipAReadOnlyAreaWhosePathIsGone(t *testing.T) {
 	}
 }
 
+func TestLinesTellAnAreaPathThatCannotBeInspectedFromOneThatIsGone(t *testing.T) {
+	// A NUL byte makes the stat fail with something other than "not found":
+	// the path is not known to be gone, so the line says it could not be
+	// inspected. Like a path that is gone it is skipped, exit 0, and the
+	// areas after it are still reported.
+	w := newWorld(t)
+	w.readOnly("project/nul", "project-nul", "placeholder", "")
+	w.entries.Reset()
+	w.entries.WriteString("[[area]]\nscope = 'project/nul'\npath = \"" + filepath.ToSlash(w.repos) +
+		"/bad\\u0000dir\"\nreadonly = true\n\n")
+	w.writable("gamma", "repo-gamma", "")
+	got, err := w.lines(privacy.ChannelLocal, search.NewFakePort())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[0] != neverReconciled || got[2] != "gamma: never indexed; run `loomux reindex`" {
+		t.Fatalf("lines %q", got)
+	}
+	line := got[1]
+	if !strings.HasPrefix(line, "project/nul: ") || !strings.Contains(line, " cannot be inspected: ") ||
+		!strings.HasSuffix(line, "invalid argument; skipped") || strings.Contains(line, "does not exist") {
+		t.Fatalf("line %q", line)
+	}
+}
+
 func TestLinesSkipAnAreaThatWasNeverIndexed(t *testing.T) {
 	// A read-only area's graph lies in the state directory: `kept` has one
 	// there and none in the area, `bare` one in the area and none there. Only
@@ -486,4 +511,16 @@ func TestLinesMatchTheMeasuredWorlds(t *testing.T) {
 			t.Fatalf("engine asked for %q, want %q", port.Listed, want)
 		}
 	})
+}
+
+func TestLinesCallAnAreaPathThroughARegularFileGone(t *testing.T) {
+	// Linux answers ENOTDIR for it, Windows a plain "not found": the path is
+	// not there either way.
+	w := newWorld(t)
+	file := filepath.Join(w.repos, "f")
+	w.write(file, "x")
+	w.readOnly("project/beta", "project-beta", filepath.ToSlash(file)+"/beta", "")
+	got, err := w.lines(privacy.ChannelLocal, search.NewFakePort())
+	expect(t, got, err, neverReconciled,
+		"project/beta: "+filepath.Join(file, "beta")+" does not exist; skipped")
 }
