@@ -95,6 +95,8 @@ sequenceDiagram
 
 Every phase with its payloads, exit codes and budgets: [hook lifecycle](docs/en/hooks.md).
 
+Besides paths and loomux's own commands, the guard refuses an interpreter that would read its program from stdin with nothing on it (`python -`, a bare `node`, `uv run -`, a heredoc into one): such a call hangs until it is stopped. An agent writes the script to a file and runs that ([decision path](docs/en/hooks.md#7-the-decision-path-of-pre-tool-use)).
+
 A lane that has never been green in a project warns instead of failing. `.loomux/armed.toml` names the lanes that are armed; a lane it does not name is in probation, runs and reports, and fails neither an edit, a turn end nor the gate. The hook that `loomux init` writes calls `loomux check precommit --arm`, which arms a lane when a whole commit passes green; `loomux gate status|arm|disarm` shows and sets the lanes by hand. Without the file every lane is armed. Details: [lane probation](docs/en/configuration.md#lane-probation-loomuxarmedtoml).
 
 ### 2. Deterministic Code Graph Retrieval ("GraphRank")
