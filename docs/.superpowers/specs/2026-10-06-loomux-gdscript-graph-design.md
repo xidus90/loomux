@@ -32,8 +32,9 @@ Anweisungen; gelesen wird also die Quelle.
    Sprachen mit einem Familienbegriff im Resolver wurden verworfen: Umbau für
    einen Fall, und bei einer späteren zweiten Godot-Sprache (C#, C++) würden
    sonst die Auflösungsregeln mehrerer Sprachen über einen Topf laufen.
-2. **`project.godot` ist eine Datei der Gruppe.** Ein anderes `*.godot` bekommt
-   nur seinen Dateiknoten.
+2. **`project.godot` ist eine Datei der Gruppe.** Ein anderes `*.godot`
+   bekommt keine Autoloads und keine Hauptszene, sondern wird gelesen wie eine
+   Ressource.
 3. **Ein `res://`-Ziel darf eine Datei jeder Sprache sein.** `resolveGDScript`
    bekommt die Pfadmenge des ganzen Builds. Damit trifft eine Szene→`.cs`- oder
    →`.gdextension`-Kante den Dateiknoten, sobald es einen Extraktor dafür gibt.
@@ -91,9 +92,16 @@ oder `godot_resource` (der Rest).
   - `const X = preload/load(…)` und `var X = preload/load(…)` auf Skriptebene
     ergeben zusätzlich `Import{Alias: X, Path: …}`.
   - Nicht: `ResourceLoader.load(…)` und Aufrufe ohne Literal.
+  - Ein Pfad ohne Schema in `load("x")` meint `res://x`, in `preload("x")`
+    den Ordner des Skripts. Geprobt mit Godot 4.7.1 am 2026-10-07: aus
+    `ui/probe.gd` lädt `load("data/x.gd")` `res://data/x.gd`,
+    `preload("data/x.gd")` `ui/data/x.gd`. Der Extraktor schreibt Specifier
+    und Alias-Pfad eines `load` ohne Schema deshalb als `res://x`; ein
+    `preload` bleibt wie geschrieben (Nachtrag 2026-10-07).
 - **calls**, Quelle = innerste Definition mit Knoten, sonst Klasse oder Datei:
-  - `foo()` und `self.foo()`: Name allein (bei `self` mit Owner = eigene Klasse,
-    wo es eine gibt);
+  - `foo()` und `self.foo()`: Name allein, `self.` wird abgeschnitten. Die
+    Klasse leitet der Resolver aus der Quelle ab; ein Owner-Feld braucht es
+    nicht;
   - `X.foo()` und `X.Y.foo()`: Name mit Receiver-Kette aus Bezeichnern
     (`attribute` mit `identifier`-Kindern, letztes Kind `attribute_call`);
   - `super.foo()` und `super()`: Receiver `super`;
@@ -108,8 +116,10 @@ oder `godot_resource` (der Rest).
 - **Signale**:
   - `sig.emit()`, `sig.connect(…)` und `sig.disconnect(…)` laufen als calls mit
     Receiver `sig` zum Resolver;
-  - `emit_signal("sig")` wird zur Rohkante references mit dem Namen aus dem
-    Literal.
+  - `emit_signal("sig")` wird zur selben Rohform wie `sig.emit()`: calls mit
+    Name `emit` und Receiver `sig` (Nachtrag beim Planen: eine Form weniger
+    im Resolver). Ebenso `emit_signal(&"sig")` mit StringName-Literal
+    (Nachtrag 2026-10-07). `obj.emit_signal("sig")` bleibt ohne Signalkante.
 
 ### `.tscn`, `.tres`
 
@@ -142,7 +152,9 @@ geratenen eindeutigen Namen.
 - Jedes `project.godot` der Gruppe bildet ein Projekt; die Wurzel ist sein
   Ordner. Eine Datei gehört zum nächsten Vorfahren-`project.godot`.
 - `res://a/b` → `<wurzel>/a/b`. Ein Pfad ohne Schema ist relativ zum Ordner der
-  Datei.
+  Datei, die ihn schreibt; ein Autoload also relativ zum Ordner von
+  `project.godot`, auch wenn ein Skript anderswo seinen Namen benutzt
+  (Nachtrag 2026-10-07).
 - Das Ziel muss in der Pfadmenge des ganzen Builds stehen (Entscheidung 3).
 - Ohne Projekt keine `res://`-Kante und keine Autoloads. Relative Pfade gehen
   weiter.
@@ -177,6 +189,13 @@ Zwei gleiche `class_name` in einem Projekt ergeben keine Bindung.
   - Receiver ist ein Signal der eigenen Klasse oder einer Basis und der Name
     `emit`, `connect` oder `disconnect`: Es entsteht eine Kante references auf
     das Signal.
+  - Receiver ist eine Kette `X.sig` (auch `X.Inner.sig`) und der Name einer
+    dieser drei: Alles vor dem letzten Glied wird gebunden wie eine
+    Receiver-Kette (Autoload, `class_name`, innere Klasse), das letzte Glied
+    in dieser Klasse und ihrer Basiskette als Signal gesucht. Trifft es genau
+    eines, entsteht eine Kante references darauf; sonst geht es weiter wie
+    unten. So wird das Event-Bus-Muster `Game.changed.connect(…)` sichtbar
+    (Nachtrag 2026-10-07, in `space` 53 Stellen).
   - Sonst Receiver-Kette: Das erste Glied wird gebunden, jedes weitere ist eine
     innere Klasse, und `foo` wird dort und in der Basiskette gesucht.
   - `new` zielt auf das eigene `_init` der Klasse, wenn sie genau eines hat,
@@ -197,7 +216,10 @@ Zwei gleiche `class_name` in einem Projekt ergeben keine Bindung.
 - Speichert der Godot-Editor eine `.tscn`, wird der Graph stale wie bei jeder
   Quelldatei.
 - `blast.IsTestPath` bekommt einen `.gd`-Arm: Suffix `_test.gd` oder ein Pfad
-  unter `test/` oder `tests/`.
+  unter `test/` oder `tests/`. Szenen und Ressourcen (`.tscn`, `.tres`) unter
+  `test/` oder `tests/` sind Testdaten und zählen ebenfalls als Test
+  (Nachtrag 2026-10-07: sonst macht ein Commit, der nur eine Test-Szene
+  ändert, `blast-audit` rot).
   - `test` ist der Standard-Suchordner von gdUnit4
     (`DEFAULT_TEST_LOOKUP_FOLDER` in dessen `GdUnitSettings.gd`).
   - **Grenze:** Ein in `project.godot` umgestellter `test_lookup_folder` wird
@@ -206,6 +228,15 @@ Zwei gleiche `class_name` in einem Projekt ergeben keine Bindung.
 - Preset `[stack.gdscript.graph]` mit denselben Befehlen wie
   `[stack.python.graph]` (`check graph-fresh`, `check blast-audit --cached
   --threshold 5`). Neue Lanes starten in der Schonfrist.
+- Träger der Graph-Lane (Nachtrag 2026-10-07, Entscheidung des Nutzers): Von
+  mehreren aktiven Stacks mit Graph-Befehl trägt der mit dem höchsten Rang,
+  `go` vor `python` vor `gdscript`; ein Stack ohne Rang folgt danach in
+  Byte-Reihenfolge. Bis hierhin entschied die Byte-Reihenfolge allein, und
+  `gdscript` hätte in jedem Repo mit Go oder Python die Graph-Lane übernommen:
+  eine angepasste `[verify.go.graph]` wäre still nicht mehr gelesen worden,
+  und die Lane hätte unter neuem Namen ihre Schonfrist neu begonnen. Die
+  Reihenfolge der Jobs in der Ausgabe bleibt die Byte-Reihenfolge; ein Edit
+  plant weiter keinen Graph-Job.
 
 ## Tests
 
@@ -247,6 +278,16 @@ Zwei gleiche `class_name` in einem Projekt ergeben keine Bindung.
   `path` immer mit.
 - `var`, `const` und `enum` als Knoten.
 - `connect(callable)` als Kante auf die Funktion.
+- Eine Szene als Autoload (`Bus="*res://bus.tscn"`) bindet auf den
+  Dateiknoten der Szene, nicht auf ihr Wurzelskript; Aufrufe und Signale
+  über den Namen ergeben so keine Kante. Braucht das Wurzelskript der Szene
+  als neues Rohdatum. Eigene Roadmap-Zeile (Nachtrag 2026-10-07; in `space`
+  sind beide Autoloads Skripte).
+- Signale und Aufrufe auf typisierten Feldern (`var _screen: ColonyScreen`,
+  dann `_screen.build_requested.connect(…)` oder `_screen.refresh()`): braucht
+  die Feldtypen als neues Rohdatum und Regeln für Verschattung. Eigene
+  Roadmap-Zeile (Nachtrag 2026-10-07; in `space` 198 Stellen der Form
+  `feld.sig.emit|connect|disconnect(`, ein Teil davon Engine-Signale).
 - Klassennamen über Sprachgrenzen (Entscheidung 4).
 - Extraktion im Hook-Pfad.
 
