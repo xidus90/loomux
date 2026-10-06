@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.1.0] - 2026-10-06
+
+<https://github.com/xidus90/loomux/pull/95>
+
+### Added
+- The guard refuses an interpreter that would read its program from stdin with nothing piped in (`python -`, a bare `python` or `node`, `uv run -`, a heredoc or here-string into one), in both hosts and both guard modes; the refusal says to write the script to a file and run it.
+
 ## [1.0.2] - 2026-10-06
 
 <https://github.com/xidus90/loomux/pull/92>
