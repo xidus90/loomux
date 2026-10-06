@@ -683,7 +683,7 @@ Ohne Datei der Lint über die registrierten Bereiche nach den zwölf Regeln von 
 - **Exit-Codes**: `0` ohne Fehler-Befund, auch mit Warnungen; `1` mit mindestens einem Fehler-Befund oder einer Weigerung; `2` bei einem Usage-Fehler.
 
 #### `loomux wiki-gate [--root <pfad>]`
-Das Wiki-Tor eines Projekts mit aktivem Wiki-Bündel. Es meldet `wiki-drift`, wenn `git status` geänderten Code zeigt, im Wiki aber nichts geändert ist, und jeden Fehler-Befund des Bündel-Lints als `wiki-lint:<regel>`. Ein Projekt ohne Wiki-Bündel besteht.
+Das Wiki-Tor eines Projekts mit aktivem Wiki-Bündel. Es meldet `wiki-drift`, wenn `git status` geänderten Code zeigt, im Wiki aber nichts geändert ist, und jeden Fehler-Befund des Bündel-Lints als `wiki-lint:<regel>`. Ein Projekt ohne Wiki-Bündel besteht. Ein Verzeichnis ohne `.git`-Eintrag, in dem git nicht antworten kann (ein Wiki neben dem Projekt, das kein Repository ist), steht nicht unter git, und für es wird keine Drift beurteilt. Ein `git status`, der in einem Verzeichnis mit `.git`-Eintrag scheitert (ein beschädigter Index), wird als `wiki-git` mit der Meldung von git gemeldet.
 
 - **Flags**: `--root <pfad>` — Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
 - **Ausgabe**: `OK: Wiki Gate passed. …` auf `stdout`, oder die Verstöße als `  • [<name>] <meldung>` auf `stderr`, gefolgt von `Found <n> violation(s).`

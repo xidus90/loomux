@@ -660,7 +660,7 @@ Without a file, the lint over the registered areas by the twelve rules of the re
 - **Exit codes**: `0` without an error finding, warnings included; `1` with at least one error finding or a refusal; `2` on a usage error.
 
 #### `loomux wiki-gate [--root <path>]`
-The wiki gate of a project whose wiki bundle is active. It reports `wiki-drift` when `git status` shows changed code but nothing changed in the wiki, and every error finding of the bundle lint as `wiki-lint:<rule>`. A project without a wiki bundle passes.
+The wiki gate of a project whose wiki bundle is active. It reports `wiki-drift` when `git status` shows changed code but nothing changed in the wiki, and every error finding of the bundle lint as `wiki-lint:<rule>`. A project without a wiki bundle passes. A directory without a `.git` entry where git cannot answer (a wiki beside the project that is no repository) is not under git, and no drift is judged for it. A `git status` that fails in a directory that has a `.git` entry (a corrupt index) is reported as `wiki-git` with git's message.
 
 - **Flags**: `--root <path>` — project root; the working directory when empty.
 - **Output**: `OK: Wiki Gate passed. …` on `stdout`, or the violations as `  • [<name>] <message>` on `stderr`, followed by `Found <n> violation(s).`

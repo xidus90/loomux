@@ -36,13 +36,13 @@ func TestGetGitChangedFilesIgnoresAnInheritedGitDir(t *testing.T) {
 	t.Setenv("GIT_DIR", filepath.Join(decoy, ".git"))
 	t.Setenv("GIT_WORK_TREE", decoy)
 
-	if changed := getGitChangedFiles(t.TempDir()); changed != nil {
-		t.Fatalf("a directory that is no repository answered with %v", changed)
+	if changed, underGit, err := getGitChangedFiles(t.TempDir()); changed != nil || underGit || err != nil {
+		t.Fatalf("a directory that is no repository answered with %v, %v, %v", changed, underGit, err)
 	}
 }
 
 func TestGetGitChangedFilesListsTheChangedPaths(t *testing.T) {
-	changed := getGitChangedFiles(decoyRepo(t))
+	changed, _, _ := getGitChangedFiles(decoyRepo(t))
 	if len(changed) != 1 || changed[0] != "loud.md" {
 		t.Fatalf("got %v", changed)
 	}
@@ -72,7 +72,7 @@ func TestGetGitChangedFilesKeepsThePathOfAWorktreeOnlyChange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changed := getGitChangedFiles(root)
+	changed, _, _ := getGitChangedFiles(root)
 	if len(changed) != 1 || changed[0] != "loud.md" {
 		t.Fatalf("got %v, want the whole path", changed)
 	}
@@ -148,5 +148,88 @@ func TestSplitAtWikiGivesEverythingToAWikiAtTheRoot(t *testing.T) {
 	code, wikiChanges := splitAtWiki([]string{"loud.md"}, ".")
 	if len(code) != 0 || len(wikiChanges) != 1 {
 		t.Fatalf("code %v, wiki %v", code, wikiChanges)
+	}
+}
+
+// gitFailuresOf keeps the violations that name a git failure.
+func gitFailuresOf(violations []GateViolation) []GateViolation {
+	var failures []GateViolation
+	for _, v := range violations {
+		if v.Name == "wiki-git" {
+			failures = append(failures, v)
+		}
+	}
+	return failures
+}
+
+// `git status` that fails in a repository is no answer of "nothing changed":
+// a corrupt index made the gate pass with "no drift detected". The failure is
+// a violation that carries git's own message.
+func TestCheckWikiGateReportsAGitStatusThatFails(t *testing.T) {
+	project := decoyRepo(t)
+	mkdir(t, project, "docs", "wiki")
+	if err := os.WriteFile(filepath.Join(project, ".git", "index"), []byte("garbage"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	failures := gitFailuresOf(CheckWikiGate(project))
+	if len(failures) != 1 || !strings.Contains(failures[0].Message, "index file smaller than expected") || !strings.Contains(failures[0].Message, "in "+project+":") {
+		t.Fatalf("got %v", failures)
+	}
+}
+
+// The same failure in a wiki that carries a repository of its own.
+func TestCheckWikiGateReportsAGitStatusThatFailsInTheWiki(t *testing.T) {
+	parent := t.TempDir()
+	project := filepath.Join(parent, "proj")
+	cmd := exec.Command("git", "init", "-q", "-b", "main")
+	cmd.Dir = mkdir(t, project)
+	cmd.Env = gitenv.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(project, "loud.md"), []byte("loud"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wiki := mkdir(t, parent, "proj_wiki")
+	mkdir(t, wiki, ".git")
+
+	failures := gitFailuresOf(CheckWikiGate(project))
+	if len(failures) != 1 || !strings.Contains(failures[0].Message, "in "+wiki+":") {
+		t.Fatalf("got %v", failures)
+	}
+}
+
+// A wiki beside the project that is no repository has no `git status` to
+// compare with the project's: it read as untouched for ever, and every change
+// of the code was drift.
+func TestCheckWikiGateDoesNotJudgeDriftForAWikiThatIsNoRepository(t *testing.T) {
+	parent := t.TempDir()
+	project := filepath.Join(parent, "proj")
+	cmd := exec.Command("git", "init", "-q", "-b", "main")
+	cmd.Dir = mkdir(t, project)
+	cmd.Env = gitenv.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(project, "loud.md"), []byte("loud"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mkdir(t, parent, "proj_wiki")
+
+	violations := CheckWikiGate(project)
+	if len(driftOf(violations)) != 0 || len(gitFailuresOf(violations)) != 0 {
+		t.Fatalf("got %v", violations)
+	}
+}
+
+// A project that is no repository has no change to judge either.
+func TestCheckWikiGateDoesNotJudgeDriftForAProjectThatIsNoRepository(t *testing.T) {
+	project := t.TempDir()
+	mkdir(t, project, "docs", "wiki")
+
+	violations := CheckWikiGate(project)
+	if len(driftOf(violations)) != 0 || len(gitFailuresOf(violations)) != 0 {
+		t.Fatalf("got %v", violations)
 	}
 }
