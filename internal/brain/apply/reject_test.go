@@ -492,6 +492,9 @@ func TestRejectRefusesFrontmatterThatDoesNotLoad(t *testing.T) {
 	if !errors.As(err, &stopped) || err.Error() != "topics/thema.md: frontmatter is not a mapping" {
 		t.Fatalf("err = %v", err)
 	}
+	if cause := errors.Unwrap(err); cause == nil || cause.Error() != "frontmatter is not a mapping" {
+		t.Fatalf("cause = %v", cause)
+	}
 }
 
 func TestRejectPassesOnAFailedPageWrite(t *testing.T) {

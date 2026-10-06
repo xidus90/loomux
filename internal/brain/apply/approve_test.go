@@ -734,7 +734,7 @@ func TestAPackageThatDoesNotReadIsNoRefusal(t *testing.T) {
 	_, err := v.run()
 	e := stopped[*ApplyError](t, err, path+": ")
 	var pkg *evidence.PackageError
-	if errors.As(err, &pkg) || e.Dirty != nil || !strings.Contains(err.Error(), "segments") {
+	if !errors.As(err, &pkg) || e.Dirty != nil || !strings.Contains(err.Error(), "segments") {
 		t.Fatalf("err = %+v", e)
 	}
 	sameSnapshot(t, before, snapshot(t, v.root))
@@ -1047,6 +1047,16 @@ func TestAPageWhoseFrontmatterCannotBeAdvancedIsRefused(t *testing.T) {
 		if e := stopped[*ApplyError](t, err, tc.message); e.Dirty != nil {
 			t.Fatalf("dirty = %q", e.Dirty)
 		}
+		if errors.Unwrap(err) == nil {
+			t.Fatalf("the refusal carries no cause: %v", err)
+		}
+	}
+	// The cause is the reader's own error, reachable through errors.Is/As.
+	v := newAppVault(t)
+	v.retarget(t, "Nur Text.\n", "@@ -1,1 +1,1 @@\n-Nur Text.\n+Neu.")
+	_, err := v.run()
+	if cause := errors.Unwrap(err); cause == nil || cause.Error() != "the target page has no frontmatter to advance" {
+		t.Fatalf("cause = %v", cause)
 	}
 }
 
