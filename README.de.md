@@ -513,9 +513,10 @@ einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
    ```
 2. GitHub App (Settings → Developer settings → GitHub Apps → New): Name
    `loomux-release`, Webhook aus, Repository-Rechte `Contents: Read and
-   write`, `Pull requests: Read-only`, `Metadata: Read-only`, „Only on this
-   account“. Private Key erzeugen, App nur in `xidus90/loomux` installieren,
-   dann:
+   write`, `Pull requests: Read-only`, `Metadata: Read-only`,
+   `Administration: Read-only` (listet die Runner, siehe Schritt 4), „Only on
+   this account“. Private Key erzeugen, App nur in `xidus90/loomux`
+   installieren, dann:
    ```sh
    gh secret set RELEASE_APP_CLIENT_ID --body <client-id>
    gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
@@ -538,8 +539,14 @@ einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
    gh api repos/xidus90/loomux/rules/branches/master
    ```
    Eine geänderte Datei geht an `gh api -X PUT repos/xidus90/loomux/rulesets/<id>`.
-4. Pull Requests aus Forks laufen auf den self-hosted Runnern, also wartet
-   jeder Lauf von außen auf Freigabe:
+4. Runner: Jeder Workflow fährt zuerst `pick-runner` auf einem
+   GitHub-Runner, der jeden Job an den self-hosted Runner seines
+   Betriebssystems schickt, solange einer online ist, sonst an GitHubs. Er
+   listet die Runner mit dem Token der App, ohne `Administration: Read-only`
+   läuft also alles bei GitHub; ein Pull Request aus einem Fork bekommt keine
+   Secrets und läuft ebenfalls dort. Seine eigenen Workflow-Dateien können
+   die self-hosted Runner trotzdem nennen, also wartet jeder Lauf von außen
+   auf Freigabe:
    ```sh
    gh api -X PUT repos/xidus90/loomux/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors
    ```

@@ -10,15 +10,22 @@ on:
 permissions:
   contents: read
 jobs:
+  pick:
+    uses: ./.github/workflows/pick-runner.yml
+    secrets: inherit
   gate-windows:
-    runs-on: [self-hosted, windows-latest]
+    needs: pick
+    runs-on: ${{ fromJSON(needs.pick.outputs.windows) }}
     defaults:
       run:
-        # Git Bash by its path: a bare `bash` on a self-hosted runner can
-        # resolve to WSL's System32 launcher, which cannot open the script
+        # Git Bash by its path on the self-hosted runner: a bare `bash` there
+        # can resolve to WSL's System32 launcher, which cannot open the script
         # the runner hands it under a Windows path. The 8.3 name, because
         # the runner does not unquote a quoted path with a space in it.
-        shell: C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}
+        shell: >-
+          ${{ contains(needs.pick.outputs.windows, 'self-hosted')
+          && 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+          || 'bash' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -35,7 +42,8 @@ jobs:
   # This leg keeps the Linux build honest with vet, a build and the smoke test.
   # child's process group arm only runs here, so its tests run here too.
   build-linux:
-    runs-on: [self-hosted, ubuntu-latest]
+    needs: pick
+    runs-on: ${{ fromJSON(needs.pick.outputs.linux) }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

@@ -1,0 +1,50 @@
+name: pick-runner
+# Actions has no fallback between runners: a job whose runner is offline
+# waits. This job runs first on a GitHub-hosted runner and names the
+# self-hosted runner of each OS while one is online, GitHub's otherwise.
+# Listing runners needs Administration: read, which only the release app
+# holds; a run without its secrets (a fork, Dependabot) gets GitHub's runners.
+on:
+  workflow_call:
+    outputs:
+      windows:
+        value: ${{ jobs.pick.outputs.windows }}
+      linux:
+        value: ${{ jobs.pick.outputs.linux }}
+permissions: {}
+jobs:
+  pick:
+    runs-on: ubuntu-24.04
+    outputs:
+      windows: ${{ steps.pick.outputs.windows }}
+      linux: ${{ steps.pick.outputs.linux }}
+    steps:
+      - id: app
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-administration: read
+      - id: pick
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+        # Matched by the runners' built-in OS labels: the self-hosted ones
+        # also carry ubuntu-latest and windows-latest, and GitHub's are named
+        # by version so that they cannot be confused with them.
+        run: |
+          online=
+          if [ -n "$GH_TOKEN" ]; then
+            online=$(gh api "repos/$REPO/actions/runners" \
+              --jq '[.runners[] | select(.status == "online") | .os] | unique | join(" ")' || true)
+          fi
+          echo "online self-hosted: ${online:-none}"
+          case " $online " in
+          *" Windows "*) echo 'windows=["self-hosted","Windows"]' ;;
+          *) echo 'windows=["windows-2025"]' ;;
+          esac >>"$GITHUB_OUTPUT"
+          case " $online " in
+          *" Linux "*) echo 'linux=["self-hosted","Linux"]' ;;
+          *) echo 'linux=["ubuntu-24.04"]' ;;
+          esac >>"$GITHUB_OUTPUT"
