@@ -51,6 +51,22 @@ func readStatsFile(t *testing.T, w areaWorld) string {
 	return string(data)
 }
 
+// A register that cannot be inspected is refused, not read as empty: an
+// empty one would report an area without a single source.
+func TestScanRefusesARegisterThatCannotBeInspected(t *testing.T) {
+	// The area itself is sound: only the register, which a read-only area
+	// keeps in the state directory, cannot be reached.
+	area := config.Area{Scope: "project/odd", Path: t.TempDir(), ReadOnly: true}
+	checked, hashed, changed, err := maintenance.Scan(area, &config.Manifest{}, filepath.Join(t.TempDir(), "a\x00b"))
+	if err == nil || checked != 0 || hashed != 0 || changed != nil {
+		t.Fatalf("got %d, %d, %v, %v", checked, hashed, changed, err)
+	}
+	// The register is what failed, not a later step that shares the path.
+	if !strings.Contains(err.Error(), "_identities.tsv") {
+		t.Fatalf("error does not name the register: %v", err)
+	}
+}
+
 // A source whose digest still matches the register has not moved: it is
 // counted, and it stands in nothing.
 func TestScanFindsNothingWhenNothingMoved(t *testing.T) {

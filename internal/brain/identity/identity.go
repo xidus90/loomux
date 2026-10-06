@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"fmt"
+	"io/fs"
 	"math/big"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/xidus90/loomux/internal/brain/pytext"
@@ -80,13 +83,19 @@ func ContentHash(path string) (string, error) {
 
 // ReadIdentities loads the identity TSV file into memory, the way
 // identity.read_identities does (src/brain/identity.py:55-77).
-// Returns an empty map if the file does not exist; like Path.exists(), any
-// failure to stat the path counts as "does not exist".
-// Returns an error if the file is not UTF-8 or a row is malformed or has an
-// invalid revision.
+// Returns an empty map if the file does not exist, or a path through a regular
+// file cannot reach it, and only then: a path that cannot be inspected (access
+// denied, a name the system refuses) is not known to be absent, and an empty
+// register in its place would let a caller report an area without a source or
+// overwrite the rows it could not see.
+// Returns an error if the path cannot be inspected, the file is not UTF-8 or a
+// row is malformed or has an invalid revision.
 func ReadIdentities(path string) (map[string]Identity, error) {
 	if _, err := os.Stat(path); err != nil {
-		return map[string]Identity{}, nil
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+			return map[string]Identity{}, nil
+		}
+		return nil, err
 	}
 	text, err := pytext.ReadText(path)
 	if err != nil {
