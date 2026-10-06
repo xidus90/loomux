@@ -489,13 +489,20 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 			"and that outranks any writable tree around it", true
 	}
 	if len(roots) == 0 {
-		open := []string{"the agents' memory"}
+		open := []string{}
+		if memoryShown(claude, antigravity) != "" {
+			open = append(open, "the agents' memory")
+		}
 		if len(opened) > 0 {
 			open = append(open, "the files "+openName+" opens")
 		}
 		if scratch != "" {
 			open = append(open, "the session scratchpad below: "+
 				filepath.Join(scratch, "*", "*", "scratchpad"))
+		}
+		if len(open) == 0 {
+			return "the registry declares no writable wiki path and no " +
+				"workspace, so nothing may be written" + ignored, true
 		}
 		last := len(open) - 1
 		named := open[last]
