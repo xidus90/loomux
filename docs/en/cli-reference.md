@@ -907,7 +907,9 @@ place, the problem goes to stderr, and session start repeats it.
 
 Writes `<state dir>/update.json` (`source` = `serve` | `cli`, `checked_at`,
 `executable`, `running`, `result` = `current` | `updated` | `skipped` |
-`failed`, `version`, `error`). A pass that finds `update.lock` held steps
+`failed`, `version`, `error`). `version` is the release installed; on `failed`
+it is the release the pass tried, or empty when it failed before choosing one.
+A pass that finds `update.lock` held steps
 aside and writes nothing. A pass by hand that skips writes nothing either,
 so the record of `serve`'s last pass stays for session start to read.
 
