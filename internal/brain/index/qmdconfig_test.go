@@ -1075,8 +1075,32 @@ func TestPruneCollectionsErrorPaths(t *testing.T) {
 	})
 }
 
+func TestDropCollectionsKeepsABackupBeforeItsFirstWrite(t *testing.T) {
+	config := writeTestYAML(t, t.TempDir())
+	if _, err := DropCollections(config, []string{"space"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(config + backupSuffix)
+	if err != nil {
+		t.Fatalf("no backup of the file Drop rewrote: %v", err)
+	}
+	if string(got) != testExistingYAML {
+		t.Errorf("backup = %q, want the file as it stood", got)
+	}
+}
+
 func TestDropCollectionsErrorPaths(t *testing.T) {
 	tmp := t.TempDir()
+
+	t.Run("backup failure", func(t *testing.T) {
+		cfg := filepath.Join(tmp, "drop_backup.yml")
+		_ = os.WriteFile(cfg, []byte("collections:\n  space: {}\n"), 0o644)
+		// Block the backup's temp file by making its path a directory.
+		_ = os.MkdirAll(cfg+backupSuffix+tempSuffix, 0o755)
+		if _, err := DropCollections(cfg, []string{"space"}); err == nil {
+			t.Fatal("expected error when backup cannot be written")
+		}
+	})
 
 	t.Run("configPath is a directory", func(t *testing.T) {
 		if _, err := DropCollections(tmp, []string{"a"}); err == nil {
