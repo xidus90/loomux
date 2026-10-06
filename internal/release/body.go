@@ -77,7 +77,8 @@ func ParseBody(labels []string, body string) (Parsed, []string) {
 }
 
 // changelogBlock returns the lines after "## Changelog" up to the next
-// second-level heading. GitHub stores bodies with CRLF when they were typed
+// second-level heading; both headings may be indented, as GitHub renders them
+// either way. GitHub stores bodies with CRLF when they were typed
 // in the browser, so line ends are normalised first.
 func changelogBlock(body string) ([]string, bool) {
 	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
@@ -87,7 +88,7 @@ func changelogBlock(body string) ([]string, bool) {
 		}
 		rest := lines[i+1:]
 		for j, l := range rest {
-			if strings.HasPrefix(l, "## ") {
+			if strings.HasPrefix(strings.TrimSpace(l), "## ") {
 				return rest[:j], true
 			}
 		}

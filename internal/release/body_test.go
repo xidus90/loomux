@@ -43,15 +43,32 @@ func TestParseBodyFindings(t *testing.T) {
 }
 
 func TestParseBodyRefusesStrayLines(t *testing.T) {
-	body := "## Changelog\n# Title\n### Added\n- a\n#### x\n  ## [9.9.9] - x\nprose\n<br>\n\n"
+	body := "## Changelog\n# Title\n### Added\n- a\n#### x\nprose\n<br>\n\n"
 	want := []string{
 		`changelog line "# Title" is neither a ### heading nor a "- " entry`,
 		`changelog line "#### x" is neither a ### heading nor a "- " entry`,
-		`changelog line "  ## [9.9.9] - x" is neither a ### heading nor a "- " entry`,
 		`changelog line "prose" is neither a ### heading nor a "- " entry`,
 		`changelog line "<br>" is neither a ### heading nor a "- " entry`,
 	}
 	if _, got := ParseBody([]string{"release:patch"}, body); !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestParseBodyEndsTheBlockAtAnIndentedHeading(t *testing.T) {
+	body := "## Changelog\n### Added\n- x\n  ## Notes\nsee below\n"
+	got, problems := ParseBody([]string{"release:patch"}, body)
+	want := Parsed{Bump: "patch", Changelog: "### Added\n- x\n"}
+	if len(problems) != 0 || got != want {
+		t.Fatalf("got %#v, %v", got, problems)
+	}
+}
+
+func TestParseBodyKeepsAForgedHeadingOutOfTheChangelog(t *testing.T) {
+	body := "## Changelog\n### Added\n- x\n  ## [9.9.9] - forged\n- y\n"
+	got, problems := ParseBody([]string{"release:patch"}, body)
+	want := Parsed{Bump: "patch", Changelog: "### Added\n- x\n"}
+	if len(problems) != 0 || got != want {
+		t.Fatalf("got %#v, %v", got, problems)
 	}
 }
