@@ -152,3 +152,28 @@ func TestLintBundleReadsScaffoldAsLinkSource(t *testing.T) {
 		t.Errorf("a page listed by index.md is no orphan: %v", got)
 	}
 }
+
+// A page whose name starts with two dots lies inside the wiki; only a target
+// that actually climbs out of it leaves the area.
+func TestLintBundleReadsADotDotNamedPageAsInside(t *testing.T) {
+	root := t.TempDir()
+	writePage(t, root, "index.md", "# Index\n\n[p](page.md)\n")
+	writePage(t, root, "page.md", conceptPage+"[d](..draft.md) [g](..gone.md) [out](../out.md) [up](..)\n")
+	writePage(t, root, "..draft.md", conceptPage+"[p](page.md)\n")
+
+	findings, err := LintBundle(root)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := findingsOf(findings, "outside-area"); len(got) != 2 {
+		t.Errorf("expected 2 outside-area findings (../out.md and ..), got %v", got)
+	}
+	for _, f := range findingsOf(findings, "orphan") {
+		if f.Relative == "..draft.md" {
+			t.Errorf("..draft.md is linked from page.md, got orphan %v", f)
+		}
+	}
+	if got := findingsOf(findings, "dead-link"); len(got) != 1 {
+		t.Errorf("expected 1 dead-link (..gone.md), got %v", got)
+	}
+}

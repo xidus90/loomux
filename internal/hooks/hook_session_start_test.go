@@ -701,3 +701,33 @@ func TestUpdateWarningsNamesAnUnreadableStatus(t *testing.T) {
 		t.Fatalf("updateWarnings = %v", got)
 	}
 }
+
+// A binary under a directory whose name starts with two dots is inside the
+// project and is compared like any other.
+func TestSessionStartWarnsAboutAStaleBinaryUnderADotDotDirectory(t *testing.T) {
+	t.Setenv(config.StateDirEnv, t.TempDir())
+	root := t.TempDir()
+	binary := filepath.Join(root, "..bin", "loomux.exe")
+	write(t, binary, 2*time.Hour)
+	write(t, filepath.Join(root, "internal", "cli", "cli.go"), time.Minute)
+	runningAs(t, binary)
+
+	if lines := staleBinary(root); len(lines) != 1 {
+		t.Fatalf("expected one warning, got %v", lines)
+	}
+}
+
+// The directory above the project is not the project's binary, however old.
+func TestSessionStartSaysNothingAboutTheDirectoryAboveTheProject(t *testing.T) {
+	root, _ := pilot(t, time.Hour, time.Minute)
+	parent := filepath.Dir(root)
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(parent, old, old); err != nil {
+		t.Fatal(err)
+	}
+	runningAs(t, parent)
+
+	if lines := staleBinary(root); len(lines) != 0 {
+		t.Fatalf("expected no warning, got %v", lines)
+	}
+}

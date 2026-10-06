@@ -1213,3 +1213,29 @@ func TestCheckToolNamesTheConfigurationReason(t *testing.T) {
 		t.Fatalf("no --propose in %v", got)
 	}
 }
+
+// A first component that merely starts with two dots is inside the root, so a
+// rule naming it has to see the path relative to the root.
+func TestRelativePathKeepsADotDotNamedDirectoryInside(t *testing.T) {
+	root := t.TempDir()
+	if rel := relativePath(filepath.Join(root, "..secrets", "key.txt"), root); rel != "..secrets/key.txt" {
+		t.Fatalf("rel = %q, want ..secrets/key.txt", rel)
+	}
+	parent := filepath.Dir(root)
+	if rel := relativePath(parent, root); rel != filepath.ToSlash(parent) {
+		t.Fatalf("the parent of the root must stay absolute, got %q", rel)
+	}
+}
+
+func TestAPolicyRuleNamingADotDotDirectoryRefusesAWriteInIt(t *testing.T) {
+	root := t.TempDir()
+	policy := config.Policy{Paths: []config.PathRule{{
+		Match:  []string{"..secrets/**"},
+		Reason: "secrets are protected",
+	}}}
+	target := filepath.Join(root, "..secrets", "key.txt")
+	reasons := checkTool(root, "Write", map[string]any{"file_path": target}, policy)
+	if len(reasons) != 1 || reasons[0] != "secrets are protected" {
+		t.Fatalf("reasons %v", reasons)
+	}
+}
