@@ -2,23 +2,13 @@
 type: Topic
 title: Brain Maintenance
 description: Wie das System merkt, dass eine Quelle sich geändert hat — Erkennung, Prüfzentrum, Evidenzbindung, Merge-Auslöser.
-open_conflicts: 0
+open_conflicts: 1
 realization: in_progress
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
-  - id: stufe-3-spec
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-19-loomux-stufe-3-design.md
-    doc_id: 01M39G4J140NNQD5Q2HRVGKBG2
-    content_hash: "sha256:06779f84695b1540346b2f2f73e9f5a0aa48f15ce835048b1efd3e209ea7faa9"
-    revision: 1
-  - id: stufe-4-spec
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md
-    doc_id: 01M39NDHWJ80C90J6YB9B9AAQ9
-    content_hash: "sha256:a9c28b567436dca62d44c1eab1fb4d39749e9193c1f3bb70709f1dd69e349cec"
+  - id: cli-referenz
+    resource: brain://project/loomux/docs/de/cli-reference.md
+    doc_id: 01M47W91R5FRSPN6BE643656ZE
+    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
     revision: 1
 ---
 
@@ -127,8 +117,19 @@ war. Nach einer geschriebenen Freigabe laufen `reconcile` und `reindex`.
 Ein geerbter Fehler ist mitgezogen: `--reject` rückt Revision und Hash der
 Seite nicht vor, also eröffnet der nächste Abgleich denselben Fall wieder.
 Eine Heilung ist ein Nachtrag der Fusions-Spec; Stufe 4
-(`docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md`) sieht sie für
+(`docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md` in den
+Arbeitspapieren des Archiv-Release `archive/parity-recordings`) sieht sie für
 das Modell (4c) vor.
+
+> [!conflict] Rückt `--reject` Revision und Hash der Seite vor?
+> Der Absatz oben (verdichtet aus den Arbeitspapieren, vor dem Umzug der
+> Quellen) sagt: `--reject` rückt Revision und Hash der Seite nicht vor, also
+> eröffnet der nächste Abgleich denselben Fall wieder.
+> `docs/de/cli-reference.md`, Abschnitt `loomux approve`, sagt: Eine Ablehnung
+> schiebt `revision` und `content_hash` jedes passenden Eintrags in `sources[]`
+> der Seite und die Identitätsregister vor, damit der nächste `loomux reconcile`
+> denselben Fall nicht wieder eröffnet.
+> Beide Stände bleiben stehen. Entscheidung offen.
 
 ## Die Evidenzbindung als prüfbares Verfahren
 
@@ -173,5 +174,5 @@ schreibt seinen Auditblock. `loomux approve` schreibt seine Zeile in `log.md`
 unter die Überschrift des Tages, neueste zuerst, wie OKF §9 es verlangt;
 `audit.md` wächst nach unten.
 
-Siehe [Die Wiki-Schicht](wiki-schicht.md) für den anderen Schreibweg. Quellen:
-Architektur-Design; Design von Stufe 3 in loomux.
+Siehe [Die Wiki-Schicht](wiki-schicht.md) für den anderen Schreibweg. Quelle:
+die CLI-Referenz der Nutzerdoku.

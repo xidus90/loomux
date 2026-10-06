@@ -2,13 +2,18 @@
 type: Topic
 title: Der Code-Graph
 description: Wie loomux Symbole und Kanten ohne Modell aus dem Quelltext zieht, Treffer mit Personalized PageRank ordnet und den Blast-Radius einer Änderung berechnet.
-open_conflicts: 0
+open_conflicts: 1
 realization: in_progress
 sources:
-  - id: code-graph-spec
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md
-    doc_id: 01M39G4J1415Z8ESCSS7FY00SE
-    content_hash: "sha256:83365e0af4c04080d587fe9381f7eb6d6f046a7ad223b7a6c719f43533d3afda"
+  - id: architektur
+    resource: brain://project/loomux/docs/de/architecture.md
+    doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
+    content_hash: "sha256:90caf4489fa0a34bba71759199b54ddf32e4000923ac4104b677bebb6d15a3a3"
+    revision: 1
+  - id: cli-referenz
+    resource: brain://project/loomux/docs/de/cli-reference.md
+    doc_id: 01M47W91R5FRSPN6BE643656ZE
+    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
     revision: 1
 ---
 
@@ -123,7 +128,8 @@ das Binary kommt über die üblichen Wege.
 
 - **Mehrsprachige Extraktion** (G5): G5a — die Schnittstelle, der Kern auf
   `gotreesitter`, Python und der Cache — ist fertig und an zwei Python-Repos
-  abgenommen (`docs/.superpowers/parity/code-g5.md`). Offen sind G5b (TypeScript/TSX), G5c (GDScript) und
+  abgenommen (`docs/.superpowers/parity/code-g5.md` in den Arbeitspapieren des
+  Archiv-Release `archive/parity-recordings`). Offen sind G5b (TypeScript/TSX), G5c (GDScript) und
   G5d (C++, erst nach einer Recall-Prüfung gegen die C-Laufzeit). Der erste
   Plan, Tree-sitter als WebAssembly über `wazero`, ist verworfen.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
@@ -133,8 +139,17 @@ das Binary kommt über die üblichen Wege.
   aus der Spec: das Schema kennt heute nur den Schalter `graph` unter
   `[modules]`.
 - Die Brücke von Code-Symbolen zu Wiki-Seiten und ADRs und der Viewer
-  `graph viz` ordnete die Spec G4 und G5 zu; die Migrationstabelle führt
+  `graph viz` ordnete die Spec G4 und G5 zu; die Roadmap im README führt
   beide heute unter dem Web-OS (W3).
 
-Quelle: Code-Graph-Design; den Stand führt `docs/de/migration.md`
-(G1 bis G4b und G5a fertig).
+> [!conflict] Ist die Stufe G4c gebaut?
+> `docs/de/architecture.md`, Abschnitt „Säule III“, nennt als noch offen die
+> Stufen G4c und G5b bis G5d.
+> `docs/de/cli-reference.md` beschreibt die Graph-Lane im Stop-Gate
+> (`check stop`, `check blast-audit --cached`) als gebaut; diese Seite
+> beschreibt den Stop-Hook mit Blast-Logik oben ebenfalls als gebaut und
+> führt in „Was offen ist“ nur G5b bis G5d.
+> Beide Stände bleiben stehen. Entscheidung offen.
+
+Quelle: die Architektur und die CLI-Referenz der Nutzerdoku; offene Stufen
+führt die Roadmap im README.

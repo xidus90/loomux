@@ -4,13 +4,43 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-10-05
+
+- 2026-10-05 — alle Inhaltsseiten mit `sources[]`: die Quellen zeigen auf die
+  Nutzerdoku unter `docs/de/` oder, bei den Synthesen, auf Wiki-Seiten, weil
+  die Arbeitspapiere ins Archiv-Release gehen; die Vorgänger werden nicht mehr
+  genannt. Wo eine Seite einer neuen Quelle widerspricht, steht ein
+  Konfliktkasten (`brain-maintenance.md`, `code-graph.md`,
+  `suche-und-profile.md`). `_schema.md` nennt die neuen Rohquellen. Quelle:
+  Code von loomux (`.loomux/config.toml`, `[index]`).
+- 2026-10-05 — `topics/architektur-grundsaetze.md`: sagt jetzt ausdrücklich,
+  dass keine Nutzerdoku unter `docs/de/` die Grundsätze, die Vertrauenskette
+  und die Fehlerstellen belegt; sie sind aus dem Architektur-Design und der
+  Fusions-Spec des Vorgängers verdichtet, die heute in den Arbeitspapieren des
+  Archiv-Release `archive/parity-recordings` liegen. `docs/de/architecture.md`
+  bleibt die formale Quelle. Quelle: `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`
+  in den Arbeitspapieren des Archiv-Release `archive/parity-recordings`.
+- 2026-10-05 — `topics/datenmodell-und-bereiche.md`: der Konfliktkasten zum
+  Ort des Wikis entfällt, `open_conflicts` wieder 0. Die Aufteilung
+  Wissens-Vault gegen Code-Repo und ihre vier Gründe sind als Stand bis zum
+  Umzug am 2026-09-16 datiert; seit dem Umzug liegt das Wiki im Repo. Quelle:
+  `docs/de/cli-reference.md` (`loomux area add`), `docs/de/configuration.md`
+  (`[layout] wiki`).
+- 2026-10-05 — `topics/wiki-schicht.md`: der Konfliktkasten zu den Achsen von
+  `loomux brain check` entfällt, `open_conflicts` wieder 0; es sind zwei
+  Achsen, `okf` und `house`, und `house` trägt die Föderationsregeln. Quelle:
+  `docs/de/cli-reference.md` (`loomux brain check`).
+- 2026-10-05 — `topics/code-graph.md`: nennt das Vorbild nur noch über
+  `NOTICE.md`. Quelle: `internal/notices/NOTICE.md`.
+
 ## 2026-09-24
 
 - 2026-09-24 — `topics/architektur-grundsaetze.md`: Konflikt zu Grundsatz 5
   aufgelöst — beides gilt in verschiedenem Kontext: die Wissensschicht
   degradiert, Wächter und Tore scheitern geschlossen. Kasten entfernt,
   `open_conflicts` auf 0. Die Entscheidung steht zuerst in der Quelle:
-  `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`,
+  `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` in den
+  Arbeitspapieren des Archiv-Release `archive/parity-recordings`,
   „Fehlerverhalten“. Der Titel „Die Stufen und ihre Abnahme“ ist in allen
   Verweisen nachgezogen.
 - 2026-09-24 — `audit.md`: die Fälle `loomux-2026-09-24-5565` und
@@ -22,18 +52,22 @@
 - 2026-09-24 — `topics/schreibschranke.md`: neu. Registry, Manifest und
   Policy, verknüpfte Worktrees und `open.toml`. Quelle:
   `docs/.superpowers/specs/2026-09-15-loomux-schranke-worktrees-design.md`,
-  `…-samerepo-design.md`, `2026-09-24-schranke-open-toml-design.md`; Code von
+  `docs/.superpowers/specs/2026-09-16-loomux-schranke-samerepo-design.md` und
+  `docs/.superpowers/specs/2026-09-24-schranke-open-toml-design.md` in den
+  Arbeitspapieren des Archiv-Release `archive/parity-recordings`; Code von
   loomux (`internal/brain/guard`, `internal/config`).
 - 2026-09-24 — `topics/code-graph.md`: neu. Extraktion, Rang und
   Blast-Radius, `graph`-Befehle und die sieben `graph_*`-Werkzeuge; wo die Spec
   überholt ist, steht der gebaute Stand. Quelle:
-  `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md`, Code von
+  `docs/.superpowers/specs/2026-09-14-loomux-code-graph-design.md` in den
+  Arbeitspapieren des Archiv-Release `archive/parity-recordings`, Code von
   loomux (`internal/code`), Migrationsplan.
 - 2026-09-24 — `topics/wiki-schicht.md`: gegen die Spec der Stufe 3
   verdichtet — zwei Regelsätze im Lint, die Wiki-Werkzeuge, der Commit einer
   Freigabe, die Skills noch nicht in loomux; `implemented_in` auf `db780a0`.
-  Quelle: `docs/.superpowers/specs/2026-09-19-loomux-stufe-3-design.md`,
-  `…/2026-09-23-loomux-stufe-4-design.md`.
+  Quelle: `docs/.superpowers/specs/2026-09-19-loomux-stufe-3-design.md` und
+  `docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md` in den
+  Arbeitspapieren des Archiv-Release `archive/parity-recordings`.
 - 2026-09-24 — `topics/brain-maintenance.md`: gegen die Specs der Stufen 3
   und 4 verdichtet — Teilstufen 3a bis 3c, Auffangdurchgang vor `reindex`,
   Prüfzentrum, Ablauf einer Freigabe, der geerbte Fehler von `--reject`, die
@@ -42,11 +76,13 @@
   ergänzt, das lokale Modell als Absicht datiert, `realization` auf
   `in_progress`; Konfliktkasten zu Grundsatz 5 gegen das Fehlerverhalten der
   Fusion, `open_conflicts` auf 1. Quelle:
-  `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`.
+  `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` in den
+  Arbeitspapieren des Archiv-Release `archive/parity-recordings`.
 - 2026-09-24 — `topics/scheiben-und-abnahme.md`: heißt „Die Stufen und ihre
-  Abnahme“; die Scheiben von ultra-brain durch die Stufen von loomux ersetzt,
+  Abnahme“; die Scheiben des Altprojekts durch die Stufen von loomux ersetzt,
   mit Fertig-Bedingungen, Stand jeder Stufe, Reihenfolge und Paritätsnachweis.
-  Quelle: `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`,
+  Quelle: `docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md` in den
+  Arbeitspapieren des Archiv-Release `archive/parity-recordings`,
   Migrationsplan.
 - 2026-09-24 — `sources/`: alle elf Source-Seiten gelöscht. Die Rohquellen
   liegen im selben Repo und stehen im Register; die Seiten zitieren sie direkt
@@ -64,8 +100,9 @@
   verlangt. Quelle: OKF v0.2, §9.
 - 2026-09-24 — alle Seiten mit `sources[]`: jede `doc_id` auf die ID gesetzt,
   die das Register von `project/loomux` für ihre `resource` führt. Die alten
-  IDs stammten aus dem Register von `ultra-brain`, und die Quellen unter
-  `docs/.superpowers/` standen in keinem Register; `reconcile` konnte eine
+  IDs stammten aus dem Register des Vorgängers, und die Quellen unter
+  `docs/.superpowers/` (heute in den Arbeitspapieren des Archiv-Release
+  `archive/parity-recordings`) standen in keinem Register; `reconcile` konnte eine
   geänderte Quelle so keiner Seite zuordnen. `content_hash` und `revision`
   bleiben der Stand, aus dem die Seiten verdichtet wurden. Quelle:
   `_identities.tsv` nach `loomux reindex`.
@@ -90,11 +127,14 @@
   Stufe 3, und in Go ist davon nichts gebaut. Quelle: Fusions-Spec, Stufenplan.
 - 2026-09-17 — `syntheses/warum-fast-die-vorgabe-bleibt.md`: der Beleg zur
   Entscheidung 46 zeigt auf seinen neuen Ort im Bereich `project/loomux`.
-  Quelle: `docs/.superpowers/bench-ub/entscheidung-46.md`.
+  Quelle: das Messprotokoll zur Entscheidung 46 des Vorgängers
+  (`entscheidung-46.md` in den Arbeitspapieren des Archiv-Release
+  `archive/parity-recordings`).
 - 2026-09-17 — `sources/architektur-spec.md`: Konfliktkasten gesetzt,
   `open_conflicts` auf 1 — der `content_hash` der umgezogenen Spec stimmt nicht
-  mehr mit dem verdichteten Stand. Quelle:
-  `docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md`.
+  mehr mit dem verdichteten Stand. Quelle: die Architektur-Spec des Vorgängers
+  vom 2026-08-18 (heute in den Arbeitspapieren des Archiv-Release
+  `archive/parity-recordings`).
 - 2026-09-17 — `entities/qmd.md`: der Aufruf über die Kommandozeile datiert;
   loomux fragt qmds MCP-Daemon, die Reihenfolge trägt der Score nur auf den
   beiden rerankerfreien Wegen. Quelle: Code von loomux (`internal/brain`).
@@ -104,5 +144,5 @@
 
 ## 2026-09-16
 
-- 2026-09-16 — Bündel aus `ultra-brain` übernommen: 24 Inhaltsseiten und das
+- 2026-09-16 — Bündel des Vorgängers übernommen: 24 Inhaltsseiten und das
   Regelwerk; Kataloge, Protokoll, Audit und Register neu angelegt.

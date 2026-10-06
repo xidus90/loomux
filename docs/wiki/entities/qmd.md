@@ -4,11 +4,21 @@ title: qmd
 description: Die lokale Hybrid-Suchmaschine hinter der austauschbaren Suchschnittstelle.
 open_conflicts: 0
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
+  - id: cli-referenz
+    resource: brain://project/loomux/docs/de/cli-reference.md
+    doc_id: 01M47W91R5FRSPN6BE643656ZE
+    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
+    revision: 1
+  - id: benchmarks
+    resource: brain://project/loomux/docs/de/benchmarks.md
+    doc_id: 01M47W91R5MPENKN7N34H6QTNT
+    content_hash: "sha256:73cf99840e93d14ff9d4cc7a385fb33fe7f8733867d1ee8523a43faeb943c1d8"
+    revision: 1
+  - id: erste-schritte
+    resource: brain://project/loomux/docs/de/getting-started.md
+    doc_id: 01M47W91R51JAGYP0JXJFDFAR4
+    content_hash: "sha256:eca8772d56e6ec73c51e161a693c590ff8b790d06a09cfd7e86ff6d3d6158d3c"
+    revision: 1
 ---
 
 Fremdes Werkzeug (github.com/tobi/qmd), vollständig lokal, hier in Version

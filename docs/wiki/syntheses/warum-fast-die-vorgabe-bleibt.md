@@ -5,16 +5,16 @@ description: These, Belege und offene Fragen zur Profilvorgabe — eine Entschei
 status: draft
 open_conflicts: 0
 sources:
-  - id: entscheidung-46
-    resource: brain://project/loomux/docs/.superpowers/bench-ub/entscheidung-46.md
-    doc_id: 01M39G4J149QEKEEFJXRT76JRX
-    content_hash: "sha256:649561472a12de08af8a5f5c0ef7df190aff3bf3a539ab89d12a022396d89adf"
+  - id: benchmarks
+    resource: brain://project/loomux/docs/de/benchmarks.md
+    doc_id: 01M47W91R5MPENKN7N34H6QTNT
+    content_hash: "sha256:73cf99840e93d14ff9d4cc7a385fb33fe7f8733867d1ee8523a43faeb943c1d8"
     revision: 1
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
+  - id: suche-und-profile
+    resource: brain://project/loomux/docs/wiki/topics/suche-und-profile.md
+    doc_id: 01M3534TGBT5D7K9XM7A1TM09Z
+    content_hash: "sha256:ce8275bf9e1844037de958936a66680eb3ba6349b7b7be28c0265ecd023ff7eb"
+    revision: 6
 ---
 
 **Entwurf.** Ergebnis einer Recherche vom 24. August 2026, noch nicht geprüft.
@@ -37,9 +37,10 @@ was die Vorgabe heute trägt, ist allein die Latenz.
   Frageerweiterung kostet nur Zeit."*
 
 Beleg ist das Messprotokoll zur Entscheidung 46
-im Bereich `project/loomux` unter
-`docs/.superpowers/bench-ub/entscheidung-46.md`; die Einordnung in
-den Vertrag steht in
+(`entscheidung-46.md` in den Arbeitspapieren des Archiv-Release
+`archive/parity-recordings`); die spätere Messung über den Dienst steht in
+`docs/de/benchmarks.md`, die Einordnung in
+den Vertrag in
 [Suche, Profile und Messwerte](../topics/suche-und-profile.md).
 
 ## Zwei Spannungen, zitiert statt aufgelöst

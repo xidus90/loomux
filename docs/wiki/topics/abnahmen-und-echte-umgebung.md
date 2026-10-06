@@ -5,15 +5,10 @@ description: Das wiederkehrende Muster des Projekts — die schwersten Befunde e
 open_conflicts: 0
 realization: in_progress
 sources:
-  - id: abnahme-scheibe-2a
-    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-20-scheibe-2a-abnahme.md
-    doc_id: 01M39G4J1442WTWSH1VRCYEEDX
-    content_hash: "sha256:71c8d0e5c0196b026a5b96125297b8f7662829501f8e1f2e8efebc36065a5027"
-    revision: 1
-  - id: plan-scheibe-1
-    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-19-scheibe-1-indexer.md
-    doc_id: 01M39G4J146PHJMJRKF36X1YME
-    content_hash: "sha256:1c38fd1e30390ffb31ab13083d09006e6f6a49996776312c3f781da0eb09d90e"
+  - id: benchmarks
+    resource: brain://project/loomux/docs/de/benchmarks.md
+    doc_id: 01M47W91R5MPENKN7N34H6QTNT
+    content_hash: "sha256:73cf99840e93d14ff9d4cc7a385fb33fe7f8733867d1ee8523a43faeb943c1d8"
     revision: 1
 ---
 
