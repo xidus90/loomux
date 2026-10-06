@@ -5,21 +5,19 @@ description: Die sechs Grundsätze des Wissenssystems, die Grundsätze der Fusio
 open_conflicts: 0
 realization: in_progress
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
-  - id: fusion-spec
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md
-    doc_id: 01M39G4J1486TZBN5SM5489MZS
-    content_hash: "sha256:6fb778dd75759468370010fea63889b110dde93d03b7f0986894f5c371c65e00"
-    revision: 3
+  - id: architektur
+    resource: brain://project/loomux/docs/de/architecture.md
+    doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
+    content_hash: "sha256:90caf4489fa0a34bba71759199b54ddf32e4000923ac4104b677bebb6d15a3a3"
+    revision: 1
 ---
 
 ## Sechs Grundsätze
 
-Aus dem Architektur-Design übernommen.
+Aus dem Architektur-Design des Vorgängers übernommen; es liegt heute in den
+Arbeitspapieren des Archiv-Release `archive/parity-recordings`. Keine
+Nutzerdoku unter `docs/de/` belegt diese Grundsätze bisher; `architecture.md`
+steht als formale Quelle da, weil sie die Säulen des Systems beschreibt.
 
 1. **Markdown ist die einzige Wahrheit.** Index, Graph, Zustandsdatenbank und
    Web-App sind abgeleitete Sichten und jederzeit löschbar.
@@ -40,7 +38,9 @@ Aus dem Architektur-Design übernommen.
 
 ## Grundsätze der Fusion
 
-Die Fusions-Spec setzt für loomux als Ganzes eigene Regeln:
+Die Fusions-Spec (`docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md`
+in den Arbeitspapieren des Archiv-Release `archive/parity-recordings`) setzt
+für loomux als Ganzes eigene Regeln; auch sie belegt keine Nutzerdoku:
 
 - **Ein Repo, ein Go-Modul, ein Binary `loomux`**; alles sind Unterbefehle.
   Kein Python bleibt im Produkt — weder als Laufzeit noch als Hook noch als
@@ -111,5 +111,8 @@ Leseschicht über den Notizen, nie ihr Ersatz.
 
 Wie diese Riegel konkret aussehen, steht unter [Die Wiki-Schicht](wiki-schicht.md)
 und [Brain Maintenance](brain-maintenance.md), die Stufen unter
-[Die Stufen und ihre Abnahme](scheiben-und-abnahme.md); Quellen sind das
-Architektur-Design und die Fusions-Spec.
+[Die Stufen und ihre Abnahme](scheiben-und-abnahme.md). Die Grundsätze, die
+Vertrauenskette und die vier Fehlerstellen sind aus dem Architektur-Design und
+der Fusions-Spec des Vorgängers verdichtet (heute in den Arbeitspapieren des
+Archiv-Release `archive/parity-recordings`); `docs/de/architecture.md` beschreibt
+nur die Säulen des Systems und belegt sie nicht.

@@ -6,11 +6,16 @@ open_conflicts: 0
 realization: implemented
 implemented_in: 9d23a19
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
+  - id: konfiguration
+    resource: brain://project/loomux/docs/de/configuration.md
+    doc_id: 01M47W91R50RT15H2ES8RV7TJT
+    content_hash: "sha256:bc4b1f80e63e88b2ea5ef40f9aea0e677c27fabcdbd95ef7f37867e4232746a9"
+    revision: 1
+  - id: cli-referenz
+    resource: brain://project/loomux/docs/de/cli-reference.md
+    doc_id: 01M47W91R5FRSPN6BE643656ZE
+    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
+    revision: 1
 ---
 
 ## Der Fund, der die Regel erzwang
@@ -72,5 +77,5 @@ Ingest braucht kein Werkzeug, weil Claude Wiki-Seiten als normale Dateien
 schreibt. **Ein Sprachmodell kann über diese Schnittstelle nichts am Wissen
 ändern.**
 
-Quelle: Architektur-Design; der
+Quellen: Konfigurations- und CLI-Referenz der Nutzerdoku; der
 Ort der Bereiche steht unter [Datenmodell und Bereiche](datenmodell-und-bereiche.md).

@@ -6,20 +6,15 @@ open_conflicts: 0
 realization: implemented
 implemented_in: db780a0
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
-  - id: stufe-3-spec
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-19-loomux-stufe-3-design.md
-    doc_id: 01M39G4J140NNQD5Q2HRVGKBG2
-    content_hash: "sha256:06779f84695b1540346b2f2f73e9f5a0aa48f15ce835048b1efd3e209ea7faa9"
+  - id: architektur
+    resource: brain://project/loomux/docs/de/architecture.md
+    doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
+    content_hash: "sha256:90caf4489fa0a34bba71759199b54ddf32e4000923ac4104b677bebb6d15a3a3"
     revision: 1
-  - id: stufe-4-spec
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md
-    doc_id: 01M39NDHWJ80C90J6YB9B9AAQ9
-    content_hash: "sha256:a9c28b567436dca62d44c1eab1fb4d39749e9193c1f3bb70709f1dd69e349cec"
+  - id: cli-referenz
+    resource: brain://project/loomux/docs/de/cli-reference.md
+    doc_id: 01M47W91R5FRSPN6BE643656ZE
+    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
     revision: 1
 ---
 
@@ -106,7 +101,8 @@ Texte, Regelnamen und Auslöser der beiden Referenzen voneinander abweichen:
   `long-planned`.
 
 Daneben prüft `loomux brain check file|bundle|all` Seiten, Bündel und
-Föderation auf drei Achsen: OKF-Form, Hausregeln, Föderation. Es steht unter
+Föderation auf zwei Achsen: `okf` (OKF-Form) und `house` (die Hausregeln samt
+den Föderationsregeln `wrong-direction` und `unlisted-area`). Es steht unter
 `brain`, weil `loomux check all` die Prüfkette ist; `check code` ist
 entfallen. Die vier Seitentypen bleiben, aber der Einzelseiten-Lint fragt eine
 eigene Liste statt das Manifest: `Topic` geht als `topic` durch, `Source`,
@@ -154,9 +150,10 @@ wurde**, Angebot einer Synthese als Entwurf), `brain:ingest` (der Ablauf oben),
 beschreiten, den ein Mensch am selben Ort nicht auch hätte — er macht Abläufe
 verlässlich, nicht mächtiger.
 
-Stufe 4 (`docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md`) zählt
+Stufe 4 (`docs/.superpowers/specs/2026-09-23-loomux-stufe-4-design.md` in den
+Arbeitspapieren des Archiv-Release `archive/parity-recordings`) zählt
 fünf Brain-Skills. Seit 4a-2 schreibt `loomux init` sie in einen Wirt, auf
 loomux-Befehle umgeschrieben und ins Englische übersetzt, sonst inhaltlich
 gleich; in einem Wirt in Gebrauch ist noch keiner.
 
-Quellen: Architektur-Design; Design von Stufe 3 in loomux.
+Quellen: Architektur und CLI-Referenz der Nutzerdoku.

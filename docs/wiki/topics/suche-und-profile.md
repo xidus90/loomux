@@ -2,19 +2,19 @@
 type: Topic
 title: Suche, Profile und Messwerte
 description: Die drei Suchprofile, die Suchleiter, die Latenzbudgets und was die Messungen an Annahmen umgeworfen haben.
-open_conflicts: 0
+open_conflicts: 1
 realization: implemented
 implemented_in: f740c8f
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
-  - id: plan-scheibe-0
-    resource: brain://project/loomux/docs/.superpowers/plans-ub/2026-08-18-scheibe-0-fundament.md
-    doc_id: 01M39G4J14E1Q40012BSGH3PZC
-    content_hash: "sha256:f927f47a11773eae3c57d9a8416882a735e6dcf1f990ef69c222c77a5bd797eb"
+  - id: cli-referenz
+    resource: brain://project/loomux/docs/de/cli-reference.md
+    doc_id: 01M47W91R5FRSPN6BE643656ZE
+    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
+    revision: 1
+  - id: benchmarks
+    resource: brain://project/loomux/docs/de/benchmarks.md
+    doc_id: 01M47W91R5MPENKN7N34H6QTNT
+    content_hash: "sha256:73cf99840e93d14ff9d4cc7a385fb33fe7f8733867d1ee8523a43faeb943c1d8"
     revision: 1
 ---
 
@@ -96,6 +96,17 @@ verdichtete Wiki mit hoher Wahrscheinlichkeit ins Kontextfenster. Die Schwelle
 wird gemessen, nicht geschätzt: `status` weist die Tokenmenge der Wiki-Schicht
 je Bereich aus und meldet, wenn sie 100.000 überschreitet.
 
+> [!conflict] Meldet `status` die Tokenmenge der Wiki-Schicht?
+> Der Absatz oben (aus dem Architektur-Entwurf des Vorgängers verdichtet) sagt:
+> `status` weist die Tokenmenge der Wiki-Schicht je Bereich aus und meldet,
+> wenn sie 100.000 überschreitet.
+> `docs/de/cli-reference.md`, Abschnitt `loomux brain status`, zählt die Zeilen
+> des Befehls vollständig auf — letzter Abgleich, Include-Globs, fehlende
+> Pfade, nie indizierte Bereiche, aufgelöste Links, unbekannte Dokumente,
+> doppelte Inhalte, nicht durchsuchbare Dokumente — und nennt keine
+> Tokenmenge; auch der Code von `internal/brain/status` kennt keine.
+> Beide Stände bleiben stehen. Entscheidung offen.
+
 **Die Suchleiter rechtfertigt sich heute nicht über Effizienz.** Sechs Läufe mit
 und ohne Regelwerk fanden alle die richtige Datei, bei 14 gegen 13
 Werkzeugaufrufen. Ihr Nutzen liegt in der Verlässlichkeit des Vorgehens und
@@ -152,4 +163,4 @@ nachprüft.
 Die Suche im Quelltext statt im Wissen beschreibt
 [Der Code-Graph](code-graph.md).
 
-Quelle: Architektur-Design.
+Quellen: CLI-Referenz und Benchmarks der Nutzerdoku.

@@ -6,24 +6,31 @@ open_conflicts: 0
 realization: implemented
 implemented_in: 6b610d7
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
+  - id: konfiguration
+    resource: brain://project/loomux/docs/de/configuration.md
+    doc_id: 01M47W91R50RT15H2ES8RV7TJT
+    content_hash: "sha256:bc4b1f80e63e88b2ea5ef40f9aea0e677c27fabcdbd95ef7f37867e4232746a9"
+    revision: 1
+  - id: cli-referenz
+    resource: brain://project/loomux/docs/de/cli-reference.md
+    doc_id: 01M47W91R5FRSPN6BE643656ZE
+    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
+    revision: 1
 ---
 
 ## Die tragende Aufteilung
 
 **Verdichtetes liegt an einem Ort, Rohquellen liegen dort, wo sie entstehen.**
 
+Bis zum Umzug am 2026-09-16 galt diese Aufteilung:
+
 | Ort | Inhalt | Versioniert |
 |---|---|---|
-| Wissens-Vault | eigene Notizen plus **sämtliche** Wikis plus alle Prüffälle | eigenes Git-Repo |
-| Code-Repos | **nur** Rohquellen: README, CHANGELOG, ADRs, Spec, Plan, Manifest | vorhandenes Repo |
+| Wissens-Vault | eigene Notizen plus **sämtliche** Wikis plus alle Prüffälle (bis zum Umzug) | eigenes Git-Repo |
+| Code-Repos | **nur** Rohquellen: README, CHANGELOG, ADRs, Spec, Plan, Manifest (bis zum Umzug) | vorhandenes Repo |
 | Zustandsverzeichnis | Index, Modelle, Zustandsdatenbank | **nie** |
 
-Vier Gründe stehen hinter der Zusammenlegung aller Wikis im Vault: ein Ort zum
+Vier Gründe standen bis zum Umzug am 2026-09-16 hinter der Zusammenlegung aller Wikis im Vault: ein Ort zum
 Lesen; Code-Repos bleiben veröffentlichbar (ein Wiki im Repo ginge bei einer
 Veröffentlichung mit — samt offener Konflikte und Prüfprotokoll); keine
 Wiki-Commits in der Code-Historie; und der vermeintliche Versionsvorteil des
@@ -34,6 +41,10 @@ Code-Inhalte läuft.
 Code-Repo keine Option, auch nicht als Schalter. Daraus folgt eine Eigenschaft, die im Code sichtbar bleiben
 muss: **Wiki-Ort und Rohquellen-Ort sind zwei unabhängige Eingaben; der eine
 wird nirgends aus dem anderen abgeleitet.**
+
+Seit dem Umzug liegt das Wiki eines Code-Repos im Repo selbst: `[layout] wiki`
+ist relativ zum Repo-Wurzelverzeichnis, und `loomux area add` setzt `--wiki` auf
+`<repo>/docs/wiki` oder `<repo>/wiki`.
 
 ## Der Pfad entscheidet, nicht das Frontmatter
 
@@ -118,5 +129,5 @@ weiten, soll das Weiten aber benennen.
 
 Siehe auch [Datenschutz und Kanäle](datenschutz-und-kanaele.md),
 [Die Wiki-Schicht](wiki-schicht.md) und, wie Registry und Manifest beim
-Schreiben gelesen werden, [Die Schreibschranke](schreibschranke.md); Quelle ist
-das Architektur-Design.
+Schreiben gelesen werden, [Die Schreibschranke](schreibschranke.md); Quellen sind
+die Konfigurations- und die CLI-Referenz der Nutzerdoku.

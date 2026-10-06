@@ -5,16 +5,16 @@ description: Wie loomux in Stufen baut — die fünf Bedingungen einer fertigen 
 open_conflicts: 0
 realization: in_progress
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:c82f573ca64a6b8c53d0f158cb83847865cc8b32c99f710d37c6050fb11ac3ff"
-    revision: 3
-  - id: fusion-spec
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-14-loomux-fusion-design.md
-    doc_id: 01M39G4J1486TZBN5SM5489MZS
-    content_hash: "sha256:6fb778dd75759468370010fea63889b110dde93d03b7f0986894f5c371c65e00"
-    revision: 3
+  - id: benchmarks
+    resource: brain://project/loomux/docs/de/benchmarks.md
+    doc_id: 01M47W91R5MPENKN7N34H6QTNT
+    content_hash: "sha256:73cf99840e93d14ff9d4cc7a385fb33fe7f8733867d1ee8523a43faeb943c1d8"
+    revision: 1
+  - id: cli-referenz
+    resource: brain://project/loomux/docs/de/cli-reference.md
+    doc_id: 01M47W91R5FRSPN6BE643656ZE
+    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
+    revision: 1
 ---
 
 loomux baut in **Stufen**, und **jede Stufe endet grün und wird einzeln
@@ -45,7 +45,8 @@ Code-Graph (Säule 3), der **neben** ihr statt hinter ihr gebaut wird, weil
 keine seiner Stufen auf eine Fusions-Stufe wartet (G5a zog die bisher einzige
 Abhängigkeit ein, `gotreesitter`). 1b, 2 und 3 sind
 je in drei Teilstufen zerfallen, weil jede ihren eigenen Plan und ihre
-eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Stand nach `docs/de/migration.md`:
+eigene Abnahme brauchte; 3 lief parallel zu 2b und 2c. Offene Stufen führt die
+Roadmap im README; der Stand beim Verdichten dieser Seite:
 
 | Stufe | Stand | Inhalt |
 |---|---|---|
@@ -98,8 +99,9 @@ Fallkorpus übersetzt; der Originalfall bleibt als Beleg daneben.
 - **Meldungen** (Wächter, Hooks, `check`): Exit-Code und Dateiwelt exakt,
   Text frei.
 
-Die Abweichungsliste liegt je Stufe unter `docs/.superpowers/parity/`; jeder
-Eintrag nennt Fall, altes und neues Verhalten, Begründung und Freigabe.
+Die Abweichungsliste lag je Stufe unter `docs/.superpowers/parity/` in den
+Arbeitspapieren des Archiv-Release `archive/parity-recordings`; jeder Eintrag
+nennt Fall, altes und neues Verhalten, Begründung und Freigabe.
 
 ## Bau- und Qualitätsregeln
 
@@ -121,4 +123,4 @@ prüft, nicht im Produkt. Die Tore von loomux selbst fahren
 Siehe auch [Suche, Profile und Messwerte](suche-und-profile.md),
 [Die Wiki-Schicht](wiki-schicht.md) und
 [Grundsätze und Vertrauenskette](architektur-grundsaetze.md); Quellen sind
-die Fusions-Spec und, für die Herkunft, das Architektur-Design.
+die Benchmarks und die CLI-Referenz der Nutzerdoku.

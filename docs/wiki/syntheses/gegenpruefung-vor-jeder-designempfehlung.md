@@ -5,11 +5,11 @@ description: Jede Brainstorming-Frage samt eigener Empfehlung erst an einen Fabl
 status: draft
 open_conflicts: 0
 sources:
-  - id: architektur-spec
-    resource: brain://project/loomux/docs/.superpowers/specs-ub/2026-08-18-ultra-brain-architektur-design.md
-    doc_id: 01M39G4J14CK311B66GRSAK7HQ
-    content_hash: "sha256:8cb1d728fb0b4a32a3063677dac4631a856212e695bca6da02da09cae5f8458c"
-    revision: 5
+  - id: architektur-grundsaetze
+    resource: brain://project/loomux/docs/wiki/topics/architektur-grundsaetze.md
+    doc_id: 01M3534TGBXM1EXAPD4B6S30TN
+    content_hash: "sha256:adf52adb4f49e4a3cfa9c8afed25ddef37a533eec30f8c6b7f50f9fe8b654e4e"
+    revision: 9
 ---
 
 # Gegenprüfung vor jeder Designempfehlung

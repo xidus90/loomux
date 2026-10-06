@@ -6,20 +6,20 @@ open_conflicts: 0
 realization: implemented
 implemented_in: 68f791cd
 sources:
-  - id: schranke-worktrees
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-15-loomux-schranke-worktrees-design.md
-    doc_id: 01M39G4J14DD8AP7WT5WC5ZC34
-    content_hash: "sha256:9e469ce72cc32101498304d77bdca81f7cea78cdcb2abc763862a8dcf151823f"
+  - id: konfiguration
+    resource: brain://project/loomux/docs/de/configuration.md
+    doc_id: 01M47W91R50RT15H2ES8RV7TJT
+    content_hash: "sha256:bc4b1f80e63e88b2ea5ef40f9aea0e677c27fabcdbd95ef7f37867e4232746a9"
     revision: 1
-  - id: schranke-samerepo
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-16-loomux-schranke-samerepo-design.md
-    doc_id: 01M39G4J141KETM6AJEBR5ST0C
-    content_hash: "sha256:671116da8bd5946d9cc84250e60320b552f85271a47de0bcf5fa5e245c6c7f6d"
+  - id: hooks
+    resource: brain://project/loomux/docs/de/hooks.md
+    doc_id: 01M47W91R5H3G1QSXZV5C17HS9
+    content_hash: "sha256:ce2e417c948d0642058cee0582b5031167c18a1ca402f3e5f694d80c40184dd1"
     revision: 1
-  - id: schranke-open-toml
-    resource: brain://project/loomux/docs/.superpowers/specs/2026-09-24-schranke-open-toml-design.md
-    doc_id: 01M39G4J14ZPF5712GEA1TN7N1
-    content_hash: "sha256:64879e3b54c08117d77b342a020199bdfa65508a4940267ad06c0905f87d66ef"
+  - id: benchmarks
+    resource: brain://project/loomux/docs/de/benchmarks.md
+    doc_id: 01M47W91R5MPENKN7N34H6QTNT
+    content_hash: "sha256:73cf99840e93d14ff9d4cc7a385fb33fe7f8733867d1ee8523a43faeb943c1d8"
     revision: 1
 ---
 
@@ -84,8 +84,8 @@ zeigen und einen Baum außerhalb öffnen können.
 42 ms je Aufruf; mit zwei Aufrufen je Write wäre der Hook über seinem
 Zielwert gelandet. Aus demselben Grund fragt seit dem 2026-09-16 auch der
 Repository-Vergleich des Manifests die Zeigerdateien statt `git`
-(Worktree-Write vorher 65,3 ms warm; die Migrationstabelle nennt danach
-34,6 ms). Folgen, gewollt: ein verschobener Worktree bleibt bis
+(Worktree-Write vorher 65,3 ms warm, danach 34,6 ms; die Messung steht in
+`docs/de/benchmarks.md`). Folgen, gewollt: ein verschobener Worktree bleibt bis
 `git worktree repair` gesperrt; Submodule und `--separate-git-dir` erkennt
 der Dateibefund nicht. Die Abweichung von Pythons `git rev-parse` wirkt in
 beide Richtungen — meist verengt sie, in drei Randfällen (`safe.directory`,
@@ -126,5 +126,5 @@ daneben still verlöre. Kosten: 0,08 ms ohne Datei, 0,22 ms mit einem Eintrag.
 - Scope und Zustandsverzeichnis einer Sitzung im Worktree sowie
   `loomux worktree link|unlink|remove` lagen außerhalb dieser Stufen.
 
-Quelle: die drei Schranken-Specs; Policy und Reihenfolge aus
+Quellen: Konfigurations-, Hook- und Benchmark-Seite der Nutzerdoku; Policy und Reihenfolge aus
 `internal/brain/guard/guard.go` und `internal/hooks/guard.go`.
