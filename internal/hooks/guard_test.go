@@ -23,33 +23,6 @@ func TestSafeFileWritesCarryNoReason(t *testing.T) {
 	}
 }
 
-// A leading **/ stands for any directory, the root included, and is anchored
-// at an element: my.loomux is no .loomux.
-func TestMatchGlobReadsALeadingDoubleStarAsAnyDirectory(t *testing.T) {
-	for _, row := range []struct {
-		pattern, name string
-		want          bool
-	}{
-		{"**/.loomux/config.toml", ".loomux/config.toml", true},
-		{"**/.loomux/config.toml", "../sibling/.loomux/config.toml", true},
-		{"**/.loomux/config.toml", "/repo/.loomux/config.toml", true},
-		{"**/.loomux/config.toml", "C:/repo/.loomux/config.toml", true},
-		{"**/.loomux/config.toml", "my.loomux/config.toml", false},
-		{"**/.loomux/config.toml", ".loomux/config.toml.bak", false},
-		{"**/.loomux/state/runs/**", "x/.loomux/state/runs", true},
-		{"**/.loomux/state/runs/**", "x/.loomux/state/runs/0001.jsonl", true},
-		{"**/.loomux/state/runs/**", ".loomux/state/runsx/0001.jsonl", false},
-	} {
-		got, err := matchGlob(row.pattern, row.name)
-		if err != nil || got != row.want {
-			t.Errorf("matchGlob(%q, %q) = %v, %v; want %v", row.pattern, row.name, got, err, row.want)
-		}
-	}
-	if _, err := matchGlob("**/foo/*[x", "a/foo/b"); err == nil {
-		t.Fatal("a bad class behind **/ must still be an error")
-	}
-}
-
 // loomux's own files are kept under any directory: a sibling worktree's
 // .loomux, or one named by its absolute path, like this project's.
 func TestLoomuxsOwnRulesHoldUnderAnyDirectory(t *testing.T) {

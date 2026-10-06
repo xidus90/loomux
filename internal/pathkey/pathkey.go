@@ -1,6 +1,8 @@
 // Package pathkey compares paths the way the file system of a platform
 // tells them apart: in its slash direction, and without regard to case
-// where the file system ignores it.
+// where the file system ignores it. Glob is the one exception to the case
+// rule: it matches slash-separated paths against the globs of a policy rule
+// or a lane, byte for byte.
 package pathkey
 
 import (
