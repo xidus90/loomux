@@ -237,6 +237,21 @@ func replaceWith(destination string, data []byte) error {
 	return nil
 }
 
+// keepBackup preserves the comments and formatting of the initial configuration
+// by keeping a single copy of the file as it stood before its first rewrite;
+// the rewrite drops them, the copy keeps them. An empty raw (no file yet) has
+// nothing to keep, and an existing backup is never refreshed.
+func keepBackup(configPath, raw string) error {
+	if raw == "" {
+		return nil
+	}
+	backupPath := configPath + backupSuffix
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		return replaceWith(backupPath, []byte(raw))
+	}
+	return nil
+}
+
 // SyncCollections updates the collection entries in qmd's index.yml.
 // Unowned collections already present in index.yml are refused to avoid accidental overwrite.
 func SyncCollections(configPath string, wanted map[string]CollectionSpec, owned OwnershipRecord) (SyncOutcome, error) {
@@ -300,14 +315,8 @@ func SyncCollections(configPath string, wanted map[string]CollectionSpec, owned 
 		return SyncOutcome{Changed: nil, Refused: refused}, nil
 	}
 
-	// Preserve comments and formatting of the initial configuration by keeping a single backup
-	backupPath := configPath + backupSuffix
-	if raw != "" {
-		if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-			if err := replaceWith(backupPath, []byte(raw)); err != nil {
-				return SyncOutcome{}, err
-			}
-		}
+	if err := keepBackup(configPath, raw); err != nil {
+		return SyncOutcome{}, err
 	}
 
 	for _, name := range changed {
@@ -404,6 +413,10 @@ func DropCollections(configPath string, names []string) ([]string, error) {
 	sort.Strings(removed)
 	if len(removed) == 0 {
 		return nil, nil
+	}
+
+	if err := keepBackup(configPath, string(data)); err != nil {
+		return nil, err
 	}
 
 	doc["collections"] = collections
