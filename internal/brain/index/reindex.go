@@ -1,8 +1,10 @@
 package index
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -114,34 +116,62 @@ func ReindexWithOutput(registryPath, stateDir string, port search.SearchPort, st
 	}
 
 	var indexed []indexedArea
+	uninspectable := false
 	for _, area := range areas {
-		item, skipped, err := indexArea(area, areas, stateDir, stderr)
+		item, skip, err := indexArea(area, areas, stateDir, stderr)
 		if err != nil {
 			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 1, err
 		}
-		if skipped {
+		if skip == skipUninspectable {
+			uninspectable = true
+		}
+		if skip != notSkipped {
 			continue
 		}
 		indexed = append(indexed, item)
 	}
 
-	return syncSearch(areas, indexed, config.ArtifactLookup{Primary: stateDir}, port, stderr)
+	code, err := syncSearch(areas, indexed, config.ArtifactLookup{Primary: stateDir}, port, stderr)
+	if err == nil && uninspectable {
+		code = 1
+	}
+	return code, err
 }
 
-// indexArea rebuilds one area's stock and reports whether it was skipped. An
-// area whose path or declaration is missing is skipped rather than refused:
-// the registry outlives the checkouts on a machine, and one absent clone
-// would otherwise stop the run for every other area too.
+// skipReason tells why indexArea left an area out.
+type skipReason int
+
+const (
+	notSkipped skipReason = iota
+	// skipAbsent is a path or declaration that is not there; the run is
+	// unaffected.
+	skipAbsent
+	// skipUninspectable is a path the system refused to inspect; the other
+	// areas still run, but the run fails.
+	skipUninspectable
+)
+
+// indexArea rebuilds one area's stock and reports whether and why it was
+// skipped. An area whose path or declaration is missing is skipped rather
+// than refused: the registry outlives the checkouts on a machine, and one
+// absent clone would otherwise stop the run for every other area too. A path
+// that cannot be inspected for another reason (access denied, a malformed
+// name) is not absent: it is skipped the same way, so the other areas still
+// run, but it is reported so that the run can fail.
 func indexArea(
 	area config.Area,
 	areas []config.Area,
 	stateDir string,
 	stderr io.Writer,
-) (indexedArea, bool, error) {
+) (indexedArea, skipReason, error) {
 	if _, err := os.Stat(area.Path); err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			fmt.Fprintf(stderr, "skipping %s: %s cannot be inspected: %v\n", area.Scope, area.Path, err)
+			return indexedArea{}, skipUninspectable, nil
+		}
 		fmt.Fprintf(stderr, "skipping %s: %s does not exist\n", area.Scope, area.Path)
-		return indexedArea{}, true, nil
+		return indexedArea{}, skipAbsent, nil
 	}
 
 	// Held from the register's reading in collect to its writing in publish:
@@ -149,12 +179,12 @@ func indexArea(
 	// covers the recovery of a half-done swap too, as approve's does.
 	release, err := config.LockArea(area, stateDir)
 	if err != nil {
-		return indexedArea{}, false, err
+		return indexedArea{}, notSkipped, err
 	}
 	defer release()
 
 	if err := recoverStockFn(area, stateDir); err != nil {
-		return indexedArea{}, false, err
+		return indexedArea{}, notSkipped, err
 	}
 
 	// The declaration is read where the stock lies: the area's tree, or for a
@@ -163,17 +193,17 @@ func indexArea(
 	manifest, err := config.ReadAreaDeclaration(source)
 	if err != nil {
 		fmt.Fprintf(stderr, "skipping %s: %v\n", area.Scope, err)
-		return indexedArea{}, true, nil
+		return indexedArea{}, skipAbsent, nil
 	}
 
 	documents, identities, err := collect(area, areas, source, manifest)
 	if err != nil {
-		return indexedArea{}, false, err
+		return indexedArea{}, notSkipped, err
 	}
 	if err := publish(area, documents, identities, source, stateDir); err != nil {
-		return indexedArea{}, false, err
+		return indexedArea{}, notSkipped, err
 	}
-	return indexedArea{area: area, manifest: manifest}, false, nil
+	return indexedArea{area: area, manifest: manifest}, notSkipped, nil
 }
 
 // collect reads every file of the area and carries the identity register
