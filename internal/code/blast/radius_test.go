@@ -342,6 +342,11 @@ func TestIsTestPathPerLanguage(t *testing.T) {
 		"test/x.py": true, "a/test/b.py": true,
 		"x.py": false, "testing.py": false, "attests/x.py": false, "mytests/x.py": false,
 		"contest.py": false, "latest/x.py": false, "shop/tests.pyc": false,
+		"test/a_test.gd": true, "x/b_test.gd": true, "godot/test/unit/helper.gd": true, "tests/x.gd": true,
+		"core/a.gd": false, "core/testing.gd": false, "contest/x.gd": false, "core/a_test.tscn": false,
+		// A scene or resource of a test is a test fixture; project.godot never is.
+		"test/fixtures/arena.tscn": true, "tests/d.tres": true, "core/x.tscn": false, "contest/x.tscn": false,
+		"core/x.tres": false, "test/project.godot": false, "test/x.png": false,
 		"a.ts": false, "TEST_X.PY": false, "A_TEST.GO": false,
 	} {
 		if got := blast.IsTestPath(path); got != want {

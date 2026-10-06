@@ -209,3 +209,26 @@ func TestResolveStageBoundaries(t *testing.T) {
 		}
 	}
 }
+
+// A name with a Godot extension is a file query: it must not fall through to
+// the bare-name stage, where "gd" would find a symbol called gd.
+func TestResolveTakesAGodotNameForAFile(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "a/main.gd", Path: "a/main.gd", Name: "main.gd", Kind: model.KindFile},
+		{ID: "a/main.gd#gd", Path: "a/main.gd", Name: "gd", Kind: "function"},
+		{ID: "a/main.tscn", Path: "a/main.tscn", Name: "main.tscn", Kind: model.KindFile},
+		{ID: "a/main.tscn#tscn", Path: "a/main.tscn", Name: "tscn", Kind: "function"},
+		{ID: "a/project.godot", Path: "a/project.godot", Name: "project.godot", Kind: model.KindFile},
+		{ID: "a/project.godot#godot", Path: "a/project.godot", Name: "godot", Kind: "function"},
+		{ID: "a/x.tres", Path: "a/x.tres", Name: "x.tres", Kind: model.KindFile},
+		{ID: "a/x.tres#tres", Path: "a/x.tres", Name: "tres", Kind: "function"},
+	}}
+	for q, id := range map[string]model.NodeID{
+		"main.gd": "a/main.gd", "main.tscn": "a/main.tscn", "project.godot": "a/project.godot", "x.tres": "a/x.tres",
+	} {
+		hits, err := blast.Resolve(g, q, "")
+		if err != nil || len(hits) != 1 || hits[0].ID != id {
+			t.Errorf("Resolve(%q) = %v, %v; want the file %s", q, hits, err, id)
+		}
+	}
+}

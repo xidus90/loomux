@@ -1,6 +1,7 @@
 package repomap_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -176,6 +177,10 @@ func TestCappingAndLanguages(t *testing.T) {
 		{ID: "a.js", Path: "a.js", Name: "a.js", Kind: model.KindFile},
 		{ID: "b.py", Path: "b.py", Name: "b.py", Kind: model.KindFile},
 		{ID: "data.json", Path: "data.json", Name: "data.json", Kind: model.KindFile},
+		{ID: "main.gd", Path: "main.gd", Name: "main.gd", Kind: model.KindFile},
+		{ID: "main.tscn", Path: "main.tscn", Name: "main.tscn", Kind: model.KindFile},
+		{ID: "project.godot", Path: "project.godot", Name: "project.godot", Kind: model.KindFile},
+		{ID: "x.tres", Path: "x.tres", Name: "x.tres", Kind: model.KindFile},
 		{ID: "Makefile", Path: "Makefile", Name: "Makefile", Kind: model.KindFile},
 
 		{ID: "pkg/file.go", Path: "pkg/file.go", Name: "file.go", Kind: model.KindFile},
@@ -203,7 +208,7 @@ func TestCappingAndLanguages(t *testing.T) {
 	}
 	// Check languages include javascript, python, json, unknown
 	langs := strings.Join(m.Totals.Languages, ",")
-	if !strings.Contains(langs, "javascript") || !strings.Contains(langs, "python") || !strings.Contains(langs, "json") || !strings.Contains(langs, "unknown") {
+	if !strings.Contains(langs, "javascript") || !strings.Contains(langs, "python") || !strings.Contains(langs, "json") || !strings.Contains(langs, "unknown") || !slices.Contains(m.Totals.Languages, "gdscript") || slices.Contains(m.Totals.Languages, "gd") || slices.Contains(m.Totals.Languages, "tscn") || slices.Contains(m.Totals.Languages, "godot") || slices.Contains(m.Totals.Languages, "tres") {
 		t.Errorf("unexpected languages: %s", langs)
 	}
 }

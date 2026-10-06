@@ -130,15 +130,15 @@ func TestTheGdscriptLintTakesGdlintFromGdtoolkit(t *testing.T) {
 }
 
 // Booting Godot is no test: it exits 0 on a script that does not parse, and
-// its binary is seldom on the PATH as `godot`. Lint is all the preset runs;
-// a project names its own test command.
-func TestTheGdscriptPresetHasOnlyALintLane(t *testing.T) {
+// its binary is seldom on the PATH as `godot`. Lint and the root's graph lane
+// are all the preset runs; a project names its own test command.
+func TestTheGdscriptPresetHasOnlyALintAndAGraphLane(t *testing.T) {
 	p, err := LoadPresets()
 	if err != nil {
 		t.Fatal(err)
 	}
 	gd := p.Stacks["gdscript"].Lanes
-	if _, ok := gd["lint"]; !ok || len(gd) != 1 {
+	if _, ok := gd["lint"]; !ok || len(gd) != 2 || len(gd["graph"].Commands) == 0 {
 		t.Errorf("lanes = %+v", gd)
 	}
 }
@@ -201,16 +201,20 @@ func TestTheGoGraphLaneRefreshesThenAudits(t *testing.T) {
 	}
 }
 
-// The graph belongs to the root, not to a stack, so Python's graph lane runs
-// the very commands of Go's; the plan keeps one of them per run.
-func TestThePythonGraphLaneIsTheGoOne(t *testing.T) {
+// The graph belongs to the root, not to a stack, so the graph lanes of the
+// tree-sitter languages run the very commands of Go's; the plan keeps one of
+// them per run.
+func TestTreeSitterGraphLanesAreTheGoOne(t *testing.T) {
 	p, err := LoadPresets()
 	if err != nil {
 		t.Fatal(err)
 	}
-	py, goLane := p.Stacks["python"].Lanes["graph"], p.Stacks["go"].Lanes["graph"]
-	if len(py.Commands) == 0 || !slices.Equal(py.Commands, goLane.Commands) || py.OnFile != nil || py.Threaded {
-		t.Fatalf("python %+v, go %+v", py, goLane)
+	goLane := p.Stacks["go"].Lanes["graph"]
+	for _, stack := range []string{"python", "gdscript"} {
+		lane := p.Stacks[stack].Lanes["graph"]
+		if len(lane.Commands) == 0 || !slices.Equal(lane.Commands, goLane.Commands) || lane.OnFile != nil || lane.Threaded {
+			t.Errorf("%s %+v, go %+v", stack, lane, goLane)
+		}
 	}
 }
 

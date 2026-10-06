@@ -58,13 +58,13 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 
 func TestExtensionsIsACopy(t *testing.T) {
 	first := sourceset.Extensions()
-	if !reflect.DeepEqual(first, []string{".go", ".py"}) {
-		t.Fatalf("Extensions() = %v, want [.go .py]", first)
+	if !reflect.DeepEqual(first, []string{".gd", ".go", ".godot", ".py", ".tres", ".tscn"}) {
+		t.Fatalf("Extensions() = %v, want [.gd .go .godot .py .tres .tscn]", first)
 	}
 	// A caller that edits its answer must not change what the walk takes.
 	first[0] = ".txt"
-	if again := sourceset.Extensions(); !reflect.DeepEqual(again, []string{".go", ".py"}) {
-		t.Fatalf("Extensions() after editing an earlier answer = %v, want [.go .py]", again)
+	if again := sourceset.Extensions(); !reflect.DeepEqual(again, []string{".gd", ".go", ".godot", ".py", ".tres", ".tscn"}) {
+		t.Fatalf("Extensions() after editing an earlier answer = %v, want [.gd .go .godot .py .tres .tscn]", again)
 	}
 }
 

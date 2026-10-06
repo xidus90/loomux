@@ -100,7 +100,7 @@ measure = "uv run --with coverage --with pytest coverage run -m pytest -q --tb=s
 after = "test"
 
 # The graph belongs to the root, not to a stack: the same commands as Go's,
-# and in a repository with both the plan runs one job, the first stack's.
+# and in a repository with both the plan runs one job, the highest-ranked stack's (Go's).
 [stack.python.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
@@ -108,6 +108,13 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 [stack.gdscript.lint]
 commands = ["uvx --from gdtoolkit gdlint ."]
 on_file = ["uvx --from gdtoolkit gdlint {file}"]
+
+# The graph belongs to the root, and the highest-ranked active stack with a
+# graph command carries it (go, python, gdscript): with Go or Python beside it
+# their lane carries and this one stands aside; it carries in a project with
+# neither.
+[stack.gdscript.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
 # No test lane: booting the project (`godot --headless --quit`) exits 0 on a
 # script that does not parse, and the binary is seldom on the PATH under that

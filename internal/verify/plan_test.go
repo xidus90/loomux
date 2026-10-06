@@ -731,7 +731,7 @@ var graphArgvs = [][]string{
 }
 
 // The graph belongs to the root, not to a stack: of two stacks with a graph
-// command the first in byte order carries the one job of the run, and the
+// command the highest-ranked carries the one job of the run, and the
 // other stands aside with a note naming it, without asking the probe again.
 func TestGraphRunsOncePerRun(t *testing.T) {
 	root := t.TempDir()
@@ -806,6 +806,68 @@ func TestGraphNotReadyStillNamesCarrier(t *testing.T) {
 	}
 	if jobs[1].Pre != StateNotApplicable || jobs[1].Note != "graph covered by graph/go" {
 		t.Fatalf("graph/python: %+v", jobs[1])
+	}
+}
+
+func factsOf(stacks ...string) detect.Facts {
+	f := detect.Facts{Stacks: stacks, Areas: map[string][]string{}}
+	for _, s := range stacks {
+		f.Areas[s] = []string{"."}
+	}
+	return f
+}
+
+// The carrier follows the rank go, python, gdscript, then byte order, not the
+// walk: the jobs stay in byte order, and the carrier may stand later in it.
+func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
+	unranked := "[verify.css.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
+	covered := func(c string) string { return "graph covered by graph/" + c }
+	for _, c := range []struct {
+		name   string
+		src    string
+		stacks []string
+		want   [][3]string
+	}{
+		{"go beats gdscript", "", []string{"gdscript", "go"},
+			[][3]string{{"graph/gdscript", "not-applicable", covered("go")}, {"graph/go", "", ""}}},
+		{"python beats gdscript", "", []string{"gdscript", "python"},
+			[][3]string{{"graph/gdscript", "not-applicable", covered("python")}, {"graph/python", "", ""}}},
+		{"go beats python beats gdscript", "", []string{"gdscript", "go", "python"},
+			[][3]string{{"graph/gdscript", "not-applicable", covered("go")}, {"graph/go", "", ""},
+				{"graph/python", "not-applicable", covered("go")}}},
+		{"a stack without a graph command does not carry", "[verify.sql.graph]\ncommands = [\"c\"]\n", []string{"shell", "sql"},
+			[][3]string{{"graph/shell", "not-applicable", "no command"}, {"graph/sql", "", ""}}},
+		{"gdscript alone", "", []string{"gdscript"}, [][3]string{{"graph/gdscript", "", ""}}},
+		{"gdscript beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"gdscript", "rust"},
+			[][3]string{{"graph/gdscript", "", ""}, {"graph/rust", "not-applicable", covered("gdscript")}}},
+		{"unranked stacks follow in byte order", unranked, []string{"rust", "css"},
+			[][3]string{{"graph/css", "", ""}, {"graph/rust", "not-applicable", covered("css")}}},
+	} {
+		calls := 0
+		jobs, err := Plan(effFor(t, c.src, factsOf(c.stacks...)), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
+		if err != nil || calls != 1 || len(jobs) != len(c.want) {
+			t.Fatalf("%s: %s %v, %d probes", c.name, names(jobs), err, calls)
+		}
+		for i, w := range c.want {
+			j := jobs[i]
+			if j.Name != w[0] || string(j.Pre) != w[1] || j.Note != w[2] || (w[1] == "" && j.Argvs == nil) {
+				t.Errorf("%s: job %d = %s %q %q, want %q", c.name, i, j.Name, j.Pre, j.Note, w)
+			}
+		}
+	}
+}
+
+// A command override under the carrier's own table is the one that runs; the
+// stack that stands aside has none run in its place.
+func TestGraphCarrierRunsItsOwnOverride(t *testing.T) {
+	src := "[verify.go.graph]\ncommands = [\"audit mine\"]\n"
+	jobs, err := Plan(effFor(t, src, factsOf("gdscript", "go")), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", new(int)))
+	if err != nil || names(jobs) != "graph/gdscript graph/go" {
+		t.Fatalf("%s %v", names(jobs), err)
+	}
+	if jobs[0].Note != "graph covered by graph/go" || jobs[0].Argvs != nil || jobs[1].Pre != "" ||
+		len(jobs[1].Argvs) != 1 || jobs[1].Argvs[0][0] != "audit" || jobs[1].Origin != "config" {
+		t.Fatalf("%+v %+v", jobs[0], jobs[1])
 	}
 }
 

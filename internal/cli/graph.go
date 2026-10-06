@@ -208,18 +208,21 @@ func report(g *model.Graph, stats query.Stats, took time.Duration) string {
 			unresolved++
 		}
 	}
-	// Only Python has base classes; a graph without an extends edge reads as
-	// the Go graph's report always did.
-	extends := ""
+	// Base classes and references come from the tree-sitter languages; a graph
+	// without them reads as the Go graph's report always did.
+	extra := ""
 	if n := byRelation[model.RelationExtends]; n > 0 {
-		extends = fmt.Sprintf(", %d extends", n)
+		extra = fmt.Sprintf(", %d extends", n)
+	}
+	if n := byRelation[model.RelationReferences]; n > 0 {
+		extra += fmt.Sprintf(", %d references", n)
 	}
 	out := fmt.Sprintf(
 		"%d files, %d nodes, %d edges (%d contains, %d calls, %d imports%s)\n"+
 			"%d unresolved import targets, %d files without a symbol, %s\n",
 		len(stats.Files), len(g.Nodes), len(g.Edges),
 		byRelation[model.RelationContains], byRelation[model.RelationCalls],
-		byRelation[model.RelationImports], extends,
+		byRelation[model.RelationImports], extra,
 		unresolved, stats.NoSymbol, took.Round(time.Millisecond),
 	)
 	for _, name := range slices.Sorted(maps.Keys(stats.PerLanguage)) {

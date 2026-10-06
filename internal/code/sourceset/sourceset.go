@@ -72,9 +72,10 @@ var skipDirs = map[string]bool{
 
 // extensions are the extensions of every extracted language, dot included,
 // matched exactly: x.GO is no Go file to the Go toolchain, so it is none to
-// the graph either. A literal and nothing parsed: see the package comment for
-// why it is not taken from extract/all.
-var extensions = []string{".go", ".py"}
+// the graph either. .godot, .tres and .tscn are the project file, resources and
+// scenes of a Godot project, read with its scripts. A literal and nothing
+// parsed: see the package comment for why it is not taken from extract/all.
+var extensions = []string{".gd", ".go", ".godot", ".py", ".tres", ".tscn"}
 
 // Extensions is a copy of the extensions the walk takes, so no caller can
 // change what the next walk looks at.
