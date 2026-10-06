@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/xidus90/loomux/internal/brain/pytext"
 	"github.com/xidus90/loomux/internal/config"
@@ -25,15 +27,20 @@ var ErrNotIndexed = errors.New("never indexed; run `loomux reindex`")
 // ReadGraph loads and validates graph.json for the specified area. A
 // read-only area keeps it in stateDir.
 //
-// Like core._graph (src/brain/core.py:584-588) it asks Path.exists() first,
-// which answers False for any failure to stat, and reads the file as strict
-// UTF-8 with universal newlines. A read error already names the file.
+// A graph.json that is not there, or that a path through a regular file
+// cannot reach, is ErrNotIndexed. One that cannot be inspected (access denied,
+// a path the system refuses) is not known to be absent, so the error names the
+// area and the cause instead. The file is read as strict UTF-8 with universal
+// newlines; a read error already names the file.
 func ReadGraph(area config.Area, stateDir string) (*Graph, error) {
 	manifestDir := config.ManifestDir(area, stateDir)
 	graphPath := filepath.Join(manifestDir, "graph.json")
 
 	if _, err := os.Stat(graphPath); err != nil {
-		return nil, fmt.Errorf("%s: %w", area.Scope, ErrNotIndexed)
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+			return nil, fmt.Errorf("%s: %w", area.Scope, ErrNotIndexed)
+		}
+		return nil, fmt.Errorf("%s: %w", area.Scope, err)
 	}
 	text, err := pytext.ReadText(graphPath)
 	if err != nil {
