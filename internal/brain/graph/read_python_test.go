@@ -2,6 +2,7 @@ package graph_test
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,12 +79,17 @@ func TestParseGraph_NonStringEndsFailTheTypedDecode(t *testing.T) {
 	}
 }
 
-func TestReadGraph_AnUnstatablePathIsNeverIndexed(t *testing.T) {
-	// Path.exists() answers False for every OSError, a NUL byte included.
+func TestReadGraph_AnUnstatablePathIsReportedNotCalledNeverIndexed(t *testing.T) {
+	// A NUL byte makes the stat fail with something other than "not found":
+	// the area is not known to be unindexed, so the error says why it could
+	// not be told.
 	area := config.Area{Scope: "project/odd", Path: filepath.Join(t.TempDir(), "a\x00b")}
 	_, err := graph.ReadGraph(area, "")
-	if !errors.Is(err, graph.ErrNotIndexed) || err.Error() != "project/odd: never indexed; run `loomux reindex`" {
+	if err == nil || errors.Is(err, graph.ErrNotIndexed) || !strings.HasPrefix(err.Error(), "project/odd: ") {
 		t.Fatalf("got %v", err)
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("an invalid path is not an absent one: %v", err)
 	}
 }
 
@@ -107,6 +113,19 @@ func TestReadGraph_AnUnreadableGraphNamesTheFileOnce(t *testing.T) {
 	}
 	_, err := graph.ReadGraph(config.Area{Scope: "project/test", Path: dir}, dir)
 	if err == nil || strings.Count(err.Error(), path) != 1 {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestReadGraph_APathThroughARegularFileIsNeverIndexed(t *testing.T) {
+	// Linux answers ENOTDIR for it, Windows a plain "not found": either way
+	// nothing can be there.
+	file := filepath.Join(t.TempDir(), "f")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := graph.ReadGraph(config.Area{Scope: "project/odd", Path: filepath.Join(file, "area")}, "")
+	if !errors.Is(err, graph.ErrNotIndexed) {
 		t.Fatalf("got %v", err)
 	}
 }
