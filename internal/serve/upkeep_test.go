@@ -302,6 +302,20 @@ func TestTheRealPassRunsOverTheRegistry(t *testing.T) {
 	}
 }
 
+func TestARegistryThatCannotBeStatedIsAFailedPass(t *testing.T) {
+	// A NUL in the path makes os.Stat fail with something other than
+	// ErrNotExist on every platform: the registry may be there, so the pass
+	// cannot call it "nothing to do".
+	u := NewUpkeep(filepath.Join(t.TempDir(), "state\x00dir"))
+	if _, err := reconcileRegistered(context.Background(), u.lookup, upkeepNow); err == nil {
+		t.Fatal("a registry that cannot be stated was read as absent")
+	}
+	u.catchUp(context.Background())
+	if !u.failed {
+		t.Fatal("the daily pass over an unreadable registry did not fail")
+	}
+}
+
 func TestTheRealPassReportsWhatItFound(t *testing.T) {
 	dir := t.TempDir()
 	open, _ := upkeepRegistry(t, dir)
