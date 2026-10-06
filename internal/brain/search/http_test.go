@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -365,5 +366,50 @@ func TestHTTPSession_SSEWithEmptyOrInvalidLines(t *testing.T) {
 	}
 	if res["hello"] != "world" {
 		t.Errorf("expected hello: world, got: %v", res)
+	}
+}
+
+// squatter is some other local service on the daemon's port: it answers
+// every POST with 200 and a JSON object that is no JSON-RPC reply at all.
+func squatter(t *testing.T, body string) (*httptest.Server, string, int) {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(ts.Close)
+	addr := ts.Listener.Addr().(*net.TCPAddr)
+	return ts, addr.IP.String(), addr.Port
+}
+
+func TestAServiceThatIsNoMCPServerIsNotReachable(t *testing.T) {
+	for _, body := range []string{`{"status":"ok"}`, `{"jsonrpc":"2.0","id":1}`} {
+		ts, host, port := squatter(t, body)
+		s := &search.HTTPSession{Host: host, Port: port, URL: ts.URL}
+		if err := s.Handshake(); err == nil {
+			t.Errorf("body %s: Handshake = nil, want an error for a reply that is no initialize result", body)
+		}
+		if s.Reachable() {
+			t.Errorf("body %s: Reachable = true, want false", body)
+		}
+	}
+}
+
+func TestASearchBehindASquatterIsAnErrorNotAnEmptyAnswer(t *testing.T) {
+	_, _, port := squatter(t, `{"status":"ok"}`)
+	spawned := 0
+	connect := search.DefaultConnectWith(
+		filepath.Join(t.TempDir(), "qmd.lock"), port,
+		func(string) ([]string, error) { return []string{"qmd"}, nil },
+		func([]string, []string) error { spawned++; return nil },
+		50*time.Millisecond, nil)
+	p := search.NewQmdMcpPort(search.WithConnect(connect), search.WithPort(port))
+	hits, err := p.Search("anything", []string{"c"}, search.ProfileFull, 5)
+	t.Logf("spawned=%d hits=%v err=%v", spawned, hits, err)
+	if spawned != 1 {
+		t.Errorf("spawned = %d, want the daemon started once", spawned)
+	}
+	if err == nil {
+		t.Errorf("Search = (%v, nil), want an error: nothing that answered was the engine", hits)
 	}
 }

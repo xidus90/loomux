@@ -195,7 +195,11 @@ func (s *HTTPSession) postWithTimeout(method string, params map[string]any, time
 		return nil, fmt.Errorf("qmd refused %s: %v", method, rpcErr)
 	}
 
-	result, ok := reply["result"].(map[string]any)
+	raw, present := reply["result"]
+	if !present {
+		return nil, fmt.Errorf("the reply to %s carries neither a result nor an error", method)
+	}
+	result, ok := raw.(map[string]any)
 	if !ok {
 		return map[string]any{}, nil
 	}
