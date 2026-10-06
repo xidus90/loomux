@@ -69,7 +69,8 @@ Roadmap im README; der Stand beim Verdichten dieser Seite:
 | G1–G4b | ✅ | Rang, Blast-Radius, Extraktor, Abfrage, Navigation, Diff-Blast |
 | G4c | ✅ | Stop-Hook mit Blast-Logik |
 | G5a | ✅ | Extraktor-Schnittstelle, Tree-sitter-Kern auf `gotreesitter`, Python; abgenommen an `iam_backend` und einem zweiten Projekt |
-| G5b–G5d | offen | TypeScript/TSX, GDScript, C++ |
+| G5c | ✅ | GDScript, Szenen, Ressourcen und `project.godot` auf dem Tree-sitter-Kern; der Godot-Pfad als einzige Kante über eine Sprachgrenze |
+| G5b, G5d | offen | TypeScript/TSX, C++ |
 
 Eine Teilstufe 4b gibt es nicht. `loomux migrate` fällt weg: den
 Maschinenzustand hat die Selbstnutzung seit 3a schon umgezogen, die Wirte

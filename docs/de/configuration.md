@@ -366,13 +366,16 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset haben Go und Python, mit denselben Befehlen:
+erreicht. Ein Preset haben Go, Python und GDScript, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
 [stack.python.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.gdscript.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 
@@ -386,9 +389,15 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
 - **Eine Lane je Lauf, in der Wurzel.** Der Graph gehört der Projektwurzel,
   nicht einem Stack. Ein Stack mit mehreren Bereichen bekommt trotzdem ein
   `graph/go`, nicht einen Neubau je Bereich, und von mehreren Stacks mit
-  Graph-Befehl führt ihn nur der erste in Byte-Reihenfolge aus: in einem
+  Graph-Befehl führt ihn nur der ranghöchste aus: in einem
   Repository mit Go und Python läuft `graph/go`, und `graph/python` ist
-  `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Ein
+  `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Der
+  Rang ist `go`, dann `python`, dann `gdscript`; ein Stack außerhalb dieser
+  Liste folgt ihnen in Byte-Reihenfolge. In einem Repository mit einem
+  Godot-Projekt neben Go oder Python trägt deren Lane, und `graph/gdscript`
+  ist `not-applicable` („graph covered by graph/go“ oder „graph/python“); `graph/gdscript` trägt
+  in einem Projekt mit keinem von beiden. Die Lanes bleiben in
+  Byte-Reihenfolge aufgelistet, welche auch immer trägt. Ein
   Stack ohne Graph-Lane (etwa shell) trägt nichts: seine Lane meldet „no
   command“, und der nächste Stack mit Befehl läuft.
 - **Nur in einem Check.** Im Edit-Scope plant `graph` gar keine Lane, wie
@@ -434,8 +443,12 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   ein Klon ohne scharfe Hooks) gehört am Rundenende zu `HEAD` und wird nie
   geprüft.
 - **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
-  zu ersetzen, der die Lane trägt (`[verify.go.graph]`, in einem reinen
-  Python-Repository `[verify.python.graph]`), **beide** Einträge; eine Lane,
+  zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, dann
+  `gdscript`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
+  Godot-Projekt, `[verify.python.graph]` in einem Python-Repository ohne Go
+  und `[verify.gdscript.graph]` nur in einem Godot-Projekt mit keinem von
+  beiden. Eine Überschreibung unter einem Stack, der zurücktritt, wird nie
+  gelesen. Ersetze **beide** Einträge; eine Lane,
   die nur `blast-audit` nennt, verliert den Neubau:
 
   ```toml
@@ -700,8 +713,9 @@ neu entdeckt zu werden:
 
 - **Welche Sprachen ein Bau parst, ergibt sich aus den Extraktoren, nicht aus
   einer Liste, die ein Repository erklärt.** `internal/code/extract/golang`
-  liest `.go`-Dateien und `internal/code/extract/python` liest `.py`-Dateien,
-  weil jeder nur die lesen kann; eine feste Liste in
+  liest `.go`-Dateien, `internal/code/extract/python` liest `.py`-Dateien und
+  `internal/code/extract/gdscript` die `.gd`-, `.tscn`-, `.tres`- und
+  `.godot`-Dateien eines Godot-Projekts, weil jeder nur die lesen kann; eine feste Liste in
   `internal/code/extract/all` hält sie, und allein die Endung wählt, welcher
   auf eine Datei angewandt wird. Eine weitere Sprache kommt im Code in diese
   Liste, und kein Konfigurationsschlüssel entscheidet, welcher Extraktor auf

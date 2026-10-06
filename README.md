@@ -103,7 +103,7 @@ A lane that has never been green in a project warns instead of failing. `.loomux
 
 Most coding agents re-explore codebases from scratch every session, burning tokens and tool calls. Loomux builds a local, deterministic AST code graph once and answers queries from it using **Personalized PageRank**.
 
-The graph covers Go, read with `go/parser`, and Python, read on `gotreesitter`, a Tree-sitter runtime in pure Go, so the binary stays CGo-free. `loomux graph build` parses only the files that changed since the last build and takes the rest from its extract cache; `--no-reuse` parses every file.
+The graph covers Go, read with `go/parser`, and Python and Godot projects — GDScript, scenes, resources and `project.godot` — read on `gotreesitter`, a Tree-sitter runtime in pure Go, so the binary stays CGo-free. `loomux graph build` parses only the files that changed since the last build and takes the rest from its extract cache; `--no-reuse` parses every file.
 
 `loomux graph ask` ranks code symbols by BM25-style lexical relevance blended with Personalized PageRank (alpha=0.25), rebuilds a drifted graph before it answers (never a first one), and with `--source` inlines each hit's span. `loomux graph blast` shows what a git diff reaches over the same edges; the verify kind `graph` audits the staged change the same way in `loomux check precommit`, and the whole turn against `HEAD` at the stop gate, wherever a graph was built ([configuration](docs/en/configuration.md#the-graph-kind)).
 
@@ -156,8 +156,10 @@ What loomux will gain next. *Priority* orders the rows (1 first); the roadmap se
 | **Skill suites and review** | Embedded best-practice rules per language (Go, Python, TypeScript, Rust); graph-aware review that reads `graph_blast` and checks ADR conformance; distributed through `.loomux/config.toml`, host folders, MCP prompts and the web UI | W4 | G4b ✅ | 5 |
 | **Flow editor and Kanban** | Flows drawn, replayed and debugged as a graph in the Web OS, in the same format as the flow files; a Kanban board that tracks agent loops, check lanes and subagents live | W5 | W1, Flow | 5 |
 | **TypeScript/TSX in the code graph** | Extraction on the same pure-Go Tree-sitter core (`gotreesitter`) that reads Python since G5a | G5b | G5a ✅ | 6 |
-| **GDScript in the code graph** | The same core for Godot's GDScript | G5c | G5b | 6 |
-| **C++ in the code graph** | The same core for C++, once a recall check of `gotreesitter` against the C runtime holds | G5d | G5c | 6 |
+| **Python source roots from a project file** | The Python resolver guesses where absolute imports start (the repository root, the directory above each top-level package, every `manage.py` directory); where a project file states the roots, it should be read instead. Whether `pyproject.toml` does is open: it states them only in tool-specific forms, if at all | G5a follow-up | — | — |
+| **Typed fields in the GDScript resolver** | Calls and signals on a field with a type annotation (`var _screen: ColonyScreen`, then `_screen.refresh()` or `_screen.build_requested.connect(…)`) get no edge today. The extractor would record each field's annotated type, the resolver binds the field through it; locals and parameters that shadow a field need rules | G5c follow-up | — | — |
+| **Scene autoloads in the GDScript resolver** | An autoload that is a scene (`Bus="*res://bus.tscn"`) binds to the scene's file node, so calls and signals through its name reach no script. The extractor would record each scene's root script, the resolver binds the name through it | G5c follow-up | — | — |
+| **C++ in the code graph** | The same core for C++, once a recall check of `gotreesitter` against the C runtime holds | G5d | G5c ✅ | 6 |
 | **`verify.profiles` through `config set`** | `loomux config set verify.profiles… --propose` refuses the key as unknown, so the proposal path of this repository does not reach it | 4e follow-up | — | — |
 | **A repository root as the wiki** | `[layout] wiki` refuses the root of a repository, so a wiki repository such as a pure wiki project has no wiki lane | 4e follow-up | — | — |
 | **`dev bench cases` without a hook** | `dev bench cases` refuses a `settings.json` without hooks instead of writing only the extra cases | 4e follow-up | — | — |
@@ -291,7 +293,7 @@ and the next search starts it with the new backbone.
 
 ### Code Graph
 ```bash
-loomux graph build [--root <path>] [--no-reuse]  # extract Go and Python, resolve and write .loomux/state/graph/wiring.json; unchanged files come from the extract cache
+loomux graph build [--root <path>] [--no-reuse]  # extract Go, Python and Godot projects, resolve and write .loomux/state/graph/wiring.json; unchanged files come from the extract cache
 loomux graph check [--root <path>]  # re-extract and diff against the graph on disk (exit 1 on drift)
 loomux graph ask "<query>" [flags]  # retrieve code symbols ranked by lexical score and Personalized PageRank; never builds a first graph
 loomux graph callers <symbol>       # list direct callers, callees (--direction out), or full closure (-d all)

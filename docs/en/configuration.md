@@ -355,14 +355,17 @@ then `[verify.<stack>]`.
 
 #### The `graph` kind
 
-The fifth kind checks what a commit's change reaches in the code graph. Go and
-Python have a preset for it, with the same commands:
+The fifth kind checks what a commit's change reaches in the code graph. Go,
+Python and GDScript have a preset for it, with the same commands:
 
 ```toml
 [stack.go.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
 [stack.python.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.gdscript.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 
@@ -376,11 +379,16 @@ The commands run one after the other, and `blast-audit` runs even after a red
 - **One lane per run, in the root.** The graph belongs to the project root,
   not to a stack. A stack with several areas still gets one `graph/go`, not
   one rebuild per area, and of several stacks with a graph command only the
-  first in byte order runs it: in a repository with Go and Python, `graph/go`
+  highest-ranked runs it: in a repository with Go and Python, `graph/go`
   runs and `graph/python` is `not-applicable` ("graph covered by graph/go"),
-  which leaves the verdict green. A stack without a graph lane (shell, say)
-  carries nothing: its lane says "no command", and the next stack with one
-  runs.
+  which leaves the verdict green. The rank is `go`, then `python`, then
+  `gdscript`; a stack outside that list follows them in byte order. In a
+  repository with a Godot project beside Go or Python, their lane carries
+  and `graph/gdscript` is `not-applicable` ("graph covered by graph/go" or "graph/python");
+  `graph/gdscript` carries in a project with neither. The lanes stay listed
+  in byte order, whichever carries. A stack without a graph lane (shell,
+  say) carries nothing: its lane says "no command", and the next stack with
+  one runs.
 - **Only in a check.** The edit scope plans no `graph` lane at all, as for a
   kind without a command: an `edit` profile that names `graph` never rebuilds
   on an edit.
@@ -423,8 +431,12 @@ The commands run one after the other, and `blast-audit` runs even after a red
   --no-verify`, a cherry-pick or merge, a clone without armed hooks) is part
   of `HEAD` by the turn end and is never audited.
 - **Changing the threshold** means replacing `commands` in the table of the
-  stack that carries the lane (`[verify.go.graph]`, in a Python-only
-  repository `[verify.python.graph]`), **both** entries; a lane that names
+  stack that carries the lane, the highest-ranked (`go`, then `python`, then
+  `gdscript`): `[verify.go.graph]` in a Go repository, even one with a Godot
+  project, `[verify.python.graph]` in a Python one without Go, and
+  `[verify.gdscript.graph]` only in a Godot project with neither. An
+  override under a stack that stands aside is never read. Replace
+  **both** entries; a lane that names
   only `blast-audit` loses the rebuild:
 
   ```toml
@@ -679,8 +691,9 @@ here rather than left to be rediscovered:
 
 - **The languages a build parses follow from the extractors, not from a list a
   repository declares.** `internal/code/extract/golang` reads `.go` files and
-  `internal/code/extract/python` reads `.py` files, because that is what each
-  knows how to read; a fixed list in `internal/code/extract/all` holds them,
+  `internal/code/extract/python` reads `.py` files and
+  `internal/code/extract/gdscript` a Godot project's `.gd`, `.tscn`, `.tres`
+  and `.godot` files, because that is what each knows how to read; a fixed list in `internal/code/extract/all` holds them,
   and the extension alone picks the one that runs on a file. A further
   language joins that list in code, and no config key decides which extractor
   runs on a given file.
