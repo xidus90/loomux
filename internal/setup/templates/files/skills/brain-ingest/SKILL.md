@@ -111,7 +111,7 @@ The most frequent findings after an ingest and what they mean:
 | `house/conflict-count` | box set, `open_conflicts` not increased |
 | `house/orphan` | new page created, but no line in `index.md` |
 | `okf/catalog-malformed` | the same gap seen from the catalog page |
-| `house/source-incomplete` | `doc_id`, `content_hash` or `revision` missing |
+| `house/source-incomplete` | `doc_id`, `content_hash` or `revision` missing (an `http(s)://` source needs none) |
 | `house/dead-link` | link to a page that does not exist (yet) |
 | `house/untouched` | not touched for a long time — warning, not a defect |
 

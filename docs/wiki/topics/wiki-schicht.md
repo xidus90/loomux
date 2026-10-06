@@ -29,7 +29,9 @@ Zwei produzenteneigene Erweiterungen tragen die Schicht:
 
 - **`sources[]` mit `doc_id`, `content_hash` und `revision`** je Beleg. Aus
   diesen Einträgen wird der Rückwärtsindex Quelle → abhängige Seiten
-  deterministisch gebaut — kein zusätzliches Format.
+  deterministisch gebaut — kein zusätzliches Format. Eine Quelle im Web
+  (`http://`, `https://`) hat keinen Registereintrag und braucht die drei
+  Felder nicht.
 - **`realization`** (`planned` · `in_progress` · `implemented` · `abandoned`)
   plus `implemented_in`, nur auf Projektseiten. Sie schließen eine Lücke, die
   OKF nicht abdeckt: `status` beschreibt die Reife der **Seite**, nicht den

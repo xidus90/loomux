@@ -292,6 +292,23 @@ func TestAnIncompleteSourceIsNotAnEmptyOne(t *testing.T) {
 	}
 }
 
+func TestAWebSourceNeedsNoPin(t *testing.T) {
+	// A web page has no register entry to pin against, so the three
+	// maintenance fields cannot exist for it. The local entry comes last so
+	// that a rule exempting every entry, or none, names the wrong position.
+	dir := t.TempDir()
+	write(t, dir, "p.md",
+		"---\ntype: Topic\nsources:\n"+
+			"  - { id: a, resource: https://x.invalid/a }\n"+
+			"  - { id: b, resource: HTTP://x.invalid/b }\n"+
+			"  - { id: c, resource: brain://project/x/c.md }\n---\nb\n")
+	got := messagesOf(Page(read(t, dir), ctx(t, dir)), "source-incomplete")
+	want := "sources[2] lacks doc_id, content_hash, revision"
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("messages are %v, want [%q]", got, want)
+	}
+}
+
 func TestAnEmptySourcesListIsNotAnIncompleteEntry(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "empty.md", "---\ntype: Topic\nsources: []\n---\nb\n")
