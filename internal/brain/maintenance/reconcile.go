@@ -322,7 +322,8 @@ func reviewRootOf(areas []config.Area, manifests map[string]*config.Manifest) (s
 // joins an absolute or rooted value by *replacing* the area's root, so
 // `is_relative_to` catches it; Join concatenates `C:/aside` onto the area and
 // the result would sit comfortably inside it. The rooted test is therefore
-// made here in so many words, and the containment test after it catches `..`
+// made in so many words (guard's `RootedValue`, the same test the barrier
+// makes), and the containment test after it catches `..`
 // on the way out, which no type check would.
 //
 // Python additionally refuses a `[layout] review` that is not a string;
@@ -349,7 +350,7 @@ func reviewRootOf(areas []config.Area, manifests map[string]*config.Manifest) (s
 func declaredReview(area config.Area, manifest *config.Manifest) (string, error) {
 	declared := manifest.LayoutReview
 	refusal := fmt.Errorf("%s: [layout] review must stay inside the area, found %q", area.Scope, declared)
-	if rootedValue(declared) {
+	if guard.RootedValue(declared) {
 		return "", refusal
 	}
 	root := filepath.Join(area.Path, filepath.FromSlash(declared))
@@ -377,17 +378,6 @@ func declaredReview(area config.Area, manifest *config.Manifest) (string, error)
 	// answer, and a reader looking for a case should find the place the
 	// manifest names.
 	return root, nil
-}
-
-// rootedValue says whether a declared value names a place of its own rather
-// than a step below the area: a leading separator of either kind, or a volume
-// name. `filepath.IsAbs` is not enough on Windows, where a rooted path without
-// a drive is not called absolute although joining one still replaces the root.
-func rootedValue(value string) bool {
-	if strings.HasPrefix(value, "/") || strings.HasPrefix(value, `\`) {
-		return true
-	}
-	return filepath.VolumeName(value) != ""
 }
 
 // sourceCases groups the changed sources by the page derived from them, one

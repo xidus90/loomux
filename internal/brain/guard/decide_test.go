@@ -3,6 +3,7 @@ package guard
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -1165,6 +1166,33 @@ func TestAReviewReachingOutOfTheAreaClosesTheExemption(t *testing.T) {
 	state := withReview(t, tmp, "\"../outside\"")
 	deny(t, writeCall(filepath.Join(tmp, "outside", "proposal.md")),
 		state, "lies outside every writable tree")
+}
+
+func TestARootedReviewClosesTheExemption(t *testing.T) {
+	// filepath.Join concatenates a rooted value onto the area instead of
+	// replacing the root, so the joined place would sit inside the area and
+	// pass the containment test; the other readers of the field refuse it.
+	for _, layout := range []string{`"/evil"`, `'\evil'`} {
+		tmp := t.TempDir()
+		state := withReview(t, tmp, layout)
+		deny(t, writeCall(filepath.Join(tmp, "repo", "evil", "c1", "proposal.md")),
+			state, "lies outside every writable tree")
+	}
+}
+
+func TestARootedReviewHasNoCentre(t *testing.T) {
+	values := []string{`"/evil"`, `'\evil'`}
+	if runtime.GOOS == "windows" {
+		values = append(values, `"C:/evil"`, `"C:evil"`)
+	}
+	for _, layout := range values {
+		tmp := t.TempDir()
+		state := withReview(t, tmp, layout)
+		got := reviewCentre([]area{{scope: "project/demo", path: filepath.Join(tmp, "repo")}}, state)
+		if got != "" {
+			t.Errorf("review = %s: reviewCentre = %q, want none", layout, got)
+		}
+	}
 }
 
 func TestAnAreaWithoutAReviewDeclarationHasNoCentre(t *testing.T) {

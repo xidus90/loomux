@@ -218,14 +218,19 @@ func reviewCentre(areas []area, stateDir string) string {
 		if read.LayoutReview == "" {
 			continue
 		}
+		// Python's join replaces the area's root with a rooted value and
+		// `is_relative_to` then refuses it (reconcile.py:258-262);
+		// filepath.Join concatenates it instead, so the joined place
+		// would sit inside the area and pass. The rooted test is made
+		// first, in so many words, and the containment test after
+		// `resolve` catches `..` on the way out, which no type check
+		// would. This value is the ground of the one exemption, so a
+		// value reaching out of the area would make every file named
+		// `proposal.md` on the disk writable.
+		if RootedValue(read.LayoutReview) {
+			return ""
+		}
 		root := filepath.Join(registered.path, read.LayoutReview)
-		// `is_relative_to` after `resolve`, not `is_absolute`: on Windows
-		// a rooted path without a drive is not called absolute while
-		// joining one still replaces the area's root, and the same test
-		// catches `..` on the way out, which no type check would
-		// (reconcile.py:258-262). This value is the ground of the one
-		// exemption, so a value reaching out of the area would make every
-		// file named `proposal.md` on the disk writable.
 		centre, centreErr := ResolvePath(root)
 		area, areaErr := ResolvePath(registered.path)
 		// A path this side cannot resolve joins the failures above: this
@@ -244,6 +249,20 @@ func reviewCentre(areas []area, stateDir string) string {
 		found = centre
 	}
 	return found
+}
+
+// RootedValue says whether a declared value names a place of its own rather
+// than a step below the area: a leading separator of either kind, or a volume
+// name. `filepath.IsAbs` is not enough on Windows, where a rooted path without
+// a drive is not called absolute although joining one still replaces the root.
+// The guard's review centre and the maintenance run's declared review make
+// this test before they join the value; other readers of `[layout] review`
+// apply their own checks.
+func RootedValue(value string) bool {
+	if strings.HasPrefix(value, "/") || strings.HasPrefix(value, `\`) {
+		return true
+	}
+	return filepath.VolumeName(value) != ""
 }
 
 // isManifest is `_is_manifest`: whether this path names a
