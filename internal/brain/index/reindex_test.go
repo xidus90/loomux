@@ -263,6 +263,45 @@ func TestReindexSkippingMissingAreaAndManifest(t *testing.T) {
 	}
 }
 
+// A path the system cannot inspect (here one with a NUL byte, which both
+// platforms refuse) is not an absent one: it is named as such, the other
+// areas are still indexed, and the run ends with exit 1.
+func TestReindexAreaPathThatCannotBeInspectedFailsTheRun(t *testing.T) {
+	tmp := t.TempDir()
+	stateDir := filepath.Join(tmp, "state")
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	t.Setenv("LOOMUX_STATE_DIR", stateDir)
+
+	validAreaDir := filepath.Join(tmp, "valid_area")
+	setupTestArea(t, validAreaDir, "[area]\nscope = \"valid\"\n")
+	if err := os.WriteFile(filepath.Join(validAreaDir, "valid.md"), []byte("# Valid\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	registryContent := "[[area]]\nscope = \"broken\"\npath = \"" + filepath.ToSlash(tmp) + "/bad\\u0000dir\"\n\n" +
+		"[[area]]\nscope = \"valid\"\npath = \"" + filepath.ToSlash(validAreaDir) + "\"\n"
+	regPath := writeTestRegistry(t, stateDir, registryContent)
+
+	var stderr bytes.Buffer
+	code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), &stderr)
+	if err != nil {
+		t.Fatalf("Reindex failed: %v", err)
+	}
+	out := stderr.String()
+	if code != 1 {
+		t.Errorf("expected code 1, got %d; stderr: %s", code, out)
+	}
+	if strings.Contains(out, "does not exist") {
+		t.Errorf("an uninspectable path must not be called absent, got: %s", out)
+	}
+	if !strings.Contains(out, "skipping broken: ") || !strings.Contains(out, " cannot be inspected: ") {
+		t.Errorf("expected the cannot-be-inspected skip, got: %s", out)
+	}
+	if !strings.Contains(out, "updated qmd collections: valid") {
+		t.Errorf("expected the other area to be indexed, got: %s", out)
+	}
+}
+
 func TestReindexCollisionRefused(t *testing.T) {
 	tmp := t.TempDir()
 	stateDir := filepath.Join(tmp, "state")
