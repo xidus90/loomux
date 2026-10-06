@@ -4,6 +4,23 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-10-06
+
+- 2026-10-06 — `topics/brain-maintenance.md`: Konflikt zu `--reject`
+  aufgelöst, die Seite war veraltet. Eine Ablehnung schiebt `revision` und
+  `content_hash` in `sources[]` und den Registern vor; die Referenz tat das
+  nicht. Kasten entfernt, `open_conflicts` wieder 0. Quelle:
+  `docs/de/cli-reference.md` (`loomux approve`).
+- 2026-10-06 — `topics/code-graph.md`: Konflikt zu G4c aufgelöst, veraltet war
+  die Nutzerdoku. `docs/de/architecture.md` und `docs/en/architecture.md`
+  nennen als offen nur noch G5b bis G5d. Kasten entfernt, `open_conflicts`
+  wieder 0. Quelle: `docs/de/architecture.md`, `docs/de/cli-reference.md`
+  (`check stop`).
+- 2026-10-06 — `topics/suche-und-profile.md`: Konflikt zur Tokenmenge in
+  `status` aufgelöst; der Absatz nennt sie als Absicht des Vorgängers, gebaut
+  ist sie nicht. Kasten entfernt, `open_conflicts` wieder 0. Quelle:
+  `docs/de/cli-reference.md` (`loomux brain status`).
+
 ## 2026-10-05
 
 - 2026-10-05 — alle Inhaltsseiten mit `sources[]`: die Quellen zeigen auf die

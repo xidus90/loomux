@@ -2,19 +2,19 @@
 type: Topic
 title: Der Code-Graph
 description: Wie loomux Symbole und Kanten ohne Modell aus dem Quelltext zieht, Treffer mit Personalized PageRank ordnet und den Blast-Radius einer Änderung berechnet.
-open_conflicts: 1
+open_conflicts: 0
 realization: in_progress
 sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:90caf4489fa0a34bba71759199b54ddf32e4000923ac4104b677bebb6d15a3a3"
-    revision: 1
+    content_hash: "sha256:7e34bcbe26fc6c0977631769395ca6f97d8bea9be643fbe4641809bb35266fbf"
+    revision: 2
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
-    revision: 1
+    content_hash: "sha256:68797887e50379828f958338511f2c03b36e31a01d9f813304bab6489922995a"
+    revision: 2
 ---
 
 ## Wofür
@@ -141,15 +141,6 @@ das Binary kommt über die üblichen Wege.
 - Die Brücke von Code-Symbolen zu Wiki-Seiten und ADRs und der Viewer
   `graph viz` ordnete die Spec G4 und G5 zu; die Roadmap im README führt
   beide heute unter dem Web-OS (W3).
-
-> [!conflict] Ist die Stufe G4c gebaut?
-> `docs/de/architecture.md`, Abschnitt „Säule III“, nennt als noch offen die
-> Stufen G4c und G5b bis G5d.
-> `docs/de/cli-reference.md` beschreibt die Graph-Lane im Stop-Gate
-> (`check stop`, `check blast-audit --cached`) als gebaut; diese Seite
-> beschreibt den Stop-Hook mit Blast-Logik oben ebenfalls als gebaut und
-> führt in „Was offen ist“ nur G5b bis G5d.
-> Beide Stände bleiben stehen. Entscheidung offen.
 
 Quelle: die Architektur und die CLI-Referenz der Nutzerdoku; offene Stufen
 führt die Roadmap im README.

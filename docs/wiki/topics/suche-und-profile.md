@@ -2,15 +2,15 @@
 type: Topic
 title: Suche, Profile und Messwerte
 description: Die drei Suchprofile, die Suchleiter, die Latenzbudgets und was die Messungen an Annahmen umgeworfen haben.
-open_conflicts: 1
+open_conflicts: 0
 realization: implemented
 implemented_in: f740c8f
 sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:2e0f9455c00bbd2cd943d2eed65463448522d33232f032358addb56c2bae1255"
-    revision: 1
+    content_hash: "sha256:68797887e50379828f958338511f2c03b36e31a01d9f813304bab6489922995a"
+    revision: 2
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
@@ -93,19 +93,10 @@ Jeder weitere Suchschritt liest den bisherigen Gesprächsverlauf erneut.
 
 **Stufe 2 heißt vorerst lesen, nicht suchen** — bei rund 290 Notizen passt das
 verdichtete Wiki mit hoher Wahrscheinlichkeit ins Kontextfenster. Die Schwelle
-wird gemessen, nicht geschätzt: `status` weist die Tokenmenge der Wiki-Schicht
-je Bereich aus und meldet, wenn sie 100.000 überschreitet.
-
-> [!conflict] Meldet `status` die Tokenmenge der Wiki-Schicht?
-> Der Absatz oben (aus dem Architektur-Entwurf des Vorgängers verdichtet) sagt:
-> `status` weist die Tokenmenge der Wiki-Schicht je Bereich aus und meldet,
-> wenn sie 100.000 überschreitet.
-> `docs/de/cli-reference.md`, Abschnitt `loomux brain status`, zählt die Zeilen
-> des Befehls vollständig auf — letzter Abgleich, Include-Globs, fehlende
-> Pfade, nie indizierte Bereiche, aufgelöste Links, unbekannte Dokumente,
-> doppelte Inhalte, nicht durchsuchbare Dokumente — und nennt keine
-> Tokenmenge; auch der Code von `internal/brain/status` kennt keine.
-> Beide Stände bleiben stehen. Entscheidung offen.
+sollte gemessen werden, nicht geschätzt: Der Architektur-Entwurf des Vorgängers
+sah vor, dass `status` die Tokenmenge der Wiki-Schicht je Bereich ausweist und
+meldet, wenn sie 100.000 überschreitet. Gebaut ist das nicht; `brain status`
+nennt keine Tokenmenge.
 
 **Die Suchleiter rechtfertigt sich heute nicht über Effizienz.** Sechs Läufe mit
 und ohne Regelwerk fanden alle die richtige Datei, bei 14 gegen 13
