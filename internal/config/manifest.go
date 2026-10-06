@@ -12,10 +12,12 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
@@ -179,13 +181,16 @@ func readManifestAmong(dir string, names []string) (*Manifest, error) {
 		//
 		// Anything but a regular file counts as no manifest, and `is_file()` is
 		// again the rule: a directory of that name declares nothing, as does a
-		// name that does not exist.
+		// name that does not exist or that a path through a regular file cannot
+		// reach. A path the system refuses to inspect is none of these, and is
+		// the error too.
 		data, err := os.ReadFile(path)
 		if err != nil {
-			if info, statErr := os.Stat(path); statErr == nil && info.Mode().IsRegular() {
-				return nil, fmt.Errorf("%s: cannot be read: %w", path, err)
+			info, statErr := os.Stat(path)
+			if statErr == nil && !info.Mode().IsRegular() || errors.Is(statErr, fs.ErrNotExist) || errors.Is(statErr, syscall.ENOTDIR) {
+				continue
 			}
-			continue
+			return nil, fmt.Errorf("%s: cannot be read: %w", path, err)
 		}
 		file := manifestFile{}
 		// Set before decoding: toml overwrites only the keys the file names,

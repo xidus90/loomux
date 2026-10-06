@@ -3,20 +3,29 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 // ReadAreaDeclaration reads the declaration of the area whose manifest lies in
 // dir: `.loomux/config.toml`, checked whole by ReadDeclaration.
 //
 // Two answers are no defect of the file, and callers tell them apart: no
-// regular file of that name is ErrNoManifest, a file without [area] -- policy
-// only -- is ErrNoArea.
+// regular file of that name, or none a path through a regular file can reach,
+// is ErrNoManifest, a file without [area] -- policy only -- is ErrNoArea. A
+// path the system refuses to inspect (access denied on a parent, a malformed
+// name) is neither: it may hold a declaration, so it is an error and never an
+// absence.
 func ReadAreaDeclaration(dir string) (*Manifest, error) {
 	name := filepath.Join(".loomux", "config.toml")
 	path := filepath.Join(dir, name)
-	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+	info, err := os.Stat(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENOTDIR) {
+		return nil, fmt.Errorf("%s: cannot be read: %w", path, err)
+	}
+	if err != nil || !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s: %w (%s)", dir, ErrNoManifest, name)
 	}
 	return ReadDeclaration(path)

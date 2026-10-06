@@ -91,6 +91,16 @@ func TestReadAreaDeclarationPassesOnALockedFile(t *testing.T) {
 	}
 }
 
+// A path the system refuses to inspect may hold a declaration, so it is an
+// error and no absence; a NUL byte is refused the same way everywhere.
+func TestReadAreaDeclarationPassesOnAPathThatCannotBeInspected(t *testing.T) {
+	dir := t.TempDir() + "\x00x"
+	_, err := ReadAreaDeclaration(dir)
+	if err == nil || IsUndeclared(err) || errors.Is(err, ErrNoManifest) || !strings.Contains(err.Error(), ": cannot be read: ") {
+		t.Fatalf("got %v; want the inspection error", err)
+	}
+}
+
 // The post-merge hook asks this reader for consent, the default branch
 // included.
 func TestReadAreaDeclarationCarriesTheMergeConsent(t *testing.T) {
@@ -127,5 +137,19 @@ func TestIsUndeclaredTakesExactlyTheTwoAbsences(t *testing.T) {
 		if got := IsUndeclared(tc.err); got != tc.want {
 			t.Fatalf("IsUndeclared(%v) = %v, want %v", tc.err, got, tc.want)
 		}
+	}
+}
+
+// A directory that is really a regular file cannot hold `.loomux/config.toml`:
+// Linux answers ENOTDIR for it, Windows a plain "not found", and both mean no
+// manifest.
+func TestReadAreaDeclarationTakesAPathThroughARegularFileForNoManifest(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "f")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ReadAreaDeclaration(file)
+	if !errors.Is(err, ErrNoManifest) {
+		t.Fatalf("got %v; want ErrNoManifest", err)
 	}
 }
