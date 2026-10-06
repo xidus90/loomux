@@ -1,0 +1,53 @@
+name: Bug report
+description: loomux does something wrong, crashes or refuses what it should allow.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `loomux --version`.
+      placeholder: loomux 1.0.1
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, Linux, macOS]
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: Agent host
+      description: Which tool called loomux, if any.
+      options: [None (command line), Claude Code, Antigravity, Cursor, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command or action, and what loomux printed or did.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest setup that shows it. Include the relevant part of `.loomux/config.toml` if it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Full error output. Remove secrets and private paths first.
+      render: text
