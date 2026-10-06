@@ -154,58 +154,70 @@ func TestTheWorkTreeReaderSkipsAFileThatIsGone(t *testing.T) {
 	}
 }
 
-func TestTheTableLetsOnlyWorkingPapersAndArchivesStandUnderDocsSuperpowers(t *testing.T) {
+func TestGraftIsANameExceptAfterAnUnderscore(t *testing.T) {
 	files := map[string]string{
-		"docs/.superpowers/specs/a.md":       "ultraloom\n",
-		"docs/.superpowers/plans/a.md":       "ultraloom\n",
-		"docs/.superpowers/parity/a.md":      "ultraloom\n",
-		"docs/.superpowers/specs-ul/a.md":    "ultraloom\n",
-		"docs/.superpowers/specs-ub/a.md":    "ultraloom\n",
-		"docs/.superpowers/plans-ul/a.md":    "ultraloom\n",
-		"docs/.superpowers/plans-ub/a.md":    "ultraloom\n",
-		"docs/.superpowers/bench-ub/a.md":    "ultraloom\n",
-		"docs/.superpowers/notes/a.md":       "ultraloom\n",
-		"docs/.superpowers/loose.md":         "ultraloom\n",
-		"docs/.superpowers/specs-other/a.md": "ultraloom\n",
+		"a.go": "// Ported from trailhq/Graft\n",
+		"b.go": "\t\"GIT_GRAFT_FILE\",\n",
+		"c.go": "func graftEdges() {}\n",
+		"d.go": "func TestWithGraftsDefaults(t *testing.T) {}\n",
+		"e.md": "Graft's crux\n",
 	}
-	got, _ := References(keys(files), reader(files), exceptions())
+	got, _ := References(keys(files), reader(files), nil)
 	want := []string{
-		"docs/.superpowers/loose.md:1: ultraloom",
-		"docs/.superpowers/notes/a.md:1: ultraloom",
-		"docs/.superpowers/specs-other/a.md:1: ultraloom",
+		"a.go:1: // Ported from trailhq/Graft",
+		"c.go:1: func graftEdges() {}",
+		"d.go:1: func TestWithGraftsDefaults(t *testing.T) {}",
+		"e.md:1: Graft's crux",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
-func TestTheReadmeRuleTakesRoadmapRowsOnly(t *testing.T) {
+func TestTheIdeaRuleTakesTheIdeaSentenceOnly(t *testing.T) {
 	files := map[string]string{
-		"README.md":    "| **Web** | ultra-brain/web parts | W1 |\nsee ultra-brain/web for more\n",
-		"README.de.md": "| **Flow** | ulflow | 4 |\n  | ulflow indented |\n",
+		"README.md":               "Ranking is inspired by [trailhq/Graft](u).\n| model | Graft |\n",
+		"README.de.md":            "Ranking ist angeregt von [trailhq/Graft](u).\nGrafts Crux\n",
+		"docs/en/architecture.md": "principles inspired by [trailhq/Graft](u):\n",
+		"docs/de/architecture.md": "angeregt von [trailhq/Graft](u):\n",
+		"docs/en/guide.md":        "inspired by [trailhq/Graft](u)\n",
 	}
 	got, _ := References(keys(files), reader(files), exceptions())
-	want := []string{"README.de.md:2:   | ulflow indented |", "README.md:2: see ultra-brain/web for more"}
+	want := []string{
+		"README.de.md:2: Grafts Crux",
+		"README.md:2: | model | Graft |",
+		"docs/en/guide.md:1: inspired by [trailhq/Graft](u)",
+	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
-func TestTheArchiveRuleTakesArchiveLinesInTheWikiOnly(t *testing.T) {
+func TestNoExceptionIsLeftForPapersWikiPlanOrRoadmap(t *testing.T) {
 	files := map[string]string{
-		"docs/wiki/a.md":   "sources: docs/.superpowers/plans-ub/x.md\nsources: docs/.superpowers/specs-ul/x.md\nultraloom prose\n",
-		"docs/other.md":    "docs/.superpowers/plans-ub/x.md\n",
-		"_identities.tsv":  "x\tdocs/.superpowers/bench-ub/y.md\nx\tultra-brain\n",
-		"docs/wiki/log.md": "ultraloom everywhere\n",
-		"internal/brain/apply/testdata/frontmatter/w.md": "resource: docs/.superpowers/specs-ub/x.md\nultraloom\n",
+		"docs/.superpowers/specs/a.md":                   "ultraloom\n",
+		"docs/.superpowers/specs-ub/a.md":                "ultraloom\n",
+		"docs/wiki/log.md":                               "ultraloom\n",
+		"docs/wiki/a.md":                                 "docs/.superpowers/specs-ub/x.md\n",
+		"_identities.tsv":                                "x\tdocs/.superpowers/bench-ub/y.md\n",
+		"internal/brain/apply/testdata/frontmatter/w.md": "specs-ub/x.md\n",
+		"docs/en/migration.md":                           "ultraloom\n",
+		"README.md":                                      "| **Web** | ultra-brain/web | W1 |\n",
 	}
 	got, _ := References(keys(files), reader(files), exceptions())
-	want := []string{
-		"_identities.tsv:2: x\tultra-brain",
-		"docs/other.md:1: docs/.superpowers/plans-ub/x.md",
-		"docs/wiki/a.md:3: ultraloom prose",
-		"internal/brain/apply/testdata/frontmatter/w.md:2: ultraloom",
+	if len(got) != len(files) {
+		t.Fatalf("got %d findings, want one per file: %q", len(got), got)
 	}
+}
+
+func TestTheNoticeStandsWholeAndTheGeneratorFileToo(t *testing.T) {
+	files := map[string]string{
+		"internal/notices/NOTICE.md":     "from trailhq/Graft\nGraft's license\n",
+		"internal/dev/notices/ported.md": "trailhq/Graft <u>\n",
+		"internal/dev/notices/other.md":  "trailhq/Graft\n",
+	}
+	got, _ := References(keys(files), reader(files), exceptions())
+	want := []string{"internal/dev/notices/other.md:1: trailhq/Graft"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
@@ -227,7 +239,7 @@ func TestTheRepositoryNamesNoPredecessor(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(found) != 0 {
-		t.Fatalf("names of the predecessor tools outside the named exceptions (fusion spec, #24):\n%s", strings.Join(found, "\n"))
+		t.Fatalf("names of the predecessor tools or of the ported original outside the exceptions in references.go:\n%s", strings.Join(found, "\n"))
 	}
 }
 
