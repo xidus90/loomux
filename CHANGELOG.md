@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.0.2] - 2026-10-06
+
+<https://github.com/xidus90/loomux/pull/92>
+
+### Fixed
+- `no-sources` and `house/source-incomplete` no longer report a web source (`http://`, `https://`) for missing `doc_id`, `content_hash` and `revision`.
+
 ## [1.0.1] - 2026-10-06
 
 <https://github.com/xidus90/loomux/pull/88>
