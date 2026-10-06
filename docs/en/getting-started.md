@@ -202,7 +202,8 @@ never = ["private/**"]
   entry with `workspace = true` and no declaration is skipped silently. A
   `.loomux/config.toml` without `[area]` counts as none, and so does an area
   whose directory holds no `.loomux/config.toml`, whatever other files lie
-  there. The write
+  there. A `.loomux/config.toml` the system refuses to inspect is no absence
+  either: it fails the call, a workspace included. The write
   barrier does not mind: registering an area before its manifest exists is
   normal there.
 - **Every write is refused with `loomux cannot read the registry, so it

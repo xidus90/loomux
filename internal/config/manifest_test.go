@@ -143,6 +143,18 @@ func TestBrokenTomlIsAnError(t *testing.T) {
 	}
 }
 
+// A directory that cannot be inspected may hold a manifest: ReadManifest says
+// so instead of taking it for an absent declaration.
+func TestAManifestPathThatCannotBeInspectedIsAnErrorNotAnAbsence(t *testing.T) {
+	m, err := ReadManifest(t.TempDir() + "\x00x")
+	if err == nil {
+		t.Fatalf("ReadManifest = %+v, want an error for a path that cannot be inspected", m)
+	}
+	if errors.Is(err, ErrNoManifest) || !strings.Contains(err.Error(), ": cannot be read: ") {
+		t.Errorf("error %q is no inspection error", err)
+	}
+}
+
 // A config.toml that is a regular file and does not read is an error: a
 // caller that took the failure for "nothing declared" would fall back to
 // defaults the area never chose.
@@ -659,5 +671,17 @@ func TestTheManifestDoesNotReadTheOldMergeBranchName(t *testing.T) {
 	m := manifested(t, "[area]\nscope = \"project/x\"\n[maintenance]\non_merge = true\nmerge_branch = \"dev\"\n")
 	if m.MergeBranch != "main" {
 		t.Fatalf("merge_branch must stay unread, got %q", m.MergeBranch)
+	}
+}
+
+// The same path through a regular file is an absent manifest for ReadManifest.
+func TestAManifestPathThroughARegularFileIsAbsent(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "f")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ReadManifest(file)
+	if !errors.Is(err, ErrNoManifest) {
+		t.Fatalf("got %v; want ErrNoManifest", err)
 	}
 }

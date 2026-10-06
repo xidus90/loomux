@@ -147,8 +147,8 @@ const (
 	// skipAbsent is a path or declaration that is not there; the run is
 	// unaffected.
 	skipAbsent
-	// skipUninspectable is a path the system refused to inspect; the other
-	// areas still run, but the run fails.
+	// skipUninspectable is a path or declaration the system refused to read;
+	// the other areas still run, but the run fails.
 	skipUninspectable
 )
 
@@ -158,7 +158,9 @@ const (
 // absent clone would otherwise stop the run for every other area too. A path
 // that cannot be inspected for another reason (access denied, a malformed
 // name) is not absent: it is skipped the same way, so the other areas still
-// run, but it is reported so that the run can fail.
+// run, but it is reported so that the run can fail. So is a declaration that
+// is there and does not read; one that is not there or declares no area is
+// absent.
 func indexArea(
 	area config.Area,
 	areas []config.Area,
@@ -193,7 +195,12 @@ func indexArea(
 	manifest, err := config.ReadAreaDeclaration(source)
 	if err != nil {
 		fmt.Fprintf(stderr, "skipping %s: %v\n", area.Scope, err)
-		return indexedArea{}, skipAbsent, nil
+		if config.IsUndeclared(err) {
+			return indexedArea{}, skipAbsent, nil
+		}
+		// A declaration that is there and does not read is no absence: the
+		// area is skipped so the others still run, and the run fails.
+		return indexedArea{}, skipUninspectable, nil
 	}
 
 	documents, identities, err := collect(area, areas, source, manifest)

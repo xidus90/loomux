@@ -204,7 +204,9 @@ never = ["privat/**"]
   scheitern; nur ein Eintrag mit `workspace = true` ohne Erklärung wird still
   übersprungen. Eine `.loomux/config.toml` ohne `[area]` zählt als keine, und ebenso
   ein Bereich, dessen Verzeichnis keine `.loomux/config.toml` hat, egal, was sonst
-  dort liegt.
+  dort liegt. Eine `.loomux/config.toml`, die sich nicht prüfen lässt
+  (etwa fehlende Rechte), zählt dagegen nicht als fehlend: Der Aufruf scheitert,
+  auch bei einem Workspace.
   Die Schreibschranke stört das nicht: dort ist es normal, einen Bereich vor
   seinem Manifest zu registrieren.
 - **Jeder Schreibaufruf wird mit `loomux cannot read the registry, so it

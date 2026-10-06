@@ -255,6 +255,24 @@ func TestVisibleAreasStillRefusesABrokenDeclarationOfAWorkspace(t *testing.T) {
 	}
 }
 
+// A workspace whose declaration cannot be inspected is no absent one: left
+// out, its path would drop from Hidden and a local_only workspace inside a
+// visible area would be served to the cloud.
+func TestVisibleAreasRefusesAWorkspaceWhoseDeclarationCannotBeInspected(t *testing.T) {
+	registryDir := workspaceWorld(t, true, "[verify]\n")
+	ws := filepath.ToSlash(filepath.Join(filepath.Dir(registryDir), "workspace"))
+	registry := filepath.Join(registryDir, "registry.toml")
+	body, err := os.ReadFile(registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, registry, strings.Replace(string(body), ws, ws+`\u0000x`, 1))
+	got, err := privacy.VisibleAreas(registryDir, "all", privacy.ChannelCloud)
+	if err == nil || config.IsUndeclared(err) || got != nil {
+		t.Fatalf("got %v, %v; want the inspection error", got, err)
+	}
+}
+
 // A workspace without any config file is left out the same way: both
 // answers of "no declaration here" mean no brain area.
 func TestVisibleAreasLeavesOutAWorkspaceWithoutAnyConfigFile(t *testing.T) {

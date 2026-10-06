@@ -302,6 +302,39 @@ func TestReindexAreaPathThatCannotBeInspectedFailsTheRun(t *testing.T) {
 	}
 }
 
+// A declaration that is there and does not read is no absence like a missing
+// one: its area is skipped, the others run, and the run fails.
+func TestReindexDeclarationThatDoesNotReadFailsTheRun(t *testing.T) {
+	tmp := t.TempDir()
+	stateDir := filepath.Join(tmp, "state")
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	t.Setenv("LOOMUX_STATE_DIR", stateDir)
+
+	brokenDir := filepath.Join(tmp, "broken_area")
+	setupTestArea(t, brokenDir, "[area\n")
+	validDir := filepath.Join(tmp, "valid_area")
+	setupTestArea(t, validDir, "[area]\nscope = \"valid\"\n")
+	if err := os.WriteFile(filepath.Join(validDir, "valid.md"), []byte("# Valid\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	regPath := writeTestRegistry(t, stateDir,
+		"[[area]]\nscope = \"broken\"\npath = \""+filepath.ToSlash(brokenDir)+"\"\n\n"+
+			"[[area]]\nscope = \"valid\"\npath = \""+filepath.ToSlash(validDir)+"\"\n")
+
+	var stderr bytes.Buffer
+	code, err := ReindexWithOutput(regPath, stateDir, search.NewFakePort(), &stderr)
+	out := stderr.String()
+	if err != nil || code != 1 {
+		t.Fatalf("got %d, %v; want exit 1 without an error; stderr: %s", code, err, out)
+	}
+	if !strings.Contains(out, "skipping broken: ") || !strings.Contains(out, "not valid TOML") {
+		t.Errorf("expected the skip naming the parse error, got: %s", out)
+	}
+	if !strings.Contains(out, "updated qmd collections: valid") {
+		t.Errorf("expected the other area to be indexed, got: %s", out)
+	}
+}
+
 func TestReindexCollisionRefused(t *testing.T) {
 	tmp := t.TempDir()
 	stateDir := filepath.Join(tmp, "state")
