@@ -194,6 +194,17 @@ func InError(n *gts.Node) bool {
 	return false
 }
 
+// HoldsError reports whether n is an ERROR node or has one below it; unlike
+// InError it looks down, not up.
+func HoldsError(n *gts.Node) bool {
+	found := false
+	Walk(n, func(c *gts.Node) bool {
+		found = found || c.IsError()
+		return !found
+	})
+	return found
+}
+
 // Walk visits n and everything below it in pre-order. When visit returns
 // false, the node's children are skipped. A nil n -- the root some grammars
 // return for an empty input -- visits nothing.

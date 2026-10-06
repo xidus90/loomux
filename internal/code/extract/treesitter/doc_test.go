@@ -267,6 +267,31 @@ func TestInError(t *testing.T) {
 	}
 }
 
+func TestHoldsError(t *testing.T) {
+	d := parse(t, "m.py", "class C:\n    def m(self):\n        pass\n    )\n")
+	errNode := first(d, "ERROR")
+	if !treesitter.HoldsError(errNode) || !treesitter.HoldsError(d.Root) {
+		t.Error("HoldsError(an ERROR node, or the root above one) = false, want true")
+	}
+	// The method sits inside the ERROR node but holds none: the test looks down.
+	if treesitter.HoldsError(first(d, "function_definition")) {
+		t.Error("HoldsError(a definition below an ERROR node) = true, want false")
+	}
+	clean := parse(t, "c.py", "def f():\n    pass\n")
+	if treesitter.HoldsError(clean.Root) {
+		t.Error("HoldsError(a clean tree) = true, want false")
+	}
+	// Clean nodes after the ERROR node, in walk order, do not clear the finding.
+	after := parse(t, "a.py", "x = (\n\ndef g():\n    pass\n\ndef h():\n    pass\n")
+	if first(after, "ERROR") == nil || !treesitter.HoldsError(after.Root) {
+		t.Error("HoldsError(an ERROR node followed by clean definitions) = false, want true")
+	}
+	// A MISSING node is no ERROR node.
+	if treesitter.HoldsError(parse(t, "b.py", "def broken(:\n").Root) {
+		t.Error("HoldsError(a tree with only a MISSING node) = true, want false")
+	}
+}
+
 func TestWalkSkipsChildren(t *testing.T) {
 	d := parse(t, "m.py", "class C:\n    def m(self):\n        pass\n\ndef f():\n    pass\n")
 	var order, names []string

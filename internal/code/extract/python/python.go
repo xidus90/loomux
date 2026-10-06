@@ -267,13 +267,13 @@ func (x *extractor) header(outer, def *gts.Node) (uint32, bool) {
 	if x.doc.Type(outer) == "decorated_definition" {
 		for i := range outer.ChildCount() {
 			// def itself is read below, where only its header counts.
-			if outer.FieldNameForChild(i, x.doc.Lang) != "definition" && holdsError(outer.Child(i)) {
+			if outer.FieldNameForChild(i, x.doc.Lang) != "definition" && treesitter.HoldsError(outer.Child(i)) {
 				return 0, false
 			}
 		}
 	}
 	for _, c := range def.Children() {
-		if holdsError(c) {
+		if treesitter.HoldsError(c) {
 			break
 		}
 		if x.doc.Type(c) == ":" {
@@ -281,16 +281,6 @@ func (x *extractor) header(outer, def *gts.Node) (uint32, bool) {
 		}
 	}
 	return 0, false
-}
-
-// holdsError reports whether n is an ERROR node or has one below it.
-func holdsError(n *gts.Node) bool {
-	found := false
-	treesitter.Walk(n, func(c *gts.Node) bool {
-		found = found || c.IsError()
-		return !found
-	})
-	return found
 }
 
 // body collects the calls of a function or method with a node: those in its
