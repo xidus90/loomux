@@ -112,7 +112,10 @@ func (r *runner) inherit(job Job, pred Outcome) (Outcome, bool) {
 	case StateUnavailable, StateNotApplicable:
 		return Outcome{Job: job, State: pred.State, Probation: r.probation(job)}, true
 	case StateBudget, StateMissingTool, StateUnready:
-		if r.opt.Scope == ScopeEdit {
+		// In a check only a spent budget gets here, the other two are red. A
+		// lane that reads its predecessor's files has nothing to read then;
+		// one that only waits for it runs as it would have.
+		if r.opt.Scope == ScopeEdit || job.Consumes {
 			return Outcome{Job: job, State: pred.State, Probation: r.probation(job)}, true
 		}
 	}

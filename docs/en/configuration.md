@@ -497,7 +497,10 @@ profile never walks the tree.
 
 - **What a lane inherits.** When the lane it waits for could not run, a lane
   takes over that state (`unavailable`, `not-applicable`, and in the edit scope
-  also `budget`, `missing-tool`, `unready`) instead of turning `blocked`.
+  also `budget`, `missing-tool`, `unready`) instead of turning `blocked`. In a
+  check it takes over `budget` too when it reads the files that lane writes
+  (a coverage file by name, or Python's data file): a lane stopped by the
+  budget wrote nothing to read. A lane that only waits runs.
   A `test` that is switched off counts as not requested: `coverage` then
   measures itself with `measure`.
 - **Verdict of `loomux check`, per requested kind:** if no lane of a kind ran

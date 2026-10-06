@@ -780,6 +780,25 @@ func TestStopReportsABudgetThatRanOut(t *testing.T) {
 	}
 }
 
+// A coverage lane reads the profile its test lane writes. When the budget
+// stops the test lane there is none, and the turn is held over the budget, not
+// over a missing file.
+func TestStopHandsABudgetOnToTheCoverageLane(t *testing.T) {
+	root := gitWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+	writeWorldFile(t, root, ".loomux/config.toml", "")
+	base := stateOf(t, root).Base
+	env := greenTools()
+	env.Budget = time.Second
+	env.Now = stuckClock(time.Now(), 2)
+	code, se := runStop(t, root, s1, env)
+	if code != ExitInternal || !strings.Contains(se, "not everything was verified") {
+		t.Fatalf("%d %q", code, se)
+	}
+	if state := stateOf(t, root); state.Base != base || state.Green != "" {
+		t.Fatalf("%+v against base %s", state, base)
+	}
+}
+
 // The built-in stop profile leaves out a kind the project has no lane for: a
 // module without tests ends its turn on lint and types.
 func TestStopLeavesOutAKindOfTheBuiltInProfile(t *testing.T) {

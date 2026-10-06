@@ -408,6 +408,21 @@ func TestRunLetsACheckRunPastABudgetPredecessor(t *testing.T) {
 	}
 }
 
+// A predecessor stopped by the budget wrote nothing, or half: a lane that
+// reads its files takes the budget over instead of failing on them.
+func TestRunHandsABudgetOnToALaneThatReadsItsPredecessor(t *testing.T) {
+	pre := job("test/go", -1)
+	pre.Pre = StateBudget
+	next := job("coverage/go", 0, "c")
+	next.Consumes = true
+	next.Reads = []string{filepath.Join(t.TempDir(), "missing.out")}
+	f := &fakeStart{answer: ok}
+	out := Run([]Job{pre, next}, opts(f))
+	if out[1].State != StateBudget || out[1].BlockedBy != "" || len(f.started) != 0 {
+		t.Fatalf("%+v, started %v", out[1], f.started)
+	}
+}
+
 func TestRunWaitsForAPredecessorFurtherDown(t *testing.T) {
 	f := &fakeStart{answer: func(s child.Spec) child.Result { time.Sleep(10 * time.Millisecond); return child.Result{} }}
 	out := Run([]Job{job("coverage/go", 1, "c"), job("test/go", -1, "t")}, opts(f))

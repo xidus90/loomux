@@ -512,8 +512,11 @@ Profil `edit` läuft also nie durch den Baum.
 - **Was eine Lane erbt.** Konnte die Lane, auf die sie wartet, nicht laufen,
   übernimmt eine Lane deren Zustand (`unavailable`, `not-applicable`, im
   Edit-Scope auch `budget`, `missing-tool`, `unready`), statt `blocked` zu
-  werden. Ein abgeschaltetes `test` zählt als nicht angefragt: `coverage` misst
-  dann selbst mit `measure`.
+  werden. Im Check übernimmt sie auch `budget`, wenn sie die Dateien dieser
+  Lane liest (eine Coverage-Datei per Name oder Pythons Datendatei): eine Lane,
+  die das Budget gestoppt hat, hat nichts zu lesen hinterlassen. Eine Lane, die
+  nur wartet, läuft. Ein abgeschaltetes `test` zählt als nicht angefragt:
+  `coverage` misst dann selbst mit `measure`.
 - **Urteil von `loomux check`, je angefragter Art:** Lief keine Lane einer Art
   und ist die Art nirgends `not-applicable`, druckt der Check
   ``nothing to check for `<art>` `` und endet mit Exit 1, wenn die Anfrage die

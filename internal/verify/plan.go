@@ -59,6 +59,9 @@ type Job struct {
 	Note                            string
 	Fn                              func() (string, error)
 	Reads                           []string
+	// Consumes says the job reads what its predecessor writes: a coverage
+	// file by name, or Python's data file through COVERAGE_FILE.
+	Consumes bool
 }
 
 // PlanEnv is what a plan needs from outside: where it runs, which binary
@@ -454,7 +457,7 @@ func settle(jobs []Job, links []link, i int, req Request) error {
 				continue
 			}
 			if p.Pre != "" || writesAny(p, links[j], needs) {
-				job.After, job.Reads = j, l.reads
+				job.After, job.Reads, job.Consumes = j, l.reads, len(needs) > 0
 				return nil
 			}
 			note = "`" + l.after + "` does not write what this lane reads and there is no measure step"
