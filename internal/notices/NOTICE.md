@@ -342,7 +342,7 @@ CC-BY-4.0. See https://creativecommons.org/licenses/by/4.0/legalcode for
 the full license text.
 ```
 
-## github.com/odvcencio/gotreesitter v0.55.0
+## github.com/odvcencio/gotreesitter v0.55.1
 
 ### LICENSE
 
