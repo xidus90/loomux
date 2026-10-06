@@ -2,7 +2,9 @@ package serve
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -132,7 +134,11 @@ func (u *Upkeep) pass(ctx context.Context) (*maintenance.Report, error) {
 // when there is no registry or no area in it: an unregistered state directory
 // is serve's ordinary first minute, not a defect worth a failure line.
 func reconcileRegistered(ctx context.Context, lookup config.ArtifactLookup, now time.Time) (*maintenance.Report, error) {
-	if info, err := os.Stat(filepath.Join(lookup.Primary, "registry.toml")); err != nil || !info.Mode().IsRegular() {
+	info, err := os.Stat(filepath.Join(lookup.Primary, "registry.toml"))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	if err != nil || !info.Mode().IsRegular() {
 		return nil, nil
 	}
 	areas, err := config.ReadRegistry(lookup.Primary)
