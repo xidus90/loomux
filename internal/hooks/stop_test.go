@@ -1261,3 +1261,77 @@ func TestTheVerdictRemembersOnlyAChainItJudgedWhole(t *testing.T) {
 		}
 	}
 }
+
+// After a green turn, a turn that changes only named paths leaves the test
+// lane out; the lint still runs.
+func TestStopSkipsALaneForATurnOfNamedPaths(t *testing.T) {
+	root := gitWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+	writeWorldFile(t, root, ".loomux/config.toml", "[verify.go]\ncoverage = false\n[verify.go.test]\nskip_when_only = [\"docs/**\"]\n")
+	if code, errOut := runStop(t, root, s1, greenTools()); code != ExitOK {
+		t.Fatalf("first turn: %d %s", code, errOut)
+	}
+	writeWorldFile(t, root, "docs/a.md", "x")
+	var mu sync.Mutex // lanes start their tools from several goroutines
+	var started []string
+	env := greenTools()
+	inner := env.Start
+	env.Start = func(s child.Spec) child.Result {
+		mu.Lock()
+		started = append(started, strings.Join(s.Argv, " "))
+		mu.Unlock()
+		return inner(s)
+	}
+	if code, errOut := runStop(t, root, s1, env); code != ExitOK {
+		t.Fatalf("second turn: %d %s", code, errOut)
+	}
+	if slices.ContainsFunc(started, func(s string) bool { return strings.HasPrefix(s, "go test") }) || !slices.ContainsFunc(started, func(s string) bool { return strings.HasPrefix(s, "go vet") }) {
+		t.Fatalf("started %v", started)
+	}
+}
+
+func TestStopRunsALaneWithoutAGreenTreeToCompareTo(t *testing.T) {
+	root := gitWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+	writeWorldFile(t, root, ".loomux/config.toml", "[verify.go]\ncoverage = false\n[verify.go.test]\nskip_when_only = [\"docs/**\"]\n")
+	writeWorldFile(t, root, "docs/a.md", "x")
+	var mu sync.Mutex
+	var started []string
+	env := greenTools()
+	inner := env.Start
+	env.Start = func(s child.Spec) child.Result {
+		mu.Lock()
+		started = append(started, strings.Join(s.Argv, " "))
+		mu.Unlock()
+		return inner(s)
+	}
+	if code, errOut := runStop(t, root, s1, env); code != ExitOK {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if !slices.ContainsFunc(started, func(s string) bool { return strings.HasPrefix(s, "go test") }) {
+		t.Fatalf("against the base a.go changed too: %v", started)
+	}
+}
+
+// Without a green tree the turn is measured from the base: a base that holds
+// all the code leaves only the docs as the turn's change.
+func TestStopSkipsALaneForATurnOfNamedPathsAgainstTheBase(t *testing.T) {
+	root := gitWorld(t, stopWorld, `{"base":"{{COMMIT:2}}","blocks":0}`)
+	writeWorldFile(t, root, "a.go", "package a\n\nfunc A() int { return 22 }\n")
+	writeWorldFile(t, root, ".loomux/config.toml", "[verify.go]\ncoverage = false\n[verify.go.test]\nskip_when_only = [\"docs/**\"]\n")
+	writeWorldFile(t, root, "docs/a.md", "x")
+	var mu sync.Mutex
+	var started []string
+	env := greenTools()
+	inner := env.Start
+	env.Start = func(s child.Spec) child.Result {
+		mu.Lock()
+		started = append(started, strings.Join(s.Argv, " "))
+		mu.Unlock()
+		return inner(s)
+	}
+	if code, errOut := runStop(t, root, s1, env); code != ExitOK {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if slices.ContainsFunc(started, func(s string) bool { return strings.HasPrefix(s, "go test") }) {
+		t.Fatalf("only docs changed since the base: %v", started)
+	}
+}

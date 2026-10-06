@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -49,6 +50,10 @@ type Lane struct {
 	// lane's commands cannot mean anything, such as a build tree nobody
 	// configured. They do not guard on_file, which reads only the edited file.
 	Needs []string
+	// SkipWhenOnly are globs, relative to the repository root, of paths the
+	// lane does not care about; a commit or a turn end that changes only such
+	// paths plans the lane as not-applicable.
+	SkipWhenOnly []string
 }
 
 // Override is one [verify.<stack>].<kind> entry. A string or a list stands
@@ -316,6 +321,8 @@ func parseLaneTable(table, kind string, v map[string]any) (Override, error) {
 			err = laneString(table, key, value, &o.Lane)
 		case "needs":
 			o.Lane.Needs, err = laneNeeds(table, value)
+		case "skip_when_only":
+			o.Lane.SkipWhenOnly, err = laneGlobs(table, value)
 		default:
 			return Override{}, fmt.Errorf("%s has unknown key %q", table, key)
 		}
@@ -359,6 +366,30 @@ func laneNeeds(table string, value any) ([]string, error) {
 		}
 		if !filepath.IsLocal(filepath.FromSlash(s)) {
 			return nil, fmt.Errorf("%s.needs #%d %q must be a path inside the lane's directory", table, i+1, s)
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
+// laneGlobs reads skip_when_only: globs relative to the repository root, in
+// the syntax of the policy's path rules, each one path.Match can read.
+func laneGlobs(table string, value any) ([]string, error) {
+	list, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%s.skip_when_only must be a list of globs", table)
+	}
+	if len(list) == 0 {
+		return nil, fmt.Errorf("%s.skip_when_only is empty", table)
+	}
+	out := make([]string, 0, len(list))
+	for i, item := range list {
+		s, ok := item.(string)
+		if !ok || s == "" {
+			return nil, fmt.Errorf("%s.skip_when_only #%d must be a string", table, i+1)
+		}
+		if _, err := path.Match(s, ""); err != nil {
+			return nil, fmt.Errorf("%s.skip_when_only #%d %q is no glob: %v", table, i+1, s, err)
 		}
 		out = append(out, s)
 	}

@@ -975,3 +975,100 @@ func TestGraphSwitchOnlyCountsForAnActiveStackAndACheck(t *testing.T) {
 		t.Fatalf("an edit: %+v %v", jobs, err)
 	}
 }
+
+func skipEnv(root string, changed ...string) PlanEnv {
+	e := env(root)
+	e.Changed = changed
+	return e
+}
+
+const skipDocs = "[verify.go.test]\nskip_when_only = [\"docs/**\", \"**/*.md\"]\n"
+
+func TestPlanSkipsALaneWhenEveryChangedPathIsNamed(t *testing.T) {
+	req := Request{Kinds: []string{"lint", "test", "coverage"}}
+	jobs, err := Plan(effFor(t, skipDocs, goOnly), req, skipEnv(t.TempDir(), "docs/a.go", "README.md", "x/y.md"))
+	if err != nil || names(jobs) != "lint/go test/go coverage/go" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	if jobs[0].Pre != "" {
+		t.Fatalf("lint names no glob: %+v", jobs[0])
+	}
+	if jobs[1].Pre != StateNotApplicable || !jobs[1].Skipped || jobs[1].Note != "only skip_when_only paths changed (docs/a.go, +2)" {
+		t.Fatalf("test: %+v", jobs[1])
+	}
+	// coverage keeps its link and inherits; it must not measure the suite itself.
+	if cov := jobs[2]; cov.After != 1 || cov.Measure != nil || cov.Pre != "" || !cov.Consumes {
+		t.Fatalf("coverage: %+v", cov)
+	}
+}
+
+// A lane that only waits for the skipped one, and reads nothing of it, is not
+// tied to it: it runs.
+func TestPlanDoesNotTieALaneThatOnlyOrdersToASkippedOne(t *testing.T) {
+	src := skipDocs + "[verify.go.coverage]\ncommands = [\"echo\"]\nafter = \"test\"\n"
+	req := Request{Kinds: []string{"test", "coverage"}}
+	jobs, err := Plan(effFor(t, src, goOnly), req, skipEnv(t.TempDir(), "docs/a.md"))
+	if err != nil || len(jobs) != 2 {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+	if !jobs[0].Skipped {
+		t.Fatalf("test: %+v", jobs[0])
+	}
+	if cov := jobs[1]; cov.Pre != "" || cov.Consumes || cov.After != -1 {
+		t.Fatalf("coverage: %+v", cov)
+	}
+}
+
+func TestPlanRunsALaneWhenOneChangedPathIsNotNamed(t *testing.T) {
+	req := Request{Kinds: []string{"test"}}
+	for _, changed := range [][]string{{"docs/a.md", "a.go"}, {}, nil} {
+		jobs, _ := Plan(effFor(t, skipDocs, goOnly), req, skipEnv(t.TempDir(), changed...))
+		if jobs[0].Pre != "" || jobs[0].Skipped {
+			t.Errorf("%q: %+v", changed, jobs[0])
+		}
+	}
+}
+
+func TestPlanNeverSkipsInAnEdit(t *testing.T) {
+	src := "[verify.go.lint]\nskip_when_only = [\"*.go\"]\n"
+	e := skipEnv(t.TempDir(), "a.go")
+	jobs, _ := Plan(effFor(t, src, goOnly), Request{Kinds: []string{"lint"}, Scope: ScopeEdit, File: "a.go"}, e)
+	if len(jobs) != 1 || jobs[0].Pre != "" {
+		t.Fatalf("%+v", jobs)
+	}
+}
+
+// Off with false is not skipped: coverage measures itself, as before.
+func TestPlanKeepsASwitchedOffTestApartFromASkippedOne(t *testing.T) {
+	src := "[verify.go]\ntest = false\n"
+	jobs, _ := Plan(effFor(t, src, goOnly), Request{Kinds: []string{"test", "coverage"}}, skipEnv(t.TempDir(), "docs/a.md"))
+	if jobs[0].Skipped || jobs[1].After != -1 || jobs[1].Measure == nil {
+		t.Fatalf("%+v", jobs)
+	}
+}
+
+// A graph lane that sits out carries nothing: the next stack with a graph
+// command still rebuilds the graph instead of standing aside for it.
+func TestPlanASkippedGraphLaneDoesNotCarryTheGraph(t *testing.T) {
+	calls := 0
+	src := "[verify.go.graph]\nskip_when_only = [\"docs/**\"]\n"
+	e := graphEnv(t.TempDir(), true, "", &calls)
+	e.Changed = []string{"docs/a.md"}
+	jobs, err := Plan(effFor(t, src, goAndPython), Request{Kinds: []string{"graph"}}, e)
+	if err != nil || names(jobs) != "graph/go graph/python" {
+		t.Fatalf("%v %s", err, names(jobs))
+	}
+	if go1 := jobs[0]; go1.Pre != StateNotApplicable || go1.Note != "graph covered by graph/python" {
+		t.Fatalf("graph/go: %+v", go1)
+	}
+	if py := jobs[1]; py.Pre != "" || py.Skipped || py.Note != "" || len(py.Argvs) == 0 {
+		t.Fatalf("graph/python: %+v", py)
+	}
+
+	// With every graph lane sitting out there is no carrier, and each says so.
+	src += "[verify.python.graph]\nskip_when_only = [\"docs/**\"]\n"
+	jobs, err = Plan(effFor(t, src, goAndPython), Request{Kinds: []string{"graph"}}, e)
+	if err != nil || len(jobs) != 2 || !jobs[0].Skipped || !jobs[1].Skipped || jobs[1].Note == "graph covered by graph/go" {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+}

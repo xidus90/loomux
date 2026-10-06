@@ -72,6 +72,11 @@ urteilt über sie.
   solchen Lane endet mit `probation: <schlüssel> (warn only until a green
   commit arms them)`. Eine Datei, die sich nicht lesen lässt, stellt jede Lane scharf, und
   `stderr` sagt warum.
+- **Ausgesetzte Lanes**: Eine Lane mit `skip_when_only` (siehe
+  [Konfiguration](configuration.md)) ist bei einem Commit, dem der
+  pre-commit-Hook seinen Index mitgibt (`GIT_INDEX_FILE`), `not-applicable`,
+  wenn jeder Pfad des Commits auf einen ihrer Globs passt. Von Hand läuft jede
+  Lane.
 - **Reihenfolge**: Eine Lane startet, sobald die Lane, auf die sie wartet
   (`after`), fertig ist, mit höchstens `max_parallel` Prozessen gleichzeitig.
   Der Bericht kommt am Ende, nie verzahnt: Arten in Anfrage-Reihenfolge, darin

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/xidus90/loomux/internal/pathkey"
 	"github.com/xidus90/loomux/internal/shellwords"
 )
 
@@ -62,6 +63,10 @@ type Job struct {
 	// Consumes says the job reads what its predecessor writes: a coverage
 	// file by name, or Python's data file through COVERAGE_FILE.
 	Consumes bool
+	// Skipped says skip_when_only took the lane out; a lane after it that
+	// reads its files still links to it and inherits not-applicable, one that
+	// only orders after it runs.
+	Skipped bool
 }
 
 // PlanEnv is what a plan needs from outside: where it runs, which binary
@@ -77,6 +82,9 @@ type PlanEnv struct {
 	// environment loses the git pointers a surrounding hook exports, and
 	// the lane needs the index that hook hands in. nil means none.
 	GraphEnv func(root string) []string
+	// Changed are the paths a commit or a turn end changes; nil outside both,
+	// and then every lane runs.
+	Changed []string
 }
 
 // ImportReady says whether Godot has imported the project in dir: only then
@@ -157,7 +165,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 		// kind sets it.
 		carrier, off := "", ""
 		if kind == "graph" {
-			off, carrier = graphOff(eff, req), graphCarrier(eff, req)
+			off, carrier = graphOff(eff, req), graphCarrier(eff, req, env)
 		}
 		for _, t := range targets(eff, req) {
 			areas := t.areas
@@ -207,15 +215,16 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 var carrierRank = []string{"go", "python", "gdscript"}
 
 // graphCarrier is the stack whose graph job a check plans: the highest-ranked
-// active stack with a graph command. "" in an edit, which plans no graph job
-// and so has no carrier, and when no stack has a graph command.
-func graphCarrier(eff Effective, req Request) string {
+// active stack with a graph command that does not sit out this run. "" in an
+// edit, which plans no graph job and so has no carrier, and when no stack has
+// such a command: a lane that sits out rebuilds nothing for the others.
+func graphCarrier(eff Effective, req Request, env PlanEnv) string {
 	if req.Scope != ScopeCheck {
 		return ""
 	}
 	carrier, best := "", len(carrierRank)+1
 	for _, t := range targets(eff, req) {
-		if !hasCommand(eff, req, t.stack, "graph") {
+		if !hasCommand(eff, req, t.stack, "graph") || skippedBy(req, eff.Stacks[t.stack]["graph"].Lane, env.Changed) != "" {
 			continue
 		}
 		rank := slices.Index(carrierRank, t.stack)
@@ -339,6 +348,10 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		job.Pre, job.Note = StateNotApplicable, "no command"
 		return job, link{}, true, nil
 	}
+	if note := skippedBy(req, r.Lane, env.Changed); note != "" {
+		job.Pre, job.Note, job.Skipped = StateNotApplicable, note, true
+		return job, link{}, true, nil
+	}
 	cmds := commandsFor(req, stack, r.Lane)
 	// Asked only for a stack with a graph lane: the probe costs git calls.
 	if kind == "graph" {
@@ -415,6 +428,29 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	return job, l, true, nil
 }
 
+// skippedBy is the note of a lane that sits out this run, or "": only a
+// commit or a turn end hands changed paths in, and every one of them has to
+// match a glob of the lane. A glob that fails to match for an error does not
+// match, so the lane runs.
+func skippedBy(req Request, lane Lane, changed []string) string {
+	if req.Scope != ScopeCheck || len(changed) == 0 {
+		return ""
+	}
+	for _, p := range changed {
+		if !slices.ContainsFunc(lane.SkipWhenOnly, func(glob string) bool {
+			ok, _ := pathkey.Glob(glob, p)
+			return ok
+		}) {
+			return ""
+		}
+	}
+	note := "only skip_when_only paths changed (" + changed[0]
+	if len(changed) > 1 {
+		note += fmt.Sprintf(", +%d", len(changed)-1)
+	}
+	return note + ")"
+}
+
 // reportsWithCoveragePy says whether some argv runs coverage.py's reporting:
 // the word coverage, and after it in the same argv one of its report commands.
 func reportsWithCoveragePy(argvs [][]string) bool {
@@ -453,7 +489,18 @@ func settle(jobs []Job, links []link, i int, req Request) error {
 	needs := slices.Concat(l.reads, l.hidden)
 	if slices.Contains(req.Kinds, l.after) {
 		for j, p := range jobs {
-			if p.Kind != l.after || p.Stack != job.Stack || p.Area != job.Area || p.Pre == StateNotApplicable {
+			if p.Kind != l.after || p.Stack != job.Stack || p.Area != job.Area {
+				continue
+			}
+			// A lane that sat this run out is still the one a reading lane
+			// follows: it hands its not-applicable on instead of letting a
+			// measure step run the suite it skipped. A lane that only orders
+			// after it has nothing to inherit and runs.
+			if p.Skipped && len(needs) > 0 {
+				job.After, job.Reads, job.Consumes = j, l.reads, true
+				return nil
+			}
+			if p.Pre == StateNotApplicable {
 				continue
 			}
 			if p.Pre != "" || writesAny(p, links[j], needs) {
