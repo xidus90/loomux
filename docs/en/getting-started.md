@@ -32,7 +32,7 @@ go run ./cmd/loomux init --yes   # builds bin/loomux.exe and arms the git hooks
 Verify your installation:
 ```bash
 loomux --version
-# Output: loomux 4.0.0 (a stable release), loomux 4.0.0 (beta) (the beta channel)
+# Output: loomux 1.0.0 (a stable release), loomux 1.1.0-beta.1 (a beta)
 # or loomux 0.0.0-dev (built from source)
 ```
 

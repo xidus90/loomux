@@ -440,8 +440,20 @@ Jeder gemergte Pull Request nach `master` wird nach seinem Label veröffentlicht
 | `release:patch` | Fehlerbehebung oder Abhängigkeits-Update, kompatibel | `X.Y.Z+1` |
 | `release:none` | Nur Doku, CI oder Tests | kein Release |
 
-Jedes Release ist ein Beta-Pre-Release, bis `RELEASE_CHANNEL` auf `stable`
-steht. Was sich geändert hat, steht in [`CHANGELOG.md`](CHANGELOG.md).
+Ein Release ohne Suffix ist stabil; eines mit Suffix (`1.1.0-beta.1`) ist ein
+Pre-Release. Was sich geändert hat, steht in [`CHANGELOG.md`](CHANGELOG.md);
+ein Eintrag entsteht nur mit einem stabilen Release, und die mit `-beta`
+markierten Einträge sind die Zählung vor 1.0.0.
+
+Eine Beta entsteht von Hand aus jedem Branch, Tag oder Commit, ohne Pull
+Request: den Workflow `release` mit `mode=beta`, `ref` (was gebaut wird) und
+`bump` (`major`, `minor` oder `patch`, Standard `minor`) starten, etwa
+`gh workflow run release.yml -f mode=beta -f ref=mein-branch -f bump=minor`.
+Er veröffentlicht `vX.Y.Z-beta.N` als Pre-Release für die Version, die das
+nächste stabile Release bekäme, `N` eins über der höchsten Beta davon. Er
+committet nichts und lässt das Changelog unberührt; der Tag ist seine einzige
+Spur. Installieren mit `loomux upgrade --beta` (das neueste Release samt Betas)
+oder `loomux upgrade --version <x.y.z-beta.n>`.
 
 Eine Maschine folgt dem Beta-Kanal, solange die Datei `channel` in ihrem
 Zustandsverzeichnis `beta` enthält: Sie nimmt jedes neuere Release, Beta oder
@@ -500,8 +512,7 @@ einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
    gh label create release:patch --color 1D76DB --description "Bug fix or dependency update"
    gh label create release:none --color CCCCCC --description "No release"
    ```
-2. Kanal: `gh variable set RELEASE_CHANNEL --body beta`
-3. GitHub App (Settings → Developer settings → GitHub Apps → New): Name
+2. GitHub App (Settings → Developer settings → GitHub Apps → New): Name
    `loomux-release`, Webhook aus, Repository-Rechte `Contents: Read and
    write`, `Pull requests: Read-only`, `Metadata: Read-only`, „Only on this
    account“. Private Key erzeugen, App nur in `xidus90/loomux` installieren,
@@ -510,7 +521,7 @@ einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
    gh secret set RELEASE_APP_CLIENT_ID --body <client-id>
    gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
    ```
-4. Rulesets (erst wenn das Repository öffentlich ist): eines für `master`
+3. Rulesets (erst wenn das Repository öffentlich ist): eines für `master`
    und eines für Tags `v*`, jeweils mit der App `loomux-release` als einzigem
    Bypass-Akteur. Das Ruleset für `master` verlangt außerdem die
    Statuschecks `gate-windows` und `build-linux` (Workflow `ci`) sowie
