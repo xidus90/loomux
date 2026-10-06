@@ -25,3 +25,10 @@ func TestScriptReportsAParseFailure(t *testing.T) {
 		t.Errorf("script(nil grammar) = %v, want an error naming the file", err)
 	}
 }
+
+func TestResourceReportsAParseFailure(t *testing.T) {
+	_, err := resource(nil, "x.tscn", "[gd_scene]\n")
+	if err == nil || !strings.Contains(err.Error(), "parse x.tscn") {
+		t.Errorf("resource(nil grammar) = %v, want an error naming the file", err)
+	}
+}
