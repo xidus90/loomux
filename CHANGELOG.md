@@ -4,6 +4,15 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [10.1.0] - 2026-10-06
+
+<https://github.com/xidus90/loomux/pull/84>
+
+### Added
+- `NOTICE.md` lists the code loomux ported from another project, with that project's MIT license, under "Ported sources".
+### Removed
+- The migration plan (`docs/en/migration.md`, `docs/de/migration.md`); open work is on the roadmap in the README.
+
 ## [10.0.0] - 2026-10-06
 
 <https://github.com/xidus90/loomux/pull/85>
