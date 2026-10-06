@@ -1001,6 +1001,12 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"cmd /c loomux merge-hook remove",
 		"go run ./cmd/loomux merge-hook install",
 		`& "C:\x\loomux.exe" merge-hook remove`,
+		// A backslash before an ordinary character stays in a
+		// double-quoted string, so the program path inside a shell string
+		// still reads as loomux.
+		`sh -c "\"bin\loomux.exe\" init"`,
+		`bash -c "cd x && \"..\bin\loomux.exe\" init"`,
+		`pwsh -Command "& \"bin\loomux.exe\" init"`,
 		"{ loomux merge-hook install; }",
 		"cd x && loomux merge-hook remove",
 		// convert and fetch write into an area's inbox, which the write

@@ -306,8 +306,11 @@ then `[verify.<stack>]`.
 
   The script has to exit non-zero when a test fails. `import_check` applies
   to the lane once it has a command. Write the path with forward slashes, in
-  single quotes when it holds a space: outside single quotes a backslash is
-  an escape character. A tool named here has to be on the `PATH` or given by
+  single quotes when it holds a space: a backslash is literal in single
+  quotes, and in double quotes unless it comes before `$`, a backtick, `"`
+  or `\`, where it escapes the character. Before a newline in double quotes
+  it also drops out, but the newline stays in the word (a shell would drop
+  both). Outside quotes every backslash is an escape character. A tool named here has to be on the `PATH` or given by
   its path, else the lane is `missing-tool`: red for `loomux check` and the
   stop hook.
 - The `on_file` forms: go `go vet ./...` and `{loomux} check gofmt {file}`

@@ -22,6 +22,13 @@ func Split(s string) ([]string, error) {
 			escaped = false
 			continue
 		}
+		// Inside double quotes a backslash escapes only $ ` " \ and a
+		// newline (which, unlike in a shell, stays in the word); before
+		// anything else (a Windows path) it is a plain character.
+		if c == '\\' && inDouble && (i+1 >= len(s) || !strings.ContainsRune("$`\"\\\n", rune(s[i+1]))) {
+			cur.WriteByte(c)
+			continue
+		}
 		if c == '\\' && !inSingle {
 			escaped = true
 			continue
