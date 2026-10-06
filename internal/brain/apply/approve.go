@@ -88,8 +88,10 @@ type Options struct {
 	Decision string
 	Reviewer string
 	Now      time.Time
-	// Scratch is the directory vcs keeps its scratch index in. The CLI hands
-	// over `<state>/maintenance`, so the index is the one Python uses.
+	// Scratch is the directory vcs builds its commits' scratch indexes in. The
+	// CLI hands over `<state>/maintenance`, which every vault and process of the
+	// machine shares; each commit works in a private index below it, so
+	// concurrent decisions cannot empty each other's tree.
 	Scratch string
 	// Lookup is where the registered areas' state lies: Python's required
 	// `state_dir`, through which a read-only area's register is found.

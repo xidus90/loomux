@@ -49,24 +49,25 @@ type expectation3b struct {
 // recordedLog is the log an approval writes in every recorded world.
 const recordedLog = "repo-a/wiki/log.md"
 
-// The scratch index both sides leave at `<state>/maintenance/index`: a git
-// index, whose entries carry the stat data of the run that staged them. What
-// it staged is pinned by git.after.
-const scratchIndex = "content mismatch: maintenance/index"
+// The recorded world keeps the scratch index its commit left at
+// `<state>/maintenance/index`. loomux builds every commit in a private index
+// below that directory and removes it again, so the file has no counterpart; what
+// the commit staged is pinned by git.after.
+const scratchIndex = "missing file in actual: maintenance/index"
 
 // The register the technical update rewrites: it hashes the page and audit.md
 // the approval stamped with the run's time and reviewer.
 const stampedRegister = "repo-a/_identities.tsv"
 
 // wroteAndIndexed is the expectation of an approval that wrote the page and
-// ran the technical update, with the scratch index its commit leaves or, when
+// ran the technical update, with the scratch index the recording holds or, when
 // the commit was refused before the index was made, without.
 func wroteAndIndexed(committed bool) expectation3b {
 	why := "Register über gestempelte Seiten; Protokoll nach Tagen, neueste zuerst; " +
 		"format of graph.json, index.yml, qmd-collections.json; Sperre je Bereich"
 	differ := []string{"content mismatch: " + stampedRegister, "content mismatch: " + recordedLog, areaLock("project-a")}
 	if committed {
-		why = "Scratch-Index im Fallsatz; " + why
+		why = "Scratch-Index nur in der Aufnahme; " + why
 		differ = append(differ, scratchIndex)
 	}
 	return expectation3b{
@@ -81,13 +82,13 @@ func wroteAndIndexed(committed bool) expectation3b {
 var expected3b = map[string]expectation3b{
 	"approve/success": wroteAndIndexed(true),
 	"approve/amend":   wroteAndIndexed(true),
-	// Both sides refuse the commit before the scratch index is made.
+	// Both sides refuse the commit before a scratch index is made.
 	"approve/rebase":  wroteAndIndexed(false),
 	"approve/no-repo": wroteAndIndexed(false),
 	// A rejection runs no technical update. Healed against the recording: it
 	// advances the target page's `sources[]` and the register, and commits
 	// both.
-	"approve/reject": {why: "Scratch-Index im Fallsatz; Heilung #1 (--reject schiebt vor); Sperre je Bereich", differ: []string{
+	"approve/reject": {why: "Scratch-Index nur in der Aufnahme; Heilung #1 (--reject schiebt vor); Sperre je Bereich", differ: []string{
 		scratchIndex,
 		areaLock("project-a"),
 		"content mismatch: " + stampedRegister,

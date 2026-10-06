@@ -3,12 +3,14 @@ package vcs_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/brain/vcs"
@@ -238,18 +240,79 @@ func TestCommitPathsIgnoresAStaleScratchIndex(t *testing.T) {
 	}
 }
 
-// test_vcs.py:252 test_a_scratch_path_that_is_a_directory_is_a_git_error. The
-// directory is not empty, because os.Remove takes an empty one without a word.
-func TestCommitPathsRefusesAnUnusableScratchIndex(t *testing.T) {
-	repo := newVault(t, map[string]string{"seite.md": "alt"})
+// Two decisions on different vaults share one scratch directory, as every
+// `loomux approve` of a machine does. Each builds its tree in an index of its
+// own, so neither empties the other's: every commit keeps all the base files
+// of its vault plus the pages committed so far.
+func TestCommitPathsConcurrentVaultsKeepTheirTrees(t *testing.T) {
+	const bases, rounds = 20, 12
 	scratch := t.TempDir()
-	write(t, scratch, "index/inside", "x")
+	type run struct {
+		repo    string
+		commits []string
+		err     error
+	}
+	runs := make([]*run, 2)
+	for i := range runs {
+		files := map[string]string{}
+		for b := 0; b < bases; b++ {
+			files[fmt.Sprintf("base%02d.md", b)] = "base\n"
+		}
+		runs[i] = &run{repo: newVault(t, files)}
+	}
+	var wg sync.WaitGroup
+	for i, r := range runs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for round := 0; round < rounds && r.err == nil; round++ {
+				name := fmt.Sprintf("page%d-%02d.md", i, round)
+				if err := os.WriteFile(filepath.Join(r.repo, name), []byte(name), 0o644); err != nil {
+					r.err = err
+					return
+				}
+				got, err := vcs.CommitPaths(r.repo, "Update", []string{name}, nil, scratch)
+				if err != nil || got == nil || !got.Created {
+					r.err = fmt.Errorf("round %d: %+v, %v", round, got, err)
+					return
+				}
+				r.commits = append(r.commits, got.Head)
+			}
+		}()
+	}
+	wg.Wait()
+
+	for _, r := range runs {
+		if r.err != nil {
+			t.Fatalf("CommitPaths: %v", r.err)
+		}
+		for round, commit := range r.commits {
+			paths := strings.Fields(output(t, r.repo, "ls-tree", "-r", "--name-only", commit))
+			if want := bases + round + 1; len(paths) != want {
+				t.Fatalf("commit %d of %s holds %d files, want %d: %q", round, r.repo, len(paths), want, paths)
+			}
+		}
+	}
+	if left, _ := filepath.Glob(filepath.Join(scratch, "index-*")); len(left) != 0 {
+		t.Fatalf("scratch holds leftovers: %q", left)
+	}
+}
+
+// A relative scratch directory is resolved against the process, not against the
+// repository git runs in: the index lands below it, and nothing of it is left
+// in the vault.
+func TestCommitPathsResolvesARelativeScratchAgainstTheProcess(t *testing.T) {
+	repo := newVault(t, map[string]string{"seite.md": "alt"})
 	write(t, repo, "seite.md", "neu")
+	t.Chdir(t.TempDir())
 
-	_, err := vcs.CommitPaths(repo, "Update", []string{"seite.md"}, nil, scratch)
+	got, err := vcs.CommitPaths(repo, "Update", []string{"seite.md"}, nil, "ablage")
 
-	if err == nil || !strings.Contains(err.Error(), "is unusable") {
-		t.Fatalf("err = %v", err)
+	if err != nil || got == nil || !got.Created {
+		t.Fatalf("CommitPaths = %+v, %v", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "ablage")); err == nil {
+		t.Fatal("the scratch directory was made inside the vault")
 	}
 }
 

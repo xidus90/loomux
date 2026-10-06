@@ -83,8 +83,8 @@ func approveCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		Decision: decision,
 		Reviewer: reviewer,
 		Now:      time.Now().UTC(),
-		// The directory vcs keeps its scratch index in, so the index is
-		// `<state>/maintenance/index`, where the reference puts it.
+		// The directory vcs makes its private scratch indexes in; shared by
+		// every vault, which is why each commit gets an index of its own.
 		Scratch: filepath.Join(vault.lookup.Primary, "maintenance"),
 		Lookup:  vault.lookup,
 	})
