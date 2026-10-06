@@ -499,6 +499,25 @@ func TestPlanLinksPythonCoverageToTheMeasuringTestLane(t *testing.T) {
 	}
 }
 
+func TestSettleMarksALaneThatReadsItsPredecessor(t *testing.T) {
+	req := Request{Kinds: []string{"test", "coverage"}}
+	jobs, _ := Plan(effFor(t, "", goOnly), req, env(t.TempDir()))
+	if jobs[0].Consumes || !jobs[1].Consumes || jobs[1].After != 0 {
+		t.Fatalf("go: %+v", jobs)
+	}
+	// Python's report reads the data file through the environment.
+	jobs, _ = Plan(effFor(t, "", pythonOnly), req, env(t.TempDir()))
+	if !jobs[1].Consumes || jobs[1].Reads != nil || jobs[1].After != 0 {
+		t.Fatalf("python: %+v", jobs[1])
+	}
+	// after only orders: a lane that reads nothing waits and consumes nothing.
+	src := "[verify.go.coverage]\ncommands = [\"echo\"]\nafter = \"test\"\n"
+	jobs, _ = Plan(effFor(t, src, goOnly), req, env(t.TempDir()))
+	if jobs[1].Consumes || jobs[1].After != 0 {
+		t.Fatalf("ordering only: %+v", jobs[1])
+	}
+}
+
 // A string override of test drops the measuring form; the test lane still
 // carries COVERAGE_FILE but writes nothing, so coverage measures itself, and
 // without a measure step it has nothing to report on.
