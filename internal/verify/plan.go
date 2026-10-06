@@ -67,6 +67,8 @@ type Job struct {
 	// reads its files still links to it and inherits not-applicable, one that
 	// only orders after it runs.
 	Skipped bool
+	// Lock is the lock file the job holds while its processes run, "" for none.
+	Lock string
 }
 
 // PlanEnv is what a plan needs from outside: where it runs, which binary
@@ -424,6 +426,9 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	}
 	if kind == "graph" && env.GraphEnv != nil {
 		job.Env = append(job.Env, env.GraphEnv(env.Root)...)
+	}
+	if r.Lane.Lock {
+		job.Lock = LockPath(env.Root, stack, area)
 	}
 	return job, l, true, nil
 }

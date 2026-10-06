@@ -248,6 +248,7 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeCheck, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
 		Start: checkStart, Look: checkLook, Now: checkNow, Armed: armed.Arms,
+		Caller: "check " + request, Waiting: verify.WaitingTo(stderr),
 	})
 	verify.WriteCheck(stdout, outs, *verbose)
 	code, notes := verify.CheckVerdict(kinds, outs, verify.Strict(eff.Config, request))

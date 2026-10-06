@@ -91,6 +91,9 @@ func writeLane(w io.Writer, stack, kind string, r Resolved) {
 	if len(l.Needs) > 0 {
 		key("needs", quoteList(l.Needs))
 	}
+	if l.Lock {
+		key("lock", "true")
+	}
 	if len(l.SkipWhenOnly) > 0 {
 		key("skip_when_only", quoteList(l.SkipWhenOnly))
 	}

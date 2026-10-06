@@ -237,6 +237,7 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeCheck, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
 		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
+		Caller: "hook stop", Waiting: verify.WaitingTo(stderr),
 	})
 	code, warned := stopVerdict(stderr, kinds, verify.Strict(eff.Config, "stop"), outs, armed.Arms)
 	// A chain with findings keeps its coverage files for whoever looks into

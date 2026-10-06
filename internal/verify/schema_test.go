@@ -371,3 +371,17 @@ func TestParseSkipWhenOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestParseLock(t *testing.T) {
+	cfg, err := parse(t, "[verify.go.test]\nlock = true\n")
+	if err != nil || !cfg.Stacks["go"]["test"].Lane.Lock || !cfg.Stacks["go"]["test"].Set["lock"] {
+		t.Fatalf("%v %+v", err, cfg.Stacks["go"]["test"])
+	}
+	cfg, err = parse(t, "[verify.go.test]\nlock = false\n")
+	if err != nil || cfg.Stacks["go"]["test"].Lane.Lock || !cfg.Stacks["go"]["test"].Set["lock"] {
+		t.Fatalf("%v %+v", err, cfg.Stacks["go"]["test"])
+	}
+	if _, err := parse(t, "[verify.go.test]\nlock = \"yes\"\n"); err == nil || !strings.Contains(err.Error(), "[verify.go.test].lock must be a boolean") {
+		t.Fatal(err)
+	}
+}

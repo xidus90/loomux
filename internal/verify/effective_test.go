@@ -211,3 +211,13 @@ func TestMergeLaysSkipWhenOnlyOverThePreset(t *testing.T) {
 		t.Fatalf("%+v", lane)
 	}
 }
+
+func TestMergeSwitchesAPresetLockOff(t *testing.T) {
+	off := Override{Lane: Lane{Lock: false}, Set: map[string]bool{"lock": true}}
+	if merge(Lane{Lock: true, Commands: []string{"t"}}, off).Lock {
+		t.Fatal("lock = false must win over the preset")
+	}
+	if !merge(Lane{Lock: true}, Override{Set: map[string]bool{}}).Lock {
+		t.Fatal("a table without lock keeps the preset's")
+	}
+}
