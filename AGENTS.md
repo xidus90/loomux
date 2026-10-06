@@ -50,9 +50,8 @@ are German and never translated.
 - No `init()` and no package-level variable parses embedded data; load on first use.
 - Nobody works on `master`. Every change starts on a branch and reaches
   `master` only as a merged pull request. `.githooks/pre-commit` refuses a
-  commit on `master` and `.githooks/pre-push` a push to it. These two hooks are
-  the barrier today; a ruleset on GitHub, which holds regardless, comes once
-  the repository is public.
+  commit on `master` and `.githooks/pre-push` a push to it. On GitHub the
+  rulesets in `.github/rulesets/` hold regardless.
 - Before a pull request is opened, and again before it is merged, its commits
   are grouped by theme: one commit per change. A later correction of something
   the same branch introduced (review fix, typo, follow-up) is folded into the

@@ -510,10 +510,28 @@ skill does the steps below; by hand:
    gh secret set RELEASE_APP_CLIENT_ID --body <client-id>
    gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
    ```
-3. Rulesets (once the repository is public): one for `master` and one for
-   tags `v*`, each with the `loomux-release` app as the only bypass actor.
-   The `master` ruleset also requires the status checks `gate-windows` and
-   `build-linux` (workflow `ci`) and `check` (workflow `pr-label`).
+3. Rulesets: `.github/rulesets/master.json` for `master` and
+   `.github/rulesets/tags.json` for tags `v*`. Both let the `loomux-release`
+   app (its App ID, not the client ID, in `actor_id`) and repository admins
+   through: the app commits and tags each release, and an admin can fix a
+   broken release by hand. Everyone else reaches `master` only through a
+   pull request with the status checks `gate-windows` and `build-linux`
+   (workflow `ci`) and `check` (workflow `pr-label`) green and an approval
+   by the code owner (`.github/CODEOWNERS`) of its last push. The checks run
+   the pull request's own workflows and gate, so it can make them pass; the
+   approval is what holds, and a push after it needs a new one.
+   Create both, then check that `master` lists rules:
+   ```sh
+   gh api -X POST repos/xidus90/loomux/rulesets --input .github/rulesets/master.json
+   gh api -X POST repos/xidus90/loomux/rulesets --input .github/rulesets/tags.json
+   gh api repos/xidus90/loomux/rules/branches/master
+   ```
+   A changed file goes to `gh api -X PUT repos/xidus90/loomux/rulesets/<id>`.
+4. Fork pull requests run on the self-hosted runners, so every run from
+   outside waits for approval:
+   ```sh
+   gh api -X PUT repos/xidus90/loomux/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors
+   ```
 
 If a release was dropped, run the `release` workflow by hand
 (`gh workflow run release.yml -f pr=<number>`). It refuses a pull request

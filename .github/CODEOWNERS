@@ -1,0 +1,4 @@
+# A pull request's own workflows and gate decide its status checks, so a
+# check can be made to pass by the change it judges. The owner's approval of
+# every change, workflows and gate included, is what holds.
+* @xidus90

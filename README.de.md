@@ -520,11 +520,29 @@ einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
    gh secret set RELEASE_APP_CLIENT_ID --body <client-id>
    gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
    ```
-3. Rulesets (erst wenn das Repository öffentlich ist): eines für `master`
-   und eines für Tags `v*`, jeweils mit der App `loomux-release` als einzigem
-   Bypass-Akteur. Das Ruleset für `master` verlangt außerdem die
-   Statuschecks `gate-windows` und `build-linux` (Workflow `ci`) sowie
-   `check` (Workflow `pr-label`).
+3. Rulesets: `.github/rulesets/master.json` für `master` und
+   `.github/rulesets/tags.json` für Tags `v*`. Beide lassen die App
+   `loomux-release` (ihre App ID, nicht die Client-ID, in `actor_id`) und
+   Repository-Admins durch: die App committet und taggt jedes Release, und
+   ein Admin kann ein kaputtes Release von Hand reparieren. Alle anderen
+   kommen nur über einen Pull Request nach `master`, mit grünen Statuschecks
+   `gate-windows` und `build-linux` (Workflow `ci`) sowie `check` (Workflow
+   `pr-label`) und der Freigabe seines letzten Pushs durch den Code-Owner
+   (`.github/CODEOWNERS`). Die Checks fahren die Workflows und das Tor des
+   Pull Requests selbst, er kann sie also grün machen; was hält, ist die
+   Freigabe, und ein Push danach braucht eine neue. Beide anlegen, dann
+   prüfen, dass `master` Regeln listet:
+   ```sh
+   gh api -X POST repos/xidus90/loomux/rulesets --input .github/rulesets/master.json
+   gh api -X POST repos/xidus90/loomux/rulesets --input .github/rulesets/tags.json
+   gh api repos/xidus90/loomux/rules/branches/master
+   ```
+   Eine geänderte Datei geht an `gh api -X PUT repos/xidus90/loomux/rulesets/<id>`.
+4. Pull Requests aus Forks laufen auf den self-hosted Runnern, also wartet
+   jeder Lauf von außen auf Freigabe:
+   ```sh
+   gh api -X PUT repos/xidus90/loomux/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors
+   ```
 
 Ist ein Release ausgefallen, den Workflow `release` von Hand starten
 (`gh workflow run release.yml -f pr=<nummer>`). Er verweigert einen Pull
