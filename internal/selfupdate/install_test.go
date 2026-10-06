@@ -190,3 +190,63 @@ func TestInstallOfTheOldCountTakesTheHighestPreRelease(t *testing.T) {
 		t.Fatalf("canonical binary = %q", got)
 	}
 }
+
+// An init that runs from a beta brings the beta channel along: the entries it
+// writes must not call an older binary than the one that wrote them.
+func TestInstallFromABetaFollowsTheBetaChannel(t *testing.T) {
+	f := releasesOf("1.1.0-beta.2", `[{"tagName":"v1.0.0","isPrerelease":false},{"tagName":"v1.1.0-beta.2","isPrerelease":true}]`)
+	o := fresh(t, f)
+	o.Version, o.Channel, o.Mode = "1.1.0-beta.1", "", ModeChannel
+	res := Install(context.Background(), o)
+	if res.Outcome != Updated || res.Version != "1.1.0-beta.2" || res.Err != nil {
+		t.Fatalf("Install = %+v", res)
+	}
+	if beta, err := ReadChannel(o.StateDir); !beta || err != nil {
+		t.Fatalf("ReadChannel = %v, %v; want true", beta, err)
+	}
+}
+
+// A pin is its own request and keeps its kind; the beta of the running binary
+// does not turn it into a beta pass.
+func TestInstallFromABetaKeepsAPin(t *testing.T) {
+	f := releasesOf("1.0.0", `[{"tagName":"v1.0.0","isPrerelease":false}]`)
+	f.version, f.view = "loomux 1.0.0\n", `{"tagName":"v1.0.0","isPrerelease":false}`
+	o := fresh(t, f)
+	o.Version, o.Channel, o.Mode, o.Pin = "1.1.0-beta.1", "", ModeChannel, "1.0.0"
+	res := Install(context.Background(), o)
+	if res.Outcome != Updated || res.Version != "1.0.0" || res.Err != nil {
+		t.Fatalf("Install = %+v", res)
+	}
+	if beta, _ := ReadChannel(o.StateDir); beta {
+		t.Fatal("a pin of a stable release must not set the beta marker")
+	}
+}
+
+// An explicit --stable outranks the beta of the running binary.
+func TestInstallFromABetaKeepsAnExplicitStableMode(t *testing.T) {
+	f := releasesOf("1.0.0", `[{"tagName":"v1.0.0","isPrerelease":false},{"tagName":"v1.1.0-beta.2","isPrerelease":true}]`)
+	f.version = "loomux 1.0.0\n"
+	o := fresh(t, f)
+	o.Version, o.Channel, o.Mode = "1.1.0-beta.1", "", ModeStable
+	res := Install(context.Background(), o)
+	if res.Outcome != Updated || res.Version != "1.0.0" || res.Err != nil {
+		t.Fatalf("Install = %+v", res)
+	}
+	if beta, _ := ReadChannel(o.StateDir); beta {
+		t.Fatal("--stable must clear the beta marker")
+	}
+}
+
+func TestInstallFromAStableReleaseSetsNoMarker(t *testing.T) {
+	f := releasesOf("1.0.0", `[{"tagName":"v1.0.0","isPrerelease":false},{"tagName":"v1.1.0-beta.2","isPrerelease":true}]`)
+	f.version = "loomux 1.0.0\n"
+	o := fresh(t, f)
+	o.Version, o.Channel, o.Mode = "1.0.0", "", ModeChannel
+	res := Install(context.Background(), o)
+	if res.Outcome != Updated || res.Version != "1.0.0" || res.Err != nil {
+		t.Fatalf("Install = %+v", res)
+	}
+	if beta, _ := ReadChannel(o.StateDir); beta {
+		t.Fatal("an init from a stable release must not set the beta marker")
+	}
+}

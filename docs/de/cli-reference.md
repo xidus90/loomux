@@ -931,6 +931,12 @@ Die Flags wählen das Release von Hand; höchstens eines zugleich:
   Markierung, eine Beta setzt sie. Ein Downgrade auf diesem Weg hält nicht:
   `serve` hebt das Binary binnen 24 Stunden wieder an.
 
+Die Markierung setzt auch `init`: Ein Lauf aus einem Beta-Binary (eine Version
+mit `-beta.N`), dem weder ein Modus noch eine Version vorgegeben ist, nimmt das
+neueste Release beider Arten und setzt die Markierung, auch wenn das
+installierte Binary schon aktuell ist. `loomux upgrade --stable` bringt die
+Maschine zurück auf stabile Releases.
+
 Ein Problem allein mit der Markierung lässt den Durchlauf nicht scheitern: das
 Binary liegt an seinem Platz, das Problem geht nach stderr, und der
 Sitzungsstart nennt es erneut.
@@ -1461,7 +1467,7 @@ ersetzt, und `project/root`, wo vom Namen nichts bleibt.
 
 | Modul | Teil | Was er tut | Vorgabe |
 |---|---|---|---|
-| base | `binary` | das Binary, das die Einträge rufen: `binary-install` legt das neueste Release nach `${LOCALAPPDATA}/loomux/bin/loomux.exe` (über `gh`, geprüft gegen `SHA256SUMS` und sein `--version`); in einem Checkout von loomux baut `binary-build` `bin/loomux.exe` | an |
+| base | `binary` | das Binary, das die Einträge rufen: `binary-install` legt das neueste Release nach `${LOCALAPPDATA}/loomux/bin/loomux.exe` (über `gh`, geprüft gegen `SHA256SUMS` und sein `--version`); ein `init` aus einem Beta-Binary nimmt das neueste Release beider Arten und setzt die Beta-Markierung, und `loomux upgrade --stable` bringt die Maschine zurück auf stabile Releases; in einem Checkout von loomux baut `binary-build` `bin/loomux.exe` | an |
 | base | `config` | `.loomux/config.toml`: `[modules]`, wo ein Modul aus ist, `[commit] language`, wo sie nicht `en` ist, und die noch fehlenden Policy-Regeln der erkannten Stacks; `[verify]` bleibt den Presets. Der Text muss die eigenen Leser der Konfiguration bestehen. Dazu eine leere `.loomux/armed.toml`, nur wo vor dem Lauf weder sie noch eine Konfiguration noch ein pre-commit-Hook von loomux stand (siehe unten) | an |
 | base | `gitignore` | `.gitignore`: `/.loomux/state/` | an |
 | base | `agents-md` | `AGENTS.md`, nur wenn das Projekt keine hat | an, aus in einem Checkout |

@@ -75,8 +75,14 @@ func call(ctx context.Context, run Runner, name string, args ...string) ([]byte,
 // repository of pre-releases has none (measured 2026-09-23: "release not
 // found").
 func latest(ctx context.Context, run Runner, t takes) (Release, error) {
-	out, err := call(ctx, run, "gh", "release", "list", "--repo", Repo,
-		"--exclude-drafts", "--limit", "30", "--json", "tagName,isPrerelease")
+	args := []string{"release", "list", "--repo", Repo,
+		"--exclude-drafts", "--limit", "30", "--json", "tagName,isPrerelease"}
+	if t == takesStable {
+		// Many betas could otherwise push the newest stable release out of
+		// the 30 newest.
+		args = append(args, "--exclude-pre-releases")
+	}
+	out, err := call(ctx, run, "gh", args...)
 	if err != nil {
 		return Release{}, err
 	}

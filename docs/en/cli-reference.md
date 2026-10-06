@@ -902,6 +902,11 @@ The flags choose the release by hand; at most one at a time:
   sets it. A downgrade this way does not hold: `serve` lifts the binary again
   within 24 hours.
 
+The marker is also set by `init`: one run from a beta binary (a version with
+`-beta.N`) that is given neither a mode nor a pin takes the newest release of
+either kind and sets the marker, also when the installed binary is already
+current. `loomux upgrade --stable` takes the machine back to stable releases.
+
 A problem with the marker alone does not fail the pass: the binary is in
 place, the problem goes to stderr, and session start repeats it.
 
@@ -1403,7 +1408,7 @@ blanks joined by `-`, and `project/root` where the name leaves nothing.
 
 | Module | Part | What it does | Default |
 |---|---|---|---|
-| base | `binary` | the loomux binary the entries call: `binary-install` puts the newest release at `${LOCALAPPDATA}/loomux/bin/loomux.exe` (through `gh`, checked against `SHA256SUMS` and its `--version`); in a checkout of loomux `binary-build` builds `bin/loomux.exe` | on |
+| base | `binary` | the loomux binary the entries call: `binary-install` puts the newest release at `${LOCALAPPDATA}/loomux/bin/loomux.exe` (through `gh`, checked against `SHA256SUMS` and its `--version`); an `init` run from a beta binary takes the newest release of either kind and sets the beta marker, and `loomux upgrade --stable` takes the machine back to stable releases; in a checkout of loomux `binary-build` builds `bin/loomux.exe` | on |
 | base | `config` | `.loomux/config.toml`: `[modules]` where a module is off, `[commit] language` where it is not `en`, and the policy rules of the detected stacks still missing; `[verify]` is left to the presets. The text must pass the configuration's own readers. With it an empty `.loomux/armed.toml`, only where before the run there was neither it, nor a configuration, nor a pre-commit hook of loomux (see below) | on |
 | base | `gitignore` | `.gitignore`: `/.loomux/state/` | on |
 | base | `agents-md` | `AGENTS.md`, only when the project has none | on, off in a checkout |
