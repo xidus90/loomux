@@ -21,10 +21,11 @@ scope = "project/loomux"
 [layout]
 wiki = "docs/wiki"
 
-# Only the wiki is knowledge; testdata/cases holds recordings, and a catalog
-# written into them would change evidence.
+# The wiki, the working papers and the top level of the German docs, which
+# the wiki pages cite; testdata/cases holds loomux's own expectations, and a
+# catalog written into them would change them.
 [index]
-include = ["docs/wiki/**/*.md", "docs/.superpowers/**/*.md"]
+include = ["docs/wiki/**/*.md", "docs/.superpowers/**/*.md", "docs/de/*.md"]
 
 # The bundle catalogs are registered but qmd never gets them (OwnArtifacts
 # hides **/index.md); without this line status reports them as divergence.
