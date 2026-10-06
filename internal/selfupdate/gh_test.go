@@ -30,6 +30,31 @@ func TestLatestTakesTheHighestReleaseOfTheChannel(t *testing.T) {
 	}
 }
 
+// Only the stable channel asks GitHub to leave pre-releases out: many betas
+// would otherwise push the newest stable release out of the 30 listed.
+func TestLatestExcludesPreReleasesOnlyForTheStableChannel(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		t    takes
+		want bool
+	}{{"stable", takesStable, true}, {"old", takesOld, false}, {"all", takesAll, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGH{list: `[{"tagName":"v1.0.0","isPrerelease":false}]`}
+			var args []string
+			run := func(ctx context.Context, name string, a ...string) ([]byte, error) {
+				args = a
+				return f.run(ctx, name, a...)
+			}
+			if _, err := latest(context.Background(), run, tc.t); err != nil {
+				t.Fatal(err)
+			}
+			if got := slices.Contains(args, "--exclude-pre-releases"); got != tc.want {
+				t.Fatalf("--exclude-pre-releases = %v, want %v: %v", got, tc.want, args)
+			}
+		})
+	}
+}
+
 // A repository that has releases and gives none is a fault, not a state:
 // before the channel was read, exactly this made every pass say "current".
 func TestLatestFailsWhenTheChannelHasNoRelease(t *testing.T) {

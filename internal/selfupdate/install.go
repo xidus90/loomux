@@ -28,5 +28,11 @@ func Install(ctx context.Context, o Options) Result {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return Result{Outcome: Failed, Err: fmt.Errorf("create %s: %w", dir, err)}
 	}
+	// An init from a beta brings the counterpart of itself onto the machine,
+	// not an older stable release: the entries it writes then call no older
+	// binary than the one that wrote them.
+	if v, _ := parseVersion(o.Version); o.Mode == ModeChannel && o.Pin == "" && v.beta > 0 {
+		o.Mode = ModeBeta
+	}
 	return installLocked(ctx, o, canonical, false)
 }
