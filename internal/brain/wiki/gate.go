@@ -1,6 +1,7 @@
 package wiki
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -45,21 +46,33 @@ func neighbour(projectRoot string) string {
 	return ""
 }
 
-func getGitChangedFiles(repoPath string) []string {
+// getGitChangedFiles lists what `git status` reports in dir. underGit is
+// false for a directory with no `.git` entry where git cannot answer: there is
+// nothing to compare, which is not an answer of "nothing changed". A directory
+// with a `.git` entry whose `git status` fails is an error carrying git's own
+// message.
+func getGitChangedFiles(dir string) (changed []string, underGit bool, err error) {
 	// Every untracked file by name, not the directory git would fold them
 	// into: a wiki directory git has never seen comes back as its parent
 	// ("?? docs/"), and that parent lies outside the wiki the split below
 	// looks for -- a bundle written from scratch read as untouched.
 	cmd := exec.Command("git", "status", "--porcelain", "--untracked-files=all")
-	cmd.Dir = repoPath
-	// git's location variables outrank cmd.Dir, and this gate runs as a stop
-	// hook -- often inside a git hook that exports them. Inherited, they make
-	// the project and its wiki answer about one and the same third repository:
-	// both look changed, the drift check never fires, and the gate fails open.
+	cmd.Dir = dir
+	// git's location variables outrank cmd.Dir, and this gate is often run
+	// inside a git hook that exports them. Inherited, they make the project
+	// and its wiki answer about one and the same third repository: both look
+	// changed, the drift check never fires, and the gate fails open.
 	cmd.Env = gitenv.Environ()
 	out, err := cmd.Output()
 	if err != nil {
-		return nil
+		if !isOwnRepository(dir) {
+			return nil, false, nil
+		}
+		message := err.Error()
+		if exit, ok := err.(*exec.ExitError); ok && len(bytes.TrimSpace(exit.Stderr)) > 0 {
+			message = string(bytes.TrimSpace(exit.Stderr))
+		}
+		return nil, true, fmt.Errorf("git status failed in %s: %s", dir, message)
 	}
 
 	// The three fixed characters come off first, and only what is left is
@@ -67,14 +80,13 @@ func getGitChangedFiles(repoPath string) []string {
 	// worktree-only change leaves the first column blank (" M name"), so
 	// trimming the whole line first moved the name two characters into the cut
 	// and every such path came back without its first two letters.
-	var changed []string
 	lines := strings.Split(string(out), "\n")
 	for _, l := range lines {
 		if len(l) > 3 {
 			changed = append(changed, strings.TrimSpace(l[3:]))
 		}
 	}
-	return changed
+	return changed, true, nil
 }
 
 func CheckWikiGate(projectRoot string) []GateViolation {
@@ -86,7 +98,10 @@ func CheckWikiGate(projectRoot string) []GateViolation {
 	}
 
 	// 1. and 2. Code modifications and wiki modifications
-	codeChanges, wikiChanges := changesOf(projectRoot, wikiPath)
+	codeChanges, wikiChanges, err := changesOf(projectRoot, wikiPath)
+	if err != nil {
+		violations = append(violations, GateViolation{Name: "wiki-git", Message: err.Error()})
+	}
 
 	// If code changed but the wiki was untouched
 	if len(codeChanges) > 0 && len(wikiChanges) == 0 {
@@ -121,16 +136,28 @@ func CheckWikiGate(projectRoot string) []GateViolation {
 // tree: one beside the project, and one that carries a repository of its own
 // (a nested checkout, a linked worktree, a submodule -- each a `.git`).
 //
+// A project that is not under git has no changes, and a wiki beside it that is
+// not has nothing to compare: no drift is judged. A `git status` that fails
+// where there is a repository is an error.
+//
 // projectRoot is the top of its working tree; every caller passes a project
 // root, and porcelain paths are relative to that top.
-func changesOf(projectRoot, wikiPath string) (code, wikiChanges []string) {
-	changes := getGitChangedFiles(projectRoot)
+func changesOf(projectRoot, wikiPath string) (code, wikiChanges []string, err error) {
+	changes, _, err := getGitChangedFiles(projectRoot)
+	if err != nil {
+		return nil, nil, err
+	}
 	relative, err := filepath.Rel(projectRoot, wikiPath)
 	outside := err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
 	if outside || isOwnRepository(wikiPath) {
-		return changes, getGitChangedFiles(wikiPath)
+		wikiChanges, wikiUnderGit, err := getGitChangedFiles(wikiPath)
+		if err != nil || !wikiUnderGit {
+			return nil, nil, err
+		}
+		return changes, wikiChanges, nil
 	}
-	return splitAtWiki(changes, filepath.ToSlash(relative))
+	code, wikiChanges = splitAtWiki(changes, filepath.ToSlash(relative))
+	return code, wikiChanges, nil
 }
 
 // isOwnRepository reads the administrative entry, not its kind: a nested
