@@ -258,9 +258,12 @@ func TestRunFailsAndKeepsTheBinary(t *testing.T) {
 		name  string
 		spoil func(f *fakeGH)
 		want  string
+		// version is what Result and update.json hold: the release the pass
+		// tried, or nothing when it failed before choosing one.
+		version string
 	}{
-		{"no gh", func(f *fakeGH) { f.fail["list"] = fmt.Errorf("gh: %w", os.ErrNotExist) }, "gh: "},
-		{"a changed asset", func(f *fakeGH) { f.files[AssetName("2.8.0", "windows", "amd64")] = "tampered" }, "checksum mismatch"},
+		{"no gh", func(f *fakeGH) { f.fail["list"] = fmt.Errorf("gh: %w", os.ErrNotExist) }, "gh: ", ""},
+		{"a changed asset", func(f *fakeGH) { f.files[AssetName("2.8.0", "windows", "amd64")] = "tampered" }, "checksum mismatch", "2.8.0"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f := release("2.8.0")
@@ -273,7 +276,7 @@ func TestRunFailsAndKeepsTheBinary(t *testing.T) {
 			if got := canonicalBody(t, o); got != "old" {
 				t.Fatalf("a failed pass touched the binary: %q", got)
 			}
-			if st := recorded(t, o); st.Result != Failed || st.Error != res.Err.Error() {
+			if st := recorded(t, o); st.Result != Failed || st.Error != res.Err.Error() || st.Version != c.version || res.Version != c.version {
 				t.Fatalf("update.json = %+v", st)
 			}
 		})
@@ -293,7 +296,7 @@ func TestRunFailsWhenEverySlotIsHeld(t *testing.T) {
 		}
 	}
 	res := Run(context.Background(), o)
-	if res.Outcome != Failed || !strings.Contains(res.Err.Error(), "slots") {
+	if res.Outcome != Failed || !strings.Contains(res.Err.Error(), "slots") || res.Version != "2.8.0" {
 		t.Fatalf("Run = %+v", res)
 	}
 	if got := canonicalBody(t, o); got != "old" {

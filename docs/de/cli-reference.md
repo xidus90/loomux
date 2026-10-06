@@ -937,8 +937,10 @@ Sitzungsstart nennt es erneut.
 
 Schreibt `<Zustandsverzeichnis>/update.json` (`source` = `serve` | `cli`,
 `checked_at`, `executable`, `running`, `result` = `current` | `updated` |
-`skipped` | `failed`, `version`, `error`). Ein Durchlauf, der `update.lock`
-belegt findet, tritt zurück und schreibt nichts. Ebenso wenig schreibt ein
+`skipped` | `failed`, `version`, `error`). `version` ist die installierte
+Release; bei `failed` ist es die Release, die der Durchlauf versucht hat, oder
+leer, wenn er vor der Wahl einer Release scheiterte. Ein Durchlauf, der
+`update.lock` belegt findet, tritt zurück und schreibt nichts. Ebenso wenig schreibt ein
 Durchlauf von Hand, der ausgelassen wird; so bleibt der Eintrag vom letzten
 Durchlauf von `serve` für den Sitzungsstart stehen.
 

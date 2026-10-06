@@ -46,7 +46,9 @@ type Options struct {
 
 // Result is what a pass came to. Version is the release installed, or, when
 // it is current, the running version, or the installed file's when only that
-// one is at or above the release. StatusErr is a failure to write update.json, apart
+// one is at or above the release. A pass that failed after choosing a release
+// names the release it tried to install; one that skipped, or failed before
+// choosing, leaves it empty. StatusErr is a failure to write update.json, apart
 // from the pass's own outcome: a binary swapped in stays swapped in even when
 // the record of it could not be written.
 type Result struct {
