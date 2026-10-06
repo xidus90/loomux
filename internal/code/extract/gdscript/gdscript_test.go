@@ -182,7 +182,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/1@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/1@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -383,4 +383,91 @@ func TestCRLFGivesTheSameEdges(t *testing.T) {
 	crlf := extractSrc(t, rel, strings.ReplaceAll(edgeSrc, "\n", "\r\n"))
 	same(t, "edges", crlf.Edges, lf.Edges)
 	same(t, "aliases", crlf.Imports, lf.Imports)
+}
+
+func TestAResourceImportsWhatItsExtResourcesName(t *testing.T) {
+	const p = "data/stats.tres"
+	r := extractSrc(t, p, "[gd_resource type=\"Resource\" script_class=\"Stats\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://stats.gd\" id=\"1_s\"]\n[ext_resource type=\"Texture2D\" uid=\"uid://abc\" id=\"2_t\"]\n\n[resource]\nscript = ExtResource(\"1_s\")\nhp = 3\n")
+	if len(r.Nodes) != 1 || r.Nodes[0].ID != p || r.Language != "gdscript" || len(r.Imports) != 0 {
+		t.Fatalf("nodes %v, language %q, imports %v", views(r), r.Language, r.Imports)
+	}
+	same(t, "imports", r.Edges, []extract.RawEdge{
+		{Source: p, Relation: model.RelationImports, Specifier: "res://stats.gd", File: p},
+	})
+}
+
+func TestTheProjectFileNamesItsAutoloadsAndMainScene(t *testing.T) {
+	const p = "game/project.godot"
+	r := extractSrc(t, p, "; comment\nconfig_version=5\n\n[autoload]\n\nClock=\"*res://autoload/clock.gd\"\nGame=\"res://autoload/game.tscn\"\n\n[application]\n\nconfig/name=\"X\"\nrun/main_scene=\"res://main.tscn\"\n")
+	// Only a "*" entry is a singleton with a global name; Game keeps its
+	// imports edge below and has no alias.
+	same(t, "autoloads", r.Imports, []extract.Import{
+		{Alias: "Clock", Path: "res://autoload/clock.gd"},
+	})
+	same(t, "imports", r.Edges, []extract.RawEdge{
+		{Source: p, Relation: model.RelationImports, Specifier: "res://autoload/clock.gd", File: p},
+		{Source: p, Relation: model.RelationImports, Specifier: "res://autoload/game.tscn", File: p},
+		{Source: p, Relation: model.RelationImports, Specifier: "res://main.tscn", File: p},
+	})
+}
+
+// Only project.godot is the project file; another *.godot file, and an
+// [autoload] section in a scene, name nothing.
+func TestOnlyTheProjectFileHasAutoloads(t *testing.T) {
+	const body = "[autoload]\n\nClock=\"*res://clock.gd\"\n\n[application]\n\nrun/main_scene=\"res://main.tscn\"\n"
+	for _, p := range []string{"game/other.godot", "game/x.tscn"} {
+		r := extractSrc(t, p, body)
+		if len(r.Imports) != 0 || len(r.Edges) != 0 || len(r.Nodes) != 1 {
+			t.Errorf("%s: imports %v, edges %v, nodes %v", p, r.Imports, r.Edges, views(r))
+		}
+	}
+}
+
+// gotreesitter v0.55.1 leaves an unclosed section header as loose tokens of
+// the resource (probed): it is no section and names nothing, the parse counts
+// errors for it, and the section after it is whole.
+func TestAnUnclosedSectionNamesNothing(t *testing.T) {
+	const p = "x.tscn"
+	r := extractSrc(t, p, "[ext_resource path=\"res://a.gd\"\n[ext_resource type=\"Script\" path=\"res://b.gd\" id=\"1\"]\n")
+	same(t, "imports", r.Edges, []extract.RawEdge{
+		{Source: p, Relation: model.RelationImports, Specifier: "res://b.gd", File: p},
+	})
+}
+
+// A path is an attribute of the header with a string value; a value that is
+// no string, or a property of the section's body, names no file. Likewise an
+// autoload is a property of the [autoload] body, not an attribute of its header.
+func TestOnlyAStringAttributeNamesAResource(t *testing.T) {
+	for p, src := range map[string]string{
+		"a.tscn":        "[ext_resource path=2 id=\"1\"]\n",
+		"b.tscn":        "[ext_resource type=\"Script\" id=\"1\"]\npath = \"res://x.gd\"\n",
+		"project.godot": "[autoload foo=\"bar\"]\nBaz=5\n[application]\nrun/main_scene=3\n",
+	} {
+		r := extractSrc(t, p, src)
+		if len(r.Edges) != 0 || len(r.Imports) != 0 {
+			t.Errorf("%s: edges %v, imports %v", p, r.Edges, r.Imports)
+		}
+	}
+}
+
+// A resource that does not parse cleanly reports it.
+func TestAResourceCountsItsParseErrors(t *testing.T) {
+	if r := extractSrc(t, "x.tscn", "[ext_resource path=\"res://a.gd\"\n"); r.ParseErrors == 0 {
+		t.Errorf("ParseErrors = 0, want the unclosed header counted")
+	}
+}
+
+// A scene or the project file saved with CRLF reads as with LF.
+func TestAResourceWithCRLFReadsLikeLF(t *testing.T) {
+	scene := "[gd_scene format=3]\n\n[ext_resource type=\"Script\" path=\"res://a.gd\" id=\"1\"]\n[ext_resource type=\"Script\" path=\"res://b.gd\" id=\"2\"]\n\n[node name=\"N\" type=\"Node\"]\nscript = ExtResource(\"1\")\n"
+	proj := "config_version=5\n\n[autoload]\n\nClock=\"*res://clock.gd\"\n\n[application]\n\nrun/main_scene=\"res://main.tscn\"\n"
+	for p, src := range map[string]string{"s.tscn": scene, "project.godot": proj} {
+		lf := extractSrc(t, p, src)
+		crlf := extractSrc(t, p, strings.ReplaceAll(src, "\n", "\r\n"))
+		if len(lf.Edges) == 0 {
+			t.Fatalf("%s: no edges to compare", p)
+		}
+		same(t, p+" edges", crlf.Edges, lf.Edges)
+		same(t, p+" imports", crlf.Imports, lf.Imports)
+	}
 }

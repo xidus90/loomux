@@ -35,14 +35,23 @@
 //	attribute             identifier and "." children; an attribute_call last for a member call
 //	attribute_call        the member identifier first, field arguments
 //	string                its text, quotes included
+//
+// and the resource grammar of scenes, resources and the project file:
+//
+//	resource   the sections as children, and properties ahead of the first
+//	section    "[", its identifier, attribute children, "]", then property children
+//	attribute  key identifier, "=", value
+//	property   key path, "=", value
 package gdscript
 
 import (
+	"path"
 	"slices"
 	"strings"
 
 	gts "github.com/odvcencio/gotreesitter"
 	gdgrammar "github.com/odvcencio/gotreesitter/grammars/gdscript"
+	resgrammar "github.com/odvcencio/gotreesitter/grammars/godot_resource"
 
 	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/extract/treesitter"
@@ -67,16 +76,21 @@ func (Language) Name() string { return langName }
 // runtime can build other trees from the same source.
 func (Language) Version() string { return version + "@" + treesitter.Parser }
 
-// Extensions are the files of a Godot project this package reads.
-func (Language) Extensions() []string { return []string{".gd"} }
+// Extensions are the files of a Godot project this package reads: scripts,
+// the project file, resources and scenes.
+func (Language) Extensions() []string { return []string{".gd", ".godot", ".tres", ".tscn"} }
 
 // File is this package's File.
 func (Language) File(rel, source string) (extract.Result, error) { return File(rel, source) }
 
 // File extracts one file. rel is its repo-relative, slash-separated path;
-// source is its contents.
+// source is its contents. A script is read as GDScript, anything else as a
+// Godot resource.
 func File(rel, source string) (extract.Result, error) {
-	return script(gdgrammar.Language(), rel, source)
+	if path.Ext(rel) == ".gd" {
+		return script(gdgrammar.Language(), rel, source)
+	}
+	return resource(resgrammar.Language(), rel, source)
 }
 
 // script extracts one GDScript file with the grammar handed in: the grammar
