@@ -194,6 +194,19 @@ func TestAdvanceRegisterStartsAMissingRegister(t *testing.T) {
 	}
 }
 
+func TestAdvanceRegisterRefusesARegisterThatCannotBeInspected(t *testing.T) {
+	// Advancing a register it cannot stat would write one with only the
+	// case's rows over whatever is there.
+	path := filepath.Join(t.TempDir(), "a\x00b", "_identities.tsv")
+	caseStates := map[string]identity.Identity{
+		"a.md": {DocID: "01A", Relative: "a.md", ContentHash: "sha256:a", Revision: 1},
+	}
+	got, err := apply.AdvanceRegister(path, caseStates)
+	if err == nil || got != "" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+}
+
 func TestAdvanceRegisterRefusesABrokenRegister(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "_identities.tsv")
 	if err := os.WriteFile(path, []byte(identity.IdentitiesHeader+"\n01A\ta.md\th\tx\n"), 0o644); err != nil {

@@ -1,9 +1,12 @@
 package identity
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -115,10 +118,23 @@ func TestReadIdentitiesKeepsTheLastRowOfAPath(t *testing.T) {
 	}
 }
 
-func TestReadIdentitiesTreatsAnyStatFailureAsAbsent(t *testing.T) {
-	// Path.exists() answers False for every OSError, a NUL byte included.
-	got, err := ReadIdentities(filepath.Join(t.TempDir(), "a\x00b"))
-	if err != nil || len(got) != 0 {
+func TestReadIdentitiesRefusesARegisterThatCannotBeInspected(t *testing.T) {
+	// A NUL byte makes the stat fail with something other than "not found":
+	// an unreadable register is not an empty one, and a caller that takes it
+	// for empty reports an area without a source or overwrites the rows.
+	path := filepath.Join(t.TempDir(), "a\x00b")
+	got, err := ReadIdentities(path)
+	if err == nil || got != nil {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if errors.Is(err, fs.ErrNotExist) || !strings.Contains(err.Error(), "invalid argument") {
+		t.Fatalf("an invalid path is not an absent one: %v", err)
+	}
+}
+
+func TestReadIdentitiesTakesAMissingRegisterForEmpty(t *testing.T) {
+	got, err := ReadIdentities(filepath.Join(t.TempDir(), "_identities.tsv"))
+	if err != nil || got == nil || len(got) != 0 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
@@ -129,5 +145,18 @@ func TestReadIdentitiesRefusesInvalidUTF8(t *testing.T) {
 	want := path + ": not valid UTF-8"
 	if err == nil || err.Error() != want {
 		t.Fatalf("got %v, want %q", err, want)
+	}
+}
+
+func TestReadIdentitiesTakesAPathThroughARegularFileForEmpty(t *testing.T) {
+	// Linux answers ENOTDIR for it, Windows a plain "not found": either way
+	// nothing can be there.
+	file := filepath.Join(t.TempDir(), "f")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadIdentities(filepath.Join(file, "_identities.tsv"))
+	if err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("got %+v, %v", got, err)
 	}
 }
