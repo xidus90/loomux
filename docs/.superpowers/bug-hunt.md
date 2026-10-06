@@ -261,11 +261,9 @@ pinned reference version (Python 3.14.7), never the host interpreter.
   5f vcs+model+status+evidence (~2.2k).
 - Loop packaging: the protocol this hunt runs by — document-only, one finder
   agent at a time, ~3000 non-test lines per round, controller verification
-  before a row is written, the house patterns, and this paper's format — is now
-  a project skill at `.claude/skills/bug-hunt/` (SKILL.md, references for the
-  paper template and the finder brief, `scripts/hunt-scope.sh` for round
-  sizing). It states this paper's location so a future session finds the hunt
-  instead of starting a second one.
+  before a row is written, the house patterns, and this paper's format — was
+  meant to become a project skill at `.claude/skills/bug-hunt/`. That skill was
+  never committed and exists on no branch; this paper is the protocol.
 - Round 6 (guard/privacy re-covered by a fresh agent while 5d was still out):
   delivered 2 findings. One was NEW and verified as bug 24 — `reviewCentre`
   (guard.go:224) relies on ntpath.join's REPLACE rule for rooted `[layout]
@@ -358,8 +356,47 @@ Side findings, not fixed: junction delete-pending state answers access denied
 (transient, left as is); `dropGoneCopies` never removes a
 `loomux-stop-index-<pid>.lock`; a string piped into `sh` with escaped quotes
 (`echo "\"bin\loomux.exe\" init" | sh`) passes the guard in default mode;
-`search/stamp.go` `ReadLastRun` and `config.ReadAreaDeclaration` fold every
-Stat error into "absent"; the `wiki-drift` message formats a path with `%q`,
+`search/stamp.go` `ReadLastRun` folds every Stat error into "absent"
+(`config.ReadAreaDeclaration` fixed in round 5f, finding F); the `wiki-drift` message formats a path with `%q`,
 which doubles every backslash on Windows; the changelog block of a PR body now
 also ends at a `##` line indented four spaces or a tab, which GitHub renders as
 code.
+
+## Round 5f (2026-10-06, branch fix/hunt-brain)
+
+Scope: internal/brain/{status,evidence,vcs,model}, ~2.3k non-test lines, the
+last open brain group. One finder (Opus) delivered three findings; every
+finding was validated by a fresh read-only agent (Opus) with its own probes and
+fixed by an implementer (Sonnet) with a RED test, a mutation run and its own
+commit through the pre-commit gate. Validation of C turned up two more sites
+of the same pattern (D, E), and validation of those two more (F, G); the user
+took all four into this round. Rule throughout: only `fs.ErrNotExist` is
+absence; reference parity is no reason by itself. Windows trigger for a
+non-ENOENT Stat error: an inheritable deny on the PARENT (a deny on the item
+itself leaves Stat working); test trigger on both platforms: a NUL byte in the
+path.
+
+| # | Area | Finding | Verdict | Commit |
+|---|------|---------|---------|--------|
+| 34 (A) | brain/vcs commit | `CommitPaths` built every commit in one fixed `<state>/maintenance/index`, removed before use and shared by every approve/reject process and vault of the machine; a removal between another call's `read-tree` and `update-index`/`write-tree` committed a tree with only that call's pages or none — HEAD deleting the whole vault, reported as created. Two-process probe: 0 of 30 base files left | VALID (worse than claimed) | b1506f4c |
+| 35 (B) | brain/vcs ChangedPaths | `git diff --name-only` without `-z`: non-ASCII names came back C-quoted, the deleted side of a rename was missing; both depend on the user's git config. Lands in a merge case's evidence | VALID | 4f5ad514 |
+| 36 (C) | brain/status | an area path that cannot be inspected read "does not exist; skipped"; `reindex` already says "cannot be inspected" for the same path. Ruling: wording only, exit 0 | VALID | d88a5a4e |
+| 37 (D) | brain/graph ReadGraph | any Stat error on graph.json became `ErrNotIndexed` ("never indexed; run reindex"); a parity test pinned it and was inverted | VALID (low) | 2459f7f8 |
+| 38 (E) | brain/identity ReadIdentities | any Stat error read the register as empty: status lost duplicate pairs, search advised "reindex" for every hit, Scan's own refusal of an unreadable register was defeated, `AdvanceRegister` could overwrite a register it could not read | VALID (low) | cb27fb2d |
+| 39 (F) | config ReadAreaDeclaration, readManifestAmong; brain/index reindex | any Stat error became `ErrNoManifest`: a `workspace = true` area with a denied `.loomux` was skipped silently by `VisibleAreas`, dropping it from `Hidden` — a local_only workspace inside a visible manual_cloud area was served on the cloud channel (probed). `reindex`'s index run also mapped every declaration error, a TOML parse error included, to "skip, exit 0" (reached only past the catch-up, which already refused such a declaration). Consequence, ruled to stand: one writable area whose path cannot be inspected now stops reconcile, approve/reject, the catch-up before reindex, the merge hook and the lint sweep instead of being skipped. README roadmap row removed | VALID (mechanism corrected: ReadAreaDeclaration, not readManifestAmong) | a95cb21d |
+| 40 (G) | brain/apply isFile | any Stat error was "not a file": an uninspectable register was skipped, so `guardSources` skipped the SourceMoved guard and an approval could certify a changed source; reject advanced registers but not the page; five refusals named the wrong reason. Now `(bool, error)` at all ten call sites | PARTIAL (the feared register overwrite does not happen) | 961cba34 |
+
+Cleared by the finder: status apart from C; evidence in full against the
+pinned reference (regexes, fences, `CheckEvidence`, `decimal` probed over all
+Nd runs); vcs past `commit.go:129`; model by code reading only.
+
+Side findings, not fixed: two more `isFile` copies swallow every Stat error
+(`brain/maintenance/mergehook.go` and `setup/facts.go`); `guard/manifest.go`
+`isRegularFile` does the same but fails closed; the fixes above count Linux's
+ENOTDIR (a path through a regular file) as absence like Windows'
+ERROR_PATH_NOT_FOUND, but the earlier fixes of the same pattern (bugs 10, 15,
+23) still take `fs.ErrNotExist` alone; `model.Has` wraps every request error as `ErrUnreachable`, so a TLS
+error to an https endpoint reads as "ollama is not running";
+`evidence.go`'s comment says Go's Unicode tables may lag Python's, while Go
+1.27 is ahead (Unicode 17 vs 16) — its conclusion holds; porcelain `log`
+calls still take user config such as `log.showSignature` (not probed).
