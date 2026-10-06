@@ -11,8 +11,10 @@ import (
 )
 
 // Version and Channel are what `loomux version` answers. A plain `go build`
-// leaves them at 0.0.0-dev and empty; the release build sets both with
-// -ldflags "-X github.com/xidus90/loomux/internal/cli.Version=… -X …Channel=…".
+// leaves them at 0.0.0-dev and empty; the release build sets Version with
+// -ldflags "-X github.com/xidus90/loomux/internal/cli.Version=…" and leaves
+// Channel empty. Only a binary of the earlier version count carries one, which
+// is how it recognises itself.
 var (
 	Version = "0.0.0-dev"
 	Channel = ""

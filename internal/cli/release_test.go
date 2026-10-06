@@ -143,9 +143,12 @@ func TestDevReleaseBuild(t *testing.T) {
 		return nil
 	}
 	out := t.TempDir()
-	code, stdout, e := run("dev", "release", "build", "--version", "1.0.0", "--channel", "beta", "--out", out)
+	code, stdout, e := run("dev", "release", "build", "--version", "1.0.0", "--out", out)
 	if code != 0 || !strings.HasSuffix(stdout, "SHA256SUMS\n") {
 		t.Fatalf("code %d, out %q, err %q", code, stdout, e)
+	}
+	if code, _, _ := run("dev", "release", "build", "--version", "1.0.0", "--channel", "beta", "--out", out); code != 2 {
+		t.Fatalf("--channel is gone: code %d", code)
 	}
 	if code, _, _ := run("dev", "release", "build", "--out", out); code != 2 {
 		t.Fatalf("missing version: code %d", code)

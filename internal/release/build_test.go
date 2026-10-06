@@ -30,7 +30,7 @@ func fakeGo(calls *[][]string) GoBuild {
 func TestBuildWritesAllTargetsAndSums(t *testing.T) {
 	out := t.TempDir()
 	var calls [][]string
-	names, err := Build("1.2.3", "beta", out, fakeGo(&calls))
+	names, err := Build("1.2.3", out, fakeGo(&calls))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,11 +43,16 @@ func TestBuildWritesAllTargetsAndSums(t *testing.T) {
 	}
 	first := strings.Join(calls[0], " ")
 	for _, part := range []string{"CGO_ENABLED=0", "GOOS=windows", "GOARCH=amd64", "-trimpath",
-		"-X github.com/xidus90/loomux/internal/cli.Version=1.2.3 -X github.com/xidus90/loomux/internal/cli.Channel=beta",
+		"-ldflags -X github.com/xidus90/loomux/internal/cli.Version=1.2.3 -o",
 		"./cmd/loomux"} {
 		if !strings.Contains(first, part) {
 			t.Fatalf("call %q lacks %q", first, part)
 		}
+	}
+	// A new build leaves the channel unset: only a binary of the old count
+	// carries one, and that is how it recognises itself.
+	if strings.Contains(first, "Channel") {
+		t.Fatalf("call %q sets a channel", first)
 	}
 	sums, _ := os.ReadFile(filepath.Join(out, "SHA256SUMS"))
 	data, _ := os.ReadFile(filepath.Join(out, want[0]))
@@ -59,7 +64,7 @@ func TestBuildWritesAllTargetsAndSums(t *testing.T) {
 
 func TestBuildStopsAtTheFirstFailure(t *testing.T) {
 	fail := func([]string, ...string) error { return errors.New("boom") }
-	if _, err := Build("1.0.0", "", t.TempDir(), fail); err == nil || !strings.Contains(err.Error(), "windows/amd64: boom") {
+	if _, err := Build("1.0.0", t.TempDir(), fail); err == nil || !strings.Contains(err.Error(), "windows/amd64: boom") {
 		t.Fatalf("err %v", err)
 	}
 }
@@ -68,14 +73,14 @@ func TestBuildReportsAnUnwritableOutput(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "file")
 	os.WriteFile(file, nil, 0o644)
 	var calls [][]string
-	if _, err := Build("1.0.0", "", file, fakeGo(&calls)); err == nil {
+	if _, err := Build("1.0.0", file, fakeGo(&calls)); err == nil {
 		t.Fatal("want error for an output that is a file")
 	}
 }
 
 func TestBuildReportsAMissingBinary(t *testing.T) {
 	noop := func([]string, ...string) error { return nil }
-	if _, err := Build("1.0.0", "", t.TempDir(), noop); err == nil {
+	if _, err := Build("1.0.0", t.TempDir(), noop); err == nil {
 		t.Fatal("want error when go build wrote nothing")
 	}
 }
@@ -90,14 +95,14 @@ func TestBuildReportsUnwritableSums(t *testing.T) {
 		}
 		return inner(env, args...)
 	}
-	if _, err := Build("1.0.0", "", out, blockSums); err == nil {
+	if _, err := Build("1.0.0", out, blockSums); err == nil {
 		t.Fatal("want error when SHA256SUMS cannot be written")
 	}
 }
 
 func TestBuildShipsTheNoticeBesideTheBinaries(t *testing.T) {
 	out := t.TempDir()
-	names, err := Build("1.2.3", "", out, func(env []string, args ...string) error {
+	names, err := Build("1.2.3", out, func(env []string, args ...string) error {
 		return os.WriteFile(args[len(args)-2], []byte("binary"), 0o644)
 	})
 	if err != nil {
@@ -123,7 +128,7 @@ func TestBuildShipsTheNoticeBesideTheBinaries(t *testing.T) {
 func TestBuildStopsWhenTheNoticeCannotBeWritten(t *testing.T) {
 	out := t.TempDir()
 	notice := filepath.Join(out, "NOTICE.md")
-	_, err := Build("1.2.3", "", out, func(env []string, args ...string) error {
+	_, err := Build("1.2.3", out, func(env []string, args ...string) error {
 		if err := os.MkdirAll(notice, 0o755); err != nil {
 			return err
 		}

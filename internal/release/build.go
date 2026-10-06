@@ -36,11 +36,11 @@ func ExecGoBuild(env []string, args ...string) error {
 
 // Build cross-compiles every target into out and writes NOTICE.md and
 // SHA256SUMS next to them. It returns the file names in asset order.
-func Build(version, channel, out string, run GoBuild) ([]string, error) {
+func Build(version, out string, run GoBuild) ([]string, error) {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return nil, err
 	}
-	ldflags := fmt.Sprintf("-X github.com/xidus90/loomux/internal/cli.Version=%s -X github.com/xidus90/loomux/internal/cli.Channel=%s", version, channel)
+	ldflags := "-X github.com/xidus90/loomux/internal/cli.Version=" + version
 	var names []string
 	var sums strings.Builder
 	for _, t := range Targets {

@@ -5,10 +5,22 @@ on:
     types: [completed]
   workflow_dispatch:
     inputs:
+      mode:
+        description: pr releases a merged pull request, beta cuts a beta from ref
+        type: choice
+        options: [pr, beta]
+        default: pr
       pr:
-        description: Number of the merged pull request to release
-        required: true
+        description: Number of the merged pull request to release (mode pr)
         type: number
+      ref:
+        description: Branch, tag or commit to cut the beta from (mode beta)
+        type: string
+      bump:
+        description: Which part of the version the beta raises (mode beta)
+        type: choice
+        options: [major, minor, patch]
+        default: minor
 permissions:
   contents: read
 concurrency:
@@ -42,11 +54,12 @@ jobs:
           # them as an Actions cache would pack the whole local build cache.
           cache: false
       - run: go build -o "$RUNNER_TEMP/loomux" ./cmd/loomux
-      - run: bash .github/scripts/release.sh
+      - run: bash .github/scripts/${{ inputs.mode == 'beta' && 'release-beta.sh' || 'release.sh' }}
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.workflow_run.head_sha }}
           DISPATCH_PR: ${{ inputs.pr }}
-          CHANNEL: ${{ vars.RELEASE_CHANNEL }}
+          REF: ${{ inputs.ref }}
+          BUMP: ${{ inputs.bump }}
           LOOMUX: ${{ runner.temp }}/loomux
