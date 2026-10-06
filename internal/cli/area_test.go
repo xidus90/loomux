@@ -32,6 +32,15 @@ func areaWorld(t *testing.T) (state, repo string, port *search.FakePort) {
 	}
 	t.Setenv("LOOMUX_STATE_DIR", state)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
+	// git's own user file is the developer's otherwise, and its
+	// init.defaultBranch would decide a branch these tests pin. gitenv strips
+	// GIT_CONFIG_GLOBAL before git starts, so the home is what isolates.
+	home := filepath.Join(tmp, "home")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	scratch := filepath.Join(tmp, "cwd")
 	if err := os.MkdirAll(scratch, 0o755); err != nil {
 		t.Fatal(err)
@@ -481,8 +490,9 @@ func TestAreaAddIsRedWhenTheWorkingDirectoryIsGone(t *testing.T) {
 	}
 }
 
-// git answers the branch; no repository, an unborn branch and a detached
-// HEAD all fall back to master, as `_detect_branch` does.
+// git answers the branch, an unborn one included; a detached HEAD falls back
+// to master, and a path without a repository takes the branch `git init`
+// would create there.
 func TestAreaAddReadsTheMergeBranchFromGit(t *testing.T) {
 	cases := map[string]struct {
 		setup [][]string
@@ -507,17 +517,60 @@ func TestAreaAddReadsTheMergeBranchFromGit(t *testing.T) {
 			}
 		})
 	}
-	t.Run("an unborn branch", func(t *testing.T) {
+	for name, c := range map[string]struct{ init, want string }{
+		"an unborn branch":      {"trunk", "trunk"},
+		"an unborn main branch": {"main", "main"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, repo, _ := areaWorld(t)
+			gitIn(t, repo, "init", "-q", "-b", c.init)
+			if got := areaManifestBranch(t, repo); got != c.want {
+				t.Fatalf("branch = %q, want %q", got, c.want)
+			}
+		})
+	}
+	t.Run("no repository and no init.defaultBranch", func(t *testing.T) {
 		_, repo, _ := areaWorld(t)
-		gitIn(t, repo, "init", "-q", "-b", "trunk")
-		if code, _, errOut := run("area", "add", "--path", repo, "-y", "--no-reindex"); code != 0 {
-			t.Fatalf("exit = %d, stderr = %s", code, errOut)
-		}
-		manifest := readText(t, filepath.Join(repo, ".loomux", "config.toml"))
-		if !strings.Contains(manifest, "branch = \"master\"\n") {
-			t.Fatalf("manifest =\n%s", manifest)
+		if got := areaManifestBranch(t, repo); got != "master" {
+			t.Fatalf("branch = %q, want master", got)
 		}
 	})
+	t.Run("no repository takes init.defaultBranch", func(t *testing.T) {
+		_, repo, _ := areaWorld(t)
+		gitIn(t, repo, "config", "--global", "init.defaultBranch", "trunk")
+		if got := areaManifestBranch(t, repo); got != "trunk" {
+			t.Fatalf("branch = %q, want trunk", got)
+		}
+	})
+	t.Run("an empty init.defaultBranch is no answer", func(t *testing.T) {
+		_, repo, _ := areaWorld(t)
+		gitIn(t, repo, "config", "--global", "init.defaultBranch", "")
+		if got := areaManifestBranch(t, repo); got != "master" {
+			t.Fatalf("branch = %q, want master", got)
+		}
+	})
+	t.Run("a path that is not a directory falls back to master", func(t *testing.T) {
+		if got := detectBranch(filepath.Join(t.TempDir(), "gone")); got != "master" {
+			t.Fatalf("branch = %q, want master", got)
+		}
+	})
+}
+
+// areaManifestBranch runs `area add` over repo and reads back the merge
+// branch of the manifest it wrote.
+func areaManifestBranch(t *testing.T, repo string) string {
+	t.Helper()
+	if code, _, errOut := run("area", "add", "--path", repo, "-y", "--no-reindex"); code != 0 {
+		t.Fatalf("exit = %d, stderr = %s", code, errOut)
+	}
+	manifest := readText(t, filepath.Join(repo, ".loomux", "config.toml"))
+	for line := range strings.SplitSeq(manifest, "\n") {
+		if value, ok := strings.CutPrefix(line, "branch = "); ok {
+			return strings.Trim(value, "\"")
+		}
+	}
+	t.Fatalf("no branch in manifest =\n%s", manifest)
+	return ""
 }
 
 func gitIn(t *testing.T, dir string, args ...string) {

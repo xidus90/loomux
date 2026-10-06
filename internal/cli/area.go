@@ -244,26 +244,28 @@ func readIfPresent(path string) (string, bool, error) {
 	return string(body), true, nil
 }
 
-// detectBranch is `_detect_branch`: the branch git names, and master where
-// there is no repository at the path itself, git fails -- an unborn branch --
-// or HEAD is detached.
+// detectBranch is the branch git names at the path: that of HEAD, an unborn
+// one included, as the merge hook reads it. A path without a repository of its
+// own gets the branch `git init` would create there, `init.defaultBranch`.
+// Where git has no answer -- a detached HEAD, nothing configured -- it is
+// master.
 //
 // The `.git` beside the path is asked first so that a directory inside some
 // other repository does not take that repository's branch.
 func detectBranch(repo string) string {
+	args := []string{"symbolic-ref", "--quiet", "--short", "HEAD"}
 	if _, err := os.Stat(filepath.Join(repo, ".git")); err != nil {
-		return "master"
+		args = []string{"config", "--get", "init.defaultBranch"}
 	}
-	command := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	command := exec.Command("git", args...)
 	command.Dir = repo
 	// A hook exports GIT_DIR, which outranks command.Dir; see gitenv.
 	command.Env = gitenv.Environ()
 	out, err := command.Output()
-	name := strings.TrimSpace(string(out))
-	if err != nil || name == "HEAD" {
-		return "master"
+	if name := strings.TrimSpace(string(out)); err == nil && name != "" {
+		return name
 	}
-	return name
+	return "master"
 }
 
 // renderManifest is the text of a new area manifest. It carries only keys a
