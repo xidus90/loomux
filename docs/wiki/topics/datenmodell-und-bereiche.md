@@ -14,8 +14,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:68797887e50379828f958338511f2c03b36e31a01d9f813304bab6489922995a"
-    revision: 2
+    content_hash: "sha256:1b731affd83910cd4e8dd6ca0b05a7b375ecba6d7a4790c6106c4e85f6b158f3"
+    revision: 3
 ---
 
 ## Die tragende Aufteilung
