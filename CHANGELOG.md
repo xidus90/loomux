@@ -7,6 +7,18 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.0.0] - 2026-10-06
+
+<https://github.com/xidus90/loomux/pull/86>
+
+### Changed
+- The version count restarts at 1.0.0, the first stable release. Earlier releases are listed as `-beta` entries; their tags and releases no longer exist.
+- `loomux init` run from a beta installs the newest beta and keeps the machine on betas; on the stable channel, updates consider only stable releases.
+### Added
+- Betas `X.Y.Z-beta.N` cut from any branch with the release workflow's `mode=beta`; install them with `loomux upgrade --beta` or `--version`.
+### Removed
+- `loomux dev release build --channel`; a release is a pre-release exactly when its version carries a suffix.
+
 ## [10.1.0-beta] - 2026-10-06
 
 <https://github.com/xidus90/loomux/pull/84>
