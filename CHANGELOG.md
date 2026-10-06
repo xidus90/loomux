@@ -7,6 +7,21 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.0.1] - 2026-10-06
+
+<https://github.com/xidus90/loomux/pull/88>
+
+### Fixed
+- `loomux approve` and `loomux approve --reject` no longer commit a tree that deletes the rest of the vault when two decisions run at the same time.
+- Merge cases list changed paths with non-ASCII names as they are, not as git's quoted escapes, and list both sides of a rename.
+- `loomux brain status` tells an area path that cannot be inspected from one that does not exist.
+- `loomux brain neighbors` and `loomux brain status` report a `graph.json` that cannot be inspected instead of calling the area never indexed.
+- An identity register that cannot be inspected is an error in `loomux brain status`, `loomux brain search` and `loomux reconcile` instead of an empty register.
+- A `local_only` workspace whose `.loomux/config.toml` cannot be inspected is no longer served on the cloud channel through an enclosing area; such a declaration is reported instead of read as missing.
+- `loomux approve` stops on a register, source, page or proposal it cannot inspect instead of taking it for absent, so a source that changed after the case was formed can no longer be approved unnoticed.
+### Changed
+- A writable area whose `.loomux/config.toml` cannot be inspected now stops `loomux reconcile`, `loomux approve`, the catch-up before `loomux reindex`, the merge hook and `loomux lint` instead of being skipped.
+
 ## [1.0.0] - 2026-10-06
 
 <https://github.com/xidus90/loomux/pull/86>
