@@ -636,7 +636,7 @@ Prints the links into and out of one page, read from the area's `graph.json`.
 ### `loomux brain status [--channel local|cloud]`
 Prints what to know before trusting an answer, one line per finding.
 
-- **Lines, in this order**: always the last reconciliation (``last reconcile: never; run `loomux reconcile` ``, ``last reconcile: <iso>; older than 24 h, run `loomux reconcile` `` or `last reconcile: <iso>`); per visible area in registry order, include globs the search engine does not see, a path that does not exist, an area never indexed, fewer than half of its links resolved, and indexed documents the search engine does not know; across all visible areas, the same content under several paths; once, documents indexed but not yet searchable.
+- **Lines, in this order**: always the last reconciliation (``last reconcile: never; run `loomux reconcile` ``, ``last reconcile: <iso>; older than 24 h, run `loomux reconcile` `` or `last reconcile: <iso>`); per visible area in registry order, include globs the search engine does not see, a path that does not exist or cannot be inspected (the line says which, and the area is skipped either way), an area never indexed, fewer than half of its links resolved, and indexed documents the search engine does not know; across all visible areas, the same content under several paths; once, documents indexed but not yet searchable.
 - **Search engine**: two lines ask the qmd CLI (`qmd ls <collection>`, `qmd status`); when it does not answer, the line says so and the command goes on.
 - **Exit codes**: `0`; `1` for a runtime error (registry, manifest, stamp, `graph.json`, identity register); `2` for a usage error.
 
