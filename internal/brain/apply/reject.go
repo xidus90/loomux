@@ -49,7 +49,7 @@ func (a approval) reject() (Result, error) {
 		}
 		advanced, changed, err = AdvanceSources(current, a.updates())
 		if err != nil {
-			return Result{}, &ApplyError{Msg: a.c.Target + ": " + err.Error()}
+			return Result{}, &ApplyError{Msg: a.c.Target + ": " + err.Error(), cause: err}
 		}
 	}
 	var add []string

@@ -54,7 +54,9 @@ type ApplyError struct {
 
 func (e *ApplyError) Error() string { return e.Msg }
 
-// Unwrap is the failure an ApplyError was made from, nil for a refusal.
+// Unwrap is the failure an ApplyError was made from: the reader's or writer's
+// own error. It is nil for a refusal the barrier or the gate made, which has
+// no failure behind it.
 func (e *ApplyError) Unwrap() error { return e.cause }
 
 // DirtyFiles is Dirty behind a method. The three kinds below embed
@@ -209,7 +211,7 @@ func (a approval) run() (Result, error) {
 	}
 	advanced, err := AdvanceFrontmatter(body, a.updates(), a.o.Reviewer, a.o.Now)
 	if err != nil {
-		return Result{}, &ApplyError{Msg: a.c.Target + ": " + err.Error()}
+		return Result{}, &ApplyError{Msg: a.c.Target + ": " + err.Error(), cause: err}
 	}
 	if err := a.p.write(page, advanced); err != nil {
 		return Result{}, err
@@ -363,7 +365,7 @@ func (a approval) segments() ([]evidence.Segment, error) {
 	}
 	segments, err := evidence.ReadPackage(text)
 	if err != nil {
-		return nil, &ApplyError{Msg: path + ": " + err.Error()}
+		return nil, &ApplyError{Msg: path + ": " + err.Error(), cause: err}
 	}
 	return segments, nil
 }
