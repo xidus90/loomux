@@ -14,7 +14,8 @@ import (
 //
 // Each language is resolved against its own files alone: a Go call never
 // lands on a Python function of the same name, and a name defined once per
-// language is still unique within each.
+// language is still unique within each; a Godot path alone may land on a file
+// of another language, by its path.
 func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph {
 	groups := byLanguage(files)
 	g := &model.Graph{Meta: model.Meta{
@@ -23,8 +24,17 @@ func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph
 	for _, f := range files {
 		g.Nodes = append(g.Nodes, f.Nodes...)
 	}
+	// Every file of the build, of any language: a Godot path may name a file
+	// another extractor reads. Only Godot's resolver reads it.
+	var paths map[string]bool
+	if len(groups["gdscript"]) > 0 {
+		paths = map[string]bool{}
+		for _, f := range files {
+			paths[f.Path] = true
+		}
+	}
 	for _, lang := range g.Meta.Languages {
-		g.Edges = append(g.Edges, edgesOf(lang, groups[lang], mods)...)
+		g.Edges = append(g.Edges, edgesOf(lang, groups[lang], mods, paths)...)
 	}
 	sort.Slice(g.Nodes, func(i, j int) bool { return g.Nodes[i].ID < g.Nodes[j].ID })
 	sort.Slice(g.Edges, func(i, j int) bool {
@@ -72,15 +82,20 @@ func languagesOf(groups map[string][]extract.Result) []string {
 }
 
 // edgesOf resolves the raw edges of one language's files against an index of
-// those files alone: Go's here, Python's in resolvePython.
+// those files alone: Go's here, Python's in resolvePython, Godot's in
+// resolveGDScript. Go's and Python's indexes hold their own language's files
+// alone; the paths a Godot file names see every file of the build.
 //
 // A language without resolution rules keeps its containment, which its
 // extractor already resolved, and loses every other edge: a call or an import
 // resolved by another language's rules would be a guess dressed up as an
 // edge.
-func edgesOf(lang string, files []extract.Result, mods []Module) []model.Edge {
-	if lang == "python" {
+func edgesOf(lang string, files []extract.Result, mods []Module, paths map[string]bool) []model.Edge {
+	switch lang {
+	case "python":
 		return resolvePython(files)
+	case "gdscript":
+		return resolveGDScript(files, paths)
 	}
 	var out []model.Edge
 	if lang != "go" {
