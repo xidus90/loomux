@@ -15,6 +15,10 @@ import (
 // path that lands nowhere.
 var errLinkCycle = errors.New("its links lead in a circle")
 
+// getwd is a variable and not a call, so that a test can drive the branch
+// where the working directory is gone; nothing outside a test writes it.
+var getwd = os.Getwd
+
 // ResolvePath is `Path.resolve()` as the barrier uses it: absolute, with
 // `..` collapsed, with every link on the existing part of the path
 // followed, aliases folded to the names they stand for and the spelling
@@ -66,9 +70,11 @@ func ResolvePath(target string) (string, error) {
 	}
 	full := target
 	if !filepath.IsAbs(full) {
-		if cwd, err := os.Getwd(); err == nil {
-			full = anchor(cwd, full)
+		cwd, err := getwd()
+		if err != nil {
+			return "", err
 		}
+		full = anchor(cwd, full)
 	}
 	return finalPath(filepath.Clean(full))
 }
