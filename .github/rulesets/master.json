@@ -40,10 +40,6 @@
       "type": "copilot_code_review",
       "parameters": { "review_draft_pull_requests": false, "review_on_push": true }
     },
-    { "type": "code_quality", "parameters": { "severity": "errors" } },
-    {
-      "type": "code_coverage",
-      "parameters": { "max_coverage_drop": null, "minimum_coverage": null }
-    }
+    { "type": "code_quality", "parameters": { "severity": "errors" } }
   ]
 }
