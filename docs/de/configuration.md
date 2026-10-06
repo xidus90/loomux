@@ -315,8 +315,12 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   Das Skript muss mit einem Code ungleich 0 enden, wenn ein Test scheitert.
   `import_check` gilt für die Lane, sobald sie einen Befehl hat. Der Pfad
   steht mit Vorwärtsschrägstrichen, in einfachen Anführungszeichen, wenn er
-  ein Leerzeichen enthält: Außerhalb einfacher Anführungszeichen ist ein
-  Backslash ein Escape-Zeichen. Ein hier genanntes Werkzeug muss auf dem
+  ein Leerzeichen enthält: In einfachen Anführungszeichen ist ein Backslash
+  literal, in doppelten nur, wenn nicht `$`, ein Backtick, `"` oder `\`
+  folgt, denn dann schützt er dieses Zeichen. Vor einem Zeilenumbruch in
+  doppelten Anführungszeichen fällt er ebenfalls weg, der Zeilenumbruch bleibt
+  aber im Wort (eine Shell ließe beide weg). Außerhalb von Anführungszeichen
+  ist jeder Backslash ein Escape-Zeichen. Ein hier genanntes Werkzeug muss auf dem
   `PATH` liegen oder mit seinem Pfad stehen, sonst ist die Lane
   `missing-tool`: rot für `loomux check` und den Stop-Hook.
 - Die `on_file`-Formen: go `go vet ./...` und `{loomux} check gofmt {file}`
