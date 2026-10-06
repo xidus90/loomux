@@ -20,12 +20,14 @@ func InsertChangelog(existing []byte, version, date, link, notes string) ([]byte
 	if len(existing) == 0 {
 		text = ChangelogHeader
 	}
-	if strings.Contains(text, "\n## ["+version+"]") {
+	// A leading newline lets an entry on the first line match like any other.
+	lines := "\n" + text
+	if strings.Contains(lines, "\n## ["+version+"]") {
 		return nil, fmt.Errorf("%w: %s", ErrDuplicate, version)
 	}
 	entry := fmt.Sprintf("\n## [%s] - %s\n\n<%s>\n\n%s", version, date, link, strings.TrimRight(notes, "\n")+"\n")
-	if i := strings.Index(text, "\n## ["); i >= 0 {
-		return []byte(text[:i+1] + entry[1:] + "\n" + text[i+1:]), nil
+	if i := strings.Index(lines, "\n## ["); i >= 0 {
+		return []byte(text[:i] + entry[1:] + "\n" + text[i:]), nil
 	}
 	return []byte(strings.TrimRight(text, "\n") + "\n" + entry), nil
 }
