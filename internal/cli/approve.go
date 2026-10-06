@@ -152,19 +152,40 @@ func reviewerName() (string, error) {
 // reportAbort names a decision that was broken off, and every file it had
 // already changed. The hint hangs on the files, never on the kind of error:
 // the kind says why the run stopped, not whether the vault was touched.
-// Nothing on an abort path is committed, so each file stands unversioned
-// until some other tool's auto-commit sweeps it up.
+// Nothing on an abort path is committed, so a file in the vault stands
+// unversioned until some other tool's auto-commit sweeps it up. A file
+// outside the vault (the register of a readonly or out-of-tree area) is an
+// absolute path in the list and is in no vault commit at all, so it is named
+// under its own hint. (A relative state directory would make such a path
+// relative and file it with the vault's.)
 func reportAbort(stderr io.Writer, err error) {
 	fmt.Fprintf(stderr, "error: %v\n", err)
 	var touched interface{ DirtyFiles() []string }
-	if !errors.As(err, &touched) || len(touched.DirtyFiles()) == 0 {
+	if !errors.As(err, &touched) {
 		return
 	}
-	fmt.Fprintln(stderr, "Hinweis: der Abbruch hat diese Dateien im Vault bereits geändert und nichts "+
-		"committet. Sie stehen unversioniert im Arbeitsbaum, bis der nächste Auto-Commit "+
-		"eines fremden Werkzeugs (etwa obsidian-git) sie einsammelt:")
+	var inVault, outside []string
 	for _, file := range touched.DirtyFiles() {
-		fmt.Fprintf(stderr, "  %s\n", file)
+		if filepath.IsAbs(file) {
+			outside = append(outside, file)
+		} else {
+			inVault = append(inVault, file)
+		}
+	}
+	if len(inVault) > 0 {
+		fmt.Fprintln(stderr, "Hinweis: der Abbruch hat diese Dateien im Vault bereits geändert und nichts "+
+			"committet. Sie stehen unversioniert im Arbeitsbaum, bis der nächste Auto-Commit "+
+			"eines fremden Werkzeugs (etwa obsidian-git) sie einsammelt:")
+		for _, file := range inVault {
+			fmt.Fprintf(stderr, "  %s\n", file)
+		}
+	}
+	if len(outside) > 0 {
+		fmt.Fprintln(stderr, "Hinweis: außerhalb des Vaults hat der Abbruch diese Dateien bereits geändert; "+
+			"kein Commit erfasst sie:")
+		for _, file := range outside {
+			fmt.Fprintf(stderr, "  %s\n", file)
+		}
 	}
 }
 

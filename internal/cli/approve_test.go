@@ -16,8 +16,8 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-// dirtyHint is the reference's hint word for word (`_dirty_hint`,
-// cli.py:1390-1405), without the file lines that follow it.
+// dirtyHint is the hint for files inside the vault, without the file lines
+// that follow it.
 const dirtyHint = "Hinweis: der Abbruch hat diese Dateien im Vault bereits geändert und nichts " +
 	"committet. Sie stehen unversioniert im Arbeitsbaum, bis der nächste Auto-Commit " +
 	"eines fremden Werkzeugs (etwa obsidian-git) sie einsammelt:\n"
@@ -180,6 +180,32 @@ func TestApproveReportsTheIDApplyRead(t *testing.T) {
 	if code, out, _ := run("approve", "--reject", "open-case"); code != 0 || !strings.HasPrefix(out, "Fall old-name: reject\n") {
 		t.Fatalf("exit = %d, stdout = %q", code, out)
 	}
+}
+
+// A file outside the vault (the register of a readonly or out-of-tree area)
+// is named under its own hint: the vault's auto-commit never sweeps it up.
+func TestAnAbortNamesAFileOutsideTheVaultApart(t *testing.T) {
+	outside := filepath.ToSlash(filepath.Join(t.TempDir(), "state", "areas", "project-ro", "_identities.tsv"))
+	const outsideHint = "Hinweis: außerhalb des Vaults hat der Abbruch diese Dateien bereits geändert; " +
+		"kein Commit erfasst sie:\n"
+	t.Run("mixed", func(t *testing.T) {
+		var out strings.Builder
+		reportAbort(&out, &apply.ApplyError{Msg: "disk full",
+			Dirty: []string{"90 Wiki/topics/thema.md", outside, "90 Wiki/log.md"}})
+		want := "error: disk full\n" + dirtyHint + "  90 Wiki/topics/thema.md\n  90 Wiki/log.md\n" +
+			outsideHint + "  " + outside + "\n"
+		if out.String() != want {
+			t.Fatalf("stderr = %q, want %q", out.String(), want)
+		}
+	})
+	t.Run("all outside", func(t *testing.T) {
+		var out strings.Builder
+		reportAbort(&out, &apply.ApplyError{Msg: "disk full", Dirty: []string{outside}})
+		want := "error: disk full\n" + outsideHint + "  " + outside + "\n"
+		if out.String() != want {
+			t.Fatalf("stderr = %q, want %q", out.String(), want)
+		}
+	})
 }
 
 // An abort names the files it already touched, whatever kind stopped it, and

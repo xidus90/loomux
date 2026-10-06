@@ -35,8 +35,9 @@ var (
 
 // ApplyError is a decision that cannot be carried out and must not proceed
 // on a guess. Dirty names what had already been written or deleted when it
-// stopped -- vault-relative, in the order it was touched, nil when nothing
-// was. The kind cannot say that: ProposalRefused leaves the evidence check,
+// stopped -- vault-relative (a file outside the vault, such as the register
+// of a readonly area, is the path itself in slashes), in the order it was
+// touched, nil when nothing was. The kind cannot say that: ProposalRefused leaves the evidence check,
 // which appended to `audit.md`, and the patch, which wrote nothing.
 //
 // Nothing on these paths is committed, so whatever Dirty names stands
