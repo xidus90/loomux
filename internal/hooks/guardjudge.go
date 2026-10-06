@@ -12,6 +12,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/brain/guard"
 	"github.com/xidus90/loomux/internal/config"
+	"github.com/xidus90/loomux/internal/pathkey"
 )
 
 // judge holds what the targets of one tool call are judged against. The
@@ -455,8 +456,8 @@ func (j judge) tailMayReach(tail string) bool {
 		literal := literalPrefix(glob)
 		for n := 0; n < len(literal); n++ {
 			// A protected folder (a flow's) keeps what lies below it too.
-			on, _ := matchGlob(glob, literal[:n]+candidate)
-			under, _ := matchGlob(glob+"/**", literal[:n]+candidate)
+			on, _ := pathkey.Glob(glob, literal[:n]+candidate)
+			under, _ := pathkey.Glob(glob+"/**", literal[:n]+candidate)
 			if on || under {
 				return true
 			}
