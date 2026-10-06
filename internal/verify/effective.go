@@ -130,6 +130,9 @@ func merge(base Lane, o Override) Lane {
 	if o.Set["needs"] {
 		base.Needs = o.Lane.Needs
 	}
+	if o.Set["skip_when_only"] {
+		base.SkipWhenOnly = o.Lane.SkipWhenOnly
+	}
 	return base
 }
 

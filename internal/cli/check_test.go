@@ -1051,3 +1051,71 @@ func TestCheckGraphWithoutAGraphIsNotApplicable(t *testing.T) {
 		t.Fatalf("code %d, out %q, err %q, ran %q", code, out, errOut, *seen)
 	}
 }
+
+// skipWorld is a Go project with one commit, a lane that names docs/** and a
+// docs file staged for the next one.
+func skipWorld(t *testing.T) string {
+	t.Helper()
+	root := goWorld(t)
+	for _, dir := range []string{".loomux", "docs"} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put(t, root, ".loomux/config.toml", "[verify.go.test]\nskip_when_only = [\"docs/**\"]\n[verify.go]\ncoverage = false\n")
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
+		{"config", "commit.gpgsign", "false"}, {"add", "."}, {"commit", "-qm", "init"},
+	} {
+		gitIn(t, root, args...)
+	}
+	put(t, root, "docs/a.md", "x")
+	gitIn(t, root, "add", "docs")
+	return root
+}
+
+func startedGoTest(seen []string) bool {
+	return slices.ContainsFunc(seen, func(s string) bool { return strings.HasPrefix(s, "go test") })
+}
+
+// Inside a commit hook a lane sits out a commit of paths it names; by hand,
+// without GIT_INDEX_FILE, it runs.
+func TestCheckSkipsALaneForACommitOfNamedPaths(t *testing.T) {
+	root := skipWorld(t)
+	seen := stubCheck(t, green)
+	t.Setenv("GIT_INDEX_FILE", filepath.Join(root, ".git", "index"))
+	code, out, errOut := run("check", "test", "--root", root)
+	if code != 0 {
+		t.Fatalf("code %d\n%s%s", code, out, errOut)
+	}
+	if startedGoTest(*seen) || !strings.Contains(out, "only skip_when_only paths changed (docs/a.md)") {
+		t.Fatalf("started %v\n%s", *seen, out)
+	}
+	t.Setenv("GIT_INDEX_FILE", "")
+	*seen = (*seen)[:0]
+	run("check", "test", "--root", root)
+	if !startedGoTest(*seen) {
+		t.Fatalf("by hand every lane runs: %v", *seen)
+	}
+}
+
+// A commit that also changes code, and an index that does not answer, leave
+// the lane running.
+func TestCheckRunsALaneForACommitThatChangesMoreOrAnIndexThatDoesNotAnswer(t *testing.T) {
+	root := skipWorld(t)
+	put(t, root, "b.go", "package m\n")
+	gitIn(t, root, "add", "b.go")
+	seen := stubCheck(t, green)
+	t.Setenv("GIT_INDEX_FILE", filepath.Join(root, ".git", "index"))
+	run("check", "test", "--root", root)
+	if !startedGoTest(*seen) {
+		t.Fatalf("a commit of code runs the lane: %v", *seen)
+	}
+	gitIn(t, root, "reset", "-q", "b.go")
+	*seen = (*seen)[:0]
+	t.Setenv("GIT_INDEX_FILE", filepath.Join(root, "no-such-index"))
+	run("check", "test", "--root", root)
+	if !startedGoTest(*seen) {
+		t.Fatalf("an index that does not answer runs the lane: %v", *seen)
+	}
+}

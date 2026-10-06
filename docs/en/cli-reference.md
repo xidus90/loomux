@@ -68,6 +68,10 @@ judges them.
   every run with such a lane ends with `probation: <keys> (warn only until a
   green commit arms them)`. A file that does not read arms every
   lane, and `stderr` says why.
+- **Skipped lanes**: a lane with `skip_when_only` (see
+  [Configuration](configuration.md)) is `not-applicable` in a commit, which
+  the pre-commit hook hands its index for (`GIT_INDEX_FILE`), when every path
+  of the commit matches one of its globs. By hand every lane runs.
 - **Order**: a lane starts as soon as the lane it waits for (`after`) is done,
   with at most `max_parallel` processes at once. The report comes at the end,
   never interleaved: kinds in request order, within them stacks in byte order,

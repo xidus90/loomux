@@ -581,3 +581,92 @@ func TestStopReportsABadConfigOnAGreenTree(t *testing.T) {
 		t.Fatalf("%d %q", code, se)
 	}
 }
+
+// A commit inside the turn changes what the graph lane judges against HEAD
+// while the tree diff from the green tree shows only the docs written after
+// it: the lane may not sit out on that list alone.
+func TestStopDoesNotSkipTheGraphLaneForACommitInsideTheTurn(t *testing.T) {
+	root := graphWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+	writeWorldFile(t, root, ".loomux/config.toml", "[verify.go]\ncoverage = false\n[verify.go.graph]\nskip_when_only = [\"docs/**\"]\n")
+	writeWorldFile(t, root, "b_test.go", "package a\n")
+	if code, se := runStop(t, root, s1, blastTools(0, "", nil)); code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	gitOut(t, root, nil, "add", "b_test.go")
+	gitOut(t, root, nil, "commit", "-q", "-m", "the test alone")
+	writeWorldFile(t, root, "docs/a.md", "x")
+	started := false
+	code, se := runStop(t, root, s1, blastTools(1, "A has 7 callers and no test\n", func(child.Spec) { started = true }))
+	if code != ExitDenied || !started {
+		t.Fatalf("the graph lane sat out although HEAD moved: %d %v %q", code, started, se)
+	}
+}
+
+// What a commit took is added to what the trees differ in, not put in its
+// place: docs committed beside code that is still being changed.
+func TestStopKeepsWhatTheTreesShowWhenACommitMovedHead(t *testing.T) {
+	root := graphWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+	writeWorldFile(t, root, ".loomux/config.toml", "[verify.go]\ncoverage = false\n[verify.go.graph]\nskip_when_only = [\"docs/**\"]\n")
+	writeWorldFile(t, root, "b_test.go", "package a\n")
+	if code, se := runStop(t, root, s1, blastTools(0, "", nil)); code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	writeWorldFile(t, root, "docs/b.md", "x")
+	gitOut(t, root, nil, "add", "docs/b.md")
+	gitOut(t, root, nil, "commit", "-q", "-m", "docs")
+	writeWorldFile(t, root, "a.go", "package a\n\nfunc A() int { return 444 }\n")
+	started := false
+	code, se := runStop(t, root, s1, blastTools(1, "A has 7 callers and no test\n", func(child.Spec) { started = true }))
+	if code != ExitDenied || !started {
+		t.Fatalf("the graph lane sat out beside code changed since the green tree: %d %v %q", code, started, se)
+	}
+}
+
+// A commit that takes everything leaves the tree and HEAD alike, and the docs
+// written after it are all the trees differ in: what the commit took, measured
+// from the base, still keeps the lane from sitting out.
+func TestStopCountsEverythingACommitTookWhenHeadMoved(t *testing.T) {
+	root := graphWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+	writeWorldFile(t, root, ".loomux/config.toml", "[verify.go]\ncoverage = false\n[verify.go.graph]\nskip_when_only = [\"docs/**\"]\n")
+	writeWorldFile(t, root, "b_test.go", "package a\n")
+	if code, se := runStop(t, root, s1, blastTools(0, "", nil)); code != ExitOK {
+		t.Fatalf("%d %q", code, se)
+	}
+	gitOut(t, root, nil, "add", "-A")
+	gitOut(t, root, nil, "commit", "-q", "-m", "everything")
+	writeWorldFile(t, root, "docs/a.md", "x")
+	started := false
+	code, se := runStop(t, root, s1, blastTools(1, "A has 7 callers and no test\n", func(child.Spec) { started = true }))
+	if code != ExitDenied || !started {
+		t.Fatalf("the graph lane sat out after a commit of code: %d %v %q", code, started, se)
+	}
+}
+
+// Where git cannot list one of the two ranges, there is no list, and the lane
+// runs.
+func TestStopRunsTheGraphLaneWhenGitCannotListAMovedHead(t *testing.T) {
+	for failing := 1; failing <= 2; failing++ {
+		root := graphWorld(t, stopWorld, `{"base":"{{COMMIT:1}}","blocks":0}`)
+		writeWorldFile(t, root, ".loomux/config.toml", "[verify.go]\ncoverage = false\n[verify.go.graph]\nskip_when_only = [\"docs/**\"]\n")
+		writeWorldFile(t, root, "b_test.go", "package a\n")
+		if code, se := runStop(t, root, s1, blastTools(0, "", nil)); code != ExitOK {
+			t.Fatalf("%d %q", code, se)
+		}
+		gitOut(t, root, nil, "add", "b_test.go")
+		gitOut(t, root, nil, "commit", "-q", "-m", "the test alone")
+		writeWorldFile(t, root, "docs/a.md", "x")
+		inner, calls := stopChanged, 0
+		stopChanged = func(root, from, to string) ([]string, error) {
+			if calls++; calls == failing {
+				return nil, errors.New("git failed")
+			}
+			return inner(root, from, to)
+		}
+		started := false
+		code, se := runStop(t, root, s1, blastTools(1, "A has 7 callers and no test\n", func(child.Spec) { started = true }))
+		stopChanged = inner
+		if code != ExitDenied || !started || calls != failing {
+			t.Errorf("call %d failed: %d %v %q, %d calls", failing, code, started, se, calls)
+		}
+	}
+}

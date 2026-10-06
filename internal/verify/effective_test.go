@@ -203,3 +203,11 @@ func TestResolveConfiguredNeedsATestCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestMergeLaysSkipWhenOnlyOverThePreset(t *testing.T) {
+	eff := effFor(t, "[verify.go.test]\nskip_when_only = [\"docs/**\"]\n", goOnly)
+	lane := eff.Stacks["go"]["test"].Lane
+	if !slices.Equal(lane.SkipWhenOnly, []string{"docs/**"}) || lane.Measuring == "" {
+		t.Fatalf("%+v", lane)
+	}
+}

@@ -214,9 +214,10 @@ The keys of the table form:
 | `measure` | string | `test`/`coverage` only. The one command `coverage` runs first when its predecessor is not in the run. |
 | `after` | kind | `test`/`coverage` only. The kind of the same stack this lane waits for. Cycles are load errors that name the ring. |
 | `needs` | list | Files, relative to the lane's directory and inside it, the lane's `commands` cannot mean anything without. A missing one makes the lane `unready`: skipped and named in an edit, red in a check. They do not guard `on_file`: an edit that runs a lane's form for one file runs it either way. |
+| `skip_when_only` | list | Globs, relative to the repository root and in the syntax of `[policy.paths]`, of paths the lane does not care about. At a commit (inside the pre-commit hook, where git hands in `GIT_INDEX_FILE`) and at a turn end (against the last green tree, or against the base's tree when there is none; where a commit inside the turn moved HEAD and the turn end runs the graph lane, the paths that commit took since the base's commit count too), a lane whose every changed path matches one of them is `not-applicable` with the note `only skip_when_only paths changed (…)`. A lane that reads its files (as Go's `coverage` reads the coverage file `test` writes) inherits that, so `[verify.go.test] skip_when_only` keeps `coverage` from measuring the suite itself; one that only orders after it (`after` alone) runs; a run that asks for `coverage` alone needs the key on `coverage`. With no changed path, by hand (`loomux check` without the hook) and in an edit every lane runs. Matching is case-sensitive; a path that differs only in case runs the lane. |
 
 - **Replace or merge.** A string or a list stands for the lane as written:
-  `measuring`, `measure`, `on_file` and `needs` of the preset no longer
+  `measuring`, `measure`, `on_file`, `needs` and `skip_when_only` of the preset no longer
   apply; only `after` stays. A table changes only the keys it names:
   `[verify.go.test] measuring = "…"` keeps the preset's `commands`.
 - A key is either a value or a table in TOML: `test = "…"` and
@@ -493,7 +494,7 @@ profile never walks the tree.
 | `missing-tool` | a tool is not on the `PATH` | red | skipped, named |
 | `unready` | Godot has not imported the project, or a file in `needs` is missing | red | skipped, named |
 | `unavailable` | the kind is defined but cannot run (no tests found) | neutral, counts as "nothing ran" | not shown |
-| `not-applicable` | the kind is not defined for the stack, or `false`; for `graph`, the probe said no | neutral, shown | not shown |
+| `not-applicable` | the kind is not defined for the stack, or `false`; for `graph`, the probe said no; or every changed path matched `skip_when_only` | neutral, shown | not shown |
 
 - **What a lane inherits.** When the lane it waits for could not run, a lane
   takes over that state (`unavailable`, `not-applicable`, and in the edit scope

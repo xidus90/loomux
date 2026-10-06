@@ -127,3 +127,12 @@ func TestWriteShowPrintsWhatALaneNeeds(t *testing.T) {
 		t.Fatalf("%q", needs)
 	}
 }
+
+func TestWriteShowPrintsSkipWhenOnly(t *testing.T) {
+	var out strings.Builder
+	eff := effFor(t, "[verify.go.test]\nskip_when_only = [\"docs/**\"]\n", goOnly)
+	WriteShow(&out, eff, []string{"test"}, env(`C:\repo`))
+	if !strings.Contains(out.String(), "skip_when_only = [\"docs/**\"]  # config\n") {
+		t.Fatalf("%s", out.String())
+	}
+}

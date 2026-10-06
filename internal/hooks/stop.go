@@ -49,8 +49,9 @@ type StopEnv struct {
 // The seams no world can provoke: a plan that fails, and git failing on a
 // repository it just answered about.
 var (
-	stopPlan = verify.Plan
-	stopTree = gitwork.ContentTree
+	stopPlan    = verify.Plan
+	stopTree    = gitwork.ContentTree
+	stopChanged = gitwork.ChangedBetween
 )
 
 // errNoRepository says the root is outside every tree git measures; the gate
@@ -169,7 +170,7 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	kinds, _ := verify.ExpandProfile(eff.Config, "stop")
 	// The kinds come before the tree: only a graph lane keeps the copy of the
 	// index the tree is written through.
-	head, tree, idx, err := stopTrees(stderr, root, state, kinds)
+	head, tree, from, idx, err := stopTrees(stderr, root, state, kinds)
 	defer idx.Close()
 	// The graph lane judges against HEAD, so for it a tree is green only
 	// under the HEAD it was found green at, which a green pass keeps as the
@@ -219,9 +220,10 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	if ready == nil {
 		ready = verify.ImportReady
 	}
+	changed := turnChanged(root, from, tree, state.Base, head, headMoved)
 	jobs, err := stopPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeCheck}, verify.PlanEnv{
 		Root: root, Loomux: env.Loomux, RunID: runID, HasTests: verify.HasTests, ImportReady: ready,
-		GraphReady: idx.Ready, GraphEnv: idx.Env,
+		GraphReady: idx.Ready, GraphEnv: idx.Env, Changed: changed,
 	})
 	if err != nil {
 		say("%v", err)
@@ -261,20 +263,21 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	return end(code)
 }
 
-// stopTrees answers where HEAD stands and what tree the work is, or
+// stopTrees answers where HEAD stands, what tree the work is and the tree it
+// is measured from -- the last green one, else the base's -- or
 // errNoRepository. A tree equal to the base's is nothing new; it is returned
 // as the green tree's twin so the caller has one comparison to make. Where
 // kinds ask for a graph lane the project can run, the tree is written through
 // a copy of the index that lane reads, returned for the caller to close;
 // otherwise, or where there is no HEAD to judge against, the copy is gone
 // before the answer.
-func stopTrees(stderr io.Writer, root string, state sessions.SessionState, kinds []string) (head, tree string, idx *StopIndex, err error) {
+func stopTrees(stderr io.Writer, root string, state sessions.SessionState, kinds []string) (head, tree, from string, idx *StopIndex, err error) {
 	// Every refusal gitwork.Head has -- a root git ignores, a root no working
 	// tree covers, a HEAD that names no commit the repository holds -- means
 	// the same here: there is no tree to measure from, so the chain runs
 	// every time.
 	if head, err = gitwork.Head(root); err != nil {
-		return "", "", nil, errNoRepository
+		return "", "", "", nil, errNoRepository
 	}
 	base := state.Base
 	if base == "" && head != "" {
@@ -294,7 +297,7 @@ func stopTrees(stderr io.Writer, root string, state sessions.SessionState, kinds
 	// HEAD is asked once above; the copy is built against it.
 	if head != "" && wantsStopIndex(root, kinds) {
 		if idx, err = keepStopIndex(root, head); err != nil {
-			return "", "", nil, err
+			return "", "", "", nil, err
 		}
 	}
 	// Without a kept index, the one-off copy goes to the system's temp
@@ -303,13 +306,41 @@ func stopTrees(stderr io.Writer, root string, state sessions.SessionState, kinds
 	if idx != nil {
 		tree = idx.Tree
 	} else if tree, err = stopTree(root, os.TempDir()); err != nil {
-		return "", "", nil, err
+		return "", "", "", nil, err
+	}
+	// What the turn changed is judged against the last green tree, not the
+	// base: after the first turn of code the base would always still differ
+	// in that code.
+	from = state.Green
+	if from == "" {
+		from = baseTree
 	}
 	if tree == baseTree {
 		// Nothing since the base: the same answer as a green tree.
-		return head, state.Green, idx, nil
+		return head, state.Green, from, idx, nil
 	}
-	return head, tree, idx, nil
+	return head, tree, from, idx, nil
+}
+
+// turnChanged lists the paths a turn changed, for a lane that may sit out of
+// a turn of paths it names: those between the trees, and, where a commit
+// inside the turn moved HEAD, those the commit took from the base's commit to
+// HEAD's, which the graph lane judges although the trees show them unchanged.
+// A list only where git measured both ends; where it cannot (no tree, no
+// repository, a base git no longer holds) there is none and every lane runs.
+func turnChanged(root, from, tree, base, head string, headMoved bool) []string {
+	changed, err := stopChanged(root, from, tree)
+	if err != nil {
+		return nil
+	}
+	if !headMoved {
+		return changed
+	}
+	committed, err := stopChanged(root, base, head)
+	if err != nil {
+		return nil
+	}
+	return append(changed, committed...)
 }
 
 // headTree is the tree HEAD holds, and the empty tree where there is no

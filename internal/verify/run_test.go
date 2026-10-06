@@ -595,3 +595,14 @@ func TestEveryOutcomeSaysWhetherItsLaneIsInProbation(t *testing.T) {
 		t.Fatalf("coverage %s", outs[1].State)
 	}
 }
+
+func TestRunHandsASkipOnToTheLaneAfterIt(t *testing.T) {
+	pre := job("test/go", -1)
+	pre.Pre, pre.Skipped = StateNotApplicable, true
+	next := job("coverage/go", 0, "c")
+	next.Consumes = true
+	f := &fakeStart{answer: ok}
+	if out := Run([]Job{pre, next}, opts(f)); out[1].State != StateNotApplicable || len(f.started) != 0 {
+		t.Fatalf("%+v %v", out[1], f.started)
+	}
+}

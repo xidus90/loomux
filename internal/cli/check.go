@@ -211,6 +211,14 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 		verify.WriteShow(stdout, eff, kinds, env)
 		return 0
 	}
+	// Inside a commit hook git hands its index in: a lane may sit out a
+	// commit of paths it names. By hand there is no index, and every lane
+	// runs. An index that does not answer leaves the list empty, too.
+	if index := os.Getenv("GIT_INDEX_FILE"); index != "" {
+		if changed, err := gitwork.StagedPaths(root, index); err == nil {
+			env.Changed = changed
+		}
+	}
 	// check stop replays the stop gate, which judges the working tree against
 	// HEAD through a copy of the index; every other request keeps the real one.
 	if request == "stop" {

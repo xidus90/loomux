@@ -219,10 +219,11 @@ Die Schlüssel der Tabellenform:
 | `measure` | String | Nur `test`/`coverage`. Der eine Befehl, den `coverage` zuerst fährt, wenn sein Vorgänger nicht im Lauf steht. |
 | `after` | Art | Nur `test`/`coverage`. Die Art desselben Stacks, auf die diese Lane wartet. Zyklen sind Ladefehler, die Meldung nennt den Ring. |
 | `needs` | Liste | Dateien, relativ zum Verzeichnis der Lane und darin, ohne die ihre `commands` nichts bedeuten. Fehlt eine, ist die Lane `unready`: im Edit übersprungen und genannt, im Check rot. `on_file` bewachen sie nicht: ein Edit, der die Form einer Lane für eine Datei ausführt, führt sie in jedem Fall aus. |
+| `skip_when_only` | Liste | Globs, relativ zur Repository-Wurzel und in der Syntax von `[policy.paths]`, von Pfaden, um die sich die Lane nicht kümmert. Bei einem Commit (im pre-commit-Hook, wo git `GIT_INDEX_FILE` mitgibt) und an einem Turn-Ende (gegen den zuletzt grünen Baum, ohne einen solchen gegen den Baum der Basis; hat ein Commit im Turn HEAD bewegt und läuft am Turn-Ende die Graph-Lane, zählen auch die Pfade, die dieser Commit seit dem Commit der Basis mitnahm) ist eine Lane, deren geänderte Pfade alle auf einen davon passen, `not-applicable` mit der Notiz `only skip_when_only paths changed (…)`. Eine Lane, die ihre Dateien liest (wie das `coverage` von Go die Coverage-Datei, die `test` schreibt), erbt das; so hält `[verify.go.test] skip_when_only` `coverage` davon ab, die Suite selbst zu messen; eine Lane, die nur danach geordnet ist (`after` allein), läuft. Ein Lauf, der nur `coverage` anfragt, braucht den Schlüssel an `coverage`. Ohne geänderten Pfad, von Hand (`loomux check` ohne den Hook) und in einem Edit läuft jede Lane. Der Abgleich unterscheidet Groß- und Kleinschreibung; ein Pfad, der sich nur darin unterscheidet, lässt die Lane laufen. |
 
 - **Ersetzen oder zusammenführen.** Ein String oder eine Liste steht für die
-  Lane, wie sie dasteht: `measuring`, `measure`, `on_file` und `needs` des
-  Presets gelten nicht mehr, nur `after` bleibt. Eine Tabelle ändert nur die
+  Lane, wie sie dasteht: `measuring`, `measure`, `on_file`, `needs` und
+  `skip_when_only` des Presets gelten nicht mehr, nur `after` bleibt. Eine Tabelle ändert nur die
   Schlüssel, die sie nennt: `[verify.go.test] measuring = "…"` behält
   `commands` aus dem Preset.
 - Ein Schlüssel ist in TOML entweder Wert oder Tabelle: `test = "…"` und
@@ -507,7 +508,7 @@ Profil `edit` läuft also nie durch den Baum.
 | `missing-tool` | ein Werkzeug liegt nicht auf dem `PATH` | rot | übersprungen, genannt |
 | `unready` | Godot hat das Projekt nicht importiert, oder eine Datei aus `needs` fehlt | rot | übersprungen, genannt |
 | `unavailable` | Art definiert, kann nicht laufen (keine Tests gefunden) | neutral, zählt als „nichts lief" | nicht angezeigt |
-| `not-applicable` | Art im Stack nicht definiert oder `false`; bei `graph` sagte die Prüfung nein | neutral, angezeigt | nicht angezeigt |
+| `not-applicable` | Art im Stack nicht definiert oder `false`; bei `graph` sagte die Prüfung nein; oder jeder geänderte Pfad passte auf `skip_when_only` | neutral, angezeigt | nicht angezeigt |
 
 - **Was eine Lane erbt.** Konnte die Lane, auf die sie wartet, nicht laufen,
   übernimmt eine Lane deren Zustand (`unavailable`, `not-applicable`, im

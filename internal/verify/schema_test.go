@@ -353,3 +353,21 @@ func TestParseVerifyAcceptsEveryTopKey(t *testing.T) {
 		}
 	}
 }
+
+func TestParseSkipWhenOnly(t *testing.T) {
+	cfg, err := parse(t, "[verify.go.test]\nskip_when_only = [\"**/*.md\", \"docs/**\"]\n")
+	if err != nil || !slices.Equal(cfg.Stacks["go"]["test"].Lane.SkipWhenOnly, []string{"**/*.md", "docs/**"}) || !cfg.Stacks["go"]["test"].Set["skip_when_only"] {
+		t.Fatalf("%v %+v", err, cfg.Stacks["go"]["test"])
+	}
+	for src, want := range map[string]string{
+		"[verify.go.test]\nskip_when_only = []\n":         "[verify.go.test].skip_when_only is empty",
+		"[verify.go.test]\nskip_when_only = \"*.md\"\n":   "[verify.go.test].skip_when_only must be a list of globs",
+		"[verify.go.test]\nskip_when_only = [1]\n":        "[verify.go.test].skip_when_only #1 must be a string",
+		"[verify.go.test]\nskip_when_only = [\"\"]\n":     "[verify.go.test].skip_when_only #1 must be a string",
+		"[verify.go.test]\nskip_when_only = [\"a/[x\"]\n": `[verify.go.test].skip_when_only #1 "a/[x" is no glob`,
+	} {
+		if _, err := parse(t, src); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: %v, want %q", src, err, want)
+		}
+	}
+}
