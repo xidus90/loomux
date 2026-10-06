@@ -748,3 +748,23 @@ func TestReindexStopsWhenTheAreaCannotBeLocked(t *testing.T) {
 		t.Fatalf("expected a refusal, got %v, code %d", err, code)
 	}
 }
+
+// A child area whose directory name starts with two dots is nested in its
+// parent; the parent must leave its files to the child.
+func TestNestedAreasSeesADotDotNamedChild(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "a")
+	child := filepath.Join(parent, "..b")
+	areas := []config.Area{{Scope: "p/parent", Path: parent}, {Scope: "p/child", Path: child}}
+
+	got := nestedAreas(areas[0], areas)
+	if len(got) != 1 || got[0] != child {
+		t.Fatalf("nestedAreas = %v, want [%s]", got, child)
+	}
+	beside := []config.Area{areas[0], {Scope: "p/other", Path: filepath.Join(filepath.Dir(parent), "other")}}
+	if got := nestedAreas(beside[0], beside); len(got) != 0 {
+		t.Fatalf("an area beside the parent is not nested, got %v", got)
+	}
+	if got := nestedAreas(areas[1], areas); len(got) != 0 {
+		t.Fatalf("the parent of an area is not nested in it, got %v", got)
+	}
+}

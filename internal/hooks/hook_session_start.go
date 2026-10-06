@@ -156,7 +156,7 @@ func staleBinary(root string) []string {
 		return nil
 	}
 	rel, err := filepath.Rel(absRoot, path)
-	if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return nil
 	}
 	info, err := os.Stat(path)

@@ -49,7 +49,7 @@ func ResolveTarget(source, target string, wikiPrefix *string) (string, bool) {
 
 	sourceDir := path.Dir(source)
 	raw := path.Join(sourceDir, unescaped)
-	if strings.HasPrefix(raw, "..") {
+	if raw == ".." || strings.HasPrefix(raw, "../") {
 		return "", false
 	}
 	return raw, true

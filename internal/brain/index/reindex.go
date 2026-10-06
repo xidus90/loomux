@@ -39,7 +39,7 @@ func nestedAreas(area config.Area, areas []config.Area) []string {
 			}
 			cleanRoot := filepath.Clean(root)
 			rel, err := filepath.Rel(here, cleanRoot)
-			if err == nil && !strings.HasPrefix(rel, "..") && rel != "." {
+			if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != "." {
 				res = append(res, cleanRoot)
 			}
 		}

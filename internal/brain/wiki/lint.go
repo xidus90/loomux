@@ -171,7 +171,7 @@ func LintBundle(wikiRoot string) ([]check.Finding, error) {
 			relToWiki, _ := filepath.Rel(wikiRoot, resolved)
 			relToWiki = filepath.ToSlash(relToWiki)
 
-			if strings.HasPrefix(relToWiki, "..") {
+			if relToWiki == ".." || strings.HasPrefix(relToWiki, "../") {
 				// Outside area
 				if judged {
 					findings = append(findings, check.Finding{

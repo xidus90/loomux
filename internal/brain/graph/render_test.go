@@ -196,3 +196,27 @@ func TestRenderGraph_SortingAndDeduplication(t *testing.T) {
 func strPtr(s string) *string {
 	return &s
 }
+
+// A first path component that merely starts with two dots is a file name, not
+// a climb out of the area.
+func TestResolveTargetKeepsADotDotNamedFileInside(t *testing.T) {
+	tests := []struct {
+		source, link, want string
+		ok                 bool
+	}{
+		{"a.md", "..draft.md", "..draft.md", true},
+		{"sub/a.md", "../..draft.md", "..draft.md", true},
+		{"sub/a.md", "..draft.md", "sub/..draft.md", true},
+		{"a.md", "../out.md", "", false},
+		{"a.md", "..", "", false},
+	}
+	for _, tt := range tests {
+		got, ok := graph.ResolveTarget(tt.source, tt.link, nil)
+		if got != tt.want || ok != tt.ok {
+			t.Errorf("ResolveTarget(%q, %q) = %q, %v; want %q, %v", tt.source, tt.link, got, ok, tt.want, tt.ok)
+		}
+	}
+	if r := graph.DropReason("a.md", "..draft.md", map[string]bool{"..draft.md": true}, nil); r != nil {
+		t.Errorf("a link to a ..-named page dropped as %q", *r)
+	}
+}
