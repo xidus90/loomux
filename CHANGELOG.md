@@ -4,6 +4,39 @@ All notable changes to loomux are listed here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [10.0.0] - 2026-10-06
+
+<https://github.com/xidus90/loomux/pull/85>
+
+### Changed
+- `loomux reindex` exits 1 when an area's path exists but cannot be inspected (denied access, an unreachable share), with the line `skipping <scope>: <path> cannot be inspected: <error>`; the other areas are still indexed. An area whose path is missing is still skipped with exit 0.
+- `loomux wiki-gate` reports a failing `git status` in a directory with a `.git` entry as the violation `wiki-git` and exits 1, instead of passing with "no drift detected"; a wiki beside the project that is not a git repository no longer reports drift forever.
+- `loomux serve stop --force` returns once `serve.lock` is free, and exits 1 naming the PID and the lock when it stays held.
+- `loomux area add` names the merge branch the way git does: an unborn branch by its name (`git init -b main` gives `main`), a path without a repository by `init.defaultBranch`, else `master`.
+- `loomux area add` no longer writes a `[layout] sources` key, which no reader ever read.
+### Fixed
+- A check command in `[verify]` keeps a backslash inside double quotes before an ordinary character: `gofmt -l "src\main.go"` no longer runs on `srcmain.go`.
+- The guard no longer refuses commands whose quoted arguments merely contain a literal backslash, such as `loomux "con\fig" set a b`.
+- `loomux lint` and `wiki-gate` read a page named like `..draft.md` as inside the wiki: no false outside-area warning or orphan, and a dead link to a missing one is an error again; the graph keeps links to such pages.
+- `reindex` sees a nested area whose directory starts with two dots and no longer indexes its files into the parent area.
+- Session start warns about a stale binary under a directory whose name starts with two dots.
+- `reindex` no longer refuses its own collections for good after the ownership record could not be written once.
+- Dropping a collection keeps the one-time backup of qmd's `index.yml`, as adding one already did.
+- Searches no longer answer "no matches" when another service listens on the search engine's port; the engine is started and a search that cannot be answered is an error.
+- The daily upkeep in `loomux serve` reports a `registry.toml` it cannot inspect as a failed pass instead of skipping it silently.
+- After an aborted `approve` or `reject`, a file changed outside the vault is listed under its own hint, and a case directory that was already gone is no longer listed as deleted.
+- The stop gate treats a repository whose HEAD names no commit it holds as unmeasurable instead of measuring from the empty tree.
+- The worktree sweep no longer aborts when a candidate path disappears while it is read.
+- `loomux dev release changelog-insert` finds an entry on the first line of a changelog without a header: a duplicate version is refused and a new entry goes on top.
+- `loomux dev release parse-body` ends the changelog block at an indented second-level heading, as at one in the first column.
+- The guard's refusal no longer offers the agents' memory where no memory directory exists, and names a relative target it cannot place as unresolvable.
+### Security
+- The write guard refuses `sh -c "\"bin\loomux.exe\" init"` and the same with `bash -c` and `pwsh -Command`, which it let through before.
+- A policy rule naming a directory that starts with two dots, such as `..secrets/**`, now matches inside the project.
+- A rooted `[layout] review` value (`/x`, `\x`, `C:x`) no longer opens `proposal.md` below the area's own tree for writing.
+- An `open.toml` entry whose kind cannot be read makes the guard ignore the whole file and say why, instead of exempting the entry unchecked.
+- A hand-written catalog line linking `/../<hidden path>` no longer reaches the cloud channel when the target lies in a `local_only` tree.
+
 ## [9.0.0] - 2026-10-05
 
 <https://github.com/xidus90/loomux/pull/83>
