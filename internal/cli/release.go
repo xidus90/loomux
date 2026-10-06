@@ -164,7 +164,6 @@ func devReleaseBuild(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("dev release build", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	version := fs.String("version", "", "release version without v")
-	channel := fs.String("channel", "", "release channel, e.g. beta")
 	out := fs.String("out", "dist", "output directory")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -173,7 +172,7 @@ func devReleaseBuild(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "loomux dev release build: --version is required")
 		return 2
 	}
-	names, err := release.Build(*version, *channel, *out, releaseGo)
+	names, err := release.Build(*version, *out, releaseGo)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux dev release build: %v\n", err)
 		return 1

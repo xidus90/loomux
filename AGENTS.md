@@ -90,7 +90,8 @@ are German and never translated.
   parse-body` is the check.
 - The one exception to the rules on commit authors and pushes: `chore(release): v*`
   commits and `v*` tags made by `.github/workflows/release.yml` through the
-  `loomux-release` GitHub App. No agent uses that app.
+  `loomux-release` GitHub App. The beta path of that workflow tags a ref and
+  publishes a pre-release without any commit. No agent uses that app.
 - Commits carry the user as author and committer and credit no model or agent
   (see the release exception above).
 - Nobody but a human pushes (see the release exception above). The loomux
