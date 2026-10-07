@@ -239,6 +239,110 @@ func TestPlanMarksGodotUnready(t *testing.T) {
 	}
 }
 
+func TestPlanPutsTheGodotBinaryIn(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"game"}}}
+	root := t.TempDir()
+	src := "[verify.gdscript.test]\ncommands = [\"{godot} --headless -s run.gd\"]\n"
+	e := env(root)
+	var asked string
+	e.Godot = func(dir string) (string, State, string) { asked = dir; return `C:\g\godot_console.exe`, "", "" }
+	jobs, err := Plan(effFor(t, src, facts), Request{Kinds: []string{"lint", "test"}}, e)
+	if err != nil || jobs[1].Argvs[0][0] != `C:\g\godot_console.exe` || asked != filepath.Join(root, "game") {
+		t.Fatalf("%v %+v asked %q", err, jobs, asked)
+	}
+	e.Godot = func(string) (string, State, string) { return "", StateUnready, "Godot 4.8 found" }
+	jobs, _ = Plan(effFor(t, src, facts), Request{Kinds: []string{"test"}}, e)
+	if jobs[0].Pre != StateUnready || jobs[0].Note != "Godot 4.8 found" {
+		t.Fatalf("%+v", jobs[0])
+	}
+	e.Godot = nil
+	jobs, _ = Plan(effFor(t, src, facts), Request{Kinds: []string{"test"}}, e)
+	if jobs[0].Pre != StateMissingTool {
+		t.Fatalf("%+v", jobs[0])
+	}
+	// A lane without {godot} never asks, nor one whose commands name it while
+	// this run drives its measuring form, which does not.
+	e.Godot = func(string) (string, State, string) { t.Fatal("asked"); return "", "", "" }
+	Plan(effFor(t, "", facts), Request{Kinds: []string{"lint"}}, e)
+	measured := src + "measuring = \"sh measure.sh {coverprofile}\"\n[verify.gdscript.coverage]\ncommands = [\"report {coverprofile}\"]\nafter = \"test\"\n"
+	Plan(effFor(t, measured, facts), Request{Kinds: []string{"test", "coverage"}}, e)
+}
+
+// A coverage lane's measure step runs the suite itself, so it asks too, and
+// the binary lands in it.
+func TestPlanPutsTheGodotBinaryIntoAMeasureStep(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+	src := "[verify.gdscript.test]\ncommands = [\"sh run.sh\"]\n[verify.gdscript.coverage]\ncommands = [\"report {coverprofile}\"]\nmeasure = \"{godot} --cover {coverprofile}\"\nafter = \"test\"\n"
+	e := env(t.TempDir())
+	var asked string
+	e.Godot = func(dir string) (string, State, string) { asked = dir; return "/g/godot", "", "" }
+	jobs, err := Plan(effFor(t, src, facts), Request{Kinds: []string{"coverage"}}, e)
+	if err != nil || len(jobs) != 1 || len(jobs[0].Measure) == 0 || jobs[0].Measure[0] != "/g/godot" || asked != jobs[0].Dir {
+		t.Fatalf("%v %+v asked %q", err, jobs, asked)
+	}
+	e.Godot = func(string) (string, State, string) { return "", StateUnready, "no match" }
+	jobs, _ = Plan(effFor(t, src, facts), Request{Kinds: []string{"coverage"}}, e)
+	if jobs[0].Pre != StateUnready || jobs[0].Note != "no match" || len(jobs[0].Measure) != 0 {
+		t.Fatalf("%+v", jobs[0])
+	}
+	// Commands and measure step naming it share one answer.
+	both := "[verify.gdscript.coverage]\ncommands = [\"{godot} report {coverprofile}\"]\nmeasure = \"{godot} --cover {coverprofile}\"\nafter = \"test\"\n"
+	asks := 0
+	e.Godot = func(string) (string, State, string) { asks++; return "/g/godot", "", "" }
+	jobs, err = Plan(effFor(t, both, facts), Request{Kinds: []string{"coverage"}}, e)
+	if err != nil || asks != 1 || jobs[0].Argvs[0][0] != "/g/godot" || jobs[0].Measure[0] != "/g/godot" {
+		t.Fatalf("%v %+v asked %d", err, jobs, asks)
+	}
+}
+
+// A lane that sits a commit out does not run --version for it either.
+func TestPlanDoesNotAskForGodotWhenTheLaneSitsOut(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+	src := "[verify.gdscript.test]\ncommands = [\"{godot} --headless\"]\nskip_when_only = [\"docs/**\"]\n"
+	e := env(t.TempDir())
+	e.Godot = func(string) (string, State, string) { t.Fatal("asked"); return "", "", "" }
+	e.Changed = []string{"docs/a.md"}
+	jobs, err := Plan(effFor(t, src, facts), Request{Kinds: []string{"test"}}, e)
+	if err != nil || jobs[0].Pre != StateNotApplicable || !jobs[0].Skipped {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+}
+
+// A lane that reads a skipped predecessor's files inherits its not-applicable
+// at run time, so its measure step, which would run the suite the commit sat
+// out, is never taken and never asks for the binary.
+func TestPlanAReadingLaneAfterASkippedOneNeverAsksForGodot(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+	src := "[verify.gdscript.test]\ncommands = [\"sh run.sh {coverprofile}\"]\nskip_when_only = [\"docs/**\"]\n" +
+		"[verify.gdscript.coverage]\ncommands = [\"report {coverprofile}\"]\nmeasure = \"{godot} --cover {coverprofile}\"\nafter = \"test\"\n"
+	e := env(t.TempDir())
+	e.Godot = func(string) (string, State, string) { t.Error("asked"); return "", StateMissingTool, "no Godot binary" }
+	e.Changed = []string{"docs/a.md"}
+	jobs, err := Plan(effFor(t, src, facts), Request{Kinds: []string{"test", "coverage"}}, e)
+	if err != nil || len(jobs) != 2 {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+	if cov := jobs[1]; cov.Pre != "" || cov.After != 0 || !cov.Consumes || len(cov.Measure) != 0 {
+		t.Fatalf("%+v", cov)
+	}
+	// A running predecessor links the same way.
+	e.Changed = nil
+	if jobs, err = Plan(effFor(t, src, facts), Request{Kinds: []string{"test", "coverage"}}, e); err != nil || jobs[1].Pre != "" || jobs[1].After != 0 {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+}
+
+// Where the measure step is taken, it asks, and without a finder the lane is
+// missing-tool.
+func TestPlanAMeasureStepWithoutAFinderIsMissingTool(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+	src := "[verify.gdscript.coverage]\ncommands = [\"report {coverprofile}\"]\nmeasure = \"{godot} --cover {coverprofile}\"\nafter = \"test\"\n"
+	jobs, err := Plan(effFor(t, src, facts), Request{Kinds: []string{"coverage"}}, env(t.TempDir()))
+	if err != nil || jobs[0].Pre != StateMissingTool || jobs[0].Note != "{godot} has no finder in this run" {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+}
+
 // No preset tests GDScript: a Godot project that names no test command has
 // nothing to import for, so a project that was never imported is not held.
 func TestPlanHasNoGodotTestLaneUntilAProjectNamesOne(t *testing.T) {
@@ -457,8 +561,8 @@ func TestSettleStillLinksATestLaneWithoutTests(t *testing.T) {
 		{Name: "test/go", Kind: "test", Stack: "go", Area: ".", After: -1, Pre: StateUnavailable},
 		{Name: "coverage/go", Kind: "coverage", Stack: "go", Area: ".", After: -1},
 	}
-	l := link{after: "test", measure: "go test ./...", repl: strings.NewReplacer()}
-	if err := settle(jobs, []link{{}, l}, 1, Request{Kinds: []string{"test", "coverage"}}); err != nil {
+	l := link{after: "test", measure: "go test ./..."}
+	if err := settle(jobs, []link{{}, l}, 1, Request{Kinds: []string{"test", "coverage"}}, PlanEnv{}); err != nil {
 		t.Fatal(err)
 	}
 	if jobs[1].After != 0 || len(jobs[1].Measure) != 0 {

@@ -79,6 +79,7 @@ type Config struct {
 	SetProfiles map[string]bool
 	Stacks      map[string]map[string]Override
 	ImportCheck bool
+	Godot       string
 }
 
 func defaults() Config {
@@ -253,6 +254,12 @@ func parseStack(cfg *Config, stack string, value any) error {
 				return errors.New("[verify.gdscript].import_check must be a boolean")
 			}
 			cfg.ImportCheck = b
+		case key == "godot" && stack == "gdscript":
+			s, ok := v.(string)
+			if !ok || s == "" {
+				return errors.New("[verify.gdscript].godot must be a path")
+			}
+			cfg.Godot = s
 		case slices.Contains(Kinds(), key):
 			// The wiki stack has no tools of its own; its one lane can only
 			// be switched off.
@@ -268,10 +275,30 @@ func parseStack(cfg *Config, stack string, value any) error {
 			return fmt.Errorf("[verify.%s] has unknown key %q", stack, key)
 		}
 	}
+	if err := checkGodotPlaceholder("verify."+stack, stack, func(kind string) Lane { return lanes[kind].Lane }); err != nil {
+		return err
+	}
 	if err := checkCycle("verify."+stack, lanes); err != nil {
 		return err
 	}
 	cfg.Stacks[stack] = lanes
+	return nil
+}
+
+// checkGodotPlaceholder refuses {godot} outside gdscript: no other stack
+// has a project.godot to check the binary against.
+func checkGodotPlaceholder(owner, stack string, lane func(string) Lane) error {
+	if stack == "gdscript" {
+		return nil
+	}
+	for _, kind := range Kinds() {
+		l := lane(kind)
+		if slices.ContainsFunc(slices.Concat(l.Commands, l.OnFile, []string{l.Measure, l.Measuring}), func(c string) bool {
+			return strings.Contains(c, placeholderGodot)
+		}) {
+			return fmt.Errorf("[%s].%s uses %s, which only gdscript lanes know", owner, kind, placeholderGodot)
+		}
+	}
 	return nil
 }
 

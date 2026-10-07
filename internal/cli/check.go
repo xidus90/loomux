@@ -205,7 +205,8 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 	}
 	runID := verify.NewRunID(checkNow(), os.Getpid())
 	env := verify.PlanEnv{Root: root, Loomux: loomux, RunID: runID, HasTests: verify.HasTests,
-		ImportReady: verify.ImportReady, GraphReady: query.GraphReady, GraphEnv: query.GraphEnv}
+		ImportReady: verify.ImportReady, GraphReady: query.GraphReady, GraphEnv: query.GraphEnv,
+		Godot: verify.GodotFor(root, eff.Config.Godot, checkStart, nil)}
 	// The table asks no probe, so it needs no copy of the index.
 	if *show {
 		verify.WriteShow(stdout, eff, kinds, env)

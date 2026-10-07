@@ -144,6 +144,7 @@ lint = "make lint"
 | `profiles.<name>` | list of kinds | A named set of kinds. `edit` (post-edit), `precommit` (the pre-commit gate) and `stop` (the stop gate at a turn end) are built in and can be overridden, but not removed. An empty list, an unknown kind or a reserved name is a load error. |
 | `<stack>.<kind>` | string, list, `false` or table | How one kind runs for one stack; see below. |
 | `gdscript.import_check` | boolean | Default `true`: a `test` or `coverage` lane the project configures for GDScript is `unready` until the Godot editor has imported the project (`.godot/global_script_class_cache.cfg`). |
+| `gdscript.godot` | string | The Godot binary `{godot}` names, relative to the root or absolute. Checked after `GODOT_BIN` and before `PATH`. |
 
 Every other key is a load error that names the file and the key, on every
 level: `[verify]`, `[verify.<stack>]` and `[verify.<stack>.<kind>]`. So is
@@ -194,7 +195,7 @@ is too slow for every turn end narrows it (`stop = ["lint", "types"]`).
 #### The forms of a kind
 
 A stack table knows the keys `lint`, `types`, `test`, `coverage`, `graph` (and
-`import_check` in `[verify.gdscript]`). Each kind is one of:
+`import_check` and `godot` in `[verify.gdscript]`). Each kind is one of:
 
 | Form | Example | Meaning |
 |---|---|---|
@@ -245,6 +246,7 @@ stays literal (`-run 'Test{A,B}'`).
 | `{coverprofile}` | `.loomux/state/cover/<run-id>-<stack>-<area>.out`, one per run and lane. |
 | `{coverdata}` | The same with `.data`. Python lanes also get `COVERAGE_FILE={coverdata}` in their environment. |
 | `{loomux}` | The running binary. The Go preset finds `gocover` this way even where loomux is not on the `PATH`. |
+| `{godot}` | `gdscript` only, anywhere else a load error. The first of `GODOT_BIN`, `[verify.gdscript] godot` and `godot`/`godot4` on the `PATH` that exists; on Windows the `_console.exe` beside a found `.exe`. Its `--version` must match the major and minor version of `config/features` in the area's `project.godot`, and be a mono build when the project has a `[dotnet]` section; otherwise the lane is `unready` and says which binary it found and what the project wants. Nothing found is `missing-tool`. A binary is asked once per run, for at most 30 s; at a turn end and in an edit the wait counts against the budget, and a lane whose binary could not be asked in time ends as `budget`. |
 
 - A `coverage` lane that reads `{coverprofile}` while neither `test`,
   `test.measuring` nor `coverage.measure` of the same stack writes it is a
@@ -304,11 +306,13 @@ then `[verify.<stack>]`.
 
   ```toml
   [verify.gdscript.test]
-  commands = ["'C:/Tools/Godot/Godot_v4.7.1-stable_win64_console.exe' --headless --script tests/run_tests.gd"]
+  commands = ["{godot} --headless --script tests/run_tests.gd"]
   ```
 
   The script has to exit non-zero when a test fails. `import_check` applies
-  to the lane once it has a command. Write the path with forward slashes, in
+  to the lane once it has a command. `{godot}` finds the binary and checks it
+  against the project (see the placeholder table); where a project writes the
+  path into the command instead, write it with forward slashes, in
   single quotes when it holds a space: a backslash is literal in single
   quotes, and in double quotes unless it comes before `$`, a backtick, `"`
   or `\`, where it escapes the character. Before a newline in double quotes
@@ -493,8 +497,8 @@ profile never walks the tree.
 | `timed-out` | its own `timeout` | red | red, exit 2 |
 | `budget` | the run's budget was spent | — | skipped, named |
 | `blocked` | the lane it waits for (`after`) is red; behind a lane in probation it is in probation itself | red, or in probation | red, exit 2, or in probation |
-| `missing-tool` | a tool is not on the `PATH` | red | skipped, named |
-| `unready` | Godot has not imported the project, or a file in `needs` is missing | red | skipped, named |
+| `missing-tool` | a tool is not on the `PATH`, or `{godot}` finds no Godot binary | red | skipped, named |
+| `unready` | Godot has not imported the project, a file in `needs` is missing, or for `{godot}` the binary found does not match the project (version, mono build) or the area has no readable `project.godot` | red | skipped, named |
 | `unavailable` | the kind is defined but cannot run (no tests found) | neutral, counts as "nothing ran" | not shown |
 | `not-applicable` | the kind is not defined for the stack, or `false`; for `graph`, the probe said no; or every changed path matched `skip_when_only` | neutral, shown | not shown |
 

@@ -364,6 +364,56 @@ func TestRunStartsNothingOnceTheBudgetIsSpent(t *testing.T) {
 	}
 }
 
+// A negative budget is one that was spent before the run began, where 0 is
+// none.
+func TestRunStartsNothingWithANegativeBudget(t *testing.T) {
+	f := &fakeStart{answer: ok}
+	o := opts(f)
+	o.Budget = -time.Nanosecond
+	if out := Run([]Job{job("lint/go", -1, "x")}, o); out[0].State != StateBudget || len(f.started) != 0 {
+		t.Fatalf("%+v %v", out, f.started)
+	}
+	o.Budget = 0
+	if out := Run([]Job{job("lint/go", -1, "x")}, o); out[0].State != StateOK || len(f.started) != 1 {
+		t.Fatalf("no budget: %+v %v", out, f.started)
+	}
+}
+
+func TestBudgetLeftCountsDownFromTheCall(t *testing.T) {
+	if BudgetLeft(0, time.Now) != nil || BudgetLeft(-time.Second, time.Now) != nil {
+		t.Fatal("no budget is no function")
+	}
+	now := time.Now()
+	left := BudgetLeft(time.Minute, func() time.Time { return now })
+	if left() != time.Minute {
+		t.Fatalf("%v", left())
+	}
+	now = now.Add(45 * time.Second)
+	if left() != 15*time.Second {
+		t.Fatalf("%v", left())
+	}
+	now = now.Add(time.Minute)
+	if left() != -45*time.Second {
+		t.Fatalf("%v", left())
+	}
+}
+
+func TestRunBudgetIsWhatIsLeftAndNegativeOnceSpent(t *testing.T) {
+	for name, row := range map[string]struct {
+		left func() time.Duration
+		want time.Duration
+	}{
+		"none":  {nil, 0},
+		"some":  {func() time.Duration { return time.Second }, time.Second},
+		"zero":  {func() time.Duration { return 0 }, -time.Nanosecond},
+		"spent": {func() time.Duration { return -time.Hour }, -time.Nanosecond},
+	} {
+		if got := RunBudget(row.left); got != row.want {
+			t.Errorf("%s: %v, want %v", name, got, row.want)
+		}
+	}
+}
+
 func TestRunLetsAFindingOutrankTheBudget(t *testing.T) {
 	c := &clock{}
 	f := &fakeStart{answer: func(child.Spec) child.Result { return child.Result{Code: 1} }}

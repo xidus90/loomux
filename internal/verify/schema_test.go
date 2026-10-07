@@ -385,3 +385,23 @@ func TestParseLock(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestParseGodotPathAndPlaceholder(t *testing.T) {
+	cfg, err := parse(t, "[verify.gdscript]\ngodot = \".tools/godot.exe\"\n")
+	if err != nil || cfg.Godot != ".tools/godot.exe" {
+		t.Fatalf("%v %q", err, cfg.Godot)
+	}
+	for src, want := range map[string]string{
+		"[verify.gdscript]\ngodot = \"\"\n":                                      "[verify.gdscript].godot must be a path",
+		"[verify.gdscript]\ngodot = 1\n":                                         "[verify.gdscript].godot must be a path",
+		"[verify.go]\ngodot = \"x\"\n":                                           `[verify.go] has unknown key "godot"`,
+		"[verify.go]\ntest = \"{godot} --headless\"\n":                           "[verify.go].test uses {godot}, which only gdscript lanes know",
+		"[verify.go.test]\ncommands = [\"x\"]\non_file = [\"{godot} {file}\"]\n": "[verify.go].test uses {godot}, which only gdscript lanes know",
+		"[verify.go.test]\ncommands = [\"x\"]\nmeasuring = \"{godot} x\"\n":      "[verify.go].test uses {godot}, which only gdscript lanes know",
+		"[verify.go.coverage]\ncommands = [\"x\"]\nmeasure = \"{godot} x\"\n":    "[verify.go].coverage uses {godot}, which only gdscript lanes know",
+	} {
+		if _, err := parse(t, src); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: %v, want %q", src, err, want)
+		}
+	}
+}

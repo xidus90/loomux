@@ -166,6 +166,9 @@ func parsePresetStack(name string, value any) (PresetStack, error) {
 			return PresetStack{}, err
 		}
 	}
+	if err := checkGodotPlaceholder(owner, name, func(kind string) Lane { return stack.Lanes[kind] }); err != nil {
+		return PresetStack{}, err
+	}
 	if err := checkLanes(owner, stack.Lanes); err != nil {
 		return PresetStack{}, err
 	}

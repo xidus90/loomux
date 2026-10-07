@@ -87,6 +87,9 @@ type PlanEnv struct {
 	// Changed are the paths a commit or a turn end changes; nil outside both,
 	// and then every lane runs.
 	Changed []string
+	// Godot finds the binary {godot} names for the project in dir, or says why
+	// the lane cannot run; nil means a lane naming {godot} is missing-tool.
+	Godot func(dir string) (bin string, pre State, note string)
 }
 
 // ImportReady says whether Godot has imported the project in dir: only then
@@ -148,8 +151,26 @@ type target struct {
 type link struct {
 	after, measure string
 	reads, hidden  []string
-	repl           *strings.Replacer
-	measuring      bool
+	// pairs are the placeholders every step of the lane shares, and godot the
+	// binary the lane's commands named; the measure step looks for its own
+	// only when it is taken.
+	pairs     []string
+	godot     string
+	measuring bool
+}
+
+// replacer fills the lane's placeholders, {godot} with godot.
+func (l link) replacer(godot string) *strings.Replacer {
+	return strings.NewReplacer(append([]string{placeholderGodot, godot}, l.pairs...)...)
+}
+
+// godotFor is the binary for the project in dir, or the state a lane without
+// one takes.
+func (e PlanEnv) godotFor(dir string) (bin string, pre State, note string) {
+	if e.Godot == nil {
+		return "", StateMissingTool, "{godot} has no finder in this run"
+	}
+	return e.Godot(dir)
 }
 
 // Plan lays out the lanes of a run: kinds as requested, stacks in byte
@@ -203,7 +224,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 		}
 	}
 	for i := range jobs {
-		if err := settle(jobs, links, i, req); err != nil {
+		if err := settle(jobs, links, i, req, env); err != nil {
 			return nil, err
 		}
 	}
@@ -392,6 +413,18 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	if measuring {
 		cmds = []string{r.Lane.Measuring}
 	}
+	// Only a lane whose commands of this run name {godot} asks for the binary
+	// here: each ask can cost a --version. A measure step asks when it is
+	// taken (see settle), which a lane after a skipped one never does.
+	godot := ""
+	if slices.ContainsFunc(cmds, func(c string) bool { return strings.Contains(c, placeholderGodot) }) {
+		bin, pre, note := env.godotFor(dir)
+		if pre != "" {
+			job.Pre, job.Note = pre, note
+			return job, link{}, true, nil
+		}
+		godot = bin
+	}
 	profile, data := CoverPaths(env.Root, env.RunID, stack, area)
 	pairs := []string{"{area}", dir, "{coverprofile}", profile, "{coverdata}", data, "{loomux}", env.Loomux}
 	if req.Scope == ScopeEdit {
@@ -401,9 +434,10 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		}
 		pairs = append(pairs, placeholderFile, file)
 	}
-	l := link{after: r.Lane.After, measure: r.Lane.Measure, repl: strings.NewReplacer(pairs...), measuring: measuring}
+	l := link{after: r.Lane.After, measure: r.Lane.Measure, pairs: pairs, godot: godot, measuring: measuring}
+	repl := l.replacer(godot)
 	for _, c := range cmds {
-		argv, err := expand(c, l.repl)
+		argv, err := expand(c, repl)
 		if err != nil {
 			return Job{}, link{}, false, err
 		}
@@ -485,7 +519,7 @@ func expand(command string, repl *strings.Replacer) ([]string, error) {
 // itself, and without a measure step a job that reads coverage has nothing
 // to read. A predecessor switched off counts as not requested: it would
 // measure nothing, while one that found no tests still hands on its state.
-func settle(jobs []Job, links []link, i int, req Request) error {
+func settle(jobs []Job, links []link, i int, req Request, env PlanEnv) error {
 	job, l := &jobs[i], links[i]
 	if job.Pre != "" || l.after == "" {
 		return nil
@@ -516,7 +550,16 @@ func settle(jobs []Job, links []link, i int, req Request) error {
 		}
 	}
 	if l.measure != "" {
-		argv, err := expand(l.measure, l.repl)
+		godot := l.godot
+		if godot == "" && strings.Contains(l.measure, placeholderGodot) {
+			bin, pre, note := env.godotFor(job.Dir)
+			if pre != "" {
+				job.Pre, job.Note = pre, note
+				return nil
+			}
+			godot = bin
+		}
+		argv, err := expand(l.measure, l.replacer(godot))
 		if err != nil {
 			return err
 		}
