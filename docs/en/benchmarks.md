@@ -3463,6 +3463,38 @@ after; `ExecuteSearch` 2.363–2.614 ms before, 1.978–2.030 ms after.
    1.864 ms are faster, as the warm runs are; they are not evidence by
    themselves.
 
+## 2026-10-06 22:09 — What a Lane Could Save by Sitting Out a Commit
+
+**Goal.** Whether letting lanes sit out commits that do not touch them is
+worth it, and whether loomux can tell those commits by the stack alone.
+
+**Method.** One warm run of loomux's own gate (`go run ./cmd/loomux check
+precommit`, `757d600b`, AMD Ryzen 7 9800X3D, Windows 11 Pro): 3 min 50 s,
+`test/go` 226.6 s of it. Listing the changed paths: `git diff --cached
+--name-only` and `git diff HEAD --name-only` in `space`, median of 10 runs
+with PowerShell `Measure-Command`: 89 ms and 83 ms.
+`Godot_v4.7.1-stable_mono_win64_console.exe --version`, median of 5: 57 ms.
+The last 400 non-merge commits of 12 repositories, replayed against two
+rules: *by stack* skips a lane when no changed path has its stack's
+extension; *hybrid* skips only when every path has another stack's
+extension and runs on a path no stack claims. *Missed* counts skipped
+commits that changed a file a test of that stack demonstrably reads. No cold
+runs were measured.
+
+| Repository, lane | By stack | Hybrid | Missed |
+| --- | ---: | ---: | ---: |
+| loomux, go | 39 % | 35 % | 0 |
+| space, python | 97 % | 77 % | 83 |
+| odysseus, python | 31 % | 29 % | 65 |
+| iam_backend, python | 33 % | 25 % | 16 |
+| open-design, typescript | 24 % | 15 % | 13 |
+| Strata, python | 66 % | 34 % | 1 |
+
+**Result.** A rule by stack would switch off tests that were affected in
+five of six repositories checked, so `skip_when_only` names the paths per
+lane and nothing is skipped without it. The gate run is one warm run, not a
+median.
+
 ## 2026-10-08 07:41 — GDScript Extraction: graph build on space
 
 **Goal.** What `loomux graph build` reads of a Godot project. Before this stage

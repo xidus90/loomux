@@ -168,6 +168,10 @@ What loomux will gain next. *Priority* orders the rows (1 first); the roadmap se
 | **`reindex` from a linked worktree** | `reindex` resolves the area of a linked worktree through the common git directory and writes only that branch's register; today it always indexes the registered path | 4e follow-up | Register ids that are never removed | — |
 | **The write barrier guards the register** | The barrier refuses every write to `_identities.tsv` in a registered area, through Write/Edit and through the shell; today an agent may edit it | 4e follow-up | — | — |
 | **What a project needs at session start** | `hook session-start` warns when `core.hooksPath` does not point at the versioned hooks or the repository is not a work tree, and a project can hang its own steps into it; today a project such as `space` keeps its own session-start script beside loomux for those warnings, a recent-log excerpt and a per-worktree Godot `user://` | 4e follow-up | — | — |
+| **LCOV coverage gate** | `loomux check lcov`: reads and merges LCOV reports, holds each line to a threshold, takes exemption markers with a reason and refutes one on a line that ran, and is red on a report that is missing, empty or older than the run; for any tool that writes LCOV (Nano Coverage, vitest, gcovr) | — | — | — |
+| **Godot test suite** | `loomux check godot-suite`: gdUnit4 headless in shards, Nano Coverage instrumented and restored, a stale class cache named with the command that refreshes it, and `test`/`coverage` presets for `gdscript` that use `{godot}` and `lock` | — | LCOV coverage gate | — |
+| **Project rules as checks** | Built-in checks for a test module per source, leftover instrumentation, sources outside every checked directory and a core that must not reach the UI, configured per project | — | — | — |
+| **space on loomux alone** | `space` drops `godot_quality.py` and its helpers; its pre-commit runs `loomux check precommit` only | — | Godot test suite, Project rules as checks | — |
 
 ### Maybe
 
