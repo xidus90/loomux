@@ -221,9 +221,13 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 		ready = verify.ImportReady
 	}
 	changed := turnChanged(root, from, tree, state.Base, head, headMoved)
+	// The budget is the chain's from here on, planning included: a binary the
+	// plan asks for its version is paid from it, and the run gets what is left.
+	left := verify.BudgetLeft(env.Budget, env.Now)
 	jobs, err := stopPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeCheck}, verify.PlanEnv{
 		Root: root, Loomux: env.Loomux, RunID: runID, HasTests: verify.HasTests, ImportReady: ready,
 		GraphReady: idx.Ready, GraphEnv: idx.Env, Changed: changed,
+		Godot: verify.GodotFor(root, eff.Config.Godot, env.Start, left),
 	})
 	if err != nil {
 		say("%v", err)
@@ -236,7 +240,7 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	}
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeCheck, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
-		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
+		Budget: verify.RunBudget(left), Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
 		Caller: "hook stop", Waiting: verify.WaitingTo(stderr),
 	})
 	code, warned := stopVerdict(stderr, kinds, verify.Strict(eff.Config, "stop"), outs, armed.Arms)

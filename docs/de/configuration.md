@@ -146,6 +146,7 @@ lint = "make lint"
 | `profiles.<name>` | Liste von Arten | Eine benannte Menge von Arten. `edit` (post-edit), `precommit` (das Pre-Commit-Tor) und `stop` (das Stop-Tor am Rundenende) sind eingebaut und überschreibbar, aber nicht zu entfernen. Eine leere Liste, eine unbekannte Art oder ein reservierter Name ist ein Ladefehler. |
 | `<stack>.<art>` | String, Liste, `false` oder Tabelle | Wie eine Art für einen Stack läuft; siehe unten. |
 | `gdscript.import_check` | Boolean | Vorgabe `true`: Eine `test`- oder `coverage`-Lane, die das Projekt für GDScript konfiguriert, ist `unready`, bis der Godot-Editor das Projekt importiert hat (`.godot/global_script_class_cache.cfg`). |
+| `gdscript.godot` | String | Das Godot-Binary, das `{godot}` nennt, relativ zur Wurzel oder absolut. Wird nach `GODOT_BIN` und vor dem `PATH` geprüft. |
 
 Jeder andere Schlüssel ist ein Ladefehler, der Datei und Schlüssel nennt, auf
 jeder Ebene: `[verify]`, `[verify.<stack>]` und `[verify.<stack>.<art>]`.
@@ -199,7 +200,7 @@ Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
 #### Die Formen einer Art
 
 Eine Stack-Tabelle kennt die Schlüssel `lint`, `types`, `test`, `coverage`, `graph`
-(und `import_check` in `[verify.gdscript]`). Jede Art ist eins von:
+(und `import_check` und `godot` in `[verify.gdscript]`). Jede Art ist eins von:
 
 | Form | Beispiel | Bedeutung |
 |---|---|---|
@@ -250,6 +251,7 @@ anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
 | `{coverprofile}` | `.loomux/state/cover/<lauf-id>-<stack>-<bereich>.out`, eine je Lauf und Lane. |
 | `{coverdata}` | Dasselbe mit `.data`. Python-Lanes bekommen zusätzlich `COVERAGE_FILE={coverdata}` in ihre Umgebung. |
 | `{loomux}` | Das laufende Binary. So findet das Go-Preset `gocover` auch dort, wo loomux nicht auf dem `PATH` liegt. |
+| `{godot}` | Nur `gdscript`, anderswo ein Ladefehler. Das erste von `GODOT_BIN`, `[verify.gdscript] godot` und `godot`/`godot4` auf dem `PATH`, das existiert; unter Windows die `_console.exe` neben einer gefundenen `.exe`. Sein `--version` muss zu Haupt- und Nebenversion von `config/features` in der `project.godot` des Bereichs passen und ein Mono-Build sein, wenn das Projekt einen `[dotnet]`-Abschnitt hat; sonst ist die Lane `unready` und nennt das gefundene Binary und was das Projekt verlangt. Wird nichts gefunden, ist sie `missing-tool`. Ein Binary wird je Lauf einmal gefragt, höchstens 30 s lang; an einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget, und eine Lane, deren Binary nicht rechtzeitig gefragt werden konnte, endet als `budget`. |
 
 - Eine `coverage`-Lane, die `{coverprofile}` liest, während weder `test`,
   `test.measuring` noch `coverage.measure` desselben Stacks es schreibt, ist
@@ -311,20 +313,23 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 
   ```toml
   [verify.gdscript.test]
-  commands = ["'C:/Tools/Godot/Godot_v4.7.1-stable_win64_console.exe' --headless --script tests/run_tests.gd"]
+  commands = ["{godot} --headless --script tests/run_tests.gd"]
   ```
 
   Das Skript muss mit einem Code ungleich 0 enden, wenn ein Test scheitert.
-  `import_check` gilt für die Lane, sobald sie einen Befehl hat. Der Pfad
-  steht mit Vorwärtsschrägstrichen, in einfachen Anführungszeichen, wenn er
-  ein Leerzeichen enthält: In einfachen Anführungszeichen ist ein Backslash
-  literal, in doppelten nur, wenn nicht `$`, ein Backtick, `"` oder `\`
-  folgt, denn dann schützt er dieses Zeichen. Vor einem Zeilenumbruch in
-  doppelten Anführungszeichen fällt er ebenfalls weg, der Zeilenumbruch bleibt
-  aber im Wort (eine Shell ließe beide weg). Außerhalb von Anführungszeichen
-  ist jeder Backslash ein Escape-Zeichen. Ein hier genanntes Werkzeug muss auf dem
-  `PATH` liegen oder mit seinem Pfad stehen, sonst ist die Lane
-  `missing-tool`: rot für `loomux check` und den Stop-Hook.
+  `import_check` gilt für die Lane, sobald sie einen Befehl hat. `{godot}`
+  findet das Binary und prüft es gegen das Projekt (siehe die
+  Platzhaltertabelle); schreibt ein Projekt den Pfad stattdessen selbst in den
+  Befehl, steht er mit Vorwärtsschrägstrichen, in einfachen
+  Anführungszeichen, wenn er ein Leerzeichen enthält: In einfachen
+  Anführungszeichen ist ein Backslash literal, in doppelten nur, wenn nicht
+  `$`, ein Backtick, `"` oder `\` folgt, denn dann schützt er dieses Zeichen.
+  Vor einem Zeilenumbruch in doppelten Anführungszeichen fällt er ebenfalls
+  weg, der Zeilenumbruch bleibt aber im Wort (eine Shell ließe beide weg).
+  Außerhalb von Anführungszeichen ist jeder Backslash ein Escape-Zeichen. Ein
+  hier genanntes Werkzeug muss auf dem `PATH` liegen oder mit seinem Pfad
+  stehen, sonst ist die Lane `missing-tool`: rot für `loomux check` und den
+  Stop-Hook.
 - Die `on_file`-Formen: go `go vet ./...` und `{loomux} check gofmt {file}`
   (ein Edit formatiert nur seine eigene Datei), gdscript
   `uvx --from gdtoolkit gdlint {file}`,
@@ -506,8 +511,8 @@ Profil `edit` läuft also nie durch den Baum.
 | `timed-out` | eigenes `timeout` | rot | rot, Exit 2 |
 | `budget` | Laufbudget erschöpft | – | übersprungen, genannt |
 | `blocked` | die Lane, auf die sie wartet (`after`), ist rot; hinter einer Lane in Probe ist sie selbst in Probe | rot, oder in Probe | rot, Exit 2, oder in Probe |
-| `missing-tool` | ein Werkzeug liegt nicht auf dem `PATH` | rot | übersprungen, genannt |
-| `unready` | Godot hat das Projekt nicht importiert, oder eine Datei aus `needs` fehlt | rot | übersprungen, genannt |
+| `missing-tool` | ein Werkzeug liegt nicht auf dem `PATH`, oder `{godot}` findet kein Godot-Binary | rot | übersprungen, genannt |
+| `unready` | Godot hat das Projekt nicht importiert, eine Datei aus `needs` fehlt, oder bei `{godot}` passt das gefundene Binary nicht zum Projekt (Version, Mono-Build) oder der Bereich hat keine lesbare `project.godot` | rot | übersprungen, genannt |
 | `unavailable` | Art definiert, kann nicht laufen (keine Tests gefunden) | neutral, zählt als „nichts lief" | nicht angezeigt |
 | `not-applicable` | Art im Stack nicht definiert oder `false`; bei `graph` sagte die Prüfung nein; oder jeder geänderte Pfad passte auf `skip_when_only` | neutral, angezeigt | nicht angezeigt |
 

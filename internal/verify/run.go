@@ -23,8 +23,31 @@ type Outcome struct {
 	Probation bool
 }
 
+// BudgetLeft counts budget down from now, for a hook whose budget covers its
+// planning as well as its run; nil for no budget.
+func BudgetLeft(budget time.Duration, now func() time.Time) func() time.Duration {
+	if budget <= 0 {
+		return nil
+	}
+	end := now().Add(budget)
+	return func() time.Duration { return end.Sub(now()) }
+}
+
+// RunBudget is what a run gets of the time left: none for nil, and a negative
+// budget, which Run counts as spent, once nothing is left; 0 would mean none.
+func RunBudget(left func() time.Duration) time.Duration {
+	if left == nil {
+		return 0
+	}
+	if rest := left(); rest > 0 {
+		return rest
+	}
+	return -time.Nanosecond
+}
+
 // RunOptions is what a run needs from outside. Timeout caps each process, 0
-// meaning none; Budget, when positive, caps the whole run from its start.
+// meaning none; Budget caps the whole run from its start when positive, and
+// when negative says it is spent before it began.
 // Armed says whether a lane's red fails the run; nil arms every lane.
 type RunOptions struct {
 	Scope           Scope
@@ -78,7 +101,7 @@ func Run(jobs []Job, opt RunOptions) []Outcome {
 		opt.Sleep = time.Sleep
 	}
 	r := &runner{opt: opt, sem: make(chan struct{}, max(opt.MaxParallel, 1))}
-	if opt.Budget > 0 {
+	if opt.Budget != 0 {
 		r.deadline = opt.Now().Add(opt.Budget)
 	}
 	out := make([]Outcome, len(jobs))

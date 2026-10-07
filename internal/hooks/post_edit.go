@@ -94,18 +94,20 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
 	}
 	// One budget for the call: a host's timeout is per hook, not per file.
-	// The first file runs as a single edit always has; each later one gets
-	// what is left, and none once that is spent.
-	start := env.Now()
-	runID := verify.NewRunID(start, os.Getpid())
+	// Each file gets what is left of it, the first one included, and a later
+	// one none once it is spent.
+	runID := verify.NewRunID(env.Now(), os.Getpid())
+	// The budget runs from here, planning included, and is nil when there is
+	// none, for every file. One finder for the call: a binary is asked for its
+	// version once, not once per file.
+	left := verify.BudgetLeft(env.Budget, env.Now)
+	run := editRun{godot: verify.GodotFor(root, eff.Config.Godot, env.Start, left), left: left}
 	code := ExitOK
 	var notices []string
 	for i, raw := range files {
-		fileEnv, id := env, runID
-		// A budget of 0 is none, and stays none for every file.
-		if i > 0 && env.Budget > 0 {
-			fileEnv.Budget = start.Add(env.Budget).Sub(env.Now())
-			if fileEnv.Budget <= 0 {
+		id := runID
+		if i > 0 && left != nil {
+			if left() <= 0 {
 				// Named like a lane the budget did not reach, on both
 				// streams: which one a host reads depends on the call's code.
 				notices = verify.Skipped(stderr, notices, verify.BudgetSkipped(raw))
@@ -114,7 +116,7 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 			// Coverage files of their own; CleanCover matches `<runID>-`.
 			id += "." + strconv.Itoa(i)
 		}
-		fileCode, said := checkEdit(stderr, root, raw, id, eff, facts, fileEnv, armed)
+		fileCode, said := checkEdit(stderr, root, raw, id, eff, facts, env, run, armed)
 		code = max(code, fileCode)
 		notices = append(notices, said...)
 	}
@@ -131,9 +133,16 @@ func RunPostEdit(stdin io.Reader, stdout, stderr io.Writer, root string, env Edi
 	return ExitOK
 }
 
+// editRun is what the files of one call share: the finder of the Godot binary
+// and what is left of the call's budget, nil when it has none.
+type editRun struct {
+	godot func(string) (string, verify.State, string)
+	left  func() time.Duration
+}
+
 // checkEdit runs the lanes for one edited file, and answers its code with
 // what it has to tell the model.
-func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv, armed verify.ArmedSet) (int, []string) {
+func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, facts detect.Facts, env EditEnv, run editRun, armed verify.ArmedSet) (int, []string) {
 	fail := func(err error) (int, []string) {
 		fmt.Fprintf(stderr, "loomux hook post-tool-use: %v\n", err)
 		return ExitInternal, nil
@@ -146,7 +155,7 @@ func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, 
 	var err error
 	if eff.Extensions[ext] == "wiki" {
 		jobs = wikiJobs(eff, facts, root, raw)
-	} else if jobs, err = editJobs(eff, root, raw, runID, env); err != nil {
+	} else if jobs, err = editJobs(eff, root, raw, runID, env, run.godot); err != nil {
 		return fail(err)
 	}
 	if err := verify.PrepareCover(root); err != nil {
@@ -154,7 +163,7 @@ func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, 
 	}
 	outs := verify.Run(jobs, verify.RunOptions{
 		Scope: verify.ScopeEdit, MaxParallel: eff.Config.MaxParallel, Timeout: eff.Config.Timeout,
-		Budget: env.Budget, Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
+		Budget: verify.RunBudget(run.left), Start: env.Start, Look: env.Look, Now: env.Now, Armed: armed.Arms,
 		Caller: "hook post-tool-use", Waiting: verify.WaitingTo(stderr),
 	})
 	aside := ""
@@ -211,7 +220,7 @@ func editLoad(root string, facts detect.Facts) (verify.Effective, error) {
 
 // editJobs plans the edit profile for a file inside root; a file outside it
 // belongs to no lane of this project.
-func editJobs(eff verify.Effective, root, raw, runID string, env EditEnv) ([]verify.Job, error) {
+func editJobs(eff verify.Effective, root, raw, runID string, env EditEnv, godot func(string) (string, verify.State, string)) ([]verify.Job, error) {
 	rel, ok := relInRoot(root, raw)
 	if !ok {
 		return nil, nil
@@ -229,6 +238,7 @@ func editJobs(eff verify.Effective, root, raw, runID string, env EditEnv) ([]ver
 		RunID:       runID,
 		HasTests:    verify.HasTests,
 		ImportReady: ready,
+		Godot:       godot,
 	})
 }
 

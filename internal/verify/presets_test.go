@@ -72,11 +72,18 @@ func TestParsePresetsRefuses(t *testing.T) {
 		{"[[stack.go.variant]]\nwhen = \"biome\"\n[stack.go.variant.lint]\ncommands=[]", "empty"},
 		{"[stack.go.test]\nafter = \"coverage\"\n[stack.go.coverage]\ncommands=[\"x\"]\nafter = \"test\"", "cycle"},
 		{"[[stack.go.variant]]\nwhen = \"biome\"\n[stack.go.variant.coverage]\ncommands=[\"x {coverprofile}\"]", "coverprofile"},
+		{"[stack.go.test]\ncommands=[\"{godot} --headless\"]", "[stack.go].test uses {godot}, which only gdscript lanes know"},
 	}
 	for _, c := range cases {
 		if _, err := parsePresets(c.src); err == nil || !strings.Contains(err.Error(), c.want) || !strings.HasPrefix(err.Error(), "presets.toml: ") {
 			t.Errorf("%q: %v", c.src, err)
 		}
+	}
+}
+
+func TestAGdscriptPresetMayNameTheGodotBinary(t *testing.T) {
+	if _, err := parsePresets("[stack.gdscript.test]\ncommands=[\"{godot} --headless\"]"); err != nil {
+		t.Fatal(err)
 	}
 }
 
