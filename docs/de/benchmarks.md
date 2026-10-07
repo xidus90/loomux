@@ -3601,6 +3601,39 @@ vorher, 0,683–0,770 ms nachher; `ExecuteSearch` 2,363–2,614 ms vorher,
    1,864 ms sind ebenfalls schneller als die Warmläufe; als Beleg taugen sie
    nicht für sich.
 
+## 2026-10-06 22:09 — Was eine Lane sparen könnte, wenn sie einen Commit aussetzt
+
+**Ziel.** Ob es sich lohnt, Lanes Commits aussetzen zu lassen, die sie nicht
+berühren, und ob loomux diese Commits allein am Stack erkennen kann.
+
+**Methode.** Ein Warmlauf des eigenen Tors von loomux (`go run ./cmd/loomux
+check precommit`, `757d600b`, AMD Ryzen 7 9800X3D, Windows 11 Pro): 3 min
+50 s, davon `test/go` 226,6 s. Die geänderten Pfade aufzulisten, `git diff
+--cached --name-only` und `git diff HEAD --name-only` in `space`, Median aus
+10 Läufen mit PowerShell `Measure-Command`: 89 ms und 83 ms.
+`Godot_v4.7.1-stable_mono_win64_console.exe --version`, Median aus 5: 57 ms.
+Die letzten 400 Nicht-Merge-Commits von 12 Repositories, gegen zwei Regeln
+nachgespielt: *nach Stack* setzt eine Lane aus, wenn kein geänderter Pfad
+die Endung ihres Stacks hat; *hybrid* setzt nur aus, wenn jeder Pfad die
+Endung eines anderen Stacks hat, und läuft bei einem Pfad, den kein Stack
+beansprucht. *Verpasst* zählt ausgesetzte Commits, die eine Datei geändert
+haben, die ein Test dieses Stacks nachweislich liest. Kalte Läufe wurden nicht
+gemessen.
+
+| Repository, Lane | Nach Stack | Hybrid | Verpasst |
+| --- | ---: | ---: | ---: |
+| loomux, go | 39 % | 35 % | 0 |
+| space, python | 97 % | 77 % | 83 |
+| odysseus, python | 31 % | 29 % | 65 |
+| iam_backend, python | 33 % | 25 % | 16 |
+| open-design, typescript | 24 % | 15 % | 13 |
+| Strata, python | 66 % | 34 % | 1 |
+
+**Ergebnis.** Eine Regel nach Stack würde in fünf von sechs geprüften
+Repositories Tests abschalten, die betroffen waren; darum benennt
+`skip_when_only` die Pfade je Lane, und ohne es wird nichts ausgesetzt. Der
+Torlauf ist ein Warmlauf, kein Median.
+
 ## 2026-10-08 07:41 — GDScript-Extraktion: graph build auf space
 
 **Ziel.** Was `loomux graph build` von einem Godot-Projekt liest. Vor dieser
