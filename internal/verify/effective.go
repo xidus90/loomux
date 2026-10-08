@@ -42,8 +42,8 @@ func Resolve(cfg Config, p *Presets, facts detect.Facts) (Effective, error) {
 		Config:     cfg,
 	}
 	for _, stack := range StackNames() {
-		// The wiki lane is the hooks' business; it has no tools to layer.
-		if stack == "wiki" {
+		// The wiki lanes are the hooks' business; they have no tools to layer.
+		if stack == "wiki" || stack == "wiki-sources" {
 			continue
 		}
 		lanes, err := resolveStack(stack, cfg.Stacks[stack], p.Stacks[stack], facts.Stacks)

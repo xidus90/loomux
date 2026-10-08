@@ -28,7 +28,7 @@ func Kinds() []string { return []string{"lint", "types", "test", "coverage", "gr
 // StackNames are the stacks [verify] may configure.
 func StackNames() []string {
 	return []string{"go", "python", "typescript", "vue", "svelte", "css", "html",
-		"gdscript", "cpp", "shell", "sql", "rust", "wiki", "project"}
+		"gdscript", "cpp", "shell", "sql", "rust", "wiki", "wiki-sources", "project"}
 }
 
 // Reserved reports whether name is taken by a built-in check, a kind or the
@@ -135,13 +135,15 @@ func ParseConfig(path string, doc map[string]any) (Config, error) {
 		return Config{}, err
 	}
 	if !modules.Brain {
-		// The wiki lane is the brain module's lane. Off, it takes the very
-		// value `[verify.wiki] lint = false` leaves, so the edit lane, the
-		// check chain and the stop gate ask no second question.
-		if cfg.Stacks["wiki"] == nil {
-			cfg.Stacks["wiki"] = map[string]Override{}
+		// The wiki lanes are the brain module's lanes. Off, each takes the
+		// very value `[verify.<stack>] lint = false` leaves, so the edit lane,
+		// the check chain and the stop gate ask no second question.
+		for _, stack := range []string{"wiki", "wiki-sources"} {
+			if cfg.Stacks[stack] == nil {
+				cfg.Stacks[stack] = map[string]Override{}
+			}
+			cfg.Stacks[stack]["lint"] = laneOff()
 		}
-		cfg.Stacks["wiki"]["lint"] = laneOff()
 	}
 	return cfg, nil
 }
@@ -261,10 +263,10 @@ func parseStack(cfg *Config, stack string, value any) error {
 			}
 			cfg.Godot = s
 		case slices.Contains(Kinds(), key):
-			// The wiki stack has no tools of its own; its one lane can only
-			// be switched off.
-			if stack == "wiki" && (key != "lint" || v != false) {
-				return errors.New("[verify.wiki].lint can only be false")
+			// The wiki stacks have no tools of their own; each one lane can
+			// only be switched off.
+			if (stack == "wiki" || stack == "wiki-sources") && (key != "lint" || v != false) {
+				return fmt.Errorf("[verify.%s].lint can only be false", stack)
 			}
 			o, err := parseLane("verify."+stack, key, v)
 			if err != nil {
