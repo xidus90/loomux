@@ -36,6 +36,29 @@ func TestNewDocID(t *testing.T) {
 	}
 }
 
+// HashBytes is ContentHash without the file: the same fold of CRLF to LF,
+// so a repin that hashes bytes it has not written yet agrees with a later
+// read of the file.
+func TestHashBytesFoldsCRLFLikeContentHash(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.md")
+	if err := os.WriteFile(path, []byte("a\r\nb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fromFile, err := ContentHash(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := HashBytes([]byte("a\r\nb\n")); got != fromFile {
+		t.Fatalf("HashBytes %s, ContentHash %s", got, fromFile)
+	}
+	if got := HashBytes([]byte("a\nb\n")); got != fromFile {
+		t.Fatalf("LF and CRLF must hash alike: %s vs %s", got, fromFile)
+	}
+	if HashBytes([]byte("a\rb\n")) == fromFile {
+		t.Fatal("a lone CR is no line end and must not fold")
+	}
+}
+
 func TestContentHash(t *testing.T) {
 	tmp := t.TempDir()
 	lfFile := filepath.Join(tmp, "lf.md")
