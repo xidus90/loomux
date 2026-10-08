@@ -991,6 +991,14 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"go run ./cmd/loomux convert",
 		`& "$env:LOCALAPPDATA\loomux\bin\loomux.exe" fetch https://x`,
 		"loomux convert --help x",
+		// wiki repin declares the citing pages still correct, which is
+		// a human's decision as an approval is.
+		"loomux wiki repin",
+		"loomux wiki repin --root .",
+		// A lone word other than --help or -h is no help request.
+		"loomux wiki repin --nope",
+		"go run ./cmd/loomux wiki repin",
+		"cd x && loomux wiki repin",
 	)
 	// Known holes, pinned so that closing one shows up here and the readings
 	// comment and both cli-references are corrected with it.
@@ -1144,6 +1152,12 @@ func TestTheGuardRefusesCommandsThatWriteTheConfiguration(t *testing.T) {
 		"loomux convert -h",
 		"loomux fetch --help",
 		"loomux fetch -h",
+		"loomux wiki repin --help",
+		"loomux wiki repin -h",
+		"loomux wiki retype --scope s --from a --to b",
+		"loomux wiki types",
+		"loomux wiki init --scope s",
+		"loomux wiki",
 		// A # inside double quotes is a byte of the word to both shells.
 		`cd "C:/x/#GIT/loomux" && loomux init --dry-run`,
 		`Set-Location "C:/x/#GIT/loomux"; loomux init --dry-run`,
@@ -1182,6 +1196,10 @@ func TestCheckToolNamesTheConfigurationReason(t *testing.T) {
 	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux convert"}, config.Policy{})
 	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "convert and fetch write into an area's inbox") }) {
 		t.Fatalf("convert reasons %v", got)
+	}
+	got = checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux wiki repin"}, config.Policy{})
+	if !slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "wiki repin declares the citing pages still correct") }) {
+		t.Fatalf("wiki repin reasons %v", got)
 	}
 	if got := checkTool(t.TempDir(), "Bash", map[string]any{"command": "loomux config list"}, config.Policy{}); len(got) != 0 {
 		t.Fatalf("reasons %v", got)

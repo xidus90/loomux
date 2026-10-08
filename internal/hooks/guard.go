@@ -269,7 +269,7 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 					reasons = append(reasons, j.strictReasons(found, unknown)...)
 				}
 				if writesConfiguration(line, policy.Strict) {
-					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, and convert and fetch write into an area's inbox, which the write barrier keeps from agents; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies")
+					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, convert and fetch write into an area's inbox, which the write barrier keeps from agents, and wiki repin declares the citing pages still correct; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies, and names `loomux wiki repin` for the human to run")
 				}
 				if answersAGate(line, policy.Strict) {
 					reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
@@ -649,6 +649,12 @@ func programWrites(words []string, exempt, anyProgram bool) bool {
 		// install and remove put executable hooks into other repositories;
 		// status reads and record is what the installed hook itself calls.
 		return len(args) > 1 && (args[1] == "install" || args[1] == "remove")
+	case "wiki":
+		// repin declares every page citing a changed source still correct,
+		// an approval for all of them at once; init, types and retype do
+		// not decide that. A lone --help or -h only reads.
+		return len(args) > 1 && args[1] == "repin" &&
+			(len(args) != 3 || (args[2] != "--help" && args[2] != "-h"))
 	}
 	return false
 }

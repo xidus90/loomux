@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -10,20 +11,22 @@ import (
 	"github.com/xidus90/loomux/internal/config"
 )
 
-// wikiCommand is `loomux wiki init|types|retype`, the three wiki tools of the
-// Python reference: `brain wiki init`, `brain types` and `brain retype`. The
-// two that stood at the top level there live under `wiki` here, beside the
-// one that did not.
+// wikiCommand is `loomux wiki init|types|retype|repin`: the three wiki tools
+// of the Python reference -- `brain wiki init`, `brain types` and `brain
+// retype` -- and repin, which the reference does not have. The two that stood
+// at the top level there live under `wiki` here, beside the one that did not.
 //
 // The exit codes are the reference's: 2 for a command line argparse would
 // refuse, 1 for a refusal about the registry or a file (`main` turns a
 // LookupError or an OSError into one `error:` line), 0 otherwise.
 func wikiCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "error: 'loomux wiki' needs init, types or retype")
+		fmt.Fprintln(stderr, "error: 'loomux wiki' needs init, types, retype or repin")
 		return 2
 	}
 	switch args[0] {
+	case "repin":
+		return wikiRepin(args[1:], stdout, stderr)
 	case "init":
 		return wikiInit(args[1:], stdout, stderr)
 	case "types":
@@ -33,6 +36,59 @@ func wikiCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stderr, "error: unknown wiki command %q\n", args[0])
 	return 2
+}
+
+// wikiRepin is `loomux wiki repin`: the register and the pins of the tree at
+// --root moved to the files as they are (wiki.Repin). Unlike its neighbours
+// it reads no registry: it works on the tree it is given, a linked worktree
+// included. The guard keeps it from agents.
+func wikiRepin(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("wiki repin", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	rootFlag := flags.String("root", "", "project root; the working directory when empty")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() > 0 {
+		fmt.Fprintf(stderr, "error: unrecognized arguments: %s\n", flags.Arg(0))
+		return 2
+	}
+	fail := func(err error) int {
+		fmt.Fprintf(stderr, "loomux wiki repin: %v\n", err)
+		return 1
+	}
+	root, err := projectRoot(*rootFlag)
+	if err != nil {
+		return fail(err)
+	}
+	scope := ""
+	manifest, err := config.ReadManifest(root)
+	switch {
+	case err == nil:
+		scope = manifest.Scope
+	case !errors.Is(err, config.ErrNoManifest):
+		return fail(err)
+	}
+	result, err := wiki.Repin(root, wiki.Root(root), scope)
+	for _, page := range result.Pages {
+		fmt.Fprintf(stdout, "repinned: %s\n", page)
+	}
+	for _, row := range result.Rows {
+		fmt.Fprintf(stdout, "register: %s revision %d -> %d\n", row.Path, row.From, row.To)
+	}
+	var refusal *wiki.RepinRefusal
+	if errors.As(err, &refusal) {
+		for _, f := range refusal.Findings {
+			fmt.Fprintf(stderr, "  • [wiki-sources:%s] %s: %s\n", f.Rule, f.Page, f.Message)
+		}
+	}
+	if err != nil {
+		return fail(err)
+	}
+	if len(result.Pages)+len(result.Rows) == 0 {
+		fmt.Fprintln(stdout, "nothing to repin")
+	}
+	return 0
 }
 
 // wikiFlags parses the flags of one wiki command and refuses a positional

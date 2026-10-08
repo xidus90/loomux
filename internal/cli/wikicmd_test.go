@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/brain/identity"
 	"github.com/xidus90/loomux/internal/testlock"
 )
 
@@ -51,7 +53,7 @@ func TestWikiInitRefusesAnAreaItCannotScaffold(t *testing.T) {
 		{[]string{"wiki", "init"}, 2, "error: the following arguments are required: --scope\n"},
 		{[]string{"wiki", "init", "--scope", "project/a", "extra"}, 2, "error: unrecognized arguments: extra\n"},
 		{[]string{"wiki", "init", "--bogus"}, 2, "flag provided but not defined: -bogus"},
-		{[]string{"wiki"}, 2, "error: 'loomux wiki' needs init, types or retype\n"},
+		{[]string{"wiki"}, 2, "error: 'loomux wiki' needs init, types, retype or repin\n"},
 		{[]string{"wiki", "gate"}, 2, "error: unknown wiki command \"gate\"\n"},
 	} {
 		code, out, errOut := run(c.args...)
@@ -184,5 +186,73 @@ func TestWikiInitRefusesAReadOnlyArea(t *testing.T) {
 	}
 	if _, err := os.Stat(wiki); !os.IsNotExist(err) {
 		t.Fatalf("init wrote into a read-only area: %v", err)
+	}
+}
+
+// repin from the command line: what it moved on stdout, nothing to do said
+// as such, a refusal with exit 1 and the findings, a usage error with 2.
+func TestWikiRepin(t *testing.T) {
+	old, now := "# A\n", "# A changed\n"
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"docs/wiki\"\n")
+	writeFile(t, filepath.Join(root, "docs", "de", "a.md"), now)
+	writeFile(t, filepath.Join(root, "docs", "wiki", "t.md"), "---\ntitle: T\ntype: concept\ndescription: d\nsources:\n  - id: a\n    resource: brain://project/x/docs/de/a.md\n    doc_id: 01A\n    content_hash: \""+identity.HashBytes([]byte(old))+"\"\n    revision: 3\n---\n")
+	writeFile(t, filepath.Join(root, "_identities.tsv"), "doc_id\tpfad\tcontent_hash\trevision\n01A\tdocs/de/a.md\t"+identity.HashBytes([]byte(old))+"\t3\n")
+	code, out, errOut := run("wiki", "repin", "--root", root)
+	if code != 0 || out != "repinned: t.md\nregister: docs/de/a.md revision 3 -> 4\n" || errOut != "" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	if code, out, _ := run("wiki", "repin", "--root", root); code != 0 || out != "nothing to repin\n" {
+		t.Fatalf("second run: code %d, out %q", code, out)
+	}
+	writeFile(t, filepath.Join(root, "docs", "wiki", "u.md"), "---\ntitle: U\ntype: concept\ndescription: d\nsources:\n  - id: n\n    resource: brain://project/x/docs/de/new.md\n    doc_id: 01N\n    content_hash: \"sha256:n\"\n    revision: 1\n---\n")
+	code, out, errOut = run("wiki", "repin", "--root", root)
+	if code != 1 || out != "" || !strings.Contains(errOut, "  • [wiki-sources:row-missing] u.md: sources[0]: docs/de/new.md is not in the register\n") ||
+		!strings.Contains(errOut, "loomux wiki repin: 1 finding(s) repin does not fix\n") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	if code, _, _ := run("wiki", "repin", "extra"); code != 2 {
+		t.Fatalf("a positional argument: code %d", code)
+	}
+	if code, _, _ := run("wiki", "repin", "--nope"); code != 2 {
+		t.Fatalf("an unknown flag: code %d", code)
+	}
+}
+
+// Without a manifest or a wiki there is nothing to repin; a manifest that
+// does not read is an error.
+func TestWikiRepinWithoutAnArea(t *testing.T) {
+	bare := t.TempDir()
+	if code, out, _ := run("wiki", "repin", "--root", bare); code != 0 || out != "nothing to repin\n" {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+	broken := t.TempDir()
+	writeFile(t, filepath.Join(broken, ".loomux", "config.toml"), "[area\n")
+	if code, _, errOut := run("wiki", "repin", "--root", broken); code != 1 || !strings.HasPrefix(errOut, "loomux wiki repin: ") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// A failure that is no refusal (here a register that does not read) is one
+// error line and exit 1.
+func TestWikiRepinReportsAFailure(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"docs/wiki\"\n")
+	writeFile(t, filepath.Join(root, "docs", "wiki", "t.md"), "---\ntitle: T\n---\n")
+	writeFile(t, filepath.Join(root, "_identities.tsv"), "doc_id\tpfad\nbroken\n")
+	if code, _, errOut := run("wiki", "repin", "--root", root); code != 1 || !strings.HasPrefix(errOut, "loomux wiki repin: ") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+// Without --root the command works on the working directory.
+func TestWikiRepinDefaultsToTheWorkingDirectory(t *testing.T) {
+	stubGetwd(t, t.TempDir(), nil)
+	if code, out, _ := run("wiki", "repin"); code != 0 || out != "nothing to repin\n" {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+	stubGetwd(t, "", errors.New("gone"))
+	if code, _, errOut := run("wiki", "repin"); code != 1 || errOut != "loomux wiki repin: gone\n" {
+		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
