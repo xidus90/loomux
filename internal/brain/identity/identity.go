@@ -76,9 +76,14 @@ func ContentHash(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return HashBytes(data), nil
+}
+
+// HashBytes is ContentHash for bytes already in hand.
+func HashBytes(data []byte) string {
 	normalized := bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
 	sum := sha256.Sum256(normalized)
-	return fmt.Sprintf("sha256:%x", sum), nil
+	return fmt.Sprintf("sha256:%x", sum)
 }
 
 // ReadIdentities loads the identity TSV file into memory, the way
