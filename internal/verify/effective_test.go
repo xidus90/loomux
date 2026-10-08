@@ -221,3 +221,17 @@ func TestMergeSwitchesAPresetLockOff(t *testing.T) {
 		t.Fatal("a table without lock keeps the preset's")
 	}
 }
+
+func TestTheSourceStackHasNoLanesToLayer(t *testing.T) {
+	cfg, err := parse(t, "[verify.wiki-sources]\nlint = false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	eff, err := Resolve(cfg, presetsFor(t), detect.Facts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := eff.Stacks["wiki-sources"]; ok || slices.Contains(eff.Active, "wiki-sources") {
+		t.Fatalf("stacks %+v, active %v", eff.Stacks, eff.Active)
+	}
+}

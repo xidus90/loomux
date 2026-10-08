@@ -30,6 +30,8 @@ func TestParseConfigRefuses(t *testing.T) {
 		{"[verify.go]\nimport_check = true", `[verify.go] has unknown key "import_check"`},
 		{"[verify.wiki]\nlint = \"x\"", "[verify.wiki].lint can only be false"},
 		{"[verify.wiki]\ntypes = false", "[verify.wiki].lint can only be false"},
+		{"[verify.wiki-sources]\nlint = \"x\"", "[verify.wiki-sources].lint can only be false"},
+		{"[verify.wiki-sources]\ntest = false", "[verify.wiki-sources].lint can only be false"},
 		{"[verify.go]\nlint = true", "[verify.go].lint = true is not a command; leave the key out to keep the preset"},
 		{"[verify.go]\nlint = []", "[verify.go].lint is empty"},
 		{"[verify.go]\nlint = [\"a\", \" \"]", "[verify.go].lint #2 is empty"},
@@ -181,7 +183,7 @@ func TestNames(t *testing.T) {
 	if strings.Join(Kinds(), ",") != "lint,types,test,coverage,graph" {
 		t.Fatal(Kinds())
 	}
-	if strings.Join(StackNames(), ",") != "go,python,typescript,vue,svelte,css,html,gdscript,cpp,shell,sql,rust,wiki,project" {
+	if strings.Join(StackNames(), ",") != "go,python,typescript,vue,svelte,css,html,gdscript,cpp,shell,sql,rust,wiki,wiki-sources,project" {
 		t.Fatal(StackNames())
 	}
 	for _, name := range []string{"gofmt", "commit-msg", "gocover", "graph-fresh", "blast-audit", "all", "lint", "types", "test", "coverage", "graph"} {
@@ -312,9 +314,31 @@ func TestTheBrainModuleOffTurnsTheWikiLaneOff(t *testing.T) {
 		if !cfg.Stacks["wiki"]["lint"].Lane.Off {
 			t.Fatalf("%q: brain = false must turn lint/wiki off", src)
 		}
+		if !cfg.Stacks["wiki-sources"]["lint"].Lane.Off {
+			t.Fatalf("%q: brain = false must turn lint/wiki-sources off", src)
+		}
 		if !reflect.DeepEqual(cfg.Stacks["wiki"], want.Stacks["wiki"]) {
 			t.Fatalf("%q: wiki lanes = %+v, want %+v", src, cfg.Stacks["wiki"], want.Stacks["wiki"])
 		}
+	}
+}
+
+// The source lane has its own switch, so it can go without the bundle lint
+// going too, and the bundle lint's switch leaves it alone.
+func TestTheSourceLaneHasItsOwnSwitch(t *testing.T) {
+	cfg, err := parse(t, "[verify.wiki-sources]\nlint = false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Stacks["wiki-sources"]["lint"].Lane.Off || cfg.Stacks["wiki"]["lint"].Lane.Off {
+		t.Fatalf("stacks %+v", cfg.Stacks)
+	}
+	cfg, err = parse(t, "[verify.wiki]\nlint = false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Stacks["wiki-sources"]["lint"].Lane.Off {
+		t.Fatal("[verify.wiki] lint = false switched the source lane off")
 	}
 }
 
@@ -326,6 +350,9 @@ func TestTheBrainModuleOnLeavesTheWikiLaneAlone(t *testing.T) {
 		}
 		if _, ok := cfg.Stacks["wiki"]; ok {
 			t.Fatalf("%q: wiki lanes = %+v, want none", src, cfg.Stacks["wiki"])
+		}
+		if _, ok := cfg.Stacks["wiki-sources"]; ok {
+			t.Fatalf("%q: wiki-sources lanes = %+v, want none", src, cfg.Stacks["wiki-sources"])
 		}
 	}
 }
