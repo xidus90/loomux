@@ -7,6 +7,18 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.2.0] - 2026-10-08
+
+<https://github.com/xidus90/loomux/pull/97>
+
+### Added
+- `loomux graph build` reads Godot projects: GDScript (`.gd`), scenes (`.tscn`), resources (`.tres`) and `project.godot`, with classes, functions, signals and their extends, imports, calls and references edges.
+- Godot paths resolve from the nearest `project.godot`, and its autoloads bind global names; a path that names a file of another language extracted in the same build lands on that file.
+- A graph lane for GDScript projects that runs `check graph-fresh` and `check blast-audit`, and blast counts gdUnit4 suites (`*_test.gd`) and scripts, scenes and resources under `test/` or `tests/` as tests.
+### Changed
+- Every existing code graph is rebuilt once on the first build, because the extractor set and the tree-sitter runtime (v0.55.1) changed.
+- When several stacks have a graph command, the graph lane is carried by Go, then Python, then GDScript, and only after them by any other stack in byte order; before, the first stack in byte order carried it.
+
 ## [1.1.0] - 2026-10-06
 
 <https://github.com/xidus90/loomux/pull/95>
