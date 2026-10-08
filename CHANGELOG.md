@@ -7,6 +7,17 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.3.0] - 2026-10-08
+
+<https://github.com/xidus90/loomux/pull/96>
+
+### Added
+- `skip_when_only` in a lane table: a lane whose every changed path matches one of its globs sits out the commit (inside the pre-commit hook) or the turn end (against the last green tree, and the commits the turn made); lanes that read its files inherit `not-applicable`.
+- `lock = true` in a lane table: one run at a time per stack and area in a checkout, with a `waiting for the lock (held by …)` line while a second run waits; the wait counts against the budget, or ends at `[verify].timeout`.
+- `{godot}` for `gdscript` lanes and `[verify.gdscript] godot`: the Godot binary is found and its version and .NET build are checked against `config/features` and `[dotnet]` in `project.godot`; a mismatch makes the lane `unready` with what was found and what the project wants.
+### Fixed
+- At a turn end, a lane that reads the report of a lane the budget stopped now ends as `budget` instead of `failed`, so the turn is no longer held over a spent budget.
+
 ## [1.2.0] - 2026-10-08
 
 <https://github.com/xidus90/loomux/pull/97>
