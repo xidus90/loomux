@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.4.0] - 2026-10-10
+
+<https://github.com/xidus90/loomux/pull/98>
+
+### Added
+- `lint/wiki-sources` in `loomux check`: the wiki's source pins of the project's own scope against `_identities.tsv` at the root, and that register against the files they cite. Own switch `[verify.wiki-sources] lint = false`; in probation until its first green run where `.loomux/armed.toml` exists; not in the stop gate.
+- `loomux wiki repin`: moves the register rows of changed cited files and the pins of the citing pages to the files as they are, in the tree it is given. The guard refuses it to agents.
+
 ## [1.3.0] - 2026-10-08
 
 <https://github.com/xidus90/loomux/pull/96>
