@@ -8,13 +8,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:7e34bcbe26fc6c0977631769395ca6f97d8bea9be643fbe4641809bb35266fbf"
-    revision: 2
+    content_hash: "sha256:73987ba3b351a544cd39c56a30ec02d5f214b0bb161a5bca39f5e552228eea88"
+    revision: 3
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:1b731affd83910cd4e8dd6ca0b05a7b375ecba6d7a4790c6106c4e85f6b158f3"
-    revision: 3
+    content_hash: "sha256:6d4294a183dfef9f3c2c959ff9f0d94acf36d563900d13a2dc3085b98339db7b"
+    revision: 4
 ---
 
 ## Wofür
