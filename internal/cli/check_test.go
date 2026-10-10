@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/identity"
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/query"
@@ -1142,4 +1143,43 @@ func TestCheckSaysWhoHoldsTheLock(t *testing.T) {
 	if code != 1 || !strings.Contains(errOut, "test/go: waiting for the lock (held by another run)") || !strings.Contains(out, "test/go: timed-out") {
 		t.Fatalf("%d\n%s\n%s", code, out, errOut)
 	}
+}
+
+// The lane runs in `loomux check lint` beside the bundle lint, red on a
+// stale row, green once the register matches.
+func TestCheckLintRunsTheSourceLane(t *testing.T) {
+	root := t.TempDir()
+	old, now := "# A\n", "# A changed\n"
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"docs/wiki\"\n")
+	writeFile(t, filepath.Join(root, "docs", "de", "a.md"), now)
+	writeFile(t, filepath.Join(root, "docs", "wiki", "t.md"), "---\ntitle: T\ntype: concept\ndescription: d\nsources:\n  - id: a\n    resource: brain://project/x/docs/de/a.md\n    doc_id: 01A\n    content_hash: \""+identity.HashBytes([]byte(old))+"\"\n    revision: 3\n---\n\n# T\n")
+	register := func(hash string) {
+		writeFile(t, filepath.Join(root, "_identities.tsv"), "doc_id\tpfad\tcontent_hash\trevision\n01A\tdocs/de/a.md\t"+hash+"\t3\n")
+	}
+	register(identity.HashBytes([]byte(old)))
+	code, out, _ := run("check", "lint", "--root", root)
+	if code == 0 || !strings.Contains(out, "lint/wiki-sources: failed") || !strings.Contains(out, "[wiki-sources:register-stale] docs/de/a.md") {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+	register(identity.HashBytes([]byte(now)))
+	writeFile(t, filepath.Join(root, "docs", "wiki", "t.md"), "---\ntitle: T\ntype: concept\ndescription: d\nsources:\n  - id: a\n    resource: brain://project/x/docs/de/a.md\n    doc_id: 01A\n    content_hash: \""+identity.HashBytes([]byte(now))+"\"\n    revision: 3\n---\n\n# T\n")
+	if code, out, _ := run("check", "lint", "--root", root, "-v"); code != 0 || !strings.Contains(out, "lint/wiki-sources: ok") {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+}
+
+// The replay of the stop gate leaves the lane out, as the hook does, and
+// keeps the bundle lint beside it.
+func TestCheckStopLeavesTheSourceLaneOut(t *testing.T) {
+	root := committedRun(t, true)
+	stopStub(t, root)
+	writeFile(t, filepath.Join(root, ".loomux", "config.toml"), "[area]\nscope = \"project/x\"\n[layout]\nwiki = \"docs/wiki\"\n")
+	writeFile(t, filepath.Join(root, "docs", "de", "a.md"), "# A changed\n")
+	writeFile(t, filepath.Join(root, "docs", "wiki", "t.md"), "---\ntitle: T\ntype: concept\ndescription: d\nsources:\n  - id: a\n    resource: brain://project/x/docs/de/a.md\n    doc_id: 01A\n    content_hash: \"sha256:old\"\n    revision: 3\n---\n\n# T\n")
+	writeFile(t, filepath.Join(root, "_identities.tsv"), "doc_id\tpfad\tcontent_hash\trevision\n01A\tdocs/de/a.md\tsha256:old\t3\n")
+	code, out, errOut := run("check", "stop", "-v", "--root", root)
+	if !strings.Contains(out, "lint/wiki: ok") || strings.Contains(out, "lint/wiki-sources") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	noIndexCopy(t, root)
 }
