@@ -75,10 +75,21 @@ judges them.
 - **Order**: a lane starts as soon as the lane it waits for (`after`) is done,
   with at most `max_parallel` processes at once. The report comes at the end,
   never interleaved: kinds in request order, within them stacks in byte order,
-  then areas. The one exception is `lint/wiki`, the lint over the wiki bundle
-  that runs in this process wherever `lint` is requested and the project has a
-  wiki: it comes last. It checks the bundle's structure only; the drift rule
-  stays with `loomux wiki-gate`.
+  then areas. The exceptions are the two wiki lanes that run in this process
+  wherever `lint` is requested and the project has a wiki: they come last.
+  `lint/wiki`, the lint over the wiki bundle, checks the bundle's structure
+  only; the drift rule stays with `loomux wiki-gate`. `lint/wiki-sources`
+  comes after it: the source pins of the project's own scope
+  (`brain://<scope>/…`) against `_identities.tsv` at the root, and that
+  register against the files the pins cite. Findings: `row-missing`,
+  `source-missing`, `doc-id`, `register-stale` (a cited file changed since its
+  row), `pin-stale` (a pin behind its row) and `cycle` (pages that pin each
+  other). A red run ends with one line per kind of finding saying what to do;
+  for `register-stale` and `pin-stale` that is
+  [`loomux wiki repin`](#loomux-wiki-repin---root-path), run by a human. It
+  reads the tree alone: pins of other areas, read-only areas (their register
+  lives in the state directory) and projects without a register at the root
+  are not judged. `check stop` and the stop gate leave it out.
 - **Graph lane**: `check stop` judges the `graph` lane as the stop hook does —
   the working tree, untracked files included, against `HEAD`, through a copy
   of the index in the git directory. It runs the lanes only; the gate around
@@ -263,14 +274,16 @@ Evaluates the project policy and global write barrier before an agent executes a
   - `loomux gate arm` and `loomux gate disarm` (`gate status` passes); the
     refusal says that arm and disarm decide which lanes fail the gate and
     that `loomux gate status` shows them;
-  - `loomux convert` or `loomux fetch`, except with a lone `--help` or `-h`.
+  - `loomux convert` or `loomux fetch`, except with a lone `--help` or `-h`;
+  - `loomux wiki repin`, except with a lone `--help` or `-h`.
 
   The refusal reads ``loomux init, config and area add write
   the configuration the guard reads, merge-hook install and remove write
-  executable hooks into repositories, and convert and fetch write into an
-  area's inbox, which the write barrier keeps from agents; a human runs them.
-  An agent proposes a change with `loomux config set|unset … --propose`,
-  which a human applies``.
+  executable hooks into repositories, convert and fetch write into an area's
+  inbox, which the write barrier keeps from agents, and wiki repin declares
+  the citing pages still correct; a human runs them. An agent proposes a
+  change with `loomux config set|unset … --propose`, which a human applies,
+  and names `loomux wiki repin` for the human to run``.
   `config apply` and `config reject` stay refused.
   - **When a flag exempts** — an allowlist, judged on the line as written
     before any rewriting. The flag exempts only when all three hold:
@@ -425,7 +438,7 @@ The gate at the end of a turn: delivers what subagents left, then runs the `stop
 
 - **Flags**: `--host <h>` (required; `claude` and `antigravity` have adapters), `--root <r>`, `--budget <duration>` — how long the lanes may take in all, planning included, which covers the `--version` probe of a Godot binary (Go duration, default `270s`, below the 300 s its settings entry grants). Each command gets the smaller of its own `timeout` and what is left of the budget.
 - **Standard Input**: the host's `Stop` payload; only `session_id` is read.
-- **Behavior**: in this order — the subagents' findings to `stderr`, the block counter (after 3 blocks in a row it gives up for one turn and leaves the findings on disk for the next), the marker `.loomux/no-verify` (it skips the chain, not the findings), the config and its `stop` profile (a `[verify]` that cannot be read ends the gate with exit 1, which holds nothing), the content fingerprint (nothing new since the last green run or the base: no tool starts; with a graph lane only under the same `HEAD`), then the kinds of the `stop` profile (by default `lint`, `types`, `test`, `coverage`, `graph`; the `graph` lane reads a copy of the index holding the whole tree and judges the turn against `HEAD`) in the check scope, plus `lint/wiki` where `lint` is asked for and there is a wiki. A green run moves `base` to `HEAD` and remembers the tree. A run red only in lanes in probation keeps `base`, and remembers its tree, `HEAD`, the armed lanes and its report; a later turn end over the same tree, under the same `HEAD` and with the same lanes armed, starts no tool and says that report again. See [Hooks](hooks.md#stop).
+- **Behavior**: in this order — the subagents' findings to `stderr`, the block counter (after 3 blocks in a row it gives up for one turn and leaves the findings on disk for the next), the marker `.loomux/no-verify` (it skips the chain, not the findings), the config and its `stop` profile (a `[verify]` that cannot be read ends the gate with exit 1, which holds nothing), the content fingerprint (nothing new since the last green run or the base: no tool starts; with a graph lane only under the same `HEAD`), then the kinds of the `stop` profile (by default `lint`, `types`, `test`, `coverage`, `graph`; the `graph` lane reads a copy of the index holding the whole tree and judges the turn against `HEAD`) in the check scope, plus `lint/wiki` where `lint` is asked for and there is a wiki (not `lint/wiki-sources`: only a human turns it green, so it stays with `loomux check`). A green run moves `base` to `HEAD` and remembers the tree. A run red only in lanes in probation keeps `base`, and remembers its tree, `HEAD`, the armed lanes and its report; a later turn end over the same tree, under the same `HEAD` and with the same lanes armed, starts no tool and says that report again. See [Hooks](hooks.md#stop).
 - **Standard Error**: delivered findings as `subagent <agent_id>: <line>`, then only the red lanes, in the format of `loomux check`. At exit 0 with a red lane in probation, the report of those lanes, ending with the `probation: <keys>` line; no host shows `stderr` at exit 0, so the next session start passes it on.
 - **Exit Codes**: `0` (the turn ends: green, red only in lanes in probation, nothing new, the marker, or the counter gave up), `2` (the turn is held: an armed red lane, a git failure, or findings delivered — with findings even an exit 1 becomes 2), `1` (the gate could not judge: an unreadable payload or one without `session_id`, the budget ran out, a requested kind had nothing that ran, `[verify]` cannot be loaded — the config is read before the tree, so this exits 1 even when the tree was already found green —, the plan fails, the coverage directory cannot be prepared (`verify.PrepareCover`), or a malformed call; the turn ends).
 
@@ -679,6 +692,18 @@ Counts the page types across every area with a wiki: per type `<type> [<rank>]: 
 
 #### `loomux wiki retype --scope <scope> --from <old> --to <new>`
 Renames one page type in one bundle and names every page it wrote. Only the frontmatter's `type:` line changes; a written page is folded to LF throughout. Skipped are scaffold files, broken frontmatter (a duplicate key included), bytes that are not UTF-8, and a quoted or folded value. A target type no rank knows gives a warning on `stderr`, and the run goes on. Exit `1` for an unknown scope, an area without a wiki path, or a read-only area.
+
+#### `loomux wiki repin [--root <path>]`
+Moves the register and the source pins of the tree at `--root` (default: the working directory) to the files as they are: each register row of a cited file whose hash changed gets the new hash and its revision plus one, and every `sources:` entry of the project's own scope (`brain://<scope>/…`) gets its row's hash and revision. A pinned page's own hash changes with its pins, so the run follows the chain of citing pages to the end. A row nobody cites stays as it is; a row moves by one at most per run. It turns the lane `lint/wiki-sources` of [`loomux check`](#loomux-check-request---root-path---show--v---arm) green.
+
+- **What it declares**: whoever runs it says that the pages citing a changed file are still correct. It is `approve --reject` for every such page at once, without a case. The guard refuses it to an agent; an agent checks the pages and names the command.
+- **The tree, not the registry**: it reads and writes `_identities.tsv` at the project root and the pages of the project's wiki, never the registry or the checkout the registry names, so it works in a linked worktree.
+- **Edits in place**: only the values of `content_hash:` and `revision:` change, and only in entries whose values are behind; quotes, line ends and every other byte stay, and a page whose pins are current is not touched. Two entries with the same `doc_id` both get the new values. A page whose stale entry it cannot edit that way (a flow list, a missing line, a comment or a value that goes on to the next line) is refused.
+- **Refusals** (exit `1`, nothing written): the findings `row-missing`, `source-missing`, `doc-id` and `cycle` are printed as the lane prints them (`  • [wiki-sources:<rule>] <page>: <message>`), then `loomux wiki repin: <n> finding(s) repin does not fix`; a page it cannot edit is named in the error.
+- **A newly cited file** has no register row yet, and only `loomux reindex` mints one — in the checkout the registry names, which does not see a file that exists only on a branch. The way today: merge the file without a citation first, run `loomux reindex` in the registry's checkout, carry its new row into a branch, then cite it.
+- **Output**: `repinned: <page>` per page, then `register: <path> revision <old> -> <new>` per row, or `nothing to repin`. Without `[area]`, a wiki or a register at the root it does nothing.
+- **After a merge conflict** in `_identities.tsv` or in pins: run it again.
+- **Exit codes**: `0`; `1` for a refusal or an error; `2` for a usage error.
 
 ### Upkeep: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
 

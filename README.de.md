@@ -219,6 +219,7 @@ loomux brain check file|bundle|all  # Die Regeln für OKF, Haus und Föderation 
 loomux wiki init --scope S          # Legt das Gerüst des Wiki-Bündels eines Bereichs an
 loomux wiki types                   # Zählt die Seitentypen über alle Bereiche, mit Rang und Altnamen
 loomux wiki retype --scope S --from A --to B  # Benennt einen Seitentyp in einem Bündel um
+loomux wiki repin [--root P]        # Rückt Register und Quell-Pins auf die Dateien vor, wie sie sind (fährt ein Mensch)
 loomux wiki-gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
 loomux brain search "<anfrage>"     # Durchsucht die sichtbaren Bereiche über den qmd-Daemon (--profile fast|full|keyword)
 loomux brain catalog [--scope S]    # Wurzelkatalog der sichtbaren Bereiche oder das index.md eines Bereichs

@@ -9,8 +9,8 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:60f70947f95e86103f7423f32e2db5aab10d0e85c7ab863a124858aa97dd39dc"
-    revision: 3
+    content_hash: "sha256:9d99a6db121543f472769ddc5d7a53f41fb8cf73cab53dfd06be3733e1ebb4c1"
+    revision: 4
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
@@ -37,8 +37,11 @@ Die Tabelle `[policy]` in `.loomux/config.toml` trägt zwei Regellisten:
 Pfadregeln mit Globs gegen schreibende Werkzeuge und Befehlsregeln mit
 regulären Ausdrücken gegen `Bash` und `PowerShell`. Eingebaute Regeln gehen
 immer mit: Geheimnisse (`.env`, `*.pem`, `*.key` und andere) schreibt kein
-Agent, und `loomux init`, `config`, `area add`, `merge-hook install|remove`,
-`convert` und `fetch` führt ein Mensch aus. Eine
+Agent; `loomux init`, `config`, `area add`, `merge-hook install|remove`,
+`gate arm|disarm`, `convert`, `fetch` und `wiki repin` führt ein Mensch aus,
+ebenso das `--answer` am Tor eines Flows; und einen Interpreter, der sein
+Programm von stdin liest (`python -`, ein Heredoc in den Interpreter),
+startet kein Agent. Eine
 Regel, deren Glob sich nicht lesen lässt, verweigert.
 
 ## Wie die Schranke entscheidet

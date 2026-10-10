@@ -14,8 +14,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:6d4294a183dfef9f3c2c959ff9f0d94acf36d563900d13a2dc3085b98339db7b"
-    revision: 4
+    content_hash: "sha256:561abd6af4122b184033d8dee55610283fe1c12165ea1141b3f8f36e2a115c94"
+    revision: 5
 ---
 
 ## Das Bundle
@@ -106,7 +106,10 @@ Daneben prüft `loomux brain check file|bundle|all` Seiten, Bündel und
 Föderation auf zwei Achsen: `okf` (OKF-Form) und `house` (die Hausregeln samt
 den Föderationsregeln `wrong-direction` und `unlisted-area`). Es steht unter
 `brain`, weil `loomux check all` die Prüfkette ist; `check code` ist
-entfallen. Die vier Seitentypen bleiben, aber der Einzelseiten-Lint fragt eine
+entfallen. Neben `lint/wiki` hängt `loomux check` die Lane `lint/wiki-sources`
+an: Sie prüft die Quell-Pins des eigenen Scopes gegen `_identities.tsv` und
+dieses Register gegen die zitierten Dateien ([Brain
+Maintenance](brain-maintenance.md)). Die vier Seitentypen bleiben, aber der Einzelseiten-Lint fragt eine
 eigene Liste statt das Manifest: `Topic` geht als `topic` durch, `Source`,
 `Entity` und `Synthesis` melden je eine Warnung `unknown document type`, die
 nichts aufhält, weil das Tor nur bei `Error` abbricht (`_schema.md`).
@@ -138,7 +141,10 @@ Tresors, ohne eigenen Zweig und ohne den Index des Nutzers anzufassen.
 
 `loomux wiki init|types|retype` bringt die drei Wiki-Werkzeuge der Referenz:
 `init` legt ein Bündel an, `types` zählt die Seitentypen über alle Bereiche,
-`retype` benennt einen Typ in einem Bündel um. Zählen und Anlegen sind keine
+`retype` benennt einen Typ in einem Bündel um. Dazu kommt ein vierter, den die
+Referenz nicht hat: `repin` rückt Register und Pins des Baums auf die Dateien
+vor, wie sie sind, und ändert dabei nur die Werte von `content_hash` und
+`revision`; ein Mensch fährt ihn. Zählen und Anlegen sind keine
 eigenen Befehle. Einen Bereich samt Wiki-Gerüst meldet `loomux area add` an;
 seine Hook-Hälfte bleibt `loomux init` aus Stufe 4 vorbehalten.
 
