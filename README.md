@@ -218,6 +218,7 @@ loomux brain check file|bundle|all  # the OKF, house and federation rules over a
 loomux wiki init --scope S          # lay out the frame of an area's wiki bundle
 loomux wiki types                   # count the page types across every area, with rank and old names
 loomux wiki retype --scope S --from A --to B  # rename one page type in one bundle
+loomux wiki repin [--root P]        # move the register and the source pins to the files as they are (a human runs it)
 loomux wiki-gate                    # gate wiki freshness and structural constraints
 loomux brain search "<query>"       # search the visible areas through the qmd daemon (--profile fast|full|keyword)
 loomux brain catalog [--scope S]    # the root catalog of the visible areas, or one area's index.md

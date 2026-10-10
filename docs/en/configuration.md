@@ -188,6 +188,14 @@ is too slow for every turn end narrows it (`stop = ["lint", "types"]`).
   wiki. `lint/wiki` checks the bundle's structure only and is reported after
   every other lane. The drift rule — code changed, documentation not — stays
   with `loomux wiki-gate`, a command of its own.
+- `wiki-sources` knows only `lint = false`, which switches off
+  `lint/wiki-sources`, the check of the wiki's source pins that
+  `loomux check` adds after `lint/wiki` (not the stop gate), and nothing
+  else; `[verify.wiki] lint = false` leaves it running. Its lane key of its
+  own (`lint/wiki-sources@.`) lets it serve its probation apart from
+  `lint/wiki`. It judges only the pins of the project's own scope against
+  `_identities.tsv` at the root; see
+  [`loomux wiki repin`](cli-reference.md#loomux-wiki-repin---root-path).
 - `project` has no preset. Its lanes run in the root for `loomux check`; the
   post-edit hook runs them only with `on_file`, and only beside the lanes of
   an edited file whose stack is active.
@@ -568,7 +576,7 @@ armed = [
   `.` for the root. It always carries the area, unlike the name in a report:
   `lint/go` turns into `lint/go@.` in the report as soon as a second area
   joins, and the key stays `lint/go@.`. The project-wide lanes are
-  `lint/wiki@.` and `<kind>/project@.`. On the command line the same keys
+  `lint/wiki@.`, `lint/wiki-sources@.` and `<kind>/project@.`. On the command line the same keys
   are written with `/` (`lint/go@sub/dir`).
 - **In probation** means the lane runs and shows its findings, and fails
   nothing. Only a red state carries `(probation)` (`lint/go: failed
@@ -624,14 +632,14 @@ cannot look configured and not be.
 ```toml
 [modules]
 hooks = true   # post-edit, stop, session-start, subagent-start/-stop
-brain = true   # the wiki lane, the brain_* MCP tools, convert and fetch
+brain = true   # the wiki lanes, the brain_* MCP tools, convert and fetch
 graph = false  # the graph_* MCP tools
 ```
 
 | Key | Type | Default | Off means |
 |---|---|---|---|
 | `hooks` | boolean | `true` | `loomux hook post-tool-use`, `stop`, `session-start`, `subagent-start` and `subagent-stop` exit 0 at once and do nothing. |
-| `brain` | boolean | `true` | The lane `lint/wiki` is off everywhere — edit lane, `loomux check` and the stop gate — exactly as `[verify.wiki] lint = false` would turn it off; `loomux mcp` offers no `brain_*` tool; `loomux convert` and `loomux fetch`, run in this project, refuse with exit 1. |
+| `brain` | boolean | `true` | The lane `lint/wiki` is off everywhere — edit lane, `loomux check` and the stop gate — exactly as `[verify.wiki] lint = false` would turn it off, and so is `lint/wiki-sources`, as `[verify.wiki-sources] lint = false` would; `loomux mcp` offers no `brain_*` tool; `loomux convert` and `loomux fetch`, run in this project, refuse with exit 1. |
 | `graph` | boolean | `true` | `loomux mcp` offers no `graph_*` tool. |
 
 - **The guard always runs.** `hook pre-tool-use` does not read `[modules]`:

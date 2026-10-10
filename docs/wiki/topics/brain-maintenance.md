@@ -8,8 +8,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:6d4294a183dfef9f3c2c959ff9f0d94acf36d563900d13a2dc3085b98339db7b"
-    revision: 4
+    content_hash: "sha256:561abd6af4122b184033d8dee55610283fe1c12165ea1141b3f8f36e2a115c94"
+    revision: 5
 ---
 
 Die Pflegeschicht ist mit **Stufe 3** gebaut,
@@ -66,6 +66,18 @@ Ein Tor ist der Durchgang trotzdem nicht:
 
 Die Regel dahinter: kein stiller Fortschritt am Tor vorbei. Jeder Zustand, in
 dem das Register ohne Abgleich vorrückt, ist laut.
+
+Der dritte Anschluss ist das **Commit-Tor**: Die Lane `lint/wiki-sources` in
+`loomux check` sieht schon beim Commit, was `reconcile` erst im nächsten Lauf
+fände — eine zitierte Datei, die ihrer Registerzeile davongelaufen ist, und
+einen Pin hinter seiner Zeile. Anlass war ein reiner Doku-PR, nach dem 22
+Pins auf `master` veraltet standen, ohne dass ein Lint es meldete. Sie liest
+nur den Baum, keine Registry, und läuft darum im verknüpften Worktree und im
+CI gleich. Grün macht sie im Zweig `loomux wiki repin`, das Register und
+Pins dort vorrückt; wer ihn fährt, erklärt die zitierenden Seiten für
+richtig, darum fährt ihn nur ein Mensch. Im Checkout der Registry bleibt
+`reconcile` mit Fall und Freigabe der Weg mit Prüfung. Das Stop-Gate lässt
+die Lane aus: ein Agent kann sie nicht grün machen.
 
 **Der Abgleich erzeugt keine Änderungen, sondern Fälle.** Sie liegen im
 Prüfzentrum, dem einen Ort, den `[layout].review` eines Bereichs erklärt.

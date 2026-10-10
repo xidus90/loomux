@@ -80,10 +80,23 @@ urteilt über sie.
 - **Reihenfolge**: Eine Lane startet, sobald die Lane, auf die sie wartet
   (`after`), fertig ist, mit höchstens `max_parallel` Prozessen gleichzeitig.
   Der Bericht kommt am Ende, nie verzahnt: Arten in Anfrage-Reihenfolge, darin
-  Stacks in Byte-Ordnung, dann Bereiche. Die eine Ausnahme ist `lint/wiki`, der
-  Lint über das Wiki-Bündel, der in diesem Prozess läuft, wo `lint` angefragt
-  ist und das Projekt ein Wiki hat: er kommt zuletzt. Er prüft nur die Struktur
-  des Bündels; die Drift-Regel bleibt bei `loomux wiki-gate`.
+  Stacks in Byte-Ordnung, dann Bereiche. Ausnahmen sind die beiden Wiki-Lanes,
+  die in diesem Prozess laufen, wo `lint` angefragt ist und das Projekt ein
+  Wiki hat: sie kommen zuletzt. `lint/wiki`, der Lint über das Wiki-Bündel,
+  prüft nur die Struktur des Bündels; die Drift-Regel bleibt bei
+  `loomux wiki-gate`. Danach kommt `lint/wiki-sources`: die Quell-Pins des
+  eigenen Scopes (`brain://<scope>/…`) gegen `_identities.tsv` in der
+  Wurzel und dieses Register gegen die Dateien, die die Pins zitieren.
+  Befunde: `row-missing`, `source-missing`, `doc-id`, `register-stale` (eine
+  zitierte Datei hat sich seit ihrer Zeile geändert), `pin-stale` (ein Pin
+  hinter seiner Zeile) und `cycle` (Seiten, die einander pinnen). Ein roter
+  Lauf endet mit einer Zeile je Art von Befund, die sagt, was zu tun ist; bei
+  `register-stale` und `pin-stale` ist das
+  [`loomux wiki repin`](#loomux-wiki-repin---root-pfad), von einem Menschen
+  gefahren. Sie liest nur den Baum: Pins anderer Bereiche,
+  schreibgeschützte Bereiche (ihr Register liegt im Zustandsverzeichnis) und
+  Projekte ohne Register in der Wurzel prüft sie nicht. `check stop` und das
+  Stop-Gate lassen sie aus.
 - **Graph-Lane**: `check stop` beurteilt die `graph`-Lane wie der Stop-Hook —
   den Arbeitsbaum samt ungetrackter Dateien gegen `HEAD`, über eine Kopie des
   Index im Git-Verzeichnis. Es fährt nur die Lanes; das Tor um sie herum (der
@@ -275,14 +288,16 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   - `loomux gate arm` und `loomux gate disarm` (`gate status` geht durch); die
     Ablehnung sagt, dass arm und disarm entscheiden, welche Lanes das Tor
     scheitern lassen, und dass `loomux gate status` sie zeigt;
-  - `loomux convert` oder `loomux fetch`, außer allein mit `--help` oder `-h`.
+  - `loomux convert` oder `loomux fetch`, außer allein mit `--help` oder `-h`;
+  - `loomux wiki repin`, außer allein mit `--help` oder `-h`.
 
   Die Ablehnung lautet ``loomux init, config and
   area add write the configuration the guard reads, merge-hook install and
-  remove write executable hooks into repositories, and convert and fetch
-  write into an area's inbox, which the write barrier keeps from agents; a
-  human runs them. An agent proposes a change with
-  `loomux config set|unset … --propose`, which a human applies``.
+  remove write executable hooks into repositories, convert and fetch write
+  into an area's inbox, which the write barrier keeps from agents, and wiki
+  repin declares the citing pages still correct; a human runs them. An agent
+  proposes a change with `loomux config set|unset … --propose`, which a human
+  applies, and names `loomux wiki repin` for the human to run``.
   `config apply` und `config reject` bleiben verweigert.
   - **Wann ein Flag befreit** — eine Positivliste, geprüft an der Zeile, wie
     sie geschrieben steht, vor jeder Umformung. Das Flag befreit nur, wenn
@@ -450,7 +465,7 @@ Das Tor am Rundenende: stellt zu, was Subagenten hinterlassen haben, und fährt 
 
 - **Flags**: `--host <h>` (Pflicht; `claude` und `antigravity` haben Adapter), `--root <r>`, `--budget <dauer>` — wie lange die Lanes zusammen dauern dürfen, die Planung eingeschlossen, also auch die `--version`-Abfrage eines Godot-Binarys (Go-Dauer, Vorgabe `270s`, unter den 300 s, die sein Settings-Eintrag gewährt). Jeder Befehl bekommt das Kleinere aus seinem eigenen `timeout` und dem Rest des Budgets.
 - **Standard-Input (stdin)**: die `Stop`-Nutzlast des Hosts; gelesen wird nur `session_id`.
-- **Verhalten**: in dieser Reihenfolge — die Befunde der Subagenten auf `stderr`, der Blockzähler (nach 3 Blockaden in Folge gibt er für eine Runde auf und lässt die Befunde für die nächste liegen), der Marker `.loomux/no-verify` (er überspringt die Kette, nicht die Befunde), die Konfiguration und ihr Profil `stop` (ein `[verify]`, das sich nicht lesen lässt, beendet das Tor mit Exit 1, der nichts anhält), der Fingerabdruck des Inhalts (nichts Neues seit dem letzten grünen Lauf oder der Basis: kein Werkzeug startet; mit einer Graph-Lane nur unter demselben `HEAD`), dann die Arten des Profils `stop` (vorgegeben `lint`, `types`, `test`, `coverage`, `graph`; die Lane `graph` liest eine Kopie des Index, die den ganzen Baum trägt, und urteilt über die Runde gegen `HEAD`) im Check-Scope, dazu `lint/wiki`, wo `lint` angefragt ist und es ein Wiki gibt. Ein grüner Lauf rückt `base` auf `HEAD` vor und merkt sich den Baum. Ein Lauf, der nur in Lanes in Probe rot ist, lässt `base` stehen und merkt sich seinen Baum, `HEAD`, die scharfen Lanes und seinen Bericht; ein späteres Rundenende über denselben Baum, unter demselben `HEAD` und mit denselben scharfen Lanes startet kein Werkzeug und sagt diesen Bericht noch einmal. Siehe [Hooks](hooks.md#stop).
+- **Verhalten**: in dieser Reihenfolge — die Befunde der Subagenten auf `stderr`, der Blockzähler (nach 3 Blockaden in Folge gibt er für eine Runde auf und lässt die Befunde für die nächste liegen), der Marker `.loomux/no-verify` (er überspringt die Kette, nicht die Befunde), die Konfiguration und ihr Profil `stop` (ein `[verify]`, das sich nicht lesen lässt, beendet das Tor mit Exit 1, der nichts anhält), der Fingerabdruck des Inhalts (nichts Neues seit dem letzten grünen Lauf oder der Basis: kein Werkzeug startet; mit einer Graph-Lane nur unter demselben `HEAD`), dann die Arten des Profils `stop` (vorgegeben `lint`, `types`, `test`, `coverage`, `graph`; die Lane `graph` liest eine Kopie des Index, die den ganzen Baum trägt, und urteilt über die Runde gegen `HEAD`) im Check-Scope, dazu `lint/wiki`, wo `lint` angefragt ist und es ein Wiki gibt (nicht `lint/wiki-sources`: grün macht sie nur ein Mensch, darum bleibt sie bei `loomux check`). Ein grüner Lauf rückt `base` auf `HEAD` vor und merkt sich den Baum. Ein Lauf, der nur in Lanes in Probe rot ist, lässt `base` stehen und merkt sich seinen Baum, `HEAD`, die scharfen Lanes und seinen Bericht; ein späteres Rundenende über denselben Baum, unter demselben `HEAD` und mit denselben scharfen Lanes startet kein Werkzeug und sagt diesen Bericht noch einmal. Siehe [Hooks](hooks.md#stop).
 - **Standard-Fehler (stderr)**: zugestellte Befunde als `subagent <agent_id>: <zeile>`, danach nur die roten Lanes, im Format von `loomux check`. Bei Exit 0 mit einer roten Lane in Probe der Bericht dieser Lanes, der mit der Zeile `probation: <schlüssel>` endet; `stderr` zeigt bei Exit 0 kein Host, darum gibt ihn die nächste Sitzungseröffnung weiter.
 - **Exit-Codes**: `0` (die Runde endet: grün, nur in Lanes in Probe rot, nichts Neues, der Marker, oder der Zähler hat aufgegeben), `2` (die Runde wird angehalten: eine scharfe rote Lane, ein Git-Fehler, oder zugestellte Befunde — mit Befunden wird selbst ein Exit 1 zu 2), `1` (das Tor konnte nicht urteilen: eine unlesbare Nutzlast oder eine ohne `session_id`, das Budget war aufgebraucht, eine angefragte Art hatte nichts, was lief, `[verify]` lässt sich nicht laden — die Konfiguration wird vor dem Baum gelesen, daher endet das mit 1, auch wenn der Baum schon als grün bekannt war —, der Plan scheitert, das Coverage-Verzeichnis lässt sich nicht vorbereiten (`verify.PrepareCover`), oder ein fehlerhafter Aufruf; die Runde endet).
 
@@ -704,6 +719,18 @@ Zählt die Seitentypen über alle Bereiche mit Wiki: je Typ `<typ> [<rang>]: <su
 
 #### `loomux wiki retype --scope <scope> --from <alt> --to <neu>`
 Benennt einen Seitentyp in einem Bündel um und nennt jede geschriebene Seite. Geändert wird nur die Zeile `type:` des Frontmatters; eine geschriebene Seite wird ganz auf LF gefaltet. Übersprungen werden Gerüstdateien, kaputtes Frontmatter (auch ein doppelter Schlüssel), Bytes, die kein UTF-8 sind, und ein gequoteter oder gefalteter Wert. Ein Zieltyp, den kein Rang kennt, ergibt eine Warnung auf `stderr`, der Lauf geht weiter. Exit `1` bei einem unbekannten Scope, einem Bereich ohne Wiki-Pfad oder einem schreibgeschützten Bereich.
+
+#### `loomux wiki repin [--root <pfad>]`
+Rückt Register und Quell-Pins des Baums unter `--root` (vorgegeben: das Arbeitsverzeichnis) auf die Dateien vor, wie sie sind: Jede Registerzeile einer zitierten Datei, deren Hash sich geändert hat, bekommt den neuen Hash und ihre Revision plus eins, und jeder `sources:`-Eintrag des eigenen Scopes (`brain://<scope>/…`) bekommt Hash und Revision seiner Zeile. Der Hash einer gepinnten Seite ändert sich mit ihren Pins, darum folgt der Lauf der Kette der zitierenden Seiten bis zum Ende. Eine Zeile, die niemand zitiert, bleibt, wie sie ist; eine Zeile rückt je Lauf höchstens um eins vor. Er macht die Lane `lint/wiki-sources` von [`loomux check`](#loomux-check-anfrage---root-pfad---show--v---arm) grün.
+
+- **Was er erklärt**: Wer ihn fährt, sagt, dass die Seiten, die eine geänderte Datei zitieren, noch stimmen. Er ist `approve --reject` für jede solche Seite auf einmal, ohne Fall. Der Wächter verweigert ihn einem Agenten; ein Agent prüft die Seiten und nennt den Befehl.
+- **Der Baum, nicht die Registry**: Er liest und schreibt `_identities.tsv` in der Projektwurzel und die Seiten des Projekt-Wikis, nie die Registry oder den Checkout, den sie nennt; darum geht er auch in einem verknüpften Worktree.
+- **Ändert an Ort und Stelle**: Nur die Werte von `content_hash:` und `revision:` ändern sich, und nur in Einträgen, deren Werte zurückliegen; Anführungszeichen, Zeilenenden und jedes andere Byte bleiben, und eine Seite mit aktuellen Pins fasst er nicht an. Zwei Einträge mit derselben `doc_id` bekommen beide die neuen Werte. Eine Seite, deren veralteten Eintrag er so nicht sicher findet (eine Flow-Liste, eine fehlende Zeile, ein Kommentar oder ein Wert, der in der nächsten Zeile weitergeht), lehnt er ab.
+- **Ablehnungen** (Exit `1`, nichts geschrieben): Die Befunde `row-missing`, `source-missing`, `doc-id` und `cycle` stehen so da, wie die Lane sie schreibt (`  • [wiki-sources:<regel>] <seite>: <text>`), dann `loomux wiki repin: <n> finding(s) repin does not fix`; eine Seite, die er nicht ändern kann, nennt der Fehler.
+- **Eine neu zitierte Datei** hat noch keine Registerzeile, und eine anlegen kann nur `loomux reindex` — im Checkout, den die Registry nennt, und der sieht keine Datei, die es nur auf einem Zweig gibt. Der Weg heute: die Datei zuerst ohne Zitat mergen, im Checkout der Registry `loomux reindex` fahren, die neue Zeile in einen Zweig übernehmen und dann zitieren.
+- **Ausgabe**: `repinned: <seite>` je Seite, dann `register: <pfad> revision <alt> -> <neu>` je Zeile, sonst `nothing to repin`. Ohne `[area]`, Wiki oder Register in der Wurzel tut er nichts.
+- **Nach einem Merge-Konflikt** in `_identities.tsv` oder in Pins: erneut fahren.
+- **Exit-Codes**: `0`; `1` bei einer Ablehnung oder einem Fehler; `2` bei falscher Benutzung.
 
 ### Pflege: `loomux reindex`, `loomux embed`, `loomux reconcile`, `loomux area add`
 
