@@ -12,7 +12,7 @@ import (
 )
 
 // GateLanes are the keys of every lane root's gate can run, sorted: the lanes
-// of every kind as a check plans them, and the wiki's. A lane with nothing to
+// of every kind as a check plans them, and the wiki's two. A lane with nothing to
 // run here -- no command, a graph lane another stack carries -- is none, and
 // so is one with nothing to check: a stack without tests has no test and no
 // coverage lane. Neither can ever turn green, so neither is armed by a
@@ -47,6 +47,7 @@ func GateLanes(root string) ([]string, error) {
 		return nil, err
 	}
 	jobs = append(jobs, WikiGateJobs(eff, facts, root, kinds)...)
+	jobs = append(jobs, WikiSourceJobs(eff, facts, root, kinds)...)
 	var keys []string
 	for _, j := range jobs {
 		if j.Pre != verify.StateNotApplicable && j.Pre != verify.StateUnavailable {

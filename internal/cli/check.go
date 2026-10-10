@@ -241,6 +241,10 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 	// The wiki's lane is built by the hooks, like its edit lane; appended
 	// behind the plan, because a job's After is an index into it.
 	jobs = append(jobs, hooks.WikiGateJobs(eff, facts, root, kinds)...)
+	// check stop replays the stop gate, which leaves the source lane out.
+	if request != "stop" {
+		jobs = append(jobs, hooks.WikiSourceJobs(eff, facts, root, kinds)...)
+	}
 	// A file that does not read arms every lane, and every run says so.
 	armed, err := verify.ReadArmed(root)
 	if err != nil {

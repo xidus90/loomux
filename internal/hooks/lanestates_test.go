@@ -42,7 +42,12 @@ func TestGateLanesAreTheLanesWithSomethingToRun(t *testing.T) {
 func TestGateLanesNameTheWikiAndTheProjectLanes(t *testing.T) {
 	root, _ := wikiProject(t, "[verify.project]\nlint = \"echo hi\"\n", cleanPage)
 	got, err := GateLanes(root)
-	if err != nil || !slices.Equal(got, []string{"lint/project@.", "lint/wiki@."}) {
+	if err != nil || !slices.Equal(got, []string{"lint/project@.", "lint/wiki-sources@.", "lint/wiki@."}) {
+		t.Fatalf("%v %v", got, err)
+	}
+	// Its own switch takes it out of the list and leaves the bundle lint.
+	off, _ := wikiProject(t, "[verify.wiki-sources]\nlint = false\n", cleanPage)
+	if got, err := GateLanes(off); err != nil || !slices.Equal(got, []string{"lint/wiki@."}) {
 		t.Fatalf("%v %v", got, err)
 	}
 }
