@@ -4,7 +4,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -162,7 +164,7 @@ func TestGatherAsksGitForItsHookDirectory(t *testing.T) {
 			return "", nil
 		}
 	}
-	// An older git answers relative to where it ran.
+	// A relative answer is relative to where git ran.
 	f, err := Gather(root, t.TempDir(), tested, answer(".git/hooks\n", nil))
 	if err != nil || f.GitHooksDir != filepath.Join(root, ".git", "hooks") || f.GitHooksLive {
 		t.Errorf("dir = %q, live = %v, err = %v", f.GitHooksDir, f.GitHooksLive, err)
@@ -179,6 +181,28 @@ func TestGatherAsksGitForItsHookDirectory(t *testing.T) {
 	// With core.hooksPath set git's own directory is not asked for.
 	if f := gather(t, root, ".githooks"); f.GitHooksDir != "" {
 		t.Errorf("dir = %q", f.GitHooksDir)
+	}
+}
+
+// loomux runs `git rev-parse --path-format=absolute`, which Git has known
+// since 2.31; a Git 2.30 echoes the option back as an output line, so init
+// fails there. The install pages may not promise an older Git.
+func TestTheInstallPagesNameTheGitMinimumTheCodeNeeds(t *testing.T) {
+	for _, page := range []string{"en", "de"} {
+		text, err := os.ReadFile(filepath.Join("..", "..", "docs", page, "install.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := regexp.MustCompile(`\*\*Git\*\* (\d+)\.(\d+)`).FindStringSubmatch(string(text))
+		if m == nil {
+			t.Errorf("docs/%s/install.md names no Git minimum", page)
+			continue
+		}
+		major, _ := strconv.Atoi(m[1])
+		minor, _ := strconv.Atoi(m[2])
+		if major < 2 || major == 2 && minor < 31 {
+			t.Errorf("docs/%s/install.md promises Git %s.%s, but --path-format=absolute needs 2.31", page, m[1], m[2])
+		}
 	}
 }
 
