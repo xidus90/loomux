@@ -54,7 +54,7 @@ func TestWaitingRunsQuotesABinaryPathTheShellWouldSplit(t *testing.T) {
 		"C:/Users/John Doe/bin/loomux.exe": `"C:/Users/John Doe/bin/loomux.exe"`,
 		"C:/R&D/loomux.exe":                `"C:/R&D/loomux.exe"`,
 		"C:/x (y)/loomux.exe":              `"C:/x (y)/loomux.exe"`,
-		"C:/Users/Wübbels/bin/loomux.exe":  "C:/Users/Wübbels/bin/loomux.exe",
+		"C:/Users/Jürgen/bin/loomux.exe":   "C:/Users/Jürgen/bin/loomux.exe",
 	} {
 		runningAs(t, filepath.FromSlash(path))
 		var stderr bytes.Buffer

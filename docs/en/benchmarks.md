@@ -28,7 +28,7 @@ Measured on Windows x86_64, warm median over 5 runs. Basis for the Loomux fusion
 
 ## 2026-09-15 01:20 — The Merged Guard Against the Two It Replaces
 
-Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1a`, branch
+Repository `loomux`, worktree `C:/Users/me/Documents/#GIT/loomux-sdd-1a`, branch
 `sdd-1a`, commit `8ebdc93` plus the uncommitted tree of Task 15 — this task adds
 the measuring tool and the entry, it does not change the hook path.
 
@@ -45,7 +45,7 @@ warm max and the exit codes. Payload: an `Edit` on `README.md` of this worktree
 here (a missing file is an empty policy), so the real pilot configuration of Task 16
 will add one TOML parse this measurement omits. Binaries measured:
 `bin/loomux.exe`, built from this tree with Go 1.27, and the predecessors
-`C:/Users/micro/AppData/Local/Temp/loomux-old/{ulguard,brain}.exe`, built from the
+`C:/Users/me/AppData/Local/Temp/loomux-old/{ulguard,brain}.exe`, built from the
 tag worktrees `loomux-1a-source` of `ultraloom` and `ultra-brain` — the tagged
 versions, not whatever sits on the PATH.
 
@@ -222,7 +222,7 @@ attractive.
 
 ## 2026-09-15 15:39 — The Write Barrier in a Linked Worktree
 
-Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1`, branch
+Repository `loomux`, worktree `C:/Users/me/Documents/#GIT/loomux-sdd-1b1`, branch
 `barrier-worktrees`, commit `d8bfad2`.
 
 **Goal.** Show what opening linked worktrees costs: a write in a worktree with no
@@ -274,7 +274,7 @@ above, both with Go `go1.27.0 windows/amd64`.
 
 ## 2026-09-16 19:10 — The Brain Data Commands on the Real Registry
 
-Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1`, branch
+Repository `loomux`, worktree `C:/Users/me/Documents/#GIT/loomux-sdd-1b1`, branch
 `sdd-1b-1`, commit `9ca6364` plus the uncommitted tree of Task 15 — this task adds
 the measurement cases, three benchmarks and this entry; it does not change a command.
 
@@ -375,7 +375,7 @@ first and was already warm from the three warming calls, `status` last.
 ## 2026-09-16 19:32 — sameRepository Without git rev-parse
 
 Repository `loomux`, branch `claude/cranky-kilby-f5a456`, commit `ee1aadf`;
-measured worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b1` at `9ca6364`.
+measured worktree `C:/Users/me/Documents/#GIT/loomux-sdd-1b1` at `9ca6364`.
 
 **Goal.** Test the attribution the entry of 2026-09-15 15:39 left open: that the
 warm gap of about 34 ms between a write in a linked worktree and one in the main
@@ -435,7 +435,7 @@ cold values here are cached starts and comparable across rows.
 ## 2026-09-16 22:13 — Registry and Declaration Checks in One Place
 
 Repository `loomux`, worktree
-`C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1`,
+`C:/Users/me/Documents/#GIT/loomux/.claude/worktrees/recursing-bartik-b2d7a1`,
 branch `claude/recursing-bartik-b2d7a1`, commit `222465b` (Task 5 of the plan
 `2026-09-16-loomux-registry-manifest-pruefungen`).
 
@@ -445,13 +445,13 @@ cost at the write barrier and at `brain catalog`.
 **Method.** `loomux dev bench-hooks testdata/bench/registry-checks.json -n 20`: one
 cold run per case, then 20 warm ones, against the real state directory
 (`%LOCALAPPDATA%\loomux` with 11 areas, no `LOOMUX_STATE_DIR`); the barrier case
-edits `C:/Users/micro/Documents/#GIT/loomux/README.md` with `--root` on the main
+edits `C:/Users/me/Documents/#GIT/loomux/README.md` with `--root` on the main
 checkout. Binaries: `loomux-before.exe` built from `219ccb1` (the plan commit before
 Task 2), `bin/loomux.exe` built by the pre-commit gate at `222465b`. Go benchmarks,
 five runs each, median of the five:
 `go test ./internal/brain/guard/ -run '^$' -bench DecideAgainstTheRealRegistry -benchtime 50x -benchmem -count 5`
 with `LOOMUX_BENCH_REGISTRY` on a copy of `%LOCALAPPDATA%\loomux` and
-`LOOMUX_BENCH_TARGET=C:/Users/micro/Documents/#GIT/loomux/README.md`, and
+`LOOMUX_BENCH_TARGET=C:/Users/me/Documents/#GIT/loomux/README.md`, and
 `go test ./internal/brain/search/ -run '^$' -bench VisibleAreasOfTheRealRegistry -benchtime 50x -benchmem -count 5`
 with `LOOMUX_BENCH_REGISTRY` on the same copy and `LOOMUX_BENCH_LEGACY` on
 `%LOCALAPPDATA%\brain`. For the Go benchmarks, "before" was run in Task 1 on
@@ -560,7 +560,7 @@ the lazy zones.
 
 ## 2026-09-17 20:30 — The Start Floor With the MCP SDK Linked
 
-Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b-2`,
+Repository `loomux`, worktree `C:/Users/me/Documents/#GIT/loomux-sdd-1b-2`,
 branch `sdd-1b-2`, before `48e5d38`. Stage 1b-2, Task 1: `go-sdk` v1.8.0 comes
 in, `x/sys` rises to v0.48.0 and `x/text` to v0.42.0, and the `go` directive to
 1.26.0.
@@ -617,7 +617,7 @@ on `after`:
    for directly, and a further SDK dependency could push one over.
 ## 2026-09-18 11:10 — The Graph Commands, Cold and Warm, and the G1 Debt
 
-Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
+Repository `loomux`, worktree `C:/Users/me/Documents/#GIT/loomux-code-g2`,
 branch `code-g2`, commit `75c8136`. This task adds two benchmark files and
 this entry; it changes no production code.
 
@@ -781,7 +781,7 @@ comparisons were made on.
 
 ## 2026-09-18 11:35 — The Probe's Missing Skip Entry
 
-Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
+Repository `loomux`, worktree `C:/Users/me/Documents/#GIT/loomux-code-g2`,
 branch `code-g2`. This entry closes the question the previous one left open:
 whether §7.1's design decision (walk the filesystem rather than shell out to
 `git ls-files`) should be reversed. It should not — the cause was a missing
@@ -881,7 +881,7 @@ every code change this task made, is in the 2026-09-18 11:49 entry below.
 
 ## 2026-09-18 11:49 — Final Numbers, Measured Once After the Last Code Change
 
-Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-code-g2`,
+Repository `loomux`, worktree `C:/Users/me/Documents/#GIT/loomux-code-g2`,
 branch `code-g2`, on top of commit `cc8f7f0` (`goModPaths` now shares
 `sourceset.SkipDir`) — no further code change follows this entry. Every
 number below was measured in one sitting, after all of task 10's code changes
@@ -1017,7 +1017,7 @@ BenchmarkDanglingPerNode-16    	       1	3865115600 ns/op
 
 ## 2026-09-18 15:30 — Stage 1b-2 Closed: Size, Hook Path, Handshake and the Two Hops
 
-Repository `loomux`, worktree `C:/Users/micro/Documents/#GIT/loomux-sdd-1b-2`,
+Repository `loomux`, worktree `C:/Users/me/Documents/#GIT/loomux-sdd-1b-2`,
 branch `sdd-1b-2`, commit `0a4786c` — the four measurements the stage is signed
 off against. Machine: AMD Ryzen 7 9800X3D, GOMAXPROCS 16, Go
 `go1.27.0 windows/amd64`.
@@ -1485,7 +1485,7 @@ creates `.loomux/state/cover` in it). Every tool is the faketool
 through `LOOMUX_FAKE_TOOL_FIXTURE`; the lanes therefore measure loomux and
 a process start, not `go vet`. Payload: an `Edit` on the world's `a.go`, named
 absolutely as Claude names it. The case file names this machine's paths
-(`C:/Users/micro/AppData/Local/Temp/loomux-2a-bench/…`), as `1a-hooks.json`
+(`C:/Users/me/AppData/Local/Temp/loomux-2a-bench/…`), as `1a-hooks.json`
 did. Before measuring, both binaries were run once against a fixture whose
 `go` answers exit 1: both blocked with 2, so neither skips its lanes silently.
 
@@ -2080,9 +2080,9 @@ verbatim:
 # R = red, G = green, E = error. areas comes from a call whose threshold no
 # seed reaches, since only the clean report prints the area count.
 set -u
-repo="C:/Users/micro/Documents/#GIT/loomux"
+repo="C:/Users/me/Documents/#GIT/loomux"
 bin="$repo/bin/loomux.exe"
-out="C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux/e346e4ea-8ea8-4af2-b360-1800a79cfdec/scratchpad/e2"
+out="C:/Users/me/AppData/Local/Temp/claude/C--Users-me-Documents--GIT-loomux/e346e4ea-8ea8-4af2-b360-1800a79cfdec/scratchpad/e2"
 wt="$out/wt"
 mkdir -p "$out/n3"
 : > "$out/times.txt"
