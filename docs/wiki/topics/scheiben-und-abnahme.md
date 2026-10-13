@@ -8,8 +8,8 @@ sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:a30c21b86d14c287563d39b6ee2115134106a72b2c91b48633558c027e0777e5"
-    revision: 6
+    content_hash: "sha256:526ec0aee465584522e82007d74a8af951d2c82738a4b704a2c6f742d95ebe86"
+    revision: 7
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE

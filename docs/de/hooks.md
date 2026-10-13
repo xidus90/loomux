@@ -41,7 +41,7 @@ sequenceDiagram
     Post->>Post: Lanes des Profils edit über die geänderte Datei fahren (Budget 50 s)
     Post->>Post: Blast-Monitor: direkte Aufrufer geänderter Go-Symbole, nur wenn keine Lane rot ist (Abschnitt 5)
     Post--)Journal: Geplant (W1): Ereignis anhängen
-    Post-->>Host: Exit 0, oder Exit 2, wenn eine scharfe Lane scheitert; eine Lane in Probe nie (Abschnitt 5)
+    Post-->>Host: Exit 0, oder Exit 2, wenn eine scharfe Lane scheitert, eine Lane in Probe nie (Abschnitt 5)
     end
 
     rect rgb(245, 255, 245)

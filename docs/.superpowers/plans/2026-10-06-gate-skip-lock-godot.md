@@ -19,7 +19,7 @@
 - Commit-Nachrichten nach Conventional Commits, ohne Arbeitspapier (kein Plan, keine Spec, kein Task), ohne Modell als Mitautor.
 - Mehrzeilige Commit-Nachrichten per Write in eine Datei im Scratchpad und `git commit -F <datei>`; die Ausgabe des Commits nie verwerfen, sondern nach `<scratchpad>/commit-<task>.log` lenken.
 - Kein `python -` und kein Heredoc an einen Interpreter; kein Beenden von Prozessen nach Namen; kein Hintergrundprozess, der nach dem Bericht weiterläuft.
-- Vor jedem Commit als Bedingung prüfen: `[ "$(git rev-parse --show-toplevel)" = "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gate-skip-lock-godot" ] && [ "$(git branch --show-current)" = feat/gate-skip-lock-godot ]`.
+- Vor jedem Commit als Bedingung prüfen: `[ "$(git rev-parse --show-toplevel)" = "C:/Users/me/Documents/#GIT/loomux/.claude/worktrees/gate-skip-lock-godot" ] && [ "$(git branch --show-current)" = feat/gate-skip-lock-godot ]`.
 - Jede neue Testzeile läuft vor dem Produktionscode rot, an einer Assertion (`--- FAIL` mit Meldung), nicht am Compile-Fehler: neue Felder und Funktionen werden dafür zuerst als wirkungslose Stubs angelegt. Der Bericht zeigt Befehl und vollständige Ausgabe.
 - Je Task eine Mutationsrunde über die neue Logik mit `go test -overlay` (Overlay-Pfade in der Form `C:/…`, ohne `-cover`), zuerst ein unveränderter Kontrollmutant, der überleben muss; je Mutant „gebaut: ja“ und die tötende Testzeile. Ausgabe je Mutant in `<scratchpad>/t<N>-mut-<n>.txt`.
 

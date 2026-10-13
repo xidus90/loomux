@@ -14,13 +14,13 @@ sources:
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
-    content_hash: "sha256:63fce2b9857f092a669526d07c2d83a79a7cf96267eff360111e93232dbdb83a"
-    revision: 14
+    content_hash: "sha256:f733c8018fc6934adfc90759c495bcda20111bf84ccfc1da1aa7ef4901176af7"
+    revision: 15
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:a30c21b86d14c287563d39b6ee2115134106a72b2c91b48633558c027e0777e5"
-    revision: 6
+    content_hash: "sha256:526ec0aee465584522e82007d74a8af951d2c82738a4b704a2c6f742d95ebe86"
+    revision: 7
 ---
 
 ## Wofür

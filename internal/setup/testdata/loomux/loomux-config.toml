@@ -1,5 +1,5 @@
 # Vorlage fuer .loomux/config.toml im Repowurzelverzeichnis von loomux.
-# Kopieren nach: C:\Users\micro\Documents\#GIT\loomux\.loomux\config.toml
+# Kopieren nach: C:\Users\me\Documents\#GIT\loomux\.loomux\config.toml
 #
 # Diese Datei schreibt kein Agent (Spec, Fehlerverhalten): sie ist zugleich
 # Manifest und Policy — wer sie bearbeiten darf, gibt sich selbst Rechte.
