@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <title>loomux</title>
+  <desc>One Go binary that guards AI coding agents: hooks and a write barrier, a check chain, a code graph and a project wiki.</desc>
+  <rect width="1280" height="640" fill="#0d1117"/>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <text x="80" y="190" font-size="120" font-weight="700" fill="#ffffff">loomux</text>
+    <text font-size="36" fill="#c9d1d9">
+      <tspan x="80" y="262">One Go binary that guards AI coding agents: hooks and</tspan>
+      <tspan x="80" y="312">a write barrier, a check chain, a code graph and a project wiki.</tspan>
+    </text>
+    <g font-size="30" fill="#e6edf3">
+      <text x="116" y="420">loomux itself needs no Python or Node</text>
+      <text x="116" y="475">Guard decisions within 35 ms</text>
+      <text x="116" y="530">100 % coverage per function</text>
+    </g>
+  </g>
+
+  <g fill="#2dd4bf">
+    <circle cx="92" cy="409" r="6"/>
+    <circle cx="92" cy="464" r="6"/>
+    <circle cx="92" cy="519" r="6"/>
+  </g>
+
+  <g stroke="#3a4654" stroke-width="2">
+    <line x1="820" y1="395" x2="940" y2="395"/>
+    <line x1="940" y1="395" x2="1060" y2="395"/>
+    <line x1="1060" y1="395" x2="1180" y2="395"/>
+    <line x1="880" y1="470" x2="1000" y2="470"/>
+    <line x1="1000" y1="470" x2="1120" y2="470"/>
+    <line x1="820" y1="545" x2="940" y2="545"/>
+    <line x1="940" y1="545" x2="1060" y2="545"/>
+    <line x1="1060" y1="545" x2="1180" y2="545"/>
+    <line x1="820" y1="395" x2="880" y2="470"/>
+    <line x1="940" y1="395" x2="880" y2="470"/>
+    <line x1="940" y1="395" x2="1000" y2="470"/>
+    <line x1="1060" y1="395" x2="1000" y2="470"/>
+    <line x1="1060" y1="395" x2="1120" y2="470"/>
+    <line x1="1180" y1="395" x2="1120" y2="470"/>
+    <line x1="880" y1="470" x2="820" y2="545"/>
+    <line x1="880" y1="470" x2="940" y2="545"/>
+    <line x1="1000" y1="470" x2="940" y2="545"/>
+    <line x1="1000" y1="470" x2="1060" y2="545"/>
+    <line x1="1120" y1="470" x2="1060" y2="545"/>
+    <line x1="1120" y1="470" x2="1180" y2="545"/>
+  </g>
+
+  <g fill="#0d1117" stroke="#2dd4bf" stroke-width="2.5">
+    <circle cx="820" cy="395" r="8"/>
+    <circle cx="940" cy="395" r="8"/>
+    <circle cx="1060" cy="395" r="8"/>
+    <circle cx="1180" cy="395" r="8"/>
+    <circle cx="880" cy="470" r="8"/>
+    <circle cx="1120" cy="470" r="8"/>
+    <circle cx="820" cy="545" r="8"/>
+    <circle cx="940" cy="545" r="8"/>
+    <circle cx="1060" cy="545" r="8"/>
+    <circle cx="1180" cy="545" r="8"/>
+  </g>
+
+  <circle cx="1000" cy="470" r="20" fill="none" stroke="#2dd4bf" stroke-opacity="0.4" stroke-width="2"/>
+  <circle cx="1000" cy="470" r="11" fill="#2dd4bf"/>
+</svg>
