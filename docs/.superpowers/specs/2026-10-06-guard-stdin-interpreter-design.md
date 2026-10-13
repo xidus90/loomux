@@ -210,7 +210,7 @@ dazu `uv run -`; `perl -c`; `python -E -`; `cat <<'EOF' | python -⏎…⏎EOF`;
 `@'⏎print(1)⏎'@ | python -`; `sh -c "python -"`; `a || python -`;
 `python <<<'print(1)'`; `C:\Python314\python.exe -`; `py -3.12 -`.
 
-Erlaubt: `python -S "C:/Users/micro/.claude/scripts/x.py"`;
+Erlaubt: `python -S "C:/Users/me/.claude/scripts/x.py"`;
 `python -c 'print(1)'`; `python -m pytest -q`; `python script.py arg`;
 `echo 'print(1)' | python -`; `python - < script.py`;
 `go test ./... && python3 tools/x.py`; `node -e 'console.log(1)'`;

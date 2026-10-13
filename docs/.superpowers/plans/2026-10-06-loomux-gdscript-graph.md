@@ -18,7 +18,7 @@
 - Code, Bezeichner, Kommentare, Fehlermeldungen und Commits sind englisch; dieser Plan und die Spec deutsch.
 - Commits nach Conventional Commits, ohne Verweis auf Plan, Spec, Task oder Stufe. Kein `Co-Authored-By`, keine Werbezeile. Autor ist der Nutzer.
 - Commit-Nachrichten per Write in eine Datei im Scratchpad und `git commit -F <datei>`. Die Ausgabe des Commits (das Tor läuft im pre-commit) per `> <scratchpad>/commit-<n>.log 2>&1` in eine Datei, nie nach `/dev/null`.
-- Gearbeitet wird im Worktree `C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/graph-gdscript` auf `feat/graph-gdscript`. Vor jedem Commit: `git rev-parse --show-toplevel` und `git branch --show-current` als Bedingung prüfen.
+- Gearbeitet wird im Worktree `C:/Users/me/Documents/#GIT/loomux/.claude/worktrees/graph-gdscript` auf `feat/graph-gdscript`. Vor jedem Commit: `git rev-parse --show-toplevel` und `git branch --show-current` als Bedingung prüfen.
 - Für Implementierer gilt:
   - Kein `python -`, `python3 -` und kein Heredoc an einen Interpreter.
   - Kein Beenden von Prozessen nach Namen.
@@ -2054,15 +2054,15 @@ blast-audit like Go's and Python's.
 
 - [ ] **Step 3: Messung in space**
 
-Das Binary dieses Zweigs bauen, `go build -o <scratchpad>/loomux-g5c.exe ./cmd/loomux`, dann in `C:/Users/micro/Documents/#GIT/space`:
+Das Binary dieses Zweigs bauen, `go build -o <scratchpad>/loomux-g5c.exe ./cmd/loomux`, dann in `C:/Users/me/Documents/#GIT/space`:
 
 ```bash
-<scratchpad>/loomux-g5c.exe graph build --root "C:/Users/micro/Documents/#GIT/space" --no-reuse > <scratchpad>/space-cold.txt 2>&1
-<scratchpad>/loomux-g5c.exe graph build --root "C:/Users/micro/Documents/#GIT/space" > <scratchpad>/space-warm.txt 2>&1
-<scratchpad>/loomux-g5c.exe graph stats --root "C:/Users/micro/Documents/#GIT/space" > <scratchpad>/space-stats.txt 2>&1
+<scratchpad>/loomux-g5c.exe graph build --root "C:/Users/me/Documents/#GIT/space" --no-reuse > <scratchpad>/space-cold.txt 2>&1
+<scratchpad>/loomux-g5c.exe graph build --root "C:/Users/me/Documents/#GIT/space" > <scratchpad>/space-warm.txt 2>&1
+<scratchpad>/loomux-g5c.exe graph stats --root "C:/Users/me/Documents/#GIT/space" > <scratchpad>/space-stats.txt 2>&1
 ```
 
-Achtung: Das schreibt `.loomux/state/graph/` in space. Das ist Maschinenzustand und git-ignoriert. Vorher `git -C "C:/Users/micro/Documents/#GIT/space" status --short` festhalten und danach vergleichen.
+Achtung: Das schreibt `.loomux/state/graph/` in space. Das ist Maschinenzustand und git-ignoriert. Vorher `git -C "C:/Users/me/Documents/#GIT/space" status --short` festhalten und danach vergleichen.
 
 Eintrag in `docs/en/benchmarks.md` und `docs/de/benchmarks.md` am Ende, im Format der bestehenden Einträge:
 - Überschrift `## 2026-10-0X HH:MM — GDScript Extraction: graph build on space`.

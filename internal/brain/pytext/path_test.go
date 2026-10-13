@@ -29,7 +29,7 @@ func TestPathStringOnWindowsLikePureWindowsPath(t *testing.T) {
 		{"//./dev/x", `\\.\dev\x`},
 		{"a/./b/", `a\b`},
 		{"..", `..`},
-		{"C:/Users/micro/Documents/#GIT/loomux", `C:\Users\micro\Documents\#GIT\loomux`},
+		{"C:/Users/me/Documents/#GIT/loomux", `C:\Users\me\Documents\#GIT\loomux`},
 		{"./a:b", `.\a:b`},
 		{"///a", `\\\a`},
 		{`\\?\UNC\server\share\x`, `\\?\UNC\server\share\x`},

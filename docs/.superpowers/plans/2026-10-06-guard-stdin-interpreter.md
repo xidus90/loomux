@@ -21,8 +21,8 @@
 - Subagenten: keine Prozesse nach Namen beenden (nur eigene PIDs); keinen Befehl starten, der auf stdin wartet (`python -`, ein Heredoc an einen Interpreter); Backslashes nie durch die Shell schreiben (Heredoc, `printf`, `sed`, `python -c`), sondern per Write/Edit; kein Hintergrundprozess bleibt laufen.
 - Overlay-Pfade immer als `C:/…`; `-overlay` nie zusammen mit `-cover`.
 - Die Ausgabe jedes langen Laufs zuerst ganz in eine Datei im Scratchpad, dann filtern.
-- Scratchpad: `C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-hungry-golick-7871dc/97d5c277-02bb-4919-88dc-82cd69acfaec/scratchpad` (unten `$S`).
-- Worktree: `C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/hungry-golick-7871dc`, Zweig `feat/guard-stdin-interpreter`. Vor jedem git-Schreibbefehl `git rev-parse --show-toplevel` und `git branch --show-current` lesen.
+- Scratchpad: `C:/Users/me/AppData/Local/Temp/claude/C--Users-me-Documents--GIT-loomux--claude-worktrees-hungry-golick-7871dc/97d5c277-02bb-4919-88dc-82cd69acfaec/scratchpad` (unten `$S`).
+- Worktree: `C:/Users/me/Documents/#GIT/loomux/.claude/worktrees/hungry-golick-7871dc`, Zweig `feat/guard-stdin-interpreter`. Vor jedem git-Schreibbefehl `git rev-parse --show-toplevel` und `git branch --show-current` lesen.
 
 ## Review Focus
 
@@ -152,7 +152,7 @@ func stdinLines() map[string]bool {
 		"exec python -":                            true,
 		"echo '@'\npython -":                       true,
 		"x ;python -":                              true,
-		"python -S \"C:/Users/micro/.claude/scripts/x.py\"": false,
+		"python -S \"C:/Users/me/.claude/scripts/x.py\"": false,
 		"python -c 'print(1)'":                              false,
 		"python -m pytest -q":                               false,
 		"python script.py arg":                              false,
@@ -741,7 +741,7 @@ record lacks, so each line keeps the verdict from before the change that
 brought it.
 ```
 
-Expected: `exit 0`, Autor `Christoph Wübbels <christoph.wuebbels@gmail.com>`. Das pre-commit-Tor läuft mit; bei Rot zuerst `grep -- '--- FAIL' "$S/t1-commit.txt"`.
+Expected: `exit 0`, Autor `<Name> <<E-Mail>>`. Das pre-commit-Tor läuft mit; bei Rot zuerst `grep -- '--- FAIL' "$S/t1-commit.txt"`.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "environment": {
-    "corpus": "C:\\Users\\micro\\Documents\\#GIT\\ultra-brain\\.worktrees\\pruefkorpus-v1\\bench\\corpus\\v1",
+    "corpus": "C:\\Users\\me\\Documents\\#GIT\\ultra-brain\\.worktrees\\pruefkorpus-v1\\bench\\corpus\\v1",
     "documents": 100,
     "models": {
       "embedding": "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf",
@@ -9,7 +9,7 @@
     },
     "platform": "Windows-11-10.0.26200-SP0",
     "qmd_version": "qmd 2.8.3 (facd35e)",
-    "question_set": "C:\\Users\\micro\\Documents\\#GIT\\ultra-brain\\.worktrees\\pruefkorpus-v1\\bench\\corpus\\v1\\questions.yaml"
+    "question_set": "C:\\Users\\me\\Documents\\#GIT\\ultra-brain\\.worktrees\\pruefkorpus-v1\\bench\\corpus\\v1\\questions.yaml"
   },
   "findings": [
     "Warum wird ein kleiner Riffbewohner nicht verletzt, wenn er zwischen den brennenden Armen seines Gastgebers wohnt?: the search engine answered empty twice in a row on profile fast; an empty answer to a meaning search is practically unreachable, so this is more likely a silent failure of the engine than an absence of matches (spec 16.14)",

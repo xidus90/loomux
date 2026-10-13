@@ -240,7 +240,7 @@ func TestTheEnvironmentBeatsThePlatformDefault(t *testing.T) {
 func TestAnEmptyEnvironmentVariableIsNoAnswer(t *testing.T) {
 	// Measured against the original: with BRAIN_STATE_DIR set to the empty
 	// string, `resolve_state_dir()` answers
-	// 'C:\Users\micro\AppData\Local\brain' -- `if from_env:` treats the
+	// 'C:\Users\me\AppData\Local\brain' -- `if from_env:` treats the
 	// empty value as no value. Go cannot tell empty from unset through
 	// os.Getenv at all, so the same behaviour comes out for free here; the
 	// test pins it because the alternative is a state directory at the
