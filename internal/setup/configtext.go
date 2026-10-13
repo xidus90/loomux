@@ -53,8 +53,8 @@ func catalog() []rule {
 // configText is before with what c and the stacks ask of the configuration:
 // [modules] where a module is off, [commit] language where it is not the
 // default, and the catalog rules still missing. It edits only through
-// edit.Set, edit.Remove and edit.AppendBlock, and hands back nothing the
-// loaders would refuse -- neither a before they refuse nor an after.
+// edit.Set, edit.Remove, edit.AppendBlock and edit.AppendInline, and hands
+// back nothing the loaders would refuse -- neither a before they refuse nor an after.
 func configText(before string, stacks []string, c Choice) (string, error) {
 	if before != "" {
 		if err := schema.Validate(before); err != nil {
@@ -99,7 +99,16 @@ func configText(before string, stacks []string, c Choice) (string, error) {
 		return "", namedConfig(err)
 	}
 	for _, r := range catalog() {
-		if slices.Contains(stacks, r.stack) && !hasRule(text, r) {
+		if !slices.Contains(stacks, r.stack) || hasRule(text, r) {
+			continue
+		}
+		// Rules written as key = [ ... ] cannot also be a [[...]] list.
+		if _, inline := ruleNode(text, r.section).([]any); inline {
+			text, err = edit.AppendInline(text, r.section, r.pairs)
+			if err != nil {
+				return "", namedConfig(err)
+			}
+		} else {
 			text = edit.AppendBlock(text, r.section, r.pairs)
 		}
 	}
@@ -111,18 +120,33 @@ func configText(before string, stacks []string, c Choice) (string, error) {
 	return text, nil
 }
 
-// hasRule says whether text already carries r, decoded rather than
-// searched: a rule standing in a comment is no rule.
-func hasRule(text string, r rule) bool {
+// ruleNode is what text holds at the dotted section of a rule table: a
+// []map[string]any for [[section]] entries, a []any for key = [ ... ].
+func ruleNode(text, section string) any {
 	doc := map[string]any{}
 	// The text has passed the loaders or was built from text that did.
 	_ = toml.Unmarshal([]byte(text), &doc)
 	var node any = doc
-	for _, part := range strings.Split(r.section, ".") {
+	for _, part := range strings.Split(section, ".") {
 		table, _ := node.(map[string]any)
 		node = table[part]
 	}
-	blocks, _ := node.([]map[string]any)
+	return node
+}
+
+// hasRule says whether text already carries r, in either form, decoded
+// rather than searched: a rule standing in a comment is no rule.
+func hasRule(text string, r rule) bool {
+	var blocks []map[string]any
+	switch v := ruleNode(text, r.section).(type) {
+	case []map[string]any:
+		blocks = v
+	case []any:
+		for _, item := range v {
+			block, _ := item.(map[string]any)
+			blocks = append(blocks, block)
+		}
+	}
 	for _, block := range blocks {
 		switch v := block[r.key].(type) {
 		case string:

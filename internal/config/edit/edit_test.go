@@ -426,6 +426,88 @@ func TestAByteOrderMarkIsKept(t *testing.T) {
 	}
 }
 
+// The new item goes before the closing bracket in the form the array already
+// has: its indentation, its trailing comma or none, its comments.
+func TestAppendInlineAddsAnItemToTheArray(t *testing.T) {
+	const item = `{ regex = 'x', reason = "r" }`
+	for name, tc := range map[string][2]string{
+		"multi-line, no trailing comma": {
+			"[policy.commands]\nrules = [\n  { regex = 'a' }\n]\n",
+			"[policy.commands]\nrules = [\n  { regex = 'a' },\n  " + item + "\n]\n",
+		},
+		"multi-line, trailing comma and comment": {
+			"[policy.commands]\nrules = [\n  { regex = 'a' },  # keep\n]\n",
+			"[policy.commands]\nrules = [\n  { regex = 'a' },  # keep\n  " + item + ",\n]\n",
+		},
+		"comment after an item without comma": {
+			"[policy.commands]\nrules = [\n  { regex = 'a' }  # keep\n]\n",
+			"[policy.commands]\nrules = [\n  { regex = 'a' },  # keep\n  " + item + "\n]\n",
+		},
+		"tab indentation": {
+			"[policy.commands]\n\trules = [\n\t\t{ regex = 'a' }\n\t]\n",
+			"[policy.commands]\n\trules = [\n\t\t{ regex = 'a' },\n\t\t" + item + "\n\t]\n",
+		},
+		"one line": {
+			"[policy.commands]\nrules = [{ regex = 'a' }]\n",
+			"[policy.commands]\nrules = [{ regex = 'a' }, " + item + "]\n",
+		},
+		"one line with a trailing comma": {
+			"[policy.commands]\nrules = [ { regex = 'a' }, ]\n",
+			"[policy.commands]\nrules = [ { regex = 'a' }, " + item + ", ]\n",
+		},
+		"empty": {
+			"[policy.commands]\nrules = []\n",
+			"[policy.commands]\nrules = [" + item + "]\n",
+		},
+		"empty over several lines": {
+			"[policy.commands]\nrules = [\n]\n",
+			"[policy.commands]\nrules = [\n  " + item + "\n]\n",
+		},
+		"closing bracket after the last item": {
+			"[policy.commands]\nrules = [\n  { regex = 'a' } ]\n",
+			"[policy.commands]\nrules = [\n  { regex = 'a' }, " + item + " ]\n",
+		},
+		"brackets, hash and quotes inside strings": {
+			`[policy.commands]` + "\n" + `rules = [{ regex = "a\"]#", reason = 'b]\' }]` + "\n",
+			`[policy.commands]` + "\n" + `rules = [{ regex = "a\"]#", reason = 'b]\' }, ` + item + "]\n",
+		},
+		"only the named table": {
+			"[policy.paths]\nrules = [{ match = ['p'] }]\n\n[policy.commands]\nrules = [{ regex = 'a' }]\n\n[commit]\nthreshold = 1\n",
+			"[policy.paths]\nrules = [{ match = ['p'] }]\n\n[policy.commands]\nrules = [{ regex = 'a' }, " + item + "]\n\n[commit]\nthreshold = 1\n",
+		},
+	} {
+		got, err := AppendInline(tc[0], "policy.commands.rules", [][2]string{{"regex", `'x'`}, {"reason", `"r"`}})
+		if err != nil || got != tc[1] {
+			t.Errorf("%s: got %q, %v\nwant %q", name, got, err, tc[1])
+		}
+	}
+}
+
+func TestAppendInlineReachesATopLevelKeyAndKeepsTheLineEnds(t *testing.T) {
+	const bom = "\uFEFF"
+	got, err := AppendInline("rules = [{ a = 1 }]\n[commit]\n", "rules", [][2]string{{"b", "2"}})
+	if err != nil || got != "rules = [{ a = 1 }, { b = 2 }]\n[commit]\n" {
+		t.Errorf("top level: %q, %v", got, err)
+	}
+	got, err = AppendInline(bom+"[t]\r\nrules = [\r\n  { a = 1 }\r\n]\r\n", "t.rules", [][2]string{{"b", "2"}})
+	if err != nil || got != bom+"[t]\r\nrules = [\r\n  { a = 1 },\r\n  { b = 2 }\r\n]\r\n" {
+		t.Errorf("CRLF: %q, %v", got, err)
+	}
+}
+
+func TestAppendInlineRefusesWhatItCannotPlace(t *testing.T) {
+	for name, in := range map[string]string{
+		"no such table":           "[commit]\nthreshold = 1\n",
+		"no such key":             "[policy.commands]\nx = 1\n",
+		"the key holds no array":  "[policy.commands]\nrules = 5\n",
+		"a dotted key reaches in": "policy.commands.rules = []\n",
+	} {
+		if _, err := AppendInline(in, "policy.commands.rules", nil); !errors.Is(err, ErrAmbiguous) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+}
+
 // Only the value is replaced: the indentation and the spacing around = are
 // the human's.
 func TestSetKeepsTheShapeOfTheLineItReplaces(t *testing.T) {
