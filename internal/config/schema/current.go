@@ -82,7 +82,17 @@ func entryOf(doc map[string]any, k Key) Entry {
 	e := Entry{Key: k, Origin: Unset}
 	switch {
 	case k.Kind == TableList:
-		list, _ := value.([]map[string]any)
+		// [[x]] blocks decode as []map[string]any, an inline array of
+		// tables as []any; both are the same list to the guard.
+		var list []any
+		switch v := value.(type) {
+		case []any:
+			list = v
+		case []map[string]any:
+			for _, block := range v {
+				list = append(list, block)
+			}
+		}
 		e.Count = len(list)
 		blocks := make([]string, len(list))
 		for i, block := range list {
