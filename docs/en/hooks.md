@@ -613,9 +613,11 @@ is read as a line of its own, and so are the words after `eval`, `iex` and
 read with the line the segment before its pipe prints (`echo`, `printf`,
 `Write-Output`, a bare string: `echo "…" | sh`, `'…' | iex`), and with a
 here-string (`bash <<< '…'`). Such lines are read up to three shells deep;
-a line that goes deeper is refused. The command rules read them as well,
-loomux's own commands and a flow's gate answer included, and in such a line
-no `--dry-run` or `--propose` exempts. A variable or alias the line sets
+a line that goes deeper is refused. The rules on loomux's own commands read
+them as well, a flow's gate answer included, and in such a line no `--dry-run`
+or `--propose` exempts. The command rules that are regular expressions, those
+of `[policy.commands]` and the built-in one for `git push`, match only the
+line as written, so a command inside `bash -c "…"` can pass them. A variable or alias the line sets
 itself (`D=.loomux`, also behind `export`, `declare`, `local`, `readonly`,
 `typeset` and cmd's `set`; `$D = '…'`, `${D}=…`, `$env:D = …`,
 `Set-Variable`, `alias`, `Set-Alias`) is put in where the line uses it
@@ -683,6 +685,55 @@ guard.mode strict --propose`, then `loomux config proposals` and `loomux
 config apply <id>`. This repository stays on `default`: strict mode would
 refuse `go build -o bin/loomux.exe ./cmd/loomux`.
 
+**The limits, in one list.** The guard and the write barrier judge only what a
+call to the hook names. Whatever this documentation says they refuse holds
+within the limits below, each of them measured on 2026-10-12 against
+`loomux hook pre-tool-use`:
+
+- **A tool the hook does not judge.** The file tool of an MCP server
+  (`mcp__…`) passes the policy and the write barrier alike: it can write
+  `.env` or `.loomux/config.toml`.
+- **A program that opens the file itself.** `python -c "open(…)"`,
+  `node -e "…"`, a script the agent wrote, a build tool. The default mode does
+  not read into the program. Strict mode refuses an unknown program that names
+  a protected path on the line
+  (`python -c "open('.loomux/flows/example/flow.toml','w')"`), but a script
+  that opens the file without the line naming it (`python tools/w.py`) passes
+  in every mode.
+- **A spelling the guard does not recognise.** A verb under another name, or a
+  form the verbs above do not list, is read as no write. The command rules,
+  those of `[policy.commands]` and the built-in one for `git push`, match the
+  line as written in every mode: `git -C . push`, `git --no-pager push`,
+  `(git push)` and `bash -c "git push"` pass them.
+- **A link or junction onto a protected path.** The default mode judges the
+  path as written. Through a junction onto `.loomux/flows/example` or onto
+  `.loomux`, `Write`, `Edit` and `echo x >` pass on a flow file and on
+  `armed.toml`, and so does `echo x >` on `.loomux/config.toml`; only the write
+  barrier resolves the path, so `Write` and `Edit` on the manifest are refused.
+  Making the link is not judged either. Strict mode resolves a link or
+  junction before the policy compares and refuses all of these.
+- **A hard link to a protected file.** It passes in every mode, the write
+  barrier included: `Write`, `Edit` and `echo x >` on a hard link of
+  `flow.toml`, `armed.toml` or `config.toml` are not refused, and neither is
+  making the link (`ln`, `New-Item -ItemType HardLink`). A hard link is the
+  file itself, and no resolution tells them apart.
+- **A shell line that writes outside every writable tree.** The write barrier
+  decides only about the host's writing tools, so a shell line passes it
+  wherever it writes: `echo x >> registry.toml`, `echo x > open.toml` and
+  `Add-Content` on the registry in the state directory, `cp` onto the
+  installed `loomux.exe` there, `echo {} > ~/.claude/settings.json` and
+  `Set-Content` on a file under `~/.gemini` pass in both modes, where `Write`
+  on the same files is refused as lying outside every writable tree (unless a
+  registered tree encloses them).
+- **The host's hook wiring.** `.claude/settings.json`,
+  `.claude/settings.local.json` (`disableAllHooks`) and `.agents/hooks.json`
+  are not protected, the user settings `~/.claude/settings.json` only against
+  the writing tools (see above). An agent that rewrites them switches the
+  guard off from the next session on, through the user settings in every
+  project.
+
+The next two paragraphs give the details of the shell reading, mode by mode.
+
 **Limits in the default mode.** The guard reads words, not a shell. It
 passes: a path or program in a variable or alias set elsewhere than on the
 line (`echo x > $F`), and a function the line defines (`function l {
@@ -717,8 +768,7 @@ protected name or the folder's removal (`echo x > LOOMUX~1/config.toml`,
 (`*.pem`, `*.key`) has no fixed part, so no expansion reaches it: `echo x >
 src/$X` passes. An expansion that may hold a whole protected folder (`echo x
 > $D/x`, D=.loomux/state/hooks) and a tail glued to the expansion (`echo x >
-${D}fig.toml`) pass as well, or every such path would be refused. The
-resolution through a junction is not tested. And some
+${D}fig.toml`) pass as well, or every such path would be refused. And some
 programs that are not loomux get the refusal of loomux's configuration
 commands because they are not in the list of known tools: `az config …`,
 `gcloud config …`, `pulumi config set`, `bun init`, `deno init`, `tofu init`.
@@ -1110,7 +1160,7 @@ into the main checkout:
 ```sh
 loomux worktree link --root <dir>        # session start: make the junctions, sweep leftovers
 loomux worktree unlink --root <dir>      # session end: reads session_id from the payload on stdin
-loomux worktree remove <worktree path>   # by hand: junctions out first, then git
+loomux worktree remove <worktree path>   # by hand: every link out first, then git
 ```
 
 The paths come from `[worktree] mirror` (see
@@ -1160,9 +1210,11 @@ flowchart TD
     ismain -->|"yes"| fault
     ismain --> held{"does git hold a<br/>working tree there?"}
     held -->|"no"| fault
-    held -->|"yes -- take git's own spelling"| cfg3{"worktree.mirror"}
+    held -->|"yes -- take git's own spelling"| locked3{"is it locked?"}
+    locked3 -->|"yes -- nothing touched"| fault
+    locked3 --> cfg3{"worktree.mirror"}
     cfg3 -->|"unreadable or broken"| fault
-    cfg3 --> unlink3["remove the junctions<br/>that are ours"]
+    cfg3 --> unlink3["remove the junctions that are ours,<br/>then every other link in the tree"]
     unlink3 --> gitrm["git worktree remove --force"]
     gitrm -->|"git refused"| fault
     gitrm --> gone{"is the directory<br/>actually gone?"}
@@ -1202,7 +1254,9 @@ stdout, because somebody deleting something should read what was deleted.
 A reparse point, at a configured path, leading into the main checkout — for
 `sweep` additionally inside a directory git no longer holds. A real directory
 at that path is somebody's data and is never touched; a junction pointing
-elsewhere is somebody's own arrangement and is left alone. Removal uses
+elsewhere is somebody's own arrangement and is left alone by `link`, `unlink`
+and the sweep. `remove` is the exception, for the reason given below: git must
+find no link in the tree it deletes, so every link there is comes out. Removal uses
 `os.Remove`, never `os.RemoveAll`: on a reparse point the first removes the
 point, the second would walk into the target (`internal/worktree/junction`).
 There is no ledger of the junctions made — it would be a second state that
@@ -1255,13 +1309,24 @@ cleanup paths.
 
 Measured on 2026-09-07: `git worktree remove --force` on a worktree holding a
 junction exits 0, prints nothing, drops the porcelain entry — and leaves the
-directory and the junction standing. `remove` puts the order right: the
-junctions come out first, then git is asked. Before that it refuses the main
-checkout and any directory git holds no working tree at; it hands git git's own
-spelling of the path, because the git call runs in the main checkout, where a
-relative argument would resolve elsewhere; and after git exits 0 it checks
-that the directory is really gone. If git refuses, the junctions are already
-out, and the next `link` puts them back.
+directory and the junction standing. Git for Windows 2.31 to 2.53 does worse
+with a junction that is none of the configured mirrors: it deletes *through*
+it, into the main checkout, and exits 0. `remove` puts the order right: the
+configured junctions come out first, then every other junction and directory
+symlink in the tree — the link itself, never its target — and only then is git
+asked. A link that cannot be taken out stops the removal before git is asked,
+so no Git version gets the chance to follow one. Before that it refuses the main
+checkout, any directory git holds no working tree at, and a locked worktree:
+the single `--force` it hands git does not override a lock (git wants it
+twice), so git would refuse, and only after the links were out. A refusal of
+the lock touches nothing; lift it with `git worktree unlock <path>` and run
+`remove` again. It hands git git's own spelling of the path, because the git
+call runs in the main checkout, where a relative argument would resolve
+elsewhere; and after git exits 0 it checks that the directory is really gone.
+If git refuses for a reason that cannot be seen beforehand, the links are
+already out: the next `link` makes the configured junctions again — at a
+configured path also where a hand-made junction pointing elsewhere stood —
+and no other link comes back.
 
 ### Exit codes
 

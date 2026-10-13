@@ -649,9 +649,12 @@ Argument), wird mit der Zeile gelesen, die das Segment vor ihrer Pipe
 ausgibt (`echo`, `printf`, `Write-Output`, eine bloße Zeichenkette: `echo "…"
 | sh`, `'…' | iex`), und mit einem Here-String (`bash <<< '…'`). Solche
 Zeilen werden bis drei Shells tief gelesen; eine tiefere wird verweigert. Die
-Befehlsregeln lesen sie ebenso, loomux' eigene Befehle und die Antwort auf
-ein Flow-Tor eingeschlossen, und in einer solchen Zeile befreit kein
-`--dry-run` und kein `--propose`. Eine Variable oder ein Alias, den die Zeile
+Regeln für loomux' eigene Befehle lesen sie ebenso, die Antwort auf ein
+Flow-Tor eingeschlossen, und in einer solchen Zeile befreit kein `--dry-run`
+und kein `--propose`. Die Befehlsregeln, die reguläre Ausdrücke sind, also die
+aus `[policy.commands]` und die eingebaute für `git push`, treffen nur die
+Zeile, wie sie geschrieben steht; ein Befehl in `bash -c "…"` kann sie also
+passieren. Eine Variable oder ein Alias, den die Zeile
 selbst setzt (`D=.loomux`, auch hinter `export`, `declare`, `local`,
 `readonly`, `typeset` und cmds `set`; `$D = '…'`, `${D}=…`, `$env:D = …`,
 `Set-Variable`, `alias`, `Set-Alias`), wird dort eingesetzt, wo die Zeile
@@ -723,6 +726,61 @@ Worts, die der Arbeitsordner selbst ist (`./...` unter Windows aufgelöst, der
 proposals` und `loomux config apply <id>`. Dieses Repo bleibt auf `default`:
 der strikte Modus verweigerte `go build -o bin/loomux.exe ./cmd/loomux`.
 
+**Die Grenzen in einer Liste.** Der Wächter und die Schreibschranke beurteilen
+nur, was ein Aufruf des Hooks nennt. Was diese Dokumentation sie verweigern
+lässt, gilt innerhalb der folgenden Grenzen, jede davon am 2026-10-12 gegen
+`loomux hook pre-tool-use` gemessen:
+
+- **Ein Werkzeug, das der Hook nicht beurteilt.** Das Dateiwerkzeug eines
+  MCP-Servers (`mcp__…`) geht an der Policy und an der Schreibschranke
+  vorbei: Es kann `.env` oder `.loomux/config.toml` schreiben.
+- **Ein Programm, das die Datei selbst öffnet.** `python -c "open(…)"`,
+  `node -e "…"`, ein Skript des Agenten, ein Build-Werkzeug. Der Standardmodus
+  liest nicht in das Programm hinein. Der strikte Modus verweigert ein
+  unbekanntes Programm, das einen geschützten Pfad in der Zeile nennt
+  (`python -c "open('.loomux/flows/example/flow.toml','w')"`), aber ein Skript,
+  das die Datei öffnet, ohne dass die Zeile sie nennt (`python tools/w.py`),
+  kommt in jedem Modus durch.
+- **Eine Schreibweise, die der Wächter nicht erkennt.** Ein Verb unter anderem
+  Namen oder eine Form, die die Verben oben nicht aufführen, gilt als kein
+  Schreiben. Die Befehlsregeln, die aus `[policy.commands]` und die
+  eingebaute für `git push`, passen in jedem Modus nur auf die Zeile, wie sie
+  geschrieben steht: `git -C . push`, `git --no-pager push`, `(git push)` und
+  `bash -c "git push"` kommen an ihnen vorbei.
+- **Ein Link oder eine Junction auf einen geschützten Pfad.** Der
+  Standardmodus beurteilt den Pfad, wie er geschrieben steht. Über eine
+  Junction auf `.loomux/flows/example` oder auf `.loomux` kommen `Write`,
+  `Edit` und `echo x >` auf eine Flow-Datei und auf `armed.toml` durch, und
+  ebenso `echo x >` auf `.loomux/config.toml`; nur die Schreibschranke löst den
+  Pfad auf, darum werden `Write` und `Edit` auf das Manifest verweigert. Auch
+  das Anlegen des Links wird nicht beurteilt. Der strikte Modus löst einen
+  Link oder eine Junction auf, bevor die Policy vergleicht, und verweigert all
+  das.
+- **Ein Hardlink auf eine geschützte Datei.** Er kommt in jedem Modus durch,
+  auch an der Schreibschranke: `Write`, `Edit` und `echo x >` auf einen
+  Hardlink von `flow.toml`, `armed.toml` oder `config.toml` werden nicht
+  verweigert, und ebenso wenig das Anlegen des Links (`ln`,
+  `New-Item -ItemType HardLink`). Ein Hardlink ist die Datei selbst, und keine
+  Auflösung unterscheidet beide.
+- **Eine Shell-Zeile, die außerhalb jedes beschreibbaren Baums schreibt.** Die
+  Schreibschranke entscheidet nur über die schreibenden Werkzeuge des Hosts,
+  darum kommt eine Shell-Zeile an ihr vorbei, wohin sie auch schreibt:
+  `echo x >> registry.toml`, `echo x > open.toml` und `Add-Content` auf die
+  Registry im Zustandsverzeichnis, `cp` auf das installierte `loomux.exe` dort,
+  `echo {} > ~/.claude/settings.json` und `Set-Content` auf eine Datei unter
+  `~/.gemini` kommen in beiden Modi durch, wo `Write` auf dieselben Dateien als
+  außerhalb jedes beschreibbaren Baums verweigert wird (es sei denn, ein
+  registrierter Baum umschließt sie).
+- **Die Hook-Verdrahtung des Hosts.** `.claude/settings.json`,
+  `.claude/settings.local.json` (`disableAllHooks`) und `.agents/hooks.json`
+  sind nicht geschützt, die Nutzereinstellungen `~/.claude/settings.json` nur
+  gegen die schreibenden Werkzeuge (siehe oben). Ein Agent, der sie umschreibt,
+  schaltet den Wächter ab der nächsten Sitzung ab, über die Nutzereinstellungen
+  in jedem Projekt.
+
+Die nächsten zwei Absätze geben die Einzelheiten des Shell-Lesens, Modus für
+Modus.
+
 **Grenzen im Standardmodus.** Der Wächter liest Wörter, keine Shell. Er lässt
 durch: einen Pfad oder ein Programm in einer Variablen oder einem Alias, die
 anderswo als in der Zeile gesetzt sind (`echo x > $F`), und eine Funktion,
@@ -762,8 +820,7 @@ erreicht ihn keine Expansion: `echo x > src/$X` kommt durch. Eine Expansion,
 die einen ganzen geschützten Ordner halten könnte (`echo x > $D/x`,
 D=.loomux/state/hooks), und ein Rest, der an der Expansion klebt (`echo x >
 ${D}fig.toml`), kommen ebenfalls durch, sonst wäre jeder solche Pfad
-verweigert. Die Auflösung
-über eine Junction ist nicht getestet. Und manche Programme, die nicht loomux
+verweigert. Und manche Programme, die nicht loomux
 sind, bekommen die Ablehnung für loomux' Konfigurationsbefehle, weil sie
 nicht in der Liste bekannter Werkzeuge stehen: `az config …`, `gcloud config
 …`, `pulumi config set`, `bun init`, `deno init`, `tofu init`.
@@ -1182,7 +1239,7 @@ die in den Haupt-Checkout führt:
 ```sh
 loomux worktree link --root <verz>       # Sitzungsstart: Junctions anlegen, Reste wegräumen
 loomux worktree unlink --root <verz>     # Sitzungsende: liest session_id aus der Nutzlast auf stdin
-loomux worktree remove <worktree-pfad>   # von Hand: erst die Junctions, dann Git
+loomux worktree remove <worktree-pfad>   # von Hand: erst alle Links, dann Git
 ```
 
 Die Pfade kommen aus `[worktree] mirror` (siehe
@@ -1233,9 +1290,11 @@ flowchart TD
     ismain -->|"ja"| fault
     ismain --> held{"hält Git dort<br/>einen Arbeitsbaum?"}
     held -->|"nein"| fault
-    held -->|"ja -- Gits eigene Schreibweise nehmen"| cfg3{"worktree.mirror"}
+    held -->|"ja -- Gits eigene Schreibweise nehmen"| locked3{"ist er gesperrt?"}
+    locked3 -->|"ja -- nichts angefasst"| fault
+    locked3 --> cfg3{"worktree.mirror"}
     cfg3 -->|"unlesbar oder kaputt"| fault
-    cfg3 --> unlink3["unsere Junctions<br/>entfernen"]
+    cfg3 --> unlink3["unsere Junctions entfernen,<br/>dann jeden anderen Link im Baum"]
     unlink3 --> gitrm["git worktree remove --force"]
     gitrm -->|"Git verweigert"| fault
     gitrm --> gone{"ist das Verzeichnis<br/>wirklich weg?"}
@@ -1278,7 +1337,9 @@ Ein Reparse-Point an einem konfigurierten Pfad, der in den Haupt-Checkout führt
 — beim Sweep zusätzlich in einem Verzeichnis, das Git nicht mehr hält. Ein
 echtes Verzeichnis an diesem Pfad sind jemandes Daten und wird nie angefasst;
 eine Junction, die anderswohin zeigt, ist jemandes eigene Einrichtung und
-bleibt stehen. Entfernt wird mit `os.Remove`, nie mit `os.RemoveAll`: auf einem
+bleibt bei `link`, `unlink` und Sweep stehen. `remove` ist die Ausnahme, aus
+dem unten genannten Grund: Git darf im Baum, den es löscht, keinen Link
+finden, also kommt jeder Link heraus. Entfernt wird mit `os.Remove`, nie mit `os.RemoveAll`: auf einem
 Reparse-Point entfernt das erste den Punkt, das zweite liefe ins Ziel
 (`internal/worktree/junction`). Ein Register der angelegten Junctions gibt
 es nicht — es wäre ein zweiter Zustand, der abdriftet —, darum werden von Hand
@@ -1334,14 +1395,27 @@ beiden Aufräumwege.
 
 Gemessen am 2026-09-07: `git worktree remove --force` auf einem Worktree mit
 einer Junction endet mit 0, gibt nichts aus, streicht den Porcelain-Eintrag —
-und lässt Verzeichnis und Junction stehen. `remove` stellt die Reihenfolge
-richtig: erst kommen die Junctions heraus, dann wird Git gefragt. Vorher lehnt
-es den Haupt-Checkout ab und jedes Verzeichnis, an dem Git keinen Arbeitsbaum
-hält; es reicht Git dessen eigene Schreibweise des Pfads weiter, weil der
-Git-Aufruf im Haupt-Checkout läuft, wo ein relatives Argument anderswohin
-aufgelöst würde; und nach Exit 0 von Git prüft es, ob das Verzeichnis wirklich
-weg ist. Verweigert Git, sind die Junctions schon heraus, und das nächste
-`link` legt sie wieder an.
+und lässt Verzeichnis und Junction stehen. Git for Windows 2.31 bis 2.53 macht
+es bei einer Junction, die keiner der konfigurierten Spiegel ist, schlimmer: es
+löscht *durch* sie hindurch in den Haupt-Checkout und endet mit 0. `remove`
+stellt die Reihenfolge richtig: erst kommen die konfigurierten Junctions heraus,
+dann jede andere Junction und jeder Verzeichnis-Symlink im Baum — der Link
+selbst, nie sein Ziel —, und erst dann wird Git gefragt. Lässt sich ein Link
+nicht entfernen, bricht `remove` ab, bevor Git gefragt wird; keine Git-Version
+bekommt so die Gelegenheit, einem zu folgen. Vorher lehnt
+es den Haupt-Checkout ab, jedes Verzeichnis, an dem Git keinen Arbeitsbaum
+hält, und einen gesperrten Worktree: das einfache `--force`, das es Git
+mitgibt, überstimmt keine Sperre (Git verlangt es doppelt), Git würde also
+verweigern, und zwar erst, nachdem die Links heraus sind. Die Ablehnung wegen
+der Sperre fasst nichts an; man hebt sie mit `git worktree unlock <pfad>` auf
+und ruft `remove` erneut auf. Es reicht Git dessen eigene Schreibweise des
+Pfads weiter, weil der Git-Aufruf im Haupt-Checkout läuft, wo ein relatives
+Argument anderswohin aufgelöst würde; und nach Exit 0 von Git prüft es, ob das
+Verzeichnis wirklich weg ist. Verweigert Git aus einem Grund, den man vorher
+nicht sieht, sind die Links schon heraus: das nächste `link` legt die
+konfigurierten Junctions wieder an — an einem konfigurierten Pfad auch dort,
+wo eine von Hand angelegte Junction mit anderem Ziel stand —, keinen anderen
+Link.
 
 ### Exit-Codes
 

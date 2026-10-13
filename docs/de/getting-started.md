@@ -1,46 +1,13 @@
-# Erste Schritte mit Loomux
+# Ersteinrichtung
 
-Dieser Leitfaden führt dich in unter 3 Minuten durch die Installation von Loomux, die Initialisierung eines Repositories und die Anbindung von Loomux an deine KI-Coding-Agenten (**Claude Code**, **Google Antigravity** und **Cursor**).
+← [loomux installieren](install.md) · [Übersicht](README.md) · [Konfiguration](configuration.md) →
 
----
-
-## 1. Voraussetzungen
-
-- **Go**: Version 1.26 oder neuer (Toolchain des Moduls ist go1.27.0; zum Bauen aus dem Quellcode oder via `go install`).
-- **Git**: Version 2.30 oder neuer.
-- **Betriebssystem**:
-  - **Windows (x64)**: Erstklassige native Unterstützung (NTFS-Junctions, Windows Job Objects).
-  - **Linux / macOS**: Vollständig unterstützt (Symlinks, POSIX-Prozessgruppen).
+Diese Seite führt ein Projekt von einem installierten loomux zu einer laufenden Einrichtung: Sie initialisiert das Repository, prüft die Konfiguration, prüft das Ergebnis, bindet deinen Agenten an und zeigt, wie man einen Bereich von Hand einrichtet. Sie setzt voraus, dass loomux so installiert ist, wie [loomux installieren](install.md) es beschreibt; die Beispiele rufen es als `loomux` auf. Liegt der Ordner nicht auf dem `PATH`, ruf das Binary mit seinem vollen Pfad auf.
 
 ---
 
-## 2. Installation
+## 1. Repository initialisieren
 
-### Option A: Installation via Go (Empfohlen)
-```bash
-go install github.com/xidus90/loomux/cmd/loomux@latest
-```
-Stelle sicher, dass `$GOPATH/bin` (oder `%USERPROFILE%\go\bin`) in deiner System-Umgebungsvariable `PATH` enthalten ist.
-
-### Option B: Aus dem Quellcode bauen
-```bash
-git clone https://github.com/xidus90/loomux.git
-cd loomux
-go run ./cmd/loomux init --yes   # baut bin/loomux.exe und schaltet die Git-Hooks scharf
-```
-
-Installation überprüfen:
-```bash
-loomux --version
-# Ausgabe: loomux 1.0.0 (ein stabiles Release), loomux 1.1.0-beta.1 (eine Beta)
-# oder loomux 0.0.0-dev (aus dem Quellcode gebaut)
-```
-
----
-
-## 3. Schnellstart in 3 Schritten
-
-### Schritt 1: Repository initialisieren
 Wechsle in das Wurzelverzeichnis deines Projekts und führe aus:
 ```bash
 loomux init
@@ -49,7 +16,7 @@ Dieser Befehl:
 1. Erkennt vorhandene Coding-Agenten in deinem Arbeitsbereich (`.claude/` → Claude Code, `.agents/hooks.json`, `.agents/skills/` oder `GEMINI.md` → Antigravity).
 2. Fragt je Modul (`hooks`, `brain`, `graph`) `all`, `each` oder `none` und dann die Commit-Sprache.
 3. Zeigt jede Änderung als Diff — `.loomux/config.toml` (Module, Commit-Sprache, Policy-Regeln des Stacks; die Prüfketten kommen aus den Presets), `.gitignore`, Hook-Einträge der Agenten, Git-Hooks, Skills — und schreibt nur, was du bestätigst.
-4. Legt das neueste Release nach `%LOCALAPPDATA%\loomux\bin\loomux.exe`, das die Hook-Einträge rufen.
+4. Legt das neueste Release nach `%LOCALAPPDATA%\loomux\bin\loomux.exe`, das die Hook-Einträge rufen, wenn dort noch keines liegt (nur unter Windows; siehe [loomux installieren](install.md)).
 
 Alle Teile, Flags und Exit-Codes stehen in der [CLI-Referenz](cli-reference.md#11-projekt-einrichten-loomux-init).
 
@@ -57,8 +24,11 @@ Alle Teile, Flags und Exit-Codes stehen in der [CLI-Referenz](cli-reference.md#1
 > Mit dem Flag `--dry-run` siehst du vorab, welche Dateien berührt würden, ohne Änderungen vorzunehmen:
 > `loomux init --dry-run`
 
-### Schritt 2: Konfiguration anpassen
-Öffne `.loomux/config.toml`. Eine minimale Starter-Konfiguration sieht so aus:
+---
+
+## 2. Konfiguration prüfen
+
+Öffne `.loomux/config.toml`. `loomux init` hat nur geschrieben, was von den Vorgaben abweicht (siehe [Der erste Tag](configuration.md#der-erste-tag)). Eine kleine Konfiguration mit eigenen Regeln sieht so aus:
 
 ```toml
 # .loomux/config.toml
@@ -82,7 +52,10 @@ rules = [
 measuring = "go test ./... -count=1 -covermode=set -coverpkg=example.com/my-project/... -coverprofile={coverprofile}"
 ```
 
-### Schritt 3: Einrichtung verifizieren
+---
+
+## 3. Einrichtung prüfen
+
 Starte die Diagnose:
 ```bash
 loomux status
@@ -116,15 +89,84 @@ Detected Stacks: [go]
 
 ---
 
-## 4. Einen Bereich von Hand einrichten
+## 4. Den Agenten anbinden
+
+`loomux init` schreibt die Hook-Einträge der Hosts, die es erkennt (Schritt 1). Dieser Abschnitt zeigt sie und wie du einen MCP-Client anbindest.
+
+### Claude Code
+`loomux init` schreibt diese Einträge in `.claude/settings.json` und ruft das Binary über seinen Pfad auf (`"${LOCALAPPDATA}/loomux/bin/loomux.exe"`); hier stehen sie mit `loomux`. `loomux status` nennt, was fehlt. Die sechs Einträge, mit den Fristen, die `init` schreibt:
+```json
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "timeout": 20,
+      "command": "loomux hook session-start --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell",
+      "hooks": [{"type": "command", "timeout": 15,
+      "command": "loomux hook pre-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "PostToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit",
+      "hooks": [{"type": "command", "timeout": 60,
+      "command": "loomux hook post-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "Stop": [{"hooks": [{"type": "command", "timeout": 300,
+      "command": "loomux hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "timeout": 30,
+      "command": "loomux hook subagent-start --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "timeout": 30,
+      "command": "loomux hook subagent-stop --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}]
+  }
+}
+```
+Versucht Claude Code ein `Write`, `Edit` oder einen Shell-Befehl auszuführen, prüft der Wächter ihn gegen die Regeln, innerhalb eines Budgets von **35 ms**. Verweigert eine Regel die Aktion, wird sie mit Exit-Code 2 blockiert und die Begründung erscheint direkt im Chat des Agenten.
+
+### Google Antigravity
+Für Antigravity werden die Hooks in `.agents/hooks.json` eingetragen:
+```json
+{
+  "loomux": {
+    "PreInvocation": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook session-start --host antigravity --root ..", "timeout": 20}],
+    "PreToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input|manage_task", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..", "timeout": 15}]}],
+    "PostToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..", "timeout": 60}]}],
+    "Stop": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook stop --host antigravity --root .. --budget 270s", "timeout": 300}]
+  }
+}
+```
+`loomux init` schreibt diese Gruppe; agy führt sie über `cmd.exe` aus `.agents/` aus, daher `%LOCALAPPDATA%` und `--root ..`. Nach einem Upgrade `loomux init` erneut ausführen: Ein eigener Eintrag unter einem älteren Matcher bleibt, wie er ist, und `init` hängt einen Block für die fehlenden Werkzeuge an, etwa `manage_task`. Wie die Hooks Antigravity antworten, steht in der CLI-Referenz.
+
+### Cursor & MCP-Clients
+Starte den lokalen MCP-Dienst:
+```bash
+loomux serve
+```
+Oder binde die stdio-Brücke direkt in deine Cursor MCP-Konfiguration ein:
+```json
+{
+  "mcpServers": {
+    "loomux": {
+      "command": "C:/Users/<du>/AppData/Local/loomux/bin/loomux.exe",
+      "args": ["mcp", "--channel", "local"]
+    }
+  }
+}
+```
+Für Claude Code schreibt `loomux init` diesen Eintrag in `.mcp.json`, und zwar
+als `${LOCALAPPDATA}/loomux/bin/loomux.exe`, das Claude Code auflöst; für einen
+anderen Client den Pfad in der Form angeben, die er liest.
+
+---
+
+## 5. Einen Bereich von Hand einrichten
 
 Ein Bereich besteht aus zwei Erklärungen: einem Eintrag in der Registry der
 Maschine, der sagt, wo der Baum liegt und was darin geschrieben werden darf,
 und einem Manifest im Baum, das sagt, was er ist. `loomux area add` schreibt
 beide, und `loomux init` ruft es als seinen Teil `area`; dieser Abschnitt ist
-für einen Menschen, der sie von Hand schreibt. Kein Agent
-schreibt eine davon, und die Schreibschranke verweigert `.loomux/config.toml`
-jedem schreibenden Werkzeug. Wo beide Dateien liegen, steht unter
+für einen Menschen, der sie von Hand schreibt. Die
+Schreibschranke verweigert einem Agenten `.loomux/config.toml`. Die
+Registry schützt sie vor den Dateiwerkzeugen des Hosts nur, solange kein
+registrierter Baum das Zustandsverzeichnis umschließt, und Shell-Zeilen oder die
+Dateiwerkzeuge von MCP-Servern prüft sie nicht dagegen. Das alles gilt innerhalb
+der Grenzen, die unter
+[Hooks](hooks.md#7-der-entscheidungsweg-von-pre-tool-use) aufgelistet sind. Wo beide Dateien
+liegen, steht unter
 [Wo was liegt](configuration.md#4-wo-was-liegt).
 
 ### Der Registry-Eintrag
@@ -224,73 +266,12 @@ never = ["privat/**"]
 
 ---
 
-## 5. Anbindung an Agenten-Harnesses
-
-Loomux integriert sich nahtlos in alle gängigen Agenten-Umgebungen:
-
-### Claude Code
-Eingetragen wird Loomux in `.claude/settings.json`. Kein loomux-Befehl schreibt diese Datei; `loomux status` nennt, was fehlt. Die sechs Einträge, mit den Fristen dieses Repositorys:
-```json
-{
-  "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "timeout": 20,
-      "command": "loomux hook session-start --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
-    "PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell",
-      "hooks": [{"type": "command", "timeout": 15,
-      "command": "loomux hook pre-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
-    "PostToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit",
-      "hooks": [{"type": "command", "timeout": 60,
-      "command": "loomux hook post-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
-    "Stop": [{"hooks": [{"type": "command", "timeout": 300,
-      "command": "loomux hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s"}]}],
-    "SubagentStart": [{"hooks": [{"type": "command", "timeout": 30,
-      "command": "loomux hook subagent-start --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
-    "SubagentStop": [{"hooks": [{"type": "command", "timeout": 30,
-      "command": "loomux hook subagent-stop --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}]
-  }
-}
-```
-Sobald Claude Code versucht, ein `Write`, `Edit` oder einen Shell-Befehl auszuführen, prüft Loomux die Regeln in **unter 35 ms**. Bei einem Verstoß wird die Aktion mit Exit-Code 2 blockiert und die Begründung erscheint direkt im Chat des Agenten.
-
-### Google Antigravity
-Für Antigravity werden die Hooks in `.agents/hooks.json` eingetragen:
-```json
-{
-  "loomux": {
-    "PreInvocation": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook session-start --host antigravity --root ..", "timeout": 20}],
-    "PreToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input|manage_task", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook pre-tool-use --host antigravity --root ..", "timeout": 15}]}],
-    "PostToolUse": [{"matcher": "write_to_file|replace_file_content|multi_replace_file_content", "hooks": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook post-tool-use --host antigravity --root ..", "timeout": 60}]}],
-    "Stop": [{"type": "command", "command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook stop --host antigravity --root .. --budget 270s", "timeout": 300}]
-  }
-}
-```
-`loomux init` schreibt diese Gruppe; agy führt sie über `cmd.exe` aus `.agents/` aus, daher `%LOCALAPPDATA%` und `--root ..`. Nach einem Upgrade `loomux init` erneut ausführen: Ein eigener Eintrag unter einem älteren Matcher bleibt, wie er ist, und `init` hängt einen Block für die fehlenden Werkzeuge an, etwa `manage_task`. Wie die Hooks Antigravity antworten, steht in der CLI-Referenz.
-
-### Cursor & MCP-Clients
-Starte den lokalen MCP-Dienst:
-```bash
-loomux serve
-```
-Oder binde die stdio-Brücke direkt in deine Cursor MCP-Konfiguration ein:
-```json
-{
-  "mcpServers": {
-    "loomux": {
-      "command": "C:/Users/<du>/AppData/Local/loomux/bin/loomux.exe",
-      "args": ["mcp", "--channel", "local"]
-    }
-  }
-}
-```
-Für Claude Code schreibt `loomux init` diesen Eintrag in `.mcp.json`, und zwar
-als `${LOCALAPPDATA}/loomux/bin/loomux.exe`, das Claude Code auflöst; für einen
-anderen Client den Pfad in der Form angeben, die er liest.
-
----
-
 ## 6. Nächste Schritte
 
+- **[loomux installieren](install.md)**: Plattformen, Aktualisierung und Kanäle, Bau aus dem Quellcode.
 - **[Konfigurations-Referenz](configuration.md)**: Vollständige Übersicht aller `.loomux/config.toml`-Sektionen (`[modules]`, `[policy]`, `[verify]`, `[worktree]`).
 - **[CLI-Befehlsreferenz](cli-reference.md)**: Das komplette Handbuch aller Befehle, Flags und Exit-Codes.
 - **[Architektur & Konzepte](architecture.md)**: Erfahre mehr über Karpathys LLM OS, Googles Knowledge Items und AST-GraphRank.
 - **[Hook-Lebenszyklus](hooks.md)**: Details zur Sub-35ms Schreibschranke, zum Blast-Radius-Monitor und zum Event-Stream.
+
+← [loomux installieren](install.md) · [Übersicht](README.md) · [Konfiguration](configuration.md) →

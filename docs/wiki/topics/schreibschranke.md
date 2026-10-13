@@ -9,13 +9,13 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:9d99a6db121543f472769ddc5d7a53f41fb8cf73cab53dfd06be3733e1ebb4c1"
-    revision: 4
+    content_hash: "sha256:7764eb85e994befe53434bab6c4f6f0b96c0d98ed489b3149c0a5ddf932183cf"
+    revision: 11
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
-    content_hash: "sha256:0df2dd6bef80012a28231c34b83bb0aed1fcec819b2400d47438cbdbeaf22c0a"
-    revision: 3
+    content_hash: "sha256:6ca316dd095864fb06a17b7826f1a9919028da4420208e2a3ee78c1880275000"
+    revision: 9
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
@@ -113,9 +113,14 @@ daneben still verlöre. Kosten: 0,08 ms ohne Datei, 0,22 ms mit einem Eintrag.
 
 ## Was bewusst nicht geschieht
 
-- Kein Agent schreibt die Grenzen: das Manifest ist gesperrt, und
-  Registry wie `open.toml` liegen außerhalb jedes geöffneten Baums
-  ([Architektur-Grundsätze](architektur-grundsaetze.md)).
+- Die Dateiwerkzeuge des Hosts schreiben die Grenzen nicht: das Manifest ist
+  gesperrt, auch gegen die Shell-Schreibzugriffe, die der Wächter erkennt, und
+  Registry wie `open.toml` liegen außerhalb jedes geöffneten Baums, solange kein
+  registrierter Baum das Zustandsverzeichnis umschließt. Shell-Zeilen und die
+  Dateiwerkzeuge von MCP-Servern prüft die Schranke nicht gegen das
+  Zustandsverzeichnis ([Architektur-Grundsätze](architektur-grundsaetze.md)).
+  Das alles gilt innerhalb der Grenzen, die Abschnitt 7 von `docs/de/hooks.md`
+  in einer Liste führt.
 - Allow-List entfernen oder die Schranke aus dem Hook nehmen: verworfen, weil
   beides fremde Repos, Nutzerdateien und Vault-Quellen öffnet.
 - Das Registry-Feld `wiki` geht nicht auf Worktrees über; Bundles dort deckt

@@ -1,6 +1,42 @@
 # Loomux Configuration Reference
 
+← [First-time setup](getting-started.md) · [Overview](README.md)
+
 This document provides a comprehensive reference for `.loomux/config.toml`, the primary configuration file for Loomux projects.
+
+## Contents
+
+- **Protection**: [`[policy.paths]`](#policypaths-path-protection-rules), [`[policy.commands]`](#policycommands-command-execution-rules), [`[guard]`](#guard-how-hard-the-guard-reads)
+- **Checks**: [`[verify]`](#verify-check-chains--quality-gates), [`.loomux/armed.toml`](#lane-probation-loomuxarmedtoml)
+- **Project**: [`[project]`](#project), [`[modules]`](#modules-what-runs-in-this-project), [`[commit]`](#commit-commit-message-validation), [`[worktree]`](#worktree-worktree-mirrors)
+- **Areas and wiki**: [the area declaration](#the-area-declaration-area-layout-wiki-index-maintenance-model), [`[privacy]`](#privacy-data-protection--boundaries)
+- **Flows**: [`[agent]`](#agent-models-for-flow-roles), [`[flow]`](#flow-which-flow-runs)
+- **Where things live** and **the write barrier**: [Where Things Live](#4-where-things-live), [The Write Barrier and the Agents' Memory](#5-the-write-barrier-and-the-agents-memory)
+
+## Your first day
+
+`loomux init` keeps `.loomux/config.toml` short, because it writes only what departs from the defaults:
+
+- the area declaration (`[area]`, `[layout]`, `[index]`, `[privacy]` and `[maintenance]`), when `init` registers the project as an area and no configuration stood there yet;
+- `[modules]` entries set to `false` for the modules you declined, and `[commit] language` where it is not `en`;
+- a policy rule where a detected stack brings one: a `uv` project gets a rule against `pip install`, a Django project one for applied migrations.
+
+`[verify]` stays out: the lanes come from the built-in presets for each detected stack. `loomux check precommit --show` prints what runs (see [`[verify]`](#verify-check-chains--quality-gates)).
+
+The first changes you are likely to make:
+
+- **A path rule.** Add a rule to [`[policy.paths]`](#policypaths-path-protection-rules) for a file your agents must not write; `loomux config list` shows how many rules there are.
+- **A key.** `loomux config set <key> <value>` shows the change as a diff and asks before it writes; `loomux config list` names every key and where its value comes from.
+
+The guard refuses an agent's writes to the configuration, within the limits listed in [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use): an agent proposes a change, and a human lists the open proposals and applies one.
+
+```sh
+loomux config set <key> <value> --propose
+loomux config proposals
+loomux config apply <id>
+```
+
+Every form of `loomux config` is in the [CLI reference](cli-reference.md#10-configuration-loomux-config).
 
 ---
 
@@ -8,7 +44,7 @@ This document provides a comprehensive reference for `.loomux/config.toml`, the 
 
 1. **Human-Maintained & Agent-Guarded**:
    > [!IMPORTANT]
-   > `.loomux/config.toml` is **never modified by an AI agent**. The write barrier strictly forbids agent writes to `.loomux/config.toml`, and the guard refuses an agent the commands that write it (`loomux init`, a writing `loomux config`, `loomux area add`). Propose changes; a human writes and commits them, by hand or with `loomux config` (see the [CLI reference](cli-reference.md#10-configuration-loomux-config)).
+   > `.loomux/config.toml` is **not modified by an AI agent**, within the limits listed in [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use): the write barrier refuses an agent's writes to it, and the guard refuses an agent the commands that write it (`loomux init`, a writing `loomux config`, `loomux area add`). Propose changes; a human writes and commits them, by hand or with `loomux config` (see the [CLI reference](cli-reference.md#10-configuration-loomux-config)).
 2. **Deterministic & Strict**:
    All regular expressions and path globs are checked when the policy is read. A rule with a missing or empty `match`, a malformed glob, a missing or non-compiling `regex` or a missing `reason` is an error naming the file and the rule's number (`[[policy.commands.rules]] #2 needs a reason`), and the guard refuses the tool call instead of judging it.
 3. **Separation of Config and State**:
@@ -63,7 +99,7 @@ rules = [
 ### `[policy.commands]` (Command Execution Rules)
 Defines shell command patterns executed in `Bash` or `PowerShell` tools that must be blocked.
 
-The command rules for `git push`, for loomux's own commands that are a human's (`init`, `config`, `gate arm`, a gate's `--answer`) and for an interpreter that reads its program from stdin are built in and need no entry here. `.loomux/config.toml` needs none either: it is a built-in path rule under any directory, and the path rules judge every path a shell line writes or removes as well as a writing tool's target — a redirect into it, `sed -i`/`perl -i`, `tee`, `Set-Content`/`Add-Content`/`Out-File`, `cp`/`mv`/`Copy-Item` onto it, removing it or a folder above it. Reading it (`cat`, `grep`, `Get-Content`) stays allowed. The guard reads the command's words: a variable the line sets itself is put in, but in the default mode a path held in a variable set elsewhere is not caught; strict mode refuses a write whose expansion may land on a protected path. See [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
+The command rules for `git push`, for loomux's own commands that are a human's (`init`, `config`, `gate arm`, a gate's `--answer`) and for an interpreter that reads its program from stdin are built in and need no entry here. `.loomux/config.toml` needs none either: it is a built-in path rule under any directory, and the path rules judge every path a shell line writes or removes as well as a writing tool's target — a redirect into it, `sed -i`/`perl -i`, `tee`, `Set-Content`/`Add-Content`/`Out-File`, `cp`/`mv`/`Copy-Item` onto it, removing it or a folder above it. Reading it (`cat`, `grep`, `Get-Content`) stays allowed. The guard reads the command's words: a variable the line sets itself is put in, but in the default mode a path held in a variable set elsewhere is not caught; strict mode refuses a write whose expansion may land on a protected path. The limits are listed in [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
 
 ```toml
 [policy.commands]
@@ -109,7 +145,7 @@ guard knows. See [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
 Says what `loomux check` and the post-edit hook run. **Without any `[verify]`
 the built-in presets apply** to every stack detection finds; the section only
 changes what differs. `loomux check <profile> --show` prints the table that is
-in effect (see [CLI Reference](cli-reference.md#loomux-check-request---root-path---show--v)).
+in effect (see [CLI Reference](cli-reference.md#loomux-check-request---root-path---show--v---arm)).
 
 ```toml
 [verify]
@@ -616,9 +652,10 @@ armed = [
 - **Two warnings.** The file must not be ignored (`init` ignores only
   `/.loomux/state/`): if the project ignores `.loomux/` or the file, it never
   reaches a commit and holds on this machine only; `loomux gate status` and
-  `loomux status` warn of it. An agent never writes the file: the guard
-  refuses it, and an agent arms a lane only through a green
-  `loomux check precommit --arm`.
+  `loomux status` warn of it. The guard refuses an agent a write to the file,
+  and an agent arms a lane only through a green
+  `loomux check precommit --arm`, within the limits listed in
+  [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
 
 ---
 
@@ -700,12 +737,12 @@ mirror = [
 
 ---
 
-### `[graph]` — there is none, and stage G2a settled why
+### `[graph]` — there is none
 
 An earlier draft of this manual specified a `[graph]` section with `extensions`,
-`exclude` and `freshness_check` fields. None of it exists in the code stage G2a
-shipped, and none is planned. The question keeps coming back, so the answer is
-here rather than left to be rediscovered:
+`exclude` and `freshness_check` fields. None of it exists in the code, and none
+is planned. The question keeps coming back, so the answer is here rather than
+left to be rediscovered:
 
 - **The languages a build parses follow from the extractors, not from a list a
   repository declares.** `internal/code/extract/golang` reads `.go` files and
@@ -722,8 +759,8 @@ here rather than left to be rediscovered:
   belongs to whoever runs the command, not to the tree being indexed.
 - **`freshness_check` never had a decision to make.** `internal/code/freshness`
   always compares size and mtime first and falls back to a content hash only
-  when those disagree — the reference implementation's rule, not a strategy a
-  project could turn off. There is nothing left to configure.
+  when those disagree — a fixed rule, not a strategy a project could turn off.
+  There is nothing left to configure.
 
 What narrows or shapes one build belongs to the invocation that runs it, not to
 the configuration of the repository being indexed. If this section returns, it
@@ -782,7 +819,7 @@ files switch on.
 ---
 
 ### `[privacy]` (Data Protection & Boundaries)
-Guarantees sensitive data never leaks to external models or remote telemetry.
+`[privacy]` decides what loomux's own channels hand out: `loomux brain` search and read, and the MCP tools. The `loomux graph` commands on the command line are the exception: they take no channel and filter no `never` path, so `loomux graph grep` prints lines of such a file and `loomux graph ask --source` its text. `[privacy]` does not stop an agent from reading a file with its host's own tools. A `never` path read with the host's `Read` tool, or with `cat` in a shell, reaches the agent and so its model: the guard judges what an agent writes and runs, not what it reads, `never` is no rule of it, and `Read` is not among the tools `loomux init` hooks. To keep a file from an agent's model, do not leave it where the agent can read it.
 
 ```toml
 [privacy]
@@ -798,7 +835,9 @@ never = [
 | Field | Type | Description |
 |---|---|---|
 | `mode` | string | `"local_only"`, `"manual_cloud"` (default) or `"automatic_cloud"`; any other value is refused. A `local_only` area does not exist on the cloud channel, and nesting does not lift that: a path inside its wiki or source tree stays hidden there even when another area's tree holds it. |
-| `never` | array of strings | Glob patterns of paths that no channel reaches. |
+| `never` | array of strings | Glob patterns of paths that none of loomux's channels, local or cloud, hands out. The `loomux graph` commands take no channel and filter none. |
+
+loomux itself syncs nothing to a cloud and has no telemetry. What an agent reads, through a channel, with `loomux graph` or with its host's tools, goes to its host's model; `mode` and `never` bound only what a channel hands out.
 
 ---
 
@@ -884,7 +923,8 @@ overrides = ["example"]    # bundled flows a project flow of the same name may h
 - **Only a human grants an override.** Without `overrides`, a project folder
   named like a bundled flow is ignored with a warning and the bundled flow
   runs; the guard refuses an agent every write into the folder of a bundled
-  flow or of a name in `overrides` (see
+  flow or of a name in `overrides`, within the limits listed in
+  [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use) (see
   [Flows](flows.md#6-gates-are-a-humans)). An agent proposes one with
   `loomux config set flow.overrides example --propose`.
 
@@ -899,7 +939,7 @@ overrides = ["example"]    # bundled flows a project flow of the same name may h
 
 [project]
 name = "loomux"
-version = "0.1.0-fusion"
+version = "1.0.0"
 agents = ["claude", "antigravity", "cursor"]
 
 # --- Path Protection Rules (Exit Code 2 on Violation) -------------------------
@@ -971,7 +1011,7 @@ default = "example"
 | | Location |
 |---|---|
 | State directory | on Windows `%LOCALAPPDATA%\loomux`, else `~\AppData\Local\loomux`; elsewhere `$XDG_STATE_HOME/loomux`, else `~/.local/state/loomux` |
-| Area registry (`[[area]]` entries: `scope` and `path` required, `wiki` optional, and the booleans `readonly`, `signpost`, `shared`, `workspace`; see [Getting Started](getting-started.md)) | `<state directory>\registry.toml` |
+| Area registry (`[[area]]` entries: `scope` and `path` required, `wiki` optional, and the booleans `readonly`, `signpost`, `shared`, `workspace`; see [First-time setup](getting-started.md#5-registering-an-area-by-hand)) | `<state directory>\registry.toml` |
 | Machine-wide settings (local model) | `<state directory>\config.toml` |
 | Single files the write barrier keeps open | `<state directory>\open.toml` |
 | Manifest of a writable area | `<area path>\.loomux\config.toml` |
@@ -1008,6 +1048,9 @@ roles = { describe = true, place = true, propose = false }
 | `model.roles` | table of booleans | `{ describe = true, place = true, propose = true }` | Which roles the model takes; once set, an unnamed role is off. |
 | `model.temperature` | float | `0.0` | The sampling temperature, between 0 and 2. |
 
+The endpoint must stay on the loopback (`127.0.0.1`, `localhost`, `::1`); no
+proxy is taken from the environment and no redirect is followed.
+
 An area's `[model]` may only narrow `enabled` and `roles`.
 
 `<scope>` is the scope flattened into one directory name: every run of
@@ -1024,7 +1067,10 @@ git. loomux keeps no copy of it.
 
 The write barrier (`loomux hook pre-tool-use`) lets tools write where the
 registry declares an area: in its wiki unless it is read-only, and in its
-`path` when it has `workspace = true`. A workspace (`workspace = true`) without
+`path` when it has `workspace = true`. It decides only about the host's writing
+tools, a shell line or the file tool of an MCP server not being checked against
+it, and within the limits listed in
+[Hooks](hooks.md#7-the-decision-path-of-pre-tool-use). A workspace (`workspace = true`) without
 `wiki` opens only its `path`; `loomux init --brain=none` registers a project so. The index skips
 such an area as long as the project declares no `[area]`; with one, every
 `**/*.md` under `path` becomes its collection. Without `[area]` the brain
@@ -1044,8 +1090,8 @@ user and without a registry entry:
 - A call that writes only there passes even when the registry cannot be read.
 - `.loomux/config.toml` stays locked there too; the manifest is decided before
   anything else.
-- Every path is resolved before it is compared, so a link from memory into a
-  closed tree is judged at its target. In a call that also writes elsewhere, a
+- Every path is resolved before it is compared, so a symbolic link or junction
+  from memory into a closed tree is judged at its target. In a call that also writes elsewhere, a
   memory target inside a read-only zone is still refused.
 - The rest of `~/.claude` and `~/.gemini` stays shut, `antigravity-backup`
   included: `settings.json`, hooks and plugins steer the agent itself, and an
@@ -1076,8 +1122,11 @@ files = ["C:/Users/me/.claude/AGENT_LEARNINGS.md"]
 - A file of its own rather than a table in `registry.toml`, because
   `loomux area add` rewrites the registry from its `[[area]]` entries and
   would drop the table.
-- No agent can write it: the state directory lies outside every tree the
-  barrier opens.
+- The barrier refuses the host's file tools a write to it, within the limits
+  listed in [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use): the state
+  directory lies outside every tree the barrier opens, unless a registered tree
+  encloses it. The barrier decides only about writing tools, so a shell line or
+  the file tool of an MCP server is not checked against it.
 - What an agent writes into such a file acts like an instruction wherever it
   is loaded; for `AGENT_LEARNINGS.md` behind a global `CLAUDE.md` that is every
   session in every project. The list is the user's to decide.
@@ -1085,3 +1134,5 @@ files = ["C:/Users/me/.claude/AGENT_LEARNINGS.md"]
 A refusal that reads `lies outside every writable tree` lists where writing is
 allowed: the permitted trees, then the session scratchpad, the files
 `open.toml` opens and the memory trees, wherever they can be named.
+
+← [First-time setup](getting-started.md) · [Overview](README.md)
