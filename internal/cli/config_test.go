@@ -748,3 +748,36 @@ func TestConfigWithoutATerminalNamesTheOtherForms(t *testing.T) {
 		t.Fatalf("%d %s", code, errOut)
 	}
 }
+
+// configuration.md writes [model] roles and [verify] profiles as inline
+// tables, and cli-reference.md has the other keys of those tables set and
+// unset with this command. An inline table beside the key hides none of
+// the table's keys, so the documented file is edited, not refused.
+func TestConfigEditsBesideASiblingInlineTable(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("LOOMUX_STATE_DIR", state)
+	file := filepath.Join(state, "config.toml")
+	const roles = "roles = { describe = true, place = true, propose = false }\n"
+	writeFile(t, file, "[model]\nenabled = true\n"+roles)
+	for _, step := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"set", "model.name", "qwen3:8b"}, "[model]\nenabled = true\n" + roles + "name = \"qwen3:8b\"\n"},
+		{[]string{"set", "model.temperature", "0.3"}, "[model]\nenabled = true\n" + roles + "name = \"qwen3:8b\"\ntemperature = 0.3\n"},
+		{[]string{"unset", "model.enabled"}, "[model]\n" + roles + "name = \"qwen3:8b\"\ntemperature = 0.3\n"},
+	} {
+		code, _, errOut := runConfig(t, "", append(step.args, "--yes", "--global")...)
+		data, _ := os.ReadFile(file)
+		if code != 0 || string(data) != step.want {
+			t.Fatalf("%v: exit %d, stderr %q; file:\n%s\nwant:\n%s", step.args, code, errOut, data, step.want)
+		}
+	}
+
+	root := configRoot(t, "[area]\nscope = \"s\"\n\n[verify]\ntimeout = 600\nprofiles = { edit = [\"lint\"] }\n")
+	code, _, errOut := runConfig(t, "", "set", "verify.max_parallel", "2", "--yes", "--root", root)
+	want := "[area]\nscope = \"s\"\n\n[verify]\ntimeout = 600\nprofiles = { edit = [\"lint\"] }\nmax_parallel = 2\n"
+	if got := readConfig(t, root); code != 0 || got != want {
+		t.Fatalf("exit %d, stderr %q; file:\n%s", code, errOut, got)
+	}
+}
