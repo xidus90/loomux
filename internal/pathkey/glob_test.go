@@ -196,3 +196,87 @@ func TestGlobOfAnEndingDoubleStarIsLinearInDepth(t *testing.T) {
 		}
 	}
 }
+
+// "**/**/x" reads as "**/x", and the guard bound by its host's timeout reads a
+// project rule spelled that way: a run of leading **/ costs what one does, not
+// one more factor of the depth per **/.
+func TestGlobOfRepeatedLeadingDoubleStarsCostsWhatOneDoes(t *testing.T) {
+	deep := strings.Repeat("a/", 20000)
+	for _, row := range []struct {
+		pattern, name string
+		want          bool
+	}{
+		{"**/**/secrets/**", "secrets/x", true},
+		{"**/**/secrets/**", "a/b/secrets/x", true},
+		{"**/**/secrets/**", "mysecrets/x", false},
+		{"**/**/**/secrets/**", "secrets", true},
+		{"**/**/secrets/**", deep + "x.txt", false},
+		{"**/**/secrets/**", deep + "secrets/x", true},
+		{"**/**/**/secrets/**", deep + "x.txt", false},
+		{"**/**/**/**/key.pem", deep + "x.pem", false},
+	} {
+		type answer struct {
+			got bool
+			err error
+		}
+		done := make(chan answer, 1)
+		start := time.Now()
+		go func() {
+			got, err := Glob(row.pattern, row.name)
+			done <- answer{got, err}
+		}()
+		select {
+		case a := <-done:
+			if a.err != nil || a.got != row.want {
+				t.Errorf("Glob(%q, %d-deep name) = %v, %v; want %v", row.pattern, strings.Count(row.name, "/"), a.got, a.err, row.want)
+			}
+			if took := time.Since(start); took > 500*time.Millisecond {
+				t.Errorf("Glob(%q, %d-deep name) took %v; want what one leading **/ costs", row.pattern, strings.Count(row.name, "/"), took)
+			}
+		case <-time.After(2 * time.Second):
+			t.Errorf("Glob(%q, %d-deep name) did not answer within 2s; want what one leading **/ costs", row.pattern, strings.Count(row.name, "/"))
+		}
+	}
+}
+
+// A run of leading **/ is cut as one; a **/ that is not leading is left to
+// path.Match, which reads it as a plain `*` element.
+func TestCutAnywhereTakesTheWholeLeadingRun(t *testing.T) {
+	for _, row := range []struct {
+		pattern, rest string
+		anywhere      bool
+	}{
+		{"x/y", "x/y", false},
+		{"**/x", "x", true},
+		{"**/**/x", "x", true},
+		{"**/**/**/x/**", "x/**", true},
+		{"**/**", "**", true},
+		{"**", "**", false},
+		{"a/**/**/b", "a/**/**/b", false},
+	} {
+		if rest, anywhere := CutAnywhere(row.pattern); rest != row.rest || anywhere != row.anywhere {
+			t.Errorf("CutAnywhere(%q) = %q, %v; want %q, %v", row.pattern, rest, anywhere, row.rest, row.anywhere)
+		}
+	}
+}
+
+// Repeated **/ inside a pattern cost nothing extra: path.Match reads each as
+// `*`, so no recursion over tails starts there.
+func TestGlobOfRepeatedInnerDoubleStarsIsLinearInDepth(t *testing.T) {
+	deep := strings.Repeat("a/", 20000)
+	start := time.Now()
+	for pattern, want := range map[string]bool{
+		"a/**/**/**/**/b":    false,
+		"**/a/**/**/**/b":    false,
+		"a/**/**/**/**/**":   true,
+		"**/a/**/**/**/x":    true,
+		"**/**/a/**/**/**/x": true,
+	} {
+		if got, err := Glob(pattern, deep+"x"); err != nil || got != want {
+			t.Errorf("Glob(%q, deep name) = %v, %v; want %v", pattern, got, err, want)
+		}
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("repeated inner **/ took %v over a 20000-deep name", took)
+	}
+}
