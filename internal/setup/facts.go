@@ -235,8 +235,10 @@ func gitHookDir(git detect.Runner, root string) (string, error) {
 	if dir == "" {
 		return "", errors.New("read git's hook directory: git named none")
 	}
-	// Asked for an absolute path; a git too old for --path-format answers
-	// relative to the directory it ran in.
+	// Asked for an absolute path; one that comes back relative is relative
+	// to the directory git ran in. Git 2.30 does not know --path-format and
+	// echoes it as a first output line, which this cannot repair: the
+	// install pages name Git 2.31 as the minimum.
 	if dir = filepath.FromSlash(dir); !filepath.IsAbs(dir) {
 		dir = filepath.Join(root, dir)
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 // The one failure filepath.Abs can report is os.Getwd's, which no test can
-// provoke on any of the platforms this runs on -- README.md's install block
+// provoke on any of the platforms this runs on -- docs/en/install.md
 // names Windows, Linux and macOS -- so the resolver is a parameter
 // and this test hands it the failure directly. Without it the refusal would
 // be an untested line claiming to name the directory it could not resolve.
