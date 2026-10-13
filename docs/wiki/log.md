@@ -4,6 +4,124 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-10-13
+
+- 2026-10-13 — `topics/schreibschranke.md`, `topics/brain-maintenance.md`,
+  `topics/code-graph.md`, `topics/datenmodell-und-bereiche.md`,
+  `topics/datenschutz-und-kanaele.md`, `topics/scheiben-und-abnahme.md`,
+  `topics/suche-und-profile.md`, `topics/wiki-schicht.md`,
+  `entities/brain-daemon.md`, `entities/okf.md`, `entities/qmd.md`: gegen
+  `docs/de/cli-reference.md` geprüft; die Tabelle der zwölf Werkzeuge nennt
+  nun `file` statt `file_path` für `graph_file_api` und führt `in` bei
+  `graph_trace_calls` und `graph_find_all` auf, wie das Schema es nimmt. Keine
+  Aussage dieser Seiten hing an Argumentnamen, keine Prosa angepasst. Quelle:
+  `docs/de/cli-reference.md`.
+- 2026-10-13 — `topics/schreibschranke.md`, `topics/brain-maintenance.md`,
+  `topics/code-graph.md`, `topics/datenmodell-und-bereiche.md`,
+  `topics/datenschutz-und-kanaele.md`, `topics/scheiben-und-abnahme.md`,
+  `topics/suche-und-profile.md`, `topics/wiki-schicht.md`,
+  `entities/brain-daemon.md`, `entities/okf.md`, `entities/qmd.md`: gegen
+  `docs/de/hooks.md` und `docs/de/cli-reference.md` geprüft; die Doku nennt
+  nun, dass `loomux worktree remove` einen gesperrten Worktree ablehnt, bevor
+  ein Link entfernt wird, dass `remove` als Ausnahme auch eine Junction mit
+  anderem Ziel entfernt, und dass nach einer späteren Ablehnung durch Git
+  `link` nur die konfigurierten Junctions wieder anlegt. Keine Aussage dieser
+  Seiten hing an `worktree remove`, keine Prosa angepasst. Quelle:
+  `docs/de/hooks.md`, `docs/de/cli-reference.md`.
+
+## 2026-10-12
+
+- 2026-10-12 — `topics/schreibschranke.md`, `topics/brain-maintenance.md`,
+  `topics/code-graph.md`, `topics/datenmodell-und-bereiche.md`,
+  `topics/datenschutz-und-kanaele.md`, `topics/scheiben-und-abnahme.md`,
+  `topics/suche-und-profile.md`, `topics/wiki-schicht.md`,
+  `entities/brain-daemon.md`, `entities/okf.md`, `entities/qmd.md`: gegen
+  `docs/de/hooks.md` und `docs/de/cli-reference.md` geprüft; die Doku nennt
+  nun, dass `loomux worktree remove` vor Git jede Junction und jeden
+  Verzeichnis-Symlink im Baum entfernt (den Link, nie sein Ziel) und
+  abbricht, wenn einer bleibt, weil Git for Windows 2.31 bis 2.53 durch eine
+  fremde Junction hindurch in den Haupt-Checkout löscht. Keine Aussage dieser
+  Seiten hing an `worktree remove`, keine Prosa angepasst. Gemessen am
+  2026-10-12 mit MinGit. Quelle: `docs/de/hooks.md`, `docs/de/cli-reference.md`.
+- 2026-10-12 — `topics/datenschutz-und-kanaele.md`: gegen
+  `docs/de/configuration.md` und `docs/de/cli-reference.md` geprüft; die Seite
+  nennt nun die Befehle `loomux graph` auf der Kommandozeile als Ausnahme von
+  `never` (kein Kanal, kein Filter: `graph grep` gibt Zeilen einer
+  `never`-Datei aus, `graph ask --source` ihren Text).
+  `topics/code-graph.md`, `topics/datenmodell-und-bereiche.md`,
+  `topics/schreibschranke.md`, `topics/suche-und-profile.md`,
+  `topics/brain-maintenance.md`, `topics/scheiben-und-abnahme.md`,
+  `topics/wiki-schicht.md`, `entities/brain-daemon.md`, `entities/okf.md`, `entities/qmd.md`: geprüft;
+  keine Aussage dieser Seiten hing an den geänderten Stellen (die Kanal-Zeile
+  der `brain`-Befehle und der neue Absatz zu `loomux graph`), keine Prosa
+  angepasst. Quelle: `docs/de/configuration.md`, `docs/de/cli-reference.md`.
+- 2026-10-12 — `topics/datenschutz-und-kanaele.md`: gegen
+  `docs/de/configuration.md` geprüft; `never` gilt nun ausdrücklich auf jedem
+  Kanal von loomux, und die Seite sagt, dass `never` und `local_only` nicht
+  verhindern, dass ein Agent mit den Werkzeugen seines Hosts liest.
+  `topics/datenmodell-und-bereiche.md`, `topics/schreibschranke.md`: geprüft;
+  keine Aussage dieser Seiten hing am geänderten Abschnitt, keine Prosa
+  angepasst. Die Konfigurationsreferenz begrenzt `[privacy]` auf die eigenen
+  Kanäle von loomux (Suche, Lesen, MCP-Werkzeuge): Das `Read`-Werkzeug des
+  Hosts und ein `cat` erreichen einen `never`-Pfad, weil der Wächter nicht
+  liest; die Zusage, sensible Daten gelangten nie an externe Modelle, ist
+  gestrichen. Quelle: `docs/de/configuration.md`.
+- 2026-10-12 — `topics/schreibschranke.md`: gegen `docs/de/hooks.md` geprüft;
+  die Seite sagt, die Schranke prüfe Shell-Zeilen nicht gegen das
+  Zustandsverzeichnis, und verweist für die Grenzen auf die Liste in
+  Abschnitt 7; beides bleibt wahr, keine Prosa angepasst. Die Liste fasst die
+  Shell-Zeilen jetzt weiter: Sie kommen an der Schranke vorbei, wohin sie auch
+  schreiben (Zustandsverzeichnis samt installiertem `loomux.exe`,
+  `~/.claude/settings.json`, Dateien unter `~/.gemini`); die Nutzereinstellungen
+  gehören zur Hook-Verdrahtung, gegen die schreibenden Werkzeuge geschützt, nicht
+  gegen die Shell. Gemessen am 2026-10-12. Quelle: `docs/de/hooks.md`.
+- 2026-10-12 — `topics/schreibschranke.md`: gegen `docs/de/hooks.md` geprüft;
+  die Seite verweist auf die Liste der Grenzen in Abschnitt 7, ohne sie
+  aufzuzählen, keine Prosa angepasst. Die Liste führt nun als siebte Grenze die
+  Hook-Verdrahtung des Hosts (`.claude/settings.json`,
+  `.claude/settings.local.json`, `.agents/hooks.json`): Sie ist nicht
+  geschützt, und ein Agent, der sie umschreibt, schaltet den Wächter ab der
+  nächsten Sitzung ab. Quelle: `docs/de/hooks.md`.
+
+## 2026-10-11
+
+- 2026-10-11 — `topics/schreibschranke.md`, `topics/datenmodell-und-bereiche.md`,
+  `topics/datenschutz-und-kanaele.md`, `entities/qmd.md`: gegen
+  `docs/de/hooks.md`, `docs/de/configuration.md` und
+  `docs/de/getting-started.md` geprüft. Der Hooks-Leitfaden führt die Grenzen
+  von Wächter und Schranke jetzt in einer Liste (Abschnitt 7: Werkzeuge, die der
+  Hook nicht beurteilt, Programme, die die Datei selbst öffnen, nicht erkannte
+  Schreibweisen, Links und Junctions, Hardlinks, Shell-Zeilen ins
+  Zustandsverzeichnis); die Konfigurationsreferenz, der Einstieg, die
+  Doku-Übersicht und das README verweisen darauf, statt je eigene Umgehungen
+  aufzuzählen. `topics/schreibschranke.md` verweist in „Was bewusst nicht
+  geschieht" auf die Liste; die übrigen Seiten sagen nichts, was an einem
+  geänderten Satz hängt, ihre `sources:` zieht der Repin nach. Quelle:
+  `docs/de/hooks.md`, `docs/de/configuration.md`,
+  `docs/de/getting-started.md`.
+- 2026-10-11 — `topics/schreibschranke.md`: gegen `docs/de/hooks.md` geprüft;
+  die Seite sagt nichts über Zeichenketten, die eine Shell ausführt, keine
+  Prosa angepasst. Der Hooks-Leitfaden sagt nun, dass die Befehlsregeln, die
+  reguläre Ausdrücke sind (`[policy.commands]`, die eingebaute für
+  `git push`), nur die Zeile treffen, wie sie geschrieben steht, und dass nur
+  die Regeln für loomux' eigene Befehle die Zeichenkette von `bash -c` lesen.
+  Quelle: `docs/de/hooks.md`.
+- 2026-10-11 — `entities/qmd.md`, `topics/datenschutz-und-kanaele.md`,
+  `topics/schreibschranke.md`, `topics/datenmodell-und-bereiche.md`: gegen die
+  neu gegliederten `docs/de/getting-started.md` (Ersteinrichtung, sechs
+  Abschnitte) und `docs/de/configuration.md` (Inhaltsverzeichnis, „Der erste
+  Tag") geprüft; keine Aussage dieser Seiten hing an einem geänderten
+  Abschnitt. Die Konfigurationsreferenz begrenzt jetzt, was die Schranke
+  schützt (Dateiwerkzeuge des Hosts, nur solange kein registrierter Baum das
+  Zustandsverzeichnis umschließt, Shell-Zeilen und MCP-Dateiwerkzeuge ungeprüft);
+  `topics/schreibschranke.md` sagt das in „Was bewusst nicht geschieht" nun
+  ebenso, die `sources:` bleiben unberührt. Die Installation steht jetzt in
+  `docs/de/install.md`. `topics/code-graph.md` und
+  `topics/scheiben-und-abnahme.md`: die Verweise auf die Roadmap im README
+  nennen die Funktion statt der entfernten Stufenkürzel (Graph-Visualizer,
+  offene Arbeit). Quelle: `docs/de/getting-started.md`,
+  `docs/de/configuration.md`, `README.md`.
+
 ## 2026-10-06
 
 - 2026-10-06 — `topics/brain-maintenance.md`: Konflikt zu `--reject`

@@ -9,13 +9,13 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:9d99a6db121543f472769ddc5d7a53f41fb8cf73cab53dfd06be3733e1ebb4c1"
-    revision: 4
+    content_hash: "sha256:7764eb85e994befe53434bab6c4f6f0b96c0d98ed489b3149c0a5ddf932183cf"
+    revision: 11
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:561abd6af4122b184033d8dee55610283fe1c12165ea1141b3f8f36e2a115c94"
-    revision: 5
+    content_hash: "sha256:0f9e5ff35c5e1cf399d2f134e4ad8183c866863789455b7e6390290361a225cf"
+    revision: 9
 ---
 
 ## Der Fund, der die Regel erzwang
@@ -37,9 +37,19 @@ mit CLI, Oberfläche und lokalem Modell gearbeitet.
 
 ## `never` gegen `local_only`
 
-`never` schließt einzelne **Pfade** überall aus, auch innerhalb eines sonst
-offenen Bereichs. `local_only` schließt einen **ganzen Bereich** gegenüber der
-Cloud.
+`never` schließt einzelne **Pfade** auf jedem Kanal von loomux aus, auch
+innerhalb eines sonst offenen Bereichs. `local_only` schließt einen **ganzen
+Bereich** gegenüber der Cloud.
+
+Beide begrenzen nur, was die Kanäle von loomux herausgeben (Suche, Lesen, die
+MCP-Werkzeuge). Die Befehle `loomux graph` auf der Kommandozeile kennen keinen
+Kanal und filtern keinen `never`-Pfad: `graph grep` gibt Zeilen einer solchen
+Datei aus, `graph ask --source` ihren Text. Was ein Agent mit den Werkzeugen seines Hosts liest — das
+`Read`-Werkzeug, ein `cat` in der Shell —, erreicht sein Modell trotzdem: Der
+Wächter beurteilt, was ein Agent schreibt und ausführt, nicht was er liest,
+`never` ist keine Regel von ihm, und `Read` gehört nicht zu den Werkzeugen, für
+die `loomux init` einen Hook einträgt. Die Konfigurationsreferenz sagt das
+ebenso.
 
 ## Verschachtelung hebt `local_only` nicht auf
 

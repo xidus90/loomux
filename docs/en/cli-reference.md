@@ -489,7 +489,7 @@ In a linked worktree, makes a junction into the main checkout for every configur
 Reads `session_id` from the payload on `stdin`, marks this session ended with a `<id>.ended` file beside its state under `.loomux/state/hooks/` (the state stays, for a resume under the same id; `hook session-start` takes the marker away again), and removes the junctions only when no other session younger than 24 hours and not marked ended remains.
 
 ### `loomux worktree remove <worktree-path>`
-Refuses the main checkout and any directory git holds no worktree at, removes the junctions, runs `git worktree remove --force`, checks that the directory is gone, and prints `removed <path>`.
+Refuses the main checkout, any directory git holds no worktree at and a locked worktree (before anything is touched; `git worktree unlock <path>` lifts the lock), removes the configured junctions and then every other junction and directory symlink in the tree (the link, never its target; one that cannot be removed stops the command before git is asked), runs `git worktree remove --force`, checks that the directory is gone, and prints `removed <path>`.
 
 - **Exit Codes**: `0` (in order, or nothing to do), `1` (a fault, named on `stderr`), `2` (no subcommand, or an unknown one).
 
@@ -499,6 +499,8 @@ Refuses the main checkout and any directory git holds no worktree at, removes th
 
 > [!NOTE]
 > **`build`, `check`, `ask`, `callers`, `skeleton`, `grep`, `map`, `stats` and `blast` are wired; `viz` remains specified.** Stage G1 built the packages the graph relies on — `internal/code/model`, `internal/code/pagerank` and `internal/code/blast` — stage G2a added the extractor, the wiring writer, the freshness probe and `graph build` and `check`, stage G2b added the lexicon, lexical scoring, Personalized PageRank blend and `graph ask`, stage G3 put `ask` and `check` behind the MCP tools `graph_find_code` and `graph_check_freshness` (§8), and stage G4a delivered the navigation suite (`callers`, `skeleton`, `grep`, `map`, `stats`) and their four MCP tools; stage G4b added `blast`, the MCP tool `graph_blast`, the checks `graph-fresh` and `blast-audit` (§2) and the post-edit blast monitor (§3). Stage G5a (✅ 2026-09-26) added Python extraction on `gotreesitter`, a Tree-sitter runtime in pure Go, and the extract cache behind `build`.
+
+**`[privacy] never` is not applied here.** The `loomux graph` commands answer from the graph on disk and the files as they stand and take no `--channel`: they filter no path under the `never` globs of `[privacy]`. `graph grep` prints lines of such a file, `graph ask --source` its text, and `callers`, `skeleton` and `map` name its symbols. The MCP tools of §8 do filter them.
 
 ### `loomux graph build [--root <path>] [--no-reuse]`
 Reads and hashes every source file `internal/code/sourceset` finds under the root — `.go`, `.py`, and a Godot project's `.gd`, `.tscn`, `.tres` and `.godot`, matched exactly and case-sensitively, `.pyi` stubs left out — extracts each with its language's extractor (Go with `go/parser`, Python and GDScript on `gotreesitter`), resolves them into the deterministic AST graph, and writes it to `.loomux/state/graph/wiring.json`. Each language resolves in a name index of its own; the one edge that crosses languages is a Godot path (`res://` or relative) that names a file another language extracted. A relative path is read from the folder of the file that names it, as `preload` does; a `load` path without a scheme is read from `res://`, as Godot does, and an autoload's from `project.godot`'s folder. A Godot project's `res://` root is the directory of the nearest `project.godot`, whose `[autoload]` section binds global names; without one there are no `res://` edges. It also writes the freshness record (`.loomux/state/graph/cache/fingerprint.json`) a later probe reads and the extract cache (`.loomux/state/graph/cache/extract.json`) the next build reads; a failure to write either is announced on `stderr` but does not fail the build, since the graph on disk is already correct.
@@ -617,7 +619,7 @@ Starts the local D3-Force / WebGL interactive graph visualizer.
 
 The five data commands read the areas of the one registry (`registry.toml` in `LOOMUX_STATE_DIR` or its platform default) and answer as the reference does; a recorded case corpus (`testdata/cases/1b-1`) holds them to it. A read-only area's artefacts (`index.md`, `graph.json`, `_identities.tsv`) and the reconcile stamp are read from loomux's state directory, under `areas/<flat scope>` and `maintenance/`; an area directory whose `.loomux/config.toml` is missing or has no `[area]` table is not declared.
 
-- **Channel**: every command takes `--channel local|cloud` (default `local`). An area with `[privacy] mode = "local_only"` does not exist on `cloud`; `[privacy] never` globs apply on every channel. Nesting does not lift `local_only`: where the tree of another area holds the wiki or the source tree of a `local_only` area, every path inside it stays hidden on `cloud` through that scope too — `brain read` answers it as a missing file, and search hits, catalog lines, neighbours and `brain status` findings under it are left out. The `local` channel is unchanged.
+- **Channel**: every command takes `--channel local|cloud` (default `local`). An area with `[privacy] mode = "local_only"` does not exist on `cloud`; `[privacy] never` globs apply on both channels of these commands, not to `loomux graph` (section 6), which takes no channel and filters no path. Nesting does not lift `local_only`: where the tree of another area holds the wiki or the source tree of a `local_only` area, every path inside it stays hidden on `cloud` through that scope too — `brain read` answers it as a missing file, and search hits, catalog lines, neighbours and `brain status` findings under it are left out. The `local` channel is unchanged.
 - **Usage errors** (exit `2`): the usage line, then `loomux brain <command>: error: <reason>` for a missing argument, an invalid choice or `-n` below 1, and `loomux brain: error: <reason>` when the command is missing or unknown or arguments are left over.
 - **Runtime errors** (exit `1`): `error: <reason>` on `stderr` and nothing on `stdout` — an unknown scope, a refusal, a missing section, a broken `graph.json` or identity register, a missing or unreadable manifest of any registered area, a missing or broken registry, a search engine that cannot be reached.
 - **Advice**: the messages name loomux's own commands, `loomux reindex`, `loomux reconcile` and `loomux embed`; the recorded cases of 1b-1 and 1b-2 carry the reference's wording through rewrite rules of their import maps.
@@ -994,9 +996,9 @@ address, name to name and arguments to arguments.
 | `brain_status` | none |
 | `graph_find_code` | `scope` and `query` (both required), `limit` → 5, `full`, `in` |
 | `graph_check_freshness` | `scope` (required) |
-| `graph_file_api` | `scope` and `file_path` (both required) |
-| `graph_trace_calls` | `scope` and `symbol` (both required), `direction` ∈ {`in`, `out`} → `in`, `depth` → 1 |
-| `graph_find_all` | `scope` and `pattern` (both required), `ignore_case`, `fixed` |
+| `graph_file_api` | `scope` and `file` (both required) |
+| `graph_trace_calls` | `scope` and `symbol` (both required), `direction` ∈ {`in`, `out`} → `in`, `depth` → 1, `in` |
+| `graph_find_all` | `scope` and `pattern` (both required), `in`, `ignore_case`, `fixed` |
 | `graph_repo_map` | `scope` (required), `max_dirs` → 16 |
 | `graph_blast` | `scope` (required), `base`, `depth` → 1 |
 
@@ -1015,13 +1017,14 @@ The seven `graph_*` tools operate over the repository of one registered area:
   was found. Drift and a missing graph are text, not errors. `isError` marks
   a refused call — a missing, unknown or hidden scope, or for
   `graph_find_code` a missing query — and a real read failure.
-- **`graph_file_api`** exports definitions and types for `file_path` from the
+- **`graph_file_api`** exports definitions and types for `file` from the
   cached AST graph without function bodies.
 - **`graph_trace_calls`** traces incoming callers (`direction: in`) or outgoing
   callees (`direction: out`) of `symbol`, either direct (`depth: 1`) or
-  transitive (`depth: "all"`).
+  transitive (`depth: "all"`); `in` narrows to a path prefix.
 - **`graph_find_all`** performs symbol-coupled regex search across indexed files,
-  grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`).
+  grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`);
+  `in` narrows to files under a path prefix.
 - **`graph_repo_map`** generates a token-budgeted structural overview of directory
   clusters, hubs, and hotspots.
 - **`graph_blast`** is `loomux graph blast` in the area's root: `base` compares
