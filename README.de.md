@@ -2,21 +2,54 @@
 
 🌐 **[English](README.md)** | **[Deutsch](README.de.md)** · 📖 **[Docs (EN)](docs/en/)** | **[Handbuch (DE)](docs/de/)**
 
-**Die vereinte autonome Entwickler-Plattform in einem einzigen Go-Binary: Hooks, Skills, Code-Graph, Second Brain & LLM OS.**
+**Ein Go-Binary, das KI-Coding-Agenten bewacht: Hooks und eine Schreibschranke, eine Prüfkette, ein Code-Graph und ein Projekt-Wiki.**
 
-Loomux gibt KI-Coding-Agenten (heute Hooks für Claude Code und Antigravity; Cursor nur als MCP-Client; Codex ist noch nicht angebunden) tiefes Codebase-Verständnis, deterministisches Graph-Retrieval, undurchdringliche Schreibschranken und automatisierte Prüfketten — vollständig autark und ohne externe Laufzeit-Abhängigkeiten.
+Claude Code und Antigravity arbeiten über Hooks mit loomux: Jedes Schreiben über die Dateiwerkzeuge des Hosts wird vor der Ausführung gegen die Regeln des Projekts und eine Schreibschranke geprüft, jeder Shell-Befehl gegen die Regeln des Projekts, und die Prüfkette läuft nach jeder Bearbeitung und am Ende jeder Runde. Cursor arbeitet nur als MCP-Client mit loomux, und Codex ist noch nicht angebunden. Über den MCP-Dienst fragt ein Agent den Code-Graphen und das Projekt-Wiki, statt das Repository erneut zu lesen.
 
-- **Kein Python. Kein Node.js.** Ein einziges, in sich geschlossenes Go-Binary (`loomux.exe` / `loomux`).
-- **Kaltstart unter 35 ms.** Federleichte Ausführung, die sich strikt in die Latenz-Budgets von Agenten-Toolcalls einfügt.
-- **100 % Test-Coverage je Funktion.** Kompromisslose Qualität mit Mutationstests und null ungetesteten Codepfaden.
-- **Windows-First, POSIX-nativ.** Native Betriebssystem-Primitive (Job Objects, Junctions) mit voller Linux/macOS-Unterstützung.
+- **Ein Binary.** loomux selbst braucht keine Python- oder Node-Laufzeit; die Werkzeuge, die es aufruft, etwa qmd für die Wiki-Suche und die Linter der Prüf-Lanes, können eine eigene brauchen.
+- **Schneller Wächter.** Der Wächter entscheidet innerhalb eines Budgets von 35 ms.
+- **Getestet je Funktion.** 100 % Testabdeckung je Funktion; eine Ausnahme braucht eine Begründung im Code.
+- **Keine Telemetrie.** loomux selbst geht nur für Updates über `gh`, für das `git ls-remote origin` der Subagent-Hooks und auf ausdrückliche Befehle ins Netz. Die Prüfwerkzeuge, die seine Lanes starten (`uvx`, `npx`, `uv run --with`), können von sich aus Pakete herunterladen.
+- **Windows zuerst.** Binaries für Linux und macOS gibt es auch, getestet wird aber unter Windows; Hook-Einrichtung und Selbstaktualisierung gibt es nur unter Windows.
 
 > **Woher kommt der Name?**  
 > **Loomux** verbindet den **Loom** (den Webstuhl, der die Fäden aus Agenten-Loops, Code-Graphen und Team-Wissen zu einem dichten, nahtlosen Gewebe verwebt) mit der Endung **-ux** (inspiriert von der Unix-Philosophie robuster, modularer Betriebssystem-Werkzeuge sowie einer kompromisslosen Developer & Agent Experience).
 
 ---
 
-## Die 5 Säulen von Loomux
+## Schnellstart (Windows)
+
+Du brauchst die [GitHub CLI](https://cli.github.com/), angemeldet per `gh auth login`; sie übernimmt den Download und später die Selbstaktualisierung.
+
+1. Lade das neueste stabile Release, prüfe es gegen `SHA256SUMS` und installiere es als `loomux.exe`. Führe das in PowerShell aus:
+
+   ```powershell
+   $bin = "$env:LOCALAPPDATA\loomux\bin"
+   New-Item -ItemType Directory -Force $bin | Out-Null
+   gh release download --repo xidus90/loomux --pattern 'loomux_*_windows_amd64.exe' --pattern SHA256SUMS --dir $bin --clobber
+   $exe = Get-ChildItem $bin -Filter 'loomux_*_windows_amd64.exe' | Select-Object -First 1
+   if (-not $exe) { throw 'download failed: see the gh error above' }
+   $want = ((Select-String -Path "$bin\SHA256SUMS" -Pattern $exe.Name -SimpleMatch).Line -split '\s+')[0]
+   if ((Get-FileHash $exe.FullName -Algorithm SHA256).Hash -eq $want) { Move-Item -Force $exe.FullName "$bin\loomux.exe"; Remove-Item "$bin\SHA256SUMS" } else { throw "checksum mismatch: $($exe.Name)" }
+   ```
+
+2. Richte in einer beliebigen Sitzung dein eigenes Projekt ein (`cd <projekt>`). `init` zeigt jede Änderung als Diff und schreibt nur, was du mit `y` bestätigst:
+
+   ```powershell
+   & "$env:LOCALAPPDATA\loomux\bin\loomux.exe" init
+   ```
+
+3. Prüfe die Einrichtung:
+
+   ```powershell
+   & "$env:LOCALAPPDATA\loomux\bin\loomux.exe" status
+   ```
+
+Die vollen Pfade sind nötig, weil nichts den Ordner auf deinen `PATH` setzt. Unter Linux oder macOS siehe [Linux und macOS](docs/de/install.md#linux-und-macos); alles Weitere zur Installation steht in [loomux installieren](docs/de/install.md), der nächste Schritt ist die [Ersteinrichtung](docs/de/getting-started.md).
+
+---
+
+## Wie es zusammenhängt
 
 ```mermaid
 flowchart TD
@@ -48,93 +81,37 @@ flowchart TD
 
 ---
 
-## Kern-Workflows
+## Funktionen
 
-### 1. Der autonome Wächter- & Prüfkreislauf
+| Funktion | Was sie leistet | Doku |
+|---|---|---|
+| **Wächter und Schreibschranke** | Hooks prüfen jedes Schreiben über die Dateiwerkzeuge des Hosts und jeden Shell-Befehl gegen die Pfade, Befehle und Schreibregeln des Projekts, bevor sie laufen, und verweigern sie mit Nennung der Regel. `.loomux/config.toml` ist für Agenten schreibgeschützt; das alles gilt innerhalb der Grenzen, die in den [Hooks](docs/de/hooks.md#7-der-entscheidungsweg-von-pre-tool-use) aufgelistet sind. | [Hooks](docs/de/hooks.md) |
+| **Prüfkette und Tor** | Standardmäßig laufen nach jeder Bearbeitung die Lanes für Lint und Typen über die geänderte Datei; am Rundenende und im Git-Hook laufen die Lanes für Lint, Typen, Test, Coverage und Graph über den neuen Inhalt der Runde und über den Commit. In einem Projekt mit `.loomux/armed.toml` ist eine Lane, die die Datei nicht nennt, in Probe: Sie läuft und berichtet, lässt aber nichts scheitern, bis sie scharf gestellt ist. | [Konfiguration](docs/de/configuration.md#verify-prüfketten--quality-gates) |
+| **Code-Graph** | Ein lokaler, deterministischer Graph aus Go-, Python- und GDScript-Code. `graph ask` rankt Symbole nach lexikalischer Relevanz und Personalized PageRank, `callers`, `skeleton`, `grep` und `map` navigieren darin, und `blast` zeigt, was ein Git-Diff erreicht. | [CLI-Referenz §6](docs/de/cli-reference.md#6-code-graph-engine-loomux-graph) |
+| **Wiki und Second Brain** | Markdown-Wikis, als Bereiche eines Repositorys registriert, Seite für Seite gelesen und durchsucht über qmd (`brain search`), das du getrennt installierst. `reindex` baut die Kataloge, den Link-Graphen und das Identitätsregister neu, `reconcile` öffnet für jede Wiki-Seite, deren Quelle sich geändert hat, einen Prüffall, und ein Mensch entscheidet, was ein Fall ändert (`cases`, `approve`). | [CLI-Referenz §7](docs/de/cli-reference.md#7-second-brain--wiki-loomux-brain) |
+| **MCP-Dienst** | `loomux serve` bietet die Werkzeuge `brain_*` und `graph_*` auf dem Loopback an, ein Token je Kanal (lokal oder Cloud). `loomux mcp` ist die stdio-Brücke, die ein Host startet; sie bietet nur die Werkzeuge der Module an, die das Projekt eingeschaltet lässt. | [CLI-Referenz §8](docs/de/cli-reference.md#8-mcp-dienst--stdio-brücke-loomux-serve--loomux-mcp) |
+| **Flows** | Flows als Daten: ein Graph aus Knoten in TOML, der läuft, an einem Tor auf die Antwort eines Menschen wartet und sich aus einem Journal fortsetzen und wiedergeben lässt (`flow run\|resume\|replay\|show\|list`). Tor- und Ausgangsknoten laufen heute; Agentenknoten stehen in der [Roadmap](#roadmap). | [Flows](docs/de/flows.md) |
+| **Worktree-Spiegel** (nur Windows) | `worktree link\|unlink\|remove` legen die Verzeichnisse, die ein Projekt nennt, als Junctions in seine verknüpften Git-Worktrees und nehmen sie wieder heraus. | [CLI-Referenz §5](docs/de/cli-reference.md#5-worktree-spiegelung-loomux-worktree) |
+| **Releases und Selbstaktualisierung** (nur Windows) | `serve` holt täglich über `gh` das neueste Release des Kanals, dem das Binary folgt (stabil oder Beta), prüft es gegen `SHA256SUMS` und tauscht das Binary; `loomux upgrade` tut dasselbe von Hand und wechselt den Kanal. | [loomux installieren](docs/de/install.md#updates-und-kanäle) |
 
-Jede Interaktion eines Coding-Agenten wird in Echtzeit überwacht und validiert, ohne den Entwicklungsfluss zu blockieren.
+---
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Agent as Coding-Agent
-    participant Hook as loomux hook
-    participant Policy as Policy & Schranke
-    participant Verify as Prüfkette (verify-Lanes)
+## Dokumentation
 
-    Agent->>Hook: SessionStart
-    Hook-->>Agent: Basis-Commit festgehalten, Warnung bei veraltetem Binary (blockiert nie)
+Leitfäden und technische Handbücher sind unter [`docs/de/`](docs/de/) gegliedert:
 
-    Agent->>Hook: PreToolUse (Tool-Call auf stdin)
-    Hook->>Policy: Pfade, Befehle, Schreibschranke, Schutz der config.toml (Budget 35 ms)
-    alt Abgelehnt
-        Policy-->>Agent: Exit 2 (die Begründung nennt die Regel)
-    else Erlaubt
-        Hook-->>Agent: Exit 0
-    end
-
-    Agent->>Agent: Ändert eine Datei oder führt einen Befehl aus
-
-    Agent->>Hook: PostToolUse (stdin)
-    Hook->>Verify: Profil edit über die geänderte Datei (vet, gofmt, Wiki-Lint, ruff, eslint ...)
-    alt Eine scharfe Lane ist rot
-        Verify-->>Agent: Exit 2 mit dem Befund und den übersprungenen Lanes
-    else Keine scharfe Lane ist rot
-        Hook-->>Agent: Exit 0 — übersprungene Lanes und bei Go die Aufrufer der geänderten Symbole als Kontext
-    end
-
-    opt Ein Subagent läuft
-        Agent->>Hook: SubagentStart / SubagentStop
-        Hook->>Hook: Schnappschuss von origin, Branches und HEAD, parkt, was sich bewegt hat
-    end
-
-    Agent->>Hook: Stop (Rundenende)
-    Hook->>Verify: Profil stop über neuen Inhalt, dazu geparkte Subagenten-Befunde
-    Verify-->>Agent: Grün (Exit 0), Halt mit Feedback (Exit 2) oder kein Urteil (Exit 1)
-```
-
-Jede Phase mit Nutzlast, Exitcodes und Budgets: [Hook-Lebenszyklus](docs/de/hooks.md).
-
-Neben Pfaden und loomux' eigenen Befehlen verweigert der Wächter einen Interpreter, der sein Programm von stdin lesen würde, ohne dass dort etwas ankommt (`python -`, ein nacktes `node`, `uv run -`, ein Heredoc hinein): so ein Aufruf hängt, bis er gestoppt wird. Ein Agent schreibt das Skript in eine Datei und führt die aus ([Entscheidungsweg](docs/de/hooks.md#7-der-entscheidungsweg-von-pre-tool-use)).
-
-Eine Lane, die in einem Projekt noch nie grün war, warnt, statt zu scheitern. `.loomux/armed.toml` nennt die Lanes, die scharf sind; eine Lane, die dort fehlt, ist in Probe, läuft und berichtet, lässt aber weder eine Bearbeitung noch ein Rundenende noch das Tor scheitern. Der Hook, den `loomux init` schreibt, ruft `loomux check precommit --arm`, das eine Lane scharf stellt, wenn ein ganzer Commit grün durchgeht; `loomux gate status|arm|disarm` zeigt und setzt die Lanes von Hand. Ohne die Datei ist jede Lane scharf. Einzelheiten: [Schonfrist je Lane](docs/de/configuration.md#schonfrist-je-lane-loomuxarmedtoml).
-
-### 2. Deterministisches Code-Graph-Retrieval ("GraphRank")
-
-Agenten erkunden Codebasen oft bei jeder Sitzung mühsam von Neuem und verbrennen dabei Zeit und Token. Loomux baut einmalig einen lokalen, deterministischen AST-Code-Graphen auf und beantwortet Abfragen daraus via **Personalized PageRank**.
-
-Der Graph umfasst Go, gelesen mit `go/parser`, sowie Python und Godot-Projekte — GDScript, Szenen, Ressourcen und `project.godot` —, gelesen auf `gotreesitter`, einer Tree-sitter-Laufzeit in reinem Go, sodass das Binary CGo-frei bleibt. `loomux graph build` parst nur die Dateien, die sich seit dem letzten Build geändert haben, und nimmt den Rest aus seinem Extraktions-Cache; `--no-reuse` parst jede Datei.
-
-`loomux graph ask` rankt Code-Symbole nach BM25-artiger lexikalischer Relevanz verschmolzen mit Personalized PageRank (alpha=0.25), baut einen driftenden Graphen vor der Antwort neu (nie einen ersten) und blendet mit `--source` den Span jedes Treffers ein. `loomux graph blast` zeigt über dieselben Kanten, was ein Git-Diff erreicht; die Prüfart `graph` prüft die gestagte Änderung in `loomux check precommit` genauso und am Stop-Tor die ganze Runde gegen `HEAD`, wo immer ein Graph gebaut wurde ([Konfiguration](docs/de/configuration.md#die-art-graph)).
-
-> **„Lexik schlägt vor, der Graph entscheidet“**: Keywords finden potenzielle Kandidaten; der strukturelle Aufrufgraph konzentriert die Masse auf die tatsächlich relevanten Kernkomponenten und filtert isolierten oder toten Code heraus.
-
-Abfragepfad und Blast-Radius Schritt für Schritt gezeichnet: [Architektur, Säule III](docs/de/architecture.md). Zeiten: [Benchmarks](docs/de/benchmarks.md).
-
-### 3. Verschachteltes MCP-Composite-Gateway
-
-`loomux serve` fungiert als modularer **MCP-Gateway-Router** über Streamable HTTP und stellt saubere Namensräume für Agenten bereit:
-
-```mermaid
-flowchart TD
-    Host["Agenten-Wirt (Claude / Antigravity / Cursor)"] <--> |"stdio"| Bridge["loomux mcp<br/>(--channel local oder cloud)"]
-    Bridge <--> |"Loopback-HTTP, ein Token je Kanal"| Root["loomux serve<br/>(Wurzel-MCP-Gateway,<br/>ein Listener je Kanal)"]
-    Browser["Browser"] <-.-> |"SPA, REST, SSE"| Web["Web OS<br/>/api/brain, /api/graph, /api/events"]
-    Web -.-> Root
-
-    subgraph Namespaces["Werkzeug-Namensräume"]
-        Root <--> Brain["brain_*<br/>(Bereiche durchsuchen und lesen)"]
-        Root <--> Graph["graph_*<br/>(Code-Graph abfragen und navigieren)"]
-        Root <-.-> Upstreams["Upstream-Proxies<br/>(Sprachserver, qmd mcp)"]
-    end
-    Brain --> Qmd["qmd-Daemon"]
-```
-
-*Eine gestrichelte Linie ist spezifiziert und nicht gebaut.* Der Kanal ist die
-Adresse: jeder Listener hat sein eigenes Token, und der Cloud-Kanal sieht nie
-einen Bereich, der lokal bleibt, auch nicht, wo sein Wiki im Baum eines anderen Bereichs liegt. `loomux mcp` fällt auf `--channel local` zurück, bietet nur die Werkzeuge der Module an, die `[modules]` eingeschaltet lässt, startet und ersetzt den Dienst selbst,
-und der Pro-Edit-Hook-Pfad verlinkt nichts davon, was ein Test über den Importgraphen
-festhält. Jedes Werkzeug mit seinen Argumenten: [CLI-Referenz §8](docs/de/cli-reference.md).
+| Handbuch | Beschreibung |
+|---|---|
+| 📦 **[loomux installieren](docs/de/install.md)** | Voraussetzungen, Schnellstart unter Windows, einen Download prüfen, das maschinenweite Binary, Updates und Kanäle, Linux und macOS sowie der Bau aus dem Quellcode. |
+| 🚀 **[Erste Schritte](docs/de/getting-started.md)** | Die Ersteinrichtung nach der Installation: `loomux init`, die Konfiguration und die Einrichtung prüfen und deinen Agenten-Harness anbinden (Hooks für Claude Code und Antigravity, MCP für Cursor). |
+| ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`, `[agent]`, `[flow]`). |
+| 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
+| 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
+| 🏛️ **[Architektur & Konzepte](docs/de/architecture.md)** | Das theoretische Fundament: Andrej Karpathys LLM OS, Googles Knowledge Items (KI), AST-GraphRank und der Schreibschranken-Kernel. |
+| 🔀 **[Flows](docs/de/flows.md)** | Flows als Daten: das Ordnerformat, Rollen und Modelle, der Katalog und das Überschreiben, einen Flow beitragen und warum ein Tor einem Menschen gehört. |
+| 🏷️ **[Releases und Pull Requests](docs/de/releases.md)** | Wie ein gemergter Pull Request zum Release wird, Beta-Releases, einen Pull Request öffnen und die Release-Einrichtung der Maintainer. |
+| ⏱️ **[Leistungs-Benchmarks](docs/de/benchmarks.md)** | Chronologische Leistungsmessungen mit Datum, Basis und Änderung, kalt und warm. |
+| 📊 **[Benchmark-Matrix](docs/de/benchmarks/matrix.md)** | Open-Source-Matrix über Top-Sprachen hinweg mit Detailberichten pro Sprache und Repository. |
 
 ---
 
@@ -144,34 +121,33 @@ Was loomux als Nächstes bekommt. *Priorität* ordnet die Zeilen (1 zuerst); die
 
 ### Kommt
 
-| Funktion | Was sie bringt | Stufe | Hängt ab von | Priorität |
-|---|---|---|---|---|
-| **Flow-Laufzeit** | Flows als Daten: ein Graph aus Knoten in TOML, der läuft, an einem Tor auf die Antwort eines Menschen wartet und sich aus einem Journal fortsetzen und wiedergeben lässt. Gebaut: das Ordnerformat mit seiner Ladeprüfung, der Katalog, Rollen, die `[agent]` an Modelle bindet, Overlays, `[flow] default` und `overrides`, die Wächterregeln für Torantworten, Laufdateien und mitgelieferte Flows, `loomux flow run\|resume\|replay\|show\|list` und der Hinweis des Session-Starts auf wartende Läufe ([Flows](docs/de/flows.md)). Tor- und Ausgangsknoten laufen; Agentenknoten warten auf die Modelladapter für Claude und Gemini (über deren CLIs, deren APIs oder beides, was Stufe B entscheidet), und `verify-until-green` als Daten-Flow auf die Bausteine der Stufe C; Flow B nimmt auch einen Diagnoselauf ohne Modell (`run --no-model`) an | Flow B, C | Flow A ✅ | 4 |
-| **Flows über MCP** | `flow_list`, `flow_show`, `flow_run` (ein Lauf in einem Kindprozess, den `serve` ablöst, mit sofortiger Antwort der Laufnummer) und `flow_status` auf dem lokalen Kanal, mit einer Statusdatei je Lauf, damit ein abgebrochener Lauf erkannt und fortgesetzt wird; kein Werkzeug beantwortet ein Tor | Flow A2 | Flow A ✅ | 4 |
-| **Entwicklungszyklus als Default-Flow** | Von der Planung bis zum Pull Request: Klärung, Spec und Plan, jeweils von einem Fächer aus Prüflinsen geprüft, dann je Aufgabe Recherche, Test zuerst, Bau, Prüfkette, Codereview und Nacharbeit, zum Schluss Doku, Abschlussreview und Commit. Ein Mensch antwortet an festen Toren und immer dann, wenn ein Modell nicht weiterkommt, und pusht | Flow D | Flow B, C | 4 |
-| **Community-Flows** | Der Entwicklungszyklus ist nur die Vorgabe. Gebaut: der Katalog unter `flows/catalog/` mit seinem Beitragstest (`go test ./flows` gegen ein Golden-Journal), `[flow] default` zur Wahl des Flows, Overlays einzelner Anweisungen und Fragen und Rollen, die ein Projekt an eigene Modelle bindet. Echte Läufe beigetragener Flows mit Agentenknoten warten auf die Modelladapter | Flow B | Flow A ✅ | 4 |
-| **Web-OS-Shell** | Eine React/Vite-App, per `go:embed` eingebettet und von `loomux serve` auf `127.0.0.1` ausgeliefert: Eventbus, Layout, Command-Palette | W1 | 1b-2 ✅ | 5 |
-| **Brain-Web-App** | Das Second Brain im Browser: Markdown-Editor, ADR-Katalog, Wissensgraph (Komponenten der Web-App des Vorgängers, im Archiv-Release `archive/parity-recordings`), die Kanten über Bereichsgrenzen (`edges-cross.json`) und im Browser ein Seitenleser, die Volltextsuche und das Prüfzentrum | W2 | W1 | 5 |
-| **Graph-Visualizer** | Ein interaktiver Code-Graph mit Kanten-Chips, Typfiltern und Blast-Overlays; Code-Symbole verknüpft mit ADRs und Entwurfsdoku | W3 | W1, G4a ✅ | 5 |
-| **Skill-Suiten und Review** | Eingebettete Best-Practice-Regeln je Sprache (Go, Python, TypeScript, Rust); ein graphgestütztes Review, das `graph_blast` liest und die ADR-Treue prüft; verteilt über `.loomux/config.toml`, Host-Ordner, MCP-Prompts und die Web-Oberfläche | W4 | G4b ✅ | 5 |
-| **Flow-Editor und Kanban** | Flows als Graph im Web-OS zeichnen, wiedergeben und debuggen, im selben Format wie die Flow-Dateien; ein Kanban-Board, das Agentenschleifen, Prüf-Lanes und Subagenten live verfolgt | W5 | W1, Flow | 5 |
-| **TypeScript/TSX im Code-Graphen** | Extraktion auf demselben Tree-sitter-Kern in reinem Go (`gotreesitter`), der seit G5a Python liest | G5b | G5a ✅ | 6 |
-| **Python-Quellwurzeln aus einer Projektdatei** | Der Python-Resolver errät, wo absolute Importe beginnen (Repository-Wurzel, der Ordner über jedem Top-Level-Paket, jeder Ordner mit `manage.py`); wo eine Projektdatei die Wurzeln festlegt, soll sie gelesen werden. Ob `pyproject.toml` das tut, ist offen: nur in werkzeugeigenen Formen, wenn überhaupt | G5a-Folge | — | — |
-| **Typisierte Felder im GDScript-Resolver** | Aufrufe und Signale auf einem Feld mit Typannotation (`var _screen: ColonyScreen`, dann `_screen.refresh()` oder `_screen.build_requested.connect(…)`) ergeben heute keine Kante. Der Extraktor hielte den annotierten Typ jedes Felds fest, der Resolver bindet das Feld darüber; lokale Namen und Parameter, die ein Feld verdecken, brauchen Regeln | G5c-Folge | — | — |
-| **Szenen-Autoloads im GDScript-Resolver** | Ein Autoload, der eine Szene ist (`Bus="*res://bus.tscn"`), bindet auf den Dateiknoten der Szene; Aufrufe und Signale über seinen Namen erreichen so kein Skript. Der Extraktor hielte das Wurzelskript jeder Szene fest, der Resolver bindet den Namen darüber | G5c-Folge | — | — |
-| **C++ im Code-Graphen** | Derselbe Kern für C++, sobald eine Recall-Prüfung von `gotreesitter` gegen die C-Laufzeit trägt | G5d | G5c ✅ | 6 |
-| **`verify.profiles` über `config set`** | `loomux config set verify.profiles… --propose` lehnt den Schlüssel als unbekannt ab; der Vorschlagsweg dieses Repositorys erreicht ihn nicht | 4e-Folge | — | — |
-| **Eine Repo-Wurzel als Wiki** | `[layout] wiki` lehnt die Wurzel eines Repositorys ab; ein Wiki-Repository wie ein reines Wiki-Projekt hat so keine Wiki-Lane | 4e-Folge | — | — |
-| **`dev bench cases` ohne Hook** | `dev bench cases` lehnt eine `settings.json` ohne Hook ab, statt nur die Zusatzfälle zu schreiben | 4e-Folge | — | — |
-| **Registerrevisionen nur aus der Prüfung** | Der Indexlauf schreibt nur Neuanlagen und Umbenennungen in `_identities.tsv` und zählt die Revision nicht mehr bei jeder Hashänderung hoch; zwei Rechner mit derselben Geschichte schreiben so dieselben Zeilen in ein versioniertes Register; `reconcile` schiebt den Hash einer Registerzeile, die keine Seite zitiert, vor, ohne ihre Revision zu erhöhen | 4e-Folge | — | — |
-| **Registerkennungen, die nie entfallen** | `_identities.tsv` behält jede `doc_id`: Aliase für einen Pfad, ein Grabstein für eine verschwundene Datei, `merge=union` für zwei Zweige; heute überschreibt ein doppelter Pfad still, und eine gelöschte Datei verliert ihre Zeile | 4e-Folge | — | — |
-| **`reindex` aus einem verknüpften Worktree** | `reindex` findet den Bereich eines verknüpften Worktrees über das gemeinsame Git-Verzeichnis und schreibt nur das Register dieses Zweigs; heute indexiert es immer den registrierten Pfad | 4e-Folge | Registerkennungen, die nie entfallen | — |
-| **Die Schreibschranke schützt das Register** | Die Schranke verweigert jedes Schreiben auf `_identities.tsv` in einem registrierten Bereich, über Write/Edit und über die Shell; heute darf ein Agent es ändern | 4e-Folge | — | — |
-| **Was ein Projekt beim Sitzungsstart braucht** | `hook session-start` warnt, wenn `core.hooksPath` nicht auf die versionierten Hooks zeigt oder das Repository kein Arbeitsbaum ist, und ein Projekt kann eigene Schritte einhängen; heute behält ein Projekt wie `space` dafür ein eigenes Sitzungsstart-Skript neben loomux, für diese Warnungen, einen Auszug aus dem Log und ein eigenes Godot-`user://` je Worktree | 4e-Folge | — | — |
-| **LCOV-Coverage-Tor** | `loomux check lcov`: liest und führt LCOV-Berichte zusammen, hält jede Zeile an einer Schwelle, nimmt Ausnahmemarker mit Begründung und widerlegt einen auf einer Zeile, die gelaufen ist, und ist rot bei einem Bericht, der fehlt, leer oder älter als der Lauf ist; für jedes Werkzeug, das LCOV schreibt (Nano Coverage, vitest, gcovr) | — | — | — |
-| **Godot-Testsuite** | `loomux check godot-suite`: gdUnit4 headless in Scherben, Nano Coverage instrumentiert und zurückgestellt, ein veralteter Klassen-Cache mit dem Befehl benannt, der ihn erneuert, und `test`-/`coverage`-Presets für `gdscript`, die `{godot}` und `lock` nutzen | — | LCOV-Coverage-Tor | — |
-| **Projektregeln als Prüfungen** | Eingebaute Prüfungen für ein Testmodul je Quelle, übrig gebliebene Instrumentierung, Quellen außerhalb jedes geprüften Verzeichnisses und einen Kern, der die Oberfläche nicht erreichen darf, je Projekt konfiguriert | — | — | — |
-| **space nur auf loomux** | `space` gibt `godot_quality.py` und seine Helfer auf; sein Pre-commit ruft nur `loomux check precommit` | — | Godot-Testsuite, Projektregeln als Prüfungen | — |
+| Funktion | Was sie bringt | Hängt ab von | Priorität |
+|---|---|---|---|
+| **Flow-Laufzeit** | Flows als Daten: ein Graph aus Knoten in TOML, der läuft, an einem Tor auf die Antwort eines Menschen wartet und sich aus einem Journal fortsetzen und wiedergeben lässt. Gebaut: das Ordnerformat mit seiner Ladeprüfung, der Katalog, Rollen, die `[agent]` an Modelle bindet, Overlays, `[flow] default` und `overrides`, die Wächterregeln für Torantworten, Laufdateien und mitgelieferte Flows, `loomux flow run\|resume\|replay\|show\|list` und der Hinweis des Session-Starts auf wartende Läufe ([Flows](docs/de/flows.md)). Tor- und Ausgangsknoten laufen; Agentenknoten warten auf die Modelladapter für Claude und Gemini (über deren CLIs, deren APIs oder beides, was noch zu entscheiden ist), und `verify-until-green` als Daten-Flow für die Bausteine, die sie noch braucht; sie wird auch einen Diagnoselauf ohne Modell (`run --no-model`) nehmen | Flow-Kern ohne Modelle ✅ | 4 |
+| **Flows über MCP** | `flow_list`, `flow_show`, `flow_run` (ein Lauf in einem Kindprozess, den `serve` ablöst, mit sofortiger Antwort der Laufnummer) und `flow_status` auf dem lokalen Kanal, mit einer Statusdatei je Lauf, damit ein abgebrochener Lauf erkannt und fortgesetzt wird; kein Werkzeug beantwortet ein Tor | Flow-Kern ohne Modelle ✅ | 4 |
+| **Entwicklungszyklus als Default-Flow** | Von der Planung bis zum Pull Request: Klärung, Spec und Plan, jeweils von einem Fächer aus Prüflinsen geprüft, dann je Aufgabe Recherche, Test zuerst, Bau, Prüfkette, Codereview und Nacharbeit, zum Schluss Doku, Abschlussreview und Commit. Ein Mensch antwortet an festen Toren und immer dann, wenn ein Modell nicht weiterkommt, und pusht | Flow-Laufzeit | 4 |
+| **Community-Flows** | Der Entwicklungszyklus ist nur die Vorgabe. Gebaut: der Katalog unter `flows/catalog/` mit seinem Beitragstest (`go test ./flows` gegen ein Golden-Journal), `[flow] default` zur Wahl des Flows, Overlays einzelner Anweisungen und Fragen und Rollen, die ein Projekt an eigene Modelle bindet. Echte Läufe beigetragener Flows mit Agentenknoten warten auf die Modelladapter | Flow-Kern ohne Modelle ✅ | 4 |
+| **Web-OS-Shell** | Eine React/Vite-App, per `go:embed` eingebettet und von `loomux serve` auf `127.0.0.1` ausgeliefert: Eventbus, Layout, Command-Palette | MCP-Dienst ✅ | 5 |
+| **Brain-Web-App** | Das Second Brain im Browser: Markdown-Editor, ADR-Katalog, Wissensgraph, die Kanten über Bereichsgrenzen (`edges-cross.json`) und im Browser ein Seitenleser, die Volltextsuche und das Prüfzentrum | Web-OS-Shell | 5 |
+| **Graph-Visualizer** | Ein interaktiver Code-Graph mit Kanten-Chips, Typfiltern und Blast-Overlays; Code-Symbole verknüpft mit ADRs und Entwurfsdoku | Web-OS-Shell, Graph-Navigation ✅ | 5 |
+| **Skill-Suiten und Review** | Eingebettete Best-Practice-Regeln je Sprache (Go, Python, TypeScript, Rust); ein graphgestütztes Review, das `graph_blast` liest und die ADR-Treue prüft; verteilt über `.loomux/config.toml`, Host-Ordner, MCP-Prompts und die Web-Oberfläche | Blast-Radius eines Diffs ✅ | 5 |
+| **Flow-Editor und Kanban** | Flows als Graph im Web-OS zeichnen, wiedergeben und debuggen, im selben Format wie die Flow-Dateien; ein Kanban-Board, das Agentenschleifen, Prüf-Lanes und Subagenten live verfolgt | Web-OS-Shell, Flow-Laufzeit | 5 |
+| **TypeScript/TSX im Code-Graphen** | Extraktion auf demselben Tree-sitter-Kern in reinem Go (`gotreesitter`), der schon Python liest | Python im Code-Graph ✅ | 6 |
+| **Python-Quellwurzeln aus einer Projektdatei** | Der Python-Resolver errät, wo absolute Importe beginnen (Repository-Wurzel, der Ordner über jedem Top-Level-Paket, jeder Ordner mit `manage.py`); wo eine Projektdatei die Wurzeln festlegt, soll sie gelesen werden. Ob `pyproject.toml` das tut, ist offen: nur in werkzeugeigenen Formen, wenn überhaupt | — | — |
+| **Typisierte Felder im GDScript-Resolver** | Aufrufe und Signale auf einem Feld mit Typannotation (`var _screen: ColonyScreen`, dann `_screen.refresh()` oder `_screen.build_requested.connect(…)`) ergeben heute keine Kante. Der Extraktor hielte den annotierten Typ jedes Felds fest, der Resolver bindet das Feld darüber; lokale Namen und Parameter, die ein Feld verdecken, brauchen Regeln | — | — |
+| **Szenen-Autoloads im GDScript-Resolver** | Ein Autoload, der eine Szene ist (`Bus="*res://bus.tscn"`), bindet auf den Dateiknoten der Szene; Aufrufe und Signale über seinen Namen erreichen so kein Skript. Der Extraktor hielte das Wurzelskript jeder Szene fest, der Resolver bindet den Namen darüber | — | — |
+| **C++ im Code-Graphen** | Derselbe Kern für C++, sobald eine Recall-Prüfung von `gotreesitter` gegen die C-Laufzeit trägt | GDScript im Code-Graph ✅ | 6 |
+| **`verify.profiles` über `config set`** | `loomux config set verify.profiles… --propose` lehnt den Schlüssel als unbekannt ab; der Vorschlagsweg dieses Repositorys erreicht ihn nicht | — | — |
+| **Eine Repo-Wurzel als Wiki** | `[layout] wiki` lehnt die Wurzel eines Repositorys ab; ein Wiki-Repository wie ein reines Wiki-Projekt hat so keine Wiki-Lane | — | — |
+| **`dev bench cases` ohne Hook** | `dev bench cases` lehnt eine `settings.json` ohne Hook ab, statt nur die Zusatzfälle zu schreiben | — | — |
+| **Registerrevisionen nur aus der Prüfung** | Der Indexlauf schreibt nur Neuanlagen und Umbenennungen in `_identities.tsv` und zählt die Revision nicht mehr bei jeder Hashänderung hoch; zwei Rechner mit derselben Geschichte schreiben so dieselben Zeilen in ein versioniertes Register; `reconcile` schiebt den Hash einer Registerzeile, die keine Seite zitiert, vor, ohne ihre Revision zu erhöhen | — | — |
+| **Registerkennungen, die nie entfallen** | `_identities.tsv` behält jede `doc_id`: Aliase für einen Pfad, ein Grabstein für eine verschwundene Datei, `merge=union` für zwei Zweige; heute überschreibt ein doppelter Pfad still, und eine gelöschte Datei verliert ihre Zeile | — | — |
+| **`reindex` aus einem verknüpften Worktree** | `reindex` findet den Bereich eines verknüpften Worktrees über das gemeinsame Git-Verzeichnis und schreibt nur das Register dieses Zweigs; heute indexiert es immer den registrierten Pfad | Registerkennungen, die nie entfallen | — |
+| **Die Schreibschranke schützt das Register** | Die Schranke verweigert jedes Schreiben auf `_identities.tsv` in einem registrierten Bereich, über Write/Edit und über die Shell; heute darf ein Agent es ändern | — | — |
+| **Was ein Projekt beim Sitzungsstart braucht** | `hook session-start` warnt, wenn `core.hooksPath` nicht auf die versionierten Hooks zeigt oder das Repository kein Arbeitsbaum ist, und ein Projekt kann eigene Schritte einhängen; heute behält ein Projekt wie `space` dafür ein eigenes Sitzungsstart-Skript neben loomux, für diese Warnungen, einen Auszug aus dem Log und ein eigenes Godot-`user://` je Worktree | — | — |
+| **LCOV-Coverage-Tor** | `loomux check lcov`: liest und führt LCOV-Berichte zusammen, hält jede Zeile an einer Schwelle, nimmt Ausnahmemarker mit Begründung und widerlegt einen auf einer Zeile, die gelaufen ist, und ist rot bei einem Bericht, der fehlt, leer oder älter als der Lauf ist; für jedes Werkzeug, das LCOV schreibt (Nano Coverage, vitest, gcovr) | — | — |
+| **Godot-Testsuite** | `loomux check godot-suite`: gdUnit4 headless in Scherben, Nano Coverage instrumentiert und zurückgestellt, ein veralteter Klassen-Cache mit dem Befehl benannt, der ihn erneuert, und `test`-/`coverage`-Presets für `gdscript`, die `{godot}` und `lock` nutzen | LCOV-Coverage-Tor | — |
+| **Projektregeln als Prüfungen** | Eingebaute Prüfungen für ein Testmodul je Quelle, übrig gebliebene Instrumentierung, Quellen außerhalb jedes geprüften Verzeichnisses und einen Kern, der die Oberfläche nicht erreichen darf, je Projekt konfiguriert | — | — |
 
 ### Vielleicht
 
@@ -187,385 +163,9 @@ streicht, ändert diesen Abschnitt und sein englisches Gegenstück in
 
 ---
 
-## CLI-Referenz
-
-Die gebauten Befehle, je eine Zeile; jedes Flag und jeden Exitcode beschreibt die [CLI-Referenz](docs/de/cli-reference.md), was noch nicht gebaut ist, steht in der [Roadmap](#roadmap).
-
-### Befehle
-```bash
-loomux check <profil|arten>         # Fährt die [verify]-Lanes: edit, precommit, all oder Arten aus lint,types,test,coverage,graph (--root, --show, -v, --arm)
-loomux gate status|arm|disarm       # Welche Lanes das Tor scheitern lassen und welche in Probe sind: .loomux/armed.toml (arm und disarm führt ein Mensch aus)
-loomux check gocover --profile <p>  # 100 % je Funktion, oder eine Gesamtgrenze mit --floor N
-loomux check commit-msg <datei>     # Prüft eine Commit-Nachricht: Kopf nach Conventional Commits und Sprache ([commit], --language, --calibrate N)
-loomux check gofmt [pfade...]       # Prüft Go-Formatierung ohne Dateiänderungen
-loomux hook pre-tool-use            # Prüft Policy und globale Schreibschranke gegen stdin
-loomux hook post-tool-use           # Fährt die Lanes des Profils edit gegen die eben geänderte Datei und nennt dann die Aufrufer geänderter Go-Symbole (--budget, Vorgabe 50s)
-loomux hook session-start           # Hält den Basis-Commit der Sitzung fest; warnt bei veraltetem Binary, bei einem serve außerhalb des Installationsorts und bei gescheitertem Self-Update; meldet Flow-Läufe, die an einem Tor warten, und übergangene Flow-Ordner
-loomux hook stop                    # Tor am Rundenende: Profil stop (lint, types, test, coverage, graph) über neuen Inhalt, Befunde der Subagenten (--budget, Vorgabe 270s)
-loomux hook subagent-start|subagent-stop  # Schnappschuss von origin, Branches und HEAD um einen Subagenten; parkt, was sich bewegt hat, für stop
-loomux hook <event> --host antigravity    # dieselben Hooks für agy: ein gehaltener Stop läuft mit JSON auf stdout weiter; pre-tool-use verweigert und post-tool-use warnt mit 2
-loomux flow run [<flow>]            # Startet einen Lauf eines Flows, ohne Namen [flow] default (--option name=wert); Exit 3, wenn er an einem Tor pausiert; Agentenknoten warten auf die Modelladapter
-loomux flow resume <lauf>           # Setzt einen pausierten Lauf fort; --answer gibt ein Mensch, der Wächter verweigert es einem Agenten
-loomux flow replay <lauf>           # Leitet einen beendeten Lauf aus seinem Journal neu her und führt nichts aus
-loomux flow show <lauf|flow>        # Das Journal eines Laufs, oder Knoten, Rollen mit ihren aufgelösten Modellen und Kanten eines Flows
-loomux flow list                    # Jeder Flow aus Katalog und Projekt, mit Herkunft, Default und dem Grund, warum einer nicht lädt
-loomux status|doctor|explain        # Zeigt Hook-Status, Prüfketten und erkannte Host-Harnesses (drei Namen, ein Codeweg)
-loomux worktree link|unlink|remove  # Verwaltet isolierte Arbeitsbaum-Spiegel und Junction-Pfade
-loomux dev swap-binary              # Tauscht laufendes Binary atomar gegen Neubau aus
-loomux version                      # Gibt die Version dieses Binaries aus
-loomux lint <datei>                 # Prüft Links und Frontmatter einer Wiki-Seite
-loomux lint [--scope all|S]         # Lintet jedes registrierte Bündel nach den zwölf Regeln der Referenz
-loomux brain check file|bundle|all  # Die Regeln für OKF, Haus und Föderation über eine Seite, ein Bündel oder alle Bereiche (--notes)
-loomux wiki init --scope S          # Legt das Gerüst des Wiki-Bündels eines Bereichs an
-loomux wiki types                   # Zählt die Seitentypen über alle Bereiche, mit Rang und Altnamen
-loomux wiki retype --scope S --from A --to B  # Benennt einen Seitentyp in einem Bündel um
-loomux wiki repin [--root P]        # Rückt Register und Quell-Pins auf die Dateien vor, wie sie sind (fährt ein Mensch)
-loomux wiki-gate                    # Erzwingt Frische und strukturelle Schranken des Wikis
-loomux brain search "<anfrage>"     # Durchsucht die sichtbaren Bereiche über den qmd-Daemon (--profile fast|full|keyword)
-loomux brain catalog [--scope S]    # Wurzelkatalog der sichtbaren Bereiche oder das index.md eines Bereichs
-loomux brain read <pfad> --scope S  # Eine Datei eines Bereichs oder einen Abschnitt daraus (--section)
-loomux brain neighbors <pfad> --scope S  # Eingehende und ausgehende Links einer Seite
-loomux brain status                 # Was man wissen muss, bevor man einer Antwort traut
-loomux serve [--foreground]         # Startet den langlebigen localhost-MCP-Dienst, abgekoppelt oder hier; holt einen fälligen reconcile täglich nach
-loomux serve status                 # Was serve.json sagt und ob der Listener antwortet
-loomux serve stop [--force]         # Beendet den Dienst über seinen Endpunkt oder über seine PID
-loomux upgrade                      # Ersetzt das maschinenweite Binary durch das neueste Release seines Kanals; serve tut das täglich
-loomux upgrade --beta|--stable      # Wechselt den Kanal und nimmt dessen neuestes Release (oder --version <x.y.z> für eine)
-loomux mcp [--channel local|cloud] [--root D]  # stdio-Brücke, die ein MCP-Wirt startet; bietet die Werkzeuge der [modules] des Projekts an und startet den Dienst selbst
-loomux reindex [--registry P]       # Erst abgleichen, dann Kataloge, Linkgraph, Identitätsregister und qmd-Sammlungen jedes Bereichs neu bauen
-loomux embed [--registry P]         # Erzeugt die Vektoren, die reindex offen lässt (braucht qmd auf dem PATH)
-loomux reconcile                    # Eröffnet Prüffälle für geänderte Quellen und gelandete Merges; ein Fall ist kein Fehlschlag
-loomux area add [--path P] [--scope S]  # Meldet ein Repository als Bereich an, legt sein Wiki an und indiziert es (--wiki, --sources, --merge-branch, --privacy, --no-reindex)
-loomux merge-hook install|status|remove  # Der post-merge-Hook jedes Bereichs, dessen Manifest [maintenance] on_merge = true sagt; er ruft `loomux merge-hook record`, das den Merge für reconcile vormerkt; noch in keinem Wirt in Gebrauch
-loomux cases                        # Listet die Fälle, die im Prüfzentrum warten; ein Fall ist kein Fehlschlag
-loomux case <id> [--package]        # Zeigt einen Fall mit Paket und Vorschlag; bei local_only zurückgehalten bis --package
-loomux approve <id>                 # Entscheidet einen Fall: wendet den belegten Vorschlag an und committet ihn (--amend D, --reject, --defer)
-loomux convert [datei]              # Wandelt die PDFs und Transkripte jedes beschreibbaren Eingangs, oder eine Datei, in <name>.<endung>.md mit Herkunftskopf; Exit 1, wenn etwas liegen bleibt (ein Befehl des Menschen, der Wächter verweigert ihn einem Agenten)
-loomux fetch <url> [--scope S]      # Lässt yt-dlp die Untertitel eines Videos in den Eingang eines Bereichs legen, Vorgabe knowledge (ein Befehl des Menschen, der Wächter verweigert ihn einem Agenten)
-loomux config [list|get K|set K V]  # zeigt jeden Schlüssel von .loomux/config.toml mit Herkunft, ändert eine Zeile nach Diff und y; ohne Unterbefehl Vollbild (--root, --global, --yes, --json; ein Befehl für Menschen, der Wächter verweigert ihn einem Agenten)
-loomux config set|unset … --propose # der Weg eines Agenten: die geprüfte Änderung als Vorschlag ablegen; ein Mensch ruft `config proposals`, dann `config apply <id>|--all` oder `config reject`
-loomux init                         # Richtet ein Projekt in Modulen ein (hooks, brain, graph): Binary, Konfiguration, Host-Einträge, Git-Hooks, Merge-Hook, Skills, dazu den Registry-Eintrag, den die Schreibschranke braucht (mit --brain=none ein Workspace ohne Wiki); jede Änderung als Diff, geschrieben nach einem y (--dry-run, --detect-only, --yes, --hooks|--brain|--graph=all|each|none, --hosts; ein Befehl des Menschen; seine ersten Läufe auf einem frischen Klon und in einem Wirt stehen aus)
-```
-
-**Der Eingang.** Ein Bereich, dessen Manifest `[layout] inbox` nennt, nimmt
-dort Dateien für das Wiki an. `loomux convert` wandelt jede PDF und jedes
-Transkript darin in `<name>.<endung>.md` neben der Quelle, mit einem
-Herkunftskopf (Quell-URL, das Datum der Datei, der Wandler, ob
-Spracherkennung den Text machte); ein zweiter Lauf schreibt kein Ziel neu,
-dessen Text gleich bliebe, und ein Ziel, dessen Kopf kein Wandler schrieb,
-wird nie überschrieben. PDFs gehen über `pdftotext` von Poppler, und nur über
-das von Poppler (xpdf schreibt unter demselben Namen einen anderen Text); eine
-Seite unter 100 Zeichen gilt als Scan und fällt weg, eine PDF nur aus Scans
-bleibt für einen Menschen liegen. `loomux fetch <url>` lässt `yt-dlp` die
-Untertitel eines Videos schreiben und legt sie als Transkript in den Eingang;
-loomux selbst spricht nie ins Netz. Beide Programme werden auf dem `PATH`
-gesucht und von Hand installiert (`winget install --id oschwartz10612.Poppler -e`,
-`winget install --id yt-dlp.yt-dlp -e`); ein fehlendes wird mit diesem Befehl
-genannt. Das Binary bettet eine deutsche Worthäufigkeitstabelle unter
-CC BY-SA 4.0 für die Satzprüfung des Modells ein; ihre Lizenz und jede andere
-fremde Lizenz im Binary stehen in `NOTICE.md` neben jedem Release.
-
-**Das lokale Modell.** Für einen Bereich, dessen Manifest `[privacy] mode = "local_only"`
-sagt, fragt `loomux reconcile` ein lokales Ollama nach einem Vorschlag zu jedem
-Fall, den es eröffnet. Ein Vorschlag, dessen Behauptungen alle die Belegbindung
-bestehen, landet als `proposal.md` neben dem Fall; alles andere — keine Antwort,
-eine Behauptung ohne wörtliches Zitat — hinterlässt einen manuellen Fall;
-`reconcile` schickt keinen anderen Bereich an das Modell. `loomux convert`
-schon, gleich welcher Datenschutzmodus: Mit eingeschaltetem Modell schickt es
-die ersten 1800 Zeichen jeder Datei, die es in einem Eingang wandelt, und
-fragt nach dem einen Satz des Kopfs (Rolle `describe`) und, für eine neu
-geschriebene Datei, nach dem Bereich, in den sie gehört (Rolle `place`; zur
-Wahl stehen nur Bereiche, die nicht offener sind als der des Eingangs; ein
-Vorschlag ist eine Zeile auf stdout, die Datei bleibt liegen). Alle drei
-Rollen sind vorgegeben an, `enabled = true` allein schaltet also beide für
-jeden Eingang ein; `roles` engt sie ein. `convert <datei>` fragt das Modell
-nie. Die Einstellungen stehen in `[model]` der
-rechnerweiten `config.toml` im Zustandsverzeichnis (Vorgabe
-`%LOCALAPPDATA%\loomux\config.toml`): `enabled` (vorgegeben aus), `endpoint`,
-`name`, `temperature` und `roles`, angezeigt und geändert mit
-`loomux config --global` (ein Agent nur mit `--propose`). Die `.loomux/config.toml`
-eines Bereichs darf nur `[model] enabled` und `roles` setzen, und nur, um
-abzuschalten oder einzuengen, was der Rechner erlaubt. Der Endpunkt muss auf dem
-Loopback bleiben (`127.0.0.1`, `localhost`, `::1`); kein Proxy wird aus der
-Umgebung genommen, keiner Umleitung gefolgt.
-`loomux init` lädt das Modell in Ollama, wenn es fehlt (Teil `model`, an für ein
-`local_only`-Projekt oder mit `[model] enabled = true`), nach einem y wie jede
-andere Änderung; `reconcile` lädt nie ein Modell.
-
-Das Backbone der Suchmaschine ist `[search] backbone` in derselben Datei:
-`cuda` (die Vorgabe), `vulkan` oder `cpu`, gesetzt mit
-`loomux config --global set search.backbone vulkan`. Es gilt für den
-qmd-Daemon, den loomux startet, und für jede qmd-Kommandozeile, die es aufruft;
-ein `QMD_LLAMA_GPU` oder `QMD_FORCE_CPU` in der Umgebung gewinnt. Ein Daemon,
-der schon läuft, behält sein Backbone, bis sein Prozess endet: den Prozess
-beenden, der auf Port 8765 lauscht (den Befehl nennt `brain search` in der
-CLI-Referenz; `qmd mcp stop` kann nach einem `qmd status` „Not running“
-antworten, obwohl der Daemon noch läuft), und die nächste Suche startet ihn mit
-dem neuen Backbone.
-
-### Code-Graph
-```bash
-loomux graph build [--root <pfad>] [--no-reuse]  # Extrahiert Go, Python und Godot-Projekte, löst auf und schreibt .loomux/state/graph/wiring.json; unveränderte Dateien kommen aus dem Extraktions-Cache
-loomux graph check [--root <pfad>]  # Extrahiert neu und vergleicht mit Graph auf Platte (Exit 1 bei Drift)
-loomux graph ask "<anfrage>" [flags] # Sucht Symbole gerankt nach lexikalischem Score und Personalized PageRank; baut nie einen ersten Graphen
-loomux graph callers <symbol>       # Zeigt Aufrufer, Aufgerufene (--direction out) oder transitive Hülle (-d all)
-loomux graph skeleton <datei>       # Gibt Signaturen und Zeilenspans einer Datei aus (~10x Token-Ersparnis)
-loomux graph grep "<regex>"         # Regex-Suche gruppiert nach Symbol und sortiert nach Kopplung
-loomux graph map                    # Gibt token-budgetierte Verzeichnis-Cluster, Hubs und Hotspots aus
-loomux graph stats                  # Gibt Graph-Kennzahlen aus (Knoten, Kanten je Relation, Dateien, Sprachen, Größe)
-loomux graph blast [--cached|--base B] [-d N|all]  # Was ein Git-Diff erreicht: Working Tree, Index oder B...HEAD (--json, --no-refresh)
-loomux check graph-fresh [--wait 30s]  # Bringt den Graphen für ein Tor auf den Stand des Baums; Exit 1 ohne Graph, bei gescheitertem Neubau oder gehaltener Sperre
-loomux check blast-audit [--cached|--base B] [--threshold 3]  # Exit 1, wenn ein geändertes Symbol mit so vielen Aufrufern keinen mitgeänderten erreichenden Test hat (--skip-test-callers)
-```
-
-### Entwickler- & Worktree-Werkzeuge
-```bash
-loomux dev bench hooks <fälle>      # Misst die Hook-Befehle eines Fallsatzes gegen die Grundlinie von < 35 ms (-n, --out <dir>)
-loomux dev bench repos [--dir <dir>] [--save] # Misst die Hooks an einem Repo oder am Open-Source-Matrix-Korpus mit Lücken-Audit; --save sichert in docs/
-loomux dev bench search [--corpus v1 --out <dir>] # Misst den Trefferrang der Suche über einen Fragensatz oder den Korpus v1 (--profile, --latency, --out <dir>)
-loomux dev bench compare --before <bericht> --after <bericht> # Stellt zwei Hook-Berichte nebeneinander: schneller, langsamer, neu, weggefallen (--title, --lang de|en, --out <dir>)
-loomux dev bench cases --root <dir> --file <md> --out <dir> # Baut die Falldatei der Hooks eines Projekts aus seiner settings.json (--settings, --extras)
-loomux dev mutants <paket>          # Führt Mutationstests über kritische Entscheidungspakete aus
-# die Aufzeichnungen der alten Werkzeuge liegen im Archiv-Release archive/parity-recordings; die Wiedergabe hält die eigenen Fälle von loomux unter testdata/cases/
-loomux dev fake-ollama --fixture <f>  # Ein Ollama-Ersatz, der jede Anfrage mit der Fixture beantwortet, zum Abspielen von Fällen (--addr, Vorgabe 127.0.0.1:11435; --log)
-loomux dev release <unterbefehl>    # Release-Regeln für die CI: next-version, parse-body, changelog-insert, build
-loomux dev notices [--out D]        # Schreibt NOTICE.md aus den Modulen und Grammatiken, die das Binary linkt; ein Test hält die eingecheckte Datei aktuell
-loomux dev record-poppler --exe P --dir V --out D  # Zeichnet auf, was pdftotext von Poppler für jede PDF in V ausgibt, als Fixture für das Go-Golden
-```
-
----
-
-## Architekturentscheidungen: Was wir bauen, ablösen und weglassen
-
-| Komponente / Idee | Herkunft / Inspiration | Entscheidung in Loomux | Begründung |
-|---|---|---|---|
-| **Einziges Go-Binary** | Grundarchitektur | ✅ **Kernmandat** | 0 Python, 0 Node.js. 7,5 ms warmer Hook, autarke Auslieferung, 100 % Testabdeckung. |
-| **AST-Code-Graph & PageRank** | Code-Graph-Vorbild | ✅ **Nativ übernommen** | $0 deterministischer Code-Graph. Personalized PageRank filtert strukturelle Kern-Hubs statt naiver Keyword-Listen. |
-| **Blast Radius** | Code-Graph-Vorbild | ✅ **Nativ übernommen** | Der Blast-Radius eines Git-Diffs mit Testsignal (`graph blast`, `graph_blast`). |
-| **Crux-Inlining** | Code-Graph-Vorbild | ❌ **Weggelassen** | Sein Crux ist ein Ausschnitt, den ein LLM gewählt hat; in loomux sitzt kein LLM im Pfad. `--source` blendet stattdessen den Span ein (höchstens 80 Zeilen, `--full` ohne Grenze), der eigene Rückfall des Vorbilds. |
-| **Symbol-gekoppelter Grep** | Code-Graph-Vorbild | ✅ **Nativ übernommen** | Regex-Treffer gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`). |
-| **Lokales Second Brain & Wiki** | Grundarchitektur | ✅ **Kernmandat** | Markdown-Wiki, ADRs und Identitätsregister direkt im Repo. Code-Symbole verlinken direkt auf Architektur-Entscheidungen. |
-| **Node.js & C++ Toolchain** | Code-Graph-Vorbild | ❌ **Abgelehnt** | Setzt Node.js >=20, `node-gyp` und MSVC voraus. Loomux bleibt 100 % Pure Go ohne C-Compiler-Zwang. |
-| **Cloud-Brain-Synchronisation** | Code-Graph-Vorbild | ❌ **Abgelehnt** | Synchronisiert Symbol-Hashes mit Cloud-APIs. Loomux hält alles Wissen, alle Regeln und Graphen 100 % lokal und offline. |
-| **Telemetrie & Tracking** | Code-Graph-Vorbild | ❌ **Abgelehnt** | Sendet Nutzungsstatistiken an externe Server. Loomux hat null Telemetrie und telefoniert niemals nach Hause. |
+## Credits
 
 Code-Graph, Ranking und Blast-Radius sind angeregt von [trailhq/Graft](https://github.com/trailhq/Graft); die portierten Teile und ihre MIT-Lizenz stehen in [NOTICE.md](internal/notices/NOTICE.md).
-
----
-
-## Architektur-Prinzipien
-
-1. **Deterministisch als Standard**: Code-Graph, Blast-Radius und Schreibschranken laufen lokal, deterministisch und kosten $0.
-2. **Startzeit-Disziplin**: `loomux` misst seinen Startboden (5,5 ms warm, 2026-09-17) kontinuierlich. Keine Paketvariable und kein `init()` darf eingebettete Daten parsen oder I/O durchführen.
-3. **Strikte Isolierung**: Hook-Pfade laufen im Prozess und hängen niemals von einem laufenden `serve`-Daemon ab.
-4. **Agentensichere Konfiguration**: `.loomux/config.toml` deklariert Schutzbereiche und Policies; sie wird vom Menschen gepflegt und ist für Agenten schreibgeschützt — für Schreibwerkzeuge wie für Shell-Befehle (jedes Schreiben oder Löschen, das der Wächter aus einer Shell-Zeile liest — Umleitungen, `sed -i`, `tee`, `Set-Content`, `cp`/`mv`, `ln`, `tar`, `curl -o` und mehr — mit Braces und Globs aufgelöst, wie eine Shell es tut), unter jedem Ordner; die eigenen Pfadregeln eines Projekts gelten für die Shell ebenso. Maschinenzustand liegt in `.loomux/state/` (git-ignoriert).
-
----
-
-## Dokumentations-Suite
-
-Vollständige Handbücher und technische Leitfäden sind unter [`docs/de/`](docs/de/) gegliedert:
-
-| Handbuch | Beschreibung |
-|---|---|
-| 🚀 **[Erste Schritte](docs/de/getting-started.md)** | Installation, 3-Minuten-Schnellstart und Anbindung an Agenten-Harnesses (Hooks für Claude Code und Antigravity, MCP für Cursor). |
-| 🏛️ **[Architektur & Konzepte](docs/de/architecture.md)** | Das theoretische Fundament: Andrej Karpathys LLM OS, Googles Knowledge Items (KI), AST-GraphRank und der Schreibschranken-Kernel. |
-| ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`, `[agent]`, `[flow]`). |
-| 🔀 **[Flows](docs/de/flows.md)** | Flows als Daten: das Ordnerformat, Rollen und Modelle, der Katalog und das Überschreiben, einen Flow beitragen und warum ein Tor einem Menschen gehört. |
-| 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
-| 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
-| ⏱️ **[Leistungs-Benchmarks](docs/de/benchmarks.md)** | Chronologische Messungen gegenüber den Vorläufer-Programmen und verbindliche Latenzbudgets. |
-| 📊 **[Benchmark-Matrix](docs/de/benchmarks/matrix.md)** | Open-Source-Matrix über Top-Sprachen hinweg mit Detailberichten pro Sprache und Repository. |
-
----
-
-## Spezifikationen & Interne Arbeitspapiere
-
-Die Entwurfspapiere, Pläne und Paritätsaufzeichnungen der Fusion liegen in
-`working-papers.tar.gz` des Archiv-Release
-[`archive/parity-recordings`](https://github.com/xidus90/loomux/releases/tag/archive/parity-recordings).
-Neue Arbeitspapiere liegen unter `docs/.superpowers/`.
-
----
-
-## Releases
-
-Binaries gibt es auf der [Releases-Seite](https://github.com/xidus90/loomux/releases):
-`loomux_<version>_<os>_<arch>` für `windows/amd64` (`.exe`), `linux/amd64`,
-`linux/arm64`, `darwin/amd64` und `darwin/arm64`. Geprüft wird gegen
-`SHA256SUMS` aus demselben Release:
-
-```sh
-sha256sum --check --ignore-missing SHA256SUMS
-```
-
-Neben ihnen trägt jedes Release `NOTICE.md`, ebenfalls in `SHA256SUMS`
-geführt: die Lizenz jedes fremden Teils im Binary — die Standardbibliothek
-von Go, jedes gelinkte Modul, jede gelinkte Grammatik von tree-sitter und die
-deutsche Worthäufigkeitstabelle unter CC BY-SA 4.0 samt ihren Quellen.
-
-### Das maschinenweite Binary installieren
-
-MCP-Brücke und `loomux serve` laufen aus einem Binary je Rechner,
-`%LOCALAPPDATA%\loomux\bin\loomux.exe`, das aus einem Release stammt und nie
-aus einem Checkout. Einmal installieren mit der
-[GitHub CLI](https://cli.github.com/), angemeldet per `gh auth login`:
-
-```powershell
-$bin = "$env:LOCALAPPDATA\loomux\bin"
-New-Item -ItemType Directory -Force $bin | Out-Null
-gh release download <tag> --repo xidus90/loomux --pattern 'loomux_*_windows_amd64.exe' --pattern SHA256SUMS --dir $bin
-```
-
-Die Datei gegen `SHA256SUMS` prüfen, in `loomux.exe` umbenennen,
-`SHA256SUMS` löschen und den MCP-Eintrag darauf zeigen lassen:
-
-```powershell
-claude mcp add loomux -s user -- "$env:LOCALAPPDATA\loomux\bin\loomux.exe" mcp --channel local
-```
-
-Danach hält `serve` es aktuell: eine Minute nach dem Start und danach täglich
-holt es über `gh` das höchste Release des eigenen Kanals, prüft es gegen
-`SHA256SUMS` und seine `--version` und tauscht die Datei. Die nächste Brücke
-ersetzt den laufenden Dienst. `loomux upgrade` tut dasselbe von Hand. Was
-der letzte Durchlauf fand, steht in `update.json` im Zustandsverzeichnis; der
-Sitzungsstart warnt, wenn `serve` woanders läuft oder der Durchlauf
-gescheitert ist. Vorerst nur unter Windows.
-
-`loomux init` nimmt die ersten Schritte ab: Sein Teil `binary` holt das
-neueste Release an denselben Ort, wenn dort keines liegt, und sein Teil
-`mcp-json` schreibt die `.mcp.json` des Projekts, wenn der Nutzerbereich
-keinen Server `loomux` kennt (siehe die
-[CLI-Referenz](docs/de/cli-reference.md#11-projekt-einrichten-loomux-init)).
-Sein erster Lauf durch einen Menschen steht noch aus.
-
-Jeder gemergte Pull Request nach `master` wird nach seinem Label veröffentlicht:
-
-| Label | Bedeutung | Version |
-|---|---|---|
-| `release:major` | Inkompatible Änderung an Befehl, Flag, Hook-Protokoll, Konfigurationsformat oder Exit-Code | `X+1.0.0` |
-| `release:minor` | Neue Funktion, kompatibel | `X.Y+1.0` |
-| `release:patch` | Fehlerbehebung oder Abhängigkeits-Update, kompatibel | `X.Y.Z+1` |
-| `release:none` | Nur Doku, CI oder Tests | kein Release |
-
-Ein Release ohne Suffix ist stabil; eines mit Suffix (`1.1.0-beta.1`) ist ein
-Pre-Release. Was sich geändert hat, steht in [`CHANGELOG.md`](CHANGELOG.md);
-ein Eintrag entsteht nur mit einem stabilen Release, und die mit `-beta`
-markierten Einträge sind die Zählung vor 1.0.0.
-
-Eine Beta entsteht von Hand aus jedem Branch, Tag oder Commit, ohne Pull
-Request: den Workflow `release` mit `mode=beta`, `ref` (was gebaut wird) und
-`bump` (`major`, `minor` oder `patch`, Standard `minor`) starten, etwa
-`gh workflow run release.yml -f mode=beta -f ref=mein-branch -f bump=minor`.
-Er veröffentlicht `vX.Y.Z-beta.N` als Pre-Release für die Version, die das
-nächste stabile Release bekäme, `N` eins über der höchsten Beta davon. Er
-committet nichts und lässt das Changelog unberührt; der Tag ist seine einzige
-Spur. Installieren mit `loomux upgrade --beta` (das neueste Release samt Betas)
-oder `loomux upgrade --version <x.y.z-beta.n>`.
-
-Eine Maschine folgt dem Beta-Kanal, solange die Datei `channel` in ihrem
-Zustandsverzeichnis `beta` enthält: Sie nimmt jedes neuere Release, Beta oder
-stabil. Ohne die Markierung nimmt sie nur stabile Releases. `loomux upgrade
---beta` nimmt das neueste Release samt Betas und setzt die Markierung;
-`--stable` nimmt das neueste stabile Release, auch wenn es älter ist als die
-laufende Beta, und löscht sie; `--version <x.y.z>` installiert genau diesen
-Tag, auch eine Beta oder einen Rückschritt. Ein Rückschritt hält nicht:
-`serve` hebt ihn innerhalb von 24 Stunden wieder auf. Ein Binary der
-Versionszählung vor 1.0.0 nimmt ohne die Markierung die Releases dieser
-Zählung und die stabilen, nie eine neue Beta, und steht unter jedem späteren
-Release.
-
-### Einen Pull Request öffnen
-
-Auf `master` wird nie direkt committet; jede Änderung läuft über einen Pull
-Request. Die Hooks in `.githooks` lehnen einen Commit auf `master` und einen
-Push dorthin ab, sobald `go run ./cmd/loomux init --yes` einen frischen Klon
-eingerichtet hat (von Hand: `git config core.hooksPath .githooks`). Mit
-einem LLM erledigt der Skill `release-pr` die Schritte unten; von Hand:
-
-1. Commits thematisch gruppieren, ein Commit pro Änderung. Eine spätere
-   Korrektur an etwas, das dieser Branch eingeführt hat, gehört in den
-   Commit, der es eingeführt hat; nur die Behebung eines Fehlers, der schon
-   auf `master` war, behält einen eigenen Commit. Einen bereits gepushten
-   Branch neu zu schreiben braucht `git push --force-with-lease`. Jede
-   Nachricht ist ein Conventional Commit (`feat: …`, `fix: …`, `docs: …`;
-   `!` für eine inkompatible Änderung). Der Hook `commit-msg` prüft das
-   lokal, und der Check `pr-label` lehnt einen Pull Request ab, sobald ein
-   Commit-Titel die Form verletzt.
-2. Ein Label aus der Tabelle oben wählen; zwischen zwei Stufen die höhere.
-   Es liegt nie unter den Commits: `!` verlangt major, `feat` minor, `fix`
-   patch.
-3. Den Rumpf schreiben:
-   ```
-   Release: <level> — <one-sentence reason>
-
-   ## Summary
-   - <what changes for a user>
-
-   ## Changelog
-   ### Added
-   - <entry>
-   ```
-   Changelog-Überschriften sind nur `Added`, `Changed`, `Deprecated`,
-   `Removed`, `Fixed`, `Security`; bei `release:none` entfällt der Abschnitt.
-4. Prüfen: `go run ./cmd/loomux dev release parse-body --labels release:<level> --body <file>`.
-5. Branch pushen, dann `gh pr create --base master --label release:<level> --body-file <file>`.
-
-### Releases einrichten (Maintainer)
-
-1. Labels:
-   ```sh
-   gh label create release:major --color B60205 --description "Breaking change"
-   gh label create release:minor --color 0E8A16 --description "New feature, compatible"
-   gh label create release:patch --color 1D76DB --description "Bug fix or dependency update"
-   gh label create release:none --color CCCCCC --description "No release"
-   ```
-2. GitHub App (Settings → Developer settings → GitHub Apps → New): Name
-   `loomux-release`, Webhook aus, Repository-Rechte `Contents: Read and
-   write`, `Pull requests: Read-only`, `Metadata: Read-only`,
-   `Administration: Read-only` (listet die Runner, siehe Schritt 4), „Only on
-   this account“. Private Key erzeugen, App nur in `xidus90/loomux`
-   installieren, dann:
-   ```sh
-   gh secret set RELEASE_APP_CLIENT_ID --body <client-id>
-   gh secret set RELEASE_APP_PRIVATE_KEY < loomux-release.private-key.pem
-   ```
-3. Rulesets: `.github/rulesets/master.json` für `master` und
-   `.github/rulesets/tags.json` für Tags `v*`. Beide lassen die App
-   `loomux-release` (ihre App ID, nicht die Client-ID, in `actor_id`) und
-   Repository-Admins durch: die App committet und taggt jedes Release, und
-   ein Admin kann ein kaputtes Release von Hand reparieren. Alle anderen
-   kommen nur über einen Pull Request nach `master`, mit grünen Statuschecks
-   `gate-windows` und `build-linux` (Workflow `ci`) sowie `check` (Workflow
-   `pr-label`) und der Freigabe seines letzten Pushs durch den Code-Owner
-   (`.github/CODEOWNERS`). Die Checks fahren die Workflows und das Tor des
-   Pull Requests selbst, er kann sie also grün machen; was hält, ist die
-   Freigabe, und ein Push danach braucht eine neue. Beide anlegen, dann
-   prüfen, dass `master` Regeln listet:
-   ```sh
-   gh api -X POST repos/xidus90/loomux/rulesets --input .github/rulesets/master.json
-   gh api -X POST repos/xidus90/loomux/rulesets --input .github/rulesets/tags.json
-   gh api repos/xidus90/loomux/rules/branches/master
-   ```
-   Eine geänderte Datei geht an `gh api -X PUT repos/xidus90/loomux/rulesets/<id>`.
-4. Runner: Jeder Workflow fährt zuerst `pick-runner` auf einem
-   GitHub-Runner, der jeden Job an den self-hosted Runner seines
-   Betriebssystems schickt, solange einer online ist, sonst an GitHubs. Er
-   listet die Runner mit dem Token der App, ohne `Administration: Read-only`
-   läuft also alles bei GitHub; ein Pull Request aus einem Fork bekommt keine
-   Secrets und läuft ebenfalls dort. Seine eigenen Workflow-Dateien können
-   die self-hosted Runner trotzdem nennen, also wartet jeder Lauf von außen
-   auf Freigabe:
-   ```sh
-   gh api -X PUT repos/xidus90/loomux/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors
-   ```
-
-Ist ein Release ausgefallen, den Workflow `release` von Hand starten
-(`gh workflow run release.yml -f pr=<nummer>`). Er verweigert einen Pull
-Request, der nicht nach `master` gemergt ist, und ein erneuter Lauf nach dem
-`chore(release): v*`-Commit verwendet diesen Commit wieder. Gibt es für den Pull
-Request schon einen Tag oder ein Release, nicht erneut starten, sondern das
-vorhandene Release von Hand reparieren.
 
 ---
 
