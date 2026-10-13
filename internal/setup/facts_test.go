@@ -187,6 +187,11 @@ func TestGatherAsksGitForItsHookDirectory(t *testing.T) {
 // loomux runs `git rev-parse --path-format=absolute`, which Git has known
 // since 2.31; a Git 2.30 echoes the option back as an output line, so init
 // fails there. The install pages may not promise an older Git.
+//
+// 2.31 is also enough for `loomux worktree remove`: Git for Windows 2.31.1 to
+// 2.53.0 delete through a junction in the worktree and 2.54.0 and later do
+// not, but loomux takes every junction and directory symlink out before it
+// asks git, so the outcome does not depend on which of them is installed.
 func TestTheInstallPagesNameTheGitMinimumTheCodeNeeds(t *testing.T) {
 	for _, page := range []string{"en", "de"} {
 		text, err := os.ReadFile(filepath.Join("..", "..", "docs", page, "install.md"))

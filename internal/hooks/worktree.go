@@ -168,16 +168,19 @@ func WorktreeUnlink(stdout, stderr io.Writer, stdin io.Reader, root string) int 
 // porcelain entry, and leaves both the directory and the junction standing.
 // The directory is then a tree git no longer knows, with a link into the main
 // checkout still in it. So the junctions come out first, and git is asked
-// afterwards.
+// afterwards -- the configured mirrors by unlink, every other link in the tree
+// by dropLinks, for the reason written there.
 //
-// Two refusals, and both before anything is touched -- the read of the
+// Three refusals, and all before anything is touched -- the read of the
 // topology is the only thing that happens ahead of them, and it only asks git
 // a question. The main checkout is refused first, because a wrapper whose
 // worst outcome is deleting the repository has to say no to that one before
 // anything else; a directory git holds no working tree at is refused because
-// there is then nothing here to remove and every candidate is somebody's data.
-// Both rest on os.SameFile identity and not on the spelling of the argument,
-// so no relative form, trailing separator or link path gets past them.
+// there is then nothing here to remove and every candidate is somebody's data;
+// a locked worktree is refused because git would refuse it, and only after the
+// links were out. The first two rest on os.SameFile identity and not on the
+// spelling of the argument, so no relative form, trailing separator or link
+// path gets past them.
 //
 // This one writes to stdout, unlike worktree-link and worktree-unlink: those
 // fire at every session start and end in every project, this one is run by
@@ -201,6 +204,16 @@ func WorktreeRemove(stdout, stderr io.Writer, target string) int {
 			"loomux worktree remove: git does not hold %s as a worktree\n", target)
 		return ExitInternal
 	}
+	if topology.IsLocked(worktree) {
+		// git's call below carries a single --force, which a locked worktree
+		// does not yield to -- it wants it twice -- and what git refuses after
+		// the links are out leaves a tree standing without them. So the lock is
+		// the user's to lift, and this says so before a link is touched.
+		fmt.Fprintf(stderr,
+			"loomux worktree remove: %s is locked; unlock it first"+
+				" (git worktree unlock %s). Nothing was removed\n", worktree, worktree)
+		return ExitInternal
+	}
 	mirrored, err := mirror.Mirror(topology.Main)
 	if err != nil {
 		// Reported rather than treated as "no mirror": which junctions are
@@ -213,30 +226,29 @@ func WorktreeRemove(stdout, stderr io.Writer, target string) int {
 		fmt.Fprintf(stderr, "loomux worktree remove: %v\n", err)
 		return ExitInternal
 	}
-	command := exec.Command("git", "worktree", "remove", "--force", worktree)
-	command.Dir = topology.Main
-	// See gitenv: GIT_DIR and its relatives outrank command.Dir, so without
-	// the strip the removal would be asked of whatever GIT_DIR names instead
-	// of this repository.
-	command.Env = gitenv.Environ()
-	if out, err := command.CombinedOutput(); err != nil {
+	if err := dropLinks(worktree); err != nil {
+		fmt.Fprintf(stderr, "loomux worktree remove: %v\n", err)
+		return ExitInternal
+	}
+	if out, err := gitWorktreeRemove(topology.Main, worktree); err != nil {
 		// git's own words go through: it is the only one that knows why it
-		// refused. The junctions are already out by then, and nothing here
-		// puts them back -- the next session's worktree-link does that.
+		// refused. The links are already out by then, a hand-made junction at
+		// a configured path among them: the next worktree-link makes the
+		// mirror there, and no other link comes back.
 		fmt.Fprintf(stderr, "loomux worktree remove: git: %v (%s)\n", err, out)
 		return ExitInternal
 	}
 	// git's exit code says nothing about the directory. Measured on
-	// 2026-09-07: with a junction inside it that nothing here took out -- no
-	// mirror configured -- `git worktree remove --force` exited 0, dropped the
-	// porcelain entry and left the tree standing. That is the leftover this
-	// whole subcommand exists to prevent, so it is not something to print
-	// "removed" over.
+	// 2026-09-07: with a junction inside it, `git worktree remove --force`
+	// exited 0, dropped the porcelain entry and left the tree standing. That
+	// is the leftover this whole subcommand exists to prevent, so it is not
+	// something to print "removed" over. dropLinks has taken every junction
+	// out by now; the check stays for what it cannot see.
 	//
-	// The message says what was observed and nothing about the cause: a
-	// junction none of ours, an open handle, an ACL and a virus scanner all
-	// leave exactly this behind, and os.Lstat tells the four apart in no way
-	// at all. The operator is the one who can look.
+	// The message says what was observed and nothing about the cause: an open
+	// handle, an ACL and a virus scanner all leave exactly this behind, and
+	// os.Lstat tells them apart in no way at all. The operator is the one who
+	// can look.
 	if _, err := os.Lstat(worktree); err == nil {
 		fmt.Fprintf(stderr,
 			"loomux worktree remove: git dropped its entry but %s still stands;"+
@@ -245,6 +257,56 @@ func WorktreeRemove(stdout, stderr io.Writer, target string) int {
 	}
 	fmt.Fprintf(stdout, "removed %s\n", worktree)
 	return ExitOK
+}
+
+// gitWorktreeRemove asks git to delete a worktree, run from the main checkout.
+// A variable so a test can stand in for a git that behaves as the old ones do.
+var gitWorktreeRemove = func(main, worktree string) ([]byte, error) {
+	command := exec.Command("git", "worktree", "remove", "--force", worktree)
+	command.Dir = main
+	// See gitenv: GIT_DIR and its relatives outrank command.Dir, so without
+	// the strip the removal would be asked of whatever GIT_DIR names instead
+	// of this repository.
+	command.Env = gitenv.Environ()
+	return command.CombinedOutput()
+}
+
+// dropLinks removes every link below dir, wherever it stands and whatever it
+// points at: the link itself, never its target.
+//
+// This is what keeps the data safe under every Git version, and unlink is not
+// enough for it: that one takes out the configured mirrors only. Measured on
+// 2026-10-12 with MinGit, Git for Windows 2.31.1 to 2.53.0 delete *through*
+// any other junction in the worktree into its target -- `<main>/.tools/godot`
+// was emptied and the exit code was 0 -- while 2.54.0 and later stop at the
+// link and leave the tree standing. So a link that cannot be taken out stops
+// the removal here, before git is asked, and is not left for git to decide.
+//
+// Everything that is neither a directory nor a regular file goes: a junction,
+// a directory symlink, and the rest of what `git worktree remove --force`
+// would delete anyway. os.Remove takes the entry itself and does not follow
+// it, and the walk descends only into entries that report as a plain
+// directory -- which a junction does not, under either GODEBUG setting this
+// module can be built with (see standsInside).
+func dropLinks(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("listing %s: %w", dir, err)
+	}
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		switch {
+		case entry.IsDir():
+			if err := dropLinks(path); err != nil {
+				return err
+			}
+		case !entry.Type().IsRegular():
+			if err := os.Remove(path); err != nil {
+				return fmt.Errorf("not asking git: %s is a link and could not be removed: %w", path, err)
+			}
+		}
+	}
+	return nil
 }
 
 // registeredAs answers with git's own spelling of `target`, or "" if git holds
