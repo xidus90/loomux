@@ -179,13 +179,95 @@ func TestSetRefusesKeysThatReachIntoTheSection(t *testing.T) {
 		"dotted key":   "[verify]\ngo.lint = []\n",
 		"inline table": "[verify]\ngo = { lint = [] }\n",
 		"plain value":  "[verify]\ngo = 1\n",
-		"inline in it": "[verify.go]\nlint = { commands = [] }\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Set(in, "verify.go", "x", "1"); !errors.Is(err, ErrAmbiguous) {
 				t.Fatalf("got %v", err)
 			}
 		})
+	}
+}
+
+// TestSetRefusesTheEditedKeyHeldAsAnInlineTable: the value of the key itself
+// is a table whose keys this edit would overwrite or drop.
+func TestSetRefusesTheEditedKeyHeldAsAnInlineTable(t *testing.T) {
+	for name, in := range map[string]string{
+		"one line":   "[verify.go]\nlint = { commands = [] }\n",
+		"multi-line": "[verify.go]\nlint = {\n  commands = [],\n}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Set(in, "verify.go", "lint", "1"); !errors.Is(err, ErrAmbiguous) {
+				t.Fatalf("Set: got %v", err)
+			}
+			if _, err := Remove(in, "verify.go", "lint"); !errors.Is(err, ErrAmbiguous) {
+				t.Fatalf("Remove: got %v", err)
+			}
+		})
+	}
+}
+
+// TestEditPlacesAKeyBesideASiblingInlineTable: an inline table next to the
+// edited key defines keys of its own table and hides none of the section's,
+// so nothing has to be guessed.
+func TestEditPlacesAKeyBesideASiblingInlineTable(t *testing.T) {
+	const roles = "roles = { describe = true, place = true, propose = false }\n"
+	in := "[model]\nenabled = true\n" + roles
+	got, err := Set(in, "model", "name", `"qwen3:8b"`)
+	if want := in + "name = \"qwen3:8b\"\n"; err != nil || got != want {
+		t.Errorf("new key: got %q, %v\nwant %q", got, err, want)
+	}
+	got, err = Set(in, "model", "enabled", "false")
+	if want := "[model]\nenabled = false\n" + roles; err != nil || got != want {
+		t.Errorf("replace: got %q, %v\nwant %q", got, err, want)
+	}
+	got, err = Remove(in, "model", "enabled")
+	if want := "[model]\n" + roles; err != nil || got != want {
+		t.Errorf("remove: got %q, %v\nwant %q", got, err, want)
+	}
+	// The sibling is a key of the section: removing the last other key
+	// leaves the section and the table in it.
+	got, err = Remove("[model]\nname = \"x\"\n"+roles, "model", "name")
+	if want := "[model]\n" + roles; err != nil || got != want {
+		t.Errorf("remove beside: got %q, %v\nwant %q", got, err, want)
+	}
+	// A project file, where the section sits below other tables.
+	got, err = Set("[area]\nscope = \"s\"\n\n[verify]\ntimeout = 600\nprofiles = { edit = [\"lint\"] }\n", "verify", "max_parallel", "4")
+	if want := "[area]\nscope = \"s\"\n\n[verify]\ntimeout = 600\nprofiles = { edit = [\"lint\"] }\nmax_parallel = 4\n"; err != nil || got != want {
+		t.Errorf("project file: got %q, %v\nwant %q", got, err, want)
+	}
+}
+
+// TestEditPlacesAKeyBesideAMultiLineInlineTable: TOML 1.1 lets an inline
+// table span lines. Its lines are one entry of the section: a key inside it
+// is no key of the section, and the closing brace is no line of no known form.
+func TestEditPlacesAKeyBesideAMultiLineInlineTable(t *testing.T) {
+	const roles = "roles = {\n  name = \"x\",  # not the name of [model]\n  note = \"}\", # {\n  place = false,\n}\n"
+	in := "[model]\n" + roles + "enabled = true\n"
+	got, err := Set(in, "model", "name", `"qwen3:8b"`)
+	if want := in + "name = \"qwen3:8b\"\n"; err != nil || got != want {
+		t.Errorf("new key: got %q, %v\nwant %q", got, err, want)
+	}
+	got, err = Set(in, "model", "enabled", "false")
+	if want := "[model]\n" + roles + "enabled = false\n"; err != nil || got != want {
+		t.Errorf("replace: got %q, %v\nwant %q", got, err, want)
+	}
+	got, err = Remove(in, "model", "enabled")
+	if want := "[model]\n" + roles; err != nil || got != want {
+		t.Errorf("remove: got %q, %v\nwant %q", got, err, want)
+	}
+	// The table is the last entry: the key goes after its closing brace.
+	got, err = Set("[model]\nenabled = true\n"+roles, "model", "temperature", "0.2")
+	if want := "[model]\nenabled = true\n" + roles + "temperature = 0.2\n"; err != nil || got != want {
+		t.Errorf("after the table: got %q, %v\nwant %q", got, err, want)
+	}
+}
+
+func TestAppendInlineBesideASiblingInlineTable(t *testing.T) {
+	in := "[policy.commands]\nlimits = { max = 3 }\nrules = [\n  { regex = 'a' }\n]\n"
+	got, err := AppendInline(in, "policy.commands.rules", [][2]string{{"regex", `'x'`}})
+	want := "[policy.commands]\nlimits = { max = 3 }\nrules = [\n  { regex = 'a' },\n  { regex = 'x' }\n]\n"
+	if err != nil || got != want {
+		t.Errorf("got %q, %v\nwant %q", got, err, want)
 	}
 }
 

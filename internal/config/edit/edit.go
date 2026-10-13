@@ -81,11 +81,12 @@ func join(bom string, lines []string, eol string) string {
 	return bom + strings.Join(lines, eol) + eol
 }
 
-// scan walks the lines once. It refuses a document it cannot map: a dotted,
-// quoted or inline-table key could hold keys of the section being changed or
-// make it a value, a multi-line string hides lines that look like headers,
-// and a line of no known form could be either.
-func scan(lines []string, section string) ([]entry, error) {
+// scan walks the lines once, for a change to the key edited in section. It
+// refuses a document it cannot map: a dotted, quoted or inline-table key could
+// hold keys of the section being changed or make it a value, a multi-line
+// string hides lines that look like headers, and a line of no known form could
+// be either.
+func scan(lines []string, section, edited string) ([]entry, error) {
 	var out []entry
 	current := ""
 	f := forms()
@@ -114,11 +115,13 @@ func scan(lines []string, section string) ([]entry, error) {
 			m := f.bareKey.FindStringSubmatch(l)
 			key, value := m[1], l[len(m[0]):]
 			full := qualify(current, key)
-			// A plain key of the section is what Set edits; the same key
+			// A plain key of the section is what Set edits. The key itself
 			// holding an inline table, or a key on the path to the section,
-			// would give the section keys this scan cannot see.
+			// would give the section keys this scan cannot see; an inline
+			// table beside the key hides none.
 			inline := strings.HasPrefix(strings.TrimSpace(value), "{")
-			if related(full, section) && (inline || !strings.HasPrefix(full, section+".")) {
+			onPath := related(full, section) && !strings.HasPrefix(full, section+".")
+			if onPath || inline && full == qualify(section, edited) {
 				return refuse(i)
 			}
 			if tripleQuote(value) {
@@ -185,7 +188,8 @@ func tripleQuote(s string) bool {
 	return false
 }
 
-// brackets is the change in [ ] depth over s, outside strings and comments.
+// brackets is the change in [ ] and { } depth over s, outside strings and
+// comments: an array or an inline table goes on while it is positive.
 func brackets(s string) int {
 	depth := 0
 	var quote byte
@@ -202,9 +206,9 @@ func brackets(s string) int {
 			quote = c
 		case c == '#':
 			return depth
-		case c == '[':
+		case c == '[' || c == '{':
 			depth++
-		case c == ']':
+		case c == ']' || c == '}':
 			depth--
 		}
 	}
@@ -260,7 +264,7 @@ func locate(entries []entry, section, key string) (headers []entry, hits []entry
 // at the end where the section is missing.
 func Set(text, section, key, literal string) (string, error) {
 	bom, lines, eol := split(text)
-	entries, err := scan(lines, section)
+	entries, err := scan(lines, section, key)
 	if err != nil {
 		return "", err
 	}
@@ -301,7 +305,7 @@ func Set(text, section, key, literal string) (string, error) {
 // together with the blank line before it.
 func Remove(text, section, key string) (string, error) {
 	bom, lines, eol := split(text)
-	entries, err := scan(lines, section)
+	entries, err := scan(lines, section, key)
 	if err != nil {
 		return "", err
 	}
@@ -316,7 +320,7 @@ func Remove(text, section, key string) (string, error) {
 	lines = append(lines[:hit.first], lines[hit.last+1:]...)
 	// Dropping a line cannot make the document ambiguous; the scan that
 	// passed above passes again.
-	rest, _ := scan(lines, section)
+	rest, _ := scan(lines, section, key)
 	keys := 0
 	for _, e := range rest {
 		if !e.isHeader && e.section == section && e.key != "" {
@@ -374,7 +378,7 @@ func AppendInline(text, section string, pairs [][2]string) (string, error) {
 	dot := strings.LastIndexByte(section, '.')
 	table, key := section[:max(dot, 0)], section[dot+1:]
 	bom, lines, eol := split(text)
-	entries, err := scan(lines, table)
+	entries, err := scan(lines, table, key)
 	if err != nil {
 		return "", err
 	}
