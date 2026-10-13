@@ -38,11 +38,35 @@ func Glob(pattern, name string) (bool, error) {
 	if pattern == name {
 		return true, nil
 	}
-	// Direct wildcard suffix like .aws/**
-	if strings.HasSuffix(pattern, "/**") {
-		prefix := strings.TrimSuffix(pattern, "/**")
-		if name == prefix || strings.HasPrefix(name, prefix+"/") {
-			return true, nil
+	// An ending /** is any depth below its prefix, wildcards in the prefix
+	// included: the prefix is tried against the name and the directories
+	// above it. Only a character class takes a `/` in path.Match, so just
+	// the directories whose slashes number between those the prefix spells
+	// before its first class and those it spells at all plus one per class
+	// can match; that keeps this linear in the depth, which a guard bound by
+	// its host's timeout needs.
+	if prefix, ending := strings.CutSuffix(pattern, "/**"); ending {
+		beforeClass, _, _ := strings.Cut(prefix, "[")
+		fewest := strings.Count(beforeClass, "/")
+		most := strings.Count(prefix, "/") + strings.Count(prefix, "[")
+		for slashes, end := 0, 0; ; slashes++ {
+			slash := strings.IndexByte(name[end:], '/')
+			dir := name
+			if slash >= 0 {
+				dir = name[:end+slash]
+			}
+			if slashes >= fewest {
+				if dir == prefix {
+					return true, nil
+				}
+				if matched, err := path.Match(prefix, dir); err != nil || matched {
+					return matched, err
+				}
+			}
+			if slash < 0 || slashes == most {
+				break
+			}
+			end += slash + 1
 		}
 	}
 	if strings.Contains(pattern, "/") {
