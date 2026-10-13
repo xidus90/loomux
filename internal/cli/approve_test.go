@@ -295,9 +295,9 @@ func TestApproveRefusesWhatAddressesNoCase(t *testing.T) {
 func TestApproveNamesTheAccountAsTheReviewer(t *testing.T) {
 	approveWorld(t, reconcileOptions{})
 	calls := stubApprove(t, decided("reject", false, "d1", ""))
-	stubUser(t, "christoph", nil)
+	stubUser(t, "alice", nil)
 	run("approve", "--reject", "open-case")
-	if got := (*calls)[0].options.Reviewer; got != "human:christoph" {
+	if got := (*calls)[0].options.Reviewer; got != "human:alice" {
 		t.Fatalf("reviewer = %q", got)
 	}
 

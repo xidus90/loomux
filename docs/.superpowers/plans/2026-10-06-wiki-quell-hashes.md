@@ -2317,7 +2317,7 @@ Run: `go run ./cmd/loomux check lint -v > <scratchpad>/t7-before.txt 2>&1` → e
 Der Agent fährt `repin` nicht (der Wächter verweigert es). Er liest die Seiten, die die geänderten Dateien zitieren (`grep -rln "docs/de/cli-reference.md\|docs/de/configuration.md" docs/wiki`), prüft, ob ihre Aussagen durch die Doku-Änderung falsch werden (die Änderung fügt nur die neue Spur und den neuen Befehl hinzu; erwartet: keine Seite wird falsch), nennt das Ergebnis und bittet den Nutzer, im Worktree auszuführen:
 
 ```bash
-go -C "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/admiring-zhukovsky-faf0b9" run ./cmd/loomux wiki repin
+go -C "C:/Users/me/Documents/#GIT/loomux/.claude/worktrees/admiring-zhukovsky-faf0b9" run ./cmd/loomux wiki repin
 ```
 
 Danach liest der Agent die Wirkung selbst: `git status --short`, `git diff --stat`, und `go run ./cmd/loomux check lint -v > <scratchpad>/t7-after.txt 2>&1` → `lint/wiki-sources: ok`. Zusätzlich die Probe aus der Spec (`t7-sources.py`, `reg-vs-file.py` im Scratchpad) erneut: 0 Abweichungen bei den zitierten Zeilen.
@@ -2346,7 +2346,7 @@ Der Commit läuft durch das pre-commit-Tor mit der neuen Spur; grün ist der End
 ## Abschluss
 
 - Ganze Suite und Tor einmal auf dem Endstand: `sh ci/gate.sh > <scratchpad>/gate-final.txt 2>&1`.
-- Nach dem Merge: Die Hooks rufen `bin/loomux.exe` im Haupt-Checkout. Wächterregel und Spur greifen in Agenten-Sitzungen erst, wenn der Nutzer dort `master` holt und das Binary neu baut (`go -C "C:/Users/micro/Documents/#GIT/loomux" build -o bin/loomux.exe ./cmd/loomux`). In die Übergabe aufnehmen.
+- Nach dem Merge: Die Hooks rufen `bin/loomux.exe` im Haupt-Checkout. Wächterregel und Spur greifen in Agenten-Sitzungen erst, wenn der Nutzer dort `master` holt und das Binary neu baut (`go -C "C:/Users/me/Documents/#GIT/loomux" build -o bin/loomux.exe ./cmd/loomux`). In die Übergabe aufnehmen.
 - Abschluss-Review des ganzen Zweigs gegen Spec und Plan.
 - Commits nach Thema gruppieren (`release-pr`-Skill); Label `release:minor`, Changelog-Block:
 

@@ -41,7 +41,7 @@ sequenceDiagram
     Post->>Post: Run the edit profile's lanes on the edited file (budget 50 s)
     Post->>Post: Blast monitor: direct callers of changed Go symbols, only when no lane is red (section 5)
     Post--)Journal: Planned (W1): append event
-    Post-->>Host: Exit 0, or Exit 2 when an armed lane fails; a lane in probation never does (section 5)
+    Post-->>Host: Exit 0, or Exit 2 when an armed lane fails, a lane in probation never does (section 5)
     end
 
     rect rgb(245, 255, 245)

@@ -17,7 +17,7 @@ const registryName = "registry.toml"
 //
 // The paths are strings, not a path type, and they are handed on exactly as
 // the file spells them. The registry on this machine writes Windows drive
-// letters with forward slashes ("C:/Users/micro/Documents/#GIT/brain-knowledge"),
+// letters with forward slashes ("C:/Users/me/Documents/#GIT/brain-knowledge"),
 // so a reader that cleaned or converted them would answer a path the file
 // never contained; whoever joins these onto something else owes the joining.
 //
@@ -216,7 +216,7 @@ func StateDir() string {
 // would then report full on half the code.
 //
 // On this machine both sides resolve the home the same way: os.UserHomeDir
-// and Path.home() both answered 'C:\Users\micro', with USERPROFILE and HOME
+// and Path.home() both answered 'C:\Users\me', with USERPROFILE and HOME
 // set to it. Go reads USERPROFILE alone, where ntpath.expanduser falls back to
 // HOMEDRIVE and HOMEPATH -- untested here, and no registry depends on it.
 //
