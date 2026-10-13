@@ -58,7 +58,7 @@ are German and never translated.
   commit that introduced it. Only the fix of a bug that already existed on
   `master` before the branch keeps a commit of its own. With an LLM the
   `release-pr` skill does this and the label below; without one, follow
-  "Opening a pull request" in `README.md`.
+  "Opening a pull request" in `docs/en/releases.md`.
 - Commit messages follow Conventional Commits:
   `<type>[(<scope>)][!]: <description>`, optional body, optional footers.
   Types: `feat`, `fix`, `build`, `chore`, `ci`, `docs`, `style`, `refactor`,
@@ -103,12 +103,12 @@ are German and never translated.
   implementation changes to reflect the actual state and capabilities.
 - The roadmap is the section `Roadmap` in `README.md` and `README.de.md`: open
   work (follow-up projects, the open code-graph stages, optional features),
-  split into "Coming" and "Maybe", each row with its stage, dependencies and
-  priority where it has them. Every pull request that starts, finishes, adds
-  or drops such work updates both in the same pull request; a finished row
-  leaves the roadmap and its capability goes into the documentation it now
-  belongs to. The roadmap sets the priorities itself; changing one is the
-  user's decision, made in the pull request that enters it.
+  split into "Coming" and "Maybe", each row with its dependencies and
+  priority where it has them. Every pull request that starts, finishes,
+  adds or drops such work updates both in the same pull request; a finished
+  row leaves the roadmap and its capability goes into the documentation it
+  now belongs to. The roadmap sets the priorities itself; changing one is
+  the user's decision, made in the pull request that enters it.
 
 ## Commands
 
