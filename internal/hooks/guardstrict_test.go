@@ -274,6 +274,32 @@ func TestStrictModeWeighsAnExpansionAgainstEveryProtectedGlob(t *testing.T) {
 	}
 }
 
+// A project rule spelled with a run of leading **/ keeps what the one-**/
+// spelling keeps: an expansion in front of its fixed part, in its fixed part
+// or after it lands the same.
+func TestStrictModeReadsARunOfLeadingDoubleStarsAsOne(t *testing.T) {
+	root := project(t)
+	lands := func(reasons []string) bool {
+		return slices.ContainsFunc(reasons, func(r string) bool { return strings.Contains(r, "the expansion may land on a protected path") })
+	}
+	for _, glob := range []string{"**/vault/key.txt", "**/**/vault/key.txt", "**/**/**/vault/key.txt"} {
+		policy := config.Policy{Strict: true, Paths: []config.PathRule{{Match: []string{glob}, Reason: "kept"}}}
+		for line, want := range map[string]bool{
+			"echo x > $D/key.txt":        true,
+			"echo x > vault/k$X":         true,
+			"echo x > src/vault/k$X":     true,
+			"echo x > build/$X.txt":      false,
+			"echo x > src/other/k$X":     false,
+			"echo x > $D/notes.md":       false,
+			"echo x > vault/key.txt.bak": false,
+		} {
+			if got := checkTool(root, "Bash", command(line), policy); lands(got) != want {
+				t.Errorf("%q under %q: reasons %q, want the expansion refused: %v", line, glob, got, want)
+			}
+		}
+	}
+}
+
 func TestIsDeviceNamesTheWindowsDevices(t *testing.T) {
 	for rel, want := range map[string]bool{"nul": true, "x/NUL.txt": true, "com1": true, "lpt9": true, "conout$": true,
 		"com0": false, "comx": false, "nullx": false, "notes.txt": false} {

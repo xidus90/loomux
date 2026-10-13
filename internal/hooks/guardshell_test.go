@@ -439,6 +439,10 @@ func TestBelowFindsTheFolderAboveAKeptPath(t *testing.T) {
 		{".LOOMUX", ".loomux/state/**", false, false},
 		// A folder of the name a glob under any directory keeps the content of.
 		{"x/secrets", "**/secrets/*", false, true},
+		// A run of leading **/ reads as one.
+		{".loomux", "**/**/.loomux/config.toml", true, true},
+		{"x/.loomux", "**/**/**/.loomux/config.toml", true, true},
+		{"build", "**/**/.loomux/config.toml", true, false},
 	} {
 		if got := below(row.rel, row.glob, row.fold); got != row.want {
 			t.Errorf("below(%q, %q, %v) = %v, want %v", row.rel, row.glob, row.fold, got, row.want)

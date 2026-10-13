@@ -5,6 +5,20 @@ import (
 	"strings"
 )
 
+// CutAnywhere takes the leading `**/` off a pattern and says whether there was
+// one. A run of them is one -- `**/**/x` is `**/x` -- and cut as one, or each
+// would add a factor of the path's depth to Glob.
+func CutAnywhere(pattern string) (rest string, anywhere bool) {
+	rest = pattern
+	for {
+		next, ok := strings.CutPrefix(rest, "**/")
+		if !ok {
+			return rest, anywhere
+		}
+		rest, anywhere = next, true
+	}
+}
+
 // Glob matches a slash-separated path against a glob pattern supporting
 // `**`, and answers an error for a pattern it cannot read. A leading `**/`
 // stands for any directory, the root included.
@@ -23,7 +37,7 @@ func Glob(pattern, name string) (bool, error) {
 	// A leading **/ is any directory, the root included: the rest is tried
 	// against the name and against every tail of it that starts after a
 	// slash, so an element is matched whole.
-	if rest, anywhere := strings.CutPrefix(pattern, "**/"); anywhere {
+	if rest, anywhere := CutAnywhere(pattern); anywhere {
 		for {
 			if matched, err := Glob(rest, name); err != nil || matched {
 				return matched, err

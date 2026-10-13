@@ -212,7 +212,7 @@ func below(rel, glob string, fold bool) bool {
 	if fold {
 		rel, glob = strings.ToLower(rel), strings.ToLower(glob)
 	}
-	glob, anywhere := strings.CutPrefix(glob, "**/")
+	glob, anywhere := pathkey.CutAnywhere(glob)
 	if !strings.Contains(glob, "/") {
 		return false
 	}
@@ -449,7 +449,8 @@ func (j judge) tailMayReach(tail string) bool {
 		return false
 	}
 	for _, g := range j.protectedGlobs() {
-		glob, candidate := strings.TrimPrefix(g.glob, "**/"), tail
+		glob, _ := pathkey.CutAnywhere(g.glob)
+		candidate := tail
 		if g.fold {
 			candidate = strings.ToLower(candidate)
 		}
@@ -516,7 +517,7 @@ func (j judge) mayReach(fixed string) bool {
 		if g.fold {
 			candidate = strings.ToLower(candidate)
 		}
-		glob, anywhere := strings.CutPrefix(g.glob, "**/")
+		glob, anywhere := pathkey.CutAnywhere(g.glob)
 		if !strings.Contains(glob, "/") {
 			base := candidate[strings.LastIndexByte(candidate, '/')+1:]
 			literal := glob
