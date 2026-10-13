@@ -7,6 +7,23 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.4.1] - 2026-10-13
+
+<https://github.com/xidus90/loomux/pull/99>
+
+### Added
+- Install guide (`docs/en/install.md`, `docs/de/install.md`) with a checksum-verified quickstart per platform, and a release guide for pull requests.
+### Changed
+- The README and the docs index guide a first-time user from install to configuration; the hooks guide lists the guard's limits in one place.
+### Fixed
+- `loomux config list` counts policy rules written as an inline array instead of showing 0 entries.
+- `loomux init` adds its rules into an inline rules array instead of failing with invalid TOML.
+- `loomux config set` and `unset` place a key beside a sibling inline table such as `[model] roles = { ... }`.
+- `loomux worktree remove` takes every junction out before git deletes the tree, so Git for Windows 2.31–2.53 can no longer delete through it into the main checkout; a locked worktree is refused before any link is touched.
+- A path rule like `services/*/secrets/**` protects every level below `secrets`, not only the first.
+- A path rule with several leading `**/` is matched as fast as one with a single `**/`, so the guard answers within the hook timeout.
+- The CLI reference names the arguments `graph_file_api`, `graph_trace_calls` and `graph_find_all` actually take.
+
 ## [1.4.0] - 2026-10-10
 
 <https://github.com/xidus90/loomux/pull/98>
