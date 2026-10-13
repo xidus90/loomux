@@ -45,10 +45,10 @@ contribution meets most often:
 
 ## Opening a pull request
 
-Follow [Opening a pull request](README.md#opening-a-pull-request) in the
-README: group the commits, write the body with its `Release:` line and, unless
-the change is docs, CI or tests only, a `## Changelog` block, and check it
-with `go run ./cmd/loomux dev release parse-body`.
+Follow [Opening a pull request](docs/en/releases.md#opening-a-pull-request)
+in the release guide: group the commits, write the body with its `Release:`
+line and, unless the change is docs, CI or tests only, a `## Changelog`
+block, and check it with `go run ./cmd/loomux dev release parse-body`.
 
 From a fork you cannot set labels on this repository. Open the pull request
 without one and name the level you think fits in the `Release:` line; the
