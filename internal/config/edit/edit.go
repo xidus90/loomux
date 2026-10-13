@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -362,4 +363,99 @@ func AppendBlock(text, section string, pairs [][2]string) string {
 		lines = append(lines, p[0]+" = "+p[1])
 	}
 	return join(bom, lines, eol)
+}
+
+// AppendInline adds one inline table to the array a [[section]] entry would
+// extend, where the human wrote that array as key = [ ... ] in the parent
+// table: a [[section]] header after it would be a second definition of the
+// key. The item goes in the form the array already has -- its indentation,
+// its trailing comma or none, its comments.
+func AppendInline(text, section string, pairs [][2]string) (string, error) {
+	dot := strings.LastIndexByte(section, '.')
+	table, key := section[:max(dot, 0)], section[dot+1:]
+	bom, lines, eol := split(text)
+	entries, err := scan(lines, table)
+	if err != nil {
+		return "", err
+	}
+	_, hits, _ := locate(entries, table, key)
+	if len(hits) != 1 {
+		return "", ErrAmbiguous
+	}
+	last, closing, ok := arrayEnds(lines, hits[0])
+	if !ok {
+		return "", ErrAmbiguous
+	}
+	parts := make([]string, len(pairs))
+	for i, p := range pairs {
+		parts[i] = p[0] + " = " + p[1]
+	}
+	item := "{ " + strings.Join(parts, ", ") + " }"
+	// What the item needs around it follows the character before it.
+	l := lines[last.line]
+	lead, trail, space := "", "", " "
+	switch l[last.col] {
+	case '[':
+		space = ""
+	case ',':
+		trail = ","
+	default:
+		lead = ","
+	}
+	if last.line == closing.line {
+		lines[last.line] = l[:last.col+1] + lead + space + item + trail + l[last.col+1:]
+		return join(bom, lines, eol), nil
+	}
+	indent := l[:len(l)-len(strings.TrimLeft(l, " \t"))]
+	if l[last.col] == '[' {
+		indent += "  "
+	}
+	lines[last.line] = l[:last.col+1] + lead + l[last.col+1:]
+	lines = slices.Insert(lines, last.line+1, indent+item+trail)
+	return join(bom, lines, eol), nil
+}
+
+// pos is a character of the lines: its line and its column in that line.
+type pos struct{ line, col int }
+
+// arrayEnds finds, in the value of e, the last character of the array
+// before its closing bracket, and that bracket. It reports false for a value
+// that is no array.
+func arrayEnds(lines []string, e entry) (last, closing pos, ok bool) {
+	depth := 0
+	for n := e.first; n <= e.last; n++ {
+		l := lines[n]
+		start := 0
+		if n == e.first {
+			start = strings.IndexByte(l, '=') + 1
+		}
+		var quote byte
+	chars:
+		for i := start; i < len(l); i++ {
+			c := l[i]
+			switch {
+			case quote != 0:
+				if c == '\\' && quote == '"' {
+					i++
+				} else if c == quote {
+					quote = 0
+				}
+			case c == '"' || c == '\'':
+				quote = c
+			case c == '#':
+				break chars
+			case c == '[':
+				depth++
+			case c == ']':
+				depth--
+				if depth == 0 {
+					return last, pos{n, i}, true
+				}
+			}
+			if c != ' ' && c != '\t' {
+				last = pos{n, i}
+			}
+		}
+	}
+	return pos{}, pos{}, false
 }

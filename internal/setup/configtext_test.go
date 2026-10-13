@@ -1,10 +1,12 @@
 package setup
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/config/edit"
 	"github.com/xidus90/loomux/internal/config/schema"
 )
 
@@ -143,5 +145,58 @@ func TestALanguageTheLoadersRejectIsNotWritten(t *testing.T) {
 	_, err = configText("commit = { language = \"de\" }\n", nil, Choice{CommitLanguage: "en"})
 	if err == nil {
 		t.Errorf("an ambiguous [commit] is edited")
+	}
+}
+
+// Rules written as an inline array are the form the getting-started guide
+// shows; init adds its rule into that array and keeps the human's lines.
+func TestTheCatalogRuleJoinsAnInlineRulesArray(t *testing.T) {
+	const pipRule = "{ regex = '" + pipRegex + "', reason = \"uv, never pip.\" }"
+	for _, tc := range []struct {
+		name, stack, before, after string
+	}{
+		{
+			"commands", "uv",
+			"[policy.commands]\n# Block\nrules = [\n  { regex = 'git', reason = \"no\" }  # ask first\n]\n\n[commit]\nthreshold = 2\n",
+			"[policy.commands]\n# Block\nrules = [\n  { regex = 'git', reason = \"no\" },  # ask first\n  " + pipRule + "\n]\n\n[commit]\nthreshold = 2\n",
+		},
+		{
+			"paths", "django",
+			"[policy.paths]\nrules = [\n  { match = [\"go.sum\"], reason = \"x\" },\n]\n",
+			"[policy.paths]\nrules = [\n  { match = [\"go.sum\"], reason = \"x\" },\n  { match = [\"" + migrationsGlob + "\"], reason = \"Applied migrations are history; add a new one instead.\" },\n]\n",
+		},
+		{
+			"empty", "uv",
+			"[policy.commands]\nrules = []\n",
+			"[policy.commands]\nrules = [" + pipRule + "]\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := configText(tc.before, []string{tc.stack}, Choice{})
+			if err != nil || got != tc.after {
+				t.Fatalf("got %q, %v\nwant %q", got, err, tc.after)
+			}
+			// The rule just added is found again: a second run adds nothing.
+			if again, err := configText(got, []string{tc.stack}, Choice{}); err != nil || again != got {
+				t.Errorf("a second run changes it: %q, %v", again, err)
+			}
+		})
+	}
+}
+
+func TestAnInlineRuleThatIsThereIsNotAddedAgain(t *testing.T) {
+	text := "[policy.commands]\nrules = [{ regex = '" + pipRegex + "', reason = \"mine\" }]\n"
+	got, err := configText(text, []string{"uv"}, Choice{})
+	if err != nil || got != text {
+		t.Errorf("got %q, %v", got, err)
+	}
+}
+
+func TestInlineRulesThatCannotBePlacedStopTheRun(t *testing.T) {
+	// A dotted key is valid TOML the loaders accept; edit will not guess
+	// which table it belongs to.
+	_, err := configText("policy.commands.rules = []\n", []string{"uv"}, Choice{})
+	if !errors.Is(err, edit.ErrAmbiguous) || !strings.HasPrefix(err.Error(), configPath+": ") {
+		t.Errorf("err = %v", err)
 	}
 }
