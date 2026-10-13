@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -118,16 +119,22 @@ func writeFile(t *testing.T, path string, body string) {
 	}
 }
 
-// unregister takes git's entry away and leaves the directory standing -- which
-// is what git itself does when a junction is in the way. Measured on
-// 2026-09-07: with a junction inside the worktree, `git worktree remove
-// --force` exits 0, the registration is gone, and the directory with its
-// junction is still there. Without one the same call deletes the directory,
-// untracked files included, so the MkdirAll below puts it back.
+// unregister takes git's entry away and leaves the directory standing, as it
+// is after a `Remove-Item -Recurse` that stopped halfway.
+//
+// By deleting the entry's administrative directory and not by asking git: what
+// `git worktree remove --force` does to a tree holding a junction depends on
+// the Git version -- 2.54 and later leave the tree standing, 2.31 to 2.53
+// delete through the junction -- and a fixture may not.
 func unregister(t *testing.T, main string, worktree string) {
 	t.Helper()
-	git(t, main, "worktree", "remove", "--force", worktree)
-	mkdirAll(t, worktree)
+	admin := filepath.Join(main, ".git", "worktrees", filepath.Base(worktree))
+	if err := os.RemoveAll(admin); err != nil {
+		t.Fatal(err)
+	}
+	if registered(t, main, worktree) {
+		t.Fatal("git still holds the worktree")
+	}
 }
 
 // mklink makes a junction the way a hand at a prompt does. Its stored target
@@ -428,10 +435,9 @@ func TestWorktreeLinkSweepsAnOrphanedJunction(t *testing.T) {
 		t.Fatal("the fixture's own link was not created")
 	}
 	unregister(t, main, worktree)
-	// The junction is what stopped git from deleting the directory, so it has
-	// to be standing before the sweep is asked about it.
+	// The junction has to be standing before the sweep is asked about it.
 	if _, err := os.Lstat(filepath.Join(worktree, ".tools")); err != nil {
-		t.Fatalf("git took the junction with it, so this tests nothing: %v", err)
+		t.Fatalf("the junction is gone, so this tests nothing: %v", err)
 	}
 
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
@@ -470,11 +476,6 @@ func TestTheSweepTakesAHandMadeJunctionAsWell(t *testing.T) {
 }
 
 // A real directory in an orphaned worktree is somebody's data, not our link.
-//
-// Written after `unregister`, not before: measured on 2026-09-07, `git
-// worktree remove --force` deletes the whole directory including untracked
-// files when no reparse point blocks it, so a file put there first would be
-// gone before the sweep ever ran.
 func TestTheSweepLeavesARealDirectoryInAnOrphanAlone(t *testing.T) {
 	main, worktree := worktreeFixture(t)
 	writeConfig(t, main, "[worktree]\nmirror = [\".tools\"]\n")
@@ -1140,6 +1141,49 @@ func TestWorktreeRemoveLeavesNothingBehind(t *testing.T) {
 	}
 }
 
+// A junction that is none of the configured mirrors -- no mirror configured
+// at all -- still must not be what git deletes through. Git for Windows
+// before 2.54 follows such a junction into the main checkout and removes the
+// target's contents (bisected with MinGit: 2.31.1 to 2.53.0 delete, 2.54.0
+// and later do not but leave the tree standing), so the link is taken out
+// first, wherever it stands in the worktree, and what it pointed at is left
+// as it was -- including a link of its own.
+//
+// The outcome asserted here is the same under every Git version, which is why
+// this test does not name one.
+func TestWorktreeRemoveTakesAForeignJunctionOutBeforeGitIsAsked(t *testing.T) {
+	requireWindows(t)
+	main, worktree := worktreeFixture(t)
+	keep := filepath.Join(main, ".tools", "godot", "keep.txt")
+	mkdirAll(t, filepath.Dir(keep))
+	writeFile(t, keep, "keep")
+	elsewhere := filepath.Join(main, "elsewhere")
+	mkdirAll(t, elsewhere)
+	writeFile(t, filepath.Join(elsewhere, "kept.txt"), "kept")
+	inner := filepath.Join(main, ".tools", "inner")
+	mklink(t, inner, elsewhere)
+	mklink(t, filepath.Join(worktree, ".tools"), filepath.Join(main, ".tools"))
+	nested := filepath.Join(worktree, "sub", "deeper")
+	mkdirAll(t, nested)
+	mklink(t, filepath.Join(nested, "link"), filepath.Join(main, ".tools"))
+
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	if code := WorktreeRemove(stdout, stderr, worktree); code != ExitOK {
+		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, stderr)
+	}
+	if _, err := os.Lstat(worktree); !os.IsNotExist(err) {
+		t.Fatalf("the worktree directory survived: %v", err)
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Fatalf("remove reached through the junction: %v", err)
+	}
+	// Reached through, `inner` would have lost its own link: a walk that
+	// follows a link takes out the links beyond it as well.
+	if _, err := os.Stat(filepath.Join(inner, "kept.txt")); err != nil {
+		t.Fatalf("remove walked into the junction's target: %v", err)
+	}
+}
+
 // The refusal a wrapper whose worst outcome is deleting the repository has to
 // make first.
 func TestWorktreeRemoveRefusesTheMainCheckout(t *testing.T) {
@@ -1189,16 +1233,100 @@ func TestWorktreeRemoveUsesGitsSpellingOfThePath(t *testing.T) {
 	}
 }
 
-// A junction nothing here took out -- no mirror configured, so unlink is a
-// no-op over it -- is exactly the leftover this subcommand exists to prevent,
-// and git reports success over it. Measured on 2026-09-07: exit 0, no output,
-// porcelain entry gone, directory and junction standing. So the directory is
-// checked before anything says "removed".
-func TestWorktreeRemoveDoesNotClaimSuccessOverALeftover(t *testing.T) {
+// stubGit puts `stub` in the place of the call that asks git to delete the
+// worktree, for the length of the test.
+func stubGit(t *testing.T, stub func(main string, worktree string) ([]byte, error)) {
+	t.Helper()
+	real := gitWorktreeRemove
+	gitWorktreeRemove = stub
+	t.Cleanup(func() { gitWorktreeRemove = real })
+}
+
+// linksIn lists every entry below dir that is neither a directory nor a
+// regular file, without following any of them.
+func linksIn(t *testing.T, dir string) []string {
+	t.Helper()
+	var found []string
+	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+		if err == nil && !entry.IsDir() && !entry.Type().IsRegular() {
+			found = append(found, path)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
+}
+
+// The same property as above without a Git version in it: whatever git does
+// with a link it finds -- 2.31 to 2.53 delete through it, 2.54 and later stop
+// at it -- git is not asked while one is still standing.
+func TestWorktreeRemoveAsksGitWithNoLinkLeftInTheTree(t *testing.T) {
 	requireWindows(t)
 	main, worktree := worktreeFixture(t)
 	mkdirAll(t, filepath.Join(main, ".tools", "godot"))
 	mklink(t, filepath.Join(worktree, ".tools"), filepath.Join(main, ".tools"))
+	nested := filepath.Join(worktree, "sub", "deeper")
+	mkdirAll(t, nested)
+	mklink(t, filepath.Join(nested, "link"), main)
+	var left []string
+	stubGit(t, func(_ string, worktree string) ([]byte, error) {
+		left = linksIn(t, worktree)
+		return nil, os.RemoveAll(worktree)
+	})
+
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	if code := WorktreeRemove(stdout, stderr, worktree); code != ExitOK {
+		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, stderr)
+	}
+	if len(left) != 0 {
+		t.Fatalf("git was asked with links standing: %v", left)
+	}
+	if _, err := os.Stat(filepath.Join(main, ".tools", "godot")); err != nil {
+		t.Fatalf("remove reached through a junction: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(main, "a.txt")); err != nil {
+		t.Fatalf("remove reached through the nested junction: %v", err)
+	}
+}
+
+// A directory symlink is a link as well, and a Git that follows junctions has
+// no reason to treat it better. Skipped where the OS will not make one for an
+// unprivileged user.
+func TestWorktreeRemoveTakesADirectorySymlinkOutToo(t *testing.T) {
+	main, worktree := worktreeFixture(t)
+	keep := filepath.Join(main, "data", "keep.txt")
+	mkdirAll(t, filepath.Dir(keep))
+	writeFile(t, keep, "keep")
+	if err := os.Symlink(filepath.Join(main, "data"), filepath.Join(worktree, "data")); err != nil {
+		t.Skipf("no directory symlinks here: %v", err)
+	}
+	var left []string
+	stubGit(t, func(_ string, worktree string) ([]byte, error) {
+		left = linksIn(t, worktree)
+		return nil, os.RemoveAll(worktree)
+	})
+
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	if code := WorktreeRemove(stdout, stderr, worktree); code != ExitOK {
+		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, stderr)
+	}
+	if len(left) != 0 {
+		t.Fatalf("git was asked with links standing: %v", left)
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Fatalf("remove reached through the symlink: %v", err)
+	}
+}
+
+// git's exit code says nothing about the directory: an open handle, an ACL or
+// a virus scanner make a git that exits 0 over a tree it left standing, and
+// that is no ground for "removed". The stub is that git -- the junction that
+// used to make the real one do it is out of the tree before git is asked.
+func TestWorktreeRemoveDoesNotClaimSuccessOverALeftover(t *testing.T) {
+	_, worktree := worktreeFixture(t)
+	stubGit(t, func(string, string) ([]byte, error) { return nil, nil })
 
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	if code := WorktreeRemove(stdout, stderr, worktree); code != ExitInternal {
@@ -1276,25 +1404,26 @@ func TestWorktreeRemoveReportsAPathItCannotInspect(t *testing.T) {
 	}
 }
 
-// git's own refusal has to reach the caller. A lock is what makes it refuse
-// under a single --force: measured on 2026-09-07, `git worktree remove
-// --force` on a locked tree exited 128 with "cannot remove a locked working
-// tree; use 'remove -f -f' to override or unlock first", and the directory
-// stood.
+// git's own refusal has to reach the caller. The stub is a git that refuses
+// for a reason this side cannot see ahead of time -- a lock it can, see
+// below; a worktree whose validation fails it cannot.
 //
 // On a linked fixture, so the state after the refusal is the one the ordering
 // produces and not an empty case: junctions out, tree still registered. That
-// is the price of asking git last, and it is paid back at the next session
-// start -- which is asserted here rather than argued.
+// is the price of asking git last, and for the configured mirrors it is paid
+// back at the next session start -- which is asserted here rather than argued.
 func TestWorktreeRemoveReportsGitsRefusal(t *testing.T) {
-	main, worktree := linkedFixture(t, ".tools")
-	git(t, main, "worktree", "lock", worktree)
+	_, worktree := linkedFixture(t, ".tools")
+	stubGit(t, func(string, string) ([]byte, error) {
+		return []byte("fatal: validation failed, cannot remove working tree\n"),
+			errors.New("exit status 128")
+	})
 
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	if code := WorktreeRemove(stdout, stderr, worktree); code != ExitInternal {
 		t.Fatalf("exit = %d, want ExitInternal (stderr: %s)", code, stderr)
 	}
-	if !strings.Contains(stderr.String(), "locked") {
+	if !strings.Contains(stderr.String(), "validation failed") {
 		t.Fatalf("stderr = %q, want git's own words in it", stderr)
 	}
 	if _, err := os.Stat(worktree); err != nil {

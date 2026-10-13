@@ -47,6 +47,8 @@ type Topology struct {
 	Main string
 	// Worktrees is every registered working tree, Main included.
 	Worktrees []string
+	// Locked is the subset git marks `locked`.
+	Locked []string
 }
 
 // Read asks git about `dir`.
@@ -63,35 +65,49 @@ func Read(dir string) (Topology, error) {
 		// caller that treats both as "nothing to do".
 		return Topology{}, fmt.Errorf("%w: %s: %v", ErrNoRepository, dir, err)
 	}
-	worktrees := parse(string(out))
+	worktrees, locked := parse(string(out))
 	if len(worktrees) == 0 {
 		// No git reached this: even `git init --bare` prints a `worktree` line
 		// followed by `bare`. The guard is what keeps worktrees[0] below from
 		// being an index panic when something else is answering as git.
 		return Topology{}, fmt.Errorf("%w: %s: git named no working tree", ErrNoRepository, dir)
 	}
-	return Topology{Main: worktrees[0], Worktrees: worktrees}, nil
+	return Topology{Main: worktrees[0], Worktrees: worktrees, Locked: locked}, nil
 }
 
 // parse takes the `worktree <path>` lines and nothing else.
 //
 // Porcelain output is a block per working tree, and the first line of each
 // block is the path. HEAD, branch, bare and detached are none of our business
-// here -- a worktree without a commit still owns its directory.
+// here -- a worktree without a commit still owns its directory. `locked` is
+// the one other line read: bare, or followed by the reason, and it names the
+// path of the block it stands in.
 //
 // The paths come back cleaned, and therefore in the platform separator: git
 // prints `C:/Users/...` on Windows, filepath.Clean's last step rewrites that
 // to backslashes. Callers that compare the result against a literal have to
 // expect the platform's spelling.
-func parse(output string) []string {
-	var paths []string
+func parse(output string) (paths, locked []string) {
 	for _, line := range strings.Split(output, "\n") {
-		rest, found := strings.CutPrefix(strings.TrimRight(line, "\r"), "worktree ")
-		if found && rest != "" {
+		line = strings.TrimRight(line, "\r")
+		if rest, found := strings.CutPrefix(line, "worktree "); found && rest != "" {
 			paths = append(paths, filepath.Clean(rest))
+		} else if (line == "locked" || strings.HasPrefix(line, "locked ")) && len(paths) > 0 {
+			locked = append(locked, paths[len(paths)-1])
 		}
 	}
-	return paths
+	return paths, locked
+}
+
+// IsLocked says whether git marks the working tree at `dir` as locked.
+// Compared by what the paths open, for IsWorktree's reason.
+func (t Topology) IsLocked(dir string) bool {
+	for _, worktree := range t.Locked {
+		if sameDir(dir, worktree) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsWorktree says whether `dir` is one of git's working trees and not the

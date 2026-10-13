@@ -167,7 +167,7 @@ func TestAnInheritedGitDirDoesNotRedirectTheAnswer(t *testing.T) {
 }
 
 func TestReadIgnoresTheOrderOfUnrelatedPorcelainFields(t *testing.T) {
-	parsed := parse("worktree /a\nHEAD abc\nbranch refs/heads/main\n\nworktree /b\ndetached\n\n")
+	parsed, _ := parse("worktree /a\nHEAD abc\nbranch refs/heads/main\n\nworktree /b\ndetached\n\n")
 	// FromSlash because parse cleans, and on Windows filepath.Clean("/a")
 	// answers "\a": rewriting to the platform separator is Clean's last step.
 	// So the expectation follows the separator rather than the plan's literal
@@ -175,6 +175,39 @@ func TestReadIgnoresTheOrderOfUnrelatedPorcelainFields(t *testing.T) {
 	want := []string{filepath.FromSlash("/a"), filepath.FromSlash("/b")}
 	if !slices.Equal(parsed, want) {
 		t.Fatalf("parse = %q, want %q", parsed, want)
+	}
+}
+
+// `locked` stands alone on its line, or carries the reason after a space; the
+// line belongs to the block of the worktree it follows. One ahead of any
+// block is not an index panic but nothing.
+func TestParseNamesTheLockedWorktrees(t *testing.T) {
+	paths, locked := parse("locked\nworktree /a\nHEAD abc\n\nworktree /b\nlocked\n\n" +
+		"worktree /c\ndetached\nlocked gone fishing\n\nworktree /d\r\nbranch refs/heads/d\r\n\r\n")
+	if len(paths) != 4 {
+		t.Fatalf("parse paths = %q, want four", paths)
+	}
+	want := []string{filepath.FromSlash("/b"), filepath.FromSlash("/c")}
+	if !slices.Equal(locked, want) {
+		t.Fatalf("parse locked = %q, want %q", locked, want)
+	}
+}
+
+func TestIsLockedFollowsGitsLockMark(t *testing.T) {
+	main, claudeWt, plainWt := fixture(t)
+	git(t, main, "worktree", "lock", "--reason", "on a stick", claudeWt)
+	topology, err := Read(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !topology.IsLocked(claudeWt) {
+		t.Errorf("%s is locked and was not reported so", claudeWt)
+	}
+	for _, other := range []string{main, plainWt, t.TempDir()} {
+		if topology.IsLocked(other) {
+			t.Errorf("%s is not locked and was reported so", other)
+		}
 	}
 }
 
