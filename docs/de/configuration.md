@@ -197,7 +197,7 @@ eigenen Top-Level-Tabelle `[commit]` konfiguriert (siehe unten).
 Es gibt fünf Arten, in dieser Reihenfolge: `lint`, `types`, `test`,
 `coverage`, `graph`. Eine Anfrage an `loomux check` ist ein Profil, `all` (immer alle
 fünf Arten) oder eine Komma-Liste von Arten (`lint,types`). Die Namen `gofmt`,
-`commit-msg`, `gocover`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage` und `graph` sind
+`commit-msg`, `gocover`, `linecov`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage` und `graph` sind
 reserviert; ein Profil mit einem davon ist ein Ladefehler. `stop` ist nicht
 reserviert: es ist ein eingebautes Profil wie `edit` und `precommit`, und ein
 Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein

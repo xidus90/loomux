@@ -195,7 +195,7 @@ top-level `[commit]` table (see below).
 There are five kinds, in the order they are listed: `lint`, `types`, `test`,
 `coverage`, `graph`. A request to `loomux check` is a profile, `all` (always all five
 kinds) or a comma list of kinds (`lint,types`). The names `gofmt`,
-`commit-msg`, `gocover`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage` and `graph` are
+`commit-msg`, `gocover`, `linecov`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage` and `graph` are
 reserved; a profile with one of them is a load error. `stop` is not reserved:
 it is a built-in profile like `edit` and `precommit`, and a project whose suite
 is too slow for every turn end narrows it (`stop = ["lint", "types"]`).

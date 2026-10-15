@@ -1,0 +1,3 @@
+src/extra.cpp is absent from the report
+src/main.cpp:7 GCOVR_EXCL_LINE without a reason
+src/main.cpp:8 MYPROJ_EXCL_LINE without a reason

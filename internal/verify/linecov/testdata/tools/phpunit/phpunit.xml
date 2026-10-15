@@ -1,0 +1,2 @@
+<?xml version="1.0"?>
+<phpunit><source><include><directory suffix=".php">src</directory></include><exclude><directory>src/Legacy</directory></exclude></source></phpunit>

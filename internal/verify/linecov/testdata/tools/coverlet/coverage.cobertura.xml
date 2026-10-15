@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<coverage version="1.9"><sources><source>.</source></sources><packages><package name="."><classes><class name="Calc.cs" filename="Calc.cs"><lines><line number="3" hits="1"/><line number="5" hits="0"/><line number="7" hits="0"/></lines></class><class name="Generated/Models.cs" filename="Generated/Models.cs"><lines><line number="3" hits="0"/></lines></class></classes></package></packages></coverage>

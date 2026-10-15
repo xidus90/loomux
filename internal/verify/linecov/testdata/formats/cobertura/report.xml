@@ -1,0 +1,2 @@
+<?xml version="1.0" ?>
+<coverage version="7.6.1"><sources><source>src</source></sources><packages><package name="."><classes><class name="a.py" filename="a.py"><lines><line number="1" hits="1"/></lines></class></classes></package></packages></coverage>

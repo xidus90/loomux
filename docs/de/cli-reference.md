@@ -181,6 +181,91 @@ Beurteilt ein Go-Coverage-Profil des Moduls in `--dir` über
   Tor, kein `go.mod`, ein unlesbares Profil), `2` (kein `--profile`, ein
   unbekanntes Flag).
 
+### `loomux check linecov [--report <pfad|glob>]… [--root <verz>]`
+Hält jede ausführbare Zeile an einer Regel: gelaufen, oder mit Begründung
+ausgenommen. Gilt für jedes Werkzeug, das LCOV, Cobertura, JaCoCo-XML (auch
+Kover) oder ein Go-Profil schreibt, und liest Bereich und Marker aus dessen
+eigener Einstellungsdatei; ein Projekt braucht keine Konfiguration.
+
+- **Flags**: `--report` (wiederholbar) nennt eine Datei, ein Verzeichnis
+  (jede Datei darin) oder ein Glob, relativ zum Arbeitsverzeichnis; ohne
+  werden die Standardorte der Werkzeuge unter `--root` gelesen. `--root`
+  (Vorgabe `.`) ist der Bezug für Pfade, Einstellungen und Bereich.
+- **Bekannte Werkzeuge**: coverage.py, coverlet, gcovr, lcov, cargo-llvm-cov,
+  PHPUnit, nyc, c8, vitest, JaCoCo, Kover, Nano Coverage. Erkannt an der
+  Einstellungsdatei in `--root` (`.coveragerc`, `pyproject.toml`,
+  `*.runsettings`, `gcovr.cfg`, `.lcovrc`, `phpunit.xml`, `.nycrc`,
+  `.c8rc.json`, `package.json`, `project.godot`, …) oder an einem Bericht am
+  Standardort. cargo-llvm-cov hat weder eine Einstellungsdatei noch einen
+  Standardbericht; es gilt nur sein Marker. Muster folgen dem Dialekt des
+  jeweiligen Werkzeugs: Nano Coverage vergleicht `res://…`-Pfade; das `*`
+  von lcov überschreitet `/`; nyc, c8 und coverlet nehmen
+  minimatch-Klammermengen und -Klassen; coverage.py liest ein führendes `*/`
+  als beliebiges Präfix und ein abschließendes `/*` als alles darunter; die
+  regulären Ausdrücke von gcovr sind am Anfang des Pfads verankert.
+- **Standardausschlüsse**: nyc und c8 lassen die Standardausschlüsse von
+  `@istanbuljs/schema` weg (Testdateien, `*.d.ts`, Werkzeugkonfigurationen
+  wie `jest.config.js`), solange ihre Einstellungen kein eigenes `exclude`
+  nennen, und `node_modules`, solange `excludeNodeModules` (c8:
+  `exclude-node-modules`) nicht `false` ist. coverage.py misst nie Dateien
+  unter einem Verzeichnis `site-packages`. Datensätze von Dateien, die die
+  Einstellungen des Werkzeugs ausschließen, werden übergangen.
+- **Regeln**: eine Zeile ohne Treffer braucht `coverage:exempt <grund>` auf
+  ihr oder auf einer reinen Kommentarzeile direkt darüber; eine markierte
+  Zeile, die lief, ist ein Befund; `coverage:exempt-file <grund>` nimmt eine
+  ganze Datei aus. Ein Marker des Werkzeugs (`pragma: no cover`,
+  `LCOV_EXCL_LINE`, `@codeCoverageIgnore`, `istanbul ignore`,
+  `[ExcludeFromCodeCoverage]`, `#[coverage(off)]`, …) braucht einen Grund,
+  und der ist reiner Kommentartext: hinter dem Marker bis zum Ende des
+  Kommentars, auf einer reinen Kommentarzeile direkt darüber, die selbst
+  keinen Marker trägt, oder das `Justification = "…"` von coverlet. Die
+  Marker von PHPUnit müssen allein stehen, ihr Grund steht deshalb in der
+  Zeile darüber. Ein Marker deckt die Zeile darunter,
+  wenn vor ihm in seiner Zeile nur ein Kommentaranfang steht; ein
+  Attribut-Marker allein in seiner Zeile deckt das Element darunter. Die
+  Ganzdatei-Marker (`istanbul ignore file`, `c8 ignore file`, `v8 ignore
+  file`) nehmen eine Datei aus wie `coverage:exempt-file`. gcovr liest
+  `GCOVR_`, `GCOV_` und `LCOVR_EXCL_*`, lcov liest `LCOV_EXCL_*`; weitere
+  Präfixe und Marker aus `gcovr.cfg` (`exclude-pattern-prefix`) und
+  `.lcovrc` (`lcov_excl_*`) zählen mit. Eine Datei im Bereich des Werkzeugs,
+  die in keinem Bericht steht, eine Quelle, die neuer ist als der Bericht,
+  und ein Berichtspfad, der nicht auf der Platte liegt, sind Befunde. Kein
+  Bericht oder kein Zeilendatensatz ist rot.
+- **Wo ein Marker zählt**: ein Kommentar-Marker, `coverage:exempt`
+  eingeschlossen, zählt nur, wo er einen Kommentar eröffnet: Er ist der
+  erste Text des Kommentars oder beginnt selbst mit dem Kommentarzeichen
+  (`# pragma: no cover`), auch als nachgestellter Kommentar hinter Code. Ein
+  Marker in einer Zeichenkette oder mitten im Fließtext ist keiner. `--`,
+  `;`, `'`, `%` und `*` eröffnen einen Kommentar nur am Zeilenanfang. Der
+  Marker eines Werkzeugs zählt nur in Dateien der Sprachen dieses Werkzeugs
+  (`LCOV_EXCL_LINE` in C und C++, `pragma: no cover` in Python);
+  Attribut-Marker zählen, wo immer sie in der Zeile stehen.
+- **Übergangen, mit Hinweis** auf `stderr`: Datensätze außerhalb von
+  `--root` (Systemheader, Abhängigkeiten), Datensätze in einem anderen
+  Checkout darunter (verlinkter Worktree) und die Regel „fehlt im Bericht“
+  für jedes aktive Werkzeug, dessen Einstellungen keinen Bereich festlegen:
+  vitest und Gradle halten ihn in Code, coverage.py ohne `source` oder
+  `include` hat keinen. Der Hinweis entfällt, wenn ein anderes aktives
+  Werkzeug mit Bereich dieselben Sprachen misst.
+- **Ausgabe**: ein Befund je Zeile auf `stdout`, als
+  `<datei>:<zeile> <text>`, als `<datei> <text>`, wo keine Zeile passt (eine
+  Datei fehlt im Bericht), und als bloßer Text, wo keine Datei passt (kein
+  Bericht gefunden).
+- **Exit-Codes**: `0` (sauber), `1` (Befunde, oder ein unlesbarer Bericht
+  oder Wurzel), `2` (unbekanntes Flag, zusätzliches Argument).
+- **Quellen** für das Verhalten der Werkzeuge: coverage.py
+  [`files.py`](https://github.com/nedbat/coveragepy/blob/master/coverage/files.py),
+  [`inorout.py`](https://github.com/nedbat/coveragepy/blob/master/coverage/inorout.py)
+  und seine [Konfiguration](https://coverage.readthedocs.io/en/latest/config.html);
+  gcovr
+  [`configuration.py`](https://github.com/gcovr/gcovr/blob/main/src/gcovr/configuration.py);
+  [lcovrc(5)](https://github.com/linux-test-project/lcov/blob/master/docs/man/lcovrc.rst);
+  [php-code-coverage](https://github.com/sebastianbergmann/php-code-coverage/blob/main/src/StaticAnalysis/Visitor/IgnoredLinesFindingVisitor.php);
+  [`@istanbuljs/schema`](https://github.com/istanbuljs/schema/blob/master/default-exclude.js);
+  Nano Coverage mit
+  [`script_scanner.cpp`](https://github.com/IgorBayerl/nano-coverage-godot/blob/HEAD/src/instrumentation/script_scanner.cpp);
+  [v8-to-istanbul](https://github.com/istanbuljs/v8-to-istanbul).
+
 ### `loomux check commit-msg [flags] [<datei>]`
 Prüft eine Git-Commit-Nachricht auf Sprache und Einhaltung der Formatregeln oder kalibriert Schwellenwerte gegen die Git-Historie.
 
