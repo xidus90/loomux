@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.5.0] - 2026-10-15
+
+<https://github.com/xidus90/loomux/pull/101>
+
+### Added
+- `loomux check linecov`: a line coverage gate for every language that reads LCOV, Cobertura, JaCoCo/Kover and Go coverage reports and takes scope and exclusion markers from the coverage tools' own settings files.
+
 ## [1.4.1] - 2026-10-13
 
 <https://github.com/xidus90/loomux/pull/99>
