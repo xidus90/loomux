@@ -1,0 +1,12 @@
+SF:src/main.cpp
+DA:1,1
+DA:2,0
+DA:3,0
+DA:5,0
+DA:7,0
+DA:8,0
+DA:10,0
+end_of_record
+SF:src/third_party/vendored.cpp
+DA:2,0
+end_of_record

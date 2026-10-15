@@ -1,0 +1,179 @@
+# Coverage tools as data. Each entry says which files the tool measures,
+# where it writes its report, which settings files it reads (in its own
+# lookup order) and which keys there define its scope and markers. The
+# lint test in fixtures_test.go demands a fixture project for every
+# entry under testdata/tools/<name>/.
+#
+# include and exclude name settings keys: dirs hold directories or files,
+# globs hold patterns in the dialect named by patterns. defaults stand in
+# when no glob key is set; always apply whatever the settings say. A switch
+# is a boolean key whose exclude patterns apply while it is on.
+
+[tool.coveragepy]
+extensions = [".py"]
+reports = ["coverage.xml", "coverage.lcov"]
+settings = [
+  { file = ".coveragerc", syntax = "ini", section = "run" },
+  { file = ".coveragerc.toml", syntax = "toml", table = "run" },
+  { file = ".coveragerc.toml", syntax = "toml", table = "tool.coverage.run" },
+  { file = "setup.cfg", syntax = "ini", section = "coverage:run" },
+  { file = "tox.ini", syntax = "ini", section = "coverage:run" },
+  { file = "pyproject.toml", syntax = "toml", table = "tool.coverage.run" },
+]
+include = { dirs = ["source", "source_dirs"], globs = ["include"] }
+# coverage.py never measures installed packages (inorout.py,
+# _add_third_party_paths); a virtualenv is not skipped by its name.
+exclude = { globs = ["omit"], always = ["**/site-packages/**"] }
+patterns = "coveragepy"
+markers = [
+  { label = "pragma: no cover", pattern = '#\s*(?:pragma|PRAGMA)[:\s]?\s*(?:no|NO)\s*(?:cover|COVER)' },
+]
+
+[tool.coverlet]
+extensions = [".cs"]
+reports = ["coverage.cobertura.xml", "coverage.info"]
+settings = [
+  { file = "*.runsettings", syntax = "xml", path = "RunSettings/DataCollectionRunSettings/DataCollectors/DataCollector/Configuration" },
+]
+exclude = { globs = ["ExcludeByFile"] }
+patterns = "minimatch"
+markers = [
+  { label = "ExcludeFromCodeCoverage", pattern = '\[\s*(?:assembly:\s*)?ExcludeFrom(?:Code)?Coverage(?:Attribute)?\s*(?:\(\s*(?:Justification\s*=\s*"(?P<reason>[^"]*)")?\s*\))?\s*\]' },
+]
+
+[tool.gcovr]
+extensions = [".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"]
+settings = [{ file = "gcovr.cfg", syntax = "ini" }]
+include = { globs = ["filter"] }
+exclude = { globs = ["exclude"] }
+patterns = "regex"
+markers = [
+  { label = "GCOVR_EXCL_LINE", pattern = '\b(?:GCOVR?|LCOVR)_EXCL_LINE\b' },
+  { label = "GCOVR_EXCL_START", pattern = '\b(?:GCOVR?|LCOVR)_EXCL_START\b', block = "start" },
+  { label = "GCOVR_EXCL_STOP", pattern = '\b(?:GCOVR?|LCOVR)_EXCL_STOP\b', block = "stop", no_reason = true },
+]
+marker_keys = [
+  { key = "exclude-pattern-prefix", template = '\b{}_EXCL_LINE\b' },
+  { key = "exclude-pattern-prefix", template = '\b{}_EXCL_START\b', block = "start" },
+  { key = "exclude-pattern-prefix", template = '\b{}_EXCL_STOP\b', block = "stop", no_reason = true },
+]
+
+[tool.lcov]
+extensions = [".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"]
+settings = [{ file = ".lcovrc", syntax = "ini" }]
+include = { globs = ["include"] }
+exclude = { globs = ["exclude"] }
+patterns = "lcov"
+markers = [
+  { label = "LCOV_EXCL_LINE", pattern = '\bLCOV_EXCL_LINE\b' },
+  { label = "LCOV_EXCL_START", pattern = '\bLCOV_EXCL_START\b', block = "start" },
+  { label = "LCOV_EXCL_STOP", pattern = '\bLCOV_EXCL_STOP\b', block = "stop", no_reason = true },
+]
+marker_keys = [
+  { key = "lcov_excl_line" },
+  { key = "lcov_excl_start", block = "start" },
+  { key = "lcov_excl_stop", block = "stop", no_reason = true },
+]
+
+[tool.rust]
+extensions = [".rs"]
+markers = [
+  { label = "coverage(off)", pattern = '#!?\[\s*(?:cfg_attr\s*\([^,]*,\s*)?coverage\s*\(\s*off\s*\)\s*\)?\s*\]' },
+]
+
+[tool.phpunit]
+extensions = [".php"]
+settings = [
+  { file = "phpunit.xml", syntax = "xml", path = "phpunit/source" },
+  { file = "phpunit.dist.xml", syntax = "xml", path = "phpunit/source" },
+  { file = "phpunit.xml.dist", syntax = "xml", path = "phpunit/source" },
+]
+include = { dirs = ["include/directory", "include/file"] }
+exclude = { dirs = ["exclude/directory", "exclude/file"] }
+markers = [
+  { label = "@codeCoverageIgnore", pattern = '@codeCoverageIgnore\s*(?:\*/)?\s*$' },
+  { label = "@codeCoverageIgnoreStart", pattern = '@codeCoverageIgnoreStart\s*(?:\*/)?\s*$', block = "start" },
+  { label = "@codeCoverageIgnoreEnd", pattern = '@codeCoverageIgnoreEnd\s*(?:\*/)?\s*$', block = "stop", no_reason = true },
+]
+
+[tool.nyc]
+extensions = [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]
+reports = ["coverage/lcov.info", "coverage/cobertura-coverage.xml"]
+settings = [
+  { file = ".nycrc", syntax = "json" },
+  { file = ".nycrc.json", syntax = "json" },
+  { file = "package.json", syntax = "json", path = "nyc" },
+]
+include = { globs = ["include"] }
+# The defaults are @istanbuljs/schema's default-exclude.js with its test
+# file extensions spelled out; a configured exclude replaces them.
+exclude.globs = ["exclude"]
+exclude.defaults = [
+  "coverage/**", "packages/*/test{,s}/**", "**/*.d.ts", "test{,s}/**",
+  "test{,-*}.{js,cjs,mjs,ts,tsx,jsx}", "**/*{.,-}test.{js,cjs,mjs,ts,tsx,jsx}", "**/__tests__/**",
+  "**/{ava,babel,nyc}.config.{js,cjs,mjs}", "**/jest.config.{js,cjs,mjs,ts}",
+  "**/{karma,rollup,webpack}.config.js", "**/.{eslint,mocha}rc.{js,cjs}",
+]
+switches = [{ key = "excludeNodeModules", default = true, exclude = ["**/node_modules/**"] }]
+patterns = "minimatch"
+markers = [
+  { label = "istanbul ignore", pattern = 'istanbul\s+ignore\s+(?:if|else|next)\b' },
+  { label = "istanbul ignore file", pattern = 'istanbul\s+ignore\s+file\b', block = "file" },
+]
+
+[tool.c8]
+extensions = [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]
+reports = ["coverage/lcov.info", "coverage/cobertura-coverage.xml"]
+settings = [
+  { file = ".c8rc", syntax = "json" },
+  { file = ".c8rc.json", syntax = "json" },
+  { file = "package.json", syntax = "json", path = "c8" },
+]
+include = { globs = ["include"] }
+# c8 takes nyc's defaults from @istanbuljs/schema as well.
+exclude.globs = ["exclude"]
+exclude.defaults = [
+  "coverage/**", "packages/*/test{,s}/**", "**/*.d.ts", "test{,s}/**",
+  "test{,-*}.{js,cjs,mjs,ts,tsx,jsx}", "**/*{.,-}test.{js,cjs,mjs,ts,tsx,jsx}", "**/__tests__/**",
+  "**/{ava,babel,nyc}.config.{js,cjs,mjs}", "**/jest.config.{js,cjs,mjs,ts}",
+  "**/{karma,rollup,webpack}.config.js", "**/.{eslint,mocha}rc.{js,cjs}",
+]
+switches = [{ key = "exclude-node-modules", default = true, exclude = ["**/node_modules/**"] }]
+patterns = "minimatch"
+markers = [
+  { label = "c8 ignore next", pattern = 'c8\s+ignore\s+next\b' },
+  { label = "c8 ignore start", pattern = 'c8\s+ignore\s+start\b', block = "start" },
+  { label = "c8 ignore stop", pattern = 'c8\s+ignore\s+stop\b', block = "stop", no_reason = true },
+  { label = "c8 ignore file", pattern = 'c8\s+ignore\s+file\b', block = "file" },
+]
+
+# vitest keeps its settings in code (vitest.config.ts), which is not read:
+# the profile brings report locations and the v8 markers only.
+[tool.vitest]
+extensions = [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue", ".svelte"]
+reports = ["coverage/lcov.info", "coverage/cobertura-coverage.xml"]
+markers = [
+  { label = "v8 ignore", pattern = 'v8\s+ignore\s+(?:next|if|else)\b' },
+  { label = "v8 ignore start", pattern = 'v8\s+ignore\s+start\b', block = "start" },
+  { label = "v8 ignore stop", pattern = 'v8\s+ignore\s+stop\b', block = "stop", no_reason = true },
+  { label = "v8 ignore file", pattern = 'v8\s+ignore\s+file\b', block = "file" },
+]
+
+# Gradle and Maven keep JaCoCo's settings in build code; the profile brings
+# report locations only. Both Gradle locations are best known, not documented.
+[tool.jacoco]
+extensions = [".java", ".kt"]
+reports = ["target/site/jacoco/jacoco.xml", "build/reports/jacoco/test/jacocoTestReport.xml"]
+
+[tool.kover]
+extensions = [".kt", ".java"]
+reports = ["build/reports/kover/report.xml"]
+
+[tool.nanocoverage]
+extensions = [".gd"]
+reports = ["coverage-report/lcov.info"]
+settings = [{ file = "project.godot", syntax = "godotcfg", section = "nano_coverage" }]
+scope = "all"
+exclude = { globs = ["general/ignore_paths"], defaults = ["**/*_test.gd"] }
+switches = [{ key = "general/ignore_addons", default = true, exclude = ["res://addons/**"] }]
+patterns = "nano"

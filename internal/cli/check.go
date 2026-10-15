@@ -23,6 +23,7 @@ import (
 	"github.com/xidus90/loomux/internal/verify"
 	"github.com/xidus90/loomux/internal/verify/commit"
 	"github.com/xidus90/loomux/internal/verify/gocover"
+	"github.com/xidus90/loomux/internal/verify/linecov"
 )
 
 var coverFunc = runCoverFunc
@@ -60,7 +61,7 @@ var (
 
 func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, graph-fresh, blast-audit")
+		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, linecov, graph-fresh, blast-audit")
 		return 2
 	}
 	switch args[0] {
@@ -68,6 +69,8 @@ func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return checkCommitMsg(args[1:], stdout, stderr)
 	case "gocover":
 		return checkGocover(args[1:], stdout, stderr)
+	case "linecov":
+		return checkLinecov(args[1:], stdout, stderr)
 	case "graph-fresh":
 		return checkGraphFresh(args[1:], stdout, stderr)
 	case "blast-audit":
@@ -472,6 +475,44 @@ func checkCommitMsg(args []string, stdout, stderr io.Writer) int {
 
 	if err := commit.Check(string(content), policy); err != nil {
 		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	return 0
+}
+
+// stringList collects a flag that may be given more than once.
+type stringList []string
+
+func (s *stringList) String() string     { return strings.Join(*s, ",") }
+func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
+
+// checkLinecov holds every executable line to one rule, in any language
+// whose tool writes LCOV, Cobertura, JaCoCo or a Go profile.
+func checkLinecov(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("check linecov", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var reports stringList
+	fs.Var(&reports, "report", "coverage report: file, directory or glob (repeatable; default: the tools' own locations)")
+	root := fs.String("root", ".", "directory paths, settings and scope refer to")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(stderr, "loomux check linecov: unexpected argument %q\n", fs.Arg(0))
+		return 2
+	}
+	res, err := linecov.Check(linecov.Options{Root: *root, Reports: reports})
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check linecov: %v\n", err)
+		return 1
+	}
+	for _, n := range res.Notes {
+		fmt.Fprintf(stderr, "loomux check linecov: note: %s\n", n)
+	}
+	for _, f := range res.Findings {
+		fmt.Fprintln(stdout, f)
+	}
+	if len(res.Findings) > 0 {
 		return 1
 	}
 	return 0

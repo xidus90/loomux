@@ -1,0 +1,12 @@
+SF:core/a.gd
+DA:3,1
+end_of_record
+SF:harness/probe.gd
+DA:3,0
+end_of_record
+SF:addons/x/plugin.gd
+DA:3,0
+end_of_record
+SF:test/a_test.gd
+DA:3,0
+end_of_record

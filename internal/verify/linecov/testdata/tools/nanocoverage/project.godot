@@ -1,0 +1,6 @@
+config_version=5
+
+[nano_coverage]
+
+general/ignore_paths=PackedStringArray("**/*_test.gd", "res://harness/**")
+general/ignore_addons=true

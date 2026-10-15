@@ -1,0 +1,5 @@
+lcov_excl_line = NOCOV_LINE
+lcov_excl_start = NOCOV_START
+lcov_excl_stop = NOCOV_STOP
+include = */src/*
+exclude = */third_party/*

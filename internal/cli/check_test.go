@@ -23,7 +23,7 @@ import (
 )
 
 func TestCheckNeedsARequest(t *testing.T) {
-	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, graph-fresh, blast-audit\n"
+	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, linecov, graph-fresh, blast-audit\n"
 	if code, _, errOut := run("check"); code != 2 || errOut != want {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
@@ -1182,4 +1182,36 @@ func TestCheckStopLeavesTheSourceLaneOut(t *testing.T) {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
 	noIndexCopy(t, root)
+}
+
+func TestCheckLinecovPassesACleanProject(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "a.c"), "x();\n")
+	writeFile(t, filepath.Join(root, "r.info"), "SF:a.c\nDA:1,1\nend_of_record\n")
+	code, out, errOut := run("check", "linecov", "--root", root, "--report", filepath.Join(root, "r.info"))
+	if code != 0 || out != "" {
+		t.Fatalf("code %d out %q err %q", code, out, errOut)
+	}
+}
+
+func TestCheckLinecovPrintsFindingsAndNotes(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "src", "a.js"), "x();\ny();\n")
+	writeFile(t, filepath.Join(root, "coverage", "lcov.info"), "SF:src/a.js\nDA:1,1\nDA:2,0\nend_of_record\n")
+	code, out, errOut := run("check", "linecov", "--root", root)
+	if code != 1 || out != "src/a.js:2 not covered\n" || !strings.Contains(errOut, "loomux check linecov: note: vitest: no scope") {
+		t.Fatalf("code %d out %q err %q", code, out, errOut)
+	}
+}
+
+func TestCheckLinecovRefusesABadCall(t *testing.T) {
+	if code, _, _ := run("check", "linecov", "--nope"); code != 2 {
+		t.Fatalf("code %d", code)
+	}
+	if code, _, errOut := run("check", "linecov", "extra"); code != 2 || !strings.Contains(errOut, `unexpected argument "extra"`) {
+		t.Fatalf("code %d err %q", code, errOut)
+	}
+	if code, _, errOut := run("check", "linecov", "--root", filepath.Join(t.TempDir(), "absent")); code != 1 || !strings.HasPrefix(errOut, "loomux check linecov: ") {
+		t.Fatalf("code %d err %q", code, errOut)
+	}
 }

@@ -1,0 +1,12 @@
+SF:src/lib.c
+DA:1,1
+DA:2,0
+DA:4,0
+DA:6,0
+DA:8,0
+DA:10,0
+DA:11,0
+end_of_record
+SF:src/third_party/ext.c
+DA:2,0
+end_of_record

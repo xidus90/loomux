@@ -1,0 +1,2 @@
+src/Calc.php:10 @codeCoverageIgnore without a reason
+src/Extra.php is absent from the report

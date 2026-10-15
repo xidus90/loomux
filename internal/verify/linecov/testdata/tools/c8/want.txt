@@ -1,0 +1,2 @@
+src/app.js:8 c8 ignore next without a reason
+src/untested.js is absent from the report

@@ -171,6 +171,84 @@ Judges a Go coverage profile of the module in `--dir` through
 - **Exit Codes**: `0` (passed), `1` (a function or the total below the gate, no
   `go.mod`, an unreadable profile), `2` (no `--profile`, an unknown flag).
 
+### `loomux check linecov [--report <path|glob>]… [--root <dir>]`
+Holds every executable line to one rule: it ran, or it carries an exemption
+with a reason. Works for any tool that writes LCOV, Cobertura, JaCoCo XML
+(also Kover) or a Go coverage profile, and reads scope and markers from the
+tool's own settings file, so a project needs no configuration.
+
+- **Flags**: `--report` (repeatable) names a file, a directory (every file in
+  it) or a glob, relative to the working directory; without it, the tools'
+  default report locations below `--root` are read. `--root` (default `.`)
+  is what paths, settings and scope refer to.
+- **Tools it knows**: coverage.py, coverlet, gcovr, lcov, cargo-llvm-cov,
+  PHPUnit, nyc, c8, vitest, JaCoCo, Kover, Nano Coverage. Each is found by
+  its settings file in `--root` (`.coveragerc`, `pyproject.toml`,
+  `*.runsettings`, `gcovr.cfg`, `.lcovrc`, `phpunit.xml`, `.nycrc`,
+  `.c8rc.json`, `package.json`, `project.godot`, …) or by a report at its
+  default location. cargo-llvm-cov has neither a settings file nor a default
+  report; only its marker applies. Patterns follow each tool's own dialect:
+  Nano Coverage matches `res://…` paths; lcov's `*` crosses `/`; nyc, c8 and
+  coverlet take minimatch brace sets and classes; coverage.py reads a
+  leading `*/` as any prefix and a trailing `/*` as anything below; gcovr's
+  regular expressions are anchored at the start of the path.
+- **Default excludes**: nyc and c8 leave out the default excludes of
+  `@istanbuljs/schema` (test files, `*.d.ts`, tool configs such as
+  `jest.config.js`) unless their settings name an `exclude` of their own,
+  and `node_modules` unless `excludeNodeModules` (c8:
+  `exclude-node-modules`) is `false`. coverage.py never measures files below
+  a `site-packages` directory. Records of files the tool's settings exclude
+  are skipped.
+- **Rules**: a line with no hits needs `coverage:exempt <reason>` on it, or
+  on a comment-only line directly above it; a marked line that ran is a
+  finding; `coverage:exempt-file <reason>` exempts a whole file. A tool's own
+  marker (`pragma: no cover`, `LCOV_EXCL_LINE`, `@codeCoverageIgnore`,
+  `istanbul ignore`, `[ExcludeFromCodeCoverage]`, `#[coverage(off)]`, …)
+  needs a reason, which is comment text only: after the marker up to the
+  comment's closer, on a pure comment line directly above that carries no
+  marker itself, or coverlet's `Justification = "…"`. PHPUnit's markers must
+  stand alone, so their reason goes on the line above. A marker covers the
+  line below when only one comment opener precedes it on its line; an
+  attribute marker alone on its line covers the item below. The whole-file
+  markers (`istanbul ignore file`, `c8 ignore file`, `v8 ignore file`) exempt
+  a file like `coverage:exempt-file`. gcovr reads `GCOVR_`, `GCOV_` and
+  `LCOVR_EXCL_*`, lcov reads `LCOV_EXCL_*`; extra prefixes and markers from
+  `gcovr.cfg` (`exclude-pattern-prefix`) and `.lcovrc` (`lcov_excl_*`) count
+  too. A file in the tool's scope that is missing from every report, a
+  source newer than the report, and a report path that is not on disk are
+  findings. No report, or no line record, is red.
+- **Where a marker counts**: a comment marker, `coverage:exempt` included,
+  counts only where it opens a comment: it is the comment's first text, or
+  it starts with the opener itself (`# pragma: no cover`), also as a
+  trailing comment after code. A marker in a string or in the middle of
+  prose is none. `--`, `;`, `'`, `%` and `*` open a comment only at the start
+  of a line. A tool's marker counts only in files of that tool's languages
+  (`LCOV_EXCL_LINE` in C and C++, `pragma: no cover` in Python); attribute
+  markers count wherever they stand on the line.
+- **Skipped, with a note** on `stderr`: records outside `--root` (system
+  headers, dependencies), records inside another checkout below it (a linked
+  worktree), and the absence rule for any active tool whose settings define
+  no scope: vitest and Gradle keep it in code, coverage.py without `source`
+  or `include` has none. The note stays away when another active tool with a
+  scope measures the same languages.
+- **Output**: one finding per line on `stdout`, as `<file>:<line> <text>`,
+  as `<file> <text>` where no line applies (a file absent from the report),
+  and as bare text where no file applies (no report found).
+- **Exit Codes**: `0` (clean), `1` (findings, or an unreadable report or
+  root), `2` (an unknown flag, an extra argument).
+- **Sources** for the tools' behaviour: coverage.py
+  [`files.py`](https://github.com/nedbat/coveragepy/blob/master/coverage/files.py),
+  [`inorout.py`](https://github.com/nedbat/coveragepy/blob/master/coverage/inorout.py)
+  and its [configuration](https://coverage.readthedocs.io/en/latest/config.html);
+  gcovr
+  [`configuration.py`](https://github.com/gcovr/gcovr/blob/main/src/gcovr/configuration.py);
+  [lcovrc(5)](https://github.com/linux-test-project/lcov/blob/master/docs/man/lcovrc.rst);
+  [php-code-coverage](https://github.com/sebastianbergmann/php-code-coverage/blob/main/src/StaticAnalysis/Visitor/IgnoredLinesFindingVisitor.php);
+  [`@istanbuljs/schema`](https://github.com/istanbuljs/schema/blob/master/default-exclude.js);
+  Nano Coverage's
+  [`script_scanner.cpp`](https://github.com/IgorBayerl/nano-coverage-godot/blob/HEAD/src/instrumentation/script_scanner.cpp);
+  [v8-to-istanbul](https://github.com/istanbuljs/v8-to-istanbul).
+
 ### `loomux check commit-msg [flags] [<file>]`
 Validates a git commit message file against language and formatting rules, or measures thresholds against the git history.
 

@@ -1,0 +1,2 @@
+<?xml version="1.0"?>
+<coverage version="1"><sources><source>src</source></sources><packages><package name="."><classes><class name="Calc.php" filename="Calc.php"><lines><line number="2" hits="1"/><line number="4" hits="0"/><line number="7" hits="0"/><line number="9" hits="1"/><line number="10" hits="0"/></lines></class><class name="Legacy/Old.php" filename="Legacy/Old.php"><lines><line number="2" hits="0"/></lines></class></classes></package></packages></coverage>

@@ -1,0 +1,1 @@
+core/b.gd is absent from the report
