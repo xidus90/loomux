@@ -7,6 +7,18 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.7.0] - 2026-10-16
+
+<https://github.com/xidus90/loomux/pull/104>
+
+### Added
+- `loomux check rules [--root <path>] [--cached]`: checks the layer map under `[rules.layers.*]` for edges a layer may not use, base classes outside its `bases`, sources outside every layer, missing test modules and leftover coverage instrumentation.
+- The `[rules.layers.<name>]` table with `paths`, `may_use`, `bases`, `tests` and `checked`; `loomux config set rules.layers.<name>.may_use … --propose` proposes a change.
+- A `rules` lane, part of the default `edit`, `precommit` and `stop` profiles, planned only in a project with `[rules]`.
+### Changed
+- The gdscript `lint` preset runs `gdformat --check` beside `gdlint`; exclude vendored code with `excluded_directories` in `.gdformatrc`.
+- The code graph stores the line of each edge (schema 3); an existing graph is rebuilt once on the next refresh.
+
 ## [1.6.0] - 2026-10-16
 
 <https://github.com/xidus90/loomux/pull/102>
