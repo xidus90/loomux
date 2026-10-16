@@ -24,11 +24,14 @@ import (
 // and `from . import b` both name the package, `import pkg.a` and `from pkg
 // import a` both name pkg/a.py) and all of them are one dependency; `from .
 // import sub` in a package's __init__.py names that very file.
-func resolvePython(files []extract.Result) []model.Edge {
+func resolvePython(files []extract.Result) ([]model.Edge, []Unresolved) {
 	x := pyIndexOf(files)
 	var out []model.Edge
+	var un []Unresolved
 	var calls []extract.RawEdge
-	imported := map[[2]model.NodeID]bool{}
+	// The position in out of each import edge, which keeps the smallest line
+	// of the statements that make it.
+	imported := map[[2]model.NodeID]int{}
 	for _, f := range files {
 		for _, raw := range f.Edges {
 			switch raw.Relation {
@@ -40,17 +43,27 @@ func resolvePython(files []extract.Result) []model.Edge {
 			case model.RelationImports:
 				target, ok := x.module(raw.File, raw.Specifier)
 				key := [2]model.NodeID{raw.Source, model.NodeID(target)}
-				if !ok || key[1] == raw.Source || imported[key] {
+				if !ok || key[1] == raw.Source {
 					continue
 				}
-				imported[key] = true
+				if i, seen := imported[key]; seen {
+					out[i].Line = min(out[i].Line, raw.Line)
+					continue
+				}
+				imported[key] = len(out)
 				out = append(out, model.Edge{
 					Source: raw.Source, Target: key[1],
 					Relation: model.RelationImports, Confidence: model.ConfidenceExtracted,
+					Line: raw.Line,
 				})
 			case model.RelationExtends:
-				base, ok := x.classNamed(raw.File, raw.Receiver, raw.Name, raw.Source)
-				if !ok {
+				base, why := x.classNamed(raw.File, raw.Receiver, raw.Name, raw.Source)
+				if why != "" {
+					name := raw.Name
+					if raw.Receiver != "" {
+						name = raw.Receiver + "." + raw.Name
+					}
+					un = append(un, Unresolved{Source: raw.Source, File: raw.File, Line: raw.Line, Name: name, Reason: why})
 					continue
 				}
 				// Recorded for the lookups that walk a class's bases, which
@@ -61,6 +74,7 @@ func resolvePython(files []extract.Result) []model.Edge {
 				out = append(out, model.Edge{
 					Source: raw.Source, Target: base,
 					Relation: model.RelationExtends, Confidence: model.ConfidenceExtracted,
+					Line: raw.Line,
 				})
 			case model.RelationCalls:
 				calls = append(calls, raw)
@@ -73,7 +87,7 @@ func resolvePython(files []extract.Result) []model.Edge {
 			out = append(out, e)
 		}
 	}
-	return out
+	return out, un
 }
 
 // pyIndex is every lookup the Python resolver makes, over the Python files
@@ -324,19 +338,25 @@ func (x *pyIndex) absolute(file, spec string) (string, bool) {
 // one is bound where needs the order and the branches, and this index keeps
 // neither -- and the import decides the same way. A receiver names no class
 // being defined and passes "".
-func (x *pyIndex) classNamed(file, receiver, name string, defining model.NodeID) (model.NodeID, bool) {
+func (x *pyIndex) classNamed(file, receiver, name string, defining model.NodeID) (model.NodeID, Reason) {
 	if receiver != "" {
 		target, ok := x.moduleNamed(file, receiver)
 		if !ok {
-			return "", false
+			return "", ReasonNone
 		}
 		return onlyClass(x.offered(target, name), defining)
 	}
-	if id, ok := onlyClass(x.perFile[file][name], defining); ok {
-		return id, true
+	id, why := onlyClass(x.perFile[file][name], defining)
+	if why == "" {
+		return id, ""
 	}
 	nodes, _ := x.imported(file, name)
-	return onlyClass(nodes, defining)
+	id, again := onlyClass(nodes, defining)
+	if again == ReasonNone && why == ReasonAmbiguous {
+		// Several classes of the module and none from an import: still several.
+		again = why
+	}
+	return id, again
 }
 
 // call resolves one raw call by its shape:
@@ -377,8 +397,8 @@ func (x *pyIndex) selector(raw extract.RawEdge) (model.Edge, bool) {
 	if i := strings.LastIndexByte(raw.Receiver, '.'); i >= 0 {
 		receiver, name = raw.Receiver[:i], raw.Receiver[i+1:]
 	}
-	class, ok := x.classNamed(raw.File, receiver, name, "")
-	if !ok {
+	class, why := x.classNamed(raw.File, receiver, name, "")
+	if why != "" {
 		return model.Edge{}, false
 	}
 	return one(raw, x.method(class, raw.Name), model.ConfidenceExtracted)
@@ -600,17 +620,20 @@ func pyJoin(module, name string) string {
 // onlyClass is the id of the one class among nodes; false when there is none,
 // or more than one, or when the one is except. except is counted, not
 // skipped: beside another class of its name it leaves the two a guess.
-func onlyClass(nodes []model.Node, except model.NodeID) (model.NodeID, bool) {
+func onlyClass(nodes []model.Node, except model.NodeID) (model.NodeID, Reason) {
 	var found []model.NodeID
 	for _, n := range nodes {
 		if n.Kind == "class" {
 			found = append(found, n.ID)
 		}
 	}
-	if len(found) != 1 || found[0] == except {
-		return "", false
+	switch {
+	case len(found) > 1:
+		return "", ReasonAmbiguous
+	case len(found) == 0 || found[0] == except:
+		return "", ReasonNone
 	}
-	return found[0], true
+	return found[0], ""
 }
 
 // pyBuiltin reports whether name is one of Python's builtins: every public

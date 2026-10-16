@@ -15,7 +15,7 @@ import (
 
 func graph() *model.Graph {
 	return &model.Graph{
-		Meta: model.Meta{Version: 2, Extractor: "go/1", Languages: []string{"go"}, NodeCount: 2, EdgeCount: 1},
+		Meta: model.Meta{Version: 3, Extractor: "go/1", Languages: []string{"go"}, NodeCount: 2, EdgeCount: 1},
 		Nodes: []model.Node{
 			{ID: "a.go", Kind: model.KindFile, Path: "a.go", BodyHash: "h1", Exported: true, BodyText: "residual text"},
 			{ID: "a.go#F", Kind: "function", Path: "a.go", Name: "F", BodyHash: "h2", BodyText: "body text"},

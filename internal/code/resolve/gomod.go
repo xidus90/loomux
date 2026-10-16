@@ -37,7 +37,7 @@ type Module struct {
 // is a dependency this stage does not take. A go.mod without a module
 // directive declares nothing and is skipped.
 func Modules(root string, files []string) ([]Module, error) {
-	var out []Module
+	bodies := map[string]string{}
 	for _, rel := range files {
 		if path.Base(rel) != "go.mod" {
 			continue
@@ -46,7 +46,26 @@ func Modules(root string, files []string) ([]Module, error) {
 		if err != nil {
 			return nil, err
 		}
-		mod, ok := moduleDirective(string(b))
+		bodies[rel] = string(b)
+	}
+	return ModulesFrom(bodies)
+}
+
+// ModulesFrom is Modules over contents already read: the repo-relative path
+// of each go.mod to its text, for a caller that reads the index and not the
+// disk. A path not named go.mod is skipped.
+func ModulesFrom(gomods map[string]string) ([]Module, error) {
+	rels := make([]string, 0, len(gomods))
+	for rel := range gomods {
+		rels = append(rels, rel)
+	}
+	sort.Strings(rels)
+	var out []Module
+	for _, rel := range rels {
+		if path.Base(rel) != "go.mod" {
+			continue
+		}
+		mod, ok := moduleDirective(gomods[rel])
 		if !ok {
 			continue
 		}
@@ -58,7 +77,7 @@ func Modules(root string, files []string) ([]Module, error) {
 	}
 	// Longest path first, so resolveImport can take the first match and have
 	// the most specific module.
-	sort.Slice(out, func(i, j int) bool { return len(out[i].Path) > len(out[j].Path) })
+	sort.SliceStable(out, func(i, j int) bool { return len(out[i].Path) > len(out[j].Path) })
 	return out, nil
 }
 

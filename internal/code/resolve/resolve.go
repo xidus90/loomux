@@ -8,15 +8,45 @@ import (
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
-// Graph resolves every raw edge and returns a whole wiring graph. extractor is
-// the stamp the graph's meta carries; the caller names it, because this
-// package knows the rules of each language and not the list of them.
+// Reason says why a base class stayed unresolved.
+type Reason string
+
+const (
+	// ReasonNone: the name binds to nothing the project defines -- an engine
+	// class, a builtin or an installed package.
+	ReasonNone Reason = "none"
+	// ReasonAmbiguous: the name binds to several definitions, so no edge is
+	// drawn.
+	ReasonAmbiguous Reason = "ambiguous"
+)
+
+// Unresolved is an extends edge that gave no edge: the base class as written,
+// and where.
+type Unresolved struct {
+	Source model.NodeID
+	File   string
+	Line   int
+	Name   string
+	Reason Reason
+}
+
+// Graph is GraphWith without the unresolved bases.
+func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph {
+	g, _ := GraphWith(files, mods, extractor)
+	return g
+}
+
+// GraphWith resolves every raw edge and returns a whole wiring graph, and the
+// extends edges that stayed unresolved, in the order of the languages and
+// files. extractor is the stamp the graph's meta carries; the caller names it,
+// because this package knows the rules of each language and not the list of
+// them.
 //
 // Each language is resolved against its own files alone: a Go call never
 // lands on a Python function of the same name, and a name defined once per
 // language is still unique within each; a Godot path alone may land on a file
 // of another language, by its path.
-func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph {
+func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.Graph, []Unresolved) {
 	groups := byLanguage(files)
 	g := &model.Graph{Meta: model.Meta{
 		Version: schemaVersion, Extractor: extractor, Languages: languagesOf(groups),
@@ -33,8 +63,11 @@ func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph
 			paths[f.Path] = true
 		}
 	}
+	var unresolved []Unresolved
 	for _, lang := range g.Meta.Languages {
-		g.Edges = append(g.Edges, edgesOf(lang, groups[lang], mods, paths)...)
+		edges, un := edgesOf(lang, groups[lang], mods, paths)
+		g.Edges = append(g.Edges, edges...)
+		unresolved = append(unresolved, un...)
 	}
 	sort.Slice(g.Nodes, func(i, j int) bool { return g.Nodes[i].ID < g.Nodes[j].ID })
 	sort.Slice(g.Edges, func(i, j int) bool {
@@ -49,12 +82,12 @@ func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph
 	})
 	g.Meta.NodeCount = len(g.Nodes)
 	g.Meta.EdgeCount = len(g.Edges)
-	return g
+	return g, unresolved
 }
 
 // schemaVersion is the version Graph writes. model refuses anything else, and
 // the two are bumped together.
-const schemaVersion = 2
+const schemaVersion = 3
 
 // byLanguage groups the files by the language that extracted them, each group
 // in the order the files arrived. That order is kept on purpose: the edge sort
@@ -90,7 +123,7 @@ func languagesOf(groups map[string][]extract.Result) []string {
 // extractor already resolved, and loses every other edge: a call or an import
 // resolved by another language's rules would be a guess dressed up as an
 // edge.
-func edgesOf(lang string, files []extract.Result, mods []Module, paths map[string]bool) []model.Edge {
+func edgesOf(lang string, files []extract.Result, mods []Module, paths map[string]bool) ([]model.Edge, []Unresolved) {
 	switch lang {
 	case "python":
 		return resolvePython(files)
@@ -109,7 +142,7 @@ func edgesOf(lang string, files []extract.Result, mods []Module, paths map[strin
 				}
 			}
 		}
-		return out
+		return out, nil
 	}
 	idx := index(files)
 	for _, f := range files {
@@ -119,7 +152,7 @@ func edgesOf(lang string, files []extract.Result, mods []Module, paths map[strin
 			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 // repoIndex is every lookup the resolver makes, built once.
@@ -205,7 +238,7 @@ func (x *repoIndex) resolveEdge(raw extract.RawEdge, mods []Module) (model.Edge,
 	case model.RelationImports:
 		return model.Edge{
 			Source: raw.Source, Target: x.importTarget(raw.Specifier, mods),
-			Relation: model.RelationImports, Confidence: model.ConfidenceExtracted,
+			Relation: model.RelationImports, Confidence: model.ConfidenceExtracted, Line: raw.Line,
 		}, true
 	case model.RelationCalls:
 		return x.resolveCall(raw, mods)
@@ -321,6 +354,6 @@ func one(raw extract.RawEdge, candidates []model.Node, conf model.Confidence) (m
 	}
 	return model.Edge{
 		Source: raw.Source, Target: candidates[0].ID,
-		Relation: raw.Relation, Confidence: conf,
+		Relation: raw.Relation, Confidence: conf, Line: raw.Line,
 	}, true
 }

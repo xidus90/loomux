@@ -1,5 +1,5 @@
 {
-  "meta": { "version": 2, "nodeCount": 7, "edgeCount": 6, "languages": ["ts", "go"], "extractor": "test/1" },
+  "meta": { "version": 3, "nodeCount": 7, "edgeCount": 6, "languages": ["ts", "go"], "extractor": "test/1" },
   "nodes": [
     { "id": "src/cache.ts", "name": "cache.ts", "kind": "file", "path": "src/cache.ts", "span": "L1-L90", "signature": null, "exported": true, "body_hash": "0a1" },
     { "id": "src/cache.ts#Cache", "name": "Cache", "kind": "class", "path": "src/cache.ts", "span": "L10-L40", "signature": "class Cache", "exported": true, "body_hash": "0b2" },
