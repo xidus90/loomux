@@ -219,3 +219,29 @@ func TestPlanEditScopeLetsAOneLetterAreaOwnItsFiles(t *testing.T) {
 		t.Fatalf("%+v", jobs)
 	}
 }
+
+func TestMergeLayersWhenFoundLikeNeeds(t *testing.T) {
+	base := Lane{Commands: []string{"a"}, WhenFound: []string{"w"}}
+	got := merge(base, Override{Lane: Lane{WhenFound: []string{"x"}}, Set: map[string]bool{"when_found": true}})
+	if !slices.Equal(got.WhenFound, []string{"x"}) {
+		t.Fatalf("%+v", got)
+	}
+	got = merge(base, Override{Lane: Lane{Threaded: true}, Set: map[string]bool{"threaded": true}})
+	if !slices.Equal(got.WhenFound, []string{"w"}) {
+		t.Fatalf("%+v", got)
+	}
+}
+
+// when_found guards the preset's commands: a project's own commands run
+// without it, unless the project sets its own list.
+func TestMergeDropsTheWhenFoundOfTheCommandsItReplaces(t *testing.T) {
+	base := Lane{Commands: []string{"a"}, WhenFound: []string{"w"}}
+	got := merge(base, Override{Lane: Lane{Commands: []string{"b"}}, Set: map[string]bool{"commands": true}})
+	if got.WhenFound != nil || !slices.Equal(got.Commands, []string{"b"}) {
+		t.Fatalf("%+v", got)
+	}
+	got = merge(base, Override{Lane: Lane{Commands: []string{"b"}, WhenFound: []string{"x"}}, Set: map[string]bool{"commands": true, "when_found": true}})
+	if !slices.Equal(got.WhenFound, []string{"x"}) {
+		t.Fatalf("%+v", got)
+	}
+}

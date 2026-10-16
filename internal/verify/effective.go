@@ -111,6 +111,8 @@ func merge(base Lane, o Override) Lane {
 	}
 	if o.Set["commands"] {
 		base.Commands = o.Lane.Commands
+		// when_found guards the base's commands, not these.
+		base.WhenFound = nil
 	}
 	if o.Set["on_file"] {
 		base.OnFile = o.Lane.OnFile
@@ -129,6 +131,9 @@ func merge(base Lane, o Override) Lane {
 	}
 	if o.Set["needs"] {
 		base.Needs = o.Lane.Needs
+	}
+	if o.Set["when_found"] {
+		base.WhenFound = o.Lane.WhenFound
 	}
 	if o.Set["lock"] {
 		base.Lock = o.Lane.Lock

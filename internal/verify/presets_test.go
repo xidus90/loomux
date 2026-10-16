@@ -136,17 +136,29 @@ func TestTheGdscriptLintTakesGdlintFromGdtoolkit(t *testing.T) {
 	}
 }
 
-// Booting Godot is no test: it exits 0 on a script that does not parse, and
-// its binary is seldom on the PATH as `godot`. Lint and the root's graph lane
-// are all the preset runs; a project names its own test command.
-func TestTheGdscriptPresetHasOnlyALintAndAGraphLane(t *testing.T) {
+// The suite lanes decide by what the project ships (when_found), take the
+// checkout's lock, and keep {godot} out of the commands a skipped test lane
+// would otherwise drag in.
+func TestTheGdscriptPresetCarriesTheSuiteLanes(t *testing.T) {
 	p, err := LoadPresets()
 	if err != nil {
 		t.Fatal(err)
 	}
 	gd := p.Stacks["gdscript"].Lanes
-	if _, ok := gd["lint"]; !ok || len(gd) != 2 || len(gd["graph"].Commands) == 0 {
-		t.Errorf("lanes = %+v", gd)
+	if _, ok := gd["lint"]; !ok || len(gd) != 4 || len(gd["graph"].Commands) == 0 {
+		t.Fatalf("lanes = %+v", gd)
+	}
+	test, cov := gd["test"], gd["coverage"]
+	if !test.Lock || !slices.Equal(test.WhenFound, []string{"plugin.cfg:gdUnit4"}) || !strings.Contains(test.Measuring, "--coverage {coverdata}") {
+		t.Errorf("test = %+v", test)
+	}
+	if !cov.Lock || cov.After != "test" || !strings.Contains(cov.Measure, "{godot}") || !slices.Equal(cov.WhenFound, []string{"plugin.cfg:gdUnit4", "plugin.cfg:NanoCoverage"}) {
+		t.Errorf("coverage = %+v", cov)
+	}
+	for _, c := range cov.Commands {
+		if strings.Contains(c, "{godot}") {
+			t.Errorf("coverage command names {godot}: %s", c)
+		}
 	}
 }
 

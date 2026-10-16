@@ -34,7 +34,7 @@ func StackNames() []string {
 // Reserved reports whether name is taken by a built-in check, a kind or the
 // profile of everything, so a profile cannot shadow it.
 func Reserved(name string) bool {
-	return slices.Contains([]string{"gofmt", "commit-msg", "gocover", "linecov", "graph-fresh", "blast-audit", "all"}, name) || slices.Contains(Kinds(), name)
+	return slices.Contains([]string{"gofmt", "commit-msg", "gocover", "linecov", "godot-suite", "graph-fresh", "blast-audit", "all"}, name) || slices.Contains(Kinds(), name)
 }
 
 // Lane is how one kind runs for one stack.
@@ -50,6 +50,9 @@ type Lane struct {
 	// lane's commands cannot mean anything, such as a build tree nobody
 	// configured. They do not guard on_file, which reads only the edited file.
 	Needs []string
+	// WhenFound are tests_when patterns that must each match under the
+	// lane's directory; one that finds nothing plans the lane unavailable.
+	WhenFound []string
 	// SkipWhenOnly are globs, relative to the repository root, of paths the
 	// lane does not care about; a commit or a turn end that changes only such
 	// paths plans the lane as not-applicable.
@@ -353,6 +356,8 @@ func parseLaneTable(table, kind string, v map[string]any) (Override, error) {
 			err = laneString(table, key, value, &o.Lane)
 		case "needs":
 			o.Lane.Needs, err = laneNeeds(table, value)
+		case "when_found":
+			o.Lane.WhenFound, err = laneWhenFound(table, value)
 		case "lock":
 			b, ok := value.(bool)
 			if !ok {
@@ -384,6 +389,26 @@ func laneList(table, key string, value any, cmds, onFile []string) ([]string, []
 		return cmds, got, err
 	}
 	return got, onFile, err
+}
+
+// laneWhenFound reads when_found: patterns in the form of tests_when.
+func laneWhenFound(table string, value any) ([]string, error) {
+	list, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%s.when_found must be a list of patterns", table)
+	}
+	if len(list) == 0 {
+		return nil, fmt.Errorf("%s.when_found is empty", table)
+	}
+	out := make([]string, 0, len(list))
+	for i, item := range list {
+		s, ok := item.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s.when_found #%d must be a string", table, i+1)
+		}
+		out = append(out, s)
+	}
+	return out, nil
 }
 
 // laneNeeds reads needs: files inside the lane's directory, since a lane

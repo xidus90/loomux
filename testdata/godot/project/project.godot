@@ -1,0 +1,14 @@
+config_version=5
+
+[application]
+
+config/name="loomux-fixture"
+config/features=PackedStringArray("4.7")
+
+[autoload]
+
+Clock="*res://autoload/clock.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg", "res://addons/nano_coverage_godot/plugin.cfg")

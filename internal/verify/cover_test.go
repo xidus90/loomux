@@ -1,8 +1,11 @@
 package verify
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 	"time"
@@ -114,9 +117,30 @@ func TestCleanCoverWithoutADirectory(t *testing.T) {
 func TestCleanCoverReportsWhatItCannotRemove(t *testing.T) {
 	root := t.TempDir()
 	dir := coverFiles(t, root)
-	stuck := filepath.Join(dir, "A-go-root.out")
-	if err := os.MkdirAll(filepath.Join(stuck, "inner"), 0o755); err != nil {
+	stuck := filepath.Join(dir, "A-go-root.data")
+	if err := os.MkdirAll(stuck, 0o755); err != nil {
 		t.Fatal(err)
+	}
+	inner := filepath.Join(stuck, "0.info")
+	if err := os.WriteFile(inner, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "windows" {
+		// An open file cannot be deleted on Windows.
+		f, err := os.Open(inner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { f.Close() })
+	} else {
+		// A directory without write permission cannot lose its entries.
+		if err := os.Chmod(stuck, 0o555); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(stuck, 0o755) })
+		if os.Geteuid() == 0 {
+			t.Skip("root ignores directory permissions")
+		}
 	}
 	if err := cleanCover(root, "B", true, time.Now().Add(48*time.Hour)); err == nil {
 		t.Fatal("no error for a directory that cannot be removed")
@@ -146,5 +170,49 @@ func TestPrepareCoverMakesTheDirectory(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "file"), nil, 0o644)
 	if err := PrepareCover(filepath.Join(root, "file")); err == nil {
 		t.Fatal("a root that is a file holds no directory")
+	}
+}
+
+func TestCleanCoverRemovesAStaleDirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := PrepareCover(root); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(coverDir(root), "old-gdscript-root.data")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "0.info"), []byte("SF:a.gd\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(dir, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanCover(root, "new", true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("stat = %v", err)
+	}
+}
+
+func TestCleanCoverRemovesTheOwnDirectoryOfAGreenRun(t *testing.T) {
+	root := t.TempDir()
+	if err := PrepareCover(root); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(coverDir(root), "R-gdscript-root.data")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "0.info"), []byte("SF:a.gd\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanCover(root, "R", true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("stat = %v", err)
 	}
 }

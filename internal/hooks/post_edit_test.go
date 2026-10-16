@@ -232,13 +232,36 @@ func TestPostEditReportsACoverDirectoryItCannotMake(t *testing.T) {
 	}
 }
 
+// keepUndeletable makes the content of dir impossible to delete for the rest
+// of the test: an open file on Windows, a read-only directory elsewhere.
+func keepUndeletable(t *testing.T, dir, file string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		f, err := os.Open(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { f.Close() })
+		return
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+}
+
 // Files left behind cost disk, not correctness: the edit passes and the
 // hook says what it could not remove.
 func TestPostEditWarnsWhenItCannotCleanTheCoverDirectory(t *testing.T) {
 	root := goProject(t)
 	stale := filepath.Join(root, ".loomux", "state", "cover", "old")
 	os.MkdirAll(stale, 0o755)
-	os.WriteFile(filepath.Join(stale, "x"), nil, 0o644)
+	inner := filepath.Join(stale, "x")
+	os.WriteFile(inner, nil, 0o644)
+	keepUndeletable(t, stale, inner)
 	past := time.Now().Add(-48 * time.Hour)
 	os.Chtimes(stale, past, past)
 	code, _, se, _ := postEdit(t, root, `{"tool_input":{"file_path":"a.go"}}`, passing)

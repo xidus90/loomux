@@ -393,8 +393,14 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		job.Pre, job.Note = StateUnavailable, "no tests found"
 		return job, link{}, true, nil
 	}
+	for _, p := range r.Lane.WhenFound {
+		if !env.HasTests(dir, []string{p}) {
+			job.Pre, job.Note = StateUnavailable, "none found: "+p
+			return job, link{}, true, nil
+		}
+	}
 	if measured && stack == "gdscript" && eff.Config.ImportCheck && !env.ImportReady(dir) {
-		job.Pre, job.Note = StateUnready, "run the Godot editor once to import the project"
+		job.Pre, job.Note = StateUnready, "run loomux godot rescan"+rescanRoot(area)+" to import the project"
 		return job, link{}, true, nil
 	}
 	// Needs guard the whole-project commands: the form for one file reads
@@ -584,4 +590,13 @@ func writesAny(p Job, pl link, paths []string) bool {
 	return slices.ContainsFunc(paths, func(path string) bool {
 		return slices.ContainsFunc(args, func(a string) bool { return strings.Contains(a, path) })
 	})
+}
+
+// rescanRoot is the --root argument `loomux godot rescan` takes for an area:
+// none for the checkout root itself.
+func rescanRoot(area string) string {
+	if area == "." {
+		return ""
+	}
+	return " --root " + area
 }

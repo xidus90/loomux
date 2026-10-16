@@ -197,7 +197,9 @@ tool's own settings file, so a project needs no configuration.
   `jest.config.js`) unless their settings name an `exclude` of their own,
   and `node_modules` unless `excludeNodeModules` (c8:
   `exclude-node-modules`) is `false`. coverage.py never measures files below
-  a `site-packages` directory. Records of files the tool's settings exclude
+  a `site-packages` directory. The scan of the project tree skips every
+  `.godot` directory (Godot's import cache, where `check godot-suite` writes
+  its glue) as it skips `.git`. Records of files the tool's settings exclude
   are skipped.
 - **Rules**: a line with no hits needs `coverage:exempt <reason>` on it, or
   on a comment-only line directly above it; a marked line that ran is a
@@ -248,6 +250,60 @@ tool's own settings file, so a project needs no configuration.
   Nano Coverage's
   [`script_scanner.cpp`](https://github.com/IgorBayerl/nano-coverage-godot/blob/HEAD/src/instrumentation/script_scanner.cpp);
   [v8-to-istanbul](https://github.com/istanbuljs/v8-to-istanbul).
+
+### `loomux check godot-suite [--godot <bin>] [--coverage <dir>] [--root <dir>] [--restore]`
+Runs the gdUnit4 suites of a Godot project in shards, side by side, and judges
+them by their `results.xml`.
+
+- **Flags**: `--root` (default `.`) is the Godot project, the directory
+  holding `project.godot`; `--godot` names the engine (without it the binary
+  is found like `{godot}` and checked against `project.godot`; a miss is a
+  finding); `--coverage <dir>` measures with Nano Coverage and writes one
+  `<dir>/<i>.info` per shard (it first removes the `*.info` files an earlier
+  run left there, and nothing else), which `check linecov --report <dir>` sums;
+  `--restore` only puts back sources a run left instrumented and runs nothing
+  else.
+- **Flow**: it restores a leftover disk instrumentation first, then checks
+  that gdUnit4 is present, that `.godot/global_script_class_cache.cfg` knows
+  every `class_name` (otherwise run `loomux godot rescan`) and that no hook
+  in `project.godot` already drives Nano Coverage, with or without
+  `--coverage`: a Nano hook in a plain run instruments in memory and lets
+  every shard write `res://coverage-data` and `res://coverage-report` into
+  the working tree. The finding asks to remove the hook from
+  `[gdunit4] hooks/session_hooks` and to set `[nano_coverage]
+  integrations/gdunit4=false`, or the Godot editor registers it again.
+  Any red check stops the run before an engine starts. Suites are the `.gd`
+  files with an `extends GdUnitTestSuite` line; they are spread over
+  `min(8, CPUs, suites)` shards by the run times of the last run. Each shard
+  is one engine process with its own `user://` (`APPDATA`, on Unix
+  `XDG_DATA_HOME`) and its own report directory below
+  `.loomux/state/godot-suite/`.
+- **gdUnit4's exit code is not the verdict.** The report is. gdUnit4 has
+  exited 0 with failing cases, and a project with a parse error next to
+  healthy suites crashes the whole shard (exit 139). A shard's exit code
+  counts only when its report shows nothing wrong.
+- **Findings**, checked per shard in this order:
+
+  | Case | Finding |
+  |---|---|
+  | no report, whatever the exit code (an empty run, a parse error, a crash) | `shard <i> wrote no test report (exit <code>); it ran <n> suites:` and the engine's output |
+  | report unreadable | `shard <i> wrote an unreadable test report <path>: <error>` |
+  | report without cases | `shard <i> ran no test cases; none of its <n> suites loaded` |
+  | a failing case (`failure` or `error`) | `<suite path> <test case>: <first line of the message>` |
+  | a planned suite is missing from the report | `shard <i> did not run: <suite>, …` |
+  | exit other than 0 with a clean report | `shard <i> exited with <code> while its report shows nothing wrong:` and the engine's output |
+
+- **Environment**: `PATH`, `DOTNET_ROOT` and the like are the caller's; the
+  command sets only `APPDATA`/`XDG_DATA_HOME` and, with `--coverage`,
+  `LOOMUX_COVERAGE_SHARD_DIR` per shard. On Windows the `_console.exe` beside
+  a `Godot_*.exe` is preferred, because the window build writes nothing to
+  stdout.
+- **Output**: findings on stdout, notes on stderr as
+  `loomux check godot-suite: note: …`. Exit `0` green, `1` findings or an
+  error, `2` a wrong call.
+- **Limits**: no C# tests (a mono binary is not built with `dotnet build`);
+  no retry of flaky cases; on macOS `user://` is not separable by an
+  environment variable, so shards share it.
 
 ### `loomux check commit-msg [flags] [<file>]`
 Validates a git commit message file against language and formatting rules, or measures thresholds against the git history.
@@ -313,6 +369,42 @@ callers has no changed test that reaches it.
   no project root or graph, `--base` together with `--cached`, a base that
   starts with `-`, a threshold below 1, a git failure), `2` (an unknown flag).
   The exit code alone does not tell a finding from an error; `stdout` does.
+
+---
+
+## 2a. Godot Projects (`loomux godot`)
+
+### `loomux godot rescan [--root <dir>] [--godot <bin>]`
+Has the engine import a Godot project, which refreshes
+`.godot/global_script_class_cache.cfg` with every new `class_name`, without
+leaving the project's `project.godot` rewritten. `check godot-suite` asks for
+it when the class cache is missing or stale, and so does a `test` or
+`coverage` lane whose project is not imported.
+
+- **Flags**: `--root` (default `.`) is the Godot project; `--godot` names the
+  engine, found like `{godot}` and checked against `project.godot` when it is
+  empty.
+- **What it runs**: `<godot> --path <root> --headless --import`. The output is
+  localized to the editor's language, so only the exit code and the cache
+  count.
+- **What it puts back**: `project.godot`, byte for byte, when the import
+  rewrote it (it drops comments, reorders sections and adds the hook the
+  editor registers for Nano Coverage). The note reads
+  `restored project.godot, which the engine rewrote`. This also happens when
+  the engine fails.
+- **What it only reports**: every other path `git status --porcelain -- <root>`
+  shows after the run and not before, such as retouched `ui/theme/**/*.import`
+  files and new `*.gd.uid` files, as `the engine also changed: …`. Those are
+  products of the engine and are not reset.
+- **Output and exit**: notes on stderr as `loomux godot rescan: note: …`.
+  Exit `0` when the run succeeded and the cache exists afterwards, `1`
+  otherwise (with the engine's output, or `the engine ran but wrote no
+  .godot/global_script_class_cache.cfg`), `2` for a wrong call.
+- **Needs a git checkout**: the change notes come from `git status
+  --porcelain`, so a root outside a git work tree is an error.
+- **No lane lock by hand**: a hand-run `check godot-suite` takes no lane lock.
+  Run during a gate's disk bracket it restores the sources mid-run: the
+  sources stay safe, but the autoload coverage of that gate run is lost.
 
 ---
 
