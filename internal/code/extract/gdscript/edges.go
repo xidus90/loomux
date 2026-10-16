@@ -10,12 +10,15 @@ import (
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
+// line is the 1-based line a node starts on.
+func line(n *gts.Node) int { return int(n.StartPoint().Row) + 1 }
+
 // extendsOf records the base an extends_statement names, for the class or
 // script src: a class name or a chain of them (Name, Receiver), or a path
 // (Specifier). ext may be nil -- a class without a base.
 func (x *extractor) extendsOf(ext *gts.Node, src model.NodeID) {
 	for _, c := range ext.Children() {
-		e := extract.RawEdge{Source: src, Relation: model.RelationExtends, File: x.doc.Rel}
+		e := extract.RawEdge{Source: src, Relation: model.RelationExtends, File: x.doc.Rel, Line: line(c)}
 		switch x.doc.Type(c) {
 		case "string":
 			e.Specifier = unquote(x.doc.Text(c))
@@ -102,12 +105,12 @@ func (x *extractor) collect(n *gts.Node, sc scope) {
 // stands in; emit_signal("x"), which is x.emit(). The callee is no
 // reference; the arguments are walked.
 func (x *extractor) call(c *gts.Node, sc scope) {
-	e := extract.RawEdge{Source: sc.source, Relation: model.RelationCalls, Name: x.doc.Text(c.Child(0)), File: x.doc.Rel}
+	e := extract.RawEdge{Source: sc.source, Relation: model.RelationCalls, Name: x.doc.Text(c.Child(0)), File: x.doc.Rel, Line: line(c)}
 	switch e.Name {
 	case "preload", "load":
 		if p, ok := x.firstArg(c, false); ok {
 			x.importEdges = append(x.importEdges, extract.RawEdge{
-				Source: x.fileID, Relation: model.RelationImports, Specifier: loadPath(e.Name, p), File: x.doc.Rel,
+				Source: x.fileID, Relation: model.RelationImports, Specifier: loadPath(e.Name, p), File: x.doc.Rel, Line: e.Line,
 			})
 		}
 		e.Name = ""
@@ -153,7 +156,7 @@ func (x *extractor) attribute(n *gts.Node, sc scope) {
 				}
 				x.calls = append(x.calls, extract.RawEdge{
 					Source: sc.source, Relation: model.RelationCalls,
-					Name: x.doc.Text(c.Child(0)), Receiver: recv, File: x.doc.Rel,
+					Name: x.doc.Text(c.Child(0)), Receiver: recv, File: x.doc.Rel, Line: line(c),
 				})
 			}
 			plain = false
@@ -175,7 +178,7 @@ func (x *extractor) reference(c *gts.Node, sc scope) {
 		return
 	}
 	x.referenced[key] = true
-	x.refs = append(x.refs, extract.RawEdge{Source: sc.source, Relation: model.RelationReferences, Name: key[1], File: x.doc.Rel})
+	x.refs = append(x.refs, extract.RawEdge{Source: sc.source, Relation: model.RelationReferences, Name: key[1], File: x.doc.Rel, Line: line(c)})
 }
 
 // loadPath is the path a preload or load literal names. preload reads a path

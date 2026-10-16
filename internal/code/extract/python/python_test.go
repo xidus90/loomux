@@ -53,6 +53,7 @@ func edgesOf(r extract.Result, rel model.Relation) []extract.RawEdge {
 	var out []extract.RawEdge
 	for _, e := range r.Edges {
 		if e.Relation == rel {
+			e.Line = 0 // lines are asserted in TestEdgeLines
 			out = append(out, e)
 		}
 	}
@@ -91,7 +92,7 @@ func TestLanguageDescribesPython(t *testing.T) {
 	if l.Name() != "python" {
 		t.Errorf("Name = %q, want python", l.Name())
 	}
-	if want := "python/1@" + treesitter.Parser; l.Version() != want {
+	if want := "python/2@" + treesitter.Parser; l.Version() != want {
 		t.Errorf("Version = %q, want %q", l.Version(), want)
 	}
 	same(t, "Extensions", l.Extensions(), []string{".py"})

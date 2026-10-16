@@ -191,7 +191,7 @@ func TestBlastAsideReadsAGraphTheGoExtractorBuiltWithOthers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.Meta.Extractor = "go/1+python/1@gotreesitter/v0.55.0"
+	g.Meta.Extractor = "go/2+python/2@gotreesitter/v0.55.0"
 	if err := store.Write(root, g); err != nil {
 		t.Fatal(err)
 	}

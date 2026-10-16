@@ -54,7 +54,7 @@ import (
 // version is this extractor's identity. Bump it by hand whenever the nodes or
 // edges below change shape or meaning; the extract cache and the graph's meta
 // key on it (see golang.Version for what a forgotten bump costs).
-const version = "python/1"
+const version = "python/2"
 
 // langName is the language as the graph's meta lists it and as a Result carries it.
 const langName = "python"
@@ -209,7 +209,7 @@ func (x *extractor) base(class model.NodeID, n *gts.Node) {
 	if !ok {
 		return
 	}
-	e := extract.RawEdge{Source: class, Relation: model.RelationExtends, Name: path, File: x.doc.Rel}
+	e := extract.RawEdge{Source: class, Relation: model.RelationExtends, Name: path, File: x.doc.Rel, Line: line(n)}
 	if i := strings.LastIndexByte(path, '.'); i >= 0 {
 		e.Receiver, e.Name = path[:i], path[i+1:]
 	}

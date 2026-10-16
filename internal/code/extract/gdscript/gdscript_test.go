@@ -39,6 +39,7 @@ func edgesOf(r extract.Result, rel model.Relation) []extract.RawEdge {
 	var out []extract.RawEdge
 	for _, e := range r.Edges {
 		if e.Relation == rel {
+			e.Line = 0 // lines are asserted in TestEdgeLines
 			out = append(out, e)
 		}
 	}
@@ -182,7 +183,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/1@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/2@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -391,7 +392,7 @@ func TestAResourceImportsWhatItsExtResourcesName(t *testing.T) {
 	if len(r.Nodes) != 1 || r.Nodes[0].ID != p || r.Language != "gdscript" || len(r.Imports) != 0 {
 		t.Fatalf("nodes %v, language %q, imports %v", views(r), r.Language, r.Imports)
 	}
-	same(t, "imports", r.Edges, []extract.RawEdge{
+	same(t, "imports", noLines(r.Edges), []extract.RawEdge{
 		{Source: p, Relation: model.RelationImports, Specifier: "res://stats.gd", File: p},
 	})
 }
@@ -404,7 +405,7 @@ func TestTheProjectFileNamesItsAutoloadsAndMainScene(t *testing.T) {
 	same(t, "autoloads", r.Imports, []extract.Import{
 		{Alias: "Clock", Path: "res://autoload/clock.gd"},
 	})
-	same(t, "imports", r.Edges, []extract.RawEdge{
+	same(t, "imports", noLines(r.Edges), []extract.RawEdge{
 		{Source: p, Relation: model.RelationImports, Specifier: "res://autoload/clock.gd", File: p},
 		{Source: p, Relation: model.RelationImports, Specifier: "res://autoload/game.tscn", File: p},
 		{Source: p, Relation: model.RelationImports, Specifier: "res://main.tscn", File: p},
@@ -429,7 +430,7 @@ func TestOnlyTheProjectFileHasAutoloads(t *testing.T) {
 func TestAnUnclosedSectionNamesNothing(t *testing.T) {
 	const p = "x.tscn"
 	r := extractSrc(t, p, "[ext_resource path=\"res://a.gd\"\n[ext_resource type=\"Script\" path=\"res://b.gd\" id=\"1\"]\n")
-	same(t, "imports", r.Edges, []extract.RawEdge{
+	same(t, "imports", noLines(r.Edges), []extract.RawEdge{
 		{Source: p, Relation: model.RelationImports, Specifier: "res://b.gd", File: p},
 	})
 }
@@ -470,4 +471,14 @@ func TestAResourceWithCRLFReadsLikeLF(t *testing.T) {
 		same(t, p+" edges", crlf.Edges, lf.Edges)
 		same(t, p+" imports", crlf.Imports, lf.Imports)
 	}
+}
+
+// noLines is edges with the line cleared; TestEdgeLines asserts lines.
+func noLines(es []extract.RawEdge) []extract.RawEdge {
+	out := make([]extract.RawEdge, len(es))
+	for i, e := range es {
+		e.Line = 0
+		out[i] = e
+	}
+	return out
 }

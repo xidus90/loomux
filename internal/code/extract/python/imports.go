@@ -19,7 +19,7 @@ func (x *extractor) importStatement(n *gts.Node) {
 		}
 		path, alias := x.named(n.Child(i))
 		x.imports = append(x.imports, extract.Import{Path: path, Alias: alias})
-		x.importEdge(path)
+		x.importEdge(path, n)
 	}
 }
 
@@ -32,7 +32,7 @@ func (x *extractor) importStatement(n *gts.Node) {
 // file. A wildcard names nothing that could be one.
 func (x *extractor) importFrom(n *gts.Node) {
 	module := x.dotted(x.doc.Field(n, "module_name"))
-	x.importEdge(module)
+	x.importEdge(module, n)
 	for i := range n.ChildCount() {
 		c := n.Child(i)
 		switch {
@@ -41,7 +41,7 @@ func (x *extractor) importFrom(n *gts.Node) {
 		case n.FieldNameForChild(i, x.doc.Lang) == "name":
 			name, alias := x.named(c)
 			x.imports = append(x.imports, extract.Import{Path: module, Name: name, Alias: alias})
-			x.importEdge(join(module, name))
+			x.importEdge(join(module, name), n)
 		}
 	}
 }
@@ -79,9 +79,12 @@ func join(module, name string) string {
 	return module + "." + name
 }
 
+// line is the 1-based line a node starts on.
+func line(n *gts.Node) int { return int(n.StartPoint().Row) + 1 }
+
 // importEdge is one imports edge from the file.
-func (x *extractor) importEdge(spec string) {
+func (x *extractor) importEdge(spec string, n *gts.Node) {
 	x.importEdges = append(x.importEdges, extract.RawEdge{
-		Source: x.fileID, Relation: model.RelationImports, Specifier: spec, File: x.doc.Rel,
+		Source: x.fileID, Relation: model.RelationImports, Specifier: spec, File: x.doc.Rel, Line: line(n),
 	})
 }

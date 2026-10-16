@@ -164,6 +164,8 @@ type RawEdge struct {
 	Receiver  string         `json:"receiver,omitempty"`
 	Specifier string         `json:"specifier,omitempty"`
 	File      string         `json:"file"`
+	// Line is the 1-based line of the use; 0 only on a contains edge.
+	Line int `json:"line,omitempty"`
 }
 
 // Result is what one file contributes to the graph.
