@@ -13,6 +13,10 @@ import (
 	"github.com/xidus90/loomux/internal/gitenv"
 )
 
+// Git is runGit for other packages: they get the same unquoted paths and the
+// hook's index.
+func Git(dir string, args ...string) ([]byte, error) { return runGit(dir, args...) }
+
 var gitOutput = runGit // seam: tests replace it to reach git's failure arms
 
 // runGit runs git in dir with paths left unquoted and without the

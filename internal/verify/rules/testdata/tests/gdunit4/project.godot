@@ -1,0 +1,5 @@
+config_version=5
+
+[gdunit4]
+
+settings/test/test_lookup_folder="test"

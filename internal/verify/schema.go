@@ -23,7 +23,7 @@ import (
 const placeholderFile = "{file}"
 
 // Kinds are the lanes every stack can have, in the order they run.
-func Kinds() []string { return []string{"lint", "types", "test", "coverage", "graph"} }
+func Kinds() []string { return []string{"lint", "types", "test", "coverage", "graph", "rules"} }
 
 // StackNames are the stacks [verify] may configure.
 func StackNames() []string {
@@ -82,7 +82,10 @@ type Config struct {
 	SetProfiles map[string]bool
 	Stacks      map[string]map[string]Override
 	ImportCheck bool
-	Godot       string
+	// Rules says the project has a [rules] table, which is what makes the
+	// rules kind run at all.
+	Rules bool
+	Godot string
 }
 
 func defaults() Config {
@@ -90,13 +93,13 @@ func defaults() Config {
 		MaxParallel: runtime.NumCPU(),
 		Timeout:     600 * time.Second,
 		Profiles: map[string][]string{
-			"edit":      {"lint", "types"},
-			"precommit": {"lint", "types", "test", "coverage", "graph"},
+			"edit":      {"lint", "types", "rules"},
+			"precommit": {"lint", "types", "test", "coverage", "graph", "rules"},
 			// The kinds of precommit: graph judges the working tree against
 			// HEAD through a copy of the index (hooks.StopIndex). A project
 			// whose suite is too slow for every turn end narrows it here and
 			// keeps a gate that moves.
-			"stop": {"lint", "types", "test", "coverage", "graph"},
+			"stop": {"lint", "types", "test", "coverage", "graph", "rules"},
 		},
 		Stacks:      map[string]map[string]Override{},
 		ImportCheck: true,
@@ -133,6 +136,7 @@ func ParseConfig(path string, doc map[string]any) (Config, error) {
 			return Config{}, fmt.Errorf("%s: %w", path, err)
 		}
 	}
+	cfg.Rules = isTable(doc["rules"])
 	modules, err := config.ParseModules(path, doc)
 	if err != nil {
 		return Config{}, err

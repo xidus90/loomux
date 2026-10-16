@@ -26,6 +26,7 @@ import (
 	"github.com/xidus90/loomux/internal/verify/gocover"
 	"github.com/xidus90/loomux/internal/verify/godotsuite"
 	"github.com/xidus90/loomux/internal/verify/linecov"
+	"github.com/xidus90/loomux/internal/verify/rules"
 )
 
 var coverFunc = runCoverFunc
@@ -65,7 +66,7 @@ var (
 
 func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, graph-fresh, blast-audit")
+		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph,rules), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, graph-fresh, blast-audit, rules")
 		return 2
 	}
 	switch args[0] {
@@ -81,6 +82,8 @@ func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return checkGraphFresh(args[1:], stdout, stderr)
 	case "blast-audit":
 		return checkBlastAudit(args[1:], stdout, stderr)
+	case "rules":
+		return checkRules(args[1:], stdout, stderr)
 	case "gofmt":
 		paths := args[1:]
 		if len(paths) == 0 {
@@ -238,7 +241,7 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 		}
 		defer idx.Close()
 		// Without a copy too: the hook asks the same nil view.
-		env.GraphReady, env.GraphEnv = idx.Ready, idx.Env
+		env.GraphReady, env.RulesReady, env.GraphEnv = idx.Ready, idx.RulesReady, idx.Env
 	}
 	if err := verify.PrepareCover(root); err != nil {
 		return fail(err)
@@ -519,6 +522,49 @@ func checkLinecov(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, f)
 	}
 	if len(res.Findings) > 0 {
+		return 1
+	}
+	return 0
+}
+
+// checkRules holds the project to its [rules]: forbidden edges, missing test
+// modules, files outside every layer, and with --cached coverage
+// instrumentation left in the index. Exit 2 means the map or a read failed.
+func checkRules(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("check rules", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	root := fs.String("root", "", "project root; found upwards when empty")
+	cached := fs.Bool("cached", false, "check the index instead of the working tree")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(stderr, "loomux check rules: unexpected argument %q\n", fs.Arg(0))
+		return 2
+	}
+	project, err := projectRoot(*root)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check rules: %v\n", err)
+		return 2
+	}
+	res, err := rules.Check(rules.Options{Root: project, Cached: *cached})
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check rules: %v\n", err)
+		return 2
+	}
+	for _, n := range res.Notes {
+		fmt.Fprintf(stderr, "loomux check rules: note: %s\n", n)
+	}
+	for _, e := range res.MapErrors {
+		fmt.Fprintln(stderr, e)
+	}
+	for _, f := range res.Findings {
+		fmt.Fprintln(stdout, f)
+	}
+	switch {
+	case len(res.MapErrors) > 0:
+		return 2
+	case len(res.Findings) > 0:
 		return 1
 	}
 	return 0

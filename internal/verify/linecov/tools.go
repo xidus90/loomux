@@ -42,6 +42,9 @@ type Profile struct {
 	Patterns   string         `toml:"patterns"`
 	Markers    []MarkerSpec   `toml:"markers"`
 	MarkerKeys []MarkerSpec   `toml:"marker_keys"`
+	// Instrumented is the first line a tool leaves in a source it
+	// instrumented on disk; "" for a tool that does not.
+	Instrumented string `toml:"instrumented"`
 }
 
 // SettingsFile is one candidate in the tool's own lookup order.

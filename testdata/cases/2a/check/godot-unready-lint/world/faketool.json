@@ -16,6 +16,11 @@
       "stdout": "faketool: uvx gdlint\n"
     },
     {
+      "prefix": "uvx --from gdtoolkit gdformat",
+      "exit": 0,
+      "stdout": "faketool: uvx gdformat\n"
+    },
+    {
       "prefix": "npx eslint",
       "exit": 0,
       "stdout": "faketool: npx eslint\n"

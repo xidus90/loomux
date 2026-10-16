@@ -89,7 +89,7 @@ func TestParseConfigDefaults(t *testing.T) {
 	if err != nil || cfg.MaxParallel < 1 || cfg.Timeout != 600*time.Second || !cfg.ImportCheck {
 		t.Fatalf("%+v %v", cfg, err)
 	}
-	if strings.Join(cfg.Profiles["edit"], ",") != "lint,types" || len(cfg.Profiles["precommit"]) != 5 {
+	if strings.Join(cfg.Profiles["edit"], ",") != "lint,types,rules" || len(cfg.Profiles["precommit"]) != 6 {
 		t.Fatalf("%v", cfg.Profiles)
 	}
 }
@@ -127,7 +127,7 @@ lint = false
 	if cfg.MaxParallel != 3 || cfg.Timeout != 90*time.Second || cfg.ImportCheck {
 		t.Fatalf("%+v", cfg)
 	}
-	if strings.Join(cfg.Profiles["edit"], ",") != "lint" || strings.Join(cfg.Profiles["fast"], ",") != "lint,test" || len(cfg.Profiles["precommit"]) != 5 {
+	if strings.Join(cfg.Profiles["edit"], ",") != "lint" || strings.Join(cfg.Profiles["fast"], ",") != "lint,test" || len(cfg.Profiles["precommit"]) != 6 {
 		t.Fatalf("%v", cfg.Profiles)
 	}
 	golint := cfg.Stacks["go"]["lint"]
@@ -180,13 +180,13 @@ func TestCheckCycleIgnoresAnAfterOutsideTheLanes(t *testing.T) {
 }
 
 func TestNames(t *testing.T) {
-	if strings.Join(Kinds(), ",") != "lint,types,test,coverage,graph" {
+	if strings.Join(Kinds(), ",") != "lint,types,test,coverage,graph,rules" {
 		t.Fatal(Kinds())
 	}
 	if strings.Join(StackNames(), ",") != "go,python,typescript,vue,svelte,css,html,gdscript,cpp,shell,sql,rust,wiki,wiki-sources,project" {
 		t.Fatal(StackNames())
 	}
-	for _, name := range []string{"gofmt", "commit-msg", "gocover", "linecov", "godot-suite", "graph-fresh", "blast-audit", "all", "lint", "types", "test", "coverage", "graph"} {
+	for _, name := range []string{"gofmt", "commit-msg", "gocover", "linecov", "godot-suite", "graph-fresh", "blast-audit", "all", "lint", "types", "test", "coverage", "graph", "rules"} {
 		if !Reserved(name) {
 			t.Errorf("%s is not reserved", name)
 		}
@@ -266,7 +266,7 @@ func TestDefaultsHoldAStopProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.Profiles["stop"], []string{"lint", "types", "test", "coverage", "graph"}) {
+	if !slices.Equal(cfg.Profiles["stop"], []string{"lint", "types", "test", "coverage", "graph", "rules"}) {
 		t.Fatalf("stop = %v", cfg.Profiles["stop"])
 	}
 }
@@ -278,10 +278,10 @@ func TestDefaultsKeepTheGraphKindOutOfEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.Profiles["precommit"], []string{"lint", "types", "test", "coverage", "graph"}) {
+	if !slices.Equal(cfg.Profiles["precommit"], []string{"lint", "types", "test", "coverage", "graph", "rules"}) {
 		t.Fatalf("precommit = %v", cfg.Profiles["precommit"])
 	}
-	if !slices.Equal(cfg.Profiles["edit"], []string{"lint", "types"}) {
+	if !slices.Equal(cfg.Profiles["edit"], []string{"lint", "types", "rules"}) {
 		t.Fatalf("edit = %v", cfg.Profiles["edit"])
 	}
 }

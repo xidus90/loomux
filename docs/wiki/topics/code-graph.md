@@ -127,6 +127,19 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   `tests/` oder `test/`, für GDScript `*_test.gd` und alles unter `test/`
   oder `tests/`; Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
   `project.godot` nie.
+- **Prüfart `rules`:** Die sechste Art liest denselben Extraktor-Kern, aber
+  nie den gespeicherten Graphen: `check rules` baut ihn im Prozess aus den
+  Dateien, die git kennt (mit `--cached` aus dem Index), und prüft jede
+  aufgelöste Kante außer `contains` gegen die Ebenenkarte `[rules.layers]` des
+  Projekts. Sie braucht darum keinen frischen Index und läuft auch in CI.
+  Dazu kommen fehlende Testmodule, Quellen ohne Ebene und, nur beim Commit,
+  liegen gebliebene Coverage-Instrumentierung. Wie `graph` gehört sie zur
+  Wurzel (ein Job je Lauf, getragen vom ranghöchsten Stack), wird aber ohne
+  Tabelle `[rules]` gar nicht geplant. Eine Ausnahme im Code gibt es nicht;
+  eine Freigabe geht über `config set rules.layers.<ebene>.may_use … --propose`
+  und einen Menschen. Die Zuordnung einer Datei zu einer Ebene entscheidet der
+  spezifischste Glob (an der Wurzel verankert vor jeder Tiefe, ohne Platzhalter
+  vor mit, mehr feste Segmente vor weniger).
 - **Stop-Hook mit Blast-Logik:** `graph` steht auch im Profil `stop`. Am
   Rundenende prüft `blast-audit --cached` über eine Kopie des Index, die den
   ganzen Arbeitsbaum samt unversionierter Dateien trägt, alles gegen `HEAD`;

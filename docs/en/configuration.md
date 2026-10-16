@@ -7,7 +7,7 @@ This document provides a comprehensive reference for `.loomux/config.toml`, the 
 ## Contents
 
 - **Protection**: [`[policy.paths]`](#policypaths-path-protection-rules), [`[policy.commands]`](#policycommands-command-execution-rules), [`[guard]`](#guard-how-hard-the-guard-reads)
-- **Checks**: [`[verify]`](#verify-check-chains--quality-gates), [`.loomux/armed.toml`](#lane-probation-loomuxarmedtoml)
+- **Checks**: [`[verify]`](#verify-check-chains--quality-gates), [`[rules]`](#rules-the-layer-map), [`.loomux/armed.toml`](#lane-probation-loomuxarmedtoml)
 - **Project**: [`[project]`](#project), [`[modules]`](#modules-what-runs-in-this-project), [`[commit]`](#commit-commit-message-validation), [`[worktree]`](#worktree-worktree-mirrors)
 - **Areas and wiki**: [the area declaration](#the-area-declaration-area-layout-wiki-index-maintenance-model), [`[privacy]`](#privacy-data-protection--boundaries)
 - **Flows**: [`[agent]`](#agent-models-for-flow-roles), [`[flow]`](#flow-which-flow-runs)
@@ -152,10 +152,10 @@ in effect (see [CLI Reference](cli-reference.md#loomux-check-request---root-path
 max_parallel = 8        # processes at once; default: the number of CPUs
 timeout      = 600      # seconds per command; default 600, no upper limit
 
-[verify.profiles]       # built in: edit = [lint, types], precommit = all five, stop = all five
-edit      = ["lint", "types"]
-precommit = ["lint", "types", "test", "coverage", "graph"]
-stop      = ["lint", "types", "test", "coverage", "graph"]   # what the stop gate runs at a turn end
+[verify.profiles]       # built in: edit = [lint, types, rules], precommit = all six, stop = all six
+edit      = ["lint", "types", "rules"]
+precommit = ["lint", "types", "test", "coverage", "graph", "rules"]
+stop      = ["lint", "types", "test", "coverage", "graph", "rules"]   # what the stop gate runs at a turn end
 
 [verify.go]             # per stack; stacks not named keep their preset
 lint     = ["go vet ./...", "{loomux} check gofmt cmd internal"]
@@ -192,13 +192,19 @@ top-level `[commit]` table (see below).
 
 #### Kinds, profiles and reserved names
 
-There are five kinds, in the order they are listed: `lint`, `types`, `test`,
-`coverage`, `graph`. A request to `loomux check` is a profile, `all` (always all five
+There are six kinds, in the order they are listed: `lint`, `types`, `test`,
+`coverage`, `graph`, `rules`. A request to `loomux check` is a profile, `all` (always all six
 kinds) or a comma list of kinds (`lint,types`). The names `gofmt`,
-`commit-msg`, `gocover`, `linecov`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage` and `graph` are
+`commit-msg`, `gocover`, `linecov`, `godot-suite`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage`, `graph` and `rules` are
 reserved; a profile with one of them is a load error. `stop` is not reserved:
 it is a built-in profile like `edit` and `precommit`, and a project whose suite
 is too slow for every turn end narrows it (`stop = ["lint", "types"]`).
+
+The built-in profiles carry `rules` (`edit = ["lint", "types", "rules"]`;
+`precommit` and `stop` end in `"graph", "rules"`). **A project that sets its
+own `profiles` adds `rules` to them itself**; a profile written without it
+never runs the rules, whatever the project declares. Without a `[rules]` table
+nothing changes: the lane is not planned and `--show` prints no row for it.
 
 #### Stacks
 
@@ -321,7 +327,7 @@ then `[verify.<stack>]`.
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
+| gdscript | `uvx --from gdtoolkit gdlint .`, `uvx --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | only `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -338,8 +344,17 @@ then `[verify.<stack>]`.
   `[tool.mypy]` in `pyproject.toml`, `mypy.ini`, `.mypy.ini` or `[mypy]` in
   `setup.cfg` exists: it names no target, so that configuration has to set
   `files`. With both `pyright` and `mypy`, pyright checks.
-- The gdscript `lint` takes `gdlint` from the package `gdtoolkit`, which is
-  where it ships; the registry has no package `gdlint`.
+- The gdscript `lint` takes `gdlint` and `gdformat` from the package
+  `gdtoolkit`, which is where they ship; the registry has no package `gdlint`.
+  loomux has no lint area of its own for them: a project that keeps a
+  directory out of the check (an addon, a harness) lists it as
+  `excluded_directories` in `.gdlintrc` (gdtoolkit 3.2.8 and later) and in
+  `.gdformatrc` (4.3.0 and later). Both files are YAML; a directory is matched
+  by name at any depth, and only `.git` is excluded by default.
+- Go, Python and GDScript carry a `rules` lane, the same in each:
+  `{loomux} check rules --cached` (the commit and the turn end read the index)
+  and, for an edit, `{loomux} check rules` (the working tree). See
+  [`[rules]`](#rules-the-layer-map).
 - The gdscript `test` and `coverage` presets run `loomux check godot-suite`
   (gdUnit4 headless, in shards; it decides by the gdUnit4 report, never by
   its exit code) and need no configuration where the project ships the
@@ -666,6 +681,110 @@ armed = [
   [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
 
 ---
+
+### `[rules]` (The Layer Map)
+Says which part of the code may use which. `loomux check rules` (the `rules`
+lane of [`[verify]`](#verify-check-chains--quality-gates)) reads this table
+and reports what breaks it; the findings are listed in the
+[CLI reference](cli-reference.md#loomux-check-rules---root-path---cached).
+**Without a `[rules]` table the lane is not planned and `--show` prints no row
+for it**: a project that does not use it notices nothing.
+
+```toml
+[rules.layers.core]
+paths   = ["godot/core/**", "godot/model/**"]
+may_use = ["core", "data"]
+bases   = ["RefCounted", "Resource", "Object"]
+tests   = true
+
+[rules.layers.game_state]               # an exception is a layer of its own
+paths   = ["godot/model/game_state.gd"]
+may_use = ["core", "data", "procgen"]
+tests   = true
+
+[rules.layers.ui]
+paths   = ["godot/ui/**"]
+may_use = ["core", "data", "services", "persistence", "autoload"]
+
+[rules.layers.harness]
+paths   = ["godot/harness/**"]
+checked = false
+```
+
+A layer is a table under `[rules.layers]`; its name follows the rules for keys
+in `config.toml`.
+
+| Key | Type | Description |
+|---|---|---|
+| `paths` | list of globs | Required. The files the layer owns, relative to the repository root, in the glob dialect of [`[[policy.paths.rules]]`](#policypaths-path-protection-rules): a leading `**/` matches at any depth, a trailing `/**` matches everything below, a pattern without a slash matches the base name at any depth, everything else is `path.Match` (`*` stays inside one segment); a `**` in the middle of a pattern is not special. Separators are `/`; a glob with a backslash is refused, because `godot\core\**` would silently match nothing. |
+| `may_use` | list of layer names | The layers an edge from this layer may point to. An edge into the layer's own files is always allowed. Unset, every edge is allowed (for a layer such as `test` that knows everything); `[]` allows only the layer itself. |
+| `bases` | list of names | Base classes that resolve nowhere in the project (the engine's or the language's) which a file of the layer may extend. Unset, any is allowed. A base the project does resolve is an edge and falls under `may_use`. |
+| `tests` | boolean | Default `false`. Every source of the layer needs its test module. |
+| `checked` | boolean | Default `true`. `false` makes the layer known without any rule checking its files: no edges from it, no pairing, no "in no layer". Edges **into** it are still judged by the `may_use` of their source, so a layer that may use `harness` lists it. `checked = false` together with `may_use`, `bases` or `tests` is a map error. |
+
+**Which layer owns a file.** A file belongs to at most one layer. When
+several globs match it, the most specific wins, in this order (the same as
+`internal/verify/rules/layers.go`):
+
+1. A glob anchored at the root beats one that matches at any depth, that is,
+   one with a leading `**/` or without a slash (which matches the base name).
+2. Then a glob without a placeholder (`*`, `?`, `[`) beats one with.
+3. Then more fixed segments before the first segment with a placeholder win.
+
+Two globs of different layers that are equal in all three on the same file are
+a map error (`<file> matches layers A and B equally`). That is how an exception
+is written: `game_state` above owns one file inside the `godot/model/**` of
+`core`, because its glob has no placeholder.
+
+**Map errors** end `check rules` with exit `2` and are reported all at once: an
+unknown key, a key under `[rules]` or in a layer that is not known, a layer
+without `paths`, an empty list or an empty glob, a backslash in a glob, a layer
+in `may_use` that is not under `[rules.layers]`, a glob that matches no file, a
+tie as above, `checked = false` with another rule key, and a layer with
+`tests = true` whose sources no installed test profile covers (Python has
+none).
+
+**There is no exception in the code.** No marker lets a line allow an edge. A
+permission goes through the map, and so through a human: an agent proposes it
+with
+
+```sh
+loomux config set rules.layers.ui.may_use core,data,services --propose
+```
+
+(a list is typed as items apart at commas; the value replaces the whole list)
+
+and a human reviews it with `loomux config proposals` and applies it with
+`loomux config apply`; the finding names the command.
+
+#### The `rules` lane
+
+`rules` is the sixth kind (see [Kinds](#kinds-profiles-and-reserved-names)).
+Like `graph` it belongs to the repository root: at most one job per run,
+carried by the highest-ranked active stack with a `rules` command (`go`,
+`python`, `gdscript`). The presets of those three stacks are the same:
+
+```toml
+[stack.go.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
+```
+
+- The lane has no "nothing staged" probe: with nothing staged the index
+  still holds every tracked file, so `check rules --cached` checks the tree as
+  committed, in CI too.
+- The commit and the turn end read the index (`--cached`; at a turn end the
+  copy of the index that also holds the untracked files, as for `graph`); an
+  edit reads the working tree. After an edit the lane warns and blocks nothing;
+  at the commit it blocks.
+- An edit plans the lane once, at the root, for a source (`.go`, `.py`,
+  `.gd`) or for `.loomux/config.toml`, whatever stack the file has; any other
+  file plans nothing.
+- The default profiles `edit`, `precommit` and `stop` carry `rules`. A project
+  with its own `[verify.profiles]` adds `rules` to them itself.
+- The instrumentation check of Nano Coverage (a source whose first line the
+  tool wrote and a killed run left) belongs to the lane and needs only a
+  `[rules]` table, not a layer; it runs only at the commit.
 
 ### `[modules]` (What Runs in This Project)
 

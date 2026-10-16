@@ -4,6 +4,16 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-10-16
+
+- 2026-10-16 — `topics/code-graph.md`: Abschnitt „In Hook und Prüfkette“ um die
+  Prüfart `rules` ergänzt (Ebenenkarte, Kanten aus dem im Prozess gebauten
+  Graphen, Lane-Träger, keine Planung ohne `[rules]`). Kein Widerspruch zu einer
+  bestehenden Aussage. Quelle: Code von loomux (`internal/verify/rules`,
+  `internal/config/rules.go`, `internal/verify`) und die Spec
+  `docs/.superpowers/specs/2026-10-16-projektregeln-design.md`; die deutsche
+  Nutzerdoku zieht nach dem Repin nach.
+
 ## 2026-10-13
 
 - 2026-10-13 — `topics/schreibschranke.md`, `topics/brain-maintenance.md`,

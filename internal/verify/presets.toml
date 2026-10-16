@@ -59,6 +59,12 @@ after = "test"
 [stack.go.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
+# The rules read the repository root; the commit form reads the staged tree,
+# the edit form the working tree.
+[stack.go.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
+
 [stack.python]
 tests_when = ["tests/", "test_*.py", "pyproject.toml:[tool.pytest"]
 
@@ -104,10 +110,17 @@ after = "test"
 [stack.python.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
-# gdlint ships in the package gdtoolkit; the registry has no package gdlint.
+# The rules read the repository root; the commit form reads the staged tree,
+# the edit form the working tree.
+[stack.python.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
+
+# gdlint and gdformat ship in the package gdtoolkit; the registry has no
+# package gdlint.
 [stack.gdscript.lint]
-commands = ["uvx --from gdtoolkit gdlint ."]
-on_file = ["uvx --from gdtoolkit gdlint {file}"]
+commands = ["uvx --from gdtoolkit gdlint .", "uvx --from gdtoolkit gdformat --check ."]
+on_file = ["uvx --from gdtoolkit gdlint {file}", "uvx --from gdtoolkit gdformat --check {file}"]
 
 # The graph belongs to the root, and the highest-ranked active stack with a
 # graph command carries it (go, python, gdscript): with Go or Python beside it
@@ -115,6 +128,12 @@ on_file = ["uvx --from gdtoolkit gdlint {file}"]
 # neither.
 [stack.gdscript.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+# The rules read the repository root; the commit form reads the staged tree,
+# the edit form the working tree.
+[stack.gdscript.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
 
 # gdUnit4 decides by the report, never by its exit code; see the cli reference.
 [stack.gdscript.test]

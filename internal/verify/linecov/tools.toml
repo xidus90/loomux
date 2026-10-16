@@ -177,3 +177,4 @@ scope = "all"
 exclude = { globs = ["general/ignore_paths"], defaults = ["**/*_test.gd"] }
 switches = [{ key = "general/ignore_addons", default = true, exclude = ["res://addons/**"] }]
 patterns = "nano"
+instrumented = "# __NANO_COVERAGE_INSTRUMENTED__"

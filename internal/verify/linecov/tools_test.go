@@ -147,3 +147,19 @@ func TestEachSampleLineMatchesExactlyOneBuiltInMarker(t *testing.T) {
 		}
 	}
 }
+
+func TestNanoProfileNamesItsMarker(t *testing.T) {
+	ps, err := LoadProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range ps {
+		want := ""
+		if p.Name == "nanocoverage" {
+			want = "# __NANO_COVERAGE_INSTRUMENTED__"
+		}
+		if p.Instrumented != want {
+			t.Fatalf("%s: instrumented %q, want %q", p.Name, p.Instrumented, want)
+		}
+	}
+}

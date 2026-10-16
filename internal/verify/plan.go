@@ -80,9 +80,12 @@ type PlanEnv struct {
 	// GraphReady says whether the graph lanes can mean anything at root, and
 	// why not. nil means they cannot.
 	GraphReady func(root string) (bool, string)
-	// GraphEnv is the extra environment of the graph job: a child's
-	// environment loses the git pointers a surrounding hook exports, and
-	// the lane needs the index that hook hands in. nil means none.
+	// RulesReady says whether the rules lane has an index to read, and why
+	// not. nil means it has: the real one.
+	RulesReady func(root string) (bool, string)
+	// GraphEnv is the extra environment of the root jobs (graph and rules): a
+	// child's environment loses the git pointers a surrounding hook exports,
+	// and the lanes need the index that hook hands in. nil means none.
 	GraphEnv func(root string) []string
 	// Changed are the paths a commit or a turn end changes; nil outside both,
 	// and then every lane runs.
@@ -111,8 +114,17 @@ func Strict(cfg Config, request string) bool {
 }
 
 // ExpandProfile turns what a user asked for into kinds: all of them, a
-// profile, or a comma list of kinds, each named once in the order given.
+// profile, or a comma list of kinds, each named once in the order given. The
+// rules kind is left out of a project without a [rules] table.
 func ExpandProfile(cfg Config, request string) ([]string, error) {
+	kinds, err := expandProfile(cfg, request)
+	if !cfg.Rules {
+		kinds = slices.DeleteFunc(kinds, func(k string) bool { return k == "rules" })
+	}
+	return kinds, err
+}
+
+func expandProfile(cfg Config, request string) ([]string, error) {
 	if request == "all" {
 		return Kinds(), nil
 	}
@@ -175,35 +187,41 @@ func (e PlanEnv) godotFor(dir string) (bin string, pre State, note string) {
 
 // Plan lays out the lanes of a run: kinds as requested, stacks in byte
 // order, areas in byte order. Edges come only from after; what cannot run
-// is decided here and carried as Pre. The graph kind runs at most once: the
-// highest-ranked stack with a graph command (carrierRank) carries it, wherever
-// it stands in the walk, and every other stack with one stands aside with a
-// note naming that stack -- unless one stack's table
-// switches the graph off, which switches it off for the whole project.
+// is decided here and carried as Pre. The graph and rules kinds run at most
+// once: the highest-ranked stack with a command of the kind (carrierRank)
+// carries it, wherever it stands in the walk, and every other stack with one
+// stands aside with a note naming that stack -- unless one stack's table
+// switches the kind off, which switches it off for the whole project. The
+// rules kind exists only in a project with a [rules] table.
 func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 	jobs := []Job{}
 	links := []link{}
 	for _, kind := range req.Kinds {
-		// carrier is the stack whose graph job this run plans; only the graph
-		// kind sets it.
-		carrier, off := "", ""
-		if kind == "graph" {
-			off, carrier = graphOff(eff, req), graphCarrier(eff, req, env)
+		// Without a [rules] table there is nothing to check.
+		if kind == "rules" && !eff.Config.Rules {
+			continue
 		}
-		for _, t := range targets(eff, req) {
+		ts := rootTargets(eff, req, env, kind)
+		// carrier is the stack whose job of a root kind this run plans; only
+		// those kinds set it.
+		carrier, off := "", ""
+		if isRootKind(kind) && req.Scope == ScopeCheck {
+			off, carrier = rootOff(eff, req, kind, ts), rootCarrier(eff, req, env, kind, ts)
+		}
+		for _, t := range ts {
 			areas := t.areas
-			if kind == "graph" {
-				// The graph belongs to the root: one job, not one rebuild per
-				// area, nor one per stack with a graph lane.
+			if isRootKind(kind) {
+				// The graph and the rules belong to the root: one job, not
+				// one per area, nor one per stack with such a lane.
 				areas = []string{"."}
 			}
 			for _, area := range areas {
 				note := ""
 				switch {
 				case off != "":
-					note = "graph switched off under [verify." + off + "]"
-				case kind == "graph" && carrier != "" && carrier != t.stack && hasCommand(eff, req, t.stack, kind):
-					note = "graph covered by graph/" + carrier
+					note = kind + " switched off under [verify." + off + "]"
+				case isRootKind(kind) && carrier != "" && carrier != t.stack && hasCommand(eff, req, t.stack, kind):
+					note = kind + " covered by " + kind + "/" + carrier
 				}
 				if note != "" {
 					job := baseJob(eff, env, kind, t.stack, area)
@@ -237,17 +255,54 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 // decides.
 var carrierRank = []string{"go", "python", "gdscript"}
 
-// graphCarrier is the stack whose graph job a check plans: the highest-ranked
-// active stack with a graph command that does not sit out this run. "" in an
-// edit, which plans no graph job and so has no carrier, and when no stack has
-// such a command: a lane that sits out rebuilds nothing for the others.
-func graphCarrier(eff Effective, req Request, env PlanEnv) string {
-	if req.Scope != ScopeCheck {
-		return ""
+// isRootKind says the kind belongs to the repository root: it runs once, not
+// once per stack and area.
+func isRootKind(kind string) bool { return kind == "graph" || kind == "rules" }
+
+// rootTargets are the targets of a kind. The rules kind in an edit is the
+// exception to targets(): its one job does not hang on the file's stack, only
+// on the file being a source or the config, and the carrier plans it.
+func rootTargets(eff Effective, req Request, env PlanEnv, kind string) []target {
+	if kind != "rules" || req.Scope != ScopeEdit {
+		return targets(eff, req)
 	}
+	if !EditsRules(req.File) {
+		return nil
+	}
+	all := []target{}
+	for _, stack := range slices.Sorted(slices.Values(eff.Active)) {
+		all = append(all, target{stack, []string{"."}})
+	}
+	if rootOff(eff, req, kind, all) != "" {
+		return nil
+	}
+	carrier := rootCarrier(eff, req, env, kind, all)
+	if carrier == "" {
+		return nil
+	}
+	return []target{{carrier, []string{"."}}}
+}
+
+// EditsRules says an edit of file, relative to the root, can change what the
+// rules find: a source, or the config that declares them.
+func EditsRules(file string) bool {
+	return file == ".loomux/config.toml" || IsSource(file)
+}
+
+// IsSource says whether the rules read a file as a source: the extractors'
+// extensions, matched exactly as they match them, so A.GD is none.
+func IsSource(rel string) bool {
+	return slices.Contains([]string{".go", ".py", ".gd"}, filepath.Ext(rel))
+}
+
+// rootCarrier is the stack whose job of a root kind a check plans: the
+// highest-ranked active stack with a command of that kind that does not sit
+// out this run. "" when no stack has such a command: a lane that sits out
+// rebuilds nothing for the others.
+func rootCarrier(eff Effective, req Request, env PlanEnv, kind string, ts []target) string {
 	carrier, best := "", len(carrierRank)+1
-	for _, t := range targets(eff, req) {
-		if !hasCommand(eff, req, t.stack, "graph") || skippedBy(req, eff.Stacks[t.stack]["graph"].Lane, env.Changed) != "" {
+	for _, t := range ts {
+		if !hasCommand(eff, req, t.stack, kind) || skippedBy(req, eff.Stacks[t.stack][kind].Lane, env.Changed) != "" {
 			continue
 		}
 		rank := slices.Index(carrierRank, t.stack)
@@ -261,24 +316,20 @@ func graphCarrier(eff Effective, req Request, env PlanEnv) string {
 	return carrier
 }
 
-// graphOff is the first active stack, in byte order, whose table switches the
-// graph lane off with `graph = false`, when some active stack would still
-// carry the graph without it. "" otherwise: when no table switches it off,
-// in an edit, which plans no graph job anyway, and when no stack is left
-// with a graph command -- the lanes then say "no command" as they did before
-// a second stack could carry the graph, and a Go repository with `graph =
-// false` reads as it always has. A switch under a stack the project does not
-// have is none of its graph's business.
-func graphOff(eff Effective, req Request) string {
-	if req.Scope != ScopeCheck {
-		return ""
-	}
+// rootOff is the first active stack, in byte order, whose table switches a
+// root kind off with `<kind> = false`, when some active stack would still
+// carry it without it. "" otherwise: when no table switches it off, and when
+// no stack is left with a command of that kind -- the lanes then say "no
+// command" as they did before a second stack could carry the kind, and a Go
+// repository with `graph = false` reads as it always has. A switch under a
+// stack the project does not have is none of its business.
+func rootOff(eff Effective, req Request, kind string, ts []target) string {
 	off, carried := "", false
-	for _, t := range targets(eff, req) {
-		if off == "" && eff.Config.Stacks[t.stack]["graph"].Lane.Off {
+	for _, t := range ts {
+		if off == "" && eff.Config.Stacks[t.stack][kind].Lane.Off {
 			off = t.stack
 		}
-		carried = carried || hasCommand(eff, req, t.stack, "graph")
+		carried = carried || hasCommand(eff, req, t.stack, kind)
 	}
 	if !carried {
 		return ""
@@ -345,12 +396,12 @@ func hasCommand(eff Effective, req Request, stack, kind string) bool {
 }
 
 // baseJob is a lane before the plan has decided anything about it. The graph
-// kind runs once at the root, so its name carries no area.
+// and rules kinds run once at the root, so their names carry no area.
 func baseJob(eff Effective, env PlanEnv, kind, stack, area string) Job {
 	r := eff.Stacks[stack][kind]
 	job := Job{Name: kind + "/" + stack, Kind: kind, Stack: stack, Area: area, Origin: r.Origin,
 		Dir: filepath.Join(env.Root, area), Threaded: r.Lane.Threaded, After: -1}
-	if len(eff.Areas[stack]) > 1 && kind != "graph" {
+	if len(eff.Areas[stack]) > 1 && !isRootKind(kind) {
 		job.Name += "@" + area
 	}
 	return job
@@ -383,6 +434,12 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 			ready, note = env.GraphReady(env.Root)
 		}
 		if !ready {
+			job.Pre, job.Note = StateNotApplicable, note
+			return job, link{}, true, nil
+		}
+	}
+	if kind == "rules" && env.RulesReady != nil {
+		if ready, note := env.RulesReady(env.Root); !ready {
 			job.Pre, job.Note = StateNotApplicable, note
 			return job, link{}, true, nil
 		}
@@ -464,7 +521,7 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 			l.hidden = []string{data}
 		}
 	}
-	if kind == "graph" && env.GraphEnv != nil {
+	if isRootKind(kind) && env.GraphEnv != nil {
 		job.Env = append(job.Env, env.GraphEnv(env.Root)...)
 	}
 	if r.Lane.Lock {

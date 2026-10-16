@@ -82,6 +82,17 @@ func TestValidateReportsAScratchDirectoryThatCannotBeMade(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsABrokenRulesMap(t *testing.T) {
+	t.Chdir(t.TempDir())
+	err := Validate("[rules.layers.a]\npaths = []\n")
+	if err == nil || !strings.Contains(err.Error(), "needs at least one glob") || !strings.Contains(err.Error(), ".loomux/config.toml") {
+		t.Fatalf("want the rules reader's refusal against .loomux/config.toml, got %v", err)
+	}
+	if err := Validate("[rules.layers.a]\npaths = [\"a/**\"]\nmay_use = []\n"); err != nil {
+		t.Fatalf("a sound map: %v", err)
+	}
+}
+
 func TestValidateAsksTheAgentAndFlowReaders(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for text, want := range map[string]string{

@@ -37,7 +37,7 @@ agy 1.2.12, 2026-09-28).
 
 `loomux check` takes a **request** first and its flags after it. The request is
 a profile (`edit`, `precommit`, `stop` or one of `[verify.profiles]`), `all`, a comma
-list of kinds (`lint,types`), or one of the five built-in checks below. What
+list of kinds (`lint,types`), or one of the built-in checks below. What
 each kind runs per stack is set by
 [`[verify]`](configuration.md#verify-check-chains--quality-gates) and the
 presets.
@@ -369,6 +369,122 @@ callers has no changed test that reaches it.
   no project root or graph, `--base` together with `--cached`, a base that
   starts with `-`, a threshold below 1, a git failure), `2` (an unknown flag).
   The exit code alone does not tell a finding from an error; `stdout` does.
+
+### `loomux check rules [--root <path>] [--cached]`
+The `rules` lane: holds the project to the layer map in
+[`[rules.layers]`](configuration.md#rules-the-layer-map). It
+reads the files git knows and builds the code graph from them in the process
+(the extractors and resolvers of `loomux graph`; a stored graph is never read,
+so it needs no fresh index and runs in CI). It reports four kinds of violation
+and the instrumentation a coverage tool left behind.
+
+- **Flags**: `--root <path>` (project root; found upwards when empty);
+  `--cached` (read the index instead of the working tree: contents, edges and
+  the first lines for the marker come from the staged version, also under
+  `git commit -a`; the presets use it for the commit and the working tree for
+  an edit). Without `--cached` the files are the tracked ones plus the
+  untracked ones git does not ignore, read from disk; a tracked file deleted
+  from the working tree counts as neither source nor test module. Any other
+  argument is a usage error (exit `2`). There is no "nothing staged" probe: with
+  nothing staged the index still holds every tracked file, so `--cached` checks
+  the tree as committed (in CI too).
+- **The direct command and the lane.** `loomux check rules` runs the check
+  itself and ignores the `[verify.<stack>.rules]` overrides and `rules =
+  false`; those apply only to the lane (`check precommit`, `check lint,rules`,
+  the post-edit hook and the turn end). At a turn end (the stop hook and
+  `check stop`) in a repository without a commit, the lane is planned
+  `not-applicable` with the note `no HEAD yet`: there is no copy of the index
+  to read, and the real one is partial. `check precommit` before the first
+  commit is unchanged and reads the index.
+- **Without `[rules]`** in `.loomux/config.toml` the command prints the note
+  `loomux check rules: note: no [rules] in .loomux/config.toml` on `stderr` and
+  exits `0`; the lane is then not planned at all.
+- **The findings**, one line each on `stdout`, `<path>:<line> <text>` (a finding
+  without a line is `<path> <text>`), in this order:
+  1. Only with `--cached`, first: `<file> still holds <tool> instrumentation;
+     restore the sources before committing`. A coverage tool that rewrites
+     sources on disk marks the first line; a killed run never restores it, and
+     committing such a file would commit the instrumented copy. The tool is
+     found as `check linecov` finds it (for Nano Coverage, the section
+     `[nano_coverage]` in `project.godot` or a report); a file is a leftover
+     when its first line, after a BOM, the line ending and surrounding blanks,
+     is the tool's marker. Nano Coverage writes
+     `# __NANO_COVERAGE_INSTRUMENTED__` (the constant `MARKER` in
+     `src/instrumentation/disk_instrumenter.cpp` of Nano Coverage). The rule
+     needs a `[rules]` table but no layer, and it covers the files of a layer
+     with `checked = false` too. It is not asked without `--cached`, so an
+     edit after an aborted run does not warn on every file.
+  2. A forbidden edge: `<file>:<line> <A> uses <B> (<symbol>) — not in may_use
+     of <A>; allow it with: loomux config set rules.layers.<A>.may_use …
+     --propose`. Every resolved edge except `contains` counts: `extends`,
+     imports (`preload`/`load` with a literal, Go and Python imports),
+     references to a `class_name` or an autoload (resolved through
+     `project.godot` to its file, so it falls into that file's layer) and
+     calls; comments make no edges. A source is a `.go`, `.py` or `.gd` file (the
+     extension is matched exactly: `A.GD` is none);
+     the target may be any file of the graph, a `.tscn`, a `.tres` or a file of
+     another language. One finding per source file and target file, at the first
+     line where the source uses the target. `<symbol>` is the owning class, else
+     the symbol; for a target that is a file it is the repository path
+     (`ui/x.tscn`), not the `res://` specifier. A target outside every layer is
+     no finding of this rule. A `res://` path in a plain string that stands at
+     no `preload`, `load` or `extends` makes no edge and is not seen.
+  3. An unresolved base: `<file>:<line> <layer> extends <Base> — not in bases
+     of <layer>` for a base the project does not resolve (a class of the engine
+     or the language) when the layer has a `bases` list without it, and
+     `<file>:<line> ambiguous base <Base>: more than one class declares it`
+     whatever `bases` says (a duplicated `class_name`; an edge would otherwise
+     pass silently). An `extends` of a path that does not resolve is no finding.
+  4. A missing test module: `<file> has no test module; expected <path>`, for
+     every source of a layer with `tests = true` that is not itself a test (see
+     the test profiles below).
+  5. A source outside every layer: `<file> is in no layer; add it to a layer in
+     [rules.layers], or to one with checked = false`. Only `.go`, `.py` and
+     `.gd` count; scenes, resources and `project.godot` do not. Test files
+     count, so a project needs a layer for them.
+- **Map errors** end the run with exit `2`, all at once, on `stderr`; nothing
+  that depends on the map is judged by a map that is wrong, so only the
+  instrumentation findings of `--cached` still go to `stdout`. They are: an
+  unknown key, a layer name that is no identifier, a layer without `paths`, an
+  empty glob list, a glob with a backslash, an unknown layer in `may_use`,
+  `checked = false` together with `may_use`, `bases` or `tests`, a glob that
+  matches no file (`layer <name>: <glob> matches no file`), a glob that cannot
+  be read, two layers that claim a file equally (`<file> matches layers A and B
+  equally`), and a layer with `tests = true` that no installed test profile
+  covers (`layer <name>: tests = true, but no test profile knows .py files`;
+  `layer <name>: tests = true, but .gd files need a plugin.cfg mentioning
+  gdUnit4 (none found under <dir>)`).
+- **Exit Codes**: `0` (no finding), `1` (findings), `2` (a map error, a read
+  error, or a usage error).
+
+**Test profiles.** Where a test module lies is data
+(`internal/verify/rules/tests.toml`), chosen by the extension of the source
+and, for gdUnit4, by the project:
+
+| Profile | Sources | Active | A file is a test when | Test module of a source |
+|---|---|---|---|---|
+| `go` | `.go` | always | its name ends in `_test.go` | `foo.go` → `foo_test.go`, same directory |
+| `gdunit4` | `.gd` | a `plugin.cfg` mentioning `gdUnit4` below the nearest `project.godot` | it lies below the test folder; with the folder empty or `/`, its name ends in `_test.gd` or `Test.gd` | what gdUnit4's `resolve_test_suite_path` makes of it |
+
+There is no profile for Python: pytest has no mapping from a source to its
+test file (only `python_files`, by default `test_*.py` and `*_test.py`), so a
+layer with `tests = true` and `.py` sources is a map error that names the
+missing profile. Adding a profile is a data entry plus a fixture project.
+
+The `gdunit4` mapping follows gdUnit4 itself (checked against
+`GdUnitSettings.gd` and `GdUnitTestSuiteScanner.gd` of gdUnit4 v6.2.2 and the
+vendored 6.2.0), surprises included. The settings come from `project.godot`,
+section `[gdunit4]`: `settings/test/test_lookup_folder` (default `test`; empty
+or `/` means beside the source) and `settings/test/test_suite_naming_convention`
+(`0` auto-detect, `1` snake case, `2` Pascal case; default `0`). Under a
+folder, `core/seeded_rng.gd` has its suite at `test/core/seeded_rng_test.gd`;
+a source under `addons/<plugin>/` at `addons/<plugin>/test/<rest>`; a `/src/`
+directory is replaced by the test folder. The final replacement of the file
+name runs over the whole path, so `ui/main_menu/main_menu.gd` expects
+`test/ui/main_menu_test/main_menu_test.gd`. A `project.godot` in a
+subdirectory is the root of the sources below it. The Go profile follows the
+`go` tool (`cmd/go`): a test file ends in `_test.go` and lies beside the
+sources of its package.
 
 ---
 

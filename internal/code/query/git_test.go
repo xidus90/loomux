@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,6 +41,13 @@ func hookIndex(t *testing.T, root string) string {
 		t.Fatalf("git add: %v\n%s", err, out)
 	}
 	return index
+}
+
+func TestGitRunsGit(t *testing.T) {
+	root := gitRepo(t)
+	if out, err := Git(root, "rev-parse", "--is-inside-work-tree"); err != nil || strings.TrimSpace(string(out)) != "true" {
+		t.Fatalf("got %q, %v", out, err)
+	}
 }
 
 // A commit hook reads the index git hands it, not .git/index: under

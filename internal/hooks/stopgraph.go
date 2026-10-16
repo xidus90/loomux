@@ -13,15 +13,17 @@ import (
 // about, as stopTree is for the copy that is not kept.
 var stopKeptTree = gitwork.KeptContentTree
 
-// StopIndex is the turn end's view for the graph lane: everything git does
-// not ignore, against HEAD, through a copy of the index the caller closes.
+// StopIndex is the turn end's view for the root lanes (graph and rules):
+// everything git does not ignore, against HEAD, through a copy of the index
+// the caller closes.
 type StopIndex struct {
 	Index, Tree, HeadTree string
 }
 
-// OpenStopIndex builds the copy for a profile with the graph kind in a
-// project that has a graph to read; nil without error for any other, and
-// where there is no repository or no HEAD, which Ready then reports.
+// OpenStopIndex builds the copy for a profile with the rules kind, or with
+// the graph kind in a project that has a graph to read; nil without error for
+// any other, and where there is no repository or no HEAD, which Ready and
+// RulesReady then report.
 func OpenStopIndex(root string, kinds []string) (*StopIndex, error) {
 	if !wantsStopIndex(root, kinds) {
 		return nil, nil
@@ -67,7 +69,18 @@ func (s *StopIndex) Ready(root string) (bool, string) {
 	return true, ""
 }
 
-// Env hands the graph job the copy in place of the real index.
+// RulesReady is the rules lane's plan-time probe at a turn end: it reads the
+// copy, and without one (no HEAD yet) the real index is partial, so the lane
+// sits out.
+func (s *StopIndex) RulesReady(string) (bool, string) {
+	if s == nil {
+		return false, "no HEAD yet"
+	}
+	return true, ""
+}
+
+// Env hands the root jobs (graph and rules) the copy in place of the real
+// index.
 func (s *StopIndex) Env(string) []string {
 	if s == nil {
 		return nil
@@ -82,9 +95,17 @@ func (s *StopIndex) Close() {
 	}
 }
 
-// wantsStopIndex says whether a turn end keeps its copy of the index: only
-// for a profile with the graph kind in a project that has a graph to read.
+// wantsStopIndex says whether a turn end keeps its copy of the index: for a
+// profile with the rules kind (which verify.ExpandProfile leaves out of a
+// project without a [rules] table), whose check reads the index it is handed,
+// and for one with the graph kind in a project that has a graph to read.
 func wantsStopIndex(root string, kinds []string) bool {
+	return slices.Contains(kinds, "rules") || wantsStopGraph(root, kinds)
+}
+
+// wantsStopGraph says whether the profile plans the graph lane in a project
+// that has a graph to read: the only lane that judges against HEAD.
+func wantsStopGraph(root string, kinds []string) bool {
 	if !slices.Contains(kinds, "graph") {
 		return false
 	}

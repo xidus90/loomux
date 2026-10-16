@@ -1,0 +1,20 @@
+# Test profiles as data. Each entry says which sources it covers, how a
+# project shows the test tool is installed, which files are tests and where
+# the test module of a source lies. The lint test in pairing_test.go demands
+# a fixture project for every entry under testdata/tests/<name>/.
+#
+# mapping "beside" is the source's name with the first test suffix, in the
+# same directory. mapping "gdunit4" is Go code that follows gdUnit4's
+# resolve_test_suite_path; the entry only selects it.
+
+[profile.go]
+extension = ".go"
+detect = ""
+test_suffixes = ["_test.go"]
+mapping = "beside"
+
+[profile.gdunit4]
+extension = ".gd"
+detect = "plugin.cfg:gdUnit4"
+test_suffixes = ["_test.gd", "Test.gd"]
+mapping = "gdunit4"
