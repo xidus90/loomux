@@ -181,7 +181,7 @@ lint = "make lint"
 | `timeout` | positive Ganzzahl | Sekunden, die jeder Befehl laufen darf. Vorgabe 600, keine Obergrenze. Der post-edit-Hook und das Stop-Tor haben zusätzlich ein Budget für den ganzen Lauf (`--budget`, Vorgabe 50 s bzw. 270 s); `loomux check` hat keins. |
 | `profiles.<name>` | Liste von Arten | Eine benannte Menge von Arten. `edit` (post-edit), `precommit` (das Pre-Commit-Tor) und `stop` (das Stop-Tor am Rundenende) sind eingebaut und überschreibbar, aber nicht zu entfernen. Eine leere Liste, eine unbekannte Art oder ein reservierter Name ist ein Ladefehler. |
 | `<stack>.<art>` | String, Liste, `false` oder Tabelle | Wie eine Art für einen Stack läuft; siehe unten. |
-| `gdscript.import_check` | Boolean | Vorgabe `true`: Eine `test`- oder `coverage`-Lane, die das Projekt für GDScript konfiguriert, ist `unready`, bis der Godot-Editor das Projekt importiert hat (`.godot/global_script_class_cache.cfg`). |
+| `gdscript.import_check` | Boolean | Vorgabe `true`: Eine `test`- oder `coverage`-Lane, die das Projekt für GDScript konfiguriert, ist `unready`, bis der Godot-Editor das Projekt importiert hat (`.godot/global_script_class_cache.cfg`); der Hinweis nennt `loomux godot rescan`, das das Projekt importiert und dessen `project.godot` erhält. |
 | `gdscript.godot` | String | Das Godot-Binary, das `{godot}` nennt, relativ zur Wurzel oder absolut. Wird nach `GODOT_BIN` und vor dem `PATH` geprüft. |
 
 Jeder andere Schlüssel ist ein Ladefehler, der Datei und Schlüssel nennt, auf
@@ -264,11 +264,12 @@ Die Schlüssel der Tabellenform:
 | `measure` | String | Nur `test`/`coverage`. Der eine Befehl, den `coverage` zuerst fährt, wenn sein Vorgänger nicht im Lauf steht. |
 | `after` | Art | Nur `test`/`coverage`. Die Art desselben Stacks, auf die diese Lane wartet. Zyklen sind Ladefehler, die Meldung nennt den Ring. |
 | `needs` | Liste | Dateien, relativ zum Verzeichnis der Lane und darin, ohne die ihre `commands` nichts bedeuten. Fehlt eine, ist die Lane `unready`: im Edit übersprungen und genannt, im Check rot. `on_file` bewachen sie nicht: ein Edit, der die Form einer Lane für eine Datei ausführt, führt sie in jedem Fall aus. |
+| `when_found` | Liste | Muster in der Form von `tests_when`; jedes muss unter dem Verzeichnis der Lane gefunden werden, sonst ist die Lane `unavailable` (`none found: <Muster>`). Wird vor `needs` und `{godot}` geprüft. |
 | `skip_when_only` | Liste | Globs, relativ zur Repository-Wurzel und in der Syntax von `[policy.paths]`, von Pfaden, um die sich die Lane nicht kümmert. Bei einem Commit (im pre-commit-Hook, wo git `GIT_INDEX_FILE` mitgibt) und an einem Turn-Ende (gegen den zuletzt grünen Baum, ohne einen solchen gegen den Baum der Basis; hat ein Commit im Turn HEAD bewegt und läuft am Turn-Ende die Graph-Lane, zählen auch die Pfade, die dieser Commit seit dem Commit der Basis mitnahm) ist eine Lane, deren geänderte Pfade alle auf einen davon passen, `not-applicable` mit der Notiz `only skip_when_only paths changed (…)`. Eine Lane, die ihre Dateien liest (wie das `coverage` von Go die Coverage-Datei, die `test` schreibt), erbt das; so hält `[verify.go.test] skip_when_only` `coverage` davon ab, die Suite selbst zu messen; eine Lane, die nur danach geordnet ist (`after` allein), läuft. Ein Lauf, der nur `coverage` anfragt, braucht den Schlüssel an `coverage`. Ohne geänderten Pfad, von Hand (`loomux check` ohne den Hook) und in einem Edit läuft jede Lane. Der Abgleich unterscheidet Groß- und Kleinschreibung; ein Pfad, der sich nur darin unterscheidet, lässt die Lane laufen. |
 | `lock` | Boolean | Nimmt Stack und Area der Lane in diesem Checkout für sich, solange ihre Prozesse laufen, `measure` eingeschlossen: ein zweiter Lauf einer Lane, die ebenfalls `lock = true` für denselben Stack und dieselbe Area setzt, wartet, belegt dabei keinen `max_parallel`-Platz und gibt `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)` aus; eine Lane ohne `lock` sieht die Sperre nicht an. Lanes desselben Stacks und derselben Area im selben Lauf kommen ebenso nacheinander dran und sagen `held by another lane of this run`. An einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget und endet als `budget`; in `loomux check` und im pre-commit-Tor endet sie nach `[verify].timeout` als `timed-out`. Die Sperre ist die des Betriebssystems, unter `.loomux/state/locks/`, und ein toter Halter gibt sie frei. Für Werkzeuge, die Quellen umschreiben, während sie messen. |
 
 - **Ersetzen oder zusammenführen.** Ein String oder eine Liste steht für die
-  Lane, wie sie dasteht: `measuring`, `measure`, `on_file`, `needs`,
+  Lane, wie sie dasteht: `measuring`, `measure`, `on_file`, `needs`, `when_found`,
   `skip_when_only` und `lock` des Presets gelten nicht mehr, nur `after`
   bleibt. Eine Tabelle ändert nur die Schlüssel, die sie nennt:
   `[verify.go.test] measuring = "…"` behält `commands` aus dem Preset.
@@ -326,7 +327,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx --from gdtoolkit gdlint .` | — | — | — |
+| gdscript | `uvx --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -345,24 +346,31 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   `files` setzen. Mit `pyright` und `mypy` zugleich prüft pyright.
 - Das gdscript-`lint` holt `gdlint` aus dem Paket `gdtoolkit`, in dem es
   ausgeliefert wird; ein Paket `gdlint` kennt die Registry nicht.
-- gdscript hat kein `test`-Preset: Die Lane ist `not-applicable`, bis das
-  Projekt einen Befehl nennt. Das Projekt nur hochzufahren
-  (`godot --headless --quit`) ist kein Test, denn Godot endet mit 0, auch
-  wenn ein Skript nicht parst (eine Messung, mit Godot 4.7.1 unter Windows,
-  auf keiner anderen Version und keinem anderen System wiederholt), und ein
-  Download
-  heißt `Godot_v4.7.1-stable_win64.exe`, nicht `godot`; die Lane wäre auf den
-  meisten Rechnern `missing-tool` und rot. Ein Projekt mit Tests nennt, was
-  sie fährt, in der Regel sein eigenes Testskript:
+- Die gdscript-Presets `test` und `coverage` fahren `loomux check
+  godot-suite` (gdUnit4 headless, in Scherben; es entscheidet nach dem
+  gdUnit4-Bericht, nie nach dessen Exit-Code) und brauchen keine
+  Konfiguration, wo das Projekt die Addons mitbringt. `when_found` erkennt
+  sie: `test` braucht eine `plugin.cfg`, die `gdUnit4` nennt, `coverage`
+  zusätzlich eine, die `NanoCoverage` nennt. Fehlen sie, ist die Lane
+  `unavailable` (`none found: plugin.cfg:NanoCoverage`), und das Projekt läuft
+  ohne sie weiter. Laufen beide Lanes in einem Lauf, misst `test` in seiner
+  Form `measuring`, und `coverage` liest, was es nach `{coverdata}`
+  geschrieben hat; `coverage` allein fährt die Suite im Schritt `measure`.
+  Nur dieser Schritt und `test` nennen `{godot}`: Ein Commit, den `test` per
+  `skip_when_only` überspringt, braucht auch für `coverage` kein Godot-Binary.
+  Beide Lanes tragen `lock`, weil sich zwei Läufe `.godot/loomux/` auch ohne
+  Instrumentierung teilen, und keine hat eine Form `on_file`: Ein Edit fährt
+  keine Suite. `import_check` gilt für beide.
 
-  ```toml
-  [verify.gdscript.test]
-  commands = ["{godot} --headless --script tests/run_tests.gd"]
-  ```
-
-  Das Skript muss mit einem Code ungleich 0 enden, wenn ein Test scheitert.
-  `import_check` gilt für die Lane, sobald sie einen Befehl hat. `{godot}`
-  findet das Binary und prüft es gegen das Projekt (siehe die
+  Abschalten: `test = false` (und `coverage = false`) in `[verify.gdscript]`;
+  `lock = false` an einer Lane behält sie und lässt das Sperren weg. Ein
+  Projekt, das seine eigene Suite fährt (GUT etwa), schreibt die
+  String-Form `test = "…"`, die die Lane des Presets ersetzt. In der
+  Tabellenform verwirft `commands` allein das `when_found` des Presets (es
+  schützt die Befehle des Presets, nicht die des Projekts) und behält den
+  Rest der Lane; setzt darum auch `measuring`, sonst misst ein
+  Coverage-Lauf weiter mit der Form des Presets.
+  `{godot}` findet das Binary und prüft es gegen das Projekt (siehe die
   Platzhaltertabelle); schreibt ein Projekt den Pfad stattdessen selbst in den
   Befehl, steht er mit Vorwärtsschrägstrichen, in einfachen
   Anführungszeichen, wenn er ein Leerzeichen enthält: In einfachen
@@ -412,7 +420,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   untertreibt deshalb bei Tests über Paketgrenzen. Ein Projekt nennt
   `-coverpkg` in seinem `test.measuring` und `coverage.measure`, wie loomux
   selbst.
-- GDScript hat kein Coverage-Preset.
+- GDScript hat ein Coverage-Preset nur dort, wo Nano Coverage neben gdUnit4 liegt; `check linecov` hält dann die Zeilen, die es meldet.
 
 #### Die Art `graph`
 

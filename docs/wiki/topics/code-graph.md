@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:6418b56027a081e22a7201a65f69e1051b29611498155808eba443d28d36d867"
-    revision: 11
+    content_hash: "sha256:878f5c996b07b8898bef381002154709722a74057bc6a0aef3ffad99093bcc54"
+    revision: 12
 ---
 
 ## Wofür
