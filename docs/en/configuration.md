@@ -799,7 +799,8 @@ on_file  = ["{loomux} check rules"]
 - The default profiles `edit`, `precommit` and `stop` carry `rules`. A project
   with its own `[verify.profiles]` adds `rules` to them itself.
 - The instrumentation check of Nano Coverage (a source whose first line the
-  tool wrote and a killed run left) belongs to the lane and needs only a
+  tool wrote and a killed run left, in a Godot project at the root or in any
+  directory below it) belongs to the lane and needs only a
   `[rules]` table, not a layer; it runs only at the commit.
 
 ### `[modules]` (What Runs in This Project)
