@@ -406,7 +406,10 @@ and the instrumentation a coverage tool left behind.
      sources on disk marks the first line; a killed run never restores it, and
      committing such a file would commit the instrumented copy. The tool is
      found as `check linecov` finds it (for Nano Coverage, the section
-     `[nano_coverage]` in `project.godot` or a report); a file is a leftover
+     `[nano_coverage]` in `project.godot` or a report), in the root and in
+     every directory holding a settings file of a tool, for the files below
+     that directory: a project at `godot/project.godot` counts for
+     `godot/**`. A file is a leftover
      when its first line, after a BOM, the line ending and surrounding blanks,
      is the tool's marker. Nano Coverage writes
      `# __NANO_COVERAGE_INSTRUMENTED__` (the constant `MARKER` in
