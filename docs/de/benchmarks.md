@@ -3717,3 +3717,106 @@ Code Graph Stats:
    eine Untergrenze (siehe `cli-reference.md`).
 3. **Warm ist 9-mal schneller als kalt** (670 ms gegen 6,021 s), alle 706
    Dateien kommen aus dem Extraktions-Cache.
+
+## 2026-10-16 09:10 — `check godot-suite` gegen das gdUnit4-Tor, das es ersetzt
+
+**Ziel.** Dasselbe Urteil wie das Tor von `space`
+(`.claude/hooks/godot_quality.py`, das die Suite mit `suite_shards.py`
+aufteilt), und nicht langsamer.
+
+**Ergebnis in einer Zeile.** Das *Suite*-Urteil stimmt überein (beide grün,
+kein fehlgeschlagener Fall), und die Suite ist nicht langsamer (kalt +1,8 %,
+warm +0,2 %). Das *Coverage*-Urteil stimmt noch nicht überein: das
+Coverage-Tor der Referenz ist grün, `loomux check linecov` über dieselben
+Berichte ist rot mit 3629 Befunden. Jeder davon wird unten durch etwas erklärt,
+das die `space`-Migration ändert (oder durch einen loomux-Fehler); nichts davon
+wurde nach diesen Änderungen neu gemessen.
+
+**Methode.** Zweig `feat/godot-suite` bei `2952a7b1`, Binary mit
+`go build -o <scratch>/loomux.exe ./cmd/loomux`. Zwei Scratch-Kopien von
+`space`: (A) das ganze Repository ohne `.tools` und die Worktrees, über
+`uv run --script`, die Engine benannt durch `GODOT4_BIN` (der
+`godot4-headless.cmd`-Wrapper des Repositorys); (B) nur eine Kopie von
+`godot/`, in ein frisches Git-Repository eingecheckt, danach der Eintrag
+`[gdunit4] hooks/session_hooks`, der `coverage_shard_hook.gd` nennt,
+entfernt und erneut eingecheckt (loomux bringt seinen eigenen Hook mit). In B:
+`loomux check godot-suite --root <B> --godot <Godot_v4.7.1 mono console exe>
+--coverage <dir>`; B hat keine `.loomux/config.toml`, deshalb lag der Zustand
+(Shard-Gewichte) unter `<B>/.loomux/state/godot-suite/`. Beide Seiten messen
+mit Nano Coverage (`[nano_coverage]` in `project.godot`; der Hilfetext von
+`--coverage` in loomux nennt es ebenso) und führen die Shard-Berichte
+zusammen. Bei der Referenz wurde die Suite-Phase getrennt von den übrigen
+Phasen des Tors gemessen, mit einem Scratch-Skript, das die Funktionen des
+Tors selbst aufruft (`fast_findings`, `suite_findings`, `lint_findings`,
+`coverage_gate.findings`); die Zeilen „volles Tor“ sind die Summe dieser
+Phasen, kein Lauf des Einstiegspunkts.
+
+Kalt heißt: keine früheren Shard-Gewichte, Referenz `godot/.shards` und
+`godot/reports` gelöscht, loomux keine Zustandsdatei. Import-Cache: der kalte
+Referenzlauf behielt das mit Kopie A aus `space` kopierte `.godot` (nicht
+gelöscht). Das `.godot` von Kopie B ist nicht B's eigenes: ein früheres
+`godot rescan`-Experiment hatte es gelöscht und neu importiert (dabei
+entstanden `*.uid`-Dateien, `*.import`-Dateien wurden berührt), B wurde mit
+`git checkout`/`git clean` zurückgesetzt und bekam das `.godot` von Kopie A,
+genommen nach dem ersten Referenzlauf in A. Beide Seiten liefen also mit
+warmem Import-Cache; keine hat einen Import gemessen. Auf beiden Seiten 8
+Shards. AMD Ryzen 7 9800X3D (8 Kerne, 16 Threads; aus `Win32_Processor`),
+Windows 11 Pro, je ein Lauf.
+
+```
+Referenz, Phasensumme, kalt:  fast=4.0s suite=160.3s lint=20.6s covgate=0.1s total=185.1s
+Referenz, Phasensumme, warm:  fast=0.9s suite=115.6s lint=16.6s covgate=0.1s total=133.2s
+Referenz, schlicht `uv run --script godot_quality.py`: Exit 0, still, 137,2 s
+    (erster Lauf; die Kopie trug noch die mitkopierten `.shards` und `reports`, Shard-Gewichte lagen also vor)
+loomux kalt:   check godot-suite --coverage   Exit 0   163,2 s
+loomux warm:   check godot-suite --coverage   Exit 0   115,8 s
+loomux warm:   check godot-suite (ohne Coverage) Exit 0    50,9 s
+```
+
+| Messgröße | Referenz (Suite-Phase) | loomux | Unterschied |
+| --- | ---: | ---: | ---: |
+| Kalt, mit Coverage | 160,3 s | 163,2 s | +1,8 % |
+| Warm, mit Coverage | 115,6 s | 115,8 s | +0,2 % |
+| Warm, ohne Coverage | nicht gemessen | 50,9 s | — |
+| Fehlgeschlagene Fälle | 0 von 3294 | 0 (Exit 0, 207 Suiten) | gleich |
+| Coverage-Urteil | grün | `check linecov`: rot, 3629 Befunde | verschieden, siehe unten |
+| `git status --porcelain` in B danach | — | leer (aber siehe unten) | — |
+
+Das Referenztor außerhalb der Suite (`gdlint`, `gdformat`, Verzeichnis- und
+Paarungsprüfungen, Coverage-Tor) brauchte in der Phasensumme weitere 17,6 s
+warm und 24,7 s kalt; diese Arbeit gehört nicht zu `check godot-suite` und
+bleibt in den anderen Lanes. Die `git status`-Prüfung schloss `.loomux/` aus
+(Git-Ausschluss in Kopie B), das Zustandsverzeichnis, das `check godot-suite`
+dort anlegt, war also nicht Teil davon.
+
+**`check linecov --root <B> --report <dir>`** über die acht zusammengeführten
+Berichte: Exit 1, 3629 Befunde (3616 ungedeckte Zeilen, 13 Dateien fehlen im
+Bericht).
+
+| Befunde | Anzahl | Erklärung |
+| --- | ---: | --- |
+| Ungedeckte Zeilen mit `# no-cover:` | 63 | Gewollt. Der Marker wird in der `space`-Migration zu `# coverage:exempt <Grund>` (linecov-Spec, `docs/.superpowers/specs/2026-10-14-check-linecov-design.md`, Abschnitt „Folgen für space“). |
+| Ungedeckte Zeilen in `harness/` | 3553 | Derselbe Fall: die Migration verschiebt `harness/**` nach `[nano_coverage] general/ignore_paths` (dieselbe Tabelle; das Referenztor führt es als `UNMEASURED_DIRS`). |
+| Fehlend: `.godot/loomux/{disk,hook,run_GdUnitCmdTool}.gd` | 3 | Ein loomux-Fehler: linecov darf keine Dateien unter `.godot/` erwarten. Auf diesem Zweig behoben; hier nicht neu gemessen. |
+| Fehlend: `harness/{disk_instrumentation,hex_mesh_probe,probe_context}.gd` | 3 | Wieder `harness/`: von derselben Migration ausgenommen. |
+| Fehlend: `core/cie_1931.gd`, `data/resource_entry.gd`, `model/{extractor,planet,race_origin,trade_order,transfer_order}.gd` | 7 | Gegen die Referenz geprüft: keine der sieben deklariert eine Funktion außer `_init` (`cie_1931` und `resource_entry` keine, die anderen fünf nur `_init`), genau die Form, die `_has_instrumentable_code` in `coverage_gate.py` der Referenz entschuldigt, weil Nano Coverage in einem `_init`-Rumpf keine Sonde setzt. Die Migration drückt sie als `# coverage:exempt-file <Grund>` aus (dieselbe Tabelle). |
+
+Ohne `harness/` und `.godot/` bleiben 70 Befunde: die 63 markierten Zeilen und
+die 7 Dateien oben.
+
+**Kernergebnisse**
+
+1. **Suite-Urteil gleich:** beide Tore sind grün, 207 Suiten, kein
+   fehlgeschlagener Fall. **Coverage-Urteil noch nicht gleich:** Referenz grün,
+   `check linecov` rot, jeder Befund oben erklärt und keiner nach der
+   `space`-Migration neu gemessen.
+2. **Nicht langsamer:** kalt +1,8 %, warm +0,2 % auf der Suite-Phase, innerhalb
+   der erlaubten 10 %. Die Referenzzahl von 63 s für 8 Shards ist der Lauf ohne
+   Coverage; die Referenz ohne Coverage wurde hier nicht erneut gemessen
+   (loomux ohne Coverage: 50,9 s).
+3. **Kalt kostet rund 47 s mehr als warm** (163,2 s gegen 115,8 s; 160,3 s
+   gegen 115,6 s bei der Referenz). Die Ursache wurde nicht gemessen; eine
+   ungeprüfte Vermutung ist, dass die fehlenden Shard-Gewichte einen
+   schlechteren Shard-Plan ergeben.
+4. **Der Baum bleibt sauber:** keine Quelldatei bleibt instrumentiert zurück,
+   und nach der Entfernung ist kein Hook-Eintrag mehr nötig.
