@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,7 +24,7 @@ import (
 )
 
 func TestCheckNeedsARequest(t *testing.T) {
-	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, linecov, graph-fresh, blast-audit\n"
+	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, graph-fresh, blast-audit\n"
 	if code, _, errOut := run("check"); code != 2 || errOut != want {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
@@ -233,6 +234,28 @@ func TestCheckShowPrintsThePlanAndRunsNothing(t *testing.T) {
 	}
 }
 
+func TestCheckShowListsTheGdscriptSuiteLanes(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "project.godot", "config_version=5\n")
+	os.MkdirAll(filepath.Join(root, "addons", "gdUnit4"), 0o755)
+	os.MkdirAll(filepath.Join(root, "addons", "NanoCoverage"), 0o755)
+	put(t, root, "addons/gdUnit4/plugin.cfg", "name=\"gdUnit4\"\n")
+	put(t, root, "addons/NanoCoverage/plugin.cfg", "name=\"NanoCoverage\"\n")
+	stubCheck(t, green)
+	code, out, errOut := run("check", "test,coverage", "--root", root, "--show")
+	if code != 0 || errOut != "" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	for _, want := range []string{"[verify.gdscript.test]", "[verify.gdscript.coverage]", `when_found = ["plugin.cfg:gdUnit4"]`, `"plugin.cfg:NanoCoverage"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
+	}
+	if strings.Count(out, "lock = true") != 2 {
+		t.Errorf("want both lanes locked: %s", out)
+	}
+}
+
 func TestCheckVerboseShowsAGreenLanesOutput(t *testing.T) {
 	root := goWorld(t)
 	stubCheck(t, func(child.Spec) child.Result { return child.Result{Stdout: "all tidy\n"} })
@@ -345,11 +368,25 @@ func TestCheckFailsWhenItCannotMakeTheCoverDirectory(t *testing.T) {
 
 func TestCheckWarnsWhenItCannotCleanTheCoverDirectory(t *testing.T) {
 	root := goWorld(t)
-	// A stale entry that is a directory with something in it cannot be
-	// removed, on any platform.
+	// A stale directory whose content cannot be deleted: an open file on
+	// Windows, a read-only directory elsewhere.
 	stale := filepath.Join(coverDirOf(root), "old")
 	os.MkdirAll(stale, 0o755)
-	os.WriteFile(filepath.Join(stale, "x"), nil, 0o644)
+	inner := filepath.Join(stale, "x")
+	os.WriteFile(inner, nil, 0o644)
+	if runtime.GOOS == "windows" {
+		f, err := os.Open(inner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { f.Close() })
+	} else {
+		if os.Geteuid() == 0 {
+			t.Skip("root ignores directory permissions")
+		}
+		os.Chmod(stale, 0o555)
+		t.Cleanup(func() { os.Chmod(stale, 0o755) })
+	}
 	past := time.Now().Add(-48 * time.Hour)
 	os.Chtimes(stale, past, past)
 	stubCheck(t, green)

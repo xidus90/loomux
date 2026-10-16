@@ -738,6 +738,7 @@ func TestStopWarnsWhenItCannotCleanTheCoverDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeWorldFile(t, root, ".loomux/state/cover/old/x", "")
+	keepUndeletable(t, stale, filepath.Join(stale, "x"))
 	past := time.Now().Add(-48 * time.Hour)
 	if err := os.Chtimes(stale, past, past); err != nil {
 		t.Fatal(err)

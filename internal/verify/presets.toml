@@ -116,9 +116,21 @@ on_file = ["uvx --from gdtoolkit gdlint {file}"]
 [stack.gdscript.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
-# No test lane: booting the project (`godot --headless --quit`) exits 0 on a
-# script that does not parse, and the binary is seldom on the PATH under that
-# name. A project names its own test command in [verify.gdscript.test].
+# gdUnit4 decides by the report, never by its exit code; see the cli reference.
+[stack.gdscript.test]
+commands   = ["{loomux} check godot-suite --godot {godot}"]
+measuring  = "{loomux} check godot-suite --godot {godot} --coverage {coverdata}"
+lock       = true
+when_found = ["plugin.cfg:gdUnit4"]
+
+# The lane's own command does not name {godot}: a commit that skips `test`
+# needs no binary for this lane either.
+[stack.gdscript.coverage]
+commands   = ["{loomux} check linecov --report {coverdata}"]
+measure    = "{loomux} check godot-suite --godot {godot} --coverage {coverdata}"
+after      = "test"
+lock       = true
+when_found = ["plugin.cfg:gdUnit4", "plugin.cfg:NanoCoverage"]
 
 [stack.cpp]
 tests_when = ["CMakeLists.txt:enable_testing("]

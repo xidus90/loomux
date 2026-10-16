@@ -17,6 +17,7 @@ var commands = map[string]command{
 	"fetch":      fetchCommand,
 	"flow":       flowCommand,
 	"gate":       gateCommand,
+	"godot":      godotCommand,
 	"graph":      graphCommand,
 	"hook":       hookCommand,
 	"init":       initCommand,

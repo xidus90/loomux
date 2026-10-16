@@ -91,6 +91,9 @@ func writeLane(w io.Writer, stack, kind string, r Resolved) {
 	if len(l.Needs) > 0 {
 		key("needs", quoteList(l.Needs))
 	}
+	if len(l.WhenFound) > 0 {
+		key("when_found", quoteList(l.WhenFound))
+	}
 	if l.Lock {
 		key("lock", "true")
 	}

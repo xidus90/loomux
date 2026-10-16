@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/xidus90/loomux/internal/verify"
 	"github.com/xidus90/loomux/internal/verify/commit"
 	"github.com/xidus90/loomux/internal/verify/gocover"
+	"github.com/xidus90/loomux/internal/verify/godotsuite"
 	"github.com/xidus90/loomux/internal/verify/linecov"
 )
 
@@ -57,11 +59,13 @@ var (
 	checkWriteArmed  = verify.WriteArmed
 	checkCommitIndex = gitwork.CommitIndex
 	checkStage       = gitwork.Stage
+	checkGodotRun    = godotsuite.Run
+	checkGodotFor    = verify.GodotFor
 )
 
 func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, linecov, graph-fresh, blast-audit")
+		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, graph-fresh, blast-audit")
 		return 2
 	}
 	switch args[0] {
@@ -71,6 +75,8 @@ func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return checkGocover(args[1:], stdout, stderr)
 	case "linecov":
 		return checkLinecov(args[1:], stdout, stderr)
+	case "godot-suite":
+		return checkGodotSuite(args[1:], stdout, stderr)
 	case "graph-fresh":
 		return checkGraphFresh(args[1:], stdout, stderr)
 	case "blast-audit":
@@ -511,6 +517,89 @@ func checkLinecov(args []string, stdout, stderr io.Writer) int {
 	}
 	for _, f := range res.Findings {
 		fmt.Fprintln(stdout, f)
+	}
+	if len(res.Findings) > 0 {
+		return 1
+	}
+	return 0
+}
+
+// godotTarget is the Godot project a command works on and the checkout that
+// holds its state: root is absolute, area is its slash path under the
+// checkout, which is what `loomux godot rescan --root` takes there.
+func godotTarget(rootFlag string) (root, checkout, area string) {
+	abs, _ := filepath.Abs(rootFlag)
+	root = cmp.Or(abs, rootFlag)
+	checkout, err := hosts.FindRoot(root)
+	if err != nil {
+		checkout = root
+	}
+	rel, _ := filepath.Rel(checkout, root)
+	return root, checkout, filepath.ToSlash(cmp.Or(rel, "."))
+}
+
+// godotBinary is the engine --godot names, or the one {godot} finds for the
+// project; one that is missing or does not match project.godot comes back as
+// a finding.
+func godotBinary(flagValue, root, checkout string) (bin, finding string, err error) {
+	if flagValue != "" {
+		return flagValue, "", nil
+	}
+	cfg, err := verify.ReadConfig(checkout)
+	if err != nil {
+		return "", "", err
+	}
+	bin, pre, note := checkGodotFor(checkout, cfg.Godot, checkStart, nil)(root)
+	if pre != "" {
+		return "", note, nil
+	}
+	return bin, "", nil
+}
+
+// checkGodotSuite runs the gdUnit4 suites of a Godot project in shards and
+// judges them by their reports.
+func checkGodotSuite(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("check godot-suite", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	godot := fs.String("godot", "", "Godot binary; found like {godot} when empty")
+	coverage := fs.String("coverage", "", "measure with Nano Coverage and write <dir>/<i>.info per shard")
+	rootFlag := fs.String("root", ".", "the Godot project (the directory holding project.godot)")
+	restore := fs.Bool("restore", false, "only restore sources a run left instrumented")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(stderr, "loomux check godot-suite: unexpected argument %q\n", fs.Arg(0))
+		return 2
+	}
+	root, checkout, area := godotTarget(*rootFlag)
+	bin, finding, err := godotBinary(*godot, root, checkout)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check godot-suite: %v\n", err)
+		return 1
+	}
+	if finding != "" {
+		fmt.Fprintln(stdout, finding)
+		return 1
+	}
+	cover := *coverage
+	if abs, _ := filepath.Abs(cover); cover != "" {
+		cover = cmp.Or(abs, cover)
+	}
+	res, err := checkGodotRun(godotsuite.Options{
+		Root: root, CheckoutRoot: checkout, Area: area, Godot: bin, Coverage: cover,
+		RestoreOnly: *restore, RunID: verify.NewRunID(checkNow(), os.Getpid()),
+		CPUs: runtime.NumCPU(), Start: checkStart, Now: checkNow,
+	})
+	for _, n := range res.Notes {
+		fmt.Fprintf(stderr, "loomux check godot-suite: note: %s\n", n)
+	}
+	for _, f := range res.Findings {
+		fmt.Fprintln(stdout, f)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check godot-suite: %v\n", err)
+		return 1
 	}
 	if len(res.Findings) > 0 {
 		return 1

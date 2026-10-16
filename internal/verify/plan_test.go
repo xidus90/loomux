@@ -227,7 +227,7 @@ func TestPlanMarksGodotUnready(t *testing.T) {
 	e.ImportReady = func(dir string) bool { asked = dir; return false }
 	src := "[verify.gdscript]\ntest = \"sh run_tests.sh\"\n"
 	jobs, _ := Plan(effFor(t, src, facts), Request{Kinds: []string{"lint", "test"}}, e)
-	if names(jobs) != "lint/gdscript test/gdscript" || jobs[0].Pre != "" || jobs[1].Pre != StateUnready || jobs[1].Note != "run the Godot editor once to import the project" {
+	if names(jobs) != "lint/gdscript test/gdscript" || jobs[0].Pre != "" || jobs[1].Pre != StateUnready || jobs[1].Note != "run loomux godot rescan --root game to import the project" {
 		t.Fatalf("%+v", jobs)
 	}
 	if asked != filepath.Join(root, "game") {
@@ -313,7 +313,7 @@ func TestPlanDoesNotAskForGodotWhenTheLaneSitsOut(t *testing.T) {
 // out, is never taken and never asks for the binary.
 func TestPlanAReadingLaneAfterASkippedOneNeverAsksForGodot(t *testing.T) {
 	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
-	src := "[verify.gdscript.test]\ncommands = [\"sh run.sh {coverprofile}\"]\nskip_when_only = [\"docs/**\"]\n" +
+	src := "[verify.gdscript.test]\ncommands = [\"sh run.sh {coverprofile}\"]\nmeasuring = \"sh run.sh {coverprofile}\"\nskip_when_only = [\"docs/**\"]\n" +
 		"[verify.gdscript.coverage]\ncommands = [\"report {coverprofile}\"]\nmeasure = \"{godot} --cover {coverprofile}\"\nafter = \"test\"\n"
 	e := env(t.TempDir())
 	e.Godot = func(string) (string, State, string) { t.Error("asked"); return "", StateMissingTool, "no Godot binary" }
@@ -343,24 +343,69 @@ func TestPlanAMeasureStepWithoutAFinderIsMissingTool(t *testing.T) {
 	}
 }
 
-// No preset tests GDScript: a Godot project that names no test command has
-// nothing to import for, so a project that was never imported is not held.
-func TestPlanHasNoGodotTestLaneUntilAProjectNamesOne(t *testing.T) {
-	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+func gdFacts() detect.Facts {
+	return detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+}
+
+// With both addons the chain measures once: test runs its measuring form and
+// coverage reads the data it wrote.
+func TestPlanGdscriptChainMeasuresOnceAndCoverageReadsTheData(t *testing.T) {
 	e := env(t.TempDir())
-	asked := false
-	e.ImportReady = func(string) bool { asked = true; return false }
-	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"test", "coverage"}}, e)
+	e.Godot = func(string) (string, State, string) { return "/g/godot", "", "" }
+	jobs, err := Plan(effFor(t, "", gdFacts()), Request{Kinds: []string{"test", "coverage"}}, e)
 	if err != nil || names(jobs) != "test/gdscript coverage/gdscript" {
 		t.Fatalf("%v %+v", err, jobs)
 	}
-	for _, j := range jobs {
-		if j.Pre != StateNotApplicable || j.Note != "no command" || len(j.Argvs) != 0 {
-			t.Errorf("%s: %q %q %v", j.Name, j.Pre, j.Note, j.Argvs)
-		}
+	test, cov := jobs[0], jobs[1]
+	argv := test.Argvs[0]
+	if len(argv) < 3 || !slices.Contains(argv, "/g/godot") || argv[len(argv)-2] != "--coverage" {
+		t.Fatalf("test argv = %v", test.Argvs)
 	}
-	if asked {
-		t.Error("the import was asked for without a lane to run")
+	if len(cov.Reads) != 1 || cov.Reads[0] != argv[len(argv)-1] || cov.Measure != nil {
+		t.Errorf("coverage = %+v", cov)
+	}
+}
+
+// A docs-only commit sits both lanes out without ever looking for a binary.
+func TestPlanGdscriptDocsOnlyCommitNeverAsksForGodot(t *testing.T) {
+	src := "[verify.gdscript.test]\nskip_when_only = [\"docs/**\"]\n"
+	e := env(t.TempDir())
+	e.Godot = func(string) (string, State, string) { t.Error("asked"); return "", StateMissingTool, "" }
+	e.Changed = []string{"docs/a.md"}
+	jobs, err := Plan(effFor(t, src, gdFacts()), Request{Kinds: []string{"test", "coverage"}}, e)
+	if err != nil || len(jobs) != 2 || jobs[0].Pre != StateNotApplicable || !jobs[0].Skipped {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+	// coverage inherits the not-applicable at run time and takes no measure step.
+	if cov := jobs[1]; !cov.Consumes || cov.After != 0 || len(cov.Measure) != 0 {
+		t.Fatalf("%+v", cov)
+	}
+}
+
+// Without Nano Coverage the project still tests; only coverage is out.
+func TestPlanGdscriptWithoutNanoCoverageHasOnlyTheTestLane(t *testing.T) {
+	e := env(t.TempDir())
+	e.HasTests = func(_ string, p []string) bool { return p[0] == "plugin.cfg:gdUnit4" }
+	e.Godot = func(string) (string, State, string) { return "/g/godot", "", "" }
+	jobs, err := Plan(effFor(t, "", gdFacts()), Request{Kinds: []string{"test", "coverage"}}, e)
+	if err != nil || len(jobs) != 2 || jobs[0].Pre != "" || jobs[1].Pre != StateUnavailable || jobs[1].Note != "none found: plugin.cfg:NanoCoverage" {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+}
+
+// Without gdUnit4 neither lane runs, and the import is not asked for.
+func TestPlanGdscriptWithoutGdUnitHasNoSuite(t *testing.T) {
+	e := env(t.TempDir())
+	e.HasTests = func(string, []string) bool { return false }
+	e.ImportReady = func(string) bool { t.Error("import asked"); return false }
+	jobs, err := Plan(effFor(t, "", gdFacts()), Request{Kinds: []string{"test", "coverage"}}, e)
+	if err != nil || len(jobs) != 2 {
+		t.Fatalf("%v %+v", err, jobs)
+	}
+	for _, j := range jobs {
+		if j.Pre != StateUnavailable || j.Note != "none found: plugin.cfg:gdUnit4" {
+			t.Errorf("%s: %q %q", j.Name, j.Pre, j.Note)
+		}
 	}
 }
 
@@ -1183,5 +1228,38 @@ func TestPlanASkippedGraphLaneDoesNotCarryTheGraph(t *testing.T) {
 	jobs, err = Plan(effFor(t, src, goAndPython), Request{Kinds: []string{"graph"}}, e)
 	if err != nil || len(jobs) != 2 || !jobs[0].Skipped || !jobs[1].Skipped || jobs[1].Note == "graph covered by graph/go" {
 		t.Fatalf("%v %+v", err, jobs)
+	}
+}
+
+func whenFoundLane() Effective {
+	return oneLane(Lane{Commands: []string{"{godot} t"}, WhenFound: []string{"plugin.cfg:gdUnit4", "plugin.cfg:NanoCoverage"}})
+}
+
+func TestPlanWhenFoundMissingPatternMakesTheLaneUnavailableWithoutAskingForGodot(t *testing.T) {
+	e := env(t.TempDir())
+	e.HasTests = func(_ string, p []string) bool { return p[0] == "plugin.cfg:gdUnit4" }
+	e.Godot = func(string) (string, State, string) { t.Fatal("Godot asked"); return "", "", "" }
+	jobs, err := Plan(whenFoundLane(), Request{Kinds: []string{"test"}}, e)
+	if err != nil || len(jobs) != 1 || jobs[0].Pre != StateUnavailable || jobs[0].Note != "none found: plugin.cfg:NanoCoverage" {
+		t.Fatalf("%+v %v", jobs, err)
+	}
+}
+
+func TestPlanWhenFoundAllPatternsFoundRunsTheLane(t *testing.T) {
+	e := env(t.TempDir())
+	e.Godot = func(string) (string, State, string) { return "godot", "", "" }
+	jobs, err := Plan(whenFoundLane(), Request{Kinds: []string{"test"}}, e)
+	if err != nil || len(jobs) != 1 || jobs[0].Pre != "" {
+		t.Fatalf("%+v %v", jobs, err)
+	}
+}
+
+func TestPlanNamesTheRescanWithoutRootForTheRootArea(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gdscript"}}
+	e := env(t.TempDir())
+	e.ImportReady = func(string) bool { return false }
+	jobs, _ := Plan(effFor(t, "[verify.gdscript]\ntest = \"sh run_tests.sh\"\n", facts), Request{Kinds: []string{"test"}}, e)
+	if len(jobs) != 1 || jobs[0].Note != "run loomux godot rescan to import the project" {
+		t.Fatalf("%+v", jobs)
 	}
 }

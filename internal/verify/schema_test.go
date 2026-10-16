@@ -186,7 +186,7 @@ func TestNames(t *testing.T) {
 	if strings.Join(StackNames(), ",") != "go,python,typescript,vue,svelte,css,html,gdscript,cpp,shell,sql,rust,wiki,wiki-sources,project" {
 		t.Fatal(StackNames())
 	}
-	for _, name := range []string{"gofmt", "commit-msg", "gocover", "linecov", "graph-fresh", "blast-audit", "all", "lint", "types", "test", "coverage", "graph"} {
+	for _, name := range []string{"gofmt", "commit-msg", "gocover", "linecov", "godot-suite", "graph-fresh", "blast-audit", "all", "lint", "types", "test", "coverage", "graph"} {
 		if !Reserved(name) {
 			t.Errorf("%s is not reserved", name)
 		}
@@ -429,6 +429,29 @@ func TestParseGodotPathAndPlaceholder(t *testing.T) {
 	} {
 		if _, err := parse(t, src); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%q: %v, want %q", src, err, want)
+		}
+	}
+}
+
+func TestParseLaneTableReadsWhenFound(t *testing.T) {
+	o, err := parseLaneTable("[verify.gdscript.test]", "test", map[string]any{"when_found": []any{"plugin.cfg:gdUnit4"}})
+	if err != nil || !slices.Equal(o.Lane.WhenFound, []string{"plugin.cfg:gdUnit4"}) || !o.Set["when_found"] {
+		t.Fatalf("got %+v, %v", o, err)
+	}
+}
+
+func TestParseLaneTableRefusesAnEmptyWhenFound(t *testing.T) {
+	_, err := parseLaneTable("[verify.gdscript.test]", "test", map[string]any{"when_found": []any{}})
+	if err == nil || !strings.Contains(err.Error(), "when_found") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestParseLaneTableRefusesAMalformedWhenFound(t *testing.T) {
+	for _, v := range []any{"x", []any{1}} {
+		_, err := parseLaneTable("[verify.gdscript.test]", "test", map[string]any{"when_found": v})
+		if err == nil || !strings.Contains(err.Error(), "when_found") {
+			t.Fatalf("%v: err = %v", v, err)
 		}
 	}
 }

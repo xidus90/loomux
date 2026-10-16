@@ -144,3 +144,12 @@ func TestWriteShowPrintsLock(t *testing.T) {
 		t.Fatalf("%s", out.String())
 	}
 }
+
+func TestWriteShowPrintsWhenFound(t *testing.T) {
+	var out strings.Builder
+	eff := effFor(t, "[verify.go.test]\nwhen_found = [\"go.mod\"]\n", goOnly)
+	WriteShow(&out, eff, []string{"test"}, env(`C:\repo`))
+	if !strings.Contains(out.String(), "when_found = [\"go.mod\"]  # config\n") {
+		t.Fatalf("%s", out.String())
+	}
+}

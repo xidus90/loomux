@@ -68,7 +68,7 @@ func cleanCover(root, runID string, green bool, now time.Time) error {
 				continue
 			}
 		}
-		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+		if err := os.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
 			errs = append(errs, err)
 		}
 	}
