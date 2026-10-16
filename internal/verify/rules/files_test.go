@@ -139,7 +139,19 @@ func TestFilesCachedHonoursHookIndex(t *testing.T) {
 	write(t, root, "a.gd", "old")
 	git(t, root, "add", ".")
 	git(t, root, "commit", "-qm", "init")
-	write(t, root, "a.gd", "new")
+	// Git for Windows compares mtimes to the second, and the copied index
+	// below carries a fresh mtime that hides the racy entry from git, so
+	// `git add` trusts the stat data whenever size and second match. The
+	// new content differs in size; pinning the old mtime keeps the second
+	// equal, so the test cannot pass by luck of the clock.
+	info, err := os.Stat(filepath.Join(root, "a.gd"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, root, "a.gd", "newer")
+	if err := os.Chtimes(filepath.Join(root, "a.gd"), info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
 	data, err := os.ReadFile(filepath.Join(root, ".git", "index"))
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +170,7 @@ func TestFilesCachedHonoursHookIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || string(got[0].Content) != "new" {
+	if len(got) != 1 || string(got[0].Content) != "newer" {
 		t.Fatalf("got %+v", got)
 	}
 }
