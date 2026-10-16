@@ -3674,3 +3674,67 @@ the 7 files above.
    plan.
 4. **The tree stays clean:** no source file is left instrumented and no hook
    entry is needed after the removal.
+
+## 2026-10-16 18:17 — `check rules` Against the Directory and Pairing Checks It Replaces
+
+**Goal.** Know what the rules lane of `loomux check rules` finds on `space`
+that the gate of `space` (`.claude/hooks/godot_quality.py`) does not, and
+the other way round, and what it costs in time.
+
+**Result in one line.** On a clean `space` the reference's four rules report
+nothing and `check rules` reports 76 findings: 71 edges the edge table of
+`modulschnitt-fundament.md` does not allow, 1 test module path under the
+gdUnit4 naming rule and 4 `.py` files outside every layer. Time: about 1.5 s
+against about 0.8 s for the reference's `fast_findings`, cold and warm alike.
+
+**Method.** Commit `f1f5c44e` (branch `feat/check-rules`). `space` at `HEAD`
+extracted with `git archive` into a scratch directory (no `.tools`, no
+`.git`), then `git init`, `git add -A` and one commit there, so that git
+knows 1846 files. The layer map is the edge table of `modulschnitt-fundament.md`
+as `[rules.layers.*]` (one layer per table row, the per-file rows as their own
+layers, `test`, `autoload`, `harness`, `addons`); it lives in the notes folder as
+a proposal and was read by a throwaway Go test that calls `rules.Files(<copy>,
+true)`, `Assign`, `Edges`, `Pairing`, `Unlayered` and `Instrumented` (the
+steps of `check rules --cached`, without the command's own start-up), so
+nothing was written to a `.loomux/config.toml`. Reference: a scratch script
+imports `godot_quality.py` from the copy and times `fast_findings` over the
+copy's `godot/` (leftover instrumentation, stale class cache, pairing, core
+boundary, unchecked sources). The reference's `stale_class_cache` reports one
+finding on the copy (no `.godot/` cache, as on any fresh clone); that is the
+only finding it has. AMD Ryzen 7 9800X3D, Windows 11 Pro, Go 1.27.0.
+
+Cold is three fresh processes (no cache of ours persists between processes;
+the page cache of the file system is warm on both sides), warm the next three
+runs. `check rules` has no in-process cache either, so cold and warm differ by
+noise only. Only the in-process pipeline was measured; the `loomux check rules`
+command path itself (process start-up, argument handling) was not.
+
+| Run | `check rules` steps (ms) | `fast_findings` (ms) |
+| --- | ---: | ---: |
+| cold 1 | 1529 | 970 |
+| cold 2 | 1536 | 805 |
+| cold 3 | 1520 | 800 |
+| warm 1 | 1492 | 812 |
+| warm 2 | 1720 | 809 |
+| warm 3 | 1720 | 832 |
+
+Of the 1.5 s, listing and reading the 1846 files from the index takes about
+0.27 s, assigning them to layers 3 ms, and extracting and resolving the
+graph of the sources about 1.2 s (the edges). Pairing, files outside every
+layer and instrumentation together stay under 20 ms.
+
+**Key Findings**
+
+1. **Slower, and does more:** about 1.9 times the time of the reference
+   (1.52 s against 0.80 s cold, best runs). The reference walks four
+   directories and reads text; `check rules` builds the whole symbol graph of
+   `space` once for the edges, which the reference does not have at all. The
+   reference figure is the call inside the process, without Python start-up.
+2. **Every finding is accounted for** in the "Nachtrag Abnahme" of the spec
+   (`docs/.superpowers/specs/2026-10-16-projektregeln-design.md`): the 71 edges
+   show the edge table lags the code (54 of them `ui` to `core`), not that the
+   code is wrong; two probes with a deliberate violation in a second copy show
+   what `check rules` finds (a `Node` base, the `Game` autoload, a `ui` class)
+   and what it does not (the string `"res://ui/..."` without a `load`).
+3. **The tree stays clean:** nothing was written to `space` or to a
+   `.loomux/config.toml`; the copy is a scratch directory.

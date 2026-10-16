@@ -512,11 +512,12 @@ func TestExpandProfile(t *testing.T) {
 		err  string
 	}{
 		{"all", []string{"lint", "types", "test", "coverage", "graph"}, ""},
+		{"rules", nil, ""},
 		{"graph", []string{"graph"}, ""},
 		{"edit", []string{"lint", "types"}, ""},
 		{" test , lint,test ", []string{"test", "lint"}, ""},
 		{"coverage", []string{"coverage"}, ""},
-		{"lint,style", nil, `unknown check "style"; kinds: lint, types, test, coverage, graph; profiles: edit, precommit, stop`},
+		{"lint,style", nil, `unknown check "style"; kinds: lint, types, test, coverage, graph, rules; profiles: edit, precommit, stop`},
 		{"", nil, `"" names no check`},
 		{" , ", nil, `" , " names no check`},
 	}

@@ -1,12 +1,28 @@
 package godotsuite
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/verify/linecov"
 )
+
+func TestInstrumentedReportsAProfileProblem(t *testing.T) {
+	old := loadProfiles
+	t.Cleanup(func() { loadProfiles = old })
+	loadProfiles = func() ([]linecov.Profile, error) { return nil, errors.New("boom") }
+	if _, err := Instrumented(t.TempDir()); err == nil {
+		t.Fatal("want a load error")
+	}
+	loadProfiles = func() ([]linecov.Profile, error) { return []linecov.Profile{{Name: "nanocoverage"}}, nil }
+	if _, err := Instrumented(t.TempDir()); err == nil {
+		t.Fatal("want an error for a profile without a marker")
+	}
+}
 
 func project(t *testing.T, files map[string]string) string {
 	t.Helper()
@@ -155,6 +171,14 @@ func TestNeedsDiskHonoursIgnorePaths(t *testing.T) {
 	root := project(t, map[string]string{"project.godot": cfg, "autoload/clock.gd": ""})
 	if ok, _ := NeedsDisk(root); ok {
 		t.Fatal("want false")
+	}
+}
+
+func TestNeedsDiskKeepsTheDefaultForAnEmptyIgnorePaths(t *testing.T) {
+	cfg := "[autoload]\nT=\"*res://autoload/clock_test.gd\"\n[nano_coverage]\ngeneral/ignore_paths=\"\"\n"
+	root := project(t, map[string]string{"project.godot": cfg, "autoload/clock_test.gd": ""})
+	if ok, err := NeedsDisk(root); err != nil || ok {
+		t.Fatalf("the **/*_test.gd default must still apply: %v, %v", ok, err)
 	}
 }
 

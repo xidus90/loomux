@@ -168,14 +168,15 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	}
 	// Built in: a config can replace the stop profile but not remove it.
 	kinds, _ := verify.ExpandProfile(eff.Config, "stop")
-	// The kinds come before the tree: only a graph lane keeps the copy of the
-	// index the tree is written through.
+	// The kinds come before the tree: only a graph or rules lane keeps the
+	// copy of the index the tree is written through.
 	head, tree, from, idx, err := stopTrees(stderr, root, state, kinds)
 	defer idx.Close()
 	// The graph lane judges against HEAD, so for it a tree is green only
 	// under the HEAD it was found green at, which a green pass keeps as the
 	// base. A commit inside the turn moves HEAD and leaves the tree alone.
-	headMoved := idx != nil && state.Base != "" && head != state.Base
+	// The rules lane judges the tree alone and does not count here.
+	headMoved := idx != nil && wantsStopGraph(root, kinds) && state.Base != "" && head != state.Base
 	// Read before the tree is judged: the stand below holds only under the
 	// lanes that were armed when it was taken. What is wrong with the file
 	// is said where a chain runs, not at a turn end that starts none.
@@ -226,7 +227,7 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	left := verify.BudgetLeft(env.Budget, env.Now)
 	jobs, err := stopPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeCheck}, verify.PlanEnv{
 		Root: root, Loomux: env.Loomux, RunID: runID, HasTests: verify.HasTests, ImportReady: ready,
-		GraphReady: idx.Ready, GraphEnv: idx.Env, Changed: changed,
+		GraphReady: idx.Ready, RulesReady: idx.RulesReady, GraphEnv: idx.Env, Changed: changed,
 		Godot: verify.GodotFor(root, eff.Config.Godot, env.Start, left),
 	})
 	if err != nil {
@@ -272,8 +273,9 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 // is measured from -- the last green one, else the base's -- or
 // errNoRepository. A tree equal to the base's is nothing new; it is returned
 // as the green tree's twin so the caller has one comparison to make. Where
-// kinds ask for a graph lane the project can run, the tree is written through
-// a copy of the index that lane reads, returned for the caller to close;
+// kinds ask for a graph lane the project can run, or for the rules lane, the
+// tree is written through a copy of the index those lanes read, returned for
+// the caller to close;
 // otherwise, or where there is no HEAD to judge against, the copy is gone
 // before the answer.
 func stopTrees(stderr io.Writer, root string, state sessions.SessionState, kinds []string) (head, tree, from string, idx *StopIndex, err error) {

@@ -20,6 +20,9 @@ type Where struct {
 	Section string
 	Table   string
 	Path    string
+	// KeepEmpty makes godotcfg keep a key set to an empty string as one
+	// empty value, so it differs from an absent key.
+	KeepEmpty bool
 }
 
 // Syntax reads the values under w; found says whether w exists in the file,

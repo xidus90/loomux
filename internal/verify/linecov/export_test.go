@@ -16,6 +16,26 @@ func TestGodotCfgReadsAPackedStringArrayAsAList(t *testing.T) {
 	}
 }
 
+func TestGodotCfgKeepsAnEmptyStringOnlyForOutsideCallers(t *testing.T) {
+	cfg := []byte("[g]\r\nk=\"\"\r\nj=\"x\"\r\n")
+	vals, found, err := GodotCfgKeepEmpty(cfg, "g")
+	if err != nil || !found {
+		t.Fatal(found, err)
+	}
+	if got, ok := vals["k"]; !ok || !reflect.DeepEqual(got, []string{""}) || !reflect.DeepEqual(vals["j"], []string{"x"}) {
+		t.Fatalf("got %q", vals)
+	}
+	for _, read := range []func() (Values, bool, error){
+		func() (Values, bool, error) { return GodotCfg(cfg, "g") },
+		func() (Values, bool, error) { return readGodotCfg(cfg, Where{Section: "g"}) },
+	} {
+		vals, found, err := read()
+		if err != nil || !found || len(vals["k"]) != 0 {
+			t.Fatalf("the gate must keep dropping empty values: %q %v %v", vals, found, err)
+		}
+	}
+}
+
 func TestNanoMatcherReadsAPatternLikeNanoCoverage(t *testing.T) {
 	m, err := NanoMatcher("**/*_test.gd")
 	if err != nil {

@@ -148,7 +148,7 @@ func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, 
 		return ExitInternal, nil
 	}
 	ext := strings.ToLower(filepath.Ext(raw))
-	if slices.Contains(eff.Ignored, ext) {
+	if slices.Contains(eff.Ignored, ext) && !editsRulesConfig(eff, root, raw) {
 		return ExitOK, nil
 	}
 	var jobs []verify.Job
@@ -185,6 +185,13 @@ func checkEdit(stderr io.Writer, root, raw, runID string, eff verify.Effective, 
 		fmt.Fprintf(stderr, "loomux hook post-tool-use: cleaning coverage files: %v\n", err)
 	}
 	return code, notices
+}
+
+// editsRulesConfig says the edit is of the config a [rules] table sits in,
+// which is a TOML file the extension filter would drop.
+func editsRulesConfig(eff verify.Effective, root, raw string) bool {
+	rel, ok := relInRoot(root, raw)
+	return eff.Config.Rules && ok && verify.EditsRules(rel)
 }
 
 // editedFiles are the paths an edit payload names, none when it names none,

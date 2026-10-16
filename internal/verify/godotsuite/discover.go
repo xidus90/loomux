@@ -4,6 +4,7 @@ package godotsuite
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -14,8 +15,6 @@ import (
 
 	"github.com/xidus90/loomux/internal/verify/linecov"
 )
-
-const instrumentedMarker = "# __NANO_COVERAGE_INSTRUMENTED__"
 
 var (
 	suiteLine = regexp.MustCompile(`(?m)^\s*extends\s+GdUnitTestSuite\b`)
@@ -195,12 +194,34 @@ func HookConflict(root string) (string, error) {
 	return "", nil
 }
 
+// loadProfiles is a variable so a test can fail the profile load.
+var loadProfiles = linecov.LoadProfiles
+
+// instrumentedMarker is the first line nanocoverage leaves in a script it
+// instrumented; the profile in linecov owns it.
+func instrumentedMarker() (string, error) {
+	ps, err := loadProfiles()
+	if err != nil {
+		return "", err
+	}
+	for _, p := range ps {
+		if p.Name == "nanocoverage" && p.Instrumented != "" {
+			return p.Instrumented, nil
+		}
+	}
+	return "", errors.New("no nanocoverage profile names its instrumentation marker")
+}
+
 // Instrumented lists the scripts a killed run left instrumented.
 func Instrumented(root string) ([]string, error) {
+	marker, err := instrumentedMarker()
+	if err != nil {
+		return nil, err
+	}
 	var out []string
-	err := walkGD(root, func(rel string, data []byte) error {
+	err = walkGD(root, func(rel string, data []byte) error {
 		first, _, _ := bytes.Cut(data, []byte("\n"))
-		if string(bytes.TrimSuffix(first, []byte("\r"))) == instrumentedMarker {
+		if string(bytes.TrimSuffix(first, []byte("\r"))) == marker {
 			out = append(out, rel)
 		}
 		return nil

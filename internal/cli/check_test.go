@@ -24,7 +24,7 @@ import (
 )
 
 func TestCheckNeedsARequest(t *testing.T) {
-	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, graph-fresh, blast-audit\n"
+	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph,rules), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, graph-fresh, blast-audit, rules\n"
 	if code, _, errOut := run("check"); code != 2 || errOut != want {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
@@ -1250,5 +1250,143 @@ func TestCheckLinecovRefusesABadCall(t *testing.T) {
 	}
 	if code, _, errOut := run("check", "linecov", "--root", filepath.Join(t.TempDir(), "absent")); code != 1 || !strings.HasPrefix(errOut, "loomux check linecov: ") {
 		t.Fatalf("code %d err %q", code, errOut)
+	}
+}
+
+func rulesCmd(args ...string) (int, string, string) {
+	var out, errOut bytes.Buffer
+	code := checkCommand(append([]string{"rules"}, args...), nil, &out, &errOut)
+	return code, out.String(), errOut.String()
+}
+
+// rulesRepo is a git repository with the manifest and files, all staged.
+func rulesRepo(t *testing.T, manifest string, files map[string]string) string {
+	t.Helper()
+	if manifest != "" {
+		files[".loomux/config.toml"] = manifest
+	}
+	root := repo(t, files)
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "t@example.com"}, {"config", "user.name", "t"},
+		{"config", "core.autocrlf", "false"}, {"config", "commit.gpgsign", "false"},
+		{"add", "-A"},
+	} {
+		gitIn(t, root, args...)
+	}
+	return root
+}
+
+const oneLayer = "[rules.layers.a]\npaths = [\"a/**\"]\nmay_use = []\n"
+
+func TestCheckRulesWithoutRulesIsANote(t *testing.T) {
+	code, out, errOut := rulesCmd("--root", rulesRepo(t, "", map[string]string{"a.go": "package a\n"}))
+	if code != 0 || out != "" || errOut != "loomux check rules: note: no [rules] in .loomux/config.toml\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestCheckRulesMapErrorsAreExitTwo(t *testing.T) {
+	manifest := oneLayer + "\n[rules.layers.b]\npaths = [\"b/**\"]\nmay_use = []\n"
+	code, out, errOut := rulesCmd("--root", rulesRepo(t, manifest, map[string]string{"a/a.go": "package a\n"}))
+	if code != 2 || out != "" || errOut != "layer b: b/** matches no file\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestCheckRulesFindingsAreOnePerLine(t *testing.T) {
+	files := map[string]string{"a/a.go": "package a\n", "x.go": "package x\n", "y.go": "package y\n"}
+	code, out, errOut := rulesCmd("--root", rulesRepo(t, oneLayer, files))
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if code != 1 || errOut != "" || len(lines) != 2 ||
+		!strings.HasPrefix(lines[0], "x.go ") || !strings.HasPrefix(lines[1], "y.go ") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+func TestCheckRulesCleanIsExitZero(t *testing.T) {
+	code, out, errOut := rulesCmd("--root", rulesRepo(t, oneLayer, map[string]string{"a/a.go": "package a\n"}))
+	if code != 0 || out != "" || errOut != "" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+// The index is judged, not the working tree: the staged file is instrumented,
+// the one on disk is restored.
+func TestCheckRulesCachedJudgesTheIndex(t *testing.T) {
+	manifest := "[rules.layers.g]\npaths = [\"g/**\"]\nmay_use = []\n"
+	root := rulesRepo(t, manifest, map[string]string{
+		"project.godot": "[nano_coverage]\n\ngeneral/x=1\n",
+		"g/i.gd":        "# __NANO_COVERAGE_INSTRUMENTED__\nextends Node\n",
+	})
+	if err := os.WriteFile(filepath.Join(root, "g", "i.gd"), []byte("extends Node\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, errOut := rulesCmd("--root", root); code != 0 || out != "" || errOut != "" {
+		t.Fatalf("working tree: code %d, out %q, err %q", code, out, errOut)
+	}
+	code, out, _ := rulesCmd("--cached", "--root", root)
+	if code != 1 || !strings.HasPrefix(out, "g/i.gd still holds nanocoverage instrumentation") {
+		t.Fatalf("index: code %d, out %q", code, out)
+	}
+}
+
+func TestCheckRulesReadErrorIsExitTwo(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".loomux", "config.toml"), []byte("[rules]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, errOut := rulesCmd("--root", root); code != 2 || !strings.HasPrefix(errOut, "loomux check rules: ") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestCheckRulesRejectsBadArguments(t *testing.T) {
+	if code, _, _ := rulesCmd("--nope"); code != 2 {
+		t.Fatalf("flag: code %d", code)
+	}
+	if code, _, errOut := rulesCmd("extra"); code != 2 || errOut != "loomux check rules: unexpected argument \"extra\"\n" {
+		t.Fatalf("argument: code %d, err %q", code, errOut)
+	}
+}
+
+func TestCheckRulesNeedsAWorkingDirectory(t *testing.T) {
+	saved := getwd
+	getwd = func() (string, error) { return "", os.ErrPermission }
+	t.Cleanup(func() { getwd = saved })
+	if code, _, errOut := rulesCmd(); code != 2 || !strings.Contains(errOut, "permission") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+}
+
+func TestCheckRulesPrintsInstrumentationAlongsideMapErrors(t *testing.T) {
+	manifest := "[rules.layers.g]\npaths = [\"g/**\"]\n[rules.layers.n]\npaths = [\"n/**\"]\n"
+	root := rulesRepo(t, manifest, map[string]string{
+		"project.godot": "[nano_coverage]\n\ngeneral/x=1\n",
+		"g/i.gd":        "# __NANO_COVERAGE_INSTRUMENTED__\nextends Node\n",
+	})
+	code, out, errOut := rulesCmd("--cached", "--root", root)
+	if code != 2 || errOut != "layer n: n/** matches no file\n" || !strings.HasPrefix(out, "g/i.gd still holds") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+}
+
+// Before the first commit the turn end has no copy of the index and the real
+// one is partial: check stop sits the rules lane out, as the hook does.
+func TestCheckStopRulesWithoutAHead(t *testing.T) {
+	root := builtRepo(t)
+	gitIn(t, root, "init", "-q")
+	put(t, root, ".loomux/config.toml", "[rules]\n[verify.go]\ncoverage = false\n")
+	seen := stubCheck(t, green)
+	code, out, errOut := run("check", "stop", "-v", "--root", root)
+	if code != 0 || !strings.Contains(out, "rules/go: not-applicable") || !strings.Contains(out, "no HEAD yet") {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	for _, s := range *seen {
+		if strings.Contains(s, "check rules") {
+			t.Fatalf("the rules check ran: %q", *seen)
+		}
 	}
 }

@@ -40,7 +40,8 @@ func TestWriteShowGoOnly(t *testing.T) {
 			return found
 		}
 		var b strings.Builder
-		WriteShow(&b, eff, Kinds(), e)
+		kinds, _ := ExpandProfile(eff.Config, "all")
+		WriteShow(&b, eff, kinds, e)
 		state := "tests found"
 		if !found {
 			state = "no tests found"

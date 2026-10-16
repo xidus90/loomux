@@ -128,10 +128,10 @@ func TestTheGdscriptLintTakesGdlintFromGdtoolkit(t *testing.T) {
 		t.Fatal(err)
 	}
 	gd := p.Stacks["gdscript"].Lanes
-	if got := gd["lint"].Commands; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint ."}) {
+	if got := gd["lint"].Commands; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint .", "uvx --from gdtoolkit gdformat --check ."}) {
 		t.Errorf("commands = %q", got)
 	}
-	if got := gd["lint"].OnFile; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint {file}"}) {
+	if got := gd["lint"].OnFile; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint {file}", "uvx --from gdtoolkit gdformat --check {file}"}) {
 		t.Errorf("on_file = %q", got)
 	}
 }
@@ -145,7 +145,7 @@ func TestTheGdscriptPresetCarriesTheSuiteLanes(t *testing.T) {
 		t.Fatal(err)
 	}
 	gd := p.Stacks["gdscript"].Lanes
-	if _, ok := gd["lint"]; !ok || len(gd) != 4 || len(gd["graph"].Commands) == 0 {
+	if _, ok := gd["lint"]; !ok || len(gd) != 5 || len(gd["graph"].Commands) == 0 {
 		t.Fatalf("lanes = %+v", gd)
 	}
 	test, cov := gd["test"], gd["coverage"]

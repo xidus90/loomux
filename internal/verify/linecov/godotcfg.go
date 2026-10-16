@@ -42,7 +42,11 @@ func readGodotCfg(content []byte, w Where) (Values, bool, error) {
 			continue
 		}
 		if section == w.Section {
-			vals.add(strings.TrimSpace(k), godotValue(strings.TrimSpace(v))...)
+			key := strings.TrimSpace(k)
+			vals.add(key, godotValue(strings.TrimSpace(v))...)
+			if w.KeepEmpty && len(vals[key]) == 0 {
+				vals[key] = []string{""}
+			}
 		}
 	}
 	if pending != "" {

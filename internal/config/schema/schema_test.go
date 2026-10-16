@@ -84,6 +84,12 @@ func TestTheSchemaKnowsEveryKeyTheReadersRead(t *testing.T) {
 	if got := ids("agent.models.*"); !slices.Equal(got, sorted(config.ModelSpecKeys())) {
 		t.Errorf("[agent.models.*]: schema %v, reader %v", got, config.ModelSpecKeys())
 	}
+	if got := ids("rules.layers.*"); !slices.Equal(got, sorted(config.LayerKeys())) {
+		t.Errorf("[rules.layers.*]: schema %v, reader %v", got, config.LayerKeys())
+	}
+	if got := segments("rules"); !slices.Equal(got, sorted(config.RulesKeys())) {
+		t.Errorf("[rules]: schema %v, reader %v", got, config.RulesKeys())
+	}
 	if got := ids("guard"); !slices.Equal(got, sorted(config.GuardKeys())) {
 		t.Errorf("[guard]: schema %v, reader %v", got, config.GuardKeys())
 	}
@@ -141,7 +147,7 @@ func TestMatchFillsANamedKey(t *testing.T) {
 }
 
 func TestEveryNewKeyIsBase(t *testing.T) {
-	for _, id := range []string{"agent.default", "agent.mcp_servers", "agent.models.*.provider", "agent.models.*.model", "agent.roles.*", "flow.default", "flow.overrides", "guard.mode"} {
+	for _, id := range []string{"agent.default", "agent.mcp_servers", "agent.models.*.provider", "agent.models.*.model", "agent.roles.*", "flow.default", "flow.overrides", "guard.mode", "rules.layers.*.paths", "rules.layers.*.may_use", "rules.layers.*.bases", "rules.layers.*.tests", "rules.layers.*.checked"} {
 		found := false
 		for _, k := range Keys() {
 			if k.ID() == id {

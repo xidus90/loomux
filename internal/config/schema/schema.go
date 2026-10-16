@@ -81,11 +81,16 @@ func Keys() []Key {
 		{Section: "agent.roles", Name: "*", Kind: String, Module: Base, Doc: "The model name a flow role runs on."},
 		{Section: "flow", Name: "default", Kind: String, Module: Base, Doc: "The flow `loomux flow run` starts without a name."},
 		{Section: "flow", Name: "overrides", Kind: StringList, Default: "[]", Module: Base, Doc: "Bundled flows a project flow of the same name may hide or overlay."},
+		{Section: "rules.layers.*", Name: "paths", Kind: StringList, Module: Base, Doc: "Globs, relative to the repository root, of the files this layer owns."},
+		{Section: "rules.layers.*", Name: "may_use", Kind: StringList, Module: Base, Doc: "The layers an edge from this layer may point to; unset, every edge is allowed."},
+		{Section: "rules.layers.*", Name: "bases", Kind: StringList, Module: Base, Doc: "Unresolved base classes a file of this layer may extend; unset, any is allowed."},
+		{Section: "rules.layers.*", Name: "tests", Kind: Bool, Module: Base, Doc: "Require a test module for every source of this layer."},
+		{Section: "rules.layers.*", Name: "checked", Kind: Bool, Module: Base, Doc: "False marks the layer as known but not checked by any rule."},
 		{Section: "verify", Name: "max_parallel", Kind: Int, Module: Hooks, Doc: "How many lanes run at once; the number of CPUs when unset."},
 		// The reader counts whole seconds as an integer; a duration string
 		// such as "600s" is refused there.
 		{Section: "verify", Name: "timeout", Kind: Int, Default: "600", Module: Hooks, Doc: "How many seconds one command may run."},
-		{Section: "verify", Name: "profiles", Kind: Table, Default: `{ edit = ["lint", "types"], precommit = ["lint", "types", "test", "coverage", "graph"], stop = ["lint", "types", "test", "coverage", "graph"] }`, Module: Hooks, Doc: "Which kinds each profile runs: edit, precommit, stop."},
+		{Section: "verify", Name: "profiles", Kind: Table, Default: `{ edit = ["lint", "types", "rules"], precommit = ["lint", "types", "test", "coverage", "graph", "rules"], stop = ["lint", "types", "test", "coverage", "graph", "rules"] }`, Module: Hooks, Doc: "Which kinds each profile runs: edit, precommit, stop."},
 		{Section: "area", Name: "scope", Kind: String, Module: Brain, Doc: "The scope this project is registered under, e.g. project/loomux."},
 		{Section: "layout", Name: "wiki", Kind: String, Module: Brain, Doc: "Where the wiki bundle lives, relative to the root."},
 		{Section: "layout", Name: "hub", Kind: String, Module: Brain, Doc: "Where the hub pages live."},
