@@ -7,6 +7,20 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.6.0] - 2026-10-16
+
+<https://github.com/xidus90/loomux/pull/102>
+
+### Added
+- `loomux check godot-suite` runs gdUnit4 suites headless in parallel shards, optionally with Nano Coverage, and reports every failing test case by name.
+- `loomux godot rescan` refreshes a Godot project's class cache and keeps `project.godot` as it was.
+- The `gdscript` stack has `test` and `coverage` presets for projects with gdUnit4 and Nano Coverage.
+- The lane key `when_found` makes a lane unavailable until the files it names are present.
+### Changed
+- The `import_check` note names `loomux godot rescan` instead of asking for an editor run.
+### Fixed
+- `check linecov` no longer expects scripts under Godot's `.godot` directory to appear in a coverage report.
+
 ## [1.5.0] - 2026-10-15
 
 <https://github.com/xidus90/loomux/pull/101>
