@@ -3578,3 +3578,99 @@ Code Graph Stats:
    `cli-reference.md`).
 3. **Warm is 9 times faster than cold** (670 ms against 6.021 s) with all 706
    files taken from the extract cache.
+
+## 2026-10-16 09:10 — `check godot-suite` Against the gdUnit4 Gate It Replaces
+
+**Goal.** Same verdict as the gate of `space` (`.claude/hooks/godot_quality.py`,
+which fans the suite out with `suite_shards.py`), and not slower than it.
+
+**Result in one line.** The *suite* verdict matches (both green, no failing
+case) and the suite is not slower (cold +1.8 %, warm +0.2 %). The *coverage*
+verdict does not match yet: the reference coverage gate is green, `loomux check
+linecov` over the same reports is red with 3629 findings. Every one of them is
+explained below by something the `space` migration changes (or by one loomux
+defect), but none of it has been re-measured after those changes.
+
+**Method.** Branch `feat/godot-suite` at `2952a7b1`, binary built with
+`go build -o <scratch>/loomux.exe ./cmd/loomux`. Two scratch copies of `space`:
+(A) the whole repository without `.tools` and the worktrees, run through
+`uv run --script`, with the engine named by `GODOT4_BIN` (the repository's
+`godot4-headless.cmd` wrapper); (B) a copy of `godot/` alone, committed to a
+fresh git repository, then the `[gdunit4] hooks/session_hooks` entry that
+names `coverage_shard_hook.gd` removed and committed again (loomux brings its
+own hook). In B, `loomux check godot-suite --root <B> --godot <Godot_v4.7.1
+mono console exe> --coverage <dir>`; B has no `.loomux/config.toml`, so the
+state (shard weights) went to `<B>/.loomux/state/godot-suite/`. Both sides
+measure with Nano Coverage (`[nano_coverage]` in `project.godot`; the
+`--coverage` help text of loomux says the same) and merge the shard reports.
+For the reference the suite phase was timed apart from the other phases of the
+gate with a scratch script that calls the gate's own functions
+(`fast_findings`, `suite_findings`, `lint_findings`, `coverage_gate.findings`);
+its "full gate" rows are the sum of those phases, not a run of the entry point.
+
+Cold means no earlier shard weights: reference `godot/.shards` and
+`godot/reports` deleted, loomux no state file. Import cache: the reference
+cold run kept the `.godot` directory copied from `space` together with copy A
+(it was not wiped). Copy B's `.godot` is not B's own: an earlier `godot
+rescan` experiment wiped it and re-imported (which created `*.uid` files and
+touched `*.import` files in the copy), so B was reset with `git checkout`/`git
+clean` and given the `.godot` of copy A, taken after A's first reference run.
+Both sides therefore ran on a warm import cache; neither measured an import.
+8 shards on both sides. AMD Ryzen 7 9800X3D (8 cores, 16 threads; from
+`Win32_Processor`), Windows 11 Pro, one run each.
+
+```
+reference, phases summed, cold:  fast=4.0s suite=160.3s lint=20.6s covgate=0.1s total=185.1s
+reference, phases summed, warm:  fast=0.9s suite=115.6s lint=16.6s covgate=0.1s total=133.2s
+reference, plain `uv run --script godot_quality.py`: exit 0, silent, 137.2 s
+    (first run; the copy still held the `.shards` and `reports` it was copied with, so shard weights existed)
+loomux cold:   check godot-suite --coverage   exit 0   163.2 s
+loomux warm:   check godot-suite --coverage   exit 0   115.8 s
+loomux warm:   check godot-suite (no coverage) exit 0    50.9 s
+```
+
+| Measure | Reference (suite phase) | loomux | Difference |
+| --- | ---: | ---: | ---: |
+| Cold, with coverage | 160.3 s | 163.2 s | +1.8 % |
+| Warm, with coverage | 115.6 s | 115.8 s | +0.2 % |
+| Warm, without coverage | not measured | 50.9 s | — |
+| Failing cases | 0 of 3294 | 0 (exit 0, 207 suites) | same |
+| Coverage verdict | green | `check linecov`: red, 3629 findings | differs, see below |
+| `git status --porcelain` in B afterwards | — | empty (but see below) | — |
+
+The reference gate on top of the suite (`gdlint`, `gdformat`, directory and
+pairing checks, coverage gate) took another 17.6 s warm and 24.7 s cold in the
+phase sums; that work is not part of `check godot-suite` and stays in the other
+lanes. The `git status` check excluded `.loomux/` (copy B's git exclude), so the
+state directory `check godot-suite` writes there was not part of it.
+
+**`check linecov --root <B> --report <dir>`** over the eight merged reports:
+exit 1, 3629 findings (3616 uncovered lines, 13 files absent from the report).
+
+| Findings | Count | Explanation |
+| --- | ---: | --- |
+| Uncovered lines carrying `# no-cover:` | 63 | By design. The marker becomes `# coverage:exempt <reason>` in the `space` migration (linecov spec, `docs/.superpowers/specs/2026-10-14-check-linecov-design.md`, section "Folgen für space"). |
+| Uncovered lines in `harness/` | 3553 | Same case: the migration moves `harness/**` into `[nano_coverage] general/ignore_paths` (same table; the reference gate lists it as `UNMEASURED_DIRS`). |
+| Absent: `.godot/loomux/{disk,hook,run_GdUnitCmdTool}.gd` | 3 | A loomux defect: linecov must not expect files under `.godot/`. Fixed on this branch; not re-measured here. |
+| Absent: `harness/{disk_instrumentation,hex_mesh_probe,probe_context}.gd` | 3 | `harness/` again: ignored by the same migration. |
+| Absent: `core/cie_1931.gd`, `data/resource_entry.gd`, `model/{extractor,planet,race_origin,trade_order,transfer_order}.gd` | 7 | Verified against the reference: none of the seven declares a function besides `_init` (`cie_1931` and `resource_entry` declare none; the other five only `_init`), which is exactly the shape the reference's `_has_instrumentable_code` in `coverage_gate.py` excuses, because Nano Coverage places no probe in an `_init` body. The migration expresses it as `# coverage:exempt-file <reason>` (same table). |
+
+Without `harness/` and `.godot/`, 70 findings remain: the 63 marked lines and
+the 7 files above.
+
+**Key Findings**
+
+1. **Suite verdict identical:** both gates are green, 207 suites, no failing
+   case. **Coverage verdict not identical yet:** reference green, `check
+   linecov` red, with every finding accounted for above and none re-measured
+   after the `space` migration.
+2. **Not slower:** cold +1.8 %, warm +0.2 % on the suite phase, inside the
+   10 % allowed. The reference figure of 63 s for 8 shards is the run without
+   coverage; the reference without coverage was not re-run here (loomux
+   without coverage: 50.9 s).
+3. **Cold costs about 47 s more than warm** (163.2 s against 115.8 s; 160.3 s
+   against 115.6 s for the reference). The cause was not measured; one
+   untested hypothesis is that the missing shard weights give a worse shard
+   plan.
+4. **The tree stays clean:** no source file is left instrumented and no hook
+   entry is needed after the removal.
