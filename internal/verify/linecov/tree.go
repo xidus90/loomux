@@ -26,7 +26,9 @@ var foldCase = runtime.GOOS == "windows"
 // absPath is a seam: filepath.Abs only fails when the working directory is gone.
 var absPath = filepath.Abs
 
-// ScanTree walks root. A directory holding a .git entry is another checkout
+// ScanTree walks root. A directory named .godot is left out at any depth: it
+// is Godot's import cache and where check godot-suite writes its glue, and no
+// tool's sources live there. A directory holding a .git entry is another checkout
 // (a linked worktree, a submodule): its files belong to another project.
 // ponytail: walks node_modules and build output too; skip them when a large
 // JavaScript tree makes the walk measurably slow.
@@ -51,7 +53,7 @@ func ScanTree(root string) (*Tree, error) {
 		rel, _ := filepath.Rel(walk, p)
 		rel = filepath.ToSlash(rel)
 		if d.IsDir() {
-			if d.Name() == ".git" {
+			if d.Name() == ".git" || d.Name() == ".godot" {
 				return filepath.SkipDir
 			}
 			if _, err := os.Lstat(filepath.Join(p, ".git")); err == nil {

@@ -97,6 +97,17 @@ func TestGateReportsASourceNewerThanTheReportAndOneItCannotRead(t *testing.T) {
 	}
 }
 
+func TestGateIgnoresGlueUnderGodotsCacheDirectory(t *testing.T) {
+	in := gateWorld(t, map[string]string{
+		"project.godot":         "[nano_coverage]\n",
+		"core/a.gd":             "func f():\n\tpass\n",
+		".godot/loomux/hook.gd": "func g():\n\tpass\n",
+	}, Report{"core/a.gd": {2: 1}})
+	if got := Gate(in); len(got) != 0 {
+		t.Fatalf("%v", got)
+	}
+}
+
 func TestGateReportsAnExpectedSourceItCannotRead(t *testing.T) {
 	in := gateWorld(t, map[string]string{"project.godot": "[nano_coverage]\n", "core/a.gd": "func f():\n\tpass\n"}, Report{})
 	in.Read = func(string) ([]byte, error) { return nil, errors.New("locked") }
