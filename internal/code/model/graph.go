@@ -153,6 +153,9 @@ type Edge struct {
 	Target     NodeID     `json:"target"`
 	Relation   Relation   `json:"relation"`
 	Confidence Confidence `json:"confidence"`
+	// Line is the 1-based line of the use that made the edge, the smallest one
+	// when several uses are one edge; 0 for containment.
+	Line int `json:"line,omitempty"`
 }
 
 // Meta is what the writer says about the graph it wrote.

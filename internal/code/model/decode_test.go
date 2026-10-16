@@ -2,6 +2,7 @@ package model_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -62,13 +63,13 @@ func TestDecodeRejects(t *testing.T) {
 		want string
 	}{
 		{"broken json", `{"meta":`, "read graph:"},
-		{"wrong version", `{"meta":{"version":3},"nodes":[],"edges":[]}`, "graph version 3"},
-		{"node without id", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[{"name":"x","kind":"function","path":"a.ts"}],"edges":[]}`, "node 0 has no id"},
-		{"node without path", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[{"id":"a.ts#x","name":"x","kind":"function"}],"edges":[]}`, `node "a.ts#x" has no path`},
-		{"node without kind", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[{"id":"a.ts#x","name":"x","path":"a.ts"}],"edges":[]}`, `node "a.ts#x" has no kind`},
-		{"edge without source", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[],"edges":[{"target":"b","relation":"calls"}]}`, "edge 0 has no source"},
-		{"edge without target", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[],"edges":[{"source":"a","relation":"calls"}]}`, "edge 0 has no target"},
-		{"unknown relation", `{"meta":{"version":2,"extractor":"test/1"},"nodes":[],"edges":[{"source":"a","target":"b","relation":"summons"}]}`, `edge 0 has relation "summons"`},
+		{"wrong version", `{"meta":{"version":4},"nodes":[],"edges":[]}`, "graph version 4"},
+		{"node without id", `{"meta":{"version":3,"extractor":"test/1"},"nodes":[{"name":"x","kind":"function","path":"a.ts"}],"edges":[]}`, "node 0 has no id"},
+		{"node without path", `{"meta":{"version":3,"extractor":"test/1"},"nodes":[{"id":"a.ts#x","name":"x","kind":"function"}],"edges":[]}`, `node "a.ts#x" has no path`},
+		{"node without kind", `{"meta":{"version":3,"extractor":"test/1"},"nodes":[{"id":"a.ts#x","name":"x","path":"a.ts"}],"edges":[]}`, `node "a.ts#x" has no kind`},
+		{"edge without source", `{"meta":{"version":3,"extractor":"test/1"},"nodes":[],"edges":[{"target":"b","relation":"calls"}]}`, "edge 0 has no source"},
+		{"edge without target", `{"meta":{"version":3,"extractor":"test/1"},"nodes":[],"edges":[{"source":"a","relation":"calls"}]}`, "edge 0 has no target"},
+		{"unknown relation", `{"meta":{"version":3,"extractor":"test/1"},"nodes":[],"edges":[{"source":"a","target":"b","relation":"summons"}]}`, `edge 0 has relation "summons"`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -84,7 +85,7 @@ func TestDecodeRejects(t *testing.T) {
 }
 
 func TestValidateAcceptsEmptyGraph(t *testing.T) {
-	g := &model.Graph{Meta: model.Meta{Version: 2, Extractor: "test/1"}}
+	g := &model.Graph{Meta: model.Meta{Version: 3, Extractor: "test/1"}}
 	if err := g.Validate(); err != nil {
 		t.Errorf("an empty graph of the right version is valid, got %v", err)
 	}
@@ -94,7 +95,7 @@ func TestValidateRejectsDuplicateNodeIDs(t *testing.T) {
 	// pagerank.Prepare keeps the first node of an id, blast.New overwrites --
 	// two answers to the same question out of one graph.
 	g := &model.Graph{
-		Meta: model.Meta{Version: 2, Extractor: "go/1"},
+		Meta: model.Meta{Version: 3, Extractor: "go/1"},
 		Nodes: []model.Node{
 			{ID: "a.go#F", Kind: "function", Path: "a.go", BodyHash: "h1"},
 			{ID: "a.go#F", Kind: "function", Path: "a.go", BodyHash: "h2"},
@@ -111,7 +112,7 @@ func TestValidateRejectsAnEdgeSourceThatIsNoNode(t *testing.T) {
 	// source shows up in blast as a hit without a node and is then
 	// indistinguishable from a genuinely unresolved import.
 	g := &model.Graph{
-		Meta:  model.Meta{Version: 2, Extractor: "go/1"},
+		Meta:  model.Meta{Version: 3, Extractor: "go/1"},
 		Nodes: []model.Node{{ID: "a.go", Kind: model.KindFile, Path: "a.go", BodyHash: "h"}},
 		Edges: []model.Edge{{
 			Source: "a.go#Ghost", Target: "a.go", Relation: model.RelationCalls,
@@ -128,7 +129,7 @@ func TestValidateRejectsAnEmptyBodyHash(t *testing.T) {
 	// Without it `graph check` cannot judge the node and would have to call it
 	// fresh in silence.
 	g := &model.Graph{
-		Meta:  model.Meta{Version: 2, Extractor: "go/1"},
+		Meta:  model.Meta{Version: 3, Extractor: "go/1"},
 		Nodes: []model.Node{{ID: "a.go", Kind: model.KindFile, Path: "a.go"}},
 	}
 	err := g.Validate()
@@ -141,7 +142,7 @@ func TestValidateRejectsAnEmptyExtractorStamp(t *testing.T) {
 	// `check` compares the stamp before it diffs nodes: a graph from another
 	// extractor is not stale, it is foreign.
 	g := &model.Graph{
-		Meta:  model.Meta{Version: 2},
+		Meta:  model.Meta{Version: 3},
 		Nodes: []model.Node{{ID: "a.go", Kind: model.KindFile, Path: "a.go", BodyHash: "h"}},
 	}
 	err := g.Validate()
@@ -168,5 +169,16 @@ func TestBodyTextNeverReachesTheWire(t *testing.T) {
 	}
 	if strings.Contains(string(out), "secret body") {
 		t.Fatalf("body text reached the wire: %s", out)
+	}
+}
+
+func TestSchemaVersion3(t *testing.T) {
+	ok := &model.Graph{Meta: model.Meta{Version: 3, Extractor: "t/1"}}
+	if err := ok.Validate(); err != nil {
+		t.Fatalf("version 3 must validate: %v", err)
+	}
+	old := &model.Graph{Meta: model.Meta{Version: 2, Extractor: "t/1"}}
+	if err := old.Validate(); !errors.Is(err, model.ErrSchemaVersion) {
+		t.Fatalf("got %v, want ErrSchemaVersion for version 2", err)
 	}
 }

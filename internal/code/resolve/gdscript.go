@@ -38,18 +38,27 @@ import (
 // inner class.
 // Every edge names exactly one target, or there is none, and every edge is
 // extracted.
-func resolveGDScript(files []extract.Result, paths map[string]bool) []model.Edge {
+func resolveGDScript(files []extract.Result, paths map[string]bool) ([]model.Edge, []Unresolved) {
 	x := gdIndexOf(files, paths)
 	var out []model.Edge
+	var un []Unresolved
 	var rest []extract.RawEdge
 	// One edge per source, target and relation: self.f() and f() are one
-	// dependency, as are a name and the alias that binds the same file.
-	seen := map[model.Edge]bool{}
+	// dependency, as are a name and the alias that binds the same file. The
+	// edge keeps the smallest line of its uses.
+	type key struct {
+		source, target model.NodeID
+		relation       model.Relation
+	}
+	at := map[key]int{}
 	keep := func(e model.Edge) {
-		if !seen[e] {
-			seen[e] = true
-			out = append(out, e)
+		k := key{e.Source, e.Target, e.Relation}
+		if i, ok := at[k]; ok {
+			out[i].Line = min(out[i].Line, e.Line)
+			return
 		}
+		at[k] = len(out)
+		out = append(out, e)
 	}
 	for _, f := range files {
 		for _, raw := range f.Edges {
@@ -57,9 +66,17 @@ func resolveGDScript(files []extract.Result, paths map[string]bool) []model.Edge
 			case model.RelationContains:
 				keep(model.Edge{Source: raw.Source, Target: raw.TargetID, Relation: model.RelationContains, Confidence: model.ConfidenceExtracted})
 			case model.RelationExtends:
-				if base, ok := x.base(raw); ok {
+				base, why := x.base(raw)
+				switch why {
+				case "":
 					x.bases[raw.Source] = base
 					keep(gdEdge(raw, base))
+				case ReasonNone, ReasonAmbiguous:
+					name := raw.Name
+					if raw.Receiver != "" {
+						name = raw.Receiver + "." + raw.Name
+					}
+					un = append(un, Unresolved{Source: raw.Source, File: raw.File, Line: raw.Line, Name: name, Reason: why})
 				}
 			default:
 				rest = append(rest, raw)
@@ -72,7 +89,7 @@ func resolveGDScript(files []extract.Result, paths map[string]bool) []model.Edge
 			keep(e)
 		}
 	}
-	return out
+	return out, un
 }
 
 // gdIndex is every lookup the Godot resolver makes.
@@ -200,60 +217,80 @@ func (x *gdIndex) home(raw extract.RawEdge) model.NodeID {
 
 // bind is the class or file a name stands for in a class of file, by the
 // four stages in order; the first stage with a candidate decides.
-func (x *gdIndex) bind(file string, home model.NodeID, name string) (model.NodeID, bool) {
+//
+// The reason is empty when the name is bound. ReasonNone is a name nothing
+// defines, ReasonAmbiguous one several definitions share; reasonBroken is a
+// name that is defined but leads nowhere (an alias or autoload whose file is
+// not in the build), which is neither an engine class nor a clash.
+func (x *gdIndex) bind(file string, home model.NodeID, name string) (model.NodeID, Reason) {
 	for c := home; c != ""; c = x.parent[c] {
 		if found := ofKind(x.members[c][name], "class"); len(found) > 0 {
 			return only(found)
 		}
 	}
 	if spec, ok := x.aliases[file][name]; ok {
-		p, ok := x.target(file, spec)
-		return x.classOf(p), ok
+		return x.reach(x.target(file, spec))
 	}
 	root, ok := x.project(file)
 	if !ok {
-		return "", false
+		return "", ReasonNone
 	}
 	if ids := x.classes[root][name]; len(ids) > 0 {
 		if len(ids) != 1 {
-			return "", false
+			return "", ReasonAmbiguous
 		}
-		return ids[0], true
+		return ids[0], ""
 	}
 	if spec, ok := x.autoload[root][name]; ok {
 		// A path without a scheme starts at the project, as Godot reads it.
-		p, ok := x.target(path.Join(root, "project.godot"), spec)
-		return x.classOf(p), ok
+		return x.reach(x.target(path.Join(root, "project.godot"), spec))
 	}
-	return "", false
+	return "", ReasonNone
+}
+
+// reasonBroken marks a binding whose file is missing; it is never reported.
+const reasonBroken Reason = "broken"
+
+// reach is the class of the file target found, or reasonBroken.
+func (x *gdIndex) reach(p string, ok bool) (model.NodeID, Reason) {
+	if !ok {
+		return "", reasonBroken
+	}
+	return x.classOf(p), ""
 }
 
 // chain binds the first name of "A.B.C" and walks the rest as inner classes.
-func (x *gdIndex) chain(file string, home model.NodeID, names string) (model.NodeID, bool) {
+func (x *gdIndex) chain(file string, home model.NodeID, names string) (model.NodeID, Reason) {
 	parts := strings.Split(names, ".")
-	c, ok := x.bind(file, home, parts[0])
+	c, why := x.bind(file, home, parts[0])
 	for _, p := range parts[1:] {
-		if !ok {
+		if why != "" {
 			break
 		}
-		c, ok = only(ofKind(x.members[c][p], "class"))
+		c, why = only(ofKind(x.members[c][p], "class"))
 	}
-	return c, ok
+	return c, why
 }
 
 // base resolves an extends edge: a path, or a name bound from the class
 // around the one being defined. A class is never its own base.
-func (x *gdIndex) base(raw extract.RawEdge) (model.NodeID, bool) {
+func (x *gdIndex) base(raw extract.RawEdge) (model.NodeID, Reason) {
 	if raw.Specifier != "" {
-		p, ok := x.target(raw.File, raw.Specifier)
-		return x.classOf(p), ok && x.classOf(p) != raw.Source
+		t, why := x.reach(x.target(raw.File, raw.Specifier))
+		if t == raw.Source {
+			return "", reasonBroken
+		}
+		return t, why
 	}
 	name := raw.Name
 	if raw.Receiver != "" {
 		name = raw.Receiver + "." + raw.Name
 	}
-	t, ok := x.chain(raw.File, x.parent[raw.Source], name)
-	return t, ok && t != raw.Source
+	t, why := x.chain(raw.File, x.parent[raw.Source], name)
+	if why == "" && t == raw.Source {
+		return "", reasonBroken
+	}
+	return t, why
 }
 
 // member is the definitions of name of the given kinds in the first class
@@ -277,8 +314,8 @@ func (x *gdIndex) resolve(raw extract.RawEdge) (model.Edge, bool) {
 		p, ok := x.target(raw.File, raw.Specifier)
 		return gdEdge(raw, model.NodeID(p)), ok && p != raw.File
 	case model.RelationReferences:
-		t, ok := x.bind(raw.File, x.home(raw), raw.Name)
-		return gdEdge(raw, t), ok && !x.encloses(t, raw.Source)
+		t, why := x.bind(raw.File, x.home(raw), raw.Name)
+		return gdEdge(raw, t), why == "" && !x.encloses(t, raw.Source)
 	default:
 		return x.call(raw)
 	}
@@ -310,7 +347,7 @@ func (x *gdIndex) call(raw extract.RawEdge) (model.Edge, bool) {
 		if i := strings.LastIndex(raw.Receiver, "."); i >= 0 {
 			// X.sig: bind X like any receiver chain, then the signal in it.
 			// Exactly one hit; with several the call goes on as below.
-			if owner, ok := x.chain(raw.File, home, raw.Receiver[:i]); ok {
+			if owner, why := x.chain(raw.File, home, raw.Receiver[:i]); why == "" {
 				if hits := x.member(owner, raw.Receiver[i+1:], "signal"); len(hits) == 1 {
 					sig = hits
 				}
@@ -322,8 +359,8 @@ func (x *gdIndex) call(raw extract.RawEdge) (model.Edge, bool) {
 			return e, ok
 		}
 	}
-	class, ok := x.chain(raw.File, home, raw.Receiver)
-	if !ok {
+	class, why := x.chain(raw.File, home, raw.Receiver)
+	if why != "" {
 		return model.Edge{}, false
 	}
 	if raw.Name == "new" {
@@ -353,15 +390,19 @@ func ofKind(nodes []model.Node, kinds ...model.Kind) []model.Node {
 	return out
 }
 
-// only is the one node's id, or false for none or several.
-func only(nodes []model.Node) (model.NodeID, bool) {
-	if len(nodes) != 1 {
-		return "", false
+// only is the one node's id, or why there is none: ReasonNone for no node,
+// ReasonAmbiguous for several.
+func only(nodes []model.Node) (model.NodeID, Reason) {
+	switch len(nodes) {
+	case 0:
+		return "", ReasonNone
+	case 1:
+		return nodes[0].ID, ""
 	}
-	return nodes[0].ID, true
+	return "", ReasonAmbiguous
 }
 
 // gdEdge is the extracted edge of raw's relation from raw's source to t.
 func gdEdge(raw extract.RawEdge, t model.NodeID) model.Edge {
-	return model.Edge{Source: raw.Source, Target: t, Relation: raw.Relation, Confidence: model.ConfidenceExtracted}
+	return model.Edge{Source: raw.Source, Target: t, Relation: raw.Relation, Confidence: model.ConfidenceExtracted, Line: raw.Line}
 }

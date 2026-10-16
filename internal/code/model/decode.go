@@ -9,7 +9,7 @@ import (
 
 // schemaVersion is the only wiring.json this model reads. A writer that bumps
 // it changed something; failing loudly beats ranking stale shapes.
-const schemaVersion = 2
+const schemaVersion = 3
 
 // ErrSchemaVersion wraps a version mismatch, so a caller can tell "this graph
 // predates the schema this binary reads" from any other validation failure --
