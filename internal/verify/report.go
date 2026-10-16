@@ -84,9 +84,10 @@ func CheckVerdict(kinds []string, outs []Outcome, strict bool) (code int, notes 
 }
 
 // Fails says whether an outcome fails a run: a red state of a lane that is
-// not in probation.
+// not in probation. The rules lane only warns after an edit: a layer break
+// mid-refactor is normal, the commit is where it blocks.
 func Fails(o Outcome, scope Scope) bool {
-	return Red(o.State, scope) && !o.Probation
+	return Red(o.State, scope) && !o.Probation && (scope != ScopeEdit || o.Job.Kind != "rules")
 }
 
 // ProbationLine ends the report of a run with a lane in probation: the keys
@@ -142,7 +143,8 @@ func Skipped(stderr io.Writer, notices []string, notice string) []string {
 }
 
 // EditReport reports the lanes of one edited file: an armed red lane on
-// stderr, which blocks the edit; a red lane in probation, marked so, and
+// stderr, which blocks the edit; a red lane in probation or of the rules
+// kind, marked so, and
 // every lane it had to skip through Skipped, in lane order, without blocking;
 // then whatever else the hook has to say, one notice a line. The aside is
 // dropped when an armed lane is red: the finding matters more, and stderr
@@ -159,8 +161,13 @@ func EditReport(stderr io.Writer, outs []Outcome, aside string) (red bool, notic
 				fmt.Fprintf(stderr, "%s\n", strings.TrimSuffix(o.Output, "\n"))
 			}
 		case Red(o.State, ScopeEdit):
-			// In probation: said on both streams like a skip, and the edit stands.
-			said := fmt.Sprintf("%s: %s (probation)", o.Job.Name, o.State)
+			// In probation, or the rules lane: said on both streams like a
+			// skip, and the edit stands.
+			why := "warn only"
+			if o.Probation {
+				why = "probation"
+			}
+			said := fmt.Sprintf("%s: %s (%s)", o.Job.Name, o.State, why)
 			if o.Output != "" {
 				said += "\n" + strings.TrimSuffix(o.Output, "\n")
 			}
