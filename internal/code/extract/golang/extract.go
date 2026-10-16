@@ -38,7 +38,7 @@ import (
 // therefore survives even an explicit `graph build` -- the cached entries
 // still match and are reused -- and only `graph build --no-reuse` clears
 // them. So every change to the nodes or edges comes with a bump.
-const Version = "go/1"
+const Version = "go/2"
 
 // Language is the Go extractor as extract.Language describes one.
 type Language struct{}
@@ -93,8 +93,8 @@ func File(rel, source string) (extract.Result, error) {
 	}
 
 	r.Nodes = append([]model.Node{extract.FileNode(rel, source, covered)}, r.Nodes...)
-	r.Edges = append(r.Edges, importEdges(rel, file)...)
-	r.Edges = append(r.Edges, callEdges(rel, file, owners)...)
+	r.Edges = append(r.Edges, importEdges(fset, rel, file)...)
+	r.Edges = append(r.Edges, callEdges(fset, rel, file, owners)...)
 	return r, nil
 }
 
@@ -249,12 +249,14 @@ func slice(fset *token.FileSet, source string, from, to token.Pos) string {
 //
 // A blank import binds no selector and is still a dependency of the file, so it
 // keeps its edge. A dot import binds no selector either; the same holds.
-func importEdges(rel string, file *ast.File) []extract.RawEdge {
+func importEdges(fset *token.FileSet, rel string, file *ast.File) []extract.RawEdge {
 	var out []extract.RawEdge
-	for _, imp := range importsOf(file) {
+	for _, spec := range file.Imports {
+		// The parser only accepts a valid string literal here, so Unquote cannot fail.
+		p, _ := strconv.Unquote(spec.Path.Value)
 		out = append(out, extract.RawEdge{
 			Source: model.NodeID(rel), Relation: model.RelationImports,
-			Specifier: imp.Path, File: rel,
+			Specifier: p, File: rel, Line: fset.Position(spec.Pos()).Line,
 		})
 	}
 	return out
@@ -270,17 +272,17 @@ func importEdges(rel string, file *ast.File) []extract.RawEdge {
 //   - a name plus an owner -- a member call on a known local type
 //   - a name plus a specifier -- a package selector; resolve looks in that
 //     package alone
-func callEdges(rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID) []extract.RawEdge {
+func callEdges(fset *token.FileSet, rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID) []extract.RawEdge {
 	var out []extract.RawEdge
 	// A call outside every function -- in a var initialiser -- is owned by the
 	// file, the same node that owns the imports.
-	walkCalls(file, rel, model.NodeID(rel), owners, &out)
+	walkCalls(fset, file, rel, model.NodeID(rel), owners, &out)
 	return out
 }
 
 // walkCalls descends the file, keeping a scope stack and the symbol a call
 // belongs to.
-func walkCalls(file *ast.File, rel string, fileID model.NodeID, owners map[*ast.FuncDecl]model.NodeID, out *[]extract.RawEdge) {
+func walkCalls(fset *token.FileSet, file *ast.File, rel string, fileID model.NodeID, owners map[*ast.FuncDecl]model.NodeID, out *[]extract.RawEdge) {
 	sc := newScope()
 	// The file's own package-level names: a call may target one of them, and a
 	// local of the same name must shadow it.
@@ -308,7 +310,7 @@ func walkCalls(file *ast.File, rel string, fileID model.NodeID, owners map[*ast.
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok {
 			// A package-level initialiser: its calls belong to the file.
-			collect(decl, rel, fileID, sc, out)
+			collect(decl, fset, rel, fileID, sc, out)
 			continue
 		}
 		owner, ok := owners[fn]
@@ -324,7 +326,7 @@ func walkCalls(file *ast.File, rel string, fileID model.NodeID, owners map[*ast.
 			sc.declare(receiverVar(fn.Recv), receiverType(fn.Recv))
 		}
 		declareParams(sc, fn.Type)
-		collect(fn, rel, owner, sc, out)
+		collect(fn, fset, rel, owner, sc, out)
 		sc.pop()
 	}
 }
@@ -346,7 +348,7 @@ func declareParams(sc *scope, ft *ast.FuncType) {
 
 // collect walks one declaration's statements, tracking declarations as it goes
 // and emitting a raw edge per call.
-func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]extract.RawEdge) {
+func collect(node ast.Node, fset *token.FileSet, rel string, owner model.NodeID, sc *scope, out *[]extract.RawEdge) {
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch s := n.(type) {
 		case *ast.AssignStmt:
@@ -385,7 +387,7 @@ func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]ex
 			// drop a later edge, never invent one.
 			declareParams(sc, s.Type)
 		case *ast.CallExpr:
-			if e, ok := callEdge(s, rel, owner, sc); ok {
+			if e, ok := callEdge(s, fset, rel, owner, sc); ok {
 				*out = append(*out, e)
 			}
 		}
@@ -399,12 +401,13 @@ func collect(node ast.Node, rel string, owner model.NodeID, sc *scope, out *[]ex
 // whether an unshadowed receiver names a package is decided in resolve, because
 // only that sees the target's package clause. Splitting the question along that
 // line is what keeps `import "gopkg.in/yaml.v3"` from binding `v3`.
-func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (extract.RawEdge, bool) {
+func callEdge(call *ast.CallExpr, fset *token.FileSet, rel string, owner model.NodeID, sc *scope) (extract.RawEdge, bool) {
+	line := fset.Position(call.Pos()).Line
 	switch fn := peelIndex(call.Fun).(type) {
 	case *ast.Ident:
 		return extract.RawEdge{
 			Source: owner, Relation: model.RelationCalls,
-			Name: fn.Name, File: rel,
+			Name: fn.Name, File: rel, Line: line,
 		}, true
 	case *ast.SelectorExpr:
 		recv, ok := peelIndex(fn.X).(*ast.Ident)
@@ -420,7 +423,7 @@ func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (ex
 			// only side that can say so.
 			return extract.RawEdge{
 				Source: owner, Relation: model.RelationCalls,
-				Name: fn.Sel.Name, Receiver: recv.Name, File: rel,
+				Name: fn.Sel.Name, Receiver: recv.Name, File: rel, Line: line,
 			}, true
 		}
 		if typ == "" {
@@ -431,7 +434,7 @@ func callEdge(call *ast.CallExpr, rel string, owner model.NodeID, sc *scope) (ex
 		}
 		return extract.RawEdge{
 			Source: owner, Relation: model.RelationCalls,
-			Name: fn.Sel.Name, Owner: typ, File: rel,
+			Name: fn.Sel.Name, Owner: typ, File: rel, Line: line,
 		}, true
 	default:
 		return extract.RawEdge{}, false

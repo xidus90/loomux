@@ -166,7 +166,7 @@ func TestWalkCallsSkipsAFuncDeclAbsentFromOwners(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out []extract.RawEdge
-	walkCalls(file, "p.go", model.NodeID("p.go"), map[*ast.FuncDecl]model.NodeID{}, &out)
+	walkCalls(fset, file, "p.go", model.NodeID("p.go"), map[*ast.FuncDecl]model.NodeID{}, &out)
 	if len(out) != 0 {
 		t.Errorf("walkCalls(no owners) = %+v, want no edges", out)
 	}
@@ -182,7 +182,7 @@ func TestCollectSkipsANonIdentLhsOfADefineAssign(t *testing.T) {
 	}
 	sc := newScope()
 	var out []extract.RawEdge
-	collect(assign, "p.go", model.NodeID("p.go"), sc, &out)
+	collect(assign, token.NewFileSet(), "p.go", model.NodeID("p.go"), sc, &out)
 	if len(out) != 0 {
 		t.Errorf("collect(non-ident define lhs) = %+v, want no edges", out)
 	}

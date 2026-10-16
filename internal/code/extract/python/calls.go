@@ -75,7 +75,7 @@ func (x *extractor) nested(stmt *gts.Node, sc scope) bool {
 // call of its own.
 func (x *extractor) call(c *gts.Node, sc scope) {
 	fn := x.doc.Field(c, "function")
-	e := extract.RawEdge{Source: sc.source, Relation: model.RelationCalls, File: x.doc.Rel}
+	e := extract.RawEdge{Source: sc.source, Relation: model.RelationCalls, File: x.doc.Rel, Line: line(c)}
 	switch x.doc.Type(fn) {
 	case "identifier":
 		e.Name = x.doc.Text(fn)
