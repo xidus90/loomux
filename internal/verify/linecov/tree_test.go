@@ -35,6 +35,23 @@ func TestScanTreeSkipsGitAndOtherCheckouts(t *testing.T) {
 	}
 }
 
+// .godot is Godot's import cache and holds the glue check godot-suite writes.
+func TestScanTreeLeavesGodotsCacheDirectoryOut(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"core/a.gd":          "",
+		".godot/loomux/x.gd": "",
+		"godot/.godot/y.gd":  "",
+		"godot/z.gd":         "",
+	})
+	tree, err := ScanTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"core/a.gd", "godot/z.gd"}; !reflect.DeepEqual(tree.Files, want) {
+		t.Fatalf("%q", tree.Files)
+	}
+}
+
 // A root reached through a link is walked where the link points, and keeps
 // the spelling it was given.
 func TestScanTreeWalksARootThatIsALink(t *testing.T) {
