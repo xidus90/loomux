@@ -385,10 +385,10 @@ func TestPlanGdscriptDocsOnlyCommitNeverAsksForGodot(t *testing.T) {
 // Without Nano Coverage the project still tests; only coverage is out.
 func TestPlanGdscriptWithoutNanoCoverageHasOnlyTheTestLane(t *testing.T) {
 	e := env(t.TempDir())
-	e.HasTests = func(_ string, p []string) bool { return p[0] == "plugin.cfg:gdUnit4" }
+	e.HasTests = func(_ string, p []string) bool { return p[0] == `plugin.cfg:name="gdUnit4"` }
 	e.Godot = func(string) (string, State, string) { return "/g/godot", "", "" }
 	jobs, err := Plan(effFor(t, "", gdFacts()), Request{Kinds: []string{"test", "coverage"}}, e)
-	if err != nil || len(jobs) != 2 || jobs[0].Pre != "" || jobs[1].Pre != StateUnavailable || jobs[1].Note != "none found: plugin.cfg:NanoCoverage" {
+	if err != nil || len(jobs) != 2 || jobs[0].Pre != "" || jobs[1].Pre != StateUnavailable || jobs[1].Note != `none found: plugin.cfg:name="NanoCoverage"` {
 		t.Fatalf("%v %+v", err, jobs)
 	}
 }
@@ -403,7 +403,7 @@ func TestPlanGdscriptWithoutGdUnitHasNoSuite(t *testing.T) {
 		t.Fatalf("%v %+v", err, jobs)
 	}
 	for _, j := range jobs {
-		if j.Pre != StateUnavailable || j.Note != "none found: plugin.cfg:gdUnit4" {
+		if j.Pre != StateUnavailable || j.Note != `none found: plugin.cfg:name="gdUnit4"` {
 			t.Errorf("%s: %q %q", j.Name, j.Pre, j.Note)
 		}
 	}

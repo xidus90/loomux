@@ -246,7 +246,7 @@ func TestCheckShowListsTheGdscriptSuiteLanes(t *testing.T) {
 	if code != 0 || errOut != "" {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
-	for _, want := range []string{"[verify.gdscript.test]", "[verify.gdscript.coverage]", `when_found = ["plugin.cfg:gdUnit4"]`, `"plugin.cfg:NanoCoverage"`} {
+	for _, want := range []string{"[verify.gdscript.test]", "[verify.gdscript.coverage]", `when_found = ["plugin.cfg:name=\"gdUnit4\""]`, `"plugin.cfg:name=\"NanoCoverage\""`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %s", want, out)
 		}

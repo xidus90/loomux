@@ -136,11 +136,14 @@ commands = ["{loomux} check rules --cached"]
 on_file  = ["{loomux} check rules"]
 
 # gdUnit4 decides by the report, never by its exit code; see the cli reference.
+# A pattern matches as a substring, so the bare name would answer to any
+# plugin.cfg that merely mentions gdUnit4; the assignment is what the addon
+# itself writes.
 [stack.gdscript.test]
 commands   = ["{loomux} check godot-suite --godot {godot}"]
 measuring  = "{loomux} check godot-suite --godot {godot} --coverage {coverdata}"
 lock       = true
-when_found = ["plugin.cfg:gdUnit4"]
+when_found = ['plugin.cfg:name="gdUnit4"']
 
 # The lane's own command does not name {godot}: a commit that skips `test`
 # needs no binary for this lane either.
@@ -149,7 +152,7 @@ commands   = ["{loomux} check linecov --report {coverdata}"]
 measure    = "{loomux} check godot-suite --godot {godot} --coverage {coverdata}"
 after      = "test"
 lock       = true
-when_found = ["plugin.cfg:gdUnit4", "plugin.cfg:NanoCoverage"]
+when_found = ['plugin.cfg:name="gdUnit4"', 'plugin.cfg:name="NanoCoverage"']
 
 [stack.cpp]
 tests_when = ["CMakeLists.txt:enable_testing("]
