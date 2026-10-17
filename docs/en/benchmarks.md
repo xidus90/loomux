@@ -3818,3 +3818,49 @@ as the median of the five first runs. Every run exited 0.
 2. **The cold run of the first case** is the first start of a freshly copied
    binary, not the guard: two counter passes with after before before gave
    946 and 967 ms cold for after, 887 and 1117 ms for before.
+
+## 2026-10-17 17:52 — The Replay Cases No Longer Leave Their Worlds Behind
+
+Worktree `.claude/worktrees/hopeful-kepler-25c3a3`, Go 1.27.0
+`windows/amd64`. Machine: AMD Ryzen 7 9800X3D, Windows 11 Pro. It is also the
+self-hosted runner `H28Q-APEX-PC` that runs `gate-windows`; its service runs
+as the same user and shares `%TEMP%`.
+
+**Goal.** `gate-windows` hit the 600 s limit of `test/go` on
+xidus90/loomux#108 without a red test; `internal/cli` alone took 585 s.
+
+**Method.** `go test ./internal/cli/ -count=1 -json -covermode=set
+-coverpkg=github.com/xidus90/loomux/... -coverprofile=<file>`, the gate's
+measuring form, with a warm build cache; the time is the package's
+`Elapsed`. Per test from the `-json` events, then `-cpuprofile` over
+`TestRecordedCasesOfStage1b1`. "Clean `%TEMP%`" points `TMP` and `TEMP` at
+an empty directory `C:/lxt`.
+
+| Run | `%TEMP%` | `internal/cli` |
+|---|---|---:|
+| CI, attempt 1 on #108 (13:34) | runner's | 585.2 s, `test/go` timed out at 600 s |
+| CI, attempt 2 on #108 (13:54) | runner's | `test/go` 308.0 s |
+| local, before | 1,314,259 entries, 1,238,911 of them `case-run-*` | 360.3 s |
+| local, before | clean | 115.7 s, 243 `case-run-*` left behind |
+| local, after | clean | 92.4 s, none left behind |
+
+### Reading
+
+1. **88 % of the CPU time of the 1b-1 cases was `os.MkdirTemp`**, about
+   320 ms per call: Windows creates a directory slowly in a directory that
+   holds over a million entries. The replay suites (1b-1, 1b-2, 2a to 4d) took
+   290 of the 360 s; a `brain status` case took 0.5 s for a run that stages a
+   few files.
+2. **The entries were the cases' own worlds.** A suite whose run moves into
+   the staged world with `t.Chdir` stays there until its subtest's cleanup;
+   `RunCaseWith` removes the world before that, and Windows removes no
+   directory a process stands in. Every full run left 243 empty directories,
+   on the developer's machine and on the runner alike, so the suite grew
+   slower with every run until `gate-windows` timed out. `RunCaseWith` now
+   returns to the old working directory before it removes the world.
+3. **The fix stops the growth; it does not remove what is there.** Until the
+   empty `case-run-*` directories in the runner's `%TEMP%` are deleted, CI
+   keeps paying for them.
+4. The rest of the suite is evenly spread: the two hook tests that build the
+   binary (16 s together), 3b and 2c with their git worlds (9 s each). None
+   of it is close to the limit, so nothing else changed.

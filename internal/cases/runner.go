@@ -209,6 +209,10 @@ func RunCaseWith(c *Case, run RunFunc, normalize Normalizer) (*RunOutcome, error
 		return nil, err
 	}
 	defer os.RemoveAll(tmpDir)
+	// Runs before the removal: a run may move into the world, and Windows
+	// removes no directory a process stands in.
+	wd, _ := os.Getwd()
+	defer os.Chdir(wd)
 	tmpDir = longPath(tmpDir)
 
 	srcWorld := filepath.Join(c.Path, "world")

@@ -487,3 +487,37 @@ func TestACaseComparesAfterTheRunChangedTheWorkingDirectory(t *testing.T) {
 		t.Fatal("a state that differs by three blocks compared clean: the case no longer finds its own world_after")
 	}
 }
+
+// A suite that moves into the staged world stays there until its subtest's
+// cleanup, after RunCase has returned. Windows removes no directory a process
+// stands in, so a world left as the working directory outlives its case: one
+// empty directory per case and run, until the temp directory holds so many
+// that creating the next one takes a third of a second.
+func TestRunCaseRemovesAWorldTheRunMovedInto(t *testing.T) {
+	t.Chdir(t.TempDir())
+	dir := filepath.Join(t.TempDir(), "v", "n")
+	if err := os.MkdirAll(filepath.Join(dir, "world"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeCaseFile(t, dir, "cmd", []byte("loomux x"))
+	writeCaseFile(t, dir, "exit", []byte("0"))
+	writeCaseFile(t, dir, "stdout", nil)
+	c, err := cases.LoadCase(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var staged string
+	if _, err := cases.RunCase(c, func(_ []string, world string, _ io.Reader, _, _ io.Writer) int {
+		staged = world
+		if err := os.Chdir(world); err != nil {
+			t.Error(err)
+		}
+		return 0
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(staged); !os.IsNotExist(err) {
+		t.Fatalf("the staged world %s outlived its case: %v", staged, err)
+	}
+}
