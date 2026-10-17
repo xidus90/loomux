@@ -7,6 +7,24 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.9.1] - 2026-10-17
+
+<https://github.com/xidus90/loomux/pull/113>
+
+### Security
+- `check godot-suite` no longer writes, reads or deletes outside the project when restoring instrumented sources through a symlink or junction inside it.
+
+## [1.9.0] - 2026-10-17
+
+<https://github.com/xidus90/loomux/pull/107>
+
+### Added
+- `GODOT_BIN_DIR` names a directory of Godot engines. Where neither `GODOT_BIN` nor `[verify.gdscript] godot` names a binary, its engines are asked in name order and the first whose version fits the project's line is taken.
+
+### Changed
+- `{godot}` reads the line a project wants from `config_version` where `config/features` is absent, which is every Godot 3 project from 3.1 on. Such a project resolved to no version at all before, so its `test` and `coverage` lanes failed instead of running. A line named without a minor version compares only its major version; `config_version=5` without `config/features` keeps its error, since it spans 4.0 to 4.8.
+- A binary of the wrong line that a human named is refused with a message naming `GODOT_BIN_DIR`, and a binary that could not be asked before the budget ended leaves its lane `budget` rather than reading as a mismatch.
+
 ## [1.8.4] - 2026-10-17
 
 <https://github.com/xidus90/loomux/pull/111>
