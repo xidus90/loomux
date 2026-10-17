@@ -1,0 +1,2 @@
+; Stands for the smallest Godot 4 project the lint lane runs on: no addon, nothing to detect, only the engine line gdtoolkit 4.x lints.
+config_version=5

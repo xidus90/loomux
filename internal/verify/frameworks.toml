@@ -1,0 +1,66 @@
+# The framework matrix: which line of a stack's engine or runtime each
+# third-party framework carries. Whether a framework is present at all is
+# when_found's job in presets.toml; `found` repeats that pattern where the row
+# is proven. On an unproven row it says what a detection would use: no lane
+# detects that framework yet, because loomux drives only what it has run. A
+# test holds the two files against each other both ways, so neither a proven
+# pattern outside its lane nor an unproven one inside a lane passes.
+# `found` is optional and the two gdtoolkit rows leave it empty: the lint lane
+# runs on any project of the stack and detects nothing.
+# A pattern matches as a substring, which is why the plugin.cfg patterns name
+# the whole assignment: bare `gdUnit4` would answer to any file mentioning the
+# name. No row ends a pattern in a number, and none should: `config_version=5`
+# would also answer to a `config_version=50` nobody has shipped.
+# A mirror test demands a fixture for every row below and a page per stack.
+
+[[framework]]
+stack = "gdscript"
+name = "gdUnit4"
+kind = "test"
+found = 'plugin.cfg:name="gdUnit4"'
+carries = "Godot 4.3 to 4.8"
+proven = true
+source = "https://github.com/godot-gdunit-labs/gdUnit4"
+
+[[framework]]
+stack = "gdscript"
+name = "NanoCoverage"
+kind = "coverage"
+found = 'plugin.cfg:name="NanoCoverage"'
+carries = "Godot 4"
+proven = true
+source = "https://github.com/IgorBayerl/nano-coverage-godot"
+
+[[framework]]
+stack = "gdscript"
+name = "gdtoolkit4"
+kind = "lint"
+carries = "Godot 4"
+proven = true
+source = "https://github.com/scony/godot-gdscript-toolkit"
+
+[[framework]]
+stack = "gdscript"
+name = "GUT"
+kind = "test"
+found = 'plugin.cfg:name="Gut"'
+carries = "GUT 7.x carries Godot 3, 9.x carries Godot 4; the pattern does not tell them apart"
+proven = false
+source = "https://github.com/bitwes/Gut"
+
+[[framework]]
+stack = "gdscript"
+name = "gdtoolkit3"
+kind = "lint"
+carries = "Godot 3"
+proven = false
+source = "https://github.com/scony/godot-gdscript-toolkit"
+
+[[framework]]
+stack = "gdscript"
+name = "godot-code-coverage"
+kind = "coverage"
+found = 'plugin.cfg:name="Coverage"'
+carries = "documented for Godot 3.5, unconfirmed on 3.6"
+proven = false
+source = "https://github.com/jamie-pate/godot-code-coverage"

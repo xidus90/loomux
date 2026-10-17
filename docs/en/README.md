@@ -31,6 +31,7 @@ One Go binary that guards AI coding agents: hooks and a write barrier, a check c
 | [Benchmarks](benchmarks.md) | Chronological performance measurements with date, baseline and change, cold and warm. |
 | [Benchmark matrix](benchmarks/matrix.md) | Open-source matrix across top languages with detailed reports per language and repository. |
 | [Open-source matrix](open-source-matrix.md) | A catalogue of open-source GitHub projects by language, framework and star category. |
+| [GDScript frameworks](stacks/gdscript.md) | Which third-party frameworks loomux drives for GDScript, how it recognises each and what each carries. |
 
 ## Core philosophy
 
