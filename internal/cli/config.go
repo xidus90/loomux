@@ -33,6 +33,7 @@ type configTarget struct {
 func configUsage(stderr io.Writer) int {
 	fmt.Fprintln(stderr, "usage: loomux config [list [--json] | get <key> | set <key> <value> [--yes | --propose] | unset <key> [--yes | --propose] |")
 	fmt.Fprintln(stderr, "                      proposals [--json] | apply <id>|--all [--yes] | reject <id>|--all] [--root DIR | --global]")
+	fmt.Fprintln(stderr, "       loomux config llm [on | off] [--root DIR]")
 	return 2
 }
 
@@ -40,6 +41,9 @@ func configCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 	sub := ""
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		sub, args = args[0], args[1:]
+	}
+	if sub == "llm" {
+		return configLLM(args, stdout, stderr)
 	}
 	flags := flag.NewFlagSet("loomux config", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -217,6 +221,9 @@ func configList(t configTarget, asJSON bool, stdout, stderr io.Writer) int {
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(rows)
 		return 0
+	}
+	if !t.global && llmConfigOn(filepath.Dir(filepath.Dir(t.path))) {
+		fmt.Fprintln(stdout, "llm_config: on — agents may edit this file")
 	}
 	w := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 	for _, e := range entries {

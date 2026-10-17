@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/guard"
 	"github.com/xidus90/loomux/internal/brain/maintenance"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/config/edit"
@@ -292,6 +293,42 @@ func initCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	// answer, not a failure; a binary step that failed is one.
 	if run.binaryErr != nil {
 		return 1
+	}
+	if !o.yes && !o.dryRun {
+		return askLLMConfigAfterRun(root, stderr)
+	}
+	return 0
+}
+
+// askLLMConfigAfterRun asks the last question where the run left an area at
+// root; a failure to look, to ask or to set is the run's failure.
+func askLLMConfigAfterRun(root string, stderr io.Writer) int {
+	scope, _, err := guard.AreaAt(root, config.StateDir())
+	// No registry at all is no area, as a run that refused area-add leaves it.
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux init: %v\n", err)
+		return 1
+	}
+	if scope == "" {
+		return 0
+	}
+	term, restore, err := openTerminal()
+	if err != nil {
+		// The interview had a console; one that is gone now is a no.
+		return 0
+	}
+	on, err := askLLMConfig(term, scope)
+	if code, done := endSession(restore, true, err, stderr); done {
+		return code
+	}
+	if on {
+		if err := config.SetLLMConfig(config.StateDir(), scope, true); err != nil {
+			fmt.Fprintf(stderr, "loomux init: %v\n", err)
+			return 1
+		}
 	}
 	return 0
 }

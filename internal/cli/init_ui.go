@@ -3,6 +3,7 @@ package cli
 import (
 	"cmp"
 	"errors"
+	"io"
 	"slices"
 	"strings"
 	"unicode"
@@ -138,6 +139,17 @@ func approvePlan(t tui.Terminal, p setup.Plan, approved map[string]bool) (bool, 
 		approved[a.ID] = yes
 	}
 	return true, nil
+}
+
+// askLLMConfig asks whether the LLM may edit the project's config. A console
+// that ends is a no: the rest of init has already run.
+func askLLMConfig(t tui.Terminal, scope string) (bool, error) {
+	on, err := tui.Confirm(t, "area "+scope,
+		"let the LLM edit .loomux/config.toml of this project? (you can change this later with loomux config llm on|off)")
+	if errors.Is(err, io.EOF) {
+		return false, nil
+	}
+	return on, err
 }
 
 // hookFiles are the paths of the git hooks the plan writes.

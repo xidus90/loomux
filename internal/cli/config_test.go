@@ -243,6 +243,31 @@ func TestConfigSetTakesYesAsAConfirmation(t *testing.T) {
 	}
 }
 
+// A manifest that is a symlink to another project's is replaced by the write,
+// never written through: the other project's file keeps its bytes. Skipped
+// where the OS will not make a symlink for an unprivileged user.
+func TestConfigSetNeverWritesThroughALinkedManifest(t *testing.T) {
+	const text = "[commit]\nlanguage = \"en\"\n"
+	foreign := filepath.Join(configRoot(t, text), ".loomux", "config.toml")
+	root := t.TempDir()
+	link := filepath.Join(root, ".loomux", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(foreign, link); err != nil {
+		t.Skipf("no file symlinks here: %v", err)
+	}
+	if code, _, errOut := runConfig(t, "", "set", "commit.language", "de", "--yes", "--root", root); code != 0 {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if data, err := os.ReadFile(foreign); err != nil || string(data) != text {
+		t.Fatalf("the linked file changed: %q %v", data, err)
+	}
+	if got := readConfig(t, root); got != "[commit]\nlanguage = \"de\"\n" {
+		t.Fatalf("own manifest:\n%s", got)
+	}
+}
+
 func TestConfigSetWritesNothingWhenDeclined(t *testing.T) {
 	root := configRoot(t, "[commit]\nlanguage = \"en\"\n")
 	code, _, errOut := runConfig(t, "n\n", "set", "commit.language", "de", "--root", root)
