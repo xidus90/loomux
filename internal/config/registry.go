@@ -43,6 +43,10 @@ type Area struct {
 	// the reader answer less than the file states -- the one thing a reader
 	// must not do.
 	Workspace bool
+
+	// LLMConfig lets the LLM edit loomux config for this area; the human sets
+	// it per project, absent means off.
+	LLMConfig bool
 }
 
 // ReadRegistry reads the areas registered in stateDir and refuses a registry
@@ -155,7 +159,7 @@ func (r *registryReading) area(position int, raw any) (Area, error) {
 		return Area{}, err
 	}
 	flags := map[string]bool{}
-	for _, key := range []string{"readonly", "signpost", "shared", "workspace"} {
+	for _, key := range []string{"readonly", "signpost", "shared", "workspace", "llm_config"} {
 		flag, err := optionalBool(entry, key, named, ": ")
 		if err != nil {
 			return Area{}, err
@@ -177,6 +181,7 @@ func (r *registryReading) area(position int, raw any) (Area, error) {
 		Shared:   flags["shared"],
 
 		Workspace: flags["workspace"],
+		LLMConfig: flags["llm_config"],
 	}, nil
 }
 
