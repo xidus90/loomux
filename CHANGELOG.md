@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.9.1] - 2026-10-17
+
+<https://github.com/xidus90/loomux/pull/113>
+
+### Security
+- `check godot-suite` no longer writes, reads or deletes outside the project when restoring instrumented sources through a symlink or junction inside it.
+
 ## [1.9.0] - 2026-10-17
 
 <https://github.com/xidus90/loomux/pull/107>
