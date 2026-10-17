@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +30,7 @@ type godotSources struct {
 	abs                    func(string) string
 	look                   func(string) (string, error)
 	exists                 func(string) bool
+	readDir                func(string) ([]string, error)
 	version                func(string) (string, error)
 }
 
@@ -59,6 +61,19 @@ func GodotFor(root, configured string, start func(child.Spec) child.Result, left
 		},
 		look:   lookPath,
 		exists: func(p string) bool { fi, err := os.Stat(p); return err == nil && !fi.IsDir() },
+		readDir: func(dir string) ([]string, error) {
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				return nil, err
+			}
+			var names []string
+			for _, e := range entries {
+				if !e.IsDir() {
+					names = append(names, e.Name())
+				}
+			}
+			return names, nil
+		},
 		version: func(bin string) (string, error) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -100,9 +115,15 @@ func errorOf(msg string) error {
 	return errors.New(msg)
 }
 
-// find is the first binary a source names that exists, which source named
-// it, and what was looked at when none did.
-func (s godotSources) find() (bin, from string, looked []string) {
+// named is the binary a human named for this run or this project, which of
+// the two named it, and what was looked at when neither did.
+//
+// These two sources keep their authority: a named binary of another line is
+// refused rather than passed over, because naming one is a deliberate act and
+// a wrong answer to it belongs in the open. Only the searched sources --
+// GODOT_BIN_DIR and PATH, which nobody named for this project in particular
+// -- are offered as candidates.
+func (s godotSources) named() (bin, from string, looked []string) {
 	if v := s.getenv("GODOT_BIN"); v != "" {
 		// The lane runs the binary from its area, so a path relative to
 		// loomux's own directory has to be pinned before anything uses it.
@@ -126,12 +147,41 @@ func (s godotSources) find() (bin, from string, looked []string) {
 	} else {
 		looked = append(looked, "[verify.gdscript] godot is unset")
 	}
-	for _, name := range []string{"godot", "godot4"} {
-		if p, err := s.look(name); err == nil {
-			return s.console(p), "PATH", nil
+	return "", "", looked
+}
+
+// candidate is one binary the search offers and the source that offered it.
+type candidate struct{ Path, From string }
+
+// candidates are the binaries to try in order where nobody named one: the
+// engines of GODOT_BIN_DIR, then godot and godot4 from the PATH.
+func (s godotSources) candidates() (cands []candidate, looked []string) {
+	dir := s.getenv("GODOT_BIN_DIR")
+	engines, err := dirCandidates(dir, s.readDir, s.console)
+	switch {
+	case dir == "":
+		looked = append(looked, "GODOT_BIN_DIR is unset")
+	case errors.Is(err, fs.ErrNotExist):
+		looked = append(looked, "GODOT_BIN_DIR names "+dir+", which is not there")
+	case err != nil:
+		looked = append(looked, "GODOT_BIN_DIR names "+dir+", which cannot be read: "+err.Error())
+	case len(engines) == 0:
+		looked = append(looked, "GODOT_BIN_DIR names "+dir+", which holds no engine")
+	default:
+		for _, p := range engines {
+			cands = append(cands, candidate{Path: p, From: "GODOT_BIN_DIR"})
 		}
 	}
-	return "", "", append(looked, "neither godot nor godot4 is on PATH")
+	for _, name := range []string{"godot", "godot4"} {
+		if p, err := s.look(name); err == nil {
+			cands = append(cands, candidate{Path: s.console(p), From: "PATH"})
+			break
+		}
+	}
+	if !slices.ContainsFunc(cands, func(c candidate) bool { return c.From == "PATH" }) {
+		looked = append(looked, "neither godot nor godot4 is on PATH")
+	}
+	return cands, looked
 }
 
 // console is the _console.exe beside a Windows build when there is one: the
@@ -148,6 +198,10 @@ func (s godotSources) console(p string) string {
 	return p
 }
 
+// wayOut closes every note about a binary that does not fit: the three
+// sources a human can set, in the order they are read.
+const wayOut = "Set GODOT_BIN or [verify.gdscript] godot, or keep the line's engine in GODOT_BIN_DIR."
+
 // isConsoleBuild says whether p is named like Godot's console build.
 func isConsoleBuild(p string) bool {
 	return strings.HasSuffix(strings.ToLower(strings.TrimSuffix(p, filepath.Ext(p))), "_console")
@@ -155,18 +209,58 @@ func isConsoleBuild(p string) bool {
 
 // resolve is PlanEnv.Godot: the binary for the project in dir, or the state
 // the lane takes and why.
+//
+// The project is read first: without the line it wants there is nothing to
+// choose a binary by. A binary a human named is then held to that line, and
+// only where nobody named one are the searched candidates tried in turn, the
+// first that fits winning. Each distinct binary answers --version once per
+// run, so a machine of three lines pays three questions and no more.
 func (s godotSources) resolve(dir string) (string, State, string) {
-	bin, from, looked := s.find()
-	if bin == "" {
-		return "", StateMissingTool, "no Godot binary: " + strings.Join(looked, "; ")
-	}
 	want, mono, err := projectGodot(filepath.Join(dir, "project.godot"))
 	if err != nil {
 		return "", StateUnready, err.Error()
 	}
+	if bin, from, looked := s.named(); bin != "" {
+		got, state, note, _ := s.check(bin, from, want, mono)
+		if state != "" {
+			note += " " + wayOut
+		}
+		return got, state, note
+	} else if cands, searched := s.candidates(); len(cands) > 0 {
+		var first State
+		var firstNote string
+		var named bool
+		for _, c := range cands {
+			bin, state, note, reported := s.check(c.Path, c.From, want, mono)
+			switch {
+			case state == "":
+				return bin, "", ""
+			case state == StateBudget:
+				// The run ended, not the search: nothing was learnt of the
+				// remaining candidates, and saying "wrong version" would
+				// name a finding nobody made.
+				return "", state, note
+			case first == "" || (reported && !named):
+				// A candidate that answered a version tells the reader more
+				// than one that answered nothing, whatever their order: a zip
+				// archive sorted among the engines must not hide the line
+				// that was actually found.
+				first, firstNote, named = state, note, reported
+			}
+		}
+		return "", first, firstNote + " " + wayOut
+	} else {
+		return "", StateMissingTool, "no Godot binary: " + strings.Join(append(looked, searched...), "; ")
+	}
+}
+
+// check holds one binary to the line the project wants. reported says whether
+// the binary named a version at all, which is what makes its note worth
+// showing over another candidate's silence.
+func (s godotSources) check(bin, from string, want Line, mono bool) (_ string, _ State, note string, reported bool) {
 	out, err := s.version(bin)
 	if errors.Is(err, errBudget) {
-		return "", StateBudget, "not started: the budget is spent before " + bin + " said its version"
+		return "", StateBudget, "not started: the budget is spent before " + bin + " said its version", false
 	}
 	got, hasMono, ok := parseGodotVersion(out)
 	if err != nil || !ok {
@@ -174,20 +268,20 @@ func (s godotSources) resolve(dir string) (string, State, string) {
 		if err != nil {
 			cause = err.Error()
 		}
-		note := fmt.Sprintf("%s (%s) gave no version: %s", bin, from, cause)
+		note = fmt.Sprintf("%s (%s) gave no version: %s", bin, from, cause)
 		if s.goos == "windows" && !isConsoleBuild(bin) {
 			note += "; the window build writes nothing to stdout, so name the _console.exe"
 		}
-		return "", StateUnready, note
+		return "", StateUnready, note, false
 	}
-	if got != want || (mono && !hasMono) {
-		need := want
+	if !want.Matches(got) || (mono && !hasMono) {
+		need := want.String()
 		if mono {
 			need += " with .NET (mono)"
 		}
-		return "", StateUnready, fmt.Sprintf("Godot %s found (%s: %s), project.godot wants %s. Set GODOT_BIN or [verify.gdscript] godot.", got, from, bin, need)
+		return "", StateUnready, fmt.Sprintf("Godot %s found (%s: %s), project.godot wants %s.", got, from, bin, need), true
 	}
-	return bin, "", ""
+	return bin, "", "", true
 }
 
 // parseGodotVersion reads `<major>.<minor>[.<patch>].<status>[.mono]…` from
@@ -210,30 +304,49 @@ func digits(s string) bool {
 
 var featureVersion = regexp.MustCompile(`"(\d+\.\d+)"`)
 
-// projectGodot reads the version a project wants from config/features and
-// whether its [dotnet] section asks for the mono build.
-func projectGodot(path string) (version string, mono bool, err error) {
+// configVersionLine is the major line a project file's own format version
+// implies. 4 is Godot 3.1 and later, 5 is Godot 4, but only the 3 line gets a
+// reading from it: 5 spans 4.0 to 4.8 and so measures nothing a comparison
+// could use, while 4 is the whole of a line whose projects never wrote
+// config/features. Godot 3.0 wrote 3 and is left out with every other value:
+// it is a line nobody maintains, and guessing at it would serve no project.
+var configVersionLine = map[string]Line{"4": {Major: "3"}}
+
+// projectGodot reads the line a project wants and whether its [dotnet]
+// section asks for the mono build.
+//
+// config/features is what Godot 4 writes and the first thing read; a Godot 3
+// project has no such setting, and there config_version carries the line.
+func projectGodot(path string) (want Line, mono bool, err error) {
 	unread := func(err error) error {
 		return fmt.Errorf("%s cannot be read, so there is no Godot version to check against: %w", path, err)
 	}
 	// Whole, not by line: a packed array can run a line past any buffer.
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", false, unread(err)
+		return Line{}, false, unread(err)
 	}
+	var fromFormat Line
 	for _, raw := range strings.Split(string(data), "\n") {
 		line := strings.TrimSpace(raw)
 		if line == "[dotnet]" {
 			mono = true
 		}
-		if rest, found := strings.CutPrefix(line, "config/features="); found && version == "" {
+		if rest, found := strings.CutPrefix(line, "config/features="); found && want == (Line{}) {
 			if m := featureVersion.FindStringSubmatch(rest); m != nil {
-				version = m[1]
+				major, minor, _ := strings.Cut(m[1], ".")
+				want = Line{Major: major, Minor: minor}
 			}
 		}
+		if rest, found := strings.CutPrefix(line, "config_version="); found && fromFormat == (Line{}) {
+			fromFormat = configVersionLine[strings.TrimSpace(rest)]
+		}
 	}
-	if version == "" {
-		return "", false, fmt.Errorf("%s names no version in config/features", path)
+	if want == (Line{}) {
+		want = fromFormat
 	}
-	return version, mono, nil
+	if want == (Line{}) {
+		return Line{}, false, fmt.Errorf("%s names no version in config/features", path)
+	}
+	return want, mono, nil
 }
