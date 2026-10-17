@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.8.3] - 2026-10-17
+
+<https://github.com/xidus90/loomux/pull/110>
+
+### Fixed
+- A lint lane no longer runs while a Godot suite under coverage has the sources instrumented: one lane with `lock = true` now locks every lane of its stack and area.
+
 ## [1.8.2] - 2026-10-17
 
 <https://github.com/xidus90/loomux/pull/109>
