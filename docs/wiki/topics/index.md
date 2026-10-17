@@ -9,7 +9,7 @@
 * [Datenmodell und Bereiche](datenmodell-und-bereiche.md) - Drei Orte für Daten, Manifest und zentrale Registrierung, Identitätsregister, geteilte Bereiche und Scoping.
 * [Datenschutz und Kanäle](datenschutz-und-kanaele.md) - Wie local_only, manual_cloud und never wirken — und warum der Kanal ein Parameter des Kerns ist.
 * [Die Stufen und ihre Abnahme](scheiben-und-abnahme.md) - Wie loomux in Stufen baut — die fünf Bedingungen einer fertigen Stufe, der Stand jeder Stufe und der Paritätsnachweis.
-* [Die Schreibschranke](schreibschranke.md) - Wo ein Agent schreiben darf — Registry, Manifest und Policy, verknüpfte Worktrees ohne eigenen Eintrag und einzelne Dateien aus open.toml.
+* [Die Schreibschranke](schreibschranke.md) - Wo ein Agent schreiben darf — Registry, Manifest und Policy, der Schalter llm_config, verknüpfte Worktrees ohne eigenen Eintrag und einzelne Dateien aus open.toml.
 * [Suche, Profile und Messwerte](suche-und-profile.md) - Die drei Suchprofile, die Suchleiter, die Latenzbudgets und was die Messungen an Annahmen umgeworfen haben.
 * [Die Wiki-Schicht](wiki-schicht.md) - Schema, Ingest, Konfliktform, Lint — und die zwei Schreibwege ins Wiki.
 

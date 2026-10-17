@@ -1488,13 +1488,18 @@ loomux config unset <key> [--yes | --propose]
 loomux config proposals [--json]
 loomux config apply <id>|--all [--yes]
 loomux config reject <id>|--all
-# each form also takes --root <dir> or --global, before or after the subcommand
+loomux config llm [on|off] [--root DIR]
+# each other form also takes --root <dir> or --global, before or after the subcommand
 ```
 
 - **The guard refuses an agent** every form but `list`, `get`, `proposals`,
   a lone `--help` or `-h`, and `set` or `unset` with `--propose`: `set` and
   `unset` without it, `apply`, `reject` and the interactive form (see
   [`hook pre-tool-use`](#loomux-hook-pre-tool-use)). A human runs them.
+  `config llm on|off` is refused as well, the bare `config llm` reads. With
+  the project's `llm_config` switch on, `set` and `unset` with `--yes` pass
+  as a plain line without `--root`, `--global` and `--propose`, from a shell
+  standing at the project root.
 - **For agents**: an agent changes nothing itself. It proposes a change with
   `loomux config set <key> <value> --propose` or
   `loomux config unset <key> --propose`, which goes through every check of
@@ -1652,6 +1657,13 @@ unknown id is `1`.
 
 ### `loomux config reject <id>|--all`
 Removes the proposal, or every open one, without writing anything.
+
+### `loomux config llm [on|off] [--root DIR]`
+Shows the `llm_config` switch of the area rooted at the project (`llm_config:
+on (<scope>)`), or turns it with `on` or `off` in the registry. The switch
+belongs to one registered area, so only `--root` is taken, never `--global`.
+Outside a registered area every form exits `1` and names `loomux init`. Only
+a human turns it; see [Configuration](configuration.md).
 
 ### `loomux config` (interactive)
 A full-screen list of the keys, grouped by module: `↑`/`↓` move, `/`

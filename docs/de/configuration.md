@@ -38,6 +38,20 @@ loomux config apply <id>
 
 Jede Form von `loomux config` steht in der [CLI-Referenz](cli-reference.md#10-konfiguration-loomux-config).
 
+### Das LLM die Konfiguration bearbeiten lassen (`llm_config`)
+
+Standardmäßig bleibt es beim Vorschlagen. Willst du, dass dein LLM die Konfiguration **dieses Projekts** selbst bearbeitet, etwa beim Einrichten oder zum Debuggen, legst du pro Projekt einen Schalter um: das Feld `llm_config = true` am `[[area]]`-Eintrag der Registry. Fehlt das Feld, ist der Schalter aus.
+
+```sh
+loomux config llm          # zeigt den Stand
+loomux config llm on       # nur ein Mensch; auch: loomux config llm --root <dir> on
+loomux config llm off
+```
+
+`on` und `off` führt nur ein Mensch aus; der Wächter verweigert sie einem Agenten. Außerhalb eines registrierten Bereichs bricht jede Form von `config llm`, auch das bloße Lesen, mit Exit 1 ab und nennt `loomux init`. Am Ende des interaktiven `loomux init` fragt loomux zuletzt (Vorgabe Nein): `let the LLM edit .loomux/config.toml of this project? (you can change this later with loomux config llm on|off)`. Nicht interaktiv setzt `init` nichts.
+
+Ist der Schalter an, darf ein Agent genau die `.loomux/config.toml` dieses Projekts mit Datei-Werkzeugen bearbeiten und `loomux config set|unset <schlüssel> [<wert>] --yes` ausführen (ohne `--root`, `--global` und `--propose`, als einzelne einfache Zeile). `loomux config list` beginnt dann mit `llm_config: on — agents may edit this file`. Mit dem Schalter an kann das LLM auch Prüfungen lockern (`guard.mode`, `modules.*`, `[policy]` und andere); das übernimmst du mit dem Einschalten. Alles andere bleibt zu: jedes andere Manifest, `armed.toml`, `.loomux/state`, die Registry, `open.toml`, die globale Konfiguration. Was der Wächter im Einzelnen öffnet, steht unter [Hooks](hooks.md#7-der-entscheidungsweg-von-pre-tool-use).
+
 ---
 
 ## 1. Grundsätze der Konfiguration
@@ -1052,7 +1066,7 @@ default = "example"
 | | Ort |
 |---|---|
 | Zustandsverzeichnis | unter Windows `%LOCALAPPDATA%\loomux`, sonst `~\AppData\Local\loomux`; auf anderen Systemen `$XDG_STATE_HOME/loomux`, sonst `~/.local/state/loomux` |
-| Bereichsregistry (Einträge `[[area]]`: `scope` und `path` Pflicht, `wiki` optional, dazu die Wahrheitswerte `readonly`, `signpost`, `shared`, `workspace`; siehe [Ersteinrichtung](getting-started.md#5-einen-bereich-von-hand-einrichten)) | `<Zustandsverzeichnis>\registry.toml` |
+| Bereichsregistry (Einträge `[[area]]`: `scope` und `path` Pflicht, `wiki` optional, dazu die Wahrheitswerte `readonly`, `signpost`, `shared`, `workspace`, `llm_config`; siehe [Ersteinrichtung](getting-started.md#5-einen-bereich-von-hand-einrichten)) | `<Zustandsverzeichnis>\registry.toml` |
 | Maschinenweite Einstellungen (lokales Modell) | `<Zustandsverzeichnis>\config.toml` |
 | Einzelne Dateien, die die Schreibschranke offen hält | `<Zustandsverzeichnis>\open.toml` |
 | Manifest eines beschreibbaren Bereichs | `<Bereichspfad>\.loomux\config.toml` |

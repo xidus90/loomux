@@ -57,9 +57,12 @@ für loomux als Ganzes eigene Regeln; auch sie belegt keine Nutzerdoku:
   importierte Paket bei jedem Hook-Aufruf mitläuft.
 - **`hooks` importiert nie `serve`.** Der Pfad an jedem Edit hängt nicht an
   einem laufenden Dienst.
-- **`.loomux/config.toml` ist für Agenten nie beschreibbar.** Sie bestimmt
-  die Schreibrechte und trägt die Policy; Agenten schlagen Änderungen vor,
-  der Mensch schreibt sie.
+- **`.loomux/config.toml` ist für Agenten standardmäßig nie beschreibbar.**
+  Sie bestimmt die Schreibrechte und trägt die Policy; Agenten schlagen
+  Änderungen vor, der Mensch schreibt sie. Ein Mensch kann das pro Projekt
+  mit `loomux config llm on` aufheben und übernimmt damit, dass das LLM auch
+  die Grenzen dieser Config ändern kann
+  ([Schreibschranke](schreibschranke.md#der-schalter-llm_config)).
 - **Kein grünes Tor ohne Arbeit.** Eine Lane, die nicht laufen kann, ist rot
   und nennt den Installationsbefehl.
 

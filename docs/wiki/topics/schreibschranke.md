@@ -1,26 +1,26 @@
 ---
 type: Topic
 title: Die Schreibschranke
-description: Wo ein Agent schreiben darf — Registry, Manifest und Policy, verknüpfte Worktrees ohne eigenen Eintrag und einzelne Dateien aus open.toml.
+description: Wo ein Agent schreiben darf — Registry, Manifest und Policy, der Schalter llm_config, verknüpfte Worktrees ohne eigenen Eintrag und einzelne Dateien aus open.toml.
 open_conflicts: 0
 realization: implemented
-implemented_in: 68f791cd
+implemented_in: f650a62f
 sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:79d7f57169e8ae4aff4d2888e489c3cb64686591ab593fa46f1111aaf971c0c1"
-    revision: 13
+    content_hash: "sha256:0b9bf911c08d8ebb31dda0b47da8e0a658f643039ab34ceeca9777d01f05a3eb"
+    revision: 14
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
-    content_hash: "sha256:6ca316dd095864fb06a17b7826f1a9919028da4420208e2a3ee78c1880275000"
-    revision: 9
+    content_hash: "sha256:64ef8bee8ed615dee8a682906a309536020937f0d8a3fdb32105c02cc091466b"
+    revision: 10
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:b07dbaa1b911112cdcb73b050813da229faa43c71399b6c2ec900b90949eac4c"
-    revision: 3
+    content_hash: "sha256:5ae6849f4f9f595cc544e12e8dfa83cbb8453974c4b3d35de9ed0fbc84dd97a7"
+    revision: 4
 ---
 
 ## Wofür
@@ -111,6 +111,42 @@ oder kaputtes TOML, und nichts öffnet; die Ablehnung endet dann mit
 Registry, weil `loomux area add` die Registry neu schreibt und eine Tabelle
 daneben still verlöre. Kosten: 0,08 ms ohne Datei, 0,22 ms mit einem Eintrag.
 
+## Der Schalter `llm_config`
+
+Standardmäßig fasst kein Agent das Manifest an. Ein Mensch kann das pro
+Projekt aufheben: `loomux config llm on` setzt `llm_config = true` am
+Area-Eintrag der Registry (fehlt das Feld, gilt aus; `loomux init` fragt
+zuletzt danach, Vorgabe Nein). Nur ein Mensch schaltet; der Wächter verweigert
+`config llm on|off` einem Agenten.
+
+**Was er öffnet:** genau die `.loomux/config.toml` direkt unter dem Pfad der
+Area, an den drei Sperrstellen (eingebaute Pfadregel, Shell-Zeilenerkennung,
+Schritt 1 von `Decide`), und `loomux config set|unset … --yes` als einzelne
+einfache Zeile ohne `--root`, `--global`, `--propose`. Ein verknüpfter
+Worktree folgt dem Schalter seines Hauptcheckouts.
+
+**Wessen Schalter:** der der Wurzel, für die der Hook installiert ist
+(`--root`). Der Schalter einer anderen Area öffnet dort nichts, auch nicht
+über einen Link im Projekt; `Decide` öffnet nur das Manifest dieser Wurzel.
+Ein Dateiwerkzeug erreicht es nur über einen vollen Pfad, der dorthin
+aufgelöst wird. Eine Shell-Zeile (der relative Pfad und `config set|unset`)
+zählt nur, wenn das `cwd` des Hook-Aufrufs genau auf die Wurzel aufgelöst
+wird: Die Shell behält ein `cd` über Aufrufe hinweg, und nach einem `cd` in
+ein verschachteltes oder benachbartes Projekt landete dieselbe Zeile in
+dessen Manifest. Fehlt `cwd` oder weicht es ab, bleibt die Shell zu.
+
+**Was zu bleibt:** jedes andere Manifest, `armed.toml`, `.loomux/state`, die
+Registry, `open.toml`, die globale Config, `rm -rf .loomux`. Ist `.loomux`
+oder `config.toml` ein Symlink oder eine Junction aus dem Projekt hinaus,
+bleiben beide Ausnahmen zu. Unlesbare Registry, keine Area an der Wurzel oder
+ein Feld ohne bool zählt als aus (Grundsatz 5: Wächter scheitern
+geschlossen). Jede Ablehnung, solange der Schalter das Manifest öffnet, endet mit einem Satz, der
+das nennt und `loomux config llm off` zeigt.
+
+**Gewollt:** mit dem Schalter an kann das LLM auch Prüfungen lockern
+(`guard.mode`, `modules.*`, `[policy]`); das übernimmt der Mensch beim
+Einschalten ([Architektur-Grundsätze](architektur-grundsaetze.md)).
+
 ## Was bewusst nicht geschieht
 
 - Die Dateiwerkzeuge des Hosts schreiben die Grenzen nicht: das Manifest ist
@@ -128,11 +164,22 @@ daneben still verlöre. Kosten: 0,08 ms ohne Datei, 0,22 ms mit einem Eintrag.
 
 ## Was offen bleibt
 
-- **Restrisiko:** eine `.git`-Datei außerhalb aller Wurzeln, angelegt über
-  ein Werkzeug, das die Schranke nicht prüft (etwa Bash), kann auf ein selbst
-  angelegtes Verwaltungsverzeichnis im Workspace zeigen.
-- Scope und Zustandsverzeichnis einer Sitzung im Worktree sowie
-  `loomux worktree link|unlink|remove` lagen außerhalb dieser Stufen.
+- **`llm_config`, kaputtes Manifest:** Ein Manifest, das ein Agent kaputt
+  schreibt, macht das Lesen der Registry unlesbar; die Schranke verweigert
+  dann jeden Write, bis ein Mensch es repariert (scheitert geschlossen).
+- **`llm_config`, Hardlink:** Einen Hardlink auf `.loomux/config.toml` zum
+  Manifest eines anderen Projekts erkennt der Wächter nicht.
+- **`llm_config`, Mensch von Hand:** Ein Mensch, der `config set` selbst
+  ausführt, schreibt weiterhin durch ein verknüpftes `.loomux`.
+- **`llm_config` unter Antigravity:** Antigravity schickt kein `cwd`; dort
+  bleibt die Shell-Ausnahme zu, und nur das Dateiwerkzeug öffnet das
+  Manifest.
+- **`.git`-Datei außerhalb aller Wurzeln:** angelegt über ein Werkzeug, das
+  die Schranke nicht prüft (etwa Bash), kann sie auf ein selbst angelegtes
+  Verwaltungsverzeichnis im Workspace zeigen.
+- **Worktree-Sitzungen:** Scope und Zustandsverzeichnis einer Sitzung im
+  Worktree sowie `loomux worktree link|unlink|remove` lagen außerhalb dieser
+  Stufen.
 
 Quellen: Konfigurations-, Hook- und Benchmark-Seite der Nutzerdoku; Policy und Reihenfolge aus
 `internal/brain/guard/guard.go` und `internal/hooks/guard.go`.
