@@ -7,6 +7,15 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.8.0] - 2026-10-17
+
+<https://github.com/xidus90/loomux/pull/106>
+
+### Added
+- `loomux config llm [on|off]` shows and turns a per-project switch that lets agents edit that project's `.loomux/config.toml` and run `loomux config set|unset … --yes` there.
+- `loomux init` asks at the end whether the LLM may edit the project's config (default no).
+- `loomux config list` shows when the switch is on, and every guard refusal in such a project names it.
+
 ## [1.7.0] - 2026-10-16
 
 <https://github.com/xidus90/loomux/pull/104>
