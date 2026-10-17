@@ -619,14 +619,20 @@ func checkGodotSuite(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	root, checkout, area := godotTarget(*rootFlag)
-	bin, finding, err := godotBinary(*godot, root, checkout)
-	if err != nil {
-		fmt.Fprintf(stderr, "loomux check godot-suite: %v\n", err)
-		return 1
-	}
-	if finding != "" {
-		fmt.Fprintln(stdout, finding)
-		return 1
+	// A restore starts no engine, so it must not stand or fall by one being
+	// found: it is the way out of an instrumentation a killed run left.
+	bin := ""
+	if !*restore {
+		var finding string
+		var err error
+		if bin, finding, err = godotBinary(*godot, root, checkout); err != nil {
+			fmt.Fprintf(stderr, "loomux check godot-suite: %v\n", err)
+			return 1
+		}
+		if finding != "" {
+			fmt.Fprintln(stdout, finding)
+			return 1
+		}
 	}
 	cover := *coverage
 	if abs, _ := filepath.Abs(cover); cover != "" {

@@ -262,8 +262,15 @@ them by their `results.xml`.
   `<dir>/<i>.info` per shard (it first removes the `*.info` files an earlier
   run left there, and nothing else), which `check linecov --report <dir>` sums;
   `--restore` only puts back sources a run left instrumented and runs nothing
-  else.
-- **Flow**: it restores a leftover disk instrumentation first, then checks
+  else; it needs no engine and no `--godot`, because it reads the addon's own
+  manifest and backups.
+- **Flow**: it restores a leftover disk instrumentation first -- from the
+  manifest the addon writes beside its backups, in loomux's own process: a run
+  that is killed while the sources are rewritten (a lane that hits its timeout
+  or the hook's budget dies with its whole process tree) runs no restore of
+  its own, and the run after it must not need an engine to undo that. Without
+  that manifest nothing but git has the originals, and the run says so instead
+  of instrumenting on top. Then it checks
   that gdUnit4 is present, that `.godot/global_script_class_cache.cfg` knows
   every `class_name` (otherwise run `loomux godot rescan`) and that no hook
   in `project.godot` already drives Nano Coverage, with or without

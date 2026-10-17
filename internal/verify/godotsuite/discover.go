@@ -220,8 +220,7 @@ func Instrumented(root string) ([]string, error) {
 	}
 	var out []string
 	err = walkGD(root, func(rel string, data []byte) error {
-		first, _, _ := bytes.Cut(data, []byte("\n"))
-		if string(bytes.TrimSuffix(first, []byte("\r"))) == marker {
+		if hasMarker(data, marker) {
 			out = append(out, rel)
 		}
 		return nil

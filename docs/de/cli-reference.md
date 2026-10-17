@@ -280,9 +280,17 @@ urteilt nach deren `results.xml`.
   Scherbe ein `<verz>/<i>.info` (zuvor entfernt es die `*.info`-Dateien
   eines früheren Laufs dort und sonst nichts), die
   `check linecov --report <verz>` zusammenzählt; `--restore` stellt nur eine auf der Platte gebliebene
-  Instrumentierung zurück und fährt sonst nichts.
+  Instrumentierung zurück und fährt sonst nichts -- ohne Engine und ohne
+  `--godot`, denn es liest das Manifest und die Sicherungen des Addons.
 - **Ablauf**: Zuerst wird ein Rest einer Platten-Instrumentierung
-  zurückgestellt, dann geprüft, dass gdUnit4 da ist, dass
+  zurückgestellt -- aus dem Manifest, das das Addon neben seine
+  Sicherungen schreibt, im eigenen Prozess von loomux: Ein Lauf, der
+  während des Umschreibens getötet wird (eine Lane an ihrem Zeitlimit
+  oder am Budget des Hooks stirbt mit ihrem ganzen Prozessbaum), stellt
+  selbst nichts mehr zurück, und der Lauf danach darf dafür keine Engine
+  brauchen. Ohne dieses Manifest hat nur noch git die Urfassungen; dann
+  sagt der Lauf das, statt obendrauf zu instrumentieren. Dann wird
+  geprüft, dass gdUnit4 da ist, dass
   `.godot/global_script_class_cache.cfg` jeden `class_name` kennt (sonst
   `loomux godot rescan`) und dass kein Hook in `project.godot` schon Nano
   Coverage treibt, mit und ohne `--coverage`: Ein Nano-Hook im einfachen
