@@ -149,10 +149,10 @@ func TestTheGdscriptPresetCarriesTheSuiteLanes(t *testing.T) {
 		t.Fatalf("lanes = %+v", gd)
 	}
 	test, cov := gd["test"], gd["coverage"]
-	if !test.Lock || !slices.Equal(test.WhenFound, []string{"plugin.cfg:gdUnit4"}) || !strings.Contains(test.Measuring, "--coverage {coverdata}") {
+	if !test.Lock || !slices.Equal(test.WhenFound, []string{`plugin.cfg:name="gdUnit4"`}) || !strings.Contains(test.Measuring, "--coverage {coverdata}") {
 		t.Errorf("test = %+v", test)
 	}
-	if !cov.Lock || cov.After != "test" || !strings.Contains(cov.Measure, "{godot}") || !slices.Equal(cov.WhenFound, []string{"plugin.cfg:gdUnit4", "plugin.cfg:NanoCoverage"}) {
+	if !cov.Lock || cov.After != "test" || !strings.Contains(cov.Measure, "{godot}") || !slices.Equal(cov.WhenFound, []string{`plugin.cfg:name="gdUnit4"`, `plugin.cfg:name="NanoCoverage"`}) {
 		t.Errorf("coverage = %+v", cov)
 	}
 	for _, c := range cov.Commands {
