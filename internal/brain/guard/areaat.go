@@ -43,11 +43,13 @@ func AreaAt(root, stateDir string) (scope string, llmConfig bool, err error) {
 // ManifestUnlinked says whether the manifest at root is reached without a
 // link: its path resolves to the manifest below the resolved root, whether
 // the file exists yet or not. Through a linked .loomux or a linked file it is
-// another file, which no switch of this root opens.
+// another file, which no switch of this root opens; so is a manifest of more
+// than one name (HardLinked), which `config set` would write in place.
 func ManifestUnlinked(root string) bool {
 	base, err := ResolvePath(root)
 	manifest, manifestErr := ResolvePath(filepath.Join(root, bundleDir, manifestName))
-	return err == nil && manifestErr == nil && pathsEqual(manifest, filepath.Join(base, bundleDir, manifestName))
+	return err == nil && manifestErr == nil && pathsEqual(manifest, filepath.Join(base, bundleDir, manifestName)) &&
+		HardLinked(manifest) == ""
 }
 
 // OwnManifest says whether the full path names root's own manifest: it

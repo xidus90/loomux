@@ -2,7 +2,11 @@
 
 package guard
 
-import "path/filepath"
+import (
+	"os"
+	"path/filepath"
+	"syscall"
+)
 
 // The half of the resolver that stands where `golang.org/x/sys/windows`
 // cannot build. The barrier is written for Windows -- the registration it
@@ -13,8 +17,8 @@ import "path/filepath"
 // Nothing in this file is covered by a test, because no test on this
 // machine executes it. That is the one coverage exclusion in the package
 // and it is named rather than configured: the arms it stands in for are
-// measured on Windows, and a posix run of the suite would exercise these
-// two functions against a file system that has neither an 8.3 alias nor
+// measured on Windows, and a posix run of the suite would exercise the
+// functions below against a file system that has neither an 8.3 alias nor
 // a junction.
 
 // finalName is `_getfinalpathname`'s posix counterpart. `EvalSymlinks`
@@ -31,3 +35,17 @@ func finalName(path string) (string, error) {
 // cause into one error, and the case the list exists to keep apart -- a
 // cycle -- is caught by `readlinkDeep` on this platform as on the other.
 func stopsResolving(error) bool { return true }
+
+// linkCount is `st_nlink` of the file at path, and one for anything that is
+// no regular file: every directory here has a link per subdirectory.
+func linkCount(path string) (uint32, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || !info.Mode().IsRegular() {
+		return 1, nil
+	}
+	return uint32(stat.Nlink), nil
+}

@@ -495,7 +495,8 @@ von Shell-Zeilen und Schritt 1 von `Decide`. Zusätzlich lässt der Wächter
 `--global` und `--propose` durch, und `loomux config llm` ohne Argument liest nur. Zu bleiben
 jedes andere Manifest, `armed.toml`, `.loomux/state`, die Registry, `open.toml`, die globale
 Konfiguration, `rm -rf .loomux` sowie `config llm on|off` und `config apply`. Ist `.loomux` oder
-`config.toml` ein Symlink oder eine Junction aus dem Projekt hinaus, bleiben beide Ausnahmen zu;
+`config.toml` ein Symlink oder eine Junction aus dem Projekt hinaus oder hat `config.toml` einen
+zweiten Namen (Hardlink), bleiben beide Ausnahmen zu;
 eine unlesbare Registry, keine Area an der Wurzel oder ein Feld, das kein bool ist, zählt als aus.
 Der Schalter gehört zu der Wurzel, für die der Hook installiert ist (`--root`): Der Schalter
 einer anderen Area öffnet dort nichts, auch nicht über einen Link im Projekt. Ein schreibendes
@@ -778,12 +779,16 @@ lässt, gilt innerhalb der folgenden Grenzen, jede davon am 2026-10-12 gegen
   das Anlegen des Links wird nicht beurteilt. Der strikte Modus löst einen
   Link oder eine Junction auf, bevor die Policy vergleicht, und verweigert all
   das.
-- **Ein Hardlink auf eine geschützte Datei.** Er kommt in jedem Modus durch,
-  auch an der Schreibschranke: `Write`, `Edit` und `echo x >` auf einen
-  Hardlink von `flow.toml`, `armed.toml` oder `config.toml` werden nicht
-  verweigert, und ebenso wenig das Anlegen des Links (`ln`,
-  `New-Item -ItemType HardLink`). Ein Hardlink ist die Datei selbst, und keine
-  Auflösung unterscheidet beide.
+- **Das Anlegen eines Hardlinks.** Ein Hardlink ist die Datei selbst, und
+  keine Auflösung unterscheidet beide. Darum verweigern Policy und
+  Schreibschranke in jedem Modus jedes bestehende Schreibziel mit mehr als
+  einem Link: `Write`, `Edit` und `echo x >` auf einen Hardlink von
+  `flow.toml`, `armed.toml` oder `config.toml` scheitern, aber auch auf jede
+  andere Datei mit einem zweiten Namen, wo er auch liegt. Das Anlegen des
+  Links (`ln`, `mklink /H`, `New-Item -ItemType HardLink`) beurteilt keine
+  Stufe, ebenso wenig das Entfernen eines Namens. Ein Link, der zwischen
+  Prüfung und Write entsteht, und ein Skript, das über einen Hardlink schreibt,
+  ohne dass die Zeile ihn nennt, kommen durch.
 - **Eine Shell-Zeile, die außerhalb jedes beschreibbaren Baums schreibt.** Die
   Schreibschranke entscheidet nur über die schreibenden Werkzeuge des Hosts,
   darum kommt eine Shell-Zeile an ihr vorbei, wohin sie auch schreibt:

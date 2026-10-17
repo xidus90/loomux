@@ -80,6 +80,28 @@ func finalName(path string) (string, error) {
 	}
 }
 
+// linkCount is the number of names the file at path has, opened the way
+// finalName opens it; a directory, which NTFS cannot link, answers one.
+func linkCount(path string) (uint32, error) {
+	wide, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	handle, err := windows.CreateFile(wide, 0,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|
+			windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING,
+		windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer windows.CloseHandle(handle)
+	var info windows.ByHandleFileInformation
+	// No arm for a failure here: the caller reads the error before the
+	// count, and nothing provokes one on a handle that just opened.
+	err = windows.GetFileInformationByHandle(handle, &info)
+	return info.NumberOfLinks, err
+}
+
 // withoutDevicePrefix strips the `\\?\` that `GetFinalPathNameByHandle`
 // always puts in front, the way `ntpath.realpath` does -- including the
 // UNC spelling, where `\\?\UNC\srv\share` is the plain `\\srv\share`.

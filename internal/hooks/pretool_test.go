@@ -206,6 +206,14 @@ func linkFile(foreign, root string) error {
 	return os.Symlink(foreign, filepath.Join(root, ".loomux", "config.toml"))
 }
 
+// hardLinkFile makes the root's .loomux/config.toml a second name of foreign.
+func hardLinkFile(foreign, root string) error {
+	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
+		return err
+	}
+	return os.Link(foreign, filepath.Join(root, ".loomux", "config.toml"))
+}
+
 // linkFolder makes the root's .loomux a link to foreign's folder: a symlink
 // where the OS allows one, otherwise a Windows junction, which needs no
 // privilege.
@@ -226,7 +234,7 @@ func linkFolder(foreign, root string) error {
 // config set, which would land in that file. No note says agents may edit
 // the manifest, since here they may not.
 func TestALinkedManifestStaysShutWhenTheSwitchIsOn(t *testing.T) {
-	for name, link := range map[string]func(string, string) error{"file": linkFile, "folder": linkFolder} {
+	for name, link := range map[string]func(string, string) error{"file": linkFile, "folder": linkFolder, "hard": hardLinkFile} {
 		t.Run(name, func(t *testing.T) {
 			root, state, foreign := linkedWorld(t, link)
 			code, _, errOut := call(t, root, state, payload("Write", "file_path", filepath.Join(root, ".loomux", "config.toml")))

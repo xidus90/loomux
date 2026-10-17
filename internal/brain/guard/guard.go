@@ -392,7 +392,9 @@ func parents(path string) []string {
 //
 // The manifest is decided before any tree is consulted, because a
 // workspace area may write its entire repository -- including the
-// declaration this barrier reads its own limits from.
+// declaration this barrier reads its own limits from. A file of more than
+// one name is refused right after it, before any place is open: resolving
+// cannot tell a hard link from the file it names (HardLinked).
 //
 // The read-only zones are decided before the allow-list: the wiki of an
 // area the registration calls read-only is a forbidden zone, and a zone
@@ -454,6 +456,13 @@ func Decide(payload map[string]any, stateDir, root string) (string, bool) {
 	}); named != "" {
 		return named + ": the manifest is where the barrier reads its " +
 			"own limits, so no writing tool may touch it", true
+	}
+	// Before the open places too: a second name of the manifest in memory
+	// would be exactly as open as memory is.
+	for _, path := range resolved {
+		if reason := HardLinked(path); reason != "" {
+			return reason, true
+		}
 	}
 	claude, antigravity := memoryBases()
 	scratch := scratchpadBase()

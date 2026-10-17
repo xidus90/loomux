@@ -122,6 +122,13 @@ func TestManifestUnlinked(t *testing.T) {
 	if ManifestUnlinked(linked) {
 		t.Error("a manifest through a linked .loomux: unlinked")
 	}
+	// A hard link is the other project's manifest under this root's name:
+	// `config set --yes` writes it in place.
+	hard := t.TempDir()
+	hardLink(t, filepath.Join(other, bundleDir, manifestName), filepath.Join(hard, bundleDir, manifestName))
+	if ManifestUnlinked(hard) {
+		t.Error("a hard-linked manifest: unlinked")
+	}
 	withoutWorkingDirectory(t)
 	if ManifestUnlinked("relative") {
 		t.Error("an unresolvable root: unlinked")

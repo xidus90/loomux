@@ -471,7 +471,8 @@ lines, and step 1 of `Decide`. In addition the guard lets
 `--global` and `--propose`, and `loomux config llm` without an argument only reads. Still shut:
 every other manifest, `armed.toml`, `.loomux/state`, the registry, `open.toml`, the global
 configuration, `rm -rf .loomux`, and `config llm on|off` and `config apply`. If `.loomux` or
-`config.toml` is a symlink or junction leaving the project, both exceptions stay shut; an
+`config.toml` is a symlink or junction leaving the project, or `config.toml` has a second name
+(a hard link), both exceptions stay shut; an
 unreadable registry, no area at the root, or a field that is not a bool counts as off.
 The switch belongs to the root the hook was installed for (`--root`): another area's switch
 opens nothing there, not even through a link inside the project. A writing tool reaches the
@@ -733,11 +734,15 @@ within the limits below, each of them measured on 2026-10-12 against
   barrier resolves the path, so `Write` and `Edit` on the manifest are refused.
   Making the link is not judged either. Strict mode resolves a link or
   junction before the policy compares and refuses all of these.
-- **A hard link to a protected file.** It passes in every mode, the write
-  barrier included: `Write`, `Edit` and `echo x >` on a hard link of
-  `flow.toml`, `armed.toml` or `config.toml` are not refused, and neither is
-  making the link (`ln`, `New-Item -ItemType HardLink`). A hard link is the
-  file itself, and no resolution tells them apart.
+- **Making a hard link.** A hard link is the file itself, and no resolution
+  tells them apart. So the policy and the write barrier refuse, in every
+  mode, every existing write target with more than one link: `Write`, `Edit`
+  and `echo x >` on a hard link of `flow.toml`, `armed.toml` or `config.toml`
+  fail, as they do on any other file with a second name, wherever it
+  lies. Making the link (`ln`, `mklink /H`, `New-Item -ItemType HardLink`) is
+  judged by neither stage, and neither is removing a name. A link made
+  between the check and the write, and a script that writes through a hard
+  link the line does not name, pass.
 - **A shell line that writes outside every writable tree.** The write barrier
   decides only about the host's writing tools, so a shell line passes it
   wherever it writes: `echo x >> registry.toml`, `echo x > open.toml` and

@@ -3779,3 +3779,42 @@ or to `.loomux/config.toml`; the hook runs with `--host claude --root <project>`
    is lost in process start-up.
 3. The 435.5 ms cold in the first pass is the first start of the freshly built
    `before.exe`, not the guard; in the second pass the same case takes 11.5 ms.
+## 2026-10-17 08:09 — The Guard Counts the Links of a Write Target
+
+Worktree `.claude/worktrees/gifted-raman-6c1008`. `before.exe` is
+`18566e83`, built from `git archive` in the scratchpad; `after.exe` is the
+branch's code, which checks every existing write target for more than one
+link in both stages. Both built with Go 1.27.0 `windows/amd64`. Machine: AMD
+Ryzen 7 9800X3D, Windows 11 Pro.
+
+**Goal.** The link count costs one `CreateFile` without access rights and
+one `GetFileInformationByHandle` per target, in the policy and in the
+barrier. It must not lift `pre-tool-use` above 72 ms.
+
+**Method.** `after.exe dev bench hooks testdata/bench/hardlink-hooks.json -n
+30 --out <dir>`, five passes from 08:09:12 to 08:10:26, before and after
+alternating, each binary copied onto the one `argv` names before its pass.
+Four cases against this worktree with the real state directory and the real
+registry: `Edit` of the existing `README.md`, `Write` of a file that does not
+exist, `echo x >> README.md` and `git status`. The stdin payloads live in the
+session's scratchpad and are not checked in. The table gives the median of
+the five pass medians, warm over 30 runs each, the smallest minimum, and cold
+as the median of the five first runs. Every run exited 0.
+
+| Case | before cold | after cold | before warm median | after warm median | before warm min | after warm min |
+|---|---:|---:|---:|---:|---:|---:|
+| `Edit` of an existing file | 932.7 ms | 1125.6 ms | 15.0 ms | 15.5 ms | 11.5 ms | 11.5 ms |
+| `Write` of a new file | 18.0 ms | 20.0 ms | 16.7 ms | 14.5 ms | 12.0 ms | 12.5 ms |
+| `Bash` `echo x >> README.md` | 11.5 ms | 13.0 ms | 11.2 ms | 10.5 ms | 9.0 ms | 9.0 ms |
+| `Bash` `git status` | 11.5 ms | 10.5 ms | 10.5 ms | 9.8 ms | 9.0 ms | 8.5 ms |
+
+### Reading
+
+1. **The link count costs no measurable time.** Every warm median lies
+   within 2.2 ms of `before`, in both directions, and far below 72 ms. Single
+   warm runs of both binaries reach 200 to 300 ms; the first pass carries
+   them in bulk (after 240 ms median for `Edit`, before 26 ms), the other
+   four hardly at all.
+2. **The cold run of the first case** is the first start of a freshly copied
+   binary, not the guard: two counter passes with after before before gave
+   946 and 967 ms cold for after, 887 and 1117 ms for before.

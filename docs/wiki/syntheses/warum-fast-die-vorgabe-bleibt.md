@@ -8,13 +8,13 @@ sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:5ae6849f4f9f595cc544e12e8dfa83cbb8453974c4b3d35de9ed0fbc84dd97a7"
-    revision: 4
+    content_hash: "sha256:8c9d43d2b77f9e338f51024c2da5878ad14f01793e9443eddf7569bc37956fcd"
+    revision: 5
   - id: suche-und-profile
     resource: brain://project/loomux/docs/wiki/topics/suche-und-profile.md
     doc_id: 01M3534TGBT5D7K9XM7A1TM09Z
-    content_hash: "sha256:46a7fd32c2cd71e1d9e8ced16b62cdef03ffbcf6948cb1f099ba77192a5a479b"
-    revision: 20
+    content_hash: "sha256:050a28f5a794995eacabc0b756e4b1901c451237d18e9683c8747be6a19cc9d0"
+    revision: 21
 ---
 
 **Entwurf.** Ergebnis einer Recherche vom 24. August 2026, noch nicht geprüft.
