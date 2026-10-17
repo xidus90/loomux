@@ -9,8 +9,8 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:676e0456e1ac9b8df14b826e1f2888ad304bf0f5f7bb9b4b00d9b2f1ddb1bb09"
-    revision: 16
+    content_hash: "sha256:b223f1b8adfd1a515d1990963d44a575342a705be08e09b588feb3a3a7ee29b2"
+    revision: 17
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
@@ -192,7 +192,8 @@ Einschalten ([Architektur-Grundsätze](architektur-grundsaetze.md)).
 ## Was offen bleibt
 
 - **`llm_config`, kaputtes Manifest:** Ein Manifest, das ein Agent kaputt
-  schreibt, macht das Lesen der Registry unlesbar; die Schranke verweigert
+  schreibt, lässt das Lesen der Registry scheitern, weil die Schranke dabei
+  jedes Manifest der Bereiche mitliest; sie verweigert
   dann jeden Write, bis ein Mensch es repariert (scheitert geschlossen).
 - **Hardlink:** Das Anlegen des Links (`ln`, `mklink /H`,
   `New-Item -ItemType HardLink`) beurteilt keine Stufe, nur das Schreiben
