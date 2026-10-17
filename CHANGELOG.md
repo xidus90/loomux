@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.8.2] - 2026-10-17
+
+<https://github.com/xidus90/loomux/pull/109>
+
+### Fixed
+- A coverage run that was killed by its timeout or by the turn-end budget left every source of the Godot project instrumented, and the lint lane then reported findings that were artefacts of the inserted lines. A leftover is now put back by the next run without starting an engine, and `check godot-suite --restore` does the same on its own, without `--godot`.
+- A manifest left behind after someone restored the sources by hand could make a later run write the addon's backups over files that had been edited in the meantime. A source without the addon's marker is no longer overwritten.
+
 ## [1.8.1] - 2026-10-17
 
 <https://github.com/xidus90/loomux/pull/108>
