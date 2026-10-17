@@ -82,27 +82,28 @@ type manifestEntry struct {
 	Hash   string `json:"original_hash"`
 }
 
-// resolve turns a res:// path into one on disk; the addon writes no other
-// kind, and anything else names itself in a finding. A manifest is a file
-// like any other, so a path in it that leaves the project must not become a
-// path loomux writes to.
-func resolve(root, p string) (string, bool) {
+// resolve turns a res:// path into one relative to the project root; the
+// addon writes no other kind, and anything else names itself in a finding. A
+// manifest is a file like any other, so a path in it that leaves the project
+// must not become a path loomux writes to. This check is textual only: every
+// access goes through an os.Root, which also refuses a link out of the
+// project.
+func resolve(p string) (string, bool) {
 	rel, ok := strings.CutPrefix(p, "res://")
 	if !ok {
 		return "", false
 	}
-	abs := filepath.Join(root, filepath.FromSlash(rel))
-	r, err := filepath.Rel(root, abs)
-	if err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+	r := filepath.Clean(filepath.FromSlash(rel))
+	if !filepath.IsLocal(r) {
 		return "", false
 	}
-	return abs, true
+	return r, true
 }
 
 // backupDir is where the addon keeps the manifest and the backups of a disk
 // instrumentation; a project may move it.
-func backupDir(root string) (string, error) {
-	cfg, err := os.ReadFile(filepath.Join(root, "project.godot"))
+func backupDir(root *os.Root) (string, error) {
+	cfg, err := root.ReadFile("project.godot")
 	if err != nil {
 		return "", err
 	}
@@ -114,7 +115,7 @@ func backupDir(root string) (string, error) {
 	if v := nano[backupSetting]; len(v) == 1 {
 		dir = v[0]
 	}
-	p, ok := resolve(root, dir)
+	p, ok := resolve(dir)
 	if !ok {
 		return "", errors.New(backupSetting + " does not name a path inside the project: " + dir)
 	}
@@ -130,22 +131,27 @@ func hasMarker(data []byte, marker string) bool {
 
 // restoreOne writes one backup back over its source and says whether that
 // source is settled afterwards. A source without the marker is one somebody
-// has put back already and stays as it is.
-func restoreOne(root, marker string, e manifestEntry) (string, bool) {
-	src, okSrc := resolve(root, e.Path)
-	bkp, okBkp := resolve(root, e.Backup)
+// has put back already and stays as it is; only a source that is there and
+// carries the marker is written to.
+func restoreOne(root *os.Root, marker string, e manifestEntry) (string, bool) {
+	src, okSrc := resolve(e.Path)
+	bkp, okBkp := resolve(e.Backup)
 	if !okSrc || !okBkp {
 		return "the manifest names a path outside the project: " + cmp.Or(e.Path, e.Backup), false
 	}
-	if data, err := os.ReadFile(src); err == nil && !hasMarker(data, marker) {
+	data, err := root.ReadFile(src)
+	if err != nil {
+		return e.Path + " cannot be written back: " + err.Error(), false
+	}
+	if !hasMarker(data, marker) {
 		return "", true
 	}
-	want, err := os.ReadFile(bkp)
+	want, err := root.ReadFile(bkp)
 	if err != nil {
 		return e.Path + ": its backup is gone, " + e.Backup, false
 	}
 	sum := sha256.Sum256(want)
-	if err := os.WriteFile(src, want, 0o644); err != nil {
+	if err := root.WriteFile(src, want, 0o644); err != nil {
 		return e.Path + " cannot be written back: " + err.Error(), false
 	}
 	// Written first, reported second: a backup is the only copy of the
@@ -163,13 +169,18 @@ func restoreOne(root, marker string, e manifestEntry) (string, bool) {
 // finding: whoever cares whether the sources are instrumented has asked
 // already. A source that stays instrumented keeps the manifest, so a later
 // run can try again.
-func RestoreManifest(root string) ([]string, error) {
+func RestoreManifest(project string) ([]string, error) {
+	root, err := os.OpenRoot(project)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
 	dir, err := backupDir(root)
 	if err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dir, manifestName)
-	data, err := os.ReadFile(path)
+	data, err := root.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -199,8 +210,8 @@ func RestoreManifest(root string) ([]string, error) {
 	}
 	// Best effort: a manifest that survives makes the addon refuse the next
 	// instrumentation, which is a finding of its own and not a silent loss.
-	os.RemoveAll(filepath.Join(dir, "backup"))
-	os.Remove(path)
-	os.Remove(dir)
+	root.RemoveAll(filepath.Join(dir, "backup"))
+	root.Remove(path)
+	root.Remove(dir)
 	return findings, nil
 }
