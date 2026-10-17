@@ -1,0 +1,46 @@
+[
+  {
+    "name": "pre-tool-use Edit of an existing file",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gifted-raman-6c1008",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-gifted-raman-6c1008/d9e369f2-4e70-428a-9979-025b0dac7b5b/scratchpad/bench/edit-existing.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-gifted-raman-6c1008/d9e369f2-4e70-428a-9979-025b0dac7b5b/scratchpad/bench/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gifted-raman-6c1008"]
+      }
+    ]
+  },
+  {
+    "name": "pre-tool-use Write of a new file",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gifted-raman-6c1008",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-gifted-raman-6c1008/d9e369f2-4e70-428a-9979-025b0dac7b5b/scratchpad/bench/write-new.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-gifted-raman-6c1008/d9e369f2-4e70-428a-9979-025b0dac7b5b/scratchpad/bench/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gifted-raman-6c1008"]
+      }
+    ]
+  },
+  {
+    "name": "pre-tool-use Bash echo x >> README.md",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gifted-raman-6c1008",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-gifted-raman-6c1008/d9e369f2-4e70-428a-9979-025b0dac7b5b/scratchpad/bench/bash-append.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-gifted-raman-6c1008/d9e369f2-4e70-428a-9979-025b0dac7b5b/scratchpad/bench/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gifted-raman-6c1008"]
+      }
+    ]
+  },
+  {
+    "name": "pre-tool-use Bash git status",
+    "dir": "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gifted-raman-6c1008",
+    "stdin": "C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-gifted-raman-6c1008/d9e369f2-4e70-428a-9979-025b0dac7b5b/scratchpad/bench/bash-status.json",
+    "mode": "single",
+    "steps": [
+      {
+        "argv": ["C:/Users/micro/AppData/Local/Temp/claude/C--Users-micro-Documents--GIT-loomux--claude-worktrees-gifted-raman-6c1008/d9e369f2-4e70-428a-9979-025b0dac7b5b/scratchpad/bench/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/micro/Documents/#GIT/loomux/.claude/worktrees/gifted-raman-6c1008"]
+      }
+    ]
+  }
+]

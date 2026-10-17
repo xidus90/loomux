@@ -14,13 +14,13 @@ sources:
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
-    content_hash: "sha256:64ef8bee8ed615dee8a682906a309536020937f0d8a3fdb32105c02cc091466b"
-    revision: 10
+    content_hash: "sha256:813e8669d09ea700d7fc87304e3dd939b6e7281d4c02ba3565a8ba4c705bb5f4"
+    revision: 11
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:5ae6849f4f9f595cc544e12e8dfa83cbb8453974c4b3d35de9ed0fbc84dd97a7"
-    revision: 4
+    content_hash: "sha256:8c9d43d2b77f9e338f51024c2da5878ad14f01793e9443eddf7569bc37956fcd"
+    revision: 5
 ---
 
 ## Wofür
@@ -53,17 +53,43 @@ in fester Folge:
 
 1. **Das Manifest** `.loomux/config.toml` fasst kein schreibendes Werkzeug an:
    dort liest die Schranke ihre eigenen Grenzen.
-2. **Offene Ziele** — Memory der Agenten, Scratchpad der Sitzung, die Dateien
+2. **Eine Datei mit mehr als einem Link** wird nicht geschrieben (siehe
+   [Hardlinks](#hardlinks)).
+3. **Offene Ziele** — Memory der Agenten, Scratchpad der Sitzung, die Dateien
    aus `open.toml` — gehen durch, bevor die Registry gelesen wird.
-3. **Die Registry**; ist sie unlesbar, verweigert jeder weitere Write.
-4. **Schreibgeschützte Zonen** schlagen jede umgebende beschreibbare Wurzel.
-5. **Die Allow-List:** was unter keiner Wurzel liegt, wird verweigert, außer
+4. **Die Registry**; ist sie unlesbar, verweigert jeder weitere Write.
+5. **Schreibgeschützte Zonen** schlagen jede umgebende beschreibbare Wurzel.
+6. **Die Allow-List:** was unter keiner Wurzel liegt, wird verweigert, außer
    einem `proposal.md` im Prüfzentrum.
 
 Ein Wiki-Bundle darf sich über ein eingechecktes Manifest selbst als Wurzel
 erklären — aber nur, wenn der genannte Bereich bekannt, nicht
 schreibgeschützt und **dasselbe Repository** wie das Manifestverzeichnis ist.
 Sonst könnte jeder Baum einen registrierten Scope nennen und sich öffnen.
+
+## Hardlinks
+
+Ein Hardlink ist kein Link, dem die Auflösung folgen könnte, sondern ein
+zweiter Name derselben Datei: nach `ln ../B/.loomux/config.toml notes.txt`
+oder `mklink /H` ändert ein `Edit` auf `notes.txt` das Manifest, und jede
+Regel über Namen sieht nur `notes.txt`. Darum verweigern **beide Stufen**
+jedes bestehende Schreibziel mit mehr als einem Link (POSIX `st_nlink`,
+Windows `nNumberOfLinks`), die Policy auch für die Schreibziele einer
+Shell-Zeile (`echo x >`, `cp`). `guard.HardLinked` stellt beiden dieselbe
+Frage und dieselbe Begründung. Ein neues Ziel, ein Verzeichnis und das
+Entfernen eines Namens (`rm`, die Quelle eines `mv`) bleiben offen.
+
+**Die Zahl entscheidet, nicht der Ort der anderen Namen.** Die feinere
+Regel, nur zu verweigern, wenn ein weiterer Name geschützt ist oder außerhalb
+der Wurzeln liegt, scheitert an drei Stellen: POSIX nennt die anderen Namen
+nicht, man müsste das Dateisystem ablaufen; Windows nennt sie
+(`FindFirstFileNameW`), aber jeder Name bräuchte das ganze Urteil beider
+Stufen, und die Policy eines fremden Projekts kennt der Wächter nicht — ein
+unbeurteilbarer Name würde ohnehin verweigert. Und legitim bearbeitet ein
+Agent keine solche Datei: pnpm und uv verlinken ihre Speicher nach
+`node_modules` und `.venv`, und ein Write dort träfe jedes Projekt, das den
+Speicher teilt. Kosten: im Hook nicht messbar (warm 15,5 gegen 15,0 ms beim
+`Edit`; `docs/de/benchmarks.md`, 2026-10-17).
 
 ## Verknüpfte Worktrees
 
@@ -137,7 +163,8 @@ dessen Manifest. Fehlt `cwd` oder weicht es ab, bleibt die Shell zu.
 
 **Was zu bleibt:** jedes andere Manifest, `armed.toml`, `.loomux/state`, die
 Registry, `open.toml`, die globale Config, `rm -rf .loomux`. Ist `.loomux`
-oder `config.toml` ein Symlink oder eine Junction aus dem Projekt hinaus,
+oder `config.toml` ein Symlink oder eine Junction aus dem Projekt hinaus oder
+hat `config.toml` einen zweiten Namen (Hardlink),
 bleiben beide Ausnahmen zu. Unlesbare Registry, keine Area an der Wurzel oder
 ein Feld ohne bool zählt als aus (Grundsatz 5: Wächter scheitern
 geschlossen). Jede Ablehnung, solange der Schalter das Manifest öffnet, endet mit einem Satz, der
@@ -167,8 +194,11 @@ Einschalten ([Architektur-Grundsätze](architektur-grundsaetze.md)).
 - **`llm_config`, kaputtes Manifest:** Ein Manifest, das ein Agent kaputt
   schreibt, macht das Lesen der Registry unlesbar; die Schranke verweigert
   dann jeden Write, bis ein Mensch es repariert (scheitert geschlossen).
-- **`llm_config`, Hardlink:** Einen Hardlink auf `.loomux/config.toml` zum
-  Manifest eines anderen Projekts erkennt der Wächter nicht.
+- **Hardlink:** Das Anlegen des Links (`ln`, `mklink /H`,
+  `New-Item -ItemType HardLink`) beurteilt keine Stufe, nur das Schreiben
+  danach. Ein Link, der zwischen Prüfung und Write entsteht, und ein Skript,
+  das über einen Hardlink schreibt, ohne dass die Zeile den Namen als
+  Schreibziel nennt, kommen durch.
 - **`llm_config`, Mensch von Hand:** Ein Mensch, der `config set` selbst
   ausführt, schreibt weiterhin durch ein verknüpftes `.loomux`.
 - **`llm_config` unter Antigravity:** Antigravity schickt kein `cwd`; dort

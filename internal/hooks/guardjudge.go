@@ -53,7 +53,16 @@ func (j judge) reasons(targets []shellTarget) []string {
 			reasons = append(reasons, target.refusal)
 			continue
 		}
-		rels, err := j.rels(target)
+		named, err := j.named(target)
+		if err != nil {
+			reasons = append(reasons, err.Error())
+			continue
+		}
+		// A removal takes one name and leaves the file under the others.
+		if !target.removes {
+			reasons = append(reasons, j.linkReasons(named)...)
+		}
+		rels, err := j.rels(named)
 		if err != nil {
 			reasons = append(reasons, err.Error())
 			continue
@@ -69,19 +78,36 @@ func (j judge) reasons(targets []shellTarget) []string {
 	return reasons
 }
 
-// rels are the paths one target names relative to the root: a shell
-// target as the shell spells it, a writing tool's path as it is, and in
-// strict mode each also as the file system resolves it. An error is a
-// refusal the caller names.
-func (j judge) rels(target shellTarget) ([]string, error) {
-	rels := []string{relativePath(target.path, j.root)}
+// named are the paths one target names relative to the root: a shell
+// target as the shell spells it, a writing tool's path as it is. An error is
+// a refusal the caller names.
+func (j judge) named(target shellTarget) ([]string, error) {
 	if target.shell {
-		spelled, err := spellings(j.root, target.path)
-		if err != nil {
-			return nil, err
-		}
-		rels = spelled
+		return spellings(j.root, target.path)
 	}
+	return []string{relativePath(target.path, j.root)}, nil
+}
+
+// linkReasons refuse each named path that is a file of more than one name;
+// guard.HardLinked says why that is decided by the count alone.
+func (j judge) linkReasons(named []string) []string {
+	var reasons []string
+	for _, rel := range named {
+		place := filepath.FromSlash(rel)
+		if !filepath.IsAbs(place) {
+			place = filepath.Join(j.root, place)
+		}
+		if reason := guard.HardLinked(place); reason != "" {
+			reasons = append(reasons, reason)
+		}
+	}
+	return reasons
+}
+
+// rels are the named paths and their lexical spellings, and in strict mode
+// each also as the file system resolves it. An error is a refusal the
+// caller names.
+func (j judge) rels(rels []string) ([]string, error) {
 	// The lexical forms are added after the resolution: they may name paths
 	// that do not exist, which strict mode would refuse to resolve.
 	var lexical []string
@@ -360,7 +386,11 @@ func (j judge) strictReasons(found []shellTarget, unknown []unknownCall) []strin
 // leaves of cut -d: -- names no removal of the root and is skipped.
 func (j judge) unknownReaches(base, word string) (bool, error) {
 	target := under(base, []shellTarget{{path: word, removes: true, shell: true}})[0]
-	rels, err := j.rels(target)
+	named, err := j.named(target)
+	if err != nil {
+		return false, err
+	}
+	rels, err := j.rels(named)
 	for _, rel := range rels {
 		if rel != "." && len(j.judgePath(rel, target)) > 0 {
 			return true, nil

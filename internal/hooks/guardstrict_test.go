@@ -335,3 +335,13 @@ func TestStrictModeJudgesAnUnknownProgramBehindACd(t *testing.T) {
 		}
 	}
 }
+
+// An unknown program's word that unfolds past the brace limit names nothing
+// the guard can weigh, so strict mode refuses it.
+func TestStrictModeRefusesAnUnknownProgramPastTheBraceLimit(t *testing.T) {
+	root := project(t)
+	want := "in strict mode loomux refuses `frob` on {1..65}: it does not know whether the program writes there"
+	if got := checkTool(root, "Bash", command("frob {1..65}"), strictPolicy); len(got) != 1 || got[0] != want {
+		t.Fatalf("reasons %q", got)
+	}
+}

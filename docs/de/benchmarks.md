@@ -3864,3 +3864,43 @@ Temp-Verzeichnis. Die Nutzlast ist ein `Write` mit absolutem Pfad auf
 3. Die 435,5 ms kalt im ersten Durchgang sind der erste Start des frisch
    gebauten `before.exe`, nicht der Wächter; im zweiten Durchgang liegt
    derselbe Fall bei 11,5 ms.
+## 2026-10-17 08:09 — Der Wächter zählt die Links eines Schreibziels
+
+Worktree `.claude/worktrees/gifted-raman-6c1008`. `before.exe` ist
+`18566e83`, gebaut aus `git archive` im Scratchpad; `after.exe` ist der Code
+des Zweigs, der jedes bestehende Schreibziel in beiden Stufen auf mehr als
+einen Link prüft. Beide gebaut mit Go 1.27.0 `windows/amd64`. Maschine: AMD
+Ryzen 7 9800X3D, Windows 11 Pro.
+
+**Ziel.** Die Linkzahl kostet je Ziel ein `CreateFile` ohne Zugriffsrechte
+und ein `GetFileInformationByHandle`, in der Policy und in der Schranke. Das
+darf `pre-tool-use` nicht über 72 ms heben.
+
+**Methode.** `after.exe dev bench hooks testdata/bench/hardlink-hooks.json -n
+30 --out <ordner>`, fünf Durchgänge von 08:09:12 bis 08:10:26, before und
+after abwechselnd, das jeweilige Binary vor jedem Durchgang auf das Binary
+kopiert, das `argv` nennt. Vier Fälle gegen diesen Worktree mit echtem
+Zustandsordner und echter Registry: `Edit` auf das bestehende `README.md`,
+`Write` auf eine Datei, die es nicht gibt, `echo x >> README.md` und `git
+status`. Die stdin-Nutzlasten liegen im Scratchpad der Sitzung und sind nicht
+eingecheckt. Die Tabelle nennt den Median der fünf Durchgangs-Mediane, warm
+über je 30 Läufe, das kleinste Minimum und kalt als Median der fünf ersten
+Läufe. Alle Läufe endeten mit Exit 0.
+
+| Fall | before kalt | after kalt | before warm Median | after warm Median | before warm Min | after warm Min |
+|---|---:|---:|---:|---:|---:|---:|
+| `Edit` einer bestehenden Datei | 932,7 ms | 1125,6 ms | 15,0 ms | 15,5 ms | 11,5 ms | 11,5 ms |
+| `Write` einer neuen Datei | 18,0 ms | 20,0 ms | 16,7 ms | 14,5 ms | 12,0 ms | 12,5 ms |
+| `Bash` `echo x >> README.md` | 11,5 ms | 13,0 ms | 11,2 ms | 10,5 ms | 9,0 ms | 9,0 ms |
+| `Bash` `git status` | 11,5 ms | 10,5 ms | 10,5 ms | 9,8 ms | 9,0 ms | 8,5 ms |
+
+### Lesart
+
+1. **Die Linkzahl kostet keine messbare Zeit.** Jeder warme Median liegt
+   innerhalb von 2,2 ms um `before`, in beide Richtungen, und weit unter
+   72 ms. Einzelne warme Läufe beider Binaries erreichen 200 bis 300 ms; der
+   erste Durchgang trägt sie gehäuft (after 240 ms Median beim `Edit`, before
+   26 ms), die übrigen vier kaum.
+2. **Der kalte Lauf des ersten Falls** ist der erste Start eines frisch
+   kopierten Binarys, nicht der Wächter: zwei Gegendurchgänge mit after vor
+   before ergaben kalt 946 und 967 ms für after, 887 und 1117 ms für before.
