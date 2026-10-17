@@ -3820,3 +3820,47 @@ die 7 Dateien oben.
    schlechteren Shard-Plan ergeben.
 4. **Der Baum bleibt sauber:** keine Quelldatei bleibt instrumentiert zurück,
    und nach der Entfernung ist kein Hook-Eintrag mehr nötig.
+
+## 2026-10-17 04:57 — Der Pre-Tool-Wächter mit dem Schalter `llm_config`
+
+Ist `llm_config` an, lässt der Wächter das eigene Manifest
+`.loomux/config.toml` der Hook-Wurzel durch, dazu `loomux config set|unset … --yes`
+aus einer Shell, die an dieser Wurzel steht, und hängt jeder Ablehnung einen
+Satz zum Schalter an. Den Schalter fragt er nur, wenn ein Aufruf das Manifest
+oder eine solche Zeile betrifft oder abgelehnt wird. Ein gewöhnlicher Aufruf
+liest die Registry nicht öfter als vorher.
+
+`before.exe` ist die Merge-Basis `18566e83`, `after.exe` ist `dca64716`; beide
+mit Go 1.27.0 `windows/amd64` gebaut. Rechner: AMD Ryzen 7 9800X3D, Windows 11
+Pro.
+
+**Methode.** `after.exe dev bench hooks <fälle> -n 20 --out <scratch>` über
+vier Fälle, zwei Durchgänge, mit `LOOMUX_STATE_DIR` auf eine Registry aus einer
+Area (`workspace = true`, `llm_config = true`) um ein leeres Projekt im
+Temp-Verzeichnis. Die Nutzlast ist ein `Write` mit absolutem Pfad auf
+`src/a.go` bzw. auf `.loomux/config.toml`, der Hook läuft mit
+`--host claude --root <projekt>`.
+
+| Fall | Durchgang | kalt (1. Lauf) | warm Median | warm Min | warm Max | Exit |
+|---|---|---:|---:|---:|---:|---|
+| before: Write src/a.go, Schalter an | 1 | 435,5 ms | 9,4 ms | 8,5 ms | 10,0 ms | 0 |
+| after: Write src/a.go, Schalter an | 1 | 10,5 ms | 8,5 ms | 8,0 ms | 9,5 ms | 0 |
+| before: Write .loomux/config.toml, Schalter an | 1 | 9,5 ms | 9,0 ms | 8,1 ms | 11,5 ms | 2 |
+| after: Write .loomux/config.toml, Schalter an | 1 | 12,5 ms | 9,0 ms | 8,2 ms | 16,0 ms | 0 |
+| before: Write src/a.go, Schalter an | 2 | 11,5 ms | 9,5 ms | 9,0 ms | 10,0 ms | 0 |
+| after: Write src/a.go, Schalter an | 2 | 11,5 ms | 8,5 ms | 8,0 ms | 9,0 ms | 0 |
+| before: Write .loomux/config.toml, Schalter an | 2 | 9,5 ms | 9,0 ms | 8,5 ms | 15,5 ms | 2 |
+| after: Write .loomux/config.toml, Schalter an | 2 | 9,5 ms | 9,0 ms | 8,5 ms | 9,6 ms | 0 |
+
+**Kernergebnisse**
+
+1. **Ein Write außerhalb des Manifests bleibt im Rauschen:** warm 8,5 ms
+   nachher gegen 9,4 und 9,5 ms vorher. Der Wächter fragt den Schalter dort
+   nicht.
+2. **Ein Write auf das Manifest mit Schalter an kostet keine messbare Zeit:**
+   warm 9,0 ms in beiden Durchgängen. `after` lässt ihn durch (Exit 0),
+   `before` lehnte ihn in derselben Zeit ab (Exit 2). Das zusätzliche Lesen
+   der Registry in `AreaAt` geht im Prozessstart unter.
+3. Die 435,5 ms kalt im ersten Durchgang sind der erste Start des frisch
+   gebauten `before.exe`, nicht der Wächter; im zweiten Durchgang liegt
+   derselbe Fall bei 11,5 ms.

@@ -1428,14 +1428,19 @@ loomux config unset <schlüssel> [--yes | --propose]
 loomux config proposals [--json]
 loomux config apply <id>|--all [--yes]
 loomux config reject <id>|--all
-# jede Form nimmt auch --root <verz> oder --global, vor oder hinter dem Unterbefehl
+loomux config llm [on|off] [--root DIR]
+# jede andere Form nimmt auch --root <verz> oder --global, vor oder hinter dem Unterbefehl
 ```
 
 - **Der Wächter verweigert einem Agenten** jede Form außer `list`, `get`,
   `proposals`, einem alleinstehenden `--help` oder `-h` und `set` oder
   `unset` mit `--propose`: `set` und `unset` ohne es, `apply`, `reject` und
   die interaktive Form (siehe [`hook pre-tool-use`](#loomux-hook-pre-tool-use)).
-  Ein Mensch führt sie aus.
+  Ein Mensch führt sie aus. `config llm on|off` verweigert er ebenso, das
+  bloße `config llm` liest. Ist der Schalter `llm_config` des Projekts an,
+  gehen `set` und `unset` mit `--yes` als einfache Zeile ohne `--root`,
+  `--global` und `--propose` durch, aus einer Shell, die an der
+  Projektwurzel steht.
 - **Für Agenten**: Ein Agent ändert selbst nichts. Er schlägt eine Änderung
   mit `loomux config set <schlüssel> <wert> --propose` oder
   `loomux config unset <schlüssel> --propose` vor; sie durchläuft jede
@@ -1612,6 +1617,14 @@ aber nicht entfernen, sagt es genau das, und der Lauf endet mit `1`;
 
 ### `loomux config reject <id>|--all`
 Entfernt den Vorschlag oder jeden offenen, ohne etwas zu schreiben.
+
+### `loomux config llm [on|off] [--root DIR]`
+Zeigt den Schalter `llm_config` der Area, deren Wurzel das Projekt ist
+(`llm_config: on (<scope>)`), oder stellt ihn mit `on` oder `off` in der
+Registry um. Der Schalter gehört zu einer registrierten Area, also nimmt der
+Befehl nur `--root`, nie `--global`. Außerhalb eines registrierten Bereichs
+endet jede Form mit `1` und nennt `loomux init`. Umstellen darf ihn nur ein
+Mensch; siehe [Konfiguration](configuration.md).
 
 ### `loomux config` (interaktiv)
 Eine Vollbildliste der Schlüssel, nach Modul gruppiert: `↑`/`↓` bewegen, `/`

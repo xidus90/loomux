@@ -486,6 +486,28 @@ Die eingebauten Regeln (`internal/hooks/guard.go`):
 | Befehl | `loomux gate` mit jedem Unterbefehl außer `status`, in denselben Schreibweisen | loomux gate arm and disarm decide which lanes fail the gate; a human runs them, and an agent arms a lane only through a green `loomux check precommit --arm`. `loomux gate status` shows the lanes |
 | Befehl | ein Interpreter (`python`, `python3`, `python3.N`, `py`, `node`, `perl`, `ruby`, auch hinter `uv run` oder `uvx`, und `uv run -` selbst), der sein Programm von stdin nimmt, ohne dass dort echter Inhalt ankommt: ein einzelnes `-` oder kein Programm, ohne Pipe aus einem Befehl und ohne `<`-Datei; ein Heredoc oder Here-String hinein, auch über eine Pipe, zählt nie | loomux refuses an interpreter that reads its program from stdin (`python -`, a bare `python`, `uv run -`, a heredoc or here-string into one): with nothing piped in it waits until it is stopped, and a shell may rewrite the backslashes of inline program text. Write the script to a file in the scratchpad with the host's file tool (Write, write_to_file) and run that file. |
 
+**Ausnahme: der Schalter `llm_config`.** Hat die Area des Projekts `llm_config = true`
+(`loomux config llm on`, nur durch einen Menschen), entfällt die Manifest-Sperre für genau
+die `.loomux/config.toml` direkt unter dem Pfad dieser Area; der Worktree eines Hauptcheckouts
+folgt dessen Schalter. Die Ausnahme gilt an allen drei Stellen: der Pfadregel, der Erkennung
+von Shell-Zeilen und Schritt 1 von `Decide`. Zusätzlich lässt der Wächter
+`loomux config set|unset <schlüssel> [<wert>] --yes` als einzelne einfache Zeile ohne `--root`,
+`--global` und `--propose` durch, und `loomux config llm` ohne Argument liest nur. Zu bleiben
+jedes andere Manifest, `armed.toml`, `.loomux/state`, die Registry, `open.toml`, die globale
+Konfiguration, `rm -rf .loomux` sowie `config llm on|off` und `config apply`. Ist `.loomux` oder
+`config.toml` ein Symlink oder eine Junction aus dem Projekt hinaus, bleiben beide Ausnahmen zu;
+eine unlesbare Registry, keine Area an der Wurzel oder ein Feld, das kein bool ist, zählt als aus.
+Der Schalter gehört zu der Wurzel, für die der Hook installiert ist (`--root`): Der Schalter
+einer anderen Area öffnet dort nichts, auch nicht über einen Link im Projekt. Ein schreibendes
+Werkzeug erreicht das Manifest nur über einen vollen Pfad, der dorthin aufgelöst wird. Eine
+Shell-Zeile -- der relative Pfad und `config set|unset` -- zählt nur, solange das
+Arbeitsverzeichnis der Shell, das der Host als `cwd` schickt, genau auf diese Wurzel aufgelöst
+wird: Nach einem `cd` in ein verschachteltes oder benachbartes Projekt landete dieselbe Zeile im
+Manifest jenes Projekts, also bleibt sie dort zu, und ebenso in einem Aufruf ohne `cwd`
+(Antigravity schickt keins).
+Jede Ablehnung in einem Projekt, dessen Schalter das Manifest öffnet, endet mit: `llm_config is on for this project: agents may edit .loomux/config.toml (turn it off with loomux config llm off)`.
+Das Restrisiko steht auf der Wiki-Seite zur Schreibschranke.
+
 **Die scharfen Lanes haben benannte Lücken**, die sie mit dem Manifest teilen
 und die nicht geschlossen sind: `git checkout <rev> -- .loomux`,
 `git checkout <rev> -- .`, `git restore -s <rev> .`, `git stash`,

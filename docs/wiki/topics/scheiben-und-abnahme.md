@@ -8,13 +8,13 @@ sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:b07dbaa1b911112cdcb73b050813da229faa43c71399b6c2ec900b90949eac4c"
-    revision: 3
+    content_hash: "sha256:5ae6849f4f9f595cc544e12e8dfa83cbb8453974c4b3d35de9ed0fbc84dd97a7"
+    revision: 4
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:878f5c996b07b8898bef381002154709722a74057bc6a0aef3ffad99093bcc54"
-    revision: 12
+    content_hash: "sha256:b430c2ebc1bbf2137cabd94c393e82716e883bf97d60c3024b20077b61625051"
+    revision: 13
 ---
 
 loomux baut in **Stufen**, und **jede Stufe endet grün und wird einzeln

@@ -3738,3 +3738,44 @@ layer and instrumentation together stay under 20 ms.
    and what it does not (the string `"res://ui/..."` without a `load`).
 3. **The tree stays clean:** nothing was written to `space` or to a
    `.loomux/config.toml`; the copy is a scratch directory.
+
+## 2026-10-17 04:57 — The Pre-Tool Guard with the `llm_config` Switch
+
+With `llm_config` on, the guard lets the hook root's own manifest
+`.loomux/config.toml` through, plus `loomux config set|unset … --yes` from a
+shell standing at that root, and ends every refusal with a sentence about the
+switch. It asks for the switch only when a call touches the manifest or such a
+line, or is refused. An ordinary call reads the registry no more often than
+before.
+
+`before.exe` is the merge base `18566e83`, `after.exe` is `dca64716`; both
+built with Go 1.27.0 `windows/amd64`. Machine: AMD Ryzen 7 9800X3D, Windows 11
+Pro.
+
+**Method.** `after.exe dev bench hooks <cases> -n 20 --out <scratch>` over
+four cases, two passes, with `LOOMUX_STATE_DIR` pointing at a registry of one
+area (`workspace = true`, `llm_config = true`) around an empty project in the
+temp directory. The payload is a `Write` with an absolute path to `src/a.go`
+or to `.loomux/config.toml`; the hook runs with `--host claude --root <project>`.
+
+| Case | Pass | cold (1st run) | warm median | warm min | warm max | Exit |
+|---|---|---:|---:|---:|---:|---|
+| before: Write src/a.go, switch on | 1 | 435.5 ms | 9.4 ms | 8.5 ms | 10.0 ms | 0 |
+| after: Write src/a.go, switch on | 1 | 10.5 ms | 8.5 ms | 8.0 ms | 9.5 ms | 0 |
+| before: Write .loomux/config.toml, switch on | 1 | 9.5 ms | 9.0 ms | 8.1 ms | 11.5 ms | 2 |
+| after: Write .loomux/config.toml, switch on | 1 | 12.5 ms | 9.0 ms | 8.2 ms | 16.0 ms | 0 |
+| before: Write src/a.go, switch on | 2 | 11.5 ms | 9.5 ms | 9.0 ms | 10.0 ms | 0 |
+| after: Write src/a.go, switch on | 2 | 11.5 ms | 8.5 ms | 8.0 ms | 9.0 ms | 0 |
+| before: Write .loomux/config.toml, switch on | 2 | 9.5 ms | 9.0 ms | 8.5 ms | 15.5 ms | 2 |
+| after: Write .loomux/config.toml, switch on | 2 | 9.5 ms | 9.0 ms | 8.5 ms | 9.6 ms | 0 |
+
+**Key Findings**
+
+1. **A write outside the manifest stays within the noise:** 8.5 ms warm after
+   against 9.4 and 9.5 ms before. The guard does not ask for the switch there.
+2. **A write to the manifest with the switch on costs no measurable time:**
+   9.0 ms warm in both passes. `after` lets it through (exit 0), `before`
+   refused it in the same time (exit 2). The extra registry read in `AreaAt`
+   is lost in process start-up.
+3. The 435.5 ms cold in the first pass is the first start of the freshly built
+   `before.exe`, not the guard; in the second pass the same case takes 11.5 ms.

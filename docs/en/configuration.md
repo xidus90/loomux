@@ -38,6 +38,20 @@ loomux config apply <id>
 
 Every form of `loomux config` is in the [CLI reference](cli-reference.md#10-configuration-loomux-config).
 
+### Letting the LLM edit the configuration (`llm_config`)
+
+By default an agent only proposes. If you want your LLM to edit the configuration of **this project** itself, for example while setting up or debugging, you turn one switch per project: the field `llm_config = true` on the `[[area]]` entry of the registry. Without the field the switch is off.
+
+```sh
+loomux config llm          # shows the state
+loomux config llm on       # a human only; also: loomux config llm --root <dir> on
+loomux config llm off
+```
+
+Only a human runs `on` and `off`; the guard refuses them to an agent. Outside a registered area every form of `config llm`, the bare read included, exits 1 and names `loomux init`. The interactive `loomux init` asks last (default No): `let the LLM edit .loomux/config.toml of this project? (you can change this later with loomux config llm on|off)`. Non-interactively `init` sets nothing.
+
+With the switch on, an agent may edit exactly this project's `.loomux/config.toml` with file tools and run `loomux config set|unset <key> [<value>] --yes` (without `--root`, `--global` and `--propose`, as a single plain line). `loomux config list` then starts with `llm_config: on — agents may edit this file`. With the switch on the LLM can also loosen checks (`guard.mode`, `modules.*`, `[policy]` and others); you accept that when you turn it on. Everything else stays shut: every other manifest, `armed.toml`, `.loomux/state`, the registry, `open.toml`, the global configuration. What the guard opens in detail is under [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
+
 ---
 
 ## 1. Principles of Configuration
@@ -1138,7 +1152,7 @@ default = "example"
 | | Location |
 |---|---|
 | State directory | on Windows `%LOCALAPPDATA%\loomux`, else `~\AppData\Local\loomux`; elsewhere `$XDG_STATE_HOME/loomux`, else `~/.local/state/loomux` |
-| Area registry (`[[area]]` entries: `scope` and `path` required, `wiki` optional, and the booleans `readonly`, `signpost`, `shared`, `workspace`; see [First-time setup](getting-started.md#5-registering-an-area-by-hand)) | `<state directory>\registry.toml` |
+| Area registry (`[[area]]` entries: `scope` and `path` required, `wiki` optional, and the booleans `readonly`, `signpost`, `shared`, `workspace`, `llm_config`; see [First-time setup](getting-started.md#5-registering-an-area-by-hand)) | `<state directory>\registry.toml` |
 | Machine-wide settings (local model) | `<state directory>\config.toml` |
 | Single files the write barrier keeps open | `<state directory>\open.toml` |
 | Manifest of a writable area | `<area path>\.loomux\config.toml` |

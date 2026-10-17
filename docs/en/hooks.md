@@ -462,6 +462,27 @@ The built-in rules (`internal/hooks/guard.go`):
 | Command | `loomux gate` with any subcommand but `status`, in the same spellings | loomux gate arm and disarm decide which lanes fail the gate; a human runs them, and an agent arms a lane only through a green `loomux check precommit --arm`. `loomux gate status` shows the lanes |
 | Command | an interpreter (`python`, `python3`, `python3.N`, `py`, `node`, `perl`, `ruby`, also behind `uv run` or `uvx`, and `uv run -` itself) that takes its program from stdin with nothing real on it: a lone `-` or no program, with neither a pipe from a command nor a `<` file; a heredoc or here-string into it, or piped into it, never counts | loomux refuses an interpreter that reads its program from stdin (`python -`, a bare `python`, `uv run -`, a heredoc or here-string into one): with nothing piped in it waits until it is stopped, and a shell may rewrite the backslashes of inline program text. Write the script to a file in the scratchpad with the host's file tool (Write, write_to_file) and run that file. |
 
+**Exception: the `llm_config` switch.** If the project's area has `llm_config = true`
+(`loomux config llm on`, by a human only), the manifest lock is lifted for exactly the
+`.loomux/config.toml` directly under that area's path; the worktree of a main checkout follows
+its switch. The exception applies at all three places: the path rule, the detection of shell
+lines, and step 1 of `Decide`. In addition the guard lets
+`loomux config set|unset <key> [<value>] --yes` through as a single plain line without `--root`,
+`--global` and `--propose`, and `loomux config llm` without an argument only reads. Still shut:
+every other manifest, `armed.toml`, `.loomux/state`, the registry, `open.toml`, the global
+configuration, `rm -rf .loomux`, and `config llm on|off` and `config apply`. If `.loomux` or
+`config.toml` is a symlink or junction leaving the project, both exceptions stay shut; an
+unreadable registry, no area at the root, or a field that is not a bool counts as off.
+The switch belongs to the root the hook was installed for (`--root`): another area's switch
+opens nothing there, not even through a link inside the project. A writing tool reaches the
+manifest only by a full path that resolves to it. A shell line -- the relative path and
+`config set|unset` -- counts only while the shell's working directory, which the host sends
+as `cwd`, resolves to exactly that root: after a `cd` into a nested or neighbouring project
+the same line would land in that project's manifest, so it stays shut there, and so it does
+in a call without `cwd` (Antigravity sends none).
+Every refusal in a project whose switch opens the manifest ends with: `llm_config is on for this project: agents may edit .loomux/config.toml (turn it off with loomux config llm off)`.
+The residual risk is on the wiki page for the write barrier.
+
 **The armed lanes have named gaps**, shared with the manifest and not closed:
 `git checkout <rev> -- .loomux`, `git checkout <rev> -- .`,
 `git restore -s <rev> .`, `git stash`, `git reset --hard` and `git switch`
