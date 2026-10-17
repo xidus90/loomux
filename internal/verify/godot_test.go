@@ -2,6 +2,7 @@ package verify
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -42,8 +43,8 @@ func TestProjectGodotReadsFeaturesAndDotnet(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if v, mono, err := projectGodot(path); v != "4.7" || !mono || err != nil {
-		t.Fatalf("%q %v %v", v, mono, err)
+	if v, mono, err := projectGodot(path); v.String() != "4.7" || !mono || err != nil {
+		t.Fatalf("%v %v %v", v, mono, err)
 	}
 	if err := os.WriteFile(path, []byte("config/features=PackedStringArray(\"Forward Plus\")\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -74,8 +75,8 @@ func TestProjectGodotReadsPastALongLine(t *testing.T) {
 		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if v, mono, err := projectGodot(path); v != "4.7" || !mono || err != nil {
-			t.Errorf("%s: %q %v %v", name, v, mono, err)
+		if v, mono, err := projectGodot(path); v.String() != "4.7" || !mono || err != nil {
+			t.Errorf("%s: %v %v %v", name, v, mono, err)
 		}
 	}
 }
@@ -87,8 +88,8 @@ func TestProjectGodotTakesTheFirstFeaturesLine(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if v, _, err := projectGodot(path); v != "4.7" || err != nil {
-		t.Fatalf("%q %v", v, err)
+	if v, _, err := projectGodot(path); v.String() != "4.7" || err != nil {
+		t.Fatalf("%v %v", v, err)
 	}
 }
 
@@ -128,6 +129,9 @@ func sources(root, configured, goos string, vars map[string]string, path map[str
 			}
 			return false
 		},
+		// A test that means to offer a directory sets this; one that does not
+		// gets an empty directory rather than a nil call.
+		readDir: func(string) ([]string, error) { return nil, nil },
 		version: func(bin string) (string, error) {
 			if v, ok := versions[bin]; ok {
 				return v, nil
@@ -328,7 +332,7 @@ func TestGodotSaysWhatItLookedAt(t *testing.T) {
 	dir := godotWorld(t, "4.7", false)
 	s := sources("/repo", ".tools/godot", "linux", nil, nil, nil, nil)
 	_, pre, note := s.resolve(dir)
-	want := "GODOT_BIN is unset; [verify.gdscript] godot names " + filepath.Join("/repo", ".tools", "godot") + ", which is not there; neither godot nor godot4 is on PATH"
+	want := "GODOT_BIN is unset; [verify.gdscript] godot names " + filepath.Join("/repo", ".tools", "godot") + ", which is not there; GODOT_BIN_DIR is unset; neither godot nor godot4 is on PATH"
 	if pre != StateMissingTool || !strings.HasSuffix(note, want) {
 		t.Fatalf("%q %q", pre, note)
 	}
@@ -426,5 +430,199 @@ func TestGodotForSpendsTheBudgetOnTheProbe(t *testing.T) {
 		if starts != row.starts || timeout != row.timeout {
 			t.Errorf("%s: %d starts, timeout %v", name, starts, timeout)
 		}
+	}
+}
+
+// A directory of engines is searched when neither the variable nor the
+// project named a binary, and the first candidate that fits the line wins.
+func TestTheFirstMatchingCandidateWins(t *testing.T) {
+	dir := godotWorld(t, "3.6", false)
+	s := sources(dir, "", "linux", map[string]string{"GODOT_BIN_DIR": "/e"}, nil,
+		[]string{"/e/godot36", "/e/godot47"},
+		map[string]string{"/e/godot36": "3.6.3.stable", "/e/godot47": "4.7.2.stable"})
+	s.readDir = listing([]string{"godot47", "godot36"})
+	if bin, state, note := s.resolve(dir); bin != "/e/godot36" || state != "" {
+		t.Fatalf("%q %v %q", bin, state, note)
+	}
+}
+
+// GODOT_BIN is an explicit act, so it keeps its authority: a binary of
+// another line is refused, and the message names the directory that would
+// hold the right one.
+func TestGodotBinKeepsItsAuthority(t *testing.T) {
+	dir := godotWorld(t, "3.6", false)
+	s := sources(dir, "", "linux", map[string]string{"GODOT_BIN": "/e/godot47", "GODOT_BIN_DIR": "/e"}, nil,
+		[]string{"/e/godot36", "/e/godot47"},
+		map[string]string{"/e/godot36": "3.6.3.stable", "/e/godot47": "4.7.2.stable"})
+	s.readDir = listing([]string{"godot36", "godot47"})
+	bin, state, note := s.resolve(dir)
+	if bin != "" || state != StateUnready {
+		t.Fatalf("%q %v %q", bin, state, note)
+	}
+	if !strings.Contains(note, "GODOT_BIN_DIR") {
+		t.Fatalf("the way out must be named: %q", note)
+	}
+}
+
+// The project's own pin is the project speaking; a contradiction there is not
+// tidied away by a candidate that happens to fit.
+func TestAProjectPinThatContradictsTheProjectStaysUnready(t *testing.T) {
+	dir := godotWorld(t, "3.6", false)
+	// The directory holds the engine the project wants, and the pin is named
+	// relative to the root so that it is a path on either platform: only the
+	// pin's own authority can keep this lane unready.
+	pin := filepath.Join(dir, "tools", "godot47")
+	s := sources(dir, "tools/godot47", "linux", map[string]string{"GODOT_BIN_DIR": "/e"}, nil,
+		[]string{pin, "/e/godot36"},
+		map[string]string{pin: "4.7.2.stable", "/e/godot36": "3.6.3.stable"})
+	s.readDir = listing([]string{"godot36"})
+	if bin, state, note := s.resolve(dir); bin != "" || state != StateUnready {
+		t.Fatalf("%q %v %q", bin, state, note)
+	}
+}
+
+// Candidates that all name another line say what was found and what is wanted.
+func TestNoMatchingCandidateNamesWhatWasFound(t *testing.T) {
+	dir := godotWorld(t, "4.8", false)
+	s := sources(dir, "", "linux", map[string]string{"GODOT_BIN_DIR": "/e"}, nil,
+		[]string{"/e/godot47"}, map[string]string{"/e/godot47": "4.7.2.stable"})
+	s.readDir = listing([]string{"godot47"})
+	bin, state, note := s.resolve(dir)
+	if bin != "" || state != StateUnready {
+		t.Fatalf("%q %v %q", bin, state, note)
+	}
+	if !strings.Contains(note, "4.7") || !strings.Contains(note, "4.8") {
+		t.Fatalf("both versions must be named: %q", note)
+	}
+}
+
+// A budget that ends mid-search is not a wrong version.
+func TestTheBudgetEndingMidSearchIsNotAMismatch(t *testing.T) {
+	dir := godotWorld(t, "3.6", false)
+	// The budget ends after a candidate was already found wanting, so only the
+	// budget's own precedence can keep this from reading as a mismatch.
+	s := sources(dir, "", "linux", map[string]string{"GODOT_BIN_DIR": "/e"}, nil,
+		[]string{"/e/godot_a", "/e/godot_b"}, nil)
+	s.readDir = listing([]string{"godot_a", "godot_b"})
+	s.version = func(bin string) (string, error) {
+		if bin == "/e/godot_a" {
+			return "4.7.2.stable", nil
+		}
+		return "", errBudget
+	}
+	bin, state, note := s.resolve(dir)
+	if bin != "" || state != StateBudget || !strings.Contains(note, "godot_b") {
+		t.Fatalf("%q %v %q", bin, state, note)
+	}
+}
+
+// A directory that holds no engine is said as plainly as one that is unset.
+func TestADirWithoutAnEngineSaysSo(t *testing.T) {
+	dir := godotWorld(t, "4.7", false)
+	s := sources("/repo", "", "linux", map[string]string{"GODOT_BIN_DIR": "/e"}, nil, nil, nil)
+	s.readDir = listing([]string{"readme.txt"})
+	_, pre, note := s.resolve(dir)
+	if pre != StateMissingTool || !strings.Contains(note, "/e, which holds no engine") {
+		t.Fatalf("%q %q", pre, note)
+	}
+}
+
+// The real reader on a real directory: its engines are offered, the
+// directories in it are not, and a path that is not there offers nothing.
+func TestGodotForReadsADirOfEngines(t *testing.T) {
+	dir := t.TempDir()
+	// Sorted first, so a leaked directory would be the candidate asked first.
+	if err := os.Mkdir(filepath.Join(dir, "godot-a-dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	engine := filepath.Join(dir, "godot-b")
+	if err := os.WriteFile(engine, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GODOT_BIN", "")
+	t.Setenv("GODOT_BIN_DIR", dir)
+	t.Setenv("PATH", "")
+	start := func(child.Spec) child.Result { return child.Result{Stdout: "4.7.2.stable.official.x"} }
+	find := GodotFor(t.TempDir(), "", start, nil)
+	if bin, pre, note := find(godotWorld(t, "4.7", false)); bin != filepath.ToSlash(engine) || pre != "" {
+		t.Fatalf("%q %q %q", bin, pre, note)
+	}
+
+	t.Setenv("GODOT_BIN_DIR", filepath.Join(dir, "gone"))
+	find = GodotFor(t.TempDir(), "", start, nil)
+	if bin, pre, _ := find(godotWorld(t, "4.7", false)); bin != "" || pre != StateMissingTool {
+		t.Fatalf("%q %q", bin, pre)
+	}
+}
+
+// Two areas of different lines in one run: each gets the binary of its own
+// line, and each binary is asked for its version once.
+func TestOneRunServesTwoLines(t *testing.T) {
+	engines := t.TempDir()
+	for _, name := range []string{"godot36", "godot47"} {
+		if err := os.WriteFile(filepath.Join(engines, name), nil, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("GODOT_BIN", "")
+	t.Setenv("GODOT_BIN_DIR", engines)
+	t.Setenv("PATH", "")
+	asked := map[string]int{}
+	start := func(spec child.Spec) child.Result {
+		asked[spec.Argv[0]]++
+		if strings.HasSuffix(spec.Argv[0], "godot36") {
+			return child.Result{Stdout: "3.6.3.stable.official.x"}
+		}
+		return child.Result{Stdout: "4.7.2.stable.official.x"}
+	}
+	find := GodotFor(t.TempDir(), "", start, nil)
+	three := filepath.ToSlash(filepath.Join(engines, "godot36"))
+	four := filepath.ToSlash(filepath.Join(engines, "godot47"))
+	if bin, pre, note := find(godotWorld(t, "3.6", false)); bin != three || pre != "" {
+		t.Fatalf("the 3.6 area: %q %q %q", bin, pre, note)
+	}
+	if bin, pre, note := find(godotWorld(t, "4.7", false)); bin != four || pre != "" {
+		t.Fatalf("the 4.7 area: %q %q %q", bin, pre, note)
+	}
+	if asked[three] != 1 || asked[four] != 1 {
+		t.Fatalf("one question per binary, not %v", asked)
+	}
+}
+
+// A directory that is not there is not a directory without engines: someone
+// who mistyped the variable must not be told the folder is empty.
+func TestADirThatIsNotThereIsSaidAsSuch(t *testing.T) {
+	dir := godotWorld(t, "4.7", false)
+	s := sources("/repo", "", "linux", map[string]string{"GODOT_BIN_DIR": "/gone"}, nil, nil, nil)
+	s.readDir = func(string) ([]string, error) { return nil, os.ErrNotExist }
+	_, pre, note := s.resolve(dir)
+	if pre != StateMissingTool || !strings.Contains(note, "/gone, which is not there") {
+		t.Fatalf("%q %q", pre, note)
+	}
+}
+
+// Among candidates that all fail, the one that named a version is the one
+// worth reporting: a zip beside the engines must not hide the mismatch.
+func TestTheNoteNamesAVersionWhereOneWasFound(t *testing.T) {
+	dir := godotWorld(t, "3.6", false)
+	s := sources(dir, "", "linux", map[string]string{"GODOT_BIN_DIR": "/e"}, nil,
+		[]string{"/e/godot-4.7.zip", "/e/godot47"},
+		map[string]string{"/e/godot47": "4.7.2.stable"})
+	s.readDir = listing([]string{"godot-4.7.zip", "godot47"})
+	_, pre, note := s.resolve(dir)
+	if pre != StateUnready || !strings.Contains(note, "Godot 4.7 found") {
+		t.Fatalf("%q %q", pre, note)
+	}
+}
+
+// A directory that is there but closed is a third thing again: the reason is
+// handed on, since a permission is fixed differently than a typo.
+func TestADirThatCannotBeReadSaysTheReason(t *testing.T) {
+	dir := godotWorld(t, "4.7", false)
+	s := sources("/repo", "", "linux", map[string]string{"GODOT_BIN_DIR": "/closed"}, nil, nil, nil)
+	s.readDir = func(string) ([]string, error) { return nil, fs.ErrPermission }
+	_, pre, note := s.resolve(dir)
+	if pre != StateMissingTool || !strings.Contains(note, "/closed, which cannot be read: permission denied") {
+		t.Fatalf("%q %q", pre, note)
 	}
 }
