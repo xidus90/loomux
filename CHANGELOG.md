@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.8.1] - 2026-10-17
+
+<https://github.com/xidus90/loomux/pull/108>
+
+### Fixed
+- The guard refuses a write to a file with more than one hard link, so `ln` or `mklink /H` onto a protected file no longer opens it to `Write`, `Edit` or a shell redirect.
+
 ## [1.8.0] - 2026-10-17
 
 <https://github.com/xidus90/loomux/pull/106>
