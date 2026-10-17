@@ -109,6 +109,43 @@ func TestInstrumentedFailsOnUnreadableSettings(t *testing.T) {
 	}
 }
 
+// A Godot project in a subdirectory activates its tool for the files below it.
+func TestInstrumentedFindsAProjectInASubdirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "godot"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "godot", "project.godot"), []byte("[nano_coverage]\n\ngeneral/x=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := []File{{"godot/core/a.gd", []byte(instrumentedLine)}, {"tools/b.gd", []byte(instrumentedLine)}}
+	got, err := Instrumented(files, root)
+	if err != nil || len(got) != 1 || got[0].Path != "godot/core/a.gd" {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "godot", "project.godot"), []byte("[nano_coverage\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Instrumented(files, root); err == nil || !strings.Contains(err.Error(), "godot/project.godot") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// A file below two projects that both use the tool is reported once.
+func TestInstrumentedReportsANestedProjectOnce(t *testing.T) {
+	root := nanoProject(t)
+	if err := os.MkdirAll(filepath.Join(root, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "sub", "project.godot"), []byte("[nano_coverage]\n\ngeneral/x=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Instrumented([]File{{"sub/a.gd", []byte(instrumentedLine)}}, root)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("got %v, %v", got, err)
+	}
+}
+
 func TestInstrumentedReportsAScanError(t *testing.T) {
 	if _, err := Instrumented(nil, filepath.Join(t.TempDir(), "missing")); err == nil {
 		t.Fatal("want an error")

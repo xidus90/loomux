@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/verify"
 )
 
@@ -50,6 +51,22 @@ func TestPostEditRunsTheRulesCheck(t *testing.T) {
 	code, _, _, seen := postEdit(t, root, filePayload(t, filepath.Join(other, ".loomux", "config.toml")), passing)
 	if code != ExitOK || len(seen) != 0 {
 		t.Fatalf("%d %v", code, seen)
+	}
+}
+
+// A red rules check after an edit warns and lets the edit stand.
+func TestPostEditOnlyWarnsOnARedRulesCheck(t *testing.T) {
+	root := goProject(t)
+	writeWorldFile(t, root, ".loomux/config.toml", "[rules]\n")
+	red := func(s child.Spec) child.Result {
+		if strings.Contains(strings.Join(s.Argv, " "), "check rules") {
+			return child.Result{Code: 1, Stdout: "a.go:3 core uses ui\n"}
+		}
+		return child.Result{}
+	}
+	code, _, se, _ := postEdit(t, root, filePayload(t, filepath.Join(root, "a.go")), red)
+	if code != ExitOK || !strings.Contains(se, "rules/go: failed (warn only)") || !strings.Contains(se, "core uses ui") {
+		t.Fatalf("%d %q", code, se)
 	}
 }
 

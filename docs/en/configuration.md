@@ -791,15 +791,17 @@ on_file  = ["{loomux} check rules"]
   committed, in CI too.
 - The commit and the turn end read the index (`--cached`; at a turn end the
   copy of the index that also holds the untracked files, as for `graph`); an
-  edit reads the working tree. After an edit the lane warns and blocks nothing;
-  at the commit it blocks.
+  edit reads the working tree. After an edit the lane warns and blocks nothing,
+  armed or not (`rules/<stack>: failed (warn only)` and its findings); at the
+  commit it blocks.
 - An edit plans the lane once, at the root, for a source (`.go`, `.py`,
   `.gd`) or for `.loomux/config.toml`, whatever stack the file has; any other
   file plans nothing.
 - The default profiles `edit`, `precommit` and `stop` carry `rules`. A project
   with its own `[verify.profiles]` adds `rules` to them itself.
 - The instrumentation check of Nano Coverage (a source whose first line the
-  tool wrote and a killed run left) belongs to the lane and needs only a
+  tool wrote and a killed run left, in a Godot project at the root or in any
+  directory below it) belongs to the lane and needs only a
   `[rules]` table, not a layer; it runs only at the commit.
 
 ### `[modules]` (What Runs in This Project)

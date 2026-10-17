@@ -171,6 +171,20 @@ func TestEditReportNamesEverySkipAndEveryRed(t *testing.T) {
 	}
 }
 
+// The rules lane only warns after an edit, armed or not; at a check it fails.
+func TestEditReportOnlyWarnsForTheRulesLane(t *testing.T) {
+	var se strings.Builder
+	o := Outcome{Job: Job{Kind: "rules", Name: "rules"}, State: StateFailed, Output: "a.go: imports b\n"}
+	red, notices := EditReport(&se, []Outcome{o}, "aside")
+	want := "rules: failed (warn only)\na.go: imports b"
+	if red || se.String() != want+"\n" || !slices.Equal(notices, []string{want, "aside"}) {
+		t.Fatalf("%v %q %q", red, se.String(), notices)
+	}
+	if !Fails(o, ScopeCheck) {
+		t.Fatal("a red rules lane fails a check")
+	}
+}
+
 // A red lane blocks the edit and a host reads stderr alone: the lane the
 // edit could not check is named there beside the finding.
 func TestEditReportNamesASkippedLaneOnStderr(t *testing.T) {
