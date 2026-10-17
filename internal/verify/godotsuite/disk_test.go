@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -247,6 +249,19 @@ func TestRestoreManifestReportsASourceItCannotWrite(t *testing.T) {
 	}
 }
 
+func TestRestoreManifestReportsAReadOnlySource(t *testing.T) {
+	root := gdWithManifest(t, "config_version=5\n")
+	p := filepath.Join(root, "core", "a.gd")
+	if err := os.Chmod(p, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(p, 0o644) })
+	f, err := RestoreManifest(root)
+	if err != nil || len(f) != 1 || !strings.HasPrefix(f[0], "res://core/a.gd cannot be written back:") {
+		t.Fatalf("%v %q", err, f)
+	}
+}
+
 // A manifest is a file like any other: a path in it that is not a res:// path
 // inside the project is never written to, however it is spelled.
 func TestRestoreManifestRefusesAPathOutsideTheProject(t *testing.T) {
@@ -283,6 +298,11 @@ func TestRestoreManifestDoesNothingWithoutAManifest(t *testing.T) {
 }
 
 func TestRestoreManifestFails(t *testing.T) {
+	t.Run("no project", func(t *testing.T) {
+		if _, err := RestoreManifest(filepath.Join(t.TempDir(), "gone")); err == nil {
+			t.Fatal("want an error")
+		}
+	})
 	t.Run("no project.godot", func(t *testing.T) {
 		if _, err := RestoreManifest(t.TempDir()); err == nil {
 			t.Fatal("want an error")
@@ -319,4 +339,51 @@ func TestRestoreManifestFails(t *testing.T) {
 			t.Fatal("want an error")
 		}
 	})
+}
+
+// link makes dir a directory link to target: a symlink where the system
+// grants one, else a junction, which Windows grants without privilege.
+func link(t *testing.T, dir, target string) {
+	t.Helper()
+	if os.Symlink(target, dir) == nil {
+		return
+	}
+	if runtime.GOOS != "windows" {
+		t.Skip("no symlink here")
+	}
+	if out, err := exec.Command("cmd", "/c", "mklink", "/J", dir, target).CombinedOutput(); err != nil {
+		t.Fatalf("mklink /J %s %s: %v\n%s", dir, target, err, out)
+	}
+}
+
+// A link inside the project passes every textual check on a res:// path;
+// what it points to outside is still never written to.
+func TestRestoreManifestDoesNotWriteThroughALinkOutOfTheProject(t *testing.T) {
+	root := project(t, map[string]string{"project.godot": "config_version=5\n"})
+	outside := t.TempDir()
+	write(t, filepath.Join(outside, "a.gd"), "extends Node\n")
+	link(t, filepath.Join(root, "core"), outside)
+	instrumentOnDisk(t, root, ".nano_coverage", "core/a.gd")
+	f, err := RestoreManifest(root)
+	if err != nil || len(f) != 1 || !strings.HasPrefix(f[0], "res://core/a.gd cannot be written back:") {
+		t.Fatalf("%v %q", err, f)
+	}
+	if body, _ := os.ReadFile(filepath.Join(outside, "a.gd")); !strings.HasPrefix(string(body), "# __NANO_COVERAGE_INSTRUMENTED__\n") {
+		t.Fatalf("written outside the project: %q", body)
+	}
+}
+
+func TestRestoreManifestDoesNotReadOrRemoveThroughALinkedBackupDir(t *testing.T) {
+	root := project(t, map[string]string{"project.godot": "config_version=5\n", "core/a.gd": "extends Node\n"})
+	outside := t.TempDir()
+	link(t, filepath.Join(root, ".nano_coverage"), outside)
+	instrumentOnDisk(t, root, ".nano_coverage", "core/a.gd")
+	if _, err := RestoreManifest(root); err == nil {
+		t.Fatal("want an error")
+	}
+	for _, p := range []string{manifestName, filepath.Join("backup", "core", "a.gd")} {
+		if _, err := os.Stat(filepath.Join(outside, p)); err != nil {
+			t.Fatalf("removed outside the project: %s", p)
+		}
+	}
 }
