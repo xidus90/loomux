@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/config/schema"
@@ -77,5 +78,25 @@ func TestNoneSwitchesAModuleOff(t *testing.T) {
 	}
 	if !moduleOff(c, schema.Graph) {
 		t.Error("none left the graph module on")
+	}
+}
+
+// llmQuestion is the text of the last question of init.
+const llmQuestion = "let the LLM edit .loomux/config.toml of this project? (you can change this later with loomux config llm on|off)"
+
+func TestAskLLMConfigAsksOnce(t *testing.T) {
+	term := tui.Script(100, 40, tui.Keys("enter")...)
+	on, err := askLLMConfig(term, "project/x")
+	if on || err != nil {
+		t.Fatalf("%v %v, want false and no error", on, err)
+	}
+	if strings.Count(term.Output(), llmQuestion) != 1 {
+		t.Errorf("screen:\n%s", term.Output())
+	}
+	if on, _ := askLLMConfig(tui.Script(100, 40, tui.Keys("y")...), "x"); !on {
+		t.Error("y did not turn it on")
+	}
+	if _, err := askLLMConfig(brokenTerminal{tui.Script(100, 40)}, "x"); err == nil {
+		t.Error("a console error was swallowed")
 	}
 }

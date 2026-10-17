@@ -1103,3 +1103,156 @@ func TestInitStartsANewProjectInProbationOnce(t *testing.T) {
 		t.Fatalf("third run: code %d, the file is back: %s", code, errOut)
 	}
 }
+
+// answeringTerminal plays the interview keys, then answers every question
+// with approve -- the last one, the switch, with final.
+type answeringTerminal struct {
+	*tui.Scripted
+	approve, final string
+	asked          int
+}
+
+func (a *answeringTerminal) ReadKey() (tui.Key, error) {
+	if k, err := a.Scripted.ReadKey(); err == nil {
+		return k, nil
+	}
+	if strings.Contains(a.Output(), llmQuestion) {
+		a.asked++
+		return tui.Keys(a.final)[0], nil
+	}
+	return tui.Keys(a.approve)[0], nil
+}
+
+// runInteractive runs an interactive init that takes every offer, then
+// answers each approval with approve and the switch question with final. It
+// returns the registry text and how often the switch was asked.
+func runInteractive(t *testing.T, root, approve, final string) (string, int) {
+	t.Helper()
+	keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter")
+	term := &answeringTerminal{Scripted: tui.Script(100, 40, keys...), approve: approve, final: final}
+	withTerminal(t, term, nil)
+	if code, _, errOut := run("init", "--root", root, "--graph=none"); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	reg, _ := os.ReadFile(filepath.Join(os.Getenv("LOOMUX_STATE_DIR"), "registry.toml"))
+	return string(reg), term.asked
+}
+
+func TestInitSetsTheSwitchOnYes(t *testing.T) {
+	root, _ := initWorld(t)
+	reg, asked := runInteractive(t, root, "y", "y")
+	if asked != 1 || !strings.Contains(reg, "llm_config = true") {
+		t.Errorf("asked %d, registry:\n%s", asked, reg)
+	}
+}
+
+func TestInitLeavesTheSwitchOffOnNo(t *testing.T) {
+	root, _ := initWorld(t)
+	reg, asked := runInteractive(t, root, "y", "n")
+	if asked != 1 || !strings.Contains(reg, "[[area]]") || strings.Contains(reg, "llm_config") {
+		t.Errorf("asked %d, registry:\n%s", asked, reg)
+	}
+}
+
+func TestInitSetsTheSwitchOnARegisteredArea(t *testing.T) {
+	root, _ := initWorld(t)
+	runInteractive(t, root, "y", "n")
+	reg, asked := runInteractive(t, root, "y", "y")
+	if asked != 1 || strings.Count(reg, "[[area]]") != 1 || !strings.Contains(reg, "llm_config = true") {
+		t.Errorf("asked %d, registry:\n%s", asked, reg)
+	}
+}
+
+func TestInitAsksNothingWithYesOrWithoutArea(t *testing.T) {
+	root, _ := initWorld(t)
+	if code, _, errOut := run("init", "--root", root, "--yes"); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	// Every approval refused: area-add is refused, so no area, no question.
+	root, _ = initWorld(t)
+	reg, asked := runInteractive(t, root, "n", "y")
+	if asked != 0 || strings.Contains(reg, "llm_config") {
+		t.Errorf("asked %d, registry:\n%s", asked, reg)
+	}
+}
+
+func TestInitFailsWhenTheSwitchCannotBeSet(t *testing.T) {
+	root, _ := initWorld(t)
+	keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter")
+	term := &answeringTerminal{Scripted: tui.Script(100, 40, keys...), approve: "y", final: "y"}
+	withTerminal(t, term, nil)
+	state := os.Getenv("LOOMUX_STATE_DIR")
+	replace(t, &runAction, func(name string, args []string, stdout, stderr io.Writer) int {
+		code := runSubcommand(name, append(args, "--no-reindex"), stdout, stderr)
+		// The registry turns unreadable between the area and the question.
+		writeAt(t, filepath.Join(state, "registry.toml"), "[[area\n")
+		return code
+	})
+	if code, _, errOut := run("init", "--root", root, "--graph=none"); code != 1 || errOut == "" {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+}
+
+// A registry that breaks while the question is open fails the run; a console
+// that is gone for the question counts as no.
+func TestInitHandlesTheLastQuestionGoingWrong(t *testing.T) {
+	root, _ := initWorld(t)
+	keys := tui.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter")
+	term := &answeringTerminal{Scripted: tui.Script(100, 40, keys...), approve: "y", final: "y"}
+	opened := 0
+	replace(t, &openTerminal, func() (tui.Terminal, func() error, error) {
+		opened++
+		if opened > 2 {
+			return nil, nil, errors.New("gone")
+		}
+		return term, func() error { return nil }, nil
+	})
+	if code, _, errOut := run("init", "--root", root, "--graph=none"); code != 0 || term.asked != 0 {
+		t.Fatalf("gone console: code %d asked %d: %s", code, term.asked, errOut)
+	}
+
+	root, _ = initWorld(t)
+	state := os.Getenv("LOOMUX_STATE_DIR")
+	breaking := &breakingTerminal{answeringTerminal: &answeringTerminal{
+		Scripted: tui.Script(100, 40, keys...), approve: "y", final: "y"}, file: filepath.Join(state, "registry.toml")}
+	withTerminal(t, breaking, nil)
+	if code, _, errOut := run("init", "--root", root, "--graph=none"); code != 1 || !strings.Contains(errOut, "loomux init:") {
+		t.Fatalf("broken registry: code %d: %s", code, errOut)
+	}
+}
+
+// breakingTerminal corrupts file when the switch question is on screen.
+type breakingTerminal struct {
+	*answeringTerminal
+	file string
+}
+
+func (b *breakingTerminal) ReadKey() (tui.Key, error) {
+	if strings.Contains(b.Output(), llmQuestion) {
+		_ = os.WriteFile(b.file, []byte("[[area\n"), 0o644)
+	}
+	return b.answeringTerminal.ReadKey()
+}
+
+func TestAskLLMConfigAfterRunEdges(t *testing.T) {
+	root, _ := initWorld(t)
+	state := os.Getenv("LOOMUX_STATE_DIR")
+	var errb strings.Builder
+	// A registry of other projects only: no area here, nothing asked.
+	writeAt(t, filepath.Join(state, "registry.toml"), "[[area]]\nscope = \"other\"\npath = "+strconv.Quote(t.TempDir())+"\n")
+	if code := askLLMConfigAfterRun(root, &errb); code != 0 || errb.Len() != 0 {
+		t.Errorf("other area: code %d: %s", code, errb.String())
+	}
+	// An unreadable registry fails closed.
+	writeAt(t, filepath.Join(state, "registry.toml"), "[[area\n")
+	if code := askLLMConfigAfterRun(root, &errb); code != 1 || errb.Len() == 0 {
+		t.Errorf("broken registry: code %d: %s", code, errb.String())
+	}
+	// A console that cannot be handed back is a failure.
+	writeAt(t, filepath.Join(state, "registry.toml"), "[[area]]\nscope = \"here\"\npath = "+strconv.Quote(root)+"\n")
+	withTerminal(t, tui.Script(100, 40, tui.Keys("n")...), errors.New("mode lost"))
+	errb.Reset()
+	if code := askLLMConfigAfterRun(root, &errb); code != 1 || !strings.Contains(errb.String(), "mode lost") {
+		t.Errorf("restore: code %d: %s", code, errb.String())
+	}
+}
