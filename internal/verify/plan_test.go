@@ -1197,12 +1197,35 @@ func TestPlanKeepsASwitchedOffTestApartFromASkippedOne(t *testing.T) {
 	}
 }
 
-func TestPlanHandsALockedLaneItsLockFile(t *testing.T) {
+// One locked lane locks its whole stack and area: a lint beside a suite that
+// rewrites the sources on disk would read them instrumented and hold them
+// open against its rename. A lane's own lock = false does not opt it out.
+func TestPlanHandsEveryLaneOfALockedStackItsLockFile(t *testing.T) {
 	root := t.TempDir()
-	src := "[verify.go.test]\nlock = true\n"
+	src := "[verify.go.test]\nlock = true\n[verify.go.lint]\nlock = false\n"
 	jobs, _ := Plan(effFor(t, src, goOnly), Request{Kinds: []string{"lint", "test"}}, env(root))
-	if jobs[0].Lock != "" || jobs[1].Lock != LockPath(root, "go", ".") {
+	if jobs[0].Lock != LockPath(root, "go", ".") || jobs[1].Lock != LockPath(root, "go", ".") {
 		t.Fatalf("%q %q", jobs[0].Lock, jobs[1].Lock)
+	}
+	// An edit lints without the suite in its plan and still waits for it.
+	jobs, _ = Plan(effFor(t, src, goOnly), Request{Kinds: []string{"lint"}, Scope: ScopeEdit, File: "a.go"}, env(root))
+	if len(jobs) != 1 || jobs[0].Lock != LockPath(root, "go", ".") {
+		t.Fatalf("%+v", jobs)
+	}
+	jobs, _ = Plan(effFor(t, "", goOnly), Request{Kinds: []string{"lint", "test"}}, env(root))
+	if jobs[0].Lock != "" || jobs[1].Lock != "" {
+		t.Fatalf("%q %q", jobs[0].Lock, jobs[1].Lock)
+	}
+}
+
+// The root lanes run over the whole checkout, not an area; a stack's lock
+// keeps to its areas.
+func TestPlanKeepsTheRootLanesOutOfAStackLock(t *testing.T) {
+	calls := 0
+	src := "[verify.go.test]\nlock = true\n"
+	jobs, _ := Plan(effFor(t, src, goOnly), Request{Kinds: []string{"graph"}}, graphEnv(t.TempDir(), true, "", &calls))
+	if len(jobs) != 1 || jobs[0].Pre != "" || jobs[0].Lock != "" {
+		t.Fatalf("%+v", jobs)
 	}
 }
 

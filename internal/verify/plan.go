@@ -524,10 +524,23 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	if isRootKind(kind) && env.GraphEnv != nil {
 		job.Env = append(job.Env, env.GraphEnv(env.Root)...)
 	}
-	if r.Lane.Lock {
+	if !isRootKind(kind) && locksArea(eff.Stacks[stack]) {
 		job.Lock = LockPath(env.Root, stack, area)
 	}
 	return job, l, true, nil
+}
+
+// locksArea says whether some lane of a stack locks its areas, which binds
+// every lane there: one that rewrites the sources on disk, as a Godot suite
+// under coverage does, must not run beside one that reads them. It asks the
+// stack, not the plan, so an edit's lint waits for a suite another run holds.
+func locksArea(lanes map[string]Resolved) bool {
+	for _, r := range lanes {
+		if r.Lane.Lock {
+			return true
+		}
+	}
+	return false
 }
 
 // skippedBy is the note of a lane that sits out this run, or "": only a
