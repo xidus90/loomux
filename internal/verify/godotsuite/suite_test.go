@@ -23,7 +23,7 @@ type engine struct {
 	code     map[int]int
 	noReport map[int]bool
 	noLCOV   map[int]bool
-	result   map[string]child.Result // by "instrument", "restore" or "shard:<i>"
+	result   map[string]child.Result // by "instrument" or "shard:<i>"
 	onMode   func(mode string)
 }
 
@@ -33,12 +33,11 @@ func (e *engine) start(s child.Spec) child.Result {
 	e.specs = append(e.specs, s)
 	argv := s.Argv
 	if strings.Contains(strings.Join(argv, " "), "disk.gd") {
-		mode := argv[len(argv)-1]
-		e.log = append(e.log, mode)
+		e.log = append(e.log, "instrument")
 		if e.onMode != nil {
-			e.onMode(mode)
+			e.onMode("instrument")
 		}
-		return e.result[mode]
+		return e.result["instrument"]
 	}
 	var rd string
 	var suites []string
@@ -235,14 +234,15 @@ func TestNoSuite(t *testing.T) {
 func TestOneShardDyingIsExactlyItsOwnFindingAndRestoreStillRuns(t *testing.T) {
 	w := newWorld(t, withAutoload)
 	w.o.Coverage = filepath.Join(w.checkout, "cov")
+	w.e.onMode = func(string) { instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd") }
 	w.e.noReport = map[int]bool{1: true}
 	w.e.code = map[int]int{1: 139}
 	res := run(t, w)
 	if len(res.Findings) != 1 || !strings.HasPrefix(res.Findings[0], "shard 1 wrote no test report (exit 139)") {
 		t.Fatalf("%q", res.Findings)
 	}
-	if w.e.log[len(w.e.log)-1] != "restore" {
-		t.Fatalf("log %v", w.e.log)
+	if body, _ := os.ReadFile(filepath.Join(w.root, "src/a.gd")); string(body) != "extends Node\n" {
+		t.Fatalf("source %q", body)
 	}
 }
 
@@ -261,7 +261,7 @@ func TestCoverageInMemoryCopiesEachShardsLCOVAndNeverTouchesTheDisk(t *testing.T
 	w.e.noLCOV = map[int]bool{1: true}
 	res := run(t, w)
 	for _, l := range w.e.log {
-		if l == "instrument" || l == "restore" {
+		if l == "instrument" {
 			t.Fatalf("disk used: %v", w.e.log)
 		}
 	}
@@ -282,15 +282,17 @@ func TestDiskCoverageBracketsTheShardsAndSettles(t *testing.T) {
 	w := newWorld(t, withAutoload)
 	w.o.Coverage = filepath.Join(w.checkout, "cov")
 	src := filepath.Join(w.root, "src/a.gd")
-	w.e.onMode = func(mode string) {
-		if mode == "instrument" { // leaves the source changed, as a failed restore would
-			os.WriteFile(src, []byte("# __NANO_COVERAGE_INSTRUMENTED__\n"), 0o644)
-		}
+	w.e.onMode = func(string) {
+		// The addon backs up what it reads, so a source the engine changed
+		// before the backup comes back as that other content: the snapshot is
+		// loomux's own cross-check of the restore.
+		write(t, src, "extends Node # engine\n")
+		instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd")
 	}
 	w.e.result = map[string]child.Result{"shard:0": {Err: fmt.Errorf("cannot start")}}
 	res := run(t, w)
 	l := w.e.log
-	if l[0] != "instrument" || l[len(l)-1] != "restore" || len(l) != 4 {
+	if l[0] != "instrument" || len(l) != 3 {
 		t.Fatalf("log %v", l)
 	}
 	if len(res.Findings) != 3 || !strings.HasPrefix(res.Findings[0], "shard 0 wrote no test report") ||
@@ -299,27 +301,74 @@ func TestDiskCoverageBracketsTheShardsAndSettles(t *testing.T) {
 	}
 }
 
-func TestLeftoverMarkerIsRestoredFirst(t *testing.T) {
+// The case the kill leaves behind: a run that died while the sources were
+// rewritten left the markers, the backups and the manifest, and the next run
+// puts them back by itself -- no engine, because a killed run leaves no
+// process to start one and the next one may have no budget for it either.
+func TestLeftoverOfAKilledRunIsPutBackWithoutTheEngine(t *testing.T) {
 	w := newWorld(t, plain)
-	src := filepath.Join(w.root, "src/a.gd")
-	write(t, src, "# __NANO_COVERAGE_INSTRUMENTED__\nextends Node\n")
-	w.e.onMode = func(string) { os.WriteFile(src, []byte("extends Node\n"), 0o644) }
+	instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd", "test/a_test.gd")
 	res := run(t, w)
-	if w.e.log[0] != "restore" || len(res.Findings) != 0 {
-		t.Fatalf("%v %q", w.e.log, res.Findings)
+	if len(res.Findings) != 0 {
+		t.Fatalf("%q", res.Findings)
+	}
+	for _, l := range w.e.log {
+		if l == "instrument" {
+			t.Fatalf("an engine was started: %v", w.e.log)
+		}
+	}
+	if body, _ := os.ReadFile(filepath.Join(w.root, "src/a.gd")); string(body) != "extends Node\n" {
+		t.Fatalf("source %q", body)
+	}
+	if left, err := Instrumented(w.root); err != nil || len(left) > 0 {
+		t.Fatalf("%v still instrumented: %q", err, left)
+	}
+	if exists(filepath.Join(w.root, ".nano_coverage")) {
+		t.Fatal(".nano_coverage stays")
 	}
 	if !reflect.DeepEqual(res.Notes, []string{"restored a leftover disk instrumentation"}) {
 		t.Fatalf("notes %q", res.Notes)
 	}
 }
 
-func TestLeftoverThatCannotBeRestoredStops(t *testing.T) {
+// Without the manifest the backups are gone with it: nothing but git has the
+// originals, and the run says so instead of instrumenting on top.
+func TestLeftoverWithoutAManifestStops(t *testing.T) {
 	w := newWorld(t, plain)
 	write(t, filepath.Join(w.root, "src/a.gd"), "# __NANO_COVERAGE_INSTRUMENTED__\n")
-	w.e.result = map[string]child.Result{"restore": {Code: 1}}
 	res := run(t, w)
-	if !reflect.DeepEqual(res.Findings, []string{stillInstrumented}) || len(w.e.log) != 1 {
+	if !reflect.DeepEqual(res.Findings, []string{stillInstrumented}) || len(w.e.log) != 0 {
 		t.Fatalf("%q %v", res.Findings, w.e.log)
+	}
+}
+
+// The restore of the bracket cannot judge what it put back when it cannot
+// read the project any more; it says so instead of passing the run.
+func TestARestoreThatCannotReadTheProjectIsAFinding(t *testing.T) {
+	w := newWorld(t, withAutoload)
+	w.o.Coverage = filepath.Join(w.checkout, "cov")
+	w.e.onMode = func(string) { os.Remove(filepath.Join(w.root, "project.godot")) }
+	res := run(t, w)
+	if len(res.Findings) != 1 || !strings.HasPrefix(res.Findings[0], "putting the sources back: ") {
+		t.Fatalf("%q", res.Findings)
+	}
+}
+
+// The scan after the restore is the one that says whether anything stays
+// instrumented; a script it cannot read leaves that unanswered.
+func TestAnUnreadableScriptDuringTheRestoreScanFails(t *testing.T) {
+	w := newWorld(t, plain)
+	w.o.RestoreOnly = true
+	instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd")
+	readFile = func(p string) ([]byte, error) {
+		if filepath.Base(p) == "a.gd" {
+			return nil, fmt.Errorf("denied")
+		}
+		return os.ReadFile(p)
+	}
+	defer func() { readFile = os.ReadFile }()
+	if _, err := Run(w.o); err == nil {
+		t.Fatal("want an error")
 	}
 }
 
@@ -327,9 +376,13 @@ func TestFailedRestoreIsTheOnlyFinding(t *testing.T) {
 	w := newWorld(t, withAutoload)
 	w.o.Coverage = filepath.Join(w.checkout, "cov")
 	w.e.noReport = map[int]bool{0: true}
-	w.e.result = map[string]child.Result{"restore": {Code: 1}}
+	w.e.onMode = func(string) {
+		instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd")
+		os.Remove(filepath.Join(w.root, ".nano_coverage", "backup", "src", "a.gd"))
+	}
 	res := run(t, w)
-	if !reflect.DeepEqual(res.Findings, []string{stillInstrumented}) {
+	want := []string{"res://src/a.gd: its backup is gone, res://.nano_coverage/backup/src/a.gd", stillInstrumented}
+	if !reflect.DeepEqual(res.Findings, want) {
 		t.Fatalf("%q", res.Findings)
 	}
 }
@@ -339,29 +392,33 @@ func TestFailedInstrumentSkipsTheShardsButRestores(t *testing.T) {
 	w.o.Coverage = filepath.Join(w.checkout, "cov")
 	w.e.result = map[string]child.Result{"instrument": {Code: 1, Stdout: "bad"}}
 	res := run(t, w)
-	if !reflect.DeepEqual(w.e.log, []string{"instrument", "restore"}) ||
+	if !reflect.DeepEqual(w.e.log, []string{"instrument"}) ||
 		len(res.Findings) != 1 || !strings.HasPrefix(res.Findings[0], "disk instrumentation failed (exit 1)") {
 		t.Fatalf("%v %q", w.e.log, res.Findings)
 	}
 }
 
-func TestRestoreOnlyRunsOnlyTheRestore(t *testing.T) {
+func TestRestoreOnlyPutsBackAndStartsNothing(t *testing.T) {
 	w := newWorld(t, plain)
 	w.o.RestoreOnly = true
+	instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd")
 	res := run(t, w)
-	if !reflect.DeepEqual(w.e.log, []string{"restore"}) || len(res.Findings) != 0 {
+	if len(w.e.log) != 0 || len(res.Findings) != 0 {
 		t.Fatalf("%v %q", w.e.log, res.Findings)
 	}
-	w.e.result = map[string]child.Result{"restore": {Code: 1}}
+	if body, _ := os.ReadFile(filepath.Join(w.root, "src/a.gd")); string(body) != "extends Node\n" {
+		t.Fatalf("source %q", body)
+	}
+	write(t, filepath.Join(w.root, "src/a.gd"), "# __NANO_COVERAGE_INSTRUMENTED__\n")
 	if res := run(t, w); !reflect.DeepEqual(res.Findings, []string{stillInstrumented}) {
 		t.Fatalf("%q", res.Findings)
 	}
 }
 
-func TestRestoreOnlyReportsAGlueWriteError(t *testing.T) {
+func TestRestoreOnlyReportsAProjectItCannotRead(t *testing.T) {
 	w := newWorld(t, plain)
 	w.o.RestoreOnly = true
-	write(t, filepath.Join(w.root, ".godot/loomux"), "a file where the directory goes")
+	os.Remove(filepath.Join(w.root, "project.godot"))
 	if _, err := Run(w.o); err == nil {
 		t.Fatal("want an error")
 	}
@@ -506,13 +563,12 @@ func TestErrors(t *testing.T) {
 }
 
 func TestLeftoverIsRestoredEvenWhenALaterCheckIsRed(t *testing.T) {
-	marker := "# __NANO_COVERAGE_INSTRUMENTED__\nextends Node\n"
 	t.Run("stale class cache", func(t *testing.T) {
 		w := newWorld(t, plain)
-		write(t, filepath.Join(w.root, "src/a.gd"), marker)
 		write(t, filepath.Join(w.root, "src/k.gd"), "class_name Known\n")
+		instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd")
 		res := run(t, w)
-		if !reflect.DeepEqual(w.e.log, []string{"restore"}) ||
+		if len(w.e.log) != 0 ||
 			!reflect.DeepEqual(res.Notes, []string{"restored a leftover disk instrumentation"}) ||
 			len(res.Findings) != 1 || !strings.Contains(res.Findings[0], "class_name not in the class cache") {
 			t.Fatalf("%v %q %q", w.e.log, res.Notes, res.Findings)
@@ -522,9 +578,9 @@ func TestLeftoverIsRestoredEvenWhenALaterCheckIsRed(t *testing.T) {
 		w := newWorld(t, plain)
 		os.Remove(filepath.Join(w.root, "test/a_test.gd"))
 		os.Remove(filepath.Join(w.root, "test/b_test.gd"))
-		write(t, filepath.Join(w.root, "src/a.gd"), marker)
+		instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd")
 		res := run(t, w)
-		if !reflect.DeepEqual(w.e.log, []string{"restore"}) || len(res.Notes) != 1 ||
+		if len(w.e.log) != 0 || len(res.Notes) != 1 ||
 			len(res.Findings) != 1 || !strings.HasPrefix(res.Findings[0], "no gdUnit4 test suite") {
 			t.Fatalf("%v %q %q", w.e.log, res.Notes, res.Findings)
 		}
@@ -535,9 +591,13 @@ func TestFailedRestoreWinsOverABodyError(t *testing.T) {
 	w := newWorld(t, withAutoload)
 	w.o.Coverage = filepath.Join(w.checkout, "cov")
 	os.MkdirAll(filepath.Join(w.stateDir(), "root.json"), 0o755) // SaveTimes fails
-	w.e.result = map[string]child.Result{"restore": {Code: 1}}
+	w.e.onMode = func(string) {
+		instrumentOnDisk(t, w.root, ".nano_coverage", "src/a.gd")
+		os.Remove(filepath.Join(w.root, ".nano_coverage", "backup", "src", "a.gd"))
+	}
 	res, err := Run(w.o)
-	if err != nil || !reflect.DeepEqual(res.Findings, []string{stillInstrumented}) {
+	want := []string{"res://src/a.gd: its backup is gone, res://.nano_coverage/backup/src/a.gd", stillInstrumented}
+	if err != nil || !reflect.DeepEqual(res.Findings, want) {
 		t.Fatalf("%v %q", err, res.Findings)
 	}
 }
@@ -553,13 +613,12 @@ func TestCopyingALCOVThatCannotBeStoredIsAFinding(t *testing.T) {
 }
 
 func TestDefaultsRunTheRealChildAndClock(t *testing.T) {
-	o := Options{Root: t.TempDir(), Godot: filepath.Join(t.TempDir(), "no-such-binary"), RestoreOnly: true}
+	o := Options{Root: t.TempDir(), Godot: filepath.Join(t.TempDir(), "no-such-binary")}
 	if o.now().IsZero() {
 		t.Fatal("clock")
 	}
-	res, err := Run(o)
-	if err != nil || !reflect.DeepEqual(res.Findings, []string{stillInstrumented}) {
-		t.Fatalf("%v %q", err, res.Findings)
+	if ok, r := o.instrument(); ok || r.Err == nil {
+		t.Fatalf("%v %+v", ok, r)
 	}
 }
 

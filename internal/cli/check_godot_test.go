@@ -79,12 +79,12 @@ func TestCheckGodotSuiteBuildsTheOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Chdir(t.TempDir())
-	if code, _, errOut := run("check", "godot-suite", "--godot", "g", "--root", root, "--coverage", "cov", "--restore"); code != 0 {
+	if code, _, errOut := run("check", "godot-suite", "--godot", "g", "--root", root, "--coverage", "cov"); code != 0 {
 		t.Fatal(errOut)
 	}
 	wd, _ := os.Getwd()
 	if got.Root != root || got.CheckoutRoot != checkout || got.Area != "godot" || got.Godot != "g" ||
-		got.Coverage != filepath.Join(wd, "cov") || !got.RestoreOnly {
+		got.Coverage != filepath.Join(wd, "cov") || got.RestoreOnly {
 		t.Fatalf("got %+v", got)
 	}
 	if got.RunID == "" || strings.ContainsAny(got.RunID, `/\`) || got.CPUs < 1 || got.Start == nil || got.Now == nil {
@@ -121,6 +121,21 @@ func TestCheckGodotSuiteReportsAnEngineThatDoesNotFit(t *testing.T) {
 	code, out, _ := run("check", "godot-suite", "--root", t.TempDir())
 	if code != 1 || out != "Godot 4.1 found\n" {
 		t.Fatalf("code %d out %q", code, out)
+	}
+}
+
+// The restore is the way out of an instrumentation a killed run left, so an
+// engine that cannot be found must not hold it up.
+func TestCheckGodotSuiteRestoresWithoutAnEngine(t *testing.T) {
+	got, _ := godotWorld(t, godotsuite.Result{}, nil)
+	checkGodotFor = func(string, string, func(child.Spec) child.Result, func() time.Duration) func(string) (string, verify.State, string) {
+		return func(string) (string, verify.State, string) { return "", verify.StateUnready, "no Godot" }
+	}
+	if code, _, errOut := run("check", "godot-suite", "--root", t.TempDir(), "--restore"); code != 0 {
+		t.Fatal(errOut)
+	}
+	if !got.RestoreOnly || got.Godot != "" {
+		t.Fatalf("got %+v", got)
 	}
 }
 

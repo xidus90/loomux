@@ -58,12 +58,31 @@ func outputOf(r child.Result) string {
 	return r.Stdout + r.Stderr
 }
 
-// disk runs disk.gd in one mode; it exits non-zero for anything but status
-// ok, so the exit code is the verdict.
-func (o Options) disk(mode string) (ok bool, r child.Result) {
+// instrument runs disk.gd, which rewrites the sources; it exits non-zero for
+// anything but status ok, so the exit code is the verdict.
+func (o Options) instrument() (ok bool, r child.Result) {
 	r = o.start(child.Spec{Dir: o.Root, Argv: []string{o.Godot, "--path", o.Root, "--headless",
-		"-s", "res://" + GlueDir + "/disk.gd", "--", mode}})
+		"-s", "res://" + GlueDir + "/disk.gd"}})
 	return r.Err == nil && r.Code == 0, r
+}
+
+// putBack undoes a disk instrumentation from the addon's manifest and names
+// what stays instrumented afterwards. No engine is started: this is the
+// restore of a run that was killed while the sources were rewritten, and a
+// killed run leaves no process to start one.
+func (o Options) putBack() ([]string, error) {
+	findings, err := RestoreManifest(o.Root)
+	if err != nil {
+		return nil, err
+	}
+	left, err := Instrumented(o.Root)
+	if err != nil {
+		return nil, err
+	}
+	if len(left) > 0 {
+		findings = append(findings, stillInstrumented)
+	}
+	return findings, nil
 }
 
 // prechecks are the findings that stop the run before any engine starts. A
@@ -89,13 +108,8 @@ func (o Options) prechecks() ([]string, error) {
 // optional disk bracket, the shards side by side, verdict, timings.
 func Run(o Options) (res Result, err error) {
 	if o.RestoreOnly {
-		if err = WriteGlue(o.Root); err != nil {
-			return res, err
-		}
-		if ok, _ := o.disk("restore"); !ok {
-			res.Findings = []string{stillInstrumented}
-		}
-		return res, nil
+		res.Findings, err = o.putBack()
+		return res, err
 	}
 	// Before every other check: sources the user can see must not stay
 	// instrumented because a later check is red.
@@ -107,9 +121,8 @@ func Run(o Options) (res Result, err error) {
 		return res, err
 	}
 	if len(left) > 0 {
-		if ok, _ := o.disk("restore"); !ok {
-			res.Findings = []string{stillInstrumented}
-			return res, nil
+		if res.Findings, err = o.putBack(); err != nil || len(res.Findings) > 0 {
+			return res, err
 		}
 		res.Notes = append(res.Notes, "restored a leftover disk instrumentation")
 	}
@@ -152,7 +165,8 @@ func Run(o Options) (res Result, err error) {
 }
 
 // bracket instruments the sources, runs body and puts the sources back
-// whatever body did, so a dead shard or an error cannot skip the restore.
+// whatever body did, so a dead shard or an error cannot skip the restore. A
+// kill of this process can; putBack in the next run is what covers that.
 func (o Options) bracket(res *Result, body func() error) (err error) {
 	_, statErr := os.Stat(filepath.Join(o.Root, "coverage-data"))
 	hadData := statErr == nil
@@ -160,11 +174,15 @@ func (o Options) bracket(res *Result, body func() error) (err error) {
 	if err != nil {
 		return err
 	}
-	ok, r := o.disk("instrument")
+	ok, r := o.instrument()
 	defer func() {
-		if ok, _ := o.disk("restore"); !ok {
-			// The findings are what the CLI prints; an error would hide this one.
-			res.Findings, err = []string{stillInstrumented}, nil
+		findings, restoreErr := o.putBack()
+		if restoreErr != nil {
+			findings = []string{"putting the sources back: " + restoreErr.Error()}
+		}
+		if len(findings) > 0 {
+			// The findings are what the CLI prints; an error would hide them.
+			res.Findings, err = findings, nil
 			return
 		}
 		// The engine creates the store when it is missing and never removes it.

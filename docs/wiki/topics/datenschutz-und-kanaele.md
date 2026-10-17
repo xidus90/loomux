@@ -14,8 +14,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:b430c2ebc1bbf2137cabd94c393e82716e883bf97d60c3024b20077b61625051"
-    revision: 13
+    content_hash: "sha256:7baaad75eeb7fb3e320ff9d0e8df54d36bcc7a762a0389627bee522105959bd1"
+    revision: 14
 ---
 
 ## Der Fund, der die Regel erzwang
