@@ -94,6 +94,7 @@ func RenderRegistry(areas []Area) string {
 			{"signpost", area.Signpost},
 			{"shared", area.Shared},
 			{"workspace", area.Workspace},
+			{"llm_config", area.LLMConfig},
 		} {
 			if flag.set {
 				fmt.Fprintf(&out, "%s = true\n", flag.name)
@@ -129,6 +130,25 @@ func AddArea(stateDir string, area Area) error {
 			}
 		}
 		return writeRegistryLocked(stateDir, append(areas, area))
+	})
+}
+
+// SetLLMConfig turns llm_config on or off for one registered scope. Without a
+// registry there is nothing to switch, so a missing file is an error rather
+// than an empty machine.
+func SetLLMConfig(stateDir, scope string, on bool) error {
+	return underRegistryLock(stateDir, func() error {
+		areas, err := ReadRegistry(stateDir)
+		if err != nil {
+			return err
+		}
+		for i := range areas {
+			if areas[i].Scope == scope {
+				areas[i].LLMConfig = on
+				return writeRegistryLocked(stateDir, areas)
+			}
+		}
+		return fmt.Errorf("%s: scope %q is not registered", stateDir, scope)
 	})
 }
 

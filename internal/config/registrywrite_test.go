@@ -227,3 +227,51 @@ func TestWriteRegistryReportsAFailedSwap(t *testing.T) {
 		t.Fatal("WriteRegistry: want an error when the swap cannot happen")
 	}
 }
+
+func TestRenderRegistryWritesLLMConfigOnlyWhenTrue(t *testing.T) {
+	on := RenderRegistry([]Area{{Scope: "a", Path: "/a", Workspace: true, LLMConfig: true}})
+	if !strings.Contains(on, "workspace = true\nllm_config = true\n") {
+		t.Errorf("llm_config not rendered after workspace:\n%s", on)
+	}
+	off := RenderRegistry([]Area{{Scope: "a", Path: "/a", Workspace: true}})
+	if off != "[[area]]\nscope = \"a\"\npath = \"/a\"\nworkspace = true\n" {
+		t.Errorf("an area without the field changed:\n%s", off)
+	}
+}
+
+func TestSetLLMConfig(t *testing.T) {
+	stateDir := t.TempDir()
+	if err := WriteRegistry(stateDir, []Area{{Scope: "a", Path: "/a"}, {Scope: "b", Path: "/b", Shared: true}}); err != nil {
+		t.Fatal(err)
+	}
+	read := func() string {
+		data, err := os.ReadFile(filepath.Join(stateDir, registryName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	before := read()
+	if err := SetLLMConfig(stateDir, "a", true); err != nil {
+		t.Fatal(err)
+	}
+	if want := RenderRegistry([]Area{{Scope: "a", Path: "/a", LLMConfig: true}, {Scope: "b", Path: "/b", Shared: true}}); read() != want {
+		t.Errorf("set:\n%s", read())
+	}
+	if err := SetLLMConfig(stateDir, "a", false); err != nil {
+		t.Fatal(err)
+	}
+	if read() != before {
+		t.Errorf("unset did not restore the bytes:\n%s", read())
+	}
+	err := SetLLMConfig(stateDir, "x", true)
+	if err == nil || !strings.Contains(err.Error(), `scope "x" is not registered`) {
+		t.Errorf("unknown scope: got %v", err)
+	}
+	if read() != before {
+		t.Error("file changed on an unknown scope")
+	}
+	if err := SetLLMConfig(t.TempDir(), "a", true); err == nil {
+		t.Error("want an error for a missing registry")
+	}
+}

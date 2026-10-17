@@ -354,3 +354,21 @@ func TestSharedWithoutASignpostStaysSharedWithoutOne(t *testing.T) {
 		t.Error("signpost true for an area that only declares shared; the two fields are being read from one another")
 	}
 }
+
+func TestReadRegistryReadsLLMConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeRegistry(t, dir,
+		"[[area]]\nscope = \"on\"\npath = \"/on\"\nllm_config = true\n\n"+
+			"[[area]]\nscope = \"off\"\npath = \"/off\"\n")
+	areas, err := ReadRegistry(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !areas[0].LLMConfig || areas[1].LLMConfig {
+		t.Errorf("LLMConfig = %v, %v; want true, false", areas[0].LLMConfig, areas[1].LLMConfig)
+	}
+	writeRegistry(t, dir, "[[area]]\nscope = \"x\"\npath = \"/x\"\nllm_config = \"yes\"\n")
+	if _, err := ReadRegistry(dir); err == nil || !strings.Contains(err.Error(), "llm_config") {
+		t.Errorf("want an error naming llm_config, got %v", err)
+	}
+}
