@@ -31,7 +31,7 @@ func TestRunStaysSilentWhenItAllows(t *testing.T) {
 	}
 	out := &bytes.Buffer{}
 	errs := &bytes.Buffer{}
-	code := Run(bytes.NewReader(body), out, errs, state)
+	code := Run(bytes.NewReader(body), out, errs, state, "", nil)
 	if code != 0 || out.Len() != 0 || errs.Len() != 0 {
 		t.Fatalf("code %d, stdout %q, stderr %q", code, out, errs)
 	}
@@ -60,7 +60,7 @@ func TestRunPrintsTheDenyEnvelope(t *testing.T) {
 	}
 	out := &bytes.Buffer{}
 	errs := &bytes.Buffer{}
-	code := Run(bytes.NewReader(body), out, errs, state)
+	code := Run(bytes.NewReader(body), out, errs, state, "", nil)
 	if code != blockingExit {
 		t.Fatalf("a refusal must block, got %d", code)
 	}
@@ -95,7 +95,7 @@ func TestTheEnvelopeCarriesTheHostSpecificHalf(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := &bytes.Buffer{}
-	Run(bytes.NewReader(body), out, &bytes.Buffer{}, state)
+	Run(bytes.NewReader(body), out, &bytes.Buffer{}, state, "", nil)
 	envelope := map[string]any{}
 	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
@@ -118,11 +118,54 @@ func TestTheEnvelopeCarriesTheHostSpecificHalf(t *testing.T) {
 	}
 }
 
+// A note follows the reason after a blank line, and is asked for only when
+// there is a refusal to carry it.
+func TestRunAppendsTheNoteToARefusalOnly(t *testing.T) {
+	tmp := t.TempDir()
+	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
+	asked := 0
+	note := func() string { asked++; return "a note" }
+	allowed, err := json.Marshal(writeCall(filepath.Join(tmp, "vault", "demo", "x.md")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := Run(bytes.NewReader(allowed), &bytes.Buffer{}, &bytes.Buffer{}, state, "", note); code != 0 || asked != 0 {
+		t.Fatalf("code %d, note asked %d times", code, asked)
+	}
+	refused, err := json.Marshal(writeCall(filepath.Join(tmp, "repo", "a.py")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	errs := &bytes.Buffer{}
+	if code := Run(bytes.NewReader(refused), &bytes.Buffer{}, errs, state, "", note); code != blockingExit || !strings.Contains(errs.String(), "lies outside every writable tree") || !strings.HasSuffix(errs.String(), "\n\na note\n") {
+		t.Fatalf("code %d, stderr %q", code, errs)
+	}
+	errs.Reset()
+	if Run(bytes.NewReader(refused), &bytes.Buffer{}, errs, state, "", func() string { return "" }); strings.HasSuffix(errs.String(), "\n\n") {
+		t.Fatalf("an empty note left a blank line: %q", errs)
+	}
+}
+
+// A note that breaks leaves a refusal, not a crash the host reads as 1.
+func TestANoteThatPanicsStillRefuses(t *testing.T) {
+	tmp := t.TempDir()
+	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
+	refused, err := json.Marshal(writeCall(filepath.Join(tmp, "repo", "a.py")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	errs := &bytes.Buffer{}
+	code := Run(bytes.NewReader(refused), &bytes.Buffer{}, errs, state, "", func() string { panic("note broke") })
+	if code != blockingExit || !strings.Contains(errs.String(), "loomux broke down, so it refuses: note broke") {
+		t.Fatalf("code %d, stderr %q", code, errs)
+	}
+}
+
 func TestRunRefusesBrokenJSON(t *testing.T) {
 	tmp := t.TempDir()
 	state := registryOf(t, tmp, filepath.Join(tmp, "vault", "demo"))
 	out := &bytes.Buffer{}
-	code := Run(strings.NewReader("{not json"), out, &bytes.Buffer{}, state)
+	code := Run(strings.NewReader("{not json"), out, &bytes.Buffer{}, state, "", nil)
 	if code != blockingExit {
 		t.Fatalf("got %d", code)
 	}
@@ -149,7 +192,7 @@ func TestRunRefusesAPayloadThatIsNotAnObject(t *testing.T) {
 		"[1, 2]": "list",
 	} {
 		out := &bytes.Buffer{}
-		code := Run(strings.NewReader(body), out, &bytes.Buffer{}, "")
+		code := Run(strings.NewReader(body), out, &bytes.Buffer{}, "", "", nil)
 		if code != blockingExit {
 			t.Fatalf("%s: got %d", body, code)
 		}
@@ -165,7 +208,7 @@ func TestRunRefusesTrailingData(t *testing.T) {
 	// error; a decoder that stopped at the first value would judge half a
 	// payload and say nothing about the rest.
 	out := &bytes.Buffer{}
-	code := Run(strings.NewReader("{} {}"), out, &bytes.Buffer{}, "")
+	code := Run(strings.NewReader("{} {}"), out, &bytes.Buffer{}, "", "", nil)
 	if code != blockingExit {
 		t.Fatalf("got %d", code)
 	}
@@ -184,7 +227,7 @@ func TestRunAcceptsWhitespaceAroundThePayload(t *testing.T) {
 	}
 	out := &bytes.Buffer{}
 	code := Run(strings.NewReader("\n "+string(body)+" \n"), out,
-		&bytes.Buffer{}, state)
+		&bytes.Buffer{}, state, "", nil)
 	if code != 0 || out.Len() != 0 {
 		t.Fatalf("code %d, stdout %q", code, out)
 	}
@@ -211,7 +254,7 @@ func TestRunFallsBackToTheBlockingExitCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	errs := &bytes.Buffer{}
-	code := Run(bytes.NewReader(body), failing{}, errs, state)
+	code := Run(bytes.NewReader(body), failing{}, errs, state, "", nil)
 	if code != 2 {
 		t.Fatalf("a dead pipe must block, got %d", code)
 	}
@@ -228,7 +271,7 @@ func TestAShortWriteBlocksToo(t *testing.T) {
 		t.Fatal(err)
 	}
 	if code := Run(bytes.NewReader(body), short{}, &bytes.Buffer{},
-		state); code != 2 {
+		state, "", nil); code != 2 {
 		t.Fatalf("got %d", code)
 	}
 }
@@ -241,7 +284,7 @@ func TestAStderrThatIsGoneTooStillBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if code := Run(bytes.NewReader(body), failing{}, failing{},
-		state); code != 2 {
+		state, "", nil); code != 2 {
 		t.Fatalf("got %d", code)
 	}
 }
@@ -256,7 +299,7 @@ func (brokenReader) Read([]byte) (int, error) {
 
 func TestRunRefusesAStdinThatCannotBeRead(t *testing.T) {
 	out := &bytes.Buffer{}
-	code := Run(brokenReader{}, out, &bytes.Buffer{}, "")
+	code := Run(brokenReader{}, out, &bytes.Buffer{}, "", "", nil)
 	if code != blockingExit {
 		t.Fatalf("got %d", code)
 	}
@@ -328,7 +371,7 @@ func TestNoArmEverLeavesWithOne(t *testing.T) {
 			&bytes.Buffer{}},
 	}
 	for _, arm := range arms {
-		code := Run(arm.stdin, arm.stdout, arm.stderr, arm.state)
+		code := Run(arm.stdin, arm.stdout, arm.stderr, arm.state, "", nil)
 		if code != 0 && code != 2 {
 			t.Fatalf("%s left with %d", arm.name, code)
 		}
@@ -351,7 +394,7 @@ func TestABrokenPayloadIsNamedAsBrokenAndNotAsTheWrongShape(t *testing.T) {
 	// excuse, and went with them in 6bceba4. Nothing compares the wordings
 	// now, so this test is the only thing keeping this one honest.
 	out := &bytes.Buffer{}
-	Run(strings.NewReader("{oops"), out, &bytes.Buffer{}, "")
+	Run(strings.NewReader("{oops"), out, &bytes.Buffer{}, "", "", nil)
 	said := out.String()
 	if !strings.Contains(said, "invalid character") {
 		t.Fatalf("the decoder's own complaint is missing: %q", said)
@@ -408,7 +451,7 @@ func TestEveryRefusalBlocksAndEveryAllowancePasses(t *testing.T) {
 	for _, arm := range blocking {
 		out := &bytes.Buffer{}
 		errs := &bytes.Buffer{}
-		if code := Run(arm.stdin, out, errs, arm.state); code != blockingExit {
+		if code := Run(arm.stdin, out, errs, arm.state, "", nil); code != blockingExit {
 			t.Errorf("%s: left with %d, want %d", arm.name, code, blockingExit)
 		}
 		// Whichever channel the host reads, it must find a reason there.
@@ -421,7 +464,7 @@ func TestEveryRefusalBlocksAndEveryAllowancePasses(t *testing.T) {
 	// an allowed write leaves with 0 and says nothing at all.
 	out := &bytes.Buffer{}
 	errs := &bytes.Buffer{}
-	if code := Run(bytes.NewReader(allowed), out, errs, good); code != 0 {
+	if code := Run(bytes.NewReader(allowed), out, errs, good, "", nil); code != 0 {
 		t.Errorf("an allowed write left with %d, want 0", code)
 	}
 	if out.Len() != 0 || errs.Len() != 0 {

@@ -2,7 +2,9 @@ package hooks
 
 import (
 	"bytes"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -23,6 +25,223 @@ func world(t *testing.T, config string) (root, state string) {
 	registry := "[[area]]\nscope = \"project/x\"\npath = " + quote(root) + "\nwiki = " + quote(filepath.Join(root, "docs", "wiki")) + "\nworkspace = true\n"
 	os.WriteFile(filepath.Join(state, "registry.toml"), []byte(registry), 0o644)
 	return root, state
+}
+
+// switchWorld is world with the area's llm_config switch on.
+func switchWorld(t *testing.T) (root, state string) {
+	t.Helper()
+	root, state = world(t, "")
+	registry, err := os.ReadFile(filepath.Join(state, "registry.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(state, "registry.toml"), append(registry, "llm_config = true\n"...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root, state
+}
+
+// Every refusal in a project whose switch is on ends by saying so, the
+// policy's and the barrier's alike; with the switch off, none does.
+func TestARefusalSaysTheSwitchIsOn(t *testing.T) {
+	const want = "llm_config is on for this project: agents may edit .loomux/config.toml (turn it off with loomux config llm off)\n"
+	refused := func(root string) []string {
+		return []string{
+			payload("Write", "file_path", filepath.Join(root, ".env")),
+			payload("Write", "file_path", filepath.Join(t.TempDir(), "elsewhere.md")),
+		}
+	}
+	root, state := switchWorld(t)
+	for _, input := range refused(root) {
+		if code, out, errOut := call(t, root, state, input); code != 2 || !strings.HasSuffix(errOut, "\n\n"+want) || !strings.Contains(out, "llm_config is on") {
+			t.Errorf("%s, switch on: code %d, err %q", input, code, errOut)
+		}
+	}
+	root, state = world(t, "")
+	for _, input := range refused(root) {
+		if code, _, errOut := call(t, root, state, input); code != 2 || strings.Contains(errOut, "llm_config") {
+			t.Errorf("%s, switch off: code %d, err %q", input, code, errOut)
+		}
+	}
+}
+
+// With the switch on, the project's own manifest passes both steps.
+func TestTheOwnManifestPassesWhenTheSwitchIsOn(t *testing.T) {
+	root, state := switchWorld(t)
+	if code, _, errOut := call(t, root, state, payload("Edit", "file_path", filepath.Join(root, ".loomux", "config.toml"))); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+}
+
+// registerArea adds an area with its switch off at dir, with a manifest of
+// its own, to the registry of state.
+func registerArea(t *testing.T, state, scope, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".loomux", "config.toml"), []byte(foreignText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(filepath.Join(state, "registry.toml"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.WriteString("\n[[area]]\nscope = \"" + scope + "\"\npath = " + quote(dir) + "\nworkspace = true\n")
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// shellAt is a Bash call of line from a shell standing in cwd; "" sends no cwd.
+func shellAt(line, cwd string) string {
+	if cwd == "" {
+		return `{"tool_name":"Bash","tool_input":{"command":"` + line + `"}}`
+	}
+	return `{"tool_name":"Bash","cwd":` + quote(cwd) + `,"tool_input":{"command":"` + line + `"}}`
+}
+
+// The hook judges for the root it was installed with, while a shell keeps
+// the directory it moved to. After a cd into another project -- nested or
+// beside -- a config set and a relative redirect would land in that
+// project's manifest, so the root's switch does not open them there; nor
+// does it when the call does not say where the shell stands.
+func TestTheSwitchOpensTheShellOnlyAtTheRoot(t *testing.T) {
+	const set = "loomux config set guard.mode off --yes"
+	const redirect = "echo x > .loomux/config.toml"
+	root, state := switchWorld(t)
+	nested := filepath.Join(root, "sub", "C")
+	beside := t.TempDir()
+	registerArea(t, state, "project/nested", nested)
+	registerArea(t, state, "project/beside", beside)
+	for _, cwd := range []string{nested, beside, ""} {
+		if code, _, errOut := call(t, root, state, shellAt(set, cwd)); code != 2 || !strings.Contains(errOut, "a human runs them") {
+			t.Errorf("config set in %q: code %d, err %q", cwd, code, errOut)
+		}
+		if code, _, errOut := call(t, root, state, shellAt(redirect, cwd)); code != 2 || !strings.Contains(errOut, manifestReason) {
+			t.Errorf("redirect in %q: code %d, err %q", cwd, code, errOut)
+		}
+	}
+	for _, line := range []string{set, redirect} {
+		if code, _, errOut := call(t, root, state, shellAt(line, root)); code != 0 {
+			t.Errorf("%q at the root: code %d, err %q", line, code, errOut)
+		}
+	}
+	// A writing tool names its file in full, so where the shell stands
+	// does not matter to it.
+	edit := `{"tool_name":"Edit","cwd":` + quote(nested) + `,"tool_input":{"file_path":` + quote(filepath.Join(root, ".loomux", "config.toml")) + `}}`
+	if code, _, errOut := call(t, root, state, edit); code != 0 {
+		t.Errorf("Edit from %q: code %d, err %q", nested, code, errOut)
+	}
+}
+
+// Another area's switch opens nothing in this project: with the root's
+// switch off, a path inside it that a link leads to a switched-on area's
+// manifest stays shut.
+func TestAnotherAreasSwitchOpensNothingHere(t *testing.T) {
+	root, state := world(t, "")
+	other := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(other, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(filepath.Join(state, "registry.toml"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.WriteString("\n[[area]]\nscope = \"project/other\"\npath = " + quote(other) + "\nworkspace = true\nllm_config = true\n")
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "lnk")
+	if err := os.Symlink(filepath.Join(other, ".loomux"), link); err != nil {
+		if out, junction := exec.Command("cmd", "/c", "mklink", "/J", link, filepath.Join(other, ".loomux")).CombinedOutput(); junction != nil {
+			t.Skipf("no such link here: %v (%s)", junction, out)
+		}
+	}
+	for _, path := range []string{filepath.Join(link, "config.toml"), filepath.Join(other, ".loomux", "config.toml")} {
+		if code, _, errOut := call(t, root, state, payload("Write", "file_path", path)); code != 2 || !strings.Contains(errOut, "the manifest is where the barrier reads its own limits") {
+			t.Errorf("%s: code %d, err %q", path, code, errOut)
+		}
+	}
+}
+
+// linkedWorld is switchWorld whose manifest at the root is reached through a
+// link that link makes to the manifest of a second, registered area with
+// the switch off; it answers that manifest. A link the OS refuses skips.
+func linkedWorld(t *testing.T, link func(foreign, root string) error) (root, state, foreign string) {
+	t.Helper()
+	root, state = switchWorld(t)
+	other := t.TempDir()
+	foreign = filepath.Join(other, ".loomux", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(foreign), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(foreign, []byte(foreignText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(filepath.Join(state, "registry.toml"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.WriteString("\n[[area]]\nscope = \"project/other\"\npath = " + quote(other) + "\nwiki = " + quote(filepath.Join(other, "docs", "wiki")) + "\nworkspace = true\n")
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := link(foreign, root); err != nil {
+		t.Skipf("no such link here: %v", err)
+	}
+	return root, state, foreign
+}
+
+const foreignText = "[commit]\nlanguage = \"en\"\n"
+
+// linkFile makes the root's .loomux/config.toml a symlink to foreign.
+func linkFile(foreign, root string) error {
+	if err := os.MkdirAll(filepath.Join(root, ".loomux"), 0o755); err != nil {
+		return err
+	}
+	return os.Symlink(foreign, filepath.Join(root, ".loomux", "config.toml"))
+}
+
+// linkFolder makes the root's .loomux a link to foreign's folder: a symlink
+// where the OS allows one, otherwise a Windows junction, which needs no
+// privilege.
+func linkFolder(foreign, root string) error {
+	link := filepath.Join(root, ".loomux")
+	err := os.Symlink(filepath.Dir(foreign), link)
+	if err != nil && filepath.Separator == '\\' {
+		if out, junction := exec.Command("cmd", "/c", "mklink", "/J", link, filepath.Dir(foreign)).CombinedOutput(); junction != nil {
+			return fmt.Errorf("%v (%s)", junction, out)
+		}
+		return nil
+	}
+	return err
+}
+
+// Through a link the manifest at the root is another area's: with this
+// project's switch on, the write is refused all the same, and so is the
+// config set, which would land in that file. No note says agents may edit
+// the manifest, since here they may not.
+func TestALinkedManifestStaysShutWhenTheSwitchIsOn(t *testing.T) {
+	for name, link := range map[string]func(string, string) error{"file": linkFile, "folder": linkFolder} {
+		t.Run(name, func(t *testing.T) {
+			root, state, foreign := linkedWorld(t, link)
+			code, _, errOut := call(t, root, state, payload("Write", "file_path", filepath.Join(root, ".loomux", "config.toml")))
+			if code != 2 || !strings.Contains(errOut, "the manifest is where the barrier reads its own limits") || strings.Contains(errOut, "llm_config is on") {
+				t.Errorf("Write: code %d, err %q", code, errOut)
+			}
+			code, _, errOut = call(t, root, state, shellAt("loomux config set commit.language de --yes", root))
+			if code != 2 || !strings.Contains(errOut, "a human runs them") || strings.Contains(errOut, "llm_config is on") {
+				t.Errorf("config set: code %d, err %q", code, errOut)
+			}
+			if data, err := os.ReadFile(foreign); err != nil || string(data) != foreignText {
+				t.Errorf("the linked file changed: %q %v", data, err)
+			}
+		})
+	}
 }
 
 func quote(path string) string { return `"` + filepath.ToSlash(path) + `"` }
@@ -171,7 +390,7 @@ func TestAGuardModeTheReaderRefusesRefusesTheCall(t *testing.T) {
 	root := project(t)
 	manifest(t, root, "[guard]\nmode = \"hard\"\n")
 	payload := map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": "git status"}}
-	if _, err := policyReasons(payload, root); err == nil || !strings.Contains(err.Error(), "[guard] mode must be one of") {
+	if _, err := policyReasons(payload, root, switchOff, switchOff); err == nil || !strings.Contains(err.Error(), "[guard] mode must be one of") {
 		t.Fatalf("err %v", err)
 	}
 }

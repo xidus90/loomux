@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/xidus90/loomux/internal/brain/guard"
 	"github.com/xidus90/loomux/internal/config"
@@ -30,22 +31,50 @@ func PreToolUse(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string
 	// arrives as nil.
 	var object map[string]any
 	_ = json.Unmarshal(data, &object)
-	reasons, err := policyReasons(object, root)
+	// The switch is read from the registry at most once, and only by a call
+	// that needs it; an area it cannot find or read keeps it off. It opens
+	// the manifest only where no link leads it to another file, and the
+	// note says so only then.
+	open := sync.OnceValue(func() bool {
+		_, on, err := guard.AreaAt(root, stateDir)
+		return err == nil && on && guard.ManifestUnlinked(root)
+	})
+	note := func() string {
+		if open() {
+			return llmConfigNote
+		}
+		return ""
+	}
+	// The hook is installed for one root, while a shell keeps whatever
+	// directory it moved to; the host says which in cwd, and a call that
+	// does not say counts as standing elsewhere.
+	cwd, _ := object["cwd"].(string)
+	here := sync.OnceValue(func() bool { return guard.AtRoot(cwd, root) })
+	reasons, err := policyReasons(object, root, open, here)
 	if err != nil {
 		return guard.Refuse(stdout, stderr, fmt.Sprintf("loomux cannot read its policy, so it refuses: %v", err))
 	}
 	if len(reasons) > 0 {
-		return guard.Refuse(stdout, stderr, "loomux policy refused this tool call:\n  - "+strings.Join(reasons, "\n  - "))
+		reason := "loomux policy refused this tool call:\n  - " + strings.Join(reasons, "\n  - ")
+		if n := note(); n != "" {
+			reason += "\n\n" + n
+		}
+		return guard.Refuse(stdout, stderr, reason)
 	}
-	return guard.Run(bytes.NewReader(data), stdout, stderr, stateDir)
+	return guard.Run(bytes.NewReader(data), stdout, stderr, stateDir, root, note)
 }
+
+// llmConfigNote ends every refusal in a project whose llm_config switch
+// opens its manifest, so that a human reading it knows the agent may change
+// the limits.
+const llmConfigNote = "llm_config is on for this project: agents may edit .loomux/config.toml (turn it off with loomux config llm off)"
 
 // policyReasons judges the call against the policy. A payload that did not
 // decode arrives as nil and yields no reasons: refusing it is the barrier's
 // job, with the barrier's wording, one step later. An object that names no
 // tool is refused here, before the policy file is read: no rule can be
 // matched against it, and a call nobody judged does not pass.
-func policyReasons(object map[string]any, root string) ([]string, error) {
+func policyReasons(object map[string]any, root string, open, here func() bool) ([]string, error) {
 	if object == nil {
 		return nil, nil
 	}
@@ -57,5 +86,5 @@ func policyReasons(object map[string]any, root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return checkTool(root, tool, input, policy), nil
+	return checkToolOpen(root, tool, input, policy, open, here), nil
 }

@@ -28,11 +28,11 @@ func BenchmarkDecideAgainstTheRealRegistry(b *testing.B) {
 	// A refusal that names the registry itself would measure the error
 	// path instead of the decision -- the numbers would be honest about
 	// nothing.
-	if reason, refused := Decide(payload, stateDir); refused &&
+	if reason, refused := Decide(payload, stateDir, ""); refused &&
 		strings.Contains(reason, "registry.toml") {
 		b.Fatalf("the registry was not read: %s", reason)
 	}
 	for b.Loop() {
-		Decide(payload, stateDir)
+		Decide(payload, stateDir, "")
 	}
 }

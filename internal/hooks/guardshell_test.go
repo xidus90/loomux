@@ -452,3 +452,122 @@ func TestBelowFindsTheFolderAboveAKeptPath(t *testing.T) {
 		t.Fatal("literalPrefix")
 	}
 }
+
+// Removing .loomux takes more than the manifest with it, switch or not.
+func TestRemovingLoomuxStaysRefused(t *testing.T) {
+	root := t.TempDir()
+	for tool, line := range map[string]string{"Bash": "rm -rf .loomux", "PowerShell": "Remove-Item .loomux -Recurse"} {
+		if got := checkToolOpen(root, tool, map[string]any{"command": line}, config.Policy{}, switchOn, atRoot); len(got) == 0 {
+			t.Errorf("%s: passes with the switch on", line)
+		}
+	}
+}
+
+// ownConfigLines edit the project's own config and nothing else.
+var ownConfigLines = []string{
+	"loomux config set model.enabled true --yes",
+	"loomux config unset flow.default --yes",
+}
+
+func TestEditsOwnConfig(t *testing.T) {
+	for _, line := range ownConfigLines {
+		if !editsOwnConfig(line) {
+			t.Errorf("%q: false, want true", line)
+		}
+	}
+	for _, line := range []string{
+		"loomux config set model.enabled true",
+		"loomux config set model.enabled true --yes --root x",
+		"loomux config set model.enabled true --yes --root=x",
+		"loomux config --root x set model.enabled true --yes",
+		"loomux config set model.enabled true --yes --global",
+		"loomux config set model.enabled true --yes -global",
+		"loomux config set model.enabled true --yes --propose",
+		"loomux config set model.enabled true --yes=false",
+		"loomux config set model.enabled true --yes && loomux init",
+		"loomux config set model.enabled true --yes; loomux init",
+		"loomux config set model.enabled true --yes | tee x",
+		"loomux config set model.enabled true --yes <<EOF\nx\nEOF",
+		"loomux config unset a --yes <<<x",
+		"loomux config unset a --yes > out",
+		"loomux config unset a --yes #x",
+		"loomux config unset 'a'' '--global --yes",
+		"loomux config set a b c --yes",
+		"loomux config set --yes",
+		"loomux config set a $(loomux init) --yes",
+		"loomux config llm on",
+		"loomux config apply --all --yes",
+		"loomux area add x --yes",
+		"git config set a b --yes",
+		"loomux",
+		"loomux config set k --yes\rcalc",
+		"loomux config set k --yes\nloomux init",
+		"env loomux config set k v --yes",
+		"cmd /c loomux config set k v --yes",
+		`pwsh -c "loomux config set k v --yes"`,
+		"sudo loomux config set k v --yes",
+	} {
+		if editsOwnConfig(line) {
+			t.Errorf("%q: true, want false", line)
+		}
+	}
+}
+
+func TestConfigSetPassesOnlyWhenTheSwitchIsOn(t *testing.T) {
+	root := t.TempDir()
+	for _, line := range ownConfigLines {
+		input := map[string]any{"command": line}
+		if got := shellReasonsOpen(t, root, line, switchOn, atRoot); len(got) != 0 {
+			t.Errorf("%q, switch on: reasons %q, want none", line, got)
+		}
+		if got := checkToolOpen(root, "Bash", input, config.Policy{}, switchOff, atRoot); !slices.Equal(got, []string{configurationReason}) {
+			t.Errorf("%q, switch off: reasons %q, want the configuration's", line, got)
+		}
+		if got := shellReasonsOpen(t, root, line, switchOn, elsewhere); !slices.Equal(got, []string{configurationReason}) {
+			t.Errorf("%q, switch on away from the root: reasons %q, want the configuration's", line, got)
+		}
+	}
+	if got := shellReasonsOpen(t, root, "loomux config set a b --yes && loomux config llm on", switchOn, atRoot); !slices.Contains(got, configurationReason) {
+		t.Errorf("switch on: reasons %q, want the configuration's", got)
+	}
+}
+
+// A shell writes the manifest by its relative path only while it stands at
+// the root: anywhere else the same spelling names another project's file.
+func TestARelativeManifestWriteNeedsTheShellAtTheRoot(t *testing.T) {
+	root := t.TempDir()
+	for _, line := range []string{"echo x > .loomux/config.toml", "cp x .loomux/config.toml"} {
+		if got := shellReasonsOpen(t, root, line, switchOn, atRoot); len(got) != 0 {
+			t.Errorf("%q at the root: reasons %q, want none", line, got)
+		}
+		if got := shellReasonsOpen(t, root, line, switchOn, elsewhere); !slices.Equal(got, []string{manifestReason}) {
+			t.Errorf("%q away from the root: reasons %q, want the manifest's", line, got)
+		}
+	}
+}
+
+// shellReasonsOpen is shellReasons under the switch open answers, in a shell
+// whose working directory here says is the root or not.
+func shellReasonsOpen(t *testing.T, root, line string, open, here func() bool) []string {
+	t.Helper()
+	bash := checkToolOpen(root, "Bash", map[string]any{"command": line}, config.Policy{}, open, here)
+	if power := checkToolOpen(root, "PowerShell", map[string]any{"command": line}, config.Policy{}, open, here); !slices.Equal(bash, power) {
+		t.Errorf("%q: Bash %q, PowerShell %q", line, bash, power)
+	}
+	return bash
+}
+
+// config llm on|off is a human's, switch open or not; the bare form reads.
+func TestTheGuardRefusesConfigLLMOnAndOff(t *testing.T) {
+	root := t.TempDir()
+	for _, open := range []bool{false, true} {
+		for _, line := range []string{"loomux config llm on", "loomux config llm off"} {
+			if got := shellReasonsOpen(t, root, line, func() bool { return open }, atRoot); len(got) == 0 {
+				t.Errorf("%q (open=%v) passed", line, open)
+			}
+		}
+		if got := shellReasonsOpen(t, root, "loomux config llm", func() bool { return open }, atRoot); len(got) != 0 {
+			t.Errorf("bare read refused (open=%v): %q", open, got)
+		}
+	}
+}

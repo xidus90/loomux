@@ -25,11 +25,15 @@ type judge struct {
 	base     func() (string, error)
 	elements func() []string
 	listings map[string]walked
+	open     func() bool
+	here     func() bool
 }
 
-// newJudge is the judge of one call at root.
-func newJudge(root string, policy config.Policy) judge {
-	j := judge{root: root, policy: policy, flows: sync.OnceValues(func() ([]string, error) {
+// newJudge is the judge of one call at root, in a project whose llm_config
+// switch open answers, for a shell whose working directory here says is the
+// root.
+func newJudge(root string, policy config.Policy, open, here func() bool) judge {
+	j := judge{root: root, policy: policy, open: open, here: here, flows: sync.OnceValues(func() ([]string, error) {
 		return protectedFlows(root)
 	}), base: sync.OnceValues(func() (string, error) {
 		return guard.ResolvePath(root)
@@ -59,7 +63,7 @@ func (j judge) reasons(targets []shellTarget) []string {
 				reasons = append(reasons, j.filteredReasons(rel, target, maxListed)...)
 				continue
 			}
-			reasons = append(reasons, j.judgePath(rel, target.removes)...)
+			reasons = append(reasons, j.judgePath(rel, target)...)
 		}
 	}
 	return reasons
@@ -101,13 +105,14 @@ const maxListed = 50000
 // filteredReasons judges a removal of rel that the target's name filters
 // narrow: each path on disk it takes, or rel whole past limit entries.
 func (j judge) filteredReasons(rel string, target shellTarget, limit int) []string {
+	target.removes = true
 	hits, ok := j.listing(rel, target, limit)
 	if !ok {
-		return j.judgePath(rel, true)
+		return j.judgePath(rel, target)
 	}
 	var reasons []string
 	for _, hit := range hits {
-		reasons = append(reasons, j.judgePath(hit, true)...)
+		reasons = append(reasons, j.judgePath(hit, target)...)
 	}
 	return reasons
 }
@@ -157,15 +162,32 @@ func (j judge) listing(rel string, target shellTarget, limit int) ([]string, boo
 // judgePath judges one path relative to the root: loomux's own rules in any
 // case -- Windows and macOS keep .LOOMUX/State/hooks and .loomux/state/hooks
 // as one folder -- the project's as the project spelled them, the protected
-// flow folders, and for a removal what it takes with it.
-func (j judge) judgePath(rel string, removes bool) []string {
+// flow folders, and for a removal what it takes with it. The manifest at the
+// root, in that spelling up to case, is open while the project's llm_config
+// switch is on and target reaches it (opens); every other rule on it still
+// holds.
+func (j judge) judgePath(rel string, target shellTarget) []string {
 	reasons := pathReasons(builtinPathRules, rel, true)
+	if strings.EqualFold(rel, ".loomux/config.toml") && j.opens(target) {
+		reasons = slices.DeleteFunc(reasons, func(r string) bool { return r == manifestReason })
+	}
 	reasons = append(reasons, pathReasons(j.policy.Paths, rel, false)...)
 	reasons = append(reasons, flowFolderReasons(rel, j.flows)...)
-	if removes {
+	if target.removes {
 		reasons = append(reasons, j.ancestorReasons(rel)...)
 	}
 	return reasons
+}
+
+// opens says whether the switch opens the root's manifest to target. A shell
+// spells its path from where it stands, so only a shell standing at the root
+// reaches it; a writing tool reaches it only by a full path that resolves to
+// it, so that neither a relative path nor a link into another project counts.
+func (j judge) opens(target shellTarget) bool {
+	if target.shell {
+		return j.here() && j.open()
+	}
+	return guard.OwnManifest(target.path, j.root) && j.open()
 }
 
 // ancestorReasons judges a removal of rel by what lies below it: .loomux
@@ -340,7 +362,7 @@ func (j judge) unknownReaches(base, word string) (bool, error) {
 	target := under(base, []shellTarget{{path: word, removes: true, shell: true}})[0]
 	rels, err := j.rels(target)
 	for _, rel := range rels {
-		if rel != "." && len(j.judgePath(rel, true)) > 0 {
+		if rel != "." && len(j.judgePath(rel, target)) > 0 {
 			return true, nil
 		}
 	}
