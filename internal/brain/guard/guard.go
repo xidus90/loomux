@@ -414,7 +414,10 @@ func parents(path string) []string {
 // skill has to put its suggestion somewhere, and the review centre lives in
 // the vault rather than in a bundle. It is granted by file name, not by depth,
 // because a scope may carry slashes.
-func Decide(payload map[string]any, stateDir string) (string, bool) {
+//
+// root is the project root the hook runs for. Its own manifest is the only
+// one an llm_config switch can open; "" opens none.
+func Decide(payload map[string]any, stateDir, root string) (string, bool) {
 	toolName, args := Call(payload)
 	if !IsWritingTool(toolName) {
 		return "", false
@@ -438,12 +441,17 @@ func Decide(payload map[string]any, stateDir string) (string, bool) {
 		}
 		resolved[i] = place
 	}
-	// Before the registry and before any manifest is read, because
-	// `declaredWikiRoot` reads manifests up the tree and a broken one
-	// anywhere above would answer this call with the registry's complaint
-	// instead. Both refuse, so nothing was ever open -- but the reason
-	// would have named the wrong file.
-	if named := pick(resolved, isManifest); named != "" {
+	// Before any other manifest is read, because `declaredWikiRoot` reads
+	// manifests up the tree and a broken one anywhere above would answer
+	// this call with the registry's complaint instead. Both refuse, so
+	// nothing was ever open -- but the reason would have named the wrong
+	// file. The hook root's own manifest under its llm_config switch is the one
+	// exception; it reads the registry only for a manifest target, and any
+	// failure there leaves the manifest shut. The steps below still decide
+	// whether the tree it lies in may be written at all.
+	if named := pick(resolved, func(path string) bool {
+		return isManifest(path) && !ownManifest(path, root, stateDir)
+	}); named != "" {
 		return named + ": the manifest is where the barrier reads its " +
 			"own limits, so no writing tool may touch it", true
 	}

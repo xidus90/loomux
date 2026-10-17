@@ -1,8 +1,10 @@
 package hooks
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -1234,5 +1236,79 @@ func TestAPolicyRuleNamingADotDotDirectoryRefusesAWriteInIt(t *testing.T) {
 	reasons := checkTool(root, "Write", map[string]any{"file_path": target}, policy)
 	if len(reasons) != 1 || reasons[0] != "secrets are protected" {
 		t.Fatalf("reasons %v", reasons)
+	}
+}
+
+// switchOff and switchOn stand for the area's llm_config switch; atRoot and
+// elsewhere for whether the shell's working directory is the root.
+func switchOff() bool { return false }
+func switchOn() bool  { return true }
+func atRoot() bool    { return true }
+func elsewhere() bool { return false }
+
+// With the switch on, a writing tool reaches the project's own manifest by
+// its full path, wherever the shell stands; with it off, the manifest stays
+// shut as before. A relative path names no file a writing tool can be held
+// to, so it stays shut too.
+func TestTheOwnManifestIsOpenWhenTheSwitchIsOn(t *testing.T) {
+	root := t.TempDir()
+	open := []string{filepath.Join(root, ".loomux", "config.toml")}
+	if runtime.GOOS == "windows" {
+		open = append(open, filepath.Join(root, ".LOOMUX", "Config.toml"))
+	}
+	for _, tool := range []string{"Write", "Edit"} {
+		for _, path := range open {
+			input := map[string]any{"file_path": path}
+			if got := checkToolOpen(root, tool, input, config.Policy{}, switchOn, elsewhere); len(got) != 0 {
+				t.Errorf("%s %s, switch on: reasons %q, want none", tool, path, got)
+			}
+			if got := checkToolOpen(root, tool, input, config.Policy{}, switchOff, atRoot); !slices.Equal(got, []string{manifestReason}) {
+				t.Errorf("%s %s, switch off: reasons %q, want the manifest's", tool, path, got)
+			}
+		}
+		for _, path := range []string{".loomux/config.toml", ".LOOMUX/Config.toml"} {
+			if got := checkToolOpen(root, tool, map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
+				t.Errorf("%s %s, switch on: reasons %q, want the manifest's", tool, path, got)
+			}
+		}
+	}
+}
+
+// A writing tool's path into the root's .loomux that a link leads to another
+// file is not the root's manifest, whatever it spells.
+func TestALinkedManifestPathStaysShutForAWritingTool(t *testing.T) {
+	root := t.TempDir()
+	other := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(other, ".loomux"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := linkFolder(filepath.Join(other, ".loomux", "config.toml"), root); err != nil {
+		t.Skipf("no such link here: %v", err)
+	}
+	path := filepath.Join(root, ".loomux", "config.toml")
+	if got := checkToolOpen(root, "Write", map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
+		t.Errorf("reasons %q, want the manifest's", got)
+	}
+}
+
+// The switch opens the manifest at the root and no other.
+func TestAForeignManifestStaysShut(t *testing.T) {
+	root := t.TempDir()
+	for _, path := range []string{"../other/.loomux/config.toml", "sub/.loomux/config.toml"} {
+		if got := checkToolOpen(root, "Write", map[string]any{"file_path": path}, config.Policy{}, switchOn, atRoot); !slices.Equal(got, []string{manifestReason}) {
+			t.Errorf("%s: reasons %q, want the manifest's", path, got)
+		}
+	}
+}
+
+// An ordinary call does not read the switch: reading it costs the registry.
+func TestTheSwitchIsNotReadForAnOrdinaryCall(t *testing.T) {
+	root := t.TempDir()
+	asked := 0
+	counted := func() bool { asked++; return true }
+	checkToolOpen(root, "Write", map[string]any{"file_path": "src/a.go"}, config.Policy{}, counted, counted)
+	checkToolOpen(root, "Bash", map[string]any{"command": "git status"}, config.Policy{}, counted, counted)
+	if asked != 0 {
+		t.Fatalf("the switch was read %d times", asked)
 	}
 }

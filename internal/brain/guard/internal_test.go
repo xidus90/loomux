@@ -498,7 +498,7 @@ func TestABrokenPayloadCannotSlipThroughAPanic(t *testing.T) {
 		"{\"file_path\": \"" + posix(
 		filepath.Join(planted, "w", "x.md")) + "\"}}"
 	out := &strings.Builder{}
-	code := Run(strings.NewReader(payload), out, &strings.Builder{}, state)
+	code := Run(strings.NewReader(payload), out, &strings.Builder{}, state, "", nil)
 	if code != blockingExit {
 		t.Fatalf("got %d", code)
 	}

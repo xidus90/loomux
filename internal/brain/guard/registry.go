@@ -16,6 +16,7 @@ type area struct {
 	wikiPath  string
 	readOnly  bool
 	workspace bool
+	llmConfig bool
 }
 
 // readRegistry reads the registry through config, which brain reads it
@@ -35,6 +36,7 @@ func readRegistry(stateDir string) ([]area, error) {
 			wikiPath:  entry.WikiPath,
 			readOnly:  entry.ReadOnly,
 			workspace: entry.Workspace,
+			llmConfig: entry.LLMConfig,
 		})
 	}
 	for _, registered := range areas {

@@ -47,8 +47,14 @@ const unreadable = "loomux cannot read the hook payload, so it refuses"
 // object to parse, and half a deny is not a deny. A short write counts as
 // a failure for the same reason -- an unchecked Go `Write` would report
 // success having delivered half.
-func Run(stdin io.Reader, stdout, stderr io.Writer, stateDir string) int {
-	reason, refuse := answer(stdin, stateDir)
+//
+// root is the hook's project root, which Decide is handed.
+//
+// A note the caller hands in follows a refusal's reason after a blank line.
+// It is asked for only once there is a refusal, since answering it may cost
+// what an allowed call should not pay; nil and "" add nothing.
+func Run(stdin io.Reader, stdout, stderr io.Writer, stateDir, root string, note func() string) int {
+	reason, refuse := answer(stdin, stateDir, root, note)
 	if !refuse {
 		return 0
 	}
@@ -71,8 +77,9 @@ func Refuse(stdout, stderr io.Writer, reason string) int {
 // answer reaches the decision with every way out of it caught. A panic
 // anywhere below would otherwise end the process with a code the host
 // reads as "carry on", which is the one outcome a write barrier may never
-// produce by accident.
-func answer(stdin io.Reader, stateDir string) (reason string, refuse bool) {
+// produce by accident. The caller's note is asked inside the same catch, so
+// a note that breaks leaves a plain refusal.
+func answer(stdin io.Reader, stateDir, root string, note func() string) (reason string, refuse bool) {
 	defer func() {
 		if broke := recover(); broke != nil {
 			reason = fmt.Sprintf(
@@ -80,6 +87,17 @@ func answer(stdin io.Reader, stateDir string) (reason string, refuse bool) {
 			refuse = true
 		}
 	}()
+	reason, refuse = verdict(stdin, stateDir, root)
+	if refuse && note != nil {
+		if n := note(); n != "" {
+			reason += "\n\n" + n
+		}
+	}
+	return reason, refuse
+}
+
+// verdict reads the payload off stdin and decides it.
+func verdict(stdin io.Reader, stateDir, root string) (string, bool) {
 	data, err := io.ReadAll(stdin)
 	if err != nil {
 		return fmt.Sprintf(
@@ -94,7 +112,7 @@ func answer(stdin io.Reader, stateDir string) (reason string, refuse bool) {
 		return fmt.Sprintf("%s: expected an object, found %s", unreadable,
 			pythonTypeName(payload)), true
 	}
-	return Decide(object, stateDir)
+	return Decide(object, stateDir, root)
 }
 
 // decodeOnly reads exactly one JSON value and refuses anything after it.

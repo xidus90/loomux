@@ -77,15 +77,26 @@ func writeCall(path string) map[string]any {
 
 func allow(t *testing.T, payload map[string]any, state string) {
 	t.Helper()
-	reason, refused := Decide(payload, state)
+	allowAt(t, payload, state, "")
+}
+
+func deny(t *testing.T, payload map[string]any, state, want string) string {
+	t.Helper()
+	return denyAt(t, payload, state, "", want)
+}
+
+// allowAt and denyAt decide a call of a hook rooted at root.
+func allowAt(t *testing.T, payload map[string]any, state, root string) {
+	t.Helper()
+	reason, refused := Decide(payload, state, root)
 	if refused {
 		t.Fatalf("expected allowed, refused with %q", reason)
 	}
 }
 
-func deny(t *testing.T, payload map[string]any, state, want string) string {
+func denyAt(t *testing.T, payload map[string]any, state, root, want string) string {
 	t.Helper()
-	reason, refused := Decide(payload, state)
+	reason, refused := Decide(payload, state, root)
 	if !refused {
 		t.Fatal("expected a refusal, the call was allowed")
 	}

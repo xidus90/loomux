@@ -206,7 +206,7 @@ func TestAFilteredListingKeepsWhatItsPatternMatches(t *testing.T) {
 	root := t.TempDir()
 	mkfile(t, root, "a/x.orig")
 	mkfile(t, root, "a/y.orig")
-	j := newJudge(root, config.Policy{})
+	j := newJudge(root, config.Policy{}, switchOff, switchOff)
 	target := shellTarget{filters: []nameFilter{{glob: "*.orig"}}}
 	for _, rel := range []string{"a", filepath.Join(root, "a")} {
 		if got, ok := j.listing(rel, target, 10); !ok || len(got) != 2 {
@@ -216,10 +216,10 @@ func TestAFilteredListingKeepsWhatItsPatternMatches(t *testing.T) {
 	if got, ok := j.listing("missing", target, 10); !ok || len(got) != 0 {
 		t.Errorf("a missing start: %q %v", got, ok)
 	}
-	if _, ok := newJudge(root, config.Policy{}).listing("a", target, 2); ok {
+	if _, ok := newJudge(root, config.Policy{}, switchOff, switchOff).listing("a", target, 2); ok {
 		t.Error("past the limit: listed")
 	}
-	if got := newJudge(root, config.Policy{}).filteredReasons(".", target, 2); !slices.Contains(got, manifestReason) {
+	if got := newJudge(root, config.Policy{}, switchOff, switchOff).filteredReasons(".", target, 2); !slices.Contains(got, manifestReason) {
 		t.Errorf("past the limit the removal of the start: %q", got)
 	}
 	for args, want := range map[string]string{

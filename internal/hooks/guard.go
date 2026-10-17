@@ -235,9 +235,18 @@ func relativePath(raw, root string) string {
 // targets and the targets of a shell line go through the same path check; a
 // shell line is also read by the command rules and for loomux's own commands.
 func checkTool(root, tool string, input map[string]any, policy config.Policy) []string {
+	shut := func() bool { return false }
+	return checkToolOpen(root, tool, input, policy, shut, shut)
+}
+
+// checkToolOpen is checkTool in a project whose llm_config switch open
+// answers, for a shell whose working directory here says is the root. Both
+// are asked only for a call on the project's own manifest or a line that
+// edits its config, because answering reads the registry.
+func checkToolOpen(root, tool string, input map[string]any, policy config.Policy, open, here func() bool) []string {
 	var reasons []string
 	var targets []shellTarget
-	j := newJudge(root, policy)
+	j := newJudge(root, policy, open, here)
 	if guard.IsWritingTool(tool) {
 		for _, target := range guard.WriteTargets(input) {
 			targets = append(targets, shellTarget{path: target})
@@ -268,8 +277,8 @@ func checkTool(root, tool string, input map[string]any, policy config.Policy) []
 				if policy.Strict {
 					reasons = append(reasons, j.strictReasons(found, unknown)...)
 				}
-				if writesConfiguration(line, policy.Strict) {
-					reasons = append(reasons, "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, convert and fetch write into an area's inbox, which the write barrier keeps from agents, and wiki repin declares the citing pages still correct; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies, and names `loomux wiki repin` for the human to run")
+				if writesConfiguration(line, policy.Strict) && !(editsOwnConfig(line) && j.here() && j.open()) {
+					reasons = append(reasons, configurationReason)
 				}
 				if answersAGate(line, policy.Strict) {
 					reasons = append(reasons, "a flow's gate asks a human; the answer is theirs. Ask the user to answer it with `flow resume <run> --answer \"…\"` themselves")
@@ -318,6 +327,42 @@ func pathReasons(rules []config.PathRule, rel string, fold bool) []string {
 		}
 	}
 	return reasons
+}
+
+// configurationReason refuses the loomux commands only a human runs.
+const configurationReason = "loomux init, config and area add write the configuration the guard reads, merge-hook install and remove write executable hooks into repositories, convert and fetch write into an area's inbox, which the write barrier keeps from agents, and wiki repin declares the citing pages still correct; a human runs them. An agent proposes a change with `loomux config set|unset … --propose`, which a human applies, and names `loomux wiki repin` for the human to run"
+
+// editsOwnConfig says whether line is nothing but loomux config set or unset
+// of the project's own config, answered without asking (--yes). It is an
+// allowlist over a plain line of one segment: every reading must show the
+// key, at most a value, and no flag but --yes, so --root, --global, --propose,
+// a redirection or a comment in any spelling leaves the line to the rules. A
+// line break of either kind refuses: PowerShell ends a command at a bare CR,
+// which no cut here does.
+func editsOwnConfig(line string) bool {
+	if strings.ContainsAny(line, "\r\n") || !plainLine(line) || len(splitSegments(line, false)) != 1 {
+		return false
+	}
+	for _, words := range readings(line) {
+		if len(words) < 4 || !isLoomux(words[0]) || words[1] != "config" ||
+			(words[2] != "set" && words[2] != "unset") || !flagOn(words[3:], "--yes", "-yes") {
+			return false
+		}
+		operands := 0
+		for _, w := range words[3:] {
+			switch {
+			case w == "--yes" || w == "-yes":
+			case strings.HasPrefix(w, "-") || strings.HasPrefix(w, "#") || redirects(w):
+				return false
+			default:
+				operands++
+			}
+		}
+		if operands < 1 || operands > 2 {
+			return false
+		}
+	}
+	return true
 }
 
 // writesConfiguration says whether a shell line runs a loomux command that
@@ -634,6 +679,9 @@ func programWrites(words []string, exempt, anyProgram bool) bool {
 			switch args[1] {
 			case "list", "get", "proposals":
 				return false
+			case "llm":
+				// Bare, it reads the switch; on and off turn it.
+				return len(args) != 2
 			case "set", "unset":
 				return !exempt || !onlyProposes(args[2:])
 			}

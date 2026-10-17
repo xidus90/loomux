@@ -73,7 +73,7 @@ func TestLexicalSpellingsFoldWhatWindowsFolds(t *testing.T) {
 // The elements an alias may stand for are the literal ones: a glob's
 // wildcard element names no file.
 func TestProtectedElementsAreLiteral(t *testing.T) {
-	got := newJudge(t.TempDir(), config.Policy{}).protectedElements()
+	got := newJudge(t.TempDir(), config.Policy{}, switchOff, switchOff).protectedElements()
 	if !slices.Contains(got, ".loomux") || !slices.Contains(got, "config.toml") {
 		t.Fatalf("elements %q", got)
 	}

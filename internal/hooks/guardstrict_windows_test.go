@@ -64,7 +64,7 @@ func TestStrictModeRefusesWhatItCannotResolve(t *testing.T) {
 	if len(got) != 1 || !strings.HasPrefix(got[0], "loomux cannot resolve //server/share, so it refuses in strict mode: ") {
 		t.Errorf("an unresolvable target: reasons %q", got)
 	}
-	if _, err := newJudge("C:relative", strictPolicy).resolvedSpellings([]string{"x"}); err == nil || !strings.HasPrefix(err.Error(), "loomux cannot resolve the project root C:relative") {
+	if _, err := newJudge("C:relative", strictPolicy, switchOff, switchOff).resolvedSpellings([]string{"x"}); err == nil || !strings.HasPrefix(err.Error(), "loomux cannot resolve the project root C:relative") {
 		t.Errorf("an unresolvable root: %v", err)
 	}
 	if got := checkTool(root, "Bash", command("echo x > nul 2> con"), strictPolicy); len(got) != 0 {
