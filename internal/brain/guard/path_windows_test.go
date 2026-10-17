@@ -184,3 +184,19 @@ func longTempDir(t *testing.T) string {
 	}
 	return tmp
 }
+
+// A share that answers "not found" is a path that is not there; one whose
+// connection dropped is a fault, which HardLinked and the strict resolver
+// refuse, as ntpath leaves it out of allowed_winerror. Which of the two a
+// runner's network gives for `\\server\share` is its own affair.
+func TestStopsResolvingTellsAMissingShareFromADroppedOne(t *testing.T) {
+	for code, stops := range map[syscall.Errno]bool{
+		windows.ERROR_PATH_NOT_FOUND:  true,
+		windows.ERROR_BAD_NETPATH:     true,
+		windows.ERROR_NETNAME_DELETED: false,
+	} {
+		if got := stopsResolving(code); got != stops {
+			t.Errorf("stopsResolving(%d) = %v, want %v", code, got, stops)
+		}
+	}
+}
