@@ -22,6 +22,7 @@ var (
 	sourcesKey = regexp.MustCompile(`^sources:(.*)$`)
 	entryStart = regexp.MustCompile(`^( *)- `)
 	entryField = regexp.MustCompile(`^( *(?:- )?)(doc_id|content_hash|revision):(\s*)(.*)$`)
+	flowKey    = regexp.MustCompile(`^\s*(doc_id|content_hash|revision):`)
 )
 
 // repinText sets content_hash and revision of every sources[] entry whose
@@ -98,6 +99,14 @@ func repinText(text string, updates map[string]pinValue) (string, error) {
 			}
 			entryIndent = len(m[1])
 			fields = map[string]int{}
+			if strings.HasPrefix(line[len(m[0]):], "{") {
+				last, err := repinFlow(lines, i, stop, len(m[0]), updates, seen)
+				if err != nil {
+					return "", err
+				}
+				i = last
+				continue
+			}
 		}
 		if m := entryField.FindStringSubmatch(line); m != nil && entryIndent >= 0 && len(m[1]) == entryIndent+2 {
 			fields[m[2]] = i
@@ -112,6 +121,139 @@ func repinText(text string, updates map[string]pinValue) (string, error) {
 		}
 	}
 	return strings.Join(lines, ""), nil
+}
+
+// repinFlow edits the sources entry written as a flow mapping that opens at
+// column open of lines[first], however many of the lines up to stop it
+// spans, and returns the index of the line it closes on. The closed entry
+// is put back into lines[first] and the lines it consumed are emptied, so
+// that the join of lines is the page with only the two values changed.
+func repinFlow(lines []string, first, stop, open int, updates map[string]pinValue, seen map[string]bool) (int, error) {
+	text := strings.Join(lines[first:stop], "")
+	fields, end, err := flowFields(text, open)
+	if err != nil {
+		return 0, err
+	}
+	last := first
+	for consumed := len(lines[first]); consumed <= end; consumed += len(lines[last]) {
+		last++
+	}
+	entry := text[:len(text)-len(strings.Join(lines[last+1:stop], ""))]
+	id, ok := fields["doc_id"]
+	if ok {
+		docID := unquote(text[id[0]:id[1]])
+		if update, wanted := updates[docID]; wanted {
+			seen[docID] = true
+			at := map[string][2]int{}
+			for _, key := range []string{"content_hash", "revision"} {
+				span, ok := fields[key]
+				if !ok {
+					return 0, fmt.Errorf("the entry of doc_id %s has no %s", docID, key)
+				}
+				at[key] = span
+			}
+			// The later value first, so that the offset of the earlier one holds.
+			keys := []string{"content_hash", "revision"}
+			if at["revision"][0] < at["content_hash"][0] {
+				keys[0], keys[1] = keys[1], keys[0]
+			}
+			for _, key := range slices.Backward(keys) {
+				next := update.hash
+				if key == "revision" {
+					next = strconv.Itoa(update.revision)
+				}
+				span := at[key]
+				old := entry[span[0]:span[1]]
+				if q := old[0]; q == '"' || q == '\'' {
+					next = string(q) + next + string(q)
+				}
+				entry = entry[:span[0]] + next + entry[span[1]:]
+			}
+		}
+	}
+	lines[first] = entry
+	for i := first + 1; i <= last; i++ {
+		lines[i] = ""
+	}
+	return last, nil
+}
+
+// flowFields reads the flow mapping whose `{` stands at text[open] and
+// returns the value spans of its own doc_id, content_hash and revision and
+// the offset of its closing `}`. Nested mappings and lists are read through,
+// not into. A value it could not rewrite as one scalar on one line, a
+// comment and a mapping that does not close are refused.
+func flowFields(text string, open int) (map[string][2]int, int, error) {
+	fields := map[string][2]int{}
+	item := open + 1
+	depth := 0
+	take := func(to int) error {
+		m := flowKey.FindStringSubmatchIndex(text[item:to])
+		if m == nil {
+			return nil
+		}
+		key := text[item+m[2] : item+m[3]]
+		from, until := item+m[1], to
+		for from < until && strings.ContainsRune(" \t\r\n", rune(text[from])) {
+			from++
+		}
+		for until > from && strings.ContainsRune(" \t\r\n", rune(text[until-1])) {
+			until--
+		}
+		v := text[from:until]
+		switch {
+		case v == "" || strings.Contains(v, "\n"):
+			return fmt.Errorf("%s is not a one-line value", key)
+		case (v[0] == '"' || v[0] == '\'') && (len(v) < 2 || v[len(v)-1] != v[0]):
+			return fmt.Errorf("%s is not one quoted value", key)
+		}
+		fields[key] = [2]int{from, until}
+		return nil
+	}
+	for i := open + 1; i < len(text); i++ {
+		switch c := text[i]; c {
+		case '"', '\'':
+			j := i + 1
+			for ; j < len(text); j++ {
+				if c == '"' && text[j] == '\\' {
+					j++
+				} else if text[j] == c {
+					if c == '\'' && j+1 < len(text) && text[j+1] == '\'' {
+						j++
+						continue
+					}
+					break
+				}
+			}
+			if j >= len(text) {
+				return nil, 0, fmt.Errorf("a quoted value in a flow entry is not closed")
+			}
+			i = j
+		case '#':
+			if strings.ContainsRune(" \t\r\n", rune(text[i-1])) {
+				return nil, 0, fmt.Errorf("a flow entry carries a comment")
+			}
+		case '{', '[':
+			depth++
+		case '}', ']':
+			if depth > 0 {
+				depth--
+				continue
+			}
+			if err := take(i); err != nil {
+				return nil, 0, err
+			}
+			return fields, i, nil
+		case ',':
+			if depth == 0 {
+				if err := take(i); err != nil {
+					return nil, 0, err
+				}
+				item = i + 1
+			}
+		}
+	}
+	return nil, 0, fmt.Errorf("a flow entry is not closed")
 }
 
 // body is a line without its line end.
