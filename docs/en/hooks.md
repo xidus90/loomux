@@ -476,7 +476,9 @@ configuration, `rm -rf .loomux`, and `config llm on|off` and `config apply`. If 
 unreadable registry, no area at the root, or a field that is not a bool counts as off.
 The switch belongs to the root the hook was installed for (`--root`): another area's switch
 opens nothing there, not even through a link inside the project. A writing tool reaches the
-manifest only by a full path that resolves to it. A shell line -- the relative path and
+manifest only by a full path that resolves to it, or to the manifest of a linked worktree of
+the root's repository: Claude Code passes the main checkout as `CLAUDE_PROJECT_DIR` while a
+session works in such a worktree. A shell line -- the relative path and
 `config set|unset` -- counts only while the shell's working directory, which the host sends
 as `cwd`, resolves to exactly that root: after a `cd` into a nested or neighbouring project
 the same line would land in that project's manifest, so it stays shut there, and so it does

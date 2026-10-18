@@ -188,13 +188,12 @@ func (j judge) listing(rel string, target shellTarget, limit int) ([]string, boo
 // judgePath judges one path relative to the root: loomux's own rules in any
 // case -- Windows and macOS keep .LOOMUX/State/hooks and .loomux/state/hooks
 // as one folder -- the project's as the project spelled them, the protected
-// flow folders, and for a removal what it takes with it. The manifest at the
-// root, in that spelling up to case, is open while the project's llm_config
-// switch is on and target reaches it (opens); every other rule on it still
-// holds.
+// flow folders, and for a removal what it takes with it. The project's own
+// manifest is open while its llm_config switch is on and target reaches it
+// (opens); every other rule on it still holds.
 func (j judge) judgePath(rel string, target shellTarget) []string {
 	reasons := pathReasons(builtinPathRules, rel, true)
-	if strings.EqualFold(rel, ".loomux/config.toml") && j.opens(target) {
+	if j.opens(target, rel) {
 		reasons = slices.DeleteFunc(reasons, func(r string) bool { return r == manifestReason })
 	}
 	reasons = append(reasons, pathReasons(j.policy.Paths, rel, false)...)
@@ -205,15 +204,18 @@ func (j judge) judgePath(rel string, target shellTarget) []string {
 	return reasons
 }
 
-// opens says whether the switch opens the root's manifest to target. A shell
-// spells its path from where it stands, so only a shell standing at the root
-// reaches it; a writing tool reaches it only by a full path that resolves to
-// it, so that neither a relative path nor a link into another project counts.
-func (j judge) opens(target shellTarget) bool {
+// opens says whether the switch opens the project's manifest to target at
+// rel. A shell spells its path from where it stands, so only a shell
+// standing at the root reaches the root's manifest, in that spelling up to
+// case; a writing tool reaches a manifest only by a full path that resolves
+// to the root's or a linked worktree's (guard.ManifestBase), so that neither
+// a relative path nor a link into another project counts.
+func (j judge) opens(target shellTarget, rel string) bool {
 	if target.shell {
-		return j.here() && j.open()
+		return strings.EqualFold(rel, ".loomux/config.toml") && j.here() && j.open()
 	}
-	return guard.OwnManifest(target.path, j.root) && j.open()
+	base := guard.ManifestBase(target.path, j.root)
+	return base != "" && guard.ManifestUnlinked(base) && j.open()
 }
 
 // ancestorReasons judges a removal of rel by what lies below it: .loomux
