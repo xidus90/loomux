@@ -73,6 +73,59 @@ func TestTheOwnManifestPassesWhenTheSwitchIsOn(t *testing.T) {
 	}
 }
 
+// worktreeAt lays out by hand what `git worktree add` leaves for a linked
+// worktree of the repository at main, placed at dir, and gives it a manifest.
+func worktreeAt(t *testing.T, main, dir string) string {
+	t.Helper()
+	admin := filepath.Join(main, ".git", "worktrees", filepath.Base(dir))
+	for path, body := range map[string]string{
+		filepath.Join(dir, ".git"):                   "gitdir: " + filepath.ToSlash(admin) + "\n",
+		filepath.Join(admin, "commondir"):            "../..\n",
+		filepath.Join(admin, "gitdir"):               filepath.ToSlash(filepath.Join(dir, ".git")) + "\n",
+		filepath.Join(dir, ".loomux", "config.toml"): "",
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+// A host may name the main checkout as the root while its session works in
+// a linked worktree of it. The worktree's manifest is then the project's
+// own: open with the switch on, shut with it off. A linked worktree of
+// another repository stays shut either way.
+func TestTheSwitchOpensTheManifestOfALinkedWorktreeOfTheRoot(t *testing.T) {
+	for _, on := range []bool{true, false} {
+		root, state := world(t, "")
+		if on {
+			root, state = switchWorld(t)
+		}
+		if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		wt := worktreeAt(t, root, filepath.Join(root, ".claude", "worktrees", "wt"))
+		code, _, errOut := call(t, root, state, payload("Edit", "file_path", filepath.Join(wt, ".loomux", "config.toml")))
+		if on && code != 0 {
+			t.Errorf("switch on: code %d, err %q", code, errOut)
+		}
+		if !on && (code != 2 || !strings.Contains(errOut, manifestReason)) {
+			t.Errorf("switch off: code %d, err %q", code, errOut)
+		}
+		other := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(other, ".git"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		foreign := worktreeAt(t, other, filepath.Join(root, "foreign"))
+		if code, _, errOut := call(t, root, state, payload("Edit", "file_path", filepath.Join(foreign, ".loomux", "config.toml"))); code != 2 || !strings.Contains(errOut, manifestReason) {
+			t.Errorf("another repository's worktree, switch %v: code %d, err %q", on, code, errOut)
+		}
+	}
+}
+
 // registerArea adds an area with its switch off at dir, with a manifest of
 // its own, to the registry of state.
 func registerArea(t *testing.T, state, scope, dir string) {

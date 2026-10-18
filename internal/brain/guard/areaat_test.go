@@ -168,6 +168,29 @@ func TestOwnManifest(t *testing.T) {
 	}
 }
 
+// The manifest's base is the root or a linked worktree of the root's
+// repository; another repository's worktree, another file in the worktree,
+// a relative path and a root outside any repository have none.
+func TestManifestBase(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	foreign := fakeLinked(t, fakeRepository(t, base, "other"), "foreign", false)
+	for _, c := range []struct{ path, root, want string }{
+		{manifestOf(main), main, main},
+		{manifestOf(linked), main, linked},
+		{manifestOf(foreign), main, ""},
+		{filepath.Join(linked, "sub", manifestName), main, ""},
+		{filepath.Join(bundleDir, manifestName), main, ""},
+		{manifestOf(linked), t.TempDir(), ""},
+		{manifestOf(linked), "", ""},
+	} {
+		if got := ManifestBase(c.path, c.root); got != c.want {
+			t.Errorf("ManifestBase(%q, %q) = %q, want %q", c.path, c.root, got, c.want)
+		}
+	}
+}
+
 // A directory is at the root when both resolve to the same path; an empty
 // or relative directory, one below the root and one that does not resolve
 // are not.

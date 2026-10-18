@@ -155,7 +155,9 @@ Worktree folgt dem Schalter seines Hauptcheckouts.
 (`--root`). Der Schalter einer anderen Area öffnet dort nichts, auch nicht
 über einen Link im Projekt; `Decide` öffnet nur das Manifest dieser Wurzel.
 Ein Dateiwerkzeug erreicht es nur über einen vollen Pfad, der dorthin
-aufgelöst wird. Eine Shell-Zeile (der relative Pfad und `config set|unset`)
+aufgelöst wird, oder auf das Manifest eines verknüpften Worktrees desselben
+Repositorys: Claude Code übergibt als `CLAUDE_PROJECT_DIR` den Hauptcheckout,
+auch wenn die Sitzung in einem solchen Worktree arbeitet. Eine Shell-Zeile (der relative Pfad und `config set|unset`)
 zählt nur, wenn das `cwd` des Hook-Aufrufs genau auf die Wurzel aufgelöst
 wird: Die Shell behält ein `cd` über Aufrufe hinweg, und nach einem `cd` in
 ein verschachteltes oder benachbartes Projekt landete dieselbe Zeile in

@@ -63,6 +63,26 @@ func OwnManifest(path, root string) bool {
 		pathsEqual(resolved, filepath.Join(base, bundleDir, manifestName))
 }
 
+// ManifestBase is the root whose own manifest the full path names: root
+// itself, or a linked worktree of root's repository. A host may name the
+// main checkout as the hook's root while its session works in such a
+// worktree, and the worktree is the same project. "" where it names neither.
+func ManifestBase(path, root string) string {
+	if OwnManifest(path, root) {
+		return root
+	}
+	resolved, err := ResolvePath(path)
+	if root == "" || !filepath.IsAbs(path) || err != nil {
+		return ""
+	}
+	base := filepath.Dir(filepath.Dir(resolved))
+	common := repositoryCommon(root)
+	if common == "" || !pathsEqual(linkedCommon(base), common) || !OwnManifest(path, base) {
+		return ""
+	}
+	return base
+}
+
 // AtRoot says whether the full directory dir is root itself once both are
 // resolved. A shell spells its paths from where it stands, so only there do
 // they mean what they would mean at the root.
@@ -72,12 +92,13 @@ func AtRoot(dir, root string) bool {
 	return root != "" && filepath.IsAbs(dir) && err == nil && rootErr == nil && pathsEqual(here, base)
 }
 
-// ownManifest is whether `resolved` is the own manifest of the hook's root
-// while that root's area has its llm_config switch on and the manifest is
-// reached without a link. Every other manifest stays the barrier's own,
-// another area's with its switch on included.
+// ownManifest is whether `resolved` is the own manifest of the hook's root,
+// or of a linked worktree of it, while the root's area has its llm_config
+// switch on and the manifest is reached without a link. Every other manifest
+// stays the barrier's own, another area's with its switch on included.
 func ownManifest(resolved, root, stateDir string) bool {
-	if !OwnManifest(resolved, root) || !ManifestUnlinked(root) {
+	base := ManifestBase(resolved, root)
+	if base == "" || !ManifestUnlinked(base) {
 		return false
 	}
 	_, llmConfig, err := AreaAt(root, stateDir)

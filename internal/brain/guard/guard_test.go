@@ -130,3 +130,19 @@ func TestDecideOpensTheManifestOfALinkedWorktree(t *testing.T) {
 		areaBlock("project/demo", main, "workspace = true", "llm_config = true"))
 	allowAt(t, writeCall(manifestOf(linked)), state, linked)
 }
+
+// A host may name the main checkout as the hook's root while its session
+// works in a linked worktree; that worktree's manifest is the root's own.
+func TestDecideOpensTheLinkedWorktreesManifestFromTheMainRoot(t *testing.T) {
+	base := t.TempDir()
+	main := fakeRepository(t, base, "main")
+	linked := fakeLinked(t, main, "linked", false)
+	other := fakeLinked(t, fakeRepository(t, base, "other"), "foreign", false)
+	state := switchRegistry(t, base,
+		areaBlock("project/demo", main, "workspace = true", "llm_config = true")+
+			areaBlock("project/other", filepath.Join(base, "other"), "workspace = true"))
+	allowAt(t, writeCall(manifestOf(linked)), state, main)
+	denyAt(t, writeCall(manifestOf(other)), state, main, manifestRefusal)
+	switchRegistry(t, base, areaBlock("project/demo", main, "workspace = true"))
+	denyAt(t, writeCall(manifestOf(linked)), state, main, manifestRefusal)
+}
