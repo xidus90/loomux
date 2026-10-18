@@ -202,6 +202,139 @@ func TestRepinTextReadsTheFirstSourcesKey(t *testing.T) {
 	}
 }
 
+const repinFlowPage = "---\n" +
+	"title: T\n" +
+	"generated: { by: x, at: 2026-08-23T17:30:00Z }\n" +
+	"sources:\n" +
+	"  - { id: a, resource: brain://project/x/docs/a.md, doc_id: 01A, content_hash: \"sha256:aaa\", revision: 1, title: Die Probe, Teil D }\n" +
+	"  - {id: b, doc_id: '01B', content_hash: 'sha256:bbb', revision: 5}\n" +
+	"  - { doc_id: 01C, meta: { revision: 99, doc_id: 01A }, content_hash:   sha256:ccc ,revision:  7 }  \n" +
+	"---\n\n# T\n"
+
+// A sources entry written as a flow mapping on one line changes in its two
+// values only; quotes, spacing, a nested mapping and the comma in a later
+// plain value stay as they were.
+func TestRepinTextEditsFlowEntries(t *testing.T) {
+	got, err := repinText(repinFlowPage, map[string]pinValue{
+		"01A": {"sha256:a2", 2},
+		"01B": {"sha256:b2", 6},
+		"01C": {"sha256:c2", 8},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.NewReplacer(
+		"content_hash: \"sha256:aaa\", revision: 1,", "content_hash: \"sha256:a2\", revision: 2,",
+		"content_hash: 'sha256:bbb', revision: 5}", "content_hash: 'sha256:b2', revision: 6}",
+		"content_hash:   sha256:ccc ,revision:  7 }", "content_hash:   sha256:c2 ,revision:  8 }",
+	).Replace(repinFlowPage)
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+}
+
+// CRLF survives an edit of a flow entry.
+func TestRepinTextKeepsCRLFInFlowEntries(t *testing.T) {
+	crlf := strings.ReplaceAll(repinFlowPage, "\n", "\r\n")
+	got, err := repinText(crlf, map[string]pinValue{"01B": {"sha256:b2", 6}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := strings.Replace(crlf, "'sha256:bbb', revision: 5}", "'sha256:b2', revision: 6}", 1); got != want {
+		t.Fatalf("got %q\nwant %q", got, want)
+	}
+}
+
+// Flow and block entries mix in one list, and a doc_id that stands twice gets
+// the new values in both forms.
+func TestRepinTextEditsEveryEntryOfADocIDInBothForms(t *testing.T) {
+	text := "---\nsources:\n" +
+		"  - { doc_id: 01A, content_hash: \"x\", revision: 1 }\n" +
+		"  - doc_id: 01A\n    content_hash: 'y'\n    revision: 2\n" +
+		"  - { doc_id: 01A, content_hash: z, revision: 3 }\n" +
+		"---\nbody\n"
+	got, err := repinText(text, map[string]pinValue{"01A": {"sha256:n", 5}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "---\nsources:\n" +
+		"  - { doc_id: 01A, content_hash: \"sha256:n\", revision: 5 }\n" +
+		"  - doc_id: 01A\n    content_hash: 'sha256:n'\n    revision: 5\n" +
+		"  - { doc_id: 01A, content_hash: sha256:n, revision: 5 }\n" +
+		"---\nbody\n"
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+}
+
+// A flow entry that spans several lines is edited where its values stand,
+// and the block entry after it is still read.
+func TestRepinTextEditsAFlowEntryOverSeveralLines(t *testing.T) {
+	text := "---\nsources:\n" +
+		"  - { id: a,\n      doc_id: 01A, content_hash: \"x\",\n      revision: 1,\n      title: \"a, } b\" }\n" +
+		"  - doc_id: 01B\n    content_hash: \"y\"\n    revision: 2\n" +
+		"---\n"
+	got, err := repinText(text, map[string]pinValue{"01A": {"sha256:n", 2}, "01B": {"sha256:m", 3}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "---\nsources:\n" +
+		"  - { id: a,\n      doc_id: 01A, content_hash: \"sha256:n\",\n      revision: 2,\n      title: \"a, } b\" }\n" +
+		"  - doc_id: 01B\n    content_hash: \"sha256:m\"\n    revision: 3\n" +
+		"---\n"
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+}
+
+// Every flow form it cannot edit safely is refused rather than rewritten.
+func TestRepinTextRefusesFlowEntriesItCannotEditSafely(t *testing.T) {
+	cases := map[string]string{
+		"not closed":              "---\nsources:\n  - { doc_id: 01A, content_hash: \"x\", revision: 1\n---\n",
+		"unterminated quote":      "---\nsources:\n  - { doc_id: 01A, content_hash: \"x, revision: 1 }\n---\n",
+		"escaped closing quote":   "---\nsources:\n  - { doc_id: 01A, content_hash: \"x\\\", revision: 1 }\n---\n",
+		"comment":                 "---\nsources:\n  - { doc_id: 01A, # by hand\n      content_hash: \"x\", revision: 1 }\n---\n",
+		"missing revision":        "---\nsources:\n  - { doc_id: 01A, content_hash: \"x\" }\n---\n",
+		"missing hash":            "---\nsources:\n  - { doc_id: 01A, revision: 1 }\n---\n",
+		"empty value":             "---\nsources:\n  - { doc_id: 01A, content_hash: , revision: 1 }\n---\n",
+		"plain value over lines":  "---\nsources:\n  - { doc_id: 01A, content_hash: x\n      y, revision: 1 }\n---\n",
+		"quoted value over lines": "---\nsources:\n  - { doc_id: 01A, content_hash: \"x\n      y\", revision: 1 }\n---\n",
+		"text after a quote":      "---\nsources:\n  - { doc_id: 01A, content_hash: \"x\" y, revision: 1 }\n---\n",
+		"entry not found":         "---\nsources:\n  - { doc_id: 01Z, content_hash: \"x\", revision: 1 }\n---\n",
+		"empty last value":        "---\nsources:\n  - { doc_id: 01A, content_hash: \"x\", revision: }\n---\n",
+	}
+	for name, text := range cases {
+		if _, err := repinText(text, map[string]pinValue{"01A": {"sha256:n", 2}}); err == nil {
+			t.Errorf("%s: no refusal", name)
+		}
+	}
+}
+
+// The order of the two values inside the entry does not matter.
+func TestRepinTextEditsFlowValuesInAnyOrder(t *testing.T) {
+	text := "---\nsources:\n  - { revision: 1, doc_id: 01A, content_hash: \"x\" }\n---\n"
+	got, err := repinText(text, map[string]pinValue{"01A": {"sha256:n", 12}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "---\nsources:\n  - { revision: 12, doc_id: 01A, content_hash: \"sha256:n\" }\n---\n"; got != want {
+		t.Fatalf("got %q\nwant %q", got, want)
+	}
+}
+
+// Doubled single quotes and backslash escapes are read through, not taken
+// for the end of the value.
+func TestRepinTextReadsEscapesInFlowEntries(t *testing.T) {
+	text := "---\nsources:\n  - { title: 'it''s, }', note: \"a\\\"}\", doc_id: 01A, content_hash: \"x\", revision: 1 }\n---\n"
+	got, err := repinText(text, map[string]pinValue{"01A": {"sha256:n", 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := strings.Replace(strings.Replace(text, "\"x\"", "\"sha256:n\"", 1), "revision: 1", "revision: 2", 1); got != want {
+		t.Fatalf("got %q\nwant %q", got, want)
+	}
+}
+
 func repin(t *testing.T, root string) RepinResult {
 	t.Helper()
 	got, err := Repin(root, filepath.Join(root, "docs", "wiki"), testScope)
