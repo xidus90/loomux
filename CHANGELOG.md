@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.10.1] - 2026-10-18
+
+<https://github.com/xidus90/loomux/pull/117>
+
+### Fixed
+- With `llm_config` on, an agent working in a linked git worktree may edit that worktree's `.loomux/config.toml`; the guard no longer refuses it when the hook root is the main checkout.
+
 ## [1.10.0] - 2026-10-18
 
 <https://github.com/xidus90/loomux/pull/116>
