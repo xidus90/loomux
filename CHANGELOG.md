@@ -7,6 +7,16 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.10.0] - 2026-10-18
+
+<https://github.com/xidus90/loomux/pull/116>
+
+### Added
+- A table of the frameworks loomux drives per stack, with a page in English and German that lists them, what each carries and where the claim comes from. A framework nobody has run against a real installation is marked as unproven, and the page says what is missing to prove it.
+
+### Changed
+- The `gdscript` test and coverage lanes recognise gdUnit4 and NanoCoverage by the assignment their `plugin.cfg` writes (`name="gdUnit4"`) instead of by the bare name. An addon whose file only mentions the name elsewhere is no longer mistaken for it; a file edited by hand into a spaced form is no longer found, and the lane names the pattern it looked for.
+
 ## [1.9.1] - 2026-10-17
 
 <https://github.com/xidus90/loomux/pull/113>
