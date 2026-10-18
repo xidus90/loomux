@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.10.2] - 2026-10-18
+
+<https://github.com/xidus90/loomux/pull/118>
+
+### Fixed
+- `loomux wiki repin` edits sources entries written as flow mappings instead of refusing the page with "no sources entry with doc_id".
+
 ## [1.10.1] - 2026-10-18
 
 <https://github.com/xidus90/loomux/pull/117>
