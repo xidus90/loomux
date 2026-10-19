@@ -128,10 +128,10 @@ func TestTheGdscriptLintTakesGdlintFromGdtoolkit(t *testing.T) {
 		t.Fatal(err)
 	}
 	gd := p.Stacks["gdscript"].Lanes
-	if got := gd["lint"].Commands; !slices.Equal(got, []string{"uvx --from {tool:gdtoolkit} gdlint .", "uvx --from {tool:gdtoolkit} gdformat --check ."}) {
+	if got := gd["lint"].Commands; !slices.Equal(got, []string{"uvx --with setuptools<81 --from {tool:gdtoolkit} gdlint .", "uvx --with setuptools<81 --from {tool:gdtoolkit} gdformat --check ."}) {
 		t.Errorf("commands = %q", got)
 	}
-	if got := gd["lint"].OnFile; !slices.Equal(got, []string{"uvx --from {tool:gdtoolkit} gdlint {file}", "uvx --from {tool:gdtoolkit} gdformat --check {file}"}) {
+	if got := gd["lint"].OnFile; !slices.Equal(got, []string{"uvx --with setuptools<81 --from {tool:gdtoolkit} gdlint {file}", "uvx --with setuptools<81 --from {tool:gdtoolkit} gdformat --check {file}"}) {
 		t.Errorf("on_file = %q", got)
 	}
 }

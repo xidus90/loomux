@@ -138,8 +138,8 @@ func TestDefaultProfilesCarryRules(t *testing.T) {
 func TestGDScriptLintFormats(t *testing.T) {
 	eff := effFor(t, "", gdFacts())
 	lint := eff.Stacks["gdscript"]["lint"].Lane
-	if !slices.Contains(lint.Commands, "uvx --from {tool:gdtoolkit} gdformat --check .") ||
-		!slices.Contains(lint.OnFile, "uvx --from {tool:gdtoolkit} gdformat --check {file}") {
+	if !slices.Contains(lint.Commands, "uvx --with setuptools<81 --from {tool:gdtoolkit} gdformat --check .") ||
+		!slices.Contains(lint.OnFile, "uvx --with setuptools<81 --from {tool:gdtoolkit} gdformat --check {file}") {
 		t.Fatalf("%+v", lint)
 	}
 }
