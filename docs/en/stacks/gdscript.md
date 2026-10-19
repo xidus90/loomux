@@ -15,7 +15,7 @@ The cell is empty where the lane needs no detection: the lint lane runs on any G
 | gdUnit4 | test | `plugin.cfg:name="gdUnit4"` | Godot 4.3 to 4.8 | https://github.com/godot-gdunit-labs/gdUnit4 |
 | NanoCoverage | coverage | `plugin.cfg:name="NanoCoverage"` | Godot 4 | https://github.com/IgorBayerl/nano-coverage-godot |
 | gdtoolkit4 | lint |  | Godot 4 | https://github.com/scony/godot-gdscript-toolkit |
-| GUT (unproven) | test | `plugin.cfg:name="Gut"` | GUT 7.x carries Godot 3, 9.x carries Godot 4; the pattern does not tell them apart | https://github.com/bitwes/Gut |
+| GUT | test | `plugin.cfg:name="Gut"` | GUT 7.x carries Godot 3, 9.x carries Godot 4; the pattern does not tell them apart | https://github.com/bitwes/Gut |
 | gdtoolkit3 (unproven) | lint |  | Godot 3 | https://github.com/scony/godot-gdscript-toolkit |
 | godot-code-coverage (unproven) | coverage | `plugin.cfg:name="Coverage"` | documented for Godot 3.5, unconfirmed on 3.6 | https://github.com/jamie-pate/godot-code-coverage |
 
@@ -23,6 +23,5 @@ The cell is empty where the lane needs no detection: the lint lane runs on any G
 
 A row marked unproven has not been run by loomux against a real installation of the line it names. Still to do for each:
 
-- GUT (unproven): run its tests through loomux on a Godot 3 project, and on a Godot 4 one, to see which line a found installation carries.
 - gdtoolkit3 (unproven): run the lint lane through loomux on a Godot 3 project with the 3.x release of the toolkit.
 - godot-code-coverage (unproven): run a coverage lane through loomux on Godot 3.5, and one on 3.6.

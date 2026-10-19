@@ -34,7 +34,7 @@ func StackNames() []string {
 // Reserved reports whether name is taken by a built-in check, a kind or the
 // profile of everything, so a profile cannot shadow it.
 func Reserved(name string) bool {
-	return slices.Contains([]string{"gofmt", "commit-msg", "gocover", "linecov", "godot-suite", "graph-fresh", "blast-audit", "all"}, name) || slices.Contains(Kinds(), name)
+	return slices.Contains([]string{"gofmt", "commit-msg", "gocover", "linecov", "godot-suite", "gut-suite", "graph-fresh", "blast-audit", "all"}, name) || slices.Contains(Kinds(), name)
 }
 
 // Lane is how one kind runs for one stack.

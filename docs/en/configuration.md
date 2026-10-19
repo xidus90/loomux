@@ -210,7 +210,7 @@ top-level `[commit]` table (see below).
 There are six kinds, in the order they are listed: `lint`, `types`, `test`,
 `coverage`, `graph`, `rules`. A request to `loomux check` is a profile, `all` (always all six
 kinds) or a comma list of kinds (`lint,types`). The names `gofmt`,
-`commit-msg`, `gocover`, `linecov`, `godot-suite`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage`, `graph` and `rules` are
+`commit-msg`, `gocover`, `linecov`, `godot-suite`, `gut-suite`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage`, `graph` and `rules` are
 reserved; a profile with one of them is a load error. `stop` is not reserved:
 it is a built-in profile like `edit` and `precommit`, and a project whose suite
 is too slow for every turn end narrows it (`stop = ["lint", "types"]`).
@@ -344,7 +344,7 @@ then `[verify.<stack>]`.
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx --from gdtoolkit gdlint .`, `uvx --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
+| gdscript | `uvx --from gdtoolkit gdlint .`, `uvx --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (with GUT) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | only `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |

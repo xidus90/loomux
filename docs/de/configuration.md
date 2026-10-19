@@ -209,10 +209,10 @@ eigenen Top-Level-Tabelle `[commit]` konfiguriert (siehe unten).
 
 #### Arten, Profile und reservierte Namen
 
-Es gibt fünf Arten, in dieser Reihenfolge: `lint`, `types`, `test`,
-`coverage`, `graph`. Eine Anfrage an `loomux check` ist ein Profil, `all` (immer alle
-fünf Arten) oder eine Komma-Liste von Arten (`lint,types`). Die Namen `gofmt`,
-`commit-msg`, `gocover`, `linecov`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage` und `graph` sind
+Es gibt sechs Arten, in dieser Reihenfolge: `lint`, `types`, `test`,
+`coverage`, `graph`, `rules`. Eine Anfrage an `loomux check` ist ein Profil, `all` (immer alle
+sechs Arten) oder eine Komma-Liste von Arten (`lint,types`). Die Namen `gofmt`,
+`commit-msg`, `gocover`, `linecov`, `godot-suite`, `gut-suite`, `graph-fresh`, `blast-audit`, `all`, `lint`, `types`, `test`, `coverage`, `graph` und `rules` sind
 reserviert; ein Profil mit einem davon ist ein Ladefehler. `stop` ist nicht
 reserviert: es ist ein eingebautes Profil wie `edit` und `precommit`, und ein
 Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
@@ -344,7 +344,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
+| gdscript | `uvx --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (mit GUT) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |

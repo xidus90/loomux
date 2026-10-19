@@ -1,0 +1,6 @@
+; Engine configuration file.
+config_version=4
+
+[application]
+
+config/name="gut-suite on Godot 3"

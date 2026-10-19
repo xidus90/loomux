@@ -25,6 +25,7 @@ import (
 	"github.com/xidus90/loomux/internal/verify/commit"
 	"github.com/xidus90/loomux/internal/verify/gocover"
 	"github.com/xidus90/loomux/internal/verify/godotsuite"
+	"github.com/xidus90/loomux/internal/verify/gutsuite"
 	"github.com/xidus90/loomux/internal/verify/linecov"
 	"github.com/xidus90/loomux/internal/verify/rules"
 )
@@ -62,11 +63,12 @@ var (
 	checkStage       = gitwork.Stage
 	checkGodotRun    = godotsuite.Run
 	checkGodotFor    = verify.GodotFor
+	checkGutRun      = gutsuite.Run
 )
 
 func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph,rules), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, graph-fresh, blast-audit, rules")
+		fmt.Fprintln(stderr, "loomux check: name a profile or kinds (lint,types,test,coverage,graph,rules), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, gut-suite, graph-fresh, blast-audit, rules")
 		return 2
 	}
 	switch args[0] {
@@ -78,6 +80,8 @@ func checkCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return checkLinecov(args[1:], stdout, stderr)
 	case "godot-suite":
 		return checkGodotSuite(args[1:], stdout, stderr)
+	case "gut-suite":
+		return checkGutSuite(args[1:], stdout, stderr)
 	case "graph-fresh":
 		return checkGraphFresh(args[1:], stdout, stderr)
 	case "blast-audit":
@@ -600,6 +604,49 @@ func godotBinary(flagValue, root, checkout string) (bin, finding string, err err
 		return "", note, nil
 	}
 	return bin, "", nil
+}
+
+// checkGutSuite runs the GUT suite of a Godot 3 or Godot 4 project once and
+// judges it by GUT's report.
+func checkGutSuite(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("check gut-suite", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	godot := fs.String("godot", "", "Godot binary; found like {godot} when empty")
+	rootFlag := fs.String("root", ".", "the Godot project (the directory holding project.godot)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(stderr, "loomux check gut-suite: unexpected argument %q\n", fs.Arg(0))
+		return 2
+	}
+	root, checkout, _ := godotTarget(*rootFlag)
+	bin, finding, err := godotBinary(*godot, root, checkout)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check gut-suite: %v\n", err)
+		return 1
+	}
+	if finding != "" {
+		fmt.Fprintln(stdout, finding)
+		return 1
+	}
+	res, err := checkGutRun(gutsuite.Options{
+		Root: root, Checkout: checkout, Godot: bin, RunID: verify.NewRunID(checkNow(), os.Getpid()), Start: checkStart,
+	})
+	for _, n := range res.Notes {
+		fmt.Fprintf(stderr, "loomux check gut-suite: note: %s\n", n)
+	}
+	for _, f := range res.Findings {
+		fmt.Fprintln(stdout, f)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux check gut-suite: %v\n", err)
+		return 1
+	}
+	if len(res.Findings) > 0 {
+		return 1
+	}
+	return 0
 }
 
 // checkGodotSuite runs the gdUnit4 suites of a Godot project in shards and
