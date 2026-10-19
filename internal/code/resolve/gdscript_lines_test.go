@@ -181,6 +181,28 @@ func TestGodotSceneConnectionsOfBothFormats(t *testing.T) {
 		"g/child.gd#hit", "g/main.gd#_on_hit", "g/main.gd#_on_pressed", "g/main.gd#hit")
 }
 
+// Godot quotes a property key with a space ("nodes/Animation 2/node"), which
+// the resource grammar rejects: every section after it comes back as loose
+// tokens. Those sections still count, in both formats.
+func TestGodotSceneSectionsAfterAQuotedKeyStillCount(t *testing.T) {
+	const tail = "[node name=\"Main\" type=\"Node\"]\nscript = ExtResource( 1 )\n\n" +
+		"[connection signal=\"hit\" from=\".\" to=\".\" method=\"_on_hit\"]\n"
+	g := gdGraph(t, map[string]string{
+		"q/project.godot": "config_version=4\n",
+		"q/main.gd":       "signal hit\n\nfunc _on_hit():\n\tpass\n",
+		"q/main.tscn": "[gd_scene load_steps=3 format=2]\n\n[ext_resource path=\"res://main.gd\" type=\"Script\" id=1]\n\n" +
+			"[sub_resource type=\"AnimationNodeBlendTree\" id=2]\n\"nodes/Animation 2/node\" = SubResource( 3 )\n\n" +
+			"[ext_resource path=\"res://other.gd\" type=\"Script\" id=4]\n\n" + tail,
+		"q/other.gd": "",
+		"q/broken.tscn": "[gd_scene format=2]\n\n\"a b\" = 1\n[ext_resource path=\"res://main.gd\"\n" +
+			"[node name=\"Main\" type=\"Node\"]\n",
+	})
+	wantTargets(t, g, "q/main.tscn", model.RelationImports, "q/main.gd", "q/other.gd")
+	wantTargets(t, g, "q/main.tscn", model.RelationReferences, "q/main.gd#_on_hit", "q/main.gd#hit")
+	// A header that never closes is no section, loose or not.
+	wantTargets(t, g, "q/broken.tscn", model.RelationImports)
+}
+
 // An autoload that is a scene binds the scene's root script.
 func TestGodotASceneAutoloadBindsItsRootScript(t *testing.T) {
 	g := gdGraph(t, map[string]string{

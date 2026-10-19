@@ -184,7 +184,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/4@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/5@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -414,6 +414,18 @@ func TestAResourceImportsWhatItsExtResourcesName(t *testing.T) {
 		{Source: p, Relation: model.RelationImports, Specifier: "res://stats.gd", File: p},
 		// No path: the uid names the file, for the resolver to look up.
 		{Source: p, Relation: model.RelationImports, Specifier: "uid://abc", File: p},
+	})
+}
+
+// A quoted key is read as a bare one, so the sections after it still count;
+// a line that starts with a quote but is no key -- the closing quote of a
+// multi-line string, a string in a multi-line array -- is left as it is.
+func TestAQuotedKeyLeavesTheSectionsAfterIt(t *testing.T) {
+	const p = "s.tscn"
+	r := extractSrc(t, p, "[gd_scene format=2]\n\n[sub_resource type=\"GDScript\" id=1]\nscript/source = \"extends Node\n\"\n"+
+		"tags = [\n\"enemy\", \"boss\"\n]\n\"nodes/Animation 2/node\" = SubResource( 1 )\n\n[ext_resource path=\"res://a.gd\" type=\"Script\" id=2]\n")
+	same(t, "imports", noLines(r.Edges), []extract.RawEdge{
+		{Source: p, Relation: model.RelationImports, Specifier: "res://a.gd", File: p},
 	})
 }
 
