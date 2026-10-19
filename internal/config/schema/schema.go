@@ -91,6 +91,10 @@ func Keys() []Key {
 		// such as "600s" is refused there.
 		{Section: "verify", Name: "timeout", Kind: Int, Default: "600", Module: Hooks, Doc: "How many seconds one command may run."},
 		{Section: "verify", Name: "profiles", Kind: Table, Default: `{ edit = ["lint", "types", "rules"], precommit = ["lint", "types", "test", "coverage", "graph", "rules"], stop = ["lint", "types", "test", "coverage", "graph", "rules"] }`, Module: Hooks, Doc: "Which kinds each profile runs: edit, precommit, stop."},
+		// One family per stack whose presets bring tools; a test holds the
+		// list against verify.ToolsOf.
+		{Section: "verify.python.tools", Name: Wildcard, Kind: String, Module: Hooks, Doc: "The version of a tool the Python presets bring (ruff, mypy, pytest, coverage); unset, the newest."},
+		{Section: "verify.gdscript.tools", Name: Wildcard, Kind: String, Module: Hooks, Doc: "The version of gdtoolkit the GDScript presets bring; unset, the newest."},
 		{Section: "area", Name: "scope", Kind: String, Module: Brain, Doc: "The scope this project is registered under, e.g. project/loomux."},
 		{Section: "layout", Name: "wiki", Kind: String, Module: Brain, Doc: "Where the wiki bundle lives, relative to the root."},
 		{Section: "layout", Name: "hub", Kind: String, Module: Brain, Doc: "Where the hub pages live."},

@@ -97,11 +97,11 @@ func TestThePythonLanesRunWithoutAMypyTargetOrToolDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	py := p.Stacks["python"]
-	measure := "uv run --with coverage --with pytest coverage run -m pytest -q --tb=short --no-header"
+	measure := "uv run --with {tool:coverage} --with {tool:pytest} coverage run -m pytest -q --tb=short --no-header"
 	want := map[string][]string{
-		"types":    {"uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore ."},
-		"test":     {"uv run --with pytest pytest -q --tb=short --no-header"},
-		"coverage": {"uv run --with coverage coverage report --skip-covered --skip-empty -m"},
+		"types":    {"uv run --with {tool:mypy} mypy --no-error-summary --no-pretty --exclude-gitignore ."},
+		"test":     {"uv run --with {tool:pytest} pytest -q --tb=short --no-header"},
+		"coverage": {"uv run --with {tool:coverage} coverage report --skip-covered --skip-empty -m"},
 	}
 	for kind, cmds := range want {
 		if got := py.Lanes[kind].Commands; !slices.Equal(got, cmds) {
@@ -128,10 +128,10 @@ func TestTheGdscriptLintTakesGdlintFromGdtoolkit(t *testing.T) {
 		t.Fatal(err)
 	}
 	gd := p.Stacks["gdscript"].Lanes
-	if got := gd["lint"].Commands; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint .", "uvx --from gdtoolkit gdformat --check ."}) {
+	if got := gd["lint"].Commands; !slices.Equal(got, []string{"uvx --from {tool:gdtoolkit} gdlint .", "uvx --from {tool:gdtoolkit} gdformat --check ."}) {
 		t.Errorf("commands = %q", got)
 	}
-	if got := gd["lint"].OnFile; !slices.Equal(got, []string{"uvx --from gdtoolkit gdlint {file}", "uvx --from gdtoolkit gdformat --check {file}"}) {
+	if got := gd["lint"].OnFile; !slices.Equal(got, []string{"uvx --from {tool:gdtoolkit} gdlint {file}", "uvx --from {tool:gdtoolkit} gdformat --check {file}"}) {
 		t.Errorf("on_file = %q", got)
 	}
 }

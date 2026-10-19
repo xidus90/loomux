@@ -3,6 +3,7 @@ package verify
 import (
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -18,15 +19,25 @@ func WriteShow(w io.Writer, eff Effective, kinds []string, env PlanEnv) {
 	for _, stack := range slices.Sorted(slices.Values(eff.Active)) {
 		areas := slices.Sorted(slices.Values(eff.Areas[stack]))
 		fmt.Fprintf(w, "\n# %s: areas %s, %s\n", stack, strings.Join(areas, ", "), testState(eff.TestsWhen[stack], areas, env))
-		writeStack(w, stack, kinds, eff.Stacks[stack])
+		writeStack(w, stack, kinds, eff.Stacks[stack], eff.Config.Tools[stack])
 	}
 }
 
 // writeStack prints the requested lanes of one stack so that they load back:
 // the lanes switched off as `<kind> = false` in the stack's own table first,
 // then a table for each other lane.
-func writeStack(w io.Writer, stack string, kinds []string, lanes map[string]Resolved) {
+func writeStack(w io.Writer, stack string, kinds []string, lanes map[string]Resolved, tools map[string]string) {
 	blocks := 0
+	// The pins are what the templates' {tool:} and {from:} run, so they head
+	// the stack's own table and load back with it.
+	if len(tools) > 0 {
+		var pairs []string
+		for _, name := range slices.Sorted(maps.Keys(tools)) {
+			pairs = append(pairs, name+" = "+strconv.Quote(tools[name]))
+		}
+		fmt.Fprintf(w, "[verify.%s]\ntools = { %s }  # config\n", stack, strings.Join(pairs, ", "))
+		blocks = 1
+	}
 	for _, kind := range kinds {
 		if r := lanes[kind]; r.Lane.Off {
 			if blocks == 0 {

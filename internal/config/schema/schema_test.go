@@ -71,6 +71,17 @@ func TestTheSchemaKnowsEveryKeyTheReadersRead(t *testing.T) {
 	if got := ids("verify"); !slices.Equal(got, sorted(verify.TopKeys())) {
 		t.Errorf("[verify]: %v", got)
 	}
+	// A stack has a family of tool pins exactly where its presets bring tools.
+	for _, stack := range verify.StackNames() {
+		tools, err := verify.ToolsOf(stack)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, ok := Lookup("verify." + stack + ".tools.x")
+		if ok != (len(tools) > 0) {
+			t.Errorf("verify.%s.tools.*: in the schema %v, tools %v", stack, ok, tools)
+		}
+	}
 	if got := ids("worktree"); !slices.Equal(got, []string{"mirror"}) {
 		t.Errorf("[worktree]: %v", got)
 	}
@@ -128,11 +139,13 @@ func TestLookupFindsByID(t *testing.T) {
 func TestMatchFillsANamedKey(t *testing.T) {
 	keys := Keys()
 	for id, want := range map[string][2]string{
-		"agent.roles.reviewer":         {"agent.roles", "reviewer"},
-		"agent.models.gemini.provider": {"agent.models.gemini", "provider"},
-		"agent.models.gemini.model":    {"agent.models.gemini", "model"},
-		"agent.default":                {"agent", "default"},
-		"flow.overrides":               {"flow", "overrides"},
+		"agent.roles.reviewer":            {"agent.roles", "reviewer"},
+		"agent.models.gemini.provider":    {"agent.models.gemini", "provider"},
+		"agent.models.gemini.model":       {"agent.models.gemini", "model"},
+		"agent.default":                   {"agent", "default"},
+		"flow.overrides":                  {"flow", "overrides"},
+		"verify.python.tools.ruff":        {"verify.python.tools", "ruff"},
+		"verify.gdscript.tools.gdtoolkit": {"verify.gdscript.tools", "gdtoolkit"},
 	} {
 		k, ok := Match(keys, id)
 		if !ok || k.Section != want[0] || k.Name != want[1] || k.Named() {

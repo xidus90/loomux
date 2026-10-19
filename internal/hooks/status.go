@@ -224,7 +224,11 @@ func writeEditLanes(w io.Writer, eff verify.Effective, err error) {
 			if r.Lane.Threaded {
 				tags += ", parallel"
 			}
-			fmt.Fprintf(w, "%s %s [%s]\n", head, strings.Join(cmds, " ; "), tags)
+			shown := make([]string, len(cmds))
+			for i, c := range cmds {
+				shown[i] = verify.ShowTools(c, eff.Config.Tools[stack])
+			}
+			fmt.Fprintf(w, "%s %s [%s]\n", head, strings.Join(shown, " ; "), tags)
 		}
 	}
 }

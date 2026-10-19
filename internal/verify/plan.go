@@ -169,6 +169,8 @@ type link struct {
 	pairs     []string
 	godot     string
 	measuring bool
+	// tools are the pinned versions of the lane's stack, for every step.
+	tools map[string]string
 }
 
 // replacer fills the lane's placeholders, {godot} with godot.
@@ -497,10 +499,10 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		}
 		pairs = append(pairs, placeholderFile, file)
 	}
-	l := link{after: r.Lane.After, measure: r.Lane.Measure, pairs: pairs, godot: godot, measuring: measuring}
+	l := link{after: r.Lane.After, measure: r.Lane.Measure, pairs: pairs, godot: godot, measuring: measuring, tools: eff.Config.Tools[stack]}
 	repl := l.replacer(godot)
 	for _, c := range cmds {
-		argv, err := expand(c, repl)
+		argv, err := expand(c, repl, l.tools)
 		if err != nil {
 			return Job{}, link{}, false, err
 		}
@@ -577,15 +579,24 @@ func reportsWithCoveragePy(argvs [][]string) bool {
 	})
 }
 
-// expand splits a command and fills the placeholders of each argument; the
-// argv is new, so the lane it came from stays as the presets hold it.
-func expand(command string, repl *strings.Replacer) ([]string, error) {
-	argv, err := shellwords.Split(command)
+// expand splits a command and fills the placeholders of each argument, the
+// tools of the lane's stack included (toolArg); the argv is new, so the lane
+// it came from stays as the presets hold it.
+func expand(command string, repl *strings.Replacer, tools map[string]string) ([]string, error) {
+	words, err := shellwords.Split(command)
 	if err != nil {
 		return nil, err
 	}
-	for i, a := range argv {
-		argv[i] = repl.Replace(a)
+	argv := make([]string, 0, len(words))
+	for _, a := range words {
+		a, keep := toolArg(a, tools)
+		if !keep {
+			continue
+		}
+		if repl != nil {
+			a = repl.Replace(a)
+		}
+		argv = append(argv, a)
 	}
 	return argv, nil
 }
@@ -635,7 +646,7 @@ func settle(jobs []Job, links []link, i int, req Request, env PlanEnv) error {
 			}
 			godot = bin
 		}
-		argv, err := expand(l.measure, l.replacer(godot))
+		argv, err := expand(l.measure, l.replacer(godot), l.tools)
 		if err != nil {
 			return err
 		}

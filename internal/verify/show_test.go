@@ -110,6 +110,26 @@ func TestWriteShowLoadsBack(t *testing.T) {
 	}
 }
 
+// A pinned tool is part of what runs: show prints the pins in the stack's
+// table, and they load back with it.
+func TestWriteShowPrintsToolPinsThatLoadBack(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"python"}}
+	eff := effFor(t, "[verify.python]\ntools = { ruff = \"0.6.9\", mypy = \">=1.16\" }\n", facts)
+	var b strings.Builder
+	WriteShow(&b, eff, Kinds(), env(`C:\repo`))
+	got := b.String()
+	if !strings.Contains(got, "[verify.python]\ntools = { mypy = \">=1.16\", ruff = \"0.6.9\" }  # config\n") {
+		t.Fatalf("no pins in\n%s", got)
+	}
+	cfg, err := parse(t, got)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, got)
+	}
+	if !reflect.DeepEqual(cfg.Tools, eff.Config.Tools) {
+		t.Fatalf("loaded back %v, want %v", cfg.Tools, eff.Config.Tools)
+	}
+}
+
 // What a lane needs is part of the lane, so show prints it and it loads back.
 func TestWriteShowPrintsWhatALaneNeeds(t *testing.T) {
 	cppOnly := detect.Facts{Stacks: []string{"cpp"}, Areas: map[string][]string{"cpp": {"."}}}
