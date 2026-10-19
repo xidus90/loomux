@@ -95,9 +95,13 @@ type PlanEnv struct {
 	Godot func(dir string) (bin string, pre State, note string)
 }
 
-// ImportReady says whether Godot has imported the project in dir: only then
-// does it know the global classes a headless test run resolves.
+// ImportReady says whether Godot knows the global classes a headless test
+// run resolves in the project in dir: for Godot 4 once it has imported the
+// project, for Godot 3 once project.godot lists them (ClassListMissing).
 func ImportReady(dir string) bool {
+	if missing, godot3 := ClassListMissing(dir); godot3 {
+		return len(missing) == 0
+	}
 	_, err := os.Stat(filepath.Join(dir, ".godot", "global_script_class_cache.cfg"))
 	return err == nil
 }
