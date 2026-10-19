@@ -25,7 +25,7 @@ have.
 | svelte | `*.svelte`, `svelte.config.js` | — | `svelte-check` | — | — | — | — | no version pinned |
 | css | `*.css`, `*.scss`, `.stylelintrc*` | stylelint | — | — | — | — | — | no version pinned |
 | html | `*.html`, `.htmlhintrc` | htmlhint | — | — | — | — | — | no version pinned |
-| gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 through `check godot-suite`, where installed | NanoCoverage through `check linecov`, where installed | code graph | layer map | graph: Godot 3.x and 4.x, verified on 3.x, 4.2 and 4.7; test and coverage: Godot 4.3 to 4.8; lint: Godot 4, Godot 3 unproven, gdtoolkit pinnable with [`tools`](configuration.md#stacks) ([details](stacks/gdscript.md)) |
+| gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 through `check godot-suite`, or GUT through `check gut-suite`, where installed | NanoCoverage through `check linecov`, where installed | code graph | layer map | graph: Godot 3.x and 4.x, verified on 3.x, 4.2 and 4.7; test: gdUnit4 on Godot 4.3 to 4.8, GUT 7 on Godot 3 and GUT 9 on Godot 4 (verified on 3.6 and 4.7); coverage: Godot 4.3 to 4.8; lint: Godot 4, Godot 3 unproven, gdtoolkit pinnable with [`tools`](configuration.md#stacks) ([details](stacks/gdscript.md)) |
 | cpp | `CMakeLists.txt`, `CMakePresets.json`, `meson.build`, `*.cpp`, `*.hpp` | clang-tidy; clang-format on the edited file | the CMake build | ctest, where `CMakeLists.txt` enables testing | gcovr, 100 % of lines | — | — | needs a configured `build/` (`CMakeCache.txt`); no compiler version pinned |
 | shell | `*.sh`, `.shellcheckrc` | shellcheck, on the edited file only | — | — | — | — | — | no version pinned |
 | sql | `.sqlfluff` | sqlfluff | — | — | — | — | — | no version pinned |

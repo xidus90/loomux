@@ -15,7 +15,7 @@ Die Zelle ist leer, wo die Lane keine Erkennung braucht: Die Lint-Lane läuft au
 | gdUnit4 | test | `plugin.cfg:name="gdUnit4"` | Godot 4.3 bis 4.8 | https://github.com/godot-gdunit-labs/gdUnit4 |
 | NanoCoverage | coverage | `plugin.cfg:name="NanoCoverage"` | Godot 4 | https://github.com/IgorBayerl/nano-coverage-godot |
 | gdtoolkit4 | lint |  | Godot 4 | https://github.com/scony/godot-gdscript-toolkit |
-| GUT (unerprobt) | test | `plugin.cfg:name="Gut"` | GUT 7.x trägt Godot 3, 9.x trägt Godot 4; das Muster unterscheidet sie nicht | https://github.com/bitwes/Gut |
+| GUT | test | `plugin.cfg:name="Gut"` | GUT 7.x trägt Godot 3, 9.x trägt Godot 4; das Muster unterscheidet sie nicht | https://github.com/bitwes/Gut |
 | gdtoolkit3 (unerprobt) | lint |  | Godot 3 | https://github.com/scony/godot-gdscript-toolkit |
 | godot-code-coverage (unerprobt) | coverage | `plugin.cfg:name="Coverage"` | auf Godot 3.5 dokumentiert, 3.6 unbestätigt | https://github.com/jamie-pate/godot-code-coverage |
 
@@ -23,6 +23,5 @@ Die Zelle ist leer, wo die Lane keine Erkennung braucht: Die Lint-Lane läuft au
 
 Eine als unerprobt markierte Zeile hat loomux noch nicht gegen eine echte Installation der genannten Linie gefahren. Offen ist je Zeile:
 
-- GUT (unerprobt): seine Tests durch loomux auf einem Godot-3-Projekt fahren und auf einem Godot-4-Projekt, um zu sehen, welche Linie eine gefundene Installation trägt.
 - gdtoolkit3 (unerprobt): die Lint-Lane durch loomux auf einem Godot-3-Projekt mit der 3.x-Fassung des Toolkits fahren.
 - godot-code-coverage (unerprobt): eine Abdeckungs-Lane durch loomux auf Godot 3.5 fahren und eine auf 3.6.

@@ -154,6 +154,16 @@ after      = "test"
 lock       = true
 when_found = ['plugin.cfg:name="gdUnit4"', 'plugin.cfg:name="NanoCoverage"']
 
+# GUT (7 for Godot 3, 9 for Godot 4) wins the test lane where its addon is
+# found, gdUnit4 beside it or not; it measures no coverage, so coverage stays
+# the gdUnit4 lane above. Its plugin.cfg says name="Gut", in both versions.
+[[stack.gdscript.variant]]
+when = "gut"
+[stack.gdscript.variant.test]
+commands   = ["{loomux} check gut-suite --godot {godot}"]
+lock       = true
+when_found = ['plugin.cfg:name="Gut"']
+
 [stack.cpp]
 tests_when = ["CMakeLists.txt:enable_testing("]
 

@@ -93,10 +93,16 @@ func TestALanesPatternsAreTheProvenRowsAndNoOthers(t *testing.T) {
 		if f.Found == "" {
 			continue
 		}
-		lane := p.Stacks[f.Stack].Lanes[f.Kind]
-		if wired := slices.Contains(lane.WhenFound, f.Found); wired != f.Proven {
-			t.Errorf("%s/%s: proven = %v, but [stack.%s.%s].when_found %v carrying %q = %v",
-				f.Stack, f.Name, f.Proven, f.Stack, f.Kind, lane.WhenFound, f.Found, wired)
+		// A variant's lane detects as much as the stack's own: GUT's test lane
+		// is one.
+		lanes := []Lane{p.Stacks[f.Stack].Lanes[f.Kind]}
+		for _, v := range p.Stacks[f.Stack].Variants {
+			lanes = append(lanes, v.Lanes[f.Kind])
+		}
+		wired := slices.ContainsFunc(lanes, func(l Lane) bool { return slices.Contains(l.WhenFound, f.Found) })
+		if wired != f.Proven {
+			t.Errorf("%s/%s: proven = %v, but a [stack.%s] %s lane carrying %q = %v",
+				f.Stack, f.Name, f.Proven, f.Stack, f.Kind, f.Found, wired)
 		}
 	}
 }

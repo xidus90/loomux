@@ -24,7 +24,7 @@ import (
 )
 
 func TestCheckNeedsARequest(t *testing.T) {
-	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph,rules), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, graph-fresh, blast-audit, rules\n"
+	want := "loomux check: name a profile or kinds (lint,types,test,coverage,graph,rules), or one of: commit-msg, gofmt, gocover, linecov, godot-suite, gut-suite, graph-fresh, blast-audit, rules\n"
 	if code, _, errOut := run("check"); code != 2 || errOut != want {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}

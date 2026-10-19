@@ -42,6 +42,7 @@ var signals = []signal{
 	{path: "biome.json", stacks: []string{"biome", "typescript"}},
 	{path: "pnpm-workspace.yaml", stacks: []string{"pnpm"}},
 	{path: ".gdlintrc", stacks: []string{"gdlint", "gdscript"}},
+	{path: "addons/gut/plugin.cfg", stacks: []string{"gut", "gdscript"}},
 	{path: "docker-compose.yml", stacks: []string{"docker"}},
 	{path: "compose.yaml", stacks: []string{"docker"}},
 	{path: "Cargo.toml", stacks: []string{"rust"}},

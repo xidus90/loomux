@@ -359,6 +359,37 @@ Prüft eine Git-Commit-Nachricht auf Sprache und Einhaltung der Formatregeln ode
 - **Argumente**: Optionale Verzeichnisse oder Dateipfade (Standard: Arbeitsverzeichnis).
 - **Exit-Codes**: `0` (Korrekt formatiert), `1` (Unformatierte Dateien auf `stdout` gelistet, oder ein Pfad, der sich nicht lesen lässt, gemeldet als `loomux check gofmt: <grund>` auf `stderr`).
 
+### `loomux check gut-suite [--godot <bin>] [--root <verz>]`
+Fährt die GUT-Suite eines Godot-3-Projekts (GUT 7) oder eines
+Godot-4-Projekts (GUT 9) einmal headless und urteilt nach GUTs
+JUnit-Bericht. Die `gdscript`-Lane `test` fährt ihn, wo
+`addons/gut/plugin.cfg` `name="Gut"` sagt; liegt gdUnit4 daneben, übernimmt
+GUT die Lane `test`, und `coverage` bleibt die von gdUnit4.
+
+- **Flags**: `--root` (Vorgabe `.`) ist das Godot-Projekt; `--godot` nennt die
+  Engine, die ohne das Flag wie `{godot}` gesucht und an die Linie gehalten
+  wird, die `project.godot` verlangt (ein Binary der anderen Linie ist ein
+  Befund).
+- **Was es fährt**: `<godot> --headless --path <root> -s
+  res://addons/gut/gut_cmdln.gd -gdir=<verz> -ginclude_subdirs -gprefix=test_
+  -gexit -gjunit_xml_file=<bericht>`, für Godot 3 mit `--no-window` statt
+  `--headless`. Godot 3 dokumentiert `--no-window` nur für Windows: unter Linux ohne Display seinen Headless- oder Server-Build nehmen oder die Lane unter `xvfb-run` starten (nur unter Windows geprüft). `<verz>` sind die von `res://test` und `res://tests`, die es
+  gibt. Eine `.gutconfig.json` ersetzt die drei `-g`-Optionen zu den Tests
+  durch `-gconfig=res://.gutconfig.json`; loomux liest daraus `dirs`,
+  `prefix`, `suffix` und `include_subdirs` (ohne Angabe falsch, wie bei GUT), um zu wissen, welche Skripte im
+  Bericht stehen müssen; eine Suite namens `<skript>.<InnereKlasse>` zählt für ihr Skript. Der Bericht liegt unter
+  `.loomux/state/gut-suite/<lauf>/junit.xml` und wird nach einem grünen Lauf
+  entfernt.
+- **Urteil**: rot bei jedem fehlschlagenden Fall, bei einem geplanten Skript,
+  das im Bericht fehlt, bei einem Bericht ohne Fall (Godot 3 ohne seine
+  Klassenliste sagt „No tests ran“ und endet mit 0), bei gar keinem Bericht
+  (Godot 4 ohne Import endet mit 0 und schreibt keinen), wenn kein Testskript
+  gefunden wird und wenn `addons/gut/gut_cmdln.gd` fehlt; ein sauberer Bericht
+  mit einem Exit-Code ungleich 0 ist ebenfalls rot. Exit `0` grün, `1` Befunde
+  oder ein Fehler, `2` bei einem falschen Aufruf.
+- **Vor dem ersten Lauf**: `loomux godot rescan` gibt der Engine, worüber sie
+  `GutTest` auflöst (siehe dort).
+
 ### `loomux check graph-fresh [--root <pfad>] [--wait <dauer>]`
 Die erste Hälfte der Graph-Lane: bringt den Graphen auf der Platte auf den
 Stand des Baums, bevor `blast-audit` ihn liest.
@@ -417,6 +448,16 @@ ist.
 - **Flags**: `--root` (Vorgabe `.`) ist das Godot-Projekt; `--godot` nennt die
   Engine, die ohne das Flag wie `{godot}` gesucht und gegen `project.godot`
   geprüft wird.
+- **Godot 3** hat keinen Klassen-Cache: Es löst einen `class_name` über
+  `_global_script_classes` in `project.godot` auf, das nur sein Editor
+  schreibt. Für ein Godot-3-Projekt fährt der Befehl `<godot> --no-window
+  --editor --path <root>` 30 Sekunden lang (der Editor von Godot 3.6 beendet
+  sich auf `--quit` nicht), behält die Klassenliste, die er schrieb, und setzt
+  den Rest von `project.godot` zurück. Fehlt in der Liste danach noch ein
+  `class_name` des Projekts, ist das ein Fehler, der ihn nennt; ohne Liste
+  bleibt die Datei unberührt. Ein Godot-3-Projekt gilt als importiert, sobald
+  die Liste jeden `class_name` nennt, den es deklariert, die seiner Addons
+  eingeschlossen.
 - **Was es fährt**: `<godot> --path <root> --headless --import`. Die Ausgabe
   ist nach der Sprache des Editors lokalisiert, darum zählen nur der Exit-Code
   und der Cache.

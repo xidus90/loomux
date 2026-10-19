@@ -186,7 +186,7 @@ func TestNames(t *testing.T) {
 	if strings.Join(StackNames(), ",") != "go,python,typescript,vue,svelte,css,html,gdscript,cpp,shell,sql,rust,wiki,wiki-sources,project" {
 		t.Fatal(StackNames())
 	}
-	for _, name := range []string{"gofmt", "commit-msg", "gocover", "linecov", "godot-suite", "graph-fresh", "blast-audit", "all", "lint", "types", "test", "coverage", "graph", "rules"} {
+	for _, name := range []string{"gofmt", "commit-msg", "gocover", "linecov", "godot-suite", "gut-suite", "graph-fresh", "blast-audit", "all", "lint", "types", "test", "coverage", "graph", "rules"} {
 		if !Reserved(name) {
 			t.Errorf("%s is not reserved", name)
 		}

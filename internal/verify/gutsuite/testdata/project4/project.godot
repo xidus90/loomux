@@ -1,0 +1,7 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="gut-suite on Godot 4"
+config/features=PackedStringArray("4.7")

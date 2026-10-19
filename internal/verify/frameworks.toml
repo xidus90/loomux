@@ -45,7 +45,7 @@ name = "GUT"
 kind = "test"
 found = 'plugin.cfg:name="Gut"'
 carries = "GUT 7.x carries Godot 3, 9.x carries Godot 4; the pattern does not tell them apart"
-proven = false
+proven = true
 source = "https://github.com/bitwes/Gut"
 
 [[framework]]
