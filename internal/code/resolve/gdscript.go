@@ -32,10 +32,18 @@ import (
 // builtin and gives no edge. super starts at the base. X.f() binds X.
 // X.new() is X's own _init, or X.
 // sig.emit(), sig.connect() and sig.disconnect() on a signal of the class or
-// one of its bases reference the signal.
+// one of its bases reference the signal, as do is_connected and the
+// extractor's "await" (yield and await).
 // X.sig.emit(), connect and disconnect do the same for a signal of X or its
 // bases, where X is bound like any receiver: an autoload, a class_name or an
 // inner class.
+// A name no class binds is a reference of the method or signal of that name
+// in the class or one of its bases, if there is exactly one. A reference
+// with a path is a scene's connection: the member of the script the path
+// runs.
+// uid:// paths resolve through the uids of the project: each .uid file's,
+// and each scene's and resource's own. An autoload that is a scene binds the
+// script at the scene's root.
 // Every edge names exactly one target, or there is none, and every edge is
 // extracted.
 func resolveGDScript(files []extract.Result, paths map[string]bool) ([]model.Edge, []Unresolved) {
@@ -103,6 +111,7 @@ type gdIndex struct {
 	aliases  map[string]map[string]string             // file -> alias -> path as written
 	classes  map[string]map[string][]model.NodeID     // project root -> class_name -> its classes
 	autoload map[string]map[string]string             // project root -> name -> path as written
+	uids     map[string]map[string]string             // project root -> uid:// -> the file it names
 	bases    map[model.NodeID]model.NodeID            // class -> its base, as resolveGDScript resolves it
 }
 
@@ -111,7 +120,8 @@ func gdIndexOf(files []extract.Result, paths map[string]bool) *gdIndex {
 		paths: paths, kind: map[model.NodeID]model.Kind{}, parent: map[model.NodeID]model.NodeID{},
 		members: map[model.NodeID]map[string][]model.Node{}, script: map[string]model.NodeID{},
 		aliases: map[string]map[string]string{}, classes: map[string]map[string][]model.NodeID{},
-		autoload: map[string]map[string]string{}, bases: map[model.NodeID]model.NodeID{},
+		autoload: map[string]map[string]string{}, uids: map[string]map[string]string{},
+		bases: map[model.NodeID]model.NodeID{},
 	}
 	for _, f := range files {
 		if path.Base(f.Path) == "project.godot" {
@@ -119,6 +129,7 @@ func gdIndexOf(files []extract.Result, paths map[string]bool) *gdIndex {
 			x.roots = append(x.roots, root)
 			x.classes[root] = map[string][]model.NodeID{}
 			x.autoload[root] = map[string]string{}
+			x.uids[root] = map[string]string{}
 			for _, imp := range f.Imports {
 				x.autoload[root][imp.Alias] = imp.Path
 			}
@@ -130,6 +141,13 @@ func gdIndexOf(files []extract.Result, paths map[string]bool) *gdIndex {
 		x.aliases[f.Path] = map[string]string{}
 		for _, imp := range f.Imports {
 			x.aliases[f.Path][imp.Alias] = imp.Path
+		}
+		if path.Ext(f.Path) != ".gd" && f.Package != "" {
+			// A scene's or resource's own uid, or the one a .uid file holds
+			// for the file it is named after.
+			if root, ok := x.project(f.Path); ok {
+				x.uids[root][f.Package] = strings.TrimSuffix(f.Path, ".uid")
+			}
 		}
 		if path.Ext(f.Path) == ".gd" {
 			x.script[f.Path] = model.NodeID(f.Path)
@@ -174,11 +192,17 @@ func (x *gdIndex) project(file string) (string, bool) {
 }
 
 // target is the file a path in file names: res:// from the project root, a
-// path without a scheme from the file's directory. False when there is no
-// project for res://, or no file of the build there -- an icon, a uid://
-// or user:// path, a file outside the tree.
+// uid:// through the uids of the project, a path without a scheme from the
+// file's directory. False when there is no project for res:// or uid://, or
+// no file of the build there -- an icon, a uid nothing claims, a user://
+// path, a file outside the tree.
 func (x *gdIndex) target(file, spec string) (string, bool) {
 	var p string
+	if strings.HasPrefix(spec, "uid://") {
+		root, _ := x.project(file)
+		p = x.uids[root][spec]
+		return p, x.paths[p]
+	}
 	if rest, ok := strings.CutPrefix(spec, "res://"); ok {
 		root, ok := x.project(file)
 		if !ok {
@@ -243,9 +267,30 @@ func (x *gdIndex) bind(file string, home model.NodeID, name string) (model.NodeI
 	}
 	if spec, ok := x.autoload[root][name]; ok {
 		// A path without a scheme starts at the project, as Godot reads it.
-		return x.reach(x.target(path.Join(root, "project.godot"), spec))
+		// A scene autoload is its root node, whose script the name reaches.
+		p, ok := x.target(path.Join(root, "project.godot"), spec)
+		return x.reach(x.rootScript(p), ok)
 	}
 	return "", ReasonNone
+}
+
+// rootScript is the script that runs at the root of scene p, through scenes
+// whose root instances another; p itself when it is no scene or its root
+// runs no script of the build.
+func (x *gdIndex) rootScript(p string) string {
+	for seen := map[string]bool{}; !seen[p]; {
+		seen[p] = true
+		spec, ok := x.aliases[p]["."]
+		if !ok {
+			break
+		}
+		q, ok := x.target(p, spec)
+		if !ok {
+			break
+		}
+		p = q
+	}
+	return p
 }
 
 // reasonBroken marks a binding whose file is missing; it is never reported.
@@ -277,6 +322,15 @@ func (x *gdIndex) chain(file string, home model.NodeID, names string) (model.Nod
 func (x *gdIndex) base(raw extract.RawEdge) (model.NodeID, Reason) {
 	if raw.Specifier != "" {
 		t, why := x.reach(x.target(raw.File, raw.Specifier))
+		// extends "res://a.gd".Inner: the inner classes below the path.
+		if raw.Name != "" {
+			for _, p := range strings.Split(raw.Name, ".") {
+				if why != "" {
+					break
+				}
+				t, why = only(ofKind(x.members[t][p], "class"))
+			}
+		}
 		if t == raw.Source {
 			return "", reasonBroken
 		}
@@ -314,7 +368,22 @@ func (x *gdIndex) resolve(raw extract.RawEdge) (model.Edge, bool) {
 		p, ok := x.target(raw.File, raw.Specifier)
 		return gdEdge(raw, model.NodeID(p)), ok && p != raw.File
 	case model.RelationReferences:
-		t, why := x.bind(raw.File, x.home(raw), raw.Name)
+		if raw.Specifier != "" {
+			// A scene's connection: a member of the script a node runs.
+			p, ok := x.target(raw.File, raw.Specifier)
+			if !ok {
+				return model.Edge{}, false
+			}
+			return one(raw, x.member(x.classOf(x.rootScript(p)), raw.Name, "method", "function", "signal"), model.ConfidenceExtracted)
+		}
+		home := x.home(raw)
+		t, why := x.bind(raw.File, home, raw.Name)
+		if why == ReasonNone {
+			// No class of that name: a method or signal of the class, taken
+			// as a value or named for a connection.
+			e, ok := one(raw, x.member(home, raw.Name, "method", "function", "signal"), model.ConfidenceExtracted)
+			return e, ok && !x.encloses(e.Target, raw.Source)
+		}
 		return gdEdge(raw, t), why == "" && !x.encloses(t, raw.Source)
 	default:
 		return x.call(raw)
@@ -372,9 +441,15 @@ func (x *gdIndex) call(raw extract.RawEdge) (model.Edge, bool) {
 	return one(raw, x.member(class, raw.Name, fns...), model.ConfidenceExtracted)
 }
 
-// signalVerb is whether a member call on a signal uses the signal itself.
+// signalVerb is whether a member call on a signal uses the signal itself;
+// "await" is how the extractor records Godot 3's yield(obj, "s") and Godot
+// 4's await obj.s.
 func signalVerb(name string) bool {
-	return name == "emit" || name == "connect" || name == "disconnect"
+	switch name {
+	case "emit", "connect", "disconnect", "is_connected", "await":
+		return true
+	}
+	return false
 }
 
 // ofKind keeps the nodes of the given kinds.

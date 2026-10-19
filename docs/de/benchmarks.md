@@ -3904,3 +3904,44 @@ Läufe. Alle Läufe endeten mit Exit 0.
 2. **Der kalte Lauf des ersten Falls** ist der erste Start eines frisch
    kopierten Binarys, nicht der Wächter: zwei Gegendurchgänge mit after vor
    before ergaben kalt 946 und 967 ms für after, 887 und 1117 ms für before.
+
+
+## 2026-10-19 09:12 — GDScript von Godot 3 und 4: Graph-Build auf space
+
+**Ziel.** Die Formen von Godot 3 neben denen von Godot 4 zu lesen (`.f()`,
+`setget`, `yield`, Signale und Methoden per String), dazu
+Szenenverbindungen, Szenen-Autoloads, `uid://`-Pfade und
+`@abstract`-Funktionen, darf den Build eines Godot-4-Projekts nicht
+verlangsamen und keine seiner Kanten kosten.
+
+**Methode.** Binary aus `origin/master` (`chore(release): v1.10.2`) gegen
+Zweig `feat/gdscript-godot-lines`, beide mit `go build` gebaut. Sie liefen auf
+einem frischen Klon von `space` auf `5e72f83f` (650 `.uid`-Dateien unter
+1360 Godot-Dateien). Kalt ist `graph build --no-reuse`, warm der nächste
+`graph build`; je drei Läufe, die Zeit des Builds selbst. Windows 11 Pro.
+Die Kantenmengen beider Graphen wurden nach Quelle, Relation und Ziel
+verglichen.
+
+| Messgröße | Vorher | Nachher |
+| --- | ---: | ---: |
+| Dateien des Godot-Projekts | 710 | 1360 (650 `.uid`, kein Knoten) |
+| Knoten | 9412 | 9661 |
+| Kanten | 38125 | 38683 |
+| contains / calls / imports / extends / references | 8702 / 18525 / 206 / 327 / 10365 | 8951 / 18539 / 206 / 327 / 10660 |
+| Parse-Fehler | 104 in 3 Dateien | 104 in 3 Dateien |
+| Kalter Build, drei Läufe | 1,590 / 1,607 / 1,621 s | 1,695 / 1,609 / 1,638 s |
+| Warmer Build, drei Läufe | 676 / 680 / 680 ms | 689 / 675 / 684 ms |
+
+**Erkenntnisse**
+
+1. **Keine Kante geht verloren**: Von den Kanten des alten Graphen fehlt im
+   neuen keine, 558 sind neu.
+2. **Die 249 neuen Knoten sind alle `@abstract`-Funktionen** des Addons
+   gdUnit4 (Godot 4.5), die ohne Rumpf vorher keinen Knoten bekamen.
+3. **Die 295 neuen Referenzen** sind an `connect` übergebene Handler,
+   Callables in Dictionaries (`TYPE_PROJECTION: _on_type_Projection`) und
+   Handler und Signale aus Szenenverbindungen; die 14 neuen Aufrufe sind
+   `call_deferred` und `rpc` per Name. Drei davon wurden am Quelltext geprüft.
+4. **Die Build-Zeit bewegt sich nicht**: kalt und warm bleiben in der Streuung
+   der Läufe eines Binarys. Die 650 `.uid`-Dateien werden gelesen und
+   gehasht, aber nicht geparst.
