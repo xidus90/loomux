@@ -7,6 +7,20 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.11.0] - 2026-10-19
+
+<https://github.com/xidus90/loomux/pull/119>
+
+### Added
+- The code graph reads GDScript of Godot 3 beside Godot 4: `.f()`, `setget`, `yield`, `funcref` and `connect("s", self, "m")` give the same edges as their Godot 4 forms.
+- Signals and methods named by a string literal or passed as values (`connect`, `call_deferred`, `rpc`, `Callable`, `s.connect(m)`) are references or calls in the code graph.
+- Scene `[connection]` sections reference their handler and signal, in Godot 3 and Godot 4 scene formats.
+- `uid://` paths in scripts, scenes, autoloads and the main scene resolve through `.uid` files and the uids in scene and resource headers.
+### Changed
+- An autoload that is a scene binds the script at the scene's root instead of the scene file.
+### Fixed
+- Abstract GDScript functions (`@abstract func f()`) get a node in the code graph.
+
 ## [1.10.2] - 2026-10-18
 
 <https://github.com/xidus90/loomux/pull/118>
