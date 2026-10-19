@@ -7,6 +7,15 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.13.0] - 2026-10-19
+
+<https://github.com/xidus90/loomux/pull/123>
+
+### Added
+- `loomux check gut-suite` and a GUT test lane for Godot 3 (GUT 7) and Godot 4 (GUT 9).
+### Fixed
+- A Godot 3 project with a test or coverage lane is no longer unready for a class cache only Godot 4 writes, and `loomux godot rescan` writes Godot 3's class list instead of running Godot 4's import.
+
 ## [1.12.0] - 2026-10-19
 
 <https://github.com/xidus90/loomux/pull/122>
