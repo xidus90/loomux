@@ -1,7 +1,9 @@
 package gdscript
 
 import (
+	"bytes"
 	"path"
+	"slices"
 	"strings"
 
 	gts "github.com/odvcencio/gotreesitter"
@@ -30,7 +32,7 @@ import (
 // format=2 (Godot 3) and strings in format=3 (Godot 4); both are read as
 // written.
 func resource(lang *gts.Language, rel, source string) (extract.Result, error) {
-	doc, err := treesitter.Parse(lang, rel, []byte(source))
+	doc, err := treesitter.Parse(lang, rel, bareKeys([]byte(source)))
 	if err != nil {
 		return extract.Result{}, err
 	}
@@ -107,6 +109,38 @@ func resource(lang *gts.Language, rel, source string) (extract.Result, error) {
 		}
 	}
 	return r, nil
+}
+
+// bareKeys rewrites every property key in quotes, which Godot writes for a
+// key with a space ("nodes/Animation 2/node"), into a bare one of the same
+// length: each byte that is no letter, digit, "_", "/", "." or ":" becomes
+// "_". The grammar (gotreesitter v0.55.1, probed) takes no quoted key, and
+// after the first one it builds no section of the rest of the file. No key
+// this package reads is ever quoted, and lines and offsets stay as they were.
+func bareKeys(src []byte) []byte {
+	out := slices.Clone(src)
+	// Split's lines share out's bytes, so bareKey rewrites out itself.
+	for _, line := range bytes.Split(out, []byte("\n")) {
+		bareKey(line)
+	}
+	return out
+}
+
+// bareKey rewrites one line's key, if the line starts with one in quotes
+// followed by "=".
+func bareKey(line []byte) {
+	if len(line) == 0 || line[0] != '"' {
+		return
+	}
+	end := bytes.IndexByte(line[1:], '"') + 1
+	if end == 0 || !bytes.HasPrefix(bytes.TrimLeft(line[end+1:], " \t"), []byte("=")) {
+		return
+	}
+	for i := 0; i <= end; i++ {
+		if c := line[i]; !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("_/.:", c) >= 0) {
+			line[i] = '_'
+		}
+	}
 }
 
 // nodePath is where a [node] section stands below the scene's root: "." for
