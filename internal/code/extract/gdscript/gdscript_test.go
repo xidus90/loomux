@@ -165,7 +165,8 @@ func TestAConstructorIsAMethodNamedInit(t *testing.T) {
 	for _, e := range edgesOf(r, model.RelationReferences) {
 		refs = append(refs, string(e.Source)+" "+e.Name)
 	}
-	same(t, "references", refs, []string{init + " a", init + " Foo"})
+	// A parameter hides any member of its name and is no reference.
+	same(t, "references", refs, []string{init + " Foo"})
 }
 
 func TestAnEmptyScriptIsItsFileNode(t *testing.T) {
@@ -183,7 +184,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/3@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/4@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -235,16 +236,16 @@ func TestEveryEdgeFormOfAScript(t *testing.T) {
 		refs = append(refs, string(e.Source)+" "+e.Name)
 	}
 	same(t, "references", refs, []string{
-		run + " a", run + " Foo", run + " Bar", run + " self", run + " Helper",
+		run + " Foo", run + " Bar", run + " self", run + " Helper",
 		run + " Outer", run + " selfish", run + " super", run + " changed", run + " Qux", run + " Quux",
 	})
 }
 
-// A signal's parameter types are names it uses; its own name is none.
+// A signal's parameter types are names it uses; its own name and its
+// parameters are none.
 func TestASignalReferencesItsParameterTypes(t *testing.T) {
 	r := extractSrc(t, rel, "signal hit(t: Enemy)\n")
 	same(t, "references", edgesOf(r, model.RelationReferences), []extract.RawEdge{
-		edge("a/s.gd#hit", model.RelationReferences, "t", "", ""),
 		edge("a/s.gd#hit", model.RelationReferences, "Enemy", "", ""),
 	})
 }
@@ -288,6 +289,12 @@ func TestAnAbstractFunctionIsANode(t *testing.T) {
 		`a/s.gd#Shape class owner= L1-L4 exported=true sig="class_name Shape"`,
 		`a/s.gd#Shape.area method owner=Shape L4-L4 exported=true sig="@abstract func area() -> float"`,
 	})
+}
+
+// A path followed by anything but inner class names is no base.
+func TestAPathWithACallIsNoBase(t *testing.T) {
+	r := extractSrc(t, rel, "extends \"res://a.gd\".make()\n")
+	same(t, "extends", edgesOf(r, model.RelationExtends), nil)
 }
 
 // emit_signal and preload with no string literal name nothing.
@@ -405,6 +412,8 @@ func TestAResourceImportsWhatItsExtResourcesName(t *testing.T) {
 	}
 	same(t, "imports", noLines(r.Edges), []extract.RawEdge{
 		{Source: p, Relation: model.RelationImports, Specifier: "res://stats.gd", File: p},
+		// No path: the uid names the file, for the resolver to look up.
+		{Source: p, Relation: model.RelationImports, Specifier: "uid://abc", File: p},
 	})
 }
 

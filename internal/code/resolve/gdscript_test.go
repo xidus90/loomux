@@ -67,7 +67,9 @@ func TestGodotInheritanceSuperSignalsAndConstructors(t *testing.T) {
 	wantCalls(t, g, "p/leaf.gd#run",
 		"p/base.gd#Base._init extracted", "p/base.gd#Base.greet extracted",
 		"p/leaf.gd#greet extracted", "p/mid.gd#Mid extracted")
-	wantTargets(t, g, "p/leaf.gd#run", model.RelationReferences, "p/base.gd#Base", "p/mid.gd#Mid")
+	// hit.is_connected(greet) uses the signal and passes the method greet.
+	wantTargets(t, g, "p/leaf.gd#run", model.RelationReferences,
+		"p/base.gd#Base", "p/base.gd#Base.hit", "p/leaf.gd#greet", "p/mid.gd#Mid")
 }
 
 func TestGodotNameBindingOrderAndAmbiguity(t *testing.T) {
@@ -253,12 +255,12 @@ func TestGodotSignalVerbsOnASignalOfABoundClass(t *testing.T) {
 	})
 	// The receiver's first name is a reference of its own (the class); the
 	// signal is the extra edge, and only the extra edge is under test.
-	for _, fn := range []string{"a", "b", "c"} {
+	for _, fn := range []string{"a", "b", "c", "f"} {
 		wantTargets(t, g, model.NodeID("s/user.gd#"+fn), model.RelationReferences, "s/bus.gd", "s/bus.gd#ping")
 	}
 	wantTargets(t, g, "s/user.gd#d", model.RelationReferences, "s/outer.gd#Outer", "s/outer.gd#Outer.Inner.sig")
 	wantTargets(t, g, "s/user.gd#e", model.RelationReferences, "s/bus.gd#ping", "s/kid.gd#Kid")
-	for _, fn := range []string{"f", "g", "h"} {
+	for _, fn := range []string{"g", "h"} {
 		wantTargets(t, g, model.NodeID("s/user.gd#"+fn), model.RelationReferences, "s/bus.gd")
 	}
 	wantTargets(t, g, "s/user.gd#i", model.RelationReferences)

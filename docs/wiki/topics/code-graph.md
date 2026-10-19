@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:7baaad75eeb7fb3e320ff9d0e8df54d36bcc7a762a0389627bee522105959bd1"
-    revision: 14
+    content_hash: "sha256:b90d0e397759a27b63877267e624cd3a933ba6ff477ef8335aa1439f96bfa6fb"
+    revision: 15
 ---
 
 ## Wofür
@@ -57,7 +57,15 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   ohne es gibt es keine `res://`-Kante. Ein Pfad ohne Schema gilt bei
   `preload` ab dem Ordner des Skripts, bei `load` ab `res://` (so liest
   Godot es), bei einem Autoload ab dem Ordner der `project.godot`. Ein Skript mit `class_name` ist ein
-  Klassenknoten über die ganze Datei.
+  Klassenknoten über die ganze Datei. Godot 3 und Godot 4 liest er nach der
+  Form, nicht nach der Version: `.f()`, `setget`, `yield` und
+  `connect("s", self, "m")` ergeben dieselben Kanten wie `super.f()`,
+  `get =`/`set =`, `await` und `s.connect(m)`. Methoden und Signale als Wert
+  oder per String-Literal sind Referenzen (`call*` und `rpc*` Aufrufe), eine
+  `[connection]` einer Szene referenziert Handler und Signal, ein
+  Szenen-Autoload bindet das Wurzelskript, und `uid://` löst sich über die
+  `.uid`-Dateien und die UIDs im Kopf von Szenen und Ressourcen auf
+  (`docs/.superpowers/specs/2026-10-19-gdscript-godot-linien-design.md`).
 
 Jede Sprache löst in einem eigenen Namensindex auf. Über eine Sprachgrenze geht
 nur ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest

@@ -1,10 +1,16 @@
-// Package gdscript extracts the nodes and raw edges of one file of a Godot 4
-// project on the shared tree-sitter core: a GDScript file (.gd), a scene or a
-// resource (.tscn, .tres), or the project file (project.godot).
+// Package gdscript extracts the nodes and raw edges of one file of a Godot 3
+// or Godot 4 project on the shared tree-sitter core: a GDScript file (.gd), a
+// scene or a resource (.tscn, .tres), the project file (project.godot), or
+// the .uid file Godot 4.4 writes beside a script.
 //
-// One language for all four, because the resolver resolves a language
+// One language for all of them, because the resolver resolves a language
 // against its own files alone, and a scene reaches the script it attaches,
 // a script the scene it preloads, only inside one group.
+//
+// Both lines of Godot are read by the shape of what is written, never by the
+// project's version: each form means one thing in either line (`.f()` and
+// connect("s", self, "m") exist only in Godot 3, @export only in Godot 4), so
+// a project halfway through a migration gets the edges of both.
 //
 // Raw, as in the other extractors: a base class, a call or a name a script
 // uses names its target, and resolving it needs every file of the project,
@@ -25,7 +31,7 @@
 //
 //	source                the statements as children
 //	class_name_statement  field name, on the keyword's line; field extends in `class_name X extends Y`
-//	extends_statement     a type child (an identifier, or an attribute of identifiers) or a string child
+//	extends_statement     a type child (an identifier, an attribute of identifiers, or one of a string and identifiers) or a string child
 //	function_definition   fields name, parameters, return_type, body; a ":" child closes the header; no body when abstract
 //	constructor_definition  `func _init`: no name field, otherwise as function_definition
 //	class_definition     fields name, extends, body (a class_body); a ":" child closes the header
@@ -34,14 +40,19 @@
 //	call                  the callee identifier first, field arguments
 //	attribute             identifier and "." children; an attribute_call last for a member call
 //	attribute_call        the member identifier first, field arguments
-//	string                its text, quotes included
+//	base_call             Godot 3's `.f()`: the identifier f, then arguments
+//	await_expression      the awaited expression as a child
+//	setget                setter and getter children, each a method's name: Godot 3's setget and Godot 4's get = f, set = g
+//	parameters            a parameter per child, its name the first identifier in it
+//	string                its text, quotes included; string_name is &"x"
 //
 // and the resource grammar of scenes, resources and the project file:
 //
 //	resource   the sections as children, and properties ahead of the first
 //	section    "[", its identifier, attribute children, "]", then property children
-//	attribute  key identifier, "=", value
-//	property   key path, "=", value
+//	attribute    key identifier, "=", value
+//	property     key path, "=", value
+//	constructor  ExtResource( 1 ) or ExtResource("1_a"): its identifier, then arguments
 package gdscript
 
 import (
@@ -61,7 +72,7 @@ import (
 // version is this extractor's identity. Bump it by hand whenever the nodes or
 // edges below change shape or meaning; the extract cache and the graph's meta
 // key on it.
-const version = "gdscript/3"
+const version = "gdscript/4"
 
 // langName is the language as the graph's meta lists it and as a Result carries it.
 const langName = "gdscript"
@@ -78,7 +89,7 @@ func (Language) Version() string { return version + "@" + treesitter.Parser }
 
 // Extensions are the files of a Godot project this package reads: scripts,
 // the project file, resources and scenes.
-func (Language) Extensions() []string { return []string{".gd", ".godot", ".tres", ".tscn"} }
+func (Language) Extensions() []string { return []string{".gd", ".godot", ".tres", ".tscn", ".uid"} }
 
 // File is this package's File.
 func (Language) File(rel, source string) (extract.Result, error) { return File(rel, source) }
@@ -87,10 +98,24 @@ func (Language) File(rel, source string) (extract.Result, error) { return File(r
 // source is its contents. A script is read as GDScript, anything else as a
 // Godot resource.
 func File(rel, source string) (extract.Result, error) {
-	if path.Ext(rel) == ".gd" {
+	switch path.Ext(rel) {
+	case ".gd":
 		return script(gdgrammar.Language(), rel, source)
+	case ".uid":
+		return uidFile(rel, source), nil
 	}
 	return resource(resgrammar.Language(), rel, source)
+}
+
+// uidFile reads the .uid file Godot 4.4 writes beside a script: one line, the
+// uid of the file it is named after. It gets no node; its Package carries the
+// uid for the resolver, and "" for anything that is no uid.
+func uidFile(rel, source string) extract.Result {
+	r := extract.Result{Path: rel, Language: langName, Nodes: []model.Node{}}
+	if uid := strings.TrimSpace(source); strings.HasPrefix(uid, "uid://") && len(strings.Fields(uid)) == 1 {
+		r.Package = uid
+	}
+	return r
 }
 
 // script extracts one GDScript file with the grammar handed in: the grammar
@@ -135,9 +160,10 @@ type extractor struct {
 
 // scope is what a definition or a call at one place belongs to.
 type scope struct {
-	source model.NodeID // the innermost definition with a node, or the script's class
-	class  string       // the qualified class around it; "" at the top of a script without class_name
-	fn     string       // the function it is in, for super(); "" outside one
+	source model.NodeID    // the innermost definition with a node, or the script's class
+	class  string          // the qualified class around it; "" at the top of a script without class_name
+	fn     string          // the function it is in, for super(); "" outside one
+	locals map[string]bool // its parameters and locals, which hide a member of the same name
 }
 
 // script reads the whole file: the class_name first, wherever it stands,
@@ -218,7 +244,7 @@ func (x *extractor) function(def *gts.Node, sc scope) {
 		kind = "function"
 	}
 	n := x.symbol(def, end, name, kind, sc)
-	inner := scope{source: n.ID, class: sc.class, fn: name}
+	inner := scope{source: n.ID, class: sc.class, fn: name, locals: x.locals(def)}
 	for _, c := range def.Children() {
 		x.collect(c, inner)
 	}
@@ -245,7 +271,7 @@ func (x *extractor) signal(stmt *gts.Node, sc scope) {
 	n := x.symbol(stmt, stmt.EndByte(), x.doc.Text(x.doc.Field(stmt, "name")), "signal", sc)
 	// The signal's own name is no identifier node in this grammar, so walking
 	// the statement names only its parameters and their types.
-	inner := scope{source: n.ID, class: sc.class}
+	inner := scope{source: n.ID, class: sc.class, locals: x.locals(stmt)}
 	for _, c := range stmt.Children() {
 		x.collect(c, inner)
 	}

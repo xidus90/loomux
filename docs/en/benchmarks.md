@@ -3864,3 +3864,42 @@ an empty directory `C:/lxt`.
 4. The rest of the suite is evenly spread: the two hook tests that build the
    binary (16 s together), 3b and 2c with their git worlds (9 s each). None
    of it is close to the limit, so nothing else changed.
+
+
+## 2026-10-19 09:12 — GDScript of Godot 3 and 4: graph build on space
+
+**Goal.** Reading Godot 3's forms beside Godot 4's (`.f()`, `setget`,
+`yield`, string-named signals and methods), scene connections, scene
+autoloads, `uid://` paths and `@abstract` functions must not slow the build
+of a Godot 4 project, and must lose none of its edges.
+
+**Method.** Binary from `origin/master` (`chore(release): v1.10.2`) against
+branch `feat/gdscript-godot-lines`, both built with `go build`. They ran on a
+fresh clone of `space` at `5e72f83f` (650 `.uid` files among 1360 Godot
+files). Cold is `graph build --no-reuse`, warm the next `graph build`; three
+runs each, the build's own timing. Windows 11 Pro. The edge sets of both
+graphs were compared by source, relation and target.
+
+| Measure | Before | After |
+| --- | ---: | ---: |
+| Files of the Godot project | 710 | 1360 (650 `.uid`, no node) |
+| Nodes | 9412 | 9661 |
+| Edges | 38125 | 38683 |
+| contains / calls / imports / extends / references | 8702 / 18525 / 206 / 327 / 10365 | 8951 / 18539 / 206 / 327 / 10660 |
+| Parse errors | 104 in 3 files | 104 in 3 files |
+| Cold build, three runs | 1.590 / 1.607 / 1.621 s | 1.695 / 1.609 / 1.638 s |
+| Warm build, three runs | 676 / 680 / 680 ms | 689 / 675 / 684 ms |
+
+**Key Findings**
+
+1. **No edge is lost**: 0 edges of the old graph are missing in the new one,
+   558 are new.
+2. **The 249 new nodes are all `@abstract` functions** of the gdUnit4 addon
+   (Godot 4.5), which had no node before because they have no body.
+3. **The 295 new references** are handlers passed to `connect`, Callables in
+   dictionaries (`TYPE_PROJECTION: _on_type_Projection`) and the handlers and
+   signals of scene connections; the 14 new calls are `call_deferred` and
+   `rpc` by name. Three of them were checked against the source.
+4. **The build time does not move**: cold and warm stay within the spread of
+   one binary's runs. The 650 `.uid` files are read and hashed but not
+   parsed.

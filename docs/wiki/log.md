@@ -4,6 +4,15 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-10-19
+
+- 2026-10-19 — `topics/code-graph.md`: Absatz „Godot-Projekte“ um Godot 3
+  neben Godot 4 ergänzt (Lesen nach der Form, Methoden und Signale als Wert,
+  Szenenverbindungen, Szenen-Autoloads, `uid://`). Kein Widerspruch zu einer
+  bestehenden Aussage. Quelle: Code von loomux
+  (`internal/code/extract/gdscript`, `internal/code/resolve/gdscript.go`) und
+  die Spec `docs/.superpowers/specs/2026-10-19-gdscript-godot-linien-design.md`.
+
 ## 2026-10-16
 
 - 2026-10-16 — `topics/code-graph.md`: Abschnitt „In Hook und Prüfkette“ um die

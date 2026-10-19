@@ -8,8 +8,8 @@ sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:8c9d43d2b77f9e338f51024c2da5878ad14f01793e9443eddf7569bc37956fcd"
-    revision: 5
+    content_hash: "sha256:a30c21b86d14c287563d39b6ee2115134106a72b2c91b48633558c027e0777e5"
+    revision: 6
 ---
 
 Über die Scheiben hinweg wiederholt sich ein Muster, das eine eigene Seite

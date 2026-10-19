@@ -260,8 +260,8 @@ func TestBuildReadsAGodotProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ls := stats.PerLanguage["gdscript"]; ls.Files != 4 || ls.Parsed != 4 {
-		t.Fatalf("gdscript stats %+v, want 4 files parsed (the .uid is no source)", ls)
+	if ls := stats.PerLanguage["gdscript"]; ls.Files != 5 || ls.Parsed != 5 {
+		t.Fatalf("gdscript stats %+v, want 5 files parsed (the .uid names its script)", ls)
 	}
 	want := map[string]bool{
 		"godot/main.tscn imports godot/main.gd":                        false,
