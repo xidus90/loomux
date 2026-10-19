@@ -86,6 +86,9 @@ type Config struct {
 	// rules kind run at all.
 	Rules bool
 	Godot string
+	// Tools are the versions a project pins per stack and tool, as written
+	// in [verify.<stack>].tools.
+	Tools map[string]map[string]string
 }
 
 func defaults() Config {
@@ -269,6 +272,15 @@ func parseStack(cfg *Config, stack string, value any) error {
 				return errors.New("[verify.gdscript].godot must be a path")
 			}
 			cfg.Godot = s
+		case key == "tools":
+			tools, err := parseTools(stack, v)
+			if err != nil {
+				return err
+			}
+			if cfg.Tools == nil {
+				cfg.Tools = map[string]map[string]string{}
+			}
+			cfg.Tools[stack] = tools
 		case slices.Contains(Kinds(), key):
 			// The wiki stacks have no tools of their own; each one lane can
 			// only be switched off.

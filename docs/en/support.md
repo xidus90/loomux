@@ -19,13 +19,13 @@ have.
 | Stack | Recognised by | lint | types | test | coverage | graph | rules | Versions |
 |---|---|---|---|---|---|---|---|---|
 | go | `go.mod` | `go vet`, `gofmt` | — | `go test` | `gocover`, 100 % per function | code graph | layer map | Go syntax up to 1.27, the `go/parser` of the toolchain loomux is built with; a Go file that does not parse fails the graph build |
-| python | `pyproject.toml`, `requirements.txt`, `uv.lock`, `manage.py` | ruff | mypy; pyright or the project's mypy where configured | pytest | coverage.py | code graph | layer map | Python 3, through `uv`; the preset's mypy needs 1.16 or later; no minor version checked one by one |
+| python | `pyproject.toml`, `requirements.txt`, `uv.lock`, `manage.py` | ruff | mypy; pyright or the project's mypy where configured | pytest | coverage.py | code graph | layer map | Python 3, through `uv`; the preset's mypy needs 1.16 or later; tool versions pinnable with [`tools`](configuration.md#stacks); no minor version checked one by one |
 | typescript | `tsconfig.json` beside `package.json`, `biome.json` | eslint; biome where configured | `tsc` | vitest, where `package.json` names it | vitest with coverage | — | — | `.js` and `.jsx` count as TypeScript; no version pinned |
 | vue | `*.vue`, `vue.config.js` | — | `vue-tsc` | — | — | — | — | no version pinned |
 | svelte | `*.svelte`, `svelte.config.js` | — | `svelte-check` | — | — | — | — | no version pinned |
 | css | `*.css`, `*.scss`, `.stylelintrc*` | stylelint | — | — | — | — | — | no version pinned |
 | html | `*.html`, `.htmlhintrc` | htmlhint | — | — | — | — | — | no version pinned |
-| gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 through `check godot-suite`, where installed | NanoCoverage through `check linecov`, where installed | code graph | layer map | graph: Godot 3.x and 4.x, verified on 3.x, 4.2 and 4.7; test and coverage: Godot 4.3 to 4.8; lint: Godot 4, Godot 3 unproven ([details](stacks/gdscript.md)) |
+| gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 through `check godot-suite`, where installed | NanoCoverage through `check linecov`, where installed | code graph | layer map | graph: Godot 3.x and 4.x, verified on 3.x, 4.2 and 4.7; test and coverage: Godot 4.3 to 4.8; lint: Godot 4, Godot 3 unproven, gdtoolkit pinnable with [`tools`](configuration.md#stacks) ([details](stacks/gdscript.md)) |
 | cpp | `CMakeLists.txt`, `CMakePresets.json`, `meson.build`, `*.cpp`, `*.hpp` | clang-tidy; clang-format on the edited file | the CMake build | ctest, where `CMakeLists.txt` enables testing | gcovr, 100 % of lines | — | — | needs a configured `build/` (`CMakeCache.txt`); no compiler version pinned |
 | shell | `*.sh`, `.shellcheckrc` | shellcheck, on the edited file only | — | — | — | — | — | no version pinned |
 | sql | `.sqlfluff` | sqlfluff | — | — | — | — | — | no version pinned |

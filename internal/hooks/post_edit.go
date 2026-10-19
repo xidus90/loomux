@@ -401,7 +401,7 @@ func EditLaneCommands(facts detect.Facts) []string {
 				cmds = r.Lane.Commands
 			}
 			for _, c := range cmds {
-				out = append(out, strings.ReplaceAll(c, "{loomux}", "loomux"))
+				out = append(out, strings.ReplaceAll(verify.ShowTools(c, nil), "{loomux}", "loomux"))
 			}
 		}
 	}

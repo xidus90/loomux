@@ -165,6 +165,30 @@ func TestConfigProposesANamedKey(t *testing.T) {
 	}
 }
 
+// A tool pin is proposed like any named key, and its version stays a string.
+func TestConfigProposesAToolPin(t *testing.T) {
+	root := configRoot(t, "")
+	code, out, errOut := runConfig(t, "", "set", "verify.python.tools.ruff", "0.6.*", "--propose", "--root", root)
+	if code != 0 || !strings.Contains(out, "[verify.python.tools]") || !strings.Contains(out, "+ ruff = \"0.6.*\"") {
+		t.Fatalf("%d %s\n%s", code, errOut, out)
+	}
+}
+
+// A pin the verify reader would refuse is no proposal: a misspelt tool or a
+// version with a space would only fail later, in the hook.
+func TestConfigRefusesABadToolPin(t *testing.T) {
+	for _, c := range [][2]string{
+		{"verify.python.tools.ruf", "1"},
+		{"verify.python.tools.ruff", "1 2"},
+	} {
+		root := configRoot(t, "")
+		code, out, errOut := runConfig(t, "", "set", c[0], c[1], "--propose", "--root", root)
+		if code == 0 || len(proposalFiles(t, proposalDir(root))) != 0 {
+			t.Errorf("%v: %d %s\n%s", c, code, errOut, out)
+		}
+	}
+}
+
 // The list shows one row per name the file holds, and one unset row for a
 // family it holds no name of, so the spelling of its IDs is still in sight.
 func TestConfigListShowsANamedKeyPerName(t *testing.T) {
