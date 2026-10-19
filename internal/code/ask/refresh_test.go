@@ -547,10 +547,17 @@ func TestRefreshReportsAHeldLockWithoutWaiting(t *testing.T) {
 func TestRefreshWaitsForAReleasedLock(t *testing.T) {
 	root := cleanTree(t)
 	holdLock(t, root, time.Now())
+	// The holder releases the way a real run does: the waiter reads the lock
+	// while it polls, and on Windows a bare remove in that moment fails.
 	released := make(chan error, 1)
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		released <- os.Remove(ask.LockPath(root))
+		ask.Unlock(root)
+		_, err := os.Stat(ask.LockPath(root))
+		if errors.Is(err, fs.ErrNotExist) {
+			err = nil
+		}
+		released <- err
 	}()
 	built := 0
 	// The wait is generous on purpose: Refresh returns as soon as the lock is
@@ -563,6 +570,50 @@ func TestRefreshWaitsForAReleasedLock(t *testing.T) {
 	}
 	if err != nil || status != ask.StatusRebuilt || built != 1 {
 		t.Fatalf("status %v, err %v, built %d; want rebuilt once after the wait", status, err, built)
+	}
+}
+
+// A remove that a reader blocks for a moment is tried again, and the lock is
+// gone once the reader lets go.
+func TestUnlockRetriesARemoveAReaderBlocks(t *testing.T) {
+	root := cleanTree(t)
+	holdLock(t, root, time.Now())
+	calls := 0
+	defer ask.SwapRemoveLock(func(name string) error {
+		calls++
+		if calls < 3 {
+			return &fs.PathError{Op: "remove", Path: name, Err: errors.New("used by another process")}
+		}
+		return os.Remove(name)
+	})()
+	ask.Unlock(root)
+	if _, err := os.Stat(ask.LockPath(root)); !errors.Is(err, fs.ErrNotExist) || calls != 3 {
+		t.Fatalf("lock still there (%v) after %d removes, want gone after 3", err, calls)
+	}
+}
+
+// A lock that is already gone, or one that stays blocked, ends the release
+// without waiting longer: the next run finds a leftover stale.
+func TestUnlockStopsOnAGoneLockAndAfterItsTries(t *testing.T) {
+	root := cleanTree(t)
+	calls := 0
+	defer ask.SwapRemoveLock(func(name string) error {
+		calls++
+		return os.Remove(name)
+	})()
+	ask.Unlock(root)
+	if calls != 1 {
+		t.Fatalf("a missing lock took %d removes, want 1", calls)
+	}
+	calls = 0
+	defer ask.SwapRemoveLock(func(string) error {
+		calls++
+		return errors.New("used by another process")
+	})()
+	start := time.Now()
+	ask.Unlock(root)
+	if calls < 2 || time.Since(start) > 5*time.Second {
+		t.Fatalf("a blocked lock took %d removes in %v, want a few and a bounded wait", calls, time.Since(start))
 	}
 }
 
