@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.11.1] - 2026-10-19
+
+<https://github.com/xidus90/loomux/pull/120>
+
+### Fixed
+- Scenes and resources with a quoted property key (such as `"nodes/Animation 2/node"`) keep their external resources, nodes and signal connections in the code graph.
+- On Windows, a rebuild lock released while another run waited for it no longer stays behind and blocks graph rebuilds.
+
 ## [1.11.0] - 2026-10-19
 
 <https://github.com/xidus90/loomux/pull/119>
