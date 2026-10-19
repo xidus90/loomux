@@ -256,8 +256,29 @@ func takeOver(path string) bool {
 	return true
 }
 
-// unlock releases the lock. A failure here is not worth reporting: the next run
-// finds it stale.
+// removeLock is the remove unlock releases with, swapped in a test: the
+// failure it retries needs another process reading the lock at that moment.
+var removeLock = os.Remove
+
+// unlockTries and unlockPause bound how long a release keeps trying.
+const (
+	unlockTries = 20
+	unlockPause = 10 * time.Millisecond
+)
+
+// unlock releases the lock. On Windows a remove fails while another process
+// has the file open, and a waiting run opens it on every poll to read the
+// holder's number (stale); one failed remove would leave the lock behind a
+// live holder until lockStale. So a release tries again for a moment. A
+// lock still there after that is not worth reporting: the next run finds it
+// stale.
 func unlock(root string) {
-	_ = os.Remove(LockPath(root))
+	path := LockPath(root)
+	for range unlockTries {
+		err := removeLock(path)
+		if err == nil || errors.Is(err, fs.ErrNotExist) {
+			return
+		}
+		time.Sleep(unlockPause)
+	}
 }
