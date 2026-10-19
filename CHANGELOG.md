@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.12.0] - 2026-10-19
+
+<https://github.com/xidus90/loomux/pull/122>
+
+### Added
+- `[verify.<stack>].tools` pins the version of ruff, mypy, pytest, coverage (Python) or gdtoolkit (GDScript) that the presets run; unset, the newest runs as before.
+
 ## [1.11.1] - 2026-10-19
 
 <https://github.com/xidus90/loomux/pull/120>
