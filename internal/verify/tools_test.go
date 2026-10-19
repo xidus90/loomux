@@ -56,10 +56,10 @@ func TestUnpinnedPresetsKeepTheirArguments(t *testing.T) {
 		"python/test measuring":    "uv run --with coverage --with pytest coverage run -m pytest -q --tb=short --no-header",
 		"python/coverage":          "uv run --with coverage coverage report --skip-covered --skip-empty -m",
 		"python/coverage measure":  "uv run --with coverage --with pytest coverage run -m pytest -q --tb=short --no-header",
-		"gdscript/lint #1":         "uvx --from gdtoolkit gdlint .",
-		"gdscript/lint #2":         "uvx --from gdtoolkit gdformat --check .",
-		"gdscript/lint on_file #1": "uvx --from gdtoolkit gdlint {file}",
-		"gdscript/lint on_file #2": "uvx --from gdtoolkit gdformat --check {file}",
+		"gdscript/lint #1":         "uvx --with setuptools<81 --from gdtoolkit gdlint .",
+		"gdscript/lint #2":         "uvx --with setuptools<81 --from gdtoolkit gdformat --check .",
+		"gdscript/lint on_file #1": "uvx --with setuptools<81 --from gdtoolkit gdlint {file}",
+		"gdscript/lint on_file #2": "uvx --with setuptools<81 --from gdtoolkit gdformat --check {file}",
 	}
 	p, err := LoadPresets()
 	if err != nil {

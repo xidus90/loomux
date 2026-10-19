@@ -212,7 +212,7 @@ relative to its area):
 |---|---|---|---|
 | Go | `.go` | `go vet ./...`, `loomux check gofmt {file}` | — |
 | Python | `.py` | `uvx ruff check . --output-format=concise` | `uv run --with mypy mypy --no-error-summary --no-pretty --exclude-gitignore .`; instead `uv run pyright` where `pyrightconfig.json` or `[tool.pyright]` exists, `uv run mypy --no-error-summary --no-pretty` where mypy is configured |
-| GDScript | `.gd` | `uvx --from gdtoolkit gdlint {file}` | — |
+| GDScript | `.gd` | `uvx --with setuptools<81 --from gdtoolkit gdlint {file}` | — |
 | C / C++ | `.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hpp` | `clang-format --dry-run --Werror {file}` | `cmake --build build --parallel` |
 | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` | `npx eslint --cache {file}`; instead `npx biome check {file}` where `biome.json` exists | `npx tsc --noEmit` |
 | Vue | `.vue` | — | `npx vue-tsc --noEmit` |

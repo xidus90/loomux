@@ -11,12 +11,12 @@
       "stdout": "faketool: godot\n"
     },
     {
-      "prefix": "uvx --from gdtoolkit gdlint",
+      "prefix": "uvx --with setuptools<81 --from gdtoolkit gdlint",
       "exit": 0,
       "stdout": "faketool: uvx gdlint\n"
     },
     {
-      "prefix": "uvx --from gdtoolkit gdformat",
+      "prefix": "uvx --with setuptools<81 --from gdtoolkit gdformat",
       "exit": 0,
       "stdout": "faketool: uvx gdformat\n"
     },

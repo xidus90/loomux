@@ -344,7 +344,7 @@ then `[verify.<stack>]`.
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx --from gdtoolkit gdlint .`, `uvx --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (with GUT) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
+| gdscript | `uvx --with setuptools<81 --from gdtoolkit gdlint .`, `uvx --with setuptools<81 --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (with GUT) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | only `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -363,6 +363,8 @@ then `[verify.<stack>]`.
   `files`. With both `pyright` and `mypy`, pyright checks.
 - The gdscript `lint` takes `gdlint` and `gdformat` from the package
   `gdtoolkit`, which is where they ship; the registry has no package `gdlint`.
+  `--with setuptools<81` keeps gdtoolkit 3 alive: it imports `pkg_resources`,
+  which setuptools 81 dropped.
   loomux has no lint area of its own for them: a project that keeps a
   directory out of the check (an addon, a harness) lists it as
   `excluded_directories` in `.gdlintrc` (gdtoolkit 3.2.8 and later) and in
@@ -408,7 +410,7 @@ then `[verify.<stack>]`.
   stop hook.
 - The `on_file` forms: go `go vet ./...` and `{loomux} check gofmt {file}`
   (an edit formats only its own file), gdscript
-  `uvx --from gdtoolkit gdlint {file}`, cpp
+  `uvx --with setuptools<81 --from gdtoolkit gdlint {file}`, cpp
   `clang-format --dry-run --Werror {file}` (checks, never rewrites),
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
   css `npx stylelint {file}`, html `npx htmlhint {file}`, shell
