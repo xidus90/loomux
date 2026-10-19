@@ -26,7 +26,7 @@
 //	source                the statements as children
 //	class_name_statement  field name, on the keyword's line; field extends in `class_name X extends Y`
 //	extends_statement     a type child (an identifier, or an attribute of identifiers) or a string child
-//	function_definition   fields name, parameters, return_type, body; a ":" child closes the header
+//	function_definition   fields name, parameters, return_type, body; a ":" child closes the header; no body when abstract
 //	constructor_definition  `func _init`: no name field, otherwise as function_definition
 //	class_definition     fields name, extends, body (a class_body); a ":" child closes the header
 //	signal_statement      field name
@@ -61,7 +61,7 @@ import (
 // version is this extractor's identity. Bump it by hand whenever the nodes or
 // edges below change shape or meaning; the extract cache and the graph's meta
 // key on it.
-const version = "gdscript/2"
+const version = "gdscript/3"
 
 // langName is the language as the graph's meta lists it and as a Result carries it.
 const langName = "gdscript"
@@ -284,6 +284,11 @@ func (x *extractor) header(def *gts.Node) (uint32, bool) {
 		if x.doc.Type(c) == ":" {
 			return c.EndByte(), true
 		}
+	}
+	// An abstract function (Godot 4.5) has no body and so no colon; its
+	// header is the whole definition.
+	if x.doc.Type(def) == "function_definition" && x.doc.Field(def, "body") == nil && !treesitter.HoldsError(def) {
+		return def.EndByte(), true
 	}
 	return 0, false
 }
