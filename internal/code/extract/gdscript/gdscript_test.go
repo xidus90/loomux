@@ -183,7 +183,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/2@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/3@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -277,6 +277,17 @@ func TestSuperOutsideAFunctionAndAnAliasInAClassGiveNothing(t *testing.T) {
 	same(t, "calls", edgesOf(r, model.RelationCalls), nil)
 	same(t, "aliases", r.Imports, nil)
 	same(t, "imports", edgesOf(r, model.RelationImports), []extract.RawEdge{edge("a/s.gd", model.RelationImports, "", "", "res://h.gd")})
+}
+
+// An abstract function (Godot 4.5) has no body and no colon; it is a node
+// whose signature is the whole definition.
+func TestAnAbstractFunctionIsANode(t *testing.T) {
+	r := extractSrc(t, rel, "@abstract\nclass_name Shape\n\n@abstract func area() -> float\n")
+	same(t, "nodes", views(r), []string{
+		`a/s.gd file owner= L1-L5 exported=true sig=""`,
+		`a/s.gd#Shape class owner= L1-L4 exported=true sig="class_name Shape"`,
+		`a/s.gd#Shape.area method owner=Shape L4-L4 exported=true sig="@abstract func area() -> float"`,
+	})
 }
 
 // emit_signal and preload with no string literal name nothing.

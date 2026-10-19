@@ -35,7 +35,7 @@ func TestVersionIsSortedJoin(t *testing.T) {
 	// Python's with the tree-sitter runtime it parses on (gdscript sorts before
 	// go). A graph built by a
 	// binary that knew Go alone reads as foreign and is rebuilt.
-	if got, want := all.Version(), "gdscript/2@"+treesitter.Parser+"+"+golang.Version+"+python/2@"+treesitter.Parser; got != want {
+	if got, want := all.Version(), "gdscript/3@"+treesitter.Parser+"+"+golang.Version+"+python/2@"+treesitter.Parser; got != want {
 		t.Fatalf("Version() = %q, want %q", got, want)
 	}
 }
