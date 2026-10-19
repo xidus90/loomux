@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/xidus90/loomux/internal/child"
+	"github.com/xidus90/loomux/internal/verify"
 )
 
 // RescanOptions is one `loomux godot rescan`.
@@ -15,6 +17,8 @@ type RescanOptions struct {
 	Root, Godot string
 	Start       func(child.Spec) child.Result
 	Status      func(root string) (string, error) // git status --porcelain -- <root>
+	// Window is how long a Godot 3 editor runs (rescanWindow when zero).
+	Window time.Duration
 }
 
 const classCache = ".godot/global_script_class_cache.cfg"
@@ -27,6 +31,13 @@ func Rescan(o RescanOptions) (notes []string, err error) {
 	before, err := os.ReadFile(project)
 	if err != nil {
 		return nil, err
+	}
+	start := o.Start
+	if start == nil {
+		start = child.Run
+	}
+	if _, godot3 := verify.ClassListMissing(o.Root); godot3 {
+		return rescan3(o, start, before)
 	}
 	statusBefore, err := o.Status(o.Root)
 	if err != nil {
@@ -46,10 +57,6 @@ func Rescan(o RescanOptions) (notes []string, err error) {
 		notes = append([]string{"restored project.godot, which the engine rewrote"}, notes...)
 	}()
 
-	start := o.Start
-	if start == nil {
-		start = child.Run
-	}
 	r := start(child.Spec{Dir: o.Root, Argv: []string{o.Godot, "--path", o.Root, "--headless", "--import"}})
 	if r.Err != nil || r.Code != 0 {
 		return nil, errors.New("the engine failed: " + outputOf(r))
