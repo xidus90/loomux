@@ -31,6 +31,7 @@ Ein Go-Binary, das KI-Coding-Agenten bewacht: Hooks und eine Schreibschranke, ei
 | [Benchmarks](benchmarks.md) | Chronologische Leistungsmessungen mit Datum, Basis und Änderung, kalt und warm. |
 | [Benchmark-Matrix](benchmarks/matrix.md) | Open-Source-Matrix über Top-Sprachen hinweg mit Detailberichten pro Sprache und Repository. |
 | [Open-Source-Matrix](open-source-matrix.md) | Ein Katalog quelloffener GitHub-Projekte nach Sprache, Framework und Sterne-Klasse. |
+| [Unterstützte Sprachen und Versionen](support.md) | Welche Sprachen loomux prüft, was es für jede ausführt und gegen welche Versionen das geprüft ist. |
 | [GDScript-Frameworks](stacks/gdscript.md) | Welche Frameworks von Drittanbietern loomux für GDScript fährt, woran es sie erkennt und was jedes trägt. |
 
 ## Kern-Philosophie

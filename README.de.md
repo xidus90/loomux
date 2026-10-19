@@ -104,6 +104,7 @@ Leitfäden und technische Handbücher sind unter [`docs/de/`](docs/de/) gegliede
 |---|---|
 | 📦 **[loomux installieren](docs/de/install.md)** | Voraussetzungen, Schnellstart unter Windows, einen Download prüfen, das maschinenweite Binary, Updates und Kanäle, Linux und macOS sowie der Bau aus dem Quellcode. |
 | 🚀 **[Erste Schritte](docs/de/getting-started.md)** | Die Ersteinrichtung nach der Installation: `loomux init`, die Konfiguration und die Einrichtung prüfen und deinen Agenten-Harness anbinden (Hooks für Claude Code und Antigravity, MCP für Cursor). |
+| 🧭 **[Unterstützte Sprachen und Versionen](docs/de/support.md)** | Welche Sprachen loomux prüft, was es für jede ausführt (lint, types, test, coverage, Code-Graph, Ebenenkarte) und gegen welche Versionen das geprüft ist. |
 | ⚙️ **[Konfigurations-Referenz](docs/de/configuration.md)** | Vollständige Referenz für `.loomux/config.toml` (`[verify]`, `[policy]`, `[modules]`, `[commit]`, `[worktree]`, `[privacy]`, `[model]`, `[agent]`, `[flow]`). |
 | 📖 **[CLI-Referenzhandbuch](docs/de/cli-reference.md)** | Detailliertes Handbuch aller Befehle, Flags, stdin-JSON-Nutzlasten und Exit-Codes. |
 | 🪝 **[Hook-Lebenszyklus & Integration](docs/de/hooks.md)** | Technische Spezifikation des 4-Phasen-Hook-Zyklus, der Host-Formate und des entkoppelten SSE-Ereignisstroms. |
