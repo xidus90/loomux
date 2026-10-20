@@ -7,7 +7,7 @@ edges = [
 ]
 
 [lanes]
-lint = "uvx --with"
+lint = "uvx --python <3.15"
 graph = "{loomux} check graph-fresh"
 
 [[break]]

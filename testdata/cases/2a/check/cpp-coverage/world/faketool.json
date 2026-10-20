@@ -16,7 +16,7 @@
       "stdout": "faketool: gcovr\n"
     },
     {
-      "prefix": "uvx --with setuptools<81 --from gdtoolkit gdlint",
+      "prefix": "uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint",
       "exit": 0,
       "stdout": "faketool: uvx gdlint\n"
     },

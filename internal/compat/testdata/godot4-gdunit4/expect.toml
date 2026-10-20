@@ -7,7 +7,7 @@ edges = [
 ]
 
 [lanes]
-lint = "uvx --with"
+lint = "uvx --python <3.15"
 test = "{loomux} check godot-suite"
 coverage = "{loomux} check linecov"
 graph = "{loomux} check graph-fresh"

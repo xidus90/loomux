@@ -344,7 +344,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | svelte | — | `npx svelte-check` | — | — |
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
-| gdscript | `uvx --with setuptools<81 --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (mit GUT) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
+| gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (mit GUT) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -363,7 +363,8 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   `files` setzen. Mit `pyright` und `mypy` zugleich prüft pyright.
 - Das gdscript-`lint` holt `gdlint` aus dem Paket `gdtoolkit`, in dem es
   ausgeliefert wird; ein Paket `gdlint` kennt die Registry nicht.
-  `--with setuptools<81` hält gdtoolkit 3 lauffähig: es importiert
+  `--python <3.15` und `--with setuptools<81` halten gdtoolkit 3 lauffähig: sein
+  Parser importiert `sre_parse`, das Python 3.15 entfernt hat, und es importiert
   `pkg_resources`, das setuptools 81 entfernt hat.
 - Die gdscript-Presets `test` und `coverage` fahren `loomux check
   godot-suite` (gdUnit4 headless, in Scherben; es entscheidet nach dem
@@ -403,7 +404,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   Stop-Hook.
 - Die `on_file`-Formen: go `go vet ./...` und `{loomux} check gofmt {file}`
   (ein Edit formatiert nur seine eigene Datei), gdscript
-  `uvx --with setuptools<81 --from gdtoolkit gdlint {file}`,
+  `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint {file}`,
   cpp `clang-format --dry-run --Werror {file}` (prüft, schreibt nie um),
   typescript `npx eslint --cache {file}` (biome: `npx biome check {file}`),
   css `npx stylelint {file}`, html `npx htmlhint {file}`, shell

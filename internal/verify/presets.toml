@@ -119,8 +119,8 @@ on_file  = ["{loomux} check rules"]
 # gdlint and gdformat ship in the package gdtoolkit; the registry has no
 # package gdlint.
 [stack.gdscript.lint]
-commands = ["uvx --with setuptools<81 --from {tool:gdtoolkit} gdlint .", "uvx --with setuptools<81 --from {tool:gdtoolkit} gdformat --check ."]
-on_file = ["uvx --with setuptools<81 --from {tool:gdtoolkit} gdlint {file}", "uvx --with setuptools<81 --from {tool:gdtoolkit} gdformat --check {file}"]
+commands = ["uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdlint .", "uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdformat --check ."]
+on_file = ["uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdlint {file}", "uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdformat --check {file}"]
 
 # The graph belongs to the root, and the highest-ranked active stack with a
 # graph command carries it (go, python, gdscript): with Go or Python beside it
