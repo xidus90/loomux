@@ -2,12 +2,14 @@ package godotsuite
 
 import (
 	"bytes"
+	"context"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/verify/linecov"
 )
@@ -68,9 +70,14 @@ func TestGlueAgainstARealEngine(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Relative, as runShard passes it.
+	rd, err := filepath.Rel(root, reports)
+	if err != nil {
+		t.Fatal(err)
+	}
 	out, err := engine("--path", root, "-s", "-d", "--remote-debug", "tcp://127.0.0.1:0",
 		"res://"+GlueDir+"/run_GdUnitCmdTool.gd", "-a", "res://test", "-c",
-		"--headless", "--ignoreHeadlessMode", "-rd", reports)
+		"--headless", "--ignoreHeadlessMode", "-rd", filepath.ToSlash(rd))
 	if err == nil {
 		t.Fatalf("a failing test must give a non-zero exit\n%s", out)
 	}
@@ -186,5 +193,57 @@ func TestRunAgainstARealEngine(t *testing.T) {
 	}
 	if exists(filepath.Join(root, "coverage-data")) {
 		t.Error("coverage-data was left behind")
+	}
+}
+
+// TestRunnerQuitsWhenTheNanoExtensionIsNotLoaded runs a coverage shard with
+// the Nano Coverage addon but without its libraries, as on a platform whose
+// library the addon names under another file name than it ships. The engine
+// must quit with a message instead of idling after a script error until the
+// lane's timeout.
+func TestRunnerQuitsWhenTheNanoExtensionIsNotLoaded(t *testing.T) {
+	bin := os.Getenv("GODOT_BIN")
+	gdunit := os.Getenv("LOOMUX_GDUNIT4_DIR")
+	nano := os.Getenv("LOOMUX_NANO_DIR")
+	if bin == "" || gdunit == "" || nano == "" {
+		t.Skip("needs GODOT_BIN, LOOMUX_GDUNIT4_DIR and LOOMUX_NANO_DIR")
+	}
+	root := t.TempDir()
+	copyTree(t, filepath.Join("..", "..", "..", "testdata", "godot", "project"), root)
+	copyTree(t, gdunit, filepath.Join(root, "addons", "gdUnit4"))
+	addon := filepath.Join(root, "addons", "nano_coverage_godot")
+	copyTree(t, nano, addon)
+	if err := os.RemoveAll(filepath.Join(addon, "bin")); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	engine := func(args ...string) (string, error) {
+		cmd := exec.CommandContext(ctx, bin, args...)
+		cmd.Dir = root
+		var out bytes.Buffer
+		cmd.Stdout, cmd.Stderr = &out, &out
+		cmd.Env = append(os.Environ(), "APPDATA="+t.TempDir(), "LOOMUX_COVERAGE_SHARD_DIR="+t.TempDir())
+		err := cmd.Run()
+		return out.String(), err
+	}
+	// Only the class cache the import leaves matters, not its exit.
+	engine("--path", root, "--headless", "--import")
+	if err := WriteGlue(root); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := engine("--path", root, "-s", "-d", "--remote-debug", "tcp://127.0.0.1:0",
+		"res://"+GlueDir+"/run_GdUnitCmdTool.gd", "-a", "res://test", "-c",
+		"--headless", "--ignoreHeadlessMode", "-rd", filepath.Join(t.TempDir(), "reports"))
+	if ctx.Err() != nil {
+		t.Fatalf("the engine did not quit on its own\n%s", out)
+	}
+	if err == nil {
+		t.Fatalf("a run without the extension must give a non-zero exit\n%s", out)
+	}
+	if !strings.Contains(out, "loomux: the Nano Coverage extension is not loaded") {
+		t.Errorf("the output does not name the missing extension:\n%s", out)
 	}
 }

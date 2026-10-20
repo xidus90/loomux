@@ -23,7 +23,23 @@ func _initialize() -> void:
 			)
 			quit(70)
 			return
-		var hook = load("res://.godot/loomux/hook.gd").new()
+		# A hook that does not compile is a script error, and after a script
+		# error in _initialize the engine idles instead of quitting.
+		if not ClassDB.class_exists("CoverageApi"):
+			printerr(
+				(
+					"loomux: the Nano Coverage extension is not loaded; check that the libraries"
+					+ " its .gdextension file names exist under addons/nano_coverage_godot/bin"
+				)
+			)
+			quit(70)
+			return
+		var hook_script: GDScript = load("res://.godot/loomux/hook.gd")
+		if hook_script == null or not hook_script.can_instantiate():
+			printerr("loomux: res://.godot/loomux/hook.gd does not compile")
+			quit(70)
+			return
+		var hook = hook_script.new()
 		hook.set_meta("enabled", true)
 		# Appended and not registered: register() saves the list into
 		# project.godot, and assigning the array does not type-check.
