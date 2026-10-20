@@ -17,7 +17,9 @@ const GLUE_PATTERN = "**/.godot/loomux/**"
 
 func _init() -> void:
 	# Keeps the glue scripts out of the rewrite, as in the runner.
-	var ignored: PackedStringArray = ProjectSettings.get_setting(IGNORE_SETTING, PackedStringArray())
+	var ignored: PackedStringArray = ProjectSettings.get_setting(
+		IGNORE_SETTING, PackedStringArray()
+	)
 	ignored.append(GLUE_PATTERN)
 	ProjectSettings.set_setting(IGNORE_SETTING, ignored)
 
