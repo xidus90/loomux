@@ -204,7 +204,13 @@ func (o Options) runShard(s *Shard) {
 	for _, suite := range s.Suites {
 		argv = append(argv, "-a", suite)
 	}
-	argv = append(argv, "-c", "--headless", "--ignoreHeadlessMode", "-rd", filepath.Join(s.Dir, "reports"))
+	// Relative to the project, which is the engine's working directory:
+	// gdUnit4 turns a path with a leading slash into one under res://.
+	reports := filepath.Join(s.Dir, "reports")
+	if rel, err := filepath.Rel(o.Root, reports); err == nil {
+		reports = filepath.ToSlash(rel)
+	}
+	argv = append(argv, "-c", "--headless", "--ignoreHeadlessMode", "-rd", reports)
 	// Both variables: the engine reads the one its platform uses, and a
 	// fresh one apart keeps user:// of the shards apart.
 	userdata := filepath.Join(s.Dir, "userdata")

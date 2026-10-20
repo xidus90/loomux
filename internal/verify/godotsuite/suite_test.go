@@ -49,6 +49,10 @@ func (e *engine) start(s child.Spec) child.Result {
 			suites = append(suites, argv[i+1])
 		}
 	}
+	// The engine's working directory is the project it was started with.
+	if !filepath.IsAbs(rd) {
+		rd = filepath.Join(s.Dir, rd)
+	}
 	idx := 0
 	fmt.Sscan(filepath.Base(filepath.Dir(rd)), &idx)
 	e.log = append(e.log, fmt.Sprintf("shard:%d", idx))
@@ -144,9 +148,13 @@ func TestGreenRunPlansTwoShardsAndSavesTimes(t *testing.T) {
 		if len(s.Argv) > 9 && s.Argv[9] == "res://test/b_test.gd" {
 			suite, i = s.Argv[9], 1
 		}
+		// Relative: gdUnit4 reads a path with a leading slash as one under res://.
+		rd, err := filepath.Rel(w.root, filepath.Join(w.stateDir(), "r1-root", fmt.Sprint(i), "reports"))
+		if err != nil {
+			t.Fatal(err)
+		}
 		want := []string{"godot", "--path", w.root, "-s", "-d", "--remote-debug", "tcp://127.0.0.1:0",
-			"res://.godot/loomux/run_GdUnitCmdTool.gd", "-a", suite, "-c", "--headless", "--ignoreHeadlessMode", "-rd",
-			filepath.Join(w.stateDir(), "r1-root", fmt.Sprint(i), "reports")}
+			"res://.godot/loomux/run_GdUnitCmdTool.gd", "-a", suite, "-c", "--headless", "--ignoreHeadlessMode", "-rd", filepath.ToSlash(rd)}
 		if !reflect.DeepEqual(s.Argv, want) {
 			t.Errorf("argv %q want %q", s.Argv, want)
 		}
@@ -632,5 +640,18 @@ func TestCoverageRunClearsReportsOfAnEarlierRunAndNothingElse(t *testing.T) {
 	run(t, w)
 	if exists(filepath.Join(w.o.Coverage, "5.info")) || !exists(filepath.Join(w.o.Coverage, "notes.txt")) {
 		t.Fatal("the stale report stays or a foreign file went")
+	}
+}
+
+func TestShardKeepsAnAbsoluteReportDirWithoutARelativeOne(t *testing.T) {
+	var argv []string
+	o := Options{Root: "proj", Godot: "godot", Start: func(s child.Spec) child.Result {
+		argv = s.Argv
+		return child.Result{}
+	}}
+	dir := t.TempDir()
+	o.runShard(&Shard{Dir: dir})
+	if got, want := argv[len(argv)-1], filepath.Join(dir, "reports"); got != want {
+		t.Errorf("-rd %q, want %q", got, want)
 	}
 }
