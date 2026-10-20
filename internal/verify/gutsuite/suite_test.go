@@ -166,6 +166,21 @@ func TestTheCommandLineFollowsTheLine(t *testing.T) {
 	}
 }
 
+// Godot 3's headless and server builds do not know --no-window and hand it
+// to the script, where GUT refuses it as an unknown option.
+func TestAGodot3HeadlessBuildTakesNoWindowFlag(t *testing.T) {
+	for _, godot := range []string{"/opt/Godot_v3.6-stable_linux_headless.64", "Godot_v3.6-stable_linux_server.64"} {
+		root := project(t, 3, map[string]string{"test/test_a.gd": twoScripts})
+		e := &engine{}
+		if _, err := Run(Options{Root: root, Godot: godot, RunID: "R", Start: e.start}); err != nil {
+			t.Fatal(err)
+		}
+		if len(e.argv) < 2 || e.argv[1] != "--path" {
+			t.Errorf("%s: %q", godot, e.argv)
+		}
+	}
+}
+
 // A .gutconfig.json says where the tests are; GUT reads it itself, and loomux
 // reads the same keys to know what to expect in the report.
 func TestScriptsFollowGutsRule(t *testing.T) {

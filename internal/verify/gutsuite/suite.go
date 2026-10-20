@@ -143,11 +143,16 @@ func Run(o Options) (Result, error) {
 		return Result{}, err
 	}
 	report := filepath.Join(state, "junit.xml")
-	window := "--headless"
+	argv := []string{o.Godot, "--headless"}
 	if _, godot3 := verify.ClassListMissing(o.Root); godot3 {
-		window = "--no-window"
+		argv = []string{o.Godot, "--no-window"}
+		// Godot 3's headless and server builds have no window and pass an
+		// unknown --no-window on to GUT, which refuses it.
+		if build := filepath.Base(o.Godot); strings.Contains(build, "headless") || strings.Contains(build, "server") {
+			argv = argv[:1]
+		}
 	}
-	argv := []string{o.Godot, window, "--path", o.Root, "-s", "res://" + cmdln}
+	argv = append(argv, "--path", o.Root, "-s", "res://"+cmdln)
 	if r.config {
 		argv = append(argv, "-gconfig=res://.gutconfig.json")
 	} else {

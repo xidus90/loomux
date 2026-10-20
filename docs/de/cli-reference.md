@@ -373,7 +373,7 @@ GUT die Lane `test`, und `coverage` bleibt die von gdUnit4.
 - **Was es fährt**: `<godot> --headless --path <root> -s
   res://addons/gut/gut_cmdln.gd -gdir=<verz> -ginclude_subdirs -gprefix=test_
   -gexit -gjunit_xml_file=<bericht>`, für Godot 3 mit `--no-window` statt
-  `--headless`. Godot 3 dokumentiert `--no-window` nur für Windows: unter Linux ohne Display seinen Headless- oder Server-Build nehmen oder die Lane unter `xvfb-run` starten (nur unter Windows geprüft). `<verz>` sind die von `res://test` und `res://tests`, die es
+  `--headless` und für einen Godot-3-Build, dessen Dateiname `headless` oder `server` nennt, mit keinem von beiden (er reichte die Option an GUT weiter, das sie ablehnt). Godot 3 dokumentiert `--no-window` nur für Windows: unter Linux ohne Display seinen Headless- oder Server-Build nehmen oder die Lane unter `xvfb-run` starten (der Headless-Build unter Linux geprüft). `<verz>` sind die von `res://test` und `res://tests`, die es
   gibt. Eine `.gutconfig.json` ersetzt die drei `-g`-Optionen zu den Tests
   durch `-gconfig=res://.gutconfig.json`; loomux liest daraus `dirs`,
   `prefix`, `suffix` und `include_subdirs` (ohne Angabe falsch, wie bei GUT), um zu wissen, welche Skripte im
