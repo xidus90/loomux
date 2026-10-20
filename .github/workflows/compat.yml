@@ -1,0 +1,127 @@
+name: compat
+# Runs the compatibility list (internal/compat/compat.toml) for real: each
+# entry on Linux and Windows, with its runtime, addons and tool versions.
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      entries:
+        description: Entry keys, comma separated; empty runs all
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      entries:
+        description: Entry keys as a JSON list; empty runs all
+        type: string
+        default: ""
+      probes:
+        description: Whole entries as a JSON list, from `dev compat scout`; when given, only these run
+        type: string
+        default: ""
+permissions:
+  contents: read
+jobs:
+  pick:
+    uses: ./.github/workflows/pick-runner.yml
+    secrets: inherit
+  plan:
+    needs: pick
+    runs-on: ${{ fromJSON(needs.pick.outputs.linux) }}
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The plan diffs against the point the branch left master.
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go build -o bin/loomux.exe ./cmd/loomux
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          ENTRIES: ${{ inputs.entries }}
+          PROBES: ${{ inputs.probes }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          matrix=$(sh ci/compat-plan.sh bin/loomux.exe)
+          echo "$matrix"
+          echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
+  run:
+    name: run ${{ matrix.entry }} (${{ matrix.os }})
+    needs: [pick, plan]
+    # An empty include would fail the matrix.
+    if: needs.plan.outputs.matrix != '{"include":[]}'
+    runs-on: ${{ fromJSON(matrix.os == 'windows' && needs.pick.outputs.windows || needs.pick.outputs.linux) }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        # Git Bash by its path on the self-hosted runner; see ci.yml.
+        shell: >-
+          ${{ matrix.os == 'windows' && contains(needs.pick.outputs.windows, 'self-hosted')
+          && 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
+          || 'bash' }}
+    steps:
+      # First of all, so that a run that fails anywhere still tells a
+      # downloaded report which platform and probe it belongs to.
+      - run: |
+          mkdir -p "$ROOT"
+          printf '{"os":"%s","probe":%s}\n' "$PLATFORM" "${PROBE:-null}" >"$ROOT/meta.json"
+        env:
+          PLATFORM: ${{ matrix.os }}
+          PROBE: ${{ matrix.probe }}
+          ROOT: ${{ runner.temp }}/c
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go build -o bin/loomux.exe ./cmd/loomux
+      - uses: astral-sh/setup-uv@v7
+      # A short root: long paths under the runner's work directory break
+      # tools on Windows.
+      - id: setup
+        run: sh ci/compat-setup.sh bin/loomux.exe "$ENTRY" "$ROOT"
+        env:
+          ENTRY: ${{ matrix.entry }}
+          PROBE: ${{ matrix.probe }}
+          ROOT: ${{ runner.temp }}/c
+      # Go entries run with their own Go; loomux is built already.
+      - if: steps.setup.outputs.runtime == 'go'
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ steps.setup.outputs.version }}
+          cache: false
+      - id: check
+        run: sh ci/compat-run.sh bin/loomux.exe "$ENTRY" "$ROOT"
+        env:
+          ENTRY: ${{ matrix.entry }}
+          PROBE: ${{ matrix.probe }}
+          ROOT: ${{ runner.temp }}/c
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: report-${{ strategy.job-index }}
+          path: |
+            ${{ runner.temp }}/c/report.json
+            ${{ runner.temp }}/c/meta.json
+          if-no-files-found: ignore
+  # The required check: green when nothing needed to run or all of it passed.
+  compat:
+    needs: [plan, run]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          PLAN: ${{ needs.plan.result }}
+          RUN: ${{ needs.run.result }}
+        run: |
+          echo "plan: $PLAN, run: $RUN"
+          [ "$PLAN" = success ] && { [ "$RUN" = success ] || [ "$RUN" = skipped ]; }

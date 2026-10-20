@@ -17,6 +17,7 @@ import (
 	"github.com/xidus90/loomux/internal/child"
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/query"
+	"github.com/xidus90/loomux/internal/compat"
 	"github.com/xidus90/loomux/internal/detect"
 	"github.com/xidus90/loomux/internal/gitwork"
 	"github.com/xidus90/loomux/internal/hooks"
@@ -215,14 +216,7 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(err)
 	}
-	loomux, err := checkExecutable()
-	if err != nil {
-		loomux = "loomux"
-	}
-	runID := verify.NewRunID(checkNow(), os.Getpid())
-	env := verify.PlanEnv{Root: root, Loomux: loomux, RunID: runID, HasTests: verify.HasTests,
-		ImportReady: verify.ImportReady, GraphReady: query.GraphReady, GraphEnv: query.GraphEnv,
-		Godot: verify.GodotFor(root, eff.Config.Godot, checkStart, nil)}
+	env := checkEnv(root, eff)
 	// The table asks no probe, so it needs no copy of the index.
 	if *show {
 		verify.WriteShow(stdout, eff, kinds, env)
@@ -247,12 +241,51 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 		// Without a copy too: the hook asks the same nil view.
 		env.GraphReady, env.RulesReady, env.GraphEnv = idx.Ready, idx.RulesReady, idx.Env
 	}
-	if err := verify.PrepareCover(root); err != nil {
+	outs, armed, err := checkLanes(root, request, eff, kinds, facts, env, stderr)
+	if err != nil {
 		return fail(err)
+	}
+	verify.WriteCheck(stdout, outs, *verbose)
+	code, notes := verify.CheckVerdict(kinds, outs, verify.Strict(eff.Config, request))
+	for _, note := range notes {
+		fmt.Fprintln(stdout, note)
+	}
+	// Armed only by a run that ends green as a whole, and only where the
+	// project has the file: without it every lane is armed already.
+	if added := armed.Missing(verify.GreenKeys(outs)); *arm && code == 0 && armed.Exists && len(added) > 0 {
+		armed = checkArm(root, armed, added, stdout, stderr)
+	}
+	if line := verify.ProbationLine(outs, armed.Arms); line != "" {
+		fmt.Fprintln(stdout, line)
+	}
+	// A file left behind costs disk, not correctness: the verdict stands.
+	if err := verify.CleanCover(root, env.RunID, code == 0); err != nil {
+		fmt.Fprintf(stderr, "loomux check: cleaning coverage files: %v\n", err)
+	}
+	return code
+}
+
+// checkEnv is what a plan at root needs: this binary for {loomux}, a run ID
+// and the probes that touch the disk.
+func checkEnv(root string, eff verify.Effective) verify.PlanEnv {
+	loomux, err := checkExecutable()
+	if err != nil {
+		loomux = "loomux"
+	}
+	return verify.PlanEnv{Root: root, Loomux: loomux, RunID: verify.NewRunID(checkNow(), os.Getpid()),
+		HasTests: verify.HasTests, ImportReady: verify.ImportReady, GraphReady: query.GraphReady,
+		GraphEnv: query.GraphEnv, Godot: verify.GodotFor(root, eff.Config.Godot, checkStart, nil)}
+}
+
+// checkLanes plans kinds, adds the wiki's lanes and runs them all, judged by
+// the armed set it read.
+func checkLanes(root, request string, eff verify.Effective, kinds []string, facts detect.Facts, env verify.PlanEnv, stderr io.Writer) ([]verify.Outcome, verify.ArmedSet, error) {
+	if err := verify.PrepareCover(root); err != nil {
+		return nil, verify.ArmedSet{}, err
 	}
 	jobs, err := checkPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeCheck}, env)
 	if err != nil {
-		return fail(err)
+		return nil, verify.ArmedSet{}, err
 	}
 	// The wiki's lane is built by the hooks, like its edit lane; appended
 	// behind the plan, because a job's After is an index into it.
@@ -271,24 +304,27 @@ func checkRun(args []string, stdout, stderr io.Writer) int {
 		Start: checkStart, Look: checkLook, Now: checkNow, Armed: armed.Arms,
 		Caller: "check " + request, Waiting: verify.WaitingTo(stderr),
 	})
-	verify.WriteCheck(stdout, outs, *verbose)
-	code, notes := verify.CheckVerdict(kinds, outs, verify.Strict(eff.Config, request))
-	for _, note := range notes {
-		fmt.Fprintln(stdout, note)
+	return outs, armed, nil
+}
+
+// runCheck runs kinds at root as `loomux check <kinds>` does, and answers
+// each lane's state and output instead of a report.
+func runCheck(root string, kinds []string, stderr io.Writer) ([]compat.LaneResult, error) {
+	request := strings.Join(kinds, ",")
+	eff, kinds, facts, err := checkLoad(root, request)
+	if err != nil {
+		return nil, err
 	}
-	// Armed only by a run that ends green as a whole, and only where the
-	// project has the file: without it every lane is armed already.
-	if added := armed.Missing(verify.GreenKeys(outs)); *arm && code == 0 && armed.Exists && len(added) > 0 {
-		armed = checkArm(root, armed, added, stdout, stderr)
+	// The work copy is thrown away whole, so its coverage files are not cleaned.
+	outs, _, err := checkLanes(root, request, eff, kinds, facts, checkEnv(root, eff), stderr)
+	if err != nil {
+		return nil, err
 	}
-	if line := verify.ProbationLine(outs, armed.Arms); line != "" {
-		fmt.Fprintln(stdout, line)
+	results := make([]compat.LaneResult, len(outs))
+	for i, o := range outs {
+		results[i] = compat.LaneResult{Lane: o.Job.Name, State: string(o.State), Output: o.Output}
 	}
-	// A file left behind costs disk, not correctness: the verdict stands.
-	if err := verify.CleanCover(root, runID, code == 0); err != nil {
-		fmt.Fprintf(stderr, "loomux check: cleaning coverage files: %v\n", err)
-	}
-	return code
+	return results, nil
 }
 
 // checkArm enters the lanes a green pre-commit run found ok, and lays the

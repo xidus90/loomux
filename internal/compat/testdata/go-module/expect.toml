@@ -1,0 +1,42 @@
+stacks = ["go"]
+edges = [
+  ["calc/calc.go#Child", "calls", "calc/calc.go#Base"],
+  ["calc/calc.go#Double", "calls", "calc/calc.go#Child"],
+  ["calc/calc_test.go#TestDouble", "calls", "calc/calc.go#Double"],
+]
+
+[lanes]
+lint = "go vet"
+test = "go test"
+coverage = "{loomux} check gocover"
+graph = "{loomux} check graph-fresh"
+
+[[break]]
+kind = "lint"
+file = "calc/unformatted.go"
+content = '''
+package calc
+
+var   Unformatted   =  1
+'''
+
+[[break]]
+kind = "test"
+file = "calc/failing_test.go"
+content = '''
+package calc
+
+import "testing"
+
+func TestFails(t *testing.T) { t.Fatal("fails") }
+'''
+
+[[break]]
+kind = "coverage"
+file = "calc/untested.go"
+content = '''
+package calc
+
+// Untested has no test.
+func Untested() int { return 3 }
+'''

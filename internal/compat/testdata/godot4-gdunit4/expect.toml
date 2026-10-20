@@ -1,0 +1,54 @@
+stacks = ["godot", "gdscript"]
+edges = [
+  ["scenes/main.tscn", "references", "scripts/player.gd#Player.walk"],
+  ["scripts/player.gd#Player", "extends", "scripts/base.gd#Base"],
+  ["scripts/player.gd#Player._ready", "references", "scripts/player.gd#Player._on_moved"],
+  ["scripts/player.gd#Player.f", "calls", "scripts/base.gd#Base.f"],
+]
+
+[lanes]
+lint = "uvx --with"
+test = "{loomux} check godot-suite"
+coverage = "{loomux} check linecov"
+graph = "{loomux} check graph-fresh"
+
+[[break]]
+kind = "lint"
+file = "scripts/base.gd"
+content = '''
+class_name Base
+extends Node
+
+
+func f() -> int:
+	var Bad := 1
+	return Bad
+'''
+
+[[break]]
+kind = "test"
+file = "test/player_test.gd"
+content = '''
+extends GdUnitTestSuite
+
+
+func test_f_fails() -> void:
+	assert_int(1).is_equal(2)
+'''
+
+# base.gd is loaded by the suite, so the new function is a measured line.
+[[break]]
+kind = "coverage"
+file = "scripts/base.gd"
+content = '''
+class_name Base
+extends Node
+
+
+func f() -> int:
+	return 1
+
+
+func untested() -> int:
+	return 3
+'''

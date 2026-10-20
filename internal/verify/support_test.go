@@ -60,9 +60,10 @@ func TestTheSupportPageMatchesThePresets(t *testing.T) {
 
 func TestTheSupportPageReaderNamesWhatItCannotRead(t *testing.T) {
 	for name, page := range map[string]struct{ text, want string }{
-		"no header":   {"|---|\n", "p.md:1: a separator row with nothing above it to be its header"},
-		"short row":   {"| Stack | x |\n|---|---|\n| go | a |\n", "p.md:3: 2 cells, but the support table has 9 columns"},
-		"other table": {"| Lane | Kind |\n|---|---|\n| lint | lint |\n", ""},
+		"no header":         {"|---|\n", "p.md:1: a separator row with nothing above it to be its header"},
+		"short row":         {"| Stack | lint |\n|---|---|\n| go | a |\n", "p.md:3: 2 cells, but the support table has 9 columns"},
+		"other table":       {"| Lane | Kind |\n|---|---|\n| lint | lint |\n", ""},
+		"other stack table": {"| Stack | Runtime |\n|---|---|\n| go | go |\n", ""},
 	} {
 		rows, complaints := supportRowsIn("p.md", page.text)
 		if page.want == "" {
@@ -78,8 +79,9 @@ func TestTheSupportPageReaderNamesWhatItCannotRead(t *testing.T) {
 }
 
 // supportRowsIn returns the body rows of the page's support table, the one
-// whose header opens with "Stack", beside the complaints of everything it
-// could not read.
+// whose header opens with "Stack" and names the lint column (the
+// verified-combinations table opens with "Stack" too), beside the complaints
+// of everything it could not read.
 func supportRowsIn(page, text string) ([][]string, []string) {
 	var rows [][]string
 	var complaints []string
@@ -98,7 +100,7 @@ func supportRowsIn(page, text string) ([][]string, []string) {
 				complaints = append(complaints, at+": a separator row with nothing above it to be its header")
 				continue
 			}
-			header, body = nil, header[0] == "Stack"
+			header, body = nil, header[0] == "Stack" && slices.Contains(header, "lint")
 		case !body:
 			header = cells
 		case len(cells) != 3+len(supportKinds):

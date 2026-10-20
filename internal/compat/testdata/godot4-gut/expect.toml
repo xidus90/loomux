@@ -1,0 +1,32 @@
+stacks = ["godot", "gdscript"]
+variants = ["gut"]
+edges = [
+  ["scenes/main.tscn", "references", "scripts/player.gd#Player.walk"],
+  ["scripts/player.gd#Player", "extends", "scripts/base.gd#Base"],
+  ["scripts/player.gd#Player._ready", "references", "scripts/player.gd#Player._on_moved"],
+  ["scripts/player.gd#Player.f", "calls", "scripts/base.gd#Base.f"],
+]
+
+[lanes]
+lint = "uvx --with"
+test = "{loomux} check gut-suite"
+graph = "{loomux} check graph-fresh"
+
+[[break]]
+kind = "lint"
+file = "scripts/bad_style.gd"
+content = '''
+func BadName() -> void:
+	pass
+'''
+
+[[break]]
+kind = "test"
+file = "test/test_player.gd"
+content = '''
+extends GutTest
+
+
+func test_f_fails() -> void:
+	assert_eq(1, 2)
+'''

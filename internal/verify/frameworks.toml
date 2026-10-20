@@ -53,7 +53,7 @@ stack = "gdscript"
 name = "gdtoolkit3"
 kind = "lint"
 carries = "Godot 3"
-proven = false
+proven = true
 source = "https://github.com/scony/godot-gdscript-toolkit"
 
 [[framework]]

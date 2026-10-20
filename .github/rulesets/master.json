@@ -32,7 +32,8 @@
         "required_status_checks": [
           { "context": "gate-windows", "integration_id": 15368 },
           { "context": "build-linux", "integration_id": 15368 },
-          { "context": "check", "integration_id": 15368 }
+          { "context": "check", "integration_id": 15368 },
+          { "context": "compat", "integration_id": 15368 }
         ]
       }
     },

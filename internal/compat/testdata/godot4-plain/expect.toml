@@ -1,0 +1,19 @@
+stacks = ["godot", "gdscript"]
+edges = [
+  ["scenes/main.tscn", "references", "scripts/player.gd#Player.walk"],
+  ["scripts/player.gd#Player", "extends", "scripts/base.gd#Base"],
+  ["scripts/player.gd#Player._ready", "references", "scripts/player.gd#Player._on_moved"],
+  ["scripts/player.gd#Player.f", "calls", "scripts/base.gd#Base.f"],
+]
+
+[lanes]
+lint = "uvx --with"
+graph = "{loomux} check graph-fresh"
+
+[[break]]
+kind = "lint"
+file = "scripts/bad_style.gd"
+content = '''
+func BadName() -> void:
+	pass
+'''

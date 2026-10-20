@@ -1,0 +1,18 @@
+[project]
+name = "python-pyright"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = ["pyright", "pytest"]
+
+[tool.pyright]
+include = ["pkg", "tests"]
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.coverage.report]
+fail_under = 100
