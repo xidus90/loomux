@@ -97,13 +97,19 @@ var (
 )
 
 // parse refuses anything that could pass for supported but is not.
-func parse(data []byte, path string) ([]Entry, error) { return decode(data, path, true) }
+func parse(data []byte, path string) ([]Entry, error) {
+	if _, err := decodeWatches(data, path); err != nil {
+		return nil, err
+	}
+	return decode(data, path, true)
+}
 
 // decode is parse; without strict it does not require the fixtures to exist,
 // which an older list read from git may name after they were removed.
 func decode(data []byte, path string, strict bool) ([]Entry, error) {
 	var doc struct {
-		Entry []Entry `toml:"entry"`
+		Entry []Entry          `toml:"entry"`
+		Watch []map[string]any `toml:"watch"` // checked by decodeWatches
 	}
 	md, err := toml.Decode(string(data), &doc)
 	if err != nil {
