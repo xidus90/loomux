@@ -72,7 +72,8 @@ func git(repo string, args ...string) ([]byte, error) {
 }
 
 // ChangedSince names the fixtures touched between ref and HEAD (the commit CI
-// checks out) and the entries that are new or differ from the list at ref.
+// checks out) and the entries that are new, differ from the list at ref, or
+// are selected by a [[watch]] rule for a file changed since.
 // A ref without a list makes every entry new.
 func ChangedSince(repo, ref string) (fixtures, entries []string, err error) {
 	if _, err = git(repo, "rev-parse", "--verify", ref+"^{commit}"); err != nil {
@@ -82,7 +83,8 @@ func ChangedSince(repo, ref string) (fixtures, entries []string, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	for _, n := range strings.Fields(string(names)) {
+	changed := strings.Fields(string(names))
+	for _, n := range changed {
 		if rest, ok := strings.CutPrefix(n, fixturesDir); ok {
 			if dir, _, _ := strings.Cut(rest, "/"); !slices.Contains(fixtures, dir) {
 				fixtures = append(fixtures, dir)
@@ -105,6 +107,12 @@ func ChangedSince(repo, ref string) (fixtures, entries []string, err error) {
 		k := e.Key()
 		e.Line = 0
 		if !reflect.DeepEqual(before[k], e) {
+			entries = append(entries, k)
+		}
+	}
+	watched, _ := WatchedEntries(cur, changed) // the globs are checked at load
+	for _, k := range watched {
+		if !slices.Contains(entries, k) {
 			entries = append(entries, k)
 		}
 	}

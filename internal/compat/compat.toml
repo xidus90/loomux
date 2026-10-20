@@ -124,3 +124,20 @@ runtime = "go"
 version = "1.27"
 fixture = "go-module"
 kinds = ["lint", "test", "coverage", "graph"]
+
+# Files that are neither an entry nor a fixture but decide what an entry
+# proves. A change to one of paths (not to an except) runs the entries the
+# rule selects: all, those of some stacks, or those with some addons.
+
+[[watch]]
+paths = ["internal/verify/godotsuite/**"]
+addons = ["gdUnit4", "NanoCoverage"]
+
+[[watch]]
+paths = ["internal/verify/gutsuite/**"]
+addons = ["GUT"]
+
+[[watch]]
+paths = ["internal/verify/presets.toml", "internal/verify/frameworks.toml", "ci/compat-*.sh", "internal/compat/*.go"]
+except = ["internal/compat/*_test.go"]
+all = true
