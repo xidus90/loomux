@@ -349,9 +349,11 @@ beside it, GUT takes the `test` lane and `coverage` stays gdUnit4's.
 - **What it runs**: `<godot> --headless --path <root> -s
   res://addons/gut/gut_cmdln.gd -gdir=<dirs> -ginclude_subdirs -gprefix=test_
   -gexit -gjunit_xml_file=<report>`, with `--no-window` instead of
-  `--headless` for Godot 3. Godot 3 documents `--no-window` for Windows only:
+  `--headless` for Godot 3, and neither for a Godot 3 build whose file name
+  says `headless` or `server` (it would hand the flag to GUT, which refuses
+  it). Godot 3 documents `--no-window` for Windows only:
   on Linux without a display, run its headless or server build, or start the
-  lane under `xvfb-run` (verified on Windows only). `<dirs>` are those of `res://test` and
+  lane under `xvfb-run` (the headless build verified on Linux). `<dirs>` are those of `res://test` and
   `res://tests` that exist. A `.gutconfig.json` replaces the three `-g`
   options on the tests with `-gconfig=res://.gutconfig.json`; loomux reads its
   `dirs`, `prefix`, `suffix` and `include_subdirs` (false unless set, as GUT has it) to know which scripts must

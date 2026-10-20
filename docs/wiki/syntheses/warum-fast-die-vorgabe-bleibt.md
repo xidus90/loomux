@@ -13,8 +13,8 @@ sources:
   - id: suche-und-profile
     resource: brain://project/loomux/docs/wiki/topics/suche-und-profile.md
     doc_id: 01M3534TGBT5D7K9XM7A1TM09Z
-    content_hash: "sha256:00b58fcb05661a1ca9e034c2babce9dd063cf6a064dd4ba2c7748ef483f981a7"
-    revision: 25
+    content_hash: "sha256:0ff12569e1467e434232e9c02fea9b575a51791eef1733e5955128df22bfb579"
+    revision: 26
 ---
 
 **Entwurf.** Ergebnis einer Recherche vom 24. August 2026, noch nicht geprüft.
