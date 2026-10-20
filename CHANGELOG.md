@@ -7,6 +7,18 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.14.0] - 2026-10-20
+
+<https://github.com/xidus90/loomux/pull/124>
+
+### Added
+- `loomux dev compat matrix|run|scout` and the compat workflows: every supported combination of Godot, Python and Go with its frameworks runs for real on Linux and Windows before a major release and when the list changes; a weekly job reports new upstream versions as issues.
+### Fixed
+- The gdscript lint lane works with gdtoolkit 3 again; it died on a missing `pkg_resources` since setuptools 81, and on a missing `sre_parse` under Python 3.15.
+- A gdUnit4 run no longer fails the project's `gdformat --check` with loomux's own glue scripts.
+- The GUT lane runs on Godot 3's headless and server builds; it passed them `--no-window`, which GUT refused.
+- gdUnit4 suites run on Linux: the report no longer lands inside the project, and a NanoCoverage extension that fails to load ends the run with a message instead of a timeout.
+
 ## [1.13.0] - 2026-10-19
 
 <https://github.com/xidus90/loomux/pull/123>
