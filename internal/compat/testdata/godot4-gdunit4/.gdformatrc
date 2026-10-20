@@ -1,0 +1,4 @@
+# The addons are third-party code that follows its own style.
+excluded_directories:
+  - .git
+  - addons

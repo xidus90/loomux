@@ -1,0 +1,64 @@
+stacks = ["python"]
+variants = ["mypy"]
+edges = [
+  ["pkg/core.py#Child", "extends", "pkg/core.py#Base"],
+  ["pkg/core.py#double", "calls", "pkg/core.py#Child"],
+  ["tests/test_core.py", "imports", "pkg/core.py"],
+]
+
+[lanes]
+lint = "uvx ruff check"
+types = "uv run mypy"
+test = "uv run --with"
+coverage = "uv run --with"
+graph = "{loomux} check graph-fresh"
+
+[[break]]
+kind = "lint"
+file = "pkg/ambiguous.py"
+content = '''
+import os, sys
+
+PLATFORM = (os.name, sys.platform)
+'''
+
+[[break]]
+kind = "types"
+file = "pkg/bad_types.py"
+content = '''
+VALUE: int = "text"
+'''
+
+[[break]]
+kind = "test"
+file = "tests/test_core.py"
+content = '''
+from pkg.core import double
+
+
+def test_fails() -> None:
+    assert double(3) == 7
+'''
+
+# core.py is imported by the tests, so the new function is a measured line.
+[[break]]
+kind = "coverage"
+file = "pkg/core.py"
+content = '''
+class Base:
+    def f(self) -> int:
+        return 1
+
+
+class Child(Base):
+    def f(self) -> int:
+        return super().f() + 1
+
+
+def double(value: int) -> int:
+    return Child().f() * value
+
+
+def untested() -> int:
+    return 3
+'''

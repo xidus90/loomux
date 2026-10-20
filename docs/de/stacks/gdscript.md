@@ -10,18 +10,19 @@ Ein Framework, das in der Tabelle fehlt, ist nicht verboten. loomux fährt, was 
 
 Die Zelle ist leer, wo die Lane keine Erkennung braucht: Die Lint-Lane läuft auf jedem GDScript-Projekt, also nennt keine der beiden gdtoolkit-Zeilen ein Muster.
 
+Unter Godot 3 liest gdformat (gdtoolkit 3) keine Konfiguration und kann `addons/` nicht auslassen, sodass ein Projekt mit Addons im Baum an `gdformat --check` scheitert; das gdtoolkit von Godot 4 beachtet `excluded_directories` in `.gdformatrc`.
+
 | Framework | Art | Erkannt an | Trägt | Quelle |
 |---|---|---|---|---|
 | gdUnit4 | test | `plugin.cfg:name="gdUnit4"` | Godot 4.3 bis 4.8 | https://github.com/godot-gdunit-labs/gdUnit4 |
 | NanoCoverage | coverage | `plugin.cfg:name="NanoCoverage"` | Godot 4 | https://github.com/IgorBayerl/nano-coverage-godot |
 | gdtoolkit4 | lint |  | Godot 4 | https://github.com/scony/godot-gdscript-toolkit |
 | GUT | test | `plugin.cfg:name="Gut"` | GUT 7.x trägt Godot 3, 9.x trägt Godot 4; das Muster unterscheidet sie nicht | https://github.com/bitwes/Gut |
-| gdtoolkit3 (unerprobt) | lint |  | Godot 3 | https://github.com/scony/godot-gdscript-toolkit |
+| gdtoolkit3 | lint |  | Godot 3 | https://github.com/scony/godot-gdscript-toolkit |
 | godot-code-coverage (unerprobt) | coverage | `plugin.cfg:name="Coverage"` | auf Godot 3.5 dokumentiert, 3.6 unbestätigt | https://github.com/jamie-pate/godot-code-coverage |
 
 ## Unerprobte Zeilen
 
 Eine als unerprobt markierte Zeile hat loomux noch nicht gegen eine echte Installation der genannten Linie gefahren. Offen ist je Zeile:
 
-- gdtoolkit3 (unerprobt): die Lint-Lane durch loomux auf einem Godot-3-Projekt mit der 3.x-Fassung des Toolkits fahren.
 - godot-code-coverage (unerprobt): eine Abdeckungs-Lane durch loomux auf Godot 3.5 fahren und eine auf 3.6.

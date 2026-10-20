@@ -1,0 +1,18 @@
+[project]
+name = "python-mypy"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = ["mypy", "pytest"]
+
+[tool.mypy]
+files = ["pkg", "tests"]
+strict = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.coverage.report]
+fail_under = 100

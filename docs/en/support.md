@@ -18,14 +18,14 @@ have.
 
 | Stack | Recognised by | lint | types | test | coverage | graph | rules | Versions |
 |---|---|---|---|---|---|---|---|---|
-| go | `go.mod` | `go vet`, `gofmt` | — | `go test` | `gocover`, 100 % per function | code graph | layer map | Go syntax up to 1.27, the `go/parser` of the toolchain loomux is built with; a Go file that does not parse fails the graph build |
-| python | `pyproject.toml`, `requirements.txt`, `uv.lock`, `manage.py` | ruff | mypy; pyright or the project's mypy where configured | pytest | coverage.py | code graph | layer map | Python 3, through `uv`; the preset's mypy needs 1.16 or later; tool versions pinnable with [`tools`](configuration.md#stacks); no minor version checked one by one |
+| go | `go.mod` | `go vet`, `gofmt` | — | `go test` | `gocover`, 100 % per function | code graph | layer map | Go syntax up to 1.27, the `go/parser` of the toolchain loomux is built with; a Go file that does not parse fails the graph build; Go 1.26 and 1.27 verified ([Verified combinations](#verified-combinations)) |
+| python | `pyproject.toml`, `requirements.txt`, `uv.lock`, `manage.py` | ruff | mypy; pyright or the project's mypy where configured | pytest | coverage.py | code graph | layer map | Python 3, through `uv`; the preset's mypy needs 1.16 or later; tool versions pinnable with [`tools`](configuration.md#stacks); Python 3.11 to 3.15 verified ([Verified combinations](#verified-combinations)) |
 | typescript | `tsconfig.json` beside `package.json`, `biome.json` | eslint; biome where configured | `tsc` | vitest, where `package.json` names it | vitest with coverage | — | — | `.js` and `.jsx` count as TypeScript; no version pinned |
 | vue | `*.vue`, `vue.config.js` | — | `vue-tsc` | — | — | — | — | no version pinned |
 | svelte | `*.svelte`, `svelte.config.js` | — | `svelte-check` | — | — | — | — | no version pinned |
 | css | `*.css`, `*.scss`, `.stylelintrc*` | stylelint | — | — | — | — | — | no version pinned |
 | html | `*.html`, `.htmlhintrc` | htmlhint | — | — | — | — | — | no version pinned |
-| gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 through `check godot-suite`, or GUT through `check gut-suite`, where installed | NanoCoverage through `check linecov`, where installed | code graph | layer map | graph: Godot 3.x and 4.x, verified on 3.x, 4.2 and 4.7; test: gdUnit4 on Godot 4.3 to 4.8, GUT 7 on Godot 3 and GUT 9 on Godot 4 (verified on 3.6 and 4.7); coverage: Godot 4.3 to 4.8; lint: Godot 4, Godot 3 unproven, gdtoolkit pinnable with [`tools`](configuration.md#stacks) ([details](stacks/gdscript.md)) |
+| gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 through `check godot-suite`, or GUT through `check gut-suite`, where installed | NanoCoverage through `check linecov`, where installed | code graph | layer map | graph: Godot 3.x and 4.x, verified on 3.x, 4.2 and 4.7; test: gdUnit4 on Godot 4.3 to 4.8, GUT 7 on Godot 3 and GUT 9 on Godot 4 (verified on 3.6 and 4.7); coverage: Godot 4.3 to 4.8; lint: Godot 3 and 4 (on Godot 3 a project with addons in the tree fails `gdformat --check`, which cannot skip `addons/`), gdtoolkit pinnable with [`tools`](configuration.md#stacks); verified on Godot 3.6, 4.5 and 4.7 ([Verified combinations](#verified-combinations), [details](stacks/gdscript.md)) |
 | cpp | `CMakeLists.txt`, `CMakePresets.json`, `meson.build`, `*.cpp`, `*.hpp` | clang-tidy; clang-format on the edited file | the CMake build | ctest, where `CMakeLists.txt` enables testing | gcovr, 100 % of lines | — | — | needs a configured `build/` (`CMakeCache.txt`); no compiler version pinned |
 | shell | `*.sh`, `.shellcheckrc` | shellcheck, on the edited file only | — | — | — | — | — | no version pinned |
 | sql | `.sqlfluff` | sqlfluff | — | — | — | — | — | no version pinned |
@@ -33,6 +33,28 @@ have.
 
 "No version pinned" means loomux calls whatever version of the tool the
 project or the machine provides and has not checked one against another.
+
+## Verified combinations
+
+Each row is a combination loomux runs for real before a major release and whenever the list changes: the runtime, the addons and the tools at the versions named, over a fixture project, on Linux and Windows. The table is `internal/compat/compat.toml`; a test holds it against this page cell by cell, and against the `proven` flag of every framework row ([GDScript](stacks/gdscript.md)). How the runs work is in the [CLI reference](cli-reference.md#loomux-dev-compat-matrixrunscout-flags), the hold they put on a release in [Releases](releases.md#how-a-pull-request-becomes-a-release).
+
+| Stack | Runtime | Version | Fixture | Addons | Tools | Kinds |
+|---|---|---|---|---|---|---|
+| gdscript | godot | 3.6 | godot3-gut | GUT 7.4.3 | — | test, graph |
+| gdscript | godot | 3.6 | godot3-plain | — | gdtoolkit 3.* | lint, graph |
+| gdscript | godot | 4.5 | godot4-plain | — | gdtoolkit 4.* | lint, graph |
+| gdscript | godot | 4.7 | godot4-plain | — | gdtoolkit 4.* | lint, graph |
+| gdscript | godot | 4.5 | godot4-gdunit4 | gdUnit4 6.2.2, NanoCoverage 0.1.1 | gdtoolkit 4.* | lint, test, coverage, graph |
+| gdscript | godot | 4.7 | godot4-gdunit4 | gdUnit4 6.2.2, NanoCoverage 0.1.1 | gdtoolkit 4.* | lint, test, coverage, graph |
+| gdscript | godot | 4.7 | godot4-gut | GUT 9.7.1 | gdtoolkit 4.* | lint, test, graph |
+| python | python | 3.11 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
+| python | python | 3.12 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
+| python | python | 3.13 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
+| python | python | 3.14 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
+| python | python | 3.15 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
+| python | python | 3.15 | python-pyright | — | coverage 7.16.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
+| go | go | 1.26 | go-module | — | — | lint, test, coverage, graph |
+| go | go | 1.27 | go-module | — | — | lint, test, coverage, graph |
 
 ## What the code graph reads
 

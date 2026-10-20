@@ -1,0 +1,74 @@
+name: compat-scout
+# Looks upstream for runtime, framework and tool versions the compatibility
+# list does not hold (internal/compat/compat.toml), runs each as a probe on
+# both platforms and keeps one issue per find, with the result and the entry
+# to add. The logic lives in `loomux dev compat scout` and ci/compat-report.sh.
+on:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pick:
+    uses: ./.github/workflows/pick-runner.yml
+    secrets: inherit
+  scout:
+    needs: pick
+    runs-on: ${{ fromJSON(needs.pick.outputs.linux) }}
+    outputs:
+      probes: ${{ steps.scout.outputs.probes }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go build -o bin/loomux.exe ./cmd/loomux
+      - id: scout
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OUT: ${{ runner.temp }}/findings.json
+        run: |
+          bin/loomux.exe dev compat scout --json "$OUT"
+          echo "probes=$(jq -c '[.[].probe]' "$OUT")" >>"$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: findings
+          path: ${{ runner.temp }}/findings.json
+  probe:
+    needs: scout
+    # An empty list would run the whole compatibility list.
+    if: needs.scout.outputs.probes != '[]'
+    uses: ./.github/workflows/compat.yml
+    secrets: inherit
+    with:
+      probes: ${{ needs.scout.outputs.probes }}
+  report:
+    needs: [pick, scout, probe]
+    # A failed probe is a result to report, not a reason to stay silent.
+    if: always() && needs.scout.result == 'success'
+    runs-on: ${{ fromJSON(needs.pick.outputs.linux) }}
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go build -o bin/loomux.exe ./cmd/loomux
+      - uses: actions/download-artifact@v8
+        with:
+          name: findings
+          path: findings
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: report-*
+          path: reports
+      - run: |
+          mkdir -p reports
+          sh ci/compat-report.sh bin/loomux.exe findings/findings.json reports
+        env:
+          GH_TOKEN: ${{ github.token }}

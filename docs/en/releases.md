@@ -20,6 +20,8 @@ pre-release. What changed is in [`CHANGELOG.md`](../../CHANGELOG.md); an entry i
 written only with a stable release, and the entries marked `-beta` are the
 count before 1.0.0.
 
+The compatibility matrix holds a major release: a pull request labelled `release:major` runs every entry of the [compatibility list](support.md#verified-combinations) on Linux and Windows (`loomux dev compat matrix --full`), and one that touches the list or a fixture runs the entries it changes. Supporting a new runtime or framework version is one added entry in `internal/compat/compat.toml` and the matching row in the support page; a weekly job (`compat-scout`) opens an issue labelled `compat-scout` for each upstream version the list lacks. See [`loomux dev compat`](cli-reference.md#loomux-dev-compat-matrixrunscout-flags).
+
 ## Beta releases
 
 A beta is cut by hand from any branch, tag or commit, without a pull request:

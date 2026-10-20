@@ -106,7 +106,7 @@ func TestAMisspeltTableAndPrefixKeysGetTheRightLine(t *testing.T) {
 }
 
 func TestTheProvenRowsAreTheOnesLoomuxRan(t *testing.T) {
-	want := map[string]bool{"gdUnit4": true, "NanoCoverage": true, "gdtoolkit4": true, "GUT": true, "gdtoolkit3": false, "godot-code-coverage": false}
+	want := map[string]bool{"gdUnit4": true, "NanoCoverage": true, "gdtoolkit4": true, "GUT": true, "gdtoolkit3": true, "godot-code-coverage": false}
 	fs, err := LoadFrameworks()
 	if err != nil || len(fs) != len(want) {
 		t.Fatalf("%d rows, %v", len(fs), err)

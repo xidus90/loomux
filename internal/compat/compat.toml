@@ -1,0 +1,126 @@
+# The compatibility list: every combination of runtime, framework and tool
+# versions loomux claims to support. One [[entry]] per runtime version; the
+# fixture is the project under testdata/ that the combination is run against.
+# Addon names are rows of verify's frameworks.toml, tool names are the tools
+# the stack's presets bring; versions are given without a leading "v".
+
+[[entry]]
+stack = "gdscript"
+runtime = "godot"
+version = "3.6"
+fixture = "godot3-gut"
+kinds = ["test", "graph"]
+addons = [{ name = "GUT", version = "7.4.3" }]
+
+[[entry]]
+stack = "gdscript"
+runtime = "godot"
+version = "3.6"
+fixture = "godot3-plain"
+kinds = ["lint", "graph"]
+tools = { gdtoolkit = "3.*" }
+
+[[entry]]
+stack = "gdscript"
+runtime = "godot"
+version = "4.5"
+fixture = "godot4-plain"
+kinds = ["lint", "graph"]
+tools = { gdtoolkit = "4.*" }
+
+[[entry]]
+stack = "gdscript"
+runtime = "godot"
+version = "4.7"
+fixture = "godot4-plain"
+kinds = ["lint", "graph"]
+tools = { gdtoolkit = "4.*" }
+
+[[entry]]
+stack = "gdscript"
+runtime = "godot"
+version = "4.5"
+fixture = "godot4-gdunit4"
+kinds = ["lint", "test", "coverage", "graph"]
+addons = [{ name = "gdUnit4", version = "6.2.2" }, { name = "NanoCoverage", version = "0.1.1" }]
+tools = { gdtoolkit = "4.*" }
+
+[[entry]]
+stack = "gdscript"
+runtime = "godot"
+version = "4.7"
+fixture = "godot4-gdunit4"
+kinds = ["lint", "test", "coverage", "graph"]
+addons = [{ name = "gdUnit4", version = "6.2.2" }, { name = "NanoCoverage", version = "0.1.1" }]
+tools = { gdtoolkit = "4.*" }
+
+[[entry]]
+stack = "gdscript"
+runtime = "godot"
+version = "4.7"
+fixture = "godot4-gut"
+kinds = ["lint", "test", "graph"]
+addons = [{ name = "GUT", version = "9.7.1" }]
+tools = { gdtoolkit = "4.*" }
+
+[[entry]]
+stack = "python"
+runtime = "python"
+version = "3.11"
+fixture = "python-mypy"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+tools = { ruff = "0.17.*", mypy = "2.4.*", pytest = "9.1.*", coverage = "7.16.*" }
+
+[[entry]]
+stack = "python"
+runtime = "python"
+version = "3.12"
+fixture = "python-mypy"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+tools = { ruff = "0.17.*", mypy = "2.4.*", pytest = "9.1.*", coverage = "7.16.*" }
+
+[[entry]]
+stack = "python"
+runtime = "python"
+version = "3.13"
+fixture = "python-mypy"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+tools = { ruff = "0.17.*", mypy = "2.4.*", pytest = "9.1.*", coverage = "7.16.*" }
+
+[[entry]]
+stack = "python"
+runtime = "python"
+version = "3.14"
+fixture = "python-mypy"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+tools = { ruff = "0.17.*", mypy = "2.4.*", pytest = "9.1.*", coverage = "7.16.*" }
+
+[[entry]]
+stack = "python"
+runtime = "python"
+version = "3.15"
+fixture = "python-mypy"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+tools = { ruff = "0.17.*", mypy = "2.4.*", pytest = "9.1.*", coverage = "7.16.*" }
+
+[[entry]]
+stack = "python"
+runtime = "python"
+version = "3.15"
+fixture = "python-pyright"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+tools = { ruff = "0.17.*", pytest = "9.1.*", coverage = "7.16.*" }
+
+[[entry]]
+stack = "go"
+runtime = "go"
+version = "1.26"
+fixture = "go-module"
+kinds = ["lint", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "go"
+runtime = "go"
+version = "1.27"
+fixture = "go-module"
+kinds = ["lint", "test", "coverage", "graph"]

@@ -49,6 +49,7 @@ var fakeOllamaNotify = signal.NotifyContext
 
 var devCommands = map[string]command{
 	"bench":          devBenchGroup,
+	"compat":         devCompat,
 	"fake-ollama":    devFakeOllama,
 	"mutants":        devMutants,
 	"notices":        devNotices,

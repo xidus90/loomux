@@ -20,6 +20,8 @@ Pre-Release. Was sich geändert hat, steht in [`CHANGELOG.md`](../../CHANGELOG.m
 ein Eintrag entsteht nur mit einem stabilen Release, und die mit `-beta`
 markierten Einträge sind die Zählung vor 1.0.0.
 
+Die Kompatibilitätsmatrix hält ein Major-Release auf: Ein Pull Request mit dem Label `release:major` fährt jeden Eintrag der [Kompatibilitätsliste](support.md#geprüfte-kombinationen) auf Linux und Windows (`loomux dev compat matrix --full`); einer, der die Liste oder ein Fixture berührt, fährt die Einträge, die er ändert. Eine neue Laufzeit- oder Framework-Version zu unterstützen heißt: ein Eintrag mehr in `internal/compat/compat.toml` und die passende Zeile auf der Support-Seite; ein wöchentlicher Job (`compat-scout`) eröffnet für jede Upstream-Version, die der Liste fehlt, ein Issue mit dem Label `compat-scout`. Siehe [`loomux dev compat`](cli-reference.md#loomux-dev-compat-matrixrunscout-flags).
+
 ## Beta-Releases
 
 Eine Beta entsteht von Hand aus jedem Branch, Tag oder Commit, ohne Pull
