@@ -18,7 +18,9 @@ func _initialize() -> void:
 		# message below would never be printed.
 		var service = _hook_service()
 		if service == null or not ("enigne_hooks" in service):
-			printerr("loomux: this gdUnit4 (%s) has no session hook list to join" % _gdunit_version())
+			printerr(
+				"loomux: this gdUnit4 (%s) has no session hook list to join" % _gdunit_version()
+			)
 			quit(70)
 			return
 		var hook = load("res://.godot/loomux/hook.gd").new()
@@ -41,7 +43,9 @@ func _hook_service() -> Object:
 ## only; get_setting returns Nano's own default when the key is absent, so
 ## appending keeps whatever the project ignores already.
 func _ignore_glue() -> void:
-	var ignored: PackedStringArray = ProjectSettings.get_setting(IGNORE_SETTING, PackedStringArray())
+	var ignored: PackedStringArray = ProjectSettings.get_setting(
+		IGNORE_SETTING, PackedStringArray()
+	)
 	ignored.append(GLUE_PATTERN)
 	ProjectSettings.set_setting(IGNORE_SETTING, ignored)
 
