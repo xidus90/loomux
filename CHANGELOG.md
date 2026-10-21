@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.15.0] - 2026-10-21
+
+<https://github.com/xidus90/loomux/pull/125>
+
+### Added
+- A pull request that changes the code checking a combination (the gdUnit4 or GUT suites, the preset and framework tables, the compat scripts) now runs the compatibility entries it affects, set by `[[watch]]` rules in the compatibility list.
+
 ## [1.14.0] - 2026-10-20
 
 <https://github.com/xidus90/loomux/pull/124>
