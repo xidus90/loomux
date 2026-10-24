@@ -725,10 +725,10 @@ func TestMergeAddsABlockForTheToolsAnOldMatcherLacks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
-	if !reflect.DeepEqual(got.Added, []string{"PreToolUse/manage_task"}) {
+	if !reflect.DeepEqual(got.Added, []string{"PreToolUse/write_file|edit_file|manage_task"}) {
 		t.Fatalf("added %v, want the block for manage_task", got.Added)
 	}
-	note := "PreToolUse: kept an own entry under matcher " + old + "; added one for manage_task"
+	note := "PreToolUse: kept an own entry under matcher " + old + "; added one for write_file|edit_file|manage_task"
 	if !reflect.DeepEqual(got.Notes, []string{note}) {
 		t.Fatalf("notes %v, want %q", got.Notes, note)
 	}
@@ -737,7 +737,7 @@ func TestMergeAddsABlockForTheToolsAnOldMatcherLacks(t *testing.T) {
 		t.Fatalf("result: %v\n%s", err, got.Merged)
 	}
 	pre := root["loomux"]["PreToolUse"]
-	if len(pre) != 2 || pre[0]["matcher"] != old || pre[1]["matcher"] != "manage_task" ||
+	if len(pre) != 2 || pre[0]["matcher"] != old || pre[1]["matcher"] != "write_file|edit_file|manage_task" ||
 		firstCommand(pre[0]) != firstCommand(pre[1]) || firstCommand(pre[1]) != wanted[1].Command {
 		t.Fatalf("PreToolUse = %v, want the old block and one for manage_task with the same command", pre)
 	}
@@ -759,7 +759,7 @@ func TestMergeAddsNothingTwiceForASplitMatcher(t *testing.T) {
 	if len(again.Added) != 0 || !bytes.Equal(again.Merged, first.Merged) {
 		t.Fatalf("second merge added %v\n%s", again.Added, again.Merged)
 	}
-	note := "PreToolUse: kept an own entry under matcher " + old + ", manage_task"
+	note := "PreToolUse: kept an own entry under matcher " + old + ", write_file|edit_file|manage_task"
 	if !reflect.DeepEqual(again.Notes, []string{note}) {
 		t.Fatalf("notes %v, want %q", again.Notes, note)
 	}

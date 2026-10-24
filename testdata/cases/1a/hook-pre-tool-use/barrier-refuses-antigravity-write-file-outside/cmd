@@ -1,0 +1,1 @@
+loomux hook pre-tool-use --host claude --root {{WORLD}}

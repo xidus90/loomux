@@ -64,13 +64,16 @@ var writingTools = map[string]bool{
 	"write_to_file":              true,
 	"replace_file_content":       true,
 	"multi_replace_file_content": true,
+	"write_file":                 true,
+	"edit_file":                  true,
 }
 
 // targetKeys is `TARGET_KEYS`: where each writing tool puts its
 // target. `Write`, `Edit` and `MultiEdit` say `file_path`; `NotebookEdit`
-// says `notebook_path`; Antigravity says `TargetFile` or `target_file`.
+// says `notebook_path`; Antigravity says `TargetFile` or `target_file`, and
+// since agy 1.4 (`write_file`, `edit_file`, measured with 1.4.7) `Path`.
 var targetKeys = []string{
-	"file_path", "notebook_path", "TargetFile", "target_file",
+	"file_path", "notebook_path", "TargetFile", "target_file", "Path",
 }
 
 // proposalName is `PROPOSAL`: the one file a review skill writes.

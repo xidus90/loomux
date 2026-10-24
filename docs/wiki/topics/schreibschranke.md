@@ -14,8 +14,8 @@ sources:
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
-    content_hash: "sha256:35ffb3d1753eba481d65157d9ddadefbebb4a520be4fd4e306e1fd8ea0410d5f"
-    revision: 13
+    content_hash: "sha256:63fce2b9857f092a669526d07c2d83a79a7cf96267eff360111e93232dbdb83a"
+    revision: 14
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT

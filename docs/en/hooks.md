@@ -379,11 +379,13 @@ barrier, which refuses it in its own words.
 
 **Paths and command lines, not content.** A writing tool — `Write`, `Edit`,
 `MultiEdit`, `NotebookEdit`, and Antigravity's `write_to_file`,
-`replace_file_content` and `multi_replace_file_content` — yields every target
-it names under `file_path`, `notebook_path`, `TargetFile` or `target_file`; all
+`replace_file_content` and `multi_replace_file_content`, and since agy 1.4 its
+`write_file` and `edit_file` (measured with agy 1.4.7, 2026-10-24) — yields
+every target it names under `file_path`, `notebook_path`, `TargetFile`,
+`target_file` or `Path`; all
 of them are judged, not the first one found. `Bash` and `PowerShell` yield
 their `command`, and Antigravity's `run_command` its command line under
-`CommandLine` (measured with agy 1.2.11; `commandLine` and `command_line`,
+`CommandLine` (measured with agy 1.2.11 and 1.4.7; `commandLine` and `command_line`,
 the other spellings agy.exe carries, are judged too). agy types into a task
 `run_command` left open with `manage_task`, whose `send_input` action yields
 what it types under `Input` (measured with agy 1.2.11);
@@ -880,8 +882,8 @@ next to its other five hook commands: `session-start` and `worktree link` on
 | Event | Matcher | Command | Timeout |
 |---|---|---|---|
 | `PreInvocation` | — | `session-start` | 20 |
-| `PreToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content\|run_command\|send_command_input\|manage_task` | `pre-tool-use` | 15 |
-| `PostToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content` | `post-tool-use` | 60 |
+| `PreToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content\|write_file\|edit_file\|run_command\|send_command_input\|manage_task` | `pre-tool-use` | 15 |
+| `PostToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content\|write_file\|edit_file` | `post-tool-use` | 60 |
 | `Stop` | — | `stop --budget 270s` | 300 |
 
 Each calls `%LOCALAPPDATA%/loomux/bin/loomux.exe hook <event> --host antigravity --root ..`,

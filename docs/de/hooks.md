@@ -396,11 +396,12 @@ mit ihrem eigenen Wortlaut ablehnt.
 
 **Pfade und Befehlszeilen, kein Inhalt.** Ein schreibendes Werkzeug — `Write`,
 `Edit`, `MultiEdit`, `NotebookEdit` und Antigravitys `write_to_file`,
-`replace_file_content` und `multi_replace_file_content` — liefert jedes Ziel,
-das es unter `file_path`, `notebook_path`, `TargetFile` oder `target_file`
-nennt; geprüft werden alle, nicht das erste gefundene. `Bash` und `PowerShell`
+`replace_file_content` und `multi_replace_file_content`, seit agy 1.4 auch
+`write_file` und `edit_file` (gemessen mit agy 1.4.7, 2026-10-24) — liefert
+jedes Ziel, das es unter `file_path`, `notebook_path`, `TargetFile`,
+`target_file` oder `Path` nennt; geprüft werden alle, nicht das erste gefundene. `Bash` und `PowerShell`
 liefern ihr `command`, Antigravitys `run_command` seine Befehlszeile unter
-`CommandLine` (gemessen mit agy 1.2.11; `commandLine` und `command_line`, die
+`CommandLine` (gemessen mit agy 1.2.11 und 1.4.7; `commandLine` und `command_line`, die
 anderen Schreibweisen in agy.exe, werden mitgeprüft). In eine von
 `run_command` offen gelassene Aufgabe tippt agy mit `manage_task`, dessen
 Aktion `send_input` das Getippte unter `Input` liefert (gemessen mit agy
@@ -936,8 +937,8 @@ auf `SessionStart`, `worktree unlink` auf `SessionEnd` (Abschnitt 9),
 | Ereignis | Matcher | Befehl | Frist |
 |---|---|---|---|
 | `PreInvocation` | — | `session-start` | 20 |
-| `PreToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content\|run_command\|send_command_input\|manage_task` | `pre-tool-use` | 15 |
-| `PostToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content` | `post-tool-use` | 60 |
+| `PreToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content\|write_file\|edit_file\|run_command\|send_command_input\|manage_task` | `pre-tool-use` | 15 |
+| `PostToolUse` | `write_to_file\|replace_file_content\|multi_replace_file_content\|write_file\|edit_file` | `post-tool-use` | 60 |
 | `Stop` | — | `stop --budget 270s` | 300 |
 
 Jeder Eintrag ruft `%LOCALAPPDATA%/loomux/bin/loomux.exe hook <ereignis> --host antigravity --root ..`
