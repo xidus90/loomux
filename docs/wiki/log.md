@@ -4,6 +4,14 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-10-24
+
+- 2026-10-24 — `syntheses/modelladapter-ueber-die-cli.md`: neu. Entscheidung des
+  Nutzers: Modelladapter zuerst über die CLIs von Claude und Gemini,
+  API-Adapter später. Kein Widerspruch zu einer bestehenden Seite. Quelle:
+  `docs/de/flows.md`, `docs/de/configuration.md` und Code von loomux
+  (`internal/flow/model`).
+
 ## 2026-10-16
 
 - 2026-10-16 — `topics/code-graph.md`: Abschnitt „In Hook und Prüfkette“ um die
