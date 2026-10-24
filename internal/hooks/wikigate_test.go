@@ -158,7 +158,7 @@ func TestWikiSourceJobsAreALaneOfTheirOwn(t *testing.T) {
 	}
 	out, err := jobs[0].Fn()
 	if err == nil || !strings.Contains(out, "  • [wiki-sources:register-stale] docs/de/a.md: changed since its register row (revision 3); cited by page.md\n") ||
-		!strings.Contains(out, "a human runs `loomux wiki repin`") {
+		!strings.Contains(out, "fix them, then run `loomux wiki repin`") {
 		t.Fatalf("out %q, err %v", out, err)
 	}
 }
@@ -234,7 +234,7 @@ func TestSourceLaneReport(t *testing.T) {
 		"  • [wiki-sources:row-missing] t.md: m1\n",
 		"  row-missing: repin adds no register row; a newly cited file gets one from `loomux reindex` in the registry's checkout (see `loomux wiki repin` in the CLI reference)\n",
 		"  cycle: pages that pin each other can never both be current; drop one of the pins\n",
-		"  register-stale, pin-stale: check the citing pages; then a human runs `loomux wiki repin`\n",
+		"  register-stale, pin-stale: check the citing pages against the changed files, fix them, then run `loomux wiki repin`\n",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("out %q lacks %q", out, want)

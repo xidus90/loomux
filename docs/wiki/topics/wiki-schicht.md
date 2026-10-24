@@ -14,8 +14,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:fa15f79552eab43ab56e5e0d1797aa9d68a3d3ee2931bdb1c79604d933972557"
-    revision: 19
+    content_hash: "sha256:7f8fe6e1f9286306082f4795354105bc425d235620709a23e906a77644b3241a"
+    revision: 20
 ---
 
 ## Das Bundle
@@ -144,7 +144,8 @@ Tresors, ohne eigenen Zweig und ohne den Index des Nutzers anzufassen.
 `retype` benennt einen Typ in einem Bündel um. Dazu kommt ein vierter, den die
 Referenz nicht hat: `repin` rückt Register und Pins des Baums auf die Dateien
 vor, wie sie sind, und ändert dabei nur die Werte von `content_hash` und
-`revision`; ein Mensch fährt ihn. Zählen und Anlegen sind keine
+`revision`; ein Agent fährt ihn erst, nachdem er die zitierenden Seiten
+geprüft hat. Zählen und Anlegen sind keine
 eigenen Befehle. Einen Bereich samt Wiki-Gerüst meldet `loomux area add` an;
 seine Hook-Hälfte bleibt `loomux init` aus Stufe 4 vorbehalten.
 

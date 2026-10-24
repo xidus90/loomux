@@ -79,9 +79,9 @@ func lintBundle(wikiRoot string, lint func(string) ([]check.Finding, error)) (st
 // probation apart from the bundle lint, and switched off on its own with
 // [verify.wiki-sources] lint = false.
 //
-// In `loomux check` and the gate's lane list, never at the turn end: only a
-// human turns it green (`loomux wiki repin`), and a lane an agent cannot fix
-// would hold every turn end for nothing. An agent meets it at the commit.
+// In `loomux check` and the gate's lane list, never at the turn end: a source
+// changes over several turns, and its citing pages are checked and repinned
+// once, before the commit.
 func WikiSourceJobs(eff verify.Effective, facts detect.Facts, root string, kinds []string) []verify.Job {
 	if !slices.Contains(kinds, "lint") || eff.Config.Stacks["wiki-sources"]["lint"].Lane.Off {
 		return nil
@@ -101,7 +101,7 @@ var sourceHints = []struct{ rules, hint string }{
 	{"row-missing", "repin adds no register row; a newly cited file gets one from `loomux reindex` in the registry's checkout (see `loomux wiki repin` in the CLI reference)"},
 	{"source-missing, doc-id", "correct the pin by hand"},
 	{"cycle", "pages that pin each other can never both be current; drop one of the pins"},
-	{"register-stale, pin-stale", "check the citing pages; then a human runs `loomux wiki repin`"},
+	{"register-stale, pin-stale", "check the citing pages against the changed files, fix them, then run `loomux wiki repin`"},
 }
 
 // sourceLane reports the findings the way lintBundle reports the bundle's,
