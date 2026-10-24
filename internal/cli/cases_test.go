@@ -16,8 +16,8 @@ func TestRecordedCasesOfStage1a(t *testing.T) {
 	}
 	// The number is pinned, not merely non-zero: a case deleted by mistake must
 	// not pass unnoticed. Raise it with the corpus when a case is added.
-	if len(all) != 19 {
-		t.Fatalf("expected 19 recorded cases, found %d", len(all))
+	if len(all) != 20 {
+		t.Fatalf("expected 20 recorded cases, found %d", len(all))
 	}
 	for _, c := range all {
 		t.Run(c.Verb+"/"+c.Name, func(t *testing.T) {

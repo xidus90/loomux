@@ -57,7 +57,7 @@ func Entries(host hosts.Host, binary string) []Entry {
 		// The matchers are kept by hand; tests in internal/hooks and
 		// internal/brain/guard hold them to the guard's command tools and
 		// the barrier's writing tools, so a tool dropped here fails them.
-		writers := "write_to_file|replace_file_content|multi_replace_file_content"
+		writers := "write_to_file|replace_file_content|multi_replace_file_content|write_file|edit_file"
 		hook := func(name string) string {
 			return AntigravityBinary + " hook " + name + " --host antigravity --root .."
 		}

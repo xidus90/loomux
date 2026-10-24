@@ -146,7 +146,7 @@ func TestEveryWritingToolIsJudged(t *testing.T) {
 	// the barrier never sees.
 	for _, tool := range []string{
 		"Write", "Edit", "MultiEdit", "NotebookEdit", "write_to_file",
-		"replace_file_content", "multi_replace_file_content",
+		"replace_file_content", "multi_replace_file_content", "write_file", "edit_file",
 	} {
 		payload := map[string]any{
 			"tool_name": tool,

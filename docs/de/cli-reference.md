@@ -1842,8 +1842,8 @@ durch einen Menschen am 2026-09-28 baute das Binary, setzte
 - **Antigravity** bekommt vier Einträge in der Gruppe `loomux` von
   `.agents/hooks.json` — `PreInvocation` mit `session-start` (Timeout
   20 s), `PreToolUse` auf
-  `write_to_file|replace_file_content|multi_replace_file_content|run_command`
-  (15 s), `PostToolUse` auf die drei schreibenden Werkzeuge (60 s) und
+  `write_to_file|replace_file_content|multi_replace_file_content|write_file|edit_file|run_command`
+  (15 s), `PostToolUse` auf die fünf schreibenden Werkzeuge (60 s) und
   `Stop` mit `--budget 270s` (300 s); `PreToolUse` trifft auch
   `send_command_input` und `manage_task`. `PreInvocation` und `Stop` stehen
   als flache Liste von Handlern, die Werkzeug-Ereignisse als Block mit

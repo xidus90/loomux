@@ -2,7 +2,7 @@
   "loomux": {
     "PreToolUse": [
       {
-        "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command|send_command_input|manage_task",
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content|write_file|edit_file|run_command|send_command_input|manage_task",
         "hooks": [
           {
             "type": "command",
@@ -14,7 +14,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content|write_file|edit_file",
         "hooks": [
           {
             "type": "command",

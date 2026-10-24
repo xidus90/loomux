@@ -1871,8 +1871,8 @@ nothing to change.
 - **Antigravity** gets four entries in the group `loomux` of
   `.agents/hooks.json` — `PreInvocation` running `session-start` (timeout
   20 s), `PreToolUse` on
-  `write_to_file|replace_file_content|multi_replace_file_content|run_command`
-  (15 s), `PostToolUse` on the three writing tools (60 s) and `Stop` with
+  `write_to_file|replace_file_content|multi_replace_file_content|write_file|edit_file|run_command`
+  (15 s), `PostToolUse` on the five writing tools (60 s) and `Stop` with
   `--budget 270s` (300 s); `PreToolUse` also matches `send_command_input`
   and `manage_task`. `PreInvocation` and `Stop` are written as a flat list of
   handlers, the tool events as a block with `matcher` and `hooks`: agy 1.2.11

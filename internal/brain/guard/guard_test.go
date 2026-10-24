@@ -8,8 +8,8 @@ import (
 )
 
 func TestWriteTargetsCollectsEveryKnownKey(t *testing.T) {
-	got := WriteTargets(map[string]any{"file_path": "a", "notebook_path": "b", "TargetFile": "c", "target_file": "d", "other": "e", "file_path_empty": ""})
-	if strings.Join(got, ",") != "a,b,c,d" {
+	got := WriteTargets(map[string]any{"file_path": "a", "notebook_path": "b", "TargetFile": "c", "target_file": "d", "Path": "f", "other": "e", "file_path_empty": ""})
+	if strings.Join(got, ",") != "a,b,c,d,f" {
 		t.Fatalf("%v", got)
 	}
 }
