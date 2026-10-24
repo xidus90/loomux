@@ -8,8 +8,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:fa15f79552eab43ab56e5e0d1797aa9d68a3d3ee2931bdb1c79604d933972557"
-    revision: 19
+    content_hash: "sha256:7f8fe6e1f9286306082f4795354105bc425d235620709a23e906a77644b3241a"
+    revision: 20
 ---
 
 Die Pflegeschicht ist mit **Stufe 3** gebaut,
@@ -75,9 +75,11 @@ Pins auf `master` veraltet standen, ohne dass ein Lint es meldete. Sie liest
 nur den Baum, keine Registry, und läuft darum im verknüpften Worktree und im
 CI gleich. Grün macht sie im Zweig `loomux wiki repin`, das Register und
 Pins dort vorrückt; wer ihn fährt, erklärt die zitierenden Seiten für
-richtig, darum fährt ihn nur ein Mensch. Im Checkout der Registry bleibt
-`reconcile` mit Fall und Freigabe der Weg mit Prüfung. Das Stop-Gate lässt
-die Lane aus: ein Agent kann sie nicht grün machen.
+richtig. Ein Agent fährt ihn, nachdem er diese Seiten geprüft und
+berichtigt hat; der Mensch prüft die Pins im Diff des Pull Requests. Im
+Checkout der Registry bleibt `reconcile` mit Fall und Freigabe der Weg mit
+Prüfung. Das Stop-Gate lässt die Lane aus: eine Quelle ändert sich über
+mehrere Züge, ihre Seiten werden einmal vor dem Commit geprüft.
 
 **Der Abgleich erzeugt keine Änderungen, sondern Fälle.** Sie liegen im
 Prüfzentrum, dem einen Ort, den `[layout].review` eines Bereichs erklärt.

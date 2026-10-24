@@ -85,8 +85,8 @@ judges them.
   `source-missing`, `doc-id`, `register-stale` (a cited file changed since its
   row), `pin-stale` (a pin behind its row) and `cycle` (pages that pin each
   other). A red run ends with one line per kind of finding saying what to do;
-  for `register-stale` and `pin-stale` that is
-  [`loomux wiki repin`](#loomux-wiki-repin---root-path), run by a human. It
+  for `register-stale` and `pin-stale` that is checking the citing pages,
+  then [`loomux wiki repin`](#loomux-wiki-repin---root-path). It
   reads the tree alone: pins of other areas, read-only areas (their register
   lives in the state directory) and projects without a register at the root
   are not judged. `check stop` and the stop gate leave it out.
@@ -609,16 +609,14 @@ Evaluates the project policy and global write barrier before an agent executes a
   - `loomux gate arm` and `loomux gate disarm` (`gate status` passes); the
     refusal says that arm and disarm decide which lanes fail the gate and
     that `loomux gate status` shows them;
-  - `loomux convert` or `loomux fetch`, except with a lone `--help` or `-h`;
-  - `loomux wiki repin`, except with a lone `--help` or `-h`.
+  - `loomux convert` or `loomux fetch`, except with a lone `--help` or `-h`.
 
   The refusal reads ``loomux init, config and area add write
   the configuration the guard reads, merge-hook install and remove write
   executable hooks into repositories, convert and fetch write into an area's
-  inbox, which the write barrier keeps from agents, and wiki repin declares
-  the citing pages still correct; a human runs them. An agent proposes a
-  change with `loomux config set|unset … --propose`, which a human applies,
-  and names `loomux wiki repin` for the human to run``.
+  inbox, which the write barrier keeps from agents; a human runs them. An
+  agent proposes a change with `loomux config set|unset … --propose`, which
+  a human applies``.
   `config apply` and `config reject` stay refused.
   - **When a flag exempts** — an allowlist, judged on the line as written
     before any rewriting. The flag exempts only when all three hold:
@@ -1033,7 +1031,7 @@ Renames one page type in one bundle and names every page it wrote. Only the fron
 #### `loomux wiki repin [--root <path>]`
 Moves the register and the source pins of the tree at `--root` (default: the working directory) to the files as they are: each register row of a cited file whose hash changed gets the new hash and its revision plus one, and every `sources:` entry of the project's own scope (`brain://<scope>/…`) gets its row's hash and revision. A pinned page's own hash changes with its pins, so the run follows the chain of citing pages to the end. A row nobody cites stays as it is; a row moves by one at most per run. It turns the lane `lint/wiki-sources` of [`loomux check`](#loomux-check-request---root-path---show--v---arm) green.
 
-- **What it declares**: whoever runs it says that the pages citing a changed file are still correct. It is `approve --reject` for every such page at once, without a case. The guard refuses it to an agent; an agent checks the pages and names the command.
+- **What it declares**: whoever runs it says that the pages citing a changed file are still correct. It is `approve --reject` for every such page at once, without a case. An agent may run it once it has checked those pages against the changed files and fixed them; a human reviews the pins in the pull request's diff.
 - **The tree, not the registry**: it reads and writes `_identities.tsv` at the project root and the pages of the project's wiki, never the registry or the checkout the registry names, so it works in a linked worktree.
 - **Edits in place**: only the values of `content_hash:` and `revision:` change, and only in entries whose values are behind; quotes, line ends and every other byte stay, and a page whose pins are current is not touched. An entry may be written in block form or as a flow mapping (`- { doc_id: …, content_hash: "…", revision: 3 }`), on one line or over several. Two entries with the same `doc_id` both get the new values. A page whose stale entry it cannot edit that way (a flow list after `sources:`, a missing field, a comment, a flow mapping that does not close, or a value that goes on to the next line) is refused.
 - **Refusals** (exit `1`, nothing written): the findings `row-missing`, `source-missing`, `doc-id` and `cycle` are printed as the lane prints them (`  • [wiki-sources:<rule>] <page>: <message>`), then `loomux wiki repin: <n> finding(s) repin does not fix`; a page it cannot edit is named in the error.

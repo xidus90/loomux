@@ -91,9 +91,8 @@ urteilt über sie.
   zitierte Datei hat sich seit ihrer Zeile geändert), `pin-stale` (ein Pin
   hinter seiner Zeile) und `cycle` (Seiten, die einander pinnen). Ein roter
   Lauf endet mit einer Zeile je Art von Befund, die sagt, was zu tun ist; bei
-  `register-stale` und `pin-stale` ist das
-  [`loomux wiki repin`](#loomux-wiki-repin---root-pfad), von einem Menschen
-  gefahren. Sie liest nur den Baum: Pins anderer Bereiche,
+  `register-stale` und `pin-stale` ist das, die zitierenden Seiten zu prüfen,
+  dann [`loomux wiki repin`](#loomux-wiki-repin---root-pfad). Sie liest nur den Baum: Pins anderer Bereiche,
   schreibgeschützte Bereiche (ihr Register liegt im Zustandsverzeichnis) und
   Projekte ohne Register in der Wurzel prüft sie nicht. `check stop` und das
   Stop-Gate lassen sie aus.
@@ -523,16 +522,14 @@ Prüft Projekt-Policy und globale Schreibschranke, bevor der Agent ein Werkzeug 
   - `loomux gate arm` und `loomux gate disarm` (`gate status` geht durch); die
     Ablehnung sagt, dass arm und disarm entscheiden, welche Lanes das Tor
     scheitern lassen, und dass `loomux gate status` sie zeigt;
-  - `loomux convert` oder `loomux fetch`, außer allein mit `--help` oder `-h`;
-  - `loomux wiki repin`, außer allein mit `--help` oder `-h`.
+  - `loomux convert` oder `loomux fetch`, außer allein mit `--help` oder `-h`.
 
   Die Ablehnung lautet ``loomux init, config and
   area add write the configuration the guard reads, merge-hook install and
   remove write executable hooks into repositories, convert and fetch write
-  into an area's inbox, which the write barrier keeps from agents, and wiki
-  repin declares the citing pages still correct; a human runs them. An agent
-  proposes a change with `loomux config set|unset … --propose`, which a human
-  applies, and names `loomux wiki repin` for the human to run``.
+  into an area's inbox, which the write barrier keeps from agents; a human
+  runs them. An agent proposes a change with
+  `loomux config set|unset … --propose`, which a human applies``.
   `config apply` und `config reject` bleiben verweigert.
   - **Wann ein Flag befreit** — eine Positivliste, geprüft an der Zeile, wie
     sie geschrieben steht, vor jeder Umformung. Das Flag befreit nur, wenn
@@ -960,7 +957,7 @@ Benennt einen Seitentyp in einem Bündel um und nennt jede geschriebene Seite. G
 #### `loomux wiki repin [--root <pfad>]`
 Rückt Register und Quell-Pins des Baums unter `--root` (vorgegeben: das Arbeitsverzeichnis) auf die Dateien vor, wie sie sind: Jede Registerzeile einer zitierten Datei, deren Hash sich geändert hat, bekommt den neuen Hash und ihre Revision plus eins, und jeder `sources:`-Eintrag des eigenen Scopes (`brain://<scope>/…`) bekommt Hash und Revision seiner Zeile. Der Hash einer gepinnten Seite ändert sich mit ihren Pins, darum folgt der Lauf der Kette der zitierenden Seiten bis zum Ende. Eine Zeile, die niemand zitiert, bleibt, wie sie ist; eine Zeile rückt je Lauf höchstens um eins vor. Er macht die Lane `lint/wiki-sources` von [`loomux check`](#loomux-check-anfrage---root-pfad---show--v---arm) grün.
 
-- **Was er erklärt**: Wer ihn fährt, sagt, dass die Seiten, die eine geänderte Datei zitieren, noch stimmen. Er ist `approve --reject` für jede solche Seite auf einmal, ohne Fall. Der Wächter verweigert ihn einem Agenten; ein Agent prüft die Seiten und nennt den Befehl.
+- **Was er erklärt**: Wer ihn fährt, sagt, dass die Seiten, die eine geänderte Datei zitieren, noch stimmen. Er ist `approve --reject` für jede solche Seite auf einmal, ohne Fall. Ein Agent darf ihn fahren, sobald er diese Seiten gegen die geänderten Dateien geprüft und berichtigt hat; ein Mensch prüft die Pins im Diff des Pull Requests.
 - **Der Baum, nicht die Registry**: Er liest und schreibt `_identities.tsv` in der Projektwurzel und die Seiten des Projekt-Wikis, nie die Registry oder den Checkout, den sie nennt; darum geht er auch in einem verknüpften Worktree.
 - **Ändert an Ort und Stelle**: Nur die Werte von `content_hash:` und `revision:` ändern sich, und nur in Einträgen, deren Werte zurückliegen; Anführungszeichen, Zeilenenden und jedes andere Byte bleiben, und eine Seite mit aktuellen Pins fasst er nicht an. Zwei Einträge mit derselben `doc_id` bekommen beide die neuen Werte. Eine Seite, deren veralteten Eintrag er so nicht sicher findet (eine Flow-Liste, eine fehlende Zeile, ein Kommentar oder ein Wert, der in der nächsten Zeile weitergeht), lehnt er ab.
 - **Ablehnungen** (Exit `1`, nichts geschrieben): Die Befunde `row-missing`, `source-missing`, `doc-id` und `cycle` stehen so da, wie die Lane sie schreibt (`  • [wiki-sources:<regel>] <seite>: <text>`), dann `loomux wiki repin: <n> finding(s) repin does not fix`; eine Seite, die er nicht ändern kann, nennt der Fehler.

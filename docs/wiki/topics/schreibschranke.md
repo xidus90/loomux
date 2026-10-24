@@ -38,7 +38,7 @@ Pfadregeln mit Globs gegen schreibende Werkzeuge und Befehlsregeln mit
 regulären Ausdrücken gegen `Bash` und `PowerShell`. Eingebaute Regeln gehen
 immer mit: Geheimnisse (`.env`, `*.pem`, `*.key` und andere) schreibt kein
 Agent; `loomux init`, `config`, `area add`, `merge-hook install|remove`,
-`gate arm|disarm`, `convert`, `fetch` und `wiki repin` führt ein Mensch aus,
+`gate arm|disarm`, `convert` und `fetch` führt ein Mensch aus,
 ebenso das `--answer` am Tor eines Flows; und einen Interpreter, der sein
 Programm von stdin liest (`python -`, ein Heredoc in den Interpreter),
 startet kein Agent. Eine

@@ -45,6 +45,10 @@ are German and never translated.
   change with `loomux config set|unset … --propose`; a human reviews it with
   `loomux config proposals`, which shows each proposal's diff against the
   current file, and applies it with `loomux config apply`.
+- When `lint/wiki-sources` reports `register-stale` or `pin-stale`, an agent
+  reads every page citing a changed file against the file, fixes what no
+  longer holds, and only then runs `loomux wiki repin`. The human reviews
+  the pins in the pull request's diff.
 - Coverage is 100% per function. A function may stay below only with
   `//coverage:exempt <reason>` on the line directly above `func`.
 - No `init()` and no package-level variable parses embedded data; load on first use.
