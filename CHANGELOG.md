@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.16.1] - 2026-10-24
+
+<https://github.com/xidus90/loomux/pull/127>
+
+### Security
+- Under Antigravity 1.4 the write barrier now refuses `write_file` and `edit_file` calls outside every writable tree; rerun `loomux init --host antigravity` to add them to `.agents/hooks.json`.
+
 ## [1.16.0] - 2026-10-24
 
 <https://github.com/xidus90/loomux/pull/126>
