@@ -114,7 +114,10 @@ func TestCurrentListsEveryMemberOfANamedKey(t *testing.T) {
 		}
 	}
 	want := map[string]string{
-		"agent.default":           "unset ",
+		"agent.default":        "unset ",
+		"agent.timeout":        `default "30m"`,
+		"agent.models.g.agent": "unset ", "agent.models.g.effort": "unset ", "agent.models.g.base_url": "unset ",
+		"agent.models.w.agent": "unset ", "agent.models.w.effort": "unset ", "agent.models.w.base_url": "unset ",
 		"agent.mcp_servers":       "default []",
 		"agent.models.g.provider": `set "agy"`,
 		"agent.models.g.model":    `set "gemini-3"`,

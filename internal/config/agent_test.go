@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -46,7 +47,8 @@ reviewer = "gemini"
 			"writer": {Provider: "claude", Model: "claude-opus-5-5"},
 			"gemini": {Provider: "agy"},
 		},
-		Roles: map[string]string{"reviewer": "gemini"},
+		Roles:   map[string]string{"reviewer": "gemini"},
+		Timeout: DefaultAgentTimeout,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
@@ -55,7 +57,7 @@ reviewer = "gemini"
 
 func TestParseAgentWithoutTheTableIsEmpty(t *testing.T) {
 	got, err := ParseAgent("c.toml", agentDoc(t, "[modules]\nhooks = true\n"))
-	if err != nil || !reflect.DeepEqual(got, Agent{}) {
+	if err != nil || !reflect.DeepEqual(got, Agent{Timeout: DefaultAgentTimeout}) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
@@ -75,6 +77,14 @@ func TestParseAgentRefuses(t *testing.T) {
 		"roles not a table":  {"[agent]\nroles = 3", "[agent.roles] must be a table"},
 		"role name":          {"[agent.models.w]\nprovider = \"claude\"\n[agent.roles]\n\"a-b\" = \"w\"", `"a-b" is not a role name`},
 		"role unknown model": {"[agent.models.w]\nprovider = \"claude\"\n[agent.roles]\nreviewer = \"x\"", `[agent.roles] reviewer names "x", which is not under [agent.models]; known: w`},
+		"unknown provider":   {"[agent.models.w]\nprovider = \"gpt\"", `[agent.models.w] provider "gpt" is unknown; known: agy, claude, qoder`},
+		"base_url on agy":    {"[agent.models.w]\nprovider = \"agy\"\nbase_url = \"x\"", "[agent.models.w] base_url only works with provider claude"},
+		"empty agent":        {"[agent.models.w]\nprovider = \"claude\"\nagent = \"\"", "[agent.models.w] agent must be a non-empty string"},
+		"empty effort":       {"[agent.models.w]\nprovider = \"claude\"\neffort = \"\"", "[agent.models.w] effort must be a non-empty string"},
+		"empty base_url":     {"[agent.models.w]\nprovider = \"claude\"\nbase_url = \"\"", "[agent.models.w] base_url must be a non-empty string"},
+		"timeout text":       {"[agent]\ntimeout = \"soon\"", `[agent] timeout "soon" is not a duration such as "30m", or "0" to switch it off`},
+		"timeout negative":   {"[agent]\ntimeout = \"-1m\"", `[agent] timeout "-1m" is not a duration`},
+		"timeout not text":   {"[agent]\ntimeout = 3", `[agent] timeout must be a string such as "30m", or "0" to switch it off`},
 		"servers not a list": {"[agent]\nmcp_servers = \"docs\"", "[agent] mcp_servers must be a list of names"},
 		"empty server":       {"[agent]\nmcp_servers = [\"\"]", "[agent] mcp_servers #1 must be a non-empty string"},
 	} {
@@ -96,7 +106,7 @@ func TestParseAgentReportsEveryFindingAtOnce(t *testing.T) {
 
 func TestReadAgent(t *testing.T) {
 	root := t.TempDir()
-	if got, err := ReadAgent(root); err != nil || !reflect.DeepEqual(got, Agent{}) {
+	if got, err := ReadAgent(root); err != nil || !reflect.DeepEqual(got, Agent{Timeout: DefaultAgentTimeout}) {
 		t.Fatalf("without a file: %+v, %v", got, err)
 	}
 	path := ManifestPath(root)
@@ -126,5 +136,28 @@ func TestReadAgentReportsAnUnreadableFile(t *testing.T) {
 	}
 	if _, err := ReadAgent(root); err == nil || !strings.Contains(err.Error(), path) {
 		t.Fatalf("a directory where the file should be: %v, want an error naming %s", err, path)
+	}
+}
+
+func TestParseAgentModelKeys(t *testing.T) {
+	doc := agentDoc(t, "[agent.models.q]\nprovider=\"claude\"\nagent=\"reviewer\"\neffort=\"high\"\nbase_url=\"http://127.0.0.1:8080\"\n")
+	got, err := ParseAgent("c.toml", doc)
+	want := ModelSpec{Provider: "claude", Agent: "reviewer", Effort: "high", BaseURL: "http://127.0.0.1:8080"}
+	if err != nil || got.Models["q"] != want {
+		t.Fatalf("got %+v, %v", got.Models["q"], err)
+	}
+}
+
+func TestParseAgentTimeout(t *testing.T) {
+	for text, want := range map[string]time.Duration{
+		"":                         DefaultAgentTimeout,
+		"[agent]":                  DefaultAgentTimeout,
+		"[agent]\ntimeout=\"45m\"": 45 * time.Minute,
+		"[agent]\ntimeout=\"0\"":   0,
+	} {
+		got, err := ParseAgent("c.toml", agentDoc(t, text))
+		if err != nil || got.Timeout != want {
+			t.Fatalf("%q: got %v, %v, want %v", text, got.Timeout, err, want)
+		}
 	}
 }

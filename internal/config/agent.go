@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -16,7 +17,16 @@ import (
 type ModelSpec struct {
 	Provider string
 	Model    string
+	Agent    string // the provider's own agent definition; "" when unset
+	Effort   string // reasoning effort; "" when unset
+	BaseURL  string // endpoint override, provider claude only; "" when unset
 }
+
+// DefaultAgentTimeout bounds one agent node when [agent] sets no timeout.
+const DefaultAgentTimeout = 30 * time.Minute
+
+// Providers are the CLIs a model can be served by, sorted.
+func Providers() []string { return []string{"agy", "claude", "qoder"} }
 
 // Agent is the [agent] table: the models a flow's roles can be bound to.
 type Agent struct {
@@ -24,14 +34,15 @@ type Agent struct {
 	MCPServers []string             // the servers the mcp tool profile opens
 	Models     map[string]ModelSpec // by model name
 	Roles      map[string]string    // role name to model name
+	Timeout    time.Duration        // bound of one agent node; 0 switches it off
 }
 
 // AgentKeys are the keys [agent] knows, sorted. settings arrives with the
 // model adapters and is unknown until then.
-func AgentKeys() []string { return []string{"default", "mcp_servers", "models", "roles"} }
+func AgentKeys() []string { return []string{"default", "mcp_servers", "models", "roles", "timeout"} }
 
 // ModelSpecKeys are the keys one model under [agent.models] knows, sorted.
-func ModelSpecKeys() []string { return []string{"model", "provider"} }
+func ModelSpecKeys() []string { return []string{"agent", "base_url", "effort", "model", "provider"} }
 
 // ReadAgent reads [agent] of the project at root. A project without the file
 // or the table has an empty Agent: every role then runs on the claude CLI's
@@ -40,7 +51,7 @@ func ReadAgent(root string) (Agent, error) {
 	path := ManifestPath(root)
 	doc, err := manifestDocument(path)
 	if err != nil || doc == nil {
-		return Agent{}, err
+		return Agent{Timeout: DefaultAgentTimeout}, err
 	}
 	return ParseAgent(path, doc)
 }
@@ -67,13 +78,13 @@ func manifestDocument(path string) (map[string]any, error) {
 func ParseAgent(path string, doc map[string]any) (Agent, error) {
 	raw, present := doc["agent"]
 	if !present {
-		return Agent{}, nil
+		return Agent{Timeout: DefaultAgentTimeout}, nil
 	}
 	table, ok := raw.(map[string]any)
 	if !ok {
 		return Agent{}, fmt.Errorf("%s: [agent] must be a table, found %s", path, tomlType(raw))
 	}
-	var agent Agent
+	agent := Agent{Timeout: DefaultAgentTimeout}
 	var findings []string
 	for _, key := range slices.Sorted(maps.Keys(table)) {
 		if !slices.Contains(AgentKeys(), key) {
@@ -91,6 +102,9 @@ func ParseAgent(path string, doc map[string]any) (Agent, error) {
 	}
 	if value, present := table["mcp_servers"]; present {
 		agent.MCPServers = parseServers(value, &findings)
+	}
+	if value, present := table["timeout"]; present {
+		agent.Timeout = parseTimeout(value, &findings)
 	}
 	if len(findings) > 0 {
 		return Agent{}, fmt.Errorf("%s: %s", path, strings.Join(findings, "; "))
@@ -124,11 +138,24 @@ func parseModels(value any, findings *[]string) map[string]ModelSpec {
 		if provider == "" {
 			*findings = append(*findings, where+" needs provider as a non-empty string")
 		}
-		model, isText := entry["model"].(string)
-		if _, has := entry["model"]; has && (!isText || model == "") {
-			*findings = append(*findings, where+" model must be a non-empty string")
+		if provider != "" && !slices.Contains(Providers(), provider) {
+			*findings = append(*findings, fmt.Sprintf("%s provider %q is unknown; known: %s", where, provider, strings.Join(Providers(), ", ")))
 		}
-		models[name] = ModelSpec{Provider: provider, Model: model}
+		spec := ModelSpec{Provider: provider}
+		for _, field := range []struct {
+			key string
+			dst *string
+		}{{"model", &spec.Model}, {"agent", &spec.Agent}, {"effort", &spec.Effort}, {"base_url", &spec.BaseURL}} {
+			text, isText := entry[field.key].(string)
+			if _, has := entry[field.key]; has && (!isText || text == "") {
+				*findings = append(*findings, where+" "+field.key+" must be a non-empty string")
+			}
+			*field.dst = text
+		}
+		if spec.BaseURL != "" && provider != "claude" {
+			*findings = append(*findings, where+" base_url only works with provider claude")
+		}
+		models[name] = spec
 	}
 	return models
 }
@@ -186,4 +213,21 @@ func parseServers(value any, findings *[]string) []string {
 		servers = append(servers, name)
 	}
 	return servers
+}
+
+func parseTimeout(value any, findings *[]string) time.Duration {
+	text, ok := value.(string)
+	if !ok {
+		*findings = append(*findings, `[agent] timeout must be a string such as "30m", or "0" to switch it off`)
+		return DefaultAgentTimeout
+	}
+	d, err := time.ParseDuration(text)
+	if text == "0" {
+		d, err = 0, nil
+	}
+	if err != nil || d < 0 {
+		*findings = append(*findings, fmt.Sprintf(`[agent] timeout %q is not a duration such as "30m", or "0" to switch it off`, text))
+		return DefaultAgentTimeout
+	}
+	return d
 }

@@ -8,8 +8,10 @@ import (
 
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/flow"
+	"github.com/xidus90/loomux/internal/flow/blocks"
 	"github.com/xidus90/loomux/internal/flow/load"
 	"github.com/xidus90/loomux/internal/flow/model"
+	modelcli "github.com/xidus90/loomux/internal/flow/model/cli"
 	"github.com/xidus90/loomux/internal/flow/runner"
 	"github.com/xidus90/loomux/internal/flow/runs"
 )
@@ -149,7 +151,7 @@ func (s flowSession) modelFor(deps flowDeps) (model.Model, error) {
 	case 0:
 		return nil, nil
 	case 1:
-		return deps.Models(providers[0])
+		return deps.Models(providers[0], model.Run{Root: s.root, Timeout: s.agent.Timeout})
 	default:
 		slices.Sort(providers)
 		return nil, fmt.Errorf("flow %q asks %s; a run holds one model, so a flow asks one provider",
@@ -200,5 +202,21 @@ func flowFinish(deps flowDeps, s flowSession, result runner.Result, err error) i
 		return *result.ExitCode
 	default:
 		return flowExitFailed
+	}
+}
+
+// warnTools names, before the run starts, every agent node whose provider does
+// not hold its tool list. The run goes on.
+func (s flowSession) warnTools(deps flowDeps) {
+	for _, node := range s.graph.Nodes {
+		if node.Kind != "agent" {
+			continue
+		}
+		profile := blocks.AgentProfile(node)
+		// The load has checked the profile.
+		tools, _ := model.Tools(profile, s.agent.MCPServers)
+		for _, line := range modelcli.Warnings(s.resolve(node).Provider, node.Name, profile, tools) {
+			fmt.Fprintln(deps.Stderr, line)
+		}
 	}
 }

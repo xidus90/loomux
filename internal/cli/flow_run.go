@@ -47,6 +47,7 @@ func flowRunCommand(args []string, deps flowDeps) int {
 	if s.model, err = s.modelFor(deps); err != nil {
 		return flowRefuse(deps, err)
 	}
+	s.warnTools(deps)
 	// Taken once, here, and carried in the marker from now on: asked again on a
 	// resume, git would answer with the tree the run has meanwhile edited.
 	s.baseline = flowBaseline(*root)

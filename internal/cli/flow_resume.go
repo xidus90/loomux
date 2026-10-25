@@ -47,6 +47,7 @@ func flowResumeCommand(args []string, deps flowDeps) int {
 	if s.model, err = s.modelFor(deps); err != nil {
 		return flowRefuse(deps, err)
 	}
+	s.warnTools(deps)
 	result, err := s.walker(deps, false).Resume(context.Background(), answer)
 	return flowFinish(deps, s, result, err)
 }

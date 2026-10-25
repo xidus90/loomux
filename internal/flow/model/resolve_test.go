@@ -41,3 +41,17 @@ func TestResolveRefusesAHandBuiltBindingToNothing(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestResolveCarriesModelSettings(t *testing.T) {
+	agent := config.Agent{
+		Models: map[string]config.ModelSpec{"m": {Provider: "claude", Agent: "a", Effort: "high", BaseURL: "u"}},
+		Roles:  map[string]string{"r": "m"},
+	}
+	got, err := Resolve(agent, "r", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Agent != "a" || got.Effort != "high" || got.BaseURL != "u" {
+		t.Fatalf("got %+v", got)
+	}
+}

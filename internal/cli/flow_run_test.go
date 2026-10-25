@@ -103,7 +103,7 @@ func TestRunRefusesBeforeTheRunExists(t *testing.T) {
 			want: `option max_rounds: cannot read "five" as int`},
 		{name: "a provider without an adapter", args: []string{"run", "example"},
 			arrange: func(_ *testing.T, _ string, h *flowHarness) {
-				h.deps.Models = flowProduction(h.stdout, h.stderr).Models
+				h.deps.Models = noAdapter
 			},
 			want: "no adapter for provider claude yet"},
 		{name: "two providers in one flow", args: []string{"run", "pair"},
@@ -112,7 +112,7 @@ func TestRunRefusesBeforeTheRunExists(t *testing.T) {
 				flowWrite(t, root, load.Dir+"/pair/instructions/one.md", "Judge the plan.\n")
 				flowConfig(t, root, pairConfig)
 			},
-			want: `flow "pair" asks claude and gemini; a run holds one model, so a flow asks one provider`},
+			want: `flow "pair" asks agy and claude; a run holds one model, so a flow asks one provider`},
 		{name: "a damaged config", args: []string{"run", "example"},
 			arrange: func(t *testing.T, root string, _ *flowHarness) { flowConfig(t, root, "[agent]\ndefault = 3\n") },
 			want:    "[agent] default must be a non-empty string"},

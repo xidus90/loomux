@@ -376,7 +376,7 @@ func TestAgentCheckFindsEveryProblemAtOnce(t *testing.T) {
 		}, []string{"tools is 3, not text", "effort is 3, not text"}},
 		{"an unknown key", map[string]any{
 			"instruction": "i.md", "reply": map[string]any{"v": "string"}, "instructon": "i.md",
-		}, []string{`unknown key "instructon"; known keys: effort, instruction, kind, max_visits, name, reply, role, tools`}},
+		}, []string{`unknown key "instructon"; known keys: agent, effort, instruction, kind, max_visits, name, reply, role, tools`}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -417,5 +417,63 @@ func TestAgentPassesTheConfiguredMcpServers(t *testing.T) {
 	}
 	if !slices.Equal(got.Tools, []string{"Glob", "Grep", "Read", "mcp__brain"}) {
 		t.Fatalf("tools = %v", got.Tools)
+	}
+}
+
+func TestAgentNodeOverridesAgentAndEffort(t *testing.T) {
+	agent := config.Agent{
+		Default: "w",
+		Models:  map[string]config.ModelSpec{"w": {Provider: "claude", Agent: "a", Effort: "high", BaseURL: "u"}},
+	}
+	plain := config.Agent{
+		Default: "w",
+		Models:  map[string]config.ModelSpec{"w": {Provider: "claude"}},
+	}
+	cases := []struct {
+		name                  string
+		config                config.Agent
+		keys                  map[string]any
+		wantAgent, wantEffort string
+	}{
+		{"node wins", agent, map[string]any{"agent": "n", "effort": "low"}, "n", "low"},
+		{"model fills in", agent, map[string]any{}, "a", "high"},
+		{"neither", plain, map[string]any{}, "", ""},
+	}
+	for _, c := range cases {
+		keys := agentKeys()
+		delete(keys, "effort")
+		for k, v := range c.keys {
+			keys[k] = v
+		}
+		fake := model.NewFake(model.Answer{Reply: model.Reply{Fields: map[string]any{"verdict": "d", "count": 1}}})
+		node := agentNode(keys)
+		definition, err := (blocks.Agent{}).Define(agentGraph(), node, agentEnv(fake, c.config))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := (blocks.Agent{}).Run(context.Background(), agentGraph(), node, agentState(), agentEnv(fake, c.config)); err != nil {
+			t.Fatal(err)
+		}
+		seen := fake.Seen()[0]
+		if definition.Agent != c.wantAgent || definition.Effort != c.wantEffort ||
+			seen.Agent != c.wantAgent || seen.Effort != c.wantEffort || seen.Profile != "edit" {
+			t.Errorf("%s: definition %+v, seen %+v", c.name, definition, seen)
+		}
+		if c.name == "model fills in" && (definition.BaseURL != "u" || seen.BaseURL != "u") {
+			t.Errorf("base url lost: %+v %+v", definition, seen)
+		}
+	}
+}
+
+func TestAgentCheckAcceptsAgentKey(t *testing.T) {
+	keys := agentKeys()
+	keys["agent"] = "x"
+	if got := (blocks.Agent{}).Check(agentNode(keys)); len(got) != 0 {
+		t.Fatalf("findings: %v", got)
+	}
+	keys["agent"] = 3
+	got := (blocks.Agent{}).Check(agentNode(keys))
+	if len(got) != 1 || got[0] != "agent is 3, not text" {
+		t.Fatalf("findings: %v", got)
 	}
 }

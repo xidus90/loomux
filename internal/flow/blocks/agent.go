@@ -48,21 +48,21 @@ func (Agent) Check(node flow.Node) []string {
 				fmt.Sprintf("reply field %q is %s; a reply holds string, int or bool", name, declared))
 		}
 	}
-	if _, err := model.Tools(agentProfile(node), nil); err != nil {
+	if _, err := model.Tools(AgentProfile(node), nil); err != nil {
 		findings = append(findings, err.Error())
 	}
 	// Both are read with StringKey, which turns a value of another type into
 	// nothing: tools = 3 would quietly become the default profile, and
 	// effort = 3 no effort -- a changed input of the definition hash nobody
 	// was told about.
-	for _, key := range []string{"tools", "effort"} {
+	for _, key := range []string{"tools", "effort", "agent"} {
 		if raw, present := node.Keys[key]; present {
 			if _, ok := raw.(string); !ok {
 				findings = append(findings, fmt.Sprintf("%s is %#v, not text", key, raw))
 			}
 		}
 	}
-	findings = append(findings, node.KeyFindings("instruction", "reply", "tools", "effort")...)
+	findings = append(findings, node.KeyFindings("instruction", "reply", "tools", "effort", "agent")...)
 	return findings
 }
 
@@ -106,16 +106,25 @@ func agentDefine(graph *flow.Graph, node flow.Node, env flow.Env) (flow.Definiti
 	if err != nil {
 		return flow.Definition{}, model.Resolved{}, err
 	}
-	profile := agentProfile(node)
+	profile := AgentProfile(node)
 	tools, err := model.Tools(profile, env.Agent.MCPServers)
 	if err != nil {
 		return flow.Definition{}, model.Resolved{}, err
+	}
+	effort, agent := node.StringKey("effort"), node.StringKey("agent")
+	if effort == "" {
+		effort = resolved.Effort
+	}
+	if agent == "" {
+		agent = resolved.Agent
 	}
 	return flow.Definition{
 		Text:    raw,
 		Role:    resolved.Role,
 		Model:   resolved.Label(),
-		Effort:  node.StringKey("effort"),
+		Effort:  effort,
+		Agent:   agent,
+		BaseURL: resolved.BaseURL,
 		Profile: profile,
 		Tools:   tools,
 	}, resolved, nil
@@ -147,6 +156,9 @@ func (Agent) Run(ctx context.Context, graph *flow.Graph, node flow.Node, state f
 		Prompt:   prompt,
 		Tools:    definition.Tools,
 		Effort:   definition.Effort,
+		Profile:  definition.Profile,
+		Agent:    definition.Agent,
+		BaseURL:  definition.BaseURL,
 		Provider: resolved.Provider,
 		Model:    resolved.Model,
 		Reply:    schema,
@@ -230,8 +242,8 @@ func sortedTypes(table map[string]flow.Type) []string {
 	return names
 }
 
-// agentProfile is the node's tool profile, or the default when it names none.
-func agentProfile(node flow.Node) string {
+// AgentProfile is the node's tool profile, or the default when it names none.
+func AgentProfile(node flow.Node) string {
 	if profile := node.StringKey("tools"); profile != "" {
 		return profile
 	}

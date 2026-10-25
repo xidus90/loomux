@@ -27,7 +27,9 @@ type Definition struct {
 	Text    []byte   // the raw bytes of the instruction or question; nil when there is none
 	Role    string   // the role the node plays; empty without one
 	Model   string   // "<provider>:<model>" or "<provider>:cli-default"; empty without a model
-	Effort  string   // empty when the node has none
+	Effort  string   // the node's effort, else the model's; empty when neither has one
+	Agent   string   // the node's agent, else the model's; empty when neither has one
+	BaseURL string   // the model's base URL; empty when it has none
 	Profile string   // the tool profile name the journal records; empty when there is none
 	Tools   []string // the resolved tool list; nil when there is none
 }

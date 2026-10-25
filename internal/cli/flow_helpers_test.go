@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -40,7 +41,7 @@ func newFlowHarness(answers ...model.Answer) *flowHarness {
 			now = now.Add(500 * time.Millisecond)
 			return now
 		},
-		Models:  func(string) (model.Model, error) { return h.fake, nil },
+		Models:  func(string, model.Run) (model.Model, error) { return h.fake, nil },
 		Blocks:  []flow.Block{blocks.Agent{}, blocks.Gate{}, blocks.Exit{}},
 		Bundled: flows.FS(),
 	}
@@ -312,9 +313,14 @@ const pairConfig = `[agent.models.w]
 provider = "claude"
 
 [agent.models.c]
-provider = "gemini"
+provider = "agy"
 
 [agent.roles]
 writer = "w"
 critic = "c"
 `
+
+// noAdapter is a Models that finds none for any provider.
+func noAdapter(provider string, _ model.Run) (model.Model, error) {
+	return nil, fmt.Errorf("no adapter for provider %s yet", provider)
+}

@@ -113,7 +113,7 @@ func TestResumeAndReplayRefuse(t *testing.T) {
 			want: `no flow named "gone"`},
 		{name: "a provider without an adapter", args: []string{"resume", "0001", "--answer", "yes"},
 			arrange: func(_ *testing.T, _ string, h *flowHarness) {
-				h.deps.Models = flowProduction(h.stdout, h.stderr).Models
+				h.deps.Models = noAdapter
 			},
 			want: "no adapter for provider claude yet"},
 		{name: "a run that waits at no gate", args: []string{"resume", "0001"},

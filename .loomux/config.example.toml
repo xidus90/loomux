@@ -61,3 +61,13 @@ sync = [".claude/skills", ".agents/skills"]
 [privacy]
 mode = "strict"
 never = [".env*", "*.key", "credentials.json"]
+
+# --- Agent Models (flow agent nodes) -----------------------------------------
+# [agent]
+# timeout = "30m"                       # per node; "0" switches the bound off
+#
+# [agent.models.reviewer]
+# provider = "claude"                   # agy, claude or qoder
+# agent = "reviewer"                    # the provider's own agent definition
+# effort = "high"
+# base_url = "http://127.0.0.1:8080"    # provider claude only
