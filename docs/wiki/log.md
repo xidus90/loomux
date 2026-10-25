@@ -4,6 +4,21 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-10-25
+
+- 2026-10-25 — `syntheses/modelladapter-ueber-die-cli.md`: Abschnitt
+  „Umgesetzt“ (drei Adapter, Strata über `claude`, agy-Warnung, gemessene
+  Befunde), `realization: implemented`. Kein Widerspruch zu einer bestehenden
+  Aussage. Quelle: Code von loomux (`internal/flow/model/cli`).
+
+## 2026-10-24
+
+- 2026-10-24 — `syntheses/modelladapter-ueber-die-cli.md`: neu. Entscheidung des
+  Nutzers: Modelladapter zuerst über die CLIs von Claude und Gemini,
+  API-Adapter später. Kein Widerspruch zu einer bestehenden Seite. Quelle:
+  `docs/de/flows.md`, `docs/de/configuration.md` und Code von loomux
+  (`internal/flow/model`).
+
 ## 2026-10-19
 
 - 2026-10-19 — `topics/code-graph.md`: Absatz „Godot-Projekte“ um Godot 3

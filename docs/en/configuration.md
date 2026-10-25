@@ -1020,8 +1020,12 @@ writer   = "sonnet"
 |---|---|---|
 | `[agent] default` | string | The model name every role without a binding runs on, and an agent node without a role. Must be a name under `[agent.models]`. |
 | `[agent] mcp_servers` | array of strings | The servers a node with the tool profile `mcp` may use, one `mcp__<server>` each; every entry a non-empty string. Default `[]`. |
-| `[agent.models.<name>] provider` | string, **required** | Who answers for this model name, e.g. `claude` or `agy`. Not yet checked against a list: that comes with the model adapters. |
+| `[agent] timeout` | string | How long one CLI run of an agent node may take, a duration such as `"30m"`; `"0"` switches it off. Default `"30m"`. |
+| `[agent.models.<name>] provider` | string, **required** | Who answers for this model name: `claude`, `agy` or `qoder`. |
 | `[agent.models.<name>] model` | string | The provider's model. Absent, the provider's CLI picks its own default; present, it may not be empty. |
+| `[agent.models.<name>] agent` | string | The provider's own agent, passed to its CLI. A node's `agent` overrides it. Non-empty when present. |
+| `[agent.models.<name>] effort` | string | The effort level. A node's `effort` overrides it. Non-empty when present. |
+| `[agent.models.<name>] base_url` | string | Only with `provider = "claude"`: set as `ANTHROPIC_BASE_URL` in the child's environment, e.g. for Strata. Non-empty when present. |
 | `[agent.roles] <role>` | string | The model name the role runs on. Must be a name under `[agent.models]`. |
 
 - **Names** of models and roles follow `[A-Za-z_][A-Za-z0-9_]*`.
@@ -1029,8 +1033,11 @@ writer   = "sonnet"
   `[agent.models.<name>]` is refused with the known ones, and so is a default
   or a binding that names no model: `[agent.roles] reviewer names "gemini",
   which is not under [agent.models]; known: none`. A flow therefore never
-  learns at its first paid node that a role runs nowhere. `[agent] settings`
-  is not known yet; it arrives with the adapters.
+  learns at its first paid node that a role runs nowhere. Other findings:
+  `[agent.models.x] provider "foo" is unknown; known: agy, claude, qoder`,
+  `[agent.models.x] base_url only works with provider claude`, and
+  `[agent] timeout "soon" is not a duration such as "30m", or "0" to switch it
+  off`.
 - **Resolution** of a node's model — node role, flow role, binding,
   `[agent] default`, the claude CLI's own default — is in
   [Flows](flows.md#3-roles-and-models); `loomux flow show <flow>` prints it
