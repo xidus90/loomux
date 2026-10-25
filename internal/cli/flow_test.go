@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/xidus90/loomux/flows"
 	"github.com/xidus90/loomux/internal/config"
@@ -58,42 +59,6 @@ func TestFlowIsACommandOfLoomux(t *testing.T) {
 	code, stdout, stderr := run("flow", "list", "--root", t.TempDir())
 	if code != flowExitOK || stdout != "example  bundled  ok\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
-	}
-}
-
-// The real outside refuses every provider until an adapter exists, keeps time
-// with the wall clock, knows the three blocks the runtime ships and reads the
-// catalog compiled into the binary.
-func TestFlowProductionHasNoAdapterYet(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	deps := flowProduction(&stdout, &stderr)
-	if _, err := deps.Models("claude"); err == nil || err.Error() != "no adapter for provider claude yet" {
-		t.Fatalf("err = %v", err)
-	}
-	if deps.Clock == nil || deps.Stdout != &stdout || deps.Stderr != &stderr {
-		t.Fatalf("deps = %+v", deps)
-	}
-	kinds := make([]string, 0, len(deps.Blocks))
-	for _, block := range deps.Blocks {
-		kinds = append(kinds, block.Kind())
-	}
-	if !slices.Equal(kinds, []string{"agent", "gate", "exit"}) {
-		t.Fatalf("kinds = %v", kinds)
-	}
-	if _, err := fs.Stat(deps.Bundled, "example/flow.toml"); err != nil {
-		t.Fatalf("the catalog has no example: %v", err)
-	}
-}
-
-func TestFlowRunRefusesAnAgentFlowWithoutAnAdapter(t *testing.T) {
-	root := t.TempDir()
-	var stdout, stderr bytes.Buffer
-	code := flowCLI([]string{"run", "example", "--root", root}, flowProduction(&stdout, &stderr))
-	if code != flowExitFailed || stderr.String() != "no adapter for provider claude yet\n" {
-		t.Fatalf("exit %d, stderr %q", code, stderr.String())
-	}
-	if files := flowRunFiles(t, root); len(files) != 0 {
-		t.Fatalf("a refused run left %v behind", files)
 	}
 }
 
@@ -454,7 +419,7 @@ func TestFlowRunReadsTheAgentTable(t *testing.T) {
 	flowConfig(t, root, "[agent.models.w]\nprovider = \"agy\"\n\n[agent.roles]\nwriter = \"w\"\n")
 	h := newFlowHarness(flowDone())
 	var asked []string
-	h.deps.Models = func(provider string) (model.Model, error) {
+	h.deps.Models = func(provider string, _ model.Run) (model.Model, error) {
 		asked = append(asked, provider)
 		return h.fake, nil
 	}
@@ -584,4 +549,77 @@ func sessionStartContext(t *testing.T, root string) string {
 		t.Fatalf("code %d, out %q, err %q: %v", code, out, errOut, err)
 	}
 	return answer.HookSpecificOutput.AdditionalContext
+}
+
+// The real outside builds the adapter of a provider, knows no other, keeps
+// time with the wall clock, knows the three blocks the runtime ships and reads
+// the catalog compiled into the binary.
+func TestFlowProductionBuildsTheAdapters(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	deps := flowProduction(&stdout, &stderr)
+	for _, provider := range []string{"claude", "agy", "qoder"} {
+		if m, err := deps.Models(provider, model.Run{Root: t.TempDir()}); err != nil || m == nil {
+			t.Fatalf("%s: %v, %v", provider, m, err)
+		}
+	}
+	if _, err := deps.Models("gpt", model.Run{}); err == nil || err.Error() != "no adapter for provider gpt" {
+		t.Fatalf("err = %v", err)
+	}
+	if deps.Clock == nil || deps.Stdout != &stdout || deps.Stderr != &stderr {
+		t.Fatalf("deps = %+v", deps)
+	}
+	kinds := make([]string, 0, len(deps.Blocks))
+	for _, block := range deps.Blocks {
+		kinds = append(kinds, block.Kind())
+	}
+	if !slices.Equal(kinds, []string{"agent", "gate", "exit"}) {
+		t.Fatalf("kinds = %v", kinds)
+	}
+	if _, err := fs.Stat(deps.Bundled, "example/flow.toml"); err != nil {
+		t.Fatalf("the catalog has no example: %v", err)
+	}
+}
+
+// The run's root and the [agent] timeout reach the factory, for run and resume.
+func TestFlowPassesRootAndConfigTimeoutToTheFactory(t *testing.T) {
+	root := t.TempDir()
+	flowConfig(t, root, "[agent]\ntimeout = \"5m\"\n")
+	h := newFlowHarness(flowDone(), flowDone())
+	var got []model.Run
+	h.deps.Models = func(_ string, run model.Run) (model.Model, error) {
+		got = append(got, run)
+		return h.fake, nil
+	}
+	if code := h.run(root, "run", "example"); code != flowExitPaused {
+		t.Fatalf("exit %d, stderr %q", code, h.stderr.String())
+	}
+	if code := h.run(root, "resume", "0001", "--answer", "yes"); code != flowExitOK {
+		t.Fatalf("exit %d, stderr %q", code, h.stderr.String())
+	}
+	want := model.Run{Root: root, Timeout: 5 * time.Minute}
+	if len(got) != 2 || got[0] != want || got[1] != want {
+		t.Fatalf("got %+v, want %+v twice", got, want)
+	}
+}
+
+// A provider that cannot hold the tool list is named on stderr before the run
+// starts, once per agent node, and the run goes on.
+func TestFlowRunWarnsWhenToolsNotEnforced(t *testing.T) {
+	root := t.TempDir()
+	flowConfig(t, root, "[agent.models.w]\nprovider = \"agy\"\n\n[agent.roles]\nwriter = \"w\"\n")
+	h := newFlowHarness(flowDone())
+	if code := h.run(root, "run", "example"); code != flowExitPaused {
+		t.Fatalf("exit %d, stderr %q", code, h.stderr.String())
+	}
+	want := "warning: node \"draft\" runs on agy, which cannot enforce the tool profile edit; " +
+		"only loomux's guard policy and the write barrier on file-writing tools limit it\n"
+	if got := h.stderr.String(); got != want {
+		t.Fatalf("stderr = %q, want %q", got, want)
+	}
+	if code := h.run(root, "resume", "0001", "--answer", "yes"); code != flowExitOK {
+		t.Fatalf("exit %d, stderr %q", code, h.stderr.String())
+	}
+	if !strings.Contains(h.stderr.String(), "runs on agy") {
+		t.Fatalf("resume did not warn: %q", h.stderr.String())
+	}
 }

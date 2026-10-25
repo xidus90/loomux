@@ -17,6 +17,9 @@ type Resolved struct {
 	ModelFrom string // "binding", "default" or "cli-default"
 	Provider  string
 	Model     string // "" is the provider CLI's own default
+	Agent     string // the provider CLI's agent; "" for none
+	Effort    string // the model's own effort; a node's effort wins
+	BaseURL   string
 }
 
 // Resolve is the role chain: the node's role, else the flow's; that role's
@@ -47,6 +50,7 @@ func Resolve(agent config.Agent, nodeRole, flowRole string) (Resolved, error) {
 		return Resolved{}, fmt.Errorf("model %q is not under [agent.models]", name)
 	}
 	r.Name, r.Provider, r.Model = name, spec.Provider, spec.Model
+	r.Agent, r.Effort, r.BaseURL = spec.Agent, spec.Effort, spec.BaseURL
 	return r, nil
 }
 

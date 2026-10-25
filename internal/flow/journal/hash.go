@@ -49,8 +49,16 @@ func InputHash(node string, data any) (string, error) {
 // DefinitionHash fingerprints what a node was told: its entry in the flow file,
 // the raw bytes of its instruction or question, the resolved model, effort and
 // tool list. A replay compares it to say which nodes ran on an older definition.
-func DefinitionHash(node any, text []byte, model, effort string, tools []string) (string, error) {
-	return digest(map[string]any{"node": node, "text": text, "model": model, "effort": effort, "tools": tools})
+func DefinitionHash(node any, text []byte, model, effort, agent, baseURL string, tools []string) (string, error) {
+	parts := map[string]any{"node": node, "text": text, "model": model, "effort": effort, "tools": tools}
+	// Only when set, so a node without them keeps the hash it always had.
+	if agent != "" {
+		parts["agent"] = agent
+	}
+	if baseURL != "" {
+		parts["base_url"] = baseURL
+	}
+	return digest(parts)
 }
 
 func digest(value any) (string, error) {

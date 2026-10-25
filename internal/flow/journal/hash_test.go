@@ -72,11 +72,11 @@ func TestDefinitionHashMovesWithEveryPart(t *testing.T) {
 	node := map[string]any{"name": "draft"}
 	text := []byte("Write it.")
 	tools := []string{"Read"}
-	base, err := journal.DefinitionHash(node, text, "claude:cli-default", "high", tools)
+	base, err := journal.DefinitionHash(node, text, "claude:cli-default", "high", "", "", tools)
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := journal.DefinitionHash(node, text, "claude:cli-default", "high", tools)
+	again, err := journal.DefinitionHash(node, text, "claude:cli-default", "high", "", "", tools)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,19 +85,19 @@ func TestDefinitionHashMovesWithEveryPart(t *testing.T) {
 	}
 	variants := map[string]func() (string, error){
 		"node": func() (string, error) {
-			return journal.DefinitionHash(map[string]any{"name": "review"}, text, "claude:cli-default", "high", tools)
+			return journal.DefinitionHash(map[string]any{"name": "review"}, text, "claude:cli-default", "high", "", "", tools)
 		},
 		"text": func() (string, error) {
-			return journal.DefinitionHash(node, []byte("Write it well."), "claude:cli-default", "high", tools)
+			return journal.DefinitionHash(node, []byte("Write it well."), "claude:cli-default", "high", "", "", tools)
 		},
 		"model": func() (string, error) {
-			return journal.DefinitionHash(node, text, "claude:claude-opus-5", "high", tools)
+			return journal.DefinitionHash(node, text, "claude:claude-opus-5", "high", "", "", tools)
 		},
 		"effort": func() (string, error) {
-			return journal.DefinitionHash(node, text, "claude:cli-default", "low", tools)
+			return journal.DefinitionHash(node, text, "claude:cli-default", "low", "", "", tools)
 		},
 		"tools": func() (string, error) {
-			return journal.DefinitionHash(node, text, "claude:cli-default", "high", []string{"Edit", "Read"})
+			return journal.DefinitionHash(node, text, "claude:cli-default", "high", "", "", []string{"Edit", "Read"})
 		},
 	}
 	for part, hash := range variants {
@@ -112,7 +112,28 @@ func TestDefinitionHashMovesWithEveryPart(t *testing.T) {
 }
 
 func TestDefinitionHashRefusesAnUnserializableNode(t *testing.T) {
-	if _, err := journal.DefinitionHash(map[string]any{"x": math.NaN()}, nil, "", "", nil); err == nil {
+	if _, err := journal.DefinitionHash(map[string]any{"x": math.NaN()}, nil, "", "", "", "", nil); err == nil {
 		t.Fatal("NaN has no JSON form, so it has no hash")
+	}
+}
+
+func TestDefinitionHashUnchangedWithoutNewKeys(t *testing.T) {
+	node := map[string]any{"name": "draft", "kind": "agent"}
+	text := []byte("Write it.")
+	tools := []string{"Read"}
+	// Pinned from the hash before agent and base_url existed: a stored journal
+	// must keep matching its nodes.
+	const pinned = "d3cebc86e1eca36cc2df7c4ec0865a0bcae73dc6f62e6228b3affa4eb33839e0"
+	got, err := journal.DefinitionHash(node, text, "claude:cli-default", "high", "", "", tools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != pinned {
+		t.Fatalf("hash = %s, want %s", got, pinned)
+	}
+	withAgent, _ := journal.DefinitionHash(node, text, "claude:cli-default", "high", "x", "", tools)
+	withURL, _ := journal.DefinitionHash(node, text, "claude:cli-default", "high", "", "u", tools)
+	if withAgent == got || withURL == got || withAgent == withURL {
+		t.Fatal("agent and base_url must each move the hash")
 	}
 }

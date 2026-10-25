@@ -15,6 +15,7 @@ import (
 	"github.com/xidus90/loomux/internal/flow/blocks"
 	"github.com/xidus90/loomux/internal/flow/load"
 	"github.com/xidus90/loomux/internal/flow/model"
+	modelcli "github.com/xidus90/loomux/internal/flow/model/cli"
 	"github.com/xidus90/loomux/internal/flow/runner"
 	"github.com/xidus90/loomux/internal/hosts"
 )
@@ -45,7 +46,7 @@ type flowDeps struct {
 	Stderr io.Writer
 	Clock  runner.Clock
 	// Models finds the model for a provider, before this command writes anything.
-	Models func(provider string) (model.Model, error)
+	Models func(provider string, run model.Run) (model.Model, error)
 	Blocks []flow.Block
 	// Bundled is the catalog of flows this binary ships.
 	Bundled fs.FS
@@ -58,15 +59,15 @@ func flowCommand(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 }
 
 // flowProduction is the real outside: the wall clock, the three blocks the
-// runtime ships, the bundled catalog, and no adapter for any provider yet. A
-// flow that asks a model is refused before its run exists.
+// runtime ships, the bundled catalog, and the adapters of the provider CLIs. A
+// flow that asks a provider without one is refused before its run exists.
 func flowProduction(stdout, stderr io.Writer) flowDeps {
 	return flowDeps{
 		Stdout: stdout,
 		Stderr: stderr,
 		Clock:  time.Now,
-		Models: func(provider string) (model.Model, error) {
-			return nil, fmt.Errorf("no adapter for provider %s yet", provider)
+		Models: func(provider string, run model.Run) (model.Model, error) {
+			return modelcli.New(provider, modelcli.Options{Root: run.Root, Timeout: run.Timeout, Exec: modelcli.System})
 		},
 		Blocks:  []flow.Block{blocks.Agent{}, blocks.Gate{}, blocks.Exit{}},
 		Bundled: flows.FS(),

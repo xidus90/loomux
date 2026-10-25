@@ -367,7 +367,7 @@ func (r *Runner) definition(node flow.Node) (flow.Definition, string, error) {
 	if err != nil {
 		return flow.Definition{}, "", fmt.Errorf("node %q: %w", node.Name, err)
 	}
-	hash, err := journal.DefinitionHash(node.Raw, definition.Text, definition.Model, definition.Effort, definition.Tools)
+	hash, err := journal.DefinitionHash(node.Raw, definition.Text, definition.Model, definition.Effort, definition.Agent, definition.BaseURL, definition.Tools)
 	if err != nil {
 		return flow.Definition{}, "", fmt.Errorf("node %q: %w", node.Name, err)
 	}
