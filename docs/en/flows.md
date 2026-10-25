@@ -5,12 +5,12 @@ gate until a human answers, resumes it and replays it from its journal. The
 commands are `loomux flow run|resume|replay|show|list`; every flag and exit
 code is in the [CLI reference](cli-reference.md#12-flows-loomux-flow).
 
-**What runs today.** Gate and exit nodes run. Agent nodes load, show their
-role and model, and run in the catalog's test against a fake model, but
-loomux has no model adapter yet: a flow with an agent node refuses to start
-with `no adapter for provider claude yet` (or the provider its roles resolve
-to), before a run exists. The adapters, flows over MCP and further node kinds
-are on the [roadmap](../../README.md#roadmap).
+**What runs today.** Gate, exit and agent nodes run. An agent node runs
+through one of three CLIs: `claude` (Claude Code), `agy` (Antigravity) or
+`qoder` (`qodercli`). Strata, a local Qwen behind an Anthropic-compatible
+API, runs through `claude` with a `base_url` (section 3). The adapters never
+bypass a permission. Flows over MCP, parallel agent nodes and further node
+kinds are on the [roadmap](../../README.md#roadmap).
 
 ---
 
@@ -234,6 +234,53 @@ With `[agent.models.w] provider = "agy"`, `model = "m1"` and
 
 One covered by `[agent] default` ends in `[agent] default <name>`. The resolved model goes into the definition hash, so a
 changed binding shows up on a replay as a changed definition.
+
+### What a model and a node can set
+
+`[agent.models.<name>]` takes `provider` (`claude`, `agy` or `qoder`),
+`model`, `agent`, `effort` and, with `claude` only, `base_url`. The keys `agent`
+and `effort` on a node override those of its model. `base_url` goes to the
+child's environment as `ANTHROPIC_BASE_URL`; that is how Strata runs:
+
+```toml
+[agent.models.strata]
+provider = "claude"
+model    = "qwen"
+base_url = "http://localhost:8080"
+```
+
+`[agent] timeout` ends a node's CLI run that takes too long: default `30m`,
+`"0"` switches it off.
+
+### What a provider enforces
+
+- **`claude` and `qoder`** restrict the tools hard: the node's tool profile
+  becomes `--tools` (on `claude`, MCP tools also go through `--allowedTools`).
+  qoder warns once per profile tool it has no equivalent for, and runs without
+  it. Both deny, in headless mode, a tool that the CLI's own settings do not
+  allow; the node then fails with an error naming the denied tools, and the
+  tools are allowed in the CLI's settings.
+- **`agy`** has no tool restriction. A `read_only` node runs in `--mode plan`,
+  every other profile in `--mode accept-edits`, and loomux prints this before
+  the run:
+
+  ```
+  warning: node "x" runs on agy, which cannot enforce the tool profile edit; only loomux's guard policy and the write barrier on file-writing tools limit it
+  ```
+
+  The write barrier judges file-writing tools only, not shell commands.
+  Headless, agy auto-denies a tool that needs a permission it cannot ask for;
+  the node then fails with `agy denied <tools> in headless mode and returned no
+  reply; allow it under permissions.allow in agy's settings.json`. Allow the
+  tools there; loomux never bypasses the permission.
+
+### Replies, tokens and limits
+
+`claude` and `agy` return the reply through `--json-schema`
+(`structured_output`). `qoder` gets the schema as an instruction in the prompt
+and one retry when the reply does not parse. Tokens are input plus output;
+qoder may report 0. agy takes the prompt as an argument, so a prompt over 30000
+bytes is refused.
 
 ---
 

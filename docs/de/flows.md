@@ -6,12 +6,12 @@ ihn aus seinem Journal nach. Die Befehle sind `loomux flow
 run|resume|replay|show|list`; jedes Flag und jeder Exit-Code steht in der
 [CLI-Referenz](cli-reference.md#12-flows-loomux-flow).
 
-**Was heute läuft.** Tor- und Ausgangsknoten laufen. Agentenknoten laden,
-zeigen Rolle und Modell und laufen im Test des Katalogs gegen ein
-Fake-Modell, aber loomux hat noch keinen Modelladapter: Ein Flow mit einem
-Agentenknoten lehnt den Start mit `no adapter for provider claude yet` ab
-(oder dem Anbieter, auf den seine Rollen auflösen), bevor es einen Lauf gibt.
-Die Adapter, Flows über MCP und weitere Knotenarten stehen in der
+**Was heute läuft.** Tor-, Ausgangs- und Agentenknoten laufen. Ein
+Agentenknoten läuft über eine von drei CLIs: `claude` (Claude Code), `agy`
+(Antigravity) oder `qoder` (`qodercli`). Strata, ein lokales Qwen hinter einer
+Anthropic-kompatiblen API, läuft über `claude` mit einer `base_url`
+(Abschnitt 3). Die Adapter umgehen nie eine Berechtigung. Flows über MCP,
+parallele Agentenknoten und weitere Knotenarten stehen in der
 [Roadmap](../../README.de.md#roadmap).
 
 ---
@@ -250,6 +250,56 @@ Mit `[agent.models.w] provider = "agy"`, `model = "m1"` und
 Einer, den `[agent] default` deckt, endet auf `[agent] default <name>`. Das aufgelöste Modell geht in den
 Definitions-Hash ein; eine geänderte Bindung zeigt ein Replay also als
 geänderte Definition.
+
+### Was ein Modell und ein Knoten setzen können
+
+`[agent.models.<name>]` kennt `provider` (`claude`, `agy` oder `qoder`),
+`model`, `agent`, `effort` und, nur mit `claude`, `base_url`. Die Schlüssel
+`agent` und `effort` an einem Knoten gehen denen seines Modells vor.
+`base_url` landet als `ANTHROPIC_BASE_URL` in der Umgebung des Kindprozesses;
+so läuft Strata:
+
+```toml
+[agent.models.strata]
+provider = "claude"
+model    = "qwen"
+base_url = "http://localhost:8080"
+```
+
+`[agent] timeout` beendet einen CLI-Lauf eines Knotens, der zu lange dauert:
+Vorgabe `30m`, `"0"` schaltet es ab.
+
+### Was ein Anbieter durchsetzt
+
+- **`claude` und `qoder`** beschränken die Werkzeuge hart: Das Werkzeugprofil
+  des Knotens wird zu `--tools` (bei `claude` laufen MCP-Werkzeuge zusätzlich
+  über `--allowedTools`). qoder warnt einmal je Profilwerkzeug, für das es
+  keine Entsprechung hat, und läuft ohne es. Beide verweigern ohne Oberfläche
+  ein Werkzeug, das die eigenen Einstellungen der CLI nicht erlauben; der
+  Knoten scheitert dann mit einem Fehler, der die verweigerten Werkzeuge nennt,
+  und man erlaubt sie in den Einstellungen der CLI.
+- **`agy`** hat keine Werkzeugbeschränkung. Ein `read_only`-Knoten läuft in
+  `--mode plan`, jedes andere Profil in `--mode accept-edits`, und loomux
+  druckt vor dem Lauf:
+
+  ```
+  warning: node "x" runs on agy, which cannot enforce the tool profile edit; only loomux's guard policy and the write barrier on file-writing tools limit it
+  ```
+
+  Die Schreibschranke beurteilt nur Werkzeuge, die Dateien schreiben, keine
+  Shell-Befehle. Ohne Oberfläche verweigert agy ein Werkzeug automatisch, das
+  eine Berechtigung braucht, nach der es nicht fragen kann; der Knoten
+  scheitert dann mit `agy denied <tools> in headless mode and returned no
+  reply; allow it under permissions.allow in agy's settings.json`. Dort
+  erlaubt man die Werkzeuge; loomux umgeht die Berechtigung nie.
+
+### Antworten, Tokens und Grenzen
+
+`claude` und `agy` liefern die Antwort über `--json-schema`
+(`structured_output`). `qoder` bekommt das Schema als Anweisung im Prompt und
+genau einen neuen Versuch, wenn die Antwort sich nicht lesen lässt. Tokens sind
+Eingabe plus Ausgabe; qoder kann 0 melden. agy nimmt den Prompt als Argument, ein
+Prompt über 30000 Bytes wird daher abgelehnt.
 
 ---
 

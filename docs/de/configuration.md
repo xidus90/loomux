@@ -925,8 +925,12 @@ writer   = "sonnet"
 |---|---|---|
 | `[agent] default` | String | Der Modellname, auf dem jede Rolle ohne Bindung läuft, und ein Agentenknoten ohne Rolle. Muss ein Name unter `[agent.models]` sein. |
 | `[agent] mcp_servers` | Array von Strings | Die Server, die ein Knoten mit dem Werkzeugprofil `mcp` nutzen darf, je einer als `mcp__<server>`; jeder Eintrag ein nicht leerer String. Vorgabe `[]`. |
-| `[agent.models.<name>] provider` | String, **Pflicht** | Wer für diesen Modellnamen antwortet, etwa `claude` oder `agy`. Noch nicht gegen eine Liste geprüft: Die kommt mit den Modelladaptern. |
+| `[agent] timeout` | String | Wie lange ein CLI-Lauf eines Agentenknotens dauern darf, eine Dauer wie `"30m"`; `"0"` schaltet es ab. Vorgabe `"30m"`. |
+| `[agent.models.<name>] provider` | String, **Pflicht** | Wer für diesen Modellnamen antwortet: `claude`, `agy` oder `qoder`. |
 | `[agent.models.<name>] model` | String | Das Modell des Anbieters. Fehlt es, wählt die CLI des Anbieters ihre Vorgabe; steht es da, darf es nicht leer sein. |
+| `[agent.models.<name>] agent` | String | Der eigene Agent des Anbieters, an seine CLI durchgereicht. Das `agent` eines Knotens geht vor. Wenn gesetzt, nicht leer. |
+| `[agent.models.<name>] effort` | String | Die Aufwandsstufe. Das `effort` eines Knotens geht vor. Wenn gesetzt, nicht leer. |
+| `[agent.models.<name>] base_url` | String | Nur mit `provider = "claude"`: als `ANTHROPIC_BASE_URL` in der Umgebung des Kindprozesses gesetzt, etwa für Strata. Wenn gesetzt, nicht leer. |
 | `[agent.roles] <rolle>` | String | Der Modellname, auf dem die Rolle läuft. Muss ein Name unter `[agent.models]` sein. |
 
 - **Namen** von Modellen und Rollen folgen `[A-Za-z_][A-Za-z0-9_]*`.
@@ -935,7 +939,10 @@ writer   = "sonnet"
   Default oder eine Bindung, die kein Modell nennt: `[agent.roles] reviewer
   names "gemini", which is not under [agent.models]; known: none`. Ein Flow
   erfährt also nie erst am ersten bezahlten Knoten, dass eine Rolle nirgends
-  läuft. `[agent] settings` ist noch unbekannt; es kommt mit den Adaptern.
+  läuft. Weitere Befunde: `[agent.models.x] provider "foo" is unknown; known:
+  agy, claude, qoder`, `[agent.models.x] base_url only works with provider
+  claude` und `[agent] timeout "soon" is not a duration such as "30m", or "0"
+  to switch it off`.
 - **Die Auflösung** des Modells eines Knotens — Rolle des Knotens, Rolle des
   Flows, Bindung, `[agent] default`, die Vorgabe der claude-CLI — steht in
   [Flows](flows.md#3-rollen-und-modelle); `loomux flow show <flow>` druckt sie
