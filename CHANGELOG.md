@@ -7,6 +7,18 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.17.0] - 2026-10-26
+
+<https://github.com/xidus90/loomux/pull/128>
+
+### Added
+- Agent nodes run through the `claude`, `agy` and `qoder` CLIs.
+- `agent`, `effort` and `base_url` keys for `[agent.models.<name>]`, and `agent` on agent nodes.
+- `[agent] timeout` bounds each agent node, 30 minutes by default.
+- `loomux flow run` and `resume` warn before the run when a provider cannot enforce a node's tool profile.
+### Changed
+- `[agent.models.<name>] provider` accepts only `claude`, `agy` and `qoder`.
+
 ## [1.16.1] - 2026-10-24
 
 <https://github.com/xidus90/loomux/pull/127>
