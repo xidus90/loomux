@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -135,6 +136,12 @@ func braceRange(inner string) ([]string, bool) {
 		from, to = int(parts[0][0]), int(parts[1][0])
 	} else if padded(parts[0]) || padded(parts[1]) {
 		width = max(len(parts[0]), len(parts[1]))
+	}
+	// Past an int32 the walk below can overflow and unfold to no word at
+	// all, which would leave nothing to judge: such a range counts as one
+	// past the limit.
+	if max(from, to, step) > math.MaxInt32 || min(from, to, step) < math.MinInt32 {
+		return make([]string, maxBraceVariants+1), true
 	}
 	direction := 1
 	if to < from {
