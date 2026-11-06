@@ -79,9 +79,8 @@ type BuildOptions struct {
 	// entries still match then, and a plain build keeps them.
 	NoReuse bool
 
-	// MaxFilesize is the resolved search corpus limit; nil means the default
-	// and 0 means unlimited. The caller resolves it from flag and
-	// configuration so that the index, the record and the next probe agree.
+	// MaxFilesize is the flag's search corpus limit; nil means the project's
+	// [grep] table, else the default, and 0 means unlimited.
 	MaxFilesize *int64
 
 	// Listing, when set, receives the search corpus listing the build walked,
@@ -140,7 +139,7 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
 	if err := writeCache(root, stats.entries); err != nil {
 		notice(fmt.Sprintf("extract cache not written: %v", err))
 	}
-	maxFilesize, err := corpus.ResolveMaxFilesize(opts.MaxFilesize, nil)
+	maxFilesize, err := resolveMaxFilesize(root, opts.MaxFilesize)
 	if err != nil {
 		return nil, Stats{}, err
 	}

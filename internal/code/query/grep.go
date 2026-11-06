@@ -28,8 +28,8 @@ type GrepOptions struct {
 	MaxHits    int
 	NoRefresh  bool
 	Keep       func(path string) bool
-	// MaxFilesize is the resolved search corpus limit; nil means the default
-	// and 0 means unlimited.
+	// MaxFilesize is the flag's search corpus limit; nil means the project's
+	// [grep] table, else the default, and 0 means unlimited.
 	MaxFilesize *int64
 	// Channel is "local" (or empty) or "cloud". On the cloud channel the
 	// project's privacy declaration filters the files, and Keep, when the
@@ -60,7 +60,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	if _, err := os.Stat(store.WiringPath(root)); errors.Is(err, os.ErrNotExist) {
 		return grep.Result{}, nil, ErrNoGraph
 	}
-	maxFilesize, err := corpus.ResolveMaxFilesize(opts.MaxFilesize, nil)
+	maxFilesize, err := resolveMaxFilesize(root, opts.MaxFilesize)
 	if err != nil {
 		return grep.Result{}, nil, err
 	}

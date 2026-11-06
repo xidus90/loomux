@@ -1069,11 +1069,10 @@ What narrows or shapes one build belongs to the invocation that runs it, not to
 the configuration of the repository being indexed. If this section returns, it
 is because a real requirement forced a section-level knob to exist, not because
 the manual once sketched one.
-A `[grep]` table with `max_filesize` exists in the schema (default
-`67108864`), but nothing reads it yet: `graph build` and `graph grep` take the
-limit from `--max-filesize`/`--no-max-filesize`, and a search without a flag
-measures against the record's setting. Treat the key as reserved until a
-reader lands; writing it changes nothing today.
+A `[grep]` table with `max_filesize` (default `67108864`) sets the search
+corpus limit of the project: `graph build` and `graph grep` use it when no
+`--max-filesize` flag is given, and a changed value rebuilds the index on the
+next search. `0` means unlimited; the flag wins for one run.
 
 ---
 

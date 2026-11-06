@@ -986,11 +986,11 @@ deshalb steht die Antwort hier, statt neu entdeckt zu werden:
   keine Strategie, die ein Projekt abschalten könnte.
   Da bleibt nichts mehr zu konfigurieren.
 
-Eine `[grep]`-Tabelle mit `max_filesize` gibt es im Schema (Standard
-`67108864`), aber noch liest sie niemand: `graph build` und `graph grep`
-nehmen die Grenze aus `--max-filesize`/`--no-max-filesize`, und eine Suche
-ohne Flag misst gegen die Einstellung des Records. Der Schlüssel ist reserviert,
-bis ein Leser kommt; ihn heute zu schreiben ändert nichts.
+Eine `[grep]`-Tabelle mit `max_filesize` (Standard `67108864`) setzt die Grenze
+des Suchkorpus für das Projekt: `graph build` und `graph grep` nehmen sie, wenn
+kein `--max-filesize`-Flag gesetzt ist, und ein geänderter Wert baut den Index
+bei der nächsten Suche neu. `0` heißt unbegrenzt; das Flag gilt für einen
+einzelnen Lauf.
 Was einen Bau einschränkt oder formt, gehört zum Aufruf, der ihn ausführt,
 nicht zur Konfiguration des Repositories, das indiziert wird. Kehrt dieser
 Abschnitt zurück, dann weil eine reale Anforderung eine Einstellung auf
