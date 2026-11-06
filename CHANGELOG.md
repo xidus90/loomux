@@ -7,6 +7,16 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.17.1] - 2026-11-06
+
+<https://github.com/xidus90/loomux/pull/133>
+
+### Security
+- Builds use Go 1.27.3, which fixes vulnerabilities in net/http (HTTP/2), crypto/tls, crypto/x509, net/textproto and os of the standard library.
+### Fixed
+- The write guard refuses a brace range whose ends lie so far apart that it used to unfold to no path at all, which left the command unchecked.
+- A flow input given as a JSON number too large for an int is refused instead of wrapping around.
+
 ## [1.17.0] - 2026-10-26
 
 <https://github.com/xidus90/loomux/pull/128>
