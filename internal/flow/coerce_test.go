@@ -2,6 +2,8 @@ package flow_test
 
 import (
 	"encoding/json"
+	"math"
+	"strconv"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/flow"
@@ -62,6 +64,14 @@ func TestCoerceKeepsAnIntTooLargeForAFloat(t *testing.T) {
 	}
 	if got != 9007199254740993 {
 		t.Fatalf("got %v, want 9007199254740993", got)
+	}
+}
+
+// One past the platform's int is refused, not wrapped around.
+func TestCoerceRefusesAJSONNumberPastTheInt(t *testing.T) {
+	past := strconv.FormatUint(uint64(math.MaxInt)+1, 10)
+	if got, err := flow.Coerce(flow.Int, json.Number(past)); err == nil {
+		t.Fatalf("Coerce(%s) = %v, want an error", past, got)
 	}
 }
 
