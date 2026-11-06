@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.17.2] - 2026-11-06
+
+<https://github.com/xidus90/loomux/pull/135>
+
+### Security
+- Two integer conversions are guarded in a form code scanning recognises; behaviour is unchanged.
+
 ## [1.17.1] - 2026-11-06
 
 <https://github.com/xidus90/loomux/pull/133>
