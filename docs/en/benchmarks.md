@@ -3903,3 +3903,205 @@ graphs were compared by source, relation and target.
 4. **The build time does not move**: cold and warm stay within the spread of
    one binary's runs. The 650 `.uid` files are read and hashed but not
    parsed.
+
+## 2026-11-03 23:15 — Baseline for the grep index: what `graph grep` costs today
+
+**Goal.** The baseline a trigram index has to beat, measured before any change:
+the cost of `loomux graph grep` over the graph's own file list, cold and warm,
+and the size of both corpora so the later entries have a denominator.
+
+**Method.** Binary from branch `docs/tgrep-loomux-fusion` (`1816634d`), built
+with `go build -o bin/loomux.exe ./cmd/loomux`. Cold is `graph build
+--no-reuse` (build's own timing reported below); warm is five runs of
+`graph grep <pattern> --no-refresh --json` with the median, and the minimum and
+maximum beside it, so the spread is visible. Patterns: a literal (`func
+Search`), an alternation (`Search|Grep`), a pattern without a literal
+(`[A-Z]{3}\w+`) and a case-insensitive one (`-i search`). One further series
+runs the same literal through the freshness probe (`graph grep 'func Search'
+--json`, no `--no-refresh`). Every timing includes process start-up. Windows 11
+Pro, repository `loomux` at that commit.
+
+| Measure | Value |
+| --- | ---: |
+| Cold `graph build --no-reuse`, build's own report | 1.278 s |
+| Cold build, wall clock of the call | 1.329 s |
+| Graph files | 1136 |
+| Graph nodes (symbols) | 12296 |
+| Graph edges | 46110 (12296 contains, 26800 calls, 7014 imports) |
+| `wiring.json` | 15 635 411 bytes |
+| Files git lists (tracked + untracked-unignored) | 8372 + 23 |
+| Bytes of those files | 16 960 190 |
+
+| Pattern | Warm median | Min | Max |
+| --- | ---: | ---: | ---: |
+| `func Search` (literal) | 142.1 ms | 131.0 ms | 149.6 ms |
+| `Search|Grep` (alternation) | 273.5 ms | 250.7 ms | 289.2 ms |
+| `[A-Z]{3}\w+` (no literal) | 241.6 ms | 230.6 ms | 249.7 ms |
+| `-i search` | 275.9 ms | 264.5 ms | 346.3 ms |
+| `func Search` with freshness probe | 223.5 ms | — | — |
+
+**Key Findings**
+
+1. **The corpus is the story, not the graph.** The graph indexes 1136 files;
+   git lists 8395 text-bearing paths. A search that only sees the graph's file
+   list today misses most of the repository, which is what the fourth round of
+   the design changes.
+2. **A scan costs 142 ms for a literal and 276 ms for `-i`** on 16.96 MB. The
+   index has to beat those numbers on the larger corpus, not on this one.
+3. **The freshness probe is not free**: 223.5 ms against 142.1 ms for the same
+   literal, so a query with refresh pays about 80 ms for the walk and stat
+   comparison today.
+4. **No tgrep comparison.** The binary is not on `PATH` on this machine, so the
+   gate of the plan's part C cannot run yet; it is recorded as not measurable
+   here and is measured after `C1`.
+## 2026-11-04 20:05 — The trigram index on the search corpus: cold build, warm search, freshness probe
+
+The search corpus of `graph grep` changed in this branch: it is now every text
+file git does not ignore (dot directories stay out, binaries and files above
+the size limit are counted and skipped), not the graph's file list. `graph
+build` writes a trigram index for it beside the graph
+(`.loomux/state/graph/cache/trigram.idx`), and `graph grep` answers from that
+index when the pattern has a literal condition and from a scan of the same list
+otherwise. Baseline is the entry of 2026-11-03 23:15. Same machine, same
+repository, Windows 11 Pro; the corpus grew from the graph's 1136 files to the
+search corpus measured below, so the comparison is against a different corpus,
+not a different machine.
+
+Method: one cold `graph build --no-reuse`, then five warm runs per pattern with
+`--no-refresh --json`, the median and the range of the five; one further series
+runs the literal with the freshness probe (`graph grep 'func Search' --json`).
+Every timing includes process start-up. The patterns are the baseline's:
+literal (`func Search`), alternation (`Search|Grep`), no literal
+(`[A-Z]{3}\w+`), case-insensitive (`-i search`).
+
+| Measure | Value |
+| --- | ---: |
+| Cold `graph build --no-reuse`, build's own report | 3.494 s |
+| Cold build, wall clock of the call | 3.397 s |
+| Graph files | 1166 |
+| Graph nodes (symbols) | 13772 |
+| Graph edges | 47184 (12606 contains, 27402 calls, 7176 imports) |
+| `wiring.json` | 15 997 261 bytes |
+| Search corpus files | 7648 |
+| Bytes of those files | 15 663 204 |
+| Binary files skipped | 6 (292 185 bytes) |
+| Ignored files (counted, not searched) | 12 |
+| `cache/corpus.json` | 2 341 282 bytes |
+| `cache/trigram.idx` | 13 134 390 bytes |
+| Index as share of corpus bytes | 83.9 % |
+
+| Pattern | Warm median | Min | Max | Baseline median |
+| --- | ---: | ---: | ---: | ---: |
+| `func Search` (literal) | 288.6 ms | 279.6 ms | 289.9 ms | 142.1 ms |
+| `Search|Grep` (alternation) | 459.8 ms | 431.4 ms | 465.3 ms | 273.5 ms |
+| `[A-Z]{3}\w+` (no literal) | 796.9 ms | 765.8 ms | 811.0 ms | 241.6 ms |
+| `-i search` | 371.1 ms | 363.5 ms | 378.9 ms | 275.9 ms |
+| `func Search` with freshness probe | 417.8 ms | — | — | 223.5 ms |
+
+**Key Findings**
+
+1. **The corpus got 6.7 times larger; a literal warm search got 2.0 times
+   slower.** 1136 graph files became 7648 search files and 15.66 MB of text.
+   A literal costs 288.6 ms, of which the index only removes the reading of
+   files without a matching trigram; the walk over 7678 directory entries and
+   the stat comparison stay, and that is most of the time.
+2. **A pattern without a literal scans all 7648 files**: 796.9 ms. That path
+   existed before and is expected to be expensive; the index cannot narrow
+   `[A-Z]{3}\w+`.
+3. **The freshness probe costs 129 ms** (417.8 ms against 288.6 ms for the same
+   literal). It walks the tree and compares sizes and mtimes; a clean tree
+   answers from the record without a git call.
+4. **Both performance targets of the design are missed on this repository.**
+   The warm target of under 50 ms and the index target of under 10 % of the
+   corpus bytes (83.9 %) are draft numbers, not gates; the plan's gate is the
+   comparison against tgrep in part C, and it is still open. The cold build
+   costs 3.494 s against the baseline's 1.278 s (+173 %) — above the draft's
+   20 % build-overhead target — because the same pass now hashes and indexes
+   7648 files instead of 1136.
+5. **The ignore semantics match git on this repository.** An oracle run over
+   7678 visited files found no difference against `git check-ignore --stdin`.
+   The selected corpus (7648 files) differs from `git ls-files --cached
+   --others --exclude-standard` (8426) in exactly the expected classes: 778
+   files under dot directories the walk does not enter, 6 paths git prints
+   C-quoted (non-ASCII names) and 6 of those same paths as the unquoted
+   opposite in our list; no unexplained difference.
+
+**Open**: the tgrep comparison of part C, a decision on compressing the index
+(83.9 % is too large for the draft target), and the build overhead being above
+the draft target.
+
+## 2026-11-06 11:35 — The Gate Against tgrep (Part C)
+
+Measured on Windows x86_64. tgrep is the measurement tool, never a runtime
+dependency of the plugin: version **1.2.3**, installed through WinGet as
+`C:\Users\micro\AppData\Local\Microsoft\WinGet\Packages\Microsoft.tgrep_Microsoft.Winget.Source_8wekyb3d8bbwe\tgrep.exe`,
+called by absolute path only. loomux is `bin\loomux.exe` of the fusion branch.
+
+**Method.** Same repository, same ignore rules, same size policy (both default
+to 64 MiB), same patterns: a literal (`func Search`), an alternation
+(`Search|Grep`), a pattern without a literal (`[A-Z]{3}\w+`) and `-i` with an
+ASCII pattern (`func search`). Both sides read ASCII classes: tgrep runs
+`--no-unicode`, Go's RE2 is ASCII by default. The compared set is every
+`(path, line)` pair. Cold is the first run after a rebuild, whose build time is
+reported separately; warm is the median of five runs after one warm-up. The OS
+file cache is not cleared.
+
+**Corpus equality.** tgrep's walker lists 7668 files against loomux's 7662; the
+six differences are binary files that loomux drops on the first NUL byte
+(`.gz`, `.idx`, three `testdata`/`index` files, an encrypted PDF). tgrep's index
+counts 8419 internal files, but its search answers from the same ignore scope:
+for all four patterns the `(path, line)` sets are identical (24, 790, 8931 and
+27 hits), with `truncated_hits == 0` on the loomux side.
+
+**Build.** loomux `graph build --no-reuse`: 3829 ms wall (3.758 s report).
+tgrep `index --index-path .cache\tgrep-index .`: 503 ms (index 101770 trigrams,
+8419 files).
+
+| Pattern | Cold loomux | Cold tgrep | Warm loomux | Warm tgrep |
+| --- | ---: | ---: | ---: | ---: |
+| `func Search` (literal) | 421.3 ms | 23.6 ms | 279.3 ms | 21.2 ms |
+| `Search|Grep` (alternation) | 650.1 ms | 58.9 ms | 427.5 ms | 51.3 ms |
+| `[A-Z]{3}\w+` (no literal) | 954.0 ms | 4,297.8 ms | 817.4 ms | 4,621.7 ms |
+| `-i func search` | 484.6 ms | 70.7 ms | 306.6 ms | 82.3 ms |
+
+**Second corpus `iam_backend`.** The real tree cannot be measured in place: a
+process of this session may not create state outside the workspace (`graph
+build --root C:\Users\micro\Documents\#GIT\iam_backend` fails with
+`Zugriff verweigert` on the first `.loomux` write). Its `.loomux` also carries
+no trigram index. The corpus was therefore copied from tgrep's 517-file list
+into a scratch tree inside the workspace, and the same method ran there; 515
+files are in loomux's corpus (the two `.mo` files are binary). The `(path,
+line)` sets are again identical for all four patterns (0, 50, 11338, 0 hits).
+Build: loomux 3.2 s, tgrep 0.2 s.
+
+| Pattern | Cold loomux | Cold tgrep | Warm loomux | Warm tgrep |
+| --- | ---: | ---: | ---: | ---: |
+| `func Search` (literal) | 198.2 ms | 24.2 ms | 124.7 ms | 31.6 ms |
+| `Search|Grep` (alternation) | 310.7 ms | 38.0 ms | 227.2 ms | 40.8 ms |
+| `[A-Z]{3}\w+` (no literal) | 538.0 ms | 408.7 ms | 577.9 ms | 434.0 ms |
+| `-i func search` | 123.3 ms | 18.2 ms | 121.6 ms | 24.1 ms |
+
+**Key Findings**
+
+1. **The gate fails.** It asks for median loomux at most median tgrep for
+   every pattern and corpus. On the repository loomux is slower on three of
+   four patterns (literal 13 times, alternation 8 times, `-i` 3.7 times) and
+   wins only where tgrep has no index: a pattern without a literal (817 ms
+   against 4,622 ms). On the second corpus it wins the literal and the
+   literal-less pattern and loses the alternation and `-i`.
+2. **The cost is the process start, not the search.** loomux loads the 16 MB
+   wiring file and the 13 MB trigram index on every call; tgrep's warm literal
+   answers in 21 ms from its index. A daemon would change the picture, but the
+   design keeps loomux a one-shot binary.
+3. **The hit sets agree exactly.** On both corpora all four patterns produce
+   identical `(path, line)` sets, including the 8931 literal-less hits on the
+   repository. The fusion is correct; it is not yet fast enough to replace
+   tgrep.
+4. **Consequences.** Part C4 (remove tgrep, disable `dsh-tgrep`) is not
+   executed. tgrep stays available as the measurement tool and `dsh-tgrep`
+   stays enabled; `dsh-loomux` is installed next to it, and which `grep`
+   answers is decided by the profile after a restart.
+
+**Open**: closing the start-up gap (lazy index loading, a smaller wiring file,
+or a resident process), and the profile question of which plugin owns `grep`.
+

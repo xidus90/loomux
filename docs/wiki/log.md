@@ -4,6 +4,16 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-11-04
+
+- 2026-11-04 — `topics/code-graph.md` und
+  `topics/datenschutz-und-kanaele.md`: `graph grep` durchsucht den Suchkorpus
+  aller nicht ignorierten Textdateien über einen Trigramm-Index, und
+  `--channel cloud` liest die `never`-Deklaration; die Aussage „kein Kanal, kein
+  Filter“ gilt nur noch ohne dieses Flag. Quelle: Code von loomux
+  (`internal/code/query/grep.go`, `internal/code/corpus`, `internal/code/trigram`)
+  und `docs/de/cli-reference.md` §6.
+
 ## 2026-10-25
 
 - 2026-10-25 — `syntheses/modelladapter-ueber-die-cli.md`: Abschnitt

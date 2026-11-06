@@ -3945,3 +3945,211 @@ verglichen.
 4. **Die Build-Zeit bewegt sich nicht**: kalt und warm bleiben in der Streuung
    der Läufe eines Binarys. Die 650 `.uid`-Dateien werden gelesen und
    gehasht, aber nicht geparst.
+
+## 2026-11-03 23:15 — Basis für den Grep-Index: was `graph grep` heute kostet
+
+**Ziel.** Die Basis, die ein Trigramm-Index schlagen muss, vor jeder Änderung
+gemessen: die Kosten von `loomux graph grep` über die Dateiliste des Graphen,
+kalt und warm, dazu die Größe beider Korpora, damit spätere Einträge einen
+Nenner haben.
+
+**Methode.** Binary aus Zweig `docs/tgrep-loomux-fusion` (`1816634d`), gebaut
+mit `go build -o bin/loomux.exe ./cmd/loomux`. Kalt ist `graph build
+--no-reuse` (die Zeit des Builds selbst steht unten); warm sind fünf Läufe von
+`graph grep <muster> --no-refresh --json` mit dem Median und dem kleinsten und
+größten Wert daneben, damit die Streuung sichtbar ist. Muster: ein Literal
+(`func Search`), eine Alternation (`Search|Grep`), ein Muster ohne Literal
+(`[A-Z]{3}\w+`) und ein fallunabhängiges (`-i search`). Eine weitere Reihe
+schickt dasselbe Literal durch die Freshness-Probe (`graph grep 'func Search'
+--json`, ohne `--no-refresh`). Jede Zeit enthält den Prozessstart. Windows 11
+Pro, Repository `loomux` auf diesem Commit.
+
+| Messgröße | Wert |
+| --- | ---: |
+| Kalter `graph build --no-reuse`, Bericht des Builds | 1,278 s |
+| Kalter Build, Uhrzeit des Aufrufs | 1,329 s |
+| Dateien des Graphen | 1136 |
+| Knoten (Symbole) | 12296 |
+| Kanten | 46110 (12296 contains, 26800 calls, 7014 imports) |
+| `wiring.json` | 15 635 411 Bytes |
+| Dateien, die git listet (getrackt + untracked-unignored) | 8372 + 23 |
+| Bytes dieser Dateien | 16 960 190 |
+
+| Muster | Warmer Median | Min | Max |
+| --- | ---: | ---: | ---: |
+| `func Search` (Literal) | 142,1 ms | 131,0 ms | 149,6 ms |
+| `Search|Grep` (Alternation) | 273,5 ms | 250,7 ms | 289,2 ms |
+| `[A-Z]{3}\w+` (ohne Literal) | 241,6 ms | 230,6 ms | 249,7 ms |
+| `-i search` | 275,9 ms | 264,5 ms | 346,3 ms |
+| `func Search` mit Freshness-Probe | 223,5 ms | — | — |
+
+**Erkenntnisse**
+
+1. **Der Korpus ist die Geschichte, nicht der Graph.** Der Graph indiziert 1136
+   Dateien; git listet 8395 Pfade. Eine Suche, die heute nur die Dateiliste des
+   Graphen sieht, verfehlt den größten Teil des Repositories — genau das ändert
+   der vierte Durchgang des Designs.
+2. **Ein Scan kostet 142 ms für ein Literal und 276 ms für `-i`** auf 16,96 MB.
+   Der Index muss diese Zahlen auf dem größeren Korpus schlagen, nicht auf
+   diesem.
+3. **Die Freshness-Probe ist nicht kostenlos**: 223,5 ms gegen 142,1 ms für
+   dasselbe Literal, eine Abfrage mit Refresh zahlt heute also rund 80 ms für
+   Walk und Stat-Vergleich.
+4. **Kein tgrep-Vergleich.** Die Binary ist auf dieser Maschine nicht auf
+   `PATH`; das Gate aus Teil C des Plans kann deshalb noch nicht laufen. Es ist
+   hier als nicht messbar vermerkt und wird nach `C1` gemessen.
+## 2026-11-04 20:05 — Der Trigramm-Index auf dem Suchkorpus: kalter Build, warme Suche, Freshness-Probe
+
+Der Suchkorpus von `graph grep` hat sich in diesem Branch geändert: Er ist
+jetzt jede Textdatei, die git nicht ignoriert (Punktverzeichnisse bleiben
+draußen, Binärdateien und Dateien über dem Größenlimit werden gezählt und
+übersprungen), nicht mehr die Dateiliste des Graphen. `graph build` schreibt
+dafür einen Trigramm-Index neben den Graphen
+(`.loomux/state/graph/cache/trigram.idx`), und `graph grep` antwortet aus
+diesem Index, wenn das Muster eine Literalbedingung hat, sonst aus einem Scan
+derselben Liste. Basis ist der Eintrag vom 2026-11-03 23:15. Gleiche Maschine,
+gleiches Repository, Windows 11 Pro; der Korpus ist von den 1136 Dateien des
+Graphen auf den unten gemessenen Suchkorpus gewachsen, der Vergleich gilt also
+einem anderen Korpus, nicht einer anderen Maschine.
+
+Methode: ein kalter `graph build --no-reuse`, dann fünf warme Läufe je Muster
+mit `--no-refresh --json`, Median und Spanne der fünf; eine weitere Reihe
+schickt das Literal durch die Freshness-Probe (`graph grep 'func Search'
+--json`). Jede Zeit enthält den Prozessstart. Die Muster sind die der Basis:
+Literal (`func Search`), Alternation (`Search|Grep`), ohne Literal
+(`[A-Z]{3}\w+`), fallunabhängig (`-i search`).
+
+| Messgröße | Wert |
+| --- | ---: |
+| Kalter `graph build --no-reuse`, Bericht des Builds | 3,494 s |
+| Kalter Build, Uhrzeit des Aufrufs | 3,397 s |
+| Dateien des Graphen | 1166 |
+| Knoten (Symbole) | 13772 |
+| Kanten | 47184 (12606 contains, 27402 calls, 7176 imports) |
+| `wiring.json` | 15 997 261 Bytes |
+| Dateien des Suchkorpus | 7648 |
+| Bytes dieser Dateien | 15 663 204 |
+| Übersprungene Binärdateien | 6 (292 185 Bytes) |
+| Ignorierte Dateien (gezählt, nicht durchsucht) | 12 |
+| `cache/corpus.json` | 2 341 282 Bytes |
+| `cache/trigram.idx` | 13 134 390 Bytes |
+| Index als Anteil der Korpus-Bytes | 83,9 % |
+
+| Muster | Warmer Median | Min | Max | Median der Basis |
+| --- | ---: | ---: | ---: | ---: |
+| `func Search` (Literal) | 288,6 ms | 279,6 ms | 289,9 ms | 142,1 ms |
+| `Search|Grep` (Alternation) | 459,8 ms | 431,4 ms | 465,3 ms | 273,5 ms |
+| `[A-Z]{3}\w+` (ohne Literal) | 796,9 ms | 765,8 ms | 811,0 ms | 241,6 ms |
+| `-i search` | 371,1 ms | 363,5 ms | 378,9 ms | 275,9 ms |
+| `func Search` mit Freshness-Probe | 417,8 ms | — | — | 223,5 ms |
+
+**Erkenntnisse**
+
+1. **Der Korpus ist 6,7-mal größer geworden; ein warmes Literal ist 2,0-mal
+   langsamer.** Aus 1136 Graphdateien wurden 7648 Suchdateien mit 15,66 MB
+   Text. Ein Literal kostet 288,6 ms; der Index erspart nur das Lesen von
+   Dateien ohne passendes Trigramm, der Walk über 7678 Verzeichniseinträge und
+   der Stat-Vergleich bleiben — und die sind der größte Teil der Zeit.
+2. **Ein Muster ohne Literal scannt alle 7648 Dateien**: 796,9 ms. Diesen Pfad
+   gab es vorher auch; er ist erwartbar teuer, der Index kann
+   `[A-Z]{3}\w+` nicht eingrenzen.
+3. **Die Freshness-Probe kostet 129 ms** (417,8 ms gegen 288,6 ms für dasselbe
+   Literal). Sie geht den Baum entlang und vergleicht Größe und mtime; ein
+   sauberer Baum antwortet aus dem Record ohne git-Aufruf.
+4. **Beide Performance-Ziele des Designs werden in diesem Repository
+   verfehlt.** Das warme Ziel von unter 50 ms und das Index-Ziel von unter 10 %
+   der Korpus-Bytes (83,9 %) sind Entwurfszahlen, keine Gates; das Gate des
+   Plans ist der Vergleich gegen tgrep in Teil C, und der ist offen. Der kalte
+   Build kostet 3,494 s gegen 1,278 s der Basis (+173 %) — über dem
+   Entwurfsziel von 20 % Build-Overhead —, weil derselbe Durchgang jetzt 7648
+   Dateien hasht und indiziert statt 1136.
+5. **Die Ignore-Semantik stimmt in diesem Repository mit git überein.** Ein
+   Orakel-Lauf über 7678 besuchte Dateien fand keine Abweichung gegen
+   `git check-ignore --stdin`. Der gewählte Korpus (7648 Dateien) unterscheidet
+   sich von `git ls-files --cached --others --exclude-standard` (8426) genau in
+   den erwarteten Klassen: 778 Dateien unter Punktverzeichnissen, die der Walk
+   nicht betritt, 6 Pfade, die git C-quotet (Nicht-ASCII-Namen), und dieselben
+   6 Pfade ungequotet auf unserer Seite; keine unerklärte Abweichung.
+
+**Offen**: der tgrep-Vergleich aus Teil C, eine Entscheidung über eine
+Kompression des Index (83,9 % sind zu groß für das Entwurfsziel) und der
+Build-Overhead über dem Entwurfsziel.
+
+## 2026-11-06 11:35 — Das Gate gegen tgrep (Teil C)
+
+Gemessen auf Windows x86_64. tgrep ist Messwerkzeug, nie Laufzeit-Abhängigkeit
+des Plugins: Version **1.2.3**, über WinGet installiert als
+`C:\Users\micro\AppData\Local\Microsoft\WinGet\Packages\Microsoft.tgrep_Microsoft.Winget.Source_8wekyb3d8bbwe\tgrep.exe`,
+nur per absolutem Pfad aufgerufen. loomux ist `bin\loomux.exe` des
+Fusionsbranchs.
+
+**Methode.** Dasselbe Repository, dieselben Ignore-Regeln, dieselbe
+Größenpolitik (beide standardmäßig 64 MiB), dieselben Muster: ein Literal
+(`func Search`), eine Alternation (`Search|Grep`), ein Muster ohne Literal
+(`[A-Z]{3}\w+`) und `-i` mit einem ASCII-Muster (`func search`). Beide Seiten
+lesen ASCII-Klassen: tgrep läuft mit `--no-unicode`, Go-RE2 ist standardmäßig
+ASCII. Verglichen wird die Menge aller `(path, line)`-Paare. Kalt ist der erste
+Lauf nach einem Neuaufbau, dessen Build-Zeit getrennt steht; warm ist der
+Median aus fünf Läufen nach einem Vorlauf. Der Dateicache des Systems wird
+nicht geleert.
+
+**Gleichheit des Korpus.** tgrep zählt im Walk 7668 Dateien, loomux 7662; die
+sechs Unterschiede sind Binärdateien, die loomux am ersten NUL-Byte verwirft
+(`.gz`, `.idx`, drei `testdata`/`index`-Dateien, ein verschlüsseltes PDF).
+tgrep indiziert intern 8419 Dateien, antwortet aber im selben Ignore-Bereich:
+für alle vier Muster sind die `(path, line)`-Mengen identisch (24, 790, 8931
+und 27 Treffer), mit `truncated_hits == 0` auf der loomux-Seite.
+
+**Build.** loomux `graph build --no-reuse`: 3829 ms Wanduhr (3,758 s Bericht).
+tgrep `index --index-path .cache\tgrep-index .`: 503 ms (Index 101770 Trigramme,
+8419 Dateien).
+
+| Muster | Kalt loomux | Kalt tgrep | Warm loomux | Warm tgrep |
+| --- | ---: | ---: | ---: | ---: |
+| `func Search` (Literal) | 421,3 ms | 23,6 ms | 279,3 ms | 21,2 ms |
+| `Search|Grep` (Alternation) | 650,1 ms | 58,9 ms | 427,5 ms | 51,3 ms |
+| `[A-Z]{3}\w+` (ohne Literal) | 954,0 ms | 4.297,8 ms | 817,4 ms | 4.621,7 ms |
+| `-i func search` | 484,6 ms | 70,7 ms | 306,6 ms | 82,3 ms |
+
+**Zweiter Korpus `iam_backend`.** Der echte Baum ist nicht an Ort und Stelle
+messbar: ein Prozess dieser Sitzung darf außerhalb des Arbeitsbereichs keinen
+Zustand anlegen (`graph build --root C:\Users\micro\Documents\#GIT\iam_backend`
+scheitert mit `Zugriff verweigert` beim ersten `.loomux`-Schreiben). Sein
+`.loomux` enthält außerdem keinen Trigramm-Index. Der Korpus wurde deshalb aus
+tgrep's 517-Dateien-Liste in einen Scratch-Baum im Arbeitsbereich kopiert und
+dieselbe Methode dort gefahren; 515 Dateien liegen in loomux' Korpus (die zwei
+`.mo`-Dateien sind binär). Die `(path, line)`-Mengen sind wieder für alle vier
+Muster identisch (0, 50, 11338, 0 Treffer). Build: loomux 3,2 s, tgrep 0,2 s.
+
+| Muster | Kalt loomux | Kalt tgrep | Warm loomux | Warm tgrep |
+| --- | ---: | ---: | ---: | ---: |
+| `func Search` (Literal) | 198,2 ms | 24,2 ms | 124,7 ms | 31,6 ms |
+| `Search|Grep` (Alternation) | 310,7 ms | 38,0 ms | 227,2 ms | 40,8 ms |
+| `[A-Z]{3}\w+` (ohne Literal) | 538,0 ms | 408,7 ms | 577,9 ms | 434,0 ms |
+| `-i func search` | 123,3 ms | 18,2 ms | 121,6 ms | 24,1 ms |
+
+**Kernbefunde**
+
+1. **Das Gate scheitert.** Es verlangt Median loomux höchstens Median tgrep für
+   jedes Muster und jeden Korpus. Im Repository ist loomux bei drei von vier
+   Mustern langsamer (Literal 13-mal, Alternation 8-mal, `-i` 3,7-mal) und
+   gewinnt nur, wo tgrep keinen Index hat: ein Muster ohne Literal (817 ms
+   gegen 4.622 ms). Im zweiten Korpus gewinnt es Literal und Muster ohne
+   Literal und verliert Alternation und `-i`.
+2. **Die Kosten sind der Prozessstart, nicht die Suche.** loomux lädt bei jedem
+   Aufruf die 16 MB große Wiring-Datei und den 13 MB großen Trigramm-Index;
+   tgrep beantwortet ein warmes Literal in 21 ms aus seinem Index. Ein Daemon
+   würde das Bild ändern, aber der Entwurf hält loomux als Einmal-Binary.
+3. **Die Treffermengen stimmen exakt.** In beiden Korpora ergeben alle vier
+   Muster identische `(path, line)`-Mengen, auch die 8931 Treffer ohne Literal
+   im Repository. Die Fusion ist korrekt; sie ist noch nicht schnell genug, um
+   tgrep zu ersetzen.
+4. **Folgen.** Teil C4 (tgrep entfernen, `dsh-tgrep` abschalten) wird nicht
+   ausgeführt. tgrep bleibt als Messwerkzeug verfügbar und `dsh-tgrep` bleibt
+   aktiv; `dsh-loomux` ist daneben installiert, und welches `grep` antwortet,
+   entscheidet das Profil nach einem Neustart.
+
+**Offen**: den Startvorsprung schließen (verzögertes Laden des Index, kleinere
+Wiring-Datei oder ein residenter Prozess) und die Profilfrage, welches Plugin
+`grep` besitzt.
+

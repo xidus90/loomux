@@ -9,8 +9,8 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:6eb1b4a440fda08eb8b8700da49ed2127019e0b32f0abdc207e427c3c5bf8c43"
-    revision: 23
+    content_hash: "sha256:8a016fdc57b0dea4002a5add57156fae0b1b975462f9c4171b9f8584c6ec29fe"
+    revision: 24
   - id: hooks
     resource: brain://project/loomux/docs/de/hooks.md
     doc_id: 01M47W91R5H3G1QSXZV5C17HS9
@@ -19,8 +19,8 @@ sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:526ec0aee465584522e82007d74a8af951d2c82738a4b704a2c6f742d95ebe86"
-    revision: 7
+    content_hash: "sha256:00de78eaa12582e8e6a2fe1acc35eb08c92b574565e3ef0cb882c9e2dbb55d68"
+    revision: 8
 ---
 
 ## Wofür
