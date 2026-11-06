@@ -315,6 +315,17 @@ anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
 | `{from:NAME}` | Ein ganzes Argument: `--from=NAME==<version>`, wo `tools` `NAME` festlegt, sonst gar kein Argument; für `uvx` (`uvx {from:ruff} ruff check .`). |
 | `{godot}` | Nur `gdscript`, anderswo ein Ladefehler. Die Linie kommt aus der `project.godot` des Bereichs: `config/features` nennt Haupt- und Nebenversion, und wo es fehlt — in einem Godot-3-Projekt ab 3.1 — steht `config_version=4` für die ganze 3er-Linie, von der nur die Hauptversion verglichen wird. Ein `config_version`, das keine eigene Linie nennt, `5` ohne `config/features` eingeschlossen, lässt die Lane `unready`. Ein Binary aus `GODOT_BIN` oder `[verify.gdscript] godot` wird an diese Linie gehalten: eines einer anderen Linie wird abgelehnt, nicht übergangen, denn es zu nennen war Absicht. Nennt keines von beiden eines, werden die Engines aus `GODOT_BIN_DIR` (dessen Dateien, deren Name mit `godot` beginnt, in Namensreihenfolge) und danach `godot`/`godot4` vom `PATH` der Reihe nach gefragt, und das erste, das zur Linie passt, gewinnt. Unter Windows wird die `_console.exe` neben einer gefundenen `.exe` genommen, da die Fensterfassung nichts auf stdout schreibt. Ein Mono-Build ist nötig, wo das Projekt einen `[dotnet]`-Abschnitt hat. Passt kein Kandidat, ist die Lane `unready` und nennt gefundene Fassung und gewollte Linie; gibt es gar keinen, ist sie `missing-tool` und sagt, wo gesucht wurde. Jedes verschiedene Binary wird je Lauf einmal gefragt, höchstens 30 s lang; an einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget, und eine Lane, deren Binary nicht rechtzeitig gefragt werden konnte, endet als `budget`, nie als Abweichung. |
 
+Go-Lanes laufen mit Arbeitsverzeichnis und Build-Cache des Go-Werkzeugs im
+Home des Nutzers: `GOTMPDIR=~/.loomux/tmp` und `GOCACHE=~/.loomux/go-cache`,
+jeweils nur, wo die Umgebung den Wert nicht schon setzt. Eine Sandbox, die
+einen Hook nur in freigegebene Ordner schreiben lässt, verweigert `%TEMP%` und
+den Standard-Cache, und dann scheitert jeder Go-Befehl, bevor er eine Quelle
+liest; ein fester Ordner je Nutzer wird einmal freigegeben und gilt für jedes
+Repository. Er liegt außerhalb jedes Repositorys, also finden die temporären
+Verzeichnisse der Tests kein Repository über sich. Lässt sich der Ordner nicht
+anlegen oder beschreiben, ist die Lane `unready` und nennt den freizugebenden
+Pfad.
+
 - Eine `coverage`-Lane, die `{coverprofile}` liest, während weder `test`,
   `test.measuring` noch `coverage.measure` desselben Stacks es schreibt, ist
   ein Ladefehler.

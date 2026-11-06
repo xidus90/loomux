@@ -93,6 +93,9 @@ type PlanEnv struct {
 	// Godot finds the binary {godot} names for the project in dir, or says why
 	// the lane cannot run; nil means a lane naming {godot} is missing-tool.
 	Godot func(dir string) (bin string, pre State, note string)
+	// GoWork is the extra environment of every Go lane, or why none can run
+	// (see GoWork); nil means none.
+	GoWork func() (env []string, pre State, note string)
 }
 
 // ImportReady says whether Godot knows the global classes a headless test
@@ -494,6 +497,15 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		}
 		godot = bin
 	}
+	var goEnv []string
+	if stack == "go" && env.GoWork != nil {
+		e, pre, note := env.GoWork()
+		if pre != "" {
+			job.Pre, job.Note = pre, note
+			return job, link{}, true, nil
+		}
+		goEnv = e
+	}
 	profile, data := CoverPaths(env.Root, env.RunID, stack, area)
 	pairs := []string{"{area}", dir, "{coverprofile}", profile, "{coverdata}", data, "{loomux}", env.Loomux}
 	if req.Scope == ScopeEdit {
@@ -527,6 +539,7 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 			l.hidden = []string{data}
 		}
 	}
+	job.Env = append(job.Env, goEnv...)
 	if isRootKind(kind) && env.GraphEnv != nil {
 		job.Env = append(job.Env, env.GraphEnv(env.Root)...)
 	}
