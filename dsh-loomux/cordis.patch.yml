@@ -1,0 +1,8 @@
+# The plugin layer of dsh-loomux: one insert entry, applied when the profile
+# loads this package. `binary` is resolved through PATH; set it to an absolute
+# path when loomux lives outside PATH.
+- insert:
+    - id: loomux
+      name: dsh-loomux
+      config:
+        binary: loomux

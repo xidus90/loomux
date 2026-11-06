@@ -1,0 +1,52 @@
+{
+  "name": "dsh-loomux",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness grep tool backed by loomux graph grep",
+  "homepage": "https://github.com/xidus90/loomux/tree/master/dsh-loomux#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xidus90/loomux.git",
+    "directory": "dsh-loomux"
+  },
+  "bugs": {
+    "url": "https://github.com/xidus90/loomux/issues"
+  },
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "prepublishOnly": "node --test"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "grep",
+    "search",
+    "loomux",
+    "code-graph"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
