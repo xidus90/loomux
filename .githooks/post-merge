@@ -1,0 +1,8 @@
+#!/bin/sh
+# loomux post-merge hook -- records that something landed. Nothing more.
+#
+# It runs inside git merge: it may not block, fail or print. Which repository
+# and branch count is decided by `loomux merge-hook record` from the registry,
+# so nothing of this machine is baked in and the file may be checked in.
+"${LOCALAPPDATA}/loomux/bin/loomux.exe" merge-hook record >/dev/null 2>&1
+exit 0
