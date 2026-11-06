@@ -101,7 +101,7 @@ runtime = "python"
 version = "3.15"
 fixture = "python-mypy"
 kinds = ["lint", "types", "test", "coverage", "graph"]
-tools = { ruff = "0.17.*", mypy = "2.4.*", pytest = "9.1.*", coverage = "7.16.*" }
+tools = { ruff = "0.17.*", mypy = "2.4.*", pytest = "9.2.*", coverage = "7.17.*" }
 
 [[entry]]
 stack = "python"
@@ -109,7 +109,7 @@ runtime = "python"
 version = "3.15"
 fixture = "python-pyright"
 kinds = ["lint", "types", "test", "coverage", "graph"]
-tools = { ruff = "0.17.*", pytest = "9.1.*", coverage = "7.16.*" }
+tools = { ruff = "0.17.*", pytest = "9.2.*", coverage = "7.17.*" }
 
 [[entry]]
 stack = "go"

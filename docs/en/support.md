@@ -51,8 +51,8 @@ Each row is a combination loomux runs for real before a major release and whenev
 | python | python | 3.12 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
 | python | python | 3.13 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
 | python | python | 3.14 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
-| python | python | 3.15 | python-mypy | — | coverage 7.16.*, mypy 2.4.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
-| python | python | 3.15 | python-pyright | — | coverage 7.16.*, pytest 9.1.*, ruff 0.17.* | lint, types, test, coverage, graph |
+| python | python | 3.15 | python-mypy | — | coverage 7.17.*, mypy 2.4.*, pytest 9.2.*, ruff 0.17.* | lint, types, test, coverage, graph |
+| python | python | 3.15 | python-pyright | — | coverage 7.17.*, pytest 9.2.*, ruff 0.17.* | lint, types, test, coverage, graph |
 | go | go | 1.26 | go-module | — | — | lint, test, coverage, graph |
 | go | go | 1.27 | go-module | — | — | lint, test, coverage, graph |
 
