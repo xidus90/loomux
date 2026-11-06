@@ -99,6 +99,7 @@ func Keys() []Key {
 		// list against verify.ToolsOf.
 		{Section: "verify.python.tools", Name: Wildcard, Kind: String, Module: Hooks, Doc: "The version of a tool the Python presets bring (ruff, mypy, pytest, coverage); unset, the newest."},
 		{Section: "verify.gdscript.tools", Name: Wildcard, Kind: String, Module: Hooks, Doc: "The version of gdtoolkit the GDScript presets bring; unset, the newest."},
+		{Section: "grep", Name: "max_filesize", Kind: Int, Default: "67108864", Module: Graph, Doc: "Largest file the search corpus reads, in bytes; 0 means unlimited."},
 		{Section: "area", Name: "scope", Kind: String, Module: Brain, Doc: "The scope this project is registered under, e.g. project/loomux."},
 		{Section: "layout", Name: "wiki", Kind: String, Module: Brain, Doc: "Where the wiki bundle lives, relative to the root."},
 		{Section: "layout", Name: "hub", Kind: String, Module: Brain, Doc: "Where the hub pages live."},

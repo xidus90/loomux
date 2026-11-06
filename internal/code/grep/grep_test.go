@@ -291,6 +291,16 @@ func TestSearchEdgeCases(t *testing.T) {
 		t.Fatalf("want unindexed prefix error, got %v", err)
 	}
 
+	// A prefix whose files the glob filtered out is still indexed.
+	_, err = grep.Search(g, x, nil, "target", grep.Options{
+		In:    "pkg",
+		Files: []string{"other/file.go"},
+		All:   []string{"other/file.go", "pkg/service.go"},
+	}, reader)
+	if err != nil {
+		t.Fatalf("a glob must not make an indexed prefix look missing: %v", err)
+	}
+
 	// Nil graph
 	res, err := grep.Search(nil, nil, nil, "target", grep.Options{}, reader)
 	if err != nil || res.TotalHits != 0 {
@@ -315,6 +325,71 @@ func TestSearchEdgeCases(t *testing.T) {
 // character after it, so `\\1` is a literal backslash before a 1 and `\(?=` an
 // optional literal parenthesis, while a third backslash or an unescaped group
 // brings the unsupported form back.
+// The corpus decides which files may be read: a file outside the candidate
+// set is not opened, and a binary file is skipped the same way the scan skips
+// it, so an index run and a scan agree on the answer.
+func TestSearchSkipsNonCandidatesAndBinaryFiles(t *testing.T) {
+	g := sampleGrepGraph()
+	x := blast.New(g)
+	reader := makeReader(map[string]string{
+		"pkg/service.go": "target\n",
+		"pkg/other.go":   "target\n",
+		"pkg/blob.bin":   "target\x00binary\n",
+	})
+
+	res, err := grep.Search(g, x, nil, "target", grep.Options{
+		Files:      []string{"pkg/blob.bin", "pkg/other.go", "pkg/service.go"},
+		Candidates: map[string]bool{"pkg/service.go": true},
+	}, reader)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if res.FilesInScope != 3 || res.Candidates != 1 {
+		t.Fatalf("want 3 files in scope and 1 candidate, got %d and %d", res.FilesInScope, res.Candidates)
+	}
+	if res.FilesSearched != 1 || res.TotalHits != 1 {
+		t.Fatalf("want only the candidate searched, got %d files and %d hits", res.FilesSearched, res.TotalHits)
+	}
+
+	res, err = grep.Search(g, x, nil, "target", grep.Options{
+		Files:      []string{"pkg/blob.bin", "pkg/service.go"},
+		Candidates: map[string]bool{"pkg/blob.bin": true, "pkg/service.go": true},
+	}, reader)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if res.FilesSearched != 1 {
+		t.Fatalf("want the binary file skipped before reading, got %d searched", res.FilesSearched)
+	}
+}
+
+func TestSearchCandidatesCountsTheScopeWhenNoIndexNarrows(t *testing.T) {
+	g := sampleGrepGraph()
+	x := blast.New(g)
+	reader := makeReader(sampleFiles())
+	files := []string{"other/file.go", "pkg/other.go", "pkg/service.go"}
+
+	res, err := grep.Search(g, x, nil, "target", grep.Options{Files: files}, reader)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if res.FilesInScope != 3 || res.Candidates != 3 {
+		t.Fatalf("want 3 in scope and 3 candidates without a narrowing index, got %d and %d", res.FilesInScope, res.Candidates)
+	}
+
+	res, err = grep.Search(g, x, nil, "target", grep.Options{
+		Files:      files,
+		In:         "pkg",
+		Candidates: map[string]bool{"other/file.go": true, "pkg/service.go": true},
+	}, reader)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if res.FilesInScope != 2 || res.Candidates != 1 {
+		t.Fatalf("want 2 in scope and 1 candidate inside pkg, got %d and %d", res.FilesInScope, res.Candidates)
+	}
+}
+
 func TestSearchRejectsOnlyUnescapedForms(t *testing.T) {
 	g := sampleGrepGraph()
 	x := blast.New(g)

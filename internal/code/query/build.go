@@ -11,10 +11,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 
+	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/freshness"
@@ -37,6 +37,14 @@ type Stats struct {
 	// for the build to write back. A file that is gone has none, so it leaves
 	// the cache with the first build that no longer finds it.
 	entries map[string]cacheEntry
+
+	// bodies are the bytes this build read, keyed by repo-relative path, so
+	// the search corpus hashes the graph's files without a second read.
+	bodies map[string][]byte
+
+	// Corpus is what the search corpus selection came to: how many files it
+	// holds and why it left the others out.
+	Corpus CorpusStats
 }
 
 // LangStats is what one language's files came to in a build.
@@ -57,6 +65,11 @@ type BuildOptions struct {
 	// way out when an extractor changed without its Version: the cache's
 	// entries still match then, and a plain build keeps them.
 	NoReuse bool
+
+	// MaxFilesize is the resolved search corpus limit; nil means the default
+	// and 0 means unlimited. The caller resolves it from flag and
+	// configuration so that the index, the record and the next probe agree.
+	MaxFilesize *int64
 }
 
 // Build is BuildWith and the defaults: the extraction of every unchanged file
@@ -80,6 +93,9 @@ func Build(root string, notice func(string)) (*model.Graph, Stats, error) {
 // build stands. Turning either into a failure would let a build that produced
 // everything a question needs report that it produced nothing.
 func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Graph, Stats, error) {
+	if notice == nil {
+		notice = func(string) {}
+	}
 	g, stats, err := Extract(root, ExtractOptions{Reuse: !opts.NoReuse, Notice: notice})
 	if err != nil {
 		return nil, Stats{}, err
@@ -99,6 +115,11 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
 	if err := writeCache(root, stats.entries); err != nil {
 		notice(fmt.Sprintf("extract cache not written: %v", err))
 	}
+	maxFilesize, err := corpus.ResolveMaxFilesize(opts.MaxFilesize, nil)
+	if err != nil {
+		return nil, Stats{}, err
+	}
+	stats.Corpus = writeCorpus(root, maxFilesize, stats.bodies, notice)
 	return g, stats, nil
 }
 
@@ -118,6 +139,7 @@ func Extract(root string, opts ExtractOptions) (*model.Graph, Stats, error) {
 	stats := Stats{
 		Files: files, Hashes: map[string]string{},
 		PerLanguage: map[string]LangStats{}, entries: map[string]cacheEntry{},
+		bodies: map[string][]byte{},
 	}
 
 	var cached map[string]cacheEntry
@@ -130,10 +152,11 @@ func Extract(root string, opts ExtractOptions) (*model.Graph, Stats, error) {
 
 	var results []extract.Result
 	for _, f := range files {
-		b, err := os.ReadFile(f.Abs)
+		b, err := readFile(f.Abs)
 		if err != nil {
 			return nil, Stats{}, err
 		}
+		stats.bodies[f.Rel] = b
 		sum := sha256.Sum256(b)
 		hash := hex.EncodeToString(sum[:])
 		stats.Hashes[f.Rel] = hash

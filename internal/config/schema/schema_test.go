@@ -245,7 +245,10 @@ func TestKeysAreSortedByModuleSectionName(t *testing.T) {
 	}) {
 		t.Fatal("keys are not sorted by module, section, name")
 	}
-	if keys[0].Module != Base || keys[len(keys)-1].Module != Brain {
+	// Graph is the last module; its first key is grep.max_filesize, so a
+	// listing for a project that has the graph module switched off ends in
+	// Brain and one with it ends in Graph.
+	if keys[0].Module != Base || keys[len(keys)-1].Module != Graph {
 		t.Fatalf("first %s, last %s", keys[0].Module, keys[len(keys)-1].Module)
 	}
 }
@@ -317,5 +320,15 @@ func TestTheModelSwitchNamesNoSingleRole(t *testing.T) {
 	k, _ := Lookup("model.enabled")
 	if k.Doc != "Let the local model be asked for this area." {
 		t.Fatalf("doc %q", k.Doc)
+	}
+}
+
+func TestSchemaKeyMaxFilesize(t *testing.T) {
+	k, ok := Lookup("grep.max_filesize")
+	if !ok {
+		t.Fatal("grep.max_filesize is missing")
+	}
+	if k.Kind != Int || k.Module != Graph || k.Default != "67108864" {
+		t.Fatalf("grep.max_filesize = %+v", k)
 	}
 }
