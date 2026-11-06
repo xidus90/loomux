@@ -7,6 +7,18 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.18.0] - 2026-11-06
+
+<https://github.com/xidus90/loomux/pull/136>
+
+### Added
+- `graph grep` searches every text file that git does not ignore, through a trigram index that `graph build` writes.
+- `--channel cloud`, `--glob`, `--max-filesize` and `--no-max-filesize` for `graph grep`; `--max-filesize` and `--no-max-filesize` for `graph build`.
+- `grep.max_filesize` in the configuration, default 64 MiB.
+
+### Changed
+- `graph grep` answers carry the index state and counters: `index`, `files_in_scope`, `candidates`, `ignored`, `skipped_binary` and `skipped_size`.
+
 ## [1.17.3] - 2026-11-06
 
 <https://github.com/xidus90/loomux/pull/134>
