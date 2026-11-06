@@ -44,11 +44,12 @@ func toInt(raw any) (Value, error) {
 	case float64:
 		return fromFloat(raw, value)
 	case json.Number:
-		number, err := strconv.ParseInt(value.String(), 10, 64)
+		// Bit size 0 is the platform's int, so nothing wraps on the way to one.
+		number, err := strconv.ParseInt(value.String(), 10, 0)
 		if err == nil {
 			return int(number), nil
 		}
-		// Out of an int64's range is not "not a whole number": 10^20 is one,
+		// Out of an int's range is not "not a whole number": 10^20 is one,
 		// and calling it a fraction would send the reader looking for a dot.
 		if errors.Is(err, strconv.ErrRange) {
 			return nil, notA(raw, Int)

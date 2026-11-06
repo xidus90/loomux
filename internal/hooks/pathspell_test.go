@@ -21,6 +21,19 @@ func mkfile(t *testing.T, root, rel string) {
 	}
 }
 
+// Bash unfolds these to three and two words. Ends this far apart overflowed
+// the walk, which then unfolded to no word at all and left nothing to judge.
+func TestUnfoldBracesRefusesRangesPastAnInt32(t *testing.T) {
+	for _, word := range []string{
+		"x{-9000000000000000000..9000000000000000000..9000000000000000000}",
+		"x{9223372036854775807..-9223372036854775807}",
+	} {
+		if got, ok := unfoldBraces(word); ok {
+			t.Errorf("unfoldBraces(%q) = %q, want a refusal", word, got)
+		}
+	}
+}
+
 func TestUnfoldBracesExpandsLikeBash(t *testing.T) {
 	for word, want := range map[string][]string{
 		"a/{b,c}/d":       {"a/b/d", "a/c/d"},
