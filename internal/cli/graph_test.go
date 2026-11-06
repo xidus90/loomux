@@ -1283,3 +1283,156 @@ func TestGraphBlastFailsWhenTheRootCannotBeFound(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q", code, errOut.String())
 	}
 }
+
+func TestGraphGrepChannelFlag(t *testing.T) {
+	files := sample()
+	files["secret/hat.txt"] = "Run lives here\n"
+	files["README.md"] = "Run is documented here\n"
+	files[".loomux/config.toml"] = "[area]\nscope = \"fixture\"\n\n[privacy]\nnever = [\"secret/**\"]\n"
+	root := repo(t, files)
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d, stderr %q", code, errOut.String())
+	}
+
+	out.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--fixed"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("local exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "secret/hat.txt") {
+		t.Fatalf("local output misses the file: %q", out.String())
+	}
+
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--fixed", "--channel", "cloud"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("cloud exit %d, stderr %q", code, errOut.String())
+	}
+	if strings.Contains(out.String(), "secret/hat.txt") {
+		t.Fatalf("cloud output quotes a never file: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "README.md") {
+		t.Fatalf("cloud output misses the open file: %q", out.String())
+	}
+}
+
+func TestGraphGrepInvalidChannelUsage(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--channel", "smoke"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2; stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "channel") {
+		t.Fatalf("stderr does not name the channel: %q", errOut.String())
+	}
+}
+
+func TestGraphGrepGlobFlag(t *testing.T) {
+	files := sample()
+	files["README.md"] = "Run is documented here\n"
+	root := repo(t, files)
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--glob", "**/*.md"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "README.md") || strings.Contains(out.String(), "lib/lib.go") {
+		t.Fatalf("glob answer = %q", out.String())
+	}
+}
+
+func TestGraphGrepJSONHasIndexField(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--json"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(out.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"index", "files_in_scope", "candidates", "skipped_binary", "skipped_size", "ignored"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("JSON misses %q: %s", key, out.String())
+		}
+	}
+	if raw["index"] != "used" {
+		t.Fatalf("index = %v, want used", raw["index"])
+	}
+}
+
+func TestGraphGrepInvalidRegexExitOne(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "(", "--root", root}, nil, &out, &errOut); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(errOut.String(), "invalid regex") {
+		t.Fatalf("stderr %q", errOut.String())
+	}
+}
+
+func TestGraphGrepMaxFilesizeFlag(t *testing.T) {
+	files := sample()
+	files["big.txt"] = strings.Repeat("x", 32) + "\nRun\n"
+	root := repo(t, files)
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--fixed", "--max-filesize", "16"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if strings.Contains(out.String(), "big.txt") {
+		t.Fatalf("the limit did not skip the file: %q", out.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--fixed", "--max-filesize", "16", "--no-max-filesize"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("combined size flags exit %d, want 2", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--fixed", "--max-filesize", "-1"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("negative size exit %d, want 2", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--fixed", "--no-max-filesize"}, nil, &out, &errOut); code != 0 || !strings.Contains(out.String(), "big.txt") {
+		t.Fatalf("exit %d, output %q", code, out.String())
+	}
+}
+
+func TestGraphBuildMaxFilesizeFlag(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root, "--max-filesize", "16", "--no-max-filesize"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("combined size flags exit %d, want 2", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"build", "--root", root, "--max-filesize", "-1"}, nil, &out, &errOut); code != 2 {
+		t.Fatalf("negative size exit %d, want 2", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"build", "--root", root, "--max-filesize", "16"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d, stderr %q", code, errOut.String())
+	}
+}

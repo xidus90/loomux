@@ -254,3 +254,18 @@ func TestStatContinuesWhenADirectoryIsLocked(t *testing.T) {
 		t.Fatalf("got %v, want only accessible.go", got)
 	}
 }
+
+// TestSkipDirMatchesTheWalk pins the exported predicate sourceset's callers
+// use: dot directories and the pruned names, nothing else.
+func TestSkipDirMatchesTheWalk(t *testing.T) {
+	for _, name := range []string{".git", ".loomux", "node_modules", "testdata", "dist", "vendor"} {
+		if !sourceset.SkipDir(name) {
+			t.Errorf("SkipDir(%q) = false, want true", name)
+		}
+	}
+	for _, name := range []string{"src", "docs", "internal", "main.go"} {
+		if sourceset.SkipDir(name) {
+			t.Errorf("SkipDir(%q) = true, want false", name)
+		}
+	}
+}

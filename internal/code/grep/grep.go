@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xidus90/loomux/internal/code/blast"
+	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/model"
 )
@@ -34,6 +35,21 @@ type Options struct {
 	Fixed      bool
 	In         string
 	MaxHits    int // DefaultMaxHits when not positive
+
+	// Files is the search corpus, repo-relative and sorted. nil keeps the old
+	// behaviour of searching the paths the graph's nodes sit in.
+	Files []string
+	// All is the corpus before --glob narrowed it, used only to tell a prefix
+	// that has no file at all from one whose files the glob filtered out.
+	// nil means Files is the whole corpus.
+	All []string
+	// Candidates limits the scan to these paths; nil scans every file in
+	// Files. The index supplies it, and the scan path is the same list with
+	// nil, which is what makes the two comparable.
+	Candidates map[string]bool
+	// Index names what the answer rests on: used, scan, stale or none. The
+	// caller decides it; Search only carries it into the result.
+	Index string
 }
 
 // Result summarizes grep matches and groupings.
@@ -44,6 +60,19 @@ type Result struct {
 	Groups        []Group `json:"groups"`
 	TruncatedHits int     `json:"truncated_hits"`
 	Unreadable    int     `json:"unreadable"`
+
+	// Index says what the answer rested on: used, scan, stale or none.
+	Index string `json:"index"`
+	// FilesInScope is how many files the In filter left of the corpus.
+	FilesInScope int `json:"files_in_scope"`
+	// Candidates is how many files of the scope the scan reads: the index's
+	// narrowing, or the whole scope when no index narrows the pattern.
+	Candidates int `json:"candidates"`
+	// SkippedBinary and SkippedSize count what the corpus left out; Ignored
+	// counts the files git's ignore rules kept out of it.
+	SkippedBinary int `json:"skipped_binary"`
+	SkippedSize   int `json:"skipped_size"`
+	Ignored       int `json:"ignored"`
 }
 
 // FileReader abstracts reading file content.
@@ -90,38 +119,55 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 		}
 	}
 
-	filesSet := make(map[string]bool)
-	for i := range g.Nodes {
-		filesSet[g.Nodes[i].Path] = true
+	all := opts.Files
+	if all == nil {
+		filesSet := make(map[string]bool)
+		for i := range g.Nodes {
+			filesSet[g.Nodes[i].Path] = true
+		}
+		all = make([]string, 0, len(filesSet))
+		for p := range filesSet {
+			all = append(all, p)
+		}
+		sort.Strings(all)
 	}
 
 	normIn := lexicon.NormalizePrefix(opts.In)
 	if normIn != "" {
 		prefixFound := false
-		for p := range filesSet {
+		scopeAll := all
+		if opts.All != nil {
+			scopeAll = opts.All
+		}
+		for _, p := range scopeAll {
 			if lexicon.UnderPrefix(p, normIn) {
 				prefixFound = true
 				break
 			}
 		}
 		if !prefixFound {
-			return Result{}, fmt.Errorf("prefix not indexed: %s", opts.In)
+			return Result{Pattern: pattern, Index: opts.Index}, fmt.Errorf("prefix not indexed: %s", opts.In)
 		}
 	}
 
-	var files []string
-	for p := range filesSet {
-		if normIn == "" || lexicon.UnderPrefix(p, normIn) {
-			files = append(files, p)
+	files := make([]string, 0, len(all))
+	scope := 0
+	for _, p := range all {
+		if normIn != "" && !lexicon.UnderPrefix(p, normIn) {
+			continue
 		}
+		scope++
+		if opts.Candidates != nil && !opts.Candidates[p] {
+			continue
+		}
+		files = append(files, p)
 	}
-	sort.Strings(files)
 
 	if spans == nil {
 		spans = model.FileSpans(g)
 	}
 
-	res := Result{Pattern: pattern}
+	res := Result{Pattern: pattern, Index: opts.Index, FilesInScope: scope, Candidates: len(files)}
 	type groupKey struct {
 		path     string
 		symbolID model.NodeID
@@ -133,6 +179,11 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 		data, err := read(filePath)
 		if err != nil {
 			res.Unreadable++
+			continue
+		}
+		if corpus.IsBinary(data) {
+			// A binary file is not in the index and not in the corpus; the
+			// scan skips it the same way so both paths agree.
 			continue
 		}
 		res.FilesSearched++

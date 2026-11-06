@@ -17,12 +17,11 @@
 package sourceset
 
 import (
-	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/code/corpus"
 )
 
 // maxFileBytes is where a hand-written file stops. Above it a file is
@@ -30,45 +29,6 @@ import (
 // vendored code against 121 written by hand, and queries slowed enough that a
 // hook's budget could no longer hold them.
 const maxFileBytes = 1_000_000
-
-// skipDirs are dependency output, build output, and fixture input Go's own
-// toolchain does not build -- not necessarily "never a symbol the graph
-// should have a node for" in general, since go/parser reads a .go file under
-// testdata/ as readily as any other. The comparison is against a single path
-// segment.
-//
-// testdata is the third kind, not the first two: it holds fixtures, not
-// dependency or build output, and go/build ignores it for builds by
-// convention rather than by content. On THIS repository none of its fixtures
-// are .go files (they are .go.txt or recorded case corpora) and its .py
-// files are the worlds of recorded cases, not code of this repository, so
-// skipping it costs nothing here -- but a repository whose testdata/ held
-// real Go it wanted indexed would need this entry removed -- the same
-// argument the design spec (§7.1) makes for keeping _test.go files in the
-// graph rather than excluding them for looking like a test. A probe that
-// still walked testdata/ paid for 1,826 directories below the 3 named
-// testdata roots, out of 1,910 directories in this repository's tree -- the
-// walk cost stayed on the probe until this entry named it. See
-// docs/en/benchmarks.md, 2026-09-18.
-//
-// venv names one virtualenv; site-packages names the installed packages of
-// every one, whatever the environment is called (env/Lib/site-packages on
-// Windows, <env>/lib/python3.x/site-packages on POSIX). A dot directory such
-// as .venv is skipped anyway.
-var skipDirs = map[string]bool{
-	"node_modules":  true,
-	"dist":          true,
-	"build":         true,
-	"_build":        true,
-	"out":           true,
-	"target":        true,
-	"vendor":        true,
-	"coverage":      true,
-	"__pycache__":   true,
-	"venv":          true,
-	"site-packages": true,
-	"testdata":      true,
-}
 
 // extensions are the extensions of every extracted language, dot included,
 // matched exactly: x.GO is no Go file to the Go toolchain, so it is none to
@@ -108,52 +68,44 @@ func List(root string) ([]string, error) {
 
 // Stat returns the file set with each file's size and modification time.
 //
+// The enumeration is corpus.Walk's, the same walk the search index uses; the
+// filter below is the graph's: seven extensions, one megabyte, and no file
+// below a pruned directory segment. A dot directory never reaches the filter,
+// because the walk does not enter one.
+//
 // A file that vanishes between the walk and the stat is dropped rather than
 // reported: the next probe will see the same thing and call it removed.
-//
-//coverage:exempt d.Info() error arm requires file to vanish between walk and stat; filepath.Rel error arm is unreachable (WalkDir only returns paths under root)
 func Stat(root string) ([]SourceFile, error) {
-	if _, err := os.Stat(root); err != nil {
-		return nil, err
-	}
-	var out []SourceFile
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			if path == root {
-				return nil
-			}
-			if SkipDir(d.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !slices.Contains(extensions, filepath.Ext(d.Name())) {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil || info.Size() > maxFileBytes {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return nil
-		}
-		out = append(out, SourceFile{
-			Abs:   path,
-			Rel:   filepath.ToSlash(rel),
-			Size:  info.Size(),
-			MTime: info.ModTime().UnixNano(),
-		})
-		return nil
-	})
+	listing, err := corpus.Walk(root, nil)
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Rel < out[j].Rel })
+	out := make([]SourceFile, 0, len(listing.Entries))
+	for _, e := range listing.Entries {
+		if !slices.Contains(extensions, filepath.Ext(e.Abs)) {
+			continue
+		}
+		if e.Size > maxFileBytes {
+			continue
+		}
+		if hasPrunedSegment(e.Rel) {
+			continue
+		}
+		out = append(out, SourceFile{Abs: e.Abs, Rel: e.Rel, Size: e.Size, MTime: e.MTime})
+	}
 	return out, nil
+}
+
+// hasPrunedSegment reports whether a repo-relative path has a directory
+// segment the graph never descends into. Only pruneDirs count: a dot directory
+// is already absent from the walk, and a file named like one is a file.
+func hasPrunedSegment(rel string) bool {
+	for _, segment := range strings.Split(rel, "/") {
+		if corpus.PrunedDir(segment) {
+			return true
+		}
+	}
+	return false
 }
 
 // SkipDir reports whether a directory of this name is walked.
@@ -167,8 +119,9 @@ func Stat(root string) ([]SourceFile, error) {
 // keep its own, narrower list (dot-directories and vendor only), which let a
 // fixture go.mod under testdata/ reach module resolution while the .go files
 // beside it were already excluded from the file set -- two walks of the same
-// tree, two different answers about testdata. skipDirs itself stays
-// unexported: only this predicate is anyone else's business.
+// tree, two different answers about testdata. The list itself lives in
+// corpus.pruneDirs and is shared with the search index's walk; only this
+// predicate is anyone else's business.
 func SkipDir(name string) bool {
-	return strings.HasPrefix(name, ".") || skipDirs[name]
+	return corpus.SkipSegment(name)
 }

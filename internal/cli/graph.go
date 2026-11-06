@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xidus90/loomux/internal/brain/privacy"
 	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/grep"
 	"github.com/xidus90/loomux/internal/code/model"
@@ -69,7 +71,14 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	root := fs.String("root", "", "project root; the working directory when empty")
 	noReuse := fs.Bool("no-reuse", false, "parse every file, ignoring the extract cache")
+	maxFilesize := fs.Int64("max-filesize", 0, "largest searchable file, in bytes")
+	noMaxFilesize := fs.Bool("no-max-filesize", false, "search files of any size")
 	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	limit, err := maxFilesizeValue(fs, maxFilesize, noMaxFilesize)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux graph build: %v\n", err)
 		return 2
 	}
 	project, err := projectRoot(*root)
@@ -79,7 +88,7 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 	}
 
 	started := time.Now()
-	g, stats, err := query.BuildWith(project, query.BuildOptions{NoReuse: *noReuse},
+	g, stats, err := query.BuildWith(project, query.BuildOptions{NoReuse: *noReuse, MaxFilesize: limit},
 		func(s string) { fmt.Fprintf(stderr, "loomux graph build: %s\n", s) })
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux graph build: %v\n", err)
@@ -392,7 +401,11 @@ func graphGrep(args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(ignoreCase, "ignore-case", false, "alias for -i")
 	fixed := fs.Bool("fixed", false, "treat pattern as literal string instead of regex")
 	in := fs.String("in", "", "narrow to files under this path prefix")
+	glob := fs.String("glob", "", "narrow to paths matching this glob")
+	channel := fs.String("channel", "local", "local or cloud; cloud applies the privacy declaration")
 	maxHits := fs.Int("max-hits", grep.DefaultMaxHits, "maximum number of hits to report")
+	maxFilesize := fs.Int64("max-filesize", 0, "largest searchable file, in bytes")
+	noMaxFilesize := fs.Bool("no-max-filesize", false, "search files of any size")
 	noRefresh := fs.Bool("no-refresh", false, "never rebuild, answer from the graph on disk")
 	asJSON := fs.Bool("json", false, "write the answer as JSON")
 
@@ -411,6 +424,15 @@ func graphGrep(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, `loomux graph grep: one pattern required: loomux graph grep "<pattern>" [flags]`)
 		return 2
 	}
+	if _, err := privacy.ParseChannel(*channel); err != nil {
+		fmt.Fprintf(stderr, "loomux graph grep: %v\n", err)
+		return 2
+	}
+	limit, err := maxFilesizeValue(fs, maxFilesize, noMaxFilesize)
+	if err != nil {
+		fmt.Fprintf(stderr, "loomux graph grep: %v\n", err)
+		return 2
+	}
 
 	project, err := projectRoot(*root)
 	if err != nil {
@@ -419,11 +441,14 @@ func graphGrep(args []string, stdout, stderr io.Writer) int {
 	}
 
 	answer, notes, err := query.Grep(project, patterns[0], query.GrepOptions{
-		IgnoreCase: *ignoreCase,
-		Fixed:      *fixed,
-		In:         *in,
-		MaxHits:    *maxHits,
-		NoRefresh:  *noRefresh,
+		IgnoreCase:  *ignoreCase,
+		Fixed:       *fixed,
+		In:          *in,
+		Glob:        *glob,
+		Channel:     *channel,
+		MaxHits:     *maxHits,
+		MaxFilesize: limit,
+		NoRefresh:   *noRefresh,
 	})
 	for _, n := range notes {
 		fmt.Fprintf(stderr, "loomux graph grep: %s\n", n)
@@ -444,6 +469,27 @@ func graphGrep(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprint(stdout, query.GrepReport(answer))
 	return 0
+}
+
+// maxFilesizeValue reads the two size flags into the order the corpus
+// resolves: unset is nil, --no-max-filesize is an explicit unlimited 0, and
+// giving both is a usage error.
+func maxFilesizeValue(fs *flag.FlagSet, value *int64, unlimited *bool) (*int64, error) {
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	switch {
+	case set["max-filesize"] && set["no-max-filesize"]:
+		return nil, errors.New("--max-filesize and --no-max-filesize cannot be combined")
+	case set["no-max-filesize"] && *unlimited:
+		zero := int64(0)
+		return &zero, nil
+	case set["max-filesize"]:
+		if *value < 0 {
+			return nil, fmt.Errorf("--max-filesize %d is negative", *value)
+		}
+		return value, nil
+	}
+	return nil, nil
 }
 
 // graphMap builds a repository map with clusters, hubs, and hotspots.
