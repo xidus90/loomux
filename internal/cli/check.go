@@ -274,7 +274,8 @@ func checkEnv(root string, eff verify.Effective) verify.PlanEnv {
 	}
 	return verify.PlanEnv{Root: root, Loomux: loomux, RunID: verify.NewRunID(checkNow(), os.Getpid()),
 		HasTests: verify.HasTests, ImportReady: verify.ImportReady, GraphReady: query.GraphReady,
-		GraphEnv: query.GraphEnv, Godot: verify.GodotFor(root, eff.Config.Godot, checkStart, nil)}
+		GraphEnv: query.GraphEnv, Godot: verify.GodotFor(root, eff.Config.Godot, checkStart, nil),
+		GoWork: verify.GoWork}
 }
 
 // checkLanes plans kinds, adds the wiki's lanes and runs them all, judged by

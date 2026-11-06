@@ -228,7 +228,8 @@ func RunStop(stdin io.Reader, stderr io.Writer, root, hostName string, env StopE
 	jobs, err := stopPlan(eff, verify.Request{Kinds: kinds, Scope: verify.ScopeCheck}, verify.PlanEnv{
 		Root: root, Loomux: env.Loomux, RunID: runID, HasTests: verify.HasTests, ImportReady: ready,
 		GraphReady: idx.Ready, RulesReady: idx.RulesReady, GraphEnv: idx.Env, Changed: changed,
-		Godot: verify.GodotFor(root, eff.Config.Godot, env.Start, left),
+		Godot:  verify.GodotFor(root, eff.Config.Godot, env.Start, left),
+		GoWork: verify.GoWork,
 	})
 	if err != nil {
 		say("%v", err)

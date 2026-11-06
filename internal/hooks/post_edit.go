@@ -246,6 +246,7 @@ func editJobs(eff verify.Effective, root, raw, runID string, env EditEnv, godot 
 		HasTests:    verify.HasTests,
 		ImportReady: ready,
 		Godot:       godot,
+		GoWork:      verify.GoWork,
 	})
 }
 
