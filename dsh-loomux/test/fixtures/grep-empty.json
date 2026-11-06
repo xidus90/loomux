@@ -1,0 +1,14 @@
+{
+  "pattern": "zzzNoSuchNeedleXyz",
+  "files_searched": 0,
+  "total_hits": 0,
+  "groups": null,
+  "truncated_hits": 0,
+  "unreadable": 0,
+  "index": "used",
+  "files_in_scope": 7656,
+  "candidates": 0,
+  "skipped_binary": 6,
+  "skipped_size": 0,
+  "ignored": 12
+}

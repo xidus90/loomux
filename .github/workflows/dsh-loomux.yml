@@ -1,0 +1,30 @@
+name: dsh-loomux
+on:
+  push:
+    tags: ['dsh-loomux-v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: dsh-loomux
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: the tag names the version
+        run: |
+          version="$(node -p "require('./dsh-loomux/package.json').version")"
+          test "${GITHUB_REF_NAME}" = "dsh-loomux-v${version}"
+      - name: the package's own tests
+        run: npm test --prefix dsh-loomux
+      - name: publish
+        run: npm publish --provenance --access public dsh-loomux
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
