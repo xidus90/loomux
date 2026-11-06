@@ -15,8 +15,8 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:8a016fdc57b0dea4002a5add57156fae0b1b975462f9c4171b9f8584c6ec29fe"
-    revision: 24
+    content_hash: "sha256:1bbf0d56b862b68bfa506d3c72b2ab385db36957fd9ce4a7d252747d58e17b93"
+    revision: 25
 ---
 
 **Entschieden am 24. Oktober 2026:** Option A, nur CLI, zuerst. API-Adapter

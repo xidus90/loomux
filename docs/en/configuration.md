@@ -316,6 +316,16 @@ stays literal (`-run 'Test{A,B}'`).
 | `{from:NAME}` | A whole argument: `--from=NAME==<version>` where `tools` pins `NAME`, else no argument at all, for `uvx` (`uvx {from:ruff} ruff check .`). |
 | `{godot}` | `gdscript` only, anywhere else a load error. The line comes from the area's `project.godot`: `config/features` names major and minor, and where it is absent — a Godot 3 project from 3.1 on — `config_version=4` stands for the whole 3 line, of which only the major version is compared. A `config_version` that names no line of its own, `5` without `config/features` included, leaves the lane `unready`. A binary named in `GODOT_BIN` or `[verify.gdscript] godot` is held to that line: one of another line is refused, not passed over, since naming it was deliberate. Where neither names one, the engines of `GODOT_BIN_DIR` (its files whose name begins with `godot`, in name order) and then `godot`/`godot4` on the `PATH` are asked in turn, and the first that fits the line wins. On Windows the `_console.exe` beside a found `.exe` is taken, since the window build writes nothing to stdout. A mono build is required where the project has a `[dotnet]` section. No candidate fitting is `unready`, naming the version found and the line wanted; no candidate at all is `missing-tool`, saying what was looked at. Each distinct binary is asked once per run, for at most 30 s; at a turn end and in an edit the wait counts against the budget, and a lane whose binary could not be asked in time ends as `budget`, never as a mismatch. |
 
+Go lanes run with the go tool's work directory and build cache under the
+user's home: `GOTMPDIR=~/.loomux/tmp` and `GOCACHE=~/.loomux/go-cache`, each
+only where the environment does not already set it. A sandbox that lets a hook
+write only granted folders refuses `%TEMP%` and the default cache, and every go
+command then fails before it reads a source; one fixed folder per user is
+granted once and holds for every repository. It lies outside every repository,
+so the tests' temporary directories find no repository above them. Where the
+folder cannot be made or written, the lane is `unready` and names the path to
+grant.
+
 - A `coverage` lane that reads `{coverprofile}` while neither `test`,
   `test.measuring` nor `coverage.measure` of the same stack writes it is a
   load error.
