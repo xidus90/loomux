@@ -834,8 +834,12 @@ func (p *parser) asciiEscapeToUnicode(it item, s string) rune {
 		p.bug("Could not parse '%s' as a hexadecimal number, but the lexer claims it's OK: %s", s, err)
 	}
 	// Bound first: \UFFFFFFFF would wrap negative in the conversion.
-	if hex > utf8.MaxRune || !utf8.ValidRune(rune(hex)) {
-		p.panicItemf(it, "Escaped character '\\u%s' is not valid UTF-8.", s)
+	// The conversion sits inside the bound check so analysers see the guard.
+	if hex <= utf8.MaxRune {
+		if r := rune(hex); utf8.ValidRune(r) {
+			return r
+		}
 	}
-	return rune(hex)
+	p.panicItemf(it, "Escaped character '\\u%s' is not valid UTF-8.", s)
+	return utf8.RuneError // unreachable: panicItemf panics
 }

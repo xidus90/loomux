@@ -150,7 +150,9 @@ func braceRange(inner string) ([]string, bool) {
 	var out []string
 	for v := from; (v-to)*direction <= 0 && len(out) <= maxBraceVariants; v += direction * step {
 		if isLetters {
-			out = append(out, string(rune(v)))
+			// %c instead of rune(v): no narrowing conversion of an int
+			// that may have come from strconv.Atoi.
+			out = append(out, fmt.Sprintf("%c", v))
 		} else {
 			out = append(out, fmt.Sprintf("%0*d", width, v))
 		}
