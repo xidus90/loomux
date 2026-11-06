@@ -9,7 +9,7 @@ loomux is one Go binary with no Python or Node runtime. Windows is the tested pl
 - **Windows (x64)** is the tested platform. See [Linux and macOS](#linux-and-macos) for the rest.
 - **[GitHub CLI](https://cli.github.com/)** (`gh`), logged in with `gh auth login`. It does the download and, later, the self-update.
 - **Git** 2.31 or newer.
-- **Go** 1.26 or newer, only for building from source (the module's toolchain is go1.27.0).
+- **Go** 1.26 or newer, only for building from source (the module's toolchain is go1.27.3).
 
 ## Windows quickstart
 
