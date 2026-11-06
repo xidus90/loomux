@@ -84,7 +84,7 @@ jobs:
           go-version-file: go.mod
           cache: false
       - run: go build -o bin/loomux.exe ./cmd/loomux
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.3.3
       # A short root: long paths under the runner's work directory break
       # tools on Windows.
       - id: setup
