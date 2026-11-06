@@ -1,0 +1,35 @@
+{
+  "pattern": "TruncatedHits \u003e 0",
+  "files_searched": 2,
+  "total_hits": 1,
+  "groups": [
+    {
+      "symbol": {
+        "id": "internal/code/query/grep.go#GrepReport",
+        "name": "GrepReport",
+        "kind": "function",
+        "path": "internal/code/query/grep.go",
+        "span": "L268-L288",
+        "signature": "func GrepReport(r grep.Result) string",
+        "exported": true,
+        "body_hash": "f891fee26340badd8bb36043f23aaafe3ecbe45bc3fea04e48b7bf2bd631c132"
+      },
+      "path": "internal/code/query/grep.go",
+      "in_degree": 6,
+      "hits": [
+        {
+          "line": 284,
+          "text": "\tif r.TruncatedHits \u003e 0 {"
+        }
+      ]
+    }
+  ],
+  "truncated_hits": 0,
+  "unreadable": 0,
+  "index": "used",
+  "files_in_scope": 7653,
+  "candidates": 2,
+  "skipped_binary": 6,
+  "skipped_size": 0,
+  "ignored": 12
+}
