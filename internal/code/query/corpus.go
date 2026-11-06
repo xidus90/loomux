@@ -9,7 +9,19 @@ import (
 	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/trigram"
+	"github.com/xidus90/loomux/internal/config"
 )
+
+// resolveMaxFilesize is the limit one call works with: the flag, else the
+// project's [grep] table, else the default. The order is the one
+// corpus.ResolveMaxFilesize applies.
+func resolveMaxFilesize(root string, flag *int64) (int64, error) {
+	configured, err := config.ReadGrepMaxFilesize(root)
+	if err != nil {
+		return 0, err
+	}
+	return corpus.ResolveMaxFilesize(flag, configured)
+}
 
 // CorpusStats is what the search corpus selection came to. It is separate from
 // Stats, which counts the graph corpus: the two sets differ on purpose.
