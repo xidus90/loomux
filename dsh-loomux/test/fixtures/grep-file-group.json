@@ -1,0 +1,33 @@
+{
+  "pattern": "func Search",
+  "files_searched": 70,
+  "total_hits": 3,
+  "groups": [
+    {
+      "path": "docs/de/benchmarks.md",
+      "in_degree": 0,
+      "hits": [
+        {
+          "line": 3961,
+          "text": "(`func Search`), eine Alternation (`Search|Grep`), ein Muster ohne Literal"
+        },
+        {
+          "line": 3963,
+          "text": "schickt dasselbe Literal durch die Freshness-Probe (`graph grep 'func Search'"
+        },
+        {
+          "line": 3980,
+          "text": "| `func Search` (Literal) | 142,1 ms | 131,0 ms | 149,6 ms |"
+        }
+      ]
+    }
+  ],
+  "truncated_hits": 17,
+  "unreadable": 0,
+  "index": "used",
+  "files_in_scope": 7653,
+  "candidates": 70,
+  "skipped_binary": 6,
+  "skipped_size": 0,
+  "ignored": 12
+}
