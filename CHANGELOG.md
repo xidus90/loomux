@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.17.3] - 2026-11-06
+
+<https://github.com/xidus90/loomux/pull/134>
+
+### Changed
+- The verified Python 3.15 combinations use pytest 9.2 and coverage 7.17.
+- The bundled tree-sitter runtime is gotreesitter v0.56.0; every code graph is rebuilt once.
+
 ## [1.17.2] - 2026-11-06
 
 <https://github.com/xidus90/loomux/pull/135>
