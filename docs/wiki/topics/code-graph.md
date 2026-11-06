@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:b6a068ceb463454226d90e0d96a0d3e4bab5839895176857acdb68dea2e93a34"
-    revision: 21
+    content_hash: "sha256:b50dd3ac94f242dce8cfcdee0efb214d9d545cd00cf84fe8eb1fc440230f21f8"
+    revision: 22
 ---
 
 ## Wofür
@@ -104,9 +104,15 @@ berühren, und auf das, was sie erreicht.
 | `graph check` | `graph_check_freshness` | Drift zwischen Arbeitsbaum und Graph |
 | `graph skeleton` | `graph_file_api` | Signaturen einer Datei ohne Rümpfe |
 | `graph callers` | `graph_trace_calls` | Aufrufer oder Aufgerufene, bis zur Hülle |
-| `graph grep` | `graph_find_all` | Regex, gruppiert nach Symbol, nach Kopplung geordnet |
+| `graph grep` | `graph_find_all` | Regex über den Suchkorpus, gruppiert nach Symbol, nach Kopplung geordnet |
 | `graph map` | `graph_repo_map` | Repo-Karte mit Hubs und Hotspots |
 | `graph blast` | `graph_blast` | Blast-Radius eines git-Diffs |
+
+`graph grep` sucht nicht nur die Dateien des Graphen, sondern jede Textdatei,
+die git nicht ignoriert: `graph build` legt dafür neben dem Graphen einen
+Suchkorpus-Record und einen Trigramm-Index an, und `graph grep` antwortet aus
+dem Index, wenn das Muster ein Literal enthält, sonst aus einem Scan derselben
+Liste. `--channel cloud` liest dabei die `never`-Deklaration des Projekts.
 
 Dazu `graph build` und `graph stats`. Die Spec nannte sechs MCP-Werkzeuge;
 `graph_blast` kam als siebtes hinzu. `loomux serve` beantwortet sie neben den

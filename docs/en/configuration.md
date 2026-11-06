@@ -917,6 +917,11 @@ What narrows or shapes one build belongs to the invocation that runs it, not to
 the configuration of the repository being indexed. If this section returns, it
 is because a real requirement forced a section-level knob to exist, not because
 the manual once sketched one.
+A `[grep]` table with `max_filesize` exists in the schema (default
+`67108864`), but nothing reads it yet: `graph build` and `graph grep` take the
+limit from `--max-filesize`/`--no-max-filesize`, and a search without a flag
+measures against the record's setting. Treat the key as reserved until a
+reader lands; writing it changes nothing today.
 
 ---
 
@@ -970,7 +975,7 @@ files switch on.
 ---
 
 ### `[privacy]` (Data Protection & Boundaries)
-`[privacy]` decides what loomux's own channels hand out: `loomux brain` search and read, and the MCP tools. The `loomux graph` commands on the command line are the exception: they take no channel and filter no `never` path, so `loomux graph grep` prints lines of such a file and `loomux graph ask --source` its text. `[privacy]` does not stop an agent from reading a file with its host's own tools. A `never` path read with the host's `Read` tool, or with `cat` in a shell, reaches the agent and so its model: the guard judges what an agent writes and runs, not what it reads, `never` is no rule of it, and `Read` is not among the tools `loomux init` hooks. To keep a file from an agent's model, do not leave it where the agent can read it.
+`[privacy]` decides what loomux's own channels hand out: `loomux brain` search and read, and the MCP tools. The `loomux graph` commands on the command line are the exception: they take no channel and filter no `never` path — except `loomux graph grep --channel cloud`, which reads that declaration; without the flag `graph grep` prints lines of such a file and `graph ask --source` its text. `[privacy]` does not stop an agent from reading a file with its host's own tools. A `never` path read with the host's `Read` tool, or with `cat` in a shell, reaches the agent and so its model: the guard judges what an agent writes and runs, not what it reads, `never` is no rule of it, and `Read` is not among the tools `loomux init` hooks. To keep a file from an agent's model, do not leave it where the agent can read it.
 
 ```toml
 [privacy]
@@ -986,7 +991,7 @@ never = [
 | Field | Type | Description |
 |---|---|---|
 | `mode` | string | `"local_only"`, `"manual_cloud"` (default) or `"automatic_cloud"`; any other value is refused. A `local_only` area does not exist on the cloud channel, and nesting does not lift that: a path inside its wiki or source tree stays hidden there even when another area's tree holds it. |
-| `never` | array of strings | Glob patterns of paths that none of loomux's channels, local or cloud, hands out. The `loomux graph` commands take no channel and filter none. |
+| `never` | array of strings | Glob patterns of paths that none of loomux's channels, local or cloud, hands out. The `loomux graph` commands take no channel and filter none; `graph grep --channel cloud` reads the declaration and hides those paths. |
 
 loomux itself syncs nothing to a cloud and has no telemetry. What an agent reads, through a channel, with `loomux graph` or with its host's tools, goes to its host's model; `mode` and `never` bound only what a channel hands out.
 
@@ -1183,6 +1188,10 @@ default = "example"
 | The marker that switches the stop gate off | `<project>\.loomux\no-verify` |
 | A project's own flows and overlays | `<project>\.loomux\flows\<name>\` |
 | Flow runs: journal and marker | `<project>\.loomux\state\runs\<id>.jsonl`, `<id>.flow` |
+| Graph of an area (`wiring.json`) | `<project>\.loomux\state\graph\wiring.json` |
+| Freshness record and ask sidecar of a graph | `<project>\.loomux\state\graph\cache\fingerprint.json`, `ask-index.json` |
+| Search corpus record of `graph grep` | `<project>\.loomux\state\graph\cache\corpus.json` |
+| Trigram index of `graph grep` | `<project>\.loomux\state\graph\cache\trigram.idx` |
 
 `LOOMUX_STATE_DIR` overrides the state directory; there is no command-line
 flag for it.

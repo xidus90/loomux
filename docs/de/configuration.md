@@ -815,6 +815,11 @@ deshalb steht die Antwort hier, statt neu entdeckt zu werden:
   keine Strategie, die ein Projekt abschalten könnte.
   Da bleibt nichts mehr zu konfigurieren.
 
+Eine `[grep]`-Tabelle mit `max_filesize` gibt es im Schema (Standard
+`67108864`), aber noch liest sie niemand: `graph build` und `graph grep`
+nehmen die Grenze aus `--max-filesize`/`--no-max-filesize`, und eine Suche
+ohne Flag misst gegen die Einstellung des Records. Der Schlüssel ist reserviert,
+bis ein Leser kommt; ihn heute zu schreiben ändert nichts.
 Was einen Bau einschränkt oder formt, gehört zum Aufruf, der ihn ausführt,
 nicht zur Konfiguration des Repositories, das indiziert wird. Kehrt dieser
 Abschnitt zurück, dann weil eine reale Anforderung eine Einstellung auf
@@ -874,7 +879,7 @@ die beide Dateien einschalten.
 ---
 
 ### `[privacy]` (Datenschutz & Geheimnisschutz)
-`[privacy]` bestimmt, was die eigenen Kanäle von loomux herausgeben: Suche und Lesen von `loomux brain` und die MCP-Werkzeuge. Die `loomux graph`-Befehle auf der Kommandozeile sind die Ausnahme: Sie kennen keinen Kanal und filtern keinen `never`-Pfad, `loomux graph grep` gibt also Zeilen einer solchen Datei aus und `loomux graph ask --source` ihren Text. `[privacy]` hindert einen Agenten nicht, eine Datei mit den eigenen Werkzeugen seines Hosts zu lesen. Ein `never`-Pfad, den das `Read`-Werkzeug des Hosts oder ein `cat` in einer Shell liest, erreicht den Agenten und damit sein Modell: Der Wächter beurteilt, was ein Agent schreibt und ausführt, nicht was er liest, `never` ist keine Regel von ihm, und `Read` gehört nicht zu den Werkzeugen, für die `loomux init` einen Hook einträgt. Soll eine Datei das Modell eines Agenten nicht erreichen, darf sie nicht dort liegen, wo der Agent lesen kann.
+`[privacy]` bestimmt, was die eigenen Kanäle von loomux herausgeben: Suche und Lesen von `loomux brain` und die MCP-Werkzeuge. Die `loomux graph`-Befehle auf der Kommandozeile sind die Ausnahme: Sie kennen keinen Kanal und filtern keinen `never`-Pfad — außer `loomux graph grep --channel cloud`, das diese Deklaration liest; ohne das Flag gibt `graph grep` Zeilen einer solchen Datei aus und `graph ask --source` ihren Text. `[privacy]` hindert einen Agenten nicht, eine Datei mit den eigenen Werkzeugen seines Hosts zu lesen. Ein `never`-Pfad, den das `Read`-Werkzeug des Hosts oder ein `cat` in einer Shell liest, erreicht den Agenten und damit sein Modell: Der Wächter beurteilt, was ein Agent schreibt und ausführt, nicht was er liest, `never` ist keine Regel von ihm, und `Read` gehört nicht zu den Werkzeugen, für die `loomux init` einen Hook einträgt. Soll eine Datei das Modell eines Agenten nicht erreichen, darf sie nicht dort liegen, wo der Agent lesen kann.
 
 ```toml
 [privacy]
@@ -890,7 +895,7 @@ never = [
 | Feld | Typ | Beschreibung |
 |---|---|---|
 | `mode` | String | `"local_only"`, `"manual_cloud"` (Vorgabe) oder `"automatic_cloud"`; jeder andere Wert wird abgelehnt. Ein `local_only`-Bereich existiert auf dem Cloud-Kanal nicht, und Verschachtelung hebt das nicht auf: Ein Pfad in seinem Wiki oder Quellbaum bleibt dort verborgen, auch wenn der Baum eines anderen Bereichs ihn enthält. |
-| `never` | Array von Strings | Glob-Muster der Pfade, die keiner der Kanäle von loomux herausgibt, weder lokal noch Cloud. Die `loomux graph`-Befehle kennen keinen Kanal und filtern keinen. |
+| `never` | Array von Strings | Glob-Muster der Pfade, die keiner der Kanäle von loomux herausgibt, weder lokal noch Cloud. Die `loomux graph`-Befehle kennen keinen Kanal und filtern keinen; `graph grep --channel cloud` liest die Deklaration und verbirgt diese Pfade. |
 
 loomux selbst synchronisiert nichts in eine Cloud und hat keine Telemetrie. Was ein Agent liest, über einen Kanal, mit `loomux graph` oder mit den Werkzeugen seines Hosts, geht an das Modell seines Hosts; `mode` und `never` begrenzen nur, was ein Kanal herausgibt.
 
@@ -1093,6 +1098,10 @@ default = "example"
 | Der Marker, der das Stop-Tor abschaltet | `<projekt>\.loomux\no-verify` |
 | Eigene Flows und Overlays eines Projekts | `<projekt>\.loomux\flows\<name>\` |
 | Flow-Läufe: Journal und Marke | `<projekt>\.loomux\state\runs\<id>.jsonl`, `<id>.flow` |
+| Graph einer Area (`wiring.json`) | `<projekt>\.loomux\state\graph\wiring.json` |
+| Frischeakte und Ask-Beiakte eines Graphen | `<projekt>\.loomux\state\graph\cache\fingerprint.json`, `ask-index.json` |
+| Suchkorpus-Record von `graph grep` | `<projekt>\.loomux\state\graph\cache\corpus.json` |
+| Trigramm-Index von `graph grep` | `<projekt>\.loomux\state\graph\cache\trigram.idx` |
 
 `LOOMUX_STATE_DIR` überschreibt das Zustandsverzeichnis; einen
 Kommandozeilenschalter dafür gibt es nicht.
