@@ -5,11 +5,13 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/xidus90/loomux/internal/code/freshness"
 	"github.com/xidus90/loomux/internal/code/sourceset"
+	"github.com/xidus90/loomux/internal/lock"
 	"github.com/xidus90/loomux/internal/testlock"
 )
 
@@ -227,12 +229,58 @@ func TestWriteReportsAMkdirFailure(t *testing.T) {
 }
 
 func TestWriteReportsAWriteFailure(t *testing.T) {
-	root := build(t, map[string]string{"a.go": "package a\n"})
-	testlock.Lock(t, freshness.Path(root))
+	root := t.TempDir()
+	// A directory in the sidecar's place refuses the swap on every platform
+	// (a held handle would do so on Windows only, and wait out the budget).
+	if err := os.MkdirAll(freshness.Path(root), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := lock.SidecarBudget
+	lock.SidecarBudget = 50 * time.Millisecond
+	t.Cleanup(func() { lock.SidecarBudget = old })
 
 	if err := freshness.Write(root, "go/1", nil, nil); err == nil {
 		t.Fatal("got nil, want an error: the sidecar cannot be written")
 	}
+	if left := temporaries(t, root); len(left) != 0 {
+		t.Fatalf("left behind: %v", left)
+	}
+}
+
+// The sidecar is replaced and not rewritten in place: a reader never sees a
+// half-written file, and no temporary survives a successful write.
+func TestWriteIsAtomic(t *testing.T) {
+	root := build(t, map[string]string{"a.go": "package a\n"})
+
+	if err := freshness.Write(root, "go/1", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if left := temporaries(t, root); len(left) != 0 {
+		t.Fatalf("left behind: %v", left)
+	}
+}
+
+func TestWriteReportsATemporaryWriteFailure(t *testing.T) {
+	root := t.TempDir()
+	// A directory under the temporary's name: WriteFile cannot open it.
+	tmp := freshness.Path(root) + "." + strconv.Itoa(os.Getpid()) + ".tmp"
+	if err := os.MkdirAll(tmp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := freshness.Write(root, "go/1", nil, nil); err == nil {
+		t.Fatal("got nil, want an error: the temporary cannot be written")
+	}
+}
+
+// temporaries lists the *.tmp files next to the sidecar.
+func temporaries(t *testing.T, root string) []string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(freshness.Path(root)), "*.tmp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return matches
 }
 
 func TestProbeTreatsABrokenRecordAsUnknown(t *testing.T) {

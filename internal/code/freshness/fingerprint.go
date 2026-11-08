@@ -27,9 +27,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 
 	"github.com/xidus90/loomux/internal/code/sourceset"
 	"github.com/xidus90/loomux/internal/code/store"
+	"github.com/xidus90/loomux/internal/lock"
 )
 
 // recordVersion is the shape of the sidecar. A record of another version is a
@@ -94,7 +96,17 @@ func Write(root, extractor string, files []sourceset.SourceFile, hashes map[stri
 	if err := os.MkdirAll(filepath.Dir(Path(root)), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(Path(root), body, 0o644)
+	// Beside the sidecar and swapped in whole, so that a reader never meets a
+	// half-written record.
+	tmp := Path(root) + "." + strconv.Itoa(os.Getpid()) + ".tmp"
+	if err := os.WriteFile(tmp, body, 0o644); err != nil {
+		return err
+	}
+	if err := lock.ReplaceEventually(tmp, Path(root), lock.SidecarBudget); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // Probe diffs the working tree against the last build's record.
