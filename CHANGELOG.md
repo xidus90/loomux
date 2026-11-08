@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.18.1] - 2026-11-08
+
+<https://github.com/xidus90/loomux/pull/138>
+
+### Fixed
+- Go lanes no longer fail in a sandbox that refuses `%TEMP%`: they use `~/.loomux/tmp` and `~/.loomux/go-cache` unless `GOTMPDIR` or `GOCACHE` is set, and report `unready` with the path to grant when that folder is not writable.
+- A checkout with the installer's `post-merge` hook no longer blocks every commit at the pre-commit gate.
+
 ## [1.18.0] - 2026-11-06
 
 <https://github.com/xidus90/loomux/pull/136>
