@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:f4b63bdc02004ee2dd6c64ede3328ef684b72457f9debb9b918aee4b10575d0c"
-    revision: 27
+    content_hash: "sha256:14019fc80435779b28bbf034b1c1a28989c979eebd40285cbc33c86a4e356d1b"
+    revision: 28
 ---
 
 ## Wofür
@@ -130,6 +130,51 @@ die git nicht ignoriert: `graph build` legt dafür neben dem Graphen einen
 Suchkorpus-Record und einen Trigramm-Index an, und `graph grep` antwortet aus
 dem Index, wenn das Muster ein Literal enthält, sonst aus einem Scan derselben
 Liste. `--channel cloud` liest dabei die `never`-Deklaration des Projekts.
+
+**Warum ein Aufruf früher langsam war, und was ihn schnell macht.** Die erste
+Messung gegen tgrep schob die Langsamkeit auf das Laden von Wiring-Datei und
+Index; das Profil zeigte etwas anderes: zwei serielle Walks je Aufruf auf
+einem sauberen Baum und, nach einer Änderung, einen Neubau von rund 4 s.
+Daraus folgt die heutige Form, deren Einzelheiten in
+`docs/de/cli-reference.md` stehen:
+
+- **Ein paralleler Walk** bedient Korpus und Graph, und der Index wird nur
+  abgebildet und lazy gelesen; die Symbole kommen aus einer eigenen Beiakte
+  (`grepspans.idx`), nicht aus `wiring.json`.
+- **Das Overlay:** Betrifft die Abweichung nur Dateiinhalt und höchstens 200
+  Dateien je Korpus und Graph, baut `grep` nichts neu. Der alte Index liefert
+  die Kandidaten der unveränderten Dateien, geänderte und neue werden gelesen
+  und tragen kein Symbol (lieber keins als ein falsches). `index` meldet dann
+  `overlay`. Ein bewegter `.git/index` zählt nicht als Abweichung, wenn git
+  dieselben Dateien verfolgt; der erste Aufruf nach einem Commit liest dafür
+  die Pfadliste selbst aus `.git/index` (Version 2–4, sonst fragt er
+  `git ls-files`) und schreibt den neuen Stempel in den Record, auch unter
+  `--no-refresh`.
+- **Record und Index als Paar:** Der Build schreibt den Index vor dem Record;
+  scheitert der Index, bleibt der alte Record stehen. Trägt der Index trotzdem
+  einen anderen Digest als der Record (oder fehlt er), baut der nächste Aufruf
+  und der Wächter neu, statt bis zur nächsten Dateiänderung `stale` zu scannen.
+- **`--trust-index`** lässt den Walk ganz weg: Dateiliste und Zähler stammen
+  aus dem Index, die Symbole aus der Beiakte, `index` meldet `trusted`, und
+  `index_built` nennt das Alter des Index. Auf einem geänderten Baum ist die
+  Antwort bewusst die des Index. Der Schalter ist keine Voreinstellung,
+  weil er stumm falsch antworten kann; das Plugin setzt ihn nur über die
+  Option `trustIndex`. Unter `--in` und `--glob` zählt er alle Binärdateien in
+  `files_in_scope` mit, weil die Dateitabelle sie keinem Präfix zuordnen kann.
+- **Der Wächter in `loomux serve`:** Der Dienst beobachtet die Wurzeln der
+  registrierten Bereiche mit gebautem Graphen, prüft 2 s nach der letzten
+  Änderung, spätestens 10 s nach der ersten einer Folge (dieselbe
+  Driftprüfung wie der Einmalaufruf), und baut nur bei Abweichung neu. Was die
+  Ignore-Regeln des Records ausschließen, löst nichts aus. `graph build` nimmt dieselbe Neubau-Sperre und wartet bis
+  zu 30 s auf einen laufenden Neubau, sodass sich zwei Builds nie
+  verschränken. Ein Graph eines anderen Extraktors fasst er nicht an. Das
+  Overlay bleibt die Grundlage: Ohne Dienst baut der Aufruf ab 200 Dateien
+  selbst neu. `graph_find_all` ruft dieselbe Suche und profitiert von beidem.
+
+Die Zahlen (Windows, Baum mit etwa 8500 Dateien) stehen in
+`docs/de/benchmarks.md` unter „Abnahme des Starts von graph grep“. Offen aus dieser Abnahme: der erste Aufruf nach einem Commit
+liegt über dem Ziel von 108 ms, und ob tgrep abgelöst wird, entscheidet der
+Mensch.
 
 Dazu `graph build` und `graph stats`. Die Spec nannte sechs MCP-Werkzeuge;
 `graph_blast` kam als siebtes hinzu. `loomux serve` beantwortet sie neben den

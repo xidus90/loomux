@@ -9,8 +9,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:f4b63bdc02004ee2dd6c64ede3328ef684b72457f9debb9b918aee4b10575d0c"
-    revision: 27
+    content_hash: "sha256:14019fc80435779b28bbf034b1c1a28989c979eebd40285cbc33c86a4e356d1b"
+    revision: 28
 ---
 
 Ein langlebiger Python-Prozess hält Index und Modelle im Speicher. Darauf setzen

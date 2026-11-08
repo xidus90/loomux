@@ -1119,7 +1119,9 @@ default = "example"
 | Graph einer Area (`wiring.json`) | `<projekt>\.loomux\state\graph\wiring.json` |
 | Frischeakte und Ask-Beiakte eines Graphen | `<projekt>\.loomux\state\graph\cache\fingerprint.json`, `ask-index.json` |
 | Suchkorpus-Record von `graph grep` | `<projekt>\.loomux\state\graph\cache\corpus.json` |
+| Binäre Spiegel der beiden Records, nur gelesen, solange Größe und mtime des JSON noch passen | `<projekt>\.loomux\state\graph\cache\corpus.json.bin`, `fingerprint.json.bin` |
 | Trigramm-Index von `graph grep` | `<projekt>\.loomux\state\graph\cache\trigram.idx` |
+| Symbol-Spans von `graph grep` je Datei, an den Korpus-Digest gebunden | `<projekt>\.loomux\state\graph\cache\grepspans.idx` |
 
 `LOOMUX_STATE_DIR` überschreibt das Zustandsverzeichnis; einen
 Kommandozeilenschalter dafür gibt es nicht.

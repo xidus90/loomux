@@ -772,6 +772,7 @@ Liest und hasht jede Quelldatei, die `internal/code/sourceset` unterhalb der Wur
 - **Exit-Codes**: `0` bei Erfolg, auch wenn Python- oder Godot-Dateien Parsefehler haben; `1`, wenn die Wurzel nicht auflösbar ist, eine Datei nicht gelesen werden kann, eine Go-Datei nicht parst, die Modulauflösung scheitert oder der Graph nicht geschrieben werden kann; `2` bei einem Aufruffehler.
 - **Kosten**: `build` liest die Frischeakte nie — es liest und hasht jede Datei, kalt wie warm, jedes Mal. Der Extraktions-Cache erspart einer Datei nur das Parsen, nie das Lesen: ein Eintrag gilt nur gegen den Hash der eben gelesenen Bytes. Es gibt dabei nichts zu überspringen: anders als `check` erzeugt `build` gerade den Stand, gegen den eine Sonde später vergleicht, und ein veraltetes Byte darin wäre eine veraltete Antwort, keine ersparte Lesung. Gemessene Zahlen stehen in `docs/de/benchmarks.md`.
 - **Der Suchkorpus und sein Trigramm-Index**: Im selben Durchgang wählt `build` den Korpus, den `graph grep` durchsucht — jede reguläre Datei unterhalb der Wurzel, die git nicht ignoriert, Punktdateien und Punktverzeichnisse ausgenommen, Symlinks übersprungen, die Pfade von `[privacy]` bleiben unberücksichtigt —, und schreibt zwei Beiakten neben den Graphen: `cache/corpus.json`, den Record der Auswahl (kanonische Einstellungen, Ignore-Quellen mit Bytes und Hashes, die Stempel von `.git/index` und `.git/config`, die getrackten Pfade und je Datei Größe, mtime, SHA-256 und das Binärurteil), und `cache/trigram.idx`, die sortierten Trigramm-Postings über die nicht-binären Dateien. Die Ignore-Semantik ist die von git: globale Excludes-Datei, `.git/info/exclude` und die `.gitignore`-Kette mit git'scher Vorrangregel und `core.ignorecase`. Eine Datei mit einem NUL-Byte ist binär, wird gezählt und nicht indiziert; eine Datei über der Größenobergrenze wird gezählt und übersprungen; eine unlesbare Datei wird gezählt und mit leerem Hash vermerkt. Ein Korpus, der sich nicht auswählen oder schreiben lässt, lässt den Build nicht scheitern: Der Graph ist das, was eine Frage braucht, und die nächste `grep` sagt, warum sie scannt.
+- **Die Beiakten, die `grep` ohne den Graphen liest**: Neben den beiden oben schreibt `build` `cache/grepspans.idx`, die Symbol-Spans jeder Graph-Datei mit ihrem In-Degree, nach Pfad sortiert und über eine Speicherabbildung gelesen, sodass eine Suche nur die Dateien dekodiert, in denen sie Treffer hat, und binäre Spiegel der beiden Records, `cache/corpus.json.bin` und `cache/fingerprint.json.bin`. Die JSON-Dateien bleiben kanonisch: Ein Spiegel hält Größe und mtime des JSON, aus dem er entstand, und der Leser nimmt ihn nur, wenn beide noch passen; ein bearbeitetes oder ersetztes JSON wird also als JSON gelesen. Der Record speichert den Digest des Korpus, und `trigram.idx` trägt im Kopf denselben Digest, seine Extraktorversion, die Einstellungen und die Zähler `ignored`, `skipped_size` und `skipped_binary`, sodass eine Beiakte, die nicht zum Record gehört, erkannt statt ihr vertraut wird. `grepspans.idx` wird vor dem Schreiben des Graphen gelöscht und als Letztes mit dem Korpus-Digest geschrieben; scheitert ein Schritt dazwischen, fehlt sie, und `grep` liest die Symbole aus `wiring.json`, langsamer und mit derselben Antwort. Jede Beiakte wird atomar geschrieben (temporäre Datei, dann Umbenennen). Unter Windows scheitert das Umbenennen, solange ein anderer Prozess die Datei abgebildet hat; der Schreiber wiederholt es deshalb etwa 2 s lang, und scheitert es trotzdem, meldet der Build das, behält den alten Record, und der alte Index bleibt gültig. Der Index wird vor dem Record geschrieben, sodass der Record nie einen Index nennt, der nicht geschrieben wurde. Der Korpus-Walk liest bis zu 16 Verzeichnisse gleichzeitig und liefert dieselbe sortierte Liste wie ein serieller.
 
 ### `loomux graph ask "<anfrage>" [flags]`
 Sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen mit **Personalized PageRank** über den AST-Aufrufgraph.
@@ -815,12 +816,13 @@ Gibt alle Funktions-, Typ-, Interface- und Methodensignaturen sowie Zeilenspanne
   - `--json`: Gibt maschinenlesbares JSON aus (`skeleton.FileSkeleton`).
 - **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem Graph oder Datei nicht im Graph; `2` bei Aufruffehlern.
 
-### `loomux graph grep <muster> [--root <pfad>] [-i] [--fixed] [--in <präfix>] [--max-hits <n>] [--glob <muster>] [--channel local|cloud] [--max-filesize <bytes>|--no-max-filesize] [--no-refresh] [--json]`
+### `loomux graph grep <muster> [--root <pfad>] [-i] [--fixed] [--in <präfix>] [--max-hits <n>] [--glob <muster>] [--channel local|cloud] [--max-filesize <bytes>|--no-max-filesize] [--no-refresh] [--trust-index] [--json]`
 Regex-Suche über den Suchkorpus — die Textdateien, die git nicht ignoriert, nicht nur die Dateien des Graphen —, gruppiert nach umschließendem Symbol und sortiert nach Kopplungsgrad (`inDegree`). Ein Treffer in einer Datei, die der Graph nicht kennt, trägt kein Symbol und steht hinten.
 
 - **Flags**:
   - `--root <pfad>`: Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
-  - `--no-refresh`: Antwortet aus den Beiakten auf der Platte, baut den Korpus nie neu; ein gewachsener Baum wird trotzdem als veralteter Index gemeldet.
+  - `--no-refresh`: Baut nie neu, liest aber weiterhin den aktuellen Baum. Eine Abweichung, die das Overlay abdeckt (siehe unten), wird als `index: overlay` beantwortet; jede andere Abweichung wird als `index: stale` gemeldet und gescannt. Den Walk überspringt es nicht: Dafür gibt es `--trust-index`.
+  - `--trust-index`: Antwortet aus dem Trigramm-Index und seiner Symbol-Beiakte, ohne den Baum anzusehen (siehe unten). Zusammen mit `--max-filesize` gilt es nur, wenn der Wert zur Einstellung des Index passt.
   - `-i`, `--ignore-case`: Regex-Suche ohne Beachtung von Groß-/Kleinschreibung.
   - `--fixed`: Behandelt das Muster als reinen Text (ohne Regex-Syntax).
   - `--in <präfix>`: Begrenzt die Suche auf Dateien unterhalb des Pfadpräfix.
@@ -829,9 +831,11 @@ Regex-Suche über den Suchkorpus — die Textdateien, die git nicht ignoriert, n
   - `--channel <local|cloud>`: `local` (Standard) durchsucht jede Korpusdatei. `cloud` liest die eigene `[privacy] never`-Deklaration des Projekts und verbirgt diese Pfade; eine fehlende Deklaration schränkt nichts ein, eine unlesbare ist ein Fehler.
   - `--max-filesize <bytes>` / `--no-max-filesize`: Gegen eine andere Größenobergrenze messen als die des Records. Das Flag schreibt den Record nie um: Weicht sein Wert von der Einstellung des Records ab, sagt die Antwort das, meldet `index: stale` und scannt mit dem Wert des Flags.
   - `--json`: Gibt maschinenlesbares JSON aus (`grep.Result`).
-- **Der Index**: Ein Muster mit einer Literalbedingung wird über `cache/trigram.idx` eingeengt (`index: used`); ein Muster, das der Index nicht einengen kann, wird über denselben Korpus gescannt (`index: scan`); ein fehlender, defekter oder gewachsener Index ist `index: stale` und wird gescannt. Die Frischesonde geht den Korpus entlang, vergleicht je Datei Größe und mtime und liest eine Datei nur, wenn ihr Stempel sich bewegt hat; ein sauberer Baum antwortet ohne git-Aufruf. Bei Abweichung und ohne `--no-refresh` werden Korpus, Record und Index unter dem prozessübergreifenden Lock neu gebaut, bevor die Antwort kommt. Das JSON ergänzt `index`, `files_in_scope`, `candidates`, `ignored`, `skipped_binary` und `skipped_size`; `files_in_scope` zählt den Korpus nach `--in` und vor dem Kandidatenfilter.
+- **Der Index**: Ein Muster mit einer Literalbedingung wird über `cache/trigram.idx` eingeengt (`index: used`); ein Muster, das der Index nicht einengen kann, wird über denselben Korpus gescannt (`index: scan`); ein Index, der fehlt, defekt ist oder einen anderen Digest als der Record trägt, wird wie ein abgewichener Korpus erst neu gebaut; wo kein Neubau läuft (`--no-refresh`, eine gehaltene Sperre), ist ein fehlender Index `index: none`, ein defekter oder gewachsener `index: stale`, beide werden gescannt. Eine beschädigte Postingliste wird nie als „keine Treffer“ gelesen: Die Suche fällt auf einen Scan zurück. Die Frischesonde geht den Korpus einmal entlang, vergleicht je Datei Größe und mtime und liest eine Datei nur, wenn ihr Stempel sich bewegt hat; ein Walk bedient den Korpus und die Dateimenge des Graphen, und ein sauberer Baum antwortet ohne git-Aufruf. Der Scan selbst läuft auf einem Worker je Prozessor, überspringt Dateien, die ein Pflicht-Literal nicht enthalten können, und liefert dieselben Treffer in derselben Reihenfolge wie ein serieller. Das JSON ergänzt `index`, `files_in_scope`, `candidates`, `ignored`, `skipped_binary`, `skipped_size` und, bei einer vertrauten Antwort, `index_built`; `files_in_scope` zählt den Korpus nach `--in` und vor dem Kandidatenfilter. `index` ist eins von `used`, `scan`, `stale`, `none`, `overlay` und `trusted`.
+- **Das Overlay**: Ist die Abweichung reiner Dateiinhalt — geänderte, neue oder gelöschte Dateien — und haben Suchkorpus und Graph je höchstens 200 solche Dateien, baut `grep` nichts neu. Der alte Index liefert die Kandidaten unter den unveränderten Dateien, geänderte und neue Dateien werden immer gelesen, gelöschte fehlen in der aktuellen Liste, und `index` meldet `overlay`, auch bei einem Muster ohne Literal und auch unter `--no-refresh`. Treffer in einer geänderten oder neuen Datei tragen kein Symbol und `in_degree` 0, wie eine Datei ohne Knoten: Die Spans gehören zum alten Graphen, und lieber kein Symbol als ein falsches. `grep` ruft die Frischeprüfung des Graphen nicht mehr auf; die Abweichung des Graphen zählt in die Grenze von 200 und lässt sonst die Symbole unveränderter Dateien, wie sie sind. Die Grenze ist eine Konstante, keine Einstellung. Andere Abweichung — Einstellungen, git-Konfiguration oder Ignore-Quellen, mehr als 200 Dateien, eine fehlende oder von einem anderen Extraktor stammende Frischeakte, eine unbrauchbare Ask-Beiakte — baut wie bisher neu (unter `--no-refresh` ist sie `stale`).
+- **Nach einem Commit**: `.git/index` ändert sich bei jedem `git add`, Commit und Checkout, und zählte das als Abweichung, griffe das Overlay selten. Ist der git-Index die einzige Abweichung, die nicht Dateiinhalt ist, fragt `grep` git einmal (`git ls-files -z --cached`, neben dem Walk gestartet), welche Dateien verfolgt werden, und vergleicht sie mit dem Record. Dieselbe Menge zählt als keine Abweichung, und `grep` schreibt den neuen Stempel des git-Index in den Record — auch unter `--no-refresh`, ein Schreiben auf dem Leseweg, damit nur der erste Aufruf nach dem Commit den git-Aufruf zahlt. Eine andere Menge baut neu. Ein gescheitertes Schreiben kostet nur das und wird als Notiz gemeldet. Gemessene Kosten stehen in `docs/de/benchmarks.md` („graph grep Start-Up Acceptance“).
+- **`--trust-index`**: kein Walk, kein Record, keine Ignore-Regeln, kein Neubau. Nach einem Stat von `wiring.json` (ein fehlender Graph bleibt Exit 1) bildet der Aufruf `cache/trigram.idx` ab: Seine Dateitabelle ist der Korpus, sein Kopf liefert die Zähler und `cache/grepspans.idx` die Symbole. `index` meldet `trusted`, und das neue Feld `index_built` trägt die mtime von `trigram.idx` (RFC 3339), damit ein Agent sieht, wie alt die Antwort sein kann; in jedem anderen Modus fehlt das Feld, und deren JSON bleibt unverändert. Auf einem Baum, der zum Index passt, gleicht das JSON dem des Prüfmodus bis auf `index` und `index_built`. Auf einem geänderten Baum ist die Antwort die des Index: Die Kandidaten des alten Index werden mit ihrem aktuellen Inhalt gelesen, eine seitdem neue Datei bleibt draußen, und eine seitdem entfernte zählt in `unreadable`. Der Aufruf fällt mit der Notiz `index not trusted: <Grund>` auf den Prüfmodus zurück, wenn der Index fehlt, defekt oder von einer anderen Extraktorversion ist, mit anderen Einstellungen gebaut wurde, als der Aufruf auflöst, oder die Symbol-Beiakte nicht zu ihm gehört. Ohne `--max-filesize` löst der Aufruf die Standardgrenze auf, ein mit einer anderen Grenze gebauter Index fällt also zurück; derselbe Wert wie beim Build ist anzugeben. `--channel cloud` und die `never`-Globs filtern wie im Prüfmodus. **Abweichung unter `--in` und `--glob`:** Die Dateitabelle enthält keine Binärdatei und kann die Binärdateien unter einem Präfix oder einem Glob nicht zuordnen; `files_in_scope` — und `candidates`, wenn das Muster nichts eingrenzt — zählen deshalb die ganze `skipped_binary` des Index mit, wo der Prüfmodus nur die Binärdateien im Filter zählt. Die Treffer sind dieselben, nur diese beiden Zahlen können größer sein. Ein Präfix, das nur eine Binärdatei enthält, ist unter `--trust-index` `prefix not indexed` (Exit 1) und im Prüfmodus eine leere Antwort. Sinnvoll, wo sich der Baum nach dem Build nicht ändert (CI, frischer Checkout); das Plugin `dsh-loomux` setzt es nur über seine Option `trustIndex`.
 - **Exit-Codes**: `0` bei Erfolg (auch mit 0 Treffern); `1` bei fehlendem/unlesbarem Graph, ungültigem Regex, unlesbarer Privacy-Deklaration oder einem Präfix, den der Record nicht abdeckt; `2` bei Aufruffehler, auch bei unbekanntem Channel. `--channel`- und `--glob`-Fehler sind Aufruffehler.
-- **Exit-Codes**: `0` bei Erfolg (auch bei 0 Treffern); `1` bei fehlendem/unlesbarem Graph oder ungültigem Regex; `2` bei Aufruffehlern.
 
 ### `loomux graph map [--root <pfad>] [--max-dirs <n>] [--hubs-per-dir <n>] [--hotspots <n>] [--no-refresh] [--json]`
 Zeigt token-budgetierte Verzeichnis-Cluster, lokale Hubs und globale Codebasis-Hotspots gerankt nach Kanten-Kopplung.
@@ -1152,6 +1156,44 @@ Kind ausführt.
   vier eine Zeile mit `! ` (der Fehlschlag oder die Zahl der Fälle), alle außer
   `brain_search` dazu die Zeile zum veralteten Stempel. Der Kanal `cloud` sieht
   nur seine Bereiche und nicht die Ursache eines Fehlschlags.
+- **Graph-Wächter**: Der Dienst hält die Graphen der registrierten Bereiche von
+  sich aus frisch, sodass ein Einmalaufruf von `graph grep` fast immer einen
+  aktuellen Index vorfindet. Er beobachtet jeden Bereich des Registers
+  (`config.ReadRegistry`, nicht die sichtbaren Bereiche eines Kanals), der einen
+  gebauten Graphen hat, und liest das Register jede Minute neu; ein Bereich, der
+  hinzukommt oder verschwindet, wird aufgenommen oder fallen gelassen.
+  Auslöser ist jede Änderung unter der Wurzel eines Bereichs, außer in einem
+  Pfad mit einem Verzeichnissegment, das mit `.` beginnt (wie beim Korpus-Walk,
+  `.git/`, `.loomux/` und `.claude/` bleiben also draußen); Punktdateien wie
+  `.gitignore` zählen. Ein Pfad, den die Ignore-Regeln des Records aus dem
+  Korpus lassen (ein Log, eine Build-Ausgabe), zählt ebenfalls nicht; der Dienst
+  hält den Record je Bereich und liest ihn nur neu, wenn sich `corpus.json`
+  bewegt hat. Die git-Dateien `index`, `config` und `info/exclude` des
+  Records zählen, wo immer sie liegen; liegen sie außerhalb der Wurzel, etwa in
+  einem verknüpften Worktree, werden auch ihre Verzeichnisse beobachtet.
+  Geprüft wird 2 s nach der letzten Änderung, nicht je Ereignis, und spätestens
+  10 s nach der ersten Änderung einer Folge, sodass Änderungen im Sekundentakt
+  die Prüfung nicht dauerhaft aufschieben. Die Prüfung ist
+  die Driftprüfung von `graph grep` (ein Walk, beide Driften, etwa 50 bis
+  80 ms); neu gebaut wird, wie `graph build` es mit der Größengrenze des Records
+  tut, nur bei Abweichung und unter derselben Neubau-Sperre wie ein
+  Einmalaufruf. Änderungen während eines Neubaus lösen genau eine weitere
+  Prüfung aus, und eine von einem Einmalaufruf gehaltene Sperre beginnt die
+  Ruhepause von 2 s von vorn. Ein Einmalaufruf, der während eines Neubaus
+  kommt, nimmt das Overlay, wo die Abweichung dazu passt, und wartet nicht auf
+  den Neubau. **Versionsschutz:** Ein Graph, dessen Fingerprint eine andere
+  Extraktorversion nennt als der laufende Dienst, wird nicht neu gebaut, und der
+  Dienst schreibt das einmal ins Log, weil sonst Dienst und CLI verschiedener
+  Versionen den Graphen abwechselnd neu bauten. Unter Windows hat jede Wurzel
+  eine rekursive `ReadDirectoryChangesW`-Beobachtung; sonst hält
+  `github.com/fsnotify/fsnotify` v1.10.1 eine Beobachtung je Verzeichnis, und
+  neue Verzeichnisse werden nachgetragen. Ein Überlauf (verlorene Ereignisse)
+  löst eine Prüfung aus. Ein Bereich, dessen Beobachtung scheitert (etwa am
+  inotify-Limit unter Linux) oder während des Laufs endet, wird in `serve.log`
+  vermerkt und bis zum Neustart des Dienstes nicht beobachtet; Einmalaufrufe
+  decken ihn wie ohne Dienst ab. Der Dienst wartet auf einen laufenden Neubau,
+  bevor er `serve.lock` freigibt. Ohne laufenden Dienst gilt alles wie bisher:
+  Overlay bis 200 Dateien, darüber Neubau im Aufruf.
 - **Exit-Codes**: `0` gestartet; `1` läuft bereits, oder Erzeugung bzw. Lauf
   sind gescheitert; `2` ein unbekanntes Argument oder ein unbekannter
   Unterbefehl.
@@ -1302,7 +1344,11 @@ Die sieben `graph_*`-Werkzeuge operieren über das Repository eines registrierte
   transitiv (`depth: "all"`); `in` verengt auf ein Pfadpräfix.
 - **`graph_find_all`** führt eine symbol-gekoppelte Regex-Suche über indizierte Dateien
   durch, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`);
-  `in` verengt auf Dateien unter einem Pfadpräfix.
+  `in` verengt auf Dateien unter einem Pfadpräfix. Es ruft dieselbe Suche wie
+  `loomux graph grep` ohne `--trust-index` und `--no-refresh`, antwortet also aus
+  dem Overlay, wenn wenige Dateien sich bewegt haben, und baut sonst im Aufruf
+  neu; der Graph-Wächter des Dienstes (§ `loomux serve`) hält diesen Neubau
+  selten.
 - **`graph_repo_map`** erzeugt eine token-budgetierte strukturelle Übersicht über
   Verzeichnis-Cluster, Hubs und Hotspots.
 - **`graph_blast`** ist `loomux graph blast` in der Wurzel des Bereichs: `base`

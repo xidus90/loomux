@@ -7,13 +7,13 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:f4b63bdc02004ee2dd6c64ede3328ef684b72457f9debb9b918aee4b10575d0c"
-    revision: 27
+    content_hash: "sha256:14019fc80435779b28bbf034b1c1a28989c979eebd40285cbc33c86a4e356d1b"
+    revision: 28
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:00de78eaa12582e8e6a2fe1acc35eb08c92b574565e3ef0cb882c9e2dbb55d68"
-    revision: 8
+    content_hash: "sha256:81f0b8c3e76dd335000605a171e155b8e641afb220245b46739c8a9ed8cd814f"
+    revision: 14
   - id: erste-schritte
     resource: brain://project/loomux/docs/de/getting-started.md
     doc_id: 01M47W91R51JAGYP0JXJFDFAR4

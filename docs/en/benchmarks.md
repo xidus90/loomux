@@ -4093,6 +4093,11 @@ Build: loomux 3.2 s, tgrep 0.2 s.
    wiring file and the 13 MB trigram index on every call; tgrep's warm literal
    answers in 21 ms from its index. A daemon would change the picture, but the
    design keeps loomux a one-shot binary.
+   **Corrected (2026-11-08):** the profiles of the start-up research show two
+   serial tree walks per call, the decoding of `wiring.json` and a full
+   rebuild on any drift as the cost, not loading the index. See
+   [the research document](../.superpowers/research/2026-11-07-grep-startluecke.md)
+   and the entry "2026-11-08 18:48 — graph grep Start-Up Acceptance" below.
 3. **The hit sets agree exactly.** On both corpora all four patterns produce
    identical `(path, line)` sets, including the 8931 literal-less hits on the
    repository. The fusion is correct; it is not yet fast enough to replace
@@ -4104,4 +4109,297 @@ Build: loomux 3.2 s, tgrep 0.2 s.
 
 **Open**: closing the start-up gap (lazy index loading, a smaller wiring file,
 or a resident process), and the profile question of which plugin owns `grep`.
+**Corrected (2026-11-08):** the start-up work was done without a resident
+process, through a parallel single walk, mapped sidecars and a drift overlay.
+Its acceptance misses the threshold for the first call after a commit, and
+whether the gap counts as closed is for the human to decide; see the entry
+"2026-11-08 18:48 — graph grep Start-Up Acceptance" below and
+[the research document](../.superpowers/research/2026-11-07-grep-startluecke.md).
+The profile question stays open.
 
+
+## 2026-11-08 18:48 — graph grep Start-Up Acceptance
+
+Measured on Windows x86_64 (Go 1.27.3, tgrep 1.2.3 from WinGet, called by
+absolute path) and on Linux in WSL2 (kernel 6.6.114.1, ext4, GNU grep 3.12).
+Old is `loomux.exe` built from `bab2f74e`, new is the head of
+`feat/grep-startup` (`a516c28e`), both `CGO_ENABLED=0`.
+
+**Method.** `acceptance.py` (PEP 723, in
+[the research folder](../.superpowers/research/2026-11-07-grep-startluecke/))
+clones the tree at `a516c28e` (8490 tracked files) twice into a temporary
+directory, one clone per binary, so each binary keeps its own state; the
+worktree itself is never touched. tgrep's index lies outside the tree. Every
+call is `graph grep -- <pattern> --json --channel cloud --max-hits 300`, the
+call `dsh-loomux` makes. Patterns: literal `func Search`, alternation
+`Search|Grep`, `-i func search`, no literal `[A-Z]{3}\w+`. One warm-up run, then
+11 interleaved runs per variant; the median counts. Scenarios: clean tree;
+20 Go files under `internal/brain` changed after the build (each call starts
+from the state of the clean build, restored before the call); the change
+committed (first call: the state restored before every call; later calls: the
+first call stored the new git index stamp); `--trust-index` on the clean tree.
+Thresholds are the targets of the design plus 20 % tolerance. The Windows run
+was repeated three times; run 2 ran while the machine was loaded (graph builds
+42.6 s and 31.3 s instead of 20–22 s and 17–18 s) and is reported separately.
+The load did not slow all tools by the same factor; see "Run 2" below. Raw
+data:
+`acceptance-windows-run{1,2,3}.json` and `acceptance-wsl.txt`.
+
+**Hit equality.** In all three runs and all four patterns the groups of old
+and new (path, symbol, `in_degree`, hit lines) are identical on the clean tree,
+and new with `--trust-index` returns the same JSON as new without it apart
+from `index` and `index_built`. After the change and after the commit the
+`(path, line)` sets of old (which rebuilds) and new (overlay) agree. Hits:
+35, 929, 47 and 9075 on the clean tree; 55, 949, 67 and 9075 after the change.
+new reports `overlay` after the change and after the commit and `trusted` with
+`--trust-index`.
+
+**Clean tree, Windows** (median ms, run 1 / run 3):
+
+| Pattern | old | new | limit | new `--trust-index` | tgrep | limit 1.2 × tgrep |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `func Search` | 492.5 / 494.5 | 74.4 / 73.3 | 108 | 24.4 / 24.9 | 26.6 / 26.6 | 31.9 / 31.9 |
+| `Search\|Grep` | 664.2 / 615.0 | 113.2 / 102.5 | 132 | 69.6 / 64.0 | 71.8 / 65.9 | 86.2 / 79.1 |
+| `-i func search` | 515.7 / 463.7 | 82.5 / 70.6 | 114 | 34.7 / 30.5 | 103.5 / 96.2 | 124.2 / 115.4 |
+| `[A-Z]{3}\w+` | 1066.7 / 1057.3 | 246.2 / 226.0 | 324 | 205.5 / 186.1 | 5118.9 / 4920.9 | — |
+
+**After a change to 20 files, Windows** (median ms, run 1 / run 3; limit 420):
+
+| Pattern | old | new |
+| --- | ---: | ---: |
+| `func Search` | 3963.0 / 3962.3 | 105.9 / 99.1 |
+| `Search\|Grep` | 4099.6 / 4078.9 | 141.1 / 135.0 |
+| `-i func search` | 3989.8 / 4070.7 | 113.3 / 107.6 |
+| `[A-Z]{3}\w+` | 4711.2 / 4811.6 | 294.2 / 303.6 |
+
+**After committing the change, Windows** (median ms, run 1 / run 3; limit 108
+for the literal):
+
+| Pattern | old | new, first call | new, later calls |
+| --- | ---: | ---: | ---: |
+| `func Search` | 4356.5 / 4182.2 | **203.2 / 180.6** | 65.3 / 82.2 |
+| `Search\|Grep` | 4209.3 / 4353.5 | 219.5 / 229.5 | 116.0 / 122.1 |
+| `-i func search` | 3929.1 / 4184.7 | 186.7 / 187.8 | 85.2 / 86.4 |
+| `[A-Z]{3}\w+` | 4796.8 / 4648.2 | 387.2 / 341.4 | 278.9 / 230.8 |
+
+**Run 2 (loaded machine).** Clean, new: 254.1, 406.0, 167.8 and 276.4 ms;
+`--trust-index`: 54.8, 271.4, 67.4 ms against tgrep 38.8, 91.7, 130.2 ms.
+After the change: 102.6, 161.6, 121.5, 279.1 ms. After the commit, first call:
+190.9, 236.0, 181.5, 352.1 ms; later calls 75.0, 160.9, 91.7, 256.4 ms. On
+the clean tree this run misses five more thresholds: the literal, the
+alternation and `-i` in check mode, and `--trust-index` for the literal and
+the alternation. The load did not hit all tools alike. From run 1 to run 2 old
+became 1.08–1.51 times slower and tgrep 1.07–1.46 times, but new in check mode
+became 3.4 times slower for the literal (74.4 to 254.1 ms), 3.6 times for the
+alternation and 2.0 times for `-i`, and new with `--trust-index` 2.2 times for
+the literal and 3.9 times for the alternation (69.6 to 271.4 ms, while tgrep
+went from 71.8 to 91.7 ms). The data therefore do not show run 2 as a mere
+loaded copy of runs 1 and 3, and the cause of the larger slowdown of new is
+not known. Whether run 2 counts is for the human to decide.
+
+**Linux (WSL2, ext4)**, `acceptance-wsl.sh` on a `git archive` of the same
+tree, new only, check mode, against `grep -rnE --exclude-dir=.git
+--exclude-dir=.loomux` (median of 11 ms; limit 1.2 × grep). grep searches every
+file of the tree and prints more lines (74, 1098, 94, 10718) than loomux has
+hits in its corpus (35, 929, 47, 9075, as on Windows). Build 2.8 s.
+
+| Pattern | grep with exclusions | loomux | result |
+| --- | ---: | ---: | --- |
+| `func Search` | 42.3 | 37.8 | pass |
+| `Search\|Grep` | 65.8 | 70.0 | pass |
+| `-i func search` | 55.9 | 46.9 | pass |
+| `[A-Z]{3}\w+` | 146.3 | 103.2 | pass |
+
+**Follow-up: the first call after a commit (2026-11-08, `597b49c7`).**
+Profiled in-process on the after-commit tree of `acceptance.py` (8497 files,
+record 2.36 MB JSON plus 1.57 MB mirror), median of 14 calls. Without the
+moved git index the probe (record, walk, both drifts) costs about 65 ms. The
+moved index added three steps, one after the other: `git ls-files -z
+--cached` 48 ms, a second read of the record to check that no rebuild
+replaced it 9 ms, and the restamp through `corpus.Write` 14 ms (of which
+`MarshalIndent` of the whole record 9–10 ms, gob 2–3 ms, the two file writes
+about 1.5 ms). The fix:
+
+- git lists the tracked files on a goroutine while the tree is walked; the
+  probe waits for it before it returns. Only `grep` starts it, the watcher's
+  drift check does not.
+- The check for a concurrent rebuild compares the stamp of the record file,
+  taken before the probe read it, instead of reading the record again.
+- `corpus.Restamp` reads the JSON bytes, replaces only the `index_stamp`
+  object, swaps the file in and writes the mirror anew. The result is
+  byte-identical to what `Write` produces; a record in another layout is
+  written whole.
+
+Afterwards in-process: probe with the git call beside it 75–80 ms instead of
+65 + 48 ms, the restamp 7–9 ms. Paired on one tree with the restore of
+`acceptance.py` before every call, interleaved, median of 21 (two series):
+old head `81086940` 189.4 / 176.9 ms, new head 136.5 / 131.7 ms, new head on a
+state that already carries the new stamp (the floor of a restored first call)
+114.4 / 105.1 ms. The index move now costs about 22–27 ms over that floor
+instead of 72–75 ms. Hits are unchanged (the hit checks of all three runs
+below pass).
+
+The three `acceptance.py` runs at `597b49c7` (raw data
+`acceptance-windows-run{4,5,6}.json`) ran while the machine was loaded
+throughout (CPU at 100 % without the benchmark, graph builds 17.9–55.6 s
+instead of 17–22 s, old in check mode 484–1487 ms instead of 492–495 ms for
+the literal). After the commit, literal, first call / later calls: 267.6 /
+450.2, 154.6 / 93.1 and 136.7 / 71.4 ms; after the change, literal: 119.0,
+134.0 and 110.5 ms. Run 4 is unusable after the commit (later calls slower
+than first calls, old alternation 13.6 s). Run 5 misses nine thresholds, run 6
+four (the literal, the alternation and `-i` in check mode on the clean tree,
+and the first call after the commit). No run reaches 108 ms for the first call
+after a commit.
+
+`--trust-index` with the alternation: 70.7 / 70.6 (tgrep), 273.6 / 123.0 and
+105.6 / 92.9 ms in runs 4 to 6. Run 5, the most loaded, repeats the pattern of
+run 2 (new hit harder by the load than tgrep); runs 4 and 6 pass. The outlier
+appears only under load; its cause was not investigated further.
+
+**Second follow-up: the measurement and the git index (2026-11-09,
+`9d7b6648`).** Two changes, measured apart:
+
+- **Method.** Up to run 6, `acceptance.py` deleted the whole state (85 MB)
+  before every call and copied it back. The measured call then opened freshly
+  written files for the first time (virus scan, file cache). A state that a
+  build wrote long ago has paid that. Since run 7 the restore copies back only
+  the files a call changed (size or mtime differ, extras are deleted) and
+  reads each copied file once before the call. The thresholds are unchanged.
+- **Code.** `grep` reads the tracked paths from `.git/index` itself
+  (`corpus.IndexTracked`, DIRC versions 2–4) instead of starting
+  `git ls-files`; anything the reader does not understand with certainty
+  (split or sparse index, unmerged paths, bad checksum, unknown version, a
+  missing file) still goes to git. The build keeps `git ls-files`.
+
+Paired on one after-commit tree (old head `7457ee45`, new head with the index
+reader), interleaved, median of 15, two series, on a machine at 100 % CPU:
+full restore 160.4 / 140.6 ms (old) and 151.2 / 129.3 ms (new); selective
+restore 133.3 / 110.4 ms (old) and 119.2 / 98.6 ms (new). The method accounts
+for 27–32 ms, the index reader for 9–14 ms. In the second series, a state that
+already carries the new stamp took 92.0 ms and the call after it 89.9 ms, so
+the first call after a commit now costs about 7–9 ms over a later call.
+
+Three `acceptance.py` runs at `9d7b6648` (raw data
+`acceptance-windows-run{7,8,9}.json`; old is `d15cdecb`, the base of the
+branch; 8507 files). CPU before every run: 99–100 %. Run 7 caught a peak of
+that load in its first phase (graph builds 34.2 / 32.1 s against 15.5–18.1 s
+in runs 8 and 9, new in check mode 622 ms for the literal) and misses six
+thresholds on the clean tree; it passes the scenarios after the change and the
+commit. Runs 8 and 9 pass every threshold. Literal after the commit, first
+call / later calls: 74.0 / 78.7, 80.3 / 66.9 and 80.6 / 71.1 ms (limit 108).
+After the change, literal: 250.0, 71.4 and 60.1 ms. `--trust-index` with the
+alternation: 203.4 / 129.5 (tgrep), 67.1 / 70.7 and 63.5 / 68.1 ms. All hit
+checks are true in all three runs.
+
+**Repeat on a less loaded machine (2026-11-09, `7ba44719`).** Runs 10 to 12
+(raw data `acceptance-windows-run{10,11,12}.json`; same binaries as before
+except that new is built from the head of the branch, which differs from
+`9d7b6648` only in tests, docs and the rebase; 8512 files; thresholds
+unchanged). The machine was not idle: the other sessions and VS Code kept
+running and it could not be stopped. CPU before each run, measured with the
+Processor Utility counter over 30 s (the `LoadPercentage` figures given for
+runs 7 to 9 above were unreliable, so that load was probably nearer 50 %):
+
+| Run | CPU mean / max | Top three processes (cores of 16) |
+| --- | ---: | --- |
+| 10 | 80.2 % / 108 % | `Code` 1.75, `claude` 0.43, `hooks.test` 0.21 |
+| 11 | 45.3 % / 86 % | `Code` 1.47, `claude` 0.51, `hooks.test` 0.24 |
+| 12 | 43.2 % / 62 % | `Code` 1.79, `go` 1.34, `Godot` 1.33 |
+
+Medians in ms; a cell reads value, or value / limit for `--trust-index`
+(1.2 times tgrep):
+
+| Threshold | Limit | Run 10 | Run 11 | Run 12 |
+| --- | ---: | ---: | ---: | ---: |
+| clean, check mode, literal | 108 | 69.3 | 54.5 | 67.7 |
+| clean, check mode, alternation | 132 | 111.5 | 88.4 | 96.3 |
+| clean, check mode, `-i` | 114 | 74.3 | 59.5 | 70.2 |
+| clean, check mode, no literal | 324 | **335.0 FAIL** | 211.1 | **434.7 FAIL** |
+| after the change, literal | 420 | 215.7 | 169.1 | 74.7 |
+| after the change, alternation | 420 | 112.6 | 110.7 | 104.1 |
+| after the change, `-i` | 420 | 212.2 | 70.2 | 121.0 |
+| after the change, no literal | 420 | 283.9 | 181.3 | 230.4 |
+| after the commit, literal, first call | 108 | 91.2 | 74.5 | 73.4 |
+| `--trust-index`, literal | 1.2 x tgrep | 21.0 / 27.6 | 18.4 / 25.0 | 23.4 / 28.4 |
+| `--trust-index`, alternation | 1.2 x tgrep | 66.5 / 85.6 | 52.7 / 69.5 | 59.8 / 77.4 |
+| `--trust-index`, `-i` | 1.2 x tgrep | 30.6 / 118.4 | 25.9 / 93.0 | 34.3 / 123.2 |
+| Verdict | | 1 miss | PASSED | 1 miss |
+
+Literal after the commit, first call / later calls: 91.2 / 67.1, 74.5 / 66.9
+and 73.4 / 75.2 ms (limit 108), so the target holds in all three runs. The
+overlay answered every call after the change and after the commit, and all
+hit checks are true.
+
+The only misses are the no-literal pattern in check mode on the clean tree, in
+runs 10 and 12. That pattern has no literal, so it scans every file and never
+touches the index or the commit path. Its median is pulled up by load spikes:
+the maxima are 858 and 902 ms (run 11: 254 ms), the minima 222 and 241 ms are
+under the limit, and old (1526 and 1853 ms) and tgrep (6569 and 6978 ms) are
+1.7 and 2.0 (old) and 1.3 and 1.4 (tgrep) times slower than in run 11 (921
+and 4898 ms). Runs 8 and 9 gave 224.8
+and 232.1 ms. The cause was not investigated further, and the threshold stays
+as it is.
+
+**Run 13 (2026-11-10, same binaries, new rebuilt fresh from the head).** Raw
+data `acceptance-windows-run13.json`. This time the measurement ran in the
+foreground of the session, so without the Stop hook's Go test suite beside
+it; VS Code and the other sessions kept running (`LoadPercentage` before:
+48–76 %). Run 13 passes every threshold. Medians in ms:
+
+| Threshold | Limit | Run 13 |
+| --- | ---: | ---: |
+| clean, check mode, literal / alternation / `-i` | 108 / 132 / 114 | 55.7 / 91.0 / 65.1 |
+| clean, check mode, no literal | 324 | 191.5 |
+| after the change, all four patterns | 420 | 61.2 / 91.1 / 65.0 / 236.7 |
+| after the commit, literal, first / later call | 108 | 65.1 / 56.4 |
+| `--trust-index`, literal / alternation / `-i` | 1.2 x tgrep | 20.4 / 24.2, 63.9 / 77.6, 28.4 / 109.9 |
+| Verdict | | PASSED |
+
+All hit checks are true. tgrep takes 4471 ms for the no-literal pattern, new
+191.5 ms.
+
+**Key Findings**
+
+1. **One threshold fails: the first call after a commit.** The literal takes
+   180.6–203.2 ms in runs 1 to 3 against a limit of 108 ms. Later calls,
+   after the first stored the new git index stamp, take 65–82 ms.
+   **Updated (2026-11-08):** profiling put the extra cost in three serial
+   steps (git listing 48 ms, a second record read 9 ms, the full rewrite of
+   the record 14 ms). Since `597b49c7` git runs beside the walk, the second
+   read is a stat and the restamp patches only the stamp; paired, the first
+   call fell from 177–189 ms to 132–137 ms. It still misses 108 ms: the
+   remaining 22–27 ms over a restored state (the git call outlasting the
+   walk, the restamp) come on top of a floor of 105–114 ms that the restore
+   of the measurement itself sets on the loaded machine (see "Follow-up"
+   above). By the plan the merge stops here and the numbers go to the human.
+   **Updated (2026-11-09):** the floor was mostly the method: the full copy
+   of the state before each call. With a restore that copies back only what
+   a call changed, and with the tracked paths read from `.git/index` instead
+   of `git ls-files`, runs 7 to 9 give 74.0, 80.3 and 80.6 ms for the first
+   call (limit 108); runs 8 and 9 pass every threshold (see "Second
+   follow-up" above).
+   **Updated (2026-11-09, repeat):** runs 10 to 12 on a less loaded machine
+   give 91.2, 74.5 and 73.4 ms for the first call. Run 11 passes every
+   threshold; runs 10 and 12 miss only the no-literal pattern in check mode on
+   the clean tree (see "Repeat on a less loaded machine" above).
+   **Updated (2026-11-10):** run 13, without the Stop hook's test suite
+   beside it, passes every threshold, the no-literal pattern included
+   (191.5 ms); the first call after the commit takes 65.1 ms.
+2. **Every other threshold passes in runs 1 and 3; run 2 misses five more.**
+   The misses of run 2 are listed under "Run 2" above, and whether that run
+   counts is open. In runs 1 and 3 check mode on the clean tree is 4–7 times
+   faster than old (70–113 ms for the indexed patterns), a change to 20 files
+   costs 99–304 ms instead of a 4 s rebuild, and `--trust-index` is as fast as
+   tgrep for the literal and the alternation and three times faster for `-i`.
+   On Linux loomux is at the level of `grep -rn` with exclusions on all four
+   patterns.
+3. **The hits do not change.** Old and new agree on every pattern and
+   scenario, and `--trust-index` on a tree that matches the index returns the
+   same JSON as check mode.
+
+**Open**: whether run 2 counts (see finding 2), and a repeat on an idle
+machine: runs 10 to 12 ran at 43–80 % CPU, the first call after a commit
+meets its limit in all of them, but the no-literal pattern in check mode
+misses 324 ms in runs 10 and 12 under load spikes. Run 13 without the Stop
+hook's test suite passes everything; a truly idle machine (without VS Code
+and the other sessions) was still not reached.

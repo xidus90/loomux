@@ -846,6 +846,7 @@ Reads and hashes every source file `internal/code/sourceset` finds under the roo
 - **Exit codes**: `0` on success, also when Python or Godot files have parse errors; `1` if the root cannot be resolved, a file cannot be read, a Go file cannot be parsed, module resolution fails, or the graph cannot be written; `2` for a usage error.
 - **Cost**: `build` never reads the freshness record — it reads and hashes every file, every time, cold or warm alike. The extract cache spares a file only its parse, never its read: an entry counts only against the hash of the bytes just read. `build` is the command that produces the state a probe compares against, so a stale byte in it would be a stale answer, not a saved read. See `docs/en/benchmarks.md` for measured figures.
 - **The search corpus and its trigram index**: in the same pass, `build` selects the corpus `graph grep` searches — every regular file under the root that git does not ignore, dot files and dot directories left out, symlinks skipped, the paths of `[privacy]` not consulted — and writes two sidecars beside the graph: `cache/corpus.json`, the record of the selection (canonical settings, ignore sources with their bytes and hashes, the stamps of `.git/index` and `.git/config`, the tracked paths, and per file size, mtime, SHA-256 and the binary verdict), and `cache/trigram.idx`, the sorted trigram postings over the non-binary files. Ignore semantics are git's: the global excludes file, `.git/info/exclude` and the `.gitignore` chain with git's precedence and `core.ignorecase`. A file whose bytes contain a NUL is binary, counted and not indexed; a file above the size limit is counted and skipped; a file that cannot be read is counted and recorded with an empty hash. A corpus that cannot be selected or written does not fail the build: the graph is what a question needs, and the next `grep` says why it scans.
+- **The sidecars `grep` reads without the graph**: besides the two above `build` writes `cache/grepspans.idx`, the symbol spans of every graph file with their in-degree, sorted by path and read through a memory map, so a search decodes only the files it has hits in, and binary mirrors of the two records, `cache/corpus.json.bin` and `cache/fingerprint.json.bin`. The JSON files stay canonical: a mirror records the size and mtime of the JSON it was written from, and the reader takes it only when both still match, so an edited or replaced JSON file is read as JSON. The record stores the digest of the corpus, and `trigram.idx` carries the same digest, its extractor version, the settings and the counters `ignored`, `skipped_size` and `skipped_binary` in its header, so a sidecar that does not belong to the record is detected rather than trusted. `grepspans.idx` is deleted before the graph is written and written last, with the corpus digest; if a step in between fails it is missing, and `grep` reads symbols from `wiring.json`, slower and with the same answer. Every sidecar is written atomically (temporary file, then rename). On Windows the rename fails while another process still maps the file, so the writer retries for about 2 s; if it still fails the build reports it, keeps the old record and the old index stays valid. The index is written before the record, so the record never names an index that was not written. The corpus walk reads up to 16 directories at a time and returns the same sorted listing as a serial one.
 
 ### `loomux graph ask "<query>" [flags]`
 Retrieves code symbols ranked by BM25-style lexical matching blended with **Personalized PageRank** over the AST call graph.
@@ -889,12 +890,13 @@ Exports definition signatures, types, and line spans for a file from the graph w
   - `--json`: Output machine-readable JSON (`skeleton.FileSkeleton`).
 - **Exit codes**: `0` on success; `1` if graph is missing or file not found in graph; `2` on usage error.
 
-### `loomux graph grep <pattern> [--root <path>] [-i] [--fixed] [--in <prefix>] [--max-hits <n>] [--glob <pattern>] [--channel local|cloud] [--max-filesize <bytes>|--no-max-filesize] [--no-refresh] [--json]`
+### `loomux graph grep <pattern> [--root <path>] [-i] [--fixed] [--in <prefix>] [--max-hits <n>] [--glob <pattern>] [--channel local|cloud] [--max-filesize <bytes>|--no-max-filesize] [--no-refresh] [--trust-index] [--json]`
 Regex search over the search corpus — the text files git does not ignore, not just the graph's files — grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`). A match in a file the graph does not hold carries no symbol and sorts last.
 
 - **Flags**:
   - `--root <path>`: Project root; the working directory when empty.
-  - `--no-refresh`: Answer from the sides on disk, never rebuild the corpus; a tree that moved is still reported as a stale index.
+  - `--no-refresh`: Never rebuild, but still read the current tree. Drift the overlay covers (see below) is answered as `index: overlay`; any other drift is reported as `index: stale` and scanned. It does not skip the walk: that is what `--trust-index` is for.
+  - `--trust-index`: Answer from the trigram index and its symbol sidecar without looking at the tree (see below). Combined with `--max-filesize` it holds only when the value equals the index's setting.
   - `-i`, `--ignore-case`: Case-insensitive regex matching.
   - `--fixed`: Treat pattern as a literal string (no regex syntax).
   - `--in <prefix>`: Narrow search to files under path prefix.
@@ -903,7 +905,10 @@ Regex search over the search corpus — the text files git does not ignore, not 
   - `--channel <local|cloud>`: `local` (default) searches every corpus file. `cloud` reads the project's own `[privacy] never` declaration and hides those paths; a missing declaration restricts nothing, and an unreadable one is an error.
   - `--max-filesize <bytes>` / `--no-max-filesize`: Measure against another size limit than the record's. The flag never rewrites the record: when its value differs from the record's setting the answer says so, reports `index: stale` and scans with the flag's value.
   - `--json`: Output machine-readable JSON (`grep.Result`).
-- **The index**: a pattern with a literal condition is narrowed through `cache/trigram.idx` (`index: used`); a pattern the index cannot narrow is scanned over the same corpus (`index: scan`); a missing, corrupt or moved index is `index: stale` and scanned. The freshness probe walks the corpus, compares size and mtime per file, and reads a file only when its stamp moved; a clean tree answers without a git call. With drift and without `--no-refresh`, the corpus, record and index are rebuilt under the cross-process lock before the answer. The JSON adds `index`, `files_in_scope`, `candidates`, `ignored`, `skipped_binary` and `skipped_size`; `files_in_scope` counts the corpus after `--in` and before the candidate filter.
+- **The index**: a pattern with a literal condition is narrowed through `cache/trigram.idx` (`index: used`); a pattern the index cannot narrow is scanned over the same corpus (`index: scan`); an index that is missing, corrupt or carries another digest than the record is rebuilt first, like a drifted corpus; where no rebuild runs (`--no-refresh`, a held lock) a missing index is `index: none` and a corrupt or moved one `index: stale`, both scanned. A damaged posting list is never read as "no hits": the search falls back to a scan. The freshness probe walks the corpus once, compares size and mtime per file, and reads a file only when its stamp moved; one walk serves the corpus and the graph's file set, and a clean tree answers without a git call. The scan itself runs on one worker per processor, skips files that cannot hold a required literal, and returns the same hits in the same order as a serial one. The JSON adds `index`, `files_in_scope`, `candidates`, `ignored`, `skipped_binary`, `skipped_size` and, on a trusted answer, `index_built`; `files_in_scope` counts the corpus after `--in` and before the candidate filter. `index` is one of `used`, `scan`, `stale`, `none`, `overlay` and `trusted`.
+- **The overlay**: when the drift is file content only — files changed, new or deleted — and neither the search corpus nor the graph has more than 200 such files each, `grep` rebuilds nothing. The old index supplies the candidates among the unchanged files, changed and new files are always read, deleted files are gone from the current listing, and `index` says `overlay`, also for a pattern without a literal and also under `--no-refresh`. Hits in a changed or new file carry no symbol and `in_degree` 0, as a file without a node does: the spans belong to the old graph, and no symbol is better than a wrong one. `grep` does not call the graph's freshness check any more; the graph's own drift is counted into the limit of 200 and otherwise leaves the symbols of unchanged files as they are. The limit is a constant, not a setting. Other drift — settings, git configuration or ignore sources, more than 200 files, a missing freshness record or one from another extractor, an unusable ask sidecar — rebuilds as before (under `--no-refresh` it is `stale`).
+- **After a commit**: `.git/index` changes with every `git add`, commit and checkout, and counting that as drift would make the overlay rare. When the git index is the only drift that is not file content, `grep` asks git once (`git ls-files -z --cached`, started beside the walk) which files are tracked and compares them with the record. The same set counts as no drift, and `grep` writes the git index's new stamp into the record — also under `--no-refresh`, a write on the read path, so that only the first call after a commit pays for the git call. A different set rebuilds. A failed write costs only that and is reported as a note. Measured costs are in `docs/en/benchmarks.md` ("graph grep Start-Up Acceptance").
+- **`--trust-index`**: no walk, no record, no ignore rules, no rebuild. After a stat of `wiring.json` (a missing graph is still exit 1) the call maps `cache/trigram.idx`: its file table is the corpus, its header the counters, and `cache/grepspans.idx` supplies the symbols. `index` says `trusted`, and the new field `index_built` holds the mtime of `trigram.idx` (RFC 3339), so an agent can see how old the answer may be; the field is omitted in every other mode, which leaves their JSON unchanged. On a tree that matches the index the JSON equals the checked one apart from `index` and `index_built`. On a changed tree the answer is the index's: the candidates of the old index are read as they are now, a file that is new since stays out, and one that was removed counts in `unreadable`. The call falls back to the checked path with the note `index not trusted: <reason>` when the index is missing, corrupt or from another extractor version, was built with other settings than the call resolves, or the symbol sidecar does not belong to it. Without `--max-filesize` the call resolves the default limit, so an index built with another limit falls back; pass the same value as the build. `--channel cloud` and the `never` globs filter as in the checked path. **Deviation under `--in` and `--glob`:** the file table holds no binary file, so it cannot place the binaries under a prefix or a glob, and `files_in_scope` — and `candidates` when the pattern narrows nothing — add the index's whole `skipped_binary` count, where the checked path counts only the binaries inside the filter. The hits are the same; only those two numbers can be larger. A prefix that holds nothing but a binary file is `prefix not indexed` (exit 1) under `--trust-index` and an empty answer in the checked path. Use it where the tree does not change after the build (CI, a fresh checkout); the plugin `dsh-loomux` sets it only through its `trustIndex` option.
 - **Exit codes**: `0` on success (even with 0 hits); `1` on missing/unreadable graph, invalid regex, unreadable privacy declaration, or a prefix the record does not cover; `2` on usage error, including an unknown channel. `--channel` and `--glob` errors are usage errors.
 
 ### `loomux graph map [--root <path>] [--max-dirs <n>] [--hubs-per-dir <n>] [--hotspots <n>] [--no-refresh] [--json]`
@@ -1222,6 +1227,35 @@ sees a failed start — and it is also what the detached child runs.
   and a failure, the other four one line with `! ` (the failure or the number
   of cases), every one but `brain_search` also the line about an aged stamp.
   The `cloud` channel sees only its own areas and not the cause of a failure.
+- **Graph watcher**: the service keeps the graphs of the registered areas fresh
+  on its own, so a one-shot `graph grep` nearly always finds a current index. It
+  watches every area of the registry (`config.ReadRegistry`, not the channel's
+  visible areas) that has a built graph, and reads the registry again every
+  minute, so an area that appears or disappears is picked up or dropped.
+  A change under an area's root triggers it, except in a path with a directory
+  segment that starts with `.` (as the corpus walk, so `.git/`, `.loomux/` and
+  `.claude/` stay out); dot files such as `.gitignore` count. A path the record's ignore rules leave out of the corpus (a log, a build output) does not count either; the service keeps each area's record and reads it again only when `corpus.json` moved. The record's git
+  files `index`, `config` and `info/exclude` count wherever they lie; when they
+  lie outside the root, as in a linked worktree, their directories are watched
+  as well. The tree is checked 2 s after the last change, not once per event, and at the latest 10 s after the first change of a burst, so changes every second do not hold the check off for good.
+  The check is the drift check of `graph grep` (one walk, both drifts, about
+  50 to 80 ms), and the graph is rebuilt, as `graph build` does with the size
+  limit of the record, only when it finds drift, under the same rebuild lock as
+  a one-shot call; changes during a rebuild cause exactly one more check, and a
+  lock held by a one-shot call restarts the 2 s pause. A one-shot call that
+  arrives during a rebuild takes the overlay where the drift fits it and does not wait for the rebuild.
+  **Version guard:** a graph whose fingerprint names another extractor version
+  than the running service is not rebuilt, and the service logs it once, because
+  a service and a CLI of different versions would otherwise rebuild each other's
+  graph in turn. On Windows each root has one recursive `ReadDirectoryChangesW`
+  watch; elsewhere `github.com/fsnotify/fsnotify` v1.10.1 holds one watch per
+  directory and new directories are added as they appear. A lost-events
+  overflow causes a rebuild check. An area whose watch fails (for instance at
+  the inotify limit on Linux) or stops during the run is logged to `serve.log`
+  and left unwatched until the service restarts; one-shot calls cover it as
+  they do without a service. The service waits for a running rebuild before it
+  releases `serve.lock`. Without a running service everything holds as before:
+  the overlay up to 200 files, a rebuild in the call above that.
 - **Exit codes**: `0` started; `1` already running, or the spawn or the run
   failed; `2` an unrecognized argument or an unknown subcommand.
 
@@ -1363,7 +1397,10 @@ The seven `graph_*` tools operate over the repository of one registered area:
   transitive (`depth: "all"`); `in` narrows to a path prefix.
 - **`graph_find_all`** performs symbol-coupled regex search across indexed files,
   grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`);
-  `in` narrows to files under a path prefix.
+  `in` narrows to files under a path prefix. It calls the same search as
+  `loomux graph grep` without `--trust-index` and `--no-refresh`, so it answers
+  from the overlay when a few files moved and rebuilds in the call otherwise;
+  the service's graph watcher (§ `loomux serve`) keeps that rebuild rare.
 - **`graph_repo_map`** generates a token-budgeted structural overview of directory
   clusters, hubs, and hotspots.
 - **`graph_blast`** is `loomux graph blast` in the area's root: `base` compares
