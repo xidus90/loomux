@@ -1,0 +1,810 @@
+diff --git a/internal/code/corpus/record.go b/internal/code/corpus/record.go
+index 9d3a8c72..15592388 100644
+--- a/internal/code/corpus/record.go
++++ b/internal/code/corpus/record.go
+@@ -177,13 +177,19 @@ func Write(root string, rec Record) error {
+ // Read loads the record, or reports that there is none this code may use. A
+ // record is a cache: a broken one costs the fast path and nothing more.
+ func Read(root string) (Record, bool) {
+-	b, err := readFile(RecordPath(root))
+-	if err != nil {
+-		return Record{}, false
+-	}
+ 	var rec Record
+-	if err := json.Unmarshal(b, &rec); err != nil {
+-		return Record{}, false
++	if spikeOn("RECGOB") {
++		if SpikeReadRecord(RecordPath(root), &rec) != nil {
++			return Record{}, false
++		}
++	} else {
++		b, err := readFile(RecordPath(root))
++		if err != nil {
++			return Record{}, false
++		}
++		if err := json.Unmarshal(b, &rec); err != nil {
++			return Record{}, false
++		}
+ 	}
+ 	if rec.Version != corpusRecordVersion || rec.Files == nil || len(rec.Settings) == 0 {
+ 		return Record{}, false
+diff --git a/internal/code/corpus/zz_spike_gob.go b/internal/code/corpus/zz_spike_gob.go
+new file mode 100644
+index 00000000..e86a64cf
+--- /dev/null
++++ b/internal/code/corpus/zz_spike_gob.go
+@@ -0,0 +1,48 @@
++package corpus
++
++// SPIKE (throwaway) RECGOB: a gob mirror beside a JSON record, refreshed when
++// the JSON file is newer. Decoding gob is the thing measured.
++
++import (
++	"bytes"
++	"encoding/gob"
++	"encoding/json"
++	"os"
++)
++
++// SpikeReadRecord decodes the JSON record at path into v, through the gob
++// mirror when LMX_SPIKE_RECGOB=1.
++func SpikeReadRecord(path string, v any) error {
++	if !spikeOn("RECGOB") {
++		b, err := os.ReadFile(path)
++		if err != nil {
++			return err
++		}
++		return json.Unmarshal(b, v)
++	}
++	mirror := path + ".gob"
++	js, jerr := os.Stat(path)
++	if jerr != nil {
++		return jerr
++	}
++	if gs, err := os.Stat(mirror); err == nil && !gs.ModTime().Before(js.ModTime()) {
++		if b, err := os.ReadFile(mirror); err == nil && gob.NewDecoder(bytes.NewReader(b)).Decode(v) == nil {
++			return nil
++		}
++	}
++	b, err := os.ReadFile(path)
++	if err != nil {
++		return err
++	}
++	if err := json.Unmarshal(b, v); err != nil {
++		return err
++	}
++	var buf bytes.Buffer
++	if gob.NewEncoder(&buf).Encode(v) == nil {
++		tmp := mirror + ".tmp"
++		if os.WriteFile(tmp, buf.Bytes(), 0o644) == nil {
++			_ = os.Rename(tmp, mirror)
++		}
++	}
++	return nil
++}
+diff --git a/internal/code/corpus/zz_spike_parwalk.go b/internal/code/corpus/zz_spike_parwalk.go
+index 0abcb65d..14b7dfc6 100644
+--- a/internal/code/corpus/zz_spike_parwalk.go
++++ b/internal/code/corpus/zz_spike_parwalk.go
+@@ -8,6 +8,7 @@ import (
+ 	"path/filepath"
+ 	"runtime"
+ 	"sort"
++	"strconv"
+ 	"strings"
+ 	"sync"
+ )
+@@ -26,7 +27,7 @@ func walkParallel(root string, m Matcher) (Listing, error) {
+ 		mu      sync.Mutex
+ 		entries []Entry
+ 		wg      sync.WaitGroup
+-		sem     = make(chan struct{}, 4*runtime.NumCPU())
++		sem     = make(chan struct{}, spikeWalkPar())
+ 	)
+ 	var visit func(abs, rel string)
+ 	visit = func(abs, rel string) {
+@@ -173,3 +174,13 @@ func deriveListing(raw Listing, m Matcher) Listing {
+ 	}
+ 	return Listing{Entries: out, Repo: true}
+ }
++
++func spikeWalkPar() int {
++	if n, err := strconv.Atoi(os.Getenv("LMX_SPIKE_WALKPAR")); err == nil && n > 0 {
++		return n
++	}
++	return 4 * runtime.NumCPU()
++}
++
++// SpikeResetWalk forgets the memoized walk, as a daemon would per request.
++func SpikeResetWalk() { rawWalks = sync.Map{} }
+diff --git a/internal/code/freshness/fingerprint.go b/internal/code/freshness/fingerprint.go
+index 933a429a..bf46a34d 100644
+--- a/internal/code/freshness/fingerprint.go
++++ b/internal/code/freshness/fingerprint.go
+@@ -28,6 +28,7 @@ import (
+ 	"path/filepath"
+ 	"sort"
+ 
++	"github.com/xidus90/loomux/internal/code/corpus"
+ 	"github.com/xidus90/loomux/internal/code/sourceset"
+ 	"github.com/xidus90/loomux/internal/code/store"
+ )
+@@ -151,12 +152,8 @@ func Probe(root, extractor string) (*Drift, error) {
+ // A sidecar is a cache: a broken one costs the next probe its fast path and
+ // nothing more, so it is never an error a caller dies on.
+ func read(root, extractor string) (record, bool) {
+-	b, err := os.ReadFile(Path(root))
+-	if err != nil {
+-		return record{}, false
+-	}
+ 	var rec record
+-	if err := json.Unmarshal(b, &rec); err != nil {
++	if err := corpus.SpikeReadRecord(Path(root), &rec); err != nil {
+ 		return record{}, false
+ 	}
+ 	if rec.Version != recordVersion || rec.Files == nil || rec.Extractor != extractor {
+diff --git a/internal/code/grep/grep.go b/internal/code/grep/grep.go
+index 18d85dfe..05d4a929 100644
+--- a/internal/code/grep/grep.go
++++ b/internal/code/grep/grep.go
+@@ -50,7 +50,9 @@ type Options struct {
+ 	// caller decides it; Search only carries it into the result.
+ 	Index string
+ 
+-	SpikeInDeg map[model.NodeID]int // SPIKE: in-degrees from the spans sidecar
++	SpikeInDeg  map[model.NodeID]int            // SPIKE: in-degrees from the spans sidecar
++	SpikeSpanFn func(string) []model.SymbolSpan // SPIKE: lazy spans per file
++	SpikeLits   [][]string                      // SPIKE: literal prefilter
+ }
+ 
+ // Result summarizes grep matches and groupings.
+@@ -176,7 +178,7 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
+ 	groupsMap := make(map[groupKey]*Group)
+ 	var groupsOrder []groupKey
+ 
+-	scanned := spikeScanAll(files, read, re)
++	scanned := spikeScanAll(files, read, re, opts.SpikeLits, opts.IgnoreCase)
+ 	for i, filePath := range files {
+ 		sf := scanned[i]
+ 		if sf.unreadable {
+@@ -191,6 +193,7 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
+ 		res.FilesSearched++
+ 
+ 		fileSpans := spans[filePath]
++		spansLoaded := opts.SpikeSpanFn == nil
+ 
+ 		for j, lineNum := range sf.lines {
+ 			line := sf.texts[j]
+@@ -208,6 +211,10 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
+ 			}
+ 			hit := Hit{Line: lineNum, Text: hitText}
+ 
++			if !spansLoaded {
++				// Only a counted hit needs its symbol; truncated ones are tallied.
++				fileSpans, spansLoaded = opts.SpikeSpanFn(filePath), true
++			}
+ 			encNode := model.Enclosing(fileSpans, lineNum)
+ 			var symID model.NodeID
+ 			var inDeg int
+diff --git a/internal/code/grep/zz_spike_scan.go b/internal/code/grep/zz_spike_scan.go
+index 270345d2..910bb780 100644
+--- a/internal/code/grep/zz_spike_scan.go
++++ b/internal/code/grep/zz_spike_scan.go
+@@ -1,6 +1,7 @@
+ package grep
+ 
+-// SPIKE (throwaway): parallel file scan with a whole-file prefilter.
++// SPIKE (throwaway): parallel file scan with a whole-file prefilter
++// (SCANPAR), and a literal prefilter before the regex (LITPRE).
+ 
+ import (
+ 	"bytes"
+@@ -19,7 +20,51 @@ type spikeScanned struct {
+ 	texts              []string
+ }
+ 
+-func spikeScanOne(p string, read FileReader, re, pre *regexp.Regexp) spikeScanned {
++// spikeLits is the literal condition of a pattern: a disjunction of
++// conjunctions of ASCII-lowercase literals, as trigram.Literals returns it.
++type spikeLits struct {
++	sets       [][][]byte
++	ignoreCase bool
++}
++
++func asciiLower(b []byte) []byte {
++	out := make([]byte, len(b))
++	for i, c := range b {
++		if 'A' <= c && c <= 'Z' {
++			c += 'a' - 'A'
++		}
++		out[i] = c
++	}
++	return out
++}
++
++func hasNonASCII(b []byte) bool {
++	for _, c := range b {
++		if c >= 0x80 {
++			return true
++		}
++	}
++	return false
++}
++
++// holds reports whether some alternative has all its literals in b.
++func (l *spikeLits) holds(b []byte) bool {
++	for _, set := range l.sets {
++		all := true
++		for _, lit := range set {
++			if !bytes.Contains(b, lit) {
++				all = false
++				break
++			}
++		}
++		if all {
++			return true
++		}
++	}
++	return false
++}
++
++func spikeScanOne(p string, read FileReader, re, pre, whole *regexp.Regexp, lits *spikeLits) spikeScanned {
+ 	data, err := read(p)
+ 	if err != nil {
+ 		return spikeScanned{unreadable: true}
+@@ -27,27 +72,48 @@ func spikeScanOne(p string, read FileReader, re, pre *regexp.Regexp) spikeScanne
+ 	if corpus.IsBinary(data) {
+ 		return spikeScanned{binary: true}
+ 	}
+-	// (?m) makes ^ and $ line anchors; a CR before LF would hide a $ match, so
+-	// such a file skips the prefilter.
+-	if pre != nil && !bytes.Contains(data, []byte{'\r'}) && !pre.Match(data) {
++	var lower []byte
++	// Under (?i) an ASCII literal also matches a non-ASCII fold (the Kelvin
++	// sign for k); such a file skips the literal prefilter.
++	if lits != nil && !(lits.ignoreCase && hasNonASCII(data)) {
++		lower = asciiLower(data)
++		if !lits.holds(lower) {
++			return spikeScanned{}
++		}
++	} else if pre != nil && !bytes.Contains(data, []byte{'\r'}) && !pre.Match(data) {
++		// (?m) makes ^ and $ line anchors; a CR before LF would hide a $
++		// match, so such a file skips this prefilter.
+ 		return spikeScanned{}
+ 	}
++	if whole != nil && !bytes.Contains(data, []byte{'\r'}) {
++		return spikeScanWhole(data, whole)
++	}
+ 	var out spikeScanned
+-	for i, raw := range strings.Split(string(data), "\n") {
+-		line := strings.TrimSuffix(raw, "\r")
+-		if re.MatchString(line) {
+-			out.lines = append(out.lines, i+1)
+-			out.texts = append(out.texts, line)
++	start := 0
++	for i := 0; start <= len(data); i++ {
++		end := bytes.IndexByte(data[start:], '\n')
++		if end < 0 {
++			end = len(data)
++		} else {
++			end += start
++		}
++		if lower == nil || lits.holds(lower[start:end]) {
++			line := strings.TrimSuffix(string(data[start:end]), "\r")
++			if re.MatchString(line) {
++				out.lines = append(out.lines, i+1)
++				out.texts = append(out.texts, line)
++			}
+ 		}
++		start = end + 1
+ 	}
+ 	return out
+ }
+ 
+-func spikeScanAll(files []string, read FileReader, re *regexp.Regexp) []spikeScanned {
++func spikeScanAll(files []string, read FileReader, re *regexp.Regexp, litSets [][]string, ignoreCase bool) []spikeScanned {
+ 	out := make([]spikeScanned, len(files))
+ 	if os.Getenv("LMX_SPIKE_SCANPAR") != "1" {
+ 		for i, p := range files {
+-			out[i] = spikeScanOne(p, read, re, nil)
++			out[i] = spikeScanOne(p, read, re, nil, nil, nil)
+ 		}
+ 		return out
+ 	}
+@@ -55,6 +121,18 @@ func spikeScanAll(files []string, read FileReader, re *regexp.Regexp) []spikeSca
+ 	if err != nil {
+ 		pre = nil
+ 	}
++	whole := spikeWhole(re)
++	var lits *spikeLits
++	if os.Getenv("LMX_SPIKE_LITPRE") == "1" && len(litSets) > 0 {
++		lits = &spikeLits{ignoreCase: ignoreCase}
++		for _, set := range litSets {
++			var bs [][]byte
++			for _, l := range set {
++				bs = append(bs, []byte(strings.ToLower(l)))
++			}
++			lits.sets = append(lits.sets, bs)
++		}
++	}
+ 	var wg sync.WaitGroup
+ 	next := make(chan int)
+ 	for range runtime.NumCPU() {
+@@ -62,7 +140,7 @@ func spikeScanAll(files []string, read FileReader, re *regexp.Regexp) []spikeSca
+ 		go func() {
+ 			defer wg.Done()
+ 			for i := range next {
+-				out[i] = spikeScanOne(files[i], read, re, pre)
++				out[i] = spikeScanOne(files[i], read, re, pre, whole, lits)
+ 			}
+ 		}()
+ 	}
+diff --git a/internal/code/grep/zz_spike_whole.go b/internal/code/grep/zz_spike_whole.go
+new file mode 100644
+index 00000000..dc253d40
+--- /dev/null
++++ b/internal/code/grep/zz_spike_whole.go
+@@ -0,0 +1,81 @@
++package grep
++
++// SPIKE (throwaway) WHOLE: one regex pass per file instead of one per line,
++// for patterns that can never match a newline.
++
++import (
++	"bytes"
++	"os"
++	"regexp"
++	"regexp/syntax"
++)
++
++// spikeNoNewline reports whether re can never match a '\n': then a line has
++// a match exactly when a whole-buffer match starts in it.
++func spikeNoNewline(re *syntax.Regexp) bool {
++	switch re.Op {
++	case syntax.OpAnyChar, syntax.OpBeginText, syntax.OpEndText:
++		// \A and \z anchor each line in the per-line scan, the file here.
++		return false
++	case syntax.OpCharClass:
++		for i := 0; i+1 < len(re.Rune); i += 2 {
++			if re.Rune[i] <= '\n' && '\n' <= re.Rune[i+1] {
++				return false
++			}
++		}
++		return true
++	case syntax.OpLiteral:
++		for _, r := range re.Rune {
++			if r == '\n' {
++				return false
++			}
++		}
++		return true
++	}
++	for _, sub := range re.Sub {
++		if !spikeNoNewline(sub) {
++			return false
++		}
++	}
++	return true
++}
++
++// spikeWhole compiles the (?m) form of re when no match can cross a line.
++func spikeWhole(re *regexp.Regexp) *regexp.Regexp {
++	if os.Getenv("LMX_SPIKE_WHOLE") != "1" {
++		return nil
++	}
++	parsed, err := syntax.Parse(re.String(), syntax.Perl)
++	if err != nil || !spikeNoNewline(parsed) {
++		return nil
++	}
++	whole, err := regexp.Compile("(?m)" + re.String())
++	if err != nil {
++		return nil
++	}
++	return whole
++}
++
++// spikeScanWhole maps whole-buffer matches to their lines.
++func spikeScanWhole(data []byte, whole *regexp.Regexp) spikeScanned {
++	var out spikeScanned
++	line, pos, last := 1, 0, -1
++	for _, loc := range whole.FindAllIndex(data, -1) {
++		line += bytes.Count(data[pos:loc[0]], []byte{'\n'})
++		pos = loc[0]
++		if line == last {
++			continue
++		}
++		last = line
++		start := bytes.LastIndexByte(data[:loc[0]], '\n') + 1
++		end := bytes.IndexByte(data[loc[0]:], '\n')
++		if end < 0 {
++			end = len(data)
++		} else {
++			end += loc[0]
++		}
++		out.lines = append(out.lines, line)
++		out.texts = append(out.texts, string(data[start:end]))
++	}
++	return out
++}
+diff --git a/internal/code/query/build.go b/internal/code/query/build.go
+index a3c1d2c8..52c0013f 100644
+--- a/internal/code/query/build.go
++++ b/internal/code/query/build.go
+@@ -104,6 +104,7 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
+ 		return nil, Stats{}, err
+ 	}
+ 	spikeWriteSpans(root, g)
++	spikeWriteLazySpans(root, g)
+ 	// From the graph in memory, which still carries the body text: the written
+ 	// file has it stripped, and that is what makes the sidecar necessary rather
+ 	// than redundant.
+diff --git a/internal/code/query/grep.go b/internal/code/query/grep.go
+index 549b1eeb..85c550ca 100644
+--- a/internal/code/query/grep.go
++++ b/internal/code/query/grep.go
+@@ -5,6 +5,7 @@ import (
+ 	"fmt"
+ 	"os"
+ 	"path/filepath"
++	"runtime/debug"
+ 	"strings"
+ 
+ 	"github.com/xidus90/loomux/internal/brain/privacy"
+@@ -54,14 +55,27 @@ type GrepOptions struct {
+ var readRecord = corpus.Read
+ 
+ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error) {
++	if corpus.SpikeOn("GCOFF") {
++		debug.SetGCPercent(-1)
++	}
+ 	useSpans := corpus.SpikeOn("SPANS")
+ 	g, notes, err := loadGraphFor(root, opts.NoRefresh, !useSpans)
+ 	if err != nil {
+ 		return grep.Result{}, notes, err
+ 	}
++	spikeMark("loadGraph")
+ 	var spikeSpans map[string][]model.SymbolSpan
+ 	var spikeDeg map[model.NodeID]int
+-	if useSpans {
++	var spikeSpanFn func(string) []model.SymbolSpan
++	if useSpans && corpus.SpikeOn("LAZYSPANS") {
++		var ok bool
++		if spikeSpanFn, spikeDeg, ok = spikeLazySpans(root); ok {
++			spikeSpans = map[string][]model.SymbolSpan{}
++		} else {
++			spikeSpanFn = nil
++		}
++	}
++	if useSpans && spikeSpanFn == nil {
+ 		var ok bool
+ 		if spikeSpans, spikeDeg, ok = spikeReadSpans(root); !ok {
+ 			useSpans = false
+@@ -70,6 +84,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
+ 			}
+ 		}
+ 	}
++	spikeMark("spans")
+ 	var overlay *corpus.Drift
+ 	maxFilesize, err := corpus.ResolveMaxFilesize(opts.MaxFilesize, nil)
+ 	if err != nil {
+@@ -80,6 +95,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
+ 	// The record and its matcher answer the common case without git: walk
+ 	// once, compare, keep the listing. Only drift pays for Load.
+ 	rec, hasRecord := readRecord(root)
++	spikeMark("readRecord")
+ 	var rules *corpus.Rules
+ 	var listing corpus.Listing
+ 	trusted := false
+@@ -108,6 +124,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
+ 	}
+ 	if hasRecord {
+ 		rules = corpus.RulesFromRecord(rec)
++		spikeMark("rules")
+ 		listing, err = walkCorpus(root, matcherFor(rules))
+ 		if err != nil {
+ 			return grep.Result{}, notes, err
+@@ -148,6 +165,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
+ 		}
+ 	}
+ 
++	spikeMark("walk+compare")
+ 	files, ignored, skippedSize := corpus.SearchCorpus(listing, maxFilesize)
+ 	if trusted && hasRecord {
+ 		ignored, skippedSize = rec.Ignored, rec.SkippedSize
+@@ -221,6 +239,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
+ 
+ 	index := "none"
+ 	var candidates map[string]bool
++	spikeMark("searchcorpus+channel")
+ 	ix, ixErr := trigram.Read(root)
+ 	switch {
+ 	case ixErr == nil:
+@@ -274,6 +293,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
+ 		}
+ 	}
+ 
++	spikeMark("trigram")
+ 	var x *blast.Index
+ 	var spans map[string][]model.SymbolSpan
+ 	if useSpans {
+@@ -290,16 +310,19 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
+ 	}
+ 
+ 	found, err := grep.Search(g, x, spans, pattern, grep.Options{
+-		IgnoreCase: opts.IgnoreCase,
+-		Fixed:      opts.Fixed,
+-		In:         opts.In,
+-		MaxHits:    opts.MaxHits,
+-		Files:      paths,
+-		All:        scopePaths,
+-		Candidates: candidates,
+-		Index:      index,
+-		SpikeInDeg: spikeDeg,
++		IgnoreCase:  opts.IgnoreCase,
++		Fixed:       opts.Fixed,
++		In:          opts.In,
++		MaxHits:     opts.MaxHits,
++		Files:       paths,
++		All:         scopePaths,
++		Candidates:  candidates,
++		Index:       index,
++		SpikeInDeg:  spikeDeg,
++		SpikeSpanFn: spikeSpanFn,
++		SpikeLits:   spikeLitSets(pattern, opts.Fixed, opts.IgnoreCase),
+ 	}, reader)
++	spikeMark("search")
+ 	if err != nil {
+ 		return found, notes, err
+ 	}
+diff --git a/internal/code/query/zz_prof_scratch_test.go b/internal/code/query/zz_prof_scratch_test.go
+index fd57222a..a4906fb1 100644
+--- a/internal/code/query/zz_prof_scratch_test.go
++++ b/internal/code/query/zz_prof_scratch_test.go
+@@ -44,7 +44,7 @@ func TestZZParWalkEquals(t *testing.T) {
+ func BenchmarkZZPlugin(b *testing.B) {
+ 	root := os.Getenv("ZZ_ROOT")
+ 	for i := 0; i < b.N; i++ {
+-		r, notes, err := Grep(root, "func Search", GrepOptions{Channel: "cloud"})
++		r, notes, err := Grep(root, spikePattern(), GrepOptions{Channel: "cloud", MaxHits: 300})
+ 		if i == 0 {
+ 			b.Logf("index=%s hits=%d notes=%v err=%v", r.Index, r.TotalHits, notes, err)
+ 		}
+@@ -66,3 +66,25 @@ func TestZZOneWalkEquals(t *testing.T) {
+ 	one, _ := corpus.Walk(root, matcherFor(corpus.RulesFromRecord(rec)))
+ 	t.Logf("derive %v entries %d/%d equal=%v", time.Since(s), len(seq.Entries), len(one.Entries), reflect.DeepEqual(seq, one))
+ }
++
++func spikePattern() string {
++	if p := os.Getenv("ZZ_PATTERN"); p != "" {
++		return p
++	}
++	return "func Search"
++}
++
++func BenchmarkZZDaemonWalk(b *testing.B) {
++	root := os.Getenv("ZZ_ROOT")
++	for i := 0; i < b.N; i++ {
++		corpus.SpikeResetWalk()
++		_, _, _ = Grep(root, spikePattern(), GrepOptions{Channel: "cloud", MaxHits: 300})
++	}
++}
++
++func BenchmarkZZDaemonWatch(b *testing.B) {
++	root := os.Getenv("ZZ_ROOT")
++	for i := 0; i < b.N; i++ {
++		_, _, _ = Grep(root, spikePattern(), GrepOptions{Channel: "cloud", MaxHits: 300})
++	}
++}
+diff --git a/internal/code/query/zz_spike.go b/internal/code/query/zz_spike.go
+index 9abcaae8..e765c13e 100644
+--- a/internal/code/query/zz_spike.go
++++ b/internal/code/query/zz_spike.go
+@@ -3,14 +3,18 @@ package query
+ // SPIKE (throwaway): a slim spans sidecar for grep, and the drift overlay.
+ 
+ import (
++	"bytes"
+ 	"encoding/gob"
++	"encoding/json"
+ 	"os"
++	"path/filepath"
+ 	"sort"
+ 
+ 	"github.com/xidus90/loomux/internal/code/blast"
+ 	"github.com/xidus90/loomux/internal/code/corpus"
+ 	"github.com/xidus90/loomux/internal/code/model"
+ 	"github.com/xidus90/loomux/internal/code/store"
++	"github.com/xidus90/loomux/internal/code/trigram"
+ )
+ 
+ const spikeSpansName = "grepspans.gob"
+@@ -31,6 +35,7 @@ func spikeWriteSpans(root string, g *model.Graph) {
+ 			out[path] = append(out[path], spikeSpan{Node: n, From: s.From, To: s.To, InDeg: x.InDegree(n.ID)})
+ 		}
+ 	}
++	_ = os.MkdirAll(filepath.Dir(store.CachePath(root, spikeSpansName)), 0o755)
+ 	f, err := os.Create(store.CachePath(root, spikeSpansName))
+ 	if err != nil {
+ 		return
+@@ -78,3 +83,75 @@ func spikeOverlay(d corpus.Drift) bool {
+ 	return corpus.SpikeOn("OVERLAY") && !d.Settings && !d.Index && !d.Config &&
+ 		len(d.Sources) == 0 && len(d.Changed)+len(d.Added) <= spikeOverlayLimit
+ }
++
++const spikeLazySpansName = "grepspans-lazy.gob"
++
++// spikeWriteLazySpans stores each file's spans as its own JSON blob, so a
++// reader decodes only the files that have hits (SPIKE LAZYSPANS).
++func spikeWriteLazySpans(root string, g *model.Graph) {
++	x := blast.New(g)
++	out := map[string][]byte{}
++	for path, ss := range model.FileSpans(g) {
++		list := make([]spikeSpan, 0, len(ss))
++		for _, s := range ss {
++			n := *s.Node
++			n.BodyText = ""
++			list = append(list, spikeSpan{Node: n, From: s.From, To: s.To, InDeg: x.InDegree(n.ID)})
++		}
++		b, err := json.Marshal(list)
++		if err != nil {
++			return
++		}
++		out[path] = b
++	}
++	_ = os.MkdirAll(filepath.Dir(store.CachePath(root, spikeLazySpansName)), 0o755)
++	f, err := os.Create(store.CachePath(root, spikeLazySpansName))
++	if err != nil {
++		return
++	}
++	defer f.Close()
++	_ = gob.NewEncoder(f).Encode(out)
++}
++
++func spikeLazySpans(root string) (func(string) []model.SymbolSpan, map[model.NodeID]int, bool) {
++	b, err := os.ReadFile(store.CachePath(root, spikeLazySpansName))
++	if err != nil {
++		return nil, nil, false
++	}
++	var blobs map[string][]byte
++	if gob.NewDecoder(bytes.NewReader(b)).Decode(&blobs) != nil {
++		return nil, nil, false
++	}
++	deg := map[model.NodeID]int{}
++	cache := map[string][]model.SymbolSpan{}
++	return func(path string) []model.SymbolSpan {
++		if list, ok := cache[path]; ok {
++			return list
++		}
++		var ss []spikeSpan
++		if json.Unmarshal(blobs[path], &ss) != nil {
++			ss = nil
++		}
++		list := make([]model.SymbolSpan, len(ss))
++		for i := range ss {
++			list[i] = model.SymbolSpan{Node: &ss[i].Node, From: ss[i].From, To: ss[i].To}
++			deg[ss[i].Node.ID] = ss[i].InDeg
++		}
++		sort.SliceStable(list, func(i, j int) bool {
++			if list[i].From != list[j].From {
++				return list[i].From < list[j].From
++			}
++			return list[i].To > list[j].To
++		})
++		cache[path] = list
++		return list
++	}, deg, true
++}
++
++func spikeLitSets(pattern string, fixed, ignoreCase bool) [][]string {
++	sets, ok, err := trigram.Literals(pattern, fixed, ignoreCase)
++	if err != nil || !ok {
++		return nil
++	}
++	return sets
++}
+diff --git a/internal/code/query/zz_spike_trace.go b/internal/code/query/zz_spike_trace.go
+new file mode 100644
+index 00000000..b5b94883
+--- /dev/null
++++ b/internal/code/query/zz_spike_trace.go
+@@ -0,0 +1,24 @@
++package query
++
++// SPIKE (throwaway): phase timings on stderr with LMX_SPIKE_TRACE=1.
++
++import (
++	"fmt"
++	"os"
++	"time"
++)
++
++var (
++	spikeT0   = time.Now()
++	spikeLast = spikeT0
++)
++
++func spikeMark(name string) {
++	if os.Getenv("LMX_SPIKE_TRACE") != "1" {
++		return
++	}
++	now := time.Now()
++	fmt.Fprintf(os.Stderr, "trace %-22s %6.1f ms (since init %6.1f)\n", name,
++		float64(now.Sub(spikeLast).Microseconds())/1000, float64(now.Sub(spikeT0).Microseconds())/1000)
++	spikeLast = now
++}
+diff --git a/internal/code/trigram/format.go b/internal/code/trigram/format.go
+index 217d9d82..a9ffdc07 100644
+--- a/internal/code/trigram/format.go
++++ b/internal/code/trigram/format.go
+@@ -50,6 +50,46 @@ type Index struct {
+ 	digest    [32]byte
+ 	grams     map[uint32]posting
+ 	buffer    []uint32
++
++	// SPIKE LAZYIDX: the raw file; postings are looked up and checked on use.
++	lazyRaw                       []byte
++	lazyTable, lazyGrams, lazyBuf int
++}
++
++// lazyPostings binary-searches the sorted trigram table and checks the one
++// posting list it returns.
++func (ix *Index) lazyPostings(gram uint32) []uint32 {
++	raw := ix.lazyRaw
++	lo, hi := 0, ix.lazyGrams
++	for lo < hi {
++		mid := (lo + hi) / 2
++		if binary.LittleEndian.Uint32(raw[ix.lazyTable+mid*16:]) < gram {
++			lo = mid + 1
++		} else {
++			hi = mid
++		}
++	}
++	if lo == ix.lazyGrams {
++		return nil
++	}
++	entry := raw[ix.lazyTable+lo*16:]
++	if binary.LittleEndian.Uint32(entry) != gram {
++		return nil
++	}
++	off := binary.LittleEndian.Uint64(entry[4:])
++	count := binary.LittleEndian.Uint32(entry[12:])
++	start := uint64(ix.lazyBuf) + off
++	if off%4 != 0 || start+uint64(count)*4 > uint64(len(raw)) {
++		return nil
++	}
++	out := make([]uint32, count)
++	for i := range out {
++		out[i] = binary.LittleEndian.Uint32(raw[start+uint64(i)*4:])
++		if (i > 0 && out[i] <= out[i-1]) || out[i] >= uint32(len(ix.files)) {
++			return nil
++		}
++	}
++	return out
+ }
+ 
+ // posting is where one trigram's file ids sit in the buffer.
+@@ -66,6 +106,9 @@ func (ix *Index) Files() []string {
+ // Postings returns the file ids whose bytes contain gram, ascending, or nil
+ // when the index has no such trigram.
+ func (ix *Index) Postings(gram uint32) []uint32 {
++	if ix.lazyRaw != nil {
++		return ix.lazyPostings(gram)
++	}
+ 	p, ok := ix.grams[gram]
+ 	if !ok {
+ 		return nil
+@@ -264,6 +307,14 @@ func decode(raw []byte) (*Index, error) {
+ 	if uint64(gramCount)*16 > uint64(len(raw)-pos) {
+ 		return nil, fmt.Errorf("%w: trigram table", ErrCorrupt)
+ 	}
++	if os.Getenv("LMX_SPIKE_LAZYIDX") == "1" {
++		bufPos := pos + int(gramCount)*16
++		if uint64(len(raw)-bufPos) != uint64(bufferBytes) || uint64(postingsCount)*4 != uint64(bufferBytes) {
++			return nil, fmt.Errorf("%w: posting buffer has the wrong length", ErrCorrupt)
++		}
++		return &Index{files: files, extractor: extractor, settings: settings, digest: digest,
++			lazyRaw: raw, lazyTable: pos, lazyGrams: int(gramCount), lazyBuf: bufPos}, nil
++	}
+ 	grams := make(map[uint32]posting, gramCount)
+ 	tableEnd := pos + int(gramCount)*16
+ 	var lastGram uint32
