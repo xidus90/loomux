@@ -23,7 +23,9 @@ import (
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/resolve"
 	"github.com/xidus90/loomux/internal/code/sourceset"
+	"github.com/xidus90/loomux/internal/code/spanidx"
 	"github.com/xidus90/loomux/internal/code/store"
+	"github.com/xidus90/loomux/internal/lock"
 )
 
 // noticeRecord announces a record that could not be written. A lost mirror
@@ -111,6 +113,13 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
 	if err != nil {
 		return nil, Stats{}, err
 	}
+	// The spans belong to this graph but carry the corpus digest, so the old
+	// ones go first and the new ones come last: a build that stops in between
+	// leaves none, and grep falls back to the graph. The digest does not cover
+	// the graph, so spans that cannot be removed fail the build.
+	if err := lock.RemoveEventually(store.CachePath(root, spanidx.Name), lock.SidecarBudget); err != nil {
+		return nil, Stats{}, fmt.Errorf("remove stale symbol spans: %w", err)
+	}
 	if err := store.Write(root, g); err != nil {
 		return nil, Stats{}, err
 	}
@@ -131,6 +140,11 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
 		return nil, Stats{}, err
 	}
 	stats.Corpus = writeCorpus(root, maxFilesize, stats.bodies, notice)
+	if stats.Corpus.Indexed {
+		if err := spanidx.Write(root, stats.Corpus.Digest, g); err != nil {
+			notice(fmt.Sprintf("symbol spans not written: %v", err))
+		}
+	}
 	return g, stats, nil
 }
 

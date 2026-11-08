@@ -1,6 +1,8 @@
 package lock
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -65,9 +67,10 @@ var SidecarBudget = 2 * time.Second
 // outside tests, which use it to learn that a writer is waiting.
 var OnRetry func()
 
-// Seams of the retry loop: the rename, the clock and the pause.
+// Seams of the retry loop: the rename, the removal, the clock and the pause.
 var (
 	replaceRename = os.Rename
+	replaceRemove = os.Remove
 	replaceNow    = time.Now
 	replaceSleep  = time.Sleep
 )
@@ -82,9 +85,26 @@ func replaceEventually(source, target string) error {
 // read handle, for as long as budget lasts. The last failed attempt returns
 // right away: a pause that would use up the budget buys nothing.
 func ReplaceEventually(source, target string, budget time.Duration) error {
+	return eventually(func() error { return replaceRename(source, target) }, budget)
+}
+
+// RemoveEventually deletes the file with the same patience as
+// ReplaceEventually: a reader's open handle refuses the removal on Windows
+// just as it refuses the swap. A file that is already gone counts as removed.
+func RemoveEventually(path string, budget time.Duration) error {
+	return eventually(func() error {
+		if err := replaceRemove(path); !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return nil
+	}, budget)
+}
+
+// eventually repeats op until it succeeds or the budget is used up.
+func eventually(op func() error, budget time.Duration) error {
 	started := replaceNow()
 	for {
-		err := replaceRename(source, target)
+		err := op()
 		if err == nil {
 			return nil
 		}

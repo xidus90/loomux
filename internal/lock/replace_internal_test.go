@@ -123,3 +123,60 @@ func TestReplaceEventuallyKeepsTheOldFiveTries(t *testing.T) {
 		t.Fatalf("renames = %d, want %d", *calls, replaceTries)
 	}
 }
+
+// countRemoves wraps the remove seam like countRenames wraps the rename.
+func countRemoves(t *testing.T, fail int, err error) *int {
+	t.Helper()
+	calls := new(int)
+	old := replaceRemove
+	replaceRemove = func(name string) error {
+		*calls++
+		if *calls <= fail {
+			return err
+		}
+		return os.Remove(name)
+	}
+	t.Cleanup(func() { replaceRemove = old })
+	return calls
+}
+
+func TestRemoveEventuallySucceedsWhenTheFileFrees(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mapped")
+	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	useFakeClock(t)
+	calls := countRemoves(t, 2, errors.New("access denied"))
+
+	if err := RemoveEventually(path, time.Second); err != nil {
+		t.Fatalf("RemoveEventually: %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat after removal: %v", err)
+	}
+	if *calls != 3 {
+		t.Fatalf("removes = %d, want 3", *calls)
+	}
+}
+
+func TestRemoveEventuallyTakesAMissingFileAsDone(t *testing.T) {
+	if err := RemoveEventually(filepath.Join(t.TempDir(), "absent"), time.Second); err != nil {
+		t.Fatalf("RemoveEventually: %v", err)
+	}
+}
+
+// A non-empty directory refuses removal on every platform.
+func TestRemoveEventuallyGivesUpAfterTheBudget(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "occupied")
+	if err := os.MkdirAll(filepath.Join(path, "x"), 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	clock := useFakeClock(t)
+
+	if err := RemoveEventually(path, 100*time.Millisecond); err == nil {
+		t.Fatal("RemoveEventually: want error for a non-empty directory")
+	}
+	if attempts := clock.sleeps + 1; attempts < 3 || attempts > 6 {
+		t.Fatalf("attempts = %d, want 3..6 for a 100 ms budget and a 20 ms pause", attempts)
+	}
+}

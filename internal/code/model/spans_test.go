@@ -63,3 +63,16 @@ func TestFileSpansAndEnclosing(t *testing.T) {
 		t.Fatalf("want A, got %v", innerA)
 	}
 }
+
+// Equal spans fall back to the node id, so two readers of the same graph list
+// them in the same order whatever order the graph holds them in.
+func TestFileSpansBreaksTiesByID(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "a.go#B", Path: "a.go", Name: "B", Span: "L5-L9"},
+		{ID: "a.go#A", Path: "a.go", Name: "A", Span: "L5-L9"},
+	}}
+	spans := model.FileSpans(g)["a.go"]
+	if len(spans) != 2 || spans[0].Node.ID != "a.go#A" || spans[1].Node.ID != "a.go#B" {
+		t.Fatalf("spans = %+v, want a.go#A before a.go#B", spans)
+	}
+}

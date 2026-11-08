@@ -8,7 +8,8 @@ type SymbolSpan struct {
 	From, To int
 }
 
-// FileSpans indexes the non-file nodes of g by path, sorted by From asc (ties by To desc).
+// FileSpans indexes the non-file nodes of g by path, sorted by From asc, then
+// To desc, then ID asc, so the order never depends on the graph's.
 func FileSpans(g *Graph) map[string][]SymbolSpan {
 	m := make(map[string][]SymbolSpan)
 	if g == nil {
@@ -25,12 +26,15 @@ func FileSpans(g *Graph) map[string][]SymbolSpan {
 		}
 		m[n.Path] = append(m[n.Path], SymbolSpan{Node: n, From: from, To: to})
 	}
-	for path := range m {
-		sort.Slice(m[path], func(i, j int) bool {
-			if m[path][i].From != m[path][j].From {
-				return m[path][i].From < m[path][j].From
+	for _, s := range m {
+		sort.SliceStable(s, func(i, j int) bool {
+			if s[i].From != s[j].From {
+				return s[i].From < s[j].From
 			}
-			return m[path][i].To > m[path][j].To
+			if s[i].To != s[j].To {
+				return s[i].To > s[j].To
+			}
+			return s[i].Node.ID < s[j].Node.ID
 		})
 	}
 	return m
