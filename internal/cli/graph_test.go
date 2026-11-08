@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/freshness"
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/model"
@@ -397,11 +399,8 @@ func TestGraphBuildFailsWhenTheCacheDirectoryCannotBeCreated(t *testing.T) {
 	if err := os.MkdirAll(store.Dir(root), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// A regular file named "cache" leaves store.Write's directory untouched
-	// and blocks the MkdirAll of everything under it. Both sidecars live
-	// there -- store.CachePath builds their paths -- so the build fails at
-	// lexicon.Write, the first of query.Build's two sidecar writes, and
-	// never reaches freshness.Write.
+	// A regular file named "cache" blocks the MkdirAll of everything under
+	// it, the rebuild lock included, so the build fails before it starts.
 	if err := os.WriteFile(filepath.Join(store.Dir(root), "cache"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1461,5 +1460,29 @@ func TestGraphBuildMaxFilesizeFlag(t *testing.T) {
 	errOut.Reset()
 	if code := graphCommand([]string{"build", "--root", root, "--max-filesize", "16"}, nil, &out, &errOut); code != 0 {
 		t.Fatalf("build exit %d, stderr %q", code, errOut.String())
+	}
+}
+
+// graph build takes the rebuild lock the watcher and grep's rebuild take, so
+// two builds never interleave their writes.
+func TestGraphBuildWaitsForTheRebuildLock(t *testing.T) {
+	root := repo(t, sample())
+	old := graphBuildWait
+	graphBuildWait = 0
+	t.Cleanup(func() { graphBuildWait = old })
+	lock := ask.LockPath(root)
+	if err := os.MkdirAll(filepath.Dir(lock), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// This process: a lock whose holder is gone would be broken at once.
+	if err := os.WriteFile(lock, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 1 || !strings.Contains(errOut.String(), lock) {
+		t.Fatalf("exit %d, stderr %q; want 1 and the lock path", code, errOut.String())
+	}
+	if _, err := os.Stat(store.WiringPath(root)); err == nil {
+		t.Fatal("the build ran while another held the lock")
 	}
 }
