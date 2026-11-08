@@ -38,6 +38,10 @@ type GrepOptions struct {
 	// Glob narrows the corpus to paths matching the pattern; empty means every
 	// path.
 	Glob string
+	// TrustIndex answers from the trigram index and its symbol sidecar
+	// without walking the tree. An index that cannot be trusted falls back to
+	// the checked path with a note.
+	TrustIndex bool
 }
 
 // readRecord is a seam: a rebuild can leave no record behind only when a
@@ -62,6 +66,16 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	}
 	var notes []string
 	say := func(s string) { notes = append(notes, s) }
+
+	if opts.TrustIndex {
+		t, err := openTrusted(root, maxFilesize)
+		if err == nil {
+			defer t.close()
+			res, err := searchPlan(root, pattern, opts, t.plan(pattern, opts), say)
+			return res, notes, err
+		}
+		say("index not trusted: " + err.Error())
+	}
 
 	// One walk answers both the corpus and the graph; only drift pays for git.
 	s, err := probeGrep(root, maxFilesize)
@@ -120,15 +134,88 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		}
 	}
 
+	index := "none"
+	var candidates map[string]bool
+	ix, ixErr := trigram.Read(root)
+	switch {
+	case ixErr == nil:
+		// The candidates are copies; the mapping must not outlive the call, or
+		// the next build could not replace the file on Windows.
+		defer ix.Close()
+		digest, digestOK := recordDigest(rec)
+		if (!trusted && moved == nil) || !digestOK || ix.Extractor() != all.Version() ||
+			string(ix.Settings()) != string(settings) || ix.Digest() != digest {
+			index = "stale"
+			break
+		}
+		// A pattern without a literal condition cannot be narrowed, but the
+		// index is still current: that is a scan, not a stale index.
+		index = "scan"
+		candidates = narrow(ix, pattern, opts, moved)
+		if candidates != nil {
+			index = "used"
+		}
+		if moved != nil {
+			index = "overlay"
+		}
+	case errors.Is(ixErr, trigram.ErrNoIndex):
+		index = "none"
+	default:
+		index = "stale"
+	}
+
+	found, err := searchPlan(root, pattern, opts, grepPlan{
+		base:       res,
+		paths:      paths,
+		candidates: candidates,
+		index:      index,
+		symbols: func(search symbolSearch) (grep.Result, error) {
+			return withSymbols(root, rec, func(oldSpans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error) {
+				// A moved file's old spans would name the wrong symbol: none is better.
+				spans := func(p string) []model.SymbolSpan {
+					if moved[p] {
+						return nil
+					}
+					return oldSpans(p)
+				}
+				return search(spans, inDegree)
+			})
+		},
+	}, say)
+	return found, notes, err
+}
+
+// grepPlan is what one search needs once the corpus, the index and the
+// symbols are settled, however the caller got there.
+type grepPlan struct {
+	// base carries the pattern and the counters of what the corpus left out.
+	base grep.Result
+	// paths is the corpus; candidates, when not nil, narrows it.
+	paths      []string
+	candidates map[string]bool
+	index      string
+	// built is when the index was written, set on a trusted answer only.
+	built string
+	// uncounted is how many corpus files the paths leave out (the binaries
+	// of a trusted index's file table), so the scope counts match a scan's.
+	// Under --in or --glob it overcounts, as the table cannot place them.
+	uncounted int
+	symbols   func(symbolSearch) (grep.Result, error)
+}
+
+// searchPlan applies the channel, the prefix and the glob to the plan and
+// runs the search. A search error returns what the search found until then.
+func searchPlan(root, pattern string, opts GrepOptions, plan grepPlan, say func(string)) (grep.Result, error) {
+	res, paths, candidates := plan.base, plan.paths, plan.candidates
 	channel, err := grepChannel(opts.Channel)
 	if err != nil {
-		return res, notes, err
+		return res, err
 	}
 	keep := opts.Keep
 	if keep == nil && channel == privacy.ChannelCloud {
 		keep, err = cloudKeep(root)
 		if err != nil {
-			return res, notes, err
+			return res, err
 		}
 	}
 
@@ -148,7 +235,8 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		}
 		if under > 0 && readable == 0 {
 			res.Index = "scan"
-			return res, append(notes, "no file under this prefix is readable on the cloud channel"), nil
+			say("no file under this prefix is readable on the cloud channel")
+			return res, nil
 		}
 	}
 
@@ -163,45 +251,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		paths = filtered
 	}
 
-	index := "none"
-	var candidates map[string]bool
-	ix, ixErr := trigram.Read(root)
-	switch {
-	case ixErr == nil:
-		// The candidates are copies; the mapping must not outlive the call, or
-		// the next build could not replace the file on Windows.
-		defer ix.Close()
-		digest, digestOK := recordDigest(rec)
-		if (!trusted && moved == nil) || !digestOK || ix.Extractor() != all.Version() ||
-			string(ix.Settings()) != string(settings) || ix.Digest() != digest {
-			index = "stale"
-			break
-		}
-		// A pattern without a literal condition cannot be narrowed, but the
-		// index is still current: that is a scan, not a stale index.
-		index = "scan"
-		if sets, ok, lerr := trigram.Literals(pattern, opts.Fixed, opts.IgnoreCase); lerr == nil && ok {
-			if found, used := ix.Candidates(sets); used {
-				candidates = make(map[string]bool, len(found)+len(moved))
-				for _, p := range found {
-					candidates[p] = true
-				}
-				// The index never saw the moved files' bytes: read them all.
-				for p := range moved {
-					candidates[p] = true
-				}
-				index = "used"
-			}
-		}
-		if moved != nil {
-			index = "overlay"
-		}
-	case errors.Is(ixErr, trigram.ErrNoIndex):
-		index = "none"
-	default:
-		index = "stale"
-	}
-	if glob := globFilter(opts.Glob); glob != nil && candidates != nil {
+	if glob := globFilter(opts.Glob); glob != nil {
 		for p := range candidates {
 			if !glob(p) {
 				delete(candidates, p)
@@ -216,14 +266,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		return os.ReadFile(filepath.Join(root, filepath.FromSlash(p)))
 	}
 
-	found, err := withSymbols(root, rec, func(oldSpans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error) {
-		// A moved file's old spans would name the wrong symbol: none is better.
-		spans := func(p string) []model.SymbolSpan {
-			if moved[p] {
-				return nil
-			}
-			return oldSpans(p)
-		}
+	found, err := plan.symbols(func(spans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error) {
 		return grep.Search(nil, nil, nil, pattern, grep.Options{
 			IgnoreCase: opts.IgnoreCase,
 			Fixed:      opts.Fixed,
@@ -232,18 +275,23 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 			Files:      paths,
 			All:        scopePaths,
 			Candidates: candidates,
-			Index:      index,
+			Index:      plan.index,
 			Spans:      spans,
 			InDegree:   inDegree,
 		}, reader)
 	})
 	if err != nil {
-		return found, notes, err
+		return found, err
 	}
 	found.Ignored = res.Ignored
 	found.SkippedSize = res.SkippedSize
 	found.SkippedBinary = res.SkippedBinary
-	return found, notes, nil
+	found.IndexBuilt = plan.built
+	found.FilesInScope += plan.uncounted
+	if candidates == nil {
+		found.Candidates += plan.uncounted
+	}
+	return found, nil
 }
 
 // GrepReport formats grep.Result into a human-readable CLI report.
