@@ -86,6 +86,18 @@ test('execute maps the call and returns matches with a note', async () => {
   assert.equal(seen.options.signal, undefined)
 })
 
+test('config.trustIndex adds --trust-index and is absent by default', async () => {
+  const seen = []
+  const run = async args => {
+    seen.push(args)
+    return { exit: 0, stdout: '{"groups":null}', stderr: '', spawnError: null, stdoutCap: false, aborted: false }
+  }
+  await toolWith(run, { trustIndex: true }).execute({ pattern: 'x' }, { cwd: root })
+  await toolWith(run).execute({ pattern: 'x' }, { cwd: root })
+  assert.deepEqual(seen[0].slice(-3), ['--trust-index', '--max-hits', '300'])
+  assert.ok(!seen[1].includes('--trust-index'))
+})
+
 test('execute passes the abort signal through', async () => {
   let signal = null
   const tool = toolWith(async (_args, options) => {

@@ -22,11 +22,18 @@ matches with line numbers and, when there is one, the enclosing symbol.
   config:
     binary: loomux # resolved through PATH, or an absolute path
     maxResults: 300 # hits per call when the model gives no max_results; 20–5000
+    trustIndex: false # true adds --trust-index to every search
 ```
 
 `include` takes one glob without brace alternation (`*.go`, `src/**/*.ts`):
 loomux matches globs without expanding `{a,b}`, so the plugin rejects one
 instead of answering with an empty list.
+
+`trustIndex` (default `false`) makes every search answer from the index without
+checking the tree against it. Turn it on where the tree does not change after
+the build: CI, a fresh checkout. It is a plugin option only; the agent cannot
+set it per call. A tree that did change after the build then answers from the
+old index, and the answer names the build time of the index it trusted.
 
 ## Requirements
 

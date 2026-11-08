@@ -76,7 +76,7 @@ export function parseAnswer(stdout) {
 /**
  * The model-facing tool definition.
  *
- * @param {{ maxResults?: number, binary?: string }} [config]
+ * @param {{ maxResults?: number, binary?: string, trustIndex?: boolean }} [config]
  */
 export function createGrepTool(config = {}) {
   const defaultMax = clampMaxResults(config.maxResults ?? 300)
@@ -171,7 +171,7 @@ export function createGrepTool(config = {}) {
       // The routed path replaces the given one; none means the whole corpus.
       if (routed.path !== undefined) input.path = routed.path
       else delete input.path
-      const cliArgs = buildArgs(input)
+      const cliArgs = buildArgs(input, { trustIndex: config.trustIndex === true })
       const finished = await run(cliArgs, {
         cwd,
         signal: exec?.signal,

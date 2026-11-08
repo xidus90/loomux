@@ -81,3 +81,16 @@ test('no input can reach the local channel', () => {
   assert.equal(args.filter(a => a === 'cloud').length, 1)
   assert.equal(args.filter(a => a === 'local').length, 0)
 })
+
+test('trustIndex adds --trust-index before --max-hits and is absent otherwise', () => {
+  const args = buildArgs({ pattern: 'x' }, { trustIndex: true })
+  assert.equal(args.filter(a => a === '--trust-index').length, 1)
+  assert.equal(args.indexOf('--trust-index') + 1, args.indexOf('--max-hits'))
+  assert.ok(!buildArgs({ pattern: 'x' }).includes('--trust-index'))
+  assert.ok(!buildArgs({ pattern: 'x' }, { trustIndex: false }).includes('--trust-index'))
+})
+
+test('no input can reach --trust-index', () => {
+  const args = buildArgs({ pattern: 'x', trust_index: true, trustIndex: true, 'trust-index': true })
+  assert.equal(args.filter(a => a === '--trust-index').length, 0)
+})

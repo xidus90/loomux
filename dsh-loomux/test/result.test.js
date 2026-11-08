@@ -54,6 +54,19 @@ test('describeIndex covers every index state', () => {
   assert.match(describeIndex({ index: 'scan', files_in_scope: 7 }), /index current but the pattern has no literal/)
   assert.match(describeIndex({ index: 'stale', files_in_scope: 7 }), /stale index/)
   assert.match(describeIndex({ index: 'none', files_in_scope: 7 }), /no index/)
+  const overlay = describeIndex({ index: 'overlay', files_in_scope: 7, candidates: 2 })
+  assert.match(overlay, /overlay/)
+  assert.doesNotMatch(overlay, /no index/)
+  const trusted = describeIndex({
+    index: 'trusted',
+    files_in_scope: 7,
+    candidates: 2,
+    index_built: '2026-11-08T10:00:00Z',
+  })
+  assert.match(trusted, /trusted/)
+  assert.match(trusted, /2026-11-08T10:00:00Z/)
+  assert.doesNotMatch(trusted, /no index/)
+  assert.match(describeIndex({ index: 'trusted' }), /index built unknown/)
   assert.equal(describeIndex({}), 'scan (no index, 0 files in scope)')
   assert.match(describeIndex({ index: 'used', skipped_size: 2, unreadable: 1 }), /2 over the size limit, 1 unreadable/)
 })
