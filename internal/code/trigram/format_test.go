@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"flag"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/xidus90/loomux/internal/lock"
 )
 
 // testFiles is the corpus of the format tests: a Go file, a Python file with
@@ -34,20 +38,67 @@ func testDigest() [32]byte {
 	return d
 }
 
+// testCounters are the selection counters the tests' header carries.
+var testCounters = Counters{Ignored: 3, SkippedSize: 4, SkippedBinary: 5, IgnoreCase: true}
+
+// update rewrites testdata/golden.idx:
+//
+//	go test ./internal/code/trigram/ -run TestGolden -count=1 -update
+var update = flag.Bool("update", false, "rewrite testdata/golden.idx")
+
 // buildTest builds the format tests' index and fails the test if Build does.
 func buildTest(t testing.TB, files []File) []byte {
 	t.Helper()
-	raw, err := Build(files, testExtractor, testSettings, testDigest())
+	raw, err := Build(files, testExtractor, testSettings, testDigest(), testCounters)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	return raw
 }
 
+// readRaw puts raw where Read looks, reads it back and closes it when the
+// test ends.
+func readRaw(t *testing.T, raw []byte) *Index {
+	t.Helper()
+	root := t.TempDir()
+	path := filepath.Join(root, ".loomux", "state", "graph", "cache", "trigram.idx")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ix, err := Read(root)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	t.Cleanup(func() { ix.Close() })
+	return ix
+}
+
+// wantFallback pins that a broken posting does not fail the read but turns
+// the candidate search into "search everything" for every literal.
+func wantFallback(t *testing.T, raw []byte, literal string) {
+	t.Helper()
+	ix := readRaw(t, raw)
+	files, used := ix.Candidates([][]string{{literal}})
+	if used {
+		t.Fatalf("Candidates(%q) used the broken index", literal)
+	}
+	if !reflect.DeepEqual(files, ix.Files()) {
+		t.Fatalf("Candidates(%q) = %v, want every file %v", literal, files, ix.Files())
+	}
+}
+
+// gramName is the text of a packed trigram, for a literal that looks it up.
+func gramName(gram uint32) string {
+	return string([]byte{byte(gram >> 16), byte(gram >> 8), byte(gram)})
+}
+
 // headerSize is the byte offset where the file table starts, for the fixed
 // extractor and settings of the tests.
 func headerSize() int {
-	return 4 + 4 + 2 + len(testExtractor) + 4 + len(testSettings) + 32 + 4 + 4 + 8 + 4
+	return 4 + 4 + 2 + len(testExtractor) + 4 + len(testSettings) + 32 + 4 + 4 + 8 + 4 + 4 + 4 + 4 + 1
 }
 
 // fileTableSize is the byte length of the file table of files, in the order
@@ -72,7 +123,10 @@ func TestRoundTrip(t *testing.T) {
 	ids := map[string]uint32{"a.go": 0, "b.py": 1, "z/c.txt": 2}
 	for _, f := range testFiles() {
 		for _, gram := range Grams(f.Data) {
-			got := ix.Postings(gram)
+			got, ok := ix.Postings(gram)
+			if !ok {
+				t.Fatalf("Postings(%#x) reported a broken posting", gram)
+			}
 			found := false
 			for _, id := range got {
 				if id == ids[f.Rel] {
@@ -84,14 +138,35 @@ func TestRoundTrip(t *testing.T) {
 			}
 		}
 	}
-	if got := ix.Postings(0); got != nil {
-		t.Fatalf("Postings(0) = %v, want nil", got)
+	if got, ok := ix.Postings(0); got != nil || !ok {
+		t.Fatalf("Postings(0) = %v, %v; want nil, true", got, ok)
+	}
+	if got, ok := ix.Postings(0xFFFFFF); got != nil || !ok {
+		t.Fatalf("Postings(0xFFFFFF) = %v, %v; want nil, true", got, ok)
 	}
 	if !bytes.Equal(ix.Settings(), testSettings) {
 		t.Fatalf("Settings() = %q, want %q", ix.Settings(), testSettings)
 	}
 	if ix.Digest() != testDigest() {
 		t.Fatalf("Digest() = %x, want %x", ix.Digest(), testDigest())
+	}
+	if got := ix.Counters(); got != testCounters {
+		t.Fatalf("Counters() = %+v, want %+v", got, testCounters)
+	}
+	if err := ix.Close(); err != nil {
+		t.Fatalf("Close of an unmapped index: %v", err)
+	}
+}
+
+// TestPostingsOfAnEmptyIndex pins that a corpus without trigrams answers
+// "absent", not "broken".
+func TestPostingsOfAnEmptyIndex(t *testing.T) {
+	ix, err := decode(buildTest(t, nil))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got, ok := ix.Postings(0x616263); got != nil || !ok {
+		t.Fatalf("Postings = %v, %v; want nil, true", got, ok)
 	}
 }
 
@@ -111,10 +186,13 @@ func TestBuildSortsFiles(t *testing.T) {
 	if !ok {
 		t.Fatal("Pack(def) not packable")
 	}
-	if got, want := ix.Postings(gram), []uint32{1}; !reflect.DeepEqual(got, want) {
+	if got, want := first(ix.Postings(gram)), []uint32{1}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("Postings(def) = %v, want %v", got, want)
 	}
 }
+
+// first drops a posting lookup's validity flag.
+func first(ids []uint32, _ bool) []uint32 { return ids }
 
 // TestBuildDeterministic pins that the bytes depend on the content only.
 func TestBuildDeterministic(t *testing.T) {
@@ -132,7 +210,7 @@ func TestBuildDeterministic(t *testing.T) {
 // TestBuildRefusesLongExtractor pins the cap maxExtractor promises.
 func TestBuildRefusesLongExtractor(t *testing.T) {
 	long := strings.Repeat("x", maxExtractor+1)
-	if _, err := Build(testFiles(), long, testSettings, testDigest()); err == nil {
+	if _, err := Build(testFiles(), long, testSettings, testDigest(), testCounters); err == nil {
 		t.Fatalf("Build accepted a %d-byte extractor", len(long))
 	}
 }
@@ -146,11 +224,11 @@ func TestParseBadMagic(t *testing.T) {
 	}
 }
 
-// TestParseVersionMismatch pins that a newer format is stale, not corrupt: the
+// TestParseVersionMismatch pins that another format is stale, not corrupt: the
 // index can be rebuilt, the file is not broken.
 func TestParseVersionMismatch(t *testing.T) {
 	raw := buildTest(t, testFiles())
-	binary.LittleEndian.PutUint32(raw[4:], 2)
+	binary.LittleEndian.PutUint32(raw[4:], 1)
 	if _, err := decode(raw); !errors.Is(err, ErrStale) {
 		t.Fatalf("decode = %v, want ErrStale", err)
 	}
@@ -167,20 +245,43 @@ func TestParseTruncated(t *testing.T) {
 	}
 }
 
-// TestParseOffsetOutOfRange pins that a posting table entry pointing outside
-// the posting buffer is corrupt.
-func TestParseOffsetOutOfRange(t *testing.T) {
-	raw := buildTest(t, testFiles())
-	base := headerSize() + fileTableSize(testFiles())
-	binary.LittleEndian.PutUint64(raw[base+4:], 1<<40)
-	if _, err := decode(raw); !errors.Is(err, ErrCorrupt) {
-		t.Fatalf("decode = %v, want ErrCorrupt", err)
-	}
+// gramTable is where the trigram table of the tests' index starts.
+func gramTable() int { return headerSize() + fileTableSize(testFiles()) }
+
+// gramCountOf is the trigram count in raw's header.
+func gramCountOf(raw []byte) int {
+	return int(binary.LittleEndian.Uint32(raw[4+4+2+len(testExtractor)+4+len(testSettings)+32+4:]))
 }
 
-// TestParseLengthOutOfRange pins that a settings length beyond the file is
-// corrupt.
+// TestParseOffsetOutOfRange pins that a posting table entry pointing outside
+// the posting buffer is found when the trigram is looked up.
+func TestParseOffsetOutOfRange(t *testing.T) {
+	raw := buildTest(t, testFiles())
+	base := gramTable()
+	binary.LittleEndian.PutUint64(raw[base+4:], 1<<40)
+	wantFallback(t, raw, gramName(binary.LittleEndian.Uint32(raw[base:])))
+}
+
+// TestParseOffsetNotAligned pins that an offset inside a file id is broken.
+func TestParseOffsetNotAligned(t *testing.T) {
+	raw := buildTest(t, testFiles())
+	base := gramTable()
+	binary.LittleEndian.PutUint64(raw[base+4:], 2)
+	wantFallback(t, raw, gramName(binary.LittleEndian.Uint32(raw[base:])))
+}
+
+// TestParseLengthOutOfRange pins that a posting count running past the
+// posting buffer is found when the trigram is looked up.
 func TestParseLengthOutOfRange(t *testing.T) {
+	raw := buildTest(t, testFiles())
+	base := gramTable()
+	binary.LittleEndian.PutUint32(raw[base+12:], 1<<30)
+	wantFallback(t, raw, gramName(binary.LittleEndian.Uint32(raw[base:])))
+}
+
+// TestParseSettingsLengthOutOfRange pins that a settings length beyond the
+// file is corrupt.
+func TestParseSettingsLengthOutOfRange(t *testing.T) {
 	raw := buildTest(t, testFiles())
 	binary.LittleEndian.PutUint32(raw[8+2+len(testExtractor):], 1<<30)
 	if _, err := decode(raw); !errors.Is(err, ErrCorrupt) {
@@ -200,11 +301,11 @@ func TestParsePathTooLong(t *testing.T) {
 
 // TestParsePostingsNotAscending pins that the ascending posting lists the
 // format promises are checked on read: an index that names a file twice would
-// make the candidate set wrong, so it is corrupt, not merely odd.
+// make the candidate set wrong, so the lookup reports it broken.
 func TestParsePostingsNotAscending(t *testing.T) {
 	raw := buildTest(t, testFiles())
-	base := headerSize() + fileTableSize(testFiles())
-	gramCount := int(binary.LittleEndian.Uint32(raw[4+4+2+len(testExtractor)+4+len(testSettings)+32+4:]))
+	base := gramTable()
+	gramCount := gramCountOf(raw)
 	postingsBase := base + gramCount*16
 	for i := 0; i < gramCount; i++ {
 		entry := base + i*16
@@ -217,9 +318,7 @@ func TestParsePostingsNotAscending(t *testing.T) {
 		second := binary.LittleEndian.Uint32(raw[off+4:])
 		binary.LittleEndian.PutUint32(raw[off:], second)
 		binary.LittleEndian.PutUint32(raw[off+4:], first)
-		if _, err := decode(raw); !errors.Is(err, ErrCorrupt) {
-			t.Fatalf("decode = %v, want ErrCorrupt", err)
-		}
+		wantFallback(t, raw, gramName(binary.LittleEndian.Uint32(raw[entry:])))
 		return
 	}
 	t.Fatal("test corpus has no trigram with two postings")
@@ -228,15 +327,19 @@ func TestParsePostingsNotAscending(t *testing.T) {
 // TestWriteReadRoundTrips pins the file on disk: Write, Read, same answers.
 func TestWriteReadRoundTrips(t *testing.T) {
 	root := t.TempDir()
-	if err := Write(root, testDigest(), testExtractor, testSettings, testFiles()); err != nil {
+	if err := Write(root, testDigest(), testExtractor, testSettings, testCounters, testFiles()); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 	ix, err := Read(root)
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
+	defer ix.Close()
 	if got, want := ix.Files(), []string{"a.go", "b.py", "z/c.txt"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("Files() = %v, want %v", got, want)
+	}
+	if got, used := ix.Candidates([][]string{{"main"}}); !used || !reflect.DeepEqual(got, []string{"a.go", "b.py"}) {
+		t.Fatalf("Candidates(main) = %v, %v; want a.go and b.py", got, used)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".loomux", "state", "graph", "cache", "trigram.idx")); err != nil {
 		t.Fatalf("index file missing: %v", err)
@@ -260,7 +363,7 @@ func TestWriteAtomicLeavesNoTempFile(t *testing.T) {
 	if err := os.WriteFile(cache, []byte("not a directory"), 0o644); err != nil {
 		t.Fatalf("write blocker: %v", err)
 	}
-	if err := Write(root, testDigest(), testExtractor, testSettings, testFiles()); err == nil {
+	if err := Write(root, testDigest(), testExtractor, testSettings, testCounters, testFiles()); err == nil {
 		t.Fatal("Write succeeded although the cache path is a file")
 	}
 	entries, err := os.ReadDir(filepath.Dir(cache))
@@ -279,7 +382,7 @@ func TestHeaderCarriesSettings(t *testing.T) {
 	first := buildTest(t, testFiles())
 	other := append([]byte(nil), testSettings...)
 	other[0] = 'M'
-	raw, err := Build(testFiles(), testExtractor, other, testDigest())
+	raw, err := Build(testFiles(), testExtractor, other, testDigest(), testCounters)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -293,13 +396,23 @@ func TestHeaderCarriesSettings(t *testing.T) {
 	if !bytes.Equal(ix.Settings(), other) {
 		t.Fatalf("Settings() = %q, want %q", ix.Settings(), other)
 	}
+	if got := ix.Counters(); got != testCounters {
+		t.Fatalf("Counters() = %+v, want %+v", got, testCounters)
+	}
 }
 
 // TestGolden pins the format against a file in the repository: if the format
-// changes, this fails before a reader in the wild does.
+// changes, this fails before a reader in the wild does. Rewrite the file with
+// the command at update.
 func TestGolden(t *testing.T) {
 	got := buildTest(t, testFiles())
-	want, err := os.ReadFile(filepath.Join("testdata", "golden.idx"))
+	golden := filepath.Join("testdata", "golden.idx")
+	if *update {
+		if err := os.WriteFile(golden, got, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
@@ -337,7 +450,7 @@ func TestReadFailsWhenIndexIsADirectory(t *testing.T) {
 func TestWriteErrors(t *testing.T) {
 	t.Run("build error", func(t *testing.T) {
 		long := strings.Repeat("x", maxExtractor+1)
-		if err := Write(t.TempDir(), testDigest(), long, testSettings, testFiles()); err == nil {
+		if err := Write(t.TempDir(), testDigest(), long, testSettings, testCounters, testFiles()); err == nil {
 			t.Fatalf("Write accepted a %d-byte extractor", len(long))
 		}
 	})
@@ -346,7 +459,7 @@ func TestWriteErrors(t *testing.T) {
 		if err := os.WriteFile(root, []byte("x"), 0o644); err != nil {
 			t.Fatalf("write blocker: %v", err)
 		}
-		if err := Write(root, testDigest(), testExtractor, testSettings, testFiles()); err == nil {
+		if err := Write(root, testDigest(), testExtractor, testSettings, testCounters, testFiles()); err == nil {
 			t.Fatal("Write succeeded below a file")
 		}
 	})
@@ -360,17 +473,20 @@ func TestWriteErrors(t *testing.T) {
 		if err := os.MkdirAll(tmp, 0o755); err != nil {
 			t.Fatalf("mkdir tmp: %v", err)
 		}
-		if err := Write(root, testDigest(), testExtractor, testSettings, testFiles()); err == nil {
+		if err := Write(root, testDigest(), testExtractor, testSettings, testCounters, testFiles()); err == nil {
 			t.Fatal("Write succeeded although the temp path is a directory")
 		}
 	})
 	t.Run("rename error", func(t *testing.T) {
+		old := lock.SidecarBudget
+		lock.SidecarBudget = 50 * time.Millisecond
+		t.Cleanup(func() { lock.SidecarBudget = old })
 		root := t.TempDir()
 		final := filepath.Join(root, ".loomux", "state", "graph", "cache", "trigram.idx")
 		if err := os.MkdirAll(final, 0o755); err != nil {
 			t.Fatalf("mkdir final: %v", err)
 		}
-		if err := Write(root, testDigest(), testExtractor, testSettings, testFiles()); err == nil {
+		if err := Write(root, testDigest(), testExtractor, testSettings, testCounters, testFiles()); err == nil {
 			t.Fatal("Write succeeded although the final path is a directory")
 		}
 	})
@@ -387,25 +503,23 @@ func TestParseFileTableNotSorted(t *testing.T) {
 	}
 }
 
-// TestParseGramNotSorted pins the ascending trigram table.
+// TestParseGramNotSorted pins the ascending trigram table: a trigram listed
+// twice is found when it is looked up.
 func TestParseGramNotSorted(t *testing.T) {
 	raw := buildTest(t, testFiles())
-	base := headerSize() + fileTableSize(testFiles())
+	base := gramTable()
 	copy(raw[base+16:], raw[base:base+4])
-	if _, err := decode(raw); !errors.Is(err, ErrCorrupt) {
-		t.Fatalf("decode = %v, want ErrCorrupt", err)
-	}
+	wantFallback(t, raw, gramName(binary.LittleEndian.Uint32(raw[base:])))
 }
 
 // TestParseGramOutOfRange pins that a trigram with a byte above the format's
-// 24 bits is corrupt.
+// 24 bits is found when the search lands on it.
 func TestParseGramOutOfRange(t *testing.T) {
 	raw := buildTest(t, testFiles())
-	base := headerSize() + fileTableSize(testFiles())
+	base := gramTable()
+	smallest := binary.LittleEndian.Uint32(raw[base:])
 	binary.LittleEndian.PutUint32(raw[base:], 0x01000000)
-	if _, err := decode(raw); !errors.Is(err, ErrCorrupt) {
-		t.Fatalf("decode = %v, want ErrCorrupt", err)
-	}
+	wantFallback(t, raw, gramName(smallest))
 }
 
 // TestParseCountMismatch pins that the header's posting count has to agree
@@ -429,11 +543,11 @@ func TestParseBufferWrongLength(t *testing.T) {
 }
 
 // TestParsePostingNamesNoFile pins that a file id outside the file table is
-// corrupt.
+// broken when the trigram is looked up, not an empty answer.
 func TestParsePostingNamesNoFile(t *testing.T) {
 	raw := buildTest(t, testFiles())
-	base := headerSize() + fileTableSize(testFiles())
-	gramCount := int(binary.LittleEndian.Uint32(raw[4+4+2+len(testExtractor)+4+len(testSettings)+32+4:]))
+	base := gramTable()
+	gramCount := gramCountOf(raw)
 	postingsBase := base + gramCount*16
 	for i := 0; i < gramCount; i++ {
 		entry := base + i*16
@@ -442,9 +556,7 @@ func TestParsePostingNamesNoFile(t *testing.T) {
 		}
 		off := postingsBase + int(binary.LittleEndian.Uint64(raw[entry+4:]))
 		binary.LittleEndian.PutUint32(raw[off:], 3)
-		if _, err := decode(raw); !errors.Is(err, ErrCorrupt) {
-			t.Fatalf("decode = %v, want ErrCorrupt", err)
-		}
+		wantFallback(t, raw, gramName(binary.LittleEndian.Uint32(raw[entry:])))
 		return
 	}
 	t.Fatal("test corpus has no trigram with one posting")

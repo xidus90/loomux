@@ -1,6 +1,7 @@
 package trigram
 
 import (
+	"encoding/binary"
 	"reflect"
 	"testing"
 )
@@ -96,6 +97,32 @@ func TestCandidatesShortLiteralUsesAll(t *testing.T) {
 	ix := candidatesIndex(t)
 	if got, used := ix.Candidates([][]string{{"ab"}}); used || len(got) != 4 {
 		t.Fatalf("Candidates(ab) = %v, %v; want all files, no condition", got, used)
+	}
+}
+
+// TestCandidatesFallBackOnACorruptPosting pins that a broken posting list
+// later in the conjunction turns the lookup into "search everything" instead
+// of a silently short candidate set: bcd's ids get a file id the table lacks.
+func TestCandidatesFallBackOnACorruptPosting(t *testing.T) {
+	raw := buildTest(t, candidatesCorpus())
+	gram, _ := Pack("bcd")
+	table := headerSize() + fileTableSize(candidatesCorpus())
+	gramCount := gramCountOf(raw)
+	for i := 0; i < gramCount; i++ {
+		entry := table + i*16
+		if binary.LittleEndian.Uint32(raw[entry:]) != gram {
+			continue
+		}
+		off := table + gramCount*16 + int(binary.LittleEndian.Uint64(raw[entry+4:]))
+		binary.LittleEndian.PutUint32(raw[off:], 9)
+	}
+	ix := readRaw(t, raw)
+	got, used := ix.Candidates([][]string{{"abcd"}})
+	if used {
+		t.Fatalf("Candidates(abcd) = %v used a broken posting list", got)
+	}
+	if want := ix.Files(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Candidates(abcd) = %v, want every file %v", got, want)
 	}
 }
 

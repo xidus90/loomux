@@ -85,7 +85,11 @@ func writeCorpus(root string, maxFilesize int64, bodies map[string][]byte, notic
 	if err := corpus.Write(root, rec); err != nil {
 		noticeRecord(notice, "search corpus record", err)
 	}
-	if err := trigram.Write(root, st.Digest, all.Version(), rec.Settings, indexed); err != nil {
+	counters := trigram.Counters{
+		Ignored: st.Ignored, SkippedSize: st.SkippedSize, SkippedBinary: st.SkippedBinary,
+		IgnoreCase: rec.IgnoreCase,
+	}
+	if err := trigram.Write(root, st.Digest, all.Version(), rec.Settings, counters, indexed); err != nil {
 		notice(fmt.Sprintf("trigram index not written: %v", err))
 		return st
 	}

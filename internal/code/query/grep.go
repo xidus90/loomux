@@ -208,6 +208,9 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	ix, ixErr := trigram.Read(root)
 	switch {
 	case ixErr == nil:
+		// The candidates are copies; the mapping must not outlive the call, or
+		// the next build could not replace the file on Windows.
+		defer ix.Close()
 		if !trusted || !hasRecord || ix.Extractor() != all.Version() ||
 			string(ix.Settings()) != string(settings) || ix.Digest() != corpus.Digest(rec) {
 			index = "stale"

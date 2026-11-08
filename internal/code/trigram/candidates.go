@@ -7,7 +7,8 @@ package trigram
 // alternative's candidates are the intersection of their trigrams' postings.
 // The alternatives form a disjunction, so their candidate sets are merged.
 // A result of nil with used == false means "no condition, search everything";
-// a nil or empty result with used == true means "no file can match".
+// a nil or empty result with used == true means "no file can match". A broken
+// posting list is "no condition" too, with every file.
 func (ix *Index) Candidates(sets [][]string) (files []string, used bool) {
 	if len(sets) == 0 {
 		return ix.Files(), false
@@ -27,11 +28,17 @@ func (ix *Index) Candidates(sets [][]string) (files []string, used bool) {
 				return ix.Files(), false
 			}
 			for _, gram := range grams {
+				ids, ok := ix.Postings(gram)
+				if !ok {
+					// A broken posting list cannot narrow anything: a
+					// short candidate set would drop hits silently.
+					return ix.Files(), false
+				}
 				if first {
-					inter, first = ix.Postings(gram), false
+					inter, first = ids, false
 					continue
 				}
-				inter = intersectIDs(inter, ix.Postings(gram))
+				inter = intersectIDs(inter, ids)
 			}
 			if len(inter) == 0 {
 				break
