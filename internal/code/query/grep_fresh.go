@@ -3,6 +3,9 @@ package query
 import (
 	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
 
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/blast"
@@ -15,6 +18,102 @@ import (
 	"github.com/xidus90/loomux/internal/code/sourceset"
 	"github.com/xidus90/loomux/internal/code/spanidx"
 )
+
+// overlayLimit is how many files may move, per drift, before grep rebuilds
+// instead of reading the moved files beside the old index.
+const overlayLimit = 200
+
+// buildWith, trackedSet and writeRecord are seams: the tests count the
+// rebuilds and the git calls grep makes, and a record write fails only on a
+// broken disk.
+var (
+	buildWith   = BuildWith
+	trackedSet  = corpus.TrackedSet
+	writeRecord = corpus.Write
+)
+
+// overlayFits reports whether the drift is small file content only, so the
+// old index still answers for every file that did not move. A moved git index
+// fits when it still tracks the same files; that check is the only git call,
+// and it runs last.
+func overlayFits(s grepState, root string) bool {
+	d := s.corpusDrift
+	if d == nil || d.Settings || d.Config || len(d.Sources) > 0 || s.graphDrift == nil {
+		return false
+	}
+	// Count leaves the index flag out here: it is not a file.
+	if len(d.Changed)+len(d.Added)+len(d.Removed) > overlayLimit || s.graphDrift.Count() > overlayLimit {
+		return false
+	}
+	if !lexicon.Usable(root) {
+		return false
+	}
+	if d.Index {
+		tracked, err := trackedSet(root)
+		return err == nil && slices.Equal(tracked, s.rec.Tracked)
+	}
+	return true
+}
+
+// takeOverlay reports whether grep answers from the overlay. When the git
+// index moved but tracks the same files, the record takes its new stamp, so
+// the next call skips the git call; a failed write costs only that. A record
+// that changed since the probe belongs to a concurrent rebuild and is left
+// alone: the old file list with the new stamp would no longer match its index.
+//
+// ponytail: compare-then-write leaves a window of one file write; a rebuild
+// landing in it is undone until the next drift. Take the ask rebuild lock
+// here if that ever shows.
+func takeOverlay(s grepState, root string, say func(string)) bool {
+	moved := s.corpusDrift != nil && s.corpusDrift.Index
+	var stamp corpus.Stamp
+	if moved {
+		// Stat before git lists the index: a change in between leaves the
+		// record behind the index, never ahead of it.
+		stamp = gitIndexStamp(s.rec)
+	}
+	if !overlayFits(s, root) {
+		return false
+	}
+	if moved && unchanged(root, s.rec) {
+		rec := s.rec
+		rec.Stamp = stamp
+		if err := writeRecord(root, rec); err != nil {
+			say(fmt.Sprintf("search corpus record not restamped: %v", err))
+		}
+	}
+	return true
+}
+
+// unchanged reports whether the record on disk is still the one the probe read.
+func unchanged(root string, rec corpus.Record) bool {
+	now, ok := readRecord(root)
+	return ok && now.Digest == rec.Digest && now.Stamp == rec.Stamp
+}
+
+// gitIndexStamp is the stamp of the git index the record names, the empty
+// stamp when it is gone, which is how the probe reads a missing index.
+func gitIndexStamp(rec corpus.Record) corpus.Stamp {
+	path := rec.GitPaths.Index
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(rec.GitPaths.Root, path)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return corpus.Stamp{}
+	}
+	return corpus.Stamp{Size: info.Size(), MTime: info.ModTime().UnixNano()}
+}
+
+// movedFiles are the files the old index and the old symbols no longer
+// describe, in either drift.
+func movedFiles(s grepState) map[string]bool {
+	moved := map[string]bool{}
+	for _, p := range slices.Concat(s.corpusDrift.Changed, s.corpusDrift.Added, s.graphDrift.Changed, s.graphDrift.Added) {
+		moved[p] = true
+	}
+	return moved
+}
 
 // grepState is what one walk tells grep about the search corpus and the graph.
 // corpusDrift is nil without a record; graphDrift is nil when the graph's
@@ -104,7 +203,7 @@ func rebuildGrep(root string, s grepState, reason string, maxFilesize int64, say
 	var listing corpus.Listing
 	indexed := false
 	_, err := ask.Refresh(root, all.Version(), func() error {
-		_, stats, err := BuildWith(root, BuildOptions{MaxFilesize: &maxFilesize, Listing: &listing}, say)
+		_, stats, err := buildWith(root, BuildOptions{MaxFilesize: &maxFilesize, Listing: &listing}, say)
 		indexed = stats.Corpus.Indexed
 		return err
 	}, ask.RefreshOptions{Force: reason, Notice: say})

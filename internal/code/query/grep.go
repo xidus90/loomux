@@ -46,7 +46,8 @@ type GrepOptions struct {
 var readRecord = corpus.Read
 
 // Grep answers a pattern over the search corpus, from the trigram index when
-// it is current and from a scan when it is not.
+// it is current, from the index plus a read of the moved files when a few
+// files' content drifted, and from a scan otherwise.
 //
 // Both paths search the same file list, the one corpus.SearchCorpus selects:
 // a graph file and a README match the same pattern, and the index can only be
@@ -70,8 +71,12 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	// Trust is the corpus's alone: the graph lends symbols, not files.
 	trusted := s.hasRecord && s.corpusDrift.Clean()
 	reason := needsRebuild(s, root)
+	// The overlay answers from the old index plus a read of the moved files.
+	var moved map[string]bool
 	switch {
 	case reason == "":
+	case takeOverlay(s, root, say):
+		moved = movedFiles(s)
 	case s.hasRecord && opts.MaxFilesize != nil && onlySettings(*s.corpusDrift) && graphReason(s, root) == "":
 		say("settings differ from index, scanning with the flag value")
 	case opts.NoRefresh:
@@ -167,7 +172,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		// the next build could not replace the file on Windows.
 		defer ix.Close()
 		digest, digestOK := recordDigest(rec)
-		if !trusted || !digestOK || ix.Extractor() != all.Version() ||
+		if (!trusted && moved == nil) || !digestOK || ix.Extractor() != all.Version() ||
 			string(ix.Settings()) != string(settings) || ix.Digest() != digest {
 			index = "stale"
 			break
@@ -177,12 +182,19 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		index = "scan"
 		if sets, ok, lerr := trigram.Literals(pattern, opts.Fixed, opts.IgnoreCase); lerr == nil && ok {
 			if found, used := ix.Candidates(sets); used {
-				candidates = make(map[string]bool, len(found))
+				candidates = make(map[string]bool, len(found)+len(moved))
 				for _, p := range found {
+					candidates[p] = true
+				}
+				// The index never saw the moved files' bytes: read them all.
+				for p := range moved {
 					candidates[p] = true
 				}
 				index = "used"
 			}
+		}
+		if moved != nil {
+			index = "overlay"
 		}
 	case errors.Is(ixErr, trigram.ErrNoIndex):
 		index = "none"
@@ -204,7 +216,14 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		return os.ReadFile(filepath.Join(root, filepath.FromSlash(p)))
 	}
 
-	found, err := withSymbols(root, rec, func(spans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error) {
+	found, err := withSymbols(root, rec, func(oldSpans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error) {
+		// A moved file's old spans would name the wrong symbol: none is better.
+		spans := func(p string) []model.SymbolSpan {
+			if moved[p] {
+				return nil
+			}
+			return oldSpans(p)
+		}
 		return grep.Search(nil, nil, nil, pattern, grep.Options{
 			IgnoreCase: opts.IgnoreCase,
 			Fixed:      opts.Fixed,
