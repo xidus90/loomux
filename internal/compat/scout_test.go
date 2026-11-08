@@ -14,13 +14,20 @@ import (
 )
 
 // fakeUp answers from a map keyed by source; a missing source is an error.
+// A version that is not plain digits stands for a pre-release.
 type fakeUp map[string][]string
 
-func (f fakeUp) Releases(source string) ([]string, error) {
-	if r, ok := f[source]; ok {
-		return r, nil
+func (f fakeUp) Releases(source string) ([]Release, error) {
+	r, ok := f[source]
+	if !ok {
+		return nil, errors.New("no answer")
 	}
-	return nil, errors.New("no answer")
+	out := make([]Release, len(r))
+	for i, v := range r {
+		_, plain := parseVer(v)
+		out[i] = Release{Version: v, Pre: !plain}
+	}
+	return out, nil
 }
 
 func gdunit(godot string) Entry {
@@ -285,25 +292,30 @@ func TestResolved(t *testing.T) {
 	}
 }
 
-func TestParseReleases(t *testing.T) {
-	gh := `[{"tag_name":"4.8-stable"},{"tag_name":"4.9-rc1"},{"tag_name":"4.7"},{"tag_name":"4.6-stable","prerelease":true},{"tag_name":"4.5-stable","draft":true}]`
-	if got, err := parseReleases(godotSource, []byte(gh)); err != nil || !reflect.DeepEqual(got, []string{"4.8"}) {
+// The bodies below are trimmed from the real answers of 2026-11-08: go.dev
+// with include=all lists an RC as stable:false, python.org flags an alpha as
+// pre_release, and godot-builds flags betas as prerelease and tags a stable
+// release with its patch and -stable.
+func TestParseReleasesMarksPreReleases(t *testing.T) {
+	gh := `[{"tag_name":"4.8-beta2","prerelease":true},{"tag_name":"4.8-dev7","prerelease":true},{"tag_name":"4.7.2-stable","prerelease":false},{"tag_name":"3.6.3-stable"},{"tag_name":"4.9-rc1"},{"tag_name":"4.5-stable","draft":true}]`
+	want := []Release{{"4.8-beta2", true}, {"4.8-dev7", true}, {"4.7.2", false}, {"3.6.3", false}}
+	if got, err := parseReleases(godotSource, []byte(gh)); err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("godot %v %v", got, err)
 	}
 	gh = `[{"tag_name":"v6.3.1"},{"tag_name":"v6.3.0-rc1"},{"tag_name":"v6.2.2","prerelease":true}]`
-	if got, err := parseReleases("https://api.github.com/repos/x/y/releases", []byte(gh)); err != nil || !reflect.DeepEqual(got, []string{"6.3.1", "6.3.0-rc1"}) {
+	if got, err := parseReleases("https://api.github.com/repos/x/y/releases", []byte(gh)); err != nil || !reflect.DeepEqual(got, []Release{{"6.3.1", false}, {"6.3.0-rc1", false}}) {
 		t.Errorf("addon %v %v", got, err)
 	}
-	pyBody := `[{"name":"Python 3.14.0","pre_release":false},{"name":"Python 3.15.0rc1","pre_release":true},{"name":"Jython 2.7","pre_release":false}]`
-	if got, err := parseReleases(pythonSource, []byte(pyBody)); err != nil || !reflect.DeepEqual(got, []string{"3.14.0"}) {
+	pyBody := `[{"name":"Python 3.15.0","pre_release":false},{"name":"Python 3.16.0a1","pre_release":true},{"name":"Python install manager 26.4 beta 3","pre_release":true},{"name":"Jython 2.7","pre_release":false}]`
+	if got, err := parseReleases(pythonSource, []byte(pyBody)); err != nil || !reflect.DeepEqual(got, []Release{{"3.15.0", false}, {"3.16.0a1", true}}) {
 		t.Errorf("python %v %v", got, err)
 	}
-	goBody := `[{"version":"go1.27.2","stable":true},{"version":"go1.28rc1","stable":false}]`
-	if got, err := parseReleases(goSource, []byte(goBody)); err != nil || !reflect.DeepEqual(got, []string{"1.27.2"}) {
+	goBody := `[{"version":"go1.27.3","stable":true},{"version":"go1.27rc3","stable":false},{"version":"go1.26.10","stable":true}]`
+	if got, err := parseReleases(goSource, []byte(goBody)); err != nil || !reflect.DeepEqual(got, []Release{{"1.27.3", false}, {"1.27rc3", true}, {"1.26.10", false}}) {
 		t.Errorf("go %v %v", got, err)
 	}
 	pypi := `{"releases":{"0.17.1":[{"yanked":false}],"0.18.0":[{"yanked":false},{"yanked":true}],"0.19.0":[{"yanked":true}],"0.20.0":[]}}`
-	if got, err := parseReleases("https://pypi.org/pypi/ruff/json", []byte(pypi)); err != nil || !reflect.DeepEqual(got, []string{"0.17.1", "0.18.0"}) {
+	if got, err := parseReleases("https://pypi.org/pypi/ruff/json", []byte(pypi)); err != nil || !reflect.DeepEqual(got, []Release{{"0.17.1", false}, {"0.18.0", false}}) {
 		t.Errorf("pypi %v %v", got, err)
 	}
 	for _, src := range []string{godotSource, pythonSource, goSource, "https://pypi.org/pypi/ruff/json"} {
@@ -333,7 +345,7 @@ func TestHTTPUpstream(t *testing.T) {
 	rt := &roundTrip{status: 200, body: `[{"tag_name":"4.8-stable"}]`}
 	h := HTTPUpstream{Client: &http.Client{Transport: rt}, Token: "tok"}
 	got, err := h.Releases(godotSource)
-	if err != nil || !reflect.DeepEqual(got, []string{"4.8"}) {
+	if err != nil || !reflect.DeepEqual(got, []Release{{"4.8", false}}) {
 		t.Fatalf("%v %v", got, err)
 	}
 	if rt.seen.Header.Get("Authorization") != "Bearer tok" {

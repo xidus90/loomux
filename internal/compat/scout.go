@@ -13,10 +13,16 @@ import (
 	"strings"
 )
 
-// Upstream answers the stable release versions a source publishes, without
-// a leading "v" or other decoration.
+// Release is one version a source publishes, without a leading "v" or other
+// decoration; Pre marks an alpha, beta, release candidate or dev build.
+type Release struct {
+	Version string
+	Pre     bool
+}
+
+// Upstream answers the releases a source publishes.
 type Upstream interface {
-	Releases(source string) ([]string, error)
+	Releases(source string) ([]Release, error)
 }
 
 // Finding is a version newer than everything its line holds. Line is
@@ -35,9 +41,12 @@ type Finding struct {
 func IssueTitle(f Finding) string { return "compat: " + f.Line + " " + f.Version + " is out" }
 
 const (
-	godotSource    = "https://api.github.com/repos/godotengine/godot/releases?per_page=100"
-	pythonSource   = "https://www.python.org/api/v2/downloads/release/?is_published=true"
-	goSource       = "https://go.dev/dl/?mode=json"
+	// godot-builds holds the pre-releases too; godotengine/godot only the
+	// stable ones.
+	godotSource  = "https://api.github.com/repos/godotengine/godot-builds/releases?per_page=100"
+	pythonSource = "https://www.python.org/api/v2/downloads/release/?is_published=true"
+	// Without include=all go.dev lists only the maintained stable releases.
+	goSource       = "https://go.dev/dl/?mode=json&include=all"
 	githubReleases = "https://api.github.com/repos/%s/releases?per_page=100"
 	pypiSource     = "https://pypi.org/pypi/%s/json"
 )
@@ -156,7 +165,7 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 			}
 		}
 	}
-	cache := map[string][]string{}
+	cache := map[string][]Release{}
 	var out []Finding
 	for _, g := range groups {
 		src, err := sourceOf(g.kind, g.name)
@@ -168,7 +177,7 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 			if rels, err = up.Releases(src); err != nil {
 				return nil, fmt.Errorf("%s: %w", src, err)
 			}
-			if !slices.ContainsFunc(rels, func(r string) bool { _, ok := parseVer(r); return ok }) {
+			if !slices.ContainsFunc(rels, func(r Release) bool { _, ok := parseVer(r.Version); return ok && !r.Pre }) {
 				return nil, fmt.Errorf("%s: no release versions", src)
 			}
 			cache[src] = rels
@@ -182,12 +191,13 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 
 // scoutGroup finds the newest release that is a new minor of the line's
 // major or, for the line holding the highest major, a newer major.
-func scoutGroup(g *group, rels []string, topMajor int) (Finding, bool) {
+func scoutGroup(g *group, rels []Release, topMajor int) (Finding, bool) {
 	var best []int
 	var raw string
-	for _, r := range rels {
+	for _, rel := range rels {
+		r := rel.Version
 		v, ok := parseVer(r)
-		if !ok {
+		if !ok || rel.Pre {
 			continue
 		}
 		// gdtoolkit follows Godot's major, which the runtime line decides.
@@ -284,8 +294,8 @@ type HTTPUpstream struct {
 	Token  string
 }
 
-// Releases fetches source and reads its stable versions.
-func (h HTTPUpstream) Releases(source string) ([]string, error) {
+// Releases fetches source and reads its releases.
+func (h HTTPUpstream) Releases(source string) ([]Release, error) {
 	req, err := http.NewRequest(http.MethodGet, source, nil)
 	if err != nil {
 		return nil, err
@@ -313,10 +323,11 @@ func (h HTTPUpstream) Releases(source string) ([]string, error) {
 	return vs, nil
 }
 
-// parseReleases reads the stable versions out of the answer of source, each
-// in its own format.
-func parseReleases(source string, body []byte) ([]string, error) {
-	var out []string
+// parseReleases reads the releases out of the answer of source, each in its
+// own format. Only the runtimes' sources report pre-releases; for addons and
+// tools a flagged pre-release is left out, as the list never pins one.
+func parseReleases(source string, body []byte) ([]Release, error) {
+	var out []Release
 	switch {
 	case source == pythonSource:
 		var rs []struct {
@@ -327,8 +338,9 @@ func parseReleases(source string, body []byte) ([]string, error) {
 			return nil, err
 		}
 		for _, r := range rs {
-			if v, ok := strings.CutPrefix(r.Name, "Python "); ok && !r.Pre {
-				out = append(out, v)
+			// python.org also lists "Python install manager 26.4 beta 3".
+			if v, ok := strings.CutPrefix(r.Name, "Python "); ok && v != "" && v[0] >= '0' && v[0] <= '9' {
+				out = append(out, Release{v, r.Pre})
 			}
 		}
 	case source == goSource:
@@ -340,9 +352,7 @@ func parseReleases(source string, body []byte) ([]string, error) {
 			return nil, err
 		}
 		for _, r := range rs {
-			if r.Stable {
-				out = append(out, strings.TrimPrefix(r.Version, "go"))
-			}
+			out = append(out, Release{strings.TrimPrefix(r.Version, "go"), !r.Stable})
 		}
 	case strings.HasPrefix(source, "https://pypi.org/"):
 		var doc struct {
@@ -354,7 +364,7 @@ func parseReleases(source string, body []byte) ([]string, error) {
 		// A release without files, or with every file yanked, is not one.
 		for _, v := range slices.Sorted(maps.Keys(doc.Releases)) {
 			if slices.ContainsFunc(doc.Releases[v], func(f pypiFile) bool { return !f.Yanked }) {
-				out = append(out, v)
+				out = append(out, Release{Version: v})
 			}
 		}
 	default: // GitHub releases
@@ -367,11 +377,23 @@ func parseReleases(source string, body []byte) ([]string, error) {
 			return nil, err
 		}
 		for _, r := range rs {
-			v, stable := strings.CutSuffix(r.Tag, "-stable")
-			if r.Draft || r.Pre || (source == godotSource && !stable) {
+			if r.Draft {
 				continue
 			}
-			out = append(out, strings.TrimPrefix(v, "v"))
+			if source != godotSource {
+				if !r.Pre {
+					out = append(out, Release{Version: strings.TrimPrefix(r.Tag, "v")})
+				}
+				continue
+			}
+			// Godot tags a stable release "<version>-stable" and flags a
+			// pre-release such as "4.8-beta2"; an unflagged tag without
+			// -stable is neither.
+			if v, stable := strings.CutSuffix(r.Tag, "-stable"); stable && !r.Pre {
+				out = append(out, Release{Version: v})
+			} else if r.Pre {
+				out = append(out, Release{r.Tag, true})
+			}
 		}
 	}
 	return out, nil
