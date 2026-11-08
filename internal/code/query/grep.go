@@ -68,10 +68,9 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	say := func(s string) { notes = append(notes, s) }
 
 	if opts.TrustIndex {
-		t, err := openTrusted(root, maxFilesize)
+		plan, err := trustedPlan(root, maxFilesize, pattern, opts)
 		if err == nil {
-			defer t.close()
-			res, err := searchPlan(root, pattern, opts, t.plan(pattern, opts), say)
+			res, err := searchPlan(root, pattern, opts, plan, say)
 			return res, notes, err
 		}
 		say("index not trusted: " + err.Error())
@@ -139,9 +138,6 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	ix, ixErr := trigram.Read(root)
 	switch {
 	case ixErr == nil:
-		// The candidates are copies; the mapping must not outlive the call, or
-		// the next build could not replace the file on Windows.
-		defer ix.Close()
 		digest, digestOK := recordDigest(rec)
 		if (!trusted && moved == nil) || !digestOK || ix.Extractor() != all.Version() ||
 			string(ix.Settings()) != string(settings) || ix.Digest() != digest {
@@ -163,14 +159,20 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	default:
 		index = "stale"
 	}
+	// The candidates are copies. The scan that follows has no bound, and a
+	// build waiting to replace the index on Windows has about 2 s.
+	if ixErr == nil {
+		ix.Close()
+	}
 
+	digest, digestOK := recordDigest(rec)
 	found, err := searchPlan(root, pattern, opts, grepPlan{
 		base:       res,
 		paths:      paths,
 		candidates: candidates,
 		index:      index,
 		symbols: func(search symbolSearch) (grep.Result, error) {
-			return withSymbols(root, rec, func(oldSpans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error) {
+			return withSymbols(root, digest, digestOK, func(oldSpans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error) {
 				// A moved file's old spans would name the wrong symbol: none is better.
 				spans := func(p string) []model.SymbolSpan {
 					if moved[p] {

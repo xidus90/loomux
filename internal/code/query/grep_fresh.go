@@ -265,20 +265,52 @@ func recordDigest(rec corpus.Record) (digest [32]byte, ok bool) {
 // symbolSearch is one search with the given symbols.
 type symbolSearch func(spans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error)
 
-// withSymbols runs search with the symbols of the spans sidecar the record's
-// digest binds, or with the graph's when there is no such sidecar. The sidecar
-// is closed before it returns.
-func withSymbols(root string, rec corpus.Record, search symbolSearch) (grep.Result, error) {
-	if digest, ok := recordDigest(rec); ok {
-		if r, err := spanidx.Open(root, digest); err == nil {
-			defer r.Close()
-			return search(r.Spans, r.InDegree)
+// withSymbols runs search with the symbols of the spans sidecar digest binds
+// (when bound), or with the graph's when there is no such sidecar.
+//
+// The symbols are loaded at their first use. grep.Search asks for them only
+// in the merge, after the scan, so the sidecar is mapped for the merge alone:
+// the scan has no bound, and a build waiting to remove the sidecar on Windows
+// has about 2 s. The sidecar is closed before withSymbols returns.
+func withSymbols(root string, digest [32]byte, bound bool, search symbolSearch) (grep.Result, error) {
+	var (
+		r        *spanidx.Reader
+		spans    func(string) []model.SymbolSpan
+		inDegree func(model.NodeID) int
+		loadErr  error
+	)
+	load := func() {
+		if spans != nil || loadErr != nil {
+			return
 		}
+		if bound {
+			if opened, err := spanidx.Open(root, digest); err == nil {
+				r, spans, inDegree = opened, opened.Spans, opened.InDegree
+				return
+			}
+		}
+		g, err := readGraph(root)
+		if err != nil {
+			loadErr = err
+			return
+		}
+		fileSpans := model.FileSpans(g)
+		spans, inDegree = func(p string) []model.SymbolSpan { return fileSpans[p] }, blast.New(g).InDegree
 	}
-	g, err := readGraph(root)
-	if err != nil {
-		return grep.Result{}, err
+	res, err := search(func(p string) []model.SymbolSpan {
+		if load(); loadErr != nil {
+			return nil
+		}
+		return spans(p)
+	}, func(id model.NodeID) int {
+		// Only a symbol from spans has an in-degree, so spans loaded first.
+		return inDegree(id)
+	})
+	if r != nil {
+		r.Close()
 	}
-	spans := model.FileSpans(g)
-	return search(func(p string) []model.SymbolSpan { return spans[p] }, blast.New(g).InDegree)
+	if loadErr != nil {
+		return grep.Result{}, loadErr
+	}
+	return res, err
 }

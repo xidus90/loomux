@@ -17,70 +17,60 @@ import (
 // disk that is going away.
 var statIndex = os.Stat
 
-// trustedIndex is the trigram index and the symbol sidecar that grep answers
-// from without looking at the tree.
-type trustedIndex struct {
-	ix    *trigram.Index
-	spans *spanidx.Reader
-	built string
-}
-
-// openTrusted maps the index and its sidecar and checks that they belong
-// together and to this binary and these settings. The error says why not; the
-// caller then takes the checked path.
-func openTrusted(root string, maxFilesize int64) (*trustedIndex, error) {
+// trustedPlan maps the index, checks that it and its symbol sidecar belong
+// together and to this binary and these settings, and returns the search over
+// the index's own file table. The error says why not; the caller then takes
+// the checked path.
+//
+// Neither mapping outlives the call: the plan holds copies, and the sidecar
+// is mapped again for the merge. A rebuild that removes it in between leaves
+// the symbols to the graph, as on the checked path.
+func trustedPlan(root string, maxFilesize int64, pattern string, opts GrepOptions) (grepPlan, error) {
 	ix, err := trigram.Read(root)
 	if err != nil {
-		return nil, err
+		return grepPlan{}, err
 	}
-	t, err := bindTrusted(root, ix, maxFilesize)
+	defer ix.Close()
+	built, err := bindTrusted(root, ix, maxFilesize)
 	if err != nil {
-		ix.Close()
-		return nil, err
+		return grepPlan{}, err
 	}
-	return t, nil
-}
-
-func bindTrusted(root string, ix *trigram.Index, maxFilesize int64) (*trustedIndex, error) {
-	if ix.Extractor() != all.Version() {
-		return nil, fmt.Errorf("the index is from another extractor version (%s)", ix.Extractor())
-	}
-	if string(ix.Settings()) != string(corpus.CanonicalSettings(maxFilesize, ix.Counters().IgnoreCase)) {
-		return nil, fmt.Errorf("the index was built with other settings (%s)", ix.Settings())
-	}
-	info, err := statIndex(store.CachePath(root, "trigram.idx"))
-	if err != nil {
-		return nil, err
-	}
-	spans, err := spanidx.Open(root, ix.Digest())
-	if err != nil {
-		return nil, err
-	}
-	return &trustedIndex{ix: ix, spans: spans, built: info.ModTime().UTC().Format(time.RFC3339)}, nil
-}
-
-func (t *trustedIndex) close() {
-	t.spans.Close()
-	t.ix.Close()
-}
-
-// plan is the search over the index's own file table and counters. The table
-// holds no binary file, so the scope counts add the ones the header counts.
-func (t *trustedIndex) plan(pattern string, opts GrepOptions) grepPlan {
-	c := t.ix.Counters()
+	c, digest := ix.Counters(), ix.Digest()
 	return grepPlan{
 		base: grep.Result{
 			Pattern: pattern, Ignored: c.Ignored, SkippedSize: c.SkippedSize, SkippedBinary: c.SkippedBinary,
 		},
-		paths:      t.ix.Files(),
-		candidates: narrow(t.ix, pattern, opts, nil),
+		paths:      ix.Files(),
+		candidates: narrow(ix, pattern, opts, nil),
 		index:      "trusted",
-		built:      t.built,
-		uncounted:  c.SkippedBinary,
+		built:      built,
+		// The table holds no binary file, so the scope counts add the ones
+		// the header counts.
+		uncounted: c.SkippedBinary,
 		symbols: func(search symbolSearch) (grep.Result, error) {
-			return search(t.spans.Spans, t.spans.InDegree)
+			return withSymbols(root, digest, true, search)
 		},
+	}, nil
+}
+
+// bindTrusted returns when the index was written, or why it is not trusted.
+func bindTrusted(root string, ix *trigram.Index, maxFilesize int64) (string, error) {
+	if ix.Extractor() != all.Version() {
+		return "", fmt.Errorf("the index is from another extractor version (%s)", ix.Extractor())
 	}
+	if string(ix.Settings()) != string(corpus.CanonicalSettings(maxFilesize, ix.Counters().IgnoreCase)) {
+		return "", fmt.Errorf("the index was built with other settings (%s)", ix.Settings())
+	}
+	info, err := statIndex(store.CachePath(root, "trigram.idx"))
+	if err != nil {
+		return "", err
+	}
+	spans, err := spanidx.Open(root, ix.Digest())
+	if err != nil {
+		return "", err
+	}
+	spans.Close()
+	return info.ModTime().UTC().Format(time.RFC3339), nil
 }
 
 // narrow is the set of files the index says may match, plus extra, or nil
