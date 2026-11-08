@@ -1,12 +1,14 @@
 package corpus
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/xidus90/loomux/internal/code/store"
@@ -174,6 +176,50 @@ func Write(root string, rec Record) error {
 		return err
 	}
 	return WriteMirror(final, rec)
+}
+
+// stampKey opens the git index stamp in the layout Write produces. A path
+// cannot imitate it: a file's key sits one level deeper, and a source's rel
+// is a string, whose quotes JSON escapes.
+var stampKey = []byte("\n  \"index_stamp\": ")
+
+// Restamp stores stamp as the git index stamp of the record at root, which
+// was read from the file with the stamp was. A record file that moved on
+// since belongs to another writer and is left alone. Only the stamp's bytes
+// change, so the file comes out as Write would write it without marshalling
+// the file list again; the mirror is written anew to bind to it.
+func Restamp(root string, was Stamp, rec Record, stamp Stamp) error {
+	path := RecordPath(root)
+	body, err := readFile(path)
+	if err != nil {
+		return err
+	}
+	// Stat after the read: a swap before it shows here.
+	if FileStamp(path) != was {
+		return nil
+	}
+	rec.Stamp = stamp
+	head, tail, found := bytes.Cut(body, stampKey)
+	_, rest, closed := bytes.Cut(tail, []byte("}"))
+	if !found || !closed {
+		return Write(root, rec)
+	}
+	// A Stamp holds two ints, which json always encodes.
+	value, _ := json.MarshalIndent(stamp, "  ", "  ")
+	if err := replaceFile(path, slices.Concat(head, stampKey, value, rest)); err != nil {
+		return err
+	}
+	return WriteMirror(path, rec)
+}
+
+// FileStamp is the stamp of the file at path, the empty stamp when it cannot
+// be read.
+func FileStamp(path string) Stamp {
+	info, err := os.Stat(path)
+	if err != nil {
+		return Stamp{}
+	}
+	return Stamp{Size: info.Size(), MTime: info.ModTime().UnixNano()}
 }
 
 // Read loads the record, or reports that there is none this code may use. A

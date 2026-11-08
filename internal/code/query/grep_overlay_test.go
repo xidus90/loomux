@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/freshness"
@@ -248,13 +249,112 @@ func TestOverlayAfterACommit(t *testing.T) {
 	}
 }
 
+// The first call after a commit restamps the record under --no-refresh too,
+// so the next call does not list the tracked files again.
+func TestOverlayRestampUnderNoRefresh(t *testing.T) {
+	root := committedRepo(t)
+	before, _ := corpus.Read(root)
+	writeTree(t, root, map[string]string{"README.md": "zzzCommittedNeedle\n"})
+	commit(t, root, "edit", "README.md")
+	res, _, err := Grep(root, "zzzCommittedNeedle", GrepOptions{NoRefresh: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Index != "overlay" {
+		t.Fatalf("index = %q, want overlay", res.Index)
+	}
+	after, _ := corpus.Read(root)
+	if want := statStamp(t, filepath.Join(root, ".git", "index")); after.Stamp != want || after.Digest != before.Digest {
+		t.Fatalf("record = stamp %+v digest %q, want stamp %+v and digest %q", after.Stamp, after.Digest, want, before.Digest)
+	}
+}
+
+// A moved git index is listed only when the overlay could take it: drift in
+// the settings or the git config rules the overlay out before the walk, so
+// the stale answer under --no-refresh does not wait for git.
+func TestOverlayDoesNotListWhenTheDriftDoesNotFit(t *testing.T) {
+	for name, drift := range map[string]func(t *testing.T, root string) GrepOptions{
+		"settings": func(t *testing.T, root string) GrepOptions {
+			limit := int64(4096)
+			return GrepOptions{NoRefresh: true, MaxFilesize: &limit}
+		},
+		"config": func(t *testing.T, root string) GrepOptions {
+			grepRunGit(t, root, "config", "core.ignorecase", "true")
+			return GrepOptions{NoRefresh: true}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := committedRepo(t)
+			writeTree(t, root, map[string]string{"README.md": "zzzCommittedNeedle\n"})
+			commit(t, root, "edit", "README.md")
+			opts := drift(t, root)
+			calls := countTracked(t)
+			res, _, err := Grep(root, "zzzCommittedNeedle", opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Index == "overlay" || *calls != 0 {
+				t.Fatalf("index = %q git calls = %d, want no overlay and no git call", res.Index, *calls)
+			}
+		})
+	}
+}
+
+// The overlay reads the record once: the restamp asks the file's stamp
+// whether a rebuild replaced it.
+func TestOverlayAfterACommitReadsTheRecordOnce(t *testing.T) {
+	root := committedRepo(t)
+	writeTree(t, root, map[string]string{"README.md": "zzzCommittedNeedle\n"})
+	commit(t, root, "edit", "README.md")
+	reads := 0
+	old := readRecord
+	readRecord = func(r string) (corpus.Record, bool) {
+		reads++
+		return old(r)
+	}
+	t.Cleanup(func() { readRecord = old })
+	if res, _, err := Grep(root, "zzzCommittedNeedle", GrepOptions{}); err != nil || res.Index != "overlay" {
+		t.Fatalf("index = %q, err = %v; want overlay", res.Index, err)
+	}
+	if reads != 1 {
+		t.Fatalf("record reads = %d, want 1", reads)
+	}
+}
+
+// git lists the tracked files while the tree is walked, not after it: the
+// walk here waits until the listing has started.
+func TestOverlayListsTrackedFilesDuringTheWalk(t *testing.T) {
+	root := committedRepo(t)
+	writeTree(t, root, map[string]string{"README.md": "zzzCommittedNeedle\n"})
+	commit(t, root, "edit", "README.md")
+	started := make(chan struct{})
+	oldTracked, oldWalk := trackedSet, walkCorpus
+	trackedSet = func(r string) ([]string, error) {
+		close(started)
+		return oldTracked(r)
+	}
+	walkCorpus = func(r string, m corpus.Matcher) (corpus.Listing, error) {
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Error("the walk ended before git listed the tracked files")
+		}
+		return oldWalk(r, m)
+	}
+	t.Cleanup(func() { trackedSet, walkCorpus = oldTracked, oldWalk })
+	res, _, err := Grep(root, "zzzCommittedNeedle", GrepOptions{})
+	if err != nil || res.Index != "overlay" || res.TotalHits != 1 {
+		t.Fatalf("index = %q hits = %d err = %v, want overlay and one hit", res.Index, res.TotalHits, err)
+	}
+}
+
 func TestOverlayRestampFailureIsANotice(t *testing.T) {
 	root := committedRepo(t)
 	writeTree(t, root, map[string]string{"README.md": "zzzCommittedNeedle\n"})
 	commit(t, root, "edit", "README.md")
-	old := writeRecord
-	writeRecord = func(string, corpus.Record) error { return errors.New("disk full") }
-	t.Cleanup(func() { writeRecord = old })
+	old := restamp
+	restamp = func(string, corpus.Stamp, corpus.Record, corpus.Stamp) error { return errors.New("disk full") }
+	t.Cleanup(func() { restamp = old })
 	res, notes, err := Grep(root, "zzzCommittedNeedle", GrepOptions{})
 	if err != nil {
 		t.Fatalf("a failed restamp must not fail the answer: %v", err)
@@ -302,8 +402,9 @@ func TestOverlayRestampKeepsAConcurrentRecord(t *testing.T) {
 	trackedSet = func(root string) ([]string, error) {
 		rec, _ := corpus.Read(root)
 		rec.Digest = "rebuilt"
+		// This runs beside the walk, off the test's goroutine.
 		if err := corpus.Write(root, rec); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		return old(root)
 	}

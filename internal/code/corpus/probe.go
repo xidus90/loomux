@@ -84,19 +84,30 @@ func matcherForRules(rules *Rules) Matcher {
 // through Compare and skip the git calls Load would make.
 func RulesFromRecord(rec Record) *Rules { return rulesFromRecord(rec) }
 
+// MovedBeforeWalk reports the drift Compare finds without a listing: the
+// settings, the git config or a recorded ignore source moved. Each of them
+// rebuilds rather than overlays, so a caller can skip work only an overlay
+// needs.
+func MovedBeforeWalk(rec Record, s Settings) bool {
+	return settingsMoved(rec, s) || configMoved(rec) || len(changedSources(rec)) > 0
+}
+
+func settingsMoved(rec Record, s Settings) bool {
+	return !bytes.Equal(rec.Settings, CanonicalSettings(s.MaxFilesize, rec.IgnoreCase))
+}
+
+func configMoved(rec Record) bool {
+	abs := GitAbs(rec, rec.GitPaths.Config)
+	return abs != "" && !stampMatches(abs, rec.ConfigStamp)
+}
+
 // Compare is the probe over a listing the caller already walked. The rules
 // must be the ones the listing was walked with; a caller that has the record
 // builds them with RulesFromRecord and keeps the walk.
 func Compare(rec Record, listing Listing, rules *Rules, s Settings) *Drift {
-	d := &Drift{}
-	if !bytes.Equal(rec.Settings, CanonicalSettings(s.MaxFilesize, rec.IgnoreCase)) {
-		d.Settings = true
-	}
+	d := &Drift{Settings: settingsMoved(rec, s), Config: configMoved(rec)}
 	if abs := GitAbs(rec, rec.GitPaths.Index); abs != "" && !stampMatches(abs, rec.Stamp) {
 		d.Index = true
-	}
-	if abs := GitAbs(rec, rec.GitPaths.Config); abs != "" && !stampMatches(abs, rec.ConfigStamp) {
-		d.Config = true
 	}
 
 	// The file set is compared at the limit the record was built with: a
