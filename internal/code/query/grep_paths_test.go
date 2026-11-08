@@ -116,12 +116,13 @@ func TestGrepWalksOncePerCall(t *testing.T) {
 		walks++
 		return corpus.Walk(r, m)
 	})
-	old := statSources
-	statSources = func(r string) ([]sourceset.SourceFile, error) {
+	// The graph probe's own walk: freshness.Probe and Extract both stat here.
+	old := sourceset.Stat
+	sourceset.Stat = func(r string) ([]sourceset.SourceFile, error) {
 		walks++
 		return old(r)
 	}
-	t.Cleanup(func() { statSources = old })
+	t.Cleanup(func() { sourceset.Stat = old })
 	res, _, err := Grep(root, "zzzUniqueWord", GrepOptions{})
 	if err != nil {
 		t.Fatal(err)

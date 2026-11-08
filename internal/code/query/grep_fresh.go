@@ -84,6 +84,19 @@ func graphReason(s grepState, root string) string {
 	return ""
 }
 
+// rebuildLimit is the size limit a rebuild writes into the record. A flag for
+// one call never does: with one, the record keeps its own limit, or gets the
+// default when there is none.
+func rebuildLimit(s grepState, flag *int64, resolved int64) int64 {
+	switch {
+	case flag == nil:
+		return resolved
+	case s.hasRecord:
+		return s.rec.MaxFilesize
+	}
+	return corpus.DefaultMaxFilesize
+}
+
 // rebuildGrep rebuilds graph and corpus and returns the state of the new
 // record, with the listing the build walked. ok is false when the rebuild did
 // not run or left no indexed corpus; s still describes the tree then.

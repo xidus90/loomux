@@ -8,7 +8,6 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/extract/all"
-	"github.com/xidus90/loomux/internal/code/sourceset"
 	"github.com/xidus90/loomux/internal/code/trigram"
 )
 
@@ -120,10 +119,6 @@ var (
 	loadIgnore = corpus.Load
 	walkCorpus = corpus.Walk
 )
-
-// statSources is the graph's own walk, a seam so a test can count the walks of
-// one call.
-var statSources = sourceset.Stat
 
 // readFile is the read the extraction and the corpus selection both go
 // through, so a test can count that a file shared by the two is read once.

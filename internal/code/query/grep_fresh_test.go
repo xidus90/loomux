@@ -418,17 +418,45 @@ func TestNeedsRebuild(t *testing.T) {
 
 // A flag that only moves the settings does not spare a drifted graph its
 // rebuild: the answer would otherwise carry the old graph's symbols.
+func TestGrepFlagWithoutRecordRebuildsWithTheDefault(t *testing.T) {
+	root := grepFixture(t)
+	overrideRead(t, func(string) (corpus.Record, bool) { return corpus.Record{}, false })
+	limit := int64(16)
+	if _, _, err := Grep(root, "zzzUniqueWord", GrepOptions{MaxFilesize: &limit}); err != nil {
+		t.Fatal(err)
+	}
+	want := corpus.CanonicalSettings(corpus.DefaultMaxFilesize, true)
+	if got := recordSettings(t, root); !bytes.Equal(got, want) {
+		t.Fatalf("record settings = %s, want the default %s", got, want)
+	}
+}
+
 func TestGrepFlagSettingsStillRebuildADriftedGraph(t *testing.T) {
 	root := grepFixture(t)
 	if err := os.Remove(freshness.Path(root)); err != nil {
 		t.Fatal(err)
 	}
+	before := recordSettings(t, root)
 	limit := int64(16)
-	_, notes, err := Grep(root, "zzzUniqueWord", GrepOptions{MaxFilesize: &limit})
+	res, notes, err := Grep(root, "zzzUniqueWord", GrepOptions{MaxFilesize: &limit})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(strings.Join(notes, "\n"), "building the graph") {
 		t.Fatalf("notes = %q, want the graph rebuild", notes)
+	}
+	// The flag never rewrites the record: the rebuild keeps its limit, and the
+	// answer is a scan at the flag's.
+	if after := recordSettings(t, root); !bytes.Equal(after, before) {
+		t.Fatalf("record settings = %s, want them unchanged (%s)", after, before)
+	}
+	if res.Index != "stale" {
+		t.Fatalf("index = %q, want stale", res.Index)
+	}
+	if res.SkippedSize == 0 {
+		t.Fatal("the counters must describe the scan at the flag's limit, not the record's")
+	}
+	if !strings.Contains(strings.Join(notes, "\n"), "settings differ from index") {
+		t.Fatalf("notes = %q, want the settings difference said", notes)
 	}
 }

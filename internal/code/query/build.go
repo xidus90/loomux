@@ -162,7 +162,7 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
 // never its read: an entry is taken only when the hash of the bytes just read
 // and the language's Version both match it.
 func Extract(root string, opts ExtractOptions) (*model.Graph, Stats, error) {
-	files, err := statSources(root)
+	files, err := sourceset.Stat(root)
 	if err != nil {
 		return nil, Stats{}, err
 	}
