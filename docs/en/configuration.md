@@ -1205,7 +1205,9 @@ default = "example"
 | Graph of an area (`wiring.json`) | `<project>\.loomux\state\graph\wiring.json` |
 | Freshness record and ask sidecar of a graph | `<project>\.loomux\state\graph\cache\fingerprint.json`, `ask-index.json` |
 | Search corpus record of `graph grep` | `<project>\.loomux\state\graph\cache\corpus.json` |
+| Binary mirrors of the two records, taken only while the size and mtime of the JSON still match | `<project>\.loomux\state\graph\cache\corpus.json.bin`, `fingerprint.json.bin` |
 | Trigram index of `graph grep` | `<project>\.loomux\state\graph\cache\trigram.idx` |
+| Symbol spans of `graph grep` per file, bound to the corpus digest | `<project>\.loomux\state\graph\cache\grepspans.idx` |
 
 `LOOMUX_STATE_DIR` overrides the state directory; there is no command-line
 flag for it.

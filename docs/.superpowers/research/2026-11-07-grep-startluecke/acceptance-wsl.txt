@@ -1,0 +1,6 @@
+files 8490 build 2815 ms
+uname 6.6.114.1-microsoft-standard-WSL2 grep grep (GNU grep) 3.12
+literal      grep-excl 42.3 ms (74 lines)  loomux 37.8 ms ("total_hits": 35 "truncated_hits": 0 "index": "used" )  limit 1.2x  PASS
+alternation  grep-excl 65.8 ms (1098 lines)  loomux 70.0 ms ("total_hits": 300 "truncated_hits": 629 "index": "used" )  limit 1.2x  PASS
+ignore-case  grep-excl 55.9 ms (94 lines)  loomux 46.9 ms ("total_hits": 47 "truncated_hits": 0 "index": "used" )  limit 1.2x  PASS
+no-literal   grep-excl 146.3 ms (10718 lines)  loomux 103.2 ms ("total_hits": 300 "truncated_hits": 8775 "index": "scan" )  limit 1.2x  PASS

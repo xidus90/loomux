@@ -9,13 +9,13 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:fdde59d8d7b5dfb1305d9a5c3314a9f3bee414483669f86e4fec4a3a813aa15d"
-    revision: 26
+    content_hash: "sha256:cb50a54b23fb1280223bad5b8790f615a80e17b11b0e848e338a2ba386ed6995"
+    revision: 27
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:f4b63bdc02004ee2dd6c64ede3328ef684b72457f9debb9b918aee4b10575d0c"
-    revision: 27
+    content_hash: "sha256:14019fc80435779b28bbf034b1c1a28989c979eebd40285cbc33c86a4e356d1b"
+    revision: 28
 ---
 
 ## Die tragende Aufteilung

@@ -42,6 +42,19 @@
   `topics/suche-und-profile.md` zitiert. Quelle:
   `docs/de/cli-reference.md`.
 
+## 2026-11-08
+
+- 2026-11-08 — `topics/code-graph.md`: neuer Abschnitt zum Start von
+  `graph grep` (Ursache korrigiert: zwei serielle Walks und Neubau nach einer
+  Änderung, nicht das Laden von Wiring-Datei und Index), zum Overlay bis 200
+  Dateien, zu `--trust-index` mit `index_built` und zum Graph-Wächter von
+  `loomux serve`. `topics/brain-maintenance.md`: ein Halbsatz, dass der
+  Graph-Wächter das Brain nicht betrifft. Kein Widerspruch zu einer bestehenden
+  Aussage, die frühere Lesart (Laden als Ursache) steht nur noch im
+  Benchmark-Eintrag, dort als korrigiert markiert. Quelle: Code von loomux
+  (`internal/code/query`, `internal/serve/watch`), `docs/de/cli-reference.md`
+  und `docs/de/benchmarks.md`.
+
 ## 2026-11-04
 
 - 2026-11-04 — `topics/code-graph.md` und

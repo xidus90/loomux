@@ -4140,6 +4140,11 @@ Muster identisch (0, 50, 11338, 0 Treffer). Build: loomux 3,2 s, tgrep 0,2 s.
    Aufruf die 16 MB große Wiring-Datei und den 13 MB großen Trigramm-Index;
    tgrep beantwortet ein warmes Literal in 21 ms aus seinem Index. Ein Daemon
    würde das Bild ändern, aber der Entwurf hält loomux als Einmal-Binary.
+   **Korrigiert (2026-11-08):** Die Profile der Startlücken-Untersuchung
+   zeigen als Kosten zwei serielle Walks pro Aufruf, das Dekodieren von
+   `wiring.json` und einen vollen Neubau bei jeder Drift, nicht das Laden des
+   Index. Siehe [das Research-Dokument](../.superpowers/research/2026-11-07-grep-startluecke.md)
+   und den Eintrag „2026-11-08 18:48 — Abnahme des Starts von graph grep“ unten.
 3. **Die Treffermengen stimmen exakt.** In beiden Korpora ergeben alle vier
    Muster identische `(path, line)`-Mengen, auch die 8931 Treffer ohne Literal
    im Repository. Die Fusion ist korrekt; sie ist noch nicht schnell genug, um
@@ -4152,4 +4157,313 @@ Muster identisch (0, 50, 11338, 0 Treffer). Build: loomux 3,2 s, tgrep 0,2 s.
 **Offen**: den Startvorsprung schließen (verzögertes Laden des Index, kleinere
 Wiring-Datei oder ein residenter Prozess) und die Profilfrage, welches Plugin
 `grep` besitzt.
+**Korrigiert (2026-11-08):** Die Arbeit an der Startlücke kam ohne residenten
+Prozess aus, mit einem parallelen einzigen Walk, abgebildeten Beiakten und
+einem Drift-Overlay. Ihre Abnahme verfehlt die Schwelle für den ersten Aufruf
+nach einem Commit, und ob die Lücke als geschlossen gilt, entscheidet der
+Mensch; siehe den Eintrag „2026-11-08 18:48 — Abnahme des Starts
+von graph grep“ unten und [das Research-Dokument](../.superpowers/research/2026-11-07-grep-startluecke.md).
+Die Profilfrage bleibt offen.
 
+
+## 2026-11-08 18:48 — Abnahme des Starts von graph grep
+
+Gemessen unter Windows x86_64 (Go 1.27.3, tgrep 1.2.3 aus WinGet, nur über den
+absoluten Pfad aufgerufen) und unter Linux in WSL2 (Kernel 6.6.114.1, ext4, GNU
+grep 3.12). Alt ist `loomux.exe` aus `bab2f74e`, neu der Stand von
+`feat/grep-startup` (`a516c28e`), beide mit `CGO_ENABLED=0`.
+
+**Methode.** `acceptance.py` (PEP 723, im
+[Research-Ordner](../.superpowers/research/2026-11-07-grep-startluecke/))
+klont den Baum auf `a516c28e` (8490 verfolgte Dateien) zweimal in ein
+temporäres Verzeichnis, einen Klon je Binary, damit jedes seinen eigenen
+Zustand behält; der Worktree selbst bleibt unberührt. tgreps Index liegt
+außerhalb des Baums. Jeder Aufruf ist `graph grep -- <muster> --json --channel
+cloud --max-hits 300`, so wie `dsh-loomux` ihn absetzt. Muster: Literal
+`func Search`, Alternation `Search|Grep`, `-i func search`, ohne Literal
+`[A-Z]{3}\w+`. Ein Aufwärmlauf, dann 11 verschränkte Läufe je Variante; es
+zählt der Median. Szenarien: sauberer Baum; 20 Go-Dateien unter
+`internal/brain` nach dem Build geändert (jeder Aufruf beginnt beim Zustand des
+sauberen Builds, der vor dem Aufruf zurückgespielt wird); die Änderung
+committet (erster Aufruf: Zustand vor jedem Aufruf zurückgespielt; spätere
+Aufrufe: der erste hat den neuen Stempel des git-Index gespeichert);
+`--trust-index` auf dem sauberen Baum. Die Schwellen sind die Ziele des
+Designs plus 20 % Toleranz. Der Windows-Lauf lief dreimal; Lauf 2 lief bei
+belasteter Maschine (Graph-Builds 42,6 s und 31,3 s statt 20–22 s und
+17–18 s) und steht gesondert. Die Last hat nicht alle Werkzeuge um denselben
+Faktor gebremst; siehe „Lauf 2“ unten. Rohdaten: `acceptance-windows-run{1,2,3}.json` und
+`acceptance-wsl.txt`.
+
+**Gleiche Treffer.** In allen drei Läufen und allen vier Mustern sind die
+Gruppen von alt und neu (Pfad, Symbol, `in_degree`, Trefferzeilen) auf dem
+sauberen Baum gleich, und neu mit `--trust-index` liefert dasselbe JSON wie neu
+ohne, bis auf `index` und `index_built`. Nach der Änderung und nach dem Commit
+stimmen die `(path, line)`-Mengen von alt (baut neu) und neu (Overlay) überein.
+Treffer: 35, 929, 47 und 9075 auf dem sauberen Baum; 55, 949, 67 und 9075 nach
+der Änderung. Neu meldet nach Änderung und Commit `overlay` und mit
+`--trust-index` `trusted`.
+
+**Sauberer Baum, Windows** (Median in ms, Lauf 1 / Lauf 3):
+
+| Muster | alt | neu | Schwelle | neu `--trust-index` | tgrep | Schwelle 1,2 × tgrep |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `func Search` | 492,5 / 494,5 | 74,4 / 73,3 | 108 | 24,4 / 24,9 | 26,6 / 26,6 | 31,9 / 31,9 |
+| `Search\|Grep` | 664,2 / 615,0 | 113,2 / 102,5 | 132 | 69,6 / 64,0 | 71,8 / 65,9 | 86,2 / 79,1 |
+| `-i func search` | 515,7 / 463,7 | 82,5 / 70,6 | 114 | 34,7 / 30,5 | 103,5 / 96,2 | 124,2 / 115,4 |
+| `[A-Z]{3}\w+` | 1066,7 / 1057,3 | 246,2 / 226,0 | 324 | 205,5 / 186,1 | 5118,9 / 4920,9 | — |
+
+**Nach Änderung an 20 Dateien, Windows** (Median in ms, Lauf 1 / Lauf 3;
+Schwelle 420):
+
+| Muster | alt | neu |
+| --- | ---: | ---: |
+| `func Search` | 3963,0 / 3962,3 | 105,9 / 99,1 |
+| `Search\|Grep` | 4099,6 / 4078,9 | 141,1 / 135,0 |
+| `-i func search` | 3989,8 / 4070,7 | 113,3 / 107,6 |
+| `[A-Z]{3}\w+` | 4711,2 / 4811,6 | 294,2 / 303,6 |
+
+**Nach dem Commit der Änderung, Windows** (Median in ms, Lauf 1 / Lauf 3;
+Schwelle 108 für das Literal):
+
+| Muster | alt | neu, erster Aufruf | neu, spätere Aufrufe |
+| --- | ---: | ---: | ---: |
+| `func Search` | 4356,5 / 4182,2 | **203,2 / 180,6** | 65,3 / 82,2 |
+| `Search\|Grep` | 4209,3 / 4353,5 | 219,5 / 229,5 | 116,0 / 122,1 |
+| `-i func search` | 3929,1 / 4184,7 | 186,7 / 187,8 | 85,2 / 86,4 |
+| `[A-Z]{3}\w+` | 4796,8 / 4648,2 | 387,2 / 341,4 | 278,9 / 230,8 |
+
+**Lauf 2 (belastete Maschine).** Sauber, neu: 254,1, 406,0, 167,8 und
+276,4 ms; `--trust-index`: 54,8, 271,4, 67,4 ms gegen tgrep 38,8, 91,7,
+130,2 ms. Nach der Änderung: 102,6, 161,6, 121,5, 279,1 ms. Nach dem Commit,
+erster Aufruf: 190,9, 236,0, 181,5, 352,1 ms; spätere Aufrufe 75,0, 160,9,
+91,7, 256,4 ms. Auf dem sauberen Baum verfehlt dieser Lauf fünf weitere
+Schwellen: Literal, Alternation und `-i` im Prüfmodus sowie `--trust-index`
+bei Literal und Alternation. Die Last traf nicht alle Werkzeuge gleich. Von
+Lauf 1 zu Lauf 2 wurde alt 1,08- bis 1,51-mal langsamer und tgrep 1,07- bis
+1,46-mal, neu im Prüfmodus aber 3,4-mal beim Literal (74,4 auf 254,1 ms),
+3,6-mal bei der Alternation und 2,0-mal bei `-i`, und neu mit
+`--trust-index` 2,2-mal beim Literal und 3,9-mal bei der Alternation (69,6 auf
+271,4 ms, während tgrep von 71,8 auf 91,7 ms ging). Die Daten zeigen Lauf 2
+also nicht als bloß belastete Kopie der Läufe 1 und 3, und die Ursache der
+stärkeren Verlangsamung von neu ist nicht bekannt. Ob Lauf 2 zählt,
+entscheidet der Mensch.
+
+**Linux (WSL2, ext4)**, `acceptance-wsl.sh` auf einem `git archive` desselben
+Baums, nur neu, Prüfmodus, gegen `grep -rnE --exclude-dir=.git
+--exclude-dir=.loomux` (Median aus 11 in ms; Schwelle 1,2 × grep). grep
+durchsucht jede Datei des Baums und gibt mehr Zeilen aus (74, 1098, 94, 10718),
+als loomux in seinem Korpus Treffer hat (35, 929, 47, 9075, wie unter
+Windows). Build 2,8 s.
+
+| Muster | grep mit Ausschlüssen | loomux | Ergebnis |
+| --- | ---: | ---: | --- |
+| `func Search` | 42,3 | 37,8 | bestanden |
+| `Search\|Grep` | 65,8 | 70,0 | bestanden |
+| `-i func search` | 55,9 | 46,9 | bestanden |
+| `[A-Z]{3}\w+` | 146,3 | 103,2 | bestanden |
+
+**Nachtrag: der erste Aufruf nach einem Commit (2026-11-08, `597b49c7`).**
+Im Prozess profiliert auf dem Baum von `acceptance.py` nach dem Commit (8497
+Dateien, Record 2,36 MB JSON plus 1,57 MB Spiegel), Median aus 14 Aufrufen.
+Ohne bewegten git-Index kostet die Sonde (Record, Walk, beide Driften) etwa
+65 ms. Der bewegte Index fügte drei Schritte hinzu, einen nach dem anderen:
+`git ls-files -z --cached` 48 ms, ein zweites Lesen des Records, um zu prüfen,
+dass kein Neubau ihn ersetzt hat, 9 ms, und das Neustempeln über
+`corpus.Write` 14 ms (davon `MarshalIndent` des ganzen Records 9–10 ms, gob
+2–3 ms, die beiden Dateischreibvorgänge etwa 1,5 ms). Die Behebung:
+
+- git listet die verfolgten Dateien in einer Goroutine, während der Baum
+  gelaufen wird; die Sonde wartet darauf, bevor sie zurückkehrt. Nur `grep`
+  startet das, die Driftprüfung des Wächters nicht.
+- Die Prüfung auf einen nebenläufigen Neubau vergleicht den Stempel der
+  Record-Datei, genommen, bevor die Sonde sie las, statt den Record noch
+  einmal zu lesen.
+- `corpus.Restamp` liest die JSON-Bytes, ersetzt nur das Objekt
+  `index_stamp`, tauscht die Datei ein und schreibt den Spiegel neu. Das
+  Ergebnis ist byte-gleich mit dem, was `Write` schreibt; ein Record in einem
+  anderen Layout wird ganz geschrieben.
+
+Danach im Prozess: Sonde mit dem git-Aufruf daneben 75–80 ms statt 65 + 48 ms,
+das Neustempeln 7–9 ms. Gepaart auf einem Baum, mit der Wiederherstellung aus
+`acceptance.py` vor jedem Aufruf, verschränkt, Median aus 21 (zwei Serien):
+alter Stand `81086940` 189,4 / 176,9 ms, neuer Stand 136,5 / 131,7 ms, neuer
+Stand auf einem Zustand, der den neuen Stempel schon trägt (der Boden eines
+wiederhergestellten ersten Aufrufs), 114,4 / 105,1 ms. Der bewegte Index
+kostet über diesem Boden jetzt etwa 22–27 ms statt 72–75 ms. Die Treffer sind
+unverändert (die Trefferprüfungen aller drei Läufe unten bestehen).
+
+Die drei Läufe von `acceptance.py` auf `597b49c7` (Rohdaten
+`acceptance-windows-run{4,5,6}.json`) liefen durchgehend auf einem belasteten
+Rechner (CPU auch ohne den Benchmark bei 100 %, Graph-Builds 17,9–55,6 s statt
+17–22 s, alt im Prüfmodus 484–1487 ms statt 492–495 ms für das Literal). Nach
+dem Commit, Literal, erster Aufruf / spätere Aufrufe: 267,6 / 450,2, 154,6 /
+93,1 und 136,7 / 71,4 ms; nach der Änderung, Literal: 119,0, 134,0 und
+110,5 ms. Lauf 4 ist nach dem Commit unbrauchbar (spätere Aufrufe langsamer als
+erste, alt mit Alternation 13,6 s). Lauf 5 verfehlt neun Schwellen, Lauf 6
+vier (Literal, Alternation und `-i` im Prüfmodus auf dem sauberen Baum und den
+ersten Aufruf nach dem Commit). Kein Lauf erreicht 108 ms für den ersten
+Aufruf nach einem Commit.
+
+`--trust-index` mit der Alternation: 70,7 / 70,6 (tgrep), 273,6 / 123,0 und
+105,6 / 92,9 ms in den Läufen 4 bis 6. Lauf 5, der am stärksten belastete,
+wiederholt das Bild von Lauf 2 (neu leidet unter der Last stärker als tgrep);
+die Läufe 4 und 6 bestehen. Der Ausreißer tritt nur unter Last auf; seine
+Ursache wurde nicht weiter untersucht.
+
+**Zweiter Nachtrag: die Messung und der git-Index (2026-11-09,
+`9d7b6648`).** Zwei Änderungen, getrennt gemessen:
+
+- **Methode.** Bis Lauf 6 löschte `acceptance.py` vor jedem Aufruf den ganzen
+  Zustand (85 MB) und kopierte ihn zurück. Der gemessene Aufruf öffnete dann
+  frisch geschriebene Dateien zum ersten Mal (Virenscan, Dateicache). Ein
+  Zustand, den ein Build vor langer Zeit geschrieben hat, hat das bezahlt.
+  Seit Lauf 7 kopiert die Wiederherstellung nur die Dateien zurück, die ein
+  Aufruf verändert hat (Größe oder mtime weichen ab, überzählige werden
+  gelöscht), und liest jede kopierte Datei vor dem Aufruf einmal. Die
+  Schwellen sind unverändert.
+- **Code.** `grep` liest die verfolgten Pfade selbst aus `.git/index`
+  (`corpus.IndexTracked`, DIRC Version 2–4), statt `git ls-files` zu
+  starten; was der Leser nicht sicher versteht (geteilter oder dünner Index,
+  ungemergte Pfade, falsche Prüfsumme, unbekannte Version, fehlende Datei),
+  geht weiter an git. Der Build bleibt bei `git ls-files`.
+
+Gepaart auf einem Baum nach dem Commit (alter Stand `7457ee45`, neuer Stand
+mit dem Index-Leser), verschränkt, Median aus 15, zwei Serien, auf einem
+Rechner bei 100 % CPU: volle Wiederherstellung 160,4 / 140,6 ms (alt) und
+151,2 / 129,3 ms (neu); gezielte Wiederherstellung 133,3 / 110,4 ms (alt) und
+119,2 / 98,6 ms (neu). Die Methode macht 27–32 ms aus, der Index-Leser
+9–14 ms. In der zweiten Serie brauchte ein Zustand, der den neuen Stempel
+schon trägt, 92,0 ms und der Aufruf danach 89,9 ms; der erste Aufruf nach
+einem Commit kostet also noch etwa 7–9 ms mehr als ein späterer.
+
+Drei Läufe von `acceptance.py` auf `9d7b6648` (Rohdaten
+`acceptance-windows-run{7,8,9}.json`; alt ist `d15cdecb`, die Basis des
+Zweigs; 8507 Dateien). CPU vor jedem Lauf: 99–100 %. Lauf 7 erwischte in
+seiner ersten Phase eine Lastspitze (Graph-Builds 34,2 / 32,1 s gegen
+15,5–18,1 s in den Läufen 8 und 9, neu im Prüfmodus 622 ms für das Literal)
+und verfehlt sechs Schwellen auf dem sauberen Baum; die Szenarien nach der
+Änderung und nach dem Commit besteht er. Die Läufe 8 und 9 bestehen alle
+Schwellen. Literal nach dem Commit, erster Aufruf / spätere Aufrufe: 74,0 /
+78,7, 80,3 / 66,9 und 80,6 / 71,1 ms (Schwelle 108). Nach der Änderung,
+Literal: 250,0, 71,4 und 60,1 ms. `--trust-index` mit der Alternation: 203,4 /
+129,5 (tgrep), 67,1 / 70,7 und 63,5 / 68,1 ms. Alle Trefferprüfungen sind in
+allen drei Läufen wahr.
+
+**Wiederholung auf einem weniger belasteten Rechner (2026-11-09,
+`7ba44719`).** Die Läufe 10 bis 12 (Rohdaten
+`acceptance-windows-run{10,11,12}.json`; dieselben Binärdateien wie zuvor,
+nur neu stammt vom Kopf des Zweigs, der sich von `9d7b6648` nur in Tests,
+Doku und der Rebase unterscheidet; 8512 Dateien; Schwellen unverändert). Der
+Rechner war nicht ruhig: Die anderen Sitzungen und VS Code liefen weiter und
+ließen sich nicht anhalten. CPU vor jedem Lauf, mit dem Zähler „Processor
+Utility“ über 30 s gemessen (die `LoadPercentage`-Werte der Läufe 7 bis 9
+oben waren unzuverlässig, die Last lag dort wohl eher bei 50 %):
+
+| Lauf | CPU Mittel / Max | Drei größte Prozesse (Kerne von 16) |
+| --- | ---: | --- |
+| 10 | 80,2 % / 108 % | `Code` 1,75, `claude` 0,43, `hooks.test` 0,21 |
+| 11 | 45,3 % / 86 % | `Code` 1,47, `claude` 0,51, `hooks.test` 0,24 |
+| 12 | 43,2 % / 62 % | `Code` 1,79, `go` 1,34, `Godot` 1,33 |
+
+Mediane in ms; bei `--trust-index` steht Wert / Schwelle (1,2-mal tgrep):
+
+| Schwelle | Grenze | Lauf 10 | Lauf 11 | Lauf 12 |
+| --- | ---: | ---: | ---: | ---: |
+| sauber, Prüfmodus, Literal | 108 | 69,3 | 54,5 | 67,7 |
+| sauber, Prüfmodus, Alternation | 132 | 111,5 | 88,4 | 96,3 |
+| sauber, Prüfmodus, `-i` | 114 | 74,3 | 59,5 | 70,2 |
+| sauber, Prüfmodus, ohne Literal | 324 | **335,0 verfehlt** | 211,1 | **434,7 verfehlt** |
+| nach der Änderung, Literal | 420 | 215,7 | 169,1 | 74,7 |
+| nach der Änderung, Alternation | 420 | 112,6 | 110,7 | 104,1 |
+| nach der Änderung, `-i` | 420 | 212,2 | 70,2 | 121,0 |
+| nach der Änderung, ohne Literal | 420 | 283,9 | 181,3 | 230,4 |
+| nach dem Commit, Literal, erster Aufruf | 108 | 91,2 | 74,5 | 73,4 |
+| `--trust-index`, Literal | 1,2 x tgrep | 21,0 / 27,6 | 18,4 / 25,0 | 23,4 / 28,4 |
+| `--trust-index`, Alternation | 1,2 x tgrep | 66,5 / 85,6 | 52,7 / 69,5 | 59,8 / 77,4 |
+| `--trust-index`, `-i` | 1,2 x tgrep | 30,6 / 118,4 | 25,9 / 93,0 | 34,3 / 123,2 |
+| Urteil | | 1 verfehlt | bestanden | 1 verfehlt |
+
+Literal nach dem Commit, erster Aufruf / spätere Aufrufe: 91,2 / 67,1,
+74,5 / 66,9 und 73,4 / 75,2 ms (Schwelle 108); die Vorgabe hält also in allen
+drei Läufen. Das Overlay beantwortete jeden Aufruf nach der Änderung und nach
+dem Commit, und alle Trefferprüfungen sind wahr.
+
+Verfehlt wird nur das Muster ohne Literal im Prüfmodus auf dem sauberen Baum,
+in den Läufen 10 und 12. Dieses Muster hat kein Literal, durchsucht also jede
+Datei und berührt weder den Index noch den Commit-Pfad. Lastspitzen ziehen
+seinen Median hoch: Die Maxima liegen bei 858 und 902 ms (Lauf 11: 254 ms),
+die Minima von 222 und 241 ms unter der Schwelle, und alt (1526 und 1853 ms)
+und tgrep (6569 und 6978 ms) sind 1,7- und 2,0-mal (alt) und 1,3- und
+1,4-mal (tgrep) langsamer als in Lauf 11 (921 und 4898 ms). Die Läufe 8 und 9
+ergaben 224,8 und 232,1 ms. Die Ursache wurde nicht weiter untersucht, und
+die Schwelle bleibt, wie sie ist.
+
+**Lauf 13 (2026-11-10, dieselben Binärdateien, neu frisch vom Kopf
+gebaut).** Rohdaten `acceptance-windows-run13.json`. Diesmal lief die Messung
+im Vordergrund der Sitzung, also ohne die Go-Testsuite des Stop-Hooks
+daneben; VS Code und die anderen Sitzungen liefen weiter (`LoadPercentage`
+vorher 48–76 %). Lauf 13 besteht alle Schwellen. Mediane in ms:
+
+| Schwelle | Grenze | Lauf 13 |
+| --- | ---: | ---: |
+| sauber, Prüfmodus, Literal / Alternation / `-i` | 108 / 132 / 114 | 55,7 / 91,0 / 65,1 |
+| sauber, Prüfmodus, ohne Literal | 324 | 191,5 |
+| nach der Änderung, alle vier Muster | 420 | 61,2 / 91,1 / 65,0 / 236,7 |
+| nach dem Commit, Literal, erster / späterer Aufruf | 108 | 65,1 / 56,4 |
+| `--trust-index`, Literal / Alternation / `-i` | 1,2 x tgrep | 20,4 / 24,2, 63,9 / 77,6, 28,4 / 109,9 |
+| Urteil | | bestanden |
+
+Alle Trefferprüfungen sind wahr. tgrep braucht für das Muster ohne Literal
+4471 ms, neu 191,5 ms.
+
+**Kernbefunde**
+
+1. **Eine Schwelle verfehlt: der erste Aufruf nach einem Commit.** Das
+   Literal braucht in den Läufen 1 bis 3 180,6–203,2 ms bei einer Schwelle
+   von 108 ms. Spätere Aufrufe, nachdem der erste den neuen Stempel des
+   git-Index gespeichert hat, brauchen 65–82 ms.
+   **Aktualisiert (2026-11-08):** Das Profil verortete die Mehrkosten in drei
+   seriellen Schritten (git-Liste 48 ms, zweites Lesen des Records 9 ms,
+   volles Neuschreiben des Records 14 ms). Seit `597b49c7` läuft git neben dem
+   Walk, das zweite Lesen ist ein Stat, und das Neustempeln ersetzt nur den
+   Stempel; gepaart fiel der erste Aufruf von 177–189 ms auf 132–137 ms. Er
+   verfehlt 108 ms weiterhin: Die verbleibenden 22–27 ms über einem
+   wiederhergestellten Zustand (der git-Aufruf, der länger dauert als der
+   Walk, und das Neustempeln) kommen auf einen Boden von 105–114 ms, den die
+   Wiederherstellung der Messung selbst auf dem belasteten Rechner setzt
+   (siehe „Nachtrag“ oben). Nach dem Plan stoppt der Merge hier, und die
+   Zahlen gehen an den Menschen.
+   **Aktualisiert (2026-11-09):** Der Boden war vor allem die Methode: die
+   volle Kopie des Zustands vor jedem Aufruf. Mit einer Wiederherstellung,
+   die nur zurückkopiert, was ein Aufruf verändert hat, und mit den
+   verfolgten Pfaden aus `.git/index` statt aus `git ls-files` ergeben die
+   Läufe 7 bis 9 für den ersten Aufruf 74,0, 80,3 und 80,6 ms (Schwelle 108);
+   die Läufe 8 und 9 bestehen alle Schwellen (siehe „Zweiter Nachtrag“ oben).
+   **Aktualisiert (2026-11-09, Wiederholung):** Die Läufe 10 bis 12 auf einem
+   weniger belasteten Rechner ergeben für den ersten Aufruf 91,2, 74,5 und
+   73,4 ms. Lauf 11 besteht alle Schwellen; die Läufe 10 und 12 verfehlen nur
+   das Muster ohne Literal im Prüfmodus auf dem sauberen Baum (siehe
+   „Wiederholung auf einem weniger belasteten Rechner“ oben).
+   **Aktualisiert (2026-11-10):** Lauf 13 ohne die Testsuite des Stop-Hooks
+   daneben besteht alle Schwellen, auch das Muster ohne Literal (191,5 ms);
+   der erste Aufruf nach dem Commit braucht 65,1 ms.
+2. **In den Läufen 1 und 3 halten alle anderen Schwellen; Lauf 2 verfehlt
+   fünf weitere.** Die Verfehlungen von Lauf 2 stehen oben unter „Lauf 2“, und
+   ob dieser Lauf zählt, ist offen. In den Läufen 1 und 3 ist der Prüfmodus auf
+   dem sauberen Baum
+   4- bis 7-mal schneller als alt (70–113 ms für die Muster mit Index), eine
+   Änderung an 20 Dateien kostet 99–304 ms statt eines Neubaus von 4 s, und
+   `--trust-index` ist bei Literal und Alternation so schnell wie tgrep und bei
+   `-i` dreimal schneller. Unter Linux liegt loomux bei allen vier Mustern auf
+   dem Niveau von `grep -rn` mit Ausschlüssen.
+3. **Die Treffer ändern sich nicht.** Alt und neu stimmen in jedem Muster und
+   Szenario überein, und `--trust-index` liefert auf einem Baum, der zum Index
+   passt, dasselbe JSON wie der Prüfmodus.
+
+**Offen**: ob Lauf 2 zählt (siehe Befund 2) und eine Wiederholung auf einem
+ruhigen Rechner: Die Läufe 10 bis 12 liefen bei 43–80 % CPU, der erste Aufruf
+nach einem Commit hält in allen seine Schwelle, aber das Muster ohne Literal
+im Prüfmodus verfehlt in den Läufen 10 und 12 unter Lastspitzen die 324 ms.
+Lauf 13 ohne die Testsuite des Stop-Hooks besteht alles; ein ganz ruhiger
+Rechner (ohne VS Code und die anderen Sitzungen) wurde weiterhin nicht
+erreicht.

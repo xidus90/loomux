@@ -1,0 +1,336 @@
+{
+  "repo_head": "597b49c7d91a9a9bffbca7867f596843cdaff3c0",
+  "runs": 11,
+  "files": 8497,
+  "build": {
+    "old graph build": 45056.349799997406,
+    "new graph build": 30797.529700008454,
+    "tgrep index": 866.5140000084648
+  },
+  "checks": {
+    "clean": {
+      "literal": {
+        "old_eq_new_groups": true,
+        "new_eq_trusted": true,
+        "index": [
+          "used",
+          "used",
+          "trusted"
+        ]
+      },
+      "alternation": {
+        "old_eq_new_groups": true,
+        "new_eq_trusted": true,
+        "index": [
+          "used",
+          "used",
+          "trusted"
+        ]
+      },
+      "ignore-case": {
+        "old_eq_new_groups": true,
+        "new_eq_trusted": true,
+        "index": [
+          "used",
+          "used",
+          "trusted"
+        ]
+      },
+      "no-literal": {
+        "old_eq_new_groups": true,
+        "new_eq_trusted": true,
+        "index": [
+          "scan",
+          "scan",
+          "trusted"
+        ]
+      }
+    },
+    "dirty": {
+      "literal": true,
+      "alternation": true,
+      "ignore-case": true,
+      "no-literal": true
+    },
+    "commit": {
+      "literal": true,
+      "alternation": true,
+      "ignore-case": true,
+      "no-literal": true
+    }
+  },
+  "clean": {
+    "literal": {
+      "old": {
+        "median": 690.3,
+        "min": 563.5,
+        "max": 859.1,
+        "hits": "45 (used)"
+      },
+      "new": {
+        "median": 118.0,
+        "min": 87.3,
+        "max": 224.7,
+        "hits": "45 (used)"
+      },
+      "new --trust-index": {
+        "median": 30.7,
+        "min": 24.3,
+        "max": 50.8,
+        "hits": "45 (trusted)"
+      },
+      "tgrep": {
+        "median": 31.2,
+        "min": 27.0,
+        "max": 51.4,
+        "hits": "45"
+      }
+    },
+    "alternation": {
+      "old": {
+        "median": 973.8,
+        "min": 864.0,
+        "max": 1268.1,
+        "hits": "951 (used)"
+      },
+      "new": {
+        "median": 178.6,
+        "min": 147.8,
+        "max": 287.1,
+        "hits": "951 (used)"
+      },
+      "new --trust-index": {
+        "median": 105.6,
+        "min": 88.6,
+        "max": 166.5,
+        "hits": "951 (trusted)"
+      },
+      "tgrep": {
+        "median": 92.9,
+        "min": 78.6,
+        "max": 111.1,
+        "hits": "951"
+      }
+    },
+    "ignore-case": {
+      "old": {
+        "median": 760.4,
+        "min": 652.0,
+        "max": 1213.0,
+        "hits": "66 (used)"
+      },
+      "new": {
+        "median": 136.5,
+        "min": 103.0,
+        "max": 453.1,
+        "hits": "66 (used)"
+      },
+      "new --trust-index": {
+        "median": 44.3,
+        "min": 39.4,
+        "max": 63.3,
+        "hits": "66 (trusted)"
+      },
+      "tgrep": {
+        "median": 134.3,
+        "min": 121.1,
+        "max": 153.6,
+        "hits": "66"
+      }
+    },
+    "no-literal": {
+      "old": {
+        "median": 1256.0,
+        "min": 1147.7,
+        "max": 1930.2,
+        "hits": "9095 (scan)"
+      },
+      "new": {
+        "median": 286.6,
+        "min": 248.5,
+        "max": 495.4,
+        "hits": "9095 (scan)"
+      },
+      "new --trust-index": {
+        "median": 231.2,
+        "min": 203.0,
+        "max": 331.0,
+        "hits": "9095 (trusted)"
+      },
+      "tgrep": {
+        "median": 5866.8,
+        "min": 5499.2,
+        "max": 7137.0,
+        "hits": "9095"
+      }
+    }
+  },
+  "dirty": {
+    "literal": {
+      "old": {
+        "median": 4209.5,
+        "min": 3965.4,
+        "max": 4372.7,
+        "hits": "65 (used)"
+      },
+      "new": {
+        "median": 110.5,
+        "min": 91.5,
+        "max": 132.6,
+        "hits": "65 (overlay)"
+      }
+    },
+    "alternation": {
+      "old": {
+        "median": 4566.8,
+        "min": 4239.3,
+        "max": 4730.1,
+        "hits": "971 (used)"
+      },
+      "new": {
+        "median": 154.6,
+        "min": 134.2,
+        "max": 191.3,
+        "hits": "971 (overlay)"
+      }
+    },
+    "ignore-case": {
+      "old": {
+        "median": 4194.1,
+        "min": 3956.3,
+        "max": 4503.7,
+        "hits": "86 (used)"
+      },
+      "new": {
+        "median": 115.0,
+        "min": 94.3,
+        "max": 137.8,
+        "hits": "86 (overlay)"
+      }
+    },
+    "no-literal": {
+      "old": {
+        "median": 4968.7,
+        "min": 4718.9,
+        "max": 5152.5,
+        "hits": "9095 (scan)"
+      },
+      "new": {
+        "median": 291.6,
+        "min": 250.3,
+        "max": 308.5,
+        "hits": "9095 (overlay)"
+      }
+    }
+  },
+  "commit": {
+    "literal": {
+      "old": {
+        "median": 4221.8,
+        "min": 3817.0,
+        "max": 4524.5,
+        "hits": "65 (used)"
+      },
+      "new first call": {
+        "median": 136.7,
+        "min": 119.4,
+        "max": 168.6,
+        "hits": "65 (overlay)"
+      },
+      "new later calls": {
+        "median": 71.4,
+        "min": 61.4,
+        "max": 83.6,
+        "hits": "65 (overlay)"
+      }
+    },
+    "alternation": {
+      "old": {
+        "median": 4365.1,
+        "min": 3854.6,
+        "max": 16475.9,
+        "hits": "971 (used)"
+      },
+      "new first call": {
+        "median": 186.2,
+        "min": 152.1,
+        "max": 371.2,
+        "hits": "971 (overlay)"
+      },
+      "new later calls": {
+        "median": 128.6,
+        "min": 111.2,
+        "max": 191.5,
+        "hits": "971 (overlay)"
+      }
+    },
+    "ignore-case": {
+      "old": {
+        "median": 4087.8,
+        "min": 3945.0,
+        "max": 4374.1,
+        "hits": "86 (used)"
+      },
+      "new first call": {
+        "median": 145.1,
+        "min": 129.3,
+        "max": 244.2,
+        "hits": "86 (overlay)"
+      },
+      "new later calls": {
+        "median": 85.9,
+        "min": 83.0,
+        "max": 115.1,
+        "hits": "86 (overlay)"
+      }
+    },
+    "no-literal": {
+      "old": {
+        "median": 4674.9,
+        "min": 4381.1,
+        "max": 4866.9,
+        "hits": "9095 (scan)"
+      },
+      "new first call": {
+        "median": 304.4,
+        "min": 278.7,
+        "max": 327.6,
+        "hits": "9095 (overlay)"
+      },
+      "new later calls": {
+        "median": 248.1,
+        "min": 213.6,
+        "max": 313.2,
+        "hits": "9095 (overlay)"
+      }
+    }
+  },
+  "dirty_files": [
+    "internal/brain/answer/answer.go",
+    "internal/brain/apply/approve.go",
+    "internal/brain/apply/commit.go",
+    "internal/brain/apply/frontmatter.go",
+    "internal/brain/apply/patch.go",
+    "internal/brain/apply/place.go",
+    "internal/brain/apply/protocol.go",
+    "internal/brain/apply/pyyaml.go",
+    "internal/brain/apply/pyyaml_emit.go",
+    "internal/brain/apply/pyyaml_tabs.go",
+    "internal/brain/apply/reject.go",
+    "internal/brain/apply/resolve.go",
+    "internal/brain/apply/result.go",
+    "internal/brain/apply/stock.go",
+    "internal/brain/catalog/area.go",
+    "internal/brain/catalog/root.go",
+    "internal/brain/catalog/withhold.go",
+    "internal/brain/check/finding.go",
+    "internal/brain/check/house/bundle.go",
+    "internal/brain/check/house/federation.go"
+  ],
+  "failed": [
+    "clean literal (check mode): 118.0 ms > 108 ms",
+    "clean alternation (check mode): 178.6 ms > 132 ms",
+    "clean ignore-case (check mode): 136.5 ms > 114 ms",
+    "after commit literal (first call): 136.7 ms > 108 ms"
+  ]
+}
