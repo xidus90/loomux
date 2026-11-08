@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 
 	"github.com/xidus90/loomux/internal/code/store"
 )
@@ -16,7 +15,7 @@ import (
 const (
 	// corpusRecordVersion is the shape of the sidecar. A record of another
 	// version is a record this code cannot read, which is the same as none.
-	corpusRecordVersion = 2
+	corpusRecordVersion = 3
 	// binaryRuleVersion names the NUL rule the corpus was selected with.
 	binaryRuleVersion = "nul-v1"
 	// ignoreRuleVersion names the git semantics the corpus was selected with.
@@ -65,6 +64,9 @@ type Record struct {
 	Tracked     []string         `json:"tracked"`
 	GitPaths    GitPaths         `json:"git_paths"`
 	Files       map[string]Print `json:"files"`
+	// Digest is hex(Digest(record)), stored so a probe reads it instead of
+	// hashing the file list again.
+	Digest string `json:"digest"`
 	// The selection's counters, so a clean probe can report what the corpus
 	// left out without selecting it again.
 	Ignored       int   `json:"ignored"`
@@ -88,9 +90,17 @@ func CanonicalSettings(maxFilesize int64, ignoreCase bool) []byte {
 // sources and no stamps, and the probe walks without ignore evaluation.
 func NewRecord(rules *Rules, prints map[string]Print, maxFilesize int64) Record {
 	rec := Record{Version: corpusRecordVersion, Files: prints, MaxFilesize: maxFilesize}
+	fillGitState(&rec, rules, maxFilesize)
+	sum := Digest(rec)
+	rec.Digest = hex.EncodeToString(sum[:])
+	return rec
+}
+
+// fillGitState copies what the digest and the probe need from rules into rec.
+func fillGitState(rec *Record, rules *Rules, maxFilesize int64) {
 	if rules == nil {
 		rec.Settings = CanonicalSettings(maxFilesize, false)
-		return rec
+		return
 	}
 	indexPath, indexSize, indexMTime := rules.IndexStamp()
 	configPath, configSize, configMTime := rules.ConfigStamp()
@@ -108,7 +118,6 @@ func NewRecord(rules *Rules, prints map[string]Print, maxFilesize int64) Record 
 		Exclude: rules.excludePath,
 		Global:  rules.globalPath,
 	}
-	return rec
 }
 
 // Digest is the SHA-256 over the canonical settings, the ignore sources
@@ -145,13 +154,12 @@ func writeDigestLine(h interface{ Write([]byte) (int, error) }, kind, rest strin
 	_, _ = h.Write([]byte{'\n'})
 }
 
-// Write stores the record atomically, temp plus rename with the pid in the
-// temp name, the way store.Write does.
+// Write stores the record atomically and then its binary mirror. The mirror
+// is a cache of the JSON file: when only it cannot be written the record stands,
+// the next reader takes the JSON file, and the error wraps ErrMirror so that
+// the caller can say why the fast path is gone.
 //
-// the temp-write and rename arms need a failing filesystem; Record holds only
-// strings, ints, bools, byte slices and maps thereof
-//
-//coverage:exempt the MarshalIndent arm needs a value json cannot encode and
+//coverage:exempt the MarshalIndent arm needs a value json cannot encode; Record holds only strings, ints, bools, byte slices and maps thereof
 func Write(root string, rec Record) error {
 	body, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
@@ -162,22 +170,21 @@ func Write(root string, rec Record) error {
 	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 		return err
 	}
-	tmp := final + "." + strconv.Itoa(os.Getpid()) + ".tmp"
-	if err := os.WriteFile(tmp, body, 0o644); err != nil {
-		os.Remove(tmp)
+	if err := replaceFile(final, body); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, final); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return nil
+	return WriteMirror(final, rec)
 }
 
 // Read loads the record, or reports that there is none this code may use. A
 // record is a cache: a broken one costs the fast path and nothing more.
 func Read(root string) (Record, bool) {
-	b, err := readFile(RecordPath(root))
+	path := RecordPath(root)
+	var mirrored Record
+	if ReadMirror(path, &mirrored) && usable(mirrored) {
+		return mirrored, true
+	}
+	b, err := readFile(path)
 	if err != nil {
 		return Record{}, false
 	}
@@ -185,8 +192,13 @@ func Read(root string) (Record, bool) {
 	if err := json.Unmarshal(b, &rec); err != nil {
 		return Record{}, false
 	}
-	if rec.Version != corpusRecordVersion || rec.Files == nil || len(rec.Settings) == 0 {
+	if !usable(rec) {
 		return Record{}, false
 	}
 	return rec, true
+}
+
+// usable reports whether this code may rely on rec.
+func usable(rec Record) bool {
+	return rec.Version == corpusRecordVersion && rec.Files != nil && len(rec.Settings) != 0 && rec.Digest != ""
 }

@@ -7,10 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/extract"
 	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/freshness"
+	"github.com/xidus90/loomux/internal/lock"
 	"github.com/xidus90/loomux/internal/testlock"
 )
 
@@ -38,6 +41,37 @@ func TestBuildAnnouncesOnlyARecordItCouldNotWrite(t *testing.T) {
 	}
 	if len(heard) != 1 || !strings.Contains(heard[0], "freshness record not written") {
 		t.Fatalf("notices = %q, want the one unwritten record", heard)
+	}
+}
+
+// A mirror that cannot be written costs every later start the fast path, so the
+// build says so, once per record, and still reports the record as written.
+func TestBuildAnnouncesAMirrorItCouldNotWrite(t *testing.T) {
+	old := lock.SidecarBudget
+	lock.SidecarBudget = 50 * time.Millisecond
+	t.Cleanup(func() { lock.SidecarBudget = old })
+
+	for _, tc := range []struct {
+		name, want string
+		record     func(root string) string
+	}{
+		{"fingerprint", "freshness record mirror not written", freshness.Path},
+		{"corpus", "search corpus record mirror not written", corpus.RecordPath},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var heard []string
+			root := repo(t, sample())
+			// A directory in the mirror's place fails only the mirror's swap.
+			if err := os.MkdirAll(tc.record(root)+".bin", 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := Build(root, func(s string) { heard = append(heard, s) }); err != nil {
+				t.Fatal(err)
+			}
+			if len(heard) != 1 || !strings.Contains(heard[0], tc.want) {
+				t.Fatalf("notices = %q, want the one %q", heard, tc.want)
+			}
+		})
 	}
 }
 

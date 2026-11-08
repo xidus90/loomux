@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/testlock"
@@ -18,11 +19,16 @@ type fakeMatcher struct {
 	tracked      map[string]bool
 	trackedDirs  map[string]bool
 	asked        *[]string
+	// askedMu guards asked: the walk reads directories concurrently, and the
+	// fake does not rely on Walk serializing its calls.
+	askedMu *sync.Mutex
 }
 
 func (f fakeMatcher) Ignored(rel string, isDir bool) bool {
 	if f.asked != nil {
+		f.askedMu.Lock()
 		*f.asked = append(*f.asked, "ignored:"+rel)
+		f.askedMu.Unlock()
 	}
 	if isDir {
 		return f.ignoredDirs[rel]
@@ -88,6 +94,7 @@ func walkMatcher(asked *[]string) fakeMatcher {
 		tracked:      map[string]bool{"dist/tracked.js": true},
 		trackedDirs:  map[string]bool{"dist": true},
 		asked:        asked,
+		askedMu:      &sync.Mutex{},
 	}
 }
 

@@ -20,6 +20,8 @@ type CorpusStats struct {
 	SkippedBinary int
 	Unreadable    int
 	Indexed       bool
+	// Digest is the corpus digest the record and the trigram index carry.
+	Digest [32]byte
 }
 
 // writeCorpus selects the search corpus, hashes it, and writes its record and
@@ -78,11 +80,12 @@ func writeCorpus(root string, maxFilesize int64, bodies map[string][]byte, notic
 	}
 
 	rec := corpus.NewRecord(rules, prints, maxFilesize)
+	st.Digest = corpus.Digest(rec)
 	rec.Ignored, rec.SkippedSize, rec.SkippedBinary = st.Ignored, st.SkippedSize, st.SkippedBinary
 	if err := corpus.Write(root, rec); err != nil {
-		notice(fmt.Sprintf("search corpus record not written: %v", err))
+		noticeRecord(notice, "search corpus record", err)
 	}
-	if err := trigram.Write(root, corpus.Digest(rec), all.Version(), rec.Settings, indexed); err != nil {
+	if err := trigram.Write(root, st.Digest, all.Version(), rec.Settings, indexed); err != nil {
 		notice(fmt.Sprintf("trigram index not written: %v", err))
 		return st
 	}

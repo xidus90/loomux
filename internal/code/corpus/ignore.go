@@ -120,20 +120,38 @@ func Load(root string) (*Rules, []Source, error) {
 		}
 	}
 
-	tracked, err := gitOutput(root, "ls-files", "-z", "--cached")
+	tracked, err := TrackedSet(root)
 	if err != nil {
 		return nil, nil, err
 	}
-	for _, rel := range strings.Split(tracked, "\x00") {
-		if rel == "" {
-			continue
-		}
+	for _, rel := range tracked {
 		r.tracked[rel] = true
 		for dir := path.Dir(rel); dir != "." && dir != "/"; dir = path.Dir(dir) {
 			r.trackedDirs[dir] = true
 		}
 	}
 	return r, r.Sources(), nil
+}
+
+// TrackedSet is the sorted list of paths git tracks below root, one
+// `git ls-files`. Outside a repository it returns nil and no error; a
+// repository whose index git cannot list is an error, never an empty set.
+func TrackedSet(root string) ([]string, error) {
+	out, err := gitOutput(root, "ls-files", "-z", "--cached")
+	if err != nil {
+		if _, notRepo := gitOutput(root, "rev-parse", "--git-dir"); notRepo != nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var tracked []string
+	for _, rel := range strings.Split(out, "\x00") {
+		if rel != "" {
+			tracked = append(tracked, rel)
+		}
+	}
+	sort.Strings(tracked)
+	return tracked, nil
 }
 
 // Sources returns the ignore files read so far, sorted by path.

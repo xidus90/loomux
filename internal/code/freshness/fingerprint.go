@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/sourceset"
 	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/lock"
@@ -75,7 +76,9 @@ func (d Drift) Count() int { return len(d.Changed) + len(d.Added) + len(d.Remove
 // Path is where the record lives.
 func Path(root string) string { return store.CachePath(root, "fingerprint.json") }
 
-// Write records the tree as the build just saw it.
+// Write records the tree as the build just saw it. An error that wraps
+// corpus.ErrMirror means the record is in place and only its binary mirror is
+// missing.
 //
 // hashes is keyed by the same repo-relative path sourceset uses. A file the
 // build could not read is recorded with an empty hash, which puts it back on
@@ -106,7 +109,9 @@ func Write(root, extractor string, files []sourceset.SourceFile, hashes map[stri
 		os.Remove(tmp)
 		return err
 	}
-	return nil
+	// A cache of the JSON file: when only it cannot be written the record
+	// stands, and the error wraps corpus.ErrMirror for the caller to tell.
+	return corpus.WriteMirror(Path(root), rec)
 }
 
 // Probe diffs the working tree against the last build's record.
@@ -119,6 +124,13 @@ func Probe(root, extractor string) (*Drift, error) {
 	if err != nil {
 		return nil, err
 	}
+	return ProbeFiles(root, extractor, files)
+}
+
+// ProbeFiles is Probe over a file set the caller already enumerated, for a
+// caller whose walk serves another probe too. A nil Drift means UNKNOWN, as
+// for Probe.
+func ProbeFiles(root, extractor string, files []sourceset.SourceFile) (*Drift, error) {
 	rec, ok := read(root, extractor)
 	if !ok {
 		return nil, nil
@@ -163,6 +175,10 @@ func Probe(root, extractor string) (*Drift, error) {
 // A sidecar is a cache: a broken one costs the next probe its fast path and
 // nothing more, so it is never an error a caller dies on.
 func read(root, extractor string) (record, bool) {
+	var mirrored record
+	if corpus.ReadMirror(Path(root), &mirrored) && usable(mirrored, extractor) {
+		return mirrored, true
+	}
 	b, err := os.ReadFile(Path(root))
 	if err != nil {
 		return record{}, false
@@ -171,10 +187,15 @@ func read(root, extractor string) (record, bool) {
 	if err := json.Unmarshal(b, &rec); err != nil {
 		return record{}, false
 	}
-	if rec.Version != recordVersion || rec.Files == nil || rec.Extractor != extractor {
+	if !usable(rec, extractor) {
 		return record{}, false
 	}
 	return rec, true
+}
+
+// usable reports whether this code may diff against rec.
+func usable(rec record, extractor string) bool {
+	return rec.Version == recordVersion && rec.Files != nil && rec.Extractor == extractor
 }
 
 // trusted reports whether a recorded print may stand for the file on disk

@@ -69,9 +69,9 @@ func List(root string) ([]string, error) {
 // Stat returns the file set with each file's size and modification time.
 //
 // The enumeration is corpus.Walk's, the same walk the search index uses; the
-// filter below is the graph's: seven extensions, one megabyte, and no file
-// below a pruned directory segment. A dot directory never reaches the filter,
-// because the walk does not enter one.
+// filter (FromListing) is the graph's: seven extensions, one megabyte, and no
+// file below a pruned directory segment. A dot directory never reaches the
+// filter, because the walk does not enter one.
 //
 // A file that vanishes between the walk and the stat is dropped rather than
 // reported: the next probe will see the same thing and call it removed.
@@ -80,8 +80,16 @@ func Stat(root string) ([]SourceFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]SourceFile, 0, len(listing.Entries))
-	for _, e := range listing.Entries {
+	return FromListing(listing), nil
+}
+
+// FromListing is Stat's filter over a walk the caller already ran, for a
+// caller whose walk serves another probe too. The listing may come from a walk
+// with ignore rules: the graph does not honour them, so an Entry's Ignored
+// flag plays no part here.
+func FromListing(l corpus.Listing) []SourceFile {
+	out := make([]SourceFile, 0, len(l.Entries))
+	for _, e := range l.Entries {
 		if !slices.Contains(extensions, filepath.Ext(e.Abs)) {
 			continue
 		}
@@ -93,7 +101,7 @@ func Stat(root string) ([]SourceFile, error) {
 		}
 		out = append(out, SourceFile{Abs: e.Abs, Rel: e.Rel, Size: e.Size, MTime: e.MTime})
 	}
-	return out, nil
+	return out
 }
 
 // hasPrunedSegment reports whether a repo-relative path has a directory

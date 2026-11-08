@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -262,5 +263,53 @@ func TestLoadFailsOnABrokenIndex(t *testing.T) {
 	}
 	if _, _, err := Load(root); err == nil {
 		t.Fatal("Load accepted a broken index")
+	}
+}
+
+// TestTrackedSetMatchesLoad pins that the set a probe reads without Load is
+// the set Load records.
+func TestTrackedSetMatchesLoad(t *testing.T) {
+	root := newRepo(t, map[string]string{
+		"b.go":     "package b\n",
+		"a.go":     "package a\n",
+		"sub/c.go": "package c\n",
+	}, []string{"b.go", "a.go", "sub/c.go"}, nil)
+	rules, _, err := Load(root)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	got, err := TrackedSet(root)
+	if err != nil {
+		t.Fatalf("TrackedSet: %v", err)
+	}
+	if want := rules.TrackedPaths(); !slices.Equal(got, want) || len(got) != 3 {
+		t.Fatalf("TrackedSet = %v, want %v", got, want)
+	}
+}
+
+// TestTrackedSetOutsideARepository pins that a tree without git has no
+// tracked set, which is not an error.
+func TestTrackedSetOutsideARepository(t *testing.T) {
+	isolateGit(t)
+	got, err := TrackedSet(t.TempDir())
+	if err != nil || got != nil {
+		t.Fatalf("TrackedSet outside a repository = %v, %v", got, err)
+	}
+}
+
+// TestTrackedSetFailsOnABrokenIndex pins that a repository git cannot list is
+// an error, not an empty set.
+func TestTrackedSetFailsOnABrokenIndex(t *testing.T) {
+	root := newRepo(t, map[string]string{"a.txt": "x"}, nil, nil)
+	gitRun(t, root, "add", "a.txt")
+	index := filepath.Join(root, ".git", "index")
+	if err := os.Remove(index); err != nil {
+		t.Fatalf("remove index: %v", err)
+	}
+	if err := os.Mkdir(index, 0o755); err != nil {
+		t.Fatalf("replace index with a directory: %v", err)
+	}
+	if _, err := TrackedSet(root); err == nil {
+		t.Fatal("TrackedSet accepted a broken index")
 	}
 }

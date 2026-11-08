@@ -9,6 +9,7 @@ package query
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -24,6 +25,16 @@ import (
 	"github.com/xidus90/loomux/internal/code/sourceset"
 	"github.com/xidus90/loomux/internal/code/store"
 )
+
+// noticeRecord announces a record that could not be written. A lost mirror
+// leaves the record in place and costs only the fast path, so it says so.
+func noticeRecord(notice func(string), what string, err error) {
+	if errors.Is(err, corpus.ErrMirror) {
+		notice(fmt.Sprintf("%s mirror not written: %v", what, err))
+		return
+	}
+	notice(fmt.Sprintf("%s not written: %v", what, err))
+}
 
 // Stats is what a build learned on the way, for the report and for the
 // freshness record.
@@ -110,7 +121,7 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
 		return nil, Stats{}, err
 	}
 	if err := freshness.Write(root, all.Version(), stats.Files, stats.Hashes); err != nil {
-		notice(fmt.Sprintf("freshness record not written: %v", err))
+		noticeRecord(notice, "freshness record", err)
 	}
 	if err := writeCache(root, stats.entries); err != nil {
 		notice(fmt.Sprintf("extract cache not written: %v", err))

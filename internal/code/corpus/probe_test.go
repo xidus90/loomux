@@ -60,9 +60,11 @@ func TestProbeCleanWithoutReads(t *testing.T) {
 	if !d.Clean() {
 		t.Fatalf("probe found drift in an unchanged tree: %+v", d)
 	}
+	// The record and its binary mirror: the second is the first's cheap form.
 	for _, name := range read {
-		if filepath.Clean(name) != filepath.Clean(RecordPath(root)) {
-			t.Fatalf("the clean probe read %s, want only the record", name)
+		clean := filepath.Clean(name)
+		if clean != filepath.Clean(RecordPath(root)) && clean != filepath.Clean(mirrorPath(RecordPath(root))) {
+			t.Fatalf("the clean probe read %s, want only the record or its mirror", name)
 		}
 	}
 }
