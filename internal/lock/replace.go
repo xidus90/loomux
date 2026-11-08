@@ -56,18 +56,44 @@ func writeTemporary(path, text string) (string, error) {
 	return name, nil
 }
 
-// replaceEventually swaps the file in and gives Windows time to drop an open
-// read handle. The last failed attempt returns right away: a pause before the
-// error would buy nothing.
+// SidecarBudget is how long a writer of a derived file waits for a reader to
+// let go of the target. A variable so that tests of other packages can shorten
+// it; nothing else assigns it.
+var SidecarBudget = 2 * time.Second
+
+// OnRetry, when set, is called after every rename that failed. It is nil
+// outside tests, which use it to learn that a writer is waiting.
+var OnRetry func()
+
+// Seams of the retry loop: the rename, the clock and the pause.
+var (
+	replaceRename = os.Rename
+	replaceNow    = time.Now
+	replaceSleep  = time.Sleep
+)
+
+// replaceEventually swaps the file in with the budget replace_text has always
+// had.
 func replaceEventually(source, target string) error {
-	for attempt := 1; ; attempt++ {
-		err := os.Rename(source, target)
+	return ReplaceEventually(source, target, replaceTries*replacePause)
+}
+
+// ReplaceEventually swaps the file in and gives Windows time to drop an open
+// read handle, for as long as budget lasts. The last failed attempt returns
+// right away: a pause that would use up the budget buys nothing.
+func ReplaceEventually(source, target string, budget time.Duration) error {
+	started := replaceNow()
+	for {
+		err := replaceRename(source, target)
 		if err == nil {
 			return nil
 		}
-		if attempt >= replaceTries {
+		if OnRetry != nil {
+			OnRetry()
+		}
+		if replaceNow().Sub(started)+replacePause >= budget {
 			return err
 		}
-		time.Sleep(replacePause)
+		replaceSleep(replacePause)
 	}
 }
