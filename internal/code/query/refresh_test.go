@@ -3,6 +3,7 @@ package query
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/ask"
+	"github.com/xidus90/loomux/internal/code/corpus"
+	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/gitenv"
 )
@@ -251,5 +254,89 @@ func TestGraphReadyReportsAFailingDiff(t *testing.T) {
 	fakeGit(t, answer(".git/MERGE_HEAD\n0000\n", nil), answer("", errors.New("git diff: exit status 128: fatal: bad index")))
 	if ok, note := GraphReady(root); ok || note != "git diff: exit status 128: fatal: bad index" {
 		t.Fatalf("%v %q", ok, note)
+	}
+}
+
+// seenLimits records the size limit of every rebuild RefreshIfDrifted starts.
+func seenLimits(t *testing.T) *[]int64 {
+	t.Helper()
+	var seen []int64
+	old := buildWith
+	buildWith = func(root string, opts BuildOptions, say func(string)) (*model.Graph, Stats, error) {
+		seen = append(seen, *opts.MaxFilesize)
+		return old(root, opts, say)
+	}
+	t.Cleanup(func() { buildWith = old })
+	return &seen
+}
+
+// The watcher wakes up for every write under the root, a build into an
+// ignored directory included; only the probe keeps that from rebuilding.
+func TestIgnoredBuildOutputDoesNotRebuild(t *testing.T) {
+	files := grepFiles()
+	files[".gitignore"] = "*.log\nbin/\n"
+	files["bin/tool.exe"] = "old output\n"
+	root := buildRepo(t, files)
+	builds := countBuilds(t)
+	writeTree(t, root, map[string]string{"bin/tool.exe": "new output\n", "bin/more.o": "x"})
+	rebuilt, err := RefreshIfDrifted(root, ignore)
+	if err != nil || rebuilt || *builds != 0 {
+		t.Fatalf("rebuilt %v, err %v, %d builds; want no rebuild", rebuilt, err, *builds)
+	}
+}
+
+func TestRefreshIfDriftedKeepsTheMaxFilesize(t *testing.T) {
+	// A git index, so the second call below also reads the index stamp.
+	root := grepGitRepo(t, grepFiles(), []string{"go.mod", "main.go", "lib/lib.go", "README.md"})
+	if _, err := os.Stat(filepath.Join(root, ".git", "index")); err != nil {
+		t.Fatal(err)
+	}
+	limit := int64(1024)
+	if _, _, err := BuildWith(root, BuildOptions{MaxFilesize: &limit}, ignore); err != nil {
+		t.Fatal(err)
+	}
+	seen := seenLimits(t)
+	writeTree(t, root, map[string]string{"README.md": "# Repo\n\nzzzMoved\n"})
+	rebuilt, err := RefreshIfDrifted(root, ignore)
+	if err != nil || !rebuilt || len(*seen) != 1 || (*seen)[0] != 1024 {
+		t.Fatalf("rebuilt %v, err %v, limits %v; want one rebuild with 1024", rebuilt, err, *seen)
+	}
+	// The rebuild must leave nothing a second probe reads as drift, or the
+	// watcher would rebuild forever.
+	if rebuilt, err := RefreshIfDrifted(root, ignore); err != nil || rebuilt {
+		t.Fatalf("second call: rebuilt %v, err %v; want a clean probe", rebuilt, err)
+	}
+}
+
+func TestRefreshIfDriftedWithoutARecordTakesTheDefault(t *testing.T) {
+	root := grepFixture(t)
+	old := readRecord
+	readRecord = func(string) (corpus.Record, bool) { return corpus.Record{}, false }
+	t.Cleanup(func() { readRecord = old })
+	seen := seenLimits(t)
+	if rebuilt, err := RefreshIfDrifted(root, ignore); err != nil || !rebuilt || len(*seen) != 1 || (*seen)[0] != corpus.DefaultMaxFilesize {
+		t.Fatalf("rebuilt %v, err %v, limits %v; want one rebuild with the default", rebuilt, err, *seen)
+	}
+}
+
+func TestRefreshIfDriftedPassesTheLockOn(t *testing.T) {
+	root := grepFixture(t)
+	writeTree(t, root, map[string]string{"README.md": "# Repo\n\nzzzMoved\n"})
+	lock := ask.LockPath(root)
+	if err := os.MkdirAll(filepath.Dir(lock), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lock, []byte(fmt.Sprint(os.Getpid())), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var locked *ask.LockedError
+	if rebuilt, err := RefreshIfDrifted(root, ignore); rebuilt || !errors.As(err, &locked) {
+		t.Fatalf("rebuilt %v, err %v; want the lock error", rebuilt, err)
+	}
+}
+
+func TestRefreshIfDriftedFailsWhenTheProbeCannotWalk(t *testing.T) {
+	if rebuilt, err := RefreshIfDrifted(filepath.Join(t.TempDir(), "gone"), ignore); rebuilt || err == nil {
+		t.Fatalf("rebuilt %v, err %v; want the walk's error", rebuilt, err)
 	}
 }

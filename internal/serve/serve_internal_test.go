@@ -63,6 +63,71 @@ func runUntilItReturns(t *testing.T, dir string) error {
 	}
 }
 
+// A watcher may be in the middle of a rebuild when the service stops; the lock
+// must stay held until it has finished, or a second serve starts a rebuild
+// beside it.
+func TestRunHandsTheWatcherItsLog(t *testing.T) {
+	dir := t.TempDir()
+	want := &strings.Builder{}
+	ctx, cancel := context.WithCancel(context.Background())
+	var got io.Writer
+	err := Run(ctx, Options{StateDir: dir, RegistryDir: dir, Log: want, Watch: func(_ context.Context, log io.Writer) {
+		got = log
+		cancel()
+	}})
+	if err != nil || got != io.Writer(want) {
+		t.Fatalf("Run = %v, watcher logs to %v; want nil and the service's Log", err, got)
+	}
+}
+
+func TestRunWaitsForTheWatcherBeforeItReturns(t *testing.T) {
+	dir := t.TempDir()
+	started, sawEnd, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Options{StateDir: dir, RegistryDir: dir, Watch: func(ctx context.Context, log io.Writer) {
+			// Without a Log of its own, the service writes to stderr.
+			if log != os.Stderr {
+				t.Errorf("the watcher logs to %v, want os.Stderr", log)
+			}
+			close(started)
+			<-ctx.Done()
+			close(sawEnd)
+			<-release
+		}})
+	}()
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		cancel()
+		t.Fatal("Run never started the watcher")
+	}
+	cancel()
+	<-sawEnd
+	if handle, held, err := lock.TryAcquire(LockPath(dir)); err != nil || held {
+		if held {
+			handle.Release()
+		}
+		t.Fatalf("serve.lock free while the watcher still runs (err %v)", err)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("Run returned %v while the watcher still runs", err)
+	default:
+	}
+	close(release)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return after the watcher ended")
+	}
+	expectTheLockIsFree(t, dir)
+}
+
 // expectTheLockIsFree is the assertion that matters most here: a serve that
 // gives up while holding serve.lock locks the machine out of its own service
 // until somebody kills the process.
