@@ -134,7 +134,10 @@ func TestEquivalenceWithScan(t *testing.T) {
 					t.Fatal(err)
 				}
 			}()
-			scan, _, err := Grep(root, c.pattern, c.opts)
+			// Without the refresh: a missing index would otherwise be rebuilt.
+			scanOpts := c.opts
+			scanOpts.NoRefresh = true
+			scan, _, err := Grep(root, c.pattern, scanOpts)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -258,7 +261,7 @@ func TestStaleIndexScans(t *testing.T) {
 	if err := os.WriteFile(indexPath(root), raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	res, _, err := Grep(root, "zzzUniqueWord", GrepOptions{})
+	res, _, err := Grep(root, "zzzUniqueWord", GrepOptions{NoRefresh: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +290,7 @@ func TestNoIndexScans(t *testing.T) {
 	if err := os.Remove(indexPath(root)); err != nil {
 		t.Fatal(err)
 	}
-	res, _, err := Grep(root, "zzzUniqueWord", GrepOptions{})
+	res, _, err := Grep(root, "zzzUniqueWord", GrepOptions{NoRefresh: true})
 	if err != nil {
 		t.Fatal(err)
 	}

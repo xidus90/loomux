@@ -87,18 +87,20 @@ func writeCorpus(root string, maxFilesize int64, bodies map[string][]byte, walke
 	rec := corpus.NewRecord(rules, prints, maxFilesize)
 	st.Digest = corpus.Digest(rec)
 	rec.Ignored, rec.SkippedSize, rec.SkippedBinary = st.Ignored, st.SkippedSize, st.SkippedBinary
-	if err := corpus.Write(root, rec); err != nil {
-		noticeRecord(notice, "search corpus record", err)
-	}
 	counters := trigram.Counters{
 		Ignored: st.Ignored, SkippedSize: st.SkippedSize, SkippedBinary: st.SkippedBinary,
 		IgnoreCase: rec.IgnoreCase,
 	}
-	if err := trigram.Write(root, st.Digest, all.Version(), rec.Settings, counters, indexed); err != nil {
-		notice(fmt.Sprintf("trigram index not written: %v", err))
+	// The index goes first: a record never names an index that was not
+	// written, so a failed write leaves the old pair standing.
+	if err := writeIndex(root, st.Digest, all.Version(), rec.Settings, counters, indexed); err != nil {
+		notice(fmt.Sprintf("trigram index not written, the old record stays: %v", err))
 		return st
 	}
 	st.Indexed = true
+	if err := corpus.Write(root, rec); err != nil {
+		noticeRecord(notice, "search corpus record", err)
+	}
 	return st
 }
 
@@ -118,6 +120,9 @@ func matcherFor(rules *corpus.Rules) corpus.Matcher {
 var (
 	loadIgnore = corpus.Load
 	walkCorpus = corpus.Walk
+	// writeIndex fails on a disk that refuses the file, or on Windows when a
+	// reader keeps the old index mapped past the replace budget.
+	writeIndex = trigram.Write
 )
 
 // readFile is the read the extraction and the corpus selection both go
