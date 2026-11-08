@@ -254,6 +254,17 @@ Neubau. `ErrNoIndex` bleibt `none`, `ErrCorrupt` bleibt `stale`.
   `skipped_binary` gebildet. Auf einem geänderten Baum liest der Aufruf die
   Kandidaten des alten Index mit ihrem aktuellen Inhalt; ein Test hält genau
   dieses Verhalten fest.
+- **Abweichung unter `--in` und `--glob`:** Die Tabelle kennt die Pfade der
+  Binärdateien nicht und kann sie keinem Präfix und keinem Glob zuordnen.
+  Unter einem Filter zählt `files_in_scope` (und `candidates`, wenn das
+  Muster nichts eingrenzt) deshalb alle `skipped_binary` mit; der Prüfmodus
+  zählt nur die im Filter. Die Treffer bleiben gleich, nur diese beiden Zahlen
+  können um die Binärdateien außerhalb des Filters größer sein. Ein Präfix, das
+  nur eine Binärdatei enthält, meldet im vertrauten Modus `prefix not indexed`,
+  im Prüfmodus eine leere Antwort. *Meine Entscheidung:* so lassen und
+  dokumentieren, statt die Pfade der Binärdateien in den Index zu schreiben
+  (Formatänderung für zwei Informationszahlen);
+  `TestTrustIndexCountsEveryBinaryUnderAFilter` hält das fest.
 - Kanal und Privacy bleiben unverändert (`--channel cloud` filtert wie
   heute).
 

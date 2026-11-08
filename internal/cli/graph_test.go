@@ -1368,6 +1368,33 @@ func TestGraphGrepJSONHasIndexField(t *testing.T) {
 	if raw["index"] != "used" {
 		t.Fatalf("index = %v, want used", raw["index"])
 	}
+	if _, ok := raw["index_built"]; ok {
+		t.Fatalf("the checked path must leave index_built out: %s", out.String())
+	}
+}
+
+func TestGraphGrepTrustIndex(t *testing.T) {
+	root := repo(t, sample())
+	var out, errOut bytes.Buffer
+	if code := graphCommand([]string{"build", "--root", root}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("build exit %d", code)
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := graphCommand([]string{"grep", "Run", "--root", root, "--json", "--trust-index"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(out.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if raw["index"] != "trusted" {
+		t.Fatalf("index = %v, want trusted: %s", raw["index"], out.String())
+	}
+	built, _ := raw["index_built"].(string)
+	if _, err := time.Parse(time.RFC3339, built); err != nil {
+		t.Fatalf("index_built = %q: %v", built, err)
+	}
 }
 
 func TestGraphGrepInvalidRegexExitOne(t *testing.T) {

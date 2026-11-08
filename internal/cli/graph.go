@@ -407,6 +407,7 @@ func graphGrep(args []string, stdout, stderr io.Writer) int {
 	maxFilesize := fs.Int64("max-filesize", 0, "largest searchable file, in bytes")
 	noMaxFilesize := fs.Bool("no-max-filesize", false, "search files of any size")
 	noRefresh := fs.Bool("no-refresh", false, "never rebuild, answer from the graph on disk")
+	trustIndex := fs.Bool("trust-index", false, "answer from the index without checking the tree")
 	asJSON := fs.Bool("json", false, "write the answer as JSON")
 
 	var patterns []string
@@ -449,6 +450,7 @@ func graphGrep(args []string, stdout, stderr io.Writer) int {
 		MaxHits:     *maxHits,
 		MaxFilesize: limit,
 		NoRefresh:   *noRefresh,
+		TrustIndex:  *trustIndex,
 	})
 	for _, n := range notes {
 		fmt.Fprintf(stderr, "loomux graph grep: %s\n", n)
