@@ -100,15 +100,11 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 		return Result{Pattern: pattern}, nil
 	}
 
-	maxHits := opts.MaxHits
-	if maxHits <= 0 {
-		maxHits = DefaultMaxHits
-	}
-
 	sc, err := compile(pattern, opts)
 	if err != nil {
 		return Result{}, err
 	}
+	maxHits := sc.max
 
 	all := opts.Files
 	if all == nil {
@@ -185,6 +181,8 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 			continue
 		}
 		res.FilesSearched++
+		// Past a file's first maxHits matches every hit is past the cap.
+		res.TruncatedHits += sf.more
 
 		var fileSpans []model.SymbolSpan
 		spansLoaded := false
