@@ -493,6 +493,50 @@ func TestSearchRefusesTheNinthBackreference(t *testing.T) {
 	}
 }
 
+func TestSearchUsesSpanFunctions(t *testing.T) {
+	g := sampleGrepGraph()
+	x := blast.New(g)
+	read := makeReader(sampleFiles())
+	files := []string{"other/file.go", "pkg/other.go", "pkg/service.go"}
+	want, err := grep.Search(g, x, nil, "target", grep.Options{Files: files}, read)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	spans := model.FileSpans(g)
+	got, err := grep.Search(nil, nil, nil, "target", grep.Options{
+		Files:    files,
+		Spans:    func(p string) []model.SymbolSpan { return spans[p] },
+		InDegree: x.InDegree,
+	}, read)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(want.Groups) != 4 || !reflect.DeepEqual(got.Groups, want.Groups) {
+		t.Errorf("groups = %+v, want %+v", got.Groups, want.Groups)
+	}
+}
+
+// The Kelvin sign folds to an ASCII k, so a pattern that folds anywhere must
+// not lose a file with non-ASCII bytes to the ASCII-lowered literal filter.
+func TestPrefilterKeepsInlineFoldWithKelvin(t *testing.T) {
+	res, err := grep.Search(nil, nil, nil, "(?i)kelvin", grep.Options{Files: []string{"k.txt"}},
+		makeReader(map[string]string{"k.txt": "Kelvin\n"}))
+	if err != nil || res.TotalHits != 1 {
+		t.Errorf("hits = %d, err = %v, want 1", res.TotalHits, err)
+	}
+}
+
+// \A anchors each line in the line scan, so the one-pass path must not take a
+// pattern that holds it.
+func TestWholeFileSkipsTextAnchors(t *testing.T) {
+	res, err := grep.Search(nil, nil, nil, `\Afoo`, grep.Options{Files: []string{"a.txt"}},
+		makeReader(map[string]string{"a.txt": "bar\nfoo\n"}))
+	if err != nil || res.TotalHits != 1 || res.Groups[0].Hits[0].Line != 2 {
+		t.Errorf("result = %+v, err = %v, want one hit in line 2", res, err)
+	}
+}
+
 func TestSearchUsesTheSpansItIsGiven(t *testing.T) {
 	g := oneFileGraph("A")
 	res, err := grep.Search(g, nil, map[string][]model.SymbolSpan{}, "m", grep.Options{}, makeReader(map[string]string{"s.go": "m"}))
