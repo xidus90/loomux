@@ -8,11 +8,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/freshness"
 	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/code/trigram"
+	"github.com/xidus90/loomux/internal/lock"
 	"github.com/xidus90/loomux/internal/testlock"
 )
 
@@ -33,6 +35,7 @@ func TestBuildWritesIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
+	defer ix.Close()
 	want := []string{"go.mod", "lib/lib.go", "lib/lib_test.go", "main.go"}
 	if got := ix.Files(); !slices.Equal(got, want) {
 		t.Fatalf("index files = %v, want %v", got, want)
@@ -45,6 +48,7 @@ func TestBuildIndexDigestMatchesRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer ix.Close()
 	rec, ok := corpus.Read(root)
 	if !ok {
 		t.Fatal("the build wrote no search corpus record")
@@ -92,6 +96,7 @@ func TestBuildSkipsUnreadableSearchFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer ix.Close()
 	if slices.Contains(ix.Files(), "notes.md") {
 		t.Fatal("an unreadable file reached the index")
 	}
@@ -115,6 +120,7 @@ func TestBuildRecordsSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer ix.Close()
 	rec, ok := corpus.Read(root)
 	if !ok {
 		t.Fatal("no record")
@@ -126,6 +132,9 @@ func TestBuildRecordsSettings(t *testing.T) {
 }
 
 func TestBuildIndexFailureIsNote(t *testing.T) {
+	old := lock.SidecarBudget
+	lock.SidecarBudget = 50 * time.Millisecond
+	t.Cleanup(func() { lock.SidecarBudget = old })
 	root := repo(t, sample())
 	if err := os.MkdirAll(store.CachePath(root, "trigram.idx"), 0o755); err != nil {
 		t.Fatal(err)
@@ -193,6 +202,7 @@ func TestBuildCountsBinaryFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer ix.Close()
 	if slices.Contains(ix.Files(), "blob.bin") {
 		t.Fatal("a binary file reached the index")
 	}
@@ -225,9 +235,11 @@ func TestBuildCorpusErrorsAreNotes(t *testing.T) {
 	if !found {
 		t.Fatalf("notices = %q, want the unwritten corpus record", heard)
 	}
-	if _, err := trigram.Read(root); err != nil {
+	ix, err := trigram.Read(root)
+	if err != nil {
 		t.Fatalf("the index must still be written: %v", err)
 	}
+	ix.Close()
 }
 
 func TestBuildNegativeLimitIsAnError(t *testing.T) {

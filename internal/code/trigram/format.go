@@ -10,21 +10,26 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/xidus90/loomux/internal/code/mmap"
 	"github.com/xidus90/loomux/internal/code/store"
+	"github.com/xidus90/loomux/internal/lock"
 )
 
 // Format constants. The layout is the one in the design's "Bytes" section:
 // a variable header, the file table, the trigram table and the posting buffer,
 // all integers little endian.
 const (
-	magic         = "LTGI"
-	formatVersion = 1
+	magic = "LTGI"
+	// formatVersion 2 added the selection counters to the header.
+	formatVersion = 2
 	// maxExtractor bounds the extractor identity the header carries: the
 	// combined all.Version() string names every extractor and is longer than
 	// the first format's 64 bytes allowed.
 	maxExtractor = 256
 	// indexName is the sidecar under the graph's cache directory.
 	indexName = "trigram.idx"
+	// entrySize is one trigram table entry: u32 gram, u64 offset, u32 count.
+	entrySize = 16
 )
 
 // Errors a reader distinguishes: no index was ever built, the index is from
@@ -42,20 +47,29 @@ type File struct {
 	Data []byte
 }
 
-// Index is a parsed trigram index.
+// Counters are what the corpus selection left out and the case setting it ran
+// with, carried in the header so a reader can report them without the corpus
+// record.
+type Counters struct {
+	Ignored, SkippedSize, SkippedBinary int
+	IgnoreCase                          bool
+}
+
+// Index is a parsed trigram index. The header and the file table are decoded
+// when it is read; the trigram table and the postings stay in raw and are
+// looked up and checked one trigram at a time.
 type Index struct {
 	files     []string
 	extractor string
 	settings  []byte
 	digest    [32]byte
-	grams     map[uint32]posting
-	buffer    []uint32
-}
+	counters  Counters
 
-// posting is where one trigram's file ids sit in the buffer.
-type posting struct {
-	offset uint32
-	count  uint32
+	raw       []byte
+	table     int
+	gramCount int
+	buffer    int
+	mapped    *mmap.File
 }
 
 // Files returns the corpus paths in the index's order, a copy the caller owns.
@@ -63,16 +77,63 @@ func (ix *Index) Files() []string {
 	return append([]string(nil), ix.files...)
 }
 
-// Postings returns the file ids whose bytes contain gram, ascending, or nil
-// when the index has no such trigram.
-func (ix *Index) Postings(gram uint32) []uint32 {
-	p, ok := ix.grams[gram]
-	if !ok {
+// Postings returns the file ids whose bytes contain gram, ascending. A trigram
+// the index does not carry is nil, true; ok == false means the table or the
+// posting list around gram is broken and the index cannot answer for it.
+// Not valid after Close.
+func (ix *Index) Postings(gram uint32) (ids []uint32, ok bool) {
+	lo, hi := 0, ix.gramCount
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if ix.gramAt(mid) < gram {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	if lo == ix.gramCount {
+		return nil, true
+	}
+	// The search only holds on a sorted table of 24-bit trigrams: the entry it
+	// lands on and the next one are checked, which catches a corrupt or
+	// duplicated trigram exactly where it would change the answer.
+	found := ix.gramAt(lo)
+	if found > 0xFFFFFF || (lo+1 < ix.gramCount && ix.gramAt(lo+1) <= found) {
+		return nil, false
+	}
+	if found != gram {
+		return nil, true
+	}
+	entry := ix.raw[ix.table+lo*entrySize:]
+	off := binary.LittleEndian.Uint64(entry[4:])
+	count := uint64(binary.LittleEndian.Uint32(entry[12:]))
+	size := uint64(len(ix.raw) - ix.buffer)
+	if off%4 != 0 || off > size || count*4 > size-off {
+		return nil, false
+	}
+	ids = make([]uint32, count)
+	at := ix.buffer + int(off)
+	for i := range ids {
+		ids[i] = binary.LittleEndian.Uint32(ix.raw[at+i*4:])
+		if (i > 0 && ids[i] <= ids[i-1]) || ids[i] >= uint32(len(ix.files)) {
+			return nil, false
+		}
+	}
+	return ids, true
+}
+
+// gramAt is the trigram of table entry i.
+func (ix *Index) gramAt(i int) uint32 {
+	return binary.LittleEndian.Uint32(ix.raw[ix.table+i*entrySize:])
+}
+
+// Close releases the mapping Read made. An index from decode has none.
+func (ix *Index) Close() error {
+	ix.raw = nil
+	if ix.mapped == nil {
 		return nil
 	}
-	out := make([]uint32, p.count)
-	copy(out, ix.buffer[p.offset:p.offset+p.count])
-	return out
+	return ix.mapped.Close()
 }
 
 // Settings returns the canonical settings the index was built with.
@@ -86,10 +147,13 @@ func (ix *Index) Extractor() string { return ix.extractor }
 // Digest returns the corpus digest the index was built for.
 func (ix *Index) Digest() [32]byte { return ix.digest }
 
+// Counters returns the selection counters the index was built with.
+func (ix *Index) Counters() Counters { return ix.counters }
+
 // Build serializes the corpus. The bytes depend on the corpus content, the
-// extractor version, the settings and the digest, never on the order the
-// caller passes the files in.
-func Build(files []File, extractor string, settings []byte, digest [32]byte) ([]byte, error) {
+// extractor version, the settings, the digest and the counters, never on the
+// order the caller passes the files in.
+func Build(files []File, extractor string, settings []byte, digest [32]byte, c Counters) ([]byte, error) {
 	if len(extractor) > maxExtractor {
 		return nil, fmt.Errorf("extractor %q: longer than %d bytes", extractor, maxExtractor)
 	}
@@ -127,6 +191,14 @@ func Build(files []File, extractor string, settings []byte, digest [32]byte) ([]
 	}
 	writeU64(&whole, total)
 	writeU32(&whole, uint32(total*4))
+	writeU32(&whole, uint32(c.Ignored))
+	writeU32(&whole, uint32(c.SkippedSize))
+	writeU32(&whole, uint32(c.SkippedBinary))
+	if c.IgnoreCase {
+		whole.WriteByte(1)
+	} else {
+		whole.WriteByte(0)
+	}
 
 	for _, f := range sorted {
 		writeU16(&whole, uint16(len(f.Rel)))
@@ -150,9 +222,10 @@ func Build(files []File, extractor string, settings []byte, digest [32]byte) ([]
 // Write builds the index and writes it atomically to the graph's cache
 // directory. Temp plus rename with the pid in the temp name, as store.Write
 // does: a fixed temp name would let two runs share scratch, and a failed rename
-// must leave no orphan.
-func Write(root string, digest [32]byte, extractor string, settings []byte, files []File) error {
-	raw, err := Build(files, extractor, settings, digest)
+// must leave no orphan. The rename waits for a reader that still has the old
+// index mapped, which Windows would otherwise refuse.
+func Write(root string, digest [32]byte, extractor string, settings []byte, c Counters, files []File) error {
+	raw, err := Build(files, extractor, settings, digest, c)
 	if err != nil {
 		return err
 	}
@@ -165,30 +238,38 @@ func Write(root string, digest [32]byte, extractor string, settings []byte, file
 		os.Remove(tmp)
 		return err
 	}
-	if err := os.Rename(tmp, final); err != nil {
+	if err := lock.ReplaceEventually(tmp, final, lock.SidecarBudget); err != nil {
 		os.Remove(tmp)
 		return err
 	}
 	return nil
 }
 
-// Read loads the index from the graph's cache directory.
+// Read maps the index from the graph's cache directory. The caller closes it.
 //
 // A missing file is ErrNoIndex, so "never built" and "built and broken" stay
-// distinguishable; a broken file is ErrCorrupt and a newer format ErrStale.
+// distinguishable; a broken file is ErrCorrupt and another format ErrStale.
 func Read(root string) (*Index, error) {
-	raw, err := os.ReadFile(store.CachePath(root, indexName))
+	mapped, err := mmap.Open(store.CachePath(root, indexName))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("%w: %s", ErrNoIndex, store.CachePath(root, indexName))
 		}
 		return nil, fmt.Errorf("read trigram index: %w", err)
 	}
-	return decode(raw)
+	ix, err := decode(mapped.Bytes())
+	if err != nil {
+		mapped.Close()
+		return nil, err
+	}
+	ix.mapped = mapped
+	return ix, nil
 }
 
-// decode parses and validates an index. Every length and offset is checked
-// before it is used, so a truncated or hostile file cannot panic.
+// decode parses the header and the file table and checks that the trigram
+// table and the posting buffer have the lengths the header gives. Every length
+// is checked before it is used, so a truncated or hostile file cannot panic;
+// the entries themselves are checked when Postings looks one up.
 func decode(raw []byte) (*Index, error) {
 	if len(raw) < 4 || string(raw[:4]) != magic {
 		return nil, fmt.Errorf("%w: bad magic", ErrCorrupt)
@@ -243,6 +324,20 @@ func decode(raw []byte) (*Index, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: buffer size", ErrCorrupt)
 	}
+	var counts [3]uint32
+	for i := range counts {
+		if counts[i], pos, ok = takeU32(raw, pos); !ok {
+			return nil, fmt.Errorf("%w: counters", ErrCorrupt)
+		}
+	}
+	if pos >= len(raw) {
+		return nil, fmt.Errorf("%w: ignorecase flag", ErrCorrupt)
+	}
+	counters := Counters{
+		Ignored: int(counts[0]), SkippedSize: int(counts[1]), SkippedBinary: int(counts[2]),
+		IgnoreCase: raw[pos] != 0,
+	}
+	pos++
 
 	files := make([]string, 0, fileCount)
 	for i := uint32(0); i < fileCount; i++ {
@@ -261,58 +356,25 @@ func decode(raw []byte) (*Index, error) {
 		files = append(files, p)
 	}
 
-	if uint64(gramCount)*16 > uint64(len(raw)-pos) {
+	if uint64(gramCount)*entrySize > uint64(len(raw)-pos) {
 		return nil, fmt.Errorf("%w: trigram table", ErrCorrupt)
 	}
-	grams := make(map[uint32]posting, gramCount)
-	tableEnd := pos + int(gramCount)*16
-	var lastGram uint32
-	for i := uint32(0); i < gramCount; i++ {
-		entry := raw[pos+int(i)*16:]
-		gram := binary.LittleEndian.Uint32(entry)
-		off := binary.LittleEndian.Uint64(entry[4:])
-		count := binary.LittleEndian.Uint32(entry[12:])
-		if gram > 0xFFFFFF {
-			return nil, fmt.Errorf("%w: trigram %#x out of range", ErrCorrupt, gram)
-		}
-		if i > 0 && gram <= lastGram {
-			return nil, fmt.Errorf("%w: trigram table not sorted at %d", ErrCorrupt, i)
-		}
-		lastGram = gram
-		if off%4 != 0 || off+uint64(count)*4 > uint64(bufferBytes) {
-			return nil, fmt.Errorf("%w: postings of %#x out of range", ErrCorrupt, gram)
-		}
-		grams[gram] = posting{offset: uint32(off / 4), count: count}
-	}
-	pos = tableEnd
-
-	if uint64(postingsCount)*4 != uint64(bufferBytes) {
+	buffer := pos + int(gramCount)*entrySize
+	if postingsCount*4 != uint64(bufferBytes) {
 		return nil, fmt.Errorf("%w: posting count and buffer size disagree", ErrCorrupt)
 	}
-	if uint64(len(raw)-pos) != uint64(bufferBytes) {
+	if uint64(len(raw)-buffer) != uint64(bufferBytes) {
 		return nil, fmt.Errorf("%w: posting buffer has the wrong length", ErrCorrupt)
-	}
-	buffer := make([]uint32, 0, postingsCount)
-	for i := uint64(0); i < postingsCount; i++ {
-		buffer = append(buffer, binary.LittleEndian.Uint32(raw[pos+int(i)*4:]))
-	}
-	for gram, p := range grams {
-		for i := uint32(1); i < p.count; i++ {
-			prev := buffer[p.offset+i-1]
-			if buffer[p.offset+i] <= prev {
-				return nil, fmt.Errorf("%w: postings of %#x not ascending", ErrCorrupt, gram)
-			}
-		}
-		if p.count > 0 && buffer[p.offset+p.count-1] >= fileCount {
-			return nil, fmt.Errorf("%w: postings of %#x name no file", ErrCorrupt, gram)
-		}
 	}
 	return &Index{
 		files:     files,
 		extractor: extractor,
 		settings:  settings,
 		digest:    digest,
-		grams:     grams,
+		counters:  counters,
+		raw:       raw,
+		table:     pos,
+		gramCount: int(gramCount),
 		buffer:    buffer,
 	}, nil
 }
