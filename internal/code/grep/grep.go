@@ -2,12 +2,10 @@ package grep
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/xidus90/loomux/internal/code/blast"
-	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/model"
 )
@@ -47,9 +45,15 @@ type Options struct {
 	// Files. The index supplies it, and the scan path is the same list with
 	// nil, which is what makes the two comparable.
 	Candidates map[string]bool
-	// Index names what the answer rests on: used, scan, stale or none. The
-	// caller decides it; Search only carries it into the result.
+	// Index names what the answer rests on: used, scan, stale, none, overlay
+	// or trusted. The caller decides it; Search only carries it into the
+	// result.
 	Index string
+	// Spans and InDegree, when set, supply the symbols and their callers in
+	// place of the spans map and the blast index; g may then be nil. Search
+	// calls them from one goroutine only.
+	Spans    func(path string) []model.SymbolSpan
+	InDegree func(model.NodeID) int
 }
 
 // Result summarizes grep matches and groupings.
@@ -61,8 +65,12 @@ type Result struct {
 	TruncatedHits int     `json:"truncated_hits"`
 	Unreadable    int     `json:"unreadable"`
 
-	// Index says what the answer rested on: used, scan, stale or none.
+	// Index says what the answer rested on: used, scan, stale, none, overlay
+	// or trusted.
 	Index string `json:"index"`
+	// IndexBuilt is when a trusted index was written (RFC 3339); empty
+	// otherwise. The caller sets it.
+	IndexBuilt string `json:"index_built,omitempty"`
 	// FilesInScope is how many files the In filter left of the corpus.
 	FilesInScope int `json:"files_in_scope"`
 	// Candidates is how many files of the scope the scan reads: the index's
@@ -88,7 +96,7 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 	if pattern == "" {
 		return Result{}, fmt.Errorf("empty search pattern")
 	}
-	if g == nil || read == nil {
+	if read == nil || g == nil && opts.Files == nil {
 		return Result{Pattern: pattern}, nil
 	}
 
@@ -97,26 +105,9 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 		maxHits = DefaultMaxHits
 	}
 
-	var re *regexp.Regexp
-	if opts.Fixed {
-		p := regexp.QuoteMeta(pattern)
-		if opts.IgnoreCase {
-			p = "(?i)" + p
-		}
-		re = regexp.MustCompile(p)
-	} else {
-		if form := unsupported(pattern); form != "" {
-			return Result{}, fmt.Errorf("%s not supported in RE2 regex: %s", form, pattern)
-		}
-		p := pattern
-		if opts.IgnoreCase {
-			p = "(?i)" + p
-		}
-		var err error
-		re, err = regexp.Compile(p)
-		if err != nil {
-			return Result{}, fmt.Errorf("invalid regex: %w", err)
-		}
+	sc, err := compile(pattern, opts)
+	if err != nil {
+		return Result{}, err
 	}
 
 	all := opts.Files
@@ -163,8 +154,15 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 		files = append(files, p)
 	}
 
-	if spans == nil {
-		spans = model.FileSpans(g)
+	spansOf, inDegree := opts.Spans, opts.InDegree
+	if spansOf == nil {
+		if spans == nil {
+			spans = model.FileSpans(g)
+		}
+		spansOf = func(p string) []model.SymbolSpan { return spans[p] }
+	}
+	if inDegree == nil {
+		inDegree = x.InDegree
 	}
 
 	res := Result{Pattern: pattern, Index: opts.Index, FilesInScope: scope, Candidates: len(files)}
@@ -175,29 +173,23 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 	groupsMap := make(map[groupKey]*Group)
 	var groupsOrder []groupKey
 
-	for _, filePath := range files {
-		data, err := read(filePath)
-		if err != nil {
+	// The merge runs serially in file order, so the cap falls on the same
+	// hits as a serial scan and Spans and InDegree never run concurrently.
+	for i, sf := range sc.all(files, read) {
+		filePath := files[i]
+		if sf.unreadable {
 			res.Unreadable++
 			continue
 		}
-		if corpus.IsBinary(data) {
-			// A binary file is not in the index and not in the corpus; the
-			// scan skips it the same way so both paths agree.
+		if sf.binary {
 			continue
 		}
 		res.FilesSearched++
 
-		lines := strings.Split(string(data), "\n")
-		fileSpans := spans[filePath]
-
-		for lineIdx, rawLine := range lines {
-			lineNum := lineIdx + 1
-			line := strings.TrimSuffix(rawLine, "\r")
-			if !re.MatchString(line) {
-				continue
-			}
-
+		var fileSpans []model.SymbolSpan
+		spansLoaded := false
+		for j, lineNum := range sf.lines {
+			line := sf.texts[j]
 			if res.TotalHits >= maxHits {
 				res.TruncatedHits++
 				continue
@@ -211,14 +203,17 @@ func Search(g *model.Graph, x *blast.Index, spans map[string][]model.SymbolSpan,
 			}
 			hit := Hit{Line: lineNum, Text: hitText}
 
+			if !spansLoaded {
+				// Only a counted hit needs its symbol; a file whose hits all
+				// fall past the cap never decodes its spans.
+				fileSpans, spansLoaded = spansOf(filePath), true
+			}
 			encNode := model.Enclosing(fileSpans, lineNum)
 			var symID model.NodeID
 			var inDeg int
 			if encNode != nil {
 				symID = encNode.ID
-				if x != nil {
-					inDeg = x.InDegree(encNode.ID)
-				}
+				inDeg = inDegree(encNode.ID)
 			}
 
 			key := groupKey{path: filePath, symbolID: symID}
