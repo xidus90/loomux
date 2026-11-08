@@ -10,12 +10,15 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/xidus90/loomux/internal/brain/pytext"
+	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/config"
 	"github.com/xidus90/loomux/internal/lock"
 	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/serve"
+	"github.com/xidus90/loomux/internal/serve/watch"
 )
 
 // The four seams of this file. Each stands for something that must not happen
@@ -28,6 +31,9 @@ var (
 	serveStop   = serve.Stop
 	serveSpawn  = serve.Spawn
 	serveNotify = signal.NotifyContext
+	// serveWatchSource stands for a source that fails to start, which no
+	// platform here provokes on demand.
+	serveWatchSource = watch.NewSource
 )
 
 // startProcess is what a detached start really does. It is handed to
@@ -110,12 +116,42 @@ func serveForeground(stderr io.Writer) int {
 		Foreground:  true,
 		BrokeAway:   serve.BrokeAwayFromEnv(),
 		Update:      func(ctx context.Context) { selfUpdateRun(ctx, selfUpdateOptions(selfupdate.SourceServe)) },
+		Watch:       func(ctx context.Context, log io.Writer) { watchAreas(ctx, config.StateDir(), log) },
+		Log:         stderr,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux serve: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// watchAreas keeps the graphs of the registered areas fresh until ctx ends.
+// Without a source the service runs unwatched, and grep's own drift check
+// covers every area as it does without a service.
+func watchAreas(ctx context.Context, registryDir string, log io.Writer) {
+	src, err := serveWatchSource()
+	if err != nil {
+		fmt.Fprintf(log, "watch: not started: %v\n", err)
+		return
+	}
+	areaWatcher(src, registryDir, log).Run(ctx)
+}
+
+// areaWatcher is the watcher over the areas of registryDir.
+func areaWatcher(src watch.Source, registryDir string, log io.Writer) *watch.Watcher {
+	return &watch.Watcher{
+		Source: src,
+		Areas:  watch.Areas(registryDir),
+		Refresh: func(root string) (bool, error) {
+			return query.RefreshIfDrifted(root, func(notice string) {
+				fmt.Fprintf(log, "watch %s: %s\n", root, notice)
+			})
+		},
+		After:    time.After,
+		Log:      log,
+		Relevant: watch.Judge(),
+	}
 }
 
 // serveDetached starts the service beside this process and returns at once.

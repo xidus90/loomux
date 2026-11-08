@@ -92,10 +92,10 @@ func Compare(rec Record, listing Listing, rules *Rules, s Settings) *Drift {
 	if !bytes.Equal(rec.Settings, CanonicalSettings(s.MaxFilesize, rec.IgnoreCase)) {
 		d.Settings = true
 	}
-	if abs := gitAbs(rec, rec.GitPaths.Index); abs != "" && !stampMatches(abs, rec.Stamp) {
+	if abs := GitAbs(rec, rec.GitPaths.Index); abs != "" && !stampMatches(abs, rec.Stamp) {
 		d.Index = true
 	}
-	if abs := gitAbs(rec, rec.GitPaths.Config); abs != "" && !stampMatches(abs, rec.ConfigStamp) {
+	if abs := GitAbs(rec, rec.GitPaths.Config); abs != "" && !stampMatches(abs, rec.ConfigStamp) {
 		d.Config = true
 	}
 
@@ -213,7 +213,7 @@ func changedSources(rec Record) []string {
 		known[sourceAbs(rec, src.Rel)] = true
 	}
 	for _, p := range []string{rec.GitPaths.Exclude, rec.GitPaths.Global} {
-		abs := gitAbs(rec, p)
+		abs := GitAbs(rec, p)
 		if abs == "" || known[abs] {
 			continue
 		}
@@ -250,11 +250,11 @@ func addedIgnoreFiles(rec Record, rules *Rules, listing Listing) []string {
 	return out
 }
 
-// gitAbs resolves a git path of the record. The record may store the index and
+// GitAbs resolves a git path of the record. The record may store the index and
 // exclude paths repository-relative with the platform's separator; resolving
 // them against the stored root makes the comparison independent of the
 // caller's working directory and of slash style.
-func gitAbs(rec Record, p string) string {
+func GitAbs(rec Record, p string) string {
 	if p == "" {
 		return ""
 	}

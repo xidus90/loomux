@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/xidus90/loomux/internal/lock"
 	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/serve"
+	"github.com/xidus90/loomux/internal/serve/watch"
 )
 
 // serveStateDir points the state directory at a fresh temporary one, so that
@@ -390,6 +392,67 @@ func TestServeForegroundHandsTheServiceAnUpdatePass(t *testing.T) {
 	seen.Update(context.Background())
 	if *calls != 1 {
 		t.Fatalf("the pass ran selfupdate %d times", *calls)
+	}
+}
+
+func TestServeForegroundHandsTheServiceAWatcher(t *testing.T) {
+	serveStateDir(t)
+	seen := stubServeRun(t, nil)
+	stubServeNotify(t)
+	stderr := &bytes.Buffer{}
+	if code := serveForeground(stderr); code != 0 {
+		t.Fatalf("code = %d", code)
+	}
+	if seen.Watch == nil {
+		t.Fatal("serve got no watcher")
+	}
+	if seen.Log != io.Writer(stderr) {
+		t.Fatalf("serve logs to %v, want the command's stderr", seen.Log)
+	}
+	// The watcher ends with its context, as serve's shutdown needs.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	seen.Watch(ctx, stderr)
+	if stderr.Len() != 0 {
+		t.Fatalf("a watcher over an empty registry wrote %q", stderr)
+	}
+	// It writes where serve tells it to, not where the command's stderr is.
+	saved := serveWatchSource
+	serveWatchSource = func() (watch.Source, error) { return nil, errors.New("no inotify") }
+	t.Cleanup(func() { serveWatchSource = saved })
+	log := &bytes.Buffer{}
+	seen.Watch(ctx, log)
+	if !strings.Contains(log.String(), "no inotify") || stderr.Len() != 0 {
+		t.Fatalf("log %q, stderr %q; want the error in serve's log only", log, stderr)
+	}
+}
+
+func TestWatchAreasLogsASourceThatDidNotStart(t *testing.T) {
+	saved := serveWatchSource
+	serveWatchSource = func() (watch.Source, error) { return nil, errors.New("no inotify") }
+	t.Cleanup(func() { serveWatchSource = saved })
+	log := &bytes.Buffer{}
+	watchAreas(context.Background(), t.TempDir(), log)
+	if !strings.Contains(log.String(), "no inotify") {
+		t.Fatalf("log = %q, want the source's error", log)
+	}
+}
+
+// The watcher judges a change by the area's record and refreshes through
+// grep's drift check; a rebuild's notices land in the service's log.
+func TestAreaWatcherJudgesAndRefreshesAreas(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log := &bytes.Buffer{}
+	w := areaWatcher(nil, t.TempDir(), log)
+	if !w.Relevant(root, filepath.Join(root, "main.go")) || w.Relevant(root, filepath.Join(root, ".loomux", "x")) {
+		t.Fatal("Relevant does not follow grep's walk")
+	}
+	w.Refresh(root)
+	if !strings.Contains(log.String(), "watch "+root+": ") {
+		t.Fatalf("log = %q, want the rebuild's notice for %s", log, root)
 	}
 }
 

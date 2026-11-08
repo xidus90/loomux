@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xidus90/loomux/internal/code/ask"
+	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/store"
@@ -36,6 +37,31 @@ func RefreshGraph(root string, wait time.Duration, notice func(string)) (ask.Sta
 	return ask.Refresh(root, all.Version(),
 		func() error { _, _, err := Build(root, notice); return err },
 		ask.RefreshOptions{Force: force, Wait: wait, Notice: notice})
+}
+
+// RefreshIfDrifted is grep's drift check for the background watcher: the same
+// walk, and a rebuild under the rebuild lock whenever grep would not answer
+// from a current index, the overlay's small drift included. The rebuild keeps
+// the record's size limit, or takes the default without a record. A held lock
+// fails at once with *ask.LockedError.
+func RefreshIfDrifted(root string, notice func(string)) (rebuilt bool, err error) {
+	limit := corpus.DefaultMaxFilesize
+	if rec, ok := readRecord(root); ok {
+		limit = rec.MaxFilesize
+	}
+	s, err := probeGrep(root, limit)
+	if err != nil {
+		return false, err
+	}
+	reason := needsRebuild(s, root)
+	if reason == "" {
+		return false, nil
+	}
+	_, err = ask.Refresh(root, all.Version(), func() error {
+		_, _, err := buildWith(root, BuildOptions{MaxFilesize: &limit}, notice)
+		return err
+	}, ask.RefreshOptions{Force: reason, Notice: notice})
+	return err == nil, err
 }
 
 // GraphPrereq says whether the graph lane can run at root at all: a graph to

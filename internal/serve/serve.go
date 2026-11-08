@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -62,6 +63,13 @@ type Options struct {
 	Update func(context.Context)
 	// UpdateAfter is the clock of the update loop, time.After when nil.
 	UpdateAfter func(time.Duration) <-chan time.Time
+	// Watch keeps the registered areas fresh until its context ends, writing
+	// to log; nil runs no watcher. The command line fills it, so serve knows
+	// nothing of graphs.
+	Watch func(ctx context.Context, log io.Writer)
+	// Log is where the service's background work writes; nil means os.Stderr,
+	// which a detached service has pointed at serve.log.
+	Log io.Writer
 
 	// upkeep is the daily reconciliation Run starts, one per process and
 	// shared by both channels. Nil outside Run, which leaves a handler built
@@ -143,6 +151,24 @@ func Run(ctx context.Context, opts Options) error {
 		endUpkeep()
 		<-upkeepDone
 	}()
+	// The watcher ends the same way: a rebuild it runs finishes before another
+	// serve may start one beside it.
+	if opts.Watch != nil {
+		log := opts.Log
+		if log == nil {
+			log = os.Stderr
+		}
+		watchCtx, endWatch := context.WithCancel(ctx)
+		watchDone := make(chan struct{})
+		go func() {
+			defer close(watchDone)
+			opts.Watch(watchCtx, log)
+		}()
+		defer func() {
+			endWatch()
+			<-watchDone
+		}()
+	}
 
 	var once sync.Once
 	stopped := make(chan struct{})

@@ -346,14 +346,14 @@ func TestCompareAbsoluteGitPaths(t *testing.T) {
 func TestGitAbsResolvesRecordPaths(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "repo")
 	rec := Record{GitPaths: GitPaths{Root: root}}
-	if got := gitAbs(rec, ""); got != "" {
+	if got := GitAbs(rec, ""); got != "" {
 		t.Fatalf("empty = %q, want empty", got)
 	}
 	absolute := filepath.Join(t.TempDir(), "index")
-	if got := gitAbs(rec, absolute); got != filepath.Clean(absolute) {
+	if got := GitAbs(rec, absolute); got != filepath.Clean(absolute) {
 		t.Fatalf("absolute = %q, want %q", got, filepath.Clean(absolute))
 	}
-	if got, want := gitAbs(rec, filepath.Join(".git", "index")), filepath.Join(root, ".git", "index"); got != want {
+	if got, want := GitAbs(rec, filepath.Join(".git", "index")), filepath.Join(root, ".git", "index"); got != want {
 		t.Fatalf("relative = %q, want %q", got, want)
 	}
 }

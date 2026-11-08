@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 
 	"github.com/xidus90/loomux/internal/code/ask"
@@ -94,11 +93,7 @@ func unchanged(root string, rec corpus.Record) bool {
 // gitIndexStamp is the stamp of the git index the record names, the empty
 // stamp when it is gone, which is how the probe reads a missing index.
 func gitIndexStamp(rec corpus.Record) corpus.Stamp {
-	path := rec.GitPaths.Index
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(rec.GitPaths.Root, path)
-	}
-	info, err := os.Stat(path)
+	info, err := os.Stat(corpus.GitAbs(rec, rec.GitPaths.Index))
 	if err != nil {
 		return corpus.Stamp{}
 	}
