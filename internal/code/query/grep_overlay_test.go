@@ -528,6 +528,7 @@ func TestOverlayFits(t *testing.T) {
 		{"config", root, func(s *grepState) { s.corpusDrift.Config = true }, nil, false, 0},
 		{"sources", root, func(s *grepState) { s.corpusDrift.Sources = n(1) }, nil, false, 0},
 		{"no fingerprint", root, func(s *grepState) { s.graphDrift = nil }, nil, false, 0},
+		{"index mismatch", root, func(s *grepState) { s.indexMismatch = true }, nil, false, 0},
 		{"no ask index", t.TempDir(), func(*grepState) {}, nil, false, 0},
 		{"corpus at the limit", root, func(s *grepState) {
 			s.corpusDrift = &corpus.Drift{Changed: n(100), Added: n(50), Removed: n(50)}

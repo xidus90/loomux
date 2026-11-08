@@ -15,6 +15,7 @@ import (
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/sourceset"
 	"github.com/xidus90/loomux/internal/code/spanidx"
+	"github.com/xidus90/loomux/internal/code/trigram"
 )
 
 // overlayLimit is how many files may move, per drift, before grep rebuilds
@@ -36,7 +37,7 @@ var (
 // and is consulted last; the probe may have listed the files already.
 func overlayFits(s grepState, root string) bool {
 	d := s.corpusDrift
-	if d == nil || d.Settings || d.Config || len(d.Sources) > 0 || s.graphDrift == nil {
+	if d == nil || d.Settings || d.Config || len(d.Sources) > 0 || s.graphDrift == nil || s.indexMismatch {
 		return false
 	}
 	// Count leaves the index flag out here: it is not a file.
@@ -111,6 +112,10 @@ type grepState struct {
 	indexStamp corpus.Stamp
 	// tracked is what git listed beside the walk; nil when the probe did not.
 	tracked *trackedFiles
+	// indexMismatch says the trigram index is missing, unreadable or of
+	// another digest than the record: no drift can show that, only a rebuild
+	// ends it.
+	indexMismatch bool
 }
 
 // trackedFiles is the answer of one trackedSet call.
@@ -126,6 +131,7 @@ func probeGrep(root string, maxFilesize int64, listTracked bool) (s grepState, e
 	s.recStamp = corpus.FileStamp(corpus.RecordPath(root))
 	s.rec, s.hasRecord = readRecord(root)
 	if s.hasRecord {
+		s.indexMismatch = !indexMatches(root, s.rec)
 		s.rules = corpus.RulesFromRecord(s.rec)
 		// Stat before git lists the index: a change in between leaves the
 		// record behind the index, never ahead of it.
@@ -170,8 +176,24 @@ func needsRebuild(s grepState, root string) string {
 		return "no search corpus record, rebuilding"
 	case !s.corpusDrift.Clean():
 		return fmt.Sprintf("search corpus moved (%d entries), rebuilding", s.corpusDrift.Count())
+	case s.indexMismatch:
+		return "trigram index does not match the search corpus record, rebuilding"
 	}
 	return ""
+}
+
+// indexMatches reports whether the trigram index carries the record's digest.
+//
+// ponytail: maps the index and decodes its file table once more per probe;
+// a header-only digest read is the upgrade if a profile shows it.
+func indexMatches(root string, rec corpus.Record) bool {
+	digest, ok := recordDigest(rec)
+	ix, err := trigram.Read(root)
+	if err != nil {
+		return false
+	}
+	defer ix.Close()
+	return ok && ix.Digest() == digest
 }
 
 // onlySettings reports a drift in nothing but the settings, which a flag for

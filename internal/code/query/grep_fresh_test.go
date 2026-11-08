@@ -419,6 +419,8 @@ func TestNeedsRebuild(t *testing.T) {
 		{"no record", root, func(s *grepState) { s.hasRecord, s.corpusDrift = false, nil }, "no search corpus record, rebuilding"},
 		{"corpus drift", root, func(s *grepState) { s.corpusDrift = &corpus.Drift{Added: []string{"a", "b"}} },
 			"search corpus moved (2 entries), rebuilding"},
+		{"index mismatch", root, func(s *grepState) { s.indexMismatch = true },
+			"trigram index does not match the search corpus record, rebuilding"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
