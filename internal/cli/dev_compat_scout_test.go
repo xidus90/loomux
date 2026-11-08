@@ -12,11 +12,11 @@ import (
 )
 
 type stubUpstream struct {
-	rels map[string][]string
+	rels map[string][]compat.Release
 	err  error
 }
 
-func (s stubUpstream) Releases(src string) ([]string, error) { return s.rels[src], s.err }
+func (s stubUpstream) Releases(src string) ([]compat.Release, error) { return s.rels[src], s.err }
 
 // stubScout swaps the upstream sources; every source answers the same list.
 func stubScout(t *testing.T, up compat.Upstream) {
@@ -26,9 +26,16 @@ func stubScout(t *testing.T, up compat.Upstream) {
 	compatUpstream = func() compat.Upstream { return up }
 }
 
+// allSame answers its versions, all stable, for every source.
 type allSame []string
 
-func (a allSame) Releases(string) ([]string, error) { return a, nil }
+func (a allSame) Releases(string) ([]compat.Release, error) {
+	out := make([]compat.Release, len(a))
+	for i, v := range a {
+		out[i] = compat.Release{Version: v}
+	}
+	return out, nil
+}
 
 func TestDevCompatScoutReportsFindings(t *testing.T) {
 	stubScout(t, allSame{"99.0", "0.1"})
