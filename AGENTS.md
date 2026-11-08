@@ -102,6 +102,18 @@ are German and never translated.
 - Nobody but a human pushes (see the release exception above). The loomux
   guard refuses a push by an agent; an agent names the exact command and
   waits.
+- Every language the code graph reads is supported in every version its
+  upstream still maintains, not only the newest. The current pre-releases
+  (alpha, beta, release candidate) of the next one are probed ahead by the
+  compatibility scout: a failing probe opens an issue and blocks nothing,
+  and the release follows once the version is stable. Which versions those
+  are is researched at the source (release pages, the upstream's support
+  policy), never taken from memory. Each version in the compatibility list
+  is pinned down by a test with syntax that version introduced; a
+  version leaves the list only when its upstream ends support for it, and
+  then it does leave. The pull request that drops it names, in its
+  `## Changelog` under `Removed`, the last loomux release that still
+  supports that version.
 - Performance measurements go chronologically into `docs/en/benchmarks.md` and
   `docs/de/benchmarks.md`: date and time, what was measured, baseline against
   change, cold and warm.
