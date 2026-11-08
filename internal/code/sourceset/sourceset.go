@@ -75,7 +75,12 @@ func List(root string) ([]string, error) {
 //
 // A file that vanishes between the walk and the stat is dropped rather than
 // reported: the next probe will see the same thing and call it removed.
-func Stat(root string) ([]SourceFile, error) {
+//
+// It is a variable so a test of another package can count the graph's walks
+// of one call.
+var Stat = stat
+
+func stat(root string) ([]SourceFile, error) {
 	listing, err := corpus.Walk(root, nil)
 	if err != nil {
 		return nil, err

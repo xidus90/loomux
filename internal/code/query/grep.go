@@ -77,8 +77,12 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	case opts.NoRefresh:
 		// Report the stale index and scan below.
 	default:
-		if rebuilt, ok := rebuildGrep(root, s, reason, maxFilesize, say); ok {
-			s, trusted = rebuilt, true
+		limit := rebuildLimit(s, opts.MaxFilesize, maxFilesize)
+		if rebuilt, ok := rebuildGrep(root, s, reason, limit, say); ok {
+			s, trusted = rebuilt, limit == maxFilesize
+			if !trusted {
+				say("settings differ from index, scanning with the flag value")
+			}
 		}
 	}
 	rec, hasRecord, rules, listing := s.rec, s.hasRecord, s.rules, s.listing
