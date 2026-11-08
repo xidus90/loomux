@@ -7,13 +7,17 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/xidus90/loomux/internal/brain/privacy"
+	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/blast"
+	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/grep"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/query"
@@ -65,6 +69,10 @@ func graphUsage(w io.Writer) {
 	fmt.Fprintln(w, "  stats     print graph metrics, languages, and relations")
 }
 
+// graphBuildWait is how long graph build waits for another run's rebuild,
+// the default of `check graph-fresh --wait`; a test shortens it.
+var graphBuildWait = 30 * time.Second
+
 // graphBuild writes the graph and reports what it wrote.
 func graphBuild(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("graph build", flag.ContinueOnError)
@@ -88,8 +96,25 @@ func graphBuild(args []string, stdout, stderr io.Writer) int {
 	}
 
 	started := time.Now()
-	g, stats, err := query.BuildWith(project, query.BuildOptions{NoReuse: *noReuse, MaxFilesize: limit},
-		func(s string) { fmt.Fprintf(stderr, "loomux graph build: %s\n", s) })
+	// The lock lives in the cache directory: one that cannot be made would
+	// otherwise read as a lock held for the whole wait.
+	if err := os.MkdirAll(filepath.Dir(ask.LockPath(project)), 0o755); err != nil {
+		fmt.Fprintf(stderr, "loomux graph build: %v\n", err)
+		return 1
+	}
+	// Under the rebuild lock of grep and the serve watcher: two builds that
+	// interleave leave a graph with another build's fingerprint.
+	var g *model.Graph
+	var stats query.Stats
+	_, err = ask.Refresh(project, all.Version(), func() error {
+		var err error
+		g, stats, err = query.BuildWith(project, query.BuildOptions{NoReuse: *noReuse, MaxFilesize: limit},
+			func(s string) { fmt.Fprintf(stderr, "loomux graph build: %s\n", s) })
+		return err
+	}, ask.RefreshOptions{Force: "graph build", Wait: graphBuildWait})
+	if failed := (*ask.RebuildError)(nil); errors.As(err, &failed) {
+		err = failed.Err
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux graph build: %v\n", err)
 		return 1

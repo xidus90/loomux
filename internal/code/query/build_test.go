@@ -314,3 +314,27 @@ func TestBuildReadsAGodotProject(t *testing.T) {
 		}
 	}
 }
+
+// The graph and the ask sidecar are what a question reads: a build that
+// cannot write either fails.
+func TestBuildFailsWhenTheGraphOrTheSidecarCannotBeWritten(t *testing.T) {
+	for name, block := range map[string]string{
+		// A file where store.Write needs a directory.
+		"graph": ".loomux",
+		// A file where the sidecars' cache directory belongs.
+		"sidecar": filepath.Join(".loomux", "state", "graph", "cache"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := repo(t, sample())
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, block)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, block), []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := BuildWith(root, BuildOptions{}, nil); err == nil {
+				t.Fatal("the build succeeded without its graph or sidecar")
+			}
+		})
+	}
+}
