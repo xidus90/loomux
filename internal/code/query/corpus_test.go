@@ -3,15 +3,19 @@ package query
 import (
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/freshness"
+	"github.com/xidus90/loomux/internal/code/spanidx"
 	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/code/trigram"
 	"github.com/xidus90/loomux/internal/lock"
@@ -279,5 +283,89 @@ func TestWriteCorpusWalkErrorIsNote(t *testing.T) {
 	}
 	if len(heard) != 1 || !strings.Contains(heard[0], "search corpus skipped") {
 		t.Fatalf("notices = %q", heard)
+	}
+}
+
+// The spans are bound to the corpus digest, so they are written after the
+// corpus, and a build that writes no corpus leaves none behind.
+func TestBuildWritesSpansLast(t *testing.T) {
+	root := repo(t, sample())
+	_, stats, err := BuildWith(root, BuildOptions{}, ignore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := spanidx.Open(root, stats.Corpus.Digest)
+	if err != nil {
+		t.Fatalf("Open after a build: %v", err)
+	}
+	r.Close()
+
+	old := walkCorpus
+	walkCorpus = func(string, corpus.Matcher) (corpus.Listing, error) {
+		return corpus.Listing{}, errors.New("walk failed")
+	}
+	t.Cleanup(func() { walkCorpus = old })
+	if _, _, err := BuildWith(root, BuildOptions{}, ignore); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(store.CachePath(root, spanidx.Name)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("spans after a build without corpus: %v", err)
+	}
+}
+
+func TestBuildSpansFailureIsNote(t *testing.T) {
+	old := lock.SidecarBudget
+	lock.SidecarBudget = 50 * time.Millisecond
+	t.Cleanup(func() { lock.SidecarBudget = old })
+	root := repo(t, sample())
+	if err := os.MkdirAll(filepath.Join(store.CachePath(root, spanidx.Name)+"."+strconv.Itoa(os.Getpid())+".tmp", "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var heard []string
+	g, _, err := BuildWith(root, BuildOptions{}, func(s string) { heard = append(heard, s) })
+	if err != nil || g == nil {
+		t.Fatalf("BuildWith = %v, %v; want the graph and no error", g, err)
+	}
+	if len(heard) != 1 || !strings.Contains(heard[0], "symbol spans not written") {
+		t.Fatalf("notices = %q, want the unwritten spans", heard)
+	}
+}
+
+// Spans that cannot be removed would outlive a graph whose corpus digest did
+// not change, so the build fails rather than leave them to grep.
+func TestBuildFailsWhenOldSpansStay(t *testing.T) {
+	old := lock.SidecarBudget
+	lock.SidecarBudget = 50 * time.Millisecond
+	t.Cleanup(func() { lock.SidecarBudget = old })
+	root := repo(t, sample())
+	if err := os.MkdirAll(filepath.Join(store.CachePath(root, spanidx.Name), "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g, _, err := BuildWith(root, BuildOptions{}, ignore)
+	if err == nil || g != nil || !strings.Contains(err.Error(), "remove stale symbol spans") {
+		t.Fatalf("BuildWith = %v, %v; want the stale spans named in the error", g, err)
+	}
+}
+
+// A grep opening the old spans holds a handle until the mapping stands; on
+// Windows that handle refuses the removal (Go opens without
+// FILE_SHARE_DELETE), and the build waits instead of failing. The reader lets
+// go at the first refused attempt; where removal of an open file is allowed,
+// no attempt is refused and the handle closes afterwards.
+func TestBuildWaitsForOpenSpans(t *testing.T) {
+	root, _ := builtWith(t, BuildOptions{})
+	f, err := os.Open(store.CachePath(root, spanidx.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var release sync.Once
+	closeReader := func() { release.Do(func() { f.Close() }) }
+	t.Cleanup(closeReader)
+	oldHook := lock.OnRetry
+	lock.OnRetry = closeReader
+	t.Cleanup(func() { lock.OnRetry = oldHook })
+
+	if _, _, err := BuildWith(root, BuildOptions{}, ignore); err != nil {
+		t.Fatalf("BuildWith while the spans are open: %v", err)
 	}
 }
