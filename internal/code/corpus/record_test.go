@@ -160,6 +160,10 @@ func TestWriteReadRoundTrip(t *testing.T) {
 	if len(back.Sources) != len(rec.Sources) {
 		t.Fatalf("sources = %d, want %d", len(back.Sources), len(rec.Sources))
 	}
+	sum := Digest(rec)
+	if want := hex.EncodeToString(sum[:]); back.Digest != want {
+		t.Fatalf("digest = %q, want %q", back.Digest, want)
+	}
 }
 
 func TestReadRefusesWhatItCannotUse(t *testing.T) {
@@ -180,17 +184,25 @@ func TestReadRefusesWhatItCannotUse(t *testing.T) {
 	if _, ok := Read(root); ok {
 		t.Fatal("Read accepted broken JSON")
 	}
-	write(`{"version":99,"settings":"eA==","files":{}}`)
+	write(`{"version":99,"settings":"eA==","files":{},"digest":"ab"}`)
 	if _, ok := Read(root); ok {
 		t.Fatal("Read accepted another version")
 	}
-	write(`{"version":1,"settings":"eA=="}`)
+	write(`{"version":2,"settings":"eA==","files":{},"digest":"ab"}`)
+	if _, ok := Read(root); ok {
+		t.Fatal("Read accepted a record of the previous version")
+	}
+	write(`{"version":3,"settings":"eA==","digest":"ab"}`)
 	if _, ok := Read(root); ok {
 		t.Fatal("Read accepted a record without files")
 	}
-	write(`{"version":1,"files":{}}`)
+	write(`{"version":3,"files":{},"digest":"ab"}`)
 	if _, ok := Read(root); ok {
 		t.Fatal("Read accepted a record without settings")
+	}
+	write(`{"version":3,"settings":"eA==","files":{}}`)
+	if _, ok := Read(root); ok {
+		t.Fatal("Read accepted a record without a digest")
 	}
 }
 

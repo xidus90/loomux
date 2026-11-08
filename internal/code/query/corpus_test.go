@@ -1,6 +1,7 @@
 package query
 
 import (
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ func TestBuildWritesIndex(t *testing.T) {
 }
 
 func TestBuildIndexDigestMatchesRecord(t *testing.T) {
-	root, _ := builtWith(t, BuildOptions{})
+	root, stats := builtWith(t, BuildOptions{})
 	ix, err := trigram.Read(root)
 	if err != nil {
 		t.Fatal(err)
@@ -50,6 +51,13 @@ func TestBuildIndexDigestMatchesRecord(t *testing.T) {
 	}
 	if ix.Digest() != corpus.Digest(rec) {
 		t.Fatal("index digest and record digest disagree")
+	}
+	d := ix.Digest()
+	if stats.Corpus.Digest != d {
+		t.Fatalf("stats digest = %x, index digest = %x", stats.Corpus.Digest, d)
+	}
+	if want := hex.EncodeToString(d[:]); rec.Digest != want {
+		t.Fatalf("record digest = %q, want %q", rec.Digest, want)
 	}
 	if ix.Extractor() == "" {
 		t.Fatal("index carries no extractor")

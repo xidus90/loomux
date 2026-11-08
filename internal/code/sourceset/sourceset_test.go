@@ -2,11 +2,15 @@ package sourceset_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/sourceset"
+	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/testlock"
 )
 
@@ -267,5 +271,84 @@ func TestSkipDirMatchesTheWalk(t *testing.T) {
 		if sourceset.SkipDir(name) {
 			t.Errorf("SkipDir(%q) = true, want false", name)
 		}
+	}
+}
+
+// TestFromListingEqualsStat pins that the filter is the one Stat applies:
+// pruned directories, the extension, the size limit and a pruned segment below
+// the root all fall out of the same listing.
+func TestFromListingEqualsStat(t *testing.T) {
+	root := tree(t, map[string]string{
+		"a.go":                      "package a\n",
+		"sub/b.py":                  "x = 1\n",
+		"node_modules/dep/dep.go":   "package dep\n",
+		"vendor/lib/lib.go":         "package lib\n",
+		"a.x.go.txt":                "not source\n",
+		"big.go":                    "package big\n" + strings.Repeat("// x\n", 300_000),
+		"sub/vendor/inner/inner.go": "package inner\n",
+	})
+
+	listing, err := corpus.Walk(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := sourceset.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := sourceset.FromListing(listing); !reflect.DeepEqual(got, want) {
+		t.Fatalf("FromListing = %v, Stat = %v", got, want)
+	}
+	if len(want) != 2 {
+		t.Fatalf("Stat = %v, want only a.go and sub/b.py", want)
+	}
+}
+
+// TestFromListingOfAMatcherWalkEqualsStat pins that a walk with the search
+// index's ignore rules still yields the graph's set: the graph does not honour
+// .gitignore, so an ignored source file stays in.
+func TestFromListingOfAMatcherWalkEqualsStat(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(home, "gitconfig"))
+	root := tree(t, map[string]string{
+		".gitignore":    "gen/\nskip.go\n",
+		"a.go":          "package a\n",
+		"skip.go":       "package skip\n",
+		"gen/out.go":    "package gen\n",
+		"gen/other.txt": "text\n",
+	})
+	cmd := exec.Command("git", "-C", root, "init", "-q")
+	cmd.Env = gitenv.Environ()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	rules, _, err := corpus.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := corpus.NewRecord(rules, nil, 0)
+
+	listing, err := corpus.Walk(root, corpus.RulesFromRecord(rec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := sourceset.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := sourceset.FromListing(listing)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("FromListing = %v, Stat = %v", got, want)
+	}
+	var rels []string
+	for _, f := range got {
+		rels = append(rels, f.Rel)
+	}
+	if !reflect.DeepEqual(rels, []string{"a.go", "gen/out.go", "skip.go"}) {
+		t.Fatalf("got %v, want the ignored .go files kept", rels)
 	}
 }

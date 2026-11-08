@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -415,5 +416,30 @@ func TestProbeTrustsAFileWhoseSizeAndModTimeStillMatch(t *testing.T) {
 	}
 	if d == nil || !d.Clean() {
 		t.Fatalf("got %+v, want clean: a matching stat is trusted without a read", d)
+	}
+}
+
+// TestProbeFilesEqualsProbe pins that Probe is the stat plus ProbeFiles: a
+// caller that walked on its own gets the same answer.
+func TestProbeFilesEqualsProbe(t *testing.T) {
+	root := build(t, map[string]string{"a.go": "package a\n", "b.go": "package b\n"})
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n\nfunc F() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files, err := sourceset.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := freshness.ProbeFiles(root, "go/1", files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := freshness.Probe(root, "go/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want == nil || len(want.Changed) != 1 || !reflect.DeepEqual(got, want) {
+		t.Fatalf("ProbeFiles = %+v, Probe = %+v, want the same drift with a.go changed", got, want)
 	}
 }
