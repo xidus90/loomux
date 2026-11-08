@@ -52,6 +52,11 @@ export function describeIndex(grepResult) {
     parts.push(`index used (${candidates} of ${scope} files in scope)`)
   } else if (index === 'scan') {
     parts.push(`scan (${scope} files in scope, index current but the pattern has no literal)`)
+  } else if (index === 'overlay') {
+    parts.push(`index plus changed files read from the tree (${candidates} of ${scope} files in scope, overlay)`)
+  } else if (index === 'trusted') {
+    const built = typeof grepResult?.index_built === 'string' && grepResult.index_built !== '' ? grepResult.index_built : 'unknown'
+    parts.push(`trusted index, tree not checked (${candidates} of ${scope} files in scope, index built ${built})`)
   } else if (index === 'stale') {
     parts.push(`scan (${index} index, ${scope} files in scope)`)
   } else {

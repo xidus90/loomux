@@ -3,7 +3,9 @@
  *
  * The list is built here, never by a shell: an `include` with spaces stays one
  * argument. `--channel cloud` is appended unconditionally and no input field
- * reaches it, so a caller cannot ask for the local channel.
+ * reaches it, so a caller cannot ask for the local channel. `--trust-index` is
+ * the same kind of flag: only the plugin's config option adds it, and no tool
+ * input reaches it.
  */
 
 export const DEFAULT_MAX_RESULTS = 300
@@ -47,7 +49,7 @@ export function validateInclude(include) {
  * @param {Record<string, unknown>} input
  * @returns {string[]}
  */
-export function buildArgs(input) {
+export function buildArgs(input, { trustIndex = false } = {}) {
   const args = ['graph', 'grep']
   if (!input || typeof input !== 'object') {
     throw new Error('grep: arguments must be an object')
@@ -78,6 +80,7 @@ export function buildArgs(input) {
     }
     args.push('--in', input.path)
   }
+  if (trustIndex === true) args.push('--trust-index')
   args.push('--max-hits', String(clampMaxResults(input.max_results)))
   return args
 }
