@@ -357,3 +357,31 @@ func TestGitAbsResolvesRecordPaths(t *testing.T) {
 		t.Fatalf("relative = %q, want %q", got, want)
 	}
 }
+
+func TestMovedBeforeWalk(t *testing.T) {
+	settings := Settings{MaxFilesize: DefaultMaxFilesize}
+	for name, c := range map[string]struct {
+		move func(t *testing.T, rec Record, root string)
+		s    Settings
+		want bool
+	}{
+		"clean":       {func(*testing.T, Record, string) {}, settings, false},
+		"index alone": {func(t *testing.T, rec Record, _ string) { bump(t, GitAbs(rec, rec.GitPaths.Index)) }, settings, false},
+		"settings":    {func(*testing.T, Record, string) {}, Settings{MaxFilesize: 4096}, true},
+		"config":      {func(t *testing.T, rec Record, _ string) { bump(t, GitAbs(rec, rec.GitPaths.Config)) }, settings, true},
+		"source": {func(t *testing.T, _ Record, root string) {
+			if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("*.log\nextra.md\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}, settings, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := newRepo(t, map[string]string{".gitignore": "*.log\n", "keep.go": "package x\n"}, []string{"keep.go"}, nil)
+			rec := written(t, root, DefaultMaxFilesize)
+			c.move(t, rec, root)
+			if got := MovedBeforeWalk(rec, c.s); got != c.want {
+				t.Fatalf("MovedBeforeWalk = %v, want %v", got, c.want)
+			}
+		})
+	}
+}

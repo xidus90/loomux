@@ -78,7 +78,7 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 	}
 
 	// One walk answers both the corpus and the graph; only drift pays for git.
-	s, err := probeGrep(root, maxFilesize)
+	s, err := probeGrep(root, maxFilesize, true)
 	if err != nil {
 		return grep.Result{}, notes, err
 	}

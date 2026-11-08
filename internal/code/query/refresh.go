@@ -49,7 +49,7 @@ func RefreshIfDrifted(root string, notice func(string)) (rebuilt bool, err error
 	if rec, ok := readRecord(root); ok {
 		limit = rec.MaxFilesize
 	}
-	s, err := probeGrep(root, limit)
+	s, err := probeGrep(root, limit, false)
 	if err != nil {
 		return false, err
 	}

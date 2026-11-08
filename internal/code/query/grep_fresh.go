@@ -3,7 +3,6 @@ package query
 import (
 	"encoding/hex"
 	"fmt"
-	"os"
 	"slices"
 
 	"github.com/xidus90/loomux/internal/code/ask"
@@ -22,19 +21,19 @@ import (
 // instead of reading the moved files beside the old index.
 const overlayLimit = 200
 
-// buildWith, trackedSet and writeRecord are seams: the tests count the
-// rebuilds and the git calls grep makes, and a record write fails only on a
-// broken disk.
+// buildWith, trackedSet and restamp are seams: the tests count the rebuilds
+// and the git calls grep makes, and a record write fails only on a broken
+// disk.
 var (
-	buildWith   = BuildWith
-	trackedSet  = corpus.TrackedSet
-	writeRecord = corpus.Write
+	buildWith  = BuildWith
+	trackedSet = corpus.TrackedSet
+	restamp    = corpus.Restamp
 )
 
 // overlayFits reports whether the drift is small file content only, so the
 // old index still answers for every file that did not move. A moved git index
-// fits when it still tracks the same files; that check is the only git call,
-// and it runs last.
+// fits when it still tracks the same files. That check is the only git call
+// and is consulted last; the probe may have listed the files already.
 func overlayFits(s grepState, root string) bool {
 	d := s.corpusDrift
 	if d == nil || d.Settings || d.Config || len(d.Sources) > 0 || s.graphDrift == nil {
@@ -48,8 +47,12 @@ func overlayFits(s grepState, root string) bool {
 		return false
 	}
 	if d.Index {
-		tracked, err := trackedSet(root)
-		return err == nil && slices.Equal(tracked, s.rec.Tracked)
+		t := s.tracked
+		if t == nil {
+			paths, err := trackedSet(root)
+			t = &trackedFiles{paths, err}
+		}
+		return t.err == nil && slices.Equal(t.paths, s.rec.Tracked)
 	}
 	return true
 }
@@ -57,47 +60,29 @@ func overlayFits(s grepState, root string) bool {
 // takeOverlay reports whether grep answers from the overlay. When the git
 // index moved but tracks the same files, the record takes its new stamp, so
 // the next call skips the git call; a failed write costs only that. A record
-// that changed since the probe belongs to a concurrent rebuild and is left
-// alone: the old file list with the new stamp would no longer match its index.
+// file that changed since the probe belongs to a concurrent rebuild and is
+// left alone: the old file list with the new stamp would no longer match its
+// index.
 //
 // ponytail: compare-then-write leaves a window of one file write; a rebuild
 // landing in it is undone until the next drift. Take the ask rebuild lock
 // here if that ever shows.
 func takeOverlay(s grepState, root string, say func(string)) bool {
-	moved := s.corpusDrift != nil && s.corpusDrift.Index
-	var stamp corpus.Stamp
-	if moved {
-		// Stat before git lists the index: a change in between leaves the
-		// record behind the index, never ahead of it.
-		stamp = gitIndexStamp(s.rec)
-	}
 	if !overlayFits(s, root) {
 		return false
 	}
-	if moved && unchanged(root, s.rec) {
-		rec := s.rec
-		rec.Stamp = stamp
-		if err := writeRecord(root, rec); err != nil {
+	if s.corpusDrift.Index {
+		if err := restamp(root, s.recStamp, s.rec, s.indexStamp); err != nil {
 			say(fmt.Sprintf("search corpus record not restamped: %v", err))
 		}
 	}
 	return true
 }
 
-// unchanged reports whether the record on disk is still the one the probe read.
-func unchanged(root string, rec corpus.Record) bool {
-	now, ok := readRecord(root)
-	return ok && now.Digest == rec.Digest && now.Stamp == rec.Stamp
-}
-
 // gitIndexStamp is the stamp of the git index the record names, the empty
 // stamp when it is gone, which is how the probe reads a missing index.
 func gitIndexStamp(rec corpus.Record) corpus.Stamp {
-	info, err := os.Stat(corpus.GitAbs(rec, rec.GitPaths.Index))
-	if err != nil {
-		return corpus.Stamp{}
-	}
-	return corpus.Stamp{Size: info.Size(), MTime: info.ModTime().UnixNano()}
+	return corpus.FileStamp(corpus.GitAbs(rec, rec.GitPaths.Index))
 }
 
 // movedFiles are the files the old index and the old symbols no longer
@@ -120,16 +105,45 @@ type grepState struct {
 	listing     corpus.Listing
 	corpusDrift *corpus.Drift
 	graphDrift  *freshness.Drift
+	// recStamp is the record file's stamp, taken before the record was read.
+	recStamp corpus.Stamp
+	// indexStamp is the git index's stamp, taken before git listed it.
+	indexStamp corpus.Stamp
+	// tracked is what git listed beside the walk; nil when the probe did not.
+	tracked *trackedFiles
+}
+
+// trackedFiles is the answer of one trackedSet call.
+type trackedFiles struct {
+	paths []string
+	err   error
 }
 
 // probeGrep reads the record and walks the tree once; the graph's file set is
-// a filter over the same listing.
-func probeGrep(root string, maxFilesize int64) (grepState, error) {
-	var s grepState
-	var err error
+// a filter over the same listing. With listTracked, a git index that moved
+// since the record is listed beside the walk, for the overlay to compare.
+func probeGrep(root string, maxFilesize int64, listTracked bool) (s grepState, err error) {
+	s.recStamp = corpus.FileStamp(corpus.RecordPath(root))
 	s.rec, s.hasRecord = readRecord(root)
 	if s.hasRecord {
 		s.rules = corpus.RulesFromRecord(s.rec)
+		// Stat before git lists the index: a change in between leaves the
+		// record behind the index, never ahead of it.
+		s.indexStamp = gitIndexStamp(s.rec)
+		// Listing pays only for an overlay; drift that rules one out is known
+		// before the walk. Too many moved files are not, and still list.
+		if listTracked && s.indexStamp != s.rec.Stamp && !corpus.MovedBeforeWalk(s.rec, corpus.Settings{MaxFilesize: maxFilesize}) {
+			list, listed := trackedSet, make(chan trackedFiles, 1)
+			go func() {
+				paths, err := list(root)
+				listed <- trackedFiles{paths, err}
+			}()
+			// The call does not outlive the probe, whichever way it returns.
+			defer func() {
+				t := <-listed
+				s.tracked = &t
+			}()
+		}
 	} else if s.rules, _, err = loadIgnore(root); err != nil {
 		return s, err
 	}
