@@ -4,9 +4,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/corpus"
+	"github.com/xidus90/loomux/internal/code/sourceset"
 )
 
 // overrideWalk replaces the corpus walk for one test and restores it after.
@@ -74,33 +76,58 @@ func TestGrepReportsAWalkFailureWithoutARecord(t *testing.T) {
 	}
 }
 
-func TestGrepReportsAWalkFailureDuringRebuild(t *testing.T) {
-	root := grepFixture(t)
-	real := corpus.Walk
-	overrideWalk(t, walkFailsAfter(real, 1))
-	write := []byte("changed\n")
-	if err := os.WriteFile(filepath.Join(root, "README.md"), write, 0o644); err != nil {
-		t.Fatal(err)
+// The probe walks once; the walk that fails is the rebuild's. Its corpus is
+// skipped, so the answer is a scan of the probe's listing, and the note says
+// why.
+func TestGrepWalkFailureIsReported(t *testing.T) {
+	cases := map[string]func(t *testing.T, root string){
+		"drifted record": func(t *testing.T, root string) {
+			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("zzzFreshNeedle\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"no record": func(t *testing.T, root string) {
+			overrideRead(t, func(string) (corpus.Record, bool) { return corpus.Record{}, false })
+		},
 	}
-	if _, _, err := Grep(root, "zzzUniqueWord", GrepOptions{}); err == nil {
-		t.Fatal("a failing rebuild must surface the walk error")
+	for name, prepare := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := grepFixture(t)
+			prepare(t, root)
+			overrideWalk(t, walkFailsAfter(corpus.Walk, 1))
+			res, notes, err := Grep(root, "zzzFreshNeedle|zzzUniqueWord", GrepOptions{})
+			if err != nil {
+				t.Fatalf("a corpus the rebuild skipped must not fail the answer: %v", err)
+			}
+			if !strings.Contains(strings.Join(notes, "\n"), "search corpus skipped: walk broken") {
+				t.Fatalf("notes = %q, want the walk failure", notes)
+			}
+			if res.Index != "stale" || res.TotalHits == 0 {
+				t.Fatalf("index = %q hits = %d, want a stale scan that answers", res.Index, res.TotalHits)
+			}
+		})
 	}
 }
 
-func TestGrepRebuildWithoutRecordReportsAWalkFailure(t *testing.T) {
+func TestGrepWalksOncePerCall(t *testing.T) {
 	root := grepFixture(t)
-	calls := 0
-	real := corpus.Read
-	overrideRead(t, func(r string) (corpus.Record, bool) {
-		calls++
-		if calls == 1 {
-			return corpus.Record{}, false
-		}
-		return real(r)
+	walks := 0
+	overrideWalk(t, func(r string, m corpus.Matcher) (corpus.Listing, error) {
+		walks++
+		return corpus.Walk(r, m)
 	})
-	overrideWalk(t, walkFailsAfter(corpus.Walk, 1))
-	if _, _, err := Grep(root, "zzzUniqueWord", GrepOptions{}); err == nil {
-		t.Fatal("a failing rebuild must surface the walk error")
+	old := statSources
+	statSources = func(r string) ([]sourceset.SourceFile, error) {
+		walks++
+		return old(r)
+	}
+	t.Cleanup(func() { statSources = old })
+	res, _, err := Grep(root, "zzzUniqueWord", GrepOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Index != "used" || walks != 1 {
+		t.Fatalf("index = %q walks = %d, want used and one walk", res.Index, walks)
 	}
 }
 

@@ -10,6 +10,10 @@ import (
 	"github.com/xidus90/loomux/internal/code/store"
 )
 
+// readGraph is a seam: a test fails it to show which answers do without the
+// graph.
+var readGraph = store.Read
+
 // loadGraph verifies the graph exists, refreshes it if needed and allowed, and reads it.
 func loadGraph(root string, noRefresh bool) (*model.Graph, []string, error) {
 	if _, err := os.Stat(store.WiringPath(root)); errors.Is(err, os.ErrNotExist) {
@@ -21,7 +25,7 @@ func loadGraph(root string, noRefresh bool) (*model.Graph, []string, error) {
 		ask.EnsureFresh(root, all.Version(),
 			func() error { _, _, err := Build(root, say); return err }, say)
 	}
-	g, err := store.Read(root)
+	g, err := readGraph(root)
 	if err != nil {
 		return nil, notes, err
 	}

@@ -83,6 +83,11 @@ type BuildOptions struct {
 	// and 0 means unlimited. The caller resolves it from flag and
 	// configuration so that the index, the record and the next probe agree.
 	MaxFilesize *int64
+
+	// Listing, when set, receives the search corpus listing the build walked,
+	// so a caller answering right after the build need not walk again. It is
+	// left as it was when the corpus selection failed before the walk ended.
+	Listing *corpus.Listing
 }
 
 // Build is BuildWith and the defaults: the extraction of every unchanged file
@@ -139,7 +144,7 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
 	if err != nil {
 		return nil, Stats{}, err
 	}
-	stats.Corpus = writeCorpus(root, maxFilesize, stats.bodies, notice)
+	stats.Corpus = writeCorpus(root, maxFilesize, stats.bodies, opts.Listing, notice)
 	if stats.Corpus.Indexed {
 		if err := spanidx.Write(root, stats.Corpus.Digest, g); err != nil {
 			notice(fmt.Sprintf("symbol spans not written: %v", err))
@@ -157,7 +162,7 @@ func BuildWith(root string, opts BuildOptions, notice func(string)) (*model.Grap
 // never its read: an entry is taken only when the hash of the bytes just read
 // and the language's Version both match it.
 func Extract(root string, opts ExtractOptions) (*model.Graph, Stats, error) {
-	files, err := sourceset.Stat(root)
+	files, err := statSources(root)
 	if err != nil {
 		return nil, Stats{}, err
 	}

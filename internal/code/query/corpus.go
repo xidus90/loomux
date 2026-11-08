@@ -8,6 +8,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/extract/all"
+	"github.com/xidus90/loomux/internal/code/sourceset"
 	"github.com/xidus90/loomux/internal/code/trigram"
 )
 
@@ -34,7 +35,9 @@ type CorpusStats struct {
 // Nothing in here fails the build. The graph and its sidecars are what a
 // question needs; a corpus that cannot be selected or written costs the next
 // grep its index and says why.
-func writeCorpus(root string, maxFilesize int64, bodies map[string][]byte, notice func(string)) CorpusStats {
+//
+// walked, when not nil, receives the listing.
+func writeCorpus(root string, maxFilesize int64, bodies map[string][]byte, walked *corpus.Listing, notice func(string)) CorpusStats {
 	var st CorpusStats
 	rules, _, err := loadIgnore(root)
 	if err != nil {
@@ -46,6 +49,9 @@ func writeCorpus(root string, maxFilesize int64, bodies map[string][]byte, notic
 	if err != nil {
 		notice(fmt.Sprintf("search corpus skipped: %v", err))
 		return st
+	}
+	if walked != nil {
+		*walked = listing
 	}
 	files, ignored, skippedSize := corpus.SearchCorpus(listing, maxFilesize)
 	st.Ignored, st.SkippedSize = ignored, skippedSize
@@ -114,6 +120,10 @@ var (
 	loadIgnore = corpus.Load
 	walkCorpus = corpus.Walk
 )
+
+// statSources is the graph's own walk, a seam so a test can count the walks of
+// one call.
+var statSources = sourceset.Stat
 
 // readFile is the read the extraction and the corpus selection both go
 // through, so a test can count that a file shared by the two is read once.

@@ -8,13 +8,12 @@ import (
 	"strings"
 
 	"github.com/xidus90/loomux/internal/brain/privacy"
-	"github.com/xidus90/loomux/internal/code/ask"
-	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/corpus"
 	"github.com/xidus90/loomux/internal/code/extract/all"
 	"github.com/xidus90/loomux/internal/code/grep"
 	"github.com/xidus90/loomux/internal/code/lexicon"
 	"github.com/xidus90/loomux/internal/code/model"
+	"github.com/xidus90/loomux/internal/code/store"
 	"github.com/xidus90/loomux/internal/code/trigram"
 )
 
@@ -41,96 +40,48 @@ type GrepOptions struct {
 	Glob string
 }
 
+// readRecord is a seam: a rebuild can leave no record behind only when a
+// concurrent run rewrites the cache, which no test tree produces. The tests of
+// this package stand in for that day.
+var readRecord = corpus.Read
+
 // Grep answers a pattern over the search corpus, from the trigram index when
 // it is current and from a scan when it is not.
 //
 // Both paths search the same file list, the one corpus.SearchCorpus selects:
 // a graph file and a README match the same pattern, and the index can only be
 // trusted because a scan of the same list is its oracle.
-// readRecord is a seam: a rebuild can leave no record behind only when a
-// concurrent run rewrites the cache, which no test tree produces. The tests of
-// this package stand in for that day.
-var readRecord = corpus.Read
-
 func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error) {
-	g, notes, err := loadGraph(root, opts.NoRefresh)
-	if err != nil {
-		return grep.Result{}, notes, err
+	if _, err := os.Stat(store.WiringPath(root)); errors.Is(err, os.ErrNotExist) {
+		return grep.Result{}, nil, ErrNoGraph
 	}
 	maxFilesize, err := corpus.ResolveMaxFilesize(opts.MaxFilesize, nil)
 	if err != nil {
-		return grep.Result{}, notes, err
+		return grep.Result{}, nil, err
 	}
+	var notes []string
 	say := func(s string) { notes = append(notes, s) }
 
-	// The record and its matcher answer the common case without git: walk
-	// once, compare, keep the listing. Only drift pays for Load.
-	rec, hasRecord := readRecord(root)
-	var rules *corpus.Rules
-	var listing corpus.Listing
-	trusted := false
-	rebuild := func(reason string) bool {
-		_, rerr := ask.Refresh(root, all.Version(), func() error {
-			_, _, buildErr := BuildWith(root, BuildOptions{MaxFilesize: &maxFilesize}, nil)
-			return buildErr
-		}, ask.RefreshOptions{Force: reason, Notice: say})
-		if rerr != nil {
-			say(fmt.Sprintf("search corpus not rebuilt, answering from the disk: %v", rerr))
-			return false
-		}
-		rec, hasRecord = readRecord(root)
-		if !hasRecord {
-			return false
-		}
-		rules = corpus.RulesFromRecord(rec)
-		walked, werr := walkCorpus(root, matcherFor(rules))
-		if werr != nil {
-			err = werr
-			return false
-		}
-		listing = walked
-		trusted = true
-		return true
+	// One walk answers both the corpus and the graph; only drift pays for git.
+	s, err := probeGrep(root, maxFilesize)
+	if err != nil {
+		return grep.Result{}, notes, err
 	}
-	if hasRecord {
-		rules = corpus.RulesFromRecord(rec)
-		listing, err = walkCorpus(root, matcherFor(rules))
-		if err != nil {
-			return grep.Result{}, notes, err
-		}
-		drift := corpus.Compare(rec, listing, rules, corpus.Settings{MaxFilesize: maxFilesize})
-		onlySettings := drift.Settings && !drift.Index && !drift.Config &&
-			len(drift.Changed) == 0 && len(drift.Added) == 0 &&
-			len(drift.Removed) == 0 && len(drift.Sources) == 0
-		switch {
-		case drift.Clean():
-			trusted = true
-		case onlySettings && opts.MaxFilesize != nil:
-			say("settings differ from index, scanning with the flag value")
-		case opts.NoRefresh:
-			// Report the stale index and scan below.
-		default:
-			rebuild(fmt.Sprintf("search corpus moved (%d entries), rebuilding", drift.Count()))
-			if err != nil {
-				return grep.Result{}, notes, err
-			}
-		}
-	} else {
-		rules, _, err = loadIgnore(root)
-		if err != nil {
-			return grep.Result{}, notes, err
-		}
-		listing, err = walkCorpus(root, matcherFor(rules))
-		if err != nil {
-			return grep.Result{}, notes, err
-		}
-		if !opts.NoRefresh {
-			rebuild("no search corpus record, rebuilding")
-			if err != nil {
-				return grep.Result{}, notes, err
-			}
+	// Trust is the corpus's alone: the graph lends symbols, not files.
+	trusted := s.hasRecord && s.corpusDrift.Clean()
+	reason := needsRebuild(s, root)
+	switch {
+	case reason == "":
+	case s.hasRecord && opts.MaxFilesize != nil && onlySettings(*s.corpusDrift) && graphReason(s, root) == "":
+		say("settings differ from index, scanning with the flag value")
+	case opts.NoRefresh:
+		// Report the stale index and scan below.
+	default:
+		if rebuilt, ok := rebuildGrep(root, s, reason, maxFilesize, say); ok {
+			s, trusted = rebuilt, true
 		}
 	}
+	rec, hasRecord, rules, listing := s.rec, s.hasRecord, s.rules, s.listing
 
 	files, ignored, skippedSize := corpus.SearchCorpus(listing, maxFilesize)
 	if trusted && hasRecord {
@@ -211,8 +162,9 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		// The candidates are copies; the mapping must not outlive the call, or
 		// the next build could not replace the file on Windows.
 		defer ix.Close()
-		if !trusted || !hasRecord || ix.Extractor() != all.Version() ||
-			string(ix.Settings()) != string(settings) || ix.Digest() != corpus.Digest(rec) {
+		digest, digestOK := recordDigest(rec)
+		if !trusted || !digestOK || ix.Extractor() != all.Version() ||
+			string(ix.Settings()) != string(settings) || ix.Digest() != digest {
 			index = "stale"
 			break
 		}
@@ -241,8 +193,6 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		}
 	}
 
-	x := blast.New(g)
-	spans := model.FileSpans(g)
 	reader := func(p string) ([]byte, error) {
 		if keep != nil && !keep(p) {
 			return nil, os.ErrPermission
@@ -250,16 +200,20 @@ func Grep(root, pattern string, opts GrepOptions) (grep.Result, []string, error)
 		return os.ReadFile(filepath.Join(root, filepath.FromSlash(p)))
 	}
 
-	found, err := grep.Search(g, x, spans, pattern, grep.Options{
-		IgnoreCase: opts.IgnoreCase,
-		Fixed:      opts.Fixed,
-		In:         opts.In,
-		MaxHits:    opts.MaxHits,
-		Files:      paths,
-		All:        scopePaths,
-		Candidates: candidates,
-		Index:      index,
-	}, reader)
+	found, err := withSymbols(root, rec, func(spans func(string) []model.SymbolSpan, inDegree func(model.NodeID) int) (grep.Result, error) {
+		return grep.Search(nil, nil, nil, pattern, grep.Options{
+			IgnoreCase: opts.IgnoreCase,
+			Fixed:      opts.Fixed,
+			In:         opts.In,
+			MaxHits:    opts.MaxHits,
+			Files:      paths,
+			All:        scopePaths,
+			Candidates: candidates,
+			Index:      index,
+			Spans:      spans,
+			InDegree:   inDegree,
+		}, reader)
+	})
 	if err != nil {
 		return found, notes, err
 	}
