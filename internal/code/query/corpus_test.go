@@ -263,7 +263,7 @@ func TestWriteCorpusLoadErrorIsNote(t *testing.T) {
 	}
 	t.Cleanup(func() { loadIgnore = old })
 	var heard []string
-	if st := writeCorpus(t.TempDir(), corpus.DefaultMaxFilesize, nil, func(s string) { heard = append(heard, s) }); st.Indexed {
+	if st := writeCorpus(t.TempDir(), corpus.DefaultMaxFilesize, nil, nil, func(s string) { heard = append(heard, s) }); st.Indexed {
 		t.Fatal("a corpus that could not be selected must not be indexed")
 	}
 	if len(heard) != 1 || !strings.Contains(heard[0], "search corpus skipped") {
@@ -278,7 +278,7 @@ func TestWriteCorpusWalkErrorIsNote(t *testing.T) {
 	}
 	t.Cleanup(func() { walkCorpus = old })
 	var heard []string
-	if st := writeCorpus(t.TempDir(), corpus.DefaultMaxFilesize, nil, func(s string) { heard = append(heard, s) }); st.Indexed {
+	if st := writeCorpus(t.TempDir(), corpus.DefaultMaxFilesize, nil, nil, func(s string) { heard = append(heard, s) }); st.Indexed {
 		t.Fatal("a corpus that could not be walked must not be indexed")
 	}
 	if len(heard) != 1 || !strings.Contains(heard[0], "search corpus skipped") {

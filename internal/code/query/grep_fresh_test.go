@@ -2,7 +2,10 @@ package query
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +13,11 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/ask"
 	"github.com/xidus90/loomux/internal/code/corpus"
+	"github.com/xidus90/loomux/internal/code/freshness"
+	"github.com/xidus90/loomux/internal/code/grep"
+	"github.com/xidus90/loomux/internal/code/model"
+	"github.com/xidus90/loomux/internal/code/spanidx"
+	"github.com/xidus90/loomux/internal/code/store"
 )
 
 // recordSettings reads the settings the written record carries.
@@ -251,5 +259,176 @@ func TestNoRecordLockedRebuildScans(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(notes, "\n"), "another run") {
 		t.Fatalf("notes = %q, want the lock note", notes)
+	}
+}
+
+// overrideGraph replaces the graph read for one test and restores it after.
+func overrideGraph(t *testing.T, read func(string) (*model.Graph, error)) {
+	t.Helper()
+	old := readGraph
+	readGraph = read
+	t.Cleanup(func() { readGraph = old })
+}
+
+func failGraph(string) (*model.Graph, error) { return nil, errors.New("graph broken") }
+
+func spansPath(root string) string { return store.CachePath(root, spanidx.Name) }
+
+// symbolGroups is the JSON of the groups of an answer, the part the symbols
+// decide.
+func symbolGroups(t *testing.T, res grep.Result) string {
+	t.Helper()
+	raw, err := json.Marshal(res.Groups)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+func TestGrepUsesTheSpansSidecar(t *testing.T) {
+	root := grepFixture(t)
+	overrideGraph(t, failGraph)
+	res, _, err := Grep(root, "Run", GrepOptions{})
+	if err != nil {
+		t.Fatalf("the sidecar must answer without the graph: %v", err)
+	}
+	if !strings.Contains(symbolGroups(t, res), `"name":"Run"`) {
+		t.Fatalf("groups = %s, want the symbol Run", symbolGroups(t, res))
+	}
+}
+
+func TestGrepFallsBackToTheGraphWithoutSidecar(t *testing.T) {
+	root := grepFixture(t)
+	with, _, err := Grep(root, "Run", GrepOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(spansPath(root)); err != nil {
+		t.Fatal(err)
+	}
+	without, _, err := Grep(root, "Run", GrepOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, b := symbolGroups(t, with), symbolGroups(t, without); a != b {
+		t.Fatalf("groups differ:\nwith    %s\nwithout %s", a, b)
+	}
+	if _, err := os.Stat(spansPath(root)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("a missing sidecar must not rebuild: %v", err)
+	}
+}
+
+func TestGrepReportsAGraphReadFailureWithoutSidecar(t *testing.T) {
+	root := grepFixture(t)
+	if err := os.Remove(spansPath(root)); err != nil {
+		t.Fatal(err)
+	}
+	overrideGraph(t, failGraph)
+	if _, _, err := Grep(root, "Run", GrepOptions{}); err == nil {
+		t.Fatal("the graph read error must surface")
+	}
+}
+
+// A digest that is not 32 hex bytes binds neither the index nor the sidecar.
+func TestGrepTreatsAnUndecodableDigestAsStale(t *testing.T) {
+	root := grepFixture(t)
+	want, _, err := Grep(root, "Run", GrepOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	overrideRead(t, func(r string) (corpus.Record, bool) {
+		rec, ok := corpus.Read(r)
+		rec.Digest = "zz"
+		return rec, ok
+	})
+	res, _, err := Grep(root, "Run", GrepOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Index != "stale" {
+		t.Fatalf("index = %q, want stale", res.Index)
+	}
+	if a, b := symbolGroups(t, want), symbolGroups(t, res); a != b {
+		t.Fatalf("groups differ:\nsidecar %s\ngraph   %s", a, b)
+	}
+}
+
+// Windows refuses to truncate a file while a view of it is mapped, even where
+// it lets a mapped file be removed or replaced.
+func TestGrepClosesTheIndex(t *testing.T) {
+	root := grepFixture(t)
+	if _, _, err := Grep(root, "Run", GrepOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{indexPath(root), spansPath(root)} {
+		if err := os.Truncate(path, 0); err != nil {
+			t.Fatalf("still mapped after the answer: %v", err)
+		}
+	}
+}
+
+func TestGrepRebuildsAGraphWithoutFingerprint(t *testing.T) {
+	root := grepFixture(t)
+	if err := os.Remove(freshness.Path(root)); err != nil {
+		t.Fatal(err)
+	}
+	res, notes, err := Grep(root, "zzzUniqueWord", GrepOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(notes, "\n"), "no freshness record, building the graph") {
+		t.Fatalf("notes = %q, want the graph rebuild", notes)
+	}
+	if _, err := os.Stat(freshness.Path(root)); err != nil {
+		t.Fatalf("the rebuild wrote no fingerprint: %v", err)
+	}
+	if res.Index != "used" {
+		t.Fatalf("index = %q, want used after the rebuild", res.Index)
+	}
+}
+
+func TestNeedsRebuild(t *testing.T) {
+	root := grepFixture(t)
+	clean := grepState{hasRecord: true, corpusDrift: &corpus.Drift{}, graphDrift: &freshness.Drift{}}
+	cases := []struct {
+		name   string
+		root   string
+		modify func(s *grepState)
+		want   string
+	}{
+		{"clean", root, func(*grepState) {}, ""},
+		{"no fingerprint", root, func(s *grepState) { s.graphDrift = nil }, "no freshness record, building the graph"},
+		{"graph drift", root, func(s *grepState) { s.graphDrift = &freshness.Drift{Changed: []string{"a.go"}} },
+			"1 files moved, rebuilding the graph"},
+		{"no ask index", t.TempDir(), func(*grepState) {}, "no ask index, rebuilding the graph"},
+		{"no record", root, func(s *grepState) { s.hasRecord, s.corpusDrift = false, nil }, "no search corpus record, rebuilding"},
+		{"corpus drift", root, func(s *grepState) { s.corpusDrift = &corpus.Drift{Added: []string{"a", "b"}} },
+			"search corpus moved (2 entries), rebuilding"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := clean
+			c.modify(&s)
+			if got := needsRebuild(s, c.root); got != c.want {
+				t.Fatalf("reason = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// A flag that only moves the settings does not spare a drifted graph its
+// rebuild: the answer would otherwise carry the old graph's symbols.
+func TestGrepFlagSettingsStillRebuildADriftedGraph(t *testing.T) {
+	root := grepFixture(t)
+	if err := os.Remove(freshness.Path(root)); err != nil {
+		t.Fatal(err)
+	}
+	limit := int64(16)
+	_, notes, err := Grep(root, "zzzUniqueWord", GrepOptions{MaxFilesize: &limit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(notes, "\n"), "building the graph") {
+		t.Fatalf("notes = %q, want the graph rebuild", notes)
 	}
 }
