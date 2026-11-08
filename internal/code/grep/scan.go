@@ -28,6 +28,9 @@ type scanner struct {
 	// matches non-ASCII bytes (the Kelvin sign for k), which the lowered copy
 	// cannot see.
 	fold bool
+	// max is how many matching lines of one file keep their text: no more
+	// than that can be counted from one file, so the rest only add to more.
+	max int
 }
 
 // scanned is what the scan found in one file.
@@ -35,6 +38,8 @@ type scanned struct {
 	unreadable, binary bool
 	lines              []int
 	texts              []string
+	// more counts the matching lines past the scanner's max.
+	more int
 }
 
 // compile turns a grep pattern into its scanner, refusing what RE2 cannot do.
@@ -54,7 +59,10 @@ func compile(pattern string, opts Options) (*scanner, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid regex: %w", err)
 	}
-	sc := &scanner{re: regexp.MustCompile(p), fold: folds(tree)}
+	sc := &scanner{re: regexp.MustCompile(p), fold: folds(tree), max: opts.MaxHits}
+	if sc.max <= 0 {
+		sc.max = DefaultMaxHits
+	}
 	if noNewline(tree) {
 		sc.whole = regexp.MustCompile("(?m)" + p)
 	}
@@ -167,8 +175,7 @@ func (s *scanner) file(data []byte) scanned {
 		if lower == nil || s.holds(lower[start:end]) {
 			line := bytes.TrimSuffix(data[start:end], []byte{'\r'})
 			if s.re.Match(line) {
-				out.lines = append(out.lines, n)
-				out.texts = append(out.texts, string(line))
+				s.keep(&out, n, line)
 			}
 		}
 		start = end + 1
@@ -194,10 +201,20 @@ func (s *scanner) oneRun(data []byte) scanned {
 		} else {
 			end += loc[0]
 		}
-		out.lines = append(out.lines, line)
-		out.texts = append(out.texts, string(data[start:end]))
+		s.keep(&out, line, data[start:end])
 	}
 	return out
+}
+
+// keep adds one matching line to out, its text only while out holds fewer
+// than s.max: the copy is what a broad pattern would otherwise pile up.
+func (s *scanner) keep(out *scanned, line int, text []byte) {
+	if len(out.lines) >= s.max {
+		out.more++
+		return
+	}
+	out.lines = append(out.lines, line)
+	out.texts = append(out.texts, string(text))
 }
 
 // holds reports whether some conjunction of s.lits is entirely in b.

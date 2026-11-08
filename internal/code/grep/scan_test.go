@@ -126,3 +126,33 @@ func TestSearchOrderIsStableUnderParallelScan(t *testing.T) {
 		}
 	}
 }
+
+// A file keeps the text of at most MaxHits matching lines, whatever path the
+// scan takes, and counts the rest.
+func TestScanKeepsAtMostMaxHitsLinesPerFile(t *testing.T) {
+	sc, err := compile("x", Options{MaxHits: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, text := range map[string]string{
+		"one run": strings.Repeat("x\n", 10),
+		"by line": strings.Repeat("x\r\n", 10),
+	} {
+		got := sc.file([]byte(text))
+		if !reflect.DeepEqual(got.lines, []int{1, 2, 3}) || len(got.texts) != 3 || got.more != 7 {
+			t.Errorf("%s: lines %v texts %d more %d, want [1 2 3], 3 and 7", name, got.lines, len(got.texts), got.more)
+		}
+	}
+}
+
+// The per-file cap leaves the counts exact.
+func TestSearchCountsHitsPastThePerFileCap(t *testing.T) {
+	read := func(string) ([]byte, error) { return []byte(strings.Repeat("x\n", 10)), nil }
+	res, err := Search(nil, nil, nil, "x", Options{MaxHits: 3, Files: []string{"a", "b"}}, read)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.TotalHits != 3 || res.TruncatedHits != 17 {
+		t.Fatalf("hits %d truncated %d, want 3 and 17", res.TotalHits, res.TruncatedHits)
+	}
+}
