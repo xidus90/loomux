@@ -40,11 +40,25 @@ func TestRebuildRefreshesIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Index != "used" {
-		t.Fatalf("index = %q, want used after the rebuild", res.Index)
+	if res.Index != "overlay" {
+		t.Fatalf("index = %q, want overlay for a small content drift", res.Index)
 	}
 	if res.TotalHits == 0 {
-		t.Fatal("the rebuilt index did not answer")
+		t.Fatal("the overlay did not answer")
+	}
+}
+
+// touchIgnore moves an ignore source without changing what it ignores, a
+// drift only a rebuild answers.
+func touchIgnore(t *testing.T, root string) {
+	t.Helper()
+	path := filepath.Join(root, ".gitignore")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(body, []byte("nothing-matches-this\n")...), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -54,6 +68,7 @@ func TestLockedRebuildAnswersFromDisk(t *testing.T) {
 		[]byte("# Repo\n\nzzzFreshNeedle\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	touchIgnore(t, root)
 	lock := ask.LockPath(root)
 	if err := os.MkdirAll(filepath.Dir(lock), 0o755); err != nil {
 		t.Fatal(err)

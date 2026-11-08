@@ -85,6 +85,7 @@ func TestGrepWalkFailureIsReported(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("zzzFreshNeedle\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
+			touchIgnore(t, root)
 		},
 		"no record": func(t *testing.T, root string) {
 			overrideRead(t, func(string) (corpus.Record, bool) { return corpus.Record{}, false })
