@@ -13,6 +13,11 @@
   Aussage der zitierenden Seiten. Danach erneut gepinnt, nachdem
   `docs/de/cli-reference.md` festgehalten hat, dass eine Worktree-Sitzung die
   Kopie des Hauptcheckouts startet; auch das berührt keine zitierende Seite.
+- 2026-11-09 — `topics/code-graph.md`, Go-Punkt: „Feldselektoren als
+  Schlüssel“ war falsch; Go 1.27 erlaubt beförderte Felder als Schlüssel in
+  Struct-Literalen (`Outer{B: v()}`), ein Selektor wie `Inner.B` bleibt
+  ungültig. Quelle: `go/types` (`literals.go`, Versionsprüfung `go1_27`),
+  `internal/compat/testdata/go-syntax-1.27/syntax.go`.
 - 2026-11-09 — `topics/code-graph.md`, Abschnitt „Wie der Graph entsteht“,
   Go-Punkt: gelesen werden die gepflegten Go-Versionen 1.26 und 1.27 mit
   ihren neuen Sprachmitteln, geprüft je Version über die
