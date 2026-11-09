@@ -195,7 +195,8 @@ func collectCommands(v any, into map[string]bool) {
 }
 
 // BinaryOf is the binary the entries of host already call in existing:
-// Checkout when an entry of ours runs the checkout's bin/loomux.exe,
+// Checkout when an entry of ours runs the checkout's binary -- the copy under
+// LOCALAPPDATA, or bin/loomux.exe as entries from before it called --,
 // Canonical otherwise, including for a file that does not parse.
 func BinaryOf(host hosts.Host, existing []byte) string {
 	var root map[string]any
@@ -209,7 +210,7 @@ func BinaryOf(host hosts.Host, existing []byte) string {
 			block, _ := rawBlock.(map[string]any)
 			for _, command := range commandsOf(block) {
 				word := firstWord(command)
-				if Owned(command) && strings.HasSuffix(word, "/bin/loomux.exe") &&
+				if Owned(command) && strings.HasSuffix(word, "/loomux.exe") &&
 					strings.Contains(word, "${CLAUDE_PROJECT_DIR}") {
 					return Checkout
 				}

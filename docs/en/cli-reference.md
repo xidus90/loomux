@@ -1416,11 +1416,15 @@ Mutates the Go decisions of each package and reports which mutants its test suit
 - **Report**: per package first a line with its bound (`internal/cli: each mutant run is bounded at 2m55s (3 × the unchanged suite's 58.3s)`, or `…, the floor (…)` where the 60 s apply), then one line per mutant — `killed`, `timed out`, `SURVIVED` or `no mutant` (does not compile, or changes nothing) — then the sums and the survivors. A run that hits its bound (patience or the test binary's own `-timeout`) is `timed out` and counts as killed; the sums say how many of the killed timed out, since under load a suite that would have passed hits its bound too.
 - **Exit codes**: `0` after a complete round, survivors included; `2` for a usage error, a package without source files, or a suite that is not green before the first mutant; `1` when a run cannot be started or the round is interrupted with Ctrl+C.
 
-### `loomux dev swap-binary [--dir <dir>]`
+### `loomux dev swap-binary [--dir <dir>] [--root <path>]`
 Atomically replaces the running `loomux.exe` binary with `loomux.new.exe` (solving Windows file-locking constraints). The one it replaces is kept as `loomux.old.exe`, or as the first free `loomux.old.<n>.exe` beside it when a process started from an earlier swap -- a `loomux serve` or a bridge -- still holds that name; every slot whose process has ended is removed on the next swap, so at most 16 generations are kept. Two cases still fail, and both leave the binaries where they were: all 16 slots held at once, and a `loomux.exe` that something holds so that it cannot be renamed at all -- a running `loomux.exe` is not that holder, since Windows keeps a running image renamable.
 
-- **Flags**: `--dir <dir>` — directory holding `loomux.new.exe` (default `bin`).
-- **Exit codes**: `0` after the swap; `1` when the swap fails (`loomux dev swap-binary: <reason>` on `stderr`); `2` for an unknown flag.
+After the swap the new binary is copied — as a new file, not moved — to `%LOCALAPPDATA%\loomux\dev\<folder>\loomux.exe` and swapped in there the same way; `<folder>` is the last part of the checkout's path, so a worktree's own commits fill a place of their own. The checkout's hooks run the copy of the folder Claude Code passes as `CLAUDE_PROJECT_DIR`, and for a session in a worktree that is the main checkout, so such a session runs the main checkout's copy, as it ran its `bin/loomux.exe` before: a binary inside the checkout inherits an integrity label set on the checkout, and one running at Low may write only where the folder is Low as well. Two checkouts with the same folder name share the place, and the one swapped last wins. Without `LOCALAPPDATA` only `--dir` is swapped.
+
+- **Flags**:
+  - `--dir <dir>` — directory holding `loomux.new.exe` (default `bin`).
+  - `--root <path>` — checkout whose folder name places the copy (default `.`).
+- **Exit codes**: `0` after the swap; `1` when the swap or the copy fails (`loomux dev swap-binary: <reason>` on `stderr`; a failed copy leaves the swap in `--dir` in place); `2` for an unknown flag.
 
 ### `loomux dev bench <hooks|repos|search|compare|cases> [flags]`
 Three measurements and two helpers under one group. `loomux dev bench` alone prints the subcommands and exits `2`; an unknown subcommand does the same. The group replaces `dev bench-hooks` (now `dev bench hooks`) and `dev bench` (now `dev bench repos`).
@@ -1848,8 +1852,11 @@ nothing to change.
   `loomux check precommit --arm` there, or arm by hand with `loomux gate arm`.
 - **Entries call the binary by its place**: Claude Code's entries in a host
   project call `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`, in a checkout
-  `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"`; the git hooks call the same
-  binary, a checkout's as `./bin/loomux.exe`. When no binary stands there —
+  `"${LOCALAPPDATA}/loomux/dev/$(basename "${CLAUDE_PROJECT_DIR}")/loomux.exe"`,
+  the copy `dev swap-binary` places outside it; entries that still call
+  `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"` are kept and named to update by
+  hand. The git hooks call the same binary, a checkout's as
+  `./bin/loomux.exe`. When no binary stands there —
   the part `binary` is off, declined or failed — these entries and git hooks
   are left out and init says so. Antigravity's entries call the installed
   binary in every project through `cmd.exe`, unquoted, as

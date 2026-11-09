@@ -126,13 +126,18 @@ and does nothing:
 go run ./cmd/loomux init --yes
 ```
 
-It sets `core.hooksPath` to `.githooks` and builds `bin/loomux.exe`, and
-leaves `git status` empty. Its two steps by hand, where `init` cannot run:
+It sets `core.hooksPath` to `.githooks` and builds `bin/loomux.exe` with a
+copy under `%LOCALAPPDATA%\loomux\dev\<folder>\`, and leaves `git status`
+empty. Its two steps by hand, where `init` cannot run:
 
 ```sh
 git config core.hooksPath .githooks
-go build -o bin/loomux.exe ./cmd/loomux
+go build -o bin/loomux.new.exe ./cmd/loomux && go run ./cmd/loomux dev swap-binary --dir bin
 ```
+
+After pulling a change, run `init` or commit once before relying on the
+hooks: until then the copy under `%LOCALAPPDATA%` may be missing, and a hook
+that cannot start blocks nothing.
 
 - Gate: `sh ci/gate.sh` (a CGo-free build, then `check precommit`);
   `.githooks/pre-commit` refuses a commit whose gate inputs differ from the
@@ -148,8 +153,11 @@ Claude Code reads this file itself since 2.1.277, when the project has no
 stands here:
 
 - Subagents never push; after a subagent run read `git log -1 --format='%an <%ae>'`.
-- The hooks in `.claude/settings.json` call `bin/loomux.exe`, which the
-  pre-commit gate rebuilds. If session-start warns that the binary is older
+- The hooks in `.claude/settings.json` call the copy of `bin/loomux.exe`
+  under `%LOCALAPPDATA%\loomux\dev\<folder of CLAUDE_PROJECT_DIR>\`, which
+  the pre-commit gate rebuilds through `dev swap-binary`; a worktree session
+  gets the main checkout as `CLAUDE_PROJECT_DIR` and so runs the main
+  checkout's copy. If session-start warns that the binary is older
   than a Go source under `cmd/` or `internal/`, a file under `flows/` whose
   path has no element starting with `_` or `.` (its tests included), or
   `go.mod`/`go.sum`, rebuild before trusting a refusal.

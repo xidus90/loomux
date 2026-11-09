@@ -3,6 +3,7 @@ package hooks
 import (
 	"bytes"
 	"errors"
+	"github.com/xidus90/loomux/internal/swap"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -265,6 +266,24 @@ func TestSessionStartIgnoresGoFilesOutsideTheBuiltDirectories(t *testing.T) {
 
 	if lines := staleBinary(root); len(lines) != 0 {
 		t.Fatalf("expected no warning, got %v", lines)
+	}
+}
+
+// The checkout's hooks run the copy under LOCALAPPDATA; it is as much the
+// project's own binary as bin/loomux.exe.
+func TestStaleBinaryNamesAnOldBinaryInTheDevFolder(t *testing.T) {
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+	root, _ := pilot(t, 2*time.Hour, time.Minute)
+	dev := filepath.Join(swap.DevDir(root), "loomux.exe")
+	write(t, dev, 2*time.Hour)
+	runningAs(t, dev)
+
+	lines := staleBinary(root)
+
+	// The fix-it names the root: run from a worktree, swap-binary would
+	// otherwise refresh the worktree's copy and leave this one stale.
+	if len(lines) != 1 || !strings.Contains(lines[0], filepath.ToSlash(dev)) || !strings.Contains(lines[0], "dev swap-binary --dir bin --root "+filepath.ToSlash(root)) {
+		t.Fatalf("expected one line naming %s, got %v", dev, lines)
 	}
 }
 

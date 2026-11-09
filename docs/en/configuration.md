@@ -324,7 +324,11 @@ command then fails before it reads a source; one fixed folder per user is
 granted once and holds for every repository. It lies outside every repository,
 so the tests' temporary directories find no repository above them. Where the
 folder cannot be made or written, the lane is `unready` and names the path to
-grant.
+grant. On Windows, when loomux itself runs at Low integrity — typically because
+its binary lies in a folder that carries a Low label, which some agent
+sandboxes set on a repository — the note says so instead: a Low process may
+write only where the folder is Low as well, so the cure is to run a copy from
+outside that folder, as a loomux checkout's hooks do.
 
 - A `coverage` lane that reads `{coverprofile}` while neither `test`,
   `test.measuring` nor `coverage.measure` of the same stack writes it is a

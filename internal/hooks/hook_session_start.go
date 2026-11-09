@@ -16,6 +16,7 @@ import (
 	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/sessions"
+	"github.com/xidus90/loomux/internal/swap"
 )
 
 // The three seams the stale check is tested through. Variables rather than
@@ -155,21 +156,25 @@ func staleBinary(root string) []string {
 	if err != nil {
 		return nil
 	}
-	rel, err := filepath.Rel(absRoot, path)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+	// The project's own binaries are the ones in it and the copy its hooks run
+	// from under LOCALAPPDATA.
+	name := filepath.ToSlash(path)
+	if rel, err := filepath.Rel(absRoot, path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
+		name = filepath.ToSlash(rel)
+	} else if dev := swap.DevDir(absRoot); dev == "" || filepath.Dir(path) != dev {
 		return nil
 	}
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil
 	}
-	newest, name, err := newestSource(absRoot)
+	newest, newestName, err := newestSource(absRoot)
 	if err != nil || !info.ModTime().Before(newest) {
 		return nil
 	}
 	return []string{fmt.Sprintf(
-		"loomux binary %s is older than %s; rebuild with: go build -o bin/loomux.new.exe ./cmd/loomux, then go run ./cmd/loomux dev swap-binary --dir bin",
-		filepath.ToSlash(rel), name)}
+		"loomux binary %s is older than %s; rebuild with: go build -o bin/loomux.new.exe ./cmd/loomux, then go run ./cmd/loomux dev swap-binary --dir bin --root %s",
+		name, newestName, filepath.ToSlash(absRoot))}
 }
 
 // updateWarnings reads what serve's last self-update pass left in

@@ -13,7 +13,7 @@ import (
 // installer hands them over.
 const (
 	canonical = `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`
-	checkout  = `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"`
+	checkout  = `"${LOCALAPPDATA}/loomux/dev/$(basename "${CLAUDE_PROJECT_DIR}")/loomux.exe"`
 )
 
 // The copies above test what the installer really hands over only while they
