@@ -201,6 +201,19 @@ Neubau. `ErrNoIndex` bleibt `none`, `ErrCorrupt` bleibt `stale`.
   einer Wurzel in einem Unterverzeichnis des Repos (`ls-files` liefert Pfade
   relativ zur Wurzel, die Regeln erwarten sie mit Präfix) wird nicht hier
   behoben, sondern als eigener Punkt notiert.
+- **`.git/index` direkt lesen (Nachtrag 2026-11-09):** *Meine Entscheidung
+  (Controller, auf Auftrag des Menschen „noch mehr rausholen“):* `grep` liest
+  die Pfadliste selbst aus der Datei, die `rec.GitPaths.Index` nennt
+  (`corpus.IndexTracked`), statt `git ls-files` zu starten; das Ergebnis ist
+  dasselbe wie `git ls-files -z --cached` aus der Wurzel. Der Leser versteht
+  DIRC Version 2, 3 und 4 (mit der Präfixkompression von v4) und schneidet das
+  Präfix einer Wurzel im Unterverzeichnis ab. Bei allem, was er nicht sicher
+  versteht, fragt er git wie bisher (`corpus.TrackedSet`): Datei fehlt,
+  Prüfsumme falsch (darunter SHA-256-Repos und `index.skipHash`), unbekannte
+  Version, ungemergte Pfade (Stufe ≠ 0), Erweiterungen, die git verstehen muss
+  (`link` = geteilter Index, `sdir` = dünner Index, jede mit kleinem
+  Anfangsbuchstaben), abgeschnittene Einträge. Keine neue Abhängigkeit. Der
+  Build (`corpus.Load`) bleibt bei `git ls-files`; er kostet Sekunden.
 - **`--no-refresh`:** *Meine Entscheidung:* Das Overlay gilt auch dort, denn
   es baut nicht neu. `index` meldet dann `overlay` statt `stale`.
 - Der Schalter sitzt nur im `grep`-Pfad, nicht in `loadGraph`. `skeleton`,

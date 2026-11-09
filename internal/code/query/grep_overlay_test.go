@@ -31,14 +31,14 @@ func countBuilds(t *testing.T) *int {
 	return &n
 }
 
-// countTracked counts the git calls that list the tracked files.
+// countTracked counts the listings of the tracked files.
 func countTracked(t *testing.T) *int {
 	t.Helper()
 	n := 0
 	old := trackedSet
-	trackedSet = func(root string) ([]string, error) {
+	trackedSet = func(rec corpus.Record, root string) ([]string, error) {
 		n++
-		return old(root)
+		return old(rec, root)
 	}
 	t.Cleanup(func() { trackedSet = old })
 	return &n
@@ -269,6 +269,19 @@ func TestOverlayRestampUnderNoRefresh(t *testing.T) {
 	}
 }
 
+// The first call after a commit reads the tracked files from the git index
+// itself: with no git on the PATH it still answers from the overlay.
+func TestOverlayAfterACommitStartsNoGit(t *testing.T) {
+	root := committedRepo(t)
+	writeTree(t, root, map[string]string{"README.md": "zzzCommittedNeedle\n"})
+	commit(t, root, "edit", "README.md")
+	t.Setenv("PATH", "")
+	res, notes, err := Grep(root, "zzzCommittedNeedle", GrepOptions{NoRefresh: true})
+	if err != nil || res.Index != "overlay" || res.TotalHits != 1 {
+		t.Fatalf("index = %q hits = %d err = %v, want overlay and one hit (notes %v)", res.Index, res.TotalHits, err, notes)
+	}
+}
+
 // A moved git index is listed only when the overlay could take it: drift in
 // the settings or the git config rules the overlay out before the walk, so
 // the stale answer under --no-refresh does not wait for git.
@@ -329,9 +342,9 @@ func TestOverlayListsTrackedFilesDuringTheWalk(t *testing.T) {
 	commit(t, root, "edit", "README.md")
 	started := make(chan struct{})
 	oldTracked, oldWalk := trackedSet, walkCorpus
-	trackedSet = func(r string) ([]string, error) {
+	trackedSet = func(rec corpus.Record, r string) ([]string, error) {
 		close(started)
-		return oldTracked(r)
+		return oldTracked(rec, r)
 	}
 	walkCorpus = func(r string, m corpus.Matcher) (corpus.Listing, error) {
 		select {
@@ -399,14 +412,14 @@ func TestOverlayRestampKeepsAConcurrentRecord(t *testing.T) {
 	writeTree(t, root, map[string]string{"README.md": "zzzCommittedNeedle\n"})
 	commit(t, root, "edit", "README.md")
 	old := trackedSet
-	trackedSet = func(root string) ([]string, error) {
+	trackedSet = func(listed corpus.Record, root string) ([]string, error) {
 		rec, _ := corpus.Read(root)
 		rec.Digest = "rebuilt"
 		// This runs beside the walk, off the test's goroutine.
 		if err := corpus.Write(root, rec); err != nil {
 			t.Error(err)
 		}
-		return old(root)
+		return old(listed, root)
 	}
 	t.Cleanup(func() { trackedSet = old })
 	res, _, err := Grep(root, "zzzCommittedNeedle", GrepOptions{})
@@ -558,7 +571,7 @@ func TestOverlayFits(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			calls := 0
 			old := trackedSet
-			trackedSet = func(r string) ([]string, error) {
+			trackedSet = func(_ corpus.Record, r string) ([]string, error) {
 				calls++
 				return c.tracked(r)
 			}

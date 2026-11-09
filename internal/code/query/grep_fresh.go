@@ -23,18 +23,18 @@ import (
 const overlayLimit = 200
 
 // buildWith, trackedSet and restamp are seams: the tests count the rebuilds
-// and the git calls grep makes, and a record write fails only on a broken
-// disk.
+// and the listings of the tracked files grep makes, and a record write fails
+// only on a broken disk.
 var (
 	buildWith  = BuildWith
-	trackedSet = corpus.TrackedSet
+	trackedSet = corpus.IndexTracked
 	restamp    = corpus.Restamp
 )
 
 // overlayFits reports whether the drift is small file content only, so the
 // old index still answers for every file that did not move. A moved git index
-// fits when it still tracks the same files. That check is the only git call
-// and is consulted last; the probe may have listed the files already.
+// fits when it still tracks the same files. That check reads the index and is
+// consulted last; the probe may have listed the files already.
 func overlayFits(s grepState, root string) bool {
 	d := s.corpusDrift
 	if d == nil || d.Settings || d.Config || len(d.Sources) > 0 || s.graphDrift == nil || s.indexMismatch {
@@ -50,7 +50,7 @@ func overlayFits(s grepState, root string) bool {
 	if d.Index {
 		t := s.tracked
 		if t == nil {
-			paths, err := trackedSet(root)
+			paths, err := trackedSet(s.rec, root)
 			t = &trackedFiles{paths, err}
 		}
 		return t.err == nil && slices.Equal(t.paths, s.rec.Tracked)
@@ -139,9 +139,9 @@ func probeGrep(root string, maxFilesize int64, listTracked bool) (s grepState, e
 		// Listing pays only for an overlay; drift that rules one out is known
 		// before the walk. Too many moved files are not, and still list.
 		if listTracked && s.indexStamp != s.rec.Stamp && !corpus.MovedBeforeWalk(s.rec, corpus.Settings{MaxFilesize: maxFilesize}) {
-			list, listed := trackedSet, make(chan trackedFiles, 1)
+			list, rec, listed := trackedSet, s.rec, make(chan trackedFiles, 1)
 			go func() {
-				paths, err := list(root)
+				paths, err := list(rec, root)
 				listed <- trackedFiles{paths, err}
 			}()
 			// The call does not outlive the probe, whichever way it returns.
