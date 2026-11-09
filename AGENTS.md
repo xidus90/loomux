@@ -29,6 +29,12 @@ release `archive/parity-recordings`.
   gate and the smoke test every forge runs. `.github/` holds only what is
   GitHub's: triggers, permissions, tokens and API calls. A second forge gets
   its own directory and calls the same scripts and subcommands.
+- `dsh-loomux/` is the npm package that serves `loomux graph grep` as the
+  `grep` tool of a DeepSeek Harness profile. `sh ci/dsh-loomux.sh` runs its
+  tests and fails below 100% line and function coverage, the counterpart of
+  the Go rule; branch coverage is not held. The gate does not run it; its
+  workflow does, on every pull request that touches it. A tag
+  `dsh-loomux-v<version>` publishes it.
 
 ## Languages
 

@@ -22,10 +22,11 @@
     "index.js",
     "cordis.patch.yml",
     "src",
-    "README.md"
+    "README.md",
+    "LICENSE.md"
   ],
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --experimental-test-coverage --test-coverage-lines=100 --test-coverage-functions=100",
     "prepublishOnly": "node --test"
   },
   "keywords": [
@@ -37,7 +38,7 @@
     "loomux",
     "code-graph"
   ],
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "engines": {
     "node": ">=22.19.0"
   },

@@ -24,6 +24,18 @@ test('the plugin exports its name and injects tools', () => {
   assert.equal(pluginName, 'dsh-loomux')
 })
 
+test('config.maxResults is the --max-hits of a call without max_results', async () => {
+  let seen = null
+  const tool = toolWith(async args => {
+    seen = args
+    return { exit: 0, stdout: JSON.stringify(symbolGroup), stderr: '', spawnError: null, stdoutCap: false, aborted: false }
+  }, { maxResults: 100 })
+  await tool.execute({ pattern: 'x' }, { cwd: root })
+  assert.deepEqual(seen.slice(-2), ['--max-hits', '100'])
+  await tool.execute({ pattern: 'x', max_results: 50 }, { cwd: root })
+  assert.deepEqual(seen.slice(-2), ['--max-hits', '50'])
+})
+
 test('the tool carries the documented schema and timeout', () => {
   const tool = toolWith(async () => ({ exit: 0, stdout: '{}', stderr: '' }))
   assert.equal(tool.name, 'grep')
@@ -57,6 +69,7 @@ test('execute maps the call and returns matches with a note', async () => {
   assert.deepEqual(seen.args, [
     'graph',
     'grep',
+    '--',
     'TruncatedHits > 0',
     '--json',
     '--channel',
@@ -89,6 +102,30 @@ test('execute rejects a path outside the workspace', async () => {
     throw new Error('must not run')
   })
   await assert.rejects(tool.execute({ pattern: 'x', path: '..' }, { cwd: root }), /outside the workspace root/)
+})
+
+// A model often names the workspace root itself, absolute or as ".": loomux
+// knows no such prefix, so the call must search the whole corpus instead.
+test('execute searches everything when the path is the workspace root', async () => {
+  for (const path of [root, '.', `${root}/`]) {
+    let seen = null
+    const tool = toolWith(async args => {
+      seen = args
+      return { exit: 0, stdout: JSON.stringify(symbolGroup), stderr: '', spawnError: null, stdoutCap: false, aborted: false }
+    })
+    await tool.execute({ pattern: 'x', path }, { cwd: root })
+    assert.equal(seen.includes('--in'), false, `path ${path}: ${seen.join(' ')}`)
+  }
+})
+
+test('execute passes a path inside the workspace relative to its root', async () => {
+  let seen = null
+  const tool = toolWith(async args => {
+    seen = args
+    return { exit: 0, stdout: JSON.stringify(symbolGroup), stderr: '', spawnError: null, stdoutCap: false, aborted: false }
+  })
+  await tool.execute({ pattern: 'x', path: resolve(root, 'src') }, { cwd: root })
+  assert.deepEqual(seen.slice(seen.indexOf('--in'), seen.indexOf('--in') + 2), ['--in', 'src'])
 })
 
 test('execute turns every failing exit into an error, never an empty list', async () => {

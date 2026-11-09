@@ -6,7 +6,11 @@ import { buildArgs, clampMaxResults } from '../src/args.js'
 test('pattern is the positional argument and must be non-empty', () => {
   assert.throws(() => buildArgs({}), /pattern must be a non-empty string/)
   assert.throws(() => buildArgs({ pattern: '' }), /pattern must be a non-empty string/)
-  assert.deepEqual(buildArgs({ pattern: 'func Search' }).slice(0, 3), ['graph', 'grep', 'func Search'])
+  assert.deepEqual(buildArgs({ pattern: 'func Search' }).slice(0, 4), ['graph', 'grep', '--', 'func Search'])
+})
+
+test('a pattern starting with a dash stays the pattern, not a flag', () => {
+  assert.deepEqual(buildArgs({ pattern: '-foo' }).slice(2, 4), ['--', '-foo'])
 })
 
 test('max_results is clamped to 20..5000 with 300 as the fallback', () => {
@@ -24,18 +28,18 @@ test('max_results is clamped to 20..5000 with 300 as the fallback', () => {
 
 test('every argument list ends with JSON and the cloud channel', () => {
   const args = buildArgs({ pattern: 'x' })
-  assert.deepEqual(args.slice(0, 6), ['graph', 'grep', 'x', '--json', '--channel', 'cloud'])
+  assert.deepEqual(args.slice(0, 7), ['graph', 'grep', '--', 'x', '--json', '--channel', 'cloud'])
 })
 
 test('include stays one argument, never a shell split', () => {
-  const args = buildArgs({ pattern: 'x', include: '*.{js,jsx}' })
-  assert.equal(args[args.indexOf('--glob') + 1], '*.{js,jsx}')
   const spaced = buildArgs({ pattern: 'x', include: 'a b/*.md' })
   assert.equal(spaced[spaced.indexOf('--glob') + 1], 'a b/*.md')
 })
 
-test('include accepts brace alternation and rejects negation and top-level commas', () => {
-  assert.doesNotThrow(() => buildArgs({ pattern: 'x', include: '{a,b}/**' }))
+test('include rejects brace alternation, negation and commas', () => {
+  // loomux matches globs without brace expansion, so {a,b} would match nothing.
+  assert.throws(() => buildArgs({ pattern: 'x', include: '*.{js,jsx}' }), /brace alternation/)
+  assert.throws(() => buildArgs({ pattern: 'x', include: '{a,b}/**' }), /brace alternation/)
   assert.throws(() => buildArgs({ pattern: 'x', include: '!*.md' }), /positive glob filter/)
   assert.throws(() => buildArgs({ pattern: 'x', include: '*.md,*.txt' }), /not a comma-separated list/)
   assert.throws(() => buildArgs({ pattern: 'x', include: '   ' }), /include must be a non-empty string/)
@@ -57,6 +61,8 @@ test('path becomes --in and may not be only whitespace', () => {
 test('case_insensitive becomes -i and is absent otherwise', () => {
   assert.ok(buildArgs({ pattern: 'x', case_insensitive: true }).includes('-i'))
   assert.ok(!buildArgs({ pattern: 'x' }).includes('-i'))
+  assert.ok(!buildArgs({ pattern: 'x', case_insensitive: false }).includes('-i'))
+  assert.throws(() => buildArgs({ pattern: 'x', case_insensitive: 'false' }), /case_insensitive must be a boolean/)
 })
 
 test('a missing input object is rejected', () => {

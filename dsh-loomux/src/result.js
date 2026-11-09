@@ -151,6 +151,8 @@ export function capSearchMeta(meta, maxMetaBytes = MAX_META_BYTES) {
  */
 export function presentationMeta(grepResult, maxMatches) {
   const matches = toMatches(grepResult)
+  // loomux itself stops at --max-hits and counts the rest here.
+  const cut = Number(grepResult?.truncated_hits) || 0
   const retained = matches.slice(0, maxMatches).map(match => ({
     path: match.path,
     lineNumber: match.lineNumber,
@@ -159,7 +161,7 @@ export function presentationMeta(grepResult, maxMatches) {
   return capSearchMeta({
     shape: 'matches',
     files: groupMatchesByFile(retained),
-    truncated: matches.length > maxMatches,
-    total: matches.length,
+    truncated: matches.length > maxMatches || cut > 0,
+    total: matches.length + cut,
   })
 }

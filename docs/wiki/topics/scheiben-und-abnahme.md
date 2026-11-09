@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:bec15bb0e32f35414d9954ac3ba78d9142f392b963560eff87b87f5b8dc749b9"
-    revision: 26
+    content_hash: "sha256:f4b63bdc02004ee2dd6c64ede3328ef684b72457f9debb9b918aee4b10575d0c"
+    revision: 27
 ---
 
 loomux baut in **Stufen**, und **jede Stufe endet grün und wird einzeln
