@@ -43,7 +43,11 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
 
 - **Go** liest er allein mit `go/parser`. Die Spec sah für den Offline-Bau
   noch `go/types` vor; gebaut ist der Extraktor ohne `go/types` und ohne
-  Build (`internal/code/extract/golang`).
+  Build (`internal/code/extract/golang`). Gelesen werden die gepflegten
+  Go-Versionen, heute 1.26 und 1.27 mit `new(expr)`, selbstbezüglichen
+  Typparametern, generischen Methoden und Feldselektoren als Schlüssel.
+  Geprüft wird das je Version über die Kompatibilitätsliste, ein
+  Pre-Release vorab als Probe des Compat-Scouts ohne Gate.
 - **Python** liest er seit G5a auf `gotreesitter`, einer Tree-sitter-Laufzeit
   in reinem Go (`internal/code/extract/python` auf dem gemeinsamen Kern
   `extract/treesitter`). Das Binary bleibt CGo-frei; ein Build mit

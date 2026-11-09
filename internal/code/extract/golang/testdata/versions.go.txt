@@ -1,0 +1,40 @@
+package versions
+
+// Go 1.26: new with an expression operand.
+func g() int { return 1 }
+
+func ptr() *int { return new(g()) }
+
+// Go 1.26: a generic type naming itself in its type parameter list.
+type Adder[A Adder[A]] interface{ Add(A) A }
+
+func algo[A Adder[A]](x, y A) A { return x.Add(y) }
+
+// Go 1.27: a method with its own type parameters.
+type Stack[T any] struct{ items []T }
+
+func (s *Stack[T]) Map[U any](f func(T) U) *Stack[U] {
+	out := &Stack[U]{}
+	for _, it := range s.items {
+		out.items = append(out.items, f(it))
+	}
+	return out
+}
+
+func h(n int) int { return n }
+
+func use(s *Stack[int]) *Stack[int] { return s.Map[int](h) }
+
+// Go 1.27: a struct literal keyed by a promoted field.
+type Inner struct{ B int }
+
+type Outer struct{ Inner }
+
+func v() int { return 2 }
+
+func build() Outer { return Outer{B: v()} }
+
+// Go 1.27: function type inference in an assignment.
+func id[T any](x T) T { return x }
+
+var hf func(int) int = id
