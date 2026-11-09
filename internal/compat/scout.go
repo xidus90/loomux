@@ -414,6 +414,20 @@ func Resolved(entries []Entry, title string) bool {
 	return false
 }
 
+// Superseded reports whether title announces a pre-release that none of the
+// current findings carries: a newer candidate or the stable version took its
+// place, or the line no longer looks for one.
+func Superseded(title string, findings []Finding) bool {
+	m := titleRe.FindStringSubmatch(title)
+	if m == nil {
+		return false
+	}
+	if _, pre := parsePre(m[3]); !pre {
+		return false
+	}
+	return !slices.ContainsFunc(findings, func(f Finding) bool { return f.Title == title })
+}
+
 // HTTPUpstream reads the real sources. Client may be nil; Token, when set, is
 // sent to the GitHub API.
 type HTTPUpstream struct {
