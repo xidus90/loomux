@@ -3,7 +3,8 @@
 #   ci/compat-setup.sh <loomux binary> <entry key> <root>
 # Godot lands in <root>/godot (and GODOT_BIN is exported to later steps), each
 # addon's own folder in <root>/addons/<Name>, Python through uv. Go is set up
-# by the workflow. The description is the JSON of `dev compat run --describe`;
+# by the workflow, which rebuilds loomux with it when rebuild=true: a Go above
+# the toolchain of go.mod is one loomux was never built with. The description is the JSON of `dev compat run --describe`;
 # it is flat and written by loomux, so sed reads it without a JSON tool.
 set -eu
 bin=${1:?usage: ci/compat-setup.sh <loomux binary> <entry key> <root>}
@@ -23,9 +24,25 @@ fi
 field() { printf '%s\n' "$1" | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" | head -n 1; }
 runtime=$(field "$desc" runtime)
 version=$(field "$desc" version)
+install=$(field "$desc" install)
+
+# above_toolchain tells whether major.minor $1 lies above the toolchain of
+# go.mod (its go line when it names none).
+above_toolchain() {
+	mod=$(dirname "$0")/../go.mod
+	tc=$(sed -n 's/^toolchain go//p' "$mod")
+	[ -n "$tc" ] || tc=$(sed -n 's/^go //p' "$mod")
+	awk -v a="$1" -v b="$tc" 'BEGIN {
+		split(a, x, "."); split(b, y, ".")
+		exit !(x[1] + 0 > y[1] + 0 || (x[1] + 0 == y[1] + 0 && x[2] + 0 > y[2] + 0))
+	}'
+}
+rebuild=false
+if [ "$runtime" = go ] && above_toolchain "$version"; then
+	rebuild=true
+fi
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
-	echo "runtime=$runtime" >>"$GITHUB_OUTPUT"
-	echo "version=$version" >>"$GITHUB_OUTPUT"
+	printf '%s\n' "runtime=$runtime" "version=$version" "install=$install" "rebuild=$rebuild" >>"$GITHUB_OUTPUT"
 fi
 
 unzip_to() {
@@ -49,7 +66,9 @@ first() {
 }
 
 install_godot() {
-	tag=${version}-stable
+	# godot-builds tags a pre-release bare ("4.8-beta2"), a release -stable.
+	tag=$install
+	[ "$install" != "$version" ] || tag=${version}-stable
 	base=https://github.com/godotengine/godot-builds/releases/download/$tag
 	case $os in
 	Windows) asset=Godot_v${tag}_win64.exe.zip ;;
@@ -127,7 +146,7 @@ godot)
 		install_addon "$addon"
 	done
 	;;
-python) uv python install "$version" ;;
+python) uv python install "$install" ;;
 go) ;;
 *)
 	echo "compat-setup: no setup for runtime $runtime" >&2

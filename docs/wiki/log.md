@@ -13,6 +13,12 @@
   Aussage der zitierenden Seiten. Danach erneut gepinnt, nachdem
   `docs/de/cli-reference.md` festgehalten hat, dass eine Worktree-Sitzung die
   Kopie des Hauptcheckouts startet; auch das berührt keine zitierende Seite.
+- 2026-11-09 — Repin von `docs/de/cli-reference.md`: geändert ist nur der
+  Satz zu `loomux dev compat run --describe` (das neue Feld `install`, die
+  Version in der Schreibweise des Installers). Keine der zitierenden Seiten
+  sagt etwas über den Compat-Lauf; ihre `sources:` zieht der Repin nach,
+  ebenso die von `syntheses/warum-fast-die-vorgabe-bleibt.md`. Quelle:
+  `docs/de/cli-reference.md`.
 - 2026-11-09 — Repin von `docs/de/cli-reference.md`: geändert sind nur die
   Zeilen zu `loomux dev compat matrix` und `scout` (`--findings`, die Art
   `kind` der Funde). Keine der zitierenden Seiten (`entities/brain-daemon.md`,
