@@ -114,6 +114,26 @@ func TestDevCompatScoutResolved(t *testing.T) {
 	}
 }
 
+func TestDevCompatScoutResolvedSuperseded(t *testing.T) {
+	rc2 := compat.Finding{Kind: "pre", Line: "go-module/go", Version: "1.28rc2"}
+	rc2.Title = compat.IssueTitle(rc2)
+	data, _ := json.Marshal([]compat.Finding{rc2})
+	p := writeProbe(t, string(data))
+	for title, want := range map[string]string{
+		"compat: go-module/go 1.28rc1 is out": "resolved\n",
+		rc2.Title:                             "open\n",
+	} {
+		if code, out, errOut := run("dev", "compat", "scout", "--resolved", title, "--findings", p); code != 0 || out != want {
+			t.Errorf("%q: code %d, out %q, err %q", title, code, out, errOut)
+		}
+	}
+	for name, path := range map[string]string{"missing": p + ".missing", "unreadable": writeProbe(t, "{")} {
+		if code, _, errOut := run("dev", "compat", "scout", "--resolved", "x", "--findings", path); code != 1 || errOut == "" {
+			t.Errorf("%s findings: code %d, err %q", name, code, errOut)
+		}
+	}
+}
+
 func writeProbe(t *testing.T, body string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), "probe.json")

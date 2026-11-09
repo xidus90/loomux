@@ -264,6 +264,28 @@ func TestScoutFailsWhenEOLUnknown(t *testing.T) {
 	}
 }
 
+func TestSupersededPreRelease(t *testing.T) {
+	rc1 := "compat: go-module/go 1.28rc1 is out"
+	rc2 := Finding{Kind: "pre", Line: "go-module/go", Version: "1.28rc2"}
+	rc2.Title = IssueTitle(rc2)
+	for _, c := range []struct {
+		title    string
+		findings []Finding
+		want     bool
+	}{
+		{rc1, []Finding{rc2}, true},
+		{rc1, nil, true},
+		{rc2.Title, []Finding{rc2}, false},
+		{"compat: go-module/go 1.28 is out", nil, false},
+		{"compat: python 3.10 is past end of support", nil, false},
+		{"something else", nil, false},
+	} {
+		if got := Superseded(c.title, c.findings); got != c.want {
+			t.Errorf("%q with %d findings = %v, want %v", c.title, len(c.findings), got, c.want)
+		}
+	}
+}
+
 func TestResolvedEOL(t *testing.T) {
 	title := "compat: python 3.10 is past end of support"
 	if Resolved([]Entry{py("3.10"), py("3.11")}, title) {

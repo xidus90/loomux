@@ -31,7 +31,8 @@ jobs:
           OUT: ${{ runner.temp }}/findings.json
         run: |
           bin/loomux.exe dev compat scout --json "$OUT"
-          echo "probes=$(jq -c '[.[].probe]' "$OUT")" >>"$GITHUB_OUTPUT"
+          # An end-of-support finding has no probe to run.
+          echo "probes=$(jq -c '[.[] | select(.kind != "eol") | .probe]' "$OUT")" >>"$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
           name: findings

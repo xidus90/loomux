@@ -13,6 +13,17 @@
   Aussage der zitierenden Seiten. Danach erneut gepinnt, nachdem
   `docs/de/cli-reference.md` festgehalten hat, dass eine Worktree-Sitzung die
   Kopie des Hauptcheckouts startet; auch das berührt keine zitierende Seite.
+- 2026-11-09 — Repin von `docs/de/cli-reference.md`: geändert sind nur die
+  Zeilen zu `loomux dev compat matrix` und `scout` (`--findings`, die Art
+  `kind` der Funde). Keine der zitierenden Seiten (`entities/brain-daemon.md`,
+  `entities/okf.md`, `entities/qmd.md`, `topics/brain-maintenance.md`,
+  `topics/code-graph.md`, `topics/datenmodell-und-bereiche.md`,
+  `topics/datenschutz-und-kanaele.md`, `topics/scheiben-und-abnahme.md`,
+  `topics/suche-und-profile.md`, `topics/wiki-schicht.md`) sagt etwas über
+  den Compat-Scout; ihre `sources:` zieht der Repin nach, ebenso die von
+  `syntheses/warum-fast-die-vorgabe-bleibt.md`, die
+  `topics/suche-und-profile.md` zitiert. Quelle:
+  `docs/de/cli-reference.md`.
 
 ## 2026-11-04
 

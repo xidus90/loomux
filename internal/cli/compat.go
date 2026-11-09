@@ -184,13 +184,15 @@ func devCompatMatrix(args []string, stdout, stderr io.Writer) int {
 var compatUpstream = func() compat.Upstream { return compat.HTTPUpstream{Token: os.Getenv("GITHUB_TOKEN")} }
 
 // devCompatScout asks the upstream sources what the list lacks. With
-// --resolved it answers instead whether the list now holds the version an
-// issue title announces.
+// --resolved it answers instead whether the issue a title names is done: the
+// list now holds its version, or, given the scout's findings, a pre-release
+// it announces is superseded.
 func devCompatScout(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("dev compat scout", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	jsonPath := fs.String("json", "", "also write the findings as JSON to this file")
 	resolved := fs.String("resolved", "", "print resolved or open for this issue title instead of scouting")
+	findingsPath := fs.String("findings", "", "with --resolved: the findings JSON of this scout run; a pre-release none of them carries is resolved")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -200,7 +202,20 @@ func devCompatScout(args []string, stdout, stderr io.Writer) int {
 	}
 	entries, _ := compat.Load()
 	if *resolved != "" {
-		if compat.Resolved(entries, *resolved) {
+		superseded := false
+		if *findingsPath != "" {
+			var current []compat.Finding
+			data, err := os.ReadFile(*findingsPath)
+			if err == nil {
+				err = json.Unmarshal(data, &current)
+			}
+			if err != nil {
+				fmt.Fprintf(stderr, "loomux dev compat scout: %v\n", err)
+				return 1
+			}
+			superseded = compat.Superseded(*resolved, current)
+		}
+		if superseded || compat.Resolved(entries, *resolved) {
 			fmt.Fprintln(stdout, "resolved")
 		} else {
 			fmt.Fprintln(stdout, "open")
