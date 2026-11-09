@@ -34,7 +34,7 @@ const HINTS = {
 /**
  * @param {number|null} exit
  * @param {string} stderr
- * @param {{ aborted?: boolean, timedOut?: boolean, stdoutCap?: boolean, spawnError?: { code?: string }|null }} [info]
+ * @param {{ aborted?: boolean, stdoutCap?: boolean, spawnError?: { code?: string }|null }} [info]
  * @returns {string} one of CLASSES, or 'ok'
  */
 export function classify(exit, stderr, info = {}) {
@@ -42,7 +42,6 @@ export function classify(exit, stderr, info = {}) {
     return info.spawnError.code === 'ENOENT' ? 'no-binary' : 'unknown'
   }
   if (info.stdoutCap) return 'stdout-cap'
-  if (info.timedOut) return 'timeout'
   if (info.aborted) return 'timeout'
   if (exit === 0) return 'ok'
 

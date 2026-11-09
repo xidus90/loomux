@@ -824,7 +824,7 @@ Regex-Suche über den Suchkorpus — die Textdateien, die git nicht ignoriert, n
   - `--fixed`: Behandelt das Muster als reinen Text (ohne Regex-Syntax).
   - `--in <präfix>`: Begrenzt die Suche auf Dateien unterhalb des Pfadpräfix.
   - `--max-hits <n>`: Maximale Anzahl von Zeilentreffern (Standard `300`); weitere Treffer werden nur gezählt.
-  - `--glob <muster>`: Lässt nur Pfade zu, die zum Glob passen (`**` überschreitet Verzeichnisse); die Zähler beschreiben weiterhin den ganzen Korpus.
+  - `--glob <muster>`: Lässt nur Pfade zu, die zum Glob passen (`**` überschreitet Verzeichnisse; keine Klammer-Alternation, `{a,b}` ist wörtlicher Text); die Zähler beschreiben weiterhin den ganzen Korpus.
   - `--channel <local|cloud>`: `local` (Standard) durchsucht jede Korpusdatei. `cloud` liest die eigene `[privacy] never`-Deklaration des Projekts und verbirgt diese Pfade; eine fehlende Deklaration schränkt nichts ein, eine unlesbare ist ein Fehler.
   - `--max-filesize <bytes>` / `--no-max-filesize`: Gegen eine andere Größenobergrenze messen als die des Records. Das Flag schreibt den Record nie um: Weicht sein Wert von der Einstellung des Records ab, sagt die Antwort das, meldet `index: stale` und scannt mit dem Wert des Flags.
   - `--json`: Gibt maschinenlesbares JSON aus (`grep.Result`).

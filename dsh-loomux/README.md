@@ -21,7 +21,12 @@ matches with line numbers and, when there is one, the enclosing symbol.
   name: dsh-loomux
   config:
     binary: loomux # resolved through PATH, or an absolute path
+    maxResults: 300 # hits per call when the model gives no max_results; 20–5000
 ```
+
+`include` takes one glob without brace alternation (`*.go`, `src/**/*.ts`):
+loomux matches globs without expanding `{a,b}`, so the plugin rejects one
+instead of answering with an empty list.
 
 ## Requirements
 
@@ -31,8 +36,15 @@ matches with line numbers and, when there is one, the enclosing symbol.
 
 ## Release
 
-`.github/workflows/dsh-loomux.yml` publishes the package: a tag
+`sh ci/dsh-loomux.sh` runs the tests; the workflow runs it on every pull
+request that touches the package. `.github/workflows/dsh-loomux.yml` publishes
+the package: a tag
 `dsh-loomux-v<version>` runs the tests and then `npm publish --provenance`,
 which needs the repository secret `NPM_TOKEN` and a tag that matches the
 version in `package.json`. A version bump without that tag publishes nothing,
 and a tag without the matching version stops before the registry is touched.
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md), the license of the loomux
+repository; `LICENSE.md` here is a copy of the one at its root.

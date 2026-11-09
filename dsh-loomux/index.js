@@ -101,7 +101,7 @@ export function createGrepTool(config = {}) {
         },
         include: {
           type: 'string',
-          description: 'One glob filter for file names (e.g. "*.ts", "*.{js,jsx}"). Not a list; negation is not supported.',
+          description: 'One glob filter for file names (e.g. "*.ts", "src/**/*.go"). Not a list; brace alternation and negation are not supported.',
         },
         case_insensitive: {
           type: 'boolean',
@@ -109,7 +109,7 @@ export function createGrepTool(config = {}) {
         },
         max_results: {
           type: 'number',
-          description: `Soft limit on returned matches (default ${defaultMax}).`,
+          description: `Soft limit on returned matches, clamped to 20–5000 (default ${defaultMax}).`,
         },
       },
       required: ['pattern'],
@@ -167,7 +167,10 @@ export function createGrepTool(config = {}) {
     async execute(args, exec) {
       const cwd = resolveCwd(exec)
       const routed = route(args, cwd)
-      const input = routed.path === undefined ? args : { ...args, path: routed.path }
+      const input = { ...args, max_results: args?.max_results ?? defaultMax }
+      // The routed path replaces the given one; none means the whole corpus.
+      if (routed.path !== undefined) input.path = routed.path
+      else delete input.path
       const cliArgs = buildArgs(input)
       const finished = await run(cliArgs, {
         cwd,

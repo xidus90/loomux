@@ -898,7 +898,7 @@ Regex search over the search corpus — the text files git does not ignore, not 
   - `--fixed`: Treat pattern as a literal string (no regex syntax).
   - `--in <prefix>`: Narrow search to files under path prefix.
   - `--max-hits <n>`: Maximum number of matched lines to return (default `300`); further matches are only counted.
-  - `--glob <pattern>`: Keep only paths matching the glob (`**` crosses directories); the counters still describe the whole corpus.
+  - `--glob <pattern>`: Keep only paths matching the glob (`**` crosses directories; no brace alternation, `{a,b}` is literal text); the counters still describe the whole corpus.
   - `--channel <local|cloud>`: `local` (default) searches every corpus file. `cloud` reads the project's own `[privacy] never` declaration and hides those paths; a missing declaration restricts nothing, and an unreadable one is an error.
   - `--max-filesize <bytes>` / `--no-max-filesize`: Measure against another size limit than the record's. The flag never rewrites the record: when its value differs from the record's setting the answer says so, reports `index: stale` and scans with the flag's value.
   - `--json`: Output machine-readable JSON (`grep.Result`).

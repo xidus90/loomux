@@ -43,7 +43,6 @@ test('exit 0 is ok and its stderr becomes a note', () => {
 
 test('abort, timeout and the stdout cap fail instead of truncating', () => {
   assert.equal(classify(null, '', { aborted: true }), 'timeout')
-  assert.equal(classify(null, '', { timedOut: true }), 'timeout')
   assert.equal(classify(null, '', { stdoutCap: true }), 'stdout-cap')
   assert.match(errorFor('stdout-cap').message, /output cap/)
 })

@@ -31,13 +31,13 @@ export function validateInclude(include) {
   if (include.startsWith('!')) {
     throw new Error('include must be a positive glob filter; negated patterns ("!…") are not supported')
   }
-  let braceDepth = 0
-  for (const char of include) {
-    if (char === '{') braceDepth++
-    else if (char === '}') braceDepth = Math.max(0, braceDepth - 1)
-    else if (char === ',' && braceDepth === 0) {
-      throw new Error('include must be one glob, not a comma-separated list (use {a,b} alternation instead)')
-    }
+  // loomux matches globs without brace expansion: `*.{js,jsx}` would match
+  // nothing and come back as an empty list instead of an error.
+  if (include.includes('{') || include.includes('}')) {
+    throw new Error('include does not support brace alternation ({a,b}); call grep once per glob')
+  }
+  if (include.includes(',')) {
+    throw new Error('include must be one glob, not a comma-separated list; call grep once per glob')
   }
 }
 
@@ -55,12 +55,17 @@ export function buildArgs(input) {
   if (typeof input.pattern !== 'string' || input.pattern.length === 0) {
     throw new Error('pattern must be a non-empty string')
   }
-  args.push(input.pattern)
+  // `--` keeps a pattern such as `-foo` from being read as a flag; loomux
+  // parses the flags after the pattern all the same.
+  args.push('--', input.pattern)
 
   args.push('--json')
   args.push('--channel', 'cloud')
 
-  if (input.case_insensitive !== undefined && input.case_insensitive !== false) {
+  if (input.case_insensitive !== undefined && typeof input.case_insensitive !== 'boolean') {
+    throw new Error('case_insensitive must be a boolean when given')
+  }
+  if (input.case_insensitive) {
     args.push('-i')
   }
   if (input.include !== undefined) {

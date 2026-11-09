@@ -71,8 +71,14 @@ test('presentationMeta keeps the card shape and previews the lines', () => {
 test('presentationMeta truncates beyond maxMatches and keeps the total', () => {
   const meta = presentationMeta(fixture('grep-file-group.json'), 1)
   assert.equal(meta.truncated, true)
-  assert.equal(meta.total, 3)
+  assert.equal(meta.total, 3 + 17)
   assert.equal(meta.files[0].matches.length, 1)
+})
+
+test('presentationMeta counts the hits loomux cut at --max-hits', () => {
+  const meta = presentationMeta({ ...fixture('grep-symbol-group.json'), truncated_hits: 5 }, 300)
+  assert.equal(meta.truncated, true)
+  assert.equal(meta.total, 6)
 })
 
 test('previewLine caps by UTF-8 bytes with an ellipsis', () => {
