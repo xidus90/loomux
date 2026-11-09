@@ -55,6 +55,8 @@ Each row is a combination loomux runs for real before a major release and whenev
 | python | python | 3.15 | python-pyright | — | coverage 7.17.*, pytest 9.2.*, ruff 0.17.* | lint, types, test, coverage, graph |
 | go | go | 1.26 | go-module | — | — | lint, test, coverage, graph |
 | go | go | 1.27 | go-module | — | — | lint, test, coverage, graph |
+| go | go | 1.26 | go-syntax-1.26 | — | — | graph |
+| go | go | 1.27 | go-syntax-1.27 | — | — | graph |
 
 The list holds every Go, Python and Godot version its upstream still maintains, not only the newest. Every Monday the compatibility scout (`loomux dev compat scout`) asks upstream three things:
 

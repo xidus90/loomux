@@ -56,6 +56,8 @@ Jede Zeile ist eine Kombination, die loomux vor einem Major-Release und bei jede
 | python | python | 3.15 | python-pyright | — | coverage 7.17.*, pytest 9.2.*, ruff 0.17.* | lint, types, test, coverage, graph |
 | go | go | 1.26 | go-module | — | — | lint, test, coverage, graph |
 | go | go | 1.27 | go-module | — | — | lint, test, coverage, graph |
+| go | go | 1.26 | go-syntax-1.26 | — | — | graph |
+| go | go | 1.27 | go-syntax-1.27 | — | — | graph |
 
 Die Liste führt jede Go-, Python- und Godot-Version, die ihr Upstream noch pflegt, nicht nur die neueste. Jeden Montag fragt der Kompatibilitäts-Scout (`loomux dev compat scout`) upstream nach dreierlei:
 

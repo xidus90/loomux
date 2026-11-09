@@ -110,6 +110,10 @@ func runCopy(e Entry, o RunOptions, dir string, kinds []string, b *Break) ([]str
 			lines = append(lines, "rescan: "+err.Error())
 		}
 	}
+	if len(kinds) == 0 {
+		// A graph-only entry has no lane, and the check refuses an empty request.
+		return lines, nil
+	}
 	results, err := o.Check(dir, kinds)
 	if err != nil {
 		return nil, err

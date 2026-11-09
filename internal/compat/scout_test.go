@@ -173,6 +173,17 @@ func TestScoutPrefersStableOverPreRelease(t *testing.T) {
 	}
 }
 
+// A syntax entry pins what a Go version reads; go-module carries the line.
+func TestScoutSkipsSyntaxEntries(t *testing.T) {
+	up := calm()
+	up[goSource] = []string{"1.28", "1.27.3"}
+	syntax := Entry{Stack: "go", Runtime: "go", Version: "1.27", Fixture: "go-syntax-1.27", Kinds: []string{"graph"}}
+	got := scout(t, up, goE("1.27"), syntax)
+	if len(got) != 1 || got[0].Line != "go-module/go" || got[0].Version != "1.28" {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
 func TestScoutPreReleaseOfEveryRuntime(t *testing.T) {
 	up := calm()
 	up[pythonSource] = []string{"3.15.0", "3.16.0a1"}

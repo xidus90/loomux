@@ -1,0 +1,7 @@
+stacks = ["go"]
+edges = [
+  ["syntax.go#f", "calls", "syntax.go#g"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"
