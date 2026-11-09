@@ -29,12 +29,20 @@ func goWork(home string, getenv func(string) string) ([]string, State, string) {
 		}
 		dir := filepath.Join(home, ".loomux", v.dir)
 		if err := writable(dir); err != nil {
+			if lowIntegrity() {
+				exe, _ := os.Executable()
+				return nil, StateUnready, fmt.Sprintf("%s %s is not writable: loomux runs at Low integrity, typically because the folder of its binary %s carries a Low label; run a copy from outside that folder (%v)", v.key, dir, exe, err)
+			}
 			return nil, StateUnready, fmt.Sprintf("%s %s is not writable: grant it in the sandbox or set %s (%v)", v.key, dir, v.key, err)
 		}
 		env = append(env, v.key+"="+dir)
 	}
 	return env, "", ""
 }
+
+// lowIntegrity is isLowIntegrity, as a variable so that a test can be Low;
+// it is asked only once a folder turned out unwritable.
+var lowIntegrity = isLowIntegrity
 
 // writable makes dir and proves a child can be made in it: a sandbox may let
 // the directory stand and still refuse what the go tool creates inside.
