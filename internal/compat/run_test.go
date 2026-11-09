@@ -297,3 +297,27 @@ func TestAGraphThatDoesNotBuildIsRed(t *testing.T) {
 		t.Fatalf("report %+v", rep)
 	}
 }
+
+const syntaxKey = "go/go-1.27/go-syntax-1.27"
+
+func TestASyntaxEntryRunsOnlyItsGraph(t *testing.T) {
+	// The real check refuses an empty request, so a graph-only entry must never ask it.
+	rep, _ := runEntryKey(t, syntaxKey, func(root string, kinds []string) ([]LaneResult, error) {
+		if len(kinds) == 0 {
+			return nil, errors.New(`"" names no check`)
+		}
+		return fakeCheck(honest)(root, kinds)
+	})
+	if !rep.Green {
+		t.Fatalf("report %+v", rep)
+	}
+	old := buildGraph
+	t.Cleanup(func() { buildGraph = old })
+	buildGraph = func(string, func(string)) (*model.Graph, query.Stats, error) {
+		return &model.Graph{}, query.Stats{}, nil
+	}
+	rep, _ = runEntryKey(t, syntaxKey, fakeCheck(honest))
+	if rep.Green || len(rep.Lines) == 0 || !strings.HasPrefix(rep.Lines[0], "graph: no edge syntax.go#") {
+		t.Fatalf("report %+v", rep)
+	}
+}

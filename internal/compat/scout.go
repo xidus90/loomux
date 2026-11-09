@@ -188,6 +188,9 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 	var groups []*group
 	top := map[string]int{} // kind/name -> highest major in the list
 	for _, e := range entries {
+		if e.syntax() {
+			continue // its version's other entry carries the line
+		}
 		ev, _ := parseVer(e.Version) // the list is validated MAJOR.MINOR
 		for _, s := range subjectsOf(e) {
 			v, ok := parseVer(s.version)

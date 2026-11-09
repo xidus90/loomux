@@ -1,12 +1,106 @@
 package compat
 
 import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"go/types"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
+
+func goEntries(t *testing.T) (all, syntax []Entry) {
+	t.Helper()
+	list, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range list {
+		if e.Runtime != "go" {
+			continue
+		}
+		all = append(all, e)
+		if e.syntax() {
+			syntax = append(syntax, e)
+		}
+	}
+	if len(syntax) == 0 {
+		t.Fatal("the list has no Go syntax entry")
+	}
+	return all, syntax
+}
+
+func TestEveryGoVersionHasASyntaxEntry(t *testing.T) {
+	all, syntax := goEntries(t)
+	for _, e := range all {
+		if !slices.ContainsFunc(syntax, func(s Entry) bool { return s.Version == e.Version && s.Fixture == "go-syntax-"+e.Version }) {
+			t.Errorf("go %s has no syntax entry with fixture go-syntax-%s", e.Version, e.Version)
+		}
+	}
+}
+
+// go/parser reads every version alike; only the type checker gates a form
+// by the version it came with, so that is what proves the fixture new.
+func TestSyntaxFixtureNeedsItsVersion(t *testing.T) {
+	_, syntax := goEntries(t)
+	for _, e := range syntax {
+		t.Run(e.Fixture, func(t *testing.T) {
+			fset := token.NewFileSet()
+			var files []*ast.File
+			paths, _ := fs.Glob(Fixtures(), e.Fixture+"/*.go")
+			for _, p := range paths {
+				src, _ := fs.ReadFile(Fixtures(), p)
+				f, err := parser.ParseFile(fset, p, src, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				files = append(files, f)
+			}
+			if len(files) == 0 {
+				t.Fatal("no Go file")
+			}
+			errs := func(version string) []error {
+				var out []error
+				cfg := types.Config{GoVersion: version, Error: func(err error) { out = append(out, err) }}
+				cfg.Check("syntax", fset, files, nil)
+				return out
+			}
+			v, _ := parseVer(e.Version)
+			if got := errs(fmt.Sprintf("go%d.%d", v[0], v[1])); len(got) != 0 {
+				t.Errorf("go%s: %v", e.Version, got)
+			}
+			if prev := fmt.Sprintf("go%d.%d", v[0], v[1]-1); len(errs(prev)) == 0 {
+				t.Errorf("%s accepts the fixture of %s", prev, e.Version)
+			}
+		})
+	}
+}
+
+// A listed Go version above the toolchain loomux is built with could not be
+// read by its go/parser.
+func TestListGoVersionsNotAboveGoModToolchain(t *testing.T) {
+	all, _ := goEntries(t)
+	mod, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`(?m)^toolchain go(\d+\.\d+)`).FindSubmatch(mod)
+	if m == nil {
+		t.Fatal("go.mod has no toolchain line")
+	}
+	top, _ := parseVer(string(m[1]))
+	for _, e := range all {
+		if v, _ := parseVer(e.Version); cmpVer(v, top) > 0 {
+			t.Errorf("go %s is above the toolchain go%s of go.mod", e.Version, m[1])
+		}
+	}
+}
 
 func TestTheListLoads(t *testing.T) {
 	list, err := Load()

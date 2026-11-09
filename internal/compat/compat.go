@@ -91,6 +91,10 @@ func (e Entry) Key() string {
 	return fmt.Sprintf("%s/%s-%s/%s", e.Stack, e.Runtime, cmp.Or(e.Pre, e.Version), e.Fixture)
 }
 
+// syntax reports whether e only proves that the graph reads the syntax its
+// version brought; another entry of that version runs the toolchain itself.
+func (e Entry) syntax() bool { return slices.Equal(e.Kinds, []string{"graph"}) }
+
 // Load reads the embedded list in file order, once.
 var Load = sync.OnceValues(func() ([]Entry, error) { return parse(listText, "compat.toml") })
 

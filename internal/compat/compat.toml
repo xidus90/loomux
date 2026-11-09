@@ -125,6 +125,24 @@ version = "1.27"
 fixture = "go-module"
 kinds = ["lint", "test", "coverage", "graph"]
 
+# A syntax entry runs only the graph, over a fixture with the forms its Go
+# version brought; go-module carries the version for every other kind and
+# for the scout. Every listed Go version has one.
+
+[[entry]]
+stack = "go"
+runtime = "go"
+version = "1.26"
+fixture = "go-syntax-1.26"
+kinds = ["graph"]
+
+[[entry]]
+stack = "go"
+runtime = "go"
+version = "1.27"
+fixture = "go-syntax-1.27"
+kinds = ["graph"]
+
 # Files that are neither an entry nor a fixture but decide what an entry
 # proves. A change to one of paths (not to an except) runs the entries the
 # rule selects: all, those of some stacks, or those with some addons.
