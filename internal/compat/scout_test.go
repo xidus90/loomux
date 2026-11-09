@@ -108,12 +108,112 @@ func TestScoutNewMinorHasProbeAndTOML(t *testing.T) {
 	}
 }
 
-func TestScoutPatchAndPreReleaseNeverCount(t *testing.T) {
+func TestScoutPatchNeverCounts(t *testing.T) {
 	up := calm()
-	up[godotSource] = []string{"4.7.5", "4.8-beta2", "4.8-dev1", "4.8-rc1"}
-	up[pythonSource] = []string{"3.15.9", "3.16.0rc1"}
+	up[godotSource] = []string{"4.7.5"}
+	up[pythonSource] = []string{"3.15.9"}
 	if got := scout(t, up, gdunit("4.7"), py("3.15")); len(got) != 0 {
 		t.Fatalf("findings %+v", got)
+	}
+}
+
+func goE(v string) Entry {
+	return Entry{Stack: "go", Runtime: "go", Version: v, Fixture: "go-module", Kinds: []string{"lint"}}
+}
+
+func TestScoutFindsNewestPreReleaseOfNextVersion(t *testing.T) {
+	up := calm()
+	up[goSource] = []string{"1.28rc1", "1.28rc2", "1.27.3", "1.26.10"}
+	got := scout(t, up, goE("1.26"), goE("1.27"))
+	if len(got) != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+	f := got[0]
+	if f.Kind != "pre" || f.Line != "go-module/go" || f.Version != "1.28rc2" ||
+		f.Probe.Version != "1.28" || f.Probe.Pre != "1.28rc2" || f.TOML != "" {
+		t.Errorf("finding %+v probe %+v", f, f.Probe)
+	}
+	if f.Title != "compat: go-module/go 1.28rc2 is out" || f.Probe.Key() != "go/go-1.28rc2/go-module" {
+		t.Errorf("title %q key %q", f.Title, f.Probe.Key())
+	}
+}
+
+func TestScoutIgnoresPreReleaseOfListedVersion(t *testing.T) {
+	up := calm()
+	up[goSource] = []string{"1.27rc3", "1.27.3"}
+	if got := scout(t, up, goE("1.27")); len(got) != 0 {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+func TestScoutPrefersStableOverPreRelease(t *testing.T) {
+	up := calm()
+	up[goSource] = []string{"1.28", "1.28rc2", "1.27.3"}
+	got := scout(t, up, goE("1.27"))
+	if len(got) != 1 || got[0].Kind != "new" || got[0].Version != "1.28" || got[0].Probe.Pre != "" {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+func TestScoutPreReleaseOfEveryRuntime(t *testing.T) {
+	up := calm()
+	up[pythonSource] = []string{"3.15.0", "3.16.0a1"}
+	up[godotSource] = []string{"4.7.2", "4.8-dev7", "4.8-beta2"}
+	got := scout(t, up, py("3.15"), gdunit("4.7"))
+	pres := map[string]string{}
+	for _, f := range got {
+		if f.Kind == "pre" {
+			pres[f.Line] = f.Probe.Pre
+		}
+	}
+	if pres["python-mypy/python"] != "3.16.0a1" || pres["godot4-gdunit4/godot"] != "4.8-beta2" || len(got) != 2 {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+func TestScoutFindsPreReleaseOfNextMajor(t *testing.T) {
+	up := calm()
+	up[godotSource] = []string{"4.7.1", "5.0-beta1"}
+	got := scout(t, up, gdunit("4.7"))
+	if len(got) != 1 || got[0].Kind != "pre" || got[0].Line != "godot4-gdunit4/godot" ||
+		got[0].Probe.Version != "5.0" || got[0].Probe.Pre != "5.0-beta1" {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+// A next major belongs to the line with the highest major only, as for a
+// stable release: Godot 3 gets no finding for a 4.x candidate.
+func TestScoutPreReleaseOfNextMajorOnlyForTopLine(t *testing.T) {
+	up := calm()
+	up[godotSource] = []string{"4.7.1", "3.6.2", "4.8-beta2"}
+	got := scout(t, up, godot3(), gdunit("4.7"))
+	if len(got) != 1 || got[0].Kind != "pre" || got[0].Line != "godot4-gdunit4/godot" || got[0].Version != "4.8-beta2" {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+func TestScoutPreReleaseOnlyForRuntimes(t *testing.T) {
+	up := calm()
+	up["https://pypi.org/pypi/ruff/json"] = []string{"0.17.4", "0.18.0rc1"}
+	up["https://api.github.com/repos/godot-gdunit-labs/gdUnit4/releases?per_page=100"] = []string{"6.2.2", "6.3.0-rc1"}
+	if got := scout(t, up, gdunit("4.7"), py("3.15")); len(got) != 0 {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+func TestParsePre(t *testing.T) {
+	for s, want := range map[string][]int{
+		"1.28rc1": {1, 28}, "1.28beta1": {1, 28}, "3.16.0a1": {3, 16}, "3.16.0b2": {3, 16}, "3.16.0rc1": {3, 16},
+		"4.8-beta2": {4, 8}, "4.8-rc1": {4, 8}, "4.8-dev3": {4, 8},
+	} {
+		if got, ok := parsePre(s); !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s = %v %v", s, got, ok)
+		}
+	}
+	for _, s := range []string{"1.28", "1.28.1", "", "x1.2rc1", "1rc1", "1.28rc", "4.8-gamma1", "3.16.0a"} {
+		if _, ok := parsePre(s); ok {
+			t.Errorf("%q read as a pre-release", s)
+		}
 	}
 }
 
@@ -261,7 +361,7 @@ func TestFindingTitleRoundTripsThroughResolved(t *testing.T) {
 		if Resolved(entries, f.Title) {
 			t.Errorf("%q resolved before the probe is in the list", f.Title)
 		}
-		if !Resolved(append(slices.Clone(entries), f.Probe), f.Title) {
+		if !Resolved(append(slices.Clone(entries), *f.Probe), f.Title) {
 			t.Errorf("%q not resolved once the probe is in the list", f.Title)
 		}
 	}
