@@ -13,6 +13,12 @@
   Aussage der zitierenden Seiten. Danach erneut gepinnt, nachdem
   `docs/de/cli-reference.md` festgehalten hat, dass eine Worktree-Sitzung die
   Kopie des Hauptcheckouts startet; auch das berührt keine zitierende Seite.
+- 2026-11-09 — `topics/code-graph.md`, Abschnitt „Wie der Graph entsteht“,
+  Go-Punkt: gelesen werden die gepflegten Go-Versionen 1.26 und 1.27 mit
+  ihren neuen Sprachmitteln, geprüft je Version über die
+  Kompatibilitätsliste, Pre-Releases vorab ohne Gate. Quelle:
+  `internal/code/extract/golang/versions_test.go`, go.dev/doc/go1.26,
+  go.dev/doc/go1.27.
 - 2026-11-09 — Repin von `docs/de/cli-reference.md`: geändert ist nur der
   Satz zu `loomux dev compat run --describe` (das neue Feld `install`, die
   Version in der Schreibweise des Installers). Keine der zitierenden Seiten
