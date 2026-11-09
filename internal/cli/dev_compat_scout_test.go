@@ -18,6 +18,18 @@ type stubUpstream struct {
 
 func (s stubUpstream) Releases(src string) ([]compat.Release, error) { return s.rels[src], s.err }
 
+func (s stubUpstream) EOL(runtime string) (map[string]bool, error) { return maintained(), s.err }
+
+// maintained answers every version of the embedded list as supported.
+func maintained() map[string]bool {
+	entries, _ := compat.Load()
+	out := map[string]bool{}
+	for _, e := range entries {
+		out[e.Version] = false
+	}
+	return out
+}
+
 // stubScout swaps the upstream sources; every source answers the same list.
 func stubScout(t *testing.T, up compat.Upstream) {
 	t.Helper()
@@ -36,6 +48,8 @@ func (a allSame) Releases(string) ([]compat.Release, error) {
 	}
 	return out, nil
 }
+
+func (a allSame) EOL(string) (map[string]bool, error) { return maintained(), nil }
 
 func TestDevCompatScoutReportsFindings(t *testing.T) {
 	stubScout(t, allSame{"99.0", "0.1"})

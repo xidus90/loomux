@@ -21,9 +21,11 @@ type Release struct {
 	Pre     bool
 }
 
-// Upstream answers the releases a source publishes.
+// Upstream answers the releases a source publishes, and for a runtime which
+// of its major.minor versions are past end of support.
 type Upstream interface {
 	Releases(source string) ([]Release, error)
+	EOL(runtime string) (map[string]bool, error)
 }
 
 // Finding is what the scout reports for a line, of one Kind:
@@ -34,6 +36,8 @@ type Upstream interface {
 //   - "pre": a pre-release of the runtime's next version. Version is the
 //     pre-release itself, the probe carries it as Pre, and TOML stays empty:
 //     an entry proven only on a pre-release never goes into the list.
+//   - "eol": a listed runtime version past end of support. Line is the
+//     runtime, there is no probe and no TOML: the entries are to go.
 type Finding struct {
 	Title   string `json:"title"`
 	Kind    string `json:"kind"`
@@ -44,7 +48,12 @@ type Finding struct {
 }
 
 // IssueTitle is the title the finding's issue carries.
-func IssueTitle(f Finding) string { return "compat: " + f.Line + " " + f.Version + " is out" }
+func IssueTitle(f Finding) string {
+	if f.Kind == "eol" {
+		return "compat: " + f.Line + " " + f.Version + " is past end of support"
+	}
+	return "compat: " + f.Line + " " + f.Version + " is out"
+}
 
 // preRe reads a pre-release the way the runtimes spell it: Go "1.28rc1" and
 // "1.28beta1", Python "3.16.0a1", Godot "4.8-beta2". Compiled on first use:
@@ -82,7 +91,10 @@ const (
 	// Without include=all go.dev lists only the maintained stable releases.
 	goSource       = "https://go.dev/dl/?mode=json&include=all"
 	githubReleases = "https://api.github.com/repos/%s/releases?per_page=100"
-	pypiSource     = "https://pypi.org/pypi/%s/json"
+	// eolSource covers go, python and godot under those names; python.org and
+	// Godot publish no machine-readable end of support of their own.
+	eolSource  = "https://endoflife.date/api/v1/products/%s"
+	pypiSource = "https://pypi.org/pypi/%s/json"
 )
 
 var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource}
@@ -220,6 +232,41 @@ func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 			out = append(out, f)
 		}
 	}
+	eol, err := scoutEOL(entries, up)
+	if err != nil {
+		return nil, err
+	}
+	return append(out, eol...), nil
+}
+
+// scoutEOL reports each listed runtime version past end of support, once per
+// runtime and version however many fixtures run it. A version the source
+// does not know is an error: silence would read as "still supported".
+func scoutEOL(entries []Entry, up Upstream) ([]Finding, error) {
+	versions := map[string][]string{}
+	for _, e := range entries {
+		if !slices.Contains(versions[e.Runtime], e.Version) {
+			versions[e.Runtime] = append(versions[e.Runtime], e.Version)
+		}
+	}
+	var out []Finding
+	for _, runtime := range slices.Sorted(maps.Keys(versions)) {
+		eol, err := up.EOL(runtime)
+		if err != nil {
+			return nil, fmt.Errorf("end of support of %s: %w", runtime, err)
+		}
+		for _, v := range slices.Sorted(slices.Values(versions[runtime])) {
+			past, ok := eol[v]
+			if !ok {
+				return nil, fmt.Errorf("end of support: the source knows no %s %s", runtime, v)
+			}
+			if past {
+				f := Finding{Kind: "eol", Line: runtime, Version: v}
+				f.Title = IssueTitle(f)
+				out = append(out, f)
+			}
+		}
+	}
 	return out, nil
 }
 
@@ -334,9 +381,18 @@ func entryTOML(e Entry) string {
 
 var titleRe = regexp.MustCompile(`^compat: (\S+)/(\S+) (\S+) is out$`)
 
+// eolTitleRe is compiled on first use, like preRe.
+var eolTitleRe = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`^compat: (\S+) (\S+) is past end of support$`)
+})
+
 // Resolved reports whether the list holds, for the line of an issue title,
-// a version at least the one the title announces.
+// a version at least the one the title announces; for an end-of-support
+// title, whether the list no longer holds that runtime version.
 func Resolved(entries []Entry, title string) bool {
+	if m := eolTitleRe().FindStringSubmatch(title); m != nil {
+		return !slices.ContainsFunc(entries, func(e Entry) bool { return e.Runtime == m[1] && e.Version == m[2] })
+	}
 	m := titleRe.FindStringSubmatch(title)
 	if m == nil {
 		return false
@@ -367,6 +423,44 @@ type HTTPUpstream struct {
 
 // Releases fetches source and reads its releases.
 func (h HTTPUpstream) Releases(source string) ([]Release, error) {
+	body, err := h.get(source)
+	if err != nil {
+		return nil, err
+	}
+	vs, err := parseReleases(source, body)
+	if err != nil {
+		return nil, fmt.Errorf("unreadable answer: %w", err)
+	}
+	return vs, nil
+}
+
+// EOL fetches the runtime's releases from endoflife.date and reads which
+// major.minor versions are past end of support.
+func (h HTTPUpstream) EOL(runtime string) (map[string]bool, error) {
+	body, err := h.get(fmt.Sprintf(eolSource, runtime))
+	if err != nil {
+		return nil, err
+	}
+	var doc struct {
+		Result struct {
+			Releases []struct {
+				Name  string `json:"name"`
+				IsEOL bool   `json:"isEol"`
+			} `json:"releases"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("unreadable answer: %w", err)
+	}
+	out := map[string]bool{}
+	for _, r := range doc.Result.Releases {
+		out[r.Name] = r.IsEOL
+	}
+	return out, nil
+}
+
+// get fetches source; the GitHub API gets the token when there is one.
+func (h HTTPUpstream) get(source string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, source, nil)
 	if err != nil {
 		return nil, err
@@ -383,15 +477,7 @@ func (h HTTPUpstream) Releases(source string) ([]Release, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status %s", resp.Status)
 	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	vs, err := parseReleases(source, body)
-	if err != nil {
-		return nil, fmt.Errorf("unreadable answer: %w", err)
-	}
-	return vs, nil
+	return io.ReadAll(resp.Body)
 }
 
 // parseReleases reads the releases out of the answer of source, each in its

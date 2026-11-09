@@ -56,6 +56,12 @@ Each row is a combination loomux runs for real before a major release and whenev
 | go | go | 1.26 | go-module | — | — | lint, test, coverage, graph |
 | go | go | 1.27 | go-module | — | — | lint, test, coverage, graph |
 
+The list holds every Go, Python and Godot version its upstream still maintains, not only the newest. Every Monday the compatibility scout (`loomux dev compat scout`) asks upstream three things:
+
+- **A new stable version:** it runs the version as a probe and opens an issue with the entry to add.
+- **An alpha, beta or release candidate of the next version:** it runs it as a probe ahead. A failure only opens an issue and blocks no pull request; a pre-release never enters the list, the release follows once the version is stable.
+- **A listed version past end of support:** the answer comes from [endoflife.date](https://endoflife.date) (`isEol`). The version leaves the list. The pull request that drops it carries at least `release:patch` and names in its `## Changelog`, under `Removed`, the last loomux release that still supports it, for example: "Python 3.10 is no longer supported; v1.19.2 is the last release that supports it."
+
 ## What the code graph reads
 
 The graph (`loomux graph`, the `graph` lane, `graph_*` over MCP) covers Go,
