@@ -45,7 +45,8 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   noch `go/types` vor; gebaut ist der Extraktor ohne `go/types` und ohne
   Build (`internal/code/extract/golang`). Gelesen werden die gepflegten
   Go-Versionen, heute 1.26 und 1.27 mit `new(expr)`, selbstbezüglichen
-  Typparametern, generischen Methoden und Feldselektoren als Schlüssel.
+  Typparametern, generischen Methoden und beförderten Feldern als Schlüssel
+  in Struct-Literalen.
   Geprüft wird das je Version über die Kompatibilitätsliste, ein
   Pre-Release vorab als Probe des Compat-Scouts ohne Gate.
 - **Python** liest er seit G5a auf `gotreesitter`, einer Tree-sitter-Laufzeit
