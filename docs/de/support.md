@@ -57,6 +57,12 @@ Jede Zeile ist eine Kombination, die loomux vor einem Major-Release und bei jede
 | go | go | 1.26 | go-module | — | — | lint, test, coverage, graph |
 | go | go | 1.27 | go-module | — | — | lint, test, coverage, graph |
 
+Die Liste führt jede Go-, Python- und Godot-Version, die ihr Upstream noch pflegt, nicht nur die neueste. Jeden Montag fragt der Kompatibilitäts-Scout (`loomux dev compat scout`) upstream nach dreierlei:
+
+- **Eine neue stabile Version:** Er fährt sie als Probe und öffnet ein Issue mit dem Eintrag, der hinzukommt.
+- **Eine Alpha, Beta oder ein Release Candidate der nächsten Version:** Er fährt sie vorab als Probe. Ein Fehlschlag öffnet nur ein Issue und blockiert keinen Pull Request; ein Pre-Release kommt nie in die Liste, das Release zieht nach, sobald die Version stabil ist.
+- **Eine gelistete Version nach Ende der Pflege:** Die Antwort kommt von [endoflife.date](https://endoflife.date) (`isEol`). Die Version fällt aus der Liste. Der Pull Request, der sie austrägt, trägt mindestens `release:patch` und nennt im `## Changelog` unter `Removed` die letzte loomux-Version, die sie noch unterstützt, etwa: „Python 3.10 is no longer supported; v1.19.2 is the last release that supports it.“
+
 ## Was der Code-Graph liest
 
 Der Graph (`loomux graph`, die Lane `graph`, `graph_*` über MCP) deckt Go,

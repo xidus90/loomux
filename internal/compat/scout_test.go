@@ -14,8 +14,23 @@ import (
 )
 
 // fakeUp answers from a map keyed by source; a missing source is an error.
-// A version that is not plain digits stands for a pre-release.
+// A version that is not plain digits stands for a pre-release. The key
+// "eol:<runtime>" lists the runtime's versions for EOL, a trailing "!" marking
+// one past end of support.
 type fakeUp map[string][]string
+
+func (f fakeUp) EOL(runtime string) (map[string]bool, error) {
+	vs, ok := f["eol:"+runtime]
+	if !ok {
+		return nil, errors.New("no end-of-support answer")
+	}
+	out := map[string]bool{}
+	for _, v := range vs {
+		name, past := strings.CutSuffix(v, "!")
+		out[name] = past
+	}
+	return out, nil
+}
 
 func (f fakeUp) Releases(source string) ([]Release, error) {
 	r, ok := f[source]
@@ -53,6 +68,9 @@ func calm() fakeUp {
 		godotSource:  {"4.7", "4.7.1", "3.6.2", "4.5"},
 		pythonSource: {"3.15.0", "3.14.2"},
 		goSource:     {"1.27.2"},
+		"eol:godot":  {"3.6", "4.5", "4.7", "4.9", "9.9"},
+		"eol:python": {"3.11", "3.14", "3.15"},
+		"eol:go":     {"1.26", "1.27", "1.28"},
 		"https://api.github.com/repos/godot-gdunit-labs/gdUnit4/releases?per_page=100":      {"6.2.2", "6.2.1"},
 		"https://api.github.com/repos/IgorBayerl/nano-coverage-godot/releases?per_page=100": {"0.1.1"},
 		"https://api.github.com/repos/bitwes/Gut/releases?per_page=100":                     {"7.4.3"},
@@ -198,6 +216,61 @@ func TestScoutPreReleaseOnlyForRuntimes(t *testing.T) {
 	up["https://api.github.com/repos/godot-gdunit-labs/gdUnit4/releases?per_page=100"] = []string{"6.2.2", "6.3.0-rc1"}
 	if got := scout(t, up, gdunit("4.7"), py("3.15")); len(got) != 0 {
 		t.Fatalf("findings %+v", got)
+	}
+}
+
+func TestScoutReportsEndOfSupport(t *testing.T) {
+	up := calm()
+	up["eol:python"] = []string{"3.10!", "3.11", "3.15"}
+	got := scout(t, up, py("3.10"), py("3.11"), py("3.15"))
+	if len(got) != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+	f := got[0]
+	if f.Kind != "eol" || f.Line != "python" || f.Version != "3.10" || f.Probe != nil || f.TOML != "" ||
+		f.Title != "compat: python 3.10 is past end of support" {
+		t.Errorf("finding %+v", f)
+	}
+}
+
+func TestScoutEOLIsPerRuntimeNotPerFixture(t *testing.T) {
+	up := calm()
+	up["eol:godot"] = []string{"4.5!", "4.7"}
+	g := gdunit("4.5")
+	g.Fixture = "godot4-plain"
+	// The second fixture's line also gets a "new" finding for 4.7; only the
+	// end of support is counted here.
+	var eol []Finding
+	for _, f := range scout(t, up, gdunit("4.5"), g, gdunit("4.7")) {
+		if f.Kind == "eol" {
+			eol = append(eol, f)
+		}
+	}
+	if len(eol) != 1 || eol[0].Line != "godot" || eol[0].Version != "4.5" {
+		t.Fatalf("findings %+v", eol)
+	}
+}
+
+func TestScoutFailsWhenEOLUnknown(t *testing.T) {
+	up := calm()
+	delete(up, "eol:python")
+	if _, err := Scout([]Entry{py("3.15")}, up); err == nil || !strings.Contains(err.Error(), "python") {
+		t.Errorf("no answer: %v", err)
+	}
+	up = calm()
+	up["eol:python"] = []string{"3.15"}
+	if _, err := Scout([]Entry{py("3.14")}, up); err == nil || !strings.Contains(err.Error(), "python 3.14") {
+		t.Errorf("unknown version: %v", err)
+	}
+}
+
+func TestResolvedEOL(t *testing.T) {
+	title := "compat: python 3.10 is past end of support"
+	if Resolved([]Entry{py("3.10"), py("3.11")}, title) {
+		t.Error("resolved while 3.10 is listed")
+	}
+	if !Resolved([]Entry{py("3.11")}, title) {
+		t.Error("open after 3.10 left the list")
 	}
 }
 
@@ -559,5 +632,26 @@ func TestRunWithEntryRunsProbe(t *testing.T) {
 		}})
 	if err != nil || rep.Entry != e.Key() {
 		t.Fatalf("%+v %v", rep, err)
+	}
+}
+
+// The body is trimmed from the real answer of endoflife.date on 2026-11-08.
+func TestHTTPUpstreamEOL(t *testing.T) {
+	rt := &roundTrip{status: 200, body: `{"schema_version":"1.2.1","result":{"name":"python","releases":[{"name":"3.11","isEol":false,"eolFrom":"2027-10-31"},{"name":"3.10","isEol":true,"isMaintained":false}]}}`}
+	h := HTTPUpstream{Client: &http.Client{Transport: rt}, Token: "tok"}
+	got, err := h.EOL("python")
+	if err != nil || !reflect.DeepEqual(got, map[string]bool{"3.11": false, "3.10": true}) {
+		t.Fatalf("%v %v", got, err)
+	}
+	if rt.seen.URL.String() != "https://endoflife.date/api/v1/products/python" || rt.seen.Header.Get("Authorization") != "" {
+		t.Errorf("asked %s with auth %q", rt.seen.URL, rt.seen.Header.Get("Authorization"))
+	}
+	rt.status = 404
+	if _, err := h.EOL("nope"); err == nil || !strings.Contains(err.Error(), "404") {
+		t.Errorf("status: %v", err)
+	}
+	rt.status, rt.body = 200, "junk"
+	if _, err := h.EOL("python"); err == nil || !strings.Contains(err.Error(), "unreadable") {
+		t.Errorf("junk: %v", err)
 	}
 }
