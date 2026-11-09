@@ -142,7 +142,7 @@ func TestDevCompatRunRescansWithTheEngineItFinds(t *testing.T) {
 func TestDevCompatRunDescribesTheEntry(t *testing.T) {
 	stubCompatRun(t, compat.Report{}, errors.New("describe must not run the entry"))
 	code, out, errOut := run("dev", "compat", "run", "gdscript/godot-3.6/godot3-gut", "--describe")
-	if code != 0 || !strings.HasPrefix(out, `{"stack":"gdscript","runtime":"godot","version":"3.6","addons":[{"name":"GUT"`) || errOut != "" {
+	if code != 0 || !strings.HasPrefix(out, `{"stack":"gdscript","runtime":"godot","version":"3.6","install":"3.6","addons":[{"name":"GUT"`) || errOut != "" {
 		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
 	}
 	if code, _, _ := run("dev", "compat", "run", "nope", "--describe"); code != 2 {

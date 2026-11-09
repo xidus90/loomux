@@ -295,9 +295,12 @@ type AddonSource struct {
 
 // Description is what CI installs for an entry.
 type Description struct {
-	Stack   string        `json:"stack"`
-	Runtime string        `json:"runtime"`
-	Version string        `json:"version"`
+	Stack   string `json:"stack"`
+	Runtime string `json:"runtime"`
+	Version string `json:"version"`
+	// Install is the pre-release, else the version, as the runtime's
+	// installer spells it.
+	Install string        `json:"install"`
 	Addons  []AddonSource `json:"addons"`
 }
 
@@ -322,7 +325,11 @@ func Describe(key string) (Description, error) {
 
 // DescribeEntry names the runtime and addon sources of e.
 func DescribeEntry(e Entry) (Description, error) {
-	d := Description{Stack: e.Stack, Runtime: e.Runtime, Version: e.Version, Addons: []AddonSource{}}
+	d := Description{Stack: e.Stack, Runtime: e.Runtime, Version: e.Version, Install: cmp.Or(e.Pre, e.Version), Addons: []AddonSource{}}
+	if e.Runtime == "go" && e.Pre != "" {
+		// actions/setup-go takes a native Go pre-release only with its prefix.
+		d.Install = "go" + e.Pre
+	}
 	for _, a := range e.Addons {
 		s, ok := addonSources[a.Name]
 		if !ok {
