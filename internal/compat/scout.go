@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Release is one version a source publishes, without a leading "v" or other
@@ -25,20 +26,53 @@ type Upstream interface {
 	Releases(source string) ([]Release, error)
 }
 
-// Finding is a version newer than everything its line holds. Line is
-// <fixture>/<name>, Version the new major.minor (the major for a pin of a
-// major), Probe the entry that would try it and TOML that entry as an
-// [[entry]] block, ready to paste into compat.toml.
+// Finding is what the scout reports for a line, of one Kind:
+//   - "new": a version newer than everything the line holds. Line is
+//     <fixture>/<name>, Version the new major.minor (the major for a pin of a
+//     major), Probe the entry that would try it and TOML that entry as an
+//     [[entry]] block, ready to paste into compat.toml.
+//   - "pre": a pre-release of the runtime's next version. Version is the
+//     pre-release itself, the probe carries it as Pre, and TOML stays empty:
+//     an entry proven only on a pre-release never goes into the list.
 type Finding struct {
 	Title   string `json:"title"`
+	Kind    string `json:"kind"`
 	Line    string `json:"line"`
 	Version string `json:"version"`
-	Probe   Entry  `json:"probe"`
+	Probe   *Entry `json:"probe,omitempty"`
 	TOML    string `json:"toml"`
 }
 
 // IssueTitle is the title the finding's issue carries.
 func IssueTitle(f Finding) string { return "compat: " + f.Line + " " + f.Version + " is out" }
+
+// preRe reads a pre-release the way the runtimes spell it: Go "1.28rc1" and
+// "1.28beta1", Python "3.16.0a1", Godot "4.8-beta2". Compiled on first use:
+// package start has an allocation budget (cmd/loomux start_test.go).
+var preRe = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`^(\d+)\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|rc)(\d+)$`)
+})
+
+// parsePre reads the major.minor of a pre-release; anything else does not
+// parse.
+func parsePre(s string) ([]int, bool) {
+	m := preRe().FindStringSubmatch(s)
+	if m == nil {
+		return nil, false
+	}
+	major, _ := strconv.Atoi(m[1]) // digits only, see parseVer
+	minor, _ := strconv.Atoi(m[2])
+	return []int{major, minor}, true
+}
+
+// preOrder ranks pre-releases of one major.minor: dev before alpha before
+// beta before rc, then by number. s must parse with parsePre.
+func preOrder(s string) []int {
+	m := preRe().FindStringSubmatch(s)
+	stage := map[string]int{"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "rc": 3}[m[3]]
+	n, _ := strconv.Atoi(m[4])
+	return []int{stage, n}
+}
 
 const (
 	// godot-builds holds the pre-releases too; godotengine/godot only the
@@ -208,6 +242,9 @@ func scoutGroup(g *group, rels []Release, topMajor int) (Finding, bool) {
 		}
 	}
 	if best == nil {
+		if g.kind == "runtime" {
+			return scoutPre(g, rels, topMajor)
+		}
 		return Finding{}, false
 	}
 	version := strconv.Itoa(best[0])
@@ -229,7 +266,41 @@ func scoutGroup(g *group, rels []Release, topMajor int) (Finding, bool) {
 	default:
 		probe.Tools[g.name] = version + ".*"
 	}
-	f := Finding{Line: g.fixture + "/" + g.name, Version: version, Probe: probe, TOML: entryTOML(probe)}
+	f := Finding{Kind: "new", Line: g.fixture + "/" + g.name, Version: version, Probe: &probe, TOML: entryTOML(probe)}
+	f.Title = IssueTitle(f)
+	return f, true
+}
+
+// scoutPre finds the newest pre-release of a runtime line's next version, by
+// the same rule a stable one would have to meet. It runs only when no stable
+// release is new, so a released version always wins over its candidates.
+func scoutPre(g *group, rels []Release, topMajor int) (Finding, bool) {
+	var best []int
+	var raw string
+	for _, rel := range rels {
+		v, ok := parsePre(rel.Version)
+		if !ok || !rel.Pre {
+			continue
+		}
+		newMajor := v[0] > g.major && g.major == topMajor
+		newMinor := v[0] == g.major && v[1] > part(g.max, 1)
+		if !newMajor && !newMinor {
+			continue
+		}
+		// major, minor, stage, number: the newest candidate sorts last.
+		if key := append(v, preOrder(rel.Version)...); best == nil || cmpVer(key, best) > 0 {
+			best, raw = key, rel.Version
+		}
+	}
+	if best == nil {
+		return Finding{}, false
+	}
+	probe := g.newest
+	probe.Addons = slices.Clone(probe.Addons)
+	probe.Tools = maps.Clone(probe.Tools)
+	probe.Version = fmt.Sprintf("%d.%d", best[0], best[1])
+	probe.Pre = raw
+	f := Finding{Kind: "pre", Line: g.fixture + "/" + g.name, Version: raw, Probe: &probe}
 	f.Title = IssueTitle(f)
 	return f, true
 }

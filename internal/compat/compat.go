@@ -4,6 +4,7 @@ package compat
 
 import (
 	"bytes"
+	"cmp"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -38,6 +39,9 @@ type Entry struct {
 	Kinds   []string          `json:"kinds"`
 	Addons  []Addon           `json:"addons,omitempty"`
 	Tools   map[string]string `json:"tools,omitempty"`
+	// Pre is the pre-release of Version a scout probe runs ("1.28rc1"); the
+	// list never holds one, so compat.toml has no such key.
+	Pre string `toml:"-" json:"pre,omitempty"`
 	// Line is the 1-based line of the entry's header in compat.toml.
 	Line int `toml:"-" json:"-"`
 }
@@ -81,9 +85,10 @@ func readJSON(path string, v any, valid func() error) error {
 	return nil
 }
 
-// Key identifies an entry: <stack>/<runtime>-<version>/<fixture>.
+// Key identifies an entry: <stack>/<runtime>-<version>/<fixture>, with the
+// pre-release in place of the version when the entry has one.
 func (e Entry) Key() string {
-	return fmt.Sprintf("%s/%s-%s/%s", e.Stack, e.Runtime, e.Version, e.Fixture)
+	return fmt.Sprintf("%s/%s-%s/%s", e.Stack, e.Runtime, cmp.Or(e.Pre, e.Version), e.Fixture)
 }
 
 // Load reads the embedded list in file order, once.
@@ -180,6 +185,11 @@ func check(e Entry, refs refs, strict bool) error {
 	}
 	if !versionRe.MatchString(e.Version) {
 		return fmt.Errorf("version %q is not MAJOR.MINOR", e.Version)
+	}
+	if e.Pre != "" {
+		if v, ok := parsePre(e.Pre); !ok || fmt.Sprintf("%d.%d", v[0], v[1]) != e.Version {
+			return fmt.Errorf("pre %q is no pre-release of %s", e.Pre, e.Version)
+		}
 	}
 	if len(e.Kinds) == 0 {
 		return fmt.Errorf("entry has no kinds")

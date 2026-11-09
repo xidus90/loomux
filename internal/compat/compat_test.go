@@ -2,6 +2,8 @@ package compat
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -53,6 +55,8 @@ func TestTheListRefuses(t *testing.T) {
 		{"no fixture folder", strings.Replace(good, `"python-mypy"`, `"nowhere"`, 1), `compat.toml:1: fixture "nowhere"`},
 		{"no kinds", strings.Replace(good, "kinds = [\"lint\", \"types\"]", "kinds = []", 1), `compat.toml:1: entry has no kinds`},
 		{"no fixture", strings.Replace(good, "fixture = \"python-mypy\"\n", "", 1), `compat.toml:1: entry has no fixture`},
+		// A pre-release is probed, never listed.
+		{"pre-release", good + "pre = \"3.12.0rc1\"\n", `unknown key "pre"`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -82,5 +86,25 @@ func TestTheListLoadsFromAnyDirectory(t *testing.T) {
 	}
 	if _, err := fs.Stat(Fixtures(), "godot3-gut/project.godot"); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestAProbeMayCarryAPreReleaseOfItsVersion(t *testing.T) {
+	dir := t.TempDir()
+	write := func(json string) string {
+		p := filepath.Join(dir, "probe.json")
+		if err := os.WriteFile(p, []byte(json), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	e, err := LoadEntry(write(`{"stack":"go","runtime":"go","version":"1.28","pre":"1.28rc1","fixture":"go-module","kinds":["lint"]}`))
+	if err != nil || e.Pre != "1.28rc1" {
+		t.Fatalf("%+v %v", e, err)
+	}
+	for _, pre := range []string{"1.29rc1", "1.28", "soon"} {
+		if _, err := LoadEntry(write(`{"stack":"go","runtime":"go","version":"1.28","pre":"` + pre + `","fixture":"go-module","kinds":["lint"]}`)); err == nil || !strings.Contains(err.Error(), "pre-release") {
+			t.Errorf("pre %q: %v", pre, err)
+		}
 	}
 }
