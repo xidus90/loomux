@@ -4,6 +4,16 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-11-09
+
+- 2026-11-09 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
+  unverändert: `docs/de/cli-reference.md` (`dev swap-binary` kopiert das
+  Pilot-Binary nach `%LOCALAPPDATA%\loomux\dev\<Ordner>\`) und
+  `docs/de/configuration.md` (Go-Lanes nennen ein Low-Label) berühren keine
+  Aussage der zitierenden Seiten. Danach erneut gepinnt, nachdem
+  `docs/de/cli-reference.md` festgehalten hat, dass eine Worktree-Sitzung die
+  Kopie des Hauptcheckouts startet; auch das berührt keine zitierende Seite.
+
 ## 2026-11-04
 
 - 2026-11-04 — `topics/code-graph.md` und

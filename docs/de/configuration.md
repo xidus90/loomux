@@ -326,6 +326,13 @@ Verzeichnisse der Tests kein Repository über sich. Lässt sich der Ordner nicht
 anlegen oder beschreiben, ist die Lane `unready` und nennt den freizugebenden
 Pfad.
 
+Unter Windows kann loomux selbst als Low-Prozess laufen. Meist liegt das
+Binary dann in einem Ordner mit Low-Label; manche Agenten-Sandboxes setzen
+ein solches Label auf ein Repository. In diesem Fall nennt die Lane das
+Label als Ursache. Ein Low-Prozess darf nur dort schreiben, wo der Ordner
+ebenfalls Low ist. Abhilfe schafft eine Kopie des Binarys, die außerhalb
+dieses Ordners läuft. So machen es auch die Hooks eines loomux-Checkouts.
+
 - Eine `coverage`-Lane, die `{coverprofile}` liest, während weder `test`,
   `test.measuring` noch `coverage.measure` desselben Stacks es schreibt, ist
   ein Ladefehler.

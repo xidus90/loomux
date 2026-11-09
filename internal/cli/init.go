@@ -27,7 +27,6 @@ import (
 	"github.com/xidus90/loomux/internal/pathkey"
 	"github.com/xidus90/loomux/internal/selfupdate"
 	"github.com/xidus90/loomux/internal/setup"
-	"github.com/xidus90/loomux/internal/swap"
 )
 
 const initUsage = "usage: loomux init [--root DIR] [--dry-run] [--detect-only] [--yes] " +
@@ -90,7 +89,7 @@ func buildPilot(root string) error {
 	if out, err := build.CombinedOutput(); err != nil {
 		return fmt.Errorf("go build: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
-	return swap.Swap(bin)
+	return swapPilot(bin, root)
 }
 
 // runSubcommand runs one of the commands init hands work to. It is a switch
@@ -427,7 +426,7 @@ func noBinary(failed []string) string {
 
 // notCheckout is why binary-build cannot run in a project that is no
 // checkout of loomux but whose entries call the checkout's binary.
-const notCheckout = "the host entries call ${CLAUDE_PROJECT_DIR}/bin/loomux.exe, but go.mod does not declare " +
+const notCheckout = "the host entries call the checkout's own build (under ${LOCALAPPDATA}/loomux/dev/), but go.mod does not declare " +
 	"github.com/xidus90/loomux, so init cannot build it here; build it, or remove the entries to get the installed binary"
 
 // printPlan writes the summary: every change as a diff under its path, then

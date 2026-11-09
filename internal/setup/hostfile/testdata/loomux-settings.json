@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook session-start --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook session-start --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
             "timeout": 20
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook pre-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook pre-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
             "timeout": 15
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook post-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook post-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
             "timeout": 60
           }
         ]
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s",
             "timeout": 300
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook subagent-start --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook subagent-start --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
             "timeout": 30
           }
         ]
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook subagent-stop --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
+            "command": "\"${LOCALAPPDATA}/loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe\" hook subagent-stop --host claude --root \"${CLAUDE_PROJECT_DIR}\"",
             "timeout": 30
           }
         ]

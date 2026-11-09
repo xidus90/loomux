@@ -19,9 +19,12 @@ type Entry struct {
 	Flat                    bool
 }
 
-// Canonical and Checkout are the two binaries an entry may call.
+// Canonical and Checkout are the two binaries an entry may call. Checkout is
+// the copy of a loomux checkout's own build under LOCALAPPDATA, one folder
+// per checkout (swap.DevDir): a binary inside the checkout inherits any
+// integrity label set on it, and a Low one cannot write outside it.
 const Canonical = `"${LOCALAPPDATA}/loomux/bin/loomux.exe"`
-const Checkout = `"${CLAUDE_PROJECT_DIR}/bin/loomux.exe"`
+const Checkout = `"${LOCALAPPDATA}/loomux/dev/$(basename "${CLAUDE_PROJECT_DIR}")/loomux.exe"`
 
 // AntigravityBinary is the installed binary in the form Antigravity's hook
 // entries call it. agy (measured with 1.2.8 on 2026-09-24) runs a hook

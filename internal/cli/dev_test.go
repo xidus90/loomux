@@ -41,7 +41,36 @@ func TestDevRefusesAnUnknownSubcommand(t *testing.T) {
 	}
 }
 
+func TestDevSwapBinaryInstallsOutsideTheCheckoutToo(t *testing.T) {
+	local := t.TempDir()
+	t.Setenv("LOCALAPPDATA", local)
+	dir := t.TempDir()
+	root := filepath.Join(t.TempDir(), "my-worktree")
+	os.WriteFile(filepath.Join(dir, "loomux.new.exe"), []byte("x"), 0o755)
+	if code, _, errOut := run("dev", "swap-binary", "--dir", dir, "--root", root); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut)
+	}
+	for _, p := range []string{filepath.Join(dir, "loomux.exe"), filepath.Join(local, "loomux", "dev", "my-worktree", "loomux.exe")} {
+		if data, err := os.ReadFile(p); err != nil || string(data) != "x" {
+			t.Errorf("%s: %q, %v", p, data, err)
+		}
+	}
+}
+
+func TestDevSwapBinaryKeepsTheFirstSwapWhenTheSecondFails(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "file")
+	os.WriteFile(blocker, nil, 0o644)
+	t.Setenv("LOCALAPPDATA", blocker)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "loomux.new.exe"), []byte("x"), 0o755)
+	code, _, errOut := run("dev", "swap-binary", "--dir", dir)
+	if data, _ := os.ReadFile(filepath.Join(dir, "loomux.exe")); code != 1 || string(data) != "x" || !strings.Contains(errOut, blocker) {
+		t.Fatalf("code %d, bin %q, err %q", code, data, errOut)
+	}
+}
+
 func TestDevSwapBinary(t *testing.T) {
+	t.Setenv("LOCALAPPDATA", "")
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "loomux.new.exe"), []byte("x"), 0o755)
 	if code, _, errOut := run("dev", "swap-binary", "--dir", dir); code != 0 {

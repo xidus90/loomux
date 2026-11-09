@@ -357,14 +357,29 @@ func devSwapBinary(args []string, _ io.Reader, _, stderr io.Writer) int {
 	fs := flag.NewFlagSet("dev swap-binary", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	dir := fs.String("dir", "bin", "directory holding loomux.new.exe")
+	root := fs.String("root", ".", "checkout whose folder names the copy under LOCALAPPDATA")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if err := swap.Swap(*dir); err != nil {
+	if err := swapPilot(*dir, *root); err != nil {
 		fmt.Fprintf(stderr, "loomux dev swap-binary: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// swapPilot swaps the new build in at dir and copies it to the checkout's
+// folder under LOCALAPPDATA, where its hooks run it: a binary inside the
+// checkout inherits any integrity label set on the checkout.
+func swapPilot(dir, root string) error {
+	if err := swap.Swap(dir); err != nil {
+		return err
+	}
+	dev := swap.DevDir(root)
+	if dev == "" {
+		return nil
+	}
+	return swap.Install(filepath.Join(dir, "loomux.exe"), dev)
 }
 
 var benchCorpusRun = benchcorpus.BenchmarkCorpus

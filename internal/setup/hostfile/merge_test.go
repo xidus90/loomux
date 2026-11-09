@@ -318,6 +318,27 @@ func TestBinaryOfFollowsTheCheckout(t *testing.T) {
 	}
 }
 
+// A settings file from before the pilot binary moved out of the checkout.
+const oldCheckoutStop = `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook stop --host claude --root \"${CLAUDE_PROJECT_DIR}\" --budget 270s","timeout":300}]}]}}`
+
+func TestBinaryOfKnowsTheOldCheckoutForm(t *testing.T) {
+	if got := BinaryOf(claude, []byte(oldCheckoutStop)); got != Checkout {
+		t.Fatalf("BinaryOf(old form) = %s, want Checkout", got)
+	}
+}
+
+// Merge rewrites no command of ours, so an old checkout line stays and init
+// names the line to write instead of doubling the hook.
+func TestMergeNamesTheNewCheckoutLineForAnOldOne(t *testing.T) {
+	got, err := Merge(claude, []byte(oldCheckoutStop), Entries(claude, Checkout))
+	if err != nil || len(got.Notes) != 1 || !strings.Contains(got.Notes[0], "loomux/dev/$(basename") {
+		t.Fatalf("err %v, notes %v", err, got.Notes)
+	}
+	if strings.Count(string(got.Merged), "hook stop") != 1 {
+		t.Fatalf("the hook must not run twice:\n%s", got.Merged)
+	}
+}
+
 func TestBinaryOfReadsTheAntigravityGroup(t *testing.T) {
 	existing := []byte(`{"loomux":{"PreToolUse":[{"hooks":[{"type":"command","command":"\"${CLAUDE_PROJECT_DIR}/bin/loomux.exe\" hook pre-tool-use"}]}]}}`)
 	if got := BinaryOf(hosts.HostAntigravity, existing); got != Checkout {

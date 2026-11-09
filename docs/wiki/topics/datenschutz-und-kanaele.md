@@ -9,13 +9,13 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:1bbf0d56b862b68bfa506d3c72b2ab385db36957fd9ce4a7d252747d58e17b93"
-    revision: 25
+    content_hash: "sha256:fdde59d8d7b5dfb1305d9a5c3314a9f3bee414483669f86e4fec4a3a813aa15d"
+    revision: 26
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:b50dd3ac94f242dce8cfcdee0efb214d9d545cd00cf84fe8eb1fc440230f21f8"
-    revision: 22
+    content_hash: "sha256:1b0aaf7683f6f17cf03fc757edcf96b353cafcf3cfbffff9a6edfbca5b06e3ca"
+    revision: 24
 ---
 
 ## Der Fund, der die Regel erzwang

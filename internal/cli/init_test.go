@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xidus90/loomux/internal/swap"
 	"io"
 	"io/fs"
 	"net/http"
@@ -88,6 +89,7 @@ func initWorld(t *testing.T) (string, *initSeams) {
 	replace(t, &buildCheckout, func(root string) error {
 		s.built++
 		writeAt(t, filepath.Join(root, "bin", "loomux.exe"), "binary")
+		writeAt(t, filepath.Join(swap.DevDir(root), "loomux.exe"), "binary")
 		return nil
 	})
 	replace(t, &runAction, func(name string, args []string, stdout, stderr io.Writer) int {
@@ -770,7 +772,7 @@ func TestInitOnTheCheckoutBuildsInsteadOfInstalling(t *testing.T) {
 	if s.built != 1 || s.installed != 0 {
 		t.Errorf("seams: %+v", s)
 	}
-	if !strings.Contains(readAt(t, root, ".claude/settings.json"), "${CLAUDE_PROJECT_DIR}/bin/loomux.exe") {
+	if !strings.Contains(readAt(t, root, ".claude/settings.json"), `loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe`) {
 		t.Error("entries do not call the checkout's binary")
 	}
 }
@@ -860,11 +862,16 @@ func TestBuildPilotBuildsAndSwaps(t *testing.T) {
 	t.Setenv("GOCACHE", strings.TrimSpace(string(cache)))
 	t.Setenv("GOTOOLCHAIN", "local")
 	t.Setenv("GOFLAGS", "")
+	local := t.TempDir()
+	t.Setenv("LOCALAPPDATA", local)
 	root := t.TempDir()
 	writeAt(t, filepath.Join(root, "go.mod"), "module example.com/pilot\n\ngo 1.21\n")
 	writeAt(t, filepath.Join(root, "cmd", "loomux", "main.go"), "package main\n\nfunc main() {}\n")
 	if err := buildPilot(root); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(local, "loomux", "dev", filepath.Base(root), "loomux.exe")); err != nil {
+		t.Fatalf("the pilot binary must be copied outside the checkout: %v", err)
 	}
 	if !there(root, "bin/loomux.exe") || there(root, "bin/loomux.new.exe") {
 		t.Fatal("no swapped binary")

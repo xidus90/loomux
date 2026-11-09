@@ -14,8 +14,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:b50dd3ac94f242dce8cfcdee0efb214d9d545cd00cf84fe8eb1fc440230f21f8"
-    revision: 22
+    content_hash: "sha256:1b0aaf7683f6f17cf03fc757edcf96b353cafcf3cfbffff9a6edfbca5b06e3ca"
+    revision: 24
 ---
 
 ## Das Bundle

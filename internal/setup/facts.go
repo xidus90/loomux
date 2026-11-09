@@ -21,6 +21,7 @@ import (
 	"github.com/xidus90/loomux/internal/hosts"
 	"github.com/xidus90/loomux/internal/setup/gitfiles"
 	"github.com/xidus90/loomux/internal/setup/hostfile"
+	"github.com/xidus90/loomux/internal/swap"
 	"github.com/xidus90/loomux/internal/verify"
 )
 
@@ -109,12 +110,14 @@ type Running struct {
 // gives the hook nobody to record for.
 func (f Facts) HookWanted() bool { return f.OnMerge && f.Registered }
 
-// BinaryPath is the file an entry calling binary runs: the checkout's
-// <root>/bin/loomux.exe, or the installed one under LOCALAPPDATA, "" when
-// that is not set.
+// BinaryPath is the file an entry calling binary runs: the checkout's copy
+// under LOCALAPPDATA, or the installed one there, "" when that is not set.
 func BinaryPath(root, binary string) string {
 	if binary == hostfile.Checkout {
-		return filepath.Join(root, "bin", "loomux.exe")
+		if dev := swap.DevDir(root); dev != "" {
+			return filepath.Join(dev, "loomux.exe")
+		}
+		return ""
 	}
 	if local := os.Getenv("LOCALAPPDATA"); local != "" {
 		return filepath.Join(local, "loomux", "bin", "loomux.exe")

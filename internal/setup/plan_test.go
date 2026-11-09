@@ -93,8 +93,17 @@ func TestBinaryPathNeedsLocalAppData(t *testing.T) {
 	if got := BinaryPath("root", hostfile.Canonical); got != "" {
 		t.Errorf("canonical = %q", got)
 	}
-	if got := BinaryPath("root", hostfile.Checkout); got != filepath.Join("root", "bin", "loomux.exe") {
+	if got := BinaryPath("root", hostfile.Checkout); got != "" {
 		t.Errorf("checkout = %q", got)
+	}
+}
+
+func TestBinaryPathOfTheCheckoutIsTheDevFolder(t *testing.T) {
+	local := t.TempDir()
+	t.Setenv("LOCALAPPDATA", local)
+	root := filepath.Join(t.TempDir(), "loomux")
+	if got, want := BinaryPath(root, hostfile.Checkout), filepath.Join(local, "loomux", "dev", "loomux", "loomux.exe"); got != want {
+		t.Errorf("checkout = %q, want %q", got, want)
 	}
 }
 
@@ -441,7 +450,7 @@ func TestAntigravityGetsItsEntriesAndSkills(t *testing.T) {
 		!strings.Contains(ch.After, `"command": "%LOCALAPPDATA%/loomux/bin/loomux.exe hook stop --host antigravity --root .. --budget 270s"`) {
 		t.Fatalf(".agents/hooks.json = %+v", ch)
 	}
-	if claude, _ := changeOf(p, ".claude/settings.json"); !strings.Contains(claude.After, "${CLAUDE_PROJECT_DIR}/bin/loomux.exe") {
+	if claude, _ := changeOf(p, ".claude/settings.json"); !strings.Contains(claude.After, `loomux/dev/$(basename \"${CLAUDE_PROJECT_DIR}\")/loomux.exe`) {
 		t.Errorf("claude's entries do not call the checkout:\n%s", claude.After)
 	}
 	for _, rel := range []string{".agents/skills/verify-until-green/SKILL.md", ".agents/skills/brain-land/SKILL.md"} {
