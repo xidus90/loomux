@@ -166,6 +166,10 @@ type RawEdge struct {
 	File      string         `json:"file"`
 	// Line is the 1-based line of the use; 0 only on a contains edge.
 	Line int `json:"line,omitempty"`
+	// Member is the kind of member a use names when the use alone says it
+	// and its name does not: the signal or the handler end of a Godot
+	// connection. Empty everywhere else.
+	Member model.Kind `json:"member,omitempty"`
 }
 
 // Result is what one file contributes to the graph.
@@ -186,4 +190,60 @@ type Result struct {
 	Nodes       []model.Node `json:"nodes"`
 	Edges       []RawEdge    `json:"edges,omitempty"`
 	ParseErrors int          `json:"parse_errors,omitempty"`
+	Exports     []Export     `json:"exports,omitempty"`
+	Bridges     []Bridge     `json:"bridges,omitempty"`
+	// Embedded are the parts of the file in another language, an inline
+	// script of an HTML page say: the same Path, lines of the whole file,
+	// no file node of their own, at most one per language and never the
+	// file's own, and no parts of their own.
+	Embedded []Result `json:"embedded,omitempty"`
+}
+
+// Flatten is r followed by its embedded parts, each without parts: the
+// list the resolver groups by language.
+func (r Result) Flatten() []Result {
+	parts := r.Embedded
+	r.Embedded = nil
+	out := []Result{r}
+	for _, p := range parts {
+		p.Embedded = nil
+		out = append(out, p)
+	}
+	return out
+}
+
+// Namespace is where a name offered across a language boundary lives. The
+// resolver knows each one's rules; the extractors only name it.
+type Namespace string
+
+const (
+	NamespaceGodotClass  Namespace = "godot.class"  // a class Godot's ClassDB knows by name
+	NamespaceGodotMethod Namespace = "godot.method" // a method a scene's connection may call
+	NamespaceGodotSignal Namespace = "godot.signal" // a signal a scene's connection may listen to
+)
+
+// Namespaces is every namespace an extractor or resolver of the build may
+// use.
+var Namespaces = []Namespace{NamespaceGodotClass, NamespaceGodotMethod, NamespaceGodotSignal}
+
+// Export is a definition a file offers across a language boundary, under
+// the name the offering side gives it: a C# signal delegate HitEventHandler
+// is offered as Hit, because that is what a scene calls it.
+type Export struct {
+	Namespace Namespace    `json:"namespace"`
+	Name      string       `json:"name"`
+	Target    model.NodeID `json:"target"`
+}
+
+// Bridge is a use that names a definition in another language. Scope
+// lists the files the use itself names as the place to look; empty, the
+// namespace's rules decide.
+type Bridge struct {
+	Source    model.NodeID   `json:"source"`
+	Relation  model.Relation `json:"relation"`
+	Namespace Namespace      `json:"namespace"`
+	Name      string         `json:"name"`
+	Scope     []string       `json:"scope,omitempty"`
+	File      string         `json:"file"`
+	Line      int            `json:"line,omitempty"`
 }
