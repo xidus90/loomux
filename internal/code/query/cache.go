@@ -69,6 +69,11 @@ func readCache(root string) (map[string]cacheEntry, error) {
 		for i, n := range e.Result.Nodes {
 			e.Result.Nodes[i].BodyText = e.Bodies[n.ID]
 		}
+		for i := range e.Result.Embedded {
+			for j, n := range e.Result.Embedded[i].Nodes {
+				e.Result.Embedded[i].Nodes[j].BodyText = e.Bodies[n.ID]
+			}
+		}
 		e.Bodies = nil
 		f.Files[rel] = e
 	}
@@ -87,14 +92,16 @@ func writeCache(root string, entries map[string]cacheEntry) error {
 	files := make(map[string]cacheEntry, len(entries))
 	for rel, e := range entries {
 		e.Bodies = nil
-		for _, n := range e.Result.Nodes {
-			if n.BodyText == "" {
-				continue
+		for _, part := range e.Result.Flatten() {
+			for _, n := range part.Nodes {
+				if n.BodyText == "" {
+					continue
+				}
+				if e.Bodies == nil {
+					e.Bodies = map[model.NodeID]string{}
+				}
+				e.Bodies[n.ID] = n.BodyText
 			}
-			if e.Bodies == nil {
-				e.Bodies = map[model.NodeID]string{}
-			}
-			e.Bodies[n.ID] = n.BodyText
 		}
 		files[rel] = e
 	}

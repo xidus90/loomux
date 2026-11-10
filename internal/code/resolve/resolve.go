@@ -47,6 +47,12 @@ func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph
 // language is still unique within each; a Godot path alone may land on a file
 // of another language, by its path.
 func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.Graph, []Unresolved) {
+	// An embedded part joins its own language's group, beside its file.
+	var flat []extract.Result
+	for _, f := range files {
+		flat = append(flat, f.Flatten()...)
+	}
+	files = flat
 	groups := byLanguage(files)
 	g := &model.Graph{Meta: model.Meta{
 		Version: schemaVersion, Extractor: extractor, Languages: languagesOf(groups),
