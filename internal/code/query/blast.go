@@ -208,8 +208,8 @@ func BlastReport(a BlastAnswer) string {
 		b.WriteString("reached:\n")
 	}
 	for _, h := range a.Hits {
-		fmt.Fprintf(&b, "  %s (%s, depth %d, %s) in %s:%s from %s\n",
-			h.Node.Name, h.Node.Kind, h.Depth, h.Relation, h.Node.Path, h.Node.Span, strings.Join(h.From, ", "))
+		fmt.Fprintf(&b, "  %s (%s, depth %d, %s%s) in %s:%s from %s\n",
+			h.Node.Name, h.Node.Kind, h.Depth, h.Relation, mark(h.Inferred), h.Node.Path, h.Node.Span, strings.Join(h.From, ", "))
 	}
 	for _, p := range a.Unindexed {
 		fmt.Fprintf(&b, "not indexed: %s\n", p)

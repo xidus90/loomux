@@ -101,6 +101,18 @@ diese Kette.
 `loomux graph blast` führt einen git-Diff auf die Symbole, die seine Hunks
 berühren, und auf das, was sie erreicht.
 
+**Geratene Kanten:** Jede Kante trägt eine Konfidenz. `inferred` heißt: Der
+Resolver hat einen Aufruf nur über einen Namen zugeordnet, der im ganzen Repo
+genau einmal vorkommt. In Go trifft das auch jeden Aufruf in eine andere Datei
+desselben Pakets; in diesem Repo ist gut jede vierte `calls`-Kante so geraten.
+`graph callers`, `graph blast`, ihre MCP-Werkzeuge und der Post-Edit-Hook
+hängen solchen Treffern `inferred` an. Ein Treffer gilt als geraten, sobald
+eine Kante auf seinem Weg geraten ist; erreicht ihn ein sicherer Weg gleicher
+Länge, gilt er als sicher und zeigt dessen Relation. Längere Wege zählen
+nicht. Das JSON trägt dafür `"inferred": true`. Zählungen und Signale
+(In-Degree, Test-Signal von `blast`, Ranking) werten geratene Kanten weiter
+voll.
+
 ## Die Oberflächen
 
 | Befehl | MCP-Werkzeug | Zweck |

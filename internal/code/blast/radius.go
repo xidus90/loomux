@@ -130,8 +130,11 @@ func Radius(g *model.Graph, x *Index, changed []diff.File, withheld []string, de
 				continue
 			}
 			if i, seen := hitAt[h.ID]; seen {
-				if h.Depth < rep.Hits[i].Depth {
-					rep.Hits[i].Depth, rep.Hits[i].Relation = h.Depth, h.Relation
+				switch prev := &rep.Hits[i]; {
+				case h.Depth < prev.Depth:
+					prev.Depth, prev.Relation, prev.Inferred = h.Depth, h.Relation, h.Inferred
+				case h.Depth == prev.Depth && prev.Inferred && !h.Inferred:
+					prev.Relation, prev.Inferred = h.Relation, false
 				}
 				if !slices.Contains(rep.Hits[i].From, f.Path) {
 					rep.Hits[i].From = append(rep.Hits[i].From, f.Path)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -71,11 +72,22 @@ func TestBlastAsideNamesTheCallersOfAChangedFunction(t *testing.T) {
 	edited := calcHead + strings.Replace(addSource, "a + b", "b + a", 1) + "\n" + subSource
 	got := blastAside(root, "calc/calc.go", fixed(edited))
 	if !strings.HasPrefix(got, "[graph] calc/calc.go: changed Add; callers in other files:\n") ||
-		!strings.Contains(got, "  main (main.go)") || !strings.Contains(got, "  TestAdd (calc/calc_test.go)") {
+		!strings.Contains(got, "  main (main.go)") || !strings.Contains(got, "  TestAdd (calc/calc_test.go") {
 		t.Fatalf("%q", got)
 	}
 	if strings.HasSuffix(got, "\n") {
 		t.Fatalf("the aside ends without a newline: %q", got)
+	}
+}
+
+// calc_test.go calls Add in another file of its package, which only a
+// repo-wide unique name resolves; main.go names calc.Add outright.
+func TestBlastAsideMarksAnInferredCaller(t *testing.T) {
+	root := graphRepo(t)
+	edited := calcHead + strings.Replace(addSource, "a + b", "b + a", 1) + "\n" + subSource
+	lines := strings.Split(blastAside(root, "calc/calc.go", fixed(edited)), "\n")
+	if !slices.Contains(lines, "  TestAdd (calc/calc_test.go, inferred)") || !slices.Contains(lines, "  main (main.go)") {
+		t.Fatalf("%q", lines)
 	}
 }
 

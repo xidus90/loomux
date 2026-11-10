@@ -178,7 +178,7 @@ func build() {
 		},
 		{
 			Name:        "graph_trace_calls",
-			Description: "Trace callers or callees of a symbol along call, reference, and inheritance edges.",
+			Description: "Trace callers or callees of a symbol along call, reference, and inheritance edges. Hits whose every shortest path runs through a call guessed from a repo-wide unique name are marked \"inferred\".",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -220,7 +220,7 @@ func build() {
 		},
 		{
 			Name:        "graph_blast",
-			Description: "Show what a change reaches: the symbols a git diff touches, their callers, and whether a test that reaches them changed too.",
+			Description: "Show what a change reaches: the symbols a git diff touches, their callers, and whether a test that reaches them changed too. Hits whose every shortest path runs through a call guessed from a repo-wide unique name are marked \"inferred\".",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -424,3 +424,66 @@ func TestRadiusQuotesAHunkThatStartsOnTheSpansLastLine(t *testing.T) {
 		t.Errorf("evidence = %+v, want A quoting +z -- a hunk overlapping the span's last line is inside it", rep.Evidence)
 	}
 }
+
+func hitByID(t *testing.T, rep blast.Report, id model.NodeID) blast.RadiusHit {
+	t.Helper()
+	for _, h := range rep.Hits {
+		if h.ID == id {
+			return h
+		}
+	}
+	t.Fatalf("%s is not among the hits %+v", id, rep.Hits)
+	return blast.RadiusHit{}
+}
+
+func TestRadiusPrefersTheSureEdgeAtAnEqualDepth(t *testing.T) {
+	g := radiusGraph()
+	g.Edges = append(g.Edges,
+		model.Edge{Source: "other.go", Target: "lib.go#Add", Relation: model.RelationCalls, Confidence: model.ConfidenceInferred},
+		model.Edge{Source: "other.go", Target: "main.go#main", Relation: model.RelationReferences, Confidence: model.ConfidenceExtracted})
+
+	h := hitByID(t, radius(g, 1, changed("lib.go", 4), changed("main.go", 4)), "other.go")
+
+	if h.Inferred || h.Relation != model.RelationReferences {
+		t.Errorf("other.go = %+v, want sure via references: main.go's sure edge is as short as lib.go's guessed one", h)
+	}
+}
+
+func TestRadiusKeepsInferredWhenBothFilesGuessAtAnEqualDepth(t *testing.T) {
+	g := radiusGraph()
+	g.Edges = append(g.Edges,
+		model.Edge{Source: "other.go", Target: "lib.go#Add", Relation: model.RelationCalls, Confidence: model.ConfidenceInferred},
+		model.Edge{Source: "other.go", Target: "main.go#main", Relation: model.RelationReferences, Confidence: model.ConfidenceInferred})
+
+	h := hitByID(t, radius(g, 1, changed("lib.go", 4), changed("main.go", 4)), "other.go")
+
+	if !h.Inferred || h.Relation != model.RelationCalls {
+		t.Errorf("other.go = %+v, want the first guess kept: two guesses make no sure hit", h)
+	}
+}
+
+func TestRadiusTakesInferredFromTheShallowerPath(t *testing.T) {
+	g := radiusGraph()
+	g.Edges = append(g.Edges,
+		model.Edge{Source: "other.go", Target: "main.go#main", Relation: model.RelationCalls, Confidence: model.ConfidenceExtracted},
+		model.Edge{Source: "other.go", Target: "helper_test.go#helper", Relation: model.RelationCalls, Confidence: model.ConfidenceInferred})
+
+	h := hitByID(t, radius(g, blast.All, changed("lib.go", 4), changed("helper_test.go", 4)), "other.go")
+
+	if h.Depth != 1 || !h.Inferred {
+		t.Errorf("other.go = %+v, want depth 1 and inferred: the shallower path brings its own weakness", h)
+	}
+}
+
+func TestRadiusReportEncodesInferred(t *testing.T) {
+	g := radiusGraph()
+	g.Edges[6].Confidence = model.ConfidenceInferred // main -> Add
+
+	raw, err := json.Marshal(radius(g, 1, changed("lib.go", 4)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"inferred":true`) {
+		t.Errorf("json misses the inferred flag: %s", raw)
+	}
+}
