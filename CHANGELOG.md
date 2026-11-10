@@ -7,6 +7,17 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.19.0] - 2026-11-10
+
+<https://github.com/xidus90/loomux/pull/140>
+
+### Added
+- The compatibility scout probes pre-releases of Go, Python and Godot and files an issue for each, closing it once a newer pre-release or the stable release supersedes it.
+- The compatibility scout files an issue when a listed runtime version reaches its end of support.
+- `loomux dev compat scout --resolved <title> --findings <file>` also reports a pre-release issue as resolved when the current findings supersede it.
+- `loomux dev compat run --describe` prints the version to install in the installer's spelling.
+- Syntax entries for Go 1.26 and 1.27 in the compatibility list.
+
 ## [1.18.1] - 2026-11-08
 
 <https://github.com/xidus90/loomux/pull/138>
