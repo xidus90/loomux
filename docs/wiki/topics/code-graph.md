@@ -73,10 +73,32 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   (`docs/.superpowers/specs/2026-10-19-gdscript-godot-linien-design.md`).
 
 Jede Sprache löst in einem eigenen Namensindex auf. Über eine Sprachgrenze geht
-nur ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest
-(etwa eine `.py`- oder `.go`-Datei): er landet auf deren Dateiknoten. Eine
-Datei, die kein Extraktor liest (eine Textur, heute auch ein `.cs`-Skript),
-ergibt keine Kante. Unveränderte Dateien nimmt der Build aus dem
+ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest (etwa
+eine `.py`- oder `.go`-Datei): er landet auf deren Dateiknoten. Eine Datei,
+die kein Extraktor liest (eine Textur, heute auch ein `.cs`-Skript), ergibt
+keine Kante.
+
+Symbol zu Symbol über eine Sprachgrenze geht nur über eine **Brücke**
+(`internal/code/resolve/bridge.go`): Eine Seite bietet einen Namen in einem
+Namensraum an (Export), die andere nennt ihn (Brücke), und nachdem jede
+Sprache aufgelöst ist, verbindet ein sprachneutraler Schritt beide nach den
+Regeln des Namensraums: genau ein Treffer oder alle, ein Geltungsbereich
+(für `godot.*` das Godot-Projekt; ein Export außerhalb jedes Projekts, etwa
+GDExtension-Quellen neben `project/`, gilt in allen), und ob ohne Treffer im
+genannten Bereich gesucht oder geraten wird. Den Namen eines Exports legt die
+anbietende Seite fest. GDScript bietet jede `class_name` eines Projekts als
+`godot.class` an und übergibt, was es selbst nicht binden kann: ein
+`extends X` und `X.new()` mit flachem Namen und das Ende einer Szenen-
+`[connection]`, deren Skript keine GDScript-Datei ist. Eigene Exports
+beantworten eigene Übergaben nie, also ändert sich GDScript zu GDScript
+nicht. Heute liefert noch kein Extraktor C# oder C++; die Brücken nach Godot
+sind gebaut und getestet, greifen aber erst mit diesen Extraktoren
+(`docs/.superpowers/specs/2026-11-10-graph-bruecken-design.md`). Ein
+Extraktor kann Teile einer Datei in einer anderen Sprache als eingebettete
+Ergebnisse melden (`Result.Embedded`, etwa Inline-Skripte); sie landen im
+Index ihrer eigenen Sprache.
+
+Unveränderte Dateien nimmt der Build aus dem
 Extraktions-Cache (`.loomux/state/graph/cache/extract.json`), statt sie neu zu
 parsen; gelesen und gehasht wird trotzdem jede, und `--no-reuse` parst alle.
 `loomux graph check` extrahiert erneut, vergleicht mit dem Graphen auf der
@@ -179,6 +201,12 @@ das Binary kommt über die üblichen Wege.
   Ressourcen) ist gebaut. Offen sind G5b (TypeScript/TSX) und
   G5d (C++, erst nach einer Recall-Prüfung gegen die C-Laufzeit). Der erste
   Plan, Tree-sitter als WebAssembly über `wazero`, ist verworfen.
+- **C# und C++ für Godot:** Die Brücken stehen; es fehlen die Extraktoren,
+  die `godot.class`, `godot.method` und `godot.signal` anbieten (C#:
+  `[GlobalClass]`, Signal-Delegates, Methoden; C++: `GDREGISTER_CLASS`,
+  `ClassDB::bind_method`). Aufrufe auf eine Basisklasse, die erst die Brücke
+  findet, und eingebaute Skripte einer Szene (`[sub_resource type="GDScript"]`)
+  bleiben ohne Kante.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
   Verhalten zählen nur Funktionen und Methoden, eine Änderung an einer Klasse
   ohne `__init__` läuft darum still durch `blast-audit`.
