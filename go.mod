@@ -12,7 +12,7 @@ require (
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/odvcencio/gotreesitter v0.56.0
+	github.com/odvcencio/gotreesitter v0.57.0
 	golang.org/x/term v0.47.0
 	golang.org/x/text v0.43.0
 )
