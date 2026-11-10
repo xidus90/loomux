@@ -148,8 +148,7 @@ func edgesOf(lang string, files []extract.Result, mods []Module, paths map[strin
 		edges, un := resolvePython(files)
 		return langOut{edges: edges, unresolved: un}
 	case "gdscript":
-		edges, un := resolveGDScript(files, paths)
-		return langOut{edges: edges, unresolved: un}
+		return resolveGDScript(files, paths)
 	}
 	var out []model.Edge
 	if lang != "go" {
