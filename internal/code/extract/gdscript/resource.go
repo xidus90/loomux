@@ -103,7 +103,7 @@ func resource(lang *gts.Language, rel, source string) (extract.Result, error) {
 			spec, ok := runs[attrs[end[0]].val]
 			if name := attrs[end[1]].val; ok && name != "" {
 				r.Edges = append(r.Edges, extract.RawEdge{
-					Source: model.NodeID(rel), Relation: model.RelationReferences, Name: name, Specifier: spec, File: rel, Line: line(s),
+					Source: model.NodeID(rel), Relation: model.RelationReferences, Name: name, Specifier: spec, File: rel, Line: line(s), Member: model.Kind(end[1]),
 				})
 			}
 		}
