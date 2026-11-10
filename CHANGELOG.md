@@ -7,6 +7,15 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.22.0] - 2026-11-10
+
+<https://github.com/xidus90/loomux/pull/149>
+
+### Added
+- The code graph resolves Godot class, method and signal names across languages within the same Godot project; GDScript hands over the `extends`, `.new()` and scene-connection targets it cannot bind, ready for C# and C++ scripts.
+### Changed
+- The bundled tree-sitter runtime is gotreesitter v0.57.0; every code graph is rebuilt once.
+
 ## [1.21.0] - 2026-11-10
 
 <https://github.com/xidus90/loomux/pull/148>
