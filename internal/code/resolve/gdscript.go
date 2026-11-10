@@ -183,12 +183,7 @@ func gdIndexOf(files []extract.Result, paths map[string]bool) *gdIndex {
 // project is the root of the project a file belongs to: the nearest
 // project.godot above it.
 func (x *gdIndex) project(file string) (string, bool) {
-	for _, root := range x.roots {
-		if root == "" || strings.HasPrefix(file, root+"/") {
-			return root, true
-		}
-	}
-	return "", false
+	return nearestRoot(x.roots, file)
 }
 
 // target is the file a path in file names: res:// from the project root, a

@@ -51,6 +51,26 @@ func TestGraphWithEmbeddedIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestGraphWithResolvesExtractorBridges(t *testing.T) {
+	cs := model.Node{ID: "game/p.cs#OnHit", Name: "OnHit", Kind: "method", Path: "game/p.cs", BodyHash: "h"}
+	files := []extract.Result{
+		{Path: "game/project.godot", Language: "conf", Nodes: []model.Node{fileNode("game/project.godot")}},
+		{Path: "game/p.cs", Language: "csharp", Nodes: []model.Node{fileNode("game/p.cs"), cs},
+			Exports: []extract.Export{{Namespace: extract.NamespaceGodotMethod, Name: "OnHit", Target: cs.ID}}},
+		{Path: "game/q.cs", Language: "csharp", Nodes: []model.Node{fileNode("game/q.cs")},
+			Bridges: []extract.Bridge{{Source: "game/q.cs", Relation: model.RelationReferences, Namespace: extract.NamespaceGodotMethod,
+				Name: "OnHit", Scope: []string{"game/p.cs"}, File: "game/q.cs", Line: 4}}},
+	}
+	g, _ := resolve.GraphWith(files, nil, stamp)
+	e := edgeBetween(g, "game/q.cs", cs.ID, model.RelationReferences)
+	if e == nil || e.Confidence != model.ConfidenceExtracted || e.Line != 4 {
+		t.Fatalf("bridge edge = %+v in %v", e, g.Edges)
+	}
+	if g.Meta.EdgeCount != len(g.Edges) {
+		t.Errorf("edge count %d, edges %d", g.Meta.EdgeCount, len(g.Edges))
+	}
+}
+
 func TestGraphWithEmbeddedFileNodeIsRejected(t *testing.T) {
 	p := page()
 	p.Embedded[0].Nodes = append(p.Embedded[0].Nodes, fileNode("p.html"))
