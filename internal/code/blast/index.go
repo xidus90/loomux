@@ -43,11 +43,15 @@ type Hit struct {
 	Node     *model.Node    `json:"node"`
 	Relation model.Relation `json:"relation"`
 	Depth    int            `json:"depth"`
+	// Inferred is set when the path to this hit runs through an edge the
+	// resolver only guessed: the weakest hop decides.
+	Inferred bool `json:"inferred,omitempty"`
 }
 
 type link struct {
 	other    model.NodeID
 	relation model.Relation
+	inferred bool
 }
 
 // Index is the adjacency of one graph, built once and walked many times.
@@ -81,8 +85,9 @@ func New(g *model.Graph) *Index {
 		if !e.Relation.IsWalk() {
 			continue
 		}
-		x.out[e.Source] = append(x.out[e.Source], link{other: e.Target, relation: e.Relation})
-		x.in[e.Target] = append(x.in[e.Target], link{other: e.Source, relation: e.Relation})
+		inferred := e.Confidence == model.ConfidenceInferred
+		x.out[e.Source] = append(x.out[e.Source], link{other: e.Target, relation: e.Relation, inferred: inferred})
+		x.in[e.Target] = append(x.in[e.Target], link{other: e.Source, relation: e.Relation, inferred: inferred})
 	}
 	return x
 }

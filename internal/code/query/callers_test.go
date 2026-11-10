@@ -1,12 +1,60 @@
 package query
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/blast"
+	"github.com/xidus90/loomux/internal/code/model"
 )
+
+// In the sample, lib_test.go calls Run in another file of its package, which
+// only a repo-wide unique name resolves; main.go names lib.Run outright.
+func TestCallersMarksAnInferredCaller(t *testing.T) {
+	ans, _, err := Callers(built(t), "Run", CallersOptions{Direction: blast.In, Depth: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inferred := map[string]bool{}
+	for _, h := range ans.Hits {
+		inferred[h.Name] = h.Inferred
+	}
+	if !inferred["TestRun"] || inferred["main"] {
+		t.Fatalf("inferred = %v, want TestRun guessed and main sure", inferred)
+	}
+	report := CallersReport(ans)
+	if !strings.Contains(report, "  - TestRun (function, depth 1, calls, inferred) in lib/lib_test.go:") ||
+		!strings.Contains(report, "  - main (function, depth 1, calls) in main.go:") {
+		t.Fatalf("unexpected report:\n%s", report)
+	}
+}
+
+func TestCallersReportMarksAnInferredHitWithoutANode(t *testing.T) {
+	report := CallersReport(CallersAnswer{
+		Start: &model.Node{Name: "Run", Kind: "function", Path: "lib/lib.go", Span: "L4-L4"},
+		Hits:  []CallerHit{{ID: "ext", Relation: model.RelationImports, Depth: 1, Inferred: true}},
+	})
+	if !strings.Contains(report, "  - ext (depth 1, imports, inferred)\n") {
+		t.Fatalf("unexpected report:\n%s", report)
+	}
+}
+
+func TestCallerHitEncodesInferredOnlyWhenSet(t *testing.T) {
+	for _, c := range []struct {
+		hit  CallerHit
+		want bool
+	}{{CallerHit{ID: "a", Inferred: true}, true}, {CallerHit{ID: "a"}, false}} {
+		raw, err := json.Marshal(c.hit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(string(raw), `"inferred"`); got != c.want {
+			t.Errorf("%s: inferred key present = %v, want %v", raw, got, c.want)
+		}
+	}
+}
 
 func TestCallersMissingGraph(t *testing.T) {
 	root := t.TempDir()

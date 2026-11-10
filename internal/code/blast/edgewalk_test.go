@@ -170,3 +170,19 @@ func TestInDegree(t *testing.T) {
 		t.Errorf("want inDegree 0 for nil index, got %d", deg)
 	}
 }
+
+func TestEdgeWalkDepth1MarksEachEdgeOnItsOwn(t *testing.T) {
+	g := confGraph(
+		[4]string{"A", "X", "calls", "inferred"},
+		[4]string{"A", "X", "references", "extracted"},
+	)
+	got := blast.New(g).EdgeWalk(&g.Nodes[1], blast.In, 1)
+
+	if len(got) != 2 {
+		t.Fatalf("got %v, want one hit per edge", got)
+	}
+	if got[0].Relation != model.RelationCalls || !got[0].Inferred ||
+		got[1].Relation != model.RelationReferences || got[1].Inferred {
+		t.Errorf("got %+v, want calls inferred then references sure", got)
+	}
+}

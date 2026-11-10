@@ -366,6 +366,15 @@ func TestBlastReport(t *testing.T) {
 			"  … 1 more symbols\n" +
 			"deleted: old.go\n" +
 			"hidden: 1\n"},
+		{"inferred hit", BlastAnswer{Range: "r", Report: blast.Report{
+			Areas: []blast.Area{{Path: "calc/calc.go", Status: diff.Modified, Signal: blast.SignalNone,
+				Seeds: []blast.Seed{{Node: add, InDegree: 1}}}},
+			Hits: []blast.RadiusHit{{
+				Hit:  blast.Hit{ID: "main.go#main", Node: main, Relation: "calls", Depth: 2, Inferred: true},
+				From: []string{"calc/calc.go"},
+			}},
+		}}, "blast radius: r\ncalc/calc.go [none]\n  seed Add (function) L4-L6 in-degree 1\nreached:\n" +
+			"  main (function, depth 2, calls, inferred) in main.go:L5-L7 from calc/calc.go\n"},
 		{"only a deletion", BlastAnswer{Range: "r", Report: blast.Report{Deleted: []string{"old.go"}}},
 			"blast radius: r\ndeleted: old.go\n"},
 		{"only unindexed", BlastAnswer{Range: "r", Report: blast.Report{Unindexed: []string{"a.txt"}}},

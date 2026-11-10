@@ -19,6 +19,7 @@ type CallerHit struct {
 	Span     model.Span     `json:"span,omitempty"`
 	Relation model.Relation `json:"relation"`
 	Depth    int            `json:"depth"`
+	Inferred bool           `json:"inferred,omitempty"`
 	// QuotePath, Line and Quote are the evidence for a direct edge: the line
 	// that names the other end, in the caller's file. For a callee that is
 	// the start's file, not Path.
@@ -91,6 +92,7 @@ func Callers(root, symbol string, opts CallersOptions) (CallersAnswer, []string,
 			ID:       h.ID,
 			Relation: h.Relation,
 			Depth:    h.Depth,
+			Inferred: h.Inferred,
 		}
 		if h.Node != nil {
 			ch.Name = h.Node.Name
@@ -122,6 +124,15 @@ func evidence(read func(string) ([]byte, error), start, next *model.Node, dir bl
 	return caller.Path, line, quote
 }
 
+// mark closes the parenthesis of a hit whose path runs through a guessed edge;
+// a sure hit stays as it always read.
+func mark(inferred bool) string {
+	if inferred {
+		return ", inferred"
+	}
+	return ""
+}
+
 // CallersReport formats CallersAnswer for human-readable CLI output.
 func CallersReport(a CallersAnswer) string {
 	if a.Start == nil {
@@ -134,10 +145,10 @@ func CallersReport(a CallersAnswer) string {
 	} else {
 		for _, h := range a.Hits {
 			if h.Name != "" {
-				fmt.Fprintf(&b, "  - %s (%s, depth %d, %s) in %s:%s\n",
-					h.Name, h.Kind, h.Depth, h.Relation, h.Path, h.Span)
+				fmt.Fprintf(&b, "  - %s (%s, depth %d, %s%s) in %s:%s\n",
+					h.Name, h.Kind, h.Depth, h.Relation, mark(h.Inferred), h.Path, h.Span)
 			} else {
-				fmt.Fprintf(&b, "  - %s (depth %d, %s)\n", h.ID, h.Depth, h.Relation)
+				fmt.Fprintf(&b, "  - %s (depth %d, %s%s)\n", h.ID, h.Depth, h.Relation, mark(h.Inferred))
 			}
 			switch {
 			case h.Quote == "":

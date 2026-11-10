@@ -36,6 +36,7 @@ func (x *Index) EdgeWalk(start *model.Node, dir Direction, depth Depth) []Hit {
 				Node:     x.nodes[l.other],
 				Relation: l.relation,
 				Depth:    1,
+				Inferred: l.inferred,
 			}
 		}
 		return hits

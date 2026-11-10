@@ -165,3 +165,115 @@ func TestInDegreeWhereHandsKeepNilForASourceThatIsNoNode(t *testing.T) {
 		t.Errorf("got %d, keep saw %v, want 1 and a single nil", got, seen)
 	}
 }
+
+// confGraph builds a graph of functions from edges written as
+// "source target relation confidence".
+func confGraph(edges ...[4]string) *model.Graph {
+	g := &model.Graph{Meta: model.Meta{Version: 1}}
+	seen := map[string]bool{}
+	for _, e := range edges {
+		for _, id := range e[:2] {
+			if !seen[id] {
+				seen[id] = true
+				g.Nodes = append(g.Nodes, model.Node{ID: model.NodeID(id), Name: id, Kind: "function", Path: id + ".go"})
+			}
+		}
+		g.Edges = append(g.Edges, model.Edge{
+			Source: model.NodeID(e[0]), Target: model.NodeID(e[1]),
+			Relation: model.Relation(e[2]), Confidence: model.Confidence(e[3]),
+		})
+	}
+	return g
+}
+
+func mustHit(t *testing.T, hits []blast.Hit, id model.NodeID) blast.Hit {
+	t.Helper()
+	h, ok := hitOf(hits, id)
+	if !ok {
+		t.Fatalf("%s is not among the hits %v", id, hits)
+	}
+	return h
+}
+
+func TestReachMarksAHitBehindAnInferredEdge(t *testing.T) {
+	got := blast.New(confGraph(
+		[4]string{"A", "X", "calls", "inferred"},
+		[4]string{"B", "X", "calls", "extracted"},
+		[4]string{"C", "A", "calls", "extracted"},
+		[4]string{"C", "B", "calls", "extracted"},
+	)).Reach([]model.NodeID{"X"}, blast.In, blast.All)
+
+	if !mustHit(t, got, "A").Inferred {
+		t.Error("A is reached only through an inferred edge")
+	}
+	if mustHit(t, got, "B").Inferred {
+		t.Error("B is reached through an extracted edge")
+	}
+	if c := mustHit(t, got, "C"); c.Inferred || c.Depth != 2 {
+		t.Errorf("C = %+v, want sure at depth 2: B gives it a sure path of the same length", c)
+	}
+}
+
+func TestReachKeepsAHitInferredWhenEveryEqualPathIsGuessed(t *testing.T) {
+	got := blast.New(confGraph(
+		[4]string{"A", "X", "calls", "inferred"},
+		[4]string{"B", "X", "calls", "inferred"},
+		[4]string{"C", "A", "calls", "extracted"},
+		[4]string{"C", "B", "calls", "extracted"},
+	)).Reach([]model.NodeID{"X"}, blast.In, blast.All)
+
+	if c := mustHit(t, got, "C"); !c.Inferred {
+		t.Errorf("C = %+v, want inferred: a second guessed path is no sure one", c)
+	}
+}
+
+func TestReachInheritsInferredAlongThePath(t *testing.T) {
+	got := blast.New(confGraph(
+		[4]string{"A", "X", "calls", "inferred"},
+		[4]string{"C", "A", "calls", "extracted"},
+	)).Reach([]model.NodeID{"X"}, blast.In, blast.All)
+
+	if c := mustHit(t, got, "C"); !c.Inferred || c.Depth != 2 {
+		t.Errorf("C = %+v, want inferred at depth 2: its path is as weak as its weakest hop", c)
+	}
+}
+
+func TestReachUpgradesToTheSureEdgeAndItsRelation(t *testing.T) {
+	got := blast.New(confGraph(
+		[4]string{"A", "X", "calls", "inferred"},
+		[4]string{"A", "X", "references", "extracted"},
+	)).Reach([]model.NodeID{"X"}, blast.In, blast.All)
+
+	if a := mustHit(t, got, "A"); a.Inferred || a.Relation != model.RelationReferences {
+		t.Errorf("A = %+v, want sure via references: a sure relation must not stand under the guessed one's name", a)
+	}
+}
+
+func TestReachPassesAnUpgradeOnToTheNextDepth(t *testing.T) {
+	got := blast.New(confGraph(
+		[4]string{"P", "X", "calls", "inferred"},
+		[4]string{"Q", "X", "calls", "extracted"},
+		[4]string{"M", "P", "calls", "extracted"},
+		[4]string{"M", "Q", "calls", "extracted"},
+		[4]string{"Z", "M", "calls", "extracted"},
+	)).Reach([]model.NodeID{"X"}, blast.In, blast.All)
+
+	if m := mustHit(t, got, "M"); m.Inferred {
+		t.Errorf("M = %+v, want sure via Q", m)
+	}
+	if z := mustHit(t, got, "Z"); z.Inferred || z.Depth != 3 {
+		t.Errorf("Z = %+v, want sure at depth 3, inheriting M's upgrade", z)
+	}
+}
+
+func TestReachKeepsAnInferredHitWhenOnlyADeeperPathIsSure(t *testing.T) {
+	got := blast.New(confGraph(
+		[4]string{"A", "X", "calls", "inferred"},
+		[4]string{"B", "X", "calls", "extracted"},
+		[4]string{"A", "B", "calls", "extracted"},
+	)).Reach([]model.NodeID{"X"}, blast.In, blast.All)
+
+	if a := mustHit(t, got, "A"); !a.Inferred || a.Depth != 1 {
+		t.Errorf("A = %+v, want inferred at depth 1: only shortest paths count", a)
+	}
+}

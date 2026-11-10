@@ -82,7 +82,11 @@ func blastAside(root, rel string, read func(string) ([]byte, error)) string {
 	var callers []string
 	for _, h := range blast.New(g).Reach(ids, blast.In, 1) {
 		if h.Node != nil && h.Node.Path != rel {
-			callers = append(callers, fmt.Sprintf("  %s (%s)", h.Node.Name, h.Node.Path))
+			where := h.Node.Path
+			if h.Inferred {
+				where += ", inferred"
+			}
+			callers = append(callers, fmt.Sprintf("  %s (%s)", h.Node.Name, where))
 		}
 	}
 	var b strings.Builder
