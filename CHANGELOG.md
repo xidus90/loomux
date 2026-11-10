@@ -7,6 +7,15 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.20.0] - 2026-11-10
+
+<https://github.com/xidus90/loomux/pull/137>
+
+### Added
+
+- `dsh-loomux`, a DeepSeek Harness plugin that serves the `grep` tool from `loomux graph grep`: one search corpus, the trigram index when a literal allows it, no fallback to another search tool, and a failure that never becomes an empty list.
+- A release workflow that publishes `dsh-loomux` to npm on a `dsh-loomux-v<version>` tag, after the package's own tests, with provenance.
+
 ## [1.19.0] - 2026-11-10
 
 <https://github.com/xidus90/loomux/pull/140>
