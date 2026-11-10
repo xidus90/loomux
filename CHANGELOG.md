@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.21.0] - 2026-11-10
+
+<https://github.com/xidus90/loomux/pull/148>
+
+### Added
+- Graph caller and blast-radius reports mark hits reached only through guessed (inferred) call edges with `inferred`, in text, JSON, MCP and the post-edit hint.
+
 ## [1.20.0] - 2026-11-10
 
 <https://github.com/xidus90/loomux/pull/137>
