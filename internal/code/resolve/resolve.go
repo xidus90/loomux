@@ -45,7 +45,9 @@ func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph
 // Each language is resolved against its own files alone: a Go call never
 // lands on a Python function of the same name, and a name defined once per
 // language is still unique within each; a Godot path alone may land on a file
-// of another language, by its path.
+// of another language, by its path. A symbol of another language is reached
+// only over a bridge: a name some language offers under a namespace, looked
+// up by that namespace's rules once every language is resolved (bridge.go).
 func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.Graph, []Unresolved) {
 	// An embedded part joins its own language's group, beside its file.
 	var flat []extract.Result
@@ -69,12 +71,23 @@ func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.
 			paths[f.Path] = true
 		}
 	}
-	var unresolved []Unresolved
+	var outs []langOut
 	for _, lang := range g.Meta.Languages {
-		edges, un := edgesOf(lang, groups[lang], mods, paths)
-		g.Edges = append(g.Edges, edges...)
-		unresolved = append(unresolved, un...)
+		outs = append(outs, edgesOf(lang, groups[lang], mods, paths))
 	}
+	edges, unresolved, offers, handovers := mergeLangs(outs)
+	all := make([]string, 0, len(files))
+	for _, f := range files {
+		all = append(all, f.Path)
+		for _, e := range f.Exports {
+			offers = append(offers, offer{Export: e, file: f.Path, lang: f.Language})
+		}
+		for _, b := range f.Bridges {
+			handovers = append(handovers, handover{bridge: b, unresolved: -1})
+		}
+	}
+	bridged, unresolved := bridgeEdges(builtinRules, all, offers, handovers, edges, unresolved)
+	g.Edges = append(edges, bridged...)
 	sort.Slice(g.Nodes, func(i, j int) bool { return g.Nodes[i].ID < g.Nodes[j].ID })
 	sort.Slice(g.Edges, func(i, j int) bool {
 		a, b := g.Edges[i], g.Edges[j]
@@ -129,12 +142,14 @@ func languagesOf(groups map[string][]extract.Result) []string {
 // extractor already resolved, and loses every other edge: a call or an import
 // resolved by another language's rules would be a guess dressed up as an
 // edge.
-func edgesOf(lang string, files []extract.Result, mods []Module, paths map[string]bool) ([]model.Edge, []Unresolved) {
+func edgesOf(lang string, files []extract.Result, mods []Module, paths map[string]bool) langOut {
 	switch lang {
 	case "python":
-		return resolvePython(files)
+		edges, un := resolvePython(files)
+		return langOut{edges: edges, unresolved: un}
 	case "gdscript":
-		return resolveGDScript(files, paths)
+		edges, un := resolveGDScript(files, paths)
+		return langOut{edges: edges, unresolved: un}
 	}
 	var out []model.Edge
 	if lang != "go" {
@@ -148,7 +163,7 @@ func edgesOf(lang string, files []extract.Result, mods []Module, paths map[strin
 				}
 			}
 		}
-		return out, nil
+		return langOut{edges: out}
 	}
 	idx := index(files)
 	for _, f := range files {
@@ -158,7 +173,7 @@ func edgesOf(lang string, files []extract.Result, mods []Module, paths map[strin
 			}
 		}
 	}
-	return out, nil
+	return langOut{edges: out}
 }
 
 // repoIndex is every lookup the resolver makes, built once.
