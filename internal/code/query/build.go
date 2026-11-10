@@ -167,25 +167,18 @@ func Extract(root string, opts ExtractOptions) (*model.Graph, Stats, error) {
 		if !ok {
 			continue
 		}
-		ls := stats.PerLanguage[lang.Name()]
-		ls.Files++
 		var r extract.Result
-		if e, hit := cached[f.Rel]; hit && e.SHA256 == hash && e.Extractor == lang.Version() {
+		e, hit := cached[f.Rel]
+		reuse := hit && e.SHA256 == hash && e.Extractor == lang.Version()
+		if reuse {
 			r = e.Result
-			ls.Reused++
 		} else {
 			r, err = lang.File(f.Rel, string(b))
 			if err != nil {
 				return nil, Stats{}, err
 			}
-			ls.Parsed++
 		}
-		if r.ParseErrors > 0 {
-			ls.ParseErrors += r.ParseErrors
-			// Sorted without a sort: the walk hands the files over in order.
-			ls.ErrorFiles = append(ls.ErrorFiles, f.Rel)
-		}
-		stats.PerLanguage[lang.Name()] = ls
+		tally(stats.PerLanguage, f.Rel, r, !reuse)
 		if len(r.Nodes) == 1 {
 			stats.NoSymbol++
 		}
@@ -239,4 +232,26 @@ func goModPaths(root string) []string {
 	})
 	sort.Strings(out)
 	return out
+}
+
+// tally counts one file under the language of each of its parts: a page
+// with an inline script is a file of both languages, parsed or reused as a
+// whole, and a parse error in its script is the script language's, listed
+// under the page's path.
+func tally(per map[string]LangStats, rel string, r extract.Result, parsed bool) {
+	for _, p := range r.Flatten() {
+		ls := per[p.Language]
+		ls.Files++
+		if parsed {
+			ls.Parsed++
+		} else {
+			ls.Reused++
+		}
+		if p.ParseErrors > 0 {
+			ls.ParseErrors += p.ParseErrors
+			// Sorted without a sort: the walk hands the files over in order.
+			ls.ErrorFiles = append(ls.ErrorFiles, rel)
+		}
+		per[p.Language] = ls
+	}
 }
