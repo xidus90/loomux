@@ -184,7 +184,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/5@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/6@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -414,6 +414,25 @@ func TestAResourceImportsWhatItsExtResourcesName(t *testing.T) {
 		{Source: p, Relation: model.RelationImports, Specifier: "res://stats.gd", File: p},
 		// No path: the uid names the file, for the resolver to look up.
 		{Source: p, Relation: model.RelationImports, Specifier: "uid://abc", File: p},
+	})
+}
+
+// Both ends of a connection name a member of a script; only the edge can
+// tell the handler from the signal.
+func TestConnectionEndsCarryMember(t *testing.T) {
+	const p = "s.tscn"
+	r := extractSrc(t, p, "[gd_scene format=3]\n\n[ext_resource type=\"Script\" path=\"res://p.gd\" id=\"1\"]\n[ext_resource type=\"Script\" path=\"res://hud.gd\" id=\"2\"]\n\n"+
+		"[node name=\"P\" type=\"Node\"]\nscript = ExtResource(\"1\")\n\n[node name=\"HUD\" type=\"Node\" parent=\".\"]\nscript = ExtResource(\"2\")\n\n"+
+		"[connection signal=\"hit\" from=\".\" to=\"HUD\" method=\"on_hit\"]\n")
+	var got []extract.RawEdge
+	for _, e := range noLines(r.Edges) {
+		if e.Relation == model.RelationReferences {
+			got = append(got, e)
+		}
+	}
+	same(t, "connection", got, []extract.RawEdge{
+		{Source: p, Relation: model.RelationReferences, Name: "on_hit", Specifier: "res://hud.gd", File: p, Member: "method"},
+		{Source: p, Relation: model.RelationReferences, Name: "hit", Specifier: "res://p.gd", File: p, Member: "signal"},
 	})
 }
 
