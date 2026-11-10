@@ -46,10 +46,11 @@ import (
 // script at the scene's root.
 // Every edge names exactly one target, or there is none, and every edge is
 // extracted.
-func resolveGDScript(files []extract.Result, paths map[string]bool) ([]model.Edge, []Unresolved) {
+func resolveGDScript(files []extract.Result, paths map[string]bool) langOut {
 	x := gdIndexOf(files, paths)
 	var out []model.Edge
 	var un []Unresolved
+	var hs []handover
 	var rest []extract.RawEdge
 	// One edge per source, target and relation: self.f() and f() are one
 	// dependency, as are a name and the alias that binds the same file. The
@@ -85,6 +86,11 @@ func resolveGDScript(files []extract.Result, paths map[string]bool) ([]model.Edg
 						name = raw.Receiver + "." + raw.Name
 					}
 					un = append(un, Unresolved{Source: raw.Source, File: raw.File, Line: raw.Line, Name: name, Reason: why})
+					// Godot's ClassDB knows flat names only; a base behind a
+					// path or a dot is GDScript's own or nobody's.
+					if why == ReasonNone && raw.Specifier == "" && raw.Receiver == "" {
+						hs = append(hs, gdHandover(raw, extract.NamespaceGodotClass, raw.Name, nil, len(un)-1))
+					}
 				}
 			default:
 				rest = append(rest, raw)
@@ -95,9 +101,61 @@ func resolveGDScript(files []extract.Result, paths map[string]bool) ([]model.Edg
 	for _, raw := range rest {
 		if e, ok := x.resolve(raw); ok {
 			keep(e)
+		} else if h, ok := x.handoff(raw); ok {
+			hs = append(hs, h)
 		}
 	}
-	return out, un
+	return langOut{edges: out, unresolved: un, offers: x.offers(files), handovers: hs}
+}
+
+// offers is every class_name a project registers: what another language may
+// name. A script under no project.godot registers nothing in Godot.
+func (x *gdIndex) offers(files []extract.Result) []offer {
+	var out []offer
+	for _, f := range files {
+		if path.Ext(f.Path) != ".gd" || f.Package == "" {
+			continue
+		}
+		if _, ok := x.project(f.Path); ok {
+			out = append(out, offer{
+				Export: extract.Export{Namespace: extract.NamespaceGodotClass, Name: f.Package, Target: x.script[f.Path]},
+				file:   f.Path, lang: langGDScript,
+			})
+		}
+	}
+	return out
+}
+
+// handoff is the bridge for a use GDScript could not resolve and another
+// language may: X.new() of a class no GDScript defines, or an end of a
+// scene's connection on a script of another language.
+func (x *gdIndex) handoff(raw extract.RawEdge) (handover, bool) {
+	switch {
+	case raw.Relation == model.RelationCalls && raw.Name == "new" && raw.Receiver != "" && !strings.Contains(raw.Receiver, "."):
+		if _, why := x.bind(raw.File, x.home(raw), raw.Receiver); why == ReasonNone {
+			return gdHandover(raw, extract.NamespaceGodotClass, raw.Receiver, nil, -1), true
+		}
+	case raw.Relation == model.RelationReferences && raw.Specifier != "":
+		ns := map[model.Kind]extract.Namespace{"method": extract.NamespaceGodotMethod, "signal": extract.NamespaceGodotSignal}[raw.Member]
+		p, ok := x.target(raw.File, raw.Specifier)
+		if r := x.rootScript(p); ok && ns != "" {
+			if _, own := x.aliases[r]; !own {
+				return gdHandover(raw, ns, raw.Name, []string{r}, -1), true
+			}
+		}
+	}
+	return handover{}, false
+}
+
+// langGDScript is the language whose own exports never answer its
+// handovers: its resolver searched them already.
+const langGDScript = "gdscript"
+
+func gdHandover(raw extract.RawEdge, ns extract.Namespace, name string, scope []string, unresolved int) handover {
+	return handover{bridge: extract.Bridge{
+		Source: raw.Source, Relation: raw.Relation, Namespace: ns, Name: name,
+		Scope: scope, File: raw.File, Line: raw.Line,
+	}, lang: langGDScript, unresolved: unresolved}
 }
 
 // gdIndex is every lookup the Godot resolver makes.
