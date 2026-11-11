@@ -48,6 +48,19 @@
   „Vergleich mit zvec-grep“, Rohdaten
   `zvec-vergleich-windows-run1.json`.
 
+- 2026-11-11 — `topics/code-graph.md`: C++ als Sprache des Graphen (Extraktor,
+  Resolver, Klassen-Scope der Brücke, Szenenknoten und -verbindungen auf
+  GDExtension-Klassen, Prüfkette), die Lücken von C++ als offener Punkt, der
+  Punkt „C++ für Godot“ entfällt; die `partial`-Lücke steht nur noch einmal.
+  `topics/scheiben-und-abnahme.md`: G5d fertig, G5b offen. Quelle: Code von
+  loomux (`internal/code/extract/cpp`, `internal/code/resolve/cpp.go`) und
+  `docs/de/architecture.md`, `docs/de/cli-reference.md`,
+  `docs/de/configuration.md`.
+- 2026-11-11 — Quellen neu gepinnt (`loomux wiki repin`): die Seiten, die
+  `docs/de/cli-reference.md`, `docs/de/configuration.md` und
+  `docs/de/architecture.md` zitieren, ohne C++-Bezug außer den beiden oben,
+  gegen die Änderung gelesen.
+
 ## 2026-11-09
 
 - 2026-11-09 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt

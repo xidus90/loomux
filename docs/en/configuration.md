@@ -447,7 +447,9 @@ then `[verify.<stack>]`.
   ["build/CMakeCache.txt"]`: until the build tree is configured they are
   `unready` with `build/CMakeCache.txt is missing: configure the build first`.
   An edit still runs the lint's `clang-format` on the file, which needs no
-  build tree.
+  build tree. A `CMakeLists.txt`, `CMakePresets.json` or `meson.build` in the
+  root makes the root the only `cpp` area: it builds what lies below, and a
+  subdirectory checked on its own would find no build tree.
   Configuring is the project's decision (generator, options, toolchain), so
   loomux does not guess a configure step. The lint goes through
   `run-clang-tidy`, since `clang-tidy` lints only the files it is named and
@@ -513,8 +515,7 @@ The commands run one after the other, and `blast-audit` runs even after a red
   one rebuild per area, and of several stacks with a graph command only the
   highest-ranked runs it: in a repository with Go and Python, `graph/go`
   runs and `graph/python` is `not-applicable` ("graph covered by graph/go"),
-  which leaves the verdict green. The rank is `go`, then `python`, then
-  `gdscript`; a stack outside that list follows them in byte order. In a
+  which leaves the verdict green. The rank is `go`, then `python`, `gdscript`, `csharp` and `cpp`; a stack outside that list follows them in byte order. In a
   repository with a Godot project beside Go or Python, their lane carries
   and `graph/gdscript` is `not-applicable` ("graph covered by graph/go" or "graph/python");
   `graph/gdscript` carries in a project with neither. The lanes stay listed
@@ -563,10 +564,10 @@ The commands run one after the other, and `blast-audit` runs even after a red
   --no-verify`, a cherry-pick or merge, a clone without armed hooks) is part
   of `HEAD` by the turn end and is never audited.
 - **Changing the threshold** means replacing `commands` in the table of the
-  stack that carries the lane, the highest-ranked (`go`, then `python`, then
-  `gdscript`): `[verify.go.graph]` in a Go repository, even one with a Godot
+  stack that carries the lane, the highest-ranked (`go`, then `python`, `gdscript`, `csharp` and
+  `cpp`): `[verify.go.graph]` in a Go repository, even one with a Godot
   project, `[verify.python.graph]` in a Python one without Go, and
-  `[verify.gdscript.graph]` only in a Godot project with neither. An
+  `[verify.gdscript.graph]` only in a Godot project with neither (and so on down the rank). An
   override under a stack that stands aside is never read. Replace
   **both** entries; a lane that names
   only `blast-audit` loses the rebuild:

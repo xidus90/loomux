@@ -8,13 +8,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:6db1637e478c36a04728fb380ebef2bf7605c18120d87b9e877b9821a1feeaff"
-    revision: 4
+    content_hash: "sha256:ac0bb72331ee9e4c28d6ec63aa427e4c2821fdf2700a0a7e5c7553a55b9dfe7f"
+    revision: 5
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:23a89dfbaac94d1dcc3a35903c2d62c6147ba151064a1c1e53833bf3c0b59acb"
-    revision: 36
+    content_hash: "sha256:cf41742bc0aed97a6e1d89c66fe5e0d13b0b8bdc0eaa799d541539d79c3a301c"
+    revision: 37
 ---
 
 ## Wofür
@@ -108,6 +108,53 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   MSBuild, nicht `bin`
   (`docs/.superpowers/specs/2026-11-10-csharp-design.md`).
 
+- **C++** liest er auf demselben Kern (`internal/code/extract/cpp`, Endungen
+  `.cpp`, `.cc`, `.cxx`, `.c++`, `.hpp`, `.hh`, `.hxx`, `.h++`, `.h`, `.inl`,
+  `.ipp` und `.tpp`, nicht `.c`): Dateien, Klassen, Structs, Unions und Enums
+  mit Rumpf (verschachtelt als `Outer.Inner`), Funktionen und Methoden mit
+  Rumpf, auch die außerhalb der Klasse (`void ns::A::m() {}`). Deren
+  `Node.Owner` ist das letzte Segment des Qualifiers; ob das eine Klasse oder
+  ein Namespace ist, entscheidet erst der Resolver (`void util::z() {}` hat den
+  Owner `util` und wird dort eine freie Funktion im Namespace `util`).
+  Namespaces sind keine Knoten, und `Result.Enclosing` trägt den Namespace
+  jedes Typs und jeder freien Funktion, bei einer Methode außerhalb der Klasse Namespace und ganzen
+  Qualifier, deren Aufteilung der Resolver klärt. Es gibt keinen Präprozessor:
+  jeder `#if`-Zweig wird gelesen, Makros bleiben unexpandiert, ein `#include`
+  ist nur ein Import. Drei Eingriffe halten den Parser bei Laune. Eine Zeile,
+  die nur ein Makro in Großbuchstaben mit Argumentliste trägt (`GDCLASS(X, Y)`,
+  `Q_OBJECT`), wird vor dem Parsen durch gleich viele Leerzeichen ersetzt,
+  sofern nicht `{` folgt; die Offsets bleiben, Spans und Rumpftexte stammen aus
+  dem Original. Die rechte Seite eines Alias mit Template-Argumenten und
+  Qualifier (`using X = A<B<T>>::type;`) wird außerhalb von Kommentaren und
+  Literalen zu `int` maskiert, weil `gotreesitter` den Baum an dieser Stelle
+  ohne Meldung beendet, die C-Laufzeit aber nicht. Endet der Baum trotzdem vor
+  dem Quelltext, liest der Extraktor den Rest blockweise neu. Eine Definition
+  zählt, wenn ihr eigener Teilbaum keinen ERROR enthält, auch unter einem
+  ERROR-Vorfahren; ein zerbrochener Klassenkopf gibt der Methode keinen
+  erfundenen Owner. Eine Klasse mit einem ERROR im Rumpf bekommt keinen
+  Knoten; ihre heilen Methoden behalten sie als Owner, gehören im Resolver aber
+  zu keinem Typ, und zwei gleichnamige Klassen in zwei Namespaces einer Datei
+  bleiben zwei Typen. Der Resolver (`internal/code/resolve/cpp.go`) sucht ein
+  `#include "x.h"` zuerst neben der Datei, dann über die Pfadendung in ganzen
+  Segmenten (bei mehreren Treffern gilt der kürzeste Pfad, wenn er eindeutig
+  ist; ein Systemheader ergibt keine Kante). Einen Typnamen sucht er in dieser
+  Folge: verschachtelte Typen, der eigene Namespace und die umschließenden,
+  `using namespace` der Datei, global. Eine Methode außerhalb der Klasse gehört
+  zu der Klasse, die diese Folge für ihren Qualifier findet, auch in einer
+  anderen Datei; so trifft `this->f()` die Methode aus dem Header und aus der
+  `.cpp`. Eine `static`-Funktion und ein Typ in einem anonymen Namespace
+  gelten nur in ihrer Datei und gehen auf derselben Stufe der Folge vor, nicht
+  vor einer näheren (`a::helper` schlägt im Namespace `a` ein dateilokales
+  globales `helper`). Ein Aufruf `x.f()` oder `p->f()` auf einem Objekt
+  bleibt ohne Kante, weil der Graph keine Typen kennt; `f()`, `this->f()`,
+  `A::f()` und `new T()` oder `T()` (der Konstruktor, sonst der Typ) lösen
+  sich auf. Nur eine Basis ohne Ziel steht unter `Unresolved`. Für Godot bietet
+  eine Klasse mit `GDCLASS(<Name>, …)` `godot.class` an, und der Rumpf von
+  `_bind_methods` ergibt für `ClassDB::bind_method` und `ADD_SIGNAL`
+  `references`-Kanten und `godot.method`- und `godot.signal`-Angebote mit der
+  Klasse als `Class`
+  (`docs/.superpowers/specs/2026-11-10-cpp-design.md`).
+
 Jede Sprache löst in einem eigenen Namensindex auf. Über eine Sprachgrenze geht
 ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest (etwa
 eine `.py`-, `.go`- oder `.cs`-Datei): er landet auf deren Dateiknoten. Eine
@@ -134,12 +181,19 @@ je Name einmal. Damit trifft eine Szenen-`[connection]` mit `method="OnHit"`
 die C#-Methode und eine mit `signal="Hit"` das Delegate (`references`), und
 ein GDScript-`X.new()` auf eine `[GlobalClass]`-Klasse ergibt eine
 `calls`-Kante; ob Godot den C#-Namen in GDScript kennt, ist nicht belegt, der
-Code nennt ihn aber, und ohne die Brücke bliebe er ohne Ziel. **Bekannte
-Lücke:** Ein Angebot gilt nur für die Klasse, die wie die Datei heißt; der
-Handler in der zweiten Datei einer `partial class` bekommt darum keine Kante
-von der Szene. C++ liefert noch keinen Extraktor; diese Brücken sind gebaut
-und getestet, greifen aber erst mit ihm
-(`docs/.superpowers/specs/2026-11-10-graph-bruecken-design.md`). Ein
+Code nennt ihn aber, und ohne die Brücke bliebe er ohne Ziel. C++ bietet
+`godot.class` für jede Klasse mit `GDCLASS` an und für jede Bindung in
+`_bind_methods` `godot.method` und `godot.signal`; ein GDScript-`extends` und
+`.new()` und der Knotentyp einer Szene (`[node … type="GDExample"]`, eine
+`references`-Kante von der Szene auf die Klasse) treffen so die C++-Klasse,
+auch wenn die Quellen außerhalb des Projekts liegen (`src/` neben `project/`).
+Ein eingebauter Typ (`Sprite2D`) findet kein Angebot und bleibt ohne Kante. Eine
+Verbindung auf einen Knoten ohne Skript, aber mit Typ, hat keine Datei, in der
+sie sucht: Dafür trägt ein Export wie eine Brücke eine **Klasse**
+(`Export.Class`, `Bridge.Class`), und gilt sie, zählen nur Angebote derselben
+Klasse; ohne Treffer in ihr entsteht keine Kante, geraten wird nicht
+(`docs/.superpowers/specs/2026-11-10-graph-bruecken-design.md`,
+`docs/.superpowers/specs/2026-11-10-cpp-design.md`). Ein
 Extraktor kann Teile einer Datei in einer anderen Sprache als eingebettete
 Ergebnisse melden (`Result.Embedded`, etwa Inline-Skripte); sie landen im
 Index ihrer eigenen Sprache.
@@ -280,13 +334,15 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   wenn der Neubau scheitert; `check blast-audit` ist rot, wenn ein geänderter
   Bereich mit genug Aufrufern keinen geänderten Test hat. Die Lane-Namen der
   Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go, Python,
-  GDScript und C#; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
-  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp; ein Stack
+  GDScript, C# und C++; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
+  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp, cpp; ein Stack
   ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
   für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
   `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter
   `tests/` oder `test/`, für GDScript `*_test.gd` und alles unter `test/`
-  oder `tests/`; Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
+  oder `tests/`, für C++ ein Dateiname `test_*`, `*_test`, `*_tests`, `*Test`
+  oder `*Tests` und alles unter einem Verzeichnis `test`, `tests` oder
+  `unittest` (in jeder Schreibung; `Contest.cpp` zählt nicht); Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
   `project.godot` nie.
 - **Prüfart `rules`:** Die sechste Art liest denselben Extraktor-Kern, aber
   nie den gespeicherten Graphen: `check rules` baut ihn im Prozess aus den
@@ -318,17 +374,28 @@ das Binary kommt über die üblichen Wege.
   `gotreesitter`, Python und der Cache — ist fertig und an zwei Python-Repos
   abgenommen (`docs/.superpowers/parity/code-g5.md` in den Arbeitspapieren des
   Archiv-Release `archive/parity-recordings`); G5c (GDScript, Szenen,
-  Ressourcen) ist gebaut. Offen sind G5b (TypeScript/TSX) und
-  G5d (C++, erst nach einer Recall-Prüfung gegen die C-Laufzeit). Der erste
+  Ressourcen) und G5d (C++, samt GDExtension) sind gebaut. Offen ist G5b
+  (TypeScript/TSX). Der erste
   Plan, Tree-sitter als WebAssembly über `wazero`, ist verworfen.
-- **C++ für Godot:** Die Brücken stehen; es fehlt der Extraktor, der
-  `godot.class`, `godot.method` und `godot.signal` anbietet (`GDREGISTER_CLASS`,
-  `ClassDB::bind_method`). Aufrufe auf eine Basisklasse, die erst die Brücke
-  findet, und eingebaute Skripte einer Szene (`[sub_resource type="GDScript"]`)
-  bleiben ohne Kante.
-- **Handler in der zweiten `partial`-Datei:** Eine Szenen-Verbindung sucht nur
-  in dem Skript, das sie nennt; die Methode in der zweiten Datei einer
-  `partial class` bleibt ohne Kante.
+- **Eingebaute Skripte einer Szene** (`[sub_resource type="GDScript"]`) bleiben
+  ohne Kante.
+- **Handler in der zweiten `partial`-Datei:** Ein Angebot von C# gilt nur für
+  die Klasse, die wie die Datei heißt, und eine Szenen-Verbindung sucht nur in
+  dem Skript, das sie nennt; die Methode in der zweiten Datei einer
+  `partial class` bleibt darum ohne Kante.
+- **Lücken von C++:**
+  - Ein Signal, das eine Basisklasse der GDExtension-Klasse bindet, wird von
+    der Szenen-Verbindung nicht gefunden; nur die Klasse selbst zählt.
+  - Ein Knoten mit Skript und Typ löst eine Verbindung im Skript auf; ein
+    Mitglied, das nur die C++-Klasse hat, bleibt ohne Kante.
+  - Makros sind nicht expandiert; was eines erst erzeugt, fehlt im Graphen.
+  - `if consteval` (C++23) verliert den Rest der Datei in `gotreesitter`; der
+    Extraktor liest ihn neu, aber die Funktion mit dem Konstrukt bekommt
+    keinen Knoten.
+  - Das Neulesen beginnt nur in einer Zeile ab Spalte 0, und ein
+    Namespace oder eine Klasse, die am Schnitt offen war, geht verloren: Was
+    folgt, nennt keinen, und die schließende Klammer zerbricht die Definition
+    davor, die dann keinen Knoten bekommt, je Schnitt eine.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
   Verhalten zählen nur Funktionen und Methoden, eine Änderung an einer Klasse
   ohne `__init__` läuft darum still durch `blast-audit`.
