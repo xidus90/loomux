@@ -485,7 +485,13 @@ gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
   Lint-Lane, was die Lane entfernt und nichts rot macht. Die
   Checkstyle-Tasks von Gradle kompilieren zuerst, denn ihr Klassenpfad hält
   die Klassen; ein Kompilierfehler zeigt sich darum in `lint` ebenso wie in
-  `types`. Maven misst über die vollen
+  `types`. Ein Android-Plugin (`com.android` in einem `build.gradle*` oder in
+  `gradle/libs.versions.toml`; unter einem Gradle-Build in der Wurzel auch
+  eine Ebene tiefer, wo das Modul, das es anwendet, meist liegt) wählt die
+  Variante `android`: Ein Android-Build hat kein `compileJava`, und seine
+  Tasks hängen von der Build-Variante ab, also sind `lint`, `types`, `test`
+  und `coverage` dort aus, und das Projekt schreibt sie in `[verify.java]`,
+  wenn es sie will; Graph und Regeln bleiben. Maven misst über die vollen
   Koordinaten von JaCoCo und braucht kein JaCoCo im `pom.xml`; das
   Gradle-`coverage` braucht das Plugin `jacoco` im Build, und seine
   `test`-Lane misst nicht, denn ohne das Plugin gibt es kein

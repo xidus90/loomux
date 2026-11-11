@@ -3,6 +3,7 @@ package detect
 import (
 	"io/fs"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -199,6 +200,43 @@ func TestARootJavaBuildOwnsItsModules(t *testing.T) {
 		if got := Detect(tree).Areas["java"]; !reflect.DeepEqual(got, []string{"."}) {
 			t.Errorf("%s: %v", file, got)
 		}
+	}
+}
+
+// An Android plugin names the area it is applied in, and a root Gradle
+// build takes it in from its modules, where the plugin usually is: through
+// its id in a build file, the buildscript's classpath or the version
+// catalog the build's alias reads.
+func TestAndroidJoinsTheGradleBuildThatOwnsIt(t *testing.T) {
+	java := fstest.MapFile{Data: []byte("class A {}\n")}
+	for name, tree := range map[string]fstest.MapFS{
+		"module": {
+			"settings.gradle": {Data: []byte("include ':app'\n")}, "build.gradle": {Data: []byte("plugins {}\n")},
+			"app/build.gradle": {Data: []byte("plugins { id 'com.android.application' }\n")}, "app/src/main/java/A.java": &java,
+		},
+		"classpath": {
+			"build.gradle":             {Data: []byte("buildscript { dependencies { classpath 'com.android.tools.build:gradle:8.13.0' } }\n")},
+			"app/src/main/java/A.java": &java,
+		},
+		"catalog": {
+			"settings.gradle.kts": {Data: []byte("\n")}, "app/build.gradle.kts": {Data: []byte("plugins { alias(libs.plugins.android.application) }\n")},
+			"gradle/libs.versions.toml": {Data: []byte("android-application = { id = \"com.android.application\", version.ref = \"agp\" }\n")},
+			"app/src/main/java/A.java":  &java,
+		},
+	} {
+		if got := Detect(tree).Areas["android"]; !slices.Contains(got, ".") {
+			t.Errorf("%s: android areas %v", name, got)
+		}
+	}
+	// Without a root build each module is its own area, and the plugin stays
+	// in the one that applies it.
+	tree := fstest.MapFS{
+		"app/build.gradle": {Data: []byte("plugins { id 'com.android.application' }\n")}, "app/A.java": &java,
+		"lib/build.gradle": {Data: []byte("plugins { id 'java' }\n")}, "lib/B.java": &java,
+	}
+	facts := Detect(tree)
+	if !reflect.DeepEqual(facts.Areas["android"], []string{"app"}) || !reflect.DeepEqual(facts.Areas["java"], []string{"app", "lib"}) {
+		t.Errorf("modules: %v", facts.Areas)
 	}
 }
 

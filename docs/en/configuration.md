@@ -483,7 +483,13 @@ in it or in the root; a signal in another area has no say there.
   (`buildSrc`, `build-logic`) gets no lint lane, which removes the lane and
   turns nothing red. Gradle's checkstyle tasks compile first, since their
   classpath holds the classes, so a compile error shows in `lint` as well as
-  in `types`. Maven measures through JaCoCo's full
+  in `types`. An Android plugin (`com.android` in a `build.gradle*` or in
+  `gradle/libs.versions.toml`; below a root Gradle build also one level down,
+  where the module applying it usually is) selects the `android` variant: an
+  Android build has no `compileJava` and its tasks depend on the build
+  variant, so `lint`, `types`, `test` and `coverage` are off there, and the
+  project writes them in `[verify.java]` if it wants them; the graph and the
+  rules stay. Maven measures through JaCoCo's full
   coordinates and needs no JaCoCo in the `pom.xml`; the Gradle `coverage`
   needs the `jacoco` plugin in the build, and its `test` lane does not
   measure, since a build without the plugin has no `jacocoTestReport`. The

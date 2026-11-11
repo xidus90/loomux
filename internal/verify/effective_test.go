@@ -103,6 +103,43 @@ func TestResolveChoosesTheVariantPerArea(t *testing.T) {
 	}
 }
 
+// An Android build has no compileJava: Gradle's java lanes are off there,
+// and the graph and the rules, which read the sources, stay.
+func TestResolveSwitchesTheJavaBuildOffForAndroid(t *testing.T) {
+	facts := detect.Facts{
+		Stacks: []string{"android", "gradle", "java"},
+		Areas:  map[string][]string{"java": {"app", "lib"}, "gradle": {"app", "lib"}, "android": {"app"}},
+	}
+	eff, err := Resolve(Config{}, presetsFor(t), facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"lint", "types", "test", "coverage"} {
+		if got := eff.Lanes("java", "app")[kind]; !got.Lane.Off || got.Defined || got.Origin != "preset, variant android over gradle" {
+			t.Errorf("app %s: %+v", kind, got)
+		}
+		if got := eff.Lanes("java", "lib")[kind]; got.Lane.Off || got.Origin != "preset, variant gradle" {
+			t.Errorf("lib %s: %+v", kind, got)
+		}
+	}
+	for _, kind := range []string{"graph", "rules"} {
+		if got := eff.Lanes("java", "app")[kind]; !got.Defined {
+			t.Errorf("app %s: %+v", kind, got)
+		}
+	}
+	// The project writes the lanes itself, in either form.
+	cfg, err := parse(t, "[verify.java]\nlint = \"./gradlew lintDebug\"\n[verify.java.types]\ncommands = [\"./gradlew compileDebugJavaWithJavac\"]\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	eff, _ = Resolve(cfg, presetsFor(t), facts)
+	for _, kind := range []string{"lint", "types"} {
+		if got := eff.Lanes("java", "app")[kind]; !got.Defined || got.Origin != "config" {
+			t.Errorf("config %s: %+v", kind, got)
+		}
+	}
+}
+
 // A signal matched in the root speaks for the areas below it, and one
 // detection placed in no area for every area.
 func TestResolveLetsRootAndAreaLessSignalsCountEverywhere(t *testing.T) {

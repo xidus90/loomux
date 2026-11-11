@@ -296,8 +296,19 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 commands = ["{loomux} check rules --cached"]
 on_file  = ["{loomux} check rules"]
 
-# Listed first, Maven wins where both builds are found; it keeps the base
-# lanes, and the origin of each lane names the build it won over.
+# An Android build has no compileJava, and its tasks depend on the build
+# variant: the lanes of the build are the project's to write. The graph and
+# the rules read the sources and stay.
+[[stack.java.variant]]
+when = "android"
+lint = false
+types = false
+test = false
+coverage = false
+
+# Listed before Gradle, Maven wins where both builds are found in an area; it
+# keeps the base lanes, and the origin of each lane names the build it won
+# over.
 [[stack.java.variant]]
 when = "maven"
 
