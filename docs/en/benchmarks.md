@@ -4411,6 +4411,34 @@ takes 2.7 times tgrep's time for the literal and 1.5 times for the
 alternation. Load hits new harder than tgrep: under high load the share of
 tgrep for the literal and the alternation rises by 70–130 %.
 
+**Comparison with zvec-grep (2026-11-11, `69204137`).** zvec-grep (`zg`,
+github.com/zvec-ai/zvec-grep, version 0.3.0 from npm, Rust, Apache-2.0)
+combines a bundled ripgrep, BM25 and vector search behind one interface.
+`zvec-vergleich.py` in the research folder measures, on a fresh clone,
+loomux (check mode and `--trust-index`), tgrep, `zg --rg` (ripgrep without
+an index, exhaustive) and `zg --fts` (BM25, ranked, at most 300 results),
+once as its own process per call (`--mode direct`) and once against the
+running server (`--mode server`). `--fts` is not a regex search and only runs
+the patterns made of words. One warm-up run, then 11 interleaved runs;
+`LoadPercentage` 18 % before. Raw data `zvec-vergleich-windows-run1.json`.
+Medians in ms:
+
+| Pattern | loomux | loomux `--trust-index` | tgrep | `zg --rg` | `zg --fts` server | `zg --fts` direct |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `func Search` | 48.8 | 19.7 | 19.3 | 95.4 | 197.2 | 2320.2 |
+| `Search\|Grep` | 71.2 | 44.8 | 53.1 | 118.0 | — | — |
+| `-i func search` | 55.5 | 26.8 | 74.7 | 94.7 | 195.7 | 2272.1 |
+| `[A-Z]{3}\w+` | 137.4 | 103.3 | 3959.5 | 124.4 | — | — |
+
+Index: loomux graph 2.6 s, tgrep 0.5 s, zg 24.3 s (6215 files, BM25 and
+vectors with `local/potion-code-16m-v2`). loomux and tgrep return the same
+lines for all four patterns (51, 989, 78, 9210); `zg --rg` searches a
+different set of files and counts 68, 817, 103 and 13359 lines, for reasons
+not investigated. `zg --fts` returns ranked units, not every occurrence. For
+the three patterns with a literal loomux in check mode is 1.7 to 2 times as
+fast as `zg --rg`, with `--trust-index` 2.6 to 4.8 times; only for the no-literal pattern is
+`zg --rg` 13 ms ahead of check mode. A single run.
+
 **Key Findings**
 
 1. **One threshold fails: the first call after a commit.** The literal takes
