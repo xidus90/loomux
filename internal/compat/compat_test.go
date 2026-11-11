@@ -45,7 +45,7 @@ func TestEveryVersionHasASyntaxEntry(t *testing.T) {
 	// Java 27 brought no final syntax of its own: java-syntax-27 carries the
 	// forms of 25 to 27 (TestTheJava25GapsLeaveTheRestOfTheFile holds the two
 	// alike), the one fixture not holding what its version introduced.
-	prefixes := map[string]string{"go": "go", "dotnet": "csharp", "cpp": "cpp", "java": "java"}
+	prefixes := map[string]string{"go": "go", "dotnet": "csharp", "cpp": "cpp", "java": "java", "php": "php"}
 	for _, e := range list {
 		prefix, ok := prefixes[e.Runtime]
 		if !ok {
@@ -157,7 +157,7 @@ func TestTheListRefuses(t *testing.T) {
 	cases := []struct{ name, doc, want string }{
 		{"syntax", "[[entry", "compat.toml"},
 		{"unknown key", good + "colour = 1\n", `compat.toml:8: unknown key "colour"`},
-		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are cpp, csharp, gdscript, go, java, python`},
+		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are cpp, csharp, gdscript, go, java, php, python`},
 		{"wrong runtime", strings.Replace(good, `runtime = "python"`, `runtime = "godot"`, 1), `compat.toml:1: runtime "godot"`},
 		{"bad version", strings.Replace(good, `"3.12"`, `"3.12.1"`, 1), `compat.toml:1: version "3.12.1" is not MAJOR or MAJOR.MINOR`},
 		{"unknown kind", strings.Replace(good, `"types"`, `"magic"`, 1), `compat.toml:1: kind "magic"`},
@@ -165,6 +165,7 @@ func TestTheListRefuses(t *testing.T) {
 		{"unknown addon", good + `addons = [{ name = "Nope", version = "1" }]` + "\n", `compat.toml:1: addon "Nope"`},
 		{"unknown tool", strings.Replace(good, "ruff", "hammer", 1), `compat.toml:1: tool "hammer"`},
 		{"no fixture folder", strings.Replace(good, `"python-mypy"`, `"nowhere"`, 1), `compat.toml:1: fixture "nowhere"`},
+		{"empty held", good + "held = \" \"\n", `compat.toml:1: held is empty; name what holds the line back`},
 		{"no kinds", strings.Replace(good, "kinds = [\"lint\", \"types\"]", "kinds = []", 1), `compat.toml:1: entry has no kinds`},
 		{"no fixture", strings.Replace(good, "fixture = \"python-mypy\"\n", "", 1), `compat.toml:1: entry has no fixture`},
 		// A pre-release is probed, never listed.

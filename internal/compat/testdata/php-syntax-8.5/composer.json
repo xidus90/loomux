@@ -1,0 +1,6 @@
+{
+    "name": "loomux/compat-php-syntax",
+    "description": "A loomux compatibility fixture.",
+    "type": "project",
+    "license": "MIT"
+}

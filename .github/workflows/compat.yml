@@ -116,6 +116,17 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ steps.setup.outputs.install }}
+      # setup-php installs a branch ("8.5") and offers no release candidate:
+      # a probe of one gets the branch's nightly build, and the Xdebug
+      # setup-php has for it: the Xdebug for 8.6 (3.6.0alpha1) is not on
+      # PECL, where setup-php takes a pinned version from.
+      - if: steps.setup.outputs.runtime == 'php'
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ steps.setup.outputs.version }}
+          coverage: xdebug
+          extensions: ${{ steps.setup.outputs.install == steps.setup.outputs.version && 'xdebug-3.5.3' || '' }}
+          tools: composer:2.11.2
       - if: steps.setup.outputs.rebuild == 'true'
         run: go build -o bin/loomux.exe ./cmd/loomux
         env:

@@ -416,6 +416,58 @@ func TestCMakeRunsTheTool(t *testing.T) {
 	}
 }
 
+// fakeComposer stands in for Composer like fakeCMake for CMake.
+func fakeComposer(t *testing.T, fail string) *[]string {
+	t.Helper()
+	var calls []string
+	old := composer
+	t.Cleanup(func() { composer = old })
+	composer = func(dir string, args ...string) ([]byte, error) {
+		calls = append(calls, filepath.Base(dir)+": "+strings.Join(args, " "))
+		if fail != "" {
+			return []byte(fail), errors.New("exit status 1")
+		}
+		return nil, nil
+	}
+	return &calls
+}
+
+// The PHP tools run from vendor/, which the fixture's lock fills in each
+// work copy; a fixture without composer.json needs none.
+func TestAPHPEntryInstallsItsLock(t *testing.T) {
+	calls := fakeComposer(t, "")
+	rep, _ := runEntryKey(t, "php/php-8.4/php-phpunit13", fakeCheck(honest))
+	if !rep.Green {
+		t.Fatalf("report %+v", rep)
+	}
+	want := []string{"entry", "break-1-lint", "break-2-types", "break-3-test", "break-4-coverage"}
+	for i := range want {
+		want[i] += ": install --no-interaction --prefer-dist"
+	}
+	if !slices.Equal(*calls, want) {
+		t.Errorf("composer calls %q, want %q", *calls, want)
+	}
+	*calls = nil
+	if rep, _ := runEntryKey(t, "php/php-8.5/php-syntax-8.5", fakeCheck(honest)); !rep.Green || len(*calls) != 0 {
+		t.Errorf("report %+v, composer calls %q", rep, *calls)
+	}
+}
+
+func TestAFailedComposerInstallIsRed(t *testing.T) {
+	fakeComposer(t, "Your lock file does not contain a compatible set of packages.")
+	rep, _ := runEntryKey(t, "php/php-8.2/php-phpunit11", fakeCheck(honest))
+	if rep.Green || len(rep.Lines) != 5 || rep.Lines[0] != "composer: exit status 1\nYour lock file does not contain a compatible set of packages." {
+		t.Fatalf("report %+v", rep)
+	}
+}
+
+func TestComposerRunsTheTool(t *testing.T) {
+	t.Setenv("PATH", "")
+	if _, err := composer(t.TempDir(), "--version"); err == nil {
+		t.Error("composer ran without a PATH")
+	}
+}
+
 // One Maven fixture serves several versions: a run compiles it at the
 // entry's, through source and target on Java 8, whose javac takes no
 // --release. The Gradle fixture's toolchain follows the same way, and its

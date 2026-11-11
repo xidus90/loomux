@@ -1,0 +1,106 @@
+stacks = ["php"]
+edges = [
+  ["src/Calc.php", "imports", "src/Shape/Child.php"],
+  ["src/Shape/Child.php#Child", "extends", "src/Shape/Base.php#Base"],
+  ["src/Shape/Child.php#Child.f", "calls", "src/Shape/Base.php#Base.f"],
+  ["src/Calc.php#Calc.twice", "calls", "src/Shape/Child.php#Child"],
+  ["tests/CalcTest.php#CalcTest.testDoublesAValue", "calls", "src/Calc.php#Calc"],
+]
+
+[lanes]
+lint = "php vendor/bin/phpcs"
+types = "php vendor/bin/phpstan analyse"
+test = "php -d xdebug.mode=coverage vendor/bin/phpunit"
+coverage = "{loomux} check linecov"
+graph = "{loomux} check graph-fresh"
+
+# Each break leaves the other kinds green. The lint break opens the class
+# brace on its line, which PSR-12 forbids and PHP runs; the types break is a
+# return tag that contradicts the native type, which PHPStan reads and PHP
+# ignores.
+[[break]]
+kind = "lint"
+file = "src/Calc.php"
+content = '''
+<?php
+
+namespace Calc;
+
+use Calc\Shape\Child;
+
+class Calc {
+    public function twice(int $value): int
+    {
+        $child = new Child();
+        return $child->f() * $value;
+    }
+}
+'''
+
+[[break]]
+kind = "types"
+file = "src/Calc.php"
+content = '''
+<?php
+
+namespace Calc;
+
+use Calc\Shape\Child;
+
+class Calc
+{
+    /**
+     * @return string
+     */
+    public function twice(int $value): int
+    {
+        $child = new Child();
+        return $child->f() * $value;
+    }
+}
+'''
+
+[[break]]
+kind = "test"
+file = "tests/CalcTest.php"
+content = '''
+<?php
+
+namespace Calc\Tests;
+
+use Calc\Calc;
+use PHPUnit\Framework\TestCase;
+
+final class CalcTest extends TestCase
+{
+    public function testDoublesAValue(): void
+    {
+        self::assertSame(5, (new Calc())->twice(2));
+    }
+}
+'''
+
+[[break]]
+kind = "coverage"
+file = "src/Calc.php"
+content = '''
+<?php
+
+namespace Calc;
+
+use Calc\Shape\Child;
+
+class Calc
+{
+    public function twice(int $value): int
+    {
+        $child = new Child();
+        return $child->f() * $value;
+    }
+
+    public function untested(): int
+    {
+        return 3;
+    }
+}
+'''

@@ -290,6 +290,42 @@ func TestTheJava25GapsLeaveTheRestOfTheFile(t *testing.T) {
 	}
 }
 
+// The grammar reads PHP 8.2 to 8.4 in full and misses two forms of 8.5
+// (docs/en/support.md): clone($o, [...]) and the (void) cast leave an error
+// in the body, every declaration arrives. A grammar that learns both fails
+// here, and the support page is to follow.
+func TestThePHP85GapsLeaveTheRestOfTheFile(t *testing.T) {
+	for _, c := range []struct {
+		fixture string
+		errors  bool
+	}{{"php-syntax-8.2", false}, {"php-syntax-8.3", false}, {"php-syntax-8.4", false}, {"php-syntax-8.5", true}} {
+		root := t.TempDir()
+		if err := CopyFixture(c.fixture, root); err != nil {
+			t.Fatal(err)
+		}
+		g, stats, err := query.Build(root, func(string) {})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := stats.PerLanguage["php"].ParseErrors > 0; got != c.errors {
+			t.Errorf("%s: parse errors %v, want %v", c.fixture, stats.PerLanguage["php"], c.errors)
+		}
+		if c.fixture != "php-syntax-8.5" {
+			continue
+		}
+		var got []string
+		for _, n := range g.Nodes {
+			got = append(got, string(n.ID))
+		}
+		slices.Sort(got)
+		want := []string{"Syntax.php", "Syntax.php#Shape", "Syntax.php#Shape.__construct", "Syntax.php#Shape.grow",
+			"Syntax.php#Shape.twice", "Syntax.php#double", "Syntax.php#main"}
+		if !slices.Equal(got, want) {
+			t.Errorf("nodes %v, want %v", got, want)
+		}
+	}
+}
+
 func TestCopyFixtureRenamesTheModuleFile(t *testing.T) {
 	root := t.TempDir()
 	if err := CopyFixture("go-module", root); err != nil {

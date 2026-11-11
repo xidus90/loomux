@@ -1,0 +1,12 @@
+stacks = ["php"]
+# A readonly class using a trait that holds a constant, and a function with
+# a DNF parameter type.
+edges = [
+  ["Syntax.php#Square", "implements", "Syntax.php#Shape"],
+  ["Syntax.php#Square", "extends", "Syntax.php#Sized"],
+  ["Syntax.php#Square.area", "calls", "Syntax.php#Sized.unit"],
+  ["Syntax.php#main", "calls", "Syntax.php#describe"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"
