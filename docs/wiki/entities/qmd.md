@@ -12,8 +12,8 @@ sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:5c27c514f039e4fe3db1e551f65bc1fd4f13ed1456a13cef94c8b833d967213f"
-    revision: 15
+    content_hash: "sha256:5c86c86e56a3171d4c836e06fbe77ce39154833c26cb2846a3e054774e2ef78c"
+    revision: 16
   - id: erste-schritte
     resource: brain://project/loomux/docs/de/getting-started.md
     doc_id: 01M47W91R51JAGYP0JXJFDFAR4

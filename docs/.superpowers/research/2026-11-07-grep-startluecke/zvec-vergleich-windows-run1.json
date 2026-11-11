@@ -1,0 +1,139 @@
+{
+ "repo_head": "69204137baa36c7d8c13faf8c5087ef4a2e8e642",
+ "runs": 11,
+ "build": {
+  "loomux graph build": 2603.260000003502,
+  "tgrep index": 465.8003999502398,
+  "zg index": 24264.730499999132
+ },
+ "clean": {
+  "literal": {
+   "loomux": {
+    "median": 48.8,
+    "min": 46.9,
+    "max": 54.1,
+    "hits": "51 (used)"
+   },
+   "loomux --trust-index": {
+    "median": 19.7,
+    "min": 17.8,
+    "max": 74.8,
+    "hits": "51 (trusted)"
+   },
+   "tgrep": {
+    "median": 19.3,
+    "min": 19.0,
+    "max": 20.3,
+    "hits": "51"
+   },
+   "zg --rg": {
+    "median": 95.4,
+    "min": 90.5,
+    "max": 150.2,
+    "hits": "68"
+   },
+   "zg --fts direct": {
+    "median": 2320.2,
+    "min": 2286.4,
+    "max": 6018.3,
+    "hits": "1017"
+   },
+   "zg --fts server": {
+    "median": 197.2,
+    "min": 191.2,
+    "max": 402.2,
+    "hits": "1017"
+   }
+  },
+  "alternation": {
+   "loomux": {
+    "median": 71.2,
+    "min": 67.0,
+    "max": 104.4,
+    "hits": "989 (used)"
+   },
+   "loomux --trust-index": {
+    "median": 44.8,
+    "min": 41.3,
+    "max": 53.8,
+    "hits": "989 (trusted)"
+   },
+   "tgrep": {
+    "median": 53.1,
+    "min": 52.6,
+    "max": 107.7,
+    "hits": "989"
+   },
+   "zg --rg": {
+    "median": 118.0,
+    "min": 106.6,
+    "max": 162.9,
+    "hits": "817"
+   }
+  },
+  "ignore-case": {
+   "loomux": {
+    "median": 55.5,
+    "min": 51.5,
+    "max": 109.2,
+    "hits": "78 (used)"
+   },
+   "loomux --trust-index": {
+    "median": 26.8,
+    "min": 24.7,
+    "max": 36.8,
+    "hits": "78 (trusted)"
+   },
+   "tgrep": {
+    "median": 74.7,
+    "min": 72.3,
+    "max": 78.8,
+    "hits": "78"
+   },
+   "zg --rg": {
+    "median": 94.7,
+    "min": 92.9,
+    "max": 150.9,
+    "hits": "103"
+   },
+   "zg --fts direct": {
+    "median": 2272.1,
+    "min": 2265.1,
+    "max": 2336.4,
+    "hits": "1017"
+   },
+   "zg --fts server": {
+    "median": 195.7,
+    "min": 171.9,
+    "max": 249.5,
+    "hits": "1017"
+   }
+  },
+  "no-literal": {
+   "loomux": {
+    "median": 137.4,
+    "min": 124.5,
+    "max": 186.0,
+    "hits": "9210 (scan)"
+   },
+   "loomux --trust-index": {
+    "median": 103.3,
+    "min": 97.0,
+    "max": 175.2,
+    "hits": "9210 (trusted)"
+   },
+   "tgrep": {
+    "median": 3959.5,
+    "min": 3852.1,
+    "max": 4296.3,
+    "hits": "9210"
+   },
+   "zg --rg": {
+    "median": 124.4,
+    "min": 118.8,
+    "max": 223.6,
+    "hits": "13359"
+   }
+  }
+ }
+}

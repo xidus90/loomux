@@ -4469,6 +4469,34 @@ braucht beim Literal das 2,7-Fache und bei der Alternation das 1,5-Fache von
 tgrep. Last trifft neu stärker als tgrep: Unter hoher Last steigt der Anteil
 an tgrep bei Literal und Alternation um 70–130 %.
 
+**Vergleich mit zvec-grep (2026-11-11, `69204137`).** zvec-grep (`zg`,
+github.com/zvec-ai/zvec-grep, Version 0.3.0 aus npm, Rust, Apache-2.0)
+vereint ein mitgeliefertes ripgrep, BM25 und Vektorsuche hinter einer
+Oberfläche. `zvec-vergleich.py` im Research-Ordner misst auf einem frischen
+Klon loomux (Prüfmodus und `--trust-index`), tgrep, `zg --rg` (ripgrep ohne
+Index, exhaustiv) und `zg --fts` (BM25, nach Relevanz sortiert, höchstens
+300 Ergebnisse) einmal als eigener Prozess je Aufruf (`--mode direct`) und
+einmal gegen den laufenden Server (`--mode server`). `--fts` ist keine
+Regex-Suche und läuft nur für die Muster aus Wörtern. Ein Aufwärmlauf, dann
+11 verschränkte Läufe; `LoadPercentage` vorher 18 %. Rohdaten
+`zvec-vergleich-windows-run1.json`. Mediane in ms:
+
+| Muster | loomux | loomux `--trust-index` | tgrep | `zg --rg` | `zg --fts` Server | `zg --fts` direkt |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `func Search` | 48,8 | 19,7 | 19,3 | 95,4 | 197,2 | 2320,2 |
+| `Search\|Grep` | 71,2 | 44,8 | 53,1 | 118,0 | — | — |
+| `-i func search` | 55,5 | 26,8 | 74,7 | 94,7 | 195,7 | 2272,1 |
+| `[A-Z]{3}\w+` | 137,4 | 103,3 | 3959,5 | 124,4 | — | — |
+
+Index: loomux-Graph 2,6 s, tgrep 0,5 s, zg 24,3 s (6215 Dateien, BM25 und
+Vektoren mit `local/potion-code-16m-v2`). loomux und tgrep liefern in allen
+vier Mustern dieselben Zeilen (51, 989, 78, 9210); `zg --rg` durchsucht einen
+anderen Dateiumfang und zählt 68, 817, 103 und 13359 Zeilen, warum, wurde
+nicht untersucht. `zg --fts` liefert Einheiten nach Rang, nicht jede Fundstelle.
+Bei den drei Mustern mit Literal sucht loomux im Prüfmodus 1,7- bis 2-mal so
+schnell wie `zg --rg`, mit `--trust-index` 2,6- bis 4,8-mal; nur beim Muster ohne Literal liegt
+`zg --rg` 13 ms vor dem Prüfmodus. Ein einzelner Lauf.
+
 **Kernbefunde**
 
 1. **Eine Schwelle verfehlt: der erste Aufruf nach einem Commit.** Das

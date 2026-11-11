@@ -4,6 +4,14 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-11-11
+
+- 2026-11-11 — `entities/zvec-grep.md` neu: zvec-grep 0.3.0 gegen
+  `loomux graph grep` und tgrep gemessen; exakt ist loomux schneller, `zg`
+  ergänzt Suche nach Bedeutung. Quelle: `docs/de/benchmarks.md`, Abschnitt
+  „Vergleich mit zvec-grep“, Rohdaten
+  `zvec-vergleich-windows-run1.json`.
+
 ## 2026-11-09
 
 - 2026-11-09 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
