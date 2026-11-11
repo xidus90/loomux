@@ -40,7 +40,9 @@ import (
 // A name no class binds is a reference of the method or signal of that name
 // in the class or one of its bases, if there is exactly one. A reference
 // with a path is a scene's connection: the member of the script the path
-// runs.
+// runs. A node's type and a connection end on a node that runs no script
+// are no GDScript class: they go to the bridge, as a class and as a member
+// of that class.
 // uid:// paths resolve through the uids of the project: each .uid file's,
 // and each scene's and resource's own. An autoload that is a scene binds the
 // script at the scene's root.
@@ -127,16 +129,23 @@ func (x *gdIndex) offers(files []extract.Result) []offer {
 }
 
 // handoff is the bridge for a use GDScript could not resolve and another
-// language may: X.new() of a class no GDScript defines, or an end of a
-// scene's connection on a script of another language.
+// language may: X.new() of a class no GDScript defines, a scene node's
+// type, or an end of a scene's connection on a script of another language
+// or on a node's type. A built-in type finds no offer and leaves no trace.
 func (x *gdIndex) handoff(raw extract.RawEdge) (handover, bool) {
 	switch {
 	case raw.Relation == model.RelationCalls && raw.Name == "new" && raw.Receiver != "" && !strings.Contains(raw.Receiver, "."):
 		if _, why := x.bind(raw.File, x.home(raw), raw.Receiver); why == ReasonNone {
 			return gdHandover(raw, extract.NamespaceGodotClass, raw.Receiver, nil, -1), true
 		}
+	case raw.Relation == model.RelationReferences && raw.Member == "class":
+		return gdHandover(raw, extract.NamespaceGodotClass, raw.Name, nil, -1), true
+	case raw.Relation == model.RelationReferences && raw.Receiver != "":
+		h := gdHandover(raw, connectionNS[raw.Member], raw.Name, nil, -1)
+		h.bridge.Class = raw.Receiver
+		return h, true
 	case raw.Relation == model.RelationReferences && raw.Specifier != "":
-		ns := map[model.Kind]extract.Namespace{"method": extract.NamespaceGodotMethod, "signal": extract.NamespaceGodotSignal}[raw.Member]
+		ns := connectionNS[raw.Member]
 		p, ok := x.target(raw.File, raw.Specifier)
 		if r := x.rootScript(p); ok && ns != "" {
 			if _, own := x.aliases[r]; !own {
@@ -146,6 +155,9 @@ func (x *gdIndex) handoff(raw extract.RawEdge) (handover, bool) {
 	}
 	return handover{}, false
 }
+
+// connectionNS is the namespace of each end of a scene's connection.
+var connectionNS = map[model.Kind]extract.Namespace{"method": extract.NamespaceGodotMethod, "signal": extract.NamespaceGodotSignal}
 
 // langGDScript is the language whose own exports never answer its
 // handovers: its resolver searched them already.
@@ -421,6 +433,11 @@ func (x *gdIndex) resolve(raw extract.RawEdge) (model.Edge, bool) {
 		p, ok := x.target(raw.File, raw.Specifier)
 		return gdEdge(raw, model.NodeID(p)), ok && p != raw.File
 	case model.RelationReferences:
+		if raw.Member != "" && raw.Specifier == "" {
+			// A node's type, or a connection on a node without a script:
+			// a class of the engine or of another language.
+			return model.Edge{}, false
+		}
 		if raw.Specifier != "" {
 			// A scene's connection: a member of the script a node runs.
 			p, ok := x.target(raw.File, raw.Specifier)

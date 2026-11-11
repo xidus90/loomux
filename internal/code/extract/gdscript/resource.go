@@ -26,6 +26,9 @@ import (
 // GDScript name can be. A [connection] references the handler in the target
 // node's script and the signal in the source node's, each a reference with
 // the script (or the instanced scene) as Specifier and the member as Name.
+// A node's type="X" is a reference of class X (Member "class", Name X); an
+// end on a node that runs nothing names its member on X, with X as
+// Receiver in place of a Specifier.
 //
 // The uid in a scene's or resource's header is its Package, for the
 // resolver to read uid:// paths with. External resource ids are integers in
@@ -48,9 +51,10 @@ func resource(lang *gts.Language, rel, source string) (extract.Result, error) {
 		})
 	}
 	project := path.Base(rel) == "project.godot"
-	ext := map[string]string{}  // external resource id -> path or uid
-	runs := map[string]string{} // node path -> its script, or the scene it instances
-	var links []*gts.Node       // the [connection] sections, read once every node is known
+	ext := map[string]string{}   // external resource id -> path or uid
+	runs := map[string]string{}  // node path -> its script, or the scene it instances
+	types := map[string]string{} // node path -> its class
+	var links []*gts.Node        // the [connection] sections, read once every node is known
 	for _, s := range doc.Root.Children() {
 		if doc.Type(s) != "section" {
 			continue
@@ -70,6 +74,12 @@ func resource(lang *gts.Language, rel, source string) (extract.Result, error) {
 			}
 		case "node":
 			at := nodePath(attrs)
+			if typ := attrs["type"]; typ.val != "" {
+				types[at] = typ.val
+				r.Edges = append(r.Edges, extract.RawEdge{
+					Source: model.NodeID(rel), Relation: model.RelationReferences, Name: typ.val, File: rel, Line: line(s), Member: "class",
+				})
+			}
 			if spec, ok := ext[extID(doc, s, "attribute", "instance")]; ok {
 				runs[at] = spec
 			}
@@ -100,11 +110,17 @@ func resource(lang *gts.Language, rel, source string) (extract.Result, error) {
 	for _, s := range links {
 		attrs := pairs(doc, s, "attribute")
 		for _, end := range [][2]string{{"to", "method"}, {"from", "signal"}} {
-			spec, ok := runs[attrs[end[0]].val]
-			if name := attrs[end[1]].val; ok && name != "" {
-				r.Edges = append(r.Edges, extract.RawEdge{
-					Source: model.NodeID(rel), Relation: model.RelationReferences, Name: name, Specifier: spec, File: rel, Line: line(s), Member: model.Kind(end[1]),
-				})
+			e := extract.RawEdge{
+				Source: model.NodeID(rel), Relation: model.RelationReferences, Name: attrs[end[1]].val, File: rel, Line: line(s), Member: model.Kind(end[1]),
+			}
+			at := attrs[end[0]].val
+			if spec, ok := runs[at]; ok {
+				e.Specifier = spec
+			} else {
+				e.Receiver = types[at]
+			}
+			if e.Name != "" && e.Specifier+e.Receiver != "" {
+				r.Edges = append(r.Edges, e)
 			}
 		}
 	}

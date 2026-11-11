@@ -184,7 +184,7 @@ func TestCRLFGivesTheSameNodes(t *testing.T) {
 
 func TestLanguageDescribesTheExtractor(t *testing.T) {
 	l := gdscript.Language{}
-	if l.Name() != "gdscript" || l.Version() != "gdscript/6@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
+	if l.Name() != "gdscript" || l.Version() != "gdscript/7@"+treesitter.Parser || !reflect.DeepEqual(l.Extensions(), []string{".gd", ".godot", ".tres", ".tscn", ".uid"}) {
 		t.Fatalf("Language = %q %q %v", l.Name(), l.Version(), l.Extensions())
 	}
 	r, err := l.File(rel, "func f():\n\tpass\n")
@@ -426,13 +426,40 @@ func TestConnectionEndsCarryMember(t *testing.T) {
 		"[connection signal=\"hit\" from=\".\" to=\"HUD\" method=\"on_hit\"]\n")
 	var got []extract.RawEdge
 	for _, e := range noLines(r.Edges) {
-		if e.Relation == model.RelationReferences {
+		if e.Relation == model.RelationReferences && e.Member != "class" {
 			got = append(got, e)
 		}
 	}
 	same(t, "connection", got, []extract.RawEdge{
 		{Source: p, Relation: model.RelationReferences, Name: "on_hit", Specifier: "res://hud.gd", File: p, Member: "method"},
 		{Source: p, Relation: model.RelationReferences, Name: "hit", Specifier: "res://p.gd", File: p, Member: "signal"},
+	})
+}
+
+// A node's type is a reference of the class; a connection end on a node
+// that runs no script names its member on that class. A node with a script
+// keeps the script's end, and a node with neither gives no end.
+func TestNodeTypesAndTheirConnectionEnds(t *testing.T) {
+	const p = "s.tscn"
+	r := extractSrc(t, p, "[gd_scene format=3]\n\n[ext_resource type=\"Script\" path=\"res://hud.gd\" id=\"1\"]\n\n"+
+		"[node name=\"Main\" type=\"GDExample\"]\n\n[node name=\"HUD\" type=\"Control\" parent=\".\"]\nscript = ExtResource(\"1\")\n\n"+
+		"[node name=\"Bare\" parent=\".\"]\n\n"+
+		"[connection signal=\"position_changed\" from=\".\" to=\"HUD\" method=\"on_moved\"]\n"+
+		"[connection signal=\"done\" from=\"HUD\" to=\".\" method=\"get_speed\"]\n"+
+		"[connection signal=\"x\" from=\"Bare\" to=\"Bare\" method=\"y\"]\n")
+	var got []extract.RawEdge
+	for _, e := range r.Edges {
+		if e.Relation == model.RelationReferences {
+			got = append(got, e)
+		}
+	}
+	same(t, "references", got, []extract.RawEdge{
+		{Source: p, Relation: model.RelationReferences, Name: "GDExample", File: p, Line: 5, Member: "class"},
+		{Source: p, Relation: model.RelationReferences, Name: "Control", File: p, Line: 7, Member: "class"},
+		{Source: p, Relation: model.RelationReferences, Name: "on_moved", Specifier: "res://hud.gd", File: p, Line: 12, Member: "method"},
+		{Source: p, Relation: model.RelationReferences, Name: "position_changed", Receiver: "GDExample", File: p, Line: 12, Member: "signal"},
+		{Source: p, Relation: model.RelationReferences, Name: "get_speed", Receiver: "GDExample", File: p, Line: 13, Member: "method"},
+		{Source: p, Relation: model.RelationReferences, Name: "done", Specifier: "res://hud.gd", File: p, Line: 13, Member: "signal"},
 	})
 }
 

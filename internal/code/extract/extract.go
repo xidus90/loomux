@@ -181,7 +181,10 @@ type RawEdge struct {
 	// On a references edge, a Godot namespace -- "godot.method" or
 	// "godot.signal" -- marks a C++ binding: Specifier is the name Godot
 	// knows, Receiver the class and Name the bound method, empty for a
-	// signal. Empty everywhere else.
+	// signal. In a Godot scene, "class" marks a node's type, named by Name,
+	// and "method" or "signal" an end of a connection: on a script, named by
+	// Specifier, or on a node that runs none, its type named by Receiver.
+	// Empty everywhere else.
 	Member model.Kind `json:"member,omitempty"`
 	// Via is the call whose first result receives this call: `New(g).Reach()`
 	// carries `New(g)` here, and so does `x.Reach()` after `x := New(g)`.

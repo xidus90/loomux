@@ -12,9 +12,23 @@ import (
 	"github.com/xidus90/loomux/internal/code/resolve"
 )
 
-// godotCSharp extracts a mixed Godot tree with the registered extractors, as
-// a graph build does, and resolves it.
+// godotCSharp is godotTree's graph.
 func godotCSharp(t *testing.T, tree map[string]string) *model.Graph {
+	t.Helper()
+	g, _ := godotTree(t, tree)
+	return g
+}
+
+// godotTree resolves godotFiles of tree.
+func godotTree(t *testing.T, tree map[string]string) (*model.Graph, []resolve.Unresolved) {
+	t.Helper()
+	g, un := resolve.GraphWith(godotFiles(t, tree), nil, stamp)
+	return validated(t, g), un
+}
+
+// godotFiles extracts a mixed Godot tree with the registered extractors, as
+// a graph build does.
+func godotFiles(t *testing.T, tree map[string]string) []extract.Result {
 	t.Helper()
 	paths := make([]string, 0, len(tree))
 	for p := range tree {
@@ -37,8 +51,7 @@ func godotCSharp(t *testing.T, tree map[string]string) *model.Graph {
 		}
 		files = append(files, r)
 	}
-	g, _ := resolve.GraphWith(files, nil, stamp)
-	return validated(t, g)
+	return files
 }
 
 const playerScene = "[gd_scene format=3]\n\n" +
