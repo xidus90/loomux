@@ -9,13 +9,13 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:14019fc80435779b28bbf034b1c1a28989c979eebd40285cbc33c86a4e356d1b"
-    revision: 28
+    content_hash: "sha256:821c08cf66b0af08efc19f60a538cee215115daa5209406afbf1e05fac51e45e"
+    revision: 30
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:5c86c86e56a3171d4c836e06fbe77ce39154833c26cb2846a3e054774e2ef78c"
-    revision: 16
+    content_hash: "sha256:840e0aeef1569c109710eca1187228bc0e71ac841ee5f5d2fa3657a1512de89a"
+    revision: 20
 ---
 
 ## Drei Profile

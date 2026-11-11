@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:14019fc80435779b28bbf034b1c1a28989c979eebd40285cbc33c86a4e356d1b"
-    revision: 28
+    content_hash: "sha256:821c08cf66b0af08efc19f60a538cee215115daa5209406afbf1e05fac51e45e"
+    revision: 30
 ---
 
 ## Wofür
@@ -134,6 +134,23 @@ Länge, gilt er als sicher und zeigt dessen Relation. Längere Wege zählen
 nicht. Das JSON trägt dafür `"inferred": true`. Zählungen und Signale
 (In-Degree, Test-Signal von `blast`, Ranking) werten geratene Kanten weiter
 voll.
+
+**Funktionswerte und Ketten (Go):** Steht eine Funktion als Wert statt als
+Aufruf da (`Deps{Blast: query.Blast}`, `var postToolUse = hooks.PostToolUse`,
+`register(s.handle)`), entsteht eine Kante `references` vom umschließenden
+Symbol, auf Paketebene von der Datei. Wertpositionen sind Argumente,
+Elemente und Werte von Composite-Literalen, rechte Seiten und `return`. Ein
+bloßer Name wird nur in seiner Datei und seinem Paket gesucht, nie
+repo-weit. Ein Aufruf auf einem Aufrufergebnis (`blast.New(g).Reach()`, auch
+`x := blast.New(g); x.Reach()`) löst über den ersten Ergebnistyp der inneren
+Funktion auf, gelesen aus ihrer Signatur, und nur im Paket dieser Funktion;
+er ist so sicher wie der innere Aufruf. Vorher endeten Ketten an diesen
+Stellen, und grep fand mehr als der Graph. Messung: `docs/de/benchmarks.md`,
+Eintrag vom 2026-11-11 „Funktionswerte und Ketten im Go-Graph“. Ein
+Aufruf über einen lokalen Namen (`mk()`, `m["k"]()`) nennt keine Funktion
+des Pakets und ergibt keine Kante. Ergebnistypen aus anderen Paketen und
+Interface-Dispatch bleiben offen. `graph callers` zitiert die Zeile, auf der
+die Kante steht, nicht die erste Erwähnung des Namens.
 
 ## Die Oberflächen
 
