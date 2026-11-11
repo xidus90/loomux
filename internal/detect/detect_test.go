@@ -82,6 +82,19 @@ func TestCSharpSignalsAreDetected(t *testing.T) {
 	}
 }
 
+// global.json choosing Microsoft.Testing.Platform is what switches dotnet
+// test out of its VSTest mode; a global.json pinning only the SDK does not.
+func TestAGlobalJSONChoosingMTPIsDetected(t *testing.T) {
+	mtp := Detect(fstest.MapFS{"global.json": {Data: []byte(`{"test": {"runner": "Microsoft.Testing.Platform"}}`)}})
+	if !reflect.DeepEqual(mtp.Stacks, []string{"csharp", "mtp"}) {
+		t.Errorf("runner: stacks = %v", mtp.Stacks)
+	}
+	pin := Detect(fstest.MapFS{"global.json": {Data: []byte(`{"sdk": {"version": "10.0.100"}}`)}})
+	if !reflect.DeepEqual(pin.Stacks, []string{"csharp"}) {
+		t.Errorf("sdk pin: stacks = %v", pin.Stacks)
+	}
+}
+
 // A solution in the root builds the projects below it: they are no areas of
 // their own, or the root and each member would build the same obj/ and bin/.
 // Without one, every project folder is its own area.

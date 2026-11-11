@@ -77,6 +77,9 @@ var signals = []signal{
 	{glob: "*.slnx", stacks: []string{"csharp"}, owns: true},
 	{glob: "*.csproj", stacks: []string{"csharp"}},
 	{path: "global.json", stacks: []string{"csharp"}},
+	// The runner global.json chooses decides how dotnet test runs; the
+	// properties and packages of a project do not.
+	{path: "global.json", contains: "Microsoft.Testing.Platform", stacks: []string{"csharp", "mtp"}},
 	{path: "Directory.Build.props", stacks: []string{"csharp"}},
 	{path: "Cargo.toml", stacks: []string{"rust"}},
 	{path: "go.mod", stacks: []string{"go"}},

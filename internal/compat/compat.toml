@@ -163,6 +163,23 @@ version = "11.0"
 fixture = "csharp-xunit"
 kinds = ["lint", "types", "test", "coverage", "graph"]
 
+# The same project on Microsoft.Testing.Platform, as xunit.v3 sets it up by
+# default: its global.json chooses the runner, which the run's SDK pin joins.
+
+[[entry]]
+stack = "csharp"
+runtime = "dotnet"
+version = "10.0"
+fixture = "csharp-xunit-mtp"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "csharp"
+runtime = "dotnet"
+version = "11.0"
+fixture = "csharp-xunit-mtp"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
 # As for Go, a syntax entry per .NET version, with the forms of the C#
 # version it ships (C# 14 with .NET 10, C# 15 with .NET 11).
 

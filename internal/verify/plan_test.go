@@ -476,6 +476,46 @@ func TestPlanRunsDotnetForACSharpFolder(t *testing.T) {
 	}
 }
 
+// global.json choosing Microsoft.Testing.Platform takes dotnet test off the
+// VSTest collector. The test lane runs the suite plainly, since a project
+// without Microsoft's coverage extension rejects --coverage; coverage runs it
+// again through the extension, which writes a GUID-named Cobertura report
+// flat into this run's data directory. A test project on xunit.v3 needs no
+// Microsoft.NET.Test.Sdk to count as one.
+func TestPlanRunsACSharpFolderOnMTP(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "Game.sln", "")
+	put(t, root, "Game.Tests/Game.Tests.csproj", `<PackageReference Include="xunit.v3" Version="4.0.3" />`)
+	facts := detect.Facts{Stacks: []string{"csharp", "mtp"}, Areas: map[string][]string{"csharp": {"."}}}
+	e := env(root)
+	e.HasTests = HasTests
+	kinds := Request{Kinds: []string{"test", "coverage"}}
+	jobs, err := Plan(effFor(t, "", facts), kinds, e)
+	if err != nil || names(jobs) != "test/csharp coverage/csharp" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	if jobs[0].Pre != "" || !slices.EqualFunc(jobs[0].Argvs, [][]string{{"dotnet", "test", "Game.sln", "--nologo"}}, slices.Equal) {
+		t.Errorf("test: %+v", jobs[0])
+	}
+	if jobs[1].Pre != StateUnavailable || jobs[1].Note != "none found: *.csproj:Microsoft.Testing.Extensions.CodeCoverage" {
+		t.Errorf("coverage without the extension: %+v", jobs[1])
+	}
+	put(t, root, "Game.Tests/Game.Tests.csproj", `<PackageReference Include="xunit.v3" Version="4.0.3" />
+<PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />`)
+	jobs, _ = Plan(effFor(t, "", facts), kinds, e)
+	_, data := CoverPaths(root, "R", "csharp", ".")
+	report := []string{`C:\bin\loomux.exe`, "check", "linecov", "--report", data + "/*.cobertura.xml"}
+	measure := []string{"dotnet", "test", "Game.sln", "--nologo", "--results-directory", data, "--", "--coverage", "--coverage-output-format", "cobertura"}
+	if jobs[1].Pre != "" || !slices.EqualFunc(jobs[1].Argvs, [][]string{report}, slices.Equal) || !slices.Equal(jobs[1].Measure, measure) {
+		t.Errorf("coverage: %+v", jobs[1])
+	}
+	for _, j := range jobs {
+		if j.Lock != LockPath(root, "csharp", ".") {
+			t.Errorf("%s: lock %q", j.Name, j.Lock)
+		}
+	}
+}
+
 // Maven's lanes build into target/ and lock the area. Coverage reads the
 // JaCoCo report of the root and of modules one level down; the test lane
 // writes them when it measures, through the plugin's full coordinates, so a

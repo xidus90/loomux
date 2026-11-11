@@ -2,6 +2,7 @@ package compat
 
 import (
 	"cmp"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -233,13 +234,21 @@ func configureCMake(dir string, e Entry) error {
 // pinDotnet keeps the run on an SDK of the entry's major: without a
 // global.json the highest installed SDK builds, whatever the entry says. A
 // pre-release sorts below its release, so a probe pins the first preview and
-// allows pre-releases. A fixture that ships its own pin keeps it.
+// allows pre-releases. A fixture that ships its own pin keeps it; one whose
+// global.json says something else, such as the test runner, gets the pin
+// beside it.
 func pinDotnet(dir string, e Entry) error {
 	if e.Runtime != "dotnet" {
 		return nil
 	}
 	path := filepath.Join(dir, "global.json")
-	if _, err := os.Stat(path); err == nil {
+	doc := map[string]json.RawMessage{}
+	if data, err := os.ReadFile(path); err == nil {
+		if err := json.Unmarshal(data, &doc); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	}
+	if _, ok := doc["sdk"]; ok {
 		return nil
 	}
 	major, _, _ := strings.Cut(e.Version, ".")
@@ -247,8 +256,10 @@ func pinDotnet(dir string, e Entry) error {
 	if pre {
 		version += "-preview.1"
 	}
-	pin := fmt.Sprintf(`{"sdk":{"version":%q,"rollForward":"latestFeature","allowPrerelease":%t}}`+"\n", version, pre)
-	return os.WriteFile(path, []byte(pin), 0o644)
+	doc["sdk"] = json.RawMessage(fmt.Sprintf(`{"version":%q,"rollForward":"latestFeature","allowPrerelease":%t}`, version, pre))
+	// Every value is valid JSON: parsed above, or written just now.
+	data, _ := json.Marshal(doc)
+	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
 var frameworkRe = regexp.MustCompile(`(<TargetFramework>)net\d+\.\d+(</TargetFramework>)`)
