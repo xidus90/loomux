@@ -19,12 +19,13 @@ import (
 	"github.com/xidus90/loomux/internal/code/extract/csharp"
 	"github.com/xidus90/loomux/internal/code/extract/gdscript"
 	"github.com/xidus90/loomux/internal/code/extract/golang"
+	"github.com/xidus90/loomux/internal/code/extract/java"
 	"github.com/xidus90/loomux/internal/code/extract/python"
 )
 
 // Languages is every extractor a build runs, Go first.
 func Languages() []extract.Language {
-	return []extract.Language{golang.Language{}, python.Language{}, gdscript.Language{}, csharp.Language{}, cpp.Language{}}
+	return []extract.Language{golang.Language{}, python.Language{}, gdscript.Language{}, csharp.Language{}, cpp.Language{}, java.Language{}}
 }
 
 // Version is the build's combined extractor identity: the versions of every
