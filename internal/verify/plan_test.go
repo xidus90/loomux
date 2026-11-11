@@ -476,9 +476,6 @@ func TestPlanRunsDotnetForACSharpFolder(t *testing.T) {
 	}
 }
 
-// A test project builds the project it references into that project's obj/
-// and bin/, beside the build of the project itself: every C# area shares the
-// one lock of the repository.
 // Maven's lanes build into target/ and lock the area. Coverage reads the
 // JaCoCo report of the root and of modules one level down; the test lane
 // writes them when it measures, through the plugin's full coordinates, so a
@@ -562,6 +559,25 @@ func TestPlanRunsGradleThroughItsWrapper(t *testing.T) {
 	}
 }
 
+// Maven in one area and Gradle in another: each area runs its own build.
+func TestPlanRunsEachAreasOwnJavaBuild(t *testing.T) {
+	root := t.TempDir()
+	facts := detect.Facts{
+		Stacks: []string{"gradle", "java", "maven"},
+		Areas:  map[string][]string{"java": {"a", "b"}, "maven": {"a"}, "gradle": {"b"}},
+	}
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"types"}}, env(root))
+	if err != nil || names(jobs) != "types/java@a types/java@b" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	if jobs[0].Argvs[0][0] != "mvn" || jobs[0].Origin != "preset" {
+		t.Errorf("a: %+v", jobs[0])
+	}
+	if jobs[1].Argvs[0][0] != "gradle" || jobs[1].Origin != "preset, variant gradle" || jobs[1].Lock != LockPath(root, "java", "b") {
+		t.Errorf("b: %+v", jobs[1])
+	}
+}
+
 // Gradle lints through the checkstyle plugin's tasks, so only a build that
 // applies the plugin has a lint.
 func TestPlanLintsGradleOnlyWithCheckstyle(t *testing.T) {
@@ -589,6 +605,9 @@ func TestPlanSkipsGradleCoverageWithoutJacoco(t *testing.T) {
 	}
 }
 
+// A test project builds the project it references into that project's obj/
+// and bin/, beside the build of the project itself: every C# area shares the
+// one lock of the repository.
 func TestPlanLocksEveryCSharpAreaWithOneLock(t *testing.T) {
 	root := t.TempDir()
 	facts := detect.Facts{Stacks: []string{"csharp"}, Areas: map[string][]string{"csharp": {"App", "App.Tests"}}}

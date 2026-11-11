@@ -80,6 +80,33 @@ func TestWriteShowAreasOriginsAndNoSignal(t *testing.T) {
 	}
 }
 
+// The origin names the variant the area's own signals chose. An area that
+// runs another build than the first follows as a comment: one table per lane
+// is all a config can hold, so the output still loads back.
+func TestWriteShowNamesEachAreasVariant(t *testing.T) {
+	facts := detect.Facts{
+		Stacks: []string{"gradle", "java", "maven"},
+		Areas:  map[string][]string{"java": {"."}, "gradle": {"."}, "maven": {"samples"}},
+	}
+	var b strings.Builder
+	WriteShow(&b, effFor(t, "", facts), []string{"types"}, env(`C:\repo`))
+	if want := "commands = [\"{gradle} compileJava compileTestJava\"]  # preset, variant gradle\n"; !strings.Contains(b.String(), want) {
+		t.Fatalf("missing %q in\n%s", want, b.String())
+	}
+	facts.Areas = map[string][]string{"java": {"a", "b"}, "maven": {"a"}, "gradle": {"b"}}
+	b.Reset()
+	WriteShow(&b, effFor(t, "", facts), []string{"types"}, env(`C:\repo`))
+	got := b.String()
+	want := "[verify.java.types]\ncommands = [\"mvn -B -q -DskipTests compile test-compile\"]  # preset\nlock = true  # preset\n" +
+		"\n# java in b:\n# [verify.java.types]\n# commands = [\"{gradle} compileJava compileTestJava\"]  # preset, variant gradle\n# lock = true  # preset, variant gradle\n"
+	if !strings.HasSuffix(got, want) {
+		t.Fatalf("want suffix %q in\n%s", want, got)
+	}
+	if _, err := parse(t, got); err != nil {
+		t.Fatalf("%v\n%s", err, got)
+	}
+}
+
 // What --show prints loads back: an undefined lane is a comment, an off lane
 // a `<kind> = false` in the stack's table, and both come back as they were.
 func TestWriteShowLoadsBack(t *testing.T) {

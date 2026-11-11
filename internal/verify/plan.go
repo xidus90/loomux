@@ -230,7 +230,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 				switch {
 				case off != "":
 					note = kind + " switched off under [verify." + off + "]"
-				case isRootKind(kind) && carrier != "" && carrier != t.stack && hasCommand(eff, req, t.stack, kind):
+				case isRootKind(kind) && carrier != "" && carrier != t.stack && hasCommand(eff, req, t.stack, area, kind):
 					note = kind + " covered by " + kind + "/" + carrier
 				}
 				if note != "" {
@@ -312,7 +312,7 @@ func IsSource(rel string) bool {
 func rootCarrier(eff Effective, req Request, env PlanEnv, kind string, ts []target) string {
 	carrier, best := "", len(carrierRank)+1
 	for _, t := range ts {
-		if !hasCommand(eff, req, t.stack, kind) || skippedBy(req, eff.Stacks[t.stack][kind].Lane, env.Changed) != "" {
+		if !hasCommand(eff, req, t.stack, ".", kind) || skippedBy(req, eff.Lanes(t.stack, ".")[kind].Lane, env.Changed) != "" {
 			continue
 		}
 		rank := slices.Index(carrierRank, t.stack)
@@ -339,7 +339,7 @@ func rootOff(eff Effective, req Request, kind string, ts []target) string {
 		if off == "" && eff.Config.Stacks[t.stack][kind].Lane.Off {
 			off = t.stack
 		}
-		carried = carried || hasCommand(eff, req, t.stack, kind)
+		carried = carried || hasCommand(eff, req, t.stack, ".", kind)
 	}
 	if !carried {
 		return ""
@@ -398,17 +398,17 @@ func commandsFor(req Request, stack string, lane Lane) []string {
 	return lane.Commands
 }
 
-// hasCommand says whether a stack's lane of kind has something to run in the
-// request's scope.
-func hasCommand(eff Effective, req Request, stack, kind string) bool {
-	r := eff.Stacks[stack][kind]
+// hasCommand says whether a stack's lane of kind in area has something to
+// run in the request's scope.
+func hasCommand(eff Effective, req Request, stack, area, kind string) bool {
+	r := eff.Lanes(stack, area)[kind]
 	return r.Defined && len(commandsFor(req, stack, r.Lane)) > 0
 }
 
 // baseJob is a lane before the plan has decided anything about it. The graph
 // and rules kinds run once at the root, so their names carry no area.
 func baseJob(eff Effective, env PlanEnv, kind, stack, area string) Job {
-	r := eff.Stacks[stack][kind]
+	r := eff.Lanes(stack, area)[kind]
 	job := Job{Name: kind + "/" + stack, Kind: kind, Stack: stack, Area: area, Origin: r.Origin,
 		Dir: filepath.Join(env.Root, area), Threaded: r.Lane.Threaded, After: -1}
 	if len(eff.Areas[stack]) > 1 && !isRootKind(kind) {
@@ -418,14 +418,14 @@ func baseJob(eff Effective, env PlanEnv, kind, stack, area string) Job {
 }
 
 func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) (Job, link, bool, error) {
-	r := eff.Stacks[stack][kind]
+	r := eff.Lanes(stack, area)[kind]
 	job := baseJob(eff, env, kind, stack, area)
 	dir := job.Dir
 	// A graph lane rebuilds the graph, which no edit should wait for.
 	if kind == "graph" && req.Scope == ScopeEdit {
 		return Job{}, link{}, false, nil
 	}
-	if !hasCommand(eff, req, stack, kind) {
+	if !hasCommand(eff, req, stack, area, kind) {
 		if req.Scope == ScopeEdit {
 			return Job{}, link{}, false, nil
 		}
@@ -550,7 +550,7 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	if isRootKind(kind) && env.GraphEnv != nil {
 		job.Env = append(job.Env, env.GraphEnv(env.Root)...)
 	}
-	if !isRootKind(kind) && locksArea(eff.Stacks[stack]) {
+	if !isRootKind(kind) && locksArea(eff.Lanes(stack, area)) {
 		lockArea := area
 		if stack == "csharp" {
 			// A project builds the projects it references into their own

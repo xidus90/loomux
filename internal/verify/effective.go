@@ -2,6 +2,7 @@ package verify
 
 import (
 	"maps"
+	"reflect"
 	"slices"
 
 	"github.com/xidus90/loomux/internal/detect"
@@ -17,7 +18,10 @@ type Resolved struct {
 // Effective is what a check runs: every lane of every stack after presets,
 // variants and config were laid over each other, and which stacks run where.
 type Effective struct {
-	Stacks     map[string]map[string]Resolved
+	Stacks map[string]map[string]Resolved
+	// InArea holds, per stack, the lanes of each area whose signals chose
+	// another variant than the stack's first area (Lanes).
+	InArea     map[string]map[string]map[string]Resolved
 	Areas      map[string][]string
 	Active     []string
 	Configured map[string]bool
@@ -33,6 +37,7 @@ type Effective struct {
 func Resolve(cfg Config, p *Presets, facts detect.Facts) (Effective, error) {
 	eff := Effective{
 		Stacks:     map[string]map[string]Resolved{},
+		InArea:     map[string]map[string]map[string]Resolved{},
 		Areas:      map[string][]string{},
 		Active:     []string{},
 		Configured: map[string]bool{},
@@ -46,28 +51,64 @@ func Resolve(cfg Config, p *Presets, facts detect.Facts) (Effective, error) {
 		if stack == "wiki" || stack == "wiki-sources" {
 			continue
 		}
-		lanes, err := resolveStack(stack, cfg.Stacks[stack], p.Stacks[stack], facts.Stacks)
-		if err != nil {
-			return Effective{}, err
+		detected := stack != "project" && slices.Contains(facts.Stacks, stack)
+		areas := []string{"."}
+		if detected && len(facts.Areas[stack]) > 0 {
+			areas = slices.Clone(facts.Areas[stack])
 		}
-		eff.Stacks[stack] = lanes
+		// Each area chooses its variant from its own signals; the first
+		// area's lanes are the stack's, and an area that chose otherwise
+		// keeps its own beside them.
+		for i, area := range areas {
+			lanes, err := resolveStack(stack, cfg.Stacks[stack], p.Stacks[stack], signalsIn(facts, area))
+			if err != nil {
+				return Effective{}, err
+			}
+			switch {
+			case i == 0:
+				eff.Stacks[stack] = lanes
+			case !reflect.DeepEqual(lanes, eff.Stacks[stack]):
+				if eff.InArea[stack] == nil {
+					eff.InArea[stack] = map[string]map[string]Resolved{}
+				}
+				eff.InArea[stack][area] = lanes
+			}
+		}
 		eff.TestsWhen[stack] = slices.Clone(p.Stacks[stack].TestsWhen)
 		// Whoever writes a test command has tests; `test = false` writes none,
 		// and a table that leaves commands alone keeps the preset's.
 		test, ok := cfg.Stacks[stack]["test"]
 		eff.Configured[stack] = ok && !test.Lane.Off && (test.Replace || test.Set["commands"])
-		detected := stack != "project" && slices.Contains(facts.Stacks, stack)
 		if !detected && !configuresCommand(cfg.Stacks[stack]) {
 			continue
 		}
 		eff.Active = append(eff.Active, stack)
-		eff.Areas[stack] = []string{"."}
-		if detected && len(facts.Areas[stack]) > 0 {
-			eff.Areas[stack] = slices.Clone(facts.Areas[stack])
-		}
+		eff.Areas[stack] = areas
 	}
 	slices.Sort(eff.Active)
 	return eff, nil
+}
+
+// Lanes are the lanes of stack as they run in area.
+func (e Effective) Lanes(stack, area string) map[string]Resolved {
+	if lanes, ok := e.InArea[stack][area]; ok {
+		return lanes
+	}
+	return e.Stacks[stack]
+}
+
+// signalsIn are the signals that count in area: those matched there, those
+// matched in the root, whose files speak for what lies below it, and those
+// detection placed in no area.
+func signalsIn(facts detect.Facts, area string) []string {
+	var out []string
+	for _, s := range facts.Stacks {
+		at := facts.Areas[s]
+		if len(at) == 0 || slices.Contains(at, area) || slices.Contains(at, ".") {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func resolveStack(stack string, overrides map[string]Override, preset PresetStack, signals []string) (map[string]Resolved, error) {

@@ -151,7 +151,9 @@ threaded = true  # preset
   `.loomux/config.toml`. A lane with nothing to run is a comment,
   `# [verify.<stack>.<kind>] not defined`; a lane switched off is printed as
   `<kind> = false` under `[verify.<stack>]`, ahead of the stack's other
-  tables. Pasted back, both stay as they were.
+  tables. Pasted back, both stay as they were. An area whose signals chose
+  another variant than the stack's first area follows as a comment, headed
+  `# <stack> in <area>:`, since a config holds one table per lane.
 
 ### `loomux check gocover --profile <path> [--floor <n>] [--dir <dir>]`
 Judges a Go coverage profile of the module in `--dir` through

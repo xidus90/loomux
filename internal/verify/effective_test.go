@@ -75,6 +75,54 @@ func TestResolveLetsMavenWinOverGradleAndSaysSo(t *testing.T) {
 	}
 }
 
+// The variant follows the signals of the area it runs in: a root Gradle
+// build owns the java area, and a Maven sample one level down has no say
+// there; side by side, each build checks its own area.
+func TestResolveChoosesTheVariantPerArea(t *testing.T) {
+	facts := detect.Facts{
+		Stacks: []string{"gradle", "java", "maven"},
+		Areas:  map[string][]string{"java": {"."}, "gradle": {"."}, "maven": {"samples"}},
+	}
+	eff, err := Resolve(Config{}, presetsFor(t), facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := eff.Lanes("java", ".")["types"]; got.Origin != "preset, variant gradle" || got.Lane.Commands[0] != "{gradle} compileJava compileTestJava" {
+		t.Errorf("root gradle: %+v", got)
+	}
+	facts.Areas = map[string][]string{"java": {"a", "b"}, "maven": {"a"}, "gradle": {"b"}}
+	eff, _ = Resolve(Config{}, presetsFor(t), facts)
+	if got := eff.Lanes("java", "a")["types"]; got.Origin != "preset" || !strings.HasPrefix(got.Lane.Commands[0], "mvn ") {
+		t.Errorf("a: %+v", got)
+	}
+	if got := eff.Lanes("java", "b")["types"]; got.Origin != "preset, variant gradle" || !strings.HasPrefix(got.Lane.Commands[0], "{gradle} ") {
+		t.Errorf("b: %+v", got)
+	}
+	if len(eff.InArea["java"]) != 1 || eff.InArea["java"]["a"] != nil {
+		t.Errorf("only the area that differs from the first is kept apart: %v", eff.InArea["java"])
+	}
+}
+
+// A signal matched in the root speaks for the areas below it, and one
+// detection placed in no area for every area.
+func TestResolveLetsRootAndAreaLessSignalsCountEverywhere(t *testing.T) {
+	facts := detect.Facts{
+		Stacks: []string{"pyright", "python"},
+		Areas:  map[string][]string{"python": {"a", "b"}, "pyright": {"."}},
+	}
+	eff, _ := Resolve(Config{}, presetsFor(t), facts)
+	for _, area := range []string{"a", "b"} {
+		if got := eff.Lanes("python", area)["types"]; got.Origin != "preset, variant pyright" {
+			t.Errorf("%s: %+v", area, got)
+		}
+	}
+	facts.Areas = map[string][]string{"python": {"a", "b"}}
+	eff, _ = Resolve(Config{}, presetsFor(t), facts)
+	if got := eff.Lanes("python", "b")["types"]; got.Origin != "preset, variant pyright" || len(eff.InArea) != 0 {
+		t.Errorf("no area: %+v %v", got, eff.InArea)
+	}
+}
+
 func TestResolveRefusesACoverProfileNobodyWrites(t *testing.T) {
 	cfg, _ := parse(t, "[verify.go]\ntest = \"go test ./...\"\n[verify.go.coverage]\nmeasure = \"go test ./...\"\n")
 	_, err := Resolve(cfg, presetsFor(t), detect.Facts{Stacks: []string{"go"}})

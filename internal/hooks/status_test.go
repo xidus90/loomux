@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -457,6 +458,18 @@ func TestUnavailableLanes(t *testing.T) {
 	}
 	if got := unavailableLanes(lanes("typescript", "vue"), onlyGo); len(got) != 1 || got[0] != "npx" {
 		t.Fatalf("expected [npx] once, got %v", got)
+	}
+
+	// An area that runs another build than the first names its tool too.
+	mixed, err := editLoad(t.TempDir(), detect.Facts{
+		Stacks: []string{"gradle", "java", "maven"},
+		Areas:  map[string][]string{"java": {"a", "b"}, "maven": {"a"}, "gradle": {"b"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := unavailableLanes(mixed, nothing); !slices.Equal(got, []string{"mvn", "{gradle}"}) {
+		t.Fatalf("expected both builds, got %v", got)
 	}
 
 	// No lanes, nothing to install: what Status hands on when the config
