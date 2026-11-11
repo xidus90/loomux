@@ -871,6 +871,8 @@ Retrieves code symbols ranked by BM25-style lexical matching blended with **Pers
 ### `loomux graph callers <symbol> [--root <path>] [--direction in|out] [-d <depth>] [--in <prefix>] [--no-refresh] [--json]`
 Traces who calls, imports, or references a symbol (`--direction in`, default), or what this symbol calls (`--direction out`).
 
+The symbol is looked up case-insensitively: as a name, the end of a node ID, `<package>.<symbol>`, a file name, or a file path. When several match, the command starts at the first: a name in the query's exact case ranks before one that matches only case-insensitively, and within each a symbol outside the test files before one inside; otherwise the graph's order holds. `Build` therefore finds an exported `Build` before a test helper `build`; name a specific one as `trigram.Build`.
+
 - **Flags**:
   - `--root <path>`: Project root; the working directory when empty.
   - `--no-refresh`: Answer from the graph on disk, never rebuild.
@@ -1394,7 +1396,8 @@ The seven `graph_*` tools operate over the repository of one registered area:
   cached AST graph without function bodies.
 - **`graph_trace_calls`** traces incoming callers (`direction: in`) or outgoing
   callees (`direction: out`) of `symbol`, either direct (`depth: 1`) or
-  transitive (`depth: "all"`); `in` narrows to a path prefix.
+  transitive (`depth: "all"`); `in` narrows to a path prefix. `symbol` resolves
+  as for `loomux graph callers`.
 - **`graph_find_all`** performs symbol-coupled regex search across indexed files,
   grouped by enclosing symbol and ranked by incoming edge degree (`inDegree`);
   `in` narrows to files under a path prefix. It calls the same search as

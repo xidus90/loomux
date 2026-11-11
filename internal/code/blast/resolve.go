@@ -3,6 +3,7 @@ package blast
 import (
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/xidus90/loomux/internal/code/lexicon"
@@ -20,6 +21,11 @@ import (
 //  3. File node: by basename, path, or path suffix. File path queries are
 //     prioritized over bare name fallback to protect files like runner.go from
 //     being captured by a symbol named go.
+//
+// Within the stage that matches, a symbol named in the query's exact case ranks
+// before a case-insensitive one, and within each a symbol outside the test
+// files (IsTestPath) before one inside; ties keep the graph's order. Callers
+// take the first hit, so Build finds an exported Build before a test helper build.
 //
 // An empty or unindexed in prefix produces an error (assertPrefixIndexed).
 //
@@ -72,7 +78,7 @@ func Resolve(g *model.Graph, query, in string) ([]*model.Node, error) {
 		}
 	}
 	if len(stage1Hits) > 0 {
-		return stage1Hits, nil
+		return rank(stage1Hits, cleanQ), nil
 	}
 
 	// Go package filter (Spec E3): if query has <pkg>.<symbol>, match package dir segment
@@ -96,7 +102,7 @@ func Resolve(g *model.Graph, query, in string) ([]*model.Node, error) {
 			}
 		}
 		if len(pkgHits) > 0 {
-			return pkgHits, nil
+			return rank(pkgHits, cleanQ), nil
 		}
 	}
 
@@ -116,12 +122,30 @@ func Resolve(g *model.Graph, query, in string) ([]*model.Node, error) {
 			}
 		}
 		if len(bareHits) > 0 {
-			return bareHits, nil
+			return rank(bareHits, cleanQ), nil
 		}
 	}
 
 	// Stage 3: File node fallback
 	return matchFiles(candidates, qLower), nil
+}
+
+// rank orders symbol hits as Resolve documents, against the query's last
+// dot-separated segment.
+func rank(hits []*model.Node, cleanQ string) []*model.Node {
+	sym := cleanQ[strings.LastIndex(cleanQ, ".")+1:]
+	score := func(n *model.Node) int {
+		s := 0
+		if stripOrdinals(n.Name) != sym {
+			s += 2
+		}
+		if IsTestPath(n.Path) {
+			s++
+		}
+		return s
+	}
+	slices.SortStableFunc(hits, func(a, b *model.Node) int { return score(a) - score(b) })
+	return hits
 }
 
 func matchFiles(candidates []*model.Node, qLower string) []*model.Node {

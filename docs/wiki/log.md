@@ -4,6 +4,15 @@
 > was sich geändert hat und aus welcher Quelle. Neueste zuerst, je Tag eine
 > Überschrift (OKF §9); `loomux approve` schreibt seine Zeilen genauso.
 
+## 2026-11-12
+
+- 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
+  unverändert: `docs/de/cli-reference.md` hält fest, welchen Treffer
+  `graph callers` und `graph_trace_calls` bei mehreren nehmen (exakte
+  Schreibweise vor Groß-/Kleinschreibung, Nicht-Test vor Test); keine
+  zitierende Seite sagt etwas über die Auflösung eines Symbols. Quelle:
+  `internal/code/blast/resolve.go`.
+
 ## 2026-11-11
 
 - 2026-11-11 — `syntheses/graph-hinweis-im-waechter.md` neu: vier

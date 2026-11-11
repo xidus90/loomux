@@ -797,6 +797,8 @@ Sucht Code-Symbole gerankt nach BM25-artigem lexikalischen Matching verschmolzen
 ### `loomux graph callers <symbol> [--root <pfad>] [--direction in|out] [-d <tiefe>] [--in <präfix>] [--no-refresh] [--json]`
 Zeigt, wer ein Symbol aufruft, importiert oder referenziert (`--direction in`, Standard), oder was das Symbol selbst aufruft (`--direction out`).
 
+Das Symbol wird ohne Beachtung der Groß-/Kleinschreibung gesucht: als Name, Ende einer Knoten-ID, `<paket>.<symbol>`, Dateiname oder Dateipfad. Passen mehrere, startet der Befehl beim ersten: Ein Name in der Schreibweise der Anfrage geht einem vor, der nur ohne Beachtung der Schreibweise passt, und innerhalb dessen ein Symbol außerhalb der Testdateien einem darin; sonst gilt die Reihenfolge im Graphen. `Build` findet so ein exportiertes `Build` vor einem Testhelfer `build`; ein bestimmtes nennt `trigram.Build`.
+
 - **Flags**:
   - `--root <pfad>`: Projektwurzel; ohne Angabe das Arbeitsverzeichnis.
   - `--no-refresh`: Antwortet aus dem Graphen auf der Platte, baut nie neu.
@@ -1341,7 +1343,8 @@ Die sieben `graph_*`-Werkzeuge operieren über das Repository eines registrierte
   gepufferten AST-Graphen ohne Funktionsrümpfe aus.
 - **`graph_trace_calls`** verfolgt eingehende Aufrufer (`direction: in`) oder ausgehende
   Aufrufe (`direction: out`) von `symbol`, entweder direkt (`depth: 1`) oder
-  transitiv (`depth: "all"`); `in` verengt auf ein Pfadpräfix.
+  transitiv (`depth: "all"`); `in` verengt auf ein Pfadpräfix. `symbol` wird
+  aufgelöst wie bei `loomux graph callers`.
 - **`graph_find_all`** führt eine symbol-gekoppelte Regex-Suche über indizierte Dateien
   durch, gruppiert nach umschließendem Symbol und gerankt nach Kanten-Kopplung (`inDegree`);
   `in` verengt auf Dateien unter einem Pfadpräfix. Es ruft dieselbe Suche wie
