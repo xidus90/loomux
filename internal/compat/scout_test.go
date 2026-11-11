@@ -311,6 +311,7 @@ func TestParsePre(t *testing.T) {
 	for s, want := range map[string][]int{
 		"1.28rc1": {1, 28}, "1.28beta1": {1, 28}, "3.16.0a1": {3, 16}, "3.16.0b2": {3, 16}, "3.16.0rc1": {3, 16},
 		"4.8-beta2": {4, 8}, "4.8-rc1": {4, 8}, "4.8-dev3": {4, 8},
+		"11.0.0-preview.7": {11, 0}, "11.0.0-rc.2": {11, 0},
 	} {
 		if got, ok := parsePre(s); !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("%s = %v %v", s, got, ok)
@@ -524,10 +525,63 @@ func TestParseReleasesMarksPreReleases(t *testing.T) {
 	if got, err := parseReleases("https://pypi.org/pypi/ruff/json", []byte(pypi)); err != nil || !reflect.DeepEqual(got, []Release{{"0.17.1", false}, {"0.18.0", false}}) {
 		t.Errorf("pypi %v %v", got, err)
 	}
-	for _, src := range []string{godotSource, pythonSource, goSource, "https://pypi.org/pypi/ruff/json"} {
+	for _, src := range []string{godotSource, pythonSource, goSource, dotnetSource, "https://pypi.org/pypi/ruff/json"} {
 		if _, err := parseReleases(src, []byte("<html>")); err == nil {
 			t.Errorf("%s: junk read", src)
 		}
+	}
+}
+
+// testdata/dotnet-releases-index.json is the real index of 2026-10-13, cut
+// to its first three channels: 11.0 at a release candidate, 10.0 and 9.0
+// stable. The preview line is from the index of 2026-08-11.
+func TestParseReleasesReadsTheDotnetIndex(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("testdata", "dotnet-releases-index.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Release{{"11.0.0-rc.2", true}, {"10.0.13", false}, {"9.0.21", false}}
+	if got, err := parseReleases(dotnetSource, body); err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("index %v %v", got, err)
+	}
+	preview := `{"releases-index":[{"channel-version":"11.0","latest-release":"11.0.0-preview.7","support-phase":"preview"}]}`
+	if got, err := parseReleases(dotnetSource, []byte(preview)); err != nil || !reflect.DeepEqual(got, []Release{{"11.0.0-preview.7", true}}) {
+		t.Errorf("preview %v %v", got, err)
+	}
+}
+
+func TestScoutFindsTheNextDotnetCandidate(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("testdata", "dotnet-releases-index.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rels, err := parseReleases(dotnetSource, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	up := calm()
+	up[dotnetSource] = nil
+	for _, r := range rels {
+		up[dotnetSource] = append(up[dotnetSource], r.Version)
+	}
+	// endoflife.date names a .NET release by its major.
+	up["eol:dotnet"] = []string{"11", "10", "9"}
+	e := Entry{Stack: "csharp", Runtime: "dotnet", Version: "10.0", Fixture: "csharp-xunit", Kinds: []string{"test"}}
+	got := scout(t, up, e)
+	if len(got) != 1 || got[0].Kind != "pre" || got[0].Version != "11.0.0-rc.2" || got[0].Probe.Version != "11.0" {
+		t.Fatalf("findings %+v", got)
+	}
+	if err := check(*got[0].Probe, references(), true); err != nil {
+		t.Errorf("the probe does not load: %v", err)
+	}
+	// A release candidate comes after the previews of its version.
+	up[dotnetSource] = []string{"10.0.13", "11.0.0-rc.1", "11.0.0-preview.7"}
+	if got := scout(t, up, e); len(got) != 1 || got[0].Version != "11.0.0-rc.1" {
+		t.Fatalf("findings %+v", got)
+	}
+	up["eol:dotnet"] = []string{"10!"}
+	if got := scout(t, up, e); len(got) != 2 || got[1].Kind != "eol" || got[1].Version != "10.0" {
+		t.Fatalf("findings %+v", got)
 	}
 }
 

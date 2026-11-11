@@ -36,11 +36,26 @@ func goEntries(t *testing.T) (all, syntax []Entry) {
 	return all, syntax
 }
 
-func TestEveryGoVersionHasASyntaxEntry(t *testing.T) {
-	all, syntax := goEntries(t)
-	for _, e := range all {
-		if !slices.ContainsFunc(syntax, func(s Entry) bool { return s.Version == e.Version && s.Fixture == "go-syntax-"+e.Version }) {
-			t.Errorf("go %s has no syntax entry with fixture go-syntax-%s", e.Version, e.Version)
+// A syntax fixture is named <prefix>-syntax-<version>, its prefix per runtime.
+func TestEveryVersionHasASyntaxEntry(t *testing.T) {
+	list, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefixes := map[string]string{"go": "go", "dotnet": "csharp"}
+	for _, e := range list {
+		prefix, ok := prefixes[e.Runtime]
+		if !ok {
+			continue
+		}
+		fixture := prefix + "-syntax-" + e.Version
+		if !slices.ContainsFunc(list, func(s Entry) bool { return s.syntax() && s.Version == e.Version && s.Fixture == fixture }) {
+			t.Errorf("%s %s has no syntax entry with fixture %s", e.Runtime, e.Version, fixture)
+		}
+	}
+	for runtime := range prefixes {
+		if !slices.ContainsFunc(list, func(e Entry) bool { return e.Runtime == runtime }) {
+			t.Errorf("the list has no %s entry", runtime)
 		}
 	}
 }
@@ -139,9 +154,9 @@ func TestTheListRefuses(t *testing.T) {
 	cases := []struct{ name, doc, want string }{
 		{"syntax", "[[entry", "compat.toml"},
 		{"unknown key", good + "colour = 1\n", `compat.toml:8: unknown key "colour"`},
-		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"`},
+		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are csharp, gdscript, go, python`},
 		{"wrong runtime", strings.Replace(good, `runtime = "python"`, `runtime = "godot"`, 1), `compat.toml:1: runtime "godot"`},
-		{"bad version", strings.Replace(good, `"3.12"`, `"3.12.1"`, 1), `compat.toml:1: version "3.12.1"`},
+		{"bad version", strings.Replace(good, `"3.12"`, `"3.12.1"`, 1), `compat.toml:1: version "3.12.1" is not MAJOR or MAJOR.MINOR`},
 		{"unknown kind", strings.Replace(good, `"types"`, `"magic"`, 1), `compat.toml:1: kind "magic"`},
 		{"duplicate", good + "\n" + good, `compat.toml:9: duplicate entry python/python-3.12/python-mypy`},
 		{"unknown addon", good + `addons = [{ name = "Nope", version = "1" }]` + "\n", `compat.toml:1: addon "Nope"`},
@@ -159,6 +174,18 @@ func TestTheListRefuses(t *testing.T) {
 				t.Errorf("err = %v, want it to contain %q", err, c.want)
 			}
 		})
+	}
+}
+
+// Java and Node name a version by its major alone, .NET by major.minor.
+func TestAVersionIsAMajorOrAMajorMinor(t *testing.T) {
+	for _, v := range []string{"21", "10.0"} {
+		if _, err := parse([]byte(strings.Replace(good, `"3.12"`, `"`+v+`"`, 1)), "compat.toml"); err != nil {
+			t.Errorf("%s: %v", v, err)
+		}
+	}
+	if _, err := parse([]byte(strings.Replace(good, `"3.12"`, `"1.2.3"`, 1)), "compat.toml"); err == nil {
+		t.Error("1.2.3 passed")
 	}
 }
 

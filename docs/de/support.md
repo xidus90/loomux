@@ -26,7 +26,7 @@ kann so keine Lane versprechen, die das Binary nicht hat.
 | css | `*.css`, `*.scss`, `.stylelintrc*` | stylelint | — | — | — | — | — | keine Version festgelegt |
 | html | `*.html`, `.htmlhintrc` | htmlhint | — | — | — | — | — | keine Version festgelegt |
 | gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 über `check godot-suite` oder GUT über `check gut-suite`, wo installiert | NanoCoverage über `check linecov`, wo installiert | Code-Graph | Ebenenkarte | Graph: Godot 3.x und 4.x, geprüft an 3.x, 4.2 und 4.7; test: gdUnit4 auf Godot 4.3 bis 4.8, GUT 7 auf Godot 3 und GUT 9 auf Godot 4 (geprüft an 3.6 und 4.7); coverage: Godot 4.3 bis 4.8; lint: Godot 3 und 4 (unter Godot 3 scheitert ein Projekt mit Addons im Baum an `gdformat --check`, das `addons/` nicht auslassen kann), gdtoolkit festlegbar mit [`tools`](configuration.md#stacks); geprüft an Godot 3.6, 4.5 und 4.7 ([Geprüfte Kombinationen](#geprüfte-kombinationen), [Einzelheiten](stacks/gdscript.md)) |
-| csharp | `*.sln`, `*.slnx`, `*.csproj`, `global.json`, `Directory.Build.props` | `dotnet format` | `dotnet build -warnaserror` | `dotnet test`, wo ein `.csproj` `Microsoft.NET.Test.Sdk` nennt | coverlet (`XPlat Code Coverage`) über `check linecov` | Code-Graph | Ebenenkarte | das .NET SDK der Maschine; keine Version festgelegt |
+| csharp | `*.sln`, `*.slnx`, `*.csproj`, `global.json`, `Directory.Build.props` | `dotnet format` | `dotnet build -warnaserror` | `dotnet test`, wo ein `.csproj` `Microsoft.NET.Test.Sdk` nennt | coverlet (`XPlat Code Coverage`) über `check linecov` | Code-Graph | Ebenenkarte | das .NET SDK der Maschine; .NET 10 und 11 geprüft ([Geprüfte Kombinationen](#geprüfte-kombinationen)) |
 | cpp | `CMakeLists.txt`, `CMakePresets.json`, `meson.build`, `*.cpp`, `*.hpp` | clang-tidy; clang-format auf der bearbeiteten Datei | der CMake-Build | ctest, wo `CMakeLists.txt` Tests einschaltet | gcovr, 100 % der Zeilen | — | — | braucht ein konfiguriertes `build/` (`CMakeCache.txt`); keine Compiler-Version festgelegt |
 | shell | `*.sh`, `.shellcheckrc` | shellcheck, nur auf der bearbeiteten Datei | — | — | — | — | — | keine Version festgelegt |
 | sql | `.sqlfluff` | sqlfluff | — | — | — | — | — | keine Version festgelegt |
@@ -59,8 +59,15 @@ Jede Zeile ist eine Kombination, die loomux vor einem Major-Release und bei jede
 | go | go | 1.27 | go-module | — | — | lint, test, coverage, graph |
 | go | go | 1.26 | go-syntax-1.26 | — | — | graph |
 | go | go | 1.27 | go-syntax-1.27 | — | — | graph |
+| csharp | dotnet | 10.0 | csharp-xunit | — | — | lint, types, test, coverage, graph |
+| csharp | dotnet | 11.0 | csharp-xunit | — | — | lint, types, test, coverage, graph |
+| csharp | dotnet | 10.0 | csharp-syntax-10.0 | — | — | graph |
+| csharp | dotnet | 11.0 | csharp-syntax-11.0 | — | — | graph |
+| csharp | dotnet | 10.0 | godot4-csharp | — | — | graph |
 
-Die Liste führt jede Go-, Python- und Godot-Version, die ihr Upstream noch pflegt, nicht nur die neueste. Jeden Montag fragt der Kompatibilitäts-Scout (`loomux dev compat scout`) upstream nach dreierlei:
+Die C#-Einträge nennen kein Werkzeug: Format, Build und Test bringt das .NET SDK mit, und `csharp-xunit` legt seine Testpakete selbst fest (xunit.v3.mtp-off 4.0.3, xunit.runner.visualstudio 4.0.1, Microsoft.NET.Test.Sdk 18.11.1, coverlet.collector 10.1.0). Es ist xunit.v3 ohne Microsoft.Testing.Platform: Das Paket `xunit.v3` bringt ab 4.0 MTP v2 mit, und `dotnet test` verweigert ab dem .NET-10-SDK den VSTest-Weg, den die Vorgabe (`--collect "XPlat Code Coverage"`) geht. Ein Lauf lässt die Projekte auf die .NET-Version des Eintrags zielen (`net10.0`, `net11.0`).
+
+Die Liste führt jede Go-, Python-, Godot- und .NET-Version, die ihr Upstream noch pflegt, nicht nur die neueste. Jeden Montag fragt der Kompatibilitäts-Scout (`loomux dev compat scout`) upstream nach dreierlei:
 
 - **Eine neue stabile Version:** Er fährt sie als Probe und öffnet ein Issue mit dem Eintrag, der hinzukommt.
 - **Eine Alpha, Beta oder ein Release Candidate der nächsten Version:** Er fährt sie vorab als Probe. Ein Fehlschlag öffnet nur ein Issue und blockiert keinen Pull Request; ein Pre-Release kommt nie in die Liste, das Release zieht nach, sobald die Version stabil ist.
@@ -69,14 +76,15 @@ Die Liste führt jede Go-, Python- und Godot-Version, die ihr Upstream noch pfle
 ## Was der Code-Graph liest
 
 Der Graph (`loomux graph`, die Lane `graph`, `graph_*` über MCP) deckt Go,
-Python und GDScript ab. TypeScript und C++ stehen auf der
+Python, GDScript und C# ab. TypeScript und C++ stehen auf der
 [Roadmap](../../README.de.md#roadmap).
 
 | Sprache | Liest | Löst auf | Lässt aus |
 |---|---|---|---|
 | Go | Pakete, Typen, Funktionen, Methoden | Aufrufe über Pakete des Moduls, Importe | typgeprüfte Aufrufe (`go/types`) |
 | Python | Module, Klassen, Funktionen, Methoden | Importe, Aufrufe, Basisklassen | `.pyi`-Stubs |
-| GDScript | Skripte, innere Klassen, Funktionen, Signale; Szenen, Ressourcen, `project.godot`, `.uid`-Dateien | `res://`- und `uid://`-Pfade, `class_name`, Autoloads (Szenen-Autoloads über ihr Wurzelskript), geerbte Aufrufe, Signale per Name und als Wert, Szenenverbindungen | C#, VisualScript, Skripte inline in einer Szene, Typen von lokalen Variablen und Feldern |
+| GDScript | Skripte, innere Klassen, Funktionen, Signale; Szenen, Ressourcen, `project.godot`, `.uid`-Dateien | `res://`- und `uid://`-Pfade, `class_name`, Autoloads (Szenen-Autoloads über ihr Wurzelskript), geerbte Aufrufe, Signale per Name und als Wert, Szenenverbindungen, auch zu C#-Methoden, -Signalen und `[GlobalClass]`-Klassen | VisualScript, Skripte inline in einer Szene, Typen von lokalen Variablen und Feldern |
+| C# | Dateien, Typen, Methoden, Konstruktoren, Eigenschaften, Indexer, `[Signal]`-Delegates; Syntax bis C# 14 vollständig | `using`, Basen (`extends`/`implements`), Aufrufe, Konstruktoren | Typen lokaler Variablen, Methoden in einer zweiten Datei einer `partial`-Klasse für Szenenverbindungen; aus C# 15: `union` (kein Typknoten), `closed record class` (kein Knoten), ein Typ mit Erweiterungs-Indexer (kein Knoten), `break`/`continue` mit Marke (Fehler im Rumpf, die übrigen Mitglieder kommen an) |
 
 Die vollständigen Regeln stehen in der
 [CLI-Referenz](cli-reference.md#loomux-graph-build---root-pfad---no-reuse).

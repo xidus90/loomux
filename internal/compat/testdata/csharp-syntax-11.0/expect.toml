@@ -1,0 +1,10 @@
+stacks = ["csharp"]
+# Only what arrives despite the grammar's gaps in C# 15 (docs/en/support.md):
+# Loops follows the union and the closed record, which leave no type, and
+# holds the labelled break, an ERROR in First's body.
+edges = [
+  ["Syntax.cs#Loops.Sized", "calls", "Syntax.cs#Loops.Make"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

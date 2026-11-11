@@ -78,7 +78,7 @@ func checkWatch(w Watch, refs refs) error {
 	}
 	for _, s := range w.Stacks {
 		if _, ok := runtimeOf[s]; !ok {
-			return fmt.Errorf("stack %q; stacks are gdscript, python, go", s)
+			return fmt.Errorf("stack %q; stacks are %s", s, stackNames())
 		}
 	}
 	for _, a := range w.Addons {

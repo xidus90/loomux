@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -98,10 +99,15 @@ func (e Entry) syntax() bool { return slices.Equal(e.Kinds, []string{"graph"}) }
 // Load reads the embedded list in file order, once.
 var Load = sync.OnceValues(func() ([]Entry, error) { return parse(listText, "compat.toml") })
 
-var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go"}
+var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet"}
+
+// stackNames lists the stacks of runtimeOf for a message.
+func stackNames() string { return strings.Join(slices.Sorted(maps.Keys(runtimeOf)), ", ") }
 
 var (
-	versionRe = regexp.MustCompile(`^\d+\.\d+$`)
+	// Some runtimes name a version by its major alone (Java 21), others by
+	// major.minor (.NET 10.0).
+	versionRe = regexp.MustCompile(`^\d+(\.\d+)?$`)
 	headerRe  = regexp.MustCompile(`^\s*\[\[\s*entry\s*\]\]`)
 )
 
@@ -182,13 +188,13 @@ func check(e Entry, refs refs, strict bool) error {
 	}
 	want, ok := runtimeOf[e.Stack]
 	if !ok {
-		return fmt.Errorf("stack %q; stacks are gdscript, python, go", e.Stack)
+		return fmt.Errorf("stack %q; stacks are %s", e.Stack, stackNames())
 	}
 	if e.Runtime != want {
 		return fmt.Errorf("runtime %q; %s runs on %s", e.Runtime, e.Stack, want)
 	}
 	if !versionRe.MatchString(e.Version) {
-		return fmt.Errorf("version %q is not MAJOR.MINOR", e.Version)
+		return fmt.Errorf("version %q is not MAJOR or MAJOR.MINOR", e.Version)
 	}
 	if e.Pre != "" {
 		if v, ok := parsePre(e.Pre); !ok || fmt.Sprintf("%d.%d", v[0], v[1]) != e.Version {

@@ -101,6 +101,13 @@ jobs:
         with:
           go-version: ${{ steps.setup.outputs.install }}
           cache: false
+      # setup-dotnet installs a channel ("11.0"); a pre-release of it comes
+      # with the preview quality, which a probe carrying one asks for.
+      - if: steps.setup.outputs.runtime == 'dotnet'
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: ${{ steps.setup.outputs.version }}
+          dotnet-quality: ${{ steps.setup.outputs.install != steps.setup.outputs.version && 'preview' || '' }}
       - if: steps.setup.outputs.rebuild == 'true'
         run: go build -o bin/loomux.exe ./cmd/loomux
         env:

@@ -143,6 +143,51 @@ version = "1.27"
 fixture = "go-syntax-1.27"
 kinds = ["graph"]
 
+# The .NET SDK brings format, build and test; the fixture pins the test
+# packages itself, so a C# entry names no tools. One fixture serves every
+# version: the run has its projects target the entry's.
+
+[[entry]]
+stack = "csharp"
+runtime = "dotnet"
+version = "10.0"
+fixture = "csharp-xunit"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "csharp"
+runtime = "dotnet"
+version = "11.0"
+fixture = "csharp-xunit"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+# As for Go, a syntax entry per .NET version, with the forms of the C#
+# version it ships (C# 14 with .NET 10, C# 15 with .NET 11).
+
+[[entry]]
+stack = "csharp"
+runtime = "dotnet"
+version = "10.0"
+fixture = "csharp-syntax-10.0"
+kinds = ["graph"]
+
+[[entry]]
+stack = "csharp"
+runtime = "dotnet"
+version = "11.0"
+fixture = "csharp-syntax-11.0"
+kinds = ["graph"]
+
+# A Godot project with C# scripts: its scene reaches C# methods and
+# signals.
+
+[[entry]]
+stack = "csharp"
+runtime = "dotnet"
+version = "10.0"
+fixture = "godot4-csharp"
+kinds = ["graph"]
+
 # Files that are neither an entry nor a fixture but decide what an entry
 # proves. A change to one of paths (not to an except) runs the entries the
 # rule selects: all, those of some stacks, or those with some addons.

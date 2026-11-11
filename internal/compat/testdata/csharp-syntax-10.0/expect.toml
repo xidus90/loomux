@@ -1,0 +1,11 @@
+stacks = ["csharp"]
+# Each edge leaves a member written in a form of C# 14, or follows one.
+edges = [
+  ["Syntax.cs#Counter.Value", "calls", "Syntax.cs#Counter.Clamp"],
+  ["Syntax.cs#Link.Relabel", "calls", "Syntax.cs#Link.Touch"],
+  ["Syntax.cs#Enumerables.Size", "calls", "Syntax.cs#Enumerables.Count"],
+  ["Syntax.cs#Parsers.Parse", "calls", "Syntax.cs#Parsers.Try"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

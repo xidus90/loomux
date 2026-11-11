@@ -182,9 +182,40 @@ func TestEveryFixtureIsUsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, d := range entries {
+		// A plain file is a recorded answer for a test, not a fixture.
+		if !d.IsDir() {
+			continue
+		}
 		if !slices.ContainsFunc(list, func(e Entry) bool { return e.Fixture == d.Name() }) {
 			t.Errorf("fixture %s is used by no entry", d.Name())
 		}
+	}
+}
+
+// The grammar misses four forms of C# 15 (docs/en/support.md): the union,
+// the closed record and the type holding an extension indexer leave no node,
+// the labelled break only an ERROR inside First. A grammar that learns one
+// fails here, and the support page is to follow.
+func TestTheCSharp15GapsLeaveTheRestOfTheFile(t *testing.T) {
+	root := t.TempDir()
+	if err := CopyFixture("csharp-syntax-11.0", root); err != nil {
+		t.Fatal(err)
+	}
+	g, _, err := query.Build(root, func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, n := range g.Nodes {
+		if strings.HasSuffix(n.Path, ".cs") {
+			got = append(got, string(n.ID))
+		}
+	}
+	slices.Sort(got)
+	want := []string{"Syntax.cs", "Syntax.cs#Cat", "Syntax.cs#Dog", "Syntax.cs#Loops",
+		"Syntax.cs#Loops.First", "Syntax.cs#Loops.Make", "Syntax.cs#Loops.Sized"}
+	if !slices.Equal(got, want) {
+		t.Errorf("nodes %v, want %v", got, want)
 	}
 }
 
