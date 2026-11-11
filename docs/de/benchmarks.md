@@ -4416,6 +4416,59 @@ vorher 48–76 %). Lauf 13 besteht alle Schwellen. Mediane in ms:
 Alle Trefferprüfungen sind wahr. tgrep braucht für das Muster ohne Literal
 4471 ms, neu 191,5 ms.
 
+**Läufe 14 und 15 (2026-11-10/11, `6edee97c`).** Rohdaten
+`acceptance-windows-run{14,15}.json`. Alt ist frisch aus `master` (v1.20.0)
+gebaut, neu aus dem Kopf des Zweigs nach der Rebase auf `master`. VS Code und
+die anderen Sitzungen liefen weiter; `LoadPercentage` vor Lauf 14 51 %, vor
+Lauf 15 15–40 %. Beide Läufe bestehen alle Schwellen, alle Trefferprüfungen
+sind wahr. Sauberer Baum, Mediane in ms (Lauf 14 / Lauf 15):
+
+| Muster | alt | neu | neu `--trust-index` | tgrep |
+| --- | ---: | ---: | ---: | ---: |
+| `func Search` | 355,1 / 352,6 | 52,0 / 48,0 | 19,2 / 18,3 | 19,4 / 19,1 |
+| `Search\|Grep` | 483,5 / 473,0 | 78,7 / 69,1 | 50,2 / 44,3 | 54,9 / 53,6 |
+| `-i func search` | 365,9 / 380,9 | 59,7 / 56,5 | 28,0 / 26,5 | 79,1 / 75,3 |
+| `[A-Z]{3}\w+` | 913,6 / 781,6 | 181,1 / 140,8 | 137,8 / 105,1 | 4000,7 / 4111,9 |
+
+Nach der Änderung braucht neu 57,9 / 51,0, 126,8 / 77,3, 58,4 / 58,0 und
+132,9 / 127,9 ms (alt 2,8–3,6 s), nach dem Commit im ersten Aufruf 55,3 /
+56,1, 78,4 / 81,9, 64,1 / 62,2 und 132,8 / 145,1 ms.
+
+**Schnitt über alle Läufe.** `averages.py` im Research-Ordner rechnet je Lauf
+die Zeit von neu in Prozent von tgrep (sauberer Baum) und von alt und mittelt
+diese Prozente. Hohe Last sind die Läufe, die diese Seite als belastet führt
+(2, 4, 5, 6, 7 und 10: CPU bei 80–100 % oder Graph-Builds deutlich über
+20 s); die Läufe 1, 3, 8, 9 und 11 bis 15 zählen als niedrige Last. Die Läufe
+8 und 9 zeigten 99–100 % `LoadPercentage`, der Wert gilt aber als
+unzuverlässig, und ihre Builds lagen bei 16 s. Die Läufe messen nicht alle
+denselben Code: 1 bis 3 `a516c28e`, 4 bis 6 `597b49c7`, 7 bis 12 `9d7b6648`
+und `7ba44719`, 13 `06eb7d97`, 14 und 15 `6edee97c`.
+
+Neu in Prozent von tgrep, sauberer Baum (100 % = gleich schnell; alle /
+niedrige / hohe Last):
+
+| Muster | Prüfmodus | `--trust-index` |
+| --- | ---: | ---: |
+| `func Search` | 412 / 273 / 622 % | 125 / 96 / 167 % |
+| `Search\|Grep` | 206 / 149 / 291 % | 121 / 93 / 164 % |
+| `-i func search` | 97 / 76 / 129 % | 39 / 34 / 47 % |
+| `[A-Z]{3}\w+` | 5,4 / 4,7 / 6,4 % | 4,2 / 3,7 / 4,9 % |
+
+Neu in Prozent von alt (alle / niedrige / hohe Last):
+
+| Muster | sauber, Prüfmodus | nach der Änderung | nach dem Commit, erster Aufruf |
+| --- | ---: | ---: | ---: |
+| `func Search` | 18,4 / 14,7 / 24,0 % | 2,4 / 2,1 / 2,9 % | 2,9 / 2,6 / 3,4 % |
+| `Search\|Grep` | 20,5 / 16,5 / 26,6 % | 3,5 / 3,0 / 4,2 % | 4,1 / 3,6 / 4,8 % |
+| `-i func search` | 18,1 / 15,7 / 21,8 % | 2,5 / 2,2 / 2,9 % | 3,3 / 3,0 / 3,7 % |
+| `[A-Z]{3}\w+` | 23,7 / 21,7 / 26,6 % | 5,5 / 5,3 / 6,0 % | 6,5 / 6,0 / 7,3 % |
+
+Bei niedriger Last ist `--trust-index` bei Literal und Alternation im Schnitt
+etwas schneller als tgrep und bei `-i` dreimal so schnell; der Prüfmodus
+braucht beim Literal das 2,7-Fache und bei der Alternation das 1,5-Fache von
+tgrep. Last trifft neu stärker als tgrep: Unter hoher Last steigt der Anteil
+an tgrep bei Literal und Alternation um 70–130 %.
+
 **Kernbefunde**
 
 1. **Eine Schwelle verfehlt: der erste Aufruf nach einem Commit.** Das
@@ -4464,6 +4517,6 @@ Alle Trefferprüfungen sind wahr. tgrep braucht für das Muster ohne Literal
 ruhigen Rechner: Die Läufe 10 bis 12 liefen bei 43–80 % CPU, der erste Aufruf
 nach einem Commit hält in allen seine Schwelle, aber das Muster ohne Literal
 im Prüfmodus verfehlt in den Läufen 10 und 12 unter Lastspitzen die 324 ms.
-Lauf 13 ohne die Testsuite des Stop-Hooks besteht alles; ein ganz ruhiger
-Rechner (ohne VS Code und die anderen Sitzungen) wurde weiterhin nicht
-erreicht.
+Die Läufe 13 bis 15 ohne die Testsuite des Stop-Hooks bestehen alles; ein
+ganz ruhiger Rechner (ohne VS Code und die anderen Sitzungen) wurde weiterhin
+nicht erreicht.

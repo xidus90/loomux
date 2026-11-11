@@ -4358,6 +4358,59 @@ it; VS Code and the other sessions kept running (`LoadPercentage` before:
 All hit checks are true. tgrep takes 4471 ms for the no-literal pattern, new
 191.5 ms.
 
+**Runs 14 and 15 (2026-11-10/11, `6edee97c`).** Raw data
+`acceptance-windows-run{14,15}.json`. Old is built fresh from `master`
+(v1.20.0), new from the head of the branch after the rebase onto `master`.
+VS Code and the other sessions kept running; `LoadPercentage` 51 % before
+run 14, 15–40 % before run 15. Both runs pass every threshold, all hit checks
+are true. Clean tree, medians in ms (run 14 / run 15):
+
+| Pattern | old | new | new `--trust-index` | tgrep |
+| --- | ---: | ---: | ---: | ---: |
+| `func Search` | 355.1 / 352.6 | 52.0 / 48.0 | 19.2 / 18.3 | 19.4 / 19.1 |
+| `Search\|Grep` | 483.5 / 473.0 | 78.7 / 69.1 | 50.2 / 44.3 | 54.9 / 53.6 |
+| `-i func search` | 365.9 / 380.9 | 59.7 / 56.5 | 28.0 / 26.5 | 79.1 / 75.3 |
+| `[A-Z]{3}\w+` | 913.6 / 781.6 | 181.1 / 140.8 | 137.8 / 105.1 | 4000.7 / 4111.9 |
+
+After the change new takes 57.9 / 51.0, 126.8 / 77.3, 58.4 / 58.0 and
+132.9 / 127.9 ms (old 2.8–3.6 s); after the commit, first call, 55.3 / 56.1,
+78.4 / 81.9, 64.1 / 62.2 and 132.8 / 145.1 ms.
+
+**Average over all runs.** `averages.py` in the research folder takes, per
+run, new's time as a percentage of tgrep (clean tree) and of old, and
+averages these percentages. High load are the runs this page records as
+loaded (2, 4, 5, 6, 7 and 10: CPU at 80–100 % or graph builds well above
+20 s); runs 1, 3, 8, 9 and 11 to 15 count as low load. Runs 8 and 9 showed
+99–100 % `LoadPercentage`, but that value is considered unreliable and their
+builds took 16 s. The runs do not all measure the same code: 1 to 3
+`a516c28e`, 4 to 6 `597b49c7`, 7 to 12 `9d7b6648` and `7ba44719`, 13
+`06eb7d97`, 14 and 15 `6edee97c`.
+
+New as a percentage of tgrep, clean tree (100 % = as fast; all / low / high
+load):
+
+| Pattern | check mode | `--trust-index` |
+| --- | ---: | ---: |
+| `func Search` | 412 / 273 / 622 % | 125 / 96 / 167 % |
+| `Search\|Grep` | 206 / 149 / 291 % | 121 / 93 / 164 % |
+| `-i func search` | 97 / 76 / 129 % | 39 / 34 / 47 % |
+| `[A-Z]{3}\w+` | 5.4 / 4.7 / 6.4 % | 4.2 / 3.7 / 4.9 % |
+
+New as a percentage of old (all / low / high load):
+
+| Pattern | clean, check mode | after the change | after the commit, first call |
+| --- | ---: | ---: | ---: |
+| `func Search` | 18.4 / 14.7 / 24.0 % | 2.4 / 2.1 / 2.9 % | 2.9 / 2.6 / 3.4 % |
+| `Search\|Grep` | 20.5 / 16.5 / 26.6 % | 3.5 / 3.0 / 4.2 % | 4.1 / 3.6 / 4.8 % |
+| `-i func search` | 18.1 / 15.7 / 21.8 % | 2.5 / 2.2 / 2.9 % | 3.3 / 3.0 / 3.7 % |
+| `[A-Z]{3}\w+` | 23.7 / 21.7 / 26.6 % | 5.5 / 5.3 / 6.0 % | 6.5 / 6.0 / 7.3 % |
+
+Under low load `--trust-index` is on average slightly faster than tgrep for
+the literal and the alternation and three times as fast for `-i`; check mode
+takes 2.7 times tgrep's time for the literal and 1.5 times for the
+alternation. Load hits new harder than tgrep: under high load the share of
+tgrep for the literal and the alternation rises by 70–130 %.
+
 **Key Findings**
 
 1. **One threshold fails: the first call after a commit.** The literal takes
@@ -4400,6 +4453,6 @@ All hit checks are true. tgrep takes 4471 ms for the no-literal pattern, new
 **Open**: whether run 2 counts (see finding 2), and a repeat on an idle
 machine: runs 10 to 12 ran at 43–80 % CPU, the first call after a commit
 meets its limit in all of them, but the no-literal pattern in check mode
-misses 324 ms in runs 10 and 12 under load spikes. Run 13 without the Stop
-hook's test suite passes everything; a truly idle machine (without VS Code
+misses 324 ms in runs 10 and 12 under load spikes. Runs 13 to 15 without the
+Stop hook's test suite pass everything; a truly idle machine (without VS Code
 and the other sessions) was still not reached.
