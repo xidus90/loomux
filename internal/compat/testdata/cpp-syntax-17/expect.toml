@@ -1,0 +1,9 @@
+stacks = ["cpp"]
+# Structured bindings and if constexpr in a nested namespace.
+edges = [
+  ["syntax.cpp#sum", "calls", "syntax.cpp#pick"],
+  ["syntax.cpp#after", "calls", "syntax.cpp#sum"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

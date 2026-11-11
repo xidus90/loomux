@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -48,6 +49,14 @@ var addonDirs = map[string]string{"GUT": "gut", "gdUnit4": "gdUnit4", "NanoCover
 
 // buildGraph is query.Build; a test stands in for a build that fails.
 var buildGraph = query.Build
+
+// cmake runs CMake in dir and answers what it printed; a test stands in for
+// it.
+var cmake = func(dir string, args ...string) ([]byte, error) {
+	cmd := exec.Command("cmake", args...)
+	cmd.Dir = dir
+	return cmd.CombinedOutput()
+}
 
 var featuresRe = regexp.MustCompile(`(config/features=PackedStringArray\(")\d+\.\d+`)
 
@@ -110,6 +119,9 @@ func runCopy(e Entry, o RunOptions, dir string, kinds []string, b *Break) ([]str
 			lines = append(lines, "rescan: "+err.Error())
 		}
 	}
+	if err := configureCMake(dir, e); err != nil {
+		lines = append(lines, "configure: "+err.Error())
+	}
 	if len(kinds) == 0 {
 		// A graph-only entry has no lane, and the check refuses an empty request.
 		return lines, nil
@@ -153,6 +165,23 @@ func prepare(e Entry, o RunOptions, dir string, b *Break) error {
 		os.WriteFile(project, featuresRe.ReplaceAll(data, []byte("${1}"+e.Version)), 0o644)
 	}
 	return errors.Join(pinPython(dir, e), pinTools(dir, e), targetDotnet(dir, e), pinDotnet(dir, e), applyBreak(dir, b))
+}
+
+// configureCMake configures build/ in the entry's C++ standard: the lanes on
+// the build tree wait for a CMakeCache.txt, and one fixture serves every
+// standard. A fixture without CMakeLists.txt only feeds the graph.
+func configureCMake(dir string, e Entry) error {
+	if e.Runtime != "cpp" {
+		return nil
+	}
+	if _, err := os.Stat(filepath.Join(dir, "CMakeLists.txt")); err != nil {
+		return nil
+	}
+	out, err := cmake(dir, "-S", ".", "-B", "build", "-DCMAKE_CXX_STANDARD="+e.Version)
+	if err != nil {
+		return fmt.Errorf("%w\n%s", err, tail(string(out)))
+	}
+	return nil
 }
 
 // pinDotnet keeps the run on an SDK of the entry's major: without a

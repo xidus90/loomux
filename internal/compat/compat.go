@@ -99,7 +99,7 @@ func (e Entry) syntax() bool { return slices.Equal(e.Kinds, []string{"graph"}) }
 // Load reads the embedded list in file order, once.
 var Load = sync.OnceValues(func() ([]Entry, error) { return parse(listText, "compat.toml") })
 
-var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet"}
+var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet", "cpp": "cpp"}
 
 // stackNames lists the stacks of runtimeOf for a message.
 func stackNames() string { return strings.Join(slices.Sorted(maps.Keys(runtimeOf)), ", ") }
@@ -197,7 +197,7 @@ func check(e Entry, refs refs, strict bool) error {
 		return fmt.Errorf("version %q is not MAJOR or MAJOR.MINOR", e.Version)
 	}
 	if e.Pre != "" {
-		if v, ok := parsePre(e.Pre); !ok || fmt.Sprintf("%d.%d", v[0], v[1]) != e.Version {
+		if v, ok := parsePre(e.Pre); !ok || versionString(v) != e.Version {
 			return fmt.Errorf("pre %q is no pre-release of %s", e.Pre, e.Version)
 		}
 	}

@@ -27,7 +27,7 @@ kann so keine Lane versprechen, die das Binary nicht hat.
 | html | `*.html`, `.htmlhintrc` | htmlhint | — | — | — | — | — | keine Version festgelegt |
 | gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 über `check godot-suite` oder GUT über `check gut-suite`, wo installiert | NanoCoverage über `check linecov`, wo installiert | Code-Graph | Ebenenkarte | Graph: Godot 3.x und 4.x, geprüft an 3.x, 4.2 und 4.7; test: gdUnit4 auf Godot 4.3 bis 4.8, GUT 7 auf Godot 3 und GUT 9 auf Godot 4 (geprüft an 3.6 und 4.7); coverage: Godot 4.3 bis 4.8; lint: Godot 3 und 4 (unter Godot 3 scheitert ein Projekt mit Addons im Baum an `gdformat --check`, das `addons/` nicht auslassen kann), gdtoolkit festlegbar mit [`tools`](configuration.md#stacks); geprüft an Godot 3.6, 4.5 und 4.7 ([Geprüfte Kombinationen](#geprüfte-kombinationen), [Einzelheiten](stacks/gdscript.md)) |
 | csharp | `*.sln`, `*.slnx`, `*.csproj`, `global.json`, `Directory.Build.props` | `dotnet format` | `dotnet build -warnaserror` | `dotnet test`, wo ein `.csproj` `Microsoft.NET.Test.Sdk` nennt | coverlet (`XPlat Code Coverage`) über `check linecov` | Code-Graph | Ebenenkarte | das .NET SDK der Maschine; .NET 10 und 11 geprüft ([Geprüfte Kombinationen](#geprüfte-kombinationen)) |
-| cpp | `CMakeLists.txt`, `CMakePresets.json`, `meson.build`, `*.cpp`, `*.hpp` | clang-tidy über die Compile-Kommandos (`run-clang-tidy`); clang-format auf der bearbeiteten Datei | der CMake-Build | ctest, nach dem Build, wo `CMakeLists.txt` Tests einschaltet | gcovr, 100 % der Zeilen | Code-Graph | Ebenenkarte | braucht ein konfiguriertes `build/` (`CMakeCache.txt`); ein `CMakeLists.txt`, `CMakePresets.json` oder `meson.build` in der Wurzel macht die Wurzel zum einzigen Bereich; keine Compiler-Version festgelegt |
+| cpp | `CMakeLists.txt`, `CMakePresets.json`, `meson.build`, `*.cpp`, `*.hpp` | clang-tidy über die Compile-Kommandos (`run-clang-tidy`); clang-format auf der bearbeiteten Datei | der CMake-Build | ctest, nach dem Build, wo `CMakeLists.txt` Tests einschaltet | gcovr, 100 % der Zeilen | Code-Graph | Ebenenkarte | braucht ein konfiguriertes `build/` (`CMakeCache.txt`); ein `CMakeLists.txt`, `CMakePresets.json` oder `meson.build` in der Wurzel macht die Wurzel zum einzigen Bereich; C++17, 20 und 23 geprüft mit GCC auf Linux ([Geprüfte Kombinationen](#geprüfte-kombinationen)); keine Compiler-Version festgelegt |
 | shell | `*.sh`, `.shellcheckrc` | shellcheck, nur auf der bearbeiteten Datei | — | — | — | — | — | keine Version festgelegt |
 | sql | `.sqlfluff` | sqlfluff | — | — | — | — | — | keine Version festgelegt |
 | rust | `Cargo.toml` | clippy, `cargo fmt` | — | — | — | — | — | keine Version festgelegt |
@@ -38,7 +38,7 @@ geprüft.
 
 ## Geprüfte Kombinationen
 
-Jede Zeile ist eine Kombination, die loomux vor einem Major-Release und bei jeder Änderung der Liste wirklich fährt: die Laufzeit, die Addons und die Werkzeuge in den genannten Versionen, über ein Fixture-Projekt, auf Linux und Windows. Die Tabelle ist `internal/compat/compat.toml`; ein Test hält sie Zelle für Zelle gegen diese Seite und gegen das Feld `proven` jeder Framework-Zeile ([GDScript](stacks/gdscript.md)). Wie die Läufe arbeiten, steht in der [CLI-Referenz](cli-reference.md#loomux-dev-compat-matrixrunscout-flags), welche Sperre sie vor einem Release setzen in [Releases](releases.md#wie-ein-pull-request-zum-release-wird).
+Jede Zeile ist eine Kombination, die loomux vor einem Major-Release und bei jeder Änderung der Liste wirklich fährt: die Laufzeit, die Addons und die Werkzeuge in den genannten Versionen, über ein Fixture-Projekt, auf Linux und Windows (C++ nur auf Linux). Die Tabelle ist `internal/compat/compat.toml`; ein Test hält sie Zelle für Zelle gegen diese Seite und gegen das Feld `proven` jeder Framework-Zeile ([GDScript](stacks/gdscript.md)). Wie die Läufe arbeiten, steht in der [CLI-Referenz](cli-reference.md#loomux-dev-compat-matrixrunscout-flags), welche Sperre sie vor einem Release setzen in [Releases](releases.md#wie-ein-pull-request-zum-release-wird).
 
 | Stack | Laufzeit | Version | Fixture | Addons | Werkzeuge | Arten |
 |---|---|---|---|---|---|---|
@@ -64,10 +64,19 @@ Jede Zeile ist eine Kombination, die loomux vor einem Major-Release und bei jede
 | csharp | dotnet | 10.0 | csharp-syntax-10.0 | — | — | graph |
 | csharp | dotnet | 11.0 | csharp-syntax-11.0 | — | — | graph |
 | csharp | dotnet | 10.0 | godot4-csharp | — | — | graph |
+| cpp | cpp | 17 | cpp-cmake-gtest | — | — | lint, types, test, coverage, graph |
+| cpp | cpp | 20 | cpp-cmake-gtest | — | — | lint, types, test, coverage, graph |
+| cpp | cpp | 23 | cpp-cmake-gtest | — | — | lint, types, test, coverage, graph |
+| cpp | cpp | 17 | cpp-syntax-17 | — | — | graph |
+| cpp | cpp | 20 | cpp-syntax-20 | — | — | graph |
+| cpp | cpp | 23 | cpp-syntax-23 | — | — | graph |
+| cpp | cpp | 17 | godot4-cpp | — | — | graph |
 
 Die C#-Einträge nennen kein Werkzeug: Format, Build und Test bringt das .NET SDK mit, und `csharp-xunit` legt seine Testpakete selbst fest (xunit.v3.mtp-off 4.0.3, xunit.runner.visualstudio 4.0.1, Microsoft.NET.Test.Sdk 18.11.1, coverlet.collector 10.1.0). Es ist xunit.v3 ohne Microsoft.Testing.Platform: Das Paket `xunit.v3` bringt ab 4.0 MTP v2 mit, und `dotnet test` verweigert ab dem .NET-10-SDK den VSTest-Weg, den die Vorgabe (`--collect "XPlat Code Coverage"`) geht. Ein Lauf lässt die Projekte auf die .NET-Version des Eintrags zielen (`net10.0`, `net11.0`).
 
-Die Liste führt jede Go-, Python-, Godot- und .NET-Version, die ihr Upstream noch pflegt, nicht nur die neueste. Jeden Montag fragt der Kompatibilitäts-Scout (`loomux dev compat scout`) upstream nach dreierlei:
+Eine C++-Version ist ein ISO-Standard. Auch die C++-Einträge nennen kein Werkzeug: CMake und GCC bringt der Linux-Runner mit, clang-tidy 23.1.4, clang-format 23.1.5 und gcovr 8.8 kommen über `uv tool install` (das Wheel von clang-tidy nennt sein `run-clang-tidy` `run-clang-tidy.py`; das Setup legt einen Link unter dem Namen an, den die Vorgabe aufruft), und `cpp-cmake-gtest` holt GoogleTest 1.18.0 selbst, festgelegt über die Release-URL und SHA-256. Ein Lauf konfiguriert `build/` mit dem Standard des Eintrags (`-DCMAKE_CXX_STANDARD=23`). C++ läuft nur auf Linux: Der Windows-Runner bringt MSVC mit, das die GCC-Coverage-Flags des Fixtures nicht nimmt. `godot4-cpp` hält eine GDExtension im Layout von godot-cpp (`project/` und `src/`).
+
+Die Liste führt jede Go-, Python-, Godot- und .NET-Version, die ihr Upstream noch pflegt, nicht nur die neueste. C++ hat keine maschinenlesbare Quelle für seine Standards: Der Scout führt den nächsten selbst, als Vorabversion `26-draft`, bis ISO ihn veröffentlicht und er von Hand in die Liste wandert; ein Ende der Pflege meldet er für C++ nicht, denn auch ein Standard verlässt die Liste von Hand. Jeden Montag fragt der Kompatibilitäts-Scout (`loomux dev compat scout`) upstream nach dreierlei:
 
 - **Eine neue stabile Version:** Er fährt sie als Probe und öffnet ein Issue mit dem Eintrag, der hinzukommt.
 - **Eine Alpha, Beta oder ein Release Candidate der nächsten Version:** Er fährt sie vorab als Probe. Ein Fehlschlag öffnet nur ein Issue und blockiert keinen Pull Request; ein Pre-Release kommt nie in die Liste, das Release zieht nach, sobald die Version stabil ist.
@@ -76,7 +85,7 @@ Die Liste führt jede Go-, Python-, Godot- und .NET-Version, die ihr Upstream no
 ## Was der Code-Graph liest
 
 Der Graph (`loomux graph`, die Lane `graph`, `graph_*` über MCP) deckt Go,
-Python, GDScript und C# ab. TypeScript und C++ stehen auf der
+Python, GDScript, C# und C++ ab. TypeScript steht auf der
 [Roadmap](../../README.de.md#roadmap).
 
 | Sprache | Liest | Löst auf | Lässt aus |
@@ -85,6 +94,7 @@ Python, GDScript und C# ab. TypeScript und C++ stehen auf der
 | Python | Module, Klassen, Funktionen, Methoden | Importe, Aufrufe, Basisklassen | `.pyi`-Stubs |
 | GDScript | Skripte, innere Klassen, Funktionen, Signale; Szenen, Ressourcen, `project.godot`, `.uid`-Dateien | `res://`- und `uid://`-Pfade, `class_name`, Autoloads (Szenen-Autoloads über ihr Wurzelskript), geerbte Aufrufe, Signale per Name und als Wert, Szenenverbindungen, auch zu C#-Methoden, -Signalen und `[GlobalClass]`-Klassen | VisualScript, Skripte inline in einer Szene, Typen von lokalen Variablen und Feldern |
 | C# | Dateien, Typen, Methoden, Konstruktoren, Eigenschaften, Indexer, `[Signal]`-Delegates; Syntax bis C# 14 vollständig | `using`, Basen (`extends`/`implements`), Aufrufe, Konstruktoren | Typen lokaler Variablen, Methoden in einer zweiten Datei einer `partial`-Klasse für Szenenverbindungen; aus C# 15: `union` (kein Typknoten), `closed record class` (kein Knoten), ein Typ mit Erweiterungs-Indexer (kein Knoten), `break`/`continue` mit Marke (Fehler im Rumpf, die übrigen Mitglieder kommen an) |
+| C++ | Dateien (`.cpp`, `.h`, `.hpp` und Verwandte), Klassen, Structs, Unions, Enums, Funktionen und Methoden mit Rumpf; GDExtension-Klassen (`GDCLASS`) und ihre Bindungen; Syntax von C++17, 20 und 23 | `#include`, Basisklassen, Aufrufe per Name oder qualifiziertem Namen; GDScript-`extends` und `.new()`, Knotentypen und Verbindungen in Szenen zu GDExtension-Klassen | den Präprozessor (Makros bleiben unexpandiert, jeder `#if`-Zweig wird gelesen), Typen und Überladungen (Member-Aufrufe `x.f()` bleiben offen), `.c`-Dateien; aus C++23: `if consteval` (die Funktion damit bekommt keinen Knoten, und die Definition vor der schließenden Klammer ihres Namespace geht verloren; was folgt, kommt ohne Namespace und Owner an) |
 
 Die vollständigen Regeln stehen in der
 [CLI-Referenz](cli-reference.md#loomux-graph-build---root-pfad---no-reuse).

@@ -188,6 +188,63 @@ version = "10.0"
 fixture = "godot4-csharp"
 kinds = ["graph"]
 
+# A C++ version is an ISO standard; the run configures build/ with it as
+# CMAKE_CXX_STANDARD. The compiler and CMake are the runner's, clang-tidy,
+# clang-format and gcovr come from CI's setup, so the entries name no tools.
+# C++ runs on Linux only (see matrix.go).
+
+[[entry]]
+stack = "cpp"
+runtime = "cpp"
+version = "17"
+fixture = "cpp-cmake-gtest"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "cpp"
+runtime = "cpp"
+version = "20"
+fixture = "cpp-cmake-gtest"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "cpp"
+runtime = "cpp"
+version = "23"
+fixture = "cpp-cmake-gtest"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "cpp"
+runtime = "cpp"
+version = "17"
+fixture = "cpp-syntax-17"
+kinds = ["graph"]
+
+[[entry]]
+stack = "cpp"
+runtime = "cpp"
+version = "20"
+fixture = "cpp-syntax-20"
+kinds = ["graph"]
+
+[[entry]]
+stack = "cpp"
+runtime = "cpp"
+version = "23"
+fixture = "cpp-syntax-23"
+kinds = ["graph"]
+
+# A GDExtension in the godot-cpp layout: GDScript and a scene reach its
+# class, and a scene connection its bound method.
+
+[[entry]]
+stack = "cpp"
+runtime = "cpp"
+version = "17"
+fixture = "godot4-cpp"
+kinds = ["graph"]
+
 # Files that are neither an entry nor a fixture but decide what an entry
 # proves. A change to one of paths (not to an except) runs the entries the
 # rule selects: all, those of some stacks, or those with some addons.
