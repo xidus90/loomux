@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.23.2] - 2026-11-11
+
+<https://github.com/xidus90/loomux/pull/152>
+
+### Changed
+- The bundled golang.org/x modules are updated (x/sys v0.50.0, x/term v0.48.0, x/text v0.44.0).
+
 ## [1.23.1] - 2026-11-11
 
 <https://github.com/xidus90/loomux/pull/151>
