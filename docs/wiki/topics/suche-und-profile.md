@@ -14,8 +14,8 @@ sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:81f0b8c3e76dd335000605a171e155b8e641afb220245b46739c8a9ed8cd814f"
-    revision: 14
+    content_hash: "sha256:5c27c514f039e4fe3db1e551f65bc1fd4f13ed1456a13cef94c8b833d967213f"
+    revision: 15
 ---
 
 ## Drei Profile
