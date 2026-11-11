@@ -130,11 +130,7 @@ func runCopy(e Entry, o RunOptions, dir string, kinds []string, b *Break) ([]str
 	if err != nil {
 		return nil, err
 	}
-	broken := ""
-	if b != nil {
-		broken = b.Kind
-	}
-	return append(lines, judge(results, kinds, broken)...), nil
+	return append(lines, judge(results, kinds, b)...), nil
 }
 
 // prepare copies the fixture with the entry's addons, engine version and
@@ -164,7 +160,32 @@ func prepare(e Entry, o RunOptions, dir string, b *Break) error {
 		// The read just succeeded; a failed write leaves the lanes to say so.
 		os.WriteFile(project, featuresRe.ReplaceAll(data, []byte("${1}"+e.Version)), 0o644)
 	}
-	return errors.Join(pinPython(dir, e), pinTools(dir, e), targetDotnet(dir, e), pinDotnet(dir, e), applyBreak(dir, b))
+	return errors.Join(pinPython(dir, e), pinTools(dir, e), targetDotnet(dir, e), pinDotnet(dir, e), targetJava(dir, e), applyBreak(dir, b))
+}
+
+var javaLevelRe = regexp.MustCompile(`(<maven\.compiler\.(?:release|source|target)>|JavaLanguageVersion\.of\()\d+`)
+
+// targetJava has a Java fixture, which may serve several versions, compile
+// at the entry's: Maven's release, or source and target where the fixture
+// runs on Java 8, whose javac takes no --release, and Gradle's toolchain.
+// The copy loses the wrapper script's mode, and Gradle runs as that program.
+func targetJava(dir string, e Entry) error {
+	if e.Runtime != "java" {
+		return nil
+	}
+	var errs []error
+	for _, name := range []string{"pom.xml", "build.gradle"} {
+		p := filepath.Join(dir, name)
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue // a fixture builds with one of them
+		}
+		errs = append(errs, os.WriteFile(p, javaLevelRe.ReplaceAll(data, []byte("${1}"+e.Version)), 0o644))
+	}
+	if _, err := os.Stat(filepath.Join(dir, "gradlew")); err == nil {
+		errs = append(errs, os.Chmod(filepath.Join(dir, "gradlew"), 0o755))
+	}
+	return errors.Join(errs...)
 }
 
 // configureCMake configures build/ in the entry's C++ standard: the lanes on
@@ -284,9 +305,14 @@ func applyBreak(dir string, b *Break) error {
 }
 
 // judge holds each lane to ok, and each kind to a lane that ran. In a run of
-// broken's break, its kind must end failed and a lane behind it may be
-// blocked; only a red lane blocks, and any other red is a line of its own.
-func judge(results []LaneResult, kinds []string, broken string) []string {
+// a break, its kind and those it also breaks must end failed and a lane
+// behind them may be blocked; only a red lane blocks, and any other red is a
+// line of its own.
+func judge(results []LaneResult, kinds []string, b *Break) []string {
+	var broken []string
+	if b != nil {
+		broken = append([]string{b.Kind}, b.Also...)
+	}
 	var lines []string
 	for _, k := range kinds {
 		if !slices.ContainsFunc(results, func(r LaneResult) bool { return kindOf(r) == k }) {
@@ -295,10 +321,10 @@ func judge(results []LaneResult, kinds []string, broken string) []string {
 	}
 	for _, r := range results {
 		want := "ok"
-		if kindOf(r) == broken {
+		if slices.Contains(broken, kindOf(r)) {
 			want = "failed"
 		}
-		if r.State == want || (broken != "" && want == "ok" && r.State == "blocked") {
+		if r.State == want || (b != nil && want == "ok" && r.State == "blocked") {
 			continue
 		}
 		line := fmt.Sprintf("%s: %s, want %s", r.Lane, r.State, want)

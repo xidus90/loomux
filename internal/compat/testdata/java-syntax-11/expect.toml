@@ -1,0 +1,8 @@
+stacks = ["java"]
+# var in the parameters of a lambda.
+edges = [
+  ["Syntax.java#Syntax.twice", "calls", "Syntax.java#Syntax.add"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

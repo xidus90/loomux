@@ -312,13 +312,13 @@ func TestParsePre(t *testing.T) {
 		"1.28rc1": {1, 28}, "1.28beta1": {1, 28}, "3.16.0a1": {3, 16}, "3.16.0b2": {3, 16}, "3.16.0rc1": {3, 16},
 		"4.8-beta2": {4, 8}, "4.8-rc1": {4, 8}, "4.8-dev3": {4, 8},
 		"11.0.0-preview.7": {11, 0}, "11.0.0-rc.2": {11, 0},
-		"26-draft": {26},
+		"26-draft": {26}, "28-ea": {28},
 	} {
 		if got, ok := parsePre(s); !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("%s = %v %v", s, got, ok)
 		}
 	}
-	for _, s := range []string{"1.28", "1.28.1", "", "x1.2rc1", "1rc1", "1.28rc", "4.8-gamma1", "3.16.0a", "26", "26-draft1", "1.28-draft"} {
+	for _, s := range []string{"1.28", "1.28.1", "", "x1.2rc1", "1rc1", "1.28rc", "4.8-gamma1", "3.16.0a", "26", "26-draft1", "1.28-draft", "28-ea1", "1.28-ea"} {
 		if _, ok := parsePre(s); ok {
 			t.Errorf("%q read as a pre-release", s)
 		}
@@ -526,7 +526,7 @@ func TestParseReleasesMarksPreReleases(t *testing.T) {
 	if got, err := parseReleases("https://pypi.org/pypi/ruff/json", []byte(pypi)); err != nil || !reflect.DeepEqual(got, []Release{{"0.17.1", false}, {"0.18.0", false}}) {
 		t.Errorf("pypi %v %v", got, err)
 	}
-	for _, src := range []string{godotSource, pythonSource, goSource, dotnetSource, "https://pypi.org/pypi/ruff/json"} {
+	for _, src := range []string{godotSource, pythonSource, goSource, dotnetSource, adoptiumSource, "https://pypi.org/pypi/ruff/json"} {
 		if _, err := parseReleases(src, []byte("<html>")); err == nil {
 			t.Errorf("%s: junk read", src)
 		}
@@ -582,6 +582,71 @@ func TestScoutFindsTheNextDotnetCandidate(t *testing.T) {
 	}
 	up["eol:dotnet"] = []string{"10!"}
 	if got := scout(t, up, e); len(got) != 2 || got[1].Kind != "eol" || got[1].Version != "10.0" {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+// testdata/adoptium-available-releases.json is the real answer of
+// 2026-11-11: 27 is the newest feature release, the tip 28 has early-access
+// builds only.
+func TestParseReleasesReadsAdoptium(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("testdata", "adoptium-available-releases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want []Release
+	for _, v := range []string{"8", "11", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27"} {
+		want = append(want, Release{Version: v})
+	}
+	want = append(want, Release{"28-ea", true})
+	if got, err := parseReleases(adoptiumSource, body); err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("releases %v %v", got, err)
+	}
+	// Once the tip is released, it is no pre-release.
+	released := `{"available_releases":[27,28],"most_recent_feature_release":28,"tip_version":28}`
+	if got, err := parseReleases(adoptiumSource, []byte(released)); err != nil || !reflect.DeepEqual(got, []Release{{"27", false}, {"28", false}}) {
+		t.Errorf("released %v %v", got, err)
+	}
+}
+
+func javaEntry(version, fixture string) Entry {
+	return Entry{Stack: "java", Runtime: "java", Version: version, Fixture: fixture, Kinds: []string{"test"}}
+}
+
+// Only the line holding the newest version probes the next one, and
+// endoflife.date names a Temurin release by its major.
+func TestScoutProbesTheNextJavaFeatureRelease(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("testdata", "adoptium-available-releases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rels, err := parseReleases(adoptiumSource, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	up := calm()
+	for _, r := range rels {
+		up[adoptiumSource] = append(up[adoptiumSource], r.Version)
+	}
+	up["eol:java"] = []string{"8", "11", "17", "21", "25", "26!", "27"}
+	entries := []Entry{javaEntry("8", "java-maven-junit5"), javaEntry("11", "java-maven-junit5"),
+		javaEntry("17", "java-maven-junit6-17"), javaEntry("21", "java-maven-junit6"),
+		javaEntry("25", "java-maven-junit6"), javaEntry("27", "java-maven-junit6"),
+		javaEntry("21", "java-gradle-junit6")}
+	got := scout(t, up, entries...)
+	if len(got) != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+	f := got[0]
+	if f.Kind != "pre" || f.Line != "java-maven-junit6/java" || f.Version != "28-ea" ||
+		f.Probe.Version != "28" || f.Probe.Pre != "28-ea" || f.Probe.Key() != "java/java-28-ea/java-maven-junit6" {
+		t.Fatalf("finding %+v, probe %+v", f, f.Probe)
+	}
+	if err := check(*f.Probe, references(), true); err != nil {
+		t.Errorf("the probe does not load: %v", err)
+	}
+	up["eol:java"][0] = "8!"
+	if got := scout(t, up, entries...); len(got) != 2 || got[1].Kind != "eol" || got[1].Line != "java" || got[1].Version != "8" {
 		t.Fatalf("findings %+v", got)
 	}
 }
@@ -779,6 +844,10 @@ func TestHTTPUpstreamEOL(t *testing.T) {
 	}
 	if rt.seen.URL.String() != "https://endoflife.date/api/v1/products/python" || rt.seen.Header.Get("Authorization") != "" {
 		t.Errorf("asked %s with auth %q", rt.seen.URL, rt.seen.Header.Get("Authorization"))
+	}
+	// Java runs on Temurin, whose support endoflife.date tracks.
+	if _, err := h.EOL("java"); err != nil || rt.seen.URL.String() != "https://endoflife.date/api/v1/products/eclipse-temurin" {
+		t.Errorf("java asked %s: %v", rt.seen.URL, err)
 	}
 	rt.status = 404
 	if _, err := h.EOL("nope"); err == nil || !strings.Contains(err.Error(), "404") {

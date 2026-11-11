@@ -11,8 +11,12 @@ import (
 )
 
 // Break is a change that makes one kind of check fail: the file is overwritten
-// or created with Content.
-type Break struct{ Kind, File, Content string }
+// or created with Content. Also are the kinds it fails as well, when their
+// tool does the broken kind's work first.
+type Break struct {
+	Kind, File, Content string
+	Also                []string
+}
 
 // Expect is what a fixture promises, read from its expect.toml: the stacks and
 // variants detect finds, the start of the command each kind plans, the graph

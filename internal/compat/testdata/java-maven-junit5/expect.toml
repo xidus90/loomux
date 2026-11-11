@@ -1,0 +1,93 @@
+stacks = ["java"]
+variants = ["maven"]
+edges = [
+  ["src/main/java/calc/Calc.java", "imports", "src/main/java/calc/shape/Child.java"],
+  ["src/main/java/calc/shape/Child.java#Child", "extends", "src/main/java/calc/shape/Base.java#Base"],
+  ["src/main/java/calc/shape/Child.java#Child.f", "calls", "src/main/java/calc/shape/Base.java#Base.f"],
+  ["src/main/java/calc/Calc.java#Calc.twice", "calls", "src/main/java/calc/shape/Child.java#Child"],
+  ["src/test/java/calc/CalcTest.java#CalcTest.doublesAValue", "calls", "src/main/java/calc/Calc.java#Calc"],
+]
+
+[lanes]
+lint = "mvn -B -q checkstyle:check"
+types = "mvn -B -q -DskipTests compile"
+test = "mvn -B -q"
+coverage = "{loomux} check linecov"
+graph = "{loomux} check graph-fresh"
+
+# Each break leaves the other kinds green. The lint break is a loop body
+# without braces, which compiles and runs every line; Checkstyle reads no
+# class, so the types break leaves the lint green, and test and coverage
+# wait for the compile, blocked.
+[[break]]
+kind = "lint"
+file = "src/main/java/calc/Calc.java"
+content = '''
+package calc;
+
+import calc.shape.Child;
+
+public class Calc {
+    public int twice(int value) {
+        Child child = new Child();
+        int result = 0;
+        for (int i = 0; i < value; i++)
+            result += child.f();
+        return result;
+    }
+}
+'''
+
+[[break]]
+kind = "types"
+file = "src/main/java/calc/Calc.java"
+content = '''
+package calc;
+
+import calc.shape.Child;
+
+public class Calc {
+    public int twice(int value) {
+        Child child = new Child();
+        return child.f() * value + missing();
+    }
+}
+'''
+
+[[break]]
+kind = "test"
+file = "src/test/java/calc/CalcTest.java"
+content = '''
+package calc;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+class CalcTest {
+    @Test
+    void doublesAValue() {
+        assertEquals(5, new Calc().twice(2));
+    }
+}
+'''
+
+[[break]]
+kind = "coverage"
+file = "src/main/java/calc/Calc.java"
+content = '''
+package calc;
+
+import calc.shape.Child;
+
+public class Calc {
+    public int twice(int value) {
+        Child child = new Child();
+        return child.f() * value;
+    }
+
+    public int untested() {
+        return 3;
+    }
+}
+'''

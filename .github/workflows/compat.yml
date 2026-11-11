@@ -109,6 +109,13 @@ jobs:
         with:
           dotnet-version: ${{ steps.setup.outputs.version }}
           dotnet-quality: ${{ steps.setup.outputs.install != steps.setup.outputs.version && 'preview' || '' }}
+      # Temurin takes a feature release ("21") and an early access of the
+      # next one ("28-ea") alike; Maven comes from compat-setup.sh.
+      - if: steps.setup.outputs.runtime == 'java'
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: ${{ steps.setup.outputs.install }}
       - if: steps.setup.outputs.rebuild == 'true'
         run: go build -o bin/loomux.exe ./cmd/loomux
         env:

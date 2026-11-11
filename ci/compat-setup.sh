@@ -3,7 +3,8 @@
 #   ci/compat-setup.sh <loomux binary> <entry key> <root>
 # Godot lands in <root>/godot (and GODOT_BIN is exported to later steps), each
 # addon's own folder in <root>/addons/<Name>, Python and C++'s clang-tidy,
-# clang-format and gcovr through uv. Go and .NET are set up
+# clang-format and gcovr through uv, Maven for Java in <root>/apache-maven-*
+# (its bin goes onto the PATH of later steps). Go, .NET and the JDK are set up
 # by the workflow, which rebuilds loomux with the Go when rebuild=true: a Go above
 # the toolchain of go.mod is one loomux was never built with. The description is the JSON of `dev compat run --describe`;
 # it is flat and written by loomux, so sed reads it without a JSON tool.
@@ -163,6 +164,25 @@ cpp)
 	uv tool install gcovr==8.8
 	if [ -n "${GITHUB_PATH:-}" ]; then
 		uv tool dir --bin >>"$GITHUB_PATH"
+	fi
+	;;
+java)
+	# The workflow installs the JDK, a Gradle fixture its own wrapper. Maven
+	# comes from here, pinned and checked, on every system: windows-latest
+	# carries 3.9.16, ubuntu-latest 3.10.0, a self-hosted runner whatever it
+	# has.
+	mvn_version=3.10.0
+	mvn_sha512=22d31676d5b92ed53308c19ecded3245d0efd0cddfec51ec7bab62f4f13ad70ddddceff8e62940e0e8e2421f3cde8106737f4becec0aa034ffeff2a754e88337
+	zip=apache-maven-$mvn_version-bin.zip
+	mkdir -p "$root/dl"
+	curl -fsSL --retry 3 -o "$root/dl/$zip" "https://repo1.maven.org/maven2/org/apache/maven/apache-maven/$mvn_version/$zip"
+	(cd "$root/dl" && echo "$mvn_sha512  $zip" | sha512sum -c -)
+	unzip_to "$root/dl/$zip" "$root"
+	mvn_bin=$root/apache-maven-$mvn_version/bin
+	echo "maven: $mvn_bin"
+	if [ -n "${GITHUB_PATH:-}" ]; then
+		[ "$os" != Windows ] || mvn_bin=$(cygpath -w "$mvn_bin")
+		echo "$mvn_bin" >>"$GITHUB_PATH"
 	fi
 	;;
 *)

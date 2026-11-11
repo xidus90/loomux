@@ -85,7 +85,9 @@ func TestEveryEntryPassesLayerOne(t *testing.T) {
 					t.Errorf("no %s lane is planned: %+v", kind, jobs)
 					continue
 				}
-				if got := strings.Join(jobs[i].Argvs[0], " "); !strings.HasPrefix(got, prefix) {
+				// {gradle} is the wrapper by its absolute path in the copy.
+				got := strings.TrimPrefix(strings.Join(jobs[i].Argvs[0], " "), root+string(filepath.Separator))
+				if !strings.HasPrefix(got, prefix) {
 					t.Errorf("%s plans %q, want it to begin with %q", kind, got, prefix)
 				}
 			}
@@ -111,8 +113,10 @@ func TestEveryEntryPassesLayerOne(t *testing.T) {
 				}
 			}
 			for _, b := range want.Breaks {
-				if !slices.Contains(e.Kinds, b.Kind) {
-					t.Errorf("break of kind %q: the entry has kinds %v", b.Kind, e.Kinds)
+				for _, k := range append([]string{b.Kind}, b.Also...) {
+					if !slices.Contains(e.Kinds, k) {
+						t.Errorf("break of kind %q: the entry has kinds %v", k, e.Kinds)
+					}
 				}
 				if _, err := os.Stat(filepath.Dir(filepath.Join(root, b.File))); err != nil {
 					t.Errorf("break file %s: %v", b.File, err)
@@ -252,6 +256,37 @@ func TestTheCpp23GapLeavesTheRestOfTheFile(t *testing.T) {
 		"syntax.cpp#after", "syntax.cpp#twice"}
 	if !slices.Equal(got, want) {
 		t.Errorf("nodes %v, want %v", got, want)
+	}
+}
+
+// The grammar misses two forms of Java 25 (docs/en/support.md): import
+// module is an ERROR in the import, a statement before super(...) one in the
+// constructor body; the rest of each file arrives. java-syntax-27 carries the
+// same forms, as 27 brought no final syntax of its own. A grammar that
+// learns a form fails here, and the support page is to follow.
+func TestTheJava25GapsLeaveTheRestOfTheFile(t *testing.T) {
+	want := []string{"Main.java", "Main.java#greet", "Main.java#main",
+		"Shape.java", "Shape.java#Shape", "Shape.java#Shape.Shape",
+		"Shape.java#Square", "Shape.java#Square.Square", "Shape.java#Square.area", "Shape.java#Square.twice"}
+	for _, fixture := range []string{"java-syntax-25", "java-syntax-27"} {
+		root := t.TempDir()
+		if err := CopyFixture(fixture, root); err != nil {
+			t.Fatal(err)
+		}
+		g, _, err := query.Build(root, func(string) {})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, n := range g.Nodes {
+			if strings.HasSuffix(n.Path, ".java") {
+				got = append(got, string(n.ID))
+			}
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: nodes %v, want %v", fixture, got, want)
+		}
 	}
 }
 

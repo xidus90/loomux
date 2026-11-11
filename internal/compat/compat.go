@@ -99,7 +99,7 @@ func (e Entry) syntax() bool { return slices.Equal(e.Kinds, []string{"graph"}) }
 // Load reads the embedded list in file order, once.
 var Load = sync.OnceValues(func() ([]Entry, error) { return parse(listText, "compat.toml") })
 
-var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet", "cpp": "cpp"}
+var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet", "cpp": "cpp", "java": "java"}
 
 // stackNames lists the stacks of runtimeOf for a message.
 func stackNames() string { return strings.Join(slices.Sorted(maps.Keys(runtimeOf)), ", ") }
