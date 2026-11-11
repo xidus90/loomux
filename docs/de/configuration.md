@@ -477,7 +477,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset haben Go, Python, GDScript und C#, mit denselben Befehlen:
+erreicht. Ein Preset haben Go, Python, GDScript, C# und C++, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
@@ -490,6 +490,9 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
 [stack.csharp.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.cpp.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 

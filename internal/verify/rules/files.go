@@ -102,7 +102,7 @@ func indexFiles(root string) ([]File, error) {
 // contentExts are the extensions of the files the rules parse: what the
 // extractors read. Instrumented reads the first line of the files of a tool
 // with a marker; the gdUnit4 tool is the only one, with .gd.
-var contentExts = []string{".go", ".py", ".gd", ".cs", ".tscn", ".tres", ".godot"}
+var contentExts = []string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".tscn", ".tres", ".godot"}
 
 // wantsContent says whether a rule reads the content of rel: an extractor's
 // file, go.mod (module paths) and plugin.cfg (test tool detection). The other

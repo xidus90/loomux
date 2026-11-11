@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/code/extract/cpp"
 )
 
 const withRules = "[rules]\n"
@@ -98,10 +100,20 @@ func TestRulesOnEdit(t *testing.T) {
 func TestEditsRules(t *testing.T) {
 	for file, want := range map[string]bool{
 		"a.go": true, "x/y.PY": false, "A.GD": false, "z.gd": true, ".loomux/config.toml": true,
+		"a.cs": true, "a.cpp": true, "b/c.HPP": false, "d.hh": true, "e.ipp": true, "f.c": false,
 		"a.md": false, "go.mod": false, "sub/.loomux/config.toml": false, "a.toml": false,
 	} {
 		if EditsRules(file) != want {
 			t.Errorf("%s: %v", file, !want)
+		}
+	}
+}
+
+// The rules read what the C++ extractor reads.
+func TestIsSourceCoversTheCppExtractor(t *testing.T) {
+	for _, ext := range (cpp.Language{}).Extensions() {
+		if !IsSource("a" + ext) {
+			t.Errorf("%s is no source", ext)
 		}
 	}
 }
