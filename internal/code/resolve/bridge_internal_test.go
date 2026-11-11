@@ -45,6 +45,55 @@ func run(paths []string, offers []offer, hs []handover) []model.Edge {
 	return got
 }
 
+func inClass(o offer, class string) offer { o.Class = class; return o }
+
+func withClass(h handover, class string) handover { h.bridge.Class = class; return h }
+
+func TestBridgeClassScopesTheOffers(t *testing.T) {
+	offers := []offer{
+		inClass(off(nsOne, "m", "a.cpp#A.m", "a.cpp", "cpp"), "A"),
+		inClass(off(nsOne, "m", "b.cpp#B.m", "b.cpp", "cpp"), "B"),
+	}
+	got := run(nil, offers, []handover{withClass(hand(nsOne, "m", "s.tscn"), "A")})
+	if want := []model.Edge{edge("s.tscn#src", "a.cpp#A.m", model.ConfidenceExtracted, 7)}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestBridgeClassWithoutHitFollowsScopedMiss(t *testing.T) {
+	offers := []offer{
+		inClass(off(nsOne, "m", "b.cpp#B.m", "b.cpp", "cpp"), "B"),
+		inClass(off(nsAll, "m", "b.cpp#B.m", "b.cpp", "cpp"), "B"),
+	}
+	if got := run(nil, offers, []handover{withClass(hand(nsOne, "m", "s.tscn"), "A")}); got != nil {
+		t.Errorf("a class miss without fallback drew %v", got)
+	}
+	got := run(nil, offers, []handover{withClass(hand(nsAll, "m", "s.tscn"), "A")})
+	if want := []model.Edge{edge("s.tscn#src", "b.cpp#B.m", model.ConfidenceInferred, 7)}; !reflect.DeepEqual(got, want) {
+		t.Errorf("a class miss with the realm as fallback: got %v, want %v", got, want)
+	}
+}
+
+func TestBridgeWithoutClassIgnoresTheOffersClass(t *testing.T) {
+	got := run(nil, []offer{inClass(off(nsOne, "m", "a.cpp#A.m", "a.cpp", "cpp"), "A")},
+		[]handover{hand(nsOne, "m", "s.tscn")})
+	if want := []model.Edge{edge("s.tscn#src", "a.cpp#A.m", model.ConfidenceExtracted, 7)}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestBridgeClassAndScopeBothApply(t *testing.T) {
+	offers := []offer{
+		inClass(off(nsOne, "m", "a.cpp#A.m", "a.cpp", "cpp"), "A"),
+		inClass(off(nsOne, "m", "b.cpp#A.m", "b.cpp", "cpp"), "A"),
+		inClass(off(nsOne, "m", "a.cpp#B.m", "a.cpp", "cpp"), "B"),
+	}
+	got := run(nil, offers, []handover{withClass(hand(nsOne, "m", "s.tscn", "a.cpp"), "A")})
+	if want := []model.Edge{edge("s.tscn#src", "a.cpp#A.m", model.ConfidenceExtracted, 7)}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
 func TestBridgeScopedHitIsExtracted(t *testing.T) {
 	got := run(nil,
 		[]offer{off(nsOne, "m", "a.cs#m", "a.cs", "csharp"), off(nsOne, "m", "b.cs#m", "b.cs", "csharp")},
