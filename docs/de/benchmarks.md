@@ -4548,3 +4548,108 @@ im Prüfmodus verfehlt in den Läufen 10 und 12 unter Lastspitzen die 324 ms.
 Die Läufe 13 bis 15 ohne die Testsuite des Stop-Hooks bestehen alles; ein
 ganz ruhiger Rechner (ohne VS Code und die anderen Sitzungen) wurde weiterhin
 nicht erreicht.
+
+## 2026-11-11 20:45 — Funktionswerte und Ketten im Go-Graph
+
+Repo `loomux`, Zweig `feat/go-func-values` auf `82af8fb1`, Windows x86_64,
+Go 1.27.4. Verglichen werden zwei Binaries aus demselben Baum: `alt` ist
+`master` (`go/2`), `neu` der Zweig (`go/3`). Gemessen wurde auf demselben
+Baum, die Maschine war mit anderen Sitzungen belegt.
+
+**Ziel.** Der Go-Graph verlor Aufrufketten an Funktionswerten
+(`Deps{Blast: query.Blast}`, `var postToolUse = hooks.PostToolUse`) und an
+verketteten Aufrufen (`blast.New(g).Reach()`). Ein Agent fand dort mit grep
+mehr als mit dem Graph. Die Messung zeigt, ob der neue Extraktor diese
+Ketten schließt, was er kostet und ob Agenten danach anders arbeiten.
+
+**Graph-Build** (`graph build`, je drei kalte mit `--no-reuse`, je zwei
+warme, alt und neu abwechselnd in zwei Durchgängen):
+
+| Binary | kalt (s) | warm (s) |
+|---|---|---|
+| alt | 3,75 / 3,91 / 3,35 · 3,24 / 3,89 / 3,48 | 3,10 / 3,14 · 3,26 / 2,95 |
+| neu | 3,35 / 3,46 / 3,39 · 3,50 / 3,30 / 3,92 | 3,55 / 3,03 · 3,38 / 6,12 |
+
+Kein messbarer Unterschied; der Ausreißer 6,12 s fiel mit Last anderer
+Sitzungen zusammen.
+
+**Kanten** (derselbe Baum, `wiring.json` alt gegen neu): 1771 Kanten kommen
+hinzu, 88 fallen weg. Hinzu kommen 930 `calls` extracted, 181 `calls`
+inferred und 660 `references` extracted; 1288 gehen von Testdateien aus.
+Eine Stichprobe von 25 neuen Kanten aus Nicht-Testcode stimmte in allen 25
+Fällen mit dem Quelltext überein. Die 88 entfallenen sind Aufrufe über eine
+lokale Funktionsvariable (`mk()`, `m["k"]()`), die der repo-weite Fallback
+auf eine gleichnamige Funktion eines anderen Pakets geraten hatte, etwa
+`advanceRegisterLocked` → `selfupdate/fake_test.go#release`; alle zehn
+geprüften waren falsch.
+
+**Ketten** (`graph callers --depth 6`, Treffer außerhalb von Tests):
+
+| Symbol | alt | neu | neu gefunden |
+|---|---:|---:|---|
+| `blast.Radius` | 8 | 14 | `handlers`, `listen`, `serve.Run` (MCP `graph_blast`), Befehlstabelle `commands.go` |
+| `(*Index).Reach` | 11 | 24 | `blastAside`, `query.Callers`, `graphCallers`, `PostToolUse`, `hook.go`, MCP-Verdrahtung |
+| `hooks.PostToolUse` | 0 | 1 | `cli/hook.go` (`postToolUse = hooks.PostToolUse`) |
+
+Jede Kette, die grep in den Agentenläufen vorher allein fand, liegt jetzt
+im Graph.
+
+**`check blast-audit --threshold 5`** auf den letzten zwölf
+Nicht-Release-Commits von `master` (`--base <c>^`, Graph je Commit und
+Binary frisch gebaut): Die Ausgabe ist bei allen zwölf byte-gleich. Elf
+melden keinen Befund, `99ddeee3` mit beiden Binaries denselben
+(`internal/code/query/refresh.go [stale]: RefreshIfDrifted in-degree 7`).
+Die zusätzlichen Kanten lösen im Pre-commit-Gate nichts Neues aus.
+
+**Agenten** (Claude Code headless, Opus, `--max-turns 25`; drei Aufgaben,
+die alle Einstiegspunkte über `blast.Radius`, `relInRoot` und `Reach`
+verlangen). Die Aufgaben stammen aus den bekannten Lücken des alten Graphen
+und sind darum zu seinen Gunsten gewählt. v0 ist ohne Hinweis, v3 lehnt
+das erste grep über Code einmal ab und nennt `loomux graph callers`. Runde 2
+lief mit dem alten Graph (eine Wiederholung), Runde 3 mit dem neuen (zwei
+Wiederholungen, neues Binary über `PATH` und `--mcp-config`). Runde 2 lud
+die vollständige MCP-Konfiguration des Nutzers, Runde 3 mit
+`--strict-mcp-config` nur loomux. Das allein verschiebt die Tokens; sie
+sind darum nur innerhalb einer Runde vergleichbar.
+
+| Runde | Variante | Läufe | richtig | Tool-Aufrufe je Aufgabe | Graph-Aufrufe | Input-Tokens je Aufgabe |
+|---|---|---:|---:|---:|---:|---:|
+| 2 (alt) | v0 | 3 | 3 | 7,7 | 2 | 407 k |
+| 2 (alt) | v3 | 3 | 3 | 8,3 | 7 | 494 k |
+| 3 (neu) | v0 | 6 | 6 | 8,0 | 0 | 350 k |
+| 3 (neu) | v3 | 6 | 6 | 6,8 | 13 | 317 k |
+
+### Lesart
+
+1. **Der Graph schließt die Lücken.** Alle Ketten aus der grep-Wahrheit
+   sind jetzt im Graph, ohne Kante zu verlieren und ohne messbare
+   Build-Kosten.
+2. **Der Hinweis dreht sich.** Mit dem alten Graph kostete v3 gegenüber v0
+   21 % mehr Tokens, weil der Agent die Graph-Antwort mit grep
+   nachbessern musste. Mit dem neuen Graph braucht v3 15 % weniger
+   Tool-Aufrufe und 9 % weniger Tokens als v0, bei gleicher Trefferquote.
+3. **Die Stichprobe ist klein** (6 Läufe je Variante, eine Wiederholung in
+   Runde 2) und die Aufgaben sind auf die geschlossenen Lücken
+   zugeschnitten. Für einen Graph-Hinweis im Wächter reicht das als
+   Richtung, nicht als Beleg.
+
+**Bestätigungsrunde** (Runde 4, neuer Graph, gleiches Setup wie Runde 3):
+acht Aufgaben aus anderen Teilen des Repos, nicht aus den geschlossenen
+Lücken. Gefragt waren die direkten Aufrufer von `store.Read`, `verify.Plan`
+und `Manifest.WikiLayout`, alle Verwendungen von `child.Run`, die
+Einstiegspunkte über `verify.Run` und `freshness.Probe`, die Folgen einer
+Änderung an `sessions.Revive` und der Aufrufer von `trigram.Build`. Jede
+Variante lief jede Aufgabe zweimal, zusammen 32 Läufe.
+
+| Variante | Läufe | vollständig | Tool-Aufrufe je Lauf | Graph-Aufrufe | Input-Tokens je Lauf | Zeit je Lauf |
+|---|---:|---:|---:|---:|---:|---:|
+| v0 | 16 | 15 | 5,2 | 0 | 238 k | 34 s |
+| v3 | 16 | 16 | 5,3 | 16 | 236 k | 38 s |
+
+Der eine unvollständige Lauf (v0, `store.Read`) nannte die vier direkten
+Aufrufer und übersah die drei, die über `readGraph = store.Read` und
+`monitorRead = store.Read` gehen. Beide v3-Läufe fanden sie. Bei Aufgaben
+außerhalb der geschlossenen Lücken kosten die Varianten gleich viel; v3
+lenkt auf den Graph um, ohne zu verteuern, und war einmal vollständiger.
+Ein Lauf fand nebenbei, dass `graph callers Build` einen Testhelfer `build`
+auflöste statt `trigram.Build`.

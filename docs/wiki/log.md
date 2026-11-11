@@ -6,6 +6,11 @@
 
 ## 2026-11-11
 
+- 2026-11-11 — `topics/code-graph.md`: Absatz „Funktionswerte und Ketten
+  (Go)“ neu; der Go-Graph zieht `references`-Kanten für Funktionswerte und
+  löst verkettete Aufrufe über den Ergebnistyp auf. Quelle:
+  `internal/code/extract/golang/extract.go`, `internal/code/resolve/resolve.go`,
+  `docs/de/benchmarks.md`.
 - 2026-11-11 — `entities/zvec-grep.md` neu: zvec-grep 0.3.0 gegen
   `loomux graph grep` und tgrep gemessen; exakt ist loomux schneller, `zg`
   ergänzt Suche nach Bedeutung. Quelle: `docs/de/benchmarks.md`, Abschnitt
