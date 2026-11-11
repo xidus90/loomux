@@ -365,7 +365,9 @@ dieses Ordners läuft. So machen es auch die Hooks eines loomux-Checkouts.
 Die Presets sind ins Binary eingebettet (`internal/verify/presets.toml`) und
 benutzen das Schema oben; ein Preset kann also nichts sagen, was ein Projekt
 nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
-**Variante**, deren Signal die Erkennung fand, dann `[verify.<stack>]`.
+**Variante**, deren Signal die Erkennung fand, dann `[verify.<stack>]`. Jeder
+Bereich wählt seine Variante aus den Signalen, die in ihm oder in der Wurzel
+gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
 
 | Stack | `lint` | `types` | `test` | `coverage` |
 |---|---|---|---|---|
@@ -458,9 +460,13 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 - Die java-Lanes führen Maven aus; die Variante `gradle` (ein `build.gradle`,
   `settings.gradle` oder ihre `.kts`-Formen, wo darunter eine `.java`-Datei
   liegt) führt Gradle über `{gradle}` aus. Liegen `pom.xml` und ein
-  Gradle-Build nebeneinander, steht die Variante `maven` vorn und gewinnt;
-  `loomux check --show` markiert jede Lane, die sie entschieden hat, mit
-  `# preset, variant maven over gradle`. Ein `pom.xml` oder Gradle-Build in
+  Gradle-Build in einem Bereich nebeneinander, steht die Variante `maven` vorn
+  und gewinnt; `loomux check --show` markiert jede Lane, die sie entschieden
+  hat, mit `# preset, variant maven over gradle`. Maven in `a/` und Gradle in
+  `b/` prüfen jeweils ihren eigenen Bereich, und ein Maven-Beispiel unter einem
+  Gradle-Build in der Wurzel lässt die Wurzel Gradle; `--show` druckt einen
+  Bereich, dessen Build von dem des ersten Bereichs abweicht, als
+  auskommentierten Block `# java in <bereich>:`. Ein `pom.xml` oder Gradle-Build in
   der Wurzel macht die Wurzel zum einzigen `java`-Bereich: Er baut seine
   Module, die für sich geprüft daneben kompilieren würden. `types` trägt
   `lock`, das jede Lane des Bereichs bindet, denn alle schreiben `target/`

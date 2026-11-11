@@ -360,7 +360,8 @@ outside that folder, as a loomux checkout's hooks do.
 The presets are embedded in the binary (`internal/verify/presets.toml`) and
 use the schema above, so a preset can say nothing a project could not. The
 layers are: preset, then the first **variant** whose signal detection found,
-then `[verify.<stack>]`.
+then `[verify.<stack>]`. Each area chooses its variant from the signals found
+in it or in the root; a signal in another area has no say there.
 
 | Stack | `lint` | `types` | `test` | `coverage` |
 |---|---|---|---|---|
@@ -460,8 +461,12 @@ then `[verify.<stack>]`.
 - The java lanes run Maven; the `gradle` variant (a `build.gradle`,
   `settings.gradle`, or their `.kts` forms where a `.java` file lies below)
   runs Gradle through `{gradle}`. With `pom.xml` and a Gradle build side by
-  side the `maven` variant comes first and wins; `loomux check --show` marks
-  each lane it decided with `# preset, variant maven over gradle`. A root
+  side in one area the `maven` variant comes first and wins; `loomux check
+  --show` marks each lane it decided with `# preset, variant maven over
+  gradle`. Maven in `a/` and Gradle in `b/` each check their own area, and a
+  Maven sample below a root Gradle build leaves the root to Gradle; `--show`
+  prints an area whose build differs from the first area's as a commented
+  `# java in <area>:` block. A root
   `pom.xml` or Gradle build makes the root the only `java` area: it builds its
   modules, which checked on their own would compile beside it. `types` takes
   `lock`, which binds every lane of the area, since all of them write

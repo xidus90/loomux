@@ -160,7 +160,10 @@ threaded = true  # preset
   `.loomux/config.toml` kopieren. Eine Lane ohne Befehl ist ein Kommentar,
   `# [verify.<stack>.<art>] not defined`; eine abgeschaltete Lane steht als
   `<art> = false` unter `[verify.<stack>]`, vor den übrigen Tabellen des
-  Stacks. Eingefügt bleiben beide, wie sie waren.
+  Stacks. Eingefügt bleiben beide, wie sie waren. Ein Bereich, dessen Signale
+  eine andere Variante wählten als der erste Bereich des Stacks, folgt als
+  Kommentar unter `# <stack> in <bereich>:`, denn eine Konfiguration hält eine
+  Tabelle je Lane.
 
 ### `loomux check gocover --profile <pfad> [--floor <n>] [--dir <verz>]`
 Beurteilt ein Go-Coverage-Profil des Moduls in `--dir` über

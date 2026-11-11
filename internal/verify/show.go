@@ -20,6 +20,19 @@ func WriteShow(w io.Writer, eff Effective, kinds []string, env PlanEnv) {
 		areas := slices.Sorted(slices.Values(eff.Areas[stack]))
 		fmt.Fprintf(w, "\n# %s: areas %s, %s\n", stack, strings.Join(areas, ", "), testState(eff.TestsWhen[stack], areas, env))
 		writeStack(w, stack, kinds, eff.Stacks[stack], eff.Config.Tools[stack])
+		// A config holds one table per lane, so an area that chose another
+		// variant is a comment.
+		for _, area := range slices.Sorted(maps.Keys(eff.InArea[stack])) {
+			var b strings.Builder
+			writeStack(&b, stack, kinds, eff.InArea[stack][area], eff.Config.Tools[stack])
+			fmt.Fprintf(w, "\n# %s in %s:\n", stack, area)
+			for _, line := range strings.SplitAfter(b.String(), "\n") {
+				if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "#") {
+					line = "# " + line
+				}
+				fmt.Fprint(w, line)
+			}
+		}
 	}
 }
 

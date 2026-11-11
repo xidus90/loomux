@@ -168,8 +168,12 @@ func unavailableLanes(eff verify.Effective, look func(string) (string, error)) [
 	var missing []string
 	for _, stack := range eff.Active {
 		for _, kind := range verify.Kinds() {
-			lane := eff.Stacks[stack][kind].Lane
-			for _, command := range slices.Concat(lane.Commands, lane.OnFile, []string{lane.Measuring, lane.Measure}) {
+			var commands []string
+			for _, area := range eff.Areas[stack] {
+				lane := eff.Lanes(stack, area)[kind].Lane
+				commands = slices.Concat(commands, lane.Commands, lane.OnFile, []string{lane.Measuring, lane.Measure})
+			}
+			for _, command := range commands {
 				fields := strings.Fields(command)
 				// {loomux} is this binary, which is running; the wiki lane
 				// runs in this process and has no command at all.
