@@ -61,7 +61,7 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 }
 
 func TestExtensionsIsACopy(t *testing.T) {
-	want := []string{".c++", ".cc", ".cpp", ".cs", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".py", ".tpp", ".tres", ".tscn", ".uid"}
+	want := []string{".c++", ".cc", ".cpp", ".cs", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".php", ".py", ".tpp", ".tres", ".tscn", ".uid"}
 	first := sourceset.Extensions()
 	if !reflect.DeepEqual(first, want) {
 		t.Fatalf("Extensions() = %v, want %v", first, want)
@@ -122,6 +122,22 @@ func TestListTakesJavaFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []string{"src/main/java/a/App.java"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// PHP sources are listed; Composer's vendor/ and other extensions are not.
+func TestListTakesPHPFiles(t *testing.T) {
+	root := tree(t, map[string]string{
+		"src/App.php": "<?php\n", "vendor/a/b/Lib.php": "<?php\n", "views/a.blade.php.txt": "x",
+		"tpl/a.phtml": "<?php\n", "A.PHP": "<?php\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"src/App.php"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }

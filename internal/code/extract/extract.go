@@ -152,6 +152,12 @@ type Import struct {
 	// System marks C++'s `#include <a/b.hpp>`, which the compiler looks
 	// up on the include path and not next to the file first.
 	System bool `json:"system,omitempty"`
+	// Kind marks a PHP import of something other than a class or
+	// namespace: "function" and "const" for `use function` and
+	// `use const`, "require" for require and include, whose Path is the
+	// file relative to the importing one. PHP keeps a real alias in Alias,
+	// so the mark cannot go there.
+	Kind string `json:"kind,omitempty"`
 }
 
 // RawEdge is an edge whose target is not resolved yet.
@@ -182,7 +188,11 @@ type RawEdge struct {
 	// In C++, "." marks a member call on an object, obj.f() or p->f():
 	// its Receiver names the object and not a class or namespace. Java
 	// marks obj.m() so when the file declares obj as a variable, or the
-	// receiver is a field of this or super.
+	// receiver is a field of this or super. PHP marks so every call
+	// through -> or ?-> but one on $this itself, and $obj::m(), a static
+	// call through an object; "::" marks its static call through a class,
+	// X::m() or self::m(), which a function X\m() would otherwise split
+	// alike.
 	// On a references edge, a Godot namespace -- "godot.method" or
 	// "godot.signal" -- marks a C++ binding: Specifier is the name Godot
 	// knows, Receiver the class and Name the bound method, empty for a
@@ -222,6 +232,7 @@ type Result struct {
 	// per file uses Package instead. C++ also names the namespace of each
 	// free function, and for a method defined outside its class the
 	// namespace plus the qualifier written before the name: "ns::A".
+	// PHP names the namespace of each free function as well.
 	Enclosing map[model.NodeID]string `json:"enclosing,omitempty"`
 	// Embedded are the parts of the file in another language, an inline
 	// script of an HTML page say: the same Path, lines of the whole file,
