@@ -1,0 +1,13 @@
+stacks = ["java"]
+# Only what arrives despite the grammar's gaps in Java 25
+# (docs/en/support.md): the members after the statement before super(...),
+# an ERROR in Square's constructor. Main.java, past the ERROR of import
+# module, keeps its nodes, but main's call of greet stays unresolved, as a
+# call between top-level methods does.
+edges = [
+  ["Shape.java#Square", "extends", "Shape.java#Shape"],
+  ["Shape.java#Square.twice", "calls", "Shape.java#Square.area"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

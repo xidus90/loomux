@@ -1,0 +1,10 @@
+stacks = ["java"]
+# A sealed interface, a record and a final class it permits.
+edges = [
+  ["Syntax.java#Circle", "implements", "Syntax.java#Shape"],
+  ["Syntax.java#Square", "implements", "Syntax.java#Shape"],
+  ["Syntax.java#Square.twice", "calls", "Syntax.java#Square.area"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

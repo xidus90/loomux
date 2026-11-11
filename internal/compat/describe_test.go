@@ -28,7 +28,8 @@ func TestDescribeNamesRuntimeAndAddonSources(t *testing.T) {
 // The installers' spellings: actions/setup-go takes Go's own "go1.21rc2"
 // (README, "Native Go versions"), uv the PEP 440 "3.16.0a1" (uv python list
 // --all-versions), godot-builds tags a pre-release "4.8-beta2" bare and a
-// stable one "<version>-stable", which compat-setup.sh appends.
+// stable one "<version>-stable", which compat-setup.sh appends, and
+// actions/setup-java an early access "28-ea" (README, "Early access").
 func TestDescribeInstallsThePreRelease(t *testing.T) {
 	for _, c := range []struct{ runtime, version, pre, want string }{
 		{"go", "1.28", "1.28rc1", "go1.28rc1"},
@@ -37,6 +38,8 @@ func TestDescribeInstallsThePreRelease(t *testing.T) {
 		{"python", "3.15", "", "3.15"},
 		{"godot", "4.8", "4.8-beta2", "4.8-beta2"},
 		{"godot", "4.7", "", "4.7"},
+		{"java", "28", "28-ea", "28-ea"},
+		{"java", "27", "", "27"},
 	} {
 		d, err := DescribeEntry(Entry{Runtime: c.runtime, Version: c.version, Pre: c.pre})
 		if err != nil || d.Install != c.want {

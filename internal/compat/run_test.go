@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -137,6 +138,21 @@ func TestABreakThatAlsoBreaksAnotherKindIsRed(t *testing.T) {
 	}))
 	if rep.Green || !slices.Equal(rep.Lines, []string{"break lint: test/stack: failed, want ok\nAssertionError"}) {
 		t.Fatalf("report %+v", rep)
+	}
+}
+
+// A break may name kinds it turns red as well: a compile error fails Gradle's
+// checkstyle tasks, which compile first. Those must fail too.
+func TestABreakHoldsTheKindsItAlsoBreaksToFailed(t *testing.T) {
+	b := &Break{Kind: "types", Also: []string{"lint"}}
+	kinds := []string{"lint", "types", "test"}
+	results := []LaneResult{{Lane: "lint/java", State: "failed"}, {Lane: "types/java", State: "failed"}, {Lane: "test/java", State: "blocked"}}
+	if got := judge(results, kinds, b); len(got) != 0 {
+		t.Fatalf("judge = %q", got)
+	}
+	results[0].State = "ok"
+	if got := judge(results, kinds, b); !slices.Equal(got, []string{"lint/java: ok, want failed"}) {
+		t.Fatalf("judge = %q", got)
 	}
 }
 
@@ -397,6 +413,39 @@ func TestCMakeRunsTheTool(t *testing.T) {
 	t.Setenv("PATH", "")
 	if _, err := cmake(t.TempDir(), "--version"); err == nil {
 		t.Error("cmake ran without a PATH")
+	}
+}
+
+// One Maven fixture serves several versions: a run compiles it at the
+// entry's, through source and target on Java 8, whose javac takes no
+// --release. The Gradle fixture's toolchain follows the same way, and its
+// wrapper is a program again.
+func TestAJavaEntryCompilesAtItsVersion(t *testing.T) {
+	for _, c := range []struct {
+		e          Entry
+		file, want string
+	}{
+		{Entry{Runtime: "java", Version: "11", Fixture: "java-maven-junit5"}, "pom.xml",
+			"<maven.compiler.source>11</maven.compiler.source>\n    <maven.compiler.target>11</maven.compiler.target>"},
+		{Entry{Runtime: "java", Version: "27", Fixture: "java-maven-junit6"}, "pom.xml",
+			"<maven.compiler.release>27</maven.compiler.release>"},
+		{Entry{Runtime: "java", Version: "25", Fixture: "java-gradle-junit6"}, "build.gradle",
+			"JavaLanguageVersion.of(25)"},
+	} {
+		dir := filepath.Join(t.TempDir(), "w")
+		if err := prepare(c.e, RunOptions{}, dir, nil); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := os.ReadFile(filepath.Join(dir, c.file)); err != nil || !strings.Contains(string(got), c.want) {
+			t.Errorf("%s %s: %v\n%s", c.e.Fixture, c.file, err, got)
+		}
+	}
+	dir := filepath.Join(t.TempDir(), "w")
+	if err := prepare(Entry{Runtime: "java", Version: "21", Fixture: "java-gradle-junit6"}, RunOptions{}, dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(filepath.Join(dir, "gradlew")); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm()&0o100 == 0) {
+		t.Errorf("gradlew: %v %v", info, err)
 	}
 }
 

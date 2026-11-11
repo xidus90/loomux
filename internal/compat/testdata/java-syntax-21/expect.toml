@@ -1,0 +1,10 @@
+stacks = ["java"]
+# Record patterns and a pattern switch with a guard, whose case calls big.
+edges = [
+  ["Syntax.java#Circle", "implements", "Syntax.java#Shape"],
+  ["Syntax.java#Square", "implements", "Syntax.java#Shape"],
+  ["Syntax.java#Areas.area", "calls", "Syntax.java#Areas.big"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

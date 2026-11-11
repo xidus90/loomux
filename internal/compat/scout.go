@@ -57,15 +57,16 @@ func IssueTitle(f Finding) string {
 
 // preRe reads a pre-release the way the runtimes spell it: Go "1.28rc1" and
 // "1.28beta1", Python "3.16.0a1", Godot "4.8-beta2", .NET "11.0.0-preview.7"
-// and "11.0.0-rc.2", and a C++ standard ISO has yet to publish "26-draft"
-// (see cppReleases). Compiled on first use: package start has an allocation
-// budget (cmd/loomux start_test.go).
+// and "11.0.0-rc.2", a C++ standard ISO has yet to publish "26-draft" (see
+// cppReleases), and a Java feature release with early-access builds only
+// "28-ea", as actions/setup-java takes it. Compiled on first use: package
+// start has an allocation budget (cmd/loomux start_test.go).
 var preRe = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`^(\d+)(?:\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc)\.?(\d+)|-draft)$`)
+	return regexp.MustCompile(`^(\d+)(?:\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc)\.?(\d+)|-draft|-ea)$`)
 })
 
 // parsePre reads the version a pre-release leads to, major.minor or, for a
-// draft, the major alone; anything else does not parse.
+// draft or an early access, the major alone; anything else does not parse.
 func parsePre(s string) ([]int, bool) {
 	m := preRe().FindStringSubmatch(s)
 	if m == nil {
@@ -108,9 +109,11 @@ const (
 	// preview or release candidate while the channel has no stable one yet.
 	dotnetSource   = "https://raw.githubusercontent.com/dotnet/core/main/release-notes/releases-index.json"
 	githubReleases = "https://api.github.com/repos/%s/releases?per_page=100"
-	// eolSource covers go, python, godot and dotnet under those names;
-	// python.org and Godot publish no machine-readable end of support of
-	// their own.
+	// The feature releases Temurin builds, and the tip, the next one.
+	adoptiumSource = "https://api.adoptium.net/v3/info/available_releases"
+	// eolSource covers go, python, godot and dotnet under those names, java
+	// under eolProducts; python.org and Godot publish no machine-readable
+	// end of support of their own.
 	eolSource  = "https://endoflife.date/api/v1/products/%s"
 	pypiSource = "https://pypi.org/pypi/%s/json"
 )
@@ -125,7 +128,11 @@ const cppSource = "iso:cpp"
 // entries go into the list by hand.
 var cppReleases = []Release{{"17", false}, {"20", false}, {"23", false}, {"26-draft", true}}
 
-var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource}
+var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource, "java": adoptiumSource}
+
+// eolProducts are the endoflife.date products of runtimes it names
+// otherwise: the list's Java is Eclipse Temurin.
+var eolProducts = map[string]string{"java": "eclipse-temurin"}
 
 var addonRepos = map[string]string{
 	"GUT":          "bitwes/Gut",
@@ -494,7 +501,7 @@ func (h HTTPUpstream) Releases(source string) ([]Release, error) {
 // EOL fetches the runtime's releases from endoflife.date and reads which
 // major.minor versions are past end of support.
 func (h HTTPUpstream) EOL(runtime string) (map[string]bool, error) {
-	body, err := h.get(fmt.Sprintf(eolSource, runtime))
+	body, err := h.get(fmt.Sprintf(eolSource, cmp.Or(eolProducts[runtime], runtime)))
 	if err != nil {
 		return nil, err
 	}
@@ -567,6 +574,21 @@ func parseReleases(source string, body []byte) ([]Release, error) {
 		}
 		for _, r := range rs {
 			out = append(out, Release{strings.TrimPrefix(r.Version, "go"), !r.Stable})
+		}
+	case source == adoptiumSource:
+		var doc struct {
+			Releases []int `json:"available_releases"`
+			Newest   int   `json:"most_recent_feature_release"`
+			Tip      int   `json:"tip_version"`
+		}
+		if err := json.Unmarshal(body, &doc); err != nil {
+			return nil, err
+		}
+		for _, v := range doc.Releases {
+			out = append(out, Release{Version: strconv.Itoa(v)})
+		}
+		if doc.Tip > doc.Newest {
+			out = append(out, Release{strconv.Itoa(doc.Tip) + "-ea", true})
 		}
 	case source == dotnetSource:
 		var doc struct {

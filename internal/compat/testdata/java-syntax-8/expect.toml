@@ -1,0 +1,10 @@
+stacks = ["java"]
+# A lambda, a default method and a type annotation.
+edges = [
+  ["Syntax.java#Syntax", "implements", "Syntax.java#Greeter"],
+  ["Syntax.java#Greeter.greet", "calls", "Syntax.java#Greeter.name"],
+  ["Syntax.java#Syntax.shout", "calls", "Syntax.java#Syntax.twice"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

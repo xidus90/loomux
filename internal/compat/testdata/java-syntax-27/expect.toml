@@ -1,0 +1,12 @@
+stacks = ["java"]
+# Java 27 brought no final syntax of its own, so this fixture carries the
+# forms of 25 to 27, a deliberate exception to "the syntax its version
+# introduced" (TestTheJava25GapsLeaveTheRestOfTheFile holds the two alike).
+# Only what arrives despite the grammar's gaps, as in java-syntax-25.
+edges = [
+  ["Shape.java#Square", "extends", "Shape.java#Shape"],
+  ["Shape.java#Square.twice", "calls", "Shape.java#Square.area"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

@@ -245,6 +245,107 @@ version = "17"
 fixture = "godot4-cpp"
 kinds = ["graph"]
 
+# A Java version is a feature release of Eclipse Temurin. The fixtures pin
+# their plugins, test framework and Checkstyle themselves, and a run compiles
+# them at the entry's version; Maven comes from CI's setup, Gradle through
+# the fixture's wrapper, so the entries name no tools. JUnit 6 and
+# Checkstyle 12 need Java 17, Checkstyle 14 Java 21: 8 and 11 run JUnit 5
+# and Checkstyle 9.3, 17 JUnit 6 and Checkstyle 12.
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "8"
+fixture = "java-maven-junit5"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "11"
+fixture = "java-maven-junit5"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "17"
+fixture = "java-maven-junit6-17"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "21"
+fixture = "java-maven-junit6"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "25"
+fixture = "java-maven-junit6"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "27"
+fixture = "java-maven-junit6"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "21"
+fixture = "java-gradle-junit6"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+# A syntax entry per Java version. 27 brought no final syntax of its own:
+# its fixture carries the forms of 25.
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "8"
+fixture = "java-syntax-8"
+kinds = ["graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "11"
+fixture = "java-syntax-11"
+kinds = ["graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "17"
+fixture = "java-syntax-17"
+kinds = ["graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "21"
+fixture = "java-syntax-21"
+kinds = ["graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "25"
+fixture = "java-syntax-25"
+kinds = ["graph"]
+
+[[entry]]
+stack = "java"
+runtime = "java"
+version = "27"
+fixture = "java-syntax-27"
+kinds = ["graph"]
+
 # Files that are neither an entry nor a fixture but decide what an entry
 # proves. A change to one of paths (not to an except) runs the entries the
 # rule selects: all, those of some stacks, or those with some addons.
