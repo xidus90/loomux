@@ -398,7 +398,7 @@ then `[verify.<stack>]`.
   `excluded_directories` in `.gdlintrc` (gdtoolkit 3.2.8 and later) and in
   `.gdformatrc` (4.3.0 and later). Both files are YAML; a directory is matched
   by name at any depth, and only `.git` is excluded by default.
-- Go, Python, GDScript and C# carry a `rules` lane, the same in each:
+- Go, Python, GDScript, C# and C++ carry a `rules` lane, the same in each:
   `{loomux} check rules --cached` (the commit and the turn end read the index)
   and, for an edit, `{loomux} check rules` (the working tree). See
   [`[rules]`](#rules-the-layer-map).
@@ -479,7 +479,7 @@ then `[verify.<stack>]`.
 #### The `graph` kind
 
 The fifth kind checks what a commit's change reaches in the code graph. Go,
-Python, GDScript and C# have a preset for it, with the same commands:
+Python, GDScript, C# and C++ have a preset for it, with the same commands:
 
 ```toml
 [stack.go.graph]
@@ -492,6 +492,9 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
 [stack.csharp.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.cpp.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 

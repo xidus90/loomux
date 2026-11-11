@@ -1074,7 +1074,7 @@ func factsOf(stacks ...string) detect.Facts {
 	return f
 }
 
-// The carrier follows the rank go, python, gdscript, csharp, then byte order, not the
+// The carrier follows the rank go, python, gdscript, csharp, cpp, then byte order, not the
 // walk: the jobs stay in byte order, and the carrier may stand later in it.
 func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 	unranked := "[verify.css.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
@@ -1099,8 +1099,10 @@ func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 			[][3]string{{"graph/gdscript", "", ""}, {"graph/rust", "not-applicable", covered("gdscript")}}},
 		{"gdscript beats csharp", "", []string{"csharp", "gdscript"},
 			[][3]string{{"graph/csharp", "not-applicable", covered("gdscript")}, {"graph/gdscript", "", ""}}},
-		{"csharp beats a stack without a rank", "[verify.cpp.graph]\ncommands = [\"b\"]\n", []string{"cpp", "csharp"},
+		{"csharp beats cpp", "", []string{"cpp", "csharp"},
 			[][3]string{{"graph/cpp", "not-applicable", covered("csharp")}, {"graph/csharp", "", ""}}},
+		{"cpp beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"cpp", "rust"},
+			[][3]string{{"graph/cpp", "", ""}, {"graph/rust", "not-applicable", covered("cpp")}}},
 		{"unranked stacks follow in byte order", unranked, []string{"rust", "css"},
 			[][3]string{{"graph/css", "", ""}, {"graph/rust", "not-applicable", covered("css")}}},
 	} {

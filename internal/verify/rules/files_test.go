@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/extract/cpp"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/verify/linecov"
 )
@@ -288,6 +289,20 @@ func TestFilesWorkingTreeDropsAMissingFileWithoutContent(t *testing.T) {
 	}
 	if got, err := Files(root, false); err != nil || len(got) != 0 {
 		t.Fatalf("%v, %v", got, err)
+	}
+}
+
+// The rules read what the graph extracts: every extension the C++ extractor
+// takes is read, and a plain ".c", which it does not take, is not.
+func TestContentExtsCoverTheCppExtractor(t *testing.T) {
+	exts := cpp.Language{}.Extensions()
+	for _, e := range exts {
+		if !wantsContent("x" + e) {
+			t.Errorf("%s is not read", e)
+		}
+	}
+	if wantsContent("x.c") {
+		t.Error(".c is read")
 	}
 }
 

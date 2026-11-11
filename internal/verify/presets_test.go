@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -229,10 +230,25 @@ func TestTreeSitterGraphLanesAreTheGoOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	goLane := p.Stacks["go"].Lanes["graph"]
-	for _, stack := range []string{"python", "gdscript", "csharp"} {
+	for _, stack := range []string{"python", "gdscript", "csharp", "cpp"} {
 		lane := p.Stacks[stack].Lanes["graph"]
 		if len(lane.Commands) == 0 || !slices.Equal(lane.Commands, goLane.Commands) || lane.OnFile != nil || lane.Threaded {
 			t.Errorf("%s %+v, go %+v", stack, lane, goLane)
+		}
+	}
+}
+
+// The graph and the rules belong to the root, so C++ runs them as Python
+// does.
+func TestTheCppGraphAndRulesLanesAreThePythonOnes(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"graph", "rules"} {
+		cpp, py := p.Stacks["cpp"].Lanes[kind], p.Stacks["python"].Lanes[kind]
+		if len(cpp.Commands) == 0 || !reflect.DeepEqual(cpp, py) {
+			t.Errorf("%s: cpp %+v, python %+v", kind, cpp, py)
 		}
 	}
 }

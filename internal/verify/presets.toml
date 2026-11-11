@@ -124,9 +124,9 @@ commands = ["uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdl
 on_file = ["uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdlint {file}", "uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdformat --check {file}"]
 
 # The graph belongs to the root, and the highest-ranked active stack with a
-# graph command carries it (go, python, gdscript, csharp): with Go or Python
-# beside it their lane carries and this one stands aside; it carries in a
-# project with neither.
+# graph command carries it (go, python, gdscript, csharp, cpp): with Go or
+# Python beside it their lane carries and this one stands aside; it carries in
+# a project with neither.
 [stack.gdscript.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
@@ -235,6 +235,15 @@ needs = ["build/CMakeCache.txt"]
 commands = ["gcovr --root . --object-directory build --fail-under-line 100 --txt"]
 after = "test"
 needs = ["build/CMakeCache.txt"]
+
+# The graph and the rules read the sources, not the build tree, so they need
+# no configured build.
+[stack.cpp.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.cpp.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
 
 [stack.typescript]
 tests_when = ["package.json:vitest"]
