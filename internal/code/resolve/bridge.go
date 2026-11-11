@@ -170,10 +170,10 @@ func bridgeEdges(rules map[extract.Namespace]nsRule, paths []string, offers []of
 			cands = append(cands, o)
 		}
 		hits, conf, fb := cands, model.ConfidenceExtracted, rule.unscoped
-		if len(b.Scope) > 0 {
+		if len(b.Scope) > 0 || b.Class != "" {
 			var scoped []offer
 			for _, o := range cands {
-				if slices.Contains(b.Scope, o.file) {
+				if (len(b.Scope) == 0 || slices.Contains(b.Scope, o.file)) && (b.Class == "" || o.Class == b.Class) {
 					scoped = append(scoped, o)
 				}
 			}

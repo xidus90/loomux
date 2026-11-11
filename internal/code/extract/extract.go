@@ -241,21 +241,24 @@ var Namespaces = []Namespace{NamespaceGodotClass, NamespaceGodotMethod, Namespac
 
 // Export is a definition a file offers across a language boundary, under
 // the name the offering side gives it: a C# signal delegate HitEventHandler
-// is offered as Hit, because that is what a scene calls it.
+// is offered as Hit, because that is what a scene calls it. Class is the
+// class a member belongs to, for a use that names the class and not a file.
 type Export struct {
 	Namespace Namespace    `json:"namespace"`
 	Name      string       `json:"name"`
+	Class     string       `json:"class,omitempty"`
 	Target    model.NodeID `json:"target"`
 }
 
 // Bridge is a use that names a definition in another language. Scope
-// lists the files the use itself names as the place to look; empty, the
-// namespace's rules decide.
+// lists the files the use itself names as the place to look, Class the
+// class whose member it wants; empty, the namespace's rules decide.
 type Bridge struct {
 	Source    model.NodeID   `json:"source"`
 	Relation  model.Relation `json:"relation"`
 	Namespace Namespace      `json:"namespace"`
 	Name      string         `json:"name"`
+	Class     string         `json:"class,omitempty"`
 	Scope     []string       `json:"scope,omitempty"`
 	File      string         `json:"file"`
 	Line      int            `json:"line,omitempty"`
