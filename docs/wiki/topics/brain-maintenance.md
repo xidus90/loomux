@@ -8,8 +8,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:cf41742bc0aed97a6e1d89c66fe5e0d13b0b8bdc0eaa799d541539d79c3a301c"
-    revision: 37
+    content_hash: "sha256:9acd3e7d477f646926ab9f887f7b47c0c0eb1d8ccb10506a44852c17a6562e9d"
+    revision: 38
 ---
 
 Die Pflegeschicht ist mit **Stufe 3** gebaut,

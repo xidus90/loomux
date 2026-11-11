@@ -230,7 +230,7 @@ func TestTreeSitterGraphLanesAreTheGoOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	goLane := p.Stacks["go"].Lanes["graph"]
-	for _, stack := range []string{"python", "gdscript", "csharp", "cpp"} {
+	for _, stack := range []string{"python", "gdscript", "csharp", "cpp", "java"} {
 		lane := p.Stacks[stack].Lanes["graph"]
 		if len(lane.Commands) == 0 || !slices.Equal(lane.Commands, goLane.Commands) || lane.OnFile != nil || lane.Threaded {
 			t.Errorf("%s %+v, go %+v", stack, lane, goLane)
@@ -283,5 +283,31 @@ func TestTheCppLanesLintEveryCompiledFileAndTestTheBuild(t *testing.T) {
 	}
 	if cpp["test"].After != "types" {
 		t.Errorf("test runs after %q", cpp["test"].After)
+	}
+}
+
+// mvn test and gradle test compile before they run, so a compile error
+// would turn the test lane red beside the types lane; waiting for it, the
+// test lane is blocked instead. A variant replaces a lane whole, so the
+// Gradle one says it too.
+func TestTheJavaTestLanesWaitForTheCompile(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	java := p.Stacks["java"]
+	lanes := []Lane{java.Lanes["test"]}
+	for _, v := range java.Variants {
+		if l, ok := v.Lanes["test"]; ok {
+			lanes = append(lanes, l)
+		}
+	}
+	if len(lanes) != 2 {
+		t.Fatalf("test lanes %+v", lanes)
+	}
+	for _, l := range lanes {
+		if l.After != "types" {
+			t.Errorf("%q runs after %q", l.Commands, l.After)
+		}
 	}
 }

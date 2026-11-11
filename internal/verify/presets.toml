@@ -27,6 +27,7 @@ ignored = [".txt", ".json", ".yaml", ".yml", ".toml", ".svg", ".png", ".jpg", ".
 ".html" = "html"
 ".htm" = "html"
 ".cs" = "csharp"
+".java" = "java"
 ".sh" = "shell"
 ".bash" = "shell"
 ".zsh" = "shell"
@@ -248,6 +249,81 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 [stack.cpp.rules]
 commands = ["{loomux} check rules --cached"]
 on_file  = ["{loomux} check rules"]
+
+# The base lanes are Maven's. A root pom.xml or Gradle build makes the root
+# the only area (detection): it builds its modules, which checked on their own
+# would compile beside it into the same target/ or build/.
+# Every lane of a build writes the area's output directory, so one lock binds
+# them; each variant's types lane carries it, since a variant replaces a lane
+# whole.
+# tests_when are the names Surefire runs by default; Gradle scans the compiled
+# classes instead, and its tests follow the same names by convention.
+[stack.java]
+tests_when = ["*Test.java", "*Tests.java", "Test*.java", "*TestCase.java"]
+
+# No Checkstyle reads every Java version: the last one that runs on Java 8
+# cannot read Java 21, and the newest needs Java 21 to run. The project's
+# pom.xml chooses the version, and without the plugin there is no lint.
+[stack.java.lint]
+commands = ["mvn -B -q checkstyle:check"]
+when_found = ["pom.xml:maven-checkstyle-plugin"]
+
+[stack.java.types]
+commands = ["mvn -B -q -DskipTests compile test-compile"]
+lock = true
+
+# The plugin's full coordinates need no JaCoCo in the pom.xml. The test
+# compiles first, so it waits for the types lane: a compile error leaves it
+# blocked rather than red a second time.
+[stack.java.test]
+commands = ["mvn -B -q test"]
+after = "types"
+measuring = "mvn -B -q org.jacoco:jacoco-maven-plugin:0.8.16:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.16:report"
+
+# Each module writes its own report: the second glob finds the modules one
+# level below a root pom.xml.
+[stack.java.coverage]
+commands = ["{loomux} check linecov --report target/site/jacoco/jacoco.xml --report */target/site/jacoco/jacoco.xml"]
+measure = "mvn -B -q org.jacoco:jacoco-maven-plugin:0.8.16:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.16:report"
+after = "test"
+
+[stack.java.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+# The rules read the repository root; the commit form reads the staged tree,
+# the edit form the working tree.
+[stack.java.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
+
+# Listed first, Maven wins where both builds are found; it keeps the base
+# lanes, and the origin of each lane names the build it won over.
+[[stack.java.variant]]
+when = "maven"
+
+# {gradle} is the area's wrapper where it has one, else gradle on the PATH.
+# The checkstyle tasks compile first, since their classpath holds the
+# classes: a compile error shows in the lint as well.
+[[stack.java.variant]]
+when = "gradle"
+[stack.java.variant.lint]
+commands = ["{gradle} checkstyleMain checkstyleTest"]
+when_found = ["build.gradle*:checkstyle"]
+[stack.java.variant.types]
+commands = ["{gradle} compileJava compileTestJava"]
+lock = true
+[stack.java.variant.test]
+commands = ["{gradle} test"]
+after = "types"
+
+# Only the jacoco plugin brings jacocoTestReport, so the test lane cannot
+# measure: a build without it would fail on the task. Coverage reports on
+# what test left, or runs both itself.
+[stack.java.variant.coverage]
+commands = ["{gradle} jacocoTestReport", "{loomux} check linecov --report build/reports/jacoco/test/jacocoTestReport.xml --report */build/reports/jacoco/test/jacocoTestReport.xml"]
+measure = "{gradle} test jacocoTestReport"
+after = "test"
+when_found = ["build.gradle*:jacoco"]
 
 [stack.typescript]
 tests_when = ["package.json:vitest"]

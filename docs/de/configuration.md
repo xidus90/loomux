@@ -233,7 +233,7 @@ Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
 #### Stacks
 
 `[verify.<stack>]` gibt es für `go`, `python`, `typescript`, `vue`, `svelte`,
-`css`, `html`, `gdscript`, `csharp`, `cpp`, `shell`, `sql`, `rust`, dazu `wiki` und
+`css`, `html`, `gdscript`, `csharp`, `cpp`, `java`, `shell`, `sql`, `rust`, dazu `wiki` und
 `project`. Jeder andere Name ist ein Ladefehler.
 
 - **Wo ein Stack läuft.** Die Erkennung liest das Wurzelverzeichnis und eine
@@ -325,6 +325,7 @@ anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
 | `{loomux}` | Das laufende Binary. So findet das Go-Preset `gocover` auch dort, wo loomux nicht auf dem `PATH` liegt. |
 | `{tool:NAME}` | Ein ganzes Argument: die Anforderung, aus der `NAME` läuft, also `NAME==<version>` (oder `NAME<bedingung>`), wo `[verify.<stack>].tools` es festlegt, sonst `NAME`. Die Presets für Python und GDScript nennen ihre Werkzeuge so (`uv run --with {tool:mypy} mypy …`, `uvx --from {tool:gdtoolkit} gdlint .`). |
 | `{from:NAME}` | Ein ganzes Argument: `--from=NAME==<version>`, wo `tools` `NAME` festlegt, sonst gar kein Argument; für `uvx` (`uvx {from:ruff} ruff check .`). |
+| `{gradle}` | Ein ganzes Argument: der Gradle-Wrapper des Bereichs mit absolutem Pfad (`gradlew.bat` unter Windows, sonst `gradlew`), sonst `gradle` aus dem `PATH` (`{gradle} test`). |
 | `{solution}` | Ein ganzes Argument: die eine `.sln`- oder `.slnx`-Datei des Bereichs, sonst gar kein Argument; dotnet wählt dann das Projekt des Ordners selbst (`dotnet build {solution}`). Eine Projektmappe in der Wurzel macht die Wurzel außerdem zum einzigen `csharp`-Bereich: Sie baut die Projekte darunter. |
 | `{godot}` | Nur `gdscript`, anderswo ein Ladefehler. Die Linie kommt aus der `project.godot` des Bereichs: `config/features` nennt Haupt- und Nebenversion, und wo es fehlt — in einem Godot-3-Projekt ab 3.1 — steht `config_version=4` für die ganze 3er-Linie, von der nur die Hauptversion verglichen wird. Ein `config_version`, das keine eigene Linie nennt, `5` ohne `config/features` eingeschlossen, lässt die Lane `unready`. Ein Binary aus `GODOT_BIN` oder `[verify.gdscript] godot` wird an diese Linie gehalten: eines einer anderen Linie wird abgelehnt, nicht übergangen, denn es zu nennen war Absicht. Nennt keines von beiden eines, werden die Engines aus `GODOT_BIN_DIR` (dessen Dateien, deren Name mit `godot` beginnt, in Namensreihenfolge) und danach `godot`/`godot4` vom `PATH` der Reihe nach gefragt, und das erste, das zur Linie passt, gewinnt. Unter Windows wird die `_console.exe` neben einer gefundenen `.exe` genommen, da die Fensterfassung nichts auf stdout schreibt. Ein Mono-Build ist nötig, wo das Projekt einen `[dotnet]`-Abschnitt hat. Passt kein Kandidat, ist die Lane `unready` und nennt gefundene Fassung und gewollte Linie; gibt es gar keinen, ist sie `missing-tool` und sagt, wo gesucht wurde. Jedes verschiedene Binary wird je Lauf einmal gefragt, höchstens 30 s lang; an einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget, und eine Lane, deren Binary nicht rechtzeitig gefragt werden konnte, endet als `budget`, nie als Abweichung. |
 
@@ -378,6 +379,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (mit GUT) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
 | csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (wo ein `.csproj` `Microsoft.NET.Test.Sdk` nennt) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, gemessen von `dotnet test` mit `--collect "XPlat Code Coverage" --results-directory {coverdata}` |
 | cpp | `run-clang-tidy -p build -quiet` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
+| java | `mvn -B -q checkstyle:check` (wo `pom.xml` `maven-checkstyle-plugin` nennt); mit `gradle`: `{gradle} checkstyleMain checkstyleTest` (wo ein `build.gradle*` `checkstyle` nennt) | `mvn -B -q -DskipTests compile test-compile`; mit `gradle`: `{gradle} compileJava compileTestJava` | `mvn -B -q test`; mit `gradle`: `{gradle} test` | `{loomux} check linecov --report target/site/jacoco/jacoco.xml --report */target/site/jacoco/jacoco.xml`, gemessen von `mvn` mit `org.jacoco:jacoco-maven-plugin:0.8.16:prepare-agent` und `:report`; mit `gradle`: `{gradle} jacocoTestReport` und `check linecov` auf `build/reports/jacoco/test/jacocoTestReport.xml` (wo ein `build.gradle*` `jacoco` nennt) |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
 | rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
@@ -453,6 +455,36 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   `run-clang-tidy`, denn `clang-tidy` prüft nur die Dateien, die man ihm
   nennt, und die Compile-Kommandos nennen alle; `test` läuft
   `after = "types"`, denn ctest führt aus, was der Build gebaut hat.
+- Die java-Lanes führen Maven aus; die Variante `gradle` (ein `build.gradle`,
+  `settings.gradle` oder ihre `.kts`-Formen, wo darunter eine `.java`-Datei
+  liegt) führt Gradle über `{gradle}` aus. Liegen `pom.xml` und ein
+  Gradle-Build nebeneinander, steht die Variante `maven` vorn und gewinnt;
+  `loomux check --show` markiert jede Lane, die sie entschieden hat, mit
+  `# preset, variant maven over gradle`. Ein `pom.xml` oder Gradle-Build in
+  der Wurzel macht die Wurzel zum einzigen `java`-Bereich: Er baut seine
+  Module, die für sich geprüft daneben kompilieren würden. `types` trägt
+  `lock`, das jede Lane des Bereichs bindet, denn alle schreiben `target/`
+  oder `build/`; `test` läuft `after = "types"`, denn es kompiliert zuerst,
+  und ein Kompilierfehler machte es ein zweites Mal rot. Der Maven-`lint` läuft nur, wo ein `pom.xml` das
+  `maven-checkstyle-plugin` konfiguriert: Kein Checkstyle liest jede
+  Java-Version, also wählt das Projekt. `mvn checkstyle:check` von der
+  Kommandozeile führt die Ausführung `default-cli` des Plugins aus, die eine
+  `<configuration>` innerhalb einer `<execution>` nicht liest: Dort prüft
+  Checkstyle gegen sein vorgegebenes `sun_checks.xml`. Die Konfiguration
+  gehört dann auf die Ebene des Plugins, oder das Projekt schreibt
+  `[verify.java] lint` selbst. Der Gradle-`lint` führt `checkstyleMain
+  checkstyleTest` aus, wo ein `build.gradle*` im Bereich, Unterprojekte
+  eingeschlossen, `checkstyle` nennt; Checkstyle, das nur ein
+  Konventions-Plugin anwendet (`buildSrc`, `build-logic`), bekommt keine
+  Lint-Lane, was die Lane entfernt und nichts rot macht. Die
+  Checkstyle-Tasks von Gradle kompilieren zuerst, denn ihr Klassenpfad hält
+  die Klassen; ein Kompilierfehler zeigt sich darum in `lint` ebenso wie in
+  `types`. Maven misst über die vollen
+  Koordinaten von JaCoCo und braucht kein JaCoCo im `pom.xml`; das
+  Gradle-`coverage` braucht das Plugin `jacoco` im Build, und seine
+  `test`-Lane misst nicht, denn ohne das Plugin gibt es kein
+  `jacocoTestReport`. Gelesen werden die Berichte im Bereich und in den
+  Modulen eine Ebene darunter.
 - **Messen.** `test` misst nur, wenn `coverage` im selben Lauf steht (go:
   `-covermode=set -coverprofile={coverprofile}`, python:
   `uv run --with coverage --with pytest coverage run -m pytest …`); allein bleibt es der schnelle Weg.
@@ -483,7 +515,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset haben Go, Python, GDScript, C# und C++, mit denselben Befehlen:
+erreicht. Ein Preset haben Go, Python, GDScript, C#, C++ und Java, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
@@ -500,6 +532,9 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 
 [stack.cpp.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.java.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 
 `graph-fresh` baut einen gedrifteten Graphen neu; `blast-audit --cached` ist
@@ -515,7 +550,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   Graph-Befehl führt ihn nur der ranghöchste aus: in einem
   Repository mit Go und Python läuft `graph/go`, und `graph/python` ist
   `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Der
-  Rang ist `go`, dann `python`, `gdscript`, `csharp` und `cpp`; ein Stack außerhalb dieser
+  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp` und `java`; ein Stack außerhalb dieser
   Liste folgt ihnen in Byte-Reihenfolge. In einem Repository mit einem
   Godot-Projekt neben Go oder Python trägt deren Lane, und `graph/gdscript`
   ist `not-applicable` („graph covered by graph/go“ oder „graph/python“); `graph/gdscript` trägt
@@ -566,8 +601,8 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   ein Klon ohne scharfe Hooks) gehört am Rundenende zu `HEAD` und wird nie
   geprüft.
 - **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
-  zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, `gdscript`, `csharp` und
-  `cpp`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
+  zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, `gdscript`, `csharp`,
+  `cpp` und `java`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
   Godot-Projekt, `[verify.python.graph]` in einem Python-Repository ohne Go
   und `[verify.gdscript.graph]` nur in einem Godot-Projekt mit keinem von
   beiden (und so weiter die Rangfolge hinunter). Eine Überschreibung unter einem Stack, der zurücktritt, wird nie
@@ -607,6 +642,7 @@ Profil `edit` läuft also nie durch den Baum.
 | go | eine Datei `*_test.go` |
 | python | ein Verzeichnis `tests/`, eine Datei `test_*.py` oder `[tool.pytest` in `pyproject.toml` |
 | cpp | `enable_testing(` in `CMakeLists.txt` |
+| java | eine Datei `*Test.java`, `*Tests.java`, `Test*.java` oder `*TestCase.java` |
 | typescript | `vitest` in `package.json` |
 
 - Keine Tests: `test` und `coverage` sind `unavailable`.

@@ -99,7 +99,7 @@ judges them.
 - **Output** (all on `stdout`): one line per lane,
   `<kind>/<stack>[@<area>]: <state> [<origin>]`, followed by the duration for
   a lane that started, `by <lane>` for a blocked one, or the reason for one
-  that never started. `<origin>` is `preset`, `preset, variant <signal>`,
+  that never started. `<origin>` is `preset`, `preset, variant <signal>`, `preset, variant <a> over <b>` (the area has the signals of both, and `<a>` comes first),
   `config` or `in-process`. A red lane prints its output below its line; a
   green one only with `-v`. A lane with several commands prints one block per
   command, headed `$ <argv>`, with `(failed)` on a red one. A kind that had

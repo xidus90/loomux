@@ -106,7 +106,7 @@ urteilt über sie.
   `<art>/<stack>[@<bereich>]: <zustand> [<herkunft>]`, dahinter die Dauer bei
   einer Lane, die gestartet ist, `by <lane>` bei einer blockierten oder der
   Grund bei einer, die nie startete. `<herkunft>` ist `preset`,
-  `preset, variant <signal>`, `config` oder `in-process`. Eine rote Lane druckt
+  `preset, variant <signal>`, `preset, variant <a> over <b>` (der Bereich hat die Signale beider, und `<a>` steht vorn), `config` oder `in-process`. Eine rote Lane druckt
   ihre Ausgabe unter ihre Zeile, eine grüne nur mit `-v`. Eine Lane mit
   mehreren Befehlen druckt einen Block je Befehl mit der Kopfzeile `$ <argv>`,
   bei einem roten mit `(failed)`. Eine Art, die nichts zu prüfen hatte,

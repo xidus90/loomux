@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -262,7 +263,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 // highest first: the first of them with a graph command carries it. A stack
 // outside the list ranks after all of them, and among those the byte order
 // decides.
-var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp"}
+var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java"}
 
 // isRootKind says the kind belongs to the repository root: it runs once, not
 // once per stack and area.
@@ -301,7 +302,7 @@ func EditsRules(file string) bool {
 // IsSource says whether the rules read a file as a source: the extractors'
 // extensions, matched exactly as they match them, so A.GD is none.
 func IsSource(rel string) bool {
-	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp"}, filepath.Ext(rel))
+	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java"}, filepath.Ext(rel))
 }
 
 // rootCarrier is the stack whose job of a root kind a check plans: the
@@ -511,6 +512,9 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	if slices.ContainsFunc(append(slices.Clone(cmds), r.Lane.Measure), func(c string) bool { return strings.Contains(c, placeholderSolution) }) {
 		pairs = append(pairs, placeholderSolution, solutionIn(dir))
 	}
+	if slices.ContainsFunc(append(slices.Clone(cmds), r.Lane.Measure), func(c string) bool { return strings.Contains(c, placeholderGradle) }) {
+		pairs = append(pairs, placeholderGradle, gradleIn(dir))
+	}
 	if req.Scope == ScopeEdit {
 		file := req.File
 		if area != "." {
@@ -621,6 +625,23 @@ func solutionIn(dir string) string {
 		return ""
 	}
 	return found[0]
+}
+
+const placeholderGradle = "{gradle}"
+
+// wrapperName is the Gradle wrapper a build runs on this system: the shell
+// script is no program on Windows.
+func wrapperName() string {
+	return map[bool]string{true: "gradlew.bat", false: "gradlew"}[runtime.GOOS == "windows"]
+}
+
+// gradleIn is the wrapper in dir by its absolute path, since a bare name is
+// looked up on the PATH only, or gradle from the PATH without one.
+func gradleIn(dir string) string {
+	if w := filepath.Join(dir, wrapperName()); exists(w) {
+		return w
+	}
+	return "gradle"
 }
 
 // expand splits a command and fills the placeholders of each argument, the

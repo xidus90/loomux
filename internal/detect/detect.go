@@ -10,6 +10,8 @@ import (
 	"path"
 	"sort"
 	"strings"
+
+	"github.com/xidus90/loomux/internal/code/corpus"
 )
 
 // okfMarker is what separates a brain bundle from a docs folder that happens
@@ -226,6 +228,10 @@ func matches(root fs.FS, area string, sig signal) bool {
 		return false
 	}
 	for _, name := range candidates(root, area, sig) {
+		// Only a matched file pays for the walk.
+		if sig.below != "" && !holds(root, area, sig.below) {
+			return false
+		}
 		if sig.contains == "" {
 			return true
 		}
@@ -235,6 +241,28 @@ func matches(root fs.FS, area string, sig signal) bool {
 		}
 	}
 	return false
+}
+
+// holds says whether a file with the extension lies anywhere under area,
+// the directories the code graph does not enter aside. The walk stops at the
+// first hit.
+// ponytail: a tree without one is walked whole on every detection; cache per
+// area if a large Kotlin repository makes the hooks slow.
+func holds(root fs.FS, area, ext string) bool {
+	found := false
+	fs.WalkDir(root, area, func(p string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return nil
+		case d.IsDir() && p != area && corpus.SkipSegment(d.Name()):
+			return fs.SkipDir
+		case !d.IsDir() && path.Ext(p) == ext:
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return found
 }
 
 func candidates(root fs.FS, area string, sig signal) []string {

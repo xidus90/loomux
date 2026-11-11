@@ -22,6 +22,9 @@ type signal struct {
 	// below it, and a member checked on its own would build it a second
 	// time, or in C++ find no build tree at all.
 	owns bool
+	// below, when set, is an extension some file under the area must carry:
+	// a Gradle build in Kotlin DSL is a Java project only with Java sources.
+	below string
 }
 
 var signals = []signal{
@@ -50,6 +53,11 @@ var signals = []signal{
 	{path: "addons/gut/plugin.cfg", stacks: []string{"gut", "gdscript"}},
 	{path: "docker-compose.yml", stacks: []string{"docker"}},
 	{path: "compose.yaml", stacks: []string{"docker"}},
+	{path: "pom.xml", stacks: []string{"java", "maven"}, owns: true},
+	{path: "build.gradle", stacks: []string{"java", "gradle"}, owns: true},
+	{path: "settings.gradle", stacks: []string{"java", "gradle"}, owns: true},
+	{path: "build.gradle.kts", below: ".java", stacks: []string{"java", "gradle"}, owns: true},
+	{path: "settings.gradle.kts", below: ".java", stacks: []string{"java", "gradle"}, owns: true},
 	{glob: "*.sln", stacks: []string{"csharp"}, owns: true},
 	{glob: "*.slnx", stacks: []string{"csharp"}, owns: true},
 	{glob: "*.csproj", stacks: []string{"csharp"}},
