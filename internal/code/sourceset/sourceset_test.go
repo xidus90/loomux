@@ -62,13 +62,13 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 
 func TestExtensionsIsACopy(t *testing.T) {
 	first := sourceset.Extensions()
-	if !reflect.DeepEqual(first, []string{".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}) {
-		t.Fatalf("Extensions() = %v, want [.gd .go .godot .py .tres .tscn .uid]", first)
+	if !reflect.DeepEqual(first, []string{".cs", ".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}) {
+		t.Fatalf("Extensions() = %v, want [.cs .gd .go .godot .py .tres .tscn .uid]", first)
 	}
 	// A caller that edits its answer must not change what the walk takes.
 	first[0] = ".txt"
-	if again := sourceset.Extensions(); !reflect.DeepEqual(again, []string{".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}) {
-		t.Fatalf("Extensions() after editing an earlier answer = %v, want [.gd .go .godot .py .tres .tscn .uid]", again)
+	if again := sourceset.Extensions(); !reflect.DeepEqual(again, []string{".cs", ".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}) {
+		t.Fatalf("Extensions() after editing an earlier answer = %v, want [.cs .gd .go .godot .py .tres .tscn .uid]", again)
 	}
 }
 
@@ -102,6 +102,11 @@ func TestListSkipsDependencyAndBuildDirectories(t *testing.T) {
 		"_build/gen.go":        "package gen\n",
 		".hidden/secret.go":    "package secret\n",
 		"internal/bin/keep.go": "package keep\n",
+		// MSBuild's intermediate output is pruned; its bin/ is not, a bin/
+		// holds scripts in many repositories.
+		"Game/obj/Debug/Game.AssemblyInfo.cs": "class A {}\n",
+		"Game/bin/Tool.cs":                    "class T {}\n",
+		"Game/Player.cs":                      "class P {}\n",
 	})
 
 	got, err := sourceset.List(root)
@@ -111,9 +116,9 @@ func TestListSkipsDependencyAndBuildDirectories(t *testing.T) {
 	// A dot directory is skipped wholesale; the skip list matches a single path
 	// segment, so a directory merely NAMED like an output dir deeper in the
 	// tree is not exempt -- but "internal/bin" is not on the list at all.
-	want := map[string]bool{"keep.go": true, "internal/bin/keep.go": true}
+	want := map[string]bool{"keep.go": true, "internal/bin/keep.go": true, "Game/bin/Tool.cs": true, "Game/Player.cs": true}
 	if len(got) != len(want) {
-		t.Fatalf("got %v, want the two keepers", got)
+		t.Fatalf("got %v, want the four keepers", got)
 	}
 	for _, rel := range got {
 		if !want[rel] {

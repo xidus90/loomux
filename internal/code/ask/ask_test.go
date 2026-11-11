@@ -200,6 +200,25 @@ func TestRunDeRanksAPythonTestFile(t *testing.T) {
 	}
 }
 
+// A C# test file is de-ranked by the names the blast audit counts as tests.
+func TestRunDeRanksACSharpTestFile(t *testing.T) {
+	for path, testFile := range map[string]bool{
+		"Game.Tests/PlayerTests.cs": true, "PlayerTest.cs": true, "Game.Tests/Helper.cs": true, "tests/Helper.cs": true,
+		"Game/Helper.cs": false, // control: the same body wins when the path is no test
+	} {
+		nodes := []model.Node{
+			symbol(path+"#CacheCacheCache", "CacheCacheCache", path, "cache cache cache"),
+			symbol("Game/Cache.cs#Cache", "Cache", "Game/Cache.cs", "implementation"),
+		}
+		g, ix := world(nodes, nil)
+
+		got := ask.Run(g, ix, "cache", ask.Options{})
+		if sourceFirst := got.Hits[0].ID == "Game/Cache.cs#Cache"; sourceFirst != testFile {
+			t.Errorf("%s: got %v, want the source first = %v", path, idsOf(got), testFile)
+		}
+	}
+}
+
 func TestRunLiftsThePenaltyWhenTheQueryAsksForTests(t *testing.T) {
 	nodes := []model.Node{
 		symbol("lib/cache.go#Cache", "Cache", "lib/cache.go", "implementation"),
