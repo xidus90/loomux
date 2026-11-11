@@ -235,7 +235,7 @@ nothing changes: the lane is not planned and `--show` prints no row for it.
 #### Stacks
 
 `[verify.<stack>]` exists for `go`, `python`, `typescript`, `vue`, `svelte`,
-`css`, `html`, `gdscript`, `cpp`, `shell`, `sql`, `rust`, plus `wiki` and
+`css`, `html`, `gdscript`, `csharp`, `cpp`, `shell`, `sql`, `rust`, plus `wiki` and
 `project`. Any other name is a load error.
 
 - **Where a stack runs.** Detection reads the root and one level below it
@@ -293,7 +293,7 @@ The keys of the table form:
 | `needs` | list | Files, relative to the lane's directory and inside it, the lane's `commands` cannot mean anything without. A missing one makes the lane `unready`: skipped and named in an edit, red in a check. They do not guard `on_file`: an edit that runs a lane's form for one file runs it either way. |
 | `when_found` | list | Patterns in the form of `tests_when`; each must be found under the lane's directory, or the lane is `unavailable` (`none found: <pattern>`). Checked before `needs` and `{godot}`. |
 | `skip_when_only` | list | Globs, relative to the repository root and in the syntax of `[policy.paths]`, of paths the lane does not care about. At a commit (inside the pre-commit hook, where git hands in `GIT_INDEX_FILE`) and at a turn end (against the last green tree, or against the base's tree when there is none; where a commit inside the turn moved HEAD and the turn end runs the graph lane, the paths that commit took since the base's commit count too), a lane whose every changed path matches one of them is `not-applicable` with the note `only skip_when_only paths changed (…)`. A lane that reads its files (as Go's `coverage` reads the coverage file `test` writes) inherits that, so `[verify.go.test] skip_when_only` keeps `coverage` from measuring the suite itself; one that only orders after it (`after` alone) runs; a run that asks for `coverage` alone needs the key on `coverage`. With no changed path, by hand (`loomux check` without the hook) and in an edit every lane runs. Matching is case-sensitive; a path that differs only in case runs the lane. |
-| `lock` | boolean | Take the lane's stack and area for itself in this checkout while its processes run, `measure` included: one locked lane binds every lane of its stack in that area, so a lint waits for a suite that rewrites the sources it reads; `lock = false` on one lane does not exempt it while another lane of the stack sets `lock = true`, and the root lanes (`graph`, `rules`) stay outside. A second run of such a lane for the same stack and area waits, holding no `max_parallel` slot, and prints `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)`. Lanes of one stack and area in the same run take turns the same way, and say `held by another lane of this run`. At a turn end and in an edit the wait counts against the budget and ends as `budget`; in `loomux check` and the pre-commit gate it ends after `[verify].timeout` as `timed-out`. The lock is the operating system's, under `.loomux/state/locks/`, and a dead holder lets it go. For tools that rewrite sources while they measure. |
+| `lock` | boolean | Take the lane's stack and area for itself in this checkout while its processes run, `measure` included: one locked lane binds every lane of its stack in that area, so a lint waits for a suite that rewrites the sources it reads; `lock = false` on one lane does not exempt it while another lane of the stack sets `lock = true`, and the root lanes (`graph`, `rules`) stay outside. A second run of such a lane for the same stack and area waits, holding no `max_parallel` slot, and prints `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)`. Lanes of one stack and area in the same run take turns the same way, and say `held by another lane of this run`. At a turn end and in an edit the wait counts against the budget and ends as `budget`; in `loomux check` and the pre-commit gate it ends after `[verify].timeout` as `timed-out`. The lock is the operating system's, under `.loomux/state/locks/`, and a dead holder lets it go. For `csharp` it is one lock for every area of the repository: a test project builds the project it references into that project's `obj/` and `bin/`. For tools that rewrite sources while they measure. |
 
 - **Replace or merge.** A string or a list stands for the lane as written:
   `measuring`, `measure`, `on_file`, `needs`, `when_found`, `skip_when_only` and `lock` of
@@ -325,6 +325,7 @@ stays literal (`-run 'Test{A,B}'`).
 | `{loomux}` | The running binary. The Go preset finds `gocover` this way even where loomux is not on the `PATH`. |
 | `{tool:NAME}` | A whole argument: the requirement `NAME` runs from, `NAME==<version>` (or `NAME<specifier>`) where `[verify.<stack>].tools` pins it, else `NAME`. The Python and GDScript presets name their tools this way (`uv run --with {tool:mypy} mypy …`, `uvx --from {tool:gdtoolkit} gdlint .`). |
 | `{from:NAME}` | A whole argument: `--from=NAME==<version>` where `tools` pins `NAME`, else no argument at all, for `uvx` (`uvx {from:ruff} ruff check .`). |
+| `{solution}` | A whole argument: the one `.sln` or `.slnx` file in the area, else no argument at all, so dotnet picks the folder's project itself (`dotnet build {solution}`). A solution in the root also makes the root the only `csharp` area: it builds the projects below it. |
 | `{godot}` | `gdscript` only, anywhere else a load error. The line comes from the area's `project.godot`: `config/features` names major and minor, and where it is absent — a Godot 3 project from 3.1 on — `config_version=4` stands for the whole 3 line, of which only the major version is compared. A `config_version` that names no line of its own, `5` without `config/features` included, leaves the lane `unready`. A binary named in `GODOT_BIN` or `[verify.gdscript] godot` is held to that line: one of another line is refused, not passed over, since naming it was deliberate. Where neither names one, the engines of `GODOT_BIN_DIR` (its files whose name begins with `godot`, in name order) and then `godot`/`godot4` on the `PATH` are asked in turn, and the first that fits the line wins. On Windows the `_console.exe` beside a found `.exe` is taken, since the window build writes nothing to stdout. A mono build is required where the project has a `[dotnet]` section. No candidate fitting is `unready`, naming the version found and the line wanted; no candidate at all is `missing-tool`, saying what was looked at. Each distinct binary is asked once per run, for at most 30 s; at a turn end and in an edit the wait counts against the budget, and a lane whose binary could not be asked in time ends as `budget`, never as a mismatch. |
 
 Go lanes run with the go tool's work directory and build cache under the
@@ -370,6 +371,7 @@ then `[verify.<stack>]`.
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .`, `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (with GUT) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
+| csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (where a `.csproj` names `Microsoft.NET.Test.Sdk`) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, measured by `dotnet test` with `--collect "XPlat Code Coverage" --results-directory {coverdata}` |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | only `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -396,7 +398,7 @@ then `[verify.<stack>]`.
   `excluded_directories` in `.gdlintrc` (gdtoolkit 3.2.8 and later) and in
   `.gdformatrc` (4.3.0 and later). Both files are YAML; a directory is matched
   by name at any depth, and only `.git` is excluded by default.
-- Go, Python and GDScript carry a `rules` lane, the same in each:
+- Go, Python, GDScript and C# carry a `rules` lane, the same in each:
   `{loomux} check rules --cached` (the commit and the turn end read the index)
   and, for an edit, `{loomux} check rules` (the working tree). See
   [`[rules]`](#rules-the-layer-map).
@@ -477,7 +479,7 @@ then `[verify.<stack>]`.
 #### The `graph` kind
 
 The fifth kind checks what a commit's change reaches in the code graph. Go,
-Python and GDScript have a preset for it, with the same commands:
+Python, GDScript and C# have a preset for it, with the same commands:
 
 ```toml
 [stack.go.graph]
@@ -487,6 +489,9 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
 [stack.gdscript.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.csharp.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 

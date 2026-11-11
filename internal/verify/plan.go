@@ -262,7 +262,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 // highest first: the first of them with a graph command carries it. A stack
 // outside the list ranks after all of them, and among those the byte order
 // decides.
-var carrierRank = []string{"go", "python", "gdscript"}
+var carrierRank = []string{"go", "python", "gdscript", "csharp"}
 
 // isRootKind says the kind belongs to the repository root: it runs once, not
 // once per stack and area.
@@ -301,7 +301,7 @@ func EditsRules(file string) bool {
 // IsSource says whether the rules read a file as a source: the extractors'
 // extensions, matched exactly as they match them, so A.GD is none.
 func IsSource(rel string) bool {
-	return slices.Contains([]string{".go", ".py", ".gd"}, filepath.Ext(rel))
+	return slices.Contains([]string{".go", ".py", ".gd", ".cs"}, filepath.Ext(rel))
 }
 
 // rootCarrier is the stack whose job of a root kind a check plans: the
@@ -508,6 +508,9 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	}
 	profile, data := CoverPaths(env.Root, env.RunID, stack, area)
 	pairs := []string{"{area}", dir, "{coverprofile}", profile, "{coverdata}", data, "{loomux}", env.Loomux}
+	if slices.ContainsFunc(append(slices.Clone(cmds), r.Lane.Measure), func(c string) bool { return strings.Contains(c, placeholderSolution) }) {
+		pairs = append(pairs, placeholderSolution, solutionIn(dir))
+	}
 	if req.Scope == ScopeEdit {
 		file := req.File
 		if area != "." {
@@ -544,7 +547,13 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		job.Env = append(job.Env, env.GraphEnv(env.Root)...)
 	}
 	if !isRootKind(kind) && locksArea(eff.Stacks[stack]) {
-		job.Lock = LockPath(env.Root, stack, area)
+		lockArea := area
+		if stack == "csharp" {
+			// A project builds the projects it references into their own
+			// obj/ and bin/, whichever area they lie in.
+			lockArea = "."
+		}
+		job.Lock = LockPath(env.Root, stack, lockArea)
 	}
 	return job, l, true, nil
 }
@@ -596,6 +605,24 @@ func reportsWithCoveragePy(argvs [][]string) bool {
 	})
 }
 
+const placeholderSolution = "{solution}"
+
+// solutionIn is the one .sln or .slnx file in dir, "" with none or several:
+// dotnet then picks the folder's project itself, or names the choice.
+func solutionIn(dir string) string {
+	entries, _ := os.ReadDir(dir)
+	var found []string
+	for _, e := range entries {
+		if ext := filepath.Ext(e.Name()); !e.IsDir() && (ext == ".sln" || ext == ".slnx") {
+			found = append(found, e.Name())
+		}
+	}
+	if len(found) != 1 {
+		return ""
+	}
+	return found[0]
+}
+
 // expand splits a command and fills the placeholders of each argument, the
 // tools of the lane's stack included (toolArg); the argv is new, so the lane
 // it came from stays as the presets hold it.
@@ -605,13 +632,17 @@ func expand(command string, repl *strings.Replacer, tools map[string]string) ([]
 		return nil, err
 	}
 	argv := make([]string, 0, len(words))
-	for _, a := range words {
+	for i, a := range words {
 		a, keep := toolArg(a, tools)
 		if !keep {
 			continue
 		}
 		if repl != nil {
-			a = repl.Replace(a)
+			// A placeholder that stands alone and names nothing, such as
+			// {solution} in a folder without one, leaves no argument.
+			if a = repl.Replace(a); a == "" && words[i] != "" {
+				continue
+			}
 		}
 		argv = append(argv, a)
 	}

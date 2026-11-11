@@ -72,6 +72,37 @@ func TestCPPGlobSignalsAreDetected(t *testing.T) {
 	}
 }
 
+func TestCSharpSignalsAreDetected(t *testing.T) {
+	for _, name := range []string{"x.csproj", "x.sln", "x.slnx", "global.json", "Directory.Build.props"} {
+		facts := Detect(fstest.MapFS{name: {Data: []byte("<Project />\n")}})
+		if !reflect.DeepEqual(facts.Stacks, []string{"csharp"}) {
+			t.Errorf("%s: stacks = %v, want csharp", name, facts.Stacks)
+		}
+	}
+}
+
+// A solution in the root builds the projects below it: they are no areas of
+// their own, or the root and each member would build the same obj/ and bin/.
+// Without one, every project folder is its own area.
+func TestARootSolutionOwnsItsProjects(t *testing.T) {
+	members := fstest.MapFS{
+		"App/App.csproj":             {Data: []byte("<Project />\n")},
+		"App.Tests/App.Tests.csproj": {Data: []byte("<Project />\n")},
+	}
+	if got := Detect(members).Areas["csharp"]; !reflect.DeepEqual(got, []string{"App", "App.Tests"}) {
+		t.Errorf("without a solution: %v", got)
+	}
+	for _, sln := range []string{"App.sln", "App.slnx"} {
+		tree := fstest.MapFS{sln: {Data: []byte("\n")}}
+		for k, v := range members {
+			tree[k] = v
+		}
+		if got := Detect(tree).Areas["csharp"]; !reflect.DeepEqual(got, []string{"."}) {
+			t.Errorf("%s: %v", sln, got)
+		}
+	}
+}
+
 func TestAWorkspaceMemberIsSeenOneLevelDown(t *testing.T) {
 	tree := fstest.MapFS{
 		"README.md":               {Data: []byte("workspace\n")},

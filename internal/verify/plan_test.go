@@ -444,6 +444,94 @@ func TestPlanGivesPythonItsOwnCoverageFile(t *testing.T) {
 	}
 }
 
+// dotnet's lanes all restore into obj/ and bin/, so they lock the area; the
+// test lane measures into this run's data directory, and coverage reads the
+// collector's report from the GUID directory below it, nothing older.
+func TestPlanRunsDotnetForACSharpFolder(t *testing.T) {
+	root := t.TempDir()
+	facts := detect.Facts{Stacks: []string{"csharp"}, Areas: map[string][]string{"csharp": {"."}}}
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"lint", "types", "test", "coverage"}}, env(root))
+	if err != nil || names(jobs) != "lint/csharp types/csharp test/csharp coverage/csharp" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	_, data := CoverPaths(root, "R", "csharp", ".")
+	want := [][]string{
+		{"dotnet", "format", "--verify-no-changes"},
+		{"dotnet", "build", "--nologo", "--no-incremental", "-warnaserror"},
+		{"dotnet", "test", "--nologo", "--collect", "XPlat Code Coverage", "--results-directory", data},
+		{`C:\bin\loomux.exe`, "check", "linecov", "--report", data + "/*/coverage.cobertura.xml"},
+	}
+	for i, j := range jobs {
+		if j.Pre != "" || !slices.EqualFunc(j.Argvs, want[i:i+1], slices.Equal) || j.Lock == "" {
+			t.Errorf("%s: %+v", j.Name, j)
+		}
+	}
+	if jobs[3].After != 2 || !slices.Equal(jobs[3].Reads, []string{data}) {
+		t.Fatalf("coverage: %+v", jobs[3])
+	}
+	jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"test", "lint"}, Scope: ScopeEdit, File: "src/A.cs"}, env(root))
+	if names(jobs) != "test/csharp lint/csharp" || !slices.Equal(jobs[0].Argvs[0], []string{"dotnet", "test", "--nologo"}) ||
+		!slices.Equal(jobs[1].Argvs[0], []string{"dotnet", "format", "--verify-no-changes", "--include", "src/A.cs"}) {
+		t.Fatalf("edit: %+v", jobs)
+	}
+}
+
+// A test project builds the project it references into that project's obj/
+// and bin/, beside the build of the project itself: every C# area shares the
+// one lock of the repository.
+func TestPlanLocksEveryCSharpAreaWithOneLock(t *testing.T) {
+	root := t.TempDir()
+	facts := detect.Facts{Stacks: []string{"csharp"}, Areas: map[string][]string{"csharp": {"App", "App.Tests"}}}
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"types", "test"}}, env(root))
+	if err != nil || len(jobs) != 4 {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	for _, j := range jobs {
+		if j.Lock != LockPath(root, "csharp", ".") {
+			t.Errorf("%s: lock %q", j.Name, j.Lock)
+		}
+	}
+}
+
+// Godot writes Game.sln beside Game.csproj, and dotnet without a target
+// refuses a folder with both: the lanes name the area's one solution. Two
+// solutions name none, and dotnet says which to pick.
+func TestPlanNamesTheSolutionBesideItsProject(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{"Game.sln", "Game.csproj"} {
+		os.WriteFile(filepath.Join(root, f), nil, 0o644)
+	}
+	facts := detect.Facts{Stacks: []string{"csharp"}, Areas: map[string][]string{"csharp": {"."}}}
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"lint", "types", "test", "coverage"}}, env(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, data := CoverPaths(root, "R", "csharp", ".")
+	want := [][]string{
+		{"dotnet", "format", "Game.sln", "--verify-no-changes"},
+		{"dotnet", "build", "Game.sln", "--nologo", "--no-incremental", "-warnaserror"},
+		{"dotnet", "test", "Game.sln", "--nologo", "--collect", "XPlat Code Coverage", "--results-directory", data},
+	}
+	for i, w := range want {
+		if !slices.Equal(jobs[i].Argvs[0], w) {
+			t.Errorf("%s: %q", jobs[i].Name, jobs[i].Argvs)
+		}
+	}
+	jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"coverage"}}, env(root))
+	if !slices.Equal(jobs[0].Measure, want[2]) {
+		t.Errorf("measure: %q", jobs[0].Measure)
+	}
+	jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"lint"}, Scope: ScopeEdit, File: "A.cs"}, env(root))
+	if !slices.Equal(jobs[0].Argvs[0], []string{"dotnet", "format", "Game.sln", "--verify-no-changes", "--include", "A.cs"}) {
+		t.Errorf("edit: %q", jobs[0].Argvs)
+	}
+	os.WriteFile(filepath.Join(root, "Tools.slnx"), nil, 0o644)
+	jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"types"}}, env(root))
+	if !slices.Equal(jobs[0].Argvs[0], []string{"dotnet", "build", "--nologo", "--no-incremental", "-warnaserror"}) {
+		t.Errorf("two solutions: %q", jobs[0].Argvs)
+	}
+}
+
 func TestPlanNamesEveryAreaInOrder(t *testing.T) {
 	facts := detect.Facts{Stacks: []string{"typescript"}, Areas: map[string][]string{"typescript": {"web", "admin"}}}
 	jobs, _ := Plan(effFor(t, "", facts), Request{Kinds: []string{"test", "lint"}}, env(t.TempDir()))
@@ -986,7 +1074,7 @@ func factsOf(stacks ...string) detect.Facts {
 	return f
 }
 
-// The carrier follows the rank go, python, gdscript, then byte order, not the
+// The carrier follows the rank go, python, gdscript, csharp, then byte order, not the
 // walk: the jobs stay in byte order, and the carrier may stand later in it.
 func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 	unranked := "[verify.css.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
@@ -1009,6 +1097,10 @@ func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 		{"gdscript alone", "", []string{"gdscript"}, [][3]string{{"graph/gdscript", "", ""}}},
 		{"gdscript beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"gdscript", "rust"},
 			[][3]string{{"graph/gdscript", "", ""}, {"graph/rust", "not-applicable", covered("gdscript")}}},
+		{"gdscript beats csharp", "", []string{"csharp", "gdscript"},
+			[][3]string{{"graph/csharp", "not-applicable", covered("gdscript")}, {"graph/gdscript", "", ""}}},
+		{"csharp beats a stack without a rank", "[verify.cpp.graph]\ncommands = [\"b\"]\n", []string{"cpp", "csharp"},
+			[][3]string{{"graph/cpp", "not-applicable", covered("csharp")}, {"graph/csharp", "", ""}}},
 		{"unranked stacks follow in byte order", unranked, []string{"rust", "css"},
 			[][3]string{{"graph/css", "", ""}, {"graph/rust", "not-applicable", covered("css")}}},
 	} {

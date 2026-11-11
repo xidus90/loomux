@@ -26,6 +26,7 @@ ignored = [".txt", ".json", ".yaml", ".yml", ".toml", ".svg", ".png", ".jpg", ".
 ".less" = "css"
 ".html" = "html"
 ".htm" = "html"
+".cs" = "csharp"
 ".sh" = "shell"
 ".bash" = "shell"
 ".zsh" = "shell"
@@ -123,9 +124,9 @@ commands = ["uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdl
 on_file = ["uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdlint {file}", "uvx --python <3.15 --with setuptools<81 --from {tool:gdtoolkit} gdformat --check {file}"]
 
 # The graph belongs to the root, and the highest-ranked active stack with a
-# graph command carries it (go, python, gdscript): with Go or Python beside it
-# their lane carries and this one stands aside; it carries in a project with
-# neither.
+# graph command carries it (go, python, gdscript, csharp): with Go or Python
+# beside it their lane carries and this one stands aside; it carries in a
+# project with neither.
 [stack.gdscript.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
@@ -163,6 +164,49 @@ when = "gut"
 commands   = ["{loomux} check gut-suite --godot {godot}"]
 lock       = true
 when_found = ['plugin.cfg:name="Gut"']
+
+# dotnet test is the same whatever the framework, so there is no variant per
+# framework. Every test project references the test SDK.
+[stack.csharp]
+tests_when = ["*.csproj:Microsoft.NET.Test.Sdk"]
+
+# Every dotnet command restores and builds into obj/ and bin/; side by side
+# they fight over the same files, so one lock binds every lane of the stack,
+# and it is one lock for the whole repository (plan): a test project builds
+# the project it references, which may be an area of its own.
+# {solution} names the area's one solution: Godot writes it beside the
+# project, and dotnet without a target refuses a folder holding both.
+[stack.csharp.lint]
+commands = ["dotnet format {solution} --verify-no-changes"]
+on_file = ["dotnet format {solution} --verify-no-changes --include {file}"]
+lock = true
+
+[stack.csharp.types]
+# A build that finds its outputs up to date compiles nothing and so replays
+# no warning: after a dotnet test, -warnaserror alone would pass.
+commands = ["dotnet build {solution} --nologo --no-incremental -warnaserror"]
+
+# The collector writes into a fresh GUID directory below --results-directory;
+# the run's own data path keeps reports of earlier runs out of reach.
+[stack.csharp.test]
+commands = ["dotnet test {solution} --nologo"]
+measuring = 'dotnet test {solution} --nologo --collect "XPlat Code Coverage" --results-directory {coverdata}'
+
+# ponytail: the report is a glob, so a root whose path holds a glob
+# metacharacter such as [ finds no report; name it in --report if that bites.
+[stack.csharp.coverage]
+commands = ["{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml"]
+measure = 'dotnet test {solution} --nologo --collect "XPlat Code Coverage" --results-directory {coverdata}'
+after = "test"
+
+[stack.csharp.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+# The rules read the repository root; the commit form reads the staged tree,
+# the edit form the working tree.
+[stack.csharp.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
 
 [stack.cpp]
 tests_when = ["CMakeLists.txt:enable_testing("]

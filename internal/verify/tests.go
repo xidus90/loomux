@@ -17,7 +17,8 @@ func skipped(name string) bool {
 }
 
 // HasTests reports whether anything under root matches one of patterns: a
-// name ending in "/" is a directory, "file:text" a file holding text, and
+// name ending in "/" is a directory, "file:text" a file holding text (file a
+// glob on the base name, as in "*.csproj:Microsoft.NET.Test.Sdk"), and
 // anything else a glob on the base name. The walk stops at the first match.
 func HasTests(root string, patterns []string) bool {
 	found := false
@@ -45,7 +46,7 @@ func matchesTest(path string, d fs.DirEntry, pattern string) bool {
 		return false
 	}
 	if name, text, ok := strings.Cut(pattern, ":"); ok {
-		if d.Name() != name {
+		if ok, _ := filepath.Match(name, d.Name()); !ok {
 			return false
 		}
 		data, err := os.ReadFile(path)
