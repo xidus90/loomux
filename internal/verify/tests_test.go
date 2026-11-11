@@ -58,6 +58,14 @@ func TestHasTestsPatternForms(t *testing.T) {
 	if HasTests(root, []string{"pyproject.toml:[tool.pytest"}) {
 		t.Error("the file alone is not the marker")
 	}
+	os.WriteFile(filepath.Join(root, "app", "App.Tests.csproj"), []byte(`<PackageReference Include="Microsoft.NET.Test.Sdk" />`), 0o644)
+	os.WriteFile(filepath.Join(root, "app", "App.csproj"), []byte("<Project />"), 0o644)
+	if !HasTests(root, []string{"*.csproj:Microsoft.NET.Test.Sdk"}) {
+		t.Error("the file half of a content marker is a glob")
+	}
+	if HasTests(root, []string{"*.csproj:xunit", "[:x"}) {
+		t.Error("a glob file holds the text or matches nothing, and a bad glob matches nothing")
+	}
 	if HasTests(root, []string{"app:tests"}) {
 		t.Error("a directory never carries a content marker")
 	}

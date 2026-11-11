@@ -47,10 +47,14 @@ func Detect(root fs.FS) Facts {
 	areas := searchAreas(root)
 	found := map[string]bool{}
 	areasOf := map[string]map[string]bool{}
+	var owned []string
 	for _, sig := range signals {
 		for _, area := range areas {
 			if !matches(root, area, sig) {
 				continue
+			}
+			if sig.owns && area == "." {
+				owned = append(owned, sig.stacks...)
 			}
 			for _, stack := range sig.stacks {
 				found[stack] = true
@@ -60,6 +64,9 @@ func Detect(root fs.FS) Facts {
 				areasOf[stack][area] = true
 			}
 		}
+	}
+	for _, stack := range owned {
+		areasOf[stack] = map[string]bool{".": true}
 	}
 	facts := Facts{Stacks: sorted(found), Areas: map[string][]string{}, Ambiguous: doubts(root, areas), GodotDir: godotArea(root, areas)}
 	for stack, set := range areasOf {

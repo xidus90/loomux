@@ -17,6 +17,10 @@ type signal struct {
 	// spec's TypeScript row is a conjunction, not two rows: a tsconfig.json
 	// without a package.json is a configuration file, not a project.
 	besides string
+	// owns, when set and matched in the root, makes the root the stack's
+	// only area: a solution builds the projects below it, and a member
+	// checked on its own would build them a second time.
+	owns bool
 }
 
 var signals = []signal{
@@ -45,6 +49,11 @@ var signals = []signal{
 	{path: "addons/gut/plugin.cfg", stacks: []string{"gut", "gdscript"}},
 	{path: "docker-compose.yml", stacks: []string{"docker"}},
 	{path: "compose.yaml", stacks: []string{"docker"}},
+	{glob: "*.sln", stacks: []string{"csharp"}, owns: true},
+	{glob: "*.slnx", stacks: []string{"csharp"}, owns: true},
+	{glob: "*.csproj", stacks: []string{"csharp"}},
+	{path: "global.json", stacks: []string{"csharp"}},
+	{path: "Directory.Build.props", stacks: []string{"csharp"}},
 	{path: "Cargo.toml", stacks: []string{"rust"}},
 	{path: "go.mod", stacks: []string{"go"}},
 	{path: ".golangci.yml", stacks: []string{"go", "golangci-lint"}},

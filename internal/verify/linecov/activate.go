@@ -37,7 +37,9 @@ func (a Active) Expects(rel string) bool {
 }
 
 // Activate finds the profiles the project uses: by a settings file in the
-// root, or by a report read from one of the profile's default locations.
+// root, or by a report read from one of the profile's default locations,
+// also below another directory: a collector such as coverlet's writes into
+// a directory of its own per run.
 func Activate(t *Tree, reports []string, ps []Profile) ([]Active, []Finding, []string) {
 	var act []Active
 	var finds []Finding
@@ -46,7 +48,9 @@ func Activate(t *Tree, reports []string, ps []Profile) ([]Active, []Finding, []s
 	for _, p := range ps {
 		vals, file, f, n := readSettings(t.Root, p)
 		finds, notes = append(finds, f...), append(notes, n...)
-		byReport := slices.ContainsFunc(p.Reports, func(r string) bool { return slices.Contains(reports, r) })
+		byReport := slices.ContainsFunc(p.Reports, func(r string) bool {
+			return slices.ContainsFunc(reports, func(got string) bool { return got == r || strings.HasSuffix(got, "/"+r) })
+		})
 		if file == "" && !byReport {
 			continue
 		}

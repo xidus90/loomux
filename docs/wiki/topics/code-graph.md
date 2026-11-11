@@ -233,9 +233,9 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
 - **Prüfart `graph`:** `check graph-fresh` baut bei Drift neu und ist nur rot,
   wenn der Neubau scheitert; `check blast-audit` ist rot, wenn ein geänderter
   Bereich mit genug Aufrufern keinen geänderten Test hat. Die Lane-Namen der
-  Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go, Python
-  und GDScript; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
-  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript; ein Stack
+  Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go, Python,
+  GDScript und C#; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
+  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp; ein Stack
   ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
   für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
   `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter

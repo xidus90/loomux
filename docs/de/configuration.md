@@ -233,7 +233,7 @@ Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
 #### Stacks
 
 `[verify.<stack>]` gibt es für `go`, `python`, `typescript`, `vue`, `svelte`,
-`css`, `html`, `gdscript`, `cpp`, `shell`, `sql`, `rust`, dazu `wiki` und
+`css`, `html`, `gdscript`, `csharp`, `cpp`, `shell`, `sql`, `rust`, dazu `wiki` und
 `project`. Jeder andere Name ist ein Ladefehler.
 
 - **Wo ein Stack läuft.** Die Erkennung liest das Wurzelverzeichnis und eine
@@ -293,7 +293,7 @@ Die Schlüssel der Tabellenform:
 | `needs` | Liste | Dateien, relativ zum Verzeichnis der Lane und darin, ohne die ihre `commands` nichts bedeuten. Fehlt eine, ist die Lane `unready`: im Edit übersprungen und genannt, im Check rot. `on_file` bewachen sie nicht: ein Edit, der die Form einer Lane für eine Datei ausführt, führt sie in jedem Fall aus. |
 | `when_found` | Liste | Muster in der Form von `tests_when`; jedes muss unter dem Verzeichnis der Lane gefunden werden, sonst ist die Lane `unavailable` (`none found: <Muster>`). Wird vor `needs` und `{godot}` geprüft. |
 | `skip_when_only` | Liste | Globs, relativ zur Repository-Wurzel und in der Syntax von `[policy.paths]`, von Pfaden, um die sich die Lane nicht kümmert. Bei einem Commit (im pre-commit-Hook, wo git `GIT_INDEX_FILE` mitgibt) und an einem Turn-Ende (gegen den zuletzt grünen Baum, ohne einen solchen gegen den Baum der Basis; hat ein Commit im Turn HEAD bewegt und läuft am Turn-Ende die Graph-Lane, zählen auch die Pfade, die dieser Commit seit dem Commit der Basis mitnahm) ist eine Lane, deren geänderte Pfade alle auf einen davon passen, `not-applicable` mit der Notiz `only skip_when_only paths changed (…)`. Eine Lane, die ihre Dateien liest (wie das `coverage` von Go die Coverage-Datei, die `test` schreibt), erbt das; so hält `[verify.go.test] skip_when_only` `coverage` davon ab, die Suite selbst zu messen; eine Lane, die nur danach geordnet ist (`after` allein), läuft. Ein Lauf, der nur `coverage` anfragt, braucht den Schlüssel an `coverage`. Ohne geänderten Pfad, von Hand (`loomux check` ohne den Hook) und in einem Edit läuft jede Lane. Der Abgleich unterscheidet Groß- und Kleinschreibung; ein Pfad, der sich nur darin unterscheidet, lässt die Lane laufen. |
-| `lock` | Boolean | Nimmt Stack und Area der Lane in diesem Checkout für sich, solange ihre Prozesse laufen, `measure` eingeschlossen: ein zweiter Lauf einer Lane, die ebenfalls `lock = true` für denselben Stack und dieselbe Area setzt, wartet, belegt dabei keinen `max_parallel`-Platz und gibt `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)` aus; eine Lane ohne `lock` sieht die Sperre nicht an. Lanes desselben Stacks und derselben Area im selben Lauf kommen ebenso nacheinander dran und sagen `held by another lane of this run`. An einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget und endet als `budget`; in `loomux check` und im pre-commit-Tor endet sie nach `[verify].timeout` als `timed-out`. Die Sperre ist die des Betriebssystems, unter `.loomux/state/locks/`, und ein toter Halter gibt sie frei. Für Werkzeuge, die Quellen umschreiben, während sie messen. |
+| `lock` | Boolean | Nimmt Stack und Area der Lane in diesem Checkout für sich, solange ihre Prozesse laufen, `measure` eingeschlossen: ein zweiter Lauf einer Lane, die ebenfalls `lock = true` für denselben Stack und dieselbe Area setzt, wartet, belegt dabei keinen `max_parallel`-Platz und gibt `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)` aus; eine Lane ohne `lock` sieht die Sperre nicht an. Lanes desselben Stacks und derselben Area im selben Lauf kommen ebenso nacheinander dran und sagen `held by another lane of this run`. An einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget und endet als `budget`; in `loomux check` und im pre-commit-Tor endet sie nach `[verify].timeout` als `timed-out`. Die Sperre ist die des Betriebssystems, unter `.loomux/state/locks/`, und ein toter Halter gibt sie frei. Bei `csharp` ist es eine Sperre für alle Areas des Repos: Ein Testprojekt baut das Projekt, auf das es verweist, in dessen `obj/` und `bin/`. Für Werkzeuge, die Quellen umschreiben, während sie messen. |
 
 - **Ersetzen oder zusammenführen.** Ein String oder eine Liste steht für die
   Lane, wie sie dasteht: `measuring`, `measure`, `on_file`, `needs`, `when_found`,
@@ -325,6 +325,7 @@ anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
 | `{loomux}` | Das laufende Binary. So findet das Go-Preset `gocover` auch dort, wo loomux nicht auf dem `PATH` liegt. |
 | `{tool:NAME}` | Ein ganzes Argument: die Anforderung, aus der `NAME` läuft, also `NAME==<version>` (oder `NAME<bedingung>`), wo `[verify.<stack>].tools` es festlegt, sonst `NAME`. Die Presets für Python und GDScript nennen ihre Werkzeuge so (`uv run --with {tool:mypy} mypy …`, `uvx --from {tool:gdtoolkit} gdlint .`). |
 | `{from:NAME}` | Ein ganzes Argument: `--from=NAME==<version>`, wo `tools` `NAME` festlegt, sonst gar kein Argument; für `uvx` (`uvx {from:ruff} ruff check .`). |
+| `{solution}` | Ein ganzes Argument: die eine `.sln`- oder `.slnx`-Datei des Bereichs, sonst gar kein Argument; dotnet wählt dann das Projekt des Ordners selbst (`dotnet build {solution}`). Eine Projektmappe in der Wurzel macht die Wurzel außerdem zum einzigen `csharp`-Bereich: Sie baut die Projekte darunter. |
 | `{godot}` | Nur `gdscript`, anderswo ein Ladefehler. Die Linie kommt aus der `project.godot` des Bereichs: `config/features` nennt Haupt- und Nebenversion, und wo es fehlt — in einem Godot-3-Projekt ab 3.1 — steht `config_version=4` für die ganze 3er-Linie, von der nur die Hauptversion verglichen wird. Ein `config_version`, das keine eigene Linie nennt, `5` ohne `config/features` eingeschlossen, lässt die Lane `unready`. Ein Binary aus `GODOT_BIN` oder `[verify.gdscript] godot` wird an diese Linie gehalten: eines einer anderen Linie wird abgelehnt, nicht übergangen, denn es zu nennen war Absicht. Nennt keines von beiden eines, werden die Engines aus `GODOT_BIN_DIR` (dessen Dateien, deren Name mit `godot` beginnt, in Namensreihenfolge) und danach `godot`/`godot4` vom `PATH` der Reihe nach gefragt, und das erste, das zur Linie passt, gewinnt. Unter Windows wird die `_console.exe` neben einer gefundenen `.exe` genommen, da die Fensterfassung nichts auf stdout schreibt. Ein Mono-Build ist nötig, wo das Projekt einen `[dotnet]`-Abschnitt hat. Passt kein Kandidat, ist die Lane `unready` und nennt gefundene Fassung und gewollte Linie; gibt es gar keinen, ist sie `missing-tool` und sagt, wo gesucht wurde. Jedes verschiedene Binary wird je Lauf einmal gefragt, höchstens 30 s lang; an einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget, und eine Lane, deren Binary nicht rechtzeitig gefragt werden konnte, endet als `budget`, nie als Abweichung. |
 
 Go-Lanes laufen mit Arbeitsverzeichnis und Build-Cache des Go-Werkzeugs im
@@ -375,6 +376,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (mit GUT) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
+| csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (wo ein `.csproj` `Microsoft.NET.Test.Sdk` nennt) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, gemessen von `dotnet test` mit `--collect "XPlat Code Coverage" --results-directory {coverdata}` |
 | cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
@@ -475,7 +477,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset haben Go, Python und GDScript, mit denselben Befehlen:
+erreicht. Ein Preset haben Go, Python, GDScript und C#, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
@@ -485,6 +487,9 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 
 [stack.gdscript.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+[stack.csharp.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
 ```
 

@@ -112,6 +112,22 @@ func TestActivateFindsAToolByItsReportAloneAndSaysWhenItHasNoScope(t *testing.T)
 	}
 }
 
+// A collector writes its report into a directory of its own, such as
+// TestResults/<guid>/; the report's name still says which tool wrote it.
+func TestActivateFindsAToolByItsReportBelowAnotherDirectory(t *testing.T) {
+	for report, want := range map[string][]string{
+		".loomux/state/cover/R.data/0f3c/coverage.cobertura.xml": {"coverlet"},
+		"C:/out/0f3c/coverage.cobertura.xml":                     {"coverlet"},
+		"web/coverage/lcov.info":                                 {"c8", "nyc", "vitest"},
+		"xcoverage.cobertura.xml":                                nil,
+	} {
+		act, _, _, _ := activeIn(t, map[string]string{"src/a.cs": ""}, report)
+		if !slices.Equal(names(act), want) {
+			t.Errorf("%s: %v", report, names(act))
+		}
+	}
+}
+
 func TestActivateReportsUnreadableSettingsPatternsAndAmbiguousFiles(t *testing.T) {
 	_, finds, _, _ := activeIn(t, map[string]string{".coveragerc": "[run\n"})
 	if len(finds) != 1 || finds[0].Path != ".coveragerc" || !strings.HasPrefix(finds[0].Text, "unreadable settings:") {
