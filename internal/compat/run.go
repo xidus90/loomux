@@ -58,6 +58,14 @@ var cmake = func(dir string, args ...string) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
+// composer runs Composer in dir and answers what it printed; a test stands
+// in for it.
+var composer = func(dir string, args ...string) ([]byte, error) {
+	cmd := exec.Command("composer", args...)
+	cmd.Dir = dir
+	return cmd.CombinedOutput()
+}
+
 var featuresRe = regexp.MustCompile(`(config/features=PackedStringArray\(")\d+\.\d+`)
 
 // Run runs the entry key for real: every kind but graph must end ok, the
@@ -126,6 +134,9 @@ func runCopy(e Entry, o RunOptions, dir string, kinds []string, b *Break) ([]str
 		// A graph-only entry has no lane, and the check refuses an empty request.
 		return lines, nil
 	}
+	if err := installComposer(dir, e); err != nil {
+		lines = append(lines, "composer: "+err.Error())
+	}
 	results, err := o.Check(dir, kinds)
 	if err != nil {
 		return nil, err
@@ -186,6 +197,20 @@ func targetJava(dir string, e Entry) error {
 		errs = append(errs, os.Chmod(filepath.Join(dir, "gradlew"), 0o755))
 	}
 	return errors.Join(errs...)
+}
+
+// installComposer fills vendor/ of a PHP fixture from its composer.lock:
+// the PHP lanes run their tools from there and are unavailable without it.
+// Only lanes need it, so a graph-only entry never gets here.
+func installComposer(dir string, e Entry) error {
+	if e.Runtime != "php" {
+		return nil
+	}
+	out, err := composer(dir, "install", "--no-interaction", "--prefer-dist")
+	if err != nil {
+		return fmt.Errorf("%w\n%s", err, tail(string(out)))
+	}
+	return nil
 }
 
 // configureCMake configures build/ in the entry's C++ standard: the lanes on

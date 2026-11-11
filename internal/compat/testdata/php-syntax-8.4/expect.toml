@@ -1,0 +1,10 @@
+stacks = ["php"]
+# Property hooks, whose calls belong to their class, asymmetric visibility
+# and new without parentheses.
+edges = [
+  ["Syntax.php#Temperature", "calls", "Syntax.php#Scale.convert"],
+  ["Syntax.php#Scale.read", "calls", "Syntax.php#Temperature"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

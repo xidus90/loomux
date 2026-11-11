@@ -40,6 +40,10 @@ type Entry struct {
 	Kinds   []string          `json:"kinds"`
 	Addons  []Addon           `json:"addons,omitempty"`
 	Tools   map[string]string `json:"tools,omitempty"`
+	// Held names why the fixture stays below newer versions of its runtime
+	// (its test framework ends there); the scout asks nothing newer for a
+	// held line, another fixture runs those versions.
+	Held *string `json:"held,omitempty"`
 	// Pre is the pre-release of Version a scout probe runs ("1.28rc1"); the
 	// list never holds one, so compat.toml has no such key.
 	Pre string `toml:"-" json:"pre,omitempty"`
@@ -99,7 +103,7 @@ func (e Entry) syntax() bool { return slices.Equal(e.Kinds, []string{"graph"}) }
 // Load reads the embedded list in file order, once.
 var Load = sync.OnceValues(func() ([]Entry, error) { return parse(listText, "compat.toml") })
 
-var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet", "cpp": "cpp", "java": "java"}
+var runtimeOf = map[string]string{"gdscript": "godot", "python": "python", "go": "go", "csharp": "dotnet", "cpp": "cpp", "java": "java", "php": "php"}
 
 // stackNames lists the stacks of runtimeOf for a message.
 func stackNames() string { return strings.Join(slices.Sorted(maps.Keys(runtimeOf)), ", ") }
@@ -203,6 +207,9 @@ func check(e Entry, refs refs, strict bool) error {
 	}
 	if len(e.Kinds) == 0 {
 		return fmt.Errorf("entry has no kinds")
+	}
+	if e.Held != nil && strings.TrimSpace(*e.Held) == "" {
+		return fmt.Errorf("held is empty; name what holds the line back")
 	}
 	for _, k := range e.Kinds {
 		if !slices.Contains(verify.Kinds(), k) {

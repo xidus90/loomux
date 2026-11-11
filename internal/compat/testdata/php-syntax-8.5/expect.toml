@@ -1,0 +1,11 @@
+stacks = ["php"]
+# The pipe operator into a first-class callable, a closure in a constant
+# expression, and the two forms the grammar misses (clone with properties,
+# the (void) cast): the call after the cast still arrives.
+edges = [
+  ["Syntax.php#Shape.twice", "calls", "Syntax.php#double"],
+  ["Syntax.php#main", "calls", "Syntax.php#double"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

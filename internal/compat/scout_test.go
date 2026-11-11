@@ -312,7 +312,7 @@ func TestParsePre(t *testing.T) {
 		"1.28rc1": {1, 28}, "1.28beta1": {1, 28}, "3.16.0a1": {3, 16}, "3.16.0b2": {3, 16}, "3.16.0rc1": {3, 16},
 		"4.8-beta2": {4, 8}, "4.8-rc1": {4, 8}, "4.8-dev3": {4, 8},
 		"11.0.0-preview.7": {11, 0}, "11.0.0-rc.2": {11, 0},
-		"26-draft": {26}, "28-ea": {28},
+		"26-draft": {26}, "28-ea": {28}, "8.6.0RC5": {8, 6},
 	} {
 		if got, ok := parsePre(s); !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("%s = %v %v", s, got, ok)
@@ -648,6 +648,148 @@ func TestScoutProbesTheNextJavaFeatureRelease(t *testing.T) {
 	up["eol:java"][0] = "8!"
 	if got := scout(t, up, entries...); len(got) != 2 || got[1].Kind != "eol" || got[1].Line != "java" || got[1].Version != "8" {
 		t.Fatalf("findings %+v", got)
+	}
+}
+
+// testdata/php-releases.json and php-release-candidates.json are php.net's
+// real answers of 2026-11-11: 8.5.12 the newest release, 8.6.0 at its fifth
+// candidate, 8.4.28 and 8.5.13 at their first, 8.2.27 and 8.3.31 disabled.
+func phpAnswers(t *testing.T) (releases, candidates []byte) {
+	t.Helper()
+	releases, err := os.ReadFile(filepath.Join("testdata", "php-releases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidates, err = os.ReadFile(filepath.Join("testdata", "php-release-candidates.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return releases, candidates
+}
+
+func TestParseReleasesReadsPHP(t *testing.T) {
+	releases, candidates := phpAnswers(t)
+	if got, err := parseReleases(phpSource, releases); err != nil || !reflect.DeepEqual(got, []Release{{"8.5.12", false}}) {
+		t.Errorf("releases %v %v", got, err)
+	}
+	want := []Release{{"8.4.28RC1", true}, {"8.5.13RC1", true}, {"8.6.0RC5", true}}
+	if got, err := parseReleases(phpCandidatesSource, candidates); err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("candidates %v %v", got, err)
+	}
+	for _, src := range []string{phpSource, phpCandidatesSource} {
+		if _, err := parseReleases(src, []byte("<html>")); err == nil {
+			t.Errorf("%s: junk read", src)
+		}
+	}
+	if _, err := parseReleases(phpCandidatesSource, []byte(`{"8.6.0":["8.6.0RC5"]}`)); err == nil {
+		t.Error("a branch that is no object read")
+	}
+}
+
+// byURL serves one body per URL and fails every other request.
+type byURL map[string]string
+
+func (b byURL) RoundTrip(req *http.Request) (*http.Response, error) {
+	body, ok := b[req.URL.String()]
+	if !ok {
+		return nil, errors.New("no answer for " + req.URL.String())
+	}
+	return &http.Response{StatusCode: 200, Status: "200 OK", Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}}, nil
+}
+
+// php.net lists its candidates apart from its releases; the runtime's
+// releases are both answers, and either failing fails them.
+func TestHTTPUpstreamAsksPHPTwice(t *testing.T) {
+	releases, candidates := phpAnswers(t)
+	answers := byURL{phpSource: string(releases), phpCandidatesSource: string(candidates)}
+	h := HTTPUpstream{Client: &http.Client{Transport: answers}}
+	got, err := h.Releases(phpSource)
+	if err != nil || len(got) != 4 || got[0] != (Release{"8.5.12", false}) || got[3] != (Release{"8.6.0RC5", true}) {
+		t.Fatalf("%v %v", got, err)
+	}
+	delete(answers, phpCandidatesSource)
+	if _, err := h.Releases(phpSource); err == nil {
+		t.Error("a failed candidate list read")
+	}
+	delete(answers, phpSource)
+	if _, err := h.Releases(phpSource); err == nil {
+		t.Error("a failed release list read")
+	}
+}
+
+func phpEntry(version, fixture string) Entry {
+	return Entry{Stack: "php", Runtime: "php", Version: version, Fixture: fixture, Kinds: []string{"test"}}
+}
+
+func held(e Entry, why string) Entry {
+	e.Held = &why
+	return e
+}
+
+// Each PHPUnit major has its own floor, so the PHP versions spread over
+// three fixtures, and the lines of PHPUnit 11 and 12 are marked held: only
+// php-phpunit13 probes the next minor, a release candidate of it as of a
+// release; a patch candidate is none. Unmarked, the held lines report too.
+func TestScoutProbesTheNextPHPMinor(t *testing.T) {
+	releases, candidates := phpAnswers(t)
+	h := HTTPUpstream{Client: &http.Client{Transport: byURL{phpSource: string(releases), phpCandidatesSource: string(candidates)}}}
+	rels, err := h.Releases(phpSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	up := calm()
+	for _, r := range rels {
+		up[phpSource] = append(up[phpSource], r.Version)
+	}
+	up["eol:php"] = []string{"8.2", "8.3", "8.4", "8.5"}
+	unmarked := []Entry{phpEntry("8.2", "php-phpunit11"), phpEntry("8.3", "php-phpunit12"),
+		phpEntry("8.4", "php-phpunit13"), phpEntry("8.5", "php-phpunit13")}
+	if got := scout(t, up, unmarked...); len(got) != 3 || got[0].Line != "php-phpunit11/php" || got[0].Version != "8.5" {
+		t.Fatalf("unmarked findings %+v", got)
+	}
+	list, _ := Load()
+	for _, e := range list {
+		if marked := e.Held != nil; marked != (e.Fixture == "php-phpunit11" || e.Fixture == "php-phpunit12") {
+			t.Errorf("%s: held %v", e.Key(), marked)
+		}
+	}
+	entries := slices.Clone(unmarked)
+	entries[0] = held(entries[0], "PHPUnit 11 runs the oldest PHP")
+	entries[1] = held(entries[1], "PHPUnit 12 runs the oldest PHP but one")
+	got := scout(t, up, entries...)
+	if len(got) != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+	f := got[0]
+	if f.Kind != "pre" || f.Line != "php-phpunit13/php" || f.Version != "8.6.0RC5" ||
+		f.Probe.Version != "8.6" || f.Probe.Pre != "8.6.0RC5" || f.Probe.Key() != "php/php-8.6.0RC5/php-phpunit13" {
+		t.Fatalf("finding %+v, probe %+v", f, f.Probe)
+	}
+	if err := check(*f.Probe, references(), true); err != nil {
+		t.Errorf("the probe does not load: %v", err)
+	}
+	up[phpSource] = append(up[phpSource], "8.6.0")
+	if got := scout(t, up, entries...); len(got) != 1 || got[0].Kind != "new" || got[0].Line != "php-phpunit13/php" || got[0].Version != "8.6" {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+// A line below the newest of its runtime without the mark has simply not
+// moved up yet: it keeps reporting until someone acts.
+func TestScoutAnUnmarkedLaggingLineStillReports(t *testing.T) {
+	up := calm()
+	up[godotSource] = []string{"4.8", "4.7", "3.6.2"}
+	up["eol:godot"] = append(up["eol:godot"], "4.8")
+	gut := gdunit("4.7")
+	gut.Fixture = "godot4-gut"
+	got := scout(t, up, gdunit("4.8"), gut)
+	if len(got) != 1 || got[0].Line != "godot4-gut/godot" || got[0].Version != "4.8" {
+		t.Fatalf("findings %+v", got)
+	}
+	// The mark travels into the block of a probe.
+	e := held(phpEntry("8.2", "php-phpunit11"), "PHPUnit 11")
+	if s := entryTOML(e); !strings.Contains(s, "held = \"PHPUnit 11\"\n") {
+		t.Errorf("toml\n%s", s)
 	}
 }
 

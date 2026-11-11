@@ -1,0 +1,10 @@
+stacks = ["php"]
+# A typed class constant, a dynamic class constant fetch and #[\Override] on
+# a method that calls its parent.
+edges = [
+  ["Syntax.php#Box", "extends", "Syntax.php#Base"],
+  ["Syntax.php#Box.size", "calls", "Syntax.php#Base.size"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

@@ -58,11 +58,12 @@ func IssueTitle(f Finding) string {
 // preRe reads a pre-release the way the runtimes spell it: Go "1.28rc1" and
 // "1.28beta1", Python "3.16.0a1", Godot "4.8-beta2", .NET "11.0.0-preview.7"
 // and "11.0.0-rc.2", a C++ standard ISO has yet to publish "26-draft" (see
-// cppReleases), and a Java feature release with early-access builds only
-// "28-ea", as actions/setup-java takes it. Compiled on first use: package
-// start has an allocation budget (cmd/loomux start_test.go).
+// cppReleases), a Java feature release with early-access builds only
+// "28-ea", as actions/setup-java takes it, and PHP "8.6.0RC5". Compiled on
+// first use: package start has an allocation budget (cmd/loomux
+// start_test.go).
 var preRe = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`^(\d+)(?:\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc)\.?(\d+)|-draft|-ea)$`)
+	return regexp.MustCompile(`^(\d+)(?:\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc|RC)\.?(\d+)|-draft|-ea)$`)
 })
 
 // parsePre reads the version a pre-release leads to, major.minor or, for a
@@ -93,7 +94,7 @@ func versionString(v []int) string {
 // beta (or preview) before rc, then by number. s must parse with parsePre.
 func preOrder(s string) []int {
 	m := preRe().FindStringSubmatch(s)
-	stage := map[string]int{"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "preview": 2, "rc": 3}[m[3]]
+	stage := map[string]int{"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "preview": 2, "rc": 3, "RC": 3}[m[3]]
 	n, _ := strconv.Atoi(m[4])
 	return []int{stage, n}
 }
@@ -111,7 +112,11 @@ const (
 	githubReleases = "https://api.github.com/repos/%s/releases?per_page=100"
 	// The feature releases Temurin builds, and the tip, the next one.
 	adoptiumSource = "https://api.adoptium.net/v3/info/available_releases"
-	// eolSource covers go, python, godot and dotnet under those names, java
+	// php.net answers the newest release of PHP 8 alone, and its release
+	// candidates apart; HTTPUpstream reads both for phpSource.
+	phpSource           = "https://www.php.net/releases/index.php?json&version=8"
+	phpCandidatesSource = "https://www.php.net/release-candidates.php?format=json"
+	// eolSource covers go, python, godot, dotnet and php under those names, java
 	// under eolProducts; python.org and Godot publish no machine-readable
 	// end of support of their own.
 	eolSource  = "https://endoflife.date/api/v1/products/%s"
@@ -128,7 +133,7 @@ const cppSource = "iso:cpp"
 // entries go into the list by hand.
 var cppReleases = []Release{{"17", false}, {"20", false}, {"23", false}, {"26-draft", true}}
 
-var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource, "java": adoptiumSource}
+var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource, "java": adoptiumSource, "php": phpSource}
 
 // eolProducts are the endoflife.date products of runtimes it names
 // otherwise: the list's Java is Eclipse Temurin.
@@ -218,13 +223,18 @@ type group struct {
 
 // Scout answers what up knows that the list does not: per line, the newest
 // minor within its major, or a newer major when the line holds the highest
-// major of its subject. Patch releases and pre-releases never count.
+// major of its subject. Patch releases and pre-releases never count. A held
+// entry asks for nothing; any other line below the newest of its runtime
+// keeps reporting until someone moves it up.
 func Scout(entries []Entry, up Upstream) ([]Finding, error) {
 	var groups []*group
 	top := map[string]int{} // kind/name -> highest major in the list
 	for _, e := range entries {
 		if e.syntax() {
 			continue // its version's other entry carries the line
+		}
+		if e.Held != nil {
+			continue // its fixture ends there on purpose (Entry.Held)
 		}
 		ev, _ := parseVer(e.Version) // the list is validated MAJOR.MINOR
 		for _, s := range subjectsOf(e) {
@@ -422,6 +432,9 @@ func entryTOML(e Entry) string {
 		}
 		fmt.Fprintf(&b, "tools = { %s }\n", strings.Join(ts, ", "))
 	}
+	if e.Held != nil {
+		fmt.Fprintf(&b, "held = %s\n", q(*e.Held))
+	}
 	return b.String()
 }
 
@@ -482,11 +495,24 @@ type HTTPUpstream struct {
 }
 
 // Releases fetches source and reads its releases; cppSource is answered
-// without a fetch.
+// without a fetch, phpSource with its candidates too.
 func (h HTTPUpstream) Releases(source string) ([]Release, error) {
 	if source == cppSource {
 		return cppReleases, nil
 	}
+	out, err := h.read(source)
+	if err != nil || source != phpSource {
+		return out, err
+	}
+	rcs, err := h.read(phpCandidatesSource)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", phpCandidatesSource, err)
+	}
+	return append(out, rcs...), nil
+}
+
+// read fetches one source and reads its releases.
+func (h HTTPUpstream) read(source string) ([]Release, error) {
 	body, err := h.get(source)
 	if err != nil {
 		return nil, err
@@ -589,6 +615,39 @@ func parseReleases(source string, body []byte) ([]Release, error) {
 		}
 		if doc.Tip > doc.Newest {
 			out = append(out, Release{strconv.Itoa(doc.Tip) + "-ea", true})
+		}
+	case source == phpSource:
+		var doc struct {
+			Version string `json:"version"`
+		}
+		if err := json.Unmarshal(body, &doc); err != nil {
+			return nil, err
+		}
+		out = append(out, Release{Version: doc.Version})
+	case source == phpCandidatesSource:
+		// One key per branch, named by its next release, beside lists
+		// ("reported", "releases"); a branch between candidates has its
+		// release disabled.
+		var doc map[string]json.RawMessage
+		if err := json.Unmarshal(body, &doc); err != nil {
+			return nil, err
+		}
+		for _, key := range slices.Sorted(maps.Keys(doc)) {
+			var branch struct {
+				Release struct {
+					Version string `json:"version"`
+					Enabled *bool  `json:"enabled"`
+				} `json:"release"`
+			}
+			if _, ok := parseVer(key); !ok {
+				continue
+			}
+			if err := json.Unmarshal(doc[key], &branch); err != nil {
+				return nil, err
+			}
+			if r := branch.Release; r.Enabled == nil || *r.Enabled {
+				out = append(out, Release{r.Version, true})
+			}
 		}
 	case source == dotnetSource:
 		var doc struct {

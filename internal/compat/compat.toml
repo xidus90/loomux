@@ -2,7 +2,9 @@
 # versions loomux claims to support. One [[entry]] per runtime version; the
 # fixture is the project under testdata/ that the combination is run against.
 # Addon names are rows of verify's frameworks.toml, tool names are the tools
-# the stack's presets bring; versions are given without a leading "v".
+# the stack's presets bring; versions are given without a leading "v". An
+# entry whose fixture stays below newer versions on purpose says why in
+# held; the scout then asks nothing newer for it.
 
 [[entry]]
 stack = "gdscript"
@@ -344,6 +346,72 @@ stack = "java"
 runtime = "java"
 version = "27"
 fixture = "java-syntax-27"
+kinds = ["graph"]
+
+# A PHP version is a release branch of php.net. Each fixture pins PHPUnit,
+# PHPStan and PHP_CodeSniffer in its composer.lock, which a run installs, so
+# the entries name no tools. PHPUnit 11 needs PHP 8.2, 12 PHP 8.3, 13 PHP
+# 8.4.1; each lock is resolved for the lowest PHP its fixture runs on. The
+# lines of PHPUnit 11 and 12 are held: the scout asks nothing newer for them.
+
+[[entry]]
+stack = "php"
+runtime = "php"
+version = "8.2"
+fixture = "php-phpunit11"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+held = "PHPUnit 11 proves the oldest PHP; newer PHP lines run php-phpunit13"
+
+[[entry]]
+stack = "php"
+runtime = "php"
+version = "8.3"
+fixture = "php-phpunit12"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+held = "PHPUnit 12 proves PHP 8.3; newer PHP lines run php-phpunit13"
+
+[[entry]]
+stack = "php"
+runtime = "php"
+version = "8.4"
+fixture = "php-phpunit13"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "php"
+runtime = "php"
+version = "8.5"
+fixture = "php-phpunit13"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+# A syntax entry per PHP version.
+
+[[entry]]
+stack = "php"
+runtime = "php"
+version = "8.2"
+fixture = "php-syntax-8.2"
+kinds = ["graph"]
+
+[[entry]]
+stack = "php"
+runtime = "php"
+version = "8.3"
+fixture = "php-syntax-8.3"
+kinds = ["graph"]
+
+[[entry]]
+stack = "php"
+runtime = "php"
+version = "8.4"
+fixture = "php-syntax-8.4"
+kinds = ["graph"]
+
+[[entry]]
+stack = "php"
+runtime = "php"
+version = "8.5"
+fixture = "php-syntax-8.5"
 kinds = ["graph"]
 
 # Files that are neither an entry nor a fixture but decide what an entry
