@@ -232,3 +232,37 @@ func TestResolveTakesAGodotNameForAFile(t *testing.T) {
 		}
 	}
 }
+
+// Asked for Build, the user means an exported Build, not a test helper build: an
+// exact-case name ranks before a case-insensitive one, and within each a
+// symbol outside the tests before one inside, at every stage that matches
+// symbols by name. Ties keep the graph's order.
+func TestResolveRanksExactCaseThenNonTestFirst(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "f/fp_test.go#build", Path: "f/fp_test.go", Name: "build", Kind: "function"},
+		{ID: "f/x_test.go#Build", Path: "f/x_test.go", Name: "Build", Kind: "function"},
+		{ID: "a/build.go#build", Path: "a/build.go", Name: "build", Kind: "function"},
+		{ID: "t/format.go#Build", Path: "t/format.go", Name: "Build", Kind: "function"},
+		{ID: "t/format.go#Build~2", Path: "t/format.go", Name: "Build~2", Kind: "function"},
+	}}
+	all := []model.NodeID{"t/format.go#Build", "t/format.go#Build~2", "f/x_test.go#Build", "a/build.go#build", "f/fp_test.go#build"}
+	for _, c := range []struct {
+		query string
+		want  []model.NodeID
+	}{
+		{"Build", all},
+		{"build", []model.NodeID{"a/build.go#build", "f/fp_test.go#build", "t/format.go#Build", "t/format.go#Build~2", "f/x_test.go#Build"}},
+		{"t.Build", []model.NodeID{"t/format.go#Build", "t/format.go#Build~2"}},
+		{"f.build", []model.NodeID{"f/fp_test.go#build", "f/x_test.go#Build"}},
+		{"nope.Build", all},
+	} {
+		hits, err := blast.Resolve(g, c.query, "")
+		var got []model.NodeID
+		for _, h := range hits {
+			got = append(got, h.ID)
+		}
+		if err != nil || !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Resolve(%q) = %v, %v, want %v", c.query, got, err, c.want)
+		}
+	}
+}
