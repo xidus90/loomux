@@ -143,6 +143,9 @@ type Import struct {
 	Alias string `json:"alias,omitempty"`
 	Path  string `json:"path"`
 	Name  string `json:"name,omitempty"`
+	// Global marks C#'s `global using`, which holds in every file of the
+	// project and not only in its own.
+	Global bool `json:"global,omitempty"`
 }
 
 // RawEdge is an edge whose target is not resolved yet.
@@ -168,7 +171,9 @@ type RawEdge struct {
 	Line int `json:"line,omitempty"`
 	// Member is the kind of member a use names when the use alone says it
 	// and its name does not: the signal or the handler end of a Godot
-	// connection. Empty everywhere else.
+	// connection. On a calls edge, "new" marks a constructor call: new T()
+	// names the type T, with Receiver and Name split like those of T.M().
+	// Empty everywhere else.
 	Member model.Kind `json:"member,omitempty"`
 	// Via is the call whose first result receives this call: `New(g).Reach()`
 	// carries `New(g)` here, and so does `x.Reach()` after `x := New(g)`.
@@ -196,6 +201,10 @@ type Result struct {
 	ParseErrors int          `json:"parse_errors,omitempty"`
 	Exports     []Export     `json:"exports,omitempty"`
 	Bridges     []Bridge     `json:"bridges,omitempty"`
+	// Enclosing is the namespace or package each type node is declared in,
+	// "" for the global one, for the resolver. A language with one package
+	// per file uses Package instead.
+	Enclosing map[model.NodeID]string `json:"enclosing,omitempty"`
 	// Embedded are the parts of the file in another language, an inline
 	// script of an HTML page say: the same Path, lines of the whole file,
 	// no file node of their own, at most one per language and never the

@@ -347,6 +347,12 @@ func TestIsTestPathPerLanguage(t *testing.T) {
 		// A scene or resource of a test is a test fixture; project.godot never is.
 		"test/fixtures/arena.tscn": true, "tests/d.tres": true, "core/x.tscn": false, "contest/x.tscn": false,
 		"core/x.tres": false, "test/project.godot": false, "test/x.png": false,
+		// C#: a Tests.cs/Test.cs file, a project directory Game.Tests, or a
+		// directory tests/ or test/.
+		"PlayerTests.cs": true, "Game/PlayerTest.cs": true, "Tests.cs": true, "Game.Tests/X.cs": true,
+		"src/Game.Test/X.cs": true, "tests/X.cs": true, "a/test/b/X.cs": true,
+		"Contest.cs": false, "Testing.cs": false, "Game.Testing/X.cs": false, "Game/Attests/X.cs": false,
+		"Game/Tests/X.cs": true, "Test/X.cs": true, "a/TEST/b/X.cs": true, "GameTests/X.cs": false, "Game/PlayerTests.csproj": false, "PlayerTESTS.CS": false,
 		"a.ts": false, "TEST_X.PY": false, "A_TEST.GO": false,
 	} {
 		if got := blast.IsTestPath(path); got != want {

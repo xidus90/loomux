@@ -45,6 +45,10 @@ import (
 // Windows, <env>/lib/python3.x/site-packages on POSIX). A dot directory such
 // as .venv is skipped anyway.
 //
+// obj is MSBuild's intermediate output (generated sources such as
+// *.AssemblyInfo.cs). bin is not listed: the list serves every language, and
+// bin/ holds hand-written scripts in many repositories.
+//
 // The list is shared with the graph: sourceset.SkipDir delegates here, so the
 // hook path, the graph build and the search index prune the same names.
 var pruneDirs = map[string]bool{
@@ -60,6 +64,7 @@ var pruneDirs = map[string]bool{
 	"venv":          true,
 	"site-packages": true,
 	"testdata":      true,
+	"obj":           true,
 }
 
 // SkipSegment reports whether one path segment names a directory the walk

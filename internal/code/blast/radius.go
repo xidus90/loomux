@@ -242,7 +242,9 @@ func evidence(seeds []evidenceSeed) ([]Evidence, int) {
 // directory tests/ or test/ (the helpers beside the tests). GDScript: *_test.gd,
 // and every file under a directory test/ or tests/ (gdUnit4's default lookup
 // folder); a scene (.tscn) or resource (.tres) counts under those folders
-// alone, and project.godot never does.
+// alone, and project.godot never does. C#: *Tests.cs and *Test.cs, a directory
+// ending in .Test or .Tests (a .NET test project), and every file under a
+// directory Tests/ or Test/, in any case.
 func IsTestPath(p string) bool {
 	switch path.Ext(p) {
 	case ".go":
@@ -256,11 +258,27 @@ func IsTestPath(p string) bool {
 		// moves its test_lookup_folder in project.godot is not followed, this
 		// predicate sees a path and no project.
 		return strings.HasSuffix(p, "_test.gd") || underDir(p, "test") || underDir(p, "tests")
+	case ".cs":
+		// *Tests.cs and *Test.cs are the xUnit, NUnit and MSTest file names;
+		// a project named Game.Tests holds nothing but tests, whatever its
+		// files are called.
+		return strings.HasSuffix(p, "Tests.cs") || strings.HasSuffix(p, "Test.cs") || underTestDir(p)
 	case ".tscn", ".tres":
 		// A scene or resource under the test folders is a fixture of the suites.
 		return underDir(p, "test") || underDir(p, "tests")
 	}
 	return false
+}
+
+// underTestDir reports whether a directory segment of slash path p is a .NET
+// test folder: Tests or Test in any case (C# projects write Tests/), or a test
+// project's name ending in .Test or .Tests.
+func underTestDir(p string) bool {
+	segments := strings.Split(p, "/")
+	return slices.ContainsFunc(segments[:len(segments)-1], func(s string) bool {
+		return strings.EqualFold(s, "tests") || strings.EqualFold(s, "test") ||
+			strings.HasSuffix(s, ".Tests") || strings.HasSuffix(s, ".Test")
+	})
 }
 
 // underDir reports whether slash path p lies below a directory named dir, at

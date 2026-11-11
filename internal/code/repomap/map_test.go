@@ -213,6 +213,17 @@ func TestCappingAndLanguages(t *testing.T) {
 	}
 }
 
+// A .cs file counts as csharp, not as a language named after its extension.
+func TestBuildNamesCSharpByItsLanguage(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "Game/Player.cs", Path: "Game/Player.cs", Name: "Player.cs", Kind: model.KindFile},
+	}}
+	m := repomap.Build(g, nil, repomap.Options{})
+	if !slices.Contains(m.Totals.Languages, "csharp") || slices.Contains(m.Totals.Languages, "cs") {
+		t.Errorf("languages = %v, want csharp and no cs", m.Totals.Languages)
+	}
+}
+
 func TestFormatAndEdgeCases(t *testing.T) {
 	g := sampleMapGraph()
 	x := blast.New(g)

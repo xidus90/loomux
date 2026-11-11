@@ -277,7 +277,7 @@ func TestWriteCacheRoundTripsBodies(t *testing.T) {
 		{ID: "a.go", Path: "a.go", BodyText: "package a"},
 		{ID: "a.go#F", Path: "a.go", BodyText: "func F() { spin() }"},
 		{ID: "a.go#T", Path: "a.go"},
-	}}
+	}, Enclosing: map[model.NodeID]string{"a.go#T": ""}}
 	in := map[string]cacheEntry{"a.go": {Extractor: "go/1", SHA256: "ab", Result: r}}
 	if err := writeCache(root, in); err != nil {
 		t.Fatal(err)

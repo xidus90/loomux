@@ -32,11 +32,11 @@ const maxFileBytes = 1_000_000
 
 // extensions are the extensions of every extracted language, dot included,
 // matched exactly: x.GO is no Go file to the Go toolchain, so it is none to
-// the graph either. .godot, .tres and .tscn are the project file, resources and
+// the graph either. .cs is C#. .godot, .tres and .tscn are the project file, resources and
 // scenes of a Godot project, read with its scripts, and .uid the uid Godot 4.4
 // keeps beside a script. A literal and nothing
 // parsed: see the package comment for why it is not taken from extract/all.
-var extensions = []string{".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}
+var extensions = []string{".cs", ".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}
 
 // Extensions is a copy of the extensions the walk takes, so no caller can
 // change what the next walk looks at.
@@ -69,7 +69,7 @@ func List(root string) ([]string, error) {
 // Stat returns the file set with each file's size and modification time.
 //
 // The enumeration is corpus.Walk's, the same walk the search index uses; the
-// filter (FromListing) is the graph's: seven extensions, one megabyte, and no
+// filter (FromListing) is the graph's: eight extensions, one megabyte, and no
 // file below a pruned directory segment. A dot directory never reaches the
 // filter, because the walk does not enter one.
 //

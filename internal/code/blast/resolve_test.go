@@ -210,6 +210,18 @@ func TestResolveStageBoundaries(t *testing.T) {
 	}
 }
 
+// A name ending in .cs is a file query, so "cs" never matches a symbol of that name.
+func TestResolveTakesACSharpNameForAFile(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "Game/Player.cs", Path: "Game/Player.cs", Name: "Player.cs", Kind: model.KindFile},
+		{ID: "Game/Player.cs#cs", Path: "Game/Player.cs", Name: "cs", Kind: "function"},
+	}}
+	hits, err := blast.Resolve(g, "Player.cs", "")
+	if err != nil || len(hits) != 1 || hits[0].ID != "Game/Player.cs" {
+		t.Errorf("Resolve(Player.cs) = %v, %v; want the file", hits, err)
+	}
+}
+
 // A name with a Godot extension is a file query: it must not fall through to
 // the bare-name stage, where "gd" would find a symbol called gd.
 func TestResolveTakesAGodotNameForAFile(t *testing.T) {
