@@ -146,6 +146,9 @@ type Import struct {
 	// Global marks C#'s `global using`, which holds in every file of the
 	// project and not only in its own.
 	Global bool `json:"global,omitempty"`
+	// System marks C++'s `#include <a/b.hpp>`, which the compiler looks
+	// up on the include path and not next to the file first.
+	System bool `json:"system,omitempty"`
 }
 
 // RawEdge is an edge whose target is not resolved yet.
@@ -173,7 +176,12 @@ type RawEdge struct {
 	// and its name does not: the signal or the handler end of a Godot
 	// connection. On a calls edge, "new" marks a constructor call: new T()
 	// names the type T, with Receiver and Name split like those of T.M().
-	// Empty everywhere else.
+	// In C++, "." marks a member call on an object, obj.f() or p->f():
+	// its Receiver names the object and not a class or namespace.
+	// On a references edge, a Godot namespace -- "godot.method" or
+	// "godot.signal" -- marks a C++ binding: Specifier is the name Godot
+	// knows, Receiver the class and Name the bound method, empty for a
+	// signal. Empty everywhere else.
 	Member model.Kind `json:"member,omitempty"`
 	// Via is the call whose first result receives this call: `New(g).Reach()`
 	// carries `New(g)` here, and so does `x.Reach()` after `x := New(g)`.
@@ -203,7 +211,9 @@ type Result struct {
 	Bridges     []Bridge     `json:"bridges,omitempty"`
 	// Enclosing is the namespace or package each type node is declared in,
 	// "" for the global one, for the resolver. A language with one package
-	// per file uses Package instead.
+	// per file uses Package instead. C++ also names the namespace of each
+	// free function, and for a method defined outside its class the
+	// namespace plus the qualifier written before the name: "ns::A".
 	Enclosing map[model.NodeID]string `json:"enclosing,omitempty"`
 	// Embedded are the parts of the file in another language, an inline
 	// script of an HTML page say: the same Path, lines of the whole file,

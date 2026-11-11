@@ -99,6 +99,22 @@ func parse(p *gts.Parser, lang *gts.Language, rel string, src []byte) (*Doc, err
 // Close releases the tree.
 func (d *Doc) Close() { d.tree.Release() }
 
+// Reparse replaces the tree with one built from src and keeps everything
+// else: Src, the ids minted and the lines covered. src must hold its text
+// at Src's offsets, so that the new tree cuts Src as well: Src with parts
+// blanked out, or a prefix of that. A language whose parser ends a tree
+// early can read the rest of a file this way; no node of the old tree may
+// be used after the call, and nothing changes when the parse fails.
+func (d *Doc) Reparse(src []byte) error {
+	tree, err := gts.NewParser(d.Lang).Parse(src)
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", d.Rel, err)
+	}
+	d.tree.Release()
+	d.tree, d.Root = tree, tree.RootNode()
+	return nil
+}
+
 // Type is a node's type in the document's grammar: "function_definition".
 func (d *Doc) Type(n *gts.Node) string { return n.Type(d.Lang) }
 

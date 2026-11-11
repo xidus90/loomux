@@ -219,6 +219,25 @@ func TestRunDeRanksACSharpTestFile(t *testing.T) {
 	}
 }
 
+// A C++ test file is de-ranked by the names the blast audit counts as tests.
+func TestRunDeRanksACppTestFile(t *testing.T) {
+	for path, testFile := range map[string]bool{
+		"src/player_test.cpp": true, "test_player.cc": true, "tests/helper.hpp": true, "UnitTest/helper.h": true,
+		"src/helper.cpp": false, // control: the same body wins when the path is no test
+	} {
+		nodes := []model.Node{
+			symbol(path+"#CacheCacheCache", "CacheCacheCache", path, "cache cache cache"),
+			symbol("src/cache.cpp#Cache", "Cache", "src/cache.cpp", "implementation"),
+		}
+		g, ix := world(nodes, nil)
+
+		got := ask.Run(g, ix, "cache", ask.Options{})
+		if sourceFirst := got.Hits[0].ID == "src/cache.cpp#Cache"; sourceFirst != testFile {
+			t.Errorf("%s: got %v, want the source first = %v", path, idsOf(got), testFile)
+		}
+	}
+}
+
 func TestRunLiftsThePenaltyWhenTheQueryAsksForTests(t *testing.T) {
 	nodes := []model.Node{
 		symbol("lib/cache.go#Cache", "Cache", "lib/cache.go", "implementation"),

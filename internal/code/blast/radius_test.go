@@ -9,6 +9,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/blast"
 	"github.com/xidus90/loomux/internal/code/diff"
+	"github.com/xidus90/loomux/internal/code/extract/cpp"
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
@@ -353,10 +354,26 @@ func TestIsTestPathPerLanguage(t *testing.T) {
 		"src/Game.Test/X.cs": true, "tests/X.cs": true, "a/test/b/X.cs": true,
 		"Contest.cs": false, "Testing.cs": false, "Game.Testing/X.cs": false, "Game/Attests/X.cs": false,
 		"Game/Tests/X.cs": true, "Test/X.cs": true, "a/TEST/b/X.cs": true, "GameTests/X.cs": false, "Game/PlayerTests.csproj": false, "PlayerTESTS.CS": false,
+		// C++: test_*, *_test.*, *_tests.*, *Test.* and *Tests.* by file name
+		// over every C++ extension, or a directory test, tests or unittest in
+		// any case.
+		"test_a.cpp": true, "src/a_test.cc": true, "a_tests.cxx": true, "ATest.hpp": true, "x/ATests.h": true,
+		"Test.cpp": true, "a_test.c++": true, "a_test.ipp": true, "a_test.tpp": true, "a_test.hh": true,
+		"a_test.hxx": true, "a_test.h++": true, "test/a.cpp": true, "src/tests/a.h": true, "UnitTest/a.cpp": true,
+		"src/unittest/a.cpp": true, "a/Tests/b.hpp": true, "a/TEST/b.cc": true,
+		"Contest.cpp": false, "latest_version.cpp": false, "src/a.cpp": false, "a/testing/b.cpp": false,
+		"contest/a.cpp": false, "attests/a.h": false, "unittests/a.cpp": false, "a_test.c": false,
+		"a_test.CPP": false, "testdata.cpp": false, "a_testing.cpp": false,
 		"a.ts": false, "TEST_X.PY": false, "A_TEST.GO": false,
 	} {
 		if got := blast.IsTestPath(path); got != want {
 			t.Errorf("IsTestPath(%q) = %v, want %v", path, got, want)
+		}
+	}
+	// Whatever the C++ extractor reads, the C++ rule judges.
+	for _, ext := range (cpp.Language{}).Extensions() {
+		if !blast.IsTestPath("a_test" + ext) {
+			t.Errorf("IsTestPath(a_test%s) = false", ext)
 		}
 	}
 }
