@@ -8,13 +8,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:997e7740448e13775f64ea4b8373a7e8505a7e0a5ae426cb09d8ec390cfeb30e"
-    revision: 6
+    content_hash: "sha256:05f39fa042e7c3e29acc7b4e72069a3ac17ca3fbbb5b7e84775be5bc44e04e2f"
+    revision: 7
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:a5cfd0d718861cf6176890351fc13c18269ce7b342f4def1cdcd792c78f2aa0a"
-    revision: 40
+    content_hash: "sha256:d3ed3514b1f1b2facc66924b4dfcb04b0e622f8777d765f594ae000387b5839d"
+    revision: 41
 ---
 
 ## Wofür
@@ -192,6 +192,50 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   Syntax-Fixture belegt die Formen von 25. `corpus.pruneDirs` kennt `target`
   und `build`
   (`docs/.superpowers/specs/2026-11-11-java-design.md`).
+
+- **PHP** liest er auf demselben Kern (`internal/code/extract/php`, Endung
+  `.php`): Dateien, Klassen, Schnittstellen, Traits und Enums, Methoden und
+  Funktionen, wo immer die Deklaration läuft (PHP legt eine Funktion in einem
+  `if` oder Rumpf im Namespace der Datei an, also bekommt sie dort ihren
+  Knoten). Ein Namespace ist kein Knoten und steht in keiner Kennung:
+  `Result.Enclosing` trägt ihn je Typ und Funktion, `Result.Package` den der
+  ersten Deklaration. Das ist eine Vereinfachung des Resolvers, nicht die Regel
+  von PHP: Der Resolver nimmt an, dass Code außerhalb jeder Deklaration in ihm
+  läuft, PHP führt ihn im Namespace seines eigenen `namespace`-Abschnitts aus;
+  auch
+  mehrere `namespace`-Blöcke einer Datei und HTML dazwischen (der Text außerhalb
+  von `<?php … ?>` nennt nichts) kommen an. Ein anonymer Typ hat keinen
+  Knoten, seine Aufrufe gehören zum Code darum herum. Ein Name behält seine
+  Qualifizierung; die rohe Kante trennt ihn am letzten Backslash, der Receiver
+  ist, was davor steht. Ein `use` (Klasse, `use function`, `use const`, auch
+  gruppiert) ist ein Import mit der Art `function` oder `const`, ein
+  `require` oder `include` (auch `_once`) mit einem Literal oder einem an
+  `__DIR__` oder `dirname(__FILE__)` gehängten Literal einer mit der Art
+  `require`; was erst zur Laufzeit entsteht, ist keiner. Ein statischer Aufruf
+  trägt in `RawEdge.Member` die Marke `::`, ein Aufruf über eine Variable
+  (`$obj->m()`, `$obj::m()`) die Marke `.`, `new X()` die Marke `new`.
+  Der Resolver (`internal/code/resolve/php.go`) vergleicht Namen ohne
+  Rücksicht auf die Schreibung, wie PHP, und löst sie so auf: `\A\B` voll
+  qualifiziert, `namespace\B` im aktuellen Namespace, ein unqualifizierter
+  Name über das `use` seiner Art, `A\B` über das `use` oder den Alias von `A`,
+  sonst im aktuellen Namespace; eine Klasse verlässt ihn nie, nur eine
+  unqualifizierte **Funktion** fällt auf den globalen zurück. Deklarieren
+  zwei Dateien denselben Namen, gilt der kleinste Pfad. Ein `use` einer Klasse
+  oder `use function` zeigt auf die Datei, die den Namen deklariert, ein
+  `require` auf die Datei, die sein Pfad relativ zur einbindenden nennt;
+  `use const`, das `use` eines Namespace und ein Name ohne Datei im Graphen
+  ergeben keine Kante. Eine Basis ist `extends` oder `implements` nach der Art
+  des Ziels; ein Trait, den ein `use` im Rumpf nennt, ist eine Basis wie
+  jede andere und geht beim Suchen den übrigen Basen vor (eine Methode des
+  Traits überschreibt die geerbte); nur eine Basis ohne Ziel steht unter
+  `Unresolved`. `f()`, `A\f()`, `$this->m()`, `self::m()`, `static::m()`,
+  `parent::m()` (nur in den Basen, nie in einem Trait), `X::m()` und `new X()`
+  (der Konstruktor, sonst der Typ) lösen sich auf; `$obj->m()` bleibt ohne
+  Kante. Wo die Grammatik scheitert, bleibt der Rest der Datei erhalten; PHP
+  8.2 bis 8.4 parsen ohne Fehler, die partielle Anwendung von 8.6 auch, und 8.5
+  hat zwei Lücken. `corpus.pruneDirs` kannte `vendor` schon, ein Projekt mit
+  `composer.json` hat darum nie die Pakete im Graphen
+  (`docs/.superpowers/specs/2026-11-11-php-design.md`).
 
 Jede Sprache löst in einem eigenen Namensindex auf. Über eine Sprachgrenze geht
 ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest (etwa
@@ -372,8 +416,8 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   wenn der Neubau scheitert; `check blast-audit` ist rot, wenn ein geänderter
   Bereich mit genug Aufrufern keinen geänderten Test hat. Die Lane-Namen der
   Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go, Python,
-  GDScript, C#, C++ und Java; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
-  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp, cpp, java; ein Stack
+  GDScript, C#, C++, Java und PHP; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
+  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp, cpp, java, php; ein Stack
   ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
   für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
   `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter
@@ -382,7 +426,8 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   oder `*Tests` und alles unter einem Verzeichnis `test`, `tests` oder
   `unittest` (in jeder Schreibung; `Contest.cpp` zählt nicht), für Java alles unter
   `src/test/` und ein Dateiname `*Test`, `*Tests`, `*IT` oder `Test*` (`Contest.java` zählt
-  nicht); Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
+  nicht), für PHP ein Dateiname `*Test.php` (`Contest.php` zählt nicht) und alles unter einem
+  Verzeichnis `test` oder `tests` in jeder Schreibung; Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
   `project.godot` nie.
 - **Prüfart `rules`:** Die sechste Art liest denselben Extraktor-Kern, aber
   nie den gespeicherten Graphen: `check rules` baut ihn im Prozess aus den
@@ -446,6 +491,24 @@ das Binary kommt über die üblichen Wege.
   - `import module` und eine Anweisung vor `super(…)` (Java 25) liegen jenseits
     der Grammatik von `gotreesitter`; Aufrufe in einem solchen Konstruktor
     fehlen.
+- **Lücken von PHP:**
+  - Typen von Variablen kennt der Graph nicht: `$obj->m()` und `$obj::m()`
+    ergeben keine Kante.
+  - `clone($o, [...])` und der Cast `(void)` (PHP 8.5) liegen jenseits der
+    Grammatik von `gotreesitter`; je ein Fehler im Rumpf darum herum, der nur
+    einen Aufruf im Fehler kostet, der Rest kommt an.
+  - Eine Datei mit vielen Heredocs, die PHP-Code enthalten, braucht etwa 20 s
+    zum Parsen und kann durch Parsefehler Deklarationen verlieren; der
+    Extraktions-Cache des Graphen hält ihr Ergebnis, bis sich die Datei
+    ändert, der Graph wartet also einmal. `check rules` hat keinen Cache und
+    parst (`internal/verify/rules/edges.go`) jede Datei bei jedem Lauf neu;
+    ist `[rules]` gesetzt, kehrt die Wartezeit bei jedem Edit und jedem Commit
+    wieder. Ein Parse-Budget fehlt noch.
+  - Ohne `composer.json` (und ohne `phpunit.xml`) erkennt die Prüfkette keinen
+    Stack `php`, der Graph liest die `.php`-Dateien trotzdem. Die Lanes des
+    Stacks brauchen die Werkzeuge in `vendor/bin`; fehlen sie, sind nur
+    diese Lanes `unavailable`, nicht rot. Die Lanes von Graph und Regeln laufen
+    weiter, und ein Edit führt trotzdem `php -l` aus.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
   Verhalten zählen nur Funktionen und Methoden, eine Änderung an einer Klasse
   ohne `__init__` läuft darum still durch `blast-audit`.

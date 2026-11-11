@@ -48,6 +48,14 @@
   „Vergleich mit zvec-grep“, Rohdaten
   `zvec-vergleich-windows-run1.json`.
 
+- 2026-11-11 — `topics/code-graph.md`: PHP als Sprache des Graphen (Extraktor
+  mit Namespace je Typ und Funktion, Resolver mit den Namensregeln von PHP,
+  Testdateien) und die Lücken von PHP als offener Punkt. Quelle: Code von
+  loomux (`internal/code/extract/php`, `internal/code/resolve/php.go`) und
+  `docs/de/cli-reference.md`. Danach neu gepinnt (`loomux wiki repin`): die
+  Seiten, die `docs/de/cli-reference.md` und `docs/de/architecture.md`
+  zitieren, ohne PHP-Bezug außer `topics/code-graph.md`, gegen die Änderung
+  gelesen.
 - 2026-11-11 — `topics/code-graph.md`, Java: Aufrufe zwischen den Methoden
   auf oberster Ebene einer kompakten Quelldatei lösen sich auf; die Lücke
   entfällt. Quelle: Code von loomux (`internal/code/resolve/java.go`).
