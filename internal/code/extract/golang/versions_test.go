@@ -58,8 +58,13 @@ func TestFileReadsAGenericMethodAndItsInstantiatedCall(t *testing.T) {
 	if !hasEdge(calls, extract.RawEdge{Source: "pkg/versions.go#use", Name: "Map", Owner: "Stack"}) {
 		t.Errorf("an instantiated method call must carry its owner; got %+v", calls)
 	}
-	if !hasEdge(calls, extract.RawEdge{Source: "pkg/versions.go#Stack.Map", Name: "f"}) {
+	// The body is walked: its append comes through. Its call of the
+	// parameter f does not -- a local names no function of the package.
+	if !hasEdge(calls, extract.RawEdge{Source: "pkg/versions.go#Stack.Map", Name: "append"}) {
 		t.Errorf("a generic method's body must emit its calls; got %+v", calls)
+	}
+	if hasEdge(calls, extract.RawEdge{Source: "pkg/versions.go#Stack.Map", Name: "f"}) {
+		t.Errorf("a call through the parameter f must be dropped; got %+v", calls)
 	}
 }
 

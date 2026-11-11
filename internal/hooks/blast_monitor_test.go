@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xidus90/loomux/internal/code/extract/golang"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/query"
 	"github.com/xidus90/loomux/internal/code/store"
@@ -203,7 +204,7 @@ func TestBlastAsideReadsAGraphTheGoExtractorBuiltWithOthers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.Meta.Extractor = "go/2+python/2@gotreesitter/v0.55.0"
+	g.Meta.Extractor = golang.Version + "+python/2@gotreesitter/v0.55.0"
 	if err := store.Write(root, g); err != nil {
 		t.Fatal(err)
 	}

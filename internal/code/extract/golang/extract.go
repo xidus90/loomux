@@ -38,7 +38,7 @@ import (
 // therefore survives even an explicit `graph build` -- the cached entries
 // still match and are reused -- and only `graph build --no-reuse` clears
 // them. So every change to the nodes or edges comes with a bump.
-const Version = "go/2"
+const Version = "go/3"
 
 // Language is the Go extractor as extract.Language describes one.
 type Language struct{}
@@ -265,13 +265,19 @@ func importEdges(fset *token.FileSet, rel string, file *ast.File) []extract.RawE
 // callEdges walks every function body and the package-level initialisers and
 // emits one raw edge per call site.
 //
-// Three shapes reach resolve, and the difference is what resolve is allowed to
+// Four shapes reach resolve, and the difference is what resolve is allowed to
 // assume:
 //
 //   - a bare name          -- resolve tries the same file, then a unique match
 //   - a name plus an owner -- a member call on a known local type
 //   - a name plus a specifier -- a package selector; resolve looks in that
 //     package alone
+//   - a name plus a via    -- a member on a call's first result; resolve
+//     types the result from the inner call's target
+//
+// A function in a value position -- an argument, a composite element, the
+// right of an assignment, a returned value -- gives a references edge of the
+// same shapes.
 func callEdges(fset *token.FileSet, rel string, file *ast.File, owners map[*ast.FuncDecl]model.NodeID) []extract.RawEdge {
 	var out []extract.RawEdge
 	// A call outside every function -- in a var initialiser -- is owned by the
@@ -290,7 +296,7 @@ func walkCalls(fset *token.FileSet, file *ast.File, rel string, fileID model.Nod
 		switch d := decl.(type) {
 		case *ast.FuncDecl:
 			if d.Recv == nil {
-				sc.declare(d.Name.Name, "")
+				sc.bind(d.Name.Name, binding{fn: true})
 			}
 		case *ast.GenDecl:
 			for _, spec := range d.Specs {
@@ -349,26 +355,55 @@ func declareParams(sc *scope, ft *ast.FuncType) {
 // collect walks one declaration's statements, tracking declarations as it goes
 // and emitting a raw edge per call.
 func collect(node ast.Node, fset *token.FileSet, rel string, owner model.NodeID, sc *scope, out *[]extract.RawEdge) {
-	ast.Inspect(node, func(n ast.Node) bool {
+	refs := func(exprs ...ast.Expr) {
+		for _, e := range exprs {
+			if kv, ok := e.(*ast.KeyValueExpr); ok {
+				// A field or map key is never the value.
+				e = kv.Value
+			}
+			if r, ok := refEdge(e, fset, rel, owner, sc); ok {
+				*out = append(*out, r)
+			}
+		}
+	}
+	var visit func(n ast.Node) bool
+	visit = func(n ast.Node) bool {
 		switch s := n.(type) {
 		case *ast.AssignStmt:
-			if s.Tok == token.DEFINE {
-				for i, lhs := range s.Lhs {
-					id, ok := lhs.(*ast.Ident)
-					if !ok {
-						continue
-					}
-					typ := ""
-					if i < len(s.Rhs) {
-						typ = boundType(s.Rhs[i])
-					}
-					sc.declare(id.Name, typ)
+			// Both sides are read before the left-hand side binds:
+			// `graph := graph.New(g)` calls the package, not the variable.
+			refs(s.Rhs...)
+			bound := make([]binding, len(s.Lhs))
+			for i := range s.Lhs {
+				if i < len(s.Rhs) {
+					bound[i] = bindingOf(s.Rhs[i], fset, rel, owner, sc)
 				}
 			}
+			for _, e := range s.Rhs {
+				ast.Inspect(e, visit)
+			}
+			for _, e := range s.Lhs {
+				ast.Inspect(e, visit)
+			}
+			if s.Tok == token.DEFINE {
+				// Only `:=` binds: a plain assignment keeps the variable's
+				// static type, which its first binding fixed.
+				for i, lhs := range s.Lhs {
+					if id, ok := lhs.(*ast.Ident); ok {
+						sc.bind(id.Name, bound[i])
+					}
+				}
+			}
+			return false
 		case *ast.ValueSpec:
+			refs(s.Values...)
 			for _, name := range s.Names {
 				sc.declare(name.Name, typeName(s.Type))
 			}
+		case *ast.CompositeLit:
+			refs(s.Elts...)
+		case *ast.ReturnStmt:
+			refs(s.Results...)
 		case *ast.RangeStmt:
 			// A range variable binds no type this package can read, but it must
 			// shadow: `for store := range m` hides the package `store`.
@@ -390,9 +425,11 @@ func collect(node ast.Node, fset *token.FileSet, rel string, owner model.NodeID,
 			if e, ok := callEdge(s, fset, rel, owner, sc); ok {
 				*out = append(*out, e)
 			}
+			refs(s.Args...)
 		}
 		return true
-	})
+	}
+	ast.Inspect(node, visit)
 }
 
 // callEdge reads one call site.
@@ -402,40 +439,84 @@ func collect(node ast.Node, fset *token.FileSet, rel string, owner model.NodeID,
 // only that sees the target's package clause. Splitting the question along that
 // line is what keeps `import "gopkg.in/yaml.v3"` from binding `v3`.
 func callEdge(call *ast.CallExpr, fset *token.FileSet, rel string, owner model.NodeID, sc *scope) (extract.RawEdge, bool) {
-	line := fset.Position(call.Pos()).Line
-	switch fn := peelIndex(call.Fun).(type) {
+	return useEdge(call.Fun, model.RelationCalls, fset.Position(call.Pos()).Line, fset, rel, owner, sc)
+}
+
+// refEdge reads one expression in a value position as a reference to a
+// function: `use(target)`, `Deps{F: pkg.Run}`, `register(s.handle)`. Most
+// such expressions name a variable, a constant or a field instead; resolve
+// drops those, since it looks among functions and methods alone. A name
+// declared inside a function is a local and never a function.
+func refEdge(expr ast.Expr, fset *token.FileSet, rel string, owner model.NodeID, sc *scope) (extract.RawEdge, bool) {
+	if id, ok := peelIndex(expr).(*ast.Ident); ok {
+		if universe[id.Name] || sc.local(id.Name) {
+			return extract.RawEdge{}, false
+		}
+		if b, ok := sc.lookup(id.Name); ok && !b.fn {
+			// One of the file's own types, variables or constants.
+			return extract.RawEdge{}, false
+		}
+	}
+	if _, ok := peelIndex(expr).(*ast.CallExpr); ok {
+		// A call in a value position is a call, and collect emits it as one.
+		return extract.RawEdge{}, false
+	}
+	return useEdge(expr, model.RelationReferences, fset.Position(expr.Pos()).Line, fset, rel, owner, sc)
+}
+
+// universe is the predeclared names that can stand where a value does.
+var universe = map[string]bool{"nil": true, "true": true, "false": true, "iota": true}
+
+// useEdge reads the expression a call or a reference names. An identifier
+// is a bare name; a selector is a package selector, a member on a typed
+// receiver, or a member on a call's result, which resolve types.
+func useEdge(fun ast.Expr, relation model.Relation, line int, fset *token.FileSet, rel string, owner model.NodeID, sc *scope) (extract.RawEdge, bool) {
+	edge := extract.RawEdge{Source: owner, Relation: relation, File: rel, Line: line}
+	switch fn := peelIndex(fun).(type) {
 	case *ast.Ident:
-		return extract.RawEdge{
-			Source: owner, Relation: model.RelationCalls,
-			Name: fn.Name, File: rel, Line: line,
-		}, true
+		if sc.local(fn.Name) {
+			// A local -- a function variable, or a map or slice of them, as in
+			// `m["k"]()` -- names no function of the package. A generic
+			// function is never local, so `F[int]()` still reaches here bare.
+			return extract.RawEdge{}, false
+		}
+		edge.Name = fn.Name
+		return edge, true
 	case *ast.SelectorExpr:
+		edge.Name = fn.Sel.Name
+		if inner, ok := peelIndex(fn.X).(*ast.CallExpr); ok {
+			// `New(g).Reach()`: the receiver is the inner call's first result.
+			via, ok := callEdge(inner, fset, rel, owner, sc)
+			if !ok {
+				return extract.RawEdge{}, false
+			}
+			edge.Via = &via
+			return edge, true
+		}
 		recv, ok := peelIndex(fn.X).(*ast.Ident)
 		if !ok {
-			// A chained or computed receiver -- `a.b().c()`, `m[k].c()`. The original
-			// drops these too: without a receiver type a bare method name says
+			// A computed receiver -- `m[k].c()`, `a.b.c()`. The original drops
+			// these too: without a receiver type a bare method name says
 			// nothing about what it belongs to.
 			return extract.RawEdge{}, false
 		}
-		typ, ok := sc.lookup(recv.Name)
-		if !ok {
+		b, ok := sc.lookup(recv.Name)
+		switch {
+		case !ok:
 			// Declared nowhere in view. It may be a package, and resolve is the
 			// only side that can say so.
-			return extract.RawEdge{
-				Source: owner, Relation: model.RelationCalls,
-				Name: fn.Sel.Name, Receiver: recv.Name, File: rel, Line: line,
-			}, true
-		}
-		if typ == "" {
+			edge.Receiver = recv.Name
+		case b.typ != "":
+			edge.Owner = b.typ
+		case b.via != nil:
+			edge.Via = b.via
+		default:
 			// Declared, but bound to nothing this package reads. Dropping beats
 			// guessing: a unique bare method name says nothing about its
 			// receiver.
 			return extract.RawEdge{}, false
 		}
-		return extract.RawEdge{
-			Source: owner, Relation: model.RelationCalls,
-			Name: fn.Sel.Name, Owner: typ, File: rel, Line: line,
-		}, true
+		return edge, true
 	default:
 		return extract.RawEdge{}, false
 	}

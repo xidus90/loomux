@@ -242,8 +242,9 @@ func report(g *model.Graph, stats query.Stats, took time.Duration) string {
 			unresolved++
 		}
 	}
-	// Base classes and references come from the tree-sitter languages; a graph
-	// without them reads as the Go graph's report always did.
+	// Base classes come from the tree-sitter languages, references from those
+	// and from Go's function values; a graph without either reads as the
+	// report always did.
 	extra := ""
 	if n := byRelation[model.RelationExtends]; n > 0 {
 		extra = fmt.Sprintf(", %d extends", n)
