@@ -48,6 +48,28 @@
   „Vergleich mit zvec-grep“, Rohdaten
   `zvec-vergleich-windows-run1.json`.
 
+- 2026-11-11 — `topics/code-graph.md`, Java: Aufrufe zwischen den Methoden
+  auf oberster Ebene einer kompakten Quelldatei lösen sich auf; die Lücke
+  entfällt. Quelle: Code von loomux (`internal/code/resolve/java.go`).
+  Danach neu gepinnt: `docs/de/cli-reference.md` (Aufrufreihenfolge und
+  `*TestCase.java`) berührt keine andere zitierende Seite.
+- 2026-11-11 — `topics/code-graph.md`, Java: `super.m()` sucht nur in den
+  Basen; die dateiweite Namensmenge hinter `obj.m()` steht unter den Lücken.
+  Quelle: Code von loomux (`internal/code/resolve/java.go`,
+  `internal/code/extract/java/edges.go`).
+- 2026-11-11 — Quellen neu gepinnt (`loomux wiki repin`): `docs/de/cli-reference.md`
+  (Herkunft `variant <a> over <b>`, `--show` je Bereich, Receiver-Regel von
+  Java) und `docs/de/configuration.md` (Variante je Bereich, Android,
+  Gradle-Lint) berühren keine Aussage der zitierenden Seiten außer
+  `topics/code-graph.md`, gegen die Änderung gelesen.
+- 2026-11-11 — `topics/code-graph.md`: Java als Sprache des Graphen (Extraktor
+  mit Paket je Datei, Resolver, Testdateien, Prüfkette) und die Lücken von
+  Java als offener Punkt. Quelle: Code von loomux
+  (`internal/code/extract/java`, `internal/code/resolve/java.go`) und
+  `docs/de/cli-reference.md`.
+- 2026-11-11 — Quellen neu gepinnt (`loomux wiki repin`): die Seiten, die
+  `docs/de/cli-reference.md` und `docs/de/architecture.md` zitieren, ohne
+  Java-Bezug außer `topics/code-graph.md`, gegen die Änderung gelesen.
 - 2026-11-11 — `topics/code-graph.md`: C++ als Sprache des Graphen (Extraktor,
   Resolver, Klassen-Scope der Brücke, Szenenknoten und -verbindungen auf
   GDExtension-Klassen, Prüfkette), die Lücken von C++ als offener Punkt, der
