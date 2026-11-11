@@ -124,6 +124,93 @@ func TestARootBuildFileOwnsTheCppSources(t *testing.T) {
 	}
 }
 
+// Maven and Gradle each name their variant beside the stack; a Gradle build
+// in Kotlin DSL counts only where a .java file lies below it, so a Kotlin
+// project stays unrecognised.
+func TestJavaSignalsAreDetected(t *testing.T) {
+	java := fstest.MapFile{Data: []byte("class A {}\n")}
+	for name, tree := range map[string]fstest.MapFS{
+		"pom.xml":             {"pom.xml": {Data: []byte("<project/>\n")}},
+		"build.gradle":        {"build.gradle": {Data: []byte("plugins {}\n")}},
+		"settings.gradle":     {"settings.gradle": {Data: []byte("\n")}},
+		"build.gradle.kts":    {"build.gradle.kts": {Data: []byte("\n")}, "src/main/java/a/A.java": &java},
+		"settings.gradle.kts": {"settings.gradle.kts": {Data: []byte("\n")}, "app/src/test/java/A.java": &java},
+	} {
+		want := []string{"gradle", "java"}
+		if name == "pom.xml" {
+			want = []string{"java", "maven"}
+		}
+		if got := Detect(tree).Stacks; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: stacks = %v, want %v", name, got, want)
+		}
+	}
+	kotlin := fstest.MapFS{
+		"build.gradle.kts":           {Data: []byte("\n")},
+		"settings.gradle.kts":        {Data: []byte("\n")},
+		"src/main/kotlin/a/A.kt":     {Data: []byte("class A\n")},
+		"build/generated/B.java":     {Data: []byte("class B {}\n")},
+		".gradle/cache/C.java":       {Data: []byte("class C {}\n")},
+		"lib/build.gradle.kts":       {Data: []byte("\n")},
+		"lib/target/classes/D.java":  {Data: []byte("class D {}\n")},
+		"node_modules/x/E.java":      {Data: []byte("class E {}\n")},
+		"lib/src/main/kotlin/a/L.kt": {Data: []byte("class L\n")},
+	}
+	if got := Detect(kotlin).Stacks; len(got) != 0 {
+		t.Errorf("pure Kotlin: stacks = %v, want none", got)
+	}
+}
+
+// lockedDirFS refuses to list one directory, as a folder without read
+// permission does.
+type lockedDirFS struct {
+	fstest.MapFS
+	locked string
+}
+
+func (f lockedDirFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if name == f.locked {
+		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrPermission}
+	}
+	return f.MapFS.ReadDir(name)
+}
+
+// The search for a .java file passes over a directory it cannot list.
+func TestTheJavaSearchPassesAnUnreadableDirectory(t *testing.T) {
+	tree := fstest.MapFS{"build.gradle.kts": {Data: []byte("\n")}, "a/A.java": {Data: []byte("class A {}\n")}}
+	if got := Detect(lockedDirFS{tree, "a"}).Stacks; len(got) != 0 {
+		t.Errorf("only behind the lock: %v", got)
+	}
+	tree["b/B.java"] = &fstest.MapFile{Data: []byte("class B {}\n")}
+	if got := Detect(lockedDirFS{tree, "a"}).Stacks; !reflect.DeepEqual(got, []string{"gradle", "java"}) {
+		t.Errorf("beside the lock: %v", got)
+	}
+}
+
+// A root pom.xml or Gradle build builds its modules: they are no areas of
+// their own, or two builds would compile the same module side by side.
+func TestARootJavaBuildOwnsItsModules(t *testing.T) {
+	for _, file := range []string{"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"} {
+		tree := fstest.MapFS{
+			file:                       {Data: []byte("\n")},
+			"core/pom.xml":             {Data: []byte("<project/>\n")},
+			"app/build.gradle":         {Data: []byte("\n")},
+			"app/src/main/java/A.java": {Data: []byte("class A {}\n")},
+		}
+		if got := Detect(tree).Areas["java"]; !reflect.DeepEqual(got, []string{"."}) {
+			t.Errorf("%s: %v", file, got)
+		}
+	}
+}
+
+// Review Focus 4: with pom.xml and build.gradle side by side both variants
+// are detected; the presets list maven first, so Maven checks (verify).
+func TestMavenBesideGradleReportsBoth(t *testing.T) {
+	tree := fstest.MapFS{"pom.xml": {Data: []byte("<project/>\n")}, "build.gradle": {Data: []byte("\n")}}
+	if got := Detect(tree).Stacks; !reflect.DeepEqual(got, []string{"gradle", "java", "maven"}) {
+		t.Fatalf("stacks = %v", got)
+	}
+}
+
 func TestAWorkspaceMemberIsSeenOneLevelDown(t *testing.T) {
 	tree := fstest.MapFS{
 		"README.md":               {Data: []byte("workspace\n")},

@@ -73,14 +73,24 @@ func Resolve(cfg Config, p *Presets, facts detect.Facts) (Effective, error) {
 func resolveStack(stack string, overrides map[string]Override, preset PresetStack, signals []string) (map[string]Resolved, error) {
 	lanes := preset.Lanes
 	origin := map[string]string{}
-	for _, v := range preset.Variants {
-		if slices.Contains(signals, v.When) {
-			lanes = layer(lanes, v.Lanes)
-			for kind := range v.Lanes {
-				origin[kind] = "preset, variant " + v.When
-			}
-			break
+	for i, v := range preset.Variants {
+		if !slices.Contains(signals, v.When) {
+			continue
 		}
+		lanes = layer(lanes, v.Lanes)
+		for kind := range v.Lanes {
+			origin[kind] = "preset, variant " + v.When
+		}
+		// A later variant found too is passed over: each lane it would have
+		// shaped names it, so --show tells why its tool does not run.
+		for _, other := range preset.Variants[i+1:] {
+			if slices.Contains(signals, other.When) {
+				for kind := range other.Lanes {
+					origin[kind] = "preset, variant " + v.When + " over " + other.When
+				}
+			}
+		}
+		break
 	}
 	merged := map[string]Lane{}
 	out := map[string]Resolved{}

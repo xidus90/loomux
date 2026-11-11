@@ -479,6 +479,116 @@ func TestPlanRunsDotnetForACSharpFolder(t *testing.T) {
 // A test project builds the project it references into that project's obj/
 // and bin/, beside the build of the project itself: every C# area shares the
 // one lock of the repository.
+// Maven's lanes build into target/ and lock the area. Coverage reads the
+// JaCoCo report of the root and of modules one level down; the test lane
+// writes them when it measures, through the plugin's full coordinates, so a
+// project needs no JaCoCo configuration of its own.
+func TestPlanRunsMavenForAJavaProject(t *testing.T) {
+	root := t.TempDir()
+	facts := detect.Facts{Stacks: []string{"java", "maven"}, Areas: map[string][]string{"java": {"."}}}
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"lint", "types", "test", "coverage"}}, env(root))
+	if err != nil || names(jobs) != "lint/java types/java test/java coverage/java" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	jacoco := "org.jacoco:jacoco-maven-plugin:0.8.16:"
+	want := [][]string{
+		{"mvn", "-B", "-q", "checkstyle:check"},
+		{"mvn", "-B", "-q", "-DskipTests", "compile", "test-compile"},
+		{"mvn", "-B", "-q", jacoco + "prepare-agent", "test", jacoco + "report"},
+		{`C:\bin\loomux.exe`, "check", "linecov", "--report", "target/site/jacoco/jacoco.xml", "--report", "*/target/site/jacoco/jacoco.xml"},
+	}
+	for i, j := range jobs {
+		if j.Pre != "" || !slices.EqualFunc(j.Argvs, want[i:i+1], slices.Equal) || j.Lock != LockPath(root, "java", ".") {
+			t.Errorf("%s: %+v", j.Name, j)
+		}
+	}
+	if jobs[3].After != 2 {
+		t.Fatalf("coverage: %+v", jobs[3])
+	}
+	jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"test"}}, env(root))
+	if !slices.Equal(jobs[0].Argvs[0], []string{"mvn", "-B", "-q", "test"}) {
+		t.Fatalf("test alone: %q", jobs[0].Argvs)
+	}
+	jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"coverage"}}, env(root))
+	if !slices.Equal(jobs[0].Measure, want[2]) {
+		t.Fatalf("coverage alone measures: %q", jobs[0].Measure)
+	}
+}
+
+// No Checkstyle runs on every Java version, so the project's pom.xml brings
+// its own; without one there is no lint.
+func TestPlanLintsMavenOnlyWithCheckstyle(t *testing.T) {
+	e := env(t.TempDir())
+	var asked []string
+	e.HasTests = func(_ string, p []string) bool { asked = append(asked, p...); return false }
+	facts := detect.Facts{Stacks: []string{"java", "maven"}, Areas: map[string][]string{"java": {"."}}}
+	jobs, _ := Plan(effFor(t, "", facts), Request{Kinds: []string{"lint"}}, e)
+	if jobs[0].Pre != StateUnavailable || jobs[0].Note != "none found: pom.xml:maven-checkstyle-plugin" {
+		t.Fatalf("%+v %v", jobs[0], asked)
+	}
+}
+
+// Gradle runs through the area's wrapper where it has one, by its absolute
+// path (a relative one would be looked up on the PATH), else from the PATH.
+func TestPlanRunsGradleThroughItsWrapper(t *testing.T) {
+	root := t.TempDir()
+	facts := detect.Facts{Stacks: []string{"gradle", "java"}, Areas: map[string][]string{"java": {"."}}}
+	kinds := Request{Kinds: []string{"lint", "types", "test", "coverage"}}
+	report := []string{`C:\bin\loomux.exe`, "check", "linecov", "--report", "build/reports/jacoco/test/jacocoTestReport.xml", "--report", "*/build/reports/jacoco/test/jacocoTestReport.xml"}
+	for _, gradle := range []string{"gradle", filepath.Join(root, wrapperName())} {
+		jobs, err := Plan(effFor(t, "", facts), kinds, env(root))
+		if err != nil || names(jobs) != "lint/java types/java test/java coverage/java" {
+			t.Fatalf("%v %v", err, names(jobs))
+		}
+		want := [][][]string{
+			{{gradle, "checkstyleMain", "checkstyleTest"}},
+			{{gradle, "compileJava", "compileTestJava"}},
+			{{gradle, "test"}},
+			{{gradle, "jacocoTestReport"}, report},
+		}
+		for i, j := range jobs {
+			if j.Pre != "" || !slices.EqualFunc(j.Argvs, want[i], slices.Equal) || j.Lock != LockPath(root, "java", ".") {
+				t.Errorf("%s: %q %+v", gradle, j.Argvs, j)
+			}
+		}
+		if jobs[3].After != 2 {
+			t.Errorf("coverage: %+v", jobs[3])
+		}
+		jobs, _ = Plan(effFor(t, "", facts), Request{Kinds: []string{"coverage"}}, env(root))
+		if !slices.Equal(jobs[0].Measure, []string{gradle, "test", "jacocoTestReport"}) {
+			t.Errorf("coverage alone measures: %q", jobs[0].Measure)
+		}
+		os.WriteFile(filepath.Join(root, wrapperName()), nil, 0o755)
+	}
+}
+
+// Gradle lints through the checkstyle plugin's tasks, so only a build that
+// applies the plugin has a lint.
+func TestPlanLintsGradleOnlyWithCheckstyle(t *testing.T) {
+	e := env(t.TempDir())
+	e.HasTests = func(_ string, p []string) bool { return !slices.Contains(p, "build.gradle*:checkstyle") }
+	facts := detect.Facts{Stacks: []string{"gradle", "java"}, Areas: map[string][]string{"java": {"."}}}
+	jobs, _ := Plan(effFor(t, "", facts), Request{Kinds: []string{"lint"}}, e)
+	if jobs[0].Pre != StateUnavailable || jobs[0].Note != "none found: build.gradle*:checkstyle" {
+		t.Fatalf("%+v", jobs[0])
+	}
+}
+
+// A Gradle build without the jacoco plugin has no jacocoTestReport task: its
+// coverage lane is unavailable, and the test lane stays plain beside it.
+func TestPlanSkipsGradleCoverageWithoutJacoco(t *testing.T) {
+	e := env(t.TempDir())
+	e.HasTests = func(_ string, p []string) bool { return !slices.Contains(p, "build.gradle*:jacoco") }
+	facts := detect.Facts{Stacks: []string{"gradle", "java"}, Areas: map[string][]string{"java": {"."}}}
+	jobs, _ := Plan(effFor(t, "", facts), Request{Kinds: []string{"test", "coverage"}}, e)
+	if !slices.Equal(jobs[0].Argvs[0], []string{"gradle", "test"}) || jobs[0].Pre != "" {
+		t.Fatalf("test: %+v", jobs[0])
+	}
+	if jobs[1].Pre != StateUnavailable || jobs[1].Note != "none found: build.gradle*:jacoco" {
+		t.Fatalf("coverage: %+v", jobs[1])
+	}
+}
+
 func TestPlanLocksEveryCSharpAreaWithOneLock(t *testing.T) {
 	root := t.TempDir()
 	facts := detect.Facts{Stacks: []string{"csharp"}, Areas: map[string][]string{"csharp": {"App", "App.Tests"}}}
@@ -1074,7 +1184,7 @@ func factsOf(stacks ...string) detect.Facts {
 	return f
 }
 
-// The carrier follows the rank go, python, gdscript, csharp, cpp, then byte order, not the
+// The carrier follows the rank go, python, gdscript, csharp, cpp, java, then byte order, not the
 // walk: the jobs stay in byte order, and the carrier may stand later in it.
 func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 	unranked := "[verify.css.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
@@ -1101,8 +1211,10 @@ func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 			[][3]string{{"graph/csharp", "not-applicable", covered("gdscript")}, {"graph/gdscript", "", ""}}},
 		{"csharp beats cpp", "", []string{"cpp", "csharp"},
 			[][3]string{{"graph/cpp", "not-applicable", covered("csharp")}, {"graph/csharp", "", ""}}},
-		{"cpp beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"cpp", "rust"},
-			[][3]string{{"graph/cpp", "", ""}, {"graph/rust", "not-applicable", covered("cpp")}}},
+		{"cpp beats java", "", []string{"cpp", "java"},
+			[][3]string{{"graph/cpp", "", ""}, {"graph/java", "not-applicable", covered("cpp")}}},
+		{"java beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"java", "rust"},
+			[][3]string{{"graph/java", "", ""}, {"graph/rust", "not-applicable", covered("java")}}},
 		{"unranked stacks follow in byte order", unranked, []string{"rust", "css"},
 			[][3]string{{"graph/css", "", ""}, {"graph/rust", "not-applicable", covered("css")}}},
 	} {

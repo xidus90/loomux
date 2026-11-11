@@ -28,7 +28,7 @@ func Kinds() []string { return []string{"lint", "types", "test", "coverage", "gr
 // StackNames are the stacks [verify] may configure.
 func StackNames() []string {
 	return []string{"go", "python", "typescript", "vue", "svelte", "css", "html",
-		"gdscript", "csharp", "cpp", "shell", "sql", "rust", "wiki", "wiki-sources", "project"}
+		"gdscript", "csharp", "cpp", "java", "shell", "sql", "rust", "wiki", "wiki-sources", "project"}
 }
 
 // Reserved reports whether name is taken by a built-in check, a kind or the

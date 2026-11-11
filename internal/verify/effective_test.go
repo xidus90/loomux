@@ -52,6 +52,29 @@ lint = "sqlfluff lint ."
 	}
 }
 
+// Review Focus 4: with pom.xml beside build.gradle Maven checks, and every
+// lane Gradle would have run says so in its origin, which --show prints.
+func TestResolveLetsMavenWinOverGradleAndSaysSo(t *testing.T) {
+	facts := detect.Facts{Stacks: []string{"gradle", "java", "maven"}, Areas: map[string][]string{"java": {"."}}}
+	eff, err := Resolve(Config{}, presetsFor(t), facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"lint", "types", "test", "coverage"} {
+		got := eff.Stacks["java"][kind]
+		if got.Origin != "preset, variant maven over gradle" || !strings.HasPrefix(got.Lane.Commands[0], "mvn ") && kind != "coverage" {
+			t.Errorf("%s: %+v", kind, got)
+		}
+	}
+	if got := eff.Stacks["java"]["graph"]; got.Origin != "preset" {
+		t.Errorf("graph: %+v", got)
+	}
+	eff, _ = Resolve(Config{}, presetsFor(t), detect.Facts{Stacks: []string{"gradle", "java"}})
+	if got := eff.Stacks["java"]["types"]; got.Origin != "preset, variant gradle" || got.Lane.Commands[0] != "{gradle} compileJava compileTestJava" {
+		t.Errorf("gradle alone: %+v", got)
+	}
+}
+
 func TestResolveRefusesACoverProfileNobodyWrites(t *testing.T) {
 	cfg, _ := parse(t, "[verify.go]\ntest = \"go test ./...\"\n[verify.go.coverage]\nmeasure = \"go test ./...\"\n")
 	_, err := Resolve(cfg, presetsFor(t), detect.Facts{Stacks: []string{"go"}})

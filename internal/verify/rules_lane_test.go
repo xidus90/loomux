@@ -100,7 +100,7 @@ func TestRulesOnEdit(t *testing.T) {
 func TestEditsRules(t *testing.T) {
 	for file, want := range map[string]bool{
 		"a.go": true, "x/y.PY": false, "A.GD": false, "z.gd": true, ".loomux/config.toml": true,
-		"a.cs": true, "a.cpp": true, "b/c.HPP": false, "d.hh": true, "e.ipp": true, "f.c": false,
+		"a.cs": true, "a.cpp": true, "A.java": true, "B.JAVA": false, "b/c.HPP": false, "d.hh": true, "e.ipp": true, "f.c": false,
 		"a.md": false, "go.mod": false, "sub/.loomux/config.toml": false, "a.toml": false,
 	} {
 		if EditsRules(file) != want {
