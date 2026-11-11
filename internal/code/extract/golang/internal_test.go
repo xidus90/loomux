@@ -178,7 +178,7 @@ func TestCollectSkipsANonIdentLhsOfADefineAssign(t *testing.T) {
 	assign := &ast.AssignStmt{
 		Tok: token.DEFINE,
 		Lhs: []ast.Expr{&ast.SelectorExpr{X: ast.NewIdent("o"), Sel: ast.NewIdent("f")}},
-		Rhs: []ast.Expr{ast.NewIdent("v")},
+		Rhs: []ast.Expr{&ast.BasicLit{Kind: token.INT, Value: "1"}},
 	}
 	sc := newScope()
 	var out []extract.RawEdge

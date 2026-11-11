@@ -1,6 +1,12 @@
 package golang
 
-import "go/ast"
+import (
+	"go/ast"
+	"go/token"
+
+	"github.com/xidus90/loomux/internal/code/extract"
+	"github.com/xidus90/loomux/internal/code/model"
+)
 
 // scope is the set of names a position has in view, plus the local type binding
 // of each.
@@ -23,24 +29,49 @@ import "go/ast"
 // Reading the second selector as a package would wire a call into a package the
 // line never touches.
 type scope struct {
-	frames []map[string]string // name -> bound type, "" when unknown
+	frames []map[string]binding
+}
+
+// binding is what a name is bound to: a type this package reads, or the call
+// whose first result it holds, which only resolve can type. Both empty when
+// the form is one this package does not read.
+type binding struct {
+	typ string
+	via *extract.RawEdge
+	fn  bool // a package-level function of this file
 }
 
 func newScope() *scope {
-	return &scope{frames: []map[string]string{{}}}
+	return &scope{frames: []map[string]binding{{}}}
 }
 
-func (s *scope) push() { s.frames = append(s.frames, map[string]string{}) }
+func (s *scope) push() { s.frames = append(s.frames, map[string]binding{}) }
 
 func (s *scope) pop() { s.frames = s.frames[:len(s.frames)-1] }
 
 // declare records a name in the innermost frame, with the type it is bound to
 // ("" when the form is one this package does not read).
 func (s *scope) declare(name, typ string) {
+	s.bind(name, binding{typ: typ})
+}
+
+// bind records a name in the innermost frame with its whole binding.
+func (s *scope) bind(name string, b binding) {
 	if name == "" || name == "_" {
 		return
 	}
-	s.frames[len(s.frames)-1][name] = typ
+	s.frames[len(s.frames)-1][name] = b
+}
+
+// local reports whether a name is declared inside a function: a variable, a
+// parameter or a result, and never one of the file's package-level names.
+func (s *scope) local(name string) bool {
+	for i := len(s.frames) - 1; i > 0; i-- {
+		if _, ok := s.frames[i][name]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // lookup answers both the shadowing question and the type question in one
@@ -54,13 +85,13 @@ func (s *scope) declare(name, typ string) {
 // stack and the identical key. A second walk would find nothing a first
 // walk's ok already didn't decide, so it existed only to be tested, not to
 // be reached.
-func (s *scope) lookup(name string) (typ string, ok bool) {
+func (s *scope) lookup(name string) (b binding, ok bool) {
 	for i := len(s.frames) - 1; i >= 0; i-- {
-		if typ, ok := s.frames[i][name]; ok {
-			return typ, true
+		if b, ok := s.frames[i][name]; ok {
+			return b, true
 		}
 	}
-	return "", false
+	return binding{}, false
 }
 
 // boundType is the type a right-hand side binds, in exactly the four forms
@@ -71,9 +102,10 @@ func (s *scope) lookup(name string) (typ string, ok bool) {
 //	x := &T{}               -> T
 //	x := NewT(...)          -> T   (a convention, not a resolution)
 //
-// Everything else binds nothing: a plain function's return type, a field
-// access, a range variable, a channel receive. Widening this set widens the set
-// of call edges, and that owes its own reason.
+// Everything else binds no type here: a plain function's return type, a field
+// access, a range variable, a channel receive. A call still binds itself
+// (bindingOf), and resolve types its result; that is the one widening, and
+// its reason is a chain like `x := blast.New(g); x.Reach()`.
 func boundType(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.CompositeLit:
@@ -90,6 +122,20 @@ func boundType(expr ast.Expr) string {
 		}
 	}
 	return ""
+}
+
+// bindingOf is what `x := rhs` binds x to: a type boundType reads, or else
+// the call whose first result x holds, for resolve to type.
+func bindingOf(rhs ast.Expr, fset *token.FileSet, rel string, owner model.NodeID, sc *scope) binding {
+	if typ := boundType(rhs); typ != "" {
+		return binding{typ: typ}
+	}
+	if call, ok := rhs.(*ast.CallExpr); ok {
+		if via, ok := callEdge(call, fset, rel, owner, sc); ok {
+			return binding{via: &via}
+		}
+	}
+	return binding{}
 }
 
 // constructorType reads "NewCache" as "Cache". Go's own convention, and the

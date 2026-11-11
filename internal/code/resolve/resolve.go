@@ -1,6 +1,9 @@
 package resolve
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"sort"
 	"strings"
 
@@ -185,6 +188,7 @@ type repoIndex struct {
 	filesInDir map[string][]string                // dir -> file node paths, no tests
 	clauseOf   map[string]string                  // dir -> package clause, no tests
 	importsOf  map[string][]extract.Import        // file path -> its imports
+	packageOf  map[string]string                  // file path -> its package clause
 }
 
 func index(files []extract.Result) *repoIndex {
@@ -193,9 +197,11 @@ func index(files []extract.Result) *repoIndex {
 		global: map[string][]model.Node{}, byOwner: map[string][]model.Node{},
 		perDir: map[string]map[string][]model.Node{}, filesInDir: map[string][]string{},
 		clauseOf: map[string]string{}, importsOf: map[string][]extract.Import{},
+		packageOf: map[string]string{},
 	}
 	for _, f := range files {
 		x.importsOf[f.Path] = f.Imports
+		x.packageOf[f.Path] = f.Package
 		// The clause of a package is what an importer binds without an alias.
 		// Test files are skipped: `package X_test` is a different clause for the
 		// same directory, and no importer ever sees it.
@@ -245,7 +251,7 @@ func isTestFile(p string) bool {
 // resolveEdge turns one raw edge into an edge, or reports that it is not sound
 // enough to keep.
 //
-//coverage:exempt the default arm needs an extract.RawEdge whose Relation is neither contains, imports nor calls; the extractor (internal/code/extract/golang/extract.go) only ever constructs those three, so no real caller can produce one
+//coverage:exempt the default arm needs an extract.RawEdge whose Relation is neither contains, imports, calls nor references; the extractor (internal/code/extract/golang/extract.go) only ever constructs those four, so no real caller can produce one
 func (x *repoIndex) resolveEdge(raw extract.RawEdge, mods []Module) (model.Edge, bool) {
 	switch raw.Relation {
 	case model.RelationContains:
@@ -262,6 +268,8 @@ func (x *repoIndex) resolveEdge(raw extract.RawEdge, mods []Module) (model.Edge,
 		}, true
 	case model.RelationCalls:
 		return x.resolveCall(raw, mods)
+	case model.RelationReferences:
+		return x.resolveReference(raw, mods)
 	default:
 		return model.Edge{}, false
 	}
@@ -291,6 +299,8 @@ func (x *repoIndex) importTarget(spec string, mods []Module) model.NodeID {
 // resolveCall applies the three shapes a raw call may have.
 func (x *repoIndex) resolveCall(raw extract.RawEdge, mods []Module) (model.Edge, bool) {
 	switch {
+	case raw.Via != nil:
+		return x.resolveChained(raw, mods)
 	case raw.Receiver != "":
 		return x.resolveSelector(raw, mods)
 	case raw.Owner != "":
@@ -306,6 +316,82 @@ func (x *repoIndex) resolveCall(raw extract.RawEdge, mods []Module) (model.Edge,
 		// is inferred; several matches are dropped rather than guessed.
 		return one(raw, x.global[raw.Name], model.ConfidenceInferred)
 	}
+}
+
+// resolveReference answers a function used as a value: `Deps{F: pkg.Run}`,
+// `register(s.handle)`, `use(target)`.
+//
+// A selector and a member resolve as a call would. A bare name never falls
+// back to the repo-wide index: in Go an undeclared bare identifier is a name
+// of the same package or a builtin, so the package directory is the whole
+// search and an answer there is certain.
+func (x *repoIndex) resolveReference(raw extract.RawEdge, mods []Module) (model.Edge, bool) {
+	if raw.Receiver != "" || raw.Owner != "" || raw.Via != nil {
+		return x.resolveCall(raw, mods)
+	}
+	if e, ok := one(raw, x.perFile[raw.File][raw.Name], model.ConfidenceExtracted); ok {
+		return e, true
+	}
+	if strings.HasSuffix(x.packageOf[raw.File], "_test") {
+		// An external test package sees its directory's package only through
+		// an import, never by a bare name.
+		return model.Edge{}, false
+	}
+	return one(raw, x.perDir[dirOf(raw.File)][raw.Name], model.ConfidenceExtracted)
+}
+
+// resolveChained answers `New(g).Reach()`, and `x.Reach()` after
+// `x := New(g)`: the inner call resolves by the usual rules, its first result
+// type is read from the target's signature, and the method is looked up on
+// that type in the target's own package. The chain is as sure as its weakest
+// link.
+func (x *repoIndex) resolveChained(raw extract.RawEdge, mods []Module) (model.Edge, bool) {
+	inner, ok := x.resolveCall(*raw.Via, mods)
+	if !ok {
+		return model.Edge{}, false
+	}
+	target := x.nodes[inner.Target]
+	typ := resultType(target.Signature)
+	if typ == "" {
+		return model.Edge{}, false
+	}
+	var candidates []model.Node
+	for _, m := range x.byOwner[typ+"."+raw.Name] {
+		if dirOf(m.Path) == dirOf(target.Path) {
+			candidates = append(candidates, m)
+		}
+	}
+	return one(raw, candidates, inner.Confidence)
+}
+
+// resultType is the type name of a function's first result, read from its
+// signature: `func New(g *model.Graph) *Index` gives "Index". A result in
+// another package (`*other.T`), no result at all, or a signature that does not
+// parse gives "".
+func resultType(sig string) string {
+	file, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+sig+"{}", parser.SkipObjectResolution)
+	if err != nil || len(file.Decls) != 1 {
+		return ""
+	}
+	fn, ok := file.Decls[0].(*ast.FuncDecl)
+	if !ok || fn.Type.Results == nil || len(fn.Type.Results.List) == 0 {
+		// No result, or an empty list written out: `func f() ()`.
+		return ""
+	}
+	t := fn.Type.Results.List[0].Type
+	if star, ok := t.(*ast.StarExpr); ok {
+		t = star.X
+	}
+	switch g := t.(type) {
+	case *ast.IndexExpr:
+		t = g.X
+	case *ast.IndexListExpr:
+		t = g.X
+	}
+	if id, ok := t.(*ast.Ident); ok {
+		return id.Name
+	}
+	return ""
 }
 
 // resolveSelector answers `pkg.Fn()` against the one package it can mean.

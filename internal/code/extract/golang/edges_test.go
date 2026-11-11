@@ -236,7 +236,8 @@ func f() {
 		}
 	}
 	// a, b, c, d carry the owner; e does not -- a plain function's return type
-	// is not something this extractor knows.
+	// is not something this extractor knows. e carries the call `other()`
+	// instead, for resolve to type.
 	if owned != 4 {
 		t.Errorf("got %d owned calls of M, want 4; edges %+v", owned, calls)
 	}
@@ -267,7 +268,7 @@ func TestFileAttributesAPackageLevelCallToTheFile(t *testing.T) {
 	}
 }
 
-func TestFileEmitsNeitherHeritageNorReferenceEdges(t *testing.T) {
+func TestFileEmitsNoHeritageEdges(t *testing.T) {
 	const src = `package p
 
 type Reader interface{ Read() string }
@@ -282,8 +283,8 @@ func (i Impl) Read() string { return "" }
 	}
 	// Go has no explicit implements, and an embedded interface is not one
 	// either. The original emits heritage edges for kind:class and the JVM/Swift
-	// types alone, and reference edges only where an import binds a symbol --
-	// a collector it has for TypeScript and PHP, not for Go.
+	// types alone. Nothing here is a function value, so no reference edge
+	// either.
 	for _, e := range r.Edges {
 		switch e.Relation {
 		case model.RelationExtends, model.RelationImplements, model.RelationReferences:
@@ -292,19 +293,23 @@ func (i Impl) Read() string { return "" }
 	}
 }
 
-func TestFileDropsACallOnAChainedReceiver(t *testing.T) {
+func TestFileHandsAChainedReceiverToResolveAsItsInnerCall(t *testing.T) {
 	const src = "package p\n\nfunc a() T { return T{} }\n\ntype T struct{}\n\nfunc (T) M() {}\n\nfunc f() { a().M() }\n"
 	r, err := golang.File("p.go", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// `a().M()` has a call, not an identifier, as its receiver expression: a
-	// bare method name off it says nothing about what it belongs to.
+	// `a().M()` has a call, not an identifier, as its receiver expression: only
+	// resolve can read a's result type, so the edge carries a's call and no owner.
 	for _, e := range r.Edges {
 		if e.Relation == model.RelationCalls && e.Name == "M" {
-			t.Errorf("a chained receiver must yield no call edge for M; got %+v", e)
+			if e.Owner != "" || e.Via == nil || e.Via.Name != "a" {
+				t.Errorf("M must carry the inner call a and no owner; got %+v via %+v", e, e.Via)
+			}
+			return
 		}
 	}
+	t.Errorf("no call edge for M; got %+v", r.Edges)
 }
 
 func TestFileDropsACallThroughAFunctionLiteral(t *testing.T) {
@@ -365,10 +370,10 @@ func TestFileDropsAMemberCallOnAnUnexportedConstructorConvention(t *testing.T) {
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
 	// "Newfoo" does not fit the New<Exported> convention -- its rest, "foo", is
-	// unexported -- so x binds no type, and the later call on it is dropped.
+	// unexported -- so x binds no type, only the call it holds, for resolve.
 	for _, e := range calls {
-		if e.Name == "M" {
-			t.Errorf("a call bound through an unexported constructor name must be dropped; got %+v", e)
+		if e.Name == "M" && (e.Owner != "" || e.Via == nil || e.Via.Name != "Newfoo") {
+			t.Errorf("x must bind the call Newfoo and no type; got %+v via %+v", e, e.Via)
 		}
 	}
 }
@@ -507,8 +512,8 @@ func TestFileBindsAConstructorOnlyWhenTheWholeNewPrefixMatches(t *testing.T) {
 	}
 	calls := edgesOf(t, r, model.RelationCalls)
 	for _, e := range calls {
-		if e.Name == "Do" {
-			t.Errorf("FooBar is not a New<Type> constructor; x must stay unbound and the call dropped, got %+v", e)
+		if e.Name == "Do" && (e.Owner != "" || e.Via == nil || e.Via.Name != "FooBar") {
+			t.Errorf("FooBar is not a New<Type> constructor; x must bind its call and no type, got %+v via %+v", e, e.Via)
 		}
 	}
 }

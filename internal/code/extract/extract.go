@@ -170,6 +170,10 @@ type RawEdge struct {
 	// and its name does not: the signal or the handler end of a Godot
 	// connection. Empty everywhere else.
 	Member model.Kind `json:"member,omitempty"`
+	// Via is the call whose first result receives this call: `New(g).Reach()`
+	// carries `New(g)` here, and so does `x.Reach()` after `x := New(g)`.
+	// Only resolve can type that result. Nil everywhere else.
+	Via *RawEdge `json:"via,omitempty"`
 }
 
 // Result is what one file contributes to the graph.
