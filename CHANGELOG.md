@@ -7,6 +7,24 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.23.0] - 2026-11-11
+
+<https://github.com/xidus90/loomux/pull/150>
+
+### Added
+- `loomux graph grep --trust-index` answers from the index without checking the tree for drift.
+- `loomux graph grep` answers small content drift from an overlay instead of rebuilding the graph.
+- `loomux serve` rebuilds drifted graphs of registered areas in the background.
+- The DSH grep plugin trusts the index when `trustIndex` is configured.
+
+### Changed
+- `loomux graph grep` starts several times faster: the walk runs in parallel, the records and symbol spans are read from mapped binary files, candidates are scanned in parallel, and the tracked paths come from the git index instead of a git process.
+
+### Fixed
+- A rebuild during `graph grep` keeps the record's file size limit.
+- The trigram index is written before the record, and a mismatched pair is rebuilt.
+- `loomux graph build` takes the rebuild lock, so it no longer races a grep that rebuilds the same graph.
+
 ## [1.22.0] - 2026-11-10
 
 <https://github.com/xidus90/loomux/pull/149>
