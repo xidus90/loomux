@@ -244,7 +244,10 @@ func evidence(seeds []evidenceSeed) ([]Evidence, int) {
 // folder); a scene (.tscn) or resource (.tres) counts under those folders
 // alone, and project.godot never does. C#: *Tests.cs and *Test.cs, a directory
 // ending in .Test or .Tests (a .NET test project), and every file under a
-// directory Tests/ or Test/, in any case. C++: see isCppTestPath.
+// directory Tests/ or Test/, in any case. C++: see isCppTestPath. Java:
+// every file under src/test/ (Maven's and Gradle's test source root), and
+// *Test.java, *Tests.java, *TestCase.java, *IT.java and Test*.java (what
+// Surefire and Failsafe run), case as written.
 func IsTestPath(p string) bool {
 	switch path.Ext(p) {
 	case ".go":
@@ -265,6 +268,10 @@ func IsTestPath(p string) bool {
 		return strings.HasSuffix(p, "Tests.cs") || strings.HasSuffix(p, "Test.cs") || underTestDir(p)
 	case ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp":
 		return isCppTestPath(p)
+	case ".java":
+		stem := strings.TrimSuffix(path.Base(p), ".java")
+		return strings.HasPrefix(p, "src/test/") || strings.Contains(p, "/src/test/") || strings.HasPrefix(stem, "Test") ||
+			strings.HasSuffix(stem, "Test") || strings.HasSuffix(stem, "Tests") || strings.HasSuffix(stem, "TestCase") || strings.HasSuffix(stem, "IT")
 	case ".tscn", ".tres":
 		// A scene or resource under the test folders is a fixture of the suites.
 		return underDir(p, "test") || underDir(p, "tests")

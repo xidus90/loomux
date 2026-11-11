@@ -139,6 +139,9 @@ type Language interface {
 // Name is the imported name of Python's `from Path import Name`, where the
 // file binds a name out of a module rather than the module itself. Go has no
 // such form and leaves it empty.
+//
+// Alias "static" marks C#'s `using static` and Java's `import static`, and
+// "module" Java's `import module`: neither keyword can be an alias.
 type Import struct {
 	Alias string `json:"alias,omitempty"`
 	Path  string `json:"path"`
@@ -177,7 +180,9 @@ type RawEdge struct {
 	// connection. On a calls edge, "new" marks a constructor call: new T()
 	// names the type T, with Receiver and Name split like those of T.M().
 	// In C++, "." marks a member call on an object, obj.f() or p->f():
-	// its Receiver names the object and not a class or namespace.
+	// its Receiver names the object and not a class or namespace. Java
+	// marks obj.m() so when the file declares obj as a variable, or the
+	// receiver is a field of this or super.
 	// On a references edge, a Godot namespace -- "godot.method" or
 	// "godot.signal" -- marks a C++ binding: Specifier is the name Godot
 	// knows, Receiver the class and Name the bound method, empty for a

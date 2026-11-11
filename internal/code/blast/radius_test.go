@@ -364,6 +364,12 @@ func TestIsTestPathPerLanguage(t *testing.T) {
 		"Contest.cpp": false, "latest_version.cpp": false, "src/a.cpp": false, "a/testing/b.cpp": false,
 		"contest/a.cpp": false, "attests/a.h": false, "unittests/a.cpp": false, "a_test.c": false,
 		"a_test.CPP": false, "testdata.cpp": false, "a_testing.cpp": false,
+		// Java: Maven's and Gradle's test source root src/test/, or the
+		// names Surefire and Failsafe run: *Test, *Tests, *TestCase, *IT and Test*.
+		"src/test/java/a/Helper.java": true, "mod/src/test/java/a/Helper.java": true,
+		"src/main/java/a/AppTest.java": true, "AppTests.java": true, "a/AppIT.java": true, "a/TestApp.java": true, "a/AppTestCase.java": true, "a/AppCase.java": false,
+		"Contest.java": false, "src/main/java/a/App.java": false, "src/testing/a/App.java": false,
+		"mysrc/test/a/App.java": false, "test/a/App.java": false, "a/AppTest.JAVA": false, "a/Audit.java": false,
 		"a.ts": false, "TEST_X.PY": false, "A_TEST.GO": false,
 	} {
 		if got := blast.IsTestPath(path); got != want {

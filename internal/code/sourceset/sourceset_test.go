@@ -61,7 +61,7 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 }
 
 func TestExtensionsIsACopy(t *testing.T) {
-	want := []string{".c++", ".cc", ".cpp", ".cs", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".py", ".tpp", ".tres", ".tscn", ".uid"}
+	want := []string{".c++", ".cc", ".cpp", ".cs", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".py", ".tpp", ".tres", ".tscn", ".uid"}
 	first := sourceset.Extensions()
 	if !reflect.DeepEqual(first, want) {
 		t.Fatalf("Extensions() = %v, want %v", first, want)
@@ -106,6 +106,22 @@ func TestListTakesCppFilesAndNotC(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []string{"include/a.h", "include/a.hpp", "src/a.cc", "src/a.cpp"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// Java sources are listed; class files, archives and the build output are not.
+func TestListTakesJavaFiles(t *testing.T) {
+	root := tree(t, map[string]string{
+		"src/main/java/a/App.java": "class App {}\n", "src/main/java/a/App.class": "x", "lib/a.jar": "x",
+		"target/classes/a/Gen.java": "class Gen {}\n", "build/gen/a/Gen.java": "class Gen {}\n", "A.JAVA": "class A {}\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"src/main/java/a/App.java"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }

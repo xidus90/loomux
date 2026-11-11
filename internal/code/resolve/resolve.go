@@ -138,8 +138,9 @@ func languagesOf(groups map[string][]extract.Result) []string {
 
 // edgesOf resolves the raw edges of one language's files against an index of
 // those files alone: Go's here, Python's in resolvePython, Godot's in
-// resolveGDScript, C#'s in resolveCSharp, C++'s in resolveCPP. Go's,
-// Python's, C#'s and C++'s indexes hold their own language's files alone;
+// resolveGDScript, C#'s in resolveCSharp, C++'s in resolveCPP, Java's in
+// resolveJava. Go's, Python's, C#'s, C++'s and Java's indexes hold their own
+// language's files alone;
 // the paths a Godot file names see every file of the build.
 //
 // A language without resolution rules keeps its containment, which its
@@ -157,6 +158,8 @@ func edgesOf(lang string, files []extract.Result, mods []Module, paths map[strin
 		return resolveCSharp(files)
 	case "cpp":
 		return resolveCPP(files)
+	case "java":
+		return resolveJava(files)
 	}
 	var out []model.Edge
 	if lang != "go" {
