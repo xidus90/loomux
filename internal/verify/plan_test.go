@@ -590,6 +590,22 @@ func TestPlanLintsGradleOnlyWithCheckstyle(t *testing.T) {
 	}
 }
 
+// An Android build has no compileJava, so its area plans no Gradle lane; a
+// plain module beside it keeps its own.
+func TestPlanRunsNoJavaBuildForAndroid(t *testing.T) {
+	facts := detect.Facts{
+		Stacks: []string{"android", "gradle", "java"},
+		Areas:  map[string][]string{"java": {"app", "lib"}, "gradle": {"app", "lib"}, "android": {"app"}},
+	}
+	jobs, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"types"}}, env(t.TempDir()))
+	if err != nil || names(jobs) != "types/java@app types/java@lib" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	if jobs[0].Pre != StateNotApplicable || jobs[0].Note != "no command" || jobs[1].Pre != "" {
+		t.Fatalf("%+v", jobs)
+	}
+}
+
 // A Gradle build without the jacoco plugin has no jacocoTestReport task: its
 // coverage lane is unavailable, and the test lane stays plain beside it.
 func TestPlanSkipsGradleCoverageWithoutJacoco(t *testing.T) {

@@ -50,6 +50,9 @@ func Detect(root fs.FS) Facts {
 	found := map[string]bool{}
 	areasOf := map[string]map[string]bool{}
 	var owned []string
+	// joining are the stacks matched below the root, by the stack whose
+	// ownership of the root would take them in.
+	joining := map[string][]string{}
 	for _, sig := range signals {
 		for _, area := range areas {
 			if !matches(root, area, sig) {
@@ -57,6 +60,9 @@ func Detect(root fs.FS) Facts {
 			}
 			if sig.owns && area == "." {
 				owned = append(owned, sig.stacks...)
+			}
+			if sig.joins != "" && area != "." {
+				joining[sig.joins] = append(joining[sig.joins], sig.stacks...)
 			}
 			for _, stack := range sig.stacks {
 				found[stack] = true
@@ -69,6 +75,9 @@ func Detect(root fs.FS) Facts {
 	}
 	for _, stack := range owned {
 		areasOf[stack] = map[string]bool{".": true}
+		for _, joined := range joining[stack] {
+			areasOf[joined]["."] = true
+		}
 	}
 	facts := Facts{Stacks: sorted(found), Areas: map[string][]string{}, Ambiguous: doubts(root, areas), GodotDir: godotArea(root, areas)}
 	for stack, set := range areasOf {

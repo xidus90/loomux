@@ -25,6 +25,10 @@ type signal struct {
 	// below, when set, is an extension some file under the area must carry:
 	// a Gradle build in Kotlin DSL is a Java project only with Java sources.
 	below string
+	// joins, when set, names a stack whose ownership of the root takes this
+	// signal's matches below the root in as well: an Android plugin applied
+	// in app/ belongs to the root's Gradle build.
+	joins string
 }
 
 var signals = []signal{
@@ -58,6 +62,11 @@ var signals = []signal{
 	{path: "settings.gradle", stacks: []string{"java", "gradle"}, owns: true},
 	{path: "build.gradle.kts", below: ".java", stacks: []string{"java", "gradle"}, owns: true},
 	{path: "settings.gradle.kts", below: ".java", stacks: []string{"java", "gradle"}, owns: true},
+	// The Android plugin's id, its buildscript classpath, or the version
+	// catalog a plugins alias reads it from.
+	{path: "build.gradle", contains: "com.android", stacks: []string{"android"}, joins: "gradle"},
+	{path: "build.gradle.kts", contains: "com.android", stacks: []string{"android"}, joins: "gradle"},
+	{path: "gradle/libs.versions.toml", contains: "com.android", stacks: []string{"android"}, joins: "gradle"},
 	{glob: "*.sln", stacks: []string{"csharp"}, owns: true},
 	{glob: "*.slnx", stacks: []string{"csharp"}, owns: true},
 	{glob: "*.csproj", stacks: []string{"csharp"}},

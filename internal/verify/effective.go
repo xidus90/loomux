@@ -160,13 +160,14 @@ func merge(base Lane, o Override) Lane {
 		}
 		return o.Lane
 	}
+	// Commands written over a lane a preset switched off switch it on.
 	if o.Set["commands"] {
-		base.Commands = o.Lane.Commands
+		base.Commands, base.Off = o.Lane.Commands, false
 		// when_found guards the base's commands, not these.
 		base.WhenFound = nil
 	}
 	if o.Set["on_file"] {
-		base.OnFile = o.Lane.OnFile
+		base.OnFile, base.Off = o.Lane.OnFile, false
 	}
 	if o.Set["threaded"] {
 		base.Threaded = o.Lane.Threaded

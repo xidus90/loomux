@@ -298,7 +298,7 @@ func TestTheJavaTestLanesWaitForTheCompile(t *testing.T) {
 	java := p.Stacks["java"]
 	lanes := []Lane{java.Lanes["test"]}
 	for _, v := range java.Variants {
-		if l, ok := v.Lanes["test"]; ok {
+		if l, ok := v.Lanes["test"]; ok && !l.Off {
 			lanes = append(lanes, l)
 		}
 	}
