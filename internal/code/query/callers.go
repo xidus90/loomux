@@ -78,6 +78,7 @@ func Callers(root, symbol string, opts CallersOptions) (CallersAnswer, []string,
 	}
 	hits := x.EdgeWalk(start, opts.Direction, depth)
 
+	sites := edgeSites(g, start.ID, opts.Direction)
 	ans := CallersAnswer{Start: start}
 	read := func(p string) ([]byte, error) {
 		return os.ReadFile(filepath.Join(root, filepath.FromSlash(p)))
@@ -100,7 +101,8 @@ func Callers(root, symbol string, opts CallersOptions) (CallersAnswer, []string,
 			ch.Path = h.Node.Path
 			ch.Span = h.Node.Span
 			if h.Depth == 1 {
-				ch.QuotePath, ch.Line, ch.Quote = evidence(read, start, h.Node, opts.Direction)
+				at := sites[site{h.ID, h.Relation}]
+				ch.QuotePath, ch.Line, ch.Quote = evidence(read, start, h.Node, opts.Direction, at)
 			}
 		}
 		ans.Hits = append(ans.Hits, ch)
@@ -112,16 +114,64 @@ func Callers(root, symbol string, opts CallersOptions) (CallersAnswer, []string,
 // evidence quotes the line behind the direct edge between start and next:
 // the caller's span naming the callee. A hit further out has no edge to start,
 // so a word match there would be no evidence and is not looked for.
-func evidence(read func(string) ([]byte, error), start, next *model.Node, dir blast.Direction) (string, int, string) {
+func evidence(read func(string) ([]byte, error), start, next *model.Node, dir blast.Direction, at int) (string, int, string) {
 	caller, callee := next, start
 	if dir == blast.Out {
 		caller, callee = start, next
+	}
+	if quote, ok := quoteAt(read, caller.Path, at); ok {
+		return caller.Path, at, quote
 	}
 	line, quote, ok := blast.QuoteLine(read, caller.Path, caller.Span, callee.Name)
 	if !ok {
 		return "", 0, ""
 	}
 	return caller.Path, line, quote
+}
+
+// site is a direct neighbour of the start by one relation.
+type site struct {
+	id       model.NodeID
+	relation model.Relation
+}
+
+// edgeSites is the first line each direct edge of the start was written on.
+// The edge knows its line; a word search through the caller's span would
+// stop at the first mention, a comment included.
+func edgeSites(g *model.Graph, start model.NodeID, dir blast.Direction) map[site]int {
+	out := map[site]int{}
+	for _, e := range g.Edges {
+		other := e.Source
+		if dir == blast.Out {
+			if e.Source != start {
+				continue
+			}
+			other = e.Target
+		} else if e.Target != start {
+			continue
+		}
+		k := site{other, e.Relation}
+		if e.Line > 0 && (out[k] == 0 || e.Line < out[k]) {
+			out[k] = e.Line
+		}
+	}
+	return out
+}
+
+// quoteAt is line n of a file, trimmed; false when there is no such line.
+func quoteAt(read func(string) ([]byte, error), path string, n int) (string, bool) {
+	if n < 1 {
+		return "", false
+	}
+	data, err := read(path)
+	if err != nil {
+		return "", false
+	}
+	lines := strings.Split(string(data), "\n")
+	if n > len(lines) {
+		return "", false
+	}
+	return strings.TrimSpace(lines[n-1]), true
 }
 
 // mark closes the parenthesis of a hit whose path runs through a guessed edge;
