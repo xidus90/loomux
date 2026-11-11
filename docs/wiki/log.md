@@ -6,6 +6,11 @@
 
 ## 2026-11-11
 
+- 2026-11-11 — `syntheses/graph-hinweis-im-waechter.md` neu: vier
+  Agentenrunden zum Graph-Hinweis im Wächter; erst der Graph, dann der
+  Hinweis, und die Form ist die einmalige Ablehnung des ersten grep.
+  Quelle: `docs/de/benchmarks.md`, Eintrag „Funktionswerte und Ketten im
+  Go-Graph“, und die Spike-Läufe dieser Sitzung.
 - 2026-11-11 — `topics/code-graph.md`: Absatz „Funktionswerte und Ketten
   (Go)“ neu; der Go-Graph zieht `references`-Kanten für Funktionswerte und
   löst verkettete Aufrufe über den Ergebnistyp auf. Quelle:
