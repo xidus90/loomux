@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/dotnet-releases-index.json",
+  "releases-index": [
+    {
+      "channel-version": "11.0",
+      "latest-release": "11.0.0-rc.2",
+      "latest-release-date": "2026-10-13",
+      "security": true,
+      "latest-runtime": "11.0.0-rc.2.26504.105",
+      "latest-sdk": "11.0.100-rc.2.26504.105",
+      "product": ".NET",
+      "support-phase": "go-live",
+      "release-type": "sts",
+      "releases.json": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/11.0/releases.json",
+      "supported-os.json": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/11.0/supported-os.json"
+    },
+    {
+      "channel-version": "10.0",
+      "latest-release": "10.0.13",
+      "latest-release-date": "2026-10-13",
+      "security": true,
+      "latest-runtime": "10.0.13",
+      "latest-sdk": "10.0.402",
+      "product": ".NET",
+      "support-phase": "active",
+      "release-type": "lts",
+      "releases.json": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",
+      "supported-os.json": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/supported-os.json",
+      "eol-date": "2028-11-14"
+    },
+    {
+      "channel-version": "9.0",
+      "latest-release": "9.0.21",
+      "latest-release-date": "2026-10-13",
+      "security": true,
+      "latest-runtime": "9.0.21",
+      "latest-sdk": "9.0.319",
+      "product": ".NET",
+      "support-phase": "maintenance",
+      "release-type": "sts",
+      "releases.json": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/9.0/releases.json",
+      "supported-os.json": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/9.0/supported-os.json",
+      "eol-date": "2026-11-10"
+    }
+  ]
+}

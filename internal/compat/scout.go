@@ -56,10 +56,11 @@ func IssueTitle(f Finding) string {
 }
 
 // preRe reads a pre-release the way the runtimes spell it: Go "1.28rc1" and
-// "1.28beta1", Python "3.16.0a1", Godot "4.8-beta2". Compiled on first use:
-// package start has an allocation budget (cmd/loomux start_test.go).
+// "1.28beta1", Python "3.16.0a1", Godot "4.8-beta2", .NET "11.0.0-preview.7"
+// and "11.0.0-rc.2". Compiled on first use: package start has an allocation
+// budget (cmd/loomux start_test.go).
 var preRe = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`^(\d+)\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|rc)(\d+)$`)
+	return regexp.MustCompile(`^(\d+)\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc)\.?(\d+)$`)
 })
 
 // parsePre reads the major.minor of a pre-release; anything else does not
@@ -75,10 +76,10 @@ func parsePre(s string) ([]int, bool) {
 }
 
 // preOrder ranks pre-releases of one major.minor: dev before alpha before
-// beta before rc, then by number. s must parse with parsePre.
+// beta (or preview) before rc, then by number. s must parse with parsePre.
 func preOrder(s string) []int {
 	m := preRe().FindStringSubmatch(s)
-	stage := map[string]int{"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "rc": 3}[m[3]]
+	stage := map[string]int{"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "preview": 2, "rc": 3}[m[3]]
 	n, _ := strconv.Atoi(m[4])
 	return []int{stage, n}
 }
@@ -89,15 +90,19 @@ const (
 	godotSource  = "https://api.github.com/repos/godotengine/godot-builds/releases?per_page=100"
 	pythonSource = "https://www.python.org/api/v2/downloads/release/?is_published=true"
 	// Without include=all go.dev lists only the maintained stable releases.
-	goSource       = "https://go.dev/dl/?mode=json&include=all"
+	goSource = "https://go.dev/dl/?mode=json&include=all"
+	// The index holds one line per channel with its latest release, a
+	// preview or release candidate while the channel has no stable one yet.
+	dotnetSource   = "https://raw.githubusercontent.com/dotnet/core/main/release-notes/releases-index.json"
 	githubReleases = "https://api.github.com/repos/%s/releases?per_page=100"
-	// eolSource covers go, python and godot under those names; python.org and
-	// Godot publish no machine-readable end of support of their own.
+	// eolSource covers go, python, godot and dotnet under those names;
+	// python.org and Godot publish no machine-readable end of support of
+	// their own.
 	eolSource  = "https://endoflife.date/api/v1/products/%s"
 	pypiSource = "https://pypi.org/pypi/%s/json"
 )
 
-var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource}
+var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource}
 
 var addonRepos = map[string]string{
 	"GUT":          "bitwes/Gut",
@@ -260,6 +265,10 @@ func scoutEOL(entries []Entry, up Upstream) ([]Finding, error) {
 		}
 		for _, v := range slices.Sorted(slices.Values(versions[runtime])) {
 			past, ok := eol[v]
+			if !ok && runtime == "dotnet" {
+				// endoflife.date names a .NET release by its major: "10" for 10.0.
+				past, ok = eol[strings.TrimSuffix(v, ".0")]
+			}
 			if !ok {
 				return nil, fmt.Errorf("end of support: the source knows no %s %s", runtime, v)
 			}
@@ -527,6 +536,19 @@ func parseReleases(source string, body []byte) ([]Release, error) {
 		}
 		for _, r := range rs {
 			out = append(out, Release{strings.TrimPrefix(r.Version, "go"), !r.Stable})
+		}
+	case source == dotnetSource:
+		var doc struct {
+			Index []struct {
+				Latest string `json:"latest-release"`
+			} `json:"releases-index"`
+		}
+		if err := json.Unmarshal(body, &doc); err != nil {
+			return nil, err
+		}
+		for _, c := range doc.Index {
+			_, pre := parsePre(c.Latest)
+			out = append(out, Release{c.Latest, pre})
 		}
 	case strings.HasPrefix(source, "https://pypi.org/"):
 		var doc struct {

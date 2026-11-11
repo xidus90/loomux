@@ -1,0 +1,9 @@
+stacks = ["godot", "gdscript", "csharp"]
+edges = [
+  ["Main.tscn", "imports", "Player.cs"],
+  ["Main.tscn", "references", "Player.cs#Player.Jump"],
+  ["Main.tscn", "references", "Player.cs#Player.HitEventHandler"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

@@ -152,7 +152,51 @@ func prepare(e Entry, o RunOptions, dir string, b *Break) error {
 		// The read just succeeded; a failed write leaves the lanes to say so.
 		os.WriteFile(project, featuresRe.ReplaceAll(data, []byte("${1}"+e.Version)), 0o644)
 	}
-	return errors.Join(pinPython(dir, e), pinTools(dir, e), applyBreak(dir, b))
+	return errors.Join(pinPython(dir, e), pinTools(dir, e), targetDotnet(dir, e), pinDotnet(dir, e), applyBreak(dir, b))
+}
+
+// pinDotnet keeps the run on an SDK of the entry's major: without a
+// global.json the highest installed SDK builds, whatever the entry says. A
+// pre-release sorts below its release, so a probe pins the first preview and
+// allows pre-releases. A fixture that ships its own pin keeps it.
+func pinDotnet(dir string, e Entry) error {
+	if e.Runtime != "dotnet" {
+		return nil
+	}
+	path := filepath.Join(dir, "global.json")
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	major, _, _ := strings.Cut(e.Version, ".")
+	version, pre := major+".0.100", e.Pre != ""
+	if pre {
+		version += "-preview.1"
+	}
+	pin := fmt.Sprintf(`{"sdk":{"version":%q,"rollForward":"latestFeature","allowPrerelease":%t}}`+"\n", version, pre)
+	return os.WriteFile(path, []byte(pin), 0o644)
+}
+
+var frameworkRe = regexp.MustCompile(`(<TargetFramework>)net\d+\.\d+(</TargetFramework>)`)
+
+// targetDotnet has the projects of a .NET fixture, which serves every listed
+// version, target the entry's: a runner holding only that runtime could run
+// no test built for another.
+func targetDotnet(dir string, e Entry) error {
+	if e.Runtime != "dotnet" {
+		return nil
+	}
+	var errs []error
+	for _, pattern := range []string{"*.csproj", "*/*.csproj"} {
+		projects, _ := filepath.Glob(filepath.Join(dir, pattern)) // the pattern is well-formed
+		for _, p := range projects {
+			data, err := os.ReadFile(p)
+			if err == nil {
+				err = os.WriteFile(p, frameworkRe.ReplaceAll(data, []byte("${1}net"+e.Version+"${2}")), 0o644)
+			}
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // pinPython has uv run the entry's Python, not the newest it finds, and

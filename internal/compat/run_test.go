@@ -298,6 +298,56 @@ func TestAGraphThatDoesNotBuildIsRed(t *testing.T) {
 	}
 }
 
+func TestADotnetEntryTargetsItsVersion(t *testing.T) {
+	rep, work := runEntryKey(t, "csharp/dotnet-11.0/csharp-xunit", fakeCheck(honest))
+	if !rep.Green {
+		t.Fatalf("report %+v", rep)
+	}
+	for _, p := range []string{"Lib/Lib.csproj", "Lib.Tests/Lib.Tests.csproj"} {
+		data, err := os.ReadFile(filepath.Join(work, "entry", p))
+		if err != nil || !strings.Contains(string(data), "<TargetFramework>net11.0</TargetFramework>") {
+			t.Errorf("%s: %v\n%s", p, err, data)
+		}
+	}
+}
+
+// The highest installed SDK wins without a global.json; the pin keeps the
+// run in the entry's major, a pre-release probe on that major's previews.
+func TestADotnetEntryPinsTheSDKOfItsMajor(t *testing.T) {
+	for _, c := range []struct {
+		e    Entry
+		want string
+	}{
+		{Entry{Runtime: "dotnet", Version: "10.0", Fixture: "csharp-xunit"},
+			`{"sdk":{"version":"10.0.100","rollForward":"latestFeature","allowPrerelease":false}}`},
+		{Entry{Runtime: "dotnet", Version: "12.0", Pre: "12.0.0-preview.7", Fixture: "csharp-xunit"},
+			`{"sdk":{"version":"12.0.100-preview.1","rollForward":"latestFeature","allowPrerelease":true}}`},
+	} {
+		dir := filepath.Join(t.TempDir(), "w")
+		if err := prepare(c.e, RunOptions{}, dir, nil); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := os.ReadFile(filepath.Join(dir, "global.json")); err != nil || strings.TrimSpace(string(got)) != c.want {
+			t.Errorf("%s: global.json %s, %v; want %s", c.e.Key(), got, err, c.want)
+		}
+	}
+	// A fixture that ships its own pin keeps it.
+	dir := t.TempDir()
+	own := []byte(`{"sdk":{"version":"9.0.100"}}`)
+	if err := os.WriteFile(filepath.Join(dir, "global.json"), own, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := pinDotnet(dir, Entry{Runtime: "dotnet", Version: "10.0"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "global.json")); string(got) != string(own) {
+		t.Errorf("the fixture's pin became %s", got)
+	}
+	if err := pinDotnet(filepath.Join(dir, "global.json", "below"), Entry{Runtime: "dotnet", Version: "10.0"}); err == nil {
+		t.Error("a pin below a file was written")
+	}
+}
+
 const syntaxKey = "go/go-1.27/go-syntax-1.27"
 
 func TestASyntaxEntryRunsOnlyItsGraph(t *testing.T) {

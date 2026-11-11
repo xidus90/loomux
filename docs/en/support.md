@@ -26,7 +26,7 @@ have.
 | css | `*.css`, `*.scss`, `.stylelintrc*` | stylelint | — | — | — | — | — | no version pinned |
 | html | `*.html`, `.htmlhintrc` | htmlhint | — | — | — | — | — | no version pinned |
 | gdscript | `project.godot`, `.gdlintrc` | gdlint, gdformat (gdtoolkit) | — | gdUnit4 through `check godot-suite`, or GUT through `check gut-suite`, where installed | NanoCoverage through `check linecov`, where installed | code graph | layer map | graph: Godot 3.x and 4.x, verified on 3.x, 4.2 and 4.7; test: gdUnit4 on Godot 4.3 to 4.8, GUT 7 on Godot 3 and GUT 9 on Godot 4 (verified on 3.6 and 4.7); coverage: Godot 4.3 to 4.8; lint: Godot 3 and 4 (on Godot 3 a project with addons in the tree fails `gdformat --check`, which cannot skip `addons/`), gdtoolkit pinnable with [`tools`](configuration.md#stacks); verified on Godot 3.6, 4.5 and 4.7 ([Verified combinations](#verified-combinations), [details](stacks/gdscript.md)) |
-| csharp | `*.sln`, `*.slnx`, `*.csproj`, `global.json`, `Directory.Build.props` | `dotnet format` | `dotnet build -warnaserror` | `dotnet test`, where a `.csproj` names `Microsoft.NET.Test.Sdk` | coverlet (`XPlat Code Coverage`) through `check linecov` | code graph | layer map | the .NET SDK of the machine; no version pinned |
+| csharp | `*.sln`, `*.slnx`, `*.csproj`, `global.json`, `Directory.Build.props` | `dotnet format` | `dotnet build -warnaserror` | `dotnet test`, where a `.csproj` names `Microsoft.NET.Test.Sdk` | coverlet (`XPlat Code Coverage`) through `check linecov` | code graph | layer map | the .NET SDK of the machine; .NET 10 and 11 verified ([Verified combinations](#verified-combinations)) |
 | cpp | `CMakeLists.txt`, `CMakePresets.json`, `meson.build`, `*.cpp`, `*.hpp` | clang-tidy; clang-format on the edited file | the CMake build | ctest, where `CMakeLists.txt` enables testing | gcovr, 100 % of lines | — | — | needs a configured `build/` (`CMakeCache.txt`); no compiler version pinned |
 | shell | `*.sh`, `.shellcheckrc` | shellcheck, on the edited file only | — | — | — | — | — | no version pinned |
 | sql | `.sqlfluff` | sqlfluff | — | — | — | — | — | no version pinned |
@@ -58,8 +58,15 @@ Each row is a combination loomux runs for real before a major release and whenev
 | go | go | 1.27 | go-module | — | — | lint, test, coverage, graph |
 | go | go | 1.26 | go-syntax-1.26 | — | — | graph |
 | go | go | 1.27 | go-syntax-1.27 | — | — | graph |
+| csharp | dotnet | 10.0 | csharp-xunit | — | — | lint, types, test, coverage, graph |
+| csharp | dotnet | 11.0 | csharp-xunit | — | — | lint, types, test, coverage, graph |
+| csharp | dotnet | 10.0 | csharp-syntax-10.0 | — | — | graph |
+| csharp | dotnet | 11.0 | csharp-syntax-11.0 | — | — | graph |
+| csharp | dotnet | 10.0 | godot4-csharp | — | — | graph |
 
-The list holds every Go, Python and Godot version its upstream still maintains, not only the newest. Every Monday the compatibility scout (`loomux dev compat scout`) asks upstream three things:
+The C# entries name no tool: the .NET SDK brings format, build and test, and `csharp-xunit` pins its test packages itself (xunit.v3.mtp-off 4.0.3, xunit.runner.visualstudio 4.0.1, Microsoft.NET.Test.Sdk 18.11.1, coverlet.collector 10.1.0). That is xunit.v3 without Microsoft.Testing.Platform: the `xunit.v3` package brings MTP v2 from 4.0 on, and from the .NET 10 SDK on `dotnet test` refuses the VSTest route the preset takes (`--collect "XPlat Code Coverage"`). A run has the projects target the entry's .NET version (`net10.0`, `net11.0`).
+
+The list holds every Go, Python, Godot and .NET version its upstream still maintains, not only the newest. Every Monday the compatibility scout (`loomux dev compat scout`) asks upstream three things:
 
 - **A new stable version:** it runs the version as a probe and opens an issue with the entry to add.
 - **An alpha, beta or release candidate of the next version:** it runs it as a probe ahead. A failure only opens an issue and blocks no pull request; a pre-release never enters the list, the release follows once the version is stable.
@@ -68,14 +75,15 @@ The list holds every Go, Python and Godot version its upstream still maintains, 
 ## What the code graph reads
 
 The graph (`loomux graph`, the `graph` lane, `graph_*` over MCP) covers Go,
-Python and GDScript. TypeScript and C++ are on the
+Python, GDScript and C#. TypeScript and C++ are on the
 [roadmap](../../README.md#roadmap).
 
 | Language | Reads | Resolves | Leaves out |
 |---|---|---|---|
 | Go | packages, types, functions, methods | calls across packages of the module, imports | type-checked calls (`go/types`) |
 | Python | modules, classes, functions, methods | imports, calls, base classes | `.pyi` stubs |
-| GDScript | scripts, inner classes, functions, signals; scenes, resources, `project.godot`, `.uid` files | `res://` and `uid://` paths, `class_name`, autoloads (scene autoloads through their root script), inherited calls, signals by name and by value, scene connections | C#, VisualScript, scripts inline in a scene, types of locals and fields |
+| GDScript | scripts, inner classes, functions, signals; scenes, resources, `project.godot`, `.uid` files | `res://` and `uid://` paths, `class_name`, autoloads (scene autoloads through their root script), inherited calls, signals by name and by value, scene connections, also to C# methods, signals and `[GlobalClass]` classes | VisualScript, scripts inline in a scene, types of locals and fields |
+| C# | files, types, methods, constructors, properties, indexers, `[Signal]` delegates; syntax up to C# 14 in full | `using`, bases (`extends`/`implements`), calls, constructors | types of locals, methods in a second file of a `partial` class for scene connections; of C# 15: `union` (no type node), `closed record class` (no node), a type holding an extension indexer (no node), a labelled `break`/`continue` (an error in the body, the other members arrive) |
 
 The full rules are in the [CLI reference](cli-reference.md#loomux-graph-build---root-path---no-reuse).
 

@@ -1,0 +1,104 @@
+stacks = ["csharp"]
+edges = [
+  ["Lib/Calc.cs#Child", "extends", "Lib/Calc.cs#Base"],
+  ["Lib/Calc.cs#Child.F", "calls", "Lib/Calc.cs#Base.F"],
+  ["Lib/Calc.cs#Calc.Double", "calls", "Lib/Calc.cs#Child"],
+  ["Lib.Tests/CalcTests.cs#CalcTests.DoublesAValue", "calls", "Lib/Calc.cs#Calc.Double"],
+]
+
+[lanes]
+lint = "dotnet format"
+types = "dotnet build"
+test = "dotnet test"
+coverage = "{loomux} check linecov"
+graph = "{loomux} check graph-fresh"
+
+# Each break leaves the other kinds green: the misformatted code is the code
+# the test runs, and the types break is a warning, which only the build lane
+# (-warnaserror) turns into an error.
+[[break]]
+kind = "lint"
+file = "Lib/Calc.cs"
+content = '''
+namespace Lib;
+
+public class Base
+{
+    public virtual int F() => 1;
+}
+
+public class Child : Base
+{
+    public override int F() => base.F() + 1;
+}
+
+public static class Calc {
+    public static int Double(int value)  =>   new Child().F() * value;
+}
+'''
+
+[[break]]
+kind = "types"
+file = "Lib/Calc.cs"
+content = '''
+namespace Lib;
+
+public class Base
+{
+    public virtual int F() => 1;
+}
+
+public class Child : Base
+{
+    public override int F() => base.F() + 1;
+}
+
+public static class Calc
+{
+    public static int Double(int value)
+    {
+        var unused = 0;
+        return new Child().F() * value;
+    }
+}
+'''
+
+[[break]]
+kind = "test"
+file = "Lib.Tests/CalcTests.cs"
+content = '''
+using Xunit;
+
+namespace Lib.Tests;
+
+public class CalcTests
+{
+    [Fact]
+    public void DoublesAValue() => Assert.Equal(5, Calc.Double(2));
+}
+'''
+
+# Calc.cs is reached by the tests, so the new method is a measured line.
+[[break]]
+kind = "coverage"
+file = "Lib/Calc.cs"
+content = '''
+namespace Lib;
+
+public class Base
+{
+    public virtual int F() => 1;
+}
+
+public class Child : Base
+{
+    public override int F() => base.F() + 1;
+}
+
+public static class Calc
+{
+    public static int Double(int value) => new Child().F() * value;
+
+    public static int Untested() => 3;
+}
+'''

@@ -2,8 +2,8 @@
 # Installs the runtime and the addons of one compatibility entry:
 #   ci/compat-setup.sh <loomux binary> <entry key> <root>
 # Godot lands in <root>/godot (and GODOT_BIN is exported to later steps), each
-# addon's own folder in <root>/addons/<Name>, Python through uv. Go is set up
-# by the workflow, which rebuilds loomux with it when rebuild=true: a Go above
+# addon's own folder in <root>/addons/<Name>, Python through uv. Go and .NET are set up
+# by the workflow, which rebuilds loomux with the Go when rebuild=true: a Go above
 # the toolchain of go.mod is one loomux was never built with. The description is the JSON of `dev compat run --describe`;
 # it is flat and written by loomux, so sed reads it without a JSON tool.
 set -eu
@@ -147,7 +147,7 @@ godot)
 	done
 	;;
 python) uv python install "$install" ;;
-go) ;;
+go | dotnet) ;;
 *)
 	echo "compat-setup: no setup for runtime $runtime" >&2
 	exit 1
