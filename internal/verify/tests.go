@@ -18,9 +18,23 @@ func skipped(name string) bool {
 
 // HasTests reports whether anything under root matches one of patterns: a
 // name ending in "/" is a directory, "file:text" a file holding text (file a
-// glob on the base name, as in "*.csproj:Microsoft.NET.Test.Sdk"), and
-// anything else a glob on the base name. The walk stops at the first match.
+// glob on the base name, as in "*.csproj:Microsoft.NET.Test.Sdk"), any other
+// name with a slash one literal path below root, which may lie in a skipped
+// directory (vendor/bin/phpunit), and anything else a glob on the base name.
+// The walk stops at the first match.
 func HasTests(root string, patterns []string) bool {
+	var walked []string
+	for _, p := range patterns {
+		if !literalPath(p) {
+			walked = append(walked, p)
+		} else if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(p))); err == nil {
+			return true
+		}
+	}
+	if len(walked) == 0 {
+		return false
+	}
+	patterns = walked
 	found := false
 	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -36,6 +50,12 @@ func HasTests(root string, patterns []string) bool {
 		return nil
 	})
 	return found
+}
+
+// literalPath says whether a pattern names one path rather than a glob, a
+// directory or a file holding text.
+func literalPath(p string) bool {
+	return strings.Contains(p, "/") && !strings.HasSuffix(p, "/") && !strings.Contains(p, ":")
 }
 
 func matchesTest(path string, d fs.DirEntry, pattern string) bool {

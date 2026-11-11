@@ -233,7 +233,7 @@ Projekt, dessen Suite für jedes Rundenende zu langsam ist, engt es ein
 #### Stacks
 
 `[verify.<stack>]` gibt es für `go`, `python`, `typescript`, `vue`, `svelte`,
-`css`, `html`, `gdscript`, `csharp`, `cpp`, `java`, `shell`, `sql`, `rust`, dazu `wiki` und
+`css`, `html`, `gdscript`, `csharp`, `cpp`, `java`, `php`, `shell`, `sql`, `rust`, dazu `wiki` und
 `project`. Jeder andere Name ist ein Ladefehler.
 
 - **Wo ein Stack läuft.** Die Erkennung liest das Wurzelverzeichnis und eine
@@ -291,7 +291,7 @@ Die Schlüssel der Tabellenform:
 | `measure` | String | Nur `test`/`coverage`. Der eine Befehl, den `coverage` zuerst fährt, wenn sein Vorgänger nicht im Lauf steht. |
 | `after` | Art | Nur `test`/`coverage`. Die Art desselben Stacks, auf die diese Lane wartet. Zyklen sind Ladefehler, die Meldung nennt den Ring. |
 | `needs` | Liste | Dateien, relativ zum Verzeichnis der Lane und darin, ohne die ihre `commands` nichts bedeuten. Fehlt eine, ist die Lane `unready`: im Edit übersprungen und genannt, im Check rot. `on_file` bewachen sie nicht: ein Edit, der die Form einer Lane für eine Datei ausführt, führt sie in jedem Fall aus. |
-| `when_found` | Liste | Muster in der Form von `tests_when`; jedes muss unter dem Verzeichnis der Lane gefunden werden, sonst ist die Lane `unavailable` (`none found: <Muster>`). Wird vor `needs` und `{godot}` geprüft. |
+| `when_found` | Liste | Muster in der Form von `tests_when`; jedes muss unter dem Verzeichnis der Lane gefunden werden, sonst ist die Lane `unavailable` (`none found: <Muster>`). Ein Muster mit einem Schrägstrich darin, ohne `:`, nennt einen Pfad unter dem Verzeichnis der Lane, auch in einem Verzeichnis, das die Testsuche überspringt (`vendor/bin/phpunit`). Ein fehlender Pfad streicht nur die Befehle, die ihn nennen, solange andere bleiben; nennen ihn alle oder keiner, ist die Lane `unavailable`. Wird vor `needs` und `{godot}` geprüft. |
 | `skip_when_only` | Liste | Globs, relativ zur Repository-Wurzel und in der Syntax von `[policy.paths]`, von Pfaden, um die sich die Lane nicht kümmert. Bei einem Commit (im pre-commit-Hook, wo git `GIT_INDEX_FILE` mitgibt) und an einem Turn-Ende (gegen den zuletzt grünen Baum, ohne einen solchen gegen den Baum der Basis; hat ein Commit im Turn HEAD bewegt und läuft am Turn-Ende die Graph-Lane, zählen auch die Pfade, die dieser Commit seit dem Commit der Basis mitnahm) ist eine Lane, deren geänderte Pfade alle auf einen davon passen, `not-applicable` mit der Notiz `only skip_when_only paths changed (…)`. Eine Lane, die ihre Dateien liest (wie das `coverage` von Go die Coverage-Datei, die `test` schreibt), erbt das; so hält `[verify.go.test] skip_when_only` `coverage` davon ab, die Suite selbst zu messen; eine Lane, die nur danach geordnet ist (`after` allein), läuft. Ein Lauf, der nur `coverage` anfragt, braucht den Schlüssel an `coverage`. Ohne geänderten Pfad, von Hand (`loomux check` ohne den Hook) und in einem Edit läuft jede Lane. Der Abgleich unterscheidet Groß- und Kleinschreibung; ein Pfad, der sich nur darin unterscheidet, lässt die Lane laufen. |
 | `lock` | Boolean | Nimmt Stack und Area der Lane in diesem Checkout für sich, solange ihre Prozesse laufen, `measure` eingeschlossen: ein zweiter Lauf einer Lane, die ebenfalls `lock = true` für denselben Stack und dieselbe Area setzt, wartet, belegt dabei keinen `max_parallel`-Platz und gibt `<lane>: waiting for the lock (held by loomux pid …, <caller>, since …s)` aus; eine Lane ohne `lock` sieht die Sperre nicht an. Lanes desselben Stacks und derselben Area im selben Lauf kommen ebenso nacheinander dran und sagen `held by another lane of this run`. An einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget und endet als `budget`; in `loomux check` und im pre-commit-Tor endet sie nach `[verify].timeout` als `timed-out`. Die Sperre ist die des Betriebssystems, unter `.loomux/state/locks/`, und ein toter Halter gibt sie frei. Bei `csharp` ist es eine Sperre für alle Areas des Repos: Ein Testprojekt baut das Projekt, auf das es verweist, in dessen `obj/` und `bin/`. Für Werkzeuge, die Quellen umschreiben, während sie messen. |
 
@@ -313,7 +313,7 @@ Die Schlüssel der Tabellenform:
 
 #### Platzhalter
 
-Ersetzt werden nur diese Namen, jeweils innerhalb eines Arguments; alle
+Ersetzt werden nur diese Namen, jeweils innerhalb eines Arguments (die php-Namen dürfen für mehrere stehen); alle
 anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
 
 | Platzhalter | Wert |
@@ -327,6 +327,8 @@ anderen Klammern bleiben wörtlich (`-run 'Test{A,B}'`).
 | `{from:NAME}` | Ein ganzes Argument: `--from=NAME==<version>`, wo `tools` `NAME` festlegt, sonst gar kein Argument; für `uvx` (`uvx {from:ruff} ruff check .`). |
 | `{gradle}` | Ein ganzes Argument: der Gradle-Wrapper des Bereichs mit absolutem Pfad (`gradlew.bat` unter Windows, sonst `gradlew`), sonst `gradle` aus dem `PATH` (`{gradle} test`). |
 | `{solution}` | Ein ganzes Argument: die eine `.sln`- oder `.slnx`-Datei des Bereichs, sonst gar kein Argument; dotnet wählt dann das Projekt des Ordners selbst (`dotnet build {solution}`). Eine Projektmappe in der Wurzel macht die Wurzel außerdem zum einzigen `csharp`-Bereich: Sie baut die Projekte darunter. |
+| `{phpcs-standard}`, `{phpcs-files}` | Nur in den Lanes des Stacks `php` gefüllt, gleich welcher Befehl sie nennt; anderswo bleiben sie wörtlich. Allein stehend, wo der Bereich oder ein Verzeichnis darüber `.phpcs.xml`, `phpcs.xml`, `.phpcs.xml.dist` oder `phpcs.xml.dist` enthält, gar kein Argument, damit PHP_CodeSniffer diese Konfiguration liest; sonst `--standard=PSR12`, und `--extensions=php`, `--ignore=*/vendor/*` und `.` als drei Argumente. |
+| `{phpstan-defaults}` | Nur in den Lanes des Stacks `php` gefüllt, gleich welcher Befehl sie nennt; anderswo bleiben sie wörtlich. Allein stehend, wo der Bereich `phpstan.neon`, `phpstan.neon.dist` oder `phpstan.dist.neon` enthält, gar kein Argument; sonst `--level=max` und die Pfade, die `autoload` im `composer.json` des Bereichs nennt (`psr-4`, `psr-0`, `classmap`; nicht `autoload-dev`, nicht der Bereich selbst), soweit es sie gibt, sonst `src`, wo es das gibt, jeder als eigenes Argument. Ohne jedes davon ist die Lane `unavailable` (`none found: phpstan.neon, composer.json autoload or src`). |
 | `{godot}` | Nur `gdscript`, anderswo ein Ladefehler. Die Linie kommt aus der `project.godot` des Bereichs: `config/features` nennt Haupt- und Nebenversion, und wo es fehlt — in einem Godot-3-Projekt ab 3.1 — steht `config_version=4` für die ganze 3er-Linie, von der nur die Hauptversion verglichen wird. Ein `config_version`, das keine eigene Linie nennt, `5` ohne `config/features` eingeschlossen, lässt die Lane `unready`. Ein Binary aus `GODOT_BIN` oder `[verify.gdscript] godot` wird an diese Linie gehalten: eines einer anderen Linie wird abgelehnt, nicht übergangen, denn es zu nennen war Absicht. Nennt keines von beiden eines, werden die Engines aus `GODOT_BIN_DIR` (dessen Dateien, deren Name mit `godot` beginnt, in Namensreihenfolge) und danach `godot`/`godot4` vom `PATH` der Reihe nach gefragt, und das erste, das zur Linie passt, gewinnt. Unter Windows wird die `_console.exe` neben einer gefundenen `.exe` genommen, da die Fensterfassung nichts auf stdout schreibt. Ein Mono-Build ist nötig, wo das Projekt einen `[dotnet]`-Abschnitt hat. Passt kein Kandidat, ist die Lane `unready` und nennt gefundene Fassung und gewollte Linie; gibt es gar keinen, ist sie `missing-tool` und sagt, wo gesucht wurde. Jedes verschiedene Binary wird je Lauf einmal gefragt, höchstens 30 s lang; an einem Turn-Ende und in einem Edit zählt die Wartezeit gegen das Budget, und eine Lane, deren Binary nicht rechtzeitig gefragt werden konnte, endet als `budget`, nie als Abweichung. |
 
 Go-Lanes laufen mit Arbeitsverzeichnis und Build-Cache des Go-Werkzeugs im
@@ -382,6 +384,7 @@ gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
 | csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (wo ein `.csproj` `Microsoft.NET.Test.Sdk` nennt) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, gemessen von `dotnet test` mit `--collect "XPlat Code Coverage" --results-directory {coverdata}` |
 | cpp | `run-clang-tidy -p build -quiet` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | java | `mvn -B -q checkstyle:check` (wo `pom.xml` `maven-checkstyle-plugin` nennt); mit `gradle`: `{gradle} checkstyleMain checkstyleTest` (wo ein `build.gradle*` `checkstyle` nennt) | `mvn -B -q -DskipTests compile test-compile`; mit `gradle`: `{gradle} compileJava compileTestJava` | `mvn -B -q test`; mit `gradle`: `{gradle} test` | `{loomux} check linecov --report target/site/jacoco/jacoco.xml --report */target/site/jacoco/jacoco.xml`, gemessen von `mvn` mit `org.jacoco:jacoco-maven-plugin:0.8.16:prepare-agent` und `:report`; mit `gradle`: `{gradle} jacocoTestReport` und `check linecov` auf `build/reports/jacoco/test/jacocoTestReport.xml` (wo ein `build.gradle*` `jacoco` nennt) |
+| php | `php vendor/bin/phpcs {phpcs-standard} {phpcs-files}`; bei einem Edit auch `php -l {file}` | `php vendor/bin/phpstan analyse --no-progress {phpstan-defaults}` | `php vendor/bin/phpunit` | `{loomux} check linecov --report {coverdata}`, gemessen von `php -d xdebug.mode=coverage vendor/bin/phpunit --coverage-cobertura {coverdata}` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
 | rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
@@ -497,6 +500,20 @@ gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
   `test`-Lane misst nicht, denn ohne das Plugin gibt es kein
   `jacocoTestReport`. Gelesen werden die Berichte im Bereich und in den
   Modulen eine Ebene darunter.
+- Die php-Lanes führen die Werkzeuge des Projekts aus `vendor/bin` aus, über
+  `php`, denn die Proxys von Composer sind PHP-Skripte. Jede Lane nennt ihr
+  Werkzeug in `when_found`: Vor `composer install` ist sie `unavailable`,
+  nicht rot, und Graph und Regeln laufen trotzdem. Ohne eigene Konfiguration
+  prüft PHP_CodeSniffer PSR-12 über den Bereich, `vendor/` ausgenommen, und
+  PHPStan die Stufe `max` auf den Autoload-Pfaden von `composer.json` oder
+  `src`; mit einer liest jedes Werkzeug sie (siehe
+  die Platzhalter). Ein Edit lässt die Datei zusätzlich von `php -l` parsen,
+  auch vor `composer install`.
+  Coverage braucht Xdebug: `-d xdebug.mode=coverage` schaltet es nur für den
+  messenden Lauf ein, und PHPUnit schreibt Cobertura, das `check linecov`
+  liest; den Umfang gibt `<source>` in `phpunit.xml` vor. Ein `composer.json`
+  in der Wurzel macht die Wurzel zum einzigen `php`-Bereich: Sein `vendor/`
+  dient den Paketen darunter.
 - **Messen.** `test` misst nur, wenn `coverage` im selben Lauf steht (go:
   `-covermode=set -coverprofile={coverprofile}`, python:
   `uv run --with coverage --with pytest coverage run -m pytest …`); allein bleibt es der schnelle Weg.
@@ -527,7 +544,7 @@ gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
 #### Die Art `graph`
 
 Die fünfte Art prüft, was die Änderung eines Commits im Code-Graphen
-erreicht. Ein Preset haben Go, Python, GDScript, C#, C++ und Java, mit denselben Befehlen:
+erreicht. Ein Preset haben Go, Python, GDScript, C#, C++, Java und PHP, mit denselben Befehlen:
 
 ```toml
 [stack.go.graph]
@@ -562,7 +579,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   Graph-Befehl führt ihn nur der ranghöchste aus: in einem
   Repository mit Go und Python läuft `graph/go`, und `graph/python` ist
   `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Der
-  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp` und `java`; ein Stack außerhalb dieser
+  Rang ist `go`, dann `python`, `gdscript`, `csharp`, `cpp`, `java` und `php`; ein Stack außerhalb dieser
   Liste folgt ihnen in Byte-Reihenfolge. In einem Repository mit einem
   Godot-Projekt neben Go oder Python trägt deren Lane, und `graph/gdscript`
   ist `not-applicable` („graph covered by graph/go“ oder „graph/python“); `graph/gdscript` trägt
@@ -614,7 +631,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   geprüft.
 - **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
   zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, `gdscript`, `csharp`,
-  `cpp` und `java`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
+  `cpp`, `java` und `php`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
   Godot-Projekt, `[verify.python.graph]` in einem Python-Repository ohne Go
   und `[verify.gdscript.graph]` nur in einem Godot-Projekt mit keinem von
   beiden (und so weiter die Rangfolge hinunter). Eine Überschreibung unter einem Stack, der zurücktritt, wird nie
@@ -655,6 +672,7 @@ Profil `edit` läuft also nie durch den Baum.
 | python | ein Verzeichnis `tests/`, eine Datei `test_*.py` oder `[tool.pytest` in `pyproject.toml` |
 | cpp | `enable_testing(` in `CMakeLists.txt` |
 | java | eine Datei `*Test.java`, `*Tests.java`, `Test*.java` oder `*TestCase.java` |
+| php | eine Datei `*Test.php` |
 | typescript | `vitest` in `package.json` |
 
 - Keine Tests: `test` und `coverage` sind `unavailable`.

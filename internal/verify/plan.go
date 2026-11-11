@@ -1,9 +1,11 @@
 package verify
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -263,7 +265,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 // highest first: the first of them with a graph command carries it. A stack
 // outside the list ranks after all of them, and among those the byte order
 // decides.
-var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java"}
+var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php"}
 
 // isRootKind says the kind belongs to the repository root: it runs once, not
 // once per stack and area.
@@ -302,7 +304,7 @@ func EditsRules(file string) bool {
 // IsSource says whether the rules read a file as a source: the extractors'
 // extensions, matched exactly as they match them, so A.GD is none.
 func IsSource(rel string) bool {
-	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java"}, filepath.Ext(rel))
+	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java", ".php"}, filepath.Ext(rel))
 }
 
 // rootCarrier is the stack whose job of a root kind a check plans: the
@@ -461,10 +463,19 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 		return job, link{}, true, nil
 	}
 	for _, p := range r.Lane.WhenFound {
-		if !env.HasTests(dir, []string{p}) {
-			job.Pre, job.Note = StateUnavailable, "none found: "+p
-			return job, link{}, true, nil
+		if env.HasTests(dir, []string{p}) {
+			continue
 		}
+		// A missing path guards only the commands naming it, so php -l
+		// still parses an edited file before composer install; where it
+		// guards all of them or none, the lane goes.
+		kept := slices.DeleteFunc(slices.Clone(cmds), func(c string) bool { return strings.Contains(c, p) })
+		if literalPath(p) && len(kept) > 0 && len(kept) < len(cmds) {
+			cmds = kept
+			continue
+		}
+		job.Pre, job.Note = StateUnavailable, "none found: "+p
+		return job, link{}, true, nil
 	}
 	if measured && stack == "gdscript" && eff.Config.ImportCheck && !env.ImportReady(dir) {
 		job.Pre, job.Note = StateUnready, "run loomux godot rescan"+rescanRoot(area)+" to import the project"
@@ -514,6 +525,14 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	}
 	if slices.ContainsFunc(append(slices.Clone(cmds), r.Lane.Measure), func(c string) bool { return strings.Contains(c, placeholderGradle) }) {
 		pairs = append(pairs, placeholderGradle, gradleIn(dir))
+	}
+	if stack == "php" {
+		php, sources := phpDefaults(dir)
+		if !sources && slices.ContainsFunc(cmds, func(c string) bool { return strings.Contains(c, "{phpstan-defaults}") }) {
+			job.Pre, job.Note = StateUnavailable, "none found: phpstan.neon, composer.json autoload or src"
+			return job, link{}, true, nil
+		}
+		pairs = append(pairs, php...)
 	}
 	if req.Scope == ScopeEdit {
 		file := req.File
@@ -627,6 +646,86 @@ func solutionIn(dir string) string {
 	return found[0]
 }
 
+// argSep joins the arguments one placeholder stands for; expand splits them,
+// so a path holding a space stays one argument.
+const argSep = "\x00"
+
+// phpDefaults fills the placeholders of the arguments PHP_CodeSniffer and
+// PHPStan take where the project has no configuration for them: given there,
+// they would override what the configuration says. Each tool is looked for
+// where it looks itself: PHP_CodeSniffer from dir upwards, PHPStan in dir.
+// sources is false where PHPStan has neither a configuration nor sources to
+// be named.
+func phpDefaults(dir string) (pairs []string, sources bool) {
+	pairs = []string{"{phpcs-standard}", "", "{phpcs-files}", "", "{phpstan-defaults}", ""}
+	if !configUp(dir, ".phpcs.xml", "phpcs.xml", ".phpcs.xml.dist", "phpcs.xml.dist") {
+		pairs[1], pairs[3] = "--standard=PSR12", strings.Join([]string{"--extensions=php", "--ignore=*/vendor/*", "."}, argSep)
+	}
+	if slices.ContainsFunc([]string{"phpstan.neon", "phpstan.neon.dist", "phpstan.dist.neon"}, func(n string) bool { return exists(filepath.Join(dir, n)) }) {
+		return pairs, true
+	}
+	paths := autoloadPaths(dir)
+	if len(paths) == 0 && exists(filepath.Join(dir, "src")) {
+		paths = []string{"src"}
+	}
+	pairs[5] = strings.Join(append([]string{"--level=max"}, paths...), argSep)
+	return pairs, len(paths) > 0
+}
+
+// autoloadPaths are the directories and files composer.json loads the
+// project's own classes from (autoload; autoload-dev holds the tests), those
+// inside dir that exist, sorted. The root itself is left out: it holds vendor/.
+func autoloadPaths(dir string) []string {
+	var c struct {
+		Autoload struct {
+			PSR4     map[string]any `json:"psr-4"`
+			PSR0     map[string]any `json:"psr-0"`
+			Classmap []string       `json:"classmap"`
+		} `json:"autoload"`
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "composer.json"))
+	if json.Unmarshal(data, &c) != nil {
+		return nil
+	}
+	named := slices.Clone(c.Autoload.Classmap)
+	// A namespace maps to one path or to a list of them.
+	for _, v := range slices.Concat(slices.Collect(maps.Values(c.Autoload.PSR4)), slices.Collect(maps.Values(c.Autoload.PSR0))) {
+		switch v := v.(type) {
+		case string:
+			named = append(named, v)
+		case []any:
+			for _, s := range v {
+				if s, ok := s.(string); ok {
+					named = append(named, s)
+				}
+			}
+		}
+	}
+	var out []string
+	for _, p := range named {
+		p = path.Clean(p)
+		if p != "." && filepath.IsLocal(filepath.FromSlash(p)) && exists(filepath.Join(dir, filepath.FromSlash(p))) {
+			out = append(out, p)
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// configUp says whether one of names lies in dir or a directory above it.
+func configUp(dir string, names ...string) bool {
+	for {
+		if slices.ContainsFunc(names, func(n string) bool { return exists(filepath.Join(dir, n)) }) {
+			return true
+		}
+		up := filepath.Dir(dir)
+		if up == dir {
+			return false
+		}
+		dir = up
+	}
+}
+
 const placeholderGradle = "{gradle}"
 
 // wrapperName is the Gradle wrapper a build runs on this system: the shell
@@ -665,7 +764,7 @@ func expand(command string, repl *strings.Replacer, tools map[string]string) ([]
 				continue
 			}
 		}
-		argv = append(argv, a)
+		argv = append(argv, strings.Split(a, argSep)...)
 	}
 	return argv, nil
 }

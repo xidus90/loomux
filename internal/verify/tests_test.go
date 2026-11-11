@@ -82,3 +82,20 @@ func TestHasTestsPatternForms(t *testing.T) {
 		t.Error("the root itself is never skipped")
 	}
 }
+
+// A pattern with a slash names one path below the root, vendor/ included: a
+// tool Composer installed is no test, but a lane may wait for it.
+func TestHasTestsReadsAPathLiterally(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "vendor/bin/phpunit", "")
+	if !HasTests(root, []string{"vendor/bin/phpunit"}) {
+		t.Error("the installed tool counts")
+	}
+	if HasTests(root, []string{"vendor/bin/phpstan"}) || HasTests(root, []string{"bin/phpunit"}) {
+		t.Error("a missing path, or one not below the root itself, matches nothing")
+	}
+	put(t, root, "a_test.go", "")
+	if !HasTests(root, []string{"vendor/bin/phpstan", "*_test.go"}) {
+		t.Error("the other patterns still walk")
+	}
+}

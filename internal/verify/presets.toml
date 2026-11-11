@@ -28,6 +28,7 @@ ignored = [".txt", ".json", ".yaml", ".yml", ".toml", ".svg", ".png", ".jpg", ".
 ".htm" = "html"
 ".cs" = "csharp"
 ".java" = "java"
+".php" = "php"
 ".sh" = "shell"
 ".bash" = "shell"
 ".zsh" = "shell"
@@ -335,6 +336,48 @@ commands = ["{gradle} jacocoTestReport", "{loomux} check linecov --report build/
 measure = "{gradle} test jacocoTestReport"
 after = "test"
 when_found = ["build.gradle*:jacoco"]
+
+# The tools are the project's, installed by Composer into vendor/bin; before
+# composer install each lane is unavailable, and an edit runs php -l alone,
+# since a when_found path guards only the commands naming it. php runs the
+# tools: the proxies there are PHP scripts, and one without an extension is no
+# program on Windows. The {phpcs-…} and {phpstan-…} placeholders hold what
+# each tool takes where the project has no configuration for it, and nothing
+# where it has one; PHPStan without either one or sources is unavailable.
+# tests_when is PHPUnit's default suffix.
+[stack.php]
+tests_when = ["*Test.php"]
+
+[stack.php.lint]
+commands = ["php vendor/bin/phpcs {phpcs-standard} {phpcs-files}"]
+on_file = ["php vendor/bin/phpcs {phpcs-standard} {file}", "php -l {file}"]
+when_found = ["vendor/bin/phpcs"]
+
+[stack.php.types]
+commands = ["php vendor/bin/phpstan analyse --no-progress {phpstan-defaults}"]
+when_found = ["vendor/bin/phpstan"]
+
+# linecov reads Cobertura, not Clover. The setting switches Xdebug on for
+# this run alone; a command runs without a shell, so XDEBUG_MODE=… cannot.
+[stack.php.test]
+commands = ["php vendor/bin/phpunit"]
+measuring = "php -d xdebug.mode=coverage vendor/bin/phpunit --coverage-cobertura {coverdata}"
+when_found = ["vendor/bin/phpunit"]
+
+[stack.php.coverage]
+commands = ["{loomux} check linecov --report {coverdata}"]
+measure = "php -d xdebug.mode=coverage vendor/bin/phpunit --coverage-cobertura {coverdata}"
+after = "test"
+when_found = ["vendor/bin/phpunit"]
+
+[stack.php.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+# The rules read the repository root; the commit form reads the staged tree,
+# the edit form the working tree.
+[stack.php.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
 
 [stack.typescript]
 tests_when = ["package.json:vitest"]
