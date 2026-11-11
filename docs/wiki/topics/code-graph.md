@@ -8,13 +8,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:73987ba3b351a544cd39c56a30ec02d5f214b0bb161a5bca39f5e552228eea88"
-    revision: 3
+    content_hash: "sha256:6db1637e478c36a04728fb380ebef2bf7605c18120d87b9e877b9821a1feeaff"
+    revision: 4
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:0d41d2c963a77fa739c81c1d7b4231a1c5e65865ed94a0b738cbd4a3047138a8"
-    revision: 34
+    content_hash: "sha256:4b5b3badef52d51308e2ffe23068d48e5879630e22d0f41aa824ff81825421ba"
+    revision: 35
 ---
 
 ## Wofür
@@ -72,11 +72,46 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   `.uid`-Dateien und die UIDs im Kopf von Szenen und Ressourcen auf
   (`docs/.superpowers/specs/2026-10-19-gdscript-godot-linien-design.md`).
 
+- **C#** liest er auf demselben Kern (`internal/code/extract/csharp`, Endung
+  `.cs`): Dateien, Typen (auch `record`, `struct`, `interface`, `enum`,
+  verschachtelt als `Outer.Inner`), Methoden, Konstruktoren, Operatoren,
+  Eigenschaften, Indexer und `[Signal]`-Delegates, Syntax bis C# 14
+  vollständig. Namespaces sind keine Knoten; `Result.Enclosing` trägt den
+  Namespace jedes Typknotens für den Resolver, und `Node.Owner` bleibt der
+  Typ eines Mitglieds. Ein `using` (auch `using static`, `using A = X.Y.T`
+  und `global using`, das in jeder Datei gilt) ist ein Import. Es gibt kein
+  Roslyn und kein MSBuild, also keine Typen lokaler Variablen und keine
+  Projektdateien. Der Resolver (`internal/code/resolve/csharp.go`) sucht
+  einen Typnamen in dieser Folge: verschachtelte Typen des umgebenden Typs,
+  der eigene Namespace und die umschließenden von innen nach außen,
+  `using`-Aliase, geöffnete Namespaces, der globale Namespace; mehrere
+  Treffer auf einer Stufe sind mehrdeutig und ergeben keine Kante. Die Teile
+  einer `partial class` sind ein logischer Typ (gleicher Namespace und
+  Name): ihre Mitglieder und Basen werden vereinigt, eine Kante auf den Typ
+  zeigt auf den Teil mit dem kleinsten Pfad. Ein `using` zeigt wie ein
+  Go-Import auf eine Vertreterdatei des Namespace (kleinster Pfad unter den
+  Nicht-Testdateien), nicht auf jede Datei, sonst würde jeder Nutzer zum
+  Abhängigen jeder Datei und der Blast-Radius bliebe aufgebläht. Ein
+  `new T()` (`RawEdge.Member = "new"`) trifft den Konstruktor, sonst den Typ;
+  bei Überladungen zeigt die Kante auf die erste Deklaration. Ein
+  unqualifiziertes `M()` sucht im eigenen Typ und seinen Basen, dann in
+  jedem umgebenden Typ samt Basen von innen nach außen, zuletzt im einen
+  Typ, den ein `using static` anbietet (dasselbe `using static` doppelt in
+  Kraft zählt einmal). Die Basis eines Primärkonstruktors
+  (`record D(int A) : Base(A)`) ist eine `extends`-Kante auf `Base`.
+  Attribute erkennt er auch qualifiziert und mit Endung (`[Godot.Signal]`,
+  `[GlobalClassAttribute]`). Wo die
+  Grammatik scheitert, bleibt der Rest der Datei erhalten; C# 15 hat vier
+  bekannte Lücken (`union` und `closed record class` ohne Typknoten, ein Typ
+  mit Erweiterungs-Indexer ohne Knoten, `break`/`continue` mit Marke als
+  Fehler im Rumpf). `corpus.pruneDirs` kennt `obj`, die Zwischenausgabe von
+  MSBuild, nicht `bin`
+  (`docs/.superpowers/specs/2026-11-10-csharp-design.md`).
+
 Jede Sprache löst in einem eigenen Namensindex auf. Über eine Sprachgrenze geht
 ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest (etwa
-eine `.py`- oder `.go`-Datei): er landet auf deren Dateiknoten. Eine Datei,
-die kein Extraktor liest (eine Textur, heute auch ein `.cs`-Skript), ergibt
-keine Kante.
+eine `.py`-, `.go`- oder `.cs`-Datei): er landet auf deren Dateiknoten. Eine
+Datei, die kein Extraktor liest (eine Textur), ergibt keine Kante.
 
 Symbol zu Symbol über eine Sprachgrenze geht nur über eine **Brücke**
 (`internal/code/resolve/bridge.go`): Eine Seite bietet einen Namen in einem
@@ -91,8 +126,19 @@ anbietende Seite fest. GDScript bietet jede `class_name` eines Projekts als
 `extends X` und `X.new()` mit flachem Namen und das Ende einer Szenen-
 `[connection]`, deren Skript keine GDScript-Datei ist. Eigene Exports
 beantworten eigene Übergaben nie, also ändert sich GDScript zu GDScript
-nicht. Heute liefert noch kein Extraktor C# oder C++; die Brücken nach Godot
-sind gebaut und getestet, greifen aber erst mit diesen Extraktoren
+nicht. C# bietet an, was Godot kennt: jeden Typ mit `[GlobalClass]` als
+`godot.class` und, aus der Klasse, die wie die Datei heißt (`Player.cs` →
+`Player`, so verlangt es Godot), jede Methode als `godot.method` und jedes
+`[Signal]`-Delegate auf `EventHandler` als `godot.signal` ohne diese Endung,
+je Name einmal. Damit trifft eine Szenen-`[connection]` mit `method="OnHit"`
+die C#-Methode und eine mit `signal="Hit"` das Delegate (`references`), und
+ein GDScript-`X.new()` auf eine `[GlobalClass]`-Klasse ergibt eine
+`calls`-Kante; ob Godot den C#-Namen in GDScript kennt, ist nicht belegt, der
+Code nennt ihn aber, und ohne die Brücke bliebe er ohne Ziel. **Bekannte
+Lücke:** Ein Angebot gilt nur für die Klasse, die wie die Datei heißt; der
+Handler in der zweiten Datei einer `partial class` bekommt darum keine Kante
+von der Szene. C++ liefert noch keinen Extraktor; diese Brücken sind gebaut
+und getestet, greifen aber erst mit ihm
 (`docs/.superpowers/specs/2026-11-10-graph-bruecken-design.md`). Ein
 Extraktor kann Teile einer Datei in einer anderen Sprache als eingebettete
 Ergebnisse melden (`Result.Embedded`, etwa Inline-Skripte); sie landen im
@@ -275,12 +321,14 @@ das Binary kommt über die üblichen Wege.
   Ressourcen) ist gebaut. Offen sind G5b (TypeScript/TSX) und
   G5d (C++, erst nach einer Recall-Prüfung gegen die C-Laufzeit). Der erste
   Plan, Tree-sitter als WebAssembly über `wazero`, ist verworfen.
-- **C# und C++ für Godot:** Die Brücken stehen; es fehlen die Extraktoren,
-  die `godot.class`, `godot.method` und `godot.signal` anbieten (C#:
-  `[GlobalClass]`, Signal-Delegates, Methoden; C++: `GDREGISTER_CLASS`,
+- **C++ für Godot:** Die Brücken stehen; es fehlt der Extraktor, der
+  `godot.class`, `godot.method` und `godot.signal` anbietet (`GDREGISTER_CLASS`,
   `ClassDB::bind_method`). Aufrufe auf eine Basisklasse, die erst die Brücke
   findet, und eingebaute Skripte einer Szene (`[sub_resource type="GDScript"]`)
   bleiben ohne Kante.
+- **Handler in der zweiten `partial`-Datei:** Eine Szenen-Verbindung sucht nur
+  in dem Skript, das sie nennt; die Methode in der zweiten Datei einer
+  `partial class` bleibt ohne Kante.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
   Verhalten zählen nur Funktionen und Methoden, eine Änderung an einer Klasse
   ohne `__init__` läuft darum still durch `blast-audit`.

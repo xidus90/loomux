@@ -14,8 +14,8 @@ sources:
   - id: code-graph
     resource: brain://project/loomux/docs/wiki/topics/code-graph.md
     doc_id: 01M39NDHWJPTMR7NKS5RZ78AWK
-    content_hash: "sha256:6449bd827c773c6ac51fb9bbd7fdeb8dd6b72a6e4fcf42fcbffff178b181e5f1"
-    revision: 13
+    content_hash: "sha256:1da83bc5b2df1e14a8df7ccd0fa6804bd9d57c9c72b03b15eca12683295d7b25"
+    revision: 14
 ---
 
 ## Frage
