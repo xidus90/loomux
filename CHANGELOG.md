@@ -7,6 +7,16 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.24.0] - 2026-11-11
+
+<https://github.com/xidus90/loomux/pull/154>
+
+### Added
+- The Go code graph records functions used as values as `references` edges and resolves calls on a call's result, so `graph callers`, `graph blast` and their MCP tools find callers wired through struct fields, variables and constructors.
+### Fixed
+- The Go code graph no longer guesses a call through a local function variable onto a same-named function of another package.
+- `graph callers` quotes the call site its edge stands on, not the first line naming the callee, which could be a comment.
+
 ## [1.23.2] - 2026-11-11
 
 <https://github.com/xidus90/loomux/pull/152>
