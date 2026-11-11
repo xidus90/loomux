@@ -268,3 +268,20 @@ func TestTheCppLanesOnTheBuildTreeNeedItConfigured(t *testing.T) {
 		}
 	}
 }
+
+// clang-tidy lints only the files it is given, so the lint goes through
+// run-clang-tidy, which takes them from the compile commands. ctest runs
+// what the build built, so the test lane waits for it.
+func TestTheCppLanesLintEveryCompiledFileAndTestTheBuild(t *testing.T) {
+	p, err := LoadPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cpp := p.Stacks["cpp"].Lanes
+	if !slices.Equal(cpp["lint"].Commands, []string{"run-clang-tidy -p build -quiet"}) {
+		t.Errorf("lint %q", cpp["lint"].Commands)
+	}
+	if cpp["test"].After != "types" {
+		t.Errorf("test runs after %q", cpp["test"].After)
+	}
+}

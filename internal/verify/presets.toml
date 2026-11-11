@@ -211,10 +211,11 @@ on_file  = ["{loomux} check rules"]
 [stack.cpp]
 tests_when = ["CMakeLists.txt:enable_testing("]
 
-# clang-tidy reads the build tree's compile commands; the edit form formats
-# one file and runs without it, since needs guard only the commands.
+# clang-tidy lints only the files it is named; run-clang-tidy names it every
+# file of the build tree's compile commands. The edit form formats one file
+# and runs without the tree, since needs guard only the commands.
 [stack.cpp.lint]
-commands = ["clang-tidy -p build"]
+commands = ["run-clang-tidy -p build -quiet"]
 on_file = ["clang-format --dry-run --Werror {file}"]
 needs = ["build/CMakeCache.txt"]
 
@@ -226,9 +227,12 @@ needs = ["build/CMakeCache.txt"]
 commands = ["cmake --build build --parallel"]
 needs = ["build/CMakeCache.txt"]
 
+# ctest runs what the build built, so it waits for the types lane; the lanes
+# would otherwise run side by side.
 [stack.cpp.test]
 commands = ["ctest --test-dir build --output-on-failure"]
 needs = ["build/CMakeCache.txt"]
+after = "types"
 
 # --fail-under-line makes a gate of it: the old preset only wrote a report.
 [stack.cpp.coverage]

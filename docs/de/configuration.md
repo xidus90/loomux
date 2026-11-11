@@ -377,7 +377,7 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
 | html | `npx htmlhint **/*.html` | — | — | — |
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (mit GUT) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
 | csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (wo ein `.csproj` `Microsoft.NET.Test.Sdk` nennt) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, gemessen von `dotnet test` mit `--collect "XPlat Code Coverage" --results-directory {coverdata}` |
-| cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
+| cpp | `run-clang-tidy -p build -quiet` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | nur `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
 | rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
@@ -446,7 +446,10 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   sind sie `unready` mit `build/CMakeCache.txt is missing: configure the build
   first`. Ein Edit führt das `clang-format` der Lint-Lane auf der Datei
   trotzdem aus; es braucht keinen Build-Baum. Konfigurieren ist Sache des Projekts (Generator, Optionen,
-  Toolchain), loomux rät keinen Konfigurationsschritt.
+  Toolchain), loomux rät keinen Konfigurationsschritt. Der Lint läuft über
+  `run-clang-tidy`, denn `clang-tidy` prüft nur die Dateien, die man ihm
+  nennt, und die Compile-Kommandos nennen alle; `test` läuft
+  `after = "types"`, denn ctest führt aus, was der Build gebaut hat.
 - **Messen.** `test` misst nur, wenn `coverage` im selben Lauf steht (go:
   `-covermode=set -coverprofile={coverprofile}`, python:
   `uv run --with coverage --with pytest coverage run -m pytest …`); allein bleibt es der schnelle Weg.

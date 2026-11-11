@@ -103,6 +103,27 @@ func TestARootSolutionOwnsItsProjects(t *testing.T) {
 	}
 }
 
+// A root build file builds the sources below it into one build/: the folders
+// holding them are no areas of their own.
+func TestARootBuildFileOwnsTheCppSources(t *testing.T) {
+	members := fstest.MapFS{
+		"src/calc.cpp":        {Data: []byte("int f() { return 1; }\n")},
+		"tests/calc_test.cpp": {Data: []byte("int g() { return 1; }\n")},
+	}
+	if got := Detect(members).Areas["cpp"]; !reflect.DeepEqual(got, []string{"src", "tests"}) {
+		t.Errorf("without a build file: %v", got)
+	}
+	for _, file := range []string{"CMakeLists.txt", "CMakePresets.json", "meson.build"} {
+		tree := fstest.MapFS{file: {Data: []byte("\n")}}
+		for k, v := range members {
+			tree[k] = v
+		}
+		if got := Detect(tree).Areas["cpp"]; !reflect.DeepEqual(got, []string{"."}) {
+			t.Errorf("%s: %v", file, got)
+		}
+	}
+}
+
 func TestAWorkspaceMemberIsSeenOneLevelDown(t *testing.T) {
 	tree := fstest.MapFS{
 		"README.md":               {Data: []byte("workspace\n")},
