@@ -375,7 +375,7 @@ in it or in the root; a signal in another area has no say there.
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .`, `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (with GUT) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
-| csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (where a `.csproj` names `Microsoft.NET.Test.Sdk`) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, measured by `dotnet test` with `--collect "XPlat Code Coverage" --results-directory {coverdata}` |
+| csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (where a `.csproj` names `Microsoft.NET.Test.Sdk` or `xunit.v3`) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, measured by `dotnet test` with `--collect "XPlat Code Coverage" --results-directory {coverdata}`; with `mtp`: `{loomux} check linecov --report {coverdata}/*.cobertura.xml`, measured by `dotnet test` with `--results-directory {coverdata} -- --coverage --coverage-output-format cobertura` (where a `.csproj` names `Microsoft.Testing.Extensions.CodeCoverage`) |
 | cpp | `run-clang-tidy -p build -quiet` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | java | `mvn -B -q checkstyle:check` (where `pom.xml` names `maven-checkstyle-plugin`); with `gradle`: `{gradle} checkstyleMain checkstyleTest` (where a `build.gradle*` names `checkstyle`) | `mvn -B -q -DskipTests compile test-compile`; with `gradle`: `{gradle} compileJava compileTestJava` | `mvn -B -q test`; with `gradle`: `{gradle} test` | `{loomux} check linecov --report target/site/jacoco/jacoco.xml --report */target/site/jacoco/jacoco.xml`, measured by `mvn` with `org.jacoco:jacoco-maven-plugin:0.8.16:prepare-agent` and `:report`; with `gradle`: `{gradle} jacocoTestReport` and `check linecov` on `build/reports/jacoco/test/jacocoTestReport.xml` (where a `build.gradle*` names `jacoco`) |
 | php | `php vendor/bin/phpcs {phpcs-standard} {phpcs-files}`; for an edit also `php -l {file}` | `php vendor/bin/phpstan analyse --no-progress {phpstan-defaults}` | `php vendor/bin/phpunit` | `{loomux} check linecov --report {coverdata}`, measured by `php -d xdebug.mode=coverage vendor/bin/phpunit --coverage-cobertura {coverdata}` |
@@ -497,6 +497,19 @@ in it or in the root; a signal in another area has no say there.
   needs the `jacoco` plugin in the build, and its `test` lane does not
   measure, since a build without the plugin has no `jacocoTestReport`. The
   reports are read in the area and in the modules one level below it.
+- The csharp `test` lane measures through coverlet's VSTest collector, which
+  `dotnet test` refuses from the .NET 10 SDK on once the project runs on
+  Microsoft.Testing.Platform (MTP; xunit.v3 does from 4.0 on). A `global.json`
+  whose `test.runner` is `Microsoft.Testing.Platform` selects the `mtp`
+  variant: it is what switches `dotnet test` into its MTP mode, while the
+  properties and packages of a project do not; `DOTNET_TEST_RUNNER`, which
+  .NET 11 reads instead, is no file and selects nothing. On MTP the `test`
+  lane does not measure, since a test application without
+  `Microsoft.Testing.Extensions.CodeCoverage` rejects `--coverage`; `coverage`
+  runs the suite itself through that extension, where a `.csproj` names it,
+  and reads the Cobertura report it writes under a GUID name into
+  `{coverdata}`. The extension honours `[ExcludeFromCodeCoverage]` by default,
+  the marker `check linecov` knows.
 - The php lanes run the project's own tools from `vendor/bin`, through `php`,
   since Composer's proxies are PHP scripts. Each lane names its tool in
   `when_found`: before `composer install` it is `unavailable`, not red, and

@@ -381,7 +381,7 @@ gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
 | css | `npx stylelint **/*.{css,scss}` | — | — | — |
 | html | `npx htmlhint **/*.html` | — | — | — |
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .` | — | `{loomux} check godot-suite --godot {godot}` (mit `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (mit GUT) | `{loomux} check linecov --report {coverdata}` (mit `gdUnit4` und `NanoCoverage`) |
-| csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (wo ein `.csproj` `Microsoft.NET.Test.Sdk` nennt) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, gemessen von `dotnet test` mit `--collect "XPlat Code Coverage" --results-directory {coverdata}` |
+| csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (wo ein `.csproj` `Microsoft.NET.Test.Sdk` oder `xunit.v3` nennt) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, gemessen von `dotnet test` mit `--collect "XPlat Code Coverage" --results-directory {coverdata}`; mit `mtp`: `{loomux} check linecov --report {coverdata}/*.cobertura.xml`, gemessen von `dotnet test` mit `--results-directory {coverdata} -- --coverage --coverage-output-format cobertura` (wo ein `.csproj` `Microsoft.Testing.Extensions.CodeCoverage` nennt) |
 | cpp | `run-clang-tidy -p build -quiet` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | java | `mvn -B -q checkstyle:check` (wo `pom.xml` `maven-checkstyle-plugin` nennt); mit `gradle`: `{gradle} checkstyleMain checkstyleTest` (wo ein `build.gradle*` `checkstyle` nennt) | `mvn -B -q -DskipTests compile test-compile`; mit `gradle`: `{gradle} compileJava compileTestJava` | `mvn -B -q test`; mit `gradle`: `{gradle} test` | `{loomux} check linecov --report target/site/jacoco/jacoco.xml --report */target/site/jacoco/jacoco.xml`, gemessen von `mvn` mit `org.jacoco:jacoco-maven-plugin:0.8.16:prepare-agent` und `:report`; mit `gradle`: `{gradle} jacocoTestReport` und `check linecov` auf `build/reports/jacoco/test/jacocoTestReport.xml` (wo ein `build.gradle*` `jacoco` nennt) |
 | php | `php vendor/bin/phpcs {phpcs-standard} {phpcs-files}`; bei einem Edit auch `php -l {file}` | `php vendor/bin/phpstan analyse --no-progress {phpstan-defaults}` | `php vendor/bin/phpunit` | `{loomux} check linecov --report {coverdata}`, gemessen von `php -d xdebug.mode=coverage vendor/bin/phpunit --coverage-cobertura {coverdata}` |
@@ -500,6 +500,20 @@ gefunden wurden; ein Signal in einem anderen Bereich redet dort nicht mit.
   `test`-Lane misst nicht, denn ohne das Plugin gibt es kein
   `jacocoTestReport`. Gelesen werden die Berichte im Bereich und in den
   Modulen eine Ebene darunter.
+- Die csharp-Lane `test` misst über den VSTest-Collector von coverlet, den
+  `dotnet test` ab dem .NET-10-SDK verweigert, sobald das Projekt auf
+  Microsoft.Testing.Platform läuft (MTP; xunit.v3 tut das ab 4.0). Eine
+  `global.json`, deren `test.runner` `Microsoft.Testing.Platform` ist, wählt
+  die Variante `mtp`: Sie schaltet `dotnet test` in den MTP-Modus, die
+  Eigenschaften und Pakete eines Projekts tun das nicht; `DOTNET_TEST_RUNNER`,
+  das .NET 11 stattdessen liest, ist keine Datei und wählt nichts. Auf MTP
+  misst die Lane `test` nicht, denn eine Testanwendung ohne
+  `Microsoft.Testing.Extensions.CodeCoverage` weist `--coverage` ab;
+  `coverage` fährt die Suite selbst über diese Erweiterung, wo ein `.csproj`
+  sie nennt, und liest den Cobertura-Bericht, den sie unter einem GUID-Namen
+  nach `{coverdata}` schreibt. Die Erweiterung beachtet
+  `[ExcludeFromCodeCoverage]` von Haus aus, den Marker, den `check linecov`
+  kennt.
 - Die php-Lanes führen die Werkzeuge des Projekts aus `vendor/bin` aus, über
   `php`, denn die Proxys von Composer sind PHP-Skripte. Jede Lane nennt ihr
   Werkzeug in `when_found`: Vor `composer install` ist sie `unavailable`,

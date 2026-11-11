@@ -168,9 +168,10 @@ lock       = true
 when_found = ['plugin.cfg:name="Gut"']
 
 # dotnet test is the same whatever the framework, so there is no variant per
-# framework. Every test project references the test SDK.
+# framework. A test project for VSTest references the test SDK; one on
+# xunit.v3 runs on Microsoft.Testing.Platform without it.
 [stack.csharp]
-tests_when = ["*.csproj:Microsoft.NET.Test.Sdk"]
+tests_when = ["*.csproj:Microsoft.NET.Test.Sdk", "*.csproj:xunit.v3"]
 
 # Every dotnet command restores and builds into obj/ and bin/; side by side
 # they fight over the same files, so one lock binds every lane of the stack,
@@ -200,6 +201,22 @@ measuring = 'dotnet test {solution} --nologo --collect "XPlat Code Coverage" --r
 commands = ["{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml"]
 measure = 'dotnet test {solution} --nologo --collect "XPlat Code Coverage" --results-directory {coverdata}'
 after = "test"
+
+# global.json choosing Microsoft.Testing.Platform puts dotnet test into its
+# MTP mode, which refuses the VSTest collector. Coverage comes from
+# Microsoft's extension, which a project must reference: without it the
+# application rejects --coverage, so the test lane runs plainly and coverage
+# runs the suite itself. The report lands flat in the run's data path under
+# a GUID name.
+[[stack.csharp.variant]]
+when = "mtp"
+[stack.csharp.variant.test]
+commands = ["dotnet test {solution} --nologo"]
+[stack.csharp.variant.coverage]
+commands = ["{loomux} check linecov --report {coverdata}/*.cobertura.xml"]
+measure = "dotnet test {solution} --nologo --results-directory {coverdata} -- --coverage --coverage-output-format cobertura"
+after = "test"
+when_found = ["*.csproj:Microsoft.Testing.Extensions.CodeCoverage"]
 
 [stack.csharp.graph]
 commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]

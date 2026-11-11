@@ -362,6 +362,24 @@ func TestADotnetEntryPinsTheSDKOfItsMajor(t *testing.T) {
 	if err := pinDotnet(filepath.Join(dir, "global.json", "below"), Entry{Runtime: "dotnet", Version: "10.0"}); err == nil {
 		t.Error("a pin below a file was written")
 	}
+	// One that chooses only the test runner gets the pin beside its choice.
+	runner := []byte(`{"test": {"runner": "Microsoft.Testing.Platform"}}`)
+	if err := os.WriteFile(filepath.Join(dir, "global.json"), runner, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := pinDotnet(dir, Entry{Runtime: "dotnet", Version: "10.0"}); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"sdk":{"version":"10.0.100","rollForward":"latestFeature","allowPrerelease":false},"test":{"runner":"Microsoft.Testing.Platform"}}`
+	if got, _ := os.ReadFile(filepath.Join(dir, "global.json")); strings.TrimSpace(string(got)) != want {
+		t.Errorf("the runner's global.json became %s", got)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "global.json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := pinDotnet(dir, Entry{Runtime: "dotnet", Version: "10.0"}); err == nil {
+		t.Error("an unreadable global.json was overwritten")
+	}
 }
 
 // fakeCMake stands in for CMake and records each call as its work copy and

@@ -48,6 +48,11 @@
   „Vergleich mit zvec-grep“, Rohdaten
   `zvec-vergleich-windows-run1.json`.
 
+- 2026-11-11 — Quellen neu gepinnt (`loomux wiki repin`):
+  `docs/de/configuration.md` (C#-Variante `mtp` für Microsoft.Testing.Platform,
+  `xunit.v3` in `tests_when`) berührt keine Aussage der zitierenden Seiten
+  (Schreibschranke, Datenmodell und Bereiche, Datenschutz und Kanäle,
+  Modelladapter), gegen die Änderung gelesen.
 - 2026-11-11 — `topics/code-graph.md`: PHP als Sprache des Graphen (Extraktor
   mit Namespace je Typ und Funktion, Resolver mit den Namensregeln von PHP,
   Testdateien) und die Lücken von PHP als offener Punkt. Quelle: Code von
