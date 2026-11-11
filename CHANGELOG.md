@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.23.1] - 2026-11-11
+
+<https://github.com/xidus90/loomux/pull/151>
+
+### Security
+- Builds use Go 1.27.4, which fixes a crash of the net/http HTTP/1 server in the standard library.
+
 ## [1.23.0] - 2026-11-11
 
 <https://github.com/xidus90/loomux/pull/150>
