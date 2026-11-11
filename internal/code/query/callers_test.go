@@ -106,6 +106,53 @@ func TestCallersQuotesTheCallSiteInsideTheStartForCallees(t *testing.T) {
 	t.Fatalf("want Run among the callees of main, got %+v", ans.Hits)
 }
 
+func TestCallersQuotesTheLineOfTheEdgeAndNotAnEarlierMention(t *testing.T) {
+	root := repo(t, map[string]string{
+		"go.mod": "module example.com/repo\n",
+		"lib/lib.go": "package lib\n\ntype Index struct{}\n\nfunc New() *Index { return &Index{} }\n\n" +
+			"func (x *Index) Reach() {}\n\n" +
+			"func use() {\n\t// Reach is named here first.\n\tNew().Reach()\n}\n",
+	})
+	if _, _, err := Build(root, ignore); err != nil {
+		t.Fatal(err)
+	}
+	ans, _, err := Callers(root, "Reach", CallersOptions{Direction: blast.In, Depth: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range ans.Hits {
+		if h.Name == "use" {
+			if h.Line != 11 || h.Quote != "New().Reach()" {
+				t.Errorf("use quoted at L%d %q, want the call at L11", h.Line, h.Quote)
+			}
+			return
+		}
+	}
+	t.Fatalf("want use among the callers of Reach, got %+v", ans.Hits)
+}
+
+func TestEvidenceFallsBackToTheWordWhenTheEdgeHasNoLine(t *testing.T) {
+	src := "package p\n\nfunc use() {\n\tReach()\n}\n"
+	read := func(string) ([]byte, error) { return []byte(src), nil }
+	caller := &model.Node{Name: "use", Path: "p.go", Span: "L3-L5"}
+	callee := &model.Node{Name: "Reach", Path: "p.go"}
+	// No line on the edge, and a line past the end of the file, both fall
+	// back to the word in the caller's span.
+	for _, at := range []int{0, 99} {
+		if path, line, quote := evidence(read, callee, caller, blast.In, at); path != "p.go" || line != 4 || quote != "Reach()" {
+			t.Errorf("at %d: evidence = %s:%d %q, want p.go:4 Reach()", at, path, line, quote)
+		}
+	}
+	other := &model.Node{Name: "Elsewhere", Path: "p.go"}
+	if path, line, quote := evidence(read, other, caller, blast.In, 0); path != "" || line != 0 || quote != "" {
+		t.Errorf("no line and no word is no evidence; got %s:%d %q", path, line, quote)
+	}
+	unreadable := func(string) ([]byte, error) { return nil, errors.New("gone") }
+	if _, ok := quoteAt(unreadable, "p.go", 4); ok {
+		t.Error("an unreadable file has no line to quote")
+	}
+}
+
 func TestCallersQuotesOnlyDirectNeighbours(t *testing.T) {
 	root := repo(t, map[string]string{
 		"go.mod": "module example.com/repo\n",
@@ -136,15 +183,16 @@ func TestCallersQuotesOnlyDirectNeighbours(t *testing.T) {
 func TestCallersKeepsADirectHitWhoseSpanNeverNamesTheStart(t *testing.T) {
 	root := built(t)
 
-	// main.go imports the package, never the file name lib.go.
+	// main.go imports the package, never the file name lib.go: no word search
+	// finds it, but the import edge knows its line.
 	ans, _, err := Callers(root, "lib/lib.go", CallersOptions{Direction: blast.In, Depth: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, h := range ans.Hits {
 		if h.Path == "main.go" {
-			if h.QuotePath != "" || h.Line != 0 || h.Quote != "" {
-				t.Errorf("importer main.go = %+v, want no quote", h)
+			if h.QuotePath != "main.go" || h.Line != 3 || h.Quote != `import "example.com/repo/lib"` {
+				t.Errorf("importer main.go = %+v, want the import quoted at L3", h)
 			}
 			return
 		}
