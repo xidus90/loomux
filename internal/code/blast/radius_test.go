@@ -370,6 +370,11 @@ func TestIsTestPathPerLanguage(t *testing.T) {
 		"src/main/java/a/AppTest.java": true, "AppTests.java": true, "a/AppIT.java": true, "a/TestApp.java": true, "a/AppTestCase.java": true, "a/AppCase.java": false,
 		"Contest.java": false, "src/main/java/a/App.java": false, "src/testing/a/App.java": false,
 		"mysrc/test/a/App.java": false, "test/a/App.java": false, "a/AppTest.JAVA": false, "a/Audit.java": false,
+		// PHP: PHPUnit's *Test.php, case as written, or a directory test or
+		// tests in any case.
+		"tests/Unit/Helper.php": true, "a/Tests/B.php": true, "test/a.php": true, "src/UserTest.php": true,
+		"Contest.php": false, "src/User.php": false, "src/Testing/A.php": false, "attests/a.php": false,
+		"a/UserTEST.php": false, "a/UserTest.PHP": false, "src/Tests.php": false,
 		"a.ts": false, "TEST_X.PY": false, "A_TEST.GO": false,
 	} {
 		if got := blast.IsTestPath(path); got != want {

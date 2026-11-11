@@ -247,7 +247,9 @@ func evidence(seeds []evidenceSeed) ([]Evidence, int) {
 // directory Tests/ or Test/, in any case. C++: see isCppTestPath. Java:
 // every file under src/test/ (Maven's and Gradle's test source root), and
 // *Test.java, *Tests.java, *TestCase.java, *IT.java and Test*.java (what
-// Surefire and Failsafe run), case as written.
+// Surefire and Failsafe run), case as written. PHP: *Test.php (what PHPUnit
+// runs), case as written, and every file under a directory tests/ or test/,
+// in any case.
 func IsTestPath(p string) bool {
 	switch path.Ext(p) {
 	case ".go":
@@ -272,6 +274,11 @@ func IsTestPath(p string) bool {
 		stem := strings.TrimSuffix(path.Base(p), ".java")
 		return strings.HasPrefix(p, "src/test/") || strings.Contains(p, "/src/test/") || strings.HasPrefix(stem, "Test") ||
 			strings.HasSuffix(stem, "Test") || strings.HasSuffix(stem, "Tests") || strings.HasSuffix(stem, "TestCase") || strings.HasSuffix(stem, "IT")
+	case ".php":
+		dirs := strings.Split(path.Dir(p), "/")
+		return strings.HasSuffix(p, "Test.php") || slices.ContainsFunc(dirs, func(s string) bool {
+			return strings.EqualFold(s, "test") || strings.EqualFold(s, "tests")
+		})
 	case ".tscn", ".tres":
 		// A scene or resource under the test folders is a fixture of the suites.
 		return underDir(p, "test") || underDir(p, "tests")

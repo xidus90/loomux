@@ -238,6 +238,17 @@ func TestBuildNamesCppByItsLanguage(t *testing.T) {
 	}
 }
 
+// A .php file counts as php, the name its extractor reports.
+func TestBuildNamesPHPByItsLanguage(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "src/User.php", Path: "src/User.php", Name: "User.php", Kind: model.KindFile},
+	}}
+	m := repomap.Build(g, nil, repomap.Options{})
+	if !slices.Equal(m.Totals.Languages, []string{"php"}) {
+		t.Errorf("languages = %v, want php alone", m.Totals.Languages)
+	}
+}
+
 func TestFormatAndEdgeCases(t *testing.T) {
 	g := sampleMapGraph()
 	x := blast.New(g)

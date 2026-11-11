@@ -224,6 +224,18 @@ func TestResolveTakesACSharpNameForAFile(t *testing.T) {
 	}
 }
 
+// A name ending in .php is a file query, so "php" never matches a symbol of that name.
+func TestResolveTakesAPHPNameForAFile(t *testing.T) {
+	g := &model.Graph{Nodes: []model.Node{
+		{ID: "src/User.php", Path: "src/User.php", Name: "User.php", Kind: model.KindFile},
+		{ID: "src/User.php#php", Path: "src/User.php", Name: "php", Kind: "function"},
+	}}
+	hits, err := blast.Resolve(g, "User.php", "")
+	if err != nil || len(hits) != 1 || hits[0].ID != "src/User.php" {
+		t.Errorf("Resolve(User.php) = %v, %v; want the file", hits, err)
+	}
+}
+
 // A name ending in a C++ extension is a file query, so "hh" and "ipp" never
 // match a symbol of that name.
 func TestResolveTakesACppNameForAFile(t *testing.T) {
