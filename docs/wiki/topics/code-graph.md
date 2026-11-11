@@ -8,13 +8,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:ac0bb72331ee9e4c28d6ec63aa427e4c2821fdf2700a0a7e5c7553a55b9dfe7f"
-    revision: 5
+    content_hash: "sha256:997e7740448e13775f64ea4b8373a7e8505a7e0a5ae426cb09d8ec390cfeb30e"
+    revision: 6
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:551b36042af6519900d1a9724126f985b6232c17f0a9271a2e70bdb08a607e1d"
-    revision: 39
+    content_hash: "sha256:a5cfd0d718861cf6176890351fc13c18269ce7b342f4def1cdcd792c78f2aa0a"
+    revision: 40
 ---
 
 ## Wofür
@@ -154,6 +154,44 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   `references`-Kanten und `godot.method`- und `godot.signal`-Angebote mit der
   Klasse als `Class`
   (`docs/.superpowers/specs/2026-11-10-cpp-design.md`).
+
+- **Java** liest er auf demselben Kern (`internal/code/extract/java`, Endung
+  `.java`): Dateien, Klassen, Schnittstellen, Enums, Records und
+  Annotationstypen (verschachtelt als `Outer.Inner`), Methoden und
+  Konstruktoren, auch in Enum-Rümpfen; der kompakte Konstruktor eines Records
+  heißt wie der Record, und die Methoden einer kompakten Quelldatei (Java 25)
+  sind Funktionen. Ein anonymer Typ hat keinen Knoten, seine Aufrufe gehören
+  zum Mitglied darum herum. Das Paket ist kein Knoten: `Result.Package` trägt
+  den Namen aus `package a.b;` für den Resolver, denn Java hat ein Paket je
+  Datei und keinen Namespace, der Typen umschließt. Ein `import` (einzeln,
+  `*`, `static` und `import module`) ist ein Import. Es gibt keinen Compiler
+  und keine `pom.xml`-Auswertung, also keine Typen lokaler Variablen und
+  keine Quellwurzeln: das Paket steht in der Datei. Der Resolver
+  (`internal/code/resolve/java.go`) sucht einen Typnamen in dieser Folge:
+  verschachtelte Typen des umgebenden Typs und der äußeren, Typen der Datei,
+  Einzel-Typ-Importe, Typen desselben Pakets (in jeder Datei), Typen der
+  `*`-Importe, voll qualifizierte Namen; mehrere Treffer auf einer Stufe sind
+  mehrdeutig und ergeben keine Kante. Ein Einzel-Typ-Import und ein
+  `static`-Import zeigen auf die Datei, die den Typ deklariert, ein
+  `*`-Import wie ein Go-Import auf eine Vertreterdatei des Pakets (kleinster
+  Pfad unter den Nicht-Testdateien); ein Paket ohne Datei im Graphen
+  (`java.util`) und `import module` ergeben keine Kante. Eine Basis ist
+  `extends` oder `implements`, je nach Art des Ziels; nur eine Basis ohne Ziel
+  steht unter `Unresolved`. Ein unqualifiziertes `m()` sucht im Typ und
+  seinen Basen (zyklenfest), dann in den umgebenden Typen, dann unter den
+  Methoden auf oberster Ebene einer kompakten Quelldatei (Java 25; auch aus
+  einer Klasse, die sie deklariert), zuletzt in den `static`-Importen; `this.m()`, `super.m()` (dieses nur in den Basen),
+  `X.m()` über die Typauflösung und `new X()` (der Konstruktor, sonst der
+  Typ) lösen sich auf, bei Überladungen gilt die erste Deklaration. Ein
+  `obj.m()` auf einer Variablen bleibt ohne Kante. Wo die Grammatik
+  scheitert, bleibt der Rest der Datei erhalten; Java 8 bis 21 parsen ohne
+  Fehler, Java 25 hat zwei Lücken (`import module` kommt als Fehler im
+  Import, den der Extraktor trotzdem liest, und eine Anweisung vor
+  `super(…)` ist ein Fehler im Rumpf des Konstruktors, dessen Aufrufe fehlen;
+  die Mitglieder danach kommen an). Java 27 bringt keine eigene Syntax, das
+  Syntax-Fixture belegt die Formen von 25. `corpus.pruneDirs` kennt `target`
+  und `build`
+  (`docs/.superpowers/specs/2026-11-11-java-design.md`).
 
 Jede Sprache löst in einem eigenen Namensindex auf. Über eine Sprachgrenze geht
 ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest (etwa
@@ -342,7 +380,9 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   `tests/` oder `test/`, für GDScript `*_test.gd` und alles unter `test/`
   oder `tests/`, für C++ ein Dateiname `test_*`, `*_test`, `*_tests`, `*Test`
   oder `*Tests` und alles unter einem Verzeichnis `test`, `tests` oder
-  `unittest` (in jeder Schreibung; `Contest.cpp` zählt nicht); Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
+  `unittest` (in jeder Schreibung; `Contest.cpp` zählt nicht), für Java alles unter
+  `src/test/` und ein Dateiname `*Test`, `*Tests`, `*IT` oder `Test*` (`Contest.java` zählt
+  nicht); Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
   `project.godot` nie.
 - **Prüfart `rules`:** Die sechste Art liest denselben Extraktor-Kern, aber
   nie den gespeicherten Graphen: `check rules` baut ihn im Prozess aus den
@@ -396,6 +436,16 @@ das Binary kommt über die üblichen Wege.
     Namespace oder eine Klasse, die am Schnitt offen war, geht verloren: Was
     folgt, nennt keinen, und die schließende Klammer zerbricht die Definition
     davor, die dann keinen Knoten bekommt, je Schnitt eine.
+- **Lücken von Java:**
+  - Typen und Überladungen kennt der Graph nicht: `obj.m()` ergibt keine
+    Kante, bei Überladungen gilt die erste Deklaration.
+  - Ob ein Receiver eine Variable ist, entscheidet eine Namensmenge der
+    ganzen Datei (Felder, Parameter, lokale Variablen, Enum-Konstanten):
+    Heißt irgendeine Variable der Datei `T`, verliert auch `T.m()` seine
+    Kante. Die Java-Konvention (Typen groß, Variablen klein) hält das selten.
+  - `import module` und eine Anweisung vor `super(…)` (Java 25) liegen jenseits
+    der Grammatik von `gotreesitter`; Aufrufe in einem solchen Konstruktor
+    fehlen.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
   Verhalten zählen nur Funktionen und Methoden, eine Änderung an einer Klasse
   ohne `__init__` läuft darum still durch `blast-audit`.

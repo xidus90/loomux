@@ -141,7 +141,7 @@ flowchart LR
 > **Pakete.** Das Lesemodell und die beiden Rechner sind `internal/code/model`,
 > `internal/code/pagerank` und `internal/code/blast`; den Graphen, den sie lesen,
 > erzeugen `sourceset`, die Extraktoren in `extract/all` (`extract/golang` auf
-> `go/parser`, `extract/python`, `extract/gdscript`, `extract/csharp` und `extract/cpp` auf dem gemeinsamen Tree-sitter-Kern
+> `go/parser`, `extract/python`, `extract/gdscript`, `extract/csharp`, `extract/cpp` und `extract/java` auf dem gemeinsamen Tree-sitter-Kern
 > `extract/treesitter`, der auf `gotreesitter` in reinem Go läuft), `resolve` und
 > `store`, und `freshness` beantwortet, ob er noch zum Baum passt. `internal/code/lexicon` tokenisiert
 > Anfragen und Dokumente und führt die Beiakte `ask-index.json`; `internal/code/ask`
