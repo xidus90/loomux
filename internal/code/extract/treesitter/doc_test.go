@@ -322,3 +322,37 @@ func TestParseRefusesWithoutALanguage(t *testing.T) {
 		t.Errorf("Parse(nil language) = %v, want an error naming the file", err)
 	}
 }
+
+func TestReparseKeepsMintedIdsAndCoveredLines(t *testing.T) {
+	src := "def f():\n    pass\n\ndef f():\n    pass\n"
+	d := parse(t, "m.py", src)
+	one := d.Symbol(funcSym(d, d.Root.Child(0), d.Root.Child(0), "f"))
+
+	// The second definition alone, at the offsets it has in the source, and
+	// without the text after it.
+	rest := []byte(src)
+	for i := range 18 {
+		if rest[i] != '\n' {
+			rest[i] = ' '
+		}
+	}
+	if err := d.Reparse(rest[:len(rest)-1]); err != nil {
+		t.Fatal(err)
+	}
+	fn := first(d, "function_definition")
+	two := d.Symbol(funcSym(d, fn, fn, "f"))
+	if one.ID != "m.py#f" || two.ID != "m.py#f~2" || two.Span != "L4-L5" {
+		t.Errorf("ids, span = %s, %s, %s; want m.py#f, m.py#f~2 at L4-L5", one.ID, two.ID, two.Span)
+	}
+	if body := d.FileNode().BodyText; body != "" {
+		t.Errorf("file residual = %q, want nothing: both definitions are covered", body)
+	}
+	if string(d.Src) != src {
+		t.Errorf("Src = %q, want the source Parse was given", d.Src)
+	}
+
+	d.Lang = nil
+	if err := d.Reparse(rest); err == nil || !strings.Contains(err.Error(), "parse m.py") {
+		t.Errorf("Reparse(nil language) = %v, want an error naming the file", err)
+	}
+}

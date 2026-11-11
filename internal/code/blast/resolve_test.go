@@ -2,9 +2,11 @@ package blast_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/blast"
+	"github.com/xidus90/loomux/internal/code/extract/cpp"
 	"github.com/xidus90/loomux/internal/code/model"
 )
 
@@ -219,6 +221,23 @@ func TestResolveTakesACSharpNameForAFile(t *testing.T) {
 	hits, err := blast.Resolve(g, "Player.cs", "")
 	if err != nil || len(hits) != 1 || hits[0].ID != "Game/Player.cs" {
 		t.Errorf("Resolve(Player.cs) = %v, %v; want the file", hits, err)
+	}
+}
+
+// A name ending in a C++ extension is a file query, so "hh" and "ipp" never
+// match a symbol of that name.
+func TestResolveTakesACppNameForAFile(t *testing.T) {
+	for _, dotExt := range (cpp.Language{}).Extensions() {
+		ext := strings.TrimPrefix(dotExt, ".")
+		name := "Player." + ext
+		g := &model.Graph{Nodes: []model.Node{
+			{ID: model.NodeID("src/" + name), Path: "src/" + name, Name: name, Kind: model.KindFile},
+			{ID: model.NodeID("src/" + name + "#" + ext), Path: "src/" + name, Name: ext, Kind: "function"},
+		}}
+		hits, err := blast.Resolve(g, name, "")
+		if err != nil || len(hits) != 1 || hits[0].ID != model.NodeID("src/"+name) {
+			t.Errorf("Resolve(%s) = %v, %v; want the file", name, hits, err)
+		}
 	}
 }
 

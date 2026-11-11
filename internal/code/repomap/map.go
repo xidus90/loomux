@@ -74,6 +74,8 @@ func langFromPath(p string) string {
 		return "gdscript"
 	case ".cs":
 		return "csharp"
+	case ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp":
+		return "cpp"
 	default:
 		clean := strings.TrimPrefix(ext, ".")
 		if clean == "" {

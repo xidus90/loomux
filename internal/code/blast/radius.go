@@ -244,7 +244,7 @@ func evidence(seeds []evidenceSeed) ([]Evidence, int) {
 // folder); a scene (.tscn) or resource (.tres) counts under those folders
 // alone, and project.godot never does. C#: *Tests.cs and *Test.cs, a directory
 // ending in .Test or .Tests (a .NET test project), and every file under a
-// directory Tests/ or Test/, in any case.
+// directory Tests/ or Test/, in any case. C++: see isCppTestPath.
 func IsTestPath(p string) bool {
 	switch path.Ext(p) {
 	case ".go":
@@ -263,11 +263,34 @@ func IsTestPath(p string) bool {
 		// a project named Game.Tests holds nothing but tests, whatever its
 		// files are called.
 		return strings.HasSuffix(p, "Tests.cs") || strings.HasSuffix(p, "Test.cs") || underTestDir(p)
+	case ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp":
+		return isCppTestPath(p)
 	case ".tscn", ".tres":
 		// A scene or resource under the test folders is a fixture of the suites.
 		return underDir(p, "test") || underDir(p, "tests")
 	}
 	return false
+}
+
+// isCppTestPath reports whether slash path p, a C++ file, is a test: its stem
+// is test_*, *_test, *_tests, *Test or *Tests (GoogleTest, Catch2 and doctest
+// projects name files so), or a directory above it is test, tests or
+// unittest, in any case. Contest.cpp and latest_version.cpp match neither.
+func isCppTestPath(p string) bool {
+	base := path.Base(p)
+	stem := strings.TrimSuffix(base, path.Ext(base))
+	if strings.HasPrefix(stem, "test_") {
+		return true
+	}
+	for _, suffix := range []string{"_test", "_tests", "Test", "Tests"} {
+		if strings.HasSuffix(stem, suffix) {
+			return true
+		}
+	}
+	segments := strings.Split(p, "/")
+	return slices.ContainsFunc(segments[:len(segments)-1], func(s string) bool {
+		return strings.EqualFold(s, "test") || strings.EqualFold(s, "tests") || strings.EqualFold(s, "unittest")
+	})
 }
 
 // underTestDir reports whether a directory segment of slash path p is a .NET

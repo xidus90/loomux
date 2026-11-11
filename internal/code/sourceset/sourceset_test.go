@@ -61,14 +61,15 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 }
 
 func TestExtensionsIsACopy(t *testing.T) {
+	want := []string{".c++", ".cc", ".cpp", ".cs", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".py", ".tpp", ".tres", ".tscn", ".uid"}
 	first := sourceset.Extensions()
-	if !reflect.DeepEqual(first, []string{".cs", ".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}) {
-		t.Fatalf("Extensions() = %v, want [.cs .gd .go .godot .py .tres .tscn .uid]", first)
+	if !reflect.DeepEqual(first, want) {
+		t.Fatalf("Extensions() = %v, want %v", first, want)
 	}
 	// A caller that edits its answer must not change what the walk takes.
 	first[0] = ".txt"
-	if again := sourceset.Extensions(); !reflect.DeepEqual(again, []string{".cs", ".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}) {
-		t.Fatalf("Extensions() after editing an earlier answer = %v, want [.cs .gd .go .godot .py .tres .tscn .uid]", again)
+	if again := sourceset.Extensions(); !reflect.DeepEqual(again, want) {
+		t.Fatalf("Extensions() after editing an earlier answer = %v, want %v", again, want)
 	}
 }
 
@@ -90,6 +91,22 @@ func TestListMatchesTheExtensionExactly(t *testing.T) {
 	// it too, so no file the walk lists is one no extractor claims.
 	if !reflect.DeepEqual(got, []string{"lower.go", "lower.py"}) {
 		t.Fatalf("got %v, want lower.go and lower.py alone", got)
+	}
+}
+
+// C++ sources and headers are listed; a .c file is not, the graph leaves C alone.
+func TestListTakesCppFilesAndNotC(t *testing.T) {
+	root := tree(t, map[string]string{
+		"src/a.cpp": "int a;\n", "src/a.cc": "int a;\n", "include/a.hpp": "int a;\n", "include/a.h": "int a;\n",
+		"src/b.c": "int b;\n", "src/B.CPP": "int b;\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"include/a.h", "include/a.hpp", "src/a.cc", "src/a.cpp"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 

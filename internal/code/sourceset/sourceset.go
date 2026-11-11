@@ -32,11 +32,16 @@ const maxFileBytes = 1_000_000
 
 // extensions are the extensions of every extracted language, dot included,
 // matched exactly: x.GO is no Go file to the Go toolchain, so it is none to
-// the graph either. .cs is C#. .godot, .tres and .tscn are the project file, resources and
+// the graph either. .cs is C#. .c++, .cc, .cpp, .cxx, .h, .h++, .hh, .hpp,
+// .hxx, .inl, .ipp and .tpp are C++; .c is not, the graph leaves C alone.
+// .godot, .tres and .tscn are the project file, resources and
 // scenes of a Godot project, read with its scripts, and .uid the uid Godot 4.4
 // keeps beside a script. A literal and nothing
 // parsed: see the package comment for why it is not taken from extract/all.
-var extensions = []string{".cs", ".gd", ".go", ".godot", ".py", ".tres", ".tscn", ".uid"}
+var extensions = []string{
+	".c++", ".cc", ".cpp", ".cs", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx",
+	".inl", ".ipp", ".py", ".tpp", ".tres", ".tscn", ".uid",
+}
 
 // Extensions is a copy of the extensions the walk takes, so no caller can
 // change what the next walk looks at.
@@ -69,7 +74,7 @@ func List(root string) ([]string, error) {
 // Stat returns the file set with each file's size and modification time.
 //
 // The enumeration is corpus.Walk's, the same walk the search index uses; the
-// filter (FromListing) is the graph's: eight extensions, one megabyte, and no
+// filter (FromListing) is the graph's: the extensions, one megabyte, and no
 // file below a pruned directory segment. A dot directory never reaches the
 // filter, because the walk does not enter one.
 //

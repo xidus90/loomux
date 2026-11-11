@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/blast"
+	"github.com/xidus90/loomux/internal/code/extract/cpp"
 	"github.com/xidus90/loomux/internal/code/model"
 	"github.com/xidus90/loomux/internal/code/repomap"
 )
@@ -221,6 +222,19 @@ func TestBuildNamesCSharpByItsLanguage(t *testing.T) {
 	m := repomap.Build(g, nil, repomap.Options{})
 	if !slices.Contains(m.Totals.Languages, "csharp") || slices.Contains(m.Totals.Languages, "cs") {
 		t.Errorf("languages = %v, want csharp and no cs", m.Totals.Languages)
+	}
+}
+
+// Every C++ extension counts as cpp, not as a language named after it.
+func TestBuildNamesCppByItsLanguage(t *testing.T) {
+	var nodes []model.Node
+	for _, ext := range (cpp.Language{}).Extensions() {
+		p := "a" + ext
+		nodes = append(nodes, model.Node{ID: model.NodeID(p), Path: p, Name: p, Kind: model.KindFile})
+	}
+	m := repomap.Build(&model.Graph{Nodes: nodes}, nil, repomap.Options{})
+	if !slices.Equal(m.Totals.Languages, []string{"cpp"}) {
+		t.Errorf("languages = %v, want cpp alone", m.Totals.Languages)
 	}
 }
 
