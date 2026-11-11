@@ -621,6 +621,167 @@ func TestPlanSkipsGradleCoverageWithoutJacoco(t *testing.T) {
 	}
 }
 
+var phpOnly = detect.Facts{Stacks: []string{"php"}, Areas: map[string][]string{"php": {"."}}}
+
+// put writes a file below root, its directories included.
+func put(t *testing.T, root, rel, body string) {
+	t.Helper()
+	p := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Composer's proxies are PHP scripts, so php runs each tool: a proxy without
+// an extension is no program on Windows. Without a configuration of its own
+// PHP_CodeSniffer checks PSR-12 and PHPStan the highest level on src; with
+// one, each reads it. Coverage is PHPUnit's Cobertura report through linecov.
+func TestPlanRunsPHPToolsFromVendor(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "src/A.php", "<?php\n")
+	_, data := CoverPaths(root, "R", "php", ".")
+	all := Request{Kinds: []string{"lint", "types", "test", "coverage"}}
+	jobs, err := Plan(effFor(t, "", phpOnly), all, env(root))
+	if err != nil || names(jobs) != "lint/php types/php test/php coverage/php" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	want := [][]string{
+		{"php", "vendor/bin/phpcs", "--standard=PSR12", "--extensions=php", "--ignore=*/vendor/*", "."},
+		{"php", "vendor/bin/phpstan", "analyse", "--no-progress", "--level=max", "src"},
+		{"php", "-d", "xdebug.mode=coverage", "vendor/bin/phpunit", "--coverage-cobertura", data},
+		{`C:\bin\loomux.exe`, "check", "linecov", "--report", data},
+	}
+	for i, j := range jobs {
+		if j.Pre != "" || !slices.EqualFunc(j.Argvs, want[i:i+1], slices.Equal) {
+			t.Errorf("%s: %q %+v", j.Name, j.Argvs, j)
+		}
+	}
+	if jobs[3].After != 2 || jobs[2].After != -1 {
+		t.Fatalf("coverage after test only: %+v", jobs)
+	}
+	jobs, _ = Plan(effFor(t, "", phpOnly), Request{Kinds: []string{"test"}}, env(root))
+	if !slices.Equal(jobs[0].Argvs[0], []string{"php", "vendor/bin/phpunit"}) {
+		t.Fatalf("test alone: %q", jobs[0].Argvs)
+	}
+	jobs, _ = Plan(effFor(t, "", phpOnly), Request{Kinds: []string{"coverage"}}, env(root))
+	if !slices.Equal(jobs[0].Measure, want[2]) {
+		t.Fatalf("coverage alone measures: %q", jobs[0].Measure)
+	}
+	put(t, root, ".phpcs.xml.dist", "")
+	put(t, root, "phpstan.dist.neon", "")
+	jobs, _ = Plan(effFor(t, "", phpOnly), Request{Kinds: []string{"lint", "types"}}, env(root))
+	if !slices.Equal(jobs[0].Argvs[0], []string{"php", "vendor/bin/phpcs"}) ||
+		!slices.Equal(jobs[1].Argvs[0], []string{"php", "vendor/bin/phpstan", "analyse", "--no-progress"}) {
+		t.Fatalf("configured: %+v", jobs)
+	}
+}
+
+// PHP_CodeSniffer looks for its configuration up from the working directory,
+// PHPStan only in it: an area below the root's files takes the root's
+// phpcs.xml, but not its phpstan.neon.
+func TestPlanFindsThePHPConfigurationWhereEachToolLooks(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "app/src/A.php", "<?php\n")
+	put(t, root, "phpcs.xml", "")
+	put(t, root, "phpstan.neon", "")
+	facts := detect.Facts{Stacks: []string{"php"}, Areas: map[string][]string{"php": {"app"}}}
+	jobs, _ := Plan(effFor(t, "", facts), Request{Kinds: []string{"lint", "types"}}, env(root))
+	if !slices.Equal(jobs[0].Argvs[0], []string{"php", "vendor/bin/phpcs"}) ||
+		!slices.Equal(jobs[1].Argvs[0], []string{"php", "vendor/bin/phpstan", "analyse", "--no-progress", "--level=max", "src"}) {
+		t.Fatalf("%+v", jobs)
+	}
+}
+
+// Without a configuration PHPStan checks the directories composer.json loads
+// the project's classes from (autoload, not autoload-dev), those that exist;
+// without any, src; without src either, the lane has nothing to check.
+func TestPlanFindsThePHPSourcesForPHPStan(t *testing.T) {
+	types := func(root string) Job {
+		t.Helper()
+		jobs, err := Plan(effFor(t, "", phpOnly), Request{Kinds: []string{"types"}}, env(root))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return jobs[0]
+	}
+	analyse := []string{"php", "vendor/bin/phpstan", "analyse", "--no-progress", "--level=max"}
+	laravel := t.TempDir()
+	put(t, laravel, "composer.json", `{"autoload": {"psr-4": {"App\\": "app/", "Root\\": "", "Up\\": "../up/", "Database\\Seeders\\": "database/seeders/"},
+		"psr-0": {"Old_": ["lib/", "missing/"]}, "classmap": ["database/seeders/", "helpers.php"]},
+		"autoload-dev": {"psr-4": {"Tests\\": "tests/"}}}`)
+	for _, f := range []string{"app/A.php", "database/seeders/S.php", "lib/Old/L.php", "helpers.php", "tests/ATest.php", "src/B.php"} {
+		put(t, laravel, f, "<?php\n")
+	}
+	if got := types(laravel); got.Pre != "" || !slices.Equal(got.Argvs[0], append(slices.Clone(analyse), "app", "database/seeders", "helpers.php", "lib")) {
+		t.Errorf("autoload: %+v", got)
+	}
+	plain := t.TempDir()
+	put(t, plain, "composer.json", `{"autoload": {"psr-4": {"App\\": "missing/"}}}`)
+	put(t, plain, "src/A.php", "<?php\n")
+	if got := types(plain); got.Pre != "" || !slices.Equal(got.Argvs[0], append(slices.Clone(analyse), "src")) {
+		t.Errorf("src: %+v", got)
+	}
+	put(t, plain, "composer.json", `{"autoload": `)
+	if got := types(plain); got.Pre != "" || !slices.Equal(got.Argvs[0], append(slices.Clone(analyse), "src")) {
+		t.Errorf("unreadable composer.json: %+v", got)
+	}
+	bare := t.TempDir()
+	put(t, bare, "composer.json", `{"autoload": {"psr-4": {"App\\": ["", 1, "missing/"]}}}`)
+	if got := types(bare); got.Pre != StateUnavailable || got.Note != "none found: phpstan.neon, composer.json autoload or src" || Red(got.Pre, ScopeCheck) {
+		t.Errorf("nothing to check: %+v", got)
+	}
+	put(t, bare, "phpstan.neon", "")
+	if got := types(bare); got.Pre != "" || !slices.Equal(got.Argvs[0], analyse[:4]) {
+		t.Errorf("configured: %+v", got)
+	}
+}
+
+// An edit sniffs its own file and has php parse it, in the standard the
+// project chose or PSR-12.
+func TestPlanLintsAnEditedPHPFile(t *testing.T) {
+	root := t.TempDir()
+	req := Request{Kinds: []string{"lint"}, Scope: ScopeEdit, File: "src/A.php"}
+	for _, standard := range [][]string{{"--standard=PSR12"}, nil} {
+		jobs, _ := Plan(effFor(t, "", phpOnly), req, env(root))
+		want := [][]string{append(append([]string{"php", "vendor/bin/phpcs"}, standard...), "src/A.php"), {"php", "-l", "src/A.php"}}
+		if !slices.EqualFunc(jobs[0].Argvs, want, slices.Equal) {
+			t.Errorf("%q", jobs[0].Argvs)
+		}
+		put(t, root, "phpcs.xml", "")
+	}
+}
+
+// Review Focus 5: before composer install there is no vendor/bin, and every
+// lane on a tool from there is unavailable, not red; the graph still runs.
+// php -l needs php alone, so an edit still has the file parsed.
+func TestPHPLanesWithoutVendorAreUnavailable(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "tests/ATest.php", "")
+	put(t, root, "src/A.php", "")
+	e := env(root)
+	e.HasTests = HasTests
+	edit := Request{Kinds: []string{"lint"}, Scope: ScopeEdit, File: "src/A.php"}
+	jobs, _ := Plan(effFor(t, "", phpOnly), edit, e)
+	if jobs[0].Pre != "" || !slices.EqualFunc(jobs[0].Argvs, [][]string{{"php", "-l", "src/A.php"}}, slices.Equal) {
+		t.Errorf("edit: %+v", jobs[0])
+	}
+	all := Request{Kinds: []string{"lint", "types", "test", "coverage"}}
+	jobs, _ = Plan(effFor(t, "", phpOnly), all, e)
+	for i, tool := range []string{"phpcs", "phpstan", "phpunit", "phpunit"} {
+		if jobs[i].Pre != StateUnavailable || jobs[i].Note != "none found: vendor/bin/"+tool || Red(jobs[i].Pre, ScopeCheck) {
+			t.Errorf("%s: %+v", jobs[i].Name, jobs[i])
+		}
+	}
+	put(t, root, "vendor/bin/phpunit", "")
+	jobs, _ = Plan(effFor(t, "", phpOnly), all, e)
+	if jobs[0].Pre != StateUnavailable || jobs[2].Pre != "" || jobs[3].Pre != "" {
+		t.Fatalf("with PHPUnit alone: %+v", jobs)
+	}
+}
+
 // A test project builds the project it references into that project's obj/
 // and bin/, beside the build of the project itself: every C# area shares the
 // one lock of the repository.
@@ -1219,7 +1380,7 @@ func factsOf(stacks ...string) detect.Facts {
 	return f
 }
 
-// The carrier follows the rank go, python, gdscript, csharp, cpp, java, then byte order, not the
+// The carrier follows the rank go, python, gdscript, csharp, cpp, java, php, then byte order, not the
 // walk: the jobs stay in byte order, and the carrier may stand later in it.
 func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 	unranked := "[verify.css.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
@@ -1248,8 +1409,10 @@ func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 			[][3]string{{"graph/cpp", "not-applicable", covered("csharp")}, {"graph/csharp", "", ""}}},
 		{"cpp beats java", "", []string{"cpp", "java"},
 			[][3]string{{"graph/cpp", "", ""}, {"graph/java", "not-applicable", covered("cpp")}}},
-		{"java beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"java", "rust"},
-			[][3]string{{"graph/java", "", ""}, {"graph/rust", "not-applicable", covered("java")}}},
+		{"java beats php", "", []string{"java", "php"},
+			[][3]string{{"graph/java", "", ""}, {"graph/php", "not-applicable", covered("java")}}},
+		{"php beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"php", "rust"},
+			[][3]string{{"graph/php", "", ""}, {"graph/rust", "not-applicable", covered("php")}}},
 		{"unranked stacks follow in byte order", unranked, []string{"rust", "css"},
 			[][3]string{{"graph/css", "", ""}, {"graph/rust", "not-applicable", covered("css")}}},
 	} {

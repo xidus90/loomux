@@ -240,6 +240,33 @@ func TestAndroidJoinsTheGradleBuildThatOwnsIt(t *testing.T) {
 	}
 }
 
+// Composer means PHP even before the first .php file, and so does a PHPUnit
+// configuration.
+func TestPHPSignalsAreDetected(t *testing.T) {
+	for _, name := range []string{"composer.json", "phpunit.xml", "phpunit.xml.dist", "phpunit.dist.xml"} {
+		tree := fstest.MapFS{name: {Data: []byte("{}\n")}}
+		if got := Detect(tree).Stacks; !reflect.DeepEqual(got, []string{"php"}) {
+			t.Errorf("%s: stacks = %v", name, got)
+		}
+	}
+}
+
+// A root composer.json installs one vendor/ for its packages: checked on
+// their own, they would run on that vendor/ side by side.
+func TestARootComposerJSONOwnsItsPackages(t *testing.T) {
+	tree := fstest.MapFS{
+		"app/composer.json": {Data: []byte("{}\n")},
+		"tools/phpunit.xml": {Data: []byte("<phpunit/>\n")},
+	}
+	if got := Detect(tree).Areas["php"]; !reflect.DeepEqual(got, []string{"app", "tools"}) {
+		t.Errorf("without a root composer.json: %v", got)
+	}
+	tree["composer.json"] = &fstest.MapFile{Data: []byte("{}\n")}
+	if got := Detect(tree).Areas["php"]; !reflect.DeepEqual(got, []string{"."}) {
+		t.Errorf("with one: %v", got)
+	}
+}
+
 // Review Focus 4: with pom.xml and build.gradle side by side both variants
 // are detected; the presets list maven first, so Maven checks (verify).
 func TestMavenBesideGradleReportsBoth(t *testing.T) {

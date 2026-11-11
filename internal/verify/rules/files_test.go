@@ -11,6 +11,7 @@ import (
 
 	"github.com/xidus90/loomux/internal/code/extract/cpp"
 	"github.com/xidus90/loomux/internal/code/extract/java"
+	"github.com/xidus90/loomux/internal/code/extract/php"
 	"github.com/xidus90/loomux/internal/gitenv"
 	"github.com/xidus90/loomux/internal/verify/linecov"
 )
@@ -298,6 +299,15 @@ func TestFilesWorkingTreeDropsAMissingFileWithoutContent(t *testing.T) {
 // The rules read what the Java extractor takes, as they do for C++.
 func TestContentExtsCoverTheJavaExtractor(t *testing.T) {
 	for _, e := range (java.Language{}).Extensions() {
+		if !wantsContent("x" + e) {
+			t.Errorf("%s is not read", e)
+		}
+	}
+}
+
+// The rules read what the PHP extractor takes.
+func TestContentExtsCoverThePHPExtractor(t *testing.T) {
+	for _, e := range (php.Language{}).Extensions() {
 		if !wantsContent("x" + e) {
 			t.Errorf("%s is not read", e)
 		}

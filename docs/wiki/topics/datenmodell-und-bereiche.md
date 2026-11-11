@@ -9,8 +9,8 @@ sources:
   - id: konfiguration
     resource: brain://project/loomux/docs/de/configuration.md
     doc_id: 01M47W91R50RT15H2ES8RV7TJT
-    content_hash: "sha256:ca93d4c2c5149922d5c719056fda77bb54790bf5f1b0a6cc9976439a38a1fc12"
-    revision: 35
+    content_hash: "sha256:d2db6c84368fd7e22dea457a530e2aa46c7498274f3f8671e9b30e33568517ce"
+    revision: 36
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE

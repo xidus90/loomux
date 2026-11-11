@@ -67,6 +67,12 @@ var signals = []signal{
 	{path: "build.gradle", contains: "com.android", stacks: []string{"android"}, joins: "gradle"},
 	{path: "build.gradle.kts", contains: "com.android", stacks: []string{"android"}, joins: "gradle"},
 	{path: "gradle/libs.versions.toml", contains: "com.android", stacks: []string{"android"}, joins: "gradle"},
+	// Composer means PHP without a .php file yet. The root's vendor/ serves
+	// its packages, which checked on their own would share it side by side.
+	{path: "composer.json", stacks: []string{"php"}, owns: true},
+	{path: "phpunit.xml", stacks: []string{"php"}},
+	{path: "phpunit.xml.dist", stacks: []string{"php"}},
+	{path: "phpunit.dist.xml", stacks: []string{"php"}},
 	{glob: "*.sln", stacks: []string{"csharp"}, owns: true},
 	{glob: "*.slnx", stacks: []string{"csharp"}, owns: true},
 	{glob: "*.csproj", stacks: []string{"csharp"}},
