@@ -18,8 +18,9 @@ type signal struct {
 	// without a package.json is a configuration file, not a project.
 	besides string
 	// owns, when set and matched in the root, makes the root the stack's
-	// only area: a solution builds the projects below it, and a member
-	// checked on its own would build them a second time.
+	// only area: a solution or a CMake or Meson project builds what lies
+	// below it, and a member checked on its own would build it a second
+	// time, or in C++ find no build tree at all.
 	owns bool
 }
 
@@ -35,9 +36,9 @@ var signals = []signal{
 	{path: "requirements.txt", stacks: []string{"python"}},
 	{path: "manage.py", stacks: []string{"python", "django"}},
 	{path: "project.godot", stacks: []string{"godot", "gdscript"}},
-	{path: "CMakeLists.txt", stacks: []string{"cpp", "cmake"}},
-	{path: "CMakePresets.json", stacks: []string{"cpp", "cmake"}},
-	{path: "meson.build", stacks: []string{"cpp", "meson"}},
+	{path: "CMakeLists.txt", stacks: []string{"cpp", "cmake"}, owns: true},
+	{path: "CMakePresets.json", stacks: []string{"cpp", "cmake"}, owns: true},
+	{path: "meson.build", stacks: []string{"cpp", "meson"}, owns: true},
 	{glob: "*.cpp", stacks: []string{"cpp"}},
 	{glob: "*.hpp", stacks: []string{"cpp"}},
 	{path: ".clang-tidy", stacks: []string{"cpp", "clang-tidy"}},

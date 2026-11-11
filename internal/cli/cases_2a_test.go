@@ -26,6 +26,10 @@ var approved2a = map[string]string{
 	// 1: the old chain crashed on CMake types; cmake --build is now cpp's types lane.
 	"check/cpp-all":   "1: types ran cmake --build and passed where the old chain raised KeyError",
 	"check/cpp-types": "1: types ran cmake --build and passed where the old chain raised KeyError",
+	// Not in the archived list: clang-tidy -p build names no file and lints
+	// nothing, so the lint runs run-clang-tidy, which the recording's fake
+	// tool does not answer.
+	"check/cpp-lint": "the lint lane runs run-clang-tidy: missing-tool in the replay, where the recorded clang-tidy -p build passed",
 	// 10: unavailable was red; a kind no stack defines is neutral now.
 	"check/godot-no-coverage-all":   "10, 20: GDScript has no types lane, and its test and coverage lanes are unavailable without the gdUnit4 and Nano Coverage addons: neutral, no longer red or ok",
 	"check/godot-no-coverage-types": "10: GDScript has no types lane: not-applicable exits 0",

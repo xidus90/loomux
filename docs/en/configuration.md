@@ -372,7 +372,7 @@ then `[verify.<stack>]`.
 | html | `npx htmlhint **/*.html` | — | — | — |
 | gdscript | `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint .`, `uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdformat --check .` | — | `{loomux} check godot-suite --godot {godot}` (with `gdUnit4`), `{loomux} check gut-suite --godot {godot}` (with GUT) | `{loomux} check linecov --report {coverdata}` (with `gdUnit4` and `NanoCoverage`) |
 | csharp | `dotnet format {solution} --verify-no-changes` | `dotnet build {solution} --nologo --no-incremental -warnaserror` | `dotnet test {solution} --nologo` (where a `.csproj` names `Microsoft.NET.Test.Sdk`) | `{loomux} check linecov --report {coverdata}/*/coverage.cobertura.xml`, measured by `dotnet test` with `--collect "XPlat Code Coverage" --results-directory {coverdata}` |
-| cpp | `clang-tidy -p build` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
+| cpp | `run-clang-tidy -p build -quiet` | `cmake --build build --parallel` | `ctest --test-dir build --output-on-failure` | `gcovr --root . --object-directory build --fail-under-line 100 --txt` |
 | shell | only `on_file` | — | — | — |
 | sql | `sqlfluff lint .` | — | — | — |
 | rust | `cargo clippy -- -D warnings`, `cargo fmt --check` | — | — | — |
@@ -449,7 +449,10 @@ then `[verify.<stack>]`.
   An edit still runs the lint's `clang-format` on the file, which needs no
   build tree.
   Configuring is the project's decision (generator, options, toolchain), so
-  loomux does not guess a configure step.
+  loomux does not guess a configure step. The lint goes through
+  `run-clang-tidy`, since `clang-tidy` lints only the files it is named and
+  the compile commands name them all; `test` runs `after = "types"`, since
+  ctest runs what the build built.
 - **Measuring.** `test` measures only when `coverage` is in the same run
   (go: `-covermode=set -coverprofile={coverprofile}`, python:
   `uv run --with coverage --with pytest coverage run -m pytest …`); on its own it stays the fast path.
