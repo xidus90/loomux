@@ -445,7 +445,10 @@ nicht auch sagen könnte. Die Schichten sind: Preset, dann die erste
   ["build/CMakeCache.txt"]`: solange der Build-Baum nicht konfiguriert ist,
   sind sie `unready` mit `build/CMakeCache.txt is missing: configure the build
   first`. Ein Edit führt das `clang-format` der Lint-Lane auf der Datei
-  trotzdem aus; es braucht keinen Build-Baum. Konfigurieren ist Sache des Projekts (Generator, Optionen,
+  trotzdem aus; es braucht keinen Build-Baum. Eine `CMakeLists.txt`,
+  `CMakePresets.json` oder `meson.build` in der Wurzel macht die Wurzel zum
+  einzigen `cpp`-Bereich: Sie baut, was darunter liegt, und ein Unterordner,
+  für sich geprüft, fände keinen Build-Baum. Konfigurieren ist Sache des Projekts (Generator, Optionen,
   Toolchain), loomux rät keinen Konfigurationsschritt. Der Lint läuft über
   `run-clang-tidy`, denn `clang-tidy` prüft nur die Dateien, die man ihm
   nennt, und die Compile-Kommandos nennen alle; `test` läuft
@@ -512,7 +515,7 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   Graph-Befehl führt ihn nur der ranghöchste aus: in einem
   Repository mit Go und Python läuft `graph/go`, und `graph/python` ist
   `not-applicable` („graph covered by graph/go“), das Urteil bleibt grün. Der
-  Rang ist `go`, dann `python`, dann `gdscript`; ein Stack außerhalb dieser
+  Rang ist `go`, dann `python`, `gdscript`, `csharp` und `cpp`; ein Stack außerhalb dieser
   Liste folgt ihnen in Byte-Reihenfolge. In einem Repository mit einem
   Godot-Projekt neben Go oder Python trägt deren Lane, und `graph/gdscript`
   ist `not-applicable` („graph covered by graph/go“ oder „graph/python“); `graph/gdscript` trägt
@@ -563,11 +566,11 @@ Die Befehle laufen nacheinander, und `blast-audit` läuft auch nach einem roten
   ein Klon ohne scharfe Hooks) gehört am Rundenende zu `HEAD` und wird nie
   geprüft.
 - **Den Schwellenwert ändern** heißt, `commands` in der Tabelle des Stacks
-  zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, dann
-  `gdscript`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
+  zu ersetzen, der die Lane trägt, der ranghöchste (`go`, dann `python`, `gdscript`, `csharp` und
+  `cpp`): `[verify.go.graph]` in einem Go-Repository, auch mit einem
   Godot-Projekt, `[verify.python.graph]` in einem Python-Repository ohne Go
   und `[verify.gdscript.graph]` nur in einem Godot-Projekt mit keinem von
-  beiden. Eine Überschreibung unter einem Stack, der zurücktritt, wird nie
+  beiden (und so weiter die Rangfolge hinunter). Eine Überschreibung unter einem Stack, der zurücktritt, wird nie
   gelesen. Ersetze **beide** Einträge; eine Lane,
   die nur `blast-audit` nennt, verliert den Neubau:
 

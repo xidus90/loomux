@@ -13,8 +13,8 @@ sources:
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:23a89dfbaac94d1dcc3a35903c2d62c6147ba151064a1c1e53833bf3c0b59acb"
-    revision: 36
+    content_hash: "sha256:cf41742bc0aed97a6e1d89c66fe5e0d13b0b8bdc0eaa799d541539d79c3a301c"
+    revision: 37
 ---
 
 loomux baut in **Stufen**, und **jede Stufe endet grün und wird einzeln
@@ -70,7 +70,8 @@ Roadmap im README; der Stand beim Verdichten dieser Seite:
 | G4c | ✅ | Stop-Hook mit Blast-Logik |
 | G5a | ✅ | Extraktor-Schnittstelle, Tree-sitter-Kern auf `gotreesitter`, Python; abgenommen an `iam_backend` und einem zweiten Projekt |
 | G5c | ✅ | GDScript, Szenen, Ressourcen und `project.godot` auf dem Tree-sitter-Kern; der Godot-Pfad als einzige Kante über eine Sprachgrenze |
-| G5b, G5d | offen | TypeScript/TSX, C++ |
+| G5d | ✅ | C++ auf dem Tree-sitter-Kern, mit GDExtension an GDScript und Szenen über die Brücken |
+| G5b | offen | TypeScript/TSX |
 
 Eine Teilstufe 4b gibt es nicht. `loomux migrate` fällt weg: den
 Maschinenzustand hat die Selbstnutzung seit 3a schon umgezogen, die Wirte
