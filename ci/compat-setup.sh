@@ -2,7 +2,8 @@
 # Installs the runtime and the addons of one compatibility entry:
 #   ci/compat-setup.sh <loomux binary> <entry key> <root>
 # Godot lands in <root>/godot (and GODOT_BIN is exported to later steps), each
-# addon's own folder in <root>/addons/<Name>, Python through uv. Go and .NET are set up
+# addon's own folder in <root>/addons/<Name>, Python and C++'s clang-tidy,
+# clang-format and gcovr through uv. Go and .NET are set up
 # by the workflow, which rebuilds loomux with the Go when rebuild=true: a Go above
 # the toolchain of go.mod is one loomux was never built with. The description is the JSON of `dev compat run --describe`;
 # it is flat and written by loomux, so sed reads it without a JSON tool.
@@ -148,6 +149,22 @@ godot)
 	;;
 python) uv python install "$install" ;;
 go | dotnet) ;;
+cpp)
+	# CMake and GCC are the runner's. The wheels bring clang-tidy pinned and
+	# without root, its run-clang-tidy as run-clang-tidy.py: the preset calls
+	# the name LLVM and the distributions install, so it gets a link.
+	if [ "$os" != Linux ]; then
+		echo "compat-setup: C++ runs on Linux only (internal/compat/matrix.go)" >&2
+		exit 1
+	fi
+	uv tool install clang-tidy==23.1.4
+	ln -sf run-clang-tidy.py "$(uv tool dir --bin)/run-clang-tidy"
+	uv tool install clang-format==23.1.5
+	uv tool install gcovr==8.8
+	if [ -n "${GITHUB_PATH:-}" ]; then
+		uv tool dir --bin >>"$GITHUB_PATH"
+	fi
+	;;
 *)
 	echo "compat-setup: no setup for runtime $runtime" >&2
 	exit 1

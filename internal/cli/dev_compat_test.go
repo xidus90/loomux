@@ -32,7 +32,7 @@ func TestDevCompatMatrix(t *testing.T) {
 		t.Fatalf("no selection: code %d, out %q", code, out)
 	}
 	code, out, _ = run("dev", "compat", "matrix", "--full")
-	if jobs := matrixJobs(t, out); code != 0 || len(jobs) != 2*len(list) {
+	if jobs := matrixJobs(t, out); code != 0 || len(jobs) != len(compat.Matrix(list, compat.Selection{Full: true})) {
 		t.Fatalf("full: code %d, %d jobs", code, len(jobs))
 	}
 	k := list[1].Key()

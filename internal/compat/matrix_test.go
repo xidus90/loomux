@@ -28,7 +28,13 @@ func TestMatrixSelects(t *testing.T) {
 		t.Fatalf("no selection = %v, want empty non-nil", got)
 	}
 	full := Matrix(list, Selection{Full: true})
-	if len(full) != 2*len(list) || full[0] != (Job{Entry: list[0].Key(), OS: "linux"}) || full[1] != (Job{Entry: list[0].Key(), OS: "windows"}) {
+	single := 0
+	for _, e := range list {
+		if linuxOnly[e.Runtime] {
+			single++
+		}
+	}
+	if len(full) != 2*len(list)-single || full[0] != (Job{Entry: list[0].Key(), OS: "linux"}) || full[1] != (Job{Entry: list[0].Key(), OS: "windows"}) {
 		t.Fatalf("full = %v", full)
 	}
 	if got := keysOf(Matrix(list, Selection{Keys: []string{list[1].Key()}})); !reflect.DeepEqual(got, []string{list[1].Key() + "@linux", list[1].Key() + "@windows"}) {
@@ -49,6 +55,18 @@ func TestMatrixSelects(t *testing.T) {
 	}
 	if got := Matrix(list, Selection{ChangedFixtures: []string{"godot4-gdunit4"}}); len(got) != 2*users {
 		t.Errorf("changed fixture = %v", got)
+	}
+}
+
+// CI sets C++ up on Linux alone, so its entries and probes get no Windows job.
+func TestACppEntryRunsOnLinuxOnly(t *testing.T) {
+	e := Entry{Stack: "cpp", Runtime: "cpp", Version: "23", Fixture: "cpp-cmake-gtest", Kinds: []string{"test"}}
+	want := []string{e.Key() + "@linux"}
+	if got := keysOf(Matrix([]Entry{e}, Selection{Full: true})); !reflect.DeepEqual(got, want) {
+		t.Errorf("matrix %v, want %v", got, want)
+	}
+	if got := keysOf(ProbeMatrix([]Entry{e})); !reflect.DeepEqual(got, want) {
+		t.Errorf("probes %v, want %v", got, want)
 	}
 }
 

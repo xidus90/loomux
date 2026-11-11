@@ -1,6 +1,7 @@
 name: compat
 # Runs the compatibility list (internal/compat/compat.toml) for real: each
-# entry on Linux and Windows, with its runtime, addons and tool versions.
+# entry on Linux and Windows (C++ on Linux only, see internal/compat/matrix.go),
+# with its runtime, addons and tool versions.
 on:
   pull_request:
     branches: [master]

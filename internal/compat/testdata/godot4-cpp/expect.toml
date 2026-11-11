@@ -1,0 +1,13 @@
+stacks = ["cpp"]
+# The godot-cpp layout: the Godot project in project/, the GDExtension
+# sources beside it in src/.
+edges = [
+  ["project/player.gd", "extends", "src/gdexample.h#GDExample"],
+  ["project/player.gd#spawn", "calls", "src/gdexample.h#GDExample"],
+  ["project/main.tscn", "references", "src/gdexample.h#GDExample"],
+  ["project/main.tscn", "references", "src/gdexample.h#GDExample.get_speed"],
+  ["src/gdexample.cpp#GDExample._bind_methods", "references", "src/gdexample.h#GDExample.get_speed"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

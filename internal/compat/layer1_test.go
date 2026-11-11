@@ -40,6 +40,16 @@ func TestEveryEntryPassesLayerOne(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// A run configures a C++ fixture before its lanes plan; the
+			// cache file is all the plan asks of it.
+			if e.Runtime == "cpp" {
+				if err := os.MkdirAll(filepath.Join(root, "build"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(root, "build", "CMakeCache.txt"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 
 			facts := detect.Detect(os.DirFS(root))
 			for _, s := range append(slices.Clone(want.Stacks), want.Variants...) {
@@ -214,6 +224,32 @@ func TestTheCSharp15GapsLeaveTheRestOfTheFile(t *testing.T) {
 	slices.Sort(got)
 	want := []string{"Syntax.cs", "Syntax.cs#Cat", "Syntax.cs#Dog", "Syntax.cs#Loops",
 		"Syntax.cs#Loops.First", "Syntax.cs#Loops.Make", "Syntax.cs#Loops.Sized"}
+	if !slices.Equal(got, want) {
+		t.Errorf("nodes %v, want %v", got, want)
+	}
+}
+
+// The grammar loses the rest of the file at C++23's if consteval
+// (docs/en/support.md): pick, which holds it, leaves no node, the re-parse
+// brings back after, and last, before the closing brace of a namespace the
+// re-parse no longer sees, is lost. A grammar that learns the form fails
+// here, and the support page is to follow.
+func TestTheCpp23GapLeavesTheRestOfTheFile(t *testing.T) {
+	root := t.TempDir()
+	if err := CopyFixture("cpp-syntax-23", root); err != nil {
+		t.Fatal(err)
+	}
+	g, _, err := query.Build(root, func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, n := range g.Nodes {
+		got = append(got, string(n.ID))
+	}
+	slices.Sort(got)
+	want := []string{"syntax.cpp", "syntax.cpp#Counter", "syntax.cpp#Counter.doubled", "syntax.cpp#Counter.get",
+		"syntax.cpp#after", "syntax.cpp#twice"}
 	if !slices.Equal(got, want) {
 		t.Errorf("nodes %v, want %v", got, want)
 	}

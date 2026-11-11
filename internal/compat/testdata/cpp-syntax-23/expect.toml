@@ -1,0 +1,11 @@
+stacks = ["cpp"]
+# Deducing this reads in full. if consteval cuts the tree: pick gets no
+# node, and the definition before the namespace's closing brace is lost
+# (docs/en/support.md); after arrives through the re-parse.
+edges = [
+  ["syntax.cpp#Counter.doubled", "calls", "syntax.cpp#twice"],
+  ["syntax.cpp#after", "calls", "syntax.cpp#twice"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

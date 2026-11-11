@@ -348,6 +348,58 @@ func TestADotnetEntryPinsTheSDKOfItsMajor(t *testing.T) {
 	}
 }
 
+// fakeCMake stands in for CMake and records each call as its work copy and
+// arguments; fail, when not empty, is the output of a call that fails.
+func fakeCMake(t *testing.T, fail string) *[]string {
+	t.Helper()
+	var calls []string
+	old := cmake
+	t.Cleanup(func() { cmake = old })
+	cmake = func(dir string, args ...string) ([]byte, error) {
+		calls = append(calls, filepath.Base(dir)+": "+strings.Join(args, " "))
+		if fail != "" {
+			return []byte(fail), errors.New("exit status 1")
+		}
+		return nil, nil
+	}
+	return &calls
+}
+
+func TestACppEntryConfiguresItsStandard(t *testing.T) {
+	calls := fakeCMake(t, "")
+	rep, _ := runEntryKey(t, "cpp/cpp-20/cpp-cmake-gtest", fakeCheck(honest))
+	if !rep.Green {
+		t.Fatalf("report %+v", rep)
+	}
+	want := []string{"entry", "break-1-lint", "break-2-types", "break-3-test", "break-4-coverage"}
+	for i := range want {
+		want[i] += ": -S . -B build -DCMAKE_CXX_STANDARD=20"
+	}
+	if !slices.Equal(*calls, want) {
+		t.Errorf("cmake calls %q, want %q", *calls, want)
+	}
+	// A fixture without CMakeLists.txt is configured by no one.
+	*calls = nil
+	if rep, _ := runEntryKey(t, "cpp/cpp-20/cpp-syntax-20", fakeCheck(honest)); !rep.Green || len(*calls) != 0 {
+		t.Errorf("report %+v, cmake calls %q", rep, *calls)
+	}
+}
+
+func TestAFailedConfigureIsRed(t *testing.T) {
+	fakeCMake(t, "CMake Error: no CXX compiler")
+	rep, _ := runEntryKey(t, "cpp/cpp-23/cpp-cmake-gtest", fakeCheck(honest))
+	if rep.Green || len(rep.Lines) != 5 || rep.Lines[0] != "configure: exit status 1\nCMake Error: no CXX compiler" {
+		t.Fatalf("report %+v", rep)
+	}
+}
+
+func TestCMakeRunsTheTool(t *testing.T) {
+	t.Setenv("PATH", "")
+	if _, err := cmake(t.TempDir(), "--version"); err == nil {
+		t.Error("cmake ran without a PATH")
+	}
+}
+
 const syntaxKey = "go/go-1.27/go-syntax-1.27"
 
 func TestASyntaxEntryRunsOnlyItsGraph(t *testing.T) {

@@ -1,0 +1,10 @@
+stacks = ["cpp"]
+# A concept, a requires clause, <=> and a coroutine stand before after.
+edges = [
+  ["syntax.cpp#after", "calls", "syntax.cpp#run"],
+  ["syntax.cpp#after", "calls", "syntax.cpp#twice"],
+  ["syntax.cpp#after", "calls", "syntax.cpp#less"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

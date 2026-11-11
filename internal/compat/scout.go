@@ -57,22 +57,35 @@ func IssueTitle(f Finding) string {
 
 // preRe reads a pre-release the way the runtimes spell it: Go "1.28rc1" and
 // "1.28beta1", Python "3.16.0a1", Godot "4.8-beta2", .NET "11.0.0-preview.7"
-// and "11.0.0-rc.2". Compiled on first use: package start has an allocation
+// and "11.0.0-rc.2", and a C++ standard ISO has yet to publish "26-draft"
+// (see cppReleases). Compiled on first use: package start has an allocation
 // budget (cmd/loomux start_test.go).
 var preRe = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`^(\d+)\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc)\.?(\d+)$`)
+	return regexp.MustCompile(`^(\d+)(?:\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc)\.?(\d+)|-draft)$`)
 })
 
-// parsePre reads the major.minor of a pre-release; anything else does not
-// parse.
+// parsePre reads the version a pre-release leads to, major.minor or, for a
+// draft, the major alone; anything else does not parse.
 func parsePre(s string) ([]int, bool) {
 	m := preRe().FindStringSubmatch(s)
 	if m == nil {
 		return nil, false
 	}
 	major, _ := strconv.Atoi(m[1]) // digits only, see parseVer
+	if m[2] == "" {
+		return []int{major}, true
+	}
 	minor, _ := strconv.Atoi(m[2])
 	return []int{major, minor}, true
+}
+
+// versionString writes v as the list spells a version: "1.28", "26".
+func versionString(v []int) string {
+	parts := make([]string, len(v))
+	for i, n := range v {
+		parts[i] = strconv.Itoa(n)
+	}
+	return strings.Join(parts, ".")
 }
 
 // preOrder ranks pre-releases of one major.minor: dev before alpha before
@@ -102,7 +115,17 @@ const (
 	pypiSource = "https://pypi.org/pypi/%s/json"
 )
 
-var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource}
+// cppSource names the C++ standards, which no one publishes in a form a
+// program reads: HTTPUpstream answers it from cppReleases and never fetches
+// it.
+const cppSource = "iso:cpp"
+
+// cppReleases are the published standards and the next one as a
+// pre-release, until ISO publishes it; then it turns stable here and its
+// entries go into the list by hand.
+var cppReleases = []Release{{"17", false}, {"20", false}, {"23", false}, {"26-draft", true}}
+
+var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource}
 
 var addonRepos = map[string]string{
 	"GUT":          "bitwes/Gut",
@@ -257,6 +280,9 @@ func scoutEOL(entries []Entry, up Upstream) ([]Finding, error) {
 			versions[e.Runtime] = append(versions[e.Runtime], e.Version)
 		}
 	}
+	// ISO withdraws no standard in a form a program reads; a C++ version
+	// leaves the list by hand.
+	delete(versions, "cpp")
 	var out []Finding
 	for _, runtime := range slices.Sorted(maps.Keys(versions)) {
 		eol, err := up.EOL(runtime)
@@ -342,7 +368,7 @@ func scoutPre(g *group, rels []Release, topMajor int) (Finding, bool) {
 			continue
 		}
 		newMajor := v[0] > g.major && g.major == topMajor
-		newMinor := v[0] == g.major && v[1] > part(g.max, 1)
+		newMinor := v[0] == g.major && part(v, 1) > part(g.max, 1)
 		if !newMajor && !newMinor {
 			continue
 		}
@@ -357,7 +383,8 @@ func scoutPre(g *group, rels []Release, topMajor int) (Finding, bool) {
 	probe := g.newest
 	probe.Addons = slices.Clone(probe.Addons)
 	probe.Tools = maps.Clone(probe.Tools)
-	probe.Version = fmt.Sprintf("%d.%d", best[0], best[1])
+	pre, _ := parsePre(raw) // best came from it
+	probe.Version = versionString(pre)
 	probe.Pre = raw
 	f := Finding{Kind: "pre", Line: g.fixture + "/" + g.name, Version: raw, Probe: &probe}
 	f.Title = IssueTitle(f)
@@ -447,8 +474,12 @@ type HTTPUpstream struct {
 	Token  string
 }
 
-// Releases fetches source and reads its releases.
+// Releases fetches source and reads its releases; cppSource is answered
+// without a fetch.
 func (h HTTPUpstream) Releases(source string) ([]Release, error) {
+	if source == cppSource {
+		return cppReleases, nil
+	}
 	body, err := h.get(source)
 	if err != nil {
 		return nil, err

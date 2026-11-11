@@ -20,14 +20,29 @@ type Job struct {
 	Probe string `json:"probe,omitempty"`
 }
 
-// ProbeMatrix is the probes, each on linux then windows. The entry key may
-// equal one of the list (an addon probe keeps the runtime version), so the
-// job carries the entry itself.
+// linuxOnly are the runtimes ci/compat-setup.sh sets up on Linux alone: a
+// Windows runner brings MSVC for C++, which takes none of the fixture's GCC
+// coverage flags.
+var linuxOnly = map[string]bool{"cpp": true}
+
+// osesOf are the systems an entry runs on, linux first.
+func osesOf(e Entry) []string {
+	if linuxOnly[e.Runtime] {
+		return []string{"linux"}
+	}
+	return []string{"linux", "windows"}
+}
+
+// ProbeMatrix is the probes, each on the systems of osesOf. The entry key
+// may equal one of the list (an addon probe keeps the runtime version), so
+// the job carries the entry itself.
 func ProbeMatrix(probes []Entry) []Job {
 	jobs := []Job{}
 	for _, e := range probes {
 		data, _ := json.Marshal(e) // plain strings always encode
-		jobs = append(jobs, Job{e.Key(), "linux", string(data)}, Job{e.Key(), "windows", string(data)})
+		for _, sys := range osesOf(e) {
+			jobs = append(jobs, Job{e.Key(), sys, string(data)})
+		}
 	}
 	return jobs
 }
@@ -42,7 +57,8 @@ type Selection struct {
 	ChangedEntries  []string
 }
 
-// Matrix is the selected entries, in list order, each on linux then windows.
+// Matrix is the selected entries, in list order, each on the systems of
+// osesOf.
 // It is never nil, so it encodes as an empty array.
 func Matrix(entries []Entry, sel Selection) []Job {
 	jobs := []Job{}
@@ -50,7 +66,9 @@ func Matrix(entries []Entry, sel Selection) []Job {
 		k := e.Key()
 		if sel.Full || slices.Contains(sel.Keys, k) || slices.Contains(sel.ChangedEntries, k) ||
 			slices.Contains(sel.ChangedFixtures, e.Fixture) {
-			jobs = append(jobs, Job{Entry: k, OS: "linux"}, Job{Entry: k, OS: "windows"})
+			for _, sys := range osesOf(e) {
+				jobs = append(jobs, Job{Entry: k, OS: sys})
+			}
 		}
 	}
 	return jobs

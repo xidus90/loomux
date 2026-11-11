@@ -312,12 +312,13 @@ func TestParsePre(t *testing.T) {
 		"1.28rc1": {1, 28}, "1.28beta1": {1, 28}, "3.16.0a1": {3, 16}, "3.16.0b2": {3, 16}, "3.16.0rc1": {3, 16},
 		"4.8-beta2": {4, 8}, "4.8-rc1": {4, 8}, "4.8-dev3": {4, 8},
 		"11.0.0-preview.7": {11, 0}, "11.0.0-rc.2": {11, 0},
+		"26-draft": {26},
 	} {
 		if got, ok := parsePre(s); !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("%s = %v %v", s, got, ok)
 		}
 	}
-	for _, s := range []string{"1.28", "1.28.1", "", "x1.2rc1", "1rc1", "1.28rc", "4.8-gamma1", "3.16.0a"} {
+	for _, s := range []string{"1.28", "1.28.1", "", "x1.2rc1", "1rc1", "1.28rc", "4.8-gamma1", "3.16.0a", "26", "26-draft1", "1.28-draft"} {
 		if _, ok := parsePre(s); ok {
 			t.Errorf("%q read as a pre-release", s)
 		}
@@ -582,6 +583,52 @@ func TestScoutFindsTheNextDotnetCandidate(t *testing.T) {
 	up["eol:dotnet"] = []string{"10!"}
 	if got := scout(t, up, e); len(got) != 2 || got[1].Kind != "eol" || got[1].Version != "10.0" {
 		t.Fatalf("findings %+v", got)
+	}
+}
+
+func cppEntry(version, fixture string, kinds ...string) Entry {
+	return Entry{Stack: "cpp", Runtime: "cpp", Version: version, Fixture: fixture, Kinds: kinds}
+}
+
+// C++ has no machine-readable source of its standards: the real upstream
+// answers them from code, with the next standard as a pre-release, and the
+// scout asks no one about end of support. The transport fails every request,
+// so neither question may leave the process.
+func TestScoutProbesTheNextCppStandard(t *testing.T) {
+	up := HTTPUpstream{Client: &http.Client{Transport: &roundTrip{err: errors.New("no network")}}}
+	got, err := Scout([]Entry{
+		cppEntry("17", "cpp-cmake-gtest", "test"), cppEntry("20", "cpp-cmake-gtest", "test"),
+		cppEntry("23", "cpp-cmake-gtest", "test"), cppEntry("23", "cpp-syntax-23", "graph"),
+		cppEntry("17", "godot4-cpp", "graph"),
+	}, up)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("findings %+v %v", got, err)
+	}
+	f := got[0]
+	if f.Kind != "pre" || f.Line != "cpp-cmake-gtest/cpp" || f.Version != "26-draft" || f.TOML != "" ||
+		f.Probe.Version != "26" || f.Probe.Pre != "26-draft" || f.Probe.Key() != "cpp/cpp-26-draft/cpp-cmake-gtest" {
+		t.Fatalf("finding %+v, probe %+v", f, f.Probe)
+	}
+	if err := check(*f.Probe, references(), true); err != nil {
+		t.Errorf("the probe does not load: %v", err)
+	}
+	// The issue closes once the draft leaves the source.
+	if Superseded(f.Title, got) || !Superseded(f.Title, nil) {
+		t.Errorf("superseded wrong for %q", f.Title)
+	}
+	// Once 26 is listed, nothing is newer.
+	if got, err := Scout([]Entry{cppEntry("26", "cpp-cmake-gtest", "test")}, up); err != nil || len(got) != 0 {
+		t.Errorf("findings %+v %v", got, err)
+	}
+}
+
+// A pre-release names its own version: a probe of 26 does not pass as one
+// of 23.
+func TestAPreReleaseMustNameItsVersion(t *testing.T) {
+	e := cppEntry("23", "cpp-cmake-gtest", "test")
+	e.Pre = "26-draft"
+	if err := check(e, references(), true); err == nil || !strings.Contains(err.Error(), `pre "26-draft" is no pre-release of 23`) {
+		t.Errorf("err %v", err)
 	}
 }
 

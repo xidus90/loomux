@@ -1,0 +1,95 @@
+stacks = ["cpp"]
+edges = [
+  ["src/calc.cpp", "imports", "src/calc.hpp"],
+  ["src/calc.hpp#Child", "extends", "src/calc.hpp#Base"],
+  ["src/calc.cpp#Child.f", "calls", "src/calc.cpp#Base.f"],
+  ["tests/calc_test.cpp#TEST", "calls", "src/calc.cpp#twice"],
+]
+
+[lanes]
+lint = "run-clang-tidy -p build"
+types = "cmake --build build"
+test = "ctest --test-dir build"
+coverage = "gcovr --root ."
+graph = "{loomux} check graph-fresh"
+
+# Each break leaves the other kinds green. The lint break is a loop body
+# without braces, which compiles and runs; the types break fails only at the
+# link, which clang-tidy never reaches, and leaves test and coverage blocked.
+[[break]]
+kind = "lint"
+file = "src/calc.cpp"
+content = '''
+#include "calc.hpp"
+
+namespace calc {
+
+int Base::f() const { return 1; }
+
+int Child::f() const { return Base::f() + 1; }
+
+int twice(int value) {
+  const Child child;
+  int result = 0;
+  for (int i = 0; i < value; ++i)
+    result += child.f();
+  return result;
+}
+
+} // namespace calc
+'''
+
+[[break]]
+kind = "types"
+file = "src/calc.cpp"
+content = '''
+#include "calc.hpp"
+
+namespace calc {
+
+int missing();
+
+int Base::f() const { return 1; }
+
+int Child::f() const { return Base::f() + 1; }
+
+int twice(int value) {
+  const Child child;
+  return (child.f() * value) + missing();
+}
+
+} // namespace calc
+'''
+
+[[break]]
+kind = "test"
+file = "tests/calc_test.cpp"
+content = '''
+#include "calc.hpp"
+
+#include <gtest/gtest.h>
+
+TEST(Calc, DoublesAValue) { EXPECT_EQ(calc::twice(2), 5); }
+'''
+
+[[break]]
+kind = "coverage"
+file = "src/calc.cpp"
+content = '''
+#include "calc.hpp"
+
+namespace calc {
+
+int Base::f() const { return 1; }
+
+int Child::f() const { return Base::f() + 1; }
+
+int twice(int value) {
+  const Child child;
+  return child.f() * value;
+}
+
+int untested() { return 3; }
+
+} // namespace calc
+'''

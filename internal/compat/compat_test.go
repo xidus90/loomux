@@ -42,7 +42,7 @@ func TestEveryVersionHasASyntaxEntry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prefixes := map[string]string{"go": "go", "dotnet": "csharp"}
+	prefixes := map[string]string{"go": "go", "dotnet": "csharp", "cpp": "cpp"}
 	for _, e := range list {
 		prefix, ok := prefixes[e.Runtime]
 		if !ok {
@@ -154,7 +154,7 @@ func TestTheListRefuses(t *testing.T) {
 	cases := []struct{ name, doc, want string }{
 		{"syntax", "[[entry", "compat.toml"},
 		{"unknown key", good + "colour = 1\n", `compat.toml:8: unknown key "colour"`},
-		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are csharp, gdscript, go, python`},
+		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are cpp, csharp, gdscript, go, python`},
 		{"wrong runtime", strings.Replace(good, `runtime = "python"`, `runtime = "godot"`, 1), `compat.toml:1: runtime "godot"`},
 		{"bad version", strings.Replace(good, `"3.12"`, `"3.12.1"`, 1), `compat.toml:1: version "3.12.1" is not MAJOR or MAJOR.MINOR`},
 		{"unknown kind", strings.Replace(good, `"types"`, `"magic"`, 1), `compat.toml:1: kind "magic"`},
