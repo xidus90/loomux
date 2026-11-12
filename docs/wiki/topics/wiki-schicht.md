@@ -9,13 +9,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:05f39fa042e7c3e29acc7b4e72069a3ac17ca3fbbb5b7e84775be5bc44e04e2f"
-    revision: 7
+    content_hash: "sha256:566cf2977af11c829e02f11721b8a4fa178ca41acebaaec70d9e70fd0d1f21d0"
+    revision: 8
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:d3ed3514b1f1b2facc66924b4dfcb04b0e622f8777d765f594ae000387b5839d"
-    revision: 41
+    content_hash: "sha256:e8ee812819c064307b9447856b1a308aebc826cb87c831c8ceb4117c856c8b62"
+    revision: 47
 ---
 
 ## Das Bundle

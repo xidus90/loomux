@@ -8,8 +8,8 @@ sources:
   - id: architektur-grundsaetze
     resource: brain://project/loomux/docs/wiki/topics/architektur-grundsaetze.md
     doc_id: 01M3534TGBXM1EXAPD4B6S30TN
-    content_hash: "sha256:a01fb5c5cfc095ab9f71237e7666d616aae603aec4bb2c714358e2412d37be74"
-    revision: 16
+    content_hash: "sha256:7c06ee2331aa5a91d1ec786a53fc4b28c7b32779dba346d4d6a9818a03020661"
+    revision: 17
 ---
 
 # Gegenprüfung vor jeder Designempfehlung

@@ -8,13 +8,13 @@ sources:
   - id: architektur
     resource: brain://project/loomux/docs/de/architecture.md
     doc_id: 01M47W91R5WKHDNYTXW8ZXTCSW
-    content_hash: "sha256:05f39fa042e7c3e29acc7b4e72069a3ac17ca3fbbb5b7e84775be5bc44e04e2f"
-    revision: 7
+    content_hash: "sha256:566cf2977af11c829e02f11721b8a4fa178ca41acebaaec70d9e70fd0d1f21d0"
+    revision: 8
   - id: cli-referenz
     resource: brain://project/loomux/docs/de/cli-reference.md
     doc_id: 01M47W91R5FRSPN6BE643656ZE
-    content_hash: "sha256:d3ed3514b1f1b2facc66924b4dfcb04b0e622f8777d765f594ae000387b5839d"
-    revision: 41
+    content_hash: "sha256:e8ee812819c064307b9447856b1a308aebc826cb87c831c8ceb4117c856c8b62"
+    revision: 47
 ---
 
 ## Wofür
@@ -237,15 +237,75 @@ sie nach `.loomux/state/graph/wiring.json` — Maschinenzustand, git-ignoriert.
   `composer.json` hat darum nie die Pakete im Graphen
   (`docs/.superpowers/specs/2026-11-11-php-design.md`).
 
-Jede Sprache löst in einem eigenen Namensindex auf. Über eine Sprachgrenze geht
-ein Godot-Pfad, der eine Datei nennt, die ein anderer Extraktor liest (etwa
-eine `.py`-, `.go`- oder `.cs`-Datei): er landet auf deren Dateiknoten. Eine
-Datei, die kein Extraktor liest (eine Textur), ergibt keine Kante.
+- **JavaScript und TypeScript** liest er auf demselben Kern, mit einem
+  Extraktor für zwei Sprachen (`internal/code/extract/ecmascript`):
+  `javascript` für `.js`, `.mjs`, `.cjs` und `.jsx`, `typescript` für `.ts`,
+  `.mts`, `.cts` und `.tsx`. `.jsx` und `.tsx` liest die tsx-Grammatik, weil
+  die JavaScript-Grammatik am JSX-Attribut `class=` (Solid, Preact) bricht;
+  `.js` bleibt bei der JavaScript-Grammatik. Knoten sind Funktionen und
+  Klassen auf oberster Ebene des Moduls, auch hinter `export` und `export
+  default` (ein anonymer Standard-Export heißt `default`), Methoden (der
+  Konstruktor als `constructor`), ein `const`, `let` oder `var`, das an eine
+  Funktion oder einen Pfeil gebunden ist, CommonJS `exports.f = …` und
+  `module.exports.f = …`, in TypeScript dazu Schnittstellen, Typaliase, Enums
+  und jede Deklaration eines `namespace` als `N.f`; `export = function …`
+  und `export = class …` heißen `default` wie `module.exports = function
+  …`. Verschachtelte
+  Funktionen, Objektmethoden und Ambient-Deklarationen bekommen keinen
+  Knoten; eine Deklarationsdatei (`.d.ts`, `.d.mts`, `.d.cts`) behält nur
+  ihren Dateiknoten, an dem der Resolver sie erkennt. `Exported` trägt,
+  was `export` trägt oder eine Export-Liste nennt. Jede Bindung eines Imports
+  ist ein `extract.Import`: `Name` ist der Name in der Zieldatei, `Alias` der
+  lokale, `Kind` unterscheidet `import`, `require`, `import()`, Re-Export und
+  Export-Liste. Der Resolver (`internal/code/resolve/ecmascript.go`) löst
+  beide Sprachen gemeinsam auf, als eine **Familie**, weil echte Projekte sie
+  mischen. Einen Importpfad liest er wie eine URL, mit derselben Funktion
+  wie das `src` eines `<script>` (`localPath`): Query und Fragment (Vites
+  `?worker`) fallen weg, Escapes werden dekodiert, ein führendes `#` bleibt
+  Name. Einen relativen Import probiert er wie geschrieben, dann mit
+  `.ts`, `.tsx`, `.d.ts`, `.js`, `.jsx`, `.mjs`, `.cjs`, dann als `/index`;
+  in einer TypeScript-Datei findet `./a.js` auch `a.ts` (node16-Regel von
+  tsc), und eine getroffene Deklarationsdatei gibt dort keine Kante. Jeder
+  andere Name geht über `paths` und `baseUrl` der nächstgelegenen
+  `tsconfig.json` oder `jsconfig.json`; der Build reicht sie wie `go.mod` als
+  `resolve.Module` herein, gelesen ohne `extends`-Kette, mit Kommentaren und
+  nachgestellten Kommas. Eine verschachtelte Konfiguration ohne `paths` und
+  `baseUrl` gibt kein Modul, ihre Dateien nehmen die Aliase der äußeren; eine
+  unlesbare überspringt der Build, nur ein unlesbares `go.mod` lässt ihn
+  scheitern. Ein Paketname ergibt keine Kante. Ein importierter Name zeigt
+  auf das gleichnamige Export-Symbol der Zieldatei, Re-Exporte und
+  `export *` werden zyklenfest verfolgt, CommonJS-`require` bindet einen
+  Namensraum oder, destrukturiert, einen Namen. `f()`, `ns.f()` über einen
+  importierten Namensraum, `this.m()`, `super.m()`, `new X()` (der
+  Konstruktor, sonst die Klasse) und ein JSX-Tag mit großem
+  Anfangsbuchstaben, `<X/>` oder `<ns.X/>`, als Aufruf der Komponente lösen
+  sich auf (React, Preact und Solid rufen sie dort auf; ein kleingeschriebenes
+  Tag ist ein DOM-Element); nur eine Basis, deren Namen ein Import an eine
+  Datei des Repositorys bindet, steht unter `Unresolved`.
+  Node 22, 24 und 26 sind über die Kompatibilitätsliste geprüft; Node 26
+  bringt keine eigene Syntax, das Syntax-Fixture belegt die Formen von 24 und
+  TypeScript daneben. `corpus.pruneDirs` kannte `node_modules` und `dist`
+  schon (`docs/.superpowers/specs/2026-11-11-ecmascript-design.md`). Ein
+  minifiziertes Bündel (`*.min.js`, `*.min.mjs`, `*.min.cjs`) lässt
+  `internal/code/sourceset` aus: Es ist generiert, liegt oft unter der
+  Größengrenze und kostet Sekunden an Parsefehlern (d3.min.js: 2 s, 16
+  Fehler).
+
+Jede Familie löst in einem eigenen Namensindex auf (`familyOf` in
+`internal/code/resolve/resolve.go`): meist ist das eine Sprache, nur
+JavaScript und TypeScript, die einander importieren, teilen sich einen. Eine
+Familie löst an der Stelle ihrer ersten Sprache in der sortierten Liste auf,
+damit der Graph einer Familie aus einer Sprache Byte für Byte gleich bleibt;
+das Meta des Graphen listet weiter die einzelnen Sprachen. Über eine
+Sprachgrenze geht ein Godot-Pfad, der eine Datei nennt, die ein anderer
+Extraktor liest (etwa eine `.py`-, `.go`- oder `.cs`-Datei): er landet auf
+deren Dateiknoten. Eine Datei, die kein Extraktor liest (eine Textur), ergibt
+keine Kante.
 
 Symbol zu Symbol über eine Sprachgrenze geht nur über eine **Brücke**
 (`internal/code/resolve/bridge.go`): Eine Seite bietet einen Namen in einem
 Namensraum an (Export), die andere nennt ihn (Brücke), und nachdem jede
-Sprache aufgelöst ist, verbindet ein sprachneutraler Schritt beide nach den
+Familie aufgelöst ist, verbindet ein sprachneutraler Schritt beide nach den
 Regeln des Namensraums: genau ein Treffer oder alle, ein Geltungsbereich
 (für `godot.*` das Godot-Projekt; ein Export außerhalb jedes Projekts, etwa
 GDExtension-Quellen neben `project/`, gilt in allen), und ob ohne Treffer im
@@ -254,8 +314,11 @@ anbietende Seite fest. GDScript bietet jede `class_name` eines Projekts als
 `godot.class` an und übergibt, was es selbst nicht binden kann: ein
 `extends X` und `X.new()` mit flachem Namen und das Ende einer Szenen-
 `[connection]`, deren Skript keine GDScript-Datei ist. Eigene Exports
-beantworten eigene Übergaben nie, also ändert sich GDScript zu GDScript
-nicht. C# bietet an, was Godot kennt: jeden Typ mit `[GlobalClass]` als
+beantworten eigene Übergaben nie, geprüft je Familie: Eine Übergabe, die der
+Resolver von GDScript weiterreicht, beantwortet kein GDScript-Export, eine
+des Resolvers von JavaScript und TypeScript kein Export dieser Familie, denn
+er hat ihren Index schon durchsucht. C# bietet an, was Godot kennt: jeden Typ mit
+`[GlobalClass]` als
 `godot.class` und, aus der Klasse, die wie die Datei heißt (`Player.cs` →
 `Player`, so verlangt es Godot), jede Methode als `godot.method` und jedes
 `[Signal]`-Delegate auf `EventHandler` als `godot.signal` ohne diese Endung,
@@ -278,7 +341,23 @@ Klasse; ohne Treffer in ihr entsteht keine Kante, geraten wird nicht
 `docs/.superpowers/specs/2026-11-10-cpp-design.md`). Ein
 Extraktor kann Teile einer Datei in einer anderen Sprache als eingebettete
 Ergebnisse melden (`Result.Embedded`, etwa Inline-Skripte); sie landen im
-Index ihrer eigenen Sprache.
+Index ihrer eigenen Familie.
+
+Für das Web liefert die JavaScript-Seite schon Übergaben und Angebote in den
+Namensräumen `html.id`, `css.class`, `css.id` und `js.function`; die
+Gegenseite, ein HTML- und ein CSS-Extraktor, folgt mit dem Web-Plan
+(`docs/.superpowers/specs/2026-11-11-web-design.md`), bis dahin entsteht
+daraus keine Kante. `document.getElementById("x")` übergibt `html.id`, ein
+`querySelector*` allein aus `#x` und `.a` dazu `css.id` und `css.class`,
+`getElementsByClassName`, `classList.*` und ein JSX-`className` übergeben
+`css.class`, ein JSX-`id` bietet `html.id` an (Ziel ist die Komponente). Den
+Geltungsbereich einer ID setzt der Resolver: die HTML-Seiten, deren
+`<script src>` auf die Datei zeigt (`scriptPages`, `src` als URL gelesen,
+ohne Query und Fragment). Den einer Klasse setzt der Extraktor: die
+Stylesheets, die das Modul über einen relativen Pfad importiert. Die
+Funktionen auf oberster Ebene eines klassischen Skripts (ohne `import`,
+`export`, `require` und `module.exports`), das eine Seite einbindet, bietet
+der Resolver als `js.function` an.
 
 Unveränderte Dateien nimmt der Build aus dem
 Extraktions-Cache (`.loomux/state/graph/cache/extract.json`), statt sie neu zu
@@ -416,9 +495,10 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   wenn der Neubau scheitert; `check blast-audit` ist rot, wenn ein geänderter
   Bereich mit genug Aufrufern keinen geänderten Test hat. Die Lane-Namen der
   Spec (`graph-freshness`) wurden dabei ersetzt. Presets haben Go, Python,
-  GDScript, C#, C++, Java und PHP; die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
-  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp, cpp, java, php; ein Stack
-  ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
+  GDScript, C#, C++, Java, PHP und TypeScript (der auch reine JavaScript-Projekte
+  prüft); die Lane läuft je Lauf einmal, in der Wurzel, getragen vom
+  ranghöchsten aktiven Stack mit Graph-Befehl (go, python, gdscript, csharp, cpp, java, php,
+  typescript; ein Stack ohne Rang folgt in Byte-Reihenfolge), und `graph = false` unter einem Stack schaltet sie
   für das ganze Projekt ab. Testdateien sind `_test.go` und für Python
   `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` und alles unter
   `tests/` oder `test/`, für GDScript `*_test.gd` und alles unter `test/`
@@ -427,7 +507,9 @@ nicht ([Datenschutz und Kanäle](datenschutz-und-kanaele.md)).
   `unittest` (in jeder Schreibung; `Contest.cpp` zählt nicht), für Java alles unter
   `src/test/` und ein Dateiname `*Test`, `*Tests`, `*IT` oder `Test*` (`Contest.java` zählt
   nicht), für PHP ein Dateiname `*Test.php` (`Contest.php` zählt nicht) und alles unter einem
-  Verzeichnis `test` oder `tests` in jeder Schreibung; Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
+  Verzeichnis `test` oder `tests` in jeder Schreibung, für JavaScript und
+  TypeScript `*.test.*`, `*.spec.*` und alles unter einem Verzeichnis
+  `__tests__`, `test` oder `tests` (so geschrieben); Szenen und Ressourcen (`.tscn`, `.tres`) zählen nur dort,
   `project.godot` nie.
 - **Prüfart `rules`:** Die sechste Art liest denselben Extraktor-Kern, aber
   nie den gespeicherten Graphen: `check rules` baut ihn im Prozess aus den
@@ -459,8 +541,8 @@ das Binary kommt über die üblichen Wege.
   `gotreesitter`, Python und der Cache — ist fertig und an zwei Python-Repos
   abgenommen (`docs/.superpowers/parity/code-g5.md` in den Arbeitspapieren des
   Archiv-Release `archive/parity-recordings`); G5c (GDScript, Szenen,
-  Ressourcen) und G5d (C++, samt GDExtension) sind gebaut. Offen ist G5b
-  (TypeScript/TSX). Der erste
+  Ressourcen), G5d (C++, samt GDExtension) und G5b (JavaScript, JSX,
+  TypeScript und TSX) sind gebaut. Der erste
   Plan, Tree-sitter als WebAssembly über `wazero`, ist verworfen.
 - **Eingebaute Skripte einer Szene** (`[sub_resource type="GDScript"]`) bleiben
   ohne Kante.
@@ -509,6 +591,36 @@ das Binary kommt über die üblichen Wege.
     Stacks brauchen die Werkzeuge in `vendor/bin`; fehlen sie, sind nur
     diese Lanes `unavailable`, nicht rot. Die Lanes von Graph und Regeln laufen
     weiter, und ein Edit führt trotzdem `php -l` aus.
+- **Lücken von JavaScript und TypeScript:**
+  - Typen kennt der Graph nicht: `obj.m()` auf einer Variablen ergibt keine
+    Kante, ebenso ein statisches `C.s()` und `N.f()` in einen
+    TypeScript-Namespace, obwohl Klasse und Namespace Knoten haben.
+  - Ein JSX-Attribut `class=` in einer `.js`-Datei bricht die
+    JavaScript-Grammatik: Die Definition, die es enthält, bekommt keinen
+    Knoten, und der Rest der Datei wird nur ab Deklarationen in Spalte 0 neu
+    gelesen. `.jsx` liest es mit der tsx-Grammatik.
+  - Ein Stylesheet, das über einen Alias importiert wird (`import "@/x.css"`),
+    setzt keinen Geltungsbereich für `css.class`: den setzt der Extraktor,
+    der die Aliase nicht kennt. Ein `className` in einem solchen Modul bleibt
+    ohne Kante; der Web-Plan prüft das noch einmal.
+  - `classList.*`, `getElementsByClassName` und `querySelector*(".a")` in
+    einem klassischen Skript haben keinen Geltungsbereich, weil das Skript
+    keine Stylesheets importiert; die Stylesheets seiner Seiten setzt erst
+    der Web-Plan.
+  - Eine geänderte `tsconfig.json` oder `jsconfig.json` macht den Graphen für
+    `graph-fresh` nicht veraltet, wie bei `go.mod`: die Frischeprobe sieht nur
+    Quelldateien. Ein Alias greift erst mit dem nächsten Neubau.
+  - Paketnamen, Workspace-Pakete und die `extends`-Kette einer
+    `tsconfig.json` liest der Resolver nicht, ebenso wenig Subpath-Importe
+    (`#types/…`) aus dem Feld `imports` einer `package.json`; vites
+    `packages/vite/src/node/index.ts` hat 21 davon. Die Spec nennt nur die
+    Aliase aus `tsconfig.json`.
+  - Die Lanes des Stacks `typescript` brauchen die Werkzeuge in einem
+    `node_modules/.bin` des Bereichs oder darüber bis zur Wurzel, wie `npx`
+    sie findet; vor `npm install` und unter Yarn Plug'n'Play sind sie
+    `unavailable`, nicht rot. Die Mitglieder, die ein Workspace in der Wurzel
+    deklariert, sind eigene Bereiche, auch zwei Ebenen tief; ein Muster mit
+    `**` findet nur eine Ebene.
 - **Eine Python-Klasse als Saat** gibt im Blast das Testsignal `na`: als
   Verhalten zählen nur Funktionen und Methoden, eine Änderung an einer Klasse
   ohne `__init__` läuft darum still durch `blast-audit`.

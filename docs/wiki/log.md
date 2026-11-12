@@ -6,6 +6,75 @@
 
 ## 2026-11-12
 
+- 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`):
+  `docs/de/configuration.md` (die Testsuche des Stacks `typescript` verlangt
+  Testdateien, `*.test.*`, `*.spec.*` oder `__tests__/`) berührt keine
+  Aussage der zitierenden Seiten, gegen die Änderung gelesen.
+- 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`):
+  `docs/de/configuration.md` (eine später gefundene Variante gilt, wo sie
+  keine Art formt, die eine frühere gewonnen hat) berührt keine Aussage der
+  zitierenden Seiten, gegen die Änderung gelesen.
+- 2026-11-12 — `topics/code-graph.md`: Absätze zu Familien und Brücken neu
+  umbrochen, die Klammer zur Herkunft der Familien in den Satz gezogen
+  (Brücken verbinden, nachdem jede Familie aufgelöst ist), und die Regel
+  gegen Selbstbeantwortung ausgeschrieben: Eine Übergabe, die ein Resolver
+  weiterreicht, beantwortet kein Export seiner Familie.
+  Quelle: Code von loomux (`internal/code/resolve/bridge.go`).
+- 2026-11-12 — `topics/code-graph.md`: Subpath-Importe aus `imports` der
+  `package.json` als Lücke von JavaScript und TypeScript. Quelle: Code von
+  loomux (`internal/code/resolve/ecmascript.go`) und
+  `docs/de/cli-reference.md`. Danach neu gepinnt (`loomux wiki repin`): die
+  Seiten, die `docs/de/cli-reference.md` zitieren, gegen die Änderung
+  gelesen; nur der Absatz zu JavaScript und TypeScript ist neu.
+- 2026-11-12 — `topics/code-graph.md`: ein Importpfad wird wie das `src`
+  eines `<script>` als URL gelesen, Vites `?worker` und Verwandte lösen auf.
+  Quelle: Code von loomux (`internal/code/resolve/ecmascript.go`) und
+  `docs/de/cli-reference.md`. Danach neu gepinnt (`loomux wiki repin`): die
+  Seiten, die `docs/de/cli-reference.md` zitieren, gegen die Änderung
+  gelesen; nur der Absatz zu JavaScript und TypeScript ist neu.
+- 2026-11-12 — `topics/code-graph.md`: `export = function …` und `export =
+  class …` geben einen Knoten `default`. Quelle: Code von loomux
+  (`internal/code/extract/ecmascript/edges.go`) und
+  `docs/de/cli-reference.md`. Danach neu gepinnt (`loomux wiki repin`): die
+  Seiten, die `docs/de/cli-reference.md` zitieren, gegen die Änderung
+  gelesen; nur der Absatz zu JavaScript und TypeScript ist neu.
+- 2026-11-12 — `topics/code-graph.md`: der Graph lässt minifizierte Bündel
+  (`*.min.js`, `*.min.mjs`, `*.min.cjs`) aus. Quelle: Code von loomux
+  (`internal/code/sourceset/sourceset.go`) und `docs/de/cli-reference.md`.
+  Danach neu gepinnt (`loomux wiki repin`): die Seiten, die
+  `docs/de/cli-reference.md` zitieren, gegen die Änderung gelesen; nur der
+  Satz zur Dateiauswahl von `graph build` ist neu.
+- 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`):
+  `docs/de/configuration.md` (Variante `jest` des Stacks `typescript`)
+  berührt keine Aussage der zitierenden Seiten, gegen die Änderung gelesen.
+- 2026-11-12 — `topics/code-graph.md`: die Lanes des Stacks `typescript`
+  finden ihre Werkzeuge auch im `node_modules` eines Verzeichnisses über dem
+  Bereich bis zur Wurzel, und die Mitglieder eines deklarierten Workspaces
+  sind eigene Bereiche. Quelle: Code von loomux (`internal/verify/tests.go`,
+  `internal/detect/detect.go`) und `docs/de/configuration.md`. Danach neu
+  gepinnt (`loomux wiki repin`): die Seiten, die `docs/de/configuration.md`
+  zitieren, gegen die Änderung gelesen; sie berühren weder Workspaces noch
+  `node_modules`.
+- 2026-11-12 — `topics/code-graph.md`: ein JSX-Tag mit großem
+  Anfangsbuchstaben (`<X/>`, `<ns.X/>`) ist ein Aufruf der Komponente.
+  Quelle: Code von loomux (`internal/code/extract/ecmascript/edges.go`) und
+  `docs/de/cli-reference.md`. Danach neu gepinnt (`loomux wiki repin`): die
+  Seiten, die `docs/de/cli-reference.md` zitieren, gegen die Änderung
+  gelesen; nur der Absatz zu JavaScript und TypeScript ist neu.
+- 2026-11-12 — `topics/code-graph.md`: JavaScript und TypeScript als
+  Sprachen des Graphen (ein Extraktor für beide, Resolver mit Aliasen aus
+  `tsconfig.json`/`jsconfig.json`, CommonJS und Re-Exporten), Auflösung je
+  Familie statt je Sprache, die Web-Übergaben der JavaScript-Seite, der Stack
+  `typescript` in Presets und Rang, Testdateien und die Lücken von
+  JavaScript und TypeScript als offener Punkt; G5b ist gebaut.
+  `topics/scheiben-und-abnahme.md`: G5b ✅. Quelle: Code von loomux
+  (`internal/code/extract/ecmascript`, `internal/code/resolve/ecmascript.go`,
+  `internal/code/resolve/resolve.go`, `internal/verify/plan.go`) und
+  `docs/de/cli-reference.md`. Danach neu gepinnt (`loomux wiki repin`): die
+  Seiten, die `docs/de/cli-reference.md`, `docs/de/configuration.md` (Satz zu
+  Yarn Plug'n'Play) und `docs/de/architecture.md` zitieren, ohne Bezug zu
+  JavaScript oder TypeScript außer den beiden oben, gegen die Änderung
+  gelesen.
 - 2026-11-12 — `syntheses/graph-hinweis-im-waechter.md`: Abschnitt „Mit dem
   echten Binary“ neu; der Hinweis ist gebaut, standardmäßig an, kostet nach
   drei Korrekturen +5 % Tokens und bleibt im Zeitbudget des Hooks. Quelle:
