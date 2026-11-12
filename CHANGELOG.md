@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.25.0] - 2026-11-12
+
+<https://github.com/xidus90/loomux/pull/156>
+
+### Added
+- The guard points a session's first grep over code at `loomux graph callers` once; `[guard] graph_hint = false` switches it off.
+- `graph callers` and `graph_trace_calls` name the other symbols of the same name.
+
 ## [1.24.2] - 2026-11-12
 
 <https://github.com/xidus90/loomux/pull/157>
