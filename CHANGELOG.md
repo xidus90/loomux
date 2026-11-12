@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.26.0] - 2026-11-12
+
+<https://github.com/xidus90/loomux/pull/158>
+
+### Added
+- The MCP graph tools default their scope to the project the session runs in, or to the only visible area, so `scope` may be left out.
+
 ## [1.25.0] - 2026-11-12
 
 <https://github.com/xidus90/loomux/pull/156>
