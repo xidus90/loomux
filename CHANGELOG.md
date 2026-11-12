@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.24.1] - 2026-11-12
+
+<https://github.com/xidus90/loomux/pull/155>
+
+### Fixed
+- `graph callers` and `graph_trace_calls` prefer a symbol in the query's exact case and outside test files, so `Build` no longer resolves to a test helper `build`.
+
 ## [1.24.0] - 2026-11-11
 
 <https://github.com/xidus90/loomux/pull/154>
