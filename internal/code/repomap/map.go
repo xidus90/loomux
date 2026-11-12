@@ -64,9 +64,9 @@ func langFromPath(p string) string {
 	switch ext {
 	case ".go":
 		return "go"
-	case ".ts", ".tsx":
+	case ".ts", ".tsx", ".mts", ".cts":
 		return "typescript"
-	case ".js", ".jsx":
+	case ".js", ".jsx", ".mjs", ".cjs":
 		return "javascript"
 	case ".py":
 		return "python"

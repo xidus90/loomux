@@ -144,7 +144,7 @@ func file(lang *gts.Language, rel, source string) (extract.Result, error) {
 	if len(starts) > 0 {
 		errs++ // the text the first tree left behind
 	}
-	for i := 0; i < len(starts) && reparseChunk(doc, masked, starts, i); i++ {
+	for i := 0; i < len(starts) && doc.ReparseChunk(masked, starts, i) == nil; i++ {
 		x.walk(doc.Root, scope{parent: x.fileID, source: x.fileID})
 		errs += doc.ParseErrors()
 	}
@@ -191,7 +191,7 @@ func mask(src []byte) []byte {
 		if rest := bytes.TrimLeft(src[m[1]:], " \t\r\n"); len(rest) > 0 && rest[0] == '{' {
 			continue
 		}
-		blank(out[m[0]:m[1]])
+		treesitter.Blank(out[m[0]:m[1]])
 	}
 	inLiteral := literals(src)
 	for _, m := range aliasDecl().FindAllSubmatchIndex(src, -1) {
@@ -207,7 +207,7 @@ func mask(src []byte) []byte {
 			// "int" would not fit before the line break; the alias stays.
 			continue
 		}
-		blank(rhs)
+		treesitter.Blank(rhs)
 		copy(rhs[start:], "int")
 	}
 	return out
@@ -222,15 +222,15 @@ func literals(src []byte) []bool {
 		var end int
 		switch {
 		case bytes.HasPrefix(src[i:], []byte("//")):
-			end = lineEnd(src, i)
+			end = treesitter.LineEnd(src, i)
 		case bytes.HasPrefix(src[i:], []byte("/*")):
-			end = closing(src, i+2, "*/")
+			end = treesitter.Closing(src, i+2, "*/")
 		case src[i] == '"' && i > 0 && src[i-1] == 'R':
 			end = rawStringEnd(src, i)
 		case src[i] == '"':
-			end = quotedEnd(src, i)
+			end = treesitter.QuotedEnd(src, i)
 		case src[i] == '\'' && !digitSeparator(src, i):
-			end = quotedEnd(src, i)
+			end = treesitter.QuotedEnd(src, i)
 		default:
 			i++
 			continue
@@ -242,38 +242,6 @@ func literals(src []byte) []bool {
 	return in
 }
 
-// lineEnd is the offset of the line break after from, or the end of src.
-func lineEnd(src []byte, from int) int {
-	if nl := bytes.IndexByte(src[from:], '\n'); nl >= 0 {
-		return from + nl
-	}
-	return len(src)
-}
-
-// closing is the offset after the next end at or after from, or the end of src.
-func closing(src []byte, from int, end string) int {
-	if k := bytes.Index(src[from:], []byte(end)); k >= 0 {
-		return from + k + len(end)
-	}
-	return len(src)
-}
-
-// quotedEnd is the offset after the quote that closes the literal opening at
-// src[open], honouring backslash escapes, or its line's end when it has none.
-func quotedEnd(src []byte, open int) int {
-	for i := open + 1; i < len(src); i++ {
-		switch src[i] {
-		case '\\':
-			i++
-		case src[open]:
-			return i + 1
-		case '\n':
-			return i
-		}
-	}
-	return len(src)
-}
-
 // maxRawDelimiter is the longest delimiter of a raw string the language allows.
 const maxRawDelimiter = 16
 
@@ -283,9 +251,9 @@ const maxRawDelimiter = 16
 func rawStringEnd(src []byte, open int) int {
 	paren := bytes.IndexByte(src[open:min(open+maxRawDelimiter+2, len(src))], '(')
 	if paren < 0 || bytes.ContainsAny(src[open+1:open+paren], " )\\\t\r\n\"") {
-		return quotedEnd(src, open)
+		return treesitter.QuotedEnd(src, open)
 	}
-	return closing(src, open+paren, ")"+string(src[open+1:open+paren])+`"`)
+	return treesitter.Closing(src, open+paren, ")"+string(src[open+1:open+paren])+`"`)
 }
 
 // digitSeparator reports whether the quote at src[i] separates the digits of
@@ -299,59 +267,18 @@ func isHexDigit(c byte) bool {
 }
 
 // chunks are where the chunks of the text after a tree that ends at end
-// start: every line after it that starts in column 0 with a name or an
-// attribute, as a declaration at namespace level does, and a chunk runs to
-// the next start. More than maxChunks starts are thinned to every k-th.
+// start (treesitter.Chunks): every line after it that starts in column 0
+// with a name or an attribute, as a declaration at namespace level does.
 // Text before the first start is not read: a chunk starting inside a
 // construct -- a class body after `#else`, say -- only costs an error
 // recovery that wraps the definitions after it in its ERROR.
 func chunks(src []byte, end uint32) []int {
-	var starts []int
-	for pos := int(end); ; {
-		nl := bytes.IndexByte(src[pos:], '\n')
-		if nl < 0 {
-			break
-		}
-		pos += nl + 1
-		if pos < len(src) && opensDeclaration(src[pos]) {
-			starts = append(starts, pos)
-		}
-	}
-	if len(starts) <= maxChunks {
-		return starts
-	}
-	k := (len(starts) + maxChunks - 1) / maxChunks
-	thinned := make([]int, 0, maxChunks)
-	for i := 0; i < len(starts); i += k {
-		thinned = append(thinned, starts[i])
-	}
-	return thinned
+	return treesitter.Chunks(src, end, maxChunks, func(pos int) bool { return opensDeclaration(src[pos]) })
 }
 
 // opensDeclaration is whether a line starting with c can open a declaration.
 func opensDeclaration(c byte) bool {
 	return c == '_' || c == '[' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
-}
-
-// reparseChunk parses chunk i of src into doc, everything before it blanked
-// and everything after it left off; false when the parse fails.
-func reparseChunk(doc *treesitter.Doc, src []byte, starts []int, i int) bool {
-	end := len(src)
-	if i+1 < len(starts) {
-		end = starts[i+1]
-	}
-	chunk := bytes.Clone(src[:end])
-	blank(chunk[:starts[i]])
-	return doc.Reparse(chunk) == nil
-}
-
-// blank overwrites b with spaces, keeping its line breaks.
-func blank(b []byte) {
-	for i, c := range b {
-		if c != '\n' && c != '\r' {
-			b[i] = ' '
-		}
-	}
 }
 
 // mark is a GDCLASS line: where it starts, the class it names, and whether

@@ -72,11 +72,15 @@ func TestFlattenPutsPartsAfterTheFile(t *testing.T) {
 }
 
 func TestNamespacesListsEveryConstant(t *testing.T) {
-	want := []extract.Namespace{"godot.class", "godot.method", "godot.signal"}
+	want := []extract.Namespace{"godot.class", "godot.method", "godot.signal", "html.id", "css.class", "css.id", "js.function"}
 	if !reflect.DeepEqual(extract.Namespaces, want) {
 		t.Fatalf("Namespaces = %v, want %v", extract.Namespaces, want)
 	}
-	if extract.NamespaceGodotClass != want[0] || extract.NamespaceGodotMethod != want[1] || extract.NamespaceGodotSignal != want[2] {
-		t.Fatal("a constant differs from the spec")
+	consts := []extract.Namespace{
+		extract.NamespaceGodotClass, extract.NamespaceGodotMethod, extract.NamespaceGodotSignal,
+		extract.NamespaceHTMLID, extract.NamespaceCSSClass, extract.NamespaceCSSID, extract.NamespaceJSFunction,
+	}
+	if !reflect.DeepEqual(consts, want) {
+		t.Fatalf("constants = %v, want %v as the spec names them", consts, want)
 	}
 }

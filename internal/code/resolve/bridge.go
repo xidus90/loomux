@@ -46,11 +46,18 @@ type nsRule struct {
 
 // builtinRules is every namespace's rule. Godot's ClassDB holds class names
 // per project, so an unscoped class name is certain within one; a member is
-// looked up only in the script a connection names.
+// looked up only in the script a connection names. The web namespaces follow
+// docs/.superpowers/specs/2026-11-11-web-design.md: a class or id of a style
+// rule is never guessed, an element or a script function outside the scope
+// is.
 var builtinRules = map[extract.Namespace]nsRule{
 	extract.NamespaceGodotClass:  {card: cardOne, realm: realmGodot, unscoped: fallRealmExtracted, scopedMiss: fallNone},
 	extract.NamespaceGodotMethod: {card: cardOne, realm: realmGodot, unscoped: fallNone, scopedMiss: fallNone},
 	extract.NamespaceGodotSignal: {card: cardOne, realm: realmGodot, unscoped: fallNone, scopedMiss: fallNone},
+	extract.NamespaceCSSClass:    {card: cardAll, realm: realmRepo, unscoped: fallNone, scopedMiss: fallNone},
+	extract.NamespaceCSSID:       {card: cardAll, realm: realmRepo, unscoped: fallNone, scopedMiss: fallNone},
+	extract.NamespaceHTMLID:      {card: cardOne, realm: realmRepo, unscoped: fallRealmInferred, scopedMiss: fallNone},
+	extract.NamespaceJSFunction:  {card: cardOne, realm: realmRepo, unscoped: fallRealmInferred, scopedMiss: fallNone},
 }
 
 // offer is an export with the file and language of the result that made

@@ -224,6 +224,21 @@ func TestResolveTakesACSharpNameForAFile(t *testing.T) {
 	}
 }
 
+// A name ending in a JavaScript or TypeScript extension is a file query, so
+// "mjs" or "cts" never matches a symbol of that name.
+func TestResolveTakesAModuleNameForAFile(t *testing.T) {
+	for _, ext := range []string{"mjs", "cjs", "mts", "cts"} {
+		g := &model.Graph{Nodes: []model.Node{
+			{ID: model.NodeID("src/a." + ext), Path: "src/a." + ext, Name: "a." + ext, Kind: model.KindFile},
+			{ID: model.NodeID("src/a." + ext + "#" + ext), Path: "src/a." + ext, Name: ext, Kind: "function"},
+		}}
+		hits, err := blast.Resolve(g, "a."+ext, "")
+		if err != nil || len(hits) != 1 || hits[0].ID != model.NodeID("src/a."+ext) {
+			t.Errorf("Resolve(a.%s) = %v, %v; want the file", ext, hits, err)
+		}
+	}
+}
+
 // A name ending in .php is a file query, so "php" never matches a symbol of that name.
 func TestResolveTakesAPHPNameForAFile(t *testing.T) {
 	g := &model.Graph{Nodes: []model.Node{
