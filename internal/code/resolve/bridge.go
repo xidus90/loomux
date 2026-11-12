@@ -153,6 +153,12 @@ func bridgeEdges(rules map[extract.Namespace]nsRule, paths []string, offers []of
 	var out []model.Edge
 	at := map[key]int{}
 	settled, clashed := map[int]bool{}, map[int]bool{}
+	// Offers by what a handover asks for, each list in input order.
+	byName := map[[2]string][]offer{}
+	for _, o := range offers {
+		k := [2]string{string(o.Namespace), o.Name}
+		byName[k] = append(byName[k], o)
+	}
 
 	for _, h := range handovers {
 		b := h.bridge
@@ -165,8 +171,8 @@ func bridgeEdges(rules map[extract.Namespace]nsRule, paths []string, offers []of
 			continue
 		}
 		var cands []offer
-		for _, o := range offers {
-			if o.Namespace != b.Namespace || o.Name != b.Name || (h.lang != "" && familyOf(o.lang) == familyOf(h.lang)) {
+		for _, o := range byName[[2]string{string(b.Namespace), b.Name}] {
+			if h.lang != "" && familyOf(o.lang) == familyOf(h.lang) {
 				continue
 			}
 			// An offer under no project is seen from every one: GDExtension
