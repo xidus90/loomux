@@ -377,7 +377,9 @@ flowchart TD
     config -->|"fehlt: nur eingebaute Regeln"| rules
     config -->|"lesbar: eingebaute Regeln, dann die des Projekts"| rules{"trifft eine Regel?"}
     rules -->|"ja, eine oder mehrere"| deny
-    rules -->|nein| barrier{"Schreibschranke:<br/>Nutzlast unlesbar, oder ein Schreiben<br/>außerhalb jedes beschreibbaren Baums?"}
+    rules -->|nein| hint{"erstes grep über Code<br/>dieser Session, Graph vorhanden?"}
+    hint -->|"ja: Hinweis auf loomux graph callers"| deny
+    hint -->|nein| barrier{"Schreibschranke:<br/>Nutzlast unlesbar, oder ein Schreiben<br/>außerhalb jedes beschreibbaren Baums?"}
     barrier -->|ja| deny
     barrier -->|nein| allow["Exit 0 — erlaubt"]
 ```
@@ -393,6 +395,27 @@ vorhanden hält und die es nicht ist. Einen Aufruf ohne Werkzeugnamen verweigert
 die Policy, bevor sie die Konfiguration liest, weil keine Regel auf ihn passen
 kann; eine Nutzlast, die kein Objekt ist, bleibt der Schreibschranke, die sie
 mit ihrem eigenen Wortlaut ablehnt.
+
+**Der Graph-Hinweis.** Lässt die Policy den Aufruf durch, fragt der Hook, ob
+er die erste Code-Suche der Session ist: das Grep-Werkzeug oder grep, `rg`,
+`git grep` oder `Select-String` in einer Shell, deren Muster ein Symbol nennt
+(`func X`, `type X`, `X(`, ein bloßer Name in CamelCase) und deren Bereich
+Code ist, nicht Doku, Logs oder Konfiguration. Liegt dort, wo die Shell
+steht, oder darüber ein gebauter Graph, lehnt er diesen einen Aufruf mit
+eigenem Wortlaut ab: Er nennt `loomux graph callers <Name>` und sagt, dass
+derselbe Befehl beim zweiten Mal durchgeht. Die Markierung dafür liegt im
+Session-Ordner unter `.loomux/state/hooks/`, je Subagent eine eigene; ohne
+Session, ohne Graph oder wenn die Markierung nicht geschrieben werden kann,
+geht der Aufruf durch. Fragt die Session den Graph schon selbst — eines der
+MCP-Werkzeuge `graph_*` oder `loomux graph …` in einer Shell —, verbraucht
+das die Markierung still, und der Hinweis kommt nicht mehr. Nennt das
+Suchmuster ein Paket (`freshness\.Probe\(`), nennt der Hinweis es mit. Das
+Grep-Werkzeug und die Graph-Werkzeuge erreichen den Hook nur für den
+Hinweis: Eine kaputte `.loomux/config.toml` verweigert sie nicht, sie lässt
+dann nur den Hinweis aus. Abschalten mit `[guard] graph_hint = false`
+([Konfiguration](configuration.md#guard-wie-genau-der-wächter-liest)). Zwei
+Greps in einer Nachricht können beide abgelehnt werden. Warum gerade diese
+Form: [Synthese](../wiki/syntheses/graph-hinweis-im-waechter.md).
 
 **Pfade und Befehlszeilen, kein Inhalt.** Ein schreibendes Werkzeug — `Write`,
 `Edit`, `MultiEdit`, `NotebookEdit` und Antigravitys `write_to_file`,

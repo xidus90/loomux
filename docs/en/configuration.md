@@ -137,6 +137,7 @@ rules = [
 ```toml
 [guard]
 mode = "default"   # or "strict"
+graph_hint = true  # default; false switches the hint below off
 ```
 
 `default` holds against an agent that errs or takes a shortcut: the common
@@ -152,6 +153,16 @@ refuses every call as for a broken configuration. Strict mode refuses more
 than a project may like: in this repository it refuses `go build -o
 bin/loomux.exe`, because `bin/*` is a protected path and `go` is no verb the
 guard knows. See [Hooks](hooks.md#7-the-decision-path-of-pre-tool-use).
+
+`graph_hint` points an agent at the code graph. The first time a session (or
+one of its subagents) greps code for a symbol — the Grep tool, or grep, rg,
+git grep or Select-String in a shell — the guard refuses the call once with
+`loomux graph callers <name>` and lets the same command through on the
+repeat. It stays silent without a built graph where the shell stands, for a
+search over docs, logs or configuration, and without a session. Without the
+key the hint is on; `false` switches it off, and any value that is no boolean
+is an error like a broken `mode`. Why this form and not another:
+[the synthesis](../wiki/syntheses/graph-hinweis-im-waechter.md).
 
 ---
 
@@ -1138,6 +1149,7 @@ rules = [
 # --- Guard Mode: default, or strict against an agent that means to get round it
 # [guard]
 # mode = "default"
+# graph_hint = true   # point a session's first grep over code at the code graph, once
 
 # --- Check Chain: loomux check and post-edit; everything else is preset ------
 [verify.go.lint]

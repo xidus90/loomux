@@ -879,6 +879,7 @@ The symbol is looked up case-insensitively: as a name, the end of a node ID, `<p
   - `--direction <in|out>`: Trace callers into this symbol (`in`) or callees out of this symbol (`out`).
   - `-d`, `--depth <depth>`: Transitive depth (default `1`; `-d all` or `-d full` for full transitive closure).
   - `--in <prefix>`: Filter symbols by repository path prefix before resolving.
+  - When other symbols carry the same name, a line under the start names them as their package qualifies them (`also matching: freshness.Probe (function) in internal/code/freshness/fingerprint.go; name the package to pick one`, at most five, then `and N more`); the JSON carries them as `also`. The walk starts from the first match alone.
   - Each direct hit (depth 1) carries the line its edge stands on (the first, when there are several call sites); for an edge without a line, the first line in the caller's span that names the callee. For `--direction out` that line lies in the start symbol's file and is printed with its path.
   - `--json`: Output machine-readable JSON (`query.CallersAnswer`).
 - **Exit codes**: `0` on success; `1` if graph is missing, unreadable, or symbol not found; `2` on usage error.

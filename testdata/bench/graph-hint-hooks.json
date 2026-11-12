@@ -1,0 +1,30 @@
+[
+  {
+    "name": "pre-tool-use, Bash grep over code, session already hinted (old)",
+    "dir": "C:/Users/me/Documents/#GIT/loomux",
+    "stdin": "C:/Users/me/Documents/#GIT/loomux/testdata/bench/bash-grep-code.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/me/AppData/Local/Temp/loomux-old/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/me/Documents/#GIT/loomux"]}]
+  },
+  {
+    "name": "pre-tool-use, Bash grep over code, session already hinted (new)",
+    "dir": "C:/Users/me/Documents/#GIT/loomux",
+    "stdin": "C:/Users/me/Documents/#GIT/loomux/testdata/bench/bash-grep-code.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/me/AppData/Local/Temp/loomux-new/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/me/Documents/#GIT/loomux"]}]
+  },
+  {
+    "name": "pre-tool-use, Bash grep over code, no session (new)",
+    "dir": "C:/Users/me/Documents/#GIT/loomux",
+    "stdin": "C:/Users/me/Documents/#GIT/loomux/testdata/bench/bash-grep-code-nosession.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/me/AppData/Local/Temp/loomux-new/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/me/Documents/#GIT/loomux"]}]
+  },
+  {
+    "name": "pre-tool-use, Grep tool over code, session already hinted (new)",
+    "dir": "C:/Users/me/Documents/#GIT/loomux",
+    "stdin": "C:/Users/me/Documents/#GIT/loomux/testdata/bench/grep-code.json",
+    "mode": "single",
+    "steps": [{"argv": ["C:/Users/me/AppData/Local/Temp/loomux-new/loomux.exe", "hook", "pre-tool-use", "--host", "claude", "--root", "C:/Users/me/Documents/#GIT/loomux"]}]
+  }
+]

@@ -4,18 +4,18 @@ title: Wann ein Hinweis auf den Code-Graph lohnt
 description: Agenten-Spikes vom 11. November 2026 — ein Hinweis Richtung Graph lohnt erst, wenn der Graph die Ketten kennt, die grep findet; von fünf Formen trägt nur die einmalige Ablehnung des ersten grep.
 status: draft
 open_conflicts: 0
-realization: in_progress
+realization: implemented
 sources:
   - id: benchmarks
     resource: brain://project/loomux/docs/de/benchmarks.md
     doc_id: 01M47W91R5MPENKN7N34H6QTNT
-    content_hash: "sha256:840e0aeef1569c109710eca1187228bc0e71ac841ee5f5d2fa3657a1512de89a"
-    revision: 20
+    content_hash: "sha256:d10df343fb61fb76ea53dfdf88a3f2511e6c17849aa11f01be74cdf87ac0d952"
+    revision: 22
   - id: code-graph
     resource: brain://project/loomux/docs/wiki/topics/code-graph.md
     doc_id: 01M39NDHWJPTMR7NKS5RZ78AWK
-    content_hash: "sha256:6b222264577977694f0bc56591b31bf76a3e2c8de656f669cd2738e93b21b617"
-    revision: 10
+    content_hash: "sha256:30d639e711531e4583975d179b732d70e686a00052e3c7eb63ad3a6841a5f781"
+    revision: 11
 ---
 
 ## Frage
@@ -85,4 +85,17 @@ Zahlen stehen in [`docs/de/benchmarks.md`](../../de/benchmarks.md), Eintrag
   grep kommt zu spät, ein Verweis auf das MCP-Werkzeug kostet den
   ToolSearch-Umweg, und eine Graph-Abfrage im Hook sprengt das Zeitbudget.
 - **Belegstärke:** 16 Läufe je Form, eine Maschine, ein Modell. Das ist eine
-  Richtung, kein Beweis; die Spec für den Hinweis im Wächter steht noch aus.
+  Richtung, kein Beweis.
+
+## Mit dem echten Binary (12. November 2026)
+
+Gebaut nach `docs/.superpowers/specs/2026-11-12-graph-hinweis-design.md`,
+standardmäßig an, abschaltbar mit `[guard] graph_hint = false`. Die erste
+Fassung kostete in der Abnahme (32 Läufe je Variante) +14 % Tokens, machte
+aber `store.Read` vollständig (4/4 gegen 0/4). Drei Verluste fielen auf und
+sind behoben: ein Hinweis nach einer schon gestellten Graph-Abfrage, ein
+nackter Name, der ein gleichnamiges falsches Symbol traf, und MCP-Aufrufe mit
+`scope: "loomux"`. Danach kostet der Hinweis +5 % im Mittel bei gleichem
+Median. Die Hook-Zeit bleibt mit 14–17 ms warm im Budget. Zahlen:
+[`docs/de/benchmarks.md`](../../de/benchmarks.md), Eintrag „Der
+Graph-Hinweis im Wächter“.

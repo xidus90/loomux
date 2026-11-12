@@ -805,6 +805,7 @@ Das Symbol wird ohne Beachtung der Groß-/Kleinschreibung gesucht: als Name, End
   - `--direction <in|out>`: Verfolgt eingehende Aufrufer (`in`) oder ausgehende Aufrufe (`out`).
   - `-d`, `--depth <tiefe>`: Transitive Tiefe (Standard `1`; `-d all` oder `-d full` für die vollständige transitive Hülle).
   - `--in <präfix>`: Filtert Symbole vor der Auflösung nach Pfadpräfix.
+  - Tragen andere Symbole denselben Namen, nennt eine Zeile unter dem Start sie so, wie ihr Paket sie qualifiziert (`also matching: freshness.Probe (function) in internal/code/freshness/fingerprint.go; name the package to pick one`, höchstens fünf, danach `and N more`); das JSON trägt sie als `also`. Der Lauf beginnt nur beim ersten Treffer.
   - Jeder direkte Treffer (Tiefe 1) trägt die Zeile, auf der seine Kante steht (bei mehreren Aufrufstellen die erste); kennt die Kante keine Zeile, die erste Zeile im Span des Aufrufers, die den Aufgerufenen nennt. Bei `--direction out` liegt diese Zeile in der Datei des Startsymbols und wird mit ihrem Pfad ausgegeben.
   - `--json`: Gibt maschinenlesbares JSON aus (`query.CallersAnswer`).
 - **Exit-Codes**: `0` bei Erfolg; `1` bei fehlendem/unlesbarem Graph oder unbekanntem Symbol; `2` bei Aufruffehlern.

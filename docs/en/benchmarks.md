@@ -4586,3 +4586,56 @@ closed gaps the variants cost the same; v3 steers to the graph without
 raising the cost and was complete once more often. One run noticed in
 passing that `graph callers Build` resolved a test helper `build` instead of
 `trigram.Build`.
+
+## 2026-11-12 09:30 — The graph hint in the guard: hook time and acceptance
+
+Repo `loomux`, branch `feat/graph-hint` on `f2a99a85`, Windows x86_64,
+Go 1.27.4; the machine was shared with other sessions.
+
+**Goal.** Show what the hint costs the PreToolUse hook, and whether the real
+binary keeps what the spike (entry of 2026-11-11) promised.
+
+**Hook time** (`loomux dev bench hooks testdata/bench/graph-hint-hooks.json
+-n 30`, paths rewritten for the machine; the graph is built and the session
+has had its hint, so this is the path every later call takes):
+
+| Case | cold | warm median | warm min | warm max |
+|---|---:|---:|---:|---:|
+| Bash grep over code, old (`master`) | 23.2 ms | 15.3 ms | 12.9 ms | 118.2 ms |
+| Bash grep over code, new | 119.8 ms | 17.4 ms | 12.9 ms | 104.6 ms |
+| Bash grep over code without a session, new | 100.7 ms | 16.0 ms | 12.9 ms | 116.5 ms |
+| Grep tool over code, new | 13.1 ms | 14.1 ms | 11.8 ms | 106.0 ms |
+
+The warm medians are 14–17 ms, in line with the old version and below the
+35 ms budget; cold values and maxima scatter with the load.
+
+**Acceptance** (Claude Code headless, Opus, the eight tasks of the
+confirmation round of 2026-11-11, four repetitions each; v0 without a hook,
+v5 with the real binary as PreToolUse hook on `Bash|PowerShell|Grep`, CLI and
+MCP from the same binary):
+
+| Round | Variant | Runs | Tool calls per run | Graph calls | Tokens mean / median | `store.Read` complete |
+|---|---|---:|---:|---:|---:|---:|
+| 5 | v0 without hint | 32 | 4.6 | 14 | 226 k / 177 k | 0/4 |
+| 5 | v5 hint, first version | 32 | 5.8 | 36 | 257 k / 237 k | 4/4 |
+| 6 | v5 hint, improved | 32 | 4.9 | 36 | 238 k / 177 k | 2/4 |
+
+The hint fired in 31 of 32 runs of round 5. The tool sequences showed three
+losses: in 7 runs the hint came after the agent had already asked the graph
+over MCP; the bare name in the hint hit a same-named wrong symbol
+(`corpus.Probe` instead of `freshness.Probe`); and ten MCP calls failed on
+`scope: "loomux"`. Round 6 lets a graph query spend the hint, keeps a package
+qualifier from the search pattern, and has `graph callers` name same-named
+symbols. That lowers the extra cost from +14 % to +5 % in the mean, with the
+same median. Wall time rose to 43.7 s per run in round 6 (round 5: 32.0 s)
+because test suites ran alongside.
+
+### Reading
+
+1. **The hook time stays within budget.**
+2. **After the improvements the hint costs little** (+5 % in the mean, same
+   median).
+3. **Completeness on `store.Read` fell to 2/4.** The cause is the third gap:
+   an MCP call with `scope: "loomux"` fails but spends the hint. The fix for
+   it (a short name resolves to `project/loomux`) ships
+   with v1.24.2; with it that call succeeds.

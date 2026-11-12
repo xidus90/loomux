@@ -137,6 +137,7 @@ rules = [
 ```toml
 [guard]
 mode = "default"   # oder "strict"
+graph_hint = true  # Vorgabe; false schaltet den Hinweis unten ab
 ```
 
 `default` hält gegen einen Agenten, der sich irrt oder bequem ist: die
@@ -153,6 +154,17 @@ verweigert dann jeden Aufruf wie bei kaputter Konfiguration. Der strikte Modus
 verweigert mehr, als einem Projekt lieb sein mag: in diesem Repo verweigert er
 `go build -o bin/loomux.exe`, weil `bin/*` geschützt ist und `go` kein Verb,
 das der Wächter kennt. Siehe [Hooks](hooks.md#7-der-entscheidungsweg-von-pre-tool-use).
+
+`graph_hint` lenkt einen Agenten auf den Code-Graph. Sucht eine Session (oder
+einer ihrer Subagenten) zum ersten Mal mit grep nach einem Symbol im Code —
+mit dem Grep-Werkzeug oder mit grep, rg, git grep oder Select-String in einer
+Shell —, lehnt der Wächter den Aufruf einmal ab, nennt
+`loomux graph callers <Name>` und lässt denselben Befehl bei der Wiederholung
+durch. Er schweigt ohne gebauten Graph dort, wo die Shell steht, bei einer
+Suche über Doku, Logs oder Konfiguration und ohne Session. Ohne den Schlüssel
+ist der Hinweis an; `false` schaltet ihn ab, und jeder Wert, der kein
+Wahrheitswert ist, ist ein Fehler wie ein kaputtes `mode`. Warum diese Form
+und keine andere: [die Synthese](../wiki/syntheses/graph-hinweis-im-waechter.md).
 
 ---
 
@@ -1052,6 +1064,7 @@ rules = [
 # --- Wächtermodus: default, oder strict gegen einen, der gezielt umgehen will
 # [guard]
 # mode = "default"
+# graph_hint = true   # erstes grep über Code je Session einmal auf den Code-Graph lenken
 
 # --- Prüfkette: loomux check und post-edit; alles Übrige ist Preset ---------
 [verify.go.lint]
