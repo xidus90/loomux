@@ -4653,3 +4653,58 @@ außerhalb der geschlossenen Lücken kosten die Varianten gleich viel; v3
 lenkt auf den Graph um, ohne zu verteuern, und war einmal vollständiger.
 Ein Lauf fand nebenbei, dass `graph callers Build` einen Testhelfer `build`
 auflöste statt `trigram.Build`.
+
+## 2026-11-12 09:30 — Der Graph-Hinweis im Wächter: Hook-Zeit und Abnahme
+
+Repo `loomux`, Zweig `feat/graph-hint` auf `f2a99a85`, Windows x86_64,
+Go 1.27.4; die Maschine war mit anderen Sitzungen belegt.
+
+**Ziel.** Zeigen, was der Hinweis den PreToolUse-Hook kostet, und ob er mit
+dem echten Binary hält, was der Spike (Eintrag vom 2026-11-11) versprach.
+
+**Hook-Zeit** (`loomux dev bench hooks testdata/bench/graph-hint-hooks.json
+-n 30`, Pfade auf den Rechner umgeschrieben; der Graph ist gebaut, die
+Session hat ihren Hinweis schon bekommen, gemessen wird also der Weg, den
+jeder spätere Aufruf geht):
+
+| Fall | kalt | warmer Median | warmes Min | warmes Max |
+|---|---:|---:|---:|---:|
+| Bash-grep über Code, alt (`master`) | 23,2 ms | 15,3 ms | 12,9 ms | 118,2 ms |
+| Bash-grep über Code, neu | 119,8 ms | 17,4 ms | 12,9 ms | 104,6 ms |
+| Bash-grep über Code ohne Session, neu | 100,7 ms | 16,0 ms | 12,9 ms | 116,5 ms |
+| Grep-Werkzeug über Code, neu | 13,1 ms | 14,1 ms | 11,8 ms | 106,0 ms |
+
+Die warmen Mediane liegen bei 14–17 ms, im Rahmen der alten Version und
+unter dem Budget von 35 ms; die Kaltwerte und Maxima streuen mit der Last.
+
+**Abnahme** (Claude Code headless, Opus, die acht Aufgaben der
+Bestätigungsrunde vom 2026-11-11, je vier Wiederholungen; v0 ohne Hook, v5
+mit dem echten Binary als PreToolUse-Hook auf `Bash|PowerShell|Grep`, CLI und
+MCP aus demselben Binary):
+
+| Runde | Variante | Läufe | Tool-Aufrufe je Lauf | Graph-Aufrufe | Tokens Mittel / Median | `store.Read` vollständig |
+|---|---|---:|---:|---:|---:|---:|
+| 5 | v0 ohne Hinweis | 32 | 4,6 | 14 | 226 k / 177 k | 0/4 |
+| 5 | v5 Hinweis, erste Fassung | 32 | 5,8 | 36 | 257 k / 237 k | 4/4 |
+| 6 | v5 Hinweis, verbessert | 32 | 4,9 | 36 | 238 k / 177 k | 2/4 |
+
+Der Hinweis griff in Runde 5 in 31 von 32 Läufen. Die Abläufe zeigten drei
+Verluste: In 7 Läufen kam der Hinweis, nachdem der Agent den Graph schon über
+MCP gefragt hatte; der nackte Name im Hinweis traf ein gleichnamiges
+falsches Symbol (`corpus.Probe` statt `freshness.Probe`); und zehn
+MCP-Aufrufe scheiterten an `scope: "loomux"`. Runde 6 lässt eine
+Graph-Abfrage den Hinweis verbrauchen, behält ein Paketpräfix aus dem
+Suchmuster und lässt `graph callers` gleichnamige Symbole nennen. Das senkt
+die Mehrkosten von +14 % auf +5 % im Mittel, der Median ist gleich. Die
+Wanduhr stieg in Runde 6 auf 43,7 s je Lauf (Runde 5: 32,0 s), weil parallel
+Testsuiten liefen.
+
+### Lesart
+
+1. **Die Hook-Zeit bleibt im Budget.**
+2. **Der Hinweis kostet nach den Verbesserungen kaum noch** (+5 % im Mittel,
+   gleicher Median).
+3. **Die Vollständigkeit bei `store.Read` fiel auf 2/4.** Die Ursache ist die
+   dritte Lücke: Ein MCP-Aufruf mit `scope: "loomux"` scheitert, verbraucht
+   aber den Hinweis. Der Fix dafür (Kurzname wird zu `project/loomux`) ist seit
+   v1.24.2 enthalten; mit ihm gelingt dieser Aufruf.

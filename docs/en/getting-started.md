@@ -100,7 +100,7 @@ Detected Stacks: [go]
   "hooks": {
     "SessionStart": [{"hooks": [{"type": "command", "timeout": 20,
       "command": "loomux hook session-start --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
-    "PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell",
+    "PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast",
       "hooks": [{"type": "command", "timeout": 15,
       "command": "loomux hook pre-tool-use --host claude --root \"${CLAUDE_PROJECT_DIR}\""}]}],
     "PostToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit",

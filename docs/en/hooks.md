@@ -361,7 +361,9 @@ flowchart TD
     config -->|"absent: built-in rules only"| rules
     config -->|"readable: built-in rules, then the project's"| rules{"does a rule match?"}
     rules -->|"yes, one or more"| deny
-    rules -->|no| barrier{"write barrier:<br/>payload unreadable, or a write<br/>outside every writable tree?"}
+    rules -->|no| hint{"first grep over code<br/>of this session, graph built?"}
+    hint -->|"yes: hint at loomux graph callers"| deny
+    hint -->|no| barrier{"write barrier:<br/>payload unreadable, or a write<br/>outside every writable tree?"}
     barrier -->|yes| deny
     barrier -->|no| allow["exit 0 — allowed"]
 ```
@@ -376,6 +378,27 @@ the barrier one believes to be there and which is not. A call without a tool
 name is refused by the policy before the configuration is read, since no rule
 can be matched against it; a payload that is no object is left to the write
 barrier, which refuses it in its own words.
+
+**The graph hint.** When the policy lets a call through, the hook asks
+whether it is the session's first search of code: the Grep tool, or grep,
+`rg`, `git grep` or `Select-String` in a shell, whose pattern names a symbol
+(`func X`, `type X`, `X(`, a bare CamelCase name) and whose scope is code,
+not docs, logs or configuration. When a built graph lies where the shell
+stands or above, it refuses this one call in its own words: it names
+`loomux graph callers <name>` and says the same command goes through on the
+repeat. The mark for this lies in the session's folder under
+`.loomux/state/hooks/`, one per subagent; without a session, without a graph,
+or when the mark cannot be written, the call goes through. When the session
+already asks the graph itself — one of the `graph_*` MCP tools, or
+`loomux graph …` in a shell — that spends the mark quietly and the hint does
+not come. When the search pattern names a package (`freshness\.Probe\(`), the
+hint names it too. The Grep tool and the graph tools reach the hook for the
+hint alone: a broken `.loomux/config.toml` does not refuse them, it only
+drops the hint. Switch it off with
+`[guard] graph_hint = false`
+([configuration](configuration.md#guard-how-hard-the-guard-reads)). Two greps
+in one message may both be refused. Why this form:
+[synthesis](../wiki/syntheses/graph-hinweis-im-waechter.md).
 
 **Paths and command lines, not content.** A writing tool — `Write`, `Edit`,
 `MultiEdit`, `NotebookEdit`, and Antigravity's `write_to_file`,

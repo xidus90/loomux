@@ -1,0 +1,1 @@
+{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"C:/Users/me/Documents/#GIT/loomux","tool_input":{"command":"grep -rn \"blastAside(\" --include=*.go internal"}}

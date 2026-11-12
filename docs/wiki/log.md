@@ -6,6 +6,11 @@
 
 ## 2026-11-12
 
+- 2026-11-12 — `syntheses/graph-hinweis-im-waechter.md`: Abschnitt „Mit dem
+  echten Binary“ neu; der Hinweis ist gebaut, standardmäßig an, kostet nach
+  drei Korrekturen +5 % Tokens und bleibt im Zeitbudget des Hooks. Quelle:
+  `docs/de/benchmarks.md`, Eintrag „Der Graph-Hinweis im Wächter“,
+  `internal/hooks/graphhint.go`.
 - 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
   unverändert: `docs/de/cli-reference.md` hält fest, dass `scope` der
   MCP-Werkzeuge und von `loomux brain` auch das letzte Segment genau eines
