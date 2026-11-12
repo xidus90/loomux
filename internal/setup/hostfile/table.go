@@ -44,7 +44,7 @@ func Entries(host hosts.Host, binary string) []Entry {
 		hook := func(name string) string { return binary + " hook " + name + " --host claude" + root }
 		return []Entry{
 			{Event: "SessionStart", Command: hook("session-start"), Timeout: 20},
-			{Event: "PreToolUse", Matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell",
+			{Event: "PreToolUse", Matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast",
 				Command: hook("pre-tool-use"), Timeout: 15},
 			{Event: "PostToolUse", Matcher: "Write|Edit|MultiEdit|NotebookEdit",
 				Command: hook("post-tool-use"), Timeout: 60},

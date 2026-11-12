@@ -698,8 +698,8 @@ func TestAnOwnEntryUnderAnOldMatcherGetsABlockForTheToolItLacks(t *testing.T) {
 	root := world(t, map[string]string{".claude/settings.json": settings})
 	p := plan(t, gather(t, root, ""))
 	c, _ := changeOf(p, ".claude/settings.json")
-	if strings.Count(c.After, "hook pre-tool-use") != 2 || !strings.Contains(c.After, `"matcher": "MultiEdit"`) ||
-		!hasNote(p, ".claude/settings.json: PreToolUse: kept an own entry under matcher Write|Edit|NotebookEdit|Bash|PowerShell; added one for MultiEdit") {
+	if strings.Count(c.After, "hook pre-tool-use") != 2 || !strings.Contains(c.After, `"matcher": "MultiEdit|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast"`) ||
+		!hasNote(p, ".claude/settings.json: PreToolUse: kept an own entry under matcher Write|Edit|NotebookEdit|Bash|PowerShell; added one for MultiEdit|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast") {
 		t.Errorf("settings =\n%s\nnotes = %v", c.After, p.Notes)
 	}
 }

@@ -32,6 +32,9 @@ type Policy struct {
 	// Strict is [guard] mode = "strict": the guard also holds against an
 	// agent that means to get round it. The zero value is the default mode.
 	Strict bool
+	// GraphHintOff is [guard] graph_hint = false: the guard no longer points
+	// a session's first grep over code at the code graph.
+	GraphHintOff bool
 }
 
 // ManifestPath is where a project's one configuration file lives.
@@ -109,11 +112,11 @@ func ReadPolicy(root string) (Policy, error) {
 		}
 		policy.Commands = append(policy.Commands, CommandRule{Regex: compiled, Source: rule.Regex, Reason: rule.Reason})
 	}
-	strict, err := parseGuard(path, file.Guard)
+	guard, err := parseGuard(path, file.Guard)
 	if err != nil {
 		return Policy{}, err
 	}
-	policy.Strict = strict
+	policy.Strict, policy.GraphHintOff = guard.strict, guard.graphHintOff
 	return policy, nil
 }
 

@@ -60,7 +60,7 @@ func TestMergeAddsBesideOldEntriesAndNamesThem(t *testing.T) {
 	}
 	wantAdded := []string{
 		"SessionStart/",
-		"PreToolUse/Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell",
+		"PreToolUse/Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast",
 		"PostToolUse/Write|Edit|MultiEdit|NotebookEdit",
 		"Stop/",
 		"SubagentStart/",
@@ -576,7 +576,7 @@ func TestMergeRecognisesLoomuxEntriesWhereverTheyStand(t *testing.T) {
 	}
 	pre := `"${LOCALAPPDATA}/loomux/bin/loomux.exe" hook pre-tool-use --host claude --root x`
 	// Ours second in a block of the project on our matcher.
-	second := `"PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell", "hooks": [{"type": "command", "command": "echo x"}, {"type": "command", "command": ` + strconvQuote(pre) + `}]}]`
+	second := `"PreToolUse": [{"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast", "hooks": [{"type": "command", "command": "echo x"}, {"type": "command", "command": ` + strconvQuote(pre) + `}]}]`
 	existing := []byte(`{"hooks": {` + all(second) + `}}`)
 	got, err := Merge(claude, existing, Entries(claude, b))
 	if err != nil {
@@ -592,8 +592,8 @@ func TestMergeRecognisesLoomuxEntriesWhereverTheyStand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("old matcher: %v", err)
 	}
-	note := "PreToolUse: kept an own entry under matcher Write|Edit|NotebookEdit|Bash|PowerShell; added one for MultiEdit"
-	if !reflect.DeepEqual(got.Added, []string{"PreToolUse/MultiEdit"}) || !reflect.DeepEqual(got.Notes, []string{note}) {
+	note := "PreToolUse: kept an own entry under matcher Write|Edit|NotebookEdit|Bash|PowerShell; added one for MultiEdit|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast"
+	if !reflect.DeepEqual(got.Added, []string{"PreToolUse/MultiEdit|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast"}) || !reflect.DeepEqual(got.Notes, []string{note}) {
 		t.Errorf("old matcher: added %v, notes %v", got.Added, got.Notes)
 	}
 	wantPre := []string{pre, Entries(claude, b)[1].Command}
@@ -602,7 +602,7 @@ func TestMergeRecognisesLoomuxEntriesWhereverTheyStand(t *testing.T) {
 	}
 	// Another hook of ours under another matcher is no stand-in.
 	other := `{"hooks": {"PreToolUse": [{"matcher": "Read", "hooks": [{"type": "command", "command": "loomux hook post-tool-use"}, "x"]}]}}`
-	if got, _ := Merge(claude, []byte(other), Entries(claude, b)); !slices.Contains(got.Added, "PreToolUse/Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell") {
+	if got, _ := Merge(claude, []byte(other), Entries(claude, b)); !slices.Contains(got.Added, "PreToolUse/Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast") {
 		t.Errorf("added %v", got.Added)
 	}
 	if hookEventOf("loomux hook") != "" || hookEventOf(`"unclosed`) != "" {

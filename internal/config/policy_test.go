@@ -215,14 +215,28 @@ func TestReadPolicyReadsTheGuardMode(t *testing.T) {
 	}
 }
 
+func TestReadPolicyReadsTheGraphHintSwitch(t *testing.T) {
+	for body, wantOff := range map[string]bool{
+		"":                              false,
+		"[guard]\ngraph_hint = true\n":  false,
+		"[guard]\ngraph_hint = false\n": true,
+	} {
+		policy, err := ReadPolicy(writeConfig(t, body))
+		if err != nil || policy.GraphHintOff != wantOff {
+			t.Errorf("%q: graph hint off %v, %v; want %v", body, policy.GraphHintOff, err, wantOff)
+		}
+	}
+}
+
 // A mode the reader does not know refuses rather than fall back: a guard that
 // ran default on a typo would look strict and not be.
 func TestReadPolicyRefusesAGuardItCannotRead(t *testing.T) {
 	for body, want := range map[string]string{
-		"[guard]\nmode = \"hard\"\n":  `[guard] mode must be one of default, strict, found "hard"`,
-		"[guard]\nmode = 1\n":         "[guard] mode must be one of default, strict, found integer",
-		"[guard]\nmod = \"strict\"\n": `[guard] does not know "mod"; known: mode`,
-		"guard = 3\n":                 "[guard] must be a table, found integer",
+		"[guard]\nmode = \"hard\"\n":     `[guard] mode must be one of default, strict, found "hard"`,
+		"[guard]\nmode = 1\n":            "[guard] mode must be one of default, strict, found integer",
+		"[guard]\nmod = \"strict\"\n":    `[guard] does not know "mod"; known: graph_hint, mode`,
+		"guard = 3\n":                    "[guard] must be a table, found integer",
+		"[guard]\ngraph_hint = \"no\"\n": "[guard] graph_hint must be a boolean, found string",
 	} {
 		_, err := ReadPolicy(writeConfig(t, body))
 		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "config.toml") {

@@ -50,7 +50,12 @@ func PreToolUse(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string
 	// does not say counts as standing elsewhere.
 	cwd, _ := object["cwd"].(string)
 	here := sync.OnceValue(func() bool { return guard.AtRoot(cwd, root) })
-	reasons, err := policyReasons(object, root, open, here)
+	reasons, policy, err := policyReasons(object, root, open, here)
+	if tool, _ := guard.Call(object); err != nil && hintOnly(tool) {
+		// These tools reach the hook for the graph hint alone; a broken
+		// policy must not take the search, and the graph it points at, away.
+		return guard.Run(bytes.NewReader(data), stdout, stderr, stateDir, root, note)
+	}
 	if err != nil {
 		return guard.Refuse(stdout, stderr, fmt.Sprintf("loomux cannot read its policy, so it refuses: %v", err))
 	}
@@ -60,6 +65,9 @@ func PreToolUse(stdin io.Reader, stdout, stderr io.Writer, root, stateDir string
 			reason += "\n\n" + n
 		}
 		return guard.Refuse(stdout, stderr, reason)
+	}
+	if hint, ok := graphHint(object, root, policy); ok {
+		return guard.Refuse(stdout, stderr, hint)
 	}
 	return guard.Run(bytes.NewReader(data), stdout, stderr, stateDir, root, note)
 }
@@ -74,17 +82,17 @@ const llmConfigNote = "llm_config is on for this project: agents may edit .loomu
 // job, with the barrier's wording, one step later. An object that names no
 // tool is refused here, before the policy file is read: no rule can be
 // matched against it, and a call nobody judged does not pass.
-func policyReasons(object map[string]any, root string, open, here func() bool) ([]string, error) {
+func policyReasons(object map[string]any, root string, open, here func() bool) ([]string, config.Policy, error) {
 	if object == nil {
-		return nil, nil
+		return nil, config.Policy{}, nil
 	}
 	tool, input := guard.Call(object)
 	if tool == "" {
-		return []string{"loomux found no tool name in this call, so it cannot judge it and refuses"}, nil
+		return []string{"loomux found no tool name in this call, so it cannot judge it and refuses"}, config.Policy{}, nil
 	}
 	policy, err := readPolicy(root)
 	if err != nil {
-		return nil, err
+		return nil, config.Policy{}, err
 	}
-	return checkToolOpen(root, tool, input, policy, open, here), nil
+	return checkToolOpen(root, tool, input, policy, open, here), policy, nil
 }
