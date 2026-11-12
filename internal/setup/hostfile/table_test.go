@@ -2,12 +2,34 @@ package hostfile
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/xidus90/loomux/internal/hosts"
+	"github.com/xidus90/loomux/internal/mcptools"
 )
 
 const claudeRoot = `--root "${CLAUDE_PROJECT_DIR}"`
+
+// A graph query spends the session's graph hint, so the pre-tool hook must
+// see every graph tool that answers a question; the freshness check answers
+// none.
+func TestThePreToolMatcherCoversEveryAnsweringGraphTool(t *testing.T) {
+	matcher := ""
+	for _, e := range Entries(hosts.HostClaude, "loomux") {
+		if e.Event == "PreToolUse" {
+			matcher = "|" + e.Matcher + "|"
+		}
+	}
+	for _, tool := range mcptools.Tools() {
+		if !strings.HasPrefix(tool.Name, "graph_") || tool.Name == "graph_check_freshness" {
+			continue
+		}
+		if !strings.Contains(matcher, "|mcp__loomux__"+tool.Name+"|") {
+			t.Errorf("the PreToolUse matcher lacks mcp__loomux__%s", tool.Name)
+		}
+	}
+}
 
 // The hook is the word after "hook" wherever it stands, and a command
 // without that word runs none.
@@ -27,7 +49,7 @@ func TestEntriesMatchTheTable(t *testing.T) {
 	b := Canonical
 	want := []Entry{
 		{Event: "SessionStart", Command: b + " hook session-start --host claude " + claudeRoot, Timeout: 20},
-		{Event: "PreToolUse", Matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell",
+		{Event: "PreToolUse", Matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Grep|mcp__loomux__graph_find_code|mcp__loomux__graph_file_api|mcp__loomux__graph_trace_calls|mcp__loomux__graph_find_all|mcp__loomux__graph_repo_map|mcp__loomux__graph_blast",
 			Command: b + " hook pre-tool-use --host claude " + claudeRoot, Timeout: 15},
 		{Event: "PostToolUse", Matcher: "Write|Edit|MultiEdit|NotebookEdit",
 			Command: b + " hook post-tool-use --host claude " + claudeRoot, Timeout: 60},
