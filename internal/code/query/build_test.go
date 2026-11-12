@@ -125,7 +125,17 @@ func TestExtractFailsWhenGoModCannotBeRead(t *testing.T) {
 	}
 }
 
-func TestGoModPathsSkipsADirectoryItCannotRead(t *testing.T) {
+func TestExtractSkipsATSConfigItCannotRead(t *testing.T) {
+	files := sample()
+	files["web/tsconfig.json"] = `{"compilerOptions": {"baseUrl": "."}}`
+	root := repo(t, files)
+	testlock.Lock(t, filepath.Join(root, "web", "tsconfig.json"))
+	if _, _, err := Extract(root, ExtractOptions{}); err != nil {
+		t.Fatalf("an unreadable tsconfig must not fail a Go build: %v", err)
+	}
+}
+
+func TestModuleFilesSkipsADirectoryItCannotRead(t *testing.T) {
 	root := repo(t, sample())
 	blocked := filepath.Join(root, "blocked")
 	if err := os.MkdirAll(blocked, 0o755); err != nil {
@@ -136,32 +146,29 @@ func TestGoModPathsSkipsADirectoryItCannotRead(t *testing.T) {
 	}
 	testlock.LockDir(t, blocked)
 	// The walk must not fail the whole build over one unreadable directory.
-	got := goModPaths(root)
+	got := moduleFiles(root)
 	for _, p := range got {
 		if strings.HasPrefix(p, "blocked/") {
-			t.Errorf("goModPaths(%q) must not see into the locked directory, got %v", root, got)
+			t.Errorf("moduleFiles(%q) must not see into the locked directory, got %v", root, got)
 		}
 	}
 }
 
-func TestGoModPathsSkipsATestdataDirectory(t *testing.T) {
-	// goModPaths used to keep its own, narrower skip list (dot-directories and
-	// vendor only), so a fixture go.mod under testdata/ reached module
-	// resolution after sourceset had already excluded its .go files from the
-	// build -- two walks of the same tree disagreeing about testdata. Both now
-	// share sourceset.SkipDir.
+func TestModuleFilesSkipsATestdataDirectory(t *testing.T) {
+	// moduleFiles shares sourceset.SkipDir, so a fixture go.mod under
+	// testdata/ stays out of module resolution like the .go files beside it.
 	files := sample()
 	files["testdata/fixture/go.mod"] = "module fixture\n"
 	root := repo(t, files)
 
-	got := goModPaths(root)
+	got := moduleFiles(root)
 	for _, p := range got {
 		if strings.HasPrefix(p, "testdata/") {
-			t.Errorf("goModPaths(%q) must not see into testdata/, got %v", root, got)
+			t.Errorf("moduleFiles(%q) must not see into testdata/, got %v", root, got)
 		}
 	}
 	if len(got) != 1 || got[0] != "go.mod" {
-		t.Errorf("goModPaths(%q) = %v, want only the repository's own go.mod", root, got)
+		t.Errorf("moduleFiles(%q) = %v, want only the repository's own go.mod", root, got)
 	}
 }
 
@@ -250,22 +257,33 @@ func TestExtractStampsTheCombinedVersion(t *testing.T) {
 	}
 }
 
-func TestGoModPathsOnAMissingRootIsEmpty(t *testing.T) {
-	if got := goModPaths(filepath.Join(t.TempDir(), "gone")); len(got) != 0 {
-		t.Errorf("goModPaths = %v, want none", got)
+func TestModuleFilesOnAMissingRootIsEmpty(t *testing.T) {
+	if got := moduleFiles(filepath.Join(t.TempDir(), "gone")); len(got) != 0 {
+		t.Errorf("moduleFiles = %v, want none", got)
 	}
 }
 
-func TestGoModPathsFindsANestedModule(t *testing.T) {
+func TestModuleFilesFindsANestedModule(t *testing.T) {
 	files := sample()
 	files["lib/go.mod"] = "module example.com/repo/lib\n"
-	got := goModPaths(repo(t, files))
+	got := moduleFiles(repo(t, files))
 	if strings.Join(got, ",") != "go.mod,lib/go.mod" {
-		t.Errorf("goModPaths = %v, want go.mod and lib/go.mod", got)
+		t.Errorf("moduleFiles = %v, want go.mod and lib/go.mod", got)
 	}
 }
 
-func TestGoModPathsWalksARootThatWouldBeSkippedBelowIt(t *testing.T) {
+func TestModuleFilesFindsTSConfigAndJSConfig(t *testing.T) {
+	files := sample()
+	files["web/tsconfig.json"] = "{}"
+	files["web/jsconfig.json"] = "{}"
+	files["node_modules/x/tsconfig.json"] = "{}"
+	got := moduleFiles(repo(t, files))
+	if strings.Join(got, ",") != "go.mod,web/jsconfig.json,web/tsconfig.json" {
+		t.Errorf("moduleFiles = %v, want go.mod and both configs of web, nothing of node_modules", got)
+	}
+}
+
+func TestModuleFilesWalksARootThatWouldBeSkippedBelowIt(t *testing.T) {
 	// The skip list is for directories under the root. A repository that
 	// happens to be checked out as .../testdata is still a repository.
 	root := filepath.Join(t.TempDir(), "testdata")
@@ -275,8 +293,8 @@ func TestGoModPathsWalksARootThatWouldBeSkippedBelowIt(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := goModPaths(root); strings.Join(got, ",") != "go.mod" {
-		t.Errorf("goModPaths = %v, want the root's go.mod", got)
+	if got := moduleFiles(root); strings.Join(got, ",") != "go.mod" {
+		t.Errorf("moduleFiles = %v, want the root's go.mod", got)
 	}
 }
 

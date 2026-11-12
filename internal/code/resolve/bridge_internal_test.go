@@ -213,6 +213,19 @@ func TestHandoverSkipsOwnLanguage(t *testing.T) {
 	}
 }
 
+func TestHandoverSkipsOwnFamily(t *testing.T) {
+	h := hand(nsOne, "Only", "b.js")
+	h.lang = "javascript"
+	if got := run(nil, []offer{off(nsOne, "Only", "a.ts#Only", "a.ts", "typescript")}, []handover{h}); got != nil {
+		t.Fatalf("a resolver's handover was answered by its own family: %v", got)
+	}
+	h = hand(nsOne, "Only", "b.cpp")
+	h.lang = "cpp"
+	if got := run(nil, []offer{off(nsOne, "Only", "a.cs#Only", "a.cs", "csharp")}, []handover{h}); len(got) != 1 {
+		t.Fatalf("a cpp handover must still see a csharp offer: %v", got)
+	}
+}
+
 func TestBridgeMergesAndPrefersExtracted(t *testing.T) {
 	late, early := hand(nsAll, "m", "s.tscn"), hand(nsAll, "m", "s.tscn", "a.cs")
 	late.bridge.Line, early.bridge.Line = 9, 3

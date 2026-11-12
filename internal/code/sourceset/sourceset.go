@@ -141,11 +141,9 @@ func hasPrunedSegment(rel string) bool {
 // indexed its own output would grow on every build.
 //
 // Exported so every directory walk this package's callers run agrees with
-// this one on what counts as source. internal/code/query's goModPaths used to
-// keep its own, narrower list (dot-directories and vendor only), which let a
-// fixture go.mod under testdata/ reach module resolution while the .go files
-// beside it were already excluded from the file set -- two walks of the same
-// tree, two different answers about testdata. The list itself lives in
+// this one on what counts as source: internal/code/query's moduleFiles walks
+// with it, so a module file under testdata/ stays out of resolution like the
+// sources beside it. The list itself lives in
 // corpus.pruneDirs and is shared with the search index's walk; only this
 // predicate is anyone else's business.
 func SkipDir(name string) bool {

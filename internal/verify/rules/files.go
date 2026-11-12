@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/xidus90/loomux/internal/code/query"
+	"github.com/xidus90/loomux/internal/code/resolve"
 	"github.com/xidus90/loomux/internal/gitenv"
 )
 
@@ -105,11 +106,10 @@ func indexFiles(root string) ([]File, error) {
 var contentExts = []string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java", ".php", ".tscn", ".tres", ".godot"}
 
 // wantsContent says whether a rule reads the content of rel: an extractor's
-// file, go.mod (module paths) and plugin.cfg (test tool detection). The other
-// rules need paths only.
+// file, a module file (resolve.ModuleFile: module paths and path aliases) and
+// plugin.cfg (test tool detection). The other rules need paths only.
 func wantsContent(rel string) bool {
-	base := path.Base(rel)
-	return base == "go.mod" || base == "plugin.cfg" || slices.Contains(contentExts, path.Ext(rel))
+	return resolve.ModuleFile(rel) || path.Base(rel) == "plugin.cfg" || slices.Contains(contentExts, path.Ext(rel))
 }
 
 // parseStage turns `ls-files -z --stage` into paths and blob ids. Submodule

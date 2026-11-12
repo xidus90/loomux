@@ -218,7 +218,7 @@ func Extract(root string, opts ExtractOptions) (*model.Graph, Stats, error) {
 		results = append(results, r)
 	}
 
-	mods, err := resolve.Modules(root, goModPaths(root))
+	mods, err := resolve.Modules(root, moduleFiles(root))
 	if err != nil {
 		return nil, Stats{}, err
 	}
@@ -233,13 +233,12 @@ func Extract(root string, opts ExtractOptions) (*model.Graph, Stats, error) {
 // a nil extractor, for the day the lists part.
 var languageFor = all.For
 
-// goModPaths are the repo-relative go.mod files, found by walking for them --
-// sourceset lists source files and a go.mod is not one. This walk shares
-// sourceset.SkipDir with sourceset.Stat rather than keeping its own,
-// narrower list: the two used to disagree about testdata, which let a
-// fixture go.mod there reach module resolution after its .go files had
-// already been excluded from the file set.
-func goModPaths(root string) []string {
+// moduleFiles are the repo-relative go.mod, tsconfig.json and jsconfig.json
+// files (resolve.ModuleFile), found by walking for them -- sourceset lists
+// source files and none of these is one. This walk shares
+// sourceset.SkipDir with sourceset.Stat, so a module file under a pruned
+// directory such as testdata never reaches resolution.
+func moduleFiles(root string) []string {
 	var out []string
 	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -251,7 +250,7 @@ func goModPaths(root string) []string {
 			}
 			return nil
 		}
-		if d.Name() != "go.mod" {
+		if !resolve.ModuleFile(d.Name()) {
 			return nil
 		}
 		rel, err := filepath.Rel(root, p)

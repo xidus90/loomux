@@ -254,3 +254,15 @@ func TestFindingString(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+// The tsconfig of a package reaches the resolver beside the go.mod.
+func TestModulesPassATSConfigThrough(t *testing.T) {
+	mods := modules([]File{
+		{Rel: "go.mod", Content: []byte("module example.com/m\n")},
+		{Rel: "web/tsconfig.json", Content: []byte(`{"compilerOptions": {"baseUrl": "src",},}`)},
+		{Rel: "web/a.ts", Content: []byte("module x\n")},
+	})
+	if len(mods) != 2 || mods[0].Path != "example.com/m" || mods[1].Dir != "web" || mods[1].TS == nil || mods[1].TS.BaseURL != "src" {
+		t.Fatalf("%+v", mods)
+	}
+}

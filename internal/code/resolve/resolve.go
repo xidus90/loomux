@@ -40,27 +40,28 @@ func Graph(files []extract.Result, mods []Module, extractor string) *model.Graph
 }
 
 // GraphWith resolves every raw edge and returns a whole wiring graph, and the
-// extends edges that stayed unresolved, in the order of the languages and
+// extends edges that stayed unresolved, in the order of the families and
 // files. extractor is the stamp the graph's meta carries; the caller names it,
 // because this package knows the rules of each language and not the list of
 // them.
 //
-// Each language is resolved against its own files alone: a Go call never
-// lands on a Python function of the same name, and a name defined once per
-// language is still unique within each; a Godot path alone may land on a file
-// of another language, by its path. A symbol of another language is reached
-// only over a bridge: a name some language offers under a namespace, looked
-// up by that namespace's rules once every language is resolved (bridge.go).
+// Each family (familyOf) is resolved against its own files alone: a Go call
+// never lands on a Python function of the same name, and a name defined once
+// per family is still unique within each; JavaScript and TypeScript import
+// each other and form one family. A Godot path alone may land on a file of
+// another language, by its path. A symbol of another family is reached only
+// over a bridge: a name some language offers under a namespace, looked up by
+// that namespace's rules once every family is resolved (bridge.go).
 func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.Graph, []Unresolved) {
-	// An embedded part joins its own language's group, beside its file.
+	// An embedded part joins its own family's group, beside its file.
 	var flat []extract.Result
 	for _, f := range files {
 		flat = append(flat, f.Flatten()...)
 	}
 	files = flat
-	groups := byLanguage(files)
+	groups := byFamily(files)
 	g := &model.Graph{Meta: model.Meta{
-		Version: schemaVersion, Extractor: extractor, Languages: languagesOf(groups),
+		Version: schemaVersion, Extractor: extractor, Languages: languagesOf(files),
 	}}
 	for _, f := range files {
 		g.Nodes = append(g.Nodes, f.Nodes...)
@@ -74,9 +75,20 @@ func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.
 			paths[f.Path] = true
 		}
 	}
+	// The HTML pages that load each script, of any language: only
+	// ECMAScript's resolver reads them.
+	pages := scriptPages(files)
+	// A family resolves at its first language in the sorted list: the edge
+	// sort below is not stable, so the order of the families is part of the
+	// bytes of the graph, and a family of one language keeps its old place.
 	var outs []langOut
+	done := map[string]bool{}
 	for _, lang := range g.Meta.Languages {
-		outs = append(outs, edgesOf(lang, groups[lang], mods, paths))
+		family := familyOf(lang)
+		if !done[family] {
+			done[family] = true
+			outs = append(outs, edgesOf(family, groups[family], mods, paths, pages))
+		}
 	}
 	edges, unresolved, offers, handovers := mergeLangs(outs)
 	all := make([]string, 0, len(files))
@@ -111,44 +123,61 @@ func GraphWith(files []extract.Result, mods []Module, extractor string) (*model.
 // the two are bumped together.
 const schemaVersion = 3
 
-// byLanguage groups the files by the language that extracted them, each group
-// in the order the files arrived. That order is kept on purpose: the edge sort
-// in Graph is not stable, so two edges alike but for their confidence may come
-// out in any order -- but the same input order gives the same output order,
-// and that is what a byte-identical graph needs.
-func byLanguage(files []extract.Result) map[string][]extract.Result {
+// familyOf is the group a language resolves in: languages that import each
+// other's files share one, every other language is its own.
+func familyOf(lang string) string {
+	switch lang {
+	case "javascript", "typescript":
+		return "ecmascript"
+	}
+	return lang
+}
+
+// byFamily groups the files by the family of the language that extracted
+// them, each group in the order the files arrived. That order is kept on
+// purpose: the edge sort in Graph is not stable, so two edges alike but for
+// their confidence may come out in any order -- but the same input order gives
+// the same output order, and that is what a byte-identical graph needs.
+func byFamily(files []extract.Result) map[string][]extract.Result {
 	groups := map[string][]extract.Result{}
 	for _, f := range files {
-		groups[f.Language] = append(groups[f.Language], f)
+		family := familyOf(f.Language)
+		groups[family] = append(groups[family], f)
 	}
 	return groups
 }
 
-// languagesOf is the sorted names of the groups: the meta's list, and the
-// order the groups are resolved in. Never nil, so a graph of no files says
-// `[]` and not `null`.
-func languagesOf(groups map[string][]extract.Result) []string {
-	langs := make([]string, 0, len(groups))
-	for lang := range groups {
-		langs = append(langs, lang)
+// languagesOf is the sorted names of the languages of files: the meta's
+// list. Never nil, so a graph of no files says `[]` and not `null`.
+func languagesOf(files []extract.Result) []string {
+	seen := map[string]bool{}
+	langs := []string{}
+	for _, f := range files {
+		if !seen[f.Language] {
+			seen[f.Language] = true
+			langs = append(langs, f.Language)
+		}
 	}
 	sort.Strings(langs)
 	return langs
 }
 
-// edgesOf resolves the raw edges of one language's files against an index of
+// edgesOf resolves the raw edges of one family's files against an index of
 // those files alone: Go's here, Python's in resolvePython, Godot's in
 // resolveGDScript, C#'s in resolveCSharp, C++'s in resolveCPP, Java's in
-// resolveJava, PHP's in resolvePHP. Every index but Godot's holds its own
-// language's files alone; the paths a Godot file names see every file of
-// the build.
+// resolveJava, PHP's in resolvePHP, JavaScript's and TypeScript's in
+// resolveECMAScript. Every index but Godot's holds its own family's files
+// alone; the paths a Godot file names see every file of the build, and
+// pages, the HTML pages that load a script, scope a script's web handovers.
 //
-// A language without resolution rules keeps its containment, which its
+// A family without resolution rules keeps its containment, which its
 // extractor already resolved, and loses every other edge: a call or an import
 // resolved by another language's rules would be a guess dressed up as an
 // edge.
-func edgesOf(lang string, files []extract.Result, mods []Module, paths map[string]bool) langOut {
-	switch lang {
+func edgesOf(family string, files []extract.Result, mods []Module, paths map[string]bool, pages map[string][]string) langOut {
+	switch family {
+	case "ecmascript":
+		return resolveECMAScript(files, mods, pages)
 	case "python":
 		edges, un := resolvePython(files)
 		return langOut{edges: edges, unresolved: un}
@@ -164,7 +193,7 @@ func edgesOf(lang string, files []extract.Result, mods []Module, paths map[strin
 		return resolvePHP(files)
 	}
 	var out []model.Edge
-	if lang != "go" {
+	if family != "go" {
 		for _, f := range files {
 			for _, raw := range f.Edges {
 				if raw.Relation == model.RelationContains {

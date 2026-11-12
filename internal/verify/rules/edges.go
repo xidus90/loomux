@@ -3,7 +3,6 @@ package rules
 import (
 	"cmp"
 	"fmt"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,15 +29,24 @@ func (f Finding) String() string {
 	return f.Path + ":" + strconv.Itoa(f.Line) + " " + f.Text
 }
 
+// modules are the go.mod modules and tsconfig aliases among files.
+func modules(files []File) []resolve.Module {
+	bodies := map[string]string{}
+	for _, f := range files {
+		if resolve.ModuleFile(f.Rel) {
+			bodies[f.Rel] = string(f.Content)
+		}
+	}
+	// ModulesFrom has no error path today; only its signature leaves room for one.
+	mods, _ := resolve.ModulesFrom(bodies)
+	return mods
+}
+
 // Edges reports the edges and the unresolved bases the layer map forbids. The
 // graph is built from files alone, with the extractors of `loomux graph`.
 func Edges(files []File, m *Map) ([]Finding, error) {
 	var results []extract.Result
-	gomods := map[string]string{}
 	for _, f := range files {
-		if path.Base(f.Rel) == "go.mod" {
-			gomods[f.Rel] = string(f.Content)
-		}
 		lang, ok := all.For(f.Rel)
 		if !ok {
 			continue
@@ -49,9 +57,7 @@ func Edges(files []File, m *Map) ([]Finding, error) {
 		}
 		results = append(results, r)
 	}
-	// ModulesFrom has no error path today; only its signature leaves room for one.
-	mods, _ := resolve.ModulesFrom(gomods)
-	g, unresolved := resolve.GraphWith(results, mods, all.Version())
+	g, unresolved := resolve.GraphWith(results, modules(files), all.Version())
 	nodes := map[model.NodeID]model.Node{}
 	for _, n := range g.Nodes {
 		nodes[n.ID] = n
