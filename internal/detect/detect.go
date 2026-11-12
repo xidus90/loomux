@@ -6,10 +6,14 @@
 package detect
 
 import (
+	"encoding/json"
 	"io/fs"
 	"path"
+	"slices"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/xidus90/loomux/internal/code/corpus"
 )
@@ -31,7 +35,8 @@ type Facts struct {
 	// defaults -- which is a different set of rules than the project's.
 	GodotDir string
 	// Areas names, per stack, every area a signal of that stack matched in:
-	// "." for the root, else the top-level directory. A check runs one lane
+	// "." for the root, else the top-level directory or a workspace member
+	// the root declares, which may lie deeper. A check runs one lane
 	// per area, so two web apps under one root are linted where each lives.
 	Areas map[string][]string
 	// Ambiguous carries findings that must not be decided here -- a Django
@@ -40,13 +45,15 @@ type Facts struct {
 	Ambiguous []string
 }
 
-// Detect reads the root and one level below it, for workspaces.
+// Detect reads the root, one level below it and the members a JavaScript
+// workspace declares, for workspaces.
 //
 // Two facts are missing from what it can return: HooksPath lives in git's
 // config and the neighbour wiki lies outside the root. Both have their own
 // function in this package, and cmd/init joins them to these facts.
 func Detect(root fs.FS) Facts {
-	areas := searchAreas(root)
+	members := workspaceMembers(root)
+	areas := searchAreas(root, members)
 	found := map[string]bool{}
 	areasOf := map[string]map[string]bool{}
 	var owned []string
@@ -79,7 +86,7 @@ func Detect(root fs.FS) Facts {
 			areasOf[joined]["."] = true
 		}
 	}
-	facts := Facts{Stacks: sorted(found), Areas: map[string][]string{}, Ambiguous: doubts(root, areas), GodotDir: godotArea(root, areas)}
+	facts := Facts{Stacks: sorted(found), Areas: map[string][]string{}, Ambiguous: doubts(root, areas, len(members) > 0), GodotDir: godotArea(root, areas)}
 	for stack, set := range areasOf {
 		facts.Areas[stack] = sorted(set)
 	}
@@ -173,8 +180,10 @@ func declaresWiki(manifest string) bool {
 	return false
 }
 
-// doubts collects the questions the tree raises without answering.
-func doubts(root fs.FS, areas []string) []string {
+// doubts collects the questions the tree raises without answering; a root
+// that declares workspace members has answered the one its package.json
+// raises.
+func doubts(root fs.FS, areas []string, workspace bool) []string {
 	var notes []string
 	for _, doubt := range ambiguities {
 		for _, area := range areas {
@@ -182,6 +191,12 @@ func doubts(root fs.FS, areas []string) []string {
 				continue
 			}
 			if doubt.unless != "" && exists(root, path.Join(area, doubt.unless)) {
+				continue
+			}
+			if doubt.unlessWorkspace && workspace && area == "." {
+				continue
+			}
+			if doubt.unlessBelow != nil && holds(root, area, doubt.unlessBelow, doubt.path) {
 				continue
 			}
 			notes = append(notes, doubt.note)
@@ -197,18 +212,67 @@ func doubts(root fs.FS, areas []string) []string {
 // layout, and a rule fired from there says something about the wrong project.
 // Dot directories are skipped for the same reason -- `.godot/` and `.venv/`
 // carry caches, not projects, and a false alarm costs more than a missing rule.
-func searchAreas(root fs.FS) []string {
+// The members a workspace declares are the exception, at any depth: the
+// root says itself where its projects are.
+func searchAreas(root fs.FS, members []string) []string {
 	areas := []string{"."}
-	entries, err := fs.ReadDir(root, ".")
-	if err != nil {
-		return areas
-	}
+	entries, _ := fs.ReadDir(root, ".")
 	for _, entry := range entries {
 		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
 			areas = append(areas, entry.Name())
 		}
 	}
+	for _, m := range members {
+		if !slices.Contains(areas, m) {
+			areas = append(areas, m)
+		}
+	}
 	return areas
+}
+
+// workspaceMembers are the directories the root declares as members of a
+// JavaScript workspace and that hold a package.json: the patterns of
+// package.json's workspaces (a list, or Yarn's {"packages": [...]}) and of
+// pnpm-workspace.yaml's packages, where a leading ! excludes. A declaration
+// that does not parse declares nothing.
+// ponytail: fs.Glob reads ** as *, so packages/** finds one level only;
+// walk the tree if a workspace needs deeper members.
+func workspaceMembers(root fs.FS) []string {
+	var pkg struct{ Workspaces json.RawMessage }
+	body, _ := fs.ReadFile(root, "package.json")
+	_ = json.Unmarshal(body, &pkg)
+	var patterns []string
+	if json.Unmarshal(pkg.Workspaces, &patterns) != nil {
+		var yarn struct{ Packages []string }
+		_ = json.Unmarshal(pkg.Workspaces, &yarn)
+		patterns = yarn.Packages
+	}
+	var pnpm struct {
+		Packages []string `yaml:"packages"`
+	}
+	body, _ = fs.ReadFile(root, "pnpm-workspace.yaml")
+	_ = yaml.Unmarshal(body, &pnpm)
+	patterns = append(patterns, pnpm.Packages...)
+	var excluded []string
+	set := map[string]bool{}
+	for _, p := range patterns {
+		if not, ok := strings.CutPrefix(p, "!"); ok {
+			excluded = append(excluded, path.Clean(not))
+			continue
+		}
+		dirs, _ := fs.Glob(root, path.Clean(p))
+		for _, d := range dirs {
+			if exists(root, path.Join(d, "package.json")) {
+				set[d] = true
+			}
+		}
+	}
+	for d := range set {
+		if slices.ContainsFunc(excluded, func(x string) bool { ok, _ := path.Match(x, d); return ok }) {
+			delete(set, d)
+		}
+	}
+	return sorted(set)
 }
 
 // godotArea names the directory the Godot tree stands in.
@@ -238,7 +302,11 @@ func matches(root fs.FS, area string, sig signal) bool {
 	}
 	for _, name := range candidates(root, area, sig) {
 		// Only a matched file pays for the walk.
-		if sig.below != "" && !holds(root, area, sig.below) {
+		stop := ""
+		if sig.nested {
+			stop = sig.path
+		}
+		if sig.below != nil && !holds(root, area, sig.below, stop) {
 			return false
 		}
 		if sig.contains == "" {
@@ -252,26 +320,39 @@ func matches(root fs.FS, area string, sig signal) bool {
 	return false
 }
 
-// holds says whether a file with the extension lies anywhere under area,
-// the directories the code graph does not enter aside. The walk stops at the
-// first hit.
-// ponytail: a tree without one is walked whole on every detection; cache per
-// area if a large Kotlin repository makes the hooks slow.
-func holds(root fs.FS, area, ext string) bool {
+// holds says whether a file with one of exts lies anywhere under area,
+// the directories the code graph does not enter aside, and those holding a
+// file named stop when it is set: a nested package is a project of its own.
+// Tooling configuration at the area root (eslint.config.js, .prettierrc.cjs)
+// is no source. The walk stops at the first hit.
+// ponytail: a tree without one is walked whole on every detection, twice for
+// a tooling package.json (signal and question); cache per area if a large
+// Kotlin repository or one with a root package.json makes the hooks slow.
+func holds(root fs.FS, area string, exts []string, stop string) bool {
 	found := false
 	fs.WalkDir(root, area, func(p string, d fs.DirEntry, err error) error {
 		switch {
 		case err != nil:
 			return nil
-		case d.IsDir() && p != area && corpus.SkipSegment(d.Name()):
+		case d.IsDir() && p != area && (corpus.SkipSegment(d.Name()) || stop != "" && exists(root, path.Join(p, stop))):
 			return fs.SkipDir
-		case !d.IsDir() && path.Ext(p) == ext:
+		case !d.IsDir() && path.Dir(p) == area && toolingConfig(d.Name()):
+			return nil
+		case !d.IsDir() && slices.Contains(exts, path.Ext(p)):
 			found = true
 			return fs.SkipAll
 		}
 		return nil
 	})
 	return found
+}
+
+// toolingConfig matches the names JavaScript tools read their configuration
+// from: name.config.ext and .namerc.ext.
+func toolingConfig(name string) bool {
+	config, _ := path.Match("*.config.*", name)
+	rc, _ := path.Match(".*rc.*", name)
+	return config || rc
 }
 
 func candidates(root fs.FS, area string, sig signal) []string {

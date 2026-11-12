@@ -2,11 +2,14 @@ package detect
 
 import (
 	"io/fs"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/xidus90/loomux/internal/code/extract/ecmascript"
 )
 
 func TestUvManagedPythonIsDetected(t *testing.T) {
@@ -342,6 +345,146 @@ func TestTypescriptNeedsBothHalves(t *testing.T) {
 	}
 	if len(both.Ambiguous) != 0 {
 		t.Fatalf("ambiguous = %v, want none once tsconfig.json answers it", both.Ambiguous)
+	}
+}
+
+// A package.json with JavaScript or TypeScript sources below it is a project
+// of its own, without a tsconfig.json; the sources the code graph skips do
+// not count, and a Gradle build in Kotlin DSL still needs a .java file.
+func TestAPackageJSONWithSourcesIsATypescriptProject(t *testing.T) {
+	for _, src := range []string{"src/a.js", "a.mjs", "lib/a.cjs", "a.jsx", "a.ts", "a.mts", "a.cts", "a.tsx"} {
+		facts := Detect(fstest.MapFS{"package.json": {Data: []byte("{}")}, src: {Data: []byte("\n")}})
+		if !reflect.DeepEqual(facts.Stacks, []string{"typescript"}) || len(facts.Ambiguous) != 0 {
+			t.Errorf("%s: stacks %v, ambiguous %v", src, facts.Stacks, facts.Ambiguous)
+		}
+	}
+	vendored := Detect(fstest.MapFS{"package.json": {Data: []byte("{}")}, "node_modules/x/a.js": {Data: []byte("\n")}})
+	if len(vendored.Stacks) != 0 || len(vendored.Ambiguous) != 1 {
+		t.Errorf("only under node_modules: stacks %v, ambiguous %v", vendored.Stacks, vendored.Ambiguous)
+	}
+	mixed := Detect(fstest.MapFS{"build.gradle.kts": {Data: []byte("\n")}, "a/A.java": {Data: []byte("class A {}\n")}, "b.js": {Data: []byte("\n")}})
+	if !reflect.DeepEqual(mixed.Stacks, []string{"gradle", "java"}) {
+		t.Errorf("Gradle Kotlin with Java: %v", mixed.Stacks)
+	}
+}
+
+// A member with its own package.json is its own project: the root's
+// package.json does not claim its sources, and stays a question unless it
+// has sources of its own outside the members.
+func TestANestedPackageIsItsOwnArea(t *testing.T) {
+	tree := fstest.MapFS{
+		"pyproject.toml":          {Data: []byte("[project]\n")},
+		"package.json":            {Data: []byte("{}")},
+		"web/package.json":        {Data: []byte("{}")},
+		"web/src/a.ts":            {Data: []byte("\n")},
+		"packages/x/package.json": {Data: []byte("{}")},
+		"packages/x/a.js":         {Data: []byte("\n")},
+	}
+	facts := Detect(tree)
+	if !reflect.DeepEqual(facts.Areas["typescript"], []string{"web"}) || len(facts.Ambiguous) != 1 {
+		t.Errorf("areas %v, ambiguous %v", facts.Areas["typescript"], facts.Ambiguous)
+	}
+	tree["scripts/build.mjs"] = &fstest.MapFile{Data: []byte("\n")}
+	facts = Detect(tree)
+	if !reflect.DeepEqual(facts.Areas["typescript"], []string{".", "web"}) || len(facts.Ambiguous) != 0 {
+		t.Errorf("with own sources: areas %v, ambiguous %v", facts.Areas["typescript"], facts.Ambiguous)
+	}
+}
+
+// A workspace declares its members, also two levels down: each with a
+// package.json becomes an area, and the declaration answers the question
+// about the root's package.json. Every signal is read there, but only in a
+// declared member.
+func TestDeclaredWorkspaceMembersAreAreas(t *testing.T) {
+	members := fstest.MapFS{
+		"packages/a/package.json":   {Data: []byte("{}")},
+		"packages/a/src/a.ts":       {Data: []byte("\n")},
+		"packages/b/package.json":   {Data: []byte("{}")},
+		"packages/b/pyproject.toml": {Data: []byte("[project]\n")},
+		"packages/none/README.md":   {Data: []byte("\n")},
+		"apps/web/package.json":     {Data: []byte("{}")},
+		"apps/web/b.js":             {Data: []byte("\n")},
+		"tools/x/pyproject.toml":    {Data: []byte("[project]\n")},
+	}
+	for name, decl := range map[string]fstest.MapFS{
+		"npm":          {"package.json": {Data: []byte(`{"workspaces": ["packages/*", "apps/web", "!packages/b"]}`)}},
+		"yarn classic": {"package.json": {Data: []byte(`{"workspaces": {"packages": ["packages/*", "apps/*"]}}`)}},
+		"pnpm": {
+			"package.json":        {Data: []byte("{}")},
+			"pnpm-workspace.yaml": {Data: []byte("packages:\n  - 'packages/*'\n  - apps/*\n  - '!**/test/**'\n")},
+		},
+	} {
+		tree := maps.Clone(members)
+		maps.Copy(tree, decl)
+		facts := Detect(tree)
+		// packages/b's package.json above Python alone is still a question.
+		wantPy, doubts := []string{"packages/b"}, 1
+		if name == "npm" {
+			wantPy, doubts = nil, 0 // excluded by its negation
+		}
+		if !reflect.DeepEqual(facts.Areas["typescript"], []string{"apps/web", "packages/a"}) || len(facts.Ambiguous) != doubts {
+			t.Errorf("%s: areas %v, ambiguous %v", name, facts.Areas, facts.Ambiguous)
+		}
+		if py := facts.Areas["python"]; !reflect.DeepEqual(py, wantPy) {
+			t.Errorf("%s: python areas %v, want %v", name, py, wantPy)
+		}
+	}
+	// Without a declaration two levels down stays a member's own layout.
+	tree := maps.Clone(members)
+	tree["package.json"] = &fstest.MapFile{Data: []byte(`{"workspaces": 3}`)}
+	if facts := Detect(tree); len(facts.Areas["typescript"]) != 0 || has(facts.Stacks, "python") {
+		t.Errorf("unreadable workspaces: %+v", facts)
+	}
+	tree["pnpm-workspace.yaml"] = &fstest.MapFile{Data: []byte("packages: [\n")}
+	if facts := Detect(tree); len(facts.Areas["typescript"]) != 0 {
+		t.Errorf("broken pnpm-workspace.yaml: %+v", facts)
+	}
+}
+
+// Jest is named by its package or a config file of its own; a package that
+// only shares the name (ts-jest, @types/jest) is no signal, and jest alone
+// makes no typescript area.
+func TestJestIsDetected(t *testing.T) {
+	for name, tree := range map[string]fstest.MapFS{
+		"package.json":   {"package.json": {Data: []byte(`{"devDependencies": {"jest": "30.5.2"}}`)}, "a.js": {Data: []byte("\n")}},
+		"jest.config.ts": {"package.json": {Data: []byte("{}")}, "jest.config.ts": {Data: []byte("\n")}, "a.ts": {Data: []byte("\n")}},
+	} {
+		if facts := Detect(tree); !reflect.DeepEqual(facts.Stacks, []string{"jest", "typescript"}) {
+			t.Errorf("%s: %v", name, facts.Stacks)
+		}
+	}
+	other := Detect(fstest.MapFS{"package.json": {Data: []byte(`{"devDependencies": {"ts-jest": "1", "@types/jest": "1"}}`)}, "a.js": {Data: []byte("\n")}})
+	if !reflect.DeepEqual(other.Stacks, []string{"typescript"}) {
+		t.Errorf("ts-jest: %v", other.Stacks)
+	}
+}
+
+// A tooling package.json brings tooling configuration in JavaScript; that is
+// no source, and the question stays.
+func TestToolingConfigurationIsNoSource(t *testing.T) {
+	for _, name := range []string{"eslint.config.js", "prettier.config.cjs", ".prettierrc.cjs", "commitlint.config.mjs", "vite.config.ts", ".eslintrc.js"} {
+		facts := Detect(fstest.MapFS{
+			"pyproject.toml": {Data: []byte("[project]\n")},
+			"package.json":   {Data: []byte("{}")},
+			name:             {Data: []byte("\n")},
+		})
+		if has(facts.Stacks, "typescript") || len(facts.Ambiguous) != 1 {
+			t.Errorf("%s: stacks %v, ambiguous %v", name, facts.Stacks, facts.Ambiguous)
+		}
+	}
+	// Below the area root a config-like name is a source like any other.
+	facts := Detect(fstest.MapFS{"package.json": {Data: []byte("{}")}, "src/app.config.ts": {Data: []byte("\n")}})
+	if !has(facts.Stacks, "typescript") {
+		t.Errorf("src/app.config.ts: %v", facts.Stacks)
+	}
+}
+
+// Detection lists the extractor's extensions by hand, so the hook path does
+// not load the grammars.
+func TestEcmaExtsAreTheExtractors(t *testing.T) {
+	want := append(ecmascript.JavaScript{}.Extensions(), ecmascript.TypeScript{}.Extensions()...)
+	if !slices.Equal(slices.Sorted(slices.Values(ecmaExts)), slices.Sorted(slices.Values(want))) {
+		t.Errorf("%v, extractor %v", ecmaExts, want)
 	}
 }
 

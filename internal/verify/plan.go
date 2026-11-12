@@ -265,7 +265,7 @@ func Plan(eff Effective, req Request, env PlanEnv) ([]Job, error) {
 // highest first: the first of them with a graph command carries it. A stack
 // outside the list ranks after all of them, and among those the byte order
 // decides.
-var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php"}
+var carrierRank = []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php", "typescript"}
 
 // isRootKind says the kind belongs to the repository root: it runs once, not
 // once per stack and area.
@@ -304,7 +304,7 @@ func EditsRules(file string) bool {
 // IsSource says whether the rules read a file as a source: the extractors'
 // extensions, matched exactly as they match them, so A.GD is none.
 func IsSource(rel string) bool {
-	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java", ".php"}, filepath.Ext(rel))
+	return slices.Contains([]string{".go", ".py", ".gd", ".cs", ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".h", ".inl", ".ipp", ".tpp", ".java", ".php", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx"}, filepath.Ext(rel))
 }
 
 // rootCarrier is the stack whose job of a root kind a check plans: the
@@ -458,12 +458,12 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 	}
 	measured := kind == "test" || kind == "coverage"
 	patterns := eff.TestsWhen[stack]
-	if measured && len(patterns) > 0 && !eff.Configured[stack] && !env.HasTests(dir, patterns) {
+	if measured && len(patterns) > 0 && !eff.Configured[stack] && !env.found(dir, patterns) {
 		job.Pre, job.Note = StateUnavailable, "no tests found"
 		return job, link{}, true, nil
 	}
 	for _, p := range r.Lane.WhenFound {
-		if env.HasTests(dir, []string{p}) {
+		if env.found(dir, []string{p}) {
 			continue
 		}
 		// A missing path guards only the commands naming it, so php -l
@@ -493,7 +493,10 @@ func planJob(eff Effective, req Request, env PlanEnv, kind, stack, area string) 
 			return job, link{}, true, nil
 		}
 	}
-	measuring := kind == "test" && r.Lane.Measuring != "" && slices.Contains(req.Kinds, "coverage")
+	// The measuring form may need what the coverage lane waits for, such as
+	// vitest's coverage provider: without it the test runs as it would alone.
+	measuring := kind == "test" && r.Lane.Measuring != "" && slices.Contains(req.Kinds, "coverage") &&
+		!slices.ContainsFunc(eff.Lanes(stack, area)["coverage"].Lane.WhenFound, func(p string) bool { return !env.found(dir, []string{p}) })
 	if measuring {
 		cmds = []string{r.Lane.Measuring}
 	}

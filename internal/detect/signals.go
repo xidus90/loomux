@@ -22,9 +22,13 @@ type signal struct {
 	// below it, and a member checked on its own would build it a second
 	// time, or in C++ find no build tree at all.
 	owns bool
-	// below, when set, is an extension some file under the area must carry:
-	// a Gradle build in Kotlin DSL is a Java project only with Java sources.
-	below string
+	// below, when set, holds extensions of which some file under the area
+	// must carry one: a Gradle build in Kotlin DSL is a Java project only with
+	// Java sources.
+	below []string
+	// nested, when set, ends that search at a directory holding its own
+	// path: a member package is a project of its own.
+	nested bool
 	// joins, when set, names a stack whose ownership of the root takes this
 	// signal's matches below the root in as well: an Android plugin applied
 	// in app/ belongs to the root's Gradle build.
@@ -51,7 +55,14 @@ var signals = []signal{
 	{path: ".clang-tidy", stacks: []string{"cpp", "clang-tidy"}},
 	{path: ".clang-format", stacks: []string{"cpp", "clang-format"}},
 	{path: "tsconfig.json", besides: "package.json", stacks: []string{"typescript"}},
+	// JavaScript shares every tool with TypeScript but tsc, which its lane
+	// guards on a tsconfig.json.
+	{path: "package.json", below: ecmaExts, nested: true, stacks: []string{"typescript"}},
 	{path: "biome.json", stacks: []string{"biome", "typescript"}},
+	// The quotes keep ts-jest and @types/jest out; a tooling package.json
+	// with jest stays the question it is.
+	{path: "package.json", contains: `"jest"`, stacks: []string{"jest"}},
+	{glob: "jest.config.*", stacks: []string{"jest"}},
 	{path: "pnpm-workspace.yaml", stacks: []string{"pnpm"}},
 	{path: ".gdlintrc", stacks: []string{"gdlint", "gdscript"}},
 	{path: "addons/gut/plugin.cfg", stacks: []string{"gut", "gdscript"}},
@@ -60,8 +71,8 @@ var signals = []signal{
 	{path: "pom.xml", stacks: []string{"java", "maven"}, owns: true},
 	{path: "build.gradle", stacks: []string{"java", "gradle"}, owns: true},
 	{path: "settings.gradle", stacks: []string{"java", "gradle"}, owns: true},
-	{path: "build.gradle.kts", below: ".java", stacks: []string{"java", "gradle"}, owns: true},
-	{path: "settings.gradle.kts", below: ".java", stacks: []string{"java", "gradle"}, owns: true},
+	{path: "build.gradle.kts", below: []string{".java"}, stacks: []string{"java", "gradle"}, owns: true},
+	{path: "settings.gradle.kts", below: []string{".java"}, stacks: []string{"java", "gradle"}, owns: true},
 	// The Android plugin's id, its buildscript classpath, or the version
 	// catalog a plugins alias reads it from.
 	{path: "build.gradle", contains: "com.android", stacks: []string{"android"}, joins: "gradle"},
@@ -114,7 +125,13 @@ type ambiguity struct {
 	// unless names the file that resolves the question. A package.json is
 	// only in doubt while no tsconfig.json stands beside it.
 	unless string
-	note   string
+	// unlessBelow resolves it as well, by a file with one of these extensions
+	// under the area: a package.json above sources is their project.
+	unlessBelow []string
+	// unlessWorkspace resolves it in the root once the root declares
+	// workspace members: their package.json files are the projects.
+	unlessWorkspace bool
+	note            string
 }
 
 var ambiguities = []ambiguity{
@@ -123,11 +140,17 @@ var ambiguities = []ambiguity{
 		note: "django: migrations may be generated or hand-written -- protect `migrations/[0-9][0-9][0-9][0-9]_*.py`?",
 	},
 	{
-		path:   "package.json",
-		unless: "tsconfig.json",
-		note:   "package.json without tsconfig.json: a JavaScript project, or tooling for another language?",
+		path:            "package.json",
+		unless:          "tsconfig.json",
+		unlessBelow:     ecmaExts,
+		unlessWorkspace: true,
+		note:            "package.json without tsconfig.json: a JavaScript project, or tooling for another language?",
 	},
 }
+
+// ecmaExts are the extensions the code graph reads as JavaScript and
+// TypeScript.
+var ecmaExts = []string{".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx"}
 
 // The wiki question, kept beside the others although its shape differs: a
 // directory rather than a file, and answered by a marker inside it.

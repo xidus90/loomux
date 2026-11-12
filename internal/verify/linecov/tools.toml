@@ -150,7 +150,7 @@ markers = [
 # vitest keeps its settings in code (vitest.config.ts), which is not read:
 # the profile brings report locations and the v8 markers only.
 [tool.vitest]
-extensions = [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue", ".svelte"]
+extensions = [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".vue", ".svelte"]
 reports = ["coverage/lcov.info", "coverage/cobertura-coverage.xml"]
 markers = [
   { label = "v8 ignore", pattern = 'v8\s+ignore\s+(?:next|if|else)\b' },

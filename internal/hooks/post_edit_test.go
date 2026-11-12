@@ -274,10 +274,12 @@ func TestPostEditWarnsWhenItCannotCleanTheCoverDirectory(t *testing.T) {
 func TestPostEditRunsATypeScriptLaneInItsArea(t *testing.T) {
 	root := t.TempDir()
 	web := filepath.Join(root, "web")
-	if err := os.MkdirAll(filepath.Join(web, "src"), 0o755); err != nil {
-		t.Fatal(err)
+	for _, dir := range []string{"src", "node_modules/.bin"} {
+		if err := os.MkdirAll(filepath.Join(web, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
-	for _, name := range []string{"package.json", "tsconfig.json"} {
+	for _, name := range []string{"package.json", "tsconfig.json", "node_modules/.bin/eslint", "node_modules/.bin/tsc"} {
 		if err := os.WriteFile(filepath.Join(web, name), []byte("{}"), 0o644); err != nil {
 			t.Fatal(err)
 		}

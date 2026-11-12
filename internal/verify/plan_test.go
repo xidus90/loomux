@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"cmp"
 	"os"
 	"path/filepath"
 	"slices"
@@ -382,7 +383,8 @@ func TestPlanGdscriptDocsOnlyCommitNeverAsksForGodot(t *testing.T) {
 	}
 }
 
-// Without Nano Coverage the project still tests; only coverage is out.
+// Without Nano Coverage the project still tests, unmeasured: the suite's
+// --coverage needs the addon, and nothing would read its data.
 func TestPlanGdscriptWithoutNanoCoverageHasOnlyTheTestLane(t *testing.T) {
 	e := env(t.TempDir())
 	e.HasTests = func(_ string, p []string) bool { return p[0] == `plugin.cfg:name="gdUnit4"` }
@@ -390,6 +392,9 @@ func TestPlanGdscriptWithoutNanoCoverageHasOnlyTheTestLane(t *testing.T) {
 	jobs, err := Plan(effFor(t, "", gdFacts()), Request{Kinds: []string{"test", "coverage"}}, e)
 	if err != nil || len(jobs) != 2 || jobs[0].Pre != "" || jobs[1].Pre != StateUnavailable || jobs[1].Note != `none found: plugin.cfg:name="NanoCoverage"` {
 		t.Fatalf("%v %+v", err, jobs)
+	}
+	if slices.Contains(jobs[0].Argvs[0], "--coverage") {
+		t.Fatalf("measured: %q", jobs[0].Argvs)
 	}
 }
 
@@ -819,6 +824,275 @@ func TestPHPLanesWithoutVendorAreUnavailable(t *testing.T) {
 	jobs, _ = Plan(effFor(t, "", phpOnly), all, e)
 	if jobs[0].Pre != StateUnavailable || jobs[2].Pre != "" || jobs[3].Pre != "" {
 		t.Fatalf("with PHPUnit alone: %+v", jobs)
+	}
+}
+
+var tsOnly = detect.Facts{Stacks: []string{"typescript"}, Areas: map[string][]string{"typescript": {"."}}}
+
+// nodeProject is a TypeScript project before npm install: vitest named in
+// package.json, a tsconfig.json and one source.
+func nodeProject(t *testing.T) (string, PlanEnv) {
+	t.Helper()
+	root := t.TempDir()
+	put(t, root, "package.json", `{"devDependencies": {"vitest": "5.1.0"}}`)
+	put(t, root, "tsconfig.json", "{}")
+	put(t, root, "src/a.ts", "")
+	put(t, root, "src/a.test.ts", "")
+	e := env(root)
+	e.HasTests = HasTests
+	return root, e
+}
+
+// Without a TTY npx answers its own install prompt and fetches the newest
+// tool unpinned: before npm install every lane is unavailable, not red, and
+// none runs npx.
+func TestTypescriptLanesWithoutNodeModulesAreUnavailable(t *testing.T) {
+	root, e := nodeProject(t)
+	all := Request{Kinds: []string{"lint", "types", "test", "coverage"}}
+	jobs, _ := Plan(effFor(t, "", tsOnly), all, e)
+	for i, tool := range []string{"eslint", "tsc", "vitest", "vitest"} {
+		if jobs[i].Pre != StateUnavailable || jobs[i].Note != "none found: node_modules/.bin/"+tool || Red(jobs[i].Pre, ScopeCheck) {
+			t.Errorf("%s: %+v", jobs[i].Name, jobs[i])
+		}
+	}
+	edit := Request{Kinds: []string{"lint", "types"}, Scope: ScopeEdit, File: "src/a.ts"}
+	jobs, _ = Plan(effFor(t, "", tsOnly), edit, e)
+	if len(jobs) != 2 || jobs[0].Pre != StateUnavailable || jobs[1].Pre != StateUnavailable {
+		t.Errorf("edit: %+v", jobs)
+	}
+	// tsc looks for its tsconfig.json from the area upwards, so one in a
+	// subdirectory leaves it nothing of the project's to check.
+	put(t, root, "node_modules/.bin/tsc", "")
+	os.Remove(filepath.Join(root, "tsconfig.json"))
+	put(t, root, "e2e/tsconfig.json", "{}")
+	jobs, _ = Plan(effFor(t, "", tsOnly), Request{Kinds: []string{"types"}}, e)
+	if jobs[0].Pre != StateUnavailable || jobs[0].Note != "none found: ./tsconfig.json" {
+		t.Errorf("without tsconfig.json: %+v", jobs[0])
+	}
+	// A variant does not inherit the guard of the lane it replaces.
+	put(t, root, "node_modules/.bin/eslint", "")
+	biome := detect.Facts{Stacks: []string{"biome", "typescript"}, Areas: tsOnly.Areas}
+	jobs, _ = Plan(effFor(t, "", biome), Request{Kinds: []string{"lint"}}, e)
+	if jobs[0].Pre != StateUnavailable || jobs[0].Note != "none found: node_modules/.bin/biome" {
+		t.Errorf("biome: %+v", jobs[0])
+	}
+	put(t, root, "node_modules/.bin/biome", "")
+	jobs, _ = Plan(effFor(t, "", biome), Request{Kinds: []string{"lint"}}, e)
+	if jobs[0].Pre != "" || !slices.Equal(jobs[0].Argvs[0], []string{"npx", "biome", "check", "."}) {
+		t.Errorf("biome installed: %+v", jobs[0])
+	}
+}
+
+// With the tools installed the lanes run them, and coverage is vitest's lcov
+// report through linecov, measured in the test lane when both run.
+func TestPlanRunsTheInstalledNodeTools(t *testing.T) {
+	root, e := nodeProject(t)
+	for _, tool := range []string{"node_modules/.bin/eslint", "node_modules/.bin/tsc", "node_modules/.bin/vitest", "node_modules/@vitest/coverage-v8/package.json"} {
+		put(t, root, tool, "")
+	}
+	measuring := []string{"npx", "vitest", "run", "--coverage", "--coverage.reporter=lcov"}
+	all := Request{Kinds: []string{"lint", "types", "test", "coverage"}}
+	jobs, err := Plan(effFor(t, "", tsOnly), all, e)
+	if err != nil || names(jobs) != "lint/typescript types/typescript test/typescript coverage/typescript" {
+		t.Fatalf("%v %v", err, names(jobs))
+	}
+	want := [][]string{
+		{"npx", "eslint", "."},
+		{"npx", "tsc", "--noEmit"},
+		measuring,
+		{`C:\bin\loomux.exe`, "check", "linecov", "--report", "coverage/lcov.info"},
+	}
+	for i, j := range jobs {
+		if j.Pre != "" || !slices.EqualFunc(j.Argvs, want[i:i+1], slices.Equal) {
+			t.Errorf("%s: %q %+v", j.Name, j.Argvs, j)
+		}
+	}
+	if jobs[3].After != 2 {
+		t.Fatalf("coverage after test: %+v", jobs[3])
+	}
+	jobs, _ = Plan(effFor(t, "", tsOnly), Request{Kinds: []string{"coverage"}}, e)
+	if !slices.Equal(jobs[0].Measure, measuring) {
+		t.Fatalf("coverage alone measures: %q", jobs[0].Measure)
+	}
+	// Without the coverage provider vitest --coverage fails: the test lane
+	// runs plain, and coverage has nothing to read.
+	os.RemoveAll(filepath.Join(root, "node_modules", "@vitest"))
+	jobs, _ = Plan(effFor(t, "", tsOnly), all, e)
+	if !slices.EqualFunc(jobs[2].Argvs, [][]string{{"npx", "vitest", "run"}}, slices.Equal) ||
+		jobs[3].Pre != StateUnavailable || jobs[3].Note != "none found: node_modules/@vitest/coverage-v8/package.json" {
+		t.Fatalf("without coverage-v8: %+v", jobs[2:])
+	}
+}
+
+// Jest is a variant like Maven and Gradle: its lanes run jest in CI mode,
+// measure with lcov for linecov, and wait for jest in node_modules.
+func TestJestVariantRunsJest(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "package.json", `{"devDependencies": {"jest": "30.5.2"}}`)
+	put(t, root, "src/a.js", "")
+	put(t, root, "src/a.test.js", "")
+	e := env(root)
+	e.HasTests = HasTests
+	jest := detect.Facts{Stacks: []string{"jest", "typescript"}, Areas: map[string][]string{"typescript": {"."}, "jest": {"."}}}
+	all := Request{Kinds: []string{"test", "coverage"}}
+	jobs, _ := Plan(effFor(t, "", jest), all, e)
+	for _, j := range jobs {
+		if j.Pre != StateUnavailable || j.Note != "none found: node_modules/.bin/jest" {
+			t.Errorf("before npm install %s: %+v", j.Name, j)
+		}
+	}
+	put(t, root, "node_modules/.bin/jest", "")
+	jobs, _ = Plan(effFor(t, "", jest), all, e)
+	measuring := []string{"npx", "jest", "--ci", "--coverage", "--coverageReporters=lcov"}
+	if !slices.EqualFunc(jobs[0].Argvs, [][]string{measuring}, slices.Equal) ||
+		!slices.EqualFunc(jobs[1].Argvs, [][]string{{`C:\bin\loomux.exe`, "check", "linecov", "--report", "coverage/lcov.info"}}, slices.Equal) {
+		t.Errorf("installed: %q %q", jobs[0].Argvs, jobs[1].Argvs)
+	}
+	jobs, _ = Plan(effFor(t, "", jest), Request{Kinds: []string{"test"}}, e)
+	if !slices.EqualFunc(jobs[0].Argvs, [][]string{{"npx", "jest", "--ci"}}, slices.Equal) {
+		t.Errorf("test alone: %q", jobs[0].Argvs)
+	}
+	// biome shapes lint alone, jest test and coverage: both apply.
+	put(t, root, "node_modules/.bin/biome", "")
+	both := detect.Facts{Stacks: []string{"biome", "jest", "typescript"}, Areas: jest.Areas}
+	jobs, _ = Plan(effFor(t, "", both), Request{Kinds: []string{"lint", "test"}}, e)
+	if !slices.EqualFunc(jobs[0].Argvs, [][]string{{"npx", "biome", "check", "."}}, slices.Equal) ||
+		!slices.EqualFunc(jobs[1].Argvs, [][]string{{"npx", "jest", "--ci"}}, slices.Equal) {
+		t.Errorf("biome and jest: %+v", jobs)
+	}
+	// jest without a test file to find would fail; the lanes wait for one.
+	os.Remove(filepath.Join(root, "src", "a.test.js"))
+	jobs, _ = Plan(effFor(t, "", jest), Request{Kinds: []string{"test"}}, e)
+	if jobs[0].Pre != StateUnavailable || jobs[0].Note != "no tests found" {
+		t.Errorf("without test files: %+v", jobs[0])
+	}
+}
+
+// Only a measuring test asks for the coverage lane's guard: an edit of a
+// GDScript file walks no tree for plugin.cfg.
+func TestOnlyAMeasuringTestLooksForTheCoverageGuard(t *testing.T) {
+	e := env(t.TempDir())
+	calls := 0
+	e.HasTests = func(string, []string) bool { calls++; return true }
+	facts := detect.Facts{Stacks: []string{"gdscript"}, Areas: map[string][]string{"gdscript": {"."}}}
+	if _, err := Plan(effFor(t, "", facts), Request{Kinds: []string{"lint"}, Scope: ScopeEdit, File: "a.gd"}, e); err != nil || calls != 0 {
+		t.Fatalf("%v, %d walks", err, calls)
+	}
+}
+
+// This repository's own gate: dsh-loomux/ is a JavaScript package without
+// dependencies, tsconfig.json or vitest. It becomes a typescript area, yet
+// no lane of it runs, and the verdict of the run stays green.
+func TestAPackageWithoutToolsLeavesTheGateGreen(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "go.mod", "module x\n")
+	put(t, root, "dsh-loomux/package.json", `{"name": "dsh-loomux", "type": "module", "scripts": {"test": "node --test"}}`)
+	put(t, root, "dsh-loomux/index.js", "export {}\n")
+	put(t, root, "dsh-loomux/test/a.test.js", "import test from 'node:test'\n")
+	facts := detect.Detect(os.DirFS(root))
+	if !slices.Equal(facts.Areas["typescript"], []string{"dsh-loomux"}) {
+		t.Fatalf("%+v", facts)
+	}
+	e := env(root)
+	e.HasTests = HasTests
+	e.GraphReady = func(string) (bool, string) { return true, "" }
+	kinds := Kinds()
+	jobs, err := Plan(effFor(t, withRules, facts), Request{Kinds: kinds}, e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes := map[string]string{
+		"lint":     "none found: node_modules/.bin/eslint",
+		"types":    "none found: ./tsconfig.json",
+		"test":     "none found: node_modules/.bin/vitest",
+		"coverage": "none found: node_modules/.bin/vitest",
+		"graph":    "graph covered by graph/go",
+		"rules":    "rules covered by rules/go",
+	}
+	outs := []Outcome{}
+	for _, j := range jobs {
+		if j.Stack == "typescript" && (j.Pre == "" || j.Note != notes[j.Kind] || len(j.Argvs) != 0) {
+			t.Errorf("%s runs: %+v", j.Name, j)
+		}
+		outs = append(outs, Outcome{Job: j, State: cmp.Or(j.Pre, StateOK)})
+	}
+	if code, _ := CheckVerdict(kinds, outs, false); code != 0 {
+		t.Fatalf("verdict %d", code)
+	}
+}
+
+// A workspace member finds the tools and the vitest its root hoists, as npx
+// does: node_modules and package.json are looked for from the area up to
+// the repository root. ./tsconfig.json stays the area's own, and a
+// sibling's package.json names nothing for it.
+func TestWorkspaceMemberFindsWhatItsRootHoists(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "package.json", `{"workspaces": ["packages/*"], "devDependencies": {"vitest": "5.1.0"}}`)
+	put(t, root, "tsconfig.json", "{}")
+	for _, tool := range []string{"node_modules/.bin/eslint", "node_modules/.bin/tsc", "node_modules/.bin/vitest", "node_modules/@vitest/coverage-v8/package.json"} {
+		put(t, root, tool, "")
+	}
+	put(t, root, "packages/a/package.json", `{"name": "a"}`)
+	put(t, root, "packages/a/src/x.ts", "")
+	e := env(root)
+	e.HasTests = HasTests
+	member := detect.Facts{Stacks: []string{"typescript"}, Areas: map[string][]string{"typescript": {"packages/a"}}}
+	all := Request{Kinds: []string{"lint", "types", "test", "coverage"}}
+	// The root's vitest gives a member without test files no test lane: the
+	// runner would fail on finding none.
+	jobs, _ := Plan(effFor(t, "", member), all, e)
+	for _, j := range jobs[2:] {
+		if j.Pre != StateUnavailable || j.Note != "no tests found" {
+			t.Errorf("without test files %s: %+v", j.Name, j)
+		}
+	}
+	put(t, root, "packages/a/src/x.test.ts", "")
+	jobs, _ = Plan(effFor(t, "", member), all, e)
+	want := []struct {
+		pre  State
+		note string
+	}{{"", ""}, {StateUnavailable, "none found: ./tsconfig.json"}, {"", ""}, {"", ""}}
+	for i, w := range want {
+		if jobs[i].Pre != w.pre || jobs[i].Note != w.note {
+			t.Errorf("%s: %+v", jobs[i].Name, jobs[i])
+		}
+	}
+	if len(jobs[2].Argvs) == 0 || !slices.Contains(jobs[2].Argvs[0], "--coverage") {
+		t.Errorf("test runs unmeasured: %q", jobs[2].Argvs)
+	}
+	var b strings.Builder
+	WriteShow(&b, effFor(t, "", member), []string{"test"}, e)
+	if !strings.Contains(b.String(), "# typescript: areas packages/a, tests found") {
+		t.Errorf("show: %s", b.String())
+	}
+	// vitest only in a sibling's package.json is no test signal here.
+	put(t, root, "package.json", `{"workspaces": ["packages/*"]}`)
+	put(t, root, "packages/b/package.json", `{"devDependencies": {"vitest": "5.1.0"}}`)
+	jobs, _ = Plan(effFor(t, "", member), Request{Kinds: []string{"test"}}, e)
+	if jobs[0].Pre != StateUnavailable || jobs[0].Note != "none found: package.json:vitest" {
+		t.Errorf("sibling's vitest: %+v", jobs[0])
+	}
+}
+
+// Other stacks keep their guards in the area: PHP's vendor/bin and Python's
+// pyproject.toml in the root speak for no member.
+func TestOnlyNodeGuardsLookAboveTheArea(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "vendor/bin/phpunit", "")
+	put(t, root, "pyproject.toml", "[tool.pytest.ini_options]\n")
+	put(t, root, "m/src/a.py", "")
+	put(t, root, "m/ATest.php", "")
+	e := env(root)
+	e.HasTests = HasTests
+	php := detect.Facts{Stacks: []string{"php"}, Areas: map[string][]string{"php": {"m"}}}
+	jobs, _ := Plan(effFor(t, "", php), Request{Kinds: []string{"test"}}, e)
+	if jobs[0].Pre != StateUnavailable || jobs[0].Note != "none found: vendor/bin/phpunit" {
+		t.Errorf("php: %+v", jobs[0])
+	}
+	python := detect.Facts{Stacks: []string{"python"}, Areas: map[string][]string{"python": {"m"}}}
+	jobs, _ = Plan(effFor(t, "", python), Request{Kinds: []string{"test"}}, e)
+	if jobs[0].Pre != StateUnavailable || jobs[0].Note != "no tests found" {
+		t.Errorf("python: %+v", jobs[0])
 	}
 }
 
@@ -1420,7 +1694,7 @@ func factsOf(stacks ...string) detect.Facts {
 	return f
 }
 
-// The carrier follows the rank go, python, gdscript, csharp, cpp, java, php, then byte order, not the
+// The carrier follows the rank go, python, gdscript, csharp, cpp, java, php, typescript, then byte order, not the
 // walk: the jobs stay in byte order, and the carrier may stand later in it.
 func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 	unranked := "[verify.css.graph]\ncommands = [\"a\"]\n[verify.rust.graph]\ncommands = [\"b\"]\n"
@@ -1451,8 +1725,11 @@ func TestGraphCarrierFollowsTheRankNotTheWalk(t *testing.T) {
 			[][3]string{{"graph/cpp", "", ""}, {"graph/java", "not-applicable", covered("cpp")}}},
 		{"java beats php", "", []string{"java", "php"},
 			[][3]string{{"graph/java", "", ""}, {"graph/php", "not-applicable", covered("java")}}},
-		{"php beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"php", "rust"},
-			[][3]string{{"graph/php", "", ""}, {"graph/rust", "not-applicable", covered("php")}}},
+		{"php beats typescript", "", []string{"php", "typescript"},
+			[][3]string{{"graph/php", "", ""}, {"graph/typescript", "not-applicable", covered("php")}}},
+		{"typescript alone", "", []string{"typescript"}, [][3]string{{"graph/typescript", "", ""}}},
+		{"typescript beats a stack without a rank", "[verify.rust.graph]\ncommands = [\"b\"]\n", []string{"rust", "typescript"},
+			[][3]string{{"graph/rust", "not-applicable", covered("typescript")}, {"graph/typescript", "", ""}}},
 		{"unranked stacks follow in byte order", unranked, []string{"rust", "css"},
 			[][3]string{{"graph/css", "", ""}, {"graph/rust", "not-applicable", covered("css")}}},
 	} {

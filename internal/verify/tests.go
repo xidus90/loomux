@@ -52,6 +52,34 @@ func HasTests(root string, patterns []string) bool {
 	return found
 }
 
+// found is HasTests in dir, and for what Node resolves from a directory
+// upwards also in each directory above it up to the root: a workspace
+// hoists its members' tools into the root's node_modules and declares their
+// dependencies in the root's package.json. Only a path in node_modules/ and
+// a package.json:text pattern look up there; for the latter only the
+// package.json beside each directory counts, never one in a sibling.
+func (env PlanEnv) found(dir string, patterns []string) bool {
+	if env.HasTests(dir, patterns) {
+		return true
+	}
+	root := filepath.Clean(env.Root)
+	for d := filepath.Clean(dir); d != root && filepath.Dir(d) != d; {
+		d = filepath.Dir(d)
+		for _, p := range patterns {
+			if strings.HasPrefix(p, "node_modules/") && env.HasTests(d, []string{p}) {
+				return true
+			}
+			if text, ok := strings.CutPrefix(p, "package.json:"); ok {
+				data, err := os.ReadFile(filepath.Join(d, "package.json"))
+				if err == nil && strings.Contains(string(data), text) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // literalPath says whether a pattern names one path rather than a glob, a
 // directory or a file holding text.
 func literalPath(p string) bool {
