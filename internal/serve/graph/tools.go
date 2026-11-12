@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -59,10 +60,7 @@ func findCode(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := arguments(req)
 		scope, question := str(args, "scope"), str(args, "query")
-		// Both arguments are refused before the scope is resolved.
-		if scope == "" {
-			return failure("graph_find_code requires a scope"), nil
-		}
+		// The query is refused before the scope is resolved.
 		if question == "" {
 			return failure("graph_find_code requires a query"), nil
 		}
@@ -95,9 +93,6 @@ func fileApi(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := arguments(req)
 		scope, file := str(args, "scope"), str(args, "file")
-		if scope == "" {
-			return failure("graph_file_api requires a scope"), nil
-		}
 		if file == "" {
 			return failure("graph_file_api requires a file"), nil
 		}
@@ -125,9 +120,6 @@ func traceCalls(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := arguments(req)
 		scope, symbol := str(args, "scope"), str(args, "symbol")
-		if scope == "" {
-			return failure("graph_trace_calls requires a scope"), nil
-		}
 		if symbol == "" {
 			return failure("graph_trace_calls requires a symbol"), nil
 		}
@@ -164,9 +156,6 @@ func findAll(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := arguments(req)
 		scope, pattern := str(args, "scope"), str(args, "pattern")
-		if scope == "" {
-			return failure("graph_find_all requires a scope"), nil
-		}
 		if pattern == "" {
 			return failure("graph_find_all requires a pattern"), nil
 		}
@@ -197,9 +186,6 @@ func repoMap(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := arguments(req)
 		scope := str(args, "scope")
-		if scope == "" {
-			return failure("graph_repo_map requires a scope"), nil
-		}
 		area, refusal := resolve("graph_repo_map", channel, deps, scope)
 		if refusal != nil {
 			return refusal, nil
@@ -225,8 +211,8 @@ func repoMap(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 	}
 }
 
-// graphBlast has no refusal of its own before resolve: scope is its only
-// required argument, and resolve refuses an empty one with the same text.
+// graphBlast has no refusal of its own before resolve: it requires nothing,
+// and resolve answers a missing scope as it does for every graph tool.
 // git runs in the area's root; the never globs reach query as Keep, which
 // counts a refused changed file or hit instead of naming it.
 func graphBlast(channel privacy.Channel, deps Deps) mcp.ToolHandler {
@@ -291,13 +277,25 @@ func checkFreshness(channel privacy.Channel, deps Deps) mcp.ToolHandler {
 // does not read, named by its absolute path -- and goes through errorText like
 // any other read failure. The unknown scope is Single's answer, over the same
 // visible areas VisibleAreas would have named.
+//
+// An empty scope is the one area the channel sees, when it sees exactly one;
+// otherwise the refusal names the visible scopes, as UnknownScope does. Both
+// come from the channel's areas alone, so a hidden one is never picked or named.
 func resolve(tool string, channel privacy.Channel, deps Deps, scope string) (privacy.VisibleArea, *mcp.CallToolResult) {
-	if scope == "" {
-		return privacy.VisibleArea{}, failure(tool + " requires a scope")
-	}
 	areas, err := privacy.VisibleAreas(deps.RegistryDir, "all", channel)
 	if err != nil {
 		return privacy.VisibleArea{}, failure(errorText(channel, err))
+	}
+	if scope == "" {
+		if len(areas) == 1 {
+			return areas[0], nil
+		}
+		known := make([]string, 0, len(areas))
+		for _, entry := range areas {
+			known = append(known, entry.Area.Scope)
+		}
+		sort.Strings(known)
+		return privacy.VisibleArea{}, failure(tool + " requires a scope; known scopes are: " + strings.Join(known, ", "))
 	}
 	area, err := privacy.Single(areas, scope)
 	if err != nil {

@@ -246,7 +246,7 @@ func TestFindCodeWithoutAScopeIsRefused(t *testing.T) {
 	dir, _, _ := registry(t)
 	r := &recorder{}
 	text, isError := call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_find_code", map[string]any{"query": "x"})
-	if !isError || text != "graph_find_code requires a scope" || r.asked {
+	if !isError || text != "graph_find_code requires a scope; known scopes are: project/open, project/private" || r.asked {
 		t.Errorf("got %q (isError %v, asked %v)", text, isError, r.asked)
 	}
 }
@@ -469,7 +469,7 @@ func TestCheckFreshnessReportsAReadFailure(t *testing.T) {
 func TestCheckFreshnessWithoutAScopeIsRefused(t *testing.T) {
 	dir, _, _ := registry(t)
 	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_check_freshness", nil)
-	if !isError || text != "graph_check_freshness requires a scope" {
+	if !isError || text != "graph_check_freshness requires a scope; known scopes are: project/open, project/private" {
 		t.Errorf("got %q (isError %v)", text, isError)
 	}
 }
@@ -525,7 +525,7 @@ func TestArgumentsThatAreNotAnObjectEndEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if text := res.Content[0].(*mcp.TextContent).Text; !res.IsError || text != "graph_check_freshness requires a scope" {
+	if text := res.Content[0].(*mcp.TextContent).Text; !res.IsError || text != "graph_check_freshness requires a scope; known scopes are: project/open, project/private" {
 		t.Errorf("got %q (isError %v)", text, res.IsError)
 	}
 }
@@ -756,12 +756,80 @@ func TestFindCodeChecksTheQueryBeforeTheScope(t *testing.T) {
 	}
 }
 
-func TestFindCodeWithNeitherArgumentAsksForTheScope(t *testing.T) {
+func TestFindCodeWithNeitherArgumentAsksForTheQuery(t *testing.T) {
+	// The scope may be left out, the query may not.
 	dir, _, _ := registry(t)
 	r := &recorder{}
 	text, isError := call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_find_code", map[string]any{})
-	if !isError || text != "graph_find_code requires a scope" || r.asked {
-		t.Errorf("got %q (isError %v, asked %v); the scope is checked first", text, isError, r.asked)
+	if !isError || text != "graph_find_code requires a query" || r.asked {
+		t.Errorf("got %q (isError %v, asked %v)", text, isError, r.asked)
+	}
+}
+
+// TestAMissingScopeIsTheOnlyVisibleArea: on the cloud channel the registry
+// fixture shows project/open alone, so a graph tool without a scope asks it,
+// and the local_only area is neither asked nor named.
+func TestAMissingScopeIsTheOnlyVisibleArea(t *testing.T) {
+	dir, open, _ := registry(t)
+	r := &recorder{}
+	session := connect(t, privacy.ChannelCloud, r.deps(dir))
+	text, isError := call(t, session, "graph_find_code", map[string]any{"query": "q", "scope": ""})
+	if isError || !r.asked {
+		t.Fatalf("got %q (isError %v, asked %v)", text, isError, r.asked)
+	}
+	sameDir(t, r.root, open)
+	if text, isError := call(t, session, "graph_check_freshness", nil); isError || !r.checked {
+		t.Fatalf("check_freshness: got %q (isError %v)", text, isError)
+	}
+}
+
+// TestAMissingScopeAmongSeveralNamesOnlyTheVisibleOnes: the refusal lists the
+// scopes the caller could have named, and the cloud channel reads none it may
+// not see.
+func TestAMissingScopeAmongSeveralNamesOnlyTheVisibleOnes(t *testing.T) {
+	dir, _, _ := registry(t)
+	third := t.TempDir()
+	writeManifest(t, third, "[area]\nscope = \"project/third\"\n")
+	appendArea(t, dir, "project/third", third)
+	r := &recorder{}
+	text, isError := call(t, connect(t, privacy.ChannelCloud, r.deps(dir)), "graph_repo_map", nil)
+	if !isError || text != "graph_repo_map requires a scope; known scopes are: project/open, project/third" {
+		t.Errorf("got %q (isError %v)", text, isError)
+	}
+}
+
+func TestAMissingScopeWithABrokenRegistryIsTheFixedTextOnTheCloudChannel(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "registry.toml"), []byte("not toml ["), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	text, isError := call(t, connect(t, privacy.ChannelCloud, (&recorder{}).deps(dir)), "graph_blast", nil)
+	if !isError || text != cloudFailure {
+		t.Errorf("got %q (isError %v)", text, isError)
+	}
+}
+
+func writeManifest(t *testing.T, root, body string) {
+	t.Helper()
+	path := filepath.Join(root, ".loomux", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func appendArea(t *testing.T, dir, scope, root string) {
+	t.Helper()
+	f, err := os.OpenFile(filepath.Join(dir, "registry.toml"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	entry := "\n[[area]]\nscope = " + strconv.Quote(scope) + "\npath = " + strconv.Quote(filepath.ToSlash(root)) + "\n"
+	if _, err := f.WriteString(entry); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -771,7 +839,7 @@ func TestFileApi(t *testing.T) {
 	// Missing scope
 	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_file_api",
 		map[string]any{"file": "main.go"})
-	if !isError || text != "graph_file_api requires a scope" {
+	if !isError || text != "graph_file_api requires a scope; known scopes are: project/open, project/private" {
 		t.Fatalf("want scope required, got %q", text)
 	}
 
@@ -859,7 +927,7 @@ func TestTraceCalls(t *testing.T) {
 	// Missing scope
 	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_trace_calls",
 		map[string]any{"symbol": "Main"})
-	if !isError || text != "graph_trace_calls requires a scope" {
+	if !isError || text != "graph_trace_calls requires a scope; known scopes are: project/open, project/private" {
 		t.Fatalf("want scope required, got %q", text)
 	}
 
@@ -999,7 +1067,7 @@ func TestGraphBlastWithoutAScopeIsRefused(t *testing.T) {
 	dir, _, _ := registry(t)
 	r := &recorder{}
 	text, isError := call(t, connect(t, privacy.ChannelLocal, r.deps(dir)), "graph_blast", map[string]any{"base": "HEAD~1"})
-	if !isError || text != "graph_blast requires a scope" || r.blasted {
+	if !isError || text != "graph_blast requires a scope; known scopes are: project/open, project/private" || r.blasted {
 		t.Errorf("got %q (isError %v, blasted %v)", text, isError, r.blasted)
 	}
 }
@@ -1128,7 +1196,7 @@ func TestFindAll(t *testing.T) {
 	// Missing scope
 	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_find_all",
 		map[string]any{"pattern": "needle"})
-	if !isError || text != "graph_find_all requires a scope" {
+	if !isError || text != "graph_find_all requires a scope; known scopes are: project/open, project/private" {
 		t.Fatalf("want scope required, got %q", text)
 	}
 
@@ -1219,7 +1287,7 @@ func TestRepoMap(t *testing.T) {
 	// Missing scope
 	text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), "graph_repo_map",
 		map[string]any{})
-	if !isError || text != "graph_repo_map requires a scope" {
+	if !isError || text != "graph_repo_map requires a scope; known scopes are: project/open, project/private" {
 		t.Fatalf("want scope required, got %q", text)
 	}
 

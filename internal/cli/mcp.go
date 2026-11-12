@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/xidus90/loomux/internal/brain/privacy"
@@ -48,6 +49,7 @@ func mcpCommand(args []string, _ io.Reader, _, stderr io.Writer) int {
 		brainRefuse(stderr, mcpUsage(), "loomux mcp", refused.message)
 		return 2
 	}
+	root = mcpRoot(root)
 	modules, err := projectModules(root)
 	if err != nil {
 		fmt.Fprintf(stderr, "loomux mcp: %v\n", err)
@@ -60,7 +62,11 @@ func mcpCommand(args []string, _ io.Reader, _, stderr io.Writer) int {
 	defer stop()
 	// A cancelled context is how this command ends when it is asked to; it is
 	// not a failure and must not be reported as one.
-	opts := bridge.Options{StateDir: config.StateDir(), Channel: channel, Tools: mcptools.For(modules)}
+	stateDir := config.StateDir()
+	opts := bridge.Options{
+		StateDir: stateDir, Channel: channel, Tools: mcptools.For(modules),
+		DefaultScope: defaultScope(stateDir, root, channel),
+	}
 	if err := bridgeRun(ctx, opts); err != nil && !errors.Is(err, context.Canceled) {
 		fmt.Fprintf(stderr, "loomux mcp: %v\n", err)
 		return 1
@@ -108,17 +114,58 @@ func mcpArgs(args []string) (privacy.Channel, string, *brainUsageError) {
 	return privacy.Channel(channel), root, nil
 }
 
-// projectModules is the [modules] of the project this bridge serves: the one
-// named by --root, else the first .loomux/config.toml above the working
-// directory the host started it in. No project is not an error -- a host may
-// start the bridge anywhere -- and offers every tool.
+// mcpRoot is the project this bridge serves: the one named by --root, else
+// the first .loomux/config.toml above the working directory the host started
+// it in, else "" -- a host may start the bridge anywhere.
+func mcpRoot(root string) string {
+	if root != "" {
+		return root
+	}
+	found, err := hosts.FindRoot(".")
+	if err != nil {
+		return ""
+	}
+	return found
+}
+
+// projectModules is the [modules] of the project at root. No project offers
+// every tool.
 func projectModules(root string) (config.Modules, error) {
 	if root == "" {
-		found, err := hosts.FindRoot(".")
-		if err != nil {
-			return config.AllModules(), nil
-		}
-		root = found
+		return config.AllModules(), nil
 	}
 	return config.ReadModules(root)
+}
+
+// defaultScope is the scope a graph call without one asks: the innermost area
+// that holds root among those the channel sees, read once at start.
+//
+// Only visible areas are candidates, and a root inside a tree the channel
+// hides gets none: a cloud caller must not be handed a local_only scope, nor a
+// visible hub whose answers would come from inside one. Every failure --
+// no project, no registry, a broken one -- is "", and the caller names the
+// scope itself as before.
+func defaultScope(stateDir, root string, channel privacy.Channel) string {
+	if root == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	areas, err := privacy.VisibleAreas(stateDir, "all", channel)
+	if err != nil || len(areas) == 0 {
+		return ""
+	}
+	for _, hidden := range areas[0].Hidden {
+		if privacy.Within(hidden, root) {
+			return ""
+		}
+	}
+	scope, depth := "", -1
+	for _, area := range areas {
+		if len(area.Area.Path) > depth && privacy.Within(area.Area.Path, root) {
+			scope, depth = area.Area.Scope, len(area.Area.Path)
+		}
+	}
+	return scope
 }

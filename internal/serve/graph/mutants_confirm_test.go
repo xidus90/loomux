@@ -6,15 +6,14 @@ import (
 	"github.com/xidus90/loomux/internal/brain/privacy"
 )
 
-// A call that lacks both the scope and the tool's second required argument
-// hears about the scope: the scope is checked first. resolve would refuse an
-// empty scope with the same text, but only after the second argument, so
-// without the tool's own guard the answer would name the other argument.
-func TestAToolWithNeitherArgumentAsksForTheScope(t *testing.T) {
+// A call that lacks both the scope and the tool's own required argument hears
+// about the latter: the scope may be left out, and the argument is refused
+// before resolve reads the registry.
+func TestAToolWithNeitherArgumentAsksForItsOwnArgument(t *testing.T) {
 	dir, _, _ := registry(t)
-	for _, tool := range []string{"graph_file_api", "graph_trace_calls", "graph_find_all"} {
+	for tool, arg := range map[string]string{"graph_file_api": "file", "graph_trace_calls": "symbol", "graph_find_all": "pattern"} {
 		text, isError := call(t, connect(t, privacy.ChannelLocal, (&recorder{}).deps(dir)), tool, map[string]any{})
-		if want := tool + " requires a scope"; !isError || text != want {
+		if want := tool + " requires a " + arg; !isError || text != want {
 			t.Errorf("%s: got %q (isError %v), want %q", tool, text, isError, want)
 		}
 	}

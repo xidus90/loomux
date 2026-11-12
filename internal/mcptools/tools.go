@@ -85,8 +85,12 @@ func build() {
 	}
 	relative := map[string]any{"type": "string"}
 	// One area, never "all": a graph belongs to one repository, and answering
-	// across several is federation, which this stage does not have.
-	areaScope := map[string]any{"type": "string", "description": "the registered area whose code to ask; a unique last segment names it ('loomux' for 'project/loomux')"}
+	// across several is federation, which this stage does not have. Not
+	// required: the bridge fills in its project's area, and the service the
+	// only one the channel sees.
+	areaScope := map[string]any{"type": "string", "description": "the registered area whose code to ask; " +
+		"defaults to the project this session runs in, or else to the only visible area; " +
+		"a unique last segment names it ('loomux' for 'project/loomux')"}
 	tools = []*mcp.Tool{
 		{
 			Name:        "brain_search",
@@ -161,7 +165,7 @@ func build() {
 					"full":  map[string]any{"type": "boolean", "description": "inline whole definition spans instead of the capped excerpt"},
 					"in":    map[string]any{"type": "string", "description": "narrow to nodes under this path prefix, filtered before scoring"},
 				},
-				"required": []string{"scope", "query"},
+				"required": []string{"query"},
 			},
 		},
 		{
@@ -173,7 +177,7 @@ func build() {
 					"scope": areaScope,
 					"file":  map[string]any{"type": "string", "description": "path to the file, or a unique basename"},
 				},
-				"required": []string{"scope", "file"},
+				"required": []string{"file"},
 			},
 		},
 		{
@@ -188,7 +192,7 @@ func build() {
 					"depth":     map[string]any{"description": "depth limit as integer or 'all' for full transitive closure"},
 					"in":        map[string]any{"type": "string", "description": "narrow to nodes under this path prefix"},
 				},
-				"required": []string{"scope", "symbol"},
+				"required": []string{"symbol"},
 			},
 		},
 		{
@@ -203,7 +207,7 @@ func build() {
 					"ignore_case": map[string]any{"type": "boolean", "description": "case-insensitive search"},
 					"fixed":       map[string]any{"type": "boolean", "description": "treat pattern as literal string instead of regex"},
 				},
-				"required": []string{"scope", "pattern"},
+				"required": []string{"pattern"},
 			},
 		},
 		{
@@ -215,7 +219,6 @@ func build() {
 					"scope":    areaScope,
 					"max_dirs": map[string]any{"type": "integer", "description": "maximum number of directories to list (default 16)"},
 				},
-				"required": []string{"scope"},
 			},
 		},
 		{
@@ -228,7 +231,6 @@ func build() {
 					"base":  map[string]any{"type": "string", "description": "compare base...HEAD; empty compares the working tree with HEAD, or the last commit when the tree is clean"},
 					"depth": map[string]any{"description": "depth limit as integer or 'all' for full transitive closure"},
 				},
-				"required": []string{"scope"},
 			},
 		},
 		{
@@ -237,7 +239,6 @@ func build() {
 			InputSchema: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{"scope": areaScope},
-				"required":   []string{"scope"},
 			},
 		},
 	}

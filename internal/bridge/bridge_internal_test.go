@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -18,6 +19,27 @@ import (
 // waitTimeout is what the waiting tests allow themselves. Everything they wait
 // for is a file this process writes, so anything longer is a hang.
 const waitTimeout = 5 * time.Second
+
+func TestTheDefaultScopeFillsOnlyAGraphCallThatNamesNone(t *testing.T) {
+	for _, tc := range []struct {
+		name, tool, args, scope, want string
+	}{
+		{"absent", "graph_blast", `{"base":"HEAD"}`, "p/a", `{"base":"HEAD","scope":"p/a"}`},
+		{"empty", "graph_blast", `{"scope":""}`, "p/a", `{"scope":"p/a"}`},
+		{"null", "graph_blast", `{"scope":null}`, "p/a", `{"scope":"p/a"}`},
+		{"no arguments", "graph_check_freshness", ``, "p/a", `{"scope":"p/a"}`},
+		{"arguments null", "graph_check_freshness", `null`, "p/a", `{"scope":"p/a"}`},
+		{"given", "graph_blast", `{"scope": "p/b"}`, "p/a", `{"scope": "p/b"}`},
+		{"not an object", "graph_blast", `[1]`, "p/a", `[1]`},
+		{"brain tool", "brain_catalog", `{}`, "p/a", `{}`},
+		{"no default", "graph_blast", `{}`, "", `{}`},
+	} {
+		req := &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: tc.tool, Arguments: []byte(tc.args)}}
+		if got := string(downwards(req, tc.scope).Arguments.(json.RawMessage)); got != tc.want {
+			t.Errorf("%s: got %s, want %s", tc.name, got, tc.want)
+		}
+	}
+}
 
 func TestTheDefaultTransportIsTheHostsStdio(t *testing.T) {
 	if _, ok := (Options{}).transport().(*mcp.StdioTransport); !ok {

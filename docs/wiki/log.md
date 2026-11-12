@@ -12,6 +12,12 @@
   `docs/de/benchmarks.md`, Eintrag „Der Graph-Hinweis im Wächter“,
   `internal/hooks/graphhint.go`.
 - 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
+  unverändert: `docs/de/cli-reference.md` hält fest, dass die
+  `graph_*`-Werkzeuge kein `scope` mehr verlangen (`loomux mcp` setzt das
+  sichtbare Gebiet seines Projekts ein, sonst nimmt der Dienst das einzige
+  sichtbare); keine zitierende Seite sagt, dass `scope` Pflicht sei. Quellen:
+  `internal/cli/mcp.go`, `internal/serve/graph/tools.go`.
+- 2026-11-12 — Quellen neu gepinnt (`loomux wiki repin`), Inhalt
   unverändert: `docs/de/cli-reference.md` hält fest, dass `scope` der
   MCP-Werkzeuge und von `loomux brain` auch das letzte Segment genau eines
   sichtbaren Scopes annimmt (`loomux` für `project/loomux`); keine

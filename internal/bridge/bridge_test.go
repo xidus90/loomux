@@ -258,6 +258,27 @@ func TestACallIsForwardedUnchanged(t *testing.T) {
 	}
 }
 
+// TestAGraphCallWithoutAScopeAsksTheBridgesProject: the host's model leaves
+// the scope out, and the service hears the project the bridge was started in.
+// A scope the caller gave stays the caller's.
+func TestAGraphCallWithoutAScopeAsksTheBridgesProject(t *testing.T) {
+	var seen []string
+	service := fakeService(t, func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		seen = append(seen, string(req.Params.Arguments))
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}, nil
+	})
+	session := connectBridge(t, bridge.Options{StateDir: service.StateDir, DefaultScope: "project/here"})
+	for _, args := range []map[string]any{{"max_dirs": 3}, {"scope": "project/there"}} {
+		if _, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "graph_repo_map", Arguments: args}); err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+	}
+	want := []string{`{"max_dirs":3,"scope":"project/here"}`, `{"scope":"project/there"}`}
+	if strings.Join(seen, " ") != strings.Join(want, " ") {
+		t.Errorf("the service saw %v, want %v", seen, want)
+	}
+}
+
 func TestARefusedConnectionIsRetriedExactlyOnce(t *testing.T) {
 	// A commit rebuilds bin/loomux.exe, a newer bridge restarts serve, and every
 	// other bridge's connection dies with it. One retry hides that from a host
