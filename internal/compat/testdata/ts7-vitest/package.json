@@ -1,0 +1,11 @@
+{
+  "name": "ts7-vitest",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@vitest/coverage-v8": "5.1.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

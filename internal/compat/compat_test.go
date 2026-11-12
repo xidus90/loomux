@@ -44,8 +44,10 @@ func TestEveryVersionHasASyntaxEntry(t *testing.T) {
 	}
 	// Java 27 brought no final syntax of its own: java-syntax-27 carries the
 	// forms of 25 to 27 (TestTheJava25GapsLeaveTheRestOfTheFile holds the two
-	// alike), the one fixture not holding what its version introduced.
-	prefixes := map[string]string{"go": "go", "dotnet": "csharp", "cpp": "cpp", "java": "java", "php": "php"}
+	// alike), and Node 26 none either: js-syntax-26 carries the forms of 24
+	// and TypeScript beside them. These two fixtures do not hold what their
+	// version introduced.
+	prefixes := map[string]string{"go": "go", "dotnet": "csharp", "cpp": "cpp", "java": "java", "php": "php", "node": "js"}
 	for _, e := range list {
 		prefix, ok := prefixes[e.Runtime]
 		if !ok {
@@ -157,7 +159,7 @@ func TestTheListRefuses(t *testing.T) {
 	cases := []struct{ name, doc, want string }{
 		{"syntax", "[[entry", "compat.toml"},
 		{"unknown key", good + "colour = 1\n", `compat.toml:8: unknown key "colour"`},
-		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are cpp, csharp, gdscript, go, java, php, python`},
+		{"unknown stack", strings.Replace(good, `stack = "python"`, `stack = "cobol"`, 1), `compat.toml:1: stack "cobol"; stacks are cpp, csharp, gdscript, go, java, php, python, typescript`},
 		{"wrong runtime", strings.Replace(good, `runtime = "python"`, `runtime = "godot"`, 1), `compat.toml:1: runtime "godot"`},
 		{"bad version", strings.Replace(good, `"3.12"`, `"3.12.1"`, 1), `compat.toml:1: version "3.12.1" is not MAJOR or MAJOR.MINOR`},
 		{"unknown kind", strings.Replace(good, `"types"`, `"magic"`, 1), `compat.toml:1: kind "magic"`},

@@ -30,7 +30,8 @@ func TestDescribeNamesRuntimeAndAddonSources(t *testing.T) {
 // --all-versions), godot-builds tags a pre-release "4.8-beta2" bare and a
 // stable one "<version>-stable", which compat-setup.sh appends, and
 // actions/setup-java an early access "28-ea" (README, "Early access"). PHP
-// keeps php.net's "8.6.0RC5".
+// keeps php.net's "8.6.0RC5", Node the "27.0.0-alpha.0.0.0" of its dist
+// index.
 func TestDescribeInstallsThePreRelease(t *testing.T) {
 	for _, c := range []struct{ runtime, version, pre, want string }{
 		{"go", "1.28", "1.28rc1", "go1.28rc1"},
@@ -45,6 +46,10 @@ func TestDescribeInstallsThePreRelease(t *testing.T) {
 		// the branch's nightly, and tells a probe by install != version.
 		{"php", "8.6", "8.6.0RC5", "8.6.0RC5"},
 		{"php", "8.5", "", "8.5"},
+		// setup-node takes an exact version from nodejs.org/dist, an alpha
+		// too, and a line ("26") as its newest release.
+		{"node", "27", "27.0.0-alpha.0.0.0", "27.0.0-alpha.0.0.0"},
+		{"node", "26", "", "26"},
 	} {
 		d, err := DescribeEntry(Entry{Runtime: c.runtime, Version: c.version, Pre: c.pre})
 		if err != nil || d.Install != c.want {

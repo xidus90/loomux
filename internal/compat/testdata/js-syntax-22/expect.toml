@@ -1,0 +1,8 @@
+stacks = ["typescript"]
+# Import attributes and a regular expression with the v flag.
+edges = [
+  ["syntax.mjs#check", "calls", "syntax.mjs#startsUpper"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

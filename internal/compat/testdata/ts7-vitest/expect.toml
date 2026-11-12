@@ -1,0 +1,60 @@
+stacks = ["typescript"]
+# The project of ts-vitest-eslint without ESLint, which typescript-eslint
+# leaves out on TypeScript 7.
+edges = [
+  ["src/calc.js", "imports", "src/shape/child.ts"],
+  ["src/shape/child.ts", "imports", "src/shape/base.ts"],
+  ["src/shape/child.ts#Child", "extends", "src/shape/base.ts#Base"],
+  ["src/shape/child.ts#Child.area", "calls", "src/shape/base.ts#Base.area"],
+  ["src/calc.js#twice", "calls", "src/shape/child.ts#Child"],
+  ["test/calc.test.ts", "calls", "src/calc.js#twice"],
+]
+
+[lanes]
+types = "npx tsc --noEmit"
+test = "npx vitest run --coverage --coverage.reporter=lcov"
+coverage = "{loomux} check linecov --report coverage/lcov.info"
+graph = "{loomux} check graph-fresh"
+
+# Each break leaves the other kinds green. The types break assigns a string
+# to a number, which the test run strips unchecked.
+[[break]]
+kind = "types"
+file = "src/shape/child.ts"
+content = '''
+import { Base } from "./base.js";
+
+export class Child extends Base {
+  override area(): number {
+    const twice: number = String(super.area() * 2);
+    return Number(twice);
+  }
+}
+'''
+
+[[break]]
+kind = "test"
+file = "test/calc.test.ts"
+content = '''
+import { expect, it } from "vitest";
+import { twice } from "../src/calc.js";
+
+it("doubles the area", () => {
+  expect(twice(2)).toBe(5);
+});
+'''
+
+[[break]]
+kind = "coverage"
+file = "src/calc.js"
+content = '''
+import { Child } from "./shape/child.ts";
+
+export function twice(value) {
+  return new Child().area() * value;
+}
+
+export function untested() {
+  return 3;
+}
+'''
