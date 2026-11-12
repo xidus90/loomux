@@ -114,24 +114,33 @@ func signalsIn(facts detect.Facts, area string) []string {
 func resolveStack(stack string, overrides map[string]Override, preset PresetStack, signals []string) (map[string]Resolved, error) {
 	lanes := preset.Lanes
 	origin := map[string]string{}
-	for i, v := range preset.Variants {
+	// The first variant found wins the kinds it shapes; one that shapes none
+	// (maven, which keeps the base lanes) wins them all. A later variant
+	// found too applies where it touches no kind won before (biome's lint
+	// beside jest's test), else it is passed over, and each lane it would
+	// have shaped names it, so --show tells why its tool does not run.
+	won := map[string]string{}
+	for _, v := range preset.Variants {
 		if !slices.Contains(signals, v.When) {
 			continue
 		}
+		kinds := slices.Sorted(maps.Keys(v.Lanes))
+		if len(kinds) == 0 {
+			kinds = Kinds()
+		}
+		if i := slices.IndexFunc(kinds, func(k string) bool { return won[k] != "" }); i >= 0 {
+			for kind := range v.Lanes {
+				origin[kind] = "preset, variant " + won[kinds[i]] + " over " + v.When
+			}
+			continue
+		}
 		lanes = layer(lanes, v.Lanes)
+		for _, kind := range kinds {
+			won[kind] = v.When
+		}
 		for kind := range v.Lanes {
 			origin[kind] = "preset, variant " + v.When
 		}
-		// A later variant found too is passed over: each lane it would have
-		// shaped names it, so --show tells why its tool does not run.
-		for _, other := range preset.Variants[i+1:] {
-			if slices.Contains(signals, other.When) {
-				for kind := range other.Lanes {
-					origin[kind] = "preset, variant " + v.When + " over " + other.When
-				}
-			}
-		}
-		break
 	}
 	merged := map[string]Lane{}
 	out := map[string]Resolved{}

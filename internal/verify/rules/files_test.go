@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/extract/cpp"
+	"github.com/xidus90/loomux/internal/code/extract/ecmascript"
 	"github.com/xidus90/loomux/internal/code/extract/java"
 	"github.com/xidus90/loomux/internal/code/extract/php"
 	"github.com/xidus90/loomux/internal/gitenv"
@@ -308,6 +309,15 @@ func TestContentExtsCoverTheJavaExtractor(t *testing.T) {
 // The rules read what the PHP extractor takes.
 func TestContentExtsCoverThePHPExtractor(t *testing.T) {
 	for _, e := range (php.Language{}).Extensions() {
+		if !wantsContent("x" + e) {
+			t.Errorf("%s is not read", e)
+		}
+	}
+}
+
+// The rules read what the JavaScript and TypeScript extractors take.
+func TestContentExtsCoverTheEcmascriptExtractors(t *testing.T) {
+	for _, e := range append(ecmascript.JavaScript{}.Extensions(), ecmascript.TypeScript{}.Extensions()...) {
 		if !wantsContent("x" + e) {
 			t.Errorf("%s is not read", e)
 		}

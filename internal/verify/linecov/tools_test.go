@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/xidus90/loomux/internal/code/extract/ecmascript"
 )
 
 func TestLoadProfilesReadsTheBuiltInTools(t *testing.T) {
@@ -18,6 +20,25 @@ func TestLoadProfilesReadsTheBuiltInTools(t *testing.T) {
 	want := []string{"c8", "coveragepy", "coverlet", "gcovr", "jacoco", "kover", "lcov", "nanocoverage", "nyc", "phpunit", "rust", "vitest"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("%q", names)
+	}
+}
+
+// The typescript coverage lane reads vitest's lcov report: the profile knows
+// where it lies, and its v8 markers hold in every file the graph reads as
+// JavaScript or TypeScript.
+func TestTheVitestProfileReadsTheTypescriptLanesReport(t *testing.T) {
+	ps, err := LoadProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(ps, func(p Profile) bool { return p.Name == "vitest" })
+	if !slices.Contains(ps[i].Reports, "coverage/lcov.info") {
+		t.Errorf("reports %q", ps[i].Reports)
+	}
+	for _, ext := range append(ecmascript.JavaScript{}.Extensions(), ecmascript.TypeScript{}.Extensions()...) {
+		if !slices.Contains(ps[i].Extensions, ext) {
+			t.Errorf("%s is not vitest's", ext)
+		}
 	}
 }
 

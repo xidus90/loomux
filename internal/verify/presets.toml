@@ -16,8 +16,12 @@ ignored = [".txt", ".json", ".yaml", ".yml", ".toml", ".svg", ".png", ".jpg", ".
 ".h" = "cpp"
 ".ts" = "typescript"
 ".tsx" = "typescript"
+".mts" = "typescript"
+".cts" = "typescript"
 ".js" = "typescript"
 ".jsx" = "typescript"
+".mjs" = "typescript"
+".cjs" = "typescript"
 ".vue" = "vue"
 ".svelte" = "svelte"
 ".css" = "css"
@@ -396,28 +400,70 @@ commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached -
 commands = ["{loomux} check rules --cached"]
 on_file  = ["{loomux} check rules"]
 
+# JavaScript checks here too. Each lane waits for its tool in a node_modules
+# of the area or above it, where npx finds a workspace's hoisted tools as
+# well: without a TTY npx answers its own install prompt and fetches the
+# newest version, unpinned. A variant's lane brings its own guard.
 [stack.typescript]
-tests_when = ["package.json:vitest"]
+# Tests are the files vitest and jest find by default: a runner with none
+# to run fails, so a workspace member without tests has no test lane. Which
+# runner is named stays with each lane's guard.
+tests_when = ["*.test.*", "*.spec.*", "__tests__/"]
 
 [stack.typescript.lint]
 commands = ["npx eslint ."]
 on_file = ["npx eslint --cache {file}"]
+when_found = ["node_modules/.bin/eslint"]
 
 [[stack.typescript.variant]]
 when = "biome"
 [stack.typescript.variant.lint]
 commands = ["npx biome check ."]
 on_file = ["npx biome check {file}"]
+when_found = ["node_modules/.bin/biome"]
 
+# Jest replaces vitest where the area names it. --ci fails on a missing
+# snapshot instead of writing it; jest's default provider honours istanbul
+# ignore, which linecov's nyc profile reads from the same report.
+[[stack.typescript.variant]]
+when = "jest"
+[stack.typescript.variant.test]
+commands = ["npx jest --ci"]
+measuring = "npx jest --ci --coverage --coverageReporters=lcov"
+when_found = ["node_modules/.bin/jest"]
+[stack.typescript.variant.coverage]
+commands = ["{loomux} check linecov --report coverage/lcov.info"]
+measure = "npx jest --ci --coverage --coverageReporters=lcov"
+after = "test"
+when_found = ["node_modules/.bin/jest"]
+
+# tsc looks for its tsconfig.json from the area upwards; one only in a
+# subdirectory leaves it none of the project's files to check.
 [stack.typescript.types]
 commands = ["npx tsc --noEmit"]
+when_found = ["./tsconfig.json", "node_modules/.bin/tsc"]
 
 [stack.typescript.test]
 commands = ["npx vitest run"]
+measuring = "npx vitest run --coverage --coverage.reporter=lcov"
+when_found = ["node_modules/.bin/vitest", "package.json:vitest"]
 
-# One stage: vitest measures and reports in the same run.
+# vitest needs its coverage provider for --coverage; without it the test
+# lane runs unmeasured.
 [stack.typescript.coverage]
-commands = ["npx vitest run --coverage"]
+commands = ["{loomux} check linecov --report coverage/lcov.info"]
+measure = "npx vitest run --coverage --coverage.reporter=lcov"
+after = "test"
+when_found = ["node_modules/.bin/vitest", "package.json:vitest", "node_modules/@vitest/coverage-v8/package.json"]
+
+[stack.typescript.graph]
+commands = ["{loomux} check graph-fresh", "{loomux} check blast-audit --cached --threshold 5"]
+
+# The rules read the repository root; the commit form reads the staged tree,
+# the edit form the working tree.
+[stack.typescript.rules]
+commands = ["{loomux} check rules --cached"]
+on_file  = ["{loomux} check rules"]
 
 [stack.vue.types]
 commands = ["npx vue-tsc --noEmit"]

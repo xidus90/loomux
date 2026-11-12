@@ -264,7 +264,7 @@ func TestResolveActiveAndAreas(t *testing.T) {
 	if !eff.Stacks["shell"]["lint"].Defined {
 		t.Fatal("on_file alone defines a lane")
 	}
-	if !slices.Equal(eff.TestsWhen["typescript"], []string{"package.json:vitest"}) || eff.Configured["typescript"] {
+	if !slices.Equal(eff.TestsWhen["typescript"], []string{"*.test.*", "*.spec.*", "__tests__/"}) || eff.Configured["typescript"] {
 		t.Fatalf("%v %v", eff.TestsWhen, eff.Configured)
 	}
 	if eff.Extensions[".go"] != "go" || !slices.Contains(eff.Ignored, ".lock") {

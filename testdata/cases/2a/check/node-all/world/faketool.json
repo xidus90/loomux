@@ -43,7 +43,13 @@
     {
       "prefix": "npx vitest run --coverage",
       "exit": 0,
-      "stdout": "faketool: npx vitest run --coverage\nAll files 100\n"
+      "stdout": "faketool: npx vitest run --coverage\nAll files 100\n",
+      "writes": [
+        {
+          "path": "coverage/lcov.info",
+          "content": "TN:\nSF:src/a.ts\nDA:1,1\nend_of_record\n"
+        }
+      ]
     },
     {
       "prefix": "cmake --build",

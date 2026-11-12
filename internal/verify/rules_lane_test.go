@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/xidus90/loomux/internal/code/extract/cpp"
+	"github.com/xidus90/loomux/internal/code/extract/ecmascript"
 )
 
 const withRules = "[rules]\n"
@@ -100,7 +101,7 @@ func TestRulesOnEdit(t *testing.T) {
 func TestEditsRules(t *testing.T) {
 	for file, want := range map[string]bool{
 		"a.go": true, "x/y.PY": false, "A.GD": false, "z.gd": true, ".loomux/config.toml": true,
-		"a.cs": true, "a.cpp": true, "A.java": true, "B.JAVA": false, "A.php": true, "B.PHP": false, "b/c.HPP": false, "d.hh": true, "e.ipp": true, "f.c": false,
+		"a.cs": true, "a.cpp": true, "A.java": true, "B.JAVA": false, "A.php": true, "B.PHP": false, "a.js": true, "b.mjs": true, "c.cjs": true, "d.jsx": true, "e.ts": true, "f.mts": true, "a.cts": true, "g.tsx": true, "H.TS": false, "b/c.HPP": false, "d.hh": true, "e.ipp": true, "f.c": false,
 		"a.md": false, "go.mod": false, "sub/.loomux/config.toml": false, "a.toml": false,
 	} {
 		if EditsRules(file) != want {
@@ -115,6 +116,21 @@ func TestIsSourceCoversTheCppExtractor(t *testing.T) {
 		if !IsSource("a" + ext) {
 			t.Errorf("%s is no source", ext)
 		}
+	}
+}
+
+// The rules read what the JavaScript and TypeScript extractors read, and a
+// project of those alone carries them.
+func TestIsSourceCoversTheEcmascriptExtractors(t *testing.T) {
+	for _, ext := range append(ecmascript.JavaScript{}.Extensions(), ecmascript.TypeScript{}.Extensions()...) {
+		if !IsSource("a" + ext) {
+			t.Errorf("%s is no source", ext)
+		}
+	}
+	jobs, err := Plan(effFor(t, withRules, factsOf("typescript")), Request{Kinds: []string{"rules"}}, env(t.TempDir()))
+	if err != nil || names(jobs) != "rules/typescript" || jobs[0].Pre != "" ||
+		!slices.Equal(jobs[0].Argvs[0], []string{`C:\bin\loomux.exe`, "check", "rules", "--cached"}) {
+		t.Fatalf("%v %+v", err, jobs)
 	}
 }
 

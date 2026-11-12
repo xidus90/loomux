@@ -230,7 +230,7 @@ func TestTreeSitterGraphLanesAreTheGoOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	goLane := p.Stacks["go"].Lanes["graph"]
-	for _, stack := range []string{"python", "gdscript", "csharp", "cpp", "java", "php"} {
+	for _, stack := range []string{"python", "gdscript", "csharp", "cpp", "java", "php", "typescript"} {
 		lane := p.Stacks[stack].Lanes["graph"]
 		if len(lane.Commands) == 0 || !slices.Equal(lane.Commands, goLane.Commands) || lane.OnFile != nil || lane.Threaded {
 			t.Errorf("%s %+v, go %+v", stack, lane, goLane)

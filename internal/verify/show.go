@@ -79,7 +79,7 @@ func testState(patterns, areas []string, env PlanEnv) string {
 		return "tests not detected"
 	}
 	for _, area := range areas {
-		if env.HasTests(filepath.Join(env.Root, area), patterns) {
+		if env.found(filepath.Join(env.Root, area), patterns) {
 			return "tests found"
 		}
 	}

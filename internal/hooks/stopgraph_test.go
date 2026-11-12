@@ -456,23 +456,21 @@ func TestStopHoldsOnAPythonBlast(t *testing.T) {
 	}
 }
 
-const typescriptWorld = `
+const cssWorld = `
 [[commit]]
 message = "base"
 [commit.files]
-"package.json" = "{\"devDependencies\": {\"vitest\": \"1\"}}\n"
-"tsconfig.json" = "{}\n"
-"a.ts" = "export const A = 1\n"
+"a.css" = "a { color: red }\n"
 
 [worktree]
-"a.ts" = "export const A = 2\n"
+"a.css" = "a { color: blue }\n"
 `
 
 // A stack without a graph table has a graph lane with no command:
 // not-applicable beside lanes that ran, so the turn ends and the base moves.
 func TestStopWithoutAGraphLanePasses(t *testing.T) {
 	jobs := planned(t)
-	root := gitWorld(t, typescriptWorld, `{"base":"{{COMMIT:1}}","blocks":0}`, "go.mod", "a.go", "a_test.go")
+	root := gitWorld(t, cssWorld, `{"base":"{{COMMIT:1}}","blocks":0}`, "go.mod", "a.go", "a_test.go")
 	fakeWiring(t, root)
 	code, se := runStop(t, root, s1, blastTools(1, "", nil))
 	if code != ExitOK {

@@ -124,7 +124,7 @@ func TestRunStatusAllStacks(t *testing.T) {
 		"gdscript (*.gd) lint: uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdlint {file} ; uvx --python <3.15 --with setuptools<81 --from gdtoolkit gdformat --check {file} [preset]",
 		"cpp (*.c, *.cc, *.cpp, *.cxx, *.h, *.hpp) lint: clang-format --dry-run --Werror {file} [preset]",
 		"cpp (*.c, *.cc, *.cpp, *.cxx, *.h, *.hpp) types: cmake --build build --parallel [preset]",
-		"typescript (*.js, *.jsx, *.ts, *.tsx) lint: npx eslint --cache {file} [preset]",
+		"typescript (*.cjs, *.cts, *.js, *.jsx, *.mjs, *.mts, *.ts, *.tsx) lint: npx eslint --cache {file} [preset]",
 		"vue (*.vue) types: npx vue-tsc --noEmit [preset]",
 		"svelte (*.svelte) types: npx svelte-check [preset]",
 		"css (*.css, *.less, *.sass, *.scss) lint: npx stylelint {file} [preset]",
