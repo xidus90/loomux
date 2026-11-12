@@ -238,6 +238,21 @@ func TestBuildNamesCppByItsLanguage(t *testing.T) {
 	}
 }
 
+// Every JavaScript and TypeScript extension counts as the language its
+// extractor reports.
+func TestBuildNamesECMAScriptByItsLanguage(t *testing.T) {
+	for p, want := range map[string]string{
+		"a.js": "javascript", "a.mjs": "javascript", "a.cjs": "javascript", "a.jsx": "javascript",
+		"a.ts": "typescript", "a.mts": "typescript", "a.cts": "typescript", "a.tsx": "typescript",
+	} {
+		g := &model.Graph{Nodes: []model.Node{{ID: model.NodeID(p), Path: p, Name: p, Kind: model.KindFile}}}
+		m := repomap.Build(g, nil, repomap.Options{})
+		if !slices.Equal(m.Totals.Languages, []string{want}) {
+			t.Errorf("%s: languages = %v, want %s alone", p, m.Totals.Languages, want)
+		}
+	}
+}
+
 // A .php file counts as php, the name its extractor reports.
 func TestBuildNamesPHPByItsLanguage(t *testing.T) {
 	g := &model.Graph{Nodes: []model.Node{

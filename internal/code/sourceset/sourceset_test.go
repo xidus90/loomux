@@ -39,7 +39,7 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 		"tool/run.py":        "def run(): pass\n",
 		"tool/run.pyi":       "def run() -> None: ...\n",
 		"README.md":          "# no\n",
-		"web/app.ts":         "export {}\n",
+		"web/app.rb":         "puts 1\n",
 	})
 
 	got, err := sourceset.List(root)
@@ -61,7 +61,7 @@ func TestListTakesGoAndPythonFilesAndNothingElse(t *testing.T) {
 }
 
 func TestExtensionsIsACopy(t *testing.T) {
-	want := []string{".c++", ".cc", ".cpp", ".cs", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".php", ".py", ".tpp", ".tres", ".tscn", ".uid"}
+	want := []string{".c++", ".cc", ".cjs", ".cpp", ".cs", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid"}
 	first := sourceset.Extensions()
 	if !reflect.DeepEqual(first, want) {
 		t.Fatalf("Extensions() = %v, want %v", first, want)
@@ -138,6 +138,27 @@ func TestListTakesPHPFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []string{"src/App.php"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// JavaScript and TypeScript sources are listed, declaration files among
+// them; npm's node_modules/, a build's dist/ and other extensions are not.
+func TestListTakesJavaScriptAndTypeScriptFiles(t *testing.T) {
+	root := tree(t, map[string]string{
+		"src/a.js": "x\n", "src/b.mjs": "x\n", "src/c.cjs": "x\n", "src/D.jsx": "x\n",
+		"src/e.ts": "x\n", "src/f.mts": "x\n", "src/g.cts": "x\n", "src/H.tsx": "x\n", "src/i.d.ts": "x\n",
+		"node_modules/p/index.js": "x\n", "dist/app.js": "x\n", "src/a.js.map": "x", "src/App.vue": "x", "A.JS": "x",
+		// A minified bundle is generated; min.js itself is a name like any.
+		"static/d3.min.js": "x\n", "static/x.min.mjs": "x\n", "static/y.min.cjs": "x\n", "src/min.js": "x\n",
+	})
+
+	got, err := sourceset.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"src/D.jsx", "src/H.tsx", "src/a.js", "src/b.mjs", "src/c.cjs", "src/e.ts", "src/f.mts", "src/g.cts", "src/i.d.ts", "src/min.js"}
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }

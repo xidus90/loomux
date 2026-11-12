@@ -17,8 +17,8 @@ func TestLanguagesPutGoFirst(t *testing.T) {
 	for _, l := range all.Languages() {
 		names = append(names, l.Name())
 	}
-	if !reflect.DeepEqual(names, []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php"}) {
-		t.Fatalf("Languages() = %v, want [go python gdscript csharp cpp java php]", names)
+	if !reflect.DeepEqual(names, []string{"go", "python", "gdscript", "csharp", "cpp", "java", "php", "javascript", "typescript"}) {
+		t.Fatalf("Languages() = %v, want [go python gdscript csharp cpp java php javascript typescript]", names)
 	}
 }
 
@@ -33,9 +33,10 @@ func TestVersionIsSortedJoin(t *testing.T) {
 	}
 	// The stamp every graph of this binary carries: Go's own version, then
 	// Python's with the tree-sitter runtime it parses on (cpp, csharp and
-	// gdscript sort before go, java and php between go and python). A graph built by
+	// gdscript sort before go, java, javascript and php between go and python,
+	// typescript last). A graph built by
 	// a binary that knew Go alone reads as foreign and is rebuilt.
-	if got, want := all.Version(), "cpp/1@"+treesitter.Parser+"+csharp/1@"+treesitter.Parser+"+gdscript/7@"+treesitter.Parser+"+"+golang.Version+"+java/1@"+treesitter.Parser+"+php/1@"+treesitter.Parser+"+python/2@"+treesitter.Parser; got != want {
+	if got, want := all.Version(), "cpp/1@"+treesitter.Parser+"+csharp/1@"+treesitter.Parser+"+gdscript/7@"+treesitter.Parser+"+"+golang.Version+"+java/1@"+treesitter.Parser+"+javascript/1@"+treesitter.Parser+"+php/1@"+treesitter.Parser+"+python/2@"+treesitter.Parser+"+typescript/1@"+treesitter.Parser; got != want {
 		t.Fatalf("Version() = %q, want %q", got, want)
 	}
 }
@@ -49,6 +50,8 @@ func TestForPicksByExtension(t *testing.T) {
 		"a.hxx": "cpp", "a.h++": "cpp", "include/a.h": "cpp", "a.inl": "cpp", "a.ipp": "cpp", "a.tpp": "cpp",
 		"src/main/java/a/App.java": "java", "Main.java": "java",
 		"src/Http/Kernel.php": "php", "index.php": "php",
+		"src/a.js": "javascript", "a.mjs": "javascript", "a.cjs": "javascript", "ui/A.jsx": "javascript",
+		"src/a.ts": "typescript", "a.mts": "typescript", "a.cts": "typescript", "ui/A.tsx": "typescript", "types/a.d.ts": "typescript",
 	} {
 		l, ok := all.For(rel)
 		if !ok || l.Name() != name {
@@ -57,7 +60,7 @@ func TestForPicksByExtension(t *testing.T) {
 	}
 	// The extension is matched exactly: the Go toolchain ignores A/B.GO, and
 	// so does the graph. A .pyi stub repeats the module it describes.
-	for _, rel := range []string{"Makefile", "a/b.go.txt", "A/B.GO", "A/B.PY", "a/b.pyi", "g/A.GD", "g/x.import", "c/Game.CS", "c/Game.csproj", "c/Game.sln", "src/a.c", "src/a.CPP", "a.cpp.txt", "A.JAVA", "a/B.class", "lib.jar", "A.PHP", "a.phtml", "a.php.txt"} {
+	for _, rel := range []string{"Makefile", "a/b.go.txt", "A/B.GO", "A/B.PY", "a/b.pyi", "g/A.GD", "g/x.import", "c/Game.CS", "c/Game.csproj", "c/Game.sln", "src/a.c", "src/a.CPP", "a.cpp.txt", "A.JAVA", "a/B.class", "lib.jar", "A.PHP", "a.phtml", "a.php.txt", "A.JS", "a.TS", "a.vue", "a.svelte", "a.js.map"} {
 		if l, ok := all.For(rel); ok {
 			t.Errorf("For(%q) = %s, want no extractor", rel, l.Name())
 		}
@@ -69,7 +72,7 @@ func TestForPicksByExtension(t *testing.T) {
 // keeps the two from drifting: a file the walk lists that no extractor
 // claims would be dropped from the graph without a word.
 func TestExtensionsMatchSourceset(t *testing.T) {
-	want := []string{".c++", ".cc", ".cpp", ".cs", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".php", ".py", ".tpp", ".tres", ".tscn", ".uid"}
+	want := []string{".c++", ".cc", ".cjs", ".cpp", ".cs", ".cts", ".cxx", ".gd", ".go", ".godot", ".h", ".h++", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".java", ".js", ".jsx", ".mjs", ".mts", ".php", ".py", ".tpp", ".tres", ".ts", ".tscn", ".tsx", ".uid"}
 	if got := all.Extensions(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("all.Extensions() = %v, want %v", got, want)
 	}

@@ -249,7 +249,9 @@ func evidence(seeds []evidenceSeed) ([]Evidence, int) {
 // *Test.java, *Tests.java, *TestCase.java, *IT.java and Test*.java (what
 // Surefire and Failsafe run), case as written. PHP: *Test.php (what PHPUnit
 // runs), case as written, and every file under a directory tests/ or test/,
-// in any case.
+// in any case. JavaScript and TypeScript: *.test.* and *.spec.* (what Jest
+// and Vitest run), and every file under a directory __tests__/, test/ or
+// tests/, case as written.
 func IsTestPath(p string) bool {
 	switch path.Ext(p) {
 	case ".go":
@@ -279,6 +281,10 @@ func IsTestPath(p string) bool {
 		return strings.HasSuffix(p, "Test.php") || slices.ContainsFunc(dirs, func(s string) bool {
 			return strings.EqualFold(s, "test") || strings.EqualFold(s, "tests")
 		})
+	case ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx":
+		base := path.Base(p)
+		return strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") ||
+			underDir(p, "__tests__") || underDir(p, "test") || underDir(p, "tests")
 	case ".tscn", ".tres":
 		// A scene or resource under the test folders is a fixture of the suites.
 		return underDir(p, "test") || underDir(p, "tests")

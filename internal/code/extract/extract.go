@@ -140,6 +140,11 @@ type Language interface {
 // file binds a name out of a module rather than the module itself. Go has no
 // such form and leaves it empty.
 //
+// JavaScript and TypeScript make one Import per binding: Name is the name
+// in the target file -- "default", "*" for the whole module, or the name
+// itself -- and Alias the local name when the source writes one, so
+// `import d from` has Alias "d" and `import { a } from` none.
+//
 // Alias "static" marks C#'s `using static` and Java's `import static`, and
 // "module" Java's `import module`: neither keyword can be an alias.
 type Import struct {
@@ -157,6 +162,14 @@ type Import struct {
 	// `use const`, "require" for require and include, whose Path is the
 	// file relative to the importing one. PHP keeps a real alias in Alias,
 	// so the mark cannot go there.
+	// In JavaScript and TypeScript, "" is a static import, "require" a
+	// require("x") or `import x = require("x")`, "dynamic" an import("x")
+	// with no binding, "reexport" an `export … from "x"` or a
+	// `module.exports = require("x")` (Name "*" and "default"), and "export" an
+	// export list without a path -- `export { a as b }`, `export default
+	// a` and `module.exports = { a }` -- whose Name is the local name and
+	// Alias the exported one. A declaration `export` names directly that a
+	// list renames too gets one more, without Alias, for its own name.
 	Kind string `json:"kind,omitempty"`
 }
 
@@ -199,6 +212,9 @@ type RawEdge struct {
 	// signal. In a Godot scene, "class" marks a node's type, named by Name,
 	// and "method" or "signal" an end of a connection: on a script, named by
 	// Specifier, or on a node that runs none, its type named by Receiver.
+	// In JavaScript, "html.id" marks getElementById("x") and
+	// querySelector("#x"), and "css.id" the latter once more: Name is the
+	// id, and the resolver hands it over with the pages as its scope.
 	// Empty everywhere else.
 	Member model.Kind `json:"member,omitempty"`
 	// Via is the call whose first result receives this call: `New(g).Reach()`
@@ -262,11 +278,18 @@ const (
 	NamespaceGodotClass  Namespace = "godot.class"  // a class Godot's ClassDB knows by name
 	NamespaceGodotMethod Namespace = "godot.method" // a method a scene's connection may call
 	NamespaceGodotSignal Namespace = "godot.signal" // a signal a scene's connection may listen to
+	NamespaceHTMLID      Namespace = "html.id"      // an element of an HTML page by its id
+	NamespaceCSSClass    Namespace = "css.class"    // a class a style rule's selector names
+	NamespaceCSSID       Namespace = "css.id"       // an id a style rule's selector names
+	NamespaceJSFunction  Namespace = "js.function"  // a top-level function of a classic script
 )
 
 // Namespaces is every namespace an extractor or resolver of the build may
 // use.
-var Namespaces = []Namespace{NamespaceGodotClass, NamespaceGodotMethod, NamespaceGodotSignal}
+var Namespaces = []Namespace{
+	NamespaceGodotClass, NamespaceGodotMethod, NamespaceGodotSignal,
+	NamespaceHTMLID, NamespaceCSSClass, NamespaceCSSID, NamespaceJSFunction,
+}
 
 // Export is a definition a file offers across a language boundary, under
 // the name the offering side gives it: a C# signal delegate HitEventHandler

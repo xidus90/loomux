@@ -291,6 +291,11 @@ func TestBuiltinRulesCoverEveryNamespace(t *testing.T) {
 		extract.NamespaceGodotClass:  {card: cardOne, realm: realmGodot, unscoped: fallRealmExtracted, scopedMiss: fallNone},
 		extract.NamespaceGodotMethod: {card: cardOne, realm: realmGodot, unscoped: fallNone, scopedMiss: fallNone},
 		extract.NamespaceGodotSignal: {card: cardOne, realm: realmGodot, unscoped: fallNone, scopedMiss: fallNone},
+		// The table of docs/.superpowers/specs/2026-11-11-web-design.md.
+		extract.NamespaceCSSClass:   {card: cardAll, realm: realmRepo, unscoped: fallNone, scopedMiss: fallNone},
+		extract.NamespaceCSSID:      {card: cardAll, realm: realmRepo, unscoped: fallNone, scopedMiss: fallNone},
+		extract.NamespaceHTMLID:     {card: cardOne, realm: realmRepo, unscoped: fallRealmInferred, scopedMiss: fallNone},
+		extract.NamespaceJSFunction: {card: cardOne, realm: realmRepo, unscoped: fallRealmInferred, scopedMiss: fallNone},
 	}
 	if !reflect.DeepEqual(builtinRules, want) {
 		t.Errorf("builtinRules = %v, want %v", builtinRules, want)
