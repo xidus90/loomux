@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/).
 Entries marked `-beta` belong to the pre-release count before 1.0.0; their
 tags were deleted when 1.0.0 was released, the pull requests they link stay.
 
+## [1.24.2] - 2026-11-12
+
+<https://github.com/xidus90/loomux/pull/157>
+
+### Fixed
+- MCP graph and brain tools and `loomux brain` accept a scope's short name, such as `loomux` for `project/loomux`, when it names exactly one visible scope.
+
 ## [1.24.1] - 2026-11-12
 
 <https://github.com/xidus90/loomux/pull/155>
