@@ -186,6 +186,19 @@ func confGraph(edges ...[4]string) *model.Graph {
 	return g
 }
 
+// TestInDegreeCountsInferredEdges pins that an inferred edge counts like an
+// extracted one: the css.class and css.id rule columns of builtinRules rest on it.
+func TestInDegreeCountsInferredEdges(t *testing.T) {
+	x := blast.New(confGraph(
+		[4]string{"A", "X", "references", "extracted"},
+		[4]string{"B", "X", "references", "inferred"},
+	))
+
+	if got := x.InDegree("X"); got != 2 {
+		t.Errorf("InDegree(X) = %d, want 2", got)
+	}
+}
+
 func mustHit(t *testing.T, hits []blast.Hit, id model.NodeID) blast.Hit {
 	t.Helper()
 	h, ok := hitOf(hits, id)

@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -312,6 +313,37 @@ func TestBuiltinRulesCoverEveryNamespace(t *testing.T) {
 	}
 	if !reflect.DeepEqual(builtinRules, want) {
 		t.Errorf("builtinRules = %v, want %v", builtinRules, want)
+	}
+}
+
+// manyOffers is n css.class offers c0..c(n-1), each in its own file.
+func manyOffers(n int) []offer {
+	offers := make([]offer, n)
+	for i := range offers {
+		name := fmt.Sprintf("c%d", i)
+		offers[i] = off(nsOne, name, "s"+name+".css#"+name, "s"+name+".css", "css")
+	}
+	return offers
+}
+
+func TestBridgeEdgesLooksUpOffersByName(t *testing.T) {
+	got := run(nil, manyOffers(1000), []handover{hand(nsOne, "c500", "a.html", "sc500.css")})
+
+	want := []model.Edge{edge("a.html#src", "sc500.css#c500", model.ConfidenceExtracted, 7)}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func BenchmarkBridgeEdges(b *testing.B) {
+	offers := manyOffers(2000)
+	hs := make([]handover, 2000)
+	for i := range hs {
+		hs[i] = hand(nsOne, fmt.Sprintf("c%d", i), fmt.Sprintf("p%d.html", i))
+	}
+	b.ResetTimer()
+	for b.Loop() {
+		run(nil, offers, hs)
 	}
 }
 
