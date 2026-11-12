@@ -68,8 +68,8 @@ type offer struct {
 }
 
 // handover is a bridge waiting for the bridge step. lang is the language
-// whose resolver handed it over and already searched its own index, so its
-// own exports cannot answer; empty for a bridge an extractor wrote.
+// whose resolver handed it over and already searched its family's index, so
+// no export of that family can answer; empty for a bridge an extractor wrote.
 // unresolved indexes the Unresolved entry the bridge may settle, or is -1.
 type handover struct {
 	bridge     extract.Bridge
@@ -166,7 +166,7 @@ func bridgeEdges(rules map[extract.Namespace]nsRule, paths []string, offers []of
 		}
 		var cands []offer
 		for _, o := range offers {
-			if o.Namespace != b.Namespace || o.Name != b.Name || (h.lang != "" && o.lang == h.lang) {
+			if o.Namespace != b.Namespace || o.Name != b.Name || (h.lang != "" && familyOf(o.lang) == familyOf(h.lang)) {
 				continue
 			}
 			// An offer under no project is seen from every one: GDExtension

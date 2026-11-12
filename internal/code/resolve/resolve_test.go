@@ -697,3 +697,23 @@ func TestGraphSortsNodesAndEdges(t *testing.T) {
 		t.Fatalf("nodes unsorted: %+v", g.Nodes)
 	}
 }
+
+// JavaScript and TypeScript resolve as one family, and the meta still names
+// each language.
+func TestGraphListsEachLanguageOfAFamily(t *testing.T) {
+	files := []extract.Result{
+		{
+			Path: "b.ts", Language: "typescript",
+			Nodes: []model.Node{fileNode("b.ts"), fn("b.ts", "f", true)},
+			Edges: []extract.RawEdge{{Source: "b.ts", Relation: model.RelationContains, TargetID: "b.ts#f", File: "b.ts"}},
+		},
+		{Path: "a.js", Language: "javascript", Nodes: []model.Node{fileNode("a.js")}},
+	}
+	g := resolve.Graph(files, nil, stamp)
+	if !reflect.DeepEqual(g.Meta.Languages, []string{"javascript", "typescript"}) {
+		t.Errorf("Meta.Languages = %v, want [javascript typescript]", g.Meta.Languages)
+	}
+	if edgeBetween(g, "b.ts", "b.ts#f", model.RelationContains) == nil || len(g.Nodes) != 3 {
+		t.Errorf("the family must keep its nodes and containment; got %+v", g)
+	}
+}

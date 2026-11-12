@@ -261,7 +261,7 @@ func TestFilesReadOnlyWhatTheRulesParse(t *testing.T) {
 	root := repo(t)
 	wantContent := map[string]bool{
 		"a.go": true, "b.py": true, "c.gd": true, "d.tscn": true, "e.tres": true, "project.godot": true,
-		"go.mod": true, "sub/plugin.cfg": true, "README.md": false, "x.png": false, "settings.toml": false,
+		"go.mod": true, "sub/plugin.cfg": true, "a/tsconfig.json": true, "jsconfig.json": true, "README.md": false, "x.png": false, "settings.toml": false,
 	}
 	for rel := range wantContent {
 		write(t, root, rel, "body")
