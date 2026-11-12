@@ -67,6 +67,13 @@ var composer = func(dir string, args ...string) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
+// npm runs npm in dir and answers what it printed; a test stands in for it.
+var npm = func(dir string, args ...string) ([]byte, error) {
+	cmd := exec.Command("npm", args...)
+	cmd.Dir = dir
+	return cmd.CombinedOutput()
+}
+
 var featuresRe = regexp.MustCompile(`(config/features=PackedStringArray\(")\d+\.\d+`)
 
 // Run runs the entry key for real: every kind but graph must end ok, the
@@ -138,6 +145,9 @@ func runCopy(e Entry, o RunOptions, dir string, kinds []string, b *Break) ([]str
 	if err := installComposer(dir, e); err != nil {
 		lines = append(lines, "composer: "+err.Error())
 	}
+	if err := installNPM(dir, e); err != nil {
+		lines = append(lines, "npm: "+err.Error())
+	}
 	results, err := o.Check(dir, kinds)
 	if err != nil {
 		return nil, err
@@ -208,6 +218,24 @@ func installComposer(dir string, e Entry) error {
 		return nil
 	}
 	out, err := composer(dir, "install", "--no-interaction", "--prefer-dist")
+	if err != nil {
+		return fmt.Errorf("%w\n%s", err, tail(string(out)))
+	}
+	return nil
+}
+
+// installNPM fills node_modules/ of a Node fixture from its
+// package-lock.json: the lanes run their tools from node_modules/.bin and
+// are unavailable without it. A fixture without a lock has nothing to
+// install.
+func installNPM(dir string, e Entry) error {
+	if e.Runtime != "node" {
+		return nil
+	}
+	if _, err := os.Stat(filepath.Join(dir, "package-lock.json")); err != nil {
+		return nil
+	}
+	out, err := npm(dir, "ci", "--no-audit", "--no-fund")
 	if err != nil {
 		return fmt.Errorf("%w\n%s", err, tail(string(out)))
 	}

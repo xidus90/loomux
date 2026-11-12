@@ -4,10 +4,10 @@
 # Godot lands in <root>/godot (and GODOT_BIN is exported to later steps), each
 # addon's own folder in <root>/addons/<Name>, Python and C++'s clang-tidy,
 # clang-format and gcovr through uv, Maven for Java in <root>/apache-maven-*
-# (its bin goes onto the PATH of later steps). Go, .NET, the JDK and PHP with
-# Composer are set up by the workflow, which rebuilds loomux with the Go when
-# rebuild=true: a Go above the toolchain of go.mod is one loomux was never
-# built with. The description is the JSON of `dev compat run --describe`; it
+# (its bin goes onto the PATH of later steps). Go, .NET, the JDK, PHP with
+# Composer and Node are set up by the workflow, which rebuilds loomux with
+# the Go when rebuild=true: a Go above the toolchain of go.mod is one loomux
+# was never built with. The description is the JSON of `dev compat run --describe`; it
 # is flat and written by loomux, so sed reads it without a JSON tool.
 set -eu
 bin=${1:?usage: ci/compat-setup.sh <loomux binary> <entry key> <root>}
@@ -150,7 +150,7 @@ godot)
 	done
 	;;
 python) uv python install "$install" ;;
-go | dotnet | php) ;;
+go | dotnet | php | node) ;;
 cpp)
 	# CMake and GCC are the runner's. The wheels bring clang-tidy pinned and
 	# without root, its run-clang-tidy as run-clang-tidy.py: the preset calls

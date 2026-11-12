@@ -326,6 +326,30 @@ func TestThePHP85GapsLeaveTheRestOfTheFile(t *testing.T) {
 	}
 }
 
+// The grammars read the syntax of Node 22 to 26 in full, the TypeScript of
+// js-syntax-26 too. A grammar that loses one of the forms fails here, and the
+// support page is to follow.
+func TestTheJSSyntaxFixturesParseInFull(t *testing.T) {
+	for _, fixture := range []string{"js-syntax-22", "js-syntax-24", "js-syntax-26"} {
+		root := t.TempDir()
+		if err := CopyFixture(fixture, root); err != nil {
+			t.Fatal(err)
+		}
+		_, stats, err := query.Build(root, func(string) {})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for lang, s := range stats.PerLanguage {
+			if s.ParseErrors > 0 {
+				t.Errorf("%s: %s %+v", fixture, lang, s)
+			}
+		}
+		if s := stats.PerLanguage["javascript"]; s.Files != 1 {
+			t.Errorf("%s: javascript %+v", fixture, s)
+		}
+	}
+}
+
 func TestCopyFixtureRenamesTheModuleFile(t *testing.T) {
 	root := t.TempDir()
 	if err := CopyFixture("go-module", root); err != nil {

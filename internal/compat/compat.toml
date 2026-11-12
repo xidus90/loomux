@@ -431,6 +431,64 @@ version = "8.5"
 fixture = "php-syntax-8.5"
 kinds = ["graph"]
 
+# A Node version is a release line of nodejs.org. Each fixture pins its tools
+# in its package-lock.json, which a run installs, so the entries name no
+# tools. ts-vitest-eslint runs ESLint 10.14.0 with typescript-eslint 8.72.2
+# on TypeScript 6.0.3; typescript-eslint takes no TypeScript 7, so
+# ts7-vitest runs TypeScript 7.0.2 without ESLint, on the newest line alone.
+# Both run Vitest 5.1.0 and @vitest/coverage-v8 5.1.0 on Vite 8.3.8.
+
+[[entry]]
+stack = "typescript"
+runtime = "node"
+version = "22"
+fixture = "ts-vitest-eslint"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "typescript"
+runtime = "node"
+version = "24"
+fixture = "ts-vitest-eslint"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "typescript"
+runtime = "node"
+version = "26"
+fixture = "ts-vitest-eslint"
+kinds = ["lint", "types", "test", "coverage", "graph"]
+
+[[entry]]
+stack = "typescript"
+runtime = "node"
+version = "26"
+fixture = "ts7-vitest"
+kinds = ["types", "test", "coverage", "graph"]
+
+# A syntax entry per Node line.
+
+[[entry]]
+stack = "typescript"
+runtime = "node"
+version = "22"
+fixture = "js-syntax-22"
+kinds = ["graph"]
+
+[[entry]]
+stack = "typescript"
+runtime = "node"
+version = "24"
+fixture = "js-syntax-24"
+kinds = ["graph"]
+
+[[entry]]
+stack = "typescript"
+runtime = "node"
+version = "26"
+fixture = "js-syntax-26"
+kinds = ["graph"]
+
 # Files that are neither an entry nor a fixture but decide what an entry
 # proves. A change to one of paths (not to an except) runs the entries the
 # rule selects: all, those of some stacks, or those with some addons.

@@ -313,12 +313,13 @@ func TestParsePre(t *testing.T) {
 		"4.8-beta2": {4, 8}, "4.8-rc1": {4, 8}, "4.8-dev3": {4, 8},
 		"11.0.0-preview.7": {11, 0}, "11.0.0-rc.2": {11, 0},
 		"26-draft": {26}, "28-ea": {28}, "8.6.0RC5": {8, 6},
+		"27.0.0-alpha.0.0.0": {27}, "27.0.0-alpha.1": {27}, "26.4.0-rc.0": {26, 4},
 	} {
 		if got, ok := parsePre(s); !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("%s = %v %v", s, got, ok)
 		}
 	}
-	for _, s := range []string{"1.28", "1.28.1", "", "x1.2rc1", "1rc1", "1.28rc", "4.8-gamma1", "3.16.0a", "26", "26-draft1", "1.28-draft", "28-ea1", "1.28-ea"} {
+	for _, s := range []string{"1.28", "1.28.1", "", "x1.2rc1", "1rc1", "1.28rc", "4.8-gamma1", "3.16.0a", "26", "26-draft1", "1.28-draft", "28-ea1", "1.28-ea", "27.0.0-alpha", "27-alpha.0"} {
 		if _, ok := parsePre(s); ok {
 			t.Errorf("%q read as a pre-release", s)
 		}
@@ -793,6 +794,76 @@ func TestScoutAnUnmarkedLaggingLineStillReports(t *testing.T) {
 	}
 }
 
+// testdata/node-releases.json is trimmed from nodejs.org's dist index of
+// 2026-11-12: 27 at its first alpha, 26.13.1 the newest release.
+func nodeReleases(t *testing.T) []Release {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("testdata", "node-releases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rels, err := parseReleases(nodeSource, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rels
+}
+
+func TestParseReleasesReadsNode(t *testing.T) {
+	want := []Release{{"27.0.0-alpha.0.0.0", true}, {"26.13.1", false}, {"26.13.0", false}, {"25.9.0", false},
+		{"24.22.3", false}, {"23.11.1", false}, {"22.23.5", false}}
+	if got := nodeReleases(t); !reflect.DeepEqual(got, want) {
+		t.Errorf("releases %v", got)
+	}
+	if _, err := parseReleases(nodeSource, []byte("<html>")); err == nil {
+		t.Error("junk read")
+	}
+}
+
+func nodeEntry(version, fixture string) Entry {
+	return Entry{Stack: "typescript", Runtime: "node", Version: version, Fixture: fixture, Kinds: []string{"test"}}
+}
+
+// The entries name a Node line by its major, so only the top line probes,
+// the next major's alpha; a candidate of a new minor of a listed line is no
+// version of the list. endoflife.date names a Node line by its major.
+func TestScoutProbesTheNextNodeLine(t *testing.T) {
+	up := calm()
+	for _, r := range nodeReleases(t) {
+		up[nodeSource] = append(up[nodeSource], r.Version)
+	}
+	up["eol:node"] = []string{"22", "24", "26"}
+	entries := []Entry{nodeEntry("22", "ts-vitest-eslint"), nodeEntry("24", "ts-vitest-eslint"), nodeEntry("26", "ts-vitest-eslint")}
+	got := scout(t, up, entries...)
+	if len(got) != 1 {
+		t.Fatalf("findings %+v", got)
+	}
+	f := got[0]
+	if f.Kind != "pre" || f.Line != "ts-vitest-eslint/node" || f.Version != "27.0.0-alpha.0.0.0" ||
+		f.Probe.Version != "27" || f.Probe.Pre != "27.0.0-alpha.0.0.0" || f.Probe.Key() != "typescript/node-27.0.0-alpha.0.0.0/ts-vitest-eslint" {
+		t.Fatalf("finding %+v, probe %+v", f, f.Probe)
+	}
+	if err := check(*f.Probe, references(), true); err != nil {
+		t.Errorf("the probe does not load: %v", err)
+	}
+	// A later alpha wins by its number, wherever the index lists it.
+	up[nodeSource] = append(up[nodeSource], "26.4.0-rc.0", "27.0.0-alpha.1.0.0")
+	if got := scout(t, up, entries...); len(got) != 1 || got[0].Version != "27.0.0-alpha.1.0.0" {
+		t.Fatalf("findings %+v", got)
+	}
+	// Without the next major's alpha, the minor's candidate gives nothing.
+	up[nodeSource] = []string{"26.13.1", "26.4.0-rc.0", "24.22.3", "22.23.5"}
+	if got := scout(t, up, entries...); len(got) != 0 {
+		t.Fatalf("findings %+v", got)
+	}
+	up[nodeSource] = append(up[nodeSource], "27.0.0")
+	up["eol:node"][0] = "22!"
+	got = scout(t, up, entries...)
+	if len(got) != 2 || got[0].Kind != "new" || got[0].Version != "27" || got[1].Kind != "eol" || got[1].Version != "22" {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
 func cppEntry(version, fixture string, kinds ...string) Entry {
 	return Entry{Stack: "cpp", Runtime: "cpp", Version: version, Fixture: fixture, Kinds: kinds}
 }
@@ -990,6 +1061,9 @@ func TestHTTPUpstreamEOL(t *testing.T) {
 	// Java runs on Temurin, whose support endoflife.date tracks.
 	if _, err := h.EOL("java"); err != nil || rt.seen.URL.String() != "https://endoflife.date/api/v1/products/eclipse-temurin" {
 		t.Errorf("java asked %s: %v", rt.seen.URL, err)
+	}
+	if _, err := h.EOL("node"); err != nil || rt.seen.URL.String() != "https://endoflife.date/api/v1/products/nodejs" {
+		t.Errorf("node asked %s: %v", rt.seen.URL, err)
 	}
 	rt.status = 404
 	if _, err := h.EOL("nope"); err == nil || !strings.Contains(err.Error(), "404") {

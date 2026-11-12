@@ -1,0 +1,14 @@
+stacks = ["typescript"]
+# Node 26 brought no JavaScript syntax of its own, so syntax.mjs carries the
+# forms of 24, a deliberate exception to "the syntax its version
+# introduced". syntax.ts holds TypeScript Node runs by stripping its types:
+# an interface, a type alias, a const type parameter, satisfies and using.
+edges = [
+  ["syntax.mjs#check", "calls", "syntax.mjs#open"],
+  ["syntax.ts#Box", "implements", "syntax.ts#Sized"],
+  ["syntax.ts#measure", "calls", "syntax.ts#Box"],
+  ["syntax.ts#measure", "calls", "syntax.ts#pair"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

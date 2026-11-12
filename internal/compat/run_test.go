@@ -486,6 +486,64 @@ func TestComposerRunsTheTool(t *testing.T) {
 	}
 }
 
+// fakeNPM stands in for npm like fakeComposer for Composer.
+func fakeNPM(t *testing.T, fail string) *[]string {
+	t.Helper()
+	var calls []string
+	old := npm
+	t.Cleanup(func() { npm = old })
+	npm = func(dir string, args ...string) ([]byte, error) {
+		calls = append(calls, filepath.Base(dir)+": "+strings.Join(args, " "))
+		if fail != "" {
+			return []byte(fail), errors.New("exit status 1")
+		}
+		return nil, nil
+	}
+	return &calls
+}
+
+// The Node tools run from node_modules/, which the fixture's lock fills in
+// each work copy; a syntax fixture has neither lock nor lanes.
+func TestANodeEntryInstallsItsLock(t *testing.T) {
+	calls := fakeNPM(t, "")
+	rep, _ := runEntryKey(t, "typescript/node-26/ts7-vitest", fakeCheck(honest))
+	if !rep.Green {
+		t.Fatalf("report %+v", rep)
+	}
+	want := []string{"entry", "break-1-types", "break-2-test", "break-3-coverage"}
+	for i := range want {
+		want[i] += ": ci --no-audit --no-fund"
+	}
+	if !slices.Equal(*calls, want) {
+		t.Errorf("npm calls %q, want %q", *calls, want)
+	}
+	*calls = nil
+	if rep, _ := runEntryKey(t, "typescript/node-26/js-syntax-26", fakeCheck(honest)); !rep.Green || len(*calls) != 0 {
+		t.Errorf("report %+v, npm calls %q", rep, *calls)
+	}
+	// A Node fixture with lanes but no lock installs nothing.
+	e := Entry{Stack: "typescript", Runtime: "node", Version: "26", Fixture: "ts7-vitest", Kinds: []string{"test"}}
+	dir := t.TempDir()
+	if err := installNPM(dir, e); err != nil || len(*calls) != 0 {
+		t.Errorf("%v, npm calls %q", err, *calls)
+	}
+}
+
+func TestAFailedNPMInstallIsRed(t *testing.T) {
+	fakeNPM(t, "npm error code EUSAGE")
+	rep, _ := runEntryKey(t, "typescript/node-22/ts-vitest-eslint", fakeCheck(honest))
+	if rep.Green || len(rep.Lines) != 5 || rep.Lines[0] != "npm: exit status 1\nnpm error code EUSAGE" {
+		t.Fatalf("report %+v", rep)
+	}
+}
+
+func TestNPMRunsTheTool(t *testing.T) {
+	t.Setenv("PATH", "")
+	if _, err := npm(t.TempDir(), "--version"); err == nil {
+		t.Error("npm ran without a PATH")
+	}
+}
+
 // One Maven fixture serves several versions: a run compiles it at the
 // entry's, through source and target on Java 8, whose javac takes no
 // --release. The Gradle fixture's toolchain follows the same way, and its

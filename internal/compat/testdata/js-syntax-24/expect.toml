@@ -1,0 +1,9 @@
+stacks = ["typescript"]
+# Besides the forms of 22: regular expression modifiers, duplicate named
+# groups and a using declaration.
+edges = [
+  ["syntax.mjs#check", "calls", "syntax.mjs#open"],
+]
+
+[lanes]
+graph = "{loomux} check graph-fresh"

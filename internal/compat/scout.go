@@ -59,25 +59,28 @@ func IssueTitle(f Finding) string {
 // "1.28beta1", Python "3.16.0a1", Godot "4.8-beta2", .NET "11.0.0-preview.7"
 // and "11.0.0-rc.2", a C++ standard ISO has yet to publish "26-draft" (see
 // cppReleases), a Java feature release with early-access builds only
-// "28-ea", as actions/setup-java takes it, and PHP "8.6.0RC5". Compiled on
-// first use: package start has an allocation budget (cmd/loomux
+// "28-ea", as actions/setup-java takes it, PHP "8.6.0RC5", and the alpha of
+// a Node line "27.0.0-alpha.0.0.0", which leads to the line, the major alone.
+// The Node form comes first: the general one would read it as 27.0.
+// Compiled on first use: package start has an allocation budget (cmd/loomux
 // start_test.go).
 var preRe = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`^(\d+)(?:\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc|RC)\.?(\d+)|-draft|-ea)$`)
+	return regexp.MustCompile(`^(\d+)(?:\.0\.0-(alpha)\.(\d+)(?:\.\d+)*|\.(\d+)(?:\.\d+)?-?(dev|a|alpha|b|beta|preview|rc|RC)\.?(\d+)|-draft|-ea)$`)
 })
 
 // parsePre reads the version a pre-release leads to, major.minor or, for a
-// draft or an early access, the major alone; anything else does not parse.
+// draft, an early access or a Node alpha, the major alone; anything else
+// does not parse.
 func parsePre(s string) ([]int, bool) {
 	m := preRe().FindStringSubmatch(s)
 	if m == nil {
 		return nil, false
 	}
 	major, _ := strconv.Atoi(m[1]) // digits only, see parseVer
-	if m[2] == "" {
+	if m[4] == "" {
 		return []int{major}, true
 	}
-	minor, _ := strconv.Atoi(m[2])
+	minor, _ := strconv.Atoi(m[4])
 	return []int{major, minor}, true
 }
 
@@ -94,8 +97,8 @@ func versionString(v []int) string {
 // beta (or preview) before rc, then by number. s must parse with parsePre.
 func preOrder(s string) []int {
 	m := preRe().FindStringSubmatch(s)
-	stage := map[string]int{"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "preview": 2, "rc": 3, "RC": 3}[m[3]]
-	n, _ := strconv.Atoi(m[4])
+	stage := map[string]int{"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "preview": 2, "rc": 3, "RC": 3}[cmp.Or(m[2], m[5])]
+	n, _ := strconv.Atoi(cmp.Or(m[3], m[6]))
 	return []int{stage, n}
 }
 
@@ -116,8 +119,10 @@ const (
 	// candidates apart; HTTPUpstream reads both for phpSource.
 	phpSource           = "https://www.php.net/releases/index.php?json&version=8"
 	phpCandidatesSource = "https://www.php.net/release-candidates.php?format=json"
-	// eolSource covers go, python, godot, dotnet and php under those names, java
-	// under eolProducts; python.org and Godot publish no machine-readable
+	// Every Node release, newest first, with the alpha of the next line.
+	nodeSource = "https://nodejs.org/dist/index.json"
+	// eolSource covers go, python, godot, dotnet and php under those names,
+	// java and node under eolProducts; python.org and Godot publish no machine-readable
 	// end of support of their own.
 	eolSource  = "https://endoflife.date/api/v1/products/%s"
 	pypiSource = "https://pypi.org/pypi/%s/json"
@@ -133,11 +138,11 @@ const cppSource = "iso:cpp"
 // entries go into the list by hand.
 var cppReleases = []Release{{"17", false}, {"20", false}, {"23", false}, {"26-draft", true}}
 
-var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource, "java": adoptiumSource, "php": phpSource}
+var runtimeSources = map[string]string{"godot": godotSource, "python": pythonSource, "go": goSource, "dotnet": dotnetSource, "cpp": cppSource, "java": adoptiumSource, "php": phpSource, "node": nodeSource}
 
 // eolProducts are the endoflife.date products of runtimes it names
 // otherwise: the list's Java is Eclipse Temurin.
-var eolProducts = map[string]string{"java": "eclipse-temurin"}
+var eolProducts = map[string]string{"java": "eclipse-temurin", "node": "nodejs"}
 
 var addonRepos = map[string]string{
 	"GUT":          "bitwes/Gut",
@@ -385,7 +390,7 @@ func scoutPre(g *group, rels []Release, topMajor int) (Finding, bool) {
 			continue
 		}
 		newMajor := v[0] > g.major && g.major == topMajor
-		newMinor := v[0] == g.major && part(v, 1) > part(g.max, 1)
+		newMinor := g.parts == 2 && v[0] == g.major && part(v, 1) > part(g.max, 1)
 		if !newMajor && !newMinor {
 			continue
 		}
@@ -648,6 +653,18 @@ func parseReleases(source string, body []byte) ([]Release, error) {
 			if r := branch.Release; r.Enabled == nil || *r.Enabled {
 				out = append(out, Release{r.Version, true})
 			}
+		}
+	case source == nodeSource:
+		var rs []struct {
+			Version string `json:"version"`
+		}
+		if err := json.Unmarshal(body, &rs); err != nil {
+			return nil, err
+		}
+		for _, r := range rs {
+			v := strings.TrimPrefix(r.Version, "v")
+			_, plain := parseVer(v)
+			out = append(out, Release{v, !plain})
 		}
 	case source == dotnetSource:
 		var doc struct {

@@ -127,6 +127,13 @@ jobs:
           coverage: xdebug
           extensions: ${{ steps.setup.outputs.install == steps.setup.outputs.version && 'xdebug-3.5.3' || '' }}
           tools: composer:2.11.2
+      # setup-node takes a line ("26") as its newest release and an exact
+      # version from nodejs.org/dist, the alpha a probe carries
+      # ("27.0.0-alpha.0.0.0") too.
+      - if: steps.setup.outputs.runtime == 'node'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.setup.outputs.install }}
       - if: steps.setup.outputs.rebuild == 'true'
         run: go build -o bin/loomux.exe ./cmd/loomux
         env:
